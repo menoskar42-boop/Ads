@@ -2323,27 +2323,92 @@ export async function registerRoutes(
   // ده الرقم الوحيد اللى بيحدّد عدد التابات — جهاز التنفيذ والسكربت بيمشوا وراه.
   // المالك ٢٠٢٦-٠٩-٢٧: عدد تابات «بدون Real» بيتحدّد من هنا **بس** — جهاز التنفيذ
   // بياخد أول رقم تاب فاضى، والسكربت بيقبل أى sf_lane، ومفيش رقم تانى فى أى مكان.
-  const NOREAL_LANES = 6;   // كان ٤ — المالك ٢٠٢٦-١٠-٠١: ٦ (السقف فى جهاز التنفيذ MAX_LANES = 8)
+  const NOREAL_LANES = 6;   // الافتراضى لو مفيش إعداد (كان ٤ — المالك ٢٠٢٦-١٠-٠١: ٦)
+  // ── «إيقاف PO» بتابات مع بعض (المالك ٢٠٢٦-١٠-٠٦) ─────────────────────────────
+  // إيقاف الـNightly PO مش real-time، فبيتسمح بأكتر من تاب منه على AXON بنفس شروط
+  // «بدون Real» بالظبط: الشغّال كله إيقاف PO، ومفيش مهمة من نوع تانى قبله فى الطابور.
+  // النوعين مابيتخلطوش مع بعض على نفس الموقع — كل نوع ياخد تاباته وهو لوحده.
+  const POSTOP_LANES = 3;   // الافتراضى لو مفيش إعداد
+  // العدد الفعلى بيتغيّر من «رفع الملفات ← إعدادات» (سوبر أدمن) ويتخزّن فى app_settings.
+  // السقف = MAX_LANES فى جهاز التنفيذ. ١ = تاب واحد زى القديم.
+  const EXEC_LANES_MAX = 8;
+  const EXEC_LANE_KEYS = { noreal: "exec_lanes_noreal", stop: "exec_lanes_stop" } as const;
+  type ExecLanes = { noreal: number; stop: number };
+  const clampLanes = (v: any, def: number) => {
+    const n = parseInt(String(v ?? ""), 10);
+    return Number.isFinite(n) ? Math.min(EXEC_LANES_MAX, Math.max(1, n)) : def;
+  };
+  const readExecLanes = async (db: { query: (t: string, v?: any[]) => Promise<any> }): Promise<ExecLanes> => {
+    const out: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES };
+    try {
+      const { rows } = await db.query(`SELECT key, value FROM app_settings WHERE key = ANY($1::text[])`,
+        [Object.values(EXEC_LANE_KEYS)]);
+      for (const r of rows) {
+        if (r.key === EXEC_LANE_KEYS.noreal) out.noreal = clampLanes(r.value, NOREAL_LANES);
+        if (r.key === EXEC_LANE_KEYS.stop) out.stop = clampLanes(r.value, POSTOP_LANES);
+      }
+    } catch {}
+    return out;
+  };
   const isNoRealJob = (a: string) =>
     `(${a}.type = 'measure' AND POSITION('${AUTO_MEASURE_NOREAL_MARK}' IN COALESCE(${a}.note, '')) > 0)`;
+  const isPoStopJob = (a: string) => `(${a}.type = 'stop')`;
+  // مجموعة التوازى: «بدون Real» أو «إيقاف PO» — وأى نوع تانى NULL (تاب واحد للموقع).
+  const parallelGroup = (a: string) =>
+    `(CASE WHEN ${isNoRealJob(a)} THEN 'noreal' WHEN ${isPoStopJob(a)} THEN 'stop' END)`;
+  const laneCap = (a: string, L: ExecLanes) =>
+    `(CASE WHEN ${isNoRealJob(a)} THEN ${clampLanes(L.noreal, 1)} WHEN ${isPoStopJob(a)} THEN ${clampLanes(L.stop, 1)} ELSE 1 END)`;
   const queueRank = (a: string) =>
     `ROW(-${a}.priority, CASE WHEN ${a}.queue_order > 0 THEN ${a}.queue_order ELSE 9223372036854775807 END, ${a}.created_at, ${a}.id)`;
-  // الموقع «فاضى» للمهمة e: مفيش حاجة شغّالة عليه، أو استثناء «بدون Real».
-  const siteFreeFor = (e: string, siteSql: string) => `(
+  // الموقع «فاضى» للمهمة e: مفيش حاجة شغّالة عليه، أو استثناء التوازى («بدون Real»/«إيقاف PO»).
+  const siteFreeFor = (e: string, siteSql: string, L: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES }) => `(
     NOT EXISTS (SELECT 1 FROM exec_jobs b
                  WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql})
-    OR (${NOREAL_LANES} > 1 AND ${isNoRealJob(e)}
+    OR (${laneCap(e, L)} > 1
         AND (SELECT COUNT(*) FROM exec_jobs b
-              WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}) < ${NOREAL_LANES}
+              WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}) < ${laneCap(e, L)}
         AND NOT EXISTS (SELECT 1 FROM exec_jobs b
                          WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
-                           AND NOT ${isNoRealJob("b")})
+                           AND ${parallelGroup("b")} IS DISTINCT FROM ${parallelGroup(e)})
         AND NOT EXISTS (SELECT 1 FROM exec_jobs x
                          WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> ${e}.id
                            AND COALESCE(x.site, '10.42.187.101') = ${siteSql}
-                           AND NOT ${isNoRealJob("x")}
+                           AND ${parallelGroup("x")} IS DISTINCT FROM ${parallelGroup(e)}
                            AND ${queueRank("x")} < ${queueRank(e)}))
   )`;
+
+  // عدد التابات: القراية لأى مستخدم مسجّل، والتعديل سوبر أدمن بس.
+  app.get("/api/exec-queue/lanes", requireAuth, async (_req, res) => {
+    try {
+      const lanes = await readExecLanes(pool);
+      const { rows } = await pool.query(
+        `SELECT (MAX(updated_at) AT TIME ZONE 'Africa/Cairo') AS "updatedAt",
+                (ARRAY_AGG(updated_by ORDER BY updated_at DESC))[1] AS "updatedBy"
+           FROM app_settings WHERE key = ANY($1::text[])`, [Object.values(EXEC_LANE_KEYS)]);
+      res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES }, max: EXEC_LANES_MAX, ...(rows[0] || {}) });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.put("/api/exec-queue/lanes", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const by = (req.user?.fullName || req.user?.username || "").toString();
+      const body = req.body || {};
+      const vals: [string, number][] = [];
+      for (const k of ["noreal", "stop"] as const) {
+        if (body[k] == null) continue;
+        const n = parseInt(String(body[k]), 10);
+        if (!Number.isFinite(n) || n < 1 || n > EXEC_LANES_MAX)
+          return res.status(400).json({ message: `عدد التابات لازم يكون من 1 لـ ${EXEC_LANES_MAX}` });
+        vals.push([EXEC_LANE_KEYS[k], n]);
+      }
+      for (const [key, n] of vals) {
+        await pool.query(
+          `INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+          [key, String(n), by]);
+      }
+      res.json({ ok: true, ...(await readExecLanes(pool)) });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
 
   app.post("/api/exec-queue/claim", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
@@ -2363,6 +2428,8 @@ export async function registerRoutes(
       // التالى بنفس ترتيب الطابور. وبعد أخذ القفل نعيد فحص NOT EXISTS داخل UPDATE
       // نفسه، فتظل المطالبتان لنفس الموقع مستحيلتين حتى مع تسابق القراءات.
       const row = await withTx(async (tx) => {
+        // عدد تابات «بدون Real» و«إيقاف PO» من الإعدادات (رفع الملفات ← إعدادات)
+        const lanes = await readExecLanes(tx);
         const skippedSites: string[] = [];
         while (true) {
           // ⚡ أول مهمة فى الدور **لكل موقع** بس هى اللى بيتفحص إذا كان موقعها فاضى
@@ -2383,7 +2450,7 @@ export async function registerRoutes(
                                h.created_at, h.id) e
               -- الدومين لازم يكون فاضى: مفيش مهمة شغّالة على نفس الموقع دلوقتى
               -- (أو استثناء «بدون Real» — siteFreeFor فوق)
-              WHERE ${siteFreeFor("e", "e.site_k")}
+              WHERE ${siteFreeFor("e", "e.site_k", lanes)}
               ORDER BY e.priority DESC,
                        CASE WHEN e.queue_order > 0 THEN e.queue_order ELSE 9223372036854775807 END ASC,
                        e.created_at, e.id
@@ -2407,7 +2474,7 @@ export async function registerRoutes(
           const { rows } = await tx.query(
             `UPDATE exec_jobs SET status = 'claimed', claimed_at = now(), executed_by = $1
              WHERE id = $2 AND status = 'pending' AND paused_at IS NULL
-               AND ${siteFreeFor("exec_jobs", "$3")}
+               AND ${siteFreeFor("exec_jobs", "$3", lanes)}
              RETURNING id, type, accounts, requested_by AS "requestedBy", note, priority, site,
                        batch_id AS "batchId", params`,
             [execIdentity(req), candidate.id, candidate.site],
@@ -3659,8 +3726,8 @@ export async function registerRoutes(
                AND EXISTS (SELECT 1 FROM exec_jobs j2
                             WHERE j2.claimed_at > e.claimed_at
                               AND COALESCE(j2.site, '10.42.187.101') = COALESCE(e.site, '10.42.187.101')
-                              -- تابين «بدون Real» شغّالين مع بعض (NOREAL_LANES) مش دليل إن الأقدم اتعدّى
-                              AND NOT (${isNoRealJob("e")} AND ${isNoRealJob("j2")})))
+                              -- تابات «بدون Real»/«إيقاف PO» شغّالة مع بعض (نفس المجموعة) مش دليل إن الأقدم اتعدّى
+                              AND NOT (${parallelGroup("e")} IS NOT NULL AND ${parallelGroup("e")} = ${parallelGroup("j2")})))
               -- (2) المُنقِذ الأساسى: عدّت مهلة نوعها القصوى → عالقة أكيد، رجّعها
               OR e.claimed_at < now() - ${maxRunSql}
             )`,
@@ -10415,6 +10482,8 @@ export async function registerRoutes(
     if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });
     const key = String(req.params.key || "").trim();
     if (!key) return res.status(400).json({ message: "key مطلوب" });
+    // عدد تابات جهاز التنفيذ له مسار خاص بالسوبر أدمن بس (/api/exec-queue/lanes)
+    if (key.startsWith("exec_lanes_")) return res.status(403).json({ message: "غير مسموح" });
     const value = req.body?.value == null ? "" : String(req.body.value);
     const by = (req.user?.fullName || req.user?.username || "").toString();
     await pool.query(

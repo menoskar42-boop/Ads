@@ -13,7 +13,7 @@ const url = process.env.DATABASE_URL;
 if (!url) { console.log("⏭️  DATABASE_URL مش متحدد"); process.exit(2); }
 const pool = new pg.Pool({ connectionString: url });
 const src = readFileSync(new URL("../server/routes.ts", import.meta.url), "utf8");
-let helpers = src.slice(src.indexOf("  const NOREAL_LANES ="), src.indexOf('  app.post("/api/exec-queue/claim"'));
+let helpers = src.slice(src.indexOf("  const NOREAL_LANES ="), src.indexOf("  // عدد التابات: القراية لأى مستخدم مسجّل"));
 const LANES = process.env.LANES ? Number(process.env.LANES) : null;
 if (LANES != null) helpers = helpers.replace(/const NOREAL_LANES = \d+;/, `const NOREAL_LANES = ${LANES};`);
 const c0 = src.indexOf("const row = await withTx(async (tx) => {", src.indexOf('app.post("/api/exec-queue/claim"'));
@@ -65,6 +65,39 @@ if (LANES === 1) {
   await q(`DELETE FROM exec_jobs`);
   const r1 = await add("measure", "قياس"); await add("measure", "قياس");
   const o = await claim(); ok("Real + Real: واحد بس زى الأول", o?.id === r1 && (await claim()) == null);
+}
+// ── «إيقاف PO» بتابات (٢٠٢٦-١٠-٠٦) — العدد من app_settings (رفع الملفات ← إعدادات) ──
+await q(`DELETE FROM exec_jobs`);
+await q(`DELETE FROM app_settings WHERE key LIKE 'exec_lanes_%'`);
+const POSTOP = Number((helpers.match(/const POSTOP_LANES = (\d+);/) || [])[1]);
+if (POSTOP > 1 && LANES !== 1) {
+  const st: number[] = []; for (let z = 0; z < POSTOP + 1; z++) st.push(await add("stop", "إيقاف"));
+  const got: any[] = []; for (let z = 0; z < POSTOP; z++) got.push(await claim());
+  ok(`إيقاف PO: أول ${POSTOP} اتسحبوا مع بعض (الافتراضى)`, got.every((j, z) => j?.id === st[z]), got.map((j) => j?.id).join(","));
+  ok(`إيقاف PO: اللى بعدهم لأ (حد ${POSTOP})`, (await claim()) == null);
+  const nrX = await add("measure", NR);
+  for (const j of got) await done(j.id);
+  const g = await claim();
+  ok("إيقاف PO وبدون Real مابيتخلطوش: الإيقاف اللى قبل فى الدور بياخد الموقع", g?.id === st[POSTOP]);
+  ok("وبدون Real بيستنى الإيقاف يخلص", (await claim()) == null);
+  await done(g.id);
+  const h = await claim(); ok("وبعده بدون Real يبدأ", h?.id === nrX); await done(h.id);
+  // التعديل من الإعدادات
+  await q(`DELETE FROM exec_jobs`);
+  await q(`INSERT INTO app_settings (key, value) VALUES ('exec_lanes_stop', '2'), ('exec_lanes_noreal', '1')`);
+  for (let z = 0; z < 3; z++) await add("stop", "إيقاف");
+  const a = await claim(), b = await claim(), c = await claim();
+  ok("الإعداد exec_lanes_stop = 2: تابين بس", !!a && !!b && c == null);
+  await done(a.id); await done(b.id); const c2 = await claim(); await done(c2.id);
+  await add("measure", NR); await add("measure", NR);
+  const d1 = await claim(), d2 = await claim();
+  ok("الإعداد exec_lanes_noreal = 1: بدون Real تاب واحد", !!d1 && d2 == null);
+  await q(`DELETE FROM exec_jobs`);
+  await q(`UPDATE app_settings SET value = '99' WHERE key = 'exec_lanes_stop'`);
+  for (let z = 0; z < 10; z++) await add("stop", "إيقاف");
+  let cnt = 0; while (await claim()) cnt++;
+  ok("قيمة غلط فى الإعداد (99) بتتقصّ للسقف 8", cnt === 8, String(cnt));
+  await q(`DELETE FROM app_settings WHERE key LIKE 'exec_lanes_%'`);
 }
 await q(`DELETE FROM exec_jobs`);
 console.log(`\n${bad ? "❌" : "✅"} ${bad ? bad + " فشل" : "كله نجح"}`);

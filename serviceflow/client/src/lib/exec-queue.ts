@@ -379,7 +379,7 @@ export function executeBatch(type: ExecJobType, accounts: (string | number)[], o
   // afterStop: يرفع السرعة ثم يوقف الـ nightly الناتج فى **نفس تشغيلة PO** (مهمة واحدة، مفيش تداخل).
   // بنرجّع النافذة (كانت null) — جهاز التنفيذ محتاجها يكشف إن التاب اتقفل = خلص، ويقفله بنفسه.
   if (type === "raise") return openProfileOptimization(accs, opts?.afterStop ? { afterStop: true } : {});
-  if (type === "stop") return openProfileOptimization(accs, { stopOnly: true });
+  if (type === "stop") return openProfileOptimization(accs, { stopOnly: true, lane: opts?.lane });
   return window.open(`${DZS_URL}#sf_accounts=${encodeURIComponent(accs.join(","))}${measureHashFlags(opts)}`,
     measureTabName(opts?.noReal ? opts.lane : undefined));
 }

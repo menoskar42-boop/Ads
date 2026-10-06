@@ -554,9 +554,16 @@ export function ExecutorButton() {
       const ev: "raise" | "stop" = (type === "stop" || raiseWithStop) ? "stop" : "raise";
       const perMax = type === "stop" ? STOP_MS : (raiseWithStop ? RAISE_MAX_MS + STOP_MS : RAISE_MAX_MS);
       const before = await latestPoEventAt(last, ev);
+      // تابات «إيقاف PO» بتفتح متفرّقة زى «بدون Real» — تسجيل دخول AXON مع بعض بيبوّظ جلسة.
+      if (type === "stop") {
+        const wait = nextNoRealOpenAt - Date.now();
+        nextNoRealOpenAt = Math.max(Date.now(), nextNoRealOpenAt) + NOREAL_STAGGER_MS;
+        if (wait > 0) await sleep(wait);
+        if (stopped) return "stopped";
+      }
       // بنمسك النافذة: سكربت PO بيقول «خلص كل الأرقام. تقدر تقفل التاب» ومابيقفلش نفسه،
       // فمن غير المرجع ده كان التاب يفضل مفتوح للأبد والمهمة «جارية» لحد المهلة الكاملة.
-      const win = executeBatch(type, accs, raiseWithStop ? { afterStop: true } : undefined); // PO يلفّ على كل الأرقام فى run واحد
+      const win = executeBatch(type, accs, raiseWithStop ? { afterStop: true } : (type === "stop" ? { lane } : undefined)); // PO يلفّ على كل الأرقام فى run واحد
       if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
       const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
       const deadline = Date.now() + Math.min(accs.length * perMax, MAX_TOTAL_MS);
@@ -597,6 +604,8 @@ export function ExecutorButton() {
     // مسارات «بدون Real» المشغولة على DZS (1 و2). السيرفر هو اللى بيقرّر يدّى تابين
     // ولا لأ (NOREAL_LANES)؛ هنا بس بنوزّع رقم التاب على المهمة اللى اتسحبت.
     const noRealLanes = new Set<number>();
+    // ونفس الفكرة لتابات «إيقاف PO» (٢٠٢٦-١٠-٠٦) — العدد من «رفع الملفات ← إعدادات».
+    const poStopLanes = new Set<number>();
     // فاصل بين فتح تابات «بدون Real» (شوف runBatch) — ٨ثوانى كفاية لتسجيل الدخول.
     const NOREAL_STAGGER_MS = 8 * 1000;
     let nextNoRealOpenAt = 0;
@@ -652,8 +661,13 @@ export function ExecutorButton() {
           let lane = 1;
           if (isNoReal) while (noRealLanes.has(lane)) lane++;
           if (isNoReal) noRealLanes.add(lane);
-          const laneKey = isNoReal && lane > 1 ? `${site}#L${lane}` : site;
-          running.set(laneKey, `${label}${isNoReal && lane > 1 ? ` [تاب ${lane}]` : ""} (${accs.length} رقم)`);
+          // «إيقاف PO» بتابات مع بعض — نفس التوزيع بمجموعة تاباته هو.
+          const isPoStop = job.type === "stop";
+          if (isPoStop) while (poStopLanes.has(lane)) lane++;
+          if (isPoStop) poStopLanes.add(lane);
+          const isLaned = isNoReal || isPoStop;
+          const laneKey = isLaned && lane > 1 ? `${site}#L${lane}` : site;
+          running.set(laneKey, `${label}${isLaned && lane > 1 ? ` [تاب ${lane}]` : ""} (${accs.length} رقم)`);
           runningSince.set(laneKey, { at: Date.now(), type: job.type, batchId: job.batchId });
           showRunning();
           // بدون await — مسار الموقع ده بيشتغل لوحده، وحلقة السحب تقدر تجيب مهمة لموقع تانى
@@ -702,6 +716,7 @@ export function ExecutorButton() {
               running.delete(laneKey);
               runningSince.delete(laneKey);
               if (isNoReal) noRealLanes.delete(lane);
+              if (isPoStop) poStopLanes.delete(lane);
               showRunning();
             }
           })();

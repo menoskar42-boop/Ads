@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DZS Profile Optimization (رفع السرعة) — Service-Flow
 // @namespace    service-flow.dzs.po
-// @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
-// @version      0.9.8
+// @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. v0.9.9: «إيقاف PO» ممكن يشتغل فى أكتر من تاب مع بعض (sf_lane=2،3…) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2…) وعلامة PO_TAB فى sessionStorage بتوقّف سكربت القياس فى التاب ده؛ العدد بيتحدّد من «رفع الملفات ← إعدادات» فى Service-Flow. التاب الأول من غير لاحقة زى v0.9.8 بالظبط. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
+// @version      0.9.9
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
 // @connect      ads-menoskar42.replit.app
@@ -20,8 +20,31 @@
   const hash = location.hash || "";
   const hasPoHash = /[#&]sf_po=/.test(hash);
   if (/[#&]sf_accounts=/.test(hash)) return; // وضع القياس — مش شغلنا
-  const PO_ACTIVE_KEY = "PO_ACTIVE";
+
+  /* ===== v0.9.9: تابات «إيقاف PO» مع بعض (sf_lane=2، 3…) =====
+     كل حالة السكربت (القايمة · رقم الخط · الوضع · النتايج) فى localStorage **مشترك بين
+     كل تابات AXON**، فتابين مع بعض كانوا هيكتبوا فوق بعض. التاب التانى/التالت بياخد رقمه
+     من الهاش (sf_lane) ويحفظه فى sessionStorage (خاص بالتاب وبيعيش مع التنقّل والدخول)،
+     وكل مفاتيحه بلاحقة _L2/_L3. التاب الأول من غير لاحقة — نفس مفاتيح v0.9.8 بالظبط.
+     وعلامة PO_TAB فى sessionStorage بتقول لسكربت القياس (v10.27) «ده تاب PO — ملكش دعوة». */
+  const LANE_SESSION_KEY = "PO_LANE";
+  let LANE = "";
+  try {
+    if (hasPoHash) {
+      LANE = ((hash.match(/[#&]sf_lane=(\d+)/) || [])[1] || "").replace(/^1$/, "");
+      sessionStorage.setItem(LANE_SESSION_KEY, LANE);
+      sessionStorage.setItem("PO_TAB", "1");
+    } else {
+      LANE = sessionStorage.getItem(LANE_SESSION_KEY) || "";
+    }
+  } catch (e) {}
+  const LANE_SUFFIX = LANE ? "_L" + LANE : "";
+  const K = (k) => k + LANE_SUFFIX; // مفتاح خاص بالتاب ده
+  const PO_ACTIVE_KEY = K("PO_ACTIVE");
   if (!hasPoHash && localStorage.getItem(PO_ACTIVE_KEY) !== "1") return;
+  if (LANE) console.log("🛣️ PO: تاب رقم " + LANE + " — مفاتيحه بلاحقة " + LANE_SUFFIX);
+  // نهاية التشغيلة: التاب ده مابقاش تاب PO (لو اتعاد استخدامه)
+  const endPoTab = () => { try { sessionStorage.removeItem("PO_TAB"); sessionStorage.removeItem(LANE_SESSION_KEY); } catch (e) {} };
 
   /* ================== CONFIG ================== */
   const USER = "xceed_lob";
@@ -48,8 +71,8 @@
   }
   const SF_API_BASE = sfBase();
   const SF_PO_TOKEN = "sf-dzs-138-ingest-2026"; // لازم يطابق DZS_INGEST_TOKEN فى السيرفر
-  const PO_RESULTS_KEY = "PO_RESULTS";       // [{ accountNo, event, time }]
-  const PO_DOWNLOADED_KEY = "PO_DOWNLOADED";
+  const PO_RESULTS_KEY = K("PO_RESULTS");       // [{ accountNo, event, time }]
+  const PO_DOWNLOADED_KEY = K("PO_DOWNLOADED");
   // يسجّل الحدث محلياً (للـ CSV) + يرفعه للموقع (للعمودين فى التقارير)
   function postPoEvent(accountNo, event) {
     try {
@@ -91,10 +114,10 @@
     } catch (e) { console.warn("csv err", e); }
   }
 
-  const PO_ACCOUNTS_KEY = "PO_ACCOUNTS";
-  const PO_INDEX_KEY = "PO_INDEX";
-  const PO_MODE_KEY = "PO_MODE";   // "full" = رفع سرعة (Start Realtime PO) | "stop" = إيقاف الـ nightly فقط
-  const PO_AFTER_KEY = "PO_AFTER"; // "1" = بعد رفع السرعة لكل الأرقام، نفّذ مرحلة الإيقاف لكلهم
+  const PO_ACCOUNTS_KEY = K("PO_ACCOUNTS");
+  const PO_INDEX_KEY = K("PO_INDEX");
+  const PO_MODE_KEY = K("PO_MODE");   // "full" = رفع سرعة (Start Realtime PO) | "stop" = إيقاف الـ nightly فقط
+  const PO_AFTER_KEY = K("PO_AFTER"); // "1" = بعد رفع السرعة لكل الأرقام، نفّذ مرحلة الإيقاف لكلهم
 
   const POLL_MS = 800;
   const PER_ACCOUNT_TIMEOUT_MS = 10 * 60 * 1000; // مهلة قصوى لكل رقم (تكفّى انتظار اكتمال Real-time PO ~5 دقايق)
@@ -159,6 +182,7 @@
   const idx = getIndex();
   if (idx >= ACCOUNTS.length) {
     localStorage.removeItem(PO_ACTIVE_KEY);
+    endPoTab();
     downloadPoCsv();
     // نفس سبب القفل فى advance(): قفل التاب هو الإشارة اللى جهاز التنفيذ بيقراها
     // فوراً (win.closed) فيعدّى للخط اللى بعده بدل ما يستنى المهلة كاملة.
@@ -261,6 +285,7 @@
     setIndex(idx + 1);
     if (idx + 1 >= ACCOUNTS.length) {
       localStorage.removeItem(PO_ACTIVE_KEY);
+      endPoTab();
       downloadPoCsv();
       // ⚠️ بنقفل التاب بنفسنا. قبل كده كان بيقول «تقدر تقفل التاب» ويسيبه مفتوح،
       // وجهاز التنفيذ بيعرف إن الخط خلص من أثره فى قاعدة البيانات بس — فلو الخط
@@ -398,6 +423,7 @@
   }, POLL_MS);
 
   // أدوات كونسول
-  window.PO_reset = () => { ["PO_ACCOUNTS", "PO_INDEX", "PO_ACTIVE", "PO_MODE", "PO_AFTER", "PO_RESULTS", "PO_DOWNLOADED"].forEach(k => localStorage.removeItem(k)); location.reload(); };
-  window.PO_state = () => console.log({ accounts: ACCOUNTS, index: getIndex(), current: CURRENT });
+  // الـreset بيمسح مفاتيح التاب ده بس (التابات التانية شغّالة)
+  window.PO_reset = () => { ["PO_ACCOUNTS", "PO_INDEX", "PO_ACTIVE", "PO_MODE", "PO_AFTER", "PO_RESULTS", "PO_DOWNLOADED"].forEach(k => localStorage.removeItem(K(k))); endPoTab(); location.reload(); };
+  window.PO_state = () => console.log({ lane: LANE || "1", accounts: ACCOUNTS, index: getIndex(), current: CURRENT });
 })();

@@ -9,6 +9,8 @@ interface POOptions {
   stopOnly?: boolean;
   /** بعد رفع السرعة لكل الأرقام، نفّذ مرحلة الإيقاف لكلهم (رفع سرعة + إيقاف). */
   afterStop?: boolean;
+  /** رقم تاب «إيقاف PO» (٢، ٣…) — كل تاب نافذة لوحده والسكربت بيحفظ حالته بلاحقة _L<رقم>. */
+  lane?: number;
 }
 
 /**
@@ -31,9 +33,11 @@ export function openProfileOptimization(
     alert(opts.stopOnly ? "لا توجد أرقام أكونت لإيقاف الـ Nightly PO" : "لا توجد أرقام أكونت لرفع السرعة");
     return null;
   }
-  const flags = opts.stopOnly ? "&sf_stop=1" : (opts.afterStop ? "&sf_after=1" : "");
+  const lane = opts.stopOnly && opts.lane && opts.lane > 1 ? opts.lane : 0;
+  const flags = (opts.stopOnly ? "&sf_stop=1" : (opts.afterStop ? "&sf_after=1" : "")) + (lane ? `&sf_lane=${lane}` : "");
   const url = `${PO_BASE}?lineId=${encodeURIComponent(accs[0])}#sf_po=${encodeURIComponent(accs.join(","))}${flags}`;
   // نفس اسم نافذة القياس (dzs_measure) — القياس/رفع السرعة/الإيقاف كلهم يعيدوا استخدام **نفس النافذة**
   // (النافذة الجديدة تحلّ محل القديمة) فمفيش نوافذ متعددة ولا تداخل.
-  return window.open(url, "dzs_measure");
+  // تاب «إيقاف PO» التانى/التالت… نافذة لوحده (dzs_po_2…) — الأول زى ما هو.
+  return window.open(url, lane ? `dzs_po_${lane}` : "dzs_measure");
 }
