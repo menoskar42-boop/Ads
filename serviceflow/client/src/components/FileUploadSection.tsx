@@ -353,6 +353,8 @@ function UploadCard({
         if (d.sheet) desc += ` — من شيت «${d.sheet}»`;
       }
       toast({ title: "تم الاستيراد", description: desc, duration: 4500 });
+      // فنيى الكباين: الشيت بيرجّع كابينة اتنقلت لفنى تانى (server/cabinet-reassign.ts)
+      if (d.warning) toast({ title: "تنبيه — توزيع الكباين", description: d.warning, variant: "destructive", duration: 20000 });
       [queryKey, ...extraKeys, "/api/upload-times"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
       // المالك (٢٠٢٦-٠٩-٢٨): بعد أى رفع يدوى رسالة «المتصفح مانع فتح التابات» بتظهر على
       // جهاز التنفيذ — ريفريش له بعد كل رفع (المهام اللى كانت شغّالة بترجع فوراً: release-mine).

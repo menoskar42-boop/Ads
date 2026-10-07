@@ -667,6 +667,36 @@ export const cabinetTechnicians = pgTable("cabinet_technicians", {
 
 export type CabinetTechnician = typeof cabinetTechnicians.$inferSelect;
 
+// نقل كباين مجدول بين الفنيين + سجل اللى اتطبّق (server/cabinet-reassign.ts).
+export const cabinetTechChanges = pgTable("cabinet_tech_changes", {
+  id: serial("id").primaryKey(),
+  batch: text("batch").notNull(),
+  centralName: text("central_name").notNull(),
+  cabinNumber: text("cabin_number").notNull(),
+  newTechName: text("new_tech_name").notNull(),
+  effectiveAt: timestamp("effective_at", { withTimezone: true }).notNull(),
+  effectiveDate: date("effective_date").notNull(),
+  status: text("status").notNull().default("pending"),
+  oldWorkerCode: text("old_worker_code"),
+  newWorkerCode: text("new_worker_code"),
+  rowsChanged: integer("rows_changed"),
+  note: text("note"),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ batchCabinUq: unique().on(t.batch, t.centralName, t.cabinNumber) }));
+
+export const cabinetTechHistory = pgTable("cabinet_tech_history", {
+  id: serial("id").primaryKey(),
+  changeId: integer("change_id").references(() => cabinetTechChanges.id),
+  centralName: text("central_name").notNull(),
+  cabinNumber: text("cabin_number").notNull(),
+  cabinCode: text("cabin_code"),
+  oldWorkerCode: text("old_worker_code"),
+  newWorkerCode: text("new_worker_code"),
+  effectiveDate: date("effective_date").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ dateIdx: index("cabinet_tech_history_date_idx").on(t.effectiveDate) }));
+
 // سعة الكباين النحاسية من FCC Network Inventory — full replace each upload.
 // secondary_capacity = "السعة" فى شيت خطة الصيانة.
 export const cabinetCapacity = pgTable("cabinet_capacity", {

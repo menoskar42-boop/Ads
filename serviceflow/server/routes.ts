@@ -36,6 +36,7 @@ import { boxAverageFromAggregate, boxAverageFromAggregates, isBoxBrokenReason } 
 import { schedulersEnabled } from './schedulers-enabled';
 import { registerRepeatReviews } from "./repeat-reviews";
 import { registerUrgentNoAccount } from "./urgent-no-account";
+import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
 
 const scryptAsync = promisify(scrypt);
@@ -7556,6 +7557,7 @@ export async function registerRoutes(
   // «رد التكرار» — الخطوات والتقرير فى server/repeat-reviews.ts (قرار المالك ٢٠٢٦-١٠-٠٤)
   registerRepeatReviews(app, { pool, requireAuth, requireSuperAdmin, lookupPhoneLine, techMsanCodes, msanInCodesSql });
   registerUrgentNoAccount(app, { pool, requireAuth });
+  registerCabinetReassign(app, { pool, requireAuth, requireAdmin });
 
   // محمول الفنى المختص: الاسم (أو أسماء الإسناد اليدوى «حسن , سعيد») → أول واحد متسجّل له
   // محمول فى إدارة المستخدمين — بالاسم الظاهر أو اسم المستخدم أو رقم العامل.
@@ -11291,7 +11293,10 @@ export async function registerRoutes(
       }
       return inserted;
       });
-      res.json({ inserted, total: inserts.length });
+      // الشيت بالتوزيع القديم بيرجّع الكباين اللى اتنقلت — نقول بدل ما يحصل فى صمت
+      const reassignWarnings = await reassignConflicts(pool).catch(() => [] as string[]);
+      res.json({ inserted, total: inserts.length, reassignWarnings,
+        ...(reassignWarnings.length ? { warning: `الشيت فيه ${reassignWarnings.length} كابينة مع فنى غير اللى اتنقلت له: ${reassignWarnings.join("، ")} — عدّل الشيت وارفعه تانى` } : {}) });
     } catch (e: any) {
       res.status(500).json({ message: e.message || "خطأ في الاستيراد" });
     }
@@ -14326,7 +14331,9 @@ export async function registerRoutes(
       const { dateFrom = "", dateTo = "", central = "", q = "" } = req.query as Record<string, string>;
       const from = dateFrom || "1900-01-01";
       const to   = dateTo   || "2999-12-31";
-      const params: any[] = [from, to];
+      // التواريخ مش فى الشرط: الأعطال بتتجاب يوم بيوم وبتتحسب على الفنى اللى كان ماسك
+      // الكابينة يومها (server/cabinet-reassign.ts) — قبل النقل على التوزيع القديم.
+      const params: any[] = [];
       const conds: string[] = [
         `(ct.central_name = 'الغنايم' OR ct.central_name = 'الغنايم-العزايزة' OR ct.central_name = 'الغنايم-دير الجنادله' OR ct.central_name = 'الغنايم-نجع العمدة')`,
         `COALESCE(ct.cabin_code, '') <> ''`,
@@ -14337,37 +14344,9 @@ export async function registerRoutes(
         const p = `$${params.length}`;
         conds.push(`(${n("ct.cabin_number")} LIKE ${p} OR ${n("ct.cabin_code")} LIKE ${p} OR ${n("tn.tech_name")} LIKE ${p})`);
       }
-      const where = "WHERE " + conds.join(" AND ");
-      // تُجمّع كباين النحاس التى تشترك فى نفس كود الـ MSAN فى صف واحد (مثل 6-2 و6-3)
-      // حتى لا يتكرر حساب الشغال/الأعطال (كلاهما محسوب لكل MSAN مرة واحدة).
-      const { rows } = await pool.query(
-        `SELECT
-           MIN(ct.central_name)                                          AS "centralName",
-           string_agg(DISTINCT ct.cabin_number, ' , ' ORDER BY ct.cabin_number) AS "cabinNumber",
-           ct.cabin_code                                                 AS "msanCode",
-           COALESCE(string_agg(DISTINCT tn.tech_name, ' , '), 'غير معروف') AS "techName",
-           -- الشغال ADSL: ثابت من ملف مشتركى FTTH/ADSL حسب كود MSAN (مرة واحدة لكل MSAN)
-           COALESCE((SELECT SUM(f.fbb_subs) FROM ftth_subscribers f
-                       WHERE f.msan_gpon_code = ct.cabin_code), 0)::int   AS "workingAdsl",
-           -- عدد الأعطال خلال الفترة (مغلقة + متبقية) لكود الكابينة (MSAN) — مرة واحدة
-           (SELECT COUNT(*) FROM (
-              SELECT cd.complain_no FROM complaint_details cd
-                WHERE cd.msan_id = ct.cabin_code
-                  AND (cd.complain_time AT TIME ZONE 'UTC')::date >= $1::date
-                  AND (cd.complain_time AT TIME ZONE 'UTC')::date <= $2::date
-              UNION
-              SELECT rc.complain_no FROM remaining_complaints rc
-                WHERE rc.msan_id = ct.cabin_code
-                  AND (rc.complain_time AT TIME ZONE 'UTC')::date >= $1::date
-                  AND (rc.complain_time AT TIME ZONE 'UTC')::date <= $2::date
-           ) u)::int                                                     AS "faultCount"
-         FROM cabinet_technicians ct
-         LEFT JOIN technician_names tn ON tn.worker_code = ct.worker_code
-         ${where}
-         GROUP BY ct.cabin_code
-         ORDER BY MIN(ct.central_name), MIN(ct.cabin_number)`,
-        params,
-      );
+      // كباين النحاس اللى بتشترك فى نفس كود الـ MSAN (زى 6-2 و6-3) صف واحد — الشغال
+      // والأعطال محسوبين لكل MSAN مرة واحدة.
+      const rows = await cabinetAdslFaultsByHistory(pool, { where: "WHERE " + conds.join(" AND "), params, from, to });
       res.json(rows);
     } catch (e: any) {
       res.status(500).json({ message: e.message });

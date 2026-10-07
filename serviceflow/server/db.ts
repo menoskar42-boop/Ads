@@ -4,6 +4,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import * as schema from "@shared/schema";
 import { phoneNormSql } from "./phone-norm";
+import { SEED_BATCH, SEED_CHANGES, SEED_EFFECTIVE_LOCAL } from "./cabinet-reassign";
 
 const { Pool } = pg;
 
@@ -1236,6 +1237,51 @@ export async function ensureSchema() {
       uploaded_by_id integer REFERENCES users(id)
     )
   `);
+
+  // نقل كباين بين الفنيين من تاريخ معيّن + سجل التوزيع (server/cabinet-reassign.ts).
+  // «الأعطال فى الألف» بتتحسب على الفنى اللى كان ماسك الكابينة يوم العطل.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS cabinet_tech_changes (
+      id serial PRIMARY KEY,
+      batch text NOT NULL,
+      central_name text NOT NULL,
+      cabin_number text NOT NULL,
+      new_tech_name text NOT NULL,
+      effective_at timestamptz NOT NULL,
+      effective_date date NOT NULL,
+      status text NOT NULL DEFAULT 'pending',
+      old_worker_code text,
+      new_worker_code text,
+      rows_changed integer,
+      note text,
+      applied_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (batch, central_name, cabin_number)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS cabinet_tech_history (
+      id serial PRIMARY KEY,
+      change_id integer REFERENCES cabinet_tech_changes(id),
+      central_name text NOT NULL,
+      cabin_number text NOT NULL,
+      cabin_code text,
+      old_worker_code text,
+      new_worker_code text,
+      effective_date date NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS cabinet_tech_history_date_idx ON cabinet_tech_history (effective_date)`);
+  // أول نقل (المالك ٢٠٢٦-١٠-٠٧): من الأحد ١١ أكتوبر ١٢ بالليل بتوقيت القاهرة. مرة واحدة —
+  // بعد ما يتطبّق الصف بيفضل موجود (status=applied) فمابيتضافش تانى.
+  for (const c of SEED_CHANGES) {
+    await pool.query(
+      `INSERT INTO cabinet_tech_changes (batch, central_name, cabin_number, new_tech_name, effective_at, effective_date)
+       VALUES ($1, $2, $3, $4, ($5::timestamp AT TIME ZONE 'Africa/Cairo'), $5::date)
+       ON CONFLICT (batch, central_name, cabin_number) DO NOTHING`,
+      [SEED_BATCH, c.central, c.cabin, c.tech, SEED_EFFECTIVE_LOCAL]);
+  }
 
   // cabinet_capacity — سعة الكباين النحاسية من FCC Network Inventory (full replace each upload).
   // المفتاح المنطقى (central_name, cabin_number) للربط بـ cabinet_technicians. secondary_capacity
