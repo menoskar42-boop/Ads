@@ -41,8 +41,8 @@ test("current faults with status 160/173 and no account join the urgent report",
 test("score-103 lines show their old account with an edit — and the delete button deletes the account (owner, 2026-10-07)", () => {
   assert.match(extra, /WHERE c138p\.score = 103/);
   assert.match(extra, /la\.account_no AS "oldAccount"/);
-  // اتراجع = تعديل يدوى بعد آخر قياس (مش updated_at اللى المزامنة بتلمسه)
-  assert.match(extra, /e\.edited_at > c138p\.uploaded_at/);
+  // المالك (٢٠٢٦-١٠-٠٧): نفس خطوط «اسكور 103» بالظبط — مفيش استبعاد للخط اللى أكونته اتعدّل
+  assert.doesNotMatch(extra, /line_account_edits/);
   assert.match(report, /source: "score103", rows: extra\.score103/);
   // المالك (٢٠٢٦-١٠-٠٧): «زر حذف الأكونت مش موجود» — نفس زرار تقرير «اسكور 103»: حذف الأكونت ثم «بدون أكونت»
   assert.match(report, /<button type="button" onClick=\{\(\) => handleMarkNoAccount\(row\.fullPhone, row\.oldAccount\)\}/);
