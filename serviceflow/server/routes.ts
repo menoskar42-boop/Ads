@@ -37,6 +37,7 @@ import { schedulersEnabled } from './schedulers-enabled';
 import { registerRepeatReviews } from "./repeat-reviews";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
+import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech } from "./local-store";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
 
 const scryptAsync = promisify(scrypt);
@@ -7558,6 +7559,7 @@ export async function registerRoutes(
   registerRepeatReviews(app, { pool, requireAuth, requireSuperAdmin, lookupPhoneLine, techMsanCodes, msanInCodesSql });
   registerUrgentNoAccount(app, { pool, requireAuth });
   registerCabinetReassign(app, { pool, requireAuth, requireAdmin });
+  registerLocalStore(app, { pool, requireAuth, selfTechName: async (u: any) => (u?.role === ROLES.TECH ? (await coverageCodes(u)).techName : null) });
 
   // محمول الفنى المختص: الاسم (أو أسماء الإسناد اليدوى «حسن , سعيد») → أول واحد متسجّل له
   // محمول فى إدارة المستخدمين — بالاسم الظاهر أو اسم المستخدم أو رقم العامل.
@@ -9207,12 +9209,31 @@ export async function registerRoutes(
         message: `سبق إدخال كمية السلك للرقم ${full} (${type}) من قبل بواسطة ${dup.rows[0].created_by_name}. احذف الإدخال السابق أولاً لتعديله.`,
       });
     }
+    // المخزن المحلى: الكمية بتتخصم من رصيد فنى — الفنى نفسه، أو فنى الإغلاق لو اللى بيسجّل
+    // مش فنى، ولو فنى الإغلاق مش من الخمسة ⇒ لازم يتختار (server/local-store.ts).
+    let stockTech: string | null = null;
+    try {
+      const selfName = req.user?.role === ROLES.TECH ? (await coverageCodes(req.user)).techName : null;
+      const st = await resolveStockTech(pool, {
+        role: req.user?.role, selfTechName: selfName, username: userName,
+        phoneLocal: local, workOrderType: type, chosen: String(req.body?.stockTech ?? ""),
+      });
+      if (st.needTech) {
+        return res.status(422).json({
+          needTech: true, techNames: STORE_TECHS,
+          message: `فنى الإغلاق${st.closerRaw ? ` (${st.closerRaw})` : ""} مش من الفنيين الخمسة — اختار الفنى اللى الكمية تتخصم من رصيده`,
+        });
+      }
+      stockTech = st.tech;
+    } catch (e) { /* الخصم إضافى — مايوقّفش حفظ الكمية */ }
     try {
       const { rows } = await pool.query(
-        `INSERT INTO cable_entries (phone_local, phone_full, work_order_type, cable_quantity, created_by_id, created_by_name)
-         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-        [local, full, type, qty, userId, userName],
+        `INSERT INTO cable_entries (phone_local, phone_full, work_order_type, cable_quantity, created_by_id, created_by_name, stock_tech_name)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        [local, full, type, qty, userId, userName, stockTech],
       );
+      let stockBalance: number | null = null;
+      if (stockTech) stockBalance = await notifyIfNegative(pool, stockTech, cableTypeOf(type), Number(qty)).catch(() => null);
       // القاعدة: لو **فنى** سجّل كمية سلك لأمر شغل اسم الفنى فيه مش مطابق لأى فنى
       // مسجّل عندنا → اسمه هو اللى يتسجّل فى خانة اسم الفنى (نفس آلية التعديل اليدوى).
       // بنعمله للأوامر الناجحة اللى بنفس الرقم والنوع، ومابنلمسش أمر اسمه معروف أصلاً.
@@ -9253,7 +9274,7 @@ export async function registerRoutes(
           [mobileFull, mobileVal, userId, userName],
         );
       }
-      res.json({ ok: true, id: rows[0]?.id });
+      res.json({ ok: true, id: rows[0]?.id, stockTech, stockBalance });
     } catch (e: any) {
       // حماية إضافية ضد سباق التزامن على قيد التفرّد
       if (e.code === "23505") {

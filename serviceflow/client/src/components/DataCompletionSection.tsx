@@ -46,6 +46,20 @@ export function DataCompletionSection() {
   const [workOrderType, setWorkOrderType] = useState("صيانة");   // الافتراضى
   const [cableQuantity, setCableQuantity] = useState("");
   const [mobile, setMobile] = useState(""); // رقم المحمول — يظهر عند اختيار «صيانة» فقط
+  // المخزن المحلى: لو فنى الإغلاق مش من الخمسة السيرفر بيرجّع 422 needTech ⇒ نختار الفنى
+  // اللى الكمية تتخصم من رصيده (server/local-store.ts)
+  const [stockTech, setStockTech] = useState("");
+  const [needTechNames, setNeedTechNames] = useState<string[] | null>(null);
+  const isTech = user?.role === ROLES.TECH;
+  const { data: myBalance } = useQuery<{ tech: string | null; started: boolean; balances: { type: "install" | "maint"; issued: number; used: number; balance: number }[] }>({
+    queryKey: ["/api/local-store", "my-balance"],
+    enabled: isTech,
+    queryFn: async () => {
+      const res = await fetch("/api/local-store/my-balance", { credentials: "include" });
+      if (!res.ok) throw new Error("فشل التحميل");
+      return res.json();
+    },
+  });
   const [search, setSearch] = useState("");
   // تابين: الإدخال اليدوى (رقم برقم)، وقائمة أوامر الشغل اللى لسه مالهاش كمية سلك
   // (نفس مصدر تقرير أوامر الشغل) وقدّام كل صف خانة إدخال.
@@ -77,11 +91,18 @@ export function DataCompletionSection() {
       const res = await apiRequest("POST", "/api/cable-entries", {
         phone, workOrderType, cableQuantity,
         mobile: workOrderType === "صيانة" ? mobile : "", // المحمول يُرسل مع «صيانة» فقط
+        ...(stockTech ? { stockTech } : {}),
       });
       return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "تم الحفظ", description: `كمية السلك للرقم ${phone} (${workOrderType})`, duration: 3500 });
+    onSuccess: (d: any) => {
+      toast({ title: "تم الحفظ", description: `كمية السلك للرقم ${phone} (${workOrderType})${d?.stockTech ? ` — من رصيد ${d.stockTech}` : ""}`, duration: 3500 });
+      if (typeof d?.stockBalance === "number" && d.stockBalance < 0) {
+        toast({ title: "الرصيد بالسالب", description: `رصيد سلك ${workOrderType === "صيانة" ? "الصيانة" : "التركيبات والنقل"} عند ${d.stockTech}: ${d.stockBalance} متر — محتاج أمر إفراج من المخزن المحلى`, variant: "destructive", duration: 8000 });
+      }
+      setStockTech("");
+      setNeedTechNames(null);
+      qc.invalidateQueries({ queryKey: ["/api/local-store"] });
       setPhone("");
       setCableQuantity("");
       setMobile("");
@@ -94,7 +115,15 @@ export function DataCompletionSection() {
       let msg = e.message || "حدث خطأ";
       const m = msg.match(/^\d+:\s*(.*)$/s);
       if (m) msg = m[1];
-      try { const j = JSON.parse(msg); if (j?.message) msg = j.message; } catch { /* نص عادى */ }
+      try {
+        const j = JSON.parse(msg);
+        if (j?.message) msg = j.message;
+        if (j?.needTech) {
+          setNeedTechNames(j.techNames || []);
+          toast({ title: "اختار الفنى", description: msg, duration: 7000 });
+          return;
+        }
+      } catch { /* نص عادى */ }
       toast({ title: "تعذّر الحفظ", description: msg, variant: "destructive", duration: 6000 });
     },
   });
@@ -142,7 +171,7 @@ export function DataCompletionSection() {
   };
   // رقم التليفون: أرقام فقط (نضيف 88- تلقائياً عند الحفظ)
   const handlePhoneChange = (v: string) => {
-    if (v === "" || /^\d*$/.test(v)) setPhone(v);
+    if (v === "" || /^\d*$/.test(v)) { setPhone(v); setNeedTechNames(null); setStockTech(""); }
   };
 
   const canSubmit = phone.trim().length >= 5 && /^\d+(\.\d+)?$/.test(cableQuantity.trim());
@@ -233,7 +262,7 @@ export function DataCompletionSection() {
           {/* نوع امر الشغل */}
           <div className="w-full sm:w-40">
             <Label className="text-xs text-muted-foreground block mb-1">نوع امر الشغل</Label>
-            <Select value={workOrderType} onValueChange={setWorkOrderType}>
+            <Select value={workOrderType} onValueChange={(v) => { setWorkOrderType(v); setNeedTechNames(null); setStockTech(""); }}>
               <SelectTrigger className="text-right text-sm" dir="rtl">
                 <SelectValue />
               </SelectTrigger>
@@ -274,11 +303,33 @@ export function DataCompletionSection() {
             </div>
           )}
 
-          <Button type="submit" disabled={!canSubmit || saveMutation.isPending} className="gap-1">
+          {needTechNames && (
+            <div className="w-full sm:w-48">
+              <Label className="text-xs text-red-700 block mb-1">يتخصم من رصيد الفنى</Label>
+              <Select value={stockTech} onValueChange={setStockTech}>
+                <SelectTrigger className="text-right text-sm border-red-300" dir="rtl"><SelectValue placeholder="اختار الفنى" /></SelectTrigger>
+                <SelectContent>
+                  {needTechNames.map((t) => <SelectItem key={t} value={t} className="text-right">{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <Button type="submit" disabled={!canSubmit || saveMutation.isPending || (!!needTechNames && !stockTech)} className="gap-1">
             {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             حفظ
           </Button>
         </form>
+        {isTech && myBalance?.started && myBalance.balances.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2 text-sm tabular-nums">
+            <span className="text-muted-foreground">رصيدك من المخزن المحلى:</span>
+            {myBalance.balances.map((b) => (
+              <span key={b.type} className={`px-2 py-0.5 rounded border ${b.balance < 0 ? "border-red-300 bg-red-50 text-red-700 font-bold" : "border-slate-200 bg-slate-50"}`}>
+                {b.type === "maint" ? "صيانة" : "تركيبات ونقل"}: {b.balance} متر
+              </span>
+            ))}
+          </div>
+        )}
         <p className="text-xs text-muted-foreground mt-3">
           ملاحظة: يُكتب رقم التليفون بدون <span className="font-mono">88-</span> (تُضاف تلقائياً). نفس الرقم يمكن أن يكون له
           كميتان مختلفتان لأمرى الشغل (تركيب / نقل). تظهر الكمية في تقرير أوامر الشغل تلقائياً.

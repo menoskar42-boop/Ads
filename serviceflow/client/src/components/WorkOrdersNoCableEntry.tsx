@@ -72,6 +72,8 @@ export function WorkOrdersNoCableEntry() {
   // الكمية المكتوبة لكل صف + الصف اللى بيتحفظ دلوقتى (المفتاح = id أمر الشغل)
   const [qty, setQty] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<number | null>(null);
+  // المخزن المحلى: فنى الإغلاق مش من الخمسة ⇒ السيرفر بيطلب الفنى اللى يتخصم من رصيده (422 needTech)
+  const [needTech, setNeedTech] = useState<Record<number, string[]>>({});
   const { user } = useAuth();
   // تعديل اسم الفنى متاح لكل مستخدمى التقرير **ما عدا الفنيين** (والمبيعات ممنوعة من
   // التقرير كله). بيظهر بس للأوامر اللى اسم الفنى فيها مش مطابق لأى فنى مسجّل.
@@ -178,7 +180,7 @@ export function WorkOrdersNoCableEntry() {
     }
   };
 
-  const save = async (r: Row) => {
+  const save = async (r: Row, stockTech?: string) => {
     const v = String(qty[r.id] ?? "").trim();
     if (!validQty(v)) return;
     setSaving(r.id);
@@ -188,8 +190,14 @@ export function WorkOrdersNoCableEntry() {
         phone: String(r.phoneNumber ?? ""),
         workOrderType: orderTypeOf(r.serviceType),
         cableQuantity: v,
+        ...(stockTech ? { stockTech } : {}),
       });
-      await res.json();
+      const d = await res.json();
+      setNeedTech((m) => { const n = { ...m }; delete n[r.id]; return n; });
+      qc.invalidateQueries({ queryKey: ["/api/local-store"] });
+      if (typeof d?.stockBalance === "number" && d.stockBalance < 0) {
+        toast({ title: "الرصيد بالسالب", description: `رصيد سلك التركيبات والنقل عند ${d.stockTech}: ${d.stockBalance} متر — محتاج أمر إفراج من المخزن المحلى`, variant: "destructive", duration: 8000 });
+      }
       toast({
         title: "تم الحفظ",
         description: `كمية السلك ${v} متر للرقم ${r.phoneNumber} (${orderTypeOf(r.serviceType)})`,
@@ -205,7 +213,15 @@ export function WorkOrdersNoCableEntry() {
       let msg = e?.message || "حدث خطأ";
       const m = String(msg).match(/^\d+:\s*(.*)$/s);
       if (m) msg = m[1];
-      try { const j = JSON.parse(msg); if (j?.message) msg = j.message; } catch { /* نص عادى */ }
+      try {
+        const j = JSON.parse(msg);
+        if (j?.message) msg = j.message;
+        if (j?.needTech) {
+          setNeedTech((m) => ({ ...m, [r.id]: j.techNames || [] }));
+          toast({ title: "اختار الفنى", description: msg, duration: 7000 });
+          return;
+        }
+      } catch { /* نص عادى */ }
       toast({ title: "تعذّر الحفظ", description: msg, variant: "destructive", duration: 6000 });
     } finally {
       setSaving(null);
@@ -407,6 +423,19 @@ export function WorkOrdersNoCableEntry() {
                         حفظ
                       </Button>
                     </div>
+                    {needTech[r.id] && (
+                      <select
+                        value=""
+                        disabled={busy}
+                        onChange={(e) => { if (e.target.value) void save(r, e.target.value); }}
+                        className="mt-1 border border-red-300 rounded-md px-2 py-1 text-xs w-full"
+                        dir="rtl"
+                        title="فنى الإغلاق مش من الخمسة — اختار الفنى اللى الكمية تتخصم من رصيده فى المخزن المحلى"
+                      >
+                        <option value="">يتخصم من رصيد…</option>
+                        {needTech[r.id].map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    )}
                   </TableCell>
                 </TableRow>
               );

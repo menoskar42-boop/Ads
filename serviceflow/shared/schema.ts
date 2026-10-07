@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, bigint, unique, jsonb, date, real, varchar, json, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, bigint, unique, jsonb, date, real, varchar, json, index, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -263,6 +263,7 @@ export const cableEntries = pgTable("cable_entries", {
   // قفل التعديل بعد طباعة تقرير أوامر الشغل
   printedAt: timestamp("printed_at", { withTimezone: true }),       // وقت الطباعة (يقفل التعديل)
   editUnlockedAt: timestamp("edit_unlocked_at", { withTimezone: true }), // منح الأدمن صلاحية تعديل (خلال 3 أيام)
+  stockTechName: text("stock_tech_name"),  // المخزن المحلى: الفنى اللى الكمية بتتخصم من رصيده
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (t) => ({
@@ -271,6 +272,23 @@ export const cableEntries = pgTable("cable_entries", {
 }));
 
 export type CableEntry = typeof cableEntries.$inferSelect;
+
+// المخزن المحلى للسلك (server/local-store.ts): رصيد افتتاحى / وارد من الفرعى / صرف لفنى.
+export const localStoreMoves = pgTable("local_store_moves", {
+  id: serial("id").primaryKey(),
+  kind: text("kind").notNull(),              // opening | receipt | issue
+  cableType: text("cable_type").notNull(),   // install (تركيبات ونقل) | maint (صيانة)
+  qty: numeric("qty", { precision: 12, scale: 2 }).notNull(),
+  moveDate: date("move_date").notNull(),
+  refNo: text("ref_no"),                     // أرقام أذونات الصرف (وارد) / رقم أمر الإفراج (صرف)
+  techName: text("tech_name"),               // الفنى المستلم (صرف)
+  note: text("note"),
+  createdById: integer("created_by_id").references(() => users.id),
+  createdByName: text("created_by_name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedByName: text("deleted_by_name"),
+});
 
 // Manual Close-By Table — فنى الإغلاق الذى يضيفه الأدمن يدوياً لشكوى فنى إغلاقها
 // غير معروف. يصبح "المرجعية الأولى" فى عرض التجاوزات وفى إحصائيات الفنيين.

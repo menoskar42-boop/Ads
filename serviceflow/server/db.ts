@@ -631,6 +631,27 @@ export async function ensureSchema() {
   // قفل التعديل بعد الطباعة
   await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS printed_at timestamptz`);
   await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS edit_unlocked_at timestamptz`);
+  // المخزن المحلى (server/local-store.ts): الفنى اللى الكمية بتتخصم من رصيده
+  await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS stock_tech_name text`);
+  // local_store_moves — حركات المخزن المحلى للسلك: رصيد افتتاحى / وارد من الفرعى / صرف لفنى
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS local_store_moves (
+      id serial PRIMARY KEY,
+      kind text NOT NULL,
+      cable_type text NOT NULL,
+      qty numeric(12,2) NOT NULL,
+      move_date date NOT NULL,
+      ref_no text,
+      tech_name text,
+      note text,
+      created_by_id integer REFERENCES users(id),
+      created_by_name text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      deleted_at timestamptz,
+      deleted_by_name text
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS cable_entries_stock_tech_idx ON cable_entries (stock_tech_name)`);
 
   // كود العامل على أمر الشغل — المطابقة بيه أدق من مطابقة الاسم (الاسم بيتكتب بصيغ
   // مختلفة وممكن يبقى لقب: «سامى» اسمه فى الملفات «محمد عبدالعزيز طه احمد»).

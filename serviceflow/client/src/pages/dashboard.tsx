@@ -50,6 +50,7 @@ import { OmRejectionsReport } from "@/components/OmRejectionsReport";
 import { OmStatsReport } from "@/components/OmStatsReport";
 import { FileUploadSection } from "@/components/FileUploadSection";
 import { DataCompletionSection } from "@/components/DataCompletionSection";
+import { LocalStoreSection } from "@/components/LocalStoreSection";
 import { BoxFullReviewedReport } from "@/components/BoxFullReviewedReport";
 import { OmBoxFreedReport } from "@/components/OmBoxFreedReport";
 import { CfmTicketsReport } from "@/components/CfmTicketsReport";
@@ -86,11 +87,11 @@ import { useWakeLock } from "@/lib/use-wake-lock";
 import { ROLES, ORDER_STATUS } from "@shared/schema";
 import { canAccessCFM, canAccessMaint } from "@shared/roles-access";
 import { useLocation } from "wouter";
-import { Printer, LogOut, LayoutDashboard, FileSpreadsheet, Loader2, BarChart3, ClipboardList, Upload, Zap, Phone, Box, AlertTriangle, FileText, Wrench, ChevronDown, Menu, Cable, Server, CalendarDays } from "lucide-react";
+import { Printer, LogOut, LayoutDashboard, FileSpreadsheet, Loader2, BarChart3, ClipboardList, Upload, Zap, Phone, Box, AlertTriangle, FileText, Wrench, ChevronDown, Menu, Cable, Server, CalendarDays, Warehouse } from "lucide-react";
 import * as XLSX from 'xlsx';
 import { format } from "date-fns";
 
-type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload";
+type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload" | "local-store";
 type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
@@ -598,6 +599,21 @@ export default function Dashboard() {
                     استكمال بيانات
                   </button>
                 )}
+                {/* المخزن المحلى للسلك — مسئول البيانات والسوبر أدمن بيسجّلوا، والأدمن بيشوف (server/local-store.ts) */}
+                {(user.role === ROLES.ADMIN || user.role === ROLES.DATA_MANAGER) && (
+                  <button
+                    onClick={() => setAdminTab("local-store")}
+                    data-testid="tab-admin-local-store"
+                    className={`flex items-center gap-2 shrink-0 whitespace-nowrap px-3 sm:px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      adminTab === "local-store"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Warehouse className="w-4 h-4" />
+                    المخزن المحلى
+                  </button>
+                )}
                 {(user.role === ROLES.ADMIN || user.role === ROLES.DATA_MANAGER || user.role === ROLES.EXTERNAL) && (
                   <button
                     onClick={() => setAdminTab("file-upload")}
@@ -827,6 +843,13 @@ export default function Dashboard() {
         {user.role !== ROLES.SALES_ADMIN && adminTab === "data-completion" && (
           <div className="space-y-6">
             <DataCompletionSection />
+          </div>
+        )}
+
+        {/* ── المخزن المحلى للسلك ── */}
+        {(user.role === ROLES.ADMIN || user.role === ROLES.DATA_MANAGER) && adminTab === "local-store" && (
+          <div className="space-y-6">
+            <LocalStoreSection />
           </div>
         )}
 
