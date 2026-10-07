@@ -12,7 +12,12 @@ const lookup = readFileSync(new URL("../client/src/components/PhoneLookupReport.
 const om = readFileSync(new URL("../client/src/components/OmRejectionsReport.tsx", import.meta.url), "utf8");
 
 test("the merged script: OSS tab with a Re-Execute marker never runs the export", () => {
-  assert.match(script, /@version\s+3\.6\.2/);
+  assert.match(script, /@version\s+3\.6\.3/);
+  // v3.6.3: القيمة مرة واحدة فى اللوحة — الخانتين اللى فوق بيتفضوا (وإلا «You can only query based on one service order id!»)
+  assert.match(script, /for \(const lbl of \[top, topOther\]\) \{ const t = ossFindInput\(d, lbl\); if \(t && t\.value\) setField\(t, ''\); \}/);
+  assert.doesNotMatch(script, /const t1 = ossFindInput\(d, top\); if \(t1\) setField\(t1, job\.value\)/);
+  // أى رسالة Tips من OSS على البحث ← OK وتتسجّل بدل ما يستنى لحد المهلة
+  assert.match(script, /if \(tip\) \{ realClick\(tip\.ok\); return finish\('failed', 'OSS: ' \+ tip\.text\); \}/);
   // v3.6.1: الدخول بيحوّل على 15204 والهاش بيضيع بعده — العلامة بتتمسك على البورتين وبتتحفظ
   // فى window.name (بيفضل مع التاب بين 15204 و15201) — حصل ٢٠٢٦-١٠-٠٧: التاب عمل تحديث الملفات
   assert.match(script, /if \(\/\^oss\\\.te\\\.eg\(:1520\[14\]\)\?\$\/i\.test\(location\.host\) && \/sf_oss_reexec=\/i\.test\(_h\)\)/);
