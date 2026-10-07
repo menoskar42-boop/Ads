@@ -12,7 +12,7 @@ const lookup = readFileSync(new URL("../client/src/components/PhoneLookupReport.
 const om = readFileSync(new URL("../client/src/components/OmRejectionsReport.tsx", import.meta.url), "utf8");
 
 test("the merged script: OSS tab with a Re-Execute marker never runs the export", () => {
-  assert.match(script, /@version\s+3\.6\.1/);
+  assert.match(script, /@version\s+3\.6\.2/);
   // v3.6.1: الدخول بيحوّل على 15204 والهاش بيضيع بعده — العلامة بتتمسك على البورتين وبتتحفظ
   // فى window.name (بيفضل مع التاب بين 15204 و15201) — حصل ٢٠٢٦-١٠-٠٧: التاب عمل تحديث الملفات
   assert.match(script, /if \(\/\^oss\\\.te\\\.eg\(:1520\[14\]\)\?\$\/i\.test\(location\.host\) && \/sf_oss_reexec=\/i\.test\(_h\)\)/);
@@ -23,8 +23,11 @@ test("the merged script: OSS tab with a Re-Execute marker never runs the export"
   assert.match(script, /const rx = \/\\\/cas\\\/\/i\.test\(location\.href\) \? null : ossReexecPending\(\);\s+if \(rx\) await runOssReexec\(rx\); else await runOSS\(\);/);
   assert.match(script, /const OSS_REEXEC_REASON = 'ReExecuteParentReason02';/);
   assert.match(script, /const OSS_REEXEC_SUB = 'ReExecuteSubReason03';/);
-  // البحث: الرقم فى «Service number» أو الـ ID فى «Service Order ID» — والخانة التانية بتتفضى
-  assert.match(script, /const label = job\.by === 'order' \? 'Service Order ID' : 'Service number';/);
+  // v3.6.2 (المالك): البحث زى تحميل ملف المتعذرات — More Search ← الخانة جوّه اللوحة ← Search
+  assert.match(script, /const panelLabel = job\.by === 'order' \? 'Service order ID' : 'Service number';/);
+  assert.match(script, /const more = d\.getElementById\('moresearch'\)/);
+  // عنوان عمود الجدول بنفس النص مايتاخدش: نفس العمود ±80 وتحت بأقل من 150
+  assert.match(script, /if \(dy < 0 \|\| dy > 150 \|\| dx > 80\) continue;/);
   // التأكيد: السطر يفضل مختفى ٧ث متواصلة (الجدول بيفضى لحظة وهو بيحمّل)
   assert.match(script, /if \(Date\.now\(\) - goneSince >= 7000\) return finish\('done'/);
   assert.match(script, /url: SF_URL \+ '\/api\/oss-reexec\/ingest'/);

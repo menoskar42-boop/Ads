@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TE FCC + WFM + OSS + SubInfo (All-in-One)
 // @namespace    te.eg.autoexport
-// @version      3.6.1
+// @version      3.6.2
 // @description  FCC + WFM + OSS export + جلب اسم/عنوان العميل — كله فى سكربت واحد. v3.5.3: «إلغاء الاسناد» و«موافقة تغيير البورت» بيشتغلوا جوّه الصفحة نفسها زى السكربتين القدام (ولو الصفحة منعت ده بيشتغلوا من الـsandbox)؛ رفع الملفات زى ما هو. v3.5.2: «إلغاء الاسناد» و«موافقة تغيير البورت» جوّه السكربت المدموج: أحداث الماوس من غير view: window (فى sandbox بتاع Tampermonkey كانت بتترفض فى صمت فقائمة السطر فى Dispatcher ماكانتش بتفتح). v3.5.1: صفحة دخول WFM من غير أى علامة = تحديث يومى (Service-Flow القديم قبل الـRepublish بيفتحها كده) — إلا لو التاب عليه طلب إلغاء/موافقة شغّال. v3.5.0: سكربتا «إلغاء الاسناد» و«موافقة تغيير البورت» اتدمجوا هنا (احذفهم من Tampermonkey) — راوتر WFM واحد بيحدّد نوع التاب من الرابط أول ما يفتح (إلغاء / موافقة / تحديث يومى)، ودخول واحد، وتصدير أوامر الشغل بيشتغل **بس** على تاب متفتح كتحديث يومى (#sf_wfm_daily). v3.4.3: الدخول على WFM بنفس اسم المستخدم وكلمة السر بتوع FCC. v3.4.2: مابيشغّلش تصدير أوامر الشغل على تاب «موافقة تغيير بورت» (#sf_accept= أو sf_accept_pending) — كان بيصدّر نتيجة البحث المفلترة على رقم واحد فتترفع كملف كامل وتمسح التركيبات الحالية. v3.4.0: منع التعارض مع سكربت «إلغاء الاسناد» على wfm.te.eg — التاب اللى بيفتح بعلامة #sf_cancel= بيبقى تاب إلغاء إسناد، فتدفّق تصدير أوامر الشغل بيتوقّف عليه بدل ما يخطفه لشاشة Work Order Management ويفتح نافذة Export. v3.3.0: زر «مراجعة الاسم والعنوان» بقى يحترم كمان نطاق الأرقام (من رقم/إلى رقم) من بيان التليفونات — بيتبعت فى الهاش (sf_sif = سنترال~كابينة~بكس~من~إلى) ولـ /pending كـ phoneFrom/phoneTo، فالمراجعة تقتصر على أرقام النطاق المحدد. v3.2.0: زر «مراجعة الاسم والعنوان» فى بيان التليفونات بقى يحترم الفلتر (سنترال/كابينة/بكس) — الفلتر بيتبعت فى الهاش (sf_sif) ولـ /pending، فكل تاب مراجعة يجيب أرقام فلتره بس؛ تقدر تفتح مراجعتين بفلترين مختلفين فى نفس الوقت (كل واحدة نافذة مستقلة) بلا طابور مشترك. v3.1.0: زر المراجعة اليدوى الشامل بيراجع كل الأرقام المطلوبة (مش 300 بس) — بيجيب القائمة كاملة (لحد 15000)؛ المراجعة اليومية بعد التصدير لسه دفعة صغيرة (40) عبر maxCount. v3.0.9: تنسيق تابات FCC — كل تاب مسجّل دخول بيكتب نبضة (localStorage). لو تاب التصدير لقى FCC مفتوح ومسجّل دخول فى تاب تانى → مايعملش دخول جديد (اللى كان بيطلع «Invalid username or password») ويروح Home بنفس الجلسة (الكوكيز مشتركة)؛ ولو في تاب تاني بيراجع بالفعل يقفل بعد التصدير بدل مراجعة مكرّرة. v3.0.8: (1) أولوية تصدير شيت FCC — لو التحديث اليومى اشتغل والتاب وسط مراجعة بيانات فنية، السيرفر بيسلّح علامة «صدّر الآن»؛ الراوتر يشوفها فيصدّر الشيت الأول ثم يكمّل المراجعة (المتبقى من الأرقام يفضل مستبعَد فبيكمّل من مكانه). (2) تنظيف استخراج WorkOrdDate (يقتطع التاريخ فقط) وWorkOrdNo (أرقام فقط). v3.0.7: إصلاح المراجعة بعد التصدير اليومى — كانت بتستخدم علامة عابرة (sf_fcc_phase) بتضيع مع الـ reload اللى بيحصل وقت فتح Complains، فكان main يرجع يشغّل runFCC على صفحة Complains ويعلّق من غير ما يدخل أرقام. دلوقتى بتستخدم نفس العلامة الثابتة sf_si_mode (اللى بتشتغل فى المراجعة الفردية/الشاملة) + دفعة 40 + بتتمسح فى الآخر عشان تاب fcc_daily يرجع يصدّر عادى. v3.0.6: المراجعة اليومية بعد التصدير بقت دفعة صغيرة (40 رقم) عشان تاب FCC يقفل بسرعة ومايحمّلش FCC؛ والزر الشامل اليدوى لسه بيراجع لحد 300. (السيرفر بيرجّع بس أرقام 88+7 خانات الصحيحة). v3.0.5: (1) علامة المراجعة كمان فى الـ hash احتياطى (#sf_si=one:الرقم / #sf_si=auto) لو المتصفح مسح window.name. (2) تشخيص فى اللوج «علامة الراوتر» يوضّح ليه راح للتصدير بدل المراجعة. (3) البحث عن خانات/زر البحث فى كل الـ iframes + تشخيص الحقول siDumpFields. v3.0.4: إصلاح — التهدئة بقت *فقط* لو ظهرت رسالة رفض/قفل فعلية (Invalid username or password / LoginException). بطء تسجيل الدخول (لسه على صفحة الدخول من غير رسالة) مابيتحسبش فشل خالص — بنستنى بصبر لحد ما يخرج من صفحة الدخول (نجاح) أو تظهر رسالة (تهدئة). شِلنا عدّاد «محاولتين فاشلتين» اللى كان بيوقف الدخول بالغلط وقت التأخير. v3.0.3: قفل حساب FCC مؤقت (~20 دقيقة) — فترة تهدئة ~22 دقيقة (مشتركة عبر كل تابات FCC عبر localStorage) بعد رفض الدخول، وبعدها يحاول لوحده. v3.0.2: (1) علامة وضع المراجعة (sf_subinfo_one/auto) بتتثبّت فى sessionStorage عند document-start قبل ما FCC يمسح window.name — فزر «مراجعة» بقى يفتح Complains ويدخل رقم التليفون بدل ما يقع فى تدفّق التصدير. (2) الدخول يقف فوراً لو ظهرت «Invalid username or password». v3.0.1: المراجعة تفتح Complains بـ activate (زى بلاطة Ticket Queue) + حد 300 رقم لكل تشغيل (الباقى يكمّل الدورة الجاية). v3.0.0: دمجنا سكربت SubInfo هنا — تاب FCC اليومى بعد التصدير يراجع الأرقام (بورتات بدون بيانات فنية) فى نفس الدخول ثم يقفل؛ وزر المراجعة اليدوى (sf_subinfo_auto/one) بيشتغل لوحده. (احذف سكربت SubInfo المنفصل القديم).
 // @match        https://fcc.te.eg/TroubleTicket/faces/*
 // @match        https://wfm.te.eg/WorkOrder/*
@@ -901,15 +901,60 @@
       } catch (e) { resolve(); }
     });
   }
+  // خانة جوّه لوحة «More Search» تحت عنوانها (Service number / Service order ID). العنوان فوق
+  // الخانة: بناخد أقرب خانة تحته فى نفس العمود؛ ولو مفيش تخطيط (أبعاد صفر) أول خانة بعده.
+  function ossPanelInput(d, label) {
+    const want = label.toLowerCase();
+    const labels = Array.from(d.querySelectorAll('label,span,div,td,th,p,font,b'))
+      .filter((el) => el.children.length === 0 && norm(el.textContent).toLowerCase() === want && ossVisible(el));
+    const inputs = Array.from(d.querySelectorAll('input')).filter((i) => {
+      const t = (i.getAttribute('type') || 'text').toLowerCase();
+      return (t === 'text' || t === 'search' || t === '') && !norm(i.getAttribute('placeholder') || '') && ossVisible(i);
+    });
+    // أقرب خانة تحت أى عنوان مطابق — **على مستوى كل العناوين**: عنوان عمود الجدول «Service Number»
+    // نفس النص، بس مفيش خانة تحته فى نفس العمود (لازم نفس العمود ±80 وتحت بأقل من 150).
+    let best = null, bestScore = Infinity;
+    for (const lb of labels) {
+      const r = lb.getBoundingClientRect();
+      const laidOut = !!(r.width || r.height);
+      for (const inp of inputs) {
+        if (!(lb.compareDocumentPosition(inp) & 4)) continue;          // بعد العنوان فى الصفحة
+        if (!laidOut) return inp;                                      // من غير تخطيط: أول خانة بعده
+        const q = inp.getBoundingClientRect();
+        const dy = q.top - r.top, dx = Math.abs(q.left - r.left);
+        if (dy < 0 || dy > 150 || dx > 80) continue;
+        const score = dy + dx * 3;
+        if (score < bestScore) { best = inp; bestScore = score; }
+      }
+    }
+    return best;
+  }
+  // v3.6.2 (المالك ٢٠٢٦-١٠-٠٧): البحث زى تحميل ملف المتعذرات — «More Search» ← الرقم فى «Service
+  // number» (أو الـ ID فى «Service order ID») جوّه اللوحة ← زرار «Search» الأزرق. الضغط على
+  // #search من غير ما اللوحة تتفتح كان بيفتح اللوحة بس ومابيبحثش.
   async function ossSearch(d, frame, job) {
-    const label = job.by === 'order' ? 'Service Order ID' : 'Service number';
-    const other = job.by === 'order' ? 'Service number' : 'Service Order ID';
-    const inp = await waitFor(() => ossFindInput(d, label), { label: 'OSS خانة ' + label, timeout: 30000 });
-    const oth = ossFindInput(d, other); if (oth && oth.value) setField(oth, '');   // خانة واحدة بس فيها قيمة
+    const top = job.by === 'order' ? 'Service Order ID' : 'Service number';
+    const topOther = job.by === 'order' ? 'Service number' : 'Service Order ID';
+    const panelLabel = job.by === 'order' ? 'Service order ID' : 'Service number';
+    const panelOther = job.by === 'order' ? 'Service number' : 'Service order ID';
+    // الخانة اللى فوق كمان (نفس القيمة) — والتانية تتفضى
+    const t1 = ossFindInput(d, top); if (t1) setField(t1, job.value);
+    const t2 = ossFindInput(d, topOther); if (t2 && t2.value) setField(t2, '');
+    let inp = ossPanelInput(d, panelLabel);
+    if (!inp) {
+      const more = d.getElementById('moresearch') || bestText(d, 'a,button,span', 'more search');
+      realClick(more); log('More Search');
+      inp = await waitFor(() => ossPanelInput(d, panelLabel), { label: 'خانة ' + panelLabel + ' فى More Search', timeout: 20000 });
+    }
     setField(inp, job.value);
     try { if (frame.win.jQuery) frame.win.jQuery(inp).val(job.value).trigger('change'); } catch (e) {}
-    const btn = d.getElementById('search') || bestText(d, 'button,a,span,i', 'search');
-    realClick(btn); log('🔎 بحث بـ', label, '=', job.value);
+    const oth = ossPanelInput(d, panelOther); if (oth && oth.value) setField(oth, '');
+    await sleep(400);
+    const sb = d.getElementById('search');
+    const btn = (sb && ossVisible(sb)) ? sb
+      : Array.from(d.querySelectorAll('button,a,input[type=button],input[type=submit]')).find((b) => /^search$/i.test(norm(b.textContent || b.value || '')) && ossVisible(b));
+    if (!btn) throw new Error('زرار Search فى More Search مش موجود');
+    realClick(btn); log('🔎 بحث بـ', panelLabel, '=', job.value);
   }
   async function runOssReexec(job) {
     log('🔁 OSS Re-Execute —', job.by === 'order' ? 'Service Order ID' : 'رقم', job.value);
