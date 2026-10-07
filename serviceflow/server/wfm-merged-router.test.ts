@@ -50,3 +50,12 @@ test("a bare WFM login page counts as the daily update unless a cancel/accept jo
   assert.match(us, /var _recent = \(_pm === 'cancel' \|\| _pm === 'accept'\) && Date\.now\(\) - _pts < 3 \* 60 \* 1000;/);
   assert.match(us, /if \(!_busy && !_recent\) _newMode = 'daily';/);
 });
+
+// v3.5.2 (المالك ٢٠٢٦-١٠-٠٧): «إلغاء الاسناد» جوّه المدموج مافتحش قائمة السطر والسكربت القديم
+// المنفصل فتحها. الفرق: المدموج فى sandbox بتاع Tampermonkey، و`view: window` هناك بيخلّى المتصفح
+// يرفض بناء الحدث فى صمت — فالـhover والـmousedown اللى بيفتحوا قائمة ADF ماكانوش بيتبعتوا.
+test("module events never pass view: window (it silently kills them inside the Tampermonkey sandbox)", () => {
+  const code = us.split("\n").filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l) && !/^\/\/ @/.test(l)).join("\n");
+  assert.doesNotMatch(code, /view:\s*window/);
+  assert.match(us, /function fire\(el, type\) \{ try \{ el\.dispatchEvent\(new MouseEvent\(type, \{ bubbles: true, cancelable: true \}\)\); \} catch \(e\) \{\} \}/);
+});

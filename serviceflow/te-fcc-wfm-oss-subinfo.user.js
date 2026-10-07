@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         TE FCC + WFM + OSS + SubInfo (All-in-One)
 // @namespace    te.eg.autoexport
-// @version      3.5.1
-// @description  FCC + WFM + OSS export + جلب اسم/عنوان العميل — كله فى سكربت واحد. v3.5.1: صفحة دخول WFM من غير أى علامة = تحديث يومى (Service-Flow القديم قبل الـRepublish بيفتحها كده) — إلا لو التاب عليه طلب إلغاء/موافقة شغّال. v3.5.0: سكربتا «إلغاء الاسناد» و«موافقة تغيير البورت» اتدمجوا هنا (احذفهم من Tampermonkey) — راوتر WFM واحد بيحدّد نوع التاب من الرابط أول ما يفتح (إلغاء / موافقة / تحديث يومى)، ودخول واحد، وتصدير أوامر الشغل بيشتغل **بس** على تاب متفتح كتحديث يومى (#sf_wfm_daily). v3.4.3: الدخول على WFM بنفس اسم المستخدم وكلمة السر بتوع FCC. v3.4.2: مابيشغّلش تصدير أوامر الشغل على تاب «موافقة تغيير بورت» (#sf_accept= أو sf_accept_pending) — كان بيصدّر نتيجة البحث المفلترة على رقم واحد فتترفع كملف كامل وتمسح التركيبات الحالية. v3.4.0: منع التعارض مع سكربت «إلغاء الاسناد» على wfm.te.eg — التاب اللى بيفتح بعلامة #sf_cancel= بيبقى تاب إلغاء إسناد، فتدفّق تصدير أوامر الشغل بيتوقّف عليه بدل ما يخطفه لشاشة Work Order Management ويفتح نافذة Export. v3.3.0: زر «مراجعة الاسم والعنوان» بقى يحترم كمان نطاق الأرقام (من رقم/إلى رقم) من بيان التليفونات — بيتبعت فى الهاش (sf_sif = سنترال~كابينة~بكس~من~إلى) ولـ /pending كـ phoneFrom/phoneTo، فالمراجعة تقتصر على أرقام النطاق المحدد. v3.2.0: زر «مراجعة الاسم والعنوان» فى بيان التليفونات بقى يحترم الفلتر (سنترال/كابينة/بكس) — الفلتر بيتبعت فى الهاش (sf_sif) ولـ /pending، فكل تاب مراجعة يجيب أرقام فلتره بس؛ تقدر تفتح مراجعتين بفلترين مختلفين فى نفس الوقت (كل واحدة نافذة مستقلة) بلا طابور مشترك. v3.1.0: زر المراجعة اليدوى الشامل بيراجع كل الأرقام المطلوبة (مش 300 بس) — بيجيب القائمة كاملة (لحد 15000)؛ المراجعة اليومية بعد التصدير لسه دفعة صغيرة (40) عبر maxCount. v3.0.9: تنسيق تابات FCC — كل تاب مسجّل دخول بيكتب نبضة (localStorage). لو تاب التصدير لقى FCC مفتوح ومسجّل دخول فى تاب تانى → مايعملش دخول جديد (اللى كان بيطلع «Invalid username or password») ويروح Home بنفس الجلسة (الكوكيز مشتركة)؛ ولو في تاب تاني بيراجع بالفعل يقفل بعد التصدير بدل مراجعة مكرّرة. v3.0.8: (1) أولوية تصدير شيت FCC — لو التحديث اليومى اشتغل والتاب وسط مراجعة بيانات فنية، السيرفر بيسلّح علامة «صدّر الآن»؛ الراوتر يشوفها فيصدّر الشيت الأول ثم يكمّل المراجعة (المتبقى من الأرقام يفضل مستبعَد فبيكمّل من مكانه). (2) تنظيف استخراج WorkOrdDate (يقتطع التاريخ فقط) وWorkOrdNo (أرقام فقط). v3.0.7: إصلاح المراجعة بعد التصدير اليومى — كانت بتستخدم علامة عابرة (sf_fcc_phase) بتضيع مع الـ reload اللى بيحصل وقت فتح Complains، فكان main يرجع يشغّل runFCC على صفحة Complains ويعلّق من غير ما يدخل أرقام. دلوقتى بتستخدم نفس العلامة الثابتة sf_si_mode (اللى بتشتغل فى المراجعة الفردية/الشاملة) + دفعة 40 + بتتمسح فى الآخر عشان تاب fcc_daily يرجع يصدّر عادى. v3.0.6: المراجعة اليومية بعد التصدير بقت دفعة صغيرة (40 رقم) عشان تاب FCC يقفل بسرعة ومايحمّلش FCC؛ والزر الشامل اليدوى لسه بيراجع لحد 300. (السيرفر بيرجّع بس أرقام 88+7 خانات الصحيحة). v3.0.5: (1) علامة المراجعة كمان فى الـ hash احتياطى (#sf_si=one:الرقم / #sf_si=auto) لو المتصفح مسح window.name. (2) تشخيص فى اللوج «علامة الراوتر» يوضّح ليه راح للتصدير بدل المراجعة. (3) البحث عن خانات/زر البحث فى كل الـ iframes + تشخيص الحقول siDumpFields. v3.0.4: إصلاح — التهدئة بقت *فقط* لو ظهرت رسالة رفض/قفل فعلية (Invalid username or password / LoginException). بطء تسجيل الدخول (لسه على صفحة الدخول من غير رسالة) مابيتحسبش فشل خالص — بنستنى بصبر لحد ما يخرج من صفحة الدخول (نجاح) أو تظهر رسالة (تهدئة). شِلنا عدّاد «محاولتين فاشلتين» اللى كان بيوقف الدخول بالغلط وقت التأخير. v3.0.3: قفل حساب FCC مؤقت (~20 دقيقة) — فترة تهدئة ~22 دقيقة (مشتركة عبر كل تابات FCC عبر localStorage) بعد رفض الدخول، وبعدها يحاول لوحده. v3.0.2: (1) علامة وضع المراجعة (sf_subinfo_one/auto) بتتثبّت فى sessionStorage عند document-start قبل ما FCC يمسح window.name — فزر «مراجعة» بقى يفتح Complains ويدخل رقم التليفون بدل ما يقع فى تدفّق التصدير. (2) الدخول يقف فوراً لو ظهرت «Invalid username or password». v3.0.1: المراجعة تفتح Complains بـ activate (زى بلاطة Ticket Queue) + حد 300 رقم لكل تشغيل (الباقى يكمّل الدورة الجاية). v3.0.0: دمجنا سكربت SubInfo هنا — تاب FCC اليومى بعد التصدير يراجع الأرقام (بورتات بدون بيانات فنية) فى نفس الدخول ثم يقفل؛ وزر المراجعة اليدوى (sf_subinfo_auto/one) بيشتغل لوحده. (احذف سكربت SubInfo المنفصل القديم).
+// @version      3.5.2
+// @description  FCC + WFM + OSS export + جلب اسم/عنوان العميل — كله فى سكربت واحد. v3.5.2: «إلغاء الاسناد» و«موافقة تغيير البورت» جوّه السكربت المدموج: أحداث الماوس من غير view: window (فى sandbox بتاع Tampermonkey كانت بتترفض فى صمت فقائمة السطر فى Dispatcher ماكانتش بتفتح). v3.5.1: صفحة دخول WFM من غير أى علامة = تحديث يومى (Service-Flow القديم قبل الـRepublish بيفتحها كده) — إلا لو التاب عليه طلب إلغاء/موافقة شغّال. v3.5.0: سكربتا «إلغاء الاسناد» و«موافقة تغيير البورت» اتدمجوا هنا (احذفهم من Tampermonkey) — راوتر WFM واحد بيحدّد نوع التاب من الرابط أول ما يفتح (إلغاء / موافقة / تحديث يومى)، ودخول واحد، وتصدير أوامر الشغل بيشتغل **بس** على تاب متفتح كتحديث يومى (#sf_wfm_daily). v3.4.3: الدخول على WFM بنفس اسم المستخدم وكلمة السر بتوع FCC. v3.4.2: مابيشغّلش تصدير أوامر الشغل على تاب «موافقة تغيير بورت» (#sf_accept= أو sf_accept_pending) — كان بيصدّر نتيجة البحث المفلترة على رقم واحد فتترفع كملف كامل وتمسح التركيبات الحالية. v3.4.0: منع التعارض مع سكربت «إلغاء الاسناد» على wfm.te.eg — التاب اللى بيفتح بعلامة #sf_cancel= بيبقى تاب إلغاء إسناد، فتدفّق تصدير أوامر الشغل بيتوقّف عليه بدل ما يخطفه لشاشة Work Order Management ويفتح نافذة Export. v3.3.0: زر «مراجعة الاسم والعنوان» بقى يحترم كمان نطاق الأرقام (من رقم/إلى رقم) من بيان التليفونات — بيتبعت فى الهاش (sf_sif = سنترال~كابينة~بكس~من~إلى) ولـ /pending كـ phoneFrom/phoneTo، فالمراجعة تقتصر على أرقام النطاق المحدد. v3.2.0: زر «مراجعة الاسم والعنوان» فى بيان التليفونات بقى يحترم الفلتر (سنترال/كابينة/بكس) — الفلتر بيتبعت فى الهاش (sf_sif) ولـ /pending، فكل تاب مراجعة يجيب أرقام فلتره بس؛ تقدر تفتح مراجعتين بفلترين مختلفين فى نفس الوقت (كل واحدة نافذة مستقلة) بلا طابور مشترك. v3.1.0: زر المراجعة اليدوى الشامل بيراجع كل الأرقام المطلوبة (مش 300 بس) — بيجيب القائمة كاملة (لحد 15000)؛ المراجعة اليومية بعد التصدير لسه دفعة صغيرة (40) عبر maxCount. v3.0.9: تنسيق تابات FCC — كل تاب مسجّل دخول بيكتب نبضة (localStorage). لو تاب التصدير لقى FCC مفتوح ومسجّل دخول فى تاب تانى → مايعملش دخول جديد (اللى كان بيطلع «Invalid username or password») ويروح Home بنفس الجلسة (الكوكيز مشتركة)؛ ولو في تاب تاني بيراجع بالفعل يقفل بعد التصدير بدل مراجعة مكرّرة. v3.0.8: (1) أولوية تصدير شيت FCC — لو التحديث اليومى اشتغل والتاب وسط مراجعة بيانات فنية، السيرفر بيسلّح علامة «صدّر الآن»؛ الراوتر يشوفها فيصدّر الشيت الأول ثم يكمّل المراجعة (المتبقى من الأرقام يفضل مستبعَد فبيكمّل من مكانه). (2) تنظيف استخراج WorkOrdDate (يقتطع التاريخ فقط) وWorkOrdNo (أرقام فقط). v3.0.7: إصلاح المراجعة بعد التصدير اليومى — كانت بتستخدم علامة عابرة (sf_fcc_phase) بتضيع مع الـ reload اللى بيحصل وقت فتح Complains، فكان main يرجع يشغّل runFCC على صفحة Complains ويعلّق من غير ما يدخل أرقام. دلوقتى بتستخدم نفس العلامة الثابتة sf_si_mode (اللى بتشتغل فى المراجعة الفردية/الشاملة) + دفعة 40 + بتتمسح فى الآخر عشان تاب fcc_daily يرجع يصدّر عادى. v3.0.6: المراجعة اليومية بعد التصدير بقت دفعة صغيرة (40 رقم) عشان تاب FCC يقفل بسرعة ومايحمّلش FCC؛ والزر الشامل اليدوى لسه بيراجع لحد 300. (السيرفر بيرجّع بس أرقام 88+7 خانات الصحيحة). v3.0.5: (1) علامة المراجعة كمان فى الـ hash احتياطى (#sf_si=one:الرقم / #sf_si=auto) لو المتصفح مسح window.name. (2) تشخيص فى اللوج «علامة الراوتر» يوضّح ليه راح للتصدير بدل المراجعة. (3) البحث عن خانات/زر البحث فى كل الـ iframes + تشخيص الحقول siDumpFields. v3.0.4: إصلاح — التهدئة بقت *فقط* لو ظهرت رسالة رفض/قفل فعلية (Invalid username or password / LoginException). بطء تسجيل الدخول (لسه على صفحة الدخول من غير رسالة) مابيتحسبش فشل خالص — بنستنى بصبر لحد ما يخرج من صفحة الدخول (نجاح) أو تظهر رسالة (تهدئة). شِلنا عدّاد «محاولتين فاشلتين» اللى كان بيوقف الدخول بالغلط وقت التأخير. v3.0.3: قفل حساب FCC مؤقت (~20 دقيقة) — فترة تهدئة ~22 دقيقة (مشتركة عبر كل تابات FCC عبر localStorage) بعد رفض الدخول، وبعدها يحاول لوحده. v3.0.2: (1) علامة وضع المراجعة (sf_subinfo_one/auto) بتتثبّت فى sessionStorage عند document-start قبل ما FCC يمسح window.name — فزر «مراجعة» بقى يفتح Complains ويدخل رقم التليفون بدل ما يقع فى تدفّق التصدير. (2) الدخول يقف فوراً لو ظهرت «Invalid username or password». v3.0.1: المراجعة تفتح Complains بـ activate (زى بلاطة Ticket Queue) + حد 300 رقم لكل تشغيل (الباقى يكمّل الدورة الجاية). v3.0.0: دمجنا سكربت SubInfo هنا — تاب FCC اليومى بعد التصدير يراجع الأرقام (بورتات بدون بيانات فنية) فى نفس الدخول ثم يقفل؛ وزر المراجعة اليدوى (sf_subinfo_auto/one) بيشتغل لوحده. (احذف سكربت SubInfo المنفصل القديم).
 // @match        https://fcc.te.eg/TroubleTicket/faces/*
 // @match        https://wfm.te.eg/WorkOrder/*
 // @match        https://wfm.te.eg/Dispatcher/*
@@ -1056,6 +1056,12 @@
      بعد الدخول. الكود جوّاهم هو نفسه بتاع السكربتين القديمين (إلغاء الاسناد 1.6.2 ·
      موافقة تغيير البورت 1.5.0) — الفرق الوحيد: الدخول مشترك من الراوتر.
      ===================================================================== */
+  /* v3.5.2 — ليه مفيش `view: window` فى أحداث الماوس/الكيبورد جوّه الوحدتين: السكربت المدموج
+     شغّال فى sandbox بتاع Tampermonkey (عشان GM_*)، و`window` هناك غلاف مش نافذة الصفحة
+     الحقيقية — فالمتصفح بيرفض يبنى الحدث («member view is not of type Window») والخطأ بيتبلع
+     فى try/catch، فالـhover والـmousedown عمرهم ما بيوصلوا، وقائمة السطر فى Dispatcher
+     ماتفتحش (المالك ٢٠٢٦-١٠-٠٧: السكربت القديم المنفصل — @grant none — كان شغّال). نفس
+     دالة fire() بتاعة التصدير اللى شغّالة على WFM من زمان: من غير view. */
   function sfCancelModule() {
   "use strict";
 
@@ -1166,10 +1172,10 @@
     if (!el) return false;
     try { el.scrollIntoView({ block: "center" }); } catch (e) {}
     for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
-      try { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window })); } catch (e) {}
+      try { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true })); } catch (e) {}
     }
     if (typeof el.click === "function") { try { el.click(); } catch (e) {} }
-    else { try { el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window })); } catch (e) {} }
+    else { try { el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); } catch (e) {} }
     return true;
   }
 
@@ -1761,7 +1767,7 @@
 
   function hoverEl(el) {
     for (const t of ["pointerover", "mouseover", "pointerenter", "mouseenter", "pointermove", "mousemove"]) {
-      try { el.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window })); } catch (e) {}
+      try { el.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true })); } catch (e) {}
     }
   }
   function keyOn(el, key, code) {
@@ -1769,7 +1775,7 @@
       try {
         el.dispatchEvent(new KeyboardEvent(t, {
           key, code: key === " " ? "Space" : key, keyCode: code, which: code,
-          bubbles: true, cancelable: true, view: window,
+          bubbles: true, cancelable: true,
         }));
       } catch (e) {}
     }
@@ -1797,7 +1803,7 @@
   // (te-fcc-wfm-oss-subinfo → realClick): mousedown ثم mouseup ثم click، **من غير** أى
   // pointer events. الترتيب ده مجرَّب وشغّال على قائمة operations وزر Export.
   function fireMouse(el, type) {
-    try { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window })); } catch (e) {}
+    try { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true })); } catch (e) {}
   }
   function realClick(el) {
     try { el.scrollIntoView({ block: "center" }); } catch (e) {}
@@ -2509,10 +2515,10 @@
     if (!el) return false;
     try { el.scrollIntoView({ block: "center" }); } catch (e) {}
     for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
-      try { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window })); } catch (e) {}
+      try { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true })); } catch (e) {}
     }
     if (typeof el.click === "function") { try { el.click(); } catch (e) {} }
-    else { try { el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window })); } catch (e) {} }
+    else { try { el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); } catch (e) {} }
     return true;
   }
 
@@ -3217,7 +3223,7 @@
 
   }
 
-  log('TE FCC + WFM + OSS + SubInfo v3.5.1 loaded on', location.host);
+  log('TE FCC + WFM + OSS + SubInfo v3.5.2 loaded on', location.host);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(main, 1500));
   else setTimeout(main, 1500);
 })();
