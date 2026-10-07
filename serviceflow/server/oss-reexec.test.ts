@@ -12,7 +12,11 @@ const lookup = readFileSync(new URL("../client/src/components/PhoneLookupReport.
 const om = readFileSync(new URL("../client/src/components/OmRejectionsReport.tsx", import.meta.url), "utf8");
 
 test("the merged script: OSS tab with a Re-Execute marker never runs the export", () => {
-  assert.match(script, /@version\s+3\.6\.3/);
+  assert.match(script, /@version\s+3\.6\.4/);
+  // v3.6.4 (المالك): الأساس Enter فى الخانة اللى فوق — More Search احتياطى لو Enter ماجابش حاجة
+  assert.match(script, /await ossSearchEnter\(d, frame, job\);\s+\/\/ النتيجة/);
+  assert.match(script, /Object\.defineProperty\(ev, 'keyCode', \{ get: \(\) => 13 \}\)/);
+  assert.match(script, /if \(!triedPanel\) \{ await tryPanel\(\); continue; \} break;/);
   // v3.6.3: القيمة مرة واحدة فى اللوحة — الخانتين اللى فوق بيتفضوا (وإلا «You can only query based on one service order id!»)
   assert.match(script, /for \(const lbl of \[top, topOther\]\) \{ const t = ossFindInput\(d, lbl\); if \(t && t\.value\) setField\(t, ''\); \}/);
   assert.doesNotMatch(script, /const t1 = ossFindInput\(d, top\); if \(t1\) setField\(t1, job\.value\)/);

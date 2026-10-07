@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TE FCC + WFM + OSS + SubInfo (All-in-One)
 // @namespace    te.eg.autoexport
-// @version      3.6.3
+// @version      3.6.4
 // @description  FCC + WFM + OSS export + جلب اسم/عنوان العميل — كله فى سكربت واحد. v3.5.3: «إلغاء الاسناد» و«موافقة تغيير البورت» بيشتغلوا جوّه الصفحة نفسها زى السكربتين القدام (ولو الصفحة منعت ده بيشتغلوا من الـsandbox)؛ رفع الملفات زى ما هو. v3.5.2: «إلغاء الاسناد» و«موافقة تغيير البورت» جوّه السكربت المدموج: أحداث الماوس من غير view: window (فى sandbox بتاع Tampermonkey كانت بتترفض فى صمت فقائمة السطر فى Dispatcher ماكانتش بتفتح). v3.5.1: صفحة دخول WFM من غير أى علامة = تحديث يومى (Service-Flow القديم قبل الـRepublish بيفتحها كده) — إلا لو التاب عليه طلب إلغاء/موافقة شغّال. v3.5.0: سكربتا «إلغاء الاسناد» و«موافقة تغيير البورت» اتدمجوا هنا (احذفهم من Tampermonkey) — راوتر WFM واحد بيحدّد نوع التاب من الرابط أول ما يفتح (إلغاء / موافقة / تحديث يومى)، ودخول واحد، وتصدير أوامر الشغل بيشتغل **بس** على تاب متفتح كتحديث يومى (#sf_wfm_daily). v3.4.3: الدخول على WFM بنفس اسم المستخدم وكلمة السر بتوع FCC. v3.4.2: مابيشغّلش تصدير أوامر الشغل على تاب «موافقة تغيير بورت» (#sf_accept= أو sf_accept_pending) — كان بيصدّر نتيجة البحث المفلترة على رقم واحد فتترفع كملف كامل وتمسح التركيبات الحالية. v3.4.0: منع التعارض مع سكربت «إلغاء الاسناد» على wfm.te.eg — التاب اللى بيفتح بعلامة #sf_cancel= بيبقى تاب إلغاء إسناد، فتدفّق تصدير أوامر الشغل بيتوقّف عليه بدل ما يخطفه لشاشة Work Order Management ويفتح نافذة Export. v3.3.0: زر «مراجعة الاسم والعنوان» بقى يحترم كمان نطاق الأرقام (من رقم/إلى رقم) من بيان التليفونات — بيتبعت فى الهاش (sf_sif = سنترال~كابينة~بكس~من~إلى) ولـ /pending كـ phoneFrom/phoneTo، فالمراجعة تقتصر على أرقام النطاق المحدد. v3.2.0: زر «مراجعة الاسم والعنوان» فى بيان التليفونات بقى يحترم الفلتر (سنترال/كابينة/بكس) — الفلتر بيتبعت فى الهاش (sf_sif) ولـ /pending، فكل تاب مراجعة يجيب أرقام فلتره بس؛ تقدر تفتح مراجعتين بفلترين مختلفين فى نفس الوقت (كل واحدة نافذة مستقلة) بلا طابور مشترك. v3.1.0: زر المراجعة اليدوى الشامل بيراجع كل الأرقام المطلوبة (مش 300 بس) — بيجيب القائمة كاملة (لحد 15000)؛ المراجعة اليومية بعد التصدير لسه دفعة صغيرة (40) عبر maxCount. v3.0.9: تنسيق تابات FCC — كل تاب مسجّل دخول بيكتب نبضة (localStorage). لو تاب التصدير لقى FCC مفتوح ومسجّل دخول فى تاب تانى → مايعملش دخول جديد (اللى كان بيطلع «Invalid username or password») ويروح Home بنفس الجلسة (الكوكيز مشتركة)؛ ولو في تاب تاني بيراجع بالفعل يقفل بعد التصدير بدل مراجعة مكرّرة. v3.0.8: (1) أولوية تصدير شيت FCC — لو التحديث اليومى اشتغل والتاب وسط مراجعة بيانات فنية، السيرفر بيسلّح علامة «صدّر الآن»؛ الراوتر يشوفها فيصدّر الشيت الأول ثم يكمّل المراجعة (المتبقى من الأرقام يفضل مستبعَد فبيكمّل من مكانه). (2) تنظيف استخراج WorkOrdDate (يقتطع التاريخ فقط) وWorkOrdNo (أرقام فقط). v3.0.7: إصلاح المراجعة بعد التصدير اليومى — كانت بتستخدم علامة عابرة (sf_fcc_phase) بتضيع مع الـ reload اللى بيحصل وقت فتح Complains، فكان main يرجع يشغّل runFCC على صفحة Complains ويعلّق من غير ما يدخل أرقام. دلوقتى بتستخدم نفس العلامة الثابتة sf_si_mode (اللى بتشتغل فى المراجعة الفردية/الشاملة) + دفعة 40 + بتتمسح فى الآخر عشان تاب fcc_daily يرجع يصدّر عادى. v3.0.6: المراجعة اليومية بعد التصدير بقت دفعة صغيرة (40 رقم) عشان تاب FCC يقفل بسرعة ومايحمّلش FCC؛ والزر الشامل اليدوى لسه بيراجع لحد 300. (السيرفر بيرجّع بس أرقام 88+7 خانات الصحيحة). v3.0.5: (1) علامة المراجعة كمان فى الـ hash احتياطى (#sf_si=one:الرقم / #sf_si=auto) لو المتصفح مسح window.name. (2) تشخيص فى اللوج «علامة الراوتر» يوضّح ليه راح للتصدير بدل المراجعة. (3) البحث عن خانات/زر البحث فى كل الـ iframes + تشخيص الحقول siDumpFields. v3.0.4: إصلاح — التهدئة بقت *فقط* لو ظهرت رسالة رفض/قفل فعلية (Invalid username or password / LoginException). بطء تسجيل الدخول (لسه على صفحة الدخول من غير رسالة) مابيتحسبش فشل خالص — بنستنى بصبر لحد ما يخرج من صفحة الدخول (نجاح) أو تظهر رسالة (تهدئة). شِلنا عدّاد «محاولتين فاشلتين» اللى كان بيوقف الدخول بالغلط وقت التأخير. v3.0.3: قفل حساب FCC مؤقت (~20 دقيقة) — فترة تهدئة ~22 دقيقة (مشتركة عبر كل تابات FCC عبر localStorage) بعد رفض الدخول، وبعدها يحاول لوحده. v3.0.2: (1) علامة وضع المراجعة (sf_subinfo_one/auto) بتتثبّت فى sessionStorage عند document-start قبل ما FCC يمسح window.name — فزر «مراجعة» بقى يفتح Complains ويدخل رقم التليفون بدل ما يقع فى تدفّق التصدير. (2) الدخول يقف فوراً لو ظهرت «Invalid username or password». v3.0.1: المراجعة تفتح Complains بـ activate (زى بلاطة Ticket Queue) + حد 300 رقم لكل تشغيل (الباقى يكمّل الدورة الجاية). v3.0.0: دمجنا سكربت SubInfo هنا — تاب FCC اليومى بعد التصدير يراجع الأرقام (بورتات بدون بيانات فنية) فى نفس الدخول ثم يقفل؛ وزر المراجعة اليدوى (sf_subinfo_auto/one) بيشتغل لوحده. (احذف سكربت SubInfo المنفصل القديم).
 // @match        https://fcc.te.eg/TroubleTicket/faces/*
 // @match        https://wfm.te.eg/WorkOrder/*
@@ -946,6 +946,34 @@
   // v3.6.2 (المالك ٢٠٢٦-١٠-٠٧): البحث زى تحميل ملف المتعذرات — «More Search» ← الرقم فى «Service
   // number» (أو الـ ID فى «Service order ID») جوّه اللوحة ← زرار «Search» الأزرق. الضغط على
   // #search من غير ما اللوحة تتفتح كان بيفتح اللوحة بس ومابيبحثش.
+  // v3.6.4 (المالك ٢٠٢٦-١٠-٠٧): الطريقة الأساسية — القيمة **مرة واحدة** فى الخانة اللى فوق ثم Enter
+  // من الكيبورد. Enter مُصطنع: keyCode/which بيتثبّتوا يدوى (الـ constructor بيسيبهم صفر فى Chrome)،
+  // وكمان عبر jQuery لو الصفحة بتسمع بيه.
+  function ossPressEnter(el, win) {
+    for (const type of ['keydown', 'keypress', 'keyup']) {
+      try {
+        const ev = new KeyboardEvent(type, { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+        try { Object.defineProperty(ev, 'keyCode', { get: () => 13 }); Object.defineProperty(ev, 'which', { get: () => 13 }); } catch (e) {}
+        el.dispatchEvent(ev);
+      } catch (e) {}
+    }
+    try {
+      const jq = win && win.jQuery;
+      if (jq) for (const type of ['keydown', 'keypress', 'keyup']) jq(el).trigger(jq.Event(type, { which: 13, keyCode: 13, key: 'Enter' }));
+    } catch (e) {}
+  }
+  async function ossSearchEnter(d, frame, job) {
+    const top = job.by === 'order' ? 'Service Order ID' : 'Service number';
+    const topOther = job.by === 'order' ? 'Service number' : 'Service Order ID';
+    const inp = await waitFor(() => ossFindInput(d, top), { label: 'OSS خانة ' + top, timeout: 30000 });
+    const oth = ossFindInput(d, topOther); if (oth && oth.value) setField(oth, '');
+    // خانات اللوحة تتفضى كمان — القيمة فى مكان واحد بس
+    for (const lbl of ['Service order ID', 'Service number']) { const p = ossPanelInput(d, lbl); if (p && p.value) setField(p, ''); }
+    setField(inp, job.value);
+    try { inp.focus(); } catch (e) {}
+    ossPressEnter(inp, frame.win);
+    log('⏎ Enter بعد', top, '=', job.value);
+  }
   async function ossSearch(d, frame, job) {
     const top = job.by === 'order' ? 'Service Order ID' : 'Service number';
     const topOther = job.by === 'order' ? 'Service number' : 'Service Order ID';
@@ -982,19 +1010,30 @@
       const opened = await openAbnormalTab(); if (!opened) log('Abnormal WO ماتفتحش تلقائى — جرّب تانى.');
       const frame = await waitFor(getAbnormalDoc, { label: 'OSS Abnormal frame', timeout: 120000, interval: 800 });
       const d = frame.doc; await sleep(1500);
-      await ossSearch(d, frame, job);
-      // النتيجة: السطر اللى فيه القيمة، أو «No data» ثابتة ٦ث
-      let row = null, noDataSince = 0; const t0 = Date.now();
+      await ossSearchEnter(d, frame, job);
+      // النتيجة: السطر اللى فيه القيمة، أو «No data» ثابتة ٦ث. لو Enter ماجابش حاجة فى ١٠ث ←
+      // نجرّب More Search (الخانات اللى فوق بتتفضى الأول) — مرة واحدة.
+      let row = null, noDataSince = 0, triedPanel = false; let t0 = Date.now();
+      const tryPanel = async () => {
+        triedPanel = true; noDataSince = 0; t0 = Date.now();
+        log('Enter ماجابش نتيجة — More Search');
+        await ossSearch(d, frame, job);
+      };
       while (Date.now() - t0 < 40000) {
+        if (!triedPanel && Date.now() - t0 > 10000 && !ossResultRows(d, job.value).length) await tryPanel();
         await sleep(700);
         // رسالة من OSS على البحث (زى «You can only query based on one service order id!») ← OK + نسجّلها
         const tip = ossTipMessage();
         if (tip) { realClick(tip.ok); return finish('failed', 'OSS: ' + tip.text); }
         const rows = ossResultRows(d, job.value);
         if (rows.length) { row = rows[0]; break; }
-        if (ossNoData(d) && Date.now() - t0 > 2500) { if (!noDataSince) noDataSince = Date.now(); if (Date.now() - noDataSince > 6000) break; } else noDataSince = 0;
+        if (ossNoData(d) && Date.now() - t0 > 2500) {
+          if (!noDataSince) noDataSince = Date.now();
+          // «No data» ثابتة ٦ث: بعد Enter ← نجرّب More Search؛ بعد More Search ← مش موجود فعلاً
+          if (Date.now() - noDataSince > 6000) { if (!triedPanel) { await tryPanel(); continue; } break; }
+        } else noDataSince = 0;
       }
-      if (!row) return finish('not_found', 'مش موجود فى Abnormal WO');
+      if (!row) return finish('not_found', 'مش موجود فى Abnormal WO (اتجرّب Enter و More Search)');
       await sleep(800);
       const cb = row.querySelector('input[type=checkbox]');
       realClick(cb); await sleep(500);
@@ -1043,7 +1082,7 @@
         if (ossResultRows(d, job.value).length) goneSince = 0;
         else { if (!goneSince) goneSince = Date.now(); if (Date.now() - goneSince >= 7000) return finish('done', msg || 'السطر اختفى من Abnormal WO'); }
         // بعد ٢٠ث والسطر لسه ظاهر — بحث تانى مرة واحدة (يمكن الجدول ماتحدّثش)
-        if (!researched && !goneSince && Date.now() - t1 > 20000) { researched = true; goneSince = 0; await ossSearch(d, frame, job); }
+        if (!researched && !goneSince && Date.now() - t1 > 20000) { researched = true; goneSince = 0; await ossSearchEnter(d, frame, job); }
       }
       return finish('unsure', msg || 'اتضغط Save بس السطر لسه ظاهر فى Abnormal WO');
     } catch (e) {
