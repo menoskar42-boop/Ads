@@ -384,12 +384,15 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
     const last = reexecLast?.data?.[so];
     return (
       <div className="flex flex-col items-start gap-1">
+        {/* الزرار جنب الـ Service Order ID (المالك ٢٠٢٦-١٠-٠٧) — والنتيجة تحتهم */}
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
         <span>{r.serviceOrderId}</span>
         <Button size="sm" variant="outline" disabled={reexecBusy === so} onClick={() => void runOssReexec(r)}
           className="h-6 px-2 gap-1 text-[11px] text-indigo-700 border-indigo-300 hover:bg-indigo-50"
           title="Re-Execute على OSS (Abnormal WO) بالـ Service Order ID — سوبر أدمن بس" data-testid={`button-oss-reexec-${so}`}>
           <RotateCcw className="w-3 h-3" /> Re-Execute
         </Button>
+        </div>
         {last && <span className="text-[10px] text-muted-foreground whitespace-normal max-w-[180px]">{OSS_REEXEC_AR[last.result] || last.result} · {String(last.reportedAt || "").replace("T", " ").slice(5, 16)}</span>}
       </div>
     );
