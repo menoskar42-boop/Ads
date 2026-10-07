@@ -43,7 +43,9 @@ export function DataCompletionSection() {
   const isAdmin = user?.role === ROLES.ADMIN || user?.role === ROLES.SUPER_ADMIN;
 
   const [phone, setPhone] = useState("");
-  const [workOrderType, setWorkOrderType] = useState("صيانة");   // الافتراضى
+  // المالك (٢٠٢٦-١٠-٠٧): التاب ده «إدخال كمية سلك الصيانة» — النوع صيانة دايماً (مش دروب ليست)،
+  // والكمية بتتخصم من رصيد سلك الصيانة اللى مع الفنى. التركيب/النقل من «أوامر شغل بدون كمية سلك».
+  const workOrderType = "صيانة";
   const [cableQuantity, setCableQuantity] = useState("");
   const [mobile, setMobile] = useState(""); // رقم المحمول — يظهر عند اختيار «صيانة» فقط
   // المخزن المحلى: لو فنى الإغلاق مش من الخمسة السيرفر بيرجّع 422 needTech ⇒ نختار الفنى
@@ -106,7 +108,6 @@ export function DataCompletionSection() {
       setPhone("");
       setCableQuantity("");
       setMobile("");
-      setWorkOrderType("صيانة");
       qc.invalidateQueries({ queryKey: ["/api/cable-entries"] });
       qc.invalidateQueries({ queryKey: ["/api/work-orders"] });
     },
@@ -209,12 +210,12 @@ export function DataCompletionSection() {
 
   const ALL_TABS: { id: "manual" | "orders" | "fix" | "fixlist"; label: string }[] = [
     { id: "orders",  label: "أوامر شغل بدون كمية سلك" },
-    { id: "manual",  label: "إدخال كمية السلك" },
+    { id: "manual",  label: "إدخال كمية سلك الصيانة" },
     { id: "fix",     label: "تصحيح بيانات" },
     { id: "fixlist", label: "متابعة التصحيحات" },
   ];
   // مسئول البيانات (قرار المالك ٢٠٢٦-١٠-٠٧): «متابعة التصحيحات» و«أوامر شغل بدون كمية سلك» بس،
-  // والأولى هى الافتراضى — من غير «إدخال كمية السلك» و«تصحيح بيانات».
+  // والأولى هى الافتراضى — من غير «إدخال كمية سلك الصيانة» و«تصحيح بيانات».
   const isDataManager = user?.role === ROLES.DATA_MANAGER;
   const DM_TABS: DcTab[] = ["fixlist", "orders"];
   const TABS = isDataManager
@@ -248,7 +249,7 @@ export function DataCompletionSection() {
       <Card className="p-4 sm:p-5 bg-white border-0 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
           <Cable className="w-5 h-5 text-primary" />
-          <h2 className="text-base font-bold">استكمال بيانات — كمية السلك</h2>
+          <h2 className="text-base font-bold">إدخال كمية سلك الصيانة</h2>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
           {/* رقم التليفون */}
@@ -267,19 +268,10 @@ export function DataCompletionSection() {
             </div>
           </div>
 
-          {/* نوع امر الشغل */}
+          {/* نوع امر الشغل — صيانة دايماً */}
           <div className="w-full sm:w-40">
             <Label className="text-xs text-muted-foreground block mb-1">نوع امر الشغل</Label>
-            <Select value={workOrderType} onValueChange={(v) => { setWorkOrderType(v); setNeedTechNames(null); setStockTech(""); }}>
-              <SelectTrigger className="text-right text-sm" dir="rtl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="تركيب" className="text-right">تركيب</SelectItem>
-                <SelectItem value="نقل" className="text-right">نقل</SelectItem>
-                <SelectItem value="صيانة" className="text-right">صيانة</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="h-10 px-3 flex items-center rounded-md border bg-amber-50 text-amber-800 text-sm font-medium" data-testid="fixed-order-type">صيانة</div>
           </div>
 
           {/* كمية السلك */}
@@ -339,8 +331,8 @@ export function DataCompletionSection() {
           </div>
         )}
         <p className="text-xs text-muted-foreground mt-3">
-          ملاحظة: يُكتب رقم التليفون بدون <span className="font-mono">88-</span> (تُضاف تلقائياً). نفس الرقم يمكن أن يكون له
-          كميتان مختلفتان لأمرى الشغل (تركيب / نقل). تظهر الكمية في تقرير أوامر الشغل تلقائياً.
+          ملاحظة: يُكتب رقم التليفون بدون <span className="font-mono">88-</span> (تُضاف تلقائياً). الكمية بتتخصم من رصيد
+          سلك الصيانة اللى مع الفنى فى المخزن المحلى. سلك التركيب والنقل بيتسجّل من «أوامر شغل بدون كمية سلك».
         </p>
       </Card>
 

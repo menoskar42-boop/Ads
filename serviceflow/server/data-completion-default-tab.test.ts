@@ -21,3 +21,13 @@ test("data manager sees only «متابعة التصحيحات» then «أوام
   assert.match(src, /const shownTab: DcTab = isDataManager && !DM_TABS\.includes\(tab\) \? "fixlist" : tab;/);
   assert.match(src, /\{shownTab === "orders" \? <WorkOrdersNoCableEntry \/>/);
 });
+
+test("manual tab = «إدخال كمية سلك الصيانة»: type fixed to صيانة, no dropdown (owner, 2026-10-07)", () => {
+  assert.match(src, /\{ id: "manual",  label: "إدخال كمية سلك الصيانة" \}/);
+  assert.match(src, /const workOrderType = "صيانة";/);
+  assert.doesNotMatch(src, /setWorkOrderType/);
+  assert.doesNotMatch(src, /<SelectItem value="تركيب"/);
+  // صيانة ⇒ بيتخصم من رصيد سلك الصيانة (server/local-store.ts: cableTypeOf)
+  const store = readFileSync(new URL("./local-store.ts", import.meta.url), "utf8");
+  assert.match(store, /export const cableTypeOf = \(workOrderType: string\): CableType => \(String\(workOrderType\)\.trim\(\) === "صيانة" \? "maint" : "install"\);/);
+});
