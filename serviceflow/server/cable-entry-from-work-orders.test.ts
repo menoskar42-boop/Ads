@@ -40,5 +40,5 @@ test("the tab saves through the existing cable-entries endpoint", () => {
 
 test("the tab is mounted inside the data-completion section", () => {
   assert.match(section, /import \{ WorkOrdersNoCableEntry \}/);
-  assert.match(section, /tab === "orders" \? <WorkOrdersNoCableEntry \/>/);
+  assert.match(section, /(shownTab|tab) === "orders" \? <WorkOrdersNoCableEntry \/>/);
 });

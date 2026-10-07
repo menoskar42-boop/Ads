@@ -244,10 +244,19 @@ export function UrgentNoAccountReport() {
 
   // تعليم خط بأنه «بدون رقم أكونت» — نفس زرار باقى تقارير «بدون أكونت» (قرار المالك ٢٠٢٦-١٠-٠٤).
   // المصادر التلاتة بتستبعد المُعلَّم (lines_no_account) فالصف بيختفى بعد الـrefetch.
-  const handleMarkNoAccount = async (fullPhone: string) => {
-    if (!confirm("تأكيد: هذا الخط ليس له رقم أكونت وسيختفى من التقرير؟")) return;
+  // خط ليه أكونت (اسكور 103 — المالك ٢٠٢٦-١٠-٠٧): نفس زرار تقرير «اسكور 103» — حذف رقم الأكونت
+  // الأول، وبعدين تعليمه «بدون أكونت».
+  const handleMarkNoAccount = async (fullPhone: string, oldAccount = "") => {
+    if (!confirm(oldAccount
+      ? `حذف رقم الأكونت ${oldAccount}؟\n\nالخط هيتعلّم «بدون أكونت» — يعنى صوت بس مش داتا — ويختفى من التقرير.`
+      : "تأكيد: هذا الخط ليس له رقم أكونت وسيختفى من التقرير؟")) return;
     setSaveState((state) => ({ ...state, [fullPhone]: "saving" }));
     try {
+      if (oldAccount) {
+        // fetch مابيرميش استثناء على 403/500 — لازم نفحص ok بنفسنا
+        const del = await fetch(`/api/line-accounts/${encodeURIComponent(fullPhone)}`, { method: "DELETE", credentials: "include" });
+        if (!del.ok) throw new Error("failed");
+      }
       const response = await fetch(`/api/lines-no-account/${encodeURIComponent(fullPhone)}`, {
         method: "POST",
         credentials: "include",
@@ -457,10 +466,10 @@ export function UrgentNoAccountReport() {
                           <button type="button" onClick={() => handleSave(row.fullPhone)} disabled={!drafts[row.fullPhone]?.trim() || saveState[row.fullPhone] === "saving"} title="حفظ" className="text-green-600 hover:text-green-800 disabled:opacity-40">
                             {saveState[row.fullPhone] === "saving" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                           </button>
-                          {/* خط ليه أكونت (اسكور 103) — تعديل بس، مفيش «ليس له أكونت» عشان الأكونت مايتمسحش */}
-                          {!row.oldAccount && <button type="button" onClick={() => handleMarkNoAccount(row.fullPhone)} disabled={saveState[row.fullPhone] === "saving"} title="ليس له رقم أكونت — إخفاء من التقرير" className="text-orange-500 hover:text-orange-700 disabled:opacity-40" data-testid={`button-mark-no-account-${row.fullPhone}`}>
+                          {/* خط ليه أكونت (اسكور 103): الزرار بيحذف رقم الأكونت كمان — زى تقرير «اسكور 103» */}
+                          <button type="button" onClick={() => handleMarkNoAccount(row.fullPhone, row.oldAccount)} disabled={saveState[row.fullPhone] === "saving"} title={row.oldAccount ? "ليس له رقم أكونت — حذف الأكونت وإخفاء الخط" : "ليس له رقم أكونت — إخفاء من التقرير"} className="text-orange-500 hover:text-orange-700 disabled:opacity-40" data-testid={`button-mark-no-account-${row.fullPhone}`}>
                             <Ban className="w-4 h-4" />
-                          </button>}
+                          </button>
                           {saveState[row.fullPhone] === "error" && <span className="text-red-500 text-xs">!</span>}
                         </div>
                       </TableCell>

@@ -8,8 +8,9 @@ const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 
 test("the urgent report has the same mark-no-account button", () => {
   assert.match(ui, /fetch\(`\/api\/lines-no-account\/\$\{encodeURIComponent\(fullPhone\)\}`, \{\s*method: "POST",/);
-  assert.match(ui, /onClick=\{\(\) => handleMarkNoAccount\(row\.fullPhone\)\}/);
-  assert.match(ui, /title="ليس له رقم أكونت — إخفاء من التقرير"/);
+  // ٢٠٢٦-١٠-٠٧: صفوف اسكور 103 بتبعت الأكونت القديم كمان فالزرار بيحذفه (urgent-no-account.test.ts)
+  assert.match(ui, /onClick=\{\(\) => handleMarkNoAccount\(row\.fullPhone, row\.oldAccount\)\}/);
+  assert.match(ui, /"ليس له رقم أكونت — إخفاء من التقرير"/);
 });
 
 test("all three sources the urgent report merges exclude marked lines, so the row disappears", () => {

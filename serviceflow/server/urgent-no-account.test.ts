@@ -38,13 +38,16 @@ test("current faults with status 160/173 and no account join the urgent report",
   assert.match(report, /source: "current160", rows: extra\.current/);
 });
 
-test("score-103 lines show their old account with an edit and never get the delete button", () => {
+test("score-103 lines show their old account with an edit — and the delete button deletes the account (owner, 2026-10-07)", () => {
   assert.match(extra, /WHERE c138p\.score = 103/);
   assert.match(extra, /la\.account_no AS "oldAccount"/);
   // اتراجع = تعديل يدوى بعد آخر قياس (مش updated_at اللى المزامنة بتلمسه)
   assert.match(extra, /e\.edited_at > c138p\.uploaded_at/);
   assert.match(report, /source: "score103", rows: extra\.score103/);
-  assert.match(report, /\{!row\.oldAccount && <button type="button" onClick=\{\(\) => handleMarkNoAccount/);
+  // المالك (٢٠٢٦-١٠-٠٧): «زر حذف الأكونت مش موجود» — نفس زرار تقرير «اسكور 103»: حذف الأكونت ثم «بدون أكونت»
+  assert.match(report, /<button type="button" onClick=\{\(\) => handleMarkNoAccount\(row\.fullPhone, row\.oldAccount\)\}/);
+  assert.match(report, /if \(oldAccount\) \{[\s\S]*?fetch\(`\/api\/line-accounts\/\$\{encodeURIComponent\(fullPhone\)\}`, \{ method: "DELETE"/);
+  assert.match(report, /if \(!del\.ok\) throw new Error/);
   assert.doesNotMatch(extra, /DELETE FROM line_accounts/);
 });
 

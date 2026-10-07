@@ -13,3 +13,11 @@ test("default sub-tab depends on role: data manager → fixlist, everyone else �
   assert.match(src, /if \(!tabTouched\.current && user\?\.role\) setTabState\(defaultTabFor\(user\.role\)\);/);
   assert.match(src, /onClick=\{\(\) => setTab\(t\.id\)\}/);
 });
+
+test("data manager sees only «متابعة التصحيحات» then «أوامر شغل بدون كمية سلك» (owner, 2026-10-07)", () => {
+  assert.match(src, /const DM_TABS: DcTab\[\] = \["fixlist", "orders"\];/);
+  assert.match(src, /const TABS = isDataManager\s+\? DM_TABS\.map/);
+  // تاب قديم محفوظ (إدخال/تصحيح) مايظهرش لمسئول البيانات
+  assert.match(src, /const shownTab: DcTab = isDataManager && !DM_TABS\.includes\(tab\) \? "fixlist" : tab;/);
+  assert.match(src, /\{shownTab === "orders" \? <WorkOrdersNoCableEntry \/>/);
+});

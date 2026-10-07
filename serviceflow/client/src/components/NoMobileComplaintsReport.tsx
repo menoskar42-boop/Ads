@@ -63,7 +63,8 @@ const localPhone = (row: Pick<Row, "phoneShort" | "fullPhone">) =>
 
 export function NoMobileComplaintsReport() {
   const today = todayInCairo();
-  const [dateFrom, setDateFrom] = useState(() => monthsBefore(today, 2));
+  // المالك ٢٠٢٦-١٠-٠٧: تلات شهور من النهارده (كانت شهرين)
+  const [dateFrom, setDateFrom] = useState(() => monthsBefore(today, 3));
   const [dateTo, setDateTo] = useState(today);
   const [central, setCentral] = useState("");
   const [cabin, setCabin] = useState("");

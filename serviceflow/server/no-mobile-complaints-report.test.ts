@@ -82,9 +82,9 @@ test("uses the same date and report filters for totals and paged rows", () => {
   );
 });
 
-test("defaults the report to a rolling window ending today (client: two months — owner, 2026-09-29)", () => {
-  // المالك غيّر الافتراضى فى الواجهة لشهرين (cef5f39)؛ السيرفر لسه افتراضيه شهر لو مفيش dateFrom
-  assert.match(clientReport, /const \[dateFrom, setDateFrom\] = useState\(\(\) => monthsBefore\(today, 2\)\)/);
+test("defaults the report to a rolling window ending today (client: three months — owner, 2026-10-07)", () => {
+  // المالك غيّر الافتراضى فى الواجهة لشهرين (cef5f39) ثم لتلات شهور (٢٠٢٦-١٠-٠٧)؛ السيرفر لسه افتراضيه شهر لو مفيش dateFrom
+  assert.match(clientReport, /const \[dateFrom, setDateFrom\] = useState\(\(\) => monthsBefore\(today, 3\)\)/);
   assert.match(reportRoute, /const \[todayYear, todayMonth, todayDay\] = cairoToday\.split\("-"\)\.map\(Number\)/);
   assert.match(reportRoute, /const defaultFrom = `\$\{previousMonthYear\}-\$\{String\(previousMonth\)\.padStart\(2, "0"\)\}-\$\{String\(Math\.min\(todayDay, previousMonthLastDay\)\)\.padStart\(2, "0"\)\}`/);
   assert.match(reportRoute, /const from = dateFrom \|\| defaultFrom/);

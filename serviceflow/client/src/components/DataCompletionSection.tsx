@@ -207,12 +207,20 @@ export function DataCompletionSection() {
     });
   };
 
-  const TABS: { id: "manual" | "orders" | "fix" | "fixlist"; label: string }[] = [
+  const ALL_TABS: { id: "manual" | "orders" | "fix" | "fixlist"; label: string }[] = [
     { id: "orders",  label: "أوامر شغل بدون كمية سلك" },
     { id: "manual",  label: "إدخال كمية السلك" },
     { id: "fix",     label: "تصحيح بيانات" },
     { id: "fixlist", label: "متابعة التصحيحات" },
   ];
+  // مسئول البيانات (قرار المالك ٢٠٢٦-١٠-٠٧): «متابعة التصحيحات» و«أوامر شغل بدون كمية سلك» بس،
+  // والأولى هى الافتراضى — من غير «إدخال كمية السلك» و«تصحيح بيانات».
+  const isDataManager = user?.role === ROLES.DATA_MANAGER;
+  const DM_TABS: DcTab[] = ["fixlist", "orders"];
+  const TABS = isDataManager
+    ? DM_TABS.map((id) => ALL_TABS.find((t) => t.id === id)!)
+    : ALL_TABS;
+  const shownTab: DcTab = isDataManager && !DM_TABS.includes(tab) ? "fixlist" : tab;
 
   return (
     <div className="space-y-5" dir="rtl">
@@ -223,7 +231,7 @@ export function DataCompletionSection() {
             type="button"
             onClick={() => setTab(t.id)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.id
+              shownTab === t.id
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
@@ -233,9 +241,9 @@ export function DataCompletionSection() {
         ))}
       </div>
 
-      {tab === "orders" ? <WorkOrdersNoCableEntry />
-       : tab === "fix" ? <LineDataCorrection />
-       : tab === "fixlist" ? <LineDataCorrectionsReport /> : (<>
+      {shownTab === "orders" ? <WorkOrdersNoCableEntry />
+       : shownTab === "fix" ? <LineDataCorrection />
+       : shownTab === "fixlist" ? <LineDataCorrectionsReport /> : (<>
       {/* نموذج الإدخال */}
       <Card className="p-4 sm:p-5 bg-white border-0 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
