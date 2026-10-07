@@ -66,3 +66,9 @@ test("client: opens OSS with the marker; buttons for the super admin in both pla
   assert.match(om, /: h === "Service Order ID" \? renderServiceOrderCell\(r\)/);
   assert.match(om, /const params = \{ mode: "order" \};/);
 });
+
+test("«إلغاء الاسناد» shows in phone lookup even when the number has no line data (owner, 2026-10-07)", () => {
+  assert.match(lookup, /\{!line && !!phone && !isFetching && canCancelWfm && \(\s*<Button\s+variant="outline"\s+onClick=\{openCancelWfm\}/);
+  // ونافذة الإلغاء/الإسناد نفسها مش مربوطة بوجود بيانات الخط
+  assert.match(lookup, /\n      \{wfmOpen && \(/);
+});

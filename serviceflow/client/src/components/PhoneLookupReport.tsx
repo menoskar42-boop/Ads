@@ -986,6 +986,20 @@ export function PhoneLookupReport() {
             <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
             تحديث
           </Button>
+          {/* «إلغاء الاسناد» حتى لو الرقم مالوش بيانات (المالك ٢٠٢٦-١٠-٠٧) — WFM بيدوّر بالرقم نفسه.
+              لو الخط ليه بيانات الزرار بيظهر فى مكانه تحت (مع باقى أزرار الخط) فمايتكرّرش. */}
+          {!line && !!phone && !isFetching && canCancelWfm && (
+            <Button
+              variant="outline"
+              onClick={openCancelWfm}
+              className="gap-2 text-rose-700 border-rose-300 hover:bg-rose-50"
+              title="إلغاء إسناد المهمة على WFM بالرقم — حتى لو الخط مالوش بيانات فنية"
+              data-testid="button-wfm-cancel-no-line"
+            >
+              <Ban className="w-4 h-4" />
+              إلغاء الاسناد
+            </Button>
+          )}
           {isSuper && reexecFull && (
             <span className="inline-flex items-center gap-2 flex-wrap">
               <Button
