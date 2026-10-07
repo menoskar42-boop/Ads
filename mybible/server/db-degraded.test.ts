@@ -8,7 +8,7 @@ import express from "express";
 import session from "express-session";
 import signature from "cookie-signature";
 import { isDbUnavailable, isReadRequest } from "./db-availability";
-import { _resetSnapshotForTest, snapshotBooks, snapshotVerses } from "./bible-snapshot";
+import { _resetSnapshotForTest, snapshotBooks, snapshotVerses, verifySnapshotBooks, verifySnapshotVerses } from "./bible-snapshot";
 import { buildSnapshot, parseCsv } from "../script/build-bible-snapshot";
 
 // ٢٠٢٦-١٠-٠٧: Supabase وقف الطلبات. القراءة لازم تكمّل، وهوية العضو (الكوكى) ماتتلمسش.
@@ -88,4 +88,35 @@ test("the snapshot builder rejects broken exports", () => {
   fs.writeFileSync(verses, "id,book_id,chapter,verse,text\n1,7,1,1,نص\n");
   assert.throws(() => buildSnapshot(books, verses), /ناقصة إصحاحات: التكوين \(1\/50\)/);
   assert.deepEqual(parseCsv('a,"b\nc",d\n'), [["a", "b\nc", "d"]]);
+});
+
+test("the snapshot switches itself off if the live database ever disagrees with it", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snap-"));
+  const file = path.join(dir, "bible.json.gz");
+  fs.writeFileSync(file, zlib.gzipSync(JSON.stringify({
+    books: [{ id: 1, name: "التكوين", testament: "old", bookOrder: 1, chaptersCount: 1 }],
+    verses: [[10, 1, 1, 1, "أ"], [11, 1, 1, 2, "ب"]],
+  })));
+  _resetSnapshotForTest(file);
+  verifySnapshotBooks([{ id: 1, name: "التكوين" }, { id: 67, name: "طوبيا" }]);   // سفر زيادة فى القاعدة: مش اختلاف
+  verifySnapshotVerses(1, [{ id: 10, chapter: 1, verse: 1 }, { id: 11, chapter: 1, verse: 2 }]);
+  assert.ok(snapshotBooks(), "مطابق ⇒ شغّال");
+  verifySnapshotVerses(1, [{ id: 10, chapter: 1, verse: 1 }, { id: 99, chapter: 1, verse: 2 }]);
+  assert.equal(snapshotBooks(), null, "id مختلف ⇒ اتوقف");
+  assert.equal(snapshotVerses(1), null);
+  _resetSnapshotForTest(file);
+  verifySnapshotBooks([{ id: 1, name: "الخروج" }]);
+  assert.equal(snapshotBooks(), null, "سفر باسم تانى ⇒ اتوقف");
+});
+
+test("the committed snapshot is the database export: 66 books, 31,102 verses, original ids", () => {
+  _resetSnapshotForTest(path.join(process.cwd(), "data", "bible-snapshot", "bible.json.gz"));
+  const books = snapshotBooks()!;
+  assert.equal(books.length, 66);
+  assert.deepEqual([books[0].id, books[0].name, books[65].name], [1, "التكوين", "رؤيا يوحنا"]);
+  let total = 0;
+  for (const b of books) total += snapshotVerses(b.id)!.length;
+  assert.equal(total, 31102);
+  assert.equal(snapshotVerses(1)![0].id, 1);
+  assert.match(snapshotVerses(1)![0].text, /فِي ٱلْبَدْءِ/);
 });

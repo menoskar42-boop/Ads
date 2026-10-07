@@ -15,7 +15,7 @@ import type {
 } from "@shared/schema";
 import { storage } from "./storage";
 import { isDbUnavailable, logDbDegraded } from "./db-availability";
-import { snapshotBooks, snapshotVerses } from "./bible-snapshot";
+import { snapshotBooks, snapshotVerses, verifySnapshotBooks, verifySnapshotVerses } from "./bible-snapshot";
 
 class BibleContentCache {
   private allBooks: BibleBook[] | null = null;
@@ -29,7 +29,7 @@ class BibleContentCache {
     if (this.allBooks) return this.allBooks;
     if (!this.allBooksPromise) {
       this.allBooksPromise = storage.getAllBooks()
-        .then((books) => { this.allBooks = books; return books; })
+        .then((books) => { this.allBooks = books; verifySnapshotBooks(books); return books; })
         .catch((err) => {
           this.allBooksPromise = null;
           // القاعدة مش بترد ⇒ النسخة الاحتياطية (بنفس أرقام القاعدة). مابنحفظهاش فى
@@ -65,7 +65,7 @@ class BibleContentCache {
     let pending = this.versesByBookPromise.get(bookId);
     if (!pending) {
       pending = storage.getVersesByBook(bookId)
-        .then((verses) => { this.versesByBook.set(bookId, verses); return verses; })
+        .then((verses) => { this.versesByBook.set(bookId, verses); verifySnapshotVerses(bookId, verses); return verses; })
         .catch((err) => {
           this.versesByBookPromise.delete(bookId);
           const fb = isDbUnavailable(err) ? snapshotVerses(bookId) : null;

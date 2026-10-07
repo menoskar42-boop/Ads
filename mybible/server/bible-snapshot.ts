@@ -23,6 +23,8 @@ interface Snapshot { books: SnapshotBook[]; versesByBook: Map<number, SnapshotVe
 export const SNAPSHOT_FILE = path.join(process.cwd(), "data", "bible-snapshot", "bible.json.gz");
 
 let loaded: Snapshot | null | undefined;
+// اتأكّدنا وقت ما القاعدة كانت شغّالة إن الملف مش مطابق ⇒ مابنستخدموش خالص
+let distrusted = false;
 
 export function parseSnapshot(raw: { books?: unknown; verses?: unknown }): Snapshot {
   const books = (Array.isArray(raw.books) ? raw.books : []) as SnapshotBook[];
@@ -54,11 +56,41 @@ function snapshot(file = SNAPSHOT_FILE): Snapshot | null {
   return loaded;
 }
 
-export const snapshotAvailable = (): boolean => !!snapshot();
-export function snapshotBooks(): SnapshotBook[] | null { return snapshot()?.books ?? null; }
+export const snapshotAvailable = (): boolean => !distrusted && !!snapshot();
+export function snapshotBooks(): SnapshotBook[] | null { return distrusted ? null : snapshot()?.books ?? null; }
 export function snapshotVerses(bookId: number): SnapshotVerse[] | null {
+  if (distrusted) return null;
   const s = snapshot();
   return s ? (s.versesByBook.get(bookId) ?? []) : null;
 }
+
+/* حارس المطابقة: كل ما القاعدة ترد بقايمة الأسفار أو آيات سفر، بنقارنها بالملف. أى id
+ * مختلف (سفر باسم تانى، أو آيات بأرقام تانية) ⇒ الملف بيتوقف للأبد فى العملية دى —
+ * أحسن من إن الموبايل يطلب سفر ويجيله سفر تانى وقت الوقفة. الأسفار اللى مش فى الملف
+ * (القانونية التانية لو اتضافت بعده) مش بتعتبر اختلاف: هتظهر فاضية وقت الوقفة بس. */
+function distrust(why: string): void {
+  if (distrusted) return;
+  distrusted = true;
+  console.error(`[bible-snapshot] ⛔ النسخة الاحتياطية مش مطابقة للقاعدة (${why}) — اتوقفت`);
+}
+export function verifySnapshotBooks(dbBooks: { id: number; name: string }[]): void {
+  if (distrusted) return;
+  const snap = snapshot();
+  if (!snap) return;
+  const byId = new Map(dbBooks.map((b) => [b.id, b.name]));
+  for (const b of snap.books) {
+    if (byId.get(b.id) !== b.name) return distrust(`سفر ${b.id}: «${b.name}» فى الملف و«${byId.get(b.id) ?? "مش موجود"}» فى القاعدة`);
+  }
+}
+export function verifySnapshotVerses(bookId: number, dbVerses: { id: number; chapter: number; verse: number }[]): void {
+  if (distrusted) return;
+  const list = snapshot()?.versesByBook.get(bookId);
+  if (!list || !list.length) return;
+  if (list.length !== dbVerses.length) return distrust(`سفر ${bookId}: ${list.length} آية فى الملف و${dbVerses.length} فى القاعدة`);
+  const ids = new Map(dbVerses.map((v) => [v.id, `${v.chapter}:${v.verse}`]));
+  for (const v of list) {
+    if (ids.get(v.id) !== `${v.chapter}:${v.verse}`) return distrust(`آية ${v.id} مكانها مختلف`);
+  }
+}
 /** للاختبار بس */
-export function _resetSnapshotForTest(file?: string): void { loaded = undefined; if (file) snapshot(file); }
+export function _resetSnapshotForTest(file?: string): void { loaded = undefined; distrusted = false; if (file) snapshot(file); }
