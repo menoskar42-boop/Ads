@@ -15,11 +15,13 @@ import { openProfileOptimization } from "./profile-optimization";
 //   wfmaccept  = موافقة تغيير البورت على WFM (Accept ← Start ← Change Port) — سوبر أدمن بس
 //   wfmreport  = تقارير WFM الخام
 //   fccdaily/wfmdaily/ossdaily/weoas = تحديث الملفات اليومية (كل واحد على موقعه)
+//   ossreexec  = «Re-Execute» على OSS Abnormal WO — سوبر أدمن بس. المفتاح الرقم الكامل (88…)
+//                أو Service Order ID، وparams.mode = "phone" | "order" بيحدّد خانة البحث.
 export type ExecJobType =
   | "raise" | "stop" | "measure" | "subinfo" | "c360"
   | "portchange" | "portcheck" | "ports"
   | "wfmcancel" | "wfmaccept" | "wfmreport"
-  | "fccdaily" | "wfmdaily" | "ossdaily" | "weoas";
+  | "fccdaily" | "wfmdaily" | "ossdaily" | "weoas" | "ossreexec";
 export interface ExecJobParams {
   old?: string; new?: string; pt?: string; sp?: string;
   /** مهمة WFM: "cancel" = إلغاء الاسناد | "reassign" = إسناد لفنى آخر */
@@ -71,7 +73,8 @@ const opTabName = (type: ExecJobType): string | null => {
     case "wfmreport":
     case "wfmdaily": return "sf_exec_reserved_wfm";
     case "fccdaily": return "sf_exec_reserved_fcc";
-    case "ossdaily": return "sf_exec_reserved_oss";
+    case "ossdaily":
+    case "ossreexec": return "sf_exec_reserved_oss";
     case "weoas": return "sf_exec_reserved_430d";
     default: return null;
   }
@@ -377,6 +380,12 @@ export function openOpSite(type: ExecJobType, key: string, params?: ExecJobParam
     case "wfmdaily":   return openUrl(WFM_DAILY_URL, WFM_TAB, existing);
     case "fccdaily":  return openUrl(FCC_URL, "fcc_daily", existing);
     case "ossdaily":  return openUrl(OSS_URL, "oss_daily", existing);
+    case "ossreexec": {
+      // سكربت «TE FCC + WFM + OSS» v3.6.0: Abnormal WO ← بحث ← صح ← Re-Execute ← OK ← Reason/Sub Reason ← Save
+      const by = params?.mode === "order" ? "order" : "phone";
+      const v = by === "phone" ? "88" + short : k.replace(/\D/g, "");
+      return openUrl(`${OSS_URL}#sf_oss_reexec=${encodeURIComponent(v)}&sf_by=${by}`, "sf_oss", existing);
+    }
     case "weoas":     return openUrl(WEOAS_URL, "weoas_430d", existing);
     default: return null;
   }
@@ -651,6 +660,13 @@ export const QUEUE_LABEL: Record<ExecJobType, string> = {
   wfmcancel: "إلغاء الاسناد", wfmaccept: "موافقة تغيير بورت", wfmreport: "تقارير WFM",
   fccdaily: "تحديث ملف FCC", wfmdaily: "تحديث ملف أوامر الشغل",
   ossdaily: "تحديث ملف OSS", weoas: "تحديث 430D",
+  ossreexec: "Re-Execute على OSS",
+};
+export const OSS_REEXEC_AR: Record<string, string> = {
+  done: "✅ اتعمل Re-Execute — السطر اختفى من Abnormal WO",
+  not_found: "❌ مش موجود فى Abnormal WO",
+  failed: "❌ ماتنفّذش (زرار أو نافذة ناقصة)",
+  unsure: "⚠️ اتضغط Save بس السطر لسه ظاهر — راجعه على OSS",
 };
 
 // منطق موحّد لأزرار القياس/رفع السرعة/الإيقاف فى كل التقارير (نفس بحث برقم التليفون):

@@ -11,12 +11,12 @@ import { CLOSE_CODE_REASONS, closeReason } from "@/lib/close-codes";
 import { openCustomer360 } from "@/lib/customer360";
 import { LineDataCorrection } from "@/components/LineDataCorrection";
 import { openProfileOptimization } from "@/lib/profile-optimization";
-import { enqueueIfExecutorActive, latestMeasureAt, latestPoEventAt, sleep, recordOpIntent, canRunLocalExecutor, dispatchSpeedTool, openOpSite, PHONE_LOOKUP_SOURCE, NOREAL_MARK, WFM_ACCEPT_AR } from "@/lib/exec-queue";
+import { enqueueIfExecutorActive, latestMeasureAt, latestPoEventAt, sleep, recordOpIntent, canRunLocalExecutor, dispatchSpeedTool, openOpSite, PHONE_LOOKUP_SOURCE, NOREAL_MARK, WFM_ACCEPT_AR, OSS_REEXEC_AR } from "@/lib/exec-queue";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
 import { useAuth } from "@/hooks/use-auth";
 import { SmsButton } from "@/lib/mobile-lookup";
 import { ROLES } from "@shared/schema";
-import { Gauge, CheckCircle2 } from "lucide-react";
+import { Gauge, CheckCircle2, RotateCcw } from "lucide-react";
 import { maintStatusBadge, boxCoords, type MaintRow } from "@/components/MaintenanceComprehensiveReport";
 
 // بوابة DZS expresse — تُفتح فى تاب جديد ويُمرَّر رقم الأكونت فى الـ hash ليقيسه
@@ -644,6 +644,31 @@ export function PhoneLookupReport() {
     openOpSite("wfmaccept", acceptSid);
   };
 
+  // «Re-Execute» على OSS Abnormal WO (المالك ٢٠٢٦-١٠-٠٧) — سوبر أدمن بس، وبيشتغل **حتى لو الخط
+  // مالوش بيانات**: الرقم الكامل (88…) بيتكتب فى «Service number». بيعدّى على طابور التنفيذ
+  // (مسار oss.te.eg واحد مع تحديث ملف OSS)، والنتيجة بترجع من السكربت وبتظهر جنب الزرار.
+  const reexecFull = (() => {
+    const sh = String(line?.telNo || phone || "").replace(/\D/g, "").replace(/^88/, "");
+    return sh.length >= 5 ? "88" + sh : "";
+  })();
+  const { data: reexecLast, refetch: refetchReexec } = useQuery<{ data: Record<string, { result: string; message: string | null; reportedAt: string }> }>({
+    queryKey: ["/api/oss-reexec/last", reexecFull],
+    queryFn: async () => {
+      const r = await fetch(`/api/oss-reexec/last?keys=${encodeURIComponent(reexecFull)}`, { credentials: "include" });
+      return r.ok ? r.json() : { data: {} };
+    },
+    enabled: isSuper && !!reexecFull,
+    refetchInterval: 30_000,
+  });
+  const reexecLastRow = reexecFull ? reexecLast?.data?.[reexecFull] : undefined;
+  const runOssReexec = async () => {
+    if (!reexecFull) { alert("اكتب الرقم وابحث الأول"); return; }
+    if (!confirm(`Re-Execute للرقم ${reexecFull} على OSS (Abnormal WO)؟\nReason: ReExecuteParentReason02 — Sub Reason: ReExecuteSubReason03`)) return;
+    const params = { mode: "phone" };
+    if (await dispatchSpeedTool("ossreexec", [reexecFull], isSuper, { params })) { setTimeout(() => { void refetchReexec(); }, 5000); return; }
+    openOpSite("ossreexec", reexecFull, params);
+  };
+
   const [regOpen, setRegOpen] = useState(false);
   const [regCode, setRegCode] = useState("");
   const [regTech, setRegTech] = useState("");
@@ -961,6 +986,26 @@ export function PhoneLookupReport() {
             <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
             تحديث
           </Button>
+          {isSuper && reexecFull && (
+            <span className="inline-flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={runOssReexec}
+                className="gap-2 text-indigo-700 border-indigo-300 hover:bg-indigo-50"
+                title="Re-Execute على OSS (Abnormal WO) بالرقم الكامل — Reason: ReExecuteParentReason02 / Sub Reason: ReExecuteSubReason03 — سوبر أدمن بس"
+                data-testid="button-oss-reexec"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Re-Execute OM
+              </Button>
+              {reexecLastRow && (
+                <span className="text-xs text-muted-foreground" data-testid="text-oss-reexec-last">
+                  آخر محاولة: {OSS_REEXEC_AR[reexecLastRow.result] || reexecLastRow.result}
+                  {` · ${String(reexecLastRow.reportedAt || "").replace("T", " ").slice(0, 16)}`}
+                </span>
+              )}
+            </span>
+          )}
           {line && canReview && (
             <Button
               variant="outline"

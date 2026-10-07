@@ -1281,6 +1281,17 @@ export const wfmTaskAccepts = pgTable("wfm_task_accepts", {
 
 export type WfmTaskAccept = typeof wfmTaskAccepts.$inferSelect;
 
+// «Re-Execute» على OSS Abnormal WO (٢٠٢٦-١٠-٠٧) — الرقم الكامل أو Service Order ID + النتيجة
+export const ossReexecs = pgTable("oss_reexecs", {
+  id: serial("id").primaryKey(),
+  keyValue: text("key_value").notNull(),
+  searchBy: text("search_by").notNull(),   // phone | order
+  result: text("result").notNull(),        // done | not_found | failed | unsure
+  message: text("message"),
+  requestedBy: text("requested_by"),
+  reportedAt: timestamp("reported_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // WebSocket Events
 export const WS_EVENTS = {
   ORDER_UPDATE: 'ORDER_UPDATE',

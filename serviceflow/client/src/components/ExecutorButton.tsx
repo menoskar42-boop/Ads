@@ -391,6 +391,7 @@ export function ExecutorButton() {
       fccdaily: 10 * 60 * 1000,
       wfmdaily: 10 * 60 * 1000,
       ossdaily: 10 * 60 * 1000,
+      ossreexec: 6 * 60 * 1000,    // Abnormal WO ← بحث ← Re-Execute ← Reason ← Save ← انتظار اختفاء السطر
       weoas: 10 * 60 * 1000,
     };
 

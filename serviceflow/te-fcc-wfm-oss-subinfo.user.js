@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TE FCC + WFM + OSS + SubInfo (All-in-One)
 // @namespace    te.eg.autoexport
-// @version      3.5.3
+// @version      3.6.0
 // @description  FCC + WFM + OSS export + جلب اسم/عنوان العميل — كله فى سكربت واحد. v3.5.3: «إلغاء الاسناد» و«موافقة تغيير البورت» بيشتغلوا جوّه الصفحة نفسها زى السكربتين القدام (ولو الصفحة منعت ده بيشتغلوا من الـsandbox)؛ رفع الملفات زى ما هو. v3.5.2: «إلغاء الاسناد» و«موافقة تغيير البورت» جوّه السكربت المدموج: أحداث الماوس من غير view: window (فى sandbox بتاع Tampermonkey كانت بتترفض فى صمت فقائمة السطر فى Dispatcher ماكانتش بتفتح). v3.5.1: صفحة دخول WFM من غير أى علامة = تحديث يومى (Service-Flow القديم قبل الـRepublish بيفتحها كده) — إلا لو التاب عليه طلب إلغاء/موافقة شغّال. v3.5.0: سكربتا «إلغاء الاسناد» و«موافقة تغيير البورت» اتدمجوا هنا (احذفهم من Tampermonkey) — راوتر WFM واحد بيحدّد نوع التاب من الرابط أول ما يفتح (إلغاء / موافقة / تحديث يومى)، ودخول واحد، وتصدير أوامر الشغل بيشتغل **بس** على تاب متفتح كتحديث يومى (#sf_wfm_daily). v3.4.3: الدخول على WFM بنفس اسم المستخدم وكلمة السر بتوع FCC. v3.4.2: مابيشغّلش تصدير أوامر الشغل على تاب «موافقة تغيير بورت» (#sf_accept= أو sf_accept_pending) — كان بيصدّر نتيجة البحث المفلترة على رقم واحد فتترفع كملف كامل وتمسح التركيبات الحالية. v3.4.0: منع التعارض مع سكربت «إلغاء الاسناد» على wfm.te.eg — التاب اللى بيفتح بعلامة #sf_cancel= بيبقى تاب إلغاء إسناد، فتدفّق تصدير أوامر الشغل بيتوقّف عليه بدل ما يخطفه لشاشة Work Order Management ويفتح نافذة Export. v3.3.0: زر «مراجعة الاسم والعنوان» بقى يحترم كمان نطاق الأرقام (من رقم/إلى رقم) من بيان التليفونات — بيتبعت فى الهاش (sf_sif = سنترال~كابينة~بكس~من~إلى) ولـ /pending كـ phoneFrom/phoneTo، فالمراجعة تقتصر على أرقام النطاق المحدد. v3.2.0: زر «مراجعة الاسم والعنوان» فى بيان التليفونات بقى يحترم الفلتر (سنترال/كابينة/بكس) — الفلتر بيتبعت فى الهاش (sf_sif) ولـ /pending، فكل تاب مراجعة يجيب أرقام فلتره بس؛ تقدر تفتح مراجعتين بفلترين مختلفين فى نفس الوقت (كل واحدة نافذة مستقلة) بلا طابور مشترك. v3.1.0: زر المراجعة اليدوى الشامل بيراجع كل الأرقام المطلوبة (مش 300 بس) — بيجيب القائمة كاملة (لحد 15000)؛ المراجعة اليومية بعد التصدير لسه دفعة صغيرة (40) عبر maxCount. v3.0.9: تنسيق تابات FCC — كل تاب مسجّل دخول بيكتب نبضة (localStorage). لو تاب التصدير لقى FCC مفتوح ومسجّل دخول فى تاب تانى → مايعملش دخول جديد (اللى كان بيطلع «Invalid username or password») ويروح Home بنفس الجلسة (الكوكيز مشتركة)؛ ولو في تاب تاني بيراجع بالفعل يقفل بعد التصدير بدل مراجعة مكرّرة. v3.0.8: (1) أولوية تصدير شيت FCC — لو التحديث اليومى اشتغل والتاب وسط مراجعة بيانات فنية، السيرفر بيسلّح علامة «صدّر الآن»؛ الراوتر يشوفها فيصدّر الشيت الأول ثم يكمّل المراجعة (المتبقى من الأرقام يفضل مستبعَد فبيكمّل من مكانه). (2) تنظيف استخراج WorkOrdDate (يقتطع التاريخ فقط) وWorkOrdNo (أرقام فقط). v3.0.7: إصلاح المراجعة بعد التصدير اليومى — كانت بتستخدم علامة عابرة (sf_fcc_phase) بتضيع مع الـ reload اللى بيحصل وقت فتح Complains، فكان main يرجع يشغّل runFCC على صفحة Complains ويعلّق من غير ما يدخل أرقام. دلوقتى بتستخدم نفس العلامة الثابتة sf_si_mode (اللى بتشتغل فى المراجعة الفردية/الشاملة) + دفعة 40 + بتتمسح فى الآخر عشان تاب fcc_daily يرجع يصدّر عادى. v3.0.6: المراجعة اليومية بعد التصدير بقت دفعة صغيرة (40 رقم) عشان تاب FCC يقفل بسرعة ومايحمّلش FCC؛ والزر الشامل اليدوى لسه بيراجع لحد 300. (السيرفر بيرجّع بس أرقام 88+7 خانات الصحيحة). v3.0.5: (1) علامة المراجعة كمان فى الـ hash احتياطى (#sf_si=one:الرقم / #sf_si=auto) لو المتصفح مسح window.name. (2) تشخيص فى اللوج «علامة الراوتر» يوضّح ليه راح للتصدير بدل المراجعة. (3) البحث عن خانات/زر البحث فى كل الـ iframes + تشخيص الحقول siDumpFields. v3.0.4: إصلاح — التهدئة بقت *فقط* لو ظهرت رسالة رفض/قفل فعلية (Invalid username or password / LoginException). بطء تسجيل الدخول (لسه على صفحة الدخول من غير رسالة) مابيتحسبش فشل خالص — بنستنى بصبر لحد ما يخرج من صفحة الدخول (نجاح) أو تظهر رسالة (تهدئة). شِلنا عدّاد «محاولتين فاشلتين» اللى كان بيوقف الدخول بالغلط وقت التأخير. v3.0.3: قفل حساب FCC مؤقت (~20 دقيقة) — فترة تهدئة ~22 دقيقة (مشتركة عبر كل تابات FCC عبر localStorage) بعد رفض الدخول، وبعدها يحاول لوحده. v3.0.2: (1) علامة وضع المراجعة (sf_subinfo_one/auto) بتتثبّت فى sessionStorage عند document-start قبل ما FCC يمسح window.name — فزر «مراجعة» بقى يفتح Complains ويدخل رقم التليفون بدل ما يقع فى تدفّق التصدير. (2) الدخول يقف فوراً لو ظهرت «Invalid username or password». v3.0.1: المراجعة تفتح Complains بـ activate (زى بلاطة Ticket Queue) + حد 300 رقم لكل تشغيل (الباقى يكمّل الدورة الجاية). v3.0.0: دمجنا سكربت SubInfo هنا — تاب FCC اليومى بعد التصدير يراجع الأرقام (بورتات بدون بيانات فنية) فى نفس الدخول ثم يقفل؛ وزر المراجعة اليدوى (sf_subinfo_auto/one) بيشتغل لوحده. (احذف سكربت SubInfo المنفصل القديم).
 // @match        https://fcc.te.eg/TroubleTicket/faces/*
 // @match        https://wfm.te.eg/WorkOrder/*
@@ -92,6 +92,13 @@
         if (!_busy && !_recent) _newMode = 'daily';
       }
       if (_newMode) sfWfmSetMode(_newMode);
+    }
+    /* v3.6.0: «Re-Execute» على OSS Abnormal WO (من Service-Flow — السوبر أدمن). العلامة
+       #sf_oss_reexec=<الرقم أو Service Order ID>&sf_by=phone|order بتتثبّت فى sessionStorage
+       بتاع 15201 — بتفضل فى نفس التاب حتى لو اتحوّل على صفحة الدخول 15204 ورجع من غير الهاش. */
+    if (/^oss\.te\.eg(:15201)?$/i.test(location.host) && /sf_oss_reexec=/i.test(_h)) {
+      var _rx = _h.match(/sf_oss_reexec=([^&]+)/i), _rb = _h.match(/sf_by=(phone|order)/i);
+      if (_rx) sessionStorage.setItem('sf_oss_reexec', JSON.stringify({ value: decodeURIComponent(_rx[1]), by: _rb ? _rb[1].toLowerCase() : 'phone', at: Date.now() }));
     }
   } catch (e) {}
 
@@ -810,6 +817,163 @@
   }
 
   /* =======================================================================
+     OSS Re-Execute (v3.6.0 — المالك ٢٠٢٦-١٠-٠٧، السوبر أدمن من Service-Flow)
+     Abnormal WO ← الرقم فى «Service number» (أو Service Order ID فى خانته) ← Search ←
+     صح على السطر ← Re-Execute ← OK ← Reason = ReExecuteParentReason02 ←
+     Sub Reason = ReExecuteSubReason03 ← Save. التأكيد: السطر **بيختفى** من نتيجة البحث
+     («No data can be found»). النتيجة بتتبعت لـ Service-Flow وبعدين التاب بيقفل.
+     ===================================================================== */
+  const OSS_REEXEC_REASON = 'ReExecuteParentReason02';
+  const OSS_REEXEC_SUB = 'ReExecuteSubReason03';
+  const OSS_REEXEC_TTL = 10 * 60 * 1000;
+  function ossReexecPending() {
+    try {
+      const j = JSON.parse(sessionStorage.getItem('sf_oss_reexec') || 'null');
+      if (!j || !j.value) return null;
+      if (Date.now() - Number(j.at || 0) > OSS_REEXEC_TTL) { sessionStorage.removeItem('sf_oss_reexec'); return null; }
+      return j;
+    } catch (e) { return null; }
+  }
+  // كل الـ documents (الصفحة + كل الـ iframes لأى عمق) — نافذة Re-Execute بتتفتح iframe جوّه iframe
+  function ossDocsDeep(win, out) {
+    out = out || [];
+    try { if (win.document && out.indexOf(win.document) === -1) out.push(win.document); } catch (e) { return out; }
+    let n = 0; try { n = win.frames.length; } catch (e) {}
+    for (let i = 0; i < n; i++) { try { ossDocsDeep(win.frames[i], out); } catch (e) {} }
+    return out;
+  }
+  const ossVisible = (el) => { try { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; } catch (e) { return false; } };
+  function ossFindInput(d, label) {
+    const want = label.toLowerCase();
+    return Array.from(d.querySelectorAll('input')).find((i) => norm(i.getAttribute('placeholder') || '').toLowerCase() === want && ossVisible(i))
+      || Array.from(d.querySelectorAll('input')).find((i) => norm(i.getAttribute('placeholder') || '').toLowerCase() === want);
+  }
+  // صفوف النتيجة اللى فيها القيمة (الرقم أو Service Order ID) + هل الجدول بيقول «No data»
+  function ossResultRows(d, value) {
+    const rows = Array.from(d.querySelectorAll('table tbody tr')).filter((tr) => tr.querySelector('input[type=checkbox]'));
+    return rows.filter((tr) => (tr.textContent || '').replace(/\s+/g, '').indexOf(value) !== -1);
+  }
+  const ossNoData = (d) => /no data can be found|no matching records/i.test(d.body ? d.body.textContent : '');
+  function ossSetSelect(sel, optText) {
+    const opt = Array.from(sel.options).find((o) => norm(o.textContent) === optText || o.value === optText);
+    if (!opt) return false;
+    sel.value = opt.value; opt.selected = true;
+    sel.dispatchEvent(new Event('input', { bubbles: true }));
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    try { const w = sel.ownerDocument.defaultView; if (w && w.jQuery) w.jQuery(sel).trigger('change'); } catch (e) {}
+    return true;
+  }
+  const ossSelectWith = (optText) => {
+    for (const d of ossDocsDeep(window)) {
+      for (const sel of Array.from(d.querySelectorAll('select'))) {
+        if (Array.from(sel.options).some((o) => norm(o.textContent) === optText || o.value === optText)) return sel;
+      }
+    }
+    return null;
+  };
+  function ossReport(job, result, message) {
+    log('📤 OSS Re-Execute →', result, message || '');
+    return new Promise((resolve) => {
+      try {
+        GM_xmlhttpRequest({
+          method: 'POST', url: SF_URL + '/api/oss-reexec/ingest',
+          headers: { 'Content-Type': 'application/json', 'X-DZS-Token': 'sf-dzs-138-ingest-2026' },
+          data: JSON.stringify({ key: job.value, by: job.by, result, message: message || '' }), timeout: 30000,
+          onload: (r) => { log('✅ SF:', r.status); resolve(); }, onerror: () => { log('❌ SF: فشل الاتصال'); resolve(); },
+          ontimeout: () => { log('❌ SF: انتهت المهلة'); resolve(); },
+        });
+      } catch (e) { resolve(); }
+    });
+  }
+  async function ossSearch(d, frame, job) {
+    const label = job.by === 'order' ? 'Service Order ID' : 'Service number';
+    const other = job.by === 'order' ? 'Service number' : 'Service Order ID';
+    const inp = await waitFor(() => ossFindInput(d, label), { label: 'OSS خانة ' + label, timeout: 30000 });
+    const oth = ossFindInput(d, other); if (oth && oth.value) setField(oth, '');   // خانة واحدة بس فيها قيمة
+    setField(inp, job.value);
+    try { if (frame.win.jQuery) frame.win.jQuery(inp).val(job.value).trigger('change'); } catch (e) {}
+    const btn = d.getElementById('search') || bestText(d, 'button,a,span,i', 'search');
+    realClick(btn); log('🔎 بحث بـ', label, '=', job.value);
+  }
+  async function runOssReexec(job) {
+    log('🔁 OSS Re-Execute —', job.by === 'order' ? 'Service Order ID' : 'رقم', job.value);
+    const finish = async (result, message) => {
+      await ossReport(job, result, message);
+      try { sessionStorage.removeItem('sf_oss_reexec'); } catch (e) {}
+      log('✅ خلص (' + result + ') — قفل التاب بعد ٤ث');
+      setTimeout(() => { try { window.close(); } catch (e) {} }, 4000);
+    };
+    try {
+      const opened = await openAbnormalTab(); if (!opened) log('Abnormal WO ماتفتحش تلقائى — جرّب تانى.');
+      const frame = await waitFor(getAbnormalDoc, { label: 'OSS Abnormal frame', timeout: 120000, interval: 800 });
+      const d = frame.doc; await sleep(1500);
+      await ossSearch(d, frame, job);
+      // النتيجة: السطر اللى فيه القيمة، أو «No data» ثابتة ٦ث
+      let row = null, noDataSince = 0; const t0 = Date.now();
+      while (Date.now() - t0 < 40000) {
+        await sleep(700);
+        const rows = ossResultRows(d, job.value);
+        if (rows.length) { row = rows[0]; break; }
+        if (ossNoData(d) && Date.now() - t0 > 2500) { if (!noDataSince) noDataSince = Date.now(); if (Date.now() - noDataSince > 6000) break; } else noDataSince = 0;
+      }
+      if (!row) return finish('not_found', 'مش موجود فى Abnormal WO');
+      await sleep(800);
+      const cb = row.querySelector('input[type=checkbox]');
+      realClick(cb); await sleep(500);
+      if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); try { if (frame.win.jQuery) frame.win.jQuery(cb).trigger('click'); } catch (e) {} await sleep(400); }
+      log('☑ السطر اتعلّم');
+      const reBtn = byText(d, 'button,a,span', 'Re-Execute', { exact: true }) || bestText(d, 'button,a', 're-execute');
+      if (!reBtn) return finish('failed', 'زرار Re-Execute مش موجود');
+      realClick(reBtn.closest('button,a') || reBtn); log('🔁 Re-Execute');
+      // «Are you sure to reexecute?» ← OK
+      const conf = await waitFor(() => {
+        for (const dd of ossDocsDeep(window)) {
+          const t = bestText(dd, 'div,p,span,td', 'are you sure to reexecute');
+          if (t && ossVisible(t)) {
+            const box = t.closest('.layui-layer,.modal,.modal-dialog,[role=dialog]') || dd.body;
+            const ok = box.querySelector('.layui-layer-btn0') || byText(box, 'a,button,input[type=button]', 'OK');
+            if (ok) return ok;
+          }
+        }
+        return null;
+      }, { label: 'تأكيد Re-Execute', timeout: 20000 });
+      realClick(conf); log('✔ OK');
+      // نافذة Re-Execute: Comment فاضى ← Reason ← Sub Reason ← Save
+      const reason = await waitFor(() => ossSelectWith(OSS_REEXEC_REASON), { label: 'Reason', timeout: 30000 });
+      await sleep(600);
+      if (!ossSetSelect(reason, OSS_REEXEC_REASON)) return finish('failed', 'Reason ' + OSS_REEXEC_REASON + ' مش موجود');
+      log('Reason =', OSS_REEXEC_REASON);
+      const sub = await waitFor(() => ossSelectWith(OSS_REEXEC_SUB), { label: 'Sub Reason', timeout: 20000 });
+      await sleep(500);
+      if (!ossSetSelect(sub, OSS_REEXEC_SUB)) return finish('failed', 'Sub Reason ' + OSS_REEXEC_SUB + ' مش موجود');
+      log('Sub Reason =', OSS_REEXEC_SUB);
+      await sleep(600);
+      const fd = sub.ownerDocument;
+      const save = byText(fd, 'button,a,input[type=button],input[type=submit]', 'Save') || bestText(fd, 'button,a', 'save');
+      if (!save) return finish('failed', 'زرار Save مش موجود');
+      realClick(save); log('💾 Save');
+      // التأكيد (المالك): السطر بيختفى من نتيجة البحث. لازم يفضل مختفى ٧ث متواصلة — الجدول
+      // بيفضى لحظة وهو بيحمّل (بعد Save أو بحث جديد)، واللحظة دى مش معناها إنه اتشال.
+      const t1 = Date.now(); let researched = false; let msg = ''; let goneSince = 0;
+      while (Date.now() - t1 < 60000) {
+        await sleep(1000);
+        for (const dd of ossDocsDeep(window)) {
+          const m = dd.querySelector('.layui-layer-msg .layui-layer-content, .layui-layer-dialog .layui-layer-content');
+          if (m && ossVisible(m) && norm(m.textContent)) msg = norm(m.textContent).slice(0, 200);
+        }
+        if (/fail|error|exception|فشل/i.test(msg)) return finish('failed', msg);
+        if (ossResultRows(d, job.value).length) goneSince = 0;
+        else { if (!goneSince) goneSince = Date.now(); if (Date.now() - goneSince >= 7000) return finish('done', msg || 'السطر اختفى من Abnormal WO'); }
+        // بعد ٢٠ث والسطر لسه ظاهر — بحث تانى مرة واحدة (يمكن الجدول ماتحدّثش)
+        if (!researched && !goneSince && Date.now() - t1 > 20000) { researched = true; goneSince = 0; await ossSearch(d, frame, job); }
+      }
+      return finish('unsure', msg || 'اتضغط Save بس السطر لسه ظاهر فى Abnormal WO');
+    } catch (e) {
+      return finish('failed', String(e && e.message || e).slice(0, 200));
+    }
+  }
+
+  /* =======================================================================
      SubInfo — جلب اسم/عنوان العميل + بيانات فنية من FCC Complains (مدموج)
      يشتغل: (1) بعد التصدير على تاب fcc_daily، أو (2) لوحده على تاب sf_subinfo_auto/one
      ===================================================================== */
@@ -996,7 +1160,11 @@
         await runFCC();
       }
       else if (host.startsWith('wfm.te.eg')) await runWfmRouter();
-      else if (host.startsWith('oss.te.eg')) await runOSS();
+      else if (host.startsWith('oss.te.eg')) {
+        // v3.6.0: تاب «Re-Execute» (عليه طلب من Service-Flow) مايصدّرش — بيعمل إعادة التنفيذ بس
+        const rx = /\/cas\//i.test(location.href) ? null : ossReexecPending();
+        if (rx) await runOssReexec(rx); else await runOSS();
+      }
     } catch(e){log('ERROR:',e.message||String(e));console.error('[TE] error:',e);}
   }
 

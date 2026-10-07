@@ -7,7 +7,8 @@ import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, FileSpreadsheet, Printer, UserPlus, Pencil, X } from "lucide-react";
+import { Loader2, FileSpreadsheet, Printer, UserPlus, Pencil, X, RotateCcw } from "lucide-react";
+import { dispatchSpeedTool, openOpSite, OSS_REEXEC_AR } from "@/lib/exec-queue";
 import { LastUpdatedBadge } from "@/components/LastUpdatedBadge";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { useAuth } from "@/hooks/use-auth";
@@ -350,6 +351,50 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
     });
   }, [rows, yearFilter, respFilter, workingLt, boxBrokenOnly, boxScoreLt]);
 
+  // «Re-Execute» على OSS Abnormal WO بالـ Service Order ID (المالك ٢٠٢٦-١٠-٠٧) — سوبر أدمن بس، فى
+  // المتعذرات الحالية. بيعدّى على طابور التنفيذ؛ السكربت بيكتب الـ ID فى خانة «Service Order ID».
+  const canReexec = bucket === "current" && isSuperAdmin;
+  const soKeys = useMemo(() => (canReexec
+    ? [...new Set(displayRows.map((r) => String(r.serviceOrderId || "").replace(/\D/g, "")).filter(Boolean))].slice(0, 500)
+    : []), [canReexec, displayRows]);
+  const { data: reexecLast, refetch: refetchReexec } = useQuery<{ data: Record<string, { result: string; reportedAt: string }> }>({
+    queryKey: ["/api/oss-reexec/last", soKeys.join(",")],
+    queryFn: async () => {
+      const r = await fetch(`/api/oss-reexec/last?keys=${encodeURIComponent(soKeys.join(","))}`, { credentials: "include" });
+      return r.ok ? r.json() : { data: {} };
+    },
+    enabled: soKeys.length > 0,
+    refetchInterval: 30_000,
+  });
+  const [reexecBusy, setReexecBusy] = useState<string | null>(null);
+  const runOssReexec = async (r: Row) => {
+    const so = String(r.serviceOrderId || "").replace(/\D/g, "");
+    if (!so) return;
+    if (!confirm(`Re-Execute لـ Service Order ID ${so}${r.customerName ? ` (${r.customerName})` : ""} على OSS؟\nReason: ReExecuteParentReason02 — Sub Reason: ReExecuteSubReason03`)) return;
+    setReexecBusy(so);
+    try {
+      const params = { mode: "order" };
+      if (!(await dispatchSpeedTool("ossreexec", [so], isSuperAdmin, { params }))) openOpSite("ossreexec", so, params);
+      setTimeout(() => { void refetchReexec(); }, 5000);
+    } finally { setReexecBusy(null); }
+  };
+  const renderServiceOrderCell = (r: Row) => {
+    const so = String(r.serviceOrderId || "").replace(/\D/g, "");
+    if (!canReexec || !so) return r.serviceOrderId ?? "-";
+    const last = reexecLast?.data?.[so];
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span>{r.serviceOrderId}</span>
+        <Button size="sm" variant="outline" disabled={reexecBusy === so} onClick={() => void runOssReexec(r)}
+          className="h-6 px-2 gap-1 text-[11px] text-indigo-700 border-indigo-300 hover:bg-indigo-50"
+          title="Re-Execute على OSS (Abnormal WO) بالـ Service Order ID — سوبر أدمن بس" data-testid={`button-oss-reexec-${so}`}>
+          <RotateCcw className="w-3 h-3" /> Re-Execute
+        </Button>
+        {last && <span className="text-[10px] text-muted-foreground whitespace-normal max-w-[180px]">{OSS_REEXEC_AR[last.result] || last.result} · {String(last.reportedAt || "").replace("T", " ").slice(5, 16)}</span>}
+      </div>
+    );
+  };
+
   const assignTech = async (msanCode: string, techName: string) => {
     try {
       await apiRequest("POST", "/api/msan-tech", { msanCode, techName });
@@ -690,6 +735,7 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
                           ? "whitespace-normal break-words align-top max-w-[260px] min-w-[180px] leading-5"
                           : "whitespace-nowrap"}>
                         {h === "اسم الفنى" ? renderTechCell(r)
+                          : h === "Service Order ID" ? renderServiceOrderCell(r)
                           : h === "الموبايل" ? renderMobileCell(r)
                           : h === "رد الفنى" ? renderRespStatusCell(r)
                           : h === "إجراء" ? renderRespActionsCell(r)

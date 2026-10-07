@@ -1167,6 +1167,22 @@ export async function ensureSchema() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS wfm_task_accepts_phone_idx ON wfm_task_accepts (phone_number)`);
 
+  // oss_reexecs — «Re-Execute» على OSS Abnormal WO (٢٠٢٦-١٠-٠٧، سوبر أدمن): key_value = الرقم الكامل
+  // (من بحث برقم التليفون) أو Service Order ID (من المتعذرات الحالية). كل نتيجة بتتسجّل
+  // (done = السطر اختفى من Abnormal WO / not_found / failed / unsure).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS oss_reexecs (
+      id serial PRIMARY KEY,
+      key_value text NOT NULL,
+      search_by text NOT NULL,
+      result text NOT NULL,
+      message text,
+      requested_by text,
+      reported_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS oss_reexecs_key_idx ON oss_reexecs (key_value)`);
+
   // app_state — key/value عام للحالة (مثلاً وقت اكتمال آخر تشغيل كامل لتحديث البورتات)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_state (
@@ -1404,6 +1420,7 @@ export async function ensureSchema() {
       WHEN 'wfmdaily' THEN 'wfm.te.eg'
       WHEN 'fccdaily' THEN 'fcc.te.eg'
       WHEN 'ossdaily' THEN 'oss.te.eg'
+      WHEN 'ossreexec' THEN 'oss.te.eg'
       WHEN 'weoas' THEN 'we-oas.te.eg'
       ELSE '10.42.187.101' END
     WHERE site IN ('dzs', 'fcc', 'c360', 'prov', 'wfm', 'oss', 'weoas')`);

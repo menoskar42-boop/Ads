@@ -2167,6 +2167,8 @@ export async function registerRoutes(
     // موافقة تغيير البورت (Accept ← Start ← Change Port) — سوبر أدمن بس (٢٠٢٦-١٠-٠٥)
     wfmaccept: "wfm.te.eg",
     ossdaily: "oss.te.eg",
+    // «Re-Execute» على OSS Abnormal WO — سوبر أدمن بس (٢٠٢٦-١٠-٠٧)
+    ossreexec: "oss.te.eg",
     weoas: "we-oas.te.eg",
   };
   const ALL_JOB_TYPES = Object.keys(SITE_OF_TYPE);
@@ -2269,6 +2271,7 @@ export async function registerRoutes(
       // subinfo = مراجعة اسم/عنوان العميل من FCC (زر «مراجعة» فى بحث برقم التليفون).
       // «الأرقام» هنا أرقام تليفون مش أرقام أكونت، لكن الطابور بيتعامل معاها بنفس الطريقة.
       if (!ALL_JOB_TYPES.includes(type)) return res.status(400).json({ message: "نوع غير صحيح" });
+      if (type === "ossreexec" && req.user?.role !== ROLES.SUPER_ADMIN) return res.status(403).json({ message: "Re-Execute على OSS للسوبر أدمن بس" });
       const uniqAccs = [...new Set((Array.isArray(accounts) ? accounts : []).map((a: any) => String(a).trim()).filter(Boolean))];
       if (!uniqAccs.length) return res.status(400).json({ message: "لا توجد أرقام" });
       // منع تكرار تحديث نفس الملف: لو فيه مهمة تحديث بنفس النوع لسه فى الطابور (منتظرة أو
@@ -2593,6 +2596,8 @@ export async function registerRoutes(
       } else if (type === "wfmaccept") {
         // أى نتيجة (اتوافق / مش موجود / مفيش زرار أخضر / فشل) معناها إن السكربت خلص الرقم
         sql = `SELECT MAX(reported_at) AS at FROM wfm_task_accepts WHERE ${sp("phone_number")} = ${sp("$1")}`;
+      } else if (type === "ossreexec") {
+        sql = `SELECT MAX(reported_at) AS at FROM oss_reexecs WHERE regexp_replace(key_value, '\\D', '', 'g') = regexp_replace($1, '\\D', '', 'g')`;
       } else return res.json({ at: null });   // wfmreport مالهاش أثر على رقم — بتعتمد على قفل التاب
       const { rows } = await pool.query(sql, [key]);
       res.json({ at: rows[0]?.at || null });
@@ -2641,6 +2646,40 @@ export async function registerRoutes(
         [phone, String(b.workOrderId || "").trim().slice(0, 30) || null, String(b.workId || "").trim().slice(0, 30) || null,
          result, String(b.message || "").trim().slice(0, 500) || null, who.rows[0]?.username || null]);
       res.json({ ok: true, id: rows[0]?.id });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // نتيجة «Re-Execute» من سكربت OSS (te-fcc-wfm-oss-subinfo v3.6.0) — توكن + CORS. كل نتيجة بتتسجّل.
+  const OSS_REEXEC_RESULTS = new Set(["done", "not_found", "failed", "unsure"]);
+  app.options("/api/oss-reexec/ingest", (_req, res) => { setPortsCors(res); res.sendStatus(204); });
+  app.post("/api/oss-reexec/ingest", async (req: any, res) => {
+    setPortsCors(res);
+    if (req.headers["x-dzs-token"] !== DZS_INGEST_TOKEN) return res.status(401).json({ message: "invalid token" });
+    const b = req.body || {};
+    const key = String(b.key || "").replace(/\D/g, "");
+    const by = b.by === "order" ? "order" : "phone";
+    const result = String(b.result || "");
+    if (!key || !OSS_REEXEC_RESULTS.has(result)) return res.status(400).json({ message: "key و result مطلوبين" });
+    try {
+      const who = await pool.query(
+        `SELECT username FROM op_intents WHERE account = $1 AND op_type = 'ossreexec' LIMIT 1`, [key]);
+      const { rows } = await pool.query(
+        `INSERT INTO oss_reexecs (key_value, search_by, result, message, requested_by, reported_at)
+         VALUES ($1, $2, $3, $4, $5, now()) RETURNING id`,
+        [key, by, result, String(b.message || "").trim().slice(0, 500) || null, who.rows[0]?.username || null]);
+      res.json({ ok: true, id: rows[0]?.id });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // آخر نتيجة Re-Execute لقيم (رقم أو Service Order ID) — بتظهر جنب الزرار (سوبر أدمن)
+  app.get("/api/oss-reexec/last", requireAuth, requireSuperAdmin, async (req, res) => {
+    const keys = String(req.query.keys || req.query.key || "").split(",").map((k) => k.replace(/\D/g, "")).filter(Boolean).slice(0, 500);
+    if (!keys.length) return res.json({ data: {} });
+    try {
+      const { rows } = await pool.query(
+        `SELECT DISTINCT ON (key_value) key_value AS "key", result, message, requested_by AS "requestedBy",
+                (reported_at AT TIME ZONE 'Africa/Cairo') AS "reportedAt"
+           FROM oss_reexecs WHERE key_value = ANY($1::text[]) ORDER BY key_value, reported_at DESC`, [keys]);
+      res.json({ data: Object.fromEntries(rows.map((r: any) => [r.key, r])) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -3006,6 +3045,13 @@ export async function registerRoutes(
           ORDER BY ${sp("phone_number")}, reported_at DESC`, [waKeys])).rows,
         (r) => String(r.k)) : new Map();
 
+      // Re-Execute على OSS: آخر نتيجة لكل رقم/Service Order ID
+      const rxKeys = keysOf("ossreexec").map((k: string) => String(k).replace(/\D/g, ""));
+      const orx = rxKeys.length ? M<any>((await pool.query(
+        `SELECT DISTINCT ON (key_value) key_value AS k, result, message, reported_at
+           FROM oss_reexecs WHERE key_value = ANY($1::text[]) ORDER BY key_value, reported_at DESC`, [rxKeys])).rows,
+        (r) => String(r.k)) : new Map();
+
       // مراجعة الاسم والعنوان من FCC
       const siKeys = keysOf("subinfo");
       const si = siKeys.length ? M<any>((await pool.query(
@@ -3085,6 +3131,12 @@ export async function registerRoutes(
             mode: p.mode === "reassign" ? "إعادة إسناد (Re-assign)" : "إلغاء إسناد (Cancel)",
             worker: p.worker ?? null, workerName: p.workerName ?? null,
           };
+        } else if (j.type === "ossreexec") {
+          const r0 = orx.get(String(key).replace(/\D/g, "")) as any;
+          detail = r0 ? {
+            inThisJob: at(r0.reported_at) >= at(j.claimedAtRaw),
+            result: r0.result, message: r0.message, by: p.mode === "order" ? "order" : "phone", at: r0.reported_at,
+          } : { inThisJob: false, by: p.mode === "order" ? "order" : "phone" };
         } else if (j.type === "wfmaccept") {
           const a0 = wfa.get(short(key)) as any;
           detail = a0 ? {
@@ -3850,6 +3902,9 @@ export async function registerRoutes(
     } else if (type === "wfmaccept") {
       q = `SELECT COUNT(DISTINCT phone_number)::int AS n FROM wfm_task_accepts
             WHERE ${sp("phone_number")} = ANY(SELECT ${sp("x")} FROM unnest($1::text[]) AS x) AND reported_at >= $2`;
+    } else if (type === "ossreexec") {
+      q = `SELECT COUNT(DISTINCT key_value)::int AS n FROM oss_reexecs
+            WHERE key_value = ANY(SELECT regexp_replace(x, '\\D', '', 'g') FROM unnest($1::text[]) AS x) AND reported_at >= $2`;
     } else if (type === "subinfo") {
       // المراجعة خلصت لما سكربت FCC يرفع اسم/عنوان الرقم (fetched_at بيتحدّث فى الـ ingest)
       q = `SELECT COUNT(DISTINCT phone_number)::int AS n FROM line_subscriber_info
@@ -3887,6 +3942,7 @@ export async function registerRoutes(
         portcheck: ["phone_ports", "phone_number", "uploaded_at"],
         wfmcancel: ["wfm_task_cancels", "phone_number", "canceled_at"],
         wfmaccept: ["wfm_task_accepts", "phone_number", "reported_at"],
+        ossreexec: ["oss_reexecs", "key_value", "reported_at"],
       };
       const s = src[type];
       if (!s) return accs;
