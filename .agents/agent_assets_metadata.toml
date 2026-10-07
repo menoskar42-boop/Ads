@@ -7,6 +7,7 @@ uri = "file://research/notes.md"
 type = "text"
 title = "OscarDevs Research Notes"
 description = "Running research plan and evidence log for the business opportunity pipeline."
+logical_id = "64f54fe9-6f71-450d-9d9d-bef1ce513961"
 
 [[outputs]]
 id = "9jN72H_loHuzkpS31EefN"
@@ -14,6 +15,7 @@ uri = "file://research/oscardevs-business-research.md"
 type = "text"
 title = "OscarDevs Business Research Report"
 description = "Evidence-based synthesis covering problem discovery, SaaS selection, competition, public buying signals, reusable products, operating model, SEO, and the 90-day validation plan."
+logical_id = "0315fe8b-aade-4d94-a734-60d19251d3cc"
 
 [[outputs]]
 id = "slNZodhsJxLIJDxYByQNR"
@@ -21,6 +23,7 @@ uri = "file://research/public-buying-signals.csv"
 type = "table"
 title = "Public Buying Signals CSV"
 description = "32 attributable public signals across Egypt, Saudi Arabia, and the UAE; no private contact data."
+logical_id = "b280693b-61c1-4bbb-afc0-ec299a088923"
 
 [[outputs]]
 id = "C__MvTrbHQ9Pi8Gs3Z2Tj"
@@ -28,3 +31,32 @@ uri = "file://research/competitive-matrix.csv"
 type = "table"
 title = "Competitive Matrix CSV"
 description = "27 alternatives across CRM, WhatsApp, commerce, booking, ERP, POS, and inventory workflows."
+logical_id = "0b055b88-0be5-4573-86ce-38a46a679cdf"
+
+[[outputs]]
+id = "OG8p88Z1skU7NVq-wbPyF"
+uri = "file://.agents/outputs/bible_books.csv"
+type = "table"
+title = "bible_books.csv"
+description = "66 سجلاً؛ تم التحقق من UTF-8 وأسماء الأعمدة وعدد الصفوف."
+logical_id = "a48a6159-0a74-446c-b81e-57100be77ac8"
+content_hash = "sha256:edde2ba4d4a6c525d18b91814d9fe0c47636889cd0e6fb0ae278f23c42922234"
+size = 2015
+mtime_ms = 1791357603702
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:63fe2d87-f64e-49fe-b075-5e7301003d5f/a48a6159-0a74-446c-b81e-57100be77ac8/5ae16391-3a14-48d6-b0bd-267f3bfe5d53"
+storage_version_token = "1791357785125156"
+content_type = "text/csv"
+
+[[outputs]]
+id = "JxJrvBrptMb-VHfFCfCt9"
+uri = "file://.agents/outputs/bible_verses.csv"
+type = "table"
+title = "bible_verses.csv"
+description = "31,102 آية؛ تم التحقق من UTF-8 وأسماء الأعمدة وعدد الصفوف."
+logical_id = "08ea49ac-66d1-4410-a3de-b4df261524f5"
+content_hash = "sha256:23fadc8a86cee3394397735c1fd0c34250db4024c726e3102a07b33858b78129"
+size = 7937395
+mtime_ms = 1791357603942
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:63fe2d87-f64e-49fe-b075-5e7301003d5f/08ea49ac-66d1-4410-a3de-b4df261524f5/79ada839-87f3-4b98-8091-c784d10c3a8f"
+storage_version_token = "1791357786347456"
+content_type = "text/csv"
