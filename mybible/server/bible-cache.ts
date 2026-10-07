@@ -14,6 +14,8 @@ import type {
   ChildStory, ReadingPlan, CalendarDailyVerse,
 } from "@shared/schema";
 import { storage } from "./storage";
+import { isDbUnavailable, logDbDegraded } from "./db-availability";
+import { snapshotBooks, snapshotVerses } from "./bible-snapshot";
 
 class BibleContentCache {
   private allBooks: BibleBook[] | null = null;
@@ -28,7 +30,14 @@ class BibleContentCache {
     if (!this.allBooksPromise) {
       this.allBooksPromise = storage.getAllBooks()
         .then((books) => { this.allBooks = books; return books; })
-        .catch((err) => { this.allBooksPromise = null; throw err; });
+        .catch((err) => {
+          this.allBooksPromise = null;
+          // القاعدة مش بترد ⇒ النسخة الاحتياطية (بنفس أرقام القاعدة). مابنحفظهاش فى
+          // الذاكرة عشان أول ما القاعدة ترجع القراية تبقى منها تانى.
+          const fb = isDbUnavailable(err) ? snapshotBooks() : null;
+          if (fb) { logDbDegraded("bible-books", err); return fb as BibleBook[]; }
+          throw err;
+        });
     }
     return this.allBooksPromise;
   }
@@ -57,7 +66,12 @@ class BibleContentCache {
     if (!pending) {
       pending = storage.getVersesByBook(bookId)
         .then((verses) => { this.versesByBook.set(bookId, verses); return verses; })
-        .catch((err) => { this.versesByBookPromise.delete(bookId); throw err; });
+        .catch((err) => {
+          this.versesByBookPromise.delete(bookId);
+          const fb = isDbUnavailable(err) ? snapshotVerses(bookId) : null;
+          if (fb) { logDbDegraded("bible-verses", err); return fb as BibleVerse[]; }
+          throw err;
+        });
       this.versesByBookPromise.set(bookId, pending);
     }
     return pending;

@@ -1,3 +1,4 @@
+import { isDbUnavailable, isReadRequest, logDbDegraded } from "./db-availability";
 import { Request, Response, NextFunction } from 'express';
 import { storage } from './storage';
 import type { User } from '@shared/schema';
@@ -75,6 +76,12 @@ export async function ensureSessionUser(req: Request, res: Response, next: NextF
     
     next();
   } catch (error) {
+    // القاعدة مش متاحة وده طلب قراءة: نكمّل كزائر من غير ما نلمس الجلسة (مفيش userId
+    // اتكتب ⇒ مفيش Set-Cookie) — المحتوى اللى مش فى القاعدة (التفسير…) يوصل عادى.
+    if (isReadRequest(req.method) && isDbUnavailable(error) && !req.session.userId) {
+      logDbDegraded("ensureSessionUser", error);
+      return next();
+    }
     console.error('[Auth] Session user creation error:', error);
     res.status(500).json({ message: 'Session initialization failed' });
   }

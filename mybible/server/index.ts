@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import { isDbUnavailable, isReadRequest, logDbDegraded } from "./db-availability";
 import { dbPool } from "./db-pool";
 import { registerRoutes } from "./routes";
 import { registerGroupRoutes } from "./group-routes";
@@ -63,7 +64,23 @@ const sessionMiddleware = session({
  * المكسب كان تحسين سرعة، والمخاطرة كانت على موقع فيه ٧٠٠ عضو — والميزان
  * ده مش في صالحنا. المكسب الأكبر (الاتصال الدافي: ٨٠٦ مللي → ١٠٥) موجود
  * في `db-pool.ts` ومستقل تماماً عن ده. */
-app.use(sessionMiddleware);
+/* القاعدة واقعة (٢٠٢٦-١٠-٠٧ — Supabase وقف الطلبات لحد ٢٤ أكتوبر): قراية الجلسة من
+ * القاعدة كانت بترجّع خطأ لأى عضو عنده كوكى — حتى فى صفحات/محتوى مالوش دعوة بالقاعدة
+ * (التفسير، السنكسار، القطمارس، الصفحة نفسها). دلوقتى فى طلبات **القراءة بس**: لو القاعدة
+ * مش متاحة، الطلب بيكمّل **من غير جلسة خالص** (req.session فاضى).
+ *
+ * 🔴 هوية العضو: express-session مابيبعتش Set-Cookie ولا بيحفظ حاجة لما req.session
+ * فاضى — فالكوكى اللى على موبايل العضو مابيتغيّرش، وأول ما القاعدة ترجع بيرجع هو هو.
+ * الكتابة (تسجيل قراءة، رسالة…) بتفضل بتفشل بوضوح زى الأول. */
+app.use((req, res, next) => {
+  sessionMiddleware(req, res, (err?: any) => {
+    if (err && isReadRequest(req.method) && isDbUnavailable(err) && !(req as any).session) {
+      logDbDegraded("session", err);
+      return next();
+    }
+    next(err);
+  });
+});
 
 declare module "http" {
   interface IncomingMessage {
