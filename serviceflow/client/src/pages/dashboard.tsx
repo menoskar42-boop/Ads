@@ -92,7 +92,7 @@ import * as XLSX from 'xlsx';
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload" | "local-store";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -132,6 +132,15 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
     icon: CalendarDays,
     items: [
       { id: "shift-schedule", label: "جدول الورديات" },
+    ],
+  },
+  {
+    // المخزن المحلى للسلك (المالك ٢٠٢٦-١٠-٠٧) — تقارير بس للأدمن والشئون الخارجية ومهندس الكوابل؛
+    // التسجيل لمسئول البيانات والسوبر أدمن (السيرفر هو اللى بيقرّر: canRecord فى local-store.ts)
+    label: "المخزن",
+    icon: Warehouse,
+    items: [
+      { id: "local-store", label: "المخزن المحلى (السلك)" },
     ],
   },
   {
@@ -290,8 +299,8 @@ export default function Dashboard() {
 
   // مجموعات التقارير المعروضة حسب الدور
   // مسئول البيانات: تقريرين من القياسات + أوامر الشغل + «بيان التليفونات» + «أرقام بدون موبايل»
-  const DM_ALLOWED: ReportTab[] = ["no-account", "ground-network", "work-orders", "phone-lines", "lines-no-mobile"];
-  const DM_ALLOWED_GROUPS = ["القياسات", "تركيبات و نقل و اوامر شغل", "الخطوط والبكسيات"];
+  const DM_ALLOWED: ReportTab[] = ["no-account", "ground-network", "work-orders", "phone-lines", "lines-no-mobile", "local-store"];
+  const DM_ALLOWED_GROUPS = ["القياسات", "تركيبات و نقل و اوامر شغل", "الخطوط والبكسيات", "المخزن"];
   // الفني: 5 تقارير فقط (الأعطال الحالية + أداء الفنيين + إحصائيات الإزالة/التكرار + متوسط القياسات)
   // «التركيبات والنقل الحالى» و«المعاينات الحالية» بيظهروا للفنى كمان — والسيرفر
   // بيفلترهم على كباينه هو (worker_code) فكل واحد يشوف اللى يخصه بس.
@@ -309,7 +318,8 @@ export default function Dashboard() {
   const isCentralView = !isSuperAdmin && (authUser?.role === ROLES.ADMIN || authUser?.role === ROLES.EXTERNAL);
   // + مجموعة «إنشاء جداول» كاملة (قرار المالك ٢٠٢٦-١٠-٠٥) — السيرفر مابيمنعهمش منها.
   const TABLES_GROUP: ReportTab[] = ["major-faults", "major-faults-selected", "major-fault-closure", "engineering-inspection", "closed-port-cabinets"];
-  const CENTRAL_VIEW_ALLOWED: ReportTab[] = [...TECH_ALLOWED, "box-tickets-repaired", ...TABLES_GROUP];
+  // + «المخزن المحلى» (قرار المالك ٢٠٢٦-١٠-٠٧): يشوفوا التقارير بس — التسجيل مقفول عليهم من السيرفر
+  const CENTRAL_VIEW_ALLOWED: ReportTab[] = [...TECH_ALLOWED, "box-tickets-repaired", ...TABLES_GROUP, "local-store"];
   const CENTRAL_VIEW_ALLOWED_GROUPS = REPORT_GROUPS
     .filter((g) => g.items.some((it) => CENTRAL_VIEW_ALLOWED.includes(it.id)))
     .map((g) => g.label);
@@ -715,6 +725,7 @@ export default function Dashboard() {
               {reportTab === "closed-port-cabinets" && <ClosedPortCabinetsReport />}
               {reportTab === "inspection-reports" && <InspectionReports />}
               {reportTab === "shift-schedule" && <ShiftScheduleReport />}
+              {reportTab === "local-store" && <LocalStoreSection />}
               {reportTab === "port-change"       && <PortChangeReport />}
               {reportTab === "regularized-faults" && <RegularizedFaultsReport />}
               {reportTab === "regularized-faults-range" && <RegularizedFaultsRangeReport />}

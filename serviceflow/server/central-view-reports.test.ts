@@ -9,7 +9,7 @@ const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.me
 test("admin/external (not super admin) get the tech report list + ticket reopen report", () => {
   assert.match(dash,
     /const isCentralView = !isSuperAdmin && \(authUser\?\.role === ROLES\.ADMIN \|\| authUser\?\.role === ROLES\.EXTERNAL\);/);
-  assert.match(dash, /const CENTRAL_VIEW_ALLOWED: ReportTab\[\] = \[\.\.\.TECH_ALLOWED, "box-tickets-repaired", \.\.\.TABLES_GROUP\];/);
+  assert.match(dash, /const CENTRAL_VIEW_ALLOWED: ReportTab\[\] = \[\.\.\.TECH_ALLOWED, "box-tickets-repaired", \.\.\.TABLES_GROUP, "local-store"\];/);
   // «إنشاء جداول» كاملة للشئون الخارجية ومهندس الكوابل ومدير السنترال (٢٠٢٦-١٠-٠٥) — نفس عناصر المجموعة بالظبط
   const group = dash.slice(dash.indexOf('label: "إنشاء جداول"'), dash.indexOf('label: "جدول الورديات"'));
   const ids = [...group.matchAll(/\{ id: "([^"]+)"/g)].map((m) => m[1]);

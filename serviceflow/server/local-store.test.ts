@@ -19,6 +19,9 @@ test("only the data manager and the super admin record moves; admin can view", (
   assert.equal(canRecordMoves("admin"), false);
   assert.equal(canViewStore("admin"), true);
   assert.equal(canViewStore("tech"), false);
+  // المالك ٢٠٢٦-١٠-٠٧: الشئون الخارجية ومهندس الكوابل يشوفوا التقارير بس
+  assert.equal(canViewStore("external"), true);
+  assert.equal(canRecordMoves("external"), false);
   assert.deepEqual(STORE_TECHS, ["حسن", "محمد", "سامى", "اسلام", "محمود يعقوب"]);
 });
 
@@ -67,6 +70,11 @@ test("wiring: tables + column in ensureSchema and schema.ts, cable entry charges
   assert.match(db, /ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS stock_date date/);
   const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
   assert.match(dash, /adminTab === "local-store" && \(/);
+  // وكمان من تاب التقارير: مجموعة «المخزن» — للأدمن والشئون الخارجية ومسئول البيانات، مش للفنى
+  assert.match(dash, /label: "المخزن",\s+icon: Warehouse,\s+items: \[\s+\{ id: "local-store"/);
+  assert.match(dash, /\{reportTab === "local-store" && <LocalStoreSection \/>\}/);
+  assert.match(dash, /const CENTRAL_VIEW_ALLOWED: ReportTab\[\] = \[[^\]]*"local-store"\]/);
+  assert.doesNotMatch(dash, /const TECH_ALLOWED_GROUPS = \[[^\]]*"المخزن"/);
   const ui = readFileSync(new URL("../client/src/components/LocalStoreSection.tsx", import.meta.url), "utf8");
   // قاعدة ٧: كل تقرير Excel + PDF
   assert.equal((ui.match(/<ExportButtons /g) || []).length, 3);

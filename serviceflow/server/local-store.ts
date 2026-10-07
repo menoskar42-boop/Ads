@@ -30,7 +30,8 @@ export const cableTypeOf = (workOrderType: string): CableType => (String(workOrd
 export const cableTypeSql = (expr: string) => `(CASE WHEN btrim(${expr}) = 'صيانة' THEN 'maint' ELSE 'install' END)`;
 
 export const canRecordMoves = (role?: string) => role === ROLES.DATA_MANAGER || role === ROLES.SUPER_ADMIN;
-export const canViewStore = (role?: string) => canRecordMoves(role) || role === ROLES.ADMIN;
+// المشاهدة (المالك ٢٠٢٦-١٠-٠٧): + الأدمن والشئون الخارجية/مهندس الكوابل (external) — تقارير بس من غير تعديل
+export const canViewStore = (role?: string) => canRecordMoves(role) || role === ROLES.ADMIN || role === ROLES.EXTERNAL;
 
 const num = (v: unknown) => Math.round(Number(v || 0) * 100) / 100;
 const isDate = (s: unknown) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
@@ -271,7 +272,7 @@ export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth
       .finally(() => { backfilling = false; });
   };
   setTimeout(runBackfill, 30_000).unref?.();
-  const viewer = (req: any, res: any, next: any) => (canViewStore(req.user?.role) ? next() : res.status(403).json({ message: "المخزن المحلى: مسئول البيانات والإدارة بس" }));
+  const viewer = (req: any, res: any, next: any) => (canViewStore(req.user?.role) ? next() : res.status(403).json({ message: "المخزن المحلى: مسئول البيانات والإدارة والشئون الخارجية بس" }));
   const recorder = (req: any, res: any, next: any) => (canRecordMoves(req.user?.role) ? next() : res.status(403).json({ message: "تسجيل حركات المخزن: مسئول البيانات والسوبر أدمن بس" }));
 
   app.get("/api/local-store/summary", requireAuth, viewer, async (req: any, res) => {

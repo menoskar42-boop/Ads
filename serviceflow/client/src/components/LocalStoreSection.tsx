@@ -561,6 +561,10 @@ export function LocalStoreSection() {
             ))}
           </div>
 
+          {!s.canRecord && (
+            <div className="text-sm text-muted-foreground">عرض فقط — تسجيل حركات المخزن لمسئول البيانات.</div>
+          )}
+
           {unassignedTotal > 0 && s.canRecord && (
             <button type="button" onClick={() => setView("unassigned")}
               className="w-full text-right rounded-xl border-2 border-amber-300 bg-amber-50 p-4 flex items-center gap-3 text-amber-900">

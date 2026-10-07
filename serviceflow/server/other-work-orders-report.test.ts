@@ -49,5 +49,5 @@ test("it is wired into the reports sidebar", () => {
   assert.match(dash, /\{ id: "other-work-orders", label: "أوامر شغل أخرى \(بدون سلك\)" \}/);
   assert.match(dash, /reportTab === "other-work-orders" && <OtherWorkOrdersReport \/>/);
   assert.match(dash, /import \{ OtherWorkOrdersReport \} from "@\/components\/OtherWorkOrdersReport";/);
-  assert.match(dash, /\| "other-work-orders";/);
+  assert.match(dash, /\| "other-work-orders"( \| "[a-z-]+")*;/);
 });
