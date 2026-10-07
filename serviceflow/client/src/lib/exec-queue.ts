@@ -129,6 +129,39 @@ export function openSubInfo(phone: string): Window | null {
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+// ── ريفريش آمن لصفحة جهاز التنفيذ (المالك ٢٠٢٦-١٠-٠٧) ─────────────────────────
+// النت قطع دقايق ← النبضات فشلت ← الحارس عمل ريفريش **والنت لسه قاطع** ← الصفحة نزلت
+// على «can't reach this page» بتاعة Edge ومفيش كود يرجّعها، فجهاز التنفيذ مات لحد ما
+// المالك عمل ريفريش بإيده. دلوقتى أى ريفريش تلقائى بيستنى لحد ما السيرفر يرد فعلاً.
+export async function serverReachable(timeoutMs = 8000): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    const r = await fetch(`/api/health?t=${Date.now()}`, { cache: "no-store", credentials: "include", signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) return false;
+    const j = await r.json().catch(() => null);
+    return !!(j && j.ok);
+  } catch { return false; }
+}
+export const RELOAD_RETRY_MS = 15 * 1000;
+let reloadWaiting = false;
+/** ريفريش أول ما السيرفر يرد — مش ريفريش أعمى يوقّع الصفحة على صفحة خطأ المتصفح. */
+export function reloadWhenReachable(why: string): void {
+  if (reloadWaiting) return;
+  reloadWaiting = true;
+  void (async () => {
+    for (;;) {
+      if (navigator.onLine !== false && await serverReachable()) {
+        try { window.location.reload(); } catch {}
+        return;
+      }
+      console.warn(`[exec] ريفريش مؤجّل (${why}) — السيرفر مش بيرد، هحاول تانى بعد ${RELOAD_RETRY_MS / 1000}ث`);
+      await sleep(RELOAD_RETRY_MS);
+    }
+  })();
+}
+
 // ثوابت إنقاذ باتش القياس — مُصدّرة عشان اختبار التسلسل يقدر يحاكي الوقت
 // من غير ما ينتظر أربع دقائق فعلية.
 export const EXEC_MEASURE_STALL_MS = 3 * 60 * 1000;

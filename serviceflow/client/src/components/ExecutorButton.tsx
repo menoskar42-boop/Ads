@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Server, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
-import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
+import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, reloadWhenReachable, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
 import { rescueMinutes } from "@shared/exec-timeouts";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
@@ -314,7 +314,7 @@ export function ExecutorButton() {
         .then((r) => (r.ok ? r.json() : null))
         .then((j) => {
           if (j) { lastBeatOk = Date.now(); setStale(false); }
-          if (j && j.reload) { try { window.location.reload(); } catch (e) {} }
+          if (j && j.reload) reloadWhenReachable("طلب ريفريش من السيرفر");
         })
         .catch(() => {});
     };
@@ -349,7 +349,7 @@ export function ExecutorButton() {
           scheduleExecBatchRefresh(lane.batchId);
         }
         console.warn(`[exec] المسار ${lane.site} عدّى مهلته وهو شغّال — ريفريش تلقائى`);
-        try { window.location.reload(); } catch {}
+        reloadWhenReachable(`المسار ${lane.site} عدّى مهلته`);
         return;
       }
       const gap = Date.now() - lastBeatOk;
@@ -360,7 +360,7 @@ export function ExecutorButton() {
         const rec = { min: Math.round(gap / 60000), at: Date.now() };
         localStorage.setItem(SLEEP_KEY, JSON.stringify(rec)); setLastSleep(rec);
       } catch {}
-      if (gap > HARD_RELOAD_MS) { try { window.location.reload(); } catch {} return; }
+      if (gap > HARD_RELOAD_MS) { reloadWhenReachable("مفيش نبضة من " + Math.round(gap / 60000) + " دقيقة"); return; }
       busy.current = false;           // فكّ أى قفل سحب اتعلّق وقت التجميد
       heartbeat(); claimAndRun(); refreshPending();
     };
@@ -443,7 +443,7 @@ export function ExecutorButton() {
               for (const w of lastMeasureWin.current.values()) if (!w.closed) w.close();
             } catch {}
           },
-          reload: () => { try { window.location.reload(); } catch {} },
+          reload: () => reloadWhenReachable("ريفريش الباتش"),
         });
       } catch {
         // المحاولة التالية بعد 4 ثوانٍ
@@ -470,7 +470,7 @@ export function ExecutorButton() {
           }
           return { ok: outcome !== "send_failed" };
         },
-        reload: () => { try { window.location.reload(); } catch {} },
+        reload: () => reloadWhenReachable("إنقاذ قياس واقف"),
       });
     };
 
