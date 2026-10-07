@@ -38,7 +38,7 @@
   }
   const SF_URL = sfBase();
   const DZS_TOKEN = 'sf-dzs-138-ingest-2026';        // = DZS_INGEST_TOKEN فى السيرفر
-  const CREDS    = { user: 'mena.haleem', pass: 'Mon_oskar364' };
+  const CREDS    = { user: 'mena.haleem', pass: 'Mon_oskar253' };
   const AUTO_NAME = 'sf_subinfo_auto';               // window.name اللى بيشغّل الجلب تلقائياً
   const BETWEEN_MS = 900;                             // مهلة بين كل رقم والتانى
 

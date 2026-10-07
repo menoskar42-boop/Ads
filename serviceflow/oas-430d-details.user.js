@@ -16,7 +16,7 @@
 
   /* ================== CONFIG ================== */
   const USER = "mena.haleem@te.eg"; // زى ما ظاهر فى خانة اللوجين
-  const PASS = "Mon_oskar364";
+  const PASS = "Mon_oskar253";
   const GROUP  = "قطاع وسط الصعيد";
   const REGION = "منطقة تليفونات أسيوط";
   const CENTRALS = ["الغنايم", "الغنايم-العزايزة", "الغنايم-دير الجنادله", "الغنايم-نجع العمدة"];

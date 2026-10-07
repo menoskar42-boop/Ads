@@ -459,8 +459,8 @@
   })();
 
   // WFM بنفس حساب FCC (المالك ٢٠٢٦-١٠-٠٦) — مرجع لنفس البيانات مش نسخة تانية منها
-  const FCC_LOGIN = { user: 'mena.haleem', pass: 'Mon_oskar364' };
-  const CREDS = { 'fcc.te.eg': FCC_LOGIN, 'wfm.te.eg': FCC_LOGIN, 'oss.te.eg:15204': { user: 'MENA.HALEEM', pass: 'Mon_oskar364' } };
+  const FCC_LOGIN = { user: 'mena.haleem', pass: 'Mon_oskar253' };
+  const CREDS = { 'fcc.te.eg': FCC_LOGIN, 'wfm.te.eg': FCC_LOGIN, 'oss.te.eg:15204': { user: 'MENA.HALEEM', pass: 'Mon_oskar253' } };
   const LOGIN_URL = { 'fcc.te.eg': 'https://fcc.te.eg/TroubleTicket/faces/security/pages/Login.jsf', 'wfm.te.eg': 'https://wfm.te.eg/WorkOrder/faces/security/pages/Login.jsf', 'oss.te.eg:15201': 'https://oss.te.eg:15201/om', 'oss.te.eg:15204': 'https://oss.te.eg:15201/om' };
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));

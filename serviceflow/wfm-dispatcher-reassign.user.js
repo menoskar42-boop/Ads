@@ -23,7 +23,7 @@
   /* ================== CONFIG ================== */
   // نفس حساب FCC (المالك ٢٠٢٦-١٠-٠٦) — mina109756 اترفض
   const USER = "mena.haleem";
-  const PASS = "Mon_oskar364";
+  const PASS = "Mon_oskar253";
   // المدخل: WFM العادى. الدخول المباشر على Dispatcher/faces/UIShell كان بيدّى صفحة بيضا،
   // والطريق الصحيح: WorkOrder/faces/Home ← قائمة المربعات أعلى اليسار ← Assignment and
   // Dispatch (بتوصّل Dispatcher/faces/Home) ← Tasks Queue.
