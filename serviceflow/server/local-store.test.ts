@@ -62,7 +62,9 @@ test("wiring: tables + column in ensureSchema and schema.ts, cable entry charges
   const post = routes.slice(routes.indexOf('app.post("/api/cable-entries"'), routes.indexOf('app.delete("/api/cable-entries/:id"'));
   assert.match(post, /resolveStockTech\(pool/);
   assert.match(post, /status\(422\)\.json\(\{\s*needTech: true/);
-  assert.match(post, /VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\) RETURNING id/);
+  assert.match(post, /VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8::date\) RETURNING id/);
+  assert.match(post, /const stockDate = await workDate\(pool, local, type\)/);
+  assert.match(db, /ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS stock_date date/);
   const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
   assert.match(dash, /adminTab === "local-store" && \(/);
   const ui = readFileSync(new URL("../client/src/components/LocalStoreSection.tsx", import.meta.url), "utf8");

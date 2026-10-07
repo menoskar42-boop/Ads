@@ -633,6 +633,8 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS edit_unlocked_at timestamptz`);
   // المخزن المحلى (server/local-store.ts): الفنى اللى الكمية بتتخصم من رصيده
   await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS stock_tech_name text`);
+  // تاريخ الشغل (إغلاق أمر الشغل / العطل) — بيتحسب بس اللى يوم أول صرف للفنى أو بعده
+  await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS stock_date date`);
   // local_store_moves — حركات المخزن المحلى للسلك: رصيد افتتاحى / وارد من الفرعى / صرف لفنى
   await pool.query(`
     CREATE TABLE IF NOT EXISTS local_store_moves (

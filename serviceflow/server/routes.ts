@@ -37,7 +37,7 @@ import { schedulersEnabled } from './schedulers-enabled';
 import { registerRepeatReviews } from "./repeat-reviews";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
-import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech } from "./local-store";
+import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
 
 const scryptAsync = promisify(scrypt);
@@ -9226,11 +9226,12 @@ export async function registerRoutes(
       }
       stockTech = st.tech;
     } catch (e) { /* الخصم إضافى — مايوقّفش حفظ الكمية */ }
+    const stockDate = await workDate(pool, local, type).catch(() => null);
     try {
       const { rows } = await pool.query(
-        `INSERT INTO cable_entries (phone_local, phone_full, work_order_type, cable_quantity, created_by_id, created_by_name, stock_tech_name)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-        [local, full, type, qty, userId, userName, stockTech],
+        `INSERT INTO cable_entries (phone_local, phone_full, work_order_type, cable_quantity, created_by_id, created_by_name, stock_tech_name, stock_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date) RETURNING id`,
+        [local, full, type, qty, userId, userName, stockTech, stockDate],
       );
       let stockBalance: number | null = null;
       if (stockTech) stockBalance = await notifyIfNegative(pool, stockTech, cableTypeOf(type), Number(qty)).catch(() => null);

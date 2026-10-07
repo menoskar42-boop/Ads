@@ -60,14 +60,24 @@ export async function storeStart(pool: Pool): Promise<string | null> {
   return r.rows[0]?.d ?? null;
 }
 
-const USAGE_WHERE = (startParam: string) =>
-  `ce.stock_tech_name IS NOT NULL AND (ce.created_at AT TIME ZONE 'Africa/Cairo')::date >= ${startParam}::date`;
+/**
+ * الاستخدام اللى بيتخصم (المالك ٢٠٢٦-١٠-٠٧): فيه سلك اتسجّل قبل كده من الفنيين — ده مايتحسبش.
+ * بيتحسب بس الشغل اللى تاريخه (stock_date = تاريخ إغلاق أمر الشغل، أو إغلاق العطل للصيانة)
+ * يوم أول صرف للفنى ده من النوع ده **أو بعده**.
+ */
+const FIRST_ISSUE = `(SELECT tech_name, cable_type, min(move_date) AS first_issue FROM local_store_moves
+                       WHERE deleted_at IS NULL AND kind = 'issue' GROUP BY 1, 2)`;
+const USAGE_FROM = `cable_entries ce JOIN ${FIRST_ISSUE} fi
+                      ON fi.tech_name = ce.stock_tech_name AND fi.cable_type = ${cableTypeSql("ce.work_order_type")}`;
+const USAGE_COND = `ce.stock_date >= fi.first_issue`;
 
 export interface TechBalance { tech: string; type: CableType; issued: number; used: number; balance: number }
 export interface StoreSummary {
   startDate: string | null;
   store: Record<CableType, { opening: number; received: number; issued: number; balance: number; lastReceipt: string | null }>;
   techs: TechBalance[];
+  /** شغل بعد أول صرف ومش معروف يتخصم من مين (فنى الإغلاق مش من الخمسة) — محتاج يتحدّد */
+  unassigned: Record<CableType, number>;
 }
 
 export async function storeSummary(pool: Pool): Promise<StoreSummary> {
@@ -91,10 +101,16 @@ export async function storeSummary(pool: Pool): Promise<StoreSummary> {
   const issued = await pool.query(
     `SELECT tech_name, cable_type, SUM(qty)::float AS q FROM local_store_moves
       WHERE deleted_at IS NULL AND kind = 'issue' GROUP BY 1, 2`);
-  const used = startDate ? await pool.query(
+  const used = await pool.query(
     `SELECT ce.stock_tech_name AS tech_name, ${cableTypeSql("ce.work_order_type")} AS cable_type,
             SUM(NULLIF(ce.cable_quantity, '')::numeric)::float AS q
-       FROM cable_entries ce WHERE ${USAGE_WHERE("$1")} GROUP BY 1, 2`, [startDate]) : { rows: [] as any[] };
+       FROM ${USAGE_FROM} WHERE ${USAGE_COND} GROUP BY 1, 2`);
+  const unassigned: Record<CableType, number> = { install: 0, maint: 0 };
+  for (const r of (await pool.query(
+    `SELECT ${cableTypeSql("ce.work_order_type")} AS cable_type, count(*)::int AS n FROM cable_entries ce
+      WHERE ce.stock_tech_name IS NULL AND ce.stock_date >= (SELECT min(f.first_issue) FROM ${FIRST_ISSUE} f
+                                                               WHERE f.cable_type = ${cableTypeSql("ce.work_order_type")})
+      GROUP BY 1`)).rows) unassigned[r.cable_type as CableType] = r.n;
   const map = new Map<string, TechBalance>();
   const get = (tech: string, type: CableType) => {
     const k = `${tech}|${type}`;
@@ -107,7 +123,7 @@ export async function storeSummary(pool: Pool): Promise<StoreSummary> {
   for (const b of map.values()) b.balance = num(b.issued - b.used);
   const order = (t: string) => { const i = STORE_TECHS.indexOf(t); return i < 0 ? 99 : i; };
   const techs = [...map.values()].sort((a, b) => order(a.tech) - order(b.tech) || a.tech.localeCompare(b.tech, "ar") || a.type.localeCompare(b.type));
-  return { startDate, store, techs };
+  return { startDate, store, techs, unassigned };
 }
 
 /** دفتر وارد ومنصرف للمخزن المحلى (نوع واحد) — برصيد قبل الفترة ورصيد جارى بعد كل حركة. */
@@ -159,6 +175,55 @@ export async function closingTech(pool: Pool, phoneLocal: string, workOrderType:
 }
 
 /**
+ * تاريخ الشغل اللى السلك اتصرف فيه: تركيب/نقل ⇒ تاريخ إغلاق آخر أمر شغل ناجح بنفس الرقم والنوع
+ * (قبل وقت التسجيل)، صيانة ⇒ تاريخ إغلاق آخر عطل على الرقم. مفيش ⇒ يوم التسجيل نفسه.
+ */
+export async function workDate(pool: Pool, phoneLocal: string, workOrderType: string, at: Date = new Date()): Promise<string> {
+  let d: string | null = null;
+  if (cableTypeOf(workOrderType) === "install") {
+    const type = String(workOrderType).trim() === "نقل" ? "نقل" : "تركيب";
+    d = (await pool.query(
+      `SELECT max((w.close_date AT TIME ZONE 'Africa/Cairo')::date)::text AS d FROM work_orders w
+        WHERE ${sp("w.phone_number")} = ${sp("$1")}
+          AND (CASE WHEN trim(w.service_type) = 'نقل' THEN 'نقل' ELSE 'تركيب' END) = $2
+          AND (w.close_category IS NULL OR w.close_category = 'Success') AND w.close_date <= $3`,
+      [phoneLocal, type, at])).rows[0]?.d ?? null;
+  } else {
+    d = (await pool.query(
+      `SELECT max((cd.close_time AT TIME ZONE 'Africa/Cairo')::date)::text AS d FROM complaint_details cd
+        WHERE ${sp("cd.phone_number")} = ${sp("$1")} AND cd.close_time IS NOT NULL AND cd.close_time <= $2`,
+      [phoneLocal, at])).rows[0]?.d ?? null;
+  }
+  return d ?? cairoToday(at);
+}
+
+/**
+ * الإدخالات اللى اتسجّلت قبل ما المخزن يتعمل (أو وهو شغّال من غير تاريخ): نحدّد لها الفنى
+ * وتاريخ الشغل — والقاعدة (تاريخ الشغل ≥ أول صرف للفنى) هى اللى بتقرّر تتحسب ولا لأ.
+ * مرة واحدة لكل إدخال (stock_date بيتملى حتى لو الفنى فضل مش معروف).
+ */
+export async function backfillStock(pool: Pool, limit = 5000): Promise<{ done: number; withTech: number }> {
+  const { rows } = await pool.query(
+    `SELECT ce.id, ce.phone_local, ce.work_order_type, ce.created_at, ce.stock_tech_name,
+            u.role, u.username,
+            (SELECT tn.tech_name FROM technician_names tn WHERE btrim(tn.worker_code) = btrim(COALESCE(u.worker_code, ''))
+               AND btrim(COALESCE(u.worker_code, '')) <> '' ORDER BY tn.id DESC LIMIT 1) AS self_name
+       FROM cable_entries ce LEFT JOIN users u ON u.id = ce.created_by_id
+      WHERE ce.stock_date IS NULL AND ce.created_at > now() - interval '180 days'
+      ORDER BY ce.id LIMIT $1`, [limit]);
+  let withTech = 0;
+  for (const r of rows) {
+    let tech: string | null = r.stock_tech_name;
+    if (!tech && r.role === ROLES.TECH) tech = matchTechnician(r.self_name) || matchTechnician(r.username);
+    if (!tech) tech = (await closingTech(pool, r.phone_local, r.work_order_type)).tech;
+    const d = await workDate(pool, r.phone_local, r.work_order_type, r.created_at);
+    await pool.query(`UPDATE cable_entries SET stock_date = $2::date, stock_tech_name = COALESCE(stock_tech_name, $3) WHERE id = $1`, [r.id, d, tech]);
+    if (tech) withTech++;
+  }
+  return { done: rows.length, withTech };
+}
+
+/**
  * الفنى اللى الكمية تتخصم من رصيده. الفنى بيتخصم منه هو؛ غيره ⇒ فنى الإغلاق؛ ولو مش من
  * الخمسة ⇒ اللى اتختار فى الطلب (chosen). needTech = لازم يختار قبل الحفظ.
  */
@@ -196,6 +261,16 @@ export async function notifyIfNegative(pool: Pool, tech: string, type: CableType
 /* ───────────── الراوتس ───────────── */
 export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth: any; selfTechName: (user: any) => Promise<string | null> }): void {
   const { pool, requireAuth } = deps;
+  let backfilling = false;
+  const runBackfill = () => {
+    if (backfilling) return;
+    backfilling = true;
+    backfillStock(pool)
+      .then((r) => { if (r.done) console.log(`[local-store] تاريخ الشغل والفنى لـ ${r.done} إدخال (${r.withTech} بفنى)`); })
+      .catch((e) => console.error("[local-store] backfill:", e?.message))
+      .finally(() => { backfilling = false; });
+  };
+  setTimeout(runBackfill, 30_000).unref?.();
   const viewer = (req: any, res: any, next: any) => (canViewStore(req.user?.role) ? next() : res.status(403).json({ message: "المخزن المحلى: مسئول البيانات والإدارة بس" }));
   const recorder = (req: any, res: any, next: any) => (canRecordMoves(req.user?.role) ? next() : res.status(403).json({ message: "تسجيل حركات المخزن: مسئول البيانات والسوبر أدمن بس" }));
 
@@ -241,8 +316,18 @@ export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth
          VALUES ($1, $2, $3::numeric, $4::date, $5, $6, $7, $8, $9) RETURNING id`,
         [b.kind, b.cableType, String(b.qty).trim(), b.moveDate, String(b.refNo ?? "").trim() || null,
          b.kind === "issue" ? b.techName : null, String(b.note ?? "").trim() || null, req.user.id, req.user.username]);
+      if (b.kind === "issue") runBackfill();
       res.json({ ok: true, id: rows[0].id });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // شغل مالوش فنى معروف ⇒ مسئول البيانات بيحدّد يتخصم من مين
+  app.post("/api/local-store/entries/:id/tech", requireAuth, recorder, async (req: any, res) => {
+    const id = Number(req.params.id);
+    const tech = String(req.body?.tech ?? "");
+    if (!Number.isInteger(id) || !STORE_TECHS.includes(tech)) return res.status(400).json({ message: "اختار الفنى" });
+    await pool.query(`UPDATE cable_entries SET stock_tech_name = $2 WHERE id = $1 AND stock_tech_name IS NULL`, [id, tech]);
+    res.json({ ok: true });
   });
 
   // إلغاء حركة اتسجّلت غلط — بتفضل فى القاعدة (مين ألغاها وإمتى) بس مابتدخلش فى أى رصيد
@@ -257,20 +342,30 @@ export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth
   app.get("/api/local-store/usage", requireAuth, viewer, async (req, res) => {
     try {
       const { type = "install", from = "", to = "", tech = "" } = req.query as Record<string, string>;
-      const start = await storeStart(pool);
-      if (!start) return res.json({ rows: [], total: 0, startDate: null });
-      const params: any[] = [start, type];
-      const conds = [USAGE_WHERE("$1"), `${cableTypeSql("ce.work_order_type")} = $2`];
-      if (isDate(from)) { params.push(from); conds.push(`(ce.created_at AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}::date`); }
-      if (isDate(to)) { params.push(to); conds.push(`(ce.created_at AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}::date`); }
-      if (tech) { params.push(tech); conds.push(`ce.stock_tech_name = $${params.length}`); }
-      const { rows } = await pool.query(
-        `SELECT ce.id, ce.phone_full AS "phone", ce.work_order_type AS "workOrderType",
-                NULLIF(ce.cable_quantity, '')::float AS qty, ce.stock_tech_name AS "tech",
-                (ce.created_at AT TIME ZONE 'Africa/Cairo')::date::text AS "date", ce.created_by_name AS "enteredBy"
-           FROM cable_entries ce WHERE ${conds.join(" AND ")}
-          ORDER BY ce.created_at, ce.id`, params);
-      res.json({ rows, total: num(rows.reduce((s: number, r: any) => s + (Number(r.qty) || 0), 0)), startDate: start });
+      const params: any[] = [type];
+      const dateConds: string[] = [];
+      if (isDate(from)) { params.push(from); dateConds.push(`ce.stock_date >= $${params.length}::date`); }
+      if (isDate(to)) { params.push(to); dateConds.push(`ce.stock_date <= $${params.length}::date`); }
+      let sql: string;
+      if (tech === "__none__") {
+        // بعد أول صرف (لأى فنى من النوع ده) ومش معروف يتخصم من مين
+        sql = `SELECT ce.id, ce.phone_full AS "phone", ce.work_order_type AS "workOrderType",
+                      NULLIF(ce.cable_quantity, '')::float AS qty, NULL AS "tech", ce.stock_date::text AS "date", ce.created_by_name AS "enteredBy"
+                 FROM cable_entries ce
+                WHERE ce.stock_tech_name IS NULL AND ${cableTypeSql("ce.work_order_type")} = $1
+                  AND ce.stock_date >= (SELECT min(f.first_issue) FROM ${FIRST_ISSUE} f WHERE f.cable_type = $1)
+                  ${dateConds.map((c) => "AND " + c).join(" ")}
+                ORDER BY ce.stock_date, ce.id`;
+      } else {
+        if (tech) { params.push(tech); dateConds.push(`ce.stock_tech_name = $${params.length}`); }
+        sql = `SELECT ce.id, ce.phone_full AS "phone", ce.work_order_type AS "workOrderType",
+                      NULLIF(ce.cable_quantity, '')::float AS qty, ce.stock_tech_name AS "tech", ce.stock_date::text AS "date", ce.created_by_name AS "enteredBy"
+                 FROM ${USAGE_FROM}
+                WHERE ${USAGE_COND} AND fi.cable_type = $1 ${dateConds.map((c) => "AND " + c).join(" ")}
+                ORDER BY ce.stock_date, ce.id`;
+      }
+      const { rows } = await pool.query(sql, params);
+      res.json({ rows, total: num(rows.reduce((s: number, r: any) => s + (Number(r.qty) || 0), 0)) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 }

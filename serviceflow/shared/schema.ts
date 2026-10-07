@@ -264,6 +264,7 @@ export const cableEntries = pgTable("cable_entries", {
   printedAt: timestamp("printed_at", { withTimezone: true }),       // وقت الطباعة (يقفل التعديل)
   editUnlockedAt: timestamp("edit_unlocked_at", { withTimezone: true }), // منح الأدمن صلاحية تعديل (خلال 3 أيام)
   stockTechName: text("stock_tech_name"),  // المخزن المحلى: الفنى اللى الكمية بتتخصم من رصيده
+  stockDate: date("stock_date"),           // تاريخ الشغل (إغلاق أمر الشغل/العطل) — بيتحسب لو ≥ أول صرف للفنى
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (t) => ({

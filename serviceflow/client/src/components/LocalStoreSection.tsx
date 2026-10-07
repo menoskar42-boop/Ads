@@ -1,6 +1,7 @@
 // المخزن المحلى للسلك — سنترال الغنايم (المالك ٢٠٢٦-١٠-٠٧). السيرفر: server/local-store.ts
 //   • الرصيد الحالى: رصيد المخزن لكل نوع + الرصيد اللى مع كل فنى (مستلم − مستخدم)
 //   • تسجيل حركة: رصيد افتتاحى / وارد من المخزن الفرعى / صرف لفنى بأمر إفراج (مسئول البيانات والسوبر أدمن)
+//     — صفحة رئيسية بزراير كبيرة وكل حركة خطوات واضحة (مسئول البيانات خبرته فى الكمبيوتر قليلة)
 //   • وارد ومنصرف: دفتر المخزن المحلى بالتواريخ والكميات والرصيد بعد كل حركة
 //   • بيان الاستخدام: كل تركيب/صيانة بكمية السلك — بيتطبع ويتطلب بيه الاستعواض من المخزن الفرعى
 import { useMemo, useState } from "react";
@@ -14,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { printTablePDF } from "@/lib/print-pdf";
-import { FileSpreadsheet, Loader2, Plus, Printer, Trash2, Warehouse } from "lucide-react";
+import { AlertTriangle, ArrowRight, BookOpen, Boxes, CheckCircle2, FileSpreadsheet, FileText, Loader2, PackageMinus, PackagePlus, Printer, Trash2, Users, Warehouse } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type CableType = "install" | "maint";
@@ -26,7 +27,7 @@ interface TechBalance { tech: string; type: CableType; issued: number; used: num
 interface StoreTotals { opening: number; received: number; issued: number; balance: number; lastReceipt: string | null }
 interface Summary {
   startDate: string | null; store: Record<CableType, StoreTotals>; techs: TechBalance[];
-  techNames: string[]; canRecord: boolean;
+  techNames: string[]; canRecord: boolean; unassigned: Record<CableType, number>;
 }
 interface LedgerRow {
   id: number; kind: MoveKind; qty: number; moveDate: string; refNo: string | null; techName: string | null;
@@ -150,81 +151,183 @@ function BalancesTab({ s }: { s: Summary }) {
   );
 }
 
-/* ───────────── تسجيل حركة ───────────── */
-function MoveForm({ s }: { s: Summary }) {
+/* ───────────── تسجيل حركة — خطوات واضحة لمسئول البيانات ─────────────
+ * المالك ٢٠٢٦-١٠-٠٧: «الاستخدام يبقى سهل وواضح جداً». فكل حركة صفحة لوحدها: زراير كبيرة
+ * بدل القوائم، كل خانة مكتوب جنبها هى إيه، جملة بتقول هيتسجّل إيه بالظبط قبل الحفظ،
+ * والناقص مكتوب بالاسم بدل زرار مقفول من غير سبب. */
+const BigChoice = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
+  <button type="button" onClick={onClick}
+    className={`min-h-[52px] px-5 py-3 rounded-xl border-2 text-base font-bold transition-colors ${active ? "border-primary bg-primary text-primary-foreground" : "border-slate-200 bg-white hover:border-primary/50"}`}>
+    {children}
+  </button>
+);
+const Step = ({ n, title, children }: { n: number; title: string; children: React.ReactNode }) => (
+  <div className="space-y-2">
+    <div className="flex items-center gap-2 text-base font-bold">
+      <span className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm tabular-nums">{n}</span>
+      {title}
+    </div>
+    <div className="pr-9">{children}</div>
+  </div>
+);
+
+function MoveForm({ s, kind, onDone }: { s: Summary; kind: MoveKind; onDone: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [kind, setKind] = useState<MoveKind>(s.startDate ? "issue" : "opening");
-  const [cableType, setCableType] = useState<CableType>("install");
+  const [cableType, setCableType] = useState<CableType | "">("");
   const [qty, setQty] = useState("");
   const [moveDate, setMoveDate] = useState(today());
   const [refNo, setRefNo] = useState("");
   const [techName, setTechName] = useState("");
   const [note, setNote] = useState("");
+  const [saved, setSaved] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: async () => (await apiRequest("POST", "/api/local-store/moves", { kind, cableType, qty, moveDate, refNo, techName, note })).json(),
-    onSuccess: () => {
-      toast({ title: "اتسجّلت الحركة", description: `${KIND_LABEL[kind]} — ${qty} متر ${TYPE_LABEL[cableType]}${kind === "issue" ? ` للفنى ${techName}` : ""}`, duration: 4000 });
-      setQty(""); setRefNo(""); setNote("");
-      qc.invalidateQueries({ queryKey: ["/api/local-store"] });
-    },
-    onError: (e) => toast({ title: "ماتسجّلتش", description: errText(e), variant: "destructive", duration: 6000 }),
+    onSuccess: () => { setSaved(sentence); qc.invalidateQueries({ queryKey: ["/api/local-store"] }); },
+    onError: (e) => toast({ title: "ماتسجّلش", description: errText(e), variant: "destructive", duration: 8000 }),
   });
-  const refLabel = kind === "issue" ? "رقم أمر الإفراج" : kind === "receipt" ? "أرقام أذونات الصرف" : "مرجع (اختيارى)";
-  const valid = /^\d+(\.\d+)?$/.test(qty.trim()) && Number(qty) > 0 && !!moveDate
-    && (kind !== "issue" || (!!techName && !!refNo.trim())) && (kind !== "receipt" || !!refNo.trim());
+  const isIssue = kind === "issue", isReceipt = kind === "receipt";
+  const qtyOk = /^\d+(\.\d+)?$/.test(qty.trim()) && Number(qty) > 0;
+  const missing = [
+    !cableType && "نوع السلك",
+    isIssue && !techName && "الفنى",
+    !qtyOk && "الكمية",
+    isIssue && !refNo.trim() && "رقم أمر الإفراج",
+    isReceipt && !refNo.trim() && "رقم إذن الصرف",
+    !moveDate && "التاريخ",
+  ].filter(Boolean) as string[];
+  const typeText = cableType ? `سلك ${TYPE_LABEL[cableType]}` : "سلك";
+  const sentence = isIssue
+    ? `صرف ${qty || "؟"} متر ${typeText} للفنى ${techName || "؟"} — أمر إفراج رقم ${refNo.trim() || "؟"} — بتاريخ ${moveDate}`
+    : isReceipt
+      ? `استلام ${qty || "؟"} متر ${typeText} من المخزن الفرعى — إذن صرف رقم ${refNo.trim() || "؟"} — بتاريخ ${moveDate}`
+      : `رصيد أول مرة: ${qty || "؟"} متر ${typeText} موجود فى المخزن المحلى يوم ${moveDate}`;
+  const after = cableType ? s.store[cableType].balance : 0;
+  const title = isIssue ? "صرف سلك لفنى" : isReceipt ? "استلام سلك من المخزن الفرعى" : "رصيد أول مرة (الموجود فى المخزن دلوقتى)";
+
+  if (saved) {
+    return (
+      <Card className="p-6 sm:p-8 bg-white border-0 shadow-sm text-center space-y-4">
+        <CheckCircle2 className="w-14 h-14 text-green-600 mx-auto" />
+        <div className="text-xl font-bold">اتسجّل</div>
+        <div className="text-base">{saved}</div>
+        <div className="flex justify-center gap-3 flex-wrap pt-2">
+          <Button size="lg" onClick={() => { setSaved(null); setQty(""); setRefNo(""); setNote(""); setTechName(""); }}>تسجيل حركة تانية من نفس النوع</Button>
+          <Button size="lg" variant="outline" onClick={onDone}>رجوع للصفحة الرئيسية</Button>
+        </div>
+      </Card>
+    );
+  }
   return (
-    <Card className="p-4 sm:p-5 bg-white border-0 shadow-sm">
-      <form onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(); }} className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <Label className="text-xs text-muted-foreground block mb-1">نوع الحركة</Label>
-          <Select value={kind} onValueChange={(v) => setKind(v as MoveKind)}>
-            <SelectTrigger className="text-right text-sm" dir="rtl"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {(Object.keys(KIND_LABEL) as MoveKind[]).map((k) => <SelectItem key={k} value={k} className="text-right">{KIND_LABEL[k]}</SelectItem>)}
-            </SelectContent>
-          </Select>
+    <Card className="p-5 sm:p-7 bg-white border-0 shadow-sm space-y-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h3 className="text-xl font-bold">{title}</h3>
+        <Button variant="ghost" onClick={onDone} className="gap-1"><ArrowRight className="w-4 h-4" /> رجوع</Button>
+      </div>
+      <Step n={1} title="نوع السلك">
+        <div className="flex gap-3 flex-wrap">
+          <BigChoice active={cableType === "install"} onClick={() => setCableType("install")}>سلك تركيبات ونقل</BigChoice>
+          <BigChoice active={cableType === "maint"} onClick={() => setCableType("maint")}>سلك صيانة</BigChoice>
         </div>
-        <div>
-          <Label className="text-xs text-muted-foreground block mb-1">نوع السلك</Label>
-          <TypeSelect value={cableType} onChange={setCableType} />
-        </div>
-        <div>
-          <Label className="text-xs text-muted-foreground block mb-1">الكمية (متر)</Label>
-          <Input inputMode="decimal" dir="ltr" className="text-left" value={qty} placeholder="200"
-            onChange={(e) => { const v = e.target.value; if (v === "" || /^\d*\.?\d*$/.test(v)) setQty(v); }} />
-        </div>
-        <div>
-          <Label className="text-xs text-muted-foreground block mb-1">التاريخ</Label>
-          <Input type="date" dir="ltr" className="text-left" value={moveDate} max={today()} onChange={(e) => setMoveDate(e.target.value)} />
-        </div>
-        <div>
-          <Label className="text-xs text-muted-foreground block mb-1">{refLabel}</Label>
-          <Input value={refNo} onChange={(e) => setRefNo(e.target.value)} placeholder={kind === "receipt" ? "مثال: 1452، 1453" : ""} />
-        </div>
-        {kind === "issue" ? (
-          <div>
-            <Label className="text-xs text-muted-foreground block mb-1">الفنى المستلم</Label>
-            <Select value={techName} onValueChange={setTechName}>
-              <SelectTrigger className="text-right text-sm" dir="rtl"><SelectValue placeholder="اختار الفنى" /></SelectTrigger>
-              <SelectContent>{s.techNames.map((t) => <SelectItem key={t} value={t} className="text-right">{t}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-        ) : (
-          <div>
-            <Label className="text-xs text-muted-foreground block mb-1">ملاحظة (اختيارى)</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
+        {isIssue && cableType && (
+          <p className="text-sm text-muted-foreground mt-2 tabular-nums">موجود فى المخزن المحلى دلوقتى: <strong className={after <= 0 ? "text-red-600" : "text-foreground"}>{fmt(after)} متر</strong></p>
         )}
-        <div className="sm:col-span-3 flex items-center gap-3 flex-wrap">
-          <Button type="submit" disabled={!valid || save.isPending} className="gap-1">
-            {save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} تسجيل
-          </Button>
-          {kind === "issue" && (
-            <span className="text-xs text-muted-foreground tabular-nums">رصيد المخزن المحلى من {TYPE_LABEL[cableType]}: {fmt(s.store[cableType].balance)} متر</span>
-          )}
+      </Step>
+      {isIssue && (
+        <Step n={2} title="الفنى اللى استلم">
+          <div className="flex gap-3 flex-wrap">
+            {s.techNames.map((t) => <BigChoice key={t} active={techName === t} onClick={() => setTechName(t)}>{t}</BigChoice>)}
+          </div>
+        </Step>
+      )}
+      <Step n={isIssue ? 3 : 2} title="الكمية بالمتر">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Input inputMode="decimal" dir="ltr" value={qty} placeholder="مثال: 200"
+            onChange={(e) => { const v = e.target.value.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))); if (v === "" || /^\d*\.?\d*$/.test(v)) setQty(v); }}
+            className="w-40 h-12 text-xl text-center tabular-nums" />
+          <span className="text-base">متر</span>
+          {isIssue && <Button type="button" variant="outline" onClick={() => setQty("200")}>لفة كاملة (200 متر)</Button>}
         </div>
-      </form>
+      </Step>
+      {(isIssue || isReceipt) && (
+        <Step n={isIssue ? 4 : 3} title={isIssue ? "رقم أمر الإفراج" : "رقم إذن الصرف"}>
+          <Input value={refNo} onChange={(e) => setRefNo(e.target.value)} className="w-full sm:w-80 h-12 text-lg" dir="ltr"
+            placeholder={isReceipt ? "مثال: 1452 - 1453" : "مثال: 55"} />
+          {isReceipt && <p className="text-sm text-muted-foreground mt-1">لو الكمية جت بأكتر من إذن، اكتب الأرقام كلها ورا بعض.</p>}
+        </Step>
+      )}
+      <Step n={isIssue ? 5 : isReceipt ? 4 : 3} title="التاريخ">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Input type="date" dir="ltr" value={moveDate} max={today()} onChange={(e) => setMoveDate(e.target.value)} className="w-52 h-12 text-lg" />
+          {moveDate === today()
+            ? <span className="text-sm text-muted-foreground">النهارده — غيّره بس لو {isIssue ? "الصرف" : "الاستلام"} كان يوم تانى</span>
+            : <Button type="button" variant="ghost" onClick={() => setMoveDate(today())}>رجّعه للنهارده</Button>}
+        </div>
+      </Step>
+      {!isIssue && (
+        <Step n={isReceipt ? 5 : 4} title="ملاحظة (مش ضرورى)">
+          <Input value={note} onChange={(e) => setNote(e.target.value)} className="w-full sm:w-96 h-11" />
+        </Step>
+      )}
+      <div className="rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-4 text-base leading-relaxed">
+        <div className="text-sm text-muted-foreground mb-1">هيتسجّل:</div>
+        <div className="font-bold">{sentence}</div>
+      </div>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button size="lg" className="h-12 px-8 text-lg gap-2 bg-green-600 hover:bg-green-700" disabled={!!missing.length || save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />} تأكيد وحفظ
+        </Button>
+        {missing.length > 0 && <span className="text-base text-amber-700">ناقص: {missing.join("، ")}</span>}
+      </div>
+    </Card>
+  );
+}
+
+/* ───────────── شغل محتاج تحديد الفنى ───────────── */
+function UnassignedView({ s, onDone }: { s: Summary; onDone: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [type, setType] = useState<CableType>(s.unassigned.install ? "install" : "maint");
+  const { data, isFetching } = useQuery<{ rows: UsageRow[] }>({
+    queryKey: ["/api/local-store", "usage", type, "__none__"],
+    queryFn: () => getJson(`/api/local-store/usage?type=${type}&tech=__none__`),
+  });
+  const assign = useMutation({
+    mutationFn: async ({ id, tech }: { id: number; tech: string }) => (await apiRequest("POST", `/api/local-store/entries/${id}/tech`, { tech })).json(),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/local-store"] }); toast({ title: "اتحدّد الفنى", duration: 2500 }); },
+    onError: (e) => toast({ title: "ماتحدّدش", description: errText(e), variant: "destructive" }),
+  });
+  const rows = data?.rows ?? [];
+  return (
+    <Card className="p-5 sm:p-7 bg-white border-0 shadow-sm space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h3 className="text-xl font-bold">شغل محتاج تحدّد الفنى</h3>
+        <Button variant="ghost" onClick={onDone} className="gap-1"><ArrowRight className="w-4 h-4" /> رجوع</Button>
+      </div>
+      <p className="text-base text-muted-foreground">
+        الكميات دى اتسجّلت وفنى الإغلاق مش من الفنيين الخمسة. دوس على اسم الفنى اللى استخدم السلك عشان يتخصم من رصيده.
+      </p>
+      <div className="flex gap-3 flex-wrap">
+        <BigChoice active={type === "install"} onClick={() => setType("install")}>تركيبات ونقل ({s.unassigned.install})</BigChoice>
+        <BigChoice active={type === "maint"} onClick={() => setType("maint")}>صيانة ({s.unassigned.maint})</BigChoice>
+        {isFetching && <Loader2 className="w-5 h-5 animate-spin self-center" />}
+      </div>
+      <div className="space-y-3">
+        {rows.map((r) => (
+          <div key={r.id} className="rounded-xl border p-3 flex flex-wrap items-center gap-3">
+            <div className="min-w-[180px]">
+              <div className="font-mono text-lg" dir="ltr">{r.phone}</div>
+              <div className="text-sm text-muted-foreground tabular-nums">{r.workOrderType} · {fmt(r.qty)} متر · {r.date}</div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {s.techNames.map((t) => (
+                <Button key={t} variant="outline" disabled={assign.isPending} onClick={() => assign.mutate({ id: r.id, tech: t })}>{t}</Button>
+              ))}
+            </div>
+          </div>
+        ))}
+        {!rows.length && !isFetching && <p className="text-center text-muted-foreground py-6">مفيش حاجة محتاجة تحديد</p>}
+      </div>
     </Card>
   );
 }
@@ -343,12 +446,12 @@ function UsageTab({ s }: { s: Summary }) {
   }, [rows]);
   const title = `بيان ${type === "install" ? "التركيبات والنقل" : "أعمال الصيانة"} وكمية السلك — من ${from} إلى ${to}`;
   const excel = () => exportExcel("بيان الاستخدام", `local-store-usage-${type}`, [
-    ...rows.map((r, i) => ({ "#": i + 1, "رقم التليفون": r.phone, "نوع العمل": r.workOrderType, "كمية السلك (متر)": r.qty, "الفنى": r.tech, "تاريخ التسجيل": r.date })),
+    ...rows.map((r, i) => ({ "#": i + 1, "رقم التليفون": r.phone, "نوع العمل": r.workOrderType, "كمية السلك (متر)": r.qty, "الفنى": r.tech, "تاريخ الإغلاق": r.date })),
     { "#": "", "رقم التليفون": "الإجمالى", "كمية السلك (متر)": data?.total ?? 0 },
   ]);
   const pdf = () => printTablePDF({
     title,
-    columns: ["#", "رقم التليفون", "نوع العمل", "كمية السلك (متر)", "الفنى", "تاريخ التسجيل"],
+    columns: ["#", "رقم التليفون", "نوع العمل", "كمية السلك (متر)", "الفنى", "تاريخ الإغلاق"],
     rows: [...rows.map((r, i) => [i + 1, r.phone, r.workOrderType, fmt(r.qty), r.tech, r.date]), ["", "الإجمالى", "", fmt(data?.total ?? 0), "", ""]],
     rowsPerPage: 22,
   });
@@ -384,7 +487,7 @@ function UsageTab({ s }: { s: Summary }) {
             <TableHead className="text-right">نوع العمل</TableHead>
             <TableHead className="text-right">كمية السلك (متر)</TableHead>
             <TableHead className="text-right">الفنى</TableHead>
-            <TableHead className="text-right">تاريخ التسجيل</TableHead>
+            <TableHead className="text-right">تاريخ الإغلاق</TableHead>
             <TableHead className="text-right">سجّلها</TableHead>
           </TableRow></TableHeader>
           <TableBody>
@@ -412,40 +515,101 @@ function UsageTab({ s }: { s: Summary }) {
   );
 }
 
+type View = "home" | "opening" | "receipt" | "issue" | "balances" | "ledger" | "usage" | "unassigned";
+
+const ActionTile = ({ icon: Icon, title, hint, onClick, tone }: { icon: any; title: string; hint: string; onClick: () => void; tone: string }) => (
+  <button type="button" onClick={onClick}
+    className={`text-right rounded-2xl border-2 p-5 min-h-[120px] flex items-start gap-4 transition-colors bg-white hover:shadow-md ${tone}`}>
+    <Icon className="w-9 h-9 shrink-0 mt-1" />
+    <span>
+      <span className="block text-lg font-bold">{title}</span>
+      <span className="block text-sm text-muted-foreground mt-1 leading-relaxed">{hint}</span>
+    </span>
+  </button>
+);
+
 export function LocalStoreSection() {
   const { data: s, isLoading, error } = useQuery<Summary>({
     queryKey: ["/api/local-store", "summary"],
     queryFn: () => getJson("/api/local-store/summary"),
   });
-  type Tab = "balances" | "move" | "ledger" | "usage";
-  const [tab, setTab] = useState<Tab>("balances");
+  const [view, setView] = useState<View>("home");
   if (isLoading) return <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" /></div>;
   if (error || !s) return <Card className="p-4 text-destructive">{errText(error)}</Card>;
-  const TABS: { id: Tab; label: string }[] = [
-    { id: "balances", label: "الرصيد الحالى" },
-    ...(s.canRecord ? [{ id: "move" as Tab, label: "تسجيل حركة" }] : []),
-    { id: "ledger", label: "وارد ومنصرف" },
-    { id: "usage", label: "بيان الاستخدام (للاستعواض)" },
-  ];
+  const home = () => setView("home");
+  const back = (
+    <Button variant="ghost" onClick={home} className="gap-1"><ArrowRight className="w-4 h-4" /> رجوع للصفحة الرئيسية</Button>
+  );
+  const unassignedTotal = s.unassigned.install + s.unassigned.maint;
   return (
     <div className="space-y-5" dir="rtl">
       <div className="flex items-center gap-2">
-        <Warehouse className="w-5 h-5 text-primary" />
-        <h2 className="text-base font-bold">المخزن المحلى — سلك سنترال الغنايم</h2>
-        {s.startDate && <span className="text-xs text-muted-foreground">من {s.startDate}</span>}
+        <Warehouse className="w-6 h-6 text-primary" />
+        <h2 className="text-lg font-bold">المخزن المحلى — سلك سنترال الغنايم</h2>
       </div>
-      <div className="flex flex-wrap gap-1 border-b">
-        {TABS.map((t) => (
-          <button key={t.id} type="button" onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-      {tab === "balances" && <BalancesTab s={s} />}
-      {tab === "move" && s.canRecord && <MoveForm s={s} />}
-      {tab === "ledger" && <LedgerTab s={s} />}
-      {tab === "usage" && <UsageTab s={s} />}
+
+      {view === "home" && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(["install", "maint"] as CableType[]).map((t) => (
+              <Card key={t} className="p-5 bg-white border-0 shadow-sm">
+                <div className="text-base text-muted-foreground">موجود فى المخزن من سلك {TYPE_LABEL[t]}</div>
+                <div className={`text-4xl font-bold tabular-nums mt-1 ${s.store[t].balance < 0 ? "text-red-600" : ""}`}>
+                  {fmt(s.store[t].balance)} <span className="text-lg font-normal text-muted-foreground">متر</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {unassignedTotal > 0 && s.canRecord && (
+            <button type="button" onClick={() => setView("unassigned")}
+              className="w-full text-right rounded-xl border-2 border-amber-300 bg-amber-50 p-4 flex items-center gap-3 text-amber-900">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <span className="text-base font-bold">فيه {unassignedTotal} شغل محتاج تحدّد الفنى بتاعه — دوس هنا</span>
+            </button>
+          )}
+
+          {s.canRecord && (
+            <div className="space-y-3">
+              <div className="text-lg font-bold">عايز تعمل إيه؟</div>
+              {!s.startDate && (
+                <ActionTile icon={Boxes} title="أول مرة: سجّل الموجود فى المخزن" tone="border-blue-300 text-blue-900"
+                  hint="قبل أى حاجة — اكتب كمية السلك الموجودة فى المخزن المحلى دلوقتى (لكل نوع مرة)." onClick={() => setView("opening")} />
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ActionTile icon={PackagePlus} title="استلمت سلك من المخزن الفرعى" tone="border-green-300 text-green-900"
+                  hint="لما المخزن الفرعى يبعت سلك — بأرقام أذونات الصرف." onClick={() => setView("receipt")} />
+                <ActionTile icon={PackageMinus} title="صرفت سلك لفنى" tone="border-orange-300 text-orange-900"
+                  hint="لما فنى يستلم سلك من المخزن المحلى — بأمر الإفراج." onClick={() => setView("issue")} />
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="text-lg font-bold">التقارير</div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <ActionTile icon={Users} title="الرصيد اللى مع كل فنى" tone="border-slate-200 text-slate-900"
+                hint="استلم كام — استخدم كام — فاضل معاه كام." onClick={() => setView("balances")} />
+              <ActionTile icon={BookOpen} title="دفتر الوارد والمنصرف" tone="border-slate-200 text-slate-900"
+                hint="كل حركات المخزن بالتاريخ والرصيد بعد كل حركة." onClick={() => setView("ledger")} />
+              <ActionTile icon={FileText} title="بيان التركيبات للاستعواض" tone="border-slate-200 text-slate-900"
+                hint="التركيبات والصيانة بكمية السلك — يتطبع ويتطلب بيه سلك من المخزن الفرعى." onClick={() => setView("usage")} />
+            </div>
+          </div>
+          {s.canRecord && s.startDate && (
+            <div className="text-sm text-muted-foreground">
+              المخزن شغّال من {s.startDate}.{" "}
+              <button type="button" className="underline" onClick={() => setView("opening")}>إضافة رصيد أول مرة لنوع تانى</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {(view === "opening" || view === "receipt" || view === "issue") && s.canRecord && <MoveForm key={view} s={s} kind={view} onDone={home} />}
+      {view === "unassigned" && s.canRecord && <UnassignedView s={s} onDone={home} />}
+      {view === "balances" && <>{back}<BalancesTab s={s} /></>}
+      {view === "ledger" && <>{back}<LedgerTab s={s} /></>}
+      {view === "usage" && <>{back}<UsageTab s={s} /></>}
     </div>
   );
 }
