@@ -34,7 +34,15 @@ const start = routes.indexOf('app.get("/api/reports/cabinet-adsl-faults"');
 if (start < 0) {
   errors.push('مالقيتش راوت cabinet-adsl-faults — الاسم اتغيّر؟ الفحص بقى بلا معنى');
 } else {
-  const body = routes.slice(start, routes.indexOf('app.get("/api/reports/cabinet-adsl-faults/unassigned"', start));
+  let body = routes.slice(start, routes.indexOf('app.get("/api/reports/cabinet-adsl-faults/unassigned"', start));
+  // ٢٠٢٦-١٠-٠٧: الاستعلام اتنقل لـ cabinet-reassign.ts (الأعطال على الفنى اللى كان ماسك
+  // الكابينة يومها) — نقرا الدالة نفسها بدل ما الفحص يبقى بلا معنى.
+  if (body.includes('cabinetAdslFaultsByHistory(')) {
+    const src = fs.readFileSync(path.join(ROOT, 'serviceflow/server/cabinet-reassign.ts'), 'utf8');
+    const i = src.indexOf('export async function cabinetAdslFaultsByHistory');
+    if (i < 0) errors.push('الراوت بينادى cabinetAdslFaultsByHistory ومالقيتهاش فى cabinet-reassign.ts');
+    else body = src.slice(i, src.indexOf('\n}\n', i));
+  }
   const wanted = new Map();   // table → Set(columns)
   for (const t of HOT) {
     // FROM <table> <alias> … WHERE <alias>.<col> =
