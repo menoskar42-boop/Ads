@@ -1188,7 +1188,10 @@ export const repeatReviews = pgTable("repeat_reviews", {
   cause: text("cause"),
   hasFault: boolean("has_fault"),
   atFaultName: text("at_fault_name"),
-  atFaultKind: text("at_fault_kind"),   // tech | maintenance | splice
+  atFaultKind: text("at_fault_kind"),   // tech | maintenance | splice | mixed (أكتر من نوع)
+  atFaults: jsonb("at_faults"),         // [{name, kind}] — أكتر من مقصّر (٢٠٢٦-١٠-٠٧)
+  atFaultEditedBy: text("at_fault_edited_by"),   // السوبر أدمن عدّل المقصّرين من «ردود التكرار»
+  atFaultEditedAt: timestamp("at_fault_edited_at", { withTimezone: true }),
   assessedBy: text("assessed_by"),
   assessedAt: timestamp("assessed_at", { withTimezone: true }),
   status: text("status").notNull().default("draft"),   // draft | done

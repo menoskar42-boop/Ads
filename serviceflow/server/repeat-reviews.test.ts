@@ -110,3 +110,33 @@ test("تعليق السوبر أدمن على «ردود التكرار» بيو
   const schema = readFileSync(new URL("../shared/schema.ts", import.meta.url), "utf8");
   assert.match(schema, /export const repeatReviewComments = pgTable\("repeat_review_comments"/);
 });
+
+// ── أكتر من مقصّر (المالك ٢٠٢٦-١٠-٠٧) ─────────────────────────────────────────────
+import { atFaultColumns, atFaultNamesFrom, faultTechNames } from "./repeat-at-fault";
+test("more than one culprit: names list (old single name still accepted), columns stay readable", () => {
+  assert.deepEqual(atFaultNamesFrom({ atFaultNames: ["حسن عبد الفتاح حموده", " ", "على", "على"] }), ["حسن عبد الفتاح حموده", "على"]);
+  assert.deepEqual(atFaultNamesFrom({ atFaultName: "على" }), ["على"], "الشاشة القديمة");
+  assert.deepEqual(atFaultNamesFrom({}), []);
+  assert.deepEqual(atFaultColumns([{ name: "أ", kind: "tech" }, { name: "ب", kind: "tech" }]), { name: "أ، ب", kind: "tech" });
+  assert.deepEqual(atFaultColumns([{ name: "أ", kind: "tech" }, { name: "ب", kind: "splice" }]), { name: "أ، ب", kind: "mixed" });
+  assert.deepEqual(atFaultColumns([]), { name: null, kind: null });
+  // إشعار التعليق بيوصل لكل الفنيين المقصّرين — والرد القديم من العمود القديم
+  assert.deepEqual(faultTechNames({ at_faults: [{ name: "أ", kind: "tech" }, { name: "ب", kind: "splice" }, { name: "ج", kind: "tech" }] }), ["أ", "ج"]);
+  assert.deepEqual(faultTechNames({ at_fault_name: "أ", at_fault_kind: "tech" }), ["أ"]);
+  assert.deepEqual(faultTechNames({}), []);
+});
+
+test("super admin edits culprits from the comment window; the reply dialog picks several", () => {
+  const srv = readFileSync(new URL("./repeat-reviews.ts", import.meta.url), "utf8");
+  assert.match(srv, /app\.put\("\/api\/repeat-reviews\/:id\/at-fault", requireAuth, requireSuperAdmin,/);
+  assert.match(srv, /WHERE tn\.tech_name = ANY\(\$3::text\[\]\)/);
+  const db = readFileSync(new URL("./db.ts", import.meta.url), "utf8");
+  assert.match(db, /ALTER TABLE repeat_reviews ADD COLUMN IF NOT EXISTS at_faults jsonb/);
+  const dlg = readFileSync(new URL("../client/src/components/RepeatReviewDialog.tsx", import.meta.url), "utf8");
+  assert.match(dlg, /<AtFaultPicker value=\{vFaultNames\} onChange=\{setFaultNames\} \/>/);
+  assert.match(dlg, /atFaultNames: vHasFault \? vFaultNames : \[\]/);
+  const cm = readFileSync(new URL("../client/src/components/RepeatCommentDialog.tsx", import.meta.url), "utf8");
+  assert.match(cm, /fetch\(`\/api\/repeat-reviews\/\$\{reviewId\}\/at-fault`, \{\s*method: "PUT"/);
+  const rep = readFileSync(new URL("../client/src/components/RepeatReviewsReport.tsx", import.meta.url), "utf8");
+  assert.match(rep, /<RepeatCommentButton [^>]*review=\{r\} \/>/);
+});

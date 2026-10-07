@@ -9,6 +9,7 @@
 //      بعدها** (الشكوى السابقة، حتى لو فى الشهر اللى فات)، وإلا «إعادة فحص». تغيير البكس فى خطوة ١ بيلغى الفحص المربوط.
 //   ٣. إفادة العميل + إفادة الفنى (كتابة).
 //   ٤. التقييم: سبب العطل (كتابة) + يوجد مقصّر؟ + اسمه (الخمس فنيين / فنيين الصيانة / اللحامين).
+//      ممكن أكتر من مقصّر (٢٠٢٦-١٠-٠٧) — at_faults، والسوبر أدمن بيضيف/يحذف من «ردود التكرار».
 // بيرد: السوبر أدمن والأدمن (مدير السنترال) والشئون الخارجية ومهندس الكوابل. الفنى بيشوف
 // الرد قراية بس على خطوطه. التقرير المجمّع للسوبر أدمن بس.
 // ============================================================================
@@ -18,6 +19,7 @@ import { ROLES } from "@shared/schema";
 import { TECHNICIANS } from "@shared/technicians";
 import { ensureMaintBox, latestBoxInspection } from "./box-full-inspection";
 import { phoneNormSql as sp } from "./phone-norm";
+import { type AtFault, atFaultColumns, atFaultNamesFrom, faultTechNames } from "./repeat-at-fault";
 
 export const REPEAT_REVIEW_WRITERS: string[] = [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.EXTERNAL];
 const TEXT_MAX = 2000;
@@ -44,6 +46,7 @@ const isMonth = (v: unknown) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(v ?? ""));
 const byName = (req: any) => String(req.user?.fullName || req.user?.username || "").trim() || null;
 const canWrite = (req: any) => REPEAT_REVIEW_WRITERS.includes(String(req.user?.role || ""));
 const clean = (v: unknown) => String(v ?? "").trim().slice(0, TEXT_MAX);
+
 
 // الخطوة اللى عليها الرد (للشارة فى الجدول): 0 لسه — 1 البيان — 2 الفحص — 3 الإفادات — 4 التقييم
 export const reviewStep = (r: any): number =>
@@ -224,6 +227,19 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
     const sort = (s: Set<string>) => [...s].sort((a, b) => a.localeCompare(b, "ar"));
     return { techs, maintenance: sort(maint), splice: sort(splice) };
   };
+  /** كل اسم لازم يكون من القايمة — بيرجّع القايمة بأنواعها أو رسالة الخطأ. */
+  const resolveAtFaults = async (names: string[]): Promise<{ list: AtFault[] } | { error: string }> => {
+    const opts = await atFaultOptions();
+    const list: AtFault[] = [];
+    for (const name of names) {
+      const kind = opts.techs.includes(name) ? "tech"
+        : opts.maintenance.includes(name) ? "maintenance"
+        : opts.splice.includes(name) ? "splice" : null;
+      if (!kind) return { error: `«${name}» مش فى قايمة المقصّرين — اختار من القايمة` };
+      list.push({ name, kind });
+    }
+    return { list };
+  };
   app.get("/api/repeat-reviews/at-fault-options", requireAuth, async (req: any, res) => {
     if (!canWrite(req)) return res.status(403).json({ message: "غير مسموح" });
     try { res.json(await atFaultOptions()); } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -325,20 +341,20 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
         if (req.body?.hasFault !== true && req.body?.hasFault !== false) {
           return res.status(400).json({ message: "حدّد يوجد مقصّر ولا لأ" });
         }
-        let name: string | null = null;
-        let kind: string | null = null;
+        let list: AtFault[] = [];
         if (hasFault) {
-          name = clean(req.body?.atFaultName);
-          const opts = await atFaultOptions();
-          kind = opts.techs.includes(name) ? "tech"
-            : opts.maintenance.includes(name) ? "maintenance"
-            : opts.splice.includes(name) ? "splice" : null;
-          if (!name || !kind) return res.status(400).json({ message: "اختار اسم المقصّر من القايمة" });
+          const names = atFaultNamesFrom(req.body);
+          if (!names.length) return res.status(400).json({ message: "اختار اسم المقصّر من القايمة" });
+          const r2 = await resolveAtFaults(names);
+          if ("error" in r2) return res.status(400).json({ message: r2.error });
+          list = r2.list;
         }
+        const cols = atFaultColumns(list);
         await pool.query(
-          `UPDATE repeat_reviews SET cause = $3, has_fault = $4, at_fault_name = $5, at_fault_kind = $6,
+          `UPDATE repeat_reviews SET cause = $3, has_fault = $4, at_fault_name = $5, at_fault_kind = $6, at_faults = $8::jsonb,
                   assessed_by = $7, assessed_at = now(), updated_by = $7, updated_at = now()
-            WHERE phone_short = $1 AND month = $2`, [short, month, cause, hasFault, name, kind, by]);
+            WHERE phone_short = $1 AND month = $2`,
+          [short, month, cause, hasFault, cols.name, cols.kind, by, list.length ? JSON.stringify(list) : null]);
       } else if (step === "complete") {
         if (reviewStep(r) < 4) return res.status(400).json({ message: "كمّل كل الخطوات الأول" });
         await pool.query(
@@ -402,6 +418,27 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
   //   · مدير السنترال: users.role = 'admin' وحسابه فى الكوابل external_affairs (الأدمن العادى لأ)
   //   · الفنى: فنى كابينة الخط (cabinet_technicians) + الفنى المقصّر لو اتحدد بالاسم
   // باقى المستخدمين مابيتعملهمش صف إشعار أصلاً، فمابيشوفوهوش فى الجرس.
+  // ── السوبر أدمن بيضيف/يحذف مقصّر وهو بيعلّق على تقرير الشئون الخارجية (٢٠٢٦-١٠-٠٧) ──
+  // القايمة كلها بتتبعت (مش إضافة واحد): فاضية = «لا يوجد مقصّر». بيتسجّل مين عدّل وإمتى.
+  app.put("/api/repeat-reviews/:id/at-fault", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id, 10) || 0;
+      const rv = (await pool.query(`SELECT id, cause FROM repeat_reviews WHERE id = $1`, [id])).rows[0];
+      if (!rv) return res.status(404).json({ message: "الرد مش موجود" });
+      if (!rv.cause) return res.status(400).json({ message: "الرد لسه ماوصلش لخطوة التقييم" });
+      const r2 = await resolveAtFaults(atFaultNamesFrom(req.body));
+      if ("error" in r2) return res.status(400).json({ message: r2.error });
+      const cols = atFaultColumns(r2.list);
+      const by = byName(req);
+      await pool.query(
+        `UPDATE repeat_reviews SET has_fault = $2, at_fault_name = $3, at_fault_kind = $4, at_faults = $5::jsonb,
+                at_fault_edited_by = $6, at_fault_edited_at = now(), updated_by = $6, updated_at = now()
+          WHERE id = $1`,
+        [id, r2.list.length > 0, cols.name, cols.kind, r2.list.length ? JSON.stringify(r2.list) : null, by]);
+      res.json({ ok: true, review: (await pool.query(`SELECT * FROM repeat_reviews WHERE id = $1`, [id])).rows[0] });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.get("/api/repeat-reviews/:id/comments", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
       const { rows } = await pool.query(
@@ -430,8 +467,9 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
                   u.worker_code IN (SELECT ct.worker_code FROM cabinet_technicians ct
                                      WHERE ct.central_name = $1 AND ct.cabin_number = $2)
                OR u.worker_code IN (SELECT tn.worker_code FROM technician_names tn
-                                     WHERE $3::text IS NOT NULL AND tn.tech_name = $3))))`,
-        [rv.line_central, rv.line_cabin, rv.at_fault_kind === "tech" && rv.at_fault_name ? rv.at_fault_name : null]);
+                                     WHERE tn.tech_name = ANY($3::text[])))))`,
+        // كل الفنيين المقصّرين (ممكن أكتر من واحد — at_faults)، والردود القديمة من at_fault_name
+        [rv.line_central, rv.line_cabin, faultTechNames(rv)]);
       const message = `💬 تعليق الإدارة على رد تكرار الخط ${rv.phone_short} (شهر ${rv.month}): ${body}`;
       for (const t of targets) {
         await client.query(`INSERT INTO notifications (user_id, type, message) VALUES ($1, 'repeat_comment', $2)`, [t.id, message]);

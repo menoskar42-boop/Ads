@@ -1623,6 +1623,15 @@ export async function ensureSchema() {
     await pool.query(`ALTER TABLE repeat_reviews ADD COLUMN IF NOT EXISTS ${col} text`);
   }
 
+  // أكتر من مقصّر فى الرد (٢٠٢٦-١٠-٠٧): [{name, kind}] — at_fault_name بيفضل الأسماء مجمّعة للعرض.
+  // والسوبر أدمن بيقدر يضيف/يحذف مقصّر وهو بيعلّق (at_fault_edited_*).
+  await pool.query(`ALTER TABLE repeat_reviews ADD COLUMN IF NOT EXISTS at_faults jsonb`);
+  await pool.query(`ALTER TABLE repeat_reviews ADD COLUMN IF NOT EXISTS at_fault_edited_by text`);
+  await pool.query(`ALTER TABLE repeat_reviews ADD COLUMN IF NOT EXISTS at_fault_edited_at timestamptz`);
+  // الردود القديمة (مقصّر واحد) ⇒ قايمة بعنصر واحد
+  await pool.query(`UPDATE repeat_reviews SET at_faults = jsonb_build_array(jsonb_build_object('name', at_fault_name, 'kind', at_fault_kind))
+                     WHERE at_faults IS NULL AND has_fault = true AND COALESCE(at_fault_name, '') <> ''`);
+
   // تعليقات السوبر أدمن على «ردود التكرار» (٢٠٢٦-١٠-٠٦): بتوصل كإشعار للفنى والشئون
   // الخارجية ومهندس الكوابل ومدير السنترال بس (notifications type = 'repeat_comment').
   await pool.query(`

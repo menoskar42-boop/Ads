@@ -6,9 +6,16 @@ import { Loader2, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { AtFaultPicker, savedAtFaults } from "@/components/AtFaultPicker";
 
-export function RepeatCommentButton({ reviewId, phone, month, count }: { reviewId: number; phone: string; month: string; count?: number }) {
+export function RepeatCommentButton({ reviewId, phone, month, count, review }: { reviewId: number; phone: string; month: string; count?: number; review?: any }) {
   const [open, setOpen] = useState(false);
+  // المقصّرين (المالك ٢٠٢٦-١٠-٠٧): السوبر أدمن بيضيف/يحذف وهو بيعلّق على تقرير الشئون الخارجية.
+  // null = لسه ماغيّرش ⇒ بنعرض المحفوظ.
+  const [faults, setFaults] = useState<string[] | null>(null);
+  const saved = savedAtFaults(review).map((x) => x.name);
+  const vFaults = faults ?? saved;
+  const faultsChanged = faults !== null && (faults.length !== saved.length || faults.some((n, i) => n !== saved[i]));
   const [body, setBody] = useState("");
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -33,9 +40,26 @@ export function RepeatCommentButton({ reviewId, phone, month, count }: { reviewI
     },
     onError: (e: any) => toast({ title: "ماتبعتش", description: e.message, variant: "destructive" }),
   });
+  const saveFaults = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/repeat-reviews/${reviewId}/at-fault`, {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ atFaultNames: vFaults }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j?.message || `خطأ ${r.status}`);
+      return j;
+    },
+    onSuccess: () => {
+      setFaults(null);
+      qc.invalidateQueries({ queryKey: ["/api/repeat-reviews/report"] });
+      toast({ title: "اتحفظ المقصّرين", description: vFaults.length ? vFaults.join("، ") : "لا يوجد مقصّر" });
+    },
+    onError: (e: any) => toast({ title: "ماتحفظش", description: e.message, variant: "destructive" }),
+  });
   return (
     <>
-      <Button size="sm" variant="outline" className="h-8 gap-1 text-xs text-sky-700 border-sky-200" onClick={() => setOpen(true)} data-testid={`button-repeat-comment-${reviewId}`}>
+      <Button size="sm" variant="outline" className="h-8 gap-1 text-xs text-sky-700 border-sky-200" onClick={() => { setFaults(null); setOpen(true); }} data-testid={`button-repeat-comment-${reviewId}`}>
         <MessageSquare className="w-3.5 h-3.5" /> تعليق{count ? ` (${count})` : ""}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -44,6 +68,22 @@ export function RepeatCommentButton({ reviewId, phone, month, count }: { reviewI
             <DialogTitle>تعليق الإدارة — الخط {phone} ({month})</DialogTitle>
             <DialogDescription>بيوصل إشعار للفنى والشئون الخارجية ومهندس الكوابل ومدير السنترال بس — بيظهرلهم عند الدخول وفى الجرس.</DialogDescription>
           </DialogHeader>
+          {review?.cause && (
+            <div className="rounded-md border p-2 space-y-2" data-testid={`repeat-faults-${reviewId}`}>
+              <p className="text-sm font-medium">المقصّرين {vFaults.length ? "" : <span className="text-muted-foreground font-normal">— لا يوجد مقصّر</span>}</p>
+              <AtFaultPicker value={vFaults} onChange={setFaults} testId={`select-repeat-fault-edit-${reviewId}`} />
+              {faultsChanged && (
+                <div className="flex justify-end">
+                  <Button size="sm" disabled={saveFaults.isPending} onClick={() => saveFaults.mutate()}>
+                    {saveFaults.isPending && <Loader2 className="w-4 h-4 animate-spin ml-1" />} حفظ المقصّرين
+                  </Button>
+                </div>
+              )}
+              {review?.at_fault_edited_by && (
+                <p className="text-[11px] text-muted-foreground">آخر تعديل للمقصّرين: {review.at_fault_edited_by}</p>
+              )}
+            </div>
+          )}
           <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={1000} rows={4} placeholder="اكتب تعليقك على الرد…"
             className="w-full border rounded-md p-2 text-sm bg-background" aria-label="التعليق" />
           <div className="flex justify-end">

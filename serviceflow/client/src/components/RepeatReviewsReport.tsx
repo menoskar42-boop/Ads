@@ -10,10 +10,10 @@ import { openRepeatLetter } from "@/lib/repeat-review-letter";
 import { printTablePDF } from "@/lib/print-pdf";
 import { RepeatReviewDialog, REPEAT_STEP_LABELS } from "@/components/RepeatReviewDialog";
 import { RepeatCommentButton } from "@/components/RepeatCommentDialog";
+import { atFaultsText } from "@/components/AtFaultPicker";
 
 // «ردود التكرار» — تقرير السوبر أدمن (قرار المالك ٢٠٢٦-١٠-٠٤): كل رد على خط مكرر (رد للخط
 // فى الشهر) بالبيان والفحص والإفادات والتقييم والمقصّر، وبيتطبع PDF.
-const KIND_AR: Record<string, string> = { tech: "فنى", maintenance: "فنى صيانة", splice: "لحام" };
 const thisMonth = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }).slice(0, 7);
 // الشهر اللى قبله (YYYY-MM) — الافتراضى «من أول الشهر السابق لحد النهارده» (المالك ٢٠٢٦-١٠-٠٦)
 const prevMonth = () => {
@@ -61,7 +61,7 @@ export function RepeatReviewsReport() {
     r.inspection_id ? `${day(r.inspection_date)}${r.inspection_by ? " — " + r.inspection_by : ""} — بنود محتاجة شغل: ${r.inspection_bad_items ?? 0}` : "",
     r.customer_statement ?? "", r.tech_statement ?? "", r.cause ?? "",
     r.has_fault === true ? "نعم" : r.has_fault === false ? "لا" : "",
-    r.has_fault ? `${r.at_fault_name ?? ""}${r.at_fault_kind ? ` (${KIND_AR[r.at_fault_kind] ?? r.at_fault_kind})` : ""}` : "",
+    r.has_fault ? atFaultsText(r) : "",
     r.completed_by || r.updated_by || "",
     at(r.completed_at),
   ];
@@ -133,7 +133,7 @@ export function RepeatReviewsReport() {
                   </Button>
                   {/* تعليق السوبر أدمن — بيوصل إشعار للأدوار المعنية بالخط بس */}
                   <div className="mt-1" onClick={(e) => e.stopPropagation()}>
-                    <RepeatCommentButton reviewId={r.id} phone={r.phone_short} month={r.month} count={r.comment_count} />
+                    <RepeatCommentButton reviewId={r.id} phone={r.phone_short} month={r.month} count={r.comment_count} review={r} />
                   </div>
                 </TableCell>
                 {toCells(r, i).map((c, j) => <TableCell key={j} className={j >= 9 && j <= 11 ? "min-w-[180px] whitespace-pre-wrap" : "whitespace-nowrap"}>{c || "—"}</TableCell>)}

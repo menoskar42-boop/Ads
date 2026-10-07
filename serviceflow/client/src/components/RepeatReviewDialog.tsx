@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, CheckCircle2, Lock, ExternalLink, RefreshCw, ClipboardCheck, ArrowRight } from "lucide-react";
 import { LineDataCorrection } from "@/components/LineDataCorrection";
 import { MobileValue } from "@/lib/mobile-lookup";
+import { AtFaultPicker, atFaultsText, savedAtFaults } from "@/components/AtFaultPicker";
 
 // «رد التكرار» (قرار المالك ٢٠٢٦-١٠-٠٤) — رد واحد للخط فى الشهر، خطوات بالترتيب وكل خطوة
 // بتتحفظ لوحدها: ١ بيان الخط ← ٢ فحص البكس ← ٣ الإفادات ← ٤ التقييم ← حفظ نهائى.
@@ -23,7 +24,6 @@ interface OneResp {
   box: { central: string; cabinet: string; box: string; boxId: number | null };
   inspection: { id: number; date: string; by: string | null; badItems: number; valid: boolean; viewUrl: string } | null;
 }
-interface FaultOptions { techs: string[]; maintenance: string[]; splice: string[] }
 
 const fmtAt = (v: string | null | undefined) => (v ? new Date(v).toLocaleString("ar-EG", { timeZone: "Africa/Cairo" }) : "");
 
@@ -60,11 +60,6 @@ export function RepeatReviewDialog({ phone, month, open, onOpenChange, onChanged
   const canEdit = !!d?.canEdit;
   const step = d?.step ?? 0;
 
-  const opts = useQuery<FaultOptions>({
-    queryKey: ["/api/repeat-reviews/at-fault-options"],
-    queryFn: async () => (await fetch("/api/repeat-reviews/at-fault-options", { credentials: "include" })).json(),
-    enabled: open && canEdit,
-  });
 
   const [busy, setBusy] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState(false);
@@ -72,13 +67,14 @@ export function RepeatReviewDialog({ phone, month, open, onOpenChange, onChanged
   const [tech, setTech] = useState<string | null>(null);
   const [cause, setCause] = useState<string | null>(null);
   const [hasFault, setHasFault] = useState<boolean | null>(null);
-  const [faultName, setFaultName] = useState<string | null>(null);
+  // أكتر من مقصّر (المالك ٢٠٢٦-١٠-٠٧) — null = لسه ماغيّرش، فبنعرض المحفوظ
+  const [faultNames, setFaultNames] = useState<string[] | null>(null);
   // القيم المكتوبة: لو المستخدم لسه ماغيّرش حاجة بنعرض المحفوظ
   const vCustomer = customer ?? rv?.customer_statement ?? "";
   const vTech = tech ?? rv?.tech_statement ?? "";
   const vCause = cause ?? rv?.cause ?? "";
   const vHasFault = hasFault ?? (rv?.has_fault ?? null);
-  const vFaultName = faultName ?? rv?.at_fault_name ?? "";
+  const vFaultNames = faultNames ?? savedAtFaults(rv).map((x) => x.name);
 
   const send = async (stepName: string, body: Record<string, unknown> = {}) => {
     setBusy(stepName);
@@ -231,24 +227,19 @@ export function RepeatReviewDialog({ phone, month, open, onOpenChange, onChanged
               <div className="flex items-center gap-4 text-xs">
                 <span className="font-medium">يوجد مقصّر؟</span>
                 <label className="inline-flex items-center gap-1"><input type="radio" checked={vHasFault === true} disabled={!canEdit} onChange={() => setHasFault(true)} /> نعم</label>
-                <label className="inline-flex items-center gap-1"><input type="radio" checked={vHasFault === false} disabled={!canEdit} onChange={() => { setHasFault(false); setFaultName(""); }} /> لا</label>
+                <label className="inline-flex items-center gap-1"><input type="radio" checked={vHasFault === false} disabled={!canEdit} onChange={() => { setHasFault(false); setFaultNames([]); }} /> لا</label>
               </div>
               {vHasFault === true && (
                 canEdit ? (
-                  <select value={vFaultName} onChange={(e) => setFaultName(e.target.value)} className="border rounded-md px-2 py-1.5 text-sm w-full" dir="rtl" data-testid="select-repeat-at-fault">
-                    <option value="">اختار اسم المقصّر</option>
-                    <optgroup label="الفنيين">{(opts.data?.techs ?? []).map((n) => <option key={"t" + n} value={n}>{n}</option>)}</optgroup>
-                    <optgroup label="فنيين الصيانة">{(opts.data?.maintenance ?? []).map((n) => <option key={"m" + n} value={n}>{n}</option>)}</optgroup>
-                    <optgroup label="اللحامين (برنامج الكوابل)">{(opts.data?.splice ?? []).map((n) => <option key={"s" + n} value={n}>{n}</option>)}</optgroup>
-                  </select>
-                ) : <p className="text-xs">المقصّر: <b>{rv?.at_fault_name || "—"}</b></p>
+                  <AtFaultPicker value={vFaultNames} onChange={setFaultNames} />
+                ) : <p className="text-xs">المقصّر: <b>{atFaultsText(rv) || "—"}</b></p>
               )}
               {by(rv?.assessed_by, rv?.assessed_at)}
               {canEdit && (
-                <Button size="sm" disabled={!!busy || !vCause.trim() || vHasFault === null || (vHasFault && !vFaultName)}
+                <Button size="sm" disabled={!!busy || !vCause.trim() || vHasFault === null || (vHasFault && !vFaultNames.length)}
                   onClick={async () => {
-                    if (await send("assessment", { cause: vCause, hasFault: vHasFault, atFaultName: vHasFault ? vFaultName : "" })) {
-                      setCause(null); setHasFault(null); setFaultName(null);
+                    if (await send("assessment", { cause: vCause, hasFault: vHasFault, atFaultNames: vHasFault ? vFaultNames : [] })) {
+                      setCause(null); setHasFault(null); setFaultNames(null);
                     }
                   }}>
                   {busy === "assessment" ? <Loader2 className="w-4 h-4 animate-spin" /> : null} حفظ التقييم

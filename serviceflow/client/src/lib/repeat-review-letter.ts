@@ -47,8 +47,12 @@ function inspectionHtml(r: any): string {
 
 function opinionHtml(r: any): string {
   const cause = r.cause ? `سبب العطل: ${nl(r.cause)}` : "سبب العطل: —";
+  // أكتر من مقصّر (٢٠٢٦-١٠-٠٧): at_faults — والردود القديمة من at_fault_name/kind
+  const list: { name: string; kind: string }[] = Array.isArray(r.at_faults) ? r.at_faults
+    : r.at_fault_name ? [{ name: r.at_fault_name, kind: r.at_fault_kind || "" }] : [];
+  const names = list.map((x) => `<b>${esc(x.name)}</b>${x.kind && KIND_AR[x.kind] ? ` (${esc(KIND_AR[x.kind])})` : ""}`).join("، ");
   const fault = r.has_fault === true
-    ? `يوجد مقصّر: <b>${esc(r.at_fault_name || "")}</b>${r.at_fault_kind ? ` (${esc(KIND_AR[r.at_fault_kind] ?? r.at_fault_kind)})` : ""}`
+    ? `${list.length > 1 ? "يوجد مقصّرين" : "يوجد مقصّر"}: ${names || "—"}`
     : r.has_fault === false ? "لا يوجد مقصّر." : "يوجد مقصّر: —";
   return `${cause}<br>${fault}`;
 }
