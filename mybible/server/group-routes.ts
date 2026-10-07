@@ -1,3 +1,4 @@
+import { readDateFrom } from "./read-date";
 import type { Express } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -752,7 +753,8 @@ export function registerGroupRoutes(app: Express) {
       if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
 
       const { userName, book, chapter, timeSpent, scrollPercent } = req.body;
-      const date = new Date().toISOString().split('T')[0];
+      // قراءة جاية من طابور الموبايل (القاعدة كانت واقعة) ⇒ بيوم قراءتها الحقيقى
+      const date = readDateFrom(req.body.readAt).date;
 
       let quality = 'unknown';
       if (timeSpent < 30) quality = 'fast';
@@ -1845,6 +1847,8 @@ export function registerGroupRoutes(app: Express) {
       const assignmentId = parseInt(req.params.assignmentId);
       const { userName, bookName, timeSpent, scrollCount, scrollDepth } = req.body;
       const chapter = parseInt(req.body.chapter);
+      // قراءة جاية من طابور الموبايل ⇒ يومها ووقتها الحقيقى (read-date.ts)
+      const rd = readDateFrom(req.body.readAt);
 
       const existing = await db.select().from(assignmentReadings)
         .where(and(
@@ -1855,23 +1859,24 @@ export function registerGroupRoutes(app: Express) {
         ));
 
       if (existing.length > 0) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = rd.date;
+        // قراءة متأخرة (من الطابور) لإصحاح اتكمّل قبل كده ⇒ مانغيّرش يوم إكماله الأصلى
         await pool.query(
           `UPDATE assignment_readings SET
             time_spent = GREATEST(COALESCE(time_spent,0), $1),
             scroll_count = GREATEST(COALESCE(scroll_count,0), $2),
             scroll_depth = GREATEST(COALESCE(scroll_depth,0), $3),
-            completed = true,
-            completed_at = NOW(),
-            completed_date = $4
+            completed_at = CASE WHEN $6::boolean AND completed THEN completed_at ELSE $7::timestamptz END,
+            completed_date = CASE WHEN $6::boolean AND completed THEN completed_date ELSE $4 END,
+            completed = true
            WHERE id = $5`,
-          [timeSpent || 0, scrollCount || 0, scrollDepth || 0, today, existing[0].id]
+          [timeSpent || 0, scrollCount || 0, scrollDepth || 0, today, existing[0].id, rd.late, rd.at]
         );
         const updated = { ...existing[0], completed: true, completedAt: new Date() };
 
         // سجّل في group_reading_logs حتى تُحتسب للإحصائيات اليومية
         try {
-          const date = new Date().toISOString().split('T')[0];
+          const date = rd.date;
           await pool.query(
             `INSERT INTO group_reading_logs (group_id, user_name, book, chapter, date, time_spent)
              SELECT $1,$2,$3,$4,$5,$6
@@ -1908,21 +1913,21 @@ export function registerGroupRoutes(app: Express) {
         return res.json({ reading: updated, allDone });
       }
 
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = rd.date;
       const insertResult = await pool.query(
         `INSERT INTO assignment_readings
            (assignment_id, group_id, user_name, book_name, chapter,
             time_spent, scroll_count, scroll_depth,
             completed, opened_at, completed_at, completed_date, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true,NOW(),NOW(),$9,NOW())
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true,$10::timestamptz,$10::timestamptz,$9,NOW())
          RETURNING *`,
         [assignmentId, group.id, userName, bookName, chapter,
-         timeSpent || 0, scrollCount || 0, scrollDepth || 0, todayStr]
+         timeSpent || 0, scrollCount || 0, scrollDepth || 0, todayStr, rd.at]
       );
       const reading = insertResult.rows[0];
 
       try {
-        const date = new Date().toISOString().split('T')[0];
+        const date = rd.date;
         await pool.query(
           `INSERT INTO group_reading_logs (group_id, user_name, book, chapter, date, time_spent)
            SELECT $1,$2,$3,$4,$5,$6

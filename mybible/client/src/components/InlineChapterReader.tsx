@@ -8,11 +8,11 @@ import { api } from '@/lib/api';
 import { DEUTEROCANONICAL_BOOKS } from '@/lib/group-auto-reading';
 import { apocryphaBooks } from '@/lib/apocrypha-content';
 import { fetchBookIntro, fetchVerseTafsir, fetchChapterTafsir } from '@/lib/tafsir-csv-service';
+import { postReading } from '@/lib/reading-queue';
 
 const MAX_MIN_SECONDS = 40;
 const MIN_SCROLLS = 5;
 const MIN_DEPTH = 80;
-const QUEUE_KEY = 'offline_reading_queue';
 
 // عتبة الوقت تتناسب مع حجم الإصحاح: الإصحاح الصغير لا يتطلب ٤٠ ثانية كاملة.
 // ~٢ ثانية لكل آية، بحد أدنى ١٠ ثوانٍ وحد أقصى ٤٠ ثانية.
@@ -184,27 +184,14 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
       .catch(() => { recordedRef.current.delete(key); });
   }, [condTime, condDepth, loading, currentBook, currentChapter]);
 
+  // التسجيل نفسه (والحفظ على الموبايل لو السيرفر مش متاح) فى lib/reading-queue.ts
   const recordReading = async (chap: number, timeSpent: number) => {
-    if (assignmentId !== null) {
-      const url = `/api/groups/${groupCode}/assignments/${assignmentId}/read`;
-      const body = { userName, bookName: currentBook, chapter: chap, timeSpent, scrollCount, scrollDepth };
-      try {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        return res.ok ? await res.json() : {};
-      } catch {
-        try { const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); q.push({ url, body }); localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch {}
-        return {};
-      }
-    } else {
-      const url = `/api/groups/${groupCode}/reading`;
-      const body = { userName, book: currentBook, chapter: chap, timeSpent, scrollPercent: scrollDepth };
-      try {
-        await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      } catch {
-        try { const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); q.push({ url, body }); localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch {}
-      }
-      return {};
-    }
+    const r = assignmentId !== null
+      ? await postReading(`/api/groups/${groupCode}/assignments/${assignmentId}/read`,
+          { userName, bookName: currentBook, chapter: chap, timeSpent, scrollCount, scrollDepth })
+      : await postReading(`/api/groups/${groupCode}/reading`,
+          { userName, book: currentBook, chapter: chap, timeSpent, scrollPercent: scrollDepth });
+    return { ...(r.data || {}), queued: r.queued };
   };
 
   const handleFinishReading = async () => {
@@ -213,6 +200,7 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
     try {
       const result = await recordReading(currentChapter, timeSpent);
       onChapterDone?.(currentBook, currentChapter);
+      if (result.queued) toast.success('اتسجّلت على موبايلك ✓ — الخدمة متوقفة مؤقتاً، وهتتبعت لوحدها بيومها أول ما ترجع', { duration: 6000 });
       if (result.allDone) {
         toast.success('🎉 مبروك! أنهيت كل القراءات المطلوبة', { duration: 5000 });
         onComplete();

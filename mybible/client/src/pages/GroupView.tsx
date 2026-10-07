@@ -20,6 +20,7 @@ import { api } from '@/lib/api';
 import { getUserGroupEntry, addUserGroup, removeUserGroup } from '@/lib/user-groups';
 import { fetchBookIntro, fetchVerseTafsir, fetchChapterTafsir, getCSVFileName } from '@/lib/tafsir-csv-service';
 import { OfflineManager } from '@/components/OfflineManager';
+import { postReading, flushReadingQueue } from '@/lib/reading-queue';
 
 interface GroupData {
   group: any;
@@ -239,36 +240,14 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
   const condScrolls = scrollCount >= MIN_SCROLLS;
   const condDepth = scrollDepth >= MIN_DEPTH;
 
-  const QUEUE_KEY = 'offline_reading_queue';
+  // التسجيل نفسه (والحفظ على الموبايل لو السيرفر مش متاح) فى lib/reading-queue.ts
   const recordReading = async (chap: number, timeSpent: number) => {
-    if (assignmentId !== null) {
-      const url = `/api/groups/${groupCode}/assignments/${assignmentId}/read`;
-      const body = { userName, bookName: currentBook, chapter: chap, timeSpent, scrollCount, scrollDepth };
-      try {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        return res.ok ? await res.json() : {};
-      } catch {
-        try {
-          const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
-          q.push({ url, body });
-          localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
-        } catch {}
-        return {};
-      }
-    } else {
-      const url = `/api/groups/${groupCode}/reading`;
-      const body = { userName, book: currentBook, chapter: chap, timeSpent, scrollPercent: scrollDepth };
-      try {
-        await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      } catch {
-        try {
-          const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
-          q.push({ url, body });
-          localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
-        } catch {}
-      }
-      return {};
-    }
+    const r = assignmentId !== null
+      ? await postReading(`/api/groups/${groupCode}/assignments/${assignmentId}/read`,
+          { userName, bookName: currentBook, chapter: chap, timeSpent, scrollCount, scrollDepth })
+      : await postReading(`/api/groups/${groupCode}/reading`,
+          { userName, book: currentBook, chapter: chap, timeSpent, scrollPercent: scrollDepth });
+    return { ...(r.data || {}), queued: r.queued };
   };
 
   const handleFinishReading = async () => {
@@ -277,6 +256,7 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
     try {
       const result = await recordReading(currentChapter, timeSpent);
       onChapterDone?.(currentBook, currentChapter);
+      if (result.queued) toast.success('اتسجّلت على موبايلك ✓ — الخدمة متوقفة مؤقتاً، وهتتبعت لوحدها بيومها أول ما ترجع', { duration: 6000 });
       if (result.allDone) {
         toast.success('🎉 مبروك! أنهيت كل القراءات المطلوبة اليوم', { duration: 5000 });
         onComplete();
@@ -1409,33 +1389,27 @@ export default function GroupView() {
 
   useEffect(() => { fetchGroup(); }, [fetchGroup]);
 
-  // مزامنة تقدم القراءة المخزّن أوفلاين فور رجوع الاتصال
+  // مزامنة القراءات المحفوظة على الموبايل (نت قاطع أو السيرفر مش متاح — lib/reading-queue.ts):
+  // أول ما الصفحة تفتح، ولما النت يرجع، ولما الصفحة ترجع قدّام العضو، وكل ٣ دقايق وهى مفتوحة.
   useEffect(() => {
-    const QUEUE_KEY = 'offline_reading_queue';
     const flush = async () => {
-      try {
-        const queue: { url: string; body: object }[] = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
-        if (!queue.length) return;
-        const failed: typeof queue = [];
-        for (const item of queue) {
-          try {
-            const res = await fetch(item.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item.body) });
-            if (!res.ok) failed.push(item);
-          } catch { failed.push(item); }
-        }
-        localStorage.setItem(QUEUE_KEY, JSON.stringify(failed));
-        if (failed.length < queue.length) {
-          toast.success('تم مزامنة تقدم القراءة مع السيرفر');
-          fetchGroup();
-          // تحديث الـ leaderboard وبيانات الأعضاء بعد المزامنة
-          queryClient.invalidateQueries({ queryKey: ['leaderboard', groupCode] });
-        }
-      } catch {}
+      const { sent } = await flushReadingQueue();
+      if (sent > 0) {
+        toast.success(sent === 1 ? 'اتبعتت قراءة كانت محفوظة على موبايلك ✓' : `اتبعتت ${sent} قراءات كانت محفوظة على موبايلك ✓`);
+        fetchGroup();
+        queryClient.invalidateQueries({ queryKey: ['leaderboard', groupCode] });
+      }
     };
+    const onVisible = () => { if (document.visibilityState === 'visible') flush(); };
     window.addEventListener('online', flush);
-    // محاولة فور التحميل لو كان النت شغّال
-    if (navigator.onLine) flush();
-    return () => window.removeEventListener('online', flush);
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = window.setInterval(flush, 3 * 60 * 1000);
+    flush();
+    return () => {
+      window.removeEventListener('online', flush);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(timer);
+    };
   }, [fetchGroup]);
 
   // Pre-cache قراءات الـ 7 أيام الجاية أوفلاين
