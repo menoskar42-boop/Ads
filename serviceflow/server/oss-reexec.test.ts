@@ -12,8 +12,14 @@ const lookup = readFileSync(new URL("../client/src/components/PhoneLookupReport.
 const om = readFileSync(new URL("../client/src/components/OmRejectionsReport.tsx", import.meta.url), "utf8");
 
 test("the merged script: OSS tab with a Re-Execute marker never runs the export", () => {
-  assert.match(script, /@version\s+3\.6\.0/);
-  assert.match(script, /sessionStorage\.setItem\('sf_oss_reexec', JSON\.stringify\(\{ value: decodeURIComponent\(_rx\[1\]\), by:/);
+  assert.match(script, /@version\s+3\.6\.1/);
+  // v3.6.1: الدخول بيحوّل على 15204 والهاش بيضيع بعده — العلامة بتتمسك على البورتين وبتتحفظ
+  // فى window.name (بيفضل مع التاب بين 15204 و15201) — حصل ٢٠٢٦-١٠-٠٧: التاب عمل تحديث الملفات
+  assert.match(script, /if \(\/\^oss\\\.te\\\.eg\(:1520\[14\]\)\?\$\/i\.test\(location\.host\) && \/sf_oss_reexec=\/i\.test\(_h\)\)/);
+  assert.match(script, /window\.name = 'sf_oss_reexec\|' \+ _rj;/);
+  assert.match(script, /if \(wn\.indexOf\('sf_oss_reexec\|'\) === 0\) raw = wn\.slice/);
+  // سطر «loaded» بيقرا الإصدار من السكربت نفسه (كان مكتوب 3.5.3 ثابت فاتلخبطنا)
+  assert.match(script, /GM_info\.script\.version/);
   assert.match(script, /const rx = \/\\\/cas\\\/\/i\.test\(location\.href\) \? null : ossReexecPending\(\);\s+if \(rx\) await runOssReexec\(rx\); else await runOSS\(\);/);
   assert.match(script, /const OSS_REEXEC_REASON = 'ReExecuteParentReason02';/);
   assert.match(script, /const OSS_REEXEC_SUB = 'ReExecuteSubReason03';/);

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TE FCC + WFM + OSS + SubInfo (All-in-One)
 // @namespace    te.eg.autoexport
-// @version      3.6.0
+// @version      3.6.1
 // @description  FCC + WFM + OSS export + جلب اسم/عنوان العميل — كله فى سكربت واحد. v3.5.3: «إلغاء الاسناد» و«موافقة تغيير البورت» بيشتغلوا جوّه الصفحة نفسها زى السكربتين القدام (ولو الصفحة منعت ده بيشتغلوا من الـsandbox)؛ رفع الملفات زى ما هو. v3.5.2: «إلغاء الاسناد» و«موافقة تغيير البورت» جوّه السكربت المدموج: أحداث الماوس من غير view: window (فى sandbox بتاع Tampermonkey كانت بتترفض فى صمت فقائمة السطر فى Dispatcher ماكانتش بتفتح). v3.5.1: صفحة دخول WFM من غير أى علامة = تحديث يومى (Service-Flow القديم قبل الـRepublish بيفتحها كده) — إلا لو التاب عليه طلب إلغاء/موافقة شغّال. v3.5.0: سكربتا «إلغاء الاسناد» و«موافقة تغيير البورت» اتدمجوا هنا (احذفهم من Tampermonkey) — راوتر WFM واحد بيحدّد نوع التاب من الرابط أول ما يفتح (إلغاء / موافقة / تحديث يومى)، ودخول واحد، وتصدير أوامر الشغل بيشتغل **بس** على تاب متفتح كتحديث يومى (#sf_wfm_daily). v3.4.3: الدخول على WFM بنفس اسم المستخدم وكلمة السر بتوع FCC. v3.4.2: مابيشغّلش تصدير أوامر الشغل على تاب «موافقة تغيير بورت» (#sf_accept= أو sf_accept_pending) — كان بيصدّر نتيجة البحث المفلترة على رقم واحد فتترفع كملف كامل وتمسح التركيبات الحالية. v3.4.0: منع التعارض مع سكربت «إلغاء الاسناد» على wfm.te.eg — التاب اللى بيفتح بعلامة #sf_cancel= بيبقى تاب إلغاء إسناد، فتدفّق تصدير أوامر الشغل بيتوقّف عليه بدل ما يخطفه لشاشة Work Order Management ويفتح نافذة Export. v3.3.0: زر «مراجعة الاسم والعنوان» بقى يحترم كمان نطاق الأرقام (من رقم/إلى رقم) من بيان التليفونات — بيتبعت فى الهاش (sf_sif = سنترال~كابينة~بكس~من~إلى) ولـ /pending كـ phoneFrom/phoneTo، فالمراجعة تقتصر على أرقام النطاق المحدد. v3.2.0: زر «مراجعة الاسم والعنوان» فى بيان التليفونات بقى يحترم الفلتر (سنترال/كابينة/بكس) — الفلتر بيتبعت فى الهاش (sf_sif) ولـ /pending، فكل تاب مراجعة يجيب أرقام فلتره بس؛ تقدر تفتح مراجعتين بفلترين مختلفين فى نفس الوقت (كل واحدة نافذة مستقلة) بلا طابور مشترك. v3.1.0: زر المراجعة اليدوى الشامل بيراجع كل الأرقام المطلوبة (مش 300 بس) — بيجيب القائمة كاملة (لحد 15000)؛ المراجعة اليومية بعد التصدير لسه دفعة صغيرة (40) عبر maxCount. v3.0.9: تنسيق تابات FCC — كل تاب مسجّل دخول بيكتب نبضة (localStorage). لو تاب التصدير لقى FCC مفتوح ومسجّل دخول فى تاب تانى → مايعملش دخول جديد (اللى كان بيطلع «Invalid username or password») ويروح Home بنفس الجلسة (الكوكيز مشتركة)؛ ولو في تاب تاني بيراجع بالفعل يقفل بعد التصدير بدل مراجعة مكرّرة. v3.0.8: (1) أولوية تصدير شيت FCC — لو التحديث اليومى اشتغل والتاب وسط مراجعة بيانات فنية، السيرفر بيسلّح علامة «صدّر الآن»؛ الراوتر يشوفها فيصدّر الشيت الأول ثم يكمّل المراجعة (المتبقى من الأرقام يفضل مستبعَد فبيكمّل من مكانه). (2) تنظيف استخراج WorkOrdDate (يقتطع التاريخ فقط) وWorkOrdNo (أرقام فقط). v3.0.7: إصلاح المراجعة بعد التصدير اليومى — كانت بتستخدم علامة عابرة (sf_fcc_phase) بتضيع مع الـ reload اللى بيحصل وقت فتح Complains، فكان main يرجع يشغّل runFCC على صفحة Complains ويعلّق من غير ما يدخل أرقام. دلوقتى بتستخدم نفس العلامة الثابتة sf_si_mode (اللى بتشتغل فى المراجعة الفردية/الشاملة) + دفعة 40 + بتتمسح فى الآخر عشان تاب fcc_daily يرجع يصدّر عادى. v3.0.6: المراجعة اليومية بعد التصدير بقت دفعة صغيرة (40 رقم) عشان تاب FCC يقفل بسرعة ومايحمّلش FCC؛ والزر الشامل اليدوى لسه بيراجع لحد 300. (السيرفر بيرجّع بس أرقام 88+7 خانات الصحيحة). v3.0.5: (1) علامة المراجعة كمان فى الـ hash احتياطى (#sf_si=one:الرقم / #sf_si=auto) لو المتصفح مسح window.name. (2) تشخيص فى اللوج «علامة الراوتر» يوضّح ليه راح للتصدير بدل المراجعة. (3) البحث عن خانات/زر البحث فى كل الـ iframes + تشخيص الحقول siDumpFields. v3.0.4: إصلاح — التهدئة بقت *فقط* لو ظهرت رسالة رفض/قفل فعلية (Invalid username or password / LoginException). بطء تسجيل الدخول (لسه على صفحة الدخول من غير رسالة) مابيتحسبش فشل خالص — بنستنى بصبر لحد ما يخرج من صفحة الدخول (نجاح) أو تظهر رسالة (تهدئة). شِلنا عدّاد «محاولتين فاشلتين» اللى كان بيوقف الدخول بالغلط وقت التأخير. v3.0.3: قفل حساب FCC مؤقت (~20 دقيقة) — فترة تهدئة ~22 دقيقة (مشتركة عبر كل تابات FCC عبر localStorage) بعد رفض الدخول، وبعدها يحاول لوحده. v3.0.2: (1) علامة وضع المراجعة (sf_subinfo_one/auto) بتتثبّت فى sessionStorage عند document-start قبل ما FCC يمسح window.name — فزر «مراجعة» بقى يفتح Complains ويدخل رقم التليفون بدل ما يقع فى تدفّق التصدير. (2) الدخول يقف فوراً لو ظهرت «Invalid username or password». v3.0.1: المراجعة تفتح Complains بـ activate (زى بلاطة Ticket Queue) + حد 300 رقم لكل تشغيل (الباقى يكمّل الدورة الجاية). v3.0.0: دمجنا سكربت SubInfo هنا — تاب FCC اليومى بعد التصدير يراجع الأرقام (بورتات بدون بيانات فنية) فى نفس الدخول ثم يقفل؛ وزر المراجعة اليدوى (sf_subinfo_auto/one) بيشتغل لوحده. (احذف سكربت SubInfo المنفصل القديم).
 // @match        https://fcc.te.eg/TroubleTicket/faces/*
 // @match        https://wfm.te.eg/WorkOrder/*
@@ -96,9 +96,17 @@
     /* v3.6.0: «Re-Execute» على OSS Abnormal WO (من Service-Flow — السوبر أدمن). العلامة
        #sf_oss_reexec=<الرقم أو Service Order ID>&sf_by=phone|order بتتثبّت فى sessionStorage
        بتاع 15201 — بتفضل فى نفس التاب حتى لو اتحوّل على صفحة الدخول 15204 ورجع من غير الهاش. */
-    if (/^oss\.te\.eg(:15201)?$/i.test(location.host) && /sf_oss_reexec=/i.test(_h)) {
+    /* v3.6.1: لو OSS محتاج تسجيل دخول، الرابط بيتحوّل على صفحة الدخول (15204) والهاش معاه —
+       وبعد الدخول بيرجع على 15201 **من غير الهاش**. sessionStorage بتاع 15204 مش هو بتاع 15201،
+       فالعلامة كانت بتضيع والتاب يعمل تحديث الملفات (حصل ٢٠٢٦-١٠-٠٧). دلوقتى بتتمسك على البورتين
+       وبتتحفظ كمان فى window.name — اللى بيفضل مع التاب بين 15204 و15201 (نفس الموقع). */
+    if (/^oss\.te\.eg(:1520[14])?$/i.test(location.host) && /sf_oss_reexec=/i.test(_h)) {
       var _rx = _h.match(/sf_oss_reexec=([^&]+)/i), _rb = _h.match(/sf_by=(phone|order)/i);
-      if (_rx) sessionStorage.setItem('sf_oss_reexec', JSON.stringify({ value: decodeURIComponent(_rx[1]), by: _rb ? _rb[1].toLowerCase() : 'phone', at: Date.now() }));
+      if (_rx) {
+        var _rj = JSON.stringify({ value: decodeURIComponent(_rx[1]), by: _rb ? _rb[1].toLowerCase() : 'phone', at: Date.now() });
+        sessionStorage.setItem('sf_oss_reexec', _rj);
+        window.name = 'sf_oss_reexec|' + _rj;
+      }
     }
   } catch (e) {}
 
@@ -826,11 +834,19 @@
   const OSS_REEXEC_REASON = 'ReExecuteParentReason02';
   const OSS_REEXEC_SUB = 'ReExecuteSubReason03';
   const OSS_REEXEC_TTL = 10 * 60 * 1000;
+  // من sessionStorage (15201)، أو من window.name لو العلامة اتمسكت على صفحة الدخول (15204)
+  function ossReexecClear() {
+    try { sessionStorage.removeItem('sf_oss_reexec'); } catch (e) {}
+    try { if (String(window.name || '').indexOf('sf_oss_reexec|') === 0) window.name = 'sf_oss'; } catch (e) {}
+  }
   function ossReexecPending() {
     try {
-      const j = JSON.parse(sessionStorage.getItem('sf_oss_reexec') || 'null');
+      let raw = sessionStorage.getItem('sf_oss_reexec');
+      if (!raw) { const wn = String(window.name || ''); if (wn.indexOf('sf_oss_reexec|') === 0) raw = wn.slice('sf_oss_reexec|'.length); }
+      const j = JSON.parse(raw || 'null');
       if (!j || !j.value) return null;
-      if (Date.now() - Number(j.at || 0) > OSS_REEXEC_TTL) { sessionStorage.removeItem('sf_oss_reexec'); return null; }
+      if (Date.now() - Number(j.at || 0) > OSS_REEXEC_TTL) { ossReexecClear(); return null; }
+      try { sessionStorage.setItem('sf_oss_reexec', JSON.stringify(j)); } catch (e) {}
       return j;
     } catch (e) { return null; }
   }
@@ -899,7 +915,7 @@
     log('🔁 OSS Re-Execute —', job.by === 'order' ? 'Service Order ID' : 'رقم', job.value);
     const finish = async (result, message) => {
       await ossReport(job, result, message);
-      try { sessionStorage.removeItem('sf_oss_reexec'); } catch (e) {}
+      ossReexecClear();
       log('✅ خلص (' + result + ') — قفل التاب بعد ٤ث');
       setTimeout(() => { try { window.close(); } catch (e) {} }, 4000);
     };
@@ -3415,7 +3431,7 @@
 
   }
 
-  log('TE FCC + WFM + OSS + SubInfo v3.5.3 loaded on', location.host);
+  log('TE FCC + WFM + OSS + SubInfo v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '3.6.1') + ' loaded on', location.host);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(main, 1500));
   else setTimeout(main, 1500);
 })();
