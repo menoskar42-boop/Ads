@@ -59,3 +59,16 @@ test("module events never pass view: window (it silently kills them inside the T
   assert.doesNotMatch(code, /view:\s*window/);
   assert.match(us, /function fire\(el, type\) \{ try \{ el\.dispatchEvent\(new MouseEvent\(type, \{ bubbles: true, cancelable: true \}\)\); \} catch \(e\) \{\} \}/);
 });
+
+// v3.5.3: الوحدتين بيتحقنوا جوّه الصفحة (زى @grant none القديم) ولو الصفحة منعت الحقن بيشتغلوا
+// من الـsandbox. اتجرّب على jsdom بالحالتين: موافقة البورت خلصت على 1609022 والإلغاء بدأ لوحده —
+// والوحدة جوّه الصفحة مالهاش أى وصول لمتغيّرات السكربت (بتتبنى من fn.toString()).
+test("WFM modules are injected into the page with a verified fallback to the sandbox", () => {
+  assert.match(us, /s\.textContent = '\(' \+ fn\.toString\(\) \+ '\)\(\);/);
+  assert.match(us, /if \(document\.documentElement\.getAttribute\(attr\) === '1'\) \{ log\('✅ ' \+ label \+ ': شغّالة جوّه الصفحة'\); return; \}/);
+  assert.match(us, /try \{ fn\(\); \} catch \(e\) \{ log\('❌ ' \+ label \+ ':', e\.message\); \}/);
+  // كل وحدة بتعرّف PAGE_WIN جوّاها (مفيش اعتماد على متغيّرات برّه)
+  const cancel = us.slice(us.indexOf("function sfCancelModule() {"), us.indexOf("function sfAcceptModule() {"));
+  const accept = us.slice(us.indexOf("function sfAcceptModule() {"), us.indexOf("log('TE FCC + WFM + OSS + SubInfo v"));
+  for (const m of [cancel, accept]) assert.match(m, /const PAGE_WIN = \(typeof unsafeWindow !== "undefined" && unsafeWindow\) \|\| window;/);
+});
