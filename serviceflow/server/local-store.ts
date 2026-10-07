@@ -430,6 +430,30 @@ export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth
     } finally { client.release(); }
   });
 
+  // سجل الحركات (السوبر أدمن — المالك ٢٠٢٦-١٠-٠٧): الإفراجات اللى طلعت للفنيين، والوارد وأذونات
+  // صرفه، والرصيد الافتتاحى — بمين سجّل كل حركة وإمتى، والملغى/المتعدّل بمين ألغاه.
+  app.get("/api/local-store/register", requireAuth, superOnly, async (req, res) => {
+    try {
+      const { kind = "", type = "", from = "", to = "", deleted = "" } = req.query as Record<string, string>;
+      const params: any[] = [];
+      const conds: string[] = [];
+      if (MOVE_KINDS.includes(kind as MoveKind)) { params.push(kind); conds.push(`kind = $${params.length}`); }
+      if (type === "install" || type === "maint") { params.push(type); conds.push(`cable_type = $${params.length}`); }
+      if (isDate(from)) { params.push(from); conds.push(`move_date >= $${params.length}::date`); }
+      if (isDate(to)) { params.push(to); conds.push(`move_date <= $${params.length}::date`); }
+      if (deleted !== "1") conds.push(`deleted_at IS NULL`);
+      const { rows } = await pool.query(
+        `SELECT id, kind, cable_type AS "cableType", qty::float AS qty, move_date::text AS "moveDate", ref_no AS "refNo",
+                tech_name AS "techName", note, created_by_name AS "createdByName",
+                to_char(created_at AT TIME ZONE 'Africa/Cairo', 'YYYY-MM-DD HH24:MI') AS "createdAt",
+                deleted_by_name AS "deletedByName",
+                to_char(deleted_at AT TIME ZONE 'Africa/Cairo', 'YYYY-MM-DD HH24:MI') AS "deletedAt"
+           FROM local_store_moves ${conds.length ? "WHERE " + conds.join(" AND ") : ""}
+          ORDER BY move_date DESC, id DESC`, params);
+      res.json({ rows });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // إلغاء حركة اتسجّلت غلط — السوبر أدمن بس (المالك ٢٠٢٦-١٠-٠٧)؛ بتفضل فى القاعدة بمين ألغاها
   app.delete("/api/local-store/moves/:id", requireAuth, superOnly, async (req: any, res) => {
     const id = Number(req.params.id);

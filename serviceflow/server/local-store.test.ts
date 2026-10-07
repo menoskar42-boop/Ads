@@ -77,7 +77,8 @@ test("wiring: tables + column in ensureSchema and schema.ts, cable entry charges
   assert.doesNotMatch(dash, /const TECH_ALLOWED_GROUPS = \[[^\]]*"المخزن"/);
   const ui = readFileSync(new URL("../client/src/components/LocalStoreSection.tsx", import.meta.url), "utf8");
   // قاعدة ٧: كل تقرير Excel + PDF
-  assert.equal((ui.match(/<ExportButtons /g) || []).length, 3);
+  // (+ «سجل الإفراجات والوارد» للسوبر أدمن — ٢٠٢٦-١٠-٠٧)
+  assert.equal((ui.match(/<ExportButtons /g) || []).length, 4);
 });
 
 test("super admin: edit the opening balance, edit or cancel any wrong move — nobody else (owner, 2026-10-07)", async () => {
@@ -98,4 +99,15 @@ test("super admin: edit the opening balance, edit or cancel any wrong move — n
   const ui = readFileSync(new URL("../client/src/components/LocalStoreSection.tsx", import.meta.url), "utf8");
   assert.match(ui, /\{s\.canEditOpening && <OpeningEditor type=\{t\} opening=\{s\.store\[t\]\.opening\} \/>\}/);
   assert.match(ui, /editing === r\.id && s\.canEditMoves/);
+});
+
+test("super admin register: every release order and receipt with who recorded it (owner, 2026-10-07)", () => {
+  const src = readFileSync(new URL("./local-store.ts", import.meta.url), "utf8");
+  assert.match(src, /app\.get\("\/api\/local-store\/register", requireAuth, superOnly,/);
+  assert.match(src, /created_by_name AS "createdByName"/);
+  assert.match(src, /deleted_by_name AS "deletedByName"/);
+  const ui = readFileSync(new URL("../client/src/components/LocalStoreSection.tsx", import.meta.url), "utf8");
+  assert.match(ui, /title="سجل الإفراجات والوارد"/);
+  assert.match(ui, /\{view === "register" && s\.canEditMoves && <>\{back\}<RegisterView \/><\/>\}/);
+  assert.match(ui, /"سجّلها", "وقت التسجيل", "الحالة"/);
 });

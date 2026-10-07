@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { printTablePDF } from "@/lib/print-pdf";
-import { AlertTriangle, ArrowRight, Pencil, BookOpen, Boxes, CheckCircle2, FileSpreadsheet, FileText, Loader2, PackageMinus, PackagePlus, Printer, Trash2, Users, Warehouse } from "lucide-react";
+import { AlertTriangle, ArrowRight, ClipboardList, Pencil, BookOpen, Boxes, CheckCircle2, FileSpreadsheet, FileText, Loader2, PackageMinus, PackagePlus, Printer, Trash2, Users, Warehouse } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type CableType = "install" | "maint";
@@ -609,7 +609,89 @@ function OpeningEditor({ type, opening }: { type: CableType; opening: number }) 
   );
 }
 
-type View = "home" | "opening" | "receipt" | "issue" | "balances" | "ledger" | "usage" | "unassigned";
+/* ───────────── سجل الحركات بمين سجّلها (السوبر أدمن — المالك ٢٠٢٦-١٠-٠٧) ───────────── */
+interface RegisterRow {
+  id: number; kind: MoveKind; cableType: CableType; qty: number; moveDate: string; refNo: string | null; techName: string | null;
+  note: string | null; createdByName: string; createdAt: string; deletedByName: string | null; deletedAt: string | null;
+}
+function RegisterView() {
+  const [kind, setKind] = useState<"all" | MoveKind>("all");
+  const [type, setType] = useState<"all" | CableType>("all");
+  const [from, setFrom] = useState(monthStart());
+  const [to, setTo] = useState(today());
+  const [showDeleted, setShowDeleted] = useState(false);
+  const params = new URLSearchParams({ from, to, ...(kind !== "all" ? { kind } : {}), ...(type !== "all" ? { type } : {}), ...(showDeleted ? { deleted: "1" } : {}) });
+  const { data, isFetching } = useQuery<{ rows: RegisterRow[] }>({
+    queryKey: ["/api/local-store", "register", kind, type, from, to, showDeleted],
+    queryFn: () => getJson(`/api/local-store/register?${params}`),
+  });
+  const rows = data?.rows ?? [];
+  const status = (r: RegisterRow) => (r.deletedAt ? `ملغاة — ${r.deletedByName ?? ""} ${r.deletedAt}` : "سارية");
+  const active = rows.filter((r) => !r.deletedAt);
+  const sum = (k: MoveKind) => active.filter((r) => r.kind === k).reduce((a, r) => a + r.qty, 0);
+  const COLS = ["#", "التاريخ", "الحركة", "نوع السلك", "الكمية (متر)", "الفنى المستلم", "رقم الإفراج / الإذن", "ملاحظة", "سجّلها", "وقت التسجيل", "الحالة"];
+  const cells = (r: RegisterRow, i: number) => [i + 1, r.moveDate, KIND_LABEL[r.kind], TYPE_LABEL[r.cableType], fmt(r.qty), r.techName ?? "", r.refNo ?? "", r.note ?? "", r.createdByName, r.createdAt, status(r)];
+  const title = `سجل حركات المخزن المحلى — من ${from} إلى ${to}`;
+  const excel = () => exportExcel("سجل الحركات", "local-store-register", rows.map((r, i) => Object.fromEntries(COLS.map((c, j) => [c, cells(r, i)[j]]))));
+  const pdf = () => printTablePDF({ title, columns: COLS, rows: rows.map(cells), rowsPerPage: 16 });
+  return (
+    <Card className="overflow-hidden shadow-sm border-0 bg-white">
+      <div className="p-3 border-b flex items-end justify-between gap-3 flex-wrap">
+        <div className="flex items-end gap-2 flex-wrap">
+          <div className="w-44"><Label className="text-xs text-muted-foreground block mb-1">الحركة</Label>
+            <Select value={kind} onValueChange={(v) => setKind(v as any)}>
+              <SelectTrigger className="text-right text-sm" dir="rtl"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-right">الكل</SelectItem>
+                <SelectItem value="issue" className="text-right">الإفراجات للفنيين</SelectItem>
+                <SelectItem value="receipt" className="text-right">الوارد وأذونات الصرف</SelectItem>
+                <SelectItem value="opening" className="text-right">الرصيد الافتتاحى</SelectItem>
+              </SelectContent>
+            </Select></div>
+          <div className="w-40"><Label className="text-xs text-muted-foreground block mb-1">نوع السلك</Label>
+            <Select value={type} onValueChange={(v) => setType(v as any)}>
+              <SelectTrigger className="text-right text-sm" dir="rtl"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-right">الكل</SelectItem>
+                <SelectItem value="install" className="text-right">{TYPE_LABEL.install}</SelectItem>
+                <SelectItem value="maint" className="text-right">{TYPE_LABEL.maint}</SelectItem>
+              </SelectContent>
+            </Select></div>
+          <div><Label className="text-xs text-muted-foreground block mb-1">من</Label><Input type="date" dir="ltr" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
+          <div><Label className="text-xs text-muted-foreground block mb-1">إلى</Label><Input type="date" dir="ltr" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+          <label className="flex items-center gap-1 text-sm mb-2"><input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} /> اعرض الملغى والمتعدّل</label>
+          {isFetching && <Loader2 className="w-4 h-4 animate-spin mb-3" />}
+        </div>
+        <ExportButtons onExcel={excel} onPdf={pdf} disabled={!rows.length} />
+      </div>
+      <div className="px-3 py-2 text-sm flex flex-wrap gap-x-4 gap-y-1 border-b bg-muted/30 tabular-nums">
+        <span>إفراجات: <b>{fmt(sum("issue"))}</b> متر</span>
+        <span>وارد: <b>{fmt(sum("receipt"))}</b> متر</span>
+        <span>رصيد افتتاحى: <b>{fmt(sum("opening"))}</b> متر</span>
+        <span className="text-muted-foreground">({active.length} حركة سارية)</span>
+      </div>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader><TableRow>{COLS.map((c) => <TableHead key={c} className="text-right whitespace-nowrap">{c}</TableHead>)}</TableRow></TableHeader>
+          <TableBody>
+            {rows.map((r, i) => (
+              <TableRow key={r.id} className={r.deletedAt ? "opacity-60 line-through decoration-red-400" : ""}>
+                {cells(r, i).map((c, j) => (
+                  <TableCell key={j} className={j === 7 ? "min-w-[180px] text-xs" : j === 10 && r.deletedAt ? "text-red-700 whitespace-nowrap no-underline" : "whitespace-nowrap tabular-nums"}>{c || "—"}</TableCell>
+                ))}
+              </TableRow>
+            ))}
+            {!rows.length && !isFetching && (
+              <TableRow><TableCell colSpan={COLS.length} className="text-center text-muted-foreground py-6">مفيش حركات فى الفترة دى</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </Card>
+  );
+}
+
+type View = "home" | "opening" | "receipt" | "issue" | "balances" | "ledger" | "usage" | "unassigned" | "register";
 
 const ActionTile = ({ icon: Icon, title, hint, onClick, tone }: { icon: any; title: string; hint: string; onClick: () => void; tone: string }) => (
   <button type="button" onClick={onClick}
@@ -693,6 +775,10 @@ export function LocalStoreSection() {
                 hint={s.canEditMoves ? "كل حركات المخزن بالرصيد بعد كل حركة — ومنه تعدّل أو تلغى أى إفراج أو إذن اتسجّل غلط." : "كل حركات المخزن بالتاريخ والرصيد بعد كل حركة."} onClick={() => setView("ledger")} />
               <ActionTile icon={FileText} title="بيان التركيبات للاستعواض" tone="border-slate-200 text-slate-900"
                 hint="التركيبات والصيانة بكمية السلك — يتطبع ويتطلب بيه سلك من المخزن الفرعى." onClick={() => setView("usage")} />
+              {s.canEditMoves && (
+                <ActionTile icon={ClipboardList} title="سجل الإفراجات والوارد" tone="border-purple-200 text-purple-900"
+                  hint="كل إفراج طلع لفنى وكل وارد بأذونات صرفه — ومين سجّل كل حركة وإمتى، والملغى بمين ألغاه." onClick={() => setView("register")} />
+              )}
             </div>
           </div>
           {s.canRecord && s.startDate && (
@@ -709,6 +795,7 @@ export function LocalStoreSection() {
       {view === "balances" && <>{back}<BalancesTab s={s} /></>}
       {view === "ledger" && <>{back}<LedgerTab s={s} /></>}
       {view === "usage" && <>{back}<UsageTab s={s} /></>}
+      {view === "register" && s.canEditMoves && <>{back}<RegisterView /></>}
     </div>
   );
 }
