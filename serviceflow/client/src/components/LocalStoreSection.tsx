@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { printTablePDF } from "@/lib/print-pdf";
-import { AlertTriangle, ArrowRight, BookOpen, Boxes, CheckCircle2, FileSpreadsheet, FileText, Loader2, PackageMinus, PackagePlus, Printer, Trash2, Users, Warehouse } from "lucide-react";
+import { AlertTriangle, ArrowRight, Pencil, BookOpen, Boxes, CheckCircle2, FileSpreadsheet, FileText, Loader2, PackageMinus, PackagePlus, Printer, Trash2, Users, Warehouse } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type CableType = "install" | "maint";
@@ -27,7 +27,7 @@ interface TechBalance { tech: string; type: CableType; issued: number; used: num
 interface StoreTotals { opening: number; received: number; issued: number; balance: number; lastReceipt: string | null }
 interface Summary {
   startDate: string | null; store: Record<CableType, StoreTotals>; techs: TechBalance[];
-  techNames: string[]; canRecord: boolean; unassigned: Record<CableType, number>;
+  techNames: string[]; canRecord: boolean; canEditOpening?: boolean; canEditMoves?: boolean; unassigned: Record<CableType, number>;
 }
 interface LedgerRow {
   id: number; kind: MoveKind; qty: number; moveDate: string; refNo: string | null; techName: string | null;
@@ -332,8 +332,55 @@ function UnassignedView({ s, onDone }: { s: Summary; onDone: () => void }) {
   );
 }
 
+/* ───────────── تعديل حركة اتسجّلت غلط (السوبر أدمن — المالك ٢٠٢٦-١٠-٠٧) ───────────── */
+function EditMoveRow({ r, s, cols, onDone }: { r: LedgerRow; s: Summary; cols: number; onDone: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [qty, setQty] = useState(String(r.qty));
+  const [moveDate, setMoveDate] = useState(r.moveDate);
+  const [refNo, setRefNo] = useState(r.refNo ?? "");
+  const [techName, setTechName] = useState(r.techName ?? "");
+  const save = useMutation({
+    mutationFn: async () => (await apiRequest("PUT", `/api/local-store/moves/${r.id}`, { qty, moveDate, refNo, techName })).json(),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/local-store"] }); toast({ title: "اتعدّلت الحركة", duration: 3000 }); onDone(); },
+    onError: (e) => toast({ title: "ماتعدّلتش", description: errText(e), variant: "destructive", duration: 7000 }),
+  });
+  const ok = /^\d+(\.\d+)?$/.test(qty.trim()) && Number(qty) > 0 && !!moveDate
+    && (r.kind === "opening" || !!refNo.trim()) && (r.kind !== "issue" || !!techName);
+  return (
+    <TableRow className="bg-amber-50/60">
+      <TableCell colSpan={cols}>
+        <div className="flex items-end gap-2 flex-wrap" data-testid={`edit-move-${r.id}`}>
+          <span className="text-sm font-bold self-center">تعديل {KIND_LABEL[r.kind]}:</span>
+          <div><Label className="text-xs text-muted-foreground block mb-1">التاريخ</Label>
+            <Input type="date" dir="ltr" value={moveDate} max={today()} onChange={(e) => setMoveDate(e.target.value)} className="h-9 w-40" /></div>
+          <div><Label className="text-xs text-muted-foreground block mb-1">الكمية (متر)</Label>
+            <Input inputMode="decimal" dir="ltr" value={qty} className="h-9 w-24 text-center"
+              onChange={(e) => { const v = e.target.value; if (v === "" || /^\d*\.?\d*$/.test(v)) setQty(v); }} /></div>
+          {r.kind !== "opening" && (
+            <div><Label className="text-xs text-muted-foreground block mb-1">{r.kind === "issue" ? "رقم أمر الإفراج" : "أرقام أذونات الصرف"}</Label>
+              <Input value={refNo} onChange={(e) => setRefNo(e.target.value)} className="h-9 w-40" dir="ltr" /></div>
+          )}
+          {r.kind === "issue" && (
+            <div className="w-36"><Label className="text-xs text-muted-foreground block mb-1">الفنى</Label>
+              <Select value={techName} onValueChange={setTechName}>
+                <SelectTrigger className="text-right text-sm h-9" dir="rtl"><SelectValue placeholder="اختار الفنى" /></SelectTrigger>
+                <SelectContent>{s.techNames.map((t) => <SelectItem key={t} value={t} className="text-right">{t}</SelectItem>)}</SelectContent>
+              </Select></div>
+          )}
+          <Button size="sm" className="h-9" disabled={!ok || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null} حفظ التعديل
+          </Button>
+          <Button size="sm" variant="ghost" className="h-9" onClick={onDone}>إلغاء</Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 /* ───────────── وارد ومنصرف ───────────── */
 function LedgerTab({ s }: { s: Summary }) {
+  const [editing, setEditing] = useState<number | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
   const [type, setType] = useState<CableType>("install");
@@ -387,14 +434,14 @@ function LedgerTab({ s }: { s: Summary }) {
             <TableHead className="text-right">وارد</TableHead>
             <TableHead className="text-right">منصرف</TableHead>
             <TableHead className="text-right">الرصيد</TableHead>
-            {s.canRecord && <TableHead />}
+            {s.canEditMoves && <TableHead />}
           </TableRow></TableHeader>
           <TableBody>
             <TableRow className="bg-muted/40">
               <TableCell className="tabular-nums">{from}</TableCell><TableCell colSpan={5} className="font-medium">رصيد أول المدة</TableCell>
-              <TableCell className="tabular-nums font-bold">{fmt(data?.openingBalance ?? 0)}</TableCell>{s.canRecord && <TableCell />}
+              <TableCell className="tabular-nums font-bold">{fmt(data?.openingBalance ?? 0)}</TableCell>{s.canEditMoves && <TableCell />}
             </TableRow>
-            {rows.map((r) => (
+            {rows.flatMap((r) => [
               <TableRow key={r.id}>
                 <TableCell className="tabular-nums whitespace-nowrap">{r.moveDate}</TableCell>
                 <TableCell>{KIND_LABEL[r.kind]}{r.note ? <span className="text-xs text-muted-foreground"> — {r.note}</span> : null}</TableCell>
@@ -403,21 +450,28 @@ function LedgerTab({ s }: { s: Summary }) {
                 <TableCell className="tabular-nums text-green-700">{r.in ? fmt(r.in) : ""}</TableCell>
                 <TableCell className="tabular-nums text-amber-700">{r.out ? fmt(r.out) : ""}</TableCell>
                 <TableCell className={`tabular-nums font-bold ${r.balance < 0 ? "text-red-600" : ""}`}>{fmt(r.balance)}</TableCell>
-                {s.canRecord && (
-                  <TableCell>
+                {s.canEditMoves && (
+                  <TableCell className="whitespace-nowrap">
+                    <Button variant="ghost" size="sm" className="h-7 px-2" title="تعديل الحركة (اتسجّلت غلط)"
+                      onClick={() => setEditing(r.id)} data-testid={`button-edit-move-${r.id}`}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
                     <Button variant="ghost" size="sm" className="text-destructive h-7 px-2" title="إلغاء الحركة (اتسجّلت غلط)"
                       onClick={() => { if (confirm(`إلغاء الحركة: ${KIND_LABEL[r.kind]} ${fmt(r.qty)} متر بتاريخ ${r.moveDate}؟`)) del.mutate(r.id); }}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </TableCell>
                 )}
-              </TableRow>
-            ))}
+              </TableRow>,
+              editing === r.id && s.canEditMoves
+                ? <EditMoveRow key={`edit-${r.id}`} r={r} s={s} cols={8} onDone={() => setEditing(null)} />
+                : null,
+            ])}
             <TableRow className="bg-muted/40 font-bold">
               <TableCell className="tabular-nums">{to}</TableCell><TableCell colSpan={3}>الإجمالى / رصيد آخر المدة</TableCell>
               <TableCell className="tabular-nums text-green-700">{fmt(data?.totalIn ?? 0)}</TableCell>
               <TableCell className="tabular-nums text-amber-700">{fmt(data?.totalOut ?? 0)}</TableCell>
-              <TableCell className="tabular-nums">{fmt(data?.closingBalance ?? 0)}</TableCell>{s.canRecord && <TableCell />}
+              <TableCell className="tabular-nums">{fmt(data?.closingBalance ?? 0)}</TableCell>{s.canEditMoves && <TableCell />}
             </TableRow>
           </TableBody>
         </Table>
@@ -515,6 +569,46 @@ function UsageTab({ s }: { s: Summary }) {
   );
 }
 
+/* ───────────── تعديل الرصيد الافتتاحى (السوبر أدمن — المالك ٢٠٢٦-١٠-٠٧) ───────────── */
+function OpeningEditor({ type, opening }: { type: CableType; opening: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [qty, setQty] = useState(String(opening));
+  const save = useMutation({
+    mutationFn: async () => (await apiRequest("PUT", "/api/local-store/opening", { cableType: type, qty })).json(),
+    onSuccess: (d: any) => {
+      setEditing(false);
+      qc.invalidateQueries({ queryKey: ["/api/local-store"] });
+      toast({ title: "اتعدّل الرصيد الافتتاحى", description: `سلك ${TYPE_LABEL[type]}: كان ${fmt(d.oldQty)} — بقى ${fmt(d.qty)} متر`, duration: 5000 });
+    },
+    onError: (e) => toast({ title: "ماتعدّلش", description: errText(e), variant: "destructive" }),
+  });
+  if (!editing) {
+    return (
+      <div className="mt-3 pt-3 border-t flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
+        الرصيد الافتتاحى: <b className="text-foreground">{fmt(opening)} متر</b>
+        <Button size="sm" variant="outline" className="h-7 px-2 gap-1" onClick={() => { setQty(String(opening)); setEditing(true); }}
+          data-testid={`button-edit-opening-${type}`}><Pencil className="w-3.5 h-3.5" /> تعديل</Button>
+      </div>
+    );
+  }
+  const ok = /^\d+(\.\d+)?$/.test(qty.trim());
+  return (
+    <div className="mt-3 pt-3 border-t flex items-center gap-2 flex-wrap text-sm">
+      <span>الرصيد الافتتاحى:</span>
+      <Input inputMode="decimal" dir="ltr" value={qty} className="w-28 h-9 text-center tabular-nums"
+        onChange={(e) => { const v = e.target.value; if (v === "" || /^\d*\.?\d*$/.test(v)) setQty(v); }} />
+      <span>متر</span>
+      <Button size="sm" disabled={!ok || save.isPending} onClick={() => save.mutate()}>
+        {save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null} حفظ
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>إلغاء</Button>
+      <span className="w-full text-xs text-muted-foreground">رصيد المخزن بيتحسب من جديد على الرقم ده، والقيمة القديمة بتتكتب ملاحظة على الرصيد الافتتاحى فى دفتر الوارد والمنصرف.</span>
+    </div>
+  );
+}
+
 type View = "home" | "opening" | "receipt" | "issue" | "balances" | "ledger" | "usage" | "unassigned";
 
 const ActionTile = ({ icon: Icon, title, hint, onClick, tone }: { icon: any; title: string; hint: string; onClick: () => void; tone: string }) => (
@@ -557,6 +651,7 @@ export function LocalStoreSection() {
                 <div className={`text-4xl font-bold tabular-nums mt-1 ${s.store[t].balance < 0 ? "text-red-600" : ""}`}>
                   {fmt(s.store[t].balance)} <span className="text-lg font-normal text-muted-foreground">متر</span>
                 </div>
+                {s.canEditOpening && <OpeningEditor type={t} opening={s.store[t].opening} />}
               </Card>
             ))}
           </div>
@@ -595,7 +690,7 @@ export function LocalStoreSection() {
               <ActionTile icon={Users} title="الرصيد اللى مع كل فنى" tone="border-slate-200 text-slate-900"
                 hint="استلم كام — استخدم كام — فاضل معاه كام." onClick={() => setView("balances")} />
               <ActionTile icon={BookOpen} title="دفتر الوارد والمنصرف" tone="border-slate-200 text-slate-900"
-                hint="كل حركات المخزن بالتاريخ والرصيد بعد كل حركة." onClick={() => setView("ledger")} />
+                hint={s.canEditMoves ? "كل حركات المخزن بالرصيد بعد كل حركة — ومنه تعدّل أو تلغى أى إفراج أو إذن اتسجّل غلط." : "كل حركات المخزن بالتاريخ والرصيد بعد كل حركة."} onClick={() => setView("ledger")} />
               <ActionTile icon={FileText} title="بيان التركيبات للاستعواض" tone="border-slate-200 text-slate-900"
                 hint="التركيبات والصيانة بكمية السلك — يتطبع ويتطلب بيه سلك من المخزن الفرعى." onClick={() => setView("usage")} />
             </div>

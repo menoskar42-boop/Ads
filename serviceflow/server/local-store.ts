@@ -31,6 +31,18 @@ export const cableTypeSql = (expr: string) => `(CASE WHEN btrim(${expr}) = 'صي
 
 export const canRecordMoves = (role?: string) => role === ROLES.DATA_MANAGER || role === ROLES.SUPER_ADMIN;
 // المشاهدة (المالك ٢٠٢٦-١٠-٠٧): + الأدمن والشئون الخارجية/مهندس الكوابل (external) — تقارير بس من غير تعديل
+/** تعديل الرصيد الافتتاحى بعد ما اتسجّل — السوبر أدمن بس (المالك ٢٠٢٦-١٠-٠٧). */
+export const canEditOpening = (role?: string) => role === ROLES.SUPER_ADMIN;
+/** إلغاء/تعديل أى حركة اتسجّلت غلط (إفراج لفنى، إذن صرف…) — السوبر أدمن بس (المالك ٢٠٢٦-١٠-٠٧). */
+export const canEditMoves = (role?: string) => role === ROLES.SUPER_ADMIN;
+
+/** وصف حركة فى سطر — بيتكتب ملاحظة على الحركة الجديدة لما حركة تتعدّل. */
+export const describeMove = (m: { kind: string; cable_type?: string; cableType?: string; qty: number | string; move_date?: string; moveDate?: string; ref_no?: string | null; refNo?: string | null; tech_name?: string | null; techName?: string | null }) => {
+  const type = CABLE_TYPE_LABEL[(m.cable_type ?? m.cableType) as CableType] ?? "";
+  const ref = m.ref_no ?? m.refNo, tech = m.tech_name ?? m.techName, date = m.move_date ?? m.moveDate;
+  return [`${num(m.qty)} متر ${type}`, tech ? `للفنى ${tech}` : "", ref ? (m.kind === "issue" ? `إفراج ${ref}` : `إذن ${ref}`) : "", date ?? ""]
+    .filter(Boolean).join(" — ");
+};
 export const canViewStore = (role?: string) => canRecordMoves(role) || role === ROLES.ADMIN || role === ROLES.EXTERNAL;
 
 const num = (v: unknown) => Math.round(Number(v || 0) * 100) / 100;
@@ -276,7 +288,7 @@ export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth
   const recorder = (req: any, res: any, next: any) => (canRecordMoves(req.user?.role) ? next() : res.status(403).json({ message: "تسجيل حركات المخزن: مسئول البيانات والسوبر أدمن بس" }));
 
   app.get("/api/local-store/summary", requireAuth, viewer, async (req: any, res) => {
-    try { res.json({ ...(await storeSummary(pool)), techNames: STORE_TECHS, canRecord: canRecordMoves(req.user?.role) }); }
+    try { res.json({ ...(await storeSummary(pool)), techNames: STORE_TECHS, canRecord: canRecordMoves(req.user?.role), canEditOpening: canEditOpening(req.user?.role), canEditMoves: canEditMoves(req.user?.role) }); }
     catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -332,7 +344,94 @@ export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth
   });
 
   // إلغاء حركة اتسجّلت غلط — بتفضل فى القاعدة (مين ألغاها وإمتى) بس مابتدخلش فى أى رصيد
-  app.delete("/api/local-store/moves/:id", requireAuth, recorder, async (req: any, res) => {
+  // تعديل الرصيد الافتتاحى لنوع (السوبر أدمن): القديم بيتلغى (بيفضل فى القاعدة بمين ألغاه) ويتسجّل
+  // واحد جديد بالكمية والتاريخ الجداد ومعاه ملاحظة بالقيمة القديمة. صفر = مفيش رصيد افتتاحى.
+  app.put("/api/local-store/opening", requireAuth, async (req: any, res) => {
+    if (!canEditOpening(req.user?.role)) return res.status(403).json({ message: "تعديل الرصيد الافتتاحى للسوبر أدمن بس" });
+    const cableType = req.body?.cableType;
+    const qtyRaw = String(req.body?.qty ?? "").trim();
+    if (cableType !== "install" && cableType !== "maint") return res.status(400).json({ message: "اختار نوع السلك" });
+    if (!/^\d+(\.\d+)?$/.test(qtyRaw)) return res.status(400).json({ message: "الكمية لازم تبقى رقم (صفر أو أكتر)" });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const old = await client.query(
+        `SELECT id, qty::float AS qty, move_date::text AS d FROM local_store_moves
+          WHERE deleted_at IS NULL AND kind = 'opening' AND cable_type = $1 ORDER BY move_date, id FOR UPDATE`, [cableType]);
+      const oldQty = num(old.rows.reduce((a: number, r: any) => a + Number(r.qty), 0));
+      const moveDate = req.body?.moveDate || old.rows[0]?.d || cairoToday();
+      if (!isDate(moveDate) || moveDate > cairoToday()) { await client.query("ROLLBACK"); return res.status(400).json({ message: "التاريخ غير صالح" }); }
+      await client.query(`UPDATE local_store_moves SET deleted_at = now(), deleted_by_name = $2 WHERE id = ANY($1::int[])`,
+        [old.rows.map((r: any) => r.id), req.user.username]);
+      let id: number | null = null;
+      if (Number(qtyRaw) > 0) {
+        id = (await client.query(
+          `INSERT INTO local_store_moves (kind, cable_type, qty, move_date, note, created_by_id, created_by_name)
+           VALUES ('opening', $1, $2::numeric, $3::date, $4, $5, $6) RETURNING id`,
+          [cableType, qtyRaw, moveDate, old.rows.length ? `تعديل السوبر أدمن — كان ${oldQty} متر` : null, req.user.id, req.user.username])).rows[0].id;
+      }
+      await client.query("COMMIT");
+      res.json({ ok: true, id, oldQty, qty: Number(qtyRaw) });
+    } catch (e: any) {
+      await client.query("ROLLBACK").catch(() => {});
+      res.status(500).json({ message: e.message });
+    } finally { client.release(); }
+  });
+
+  const superOnly = (req: any, res: any, next: any) => (canEditMoves(req.user?.role) ? next() : res.status(403).json({ message: "إلغاء وتعديل حركات المخزن للسوبر أدمن بس" }));
+
+  // تعديل حركة اتسجّلت غلط (السوبر أدمن): القديمة بتتلغى (بتفضل فى القاعدة بمين ألغاها) وتتسجّل
+  // واحدة جديدة بالبيانات الصح ونفس النوع، ومعاها ملاحظة بالبيانات القديمة.
+  app.put("/api/local-store/moves/:id", requireAuth, superOnly, async (req: any, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ message: "معرّف غير صالح" });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const old = (await client.query(
+        `SELECT id, kind, cable_type, qty::float AS qty, move_date::text AS move_date, ref_no, tech_name, note
+           FROM local_store_moves WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [id])).rows[0];
+      if (!old) { await client.query("ROLLBACK"); return res.status(404).json({ message: "الحركة مش موجودة أو اتلغت" }); }
+      const b = {
+        kind: old.kind,
+        cableType: req.body?.cableType ?? old.cable_type,
+        qty: String(req.body?.qty ?? old.qty).trim(),
+        moveDate: req.body?.moveDate || old.move_date,
+        refNo: req.body?.refNo ?? old.ref_no ?? "",
+        techName: req.body?.techName ?? old.tech_name ?? "",
+        note: req.body?.note ?? "",
+      };
+      const err = validateMove(b);
+      if (err) { await client.query("ROLLBACK"); return res.status(400).json({ message: err }); }
+      await client.query(`UPDATE local_store_moves SET deleted_at = now(), deleted_by_name = $2 WHERE id = $1`, [id, req.user.username]);
+      if (b.kind === "issue") {
+        // الصرف مايتعدّاش رصيد المخزن (من غير الحركة القديمة اللى لسه اتلغت)
+        const r = await client.query(
+          `SELECT COALESCE(SUM(CASE WHEN kind = 'issue' THEN -qty ELSE qty END), 0)::float AS bal
+             FROM local_store_moves WHERE deleted_at IS NULL AND cable_type = $1`, [b.cableType]);
+        const avail = num(r.rows[0].bal);
+        if (Number(b.qty) > avail) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ message: `رصيد المخزن المحلى من سلك ${CABLE_TYPE_LABEL[b.cableType as CableType]} ${avail} متر بس` });
+        }
+      }
+      const note = [String(b.note).trim(), `تعديل السوبر أدمن — كانت: ${describeMove(old)}`].filter(Boolean).join(" · ");
+      const ins = await client.query(
+        `INSERT INTO local_store_moves (kind, cable_type, qty, move_date, ref_no, tech_name, note, created_by_id, created_by_name)
+         VALUES ($1, $2, $3::numeric, $4::date, $5, $6, $7, $8, $9) RETURNING id`,
+        [b.kind, b.cableType, b.qty, b.moveDate, String(b.refNo).trim() || null,
+         b.kind === "issue" ? b.techName : null, note, req.user.id, req.user.username]);
+      await client.query("COMMIT");
+      if (b.kind === "issue") runBackfill();
+      res.json({ ok: true, id: ins.rows[0].id });
+    } catch (e: any) {
+      await client.query("ROLLBACK").catch(() => {});
+      res.status(500).json({ message: e.message });
+    } finally { client.release(); }
+  });
+
+  // إلغاء حركة اتسجّلت غلط — السوبر أدمن بس (المالك ٢٠٢٦-١٠-٠٧)؛ بتفضل فى القاعدة بمين ألغاها
+  app.delete("/api/local-store/moves/:id", requireAuth, superOnly, async (req: any, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ message: "معرّف غير صالح" });
     await pool.query(`UPDATE local_store_moves SET deleted_at = now(), deleted_by_name = $2 WHERE id = $1 AND deleted_at IS NULL`, [id, req.user.username]);

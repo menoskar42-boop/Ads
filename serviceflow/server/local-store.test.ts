@@ -79,3 +79,23 @@ test("wiring: tables + column in ensureSchema and schema.ts, cable entry charges
   // قاعدة ٧: كل تقرير Excel + PDF
   assert.equal((ui.match(/<ExportButtons /g) || []).length, 3);
 });
+
+test("super admin: edit the opening balance, edit or cancel any wrong move — nobody else (owner, 2026-10-07)", async () => {
+  const { canEditOpening, canEditMoves, describeMove } = await import("./local-store");
+  for (const role of ["data_manager", "admin", "external", "tech"]) {
+    assert.equal(canEditOpening(role), false, role);
+    assert.equal(canEditMoves(role), false, role);
+  }
+  assert.equal(canEditOpening("super_admin"), true);
+  assert.equal(canEditMoves("super_admin"), true);
+  // الملاحظة اللى بتتكتب على الحركة الجديدة بالبيانات القديمة
+  assert.equal(describeMove({ kind: "issue", cable_type: "install", qty: 200, move_date: "2026-10-02", ref_no: "55", tech_name: "حسن" }),
+    "200 متر تركيبات ونقل — للفنى حسن — إفراج 55 — 2026-10-02");
+  const src = readFileSync(new URL("./local-store.ts", import.meta.url), "utf8");
+  assert.match(src, /app\.put\("\/api\/local-store\/opening", requireAuth, async/);
+  assert.match(src, /app\.put\("\/api\/local-store\/moves\/:id", requireAuth, superOnly,/);
+  assert.match(src, /app\.delete\("\/api\/local-store\/moves\/:id", requireAuth, superOnly,/);
+  const ui = readFileSync(new URL("../client/src/components/LocalStoreSection.tsx", import.meta.url), "utf8");
+  assert.match(ui, /\{s\.canEditOpening && <OpeningEditor type=\{t\} opening=\{s\.store\[t\]\.opening\} \/>\}/);
+  assert.match(ui, /editing === r\.id && s\.canEditMoves/);
+});
