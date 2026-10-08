@@ -58,3 +58,11 @@ test("linker runs right after the work orders import and every half hour", () =>
   assert.match(form, /\/api\/cable-entries\?pending=1/);
   assert.match(form, /مستنية أمر الشغل/);
 });
+
+test("entries saved before the link (last 7 days) follow the same rule — no work order ⇒ not deducted", () => {
+  assert.match(src, /export async function adoptRecentEntries\(pool: Pool\)/);
+  assert.match(src, /SET pending_after_wo = \$2, stock_date = NULL WHERE id = \$1 AND pending_after_wo IS NULL/);
+  // الصيانة مالهاش دعوة
+  assert.match(src, /AND btrim\(ce\.work_order_type\) IN \('تركيب', 'نقل'\)/);
+  assert.ok(src.indexOf("await adoptRecentEntries(pool)") < src.indexOf("await linkPendingEntries(pool, onLinked)"));
+});

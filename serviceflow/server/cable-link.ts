@@ -105,12 +105,46 @@ export async function expirePendingEntries(pool: Pool): Promise<number> {
   return rows.length;
 }
 
+/**
+ * الإدخالات اليدوية اللى اتسجّلت قبل الربط (آخر PENDING_DAYS يوم) — كانت بتاخد تاريخ النهارده
+ * وتتخصم حتى من غير أمر شغل. القاعدة الجديدة عليها هى كمان: فيه أمر شغل ناجح بنفس الرقم والنوع
+ * (من OPEN_WO_DAYS يوم قبل الإدخال لحد دلوقتى) ⇒ تتربط بيه، مفيش ⇒ «مستنى» ومابتتخصمش.
+ */
+export async function adoptRecentEntries(pool: Pool): Promise<{ linked: number; pending: number }> {
+  const floor = await lastWorkOrderId(pool);
+  const { rows } = await pool.query(
+    `SELECT ce.id, w.id AS wo_id, (w.close_date AT TIME ZONE 'Africa/Cairo')::date::text AS d
+       FROM cable_entries ce
+       LEFT JOIN LATERAL (
+         SELECT w.id, w.close_date FROM work_orders w
+          WHERE ${sp("w.phone_number")} = ${sp("ce.phone_local")}
+            AND ${woTypeSql()} = ce.work_order_type AND ${successSql()}
+            AND w.close_date >= ce.created_at - interval '${OPEN_WO_DAYS} days'
+          ORDER BY w.close_date DESC NULLS LAST LIMIT 1) w ON true
+      WHERE ce.wo_ref IS NULL AND ce.pending_after_wo IS NULL
+        AND btrim(ce.work_order_type) IN ('تركيب', 'نقل')
+        AND ce.created_at > now() - interval '${PENDING_DAYS} days'`);
+  let linked = 0, pending = 0;
+  for (const r of rows) {
+    if (r.wo_id) {
+      await pool.query(`UPDATE cable_entries SET wo_ref = $2, stock_date = $3::date WHERE id = $1 AND wo_ref IS NULL`, [r.id, r.wo_id, r.d]);
+      linked++;
+    } else {
+      await pool.query(`UPDATE cable_entries SET pending_after_wo = $2, stock_date = NULL WHERE id = $1 AND pending_after_wo IS NULL`, [r.id, floor]);
+      pending++;
+    }
+  }
+  return { linked, pending };
+}
+
 let running = false;
 /** ربط + مسح — بعد رفع ملف أوامر الشغل وكل نص ساعة. */
 export async function runCableLinker(pool: Pool, onLinked?: Parameters<typeof linkPendingEntries>[1]): Promise<{ linked: number; expired: number }> {
   if (running) return { linked: 0, expired: 0 };
   running = true;
   try {
+    const adopted = await adoptRecentEntries(pool);
+    if (adopted.linked || adopted.pending) console.log(`[cable-link] إدخالات قبل الربط: ${adopted.linked} اتربطت بأمر شغل و${adopted.pending} بقت مستنية`);
     const linked = await linkPendingEntries(pool, onLinked);
     const expired = await expirePendingEntries(pool);
     if (linked || expired) console.log(`[cable-link] اتربط ${linked} إدخال بأمر شغل، واتمسح ${expired} إدخال عدّى ${PENDING_DAYS} أيام`);
