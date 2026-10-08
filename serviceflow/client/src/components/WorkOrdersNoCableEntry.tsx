@@ -13,6 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { LineInfoDialog } from "@/components/LineInfoDialog";
+import { InstallCableManualForm } from "@/components/InstallCableManualForm";
 import { format } from "date-fns";
 
 // أوامر الشغل اللى لسه مالهاش كمية سلك — نفس مصدر تقرير «أوامر شغل بدون كمية سلك»
@@ -259,6 +260,7 @@ export function WorkOrdersNoCableEntry() {
         دى أوامر الشغل الناجحة اللى لسه مالهاش كمية سلك. اكتب الكمية قدام الرقم واضغط حفظ —
         هتتسجّل فى «استكمال البيانات» وتظهر فى تقرير أوامر الشغل، والصف هيختفى من هنا.
       </p>
+      <InstallCableManualForm />
 
       <div className="flex flex-wrap items-end gap-3 mb-4">
         <div>

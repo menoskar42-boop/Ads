@@ -42,3 +42,21 @@ test("the tab is mounted inside the data-completion section", () => {
   assert.match(section, /import \{ WorkOrdersNoCableEntry \}/);
   assert.match(section, /(shownTab|tab) === "orders" \? <WorkOrdersNoCableEntry \/>/);
 });
+
+test("manual install cable form lives in the no-cable tab: phone + install/move + qty (owner, 2026-10-08)", () => {
+  // «إدخال كمية سلك» بقى للصيانة بس — التركيب/النقل اليدوى بيتسجّل من تاب «أوامر شغل بدون كمية سلك»
+  assert.match(entryTab, /import \{ InstallCableManualForm \} from "@\/components\/InstallCableManualForm"/);
+  assert.match(entryTab, /<InstallCableManualForm \/>/);
+  const form = readFileSync(
+    new URL("../client/src/components/InstallCableManualForm.tsx", import.meta.url), "utf8");
+  assert.match(form, /إدخال كمية سلك تركيبات/);
+  assert.match(form, /<SelectItem value="تركيب"/);
+  assert.match(form, /<SelectItem value="نقل"/);
+  assert.doesNotMatch(form, /value="صيانة"/);
+  assert.match(form, /apiRequest\("POST", "\/api\/cable-entries", \{\s*phone, workOrderType, cableQuantity: qty/);
+  assert.match(form, /"\/api\/reports\/work-orders-no-cable"/);
+  // أمر الشغل اللى ييجى بعدين بنفس الرقم والنوع بيتربط بالكمية دى فمايظهرش فى القايمة
+  const noCable = routes.slice(noCableStart, noCableEnd);
+  assert.match(noCable, /COALESCE\(NULLIF\(w\.cable_quantity, ''\), ce\.cable_quantity\) IS NULL/);
+  assert.match(routes, /LEFT JOIN cable_entries ce\s+ON ce\.phone_local = CASE[\s\S]{0,400}AND ce\.work_order_type = CASE WHEN trim\(w\.service_type\) = 'نقل' THEN 'نقل' ELSE 'تركيب' END/);
+});
