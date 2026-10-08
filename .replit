@@ -61,6 +61,7 @@ externalPort = 3003
 deploymentTarget = "vm"
 build = ["sh", "-c", "npm install --include=dev && (cd mybible && npm install --include=dev && npm run build) && (cd serviceflow && npm install --include=dev && SF_BASE_PATH=/serviceflow/ npm run build)"]
 run = ["sh", "-c", "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=true SF_BASE_PATH=/serviceflow/ npm start"]
+ignorePorts = false
 
 [postMerge]
 path = "scripts/post-merge.sh"
