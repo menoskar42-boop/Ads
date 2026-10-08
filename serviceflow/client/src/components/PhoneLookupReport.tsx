@@ -432,7 +432,10 @@ export function PhoneLookupReport() {
     const acc = (line?.accountNo ?? "").toString().trim();
     if (!acc) { alert("لا يوجد رقم أكونت لهذا الخط — لا يمكن القياس"); return; }
     void recordOpIntent("measure", [acc]);
-    if (await enqueueIfExecutorActive("measure", [acc])) {
+    // ⚠️ المصدر بيتبعت صريح: هو اللى بيخلّى جهاز التنفيذ يختار «A recent fix (past 24h)» بدل
+    // «No fix». كان معتمد على المصدر العام (useSpeedToolSource) وده أى تقرير تانى بيتركّب/بيتشال
+    // بيغيّره أو يفضّيه — فالقياس كان بيروح «No fix» (المالك ٢٠٢٦-١٠-٠٨).
+    if (await enqueueIfExecutorActive("measure", [acc], PHONE_LOOKUP_SOURCE)) {
       alert("تم إضافة الرقم لطابور القياس — هيتنفّذ على جهاز التنفيذ، والصفحة هتتحدّث تلقائياً بعد ظهور النتيجة");
       void waitForOpThenRefresh("measure", acc);
       return;
