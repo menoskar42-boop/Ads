@@ -635,6 +635,11 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS stock_tech_name text`);
   // تاريخ الشغل (إغلاق أمر الشغل / العطل) — بيتحسب بس اللى يوم أول صرف للفنى أو بعده
   await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS stock_date date`);
+  // ربط التركيب/النقل اليدوى بأمر الشغل (server/cable-link.ts): wo_ref = work_orders.id المربوط،
+  // و pending_after_wo = آخر id وقت الحفظ لو لسه مستنى أمر شغل ييجى بعد كده (بيتمسح بعد ٧ أيام).
+  await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS wo_ref integer`);
+  await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS pending_after_wo integer`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS cable_entries_pending_idx ON cable_entries (pending_after_wo) WHERE pending_after_wo IS NOT NULL`);
   // local_store_moves — حركات المخزن المحلى للسلك: رصيد افتتاحى / وارد من الفرعى / صرف لفنى
   await pool.query(`
     CREATE TABLE IF NOT EXISTS local_store_moves (

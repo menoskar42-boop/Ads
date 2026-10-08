@@ -223,6 +223,8 @@ export async function backfillStock(pool: Pool, limit = 5000): Promise<{ done: n
                AND btrim(COALESCE(u.worker_code, '')) <> '' ORDER BY tn.id DESC LIMIT 1) AS self_name
        FROM cable_entries ce LEFT JOIN users u ON u.id = ce.created_by_id
       WHERE ce.stock_date IS NULL AND ce.created_at > now() - interval '180 days'
+        -- المستنى أمر شغل (server/cable-link.ts) مابيتخصمش غير لما أمر الشغل يظهر
+        AND ce.pending_after_wo IS NULL
       ORDER BY ce.id LIMIT $1`, [limit]);
   let withTech = 0;
   for (const r of rows) {

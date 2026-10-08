@@ -191,13 +191,15 @@ export function WorkOrdersNoCableEntry() {
         phone: String(r.phoneNumber ?? ""),
         workOrderType: orderTypeOf(r.serviceType),
         cableQuantity: v,
+        // أمر الشغل ده بالذات — الكمية بتتربط بيه هو (server/cable-link.ts)
+        woRef: r.id,
         ...(stockTech ? { stockTech } : {}),
       });
       const d = await res.json();
       setNeedTech((m) => { const n = { ...m }; delete n[r.id]; return n; });
       qc.invalidateQueries({ queryKey: ["/api/local-store"] });
       if (typeof d?.stockBalance === "number" && d.stockBalance < 0) {
-        toast({ title: "الرصيد بالسالب", description: `رصيد سلك التركيبات والنقل عند ${d.stockTech}: ${d.stockBalance} متر — محتاج أمر إفراج من المخزن المحلى`, variant: "destructive", duration: 8000 });
+        toast({ title: "اتحفظ — بس الرصيد بقى بالسالب", description: `رصيد سلك التركيبات والنقل عند ${d.stockTech}: ${d.stockBalance} متر — محتاج أمر إفراج من المخزن المحلى`, variant: "destructive", duration: 8000 });
       }
       toast({
         title: "تم الحفظ",

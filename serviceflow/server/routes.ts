@@ -38,6 +38,7 @@ import { registerRepeatReviews } from "./repeat-reviews";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
+import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, isInstallType, lastWorkOrderId, runCableLinker } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
 
 const scryptAsync = promisify(scrypt);
@@ -1543,6 +1544,7 @@ async function queueMissingLineDataSubinfo(opts?: { force?: boolean }) {
          LEFT JOIN cable_entries ce
            ON ${sp("ce.phone_local")} = ${sp("w.phone_number")}
           AND ce.work_order_type = CASE WHEN trim(w.service_type) = 'نقل' THEN 'نقل' ELSE 'تركيب' END
+          AND ${CE_LINK_COND}
          LEFT JOIN phone_lines pl ON pl.full_phone = w.phone_number
          LEFT JOIN line_subscriber_info si ON si.phone_number = w.phone_number
         WHERE regexp_replace(coalesce(w.phone_number,''), '\\D', '', 'g') ~ '^88[0-9]{7}$'
@@ -8535,6 +8537,9 @@ export async function registerRoutes(
       }
 
       console.log(`work-orders import: purged=${purged}, headers=${JSON.stringify(header)}, cols={central:${iCentral},order:${iWorkOrder},phone:${iPhone},svc:${iService},date:${iDate},item:${iItem},cable:${iCable},tech:${iTech}}, rows=${dataRows.length}, inserted=${inserted}, skipped=${skipped}, stampedAt=${stampedAt}`);
+      // إدخالات السلك اليدوية اللى كانت مستنية أمر الشغل ده (server/cable-link.ts) — قبل الرد
+      // عشان أمر الشغل مايظهرش فى «أوامر شغل بدون كمية سلك» وهو له سلك
+      await linkCables();
       res.json({ ok: true, inserted, skipped, purged, deactivated, total: dataRows.length, stampedAt });
     } catch (e: any) {
       console.error("work-orders import error:", e);
@@ -8598,6 +8603,7 @@ export async function registerRoutes(
               ELSE regexp_replace(w.phone_number, '\\D', '', 'g')
             END
         AND ce.work_order_type = CASE WHEN trim(w.service_type) = 'نقل' THEN 'نقل' ELSE 'تركيب' END
+        AND ${CE_LINK_COND}
        ${where}
        ORDER BY w.close_date ASC`,
       params,
@@ -8756,6 +8762,7 @@ export async function registerRoutes(
            LEFT JOIN cable_entries ce
              ON ${sp("ce.phone_local")} = ${sp("w.phone_number")}
             AND ce.work_order_type = CASE WHEN trim(w.service_type) = 'نقل' THEN 'نقل' ELSE 'تركيب' END
+            AND ${CE_LINK_COND}
            LEFT JOIN work_order_tech_overrides ovr
              ON ovr.central_name = w.central_name AND ovr.work_order_id = w.work_order_id
            ${lineMetaJoin}
@@ -9217,6 +9224,8 @@ export async function registerRoutes(
         conds.push(`(${n("phone_local")} LIKE $${params.length} OR ${n("phone_full")} LIKE $${params.length})`);
       }
     }
+    // ?pending=1 ⇒ التركيب/النقل اللى لسه مستنى أمر الشغل بس (server/cable-link.ts)
+    if (String((req.query as any).pending ?? "") === "1") conds.push(`pending_after_wo IS NOT NULL`);
     // 🆕 الفني يشوف إدخالاته فقط (اللى هو دخلها)؛ الأدمن يشوف الكل
     if (req.user?.role === ROLES.TECH) {
       params.push(req.user.id);
@@ -9229,6 +9238,9 @@ export async function registerRoutes(
               created_by_id AS "createdById", created_by_name AS "createdByName",
               created_at AS "createdAt", updated_at AS "updatedAt",
               printed_at AS "printedAt", edit_unlocked_at AS "editUnlockedAt",
+              -- تركيب/نقل لسه مستنى أمر الشغل (server/cable-link.ts) — وبيتمسح إمتى لو ماظهرش
+              (pending_after_wo IS NOT NULL) AS "pending",
+              CASE WHEN pending_after_wo IS NOT NULL THEN created_at + interval '${PENDING_DAYS} days' END AS "expiresAt",
               -- مقفل = طُبع ولم يُمنح صلاحية تعديل
               (printed_at IS NOT NULL AND edit_unlocked_at IS NULL) AS "locked",
               -- يمكن للأدمن منح الصلاحية = مقفل ولم تمر 3 أيام على الطباعة
@@ -9240,6 +9252,41 @@ export async function registerRoutes(
     );
     res.json(rows);
   });
+
+  // الفنى اللى سجّل سلك أمر الشغل ده: لو اسم الفنى على الأمر مش واحد من الخمسة (لا بالكود ولا بالاسم)
+  // ⇒ اسمه هو بيتسجّل فى خانة اسم الفنى (نفس آلية التعديل اليدوى). أمر الشغل المربوط بس.
+  const claimWorkOrderName = async (user: any, woId: number) => {
+    try {
+      const myName = fullNameOf((await coverageCodes(user)).techName);
+      if (!myName) return;
+      await pool.query(
+        `INSERT INTO work_order_tech_overrides (central_name, work_order_id, tech_name, updated_by_id, updated_by_name, updated_at)
+         SELECT w.central_name, w.work_order_id, $1, $2, $3, now()
+           FROM work_orders w
+           LEFT JOIN work_order_tech_overrides o
+             ON o.central_name = w.central_name AND o.work_order_id = w.work_order_id
+          WHERE w.id = $4
+            AND (w.close_category IS NULL OR w.close_category = 'Success')
+            -- أمر الشغل اللى بيرجع لفنى من الخمسة (بكود العامل أو بالاسم) مايتلمسش
+            AND ${canonicalTechSql("(SELECT tn.tech_name FROM technician_names tn WHERE btrim(tn.worker_code) = btrim(COALESCE(w.worker_code,'')) AND btrim(COALESCE(w.worker_code,'')) <> '' LIMIT 1)")} IS NULL
+            AND ${canonicalTechSql("COALESCE(NULLIF(btrim(o.tech_name),''), btrim(w.tech_name))")} IS NULL
+         ON CONFLICT ON CONSTRAINT work_order_tech_overrides_uniq DO UPDATE SET
+           tech_name = EXCLUDED.tech_name, updated_by_id = EXCLUDED.updated_by_id,
+           updated_by_name = EXCLUDED.updated_by_name, updated_at = now()`,
+        [myName, user.id, user.username, woId]);
+    } catch (e) { /* تسجيل الاسم إضافى — مايوقّفش حفظ الكمية */ }
+  };
+  // لما أمر شغل يظهر لإدخال كان مستنى (server/cable-link.ts)
+  const onCableLinked = async (e: { woId: number; createdById: number | null }) => {
+    if (!e.createdById) return;
+    const u = await storage.getUser(e.createdById);
+    if (u && u.role === ROLES.TECH) await claimWorkOrderName(u, e.woId);
+  };
+  const linkCables = () => runCableLinker(pool, onCableLinked).catch((e) => { console.error("[cable-link]", e?.message); return null; });
+  if (schedulersEnabled()) {
+    setTimeout(linkCables, 45_000).unref?.();
+    setInterval(linkCables, 30 * 60_000).unref?.();
+  }
 
   // POST /api/cable-entries — إضافة كمية السلك لرقم + نوع امر شغل (فنى + أدمن)
   // التكرار (نفس الرقم + نفس النوع) مرفوض برسالة خطأ — لتعديل القيمة يُحذف الإدخال أولاً.
@@ -9265,10 +9312,19 @@ export async function registerRoutes(
         message: `سبق إدخال كمية السلك للرقم ${full} (${type}) من قبل بواسطة ${dup.rows[0].created_by_name}. احذف الإدخال السابق أولاً لتعديله.`,
       });
     }
+    // تركيب/نقل (server/cable-link.ts): بيتربط بأمر شغل ناجح ظاهر ومالوش سلك، وإلا بيتحفظ «مستنى
+    // أمر الشغل» — مابيتخصمش ومابيسألش عن فنى، وبيتربط بأمر شغل ييجى بعد كده أو يتمسح بعد ٧ أيام.
+    let link: { id: number; closeDate: string } | null = null;
+    let pendingAfter: number | null = null;
+    if (isInstallType(type)) {
+      const woRef = Number(req.body?.woRef) || null;
+      link = (woRef ? await findOpenWorkOrder(pool, local, type, woRef) : null) || await findOpenWorkOrder(pool, local, type);
+      if (!link) pendingAfter = await lastWorkOrderId(pool);
+    }
     // المخزن المحلى: الكمية بتتخصم من رصيد فنى — الفنى نفسه، أو فنى الإغلاق لو اللى بيسجّل
     // مش فنى، ولو فنى الإغلاق مش من الخمسة ⇒ لازم يتختار (server/local-store.ts).
     let stockTech: string | null = null;
-    try {
+    if (pendingAfter == null) try {
       const selfName = req.user?.role === ROLES.TECH ? (await coverageCodes(req.user)).techName : null;
       const st = await resolveStockTech(pool, {
         role: req.user?.role, selfTechName: selfName, username: userName,
@@ -9282,42 +9338,19 @@ export async function registerRoutes(
       }
       stockTech = st.tech;
     } catch (e) { /* الخصم إضافى — مايوقّفش حفظ الكمية */ }
-    const stockDate = await workDate(pool, local, type).catch(() => null);
+    const stockDate = pendingAfter != null ? null : link ? link.closeDate : await workDate(pool, local, type).catch(() => null);
     try {
       const { rows } = await pool.query(
-        `INSERT INTO cable_entries (phone_local, phone_full, work_order_type, cable_quantity, created_by_id, created_by_name, stock_tech_name, stock_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date) RETURNING id`,
-        [local, full, type, qty, userId, userName, stockTech, stockDate],
+        `INSERT INTO cable_entries (phone_local, phone_full, work_order_type, cable_quantity, created_by_id, created_by_name, stock_tech_name, stock_date, wo_ref, pending_after_wo)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10) RETURNING id`,
+        [local, full, type, qty, userId, userName, stockTech, stockDate, link?.id ?? null, pendingAfter],
       );
       let stockBalance: number | null = null;
       if (stockTech) stockBalance = await notifyIfNegative(pool, stockTech, cableTypeOf(type), Number(qty)).catch(() => null);
       // القاعدة: لو **فنى** سجّل كمية سلك لأمر شغل اسم الفنى فيه مش مطابق لأى فنى
       // مسجّل عندنا → اسمه هو اللى يتسجّل فى خانة اسم الفنى (نفس آلية التعديل اليدوى).
-      // بنعمله للأوامر الناجحة اللى بنفس الرقم والنوع، ومابنلمسش أمر اسمه معروف أصلاً.
-      if (req.user?.role === ROLES.TECH) {
-        try {
-          // بالاسم الكامل — نفس صيغة باقى الأسماء فى العمود
-          const myName = fullNameOf((await coverageCodes(req.user)).techName);
-          if (myName) {
-            await pool.query(
-              `INSERT INTO work_order_tech_overrides (central_name, work_order_id, tech_name, updated_by_id, updated_by_name, updated_at)
-               SELECT w.central_name, w.work_order_id, $1, $2, $3, now()
-                 FROM work_orders w
-                 LEFT JOIN work_order_tech_overrides o
-                   ON o.central_name = w.central_name AND o.work_order_id = w.work_order_id
-                WHERE ${sp("w.phone_number")} = ${sp("$4")}
-                  AND (CASE WHEN trim(w.service_type) = 'نقل' THEN 'نقل' ELSE 'تركيب' END) = $5
-                  AND (w.close_category IS NULL OR w.close_category = 'Success')
-                  -- أمر الشغل اللى بيرجع لفنى من الخمسة (بكود العامل أو بالاسم) مايتلمسش
-                  AND ${canonicalTechSql("(SELECT tn.tech_name FROM technician_names tn WHERE btrim(tn.worker_code) = btrim(COALESCE(w.worker_code,'')) AND btrim(COALESCE(w.worker_code,'')) <> '' LIMIT 1)")} IS NULL
-                  AND ${canonicalTechSql("COALESCE(NULLIF(btrim(o.tech_name),''), btrim(w.tech_name))")} IS NULL
-               ON CONFLICT ON CONSTRAINT work_order_tech_overrides_uniq DO UPDATE SET
-                 tech_name = EXCLUDED.tech_name, updated_by_id = EXCLUDED.updated_by_id,
-                 updated_by_name = EXCLUDED.updated_by_name, updated_at = now()`,
-              [myName, userId, userName, local, type]);
-          }
-        } catch (e) { /* تسجيل الاسم إضافى — مايوقّفش حفظ الكمية */ }
-      }
+      // للمربوط بس — المستنى بيتعمله ده لما أمر الشغل بتاعه يظهر (onCableLinked).
+      if (req.user?.role === ROLES.TECH && link) await claimWorkOrderName(req.user, link.id);
       // لو الفنى اختار «صيانة» وكتب رقم محمول → سجّله/حدّثه فى line_mobiles (نفس صيغة full_phone
       // المستخدمة فى البحث برقم التليفون = 88 + الأرقام بدون شرطة). الأولوية له فى الـ lookup فيظهر
       // كأحدث رقم مسجّل. لو الخط له رقم قديم يتحدّث (ON CONFLICT).
@@ -9331,7 +9364,7 @@ export async function registerRoutes(
           [mobileFull, mobileVal, userId, userName],
         );
       }
-      res.json({ ok: true, id: rows[0]?.id, stockTech, stockBalance });
+      res.json({ ok: true, id: rows[0]?.id, stockTech, stockBalance, pending: pendingAfter != null, linkedWo: link?.id ?? null });
     } catch (e: any) {
       // حماية إضافية ضد سباق التزامن على قيد التفرّد
       if (e.code === "23505") {

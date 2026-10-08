@@ -71,9 +71,11 @@ test("saving a quantity as a technician stamps their name only on unknown names"
   const cStart = routes.indexOf('app.post("/api/cable-entries"');
   const cEnd = routes.indexOf('app.delete("/api/cable-entries/:id"', cStart);
   assert.ok(cStart >= 0 && cEnd > cStart);
-  const ep = routes.slice(cStart, cEnd);
-  assert.match(ep, /req\.user\?\.role === ROLES\.TECH/);
+  // الختم اتنقل لـ claimWorkOrderName (قبل الحفظ) — وبقى على أمر الشغل المربوط بس (server/cable-link.ts)
+  const ep = routes.slice(routes.indexOf("const claimWorkOrderName = async"), cEnd);
+  assert.match(ep, /req\.user\?\.role === ROLES\.TECH && link\) await claimWorkOrderName/);
   assert.match(ep, /INSERT INTO work_order_tech_overrides/);
+  assert.match(ep, /WHERE w\.id = \$4/);
   assert.match(ep, /canonicalTechSql\("COALESCE\(NULLIF\(btrim\(o\.tech_name\),''\), btrim\(w\.tech_name\)\)"\)\} IS NULL/,
     "أمر شغل على فنى من الخمسة مايتلمسش");
   // اسم المُدخِل بيتسجّل دايماً مع الكمية

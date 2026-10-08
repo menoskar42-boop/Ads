@@ -2,9 +2,11 @@
 // «إدخال كمية السلك» بقى للصيانة بس، فالتركيب/النقل اللى لسه ماجاش فى ملف أوامر الشغل (أو أى رقم
 // تركيب يدوى) بيتسجّل من هنا: رقم + تركيب/نقل + الكمية. نفس /api/cable-entries — فلما أمر الشغل ييجى
 // بنفس الرقم والنوع بيتربط بالكمية دى ومايظهرش فى «أوامر شغل بدون كمية سلك».
-// والكمية بتتخصم من رصيد سلك التركيبات والنقل فى المخزن المحلى (زى أى إدخال تانى).
+// الحفظ مايتمنعش، لكن الخصم من المخزن المحلى بيحصل بس لما أمر الشغل يظهر (المالك ٢٠٢٦-١٠-٠٨):
+// الرقم اللى مالوش أمر شغل لسه بيفضل «مستنى»، ولو أمر الشغل ماظهرش خلال ٧ أيام الإدخال بيتمسح
+// (server/cable-link.ts). وأمر شغل قديم له سلك قبل كده مابيتغيرش.
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Loader2, Plus, Cable } from "lucide-react";
+import { Loader2, Plus, Cable, Clock } from "lucide-react";
+
+/** نفس server/cable-link.ts PENDING_DAYS */
+const PENDING_DAYS = 7;
 
 export function InstallCableManualForm() {
   const { toast } = useToast();
@@ -30,9 +35,13 @@ export function InstallCableManualForm() {
       phone, workOrderType, cableQuantity: qty, ...(stockTech ? { stockTech } : {}),
     })).json(),
     onSuccess: (d: any) => {
-      toast({ title: "تم الحفظ", description: `كمية السلك ${qty} متر للرقم ${phone} (${workOrderType})${d?.stockTech ? ` — من رصيد ${d.stockTech}` : ""}`, duration: 4000 });
+      if (d?.pending) {
+        toast({ title: "اتحفظ — مستنى أمر الشغل", description: `${qty} متر للرقم ${phone} (${workOrderType}). مش هيتخصم من المخزن غير لما أمر الشغل يظهر، ولو ماظهرش خلال ${PENDING_DAYS} أيام الإدخال هيتمسح.`, duration: 7000 });
+      } else {
+        toast({ title: "تم الحفظ", description: `كمية السلك ${qty} متر للرقم ${phone} (${workOrderType})${d?.stockTech ? ` — من رصيد ${d.stockTech}` : ""}`, duration: 4000 });
+      }
       if (typeof d?.stockBalance === "number" && d.stockBalance < 0) {
-        toast({ title: "الرصيد بالسالب", description: `رصيد سلك التركيبات والنقل عند ${d.stockTech}: ${d.stockBalance} متر — محتاج أمر إفراج من المخزن المحلى`, variant: "destructive", duration: 8000 });
+        toast({ title: "اتحفظ — بس الرصيد بقى بالسالب", description: `رصيد سلك التركيبات والنقل عند ${d.stockTech}: ${d.stockBalance} متر — محتاج أمر إفراج من المخزن المحلى`, variant: "destructive", duration: 8000 });
       }
       setPhone(""); setQty(""); resetTech();
       for (const k of ["/api/reports/work-orders-no-cable", "/api/cable-entries", "/api/work-orders", "/api/local-store"]) qc.invalidateQueries({ queryKey: [k] });
@@ -49,6 +58,13 @@ export function InstallCableManualForm() {
       toast({ title: "تعذّر الحفظ", description: msg, variant: "destructive", duration: 6000 });
     },
   });
+
+  // الإدخالات اللى لسه مستنية أمر الشغل (الفنى بيشوف بتاعته بس)
+  const { data: pending = [] } = useQuery<any[]>({
+    queryKey: ["/api/cable-entries", "pending"],
+    queryFn: async () => (await apiRequest("GET", "/api/cable-entries?pending=1")).json(),
+  });
+  const daysLeft = (iso: string) => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000));
 
   const ok = phone.trim().length >= 5 && /^\d+(\.\d+)?$/.test(qty.trim()) && (!needTechNames || !!stockTech);
   return (
@@ -97,7 +113,26 @@ export function InstallCableManualForm() {
       </form>
       <p className="text-xs text-muted-foreground mt-2">
         لما أمر الشغل بتاع الرقم ده ييجى فى الملف بنفس النوع، هيتربط بالكمية دى ومش هيظهر فى القايمة تحت.
+        الكمية مابتتخصمش من المخزن غير لما أمر الشغل يظهر — ولو ماظهرش خلال {PENDING_DAYS} أيام الإدخال بيتمسح.
       </p>
+      {pending.length > 0 && (
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50/70 p-2" data-testid="pending-cable-entries">
+          <div className="flex items-center gap-1 text-xs font-bold text-amber-800 mb-1">
+            <Clock className="w-3.5 h-3.5" /> مستنية أمر الشغل ({pending.length})
+          </div>
+          <ul className="text-xs space-y-0.5">
+            {pending.map((e) => (
+              <li key={e.id} className="flex flex-wrap gap-x-3">
+                <span className="font-mono" dir="ltr">{e.phoneFull}</span>
+                <span>{e.workOrderType}</span>
+                <span>{e.cableQuantity} متر</span>
+                <span className="text-muted-foreground">{e.createdByName}</span>
+                <span className="text-amber-800">{daysLeft(e.expiresAt) === 0 ? "هيتمسح النهارده" : `باقى ${daysLeft(e.expiresAt)} يوم`}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Card>
   );
 }

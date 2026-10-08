@@ -133,11 +133,14 @@ test("the faults and متعذرات reports are untouched by the full-name mappi
   // كل استخدام لازم يكون جوّه endpoint أوامر الشغل أو حفظ كمية السلك — مش فى تقارير الأعطال
   const woStart = routes.indexOf('app.put("/api/work-order-tech"');
   const cableStart = routes.indexOf('app.post("/api/cable-entries"');
+  // اسم الفنى على أمر الشغل المربوط بالكمية (helper قبل الحفظ — server/cable-link.ts)
+  const claimStart = routes.indexOf("const claimWorkOrderName = async");
   for (const m of routes.matchAll(/preferFullName\(|fullNameOf\(/g)) {
     const i = m.index ?? 0;
     const inWorkOrder = i > woStart && i < woStart + 4000;
     const inCable = i > cableStart && i < cableStart + 4000;
-    assert.ok(inWorkOrder || inCable,
+    const inClaim = claimStart >= 0 && i > claimStart && i < claimStart + 2500;
+    assert.ok(inWorkOrder || inCable || inClaim,
       `تحويل الاسم الكامل اتستخدم برّه سياق أوامر الشغل/كمية السلك (موضع ${i})`);
   }
 });
