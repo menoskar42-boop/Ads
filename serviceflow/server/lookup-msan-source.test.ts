@@ -30,7 +30,10 @@ test("the phone lookup reads the MSAN code from phone_ports, not from cabinet_te
 // قرار المالك (٢٠٢٦-٠٩-٢٤): فنى الخط = فنى كود الكابينة **اللى جاى من البورتات** —
 // نفس الكود المعروض. سنترال/كابينة phone_lines بس للخط اللى مالوش صف بورت.
 test("technician name and coverage resolve through the port's cabin code", () => {
-  assert.match(lookupRoute, /WHERE CASE WHEN NULLIF\(btrim\(pp\.msan_code\), ''\) IS NOT NULL\s+THEN btrim\(ct\.cabin_code\) = btrim\(pp\.msan_code\)\s+ELSE ct\.central_name = pl\.central AND ct\.cabin_number = pl\.cabin_number END/);
+  assert.match(lookupRoute, /WHERE CASE WHEN NULLIF\(btrim\(pp\.msan_code\), ''\) IS NOT NULL\s+THEN btrim\(ct\.cabin_code\) = btrim\(pp\.msan_code\)[\s\S]{0,400}?ELSE ct\.central_name = COALESCE\(corr\.central, pl\.central, cpl\.central_name, si\.central, wfmo\.central_name\)\s+AND ct\.cabin_number = COALESCE\(corr\.cabin_number, pl\.cabin_number, cpl\.cabinet_no, si\.cabin_number,\s+NULLIF\(btrim\(wfmo\.exch_cabinet\), ''\)\) END/);
+  // مفيش كود MSAN ⇒ الكابينة النحاسية والسنترال المعروضين (البيان الفنى كمان) — المالك ٢٠٢٦-١٠-٠٨.
+  // والـ join بقى بعد cpl و wfmo عشان يقدر يقرا منهم.
+  assert.ok(lookupRoute.indexOf(") wfmo ON true") < lookupRoute.indexOf(") ctc ON true"));
   assert.match(lookupRoute, /LEFT JOIN msan_tech_overrides mto\s+ON mto\.cabin_code = COALESCE\(NULLIF\(btrim\(pp\.msan_code\), ''\), ctc\.cabin_code\)/);
   assert.match(lookupRoute, /COALESCE\(mto\.tech_name, ctc\.ct_tech, ''\) AS "techName"/);
   assert.match(lookupRoute, /ctc\.cabin_code IS NOT NULL AND btrim\(ctc\.cabin_code\) <> ''/);

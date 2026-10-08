@@ -7526,24 +7526,6 @@ export async function registerRoutes(
           WHERE c2.phone_full = COALESCE(pl.full_phone, t.full)
           ORDER BY c2.created_at DESC, c2.id DESC LIMIT 1
        ) corr ON true
-       -- فنى الخط = فنى **كود الكابينة اللى جاى من البورتات** (phone_ports.msan_code) —
-       -- قرار المالك (٢٠٢٦-٠٩-٢٤). نفس الكود اللى الشاشة بتعرضه، فالاسم المعروض
-       -- والصلاحية بقوا من مصدر واحد. الخط اللى مالوش صف بورت بس بيرجع للطريقة
-       -- القديمة (سنترال/كابينة phone_lines).
-       LEFT JOIN LATERAL (
-         SELECT ct.cabin_code, tn.tech_name AS ct_tech
-         FROM cabinet_technicians ct
-         LEFT JOIN technician_names tn ON tn.worker_code = ct.worker_code
-         WHERE CASE WHEN NULLIF(btrim(pp.msan_code), '') IS NOT NULL
-                    THEN btrim(ct.cabin_code) = btrim(pp.msan_code)
-                    ELSE ct.central_name = pl.central AND ct.cabin_number = pl.cabin_number END
-         ORDER BY (ct.cabin_code IS NOT NULL AND ct.cabin_code <> '') DESC, tn.tech_name NULLS LAST
-         LIMIT 1
-       ) ctc ON true
-       -- الإسناد اليدوى على نفس الكود — كود بورت مش موجود فى شيت الكباين أصلاً ده
-       -- بالظبط اللى الإسناد اليدوى معمول عشانه، فمايتربطش بـctc (هيبقى فاضى).
-       LEFT JOIN msan_tech_overrides mto
-         ON mto.cabin_code = COALESCE(NULLIF(btrim(pp.msan_code), ''), ctc.cabin_code)
        LEFT JOIN LATERAL (
          SELECT c2.full_phone, c2.current_speed, c2.max_speed, c2.score, c2.po_status, c2.uploaded_at, c2.measured_by,
                  c2.measured_at, c2.measure_mode,
@@ -7586,6 +7568,30 @@ export async function registerRoutes(
              FROM maintenance_orders WHERE ${sp("phone_number")} = ${sp("t.short")}
          ) w ORDER BY w.pr, w.creation_date DESC NULLS LAST LIMIT 1
        ) wfmo ON true
+       -- (بعد cpl و wfmo عشان الـ fallback بيقرا منهم)
+       -- فنى الخط = فنى **كود الكابينة اللى جاى من البورتات** (phone_ports.msan_code) —
+       -- قرار المالك (٢٠٢٦-٠٩-٢٤). نفس الكود اللى الشاشة بتعرضه، فالاسم المعروض
+       -- والصلاحية بقوا من مصدر واحد. الخط اللى مالوش صف بورت بس بيرجع للطريقة
+       -- القديمة (سنترال/كابينة phone_lines).
+       LEFT JOIN LATERAL (
+         SELECT ct.cabin_code, tn.tech_name AS ct_tech
+         FROM cabinet_technicians ct
+         LEFT JOIN technician_names tn ON tn.worker_code = ct.worker_code
+         WHERE CASE WHEN NULLIF(btrim(pp.msan_code), '') IS NOT NULL
+                    THEN btrim(ct.cabin_code) = btrim(pp.msan_code)
+                    -- مفيش كود MSAN ⇒ الكابينة النحاسية + السنترال **المعروضين** (المالك ٢٠٢٦-١٠-٠٨):
+                    -- مش phone_lines بس — البيان الفنى/التصحيح/الشكوى/أمر الشغل كمان، بنفس ترتيب العرض.
+                    -- فالخط اللى كابينته جاية من البيان الفنى (3-2) بيبان فنيه بدل «-».
+                    ELSE ct.central_name = COALESCE(corr.central, pl.central, cpl.central_name, si.central, wfmo.central_name)
+                     AND ct.cabin_number = COALESCE(corr.cabin_number, pl.cabin_number, cpl.cabinet_no, si.cabin_number,
+                                                    NULLIF(btrim(wfmo.exch_cabinet), '')) END
+         ORDER BY (ct.cabin_code IS NOT NULL AND ct.cabin_code <> '') DESC, tn.tech_name NULLS LAST
+         LIMIT 1
+       ) ctc ON true
+       -- الإسناد اليدوى على نفس الكود — كود بورت مش موجود فى شيت الكباين أصلاً ده
+       -- بالظبط اللى الإسناد اليدوى معمول عشانه، فمايتربطش بـctc (هيبقى فاضى).
+       LEFT JOIN msan_tech_overrides mto
+         ON mto.cabin_code = COALESCE(NULLIF(btrim(pp.msan_code), ''), ctc.cabin_code)
        LEFT JOIN LATERAL (
          -- رقم الموبايل: الأولوية للمُدخَل يدوياً، ثم من أوامر الشغل (wfm)، ثم من طلبات FTTH
          SELECT m, manual FROM (
