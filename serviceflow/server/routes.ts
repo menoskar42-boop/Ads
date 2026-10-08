@@ -38,7 +38,7 @@ import { registerRepeatReviews } from "./repeat-reviews";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
-import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, isInstallType, lastWorkOrderId, runCableLinker } from "./cable-link";
+import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
 
 const scryptAsync = promisify(scrypt);
@@ -9320,6 +9320,15 @@ export async function registerRoutes(
       const woRef = Number(req.body?.woRef) || null;
       link = (woRef ? await findOpenWorkOrder(pool, local, type, woRef) : null) || await findOpenWorkOrder(pool, local, type);
       if (!link) pendingAfter = await lastWorkOrderId(pool);
+      // أمر الشغل ده باسم فنى تانى من الخمسة ⇒ الفنى مايسجّلش سلكه (المالك ٢٠٢٦-١٠-٠٨)
+      if (link && req.user?.role === ROLES.TECH) {
+        const self = (await coverageCodes(req.user)).techName;
+        const me = matchTechnician(self) || matchTechnician(userName);
+        const woTech = await workOrderTech(pool, link.id);
+        if (foreignWorkOrder(me, woTech)) {
+          return res.status(409).json({ message: `أمر الشغل للرقم ${full} (${type}) باسم الفنى ${woTech} — كمية السلك مش هتتسجّل عليك.` });
+        }
+      }
     }
     // المخزن المحلى: الكمية بتتخصم من رصيد فنى — الفنى نفسه، أو فنى الإغلاق لو اللى بيسجّل
     // مش فنى، ولو فنى الإغلاق مش من الخمسة ⇒ لازم يتختار (server/local-store.ts).

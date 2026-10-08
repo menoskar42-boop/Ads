@@ -11,7 +11,7 @@
 // الإدخالات القديمة (قبل الربط) wo_ref و pending_after_wo فاضيين ⇒ بتتربط بالرقم والنوع زى الأول.
 import type { Pool } from "pg";
 import { ROLES } from "@shared/schema";
-import { matchTechnician } from "@shared/technicians";
+import { canonicalTechSql, matchTechnician } from "@shared/technicians";
 import { phoneNormSql as sp } from "./phone-norm";
 import { closingTech, notifyIfNegative, cableTypeOf } from "./local-store";
 
@@ -47,6 +47,42 @@ export async function findOpenWorkOrder(pool: Pool, phoneLocal: string, type: st
   return r.rows[0] ? { id: r.rows[0].id, closeDate: r.rows[0].d } : null;
 }
 
+/**
+ * فنى أمر الشغل (واحد من الخمسة) — بكود العامل الأول، وإلا الاسم (التعديل اليدوى أو الشيت).
+ * NULL = اسم مش معروف ⇒ مالوش صاحب، والفنى اللى سجّل السلك هو اللى بيتكتب عليه.
+ */
+const woTechSql = (w = "w", o = "o") => `COALESCE(
+  ${canonicalTechSql(`(SELECT tn.tech_name FROM technician_names tn WHERE btrim(tn.worker_code) = btrim(COALESCE(${w}.worker_code, ''))
+                         AND btrim(COALESCE(${w}.worker_code, '')) <> '' LIMIT 1)`)},
+  ${canonicalTechSql(`COALESCE(NULLIF(btrim(${o}.tech_name), ''), btrim(${w}.tech_name))`)})`;
+
+export async function workOrderTech(pool: Pool, woId: number): Promise<string | null> {
+  const r = await pool.query(
+    `SELECT ${woTechSql()} AS t FROM work_orders w
+       LEFT JOIN work_order_tech_overrides o ON o.central_name = w.central_name AND o.work_order_id = w.work_order_id
+      WHERE w.id = $1`, [woId]);
+  return r.rows[0]?.t ?? null;
+}
+
+/**
+ * المالك ٢٠٢٦-١٠-٠٨: الفنى اللى سجّل السلك وأمر الشغل طلع **باسم فنى تانى من الخمسة** ⇒ الكمية
+ * ماتتعتمدش. الفنى مش معروف (مش من الخمسة) أو اللى سجّل مش فنى ⇒ مفيش مقارنة.
+ */
+export const foreignWorkOrder = (enteredBy: string | null, woTech: string | null): boolean =>
+  !!enteredBy && !!woTech && enteredBy !== woTech;
+
+/** الإدخال اللى أمر شغله طلع لفنى تانى: يتمسح، والفنى والسوبر أدمن يوصلهم إشعار. */
+async function rejectForeign(pool: Pool, r: { id: number; phone_local: string; work_order_type: string; cable_quantity: string; created_by_id: number | null }, me: string, woTech: string) {
+  const del = await pool.query(`DELETE FROM cable_entries WHERE id = $1 RETURNING id`, [r.id]);
+  if (!del.rowCount) return false;
+  const msg = `كمية السلك ${r.cable_quantity} متر اللى ${me} سجّلها للرقم 88-${r.phone_local} (${r.work_order_type}) مااتعتمدتش — أمر الشغل طلع باسم الفنى ${woTech}.`;
+  const to = new Set<number>();
+  if (r.created_by_id) to.add(r.created_by_id);
+  for (const u of (await pool.query(`SELECT id FROM users WHERE role = 'super_admin' AND COALESCE(suspended, false) = false`)).rows) to.add(u.id);
+  for (const id of to) await pool.query(`INSERT INTO notifications (user_id, type, message) VALUES ($1, 'cable_entry_foreign', $2)`, [id, msg]).catch(() => undefined);
+  return true;
+}
+
 /** آخر id فى work_orders — أى أمر شغل id بتاعه أكبر منه ظهر بعد الحفظ. */
 export async function lastWorkOrderId(pool: Pool): Promise<number> {
   return Number((await pool.query(`SELECT COALESCE(max(id), 0)::int AS m FROM work_orders`)).rows[0]?.m ?? 0);
@@ -60,13 +96,14 @@ export async function linkPendingEntries(pool: Pool, onLinked?: (e: { entryId: n
   Promise<number> {
   const { rows } = await pool.query(
     `SELECT ce.id, ce.phone_local, ce.work_order_type, ce.cable_quantity, ce.stock_tech_name, ce.created_by_id,
-            w.id AS wo_id, (w.close_date AT TIME ZONE 'Africa/Cairo')::date::text AS d,
+            w.id AS wo_id, (w.close_date AT TIME ZONE 'Africa/Cairo')::date::text AS d, w.wo_tech,
             u.role, u.username,
             (SELECT tn.tech_name FROM technician_names tn WHERE btrim(tn.worker_code) = btrim(COALESCE(u.worker_code, ''))
                AND btrim(COALESCE(u.worker_code, '')) <> '' ORDER BY tn.id DESC LIMIT 1) AS self_name
        FROM cable_entries ce
        JOIN LATERAL (
-         SELECT w.id, w.close_date FROM work_orders w
+         SELECT w.id, w.close_date, ${woTechSql()} AS wo_tech FROM work_orders w
+           LEFT JOIN work_order_tech_overrides o ON o.central_name = w.central_name AND o.work_order_id = w.work_order_id
           WHERE w.id > ce.pending_after_wo
             AND ${sp("w.phone_number")} = ${sp("ce.phone_local")}
             AND ${woTypeSql()} = ce.work_order_type AND ${successSql()}
@@ -75,8 +112,10 @@ export async function linkPendingEntries(pool: Pool, onLinked?: (e: { entryId: n
       WHERE ce.pending_after_wo IS NOT NULL`);
   let linked = 0;
   for (const r of rows) {
+    const me = r.role === ROLES.TECH ? (matchTechnician(r.self_name) || matchTechnician(r.username)) : null;
+    if (foreignWorkOrder(me, r.wo_tech)) { await rejectForeign(pool, r, me!, r.wo_tech); continue; }
     let tech: string | null = r.stock_tech_name;
-    if (!tech && r.role === ROLES.TECH) tech = matchTechnician(r.self_name) || matchTechnician(r.username);
+    if (!tech && me) tech = me;
     if (!tech) tech = (await closingTech(pool, r.phone_local, r.work_order_type)).tech;
     const u = await pool.query(
       `UPDATE cable_entries SET wo_ref = $2, pending_after_wo = NULL, stock_date = $3::date,
@@ -113,10 +152,15 @@ export async function expirePendingEntries(pool: Pool): Promise<number> {
 export async function adoptRecentEntries(pool: Pool): Promise<{ linked: number; pending: number }> {
   const floor = await lastWorkOrderId(pool);
   const { rows } = await pool.query(
-    `SELECT ce.id, w.id AS wo_id, (w.close_date AT TIME ZONE 'Africa/Cairo')::date::text AS d
+    `SELECT ce.id, ce.phone_local, ce.work_order_type, ce.cable_quantity, ce.created_by_id,
+            w.id AS wo_id, (w.close_date AT TIME ZONE 'Africa/Cairo')::date::text AS d, w.wo_tech, u.role, u.username,
+            (SELECT tn.tech_name FROM technician_names tn WHERE btrim(tn.worker_code) = btrim(COALESCE(u.worker_code, ''))
+               AND btrim(COALESCE(u.worker_code, '')) <> '' ORDER BY tn.id DESC LIMIT 1) AS self_name
        FROM cable_entries ce
+       LEFT JOIN users u ON u.id = ce.created_by_id
        LEFT JOIN LATERAL (
-         SELECT w.id, w.close_date FROM work_orders w
+         SELECT w.id, w.close_date, ${woTechSql()} AS wo_tech FROM work_orders w
+           LEFT JOIN work_order_tech_overrides o ON o.central_name = w.central_name AND o.work_order_id = w.work_order_id
           WHERE ${sp("w.phone_number")} = ${sp("ce.phone_local")}
             AND ${woTypeSql()} = ce.work_order_type AND ${successSql()}
             AND w.close_date >= ce.created_at - interval '${OPEN_WO_DAYS} days'
@@ -126,6 +170,8 @@ export async function adoptRecentEntries(pool: Pool): Promise<{ linked: number; 
         AND ce.created_at > now() - interval '${PENDING_DAYS} days'`);
   let linked = 0, pending = 0;
   for (const r of rows) {
+    const me = r.role === ROLES.TECH ? (matchTechnician(r.self_name) || matchTechnician(r.username)) : null;
+    if (r.wo_id && foreignWorkOrder(me, r.wo_tech)) { await rejectForeign(pool, r, me!, r.wo_tech); continue; }
     if (r.wo_id) {
       await pool.query(`UPDATE cable_entries SET wo_ref = $2, stock_date = $3::date WHERE id = $1 AND wo_ref IS NULL`, [r.id, r.wo_id, r.d]);
       linked++;

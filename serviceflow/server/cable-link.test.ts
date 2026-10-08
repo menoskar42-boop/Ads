@@ -66,3 +66,16 @@ test("entries saved before the link (last 7 days) follow the same rule — no wo
   assert.match(src, /AND btrim\(ce\.work_order_type\) IN \('تركيب', 'نقل'\)/);
   assert.ok(src.indexOf("await adoptRecentEntries(pool)") < src.indexOf("await linkPendingEntries(pool, onLinked)"));
 });
+
+test("a technician's cable counts only if the work order turns out to be his (owner, 2026-10-08)", async () => {
+  const { foreignWorkOrder } = await import("./cable-link");
+  assert.equal(foreignWorkOrder("حسن", "سامى"), true);   // أمر الشغل لفنى تانى من الخمسة ⇒ ماتتعتمدش
+  assert.equal(foreignWorkOrder("حسن", "حسن"), false);
+  assert.equal(foreignWorkOrder("حسن", null), false);    // اسم مش معروف ⇒ بيتكتب عليه اسمه
+  assert.equal(foreignWorkOrder(null, "سامى"), false);   // اللى سجّل مش فنى (مسئول البيانات/الأدمن)
+  // المستنى لما أمر شغله يظهر، والقديم لما يتراجع — الاتنين بيترفضوا ويتمسحوا بإشعار
+  assert.equal((src.match(/if \((r\.wo_id && )?foreignWorkOrder\(me, r\.wo_tech\)\) \{ await rejectForeign\(pool, r, me!, r\.wo_tech\); continue; \}/g) || []).length, 2);
+  assert.match(src, /'cable_entry_foreign'/);
+  // وعند الحفظ لو أمر الشغل ظاهر بالفعل باسم فنى تانى ⇒ 409
+  assert.match(post, /if \(foreignWorkOrder\(me, woTech\)\) \{\s*return res\.status\(409\)/);
+});
