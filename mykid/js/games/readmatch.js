@@ -8,6 +8,7 @@ import { awardStars } from "../core/rewards.js";
 import { gameTopbar, shuffle, finishActivity, mizoBuddy } from "./common.js";
 import { glyphMarkup } from "./glyph.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
+import { getActivityLessonVideo } from "../data/activityLessonVideos.js";
 
 const ROUNDS = 6;
 
@@ -31,13 +32,11 @@ export function renderReadMatch({ regionId, regionIndex, datasetKey, lang, title
   stage.className = "stage";
   screen.appendChild(stage);
 
-  if (datasetKey === "words") {
+  const lessonVideo = getActivityLessonVideo(datasetKey, "readMatch");
+  if (lessonVideo) {
     const videoWrap = document.createElement("div");
     videoWrap.style.cssText = "width:calc(100% - 28px);max-width:720px;margin:12px auto 24px";
-    videoWrap.appendChild(createYouTubePlayer({
-      videoId: "aTy_6f2NKsc",
-      title: "قراءة أول كلمة بدون حفظ — مس إلهام",
-    }));
+    videoWrap.appendChild(createYouTubePlayer(lessonVideo));
     screen.appendChild(videoWrap);
   }
 

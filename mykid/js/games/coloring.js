@@ -6,7 +6,7 @@ import { Sfx } from "../core/audio.js";
 import { Speech } from "../core/speech.js";
 import { gameTopbar, finishActivity, shuffle, showCheer } from "./common.js";
 import { awardStars } from "../core/rewards.js";
-import { getColorLessonVideo } from "../data/colorLessonVideos.js";
+import { getActivityLessonVideo } from "../data/activityLessonVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
 
 const PALETTE = [
@@ -357,7 +357,7 @@ export function renderColoring({ regionId, regionIndex, title, bg }) {
   ctrl.append(nextBtn, doneBtn);
   wrap.appendChild(ctrl);
 
-  const colorVideo = getColorLessonVideo("coloring");
+  const colorVideo = getActivityLessonVideo("colors", "coloring");
   if (colorVideo) {
     const videoWrap = document.createElement("div");
     videoWrap.style.cssText = "margin:18px auto 0";
