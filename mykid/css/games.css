@@ -544,54 +544,75 @@
   width: min(100%, 720px);
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
-.lesson-video-trigger {
-  max-width: 100%;
-  background: linear-gradient(180deg, #fff, #f8dff1);
-  color: var(--c-ink);
-}
-.lesson-video-content {
-  width: 100%;
-  animation: pop-in .25s ease both;
-}
-.lesson-video-frame {
+.kid-youtube-card { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.kid-youtube-frame {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: 18px;
-  background: #000;
+  background: #111;
   box-shadow: var(--shadow-card);
 }
-.lesson-video-frame iframe {
+.kid-youtube-frame iframe {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   border: 0;
 }
-.lesson-video-search {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(255,255,255,.78);
-  box-shadow: var(--shadow-card);
-  text-align: center;
+.kid-youtube-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: #111;
+  cursor: pointer;
 }
-.lesson-video-search p { margin: 0; color: var(--c-ink); font-weight: 800; }
-.lesson-video-search a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 9px 14px;
-  border-radius: 999px;
+.kid-youtube-preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.kid-youtube-shade { position: absolute; inset: 0; background: rgba(0,0,0,.28); }
+.kid-youtube-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 60px;
+  height: 60px;
+  place-items: center;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
   color: #fff;
-  background: linear-gradient(180deg, var(--c-pink), #e0489a);
-  font-weight: 900;
+  background: #e11d48;
+  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+  font-size: 25px;
+}
+.kid-youtube-title {
+  margin: 0;
+  color: var(--c-ink);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: right;
+}
+.kid-youtube-fallback {
+  display: inline-flex;
+  justify-content: center;
+  padding: 8px 12px;
+  border: 1px solid #fda4af;
+  border-radius: 12px;
+  color: #be123c;
+  font-size: 13px;
+  font-weight: 800;
   text-decoration: none;
 }
 

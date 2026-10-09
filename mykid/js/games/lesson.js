@@ -1,7 +1,7 @@
 // ===== المعلّم الافتراضي: درس تفاعلي لشرح الحرف/الرقم =====
 // شخصية ودودة تشرح، وسبّورة بخطّ أساس يُكتب عليها الحرف بالحركة،
 // مع نطق بصوتنا المخزَّن، وأزرار تشغيل/سابق/تالي + "اكتبه بنفسك".
-// يحاكي فيديوهات تعليم الحروف لكن بشكل تفاعلي ومجاني وبلا فيديو.
+// يضيف مشغّل الفيديو المرتبط بكل رقم عند توفر رابط موثّق.
 import { getDataset } from "../data/datasets.js";
 import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
@@ -10,6 +10,8 @@ import { gameTopbar, finishActivity } from "./common.js";
 import { createCharacter, MIZO_INTRO, MIZO_HELLO, MIZO_PRAISE } from "./character.js";
 import { Store } from "../core/storage.js";
 import { adaptDisplay, femAdapt } from "../data/mizo.js";
+import { getNumberLessonVideo } from "../data/numberLessonVideos.js";
+import { createYouTubePlayer } from "../core/youtube-player.js";
 
 export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, startChar, motivate }) {
   const ds = getDataset(datasetKey);
@@ -58,6 +60,12 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
   const glyphEl = wrap.querySelector(".lesson-glyph");
   const penEl = wrap.querySelector(".lesson-pen");
   const bubble = wrap.querySelector(".teacher-bubble");
+  const numberVideo = ds.glyphKind === "number" ? document.createElement("div") : null;
+  if (numberVideo) {
+    numberVideo.className = "lesson-video";
+    numberVideo.setAttribute("aria-label", "فيديو تعليمي للرقم الحالي");
+    wrap.appendChild(numberVideo);
+  }
 
   // ميزو: شخصية الطفل المعلّم الناطقة
   const mizo = createCharacter();
@@ -119,12 +127,22 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
     penEl.style.animation = "";
   }
 
+  function renderNumberVideo(it) {
+    if (!numberVideo) return;
+    numberVideo.replaceChildren();
+
+    const video = getNumberLessonVideo(it.value);
+    if (!video) return;
+    numberVideo.appendChild(createYouTubePlayer(video));
+  }
+
   function render() {
     const it = items[idx];
     glyphEl.textContent = glyphOf(it);
     animateWrite();
     Sfx.pop();
     wrap.querySelector("#lsPrev").disabled = idx === 0;
+    renderNumberVideo(it);
 
     // عند العودة من "اكتبه": رسالة تحفيز من ميزو بالعامية بدل إعادة الشرح
     if (motivateOnce) {
