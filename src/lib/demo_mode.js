@@ -189,6 +189,8 @@ const NOT_BACK_OFFICE = [
   '/workshop/status', '/qastly/s', '/',
   // «مراقب السرعة»: حسابات أساطيل منفصلة بكلمة سرها — مش لوحة شركة، ومالهاش جلسة عرض
   '/fleet',
+  // إنشاء حسابات «مراقب السرعة» — جوّه أدمن OscarDevs زى /admin
+  '/admin/fleet',
 ];
 
 function isBackOfficePath(path) {

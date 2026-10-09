@@ -2,16 +2,16 @@
 
 بيقيس سرعة العربية بالـGPS (Doppler) وبينبّه السواق بصوت عربى لما يعدّى الحد.
 وضعين: **لوحده** (السواق بيحدد الحد) و**شركة/أسطول** (صاحب الشركة بيحدد الحد من
-`oscardevs.com/fleet` وكل تجاوز بيوصله بالسواق والوقت وأقصى سرعة والمدة والمكان).
+`speed.oscardevs.com/fleet` وكل تجاوز بيوصله بالسواق والوقت وأقصى سرعة والمدة والمكان).
 
-⚠️ تجريبى (المالك ٢٠٢٦-١٠-٠٩): لينك مباشر بس — `oscardevs.com/fleet/app` — ومش فى
+⚠️ تجريبى (المالك ٢٠٢٦-١٠-٠٩): موقعه `speed.oscardevs.com` (زرار تحميل — Google Play مؤجَّل) — ومش فى
 السايت‌ماب ولا llms.txt لحد ما المالك يوافق. الحارس: `node scripts/check-fleet.js`.
 
 ## البناء
 بيتبنى على GitHub لوحده (`.github/workflows/speedguard-apk.yml`) مع أى push بيغيّر
 `speedguard-android/` — بيشغّل اختبارات `logic-test` الأول وبعدين `assembleDebug`،
 وبينشر الملف كـ pre-release على التاج `speedguard-latest`. والموقع بيوجّه
-`/fleet/app/download` عليه (ممكن يتغيّر بـ`SPEEDGUARD_APK_URL`).
+`speed.oscardevs.com/download` عليه (ممكن يتغيّر بـ`SPEEDGUARD_APK_URL`).
 (حاوية التطوير قافلة `dl.google.com` فمابتقدرش تبنى الـAPK — نفس سبب NeuroPilot.)
 
 ## الملفات
@@ -20,7 +20,7 @@
 | `SpeedLogic.kt` | السرعة + قرار الإنذار + تسجيل المخالفة (Kotlin صافى، متختبر على الكمبيوتر) |
 | `SpeedService.kt` | خدمة فى المقدمة: GPS + A-GPS + النطق + الطابور والرفع للشركة |
 | `MainActivity.kt` | الشاشة (من غير XML) |
-| `FleetApi.kt` | الكلام مع `src/routes/fleet.js` |
+| `FleetApi.kt` | الكلام مع `speed.oscardevs.com/fleet/api` (`src/routes/fleet.js`) |
 | `BootReceiver.kt` | يشتغل لوحده مع العربية (اختيارى) |
 
 ## الدقة

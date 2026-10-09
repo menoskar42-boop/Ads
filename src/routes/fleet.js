@@ -1,8 +1,9 @@
 // «مراقب السرعة» للأساطيل — صفحات صاحب الشركة + API تطبيق الأندرويد (src/fleet/schema.js).
 //
-//   صاحب الشركة:  /fleet (إنشاء حساب / دخول) → /fleet/dashboard (الحد + السواقين + المخالفات)
+//   بيتركّب على speed.oscardevs.com/fleet (src/routes/speed_site.js) — مش على الموقع الرئيسى.
+//   صاحب الشركة:  /fleet (دخول) → /fleet/dashboard (الحد + السواقين + المخالفات + كلمة السر)
 //   التطبيق:      POST /fleet/api/join · GET /fleet/api/config · POST /fleet/api/violations
-//   التحميل:      /fleet/app (لينك الـAPK المباشر)
+//   الحسابات بتتعمل من لوحة أدمن OscarDevs بس (src/routes/fleet_admin.js) — مفيش تسجيل عام.
 //
 // ⚠️ لحد ما المالك يقول «كويس» (٢٠٢٦-١٠-٠٩): كل الصفحات noindex، من غير إعلانات، ومش فى
 // السايت‌ماب ولا llms.txt ولا متلينكة من أى صفحة عامة. الحارس: scripts/check-fleet.js.
@@ -19,15 +20,10 @@ const router = express.Router();
 
 const LIMIT_MIN = 20;
 const LIMIT_MAX = 200;
-// حروف من غير اللى بتتلخبط مع بعض (O/0 · I/1/L) — السواق بيكتبه على شاشة العربية
-const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-// الـAPK بيتبنى على GitHub (.github/workflows/speedguard-apk.yml) وبيتنشر كـ release على
-// تاج ثابت — نفس طريقة NeuroPilot. pre-release عشان مايبقاش «latest» ويكسر لينك NeuroPilot.
-const APK_URL = process.env.SPEEDGUARD_APK_URL
-  || 'https://github.com/menoskar42-boop/Ads/releases/download/speedguard-latest/speed-guard.apk';
+// سقف أجهزة الشركة الواحدة — أى حد معاه الكود يقدر ينضم، فده بيقفل الإغراق بأجهزة وهمية
+const MAX_DRIVERS = 100;
 const DUMMY_HASH = bcrypt.hashSync('oscardevs-no-such-fleet', BCRYPT_COST);
 
-const newCode = () => Array.from(crypto.randomBytes(6), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
 const newToken = () => crypto.randomBytes(24).toString('hex');
 const cairoDay = (d = new Date()) => d.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
 const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
@@ -39,7 +35,6 @@ router.use((req, res, next) => {
   next();
 });
 
-const createLimiter = rateLimit({ name: 'fleet-create', windowMs: 60 * 60000, max: 10, keyFn: (req) => clientIp(req) });
 const loginByIp = rateLimit({ name: 'fleet-login-ip', windowMs: 10 * 60000, max: 30, keyFn: (req) => clientIp(req) });
 const loginByCode = rateLimit({
   name: 'fleet-login-code', windowMs: 10 * 60000, max: 12,
@@ -63,27 +58,6 @@ router.get('/', (req, res) => {
   res.render('fleet/home', { error: req.query.e || '', noindex: true, layout: false });
 });
 
-router.post('/create', createLimiter, async (req, res) => {
-  const name = String(req.body.name || '').trim().slice(0, 80);
-  const password = String(req.body.password || '');
-  if (name.length < 2) return res.redirect('/fleet?e=name');
-  if (password.length < 6) return res.redirect('/fleet?e=password');
-  const hash = await bcrypt.hash(password, BCRYPT_COST);
-  // الكود عشوائى — تكرار نادر جداً، فبنعيد المحاولة كام مرة بدل ما نقع
-  for (let i = 0; i < 6; i++) {
-    try {
-      const r = await pool.query(
-        'INSERT INTO fleet_accounts (name, join_code, password_hash) VALUES ($1, $2, $3) RETURNING id',
-        [name, newCode(), hash]);
-      req.session.fleetId = r.rows[0].id;
-      return req.session.save(() => res.redirect('/fleet/dashboard?new=1'));
-    } catch (e) {
-      if (e.code !== '23505') throw e;
-    }
-  }
-  return res.redirect('/fleet?e=retry');
-});
-
 router.post('/login', loginByIp, loginByCode, async (req, res) => {
   const code = String(req.body.code || '').trim().toUpperCase();
   const password = String(req.body.password || '');
@@ -91,8 +65,12 @@ router.post('/login', loginByIp, loginByCode, async (req, res) => {
   // نفس الوقت للكود الغلط والكود الصح بكلمة سر غلط — مايتعرفش الكود من التوقيت
   const ok = await bcrypt.compare(password, f ? f.password_hash : DUMMY_HASH);
   if (!f || !ok) return res.redirect('/fleet?e=login');
-  req.session.fleetId = f.id;
-  return req.session.save(() => res.redirect('/fleet/dashboard'));
+  // جلسة جديدة مع الدخول (ضد تثبيت الجلسة) — الجلسة دى على speed.oscardevs.com بس
+  return req.session.regenerate((err) => {
+    if (err) return res.redirect('/fleet?e=retry');
+    req.session.fleetId = f.id;
+    return req.session.save(() => res.redirect('/fleet/dashboard'));
+  });
 });
 
 router.post('/logout', (req, res) => {
@@ -140,7 +118,7 @@ router.get('/dashboard', requireFleet, async (req, res) => {
   ]);
   res.render('fleet/dashboard', {
     fleet, drivers: drivers.rows, rows, from, to, driverId,
-    isNew: req.query.new === '1', saved: req.query.saved === '1',
+    saved: req.query.saved === '1', pw: String(req.query.pw || ''),
     LIMIT_MIN, LIMIT_MAX, noindex: true, layout: false,
   });
 });
@@ -175,27 +153,15 @@ router.get('/dashboard.csv', requireFleet, async (req, res) => {
   res.send('﻿' + lines.join('\r\n'));
 });
 
-// صفحة التحميل — لينك مباشر للـAPK (لسه تجربة)
-router.get('/app', (req, res) => {
-  res.render('fleet/app', { notReady: req.query.e === 'notready', noindex: true, layout: false });
-});
-
-// لينكنا الثابت قدّام ملف GitHub: HEAD الأول — نسخة لسه ماتنشرتش ترجع بشرح مش بصفحة 404 بتاعة GitHub.
-router.get('/app/download', async (req, res) => {
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 4000);
-  try {
-    // من غير ما نتبع التحويل: github.com بيرد 302 لو الملف موجود و404 لو لأ. التحويل
-    // نفسه رايح لرابط تخزين موقّع لـGET بس، وHEAD عليه ممكن يترفض (401) والملف موجود.
-    const r = await fetch(APK_URL, { method: 'HEAD', redirect: 'manual', signal: ac.signal });
-    if (!(r.ok || (r.status >= 300 && r.status < 400))) return res.redirect('/fleet/app?e=notready');
-    return res.redirect(302, APK_URL);
-  } catch (e) {
-    // GitHub بطىء/مش بيرد — نحاول نوديه على الملف مباشرة بدل ما نقفل الطريق
-    return res.redirect(302, APK_URL);
-  } finally {
-    clearTimeout(timer);
-  }
+// تغيير كلمة السر — بالحالية (الجهاز اللى سايب الجلسة مفتوحة مايقدرش يغيّرها لوحده)
+router.post('/password', requireFleet, loginByIp, async (req, res) => {
+  const cur = String(req.body.current || '');
+  const next1 = String(req.body.password || '');
+  if (next1.length < 10) return res.redirect('/fleet/dashboard?pw=short');
+  const f = (await pool.query('SELECT password_hash FROM fleet_accounts WHERE id = $1', [req.session.fleetId])).rows[0];
+  if (!f || !(await bcrypt.compare(cur, f.password_hash))) return res.redirect('/fleet/dashboard?pw=wrong');
+  await pool.query('UPDATE fleet_accounts SET password_hash = $2 WHERE id = $1', [req.session.fleetId, await bcrypt.hash(next1, BCRYPT_COST)]);
+  res.redirect('/fleet/dashboard?pw=ok');
 });
 
 /* ───────────────────────── API التطبيق ───────────────────────── */
@@ -221,6 +187,9 @@ router.post('/api/join', apiLimiter, async (req, res) => {
   if (!code || name.length < 2 || deviceId.length < 8) return res.status(400).json({ ok: false, error: 'بيانات ناقصة: الكود واسم السواق' });
   const f = (await pool.query('SELECT id, name, speed_limit FROM fleet_accounts WHERE join_code = $1', [code])).rows[0];
   if (!f) return res.status(404).json({ ok: false, error: 'الكود ده مش موجود — اتأكد منه من صاحب الشركة' });
+  const n = (await pool.query(
+    'SELECT count(*)::int AS n, bool_or(device_id = $2) AS known FROM fleet_drivers WHERE fleet_id = $1', [f.id, deviceId])).rows[0];
+  if (!n.known && n.n >= MAX_DRIVERS) return res.status(403).json({ ok: false, error: 'الشركة وصلت لأقصى عدد أجهزة — كلّم صاحب الشركة' });
   // نفس الجهاز بيرجع بنفس التوكن (إعادة تثبيت/تغيير الاسم)، وجهاز موقوف بيرجع شغّال بانضمام جديد
   const r = await pool.query(
     `INSERT INTO fleet_drivers (fleet_id, name, device_id, token) VALUES ($1, $2, $3, $4)

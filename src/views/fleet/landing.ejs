@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>مراقب السرعة — تطبيق شاشة العربية</title>
+<%- include('_style') %>
+<style>
+  .hero { display: grid; gap: 20px; grid-template-columns: 1.3fr 1fr; align-items: center; margin: 8px 0 28px; }
+  @media (max-width: 720px) { .hero { grid-template-columns: 1fr; } }
+  .gauge { background: #0b1016; color: #eef3f8; border-radius: 18px; padding: 22px; text-align: center; border: 1px solid var(--line); }
+  .gauge .num { font-size: 4.6rem; font-weight: 800; line-height: 1; color: #ff5a4e; font-variant-numeric: tabular-nums; }
+  .gauge .lim { display: inline-block; margin-top: 10px; border: 3px solid #ff5a4e; border-radius: 999px; padding: 4px 16px; font-weight: 800; }
+  .gauge .say { margin-top: 12px; color: #93a3b4; font-size: .95rem; }
+  .big { font-size: 1.1rem; padding: 14px 26px; }
+  .feat h3 { font-size: 1rem; margin: 0 0 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">مراقب السرعة <small>من OscarDevs — نسخة تجريبية</small></div>
+    <a class="btn ghost" href="/fleet">لوحة الشركات</a>
+  </header>
+
+  <div class="hero">
+    <div>
+      <h1>إنذار صوتى للسواق قبل ما السرعة تعدّى حدّك</h1>
+      <p class="muted">تطبيق أندرويد على شاشة العربية بيقيس السرعة بالـGPS وهى ماشية، وبيقول بصوت عربى
+        لما تعدّى الحد اللى انت محدده — وبيوطّى الأغانى وقت الإنذار.</p>
+      <% if (notReady) { %><div class="note err">ملف التطبيق لسه بيتجهّز — جرّب تانى بعد شوية.</div><% } %>
+      <p style="margin-top:16px"><a class="btn big" href="/download">تحميل التطبيق (APK)</a></p>
+      <p class="muted">أندرويد ٧ وأحدث · من غير Google Play (لسه) · لو عندك نسخة قديمة امسحها الأول.</p>
+    </div>
+    <div class="gauge" aria-hidden="true">
+      <div class="num">97</div>
+      <div>كم/ساعة</div>
+      <div class="lim">الحد 80</div>
+      <div class="say">«انتبه. السرعة 97. الحد 80»</div>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-bottom:16px">
+    <div class="card feat"><h3>قياس من الأقمار نفسها</h3><p class="muted">السرعة من إشارة الـGPS (Doppler) مش من فرق المكان، ومعاها عدد الأقمار ودقة القياس على الشاشة.</p></div>
+    <div class="card feat"><h3>من غير إنذار كاذب</h3><p class="muted">قراءة واحدة شاذة مابتعملش إنذار — لازم يفضل فوق الحد، وبيكرر كل ١٠ ثوانى لحد ما تهدّى.</p></div>
+    <div class="card feat"><h3>للشركات</h3><p class="muted">صاحب الشركة بيحدد الحد لكل العربيات، وكل تجاوز بيوصله: مين السواق، إمتى، وصل لكام، قد إيه، وفين.</p></div>
+  </div>
+
+  <div class="card">
+    <h2>التثبيت</h2>
+    <ol>
+      <li>افتح الصفحة دى من متصفح شاشة العربية واضغط «تحميل التطبيق».</li>
+      <li>لو ظهرت «تثبيت من مصادر غير معروفة» — اسمح للمتصفح مرة واحدة.</li>
+      <li>افتح التطبيق واسمح بالموقع والإشعارات، واضغط «اختبار الصوت».</li>
+      <li>حدّد الحد واضغط «ابدأ» — أو لو تبع شركة: اكتب كود الشركة واسمك.</li>
+    </ol>
+    <p class="muted">للدقة: خلّى الـGPS شغّال والإنترنت متاح أول ما تبدأ — بيساعد الـGPS يلقط الأقمار أسرع.</p>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<%
+  var fmt = function (d) { return d ? new Date(d).toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo' }) : '—'; };
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>حسابات مراقب السرعة — أدمن</title>
+<%- include('_style') %>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">حسابات «مراقب السرعة» <small>أدمن OscarDevs</small></div>
+    <a class="btn ghost" href="/admin">لوحة الأدمن</a>
+  </header>
+
+  <% if (error) { %><div class="note err"><%= error %></div><% } %>
+
+  <% if (issued) { %>
+    <div class="card" style="margin-bottom:16px;border-color:var(--ok)">
+      <h2><%= issued.isNew ? 'اتعمل حساب' : 'كلمة سر جديدة' %> — <%= issued.name %></h2>
+      <p>سلّم العميل الكلام ده. <b>كلمة السر مش هتظهر تانى</b> — لو ضاعت اعمل واحدة جديدة.</p>
+      <table>
+        <tr><th>لينك اللوحة</th><td dir="ltr"><%= SPEED_ORIGIN %>/fleet</td></tr>
+        <tr><th>كود الشركة</th><td><span class="code" style="font-size:1.2rem"><%= issued.code %></span></td></tr>
+        <tr><th>كلمة السر</th><td><span class="code" style="font-size:1.2rem;letter-spacing:.05em"><%= issued.password %></span></td></tr>
+        <tr><th>تحميل التطبيق</th><td dir="ltr"><%= SPEED_ORIGIN %></td></tr>
+      </table>
+      <p class="muted" style="margin-top:8px">نفس الكود بيدّيه للسواقين يكتبوه فى التطبيق. والعميل يقدر يغيّر كلمة السر من لوحته.</p>
+    </div>
+  <% } %>
+
+  <form class="card" method="post" action="/admin/fleet/create" style="margin-bottom:16px">
+    <h2>حساب شركة جديد</h2>
+    <div class="row">
+      <div><label for="fname">اسم الشركة</label><input id="fname" name="name" required minlength="2" maxlength="80" /></div>
+      <button type="submit">إنشاء</button>
+    </div>
+  </form>
+
+  <div class="card">
+    <h2>الحسابات (<%= fleets.length %>)</h2>
+    <% if (!fleets.length) { %><p class="muted">لسه مفيش.</p><% } else { %>
+    <div class="table-wrap"><table>
+      <thead><tr><th>الشركة</th><th>الكود</th><th>الحد</th><th>الأجهزة</th><th>مخالفات ٣٠ يوم</th><th>اتعمل</th><th></th></tr></thead>
+      <tbody>
+      <% fleets.forEach(function (f) { %>
+        <tr>
+          <td><%= f.name %></td>
+          <td dir="ltr"><%= f.join_code %></td>
+          <td><%= f.speed_limit %></td>
+          <td><%= f.drivers %></td>
+          <td><%= f.v30 %></td>
+          <td><%= fmt(f.created_at) %></td>
+          <td><form method="post" action="/admin/fleet/<%= f.id %>/reset" onsubmit="return confirm('كلمة سر جديدة؟ القديمة هتبطل.')"><button class="ghost" type="submit">كلمة سر جديدة</button></form></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+    <% } %>
+  </div>
+</div>
+</body>
+</html>

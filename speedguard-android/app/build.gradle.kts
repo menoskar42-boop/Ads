@@ -13,10 +13,10 @@ android {
         applicationId = "com.oscardevs.speedguard"
         minSdk = 24          // Android 7 — أقدم شاشات العربيات اللى لسه شغّالة
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
-        // السيرفر اللى بيستقبل مخالفات الأسطول
-        buildConfigField("String", "SERVER", "\"https://oscardevs.com\"")
+        versionCode = 2
+        versionName = "0.2.0"
+        // موقع التطبيق — لوحة الأساطيل والـAPI (src/routes/speed_site.js)
+        buildConfigField("String", "SERVER", "\"https://speed.oscardevs.com\"")
     }
 
     buildFeatures { buildConfig = true }

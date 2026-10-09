@@ -466,6 +466,17 @@ app.use((req, res, next) => {
   return kakeiboRouter(req, res, next);
 });
 
+// ===== مراقب السرعة (speed.oscardevs.com) — تطبيق شاشة العربية + لوحة الأساطيل =====
+// نفس مكان kakeibo: بعد الجلسة والـbody parsers وقبل خط الموقع الرئيسى. أى مسار مش بتاعه
+// بيرجع 404 جوّه الراوتر نفسه — مايعدّيش لـOscarDevs ولا لمتجر. تجريبى: noindex (check-fleet).
+const speedSite = require('./src/routes/speed_site');
+app.use((req, res, next) => {
+  const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
+  const host = String(rawHost).split(':')[0].toLowerCase();
+  if (!host.startsWith('speed.')) return next();
+  return speedSite(req, res, next);
+});
+
 
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));
@@ -698,12 +709,19 @@ app.use('/nursery', require('./src/routes/nursery_admin'));
 app.use('/qastly/s', require('./src/routes/installments_public'));
 app.use('/qastly', require('./src/routes/installments_admin'));
 app.use('/nutrition', require('./src/routes/nutrition_admin'));
-// «مراقب السرعة» للأساطيل (٢٠٢٦-١٠-٠٩) — تجريبى: noindex ومش فى السايت‌ماب ولا llms.txt
-// لحد ما المالك يوافق (scripts/check-fleet.js).
-app.use('/fleet', require('./src/routes/fleet'));
+// «مراقب السرعة» اتنقل لـ speed.oscardevs.com (src/routes/speed_site.js). اللينكات القديمة
+// على الموقع الرئيسى بتتحوّل هناك (GET بس) — مفيش نسخة تانية من اللوحة على الدومين ده.
+app.use('/fleet', (req, res) => {
+  const origin = process.env.SPEED_ORIGIN || 'https://speed.oscardevs.com';
+  if (req.method !== 'GET' && req.method !== 'HEAD') return res.status(404).json({ ok: false, error: 'moved', to: origin });
+  const p = req.path === '/app' ? '/' : req.path === '/app/download' ? '/download' : '/fleet' + (req.path === '/' ? '' : req.path);
+  return res.redirect(301, origin + p);
+});
 // Research Data Auditor — standalone AI tool, no DB tables, stateless.
 
 // Super admin panel must be before tenant middleware too
+// حسابات «مراقب السرعة» — الطريق الوحيد لإنشاء حساب شركة (مفيش تسجيل عام)
+app.use('/admin/fleet', require('./src/middleware/adminAuth'), require('./src/routes/fleet_admin'));
 app.use('/admin', adminRouter);
 
 // Shop and customer routers — also before tenant middleware

@@ -21,7 +21,9 @@
     <form method="post" action="/fleet/logout"><button class="ghost" type="submit">خروج</button></form>
   </header>
 
-  <% if (isNew) { %><div class="note ok">اتعمل الحساب. ادّى السواقين الكود اللى تحت، ونزّلهم التطبيق من صفحة التحميل.</div><% } %>
+  <% if (pw === 'ok') { %><div class="note ok">اتغيّرت كلمة السر.</div><% } %>
+  <% if (pw === 'wrong') { %><div class="note err">كلمة السر الحالية غلط — ماتغيّرتش.</div><% } %>
+  <% if (pw === 'short') { %><div class="note err">كلمة السر الجديدة لازم تكون ١٠ حروف على الأقل.</div><% } %>
   <% if (saved) { %><div class="note ok">اتحفظ حد السرعة — هيوصل للتطبيقات خلال دقيقة.</div><% } %>
 
   <div class="grid" style="margin-bottom:16px">
@@ -29,7 +31,7 @@
       <h2>كود الانضمام للسواقين</h2>
       <span class="code"><%= fleet.join_code %></span>
       <p class="muted" style="margin-top:8px">السواق بيكتبه فى التطبيق مع اسمه مرة واحدة. ده كمان كود دخولك هنا.
-        <a href="/fleet/app">لينك تحميل التطبيق</a></p>
+        <a href="/">لينك تحميل التطبيق</a></p>
     </div>
     <form class="card" method="post" action="/fleet/limit">
       <h2>حد السرعة لكل العربيات</h2>
@@ -100,6 +102,15 @@
     </table></div>
     <% } %>
   </div>
+
+  <form class="card" method="post" action="/fleet/password" style="margin-top:16px">
+    <h2>تغيير كلمة السر</h2>
+    <div class="row">
+      <div><label for="pcur">الحالية</label><input id="pcur" name="current" type="password" required autocomplete="current-password" /></div>
+      <div><label for="pnew">الجديدة (١٠ حروف على الأقل)</label><input id="pnew" name="password" type="password" required minlength="10" autocomplete="new-password" /></div>
+      <button type="submit">تغيير</button>
+    </div>
+  </form>
 </div>
 </body>
 </html>
