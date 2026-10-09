@@ -17,7 +17,8 @@
     "mybible:migration:verify-group": "node scripts/validate-mybible-group-migration.js",
     "build:css": "tailwindcss -c tailwind.config.js -i src/styles/tailwind.css -o public/css/tw.css --minify",
     "deals:sync:amazon": "node scripts/sync-deals-amazon.js",
-    "deals:seed:amazon": "node scripts/seed-deals-amazon.js"
+    "deals:seed:amazon": "node scripts/seed-deals-amazon.js",
+    "test:mykid:videos": "node --test mykid/tests/video-links.test.mjs"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
