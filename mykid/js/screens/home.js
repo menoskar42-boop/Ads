@@ -27,7 +27,7 @@ export function renderHome() {
       <button class="icon-btn" id="dailyBtn" title="رحلة اليوم">🎯</button>
       <button class="icon-btn" id="songBtn" title="نشيد ميزو">🎶</button>
       <button class="icon-btn" id="colorBtn" title="تلوين">🎨</button>
-      ${FEATURES.videos ? '<button class="icon-btn" id="videosBtn" title="أغاني وفيديو">🎵</button>' : ""}
+      ${FEATURES.videos ? '<button class="icon-btn" id="videosBtn" title="تعليم الحروف والأرقام">١٢٣</button>' : ""}
       <button class="icon-btn" id="gardenBtn" title="حديقتي">🌳</button>
       <button class="icon-btn" id="arBtn" title="الواقع المعزّز">📸</button>
       <button class="icon-btn" id="parentBtn" title="ولي الأمر">⚙️</button>
@@ -69,6 +69,25 @@ export function renderHome() {
     whenSpeechReady().then(() => { Speech.mizo(spoken); });
   }
   screen.appendChild(banner);
+
+  if (FEATURES.videos) {
+    const videosCta = document.createElement("button");
+    videosCta.type = "button";
+    videosCta.className = "learning-videos-cta";
+    videosCta.setAttribute("aria-label", "تعليم الحروف والأرقام — شاهد فيديوهات تعليمية");
+    videosCta.innerHTML = `
+      <span class="learning-videos-icon" aria-hidden="true">١٢٣</span>
+      <span class="learning-videos-copy">
+        <strong>تعليم الحروف والأرقام</strong>
+        <small>شاهد فيديوهات تعليمية</small>
+      </span>
+      <span class="learning-videos-arrow" aria-hidden="true">←</span>`;
+    videosCta.addEventListener("click", () => {
+      Sfx.tap();
+      Router.go("videos");
+    });
+    screen.appendChild(videosCta);
+  }
 
   // زرّ «كمّل من حيث وقفت» — وصول سريع لآخر منطقة زارها الطفل
   const spot = Store.lastSpot;

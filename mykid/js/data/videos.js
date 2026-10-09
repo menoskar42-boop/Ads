@@ -13,6 +13,11 @@ export const VIDEOS = [
   { id: "en-phonics", title: "Phonics Song — أصوات الحروف", youtubeId: "BELlZKpi1Zs", cat: "english", lang: "en", emoji: "🔠" },
 
   // ===== الأرقام =====
+  { id: "miss-elham-number-1", title: "تعليم الرقم ١ — كتابة Number One", youtubeId: "A_Ovz5hLbeU", cat: "numbers", lang: "en", emoji: "١", source: "قناة مس إلهام", numberLabel: "الرقم ١" },
+  { id: "miss-elham-number-2", title: "تعليم الرقم ٢ — كتابة Number (2)", youtubeId: "qO96SvRAG5w", cat: "numbers", lang: "en", emoji: "٢", source: "قناة مس إلهام", numberLabel: "الرقم ٢" },
+  { id: "miss-elham-number-3", title: "شاهد دروس الرقم ٣ على القناة", externalUrl: "https://www.youtube.com/@Miss_Elham/search?query=number%203", cat: "numbers", lang: "en", emoji: "٣", source: "قناة مس إلهام", numberLabel: "الرقم ٣", actionLabel: "عرض دروس الرقم ٣" },
+  { id: "miss-elham-number-4", title: "شاهد دروس الرقم ٤ على القناة", externalUrl: "https://www.youtube.com/@Miss_Elham/search?query=number%204", cat: "numbers", lang: "en", emoji: "٤", source: "قناة مس إلهام", numberLabel: "الرقم ٤", actionLabel: "عرض دروس الرقم ٤" },
+  { id: "miss-elham-more-numbers", title: "اكتشف دروس أرقام أخرى", externalUrl: "https://www.youtube.com/@Miss_Elham/search?query=number", cat: "numbers", lang: "en", emoji: "١٢٣", source: "قناة مس إلهام", actionLabel: "عرض دروس القناة" },
   { id: "ar-num", title: "أنشودة الأرقام بالعربية", youtubeId: "Vw5kP8AcF6E", cat: "numbers", lang: "ar", emoji: "🔢" },
   { id: "en-num", title: "Numbers Song 1-10", youtubeId: "DR-cfDsHCGA", cat: "numbers", lang: "en", emoji: "🔢" },
 
@@ -28,9 +33,9 @@ export const VIDEOS = [
 // تصنيفات للعرض في الواجهة
 export const VIDEO_CATS = [
   { key: "all", label: "الكل", emoji: "🎬" },
+  { key: "numbers", label: "تعليم الأرقام", emoji: "١٢٣" },
   { key: "arabic", label: "حروف عربية", emoji: "🔤" },
   { key: "english", label: "حروف إنجليزية", emoji: "🔠" },
-  { key: "numbers", label: "أرقام", emoji: "🔢" },
   { key: "animals", label: "حيوانات", emoji: "🦁" },
   { key: "colors", label: "ألوان", emoji: "🎨" },
 ];
