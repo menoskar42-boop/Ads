@@ -21,3 +21,16 @@ test("WFM scripts log in with the FCC account", () => {
   assert.match(us, /const USER = "mena\.haleem";/);
   assert.match(allInOne, /'wfm\.te\.eg': FCC_LOGIN/);
 });
+
+// المالك ٢٠٢٦-١٠-٠٩: الدخول على WFM علّق والمهمة فضلت واقفة ٤ دقايق لحد ريفريش يدوى.
+test("a stuck WFM login refreshes itself (twice at most) instead of waiting for the executor limit", () => {
+  const login = allInOne.slice(allInOne.indexOf("async function doLogin() {"), allInOne.indexOf("function wfmLoginReloads() {"));
+  assert.ok(login.includes("if (/(^|\\.)wfm\\.te\\.eg$/i.test(location.hostname)) {\n      res = await waitLoginResult(WFM_LOGIN_EXTRA_WAIT_MS);"));
+  assert.match(login, /if \(n < WFM_LOGIN_MAX_RELOADS\) \{[\s\S]{0,300}location\.reload\(\);/);
+  // رسالة رفض ⇒ تهدئة مش ريفريش (FCC/WFM بيقفلوا الحساب)
+  assert.match(login, /if \(res === 'blocked'\) \{ startLoginCooldown/);
+  assert.match(allInOne, /const WFM_LOGIN_MAX_RELOADS = 2;/);
+  // الدخول نجح ⇒ العدّاد يتصفّر
+  const router = allInOne.slice(allInOne.indexOf("async function runWfmRouter() {"), allInOne.indexOf("sfStartWfmModules();", allInOne.indexOf("async function runWfmRouter() {")));
+  assert.match(router, /sessionStorage\.removeItem\(WFM_LOGIN_RELOADS_KEY\)/);
+});
