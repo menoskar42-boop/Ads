@@ -61,7 +61,7 @@ const EXPECTED_ACTIVITY_IDS = {
 };
 
 const MYKID_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const HARNESS_HTML = "<!doctype html><html><head><meta charset=\"utf-8\"></head><body></body></html>";
+const HARNESS_HTML = "<!doctype html><html><head><meta charset=\"utf-8\"></head><body><canvas id=\"fx\"></canvas></body></html>";
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -264,7 +264,7 @@ function assertLessonSequence(results, expectedGlyphs, expectedIds, label) {
 }
 
 test("the number and English-letter lessons render and embed the video for the current index", async () => {
-  const arabicDigits = Array.from("٠١٢٣٤٥٦٧٨٩");
+  const arabicDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩", "١٠"];
   const numberResults = await renderLessonSequence("numbers", true, 11);
   assertLessonSequence(
     numberResults,
