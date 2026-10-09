@@ -1,0 +1,82 @@
+# Build the «مراقب السرعة» (Speed Guard) APK on GitHub's runners — same reason as
+# neuropilot-apk.yml: the dev container blocks dl.google.com, so the Android SDK
+# cannot install there; GitHub's ubuntu runners ship it.
+#
+# The APK is published as a release asset on a moving tag, and /fleet/app/download
+# on the site redirects to it. The release is a PRE-release and never "latest":
+# NeuroPilot's link is /releases/latest/download/neuropilot.apk, and a newer
+# normal release here would silently break it.
+#
+# Trial (owner, 2026-10-09): direct link only — nothing on the site links to the
+# app yet (scripts/check-fleet.js).
+name: Speed Guard APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/build-oscardevs-ads-mvp-8krfN]
+    paths:
+      - 'speedguard-android/**'
+      - '.github/workflows/speedguard-apk.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # creating/updating the release — nothing wider
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      # The speed/alert/violation logic has its own JVM tests — a broken rule
+      # should fail here, not on a dashboard in a moving car.
+      - name: Test the speed logic
+        working-directory: speedguard-android/logic-test
+        run: gradle test --no-daemon
+
+      - name: Build
+        working-directory: speedguard-android
+        run: gradle assembleDebug --no-daemon
+
+      - name: Name the file for the download link
+        id: apk
+        run: |
+          SRC=$(find speedguard-android/app/build/outputs/apk -name '*.apk' | head -1)
+          cp "$SRC" speed-guard.apk
+          echo "sha256=$(sha256sum speed-guard.apk | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the APK to the run's artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: speed-guard-apk
+          path: speed-guard.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: speedguard-latest
+          name: Speed Guard APK (تجريبى)
+          prerelease: true
+          make_latest: false
+          files: speed-guard.apk
+          body: |
+            «مراقب السرعة» — تطبيق أندرويد لشاشة العربية: بيقيس السرعة بالـGPS وبينبّه
+            السواق بصوت لما يعدّى الحد، ولو تبع شركة كل تجاوز بيوصل لوحة صاحب الشركة.
+
+            نسخة تجريبية `debug`: كل نسخة جديدة بتتبني بمفتاح مختلف، فالتحديث محتاج
+            تمسح القديمة الأول.
+
+            `SHA-256: ${{ steps.apk.outputs.sha256 }}`

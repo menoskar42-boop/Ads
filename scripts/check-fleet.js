@@ -47,7 +47,7 @@ const hits = [];
     if (fs.statSync(p).isDirectory()) { if (f !== 'fleet') walk(p); continue; }
     if (!/\.(ejs|html)$/.test(f)) continue;
     const s = fs.readFileSync(p, 'utf8');
-    if (/href="\/fleet|\/downloads\/speed-guard|مراقب السرعة/.test(s)) hits.push(path.relative(ROOT, p));
+    if (/href="\/fleet|speed-guard\.apk|speedguard-latest|مراقب السرعة/.test(s)) hits.push(path.relative(ROOT, p));
   }
 })(path.join(ROOT, 'src/views'));
 check('no public page links to the fleet app yet', hits.length === 0, 'لينكات قبل الموافقة: ' + hits.join(', '));
@@ -56,5 +56,12 @@ const server = read('server.js');
 check('server mounts /fleet and creates its tables at boot',
   /app\.use\('\/fleet', require\('\.\/src\/routes\/fleet'\)\)/.test(server) && /\.then\(\(\) => ensureFleetSchema\(\)\)/.test(server),
   'الراوتر أو ensureFleetSchema مش متركّبين فى server.js.');
+
+// الـrelease بتاع GitHub لازم يفضل pre-release ومش «latest» — وإلا لينك NeuroPilot
+// (/releases/latest/download/neuropilot.apk) بيوقع فى صمت.
+const wf = read('.github/workflows/speedguard-apk.yml');
+check('the APK release is a pre-release that never becomes "latest"',
+  /prerelease: true/.test(wf) && /make_latest: false/.test(wf) && /tag_name: speedguard-latest/.test(wf),
+  'release عادى جديد بياخد مكان NeuroPilot فى /releases/latest.');
 
 process.exit(failed ? 1 : 0);

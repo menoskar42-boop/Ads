@@ -8,12 +8,11 @@
 السايت‌ماب ولا llms.txt لحد ما المالك يوافق. الحارس: `node scripts/check-fleet.js`.
 
 ## البناء
-محتاج Android SDK (platform 34 + build-tools) و JDK 17+:
-```
-cd speedguard-android
-gradle assembleRelease   # أو assembleDebug للتجربة
-```
-الناتج بيتنسخ لـ `public/downloads/speed-guard.apk` (صفحة `/fleet/app` بتلاقيه لوحدها).
+بيتبنى على GitHub لوحده (`.github/workflows/speedguard-apk.yml`) مع أى push بيغيّر
+`speedguard-android/` — بيشغّل اختبارات `logic-test` الأول وبعدين `assembleDebug`،
+وبينشر الملف كـ pre-release على التاج `speedguard-latest`. والموقع بيوجّه
+`/fleet/app/download` عليه (ممكن يتغيّر بـ`SPEEDGUARD_APK_URL`).
+(حاوية التطوير قافلة `dl.google.com` فمابتقدرش تبنى الـAPK — نفس سبب NeuroPilot.)
 
 ## الملفات
 | الملف | الدور |

@@ -10,8 +10,6 @@
 
 const express = require('express');
 const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
 const bcrypt = require('bcryptjs');
 const { BCRYPT_COST } = require('../lib/password_cost');
 const { rateLimit, clientIp } = require('../middleware/rateLimit');
@@ -23,8 +21,10 @@ const LIMIT_MIN = 20;
 const LIMIT_MAX = 200;
 // حروف من غير اللى بتتلخبط مع بعض (O/0 · I/1/L) — السواق بيكتبه على شاشة العربية
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const APK_FILE = path.join(__dirname, '..', '..', 'public', 'downloads', 'speed-guard.apk');
-const APK_URL = '/downloads/speed-guard.apk';
+// الـAPK بيتبنى على GitHub (.github/workflows/speedguard-apk.yml) وبيتنشر كـ release على
+// تاج ثابت — نفس طريقة NeuroPilot. pre-release عشان مايبقاش «latest» ويكسر لينك NeuroPilot.
+const APK_URL = process.env.SPEEDGUARD_APK_URL
+  || 'https://github.com/menoskar42-boop/Ads/releases/download/speedguard-latest/speed-guard.apk';
 const DUMMY_HASH = bcrypt.hashSync('oscardevs-no-such-fleet', BCRYPT_COST);
 
 const newCode = () => Array.from(crypto.randomBytes(6), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
@@ -177,9 +177,23 @@ router.get('/dashboard.csv', requireFleet, async (req, res) => {
 
 // صفحة التحميل — لينك مباشر للـAPK (لسه تجربة)
 router.get('/app', (req, res) => {
-  let apk = null;
-  try { const st = fs.statSync(APK_FILE); apk = { url: APK_URL, mb: (st.size / 1048576).toFixed(1), at: st.mtime }; } catch (e) { /* لسه ماتبناش */ }
-  res.render('fleet/app', { apk, noindex: true, layout: false });
+  res.render('fleet/app', { notReady: req.query.e === 'notready', noindex: true, layout: false });
+});
+
+// لينكنا الثابت قدّام ملف GitHub: HEAD الأول — نسخة لسه ماتنشرتش ترجع بشرح مش بصفحة 404 بتاعة GitHub.
+router.get('/app/download', async (req, res) => {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 4000);
+  try {
+    const r = await fetch(APK_URL, { method: 'HEAD', redirect: 'follow', signal: ac.signal });
+    if (!r.ok) return res.redirect('/fleet/app?e=notready');
+    return res.redirect(302, APK_URL);
+  } catch (e) {
+    // GitHub بطىء/مش بيرد — نحاول نوديه على الملف مباشرة بدل ما نقفل الطريق
+    return res.redirect(302, APK_URL);
+  } finally {
+    clearTimeout(timer);
+  }
 });
 
 /* ───────────────────────── API التطبيق ───────────────────────── */

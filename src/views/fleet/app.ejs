@@ -18,12 +18,11 @@
   <p class="muted">بيقيس سرعة العربية بالـGPS وهى ماشية، وبينبّه السواق بصوت عربى لما يعدّى الحد. يشتغل لوحده أو مع شركة (أسطول).</p>
 
   <div class="card" style="margin:16px 0">
-    <% if (apk) { %>
-      <p><a class="btn" href="<%= apk.url %>" download>تحميل التطبيق (APK — <%= apk.mb %> ميجا)</a></p>
-      <p class="muted">آخر تحديث: <%= new Date(apk.at).toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo' }) %></p>
-    <% } else { %>
+    <% if (notReady) { %>
       <div class="note err">ملف التطبيق لسه بيتجهّز — ارجع للصفحة دى بعد شوية.</div>
     <% } %>
+    <p><a class="btn" href="/fleet/app/download">تحميل التطبيق (APK)</a></p>
+    <p class="muted">نسخة تجريبية: لو عندك نسخة قديمة، امسحها الأول قبل ما تثبّت الجديدة.</p>
   </div>
 
   <div class="card">
