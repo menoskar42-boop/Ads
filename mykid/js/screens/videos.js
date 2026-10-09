@@ -15,24 +15,17 @@ export function renderVideos() {
   topbar.className = "topbar";
   topbar.innerHTML = `
     <button class="icon-btn" id="backBtn" title="رجوع">🏠</button>
-    <h2>تعليم الحروف والأرقام</h2>
+    <h2>🎵 أغاني وفيديو</h2>
     <span style="width:48px"></span>`;
   screen.appendChild(topbar);
-
-  const intro = document.createElement("div");
-  intro.className = "video-intro";
-  intro.innerHTML = `
-    <strong>شاهد فيديوهات تعليمية</strong>
-    <span>اختر درسًا للحروف أو الأرقام، ثم ابدأ المشاهدة.</span>`;
-  screen.appendChild(intro);
 
   // شريط التصنيفات
   const cats = document.createElement("div");
   cats.className = "video-cats";
-  let activeCat = "numbers";
+  let activeCat = "all";
   VIDEO_CATS.forEach((c) => {
     const b = document.createElement("button");
-    b.className = "video-cat" + (c.key === activeCat ? " active" : "");
+    b.className = "video-cat" + (c.key === "all" ? " active" : "");
     b.textContent = `${c.emoji} ${c.label}`;
     b.addEventListener("click", () => {
       Sfx.tap();
@@ -58,27 +51,16 @@ export function renderVideos() {
     Sfx.whoosh();
     Speech.stop();
     player.classList.remove("hidden");
-    if (v.youtubeId) {
-      player.innerHTML = `
-        <div class="video-frame">
-          <iframe
-            src="https://www.youtube-nocookie.com/embed/${v.youtubeId}?rel=0&modestbranding=1&playsinline=1"
-            title="${v.title}"
-            frameborder="0"
-            allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
-            allowfullscreen></iframe>
-        </div>
-        <div class="video-now">▶ ${v.title}</div>`;
-    } else {
-      player.innerHTML = `
-        <div class="video-channel-panel">
-          <strong>${v.numberLabel || "فيديوهات تعليمية"}</strong>
-          <p>افتح دروس هذا الرقم في قناة مس إلهام على يوتيوب.</p>
-          <a class="video-channel-link" href="${v.externalUrl}" target="_blank" rel="noopener noreferrer">
-            ${v.actionLabel || "شاهد الفيديوهات التعليمية"} ↗
-          </a>
-        </div>`;
-    }
+    player.innerHTML = `
+      <div class="video-frame">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/${v.youtubeId}?rel=0&modestbranding=1&playsinline=1"
+          title="${v.title}"
+          frameborder="0"
+          allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen></iframe>
+      </div>
+      <div class="video-now">▶ ${v.title}</div>`;
     player.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -90,9 +72,8 @@ export function renderVideos() {
       card.className = "video-card";
       card.style.animationDelay = `${i * 0.04}s`;
       card.innerHTML = `
-        <span class="video-thumb">${v.emoji}<span class="video-play">${v.externalUrl ? "↗" : "▶"}</span></span>
-        <span class="video-title">${v.title}</span>
-        ${v.source ? `<span class="video-source">${v.source}</span>` : ""}`;
+        <span class="video-thumb">${v.emoji}<span class="video-play">▶</span></span>
+        <span class="video-title">${v.title}</span>`;
       card.addEventListener("click", () => openVideo(v));
       grid.appendChild(card);
     });
@@ -104,7 +85,7 @@ export function renderVideos() {
       Router.go("home");
     });
     renderGrid();
-    Speech.mizo("اختار فيديو تعليمي عن الحروف أو الأرقام واستمتع بالتعلّم");
+    Speech.mizo("اختار أغنية أو فيديو تتعلّم وتستمتع");
   }, 0);
 
   return screen;

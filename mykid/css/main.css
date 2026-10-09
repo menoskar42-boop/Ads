@@ -448,61 +448,6 @@ button { font-family: inherit; cursor: pointer; border: none; }
 }
 
 /* ===== شاشة الأغاني والفيديو ===== */
-.learning-videos-cta {
-  width: calc(100% - 32px);
-  margin: 8px auto 14px;
-  padding: 12px 16px;
-  border: 0;
-  border-radius: 22px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--c-ink);
-  text-align: right;
-  background: linear-gradient(110deg, #fff0b8, #f6d8ff);
-  box-shadow: var(--shadow-card);
-  cursor: pointer;
-}
-.learning-videos-icon {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  place-items: center;
-  flex: 0 0 auto;
-  border-radius: 14px;
-  color: #74467d;
-  background: rgba(255, 255, 255, .72);
-  font-size: 22px;
-  font-weight: 900;
-}
-.learning-videos-copy { display: flex; flex: 1; flex-direction: column; gap: 2px; }
-.learning-videos-copy strong { font-size: clamp(15px, 4vw, 18px); font-weight: 900; }
-.learning-videos-copy small { font-size: clamp(12px, 3.2vw, 14px); font-weight: 700; opacity: .8; }
-.learning-videos-arrow {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, .72);
-  font-size: 22px;
-  font-weight: 900;
-}
-
-.video-intro {
-  width: calc(100% - 32px);
-  max-width: 728px;
-  margin: 10px auto 0;
-  padding: 12px 16px;
-  border-radius: 18px;
-  color: var(--c-ink);
-  background: rgba(255, 255, 255, .62);
-  box-shadow: var(--shadow-card);
-  text-align: center;
-}
-.video-intro strong { display: block; font-size: clamp(16px, 4.2vw, 20px); font-weight: 900; }
-.video-intro span { display: block; margin-top: 3px; font-size: clamp(12px, 3.2vw, 14px); font-weight: 700; }
-
 .video-cats {
   display: flex;
   gap: 8px;
@@ -551,36 +496,6 @@ button { font-family: inherit; cursor: pointer; border: none; }
   font-size: clamp(15px, 4vw, 19px);
   margin: 10px 0;
 }
-.video-channel-panel {
-  width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 16px;
-  border-radius: 18px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  color: var(--c-ink);
-  background: rgba(255, 255, 255, .72);
-  box-shadow: var(--shadow-card);
-  text-align: center;
-}
-.video-channel-panel strong { font-size: 20px; font-weight: 900; }
-.video-channel-panel p { margin: 0; font-weight: 700; }
-.video-channel-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  color: #fff;
-  background: linear-gradient(180deg, var(--c-pink), #e0489a);
-  font-weight: 900;
-  text-decoration: none;
-}
-
 .video-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -630,12 +545,6 @@ button { font-family: inherit; cursor: pointer; border: none; }
   font-weight: 800;
   font-size: clamp(13px, 3.6vw, 16px);
   color: var(--c-ink);
-  text-align: center;
-}
-.video-source {
-  color: #74467d;
-  font-size: 12px;
-  font-weight: 800;
   text-align: center;
 }
 
