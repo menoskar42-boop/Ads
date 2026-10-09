@@ -52,7 +52,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # android-actions/setup-android@v3 installs the obsolete 'tools' package,
+      # which Google removed from the SDK repository — it now fails with
+      # "Warning: Failed to find package 'tools'" (Speed Guard hit this on its
+      # first run, 2026-10-09). The ubuntu image already ships the SDK, so the
+      # build uses that. Checked here so a missing SDK fails before npm install
+      # rather than twenty steps later.
+      - name: Android SDK on the runner
+        run: ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
 
       # Fails the build before anything is compiled if a mistake landed that
       # would produce an app which installs, runs, and silently has no
@@ -67,6 +74,13 @@ jobs:
       - name: Scaffold the Android project
         working-directory: neuropilot-app
         run: npx cap add android
+
+      # Only now does neuropilot-app/android exist — cap scaffolds it. Writing
+      # sdk.dir before this step would fail on a directory that is not there
+      # yet, which is why this is separate from the check above.
+      - name: Point Gradle at the SDK
+        working-directory: neuropilot-app/android
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - name: Bundle the web app, sync, apply the overlay
         working-directory: neuropilot-app
