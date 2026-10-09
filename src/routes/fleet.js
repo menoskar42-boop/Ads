@@ -185,8 +185,10 @@ router.get('/app/download', async (req, res) => {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 4000);
   try {
-    const r = await fetch(APK_URL, { method: 'HEAD', redirect: 'follow', signal: ac.signal });
-    if (!r.ok) return res.redirect('/fleet/app?e=notready');
+    // من غير ما نتبع التحويل: github.com بيرد 302 لو الملف موجود و404 لو لأ. التحويل
+    // نفسه رايح لرابط تخزين موقّع لـGET بس، وHEAD عليه ممكن يترفض (401) والملف موجود.
+    const r = await fetch(APK_URL, { method: 'HEAD', redirect: 'manual', signal: ac.signal });
+    if (!(r.ok || (r.status >= 300 && r.status < 400))) return res.redirect('/fleet/app?e=notready');
     return res.redirect(302, APK_URL);
   } catch (e) {
     // GitHub بطىء/مش بيرد — نحاول نوديه على الملف مباشرة بدل ما نقفل الطريق
