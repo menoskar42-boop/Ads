@@ -33,7 +33,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # The ubuntu image already ships the Android SDK (ANDROID_HOME) with recent
+      # platforms and build-tools. android-actions/setup-android@v3 failed on the
+      # first run (2026-10-09), so the build uses the preinstalled one directly.
+      - name: Android SDK on the runner
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > speedguard-android/local.properties
+          ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
