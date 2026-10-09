@@ -808,6 +808,8 @@ export function ExecutorButton() {
                 popupCooldownUntil = Date.now() + POPUP_COOLDOWN_MS;
                 const outcome = await requestExecPreempt(job.id);
                 if (outcome === "send_failed") console.error("[exec] تعذّر إرجاع مهمة التاب الممنوع للطابور");
+              } else if (result === "canceled") {
+                // اتمسحت من الطابور يدوياً (بقت stale أصلاً) → مانعملش حاجة
               } else if (result === "auto_restart") {
                 // عدّت ٤ دقايق من غير نتيجة → نفس «إعادة تشغيل» الباتش: المهمة ترجع للطابور
                 // وتتسحب من أول وجديد فى تاب جديد. لو الإرجاع فشل ⇒ تتسجّل timeout عادى.
@@ -823,8 +825,6 @@ export function ExecutorButton() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ result: "timeout" }),
                 }).catch(() => {});
-              } else if (result === "canceled") {
-                // اتمسحت من الطابور يدوياً (بقت stale أصلاً) → مانعملش حاجة
               } else {
                 // نبعت نتيجة التنفيذ مع علامة الانتهاء عشان اللوحة تعرف: خلص ولا اتقفل قبل ما يخلص
                 await fetch(`/api/exec-queue/${job.id}/done`, {

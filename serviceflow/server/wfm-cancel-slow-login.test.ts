@@ -34,7 +34,7 @@ test("a slow WFM login waits like FCC; the site (executor) restarts the task aft
   assert.match(ex, /AUTO_RESTART_TYPES\.has\(type\) && !autoRestarted\(jobId\) \? Date\.now\(\) \+ AUTO_RESTART_MS : Infinity/);
   assert.match(ex, /if \(Date\.now\(\) >= restartAt\) \{ closeWin\(\); return "auto_restart"; \}/);
   // نفس زرار «إعادة تشغيل» فى الطابور، ومرة واحدة للمهمة
-  const branch = ex.slice(ex.indexOf('} else if (result === "auto_restart") {'), ex.indexOf('} else if (result === "canceled") {'));
+  const branch = ex.slice(ex.indexOf('} else if (result === "auto_restart") {'), ex.indexOf('} else {', ex.indexOf('} else if (result === "auto_restart") {')));
   assert.match(branch, /markAutoRestarted\(job\.id\);/);
   assert.match(branch, /fetch\("\/api\/exec-queue\/requeue"/);
   assert.match(branch, /result: "timeout"/);
