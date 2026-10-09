@@ -11,17 +11,19 @@ const RES = 300; // دقّة داخلية ثابتة
 // الحكم على «كتب الحرف صح» في `traceJudge.js` — مفصول عشان الحارس يشغّله
 // بنفسه بأرقام حقيقية بدل ما يقرا الملف ويفترض إنه بيعمل اللي مكتوب فيه.
 
-export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, focus, returnLesson, lessonTitle }) {
+export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, focus, returnLesson, lessonTitle, includeZero = false }) {
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang;
   const noun = ds.glyphKind === "number" ? "الرقم" : "الحرف";
-  let letters = shuffle(ds.items).slice(0, TRACE_COUNT);
+  const zeroItem = { value: 0, arDigit: "٠", arName: "صفر", enName: "zero" };
+  const traceItems = includeZero && ds.glyphKind === "number" ? [zeroItem, ...ds.items] : ds.items;
+  let letters = shuffle(traceItems).slice(0, TRACE_COUNT);
   // إن طُلب حرف/رقم محدّد (من معلّم الحروف) نجعله أول ما يُكتب
   if (focus) {
-    const f = ds.items.find((x) => (x.char || x.arDigit || x.name) === focus);
+    const f = traceItems.find((x) => (x.char || x.arDigit || x.name) === focus);
     // قادم من معلّم الحرف: حرف واحد فقط ثم نعود للدرس برسالة محفّزة
     if (f && returnLesson) letters = [f];
-    else if (f) letters = [f, ...shuffle(ds.items.filter((x) => x !== f)).slice(0, TRACE_COUNT - 1)];
+    else if (f) letters = [f, ...shuffle(traceItems.filter((x) => x !== f)).slice(0, TRACE_COUNT - 1)];
   }
   let idx = 0;
 
@@ -231,7 +233,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       if (returnLesson) {
         // قادم من معلّم الحرف: نعود للدرس برسالة محفّزة من ميزو (لا ننتقل لحرف آخر)
         showCheer("✍️", "برافو! كتبت الحرف صح، يلا نكمّل!", () =>
-          Router.go("lesson", { regionId, regionIndex, datasetKey, lang, title: lessonTitle, startChar: focus, motivate: true })
+          Router.go("lesson", { regionId, regionIndex, datasetKey, lang, title: lessonTitle, startChar: focus, motivate: true, includeZero })
         );
       } else {
         showCheer("🌟", "أحسنت! أكملت الرسم", () =>

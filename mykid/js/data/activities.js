@@ -210,7 +210,7 @@ export const ACTIVITIES = {
       title: "معلّم الأرقام",
       desc: "شرح الرقم وكتابته بالحركة",
       screen: "lesson",
-      params: { datasetKey: "numbers", title: "🧑‍🏫 معلّم الأرقام" },
+      params: { datasetKey: "numbers", title: "🧑‍🏫 معلّم الأرقام", includeZero: true },
     },
     {
       emoji: "👀",

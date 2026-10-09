@@ -1,7 +1,7 @@
 // ===== المعلّم الافتراضي: درس تفاعلي لشرح الحرف/الرقم =====
 // شخصية ودودة تشرح، وسبّورة بخطّ أساس يُكتب عليها الحرف بالحركة،
 // مع نطق بصوتنا المخزَّن، وأزرار تشغيل/سابق/تالي + "اكتبه بنفسك".
-// يضيف مشغّل الفيديو المرتبط بكل رقم عند توفر رابط موثّق.
+// يضيف مشغّل الفيديو المرتبط بكل رقم أو حرف إنجليزي عند توفر رابط موثّق.
 import { getDataset } from "../data/datasets.js";
 import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
@@ -11,14 +11,16 @@ import { createCharacter, MIZO_INTRO, MIZO_HELLO, MIZO_PRAISE } from "./characte
 import { Store } from "../core/storage.js";
 import { adaptDisplay, femAdapt } from "../data/mizo.js";
 import { getNumberLessonVideo } from "../data/numberLessonVideos.js";
+import { getEnglishLetterLessonVideo } from "../data/englishLetterLessonVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
 
-export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, startChar, motivate }) {
+export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, startChar, motivate, includeZero = false }) {
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang || "ar-EG";
   const isAr = speakLang.startsWith("ar");
   const noun = ds.glyphKind === "number" ? "رقم" : "حرف";
-  const items = ds.items;
+  const zeroItem = { value: 0, arDigit: "٠", arName: "صفر", enName: "zero" };
+  const items = includeZero && ds.glyphKind === "number" ? [zeroItem, ...ds.items] : ds.items;
 
   const glyphOf = (it) => it.char || it.arDigit || it.name;
   const labelOf = (it) => it.name || it.arName || "";
@@ -60,11 +62,11 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
   const glyphEl = wrap.querySelector(".lesson-glyph");
   const penEl = wrap.querySelector(".lesson-pen");
   const bubble = wrap.querySelector(".teacher-bubble");
-  const numberVideo = ds.glyphKind === "number" ? document.createElement("div") : null;
-  if (numberVideo) {
-    numberVideo.className = "lesson-video";
-    numberVideo.setAttribute("aria-label", "فيديو تعليمي للرقم الحالي");
-    wrap.appendChild(numberVideo);
+  const lessonVideo = ds.glyphKind === "number" || datasetKey === "english" ? document.createElement("div") : null;
+  if (lessonVideo) {
+    lessonVideo.className = "lesson-video";
+    lessonVideo.setAttribute("aria-label", ds.glyphKind === "number" ? "فيديو تعليمي للرقم الحالي" : "فيديو تعليمي للحرف الحالي");
+    wrap.appendChild(lessonVideo);
   }
 
   // ميزو: شخصية الطفل المعلّم الناطقة
@@ -127,13 +129,17 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
     penEl.style.animation = "";
   }
 
-  function renderNumberVideo(it) {
-    if (!numberVideo) return;
-    numberVideo.replaceChildren();
+  function renderLessonVideo(it) {
+    if (!lessonVideo) return;
+    lessonVideo.replaceChildren();
 
-    const video = getNumberLessonVideo(it.value);
+    const video = ds.glyphKind === "number"
+      ? getNumberLessonVideo(it.value)
+      : datasetKey === "english"
+        ? getEnglishLetterLessonVideo(glyphOf(it))
+        : null;
     if (!video) return;
-    numberVideo.appendChild(createYouTubePlayer(video));
+    lessonVideo.appendChild(createYouTubePlayer(video));
   }
 
   function render() {
@@ -142,7 +148,7 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
     animateWrite();
     Sfx.pop();
     wrap.querySelector("#lsPrev").disabled = idx === 0;
-    renderNumberVideo(it);
+    renderLessonVideo(it);
 
     // عند العودة من "اكتبه": رسالة تحفيز من ميزو بالعامية بدل إعادة الشرح
     if (motivateOnce) {
@@ -165,7 +171,7 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
   wrap.querySelector("#lsWrite").addEventListener("click", () => {
     Sfx.tap();
     // نكتب الحرف الحالي فقط ثم نعود للدرس برسالة تحفيز من ميزو
-    Router.go("trace", { regionId, regionIndex, datasetKey, lang, focus: glyphOf(items[idx]), returnLesson: true, lessonTitle: title });
+    Router.go("trace", { regionId, regionIndex, datasetKey, lang, focus: glyphOf(items[idx]), returnLesson: true, lessonTitle: title, includeZero });
   });
   wrap.querySelector("#lsPrev").addEventListener("click", () => {
     if (idx > 0) { idx--; render(); }
