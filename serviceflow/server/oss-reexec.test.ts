@@ -12,7 +12,7 @@ const lookup = readFileSync(new URL("../client/src/components/PhoneLookupReport.
 const om = readFileSync(new URL("../client/src/components/OmRejectionsReport.tsx", import.meta.url), "utf8");
 
 test("the merged script: OSS tab with a Re-Execute marker never runs the export", () => {
-  assert.match(script, /@version\s+3\.6\.8/);
+  assert.match(script, /@version\s+3\.6\.9/);
   // v3.6.5: More Search مابيلاقيش بالـ Service Order ID (بالمسلسل بس) ← الاحتياطى للرقم بس
   assert.match(script, /triedPanel = job\.by === 'order';/);
   // v3.6.4 (المالك): الأساس Enter فى الخانة اللى فوق — More Search احتياطى لو Enter ماجابش حاجة

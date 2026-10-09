@@ -122,6 +122,24 @@ const WATCHDOG_MS = 60 * 1000;   // حارس التعليق (كان ٣٠ث)
 const JOB_POLL_MS = 10 * 1000;   // متابعة المهمة الجارية (كان ٥ث)
 
 const POPUP_BLOCKED = "popup_blocked";
+// إعادة التشغيل التلقائية (المالك ٢٠٢٦-١٠-٠٩): مهام WFM/OSS لرقم واحد لو عدّت ٤ دقايق من غير
+// نتيجة بترجع للطابور لوحدها — زى زرار «إعادة تشغيل» بالظبط. مرة واحدة لكل مهمة (المهمة
+// بترجع بنفس رقمها، فبنفتكرها فى localStorage عشان مانلفّش فى دايرة).
+const AUTO_RESTART_MS = 4 * 60 * 1000;
+const AUTO_RESTART_TYPES = new Set<ExecJobType>(["wfmcancel", "wfmaccept", "ossreexec"]);
+const AUTO_RESTART_KEY = "sf_exec_auto_restarted";
+const readAutoRestarted = (): Record<string, number> => {
+  try {
+    const o = JSON.parse(localStorage.getItem(AUTO_RESTART_KEY) || "{}") || {};
+    const fresh: Record<string, number> = {};
+    for (const [k, v] of Object.entries(o)) if (typeof v === "number" && Date.now() - v < 24 * 3600 * 1000) fresh[k] = v;
+    return fresh;
+  } catch { return {}; }
+};
+const autoRestarted = (jobId: number) => !!readAutoRestarted()[String(jobId)];
+const markAutoRestarted = (jobId: number) => {
+  try { localStorage.setItem(AUTO_RESTART_KEY, JSON.stringify({ ...readAutoRestarted(), [String(jobId)]: Date.now() })); } catch {}
+};
 const popupBlockedMsg = () =>
   `المتصفح منع «${location.host}» من فتح تاب — التنفيذ واقف. افتح إعدادات الموقع ` +
   `واسمح بـ Pop-ups and redirects، وبعدين شغّل جهاز التنفيذ تانى.`;
@@ -507,11 +525,16 @@ export function ExecutorButton() {
           : OP_MAX_MS[type]!);
         // مهلة قصيرة قبل فحص «التاب اتقفل» — window.open ساعات بترجّع تاب لسه بيفتح
         await sleep(5 * 1000);
+        // إعادة تشغيل تلقائية بعد ٤ دقايق (المالك ٢٠٢٦-١٠-٠٩) — نفس زرار «إعادة تشغيل» فى
+        // الطابور: WFM/OSS ساعات الدخول بيعلق والمهمة تفضل واقفة لحد مهلتها، والريفريش اليدوى
+        // هو اللى كان بيمشّيها. مرة واحدة بس للمهمة (بعدها بتكمّل لمهلتها العادية).
+        const restartAt = AUTO_RESTART_TYPES.has(type) && !autoRestarted(jobId) ? Date.now() + AUTO_RESTART_MS : Infinity;
         while (!stopped && Date.now() < deadline) {
           const chk = await jobCheck(jobId);
           if (!chk.active) { closeWin(); return "canceled"; }
           if (before >= 0 && (await latestOpAt(type, sigKey)) > before) { closeWin(); return "done"; }
           if (win && win.closed) return "done"; // التاب اتقفل = العملية خلصت (يدوى أو بالسكربت)
+          if (Date.now() >= restartAt) { closeWin(); return "auto_restart"; }
           // مهمة أعلى أولوية مستنية على **نفس الدومين** (تحديث ملفات) → اقفل التاب وسيب المسار
           if (chk.preempt) { closeWin(); return "preempted"; }
           await sleep(JOB_POLL_MS);
@@ -785,6 +808,21 @@ export function ExecutorButton() {
                 popupCooldownUntil = Date.now() + POPUP_COOLDOWN_MS;
                 const outcome = await requestExecPreempt(job.id);
                 if (outcome === "send_failed") console.error("[exec] تعذّر إرجاع مهمة التاب الممنوع للطابور");
+              } else if (result === "auto_restart") {
+                // عدّت ٤ دقايق من غير نتيجة → نفس «إعادة تشغيل» الباتش: المهمة ترجع للطابور
+                // وتتسحب من أول وجديد فى تاب جديد. لو الإرجاع فشل ⇒ تتسجّل timeout عادى.
+                markAutoRestarted(job.id);
+                const ok = job.batchId ? await fetch("/api/exec-queue/requeue", {
+                  method: "POST", credentials: "include",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ batchId: job.batchId }),
+                }).then((r) => r.ok).catch(() => false) : false;
+                if (ok) console.warn(`[exec] ${job.type} #${job.id} عدّت ٤ دقايق — إعادة تشغيل تلقائية`);
+                else await fetch(`/api/exec-queue/${job.id}/done`, {
+                  method: "POST", credentials: "include",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ result: "timeout" }),
+                }).catch(() => {});
               } else if (result === "canceled") {
                 // اتمسحت من الطابور يدوياً (بقت stale أصلاً) → مانعملش حاجة
               } else {

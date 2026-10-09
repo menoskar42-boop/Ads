@@ -22,15 +22,20 @@ test("WFM scripts log in with the FCC account", () => {
   assert.match(allInOne, /'wfm\.te\.eg': FCC_LOGIN/);
 });
 
-// المالك ٢٠٢٦-١٠-٠٩: الدخول على WFM علّق والمهمة فضلت واقفة ٤ دقايق لحد ريفريش يدوى.
-test("a stuck WFM login refreshes itself (twice at most) instead of waiting for the executor limit", () => {
-  const login = allInOne.slice(allInOne.indexOf("async function doLogin() {"), allInOne.indexOf("function wfmLoginReloads() {"));
-  assert.ok(login.includes("if (/(^|\\.)wfm\\.te\\.eg$/i.test(location.hostname)) {\n      res = await waitLoginResult(WFM_LOGIN_EXTRA_WAIT_MS);"));
-  assert.match(login, /if \(n < WFM_LOGIN_MAX_RELOADS\) \{[\s\S]{0,300}location\.reload\(\);/);
-  // رسالة رفض ⇒ تهدئة مش ريفريش (FCC/WFM بيقفلوا الحساب)
-  assert.match(login, /if \(res === 'blocked'\) \{ startLoginCooldown/);
-  assert.match(allInOne, /const WFM_LOGIN_MAX_RELOADS = 2;/);
-  // الدخول نجح ⇒ العدّاد يتصفّر
-  const router = allInOne.slice(allInOne.indexOf("async function runWfmRouter() {"), allInOne.indexOf("sfStartWfmModules();", allInOne.indexOf("async function runWfmRouter() {")));
-  assert.match(router, /sessionStorage\.removeItem\(WFM_LOGIN_RELOADS_KEY\)/);
+// المالك ٢٠٢٦-١٠-٠٩: الدخول على WFM علّق والمهمة فضلت واقفة ٤ دقايق لحد ريفريش يدوى. القرار:
+// السكربت بيستنى زى FCC (من غير ريفريش لصفحة الدخول)، وموقعنا هو اللى بيعيد تشغيل المهمة بعد ٤ دقايق.
+test("a slow WFM login waits like FCC; the site (executor) restarts the task after 4 minutes, once", () => {
+  const login = allInOne.slice(allInOne.indexOf("async function doLogin() {"), allInOne.indexOf("// ملاحظة: بنفتح التاب المتسلسل مستقلاً"));
+  assert.doesNotMatch(login, /location\.reload\(\)/);
+  assert.doesNotMatch(allInOne, /WFM_LOGIN_MAX_RELOADS/);
+  const ex = readFileSync(new URL("../client/src/components/ExecutorButton.tsx", import.meta.url), "utf8");
+  assert.match(ex, /const AUTO_RESTART_MS = 4 \* 60 \* 1000;/);
+  assert.match(ex, /const AUTO_RESTART_TYPES = new Set<ExecJobType>\(\["wfmcancel", "wfmaccept", "ossreexec"\]\);/);
+  assert.match(ex, /AUTO_RESTART_TYPES\.has\(type\) && !autoRestarted\(jobId\) \? Date\.now\(\) \+ AUTO_RESTART_MS : Infinity/);
+  assert.match(ex, /if \(Date\.now\(\) >= restartAt\) \{ closeWin\(\); return "auto_restart"; \}/);
+  // نفس زرار «إعادة تشغيل» فى الطابور، ومرة واحدة للمهمة
+  const branch = ex.slice(ex.indexOf('} else if (result === "auto_restart") {'), ex.indexOf('} else if (result === "canceled") {'));
+  assert.match(branch, /markAutoRestarted\(job\.id\);/);
+  assert.match(branch, /fetch\("\/api\/exec-queue\/requeue"/);
+  assert.match(branch, /result: "timeout"/);
 });
