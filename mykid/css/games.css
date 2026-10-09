@@ -598,6 +598,8 @@
   font-size: 25px;
 }
 .kid-youtube-title {
+  align-self: flex-start;
+  max-width: calc(100% - 124px);
   margin: 0;
   color: var(--c-ink);
   font-size: 14px;
@@ -605,6 +607,8 @@
   text-align: right;
 }
 .kid-youtube-fallback {
+  align-self: flex-start;
+  max-width: calc(100% - 124px);
   display: inline-flex;
   justify-content: center;
   padding: 8px 12px;
