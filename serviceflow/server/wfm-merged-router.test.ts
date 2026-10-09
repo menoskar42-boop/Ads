@@ -72,3 +72,25 @@ test("WFM modules are injected into the page with a verified fallback to the san
   const accept = us.slice(us.indexOf("function sfAcceptModule() {"), us.indexOf("log('TE FCC + WFM + OSS + SubInfo v"));
   for (const m of [cancel, accept]) assert.match(m, /const PAGE_WIN = \(typeof unsafeWindow !== "undefined" && unsafeWindow\) \|\| window;/);
 });
+
+// المالك ٢٠٢٦-١٠-٠٩: «إعادة إسناد» طلّعت «مفيش sf_mode محفوظ ولا فى الهاش». WFM حوّل التاب على
+// صفحة الدخول، والدخول رجّعه على Home من غير الهاش — الرقم كان متحفظ عند document-start بس
+// الوضع وكود العامل كانوا بيتحفظوا بعد الدخول بس. دلوقتى الاتنين مع الرقم فى نفس اللحظة.
+test("reassign/cancel mode and worker code are pinned at document-start with the number", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../te-fcc-wfm-oss-subinfo.user.js", import.meta.url), "utf8");
+  const fnSrc = src.slice(src.indexOf("function sfWfmCancelExtras(h) {"), src.indexOf("/* التقاط علامة وضع المراجعة"));
+  const store = new Map<string, string>();
+  const sessionStorage = { setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k), getItem: (k: string) => store.get(k) ?? null };
+  const fn = new Function("sessionStorage", fnSrc + "; return sfWfmCancelExtras;")(sessionStorage);
+  fn("sf_cancel=2657597&sf_mode=reassign&sf_worker=347817");
+  assert.equal(store.get("sf_wfm_cancel_mode"), "reassign");
+  assert.equal(store.get("sf_wfm_cancel_worker"), "347817");
+  // طلب جديد من غير عامل ⇒ مايورثش وضع/عامل الطلب القديم
+  fn("sf_cancel=2650001&sf_mode=cancel");
+  assert.equal(store.get("sf_wfm_cancel_mode"), "cancel");
+  assert.equal(store.has("sf_wfm_cancel_worker"), false);
+  // بيتنادى عند document-start مع الرقم، ومن hashchange على تاب متعاد استخدامه
+  assert.match(src, /if \(_mc\) \{ try \{ sessionStorage\.setItem\('sf_wfm_cancel_pending', _mc\[1\]\); \} catch \(e\) \{\} \}[\s\S]{0,600}if \(_mc\) sfWfmCancelExtras\(_h\);/);
+  assert.match(src, /if \(mc\) sfWfmCancelExtras\(h\);/);
+});
