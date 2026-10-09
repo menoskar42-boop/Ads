@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex, nofollow" />
-<title>مراقب السرعة — تطبيق شاشة العربية</title>
+<title>مراقب السرعة — تنبيه صوتى لسرعة عربيتك</title>
 <%- include('_style') %>
 <style>
   .hero { display: grid; gap: 20px; grid-template-columns: 1.3fr 1fr; align-items: center; margin: 8px 0 28px; }
@@ -21,14 +21,13 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">مراقب السرعة <small>من OscarDevs — نسخة تجريبية</small></div>
-    <a class="btn ghost" href="/fleet">لوحة الشركات</a>
   </header>
 
   <div class="hero">
     <div>
-      <h1>إنذار صوتى للسواق قبل ما السرعة تعدّى حدّك</h1>
-      <p class="muted">تطبيق أندرويد على شاشة العربية بيقيس السرعة بالـGPS وهى ماشية، وبيقول بصوت عربى
-        لما تعدّى الحد اللى انت محدده — وبيوطّى الأغانى وقت الإنذار.</p>
+      <h1>حدّد سرعتك، والتطبيق ينبّهك بصوت لما توصلها</h1>
+      <p class="muted">نزّله على شاشة عربيتك الأندرويد (أو موبايلك)، اختار السرعة اللى مش عايز تعدّيها،
+        وسيبه شغّال. أول ما توصلها بيقولك بصوت عربى — وبيوطّى الأغانى وقت التنبيه.</p>
       <% if (notReady) { %><div class="note err">ملف التطبيق لسه بيتجهّز — جرّب تانى بعد شوية.</div><% } %>
       <p style="margin-top:16px"><a class="btn big" href="/download">تحميل التطبيق (APK)</a></p>
       <p class="muted">أندرويد ٧ وأحدث · من غير Google Play (لسه) · لو عندك نسخة قديمة امسحها الأول.</p>
@@ -44,7 +43,7 @@
   <div class="grid" style="margin-bottom:16px">
     <div class="card feat"><h3>قياس من الأقمار نفسها</h3><p class="muted">السرعة من إشارة الـGPS (Doppler) مش من فرق المكان، ومعاها عدد الأقمار ودقة القياس على الشاشة.</p></div>
     <div class="card feat"><h3>من غير إنذار كاذب</h3><p class="muted">قراءة واحدة شاذة مابتعملش إنذار — لازم يفضل فوق الحد، وبيكرر كل ١٠ ثوانى لحد ما تهدّى.</p></div>
-    <div class="card feat"><h3>للشركات</h3><p class="muted">صاحب الشركة بيحدد الحد لكل العربيات، وكل تجاوز بيوصله: مين السواق، إمتى، وصل لكام، قد إيه، وفين.</p></div>
+    <div class="card feat"><h3>بسيط</h3><p class="muted">مفيش حساب ولا تسجيل: تفتحه يبدأ يقيس، و+ و− للسرعة. وممكن يشتغل لوحده أول ما العربية تدور.</p></div>
   </div>
 
   <div class="card">
@@ -53,10 +52,13 @@
       <li>افتح الصفحة دى من متصفح شاشة العربية واضغط «تحميل التطبيق».</li>
       <li>لو ظهرت «تثبيت من مصادر غير معروفة» — اسمح للمتصفح مرة واحدة.</li>
       <li>افتح التطبيق واسمح بالموقع والإشعارات، واضغط «اختبار الصوت».</li>
-      <li>حدّد الحد واضغط «ابدأ» — أو لو تبع شركة: اكتب كود الشركة واسمك.</li>
+      <li>حدّد السرعة بـ + و − — وخلاص، التطبيق بيقيس وبينبّهك.</li>
     </ol>
     <p class="muted">للدقة: خلّى الـGPS شغّال والإنترنت متاح أول ما تبدأ — بيساعد الـGPS يلقط الأقمار أسرع.</p>
   </div>
+
+  <p class="muted" style="margin-top:20px;text-align:center">عندك شركة وعربيات؟ التطبيق نفسه بيبعتلك تقرير
+    بتجاوزات كل سواق — <a href="/fleet">لوحة الشركات</a>.</p>
 </div>
 </body>
 </html>

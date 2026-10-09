@@ -43,6 +43,10 @@ class MainActivity : Activity() {
     private lateinit var minusBtn: Button
     private lateinit var plusBtn: Button
     private lateinit var fleetBox: LinearLayout
+    /** قسم الشركة مقفول افتراضياً — الاستخدام الأساسى فرد بيحدد سرعته (المالك ٢٠٢٦-١٠-٠٩). */
+    private var fleetOpen = false
+    /** آخر حالة اتبنى عليها قسم الشركة — بيتعاد بناؤه بس لما تتغيّر (مش مع كل قراءة GPS). */
+    private var fleetKey = ""
 
     private val bg = Color.parseColor("#0B1016")
     private val card = Color.parseColor("#151D27")
@@ -58,6 +62,8 @@ class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(buildUi())
         askPermissions()
+        // استخدام بسيط: فتح التطبيق = يبدأ يقيس على طول (لو الإذن والـGPS جاهزين)
+        autoStartIfReady()
     }
 
     override fun onResume() {
@@ -125,7 +131,7 @@ class MainActivity : Activity() {
         root.addView(row2)
 
         // الشركة
-        fleetBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; background = box(); setPadding(dp(14), dp(12), dp(14), dp(14)) }
+        fleetBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(14)) }
         root.addView(fleetBox)
 
         root.addView(TextView(this).apply {
@@ -136,7 +142,20 @@ class MainActivity : Activity() {
     }
 
     private fun renderFleet() {
+        val key = "${prefs.inFleet}|$fleetOpen|${prefs.fleetName}|${SpeedService.State.pending}"
+        if (key == fleetKey) return   // من غير كده كانت الخانات بتتمسح وانت بتكتب (كل قراءة GPS)
+        fleetKey = key
         fleetBox.removeAllViews()
+        if (!prefs.inFleet && !fleetOpen) {
+            fleetBox.background = null
+            fleetBox.addView(TextView(this).apply {
+                text = "تبع شركة؟"; textSize = 14f; setTextColor(accent); gravity = Gravity.CENTER
+                setPadding(0, dp(8), 0, dp(8))
+                setOnClickListener { fleetOpen = true; render() }
+            })
+            return
+        }
+        fleetBox.background = box()
         val title = TextView(this).apply { textSize = 17f; setTextColor(ink); typeface = Typeface.DEFAULT_BOLD }
         fleetBox.addView(title)
         if (prefs.inFleet) {
@@ -147,7 +166,7 @@ class MainActivity : Activity() {
                 textSize = 14f; setTextColor(muted); setPadding(0, dp(4), 0, dp(8))
             })
             fleetBox.addView(smallButton("خروج من الشركة") {
-                prefs.leaveFleet(); render()
+                prefs.leaveFleet(); fleetOpen = false; render()
             })
         } else {
             title.text = "تبع شركة؟"
@@ -156,6 +175,10 @@ class MainActivity : Activity() {
             val name = input("اسم السواق", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS)
             fleetBox.addView(code); fleetBox.addView(name)
             fleetBox.addView(smallButton("انضمام") { join(code.text.toString().trim(), name.text.toString().trim()) })
+            fleetBox.addView(TextView(this).apply {
+                text = "إلغاء"; textSize = 14f; setTextColor(muted); setPadding(0, dp(8), 0, 0)
+                setOnClickListener { fleetOpen = false; render() }
+            })
         }
     }
 
@@ -240,7 +263,17 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        autoStartIfReady()
         render()
+    }
+
+    private fun autoStartIfReady() {
+        if (SpeedService.State.running) return
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
+        val lm = getSystemService(LOCATION_SERVICE) as android.location.LocationManager
+        if (!lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)) return   // الرسالة على الشاشة بتقول يفتحه
+        try { SpeedService.start(this) } catch (_: Exception) {}
+        main.postDelayed({ render() }, 300)
     }
 
     /* ───────── أدوات ───────── */

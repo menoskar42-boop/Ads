@@ -17,6 +17,13 @@ class SpeedLogicTest {
         assertEquals(78, l.speedKmh!!.toInt())
     }
 
+    @Test fun reachingTheLimitAlerts() {
+        // «لما يوصل لسرعة معينة»: الحد ٨٠ ⇒ ٨٠ بالظبط بتنبّه، و٧٩ لأ
+        assertTrue(drive(SpeedLogic(), List(5) { 79f }, 80).isEmpty())
+        val ev = drive(SpeedLogic(), List(5) { 80f }, 80)
+        assertEquals(80, ev.filterIsInstance<Event.Alert>().first().speedKmh)
+    }
+
     @Test fun singleSpikeDoesNotAlert() {
         val l = SpeedLogic()
         assertTrue(drive(l, listOf(70f, 70f, 120f, 70f, 70f), 80).isEmpty())

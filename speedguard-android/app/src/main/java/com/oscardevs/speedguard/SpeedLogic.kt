@@ -16,7 +16,8 @@ import kotlin.math.sqrt
  *
  * ضد الإنذار الكاذب:
  *   • قرار الإنذار على **وسيط آخر ٣ قراءات** — قراءة واحدة شاذة مابتعملش إنذار.
- *   • لازم قراءتين متتاليتين فوق الحد عشان يبدأ التجاوز.
+ *   • الإنذار «لما يوصل» للحد (≥) — كلام المالك: «لما يوصل لسرعة معينة». الحد ٨٠ ⇒ ٨٠ بتنبّه.
+ *   • لازم قراءتين متتاليتين عند الحد أو فوقه عشان يبدأ التجاوز.
  *   • الخروج من التجاوز لما ينزل **تحت الحد بـ ٢ كم** ٣ قراءات (مايفضلش يرنّ على الحد).
  *   • دقة مكان أسوأ من ٥٠ م = القراءة مابتدخلش فى القرار.
  */
@@ -86,7 +87,7 @@ class SpeedLogic {
         val m = median(recent)
 
         if (episodeStart == null) {
-            if (m > limitKmh) {
+            if (m >= limitKmh) {
                 aboveCount++
                 if (aboveCount == 1) { lastAboveMs = f.timeMs; episodeLat = f.lat; episodeLng = f.lng }
                 if (aboveCount >= START_FIXES) {
@@ -107,8 +108,8 @@ class SpeedLogic {
             } else {
                 belowCount = 0
                 lastAboveMs = f.timeMs
-                if (m > limitKmh) lastOverMs = f.timeMs
-                if (m > limitKmh && f.timeMs - lastAlertMs >= REPEAT_MS) {
+                if (m >= limitKmh) lastOverMs = f.timeMs
+                if (m >= limitKmh && f.timeMs - lastAlertMs >= REPEAT_MS) {
                     lastAlertMs = f.timeMs
                     events += Event.Alert(m.toInt(), limitKmh, first = false)
                 }
