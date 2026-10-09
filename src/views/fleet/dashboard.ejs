@@ -1,0 +1,105 @@
+<%
+  var fmt = function (d) { return d ? new Date(d).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'; };
+  var dur = function (s) { s = Number(s) || 0; return s < 60 ? s + ' ث' : Math.floor(s / 60) + ' د ' + (s % 60) + ' ث'; };
+  var total = rows.length;
+  var top = rows.reduce(function (m, r) { return Math.max(m, r.max_speed); }, 0);
+  var q = 'from=' + from + '&to=' + to + (driverId ? '&driver=' + driverId : '');
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>مخالفات السرعة — <%= fleet.name %></title>
+<%- include('_style') %>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><%= fleet.name %> <small>مراقب السرعة — لوحة صاحب الشركة</small></div>
+    <form method="post" action="/fleet/logout"><button class="ghost" type="submit">خروج</button></form>
+  </header>
+
+  <% if (isNew) { %><div class="note ok">اتعمل الحساب. ادّى السواقين الكود اللى تحت، ونزّلهم التطبيق من صفحة التحميل.</div><% } %>
+  <% if (saved) { %><div class="note ok">اتحفظ حد السرعة — هيوصل للتطبيقات خلال دقيقة.</div><% } %>
+
+  <div class="grid" style="margin-bottom:16px">
+    <div class="card">
+      <h2>كود الانضمام للسواقين</h2>
+      <span class="code"><%= fleet.join_code %></span>
+      <p class="muted" style="margin-top:8px">السواق بيكتبه فى التطبيق مع اسمه مرة واحدة. ده كمان كود دخولك هنا.
+        <a href="/fleet/app">لينك تحميل التطبيق</a></p>
+    </div>
+    <form class="card" method="post" action="/fleet/limit">
+      <h2>حد السرعة لكل العربيات</h2>
+      <div class="row">
+        <div>
+          <label for="lim">كم/ساعة</label>
+          <input id="lim" name="speed_limit" type="number" min="<%= LIMIT_MIN %>" max="<%= LIMIT_MAX %>" step="1" value="<%= fleet.speed_limit %>" required />
+        </div>
+        <button type="submit">حفظ</button>
+      </div>
+      <p class="muted" style="margin-top:8px">التطبيق بينبّه السواق بصوت لما يعدّيه، والسواق مايقدرش يغيّره.</p>
+    </form>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <h2>السواقين (<%= drivers.length %>)</h2>
+    <% if (!drivers.length) { %>
+      <p class="muted">لسه مفيش سواق انضم. نزّل التطبيق على شاشة العربية واكتب الكود <b dir="ltr"><%= fleet.join_code %></b> واسم السواق.</p>
+    <% } else { %>
+    <div class="table-wrap"><table>
+      <thead><tr><th>السواق</th><th>المخالفات فى الفترة</th><th>أعلى سرعة</th><th>إجمالى وقت التجاوز</th><th>آخر ظهور</th><th>الحالة</th><th></th></tr></thead>
+      <tbody>
+      <% drivers.forEach(function (d) { %>
+        <tr>
+          <td><a href="/fleet/dashboard?from=<%= from %>&to=<%= to %>&driver=<%= d.id %>"><%= d.name %></a></td>
+          <td><% if (d.n) { %><span class="pill warn"><%= d.n %></span><% } else { %><span class="pill ok">٠</span><% } %></td>
+          <td><%= d.top ? Math.round(d.top) + ' كم/س' : '—' %></td>
+          <td><%= d.secs ? dur(d.secs) : '—' %></td>
+          <td><%= fmt(d.last_seen_at) %></td>
+          <td><span class="pill <%= d.active ? 'ok' : 'off' %>"><%= d.active ? 'شغّال' : 'موقوف' %></span></td>
+          <td><form method="post" action="/fleet/drivers/<%= d.id %>/toggle"><button class="ghost" type="submit"><%= d.active ? 'إيقاف' : 'تشغيل' %></button></form></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>المخالفات</h2>
+    <form class="row" method="get" action="/fleet/dashboard" style="margin-bottom:12px">
+      <div><label for="from">من</label><input id="from" type="date" name="from" value="<%= from %>" /></div>
+      <div><label for="to">إلى</label><input id="to" type="date" name="to" value="<%= to %>" /></div>
+      <div><label for="drv">السواق</label>
+        <select id="drv" name="driver">
+          <option value="">الكل</option>
+          <% drivers.forEach(function (d) { %><option value="<%= d.id %>" <%= driverId === d.id ? 'selected' : '' %>><%= d.name %></option><% }) %>
+        </select></div>
+      <button type="submit">عرض</button>
+      <a class="btn ghost" href="/fleet/dashboard.csv?<%= q %>">تصدير Excel</a>
+    </form>
+    <p class="muted"><span class="stat"><%= total %></span> مخالفة فى الفترة<%= total ? ' — أعلى سرعة ' + Math.round(top) + ' كم/س' : '' %></p>
+    <% if (total) { %>
+    <div class="table-wrap"><table>
+      <thead><tr><th>السواق</th><th>إمتى</th><th>أقصى سرعة</th><th>الحد</th><th>المدة</th><th>المكان</th></tr></thead>
+      <tbody>
+      <% rows.forEach(function (r) { %>
+        <tr>
+          <td><%= r.driver_name %></td>
+          <td><%= fmt(r.started_at) %></td>
+          <td><b><%= Math.round(r.max_speed) %></b> كم/س <span class="pill warn">+<%= Math.round(r.max_speed - r.speed_limit) %></span></td>
+          <td><%= r.speed_limit %></td>
+          <td><%= dur(r.duration_s) %></td>
+          <td><% if (r.lat != null) { %><a href="https://maps.google.com/?q=<%= r.lat %>,<%= r.lng %>" target="_blank" rel="noopener">على الخريطة</a><% } else { %>—<% } %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table></div>
+    <% } %>
+  </div>
+</div>
+</body>
+</html>

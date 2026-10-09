@@ -698,6 +698,9 @@ app.use('/nursery', require('./src/routes/nursery_admin'));
 app.use('/qastly/s', require('./src/routes/installments_public'));
 app.use('/qastly', require('./src/routes/installments_admin'));
 app.use('/nutrition', require('./src/routes/nutrition_admin'));
+// «مراقب السرعة» للأساطيل (٢٠٢٦-١٠-٠٩) — تجريبى: noindex ومش فى السايت‌ماب ولا llms.txt
+// لحد ما المالك يوافق (scripts/check-fleet.js).
+app.use('/fleet', require('./src/routes/fleet'));
 // Research Data Auditor — standalone AI tool, no DB tables, stateless.
 
 // Super admin panel must be before tenant middleware too
@@ -2039,6 +2042,7 @@ const { ensureNurserySchema } = require('./src/nursery/schema');
 const { ensureInstallmentsSchema } = require('./src/installments/schema');
 const { ensureNutritionSchema } = require('./src/nutrition/schema');
 const { ensureSokroSchema } = require('./sokro/schema');
+const { ensureFleetSchema } = require('./src/fleet/schema');
 const { syncMedicinesSafe } = require('./src/pharmacy/medicine_sync');
 initDb()
   .then(() => ensurePharmacySchema())
@@ -2056,6 +2060,7 @@ initDb()
   .then(() => ensureInstallmentsSchema())
   .then(() => ensureNutritionSchema())
   .then(() => ensureSokroSchema())
+  .then(() => ensureFleetSchema())
   // Auto-import the full Egyptian medicines catalog once the tables exist.
   // Runs in the background, is staleness-gated (won't re-download if fresh),
   // and can never crash boot. A daily timer keeps a long-running instance

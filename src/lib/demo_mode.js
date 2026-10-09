@@ -187,6 +187,8 @@ const PUBLIC_INSIDE_BACK_OFFICE = [/^\/workshop\/status(?:\/|$)/, /^\/qastly\/s(
 const NOT_BACK_OFFICE = [
   '/admin', '/shop', '/customer', '/radiology', '/research', '/portal', '/track',
   '/workshop/status', '/qastly/s', '/',
+  // «مراقب السرعة»: حسابات أساطيل منفصلة بكلمة سرها — مش لوحة شركة، ومالهاش جلسة عرض
+  '/fleet',
 ];
 
 function isBackOfficePath(path) {

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>مراقب السرعة للأساطيل</title>
+<%- include('_style') %>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">مراقب السرعة <small>OscarDevs — نسخة تجريبية</small></div>
+    <a class="btn ghost" href="/fleet/app">تحميل التطبيق</a>
+  </header>
+
+  <h1>تقرير سرعة لكل سواق فى شركتك</h1>
+  <p class="muted">تطبيق على شاشة العربية بيقيس السرعة بالـGPS وبينبّه السواق بصوت لما يعدّى الحد اللى انت محدده.
+    وكل تجاوز بيوصلك هنا: مين السواق، إمتى، وصل لكام، وقعد قد إيه، وفين.</p>
+
+  <% if (error) { %>
+    <div class="note err" role="alert">
+      <%= error === 'login' ? 'كود الشركة أو كلمة السر غلط.'
+        : error === 'name' ? 'اكتب اسم الشركة (حرفين على الأقل).'
+        : error === 'password' ? 'كلمة السر لازم تكون ٦ حروف على الأقل.'
+        : 'حصل خطأ — جرّب تانى.' %>
+    </div>
+  <% } %>
+
+  <div class="grid">
+    <form class="card" method="post" action="/fleet/create">
+      <h2>شركة جديدة</h2>
+      <p class="muted">هتاخد <b>كود</b> تدّيه للسواقين يكتبوه فى التطبيق مرة واحدة.</p>
+      <label for="cname">اسم الشركة</label>
+      <input id="cname" name="name" required minlength="2" maxlength="80" autocomplete="organization" />
+      <label for="cpass">كلمة السر (للوحة بتاعتك)</label>
+      <input id="cpass" name="password" type="password" required minlength="6" autocomplete="new-password" />
+      <p style="margin-top:14px"><button type="submit">إنشاء الحساب</button></p>
+    </form>
+
+    <form class="card" method="post" action="/fleet/login">
+      <h2>عندك حساب</h2>
+      <label for="lcode">كود الشركة</label>
+      <input id="lcode" name="code" required maxlength="12" dir="ltr" autocapitalize="characters" autocomplete="username" />
+      <label for="lpass">كلمة السر</label>
+      <input id="lpass" name="password" type="password" required autocomplete="current-password" />
+      <p style="margin-top:14px"><button type="submit">دخول</button></p>
+    </form>
+  </div>
+</div>
+</body>
+</html>
