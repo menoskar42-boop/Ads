@@ -92,7 +92,9 @@ function describe(j: Job): string {
       return (d.accounts || []).map((a: any) =>
         `${a.phone}: ${a.accountNo || "مفيش أكونت"}${a.source ? ` (${a.source})` : ""}`).join(" — ") || "—";
     case "wfmcancel":
-      return `${d.mode}${d.workerName ? ` · الفنى: ${d.workerName}` : ""}${d.worker ? ` (كود ${d.worker})` : ""}`;
+      return `${d.mode}${d.workerName ? ` · الفنى: ${d.workerName}` : ""}${d.worker ? ` (كود ${d.worker})` : ""}`
+        // النتيجة اللى رجعت من WFM: اتنفّذ، أو سبب الوقوف (❌/⚠️)
+        + (d.result ? ` — ${d.result}${d.inThisJob ? "" : " (نتيجة قديمة)"} · ${fmt(d.at)}` : " — مافيش نتيجة رجعت من WFM فى المهمة دى");
     case "wfmaccept":
       return d.result
         ? `${WFM_ACCEPT_AR[d.result] || d.result}${d.workId ? ` · Work Id ${d.workId}` : ""}${d.inThisJob ? "" : " (نتيجة قديمة)"} · ${fmt(d.at)}`

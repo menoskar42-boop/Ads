@@ -94,3 +94,19 @@ test("reassign/cancel mode and worker code are pinned at document-start with the
   assert.match(src, /if \(_mc\) \{ try \{ sessionStorage\.setItem\('sf_wfm_cancel_pending', _mc\[1\]\); \} catch \(e\) \{\} \}[\s\S]{0,600}if \(_mc\) sfWfmCancelExtras\(_h\);/);
   assert.match(src, /if \(mc\) sfWfmCancelExtras\(h\);/);
 });
+
+// المالك ٢٠٢٦-١٠-٠٩: «فضل معلّق ٤ دقايق» — الوقوف النهائى ماكانش بيتبلّغ، فجهاز التنفيذ يستنى مهلته.
+test("every final stop of cancel/reassign is reported with its reason so the executor moves on", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../te-fcc-wfm-oss-subinfo.user.js", import.meta.url), "utf8");
+  const mod = src.slice(src.indexOf("function sfCancelModule() {"), src.indexOf("function sfAcceptModule() {"));
+  assert.match(mod, /async function sfReportStop\(phone, why\) \{\s*const r = await sfReportCancel\(phone, why\);/);
+  for (const why of ["الوضع (إلغاء/إسناد) ضاع", "إسناد من غير كود عامل", "مفيش مهمة للرقم فى Tasks Queue",
+                     "كل المهام Completed", "» مش متاحة", "مااتمّش", "حالة السطر ما اتغيّرتش", "استنفد محاولات فتح WFM"]) {
+    assert.ok(mod.includes(why), why);
+  }
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  assert.match(routes, /result: r0\?\.assignment_status \?\? null, at: r0\?\.canceled_at \?\? null,/);
+  const ui = readFileSync(new URL("../client/src/components/ExecBatchDetails.tsx", import.meta.url), "utf8");
+  assert.match(ui, /مافيش نتيجة رجعت من WFM فى المهمة دى/);
+});

@@ -3054,6 +3054,15 @@ export async function registerRoutes(
            FROM oss_reexecs WHERE key_value = ANY($1::text[]) ORDER BY key_value, reported_at DESC`, [rxKeys])).rows,
         (r) => String(r.k)) : new Map();
 
+      // إلغاء/إعادة إسناد على WFM: آخر نتيجة لكل رقم (نجاح أو سبب الوقوف — v3.6.7 من السكربت)
+      const wcKeys = keysOf("wfmcancel").map((k: string) => String(k).replace(/\D/g, "").replace(/^88/, ""));
+      const wcx = wcKeys.length ? M<any>((await pool.query(
+        `SELECT DISTINCT ON (k) k, assignment_status, canceled_at FROM (
+           SELECT ${sp("phone_number")} AS k, assignment_status, canceled_at FROM wfm_task_cancels
+            WHERE ${sp("phone_number")} = ANY($1::text[])) x
+          ORDER BY k, canceled_at DESC`, [wcKeys])).rows,
+        (r) => String(r.k)) : new Map();
+
       // مراجعة الاسم والعنوان من FCC
       const siKeys = keysOf("subinfo");
       const si = siKeys.length ? M<any>((await pool.query(
@@ -3129,9 +3138,12 @@ export async function registerRoutes(
             return { phone: a, accountNo: a0?.account_no ?? null, source: a0?.source ?? null, at: a0?.updated_at ?? null };
           }) };
         } else if (j.type === "wfmcancel") {
+          const r0 = wcx.get(String(key).replace(/\D/g, "").replace(/^88/, "")) as any;
           detail = {
             mode: p.mode === "reassign" ? "إعادة إسناد (Re-assign)" : "إلغاء إسناد (Cancel)",
             worker: p.worker ?? null, workerName: p.workerName ?? null,
+            result: r0?.assignment_status ?? null, at: r0?.canceled_at ?? null,
+            inThisJob: r0 ? at(r0.canceled_at) >= at(j.claimedAtRaw) : false,
           };
         } else if (j.type === "ossreexec") {
           const r0 = orx.get(String(key).replace(/\D/g, "")) as any;
