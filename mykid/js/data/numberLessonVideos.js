@@ -24,6 +24,18 @@ const DIRECT_VIDEOS = {
     videoId: "O-H6QBnNeLA",
     title: "طريقة ممتازة لكتابة Number (5) للأطفال — مس إلهام",
   },
+  6: {
+    videoId: "JVTR94HSXRY",
+    title: "كتابة Number (6) للأطفال — مس إلهام",
+  },
+  8: {
+    videoId: "DLe_1ElfsA4",
+    title: "كتابة Number (8) للأطفال — مس إلهام",
+  },
+  9: {
+    videoId: "BtT55VMemPE",
+    title: "كتابة Number (9) للأطفال — مس إلهام",
+  },
 };
 
 export function getNumberLessonVideo(value) {
