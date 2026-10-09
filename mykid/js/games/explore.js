@@ -6,6 +6,8 @@ import { Sfx } from "../core/audio.js";
 import { awardStars } from "../core/rewards.js";
 import { gameTopbar, finishActivity } from "./common.js";
 import { glyphMarkup } from "./glyph.js";
+import { getColorLessonVideo } from "../data/colorLessonVideos.js";
+import { createYouTubePlayer } from "../core/youtube-player.js";
 
 export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, sound }) {
   const ds = getDataset(datasetKey);
@@ -51,6 +53,16 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
     grid.appendChild(card);
   });
   screen.appendChild(grid);
+
+  if (datasetKey === "colors") {
+    const video = getColorLessonVideo("explore");
+    if (video) {
+      const videoWrap = document.createElement("div");
+      videoWrap.style.cssText = "width:calc(100% - 28px);max-width:720px;margin:12px auto 18px";
+      videoWrap.appendChild(createYouTubePlayer(video));
+      screen.appendChild(videoWrap);
+    }
+  }
 
   const doneBtn = document.createElement("button");
   doneBtn.className = "candy-btn";

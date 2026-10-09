@@ -28,6 +28,10 @@ const DIRECT_VIDEOS = {
     videoId: "JVTR94HSXRY",
     title: "كتابة Number (6) للأطفال — مس إلهام",
   },
+  7: {
+    videoId: "-loCJzBjIZM",
+    title: "كتابة Number (7) للأطفال — مس إلهام",
+  },
   8: {
     videoId: "DLe_1ElfsA4",
     title: "كتابة Number (8) للأطفال — مس إلهام",
@@ -35,6 +39,10 @@ const DIRECT_VIDEOS = {
   9: {
     videoId: "BtT55VMemPE",
     title: "كتابة Number (9) للأطفال — مس إلهام",
+  },
+  10: {
+    videoId: "MhPRkdfz-WQ",
+    title: "كتابة Number (10) للأطفال — مس إلهام",
   },
 };
 
