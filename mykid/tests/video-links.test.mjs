@@ -9,6 +9,7 @@ import { getActivityLessonVideo } from "../js/data/activityLessonVideos.js";
 import { ACTIVITIES } from "../js/data/activities.js";
 import { getEnglishLetterLessonVideo } from "../js/data/englishLetterLessonVideos.js";
 import { getNumberLessonVideo } from "../js/data/numberLessonVideos.js";
+import { getDataset } from "../js/data/datasets.js";
 
 const EXPECTED_NUMBER_IDS = [
   "DQNbBA9UKyY",
@@ -205,6 +206,63 @@ test("Numbers City offers the English number lesson with zero and matching video
   assert.ok(activity, "Numbers City must include an English number teacher activity");
   assert.equal(activity.screen, "lesson");
   assert.equal(activity.params.includeZero, true, "The English lesson must start with zero");
+});
+
+test("trace-from-lesson keeps focus on every tested number and letter", async () => {
+  const cases = [
+    {
+      datasetKey: "numbers",
+      includeZero: true,
+      items: [
+        { value: 0, arDigit: "٠", arName: "صفر" },
+        ...getDataset("numbers").items.slice(0, 10),
+      ],
+    },
+    {
+      datasetKey: "englishNumbers",
+      includeZero: true,
+      items: [
+        { value: 0, char: "0", name: "zero" },
+        ...getDataset("englishNumbers").items,
+      ],
+    },
+    { datasetKey: "arabic", includeZero: false, items: getDataset("arabic").items },
+    { datasetKey: "english", includeZero: false, items: getDataset("english").items },
+  ];
+  const expected = cases.flatMap(({ datasetKey, includeZero, items }) => {
+    const noun = getDataset(datasetKey).glyphKind === "number" ? "الرقم" : "الحرف";
+    return items.map((item) => ({
+      datasetKey,
+      includeZero,
+      focus: item.char || item.arDigit || item.name,
+      heading: `تتبّع ${noun}: ${item.name || item.arName || ""}`,
+    }));
+  });
+
+  const actual = await page.evaluate(async (traceCases) => {
+    const { renderTrace } = await import("/js/games/trace.js");
+    const originalRandom = Math.random;
+    Math.random = () => 0;
+    try {
+      const headings = [];
+      for (const traceCase of traceCases) {
+        const screen = renderTrace({
+          datasetKey: traceCase.datasetKey,
+          focus: traceCase.focus,
+          includeZero: traceCase.includeZero,
+          returnLesson: true,
+        });
+        document.body.replaceChildren(screen);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        headings.push(screen.querySelector(".stage p")?.textContent || null);
+      }
+      return headings;
+    } finally {
+      Math.random = originalRandom;
+    }
+  }, expected);
+
+  assert.deepEqual(actual, expected.map((traceCase) => traceCase.heading));
 });
 
 async function renderLessonSequence(datasetKey, includeZero = false, length = 26) {

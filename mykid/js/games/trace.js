@@ -15,7 +15,10 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang;
   const noun = ds.glyphKind === "number" ? "الرقم" : "الحرف";
-  const zeroItem = { value: 0, arDigit: "٠", arName: "صفر", enName: "zero" };
+  const isEnglishNumber = datasetKey === "englishNumbers";
+  const zeroItem = isEnglishNumber
+    ? { value: 0, char: "0", name: "zero", enName: "zero" }
+    : { value: 0, arDigit: "٠", arName: "صفر", enName: "zero" };
   const traceItems = includeZero && ds.glyphKind === "number" ? [zeroItem, ...ds.items] : ds.items;
   let letters = shuffle(traceItems).slice(0, TRACE_COUNT);
   // إن طُلب حرف/رقم محدّد (من معلّم الحروف) نجعله أول ما يُكتب
