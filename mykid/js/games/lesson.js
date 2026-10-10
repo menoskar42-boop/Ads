@@ -13,6 +13,7 @@ import { adaptDisplay, femAdapt } from "../data/mizo.js";
 import { getNumberLessonVideo } from "../data/numberLessonVideos.js";
 import { getEnglishLetterLessonVideo } from "../data/englishLetterLessonVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
+import { bothCases } from "../data/englishLetters.js";
 
 export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, startChar, motivate, includeZero = false }) {
   const ds = getDataset(datasetKey);
@@ -27,6 +28,8 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
 
   const glyphOf = (it) => it.char || it.arDigit || it.name;
   const labelOf = (it) => it.name || it.arName || "";
+  // الإنجليزى بيظهر كابيتال وصغير مع بعض «Aa» — المفتاح (الفيديو، «اكتبه») فاضل الكابيتال
+  const shownOf = (it) => (it.lower ? bothCases(it) : glyphOf(it));
 
   // عند العودة من "اكتبه" نبدأ عند نفس الحرف الذي كتبه الطفل
   let idx = 0;
@@ -84,7 +87,7 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
       button.type = "button";
       button.className = "lesson-item-picker-button";
       button.dataset.lessonIndex = String(itemIndex);
-      button.textContent = glyphOf(item);
+      button.textContent = shownOf(item);
       button.setAttribute("aria-label", `${ds.glyphKind === "number" ? "الرقم" : "الحرف"} ${glyphOf(item)}`);
       button.setAttribute("aria-pressed", itemIndex === idx ? "true" : "false");
       button.addEventListener("click", () => {
@@ -144,6 +147,8 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
       ? `This is number ${label}`
       : `هذا ${noun} ${label}`;
     parts.push({ text: description, lang: speakLang });
+    const twoCases = it.lower && it.lower !== it.char;
+    if (twoCases) parts.push({ text: `Capital ${it.char}, small ${it.lower}`, lang: "en-US" });
     if (it.word) {
       parts.push({ text: isAr ? `${label} مثل ${it.word}` : `${label} for ${it.word}`, lang: speakLang });
     }
@@ -154,7 +159,7 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
       ? `${greetHtml}This is number <b>${label}</b>`
       // greetHtml فى الفرعين — من غيره ترحيب ميزو كان بيتنطق ومايظهرش فى الفقاعة (٢٠٢٦-١٠-١٠)
       : greetHtml + (it.word
-      ? `هذا ${noun} «${label}» ${it.emoji || ""}<br>${isAr ? `${label} مثل ${it.word}` : `${label} for ${it.word}`}`
+      ? `هذا ${noun} «${label}» ${it.emoji || ""}<br>${twoCases ? `كابيتال <b>${it.char}</b> · صغير <b>${it.lower}</b><br>` : ""}${isAr ? `${label} مثل ${it.word}` : `${label} for ${it.word}`}`
       : `هذا ${noun} «${label}»`);
 
     speak(parts);
@@ -184,7 +189,8 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
 
   function render() {
     const it = items[idx];
-    glyphEl.textContent = glyphOf(it);
+    glyphEl.textContent = shownOf(it);
+    glyphEl.classList.toggle("two-case", !!it.lower);
     animateWrite();
     Sfx.pop();
     wrap.querySelector("#lsPrev").disabled = idx === 0;

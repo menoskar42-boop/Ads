@@ -398,6 +398,7 @@
   line-height: 1;
   margin-bottom: 6%;
 }
+.lesson-glyph.two-case { font-size: clamp(76px, 24vw, 150px); letter-spacing: .04em; }
 .lesson-glyph.writing { animation: lesson-write 1.3s ease forwards; }
 @keyframes lesson-write {
   from { clip-path: inset(0 0 100% 0); }

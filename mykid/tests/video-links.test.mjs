@@ -327,7 +327,8 @@ test("lesson picker jumps directly to every number and letter", async () => {
   for (let caseIndex = 0; caseIndex < pickerCases.length; caseIndex += 1) {
     const expectedCase = pickerCases[caseIndex];
     const actualCase = actual[caseIndex];
-    const expectedGlyphs = expectedCase.items.map((item) => item.char || item.arDigit || item.name);
+    // الإنجليزى بيظهر كابيتال وصغير «Aa» (المالك ٢٠٢٦-١٠-١٠)
+    const expectedGlyphs = expectedCase.items.map((item) => (item.lower ? item.char + item.lower : item.char || item.arDigit || item.name));
     assert.equal(actualCase.datasetKey, expectedCase.datasetKey);
     assert.equal(actualCase.buttonCount, expectedGlyphs.length, `${expectedCase.datasetKey} picker must include every item`);
     assert.deepEqual(actualCase.selections.map((item) => item.glyph), expectedGlyphs, `${expectedCase.datasetKey} must jump to the selected item`);
@@ -430,7 +431,7 @@ test("Arabic and English number lessons plus English letters render matching vid
   const letters = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
   const expectedLetterIds = letters.map((letter) => EXPECTED_LETTER_IDS[letter]);
   const letterResults = await renderLessonSequence("english", false, letters.length);
-  assertLessonSequence(letterResults, letters, expectedLetterIds, "English letters A–Z");
+  assertLessonSequence(letterResults, letters.map((l) => l + l.toLowerCase()), expectedLetterIds, "English letters Aa–Zz");
   assert.equal(letterResults[10].cardCount, 0, "K must not render a video card");
   assert.equal(letterResults[11].cardCount, 0, "L must not render a video card");
 

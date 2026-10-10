@@ -1,6 +1,8 @@
 // ===== بيانات الحروف الإنجليزية =====
-// char: الحرف للعرض | name: اسمه للنطق | word: كلمة مثال | emoji: رمزها
-export const ENGLISH_LETTERS = [
+// char: الحرف الكابيتال (وهو المفتاح: الفيديوهات والإتقان) | lower: الصغير (small) | name: اسمه للنطق
+// word: كلمة مثال | emoji: رمزها
+// المالك ٢٠٢٦-١٠-١٠: «الحروف الإنجليزى كابيتال بس ومفيش small — اعملها الاتنين».
+const LETTERS = [
   { char: "A", name: "A", word: "Apple", emoji: "🍎" },
   { char: "B", name: "B", word: "Ball", emoji: "⚽" },
   { char: "C", name: "C", word: "Cat", emoji: "🐱" },
@@ -28,3 +30,8 @@ export const ENGLISH_LETTERS = [
   { char: "Y", name: "Y", word: "Yo-yo", emoji: "🪀" },
   { char: "Z", name: "Z", word: "Zebra", emoji: "🦓" },
 ];
+
+export const ENGLISH_LETTERS = LETTERS.map((it) => ({ ...it, lower: it.char.toLowerCase() }));
+
+/** «Aa» للعرض (الكابيتال والصغير مع بعض) — لأى عنصر مالوش صغير بيرجع نفسه. */
+export const bothCases = (it) => (it.lower && it.lower !== it.char ? it.char + it.lower : it.char);

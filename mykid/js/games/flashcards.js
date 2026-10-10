@@ -7,6 +7,7 @@ import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { Store } from "../core/storage.js";
 import { gameTopbar, glyphPicker } from "./common.js";
+import { bothCases } from "../data/englishLetters.js";
 
 export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, title }) {
   const ds = getDataset(datasetKey);
@@ -40,7 +41,7 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
 
   const subEl = document.createElement("div");
   subEl.style.cssText =
-    "font-size:clamp(15px,4vw,20px);font-weight:700;color:#fff;opacity:.95;margin-top:4px;text-align:center";
+    "font-size:clamp(15px,4vw,20px);font-weight:700;color:#fff;opacity:.95;margin-top:4px;text-align:center;white-space:pre-line";
   stage.appendChild(subEl);
 
   // أزرار التنقّل
@@ -62,7 +63,7 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
   // كل العناصر قدّامه: لمسة واحدة على الحرف/الرقم بدل «التالي» من الأول
   const picker = glyphPicker({
     items,
-    glyphOf: (it) => (kind === "letter" ? it.char : it.arDigit || it.emoji || it.name),
+    glyphOf: (it) => (kind === "letter" ? bothCases(it) : it.arDigit || it.emoji || it.name),
     label: kind === "letter" ? "اختار الحرف مباشرة" : items[0]?.arDigit != null ? "اختار الرقم مباشرة" : "اختار مباشرة",
     dir: speakLang.startsWith("en") ? "ltr" : "rtl",
     onPick: (k) => { i = k; render(); },
@@ -71,6 +72,8 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
 
   function glyphHtml(it) {
     if (kind === "letter") {
+      // الإنجليزى: الكابيتال والصغير مع بعض «Aa»
+      if (it.lower) return `<span dir="ltr" style="font-size:clamp(96px,30vw,180px);font-weight:800;color:var(--c-purple);line-height:1">${it.char}<span style="color:#ec4899">${it.lower}</span></span>`;
       return `<span style="font-size:clamp(120px,40vw,230px);font-weight:800;color:var(--c-purple);line-height:1">${it.char}</span>`;
     }
     if (it.arDigit) {
@@ -86,6 +89,7 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
       const ex = speakLang.startsWith("en") ? `${it.name} for ${it.word}` : `${it.name} مثل ${it.word}`;
       Speech.sequence([
         { text: it.name, lang: speakLang },
+        ...(it.lower ? [{ text: `Capital ${it.char}, small ${it.lower}`, lang: "en-US" }] : []),
         { text: ex, lang: speakLang },
       ]);
     } else if (it.arDigit) {
@@ -113,7 +117,10 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
     // الاسم والوصف
     if (kind === "letter") {
       nameEl.textContent = it.name;
-      subEl.textContent = `${it.char} مثل ${it.word} ${it.emoji}`;
+      // سطرين: العربى لوحده والإنجليزى لوحده (فى سطر واحد الاتجاهين بيتلخبطوا)
+      subEl.textContent = it.lower
+        ? `كابيتال ${it.char} · صغير ${it.lower}\n${it.char} for ${it.word} ${it.emoji}`
+        : `${it.char} مثل ${it.word} ${it.emoji}`;
     } else if (it.arDigit) {
       nameEl.textContent = it.arName;
       subEl.textContent = it.enName;

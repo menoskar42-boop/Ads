@@ -380,7 +380,9 @@ function writingBox() {
     <div class="pw-legend">${["mastered", "learning", "weak", "new"].map((k) => `<span class="pw-chip pw-${k}">${STATUS_LABEL[k]}</span>`).join("")}</div>`;
   box.innerHTML = html;
   for (const [key, label, dir] of sets) {
-    const items = getDataset(key).items.filter((it) => (it.arDigit || it.char || "").length === 1);
+    let items = getDataset(key).items.filter((it) => (it.arDigit || it.char || "").length === 1);
+    // الإنجليزى: الكابيتال وبعده الصغير (small) — كل واحد بيتكتب لوحده
+    if (key === "english") items = [...items, ...items.map((it) => ({ char: it.lower }))];
     const counts = { mastered: 0, learning: 0, weak: 0, new: 0 };
     const grid = document.createElement("div");
     grid.className = "pw-grid";

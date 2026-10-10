@@ -156,11 +156,11 @@ import { nameLetters } from "../js/data/strokes.js";
 import { writeStatus, practiceOrder } from "../js/games/writeProgress.js";
 import { sheetPlan, cellSvg } from "../js/games/worksheet.js";
 
-test("names become writable letters (diacritics dropped, Latin → capitals)", () => {
+test("names become writable letters (diacritics dropped, Latin keeps its case)", () => {
   assert.deepEqual(nameLetters("مَرْيَم"), ["م", "ر", "ي", "م"]);
   assert.deepEqual(nameLetters("آية"), ["آ", "ي", "ة"]);
   assert.deepEqual(nameLetters("هدى"), ["ه", "د", "ى"]);
-  assert.deepEqual(nameLetters("Betty"), ["B", "E", "T", "T", "Y"]);
+  assert.deepEqual(nameLetters("Betty"), ["B", "e", "t", "t", "y"]);
   assert.deepEqual(nameLetters("إسراء"), ["إ", "س", "ر", "ا", "ء"]);
   assert.deepEqual(nameLetters("😀 1"), []);
 });
@@ -203,4 +203,19 @@ test("worksheet plan: one letter = a full fading page; several = two rows each, 
   assert.match(cellSvg(g.strokes, "model"), /<path[^>]+stroke="#3f3f46"/);
   assert.match(cellSvg(g.strokes, "start"), /fill="#16a34a"/);
   assert.doesNotMatch(cellSvg(g.strokes, "blank"), /<path|#16a34a/);
+});
+
+test("small English letters a–z: every stroke works forward and never backwards", () => {
+  const bad = [];
+  for (const g of "abcdefghijklmnopqrstuvwxyz") {
+    const strokes = strokesFor(g);
+    if (!strokes) { bad.push(g + ":missing"); continue; }
+    strokes.forEach((st, i) => {
+      if (st.length === 1) return;
+      for (const lvl of [1, 2, 3]) if (drive(new StrokeTracker(st, lvl), st, { step: 3 }) !== "ok") bad.push(`${g}#${i + 1}@${lvl}`);
+      if (drive(new StrokeTracker(st, 3), [...st].reverse(), { step: 3 }) === "ok") bad.push(`${g}#${i + 1} reversed`);
+      for (const [x, y] of st) if (x < 2 || x > 98 || y < 2 || y > 98) bad.push(`${g} out of box`);
+    });
+  }
+  assert.deepEqual(bad, []);
 });

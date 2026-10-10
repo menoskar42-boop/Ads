@@ -119,7 +119,9 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
     const DS = await import('file://' + path.join(ROOT, 'mykid/js/data/datasets.js'));
     const glyphOf = (it) => it.char || it.arDigit || it.name;
     const glyphs = ['arabic', 'english', 'numbers', 'englishNumbers']
-      .flatMap((k) => DS.getDataset(k).items.map(glyphOf)).concat(['0', '٠']);
+      .flatMap((k) => DS.getDataset(k).items.map(glyphOf)).concat(['0', '٠'])
+      // والإنجليزى الصغير (small) — المالك ٢٠٢٦-١٠-١٠: «اعملها كابيتال وsmall»
+      .concat(DS.getDataset('english').items.map((it) => it.lower));
     const missing = glyphs.filter((g) => !D.strokesFor(g));
     check('كل حرف ورقم بيتكتب فى التطبيق ليه ترتيب خطوط', missing.length === 0, missing.join(' ') || glyphs.length + ' رمز');
 

@@ -150,11 +150,11 @@ async function mount(modPath, fn, params) {
   await closeGrip();
 }
 
-test("flashcards: tapping a letter in the grid jumps straight to it (no Next from A)", async () => {
+test("flashcards: tapping a letter in the grid jumps straight to it (no Next from A), shown as Aa", async () => {
   await mount("/js/games/flashcards.js", "renderFlashcards", { datasetKey: "english", lang: "en-US", regionId: "english", regionIndex: 1 });
-  await page.locator(".glyph-picker .lesson-item-picker-button", { hasText: /^M$/ }).click();
-  assert.equal((await page.locator(".stage span").first().textContent()).trim(), "M");
-  assert.equal(await page.locator(".glyph-picker .is-active").textContent(), "M");
+  await page.locator(".glyph-picker .lesson-item-picker-button", { hasText: /^Mm$/ }).click();
+  assert.equal((await page.locator(".stage span").first().textContent()).trim(), "Mm", "capital and small together");
+  assert.equal(await page.locator(".glyph-picker .is-active").textContent(), "Mm");
 });
 
 test("letter forms and the writing screen also jump straight to a picked letter", async () => {
@@ -349,4 +349,30 @@ test("parent page: the two pen settings save, and it says whether a smart pen wa
   assert.equal(s.penOnly, true);
   assert.equal(s.gripTip, false);
   assert.deepEqual(errors, []);
+});
+
+// ---------- الإنجليزى: كابيتال وصغير ----------
+
+test("English «write it» from the teacher: capital A first, then small a, each with its own strokes", async () => {
+  await page.goto(base);
+  await page.evaluate(() => localStorage.clear());
+  await open({ levelKey: "g:A", trace: { datasetKey: "english", lang: "en-US", focus: "A", returnLesson: true, regionId: "english", regionIndex: 1 } }, 1);
+  assert.match(await page.locator(".stage p").first().textContent(), /تتبّع الحرف: A$/);
+  for (const st of strokesFor("A")) await stroke(st);
+  await page.waitForFunction(() => /small a/.test(document.querySelector(".stage p")?.textContent || ""), null, { timeout: 5000 });
+  await page.waitForTimeout(1600);
+  await page.waitForFunction(() => !document.querySelector(".wb-hand"), null, { timeout: 15000 });
+  await page.waitForTimeout(450);
+  for (const st of strokesFor("a")) await stroke(st);
+  await page.waitForTimeout(300);
+  assert.equal(await level("g:a"), 2, "small a has its own level");
+  assert.equal(await level("g:A"), 2);
+});
+
+test("the English writing picker and the parent page list small letters too", async () => {
+  await mount("/js/games/trace.js", "renderTrace", { datasetKey: "english", lang: "en-US", regionId: "english", regionIndex: 1 });
+  await page.waitForSelector(".glyph-picker");
+  assert.equal(await page.locator(".glyph-picker .lesson-item-picker-button").count(), 52);
+  await page.locator(".glyph-picker .lesson-item-picker-button", { hasText: /^g$/ }).click();
+  assert.match(await page.locator(".stage p").first().textContent(), /small g/);
 });

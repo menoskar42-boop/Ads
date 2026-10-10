@@ -40,7 +40,11 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
   const zeroItem = isEnglishNumber
     ? { value: 0, char: "0", name: "zero", enName: "zero" }
     : { value: 0, arDigit: "٠", arName: "صفر", enName: "zero" };
-  const traceItems = includeZero && ds.glyphKind === "number" ? [zeroItem, ...ds.items] : ds.items;
+  // الإنجليزى: الكابيتال والصغير (small) الاتنين بيتكتبوا — كل واحد ليه خطوطه ومستواه
+  const smallOf = (it) => ({ ...it, char: it.lower, name: `small ${it.lower}`, small: true });
+  const traceItems = includeZero && ds.glyphKind === "number"
+    ? [zeroItem, ...ds.items]
+    : datasetKey === "english" ? [...ds.items, ...ds.items.map(smallOf)] : ds.items;
   const glyphOf = (x) => (isPre ? x.id : x.char || x.arDigit || x.name);
   const keyOf = (x) => (isPre ? "pre:" : "g:") + glyphOf(x);
   // الحروف الصعبة الأول (والجديدة بعدها) بدل اختيار عشوائى — المتقن بييجى آخر حاجة
@@ -50,7 +54,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
   if (focus) {
     const f = traceItems.find((x) => (x.char || x.arDigit || x.name) === focus);
     // قادم من معلّم الحرف: حرف واحد فقط ثم نعود للدرس برسالة محفّزة
-    if (f && returnLesson) letters = [f];
+    if (f && returnLesson) letters = f.lower && !f.small ? [f, smallOf(f)] : [f];
     else if (f) letters = [f, ...shuffle(traceItems.filter((x) => x !== f)).slice(0, TRACE_COUNT - 1)];
   }
   let idx = 0;
