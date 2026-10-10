@@ -539,6 +539,46 @@
   flex-wrap: wrap;
   justify-content: center;
 }
+.lesson-item-picker {
+  width: min(100%, 460px);
+  padding: 10px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .7);
+  box-shadow: 0 6px 18px rgba(48, 50, 110, .12);
+}
+.lesson-item-picker-label {
+  margin-bottom: 8px;
+  color: #45378b;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+}
+.lesson-item-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.lesson-item-picker-button {
+  min-width: 0;
+  min-height: 40px;
+  padding: 3px;
+  border-radius: 12px;
+  background: #fff;
+  color: #302c71;
+  box-shadow: 0 3px 0 rgba(88, 74, 159, .2);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+.lesson-item-picker-button.is-active {
+  background: #7254d5;
+  color: #fff;
+  box-shadow: 0 3px 0 #5038a7;
+}
+.lesson-item-picker-button:focus-visible {
+  outline: 3px solid #24a9ed;
+  outline-offset: 2px;
+}
 .lesson-video {
   display: flex;
   width: min(100%, 720px);

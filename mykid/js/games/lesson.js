@@ -65,7 +65,38 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
   const glyphEl = wrap.querySelector(".lesson-glyph");
   const penEl = wrap.querySelector(".lesson-pen");
   const bubble = wrap.querySelector(".teacher-bubble");
+  const itemPicker = ds.glyphKind === "number" || ds.glyphKind === "letter"
+    ? document.createElement("section")
+    : null;
+  if (itemPicker) {
+    itemPicker.className = "lesson-item-picker";
+    itemPicker.setAttribute("aria-label", ds.glyphKind === "number" ? "اختار الرقم مباشرة" : "اختار الحرف مباشرة");
+    itemPicker.dir = datasetKey === "english" || datasetKey === "englishNumbers" ? "ltr" : "rtl";
+    const pickerLabel = document.createElement("div");
+    pickerLabel.className = "lesson-item-picker-label";
+    pickerLabel.textContent = ds.glyphKind === "number" ? "اختار الرقم مباشرة" : "اختار الحرف مباشرة";
+    itemPicker.appendChild(pickerLabel);
+
+    const grid = document.createElement("div");
+    grid.className = "lesson-item-picker-grid";
+    items.forEach((item, itemIndex) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "lesson-item-picker-button";
+      button.dataset.lessonIndex = String(itemIndex);
+      button.textContent = glyphOf(item);
+      button.setAttribute("aria-label", `${ds.glyphKind === "number" ? "الرقم" : "الحرف"} ${glyphOf(item)}`);
+      button.setAttribute("aria-pressed", itemIndex === idx ? "true" : "false");
+      button.addEventListener("click", () => {
+        idx = itemIndex;
+        render();
+      });
+      grid.appendChild(button);
+    });
+    itemPicker.appendChild(grid);
+  }
   const lessonVideo = ds.glyphKind === "number" || datasetKey === "english" ? document.createElement("div") : null;
+  if (itemPicker) wrap.appendChild(itemPicker);
   if (lessonVideo) {
     lessonVideo.className = "lesson-video";
     lessonVideo.setAttribute("aria-label", ds.glyphKind === "number" ? "فيديو تعليمي للرقم الحالي" : "فيديو تعليمي للحرف الحالي");
@@ -156,6 +187,13 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
     animateWrite();
     Sfx.pop();
     wrap.querySelector("#lsPrev").disabled = idx === 0;
+    if (itemPicker) {
+      itemPicker.querySelectorAll(".lesson-item-picker-button").forEach((button) => {
+        const selected = Number(button.dataset.lessonIndex) === idx;
+        button.classList.toggle("is-active", selected);
+        button.setAttribute("aria-pressed", selected ? "true" : "false");
+      });
+    }
     renderLessonVideo(it);
 
     // عند العودة من "اكتبه": رسالة تحفيز من ميزو بالعامية بدل إعادة الشرح

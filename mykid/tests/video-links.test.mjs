@@ -265,6 +265,80 @@ test("trace-from-lesson keeps focus on every tested number and letter", async ()
   assert.deepEqual(actual, expected.map((traceCase) => traceCase.heading));
 });
 
+test("lesson picker jumps directly to every number and letter", async () => {
+  const pickerCases = [
+    {
+      datasetKey: "numbers",
+      includeZero: true,
+      items: [{ value: 0, arDigit: "٠", arName: "صفر" }, ...getDataset("numbers").items],
+      videoIds: [...EXPECTED_NUMBER_IDS, ...Array(10).fill(null)],
+    },
+    {
+      datasetKey: "englishNumbers",
+      includeZero: true,
+      items: [{ value: 0, char: "0", name: "zero" }, ...getDataset("englishNumbers").items],
+      videoIds: EXPECTED_NUMBER_IDS,
+    },
+    {
+      datasetKey: "arabic",
+      includeZero: false,
+      items: getDataset("arabic").items,
+      videoIds: [],
+    },
+    {
+      datasetKey: "english",
+      includeZero: false,
+      items: getDataset("english").items,
+      videoIds: Object.values(EXPECTED_LETTER_IDS),
+    },
+  ];
+  const actual = await page.evaluate(async (cases) => {
+    const { renderLesson } = await import("/js/games/lesson.js");
+    const parseId = (url) => url?.match(/\/(?:vi|embed)\/([^/?]+)/)?.[1] || null;
+    const results = [];
+    for (const item of cases) {
+      const screen = renderLesson({
+        datasetKey: item.datasetKey,
+        includeZero: item.includeZero,
+        title: "Direct selection test",
+      });
+      document.body.replaceChildren(screen);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      const buttons = [...screen.querySelectorAll(".lesson-item-picker-button")];
+      const selections = [];
+      for (const button of buttons) {
+        button.click();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        selections.push({
+          glyph: screen.querySelector(".lesson-glyph")?.textContent || null,
+          activeGlyph: screen.querySelector(".lesson-item-picker-button.is-active")?.textContent || null,
+          pressedCount: [...screen.querySelectorAll(".lesson-item-picker-button[aria-pressed='true']")].length,
+          videoId: parseId(screen.querySelector(".lesson-video img")?.src),
+        });
+      }
+      results.push({ datasetKey: item.datasetKey, buttonCount: buttons.length, selections });
+    }
+    return results;
+  }, pickerCases.map((item) => ({
+    datasetKey: item.datasetKey,
+    includeZero: item.includeZero,
+  })));
+
+  for (let caseIndex = 0; caseIndex < pickerCases.length; caseIndex += 1) {
+    const expectedCase = pickerCases[caseIndex];
+    const actualCase = actual[caseIndex];
+    const expectedGlyphs = expectedCase.items.map((item) => item.char || item.arDigit || item.name);
+    assert.equal(actualCase.datasetKey, expectedCase.datasetKey);
+    assert.equal(actualCase.buttonCount, expectedGlyphs.length, `${expectedCase.datasetKey} picker must include every item`);
+    assert.deepEqual(actualCase.selections.map((item) => item.glyph), expectedGlyphs, `${expectedCase.datasetKey} must jump to the selected item`);
+    assert.deepEqual(actualCase.selections.map((item) => item.activeGlyph), expectedGlyphs, `${expectedCase.datasetKey} must highlight the selected item`);
+    assert.ok(actualCase.selections.every((item) => item.pressedCount === 1), `${expectedCase.datasetKey} must have exactly one selected button`);
+    if (expectedCase.videoIds.length) {
+      assert.deepEqual(actualCase.selections.map((item) => item.videoId), expectedCase.videoIds, `${expectedCase.datasetKey} must update its video with the selected item`);
+    }
+  }
+});
+
 async function renderLessonSequence(datasetKey, includeZero = false, length = 26) {
   return page.evaluate(async ({ datasetKey, includeZero, length }) => {
     const { renderLesson } = await import("/js/games/lesson.js");
