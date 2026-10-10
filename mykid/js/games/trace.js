@@ -13,7 +13,8 @@ import { writeStatus, practiceOrder } from "./writeProgress.js";
 import { openWorksheet } from "./worksheet.js";
 import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
-const TRACE_COUNT = 6;
+// كل حرف بيتكتب كذا مرة (نقط ← نقط ← لوحده)، فالجلسة ٤ حروف بدل ٦ (الإنجليزى: زوجين A/a)
+const TRACE_COUNT = 4;
 const RES = 300; // دقّة داخلية ثابتة
 // الحكم على «كتب الحرف صح» في `traceJudge.js` — مفصول عشان الحارس يشغّله
 // بنفسه بأرقام حقيقية بدل ما يقرا الملف ويفترض إنه بيعمل اللي مكتوب فيه.
@@ -67,6 +68,10 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     else if (f) letters = [f, ...shuffle(traceItems.filter((x) => x !== f)).slice(0, TRACE_COUNT - 1)];
   }
   let idx = 0;
+  // خطة الحرف الحالى (renderBoard): المستوى لكل جولة + الجولة الحالية
+  let plan = null, step = 0, planFor = null, extraLoops = 0;
+  // رسالة ميزو فى آخر الجولة بتفضل ظاهرة فى أول الجولة اللى بعدها (الشاشة بتتبنى من جديد)
+  let carryMsg = "";
 
   const screen = document.createElement("div");
   screen.className = "region-screen";
@@ -274,17 +279,27 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
   /** لوحة الكتابة: الخطوط بالترتيب من نقطتها الخضرا، والمساعدة حسب مستوى الحرف ده. */
   function renderBoard({ it, glyph, label, sayDone, strokes }) {
     const levelKey = keyOf(it);
-    const level = Store.getWriteLevel(levelKey);
+    // خطة الحرف ده (المالك ٢٠٢٦-١٠-١٠): «فى الأول نقط وتوضّحلها الاتجاه وتكتب عليها أكتر
+    // من مرة… وبعدين لوحدها من غير نقط». الجولات: نقط ← نقط ← لوحده (واللى اتقنه قبل
+    // كده: نقط ← لوحده). الخطة بتتعمل أول ما الحرف يتفتح وبتتعدّل حسب الغلط.
+    if (planFor !== it) {
+      planFor = it;
+      plan = Store.getWriteLevel(levelKey) >= 3 || isPre ? [2, 3] : [2, 2, 3];
+      step = 0;
+      extraLoops = 0;
+    }
+    const level = plan[step];
 
-    // المستوى ظاهر وبيتغيّر بلمسة (لو ولى الأمر عايز يرجّعه للخط الكامل)
+    // الجولة ظاهرة (نقط/لوحده + رقمها). لمسة بتغيّر مساعدة الجولة دى بس (ولى الأمر
+    // لو شايفها محتاجة الخط العريض دلوقتى)
     const lvlBtn = document.createElement("button");
     lvlBtn.className = "wb-level";
     lvlBtn.type = "button";
-    lvlBtn.textContent = LEVEL_LABELS[level];
-    lvlBtn.setAttribute("aria-label", "مستوى المساعدة: " + LEVEL_LABELS[level] + " — اضغط للتغيير");
+    lvlBtn.textContent = `${LEVEL_LABELS[level]} · ${step + 1}/${plan.length}`;
+    lvlBtn.setAttribute("aria-label", `الجولة ${step + 1} من ${plan.length}: ${LEVEL_LABELS[level]} — اضغط لتغيير المساعدة`);
     lvlBtn.addEventListener("click", () => {
       Sfx.tap();
-      Store.setWriteLevel(levelKey, level >= 3 ? 1 : level + 1);
+      plan[step] = level >= 3 ? 1 : level + 1;
       render();
     });
     stage.appendChild(lvlBtn);
@@ -309,26 +324,42 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
         showHint(tell(text));
       },
       onDone: ({ fails }) => {
-        Store.recordWrite(levelKey, fails, level);
-        // المساعدة بتقلّ لما يكتبه صح من غير غلط كتير، وبترجع خطوة لو اتلخبط جامد
-        let msg = "";
-        if (fails <= 2 && level < 3) {
-          Store.setWriteLevel(levelKey, level + 1);
-          msg = level + 1 === 2 ? "المرة الجاية على النقط بس" : "المرة الجاية لوحدك";
-        } else if (fails >= 6 && level > 1) {
-          Store.setWriteLevel(levelKey, level - 1);
-        }
         Sfx.correct();
-        Speech.say(sayDone, { lang: speakLang });
-        if (msg) setTimeout(() => showHint(tell(msg)), 300);
         board.el.animate(
           [{ transform: "scale(1)" }, { transform: "scale(1.1)" }, { transform: "scale(1)" }],
           { duration: 500 }
         );
-        setTimeout(next, msg ? 1900 : 1200);
+        const say = (msg, then, wait = 1900) => { carryMsg = tell(msg); showHint(carryMsg); setTimeout(then, wait); };
+        const nextRound = () => { step++; render(); };
+        if (level < 3) {
+          // جولة بمساعدة: لو اتلخبط جامد على النقط، جولة على الخط العريض قبل اللى بعدها
+          if (level === 2 && fails >= 4 && !plan.includes(1)) {
+            plan.splice(step + 1, 0, 1);
+            return say("تعالى نكتبه على الخط العريض الأول", nextRound);
+          }
+          return say(plan[step + 1] === 3 ? "برافو! دلوقتى اكتبه لوحدك من غير نقط" : "برافو! مرة كمان على النقط", nextRound);
+        }
+        // جولة «لوحده»
+        if (fails <= 2) {
+          Store.recordWrite(levelKey, fails, 3);
+          Store.setWriteLevel(levelKey, 3);
+          Speech.say(sayDone, { lang: speakLang });
+          return say(isPre ? "برافو! رسمته لوحدك" : "برافو! كتبته لوحدك", next, 2000);
+        }
+        if (extraLoops < 2) {
+          // غلط وهو لوحده ⇒ نرجع للنقط مرة ونجرّب لوحده تانى
+          extraLoops++;
+          plan.splice(step + 1, 0, 2, 3);
+          return say("تعالى نكتبه على النقط تانى، وبعدين لوحدك", nextRound);
+        }
+        Store.recordWrite(levelKey, fails, 3);
+        Store.setWriteLevel(levelKey, 2);
+        Speech.say(sayDone, { lang: speakLang });
+        return say("برافو! هنتمرّن عليه تانى المرة الجاية", next, 2000);
       },
     });
     stage.appendChild(hint);
+    if (carryMsg) { showHint(carryMsg); carryMsg = ""; }
 
     const tools = document.createElement("div");
     tools.style.cssText = "margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap";
@@ -369,9 +400,13 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       // الصباع بيوريه إزاى يتكتب كل مرة يفتح الحرف/الرقم — مش فى المستوى الأول بس.
       // المالك ٢٠٢٦-١٠-١٠: «بتظهر أول مرة بس… عاوزها تظهر فى كل مرة». المساعدة
       // اللى بتقلّ مع المستوى هى الخط تحت إيده (كامل ← نقط ← فاضى)، مش العرض.
-      if (isPre) tell(it.say);
-      else tell(level === 3 ? `اكتب ${noun} ${label} لوحدك` : `اكتب ${noun} ${label}. ابدأ من النقطة الخضرا`);
-      setTimeout(() => board.demo(), 1400);
+      // أول جولة للحرف: الكلام + الصباع بيشرح الاتجاه. الجولات اللى بعدها ميزو قال
+      // رسالتها فى آخر الجولة اللى قبلها، والشرح بيرجع لوحده مع أى غلطة (writeBoard).
+      if (step === 0) {
+        if (isPre) tell(it.say);
+        else tell(`اكتب ${noun} ${label}. ابدأ من النقطة الخضرا وامشي مع السهم`);
+        setTimeout(() => board.demo(), 1400);
+      }
     });
   }
 

@@ -227,18 +227,17 @@ export function mountWriteBoard(host, opts) {
     fails++;
     totalFails++;
     clearInk(true);
-    if (result === "wrong-start") {
+    if (result === "wrong-start" || result === "reversed") {
       start.classList.remove("wb-call");
       void start.offsetWidth; // يعيد الأنيميشن
       start.classList.add("wb-call");
     }
     if (opts.onStroke) opts.onStroke(false);
     if (opts.onHint) opts.onHint(hintForResult(result, strokes[cur].length === 1), result);
-    // غلط مرتين على نفس الخط: بدل ما نكرّر الكلام، نوريه
-    if (fails >= 2) {
-      fails = 0;
-      setTimeout(() => { if (alive && !finished) demo({ only: cur }); }, 900);
-    }
+    // أى غلطة ⇒ نعيد شرح الخط ده بالصباع (المالك ٢٠٢٦-١٠-١٠: «أى مرة تكتب فيها غلط
+    // تعيد شرح طريقة الكتابة») — بعد ما ميزو يقول إيه الغلط
+    fails = 0;
+    setTimeout(() => { if (alive && !finished) demo({ only: cur }); }, 1100);
   }
 
   // ===== صباع، أو قلم (استايلس / Apple Pencil)، والإيد ساندة على الشاشة =====
@@ -270,15 +269,33 @@ export function mountWriteBoard(host, opts) {
     return e.pointerType === "touch" && (e.width >= PALM_PX || e.height >= PALM_PX);
   }
 
-  function beginWith(e, p) {
+  // «الشكل صح بس الاتجاه غلط»: بنتابع الخط بالعكس فى نفس الوقت (shadow). لو الطفل مشى
+  // على الخط كله بس من آخره لأوله، ميزو بيقوله كده بالظبط — مش «ابدأ من النقطة» بس.
+  let shadow = null;
+  let fwdResult = null;
+  function reverseTracker(p) {
+    if (strokes[cur].length < 2) return null;
+    const t = new StrokeTracker([...strokes[cur]].reverse(), level);
+    return t.begin(p) === null ? t : null;
+  }
+
+  /** `rev` = الطفل بدأ من آخر الخط: بنتابعه بالعكس بس (عشان نعرف لو رسم الشكل صح بالمقلوب). */
+  function beginWith(e, p, rev = null) {
     try { ink.setPointerCapture(e.pointerId); } catch (_) {}
     pid = e.pointerId;
-    tracker = new StrokeTracker(strokes[cur], level);
     lastWriteAt = performance.now();
     inkDot(p);
-    const r = tracker.begin(p);
-    if (r === "ok") return succeed();
-    if (r) return fail(r);
+    fwdResult = null;
+    if (rev) {
+      tracker = null;
+      shadow = rev;
+    } else {
+      tracker = new StrokeTracker(strokes[cur], level);
+      const r = tracker.begin(p);
+      if (r === "ok") return succeed();
+      if (r) return fail(r);
+      shadow = reverseTracker(p); // خط مقفول (O) أو قصير: الأول والآخر جنب بعض
+    }
     drawing = true;
     drawStart = p;
     last = p;
@@ -294,7 +311,7 @@ export function mountWriteBoard(host, opts) {
     if (drawing) {
       // لمسة تانية وهو بيكتب: لو الأولى لسه ماتحرّكتش والتانية عند النقطة الخضرا،
       // يبقى الأولى كانت الكف — نكمّل بالتانية
-      if (!wrong && tracker.progress < 3 && near(p, startPt) < near(drawStart, startPt)) {
+      if (!wrong && tracker && tracker.progress < 3 && near(p, startPt) < near(drawStart, startPt)) {
         pending.set(pid, { p: drawStart, at: performance.now() });
         clearInk(false);
         drawing = false;
@@ -303,6 +320,9 @@ export function mountWriteBoard(host, opts) {
       return;
     }
     if (wrong) {
+      // بدأ من آخر الخط بالظبط: غالباً هيرسم الشكل بالمقلوب — نتابعه ونحكم لما يرفع
+      const rev = reverseTracker(p);
+      if (rev) return beginWith(e, p, rev);
       try { ink.setPointerCapture(e.pointerId); } catch (_) {}
       pending.set(e.pointerId, { p, at: performance.now() });
       return;
@@ -329,8 +349,12 @@ export function mountWriteBoard(host, opts) {
       for (const q of seg) {
         inkLine(last, q);
         last = q;
-        const r = tracker.move(q);
-        if (r) return fail(r);
+        if (shadow && shadow.move(q)) shadow = null;
+        if (tracker) {
+          const r = tracker.move(q);
+          if (r) { tracker = null; fwdResult = r; }
+        }
+        if (!tracker && !shadow) return fail(fwdResult || "wrong-start");
       }
     }
   }
@@ -343,9 +367,14 @@ export function mountWriteBoard(host, opts) {
       return;
     }
     if (!drawing || e.pointerId !== pid) return;
-    const r = tracker.end();
-    if (r === "ok") succeed();
-    else fail(r);
+    if (tracker) {
+      const r = tracker.end();
+      if (r === "ok") return succeed();
+      fwdResult = r;
+    }
+    // الخط كله اترسم بس بالمقلوب
+    if (shadow && shadow.end() === "ok") return fail("reversed");
+    fail(fwdResult || "wrong-start");
   }
   function cancel(e) {
     // المتصفح لغى اللمسة (جيستشر/كف): نمسح من غير ما نقول «غلط»
@@ -353,6 +382,7 @@ export function mountWriteBoard(host, opts) {
     if (drawing && e.pointerId === pid) {
       drawing = false;
       tracker = null;
+      shadow = null;
       clearInk(true);
     }
   }

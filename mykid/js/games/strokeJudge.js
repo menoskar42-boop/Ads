@@ -127,6 +127,8 @@ export function hintForResult(r, isDot) {
     case "off-path": return "امشي على الخط بالراحة";
     case "backwards": return "امشي فى اتجاه السهم";
     case "too-short": return "كمّل لآخر الخط";
+    // الشكل اترسم كله بس من آخره لأوله (writeBoard بيتابعه بالعكس)
+    case "reversed": return "الشكل صح، بس الاتجاه غلط. ابدأ من النقطة الخضرا وامشي مع السهم";
     default: return "";
   }
 }

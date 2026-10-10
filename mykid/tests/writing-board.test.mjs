@@ -86,26 +86,83 @@ async function stroke(pts) {
 
 const BA = { levelKey: "g:ب", trace: { datasetKey: "arabic", focus: "ب", returnLesson: true, regionId: "arabic", regionIndex: 0 } };
 
-test("ب: wrong direction is refused with a hint, then the right strokes finish it and raise the level", async () => {
+/** نستنى الصباع (العرض/إعادة الشرح) يخلص قبل ما نكتب. */
+async function waitIdle() {
+  await page.waitForTimeout(300);
+  await page.waitForFunction(() => !document.querySelector(".wb-hand"), null, { timeout: 15000 });
+  await page.waitForTimeout(400);
+}
+/** بعد غلطة: الصباع بيبدأ يشرح بعد ثانية — نستناه يظهر ويخلص. */
+async function waitDemo() {
+  await page.waitForSelector(".wb-hand", { timeout: 2500 }).catch(() => {});
+  await waitIdle();
+}
+const chip = () => page.locator(".wb-level").textContent();
+const heading = () => page.locator(".stage p").first().textContent();
+
+/** جولة: نكتب خطوط الحرف ونستنى الجولة اللى بعدها (أو الحرف اللى بعده) تتفتح. */
+async function writeRound(ch) {
+  const before = (await chip()) + (await heading());
+  const log = [];
+  for (const st of strokesFor(ch)) {
+    await stroke(st);
+    log.push(`${await page.locator(".wb-start").textContent()}:${(await hintText()).slice(0, 60)}`);
+  }
+  await page.waitForFunction((b) => {
+    const t = (document.querySelector(".wb-level")?.textContent || "") + (document.querySelector(".stage p")?.textContent || "");
+    return t !== b;
+  }, before, { timeout: 6000 }).catch(async (e) => {
+    throw new Error(`round of ${ch} didn't finish — chip «${await chip()}» hint «${await hintText()}» log ${log.join(" / ")}`);
+  });
+  await waitIdle();
+}
+
+test("ب: the right shape drawn backwards gets «الاتجاه غلط», the hand re-explains, then dots → dots → alone", async () => {
+  await page.goto(base);
   await page.evaluate(() => localStorage.clear());
-  await open(BA, 1);
+  await open(BA, 0);
   const [body, dotStroke] = strokesFor("ب");
+  assert.match(await chip(), /النقط · 1\/3/, "starts on dots");
 
+  // الشكل كله بس من آخره لأوله
   await stroke([...body].reverse());
-  const hint = await page.locator(".stage div").filter({ hasText: "النقطة الخضرا" }).count();
-  assert.ok(hint > 0, "Mizo must say «ابدأ من النقطة الخضرا»");
+  assert.match(await hintText(), /الشكل صح، بس الاتجاه غلط/);
   assert.ok(await page.locator(".wb-start.wb-call").count(), "the green dot calls attention");
+  await page.waitForSelector(".wb-hand", { timeout: 3000 });   // أى غلطة ⇒ الصباع بيشرح تانى
+  await waitIdle();
 
-  await page.waitForTimeout(500);
   await stroke(body);
   // بعد الجسم: النقطة الخضرا اتنقلت لمكان النقطة اللى تحت
   const left = await page.locator(".wb-start").evaluate((e) => parseFloat(e.style.left));
   assert.equal(Math.round(left), dotStroke[0][0]);
-
   await stroke(dotStroke);
+  await page.waitForFunction(() => /2\/3/.test(document.querySelector(".wb-level")?.textContent || ""), null, { timeout: 5000 });
+  assert.match(await chip(), /النقط · 2\/3/, "a second time on dots");
+  await waitIdle();
+  await writeRound("ب");
+  assert.match(await chip(), /لوحدك · 3\/3/, "then alone");
+  assert.equal(await page.locator(".wb-mini").count(), 1);
+  for (const st of strokesFor("ب")) await stroke(st);
   await page.waitForTimeout(300);
-  const level = await page.evaluate(async () => (await import("/js/core/storage.js")).Store.getWriteLevel("g:ب"));
-  assert.equal(level, 2, "a clean letter moves to the dotted guide next time");
+  assert.equal(await level("g:ب"), 3, "written alone cleanly ⇒ remembered");
+});
+
+test("a mistake while writing alone sends her back to dots once, then alone again", async () => {
+  await page.goto(base);
+  await page.evaluate(async () => { localStorage.clear(); (await import("/js/core/storage.js")).Store.setWriteLevel("g:د", 3); });
+  await open({ levelKey: "g:د", trace: { datasetKey: "arabic", focus: "د", returnLesson: true, regionId: "arabic", regionIndex: 0 } }, 0);
+  assert.match(await chip(), /النقط · 1\/2/, "already mastered ⇒ one dots round, then alone");
+  await writeRound("د");
+  assert.match(await chip(), /لوحدك · 2\/2/);
+  const st = strokesFor("د")[0];
+  for (let k = 0; k < 3; k++) {             // ٣ غلطات وهو لوحده
+    await stroke([[st[0][0] + 30, st[0][1] + 30], [st[0][0] + 45, st[0][1] + 40]]);
+    await waitDemo();
+  }
+  await stroke(st);
+  await page.waitForFunction(() => /3\/4/.test(document.querySelector(".wb-level")?.textContent || ""), null, { timeout: 6000 });
+  assert.match(await chip(), /النقط · 3\/4/, "back on dots");
+  assert.match(await hintText(), /نكتبه على النقط تانى، وبعدين لوحدك/, "Mizo's message stays on the new round");
 });
 
 test("dot strokes are taps; a tap far away is wrong-start", async () => {
@@ -117,23 +174,31 @@ test("dot strokes are taps; a tap far away is wrong-start", async () => {
   assert.ok(msg > 0);
 });
 
-test("pre-writing shows the story pictures and accepts a top→bottom line", async () => {
+test("pre-writing shows the story pictures; a shape is dots once, then alone", async () => {
+  await page.goto(base);
   await page.evaluate(() => localStorage.clear());
-  await open({ levelKey: "pre:vline", trace: { datasetKey: "prewriting", regionId: "arabic", regionIndex: 0 } }, 1);
+  await open({ levelKey: "pre:vline", trace: { datasetKey: "prewriting", regionId: "arabic", regionIndex: 0 } }, 0);
   assert.equal(await page.locator(".wb-emoji").count(), 2);
+  assert.match(await chip(), /1\/2/);
+  await stroke([[50, 18], [50, 84]]);
+  await page.waitForFunction(() => /2\/2/.test(document.querySelector(".wb-level")?.textContent || ""), null, { timeout: 5000 });
+  await waitIdle();
   await stroke([[50, 18], [50, 84]]);
   await page.waitForTimeout(300);
-  const level = await page.evaluate(async () => (await import("/js/core/storage.js")).Store.getWriteLevel("pre:vline"));
-  assert.equal(level, 2);
+  assert.equal(await level("pre:vline"), 3);
 });
 
-test("the three levels render (guide → dots → blank with a small model)", async () => {
+test("the three kinds of help render (dots → blank with a small model → thick guide) via the round chip", async () => {
   const dir = process.env.SHOT_DIR;
-  for (const lvl of [1, 2, 3]) {
-    await open({ levelKey: "g:ج", trace: { datasetKey: "arabic", focus: "ج", returnLesson: true, regionId: "arabic", regionIndex: 0 } }, lvl);
-    assert.equal(await page.locator(".wb-mini").count(), lvl === 3 ? 1 : 0);
-    assert.match(await page.locator(".wb-level").textContent(), lvl === 1 ? /الخط/ : lvl === 2 ? /النقط/ : /لوحدك/);
-    if (dir) await page.screenshot({ path: path.join(dir, `board-level${lvl}.png`) });
+  await page.goto(base);
+  await page.evaluate(() => localStorage.clear());
+  await open({ levelKey: "g:ج", trace: { datasetKey: "arabic", focus: "ج", returnLesson: true, regionId: "arabic", regionIndex: 0 } }, 0);
+  for (const [re, mini, name] of [[/النقط/, 0, 2], [/لوحدك/, 1, 3], [/الخط/, 0, 1]]) {
+    assert.match(await chip(), re);
+    assert.equal(await page.locator(".wb-mini").count(), mini);
+    if (dir) await page.screenshot({ path: path.join(dir, `board-level${name}.png`) });
+    await page.click(".wb-level");                 // ولى الأمر بيغيّر مساعدة الجولة دى
+    await page.waitForTimeout(150);
   }
   assert.deepEqual(errors, []);
 });
@@ -259,8 +324,7 @@ test("once a pen touches, hand touches are ignored; the pen finishes the letter"
   await ptr("pointerdown", 13, "touch", [10, 10]); await ptr("pointerup", 13, "touch", [10, 10]);
   assert.doesNotMatch(await hintText(), /النقطة|الخط|السهم/);
   await trace(14, "pen", dotStroke);
-  await page.waitForTimeout(300);
-  assert.equal(await level("g:ب"), 2);
+  await page.waitForFunction(() => /2\/3/.test(document.querySelector(".wb-level")?.textContent || ""), null, { timeout: 5000 });
 });
 
 test("a wide touch (palm) is ignored even when it slides", async () => {
@@ -326,8 +390,7 @@ test("pen-only: the finger doesn't write (Mizo says use the pen), the pen does",
   assert.match(await hintText(), /اقفله من صفحة ولى الأمر/);
   await trace(34, "pen", body);
   await trace(35, "pen", dotStroke);
-  await page.waitForTimeout(300);
-  assert.equal(await level("g:ب"), 2);
+  await page.waitForFunction(() => /2\/3/.test(document.querySelector(".wb-level")?.textContent || ""), null, { timeout: 5000 });
   assert.equal(await page.evaluate(async () => (await import("/js/core/storage.js")).Store.writeSettings.penSeen), true);
 });
 
@@ -357,16 +420,18 @@ test("English «write it» from the teacher: capital A first, then small a, each
   await page.goto(base);
   await page.evaluate(() => localStorage.clear());
   await open({ levelKey: "g:A", trace: { datasetKey: "english", lang: "en-US", focus: "A", returnLesson: true, regionId: "english", regionIndex: 1 } }, 1);
-  assert.match(await page.locator(".stage p").first().textContent(), /تتبّع الحرف: A$/);
-  for (const st of strokesFor("A")) await stroke(st);
-  await page.waitForFunction(() => /small a/.test(document.querySelector(".stage p")?.textContent || ""), null, { timeout: 5000 });
-  await page.waitForTimeout(1600);
-  await page.waitForFunction(() => !document.querySelector(".wb-hand"), null, { timeout: 15000 });
-  await page.waitForTimeout(450);
+  assert.match(await heading(), /تتبّع الحرف: A$/);
+  // A: نقط ← نقط ← لوحده، وبعدين a الصغير بجولاته هو
+  for (let k = 0; k < 3; k++) await writeRound("A");
+  assert.match(await heading(), /small a/);
+  assert.match(await chip(), /1\/3/, "small a starts its own rounds");
+  await waitDemo();                          // حرف جديد ⇒ الصباع بيشرحه الأول
+  for (let k = 0; k < 2; k++) await writeRound("a");
+  // آخر جولة لآخر حرف: بعدها بيرجع لمعلّم الحروف (مش متسجّل فى صفحة الاختبار)
   for (const st of strokesFor("a")) await stroke(st);
-  await page.waitForTimeout(300);
-  assert.equal(await level("g:a"), 2, "small a has its own level");
-  assert.equal(await level("g:A"), 2);
+  await page.waitForFunction(() => /كتبته لوحدك/.test(document.body.textContent), null, { timeout: 4000 });
+  assert.equal(await level("g:a"), 3, "small a has its own level");
+  assert.equal(await level("g:A"), 3);
 });
 
 test("the English writing picker and the parent page list small letters too", async () => {
@@ -518,11 +583,12 @@ test("an English writing session pairs every capital with its small letter (A th
   const head = await page.locator(".stage p").first().textContent();
   const cap = head.match(/: ([A-Z])$/)?.[1];
   assert.ok(cap, `first is a capital: ${head}`);
-  for (const st of strokesFor(cap)) await stroke(st);
-  await page.waitForFunction((c) => (document.querySelector(".stage p")?.textContent || "").includes(`small ${c}`), cap.toLowerCase(), { timeout: 5000 });
+  for (let k = 0; k < 3; k++) await writeRound(cap);
+  await waitDemo();
+  assert.match(await heading(), new RegExp(`small ${cap.toLowerCase()}`));
 });
 
-test("the drawing hand demo plays every time a letter/number opens — on every level, not just the first", async () => {
+test("the drawing hand demo plays every time a letter/number opens — whatever it learned before", async () => {
   for (const [lvl, focus, ds] of [[2, "B", "english"], [3, "B", "english"], [3, "٧", "numbers"]]) {
     await page.goto(base);
     await page.evaluate(async ({ lvl, focus }) => {
@@ -535,6 +601,6 @@ test("the drawing hand demo plays every time a letter/number opens — on every 
       document.getElementById("app").replaceChildren(renderTrace({ datasetKey: ds, focus, returnLesson: true, regionId: "r", regionIndex: 0 }));
     }, { focus, ds });
     await page.waitForSelector(".wb-hand", { timeout: 5000 });
-    assert.match(await page.locator(".wb-level").textContent(), lvl === 2 ? /النقط/ : /لوحدك/);
+    assert.match(await page.locator(".wb-level").textContent(), lvl === 2 ? /النقط · 1\/3/ : /النقط · 1\/2/);
   }
 });

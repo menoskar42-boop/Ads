@@ -157,7 +157,27 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
     check('صباع العرض بيرسم الحرف كل مرة يتفتح (كل المستويات، مش الأول بس)',
       !/if \(level === 1\) setTimeout\(\(\) => board\.demo\(\)/.test(raw('mykid/js/games/trace.js') + raw('mykid/js/games/nameWrite.js'))
       && /setTimeout\(\(\) => board\.demo\(\), 1400\)/.test(raw('mykid/js/games/trace.js')));
-    check('وغلطتين على نفس الخط ⇒ اللوحة بتوريه إزاى', /if \(fails >= 2\)[\s\S]{0,200}demo\(\{ only: cur \}\)/.test(b));
+    // المالك ٢٠٢٦-١٠-١٠: «فى الأول نقط… تكتب عليها أكتر من مرة، وأى مرة تكتب فيها غلط
+    // تعيد شرح طريقة الكتابة، وبعدين لوحدها… ولو كتبت صح بس الاتجاه غلط ميزو يوضّحلها»
+    check('أى غلطة ⇒ الصباع بيعيد شرح الخط ده', /fails = 0;\s*setTimeout\(\(\) => \{ if \(alive && !finished\) demo\(\{ only: cur \}\); \}, 1100\);/.test(b)
+      && !/if \(fails >= 2\)/.test(b));
+    check('الشكل صح بس بالمقلوب ⇒ ميزو بيقول «الاتجاه غلط» (مش «ابدأ من النقطة» بس)',
+      /if \(shadow && shadow\.end\(\) === "ok"\) return fail\("reversed"\);/.test(b) && /الاتجاه غلط/.test(S.hintForResult('reversed')));
+    {
+      // نجرّب الحكم بجد: ب بالمقلوب كله ⇒ reversed (الجسم بيترسم من الشمال لليمين)
+      const st = D.strokesFor('ب')[0];
+      const rev = [...st].reverse();
+      const t = new S.StrokeTracker(rev, 1);
+      const d = S.densify(rev, 2);
+      let r = t.begin(d[0]);
+      for (let i = 1; !r && i < d.length; i++) r = t.move(d[i]);
+      check('والمقلوب الكامل بيتعرف فعلاً (shadow = نفس الخط بالعكس)', (r || t.end()) === 'ok');
+    }
+    const T = raw('mykid/js/games/trace.js');
+    check('كل حرف: نقط ← نقط ← لوحده (واللى اتقنه: نقط ← لوحده)',
+      /plan = Store\.getWriteLevel\(levelKey\) >= 3 \|\| isPre \? \[2, 3\] : \[2, 2, 3\];/.test(T));
+    check('غلط وهو لوحده ⇒ يرجع للنقط مرة ويجرّب لوحده تانى',
+      /plan\.splice\(step \+ 1, 0, 2, 3\);/.test(T));
 
     // القلم (استايلس) والكف ساند: المالك ٢٠٢٦-١٠-١٠ «هل فيه طريقة إنه يتكتب باستيكه؟»
     check('القلم: بعد ما قلم حقيقى يلمس، لمس الإيد بيتجاهل',

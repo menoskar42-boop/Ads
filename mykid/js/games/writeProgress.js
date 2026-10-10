@@ -16,7 +16,8 @@ export function writeStatus(stat, level) {
   return "learning";
 }
 
-const WEIGHT = { weak: 4, new: 2.5, learning: 1.5, mastered: 0.3 };
+// الفرق بين كل درجة واللى بعدها أكبر من العشوائية (١٫٤) — المتقن عمره ما يسبق اللى بيتعلّمه
+const WEIGHT = { weak: 4.5, new: 3, learning: 1.5, mastered: 0 };
 
 /**
  * ترتيب التدريب: الصعب الأول، وبعده الجديد، وبعده اللى بيتعلّمه — والمتقن آخر حاجة.
