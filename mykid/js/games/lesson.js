@@ -152,7 +152,8 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
     // النصّ المكتوب يطابق المنطوق (نفس جُمَل الترحيب والشرح)
     bubble.innerHTML = isEnglishNumber
       ? `${greetHtml}This is number <b>${label}</b>`
-      : (it.word
+      // greetHtml فى الفرعين — من غيره ترحيب ميزو كان بيتنطق ومايظهرش فى الفقاعة (٢٠٢٦-١٠-١٠)
+      : greetHtml + (it.word
       ? `هذا ${noun} «${label}» ${it.emoji || ""}<br>${isAr ? `${label} مثل ${it.word}` : `${label} for ${it.word}`}`
       : `هذا ${noun} «${label}»`);
 
