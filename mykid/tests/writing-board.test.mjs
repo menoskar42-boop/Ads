@@ -521,3 +521,20 @@ test("an English writing session pairs every capital with its small letter (A th
   for (const st of strokesFor(cap)) await stroke(st);
   await page.waitForFunction((c) => (document.querySelector(".stage p")?.textContent || "").includes(`small ${c}`), cap.toLowerCase(), { timeout: 5000 });
 });
+
+test("the drawing hand demo plays every time a letter/number opens — on every level, not just the first", async () => {
+  for (const [lvl, focus, ds] of [[2, "B", "english"], [3, "B", "english"], [3, "٧", "numbers"]]) {
+    await page.goto(base);
+    await page.evaluate(async ({ lvl, focus }) => {
+      const { Store } = await import("/js/core/storage.js");
+      Store.setWriteSetting("gripTip", false);
+      Store.setWriteLevel("g:" + focus, lvl);
+    }, { lvl, focus });
+    await page.evaluate(async ({ focus, ds }) => {
+      const { renderTrace } = await import("/js/games/trace.js");
+      document.getElementById("app").replaceChildren(renderTrace({ datasetKey: ds, focus, returnLesson: true, regionId: "r", regionIndex: 0 }));
+    }, { focus, ds });
+    await page.waitForSelector(".wb-hand", { timeout: 5000 });
+    assert.match(await page.locator(".wb-level").textContent(), lvl === 2 ? /النقط/ : /لوحدك/);
+  }
+});

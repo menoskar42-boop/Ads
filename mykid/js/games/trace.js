@@ -366,10 +366,12 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     // كارت مسكة القلم (مرة كل يوم) — والكلام والعرض بيستنّوه يتقفل
     showGripCard();
     whenGripClosed(() => {
-      // أول مرة على الخط الكامل: نوريه الأول وبعدين يكتب هو
+      // الصباع بيوريه إزاى يتكتب كل مرة يفتح الحرف/الرقم — مش فى المستوى الأول بس.
+      // المالك ٢٠٢٦-١٠-١٠: «بتظهر أول مرة بس… عاوزها تظهر فى كل مرة». المساعدة
+      // اللى بتقلّ مع المستوى هى الخط تحت إيده (كامل ← نقط ← فاضى)، مش العرض.
       if (isPre) tell(it.say);
       else tell(level === 3 ? `اكتب ${noun} ${label} لوحدك` : `اكتب ${noun} ${label}. ابدأ من النقطة الخضرا`);
-      if (level === 1) setTimeout(() => board.demo(), 1400);
+      setTimeout(() => board.demo(), 1400);
     });
   }
 

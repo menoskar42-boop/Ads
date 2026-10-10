@@ -153,6 +153,10 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
       && !/tracker\.end\(\)/.test((/function down\(e\) \{[\s\S]*?\n  \}/.exec(b) || [''])[0]));
     check('والصباع السريع مابيقفزش فوق الخط (بنملا الفراغ قبل الحكم)',
       /densify\(\[last, p\], 2\)/.test(b));
+    // المالك ٢٠٢٦-١٠-١٠: «طريقة رسم الحرف بتظهر أول مرة بس… عاوزها تظهر فى كل مرة»
+    check('صباع العرض بيرسم الحرف كل مرة يتفتح (كل المستويات، مش الأول بس)',
+      !/if \(level === 1\) setTimeout\(\(\) => board\.demo\(\)/.test(raw('mykid/js/games/trace.js') + raw('mykid/js/games/nameWrite.js'))
+      && /setTimeout\(\(\) => board\.demo\(\), 1400\)/.test(raw('mykid/js/games/trace.js')));
     check('وغلطتين على نفس الخط ⇒ اللوحة بتوريه إزاى', /if \(fails >= 2\)[\s\S]{0,200}demo\(\{ only: cur \}\)/.test(b));
 
     // القلم (استايلس) والكف ساند: المالك ٢٠٢٦-١٠-١٠ «هل فيه طريقة إنه يتكتب باستيكه؟»
@@ -164,7 +168,7 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
     // مسكة القلم + «القلم بس» (المالك ٢٠٢٦-١٠-١٠: «علشان يبقى زى مسكة القلم للطفل»)
     const G = raw('mykid/js/games/grip.js');
     check('كارت مسكة القلم بيظهر مرة فى اليوم، والعرض بيستنّاه يتقفل',
-      /takeGripTipForToday\(\)/.test(G) && /whenGripClosed\(\(\) => \{[\s\S]{0,400}board\.demo\(\)/.test(raw('mykid/js/games/trace.js')));
+      /takeGripTipForToday\(\)/.test(G) && /whenGripClosed\(\(\) => \{[\s\S]{0,900}board\.demo\(\)/.test(raw('mykid/js/games/trace.js')));
     check('«القلم بس»: الصباع مابيكتبش، والماوس فاضل شغّال',
       /if \(opts\.penOnly && e\.pointerType === "touch"\)/.test(b));
     check('ولو الجهاز عمره ما قرا قلم ذكى، ولى الأمر بيتقاله يقفل الوضع (مش الطفل يفضل يحاول)',

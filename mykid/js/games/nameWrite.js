@@ -145,7 +145,7 @@ export function renderNameWrite({ regionId, regionIndex }) {
     whenGripClosed(() => {
       if (idx === 0) tell(`يلا نكتب اسمك. أول حرف ${ch}. ابدأ من النقطة الخضرا`);
       else tell(`الحرف اللى بعده ${ch}`);
-      if (level === 1) setTimeout(() => board.demo(), 1400);
+      setTimeout(() => board.demo(), 1400); // العرض كل مرة، مش فى المستوى الأول بس
     });
   }
 
