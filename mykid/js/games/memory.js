@@ -7,6 +7,7 @@ import { Sfx } from "../core/audio.js";
 import { awardStars } from "../core/rewards.js";
 import { gameTopbar, shuffle, finishActivity } from "./common.js";
 import { glyphMarkup } from "./glyph.js";
+import { bothCasesSay } from "../data/writingPhrases.js";
 
 const PAIRS = 6; // عدد الأزواج (12 بطاقة)
 
@@ -62,7 +63,7 @@ export function renderMemory({ regionId, regionIndex, datasetKey, title, bg }) {
       // تطابق
       Sfx.correct();
       if (caseMode) {
-        Speech.en(`Capital ${card.it.char}, small ${card.it.lower}`);
+        Speech.en(bothCasesSay(card.it.char, card.it.lower));
         hint.textContent = `برافو! ${card.it.char} الكابيتال و ${card.it.lower} الصغير نفس الحرف`;
       } else Speech.ar(card.it.name);
       setTimeout(() => {

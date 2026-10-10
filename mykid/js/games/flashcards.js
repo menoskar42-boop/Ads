@@ -8,6 +8,7 @@ import { Sfx } from "../core/audio.js";
 import { Store } from "../core/storage.js";
 import { gameTopbar, glyphPicker, glyphChooser } from "./common.js";
 import { bothCases } from "../data/englishLetters.js";
+import { bothCasesSay, CHOOSER_TITLES } from "../data/writingPhrases.js";
 
 export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, title, choose = false }) {
   const ds = getDataset(datasetKey);
@@ -63,7 +64,7 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
   const chooser = choose ? glyphChooser({
     items,
     shownOf: (it) => (kind === "letter" ? bothCases(it) : it.arDigit || it.emoji || it.name),
-    title: isNum ? "اختار الرقم اللى نشوفه" : "اختار الحرف اللى نشوفه",
+    title: isNum ? CHOOSER_TITLES[3] : CHOOSER_TITLES[2],
     dir: speakLang.startsWith("en") ? "ltr" : "rtl",
     onPick: (k) => { i = k; chooser.hide(); stage.classList.remove("hidden"); render(); },
   }) : null;
@@ -109,7 +110,7 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
       const ex = speakLang.startsWith("en") ? `${it.name} for ${it.word}` : `${it.name} مثل ${it.word}`;
       Speech.sequence([
         { text: it.name, lang: speakLang },
-        ...(it.lower ? [{ text: `Capital ${it.char}, small ${it.lower}`, lang: "en-US" }] : []),
+        ...(it.lower ? [{ text: bothCasesSay(it.char, it.lower), lang: "en-US" }] : []),
         { text: ex, lang: speakLang },
       ]);
     } else if (it.arDigit) {

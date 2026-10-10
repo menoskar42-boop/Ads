@@ -8,6 +8,7 @@ import { Sfx } from "../core/audio.js";
 import { Store } from "../core/storage.js";
 import { awardStars } from "../core/rewards.js";
 import { gameTopbar, progressDots, shuffle, finishActivity } from "./common.js";
+import { caseSay } from "../data/writingPhrases.js";
 
 const ROUNDS = 6;
 
@@ -105,7 +106,7 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title })
     const small = i % 2 === 0;
     const want = small ? target.lower : target.char;
     const twin = small ? target.char : target.lower;
-    const say = () => Speech.say(`${small ? "small" : "capital"} ${want}`, { lang: "en-US" });
+    const say = () => Speech.say(caseSay(small ? "small" : "capital", want), { lang: "en-US" });
     stage.innerHTML = "";
     stage.appendChild(progressDots(rounds.length, i - 1));
     const ask = document.createElement("p");

@@ -11,6 +11,7 @@ import { Store } from "../core/storage.js";
 import { femAdapt } from "../data/mizo.js";
 import { writeStatus, practiceOrder } from "./writeProgress.js";
 import { openWorksheet } from "./worksheet.js";
+import { ROUND_MSG, writeIntro } from "../data/writingPhrases.js";
 import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
 // كل حرف بيتكتب كذا مرة (نقط ← نقط ← لوحده)، فالجلسة ٤ حروف بدل ٦ (الإنجليزى: زوجين A/a)
@@ -335,27 +336,27 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
           // جولة بمساعدة: لو اتلخبط جامد على النقط، جولة على الخط العريض قبل اللى بعدها
           if (level === 2 && fails >= 4 && !plan.includes(1)) {
             plan.splice(step + 1, 0, 1);
-            return say("تعالى نكتبه على الخط العريض الأول", nextRound);
+            return say(ROUND_MSG.toRoad, nextRound);
           }
-          return say(plan[step + 1] === 3 ? "برافو! دلوقتى اكتبه لوحدك من غير نقط" : "برافو! مرة كمان على النقط", nextRound);
+          return say(plan[step + 1] === 3 ? ROUND_MSG.toAlone : ROUND_MSG.againDots, nextRound);
         }
         // جولة «لوحده»
         if (fails <= 2) {
           Store.recordWrite(levelKey, fails, 3);
           Store.setWriteLevel(levelKey, 3);
           Speech.say(sayDone, { lang: speakLang });
-          return say(isPre ? "برافو! رسمته لوحدك" : "برافو! كتبته لوحدك", next, 2000);
+          return say(isPre ? ROUND_MSG.doneAloneShape : ROUND_MSG.doneAlone, next, 2000);
         }
         if (extraLoops < 2) {
           // غلط وهو لوحده ⇒ نرجع للنقط مرة ونجرّب لوحده تانى
           extraLoops++;
           plan.splice(step + 1, 0, 2, 3);
-          return say("تعالى نكتبه على النقط تانى، وبعدين لوحدك", nextRound);
+          return say(ROUND_MSG.backToDots, nextRound);
         }
         Store.recordWrite(levelKey, fails, 3);
         Store.setWriteLevel(levelKey, 2);
         Speech.say(sayDone, { lang: speakLang });
-        return say("برافو! هنتمرّن عليه تانى المرة الجاية", next, 2000);
+        return say(ROUND_MSG.practiceLater, next, 2000);
       },
     });
     stage.appendChild(hint);
@@ -404,7 +405,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       // رسالتها فى آخر الجولة اللى قبلها، والشرح بيرجع لوحده مع أى غلطة (writeBoard).
       if (step === 0) {
         if (isPre) tell(it.say);
-        else tell(`اكتب ${noun} ${label}. ابدأ من النقطة الخضرا وامشي مع السهم`);
+        else tell(writeIntro(noun, label));
         setTimeout(() => board.demo(), 1400);
       }
     });

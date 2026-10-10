@@ -12,6 +12,7 @@ import { gameTopbar, showCheer, finishActivity } from "./common.js";
 import { strokesFor, nameLetters } from "../data/strokes.js";
 import { mountWriteBoard, LEVEL_LABELS } from "./writeBoard.js";
 import { openWorksheet } from "./worksheet.js";
+import { nameFirst, nameNext } from "../data/writingPhrases.js";
 import { femAdapt } from "../data/mizo.js";
 import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
@@ -143,8 +144,8 @@ export function renderNameWrite({ regionId, regionIndex }) {
 
     if (idx === 0) showGripCard();
     whenGripClosed(() => {
-      if (idx === 0) tell(`يلا نكتب اسمك. أول حرف ${ch}. ابدأ من النقطة الخضرا`);
-      else tell(`الحرف اللى بعده ${ch}`);
+      if (idx === 0) tell(nameFirst(ch));
+      else tell(nameNext(ch));
       setTimeout(() => board.demo(), 1400); // العرض كل مرة، مش فى المستوى الأول بس
     });
   }

@@ -15,6 +15,7 @@ import { getEnglishLetterLessonVideo } from "../data/englishLetterLessonVideos.j
 import { createYouTubePlayer } from "../core/youtube-player.js";
 import { bothCases } from "../data/englishLetters.js";
 import { strokeAnimSvg } from "./strokeAnim.js";
+import { bothCasesSay, CHOOSER_TITLES } from "../data/writingPhrases.js";
 
 export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, startChar, motivate, includeZero = false, choose = false }) {
   const ds = getDataset(datasetKey);
@@ -150,7 +151,7 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
       : `هذا ${noun} ${label}`;
     parts.push({ text: description, lang: speakLang });
     const twoCases = it.lower && it.lower !== it.char;
-    if (twoCases) parts.push({ text: `Capital ${it.char}, small ${it.lower}`, lang: "en-US" });
+    if (twoCases) parts.push({ text: bothCasesSay(it.char, it.lower), lang: "en-US" });
     if (it.word) {
       parts.push({ text: isAr ? `${label} مثل ${it.word}` : `${label} for ${it.word}`, lang: speakLang });
     }
@@ -260,7 +261,7 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
     items,
     shownOf,
     ariaOf: (it) => `${isNum ? "الرقم" : "الحرف"} ${glyphOf(it)}`,
-    title: isNum ? "اختار الرقم اللى نتعلّمه" : "اختار الحرف اللى نتعلّمه",
+    title: isNum ? CHOOSER_TITLES[1] : CHOOSER_TITLES[0],
     dir: datasetKey === "english" || isEnglishNumber ? "ltr" : "rtl",
     onPick: openAt,
   }) : null;

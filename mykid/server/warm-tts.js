@@ -13,6 +13,9 @@ import { MIZO_INTRO, MIZO_HELLO, MIZO_PRAISE, MIZO_ENCOURAGE, MIZO_GOAL, MIZO_CA
 import { MIZO_SONG, MIZO_CHAT, MIZO_OOPS, MIZO_WELCOME, MIZO, femAdapt, storyTone } from "../js/data/mizo.js";
 import { STORIES } from "../js/data/stories.js";
 import { ttsCacheKey, ttsPrebuiltPath, TTS_MODEL, TTS_VOICE, TTS_PREBUILT_DIR, OPENAI_BASE } from "./openai.js";
+import * as WP from "../js/data/writingPhrases.js";
+import { hintForResult } from "../js/games/strokeJudge.js";
+import { PREWRITING, AR as AR_STROKES } from "../js/data/strokes.js";
 
 const MZ = MIZO.toneInstructions; // توجيهات لهجة ميزو (لمطابقة مفاتيح الكاش)
 const AR = TTS_VOICE; // صوت ميزو الثابت (يطابق ما يقرأه الخادم بالظبط)
@@ -85,6 +88,52 @@ for (const key of ["arabic", "english", "numbers"]) {
     add(`هذا ${noun} ${label}`, voice);
     add(label, voice);
   }
+}
+
+// ===== الكتابة + الكابيتال/الصغير (٢٠٢٦-١٠-١٠) — من writingPhrases.js نفسه =====
+// كل جملة ثابتة بتتنطق فى «ارسم الحرف» و«اكتب اسمك» والقلم والاختيار وألعاب Aa.
+// tell() فى الشاشات بيأنّث للبنت ⇒ النسختين.
+const addAr = (t) => { add(t, AR); const f = femAdapt(t); if (f !== t) add(f, AR); };
+for (const r of ["wrong-start", "off-path", "backwards", "too-short", "reversed"]) {
+  addAr(hintForResult(r, false));
+  addAr(hintForResult(r, true));
+}
+Object.values(WP.ROUND_MSG).forEach(addAr);
+[WP.GRIP_SAY, WP.PEN_ONLY_SAY, WP.PEN_ONLY_PARENT, ...WP.CHOOSER_TITLES].forEach(addAr);
+PREWRITING.forEach((pw) => addAr(pw.say));
+add("برافو", AR);
+{
+  const en = DATASETS.english.items;
+  // «اكتب الحرف …» لكل حرف/رقم (الإنجليزى كابيتال وصغير)
+  for (const it of DATASETS.arabic.items) addAr(WP.writeIntro("الحرف", it.name));
+  for (const it of en) {
+    addAr(WP.writeIntro("الحرف", it.name));
+    addAr(WP.writeIntro("الحرف", `small ${it.lower}`));
+    // الصغير: زرار 🔊 + جملة المثال لما يخلص
+    add(`small ${it.lower}`, EN);
+    add(examplePhrase({ name: `small ${it.lower}`, word: it.word }, "en"), EN);
+    // ألعاب Aa: المعلّم/شوف واعرف/Memory + اصطياد/الناقص/المراجعة
+    add(WP.bothCasesSay(it.char, it.lower), EN);
+    add(WP.caseSay("small", it.lower), EN);
+    add(WP.caseSay("capital", it.char), EN);
+  }
+  for (const it of DATASETS.numbers.items) addAr(WP.writeIntro("الرقم", it.arName));
+  addAr(WP.writeIntro("الرقم", "صفر"));
+  for (const it of DATASETS.englishNumbers.items) addAr(WP.writeIntro("الرقم", it.name));
+  addAr(WP.writeIntro("الرقم", "zero"));
+  Object.values(WP.CATCH_SAY).forEach(addAr);
+  Object.values(WP.MISSING_SAY).forEach(addAr);
+  // «اكتب اسمك»: الحرف بس (الاسم نفسه بيتولّد وقت التشغيل ومايتحفظش فى الكود — المستودع عام)
+  const nameLetters = [...Object.keys(AR_STROKES), ...en.map((it) => it.char), ...en.map((it) => it.lower)];
+  for (const ch of nameLetters) { addAr(WP.nameFirst(ch)); addAr(WP.nameNext(ch)); }
+}
+
+// ===== --dry: يعدّ الناقص بس (من غير مفتاح ولا تكلفة) — للفحص والـCI =====
+if (process.argv.includes("--dry")) {
+  const missing = phrases.filter((p) => !fs.existsSync(ttsPrebuiltPath(ttsCacheKey(p.text, p.voice, p.instructions))));
+  console.log(`${phrases.length} عبارة ثابتة · موجود صوتها فى الكود: ${phrases.length - missing.length} · ناقص: ${missing.length}`);
+  if (process.argv.includes("--list")) missing.forEach((p) => console.log(`  - ${p.text}`));
+  process.exit(0);
 }
 
 // ===== التوليد المباشر إلى مجلّد الملفات الدائمة (بلا حاجة لخادم يعمل) =====

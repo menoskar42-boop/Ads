@@ -5,6 +5,7 @@ import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { awardStars } from "../core/rewards.js";
 import { gameTopbar, shuffle, finishActivity, diffCount } from "./common.js";
+import { CATCH_SAY, caseSay } from "../data/writingPhrases.js";
 
 const ROUNDS = 5;
 
@@ -83,8 +84,8 @@ export function renderCatch({ regionId, regionIndex, datasetKey, lang }) {
       ? `اصطد الحرف <b>الصغير</b> <b style="font-size:1.4em" dir="ltr">${want}</b>`
       : `اصطد الحرف <b>الكابيتال</b> <b style="font-size:1.4em" dir="ltr">${want}</b>`;
     Speech.sequence([
-      { text: kind === "small" ? "اصطد الحرف الصغير" : "اصطد الحرف الكابيتال", lang: "ar-EG" },
-      { text: `${kind} ${want}`, lang: "en-US" },
+      { text: CATCH_SAY[kind], lang: "ar-EG" },
+      { text: caseSay(kind, want), lang: "en-US" },
     ]);
     const others = shuffle(items.filter((x) => x.char !== target.char)).slice(0, diffCount(3, 4))
       .map((x) => (Math.random() < 0.5 ? x.char : x.lower));
@@ -109,7 +110,7 @@ export function renderCatch({ regionId, regionIndex, datasetKey, lang }) {
         if (ch === want) {
           Sfx.correct();
           awardStars(1);
-          Speech.say(`${kind} ${want}`, { lang: "en-US" });
+          Speech.say(caseSay(kind, want), { lang: "en-US" });
           el.classList.add("correct");
           el.style.pointerEvents = "none";
           nextRound();

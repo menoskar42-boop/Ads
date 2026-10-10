@@ -7,6 +7,7 @@ import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { awardStars } from "../core/rewards.js";
 import { gameTopbar, progressDots, shuffle, finishActivity, diffCount, revealAnswer } from "./common.js";
+import { MISSING_SAY, caseSay } from "../data/writingPhrases.js";
 
 const ROUNDS = 6;
 const WIN = 3; // طول السلسلة المعروضة
@@ -45,14 +46,14 @@ export function renderSequence({ regionId, regionIndex, datasetKey, lang, title 
     const answer = seq[gap];
     const small = caseMode && round % 2 === 1;
     const glyph = (it) => (small ? it.lower : baseGlyph(it));
-    const speakName = (it, lang) => (small ? Speech.say(`small ${it.lower}`, { lang: "en-US" }) : baseSpeak(it, lang));
+    const speakName = (it, lang) => (small ? Speech.say(caseSay("small", it.lower), { lang: "en-US" }) : baseSpeak(it, lang));
 
     stage.innerHTML = "";
     stage.appendChild(progressDots(ROUNDS, round - 1));
 
     const ask = document.createElement("p");
     ask.style.cssText = "font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.2);font-size:clamp(17px,4.6vw,22px)";
-    ask.textContent = caseMode ? (small ? "ما الحرف الصغير الناقص؟" : "ما الحرف الكابيتال الناقص؟") : "ما العنصر الناقص؟";
+    ask.textContent = caseMode ? MISSING_SAY[small ? "small" : "capital"] : "ما العنصر الناقص؟";
     stage.appendChild(ask);
 
     // السلسلة المعروضة

@@ -11,6 +11,7 @@ import { Store } from "../core/storage.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { femAdapt } from "../data/mizo.js";
+import { GRIP_SAY, PEN_ONLY_SAY, PEN_ONLY_PARENT } from "../data/writingPhrases.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
 
@@ -69,7 +70,7 @@ export function showGripCard({ force = false } = {}) {
   </div>`;
   document.body.appendChild(card);
   openCard = card;
-  Speech.ar(fem("امسك القلم بصباعين، والصباع الوسطانى يسنده من تحت"));
+  Speech.ar(fem(GRIP_SAY));
   const go = card.querySelector(".grip-go");
   go.focus();
   go.addEventListener("click", () => {
@@ -110,12 +111,12 @@ export function penBoardOptions(say) {
       if (blocked >= 3 && !warned && !Store.writeSettings.penSeen) {
         warned = true;
         lastSaid = now;
-        say("وضع «القلم بس» شغّال، والقلم ده الشاشة بتقراه صباع — اقفله من صفحة ولى الأمر");
+        say(PEN_ONLY_PARENT);
         return;
       }
       if (now - lastSaid < 4000) return;
       lastSaid = now;
-      say(fem("اكتب بالقلم ✏️"));
+      say(fem(PEN_ONLY_SAY));
     },
   };
 }

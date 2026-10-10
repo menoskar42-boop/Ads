@@ -1,0 +1,78 @@
+# Safari Kids (mykid): turn every FIXED phrase's AI voice into an mp3 inside the code.
+#
+# Owner (2026-10-10): the AI voice must be generated once and then live as audio files
+# in the program — not in the database, not in Replit's database either. The server's
+# runtime cache (mykid/server/.tts-cache) lives on the deployment's disk, which Replit
+# wipes on every Republish, so anything only cached there gets paid for again.
+#
+# This job runs mykid/server/warm-tts.js, which lists every fixed phrase (letters,
+# Mizo, writing hints, capital/small games — see mykid/js/data/writingPhrases.js),
+# skips the ones that already have a file in mykid/server/tts-prebuilt/, generates
+# only the missing ones, and commits them back to this branch. The next Republish
+# ships them; the site never asks the AI for those phrases again.
+#
+# Never committed (the repository is public): children's names and Mizo's chat
+# answers — those stay in the runtime cache only.
+#
+# Needs the repository secret OPENAI_API_KEY. Without it the job only reports how many
+# phrases are missing and exits green.
+name: Safari Kids voice files
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/build-oscardevs-ads-mvp-8krfN]
+    paths:
+      - 'mykid/js/**'
+      - 'mykid/server/warm-tts.js'
+      - 'mykid/server/openai.js'
+      - '.github/workflows/mykid-tts-prebuild.yml'
+
+concurrency:
+  group: mykid-tts-prebuild
+  cancel-in-progress: false
+
+jobs:
+  prebuild:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # committing the new mp3 files — nothing wider
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Count missing voice files
+        working-directory: mykid
+        run: node --import ./server/_node-shim.mjs server/warm-tts.js --dry
+
+      - name: Generate the missing ones (OpenAI TTS, once)
+        if: ${{ env.OPENAI_API_KEY != '' }}
+        working-directory: mykid
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node --import ./server/_node-shim.mjs server/warm-tts.js
+
+      - name: No key — nothing generated
+        if: ${{ env.OPENAI_API_KEY == '' }}
+        run: echo "::notice::Add the repository secret OPENAI_API_KEY to generate the missing Safari Kids voice files."
+
+      - name: Commit new files into the code
+        if: ${{ env.OPENAI_API_KEY != '' }}
+        run: |
+          git add mykid/server/tts-prebuilt
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          git config user.name "safari-kids-voices"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "Safari Kids: voice files for new fixed phrases (generated once, now in the code)"
+          for i in 1 2 3 4; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((i * 5))
+          done
+          exit 1
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
