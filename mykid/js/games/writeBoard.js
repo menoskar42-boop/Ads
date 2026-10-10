@@ -241,21 +241,76 @@ export function mountWriteBoard(host, opts) {
     }
   }
 
-  function down(e) {
-    if (busy || finished || drawing) return;
-    e.preventDefault();
+  // ===== صباع، أو قلم (استايلس / Apple Pencil)، والإيد ساندة على الشاشة =====
+  // المالك ٢٠٢٦-١٠-١٠: «هل فيه طريقة إنه يتكتب باستيكه؟». القلم بيتقرى زى الصباع —
+  // المشكلة إن الطفل وهو ماسك القلم بيسند كفّه على الشاشة، فالكف بيتاخد على إنه الكتابة
+  // («ابدأ من النقطة الخضرا» وهو لسه ماكتبش). فـ:
+  //   • أول ما قلم حقيقى (pointerType = pen) يلمس، اللمس بالإيد بيتجاهل خالص.
+  //   • لمسة عريضة (كف) بتتجاهل.
+  //   • لمسة بعيدة عن النقطة الخضرا مابتتحكمش «غلط» على طول: لو اتحركت يبقى غلط فعلاً،
+  //     لو فضلت ساكنة (كف ساند) والكتابة حصلت بلمسة تانية، بتتنسى من غير ما نقول حاجة.
+  const PALM_PX = 50;
+  let penSeen = false;
+  let drawStart = null;
+  let lastWriteAt = 0;
+  const pending = new Map(); // pointerId → { p, at } — لمسة بعيدة لسه مااتحكمش عليها
+  const near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+  function ignorable(e) {
+    if (e.pointerType === "pen") penSeen = true;
+    if (penSeen && e.pointerType === "touch") return true;
+    return e.pointerType === "touch" && (e.width >= PALM_PX || e.height >= PALM_PX);
+  }
+
+  function beginWith(e, p) {
     try { ink.setPointerCapture(e.pointerId); } catch (_) {}
     pid = e.pointerId;
-    const p = toUnits(e);
     tracker = new StrokeTracker(strokes[cur], level);
+    lastWriteAt = performance.now();
     inkDot(p);
     const r = tracker.begin(p);
     if (r === "ok") return succeed();
     if (r) return fail(r);
     drawing = true;
+    drawStart = p;
     last = p;
   }
+
+  function down(e) {
+    if (busy || finished || ignorable(e)) return;
+    e.preventDefault();
+    const p = toUnits(e);
+    const startPt = strokes[cur][0];
+    const probe = new StrokeTracker(strokes[cur], level);
+    const wrong = probe.begin(p) === "wrong-start";
+    if (drawing) {
+      // لمسة تانية وهو بيكتب: لو الأولى لسه ماتحرّكتش والتانية عند النقطة الخضرا،
+      // يبقى الأولى كانت الكف — نكمّل بالتانية
+      if (!wrong && tracker.progress < 3 && near(p, startPt) < near(drawStart, startPt)) {
+        pending.set(pid, { p: drawStart, at: performance.now() });
+        clearInk(false);
+        drawing = false;
+        beginWith(e, p);
+      }
+      return;
+    }
+    if (wrong) {
+      try { ink.setPointerCapture(e.pointerId); } catch (_) {}
+      pending.set(e.pointerId, { p, at: performance.now() });
+      return;
+    }
+    beginWith(e, p);
+  }
   function move(e) {
+    const pend = pending.get(e.pointerId);
+    if (pend) {
+      // اتحرّكت ⇒ دى محاولة كتابة فعلاً من مكان غلط (مش كف ساند)
+      if (!drawing && lastWriteAt < pend.at && near(toUnits(e), pend.p) > 4) {
+        pending.delete(e.pointerId);
+        fail("wrong-start");
+      }
+      return;
+    }
     if (!drawing || e.pointerId !== pid) return;
     e.preventDefault();
     const evs = typeof e.getCoalescedEvents === "function" ? e.getCoalescedEvents() : [];
@@ -272,15 +327,31 @@ export function mountWriteBoard(host, opts) {
     }
   }
   function up(e) {
+    const pend = pending.get(e.pointerId);
+    if (pend) {
+      pending.delete(e.pointerId);
+      // ضغطة فى مكان غلط ورفع — إلا لو كان كف ساند والكتابة حصلت بلمسة تانية
+      if (!drawing && lastWriteAt < pend.at && !finished && !busy) fail("wrong-start");
+      return;
+    }
     if (!drawing || e.pointerId !== pid) return;
     const r = tracker.end();
     if (r === "ok") succeed();
     else fail(r);
   }
+  function cancel(e) {
+    // المتصفح لغى اللمسة (جيستشر/كف): نمسح من غير ما نقول «غلط»
+    pending.delete(e.pointerId);
+    if (drawing && e.pointerId === pid) {
+      drawing = false;
+      tracker = null;
+      clearInk(true);
+    }
+  }
   ink.addEventListener("pointerdown", down);
   ink.addEventListener("pointermove", move);
   ink.addEventListener("pointerup", up);
-  ink.addEventListener("pointercancel", up);
+  ink.addEventListener("pointercancel", cancel);
 
   /**
    * «شوف إزاى»: صباع بيمشى على الخطوط بالترتيب وبيسيب أثر. `only` = خط واحد بس.

@@ -204,3 +204,66 @@ test("parent page colours the letters she wrote and prints a sheet for any lette
   assert.equal(await page.locator(".ws-overlay").count(), 0);
   assert.deepEqual(errors, []);
 });
+
+// ---------- قلم (استايلس) والكف ساند على الشاشة ----------
+
+/** أحداث pointer حقيقية بنوعها (touch/pen) ومقاس اللمسة — زى ما الآيباد/الموبايل بيبعتها. */
+async function ptr(type, id, kind, [x, y], extra = {}) {
+  await page.evaluate(({ type, id, kind, x, y, extra }) => {
+    const c = document.querySelector(".wb-ink");
+    const r = c.getBoundingClientRect();
+    c.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, pointerId: id, pointerType: kind, isPrimary: false,
+      clientX: r.left + (x / 100) * r.width, clientY: r.top + (y / 100) * r.height,
+      width: extra.width || 1, height: extra.height || 1,
+    }));
+  }, { type, id, kind, x, y, extra });
+}
+async function trace(id, kind, pts) {
+  const d = densify(pts, 3);
+  await ptr("pointerdown", id, kind, d[0]);
+  for (const q of d.slice(1)) await ptr("pointermove", id, kind, q);
+  await ptr("pointerup", id, kind, d[d.length - 1]);
+}
+const hintText = () => page.evaluate(() => [...document.querySelectorAll(".stage div")].map((d) => d.textContent).join("|"));
+const level = (k) => page.evaluate(async (k) => (await import("/js/core/storage.js")).Store.getWriteLevel(k), k);
+
+test("a resting palm doesn't count: the hand writes with another touch and no hint is said", async () => {
+  await page.goto(base);
+  await page.evaluate(() => localStorage.clear());
+  await open(BA, 1);
+  const [body, dotStroke] = strokesFor("ب");
+  await ptr("pointerdown", 7, "touch", [86, 88]);           // الكف نزل الأول، بعيد عن النقطة
+  await ptr("pointermove", 7, "touch", [87, 89]);           // بيتهزّ شوية
+  await trace(8, "touch", body);                            // الصباع/القلم كتب الخط صح
+  await ptr("pointerup", 7, "touch", [87, 89]);             // الكف اترفع
+  assert.doesNotMatch(await hintText(), /النقطة الخضرا/);
+  assert.equal(Math.round(await page.locator(".wb-start").evaluate((e) => parseFloat(e.style.left))), dotStroke[0][0]);
+});
+
+test("once a pen touches, hand touches are ignored; the pen finishes the letter", async () => {
+  await page.goto(base);
+  await page.evaluate(() => localStorage.clear());
+  await open(BA, 1);
+  const [body, dotStroke] = strokesFor("ب");
+  await trace(11, "pen", body);
+  await trace(12, "touch", [[30, 20], [40, 30]]);           // إيد بتمسح على الشاشة
+  await ptr("pointerdown", 13, "touch", [10, 10]); await ptr("pointerup", 13, "touch", [10, 10]);
+  assert.doesNotMatch(await hintText(), /النقطة|الخط|السهم/);
+  await trace(14, "pen", dotStroke);
+  await page.waitForTimeout(300);
+  assert.equal(await level("g:ب"), 2);
+});
+
+test("a wide touch (palm) is ignored even when it slides", async () => {
+  await page.goto(base);
+  await page.evaluate(() => localStorage.clear());
+  await open(BA, 1);
+  await ptr("pointerdown", 21, "touch", [20, 80], { width: 80, height: 70 });
+  await ptr("pointermove", 21, "touch", [40, 85], { width: 80, height: 70 });
+  await ptr("pointerup", 21, "touch", [40, 85], { width: 80, height: 70 });
+  assert.doesNotMatch(await hintText(), /النقطة الخضرا/);
+  // ولمسة صغيرة فى مكان غلط واتحرّكت = غلط فعلاً، وبيتقال على طول
+  await trace(22, "touch", [[20, 80], [40, 85]]);
+  assert.match(await hintText(), /النقطة الخضرا/);
+});

@@ -153,6 +153,12 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
       /densify\(\[last, p\], 2\)/.test(b));
     check('وغلطتين على نفس الخط ⇒ اللوحة بتوريه إزاى', /if \(fails >= 2\)[\s\S]{0,200}demo\(\{ only: cur \}\)/.test(b));
 
+    // القلم (استايلس) والكف ساند: المالك ٢٠٢٦-١٠-١٠ «هل فيه طريقة إنه يتكتب باستيكه؟»
+    check('القلم: بعد ما قلم حقيقى يلمس، لمس الإيد بيتجاهل',
+      /if \(penSeen && e\.pointerType === "touch"\) return true;/.test(b));
+    check('والكف العريض بيتجاهل، والكف الساند مابيتقالّوش «ابدأ من النقطة الخضرا»',
+      /e\.width >= PALM_PX/.test(b) && /pending\.set\(e\.pointerId/.test(b) && /lastWriteAt < pend\.at/.test(b));
+
     // اسمها: كل حرف فى اسم عربى أو إنجليزى ليه خطوط (حتى ا إ آ ة ى اللى مش فى الحروف الـ٢٨)
     const names = ['مريم', 'آية', 'هدى', 'إسراء', 'فاطمة', 'سلمى', 'Betty'];
     const lost = names.filter((n) => D.nameLetters(n).length !== [...n].length);
