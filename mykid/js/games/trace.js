@@ -11,6 +11,7 @@ import { Store } from "../core/storage.js";
 import { femAdapt } from "../data/mizo.js";
 import { writeStatus, practiceOrder } from "./writeProgress.js";
 import { openWorksheet } from "./worksheet.js";
+import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
 const TRACE_COUNT = 6;
 const RES = 300; // دقّة داخلية ثابتة
@@ -285,6 +286,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     };
 
     const board = mountWriteBoard(stage, {
+      ...penBoardOptions((text) => showHint(tell(text))),
       strokes,
       level,
       from: it.from,
@@ -329,6 +331,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     btn("👀 شوف إزاى", () => board.demo());
     if (!isPre) btn(`🔊 ${noun}`, () => Speech.say(label, { lang: speakLang }));
     btn("🔁 من الأول", () => board.reset());
+    tools.appendChild(gripButton());
     btn("🖨️ اطبع ورقة", () => openWorksheet({
       title: isPre ? `✍️ تمرين: ${label}` : `✍️ اكتب ${noun} ${glyph}`,
       glyphs: [{ label: glyph, strokes }],
@@ -347,10 +350,14 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       }));
     }
 
-    // أول مرة على الخط الكامل: نوريه الأول وبعدين يكتب هو
-    if (isPre) tell(it.say);
-    else tell(level === 3 ? `اكتب ${noun} ${label} لوحدك` : `اكتب ${noun} ${label}. ابدأ من النقطة الخضرا`);
-    if (level === 1) setTimeout(() => board.demo(), 1400);
+    // كارت مسكة القلم (مرة كل يوم) — والكلام والعرض بيستنّوه يتقفل
+    showGripCard();
+    whenGripClosed(() => {
+      // أول مرة على الخط الكامل: نوريه الأول وبعدين يكتب هو
+      if (isPre) tell(it.say);
+      else tell(level === 3 ? `اكتب ${noun} ${label} لوحدك` : `اكتب ${noun} ${label}. ابدأ من النقطة الخضرا`);
+      if (level === 1) setTimeout(() => board.demo(), 1400);
+    });
   }
 
   function next() {

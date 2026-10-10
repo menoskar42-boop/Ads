@@ -956,3 +956,19 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
 .pw-new { background: #f1f0f7; color: #6b6496; }
 .pw-print { display: block; margin: 14px auto 0; }
 .pw-print:disabled { opacity: .5; }
+.pw-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; border-top: 1px dashed #e0dbf3; padding-top: 12px; }
+.pw-opt { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.pw-opt input { width: 22px; height: 22px; margin-top: 2px; accent-color: #7c3aed; flex: none; }
+.pw-opt b { display: block; color: var(--c-ink); font-size: 14px; }
+.pw-opt small { display: block; color: #7a6ca8; font-size: 12px; line-height: 1.6; }
+.pw-pen { display: block; font-style: normal; color: #9a3412; margin-top: 2px; }
+.pw-pen.ok { color: #15803d; }
+
+/* ===== كارت «إزاى تمسك القلم» (grip.js) ===== */
+.grip-overlay { position: fixed; inset: 0; z-index: 150; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(40, 24, 90, .45); }
+.grip-card { width: min(100%, 380px); max-height: 100%; overflow-y: auto; background: #fff; border-radius: 24px; padding: 16px 18px; box-shadow: var(--shadow-card); text-align: center; }
+.grip-title { font-size: 22px; font-weight: 800; color: #4c1d95; }
+.grip-card svg { display: block; width: 100%; height: auto; margin: 4px 0; }
+.grip-steps { list-style: arabic-indic; text-align: start; margin: 4px 0 6px; padding-inline-start: 22px; color: #27272a; font-weight: 700; line-height: 1.8; }
+.grip-note { margin: 0 0 12px; color: #6d28d9; font-weight: 800; font-size: 14px; }
+.grip-go:focus-visible { outline: 3px solid #8b5cf6; outline-offset: 2px; }

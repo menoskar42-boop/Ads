@@ -235,6 +235,23 @@ export const Store = {
   get writeStats() {
     return state.writeStats || (state.writeStats = {});
   },
+  // إعدادات الكتابة (من صفحة ولى الأمر): كارت مسكة القلم مرة كل يوم · وضع «القلم بس»
+  get writeSettings() {
+    const w = state.writeSettings || (state.writeSettings = {});
+    return { gripTip: w.gripTip !== false, penOnly: !!w.penOnly, penSeen: !!w.penSeen, gripDate: w.gripDate || "" };
+  },
+  setWriteSetting(name, value) {
+    const w = state.writeSettings || (state.writeSettings = {});
+    w[name] = value;
+    persist();
+  },
+  /** كارت مسكة القلم: true لو لسه ماظهرش النهارده (ويتعلّم إنه ظهر). */
+  takeGripTipForToday() {
+    const s = this.writeSettings;
+    if (!s.gripTip || s.gripDate === today()) return false;
+    this.setWriteSetting("gripDate", today());
+    return true;
+  },
   recordWrite(key, fails, level) {
     const w = this.writeStats[key] || { n: 0, r: [] };
     w.n += 1;

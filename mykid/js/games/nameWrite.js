@@ -13,6 +13,7 @@ import { strokesFor, nameLetters } from "../data/strokes.js";
 import { mountWriteBoard, LEVEL_LABELS } from "./writeBoard.js";
 import { openWorksheet } from "./worksheet.js";
 import { femAdapt } from "../data/mizo.js";
+import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
 function tell(text) {
   let t = text;
@@ -108,6 +109,7 @@ export function renderNameWrite({ regionId, regionIndex }) {
 
     const strokes = strokesFor(ch);
     const board = mountWriteBoard(stage, {
+      ...penBoardOptions((text) => showHint(tell(text))),
       strokes,
       level,
       onHint: (text) => { Sfx.wrong(); showHint(tell(text)); },
@@ -134,13 +136,17 @@ export function renderNameWrite({ regionId, regionIndex }) {
       tools.appendChild(b);
     };
     btn("👀 شوف إزاى", () => board.demo());
+    tools.appendChild(gripButton());
     btn("🖨️ اطبع اسمى", printName);
     btn("✏️ غيّر الاسم", askName);
     stage.appendChild(tools);
 
-    if (idx === 0) tell(`يلا نكتب اسمك. أول حرف ${ch}. ابدأ من النقطة الخضرا`);
-    else tell(`الحرف اللى بعده ${ch}`);
-    if (level === 1) setTimeout(() => board.demo(), 1400);
+    if (idx === 0) showGripCard();
+    whenGripClosed(() => {
+      if (idx === 0) tell(`يلا نكتب اسمك. أول حرف ${ch}. ابدأ من النقطة الخضرا`);
+      else tell(`الحرف اللى بعده ${ch}`);
+      if (level === 1) setTimeout(() => board.demo(), 1400);
+    });
   }
 
   function printName() {

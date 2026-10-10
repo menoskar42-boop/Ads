@@ -257,7 +257,15 @@ export function mountWriteBoard(host, opts) {
   const near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
   function ignorable(e) {
-    if (e.pointerType === "pen") penSeen = true;
+    if (e.pointerType === "pen" && !penSeen) {
+      penSeen = true;
+      if (opts.onPenSeen) opts.onPenSeen();
+    }
+    // وضع «القلم بس» (grip.js): الصباع مابيكتبش خالص — الماوس (كمبيوتر) فاضل شغّال
+    if (opts.penOnly && e.pointerType === "touch") {
+      if (opts.onTouchBlocked) opts.onTouchBlocked();
+      return true;
+    }
     if (penSeen && e.pointerType === "touch") return true;
     return e.pointerType === "touch" && (e.width >= PALM_PX || e.height >= PALM_PX);
   }

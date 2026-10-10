@@ -159,6 +159,15 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
     check('والكف العريض بيتجاهل، والكف الساند مابيتقالّوش «ابدأ من النقطة الخضرا»',
       /e\.width >= PALM_PX/.test(b) && /pending\.set\(e\.pointerId/.test(b) && /lastWriteAt < pend\.at/.test(b));
 
+    // مسكة القلم + «القلم بس» (المالك ٢٠٢٦-١٠-١٠: «علشان يبقى زى مسكة القلم للطفل»)
+    const G = raw('mykid/js/games/grip.js');
+    check('كارت مسكة القلم بيظهر مرة فى اليوم، والعرض بيستنّاه يتقفل',
+      /takeGripTipForToday\(\)/.test(G) && /whenGripClosed\(\(\) => \{[\s\S]{0,400}board\.demo\(\)/.test(raw('mykid/js/games/trace.js')));
+    check('«القلم بس»: الصباع مابيكتبش، والماوس فاضل شغّال',
+      /if \(opts\.penOnly && e\.pointerType === "touch"\)/.test(b));
+    check('ولو الجهاز عمره ما قرا قلم ذكى، ولى الأمر بيتقاله يقفل الوضع (مش الطفل يفضل يحاول)',
+      /blocked >= 3 && !warned && !Store\.writeSettings\.penSeen/.test(G));
+
     // اسمها: كل حرف فى اسم عربى أو إنجليزى ليه خطوط (حتى ا إ آ ة ى اللى مش فى الحروف الـ٢٨)
     const names = ['مريم', 'آية', 'هدى', 'إسراء', 'فاطمة', 'سلمى', 'Betty'];
     const lost = names.filter((n) => D.nameLetters(n).length !== [...n].length);

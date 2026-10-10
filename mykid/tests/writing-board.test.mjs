@@ -50,6 +50,12 @@ after(async () => {
   if (server) await new Promise((r) => server.close(r));
 });
 
+/** كارت «إزاى تمسك القلم» بيظهر أول مرة فى اليوم — نقفله زى ما الطفل هيعمل. */
+async function closeGrip() {
+  const go = page.locator(".grip-go");
+  if (await go.count()) await go.click();
+}
+
 async function open(params, level) {
   await page.goto(base); // يقتل أى مؤقّت من الاختبار اللى قبله (الانتقال للدرس بعد ما الحرف يخلص)
   await page.evaluate(async ({ params, level }) => {
@@ -59,6 +65,7 @@ async function open(params, level) {
     document.getElementById("app").replaceChildren(renderTrace(params.trace));
   }, { params, level });
   await page.waitForSelector(".wb-box");
+  await closeGrip();
   // المستوى ١ بيبدأ بعرض «شوف إزاى» — نستنى لحد ما يخلص
   await page.waitForTimeout(1600);
   await page.waitForFunction(() => !document.querySelector(".wb-hand"), null, { timeout: 15000 });
@@ -140,6 +147,7 @@ async function mount(modPath, fn, params) {
     document.getElementById("app").replaceChildren(m[fn](params));
   }, { modPath, fn, params });
   await page.waitForTimeout(80);
+  await closeGrip();
 }
 
 test("flashcards: tapping a letter in the grid jumps straight to it (no Next from A)", async () => {
@@ -266,4 +274,79 @@ test("a wide touch (palm) is ignored even when it slides", async () => {
   // ولمسة صغيرة فى مكان غلط واتحرّكت = غلط فعلاً، وبيتقال على طول
   await trace(22, "touch", [[20, 80], [40, 85]]);
   assert.match(await hintText(), /النقطة الخضرا/);
+});
+
+// ---------- مسكة القلم + وضع «القلم بس» ----------
+
+test("grip card: shown once a day before the demo, in the girl's form, and ✋ reopens it", async () => {
+  await page.goto(base);
+  await page.evaluate(async () => {
+    localStorage.clear();
+    const { Store } = await import("/js/core/storage.js");
+    Store.setChildGender("girl");
+  });
+  await page.evaluate(async () => {
+    const { renderTrace } = await import("/js/games/trace.js");
+    document.getElementById("app").replaceChildren(renderTrace({ datasetKey: "arabic", focus: "ب", returnLesson: true }));
+  });
+  await page.waitForSelector(".grip-overlay");
+  assert.match(await page.locator(".grip-card").textContent(), /امسكيه بالإبهام/);
+  await page.waitForTimeout(1700);
+  assert.equal(await page.locator(".wb-hand").count(), 0, "the demo waits for the card");
+  await page.click(".grip-go");
+  await page.waitForSelector(".wb-hand", { timeout: 4000 });
+
+  // نفس اليوم: مايظهرش تانى لوحده
+  await page.evaluate(async () => {
+    const { renderTrace } = await import("/js/games/trace.js");
+    document.getElementById("app").replaceChildren(renderTrace({ datasetKey: "arabic", focus: "ت", returnLesson: true }));
+  });
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator(".grip-overlay").count(), 0);
+  await page.locator("button", { hasText: "مسكة القلم" }).click();
+  assert.equal(await page.locator(".grip-overlay").count(), 1);
+});
+
+test("pen-only: the finger doesn't write (Mizo says use the pen), the pen does", async () => {
+  await page.goto(base);
+  await page.evaluate(async () => {
+    localStorage.clear();
+    const { Store } = await import("/js/core/storage.js");
+    Store.setWriteSetting("penOnly", true);
+  });
+  await open(BA, 1);
+  const [body, dotStroke] = strokesFor("ب");
+  await trace(31, "touch", body);
+  assert.match(await hintText(), /اكتب بالقلم/);
+  assert.equal(await page.evaluate(() => document.querySelector(".wb-start").textContent), "1", "still on stroke 1");
+  // ٣ مرات بالصباع والجهاز عمره ما قرا قلم ذكى ⇒ بنقول لولى الأمر يقفل الوضع
+  await page.waitForTimeout(4100);
+  await trace(32, "touch", body);
+  await trace(33, "touch", body);
+  assert.match(await hintText(), /اقفله من صفحة ولى الأمر/);
+  await trace(34, "pen", body);
+  await trace(35, "pen", dotStroke);
+  await page.waitForTimeout(300);
+  assert.equal(await level("g:ب"), 2);
+  assert.equal(await page.evaluate(async () => (await import("/js/core/storage.js")).Store.writeSettings.penSeen), true);
+});
+
+test("parent page: the two pen settings save, and it says whether a smart pen was seen", async () => {
+  await page.goto(base);
+  await page.evaluate(async () => {
+    localStorage.clear();
+    const { Store } = await import("/js/core/storage.js");
+    Store.setParentPin("1234");
+  });
+  await mount("/js/screens/parent.js", "renderParent", {});
+  await page.fill("#gateInput", "1234");
+  await page.click("#gateOk");
+  await page.waitForSelector(".pw-opts");
+  assert.match(await page.locator(".pw-pen").textContent(), /لسه ما اتقراش/);
+  await page.locator('.pw-opt input[data-k="penOnly"]').check();
+  await page.locator('.pw-opt input[data-k="gripTip"]').uncheck();
+  const s = await page.evaluate(async () => (await import("/js/core/storage.js")).Store.writeSettings);
+  assert.equal(s.penOnly, true);
+  assert.equal(s.gripTip, false);
+  assert.deepEqual(errors, []);
 });

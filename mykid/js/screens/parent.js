@@ -407,6 +407,21 @@ function writingBox() {
     head.innerHTML = `<span>${label}</span><span class="pw-count">متقَن ${counts.mastered} · محتاج تدريب ${counts.weak}</span>`;
     box.append(head, grid);
   }
+  // إعدادات القلم (grip.js): كارت المسكة كل يوم · «القلم بس»
+  const ws = Store.writeSettings;
+  const opts = document.createElement("div");
+  opts.className = "pw-opts";
+  opts.innerHTML = `
+    <label class="pw-opt"><input type="checkbox" data-k="gripTip" ${ws.gripTip ? "checked" : ""} />
+      <span><b>✋ فكّرنى بمسكة القلم</b><small>كارت «إزاى تمسك القلم» مرة كل يوم أول ما الكتابة تتفتح.</small></span></label>
+    <label class="pw-opt"><input type="checkbox" data-k="penOnly" ${ws.penOnly ? "checked" : ""} />
+      <span><b>✏️ القلم بس (الصباع مايكتبش)</b><small>بيشتغل مع Apple Pencil على الآيباد والأقلام الذكية بس. القلم أبو سنّ مطاط الشاشة بتقراه صباع، فمش هيكتب مع الوضع ده.
+      <em class="pw-pen ${ws.penSeen ? "ok" : ""}">${ws.penSeen ? "✅ الجهاز ده قرا قلم ذكى قبل كده." : "لسه ما اتقراش قلم ذكى على الجهاز ده — جرّب القلم مرة فى «ارسم الحرف» قبل ما تشغّله."}</em></small></span></label>`;
+  opts.querySelectorAll("input").forEach((inp) => {
+    inp.addEventListener("change", () => { Sfx.tap(); Store.setWriteSetting(inp.dataset.k, inp.checked); });
+  });
+  box.appendChild(opts);
+
   const practice = [...all.filter((x) => x.st === "weak"), ...all.filter((x) => x.st === "learning")].slice(0, 8);
   const pb = document.createElement("button");
   pb.className = "candy-btn pw-print";
