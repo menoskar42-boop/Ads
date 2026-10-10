@@ -152,6 +152,22 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
     check('والصباع السريع مابيقفزش فوق الخط (بنملا الفراغ قبل الحكم)',
       /densify\(\[last, p\], 2\)/.test(b));
     check('وغلطتين على نفس الخط ⇒ اللوحة بتوريه إزاى', /if \(fails >= 2\)[\s\S]{0,200}demo\(\{ only: cur \}\)/.test(b));
+
+    // اسمها: كل حرف فى اسم عربى أو إنجليزى ليه خطوط (حتى ا إ آ ة ى اللى مش فى الحروف الـ٢٨)
+    const names = ['مريم', 'آية', 'هدى', 'إسراء', 'فاطمة', 'سلمى', 'Betty'];
+    const lost = names.filter((n) => D.nameLetters(n).length !== [...n].length);
+    check('«اكتب اسمك»: كل حروف الأسامى الشائعة بتتكتب', lost.length === 0, lost.join(' '));
+
+    // ورقة الطباعة: نفس الخطوط، والمساعدة بتقلّ سطر ورا سطر
+    const W = await import('file://' + path.join(ROOT, 'mykid/js/games/worksheet.js'));
+    const plan = W.sheetPlan([{ label: 'ب', strokes: D.strokesFor('ب') }]);
+    check('ورقة الطباعة: نموذج ← نقط ← نقطة البداية ← فاضى',
+      plan[0].map((r) => r.cells[0]).join(',') === 'model,dots,dots,start,start,blank');
+
+    // «اختار مباشرة» (المالك ٢٠٢٦-١٠-١٠: «مش بقدر افتح حرف إلا لازم ادخل على A ثم التالى»)
+    for (const f of ['flashcards.js', 'letterforms.js', 'trace.js']) {
+      check(`${f}: فيه شبكة «اختار مباشرة»`, /glyphPicker\(\{/.test(raw('mykid/js/games/' + f)));
+    }
   }
 
   console.log(fail === 0

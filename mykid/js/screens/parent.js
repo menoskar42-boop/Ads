@@ -7,6 +7,9 @@ import { Router } from "../core/router.js";
 import { Sfx } from "../core/audio.js";
 import { setAIEnabled } from "../core/ai.js";
 import { updateStarCounter } from "../core/rewards.js";
+import { strokesFor } from "../data/strokes.js";
+import { writeStatus, STATUS_LABEL } from "../games/writeProgress.js";
+import { openWorksheet } from "../games/worksheet.js";
 
 export function renderParent() {
   const screen = document.createElement("div");
@@ -130,6 +133,8 @@ export function renderParent() {
     mBox.appendChild(masteryBar(key, label));
   });
   wrap.appendChild(mBox);
+
+  wrap.appendChild(writingBox());
 
   // تفصيل المناطق
   REGIONS.forEach((r) => {
@@ -354,4 +359,64 @@ function masteryBar(datasetKey, label) {
       <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#34d399,#10b981);border-radius:8px"></div>
     </div>`;
   return el;
+}
+
+/**
+ * ✍️ الكتابة: كل حرف ورقم بلونه (متقَن · تحت التعلّم · محتاج تدريب · لسه)، ولمسة على
+ * الحرف بتطلع ورقته للطباعة، وزرار بيطبع ورقة للحروف اللى محتاجة تدريب.
+ * «ارسم الحرف» نفسها بتبدأ بالحروف دى لوحدها (writeProgress.practiceOrder).
+ */
+function writingBox() {
+  const box = document.createElement("div");
+  box.className = "pw-box";
+  const sets = [
+    ["arabic", "الحروف العربية", "rtl"],
+    ["english", "الحروف الإنجليزية", "ltr"],
+    ["numbers", "الأرقام", "rtl"],
+  ];
+  const all = [];
+  let html = `<div class="pw-title">✍️ الكتابة</div>
+    <p class="pw-sub">لون كل حرف بيقول وصل فين فى كتابته. اضغط على أى حرف تطلع ورقته للطباعة.</p>
+    <div class="pw-legend">${["mastered", "learning", "weak", "new"].map((k) => `<span class="pw-chip pw-${k}">${STATUS_LABEL[k]}</span>`).join("")}</div>`;
+  box.innerHTML = html;
+  for (const [key, label, dir] of sets) {
+    const items = getDataset(key).items.filter((it) => (it.arDigit || it.char || "").length === 1);
+    const counts = { mastered: 0, learning: 0, weak: 0, new: 0 };
+    const grid = document.createElement("div");
+    grid.className = "pw-grid";
+    grid.dir = dir;
+    for (const it of items) {
+      const g = it.char || it.arDigit;
+      const k = "g:" + g;
+      const st = writeStatus(Store.writeStats[k], Store.getWriteLevel(k));
+      counts[st]++;
+      all.push({ g, st });
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "pw-g pw-" + st;
+      b.textContent = g;
+      b.title = `${g} — ${STATUS_LABEL[st]}`;
+      b.addEventListener("click", () => {
+        Sfx.tap();
+        openWorksheet({ title: `✍️ اكتب ${g}`, glyphs: [{ label: g, strokes: strokesFor(g) }] });
+      });
+      grid.appendChild(b);
+    }
+    const head = document.createElement("div");
+    head.className = "pw-set";
+    head.innerHTML = `<span>${label}</span><span class="pw-count">متقَن ${counts.mastered} · محتاج تدريب ${counts.weak}</span>`;
+    box.append(head, grid);
+  }
+  const practice = [...all.filter((x) => x.st === "weak"), ...all.filter((x) => x.st === "learning")].slice(0, 8);
+  const pb = document.createElement("button");
+  pb.className = "candy-btn pw-print";
+  pb.type = "button";
+  pb.textContent = practice.length ? "🖨️ اطبع ورقة للحروف اللى محتاجة تدريب" : "لسه مفيش حروف اتكتبت";
+  pb.disabled = !practice.length;
+  pb.addEventListener("click", () => {
+    Sfx.tap();
+    openWorksheet({ title: "✍️ حروف محتاجة تدريب", glyphs: practice.map((x) => ({ label: x.g, strokes: strokesFor(x.g) })) });
+  });
+  box.appendChild(pb);
+  return box;
 }

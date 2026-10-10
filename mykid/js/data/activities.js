@@ -32,6 +32,13 @@ export const ACTIVITIES = {
       params: { datasetKey: "arabic", lang: "ar-EG" },
     },
     {
+      emoji: "📛",
+      title: "اكتب اسمك",
+      desc: "اكتب حروف اسمك واحد ورا التانى",
+      screen: "writeName",
+      params: {},
+    },
+    {
       emoji: "✍️",
       title: "تمارين قبل الكتابة",
       desc: "خط واقف ونايم ودايرة… قبل الحروف",

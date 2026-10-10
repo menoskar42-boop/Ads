@@ -3,12 +3,14 @@ import { getDataset } from "../data/datasets.js";
 import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
-import { gameTopbar, shuffle, showCheer, finishActivity, examplePhrase } from "./common.js";
+import { gameTopbar, shuffle, showCheer, finishActivity, examplePhrase, glyphPicker } from "./common.js";
 import { judge, hintFor } from "./traceJudge.js";
 import { strokesFor, PREWRITING } from "../data/strokes.js";
 import { mountWriteBoard, LEVEL_LABELS } from "./writeBoard.js";
 import { Store } from "../core/storage.js";
 import { femAdapt } from "../data/mizo.js";
+import { writeStatus, practiceOrder } from "./writeProgress.js";
+import { openWorksheet } from "./worksheet.js";
 
 const TRACE_COUNT = 6;
 const RES = 300; // دقّة داخلية ثابتة
@@ -38,7 +40,11 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     ? { value: 0, char: "0", name: "zero", enName: "zero" }
     : { value: 0, arDigit: "٠", arName: "صفر", enName: "zero" };
   const traceItems = includeZero && ds.glyphKind === "number" ? [zeroItem, ...ds.items] : ds.items;
-  let letters = isPre ? traceItems.slice() : shuffle(traceItems).slice(0, TRACE_COUNT);
+  const glyphOf = (x) => (isPre ? x.id : x.char || x.arDigit || x.name);
+  const keyOf = (x) => (isPre ? "pre:" : "g:") + glyphOf(x);
+  // الحروف الصعبة الأول (والجديدة بعدها) بدل اختيار عشوائى — المتقن بييجى آخر حاجة
+  const statusOf = (x) => writeStatus(Store.writeStats[keyOf(x)], Store.getWriteLevel(keyOf(x)));
+  let letters = isPre ? traceItems.slice() : practiceOrder(traceItems, statusOf).slice(0, TRACE_COUNT);
   // إن طُلب حرف/رقم محدّد (من معلّم الحروف) نجعله أول ما يُكتب
   if (focus) {
     const f = traceItems.find((x) => (x.char || x.arDigit || x.name) === focus);
@@ -253,7 +259,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
 
   /** لوحة الكتابة: الخطوط بالترتيب من نقطتها الخضرا، والمساعدة حسب مستوى الحرف ده. */
   function renderBoard({ it, glyph, label, sayDone, strokes }) {
-    const levelKey = (isPre ? "pre:" : "g:") + glyph;
+    const levelKey = keyOf(it);
     const level = Store.getWriteLevel(levelKey);
 
     // المستوى ظاهر وبيتغيّر بلمسة (لو ولى الأمر عايز يرجّعه للخط الكامل)
@@ -288,6 +294,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
         showHint(tell(text));
       },
       onDone: ({ fails }) => {
+        Store.recordWrite(levelKey, fails, level);
         // المساعدة بتقلّ لما يكتبه صح من غير غلط كتير، وبترجع خطوة لو اتلخبط جامد
         let msg = "";
         if (fails <= 2 && level < 3) {
@@ -322,7 +329,23 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     btn("👀 شوف إزاى", () => board.demo());
     if (!isPre) btn(`🔊 ${noun}`, () => Speech.say(label, { lang: speakLang }));
     btn("🔁 من الأول", () => board.reset());
+    btn("🖨️ اطبع ورقة", () => openWorksheet({
+      title: isPre ? `✍️ تمرين: ${label}` : `✍️ اكتب ${noun} ${glyph}`,
+      glyphs: [{ label: glyph, strokes }],
+    }));
     stage.appendChild(tools);
+
+    // كل الحروف قدّامه: يختار اللى عايز يكتبه على طول (مش لازم يستنى دوره)
+    if (!returnLesson) {
+      stage.appendChild(glyphPicker({
+        items: traceItems,
+        glyphOf: (x) => (isPre ? x.emoji : glyphOf(x)),
+        label: isPre ? "اختار الشكل مباشرة" : `اختار ${noun} مباشرة`,
+        dir: speakLang.startsWith("en") ? "ltr" : "rtl",
+        current: traceItems.indexOf(it),
+        onPick: (k, x) => { letters[idx] = x; render(); },
+      }));
+    }
 
     // أول مرة على الخط الكامل: نوريه الأول وبعدين يكتب هو
     if (isPre) tell(it.say);

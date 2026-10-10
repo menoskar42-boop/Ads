@@ -231,6 +231,18 @@ export const Store = {
     this.writeLevels[key] = Math.max(1, Math.min(3, Math.round(level) || 1));
     persist();
   },
+  // سجل كتابة كل حرف (لصفحة ولى الأمر وللمراجعة): n مرات · r آخر ٥ (عدد الغلطات، المستوى) · d آخر يوم
+  get writeStats() {
+    return state.writeStats || (state.writeStats = {});
+  },
+  recordWrite(key, fails, level) {
+    const w = this.writeStats[key] || { n: 0, r: [] };
+    w.n += 1;
+    w.r = [...(w.r || []), [Math.max(0, fails | 0), level | 0]].slice(-5);
+    w.d = today();
+    this.writeStats[key] = w;
+    persist();
+  },
 
   getMastery(datasetKey, itemKey) {
     return this.mastery[`${datasetKey}:${itemKey}`] || 0;

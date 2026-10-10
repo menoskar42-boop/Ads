@@ -130,3 +130,77 @@ test("the three levels render (guide → dots → blank with a small model)", as
   }
   assert.deepEqual(errors, []);
 });
+
+// ---------- اختيار مباشر، «اكتب اسمك»، صفحة ولى الأمر، ورقة الطباعة ----------
+
+async function mount(modPath, fn, params) {
+  await page.goto(base);
+  await page.evaluate(async ({ modPath, fn, params }) => {
+    const m = await import(modPath);
+    document.getElementById("app").replaceChildren(m[fn](params));
+  }, { modPath, fn, params });
+  await page.waitForTimeout(80);
+}
+
+test("flashcards: tapping a letter in the grid jumps straight to it (no Next from A)", async () => {
+  await mount("/js/games/flashcards.js", "renderFlashcards", { datasetKey: "english", lang: "en-US", regionId: "english", regionIndex: 1 });
+  await page.locator(".glyph-picker .lesson-item-picker-button", { hasText: /^M$/ }).click();
+  assert.equal((await page.locator(".stage span").first().textContent()).trim(), "M");
+  assert.equal(await page.locator(".glyph-picker .is-active").textContent(), "M");
+});
+
+test("letter forms and the writing screen also jump straight to a picked letter", async () => {
+  await mount("/js/games/letterforms.js", "renderLetterForms", { regionId: "arabic", regionIndex: 0 });
+  await page.locator(".glyph-picker .lesson-item-picker-button", { hasText: /^ك$/ }).click();
+  assert.match(await page.locator(".stage p").first().textContent(), /كاف/);
+
+  await mount("/js/games/trace.js", "renderTrace", { datasetKey: "arabic", regionId: "arabic", regionIndex: 0 });
+  await page.waitForSelector(".glyph-picker");
+  await page.locator(".glyph-picker .lesson-item-picker-button", { hasText: /^ش$/ }).click();
+  assert.match(await page.locator(".stage p").first().textContent(), /شين/);
+});
+
+test("write her name: each letter of «هدى» on the board, then Mizo cheers with her name", async () => {
+  await page.goto(base);
+  await page.evaluate(async () => {
+    localStorage.clear();
+    const { Store } = await import("/js/core/storage.js");
+    Store.setChildName("هدى");
+    Store.setChildGender("girl");
+  });
+  await mount("/js/games/nameWrite.js", "renderNameWrite", { regionId: "arabic", regionIndex: 0 });
+  await page.waitForSelector(".wb-box");
+  assert.equal(await page.locator(".nw-whole").textContent(), "هدى");
+  assert.equal(await page.locator(".nw-tile").count(), 3);
+  for (const ch of ["ه", "د", "ى"]) {
+    await page.waitForSelector(".nw-tile.is-now");
+    assert.equal(await page.locator(".nw-tile.is-now").textContent(), ch);
+    await page.waitForTimeout(1600);
+    await page.waitForFunction(() => !document.querySelector(".wb-hand"), null, { timeout: 15000 });
+    await page.waitForTimeout(450);
+    for (const st of strokesFor(ch)) await stroke(st);
+    await page.waitForTimeout(800);
+  }
+  await page.waitForSelector(".cheer-text", { timeout: 4000 });
+  assert.equal(await page.locator(".cheer-text").textContent(), "برافو! كتبتي اسمك هدى");
+});
+
+test("parent page colours the letters she wrote and prints a sheet for any letter", async () => {
+  // بيكمّل على اللى اتكتب فى الاختبار اللى قبله (ه د ى)
+  await page.goto(base);
+  await page.evaluate(async () => (await import("/js/core/storage.js")).Store.setParentPin("1234"));
+  await mount("/js/screens/parent.js", "renderParent", {});
+  await page.fill("#gateInput", "1234"); // الصفحة مقفولة برقم ولى الأمر
+  await page.click("#gateOk");
+  await page.waitForSelector(".pw-box");
+  assert.match(await page.locator(".pw-g", { hasText: /^د$/ }).getAttribute("class"), /pw-learning/);
+  assert.match(await page.locator(".pw-g", { hasText: /^ب$/ }).getAttribute("class"), /pw-new/);
+  await page.locator(".pw-g", { hasText: /^د$/ }).click();
+  await page.waitForSelector(".ws-overlay");
+  assert.equal(await page.locator(".ws-page").count(), 1);
+  assert.equal(await page.locator(".ws-row").count(), 6);
+  if (process.env.SHOT_DIR) await page.screenshot({ path: path.join(process.env.SHOT_DIR, "worksheet.png"), fullPage: true });
+  await page.locator(".ws-bar button", { hasText: "اقفل" }).click();
+  assert.equal(await page.locator(".ws-overlay").count(), 0);
+  assert.deepEqual(errors, []);
+});

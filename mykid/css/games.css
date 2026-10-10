@@ -901,3 +901,58 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
 .wb-level { display: inline-block; margin-top: 4px; padding: 4px 12px; border-radius: 999px; border: 0; background: rgba(255,255,255,.85); color: #6d28d9; font: 800 14px var(--font-ar, sans-serif); cursor: pointer; }
 .wb-level:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .wb-start { animation: none; } .wb-start.wb-call { animation: none; } }
+.glyph-picker { margin: 18px auto 0; }
+
+/* ===== ورقة الكتابة للطباعة (worksheet.js) — معاينة على الشاشة، وورقة A4 فى الطباعة ===== */
+.ws-overlay { position: fixed; inset: 0; z-index: 200; overflow-y: auto; background: #ebe7f7; padding: 0 12px 24px; }
+.ws-bar { position: sticky; top: 0; z-index: 1; display: flex; gap: 10px; justify-content: center; padding: 10px; background: #ebe7f7; }
+.ws-page { direction: rtl; width: min(100%, 190mm); margin: 0 auto 14px; padding: 6mm; background: #fff; color: #27272a; border-radius: 6px; box-shadow: 0 4px 14px rgba(40,30,90,.15); font-family: var(--font-ar, sans-serif); }
+.ws-head { margin-bottom: 3mm; }
+.ws-title { font-size: 20px; font-weight: 800; text-align: center; }
+.ws-meta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 13px; margin-top: 4px; color: #52525b; }
+.ws-tip { font-size: 12px; color: #52525b; margin: 6px 0 0; line-height: 1.6; }
+.ws-name svg { display: block; width: 100%; height: auto; }
+.ws-row { display: flex; gap: 2mm; justify-content: center; margin-bottom: 2.5mm; }
+.ws-row svg { flex: 1 1 0; min-width: 0; max-width: 28mm; aspect-ratio: 1; border: 1px dashed #d4cdee; border-radius: 3mm; }
+@media print {
+  @page { size: A4; margin: 10mm; }
+  html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+  body.ws-printing > *:not(.ws-overlay) { display: none !important; }
+  .ws-overlay { position: static; padding: 0; background: #fff; overflow: visible; }
+  .ws-bar { display: none; }
+  .ws-page { width: auto; margin: 0; padding: 0; box-shadow: none; break-after: page; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .ws-page:last-child { break-after: auto; }
+  .ws-row svg { max-width: 29mm; }
+}
+
+/* ===== «اكتب اسمك» (nameWrite.js) ===== */
+.nw-whole { font-size: clamp(34px, 11vw, 52px); font-weight: 800; color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.18); text-align: center; line-height: 1.2; }
+.nw-tiles { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 6px 0 4px; }
+.nw-tile { min-width: 40px; padding: 4px 8px; border-radius: 12px; background: rgba(255,255,255,.55); color: #4c1d95; font-size: 24px; font-weight: 800; text-align: center; }
+.nw-tile.is-now { background: #fff; box-shadow: 0 0 0 3px #22c55e; }
+.nw-tile.is-done { background: #34d399; color: #fff; }
+.nw-msg { min-height: 26px; margin-top: 6px; text-align: center; font-weight: 800; color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,.2); }
+.nw-tools { margin-top: 10px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.nw-ask { width: min(100%, 360px); margin: 24px auto; padding: 18px; background: #fff; border-radius: 22px; box-shadow: var(--shadow-card); text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.nw-ask-title { margin: 0; font-weight: 800; color: #4c1d95; }
+.nw-input { width: 100%; padding: 10px 14px; border: 2px solid #c7cdff; border-radius: 14px; font-size: 20px; text-align: center; font-family: inherit; }
+.nw-input:focus-visible { outline: 3px solid #8b5cf6; outline-offset: 1px; }
+.nw-hint { margin: 0; font-size: 13px; color: #b91c1c; font-weight: 700; }
+
+/* ===== متابعة الكتابة فى صفحة ولى الأمر ===== */
+.pw-box { background: #fff; border-radius: 18px; padding: 14px; margin-bottom: 18px; box-shadow: var(--shadow-card); }
+.pw-title { font-weight: 800; color: var(--c-ink); }
+.pw-sub { font-size: 12px; color: #7a6ca8; margin: 4px 0 8px; }
+.pw-legend { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.pw-chip { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
+.pw-set { display: flex; justify-content: space-between; gap: 8px; font-weight: 800; color: var(--c-ink); font-size: 14px; margin: 10px 0 6px; }
+.pw-count { color: #7a6ca8; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 5px; }
+.pw-g { min-height: 38px; border-radius: 10px; font-size: 19px; font-weight: 800; line-height: 1; }
+.pw-g:focus-visible { outline: 3px solid #24a9ed; outline-offset: 2px; }
+.pw-mastered { background: #34d399; color: #fff; }
+.pw-learning { background: #fde68a; color: #78350f; }
+.pw-weak { background: #fca5a5; color: #7f1d1d; }
+.pw-new { background: #f1f0f7; color: #6b6496; }
+.pw-print { display: block; margin: 14px auto 0; }
+.pw-print:disabled { opacity: .5; }

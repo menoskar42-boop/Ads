@@ -6,7 +6,7 @@ import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { Store } from "../core/storage.js";
-import { gameTopbar, progressDots, finishActivity } from "./common.js";
+import { gameTopbar, progressDots, finishActivity, glyphPicker } from "./common.js";
 
 const TATWEEL = "ـ"; // ـ
 // حروف لا تتّصل بما بعدها (أحادية الاتصال) — لا نضع تطويلاً بعدها
@@ -92,6 +92,14 @@ export function renderLetterForms({ regionId, regionIndex }) {
     });
     nav.append(prev, say, next);
     stage.appendChild(nav);
+
+    stage.appendChild(glyphPicker({
+      items,
+      glyphOf: (x) => x.char,
+      label: "اختار الحرف مباشرة",
+      current: i,
+      onPick: (k) => { i = k; render(); },
+    }));
 
     speakAll(it, f);
   }

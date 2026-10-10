@@ -6,7 +6,7 @@ import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { Store } from "../core/storage.js";
-import { gameTopbar } from "./common.js";
+import { gameTopbar, glyphPicker } from "./common.js";
 
 export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, title }) {
   const ds = getDataset(datasetKey);
@@ -58,6 +58,16 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
   nextBtn.textContent = "التالي ›";
   nav.append(prevBtn, sayBtn, nextBtn);
   stage.appendChild(nav);
+
+  // كل العناصر قدّامه: لمسة واحدة على الحرف/الرقم بدل «التالي» من الأول
+  const picker = glyphPicker({
+    items,
+    glyphOf: (it) => (kind === "letter" ? it.char : it.arDigit || it.emoji || it.name),
+    label: kind === "letter" ? "اختار الحرف مباشرة" : items[0]?.arDigit != null ? "اختار الرقم مباشرة" : "اختار مباشرة",
+    dir: speakLang.startsWith("en") ? "ltr" : "rtl",
+    onPick: (k) => { i = k; render(); },
+  });
+  stage.appendChild(picker);
 
   function glyphHtml(it) {
     if (kind === "letter") {
@@ -117,6 +127,7 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
     prevBtn.style.opacity = prevBtn.disabled ? ".4" : "1";
     nextBtn.style.opacity = nextBtn.disabled ? ".4" : "1";
 
+    picker.setActive(i);
     if (auto) speak(it);
   }
 

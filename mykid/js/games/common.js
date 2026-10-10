@@ -44,6 +44,47 @@ export function mizoBuddy() {
   };
 }
 
+/**
+ * «اختار مباشرة»: كل الحروف/الأرقام قدّام الطفل (أو ولى الأمر)، ولمسة واحدة
+ * بتوديه للى عايزه — بدل ما يبدأ من أول حرف ويضغط «التالي» لحد ما يوصل.
+ * (المالك ٢٠٢٦-١٠-١٠.) نفس شكل الشبكة اللى فى «معلّم الحروف».
+ * بيرجّع العنصر + `setActive(i)` عشان الشاشة تعلّم الحالى لما يتغيّر بالتالي/السابق.
+ */
+export function glyphPicker({ items, glyphOf, label = "اختار مباشرة", dir = "rtl", current = 0, onPick }) {
+  const box = document.createElement("section");
+  box.className = "lesson-item-picker glyph-picker";
+  box.dir = dir;
+  box.setAttribute("aria-label", label);
+  const lab = document.createElement("div");
+  lab.className = "lesson-item-picker-label";
+  lab.textContent = label;
+  const grid = document.createElement("div");
+  grid.className = "lesson-item-picker-grid";
+  const buttons = items.map((it, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "lesson-item-picker-button";
+    b.textContent = glyphOf(it);
+    b.addEventListener("click", () => {
+      Sfx.tap();
+      setActive(i);
+      onPick(i, it);
+    });
+    grid.appendChild(b);
+    return b;
+  });
+  function setActive(i) {
+    buttons.forEach((b, k) => {
+      b.classList.toggle("is-active", k === i);
+      b.setAttribute("aria-pressed", k === i ? "true" : "false");
+    });
+  }
+  setActive(current);
+  box.append(lab, grid);
+  box.setActive = setActive;
+  return box;
+}
+
 /** عبارة المثال بلغة العنصر: "أَلِف مثل أرنب" أو "A for Apple" */
 export function examplePhrase(item, lang) {
   return lang && lang.startsWith("en")

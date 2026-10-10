@@ -150,3 +150,57 @@ test("writing any stroke in reverse is never accepted", () => {
   });
   assert.deepEqual(ok, []);
 });
+
+// ---------- الاسم، المتابعة، ورقة الطباعة ----------
+import { nameLetters } from "../js/data/strokes.js";
+import { writeStatus, practiceOrder } from "../js/games/writeProgress.js";
+import { sheetPlan, cellSvg } from "../js/games/worksheet.js";
+
+test("names become writable letters (diacritics dropped, Latin → capitals)", () => {
+  assert.deepEqual(nameLetters("مَرْيَم"), ["م", "ر", "ي", "م"]);
+  assert.deepEqual(nameLetters("آية"), ["آ", "ي", "ة"]);
+  assert.deepEqual(nameLetters("هدى"), ["ه", "د", "ى"]);
+  assert.deepEqual(nameLetters("Betty"), ["B", "E", "T", "T", "Y"]);
+  assert.deepEqual(nameLetters("إسراء"), ["إ", "س", "ر", "ا", "ء"]);
+  assert.deepEqual(nameLetters("😀 1"), []);
+});
+
+test("name-only letters (ا إ آ ة ى ئ ؤ ء) are writable forward and never backwards", () => {
+  for (const g of ["ا", "إ", "آ", "ة", "ى", "ئ", "ؤ", "ء"]) {
+    strokesFor(g).forEach((st, i) => {
+      if (st.length === 1) return;
+      assert.equal(drive(new StrokeTracker(st, 1), st, { step: 3 }), "ok", `${g}#${i + 1}`);
+      assert.notEqual(drive(new StrokeTracker(st, 3), [...st].reverse(), { step: 3 }), "ok", `${g}#${i + 1} reversed`);
+    });
+  }
+});
+
+test("write status: new → learning → mastered, and a rough attempt is weak", () => {
+  assert.equal(writeStatus(undefined, 1), "new");
+  assert.equal(writeStatus({ n: 1, r: [[1, 1]] }, 2), "learning");
+  assert.equal(writeStatus({ n: 3, r: [[1, 1], [0, 2], [1, 3]] }, 3), "mastered");
+  assert.equal(writeStatus({ n: 2, r: [[0, 3], [0, 2]] }, 3), "learning", "the last clean one was with help");
+  assert.equal(writeStatus({ n: 2, r: [[1, 1], [7, 2]] }, 1), "weak");
+  assert.equal(writeStatus({ n: 3, r: [[5, 1], [4, 1], [4, 1]] }, 1), "weak");
+});
+
+test("practice order puts weak letters first and mastered ones last", () => {
+  const st = { a: "mastered", b: "weak", c: "new", d: "learning" };
+  for (let k = 0; k < 20; k++) {
+    const order = practiceOrder(["a", "b", "c", "d"], (x) => st[x]);
+    assert.equal(order[0], "b");
+    assert.equal(order[3], "a");
+  }
+});
+
+test("worksheet plan: one letter = a full fading page; several = two rows each, 4 per page", () => {
+  const g = { label: "ب", strokes: strokesFor("ب") };
+  const one = sheetPlan([g]);
+  assert.equal(one.length, 1);
+  assert.deepEqual(one[0].map((r) => r.cells[0]), ["model", "dots", "dots", "start", "start", "blank"]);
+  const six = sheetPlan(Array(6).fill(g));
+  assert.deepEqual(six.map((p) => p.length), [8, 4]);
+  assert.match(cellSvg(g.strokes, "model"), /<path[^>]+stroke="#3f3f46"/);
+  assert.match(cellSvg(g.strokes, "start"), /fill="#16a34a"/);
+  assert.doesNotMatch(cellSvg(g.strokes, "blank"), /<path|#16a34a/);
+});
