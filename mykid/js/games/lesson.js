@@ -18,8 +18,11 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang || "ar-EG";
   const isAr = speakLang.startsWith("ar");
-  const noun = ds.glyphKind === "number" ? "رقم" : "حرف";
-  const zeroItem = { value: 0, arDigit: "٠", arName: "صفر", enName: "zero" };
+  const isEnglishNumber = datasetKey === "englishNumbers";
+  const noun = ds.glyphKind === "number" ? (isEnglishNumber ? "number" : "رقم") : "حرف";
+  const zeroItem = isEnglishNumber
+    ? { value: 0, char: "0", name: "zero", enName: "zero" }
+    : { value: 0, arDigit: "٠", arName: "صفر", enName: "zero" };
   const items = includeZero && ds.glyphKind === "number" ? [zeroItem, ...ds.items] : ds.items;
 
   const glyphOf = (it) => it.char || it.arDigit || it.name;
@@ -106,14 +109,19 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
       parts.push({ text: pr, lang: "ar-EG" });
       greetHtml = pr.replace(/ميزو/g, "<b>ميزو</b>") + "<br>";
     }
-    parts.push({ text: `هذا ${noun} ${label}`, lang: speakLang });
+    const description = isEnglishNumber
+      ? `This is number ${label}`
+      : `هذا ${noun} ${label}`;
+    parts.push({ text: description, lang: speakLang });
     if (it.word) {
       parts.push({ text: isAr ? `${label} مثل ${it.word}` : `${label} for ${it.word}`, lang: speakLang });
     }
     parts.push({ text: label, lang: speakLang });
 
     // النصّ المكتوب يطابق المنطوق (نفس جُمَل الترحيب والشرح)
-    bubble.innerHTML = greetHtml + (it.word
+    bubble.innerHTML = isEnglishNumber
+      ? `${greetHtml}This is number <b>${label}</b>`
+      : (it.word
       ? `هذا ${noun} «${label}» ${it.emoji || ""}<br>${isAr ? `${label} مثل ${it.word}` : `${label} for ${it.word}`}`
       : `هذا ${noun} «${label}»`);
 

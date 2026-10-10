@@ -69,6 +69,16 @@ const DATASETS = {
   opposites: { key: "opposites", lang: "ar-EG", glyphKind: "emoji", items: OPPOSITES_FLAT },
   words: { key: "words", lang: "ar-EG", glyphKind: "emoji", items: WORDS },
   numbers: { key: "numbers", lang: "ar-EG", glyphKind: "number", items: NUMBERS },
+  englishNumbers: {
+    key: "englishNumbers",
+    lang: "en-US",
+    glyphKind: "number",
+    items: NUMBERS.slice(0, 10).map((item) => ({
+      ...item,
+      char: String(item.value),
+      name: item.enName,
+    })),
+  },
   insects: { key: "insects", lang: "ar-EG", glyphKind: "emoji", items: INSECTS },
   feelings: { key: "feelings", lang: "ar-EG", glyphKind: "emoji", items: FEELINGS },
   verbs: { key: "verbs", lang: "ar-EG", glyphKind: "emoji", items: VERBS },

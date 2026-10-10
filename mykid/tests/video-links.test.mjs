@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { getActivityLessonVideo } from "../js/data/activityLessonVideos.js";
+import { ACTIVITIES } from "../js/data/activities.js";
 import { getEnglishLetterLessonVideo } from "../js/data/englishLetterLessonVideos.js";
 import { getNumberLessonVideo } from "../js/data/numberLessonVideos.js";
 
@@ -197,12 +198,21 @@ test("number, letter, and activity mappings match their intended lessons without
   assertUniqueValidVideoIds(mappedIds);
 });
 
+test("Numbers City offers the English number lesson with zero and matching videos", () => {
+  const activity = ACTIVITIES.numbers.find(
+    (item) => item.params?.datasetKey === "englishNumbers"
+  );
+  assert.ok(activity, "Numbers City must include an English number teacher activity");
+  assert.equal(activity.screen, "lesson");
+  assert.equal(activity.params.includeZero, true, "The English lesson must start with zero");
+});
+
 async function renderLessonSequence(datasetKey, includeZero = false, length = 26) {
   return page.evaluate(async ({ datasetKey, includeZero, length }) => {
     const { renderLesson } = await import("/js/games/lesson.js");
     const screen = renderLesson({
       datasetKey,
-      lang: datasetKey === "english" ? "en-US" : "ar-EG",
+      lang: datasetKey === "english" || datasetKey === "englishNumbers" ? "en-US" : "ar-EG",
       title: "Video link test",
       includeZero,
     });
@@ -222,6 +232,7 @@ async function renderLessonSequence(datasetKey, includeZero = false, length = 26
       const iframe = card?.querySelector("iframe");
       results.push({
         glyph: screen.querySelector(".lesson-glyph")?.textContent || null,
+        bubble: screen.querySelector(".teacher-bubble")?.textContent || "",
         cardCount: videoSlot?.querySelectorAll(".kid-youtube-card").length || 0,
         thumbnailId,
         iframeId: parseId(iframe?.src),
@@ -263,7 +274,7 @@ function assertLessonSequence(results, expectedGlyphs, expectedIds, label) {
   }
 }
 
-test("the number and English-letter lessons render and embed the video for the current index", async () => {
+test("Arabic and English number lessons plus English letters render matching videos", async () => {
   const arabicDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩", "١٠"];
   const numberResults = await renderLessonSequence("numbers", true, 11);
   assertLessonSequence(
@@ -272,6 +283,17 @@ test("the number and English-letter lessons render and embed the video for the c
     EXPECTED_NUMBER_IDS,
     "Numbers 0–10"
   );
+
+  const englishDigits = Array.from({ length: 11 }, (_, value) => String(value));
+  const englishNumberResults = await renderLessonSequence("englishNumbers", true, 11);
+  assertLessonSequence(
+    englishNumberResults,
+    englishDigits,
+    EXPECTED_NUMBER_IDS,
+    "English numbers 0–10"
+  );
+  assert.match(englishNumberResults[0].bubble, /This is number zero/i);
+  assert.match(englishNumberResults[10].bubble, /This is number ten/i);
 
   const letters = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
   const expectedLetterIds = letters.map((letter) => EXPECTED_LETTER_IDS[letter]);

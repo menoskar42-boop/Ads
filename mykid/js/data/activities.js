@@ -213,6 +213,17 @@ export const ACTIVITIES = {
       params: { datasetKey: "numbers", title: "🧑‍🏫 معلّم الأرقام", includeZero: true },
     },
     {
+      emoji: "🔢",
+      title: "معلّم الأرقام بالإنجليزية",
+      desc: "تعلّم كتابة الأرقام 0–10 مع فيديو لكل رقم",
+      screen: "lesson",
+      params: {
+        datasetKey: "englishNumbers",
+        title: "🔢 الأرقام بالإنجليزية",
+        includeZero: true,
+      },
+    },
+    {
       emoji: "👀",
       title: "شوف واعرف",
       desc: "تصفّح الأرقام واعرف كلّ رقم",
