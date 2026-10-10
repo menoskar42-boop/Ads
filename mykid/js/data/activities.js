@@ -15,7 +15,7 @@ export const ACTIVITIES = {
       title: "شوف واعرف",
       desc: "تصفّح الحروف واعرف كلّ حرف",
       screen: "flashcards",
-      params: { datasetKey: "arabic", lang: "ar-EG", title: "👀 شوف واعرف الحروف" },
+      params: { datasetKey: "arabic", lang: "ar-EG", title: "👀 شوف واعرف الحروف", choose: true },
     },
     {
       emoji: "🎓",
@@ -143,7 +143,7 @@ export const ACTIVITIES = {
       title: "شوف واعرف",
       desc: "Browse letters, know each one",
       screen: "flashcards",
-      params: { datasetKey: "english", lang: "en-US", title: "👀 شوف واعرف الحروف" },
+      params: { datasetKey: "english", lang: "en-US", title: "👀 شوف واعرف الحروف", choose: true },
     },
     {
       emoji: "🎓",
@@ -243,7 +243,7 @@ export const ACTIVITIES = {
       title: "شوف واعرف",
       desc: "تصفّح الأرقام واعرف كلّ رقم",
       screen: "flashcards",
-      params: { datasetKey: "numbers", title: "👀 شوف واعرف الأرقام" },
+      params: { datasetKey: "numbers", title: "👀 شوف واعرف الأرقام", choose: true },
     },
     {
       emoji: "🔢",

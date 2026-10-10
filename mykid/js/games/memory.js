@@ -13,8 +13,12 @@ const PAIRS = 6; // عدد الأزواج (12 بطاقة)
 export function renderMemory({ regionId, regionIndex, datasetKey, title, bg }) {
   const ds = getDataset(datasetKey);
   const picks = shuffle(ds.items).slice(0, PAIRS);
-  // بطاقتان لكل عنصر
-  const cards = shuffle([...picks, ...picks].map((it, idx) => ({ it, idx })));
+  // الحروف الإنجليزى: الزوج = الكابيتال مع الصغير بتاعه (A مع a) — عشان الطفل يفرق
+  // بينهم ويعرف إن الاتنين نفس الحرف (المالك ٢٠٢٦-١٠-١٠). غير كده: بطاقتين متشابهتين.
+  const caseMode = !!(picks[0] && picks[0].lower && picks[0].lower !== picks[0].char);
+  const cards = shuffle(caseMode
+    ? [...picks.map((it) => ({ it, face: it.char })), ...picks.map((it) => ({ it, face: it.lower }))]
+    : [...picks, ...picks].map((it, idx) => ({ it, idx })));
 
   let first = null;
   let lock = false;
@@ -29,7 +33,7 @@ export function renderMemory({ regionId, regionIndex, datasetKey, title, bg }) {
 
   const hint = document.createElement("p");
   hint.style.cssText = "text-align:center;font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.18);font-size:clamp(15px,4.2vw,20px);margin:12px";
-  hint.textContent = "اقلب بطاقتين متشابهتين! 🔍";
+  hint.textContent = caseMode ? "وصّل الحرف الكابيتال بالصغير بتاعه: A مع a 🔍" : "اقلب بطاقتين متشابهتين! 🔍";
   screen.appendChild(hint);
 
   const grid = document.createElement("div");
@@ -39,7 +43,9 @@ export function renderMemory({ regionId, regionIndex, datasetKey, title, bg }) {
   cards.forEach((card) => {
     const el = document.createElement("button");
     el.className = "mem-card";
-    el.innerHTML = `<span class="mem-face mem-back">❓</span><span class="mem-face mem-front">${glyphMarkup(card.it, "mem-glyph")}</span>`;
+    const front = caseMode ? `<span class="mem-glyph mem-letter" dir="ltr">${card.face}</span>` : glyphMarkup(card.it, "mem-glyph");
+    el.innerHTML = `<span class="mem-face mem-back">❓</span><span class="mem-face mem-front">${front}</span>`;
+    if (caseMode) el.setAttribute("aria-label", "بطاقة مقلوبة");
     el.addEventListener("click", () => flip(card, el));
     card.el = el;
     grid.appendChild(el);
@@ -55,7 +61,10 @@ export function renderMemory({ regionId, regionIndex, datasetKey, title, bg }) {
     if (first.card.it === card.it) {
       // تطابق
       Sfx.correct();
-      Speech.ar(card.it.name);
+      if (caseMode) {
+        Speech.en(`Capital ${card.it.char}, small ${card.it.lower}`);
+        hint.textContent = `برافو! ${card.it.char} الكابيتال و ${card.it.lower} الصغير نفس الحرف`;
+      } else Speech.ar(card.it.name);
       setTimeout(() => {
         first.el.classList.add("done");
         el.classList.add("done");

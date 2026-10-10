@@ -4,7 +4,7 @@ import { Sfx } from "../core/audio.js";
 import { Speech } from "../core/speech.js";
 import { Confetti } from "../core/confetti.js";
 import { createCharacter } from "./character.js";
-import { MIZO_CATCH, pick } from "../data/mizo.js";
+import { MIZO_CATCH, pick, femAdapt } from "../data/mizo.js";
 import { track } from "../core/analytics.js";
 import {
   awardStars,
@@ -83,6 +83,50 @@ export function glyphPicker({ items, glyphOf, label = "اختار مباشرة",
   box.append(lab, grid);
   box.setActive = setActive;
   return box;
+}
+
+/**
+ * «اختار الأول»: شاشة فيها كل الحروف/الأرقام كزراير كبيرة — الطفل (أو ولى الأمر) يلمس
+ * اللى عايزه، أو «ابدأ من الأول». مش إجبارى يبدأ من A/أ/١ كل مرة (المالك ٢٠٢٦-١٠-١٠).
+ * بيرجّع { el, show(current), hide() } — الشاشة بتحطه فى المكان اللى يناسبها.
+ */
+export function glyphChooser({ items, shownOf, ariaOf = shownOf, title, dir = "rtl", onPick }) {
+  const el = document.createElement("section");
+  el.className = "lesson-chooser hidden";
+  el.setAttribute("aria-label", title);
+  const girl = () => Store.childGender === "girl";
+  const head = document.createElement("p");
+  head.className = "lesson-chooser-title";
+  const grid = document.createElement("div");
+  grid.className = "lesson-chooser-grid";
+  grid.dir = dir;
+  const buttons = items.map((it, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "lesson-chooser-btn";
+    b.textContent = shownOf(it);
+    b.setAttribute("aria-label", ariaOf(it));
+    b.addEventListener("click", () => { Sfx.tap(); onPick(i); });
+    grid.appendChild(b);
+    return b;
+  });
+  const fromStart = document.createElement("button");
+  fromStart.type = "button";
+  fromStart.className = "candy-btn lesson-chooser-start";
+  fromStart.addEventListener("click", () => { Sfx.tap(); onPick(0); });
+  el.append(head, grid, fromStart);
+  return {
+    el,
+    show(current = -1) {
+      // النص بيتظبط وقت العرض: النوع ممكن يتغيّر من صفحة ولى الأمر
+      head.textContent = girl() ? femAdapt(title) : title;
+      fromStart.textContent = "▶️ " + (girl() ? femAdapt("ابدأ من الأول") : "ابدأ من الأول");
+      buttons.forEach((b, i) => b.classList.toggle("is-active", i === current));
+      el.classList.remove("hidden");
+      Speech.ar(head.textContent);
+    },
+    hide() { el.classList.add("hidden"); },
+  };
 }
 
 /** عبارة المثال بلغة العنصر: "أَلِف مثل أرنب" أو "A for Apple" */

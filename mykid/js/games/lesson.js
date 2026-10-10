@@ -6,7 +6,7 @@ import { getDataset } from "../data/datasets.js";
 import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
-import { gameTopbar, finishActivity } from "./common.js";
+import { gameTopbar, finishActivity, glyphChooser } from "./common.js";
 import { createCharacter, MIZO_INTRO, MIZO_HELLO, MIZO_PRAISE } from "./character.js";
 import { Store } from "../core/storage.js";
 import { adaptDisplay, femAdapt } from "../data/mizo.js";
@@ -243,48 +243,25 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
    * الرجوع من «اكتبه» (startChar) بيرجع على نفس الحرف من غير الشاشة دى.
    */
   const isNum = ds.glyphKind === "number";
-  let chooser = null;
   let started = false;
+  const chooser = choose ? glyphChooser({
+    items,
+    shownOf,
+    ariaOf: (it) => `${isNum ? "الرقم" : "الحرف"} ${glyphOf(it)}`,
+    title: isNum ? "اختار الرقم اللى نتعلّمه" : "اختار الحرف اللى نتعلّمه",
+    dir: datasetKey === "english" || isEnglishNumber ? "ltr" : "rtl",
+    onPick: openAt,
+  }) : null;
+  if (chooser) screen.insertBefore(chooser.el, wrap);
   function showChooser() {
     Speech.stop();
     wrap.classList.add("hidden");
-    if (!chooser) {
-      chooser = document.createElement("section");
-      chooser.className = "lesson-chooser";
-      chooser.setAttribute("aria-label", isNum ? "اختار الرقم" : "اختار الحرف");
-      const head = document.createElement("p");
-      head.className = "lesson-chooser-title";
-      head.textContent = isNum ? "اختار الرقم اللى نتعلّمه" : "اختار الحرف اللى نتعلّمه";
-      if (Store.childGender === "girl") head.textContent = femAdapt(head.textContent);
-      const grid = document.createElement("div");
-      grid.className = "lesson-chooser-grid";
-      grid.dir = datasetKey === "english" || isEnglishNumber ? "ltr" : "rtl";
-      items.forEach((it, i) => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "lesson-chooser-btn";
-        b.textContent = shownOf(it);
-        b.setAttribute("aria-label", `${isNum ? "الرقم" : "الحرف"} ${glyphOf(it)}`);
-        b.addEventListener("click", () => openAt(i));
-        grid.appendChild(b);
-      });
-      const fromStart = document.createElement("button");
-      fromStart.type = "button";
-      fromStart.className = "candy-btn lesson-chooser-start";
-      fromStart.textContent = "▶️ " + (Store.childGender === "girl" ? femAdapt("ابدأ من الأول") : "ابدأ من الأول");
-      fromStart.addEventListener("click", () => openAt(0));
-      chooser.append(head, grid, fromStart);
-      screen.insertBefore(chooser, wrap);
-    }
-    chooser.classList.remove("hidden");
-    chooser.querySelectorAll(".lesson-chooser-btn").forEach((b, i) => b.classList.toggle("is-active", started && i === idx));
-    Speech.ar(chooser.querySelector(".lesson-chooser-title").textContent);
+    chooser.show(started ? idx : -1);
   }
   function openAt(i) {
-    Sfx.tap();
     idx = i;
     started = true;
-    chooser.classList.add("hidden");
+    chooser.hide();
     wrap.classList.remove("hidden");
     render();
   }

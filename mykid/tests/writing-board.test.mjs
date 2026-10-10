@@ -404,6 +404,39 @@ test("the teacher opens on a chooser (English Aa–Zz, Arabic, numbers) and jump
   // الرجوع من «اكتبه» بيرجع على نفس الحرف من غير الاختيار
   await mount("/js/games/lesson.js", "renderLesson", { datasetKey: "arabic", lang: "ar-EG", title: "T", choose: true, startChar: "م", motivate: true, regionId: "arabic", regionIndex: 0 });
   await page.waitForTimeout(100);
-  assert.equal(await page.locator(".lesson-chooser").count(), 0);
+  assert.equal(await page.locator(".lesson-chooser:not(.hidden)").count(), 0, "no chooser when coming back from «اكتبه»");
   assert.equal(await page.locator(".lesson-glyph").textContent(), "م");
+});
+
+// ---------- Memory: الكابيتال مع الصغير · «شوف واعرف»: اختار الأول ----------
+
+test("English Memory pairs a capital with its small letter (A with a), not two of the same", async () => {
+  await mount("/js/games/memory.js", "renderMemory", { datasetKey: "english", title: "🧩 Memory", regionId: "english", regionIndex: 1 });
+  const faces = await page.locator(".mem-letter").allTextContents();
+  assert.equal(faces.length, 12);
+  const caps = faces.filter((f) => /^[A-Z]$/.test(f)).sort();
+  const smalls = faces.filter((f) => /^[a-z]$/.test(f)).sort();
+  assert.equal(caps.length, 6);
+  assert.deepEqual(smalls, caps.map((c) => c.toLowerCase()), "each capital has its own small letter");
+  assert.match(await page.locator(".region-screen p").first().textContent(), /A مع a/);
+  // نقلب A وa بتوعه ⇒ اتطابقوا
+  const cards = page.locator(".mem-card");
+  const idxCap = faces.indexOf(caps[0]);
+  const idxSmall = faces.indexOf(caps[0].toLowerCase());
+  await cards.nth(idxCap).click();
+  await cards.nth(idxSmall).click();
+  await page.waitForTimeout(700);
+  assert.equal(await page.locator(".mem-card.done").count(), 2);
+  assert.match(await page.locator(".region-screen p").first().textContent(), /نفس الحرف/);
+});
+
+test("«شوف واعرف» opens on the chooser too, and «كل الحروف» brings it back", async () => {
+  await mount("/js/games/flashcards.js", "renderFlashcards", { datasetKey: "english", lang: "en-US", choose: true, regionId: "english", regionIndex: 1 });
+  await page.waitForSelector(".lesson-chooser:not(.hidden)");
+  await page.locator(".lesson-chooser-btn", { hasText: /^Tt$/ }).click();
+  assert.equal((await page.locator(".stage span").first().textContent()).trim(), "Tt");
+  await page.click("#fcChoose");
+  assert.equal(await page.locator(".lesson-chooser-btn.is-active").textContent(), "Tt");
+  await page.locator(".lesson-chooser-start").click();       // «ابدأ من الأول» لو عايز
+  assert.equal((await page.locator(".stage span").first().textContent()).trim(), "Aa");
 });

@@ -6,10 +6,10 @@ import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { Store } from "../core/storage.js";
-import { gameTopbar, glyphPicker } from "./common.js";
+import { gameTopbar, glyphPicker, glyphChooser } from "./common.js";
 import { bothCases } from "../data/englishLetters.js";
 
-export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, title }) {
+export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, title, choose = false }) {
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang;
   const items = ds.items;
@@ -58,6 +58,26 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
   nextBtn.className = "candy-btn";
   nextBtn.textContent = "التالي ›";
   nav.append(prevBtn, sayBtn, nextBtn);
+  // «اختار الأول» (المالك ٢٠٢٦-١٠-١٠): مش لازم يبدأ من الأول كل مرة
+  const isNum = items[0]?.arDigit != null;
+  const chooser = choose ? glyphChooser({
+    items,
+    shownOf: (it) => (kind === "letter" ? bothCases(it) : it.arDigit || it.emoji || it.name),
+    title: isNum ? "اختار الرقم اللى نشوفه" : "اختار الحرف اللى نشوفه",
+    dir: speakLang.startsWith("en") ? "ltr" : "rtl",
+    onPick: (k) => { i = k; chooser.hide(); stage.classList.remove("hidden"); render(); },
+  }) : null;
+  if (chooser) {
+    screen.insertBefore(chooser.el, stage);
+    const allBtn = document.createElement("button");
+    allBtn.className = "candy-btn";
+    allBtn.id = "fcChoose";
+    allBtn.style.background = "linear-gradient(180deg,#fbbf24,#f59e0b)";
+    allBtn.textContent = isNum ? "🔤 كل الأرقام" : "🔤 كل الحروف";
+    allBtn.addEventListener("click", () => { Sfx.tap(); Speech.stop(); stage.classList.add("hidden"); chooser.show(i); });
+    nav.style.flexWrap = "wrap";
+    nav.appendChild(allBtn);
+  }
   stage.appendChild(nav);
 
   // كل العناصر قدّامه: لمسة واحدة على الحرف/الرقم بدل «التالي» من الأول
@@ -147,6 +167,8 @@ export function renderFlashcards({ regionId, regionIndex, datasetKey, lang, titl
     if (i < items.length - 1) { i++; Sfx.tap(); render(); }
   });
 
-  setTimeout(() => render(true), 0);
+  setTimeout(() => {
+    if (chooser) { stage.classList.add("hidden"); chooser.show(); } else render(true);
+  }, 0);
   return screen;
 }
