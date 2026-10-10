@@ -37,6 +37,8 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title })
     .sort((a, b) => a.lvl - b.lvl || Math.random() - 0.5);
   const rounds = shuffle(scored.slice(0, ROUNDS).map((s) => s.it));
   let i = 0;
+  // الإنجليزى: «اسمع واختار» بالحالة — small b أو capital B، والفخ هو نفس الحرف بالحالة التانية
+  const caseMode = !!(items[0] && items[0].lower && items[0].lower !== items[0].char);
 
   const screen = document.createElement("div");
   screen.className = "region-screen";
@@ -51,6 +53,7 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title })
 
   function render() {
     const target = rounds[i];
+    if (caseMode) return renderCase(target);
     stage.innerHTML = "";
     stage.appendChild(progressDots(rounds.length, i - 1));
 
@@ -96,6 +99,56 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title })
     stage.appendChild(row);
 
     setTimeout(() => speakItem(target, speakLang), 300);
+  }
+
+  function renderCase(target) {
+    const small = i % 2 === 0;
+    const want = small ? target.lower : target.char;
+    const twin = small ? target.char : target.lower;
+    const say = () => Speech.say(`${small ? "small" : "capital"} ${want}`, { lang: "en-US" });
+    stage.innerHTML = "";
+    stage.appendChild(progressDots(rounds.length, i - 1));
+    const ask = document.createElement("p");
+    ask.style.cssText = "font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.2);font-size:clamp(17px,4.6vw,22px)";
+    ask.textContent = small ? "اسمع واختار الحرف الصغير 🔊" : "اسمع واختار الحرف الكابيتال 🔊";
+    stage.appendChild(ask);
+    const listen = document.createElement("button");
+    listen.className = "candy-btn";
+    listen.style.fontSize = "clamp(20px,6vw,28px)";
+    listen.textContent = "🔊 اسمع";
+    listen.addEventListener("click", () => { Sfx.tap(); say(); });
+    stage.appendChild(listen);
+    const other = shuffle(items.filter((x) => x.char !== target.char))[0];
+    const choices = shuffle([want, twin, small ? other.lower : other.char]);
+    const row = document.createElement("div");
+    row.className = "choice-row";
+    row.dir = "ltr";
+    choices.forEach((ch) => {
+      const b = document.createElement("button");
+      b.className = "choice";
+      b.innerHTML = `<span style="font-weight:800">${ch}</span>`;
+      b.addEventListener("click", () => {
+        if (ch === want) {
+          Sfx.correct();
+          b.classList.add("correct");
+          Store.recordReview(datasetKey, itemKey(target), true);
+          awardStars(1);
+          say();
+          i++;
+          if (i >= rounds.length) setTimeout(() => finishActivity({ regionId, regionIndex, stars: 7, onDone: back }), 900);
+          else setTimeout(render, 1000);
+        } else {
+          Sfx.wrong();
+          b.classList.add("wrong");
+          setTimeout(() => b.classList.remove("wrong"), 450);
+          if (ch === twin) ask.textContent = small ? `ده ${twin} الكابيتال — عايزين الصغير` : `ده ${twin} الصغير — عايزين الكابيتال`;
+          else Store.recordReview(datasetKey, itemKey(target), false);
+        }
+      });
+      row.appendChild(b);
+    });
+    stage.appendChild(row);
+    setTimeout(say, 300);
   }
 
   setTimeout(render, 0);

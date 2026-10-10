@@ -984,3 +984,4 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
 .lesson-chooser-btn:focus-visible { outline: 3px solid #24a9ed; outline-offset: 2px; }
 .lesson-chooser-start { margin-top: 14px; }
 .mem-front .mem-letter { font-family: var(--font-en, sans-serif); font-weight: 700; color: #4c1d95; line-height: 1; }
+.falling-letter { font-family: var(--font-en, sans-serif); font-weight: 700; color: #4c1d95; background: rgba(255,255,255,.92); border-radius: 18px; padding: 2px 14px 6px; box-shadow: 0 4px 0 rgba(60,40,140,.2); }

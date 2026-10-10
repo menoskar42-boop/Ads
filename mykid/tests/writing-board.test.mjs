@@ -440,3 +440,51 @@ test("«شوف واعرف» opens on the chooser too, and «كل الحروف» 
   await page.locator(".lesson-chooser-start").click();       // «ابدأ من الأول» لو عايز
   assert.equal((await page.locator(".stage span").first().textContent()).trim(), "Aa");
 });
+
+// ---------- اصطياد / الناقص / المراجعة: كابيتال وصغير ----------
+
+test("Catch: after a word round comes «catch the SMALL b» with B as the trap", async () => {
+  await mount("/js/games/catch.js", "renderCatch", { datasetKey: "english", lang: "en-US", regionId: "english", regionIndex: 1 });
+  await page.waitForSelector(".falling");
+  assert.match(await page.locator(".region-screen p").first().innerHTML(), /dir="ltr">[A-Z][a-z]</, "word round shows Bb");
+  // جولة الكلمة: نلمس لحد ما نصيب
+  const n = await page.locator(".falling").count();
+  for (let k = 0; k < n && !(await page.locator(".falling.correct").count()); k++) {
+    await page.locator(".falling").nth(k).dispatchEvent("click");
+  }
+  await page.waitForSelector(".falling-letter", { timeout: 3000 });
+  const promptHtml = await page.locator(".region-screen p").first().innerHTML();
+  assert.match(promptHtml, /الصغير/);
+  const want = promptHtml.match(/dir="ltr">([a-z])</)[1];
+  await page.locator(".falling-letter", { hasText: new RegExp(`^${want.toUpperCase()}$`) }).dispatchEvent("click");
+  assert.match(await page.locator(".region-screen p").first().textContent(), /الكابيتال — عايزين الصغير/);
+  await page.locator(".falling-letter", { hasText: new RegExp(`^${want}$`) }).dispatchEvent("click");
+  assert.equal(await page.locator(".falling-letter.correct").count(), 1);
+});
+
+test("Missing letter: a capital round (A B ?) then a small round (a b ?)", async () => {
+  await mount("/js/games/sequence.js", "renderSequence", { datasetKey: "english", lang: "en-US", title: "🔠", regionId: "english", regionIndex: 1 });
+  await page.waitForSelector(".choice-row");
+  assert.match(await page.locator(".stage p").first().textContent(), /الكابيتال/);
+  const first = (await page.locator(".choice-row").first().locator(".choice").first().textContent()).trim();
+  assert.match(first, /^[A-Z]$/);
+  const ans = String.fromCharCode(first.charCodeAt(0) + 1);
+  await page.locator(".choice-row").nth(1).locator("button", { hasText: new RegExp(`^${ans}$`) }).click();
+  await page.waitForTimeout(1200);
+  assert.match(await page.locator(".stage p").first().textContent(), /الصغير/);
+  assert.match((await page.locator(".choice-row").first().locator(".choice").first().textContent()).trim(), /^[a-z]$/);
+});
+
+test("Review: «small b» offers b, B and another letter — B gets a capital/small hint", async () => {
+  await mount("/js/games/review.js", "renderReview", { datasetKey: "english", lang: "en-US", title: "🧠", regionId: "english", regionIndex: 1 });
+  await page.waitForSelector(".choice-row");
+  assert.match(await page.locator(".stage p").first().textContent(), /الصغير/);
+  const opts = (await page.locator(".choice-row .choice").allTextContents()).map((t) => t.trim());
+  const want = opts.find((o) => /[a-z]/.test(o) && opts.includes(o.toUpperCase()));
+  assert.ok(want, `choices ${opts} hold a letter in both cases`);
+  await page.locator(".choice-row .choice", { hasText: new RegExp(`^${want.toUpperCase()}$`) }).click();
+  assert.match(await page.locator(".stage p").first().textContent(), /الكابيتال — عايزين الصغير/);
+  await page.locator(".choice-row .choice", { hasText: new RegExp(`^${want}$`) }).click();
+  assert.equal(await page.locator(".choice.correct").count(), 1);
+  assert.deepEqual(errors, []);
+});

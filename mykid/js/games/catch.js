@@ -14,6 +14,10 @@ export function renderCatch({ regionId, regionIndex, datasetKey, lang }) {
   const items = ds.items;
 
   const targets = shuffle(items).slice(0, ROUNDS);
+  // الإنجليزى: جولات «اصطاد الحرف الصغير/الكابيتال» وسط حروف بالحالتين — والفخ هو نفس
+  // الحرف بالحالة التانية (b وسطها B). بيعلّم الفرق (المالك ٢٠٢٦-١٠-١٠).
+  const caseMode = !!(items[0] && items[0].lower && items[0].lower !== items[0].char);
+  const KINDS = ["word", "small", "capital", "small", "word"];
   let round = 0;
   let running = true;
   let fallers = []; // { el, x, y, speed, item }
@@ -42,7 +46,9 @@ export function renderCatch({ regionId, regionIndex, datasetKey, lang }) {
   function spawnRound() {
     clearFallers();
     const target = targets[round];
-    prompt.innerHTML = `اصطد ما يبدأ بحرف <b style="font-size:1.4em">${target.char}</b>`;
+    const kind = caseMode ? KINDS[round % KINDS.length] : "word";
+    if (kind !== "word") return spawnLetters(target, kind);
+    prompt.innerHTML = `اصطد ما يبدأ بحرف <b style="font-size:1.4em" dir="ltr">${caseMode ? target.char + target.lower : target.char}</b>`;
     Speech.ar(`اصطد ما يبدأ بحرف ${target.name}`);
 
     const others = shuffle(items.filter((x) => x.char !== target.char)).slice(0, diffCount(3, 5));
@@ -65,6 +71,60 @@ export function renderCatch({ regionId, regionIndex, datasetKey, lang }) {
       };
       el.style.transform = `translate(${f.x}px, ${f.y}px)`;
       el.addEventListener("click", () => handleTap(f, target));
+      fallers.push(f);
+    });
+  }
+
+  /** جولة حروف: المطلوب بحالة واحدة (صغير أو كابيتال)، ومعاه نفس الحرف بالحالة التانية + حروف تانية. */
+  function spawnLetters(target, kind) {
+    const want = kind === "small" ? target.lower : target.char;
+    const twin = kind === "small" ? target.char : target.lower;
+    prompt.innerHTML = kind === "small"
+      ? `اصطد الحرف <b>الصغير</b> <b style="font-size:1.4em" dir="ltr">${want}</b>`
+      : `اصطد الحرف <b>الكابيتال</b> <b style="font-size:1.4em" dir="ltr">${want}</b>`;
+    Speech.sequence([
+      { text: kind === "small" ? "اصطد الحرف الصغير" : "اصطد الحرف الكابيتال", lang: "ar-EG" },
+      { text: `${kind} ${want}`, lang: "en-US" },
+    ]);
+    const others = shuffle(items.filter((x) => x.char !== target.char)).slice(0, diffCount(3, 4))
+      .map((x) => (Math.random() < 0.5 ? x.char : x.lower));
+    const letters = shuffle([want, twin, ...others]);
+    const W = sky.clientWidth || 320;
+    const H = sky.clientHeight || 400;
+    letters.forEach((ch, idx) => {
+      const el = document.createElement("div");
+      el.className = "falling falling-letter";
+      el.textContent = ch;
+      el.dir = "ltr";
+      sky.appendChild(el);
+      const f = {
+        el,
+        x: 10 + Math.random() * (W - 70),
+        y: 20 + (idx / letters.length) * (H - 130) + Math.random() * 24,
+        speed: 1.1 + Math.random() * 1.1,
+        item: { ch },
+      };
+      el.style.transform = `translate(${f.x}px, ${f.y}px)`;
+      el.addEventListener("click", () => {
+        if (ch === want) {
+          Sfx.correct();
+          awardStars(1);
+          Speech.say(`${kind} ${want}`, { lang: "en-US" });
+          el.classList.add("correct");
+          el.style.pointerEvents = "none";
+          nextRound();
+        } else {
+          Sfx.wrong();
+          el.classList.add("wrong");
+          setTimeout(() => el.classList.remove("wrong"), 400);
+          // الفخ: نفس الحرف بالحالة التانية — نقول الفرق بدل «غلط» بس
+          if (ch === twin) {
+            prompt.innerHTML = kind === "small"
+              ? `ده <b dir="ltr">${twin}</b> الكابيتال — عايزين الصغير <b dir="ltr">${want}</b>`
+              : `ده <b dir="ltr">${twin}</b> الصغير — عايزين الكابيتال <b dir="ltr">${want}</b>`;
+          }
+        }
+      });
       fallers.push(f);
     });
   }

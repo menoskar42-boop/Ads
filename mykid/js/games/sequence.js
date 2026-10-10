@@ -11,11 +11,11 @@ import { gameTopbar, progressDots, shuffle, finishActivity, diffCount, revealAns
 const ROUNDS = 6;
 const WIN = 3; // طول السلسلة المعروضة
 
-function glyph(it) {
+function baseGlyph(it) {
   return it.char || it.arDigit || it.emoji || it.name;
 }
-function speakName(it, lang) {
-  Speech.say(it.name || it.arName || glyph(it), { lang: it.arDigit ? "ar-EG" : lang });
+function baseSpeak(it, lang) {
+  Speech.say(it.name || it.arName || baseGlyph(it), { lang: it.arDigit ? "ar-EG" : lang });
 }
 
 export function renderSequence({ regionId, regionIndex, datasetKey, lang, title }) {
@@ -23,6 +23,8 @@ export function renderSequence({ regionId, regionIndex, datasetKey, lang, title 
   const speakLang = lang || ds.lang;
   const items = ds.items;
   let round = 0;
+  // الإنجليزى: جولة كابيتال (A B ؟) وجولة صغير (a b ؟) بالتبادل
+  const caseMode = !!(items[0] && items[0].lower && items[0].lower !== items[0].char);
 
   const screen = document.createElement("div");
   screen.className = "region-screen";
@@ -41,13 +43,16 @@ export function renderSequence({ regionId, regionIndex, datasetKey, lang, title 
     const seq = items.slice(start, start + WIN);
     const gap = 1 + ((Math.random() * (WIN - 2)) | 0); // موضع الفجوة (ليس الأول)
     const answer = seq[gap];
+    const small = caseMode && round % 2 === 1;
+    const glyph = (it) => (small ? it.lower : baseGlyph(it));
+    const speakName = (it, lang) => (small ? Speech.say(`small ${it.lower}`, { lang: "en-US" }) : baseSpeak(it, lang));
 
     stage.innerHTML = "";
     stage.appendChild(progressDots(ROUNDS, round - 1));
 
     const ask = document.createElement("p");
     ask.style.cssText = "font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.2);font-size:clamp(17px,4.6vw,22px)";
-    ask.textContent = "ما العنصر الناقص؟";
+    ask.textContent = caseMode ? (small ? "ما الحرف الصغير الناقص؟" : "ما الحرف الكابيتال الناقص؟") : "ما العنصر الناقص؟";
     stage.appendChild(ask);
 
     // السلسلة المعروضة
@@ -120,7 +125,7 @@ export function renderSequence({ regionId, regionIndex, datasetKey, lang, title 
     });
     stage.appendChild(opts);
 
-    Speech.ar("ما العنصر الناقص؟");
+    Speech.ar(ask.textContent);
   }
 
   setTimeout(render, 0);
