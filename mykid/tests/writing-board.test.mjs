@@ -376,3 +376,34 @@ test("the English writing picker and the parent page list small letters too", as
   await page.locator(".glyph-picker .lesson-item-picker-button", { hasText: /^g$/ }).click();
   assert.match(await page.locator(".stage p").first().textContent(), /small g/);
 });
+
+// ---------- معلّم الحروف/الأرقام: «اختار الأول» ----------
+
+test("the teacher opens on a chooser (English Aa–Zz, Arabic, numbers) and jumps to the picked one", async () => {
+  await mount("/js/games/lesson.js", "renderLesson", { datasetKey: "english", lang: "en-US", title: "T", choose: true, regionId: "english", regionIndex: 1 });
+  await page.waitForSelector(".lesson-chooser");
+  assert.equal(await page.locator(".lesson").evaluate((e) => getComputedStyle(e).display), "none", "lesson hidden until a letter is picked");
+  assert.equal(await page.locator(".lesson-chooser-btn").count(), 26);
+  await page.locator(".lesson-chooser-btn", { hasText: /^Kk$/ }).click();
+  assert.equal(await page.locator(".lesson-glyph").textContent(), "Kk");
+  assert.equal(await page.locator(".lesson-chooser").evaluate((e) => getComputedStyle(e).display), "none");
+  await page.click("#lsChoose");                               // «كل الحروف» يرجّع الاختيار
+  assert.match(await page.locator(".lesson-chooser-btn.is-active").textContent(), /^Kk$/);
+
+  await mount("/js/games/lesson.js", "renderLesson", { datasetKey: "arabic", lang: "ar-EG", title: "T", choose: true, regionId: "arabic", regionIndex: 0 });
+  await page.waitForSelector(".lesson-chooser");
+  await page.locator(".lesson-chooser-btn", { hasText: /^ش$/ }).click();
+  assert.equal(await page.locator(".lesson-glyph").textContent(), "ش");
+
+  await mount("/js/games/lesson.js", "renderLesson", { datasetKey: "numbers", title: "T", includeZero: true, choose: true, regionId: "numbers", regionIndex: 2 });
+  await page.waitForSelector(".lesson-chooser");
+  assert.equal(await page.locator(".lesson-chooser-btn").count(), 21, "٠ to ٢٠");
+  await page.locator(".lesson-chooser-btn", { hasText: /^٧$/ }).click();
+  assert.equal(await page.locator(".lesson-glyph").textContent(), "٧");
+
+  // الرجوع من «اكتبه» بيرجع على نفس الحرف من غير الاختيار
+  await mount("/js/games/lesson.js", "renderLesson", { datasetKey: "arabic", lang: "ar-EG", title: "T", choose: true, startChar: "م", motivate: true, regionId: "arabic", regionIndex: 0 });
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator(".lesson-chooser").count(), 0);
+  assert.equal(await page.locator(".lesson-glyph").textContent(), "م");
+});

@@ -15,7 +15,7 @@ import { getEnglishLetterLessonVideo } from "../data/englishLetterLessonVideos.j
 import { createYouTubePlayer } from "../core/youtube-player.js";
 import { bothCases } from "../data/englishLetters.js";
 
-export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, startChar, motivate, includeZero = false }) {
+export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, startChar, motivate, includeZero = false, choose = false }) {
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang || "ar-EG";
   const isAr = speakLang.startsWith("ar");
@@ -60,6 +60,7 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
     <div class="lesson-controls">
       <button class="candy-btn" id="lsPlay">🔊 اسمع</button>
       <button class="candy-btn" id="lsWrite" style="background:linear-gradient(180deg,#34d399,#10b981)">✍️ اكتبه</button>
+      ${choose ? `<button class="candy-btn" id="lsChoose" style="background:linear-gradient(180deg,#fbbf24,#f59e0b)">🔤 ${ds.glyphKind === "number" ? "كل الأرقام" : "كل الحروف"}</button>` : ""}
       <button class="candy-btn" id="lsPrev" style="background:linear-gradient(180deg,#9aa7ff,#6b7cff)">⏮️ السابق</button>
       <button class="candy-btn" id="lsNext">التالي ⏭️</button>
     </div>`;
@@ -235,6 +236,60 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
     else { idx++; render(); }
   });
 
-  setTimeout(render, 30);
+  /**
+   * «اختار الأول»: الدخول من قايمة المنطقة بيفتح على كل الحروف/الأرقام، والطفل (أو
+   * ولى الأمر) يلمس اللى عايزه — بدل ما الدرس يبدأ من A/أ/١ ويقعد يضغط «التالي».
+   * المالك ٢٠٢٦-١٠-١٠: «بدخل على معلّم الحروف بلاقى حرف A مباشرة… عاوز أختار الحرف».
+   * الرجوع من «اكتبه» (startChar) بيرجع على نفس الحرف من غير الشاشة دى.
+   */
+  const isNum = ds.glyphKind === "number";
+  let chooser = null;
+  let started = false;
+  function showChooser() {
+    Speech.stop();
+    wrap.classList.add("hidden");
+    if (!chooser) {
+      chooser = document.createElement("section");
+      chooser.className = "lesson-chooser";
+      chooser.setAttribute("aria-label", isNum ? "اختار الرقم" : "اختار الحرف");
+      const head = document.createElement("p");
+      head.className = "lesson-chooser-title";
+      head.textContent = isNum ? "اختار الرقم اللى نتعلّمه" : "اختار الحرف اللى نتعلّمه";
+      if (Store.childGender === "girl") head.textContent = femAdapt(head.textContent);
+      const grid = document.createElement("div");
+      grid.className = "lesson-chooser-grid";
+      grid.dir = datasetKey === "english" || isEnglishNumber ? "ltr" : "rtl";
+      items.forEach((it, i) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "lesson-chooser-btn";
+        b.textContent = shownOf(it);
+        b.setAttribute("aria-label", `${isNum ? "الرقم" : "الحرف"} ${glyphOf(it)}`);
+        b.addEventListener("click", () => openAt(i));
+        grid.appendChild(b);
+      });
+      const fromStart = document.createElement("button");
+      fromStart.type = "button";
+      fromStart.className = "candy-btn lesson-chooser-start";
+      fromStart.textContent = "▶️ " + (Store.childGender === "girl" ? femAdapt("ابدأ من الأول") : "ابدأ من الأول");
+      fromStart.addEventListener("click", () => openAt(0));
+      chooser.append(head, grid, fromStart);
+      screen.insertBefore(chooser, wrap);
+    }
+    chooser.classList.remove("hidden");
+    chooser.querySelectorAll(".lesson-chooser-btn").forEach((b, i) => b.classList.toggle("is-active", started && i === idx));
+    Speech.ar(chooser.querySelector(".lesson-chooser-title").textContent);
+  }
+  function openAt(i) {
+    Sfx.tap();
+    idx = i;
+    started = true;
+    chooser.classList.add("hidden");
+    wrap.classList.remove("hidden");
+    render();
+  }
+  if (choose) wrap.querySelector("#lsChoose").addEventListener("click", () => { Sfx.tap(); showChooser(); });
+
+  setTimeout(choose && !startChar ? showChooser : render, 30);
   return screen;
 }

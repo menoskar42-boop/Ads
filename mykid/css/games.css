@@ -973,3 +973,13 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
 .grip-steps { list-style: arabic-indic; text-align: start; margin: 4px 0 6px; padding-inline-start: 22px; color: #27272a; font-weight: 700; line-height: 1.8; }
 .grip-note { margin: 0 0 12px; color: #6d28d9; font-weight: 800; font-size: 14px; }
 .grip-go:focus-visible { outline: 3px solid #8b5cf6; outline-offset: 2px; }
+
+/* ===== «اختار الأول» فى معلّم الحروف/الأرقام (lesson.js) ===== */
+.lesson-chooser { width: min(100% - 32px, 560px); margin: 12px auto 28px; padding: 14px; border-radius: 22px; background: rgba(255,255,255,.8); box-shadow: 0 6px 18px rgba(48,50,110,.12); text-align: center; }
+.lesson-chooser-title { margin: 0 0 12px; font-size: clamp(18px, 5vw, 24px); font-weight: 800; color: #302c71; }
+.lesson-chooser-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; }
+.lesson-chooser-btn { min-height: 62px; border-radius: 16px; background: #fff; color: #302c71; box-shadow: 0 4px 0 rgba(88,74,159,.22); font-size: 28px; font-weight: 800; line-height: 1; }
+.lesson-chooser-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(88,74,159,.22); }
+.lesson-chooser-btn.is-active { background: #7254d5; color: #fff; }
+.lesson-chooser-btn:focus-visible { outline: 3px solid #24a9ed; outline-offset: 2px; }
+.lesson-chooser-start { margin-top: 14px; }

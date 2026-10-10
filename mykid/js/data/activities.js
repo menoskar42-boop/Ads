@@ -8,7 +8,7 @@ export const ACTIVITIES = {
       title: "معلّم الحروف",
       desc: "شرح الحرف وكتابته بالحركة",
       screen: "lesson",
-      params: { datasetKey: "arabic", lang: "ar-EG", title: "🧑‍🏫 معلّم الحروف" },
+      params: { datasetKey: "arabic", lang: "ar-EG", title: "🧑‍🏫 معلّم الحروف", choose: true },
     },
     {
       emoji: "👀",
@@ -136,7 +136,7 @@ export const ACTIVITIES = {
       title: "معلّم الحروف",
       desc: "Letter explanation & writing",
       screen: "lesson",
-      params: { datasetKey: "english", lang: "en-US", title: "🧑‍🏫 Letters Teacher" },
+      params: { datasetKey: "english", lang: "en-US", title: "🧑‍🏫 Letters Teacher", choose: true },
     },
     {
       emoji: "👀",
@@ -224,7 +224,7 @@ export const ACTIVITIES = {
       title: "معلّم الأرقام",
       desc: "شرح الرقم وكتابته بالحركة",
       screen: "lesson",
-      params: { datasetKey: "numbers", title: "🧑‍🏫 معلّم الأرقام", includeZero: true },
+      params: { datasetKey: "numbers", title: "🧑‍🏫 معلّم الأرقام", includeZero: true, choose: true },
     },
     {
       emoji: "🔢",
@@ -235,6 +235,7 @@ export const ACTIVITIES = {
         datasetKey: "englishNumbers",
         title: "🔢 الأرقام بالإنجليزية",
         includeZero: true,
+        choose: true,
       },
     },
     {
