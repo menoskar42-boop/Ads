@@ -1,9 +1,16 @@
 // زر «إعدادات» فى «رفع الملفات» (سوبر أدمن): عدد التابات اللى جهاز التنفيذ بيفتحها مع بعض
 // لـ«قياس بدون Real» و«إيقاف PO» على AXON. السيرفر هو اللى بيطبّق العدد فى سحب الطابور
 // (/api/exec-queue/claim)، فالتغيير بيمشى من المهمة الجاية من غير ريفريش لجهاز التنفيذ.
-import { useEffect, useState } from "react";
+//
+// الموبايل (المالك ٢٠٢٦-١٠-١٠: «شاشة الإعدادات بتنهج ومش بقدر أعدّل منها حاجة»):
+//   • القيم بتتنسخ من السيرفر مرة واحدة لما الشاشة تتفتح — أى إعادة جلب بعدها (رفع ملف
+//     بيعيد جلب كل استعلامات الصفحة) مابتمسحش اللى المستخدم كتبه.
+//   • − و + جنب كل رقم: التعديل من غير كيبورد (الكيبورد على الآيفون بيحرّك النافذة).
+//   • النافذة من فوق وبتتمرّر لو أطول من الشاشة، بدل ما تبقى فى النص وتتنطّط مع الكيبورد.
+//   • لو التحميل فشل: رسالة + «حاول تانى» بدل دايرة بتلف على طول.
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Settings, Loader2 } from "lucide-react";
+import { Settings, Loader2, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -29,7 +36,7 @@ export function ExecLanesSettingsButton() {
   const [refresh, setRefresh] = useState("");
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data, isLoading } = useQuery<ExecLanes>({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery<ExecLanes>({
     queryKey: [LANES_URL],
     queryFn: async () => {
       const r = await fetch(LANES_URL, { credentials: "include" });
@@ -37,9 +44,16 @@ export function ExecLanesSettingsButton() {
       return r.json();
     },
     enabled: open,
+    retry: 1,
   });
+  // نسخ القيم مرة واحدة لكل فتحة — مش مع كل إعادة جلب
+  const filled = useRef(false);
+  useEffect(() => { if (!open) filled.current = false; }, [open]);
   useEffect(() => {
-    if (open && data) { setNoreal(String(data.noreal)); setStop(String(data.stop)); setRefresh(String(data.refreshMinutes)); }
+    if (open && data && !filled.current) {
+      filled.current = true;
+      setNoreal(String(data.noreal)); setStop(String(data.stop)); setRefresh(String(data.refreshMinutes));
+    }
   }, [open, data]);
 
   const max = data?.max ?? 8;
@@ -66,13 +80,27 @@ export function ExecLanesSettingsButton() {
     onError: (e: any) => toast({ title: "ماتحفظش", description: e.message, variant: "destructive" }),
   });
 
+  // رقم بـ − و + (من غير كيبورد) — والكتابة لسه متاحة لو حد عايزها
+  const stepper = (id: string | undefined, v: string, set: (s: string) => void, lo: number, hi: number, step: number, ok: boolean, label: string) => {
+    const n = /^\d+$/.test(v) ? +v : lo;
+    const go = (d: number) => set(String(Math.min(hi, Math.max(lo, n + d))));
+    return (
+      <div className="flex items-center gap-1" dir="ltr">
+        <Button type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0" aria-label={`${label} −`}
+          disabled={n <= lo} onClick={() => go(-step)}><Minus className="w-4 h-4" /></Button>
+        <Input id={id} type="text" inputMode="numeric" pattern="[0-9]*" value={v}
+          onChange={(e) => set(e.target.value.replace(/[^\d]/g, ""))} className="h-10 w-16 text-center text-base"
+          aria-invalid={!ok} />
+        <Button type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0" aria-label={`${label} +`}
+          disabled={n >= hi} onClick={() => go(step)}><Plus className="w-4 h-4" /></Button>
+      </div>
+    );
+  };
   const row = (label: string, hint: string, v: string, set: (s: string) => void, def?: number, id?: string) => (
     <div className="space-y-1">
       <label htmlFor={id} className="text-sm font-medium">{label}</label>
-      <div className="flex items-center gap-2">
-        <Input id={id} type="number" inputMode="numeric" min={1} max={max} value={v}
-          onChange={(e) => set(e.target.value)} className="w-24 text-center"
-          aria-invalid={!valid(v)} />
+      <div className="flex flex-wrap items-center gap-2">
+        {stepper(id, v, set, 1, max, 1, valid(v), label)}
         <span className="text-xs text-muted-foreground">تاب (من 1 لـ {max}{def != null ? ` — الافتراضى ${def}` : ""})</span>
       </div>
       <p className="text-xs text-muted-foreground">{hint}</p>
@@ -85,7 +113,7 @@ export function ExecLanesSettingsButton() {
         <Settings className="w-3.5 h-3.5" /> إعدادات
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent dir="rtl" className="max-w-md">
+        <DialogContent dir="rtl" className="max-w-md max-h-[90dvh] overflow-y-auto top-[4dvh] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]">
           <DialogHeader>
             <DialogTitle>إعدادات التنفيذ والتحديث</DialogTitle>
             <DialogDescription>
@@ -93,7 +121,14 @@ export function ExecLanesSettingsButton() {
               كل نوع ياخد تاباته وهو لوحده، وأى نوع تانى (قياس Real، رفع سرعة) تاب واحد دايماً.
             </DialogDescription>
           </DialogHeader>
-          {isLoading || !data ? (
+          {isError && !data ? (
+            <div className="flex flex-col items-center gap-3 py-6 text-sm">
+              <p className="text-destructive">الإعدادات ماتحمّلتش — غالباً النت أو السيرفر مشغول.</p>
+              <Button type="button" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+                {isFetching && <Loader2 className="w-4 h-4 animate-spin ml-1" />} حاول تانى
+              </Button>
+            </div>
+          ) : isLoading || !data ? (
             <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" /></div>
           ) : (
             <div className="space-y-4">
@@ -101,9 +136,8 @@ export function ExecLanesSettingsButton() {
               {row("إيقاف PO", "Stop Nightly PO. لو حصلت مشاكل جلسة على AXON رجّعه 1.", stop, setStop, data.defaults.stop, "lanes-stop")}
               <div className="space-y-1 pt-2 border-t">
                 <label htmlFor="refresh-minutes" className="text-sm font-medium">تحديث التقارير اليومية تلقائياً كل</label>
-                <div className="flex items-center gap-2">
-                  <Input id="refresh-minutes" type="number" inputMode="numeric" min={rMin} max={rMax} value={refresh}
-                    onChange={(e) => setRefresh(e.target.value)} className="w-24 text-center" aria-invalid={!validRefresh} />
+                <div className="flex flex-wrap items-center gap-2">
+                  {stepper("refresh-minutes", refresh, setRefresh, rMin, rMax, 5, validRefresh, "دقايق التحديث")}
                   <span className="text-xs text-muted-foreground">دقيقة (من {rMin} لـ {rMax} — الافتراضى {data.defaults.refreshMinutes})</span>
                 </div>
                 <p className="text-xs text-muted-foreground">بيشتغل على الجهاز اللى زرار «التحديث التلقائى» مفعّل عليه. التغيير بيتطبّق من الدورة الجاية.</p>
