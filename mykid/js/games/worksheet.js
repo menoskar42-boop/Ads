@@ -8,6 +8,7 @@
 // بتظهر كمعاينة على الشاشة الأول (زرار «اطبع» + «اقفل») — لأن الطباعة من التابلت
 // مش دايماً متاحة، والمعاينة لوحدها ممكن تتصوّر أو تتحفظ PDF.
 import { densify, cumulative } from "./strokeJudge.js";
+import { startMarks } from "../data/strokes.js";
 
 const CELLS = 6;
 
@@ -50,8 +51,7 @@ function arrow(st) {
   return `<polygon points="5,0 -4,-5 -1,0 -4,5" fill="#7c3aed" transform="translate(${r1(d[i][0])} ${r1(d[i][1])}) rotate(${r1(an)})"/>`;
 }
 
-function startMark(st, n, many) {
-  const [x, y] = st[0];
+function startMark([x, y], n, many) {
   return `<circle cx="${r1(x)}" cy="${r1(y)}" r="5.6" fill="#16a34a"/>` +
     (many ? `<text x="${r1(x)}" y="${r1(y) + 2.6}" font-size="7.5" font-weight="800" text-anchor="middle" fill="#fff" font-family="sans-serif">${n}</text>` : "");
 }
@@ -72,7 +72,8 @@ export function cellSvg(strokes, mode) {
         : `<path d="${pathD(st)}" fill="none" stroke="#9ca3af" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="0.01 6"/>`;
     }
   });
-  if (mode !== "blank") strokes.forEach((st, i) => { body += startMark(st, i + 1, many); });
+  // خطين من نفس النقطة (B D E…): العلامة التانية بتتزق على خطها عشان الرقمين يبانوا
+  if (mode !== "blank") startMarks(strokes).forEach((p, i) => { body += startMark(p, i + 1, many); });
   return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">` +
     `<line x1="6" y1="70" x2="94" y2="70" stroke="#e5e1f5" stroke-width="0.8"/>${body}</svg>`;
 }

@@ -278,4 +278,29 @@ export function nameLetters(name) {
   return out;
 }
 
+/**
+ * مكان علامة البداية (الدايرة الخضرا برقمها) لكل خط — لو خطين بيبدأوا من نفس النقطة
+ * (B D E F M N P R…) العلامة التانية بتتزق شوية على خطها، وإلا الرقم ٢ بيغطّى ١.
+ */
+export function startMarks(strokes, gap = 9) {
+  const placed = [];
+  return strokes.map((st) => {
+    let [x, y] = st[0];
+    if (placed.some(([px, py]) => Math.hypot(px - x, py - y) < gap) && st.length > 1) {
+      // نمشى على الخط لحد ما نبعد كفاية عن العلامات اللى قبلها
+      for (const [qx, qy] of st.slice(1)) {
+        const steps = Math.ceil(Math.hypot(qx - x, qy - y));
+        for (let k = 1; k <= steps; k++) {
+          const cx = x + ((qx - x) * k) / steps, cy = y + ((qy - y) * k) / steps;
+          if (placed.every(([px, py]) => Math.hypot(px - cx, py - cy) >= gap)) { x = cx; y = cy; k = steps + 1; break; }
+        }
+        if (placed.every(([px, py]) => Math.hypot(px - x, py - y) >= gap)) break;
+        [x, y] = [qx, qy];
+      }
+    }
+    placed.push([x, y]);
+    return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+  });
+}
+
 export const STROKE_TABLES = { AR, EN, EN_LOWER, DIGITS_EN, DIGITS_AR };

@@ -488,3 +488,36 @@ test("Review: «small b» offers b, B and another letter — B gets a capital/sm
   assert.equal(await page.locator(".choice.correct").count(), 1);
   assert.deepEqual(errors, []);
 });
+
+// ---------- اتجاهات الكتابة للصغير كمان ----------
+
+test("the teacher's board draws each stroke in order — capital A, then small a — with start dots and arrows", async () => {
+  await mount("/js/games/lesson.js", "renderLesson", { datasetKey: "english", lang: "en-US", title: "T", startChar: "A", regionId: "english", regionIndex: 1 });
+  await page.waitForSelector(".lesson-strokes");
+  const inks = await page.locator(".lesson-strokes .sa-ink").count();
+  assert.equal(inks, strokesFor("A").length + strokesFor("a").length);
+  // الصغير مرسوم فى النص التانى من السبّورة (x > 100)، وبعد الكابيتال فى الوقت
+  const xs = await page.locator(".lesson-strokes .sa-ink").evaluateAll((els) => els.map((e) => [+e.getAttribute("d").split(" ")[0].slice(1), parseFloat(e.style.animationDelay)]));
+  const small = xs.filter(([x]) => x > 100), cap = xs.filter(([x]) => x <= 100);
+  assert.equal(small.length, strokesFor("a").length);
+  assert.ok(Math.min(...small.map(([, t]) => t)) > Math.max(...cap.map(([, t]) => t)), "small a is drawn after capital A");
+  assert.ok(await page.locator(".lesson-strokes .sa-start").count() >= inks);
+  assert.ok(await page.locator(".lesson-strokes .sa-arrow").count() >= 3);
+  assert.equal(await page.locator(".lesson-glyph").textContent(), "Aa", "the written letter stays for reading");
+
+  await mount("/js/games/lesson.js", "renderLesson", { datasetKey: "arabic", lang: "ar-EG", title: "T", startChar: "ب", regionId: "arabic", regionIndex: 0 });
+  await page.waitForSelector(".lesson-strokes");
+  assert.equal(await page.locator(".lesson-strokes .sa-ink").count(), 1);
+  assert.equal(await page.locator(".lesson-strokes .sa-dot").count(), 1, "ب's dot");
+});
+
+test("an English writing session pairs every capital with its small letter (A then a)", async () => {
+  await page.goto(base);
+  await page.evaluate(() => localStorage.clear());
+  await open({ levelKey: "x", trace: { datasetKey: "english", lang: "en-US", regionId: "english", regionIndex: 1 } }, 0);
+  const head = await page.locator(".stage p").first().textContent();
+  const cap = head.match(/: ([A-Z])$/)?.[1];
+  assert.ok(cap, `first is a capital: ${head}`);
+  for (const st of strokesFor(cap)) await stroke(st);
+  await page.waitForFunction((c) => (document.querySelector(".stage p")?.textContent || "").includes(`small ${c}`), cap.toLowerCase(), { timeout: 5000 });
+});

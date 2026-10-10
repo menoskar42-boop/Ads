@@ -985,3 +985,24 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
 .lesson-chooser-start { margin-top: 14px; }
 .mem-front .mem-letter { font-family: var(--font-en, sans-serif); font-weight: 700; color: #4c1d95; line-height: 1; }
 .falling-letter { font-family: var(--font-en, sans-serif); font-weight: 700; color: #4c1d95; background: rgba(255,255,255,.92); border-radius: 18px; padding: 2px 14px 6px; box-shadow: 0 4px 0 rgba(60,40,140,.2); }
+
+/* ===== سبّورة المعلّم: الحرف بيتكتب خط خط (strokeAnim.js) ===== */
+.lesson-board.has-strokes .lesson-glyph { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.lesson-board.has-strokes .lesson-pen, .lesson-board.has-strokes .lesson-baseline { display: none; }
+.lesson-strokes .sa-line { stroke: #2aa9ff; stroke-width: 1.2; opacity: .7; }
+.lesson-strokes .sa-mid { stroke-dasharray: 2 3; opacity: .45; }
+.lesson-strokes { width: 92%; height: 88%; }
+.lesson-strokes .sa-guide { fill: none; stroke: #e7e3f6; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
+.lesson-strokes .sa-guide-dot { fill: #e7e3f6; }
+.lesson-strokes .sa-ink { fill: none; stroke: #2b2b6b; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: sa-draw .8s linear forwards; }
+.lesson-strokes .sa-dot { fill: #2b2b6b; opacity: 0; animation: sa-show .25s ease forwards; }
+.lesson-strokes .sa-mark { opacity: 0; animation: sa-show .25s ease forwards; }
+.lesson-strokes .sa-start { fill: #22c55e; }
+.lesson-strokes .sa-num { fill: #fff; font: 800 7px sans-serif; text-anchor: middle; }
+.lesson-strokes .sa-arrow { fill: #ec4899; }
+@keyframes sa-draw { to { stroke-dashoffset: 0; } }
+@keyframes sa-show { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .lesson-strokes .sa-ink { animation: none; stroke-dashoffset: 0; }
+  .lesson-strokes .sa-dot, .lesson-strokes .sa-mark { animation: none; opacity: 1; }
+}

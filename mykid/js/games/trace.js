@@ -50,6 +50,15 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
   // الحروف الصعبة الأول (والجديدة بعدها) بدل اختيار عشوائى — المتقن بييجى آخر حاجة
   const statusOf = (x) => writeStatus(Store.writeStats[keyOf(x)], Store.getWriteLevel(keyOf(x)));
   let letters = isPre ? traceItems.slice() : practiceOrder(traceItems, statusOf).slice(0, TRACE_COUNT);
+  // الإنجليزى: كل حرف بيتكتب كابيتال وبعده الصغير بتاعه (A ثم a) — من غيرها جلسة كاملة
+  // ممكن تطلع كابيتال بس والصغير مايتكتبش (المالك ٢٠٢٦-١٠-١٠). الأصعب من الاتنين بيحدّد الترتيب.
+  if (datasetKey === "english") {
+    const worse = (it) => {
+      const a = statusOf(it), b = statusOf(smallOf(it));
+      return [a, b].includes("weak") ? "weak" : [a, b].includes("new") ? "new" : a === "mastered" && b === "mastered" ? "mastered" : "learning";
+    };
+    letters = practiceOrder(ds.items, worse).slice(0, TRACE_COUNT / 2).flatMap((it) => [it, smallOf(it)]);
+  }
   // إن طُلب حرف/رقم محدّد (من معلّم الحروف) نجعله أول ما يُكتب
   if (focus) {
     const f = traceItems.find((x) => (x.char || x.arDigit || x.name) === focus);

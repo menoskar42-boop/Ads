@@ -14,6 +14,7 @@ import { getNumberLessonVideo } from "../data/numberLessonVideos.js";
 import { getEnglishLetterLessonVideo } from "../data/englishLetterLessonVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
 import { bothCases } from "../data/englishLetters.js";
+import { strokeAnimSvg } from "./strokeAnim.js";
 
 export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, startChar, motivate, includeZero = false, choose = false }) {
   const ds = getDataset(datasetKey);
@@ -167,7 +168,18 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
   }
 
   function animateWrite() {
-    // إعادة تشغيل حركة "الكتابة" (كشف الحرف من أعلى لأسفل + قلم يتحرّك)
+    // الحرف بيتكتب خط خط بترتيبه واتجاهه (strokeAnim.js) — الكابيتال وبعده الصغير.
+    // الحرف المكتوب (lesson-glyph) فاضل للقراية وللحروف اللى مالهاش خطوط.
+    const it = items[idx];
+    const svg = strokeAnimSvg(it.lower && it.lower !== it.char ? [it.char, it.lower] : [glyphOf(it)]);
+    const board = wrap.querySelector(".lesson-board");
+    board.querySelector(".lesson-strokes")?.remove();
+    board.classList.toggle("has-strokes", !!svg);
+    if (svg) {
+      board.insertAdjacentHTML("afterbegin", svg);
+      return;
+    }
+    // احتياطى: كشف الحرف من أعلى لأسفل + قلم يتحرّك
     glyphEl.classList.remove("writing");
     penEl.style.animation = "none";
     void glyphEl.offsetWidth; // إجبار إعادة التدفّق

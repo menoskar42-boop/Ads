@@ -219,3 +219,21 @@ test("small English letters a–z: every stroke works forward and never backward
   }
   assert.deepEqual(bad, []);
 });
+
+import { startMarks } from "../js/data/strokes.js";
+
+test("start badges never sit on top of each other (B, E, M, ت …) — capital, small, Arabic, numbers", () => {
+  const glyphs = [
+    ...["arabic", "english", "numbers", "englishNumbers"].flatMap((k) => getDataset(k).items.map((it) => glyphOf(it))),
+    ..."abcdefghijklmnopqrstuvwxyz",
+  ];
+  const bad = [];
+  for (const g of glyphs) {
+    const m = startMarks(strokesFor(g));
+    for (let i = 0; i < m.length; i++) for (let j = 0; j < i; j++) {
+      if (Math.hypot(m[i][0] - m[j][0], m[i][1] - m[j][1]) < 8.9) bad.push(`${g}:${j + 1}/${i + 1}`);
+    }
+  }
+  assert.deepEqual(bad, []);
+  assert.deepEqual(startMarks(strokesFor("ب")), [[80, 36], [50, 82]], "no overlap ⇒ untouched");
+});
