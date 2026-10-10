@@ -218,6 +218,20 @@ export const Store = {
   get mastery() {
     return state.mastery || (state.mastery = {});
   },
+  // ===== لوحة الكتابة: المساعدة بتقلّ بالتدريج لكل حرف =====
+  // ١ = الحرف كامل بخط عريض · ٢ = على نقط بس · ٣ = مربع فاضى ونقطة البداية بس
+  get writeLevels() {
+    return state.writeLevels || (state.writeLevels = {});
+  },
+  getWriteLevel(key) {
+    const v = this.writeLevels[key];
+    return v >= 1 && v <= 3 ? v : 1;
+  },
+  setWriteLevel(key, level) {
+    this.writeLevels[key] = Math.max(1, Math.min(3, Math.round(level) || 1));
+    persist();
+  },
+
   getMastery(datasetKey, itemKey) {
     return this.mastery[`${datasetKey}:${itemKey}`] || 0;
   },

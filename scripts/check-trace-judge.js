@@ -109,6 +109,51 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
       /clearRect\(0, 0, RES, RES\); hint\.textContent = ""/.test(t));
   }
 
+  /* ── لوحة الكتابة (٢٠٢٦-١٠-١٠): البداية والاتجاه وترتيب الخطوط ─────── */
+  // المالك: «بنتى ٤ سنين بتتعلّم الكتابة». التغطية لوحدها بتقبل الحرف مكتوب من
+  // تحت لفوق — وده بيبوّظ الخط بعدين. فالحروف اللى ليها خطوط بتتكتب على لوحة
+  // بتحكم على كل خط: من نقطته الخضرا، فى اتجاهه، لآخره.
+  {
+    const S = await import('file://' + path.join(ROOT, 'mykid/js/games/strokeJudge.js'));
+    const D = await import('file://' + path.join(ROOT, 'mykid/js/data/strokes.js'));
+    const DS = await import('file://' + path.join(ROOT, 'mykid/js/data/datasets.js'));
+    const glyphOf = (it) => it.char || it.arDigit || it.name;
+    const glyphs = ['arabic', 'english', 'numbers', 'englishNumbers']
+      .flatMap((k) => DS.getDataset(k).items.map(glyphOf)).concat(['0', '٠']);
+    const missing = glyphs.filter((g) => !D.strokesFor(g));
+    check('كل حرف ورقم بيتكتب فى التطبيق ليه ترتيب خطوط', missing.length === 0, missing.join(' ') || glyphs.length + ' رمز');
+
+    const run = (st, pts) => {
+      const t = new S.StrokeTracker(st, 1);
+      const d = S.densify(pts, 2);
+      let r = t.begin(d[0]);
+      for (let i = 1; !r && i < d.length; i++) r = t.move(d[i]);
+      return r || t.end();
+    };
+    const okFwd = [], okRev = [];
+    for (const g of glyphs) D.strokesFor(g).forEach((st, i) => {
+      if (st.length === 1) return;
+      if (run(st, st) !== 'ok') okFwd.push(g + '#' + (i + 1));
+      if (run(st, [...st].reverse()) === 'ok') okRev.push(g + '#' + (i + 1));
+    });
+    check('كتابة كل خط فى اتجاهه بتعدّى', okFwd.length === 0, okFwd.join(' '));
+    check('وكتابته **بالعكس** مابتعدّيش أبداً', okRev.length === 0, okRev.join(' '));
+    const V = [[50, 10], [50, 90]];
+    check('ونص الخط مش كفاية («كمّل لآخر الخط»)', run(V, [[50, 10], [50, 50]]) === 'too-short'
+      && /كمّل/.test(S.hintForResult('too-short')));
+
+    const t = raw('mykid/js/games/trace.js');
+    check('الحرف اللى ليه خطوط بيروح للوحة الكتابة مش للتغطية',
+      /const strokes = isPre \? it\.strokes : strokesFor\(glyph\);\s*if \(strokes\) return renderBoard\(/.test(t));
+    const b = raw('mykid/js/games/writeBoard.js');
+    check('واللوحة بتحكم بعد رفع الإصبع بس (`end` فى `pointerup`)',
+      /function up\(e\) \{[\s\S]*?tracker\.end\(\)/.test(b)
+      && !/tracker\.end\(\)/.test((/function down\(e\) \{[\s\S]*?\n  \}/.exec(b) || [''])[0]));
+    check('والصباع السريع مابيقفزش فوق الخط (بنملا الفراغ قبل الحكم)',
+      /densify\(\[last, p\], 2\)/.test(b));
+    check('وغلطتين على نفس الخط ⇒ اللوحة بتوريه إزاى', /if \(fails >= 2\)[\s\S]{0,200}demo\(\{ only: cur \}\)/.test(b));
+  }
+
   console.log(fail === 0
     ? '\n✅ «كتب الحرف صح» بقت عن كتابة — والشخبطة بتتقال ليه مش بتتكافأ.'
     : `\n⚠️  ${fail} مشكلة.`);

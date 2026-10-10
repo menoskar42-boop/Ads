@@ -32,9 +32,16 @@ export const ACTIVITIES = {
       params: { datasetKey: "arabic", lang: "ar-EG" },
     },
     {
+      emoji: "✍️",
+      title: "تمارين قبل الكتابة",
+      desc: "خط واقف ونايم ودايرة… قبل الحروف",
+      screen: "trace",
+      params: { datasetKey: "prewriting", lang: "ar-EG", title: "✍️ تمارين قبل الكتابة" },
+    },
+    {
       emoji: "✏️",
       title: "ارسم الحرف",
-      desc: "تتبّع الحرف بإصبعك",
+      desc: "اكتب الحرف من نقطته الخضرا",
       screen: "trace",
       params: { datasetKey: "arabic", lang: "ar-EG" },
     },

@@ -5,22 +5,40 @@ import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { gameTopbar, shuffle, showCheer, finishActivity, examplePhrase } from "./common.js";
 import { judge, hintFor } from "./traceJudge.js";
+import { strokesFor, PREWRITING } from "../data/strokes.js";
+import { mountWriteBoard, LEVEL_LABELS } from "./writeBoard.js";
+import { Store } from "../core/storage.js";
+import { femAdapt } from "../data/mizo.js";
 
 const TRACE_COUNT = 6;
 const RES = 300; // دقّة داخلية ثابتة
 // الحكم على «كتب الحرف صح» في `traceJudge.js` — مفصول عشان الحارس يشغّله
 // بنفسه بأرقام حقيقية بدل ما يقرا الملف ويفترض إنه بيعمل اللي مكتوب فيه.
+//
+// ولو الحرف/الرقم ليه خطوط فى `strokes.js` (كلهم دلوقتى) بتظهر «لوحة الكتابة»
+// (`writeBoard.js`): نقطة البداية والاتجاه وترتيب الخطوط، والمساعدة بتقلّ بالتدريج.
+// الطريقة القديمة (التغطية) فاضلة لأى رمز مالوش خطوط.
+
+/** كلام ميزو للطفل — بصيغة البنت لو الطفلة بنت. */
+function tell(text) {
+  let t = text;
+  try { if (Store.childGender === "girl") t = femAdapt(text); } catch (e) {}
+  Speech.ar(t);
+  return t;
+}
 
 export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, focus, returnLesson, lessonTitle, includeZero = false }) {
-  const ds = getDataset(datasetKey);
+  // «تمارين قبل الكتابة»: خط واقف، نايم، دايرة… بالترتيب (من الأسهل للأصعب)
+  const isPre = datasetKey === "prewriting";
+  const ds = isPre ? { lang: "ar-EG", glyphKind: "stroke", items: PREWRITING } : getDataset(datasetKey);
   const speakLang = lang || ds.lang;
-  const noun = ds.glyphKind === "number" ? "الرقم" : "الحرف";
+  const noun = isPre ? "الشكل" : ds.glyphKind === "number" ? "الرقم" : "الحرف";
   const isEnglishNumber = datasetKey === "englishNumbers";
   const zeroItem = isEnglishNumber
     ? { value: 0, char: "0", name: "zero", enName: "zero" }
     : { value: 0, arDigit: "٠", arName: "صفر", enName: "zero" };
   const traceItems = includeZero && ds.glyphKind === "number" ? [zeroItem, ...ds.items] : ds.items;
-  let letters = shuffle(traceItems).slice(0, TRACE_COUNT);
+  let letters = isPre ? traceItems.slice() : shuffle(traceItems).slice(0, TRACE_COUNT);
   // إن طُلب حرف/رقم محدّد (من معلّم الحروف) نجعله أول ما يُكتب
   if (focus) {
     const f = traceItems.find((x) => (x.char || x.arDigit || x.name) === focus);
@@ -54,15 +72,18 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
   function render() {
     const it = letters[idx];
     // مرونة: يدعم الحروف (char/name) والأرقام (arDigit/arName) وغيرها
-    const glyph = it.char || it.arDigit || it.name;
+    const glyph = isPre ? it.id : it.char || it.arDigit || it.name;
     const label = it.name || it.arName || "";
-    const sayDone = it.word ? examplePhrase(it, speakLang) : label;
+    const sayDone = isPre ? "برافو" : it.word ? examplePhrase(it, speakLang) : label;
     stage.innerHTML = "";
 
     const titleEl = document.createElement("p");
     titleEl.style.cssText = "font-weight:800;font-size:clamp(18px,5vw,24px);color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.18)";
-    titleEl.textContent = `تتبّع ${noun}: ${label}`;
+    titleEl.textContent = isPre ? `${it.emoji} ${label}` : `تتبّع ${noun}: ${label}`;
     stage.appendChild(titleEl);
+
+    const strokes = isPre ? it.strokes : strokesFor(glyph);
+    if (strokes) return renderBoard({ it, glyph, label, sayDone, strokes });
 
     const box = document.createElement("div");
     box.style.cssText =
@@ -228,6 +249,85 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     stage.appendChild(tools);
 
     Speech.ar(`ارسم ${noun} ${label}`);
+  }
+
+  /** لوحة الكتابة: الخطوط بالترتيب من نقطتها الخضرا، والمساعدة حسب مستوى الحرف ده. */
+  function renderBoard({ it, glyph, label, sayDone, strokes }) {
+    const levelKey = (isPre ? "pre:" : "g:") + glyph;
+    const level = Store.getWriteLevel(levelKey);
+
+    // المستوى ظاهر وبيتغيّر بلمسة (لو ولى الأمر عايز يرجّعه للخط الكامل)
+    const lvlBtn = document.createElement("button");
+    lvlBtn.className = "wb-level";
+    lvlBtn.type = "button";
+    lvlBtn.textContent = LEVEL_LABELS[level];
+    lvlBtn.setAttribute("aria-label", "مستوى المساعدة: " + LEVEL_LABELS[level] + " — اضغط للتغيير");
+    lvlBtn.addEventListener("click", () => {
+      Sfx.tap();
+      Store.setWriteLevel(levelKey, level >= 3 ? 1 : level + 1);
+      render();
+    });
+    stage.appendChild(lvlBtn);
+
+    const hint = document.createElement("div");
+    hint.style.cssText = "min-height:26px;margin-top:6px;text-align:center;font-weight:800;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.2)";
+    let hintTimer = null;
+    const showHint = (text) => {
+      hint.textContent = text;
+      clearTimeout(hintTimer);
+      hintTimer = setTimeout(() => { hint.textContent = ""; }, 3500);
+    };
+
+    const board = mountWriteBoard(stage, {
+      strokes,
+      level,
+      from: it.from,
+      to: it.to,
+      onHint: (text) => {
+        Sfx.wrong();
+        showHint(tell(text));
+      },
+      onDone: ({ fails }) => {
+        // المساعدة بتقلّ لما يكتبه صح من غير غلط كتير، وبترجع خطوة لو اتلخبط جامد
+        let msg = "";
+        if (fails <= 2 && level < 3) {
+          Store.setWriteLevel(levelKey, level + 1);
+          msg = level + 1 === 2 ? "المرة الجاية على النقط بس" : "المرة الجاية لوحدك";
+        } else if (fails >= 6 && level > 1) {
+          Store.setWriteLevel(levelKey, level - 1);
+        }
+        Sfx.correct();
+        Speech.say(sayDone, { lang: speakLang });
+        if (msg) setTimeout(() => showHint(tell(msg)), 300);
+        board.el.animate(
+          [{ transform: "scale(1)" }, { transform: "scale(1.1)" }, { transform: "scale(1)" }],
+          { duration: 500 }
+        );
+        setTimeout(next, msg ? 1900 : 1200);
+      },
+    });
+    stage.appendChild(hint);
+
+    const tools = document.createElement("div");
+    tools.style.cssText = "margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap";
+    const btn = (text, fn) => {
+      const b = document.createElement("button");
+      b.className = "candy-btn";
+      b.type = "button";
+      b.textContent = text;
+      b.addEventListener("click", () => { Sfx.tap(); fn(); });
+      tools.appendChild(b);
+      return b;
+    };
+    btn("👀 شوف إزاى", () => board.demo());
+    if (!isPre) btn(`🔊 ${noun}`, () => Speech.say(label, { lang: speakLang }));
+    btn("🔁 من الأول", () => board.reset());
+    stage.appendChild(tools);
+
+    // أول مرة على الخط الكامل: نوريه الأول وبعدين يكتب هو
+    if (isPre) tell(it.say);
+    else tell(level === 3 ? `اكتب ${noun} ${label} لوحدك` : `اكتب ${noun} ${label}. ابدأ من النقطة الخضرا`);
+    if (level === 1) setTimeout(() => board.demo(), 1400);
   }
 
   function next() {
