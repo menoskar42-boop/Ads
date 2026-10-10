@@ -1006,3 +1006,15 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
   .lesson-strokes .sa-ink { animation: none; stroke-dashoffset: 0; }
   .lesson-strokes .sa-dot, .lesson-strokes .sa-mark { animation: none; opacity: 1; }
 }
+
+/* ===== السبورة الذكية (board.js): اللوح بياخد معظم الشاشة ===== */
+.sb-screen { display: flex; flex-direction: column; height: 100%; padding-bottom: 0; }
+.sb-wrap { flex: 1 1 auto; min-height: 0; width: 100%; display: flex; flex-direction: column; gap: 10px; max-width: 1100px; margin: 0 auto; padding: 8px 10px 12px; box-sizing: border-box; }
+.sb-board { position: relative; flex: 1 1 auto; min-height: 240px; width: 100%; background: #fff; border-radius: 22px; box-shadow: var(--shadow-card); overflow: hidden; }
+.sb-controls { flex: none; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.sb-palette { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.sb-color { width: 34px; height: 34px; border-radius: 50%; box-shadow: var(--shadow-card); transition: transform .12s ease; }
+.sb-color:focus-visible { outline: 3px solid #7c3aed; outline-offset: 2px; }
+.sb-tools { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.sb-btn { padding: 8px 14px; font-size: 15px; }
+@media (min-width: 700px) { .sb-controls { flex-direction: row; justify-content: center; gap: 16px; } }
