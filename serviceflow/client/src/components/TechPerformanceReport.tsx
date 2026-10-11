@@ -36,6 +36,12 @@ interface Beyond24Row {
 }
 
 const CENTRALS = ["الغنايم", "الغنايم-العزايزة", "الغنايم-دير الجنادله", "الغنايم-نجع العمدة"];
+
+/** «حسن … , محمد …» (كابينة عليها فنيين) ⇒ ["حسن …", "محمد …"]. فاضى ⇒ «غير معروف». */
+export function splitTechNames(raw: unknown): string[] {
+  const names = String(raw ?? "").split(/\s*[,،]\s*/).map((n) => n.trim()).filter(Boolean);
+  return names.length ? names : ["غير معروف"];
+}
 const REP_TARGET  = 4;  // مستهدف التكرار 4%
 // سقف التكرار (قرار المالك ٢٠٢٦-٠٩-٣٠): أكتر من 4.8% → درجة التكرار صفر، للفنى وللإدارة.
 // المقارنة على النسبة زى ما هى معروضة (رقم عشرى واحد) — 4.8 المعروضة = مش صفر.
@@ -234,22 +240,39 @@ export function TechPerformanceReport() {
   const rows = useMemo<TechRow[]>(() => {
     if (!removalData && !repData && !cabinetData && !omData) return [];
 
+    // كابينة عليها أكتر من فنى بتيجى من السيرفر باسم مجمّع («حسن … , محمد …»). المالك
+    // ٢٠٢٦-١٠-١١: «ليه حسن ومحمد عبد المجيد فى سطر لوحده؟ كل واحد فى سطره». فبنفصل الاسم
+    // ونضيف أرقام الصف (مش النسبة) لكل فنى منهم، وبعدين النسبة بتتحسب من المجموع —
+    // الكابينة المشتركة بتتحسب كاملة على الاتنين (الاتنين مسؤولين عنها).
+    const sumBy = <K extends string>(list: any[] | undefined, fields: K[]) => {
+      const m = new Map<string, Record<K, number>>();
+      for (const r of list ?? []) {
+        for (const name of splitTechNames(r.techName)) {
+          const cur = m.get(name) ?? (Object.fromEntries(fields.map((f) => [f, 0])) as Record<K, number>);
+          for (const f of fields) cur[f] += Number(r[f]) || 0;
+          m.set(name, cur);
+        }
+      }
+      return m;
+    };
+    const pct1 = (num: number, den: number) => Math.round((1000 * num) / den) / 10;
+
     // --- بيانات الإزالة (byTechOnly) ---
     const remMap = new Map<string, number>(); // techName → pct24h
-    for (const r of removalData?.byTechOnly ?? []) {
-      if (r.techName) remMap.set(r.techName, Number(r.pct24h) || 0);
+    for (const [name, s] of sumBy(removalData?.byTechOnly, ["total", "within24h"])) {
+      remMap.set(name, s.total > 0 ? pct1(s.within24h, s.total) : 0);
     }
 
     // --- بيانات التكرار (byTechOnly) ---
     const repMap = new Map<string, number | null>(); // techName → repRatio
-    for (const r of repData?.byTechOnly ?? []) {
-      if (r.techName) repMap.set(r.techName, r.repRatio != null ? Number(r.repRatio) : null);
+    for (const [name, s] of sumBy(repData?.byTechOnly, ["repCharges", "distinctPhones"])) {
+      repMap.set(name, s.distinctPhones > 0 ? pct1(s.repCharges, s.distinctPhones) : null);
     }
 
     // --- بيانات الأعطال فى الألف (cabinet → aggregate by techName) ---
     const adslMap = new Map<string, { working: number; faults: number }>();
     for (const r of cabinetData ?? []) {
-      const names = String(r.techName || "غير معروف").split(" , ").map((n: string) => n.trim()).filter(Boolean);
+      const names = splitTechNames(r.techName);
       const share = names.length || 1;
       for (const name of names) {
         const cur = adslMap.get(name) ?? { working: 0, faults: 0 };
@@ -261,8 +284,8 @@ export function TechPerformanceReport() {
 
     // --- بيانات المتعذرات OM (byTech) ---
     const omMap = new Map<string, number>(); // techName → pctResolved
-    for (const r of omData?.byTech ?? []) {
-      if (r.techName) omMap.set(r.techName, Number(r.pctResolved) || 0);
+    for (const [name, s] of sumBy(omData?.byTech, ["soyTotal", "resolved"])) {
+      omMap.set(name, s.soyTotal > 0 ? pct1(s.resolved, s.soyTotal) : 0);
     }
 
     // --- تجميع أسماء الفنيين من كل المصادر ---
