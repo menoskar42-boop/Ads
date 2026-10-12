@@ -2,7 +2,7 @@
 //   node --test mykid/tests/workbook-plan.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, WB_SHAPES, WB_SHAPE_PAIRS, WB_ROBOT_PARTS, colorsPage, shapesPage } from "../js/data/workbook.js";
+import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, WB_SHAPES, WB_SHAPE_PAIRS, WB_ROBOT_PARTS, WB_UNITS, WB_LINES, colorsPage, shapesPage, pageSteps } from "../js/data/workbook.js";
 import { strokesFor } from "../js/data/strokes.js";
 import { WB_SAY } from "../js/data/writingPhrases.js";
 import { femAdapt } from "../js/data/mizo.js";
@@ -146,8 +146,10 @@ test("جُمَل ميزو بتتأنّث للبنت (من غير «و» لازق
   }
 });
 
-test("ترتيب الصفحات زى فهرس الكتاب: ١ ← ألوان ← … ← ٥ ← ٦ ← أشكال ← ٧ ← أشكال ← … ← ١٠", () => {
-  assert.deepEqual(WB_PAGES.map((p) => p.id), ["1", "c0", "2", "c1", "3", "c2", "4", "c3", "5", "6", "s0", "7", "s1", "8", "s2", "9", "s3", "10"]);
+test("ترتيب الصفحات زى فهرس الكتاب (٦ وحدات): خطوط ← ١ ← ألوان … ← الساعة ← الصفر ← الجمع ← مراجعة", () => {
+  assert.deepEqual(WB_PAGES.map((p) => p.id), ["lines", "1", "c0", "2", "c1", "g1", "3", "c2", "4", "c3", "g2",
+    "5", "seq", "6", "s0", "g3", "7", "s1", "8", "s2", "g4", "9", "s3", "10", "clock", "g5", "0", "add", "review"]);
+  assert.equal(WB_UNITS.length, 6, "٦ وحدات زى الكتاب");
   assert.equal(new Set(WB_PAGES.map((p) => p.id)).size, WB_PAGES.length);
 });
 
@@ -215,4 +217,55 @@ test("صفحة الأشكال: ارسم على النقط ← العب ← ار�
   }
   const all = Object.values(WB_SHAPES).flatMap((s) => s.things);
   assert.equal(new Set(all).size, all.length, "مفيش صورة لشكلين");
+});
+
+test("كل صفحات الكتاب: كتابة ولعب بالتناوب (مفيش كتابتين ورا بعض)، والإجابات سليمة", () => {
+  for (const pg of WB_PAGES) {
+    for (let seed = 1; seed <= 25; seed++) {
+      const steps = pageSteps(pg, seeded(seed * 31 + pg.id.length));
+      assert.ok(steps.length >= 5 && steps.every(Boolean), pg.id);
+      const w = steps.map((s, i) => (isWriteStep(s) ? i : -1)).filter((i) => i >= 0);
+      assert.ok(w.length >= 1 && w.length <= steps.length - 2, `${pg.id}: كتابة ${w.length}`);
+      for (let k = 1; k < w.length; k++) assert.ok(w[k] - w[k - 1] >= 2, `${pg.id}: كتابتين ورا بعض (${steps.map((x) => x.kind)})`);
+      for (const st of steps) {
+        if (st.kind === "lineHop") {
+          assert.ok(st.answer >= 0 && st.answer <= 10, pg.id);
+          if (st.mode === "next") assert.equal(st.answer, st.from + 1);
+          if (st.mode === "prev") assert.equal(st.answer, st.from - 1);
+          if (st.mode === "mid") assert.equal(st.answer, (st.from + st.to) / 2);
+          if (st.mode === "add") assert.equal(st.answer, st.from + st.by);
+          assert.ok(st.from >= 0 && st.from <= 10);
+        }
+        if (st.kind === "missing") {
+          assert.equal(st.seq[st.blank], st.n);
+          assert.ok(st.seq.every((v) => v >= 0 && v <= 10), `${pg.id}: ${st.seq}`);
+          assert.ok(st.options.includes(st.n) && new Set(st.options).size === 3);
+        }
+        if (st.kind === "parts") {
+          assert.equal(st.a + st.b, st.n);
+          assert.ok(st.a >= 1 && st.b >= 1 && st.options.includes(st.n));
+          if (st.rep === "fingers" || st.rep === "dots") assert.ok(st.a <= 5 && st.b <= 5, "إيد/زهر لحد ٥");
+        }
+        if (st.kind === "oddColor") for (const r of st.rows) assert.ok(r.base !== r.odd && r.at >= 0 && r.at < r.size);
+        if (st.kind === "countKinds") {
+          assert.equal(new Set(st.rows.map((r) => r.thing)).size, 3);
+          for (const r of st.rows) {
+            assert.equal(st.scene.filter((t) => t === r.thing).length, r.count, "العدد فى الصورة = المطلوب");
+            assert.ok(r.count <= st.cells);
+          }
+        }
+        if (st.kind === "codeKey") {
+          for (const q of st.ask) {
+            assert.ok(st.key.some((k) => k.value === q.value && k.thing === q.thing));
+            assert.ok(q.options.includes(q.value) && new Set(q.options).size === q.options.length);
+          }
+        }
+        if (st.kind === "clockChoose") for (const r of st.rows) assert.ok(r.options.includes(r.h) && r.options.length === 2 && r.options[0] !== r.options[1]);
+        if (st.kind === "clockSet" || st.kind === "clockWrite") assert.ok((st.h || 0) >= 1 && st.h <= 12);
+        if (st.kind === "lineSpot") assert.ok(st.options.includes(st.want) && new Set(st.options).size === 3 && st.options.every((k) => WB_LINES.includes(k)));
+        if (st.kind === "match") assert.deepEqual([...st.numbers].sort(), st.groups.map((g) => g.count).sort());
+        if (st.kind === "find") assert.ok(st.cells.filter((v) => v === st.n).length >= 3);
+      }
+    }
+  }
 });

@@ -11,15 +11,19 @@ import { Store } from "../core/storage.js";
 import { awardStars } from "../core/rewards.js";
 import { femAdapt } from "../data/mizo.js";
 import { NUMBERS } from "../data/numbers.js";
-import { strokesFor } from "../data/strokes.js";
-import { WB_COLORS, WB_AR, WB_PAGES, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, pageSteps, colorPairOf, isWriteStep } from "../data/workbook.js";
+import { strokesFor, PREWRITING } from "../data/strokes.js";
+import {
+  WB_COLORS, WB_AR, WB_PAGES, WB_UNITS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR,
+  pageSteps, colorPairOf, isWriteStep,
+} from "../data/workbook.js";
 import { WB_SAY, writeIntro } from "../data/writingPhrases.js";
-import { gameTopbar, finishActivity, glyphChooser } from "./common.js";
+import { gameTopbar, finishActivity } from "./common.js";
 import { mountWriteBoard } from "./writeBoard.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
-const enName = (n) => (NUMBERS.find((x) => x.value === n) || {}).enName || String(n);
+const enName = (n) => (n === 0 ? "zero" : (NUMBERS.find((x) => x.value === n) || {}).enName || String(n));
+const preLine = (id) => PREWRITING.find((p) => p.id === id);
 const col = (key) => WB_COLORS[key];
 
 function el(tag, cls, text) {
@@ -92,51 +96,68 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
   const stage = el("div", "stage wbk-stage");
   screen.appendChild(stage);
 
-  // ===== اختيار الصفحة: الأرقام وبينها صفحات الألوان زى فهرس الكتاب (ونجمة على اللى خلص) =====
-  const pageLabel = (pg) => (pg.type === "number" ? String(pg.n) : pg.type === "shapes" ? "🔷" : "🎨");
-  const pageAria = (pg) => {
-    if (pg.type === "number") return `صفحة الرقم ${pg.n}`;
-    if (pg.type === "shapes") return "صفحة الأشكال: " + WB_SHAPE_PAIRS[pg.pair].map((k) => WB_SHAPES[k].ar).join(" و");
-    const [a, b] = WB_COLOR_PAIRS[pg.pair].map((k) => col(k).ar);
-    return `صفحة الألوان: ${a} و${b}`;
+  // ===== خريطة الكراسة: وحدات الكتاب (Unit 1 … 6) وكارت لكل صفحة — ونجمة على اللى خلص =====
+  const PAGE_META = {
+    lines: { icon: "〰️", ar: "الخطوط", en: "lines" },
+    seq: { icon: "<b dir=ltr>1 2 _</b>", ar: "قبل وبعد", en: "next" },
+    general: { icon: "🧩", ar: "تمارين", en: "practice" },
+    clock: { icon: "🕐", ar: "الساعة", en: "o'clock" },
+    add: { icon: "➕", ar: "الجمع", en: "addition" },
+    review: { icon: "🏆", ar: "مراجعة", en: "review" },
   };
-  const chooser = glyphChooser({
-    items: WB_PAGES,
-    shownOf: pageLabel,
-    ariaOf: pageAria,
-    title: WB_SAY.chooser,
-    dir: "ltr",
-    onPick: (i) => openPage(WB_PAGES[i]),
-  });
+  function pageCard(pg) {
+    let icon, label;
+    if (pg.type === "number" || pg.type === "zero") { icon = `<b class="wbk-pc-digit" dir="ltr">${pg.n}</b>`; label = enName(pg.n); }
+    else if (pg.type === "colors") { icon = WB_COLOR_PAIRS[pg.pair].map((k) => `<i class="wbk-pc-sw" style="background:${col(k).hex}"></i>`).join(""); label = "ألوان"; }
+    else if (pg.type === "shapes") { icon = WB_SHAPE_PAIRS[pg.pair].map((k) => shapeSvg(k, "wbk-shape-mini")).join(""); label = "أشكال"; }
+    else { icon = PAGE_META[pg.type].icon; label = PAGE_META[pg.type].ar; }
+    return { icon, label };
+  }
+  const map = el("div", "wbk-map");
 
   function showChooser() {
     cleanup();
+    clearGuide();
     cur = null;
     stage.replaceChildren();
-    const intro = el("p", "wbk-intro", fem("كل صفحة: نكتب شوية، ونلعب شوية — زى الكراسة"));
-    stage.append(intro, chooser.el);
-    // الأزرار بتتكتب وقت الإنشاء — النجوم وألوان صفحات الألوان بتتحدّث كل مرة
-    chooser.el.querySelectorAll(".lesson-chooser-btn").forEach((b, i) => {
-      const pg = WB_PAGES[i];
-      const star = Store.workbookDone[pg.id] ? "⭐" : "";
-      if (pg.type === "number") { b.textContent = pg.n + star; return; }
-      if (pg.type === "shapes") {
-        b.classList.add("wbk-colors-btn");
-        b.innerHTML = WB_SHAPE_PAIRS[pg.pair].map((k) => shapeSvg(k, "wbk-shape-mini")).join("") + star;
-        return;
-      }
-      b.classList.add("wbk-colors-btn");
-      b.innerHTML = WB_COLOR_PAIRS[pg.pair].map((k) => `<i style="background:${col(k).hex}"></i>`).join("") + star;
+    map.replaceChildren();
+    const nextId = (WB_PAGES.find((pg) => !Store.workbookDone[pg.id]) || WB_PAGES[0]).id;
+    const head = el("div", "wbk-maphead");
+    head.innerHTML = `<img class="wbk-mizo" src="/assets/mizo/mizo-hi.webp" alt="" width="64" height="64">`;
+    const say = el("p", "wbk-say", fem(WB_SAY.chooser));
+    head.appendChild(say);
+    map.appendChild(head);
+    WB_UNITS.forEach((u, ui) => {
+      const sec = el("section", "wbk-unit");
+      sec.style.setProperty("--unit", ["#ef4444", "#f59e0b", "#3b82f6", "#16a34a", "#8b5cf6", "#ec4899"][ui % 6]);
+      const done = u.pages.filter((pg) => Store.workbookDone[pg.id]).length;
+      sec.appendChild(el("h3", "wbk-unit-title", `${u.title}  ${"⭐".repeat(done)}`));
+      const grid = el("div", "wbk-unit-grid");
+      u.pages.forEach((pg) => {
+        const { icon, label } = pageCard(pg);
+        const card = button("wbk-pc" + (pg.id === nextId ? " is-next" : "") + (Store.workbookDone[pg.id] ? " is-done" : ""), "", () => { Sfx.tap(); openPage(pg); });
+        card.dataset.id = pg.id;
+        card.innerHTML = `<span class="wbk-pc-icon">${icon}</span><span class="wbk-pc-label">${label}</span>`
+          + (Store.workbookDone[pg.id] ? `<span class="wbk-pc-star">⭐</span>` : "")
+          + (pg.id === nextId ? `<img class="wbk-pc-mizo" src="/assets/mizo/mizo-point.webp" alt="" width="44" height="44">` : "");
+        card.setAttribute("aria-label", label);
+        grid.appendChild(card);
+      });
+      sec.appendChild(grid);
+      map.appendChild(sec);
     });
-    const next = WB_PAGES.findIndex((pg) => !Store.workbookDone[pg.id]);
-    chooser.show(Math.max(0, next));
+    stage.appendChild(map);
+    Speech.ar(fem(WB_SAY.chooser));
+    const nextCard = map.querySelector(".is-next");
+    if (nextCard) setTimeout(() => nextCard.scrollIntoView({ block: "center", behavior: "smooth" }), 300);
   }
 
   function openPage(pg) {
     cur = pg;
     steps = pageSteps(pg, Math.random, only); // only: تمارين بعينها (للاختبار)
     idx = 0;
-    const [c1, c2] = pg.type === "number" ? colorPairOf(pg.n) : pg.type === "shapes" ? WB_COLOR_PAIRS[(pg.pair + 2) % 4] : WB_COLOR_PAIRS[pg.pair];
+    const [c1, c2] = pg.type === "number" ? colorPairOf(pg.n) : pg.type === "shapes" ? WB_COLOR_PAIRS[(pg.pair + 2) % 4]
+      : pg.type === "colors" ? WB_COLOR_PAIRS[pg.pair] : WB_COLOR_PAIRS[(WB_PAGES.indexOf(pg) + 1) % 4];
     screen.style.setProperty("--wbk-c1", col(c1).hex);
     screen.style.setProperty("--wbk-c2", col(c2).hex);
     renderStep();
@@ -147,10 +168,16 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     const head = el("div", "wbk-head");
     const title = el("button", "wbk-title");
     title.type = "button";
-    if (cur.type === "number") {
+    if (cur.type === "number" || cur.type === "zero") {
       title.innerHTML = `<b dir="ltr">${cur.n}</b><span dir="ltr">${enName(cur.n)}</span>`;
       title.setAttribute("aria-label", `اسمع الرقم ${cur.n}`);
       title.addEventListener("click", () => { Sfx.pop(); sayNumber(cur.n); });
+    } else if (PAGE_META[cur.type]) {
+      const m = PAGE_META[cur.type];
+      title.classList.add("wbk-title-colors");
+      title.innerHTML = `<b>${m.icon}</b><span>${m.ar}</span>`;
+      title.setAttribute("aria-label", m.ar);
+      title.addEventListener("click", () => { Sfx.pop(); Speech.ar(m.ar); });
     } else if (cur.type === "shapes") {
       const pair = WB_SHAPE_PAIRS[cur.pair].map((k) => WB_SHAPES[k]);
       title.classList.add("wbk-title-colors");
@@ -180,13 +207,68 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
   /** سطر التعليمات: بيتكتب ويتنطق (بصيغة البنت للبنت) — وزرار 🔊 يعيده. */
   function prompt(text) {
     const row = el("div", "wbk-prompt");
+    // ميزو بيشرح المطلوب فى كل لعبة (فقاعة كلام) — ولمسة عليه بتعيد الشرح
+    const mizo = button("wbk-mizo-btn", "", () => { Sfx.tap(); Speech.ar(fem(text)); showGuide(true); });
+    mizo.innerHTML = `<img class="wbk-mizo" src="/assets/mizo/mizo-teach.webp" alt="" width="64" height="64">`;
+    mizo.setAttribute("aria-label", "ميزو: اسمع تانى");
     const t = el("p", "wbk-say", fem(text));
-    const again = button("wbk-again", "🔊", () => { Sfx.tap(); Speech.ar(fem(text)); });
-    again.setAttribute("aria-label", "اسمع تانى");
-    row.append(again, t);
+    row.append(mizo, t);
+    lastPrompt = text;
     Speech.ar(fem(text));
     return row;
   }
+
+  // ===== الصباع اللى بيوجّه (لسن ٣–٤): لو الطفل ساكت ٨ ثوانى ميزو يعيد الشرح والصباع يشاور =====
+  // كل خطوة بتعلّم الإجابة الصح بـ data-good (و data-need = اللون المطلوب)، أو بتدّى setGuide(fn).
+  let lastPrompt = "";
+  let guideFn = null;
+  let guideTimer = 0;
+  let hand = null;
+  function clearGuide() {
+    clearTimeout(guideTimer);
+    if (hand) { hand.remove(); hand = null; }
+    guideFn = null;
+  }
+  function setGuide(fn) { guideFn = fn; }
+  function armGuide() {
+    clearTimeout(guideTimer);
+    if (hand) { hand.remove(); hand = null; }
+    if (cur) guideTimer = setTimeout(() => showGuide(false), 8000);
+  }
+  function autoTarget() {
+    const body = stage.querySelector(".wbk-body");
+    if (!body) return null;
+    const pending = [...body.querySelectorAll("[data-good]")].find((e) =>
+      !e.dataset.on && !e.classList.contains("correct") && !e.classList.contains("on") && !e.classList.contains("ok")
+      && !e.classList.contains("seen") && !e.closest("[data-ok]") && e.getClientRects().length);
+    if (pending) {
+      const need = pending.dataset.need;
+      const pal = body.querySelector(".wbk-palette");
+      if (need && pal && !pal.querySelector(`.wbk-crayon.is-on[data-color="${need}"]`)) return pal.querySelector(`[data-color="${need}"]`) || pending;
+      return pending;
+    }
+    return body.querySelector(".wbk-done:not([disabled])");
+  }
+  function showGuide(now) {
+    if (!cur || !screen.isConnected) return;
+    if (stage.querySelector(".wb-box")) return armGuide(); // لوحة الكتابة ليها صباعها
+    const target = (guideFn && guideFn()) || autoTarget();
+    if (!now && lastPrompt) Speech.ar(fem(lastPrompt));
+    if (target) {
+      if (hand) hand.remove();
+      hand = el("div", "wbk-guide-hand", "👆");
+      hand.setAttribute("aria-hidden", "true");
+      const r = target.getBoundingClientRect();
+      hand.style.left = r.left + r.width / 2 + "px";
+      hand.style.top = r.top + r.height / 2 + "px";
+      document.body.appendChild(hand);
+      const h = hand;
+      setTimeout(() => { if (hand === h) { h.remove(); hand = null; } }, 3200);
+    }
+    clearTimeout(guideTimer);
+    guideTimer = setTimeout(() => showGuide(false), 12000);
+  }
+  stage.addEventListener("pointerdown", armGuide);
   /** جملة سريعة فى نفس السطر (غلط/تلميح) من غير ما تمسح التعليمات. */
   function hintLine() {
     const h = el("p", "wbk-hint");
@@ -211,6 +293,11 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
   function stepDone(delay = 900) {
     Sfx.correct();
     awardStars(1);
+    clearGuide();
+    const img = stage.querySelector(".wbk-prompt .wbk-mizo");
+    if (img) { img.src = "/assets/mizo/mizo-cheer.webp"; img.classList.add("wbk-mizo-cheer"); }
+    const body = stage.querySelector(".wbk-body");
+    if (body) { const star = el("div", "wbk-step-star", "⭐"); body.appendChild(star); }
     setTimeout(() => { if (cur) nextStep(); }, delay);
   }
 
@@ -222,6 +309,8 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
   function renderStep() {
     cleanup();
     cleanup = () => {};
+    clearGuide();
+    lastPrompt = "";
     stage.replaceChildren(header());
     const s = steps[idx];
     const body = el("section", "wbk-body wbk-step-" + s.kind);
@@ -230,6 +319,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     skip.setAttribute("aria-label", "الخطوة اللى بعدها");
     stage.appendChild(skip);
     STEP[s.kind](body, s);
+    armGuide();
   }
 
   // ===== الخطوات =====
@@ -254,6 +344,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
             if (counted === s.n) setTimeout(() => { sayNumber(s.n); stepDone(1500); }, 700);
           });
           dot.setAttribute("aria-label", "دايرة");
+          dot.dataset.good = "1";
           cell.appendChild(dot);
         }
         frame.appendChild(cell);
@@ -275,12 +366,18 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       const pal = palette(s.palette, (k) => { crayon = k; });
       const grid = el("div", "wbk-color-grid");
       const tiles = [];
+      // الصباع بيشاور على الحاجات اللى لسه مااتلوّنتش، ولما العدد يكمل على «خلّصت»
+      const refresh = () => {
+        const full = tiles.filter((t) => t.dataset.on).length >= s.n;
+        tiles.forEach((t) => { if (!full && !t.dataset.on) { t.dataset.good = "1"; t.dataset.need = s.color; } else delete t.dataset.good; });
+      };
       for (let i = 0; i < s.total; i++) {
         const t = button("wbk-tile", s.thing, () => {
           if (t.dataset.on) {
             delete t.dataset.on;
             t.style.removeProperty("--fill");
             Sfx.tap();
+            refresh();
             return;
           }
           if (crayon !== s.color) {
@@ -291,10 +388,12 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
           t.dataset.on = "1";
           t.style.setProperty("--fill", c.hex);
           Sfx.pop();
+          refresh();
         });
         tiles.push(t);
         grid.appendChild(t);
       }
+      refresh();
       const done = button("candy-btn wbk-done", fem("✓ خلّصت"), () => {
         const k = tiles.filter((t) => t.dataset.on).length;
         if (k === s.n) {
@@ -328,6 +427,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
             Speech.ar(WB_AR[v]);
             if (--left === 0) stepDone(1000);
           });
+          if (v === card.count) b.dataset.good = "1";
           opts.appendChild(b);
         });
         box.appendChild(opts);
@@ -339,7 +439,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     // «Count, then match» — المس المجموعة وبعدين رقمها، وخط بيوصّلهم
     match(body, s) {
       const equal = s.right === "groups";
-      body.appendChild(prompt(equal ? WB_SAY.matchEqual : WB_SAY.match));
+      body.appendChild(prompt(equal ? WB_SAY.matchEqual : s.right === "times" ? WB_SAY.clockMatch : WB_SAY.match));
       const area = el("div", "wbk-match" + (equal ? " wbk-match-eq" : ""));
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("class", "wbk-lines");
@@ -369,13 +469,23 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
         Speech.ar(WB_AR[value]);
         if (--left === 0) stepDone(1100);
       };
+      // الصباع: المجموعة اللى عليها الدور، ولو فيه واحدة متعلّمة يشاور على اللى تتوصّل بيها
+      setGuide(() => {
+        if (!sel) return groups.querySelector(".wbk-mgroup:not([data-ok])");
+        const other = sel.side === "g" ? nums : groups;
+        return [...other.children].find((x) => !x.dataset.ok && +x.dataset.v === sel.value) || null;
+      });
       s.groups.forEach((g) => {
         const b = button("wbk-mgroup", "", () => select(b, g.count, "g"));
-        b.appendChild(g.rep === "fingers" ? fingersOf(g.count) : g.rep === "dots" ? dotsFor(g.count) : groupOf(g.thing, g.count));
+        b.dataset.v = String(g.count);
+        b.appendChild(g.rep === "fingers" ? fingersOf(g.count) : g.rep === "dots" ? dotsFor(g.count)
+          : g.rep === "clock" ? clockFace(g.count) : g.rep === "candles" ? candlesOf(g.count) : groupOf(g.thing, g.count));
         groups.appendChild(b);
       });
       s.numbers.forEach((v) => {
-        const b = button("wbk-mnum", equal ? "" : String(v), () => select(b, v, "n"));
+        const b = button("wbk-mnum", equal ? "" : s.right === "times" ? `${v}:00` : String(v), () => select(b, v, "n"));
+        b.dataset.v = String(v);
+        if (s.right === "times") { b.classList.add("wbk-time"); b.dir = "ltr"; }
         if (equal) { b.classList.add("wbk-mgroup"); b.appendChild(groupOf(s.rightThing, v)); }
         nums.appendChild(b);
       });
@@ -397,6 +507,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
           Sfx.pop();
           if (--left === 0) stepDone(900);
         });
+        if (v === s.n) b.dataset.good = "1";
         grid.appendChild(b);
       });
       body.appendChild(grid);
@@ -408,12 +519,19 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       const eq = el("div", "wbk-eq");
       eq.dir = "ltr";
       const ans = el("span", "wbk-ans", "?");
-      const part = (k) => (s.rep === "fingers" ? fingersOf(k, "wbk-fingers wbk-part") : groupOf(s.thing, k, "wbk-group wbk-part"));
+      const part = (k) => {
+        if (s.rep === "fingers") return fingersOf(k, "wbk-fingers wbk-part");
+        if (s.rep === "dots") { const d = dotsFor(k); d.classList.add("wbk-part", "wbk-die"); d.setAttribute("aria-label", `${k} نقط`); return d; }
+        return groupOf(s.thing, k, "wbk-group wbk-part");
+      };
       eq.append(part(s.a), el("span", "wbk-op", "+"), part(s.b), el("span", "wbk-op", "="), ans);
-      if (s.rep === "digits") eq.classList.add("hidden"); // «7 and 2 = __»: بالأرقام بس
+      // «7 and 2 = __» بالأرقام بس، أو الجمع الرأسى (5 فوق 1 وخط تحتهم)
+      if (s.rep === "digits" || s.rep === "vertical") eq.classList.add("hidden");
       const nums = el("div", "wbk-eq wbk-eq-n");
       nums.dir = "ltr";
-      nums.innerHTML = `<b>${s.a}</b><span class="wbk-op">and</span><b>${s.b}</b><span class="wbk-op">=</span><b class="wbk-q">?</b>`;
+      nums.innerHTML = s.rep === "vertical"
+        ? `<span class="wbk-vert"><b>${s.a}</b><b><i>+</i>${s.b}</b><b class="wbk-q">?</b></span>`
+        : `<b>${s.a}</b><span class="wbk-op">and</span><b>${s.b}</b><span class="wbk-op">=</span><b class="wbk-q">?</b>`;
       const opts = el("div", "wbk-opts");
       opts.dir = "ltr";
       let done = false;
@@ -426,8 +544,15 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
           ans.textContent = String(v);
           nums.querySelector(".wbk-q").textContent = String(v);
           sayNumber(v);
-          stepDone(1400);
+          if (!s.write) return stepDone(1400);
+          // «Add and write the numbers»: بعد ما يختار، يكتب الناتج بإيده
+          Sfx.correct();
+          setTimeout(() => {
+            opts.remove();
+            writeBoard(body, s.n, s.write, WB_SAY.writeAnswer, () => stepDone(900));
+          }, 1300);
         });
+        if (v === s.n) b.dataset.good = "1";
         opts.appendChild(b);
       });
       if (s.rep === "digits") nums.classList.add("wbk-eq-big");
@@ -465,6 +590,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
         Sfx.wrong();
         hint.show(k > s.n ? WB_SAY.stampTooMany(WB_AR[s.n]) : WB_SAY.tooFew(WB_AR[s.n]));
       });
+      setGuide(() => (cup.querySelectorAll(".wbk-stampmark").length < s.n ? cup : done));
       body.append(sign, cup, hint, done);
     },
 
@@ -487,11 +613,12 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       body.appendChild(row);
       const opts = el("div", "wbk-opts");
       opts.dir = "ltr";
-s.options.forEach((v) => {
+      s.options.forEach((v) => {
         const b = button("wbk-opt", String(v), () => {
           if (opts.dataset.ok) return;
           if (v !== s.n) { Sfx.wrong(); flash(b, "wrong"); return; }
           opts.dataset.ok = "1";
+          delete b.dataset.good;
           b.classList.add("correct");
           Sfx.correct();
           slots[s.blank].classList.add("found");
@@ -500,11 +627,12 @@ s.options.forEach((v) => {
             writeBoard(body, s.n, s.level, null, (fails) => {
               slots[s.blank].textContent = String(s.n);
               slots[s.blank].classList.remove("blank");
-              Store.recordWrite("g:" + s.n, fails, 3);
+              if (s.level === 3) Store.recordWrite("g:" + s.n, fails, 3);
               stepDone(900);
             });
           }, 700);
         });
+        if (v === s.n) b.dataset.good = "1";
         opts.appendChild(b);
       });
       body.appendChild(opts);
@@ -538,6 +666,8 @@ s.options.forEach((v) => {
           Sfx.pop();
           if (--left === 0) stepDone(1000);
         });
+        b.dataset.good = "1";
+        b.dataset.need = want;
         if (t.rep === "digit") b.appendChild(el("span", "wbk-pdigit", String(t.value)));
         else if (t.rep === "dots") b.appendChild(dotsFor(t.value));
         else if (t.rep === "fingers") b.appendChild(fingersOf(t.value, "wbk-fingers wbk-mini"));
@@ -568,6 +698,10 @@ s.options.forEach((v) => {
         Sfx.wrong();
         hint.show(k > s.count ? WB_SAY.tooMany(WB_AR[s.count]) : WB_SAY.tooFew(WB_AR[s.count]));
       });
+      setGuide(() => {
+        const on = frame.querySelectorAll(".wbk-ball.on").length;
+        return on < s.count ? frame.querySelector(".wbk-ball:not(.on)") : on === s.count ? done : frame.querySelector(".wbk-ball.on");
+      });
       body.append(things, frame, hint, done);
     },
 
@@ -593,6 +727,10 @@ s.options.forEach((v) => {
         Sfx.wrong();
         hint.show(k > s.n ? WB_SAY.tooMany(WB_AR[s.n]) : WB_SAY.tooFew(WB_AR[s.n]));
       });
+      setGuide(() => {
+        const on = bar.querySelectorAll(".on").length;
+        return on < s.n ? bar.querySelector(".wbk-barcell:not(.on)") : on === s.n ? done : bar.querySelector(".on");
+      });
       body.append(row, hint, done);
     },
 
@@ -617,6 +755,7 @@ s.options.forEach((v) => {
               if (--left === 0) stepDone(1000);
             }
           });
+          if (v === row.repeated) b.dataset.good = "1";
           r.appendChild(b);
         });
         box.appendChild(r);
@@ -652,9 +791,298 @@ s.options.forEach((v) => {
           Sfx.pop();
           if (--left === 0) stepDone(1000);
         });
+        b.dataset.good = "1";
+        b.dataset.need = want;
         grid.appendChild(b);
       });
       body.append(legend, pal, grid, hint);
+    },
+
+    // ===== باقى الكتاب =====
+    // ✏️ «Trace the lines» (ص ٥–٦): نفس تمارين ما قبل الكتابة بحكايتها (السحابة ← الوردة…)
+    traceLine(body, s) {
+      const ln = preLine(s.line);
+      writeBoard(body, "pre:" + s.line, s.level, ln.say, () => stepDone(800));
+    },
+
+    // «فين الخط …؟»: ٣ رسومات خطوط، يلمس اللى اسمه اتقال
+    lineSpot(body, s) {
+      body.appendChild(prompt(WB_SAY.lineSpot(preLine(s.want).name)));
+      const hint = hintLine();
+      const row = el("div", "wbk-cards wbk-lines-pick");
+      s.options.forEach((id) => {
+        const b = button("wbk-card wbk-linecard", "", () => {
+          if (row.dataset.ok) return;
+          if (id !== s.want) { Sfx.wrong(); flash(b, "wrong"); return hint.show(WB_SAY.shapeWrong); }
+          row.dataset.ok = "1";
+          b.classList.add("ok");
+          Speech.ar(preLine(id).name);
+          stepDone(1000);
+        });
+        b.innerHTML = lineSvg(id) + `<span>${preLine(id).emoji}</span>`;
+        b.setAttribute("aria-label", preLine(id).name);
+        if (id === s.want) b.dataset.good = "1";
+        row.appendChild(b);
+      });
+      body.append(row, hint);
+    },
+
+    // خط الأعداد والأرنب (ص ٢٩، ٥٩، ٦٢): التالى / السابق / اللى فى النص / الجمع بالنطّ
+    lineHop(body, s) {
+      const say = s.mode === "next" ? WB_SAY.hopNext(WB_AR[s.from]) : s.mode === "prev" ? WB_SAY.hopPrev(WB_AR[s.from])
+        : s.mode === "mid" ? WB_SAY.hopMid(WB_AR[s.from], WB_AR[s.to]) : WB_SAY.hopAdd(WB_AR[s.from], WB_AR[s.by]);
+      body.appendChild(prompt(say));
+      const hint = hintLine();
+      if (s.mode === "add") {
+        const eq = el("div", "wbk-eq wbk-eq-n wbk-eq-big");
+        eq.dir = "ltr";
+        eq.innerHTML = `<b>${s.from}</b><span class="wbk-op">+</span><b>${s.by}</b><span class="wbk-op">=</span><b class="wbk-q">?</b>`;
+        body.appendChild(eq);
+      }
+      const line = el("div", "wbk-numline");
+      line.dir = "ltr";
+      const bunny = el("span", "wbk-bunny", "🐇");
+      line.appendChild(bunny);
+      const ticks = [];
+      for (let v = 0; v <= 10; v++) {
+        const t = button("wbk-nl", String(v), () => {
+          if (line.dataset.ok) return;
+          if (v !== s.answer) { Sfx.wrong(); flash(t, "wrong"); return hint.show(say); }
+          line.dataset.ok = "1";
+          t.classList.add("correct");
+          bunny.style.left = ((v + 0.5) / 11) * 100 + "%";
+          const q = body.querySelector(".wbk-q");
+          if (q) q.textContent = String(v);
+          sayNumber(v);
+          stepDone(1500);
+        });
+        if (v === s.answer) t.dataset.good = "1";
+        if (s.mode === "mid" && (v === s.from || v === s.to)) t.classList.add("mark");
+        if (v === s.from && s.mode !== "mid") t.classList.add("mark");
+        ticks.push(t);
+        line.appendChild(t);
+      }
+      bunny.style.left = ((s.from + 0.5) / 11) * 100 + "%";
+      body.append(line, hint);
+    },
+
+    // «Put (✗) on the different color»
+    oddColor(body, s) {
+      body.appendChild(prompt(WB_SAY.oddColor));
+      const box = el("div", "wbk-reprows");
+      let left = s.rows.length;
+      s.rows.forEach((row) => {
+        const r = el("div", "wbk-oddrow");
+        r.dir = "ltr";
+        for (let i = 0; i < row.size; i++) {
+          const odd = i === row.at;
+          const b = button("wbk-oddcell", "", () => {
+            if (r.dataset.ok) return;
+            if (!odd) { Sfx.wrong(); flash(b, "wrong"); return; }
+            r.dataset.ok = "1";
+            b.classList.add("crossed");
+            Sfx.pop();
+            Speech.ar(col(row.odd).ar);
+            if (--left === 0) stepDone(1000);
+          });
+          b.innerHTML = shapeSvg(row.shape, "wbk-shape-cell") + `<span class="wbk-x">✗</span>`;
+          b.style.setProperty("--fill", col(odd ? row.odd : row.base).hex);
+          if (odd) b.dataset.good = "1";
+          r.appendChild(b);
+        }
+        box.appendChild(r);
+      });
+      body.appendChild(box);
+    },
+
+    // «Count, color, and then write as shown in the example»: صورة فيها حاجات، وصف خانات لكل نوع
+    countKinds(body, s) {
+      body.appendChild(prompt(WB_SAY.countKinds));
+      const hint = hintLine();
+      const scene = el("div", "wbk-scene");
+      scene.textContent = s.scene.join(" ");
+      const table = el("div", "wbk-kinds");
+      const rows = s.rows.map((row) => {
+        const r = el("div", "wbk-kindrow");
+        r.dir = "ltr";
+        r.appendChild(el("span", "wbk-kind-thing", row.thing));
+        const bar = el("div", "wbk-bar");
+        bar.style.setProperty("--fill", "var(--wbk-c1)");
+        for (let i = 0; i < s.cells; i++) {
+          const c = button("wbk-barcell", "", () => { c.classList.toggle("on"); Sfx.pop(); });
+          c.setAttribute("aria-label", "خانة");
+          bar.appendChild(c);
+        }
+        const out = el("b", "wbk-kind-n", "");
+        r.append(bar, out);
+        table.appendChild(r);
+        return { row, bar, out, r };
+      });
+      setGuide(() => {
+        for (const x of rows) {
+          const on = x.bar.querySelectorAll(".on").length;
+          if (on < x.row.count) return x.bar.querySelector(".wbk-barcell:not(.on)");
+          if (on > x.row.count) return x.bar.querySelector(".on");
+        }
+        return done;
+      });
+      const done = button("candy-btn wbk-done", fem("✓ خلّصت"), () => {
+        let ok = true;
+        for (const x of rows) {
+          const on = x.bar.querySelectorAll(".on").length;
+          if (on === x.row.count) { x.out.textContent = String(on); x.r.dataset.ok = "1"; }
+          else if (ok) { ok = false; flash(x.r, "wrong"); hint.show(on > x.row.count ? WB_SAY.tooMany(WB_AR[x.row.count]) : WB_SAY.tooFew(WB_AR[x.row.count])); }
+        }
+        if (!ok) { Sfx.wrong(); return; }
+        done.disabled = true;
+        stepDone(1300);
+      });
+      body.append(scene, table, hint, done);
+    },
+
+    // ===== الساعة =====
+    meetClock(body, s) {
+      body.appendChild(prompt(WB_SAY.meetClock));
+      let h = s.start;
+      let taps = 0;
+      const face = button("wbk-clockbtn", "", () => {
+        h = (h % 12) + 1;
+        face.innerHTML = clockSvg(h);
+        Sfx.pop();
+        Speech.ar(fem(WB_SAY.clockSay(WB_HOUR_AR[h])));
+        timeTag.textContent = `${h}:00`;
+        if (++taps === 3) { face.dataset.on = "1"; stepDone(1800); }
+      });
+      face.innerHTML = clockSvg(h);
+      face.setAttribute("aria-label", "الساعة");
+      face.dataset.good = "1";
+      const timeTag = el("div", "wbk-time-tag", `${h}:00`);
+      timeTag.dir = "ltr";
+      body.append(face, timeTag);
+    },
+    // «Choose the correct o'clock»
+    clockChoose(body, s) {
+      body.appendChild(prompt(WB_SAY.clockChoose));
+      const hint = hintLine();
+      const list = el("div", "wbk-cards");
+      let left = s.rows.length;
+      s.rows.forEach((row) => {
+        const box = el("div", "wbk-card");
+        box.appendChild(clockFace(row.h));
+        const opts = el("div", "wbk-opts");
+        opts.dir = "ltr";
+        row.options.forEach((v) => {
+          const b = button("wbk-opt wbk-time", `${v}:00`, () => {
+            if (box.dataset.ok) return;
+            if (v !== row.h) { Sfx.wrong(); flash(b, "wrong"); return hint.show(WB_SAY.clockWrong); }
+            box.dataset.ok = "1";
+            b.classList.add("correct");
+            Sfx.correct();
+            Speech.ar(fem(WB_SAY.clockSay(WB_HOUR_AR[v])));
+            if (--left === 0) stepDone(1300);
+          });
+          if (v === row.h) b.dataset.good = "1";
+          opts.appendChild(b);
+        });
+        box.appendChild(opts);
+        list.appendChild(box);
+      });
+      body.append(list, hint);
+    },
+    // ✏️ «Write the time»: الساعة كام؟ يكتب رقم الساعة
+    clockWrite(body, s) {
+      body.appendChild(prompt(WB_SAY.clockWrite));
+      const face = clockFace(s.h);
+      face.classList.add("wbk-clock-big");
+      body.appendChild(face);
+      writeBoard(body, s.h, s.level, null, (fails) => {
+        Speech.ar(fem(WB_SAY.clockSay(WB_HOUR_AR[s.h])));
+        if (s.level === 3) Store.recordWrite("g:" + s.h, fails, 3);
+        stepDone(1100);
+      });
+    },
+    // «Draw the clock»: الوقت مكتوب، والطفل يلمس الرقم اللى العقرب القصير يروحله
+    clockSet(body, s) {
+      body.appendChild(prompt(WB_SAY.clockSet(WB_HOUR_AR[s.h])));
+      const hint = hintLine();
+      const tag = el("div", "wbk-time-tag", `${s.h}:00`);
+      tag.dir = "ltr";
+      const wrap = el("div", "wbk-clockset");
+      wrap.innerHTML = clockSvg(null, true);
+      wrap.querySelectorAll(".wbk-hr").forEach((g) => {
+        const v = +g.dataset.h;
+        if (v === s.h) g.dataset.good = "1";
+        g.addEventListener("click", () => {
+          if (wrap.dataset.ok) return;
+          if (v !== s.h) { Sfx.wrong(); g.classList.add("wrong"); setTimeout(() => g.classList.remove("wrong"), 450); return hint.show(WB_SAY.clockWrong); }
+          wrap.dataset.ok = "1";
+          wrap.innerHTML = clockSvg(s.h);
+          Speech.ar(fem(WB_SAY.clockSay(WB_HOUR_AR[s.h])));
+          stepDone(1500);
+        });
+      });
+      body.append(tag, wrap, hint);
+    },
+
+    // ===== الصفر: «There are zero birds» =====
+    meetZero(body) {
+      body.appendChild(prompt(WB_SAY.meetZero));
+      const row = el("div", "wbk-zero");
+      const cage = button("wbk-cage", "", () => {
+        if (cage.dataset.on) return;
+        cage.dataset.on = "1";
+        Sfx.pop();
+        sayNumber(0);
+        stepDone(1600);
+      });
+      cage.innerHTML = `<span class="wbk-cage-top"></span><span class="wbk-cage-bars"></span><b dir="ltr">0</b>`;
+      cage.setAttribute("aria-label", "القفص");
+      cage.dataset.good = "1";
+      const fist = el("div", "wbk-fist", "✊");
+      const frame = el("div", "wbk-frame");
+      for (let i = 0; i < 5; i++) frame.appendChild(el("span", "wbk-cell"));
+      const big = el("div", "wbk-big");
+      big.innerHTML = `<b dir="ltr">0</b><small dir="ltr">zero</small>`;
+      row.append(cage, fist);
+      body.append(big, row, frame);
+    },
+
+    // «Write the correct number in place of the image»: مفتاح فوق (رقم ← صورة)
+    codeKey(body, s) {
+      body.appendChild(prompt(WB_SAY.codeKey));
+      const hint = hintLine();
+      const key = el("div", "wbk-codekey");
+      key.dir = "ltr";
+      s.key.forEach((k) => { key.insertAdjacentHTML("beforeend", `<span><b>${k.value}</b><i>${k.thing}</i></span>`); });
+      const list = el("div", "wbk-cards");
+      let left = s.ask.length;
+      let lastBox = null;
+      s.ask.forEach((q) => {
+        const box = el("div", "wbk-card");
+        box.appendChild(el("span", "wbk-code-thing", q.thing));
+        const opts = el("div", "wbk-opts");
+        opts.dir = "ltr";
+        q.options.forEach((v) => {
+          const b = button("wbk-opt", String(v), () => {
+            if (box.dataset.ok) return;
+            if (v !== q.value) { Sfx.wrong(); flash(b, "wrong"); return hint.show(WB_SAY.codeKey); }
+            box.dataset.ok = "1";
+            b.classList.add("correct");
+            Speech.ar(WB_AR[v]);
+            lastBox = q;
+            if (--left > 0) return Sfx.correct();
+            if (!s.write) return stepDone(1100);
+            // وآخر واحدة يكتب رقمها بإيده
+            Sfx.correct();
+            setTimeout(() => { list.remove(); writeBoard(body, lastBox.value, s.write, null, () => stepDone(900)); }, 900);
+          });
+          if (v === q.value) b.dataset.good = "1";
+          opts.appendChild(b);
+        });
+        box.appendChild(opts);
+        list.appendChild(box);
+      });
+      body.append(key, list, hint);
     },
 
     // ===== صفحات الأشكال =====
@@ -669,12 +1097,14 @@ s.options.forEach((v) => {
           Sfx.pop();
           sayColors([sh]);
           card.classList.add("seen");
+          delete card.dataset.good;
           seen.add(k);
           if (seen.size === s.shapes.length) setTimeout(() => stepDone(600), 1600);
         });
         card.innerHTML = shapeSvg(k, "wbk-shape-big") + `<span class="wbk-sw-things">${sh.things.slice(0, 2).join(" ")}</span>`
           + `<b>${sh.ar}</b><small dir="ltr">${sh.en}</small>`;
         card.setAttribute("aria-label", "الشكل " + sh.ar);
+        card.dataset.good = "1";
         row.appendChild(card);
       });
       body.appendChild(row);
@@ -703,6 +1133,7 @@ s.options.forEach((v) => {
         });
         b.innerHTML = shapeSvg(k, "wbk-shape-cell") + `<span class="wbk-tick">✓</span>`;
         b.setAttribute("aria-label", WB_SHAPES[k].ar);
+        if (s.target.includes(k)) b.dataset.good = "1";
         grid.appendChild(b);
       });
       body.append(grid, hint);
@@ -730,6 +1161,7 @@ s.options.forEach((v) => {
             Speech.ar(WB_SHAPES[row.shape].ar);
             if (--left === 0) stepDone(1000);
           });
+          if (t === row.right) b.dataset.good = "1";
           r.appendChild(b);
         });
         list.appendChild(r);
@@ -750,6 +1182,7 @@ s.options.forEach((v) => {
           Sfx.pop();
           sayColors([c]);
           card.classList.add("seen");
+          delete card.dataset.good;
           seen.add(k);
           if (seen.size === s.colors.length) setTimeout(() => stepDone(600), 1600);
         });
@@ -757,6 +1190,7 @@ s.options.forEach((v) => {
         card.innerHTML = `<span class="wbk-drip"></span><span class="wbk-sw-things">${s.examples[k].join(" ")}</span>`
           + `<b>${c.ar}</b><small dir="ltr">${c.en}</small>`;
         card.setAttribute("aria-label", "اللون " + c.ar);
+        card.dataset.good = "1";
         row.appendChild(card);
       });
       body.appendChild(row);
@@ -782,6 +1216,8 @@ s.options.forEach((v) => {
           Speech.ar(col(it.color).ar);
           if (--left === 0) stepDone(1000);
         });
+        t.dataset.good = "1";
+        t.dataset.need = it.color;
         grid.appendChild(t);
       });
       body.append(pal, grid, hint);
@@ -807,6 +1243,8 @@ s.options.forEach((v) => {
           Speech.ar(WB_AR[colored]);
           if (colored === s.count) setTimeout(writeIt, 900);
         });
+        t.dataset.good = "1";
+        t.dataset.need = s.color;
         row.appendChild(t);
       }
       body.append(pal, row, hint);
@@ -843,6 +1281,7 @@ s.options.forEach((v) => {
           });
           b.style.setProperty("--crayon", col(k).hex);
           b.setAttribute("aria-label", "لون " + col(k).ar);
+          if (k === it.color) b.dataset.good = "1";
           opts.appendChild(b);
         });
         row.append(t, opts);
@@ -873,6 +1312,8 @@ s.options.forEach((v) => {
       wrap.querySelectorAll(".wbk-reg").forEach((reg) => {
         const v = +reg.dataset.v;
         const want = s.key.find((x) => x.value === v).color;
+        reg.dataset.good = "1";
+        reg.dataset.need = want;
         reg.addEventListener("click", () => {
           if (reg.dataset.on) return;
           if (!crayon) { Sfx.wrong(); flash(pal, "wbk-wiggle"); return hint.show(WB_SAY.pickFirst); }
@@ -900,6 +1341,7 @@ s.options.forEach((v) => {
       });
       b.style.setProperty("--crayon", c.hex);
       b.setAttribute("aria-label", "لون " + c.ar);
+      b.dataset.color = k;
       box.appendChild(b);
     });
     return box;
@@ -909,7 +1351,8 @@ s.options.forEach((v) => {
   /** `v` = رقم، أو مفتاح شكل من WB_SHAPES (ارسم الشكل). */
   function writeBoard(host, v, level, intro, done) {
     const shape = WB_SHAPES[v];
-    const strokes = shape ? shape.strokes : strokesFor(String(v));
+    const line = typeof v === "string" && v.startsWith("pre:") ? preLine(v.slice(4)) : null;
+    const strokes = line ? line.strokes : shape ? shape.strokes : strokesFor(String(v));
     const hint = hintLine();
     const wrap = el("div", "wbk-write");
     wrap.dataset.glyph = String(v);
@@ -919,10 +1362,12 @@ s.options.forEach((v) => {
       ...penBoardOptions((text) => hint.show(text)),
       strokes,
       level,
+      from: line && line.from,
+      to: line && line.to,
       onHint: (text) => { Sfx.wrong(); hint.show(text); },
       onDone: ({ fails }) => {
         board.el.animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 450 });
-        Speech.en(shape ? shape.en : enName(v));
+        if (!line) Speech.en(shape ? shape.en : enName(v));
         done(fails);
       },
     });
@@ -1016,4 +1461,50 @@ function robotSvg(values) {
   const regs = parts.map(([shape, [x, y]], i) =>
     shape.replace(/^<(\w+)/, `<$1 class="wbk-reg" data-v="${values[i]}"`) + `<text x="${x}" y="${y}">${values[i]}</text>`).join("");
   return `<svg viewBox="0 0 200 220" role="img" aria-label="روبوت من الأشكال للتلوين">${regs}</svg>`;
+}
+
+/** شمع على تورتة (صفر شمعة = تورتة من غير شمع) — لمباراة الصفر. */
+function candlesOf(k) {
+  const g = el("span", "wbk-cake-candles");
+  g.innerHTML = `<span class="wbk-candles">${"🕯️".repeat(k) || "&nbsp;"}</span><span class="wbk-cake-base">🎂</span>`;
+  g.setAttribute("aria-label", `${k} شمع`);
+  return g;
+}
+
+/** رسمة خط من تمارين ما قبل الكتابة (نفس نقطه). */
+function lineSvg(id) {
+  const ln = PREWRITING.find((p) => p.id === id);
+  const d = ln.strokes.map((st) => st.map(([x, y], i) => (i ? "L" : "M") + x + " " + y).join("")).join("");
+  return `<svg class="wbk-linesvg" viewBox="0 0 100 100" aria-hidden="true"><path d="${d}"/></svg>`;
+}
+
+/** ساعة بعقربين: الطويل فوق عند ١٢، والقصير على الساعة h. h = null ⇒ من غير قصير (ارسم الساعة).
+ *  `pick` ⇒ الأرقام نفسها بتتلمس (كل رقم جوّه دايرة كبيرة سهلة اللمس). */
+function clockSvg(h, pick = false) {
+  const nums = Array.from({ length: 12 }, (_, i) => {
+    const v = i + 1, a = ((v * 30 - 90) * Math.PI) / 180;
+    const x = 50 + 37 * Math.cos(a), y = 50 + 37 * Math.sin(a);
+    return pick
+      ? `<g class="wbk-hr" data-h="${v}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8"/><text x="${x.toFixed(1)}" y="${(y + 3.6).toFixed(1)}">${v}</text></g>`
+      : `<text x="${x.toFixed(1)}" y="${(y + 3.6).toFixed(1)}">${v}</text>`;
+  }).join("");
+  const ticks = Array.from({ length: 60 }, (_, i) => {
+    const a = (i * 6 * Math.PI) / 180, r0 = i % 5 ? 45 : 43;
+    return `<line x1="${(50 + r0 * Math.cos(a)).toFixed(1)}" y1="${(50 + r0 * Math.sin(a)).toFixed(1)}" x2="${(50 + 47 * Math.cos(a)).toFixed(1)}" y2="${(50 + 47 * Math.sin(a)).toFixed(1)}"/>`;
+  }).join("");
+  let hour = "";
+  if (h != null) {
+    const a = ((h * 30 - 90) * Math.PI) / 180;
+    hour = `<line class="wbk-hand-h" x1="50" y1="50" x2="${(50 + 22 * Math.cos(a)).toFixed(1)}" y2="${(50 + 22 * Math.sin(a)).toFixed(1)}"/>`;
+  }
+  return `<svg class="wbk-clock" viewBox="0 0 100 100" role="img" aria-label="${h != null ? h + ":00" : "ساعة"}">`
+    + `<circle class="wbk-clock-rim" cx="50" cy="50" r="48"/><g class="wbk-clock-ticks">${ticks}</g>${nums}`
+    + `<line class="wbk-hand-m" x1="50" y1="50" x2="50" y2="14"/>${hour}<circle cx="50" cy="50" r="3"/></svg>`;
+}
+/** ساعة صغيرة (للتوصيل والاختيار). */
+function clockFace(h) {
+  const g = el("span", "wbk-clockface");
+  g.innerHTML = clockSvg(h);
+  g.setAttribute("aria-label", `${h} ساعة`);
+  return g;
 }

@@ -16,7 +16,7 @@ import { ttsCacheKey, ttsPrebuiltPath, TTS_MODEL, TTS_VOICE, TTS_PREBUILT_DIR, O
 import * as WP from "../js/data/writingPhrases.js";
 import { hintForResult } from "../js/games/strokeJudge.js";
 import { PREWRITING, AR as AR_STROKES } from "../js/data/strokes.js";
-import { WB_AR, WB_COLORS, WB_NUMBERS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, colorPairOf } from "../js/data/workbook.js";
+import { WB_AR, WB_COLORS, WB_NUMBERS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR, WB_LINES, colorPairOf } from "../js/data/workbook.js";
 
 const MZ = MIZO.toneInstructions; // توجيهات لهجة ميزو (لمطابقة مفاتيح الكاش)
 const AR = TTS_VOICE; // صوت ميزو الثابت (يطابق ما يقرأه الخادم بالظبط)
@@ -160,6 +160,18 @@ add("برافو", AR);
     [W.drawShape(sh.ar), W.drawAlone(sh.ar), W.checkShape(sh.ar)].forEach(addAr);
   });
   for (const [a, b] of WB_SHAPE_PAIRS) addAr(W.meetShapes(WB_SHAPES[a].ar, WB_SHAPES[b].ar));
+  // باقى الكتاب: الخطوط · خط الأعداد · الساعة · الصفر · الجمع · المراجعة
+  [W.oddColor, W.countKinds, W.meetClock, W.clockChoose, W.clockWrite, W.clockMatch, W.clockWrong, W.meetZero, W.writeAnswer, W.codeKey].forEach(addAr);
+  WB_LINES.forEach((id) => addAr(W.lineSpot(PREWRITING.find((p) => p.id === id).name)));
+  add(WB_AR[0], AR);
+  addAr(W.find(WB_AR[0]));
+  for (let v = 0; v <= 10; v++) {
+    if (v <= 9) addAr(W.hopNext(WB_AR[v]));
+    if (v >= 1) addAr(W.hopPrev(WB_AR[v]));
+    if (v >= 1 && v <= 9) addAr(W.hopMid(WB_AR[v - 1], WB_AR[v + 1]));
+    for (let b = 1; b <= 3 && v + b <= 10; b++) addAr(W.hopAdd(WB_AR[v], WB_AR[b]));
+  }
+  for (let h = 1; h <= 12; h++) { addAr(W.clockSay(WB_HOUR_AR[h])); addAr(W.clockSet(WB_HOUR_AR[h])); }
   colors.forEach((c) => { add(c.en, EN); addAr(W.countWrite(c.al)); });
   for (const [k1, k2] of WB_COLOR_PAIRS) {
     const [a, b] = [WB_COLORS[k1].ar, WB_COLORS[k2].ar];
