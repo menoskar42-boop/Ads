@@ -69,7 +69,9 @@ const things = (rnd, k) => shuffled(rnd, WB_THINGS).slice(0, k);
 export const WB_REPS = ["digit", "dots", "things", "fingers"];
 
 /** تمارين اللعب اللى بتتوزّع على صفحات الأرقام (كل صفحة فى الكتاب ليها تشكيلة مختلفة). */
-export const WB_PLAYS = ["countChoose", "match", "find", "parts", "frameFill", "repeated", "stamp"];
+// المالك ٢٠٢٦-١٠-١٢: «جمع الأرقام لازم يكون بعد الانتهاء من تعليم كامل الأرقام» — فمكوّنات الرقم
+// والجمع (parts) مش هنا؛ هى فى صفحة الجمع والمراجعة بس (الوحدة الأخيرة).
+export const WB_PLAYS = ["countChoose", "match", "find", "frameFill", "repeated", "stamp"];
 export const WB_LAST = ["paint", "colorBar", "hexKey"];
 
 /**
@@ -328,10 +330,17 @@ export const WB_UNITS = [
   { title: "الوحدة ٢", pages: [num(3), colorsPg(2), num(4), colorsPg(3), generalPg(2, [2, 3, 4])] },
   { title: "الوحدة ٣", pages: [num(5), { id: "seq", type: "seq" }, num(6), shapesPg(0), generalPg(3, [4, 5, 6])] },
   { title: "الوحدة ٤", pages: [num(7), shapesPg(1), num(8), shapesPg(2), generalPg(4, [6, 7, 8])] },
-  { title: "الوحدة ٥", pages: [num(9), shapesPg(3), num(10), { id: "clock", type: "clock" }, generalPg(5, [8, 9, 10])] },
-  { title: "الوحدة ٦", pages: [{ id: "0", type: "zero", n: 0 }, { id: "add", type: "add" }, { id: "review", type: "review" }] },
+  { title: "الوحدة ٥", pages: [num(9), shapesPg(3), num(10), { id: "0", type: "zero", n: 0 }, generalPg(5, [8, 9, 10])] },
+  // المالك ٢٠٢٦-١٠-١٢: «تعليم الساعه فى النهايه بعد تعليم الأرقام و كذلك جمع الارقام» — الوحدة دى
+  // مقفولة لحد ما كل صفحات الأرقام (٠–١٠) تخلص.
+  { title: "بعد الأرقام", afterNumbers: true, pages: [{ id: "add", type: "add" }, { id: "clock", type: "clock" }, { id: "review", type: "review" }] },
 ];
 export const WB_PAGES = WB_UNITS.flatMap((u) => u.pages);
+/** صفحات تعليم الأرقام (٠–١٠) — لازم تخلص كلها قبل الجمع والساعة. */
+export const WB_NUMBER_PAGE_IDS = WB_PAGES.filter((p) => p.type === "number" || p.type === "zero").map((p) => p.id);
+export const WB_LOCKED_IDS = WB_UNITS.filter((u) => u.afterNumbers).flatMap((u) => u.pages.map((p) => p.id));
+/** الجمع والساعة والمراجعة مفتوحين؟ (كل صفحات الأرقام خلصت) — `done` = Store.workbookDone. */
+export const afterNumbersOpen = (done) => WB_NUMBER_PAGE_IDS.every((id) => done && done[id]);
 
 /** مناطق صورة «لوّن حسب الرقم» (كب كيك زى الكتاب): كريزة · ٣ طبقات كريمة · ٥ خطوط ورقة. */
 export const WB_PICTURE_REGIONS = 9;
@@ -479,7 +488,7 @@ export function generalPage(nums, rnd = Math.random, only = null) {
     }
     return workbookPage(Math.max(...nums), rnd, [kind]).find((s) => s.kind === kind);
   };
-  const pool = shuffled(rnd, only ? only.filter((k) => WB_PLAYS.includes(k)) : ["countChoose", "match", "parts", "frameFill", "repeated", "stamp"]);
+  const pool = shuffled(rnd, only ? only.filter((k) => WB_PLAYS.includes(k)) : ["countChoose", "match", "frameFill", "repeated", "stamp"]);
   const wN = pickN();
   const mN = Math.max(1, Math.min(8, pickN()));
   const mode = mN >= 3 && rnd() < 0.5 ? "next" : "prev";

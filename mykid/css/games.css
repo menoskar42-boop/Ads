@@ -1336,3 +1336,5 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
 .wbk-code-thing { font-size: 54px; }
 .wbk-step-codeKey .wbk-cards, .wbk-step-clockChoose .wbk-cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
 .wbk-step-codeKey .wbk-opt { min-width: 50px; }
+.wbk-pc.is-locked { filter: grayscale(.85); opacity: .6; }
+.wbk-pc-lock { position: absolute; top: -10px; inset-inline-start: -6px; font-size: 22px; }

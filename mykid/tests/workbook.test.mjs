@@ -445,9 +445,9 @@ const solve = {
 
 const CASES = [
   [4, [...WB_PLAYS, "paint"]], // كل ألعاب صفحة الرقم مرة واحدة
-  [6, ["frameFill", "parts", "match", "colorBar"]],
+  [6, ["frameFill", "repeated", "match", "colorBar"]],
   [8, ["repeated", "match", "find", "hexKey"]],
-  [9, ["stamp", "parts", "match", "colorBar"]],
+  [9, ["stamp", "countChoose", "match", "colorBar"]],
   [1, null], [10, null], ["c0", null], ["c3", null], ["s0", null], ["s2", null], ["s3", null],
   ["lines", null], ["seq", null], ["g1", null], ["g4", null], ["clock", null], ["0", null], ["add", null], ["review", null],
 ];
@@ -509,6 +509,19 @@ test("خريطة الكراسة: ٦ وحدات زى فهرس الكتاب، و«
   assert.equal(await page.locator(".wbk-pc.is-next").getAttribute("data-id"), "1");
   assert.ok((await page.locator('.wbk-pc[data-id="lines"]').textContent()).includes("⭐"));
   await shot("map");
+  // الجمع والساعة مقفولين لحد ما الأرقام كلها تخلص
+  assert.equal(await page.locator(".wbk-pc.is-locked").count(), 3);
+  await page.locator('.wbk-pc[data-id="clock"]').click();
+  assert.equal(await page.locator(".wbk-step-meetClock").count(), 0, "مقفولة");
+  assert.match(await page.locator(".wbk-maphead .wbk-say").textContent(), /بعد ما نخلّص كل الأرقام/);
+  await page.evaluate(async () => {
+    const { Store } = await import("/js/core/storage.js");
+    for (const id of ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]) Store.markWorkbookDone(id);
+    const { renderWorkbook } = await import("/js/games/workbook.js");
+    document.getElementById("app").replaceChildren(renderWorkbook({ regionId: "numbers", regionIndex: 1 }));
+  });
+  await page.waitForSelector(".wbk-map");
+  assert.equal(await page.locator(".wbk-pc.is-locked").count(), 0, "اتفتحت بعد الأرقام");
   await page.locator('.wbk-pc[data-id="clock"]').click();
   await page.waitForSelector(".wbk-step-meetClock");
 });

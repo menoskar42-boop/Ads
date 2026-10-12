@@ -2,7 +2,7 @@
 //   node --test mykid/tests/workbook-plan.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, WB_SHAPES, WB_SHAPE_PAIRS, WB_ROBOT_PARTS, WB_UNITS, WB_LINES, colorsPage, shapesPage, pageSteps } from "../js/data/workbook.js";
+import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, WB_SHAPES, WB_SHAPE_PAIRS, WB_ROBOT_PARTS, WB_UNITS, WB_LINES, WB_LOCKED_IDS, WB_NUMBER_PAGE_IDS, afterNumbersOpen, colorsPage, shapesPage, pageSteps } from "../js/data/workbook.js";
 import { strokesFor } from "../js/data/strokes.js";
 import { WB_SAY } from "../js/data/writingPhrases.js";
 import { femAdapt } from "../js/data/mizo.js";
@@ -38,7 +38,7 @@ test("يكتب شوية ويلعب شوية: ٣ كتابات، ومفيش كتا
 test("كل التمارين بتظهر (التشكيلة بتتغيّر من صفحة لصفحة)", () => {
   const seen = new Set(pages.flatMap(([, steps]) => steps.flatMap((s) => [s.kind, s.kind + (s.mode ? ":" + s.mode : "") + (s.rep ? ":" + s.rep : "")])));
   assert.ok(pages.some(([, st]) => st.some((x) => x.kind === "match" && x.right === "groups")), "match: الصور المتساوية");
-  for (const k of [...WB_PLAYS, ...WB_LAST, "missing:prev", "missing:mid", "missing:next", "parts:fingers", "parts:things", "parts:digits"]) assert.ok(seen.has(k), k);
+  for (const k of [...WB_PLAYS, ...WB_LAST, "missing:prev", "missing:mid", "missing:next", "missing:next"]) assert.ok(seen.has(k), k);
 });
 
 test("الإجابة الصح موجودة دايماً، والمشتّتات مختلفة عنها", () => {
@@ -146,9 +146,9 @@ test("جُمَل ميزو بتتأنّث للبنت (من غير «و» لازق
   }
 });
 
-test("ترتيب الصفحات زى فهرس الكتاب (٦ وحدات): خطوط ← ١ ← ألوان … ← الساعة ← الصفر ← الجمع ← مراجعة", () => {
+test("ترتيب الصفحات: خطوط ← ١ ← ألوان … ← ١٠ ← صفر، وبعد الأرقام كلها: الجمع ← الساعة ← مراجعة", () => {
   assert.deepEqual(WB_PAGES.map((p) => p.id), ["lines", "1", "c0", "2", "c1", "g1", "3", "c2", "4", "c3", "g2",
-    "5", "seq", "6", "s0", "g3", "7", "s1", "8", "s2", "g4", "9", "s3", "10", "clock", "g5", "0", "add", "review"]);
+    "5", "seq", "6", "s0", "g3", "7", "s1", "8", "s2", "g4", "9", "s3", "10", "0", "g5", "add", "clock", "review"]);
   assert.equal(WB_UNITS.length, 6, "٦ وحدات زى الكتاب");
   assert.equal(new Set(WB_PAGES.map((p) => p.id)).size, WB_PAGES.length);
 });
@@ -268,4 +268,28 @@ test("كل صفحات الكتاب: كتابة ولعب بالتناوب (مفي
       }
     }
   }
+});
+
+test("المالك: الجمع والساعة بعد ما الأرقام كلها تخلص (مقفولين قبلها)", () => {
+  assert.deepEqual(WB_LOCKED_IDS, ["add", "clock", "review"]);
+  assert.deepEqual(WB_NUMBER_PAGE_IDS.sort(), ["0", "1", "10", "2", "3", "4", "5", "6", "7", "8", "9"]);
+  const last = WB_PAGES.slice(-3).map((p) => p.id);
+  assert.deepEqual(last, ["add", "clock", "review"], "فى آخر الكراسة");
+  assert.equal(afterNumbersOpen({}), false);
+  const all = Object.fromEntries(WB_NUMBER_PAGE_IDS.map((id) => [id, 1]));
+  assert.equal(afterNumbersOpen({ ...all, 7: 0 }), false);
+  assert.equal(afterNumbersOpen(all), true);
+  // ومفيش جمع ولا ساعة فى أى صفحة قبلهم
+  const early = WB_PAGES.filter((p) => !WB_LOCKED_IDS.includes(p.id));
+  for (const pg of early) for (let seed = 1; seed <= 30; seed++) {
+    for (const st of pageSteps(pg, seeded(seed + 7))) {
+      assert.notEqual(st.kind, "parts", `${pg.id}: جمع قبل الأرقام`);
+      assert.ok(!(st.kind === "lineHop" && st.mode === "add"), `${pg.id}: جمع على خط الأعداد`);
+      assert.ok(!/clock/i.test(st.kind) && !(st.groups || []).some((g) => g.rep === "clock"), `${pg.id}: ساعة قبل الأرقام`);
+    }
+  }
+  const add = WB_PAGES.find((p) => p.id === "add");
+  const reps = new Set();
+  for (let seed = 1; seed <= 30; seed++) pageSteps(add, seeded(seed)).forEach((st) => st.kind === "parts" && reps.add(st.rep));
+  for (const r of ["things", "fingers", "dots", "vertical"]) assert.ok(reps.has(r), "صفحة الجمع: " + r);
 });

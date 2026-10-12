@@ -14,7 +14,7 @@ import { NUMBERS } from "../data/numbers.js";
 import { strokesFor, PREWRITING } from "../data/strokes.js";
 import {
   WB_COLORS, WB_AR, WB_PAGES, WB_UNITS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR,
-  pageSteps, colorPairOf, isWriteStep,
+  WB_LOCKED_IDS, pageSteps, colorPairOf, isWriteStep, afterNumbersOpen,
 } from "../data/workbook.js";
 import { WB_SAY, writeIntro } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity } from "./common.js";
@@ -121,7 +121,9 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     cur = null;
     stage.replaceChildren();
     map.replaceChildren();
-    const nextId = (WB_PAGES.find((pg) => !Store.workbookDone[pg.id]) || WB_PAGES[0]).id;
+    const open = afterNumbersOpen(Store.workbookDone);
+    const locked = (pg) => !open && WB_LOCKED_IDS.includes(pg.id);
+    const nextId = (WB_PAGES.find((pg) => !Store.workbookDone[pg.id] && !locked(pg)) || WB_PAGES[0]).id;
     const head = el("div", "wbk-maphead");
     head.innerHTML = `<img class="wbk-mizo" src="/assets/mizo/mizo-hi.webp" alt="" width="64" height="64">`;
     const say = el("p", "wbk-say", fem(WB_SAY.chooser));
@@ -131,14 +133,24 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       const sec = el("section", "wbk-unit");
       sec.style.setProperty("--unit", ["#ef4444", "#f59e0b", "#3b82f6", "#16a34a", "#8b5cf6", "#ec4899"][ui % 6]);
       const done = u.pages.filter((pg) => Store.workbookDone[pg.id]).length;
-      sec.appendChild(el("h3", "wbk-unit-title", `${u.title}  ${"⭐".repeat(done)}`));
+      sec.appendChild(el("h3", "wbk-unit-title", `${u.afterNumbers && !open ? "🔒 " : ""}${u.title}  ${"⭐".repeat(done)}`));
       const grid = el("div", "wbk-unit-grid");
       u.pages.forEach((pg) => {
         const { icon, label } = pageCard(pg);
-        const card = button("wbk-pc" + (pg.id === nextId ? " is-next" : "") + (Store.workbookDone[pg.id] ? " is-done" : ""), "", () => { Sfx.tap(); openPage(pg); });
+        const card = button("wbk-pc" + (pg.id === nextId ? " is-next" : "") + (Store.workbookDone[pg.id] ? " is-done" : "") + (locked(pg) ? " is-locked" : ""), "", () => {
+          Sfx.tap();
+          if (!locked(pg)) return openPage(pg);
+          // الجمع والساعة بعد الأرقام كلها: ميزو يقول كده ويشاور على الصفحة اللى عليها الدور
+          flash(card, "wbk-wiggle");
+          say.textContent = fem(WB_SAY.locked);
+          Speech.ar(fem(WB_SAY.locked));
+          const nx = map.querySelector(".is-next");
+          if (nx) nx.scrollIntoView({ block: "center", behavior: "smooth" });
+        });
         card.dataset.id = pg.id;
         card.innerHTML = `<span class="wbk-pc-icon">${icon}</span><span class="wbk-pc-label">${label}</span>`
           + (Store.workbookDone[pg.id] ? `<span class="wbk-pc-star">⭐</span>` : "")
+          + (locked(pg) ? `<span class="wbk-pc-lock">🔒</span>` : "")
           + (pg.id === nextId ? `<img class="wbk-pc-mizo" src="/assets/mizo/mizo-point.webp" alt="" width="44" height="44">` : "");
         card.setAttribute("aria-label", label);
         grid.appendChild(card);
