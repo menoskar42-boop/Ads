@@ -2,7 +2,7 @@
 //   node --test mykid/tests/workbook-plan.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR } from "../js/data/workbook.js";
+import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, colorsPage } from "../js/data/workbook.js";
 import { strokesFor } from "../js/data/strokes.js";
 import { WB_SAY } from "../js/data/writingPhrases.js";
 import { femAdapt } from "../js/data/mizo.js";
@@ -92,4 +92,38 @@ test("جُمَل ميزو بتتأنّث للبنت (من غير «و» لازق
     assert.notEqual(f, t, `مااتأنّثتش: ${t}`);
     for (const verb of ["عُدّ ", "لوّن ", "المس ", "اكتبه", "اختار ", "دوّر ", "بص "]) assert.ok(!f.includes(verb), `${verb} فى: ${f}`);
   }
+});
+
+test("ترتيب الصفحات زى فهرس الكتاب: ١ ← ألوان ← ٢ ← ألوان ← ٣ ← ألوان ← ٤ ← ألوان ← ٥…١٠", () => {
+  assert.deepEqual(WB_PAGES.map((p) => p.id), ["1", "c0", "2", "c1", "3", "c2", "4", "c3", "5", "6", "7", "8", "9", "10"]);
+  assert.equal(new Set(WB_PAGES.map((p) => p.id)).size, WB_PAGES.length);
+});
+
+test("صفحة الألوان: يكتب مرتين (نقط ← لوحده) بين اللعب، والإجابات سليمة", () => {
+  for (let pair = 0; pair < WB_COLOR_PAIRS.length; pair++) {
+    const [c1, c2] = WB_COLOR_PAIRS[pair];
+    for (let seed = 1; seed <= 40; seed++) {
+      const steps = colorsPage(pair, seeded(seed * 13 + pair));
+      assert.deepEqual(steps.map((s) => s.kind), ["meetColors", "realColor", "countWrite", "picture", "countWrite"]);
+      const w = steps.filter(isWriteStep);
+      assert.deepEqual(w.map((s) => s.level), [2, 3]);
+      assert.notEqual(w[0].count, w[1].count, "عددين مختلفين");
+      for (const s of w) {
+        assert.ok(s.count >= 1 && s.count <= 3);
+        assert.ok(s.palette.includes(s.color) && new Set(s.palette).size === 3);
+        assert.ok(WB_REAL[s.color].includes(s.thing), "الحاجة لونها الحقيقى هو المطلوب");
+      }
+      const real = steps[1];
+      assert.equal(real.items.length, 5);
+      for (const it of real.items) assert.ok(WB_REAL[it.color].includes(it.thing) && [c1, c2].includes(it.color));
+      assert.ok(real.items.some((it) => it.color === c1) && real.items.some((it) => it.color === c2));
+      const pic = steps[3];
+      assert.equal(pic.regions.length, WB_PICTURE_REGIONS);
+      for (const v of [1, 2, 3]) assert.ok(pic.regions.filter((x) => x === v).length >= 2, `الرقم ${v} فى الصورة`);
+      assert.equal(new Set(pic.key.map((k) => k.color)).size, 3);
+    }
+  }
+  // مفيش حاجة واحدة متسجّلة بلونين
+  const all = Object.values(WB_REAL).flat();
+  assert.equal(new Set(all).size, all.length);
 });

@@ -16,7 +16,7 @@ import { ttsCacheKey, ttsPrebuiltPath, TTS_MODEL, TTS_VOICE, TTS_PREBUILT_DIR, O
 import * as WP from "../js/data/writingPhrases.js";
 import { hintForResult } from "../js/games/strokeJudge.js";
 import { PREWRITING, AR as AR_STROKES } from "../js/data/strokes.js";
-import { WB_AR, WB_COLORS, WB_NUMBERS, colorPairOf } from "../js/data/workbook.js";
+import { WB_AR, WB_COLORS, WB_NUMBERS, WB_COLOR_PAIRS, colorPairOf } from "../js/data/workbook.js";
 
 const MZ = MIZO.toneInstructions; // توجيهات لهجة ميزو (لمطابقة مفاتيح الكاش)
 const AR = TTS_VOICE; // صوت ميزو الثابت (يطابق ما يقرأه الخادم بالظبط)
@@ -145,6 +145,13 @@ add("برافو", AR);
     // «لوّن رقم n …، ورقم m …»: m أى رقم تانى، ولون كل واحد من زوج n
     const [p1, p2] = colorPairOf(n).map((k) => WB_COLORS[k].ar);
     for (const m of WB_NUMBERS) if (m !== n) addAr(W.paint(ar, p1, WB_AR[m], p2));
+  }
+  // صفحات الألوان
+  [W.chooser, W.realWrong, W.pickFirst, W.picture].forEach(addAr);
+  colors.forEach((c) => { add(c.en, EN); addAr(W.countWrite(c.al)); });
+  for (const [k1, k2] of WB_COLOR_PAIRS) {
+    const [a, b] = [WB_COLORS[k1].ar, WB_COLORS[k2].ar];
+    [W.meetColors(a, b), W.realColor(a, b), W.realColor(b, a)].forEach(addAr);
   }
 }
 

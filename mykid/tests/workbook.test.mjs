@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { strokesFor } from "../js/data/strokes.js";
-import { WB_COLORS, colorPairOf } from "../js/data/workbook.js";
+import { WB_COLORS, WB_REAL, WB_PAGES, colorPairOf } from "../js/data/workbook.js";
 import { densify } from "../js/games/strokeJudge.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -104,11 +104,63 @@ const solve = {
     assert.equal(await page.locator(".wbk-cell").count(), n > 5 ? 10 : 5);
     for (let i = 0; i < n; i++) await balls.nth(i).click();
   },
-  async write() {
+  // ===== صفحات الألوان =====
+  async meetColors() {
+    const cards = page.locator(".wbk-swatch");
+    assert.equal(await cards.count(), 2);
+    await cards.nth(0).click();
+    await cards.nth(1).click();
+  },
+  async realColor() {
+    const tiles = page.locator(".wbk-tile");
+    // من غير قلم ← «اختار لون الأول»
+    await tiles.nth(0).click();
+    assert.match(await page.locator(".wbk-hint").textContent(), /اختار لون/);
+    for (let i = 0; i < (await tiles.count()); i++) {
+      const thing = await tiles.nth(i).textContent();
+      const want = Object.keys(WB_REAL).find((k) => WB_REAL[k].includes(thing));
+      const wrong = await page.locator(".wbk-crayon").evaluateAll((bs, w) => bs.map((b) => b.textContent).find((t) => t !== w), WB_COLORS[want].ar);
+      if (i === 0) {
+        await clickText(".wbk-crayon", wrong);
+        await tiles.nth(i).click();
+        assert.match(await page.locator(".wbk-hint").textContent(), /فى الحقيقة/);
+      }
+      await clickText(".wbk-crayon", WB_COLORS[want].ar);
+      await tiles.nth(i).click();
+    }
+    await shot("realColor-done");
+  },
+  async countWrite() {
+    const tiles = page.locator(".wbk-tile");
+    const thing = await tiles.nth(0).textContent();
+    const want = Object.keys(WB_REAL).find((k) => WB_REAL[k].includes(thing));
+    await clickText(".wbk-crayon", WB_COLORS[want].ar);
+    const k = await tiles.count();
+    for (let i = 0; i < k; i++) await tiles.nth(i).click();
+    await page.waitForSelector(".wb-box");
+    await shot("countWrite-board");
+    await solve.write(String(k));
+  },
+  async picture() {
+    const keys = await page.locator(".wbk-key").evaluateAll((ks) => ks.map((k) => [k.querySelector("b").textContent, k.title]));
+    const colorOf = Object.fromEntries(keys);
+    const regs = page.locator(".wbk-reg");
+    assert.equal(await regs.count(), 9);
+    const v0 = await regs.nth(0).getAttribute("data-v");
+    await clickText(".wbk-crayon", keys.find(([v]) => v !== v0)[1]);
+    await regs.nth(0).click();
+    assert.match(await page.locator(".wbk-hint").textContent(), /مش ده اللون/);
+    for (let i = 0; i < 9; i++) {
+      await clickText(".wbk-crayon", colorOf[await regs.nth(i).getAttribute("data-v")]);
+      await regs.nth(i).click({ force: true });
+    }
+    await shot("picture-done");
+  },
+  async write(digits) {
     // كل لوحة بتبدأ بالصباع بيوريه (بعد ١٫٤ ثانية) — نستناه يخلص قبل ما نكتب
     await page.waitForSelector(".wb-hand", { timeout: 2500 });
     await waitIdle();
-    const n = await page.evaluate(() => document.querySelector(".wbk-title b").textContent);
+    const n = digits != null ? String(digits) : await page.evaluate(() => document.querySelector(".wbk-title b").textContent);
     for (const st of strokesFor(n)) await stroke(st);
   },
   async colorN(n) {
@@ -175,7 +227,7 @@ const solve = {
     await page.waitForTimeout(200);
     assert.ok(await page.locator(".wb-mini").count(), "لوحده = مربع فاضى ونموذج صغير فوقه");
     await shot("missing-write-alone");
-    await solve.write();
+    await solve.write(String(n));
   },
   async paint() {
     const keys = await page.locator(".wbk-key").evaluateAll((ks) => ks.map((k) => [k.querySelector("b").textContent, k.title]));
@@ -195,8 +247,8 @@ const solve = {
   },
 };
 
-for (const n of [4, 1, 10]) {
-  test(`صفحة الرقم ${n} كاملة: يكتب ٣ مرات ويلعب بينهم، وفى الآخر نجمة على الرقم`, async () => {
+for (const n of [4, 1, 10, "c0", "c2"]) {
+  test(`صفحة ${n} كاملة: يكتب ويلعب بالتناوب، وفى الآخر نجمة على الصفحة`, async () => {
     errors.length = 0;
     await open(n);
     const total = await page.locator(".wbk-chip").count();
@@ -210,7 +262,7 @@ for (const n of [4, 1, 10]) {
       if (i < total - 1) await nextStepFrom(i);
       else await page.waitForSelector(".cheer", { timeout: 5000 }); // آخر خطوة ← احتفال ونجوم
     }
-    assert.deepEqual(done.filter((k) => k === "write" || k === "missing").length, 3);
+    assert.equal(done.filter((k) => ["write", "missing", "countWrite"].includes(k)).length, typeof n === "number" ? 3 : 2);
     // آخر الصفحة: النجوم وبعدين الرجوع لاختيار الرقم بنجمة على الرقم ده
     for (let t = 0; t < 12 && !(await page.locator(".lesson-chooser:not(.hidden)").count()); t++) {
       const ok = page.locator("#certOk, .reward-popup button, .cheer button");
@@ -218,7 +270,9 @@ for (const n of [4, 1, 10]) {
       await page.waitForTimeout(800);
     }
     await page.waitForSelector(".lesson-chooser:not(.hidden)", { timeout: 8000 });
-    assert.ok((await page.locator(".lesson-chooser-btn").nth(n - 1).textContent()).includes("⭐"));
+    const at = WB_PAGES.findIndex((p) => p.id === String(n));
+    assert.ok((await page.locator(".lesson-chooser-btn").nth(at).textContent()).includes("⭐"));
+    assert.equal(await page.locator(".lesson-chooser-btn").count(), WB_PAGES.length, "الأرقام وصفحات الألوان");
     await shot(`${n}-chooser-after`);
     assert.deepEqual(errors, []);
   });

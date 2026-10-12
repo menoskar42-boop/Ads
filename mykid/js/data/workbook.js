@@ -148,4 +148,72 @@ export function workbookPage(n, rnd = Math.random) {
 }
 
 /** عدد خطوات الكتابة فى الصفحة (الاختبار بيتأكد إن الكتابة متوزّعة مش ورا بعض). */
-export const isWriteStep = (s) => s.kind === "write" || s.kind === "missing";
+export const isWriteStep = (s) => s.kind === "write" || s.kind === "missing" || s.kind === "countWrite";
+
+// ===== صفحات الألوان (الكتاب بيحطها بين الأرقام: ١ ← أحمر/بمبى ← ٢ ← أصفر/برتقانى ← …) =====
+
+/** حاجات لونها معروف فى الحقيقة — «Color the shapes yellow or orange» (موزة صفرا، جزرة برتقانى…). */
+export const WB_REAL = {
+  red: ["🍓", "🍅", "🌶️", "🍎"],
+  pink: ["🌸", "🦩", "🐷", "🎀"],
+  yellow: ["🍌", "🍋", "🐤", "🌻"],
+  orange: ["🍊", "🥕", "🎃", "🦊"],
+  blue: ["🐳", "🫐", "👖"],
+  lightBlue: ["💧", "🧊", "🐬"],
+  green: ["🥒", "🐸", "🥦", "🌲"],
+  lime: ["🍏", "🍐", "🍈"],
+};
+
+/** ترتيب صفحات الكراسة زى فهرس الكتاب: كل رقم من ١ لـ٤ وبعده صفحة ألوانه، وبعدين ٥ لـ١٠. */
+export const WB_PAGES = [
+  ...WB_COLOR_PAIRS.flatMap((_, i) => [{ id: String(i + 1), type: "number", n: i + 1 }, { id: "c" + i, type: "colors", pair: i }]),
+  ...WB_NUMBERS.slice(WB_COLOR_PAIRS.length).map((n) => ({ id: String(n), type: "number", n })),
+];
+
+/** مناطق صورة «لوّن حسب الرقم» (كب كيك زى الكتاب): كريزة · ٣ طبقات كريمة · ٥ خطوط ورقة. */
+export const WB_PICTURE_REGIONS = 9;
+
+/**
+ * خطوات صفحة الألوان للزوج رقم `pairIdx`:
+ *   meetColors → realColor → countWrite(نقط) → picture → countWrite(لوحده)
+ */
+export function colorsPage(pairIdx, rnd = Math.random) {
+  const pair = WB_COLOR_PAIRS[pairIdx];
+  if (!pair) throw new Error("صفحة ألوان مش موجودة: " + pairIdx);
+  const [c1, c2] = pair;
+  const steps = [];
+
+  // ١) اعرف اللونين: كارت لكل لون وعليه حاجتين بلونه
+  steps.push({ kind: "meetColors", colors: [c1, c2], examples: { [c1]: shuffled(rnd, WB_REAL[c1]).slice(0, 2), [c2]: shuffled(rnd, WB_REAL[c2]).slice(0, 2) } });
+
+  // ٢) «Color the shapes red or pink»: كل حاجة بلونها الحقيقى
+  const real = shuffled(rnd, [
+    ...shuffled(rnd, WB_REAL[c1]).slice(0, 3).map((thing) => ({ thing, color: c1 })),
+    ...shuffled(rnd, WB_REAL[c2]).slice(0, 2).map((thing) => ({ thing, color: c2 })),
+  ]);
+  steps.push({ kind: "realColor", colors: shuffled(rnd, [c1, c2]), items: real });
+
+  // ٣) «Count, write, then color as required» — يلوّن (ويعدّ) وبعدين يكتب العدد على النقط
+  const other = WB_COLOR_PAIRS[(pairIdx + 1) % WB_COLOR_PAIRS.length][0];
+  const k1 = 1 + Math.floor(rnd() * 3);
+  const k2 = [1, 2, 3].filter((k) => k !== k1)[Math.floor(rnd() * 2)];
+  const cw = (count, color, level) => ({
+    kind: "countWrite", count, color, level,
+    thing: pickOf(rnd, WB_REAL[color]), palette: shuffled(rnd, [c1, c2, other]),
+  });
+  steps.push(cw(k1, c1, 2));
+
+  // ٤) «Color according to the number» — كب كيك: كل حتة عليها رقم، والرقم ليه لون
+  const key = [{ value: 1, color: c1 }, { value: 2, color: c2 }, { value: 3, color: other }];
+  const [a, b, c] = shuffled(rnd, [1, 2, 3]);
+  steps.push({ kind: "picture", key, regions: [a, b, c, b, c, a, c, a, c] });
+
+  // ٥) تانى، بس يكتب لوحده
+  steps.push(cw(k2, c2, 3));
+  return steps;
+}
+
+/** خطوات أى صفحة من WB_PAGES. */
+export function pageSteps(page, rnd = Math.random) {
+  return page.type === "colors" ? colorsPage(page.pair, rnd) : workbookPage(page.n, rnd);
+}

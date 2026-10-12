@@ -12,8 +12,8 @@ import { awardStars } from "../core/rewards.js";
 import { femAdapt } from "../data/mizo.js";
 import { NUMBERS } from "../data/numbers.js";
 import { strokesFor } from "../data/strokes.js";
-import { workbookPage, WB_COLORS, WB_AR, WB_NUMBERS, colorPairOf, isWriteStep } from "../data/workbook.js";
-import { WB_SAY, CHOOSER_TITLES, writeIntro } from "../data/writingPhrases.js";
+import { WB_COLORS, WB_AR, WB_PAGES, WB_COLOR_PAIRS, pageSteps, colorPairOf, isWriteStep } from "../data/workbook.js";
+import { WB_SAY, writeIntro } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity, glyphChooser } from "./common.js";
 import { mountWriteBoard } from "./writeBoard.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
@@ -58,62 +58,79 @@ function groupOf(thing, count, cls = "wbk-group") {
 
 export function renderWorkbook({ regionId, regionIndex, n: startN }) {
   const screen = el("div", "region-screen wbk-screen");
-  let n = 0;
+  let cur = null; // الصفحة المفتوحة من WB_PAGES (null = اختيار الصفحة)
   let steps = [];
   let idx = 0;
   let cleanup = () => {};
   const toRegion = () => Router.go("region", { id: regionId, index: regionIndex });
   screen.appendChild(gameTopbar("📒 كراسة الأرقام", () => {
     Speech.stop();
-    if (n) showChooser();
+    if (cur) showChooser();
     else toRegion();
   }));
   const stage = el("div", "stage wbk-stage");
   screen.appendChild(stage);
 
-  // ===== اختيار الرقم (والنجمة على اللى خلصت صفحته) =====
+  // ===== اختيار الصفحة: الأرقام وبينها صفحات الألوان زى فهرس الكتاب (ونجمة على اللى خلص) =====
+  const pageLabel = (pg) => (pg.type === "number" ? String(pg.n) : "🎨");
+  const pageAria = (pg) => {
+    if (pg.type === "number") return `صفحة الرقم ${pg.n}`;
+    const [a, b] = WB_COLOR_PAIRS[pg.pair].map((k) => col(k).ar);
+    return `صفحة الألوان: ${a} و${b}`;
+  };
   const chooser = glyphChooser({
-    items: WB_NUMBERS,
-    shownOf: (v) => (Store.workbookDone[v] ? `${v}⭐` : String(v)),
-    ariaOf: (v) => `صفحة الرقم ${v}`,
-    title: CHOOSER_TITLES[1],
+    items: WB_PAGES,
+    shownOf: pageLabel,
+    ariaOf: pageAria,
+    title: WB_SAY.chooser,
     dir: "ltr",
-    onPick: (i) => openPage(WB_NUMBERS[i]),
+    onPick: (i) => openPage(WB_PAGES[i]),
   });
 
   function showChooser() {
     cleanup();
-    n = 0;
+    cur = null;
     stage.replaceChildren();
-    const intro = el("p", "wbk-intro", fem("كل صفحة: نكتب الرقم شوية، ونلعب بيه شوية — زى الكراسة"));
+    const intro = el("p", "wbk-intro", fem("كل صفحة: نكتب شوية، ونلعب شوية — زى الكراسة"));
     stage.append(intro, chooser.el);
-    // الأزرار بتتكتب وقت الإنشاء — نحدّث النجوم كل مرة
+    // الأزرار بتتكتب وقت الإنشاء — النجوم وألوان صفحات الألوان بتتحدّث كل مرة
     chooser.el.querySelectorAll(".lesson-chooser-btn").forEach((b, i) => {
-      const v = WB_NUMBERS[i];
-      b.textContent = Store.workbookDone[v] ? `${v}⭐` : String(v);
+      const pg = WB_PAGES[i];
+      const star = Store.workbookDone[pg.id] ? "⭐" : "";
+      if (pg.type === "number") { b.textContent = pg.n + star; return; }
+      b.classList.add("wbk-colors-btn");
+      b.innerHTML = WB_COLOR_PAIRS[pg.pair].map((k) => `<i style="background:${col(k).hex}"></i>`).join("") + star;
     });
-    const next = WB_NUMBERS.find((v) => !Store.workbookDone[v]) || 1;
-    chooser.show(next - 1);
+    const next = WB_PAGES.findIndex((pg) => !Store.workbookDone[pg.id]);
+    chooser.show(Math.max(0, next));
   }
 
-  function openPage(num) {
-    n = num;
-    steps = workbookPage(n);
+  function openPage(pg) {
+    cur = pg;
+    steps = pageSteps(pg);
     idx = 0;
-    const [c1, c2] = colorPairOf(n);
+    const [c1, c2] = pg.type === "number" ? colorPairOf(pg.n) : WB_COLOR_PAIRS[pg.pair];
     screen.style.setProperty("--wbk-c1", col(c1).hex);
     screen.style.setProperty("--wbk-c2", col(c2).hex);
     renderStep();
   }
 
-  // ===== رأس الصفحة: «4 four» + شريط الخطوات (✏️ كتابة · 🎲 لعب) =====
+  // ===== رأس الصفحة: «4 four» أو 🎨 «red · pink» + شريط الخطوات (✏️ كتابة · 🎲 لعب) =====
   function header() {
     const head = el("div", "wbk-head");
     const title = el("button", "wbk-title");
     title.type = "button";
-    title.innerHTML = `<b dir="ltr">${n}</b><span dir="ltr">${enName(n)}</span>`;
-    title.setAttribute("aria-label", `اسمع الرقم ${n}`);
-    title.addEventListener("click", () => { Sfx.pop(); sayNumber(n); });
+    if (cur.type === "number") {
+      title.innerHTML = `<b dir="ltr">${cur.n}</b><span dir="ltr">${enName(cur.n)}</span>`;
+      title.setAttribute("aria-label", `اسمع الرقم ${cur.n}`);
+      title.addEventListener("click", () => { Sfx.pop(); sayNumber(cur.n); });
+    } else {
+      const pair = WB_COLOR_PAIRS[cur.pair].map(col);
+      title.classList.add("wbk-title-colors");
+      title.innerHTML = `<b>🎨</b>` + pair.map((c) => `<span dir="ltr" style="color:${c.hex}">${c.en}</span>`).join("");
+      title.setAttribute("aria-label", "اسمع الألوان");
+      title.addEventListener("click", () => { Sfx.pop(); sayColors(pair); });
+    }
     const track = el("div", "wbk-track");
     steps.forEach((s, i) => {
       const chip = el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""), isWriteStep(s) ? "✏️" : "🎲");
@@ -124,6 +141,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN }) {
     return head;
   }
 
+  const sayColors = (cs) => Speech.sequence(cs.flatMap((c) => [{ text: c.ar, lang: "ar-EG" }, { text: c.en, lang: "en-US" }]));
   const sayNumber = (v) => Speech.sequence([{ text: enName(v), lang: "en-US" }, { text: WB_AR[v], lang: "ar-EG" }]);
 
   /** سطر التعليمات: بيتكتب ويتنطق (بصيغة البنت للبنت) — وزرار 🔊 يعيده. */
@@ -160,11 +178,11 @@ export function renderWorkbook({ regionId, regionIndex, n: startN }) {
   function stepDone(delay = 900) {
     Sfx.correct();
     awardStars(1);
-    setTimeout(() => { if (n) nextStep(); }, delay);
+    setTimeout(() => { if (cur) nextStep(); }, delay);
   }
 
   function finishPage() {
-    Store.markWorkbookDone(n);
+    Store.markWorkbookDone(cur.id);
     finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
   }
 
@@ -454,6 +472,122 @@ s.options.forEach((v) => {
       });
       body.append(legend, pal, grid, hint);
     },
+
+    // ===== صفحات الألوان =====
+    // «Colors»: كارت لكل لون (زى الكتاب: بقعة اللون وحاجتين لونهم كده) — يلمس الاتنين
+    meetColors(body, s) {
+      const [a, b] = s.colors.map(col);
+      body.appendChild(prompt(WB_SAY.meetColors(a.ar, b.ar)));
+      const row = el("div", "wbk-swatches");
+      const seen = new Set();
+      s.colors.forEach((k) => {
+        const c = col(k);
+        const card = button("wbk-swatch", "", () => {
+          Sfx.pop();
+          sayColors([c]);
+          card.classList.add("seen");
+          seen.add(k);
+          if (seen.size === s.colors.length) setTimeout(() => stepDone(600), 1600);
+        });
+        card.style.setProperty("--sw", c.hex);
+        card.innerHTML = `<span class="wbk-drip"></span><span class="wbk-sw-things">${s.examples[k].join(" ")}</span>`
+          + `<b>${c.ar}</b><small dir="ltr">${c.en}</small>`;
+        card.setAttribute("aria-label", "اللون " + c.ar);
+        row.appendChild(card);
+      });
+      body.appendChild(row);
+    },
+
+    // «Color the shapes yellow or orange»: الحاجة رمادى، والطفل يعرف لونها الحقيقى
+    realColor(body, s) {
+      const [a, b] = s.colors.map(col);
+      body.appendChild(prompt(WB_SAY.realColor(a.ar, b.ar)));
+      const hint = hintLine();
+      let crayon = null;
+      const pal = palette(s.colors, (k) => { crayon = k; });
+      const grid = el("div", "wbk-color-grid wbk-real");
+      let left = s.items.length;
+      s.items.forEach((it) => {
+        const t = button("wbk-tile", it.thing, () => {
+          if (t.dataset.on) return;
+          if (!crayon) { Sfx.wrong(); flash(pal, "wbk-wiggle"); return hint.show(WB_SAY.pickFirst); }
+          if (crayon !== it.color) { Sfx.wrong(); flash(t, "wrong"); return hint.show(WB_SAY.realWrong); }
+          t.dataset.on = "1";
+          t.style.setProperty("--fill", col(it.color).hex);
+          Sfx.pop();
+          Speech.ar(col(it.color).ar);
+          if (--left === 0) stepDone(1000);
+        });
+        grid.appendChild(t);
+      });
+      body.append(pal, grid, hint);
+    },
+
+    // «Count, write, then color as required»: يلوّنهم باللون المطلوب وهو بيعدّ، وبعدين يكتب العدد
+    countWrite(body, s) {
+      const c = col(s.color);
+      body.appendChild(prompt(WB_SAY.countWrite(c.al)));
+      const hint = hintLine();
+      let crayon = null;
+      const pal = palette(s.palette, (k) => { crayon = k; });
+      const row = el("div", "wbk-color-grid wbk-cw");
+      let colored = 0;
+      for (let i = 0; i < s.count; i++) {
+        const t = button("wbk-tile", s.thing, () => {
+          if (t.dataset.on) return;
+          if (crayon !== s.color) { Sfx.wrong(); flash(pal, "wbk-wiggle"); return hint.show(WB_SAY.pickColor(c.al)); }
+          t.dataset.on = "1";
+          t.style.setProperty("--fill", c.hex);
+          colored++;
+          Sfx.pop();
+          Speech.ar(WB_AR[colored]);
+          if (colored === s.count) setTimeout(writeIt, 900);
+        });
+        row.appendChild(t);
+      }
+      body.append(pal, row, hint);
+      function writeIt() {
+        pal.remove();
+        hint.remove();
+        writeBoard(body, s.count, s.level, null, (fails) => {
+          if (s.level === 3) Store.recordWrite("g:" + s.count, fails, 3);
+          stepDone(900);
+        });
+      }
+    },
+
+    // «Color according to the number»: كب كيك، كل حتة عليها رقم ولكل رقم لون
+    picture(body, s) {
+      body.appendChild(prompt(WB_SAY.picture));
+      const hint = hintLine();
+      const legend = el("div", "wbk-legend");
+      legend.dir = "ltr";
+      s.key.forEach((x) => {
+        const chip = el("span", "wbk-key");
+        chip.innerHTML = `<b>${x.value}</b><i style="background:${col(x.color).hex}"></i>`;
+        chip.title = col(x.color).ar;
+        legend.appendChild(chip);
+      });
+      let crayon = null;
+      const pal = palette(s.key.map((x) => x.color), (k) => { crayon = k; });
+      const wrap = el("div", "wbk-cake");
+      wrap.innerHTML = cupcakeSvg(s.regions);
+      let left = s.regions.length;
+      wrap.querySelectorAll(".wbk-reg").forEach((reg) => {
+        const v = +reg.dataset.v;
+        const want = s.key.find((x) => x.value === v).color;
+        reg.addEventListener("click", () => {
+          if (reg.dataset.on) return;
+          if (!crayon) { Sfx.wrong(); flash(pal, "wbk-wiggle"); return hint.show(WB_SAY.pickFirst); }
+          if (crayon !== want) { Sfx.wrong(); flash(reg, "wrong"); return hint.show(WB_SAY.paintWrong); }
+          reg.dataset.on = "1";
+          reg.style.fill = col(want).hex;
+          Sfx.pop();
+          if (--left === 0) stepDone(1200);
+        });
+      });
+      body.append(legend, pal, wrap, hint);
+    },
   };
 
   /** علبة ألوان (أقلام) — اختيار واحد. */
@@ -506,7 +640,8 @@ s.options.forEach((v) => {
   }
 
   setTimeout(() => {
-    if (startN && WB_NUMBERS.includes(+startN)) openPage(+startN);
+    const pg = startN != null && WB_PAGES.find((x) => x.id === String(startN));
+    if (pg) openPage(pg);
     else showChooser();
   }, 0);
   return screen;
@@ -526,4 +661,25 @@ function drawLine(area, svg, a, b) {
   line.setAttribute("y2", String(right.top + right.height / 2 - r.top));
   svg.setAttribute("viewBox", `0 0 ${r.width} ${r.height}`);
   svg.appendChild(line);
+}
+
+/** كب كيك «لوّن حسب الرقم»: كريزة · ٣ طبقات كريمة · ٥ خطوط ورقة (WB_PICTURE_REGIONS = ٩). */
+function cupcakeSvg(values) {
+  const top = [44, 66.4, 88.8, 111.2, 133.6, 156];
+  const bot = [62, 77.2, 92.4, 107.6, 122.8, 138];
+  const shapes = [
+    { d: "M86 24a14 14 0 1 0 28 0a14 14 0 1 0 -28 0", at: [100, 29] },
+    { d: "M66 66 C62 40 138 40 134 66 Z", at: [100, 60] },
+    { d: "M50 92 C40 74 58 64 66 66 L134 66 C142 64 160 74 150 92 Z", at: [100, 84] },
+    { d: "M40 118 C28 100 44 90 50 92 L150 92 C156 90 172 100 160 118 Z", at: [100, 110] },
+    ...top.slice(0, 5).map((x, i) => ({
+      d: `M${x} 118 L${top[i + 1]} 118 L${bot[i + 1]} 205 L${bot[i]} 205 Z`,
+      at: [(x + top[i + 1] + bot[i] + bot[i + 1]) / 4, 166],
+    })),
+  ];
+  const regs = shapes.map((sh, i) =>
+    `<path class="wbk-reg" data-v="${values[i]}" d="${sh.d}"/>`
+    + `<text x="${sh.at[0]}" y="${sh.at[1]}">${values[i]}</text>`).join("");
+  return `<svg viewBox="0 0 200 212" role="img" aria-label="كب كيك للتلوين بالأرقام">`
+    + `<path class="wbk-stem" d="M100 11 C102 5 108 2 114 1"/>${regs}</svg>`;
 }
