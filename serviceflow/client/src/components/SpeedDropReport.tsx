@@ -8,8 +8,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileSpreadsheet, Loader2, Printer, TrendingDown } from "lucide-react";
+import { FileSpreadsheet, Gauge, History, Loader2, Printer, Radar, TrendingDown } from "lucide-react";
 import { printTablePDF } from "@/lib/print-pdf";
+import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
+import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
+import { openProfileOptimization } from "@/lib/profile-optimization";
+import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
+
+const DZS_URL = "https://10.42.187.101:8080/expresse/";
+const buildDZSUrl = (accounts: string[]) => `${DZS_URL}#sf_accounts=${encodeURIComponent(accounts.join(","))}`;
 
 interface DropRow {
   phone: string; complainNo: string | null; complainTime: string | null; central: string | null; cabinet: string | null;
@@ -31,6 +38,10 @@ export function SpeedDropReport() {
   const [from, setFrom] = useState(() => today().slice(0, 8) + "01");
   const [to, setTo] = useState(today);
   const [minDrop, setMinDrop] = useState("10");
+  // أزرار القياس ورفع السرعة والإيقاف (المالك ٢٠٢٦-١٠-١٢) — نفس باقى تقارير القياسات
+  const showSpeedTools = useSpeedToolsVisible();
+  const isSuper = useIsSuperAdmin();
+  useSpeedToolSource("انخفاض السرعة بعد الانتظام");
   const q = useQuery<{ data: DropRow[] }>({
     queryKey: ["/api/reports/regularized-speed-drop", from, to, minDrop],
     queryFn: async () => {
@@ -46,6 +57,31 @@ export function SpeedDropReport() {
     i + 1, r.phone, r.central ?? "", r.cabinet ?? "", r.techName ?? "", r.accountNo ?? "", r.complainNo ?? "", day(r.complainTime),
     dt(r.firstAt), kb(r.firstKbps), dt(r.lastAt), kb(r.lastKbps), `${r.dropPct}%`, r.lastScore ?? "",
   ];
+  const accountsOf = () => {
+    const seen = new Set<string>();
+    return rows.map((r) => String(r.accountNo ?? "").trim()).filter((a) => a && !seen.has(a) && seen.add(a));
+  };
+  const handleMeasure = async (noReal = false) => {
+    const accounts = accountsOf();
+    if (!accounts.length) { alert("لا توجد أرقام أكونت فى الخطوط المعروضة"); return; }
+    const w = window.open("about:blank", "dzs_measure");
+    if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal })) { try { w?.close(); } catch {} return; }
+    if (w) w.location.href = noRealUrl(buildDZSUrl(accounts), noReal);
+  };
+  const handleRaisePO = async (kind: "raise" | "stop") => {
+    const accounts = accountsOf();
+    if (!accounts.length) { alert("لا توجد أرقام أكونت فى الخطوط المعروضة"); return; }
+    if (await dispatchSpeedTool(kind === "stop" ? "stop" : "raise", accounts, isSuper)) return;
+    const afterStop = kind === "raise"
+      ? window.confirm("رفع السرعة والإيقاف؟\n\nموافق = رفع السرعة لكل الأرقام ثم إيقاف الـ Nightly الناتج لكلهم\nإلغاء = رفع السرعة فقط")
+      : false;
+    openProfileOptimization(accounts, kind === "stop" ? { stopOnly: true } : { afterStop });
+  };
+  const measureOne = async (acc: string) => {
+    if (await dispatchSpeedTool("measure", [acc], isSuper)) return;
+    window.open(buildDZSUrl([acc]), "dzs_measure");
+  };
+
   const title = `انخفاض السرعة بعد الانتظام (أكتر من ${minDrop || 10}%) — ${from} إلى ${to}`;
   const excel = () => {
     const ws = XLSX.utils.aoa_to_sheet([COLS, ...rows.map(cells)]);
@@ -64,7 +100,24 @@ export function SpeedDropReport() {
             خطوط الأعطال المنتظمة فى الفترة اللى سرعتها الحالية (آخر قياس بدون Real) أقل من أول قياس بدون Real بعد تاريخ الشكوى.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {showSpeedTools && (<>
+            <Button variant="outline" size="sm" onClick={() => handleMeasure()} disabled={!rows.length} className="text-blue-700 border-blue-200 gap-1" data-testid="button-speed-drop-measure">
+              <Radar className="w-4 h-4" /> قياس DZS
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleMeasure(true)} disabled={!rows.length} className="text-amber-700 border-amber-300 gap-1"
+              title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView + Estimated Loop Length">
+              <History className="w-4 h-4" /> قياس بدون Real
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleRaisePO("raise")} disabled={!rows.length} className="text-emerald-700 border-emerald-200 gap-1"
+              title="رفع السرعة (Profile Optimization) للخطوط المعروضة">
+              <Gauge className="w-4 h-4" /> رفع سرعة
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleRaisePO("stop")} disabled={!rows.length} className="text-orange-700 border-orange-200 gap-1"
+              title="إيقاف الـ Nightly PO فقط للخطوط المعروضة">
+              <Gauge className="w-4 h-4" /> إيقاف PO
+            </Button>
+          </>)}
           <Button variant="outline" size="sm" onClick={excel} disabled={!rows.length} className="gap-1 text-green-700 border-green-200"><FileSpreadsheet className="w-4 h-4" /> Excel</Button>
           <Button variant="outline" size="sm" onClick={pdf} disabled={!rows.length} className="gap-1 text-red-700 border-red-200" data-testid="button-speed-drop-pdf"><Printer className="w-4 h-4" /> PDF</Button>
         </div>
@@ -94,7 +147,17 @@ export function SpeedDropReport() {
               <TableRow key={r.phone}>
                 {cells(r, i).map((c, j) => (
                   <TableCell key={j} dir={j === 1 || j === 5 ? "ltr" : undefined}
-                    className={`whitespace-nowrap tabular-nums ${j === 12 ? (r.dropPct >= 30 ? "font-bold text-red-700 bg-red-50" : "font-bold text-orange-700") : ""}`}>{c}</TableCell>
+                    className={`whitespace-nowrap tabular-nums ${j === 12 ? (r.dropPct >= 30 ? "font-bold text-red-700 bg-red-50" : "font-bold text-orange-700") : ""}`}>
+                    {j === 5 && r.accountNo && showSpeedTools ? (
+                      <span className="inline-flex items-center gap-1">
+                        {c}
+                        <button type="button" onClick={() => measureOne(String(r.accountNo).trim())}
+                          title="قياس هذا الرقم" aria-label={`قياس ${r.accountNo}`} className="text-blue-600 hover:text-blue-800">
+                          <Radar className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ) : c}
+                  </TableCell>
                 ))}
               </TableRow>
             ))}

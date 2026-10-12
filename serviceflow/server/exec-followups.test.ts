@@ -58,3 +58,12 @@ test("speed-drop report: regularized this month, no-Real first-after-complaint v
   assert.match(ui, /printTablePDF/);
   assert.match(dash, /\{ id: "speed-drop", +label: "انخفاض السرعة بعد الانتظام" \}/);
 });
+
+test("speed-drop report has the measure / no-Real / raise / stop buttons", () => {
+  const ui = readFileSync(new URL("../client/src/components/SpeedDropReport.tsx", import.meta.url), "utf8");
+  assert.match(ui, /useSpeedToolSource\("انخفاض السرعة بعد الانتظام"\)/);
+  assert.match(ui, /dispatchSpeedTool\("measure", accounts, isSuper, \{ noReal \}\)/);
+  assert.match(ui, /dispatchSpeedTool\(kind === "stop" \? "stop" : "raise", accounts, isSuper\)/);
+  assert.match(ui, /handleMeasure\(true\)[\s\S]{0,300}قياس بدون Real/);
+  assert.match(ui, /handleRaisePO\("stop"\)[\s\S]{0,200}إيقاف PO/);
+});
