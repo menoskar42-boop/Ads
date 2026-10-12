@@ -22,3 +22,13 @@ test("admin/external (not super admin) get the tech report list + ticket reopen 
 test("the tech-only label (current month) stays for technicians only", () => {
   assert.match(dash, /item\.id === "regularized-faults-range" && user\?\.role === ROLES\.TECH/);
 });
+
+// المالك ٢٠٢٦-١٠-١٢: رد الفنى يظهر فى «متعذرات بداية السنة» و«تم فكها» زى الحالية (عرض بس)
+test("OM soy/resolved show the tech reply like the current report (read only)", () => {
+  const om = readFileSync(new URL("../client/src/components/OmRejectionsReport.tsx", import.meta.url), "utf8");
+  assert.match(om, /const showResp = bucket === "current" \|\| bucket === "soy" \|\| bucket === "resolved";/);
+  assert.match(om, /\.\.\.\(showResp\s*\n\s*\? \(\[\s*\n\s*\["رد الفنى"/);
+  // الإجراءات لسه على الحالية بس
+  assert.match(om, /const canRespond = bucket === "current" &&/);
+  assert.match(om, /\.\.\.\(bucket === "current" && \(canRespond \|\| canResetResp \|\| isSuperAdmin \|\| isExternal\)/);
+});

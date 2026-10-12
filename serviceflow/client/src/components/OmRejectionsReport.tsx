@@ -149,7 +149,12 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
     } finally { setRespBusy(null); }
   };
 
+  // المالك ٢٠٢٦-١٠-١٢: رد الفنى بيظهر كمان فى «متعذرات بداية السنة» و«متعذرات تم فكها» زى
+  // الحالية — للعرض بس (الرد والإجراءات لسه على الحالية بس)، واللى مالوش رد بيبان «-».
+  const showResp = bucket === "current" || bucket === "soy" || bucket === "resolved";
+  const hasResp = (r: Row) => !!r.respRespondedAt || !!r.respExternalResponseAt || (r.respStatus || "pending") !== "pending";
   const renderRespStatusCell = (r: Row) => {
+    if (bucket !== "current" && !hasResp(r)) return "-";
     const st = r.respStatus || "pending";
     const detail =
       st === "not_feasible" ? r.respRejectionReason
@@ -494,9 +499,9 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
     ["الموبايل", (r) => r.customerMobile],
     // رد الفنى وسبب التعذر — للمتعذرات الحالية، وبيظهروا **لكل** من يفتح التقرير
     // (ومنهم أدمن المبيعات) لأنهم معلومة، مش إجراء.
-    ...(bucket === "current"
+    ...(showResp
       ? ([
-          ["رد الفنى", (r: Row) => RESP_LABEL[r.respStatus || "pending"] ?? "-"],
+          ["رد الفنى", (r: Row) => (bucket !== "current" && !hasResp(r) ? "-" : RESP_LABEL[r.respStatus || "pending"] ?? "-")],
           ["سبب التعذر (الفنى)", (r: Row) => r.respRejectionReason ?? r.respExternalRejectionReason ?? "-"],
           // موقع المتعذر زى ما الفنى كتبه فى ردّه — دى البيانات اللى بتربطه بالبكس
           // فى برنامج الكوابل، فلازم تبان فى التقرير والتصدير والـ PDF.
