@@ -40,48 +40,99 @@ export function workerAt(row: CtRow, history: HistRow[], d: string): string | nu
   return later.length ? later[0].oldWorker : row.worker;
 }
 
+/** «حسن … , محمد …» ⇒ كل فنى لوحده (الاسم المجمّع جاى من كود MSAN مشترك أو كود عامل بأكتر من اسم). */
+export const splitNames = (raw: string | null | undefined): string[] =>
+  [...new Set(String(raw ?? "").split(/\s*[,،]\s*/).map((n) => n.trim()).filter(Boolean))];
+
+export interface TechAdsl {
+  techName: string;
+  /** الشغال دلوقتى (التوزيع الأخير فى الفترة) — مش متقسّم على الأيام */
+  workingAdsl: number;
+  /** أعطال الفترة اللى اتحسبت عليه (كل عطل على الفنى اللى كان ماسك الكابينة يومها) */
+  faultCount: number;
+  /** أعطال فى الألف للفترة = مجموع (أعطال الجزء × ١٠٠٠ ÷ شغال الجزء) لكل جزء من الفترة */
+  per1000: number;
+  segments: { from: string; to: string; days: number; working: number; faults: number }[];
+}
+
 /**
- * صف لكل كود MSAN (زى قبل كده بالظبط) — ولو اتنقلت كابينة جوّه الفترة، صف لكل جزء من
- * الفترة باسم الفنى بتاعه: أعطال الجزء ده بس، و«الشغال» بنسبة أيامه من الفترة (فالمعدّل
- * اللى الواجهة بتحسبه — أعطال ÷ أيام الفترة × أيام الشهر × ١٠٠٠ ÷ الشغال — يطلع معدّل
- * الفنى فى أيامه هو).
+ * المالك ٢٠٢٦-١٠-١٢ («عدد الأعطال فى الألف محتاج تظبيط»):
+ *   • لكل كابينة: صف واحد بالفنى **الحالى** والشغال **كامل** وأعطال الفترة — معدّل الكابينة
+ *     مالوش دعوة بمين ماسكها (قبل كده كانت بتتقسم صفين بشغال متقسّم على الأيام: دير الجنادله
+ *     1-2 طلعت 68 شغال).
+ *   • لكل فنى: كل جزء من الفترة بحسابه — من أولها لحد آخر يوم قبل النقل على **الشغال القديم
+ *     والأعطال القديمة**، ومن يوم النقل على **الشغال الجديد والأعطال الجديدة** — والمعدّل =
+ *     مجموع الأجزاء (يعنى المعدّل الشهرى = متوسط معدّلات الأجزاء موزون بعدد أيامها). «الشغال»
+ *     اللى بيظهر = شغاله دلوقتى. كود MSAN عليه أكتر من فنى بيتقسم بينهم بالتساوى (مفيش صف مجمّع).
  */
-export function buildAdslRows(args: {
+export function buildAdslReport(args: {
   ct: CtRow[]; history: HistRow[]; names: Map<string, string>;
   working: Map<string, number>; daily: Map<string, Map<string, number>>; from: string; to: string;
-}): AdslRow[] {
+}): { rows: AdslRow[]; techs: TechAdsl[] } {
   const { ct, history, names, working, daily, from, to } = args;
   const f = dayNum(from), t = dayNum(to);
-  const periodDays = Math.max(1, t - f + 1);
   const byCode = new Map<string, CtRow[]>();
   for (const r of ct) { const l = byCode.get(r.code) || []; l.push(r); byCode.set(r.code, l); }
-  const out: AdslRow[] = [];
-  for (const [code, rows] of byCode) {
-    const keys = new Set(rows.map((r) => keyOf(r.central, r.cabin)));
-    // نقط القطع: أيام نقل جوّه الفترة لكباين الـMSAN ده
-    const cuts = [...new Set(history.filter((h) => keys.has(keyOf(h.central, h.cabin)) && dayNum(h.date) > f && dayNum(h.date) <= t)
-      .map((h) => dayNum(h.date)))].sort((a, b) => a - b);
-    const bounds = [f, ...cuts, t + 1];
-    const centralName = rows.map((r) => r.central).sort()[0];
-    const cabinNumber = [...new Set(rows.map((r) => r.cabin))].sort().join(" , ");
-    const totalWorking = working.get(code) || 0;
-    const days = daily.get(code) || new Map<string, number>();
-    for (let i = 0; i < bounds.length - 1; i++) {
+  const keysAll = new Set(ct.map((r) => keyOf(r.central, r.cabin)));
+  const cuts = [...new Set(history.filter((h) => keysAll.has(keyOf(h.central, h.cabin)) && dayNum(h.date) > f && dayNum(h.date) <= t)
+    .map((h) => dayNum(h.date)))].sort((a, b) => a - b);
+  const bounds = [f, ...cuts, t + 1];
+  const faultsIn = (code: string, s: number, e: number) => {
+    let n = 0;
+    for (const [d, c] of daily.get(code) || []) { const x = dayNum(d); if (x >= s && x <= e) n += c; }
+    return n;
+  };
+  // الفنيين اللى كانوا ماسكين كباين الـMSAN ده يوم d (كل اسم لوحده)
+  const holders = (rows: CtRow[], d: string) => [...new Set(rows.flatMap((r) => {
+    const w = workerAt(r, history, d);
+    return splitNames((w && names.get(w)) || "");
+  }))].sort();
+
+  const rows: AdslRow[] = [];
+  const acc = new Map<string, { segs: { working: number; faults: number }[] }>();
+  const segCount = bounds.length - 1;
+  for (const [code, list] of byCode) {
+    const total = working.get(code) || 0;
+    const current = [...new Set(list.flatMap((r) => splitNames((r.worker && names.get(r.worker)) || "")))].sort();
+    rows.push({
+      centralName: list.map((r) => r.central).sort()[0],
+      cabinNumber: [...new Set(list.map((r) => r.cabin))].sort().join(" , "),
+      msanCode: code,
+      techName: current.length ? current.join(" , ") : "غير معروف",
+      workingAdsl: total,
+      faultCount: faultsIn(code, f, t),
+    });
+    for (let i = 0; i < segCount; i++) {
       const s = bounds[i], e = bounds[i + 1] - 1;
-      const techs = [...new Set(rows.map((r) => workerAt(r, history, dayStr(s))).map((w) => (w && names.get(w)) || null).filter(Boolean) as string[])].sort();
-      let faults = 0;
-      for (const [d, c] of days) { const n = dayNum(d); if (n >= s && n <= e) faults += c; }
-      const segDays = e - s + 1;
-      out.push({
-        centralName, cabinNumber, msanCode: code,
-        techName: techs.length ? techs.join(" , ") : "غير معروف",
-        // جزء واحد (مفيش نقل فى الفترة) ⇒ نفس الرقم بالظبط زى قبل كده
-        workingAdsl: bounds.length === 2 ? totalWorking : Math.round(totalWorking * segDays / periodDays),
-        faultCount: faults,
-      });
+      const hs = holders(list, dayStr(s));
+      const who = hs.length ? hs : ["غير معروف"];
+      const fl = faultsIn(code, s, e);
+      for (const h of who) {
+        const a = acc.get(h) ?? { segs: Array.from({ length: segCount }, () => ({ working: 0, faults: 0 })) };
+        a.segs[i].working += total / who.length;
+        a.segs[i].faults += fl / who.length;
+        acc.set(h, a);
+      }
     }
   }
-  return out.sort((a, b) => a.centralName.localeCompare(b.centralName, "ar") || a.cabinNumber.localeCompare(b.cabinNumber, "ar", { numeric: true }));
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const techs: TechAdsl[] = [...acc.entries()].map(([techName, a]) => {
+    const segments = a.segs.map((g, i) => ({
+      from: dayStr(bounds[i]), to: dayStr(bounds[i + 1] - 1), days: bounds[i + 1] - bounds[i],
+      working: Math.round(g.working), faults: r2(g.faults),
+    }));
+    const per1000 = a.segs.reduce((sum, g) => sum + (g.working > 0 ? (g.faults * 1000) / g.working : 0), 0);
+    return {
+      techName,
+      workingAdsl: Math.round(a.segs[segCount - 1].working),
+      faultCount: r2(a.segs.reduce((sum, g) => sum + g.faults, 0)),
+      per1000: r2(per1000),
+      segments,
+    };
+  });
+  rows.sort((a, b) => a.centralName.localeCompare(b.centralName, "ar") || a.cabinNumber.localeCompare(b.cabinNumber, "ar", { numeric: true }));
+  techs.sort((a, b) => a.techName.localeCompare(b.techName, "ar"));
+  return { rows, techs };
 }
 
 /* ───────────── تطبيق النقل المجدول ───────────── */
@@ -182,13 +233,13 @@ export function registerCabinetReassign(app: Express, deps: { pool: Pool; requir
 }
 
 /** لـ /api/reports/cabinet-adsl-faults: يجيب البيانات ويبنى الصفوف بالتوزيع اللى كان ساعتها. */
-export async function cabinetAdslFaultsByHistory(pool: Pool, opts: { where: string; params: any[]; from: string; to: string; today?: string }): Promise<AdslRow[]> {
+export async function cabinetAdslFaultsByHistory(pool: Pool, opts: { where: string; params: any[]; from: string; to: string; today?: string }): Promise<{ rows: AdslRow[]; techs: TechAdsl[] }> {
   const ct = (await pool.query(
     `SELECT DISTINCT ct.central_name, ct.cabin_number, ct.cabin_code, ct.worker_code
        FROM cabinet_technicians ct LEFT JOIN technician_names tn ON tn.worker_code = ct.worker_code
      ${opts.where}`, opts.params)).rows
     .map((r: any) => ({ central: r.central_name, cabin: r.cabin_number, code: r.cabin_code, worker: r.worker_code })) as CtRow[];
-  if (!ct.length) return [];
+  if (!ct.length) return { rows: [], techs: [] };
   const codes = [...new Set(ct.map((r) => r.code))];
   const names = new Map<string, string>(
     // زى التقرير القديم: كل أسماء الكود (string_agg DISTINCT)
@@ -219,7 +270,7 @@ export async function cabinetAdslFaultsByHistory(pool: Pool, opts: { where: stri
     daily.set(r.msan_id, m);
   }
   const span = adslSpan(opts.from, opts.to, [...daily.values()].flatMap((m) => [...m.keys()]), opts.today);
-  return buildAdslRows({ ct, history, names, working, daily, from: span.from, to: span.to });
+  return buildAdslReport({ ct, history, names, working, daily, from: span.from, to: span.to });
 }
 
 /**

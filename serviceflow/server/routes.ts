@@ -14724,8 +14724,9 @@ export async function registerRoutes(
       }
       // كباين النحاس اللى بتشترك فى نفس كود الـ MSAN (زى 6-2 و6-3) صف واحد — الشغال
       // والأعطال محسوبين لكل MSAN مرة واحدة.
-      const rows = await cabinetAdslFaultsByHistory(pool, { where: "WHERE " + conds.join(" AND "), params, from, to });
-      res.json(rows);
+      // { rows: صف لكل كابينة بالفنى الحالى, techs: لكل فنى بحساب كل جزء من الفترة } — server/cabinet-reassign.ts
+      const report = await cabinetAdslFaultsByHistory(pool, { where: "WHERE " + conds.join(" AND "), params, from, to });
+      res.json(report);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

@@ -221,7 +221,7 @@ export function TechPerformanceReport() {
     queryFn: () => fetchJson(`/api/reports/repetition-combined?${buildParams()}`),
     refetchOnMount: "always",
   });
-  const { data: cabinetData, isFetching: f3 } = useQuery<any[]>({
+  const { data: adslReport, isFetching: f3 } = useQuery<{ rows: any[]; techs: { techName: string; workingAdsl: number; faultCount: number; per1000: number }[] }>({
     queryKey: ["/api/reports/cabinet-adsl-faults", dateFrom, dateTo, central],
     queryFn: () => fetchJson(`/api/reports/cabinet-adsl-faults?${buildParams()}`),
     refetchOnMount: "always",
@@ -236,6 +236,7 @@ export function TechPerformanceReport() {
   });
 
   const isFetching = f1 || f2 || f3 || f4;
+  const cabinetData = adslReport?.rows;
 
   const rows = useMemo<TechRow[]>(() => {
     if (!removalData && !repData && !cabinetData && !omData) return [];
@@ -269,15 +270,15 @@ export function TechPerformanceReport() {
       repMap.set(name, s.distinctPhones > 0 ? pct1(s.repCharges, s.distinctPhones) : null);
     }
 
-    // --- بيانات الأعطال فى الألف (cabinet → aggregate by techName) ---
-    const adslMap = new Map<string, { working: number; faults: number }>();
-    for (const r of cabinetData ?? []) {
-      const names = splitTechNames(r.techName);
-      const share = names.length || 1;
-      for (const name of names) {
-        const cur = adslMap.get(name) ?? { working: 0, faults: 0 };
-        cur.working += Math.round((Number(r.workingAdsl) || 0) / share);
-        cur.faults  += Math.round((Number(r.faultCount)  || 0) / share);
+    // --- بيانات الأعطال فى الألف: لكل فنى جاهزة من السيرفر (المالك ٢٠٢٦-١٠-١٢) — كل جزء من
+    // الفترة بحسابه (قبل نقل الكباين على القديم، وبعده على الجديد)، والكود المشترك متقسّم ---
+    const adslMap = new Map<string, { working: number; faults: number; per1000: number }>();
+    for (const t of adslReport?.techs ?? []) {
+      for (const name of splitTechNames(t.techName)) {
+        const cur = adslMap.get(name) ?? { working: 0, faults: 0, per1000: 0 };
+        cur.working += Number(t.workingAdsl) || 0;
+        cur.faults += Number(t.faultCount) || 0;
+        cur.per1000 += Number(t.per1000) || 0;
         adslMap.set(name, cur);
       }
     }
@@ -298,8 +299,8 @@ export function TechPerformanceReport() {
     const per1000Map = new Map<string, number | null>();
     for (const name of allTechs) {
       const d = adslMap.get(name);
-      if (d && d.working > 0 && periodDays > 0) {
-        per1000Map.set(name, Math.round(d.faults / periodDays * monthDays * 1000 / d.working * 100) / 100);
+      if (d && (d.working > 0 || d.per1000 > 0) && periodDays > 0) {
+        per1000Map.set(name, Math.round(d.per1000 / periodDays * monthDays * 100) / 100);
       } else {
         per1000Map.set(name, null);
       }
@@ -321,14 +322,14 @@ export function TechPerformanceReport() {
         omPct, omScore: s_om,
         repRatio, repScore: s_rep,
         per1000: p1000, adslScore: s_asl,
-        adslFaults: adslMap.get(name)?.faults ?? 0,
+        adslFaults: Math.round((adslMap.get(name)?.faults ?? 0) * 10) / 10,
         pct24h, remScore: s_rem,
         total: Math.round((s_om + s_rep + s_asl + s_rem) * 10) / 10,
       });
     }
 
     return result.sort((a, b) => b.total - a.total);
-  }, [removalData, repData, cabinetData, omData, periodDays, monthDays]);
+  }, [removalData, repData, adslReport, omData, periodDays, monthDays]);
 
   // صف إجمالى الإدارة
   const overall = useMemo(() => {
@@ -354,7 +355,7 @@ export function TechPerformanceReport() {
       pct24h, remScore: remScore(pct24h),
       total: Math.round((omScore(omPct) + repScore(repRatio) + adslScore(overallP1000) + remScore(pct24h)) * 10) / 10,
     };
-  }, [removalData, repData, cabinetData, omData, periodDays, monthDays]);
+  }, [removalData, repData, adslReport, omData, periodDays, monthDays]);
 
   const handleExportExcel = () => {
     const data = rows.map((r, i) => ({

@@ -8,9 +8,10 @@ import test from "node:test";
 const src = readFileSync(new URL("../client/src/components/TechPerformanceReport.tsx", import.meta.url), "utf8");
 
 test("العدد هو نفس أعطال معادلة الأعطال فى الألف", () => {
-  // الفنى: نصيبه من adslMap — نفس اللى per1000Map بتقسم عليه
-  assert.match(src, /adslFaults: adslMap\.get\(name\)\?\.faults \?\? 0,/);
-  assert.match(src, /per1000Map\.set\(name, Math\.round\(d\.faults \/ periodDays/);
+  // الفنى: أعطاله من adslMap — نفس المصدر اللى منه معدّله (المالك ٢٠٢٦-١٠-١٢: المعدّل جاهز من
+  // السيرفر جزء جزء لو اتنقلت كباين، فبيتحوّل لمتوقع نهاية الشهر بس)
+  assert.match(src, /adslFaults: Math\.round\(\(adslMap\.get\(name\)\?\.faults \?\? 0\) \* 10\) \/ 10,/);
+  assert.match(src, /per1000Map\.set\(name, Math\.round\(d\.per1000 \/ periodDays \* monthDays \* 100\) \/ 100\)/);
   // الإجمالى: نفس adslFaults اللى overallP1000 بتقسم عليه
   assert.match(src, /const adslFaults {2}= \(cabinetData \?\? \[\]\)\.reduce/);
   assert.match(src, /Math\.round\(adslFaults \/ periodDays \* monthDays \* 1000 \/ adslWorking/);

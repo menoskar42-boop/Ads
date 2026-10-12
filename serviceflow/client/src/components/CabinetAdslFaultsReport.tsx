@@ -21,6 +21,16 @@ interface CabinetRow {
   faultCount: number;
 }
 
+// لكل فنى من السيرفر (server/cabinet-reassign.ts buildAdslReport): الشغال الحالى، والأعطال اللى
+// اتحسبت عليه، والأعطال فى الألف محسوبة جزء جزء لو اتنقلت كباين جوّه الفترة.
+interface TechAdslRow {
+  techName: string;
+  workingAdsl: number;
+  faultCount: number;
+  per1000: number;
+  segments: { from: string; to: string; days: number; working: number; faults: number }[];
+}
+
 interface BoxRow {
   centralName: string;
   cabinNumber: string;
@@ -54,7 +64,7 @@ export function CabinetAdslFaultsReport() {
     return p;
   };
 
-  const { data: cabinetData = [], isFetching: fetchingCabinet } = useQuery<CabinetRow[]>({
+  const { data: adslReport, isFetching: fetchingCabinet } = useQuery<{ rows: CabinetRow[]; techs: TechAdslRow[] }>({
     queryKey: ["/api/reports/cabinet-adsl-faults", dateFrom, dateTo, central, q],
     queryFn: async () => {
       const res = await fetch(`/api/reports/cabinet-adsl-faults?${buildParams()}`, { credentials: "include" });
@@ -72,6 +82,7 @@ export function CabinetAdslFaultsReport() {
     },
   });
 
+  const cabinetData = adslReport?.rows ?? [];
   const isFetching = fetchingCabinet || fetchingBox;
 
   // حساب أيام الفترة والشهر
@@ -90,6 +101,11 @@ export function CabinetAdslFaultsReport() {
 
   const per1000   = (f: number, w: number) => (Number(w) > 0 ? Math.round(Number(f) * 1000 / Number(w) * 100) / 100 : 0);
   const projected = (f: number, w: number) => (Number(w) > 0 ? Math.round(Number(f) / periodDays * monthDays * 1000 / Number(w) * 100) / 100 : 0);
+  // صف الفنى: المعدّل جاى جاهز من السيرفر (جزء جزء) — مش أعطال ÷ الشغال الحالى
+  const rowPer1000 = (r: any, w: number) => (r.per1000 != null ? Math.round(Number(r.per1000) * 100) / 100 : per1000(r.faultCount, w));
+  const rowProjected = (r: any, w: number) => (r.per1000 != null
+    ? Math.round(Number(r.per1000) / periodDays * monthDays * 100) / 100 : projected(r.faultCount, w));
+  const fmtN = (n: number) => (Number.isInteger(Number(n)) ? n : Math.round(Number(n) * 10) / 10);
 
   const passMin = (f: number, w: number) => {
     if (minFaults    !== "" && !(Number(f) > Number(minFaults)))           return false;
@@ -103,20 +119,14 @@ export function CabinetAdslFaultsReport() {
     .sort((a, b) => per1000(b.faultCount, b.workingAdsl) - per1000(a.faultCount, a.workingAdsl));
 
   // تاب لكل فنى (تجميع من بيانات الكابينه)
-  const techRows = (() => {
-    const m = new Map<string, { techName: string; workingAdsl: number; faultCount: number }>();
-    for (const r of cabinetData) {
-      const key = r.techName || "غير معروف";
-      const cur = m.get(key) ?? { techName: key, workingAdsl: 0, faultCount: 0 };
-      cur.workingAdsl += Number(r.workingAdsl) || 0;
-      cur.faultCount  += Number(r.faultCount)  || 0;
-      m.set(key, cur);
-    }
-    return Array.from(m.values())
-      .filter((r) => passMin(r.faultCount, r.workingAdsl))
-      // ترتيب تصاعدى: الأقل أعطال/1000 = الأفضل = الأول (كل ما تزيد الأعطال يبقى أوحش)
-      .sort((a, b) => per1000(a.faultCount, a.workingAdsl) - per1000(b.faultCount, b.workingAdsl));
-  })();
+  // المالك ٢٠٢٦-١٠-١٢: صف لكل فنى (مفيش صف «حسن , محمد»)، الشغال = شغاله دلوقتى، والمعدّل من
+  // السيرفر: الفترة قبل النقل على الشغال والأعطال القديمة، وبعده على الجديدة، ومجموعهم.
+  const techRows = (adslReport?.techs ?? [])
+    .filter((r) => r.techName !== "غير معروف" || r.faultCount > 0)
+    .filter((r) => (minFaults === "" || r.faultCount > Number(minFaults))
+      && (minProjected === "" || rowProjected(r, r.workingAdsl) > Number(minProjected)))
+    // ترتيب تصاعدى: الأقل أعطال/1000 = الأفضل = الأول (كل ما تزيد الأعطال يبقى أوحش)
+    .sort((a, b) => a.per1000 - b.per1000);
 
   // تاب لكل بكس
   const boxRows = boxData
@@ -151,8 +161,8 @@ export function CabinetAdslFaultsReport() {
     } else if (isTech) {
       const data = techRows.map((r, i) => ({
         "#": i + 1, "اسم الفنى": r.techName, "الشغال ADSL": r.workingAdsl,
-        "عدد الأعطال": r.faultCount, "أعطال لكل 1000 مشترك": per1000(r.faultCount, r.workingAdsl),
-        "أعطال الألف المتوقع (نهاية الشهر)": projected(r.faultCount, r.workingAdsl),
+        "عدد الأعطال": fmtN(r.faultCount), "أعطال لكل 1000 مشترك": rowPer1000(r, r.workingAdsl),
+        "أعطال الألف المتوقع (نهاية الشهر)": rowProjected(r, r.workingAdsl),
       }));
       data.push({ "#": "" as any, "اسم الفنى": "إجمالى الإدارة", "الشغال ADSL": totWorking,
         "عدد الأعطال": totFaults, "أعطال لكل 1000 مشترك": totPer1000,
@@ -192,7 +202,7 @@ export function CabinetAdslFaultsReport() {
 
     const cells = (r: any, n: number) => {
       const w = getW(r);
-      const m = `<td>${esc(w)}</td><td>${esc(r.faultCount)}</td><td>${esc(per1000(r.faultCount, w))}</td><td>${esc(projected(r.faultCount, w))}</td>`;
+      const m = `<td>${esc(w)}</td><td>${esc(fmtN(r.faultCount))}</td><td>${esc(rowPer1000(r, w))}</td><td>${esc(rowProjected(r, w))}</td>`;
       if (isBox)   return `<td>${n}</td><td>${esc(r.centralName)}</td><td>${esc(r.cabinNumber)}</td><td>${esc(r.boxNumber)}</td><td>${esc(r.techName)}</td>${m}`;
       if (isTech)  return `<td>${n}</td><td>${esc(r.techName)}</td>${m}`;
       return `<td>${n}</td><td>${esc(r.centralName)}</td><td>${esc(r.cabinNumber)}</td><td>${esc(r.msanCode)}</td><td>${esc(r.techName)}</td>${m}`;
@@ -374,6 +384,12 @@ export function CabinetAdslFaultsReport() {
 
       {/* Table */}
       <Card className="overflow-hidden shadow-sm border-0 bg-white">
+        {isTech && (adslReport?.techs ?? []).some((t) => t.segments.length > 1) && (
+          <p className="px-3 pt-3 text-xs text-muted-foreground" data-testid="text-adsl-split-note">
+            فيه كباين اتنقلت بين الفنيين جوّه الفترة: كل فنى محسوب جزء جزء — قبل النقل على الشغال والأعطال
+            القديمة، ومن يوم النقل على الجديدة — والأعطال فى الألف = مجموع الأجزاء، و«الشغال» = شغاله دلوقتى.
+          </p>
+        )}
         <div className="overflow-x-auto">
           <Table className="text-right text-sm" dir="rtl">
             <TableHeader className="bg-muted/50">
@@ -416,9 +432,9 @@ export function CabinetAdslFaultsReport() {
                         {tab === "box"     && <TableCell className="font-semibold">{r.boxNumber}</TableCell>}
                         <TableCell className="whitespace-nowrap">{r.techName}</TableCell>
                         <TableCell className="text-center font-bold text-green-700">{w}</TableCell>
-                        <TableCell className="text-center font-bold text-red-700">{r.faultCount}</TableCell>
-                        <TableCell className="text-center font-bold text-blue-700">{per1000(r.faultCount, w)}</TableCell>
-                        <TableCell className="text-center font-bold text-purple-700">{projected(r.faultCount, w)}</TableCell>
+                        <TableCell className="text-center font-bold text-red-700">{fmtN(r.faultCount)}</TableCell>
+                        <TableCell className="text-center font-bold text-blue-700">{rowPer1000(r, w)}</TableCell>
+                        <TableCell className="text-center font-bold text-purple-700">{rowProjected(r, w)}</TableCell>
                       </TableRow>
                     );
                   })}

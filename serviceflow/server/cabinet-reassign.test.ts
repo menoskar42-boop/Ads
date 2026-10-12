@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { adslSpan, buildAdslRows, SEED_CHANGES, workerAt, type CtRow, type HistRow } from "./cabinet-reassign";
+import { adslSpan, buildAdslReport, SEED_CHANGES, workerAt, type CtRow, type HistRow } from "./cabinet-reassign";
 
 // المالك ٢٠٢٦-١٠-٠٧: اسلام ياخد دير الجنادله 1-2 من الأحد ١١ أكتوبر، وكباينه تتوزّع على حسن
 // ومحمد — و«الأعطال فى الألف» لحد السبت بالليل (والشهور اللى فاتت) على التوزيع القديم.
@@ -26,22 +26,66 @@ test("who held the cabinet on a given day: before Sunday = old tech, from Sunday
   assert.equal(workerAt(row, [], "2026-09-15"), "200", "مفيش سجل ⇒ الحالى زى الأول");
 });
 
-test("a month entirely before the move stays on the old split, same numbers as before", () => {
+test("a month entirely before the move: cabinet and tech on the old split, same numbers as before", () => {
   const ct: CtRow[] = [{ central: "الغنايم", cabin: "2-1", code: "M1", worker: "200" }];
   const h: HistRow[] = [{ central: "الغنايم", cabin: "2-1", oldWorker: "300", date: "2026-10-11" }];
-  const rows = buildAdslRows({ ct, history: h, names, working: new Map([["M1", 600]]),
+  const r = buildAdslReport({ ct, history: h, names, working: new Map([["M1", 600]]),
     daily: new Map([["M1", days([["2026-09-03", 2], ["2026-09-20", 1]])]]), from: "2026-09-01", to: "2026-09-30" });
-  assert.deepEqual(rows, [{ centralName: "الغنايم", cabinNumber: "2-1", msanCode: "M1", techName: "اسلام", workingAdsl: 600, faultCount: 3 }]);
+  // الكابينة بالفنى الحالى (محمد) — معدّلها مالوش دعوة بمين ماسكها
+  assert.deepEqual(r.rows, [{ centralName: "الغنايم", cabinNumber: "2-1", msanCode: "M1", techName: "محمد", workingAdsl: 600, faultCount: 3 }]);
+  // الفنى: سبتمبر كله كان مع اسلام
+  assert.deepEqual(r.techs.map((t) => [t.techName, t.workingAdsl, t.faultCount, t.per1000]), [["اسلام", 600, 3, 5]]);
 });
 
-test("a period spanning Sunday splits: faults till Saturday night on the old tech, from Sunday on the new", () => {
-  const ct: CtRow[] = [{ central: "الغنايم", cabin: "2-1", code: "M1", worker: "200" }];
-  const h: HistRow[] = [{ central: "الغنايم", cabin: "2-1", oldWorker: "300", date: "2026-10-11" }];
-  const rows = buildAdslRows({ ct, history: h, names, working: new Map([["M1", 600]]),
-    daily: new Map([["M1", days([["2026-10-02", 1], ["2026-10-10", 2], ["2026-10-11", 4], ["2026-10-19", 1]])]]),
-    from: "2026-10-01", to: "2026-10-20" });
-  assert.deepEqual(rows.map((r) => [r.techName, r.faultCount, r.workingAdsl]), [["اسلام", 3, 300], ["محمد", 5, 300]]);
-  assert.equal(rows.reduce((s, r) => s + r.workingAdsl, 0), 600, "إجمالى الشغال زى ما هو");
+// المالك ٢٠٢٦-١٠-١٢: «من ١-١٠ لـ ١٠-١٠ على الشغال القديم والأعطال القديمة، ومن ١١-١٠ على الشغال
+// الجديد والأعطال الجديدة، وتاخد متوسط» — والكابينة صف واحد بشغالها كامل (مش ٦٨).
+test("a period spanning the move: cabinet = one row, full working, current tech; tech = each part on its own", () => {
+  const ct: CtRow[] = [
+    { central: "الغنايم-دير الجنادله", cabin: "1-2", code: "DR2", worker: "300" },   // سامى ← اسلام
+    { central: "الغنايم", cabin: "7-1", code: "M71", worker: "200" },                 // اسلام ← محمد
+    { central: "الغنايم", cabin: "7-2", code: "M72", worker: "100" },                 // حسن طول الوقت
+  ];
+  const h: HistRow[] = [
+    { central: "الغنايم-دير الجنادله", cabin: "1-2", oldWorker: "400", date: "2026-10-11" },
+    { central: "الغنايم", cabin: "7-1", oldWorker: "300", date: "2026-10-11" },
+  ];
+  const r = buildAdslReport({
+    ct, history: h, names,
+    working: new Map([["DR2", 400], ["M71", 250], ["M72", 200]]),
+    daily: new Map([
+      ["DR2", days([["2026-10-03", 2], ["2026-10-11", 1]])],
+      ["M71", days([["2026-10-05", 1], ["2026-10-12", 2]])],
+    ]),
+    from: "2026-10-01", to: "2026-10-12" });
+  const cab = Object.fromEntries(r.rows.map((x) => [x.msanCode, [x.techName, x.workingAdsl, x.faultCount]]));
+  assert.deepEqual(cab, { DR2: ["اسلام", 400, 3], M71: ["محمد", 250, 3], M72: ["حسن", 200, 0] });
+  const t = Object.fromEntries(r.techs.map((x) => [x.techName, x]));
+  // اسلام: قبل النقل 7-1 (٢٥٠ شغال، عطل واحد) ← بعده دير 1-2 (٤٠٠ شغال، عطل واحد)
+  assert.equal(t["اسلام"].workingAdsl, 400, "الشغال = شغاله دلوقتى (دير 1-2) مش متقسّم على الأيام");
+  assert.equal(t["اسلام"].faultCount, 2);
+  assert.equal(t["اسلام"].per1000, Math.round((1 * 1000 / 250 + 1 * 1000 / 400) * 100) / 100);
+  assert.deepEqual(t["اسلام"].segments.map((g) => [g.from, g.to, g.days, g.working, g.faults]),
+    [["2026-10-01", "2026-10-10", 10, 250, 1], ["2026-10-11", "2026-10-12", 2, 400, 1]]);
+  // سامى: دير 1-2 لحد ١٠-١٠ بس — شغاله دلوقتى صفر، وأعطاله القديمة محسوبة عليه
+  assert.equal(t["سامى"].workingAdsl, 0);
+  assert.equal(t["سامى"].faultCount, 2);
+  assert.equal(t["سامى"].per1000, 5);
+  // محمد: 7-1 من ١١-١٠ بس
+  assert.deepEqual([t["محمد"].workingAdsl, t["محمد"].faultCount, t["محمد"].per1000], [250, 2, 8]);
+  // حسن ماتأثرش
+  assert.deepEqual([t["حسن"].workingAdsl, t["حسن"].faultCount, t["حسن"].per1000], [200, 0, 0]);
+});
+
+test("a shared MSAN code with two techs is split between them — no joint «حسن , محمد» row", () => {
+  const ct: CtRow[] = [
+    { central: "الغنايم", cabin: "6-5", code: "M6", worker: "100" },
+    { central: "الغنايم", cabin: "6-6", code: "M6", worker: "200" },
+  ];
+  const r = buildAdslReport({ ct, history: [], names, working: new Map([["M6", 20]]),
+    daily: new Map([["M6", days([["2026-10-05", 2]])]]), from: "2026-10-01", to: "2026-10-12" });
+  assert.deepEqual(r.rows.map((x) => [x.cabinNumber, x.techName, x.workingAdsl]), [["6-5 , 6-6", "حسن , محمد", 20]]);
+  assert.deepEqual(r.techs.map((x) => [x.techName, x.workingAdsl, x.faultCount]), [["حسن", 10, 1], ["محمد", 10, 1]]);
+  assert.ok(!r.techs.some((x) => x.techName.includes(",")));
 });
 
 test("no move inside the period ⇒ one row per MSAN exactly like the old report", () => {
@@ -49,23 +93,10 @@ test("no move inside the period ⇒ one row per MSAN exactly like the old report
     { central: "الغنايم", cabin: "6-2", code: "M6", worker: "100" },
     { central: "الغنايم", cabin: "6-3", code: "M6", worker: "100" },
   ];
-  const rows = buildAdslRows({ ct, history: [], names, working: new Map([["M6", 250]]),
+  const r = buildAdslReport({ ct, history: [], names, working: new Map([["M6", 250]]),
     daily: new Map([["M6", days([["2026-10-05", 2]])]]), from: "2026-10-01", to: "2026-10-31" });
-  assert.deepEqual(rows, [{ centralName: "الغنايم", cabinNumber: "6-2 , 6-3", msanCode: "M6", techName: "حسن", workingAdsl: 250, faultCount: 2 }]);
-});
-
-test("Azayza (whole central) moves to Hassan; Deir 1-2 moves from Sami to Islam", () => {
-  const ct: CtRow[] = [
-    { central: "الغنايم-العزايزة", cabin: "1-1", code: "AZ1", worker: "100" },
-    { central: "الغنايم-دير الجنادله", cabin: "1-2", code: "DR2", worker: "300" },
-  ];
-  const h: HistRow[] = [
-    { central: "الغنايم-العزايزة", cabin: "1-1", oldWorker: "300", date: "2026-10-11" },
-    { central: "الغنايم-دير الجنادله", cabin: "1-2", oldWorker: "400", date: "2026-10-11" },
-  ];
-  const rows = buildAdslRows({ ct, history: h, names, working: new Map([["AZ1", 100], ["DR2", 100]]),
-    daily: new Map(), from: "2026-10-01", to: "2026-10-20" });
-  assert.deepEqual(rows.map((r) => [r.msanCode, r.techName]), [["AZ1", "اسلام"], ["AZ1", "حسن"], ["DR2", "سامى"], ["DR2", "اسلام"]]);
+  assert.deepEqual(r.rows, [{ centralName: "الغنايم", cabinNumber: "6-2 , 6-3", msanCode: "M6", techName: "حسن", workingAdsl: 250, faultCount: 2 }]);
+  assert.deepEqual(r.techs.map((x) => [x.techName, x.workingAdsl, x.faultCount, x.per1000]), [["حسن", 250, 2, 8]]);
 });
 
 test("mid-month: days that haven't come yet don't dilute the new tech's share", () => {

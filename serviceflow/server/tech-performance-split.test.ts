@@ -24,7 +24,8 @@ test("all four sources split joint names and sum the counts (not the percentages
   assert.match(src, /sumBy\(removalData\?\.byTechOnly, \["total", "within24h"\]\)/);
   assert.match(src, /sumBy\(repData\?\.byTechOnly, \["repCharges", "distinctPhones"\]\)/);
   assert.match(src, /sumBy\(omData\?\.byTech, \["soyTotal", "resolved"\]\)/);
-  assert.match(src, /const names = splitTechNames\(r\.techName\);/, "faults per 1000");
+  // الأعطال فى الألف: لكل فنى جاهزة من السيرفر (buildAdslReport) وبتتفصل بالاسم برضه
+  assert.match(src, /for \(const t of adslReport\?\.techs \?\? \[\]\) \{\s*\n\s*for \(const name of splitTechNames\(t\.techName\)\)/, "faults per 1000");
   // مفيش مصدر بيحط الاسم المجمّع زى ما هو
   assert.doesNotMatch(src, /remMap\.set\(r\.techName|repMap\.set\(r\.techName|omMap\.set\(r\.techName/);
 });
