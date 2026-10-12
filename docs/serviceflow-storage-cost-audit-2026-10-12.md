@@ -11,6 +11,7 @@
 - R2 `GetObject` volume was **3,612 in September** and **249 from October 1–12**. The latter is about **0.0025%** of the documented 10-million monthly Class B included operations. `PutObject` was 1,831 in September and 180 in October 1–12.
 - Current usage is far below the published Standard-tier included amounts. The Cloudflare account’s billing-cycle usage and any account-specific terms still need to be checked in **Billable Usage**; the analytics date ranges here are calendar dates.
 - No application throttling or caching change is recommended from this snapshot. A new limiter could interrupt legitimate media playback while the measured request volume is negligible.
+- An API read of Cloudflare Billable Usage was rejected with an authentication error, while the R2 storage metrics endpoint remained available. The connected permission therefore does not establish the account’s active billing cycle or plan.
 
 ## PostgreSQL snapshot
 
@@ -56,6 +57,19 @@ Cloudflare’s current R2 pricing documentation lists **10 GB-month Standard sto
 2. Consider Cloudflare’s dollar-based Budget Alert in the dashboard. It warns on projected spend, not a hard request-count cap, and it does not stop requests.
 3. Take a second PostgreSQL size/statistics snapshot after a representative interval. Review the two start-of-day tables and disk headroom before considering concurrent index rebuilds.
 4. Keep the existing media response cache headers. Do not add a per-request database counter, memory-heavy whole-bucket cache, public-bucket setting, or broad rate limit without evidence of a request spike and a tested rollback.
+
+## Alert setup instructions
+
+The current Cloudflare connection can read R2 storage metrics and GraphQL operation analytics, but it cannot read Billable Usage or create dashboard alerts. There is no account-level Analytics credential or scheduled quota-monitor in the Service Flow runtime, so no recurring request-count email alert was silently installed.
+
+To set up the available Cloudflare cost alert:
+
+1. Open **Manage Account → Billing → Billable Usage** and check the current billing-cycle dates and R2 billable usage.
+2. On that page, select **Set Budget Alert**, enter a dollar threshold greater than $0 that matches the account’s budget, and select **Create**. Alternatively use **Notifications → Add → Budget Alert**.
+3. Cloudflare recalculates the projection daily and emails when projected monthly spend crosses the threshold, once per billing cycle. This is available to Pay-as-you-go accounts with usage-based products; Enterprise contract accounts are not supported.
+4. For request-count monitoring, open **R2 object storage → `serviceflow-maintenance` → Metrics** and choose the same date range as the billing cycle. Compare Class A and Class B operations with the applicable R2 allowance. The metrics page is read-only and does not block requests.
+
+An automatic request-count alert would need a separately authorized, read-only Analytics credential available to a scheduled job, plus a notification destination. Do not put that account credential into the app’s R2 S3 configuration; do not log every media request to PostgreSQL; and do not turn an alert into a request-blocking limit without testing.
 
 ## References
 
