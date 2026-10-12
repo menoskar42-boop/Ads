@@ -649,9 +649,10 @@ export function ExecutorButton() {
         closeWin();
         return stopped ? "stopped" : "timeout";
       }
-      // رفع السرعة المعلّم «+إيقاف» = رفع ثم إيقاف الـ nightly فى **نفس تشغيلة PO** (afterStop):
-      // مهمة واحدة بدل مهمتين، ومنستنى حدث الإيقاف (آخر خطوة) قبل ما نعتبرها خلصت عشان مايبقاش تداخل.
-      const raiseWithStop = type === "raise" && String(note || "").includes("+إيقاف");
+      // المالك ٢٠٢٦-١٠-١٢: رفع السرعة المعلّم «+إيقاف» بقى **رفع عادى** — الإيقاف بيدخل الطابور
+      // لوحده بعد ٧ دقايق، وبعده قياس Real بدقيقتين (السيرفر: server/exec-followups.ts).
+      // قبل كده كان بيشغّل الرفع والإيقاف فى تشغيلة PO واحدة (afterStop).
+      const raiseWithStop = false;
       const ev: "raise" | "stop" = (type === "stop" || raiseWithStop) ? "stop" : "raise";
       const perMax = type === "stop" ? STOP_MS : (raiseWithStop ? RAISE_MAX_MS + STOP_MS : RAISE_MAX_MS);
       const before = await latestPoEventAt(last, ev);

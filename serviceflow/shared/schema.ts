@@ -736,6 +736,21 @@ export const cabinetCapacity = pgTable("cabinet_capacity", {
 export type CabinetCapacity = typeof cabinetCapacity.$inferSelect;
 
 // طابور تنفيذ رفع السرعة/القياس/الإيقاف على جهاز التنفيذ المركزى
+// متابعات الطابور المؤجّلة (المالك ٢٠٢٦-١٠-١٢): «رفع السرعة ثم الإيقاف» ← إيقاف PO بعد ٧ دقايق ←
+// قياس Real بعد الإيقاف بدقيقتين. بتستنى هنا لحد run_at وبعدها بتدخل exec_jobs (server/exec-followups.ts).
+export const execFollowups = pgTable("exec_followups", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(),                 // stop | measure
+  account: text("account").notNull(),
+  note: text("note"),
+  requestedBy: text("requested_by"),
+  sourceJobId: integer("source_job_id"),
+  runAt: timestamp("run_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  enqueuedAt: timestamp("enqueued_at", { withTimezone: true }),
+  jobId: integer("job_id"),
+});
+
 export const execJobs = pgTable("exec_jobs", {
   id: serial("id").primaryKey(),
   type: text("type").notNull(),

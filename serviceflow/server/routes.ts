@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { pool, currentPool, hasCurrentDatabase } from "./db";
 import { cleanWfmMobile } from "./wfm-mobile";
+import { followupFor } from "./exec-followups";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
@@ -2198,6 +2199,27 @@ export async function registerRoutes(
      WHERE status IN ('pending','claimed') AND batch_id IS NOT NULL
      GROUP BY batch_id`;
 
+  // المتابعات المؤجّلة اللى وقتها جه ⇒ مهام عادية فى الطابور (أولوية الطلب الصغير ٢، باتش لوحدها).
+  // بتتنادى من نبضة جهاز التنفيذ (كل ~٢٠ث) — مفيش داعى لها من غير جهاز تنفيذ أصلاً.
+  const runExecFollowups = async () => {
+    try {
+      await withTx(async (tx) => {
+        const { rows } = await tx.query(
+          `SELECT id, type, account, note, requested_by FROM exec_followups
+            WHERE enqueued_at IS NULL AND run_at <= now()
+            ORDER BY run_at, id LIMIT 50 FOR UPDATE SKIP LOCKED`);
+        for (const f of rows) {
+          const batchId = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+          const { rows: ins } = await tx.query(
+            `INSERT INTO exec_jobs (type, accounts, requested_by, note, priority, batch_id, site, requested_from)
+             VALUES ($1, $2::jsonb, $3, $4, 2, $5, $6, 'متابعة تلقائية (رفع ← إيقاف ← قياس)') RETURNING id`,
+            [f.type, JSON.stringify([f.account]), f.requested_by, f.note, batchId, SITE_OF_TYPE[f.type] || "10.42.187.101"]);
+          await tx.query(`UPDATE exec_followups SET enqueued_at = now(), job_id = $2 WHERE id = $1`, [f.id, ins[0].id]);
+        }
+      });
+    } catch (e: any) { console.error("[exec-followups]", e?.message || e); }
+  };
+
   // نبضة جهاز التنفيذ (كل ~20ث) — تُخزَّن فى app_state
   app.post("/api/exec-queue/heartbeat", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
@@ -2228,6 +2250,7 @@ export async function registerRoutes(
       void runOneOffMeasure("heartbeat");
       // مراجعة البيان الفنى اليومية ١٢ الضهر — نفس السبب: النبضة هى اللى بتشتغل هناك
       void runPortsMissingSubinfo("heartbeat");
+      void runExecFollowups();
       // «بوكس مليان» اللى وصل من مسار غير رد الفنى (مزامنة طلب مربوط/تأكيد) → الشغّال يتسجّل
       void snapshotOmBoxFullWorking().catch(() => {});
       res.json({ ok: true, reload: rl[0]?.value ?? null });
@@ -2554,8 +2577,23 @@ export async function registerRoutes(
     try {
       // result اختيارى: done | tab_closed | timeout — بيوضّح إن كان القياس خلص فعلاً ولا اتقفل قبل ما يخلص
       const result = String((req.body || {}).result || "").trim() || null;
-      await pool.query(`UPDATE exec_jobs SET status = 'done', done_at = now(), result = $2 WHERE id = $1`, [parseInt(req.params.id), result]);
-      res.json({ ok: true });
+      const { rows: doneRows } = await pool.query(
+        `UPDATE exec_jobs SET status = 'done', done_at = now(), result = $2 WHERE id = $1 AND status <> 'done'
+         RETURNING id, type, accounts, note, requested_by`, [parseInt(req.params.id), result]);
+      // «رفع السرعة ثم الإيقاف» على مراحل: الرفع خلص ⇒ إيقاف PO بعد ٧ دقايق، والإيقاف خلص ⇒
+      // قياس Real بعد دقيقتين (server/exec-followups.ts). «AND status <> 'done'» بيمنع التكرار.
+      const j = doneRows[0];
+      const fu = j ? followupFor({ type: j.type, note: j.note, result }) : null;
+      if (j && fu) {
+        const accs: string[] = (Array.isArray(j.accounts) ? j.accounts : []).map((a: any) => String(a).trim()).filter(Boolean);
+        for (const acc of accs) {
+          await pool.query(
+            `INSERT INTO exec_followups (type, account, note, requested_by, source_job_id, run_at)
+             VALUES ($1, $2, $3, $4, $5, now() + make_interval(mins => $6))`,
+            [fu.type, acc, fu.note, j.requested_by, j.id, fu.afterMin]);
+        }
+      }
+      res.json({ ok: true, followup: fu ? { type: fu.type, afterMin: fu.afterMin } : null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   // تأكيد تحديث القياس: آخر وقت قياس (case_138.uploaded_at) لرقم أكونت — جهاز التنفيذ

@@ -1427,6 +1427,22 @@ export async function ensureSchema() {
     -- يفضلوا متطابقين ومايطلعش تحذير إعادة بناء الفهرس فى Publishing.
     CREATE INDEX IF NOT EXISTS exec_jobs_retry_idx ON exec_jobs (status, result, retry_round, done_at DESC);
   `);
+  // exec_followups — متابعات مؤجّلة: إيقاف PO بعد الرفع بـ٧ دقايق، وقياس Real بعد الإيقاف بدقيقتين
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS exec_followups (
+      id serial PRIMARY KEY,
+      type text NOT NULL,
+      account text NOT NULL,
+      note text,
+      requested_by text,
+      source_job_id integer,
+      run_at timestamptz NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      enqueued_at timestamptz,
+      job_id integer
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS exec_followups_due_idx ON exec_followups (enqueued_at, run_at)`);
   // ضبط الموقع للمهام القديمة: الموقع بقى **اسم الدومين** نفسه (نفس الدومين = مسار واحد).
   await pool.query(`
     UPDATE exec_jobs SET site = CASE type

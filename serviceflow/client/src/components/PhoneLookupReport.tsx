@@ -1105,18 +1105,19 @@ export function PhoneLookupReport() {
                       if (awaitingOp === "raise") { cancelOpWait(); return; }
                       const acc = line.accountNo;
                       if (!acc) { alert("لا يوجد رقم أكونت لهذا الخط"); return; }
-                      // رفع السرعة: موافق = رفع ثم إيقاف الـ Nightly الناتج (فى **تشغيلة PO واحدة**)،
-                      // إلغاء = رفع السرعة فقط. مهمة واحدة فى الطابور (مفيش تداخل).
-                      const afterStop = window.confirm("رفع السرعة والإيقاف؟\n\nموافق = رفع السرعة ثم إيقاف الـ Nightly الناتج (فى تشغيلة واحدة)\nإلغاء = رفع السرعة فقط");
+                      // رفع السرعة (المالك ٢٠٢٦-١٠-١٢): موافق = رفع عادى، وبعده بـ٧ دقايق «إيقاف PO» بيدخل
+                      // الطابور لوحده، وبعد الإيقاف بدقيقتين «قياس Real» — كل واحد بياخد دوره
+                      // (server/exec-followups.ts). إلغاء = رفع السرعة فقط.
+                      const afterStop = window.confirm("رفع السرعة والإيقاف؟\n\nموافق = رفع السرعة، وبعد ٧ دقايق إيقاف الـ PO فى الطابور، وبعده بدقيقتين قياس Real\nإلغاء = رفع السرعة فقط");
                       void recordOpIntent("raise", [acc]);
-                      if (afterStop) void recordOpIntent("stop", [acc]);
-                      // علامة «+إيقاف» فى الـ note بتخلّى جهاز التنفيذ يشغّل رفع+إيقاف فى تشغيلة PO واحدة.
+                      if (afterStop) { void recordOpIntent("stop", [acc]); void recordOpIntent("measure", [acc]); }
+                      // علامة «+إيقاف» فى الـ note = السيرفر يضيف الإيقاف ثم القياس بعد الرفع.
                       const note = afterStop ? `${PHONE_LOOKUP_SOURCE} +إيقاف` : PHONE_LOOKUP_SOURCE;
                       if (await enqueueIfExecutorActive("raise", [acc], note)) {
                         alert(afterStop
-                          ? "تم إضافة (رفع السرعة + الإيقاف) للطابور — هيتنفّذوا فى تشغيلة واحدة على جهاز التنفيذ، والصفحة هتتحدّث تلقائياً"
+                          ? "تم إضافة رفع السرعة للطابور — وبعده بـ٧ دقايق إيقاف الـ PO، وبعده بدقيقتين قياس Real (لوحدهم). الصفحة هتتحدّث تلقائياً"
                           : "تم إضافة الرقم لطابور رفع السرعة — هيتنفّذ على جهاز التنفيذ، والصفحة هتتحدّث تلقائياً");
-                        void waitForOpThenRefresh(afterStop ? "stop" : "raise", String(acc));
+                        void waitForOpThenRefresh("raise", String(acc));
                         return;
                       }
                       if (!isSuper || !canRunLocalExecutor()) { alert(NO_EXECUTOR_MSG); return; }
