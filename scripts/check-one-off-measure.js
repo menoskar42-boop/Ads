@@ -7,7 +7,7 @@
  * ٩ الصبح كل يوم عادى. والاستثنائى مايخدش اللى فى الطابور دلوقتى.
  *
  * بيتأكد من:
- *   · AUTO_MEASURE_STALE_DAYS = 2.
+ *   · أيام القياس إعداد (exec_lanes_measure_stale_days) الافتراضى ١ — قرار المالك ٢٠٢٦-١٠-١٢ (كانت ٢ ثابتة).
  *   · runOneOffMeasure بتتنادى من الإقلاع والـtick (جوّه schedulersEnabled) **ومن نبضة
  *     جهاز التنفيذ** — النسخة المستضافة مؤقتاتها مقفولة والنبضة هى اللى بتشغّل باتش ٩.
  *   · الحجز بعلامة ثابتة فى app_state (مايتكررش مع ريستارت)، ومفكوك لو الإضافة فشلت.
@@ -24,7 +24,8 @@ const routes = fs.readFileSync(path.join(__dirname, '..', 'serviceflow', 'server
 const errors = [];
 const need = (ok, msg) => { if (!ok) errors.push(msg); };
 
-need(/const AUTO_MEASURE_STALE_DAYS = 2;/.test(routes), 'شرط القياس اليومى لازم يكون يومين (قرار المالك ٢٠٢٦-٠٩-٢٨).');
+need(/MEASURE_STALE_DAYS_DEFAULT = 1, MEASURE_STALE_DAYS_MIN = 0/.test(routes) && !/AUTO_MEASURE_STALE_DAYS/.test(routes),
+  'أيام قياس ٩ الصبح لازم تبقى إعداد افتراضيه يوم (و٠ = الكل) — قرار المالك ٢٠٢٦-١٠-١٢.');
 
 const i = routes.indexOf('const runOneOffMeasure = async');
 need(i >= 0, 'runOneOffMeasure مش موجودة — التشغيل الاستثنائى بعد النشر اتشال.');
@@ -34,7 +35,7 @@ need(/INSERT INTO app_state \(key, value, updated_at\) VALUES \('auto_measure_on
   && /if \(!claim\.rowCount\) return;/.test(fn),
   'الحجز لازم يبقى جملة شرطية واحدة على app_state — غير كده ممكن يتكرر مع كل ريستارت.');
 need(!/auto_batches_last_day/.test(fn), 'التشغيل الاستثنائى مايلمسش auto_batches_last_day — باتش ٩ الصبح يفضل زى ما هو.');
-need(/await autoMeasureAccounts\(\)/.test(fn) && /await autoComplaintNoMeasureAccounts\(legacyMeasAccs\)/.test(fn),
+need(/await autoMeasureAccounts\(staleDays\)/.test(fn) && /await autoComplaintNoMeasureAccounts\(legacyMeasAccs\)/.test(fn),
   'الاستثنائى لازم ياخد خطوطه من نفس دوال باتش ٩ الصبح (اللى بتستبعد اللى فى الطابور).');
 need(/enqueueAutoBatch\(\s*"measure", measAccs,[\s\S]*?\$\{AUTO_MEASURE_NOREAL_MARK\}`\)/.test(fn), 'الاستثنائى لازم يبقى قياس «بدون Real» زى باتش ٩ الصبح.');
 need(/if \(claimed\) \{\s*await pool\.query\(`DELETE FROM app_state WHERE key = 'auto_measure_one_off' AND value = \$1`/.test(fn),
@@ -51,8 +52,8 @@ need(/void runDailyAutoBatches\("heartbeat"\);[\s\S]*void runOneOffMeasure\("hea
 need((routes.match(/runOneOffMeasure\(/g) || []).length === 3, 'runOneOffMeasure بتتنادى من مكان غير الإقلاع والـtick والنبضة.');
 
 for (const [f, re] of [
-  ['serviceflow/server/auto-daily-batches.test.ts', /AUTO_MEASURE_STALE_DAYS = 2;/],
-  ['serviceflow/client/src/components/QueueReorderPanel.tsx', /أقدم من يومين/],
+  ['serviceflow/server/auto-daily-batches.test.ts', /MEASURE_STALE_DAYS_DEFAULT = 1/],
+  ['serviceflow/client/src/components/QueueReorderPanel.tsx', /الافتراضى يوم/],
 ]) {
   need(re.test(fs.readFileSync(path.join(__dirname, '..', f), 'utf8')), `${f} لسه بيقول الشرط القديم.`);
 }
@@ -62,4 +63,4 @@ if (errors.length) {
   errors.forEach((e) => console.log('   · ' + e));
   process.exit(1);
 }
-console.log('✅ check-one-off-measure: قياس ٩ الصبح لليومين، والاستثنائى مرة واحدة بعد النشر من غير ما يلمس الطابور ولا باتش بكرة.');
+console.log('✅ check-one-off-measure: قياس ٩ الصبح بإعداد الأيام (الافتراضى يوم)، والاستثنائى مرة واحدة بعد النشر من غير ما يلمس الطابور ولا باتش بكرة.');

@@ -1,5 +1,5 @@
 /*
- * اختبار «القياس الاستثنائى بعد النشر» + شرط اليومين على Postgres حقيقى.
+ * اختبار «القياس الاستثنائى بعد النشر» + شرط الأيام (إعداد، الافتراضى ١ و٠ = الكل) على Postgres حقيقى.
  * بياخد كود الباتشات اليومية من server/routes.ts زى ما هو ويشغّله على جداول تجربة.
  *
  *   DATABASE_URL=postgres://… npx tsx serviceflow/scripts/test-one-off-measure.mts
@@ -28,8 +28,10 @@ ${hasFrame}
 export default function make(pool: any, cairoNow: () => { date: string; hour: number }) {
   const app = { get() {}, post() {} }; const requireAuth = 0, requireSuperAdmin = 0;
   const SITE_OF_TYPE: Record<string, string> = {};
+  // إعداد «أيام قياس ٩ الصبح» (app_settings) — هنا ثابت بنغيّره من الاختبار
+  const readMeasureStaleDays = async () => (globalThis as any).__staleDays ?? 1;
   ${block}
-  return { runOneOffMeasure, runDailyAutoBatches, autoMeasureAccounts, AUTO_MEASURE_STALE_DAYS };
+  return { runOneOffMeasure, runDailyAutoBatches, autoMeasureAccounts };
 }`);
 let HOUR = 10;
 const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
@@ -54,8 +56,9 @@ const line = async (acc: string, phone: string, daysAgo: number | null) => {
   await q(`INSERT INTO phone_ports VALUES ($1, 'F1')`, [phone]);
   if (daysAgo != null) await q(`INSERT INTO case_138 (full_phone, uploaded_at) VALUES ($1, now() - make_interval(hours => $2))`, [phone, Math.round(daysAgo * 24)]);
 };
-await line("D1", "88011", 1);      // يوم واحد → لأ
-await line("D3", "88013", 3);      // ٣ أيام → أيوه (مع شرط الـ٤ كان هيتساب)
+await line("D0", "88010", 0);      // اتقاس النهارده → لأ
+await line("D1", "88011", 1);      // امبارح → أيوه (الإعداد الافتراضى يوم)
+await line("D3", "88013", 3);      // ٣ أيام → أيوه
 await line("D5", "88015", 5);      // ٥ أيام → أيوه
 await line("NEVER", "88019", null); // لم يُقس → أيوه
 await line("QUEUED", "88017", 6);  // قديم بس فى الطابور → لأ
@@ -65,15 +68,14 @@ await q(`INSERT INTO exec_jobs (type, accounts, note, batch_id, status) VALUES
   ('measure', '["INBATCH"]', 'باتش ٩ الصبح', 'bOLD', 'done')`);
 await q(`INSERT INTO app_state VALUES ('auto_batches_last_day', $1, now())`, [today]);
 
-ok("الشرط بقى يومين", m.AUTO_MEASURE_STALE_DAYS === 2);
 await m.runOneOffMeasure("test");
 const batch = async () => (await q(`SELECT batch_id, array_agg(accounts->>0 ORDER BY id) accs, max(note) note, count(*)::int n
   FROM exec_jobs WHERE batch_id <> 'bOLD' GROUP BY batch_id`)).rows;
 let b = await batch();
 ok("التشغيل الاستثنائى فتح باتش واحد", b.length === 1, String(b.length));
 const accs: string[] = b[0]?.accs || [];
-ok("خد اللى أقدم من يومين واللى ماتقاسش", ["D3", "D5", "NEVER"].every((a) => accs.includes(a)), JSON.stringify(accs));
-ok("ماخدش قياس امبارح", !accs.includes("D1"));
+ok("خد قياس امبارح والأقدم واللى ماتقاسش", ["D1", "D3", "D5", "NEVER"].every((a) => accs.includes(a)), JSON.stringify(accs));
+ok("ماخدش قياس النهارده", !accs.includes("D0"));
 ok("ماخدش اللى فى الطابور ولا اللى باتشه لسه شغّال", !accs.includes("QUEUED") && !accs.includes("INBATCH"));
 ok("مهمة لكل خط وبدون Real", b[0]?.n === accs.length && /تشغيل استثنائى/.test(b[0]?.note) && /بدون Real/.test(b[0]?.note), b[0]?.note);
 
@@ -99,6 +101,16 @@ ok("لو الإضافة فشلت الحجز بيتفك", held === 0);
 await q(`ALTER TABLE exec_jobs RENAME COLUMN rf TO requested_from`);
 await m.runOneOffMeasure("tick");
 ok("والمحاولة الجاية بتفتح الباتش", (await batch()).length === 1);
+
+// الإعداد: ١ (الافتراضى) بيستبعد قياس النهارده بس، و٠ = كل الخطوط اللى ليها أكونت (مش فى الطابور)
+await q(`DELETE FROM exec_jobs WHERE batch_id <> 'bOLD'`);
+const one = await m.autoMeasureAccounts(1);
+ok("إعداد ١: قياس امبارح أيوه والنهارده لأ", one.includes("D1") && !one.includes("D0"), JSON.stringify(one));
+const zero = await m.autoMeasureAccounts(0);
+ok("إعداد ٠: كل الخطوط اللى ليها أكونت (حتى قياس النهارده)", ["D0", "D1", "D3", "D5", "NEVER"].every((a) => zero.includes(a)), JSON.stringify(zero));
+ok("إعداد ٠: برضه مابياخدش اللى فى الطابور", !zero.includes("QUEUED") && !zero.includes("INBATCH"));
+const three = await m.autoMeasureAccounts(3);
+ok("إعداد ٣: من ٣ أيام أو أكتر بس", three.includes("D3") && three.includes("D5") && !three.includes("D1"), JSON.stringify(three));
 
 await q(`DROP TABLE IF EXISTS app_state, exec_jobs, line_accounts, case_138, phone_ports, complaint_details, remaining_complaints`);
 await pool.end();
