@@ -69,8 +69,8 @@ const things = (rnd, k) => shuffled(rnd, WB_THINGS).slice(0, k);
 export const WB_REPS = ["digit", "dots", "things", "fingers"];
 
 /** تمارين اللعب اللى بتتوزّع على صفحات الأرقام (كل صفحة فى الكتاب ليها تشكيلة مختلفة). */
-export const WB_PLAYS = ["countChoose", "match", "find", "parts", "frameFill"];
-export const WB_LAST = ["paint", "colorBar"];
+export const WB_PLAYS = ["countChoose", "match", "find", "parts", "frameFill", "repeated"];
+export const WB_LAST = ["paint", "colorBar", "hexKey"];
 
 /**
  * خطوات صفحة الرقم n — كتابة (✏️) ولعب (🎲) بالتناوب:
@@ -96,14 +96,36 @@ export function workbookPage(n, rnd = Math.random, only = null) {
       };
     },
     // «Count, then match» / «Match» (صوابع ↔ رقم): مجموعات على ناحية وأرقام على التانية
+    // أو «Match the equal pictures»: صورة ↔ صورة تانية عددها زيها (right = "groups")
     match() {
       const mCounts = shuffled(rnd, [n, ...neighbours(rnd, n, 2)]);
-      const fingersAt = Math.floor(rnd() * 3);
+      const equal = rnd() < 0.35;
+      const fingersAt = equal ? -1 : Math.floor(rnd() * 3);
       return {
         kind: "match",
+        right: equal ? "groups" : "numbers",
         groups: mCounts.map((count, i) => ({ count, thing: [t5, t6, t1][i], rep: i === fingersAt ? "fingers" : "things" })),
         numbers: shuffled(rnd, mCounts),
+        rightThing: t4,
       };
+    },
+    // «Circle the repeated number»: ٣ صفوف، فى كل صف رقم متكرّر مرتين — يلمس الاتنين
+    repeated() {
+      const reps = shuffled(rnd, [n, ...neighbours(rnd, n, 2)]);
+      return {
+        kind: "repeated",
+        rows: reps.map((a) => {
+          const b = neighbours(rnd, a, 1)[0];
+          return { repeated: a, cells: shuffled(rnd, [a, a, b]) };
+        }),
+      };
+    },
+    // «Color using the coloring key»: خلايا سداسية عليها أرقام، والمفتاح فوق (رقم ← لون)
+    hexKey() {
+      const [m1, m2] = neighbours(rnd, n, 2);
+      const other = WB_COLOR_PAIRS[(WB_COLOR_PAIRS.findIndex((p) => p[0] === c1) + 1) % WB_COLOR_PAIRS.length][0];
+      const key = [{ value: n, color: c1 }, { value: m1, color: c2 }, { value: m2, color: other }];
+      return { kind: "hexKey", key, cells: shuffled(rnd, key.flatMap((k) => [k.value, k.value, k.value, k.value])) };
     },
     // «Color the octopus that has the number 1» / «Draw a circle around the number»
     find() {
@@ -181,7 +203,7 @@ export function workbookPage(n, rnd = Math.random, only = null) {
 }
 
 /** عدد خطوات الكتابة فى الصفحة (الاختبار بيتأكد إن الكتابة متوزّعة مش ورا بعض). */
-export const isWriteStep = (s) => s.kind === "write" || s.kind === "missing" || s.kind === "countWrite";
+export const isWriteStep = (s) => ["write", "missing", "countWrite", "traceShape"].includes(s.kind);
 
 // ===== صفحات الألوان (الكتاب بيحطها بين الأرقام: ١ ← أحمر/بمبى ← ٢ ← أصفر/برتقانى ← …) =====
 
@@ -197,10 +219,89 @@ export const WB_REAL = {
   lime: ["🍏", "🍐", "🍈"],
 };
 
-/** ترتيب صفحات الكراسة زى فهرس الكتاب: كل رقم من ١ لـ٤ وبعده صفحة ألوانه، وبعدين ٥ لـ١٠. */
+// ===== الأشكال (الكتاب: دايرة وبيضاوى بعد ٦ · مربع ومستطيل بعد ٧ · المثلثات بعد ٨ · نجمة وقلب بعد ٩) =====
+const r1 = (v) => Math.round(v * 10) / 10;
+/** قوس (الزاوية بالدرجات، y لتحت): من -٩٠ لـ-٤٥٠ = من فوق عكس عقارب الساعة زى سهم الكتاب. */
+function arcPts(cx, cy, rx, ry, a0, a1) {
+  const steps = Math.max(8, Math.round(Math.abs(a1 - a0) / 8));
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const a = ((a0 + (a1 - a0) * (i / steps)) * Math.PI) / 180;
+    return [r1(cx + rx * Math.cos(a)), r1(cy + ry * Math.sin(a))];
+  });
+}
+function bezPts(p0, p1, p2, p3, n = 14) {
+  return Array.from({ length: n + 1 }, (_, i) => {
+    const t = i / n, u = 1 - t;
+    return [0, 1].map((k) => r1(u * u * u * p0[k] + 3 * u * u * t * p1[k] + 3 * u * t * t * p2[k] + t * t * t * p3[k]));
+  });
+}
+const joinPts = (...parts) => parts.reduce((out, p) => out.concat(out.length ? p.slice(1) : p), []);
+function starPts() {
+  return Array.from({ length: 11 }, (_, i) => {
+    const a = ((-90 + i * 36) * Math.PI) / 180;
+    const r = i % 2 ? 15 : 36;
+    return [r1(50 + r * Math.cos(a)), r1(52 + r * Math.sin(a))];
+  });
+}
+
+/** كل شكل: اسمه + خطّه للوحة الكتابة (وحدات ٠–١٠٠، خط واحد مقفول) + حاجات بشكله. */
+export const WB_SHAPES = {
+  circle: { ar: "دايرة", en: "circle", strokes: [arcPts(50, 50, 32, 32, -90, -450)], things: ["🍊", "🕐", "🍩"] },
+  oval: { ar: "بيضاوى", en: "oval", strokes: [arcPts(50, 50, 22, 36, -90, -450)], things: ["🥚", "🏉", "🎈"] },
+  square: { ar: "مربع", en: "square", strokes: [[[26, 26], [74, 26], [74, 74], [26, 74], [26, 26]]], things: ["🎁", "🧇", "🔲"] },
+  rectangle: { ar: "مستطيل", en: "rectangle", strokes: [[[16, 32], [84, 32], [84, 68], [16, 68], [16, 32]]], things: ["🚪", "🍫", "📱"] },
+  triangle: { ar: "مثلث", en: "triangle", strokes: [[[50, 16], [84, 78], [16, 78], [50, 16]]], things: ["🍕", "⛺", "🔺"] },
+  rightTriangle: { ar: "مثلث قايم", en: "right triangle", strokes: [[[26, 18], [26, 80], [80, 80], [26, 18]]], things: ["📐", "🧀"] },
+  star: { ar: "نجمة", en: "star", strokes: [starPts()], things: ["⭐", "🌟"] },
+  heart: {
+    ar: "قلب", en: "heart",
+    strokes: [joinPts(bezPts([50, 34], [40, 14], [12, 24], [18, 46]), bezPts([18, 46], [24, 62], [40, 72], [50, 84]),
+      bezPts([50, 84], [60, 72], [76, 62], [82, 46]), bezPts([82, 46], [88, 24], [60, 14], [50, 34]))],
+    things: ["❤️", "💝", "💌"],
+  },
+};
+export const WB_SHAPE_PAIRS = [["circle", "oval"], ["square", "rectangle"], ["triangle", "rightTriangle"], ["star", "heart"]];
+
+/**
+ * صفحة أشكال: meetShapes → ✏️ ارسم على النقط → «Put a check inside…» → «Choose the picture that
+ * matches the shape» → ✏️ «Draw the required shape inside the cloud» (لوحده).
+ */
+export function shapesPage(pairIdx, rnd = Math.random) {
+  const pair = WB_SHAPE_PAIRS[pairIdx];
+  if (!pair) throw new Error("صفحة أشكال مش موجودة: " + pairIdx);
+  const [a, b] = pair;
+  const isTri = pairIdx === 2; // «all kinds of triangles»: المثلثين الاتنين مطلوبين
+  const others = Object.keys(WB_SHAPES).filter((k) => !pair.includes(k));
+  const steps = [];
+  steps.push({ kind: "meetShapes", shapes: [a, b] });
+  steps.push({ kind: "traceShape", shape: a, level: 2 });
+
+  const targets = isTri ? [a, b] : [a];
+  const near = isTri ? shuffled(rnd, others).slice(0, 2) : [b, b, pickOf(rnd, others)];
+  const items = shuffled(rnd, [...(isTri ? [a, a, b, b] : [a, a, a, a]), ...near, ...(isTri ? [pickOf(rnd, others), pickOf(rnd, others)] : [pickOf(rnd, others)])]);
+  steps.push({ kind: "checkShape", target: targets, say: a, items });
+
+  // كل صف: الشكل + ٣ صور، واحدة بس بشكله (المشتّتات من أشكال تانية خالص)
+  const rowShapes = shuffled(rnd, [a, b, pickOf(rnd, others)]);
+  steps.push({
+    kind: "matchShape",
+    rows: rowShapes.map((sh) => {
+      const wrongPool = Object.keys(WB_SHAPES).filter((k) => k !== sh && !(WB_SHAPE_PAIRS[2].includes(k) && WB_SHAPE_PAIRS[2].includes(sh)));
+      const wrongs = shuffled(rnd, wrongPool).slice(0, 2).map((k) => pickOf(rnd, WB_SHAPES[k].things));
+      const right = pickOf(rnd, WB_SHAPES[sh].things);
+      return { shape: sh, right, options: shuffled(rnd, [right, ...wrongs]) };
+    }),
+  });
+  steps.push({ kind: "traceShape", shape: b, level: 3 });
+  return steps;
+}
+
+/** ترتيب صفحات الكراسة زى فهرس الكتاب: كل رقم من ١ لـ٤ وبعده صفحة ألوانه، و٥، وبعد ٦ و٧ و٨ و٩ صفحة أشكال، و١٠. */
 export const WB_PAGES = [
   ...WB_COLOR_PAIRS.flatMap((_, i) => [{ id: String(i + 1), type: "number", n: i + 1 }, { id: "c" + i, type: "colors", pair: i }]),
-  ...WB_NUMBERS.slice(WB_COLOR_PAIRS.length).map((n) => ({ id: String(n), type: "number", n })),
+  { id: "5", type: "number", n: 5 },
+  ...WB_SHAPE_PAIRS.flatMap((_, i) => [{ id: String(i + 6), type: "number", n: i + 6 }, { id: "s" + i, type: "shapes", pair: i }]),
+  { id: "10", type: "number", n: 10 },
 ];
 
 /** مناطق صورة «لوّن حسب الرقم» (كب كيك زى الكتاب): كريزة · ٣ طبقات كريمة · ٥ خطوط ورقة. */
@@ -259,5 +360,7 @@ export function colorsPage(pairIdx, rnd = Math.random) {
 
 /** خطوات أى صفحة من WB_PAGES. */
 export function pageSteps(page, rnd = Math.random, only = null) {
-  return page.type === "colors" ? colorsPage(page.pair, rnd) : workbookPage(page.n, rnd, only);
+  if (page.type === "colors") return colorsPage(page.pair, rnd);
+  if (page.type === "shapes") return shapesPage(page.pair, rnd);
+  return workbookPage(page.n, rnd, only);
 }

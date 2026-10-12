@@ -2,7 +2,7 @@
 //   node --test mykid/tests/workbook-plan.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, colorsPage } from "../js/data/workbook.js";
+import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, WB_SHAPES, WB_SHAPE_PAIRS, colorsPage, shapesPage } from "../js/data/workbook.js";
 import { strokesFor } from "../js/data/strokes.js";
 import { WB_SAY } from "../js/data/writingPhrases.js";
 import { femAdapt } from "../js/data/mizo.js";
@@ -37,12 +37,14 @@ test("يكتب شوية ويلعب شوية: ٣ كتابات، ومفيش كتا
 
 test("كل التمارين بتظهر (التشكيلة بتتغيّر من صفحة لصفحة)", () => {
   const seen = new Set(pages.flatMap(([, steps]) => steps.flatMap((s) => [s.kind, s.kind + (s.mode ? ":" + s.mode : "") + (s.rep ? ":" + s.rep : "")])));
+  assert.ok(pages.some(([, st]) => st.some((x) => x.kind === "match" && x.right === "groups")), "match: الصور المتساوية");
   for (const k of [...WB_PLAYS, ...WB_LAST, "missing:prev", "missing:mid", "missing:next", "parts:fingers", "parts:things"]) assert.ok(seen.has(k), k);
 });
 
 test("الإجابة الصح موجودة دايماً، والمشتّتات مختلفة عنها", () => {
   const all = [...pages, ...WB_NUMBERS.map((n) => [n, workbookPage(n, seeded(n), [...WB_PLAYS, "paint"])]),
-    ...WB_NUMBERS.map((n) => [n, workbookPage(n, seeded(n + 50), ["colorBar"])])];
+    ...WB_NUMBERS.map((n) => [n, workbookPage(n, seeded(n + 50), ["repeated", "colorBar"])]),
+    ...WB_NUMBERS.map((n) => [n, workbookPage(n, seeded(n + 90), ["match", "hexKey"])])];
   for (const [n, steps] of all) {
     const by = (k) => steps.find((s) => s.kind === k);
     const c = by("colorN");
@@ -63,7 +65,7 @@ test("الإجابة الصح موجودة دايماً، والمشتّتات �
     if (m) {
       assert.equal(new Set(m.groups.map((g) => g.count)).size, 3, "المجموعات أعداد مختلفة");
       assert.deepEqual([...m.numbers].sort(), m.groups.map((g) => g.count).sort());
-      assert.equal(m.groups.filter((g) => g.rep === "fingers").length, 1, "مجموعة واحدة صوابع");
+      assert.equal(m.groups.filter((g) => g.rep === "fingers").length, m.right === "groups" ? 0 : 1, "مجموعة واحدة صوابع (والصور المتساوية من غير صوابع)");
     }
     const f = by("find");
     if (f) {
@@ -83,6 +85,23 @@ test("الإجابة الصح موجودة دايماً، والمشتّتات �
       assert.ok(ff.count >= 1 && ff.count <= ff.frame && ff.count <= 10);
       assert.equal(ff.frame, ff.count > 5 ? 10 : 5);
     }
+    const rp = by("repeated");
+    if (rp) {
+      assert.ok(rp.rows.some((r) => r.repeated === n));
+      for (const r of rp.rows) {
+        assert.equal(r.cells.length, 3);
+        assert.equal(r.cells.filter((v) => v === r.repeated).length, 2);
+        assert.equal(new Set(r.cells).size, 2);
+      }
+    }
+    const hx = by("hexKey");
+    if (hx) {
+      assert.equal(new Set(hx.key.map((k) => k.value)).size, 3);
+      assert.equal(new Set(hx.key.map((k) => k.color)).size, 3);
+      assert.equal(hx.cells.length, 12);
+      assert.ok(hx.cells.every((v) => hx.key.some((k) => k.value === v)));
+    }
+    if (m && m.right === "groups") assert.ok(m.groups.every((g) => g.rep === "things"), "الصور المتساوية: حاجات مش صوابع");
     const bar = by("colorBar");
     if (bar) assert.ok(bar.n === n && bar.cells >= n);
 
@@ -123,8 +142,8 @@ test("جُمَل ميزو بتتأنّث للبنت (من غير «و» لازق
   }
 });
 
-test("ترتيب الصفحات زى فهرس الكتاب: ١ ← ألوان ← ٢ ← ألوان ← ٣ ← ألوان ← ٤ ← ألوان ← ٥…١٠", () => {
-  assert.deepEqual(WB_PAGES.map((p) => p.id), ["1", "c0", "2", "c1", "3", "c2", "4", "c3", "5", "6", "7", "8", "9", "10"]);
+test("ترتيب الصفحات زى فهرس الكتاب: ١ ← ألوان ← … ← ٥ ← ٦ ← أشكال ← ٧ ← أشكال ← … ← ١٠", () => {
+  assert.deepEqual(WB_PAGES.map((p) => p.id), ["1", "c0", "2", "c1", "3", "c2", "4", "c3", "5", "6", "s0", "7", "s1", "8", "s2", "9", "s3", "10"]);
   assert.equal(new Set(WB_PAGES.map((p) => p.id)).size, WB_PAGES.length);
 });
 
@@ -159,4 +178,32 @@ test("صفحة الألوان: يكتب مرتين (نقط ← لوحده) بي�
   // مفيش حاجة واحدة متسجّلة بلونين
   const all = Object.values(WB_REAL).flat();
   assert.equal(new Set(all).size, all.length);
+});
+
+test("صفحة الأشكال: ارسم على النقط ← العب ← ارسم لوحده، والإجابات سليمة", () => {
+  for (let pair = 0; pair < WB_SHAPE_PAIRS.length; pair++) {
+    const [a, b] = WB_SHAPE_PAIRS[pair];
+    for (let seed = 1; seed <= 40; seed++) {
+      const steps = shapesPage(pair, seeded(seed * 17 + pair));
+      assert.deepEqual(steps.map((s) => s.kind), ["meetShapes", "traceShape", "checkShape", "matchShape", "traceShape"]);
+      assert.deepEqual(steps.filter(isWriteStep).map((s) => [s.shape, s.level]), [[a, 2], [b, 3]]);
+      const ck = steps[2];
+      const hits = ck.items.filter((k) => ck.target.includes(k));
+      assert.ok(hits.length >= 3 && ck.items.length - hits.length >= 2, `${a}: ${ck.items}`);
+      if (pair === 2) assert.deepEqual(ck.target, [a, b], "كل أنواع المثلثات");
+      for (const r of steps[3].rows) {
+        assert.equal(r.options.length, 3);
+        assert.equal(r.options.filter((t) => WB_SHAPES[r.shape].things.includes(t)).length, 1, `${r.shape}: صورة واحدة بس صح`);
+        assert.ok(r.options.includes(r.right) && WB_SHAPES[r.shape].things.includes(r.right));
+      }
+    }
+  }
+  for (const [k, sh] of Object.entries(WB_SHAPES)) {
+    assert.equal(sh.strokes.length, 1, k);
+    const st = sh.strokes[0];
+    assert.ok(st.length >= 4 && st.every(([x, y]) => x >= 5 && x <= 95 && y >= 5 && y <= 95), k);
+    assert.ok(Math.hypot(st[0][0] - st.at(-1)[0], st[0][1] - st.at(-1)[1]) < 1, `${k}: الشكل مقفول`);
+  }
+  const all = Object.values(WB_SHAPES).flatMap((s) => s.things);
+  assert.equal(new Set(all).size, all.length, "مفيش صورة لشكلين");
 });

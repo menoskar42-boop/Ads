@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { strokesFor } from "../js/data/strokes.js";
-import { WB_COLORS, WB_REAL, WB_PAGES, WB_PLAYS, colorPairOf } from "../js/data/workbook.js";
+import { WB_COLORS, WB_REAL, WB_PAGES, WB_PLAYS, WB_SHAPES, colorPairOf } from "../js/data/workbook.js";
 import { densify } from "../js/games/strokeJudge.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -141,6 +141,66 @@ const solve = {
     }
     await shot("chooseColor-done");
   },
+  async repeated() {
+    const rows = page.locator(".wbk-reprow");
+    for (let i = 0; i < (await rows.count()); i++) {
+      const vals = await rows.nth(i).locator(".wbk-repcell").allTextContents();
+      const rep = vals.find((v, k) => vals.indexOf(v) !== k);
+      const single = vals.find((v) => v !== rep);
+      if (i === 0) {
+        await rows.nth(i).locator(".wbk-repcell").filter({ hasText: new RegExp(`^${single}$`) }).click();
+        assert.equal(await rows.nth(i).getAttribute("data-ok"), null);
+      }
+      const cells = rows.nth(i).locator(".wbk-repcell").filter({ hasText: new RegExp(`^${rep}$`) });
+      await cells.nth(0).click();
+      await cells.nth(1).click();
+    }
+    await shot("repeated-done");
+  },
+  async hexKey() {
+    const keys = await page.locator(".wbk-key").evaluateAll((ks) => ks.map((k) => [k.querySelector("b").textContent, k.title]));
+    const colorOf = Object.fromEntries(keys);
+    const hexes = page.locator(".wbk-hex");
+    assert.equal(await hexes.count(), 12);
+    for (let i = 0; i < 12; i++) {
+      await clickText(".wbk-crayon", colorOf[await hexes.nth(i).textContent()]);
+      await hexes.nth(i).click();
+    }
+    await shot("hexKey-done");
+  },
+  async meetShapes() {
+    const cards = page.locator(".wbk-shapecard");
+    assert.equal(await cards.count(), 2);
+    await cards.nth(0).click();
+    await cards.nth(1).click();
+  },
+  async traceShape() {
+    await page.waitForSelector(".wb-box");
+    await solve.write();
+  },
+  async checkShape() {
+    const want = (await page.locator(".wbk-say").textContent()).replace(/^المس كل /, "").trim();
+    const isTri = want === "مثلث";
+    const cells = page.locator(".wbk-checkcell");
+    for (let i = 0; i < (await cells.count()); i++) {
+      const name = await cells.nth(i).getAttribute("aria-label");
+      const ok = isTri ? name.startsWith("مثلث") : name === want;
+      if (ok) await cells.nth(i).click();
+    }
+    await shot("checkShape-done");
+  },
+  async matchShape() {
+    const rows = page.locator(".wbk-shaperow");
+    for (let i = 0; i < (await rows.count()); i++) {
+      const name = await rows.nth(i).locator(".wbk-shapehead").getAttribute("aria-label");
+      const key = Object.keys(WB_SHAPES).find((k) => WB_SHAPES[k].ar === name);
+      const opts = rows.nth(i).locator(".wbk-shapeopt");
+      for (let j = 0; j < (await opts.count()); j++) {
+        if (WB_SHAPES[key].things.includes(await opts.nth(j).textContent())) { await opts.nth(j).click(); break; }
+      }
+    }
+    await shot("matchShape-done");
+  },
   // ===== صفحات الألوان =====
   async meetColors() {
     const cards = page.locator(".wbk-swatch");
@@ -198,7 +258,8 @@ const solve = {
     await page.waitForSelector(".wb-hand", { timeout: 2500 });
     await waitIdle();
     const n = digits != null ? String(digits) : await page.evaluate(() => document.querySelector(".wbk-title b").textContent);
-    for (const st of strokesFor(n)) await stroke(st);
+    const glyph = await page.locator(".wbk-write").last().getAttribute("data-glyph");
+    for (const st of WB_SHAPES[glyph] ? WB_SHAPES[glyph].strokes : strokesFor(n)) await stroke(st);
   },
   async colorN(n) {
     const want = WB_COLORS[colorPairOf(n)[0]].ar;
@@ -236,7 +297,10 @@ const solve = {
     for (let i = 0; i < (await groups.count()); i++) {
       const c = await countIn(groups.nth(i));
       await groups.nth(i).click();
-      await clickText(".wbk-mnum", c);
+      if (await page.locator(".wbk-match-eq").count()) {
+        const right = page.locator(".wbk-mnum");
+        for (let j = 0; j < (await right.count()); j++) if ((await countIn(right.nth(j))) === c) { await right.nth(j).click(); break; }
+      } else await clickText(".wbk-mnum", c);
     }
     assert.equal(await page.locator(".wbk-lines line").count(), 3, "٣ خطوط توصيل");
     await shot("match-lines");
@@ -288,7 +352,8 @@ const solve = {
 const CASES = [
   [4, [...WB_PLAYS, "paint"]], // كل ألعاب صفحة الرقم مرة واحدة
   [6, ["frameFill", "parts", "match", "colorBar"]],
-  [1, null], [10, null], ["c0", null], ["c3", null],
+  [8, ["repeated", "match", "find", "hexKey"]],
+  [1, null], [10, null], ["c0", null], ["c3", null], ["s0", null], ["s2", null], ["s3", null],
 ];
 for (const [n, only] of CASES) {
   test(`صفحة ${n}${only ? " (" + only.join("،") + ")" : ""} كاملة: يكتب ويلعب بالتناوب، وفى الآخر نجمة على الصفحة`, async () => {
@@ -305,7 +370,7 @@ for (const [n, only] of CASES) {
       if (i < total - 1) await nextStepFrom(i);
       else await page.waitForSelector(".cheer", { timeout: 5000 }); // آخر خطوة ← احتفال ونجوم
     }
-    assert.equal(done.filter((k) => ["write", "missing", "countWrite"].includes(k)).length, typeof n === "number" ? 3 : 2);
+    assert.equal(done.filter((k) => ["write", "missing", "countWrite", "traceShape"].includes(k)).length, typeof n === "number" ? 3 : 2);
     // آخر الصفحة: النجوم وبعدين الرجوع لاختيار الرقم بنجمة على الرقم ده
     for (let t = 0; t < 12 && !(await page.locator(".lesson-chooser:not(.hidden)").count()); t++) {
       const ok = page.locator("#certOk, .reward-popup button, .cheer button");

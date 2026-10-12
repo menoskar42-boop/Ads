@@ -12,7 +12,7 @@ import { awardStars } from "../core/rewards.js";
 import { femAdapt } from "../data/mizo.js";
 import { NUMBERS } from "../data/numbers.js";
 import { strokesFor } from "../data/strokes.js";
-import { WB_COLORS, WB_AR, WB_PAGES, WB_COLOR_PAIRS, pageSteps, colorPairOf, isWriteStep } from "../data/workbook.js";
+import { WB_COLORS, WB_AR, WB_PAGES, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, pageSteps, colorPairOf, isWriteStep } from "../data/workbook.js";
 import { WB_SAY, writeIntro } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity, glyphChooser } from "./common.js";
 import { mountWriteBoard } from "./writeBoard.js";
@@ -93,9 +93,10 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
   screen.appendChild(stage);
 
   // ===== اختيار الصفحة: الأرقام وبينها صفحات الألوان زى فهرس الكتاب (ونجمة على اللى خلص) =====
-  const pageLabel = (pg) => (pg.type === "number" ? String(pg.n) : "🎨");
+  const pageLabel = (pg) => (pg.type === "number" ? String(pg.n) : pg.type === "shapes" ? "🔷" : "🎨");
   const pageAria = (pg) => {
     if (pg.type === "number") return `صفحة الرقم ${pg.n}`;
+    if (pg.type === "shapes") return "صفحة الأشكال: " + WB_SHAPE_PAIRS[pg.pair].map((k) => WB_SHAPES[k].ar).join(" و");
     const [a, b] = WB_COLOR_PAIRS[pg.pair].map((k) => col(k).ar);
     return `صفحة الألوان: ${a} و${b}`;
   };
@@ -119,6 +120,11 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       const pg = WB_PAGES[i];
       const star = Store.workbookDone[pg.id] ? "⭐" : "";
       if (pg.type === "number") { b.textContent = pg.n + star; return; }
+      if (pg.type === "shapes") {
+        b.classList.add("wbk-colors-btn");
+        b.innerHTML = WB_SHAPE_PAIRS[pg.pair].map((k) => shapeSvg(k, "wbk-shape-mini")).join("") + star;
+        return;
+      }
       b.classList.add("wbk-colors-btn");
       b.innerHTML = WB_COLOR_PAIRS[pg.pair].map((k) => `<i style="background:${col(k).hex}"></i>`).join("") + star;
     });
@@ -130,7 +136,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     cur = pg;
     steps = pageSteps(pg, Math.random, only); // only: تمارين بعينها (للاختبار)
     idx = 0;
-    const [c1, c2] = pg.type === "number" ? colorPairOf(pg.n) : WB_COLOR_PAIRS[pg.pair];
+    const [c1, c2] = pg.type === "number" ? colorPairOf(pg.n) : pg.type === "shapes" ? WB_COLOR_PAIRS[(pg.pair + 2) % 4] : WB_COLOR_PAIRS[pg.pair];
     screen.style.setProperty("--wbk-c1", col(c1).hex);
     screen.style.setProperty("--wbk-c2", col(c2).hex);
     renderStep();
@@ -145,6 +151,12 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       title.innerHTML = `<b dir="ltr">${cur.n}</b><span dir="ltr">${enName(cur.n)}</span>`;
       title.setAttribute("aria-label", `اسمع الرقم ${cur.n}`);
       title.addEventListener("click", () => { Sfx.pop(); sayNumber(cur.n); });
+    } else if (cur.type === "shapes") {
+      const pair = WB_SHAPE_PAIRS[cur.pair].map((k) => WB_SHAPES[k]);
+      title.classList.add("wbk-title-colors");
+      title.innerHTML = `<b>🔷</b>` + pair.map((x) => `<span dir="ltr">${x.en}</span>`).join("");
+      title.setAttribute("aria-label", "اسمع الأشكال");
+      title.addEventListener("click", () => { Sfx.pop(); sayColors(pair); });
     } else {
       const pair = WB_COLOR_PAIRS[cur.pair].map(col);
       title.classList.add("wbk-title-colors");
@@ -326,8 +338,9 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
 
     // «Count, then match» — المس المجموعة وبعدين رقمها، وخط بيوصّلهم
     match(body, s) {
-      body.appendChild(prompt(WB_SAY.match));
-      const area = el("div", "wbk-match");
+      const equal = s.right === "groups";
+      body.appendChild(prompt(equal ? WB_SAY.matchEqual : WB_SAY.match));
+      const area = el("div", "wbk-match" + (equal ? " wbk-match-eq" : ""));
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("class", "wbk-lines");
       const groups = el("div", "wbk-mcol");
@@ -362,7 +375,8 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
         groups.appendChild(b);
       });
       s.numbers.forEach((v) => {
-        const b = button("wbk-mnum", String(v), () => select(b, v, "n"));
+        const b = button("wbk-mnum", equal ? "" : String(v), () => select(b, v, "n"));
+        if (equal) { b.classList.add("wbk-mgroup"); b.appendChild(groupOf(s.rightThing, v)); }
         nums.appendChild(b);
       });
       body.appendChild(area);
@@ -546,6 +560,147 @@ s.options.forEach((v) => {
       body.append(row, hint, done);
     },
 
+    // «Circle the repeated number»: فى كل صف رقم متكرّر — يلمس الاتنين
+    repeated(body, s) {
+      body.appendChild(prompt(WB_SAY.repeated));
+      const box = el("div", "wbk-reprows");
+      let left = s.rows.length;
+      s.rows.forEach((row) => {
+        const r = el("div", "wbk-reprow");
+        r.dir = "ltr";
+        let found = 0;
+        row.cells.forEach((v) => {
+          const b = button("wbk-repcell", String(v), () => {
+            if (b.dataset.on || r.dataset.ok) return;
+            if (v !== row.repeated) { Sfx.wrong(); flash(b, "wrong"); return; }
+            b.dataset.on = "1";
+            Sfx.pop();
+            if (++found === 2) {
+              r.dataset.ok = "1";
+              Speech.ar(WB_AR[v]);
+              if (--left === 0) stepDone(1000);
+            }
+          });
+          r.appendChild(b);
+        });
+        box.appendChild(r);
+      });
+      body.appendChild(box);
+    },
+
+    // «Color using the coloring key»: خلايا سداسية عليها أرقام، وكل رقم ليه لون
+    hexKey(body, s) {
+      body.appendChild(prompt(WB_SAY.picture));
+      const hint = hintLine();
+      const legend = el("div", "wbk-legend");
+      legend.dir = "ltr";
+      s.key.forEach((x) => {
+        const chip = el("span", "wbk-key");
+        chip.innerHTML = `<b>${x.value}</b><i style="background:${col(x.color).hex}"></i>`;
+        chip.title = col(x.color).ar;
+        legend.appendChild(chip);
+      });
+      let crayon = null;
+      const pal = palette(s.key.map((x) => x.color), (k) => { crayon = k; });
+      const grid = el("div", "wbk-hexes");
+      grid.dir = "ltr";
+      let left = s.cells.length;
+      s.cells.forEach((v) => {
+        const want = s.key.find((x) => x.value === v).color;
+        const b = button("wbk-hex", String(v), () => {
+          if (b.dataset.on) return;
+          if (!crayon) { Sfx.wrong(); flash(pal, "wbk-wiggle"); return hint.show(WB_SAY.pickFirst); }
+          if (crayon !== want) { Sfx.wrong(); flash(b, "wrong"); return hint.show(WB_SAY.paintWrong); }
+          b.dataset.on = "1";
+          b.style.setProperty("--fill", col(want).hex);
+          Sfx.pop();
+          if (--left === 0) stepDone(1000);
+        });
+        grid.appendChild(b);
+      });
+      body.append(legend, pal, grid, hint);
+    },
+
+    // ===== صفحات الأشكال =====
+    meetShapes(body, s) {
+      const [a, b] = s.shapes.map((k) => WB_SHAPES[k]);
+      body.appendChild(prompt(WB_SAY.meetShapes(a.ar, b.ar)));
+      const row = el("div", "wbk-swatches");
+      const seen = new Set();
+      s.shapes.forEach((k) => {
+        const sh = WB_SHAPES[k];
+        const card = button("wbk-swatch wbk-shapecard", "", () => {
+          Sfx.pop();
+          sayColors([sh]);
+          card.classList.add("seen");
+          seen.add(k);
+          if (seen.size === s.shapes.length) setTimeout(() => stepDone(600), 1600);
+        });
+        card.innerHTML = shapeSvg(k, "wbk-shape-big") + `<span class="wbk-sw-things">${sh.things.slice(0, 2).join(" ")}</span>`
+          + `<b>${sh.ar}</b><small dir="ltr">${sh.en}</small>`;
+        card.setAttribute("aria-label", "الشكل " + sh.ar);
+        row.appendChild(card);
+      });
+      body.appendChild(row);
+    },
+
+    // ✏️ «Trace the shapes» (على النقط) / «Draw the required shape inside the cloud» (لوحده)
+    traceShape(body, s) {
+      const sh = WB_SHAPES[s.shape];
+      writeBoard(body, s.shape, s.level, s.level === 3 ? WB_SAY.drawAlone(sh.ar) : WB_SAY.drawShape(sh.ar), () => stepDone(800));
+      if (s.level === 3) body.querySelector(".wbk-write")?.classList.add("wbk-cloud");
+    },
+
+    // «Put a check mark inside the oval shapes»: يلمس الشكل المطلوب بس
+    checkShape(body, s) {
+      body.appendChild(prompt(WB_SAY.checkShape(WB_SHAPES[s.say].ar)));
+      const hint = hintLine();
+      const grid = el("div", "wbk-checkgrid");
+      let left = s.items.filter((k) => s.target.includes(k)).length;
+      s.items.forEach((k) => {
+        const b = button("wbk-checkcell", "", () => {
+          if (b.dataset.on) return;
+          if (!s.target.includes(k)) { Sfx.wrong(); flash(b, "wrong"); return hint.show(WB_SAY.shapeWrong); }
+          b.dataset.on = "1";
+          Sfx.pop();
+          if (--left === 0) stepDone(1000);
+        });
+        b.innerHTML = shapeSvg(k, "wbk-shape-cell") + `<span class="wbk-tick">✓</span>`;
+        b.setAttribute("aria-label", WB_SHAPES[k].ar);
+        grid.appendChild(b);
+      });
+      body.append(grid, hint);
+    },
+
+    // «Choose the picture that matches the shape»
+    matchShape(body, s) {
+      body.appendChild(prompt(WB_SAY.matchShape));
+      const hint = hintLine();
+      const list = el("div", "wbk-shaperows");
+      let left = s.rows.length;
+      s.rows.forEach((row) => {
+        const r = el("div", "wbk-shaperow");
+        const head = el("span", "wbk-shapehead");
+        head.innerHTML = shapeSvg(row.shape, "wbk-shape-cell");
+        head.setAttribute("aria-label", WB_SHAPES[row.shape].ar);
+        r.appendChild(head);
+        row.options.forEach((t) => {
+          const b = button("wbk-opt wbk-shapeopt", t, () => {
+            if (r.dataset.ok) return;
+            if (t !== row.right) { Sfx.wrong(); flash(b, "wrong"); return hint.show(WB_SAY.shapeWrong); }
+            r.dataset.ok = "1";
+            b.classList.add("correct");
+            Sfx.correct();
+            Speech.ar(WB_SHAPES[row.shape].ar);
+            if (--left === 0) stepDone(1000);
+          });
+          r.appendChild(b);
+        });
+        list.appendChild(r);
+      });
+      body.append(list, hint);
+    },
+
     // ===== صفحات الألوان =====
     // «Colors»: كارت لكل لون (زى الكتاب: بقعة اللون وحاجتين لونهم كده) — يلمس الاتنين
     meetColors(body, s) {
@@ -713,10 +868,13 @@ s.options.forEach((v) => {
   }
 
   /** لوحة الكتابة للرقم v بمستوى المساعدة ده. done(fails). */
+  /** `v` = رقم، أو مفتاح شكل من WB_SHAPES (ارسم الشكل). */
   function writeBoard(host, v, level, intro, done) {
-    const strokes = strokesFor(String(v));
+    const shape = WB_SHAPES[v];
+    const strokes = shape ? shape.strokes : strokesFor(String(v));
     const hint = hintLine();
     const wrap = el("div", "wbk-write");
+    wrap.dataset.glyph = String(v);
     host.appendChild(wrap);
     if (intro) host.insertBefore(prompt(intro), wrap);
     const board = mountWriteBoard(wrap, {
@@ -726,7 +884,7 @@ s.options.forEach((v) => {
       onHint: (text) => { Sfx.wrong(); hint.show(text); },
       onDone: ({ fails }) => {
         board.el.animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 450 });
-        Speech.en(enName(v));
+        Speech.en(shape ? shape.en : enName(v));
         done(fails);
       },
     });
@@ -786,4 +944,10 @@ function cupcakeSvg(values) {
     + `<text x="${sh.at[0]}" y="${sh.at[1]}">${values[i]}</text>`).join("");
   return `<svg viewBox="0 0 200 212" role="img" aria-label="كب كيك للتلوين بالأرقام">`
     + `<path class="wbk-stem" d="M100 11 C102 5 108 2 114 1"/>${regs}</svg>`;
+}
+
+/** الشكل كرسمة SVG من نفس نقط خطّه (مربع ٠–١٠٠). */
+function shapeSvg(key, cls) {
+  const d = WB_SHAPES[key].strokes.map((st) => st.map(([x, y], i) => (i ? "L" : "M") + x + " " + y).join("") + "Z").join("");
+  return `<svg class="${cls}" viewBox="0 0 100 100" aria-hidden="true"><path d="${d}"/></svg>`;
 }
