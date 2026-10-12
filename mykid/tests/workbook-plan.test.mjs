@@ -2,7 +2,7 @@
 //   node --test mykid/tests/workbook-plan.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, WB_SHAPES, WB_SHAPE_PAIRS, colorsPage, shapesPage } from "../js/data/workbook.js";
+import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, WB_SHAPES, WB_SHAPE_PAIRS, WB_ROBOT_PARTS, colorsPage, shapesPage } from "../js/data/workbook.js";
 import { strokesFor } from "../js/data/strokes.js";
 import { WB_SAY } from "../js/data/writingPhrases.js";
 import { femAdapt } from "../js/data/mizo.js";
@@ -38,7 +38,7 @@ test("يكتب شوية ويلعب شوية: ٣ كتابات، ومفيش كتا
 test("كل التمارين بتظهر (التشكيلة بتتغيّر من صفحة لصفحة)", () => {
   const seen = new Set(pages.flatMap(([, steps]) => steps.flatMap((s) => [s.kind, s.kind + (s.mode ? ":" + s.mode : "") + (s.rep ? ":" + s.rep : "")])));
   assert.ok(pages.some(([, st]) => st.some((x) => x.kind === "match" && x.right === "groups")), "match: الصور المتساوية");
-  for (const k of [...WB_PLAYS, ...WB_LAST, "missing:prev", "missing:mid", "missing:next", "parts:fingers", "parts:things"]) assert.ok(seen.has(k), k);
+  for (const k of [...WB_PLAYS, ...WB_LAST, "missing:prev", "missing:mid", "missing:next", "parts:fingers", "parts:things", "parts:digits"]) assert.ok(seen.has(k), k);
 });
 
 test("الإجابة الصح موجودة دايماً، والمشتّتات مختلفة عنها", () => {
@@ -65,7 +65,8 @@ test("الإجابة الصح موجودة دايماً، والمشتّتات �
     if (m) {
       assert.equal(new Set(m.groups.map((g) => g.count)).size, 3, "المجموعات أعداد مختلفة");
       assert.deepEqual([...m.numbers].sort(), m.groups.map((g) => g.count).sort());
-      assert.equal(m.groups.filter((g) => g.rep === "fingers").length, m.right === "groups" ? 0 : 1, "مجموعة واحدة صوابع (والصور المتساوية من غير صوابع)");
+      if (m.right === "groups") assert.ok(m.groups.every((g) => g.rep === "things"), "الصور المتساوية: حاجات بس");
+      else assert.deepEqual(m.groups.map((g) => g.rep).sort(), ["dots", "fingers", "things"], "حاجات وصوابع وزهر");
     }
     const f = by("find");
     if (f) {
@@ -78,6 +79,7 @@ test("الإجابة الصح موجودة دايماً، والمشتّتات �
       assert.equal(p.a + p.b, n);
       assert.ok(p.a >= 1 && p.b >= 1);
       if (p.rep === "fingers") assert.ok(p.a <= 5 && p.b <= 5, "كل إيد لحد ٥");
+      if (p.rep === "digits") assert.ok(n >= 3, "بالأرقام بس من ٣ وطالع");
       assert.ok(p.options.includes(n) && new Set(p.options).size === 3);
     }
     const ff = by("frameFill");
@@ -102,6 +104,8 @@ test("الإجابة الصح موجودة دايماً، والمشتّتات �
       assert.ok(hx.cells.every((v) => hx.key.some((k) => k.value === v)));
     }
     if (m && m.right === "groups") assert.ok(m.groups.every((g) => g.rep === "things"), "الصور المتساوية: حاجات مش صوابع");
+    const st = by("stamp");
+    if (st) assert.ok(st.n === n && WB_SHAPES[st.shape]);
     const bar = by("colorBar");
     if (bar) assert.ok(bar.n === n && bar.cells >= n);
 
@@ -133,7 +137,7 @@ test("ألوان الكتاب بالترتيب: ١ أحمر/بمبى · ٢ أص�
 });
 
 test("جُمَل ميزو بتتأنّث للبنت (من غير «و» لازقة فى الفعل)", () => {
-  const all = [WB_SAY.frameFill, WB_SAY.colorBar(WB_AR[3]), WB_SAY.missPrev(WB_AR[3]), WB_SAY.missMid(WB_AR[2], WB_AR[4]), WB_SAY.missNext(WB_AR[3]), WB_SAY.chooseColor, WB_SAY.meet(WB_AR[3]), WB_SAY.colorN(WB_AR[3], "الأحمر"), WB_SAY.find(WB_AR[3]), WB_SAY.tooFew(WB_AR[3]),
+  const all = [WB_SAY.stamp, WB_SAY.robot, WB_SAY.stampTooMany(WB_AR[3]), WB_SAY.frameFill, WB_SAY.colorBar(WB_AR[3]), WB_SAY.missPrev(WB_AR[3]), WB_SAY.missMid(WB_AR[2], WB_AR[4]), WB_SAY.missNext(WB_AR[3]), WB_SAY.chooseColor, WB_SAY.meet(WB_AR[3]), WB_SAY.colorN(WB_AR[3], "الأحمر"), WB_SAY.find(WB_AR[3]), WB_SAY.tooFew(WB_AR[3]),
     WB_SAY.tooMany(WB_AR[3]), WB_SAY.countChoose, WB_SAY.match, WB_SAY.missing, WB_SAY.paintWrong, WB_SAY.againDots];
   for (const t of all) {
     const f = femAdapt(t);
@@ -185,7 +189,12 @@ test("صفحة الأشكال: ارسم على النقط ← العب ← ار�
     const [a, b] = WB_SHAPE_PAIRS[pair];
     for (let seed = 1; seed <= 40; seed++) {
       const steps = shapesPage(pair, seeded(seed * 17 + pair));
-      assert.deepEqual(steps.map((s) => s.kind), ["meetShapes", "traceShape", "checkShape", "matchShape", "traceShape"]);
+      assert.deepEqual(steps.map((s) => s.kind), ["meetShapes", "traceShape", "checkShape", "matchShape", "picture", "traceShape"]);
+      const robot = steps[4];
+      assert.equal(robot.art, "robot");
+      assert.equal(robot.regions.length, WB_ROBOT_PARTS.length);
+      robot.regions.forEach((v, i) => assert.equal(robot.key[v - 1].shape, WB_ROBOT_PARTS[i], "رقم الجزء = رقم شكله"));
+      assert.equal(new Set(robot.key.map((k) => k.color)).size, robot.key.length, "كل شكل بلون");
       assert.deepEqual(steps.filter(isWriteStep).map((s) => [s.shape, s.level]), [[a, 2], [b, 3]]);
       const ck = steps[2];
       const hits = ck.items.filter((k) => ck.target.includes(k));

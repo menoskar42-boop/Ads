@@ -371,7 +371,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       };
       s.groups.forEach((g) => {
         const b = button("wbk-mgroup", "", () => select(b, g.count, "g"));
-        b.appendChild(g.rep === "fingers" ? fingersOf(g.count) : groupOf(g.thing, g.count));
+        b.appendChild(g.rep === "fingers" ? fingersOf(g.count) : g.rep === "dots" ? dotsFor(g.count) : groupOf(g.thing, g.count));
         groups.appendChild(b);
       });
       s.numbers.forEach((v) => {
@@ -410,6 +410,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       const ans = el("span", "wbk-ans", "?");
       const part = (k) => (s.rep === "fingers" ? fingersOf(k, "wbk-fingers wbk-part") : groupOf(s.thing, k, "wbk-group wbk-part"));
       eq.append(part(s.a), el("span", "wbk-op", "+"), part(s.b), el("span", "wbk-op", "="), ans);
+      if (s.rep === "digits") eq.classList.add("hidden"); // «7 and 2 = __»: بالأرقام بس
       const nums = el("div", "wbk-eq wbk-eq-n");
       nums.dir = "ltr";
       nums.innerHTML = `<b>${s.a}</b><span class="wbk-op">and</span><b>${s.b}</b><span class="wbk-op">=</span><b class="wbk-q">?</b>`;
@@ -429,7 +430,42 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
         });
         opts.appendChild(b);
       });
+      if (s.rep === "digits") nums.classList.add("wbk-eq-big");
       body.append(eq, nums, opts);
+    },
+
+    // «Draw according to the required number»: كوباية عليها الرقم والشكل — كل لمسة جوّاها بترسم شكل
+    stamp(body, s) {
+      body.appendChild(prompt(WB_SAY.stamp));
+      const hint = hintLine();
+      const sign = el("div", "wbk-stamp-sign");
+      sign.dir = "ltr";
+      sign.innerHTML = `<b>${s.n}</b>${shapeSvg(s.shape, "wbk-shape-cell")}`;
+      const cup = el("div", "wbk-cup");
+      cup.style.setProperty("--fill", col(s.color).hex);
+      cup.setAttribute("aria-label", "الكوباية");
+      cup.addEventListener("click", (e) => {
+        if (e.target.closest(".wbk-stampmark")) return;
+        const r = cup.getBoundingClientRect();
+        const x = ((e.clientX - r.left) / r.width) * 100;
+        const y = ((e.clientY - r.top) / r.height) * 100;
+        if (x < 6 || x > 74 || y < 8 || y > 92) return; // جوّه جسم الكوباية بس (مش الودن)
+        const m = button("wbk-stampmark", "", () => { m.remove(); Sfx.tap(); });
+        m.innerHTML = shapeSvg(s.shape, "wbk-shape-cell");
+        m.style.left = x + "%";
+        m.style.top = y + "%";
+        m.setAttribute("aria-label", "شكل — المس عشان تشيله");
+        cup.appendChild(m);
+        Sfx.pop();
+        Speech.ar(WB_AR[cup.querySelectorAll(".wbk-stampmark").length] || "");
+      });
+      const done = button("candy-btn wbk-done", fem("✓ خلّصت"), () => {
+        const k = cup.querySelectorAll(".wbk-stampmark").length;
+        if (k === s.n) { done.disabled = true; sayNumber(s.n); return stepDone(1300); }
+        Sfx.wrong();
+        hint.show(k > s.n ? WB_SAY.stampTooMany(WB_AR[s.n]) : WB_SAY.tooFew(WB_AR[s.n]));
+      });
+      body.append(sign, cup, hint, done);
     },
 
     // «Complete the missing numbers»: يلاقى الناقص، وبعدين يكتبه لوحده
@@ -817,20 +853,22 @@ s.options.forEach((v) => {
 
     // «Color according to the number»: كب كيك، كل حتة عليها رقم ولكل رقم لون
     picture(body, s) {
-      body.appendChild(prompt(WB_SAY.picture));
+      const robot = s.art === "robot";
+      body.appendChild(prompt(robot ? WB_SAY.robot : WB_SAY.picture));
       const hint = hintLine();
       const legend = el("div", "wbk-legend");
       legend.dir = "ltr";
       s.key.forEach((x) => {
         const chip = el("span", "wbk-key");
-        chip.innerHTML = `<b>${x.value}</b><i style="background:${col(x.color).hex}"></i>`;
+        chip.innerHTML = `<b>${x.value}</b>` + (x.shape ? shapeSvg(x.shape, "wbk-shape-mini") : "") + `<i style="background:${col(x.color).hex}"></i>`;
         chip.title = col(x.color).ar;
         legend.appendChild(chip);
       });
+      if (robot) legend.classList.add("wbk-legend-wrap");
       let crayon = null;
       const pal = palette(s.key.map((x) => x.color), (k) => { crayon = k; });
-      const wrap = el("div", "wbk-cake");
-      wrap.innerHTML = cupcakeSvg(s.regions);
+      const wrap = el("div", "wbk-cake" + (robot ? " wbk-robot" : ""));
+      wrap.innerHTML = robot ? robotSvg(s.regions) : cupcakeSvg(s.regions);
       let left = s.regions.length;
       wrap.querySelectorAll(".wbk-reg").forEach((reg) => {
         const v = +reg.dataset.v;
@@ -950,4 +988,32 @@ function cupcakeSvg(values) {
 function shapeSvg(key, cls) {
   const d = WB_SHAPES[key].strokes.map((st) => st.map(([x, y], i) => (i ? "L" : "M") + x + " " + y).join("") + "Z").join("");
   return `<svg class="${cls}" viewBox="0 0 100 100" aria-hidden="true"><path d="${d}"/></svg>`;
+}
+
+/** الروبوت (WB_ROBOT_PARTS بنفس الترتيب): قبعة مثلث · نجمة · راس دايرة · رقبة ومربع الجسم ·
+ *  دراعين مستطيل · إيدين دواير · رجلين مستطيل · رجلين بيضاوى · قلب. */
+function robotSvg(values) {
+  const star = Array.from({ length: 10 }, (_, i) => {
+    const a = ((-90 + i * 36) * Math.PI) / 180, r = i % 2 ? 7 : 16;
+    return `${(166 + r * Math.cos(a)).toFixed(1)},${(30 + r * Math.sin(a)).toFixed(1)}`;
+  }).join(" ");
+  const parts = [
+    [`<polygon points="100,6 122,40 78,40"/>`, [100, 32]],
+    [`<polygon points="${star}"/>`, [166, 34]],
+    [`<circle cx="100" cy="60" r="20"/>`, [100, 65]],
+    [`<rect x="91" y="80" width="18" height="12"/>`, [100, 90]],
+    [`<rect x="70" y="92" width="60" height="60"/>`, [100, 128]],
+    [`<rect x="32" y="100" width="40" height="14" transform="rotate(35 70 107)"/>`, [52, 99]],
+    [`<rect x="128" y="100" width="40" height="14" transform="rotate(-35 130 107)"/>`, [148, 99]],
+    [`<circle cx="36" cy="80" r="10"/>`, [36, 85]],
+    [`<circle cx="164" cy="80" r="10"/>`, [164, 85]],
+    [`<rect x="78" y="152" width="16" height="44"/>`, [86, 178]],
+    [`<rect x="106" y="152" width="16" height="44"/>`, [114, 178]],
+    [`<ellipse cx="80" cy="204" rx="16" ry="9"/>`, [80, 209]],
+    [`<ellipse cx="120" cy="204" rx="16" ry="9"/>`, [120, 209]],
+    [`<path d="M30 168 C24 156 8 160 12 174 C14 182 24 188 30 194 C36 188 46 182 48 174 C52 160 36 156 30 168 Z"/>`, [30, 180]],
+  ];
+  const regs = parts.map(([shape, [x, y]], i) =>
+    shape.replace(/^<(\w+)/, `<$1 class="wbk-reg" data-v="${values[i]}"`) + `<text x="${x}" y="${y}">${values[i]}</text>`).join("");
+  return `<svg viewBox="0 0 200 220" role="img" aria-label="روبوت من الأشكال للتلوين">${regs}</svg>`;
 }

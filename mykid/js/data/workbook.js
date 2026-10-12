@@ -69,7 +69,7 @@ const things = (rnd, k) => shuffled(rnd, WB_THINGS).slice(0, k);
 export const WB_REPS = ["digit", "dots", "things", "fingers"];
 
 /** تمارين اللعب اللى بتتوزّع على صفحات الأرقام (كل صفحة فى الكتاب ليها تشكيلة مختلفة). */
-export const WB_PLAYS = ["countChoose", "match", "find", "parts", "frameFill", "repeated"];
+export const WB_PLAYS = ["countChoose", "match", "find", "parts", "frameFill", "repeated", "stamp"];
 export const WB_LAST = ["paint", "colorBar", "hexKey"];
 
 /**
@@ -100,11 +100,12 @@ export function workbookPage(n, rnd = Math.random, only = null) {
     match() {
       const mCounts = shuffled(rnd, [n, ...neighbours(rnd, n, 2)]);
       const equal = rnd() < 0.35;
-      const fingersAt = equal ? -1 : Math.floor(rnd() * 3);
+      // «Count, then connect»: مجموعة حاجات، وإيد صوابع، ووش زهر (نقط)
+      const reps = equal ? ["things", "things", "things"] : shuffled(rnd, ["things", "fingers", "dots"]);
       return {
         kind: "match",
         right: equal ? "groups" : "numbers",
-        groups: mCounts.map((count, i) => ({ count, thing: [t5, t6, t1][i], rep: i === fingersAt ? "fingers" : "things" })),
+        groups: mCounts.map((count, i) => ({ count, thing: [t5, t6, t1][i], rep: reps[i] })),
         numbers: shuffled(rnd, mCounts),
         rightThing: t4,
       };
@@ -138,11 +139,17 @@ export function workbookPage(n, rnd = Math.random, only = null) {
       return { kind: "find", n, cells, color: c2 };
     },
     // مكوّنات الرقم (٢ و ١ = ٣) — بالحاجات أو بالصوابع (كل إيد لحد ٥)
+    // أو بالأرقام بس («7 and 2 = __») من ٣ وطالع
     parts() {
       const lo = Math.max(1, n - 5), hi = Math.min(5, n - 1);
-      const fingers = rnd() < 0.5;
-      const a = fingers ? lo + Math.floor(rnd() * (hi - lo + 1)) : 1 + Math.floor(rnd() * (n - 1));
-      return { kind: "parts", n, a, b: n - a, thing: t2, rep: fingers ? "fingers" : "things", options: shuffled(rnd, [n, ...neighbours(rnd, n, 2)]) };
+      const r = rnd();
+      const rep = r < 0.4 ? "fingers" : r < 0.7 || n < 3 ? "things" : "digits";
+      const a = rep === "fingers" ? lo + Math.floor(rnd() * (hi - lo + 1)) : 1 + Math.floor(rnd() * (n - 1));
+      return { kind: "parts", n, a, b: n - a, thing: t2, rep, options: shuffled(rnd, [n, ...neighbours(rnd, n, 2)]) };
+    },
+    // «Draw according to the required number»: كوباية عليها «8 △» — كل لمسة جوّاها بترسم شكل
+    stamp() {
+      return { kind: "stamp", n, shape: pickOf(rnd, ["triangle", "square", "circle", "star", "heart"]), color: c2 };
     },
     // «Count, write the number, then add dots»: يعدّ الحاجات ويحط نقطة لكل واحدة فى الشريط
     frameFill() {
@@ -260,6 +267,11 @@ export const WB_SHAPES = {
     things: ["❤️", "💝", "💌"],
   },
 };
+/** الروبوت (كتاب ص ٥٠): رقم كل شكل زى الكتاب — ١ دايرة · ٢ بيضاوى · ٣ قلب · ٤ مربع · ٥ مستطيل · ٦ مثلث · ٧ نجمة. */
+export const WB_ROBOT_KEY = ["circle", "oval", "heart", "square", "rectangle", "triangle", "star"];
+/** أجزاء الروبوت بالترتيب اللى بتترسم بيه (robotSvg فى الشاشة بنفس الترتيب). */
+export const WB_ROBOT_PARTS = ["triangle", "star", "circle", "square", "square", "rectangle", "rectangle",
+  "circle", "circle", "rectangle", "rectangle", "oval", "oval", "heart"];
 export const WB_SHAPE_PAIRS = [["circle", "oval"], ["square", "rectangle"], ["triangle", "rightTriangle"], ["star", "heart"]];
 
 /**
@@ -291,6 +303,13 @@ export function shapesPage(pairIdx, rnd = Math.random) {
       const right = pickOf(rnd, WB_SHAPES[sh].things);
       return { shape: sh, right, options: shuffled(rnd, [right, ...wrongs]) };
     }),
+  });
+  // «Color as shown in the figure»: روبوت من كل الأشكال — كل شكل ليه رقم ولون
+  const keyColors = shuffled(rnd, Object.keys(WB_COLORS)).slice(0, WB_ROBOT_KEY.length);
+  steps.push({
+    kind: "picture", art: "robot",
+    key: WB_ROBOT_KEY.map((shape, i) => ({ value: i + 1, shape, color: keyColors[i] })),
+    regions: WB_ROBOT_PARTS.map((part) => WB_ROBOT_KEY.indexOf(part) + 1),
   });
   steps.push({ kind: "traceShape", shape: b, level: 3 });
   return steps;

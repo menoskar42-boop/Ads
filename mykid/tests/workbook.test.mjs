@@ -242,12 +242,13 @@ const solve = {
     const keys = await page.locator(".wbk-key").evaluateAll((ks) => ks.map((k) => [k.querySelector("b").textContent, k.title]));
     const colorOf = Object.fromEntries(keys);
     const regs = page.locator(".wbk-reg");
-    assert.equal(await regs.count(), 9);
+    const total = await regs.count();
+    assert.equal(total, (await page.locator(".wbk-robot").count()) ? 14 : 9);
     const v0 = await regs.nth(0).getAttribute("data-v");
     await clickText(".wbk-crayon", keys.find(([v]) => v !== v0)[1]);
     await regs.nth(0).click();
     assert.match(await page.locator(".wbk-hint").textContent(), /مش ده اللون/);
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < total; i++) {
       await clickText(".wbk-crayon", colorOf[await regs.nth(i).getAttribute("data-v")]);
       await regs.nth(i).click({ force: true });
     }
@@ -313,6 +314,19 @@ const solve = {
     const k = await hits.count();
     for (let i = 0; i < k; i++) await hits.nth(i).click();
   },
+  async stamp(n) {
+    const cup = page.locator(".wbk-cup");
+    const r = await cup.boundingBox();
+    const at = (k) => [r.x + r.width * (0.14 + (k % 4) * 0.15), r.y + r.height * (0.2 + Math.floor(k / 4) * 0.22)];
+    for (let k = 0; k <= n; k++) await page.mouse.click(...at(k));
+    assert.equal(await page.locator(".wbk-stampmark").count(), n + 1);
+    await page.locator(".wbk-done").click();
+    assert.match(await page.locator(".wbk-hint").textContent(), /كتير/);
+    await page.locator(".wbk-stampmark").last().click(); // لمسة على الشكل بتشيله
+    assert.equal(await page.locator(".wbk-stampmark").count(), n);
+    await shot("stamp-done");
+    await page.locator(".wbk-done").click();
+  },
   async parts(n) {
     const part = async (i) => Number((await page.locator(".wbk-part").nth(i).getAttribute("aria-label")).match(/^\d+/)[0]);
     const a = await part(0);
@@ -353,6 +367,7 @@ const CASES = [
   [4, [...WB_PLAYS, "paint"]], // كل ألعاب صفحة الرقم مرة واحدة
   [6, ["frameFill", "parts", "match", "colorBar"]],
   [8, ["repeated", "match", "find", "hexKey"]],
+  [9, ["stamp", "parts", "match", "colorBar"]],
   [1, null], [10, null], ["c0", null], ["c3", null], ["s0", null], ["s2", null], ["s3", null],
 ];
 for (const [n, only] of CASES) {

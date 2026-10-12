@@ -146,14 +146,14 @@ add("برافو", AR);
   for (const n of WB_NUMBERS) {
     const ar = WB_AR[n];
     const [c1] = colorPairOf(n);
-    [W.meet(ar), W.tooMany(ar), W.tooFew(ar), W.find(ar), W.colorN(ar, WB_COLORS[c1].al), WP.writeIntro("الرقم", ar)].forEach(addAr);
+    [W.meet(ar), W.tooMany(ar), W.stampTooMany(ar), W.tooFew(ar), W.find(ar), W.colorN(ar, WB_COLORS[c1].al), WP.writeIntro("الرقم", ar)].forEach(addAr);
     for (let a = 1; a < n; a++) addAr(W.parts(WB_AR[a], WB_AR[n - a]));
     // «لوّن رقم n …، ورقم m …»: m أى رقم تانى، ولون كل واحد من زوج n
     const [p1, p2] = colorPairOf(n).map((k) => WB_COLORS[k].ar);
     for (const m of WB_NUMBERS) if (m !== n) addAr(W.paint(ar, p1, WB_AR[m], p2));
   }
   // صفحات الألوان
-  [W.chooser, W.realWrong, W.pickFirst, W.picture, W.repeated, W.matchEqual, W.matchShape, W.shapeWrong].forEach(addAr);
+  [W.chooser, W.realWrong, W.pickFirst, W.picture, W.repeated, W.matchEqual, W.matchShape, W.shapeWrong, W.stamp, W.robot].forEach(addAr);
   // الأشكال
   Object.values(WB_SHAPES).forEach((sh) => {
     add(sh.ar, AR); add(sh.en, EN);
