@@ -23,6 +23,7 @@ import { LastUpdatedBadge } from "@/components/LastUpdatedBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
+import { useWfmMobileLast, FetchWfmMobilesButton, AltMobileButton, WfmMobileMiss, skipWfmMobileRetry } from "@/components/WfmMobileTools";
 import { useHorizontalKeyboardScroll } from "@/hooks/use-horizontal-keyboard-scroll";
 
 interface CurrentFault extends Measurement138 {
@@ -322,6 +323,12 @@ export function CurrentFaultsReport() {
     .filter((f) => (monthRepeatOnly ? f.monthRepeat === true : true))
     .filter((f) => (returnedOnly ? dispStatus(f.statusCode) === "DSL-173" : true));
   const mobileLookup = useMobileLookup(displayed.map((f) => f.phoneShort));
+  // «جلب الموبايل من WFM» (المالك ٢٠٢٦-١٠-١١): الخطوط المعروضة اللى مالهاش موبايل
+  const wfmMobileLast = useWfmMobileLast(displayed.map((f) => f.phoneShort), isSuper);
+  const noMobilePhones = Array.from(new Set(displayed
+    .filter((f) => f.phoneShort && !(mobileLookup[phoneLookupKey(f.phoneShort)] ?? f.mobile))
+    .map((f) => phoneLookupKey(f.phoneShort))));
+  const wfmMobileTargets = noMobilePhones.filter((p) => !skipWfmMobileRetry(wfmMobileLast[p]));
 
   // تقسيم الإجمالى: عدد أعطال الداتا وعدد أعطال الصوت (من displayed بعد الفلاتر)
   const dataCount  = displayed.filter(isDataFault).length;
@@ -589,6 +596,9 @@ export function CurrentFaultsReport() {
         <span className="text-xs px-2 py-0.5 rounded font-medium bg-red-100 text-red-800">
           المتبقيات: <strong>{displayed.filter((f) => f.faultClass === "المتبقيات").length}</strong>
         </span>
+        {isSuper && (
+          <FetchWfmMobilesButton phones={wfmMobileTargets} skipped={noMobilePhones.length - wfmMobileTargets.length} />
+        )}
         {showSpeedTools && (<>
         <Button
           variant="outline" size="sm"
@@ -743,6 +753,7 @@ export function CurrentFaultsReport() {
                       ) : (
                         <span className="inline-flex items-center gap-1">
                           <MobileValue mobile={mobile} phone={f.phoneShort} />
+                          {isSuper && <AltMobileButton alt={wfmMobileLast[phoneLookupKey(f.phoneShort)]?.altMobile} mobile={mobile} />}
                           {isSuper && f.phoneShort && (
                             <button
                               type="button"
@@ -755,6 +766,7 @@ export function CurrentFaultsReport() {
                               {mobile ? "تعديل" : "＋ إضافة"}
                             </button>
                           )}
+                          {isSuper && !mobile && <WfmMobileMiss last={wfmMobileLast[phoneLookupKey(f.phoneShort)]} />}
                         </span>
                       )}
                     </TableCell>

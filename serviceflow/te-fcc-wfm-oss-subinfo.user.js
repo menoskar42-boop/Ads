@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         TE FCC + WFM + OSS + SubInfo (All-in-One)
 // @namespace    te.eg.autoexport
-// @version      3.6.9
-// @description  FCC + WFM + OSS export + جلب اسم/عنوان العميل — كله فى سكربت واحد. v3.6.9: رجّعنا ريفريش صفحة دخول WFM (3.6.8) — الدخول لو طوّل بيستنى زى FCC، وإعادة تشغيل المهمة اللى علقت بقت من موقعنا (جهاز التنفيذ بعد ٤ دقايق). v3.6.7: «إلغاء/إعادة الإسناد» لو وقف (مفيش مهمة، البند مش متاح، الإسناد فشل، الوضع ضايع) بيبلّغ Service-Flow بالسبب — جهاز التنفيذ مابقاش يستنى ٦ دقايق والسبب بيظهر فى «معاملات التنفيذ». v3.6.6: «إعادة الإسناد»/«إلغاء الاسناد» — الوضع وكود العامل بيتحفظوا مع الرقم أول ما التاب يفتح، فلو WFM حوّله على صفحة الدخول ورجع من غير الهاش مايضيعوش («مفيش sf_mode محفوظ»). v3.5.3: «إلغاء الاسناد» و«موافقة تغيير البورت» بيشتغلوا جوّه الصفحة نفسها زى السكربتين القدام (ولو الصفحة منعت ده بيشتغلوا من الـsandbox)؛ رفع الملفات زى ما هو. v3.5.2: «إلغاء الاسناد» و«موافقة تغيير البورت» جوّه السكربت المدموج: أحداث الماوس من غير view: window (فى sandbox بتاع Tampermonkey كانت بتترفض فى صمت فقائمة السطر فى Dispatcher ماكانتش بتفتح). v3.5.1: صفحة دخول WFM من غير أى علامة = تحديث يومى (Service-Flow القديم قبل الـRepublish بيفتحها كده) — إلا لو التاب عليه طلب إلغاء/موافقة شغّال. v3.5.0: سكربتا «إلغاء الاسناد» و«موافقة تغيير البورت» اتدمجوا هنا (احذفهم من Tampermonkey) — راوتر WFM واحد بيحدّد نوع التاب من الرابط أول ما يفتح (إلغاء / موافقة / تحديث يومى)، ودخول واحد، وتصدير أوامر الشغل بيشتغل **بس** على تاب متفتح كتحديث يومى (#sf_wfm_daily). v3.4.3: الدخول على WFM بنفس اسم المستخدم وكلمة السر بتوع FCC. v3.4.2: مابيشغّلش تصدير أوامر الشغل على تاب «موافقة تغيير بورت» (#sf_accept= أو sf_accept_pending) — كان بيصدّر نتيجة البحث المفلترة على رقم واحد فتترفع كملف كامل وتمسح التركيبات الحالية. v3.4.0: منع التعارض مع سكربت «إلغاء الاسناد» على wfm.te.eg — التاب اللى بيفتح بعلامة #sf_cancel= بيبقى تاب إلغاء إسناد، فتدفّق تصدير أوامر الشغل بيتوقّف عليه بدل ما يخطفه لشاشة Work Order Management ويفتح نافذة Export. v3.3.0: زر «مراجعة الاسم والعنوان» بقى يحترم كمان نطاق الأرقام (من رقم/إلى رقم) من بيان التليفونات — بيتبعت فى الهاش (sf_sif = سنترال~كابينة~بكس~من~إلى) ولـ /pending كـ phoneFrom/phoneTo، فالمراجعة تقتصر على أرقام النطاق المحدد. v3.2.0: زر «مراجعة الاسم والعنوان» فى بيان التليفونات بقى يحترم الفلتر (سنترال/كابينة/بكس) — الفلتر بيتبعت فى الهاش (sf_sif) ولـ /pending، فكل تاب مراجعة يجيب أرقام فلتره بس؛ تقدر تفتح مراجعتين بفلترين مختلفين فى نفس الوقت (كل واحدة نافذة مستقلة) بلا طابور مشترك. v3.1.0: زر المراجعة اليدوى الشامل بيراجع كل الأرقام المطلوبة (مش 300 بس) — بيجيب القائمة كاملة (لحد 15000)؛ المراجعة اليومية بعد التصدير لسه دفعة صغيرة (40) عبر maxCount. v3.0.9: تنسيق تابات FCC — كل تاب مسجّل دخول بيكتب نبضة (localStorage). لو تاب التصدير لقى FCC مفتوح ومسجّل دخول فى تاب تانى → مايعملش دخول جديد (اللى كان بيطلع «Invalid username or password») ويروح Home بنفس الجلسة (الكوكيز مشتركة)؛ ولو في تاب تاني بيراجع بالفعل يقفل بعد التصدير بدل مراجعة مكرّرة. v3.0.8: (1) أولوية تصدير شيت FCC — لو التحديث اليومى اشتغل والتاب وسط مراجعة بيانات فنية، السيرفر بيسلّح علامة «صدّر الآن»؛ الراوتر يشوفها فيصدّر الشيت الأول ثم يكمّل المراجعة (المتبقى من الأرقام يفضل مستبعَد فبيكمّل من مكانه). (2) تنظيف استخراج WorkOrdDate (يقتطع التاريخ فقط) وWorkOrdNo (أرقام فقط). v3.0.7: إصلاح المراجعة بعد التصدير اليومى — كانت بتستخدم علامة عابرة (sf_fcc_phase) بتضيع مع الـ reload اللى بيحصل وقت فتح Complains، فكان main يرجع يشغّل runFCC على صفحة Complains ويعلّق من غير ما يدخل أرقام. دلوقتى بتستخدم نفس العلامة الثابتة sf_si_mode (اللى بتشتغل فى المراجعة الفردية/الشاملة) + دفعة 40 + بتتمسح فى الآخر عشان تاب fcc_daily يرجع يصدّر عادى. v3.0.6: المراجعة اليومية بعد التصدير بقت دفعة صغيرة (40 رقم) عشان تاب FCC يقفل بسرعة ومايحمّلش FCC؛ والزر الشامل اليدوى لسه بيراجع لحد 300. (السيرفر بيرجّع بس أرقام 88+7 خانات الصحيحة). v3.0.5: (1) علامة المراجعة كمان فى الـ hash احتياطى (#sf_si=one:الرقم / #sf_si=auto) لو المتصفح مسح window.name. (2) تشخيص فى اللوج «علامة الراوتر» يوضّح ليه راح للتصدير بدل المراجعة. (3) البحث عن خانات/زر البحث فى كل الـ iframes + تشخيص الحقول siDumpFields. v3.0.4: إصلاح — التهدئة بقت *فقط* لو ظهرت رسالة رفض/قفل فعلية (Invalid username or password / LoginException). بطء تسجيل الدخول (لسه على صفحة الدخول من غير رسالة) مابيتحسبش فشل خالص — بنستنى بصبر لحد ما يخرج من صفحة الدخول (نجاح) أو تظهر رسالة (تهدئة). شِلنا عدّاد «محاولتين فاشلتين» اللى كان بيوقف الدخول بالغلط وقت التأخير. v3.0.3: قفل حساب FCC مؤقت (~20 دقيقة) — فترة تهدئة ~22 دقيقة (مشتركة عبر كل تابات FCC عبر localStorage) بعد رفض الدخول، وبعدها يحاول لوحده. v3.0.2: (1) علامة وضع المراجعة (sf_subinfo_one/auto) بتتثبّت فى sessionStorage عند document-start قبل ما FCC يمسح window.name — فزر «مراجعة» بقى يفتح Complains ويدخل رقم التليفون بدل ما يقع فى تدفّق التصدير. (2) الدخول يقف فوراً لو ظهرت «Invalid username or password». v3.0.1: المراجعة تفتح Complains بـ activate (زى بلاطة Ticket Queue) + حد 300 رقم لكل تشغيل (الباقى يكمّل الدورة الجاية). v3.0.0: دمجنا سكربت SubInfo هنا — تاب FCC اليومى بعد التصدير يراجع الأرقام (بورتات بدون بيانات فنية) فى نفس الدخول ثم يقفل؛ وزر المراجعة اليدوى (sf_subinfo_auto/one) بيشتغل لوحده. (احذف سكربت SubInfo المنفصل القديم).
+// @version      3.7.0
+// @description  FCC + WFM + OSS export + جلب اسم/عنوان العميل — كله فى سكربت واحد. v3.7.0: «جلب الموبايل» من WFM (#sf_accept=الرقم&sf_kind=mobile) — Work Order ← Service Id ← Search ← فتح الأمر ← «Cust. Mobile» بدل Assignments ← يقرا «رقم الموبايل» و«تليفون بديل» ويبعتهم لـ Service-Flow (الأعطال الحالية). ولو WFM حوّل التاب على الدخول ورجع من غير الهاش، الرقم بيتاخد من الطلب المحفوظ. v3.6.9: رجّعنا ريفريش صفحة دخول WFM (3.6.8) — الدخول لو طوّل بيستنى زى FCC، وإعادة تشغيل المهمة اللى علقت بقت من موقعنا (جهاز التنفيذ بعد ٤ دقايق). v3.6.7: «إلغاء/إعادة الإسناد» لو وقف (مفيش مهمة، البند مش متاح، الإسناد فشل، الوضع ضايع) بيبلّغ Service-Flow بالسبب — جهاز التنفيذ مابقاش يستنى ٦ دقايق والسبب بيظهر فى «معاملات التنفيذ». v3.6.6: «إعادة الإسناد»/«إلغاء الاسناد» — الوضع وكود العامل بيتحفظوا مع الرقم أول ما التاب يفتح، فلو WFM حوّله على صفحة الدخول ورجع من غير الهاش مايضيعوش («مفيش sf_mode محفوظ»). v3.5.3: «إلغاء الاسناد» و«موافقة تغيير البورت» بيشتغلوا جوّه الصفحة نفسها زى السكربتين القدام (ولو الصفحة منعت ده بيشتغلوا من الـsandbox)؛ رفع الملفات زى ما هو. v3.5.2: «إلغاء الاسناد» و«موافقة تغيير البورت» جوّه السكربت المدموج: أحداث الماوس من غير view: window (فى sandbox بتاع Tampermonkey كانت بتترفض فى صمت فقائمة السطر فى Dispatcher ماكانتش بتفتح). v3.5.1: صفحة دخول WFM من غير أى علامة = تحديث يومى (Service-Flow القديم قبل الـRepublish بيفتحها كده) — إلا لو التاب عليه طلب إلغاء/موافقة شغّال. v3.5.0: سكربتا «إلغاء الاسناد» و«موافقة تغيير البورت» اتدمجوا هنا (احذفهم من Tampermonkey) — راوتر WFM واحد بيحدّد نوع التاب من الرابط أول ما يفتح (إلغاء / موافقة / تحديث يومى)، ودخول واحد، وتصدير أوامر الشغل بيشتغل **بس** على تاب متفتح كتحديث يومى (#sf_wfm_daily). v3.4.3: الدخول على WFM بنفس اسم المستخدم وكلمة السر بتوع FCC. v3.4.2: مابيشغّلش تصدير أوامر الشغل على تاب «موافقة تغيير بورت» (#sf_accept= أو sf_accept_pending) — كان بيصدّر نتيجة البحث المفلترة على رقم واحد فتترفع كملف كامل وتمسح التركيبات الحالية. v3.4.0: منع التعارض مع سكربت «إلغاء الاسناد» على wfm.te.eg — التاب اللى بيفتح بعلامة #sf_cancel= بيبقى تاب إلغاء إسناد، فتدفّق تصدير أوامر الشغل بيتوقّف عليه بدل ما يخطفه لشاشة Work Order Management ويفتح نافذة Export. v3.3.0: زر «مراجعة الاسم والعنوان» بقى يحترم كمان نطاق الأرقام (من رقم/إلى رقم) من بيان التليفونات — بيتبعت فى الهاش (sf_sif = سنترال~كابينة~بكس~من~إلى) ولـ /pending كـ phoneFrom/phoneTo، فالمراجعة تقتصر على أرقام النطاق المحدد. v3.2.0: زر «مراجعة الاسم والعنوان» فى بيان التليفونات بقى يحترم الفلتر (سنترال/كابينة/بكس) — الفلتر بيتبعت فى الهاش (sf_sif) ولـ /pending، فكل تاب مراجعة يجيب أرقام فلتره بس؛ تقدر تفتح مراجعتين بفلترين مختلفين فى نفس الوقت (كل واحدة نافذة مستقلة) بلا طابور مشترك. v3.1.0: زر المراجعة اليدوى الشامل بيراجع كل الأرقام المطلوبة (مش 300 بس) — بيجيب القائمة كاملة (لحد 15000)؛ المراجعة اليومية بعد التصدير لسه دفعة صغيرة (40) عبر maxCount. v3.0.9: تنسيق تابات FCC — كل تاب مسجّل دخول بيكتب نبضة (localStorage). لو تاب التصدير لقى FCC مفتوح ومسجّل دخول فى تاب تانى → مايعملش دخول جديد (اللى كان بيطلع «Invalid username or password») ويروح Home بنفس الجلسة (الكوكيز مشتركة)؛ ولو في تاب تاني بيراجع بالفعل يقفل بعد التصدير بدل مراجعة مكرّرة. v3.0.8: (1) أولوية تصدير شيت FCC — لو التحديث اليومى اشتغل والتاب وسط مراجعة بيانات فنية، السيرفر بيسلّح علامة «صدّر الآن»؛ الراوتر يشوفها فيصدّر الشيت الأول ثم يكمّل المراجعة (المتبقى من الأرقام يفضل مستبعَد فبيكمّل من مكانه). (2) تنظيف استخراج WorkOrdDate (يقتطع التاريخ فقط) وWorkOrdNo (أرقام فقط). v3.0.7: إصلاح المراجعة بعد التصدير اليومى — كانت بتستخدم علامة عابرة (sf_fcc_phase) بتضيع مع الـ reload اللى بيحصل وقت فتح Complains، فكان main يرجع يشغّل runFCC على صفحة Complains ويعلّق من غير ما يدخل أرقام. دلوقتى بتستخدم نفس العلامة الثابتة sf_si_mode (اللى بتشتغل فى المراجعة الفردية/الشاملة) + دفعة 40 + بتتمسح فى الآخر عشان تاب fcc_daily يرجع يصدّر عادى. v3.0.6: المراجعة اليومية بعد التصدير بقت دفعة صغيرة (40 رقم) عشان تاب FCC يقفل بسرعة ومايحمّلش FCC؛ والزر الشامل اليدوى لسه بيراجع لحد 300. (السيرفر بيرجّع بس أرقام 88+7 خانات الصحيحة). v3.0.5: (1) علامة المراجعة كمان فى الـ hash احتياطى (#sf_si=one:الرقم / #sf_si=auto) لو المتصفح مسح window.name. (2) تشخيص فى اللوج «علامة الراوتر» يوضّح ليه راح للتصدير بدل المراجعة. (3) البحث عن خانات/زر البحث فى كل الـ iframes + تشخيص الحقول siDumpFields. v3.0.4: إصلاح — التهدئة بقت *فقط* لو ظهرت رسالة رفض/قفل فعلية (Invalid username or password / LoginException). بطء تسجيل الدخول (لسه على صفحة الدخول من غير رسالة) مابيتحسبش فشل خالص — بنستنى بصبر لحد ما يخرج من صفحة الدخول (نجاح) أو تظهر رسالة (تهدئة). شِلنا عدّاد «محاولتين فاشلتين» اللى كان بيوقف الدخول بالغلط وقت التأخير. v3.0.3: قفل حساب FCC مؤقت (~20 دقيقة) — فترة تهدئة ~22 دقيقة (مشتركة عبر كل تابات FCC عبر localStorage) بعد رفض الدخول، وبعدها يحاول لوحده. v3.0.2: (1) علامة وضع المراجعة (sf_subinfo_one/auto) بتتثبّت فى sessionStorage عند document-start قبل ما FCC يمسح window.name — فزر «مراجعة» بقى يفتح Complains ويدخل رقم التليفون بدل ما يقع فى تدفّق التصدير. (2) الدخول يقف فوراً لو ظهرت «Invalid username or password». v3.0.1: المراجعة تفتح Complains بـ activate (زى بلاطة Ticket Queue) + حد 300 رقم لكل تشغيل (الباقى يكمّل الدورة الجاية). v3.0.0: دمجنا سكربت SubInfo هنا — تاب FCC اليومى بعد التصدير يراجع الأرقام (بورتات بدون بيانات فنية) فى نفس الدخول ثم يقفل؛ وزر المراجعة اليدوى (sf_subinfo_auto/one) بيشتغل لوحده. (احذف سكربت SubInfo المنفصل القديم).
 // @match        https://fcc.te.eg/TroubleTicket/faces/*
 // @match        https://wfm.te.eg/WorkOrder/*
 // @match        https://wfm.te.eg/Dispatcher/*
@@ -30,7 +30,13 @@
 
   /* ---------- WFM: نوع التاب (v3.5.0) ---------- */
   var SF_WFM_CANCEL_KEYS = ['sf_wfm_cancel_pending', 'sf_wfm_cancel_pending_ts', 'sf_wfm_cancel_hops', 'sf_wfm_cancel_mode', 'sf_wfm_cancel_worker', 'sf_wfm_direct_tries', 'sf_wfm_direct_ts', 'sf_wfm_reloads'];
-  var SF_WFM_ACCEPT_KEYS = ['sf_accept_pending', 'sf_accept_index', 'sf_accept_hops', 'sf_accept_phase', 'sf_wfm_accept_pending'];
+  var SF_WFM_ACCEPT_KEYS = ['sf_accept_pending', 'sf_accept_index', 'sf_accept_hops', 'sf_accept_phase', 'sf_wfm_accept_pending', 'sf_accept_kind'];
+  /* v3.7.0: تاب sf_accept ليه نوعين — موافقة تغيير البورت (الأصل) أو «جلب الموبايل» (&sf_kind=mobile).
+     النوع بيتحفظ مع الرقم فى نفس اللحظة عشان لو WFM حوّله على صفحة الدخول ورجع من غير الهاش. */
+  function sfAcceptKindOf(h) { return /sf_kind(?:=|%3D)mobile/i.test(h || '') ? 'mobile' : ''; }
+  function sfSetAcceptKind(h) {
+    try { if (sfAcceptKindOf(h)) sessionStorage.setItem('sf_accept_kind', 'mobile'); else sessionStorage.removeItem('sf_accept_kind'); } catch (e) {}
+  }
   var SF_WFM_MODE_TTL = 30 * 60 * 1000;
   function sfWfmSetMode(mode) {
     try {
@@ -89,7 +95,7 @@
        واحد، و«Export Excel» بيصدّر نتيجة البحث بس — فلو التصدير اشتغل هنا بيترفع ملف فيه صف
        واحد كأنه الملف الكامل ويمسح التركيبات الحالية (حصل ٢٠٢٦-١٠-٠٦). */
     var _ma = _h.match(/sf_accept(?:=|%3D)(\d+)/i);
-    if (_ma) { try { sessionStorage.setItem('sf_wfm_accept_pending', _ma[1]); } catch (e) {} }
+    if (_ma) { try { sessionStorage.setItem('sf_wfm_accept_pending', _ma[1]); } catch (e) {} sfSetAcceptKind(_h); }
     /* v3.5.0: نوع تاب WFM **صريح** من الرابط: إلغاء / موافقة / تحديث يومى (#sf_wfm_daily).
        كل علامة جديدة بتمسح بقايا الوحدتين التانيين (التاب sf_wfm بيتعاد استخدامه بين الأنواع)،
        والتصدير اليومى بيشتغل **بس** لو النوع daily — مش «أى تاب مالوش علامة» زى الأول. */
@@ -1357,14 +1363,14 @@
       window.addEventListener('hashchange', function () {
         const h = location.hash || '';
         const mc = h.match(/sf_cancel(?:=|%3D)(\d+)/i), ma = h.match(/sf_accept(?:=|%3D)(\d+)/i), md = /sf_wfm_daily/i.test(h);
-        let cur = {}; try { cur = { c: sessionStorage.getItem('sf_wfm_cancel_pending'), a: sessionStorage.getItem('sf_accept_pending') || sessionStorage.getItem('sf_wfm_accept_pending'), m: sfWfmMode() }; } catch (e) {}
-        const fresh = (mc && mc[1] !== cur.c) || (ma && ma[1] !== cur.a) || (md && cur.m !== 'daily');
+        let cur = {}; try { cur = { c: sessionStorage.getItem('sf_wfm_cancel_pending'), a: sessionStorage.getItem('sf_accept_pending') || sessionStorage.getItem('sf_wfm_accept_pending'), k: sessionStorage.getItem('sf_accept_kind') || '', m: sfWfmMode() }; } catch (e) {}
+        const fresh = (mc && mc[1] !== cur.c) || (ma && (ma[1] !== cur.a || sfAcceptKindOf(h) !== cur.k)) || (md && cur.m !== 'daily');
         if (!fresh) return;
         log('↻ طلب WFM جديد فى نفس التاب — إعادة تحميل');
         if (mc) sfWfmSetMode('cancel'); else if (ma) sfWfmSetMode('accept'); else sfWfmSetMode('daily');
         if (mc) try { sessionStorage.setItem('sf_wfm_cancel_pending', mc[1]); } catch (e) {}
         if (mc) sfWfmCancelExtras(h);
-        if (ma) try { sessionStorage.setItem('sf_wfm_accept_pending', ma[1]); } catch (e) {}
+        if (ma) { try { sessionStorage.setItem('sf_wfm_accept_pending', ma[1]); sessionStorage.removeItem('sf_accept_pending'); } catch (e) {} sfSetAcceptKind(h); }
         setTimeout(function () { try { location.reload(); } catch (e) {} }, 300);
       });
     }
@@ -2779,6 +2785,9 @@
   // «Updated Successfully» بتظهر فى الصفحة الجديدة — كان السكربت بيبدأ البحث من الأول بدل
   // ما يضغط OK، ومايلاقيش الأخضر فيقفل التاب والرسالة لسه مفتوحة (المالك ٢٠٢٦-١٠-٠٦).
   const PHASE_KEY = "sf_accept_phase";
+  // v3.7.0: نوع الطلب على نفس التاب — "mobile" = «جلب الموبايل» (Work Order ← Cust. Mobile)،
+  // وأى حاجة تانية = موافقة تغيير البورت زى الأول. بيتحفظ مع الرقم (document-start + boot).
+  const KIND_KEY = "sf_accept_kind";
   const MAX_HOPS = 12;
   const MAX_RESULTS = 6;                       // أقصى عدد أوامر شغل نجرّبها لنفس الرقم
   const DIALOG_SHOW_MS = 1500;                 // نسيب نافذة القبول ظاهرة شوية قبل Yes
@@ -2935,11 +2944,12 @@
     set: (k, v) => { try { sessionStorage.setItem(k, String(v)); } catch (e) {} },
     del: (k) => { try { sessionStorage.removeItem(k); } catch (e) {} },
   };
-  function clearState() { [PENDING_KEY, INDEX_KEY, HOPS_KEY, PHASE_KEY].forEach(ss.del); }
+  function clearState() { [PENDING_KEY, INDEX_KEY, HOPS_KEY, PHASE_KEY, KIND_KEY, "sf_wfm_accept_pending"].forEach(ss.del); }
+  const isMobileKind = () => ss.get(KIND_KEY) === "mobile";
   function setPhase(step, t) { ss.set(PHASE_KEY, JSON.stringify({ step, t })); }
   function getPhase() { try { return JSON.parse(ss.get(PHASE_KEY) || "null"); } catch (e) { return null; } }
   function startNew(phone) {
-    clearState();
+    clearState();                                  // الإدخال اليدوى = موافقة تغيير بورت
     ss.set(PENDING_KEY, phone);
     ss.set(INDEX_KEY, 0);
     runFlow(phone);
@@ -2967,11 +2977,119 @@
   }
   function finish(msg, color) {
     const phone = ss.get(PENDING_KEY);
+    const mobileKind = isMobileKind();
     clearState();
     banner(msg, color);
     logln(msg);
     running = false;
+    if (mobileKind) { void sfReportMobile(phone, msg.replace(/\*\*/g, "")); return; }
     void sfReport(phone, resultOf(msg, color), msg.replace(/\*\*/g, ""));
+  }
+
+  /* ── v3.7.0: «جلب الموبايل» (المالك ٢٠٢٦-١٠-١١) ──────────────────────────────────
+     نفس خطوات الموافقة لحد فتح أمر الشغل، وبعدين **«Cust. Mobile» بدل Assignments**:
+     نافذة «customer Mobile No» فيها «رقم الموبايل» و«تليفون بديل» (ساعات نفس الرقم).
+     الاتنين بيتبعتوا لـ Service-Flow، وهو بيحط الموبايل فى خانته والبديل (لو مختلف) بزرار. */
+  let mobileOut = null;                            // { result, mobile, alt } من mobileFlow
+  async function sfReportMobile(phone, message) {
+    if (!phone) return;
+    const o = mobileOut || { result: /مش موجود فى أوامر الشغل/.test(message) ? "not_found" : "failed" };
+    mobileOut = null;
+    try {
+      const r = await window.fetch(sfBase() + "/api/wfm-mobile/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-DZS-Token": SF_TOKEN },
+        body: JSON.stringify({ phone: localPhone(phone), result: o.result, mobile: o.mobile || "", alt: o.alt || "", message }),
+      });
+      logln(r.ok ? "📨 الموبايل اتبعت لـ Service-Flow." : "⚠️ Service-Flow رفض النتيجة (HTTP " + r.status + ").");
+    } catch (e) { logln("⚠️ تعذّر إرسال الموبايل لـ Service-Flow: " + ((e && e.message) || e)); }
+  }
+  const arDigits = (s) => String(s || "").replace(/[\u0660-\u0669]/g, (c) => String(c.charCodeAt(0) - 0x0660));
+  // أعمق عنصر ظاهر نصه بيطابق (مش الحاوية اللى حواليه)
+  function deepestByText(re, maxLen, root) {
+    const sel = "a, span, div, td, th, label, button, h1, h2, h3, h4, b, strong";
+    const all = (root ? qAll(sel, root) : qAllDocs(sel)).filter((el) => {
+      if (!visible(el) || isOurs(el)) return false;
+      const t = txt(el);
+      return t && t.length <= (maxLen || 30) && re.test(t);
+    });
+    return all.filter((el) => !all.some((o) => o !== el && el.contains(o)));
+  }
+  const findCustMobileLink = () => deepestByText(/^\s*cust(omer)?\.?\s*mobile\s*$/i, 20)[0] || null;
+  const MOBILE_LABEL = /^\s*رقم\s*ال?(موبايل|موبيل|محمول)\s*:?\s*$/;
+  const ALT_LABEL = /^\s*(ال)?(تليفون|هاتف|رقم)\s*(ال)?بديل\s*:?\s*$/;
+  // قيم شبه أرقام تليفون (خانة input أو نص) جوّه حاوية
+  function phoneValues(root) {
+    const out = [];
+    for (const el of qAll("input, span, div, td, label, a, b", root)) {
+      if (!visible(el) || isOurs(el)) continue;
+      let v = el.tagName === "INPUT" ? String(el.value || "") : (el.children.length ? "" : txt(el));
+      v = arDigits(v).replace(/[\s\-+().]/g, "");
+      if (!/^\d{7,15}$/.test(v)) continue;
+      out.push({ el, v });
+    }
+    return out;
+  }
+  const FOLLOWS = 4;                                // Node.DOCUMENT_POSITION_FOLLOWING
+  // القيمة اللى بعد العنوان مباشرة (ومش بعد العنوان التانى)
+  function valueAfter(label, other) {
+    let p = label;
+    for (let i = 0; i < 6 && p; i++, p = p.parentElement) {
+      const c = phoneValues(p).filter((x) => (label.compareDocumentPosition(x.el) & FOLLOWS) &&
+        !(other && (label.compareDocumentPosition(other) & FOLLOWS) && (other.compareDocumentPosition(x.el) & FOLLOWS)));
+      if (c.length) return c[0].v;
+      if (other && p.contains(other)) break;        // وصلنا للحاوية المشتركة — مفيش قيمة للعنوان ده
+    }
+    return "";
+  }
+  // نافذة «customer Mobile No»: العنوانين ظاهرين ⇒ { mobile, alt } (ممكن فاضيين)
+  function readCustMobiles() {
+    const title = deepestByText(/customer\s*mobile/i, 30)[0] || null;
+    let root = null;
+    if (title) {
+      root = title;
+      for (let i = 0; i < 10 && root && !deepestByText(MOBILE_LABEL, 25, root).length; i++) root = root.parentElement;
+    }
+    const scope = root || null;
+    const ml = deepestByText(MOBILE_LABEL, 25, scope)[0] || null;
+    const al = deepestByText(ALT_LABEL, 25, scope)[0] || null;
+    if (!ml && !al) return null;
+    return { mobile: ml ? valueAfter(ml, al) : "", alt: al ? valueAfter(al, ml) : "", root: scope };
+  }
+  async function mobileFlow(phone, links, idx) {
+    if (idx >= links.length || idx >= MAX_RESULTS) {
+      mobileOut = { result: "no_mobile" };
+      return finish("⚠️ اتفتح " + Math.min(idx, links.length) + " أمر شغل للرقم " + phone + " ومفيش موبايل فى Cust. Mobile.", "#e65100");
+    }
+    banner("📱 بفتح أمر الشغل رقم " + (idx + 1) + " — Cust. Mobile…");
+    fireClick(links[idx]);
+    await waitIdle(30000);
+    const lnk = await waitFor(() => findCustMobileLink(), 25000);
+    if (!lnk) return finish("❌ أمر الشغل ماتفتحش (مش لاقى «Cust. Mobile»).", "#c62828");
+    fireClick(clickableOf(lnk));
+    await waitIdle(20000);
+    let got = await waitFor(() => readCustMobiles(), 20000);
+    if (!got) return finish("❌ نافذة «customer Mobile No» ماظهرتش بعد Cust. Mobile.", "#c62828");
+    // القيم ساعات بتتحمّل بعد العناوين بلحظة
+    if (!got.mobile && !got.alt) got = (await waitFor(() => { const g = readCustMobiles(); return g && (g.mobile || g.alt) ? g : null; }, 5000)) || got;
+    logln("📱 رقم الموبايل: " + (got.mobile || "—") + " · تليفون بديل: " + (got.alt || "—"));
+    await sleep(1200);                             // نسيب النافذة ظاهرة لحظة
+    const closeBtn = got.root && buttonIn(got.root, /^(close|ok|cancel|إغلاق|اغلاق|خروج)$/i);
+    if (closeBtn) { fireClick(closeBtn); await waitIdle(8000); }
+    if (!got.mobile && !got.alt) {
+      if (idx + 1 < links.length && idx + 1 < MAX_RESULTS) {
+        logln("… Cust. Mobile فاضى فى الأمر رقم " + (idx + 1) + " — بجرّب اللى بعده.");
+        ss.set(INDEX_KEY, idx + 1);
+        running = false;
+        location.href = WFM_HOME_URL;
+        return;
+      }
+      mobileOut = { result: "no_mobile" };
+      return finish("⚠️ الرقم " + phone + " موجود بس نافذة Cust. Mobile فاضية.", "#e65100");
+    }
+    mobileOut = { result: "done", mobile: got.mobile, alt: got.alt && got.alt !== got.mobile ? got.alt : "" };
+    return finish("✅ الرقم " + phone + ": موبايل " + (got.mobile || got.alt) +
+      (mobileOut.alt ? " · بديل " + mobileOut.alt : "") + ".", "#2e7d32");
   }
 
   /* ================== الشاشات ================== */
@@ -3270,6 +3388,7 @@
       return finish("❌ الرقم " + phone + " مش موجود فى أوامر الشغل المفتوحة.", "#c62828");
     }
     logln("📋 لقيت " + links.length + " أمر شغل للرقم.");
+    if (isMobileKind()) return mobileFlow(phone, links, idx);
     if (idx >= links.length || idx >= MAX_RESULTS) {
       return finish("❌ مفيش زرار قبول أخضر فى أى أمر شغل للرقم " + phone + " (اتفحص " + Math.min(idx, links.length) + ").", "#c62828");
     }
@@ -3537,15 +3656,25 @@
     buildPanel();
     // تشغيل تلقائى بالهاش: #sf_accept=2657577 (المتصفح ساعات بيرمّز «=» لـ «%3D»)
     const m = (location.hash || "").match(/sf_accept(?:=|%3D)(\d+)/i);
+    // v3.7.0: لو WFM حوّل التاب على صفحة الدخول ورجّعه Home من غير الهاش — الرقم (والنوع)
+    // اتحفظوا عند document-start من رابط الطلب نفسه، فنكمّل بيهم (أقل من ١٠ دقايق بس).
+    if (!m && !ss.get(PENDING_KEY)) {
+      const keep = localPhone(ss.get("sf_wfm_accept_pending"));
+      const fresh = ss.get("sf_wfm_mode") === "accept" && Date.now() - Number(ss.get("sf_wfm_mode_ts") || 0) < 10 * 60 * 1000;
+      if (keep && fresh) { ss.set(PENDING_KEY, keep); ss.set(INDEX_KEY, 0); logln("↪️ الرقم " + keep + " من الطلب المحفوظ (الهاش ضاع بعد الدخول)."); }
+    }
     if (m) {
       const phone = localPhone(m[1]);
-      if (ss.get(PENDING_KEY) !== phone) { clearState(); ss.set(PENDING_KEY, phone); ss.set(INDEX_KEY, 0); }
+      const kind = /sf_kind(?:=|%3D)mobile/i.test(location.hash || "") ? "mobile" : "";
+      if (ss.get(PENDING_KEY) !== phone || ss.get(KIND_KEY) !== kind) { clearState(); ss.set(PENDING_KEY, phone); ss.set(INDEX_KEY, 0); }
+      if (kind) ss.set(KIND_KEY, kind); else ss.del(KIND_KEY);
       // نشيل الهاش بعد ما الرقم اتحفظ — وإلا أى ريفريش بعد ما الشغل يخلص بيعيد التشغيل
       // ويسجّل «مفيش زرار أخضر» فوق نتيجة «اتوافق» فى Service-Flow.
       try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
     }
     const pending = ss.get(PENDING_KEY);
     if (!pending) { banner("✅ Accept Task — اكتب رقم التليفون واضغط ابدأ."); return; }
+    if (isMobileKind()) banner("📱 جلب الموبايل للرقم " + pending + " (Work Order ← Cust. Mobile)…");
     const hops = (Number(ss.get(HOPS_KEY)) || 0) + 1;
     if (hops > MAX_HOPS) { finish("⛔ وقفت: الصفحة اتحمّلت " + MAX_HOPS + " مرات على نفس الرقم من غير نتيجة.", "#c62828"); return; }
     ss.set(HOPS_KEY, hops);

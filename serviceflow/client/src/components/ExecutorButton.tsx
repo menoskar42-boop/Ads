@@ -126,7 +126,7 @@ const POPUP_BLOCKED = "popup_blocked";
 // نتيجة بترجع للطابور لوحدها — زى زرار «إعادة تشغيل» بالظبط. مرة واحدة لكل مهمة (المهمة
 // بترجع بنفس رقمها، فبنفتكرها فى localStorage عشان مانلفّش فى دايرة).
 const AUTO_RESTART_MS = 4 * 60 * 1000;
-const AUTO_RESTART_TYPES = new Set<ExecJobType>(["wfmcancel", "wfmaccept", "ossreexec"]);
+const AUTO_RESTART_TYPES = new Set<ExecJobType>(["wfmcancel", "wfmaccept", "wfmmobile", "ossreexec"]);
 const AUTO_RESTART_KEY = "sf_exec_auto_restarted";
 const readAutoRestarted = (): Record<string, number> => {
   try {
@@ -404,6 +404,7 @@ export function ExecutorButton() {
       ports: 30 * 60 * 1000,       // رفعة ملف البورتات كامل
       wfmcancel: 6 * 60 * 1000,
       wfmaccept: 8 * 60 * 1000,    // تلات خطوات (Accept ← Start ← Change Port) + انتظار الدخول
+      wfmmobile: 5 * 60 * 1000,    // بحث ← فتح الأمر ← Cust. Mobile ← قراءة الرقمين
       wfmreport: 20 * 60 * 1000,
       // التقارير اليومية تُعاد كباتش كامل إذا علقت أكثر من ١٠ دقائق.
       fccdaily: 10 * 60 * 1000,

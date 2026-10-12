@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { pool, currentPool, hasCurrentDatabase } from "./db";
+import { cleanWfmMobile } from "./wfm-mobile";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
@@ -2168,6 +2169,8 @@ export async function registerRoutes(
     wfmcancel: "wfm.te.eg", wfmreport: "wfm.te.eg", wfmdaily: "wfm.te.eg",
     // موافقة تغيير البورت (Accept ← Start ← Change Port) — سوبر أدمن بس (٢٠٢٦-١٠-٠٥)
     wfmaccept: "wfm.te.eg",
+    // جلب موبايل العميل (Work Order ← Cust. Mobile) — سوبر أدمن بس (٢٠٢٦-١٠-١١)
+    wfmmobile: "wfm.te.eg",
     ossdaily: "oss.te.eg",
     // «Re-Execute» على OSS Abnormal WO — سوبر أدمن بس (٢٠٢٦-١٠-٠٧)
     ossreexec: "oss.te.eg",
@@ -2274,6 +2277,7 @@ export async function registerRoutes(
       // «الأرقام» هنا أرقام تليفون مش أرقام أكونت، لكن الطابور بيتعامل معاها بنفس الطريقة.
       if (!ALL_JOB_TYPES.includes(type)) return res.status(400).json({ message: "نوع غير صحيح" });
       if (type === "ossreexec" && req.user?.role !== ROLES.SUPER_ADMIN) return res.status(403).json({ message: "Re-Execute على OSS للسوبر أدمن بس" });
+      if (type === "wfmmobile" && req.user?.role !== ROLES.SUPER_ADMIN) return res.status(403).json({ message: "جلب الموبايل من WFM للسوبر أدمن بس" });
       const uniqAccs = [...new Set((Array.isArray(accounts) ? accounts : []).map((a: any) => String(a).trim()).filter(Boolean))];
       if (!uniqAccs.length) return res.status(400).json({ message: "لا توجد أرقام" });
       // منع تكرار تحديث نفس الملف: لو فيه مهمة تحديث بنفس النوع لسه فى الطابور (منتظرة أو
@@ -2600,6 +2604,9 @@ export async function registerRoutes(
         sql = `SELECT MAX(reported_at) AS at FROM wfm_task_accepts WHERE ${sp("phone_number")} = ${sp("$1")}`;
       } else if (type === "ossreexec") {
         sql = `SELECT MAX(reported_at) AS at FROM oss_reexecs WHERE regexp_replace(key_value, '\\D', '', 'g') = regexp_replace($1, '\\D', '', 'g')`;
+      } else if (type === "wfmmobile") {
+        // أى نتيجة (اتجاب / مفيش موبايل / مش موجود / فشل) معناها إن السكربت خلص الرقم
+        sql = `SELECT MAX(reported_at) AS at FROM wfm_customer_mobiles WHERE ${sp("phone_number")} = ${sp("$1")}`;
       } else return res.json({ at: null });   // wfmreport مالهاش أثر على رقم — بتعتمد على قفل التاب
       const { rows } = await pool.query(sql, [key]);
       res.json({ at: rows[0]?.at || null });
@@ -2648,6 +2655,70 @@ export async function registerRoutes(
         [phone, String(b.workOrderId || "").trim().slice(0, 30) || null, String(b.workId || "").trim().slice(0, 30) || null,
          result, String(b.message || "").trim().slice(0, 500) || null, who.rows[0]?.username || null]);
       res.json({ ok: true, id: rows[0]?.id });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // «جلب الموبايل من WFM» (سكربت TE FCC + WFM v3.7.0) — توكن + CORS. المالك ٢٠٢٦-١٠-١١:
+  // Work Order ← Service Id ← Search ← فتح الأمر ← «Cust. Mobile» ← نافذة فيها رقمين:
+  //   «رقم الموبايل» ⇒ خانة الموبايل (line_mobiles) — لو الخط مالوش موبايل متسجّل بالفعل.
+  //   «تليفون بديل» ⇒ بيتحفظ **بس لو مختلف** عن رقم الموبايل، ومابيظهرش فى خانة الموبايل —
+  //   بيظهر بزرار جنبه («بديل»). كل محاولة بتتسجّل عشان جهاز التنفيذ يعرف إن الرقم خلص.
+  const WFM_MOBILE_RESULTS = new Set(["done", "no_mobile", "not_found", "failed"]);
+  app.options("/api/wfm-mobile/ingest", (_req, res) => { setPortsCors(res); res.sendStatus(204); });
+  app.post("/api/wfm-mobile/ingest", async (req: any, res) => {
+    setPortsCors(res);
+    if (req.headers["x-dzs-token"] !== DZS_INGEST_TOKEN) return res.status(401).json({ message: "invalid token" });
+    const b = req.body || {};
+    const phone = String(b.phone || "").replace(/\D/g, "").replace(/^0+/, "").replace(/^88(?=\d{7})/, "");
+    let result = String(b.result || "");
+    if (!phone || !WFM_MOBILE_RESULTS.has(result)) return res.status(400).json({ message: "phone و result مطلوبين" });
+    let mobile = cleanWfmMobile(b.mobile);
+    let alt = cleanWfmMobile(b.alt);
+    // «رقم الموبايل» فاضى و«تليفون بديل» موجود ⇒ البديل هو الموبايل الوحيد اللى عندنا
+    if (!mobile && alt) { mobile = alt; alt = null; }
+    if (alt && alt === mobile) alt = null;            // ساعات بيبقوا نفس الرقم
+    if (mobile) result = "done";
+    else if (result === "done") result = "no_mobile";
+    try {
+      const who = await pool.query(
+        `SELECT username FROM op_intents WHERE account = $1 AND op_type = 'wfmmobile' LIMIT 1`, [phone]);
+      const { rows } = await pool.query(
+        `INSERT INTO wfm_customer_mobiles (phone_number, mobile, alt_mobile, work_order_id, result, message, requested_by, reported_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now()) RETURNING id`,
+        [phone, mobile, alt, String(b.workOrderId || "").replace(/\D/g, "").slice(0, 30) || null,
+         result, String(b.message || "").trim().slice(0, 500) || null, who.rows[0]?.username || null]);
+      let saved = false;
+      if (mobile) {
+        // مابنكتبش فوق موبايل متسجّل (إدخال يدوى أو جلب قديم) — الزرار أصلاً للخطوط اللى مالهاش
+        const ins = await pool.query(
+          `INSERT INTO line_mobiles (full_phone, mobile, updated_by_name, updated_at)
+           VALUES ($1, $2, $3, now()) ON CONFLICT (full_phone) DO NOTHING`,
+          ["88" + phone, mobile, "WFM (Cust. Mobile)"]);
+        saved = (ins.rowCount ?? 0) > 0;
+        broadcast({ type: WS_EVENTS.DATA_IMPORT, payload: { key: "/api/wfm-mobile/ingest" } });
+      }
+      res.json({ ok: true, id: rows[0]?.id, result, saved });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // آخر نتيجة جلب لكل رقم (+ التليفون البديل) — للأعطال الحالية (سوبر أدمن)
+  app.post("/api/wfm-mobile/last", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    const phones = Array.from(new Set((Array.isArray(req.body?.phones) ? req.body.phones : [])
+      .map((p: unknown) => String(p ?? "").replace(/\D/g, "").replace(/^0+/, "").replace(/^88(?=\d{7})/, ""))
+      .filter(Boolean))).slice(0, 5000);
+    if (!phones.length) return res.json({ data: {} });
+    try {
+      const { rows } = await pool.query(
+        `SELECT DISTINCT ON (phone_number) phone_number AS phone, result, mobile, alt_mobile AS "altMobile",
+                message, (reported_at AT TIME ZONE 'Africa/Cairo') AS "reportedAt"
+           FROM wfm_customer_mobiles WHERE phone_number = ANY($1::text[])
+          ORDER BY phone_number, reported_at DESC`, [phones]);
+      // التليفون البديل من آخر جلب **لقاه** (محاولة فاشلة بعدها مابتمسحوش)
+      const { rows: alts } = await pool.query(
+        `SELECT DISTINCT ON (phone_number) phone_number AS phone, alt_mobile AS "altMobile"
+           FROM wfm_customer_mobiles WHERE phone_number = ANY($1::text[]) AND result = 'done'
+          ORDER BY phone_number, reported_at DESC`, [phones]);
+      const altOf = new Map(alts.map((r: any) => [r.phone, r.altMobile]));
+      res.json({ data: Object.fromEntries(rows.map((r: any) => [r.phone, { ...r, altMobile: altOf.get(r.phone) ?? null }])) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -3047,6 +3118,14 @@ export async function registerRoutes(
           ORDER BY ${sp("phone_number")}, reported_at DESC`, [waKeys])).rows,
         (r) => String(r.k)) : new Map();
 
+      // جلب الموبايل من WFM: آخر نتيجة لكل رقم
+      const wmKeys = keysOf("wfmmobile").map(short);
+      const wmo = wmKeys.length ? M<any>((await pool.query(
+        `SELECT DISTINCT ON (phone_number) phone_number AS k, result, mobile, alt_mobile, message, reported_at
+           FROM wfm_customer_mobiles WHERE phone_number = ANY($1::text[])
+          ORDER BY phone_number, reported_at DESC`, [wmKeys])).rows,
+        (r) => String(r.k)) : new Map();
+
       // Re-Execute على OSS: آخر نتيجة لكل رقم/Service Order ID
       const rxKeys = keysOf("ossreexec").map((k: string) => String(k).replace(/\D/g, ""));
       const orx = rxKeys.length ? M<any>((await pool.query(
@@ -3151,6 +3230,12 @@ export async function registerRoutes(
             inThisJob: at(r0.reported_at) >= at(j.claimedAtRaw),
             result: r0.result, message: r0.message, by: p.mode === "order" ? "order" : "phone", at: r0.reported_at,
           } : { inThisJob: false, by: p.mode === "order" ? "order" : "phone" };
+        } else if (j.type === "wfmmobile") {
+          const m0 = wmo.get(short(key)) as any;
+          detail = m0 ? {
+            inThisJob: at(m0.reported_at) >= at(j.claimedAtRaw),
+            result: m0.result, mobile: m0.mobile, alt: m0.alt_mobile, message: m0.message, at: m0.reported_at,
+          } : { inThisJob: false };
         } else if (j.type === "wfmaccept") {
           const a0 = wfa.get(short(key)) as any;
           detail = a0 ? {
@@ -3916,6 +4001,9 @@ export async function registerRoutes(
     } else if (type === "wfmaccept") {
       q = `SELECT COUNT(DISTINCT phone_number)::int AS n FROM wfm_task_accepts
             WHERE ${sp("phone_number")} = ANY(SELECT ${sp("x")} FROM unnest($1::text[]) AS x) AND reported_at >= $2`;
+    } else if (type === "wfmmobile") {
+      q = `SELECT COUNT(DISTINCT phone_number)::int AS n FROM wfm_customer_mobiles
+            WHERE ${sp("phone_number")} = ANY(SELECT ${sp("x")} FROM unnest($1::text[]) AS x) AND reported_at >= $2`;
     } else if (type === "ossreexec") {
       q = `SELECT COUNT(DISTINCT key_value)::int AS n FROM oss_reexecs
             WHERE key_value = ANY(SELECT regexp_replace(x, '\\D', '', 'g') FROM unnest($1::text[]) AS x) AND reported_at >= $2`;
@@ -3956,6 +4044,7 @@ export async function registerRoutes(
         portcheck: ["phone_ports", "phone_number", "uploaded_at"],
         wfmcancel: ["wfm_task_cancels", "phone_number", "canceled_at"],
         wfmaccept: ["wfm_task_accepts", "phone_number", "reported_at"],
+        wfmmobile: ["wfm_customer_mobiles", "phone_number", "reported_at"],
         ossreexec: ["oss_reexecs", "key_value", "reported_at"],
       };
       const s = src[type];

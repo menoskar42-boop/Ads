@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { OSS_REEXEC_AR, WFM_ACCEPT_AR } from "@/lib/exec-queue";
+import { OSS_REEXEC_AR, WFM_ACCEPT_AR, WFM_MOBILE_AR } from "@/lib/exec-queue";
 import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -98,6 +98,11 @@ function describe(j: Job): string {
     case "wfmaccept":
       return d.result
         ? `${WFM_ACCEPT_AR[d.result] || d.result}${d.workId ? ` · Work Id ${d.workId}` : ""}${d.inThisJob ? "" : " (نتيجة قديمة)"} · ${fmt(d.at)}`
+        : "مافيش نتيجة رجعت من WFM فى المهمة دى";
+    case "wfmmobile":
+      return d.result
+        ? `${WFM_MOBILE_AR[d.result] || d.result}${d.mobile ? ` · ${d.mobile}` : ""}${d.alt ? ` · بديل ${d.alt}` : ""}`
+          + `${d.result !== "done" && d.message ? ` · ${d.message}` : ""}${d.inThisJob ? "" : " (نتيجة قديمة)"} · ${fmt(d.at)}`
         : "مافيش نتيجة رجعت من WFM فى المهمة دى";
     case "ossreexec":
       return `${d.by === "order" ? "بـ Service Order ID" : "بالرقم"} — ` + (d.result

@@ -1294,6 +1294,22 @@ export const ossReexecs = pgTable("oss_reexecs", {
   reportedAt: timestamp("reported_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// «جلب الموبايل من WFM» (٢٠٢٦-١٠-١١): Work Order ← Service Id ← Cust. Mobile. كل محاولة بتتسجّل.
+// mobile = «رقم الموبايل» (وده اللى بيتحط فى line_mobiles لو الخط مالوش موبايل)، وalt_mobile =
+// «تليفون بديل» **بس لو مختلف** عن رقم الموبايل — بيظهر بزرار، مش فى خانة الموبايل.
+export const wfmCustomerMobiles = pgTable("wfm_customer_mobiles", {
+  id: serial("id").primaryKey(),
+  phoneNumber: text("phone_number").notNull(),
+  mobile: text("mobile"),
+  altMobile: text("alt_mobile"),
+  workOrderId: text("work_order_id"),
+  result: text("result").notNull(),        // done | no_mobile | not_found | failed
+  message: text("message"),
+  requestedBy: text("requested_by"),
+  reportedAt: timestamp("reported_at", { withTimezone: true }).defaultNow().notNull(),
+});
+export type WfmCustomerMobile = typeof wfmCustomerMobiles.$inferSelect;
+
 // WebSocket Events
 export const WS_EVENTS = {
   ORDER_UPDATE: 'ORDER_UPDATE',

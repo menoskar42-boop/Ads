@@ -1188,6 +1188,22 @@ export async function ensureSchema() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS oss_reexecs_key_idx ON oss_reexecs (key_value)`);
 
+  // wfm_customer_mobiles — «جلب الموبايل من WFM» (٢٠٢٦-١٠-١١): نتيجة كل محاولة (Cust. Mobile)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS wfm_customer_mobiles (
+      id serial PRIMARY KEY,
+      phone_number text NOT NULL,
+      mobile text,
+      alt_mobile text,
+      work_order_id text,
+      result text NOT NULL,
+      message text,
+      requested_by text,
+      reported_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS wfm_customer_mobiles_phone_idx ON wfm_customer_mobiles (phone_number)`);
+
   // app_state — key/value عام للحالة (مثلاً وقت اكتمال آخر تشغيل كامل لتحديث البورتات)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_state (
@@ -1421,6 +1437,7 @@ export async function ensureSchema() {
       WHEN 'ports' THEN 'provisioningportal.te.eg'
       WHEN 'wfmcancel' THEN 'wfm.te.eg'
       WHEN 'wfmaccept' THEN 'wfm.te.eg'
+      WHEN 'wfmmobile' THEN 'wfm.te.eg'
       WHEN 'wfmreport' THEN 'wfm.te.eg'
       WHEN 'wfmdaily' THEN 'wfm.te.eg'
       WHEN 'fccdaily' THEN 'fcc.te.eg'

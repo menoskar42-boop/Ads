@@ -25,8 +25,8 @@ test("server: wfmaccept on the wfm.te.eg lane + results table + token ingest + p
 });
 
 test("client: super-admin-only button, same wfm tab/queue as «إلغاء الاسناد»", () => {
-  assert.match(queue, /\| "wfmcancel" \| "wfmaccept" \| "wfmreport"/);
-  assert.match(queue, /case "wfmaccept":\s*case "wfmreport":\s*case "wfmdaily": return "sf_exec_reserved_wfm";/);
+  assert.match(queue, /\| "wfmcancel" \| "wfmaccept" \| "wfmmobile" \| "wfmreport"/);
+  assert.match(queue, /case "wfmaccept":\s*case "wfmmobile":\s*case "wfmreport":\s*case "wfmdaily": return "sf_exec_reserved_wfm";/);
   assert.match(queue, /return openUrl\(`\$\{WFM_HOME_URL\}#sf_accept=\$\{encodeURIComponent\(short\)\}`, WFM_TAB, existing\);/);
   assert.match(executor, /wfmaccept: 8 \* 60 \* 1000,/);
   assert.match(lookup, /\{isSuper && acceptSid && \([\s\S]{0,900}موافقة تغيير بورت/);

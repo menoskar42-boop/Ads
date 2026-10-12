@@ -13,6 +13,7 @@ import { openProfileOptimization } from "./profile-optimization";
 //   ports      = تحديث ملف البورتات كله (نفس البوابة)
 //   wfmcancel  = إلغاء الإسناد على WFM Dispatcher
 //   wfmaccept  = موافقة تغيير البورت على WFM (Accept ← Start ← Change Port) — سوبر أدمن بس
+//   wfmmobile  = جلب موبايل العميل من WFM (Work Order ← Cust. Mobile) — سوبر أدمن بس
 //   wfmreport  = تقارير WFM الخام
 //   fccdaily/wfmdaily/ossdaily/weoas = تحديث الملفات اليومية (كل واحد على موقعه)
 //   ossreexec  = «Re-Execute» على OSS Abnormal WO — سوبر أدمن بس. المفتاح الرقم الكامل (88…)
@@ -20,7 +21,7 @@ import { openProfileOptimization } from "./profile-optimization";
 export type ExecJobType =
   | "raise" | "stop" | "measure" | "subinfo" | "c360"
   | "portchange" | "portcheck" | "ports"
-  | "wfmcancel" | "wfmaccept" | "wfmreport"
+  | "wfmcancel" | "wfmaccept" | "wfmmobile" | "wfmreport"
   | "fccdaily" | "wfmdaily" | "ossdaily" | "weoas" | "ossreexec";
 export interface ExecJobParams {
   old?: string; new?: string; pt?: string; sp?: string;
@@ -70,6 +71,7 @@ const opTabName = (type: ExecJobType): string | null => {
     case "ports": return "sf_exec_reserved_ports";
     case "wfmcancel":
     case "wfmaccept":
+    case "wfmmobile":
     case "wfmreport":
     case "wfmdaily": return "sf_exec_reserved_wfm";
     case "fccdaily": return "sf_exec_reserved_fcc";
@@ -376,6 +378,10 @@ export function openOpSite(type: ExecJobType, key: string, params?: ExecJobParam
       // سكربت wfm-accept-task.user.js: Work Orders ← Service Id ← Assignments ← الأخضر
       // (Accept) ← السهم (Start) ← المربع (Change Port). الدخول على المستخدم نفسه.
       return openUrl(`${WFM_HOME_URL}#sf_accept=${encodeURIComponent(short)}`, WFM_TAB, existing);
+    case "wfmmobile":
+      // نفس تاب «موافقة تغيير البورت» (sf_accept) — بس sf_kind=mobile: بعد فتح أمر الشغل بيضغط
+      // «Cust. Mobile» بدل Assignments ويقرا «رقم الموبايل» و«تليفون بديل» (السكربت v3.7.0).
+      return openUrl(`${WFM_HOME_URL}#sf_accept=${encodeURIComponent(short)}&sf_kind=mobile`, WFM_TAB, existing);
     case "wfmreport":  return openUrl(WFM_REPORTS_URL, WFM_TAB, existing);
     case "wfmdaily":   return openUrl(WFM_DAILY_URL, WFM_TAB, existing);
     case "fccdaily":  return openUrl(FCC_URL, "fcc_daily", existing);
@@ -657,10 +663,17 @@ export const QUEUE_LABEL: Record<ExecJobType, string> = {
   measure: "القياس", raise: "رفع السرعة", stop: "إيقاف PO",
   subinfo: "مراجعة البيان الفنى", c360: "جلب الأكونت من Customer360",
   portchange: "تغيير البورت", portcheck: "تحديث البورت", ports: "تحديث ملف البورتات",
-  wfmcancel: "إلغاء الاسناد", wfmaccept: "موافقة تغيير بورت", wfmreport: "تقارير WFM",
+  wfmcancel: "إلغاء الاسناد", wfmaccept: "موافقة تغيير بورت", wfmmobile: "جلب الموبايل من WFM", wfmreport: "تقارير WFM",
   fccdaily: "تحديث ملف FCC", wfmdaily: "تحديث ملف أوامر الشغل",
   ossdaily: "تحديث ملف OSS", weoas: "تحديث 430D",
   ossreexec: "Re-Execute على OSS",
+};
+// نتيجة «جلب الموبايل من WFM» (wfm_customer_mobiles.result)
+export const WFM_MOBILE_AR: Record<string, string> = {
+  done: "✅ اتجاب",
+  no_mobile: "⚠️ نافذة Cust. Mobile فاضية",
+  not_found: "❌ الرقم مش موجود فى أوامر الشغل",
+  failed: "❌ ماتجابش (النافذة ماظهرتش أو زرار ناقص)",
 };
 export const OSS_REEXEC_AR: Record<string, string> = {
   done: "✅ اتعمل Re-Execute — السطر اختفى من Abnormal WO",

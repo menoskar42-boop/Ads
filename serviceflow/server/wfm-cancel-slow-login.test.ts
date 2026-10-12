@@ -30,7 +30,7 @@ test("a slow WFM login waits like FCC; the site (executor) restarts the task aft
   assert.doesNotMatch(allInOne, /WFM_LOGIN_MAX_RELOADS/);
   const ex = readFileSync(new URL("../client/src/components/ExecutorButton.tsx", import.meta.url), "utf8");
   assert.match(ex, /const AUTO_RESTART_MS = 4 \* 60 \* 1000;/);
-  assert.match(ex, /const AUTO_RESTART_TYPES = new Set<ExecJobType>\(\["wfmcancel", "wfmaccept", "ossreexec"\]\);/);
+  assert.match(ex, /const AUTO_RESTART_TYPES = new Set<ExecJobType>\(\["wfmcancel", "wfmaccept", "wfmmobile", "ossreexec"\]\);/);
   assert.match(ex, /AUTO_RESTART_TYPES\.has\(type\) && !autoRestarted\(jobId\) \? Date\.now\(\) \+ AUTO_RESTART_MS : Infinity/);
   assert.match(ex, /if \(Date\.now\(\) >= restartAt\) \{ closeWin\(\); return "auto_restart"; \}/);
   // نفس زرار «إعادة تشغيل» فى الطابور، ومرة واحدة للمهمة
