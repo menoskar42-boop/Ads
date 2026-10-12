@@ -220,6 +220,13 @@ export const ACTIVITIES = {
   ],
   numbers: [
     {
+      emoji: "📒",
+      title: "كراسة الأرقام",
+      desc: "صفحة لكل رقم: نكتب شوية ونلعب شوية",
+      screen: "workbook",
+      params: {},
+    },
+    {
       emoji: "🧑‍🏫",
       title: "معلّم الأرقام",
       desc: "شرح الرقم وكتابته بالحركة",

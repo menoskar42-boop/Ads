@@ -19,7 +19,7 @@
     "deals:sync:amazon": "node scripts/sync-deals-amazon.js",
     "deals:seed:amazon": "node scripts/seed-deals-amazon.js",
     "test:mykid:videos": "node --test mykid/tests/video-links.test.mjs",
-    "test:mykid:writing": "node --test mykid/tests/stroke-judge.test.mjs mykid/tests/writing-board.test.mjs"
+    "test:mykid:writing": "node --test mykid/tests/stroke-judge.test.mjs mykid/tests/writing-board.test.mjs mykid/tests/workbook-plan.test.mjs mykid/tests/workbook.test.mjs"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",

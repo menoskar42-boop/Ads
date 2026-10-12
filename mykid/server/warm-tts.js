@@ -16,6 +16,7 @@ import { ttsCacheKey, ttsPrebuiltPath, TTS_MODEL, TTS_VOICE, TTS_PREBUILT_DIR, O
 import * as WP from "../js/data/writingPhrases.js";
 import { hintForResult } from "../js/games/strokeJudge.js";
 import { PREWRITING, AR as AR_STROKES } from "../js/data/strokes.js";
+import { WB_AR, WB_COLORS, WB_NUMBERS, colorPairOf } from "../js/data/workbook.js";
 
 const MZ = MIZO.toneInstructions; // توجيهات لهجة ميزو (لمطابقة مفاتيح الكاش)
 const AR = TTS_VOICE; // صوت ميزو الثابت (يطابق ما يقرأه الخادم بالظبط)
@@ -126,6 +127,25 @@ add("برافو", AR);
   // «اكتب اسمك»: الحرف بس (الاسم نفسه بيتولّد وقت التشغيل ومايتحفظش فى الكود — المستودع عام)
   const nameLetters = [...Object.keys(AR_STROKES), ...en.map((it) => it.char), ...en.map((it) => it.lower)];
   for (const ch of nameLetters) { addAr(WP.nameFirst(ch)); addAr(WP.nameNext(ch)); }
+}
+
+// ===== «كراسة الأرقام» (٢٠٢٦-١٠-١٢) — WB_SAY بكل الأعداد والألوان اللى ممكن تطلع =====
+{
+  const W = WP.WB_SAY;
+  const colors = Object.values(WB_COLORS);
+  for (let v = 1; v <= 10; v++) add(WB_AR[v], AR); // العدّ بالعامية (واحد، اتنين …)
+  colors.forEach((c) => add(c.ar, AR)); // اسم اللون لما القلم يتختار
+  [W.againDots, W.countChoose, W.match, W.missing, W.paintWrong].forEach(addAr);
+  colors.forEach((c) => addAr(W.pickColor(c.al)));
+  for (const n of WB_NUMBERS) {
+    const ar = WB_AR[n];
+    const [c1] = colorPairOf(n);
+    [W.meet(ar), W.tooMany(ar), W.tooFew(ar), W.find(ar), W.colorN(ar, WB_COLORS[c1].al), WP.writeIntro("الرقم", ar)].forEach(addAr);
+    for (let a = 1; a < n; a++) addAr(W.parts(WB_AR[a], WB_AR[n - a]));
+    // «لوّن رقم n …، ورقم m …»: m أى رقم تانى، ولون كل واحد من زوج n
+    const [p1, p2] = colorPairOf(n).map((k) => WB_COLORS[k].ar);
+    for (const m of WB_NUMBERS) if (m !== n) addAr(W.paint(ar, p1, WB_AR[m], p2));
+  }
 }
 
 // ===== --dry: يعدّ الناقص بس (من غير مفتاح ولا تكلفة) — للفحص والـCI =====

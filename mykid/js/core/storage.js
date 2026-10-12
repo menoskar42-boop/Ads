@@ -252,6 +252,14 @@ export const Store = {
     this.setWriteSetting("gripDate", today());
     return true;
   },
+  // «كراسة الأرقام»: الصفحات اللى خلصت (رقم ← عدد المرات) — نجمة على الرقم فى الاختيار
+  get workbookDone() {
+    return state.workbookDone || (state.workbookDone = {});
+  },
+  markWorkbookDone(n) {
+    this.workbookDone[n] = (this.workbookDone[n] || 0) + 1;
+    persist();
+  },
   recordWrite(key, fails, level) {
     const w = this.writeStats[key] || { n: 0, r: [] };
     w.n += 1;

@@ -155,8 +155,9 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
       /densify\(\[last, p\], 2\)/.test(b));
     // المالك ٢٠٢٦-١٠-١٠: «طريقة رسم الحرف بتظهر أول مرة بس… عاوزها تظهر فى كل مرة»
     check('صباع العرض بيرسم الحرف كل مرة يتفتح (كل المستويات، مش الأول بس)',
-      !/if \(level === 1\) setTimeout\(\(\) => board\.demo\(\)/.test(raw('mykid/js/games/trace.js') + raw('mykid/js/games/nameWrite.js'))
-      && /setTimeout\(\(\) => board\.demo\(\), 1400\)/.test(raw('mykid/js/games/trace.js')));
+      !/if \(level === 1\) (whenGripClosed\(\(\) => )?setTimeout\(\(\) => board\.demo\(\)/.test(raw('mykid/js/games/trace.js') + raw('mykid/js/games/nameWrite.js') + raw('mykid/js/games/workbook.js'))
+      && /setTimeout\(\(\) => board\.demo\(\), 1400\)/.test(raw('mykid/js/games/trace.js'))
+      && /setTimeout\(\(\) => board\.demo\(\), 1400\)/.test(raw('mykid/js/games/workbook.js')));
     // المالك ٢٠٢٦-١٠-١٠: «فى الأول نقط… تكتب عليها أكتر من مرة، وأى مرة تكتب فيها غلط
     // تعيد شرح طريقة الكتابة، وبعدين لوحدها… ولو كتبت صح بس الاتجاه غلط ميزو يوضّحلها»
     check('أى غلطة ⇒ الصباع بيعيد شرح الخط ده', /fails = 0;\s*setTimeout\(\(\) => \{ if \(alive && !finished\) demo\(\{ only: cur \}\); \}, 1100\);/.test(b)
