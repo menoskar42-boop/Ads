@@ -25,6 +25,7 @@ const day = (v: any) => (v ? String(v).slice(0, 10) : "");
 const at = (v: any) => (v ? new Date(v).toLocaleString("ar-EG", { timeZone: "Africa/Cairo" }) : "");
 
 const COLUMNS = ["#", "رقم التليفون", "الشهر", "الحالة", "السنترال", "الكابينة", "البكس", "بيان الخط",
+  "فنى اغلاق أول مرة", "فنى المنطقة",
   "الفحص", "إفادة العميل", "إفادة الفنى", "سبب العطل", "يوجد مقصّر", "المقصّر", "رد بواسطة", "تاريخ الإكمال"];
 
 export function RepeatReviewsReport() {
@@ -58,6 +59,7 @@ export function RepeatReviewsReport() {
     r.status === "done" ? "مكتمل" : `جارى — ${REPEAT_STEP_LABELS[r.step] ?? ""}`,
     r.line_central ?? "", r.line_cabin ?? "", r.line_box ?? "",
     r.line_status === "corrected" ? "اتصحّح" : r.line_status === "confirmed" ? "اتأكد" : "",
+    r.first_close_tech ?? "", r.area_tech ?? "",
     r.inspection_id ? `${day(r.inspection_date)}${r.inspection_by ? " — " + r.inspection_by : ""} — بنود محتاجة شغل: ${r.inspection_bad_items ?? 0}` : "",
     r.customer_statement ?? "", r.tech_statement ?? "", r.cause ?? "",
     r.has_fault === true ? "نعم" : r.has_fault === false ? "لا" : "",
@@ -136,7 +138,7 @@ export function RepeatReviewsReport() {
                     <RepeatCommentButton reviewId={r.id} phone={r.phone_short} month={r.month} count={r.comment_count} review={r} />
                   </div>
                 </TableCell>
-                {toCells(r, i).map((c, j) => <TableCell key={j} className={j >= 9 && j <= 11 ? "min-w-[180px] whitespace-pre-wrap" : "whitespace-nowrap"}>{c || "—"}</TableCell>)}
+                {toCells(r, i).map((c, j) => <TableCell key={j} className={j >= 11 && j <= 13 ? "min-w-[180px] whitespace-pre-wrap" : "whitespace-nowrap"}>{c || "—"}</TableCell>)}
               </TableRow>
             ))}
           </TableBody>

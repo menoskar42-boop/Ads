@@ -31,6 +31,8 @@ export interface RepeatReviewDeps {
   lookupPhoneLine: (reqUser: any, phone: string) => Promise<{ line: any; codes: any }>;
   techMsanCodes: (user: any) => Promise<string[] | null>;
   msanInCodesSql: (col: string, p: string) => string;
+  /** فنى المنطقة (صاحب كابينة الخط) — areaTechSql من routes.ts، اختيارى للاختبارات */
+  areaTechSql?: (centralExpr: string, cabinExpr: string, dateExpr: string, phoneExpr?: string, opts?: { noShiftCover?: boolean }) => string;
 }
 
 // أسماء بنود فحص البكس — نفس CHECKLIST فى موقع الصيانة (routes/boxes.js)؛ الاختبار بيثبّت التطابق
@@ -494,11 +496,38 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
       const conds: string[] = [];
       if (isMonth(from)) { params.push(from); conds.push(`r.month >= $${params.length}`); }
       if (isMonth(to)) { params.push(to); conds.push(`r.month <= $${params.length}`); }
+      // المالك ٢٠٢٦-١٠-١١: «فنى اغلاق أول مرة» = اللى قفل أول شكوى فى سلسلة التكرار (نفس
+      // تعريف firstComplaintDate: آخر شكوى للخط فى الشهر وأول شكوى فى الشهر اللى قبلها لحدها)،
+      // بالتبعية المعتادة: الإغلاق اليدوى ← كود عامل الإغلاق ← الكود زى ما هو.
+      // و«فنى المنطقة» = صاحب كابينة الخط النهارده (من غير ورديات).
+      const areaTech = d.areaTechSql
+        ? d.areaTechSql("r.line_central", "r.line_cabin", "now()", "r.phone_short", { noShiftCover: true })
+        : "NULL::text";
       const { rows } = await pool.query(
         `SELECT r.*, (r.completed_at AT TIME ZONE 'Africa/Cairo') AS completed_local,
                 (SELECT COUNT(*)::int FROM repeat_review_comments c WHERE c.review_id = r.id) AS comment_count,
-                (r.updated_at AT TIME ZONE 'Africa/Cairo') AS updated_local
-           FROM repeat_reviews r ${conds.length ? "WHERE " + conds.join(" AND ") : ""}
+                (r.updated_at AT TIME ZONE 'Africa/Cairo') AS updated_local,
+                COALESCE(
+                  (SELECT mcb.tech_name FROM manual_close_by mcb WHERE mcb.complain_no = fc.no LIMIT 1),
+                  (SELECT tn.tech_name FROM technician_names tn WHERE tn.worker_code = fc.by LIMIT 1),
+                  NULLIF(btrim(fc.by), '')) AS first_close_tech,
+                ${areaTech} AS area_tech
+           FROM repeat_reviews r
+           LEFT JOIN LATERAL (
+             WITH c AS (
+               SELECT cd.complain_no AS no, (cd.complain_time AT TIME ZONE 'UTC') AS d, cd.close_by AS by, cd.close_time AS ct
+                 FROM complaint_details cd WHERE ${sp("cd.phone_number")} = ${sp("r.phone_short")}
+               UNION ALL
+               SELECT rc.complain_no, (rc.complain_time AT TIME ZONE 'UTC'), rc.close_by, rc.close_time
+                 FROM remaining_complaints rc WHERE ${sp("rc.phone_number")} = ${sp("r.phone_short")}
+             ), last AS (
+               SELECT max(d) AS d FROM c WHERE d IS NOT NULL AND to_char(d, 'YYYY-MM') = r.month
+             )
+             SELECT c.no, c.by FROM c, last
+              WHERE c.d IS NOT NULL AND c.ct IS NOT NULL AND c.d >= last.d - interval '1 month' AND c.d <= last.d
+              ORDER BY c.d ASC LIMIT 1
+           ) fc ON true
+           ${conds.length ? "WHERE " + conds.join(" AND ") : ""}
           ORDER BY r.month DESC, r.status DESC, r.line_central, r.line_cabin, r.line_box, r.phone_short`, params);
       res.json({ data: rows.map((r: any) => ({ ...r, step: reviewStep(r) })) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }

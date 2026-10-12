@@ -46,3 +46,16 @@ test("merged percentages come from the summed counts", () => {
   assert.equal(pct(m.get("حسن عبد الفتاح يعقوب")!), 79.1);
   assert.equal(pct(m.get("محمد عبد المجيد محمد رشدى")!), 98.3);
 });
+
+// «ردود التكرار» (المالك ٢٠٢٦-١٠-١١): فنى اغلاق أول مرة + فنى المنطقة فى الجدول والتصدير
+test("repeat reviews report: first-close tech and area tech columns", () => {
+  const rr = readFileSync(new URL("./repeat-reviews.ts", import.meta.url), "utf8");
+  const ui = readFileSync(new URL("../client/src/components/RepeatReviewsReport.tsx", import.meta.url), "utf8");
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  assert.match(rr, /AS first_close_tech/);
+  assert.match(rr, /ORDER BY c\.d ASC LIMIT 1/);
+  assert.match(rr, /areaTechSql\("r\.line_central", "r\.line_cabin", "now\(\)", "r\.phone_short", \{ noShiftCover: true \}\)/);
+  assert.match(routes, /registerRepeatReviews\(app, \{[^}]*areaTechSql \}\)/);
+  assert.match(ui, /"فنى اغلاق أول مرة", "فنى المنطقة"/);
+  assert.match(ui, /r\.first_close_tech \?\? "", r\.area_tech \?\? ""/);
+});

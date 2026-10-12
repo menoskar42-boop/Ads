@@ -7721,7 +7721,7 @@ export async function registerRoutes(
   };
 
   // «رد التكرار» — الخطوات والتقرير فى server/repeat-reviews.ts (قرار المالك ٢٠٢٦-١٠-٠٤)
-  registerRepeatReviews(app, { pool, requireAuth, requireSuperAdmin, lookupPhoneLine, techMsanCodes, msanInCodesSql });
+  registerRepeatReviews(app, { pool, requireAuth, requireSuperAdmin, lookupPhoneLine, techMsanCodes, msanInCodesSql, areaTechSql });
   registerUrgentNoAccount(app, { pool, requireAuth });
   registerCabinetReassign(app, { pool, requireAuth, requireAdmin });
   registerLocalStore(app, { pool, requireAuth, selfTechName: async (u: any) => (u?.role === ROLES.TECH ? (await coverageCodes(u)).techName : null) });
