@@ -1,5 +1,6 @@
 // ===== السبورة الذكية: كتابة/رسم حرّ بالإصبع =====
 // لوح أبيض يكتب عليه الطفل بحرية، يختار اللون وعرض القلم، ويمسح.
+// المالك ٢٠٢٦-١٠-١٢: «عاوز استيكه بجانب مسح للكل» — الأستيكة بتمسح اللى تعدّى عليه بس.
 import { Router } from "../core/router.js";
 import { Sfx } from "../core/audio.js";
 import { Speech } from "../core/speech.js";
@@ -58,6 +59,8 @@ export function renderBoard({ regionId, regionIndex }) {
   let size = 8;
   let drawing = false;
   let last = null;
+  let erasing = false; // الأستيكة: بتمسح مكان الصباع بس (عرضها أكبر من القلم)
+  const eraseW = () => Math.max(22, size * 3);
 
   function pos(e) {
     const r = canvas.getBoundingClientRect();
@@ -65,18 +68,22 @@ export function renderBoard({ regionId, regionIndex }) {
     return { x: t.clientX - r.left, y: t.clientY - r.top }; // بوحدات CSS — الـtransform بيظبط الدقّة
   }
   function dot(p) {
+    ctx.globalCompositeOperation = erasing ? "destination-out" : "source-over";
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, (erasing ? eraseW() : size) / 2, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
   }
   function start(e) { e.preventDefault(); drawing = true; last = pos(e); dot(last); Sfx.pop(); }
   function move(e) {
     if (!drawing) return;
     e.preventDefault();
     const p = pos(e);
-    ctx.strokeStyle = color; ctx.lineWidth = size;
+    ctx.globalCompositeOperation = erasing ? "destination-out" : "source-over";
+    ctx.strokeStyle = color; ctx.lineWidth = erasing ? eraseW() : size;
     ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    ctx.globalCompositeOperation = "source-over";
     last = p;
   }
   function end() { drawing = false; }
@@ -100,6 +107,7 @@ export function renderBoard({ regionId, regionIndex }) {
     b.style.cssText = `border:4px solid ${idx === 0 ? "#fff" : "transparent"};background:${col}`;
     b.addEventListener("click", () => {
       color = col; Sfx.tap();
+      setEraser(false); // اختيار لون = رجوع للقلم
       palette.querySelectorAll("button").forEach((x) => (x.style.border = "4px solid transparent"));
       b.style.border = "4px solid #fff";
     });
@@ -118,6 +126,20 @@ export function renderBoard({ regionId, regionIndex }) {
     b.addEventListener("click", () => { size = s; Sfx.tap(); });
     tools.appendChild(b);
   });
+  // الأستيكة جنب «امسح الكل»: لمسة تشغّلها، ولمسة تانية (أو اختيار لون) ترجّع القلم
+  const eraserBtn = document.createElement("button");
+  eraserBtn.className = "candy-btn sb-btn sb-eraser";
+  eraserBtn.type = "button";
+  eraserBtn.textContent = "🩹 أستيكة";
+  eraserBtn.setAttribute("aria-pressed", "false");
+  function setEraser(on) {
+    erasing = on;
+    eraserBtn.classList.toggle("is-on", on);
+    eraserBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    canvas.style.cursor = on ? "cell" : "crosshair";
+  }
+  eraserBtn.addEventListener("click", () => { Sfx.tap(); setEraser(!erasing); });
+  tools.appendChild(eraserBtn);
   const clearBtn = document.createElement("button");
   clearBtn.className = "candy-btn sb-btn";
   clearBtn.style.background = "linear-gradient(180deg,#ff8a8a,#ff5d5d)";
