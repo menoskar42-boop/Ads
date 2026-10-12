@@ -1,7 +1,8 @@
 const express = require('express');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
-const { memUpload, compressToBuffer, storeMedia, memVideoUpload, compressVideoToDisk } = require('../utils/photo');
+const { memUpload, compressToBuffer, storeMedia, memVideoUpload, compressVideoToDisk, storeVideoFile, removeLocalUpload } = require('../utils/photo');
+const r2 = require('../utils/r2');
 
 const router = express.Router();
 
@@ -368,6 +369,9 @@ router.post('/:id/photos', techOrAdmin, memUpload.single('photo'), async (req, r
 
 router.post('/:id/before-videos', techOrAdmin, memVideoUpload.single('video'), async (req, res) => {
   const isAjax = (req.headers.accept || '').includes('application/json');
+  let filename = null;
+  let uploadedKey = null;
+  let persisted = false;
   try {
     const task = await db.get('SELECT * FROM maintenance_tasks WHERE id = ?', [req.params.id]);
     if (!task) {
@@ -380,14 +384,22 @@ router.post('/:id/before-videos', techOrAdmin, memVideoUpload.single('video'), a
       return res.redirect(`/technician/${req.params.id}`);
     }
     const insp = await db.get('SELECT box_id FROM inspections WHERE id = ?', [task.inspection_id]);
-    const { filename } = await compressVideoToDisk(req.file.buffer, `bvid_task${req.params.id}`);
+    ({ filename } = await compressVideoToDisk(req.file.buffer, `bvid_task${req.params.id}`));
+    const stored = await storeVideoFile(filename);
+    uploadedKey = stored.storageKey;
     await db.run(
-      "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, uploaded_by) VALUES (?, ?, 'before', 'video', ?, ?)",
-      [insp.box_id, task.inspection_id, filename, req.session.user.id]
+      "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, storage_key, uploaded_by) VALUES (?, ?, 'before', 'video', ?, ?, ?)",
+      [insp.box_id, task.inspection_id, filename, uploadedKey, req.session.user.id]
     );
+    persisted = true;
+    removeLocalUpload(filename);
     if (isAjax) return res.json({ ok: true, filename });
     req.session.flash = { type: 'success', msg: 'تم رفع فيديو قبل الصيانة.' };
   } catch (e) {
+    if (uploadedKey && !persisted) {
+      try { await r2.deleteObject(uploadedKey); } catch (cleanupError) { console.error('orphan video cleanup failed:', cleanupError.message); }
+    }
+    if (!persisted) removeLocalUpload(filename);
     console.error('technician before-video error:', e.message);
     if (isAjax) return res.status(500).json({ ok: false, msg: e.message });
     req.session.flash = { type: 'danger', msg: `فشل رفع الفيديو: ${e.message}` };
@@ -397,6 +409,9 @@ router.post('/:id/before-videos', techOrAdmin, memVideoUpload.single('video'), a
 
 router.post('/:id/after-videos', techOrAdmin, memVideoUpload.single('video'), async (req, res) => {
   const isAjax = (req.headers.accept || '').includes('application/json');
+  let filename = null;
+  let uploadedKey = null;
+  let persisted = false;
   try {
     const task = await db.get('SELECT * FROM maintenance_tasks WHERE id = ?', [req.params.id]);
     if (!task) {
@@ -409,14 +424,22 @@ router.post('/:id/after-videos', techOrAdmin, memVideoUpload.single('video'), as
       return res.redirect(`/technician/${req.params.id}`);
     }
     const insp = await db.get('SELECT box_id FROM inspections WHERE id = ?', [task.inspection_id]);
-    const { filename } = await compressVideoToDisk(req.file.buffer, `avid_task${req.params.id}`);
+    ({ filename } = await compressVideoToDisk(req.file.buffer, `avid_task${req.params.id}`));
+    const stored = await storeVideoFile(filename);
+    uploadedKey = stored.storageKey;
     await db.run(
-      "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, uploaded_by) VALUES (?, ?, 'after', 'video', ?, ?)",
-      [insp.box_id, task.inspection_id, filename, req.session.user.id]
+      "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, storage_key, uploaded_by) VALUES (?, ?, 'after', 'video', ?, ?, ?)",
+      [insp.box_id, task.inspection_id, filename, uploadedKey, req.session.user.id]
     );
+    persisted = true;
+    removeLocalUpload(filename);
     if (isAjax) return res.json({ ok: true, filename });
     req.session.flash = { type: 'success', msg: 'تم رفع فيديو بعد الصيانة.' };
   } catch (e) {
+    if (uploadedKey && !persisted) {
+      try { await r2.deleteObject(uploadedKey); } catch (cleanupError) { console.error('orphan video cleanup failed:', cleanupError.message); }
+    }
+    if (!persisted) removeLocalUpload(filename);
     console.error('technician after-video error:', e.message);
     if (isAjax) return res.status(500).json({ ok: false, msg: e.message });
     req.session.flash = { type: 'danger', msg: `فشل رفع الفيديو: ${e.message}` };

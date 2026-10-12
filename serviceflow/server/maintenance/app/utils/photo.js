@@ -2,6 +2,7 @@ const sharp = require('sharp');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { Readable } = require('stream');
 
 const DATA_DIR = require('./datadir');
 const r2 = require('./r2');
@@ -72,6 +73,21 @@ async function storeMedia(filename, buffer, mediaType = 'photo') {
   }
 }
 
+async function storeVideoFile(filename) {
+  if (!r2.isConfigured()) {
+    throw new Error('رفع الفيديوهات يتطلب إعداد Cloudflare R2؛ لم يتم حفظ الفيديو محلياً أو داخل قاعدة البيانات.');
+  }
+  if (path.basename(filename) !== filename) throw new Error('اسم ملف الفيديو غير صالح.');
+  const key = r2.keyFor(filename, 'video');
+  await r2.putFile(key, path.join(UPLOAD_DIR, filename), 'video/mp4');
+  return { storageKey: key };
+}
+
+function removeLocalUpload(filename) {
+  if (!filename || path.basename(filename) !== filename) return;
+  try { fs.unlinkSync(path.join(UPLOAD_DIR, filename)); } catch {}
+}
+
 /**
  * بيضيف صورة لأرشيف ZIP من أى مكان هى فيه: القرص ← عمود data ← R2.
  * قبل كده التلات مسارات بتوع التنزيل كانوا بيدوّروا على القرص و`data` بس —
@@ -85,6 +101,15 @@ async function appendMediaToArchive(archive, p, name, uploadsDir = UPLOAD_DIR) {
   if (p.data) { archive.append(p.data, { name }); return true; }
   if (p.storage_key) {
     try {
+      if (p.media_type === 'video') {
+        const obj = await r2.openObject(p.storage_key);
+        if (obj && obj.status === 200 && obj.body) {
+          archive.append(Readable.fromWeb(obj.body), { name });
+          return true;
+        }
+        console.warn(`[maintenance] ZIP: ${p.filename} غير متاح على R2`);
+        return false;
+      }
       const obj = await r2.getObject(p.storage_key);
       if (obj) { archive.append(obj.body, { name }); return true; }
       console.warn(`[maintenance] ZIP: ${p.filename} ليه storage_key بس مش موجود على R2`);
@@ -169,4 +194,4 @@ async function compressVideoToDisk(buffer, prefix) {
   }
 }
 
-module.exports = { memUpload, compressAndSave, compressToBuffer, storeMedia, appendMediaToArchive, removeMediaFiles, memVideoUpload, compressVideoToDisk };
+module.exports = { memUpload, compressAndSave, compressToBuffer, storeMedia, storeVideoFile, removeLocalUpload, appendMediaToArchive, removeMediaFiles, memVideoUpload, compressVideoToDisk };

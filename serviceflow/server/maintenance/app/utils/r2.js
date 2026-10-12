@@ -18,6 +18,7 @@
  */
 
 const crypto = require('crypto');
+const fs = require('fs');
 
 const SERVICE = 's3';
 const REGION = process.env.R2_REGION || 'auto'; // R2 بتطلب حرفياً "auto"
@@ -109,9 +110,11 @@ function signRequest(method, key, body, extraHeaders = {}, opts = {}) {
   const c = cfg();
   if (!isConfigured()) throw new Error('R2 غير مضبوط: أسرار ناقصة');
 
-  const url = new URL(`${c.endpoint}/${c.bucket}/${encodeKey(key)}`);
-  const payload = body && body.length ? body : Buffer.alloc(0);
-  const payloadHash = sha256hex(payload);
+  const objectPath = key ? `${c.bucket}/${encodeKey(key)}` : c.bucket;
+  const url = new URL(`${c.endpoint}/${objectPath}`);
+  if (opts.query) url.search = opts.query;
+  const payload = Buffer.isBuffer(body) && body.length ? body : Buffer.alloc(0);
+  const payloadHash = opts.payloadHash || sha256hex(payload);
 
   // opts.amzDate للاختبار فقط (تثبيت التاريخ للتحقق من التوقيع مقابل مثال AWS الرسمى).
   const amzDate = opts.amzDate || new Date().toISOString().replace(/[:-]|\.\d{3}/g, ''); // YYYYMMDDTHHMMSSZ
@@ -126,7 +129,7 @@ function signRequest(method, key, body, extraHeaders = {}, opts = {}) {
     method,
     host: url.host,
     pathname: url.pathname,
-    query: '', // مفيش query string فى أى من الأفعال التلاتة
+    query: opts.query || '',
     headers,
     payloadHash,
     amzDate,
@@ -140,12 +143,14 @@ function signRequest(method, key, body, extraHeaders = {}, opts = {}) {
 
 const TIMEOUT_MS = Number(process.env.R2_TIMEOUT_MS || 20000);
 
-async function send(method, key, body, extraHeaders) {
-  const { url, headers } = signRequest(method, key, body, extraHeaders);
+async function send(method, key, body, extraHeaders, opts = {}) {
+  const { url, headers } = signRequest(method, key, body, extraHeaders, opts);
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), TIMEOUT_MS);
   try {
-    return await fetch(url, { method, headers, body: body && body.length ? body : undefined, signal: ac.signal });
+    const request = { method, headers, body: body || undefined, signal: ac.signal };
+    if (body && !Buffer.isBuffer(body)) request.duplex = 'half';
+    return await fetch(url, request);
   } finally {
     clearTimeout(t);
   }
@@ -163,19 +168,61 @@ async function putObject(key, body, contentType) {
   return key;
 }
 
+async function hashFile(filePath) {
+  const hash = crypto.createHash('sha256');
+  for await (const chunk of fs.createReadStream(filePath)) hash.update(chunk);
+  return hash.digest('hex');
+}
+
+/** Upload a disk file as a stream; this avoids another full-size video Buffer. */
+async function putFile(key, filePath, contentType = 'application/octet-stream') {
+  const stat = await fs.promises.stat(filePath);
+  const payloadHash = await hashFile(filePath);
+  const res = await send('PUT', key, fs.createReadStream(filePath), {
+    'content-type': contentType,
+    'content-length': String(stat.size),
+  }, { payloadHash });
+  if (!res.ok) throw new Error(`R2 PUT ${key} رجّع ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+  return { key, size: stat.size, sha256: payloadHash };
+}
+
 /** بيقرأ كائن → { body: Buffer, contentType } أو null لو مش موجود (404). */
-async function getObject(key) {
-  const res = await send('GET', key, null);
+async function getObject(key, options = {}) {
+  const headers = options.range ? { range: options.range } : {};
+  const res = await send('GET', key, null, headers);
   if (res.status === 404) return null;
+  if (res.status === 416) {
+    return { body: Buffer.alloc(0), status: 416, contentRange: res.headers.get('content-range') };
+  }
   if (!res.ok) {
     throw new Error(`R2 GET ${key} رجّع ${res.status}`);
   }
   return {
     body: Buffer.from(await res.arrayBuffer()),
     contentType: res.headers.get('content-type') || 'application/octet-stream',
+    status: res.status,
+    contentRange: res.headers.get('content-range'),
+    contentLength: res.headers.get('content-length'),
+    acceptRanges: res.headers.get('accept-ranges'),
   };
 }
 
+/** Return a streamed object response for video playback and checksum verification. */
+async function openObject(key, options = {}) {
+  const headers = options.range ? { range: options.range } : {};
+  const res = await send('GET', key, null, headers);
+  if (res.status === 404) return null;
+  return {
+    body: res.body,
+    status: res.status,
+    contentType: res.headers.get('content-type') || 'application/octet-stream',
+    contentRange: res.headers.get('content-range'),
+    contentLength: res.headers.get('content-length'),
+    acceptRanges: res.headers.get('accept-ranges') || 'bytes',
+  };
+}
+
+/** Read-only bucket usage scan, paginated through S3 ListObjectsV2. */
 /** بيمسح كائن. R2 بترجّع 204 حتى لو مش موجود. */
 async function deleteObject(key) {
   const res = await send('DELETE', key, null);
@@ -191,4 +238,4 @@ function keyFor(filename, mediaType) {
   return `maintenance/${folder}/${filename}`;
 }
 
-module.exports = { isConfigured, putObject, getObject, deleteObject, keyFor, signRequest, buildAuth, cfg };
+module.exports = { isConfigured, putObject, putFile, getObject, openObject, deleteObject, keyFor, hashFile, buildAuth, signRequest, cfg };

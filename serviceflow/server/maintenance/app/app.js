@@ -12,6 +12,7 @@ const pgSession = require("connect-pg-simple")(session);
 const { Pool } = require("pg");
 const path = require("path");
 const fs = require("fs");
+const { Readable } = require("stream");
 const DATA_DIR = require("./utils/datadir");
 const db = require("./database");
 const r2 = require("./utils/r2");
@@ -110,6 +111,32 @@ app.get("/uploads/:filename", async (req, res) => {
   // عمود `data` لأن الصف اللى ليه storage_key بيبقى `data` فيه NULL أصلاً.
   if (row && row.storage_key) {
     try {
+      if (row.media_type === "video") {
+        const range = req.headers.range;
+        if (range && !/^bytes=(?:\d+-\d*|-\d+)$/.test(range)) {
+          return res.status(416).set("Accept-Ranges", "bytes").end();
+        }
+        const streamed = await r2.openObject(row.storage_key, { range });
+        if (!streamed) return res.status(404).end();
+        if (streamed.status === 416) {
+          if (streamed.contentRange) res.setHeader("Content-Range", streamed.contentRange);
+          return res.status(416).set("Accept-Ranges", "bytes").end();
+        }
+        if (streamed.status !== 200 && streamed.status !== 206) return res.status(502).end();
+        res.status(streamed.status);
+        res.setHeader("Content-Type", streamed.contentType || "video/mp4");
+        res.setHeader("Accept-Ranges", streamed.acceptRanges || "bytes");
+        if (streamed.contentRange) res.setHeader("Content-Range", streamed.contentRange);
+        if (streamed.contentLength) res.setHeader("Content-Length", streamed.contentLength);
+        res.setHeader("Cache-Control", "public, max-age=31536000");
+        res.setHeader("X-Photo-Source", "r2");
+        if (!streamed.body) return res.end();
+        return Readable.fromWeb(streamed.body).on("error", (e) => {
+          console.error(`[maintenance] /uploads/${filename}: video stream failed:`, e.message);
+          if (!res.headersSent) res.status(502);
+          res.end();
+        }).pipe(res);
+      }
       const obj = await r2.getObject(row.storage_key);
       if (obj) {
         res.setHeader("Content-Type", obj.contentType
