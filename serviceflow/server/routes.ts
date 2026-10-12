@@ -14147,6 +14147,8 @@ export async function registerRoutes(
   });
 
   app.get("/api/reports/regularized-faults-range", requireAuth, async (req, res) => {
+    // المالك ٢٠٢٦-١٠-١٢: مش للشئون الخارجية ولا مهندس الكوابل (external) ولا الأدمن — الفنى والسوبر أدمن
+    if (req.user?.role === ROLES.EXTERNAL || req.user?.role === ROLES.ADMIN) return res.status(403).json({ message: "التقرير ده مش متاح" });
     try {
       const {
         central = "", cabin = "", box = "", closingTech = "",

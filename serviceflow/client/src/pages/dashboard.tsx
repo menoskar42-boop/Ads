@@ -325,7 +325,11 @@ export default function Dashboard() {
   // + مجموعة «إنشاء جداول» كاملة (قرار المالك ٢٠٢٦-١٠-٠٥) — السيرفر مابيمنعهمش منها.
   const TABLES_GROUP: ReportTab[] = ["major-faults", "major-faults-selected", "major-fault-closure", "engineering-inspection", "closed-port-cabinets"];
   // + «المخزن المحلى» (قرار المالك ٢٠٢٦-١٠-٠٧): يشوفوا التقارير بس — التسجيل مقفول عليهم من السيرفر
-  const CENTRAL_VIEW_ALLOWED: ReportTab[] = [...TECH_ALLOWED, "box-tickets-repaired", ...TABLES_GROUP, "local-store", "maint-cable"];
+  // المالك ٢٠٢٦-١٠-١٢: «الأعطال المنتظمة (فترة من/إلى)» مش للشئون الخارجية ولا الأدمن ولا مهندس
+  // الكوابل — للفنى (خطوطه) والسوبر أدمن بس. والسيرفر بيرفضه ليهم كمان.
+  const CENTRAL_VIEW_HIDDEN: ReportTab[] = ["regularized-faults-range"];
+  const CENTRAL_VIEW_ALLOWED: ReportTab[] = ([...TECH_ALLOWED, "box-tickets-repaired", ...TABLES_GROUP, "local-store", "maint-cable"] as ReportTab[])
+    .filter((id) => !CENTRAL_VIEW_HIDDEN.includes(id));
   const CENTRAL_VIEW_ALLOWED_GROUPS = REPORT_GROUPS
     .filter((g) => g.items.some((it) => CENTRAL_VIEW_ALLOWED.includes(it.id)))
     .map((g) => g.label);

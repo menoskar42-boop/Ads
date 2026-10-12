@@ -74,7 +74,7 @@ test("wiring: tables + column in ensureSchema and schema.ts, cable entry charges
   // وكمان من تاب التقارير: مجموعة «المخزن» — للأدمن والشئون الخارجية ومسئول البيانات، مش للفنى
   assert.match(dash, /label: "المخزن",\s+icon: Warehouse,\s+items: \[\s+\{ id: "local-store"/);
   assert.match(dash, /\{reportTab === "local-store" && <LocalStoreSection \/>\}/);
-  assert.match(dash, /const CENTRAL_VIEW_ALLOWED: ReportTab\[\] = \[[^\]]*"local-store"[^\]]*\]/);
+  assert.match(dash, /const CENTRAL_VIEW_ALLOWED: ReportTab\[\] = \(\[[^\]]*"local-store"[^\]]*\]/);
   assert.doesNotMatch(dash, /const TECH_ALLOWED_GROUPS = \[[^\]]*"المخزن"/);
   const ui = readFileSync(new URL("../client/src/components/LocalStoreSection.tsx", import.meta.url), "utf8");
   // قاعدة ٧: كل تقرير Excel + PDF

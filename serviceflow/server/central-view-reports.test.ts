@@ -9,7 +9,11 @@ const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.me
 test("admin/external (not super admin) get the tech report list + ticket reopen report", () => {
   assert.match(dash,
     /const isCentralView = !isSuperAdmin && \(authUser\?\.role === ROLES\.ADMIN \|\| authUser\?\.role === ROLES\.EXTERNAL\);/);
-  assert.match(dash, /const CENTRAL_VIEW_ALLOWED: ReportTab\[\] = \[\.\.\.TECH_ALLOWED, "box-tickets-repaired", \.\.\.TABLES_GROUP, "local-store", "maint-cable"\];/);
+  assert.match(dash, /const CENTRAL_VIEW_ALLOWED: ReportTab\[\] = \(\[\.\.\.TECH_ALLOWED, "box-tickets-repaired", \.\.\.TABLES_GROUP, "local-store", "maint-cable"\] as ReportTab\[\]\)\s*\n\s*\.filter\(\(id\) => !CENTRAL_VIEW_HIDDEN\.includes\(id\)\);/);
+  // المالك ٢٠٢٦-١٠-١٢: «الأعطال المنتظمة (فترة من/إلى)» مش ليهم — فى الواجهة والسيرفر
+  assert.match(dash, /const CENTRAL_VIEW_HIDDEN: ReportTab\[\] = \["regularized-faults-range"\];/);
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  assert.match(routes, /app\.get\("\/api\/reports\/regularized-faults-range", requireAuth, async \(req, res\) => \{\s*\n\s*\/\/[^\n]*\n\s*if \(req\.user\?\.role === ROLES\.EXTERNAL \|\| req\.user\?\.role === ROLES\.ADMIN\) return res\.status\(403\)/);
   // «إنشاء جداول» كاملة للشئون الخارجية ومهندس الكوابل ومدير السنترال (٢٠٢٦-١٠-٠٥) — نفس عناصر المجموعة بالظبط
   const group = dash.slice(dash.indexOf('label: "إنشاء جداول"'), dash.indexOf('label: "جدول الورديات"'));
   const ids = [...group.matchAll(/\{ id: "([^"]+)"/g)].map((m) => m[1]);
