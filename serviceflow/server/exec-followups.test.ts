@@ -67,3 +67,12 @@ test("speed-drop report has the measure / no-Real / raise / stop buttons", () =>
   assert.match(ui, /handleMeasure\(true\)[\s\S]{0,300}قياس بدون Real/);
   assert.match(ui, /handleRaisePO\("stop"\)[\s\S]{0,200}إيقاف PO/);
 });
+
+test("speed-drop report: mobile column like current faults + details button next to the phone", () => {
+  const ui = readFileSync(new URL("../client/src/components/SpeedDropReport.tsx", import.meta.url), "utf8");
+  assert.match(ui, /const COLS = \["#", "رقم التليفون", "رقم الموبايل",/);
+  assert.match(ui, /useMobileLookup\(rows\.map\(\(r\) => r\.phone\)\)/);
+  assert.match(ui, /<MobileValue mobile=\{mobileOf\(r\) \|\| null\} phone=\{r\.phone\} \/>/);
+  assert.match(ui, /onClick=\{\(\) => setDetailPhone\(r\.phone\)\} title="تفاصيل الخط والاتصال"/);
+  assert.match(ui, /<LineDetailsDialog phone=\{detailPhone\}/);
+});

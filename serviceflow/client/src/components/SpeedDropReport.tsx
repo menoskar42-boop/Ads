@@ -2,13 +2,15 @@
 // (الافتراضى الشهر الحالى) اللى سرعتها الحالية («بدون Real» الأخير) أقل بأكتر من ١٠٪ من أول قياس
 // «بدون Real» بعد تاريخ الشكوى. السيرفر: /api/reports/regularized-speed-drop.
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileSpreadsheet, Gauge, History, Loader2, Printer, Radar, TrendingDown } from "lucide-react";
+import { FileSpreadsheet, Gauge, History, Info, Loader2, Printer, Radar, TrendingDown } from "lucide-react";
+import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
+import { LineDetailsDialog } from "@/components/LineDetailsDialog";
 import { printTablePDF } from "@/lib/print-pdf";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
@@ -31,7 +33,7 @@ const day = (v: string | null) => (v ? String(v).slice(0, 10) : "");
 const dt = (v: string | null) => (v ? String(v).slice(0, 16).replace("T", " ") : "");
 const kb = (n: number | null) => (n == null ? "" : n.toLocaleString("en-US"));
 
-const COLS = ["#", "رقم التليفون", "السنترال", "الكابينة", "الفنى", "رقم الأكونت", "رقم الشكوى", "تاريخ الشكوى",
+const COLS = ["#", "رقم التليفون", "رقم الموبايل", "السنترال", "الكابينة", "الفنى", "رقم الأكونت", "رقم الشكوى", "تاريخ الشكوى",
   "أول قياس بعد الشكوى", "السرعة وقتها (kbps)", "آخر قياس", "السرعة الحالية (kbps)", "الانخفاض %", "الاسكور الحالى"];
 
 export function SpeedDropReport() {
@@ -42,6 +44,24 @@ export function SpeedDropReport() {
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
   useSpeedToolSource("انخفاض السرعة بعد الانتظام");
+  // رقم الموبايل + زرار التفاصيل جنب رقم التليفون (المالك ٢٠٢٦-١٠-١٢) — زى «الأعطال الحالية»
+  const qc = useQueryClient();
+  const [detailPhone, setDetailPhone] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [mobileInput, setMobileInput] = useState("");
+  const [savingMobile, setSavingMobile] = useState(false);
+  const saveMobile = async (phone: string) => {
+    setSavingMobile(true);
+    try {
+      const r = await fetch("/api/line-mobiles", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullPhone: phone, mobile: mobileInput.trim() }),
+      });
+      if (!r.ok) throw new Error();
+      setEditing(null);
+      await qc.invalidateQueries({ queryKey: ["/api/phone-lines/mobile-lookup"] });
+    } catch { alert("تعذّر حفظ رقم الموبايل"); } finally { setSavingMobile(false); }
+  };
   const q = useQuery<{ data: DropRow[] }>({
     queryKey: ["/api/reports/regularized-speed-drop", from, to, minDrop],
     queryFn: async () => {
@@ -53,8 +73,10 @@ export function SpeedDropReport() {
     refetchOnMount: "always",
   });
   const rows = q.data?.data ?? [];
+  const mobileLookup = useMobileLookup(rows.map((r) => r.phone));
+  const mobileOf = (r: DropRow) => mobileLookup[phoneLookupKey(r.phone)] ?? "";
   const cells = (r: DropRow, i: number) => [
-    i + 1, r.phone, r.central ?? "", r.cabinet ?? "", r.techName ?? "", r.accountNo ?? "", r.complainNo ?? "", day(r.complainTime),
+    i + 1, r.phone, mobileOf(r), r.central ?? "", r.cabinet ?? "", r.techName ?? "", r.accountNo ?? "", r.complainNo ?? "", day(r.complainTime),
     dt(r.firstAt), kb(r.firstKbps), dt(r.lastAt), kb(r.lastKbps), `${r.dropPct}%`, r.lastScore ?? "",
   ];
   const accountsOf = () => {
@@ -146,9 +168,39 @@ export function SpeedDropReport() {
             ) : rows.map((r, i) => (
               <TableRow key={r.phone}>
                 {cells(r, i).map((c, j) => (
-                  <TableCell key={j} dir={j === 1 || j === 5 ? "ltr" : undefined}
-                    className={`whitespace-nowrap tabular-nums ${j === 12 ? (r.dropPct >= 30 ? "font-bold text-red-700 bg-red-50" : "font-bold text-orange-700") : ""}`}>
-                    {j === 5 && r.accountNo && showSpeedTools ? (
+                  <TableCell key={j} dir={j === 1 || j === 6 ? "ltr" : undefined}
+                    className={`whitespace-nowrap tabular-nums ${j === 13 ? (r.dropPct >= 30 ? "font-bold text-red-700 bg-red-50" : "font-bold text-orange-700") : ""}`}>
+                    {j === 1 ? (
+                      <span className="inline-flex items-center gap-1.5 font-mono font-semibold text-blue-700">
+                        {c}
+                        <button type="button" onClick={() => setDetailPhone(r.phone)} title="تفاصيل الخط والاتصال"
+                          aria-label={`تفاصيل الخط والاتصال ${r.phone}`} className="text-purple-600 hover:text-purple-800">
+                          <Info className="w-4 h-4" />
+                        </button>
+                      </span>
+                    ) : j === 2 ? (
+                      isSuper && editing === r.phone ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Input value={mobileInput} onChange={(e) => setMobileInput(e.target.value)} placeholder="رقم الموبايل"
+                            className="h-7 w-32 px-2 text-xs" dir="ltr" inputMode="tel" />
+                          <button type="button" onClick={() => saveMobile(r.phone)} disabled={savingMobile}
+                            className="text-[11px] text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1 disabled:opacity-50">
+                            {savingMobile ? "..." : "حفظ"}
+                          </button>
+                          <button type="button" onClick={() => setEditing(null)} disabled={savingMobile} className="text-[11px] text-gray-500 px-1">إلغاء</button>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <MobileValue mobile={mobileOf(r) || null} phone={r.phone} />
+                          {isSuper && (
+                            <button type="button" onClick={() => { setMobileInput(mobileOf(r)); setEditing(r.phone); }}
+                              className="text-[11px] text-blue-600 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-50">
+                              {mobileOf(r) ? "تعديل" : "＋ إضافة"}
+                            </button>
+                          )}
+                        </span>
+                      )
+                    ) : j === 6 && r.accountNo && showSpeedTools ? (
                       <span className="inline-flex items-center gap-1">
                         {c}
                         <button type="button" onClick={() => measureOne(String(r.accountNo).trim())}
@@ -164,6 +216,7 @@ export function SpeedDropReport() {
           </TableBody>
         </Table>
       </div>
+      {detailPhone && <LineDetailsDialog phone={detailPhone} onClose={() => setDetailPhone(null)} />}
     </Card>
   );
 }
