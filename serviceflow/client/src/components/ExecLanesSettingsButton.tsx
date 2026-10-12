@@ -21,7 +21,10 @@ interface ExecLanes {
   stop: number;
   refreshMinutes: number;
   refreshRange: { min: number; max: number };
-  defaults: { noreal: number; stop: number; refreshMinutes: number };
+  /** باتش قياس ٩ الصبح: آخر قياس من كام يوم (٠ = كل الخطوط اللى ليها أكونت) */
+  measureStaleDays: number;
+  measureStaleRange: { min: number; max: number };
+  defaults: { noreal: number; stop: number; refreshMinutes: number; measureStaleDays: number };
   max: number;
   updatedAt?: string | null;
   updatedBy?: string | null;
@@ -34,6 +37,7 @@ export function ExecLanesSettingsButton() {
   const [noreal, setNoreal] = useState("");
   const [stop, setStop] = useState("");
   const [refresh, setRefresh] = useState("");
+  const [staleDays, setStaleDays] = useState("");
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data, isLoading, isError, refetch, isFetching } = useQuery<ExecLanes>({
@@ -53,6 +57,7 @@ export function ExecLanesSettingsButton() {
     if (open && data && !filled.current) {
       filled.current = true;
       setNoreal(String(data.noreal)); setStop(String(data.stop)); setRefresh(String(data.refreshMinutes));
+      setStaleDays(String(data.measureStaleDays ?? 1));
     }
   }, [open, data]);
 
@@ -60,12 +65,14 @@ export function ExecLanesSettingsButton() {
   const valid = (v: string) => /^\d+$/.test(v) && +v >= 1 && +v <= max;
   const rMin = data?.refreshRange?.min ?? 5, rMax = data?.refreshRange?.max ?? 240;
   const validRefresh = /^\d+$/.test(refresh) && +refresh >= rMin && +refresh <= rMax;
+  const sMin = data?.measureStaleRange?.min ?? 0, sMax = data?.measureStaleRange?.max ?? 30;
+  const validStale = /^\d+$/.test(staleDays) && +staleDays >= sMin && +staleDays <= sMax;
   const save = useMutation({
     mutationFn: async () => {
       const r = await fetch(LANES_URL, {
         method: "PUT", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh }),
+        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.message || `خطأ ${r.status}`);
@@ -142,6 +149,16 @@ export function ExecLanesSettingsButton() {
                 </div>
                 <p className="text-xs text-muted-foreground">بيشتغل على الجهاز اللى زرار «التحديث التلقائى» مفعّل عليه. التغيير بيتطبّق من الدورة الجاية.</p>
               </div>
+              <div className="space-y-1 pt-2 border-t">
+                <label htmlFor="measure-stale-days" className="text-sm font-medium">قياس ٩ الصبح (بدون Real): الخطوط اللى آخر قياس ليها من</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {stepper("measure-stale-days", staleDays, setStaleDays, sMin, sMax, 1, validStale, "أيام قياس ٩ الصبح")}
+                  <span className="text-xs text-muted-foreground">يوم أو أكتر (الافتراضى {data.defaults.measureStaleDays ?? 1})</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {staleDays === "0" ? "٠ = كل الخطوط اللى ليها أكونت مهما كان آخر قياس." : "١ = أى خط ماتقاسش النهارده. ٠ = كل الخطوط اللى ليها أكونت."} والخطوط اللى ماتقاستش خالص بتدخل دايماً.
+                </p>
+              </div>
               {data.updatedAt && (
                 <p className="text-xs text-muted-foreground">
                   آخر تعديل: {String(data.updatedAt).slice(0, 16).replace("T", " ")}{data.updatedBy ? ` — ${data.updatedBy}` : ""}
@@ -151,7 +168,7 @@ export function ExecLanesSettingsButton() {
           )}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button disabled={!data || !valid(noreal) || !valid(stop) || !validRefresh || save.isPending} onClick={() => save.mutate()}>
+            <Button disabled={!data || !valid(noreal) || !valid(stop) || !validRefresh || !validStale || save.isPending} onClick={() => save.mutate()}>
               {save.isPending && <Loader2 className="w-4 h-4 animate-spin ml-1" />} حفظ
             </Button>
           </DialogFooter>

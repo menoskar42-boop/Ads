@@ -2359,6 +2359,19 @@ export async function registerRoutes(
       return Number.isFinite(n) ? Math.min(REFRESH_MINUTES_MAX, Math.max(REFRESH_MINUTES_MIN, n)) : REFRESH_MINUTES_DEFAULT;
     } catch { return REFRESH_MINUTES_DEFAULT; }
   };
+  // باتش قياس ٩ الصبح «بدون Real»: «لم تُقس أو آخر قياس من N يوم أو أكتر» (المالك ٢٠٢٦-١٠-١٢:
+  // كانت ٢ ثابتة فى الكود ← إعداد، الافتراضى ١). بالأيام بتوقيت القاهرة مش بالساعات: خط اتقاس
+  // امبارح ٩:٣٠ بيدخل النهارده ٩:٠٠ (لو بالساعات كان هيبقى ٢٣٫٥ ساعة ويتساب لبكرة).
+  // ٠ = كل الخطوط اللى ليها أكونت مهما كان آخر قياس.
+  const MEASURE_STALE_DAYS_KEY = "exec_lanes_measure_stale_days";   // نفس البادئة = سوبر أدمن بس
+  const MEASURE_STALE_DAYS_DEFAULT = 1, MEASURE_STALE_DAYS_MIN = 0, MEASURE_STALE_DAYS_MAX = 30;
+  const readMeasureStaleDays = async (): Promise<number> => {
+    try {
+      const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = $1`, [MEASURE_STALE_DAYS_KEY]);
+      const n = parseInt(String(rows[0]?.value ?? ""), 10);
+      return Number.isFinite(n) ? Math.min(MEASURE_STALE_DAYS_MAX, Math.max(MEASURE_STALE_DAYS_MIN, n)) : MEASURE_STALE_DAYS_DEFAULT;
+    } catch { return MEASURE_STALE_DAYS_DEFAULT; }
+  };
   type ExecLanes = { noreal: number; stop: number };
   const clampLanes = (v: any, def: number) => {
     const n = parseInt(String(v ?? ""), 10);
@@ -2410,10 +2423,12 @@ export async function registerRoutes(
       const { rows } = await pool.query(
         `SELECT (MAX(updated_at) AT TIME ZONE 'Africa/Cairo') AS "updatedAt",
                 (ARRAY_AGG(updated_by ORDER BY updated_at DESC))[1] AS "updatedBy"
-           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), REFRESH_MINUTES_KEY]]);
-      res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES, refreshMinutes: REFRESH_MINUTES_DEFAULT },
+           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY]]);
+      res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES, refreshMinutes: REFRESH_MINUTES_DEFAULT, measureStaleDays: MEASURE_STALE_DAYS_DEFAULT },
         max: EXEC_LANES_MAX, refreshMinutes: await readRefreshMinutes(),
-        refreshRange: { min: REFRESH_MINUTES_MIN, max: REFRESH_MINUTES_MAX }, ...(rows[0] || {}) });
+        refreshRange: { min: REFRESH_MINUTES_MIN, max: REFRESH_MINUTES_MAX },
+        measureStaleDays: await readMeasureStaleDays(),
+        measureStaleRange: { min: MEASURE_STALE_DAYS_MIN, max: MEASURE_STALE_DAYS_MAX }, ...(rows[0] || {}) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.put("/api/exec-queue/lanes", requireAuth, requireSuperAdmin, async (req: any, res) => {
@@ -2434,13 +2449,19 @@ export async function registerRoutes(
           return res.status(400).json({ message: `فترة التحديث لازم تكون من ${REFRESH_MINUTES_MIN} لـ ${REFRESH_MINUTES_MAX} دقيقة` });
         vals.push([REFRESH_MINUTES_KEY, m]);
       }
+      if (body.measureStaleDays != null) {
+        const n = parseInt(String(body.measureStaleDays), 10);
+        if (!Number.isFinite(n) || n < MEASURE_STALE_DAYS_MIN || n > MEASURE_STALE_DAYS_MAX)
+          return res.status(400).json({ message: `أيام قياس ٩ الصبح لازم تكون من ${MEASURE_STALE_DAYS_MIN} لـ ${MEASURE_STALE_DAYS_MAX}` });
+        vals.push([MEASURE_STALE_DAYS_KEY, n]);
+      }
       for (const [key, n] of vals) {
         await pool.query(
           `INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)
            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`,
           [key, String(n), by]);
       }
-      res.json({ ok: true, ...(await readExecLanes(pool)), refreshMinutes: await readRefreshMinutes() });
+      res.json({ ok: true, ...(await readExecLanes(pool)), refreshMinutes: await readRefreshMinutes(), measureStaleDays: await readMeasureStaleDays() });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -3305,7 +3326,8 @@ export async function registerRoutes(
   // مصدرين: الفحص الدورى كل ٥ دقايق، ونبضة جهاز التنفيذ نفسها (أول ما يتفعّل
   // بيوقّظ السيرفر والنبضة بتنادى الدالة دى فوراً).
   const AUTO_BATCH_HOUR = 9;              // ٩ صباحاً بتوقيت القاهرة
-  const AUTO_MEASURE_STALE_DAYS = 2;      // آخر قياس أقدم من يومين (كانت ٤ لحد ٢٠٢٦-٠٩-٢٨، و٨ ثم ١٠ قبلها — قرار المالك)
+  // آخر قياس من كام يوم: إعداد «أيام قياس ٩ الصبح» (readMeasureStaleDays، الافتراضى ١ — المالك
+  // ٢٠٢٦-١٠-١٢). كانت ٢ ثابتة، و٤ لحد ٢٠٢٦-٠٩-٢٨، و٨ ثم ١٠ قبلها.
   // باتش القياس اليومى «بدون Real» (قرار المالك ٢٠٢٦-٠٩-٢٣): العلامة دى فى note
   // المهمة هى اللى جهاز التنفيذ بيقراها ويبعت &sf_mode=noreal لسكربت DZS
   // (ExecutorButton). لازم تفضل **نفس النص** بتاع NOREAL_MARK فى
@@ -3366,8 +3388,11 @@ export async function registerRoutes(
     return rows.map((r: any) => String(r.acc).trim()).filter(Boolean);
   };
 
-  /** أرقام أكونت القياس اليومى بالطريقة القديمة: لم تُقس أبداً أو آخر قياس أقدم من يومين. */
-  const autoMeasureAccounts = async (): Promise<string[]> => {
+  /** نص شرط الأيام فى note الباتش */
+  const staleDaysLabel = (days: number) => days === 0 ? "كل الخطوط اللى ليها أكونت" : `لم تُقس أو آخر قياس من ${days} يوم أو أكتر`;
+  /** أرقام أكونت القياس اليومى بالطريقة القديمة: لم تُقس أبداً أو آخر قياس من N يوم (٠ = الكل). */
+  const autoMeasureAccounts = async (days?: number): Promise<string[]> => {
+    const staleDays = days ?? await readMeasureStaleDays();
     const { rows } = await pool.query(
       `SELECT DISTINCT btrim(la.account_no) AS acc
          FROM line_accounts la
@@ -3377,9 +3402,11 @@ export async function registerRoutes(
          ) c138p ON true
         WHERE la.account_no IS NOT NULL AND la.account_no <> ''
           AND ${hasFrameSql("la.full_phone")}
-          -- لم تُقس أبداً (NULL) أو آخر قياس أقدم من AUTO_MEASURE_STALE_DAYS (يومين)
-          AND (c138p.uploaded_at IS NULL
-               OR c138p.uploaded_at < now() - make_interval(days => ${AUTO_MEASURE_STALE_DAYS}))
+          -- لم تُقس أبداً (NULL) أو يوم آخر قياس (بتوقيت القاهرة) قبل النهارده بـ N يوم أو أكتر.
+          -- N = 0 ⇒ الشرط ده مش موجود: كل الخطوط اللى ليها أكونت.
+          ${staleDays > 0 ? `AND (c138p.uploaded_at IS NULL
+               OR (c138p.uploaded_at AT TIME ZONE 'Africa/Cairo')::date
+                  <= (now() AT TIME ZONE 'Africa/Cairo')::date - ${staleDays})` : ""}
           -- ليها **قياس** فى الطابور دلوقتى → مانضيفهاش تانى (نفس السبب بس)
           AND ${notQueuedSql("la.account_no", ["measure"])}`);
     return rows.map((r: any) => String(r.acc).trim()).filter(Boolean);
@@ -3568,12 +3595,13 @@ export async function registerRoutes(
       const stop = await enqueueAutoBatch("stop", stopAccs, "تحتاج إيقاف PO (تشغيل يومى ٩ ص)");
       // اجمع الطريقة القديمة أولاً، ثم أضف أرقام تقرير الشكاوى بدون تكرار.
       // نضع الناتج كله فى باتش واحد حتى يظل التقدّم والاستئناف موحّدين.
-      const legacyMeasAccs = await autoMeasureAccounts();
+      const staleDays = await readMeasureStaleDays();
+      const legacyMeasAccs = await autoMeasureAccounts(staleDays);
       const complaintMeasAccs = await autoComplaintNoMeasureAccounts(legacyMeasAccs);
       const measAccs = [...legacyMeasAccs, ...complaintMeasAccs];
       const meas = await enqueueAutoBatch(
         "measure", measAccs,
-        `خطوط لها أكونت — لم تُقس أو أقدم من ${AUTO_MEASURE_STALE_DAYS} يوم + شكاوى منتظمة بدون قياس بعدها (تشغيل يومى ٩ ص) — قياس ${AUTO_MEASURE_NOREAL_MARK}`);
+        `خطوط لها أكونت — ${staleDaysLabel(staleDays)} + شكاوى منتظمة بدون قياس بعدها (تشغيل يومى ٩ ص) — قياس ${AUTO_MEASURE_NOREAL_MARK}`);
       console.log(`[auto-batches] ${date} (${trigger}): إيقاف PO ${stop.count} خط، قياس ${meas.count} خط`);
       return { ran: true, stop: stop.count, measure: meas.count,
                stopBatchId: stop.batchId, measureBatchId: meas.batchId };
@@ -3605,12 +3633,13 @@ export async function registerRoutes(
          RETURNING value`, [ONE_OFF_MEASURE_TAG]);
       if (!claim.rowCount) return;
       claimed = true;
-      const legacyMeasAccs = await autoMeasureAccounts();
+      const staleDays = await readMeasureStaleDays();
+      const legacyMeasAccs = await autoMeasureAccounts(staleDays);
       const complaintMeasAccs = await autoComplaintNoMeasureAccounts(legacyMeasAccs);
       const measAccs = [...legacyMeasAccs, ...complaintMeasAccs];
       const meas = await enqueueAutoBatch(
         "measure", measAccs,
-        `خطوط لها أكونت — لم تُقس أو أقدم من ${AUTO_MEASURE_STALE_DAYS} يوم + شكاوى منتظمة بدون قياس بعدها (تشغيل استثنائى بعد النشر) — قياس ${AUTO_MEASURE_NOREAL_MARK}`);
+        `خطوط لها أكونت — ${staleDaysLabel(staleDays)} + شكاوى منتظمة بدون قياس بعدها (تشغيل استثنائى بعد النشر) — قياس ${AUTO_MEASURE_NOREAL_MARK}`);
       console.log(`[auto-batches] تشغيل استثنائى ${ONE_OFF_MEASURE_TAG} (${trigger}): قياس ${meas.count} خط`);
     } catch (e: any) {
       // الحجز اتعمل والإضافة فشلت → فكّه عشان الـ tick الجاى يحاول تانى

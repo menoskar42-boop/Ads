@@ -58,9 +58,12 @@ const measFn = routes.slice(routes.indexOf("const autoMeasureAccounts"),
                             routes.indexOf("type AutoBatchResult"));
 
 test("the measure batch covers never-measured plus stale, minus queued", () => {
-  assert.match(routes, /const AUTO_MEASURE_STALE_DAYS = 2;/);
-  // NULL = لم يُقس أبداً، والتانى = آخر قياس أقدم من يومين — الشرطين مع بعض
-  assert.match(measFn, /c138p\.uploaded_at IS NULL\s*\n\s*OR c138p\.uploaded_at < now\(\) - make_interval\(days => \$\{AUTO_MEASURE_STALE_DAYS\}\)/);
+  // المالك ٢٠٢٦-١٠-١٢: الأيام إعداد (الافتراضى ١، و٠ = كل الخطوط اللى ليها أكونت) — مش ٢ ثابتة
+  assert.doesNotMatch(routes, /AUTO_MEASURE_STALE_DAYS/);
+  assert.match(routes, /MEASURE_STALE_DAYS_DEFAULT = 1, MEASURE_STALE_DAYS_MIN = 0, MEASURE_STALE_DAYS_MAX = 30/);
+  assert.match(measFn, /const staleDays = days \?\? await readMeasureStaleDays\(\);/);
+  // NULL = لم يُقس أبداً، والتانى = يوم آخر قياس بتوقيت القاهرة قبل النهارده بـ N يوم أو أكتر
+  assert.match(measFn, /\$\{staleDays > 0 \? `AND \(c138p\.uploaded_at IS NULL\s*\n\s*OR \(c138p\.uploaded_at AT TIME ZONE 'Africa\/Cairo'\)::date\s*\n\s*<= \(now\(\) AT TIME ZONE 'Africa\/Cairo'\)::date - \$\{staleDays\}\)` : ""\}/);
   assert.match(measFn, /\$\{notQueuedSql\("la\.account_no", \["measure"\]\)\}/);
   assert.match(measFn, /\$\{hasFrameSql\("la\.full_phone"\)\}/);
   assert.match(measFn, /la\.account_no IS NOT NULL AND la\.account_no <> ''/);
@@ -87,7 +90,7 @@ test("legacy measurement accounts are ordered before complaint-report additions 
     routes.indexOf("const legacyMeasAccs"),
     routes.indexOf("console.log(`[auto-batches]", routes.indexOf("const legacyMeasAccs")),
   );
-  assert.match(run, /const legacyMeasAccs = await autoMeasureAccounts\(\)/);
+  assert.match(run, /const legacyMeasAccs = await autoMeasureAccounts\(staleDays\)/);
   assert.match(run, /const complaintMeasAccs = await autoComplaintNoMeasureAccounts\(legacyMeasAccs\)/);
   assert.match(run, /const measAccs = \[\.\.\.legacyMeasAccs, \.\.\.complaintMeasAccs\]/);
   assert.match(run, /enqueueAutoBatch\(\s*"measure", measAccs/);
