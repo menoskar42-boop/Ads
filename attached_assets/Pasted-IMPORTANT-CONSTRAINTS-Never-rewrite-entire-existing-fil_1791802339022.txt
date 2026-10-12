@@ -1,0 +1,47 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+Service Flow database compute optimization.
+
+The current audit identified registerCabinetReassign as a recurring task that starts after 20 seconds and repeats every 60 seconds, regardless of SF_SCHEDULERS.
+
+Replit usage shows $6.58 for 41.15 hours of production database compute during the reported period.
+
+Objective:
+Reduce unnecessary production database compute without delaying scheduled cabinet reassignment operations or affecting Service Flow functionality.
+
+STEP 1: READ-ONLY VERIFICATION
+
+1. Trace registerCabinetReassign from initialization through its database queries and transaction handling.
+2. Determine whether it queries the same database associated with the billed production compute, using only available authorized evidence.
+3. Inspect how pending cabinet reassignment operations are scheduled, stored, and applied.
+4. Determine whether the application has an existing reliable way to identify the next scheduled operation.
+5. Inspect production monitoring and available logs, if accessible, to determine whether this task actually correlates with database activity.
+6. Identify whether the recurring task runs in multiple application processes or instances.
+
+STEP 2: PROPOSE THE SMALLEST SAFE OPTIMIZATION
+
+If the recurring check is proven unnecessary while no operation is pending, propose a design that:
+- Preserves the exact required execution time of scheduled operations.
+- Detects newly scheduled operations reliably.
+- Checks pending operations at startup to recover from restarts.
+- Avoids unnecessary database polling when no work is due.
+- Preserves transaction safety and prevents duplicate execution.
+- Does not depend on adding Redis, queues, or external infrastructure.
+
+IMPORTANT:
+Do not assume the recurring check is the cause of the billed compute.
+Do not disable or modify the task yet.
+Do not modify code, database records, production settings, or deployment configuration.
+Do not change unrelated polling tasks.
+Do not invent savings estimates.
+
+Return the verified findings, the smallest proposed code change, its risks, and the tests required.
+
+STOP and wait for approval before implementation.
