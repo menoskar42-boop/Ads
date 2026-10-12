@@ -15,6 +15,7 @@
 - [Deployment log selection](deployment-log-selection.md) — match Publishing Logs to the failed build; a prior live VM can remain healthy and show unrelated runtime logs.
 - [Replit-managed databases](replit-managed-databases.md) — this project uses Replit’s separate managed development and production databases; never override them with an external URL alias.
 - [Ads and MyBible Supabase](ads-supabase-migration.md) — share the Session Pooler conservatively; isolate MyBible by schema and preserve PostgreSQL 17 tooling.
+- [Cloudflare R2 analytics](r2-analytics.md) — use GraphQL operation/storage datasets for R2 usage; do not scan objects to estimate request volume.
 - [Workshop outbound messages](workshop-outbound-messages.md) — workshop notifications are prepared and tracked locally until an external WhatsApp/SMS provider is explicitly connected.
 - [Workshop alert-email restoration](workshop-alert-email-restore.md) — restore only company-scoped valid history values inside a transaction and append a new audit event.
 - [Workshop operations lifecycle](workshop-operations-lifecycle.md) — keep job stages explicit and every stock correction in a company-scoped movement ledger.
