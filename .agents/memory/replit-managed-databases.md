@@ -1,10 +1,10 @@
 ---
-name: Replit-managed databases
-description: Database ownership and environment separation for this project.
+name: Database runtime selection
+description: Verify each hosted app's active database target before querying or changing schemas.
 ---
 
-This project uses Replit-managed PostgreSQL only. Development and production intentionally receive different managed `DATABASE_URL` values because they are separate databases; there is no external application database.
+This workspace can run separate applications against different PostgreSQL targets. The main server may select an Ads-specific external database, while co-hosted Service Flow has its own primary database and may optionally read a separate Supabase schema. The Replit-managed database pane is not proof of either deployed application's target.
 
-**Why:** Treating the different URLs as evidence of an external database led to an unnecessary alias that could make production use the wrong environment's database.
+**Why:** Applying a generic Replit database assumption to a multi-app workspace can query or modify the wrong database.
 
-**How to apply:** Use Replit's runtime-managed `DATABASE_URL` directly in every environment. Do not add or prioritize `APP_DATABASE_URL`, do not copy a development URL into deployment secrets, and use the Publish schema-diff flow to carry development schema changes into production.
+**How to apply:** Trace the runtime connection selection for the specific app and environment, then verify the target with read-only metadata. Never infer that development and deployment secrets are equal.

@@ -13,7 +13,7 @@
 - [Local preview host routing](local-preview-host-routing.md) — treat loopback as platform root and set Service Flow’s `/serviceflow/` base path in builds and preview run config.
 - [Deployment healthcheck status](deployment-healthcheck-status.md) — the VM readiness probe needs a direct 200 on `/`; a healthy redirect to `/ar` is still rejected.
 - [Deployment log selection](deployment-log-selection.md) — match Publishing Logs to the failed build; a prior live VM can remain healthy and show unrelated runtime logs.
-- [Replit-managed databases](replit-managed-databases.md) — this project uses Replit’s separate managed development and production databases; never override them with an external URL alias.
+- [Database runtime selection](replit-managed-databases.md) — verify each app’s actual database target; a multi-app workspace can mix Replit-managed and external PostgreSQL.
 - [Ads and MyBible Supabase](ads-supabase-migration.md) — share the Session Pooler conservatively; isolate MyBible by schema and preserve PostgreSQL 17 tooling.
 - [Cloudflare R2 analytics](r2-analytics.md) — use GraphQL operation/storage datasets for R2 usage; do not scan objects to estimate request volume.
 - [Workshop outbound messages](workshop-outbound-messages.md) — workshop notifications are prepared and tracked locally until an external WhatsApp/SMS provider is explicitly connected.

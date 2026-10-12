@@ -1,7 +1,8 @@
 const express = require('express');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
-const { memUpload, compressToBuffer, storeMedia, memVideoUpload, compressVideoToDisk } = require('../utils/photo');
+const { memUpload, compressToBuffer, storeMedia, memVideoUpload, compressVideoToDisk, storeVideoFile, removeLocalUpload } = require('../utils/photo');
+const r2 = require('../utils/r2');
 
 const router = express.Router();
 const inspectorOrAdmin = requireRole('admin', 'inspector');
@@ -275,6 +276,9 @@ router.post('/:id/after-photos', inspectorOrAdmin, (req, res, next) => {
 
 router.post('/:id/videos', inspectorOrAdmin, memVideoUpload.single('video'), async (req, res) => {
   const isAjax = (req.headers.accept || '').includes('application/json');
+  let filename = null;
+  let uploadedKey = null;
+  let persisted = false;
   try {
     const inspection = await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
     if (!inspection) {
@@ -286,14 +290,22 @@ router.post('/:id/videos', inspectorOrAdmin, memVideoUpload.single('video'), asy
       req.session.flash = { type: 'danger', msg: 'يرجى اختيار فيديو.' };
       return res.redirect(`/inspector/${req.params.id}`);
     }
-    const { filename } = await compressVideoToDisk(req.file.buffer, `bvid_${inspection.box_id}`);
+    ({ filename } = await compressVideoToDisk(req.file.buffer, `bvid_${inspection.box_id}`));
+    const stored = await storeVideoFile(filename);
+    uploadedKey = stored.storageKey;
     await db.run(
-      "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, uploaded_by) VALUES (?, ?, 'before', 'video', ?, ?)",
-      [inspection.box_id, inspection.id, filename, req.session.user.id]
+      "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, storage_key, uploaded_by) VALUES (?, ?, 'before', 'video', ?, ?, ?)",
+      [inspection.box_id, inspection.id, filename, uploadedKey, req.session.user.id]
     );
+    persisted = true;
+    removeLocalUpload(filename);
     if (isAjax) return res.json({ ok: true, filename });
     req.session.flash = { type: 'success', msg: 'تم رفع الفيديو وضغطه.' };
   } catch (e) {
+    if (uploadedKey && !persisted) {
+      try { await r2.deleteObject(uploadedKey); } catch (cleanupError) { console.error('orphan inspector video cleanup failed:', cleanupError.message); }
+    }
+    if (!persisted) removeLocalUpload(filename);
     console.error('inspector before-video error:', e.message);
     if (isAjax) return res.status(500).json({ ok: false, msg: e.message });
     req.session.flash = { type: 'danger', msg: `فشل رفع الفيديو: ${e.message}` };
@@ -303,6 +315,9 @@ router.post('/:id/videos', inspectorOrAdmin, memVideoUpload.single('video'), asy
 
 router.post('/:id/after-videos', inspectorOrAdmin, memVideoUpload.single('video'), async (req, res) => {
   const isAjax = (req.headers.accept || '').includes('application/json');
+  let filename = null;
+  let uploadedKey = null;
+  let persisted = false;
   try {
     const inspection = await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
     if (!inspection) {
@@ -314,14 +329,22 @@ router.post('/:id/after-videos', inspectorOrAdmin, memVideoUpload.single('video'
       req.session.flash = { type: 'danger', msg: 'يرجى اختيار فيديو.' };
       return res.redirect(`/inspector/${req.params.id}`);
     }
-    const { filename } = await compressVideoToDisk(req.file.buffer, `avid_${inspection.box_id}`);
+    ({ filename } = await compressVideoToDisk(req.file.buffer, `avid_${inspection.box_id}`));
+    const stored = await storeVideoFile(filename);
+    uploadedKey = stored.storageKey;
     await db.run(
-      "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, uploaded_by) VALUES (?, ?, 'after', 'video', ?, ?)",
-      [inspection.box_id, inspection.id, filename, req.session.user.id]
+      "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, storage_key, uploaded_by) VALUES (?, ?, 'after', 'video', ?, ?, ?)",
+      [inspection.box_id, inspection.id, filename, uploadedKey, req.session.user.id]
     );
+    persisted = true;
+    removeLocalUpload(filename);
     if (isAjax) return res.json({ ok: true, filename });
     req.session.flash = { type: 'success', msg: 'تم رفع فيديو بعد الصيانة.' };
   } catch (e) {
+    if (uploadedKey && !persisted) {
+      try { await r2.deleteObject(uploadedKey); } catch (cleanupError) { console.error('orphan inspector video cleanup failed:', cleanupError.message); }
+    }
+    if (!persisted) removeLocalUpload(filename);
     console.error('inspector after-video error:', e.message);
     if (isAjax) return res.status(500).json({ ok: false, msg: e.message });
     req.session.flash = { type: 'danger', msg: `فشل رفع الفيديو: ${e.message}` };

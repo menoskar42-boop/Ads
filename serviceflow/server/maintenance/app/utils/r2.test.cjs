@@ -59,3 +59,25 @@ test('R2 video file upload streams bytes and supports byte-range playback', asyn
   for await (const chunk of Readable.fromWeb(result.body)) chunks.push(chunk);
   assert.equal(Buffer.concat(chunks).toString(), expected.subarray(2, 7).toString());
 });
+
+test('R2 video upload failure is explicit and returns no storage key', async (t) => {
+  const server = http.createServer((req, res) => {
+    req.resume();
+    res.writeHead(503).end('temporarily unavailable');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'serviceflow-r2-fail-'));
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
+  const file = path.join(tempDir, 'video.mp4');
+  fs.writeFileSync(file, Buffer.from('video payload'));
+  Object.assign(process.env, {
+    R2_ACCOUNT_ID: 'test-account',
+    R2_ACCESS_KEY_ID: 'test-access',
+    R2_SECRET_ACCESS_KEY: 'test-secret',
+    R2_BUCKET: 'test-bucket',
+    R2_ENDPOINT: 'http://127.0.0.1:' + server.address().port,
+  });
+
+  await assert.rejects(r2.putFile('maintenance/videos/failure.mp4', file, 'video/mp4'), /R2 PUT .*503/);
+});

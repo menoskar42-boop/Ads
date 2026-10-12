@@ -1,0 +1,130 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+PROJECT: Service Flow
+
+PRIMARY OBJECTIVES:
+1. Verify that the main application database is actually hosted on Supabase.
+2. Ensure all Service Flow maintenance photos and videos are stored safely in Cloudflare R2.
+3. Minimize Replit storage usage and avoid unnecessary recurring costs.
+4. Preserve all existing application functionality without downtime or data loss.
+
+COST CONSTRAINTS:
+- Prefer existing R2 utilities and current dependencies.
+- Do not introduce new services, background workers, queues, or monitoring infrastructure.
+- Do not add per-request database logging.
+- Avoid unnecessary AI iterations and large code changes.
+- Do not move relational database tables to R2.
+
+PHASE 1: VERIFY DATABASE TARGETS
+
+Inspect the existing database configuration and runtime initialization.
+
+Verify:
+- Which database the main application actually uses.
+- Whether the main application's runtime database is hosted on Supabase.
+- Which database Service Flow uses through SERVICEFLOW_DATABASE_URL.
+- Whether DATABASE_URL and SERVICEFLOW_DATABASE_URL point to different databases.
+
+Use safe, read-only checks where possible.
+
+Never print, expose, log, or include database connection strings, passwords, or API keys in the report.
+
+Do not change database configuration or migrate any database.
+
+PHASE 2: AUDIT ALL MEDIA
+
+Inspect the existing photo and video upload, storage, retrieval, and deletion routes.
+
+Reuse the existing Cloudflare R2 utilities.
+
+Identify:
+- Photos already stored in R2.
+- Technician videos already stored in R2.
+- Inspector videos still stored locally.
+- Media records with missing R2 keys or database payloads.
+- Files that exist locally but have not been migrated.
+- Database references that could become invalid during migration.
+
+Do not assume workspace files represent the deployed production filesystem.
+
+Do not delete, overwrite, or mark any unresolved media as missing without verification.
+
+PHASE 3: IMPLEMENT SAFE MEDIA STORAGE
+
+After verifying the existing architecture, make the smallest necessary code changes to ensure all NEW maintenance photos and videos are stored in R2.
+
+Requirements:
+- Use the existing R2 utilities wherever possible.
+- Update inspector video uploads to use R2.
+- Preserve existing authorization and access-control checks.
+- Preserve video streaming, byte-range support, and current download behavior.
+- Keep media metadata and relational records in PostgreSQL.
+- Preserve existing URLs and routes wherever possible.
+- Do not expose private media through public buckets or weaken access controls.
+- If an R2 upload fails, do not silently lose the file or create a broken database reference.
+- Preserve a safe fallback or recoverable upload workflow consistent with the existing application behavior.
+- Do not introduce new dependencies unless absolutely necessary.
+
+PHASE 4: MIGRATE EXISTING LOCAL MEDIA
+
+Prepare a safe, repeatable migration for existing local videos and any verified media that is not already in R2.
+
+Before migrating:
+- Confirm access to the actual deployed media files.
+- Identify the exact files and corresponding database records.
+- Calculate the total migration size.
+- Check the destination R2 keys to avoid duplicate uploads.
+
+For each file:
+1. Upload it to R2.
+2. Verify the uploaded object's integrity using a checksum or another reliable verification method.
+3. Update the corresponding database metadata only after successful verification.
+4. Confirm that the existing application route can retrieve the file.
+5. Record migration status so interrupted migrations can resume safely.
+
+The migration must be idempotent and must not create duplicate records.
+
+Do not delete local files until the R2 copy and database references have been verified and the application has been tested successfully.
+
+If deployed files or production database access are unavailable, stop the affected migration and report exactly what access is required.
+
+PHASE 5: VALIDATION
+
+Verify:
+- Existing maintenance photos remain accessible.
+- Technician videos remain accessible.
+- Inspector video uploads work.
+- Video playback and seeking continue to work.
+- Failed uploads do not corrupt database records.
+- No media records were deleted.
+- No relational database tables were moved to R2.
+- The main application database configuration remains unchanged.
+- The migration can safely resume after an interruption.
+
+Do not deploy changes automatically if production validation cannot be completed safely.
+
+FINAL REPORT
+
+Provide:
+- Confirmed main application database provider.
+- Confirmed Service Flow database provider.
+- Number of photos and videos already stored in R2.
+- Number of files successfully migrated.
+- Number of unresolved files.
+- Total media storage used in R2.
+- Remaining local media storage, if measurable.
+- Any expected costs or limits that could not be verified.
+- Exact files changed and tests performed.
+
+Do not invent savings estimates.
+
+Start with Phase 1 and Phase 2, then implement the minimum safe changes needed for the verified migration.
+
+Never delete production media or alter unrelated database records.
