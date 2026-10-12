@@ -1,0 +1,73 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+TASK: VERIFY COMPLETE SERVICE FLOW MEDIA MIGRATION
+
+I need an accurate, read-only status report confirming whether ALL Service Flow maintenance photos and videos have been migrated to Cloudflare R2.
+
+Do not implement or modify anything. This is an audit only.
+
+1. PHOTO MIGRATION
+- Count all photo records in the actual production database.
+- Count records with valid R2 storage keys.
+- Verify that the referenced R2 objects actually exist.
+- Identify missing objects, broken references, and duplicate references.
+- Identify records without R2 keys or database payloads.
+- Do not assume that a database storage key proves the object exists.
+
+2. VIDEO MIGRATION
+- Verify whether new inspector video uploads now use Cloudflare R2.
+- Verify whether technician video uploads use R2.
+- Determine whether any inspector or technician videos are still stored locally.
+- Count all video records and classify them as:
+  a. Verified in R2.
+  b. Stored locally only.
+  c. Stored in PostgreSQL.
+  d. Missing or unresolved.
+- Verify existing video migration status and whether the migration script has actually been executed in production.
+- Do not assume that a migration script existing in the repository means migration is complete.
+
+3. PRODUCTION VERIFICATION
+- Inspect the actual deployed application and production database wherever authorized access permits.
+- Do not treat workspace files, development databases, or old R2 metrics as proof of production status.
+- If production filesystem or database access is unavailable, clearly identify what cannot be verified.
+- Do not expose secrets, credentials, or connection strings.
+
+4. STORAGE VERIFICATION
+- Report the current total number of R2 objects and total storage size using available live metrics.
+- Distinguish live measurements from historical audit results.
+- Reconcile database media records with R2 objects wherever possible.
+- Avoid unnecessary full object downloads or expensive repeated scans.
+
+5. SAFETY
+- Do not upload, delete, overwrite, migrate, or modify any files.
+- Do not change database records, schemas, application code, or production settings.
+- Do not deploy anything.
+- Do not add dependencies, background jobs, or monitoring infrastructure.
+
+FINAL REPORT
+
+Provide a concise table showing:
+- Total photo records.
+- Photos verified to exist in R2.
+- Photos missing or unresolved.
+- Total video records.
+- Videos verified to exist in R2.
+- Videos still stored locally.
+- Videos missing or unresolved.
+- Whether new inspector uploads use R2.
+- Whether all existing media has been migrated.
+- Current R2 storage usage.
+- Any limitations preventing full verification.
+
+Clearly distinguish VERIFIED, NOT MIGRATED, and UNKNOWN.
+
+Do not claim that migration is complete unless every production media record has been reconciled with its actual stored file.
+
+Stop after the report and wait for my approval.
