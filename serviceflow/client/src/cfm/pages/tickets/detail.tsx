@@ -1,6 +1,6 @@
 import { useStore } from "@/cfm/lib/store";
 import { translations } from "@/cfm/lib/i18n";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/cfm/components/ui/card";
 import { Badge } from "@/cfm/components/ui/badge";
 import { Button } from "@/cfm/components/ui/button";
@@ -20,6 +20,7 @@ import type { WorkType, TaskType, Contractor, User as UserType, Central, Cable a
 
 export default function TicketDetail() {
   const [, params] = useRoute("/tickets/:id");
+  const [, setLocation] = useLocation();
   const { language, user } = useStore();
   const t = translations[language];
   const { toast } = useToast();
@@ -450,7 +451,8 @@ export default function TicketDetail() {
     try {
       await ticketsApi.delete(ticket.id);
       toast({ title: t.ticketDeleted });
-      window.location.href = '/tickets';
+      // جوّه الراوتر (فيه base للبرنامج) — window.location كان بيودّى على /tickets بتاع الدومين ← 404
+      setLocation('/tickets');
     } catch (error: any) {
       const errorMsg = error.message?.includes('existing works, tasks, or measurements') 
         ? t.cannotDeleteTicketWithEntries 
