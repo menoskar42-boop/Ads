@@ -72,3 +72,15 @@ test("script: reads the popup from its text in order (any element, iframes too) 
   assert.match(script, /const POPUP_TITLE = \/customer\\s\*mobile\\s\*no\/i;/);
   assert.match(script, /ماقدرتش أقرا نافذة Cust\. Mobile — النص اللى شفته: " \+ dump/);
 });
+
+// المالك ٢٠٢٦-١٠-١٢: باتش أوتوماتيك بعد تحديث الأعطال الحالية — اللى مالوش موبايل يدخل الطابور
+test("auto batch: after the current-faults import, lines without a mobile are queued for WFM", () => {
+  const imp = routes.slice(routes.indexOf('app.post("/api/ticket-queue/import"'), routes.indexOf('app.post("/api/ticket-queue-ftth/import"'));
+  assert.match(imp, /res\.json\(\{ inserted: r\.hist, \.\.\.r \}\);\s*\n\s*\/\/[^\n]*\n\s*void autoFetchCurrentFaultMobiles\("fcc-import"\);/);
+  const fn = routes.slice(routes.indexOf("const autoFetchCurrentFaultMobiles"), routes.indexOf("/** أرقام أكونت تقرير «تحتاج إيقاف PO»"));
+  assert.match(fn, /FROM ticket_dsl_current t\s*\n\s*WHERE t\.close_date IS NULL/);
+  assert.match(fn, /FROM line_mobiles lm[\s\S]*FROM maintenance_orders mo[\s\S]*FROM wfm_current wc[\s\S]*FROM ftth_orders_current fo/);
+  assert.match(fn, /w\.result IN \('no_mobile', 'not_found'\) AND w\.reported_at > now\(\) - interval '24 hours'/);
+  assert.match(fn, /notQueuedSql\("cf\.short", \["wfmmobile"\]\)/);
+  assert.match(fn, /enqueueAutoBatch\("wfmmobile", phones,/);
+});

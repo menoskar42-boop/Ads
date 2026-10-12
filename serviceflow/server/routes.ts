@@ -3374,7 +3374,7 @@ export async function registerRoutes(
   const AUTO_PO_STOP_SKIP_DAYS = 3;       // اتعمله إيقاف خلال ٣ أيام → استبعاد
   let autoBatchDay = "";                  // حارس فى الذاكرة يوفّر ضربة قاعدة كل نبضة
 
-  const enqueueAutoBatch = async (type: "stop" | "measure" | "subinfo", accounts: string[], note: string) => {
+  const enqueueAutoBatch = async (type: "stop" | "measure" | "subinfo" | "wfmmobile", accounts: string[], note: string) => {
     if (!accounts.length) return { count: 0, batchId: null as string | null };
     const batchId = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const site = SITE_OF_TYPE[type] || "10.42.187.101";
@@ -3385,6 +3385,46 @@ export async function registerRoutes(
       `INSERT INTO exec_jobs (type, accounts, requested_by, note, priority, batch_id, site, requested_from)
        VALUES ${values}`, params);
     return { count: accounts.length, batchId };
+  };
+
+  /**
+   * «جلب الموبايل من WFM» أوتوماتيك (المالك ٢٠٢٦-١٠-١٢): بعد كل تحديث للأعطال الحالية (ملف FCC)،
+   * خطوط الأعطال الحالية اللى مالهاش موبايل فى أى مصدر بتدخل الطابور باتش واحد وتاخد دورها.
+   * مابيدخلش: اللى ليه جلب فى الطابور دلوقتى، واللى WFM قال عليه «مفيش موبايل/مش موجود» من أقل
+   * من يوم، وأى محاولة من أقل من ٣ ساعات (عشان التحديث كل نص ساعة مايكرّرش نفس الأرقام).
+   */
+  const autoFetchCurrentFaultMobiles = async (trigger: string) => {
+    try {
+      const { rows } = await pool.query(
+        `WITH cf AS (
+           SELECT DISTINCT ${sp("t.phone_number")} AS short
+             FROM ticket_dsl_current t
+            WHERE t.close_date IS NULL
+              AND (t.status_code ~ '^(160|173|122|73|72|60|81|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')
+              AND t.central_name IN ('الغنايم', 'الغنايم-العزايزة', 'الغنايم-دير الجنادله', 'الغنايم-نجع العمدة')
+         )
+         SELECT cf.short FROM cf
+          WHERE cf.short ~ '^[0-9]{7}$'
+            AND NOT EXISTS (SELECT 1 FROM line_mobiles lm WHERE lm.full_phone = '88' || cf.short AND NULLIF(btrim(lm.mobile), '') IS NOT NULL)
+            AND NOT EXISTS (SELECT 1 FROM maintenance_orders mo WHERE mo.phone_number IN (cf.short, '88' || cf.short)
+                              AND mo.mobile !~ '[A-Za-z=/]' AND mo.mobile ~ '[0-9]{5,}')
+            AND NOT EXISTS (SELECT 1 FROM wfm_current wc WHERE ${sp("wc.phone_number")} = cf.short
+                              AND wc.mobile !~ '[A-Za-z=/]' AND wc.mobile ~ '[0-9]{5,}')
+            AND NOT EXISTS (SELECT 1 FROM ftth_orders_current fo WHERE fo.service_number IN (cf.short, '88' || cf.short)
+                              AND fo.customer_mobile !~ '[A-Za-z=/]' AND fo.customer_mobile ~ '[0-9]{5,}')
+            AND NOT EXISTS (SELECT 1 FROM wfm_customer_mobiles w WHERE w.phone_number = cf.short
+                              AND (w.reported_at > now() - interval '3 hours'
+                                   OR (w.result IN ('no_mobile', 'not_found') AND w.reported_at > now() - interval '24 hours')))
+            AND ${notQueuedSql("cf.short", ["wfmmobile"])}
+          ORDER BY 1`);
+      const phones = rows.map((r: any) => String(r.short)).filter(Boolean);
+      const b = await enqueueAutoBatch("wfmmobile", phones, "جلب الموبايل من WFM — أعطال حالية بدون موبايل (بعد تحديث الأعطال الحالية)");
+      if (b.count) console.log(`[wfm-mobile-auto] (${trigger}): ${b.count} رقم اتضافوا للطابور`);
+      return b;
+    } catch (e: any) {
+      console.error("[wfm-mobile-auto] failed:", e?.message || e);
+      return { count: 0, batchId: null as string | null };
+    }
   };
 
   /** أرقام أكونت تقرير «تحتاج إيقاف PO» المؤهّلة للتشغيل التلقائى. */
@@ -9816,6 +9856,8 @@ export async function registerRoutes(
         cols: TICKET_COLS, conflict: "ticket_id, status_code", rows, userId,
       });
       res.json({ inserted: r.hist, ...r });
+      // الأعطال الحالية اتحدّثت ⇒ اللى مالوش موبايل يدخل طابور «جلب الموبايل من WFM» (المالك ٢٠٢٦-١٠-١٢)
+      void autoFetchCurrentFaultMobiles("fcc-import");
     } catch (e: any) {
       res.status(500).json({ message: e.message || "خطأ في الاستيراد" });
     }
