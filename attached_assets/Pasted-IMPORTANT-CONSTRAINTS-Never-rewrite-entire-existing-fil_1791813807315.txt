@@ -1,0 +1,91 @@
+IMPORTANT CONSTRAINTS:
+
+* Never rewrite entire existing files
+* Always use str_replace for edits to existing files
+* Add new features one at a time
+* For files over 200 lines: insert code sections only, never full file replacement
+* If a task is complex, break it into steps and confirm after each step
+
+Task: Read-only Supabase Usage and Restriction Investigation
+
+I need to identify exactly which Supabase free-plan usage limit was exceeded previously and which application or database caused it.
+
+This is an investigation only. Do not modify anything.
+
+1. Review existing evidence first
+
+Inspect available Replit project notes, previous audit reports, logs, environment configuration, and existing documentation for evidence of the previous Supabase restriction.
+
+Look specifically for:
+
+* The Supabase organization and project associated with the restriction.
+* The exact restriction/error message, if recorded.
+* Whether the exceeded limit was Egress, Compute, Database Size, Disk Storage, or another usage metric.
+* The date and billing/usage period of the incident.
+* Any previously recorded usage values, limits, screenshots, or alerts.
+
+2. Identify which application uses Supabase
+
+Investigate the existing configuration and code paths for:
+
+* Service Flow
+* MyBible
+* The main OscarDevs application
+* Any other application that connects to the same Supabase organization or project.
+
+Use configuration variable names and masked connection metadata only. Never print secret values, database passwords, access tokens, or connection strings.
+
+Do not assume that a database belongs to an application just because its environment variable has a familiar name. Verify the actual connection configuration using safe metadata.
+
+3. Retrieve current and historical usage evidence
+
+Using only already-authorized read-only tools and dashboards, determine whether historical or current usage details are available for:
+
+* Egress, including database and storage/network transfer where reported
+* Compute hours or compute utilization
+* Database size and disk storage
+* Database reads/writes or other request-related usage metrics, if available.
+
+For each metric, report:
+
+* Free-plan allowance
+* Recorded usage
+* Percentage of the allowance consumed
+* Whether it exceeded the limit
+* The measurement period and date of the evidence
+* The source of the evidence.
+
+Clearly distinguish historical evidence from current usage. Do not invent missing values.
+
+4. Investigate likely causes
+
+If the evidence supports it, identify possible contributors such as:
+
+* Repeated polling or frequent database queries
+* Large query results or unnecessary data transfers
+* Frequent full database backups or exports
+* Images or videos served through the database
+* Multiple applications sharing the same project.
+
+Separate confirmed causes from hypotheses. Do not claim a cause is confirmed without evidence.
+
+5. Final report
+
+Return a concise report in Arabic (Egyptian dialect) with:
+
+1. What exceeded the limit: exact metric and value, or UNKNOWN.
+2. Which project/database was affected.
+3. Which application most likely contributed, with evidence and confidence level.
+4. What the previous restriction actually prevented, if documented.
+5. Whether switching to Neon or another provider would solve the specific problem, distinguishing storage, egress, and compute limits.
+6. The next lowest-cost action to reduce consumption.
+
+Safety requirements
+
+* Read-only investigation only.
+* Do not edit code, secrets, configuration, database records, or Cloudflare settings.
+* Do not deploy, restart, migrate, upload, delete, or create resources.
+* Do not run expensive queries, backups, or load tests.
+* Do not expose credentials or sensitive connection details.
+* If historical Supabase usage cannot be accessed from Replit, state exactly what evidence is missing and which Supabase dashboard page or screenshot the owner must provide.
+* Do not guess or report workspace findings as verified production facts.
