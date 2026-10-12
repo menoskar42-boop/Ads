@@ -14,8 +14,11 @@ const queue = read("../client/src/lib/exec-queue.ts");
 
 test("mobile numbers from the WFM popup are cleaned", () => {
   assert.equal(cleanWfmMobile("01129431549"), "01129431549");
-  assert.equal(cleanWfmMobile("1129431549"), "01129431549");
-  assert.equal(cleanWfmMobile("+20 112 943 1549"), "01129431549");
+  assert.equal(cleanWfmMobile("0020 112 943 1549"), "01129431549");
+  // المالك ٢٠٢٦-١٠-١٢: مش بيبدأ بصفر على الشمال ⇒ مش رقم موبايل
+  assert.equal(cleanWfmMobile("1900000000"), null);
+  assert.equal(cleanWfmMobile("1129431549"), null);
+  assert.equal(cleanWfmMobile("+20 112 943 1549"), null);
   assert.equal(cleanWfmMobile("٠١١٢٩٤٣١٥٤٩"), "01129431549");
   assert.equal(cleanWfmMobile(""), null);
   assert.equal(cleanWfmMobile("-"), null);
@@ -41,7 +44,8 @@ test("queue: wfmmobile is a super-admin WFM job on the accept tab with sf_kind=m
 });
 
 test("script: Cust. Mobile instead of Assignments, both numbers sent", () => {
-  assert.match(script, /@version\s+3\.7\.0/);
+  assert.match(script, /@version\s+3\.7\.1/);
+  assert.match(script, /const zeroLed = \(v\) => \(\/\^0\\d\/\.test\(v \|\| ""\) \? v : ""\);/);
   assert.match(script, /if \(isMobileKind\(\)\) return mobileFlow\(phone, links, idx\);/);
   assert.match(script, /cust\(omer\)\?\\\\?\.\?\\s\*mobile/);
   assert.match(script, /\/api\/wfm-mobile\/ingest/);
@@ -59,4 +63,12 @@ test("current faults: button for rows without mobile, alt behind its own button"
   // البديل مش جوّه MobileValue (خانة الموبايل)
   assert.doesNotMatch(report, /<MobileValue mobile=\{[^}]*alt/i);
   assert.match(tools, /dispatchSpeedTool\("wfmmobile", phones, true\)/);
+});
+
+// v3.7.1 (المالك ٢٠٢٦-١٠-١٢): النافذة اتفتحت بس اتسجّلت «ماظهرتش» — القراية بقت من نص النافذة كله
+test("script: reads the popup from its text in order (any element, iframes too) and explains a failure", () => {
+  assert.match(script, /function tokensOf\(d\)/);
+  assert.match(script, /d\.createTreeWalker\(d\.body, 1 \| 4\)/);
+  assert.match(script, /const POPUP_TITLE = \/customer\\s\*mobile\\s\*no\/i;/);
+  assert.match(script, /ماقدرتش أقرا نافذة Cust\. Mobile — النص اللى شفته: " \+ dump/);
 });

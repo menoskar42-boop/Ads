@@ -1203,6 +1203,8 @@ export async function ensureSchema() {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS wfm_customer_mobiles_phone_idx ON wfm_customer_mobiles (phone_number)`);
+  // المالك ٢٠٢٦-١٠-١٢: رقم من WFM مش بيبدأ بصفر (زى 1900000000) مش موبايل — يتشال لو اتسجّل قبل القاعدة
+  await pool.query(`DELETE FROM line_mobiles WHERE updated_by_name = 'WFM (Cust. Mobile)' AND mobile !~ '^0'`);
 
   // app_state — key/value عام للحالة (مثلاً وقت اكتمال آخر تشغيل كامل لتحديث البورتات)
   await pool.query(`

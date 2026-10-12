@@ -671,7 +671,7 @@ export const QUEUE_LABEL: Record<ExecJobType, string> = {
 // نتيجة «جلب الموبايل من WFM» (wfm_customer_mobiles.result)
 export const WFM_MOBILE_AR: Record<string, string> = {
   done: "✅ اتجاب",
-  no_mobile: "⚠️ نافذة Cust. Mobile فاضية",
+  no_mobile: "⚠️ مفيش رقم موبايل (النافذة فاضية أو الرقم مش بيبدأ بصفر)",
   not_found: "❌ الرقم مش موجود فى أوامر الشغل",
   failed: "❌ ماتجابش (النافذة ماظهرتش أو زرار ناقص)",
 };
