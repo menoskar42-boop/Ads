@@ -8849,16 +8849,34 @@ export async function registerRoutes(
       // فنى المنطقة من **البيانات الفنية للرقم** — نفس منطق «بحث برقم التليفون»
       // (بيان الخط ← كابينة ← فنى الكابينة، مع تغطية الوردية).
       const areaTech = areaTechSql("lm.central", "lm.cabin", "w.close_date", "lm.short");
-      // بيانات الخط الفنية: من ملف الخطوط (phone_lines) وإلا من مراجعة البيان الفنى
-      // (line_subscriber_info) اللى بيملاها سكربت subinfo.
+      // بيانات الخط الفنية — نفس مصادر «بحث برقم التليفون» بنفس الأولوية:
+      //   تصحيح البيان ← ملف الخطوط (phone_lines) ← مراجعة البيان الفنى (line_subscriber_info)
+      //   ← كود الكابينة (MSAN) من أمر الشغل نفسه أو من البورتات ← cabinet_technicians.
+      // المالك ٢٠٢٦-١٠-١٢: 2657631 (تركيب جديد) ظهر «مافيش بيانات فنية» وهو ليه بيان فى
+      // «بحث برقم التليفون» — التركيب الجديد لسه مش فى ملف الخطوط، بس الـMSAN بتاعه معروف.
       const lineMetaJoin = `
         LEFT JOIN LATERAL (
           SELECT regexp_replace(w.phone_number, '^88', '') AS short,
-                 COALESCE(NULLIF(btrim(pl.central), ''), NULLIF(btrim(si.central), '')) AS central,
-                 COALESCE(NULLIF(btrim(pl.cabin_number), ''), NULLIF(btrim(si.cabin_number), '')) AS cabin
+                 COALESCE(NULLIF(btrim(corr.central), ''), NULLIF(btrim(pl.central), ''),
+                          NULLIF(btrim(si.central), ''), NULLIF(btrim(ctm.central_name), '')) AS central,
+                 COALESCE(NULLIF(btrim(corr.cabin_number), ''), NULLIF(btrim(pl.cabin_number), ''),
+                          NULLIF(btrim(si.cabin_number), ''), NULLIF(btrim(ctm.cabin_number), '')) AS cabin
             FROM (VALUES (1)) AS one(x)
             LEFT JOIN phone_lines pl ON pl.full_phone = w.phone_number
             LEFT JOIN line_subscriber_info si ON si.phone_number = w.phone_number
+            LEFT JOIN LATERAL (
+              SELECT c2.central, c2.cabin_number FROM line_data_corrections c2
+               WHERE c2.phone_full = w.phone_number
+               ORDER BY c2.created_at DESC, c2.id DESC LIMIT 1
+            ) corr ON true
+            LEFT JOIN LATERAL (
+              SELECT ct.central_name, ct.cabin_number FROM cabinet_technicians ct
+               WHERE btrim(ct.cabin_code) <> '' AND btrim(ct.cabin_code) = COALESCE(
+                       NULLIF(btrim(w.msan_code), ''),
+                       (SELECT NULLIF(btrim(pp.msan_code), '') FROM phone_ports pp WHERE pp.phone_number = w.phone_number LIMIT 1))
+                 AND btrim(COALESCE(ct.cabin_number, '')) <> ''
+               LIMIT 1
+            ) ctm ON true
         ) lm ON true`;
 
       // الفنى يشوف تركيباته هو بس: اللى اسمه عليها، أو (لو الاسم مش معروف) اللى هو

@@ -144,3 +144,16 @@ test("the faults and متعذرات reports are untouched by the full-name mappi
       `تحويل الاسم الكامل اتستخدم برّه سياق أوامر الشغل/كمية السلك (موضع ${i})`);
   }
 });
+
+// المالك ٢٠٢٦-١٠-١٢: تركيب جديد (2657631) ظهر «مافيش بيانات فنية» وهو ليه بيان فى «بحث برقم
+// التليفون» — بيان الخط فى «استكمال بيانات» بقى بنفس مصادر البحث (تصحيح ← خطوط ← مراجعة ← MSAN).
+test("work orders without cable: line data from the same sources as phone lookup", () => {
+  const r = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const j = r.slice(r.indexOf("const lineMetaJoin = `"), r.indexOf("ON true`;", r.indexOf("const lineMetaJoin = `")));
+  assert.match(j, /FROM line_data_corrections c2/);
+  assert.match(j, /LEFT JOIN phone_lines pl ON pl\.full_phone = w\.phone_number/);
+  assert.match(j, /LEFT JOIN line_subscriber_info si ON si\.phone_number = w\.phone_number/);
+  assert.match(j, /NULLIF\(btrim\(w\.msan_code\), ''\)/);
+  assert.match(j, /FROM phone_ports pp WHERE pp\.phone_number = w\.phone_number/);
+  assert.match(j, /NULLIF\(btrim\(ctm\.cabin_number\), ''\)\) AS cabin/);
+});
