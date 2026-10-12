@@ -121,3 +121,12 @@ test("wiring: tables in ensureSchema + schema.ts, seed at Cairo midnight, report
   assert.match(h, /cabinetAdslFaultsByHistory\(pool/);
   assert.match(routes, /const reassignWarnings = await reassignConflicts\(pool\)/);
 });
+
+// المالك ٢٠٢٦-١٠-١٢: تكلفة قاعدة البيانات — النقل مابيسألش القاعدة كل دقيقة (كانت مابتنامش خالص)
+test("the reassign check never polls every minute: one timer for the next pending move", () => {
+  const src = readFileSync(new URL("./cabinet-reassign.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /setInterval\(/);
+  assert.match(src, /FROM cabinet_tech_changes WHERE status = 'pending'`\);\s*\n\s*const ms = rows\[0\]\?\.ms;\s*\n\s*if \(ms == null\) return;/);
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  assert.match(routes, /const runOneOffMeasure = async \(trigger: string\) => \{\s*\n\s*if \(oneOffDone\) return;/);
+});

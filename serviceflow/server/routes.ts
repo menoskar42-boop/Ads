@@ -3661,7 +3661,10 @@ export async function registerRoutes(
    * تشغيل استثنائى جديد بعدين = علامة جديدة هنا.
    */
   const ONE_OFF_MEASURE_TAG = "stale-2d-2026-09-28";
+  // اتحجز/اتعمل خلاص ⇒ مانسألش القاعدة تانى (كان بيسأل مع كل نبضة كل ٢٠ث ومع كل tick)
+  let oneOffDone = false;
   const runOneOffMeasure = async (trigger: string) => {
+    if (oneOffDone) return;
     let claimed = false;
     try {
       const claim = await pool.query(
@@ -3669,7 +3672,7 @@ export async function registerRoutes(
          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
           WHERE app_state.value IS DISTINCT FROM $1
          RETURNING value`, [ONE_OFF_MEASURE_TAG]);
-      if (!claim.rowCount) return;
+      if (!claim.rowCount) { oneOffDone = true; return; }
       claimed = true;
       const staleDays = await readMeasureStaleDays();
       const legacyMeasAccs = await autoMeasureAccounts(staleDays);
@@ -3679,6 +3682,7 @@ export async function registerRoutes(
         "measure", measAccs,
         `خطوط لها أكونت — ${staleDaysLabel(staleDays)} + شكاوى منتظمة بدون قياس بعدها (تشغيل استثنائى بعد النشر) — قياس ${AUTO_MEASURE_NOREAL_MARK}`);
       console.log(`[auto-batches] تشغيل استثنائى ${ONE_OFF_MEASURE_TAG} (${trigger}): قياس ${meas.count} خط`);
+      oneOffDone = true;
     } catch (e: any) {
       // الحجز اتعمل والإضافة فشلت → فكّه عشان الـ tick الجاى يحاول تانى
       if (claimed) {

@@ -218,8 +218,23 @@ export function registerCabinetReassign(app: Express, deps: { pool: Pool; requir
       if (r.applied) console.log(`[cabinet-reassign] اتطبّق ${r.applied} نقل (${r.batches.join(", ")})`);
     } catch (e: any) { console.error("[cabinet-reassign] apply:", e?.message); }
   };
-  setTimeout(tick, 20_000).unref?.();
-  setInterval(tick, 60_000).unref?.();
+  // المالك ٢٠٢٦-١٠-١٢ («تكلفة قاعدة البيانات كتير»): كان بيسأل القاعدة **كل دقيقة** للأبد — والقاعدة
+  // (Neon) بتنام بعد ٥ دقايق من غير استعلام، فمكانتش بتنام خالص من يوم ما الميزة نزلت. النقل
+  // بيتضاف عند الإقلاع بس (seed فى db.ts)، فبنسأل مرة عند الإقلاع ونظبط مؤقّت واحد على ميعاد
+  // أقرب نقل مستنى (وبحد أقصى ٦ ساعات نعيد الحساب). مفيش نقل مستنى ⇒ مفيش مؤقّت خالص.
+  const MAX_WAIT = 6 * 60 * 60 * 1000;
+  const scheduleNext = async () => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT EXTRACT(EPOCH FROM (MIN(effective_at) - now())) * 1000 AS ms
+           FROM cabinet_tech_changes WHERE status = 'pending'`);
+      const ms = rows[0]?.ms;
+      if (ms == null) return;
+      setTimeout(() => { void tick().then(scheduleNext); },
+        Math.min(MAX_WAIT, Math.max(1_000, Number(ms) + 1_000))).unref?.();
+    } catch (e: any) { console.error("[cabinet-reassign] schedule:", e?.message); }
+  };
+  setTimeout(() => { void tick().then(scheduleNext); }, 20_000).unref?.();
 
   app.get("/api/cabinet-reassignments", requireAuth, requireAdmin, async (_req, res) => {
     try {

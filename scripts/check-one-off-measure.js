@@ -32,7 +32,7 @@ need(i >= 0, 'runOneOffMeasure مش موجودة — التشغيل الاستث
 const fn = i >= 0 ? routes.slice(i, routes.indexOf('\n  };\n', i)) : '';
 need(/const ONE_OFF_MEASURE_TAG = "[^"]+";/.test(routes), 'لازم علامة ثابتة للتشغيل الاستثنائى.');
 need(/INSERT INTO app_state \(key, value, updated_at\) VALUES \('auto_measure_one_off', \$1, now\(\)\)[\s\S]*?WHERE app_state\.value IS DISTINCT FROM \$1[\s\S]*?RETURNING value/.test(fn)
-  && /if \(!claim\.rowCount\) return;/.test(fn),
+  && /if \(!claim\.rowCount\) (return;|\{ oneOffDone = true; return; \})/.test(fn),
   'الحجز لازم يبقى جملة شرطية واحدة على app_state — غير كده ممكن يتكرر مع كل ريستارت.');
 need(!/auto_batches_last_day/.test(fn), 'التشغيل الاستثنائى مايلمسش auto_batches_last_day — باتش ٩ الصبح يفضل زى ما هو.');
 need(/await autoMeasureAccounts\(staleDays\)/.test(fn) && /await autoComplaintNoMeasureAccounts\(legacyMeasAccs\)/.test(fn),
