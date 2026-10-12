@@ -65,85 +65,118 @@ function neighbours(rnd, n, k, max = WB_MAX) {
 }
 const things = (rnd, k) => shuffled(rnd, WB_THINGS).slice(0, k);
 
-/** شكل العدد فى «لوّن حسب الرقم»: الرقم نفسه · نقط زى الدومينو/الزهر · حاجات متعدّة. */
-export const WB_REPS = ["digit", "dots", "things"];
+/** شكل العدد: الرقم نفسه · نقط زى الدومينو/الزهر · حاجات متعدّة · صوابع (الكتاب: ✌️ and ✌️). */
+export const WB_REPS = ["digit", "dots", "things", "fingers"];
+
+/** تمارين اللعب اللى بتتوزّع على صفحات الأرقام (كل صفحة فى الكتاب ليها تشكيلة مختلفة). */
+export const WB_PLAYS = ["countChoose", "match", "find", "parts", "frameFill"];
+export const WB_LAST = ["paint", "colorBar"];
 
 /**
- * خطوات صفحة الرقم n بالترتيب — كتابة (write) ولعب بالتناوب:
- *   meet → write(1) → colorN → countChoose → write(2) → match → find → parts → missing(write 3) → paint
+ * خطوات صفحة الرقم n — كتابة (✏️) ولعب (🎲) بالتناوب:
+ *   meet → ✏️ خط → colorN → 🎲 → ✏️ نقط → 🎲 → 🎲 → ✏️ لوحده (قبل/بعد/فى النص) → 🎲 تلوين
+ * الـ🎲 التلاتة من WB_PLAYS والأخيرة من WB_LAST — فكل صفحة شكلها مختلف زى الكتاب.
+ * `only` (للاختبار): تمارين بعينها بدل الاختيار العشوائى.
  * كل خطوة فيها اللى الشاشة محتاجاه بس؛ والإجابة الصح محسوبة هنا (مش فى الشاشة).
  */
-export function workbookPage(n, rnd = Math.random) {
+export function workbookPage(n, rnd = Math.random, only = null) {
   if (!Number.isInteger(n) || n < 1 || n > WB_MAX) throw new Error("رقم الكراسة من ١ لـ" + WB_MAX);
   const [c1, c2] = colorPairOf(n);
   const [t1, t2, t3, t4, t5, t6] = things(rnd, 6);
+  const make = {
+    // «Count and choose the correct number»: ٣ صور، تحت كل واحدة رقمين
+    countChoose() {
+      const counts = shuffled(rnd, [n, ...neighbours(rnd, n, 2)]);
+      return {
+        kind: "countChoose",
+        cards: counts.map((count, i) => {
+          const wrong = neighbours(rnd, count, 1)[0];
+          return { count, thing: [t2, t3, t4][i], options: rnd() < 0.5 ? [count, wrong] : [wrong, count] };
+        }),
+      };
+    },
+    // «Count, then match» / «Match» (صوابع ↔ رقم): مجموعات على ناحية وأرقام على التانية
+    match() {
+      const mCounts = shuffled(rnd, [n, ...neighbours(rnd, n, 2)]);
+      const fingersAt = Math.floor(rnd() * 3);
+      return {
+        kind: "match",
+        groups: mCounts.map((count, i) => ({ count, thing: [t5, t6, t1][i], rep: i === fingersAt ? "fingers" : "things" })),
+        numbers: shuffled(rnd, mCounts),
+      };
+    },
+    // «Color the octopus that has the number 1» / «Draw a circle around the number»
+    find() {
+      const targets = n === 1 ? 4 : 3;
+      const others = neighbours(rnd, n, 4, 9);
+      const cells = shuffled(rnd, [
+        ...Array(targets).fill(n),
+        ...Array.from({ length: 9 - targets }, (_, i) => others[i % others.length]),
+      ]);
+      return { kind: "find", n, cells, color: c2 };
+    },
+    // مكوّنات الرقم (٢ و ١ = ٣) — بالحاجات أو بالصوابع (كل إيد لحد ٥)
+    parts() {
+      const lo = Math.max(1, n - 5), hi = Math.min(5, n - 1);
+      const fingers = rnd() < 0.5;
+      const a = fingers ? lo + Math.floor(rnd() * (hi - lo + 1)) : 1 + Math.floor(rnd() * (n - 1));
+      return { kind: "parts", n, a, b: n - a, thing: t2, rep: fingers ? "fingers" : "things", options: shuffled(rnd, [n, ...neighbours(rnd, n, 2)]) };
+    },
+    // «Count, write the number, then add dots»: يعدّ الحاجات ويحط نقطة لكل واحدة فى الشريط
+    frameFill() {
+      const k = rnd() < 0.6 ? n : neighbours(rnd, n, 1)[0];
+      return { kind: "frameFill", count: k, thing: t6, frame: k > 5 ? 10 : 5, color: c1 };
+    },
+    // «Color number 1 pink and number 2 yellow» — الرقم وصورته (نقط/حاجات/صوابع) كل واحد بلونه
+    paint() {
+      const m = neighbours(rnd, n, 1)[0];
+      const reps = ["digit", ...shuffled(rnd, WB_REPS.slice(1)).slice(0, 2)];
+      const tiles = shuffled(rnd, [
+        ...reps.map((rep) => ({ value: n, rep })),
+        ...reps.map((rep) => ({ value: m, rep })),
+      ]).map((t) => ({ ...t, thing: t.value === n ? t3 : t4 }));
+      return { kind: "paint", pairs: [{ value: n, color: c1 }, { value: m, color: c2 }], tiles };
+    },
+    // «Color the required number»: فراولاية عليها الرقم وشريط خانات — يلوّن على قدّه
+    colorBar() {
+      return { kind: "colorBar", n, cells: n > 6 ? 10 : 6, color: c1 };
+    },
+  };
+
+  let plays, last;
+  const fits = (k) => !(k === "parts" && n < 2); // ١ مالوش مكوّنات
+  if (only) {
+    plays = only.filter((k) => WB_PLAYS.includes(k) && fits(k));
+    last = only.find((k) => WB_LAST.includes(k)) || "paint";
+  } else {
+    plays = shuffled(rnd, WB_PLAYS.filter(fits)).slice(0, 3);
+    last = pickOf(rnd, WB_LAST);
+  }
+
   const steps = [];
-
-  // ١) اعرف الرقم: شريط الدواير (٥ خانات، أو ١٠ لو الرقم أكبر من ٥) — الطفل بيلمس ويعدّ
+  // اعرف الرقم: شريط الدواير (٥ خانات، أو ١٠ لو الرقم أكبر من ٥) — الطفل بيلمس ويعدّ
   steps.push({ kind: "meet", n, frame: n > 5 ? 10 : 5 });
-
-  // ٢) اكتب: على الخط العريض
   steps.push({ kind: "write", n, level: 1 });
-
-  // ٣) «Color four of the dresses» — بلون الكتاب، وفيه علبة ألوان والطفل يختار الصح
+  // «Color four of the dresses» — بلون الكتاب، وفيه علبة ألوان والطفل يختار الصح
   const extra = n <= 3 ? 2 : n <= 7 ? 3 : 12 - n;
   steps.push({
     kind: "colorN", n, total: n + Math.max(2, extra), thing: t1, color: c1,
     palette: shuffled(rnd, [c1, c2, pickOf(rnd, WB_COLOR_PAIRS.filter((p) => !p.includes(c1)))[0]]),
   });
-
-  // ٤) «Count and choose the correct number»: ٣ صور، تحت كل واحدة رقمين
-  const counts = shuffled(rnd, [n, ...neighbours(rnd, n, 2)]);
-  steps.push({
-    kind: "countChoose",
-    cards: counts.map((count, i) => {
-      const wrong = neighbours(rnd, count, 1)[0];
-      return { count, thing: [t2, t3, t4][i], options: rnd() < 0.5 ? [count, wrong] : [wrong, count] };
-    }),
-  });
-
-  // ٥) اكتب تانى: على النقط
+  if (plays[0]) steps.push(make[plays[0]]());
   steps.push({ kind: "write", n, level: 2 });
+  for (const k of plays.slice(1)) steps.push(make[k]());
 
-  // ٦) «Count, then match»: مجموعات على ناحية وأرقام على الناحية التانية
-  const mCounts = shuffled(rnd, [n, ...neighbours(rnd, n, 2)]);
-  steps.push({
-    kind: "match",
-    groups: mCounts.map((count, i) => ({ count, thing: [t5, t6, t1][i] })),
-    numbers: shuffled(rnd, mCounts),
-  });
-
-  // ٧) «Color the octopus that has the number 1» / «Draw a circle around the number»
-  const targets = n === 1 ? 4 : 3;
-  const others = neighbours(rnd, n, 4, 9);
-  const cells = shuffled(rnd, [
-    ...Array(targets).fill(n),
-    ...Array.from({ length: 9 - targets }, (_, i) => others[i % others.length]),
-  ]);
-  steps.push({ kind: "find", n, cells, color: c2 });
-
-  // ٨) مكوّنات الرقم (٢ و ١ = ٣) — من ٢ وطالع
-  if (n >= 2) {
-    const a = 1 + Math.floor(rnd() * (n - 1));
-    steps.push({ kind: "parts", n, a, b: n - a, thing: t2, options: shuffled(rnd, [n, ...neighbours(rnd, n, 2)]) });
-  }
-
-  // ٩) «Complete the missing numbers» — والناقص هو رقمنا: يكتبه لوحده
-  const start = Math.min(Math.max(n - 1, 1), WB_MAX - 2);
-  const seq = [start, start + 1, start + 2];
+  // «The previous, middle, and next number» — والناقص هو رقمنا: يكتبه لوحده
+  const modes = [n <= WB_MAX - 2 && "prev", n >= 2 && n <= WB_MAX - 1 && "mid", n >= 3 && "next"].filter(Boolean);
+  const mode = pickOf(rnd, modes);
+  const seq = mode === "prev" ? [n, n + 1, n + 2] : mode === "mid" ? [n - 1, n, n + 1] : [n - 2, n - 1, n];
   // الخيارات: الناقص + أقرب رقمين مش ظاهرين فى الصف (الظاهر نفسه مايبقاش اختيار)
   const missOthers = WB_NUMBERS.filter((v) => !seq.includes(v))
     .sort((x, y) => Math.abs(x - n) - Math.abs(y - n) || x - y).slice(0, 2);
-  steps.push({ kind: "missing", n, seq, blank: seq.indexOf(n), level: 3, options: shuffled(rnd, [n, ...missOthers]) });
+  steps.push({ kind: "missing", n, mode, seq, blank: seq.indexOf(n), level: 3, options: shuffled(rnd, [n, ...missOthers]) });
 
-  // ١٠) «Color number 1 pink and number 2 yellow» — الرقم وصورته بنقط وبحاجات
-  const m = neighbours(rnd, n, 1)[0];
-  const tiles = shuffled(rnd, [
-    ...WB_REPS.map((rep) => ({ value: n, rep })),
-    ...WB_REPS.map((rep) => ({ value: m, rep })),
-  ]).map((t) => ({ ...t, thing: t.value === n ? t3 : t4 }));
-  steps.push({ kind: "paint", pairs: [{ value: n, color: c1 }, { value: m, color: c2 }], tiles });
-
+  steps.push(make[last]());
   return steps;
 }
 
@@ -175,7 +208,7 @@ export const WB_PICTURE_REGIONS = 9;
 
 /**
  * خطوات صفحة الألوان للزوج رقم `pairIdx`:
- *   meetColors → realColor → countWrite(نقط) → picture → countWrite(لوحده)
+ *   meetColors → realColor → countWrite(نقط) → picture → chooseColor → countWrite(لوحده)
  */
 export function colorsPage(pairIdx, rnd = Math.random) {
   const pair = WB_COLOR_PAIRS[pairIdx];
@@ -208,12 +241,23 @@ export function colorsPage(pairIdx, rnd = Math.random) {
   const [a, b, c] = shuffled(rnd, [1, 2, 3]);
   steps.push({ kind: "picture", key, regions: [a, b, c, b, c, a, c, a, c] });
 
-  // ٥) تانى، بس يكتب لوحده
+  // ٥) «Choose and color»: كل حاجة جنبها لونين — يختار لونها الحقيقى
+  const colorKeys = Object.keys(WB_REAL);
+  const picks = shuffled(rnd, [c1, c2, ...shuffled(rnd, colorKeys.filter((k) => k !== c1 && k !== c2)).slice(0, 2)]);
+  steps.push({
+    kind: "chooseColor",
+    items: picks.map((color) => {
+      const wrong = pickOf(rnd, colorKeys.filter((k) => k !== color));
+      return { thing: pickOf(rnd, WB_REAL[color]), color, options: rnd() < 0.5 ? [color, wrong] : [wrong, color] };
+    }),
+  });
+
+  // ٦) تانى، بس يكتب لوحده
   steps.push(cw(k2, c2, 3));
   return steps;
 }
 
 /** خطوات أى صفحة من WB_PAGES. */
-export function pageSteps(page, rnd = Math.random) {
-  return page.type === "colors" ? colorsPage(page.pair, rnd) : workbookPage(page.n, rnd);
+export function pageSteps(page, rnd = Math.random, only = null) {
+  return page.type === "colors" ? colorsPage(page.pair, rnd) : workbookPage(page.n, rnd, only);
 }

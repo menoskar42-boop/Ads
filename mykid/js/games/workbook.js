@@ -48,6 +48,27 @@ function dotsFor(v) {
   box.setAttribute("aria-label", `${v} نقط`);
   return box;
 }
+/** إيد بعدد صوابع مرفوعة (٠–٥): السبابة ← الوسطى ← البنصر ← الخنصر ← الإبهام — زى صور الكتاب. */
+function handSvg(k) {
+  // [x, ارتفاع المرفوع] للسبابة والوسطى والبنصر والخنصر (من الشمال لليمين: إيد يمين من ضهرها)
+  const F = [[22, 40], [36, 44], [50, 40], [63, 32]];
+  const up = (i) => i < k;
+  const fingers = F.map(([x, h], i) => {
+    const hh = up(i) ? h : 12;
+    return `<rect x="${x - 6}" y="${52 - hh}" width="12" height="${hh + 10}" rx="6"/>`;
+  }).join("");
+  const thumb = k >= 5
+    ? `<rect x="-4" y="54" width="34" height="14" rx="7" transform="rotate(-38 26 61)"/>`
+    : `<rect x="8" y="58" width="22" height="11" rx="5.5" transform="rotate(-10 18 62)"/>`;
+  return `<svg class="wbk-hand" viewBox="-6 0 82 100" aria-hidden="true"><g>${fingers}${k < 5 ? thumb : ""}<rect x="12" y="50" width="58" height="44" rx="16"/>${k >= 5 ? thumb : ""}</g></svg>`;
+}
+/** صوابع العدد: إيد واحدة لحد ٥، وإيدين بعد كده (٥ + الباقى). */
+function fingersOf(count, cls = "wbk-fingers") {
+  const g = el("span", cls);
+  g.innerHTML = count > 5 ? handSvg(5) + handSvg(count - 5) : handSvg(count);
+  g.setAttribute("aria-label", `${count} صوابع`);
+  return g;
+}
 /** مجموعة حاجات متعدّة (🦆🦆🦆). */
 function groupOf(thing, count, cls = "wbk-group") {
   const g = el("span", cls);
@@ -56,7 +77,7 @@ function groupOf(thing, count, cls = "wbk-group") {
   return g;
 }
 
-export function renderWorkbook({ regionId, regionIndex, n: startN }) {
+export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }) {
   const screen = el("div", "region-screen wbk-screen");
   let cur = null; // الصفحة المفتوحة من WB_PAGES (null = اختيار الصفحة)
   let steps = [];
@@ -107,7 +128,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN }) {
 
   function openPage(pg) {
     cur = pg;
-    steps = pageSteps(pg);
+    steps = pageSteps(pg, Math.random, only); // only: تمارين بعينها (للاختبار)
     idx = 0;
     const [c1, c2] = pg.type === "number" ? colorPairOf(pg.n) : WB_COLOR_PAIRS[pg.pair];
     screen.style.setProperty("--wbk-c1", col(c1).hex);
@@ -337,7 +358,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN }) {
       };
       s.groups.forEach((g) => {
         const b = button("wbk-mgroup", "", () => select(b, g.count, "g"));
-        b.appendChild(groupOf(g.thing, g.count));
+        b.appendChild(g.rep === "fingers" ? fingersOf(g.count) : groupOf(g.thing, g.count));
         groups.appendChild(b);
       });
       s.numbers.forEach((v) => {
@@ -373,8 +394,8 @@ export function renderWorkbook({ regionId, regionIndex, n: startN }) {
       const eq = el("div", "wbk-eq");
       eq.dir = "ltr";
       const ans = el("span", "wbk-ans", "?");
-      eq.append(groupOf(s.thing, s.a, "wbk-group wbk-part"), el("span", "wbk-op", "+"),
-        groupOf(s.thing, s.b, "wbk-group wbk-part"), el("span", "wbk-op", "="), ans);
+      const part = (k) => (s.rep === "fingers" ? fingersOf(k, "wbk-fingers wbk-part") : groupOf(s.thing, k, "wbk-group wbk-part"));
+      eq.append(part(s.a), el("span", "wbk-op", "+"), part(s.b), el("span", "wbk-op", "="), ans);
       const nums = el("div", "wbk-eq wbk-eq-n");
       nums.dir = "ltr";
       nums.innerHTML = `<b>${s.a}</b><span class="wbk-op">and</span><b>${s.b}</b><span class="wbk-op">=</span><b class="wbk-q">?</b>`;
@@ -399,7 +420,10 @@ export function renderWorkbook({ regionId, regionIndex, n: startN }) {
 
     // «Complete the missing numbers»: يلاقى الناقص، وبعدين يكتبه لوحده
     missing(body, s) {
-      body.appendChild(prompt(WB_SAY.missing));
+      const say = s.mode === "prev" ? WB_SAY.missPrev(WB_AR[s.seq[1]])
+        : s.mode === "mid" ? WB_SAY.missMid(WB_AR[s.seq[0]], WB_AR[s.seq[2]])
+        : s.mode === "next" ? WB_SAY.missNext(WB_AR[s.seq[1]]) : WB_SAY.missing;
+      body.appendChild(prompt(say));
       const row = el("div", "wbk-snow");
       row.dir = "ltr";
       const slots = s.seq.map((v, i) => {
@@ -466,11 +490,60 @@ s.options.forEach((v) => {
         });
         if (t.rep === "digit") b.appendChild(el("span", "wbk-pdigit", String(t.value)));
         else if (t.rep === "dots") b.appendChild(dotsFor(t.value));
+        else if (t.rep === "fingers") b.appendChild(fingersOf(t.value, "wbk-fingers wbk-mini"));
         else b.appendChild(groupOf(t.thing, t.value, "wbk-group wbk-mini"));
         b.setAttribute("aria-label", `العدد ${t.value}`);
         grid.appendChild(b);
       });
       body.append(legend, pal, grid, hint);
+    },
+
+    // «Count, write the number, then add dots»: يحط نقطة فى الشريط لكل حاجة
+    frameFill(body, s) {
+      body.appendChild(prompt(WB_SAY.frameFill));
+      const hint = hintLine();
+      const things = groupOf(s.thing, s.count, "wbk-group wbk-ff-things");
+      const frame = el("div", "wbk-frame" + (s.frame === 10 ? " ten" : ""));
+      frame.dir = "ltr";
+      for (let i = 0; i < s.frame; i++) {
+        const cell = el("span", "wbk-cell");
+        const dot = button("wbk-ball", "", () => { dot.classList.toggle("on"); Sfx.pop(); });
+        dot.setAttribute("aria-label", "خانة");
+        cell.appendChild(dot);
+        frame.appendChild(cell);
+      }
+      const done = button("candy-btn wbk-done", fem("✓ خلّصت"), () => {
+        const k = frame.querySelectorAll(".wbk-ball.on").length;
+        if (k === s.count) { done.disabled = true; sayNumber(s.count); return stepDone(1300); }
+        Sfx.wrong();
+        hint.show(k > s.count ? WB_SAY.tooMany(WB_AR[s.count]) : WB_SAY.tooFew(WB_AR[s.count]));
+      });
+      body.append(things, frame, hint, done);
+    },
+
+    // «Color the required number»: فراولاية عليها الرقم، وشريط خانات يتلوّن على قدّه
+    colorBar(body, s) {
+      body.appendChild(prompt(s.n === 1 ? WB_SAY.colorBarOne : WB_SAY.colorBar(WB_AR[s.n])));
+      const hint = hintLine();
+      const row = el("div", "wbk-barrow");
+      row.dir = "ltr";
+      const berry = el("span", "wbk-berry");
+      berry.innerHTML = `<span>🍓</span><b>${s.n}</b>`;
+      const bar = el("div", "wbk-bar");
+      bar.style.setProperty("--fill", col(s.color).hex);
+      for (let i = 0; i < s.cells; i++) {
+        const c = button("wbk-barcell", "", () => { c.classList.toggle("on"); Sfx.pop(); });
+        c.setAttribute("aria-label", "خانة");
+        bar.appendChild(c);
+      }
+      row.append(berry, bar);
+      const done = button("candy-btn wbk-done", fem("✓ خلّصت"), () => {
+        const k = bar.querySelectorAll(".on").length;
+        if (k === s.n) { done.disabled = true; sayNumber(s.n); return stepDone(1300); }
+        Sfx.wrong();
+        hint.show(k > s.n ? WB_SAY.tooMany(WB_AR[s.n]) : WB_SAY.tooFew(WB_AR[s.n]));
+      });
+      body.append(row, hint, done);
     },
 
     // ===== صفحات الألوان =====
@@ -554,6 +627,37 @@ s.options.forEach((v) => {
           stepDone(900);
         });
       }
+    },
+
+    // «Choose and color»: كل حاجة جنبها لونين — يلمس لونها الحقيقى
+    chooseColor(body, s) {
+      body.appendChild(prompt(WB_SAY.chooseColor));
+      const hint = hintLine();
+      const list = el("div", "wbk-choose");
+      let left = s.items.length;
+      s.items.forEach((it) => {
+        const row = el("div", "wbk-choose-row");
+        const t = el("span", "wbk-tile", it.thing);
+        const opts = el("div", "wbk-choose-opts");
+        it.options.forEach((k) => {
+          const b = button("wbk-dot", "", () => {
+            if (t.dataset.on) return;
+            if (k !== it.color) { Sfx.wrong(); flash(b, "wrong"); return hint.show(WB_SAY.realWrong); }
+            t.dataset.on = "1";
+            t.style.setProperty("--fill", col(k).hex);
+            b.classList.add("correct");
+            Sfx.pop();
+            Speech.ar(col(k).ar);
+            if (--left === 0) stepDone(1000);
+          });
+          b.style.setProperty("--crayon", col(k).hex);
+          b.setAttribute("aria-label", "لون " + col(k).ar);
+          opts.appendChild(b);
+        });
+        row.append(t, opts);
+        list.appendChild(row);
+      });
+      body.append(list, hint);
     },
 
     // «Color according to the number»: كب كيك، كل حتة عليها رقم ولكل رقم لون

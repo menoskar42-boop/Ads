@@ -2,7 +2,7 @@
 //   node --test mykid/tests/workbook-plan.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, colorsPage } from "../js/data/workbook.js";
+import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, colorsPage } from "../js/data/workbook.js";
 import { strokesFor } from "../js/data/strokes.js";
 import { WB_SAY } from "../js/data/writingPhrases.js";
 import { femAdapt } from "../js/data/mizo.js";
@@ -25,54 +25,83 @@ test("يكتب شوية ويلعب شوية: ٣ كتابات، ومفيش كتا
     assert.equal(w.length, 3, `صفحة ${n}`);
     for (let k = 1; k < w.length; k++) assert.ok(w[k] - w[k - 1] >= 2, `صفحة ${n}: كتابتين ورا بعض`);
     assert.deepEqual(w.map((i) => steps[i].level), [1, 2, 3], `صفحة ${n}: الخط ← النقط ← لوحده`);
-    assert.equal(steps[0].kind, "meet");
-    assert.equal(steps.at(-1).kind, "paint");
+    assert.deepEqual(steps.slice(0, 3).map((s) => s.kind), ["meet", "write", "colorN"]);
+    assert.equal(steps.at(-2).kind, "missing");
+    assert.ok(WB_LAST.includes(steps.at(-1).kind));
+    const plays = steps.filter((s) => WB_PLAYS.includes(s.kind)).map((s) => s.kind);
+    assert.equal(plays.length, 3, `صفحة ${n}: ٣ ألعاب`);
+    assert.equal(new Set(plays).size, 3, "مفيش لعبة متكرّرة فى نفس الصفحة");
+    if (n === 1) assert.ok(!plays.includes("parts"), "١ مالوش مكوّنات");
   }
 });
 
+test("كل التمارين بتظهر (التشكيلة بتتغيّر من صفحة لصفحة)", () => {
+  const seen = new Set(pages.flatMap(([, steps]) => steps.flatMap((s) => [s.kind, s.kind + (s.mode ? ":" + s.mode : "") + (s.rep ? ":" + s.rep : "")])));
+  for (const k of [...WB_PLAYS, ...WB_LAST, "missing:prev", "missing:mid", "missing:next", "parts:fingers", "parts:things"]) assert.ok(seen.has(k), k);
+});
+
 test("الإجابة الصح موجودة دايماً، والمشتّتات مختلفة عنها", () => {
-  for (const [n, steps] of pages) {
+  const all = [...pages, ...WB_NUMBERS.map((n) => [n, workbookPage(n, seeded(n), [...WB_PLAYS, "paint"])]),
+    ...WB_NUMBERS.map((n) => [n, workbookPage(n, seeded(n + 50), ["colorBar"])])];
+  for (const [n, steps] of all) {
     const by = (k) => steps.find((s) => s.kind === k);
     const c = by("colorN");
     assert.ok(c.total > n && c.total <= 12, `colorN ${n}: ${c.total}`);
     assert.ok(c.palette.includes(c.color) && new Set(c.palette).size === 3);
 
     const cc = by("countChoose");
-    assert.ok(cc.cards.some((k) => k.count === n));
-    for (const k of cc.cards) {
-      assert.equal(k.options.length, 2);
-      assert.ok(k.options.includes(k.count));
-      assert.notEqual(k.options[0], k.options[1]);
-      assert.ok(k.options.every((v) => v >= 1 && v <= 10));
+    if (cc) {
+      assert.ok(cc.cards.some((k) => k.count === n));
+      for (const k of cc.cards) {
+        assert.equal(k.options.length, 2);
+        assert.ok(k.options.includes(k.count));
+        assert.notEqual(k.options[0], k.options[1]);
+        assert.ok(k.options.every((v) => v >= 1 && v <= 10));
+      }
     }
-
     const m = by("match");
-    assert.equal(new Set(m.groups.map((g) => g.count)).size, 3, "المجموعات أعداد مختلفة");
-    assert.deepEqual([...m.numbers].sort(), m.groups.map((g) => g.count).sort());
-
+    if (m) {
+      assert.equal(new Set(m.groups.map((g) => g.count)).size, 3, "المجموعات أعداد مختلفة");
+      assert.deepEqual([...m.numbers].sort(), m.groups.map((g) => g.count).sort());
+      assert.equal(m.groups.filter((g) => g.rep === "fingers").length, 1, "مجموعة واحدة صوابع");
+    }
     const f = by("find");
-    assert.equal(f.cells.length, 9);
-    assert.ok(f.cells.filter((v) => v === n).length >= 3);
-
+    if (f) {
+      assert.equal(f.cells.length, 9);
+      assert.ok(f.cells.filter((v) => v === n).length >= 3);
+    }
     const p = by("parts");
     if (n === 1) assert.equal(p, undefined);
-    else {
+    else if (p) {
       assert.equal(p.a + p.b, n);
       assert.ok(p.a >= 1 && p.b >= 1);
+      if (p.rep === "fingers") assert.ok(p.a <= 5 && p.b <= 5, "كل إيد لحد ٥");
       assert.ok(p.options.includes(n) && new Set(p.options).size === 3);
     }
+    const ff = by("frameFill");
+    if (ff) {
+      assert.ok(ff.count >= 1 && ff.count <= ff.frame && ff.count <= 10);
+      assert.equal(ff.frame, ff.count > 5 ? 10 : 5);
+    }
+    const bar = by("colorBar");
+    if (bar) assert.ok(bar.n === n && bar.cells >= n);
 
     const ms = by("missing");
     assert.equal(ms.seq[ms.blank], n);
     assert.deepEqual(ms.seq, [ms.seq[0], ms.seq[0] + 1, ms.seq[0] + 2]);
+    assert.equal(ms.blank, { prev: 0, mid: 1, next: 2 }[ms.mode], ms.mode);
+    assert.ok(ms.seq.every((v) => v >= 1 && v <= 10));
     assert.ok(ms.options.includes(n) && new Set(ms.options).size === ms.options.length && ms.options.length === 3);
     assert.ok(ms.options.filter((v) => v !== n).every((v) => !ms.seq.includes(v)), "الظاهر فى الصف مايبقاش اختيار");
 
     const pt = by("paint");
-    assert.equal(pt.tiles.length, 6);
-    assert.equal(pt.tiles.filter((t) => t.value === n).length, 3);
-    assert.notEqual(pt.pairs[0].color, pt.pairs[1].color);
-    assert.deepEqual(pt.pairs.map((x) => x.color), colorPairOf(n));
+    if (pt) {
+      assert.equal(pt.tiles.length, 6);
+      assert.equal(pt.tiles.filter((t) => t.value === n).length, 3);
+      assert.equal(pt.tiles.filter((t) => t.rep === "digit").length, 2, "الرقم نفسه دايماً موجود");
+      assert.notEqual(pt.pairs[0].color, pt.pairs[1].color);
+      assert.deepEqual(pt.pairs.map((x) => x.color), colorPairOf(n));
+    }
   }
 });
 
@@ -85,7 +114,7 @@ test("ألوان الكتاب بالترتيب: ١ أحمر/بمبى · ٢ أص�
 });
 
 test("جُمَل ميزو بتتأنّث للبنت (من غير «و» لازقة فى الفعل)", () => {
-  const all = [WB_SAY.meet(WB_AR[3]), WB_SAY.colorN(WB_AR[3], "الأحمر"), WB_SAY.find(WB_AR[3]), WB_SAY.tooFew(WB_AR[3]),
+  const all = [WB_SAY.frameFill, WB_SAY.colorBar(WB_AR[3]), WB_SAY.missPrev(WB_AR[3]), WB_SAY.missMid(WB_AR[2], WB_AR[4]), WB_SAY.missNext(WB_AR[3]), WB_SAY.chooseColor, WB_SAY.meet(WB_AR[3]), WB_SAY.colorN(WB_AR[3], "الأحمر"), WB_SAY.find(WB_AR[3]), WB_SAY.tooFew(WB_AR[3]),
     WB_SAY.tooMany(WB_AR[3]), WB_SAY.countChoose, WB_SAY.match, WB_SAY.missing, WB_SAY.paintWrong, WB_SAY.againDots];
   for (const t of all) {
     const f = femAdapt(t);
@@ -104,7 +133,11 @@ test("صفحة الألوان: يكتب مرتين (نقط ← لوحده) بي�
     const [c1, c2] = WB_COLOR_PAIRS[pair];
     for (let seed = 1; seed <= 40; seed++) {
       const steps = colorsPage(pair, seeded(seed * 13 + pair));
-      assert.deepEqual(steps.map((s) => s.kind), ["meetColors", "realColor", "countWrite", "picture", "countWrite"]);
+      assert.deepEqual(steps.map((s) => s.kind), ["meetColors", "realColor", "countWrite", "picture", "chooseColor", "countWrite"]);
+      for (const it of steps[4].items) {
+        assert.ok(WB_REAL[it.color].includes(it.thing));
+        assert.ok(it.options.includes(it.color) && new Set(it.options).size === 2);
+      }
       const w = steps.filter(isWriteStep);
       assert.deepEqual(w.map((s) => s.level), [2, 3]);
       assert.notEqual(w[0].count, w[1].count, "عددين مختلفين");

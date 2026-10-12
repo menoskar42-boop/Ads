@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { strokesFor } from "../js/data/strokes.js";
-import { WB_COLORS, WB_REAL, WB_PAGES, colorPairOf } from "../js/data/workbook.js";
+import { WB_COLORS, WB_REAL, WB_PAGES, WB_PLAYS, colorPairOf } from "../js/data/workbook.js";
 import { densify } from "../js/games/strokeJudge.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -82,6 +82,8 @@ async function nextStepFrom(i) {
     return k > i || !document.querySelector(".wbk-chip");
   }, i, { timeout: 8000 });
 }
+/** العدد اللى المجموعة/الإيد بتمثّله (من aria-label: «3 🦆» أو «3 صوابع»). */
+const countIn = async (loc) => Number((await loc.locator("[aria-label]").first().getAttribute("aria-label")).match(/^\d+/)[0]);
 const clickText = (sel, text) => page.locator(sel).filter({ hasText: new RegExp(`^${text}$`) }).first().click();
 
 async function open(n, extra = {}) {
@@ -92,7 +94,7 @@ async function open(n, extra = {}) {
     Store.setWriteSetting("gripTip", false); // كارت المسكة له اختباره
     if (extra.girl) Store.setChildGender("girl");
     const { renderWorkbook } = await import("/js/games/workbook.js");
-    document.getElementById("app").replaceChildren(renderWorkbook({ regionId: "numbers", regionIndex: 1, n }));
+    document.getElementById("app").replaceChildren(renderWorkbook({ regionId: "numbers", regionIndex: 1, n, only: extra.only || null }));
   }, { n, extra });
   await page.waitForSelector(".wbk-body");
 }
@@ -103,6 +105,41 @@ const solve = {
     assert.equal(await balls.count(), n, "عدد الدواير = الرقم");
     assert.equal(await page.locator(".wbk-cell").count(), n > 5 ? 10 : 5);
     for (let i = 0; i < n; i++) await balls.nth(i).click();
+  },
+  async frameFill() {
+    const k = await page.locator(".wbk-ff-things .wbk-thing").count();
+    const balls = page.locator(".wbk-ball");
+    for (let i = 0; i < k - 1; i++) await balls.nth(i).click();
+    await page.locator(".wbk-done").click();
+    assert.match(await page.locator(".wbk-hint").textContent(), /لسه/);
+    await balls.nth(k - 1).click();
+    await shot("frameFill-done");
+    await page.locator(".wbk-done").click();
+  },
+  async colorBar() {
+    const n = Number(await page.locator(".wbk-berry b").textContent());
+    const cells = page.locator(".wbk-barcell");
+    for (let i = 0; i <= n && i < (await cells.count()); i++) await cells.nth(i).click();
+    if (n < (await cells.count())) {
+      await page.locator(".wbk-done").click();
+      assert.match(await page.locator(".wbk-hint").textContent(), /كتير/);
+      await cells.nth(n).click();
+    }
+    await shot("colorBar-done");
+    await page.locator(".wbk-done").click();
+  },
+  async chooseColor() {
+    const rows = page.locator(".wbk-choose-row");
+    for (let i = 0; i < (await rows.count()); i++) {
+      const thing = await rows.nth(i).locator(".wbk-tile").textContent();
+      const want = Object.keys(WB_REAL).find((k) => WB_REAL[k].includes(thing));
+      if (i === 0) {
+        await rows.nth(i).locator(`.wbk-dot:not([aria-label="لون ${WB_COLORS[want].ar}"])`).click();
+        assert.match(await page.locator(".wbk-hint").textContent(), /فى الحقيقة/);
+      }
+      await rows.nth(i).locator(`.wbk-dot[aria-label="لون ${WB_COLORS[want].ar}"]`).click();
+    }
+    await shot("chooseColor-done");
   },
   // ===== صفحات الألوان =====
   async meetColors() {
@@ -197,7 +234,7 @@ const solve = {
   async match() {
     const groups = page.locator(".wbk-mgroup");
     for (let i = 0; i < (await groups.count()); i++) {
-      const c = await groups.nth(i).locator(".wbk-thing").count();
+      const c = await countIn(groups.nth(i));
       await groups.nth(i).click();
       await clickText(".wbk-mnum", c);
     }
@@ -213,8 +250,9 @@ const solve = {
     for (let i = 0; i < k; i++) await hits.nth(i).click();
   },
   async parts(n) {
-    const a = await page.locator(".wbk-part").nth(0).locator(".wbk-thing").count();
-    const b = await page.locator(".wbk-part").nth(1).locator(".wbk-thing").count();
+    const part = async (i) => Number((await page.locator(".wbk-part").nth(i).getAttribute("aria-label")).match(/^\d+/)[0]);
+    const a = await part(0);
+    const b = await part(1);
     assert.equal(a + b, n);
     await clickText(".wbk-opt", n);
     await shot("parts-solved");
@@ -247,10 +285,15 @@ const solve = {
   },
 };
 
-for (const n of [4, 1, 10, "c0", "c2"]) {
-  test(`صفحة ${n} كاملة: يكتب ويلعب بالتناوب، وفى الآخر نجمة على الصفحة`, async () => {
+const CASES = [
+  [4, [...WB_PLAYS, "paint"]], // كل ألعاب صفحة الرقم مرة واحدة
+  [6, ["frameFill", "parts", "match", "colorBar"]],
+  [1, null], [10, null], ["c0", null], ["c3", null],
+];
+for (const [n, only] of CASES) {
+  test(`صفحة ${n}${only ? " (" + only.join("،") + ")" : ""} كاملة: يكتب ويلعب بالتناوب، وفى الآخر نجمة على الصفحة`, async () => {
     errors.length = 0;
-    await open(n);
+    await open(n, { only });
     const total = await page.locator(".wbk-chip").count();
     const done = [];
     for (let i = 0; i < total; i++) {

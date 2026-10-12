@@ -135,7 +135,13 @@ add("برافو", AR);
   const colors = Object.values(WB_COLORS);
   for (let v = 1; v <= 10; v++) add(WB_AR[v], AR); // العدّ بالعامية (واحد، اتنين …)
   colors.forEach((c) => add(c.ar, AR)); // اسم اللون لما القلم يتختار
-  [W.againDots, W.countChoose, W.match, W.missing, W.paintWrong].forEach(addAr);
+  [W.againDots, W.countChoose, W.match, W.missing, W.paintWrong, W.frameFill, W.colorBarOne, W.chooseColor].forEach(addAr);
+  for (let v = 1; v <= 10; v++) {
+    if (v <= 8) addAr(W.missPrev(WB_AR[v + 1]));
+    if (v >= 2 && v <= 9) addAr(W.missMid(WB_AR[v - 1], WB_AR[v + 1]));
+    if (v >= 3) addAr(W.missNext(WB_AR[v - 1]));
+    if (v >= 2) addAr(W.colorBar(WB_AR[v]));
+  }
   colors.forEach((c) => addAr(W.pickColor(c.al)));
   for (const n of WB_NUMBERS) {
     const ar = WB_AR[n];
