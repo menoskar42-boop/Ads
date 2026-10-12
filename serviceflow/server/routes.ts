@@ -14080,6 +14080,68 @@ export async function registerRoutes(
   // GET /api/reports/regularized-faults-range — الأعطال المنتظمة خلال فترة من/إلى
   // المصدر 1: complaint_details (شيت التفاصيل) — كل السجلات المغلقة منتظمة.
   // المصدر 2: remaining_complaints (شيت المتبقى) — فقط status_code 138 و 135 منتظمة.
+  // GET /api/reports/regularized-speed-drop — «انخفاض السرعة بعد الانتظام» (المالك ٢٠٢٦-١٠-١٢، تاب القياسات):
+  // خطوط الأعطال المنتظمة فى الفترة (نفس مصدر «الأعطال المنتظمة لفترة»: التفاصيل المغلقة + المتبقى
+  // 138/135، غنايم) — لكل خط آخر شكوى فى الفترة، وأول قياس «بدون Real» بعد تاريخها، وآخر قياس
+  // «بدون Real» دلوقتى. الخط بيظهر لو السرعة الحالية أقل من الأولى بأكتر من minDrop% (الافتراضى ١٠).
+  app.get("/api/reports/regularized-speed-drop", requireAuth, async (req: any, res) => {
+    try {
+      if (req.user?.role === ROLES.SALES || req.user?.role === ROLES.SALES_ADMIN) return res.status(403).json({ message: "غير مسموح" });
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+      const isDay = (v: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
+      const from = isDay(req.query.dateFrom) ? String(req.query.dateFrom) : today.slice(0, 8) + "01";
+      const to = isDay(req.query.dateTo) ? String(req.query.dateTo) : today;
+      const minDrop = Math.min(100, Math.max(0, Number(req.query.minDrop ?? 10) || 10));
+      const { rows } = await pool.query(
+        `WITH reg AS (
+           SELECT DISTINCT ON (u.short) u.short, u.complain_no, u.complain_time, u.central, u.cabinet
+             FROM (
+               SELECT ${sp("cd.phone_number")} AS short, cd.complain_no, cd.complain_time,
+                      cd.exchange_name AS central, cd.cabinet_no AS cabinet
+                 FROM complaint_details cd
+                WHERE cd.close_time IS NOT NULL AND cd.exchange_name ILIKE '%غنايم%'
+                  AND (cd.complain_time AT TIME ZONE 'UTC')::date BETWEEN $1::date AND $2::date
+               UNION ALL
+               SELECT ${sp("rc.phone_number")}, rc.complain_no, rc.complain_time, rc.exchange_name, rc.cabinet_no
+                 FROM remaining_complaints rc
+                WHERE rc.status_code IN ('138', '135') AND rc.exchange_name ILIKE '%غنايم%'
+                  AND (rc.complain_time AT TIME ZONE 'UTC')::date BETWEEN $1::date AND $2::date
+             ) u
+            WHERE u.short <> '' AND u.complain_time IS NOT NULL
+            ORDER BY u.short, u.complain_time DESC
+         )
+         SELECT reg.short AS phone, reg.complain_no AS "complainNo", reg.complain_time AS "complainTime",
+                reg.central, reg.cabinet,
+                ${areaTechSql("reg.central", "reg.cabinet", "reg.complain_time", "reg.short", { noShiftCover: true })} AS "techName",
+                f.id AS "firstId", f.current_speed AS "firstSpeed", f.max_speed AS "firstMax", f.score AS "firstScore",
+                (f.at AT TIME ZONE 'Africa/Cairo') AS "firstAt",
+                l.id AS "lastId", l.current_speed AS "lastSpeed", l.max_speed AS "lastMax", l.score AS "lastScore",
+                (l.at AT TIME ZONE 'Africa/Cairo') AS "lastAt", l.account_no AS "accountNo"
+           FROM reg
+           JOIN LATERAL (
+             SELECT c.id, c.current_speed, c.max_speed, c.score, COALESCE(c.measured_at, c.uploaded_at) AS at
+               FROM case_138 c
+              WHERE c.full_phone = '88' || reg.short AND c.measure_mode = 'noreal'
+                AND COALESCE(c.measured_at, c.uploaded_at) >= reg.complain_time
+              ORDER BY COALESCE(c.measured_at, c.uploaded_at), c.id LIMIT 1
+           ) f ON true
+           JOIN LATERAL (
+             SELECT c.id, c.current_speed, c.max_speed, c.score, c.account_no, COALESCE(c.measured_at, c.uploaded_at) AS at
+               FROM case_138 c
+              WHERE c.full_phone = '88' || reg.short AND c.measure_mode = 'noreal'
+              ORDER BY COALESCE(c.measured_at, c.uploaded_at) DESC, c.id DESC LIMIT 1
+           ) l ON true
+          WHERE l.id <> f.id`, [from, to]);
+      const data = rows.map((r: any) => {
+        const first = speedKbps(r.firstSpeed), last = speedKbps(r.lastSpeed);
+        const drop = first && last != null ? Math.round(((first - last) / first) * 1000) / 10 : null;
+        return { ...r, firstKbps: first, lastKbps: last, dropPct: drop };
+      }).filter((r: any) => r.dropPct != null && r.dropPct > minDrop)
+        .sort((a: any, b: any) => b.dropPct - a.dropPct);
+      res.json({ from, to, minDrop, data });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.get("/api/reports/regularized-faults-range", requireAuth, async (req, res) => {
     try {
       const {

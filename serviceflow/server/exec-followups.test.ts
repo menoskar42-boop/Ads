@@ -41,3 +41,20 @@ test("wiring: executor runs +إيقاف as a plain raise; done schedules; heartb
   assert.match(db, /CREATE TABLE IF NOT EXISTS exec_followups/);
   assert.match(schema, /export const execFollowups = pgTable\("exec_followups"/);
 });
+
+// «انخفاض السرعة بعد الانتظام» (المالك ٢٠٢٦-١٠-١٢) — تاب القياسات
+test("speed-drop report: regularized this month, no-Real first-after-complaint vs latest, >10%", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const ep = routes.slice(routes.indexOf('app.get("/api/reports/regularized-speed-drop"'), routes.indexOf('app.get("/api/reports/regularized-faults-range"'));
+  const ui = readFileSync(new URL("../client/src/components/SpeedDropReport.tsx", import.meta.url), "utf8");
+  const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
+  assert.match(ep, /FROM complaint_details cd[\s\S]*FROM remaining_complaints rc/);
+  assert.match(ep, /rc\.status_code IN \('138', '135'\)/);
+  assert.match(ep, /c\.measure_mode = 'noreal'\s*\n\s*AND COALESCE\(c\.measured_at, c\.uploaded_at\) >= reg\.complain_time/);
+  assert.match(ep, /WHERE l\.id <> f\.id/);
+  assert.match(ep, /Number\(req\.query\.minDrop \?\? 10\)/);
+  assert.match(ep, /r\.dropPct > minDrop/);
+  assert.match(ui, /handleExport|const excel = \(\) =>/);
+  assert.match(ui, /printTablePDF/);
+  assert.match(dash, /\{ id: "speed-drop", +label: "انخفاض السرعة بعد الانتظام" \}/);
+});
