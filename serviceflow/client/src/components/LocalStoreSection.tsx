@@ -82,22 +82,39 @@ const TypeSelect = ({ value, onChange }: { value: CableType; onChange: (v: Cable
 );
 
 /* ───────────── الرصيد الحالى ───────────── */
+// المالك ٢٠٢٦-١٠-١٢: سطر واحد لكل فنى — «تركيبات ونقل» و«صيانة» كل واحد تحته (مستلم بإفراج ·
+// مستخدم · رصيد)، وفى الآخر «صافى الرصيد» = رصيد التركيبات والنقل + رصيد الصيانة.
+const TYPES: CableType[] = ["install", "maint"];
+type Cell = { issued: number; used: number; balance: number };
+interface TechRow { tech: string; byType: Record<CableType, Cell>; net: number }
+export function groupTechBalances(techs: TechBalance[]): TechRow[] {
+  const zero = (): Cell => ({ issued: 0, used: 0, balance: 0 });
+  const map = new Map<string, TechRow>();
+  for (const r of techs) {
+    const row = map.get(r.tech) ?? { tech: r.tech, byType: { install: zero(), maint: zero() }, net: 0 };
+    const c = row.byType[r.type];
+    c.issued += r.issued; c.used += r.used; c.balance += r.balance;
+    row.net += r.balance;
+    map.set(r.tech, row);
+  }
+  return [...map.values()];
+}
+
 function BalancesTab({ s }: { s: Summary }) {
-  const rows = s.techs;
+  const rows = useMemo(() => groupTechBalances(s.techs), [s.techs]);
+  const flatCols = ["الفنى", ...TYPES.flatMap((t) => [`${TYPE_LABEL[t]} — مستلم بإفراج`, `${TYPE_LABEL[t]} — مستخدم`, `${TYPE_LABEL[t]} — رصيد`]), "صافى الرصيد"];
+  const flat = (r: TechRow) => [r.tech, ...TYPES.flatMap((t) => [r.byType[t].issued, r.byType[t].used, r.byType[t].balance]), r.net];
   const excel = () => exportExcel("أرصدة الفنيين", "local-store-balances", [
-    ...(["install", "maint"] as CableType[]).map((t) => ({
-      "البند": `رصيد المخزن المحلى — ${TYPE_LABEL[t]}`, "مستلم/وارد": s.store[t].opening + s.store[t].received,
-      "مستخدم/منصرف": s.store[t].issued, "الرصيد": s.store[t].balance,
+    ...TYPES.map((t) => ({
+      [flatCols[0]]: `رصيد المخزن المحلى — ${TYPE_LABEL[t]} (مستلم/وارد ${s.store[t].opening + s.store[t].received} · منصرف ${s.store[t].issued})`,
+      [flatCols[flatCols.length - 1]]: s.store[t].balance,
     })),
-    ...rows.map((r) => ({ "البند": `${r.tech} — ${TYPE_LABEL[r.type]}`, "مستلم/وارد": r.issued, "مستخدم/منصرف": r.used, "الرصيد": r.balance })),
+    ...rows.map((r) => Object.fromEntries(flatCols.map((c, i) => [c, flat(r)[i]]))),
   ]);
   const pdf = () => printTablePDF({
-    title: `المخزن المحلى — الرصيد الحالى (${today()})`,
-    columns: ["البند", "نوع السلك", "مستلم / وارد", "مستخدم / منصرف", "الرصيد (متر)"],
-    rows: [
-      ...(["install", "maint"] as CableType[]).map((t) => ["المخزن المحلى", TYPE_LABEL[t], fmt(s.store[t].opening + s.store[t].received), fmt(s.store[t].issued), fmt(s.store[t].balance)]),
-      ...rows.map((r) => [r.tech, TYPE_LABEL[r.type], fmt(r.issued), fmt(r.used), fmt(r.balance)]),
-    ],
+    title: `المخزن المحلى — الرصيد الحالى (${today()}) — المخزن: ${TYPES.map((t) => `${TYPE_LABEL[t]} ${fmt(s.store[t].balance)} م`).join(" · ")}`,
+    columns: flatCols,
+    rows: rows.map((r) => flat(r).map((v, i) => (i === 0 ? v : fmt(v as number)))),
     rowsPerPage: 20,
   });
   return (
@@ -123,21 +140,35 @@ function BalancesTab({ s }: { s: Summary }) {
         </div>
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader><TableRow>
-              <TableHead className="text-right">الفنى</TableHead>
-              <TableHead className="text-right">نوع السلك</TableHead>
-              <TableHead className="text-right">مستلم بأوامر إفراج</TableHead>
-              <TableHead className="text-right">مستخدم (استكمال البيانات)</TableHead>
-              <TableHead className="text-right">الرصيد معاه</TableHead>
-            </TableRow></TableHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead rowSpan={2} className="text-right align-bottom border-l">الفنى</TableHead>
+                {TYPES.map((t) => (
+                  <TableHead key={t} colSpan={3} className={`text-center border-l ${t === "install" ? "bg-sky-50" : "bg-amber-50"}`}>{TYPE_LABEL[t]}</TableHead>
+                ))}
+                <TableHead rowSpan={2} className="text-center align-bottom bg-emerald-50">صافى الرصيد</TableHead>
+              </TableRow>
+              <TableRow>
+                {TYPES.flatMap((t) => [
+                  <TableHead key={`${t}-i`} className="text-right text-xs">مستلم بإفراج</TableHead>,
+                  <TableHead key={`${t}-u`} className="text-right text-xs">مستخدم</TableHead>,
+                  <TableHead key={`${t}-b`} className="text-right text-xs border-l">رصيد</TableHead>,
+                ])}
+              </TableRow>
+            </TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <TableRow key={`${r.tech}-${r.type}`}>
-                  <TableCell className="font-medium">{r.tech}</TableCell>
-                  <TableCell>{TYPE_LABEL[r.type]}</TableCell>
-                  <TableCell className="tabular-nums">{fmt(r.issued)}</TableCell>
-                  <TableCell className="tabular-nums">{fmt(r.used)}</TableCell>
-                  <TableCell className={`tabular-nums font-bold ${r.balance < 0 ? "text-red-600 bg-red-50" : ""}`}>{fmt(r.balance)}</TableCell>
+                <TableRow key={r.tech}>
+                  <TableCell className="font-medium border-l">{r.tech}</TableCell>
+                  {TYPES.flatMap((t) => {
+                    const c = r.byType[t];
+                    return [
+                      <TableCell key={`${t}-i`} className="tabular-nums">{fmt(c.issued)}</TableCell>,
+                      <TableCell key={`${t}-u`} className="tabular-nums">{fmt(c.used)}</TableCell>,
+                      <TableCell key={`${t}-b`} className={`tabular-nums font-bold border-l ${c.balance < 0 ? "text-red-600 bg-red-50" : ""}`}>{fmt(c.balance)}</TableCell>,
+                    ];
+                  })}
+                  <TableCell className={`tabular-nums font-bold text-center ${r.net < 0 ? "text-red-600 bg-red-50" : "bg-emerald-50/50"}`}>{fmt(r.net)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

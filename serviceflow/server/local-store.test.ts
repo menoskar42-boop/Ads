@@ -74,7 +74,7 @@ test("wiring: tables + column in ensureSchema and schema.ts, cable entry charges
   // وكمان من تاب التقارير: مجموعة «المخزن» — للأدمن والشئون الخارجية ومسئول البيانات، مش للفنى
   assert.match(dash, /label: "المخزن",\s+icon: Warehouse,\s+items: \[\s+\{ id: "local-store"/);
   assert.match(dash, /\{reportTab === "local-store" && <LocalStoreSection \/>\}/);
-  assert.match(dash, /const CENTRAL_VIEW_ALLOWED: ReportTab\[\] = \[[^\]]*"local-store"\]/);
+  assert.match(dash, /const CENTRAL_VIEW_ALLOWED: ReportTab\[\] = \[[^\]]*"local-store"[^\]]*\]/);
   assert.doesNotMatch(dash, /const TECH_ALLOWED_GROUPS = \[[^\]]*"المخزن"/);
   const ui = readFileSync(new URL("../client/src/components/LocalStoreSection.tsx", import.meta.url), "utf8");
   // قاعدة ٧: كل تقرير Excel + PDF
@@ -111,4 +111,29 @@ test("super admin register: every release order and receipt with who recorded it
   assert.match(ui, /title="سجل الإفراجات والوارد"/);
   assert.match(ui, /\{view === "register" && s\.canEditMoves && <>\{back\}<RegisterView \/><\/>\}/);
   assert.match(ui, /"سجّلها", "وقت التسجيل", "الحالة"/);
+});
+
+// المالك ٢٠٢٦-١٠-١٢: أرصدة الفنيين سطر لكل فنى (تركيبات ونقل / صيانة × مستلم · مستخدم · رصيد + صافى الرصيد)،
+// و«سلك الصيانة» تاب فى المخزن: إفادة صرف سلك الصيانة (زى الورقة) + قايمة إدخالات السلك (اتنقلت من استكمال البيانات).
+test("store: one row per tech with net balance; maintenance-wire tab with the paper-style sheet", () => {
+  const ls = readFileSync(new URL("../client/src/components/LocalStoreSection.tsx", import.meta.url), "utf8");
+  const mc = readFileSync(new URL("../client/src/components/MaintCableSection.tsx", import.meta.url), "utf8");
+  const dc = readFileSync(new URL("../client/src/components/DataCompletionSection.tsx", import.meta.url), "utf8");
+  const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  assert.match(ls, /export function groupTechBalances/);
+  assert.match(ls, /row\.net \+= r\.balance;/);
+  assert.match(ls, />صافى الرصيد</);
+  assert.match(ls, /colSpan=\{3\}/);
+  assert.match(mc, /إفادة بصرف سلك للصيانة الهوائية بإدارة سنترال الغنايم/);
+  assert.match(mc, /\["رقم التليفون", "التاريخ", "اسم الصنف", "الكمية بالمتر", "اسم الفنى", "توقيع الفنى", "ملاحظات"\]/);
+  // توقيع الفنى فاضى، واسم الفنى = اللى سجّل السلك، والملاحظات = محمول الخط
+  assert.match(mc, /e\.createdByName \|\| "", "", e\.mobile \|\| ""/);
+  assert.match(mc, /\.filter\(\(e\) => e\.workOrderType === "صيانة"\)/);
+  assert.match(routes, /SELECT lm\.mobile FROM line_mobiles lm[\s\S]{0,200}AS "mobile"\s*\n\s*FROM cable_entries/);
+  // القايمة اتنقلت — فى استكمال البيانات للفنى بس (إدخالاته)
+  assert.match(dc, /\{isTech && <CableEntriesList \/>\}/);
+  assert.doesNotMatch(dc, /useQuery<CableEntry\[\]>/);
+  assert.match(dash, /\{ id: "maint-cable", label: "سلك الصيانة" \}/);
+  assert.match(dash, /\{reportTab === "maint-cable" && <MaintCableSection \/>\}/);
 });

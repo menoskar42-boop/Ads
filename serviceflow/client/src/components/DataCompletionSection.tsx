@@ -5,42 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { ROLES } from "@shared/schema";
-import { format } from "date-fns";
-import { Loader2, Plus, Trash2, Cable, Search, Lock, KeyRound, FileSpreadsheet, Printer } from "lucide-react";
-import * as XLSX from "xlsx";
-import { printTablePDF } from "@/lib/print-pdf";
+import { Loader2, Plus, Cable } from "lucide-react";
 import { WorkOrdersNoCableEntry } from "@/components/WorkOrdersNoCableEntry";
 import { LineDataCorrection } from "@/components/LineDataCorrection";
 import { LineDataCorrectionsReport } from "@/components/LineDataCorrectionsReport";
+import { CableEntriesList } from "@/components/MaintCableSection";
 
-interface CableEntry {
-  id: number;
-  phoneLocal: string;
-  phoneFull: string;
-  workOrderType: string;
-  cableQuantity: string;
-  createdById: number;
-  createdByName: string;
-  createdAt: string;
-  updatedAt: string;
-  printedAt: string | null;
-  editUnlockedAt: string | null;
-  locked: boolean;
-  canUnlock: boolean;
-}
 
 export function DataCompletionSection() {
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
-  const isAdmin = user?.role === ROLES.ADMIN || user?.role === ROLES.SUPER_ADMIN;
 
   const [phone, setPhone] = useState("");
   // المالك (٢٠٢٦-١٠-٠٧): التاب ده «إدخال كمية سلك الصيانة» — النوع صيانة دايماً (مش دروب ليست)،
@@ -62,7 +41,6 @@ export function DataCompletionSection() {
       return res.json();
     },
   });
-  const [search, setSearch] = useState("");
   // تابين: الإدخال اليدوى (رقم برقم)، وقائمة أوامر الشغل اللى لسه مالهاش كمية سلك
   // (نفس مصدر تقرير أوامر الشغل) وقدّام كل صف خانة إدخال.
   // التاب الافتراضى (قرار المالك ٢٠٢٦-١٠-٠٥): مسئول البيانات على «متابعة التصحيحات» (شغله
@@ -77,16 +55,6 @@ export function DataCompletionSection() {
     if (!tabTouched.current && user?.role) setTabState(defaultTabFor(user.role));
   }, [user?.role]);
 
-  const { data: entries = [], isFetching } = useQuery<CableEntry[]>({
-    queryKey: ["/api/cable-entries", search],
-    queryFn: async () => {
-      const p = new URLSearchParams();
-      if (search.trim()) p.set("q", search.trim());
-      const res = await fetch(`/api/cable-entries?${p}`, { credentials: "include" });
-      if (!res.ok) throw new Error("فشل التحميل");
-      return res.json();
-    },
-  });
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -129,42 +97,7 @@ export function DataCompletionSection() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("DELETE", `/api/cable-entries/${id}`);
-      return res.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/cable-entries"] });
-      qc.invalidateQueries({ queryKey: ["/api/work-orders"] });
-    },
-    onError: (e: Error) => {
-      let msg = e.message || "حدث خطأ";
-      const m = msg.match(/^\d+:\s*(.*)$/s);
-      if (m) msg = m[1];
-      try { const j = JSON.parse(msg); if (j?.message) msg = j.message; } catch { /* */ }
-      toast({ title: "التعديل مقفل", description: msg, variant: "destructive", duration: 6000 });
-    },
-  });
 
-  // الأدمن يمنح صلاحية تعديل لإدخال مطبوع (خلال 3 أيام من الطباعة)
-  const unlockMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/cable-entries/${id}/unlock`);
-      return res.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/cable-entries"] });
-      toast({ title: "تم منح صلاحية التعديل", duration: 3000 });
-    },
-    onError: (e: Error) => {
-      let msg = e.message || "حدث خطأ";
-      const m = msg.match(/^\d+:\s*(.*)$/s);
-      if (m) msg = m[1];
-      try { const j = JSON.parse(msg); if (j?.message) msg = j.message; } catch { /* */ }
-      toast({ title: "تعذّر منح الصلاحية", description: msg, variant: "destructive", duration: 6000 });
-    },
-  });
 
   // كمية السلك: أرقام فقط مع نقطة عشرية واحدة
   const handleQtyChange = (v: string) => {
@@ -182,31 +115,7 @@ export function DataCompletionSection() {
     if (canSubmit) saveMutation.mutate();
   };
 
-  const handleExportExcel = () => {
-    const rows = entries.map((en, i) => ({
-      "#": i + 1,
-      "رقم التليفون": en.phoneFull,
-      "نوع امر الشغل": en.workOrderType,
-      "كمية السلك (متر)": en.cableQuantity,
-      "بواسطة": en.createdByName,
-      "آخر تحديث": format(new Date(en.updatedAt), "yyyy/MM/dd HH:mm"),
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "كمية السلك");
-    XLSX.writeFile(wb, `cable-entries-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-  };
 
-  const handleExportPDF = () => {
-    printTablePDF({
-      title: "استكمال بيانات — كمية السلك",
-      columns: ["#", "رقم التليفون", "نوع امر الشغل", "كمية السلك (متر)", "بواسطة", "آخر تحديث"],
-      rows: entries.map((en, i) => [
-        i + 1, en.phoneFull, en.workOrderType, en.cableQuantity, en.createdByName,
-        format(new Date(en.updatedAt), "yyyy/MM/dd HH:mm"),
-      ]),
-    });
-  };
 
   const ALL_TABS: { id: "manual" | "orders" | "fix" | "fixlist"; label: string }[] = [
     { id: "orders",  label: "أوامر شغل بدون كمية سلك" },
@@ -336,115 +245,9 @@ export function DataCompletionSection() {
         </p>
       </Card>
 
-      {/* بحث + قائمة الإدخالات */}
-      <Card className="overflow-hidden shadow-sm border-0 bg-white">
-        <div className="p-3 border-b flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {isFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            <span>إجمالي: <strong className="text-foreground">{entries.length}</strong> إدخال</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline" size="sm"
-              onClick={handleExportExcel}
-              disabled={entries.length === 0}
-              className="text-green-700 border-green-200 gap-1"
-            >
-              <FileSpreadsheet className="w-4 h-4" /> Excel
-            </Button>
-            <Button
-              variant="outline" size="sm"
-              onClick={handleExportPDF}
-              disabled={entries.length === 0}
-              className="text-red-700 border-red-200 gap-1"
-            >
-              <Printer className="w-4 h-4" /> PDF
-            </Button>
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="بحث برقم التليفون"
-                className="text-sm pr-8"
-                dir="rtl"
-              />
-            </div>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <Table className="text-right text-sm" dir="rtl">
-            <TableHeader className="bg-muted/50">
-              <TableRow>
-                <TableHead className="text-right font-bold w-10">#</TableHead>
-                <TableHead className="text-right font-bold">رقم التليفون</TableHead>
-                <TableHead className="text-right font-bold">نوع امر الشغل</TableHead>
-                <TableHead className="text-right font-bold">كمية السلك (متر)</TableHead>
-                <TableHead className="text-right font-bold">بواسطة</TableHead>
-                <TableHead className="text-right font-bold">آخر تحديث</TableHead>
-                <TableHead className="text-right font-bold w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {entries.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
-                    {isFetching ? "جاري التحميل..." : "لا توجد إدخالات بعد"}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                entries.map((en, idx) => (
-                  <TableRow key={en.id} className="hover:bg-muted/30 transition-colors">
-                    <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
-                    <TableCell dir="ltr" className="text-left font-mono">{en.phoneFull}</TableCell>
-                    <TableCell>
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${en.workOrderType === "نقل" ? "bg-blue-50 text-blue-700" : en.workOrderType === "صيانة" ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
-                        {en.workOrderType}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center font-semibold">{en.cableQuantity}</TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{en.createdByName}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {format(new Date(en.updatedAt), "yyyy/MM/dd HH:mm")}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {en.locked && (
-                          <span className="inline-flex items-center gap-0.5 text-xs text-amber-700" title="مقفل بعد طباعة التقرير">
-                            <Lock className="w-3.5 h-3.5" /> مقفل
-                          </span>
-                        )}
-                        {en.locked && isAdmin && en.canUnlock && (
-                          <Button
-                            variant="ghost" size="icon"
-                            className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            onClick={() => unlockMutation.mutate(en.id)}
-                            disabled={unlockMutation.isPending}
-                            title="منح صلاحية التعديل"
-                          >
-                            <KeyRound className="w-4 h-4" />
-                          </Button>
-                        )}
-                        {(isAdmin || user?.id === en.createdById) && (
-                          <Button
-                            variant="ghost" size="icon"
-                            className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-30"
-                            onClick={() => deleteMutation.mutate(en.id)}
-                            disabled={deleteMutation.isPending || en.locked}
-                            title={en.locked ? "مقفل بعد الطباعة" : "حذف"}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
+      {/* قايمة الإدخالات اتنقلت لقسم المخزن ← «سلك الصيانة» (المالك ٢٠٢٦-١٠-١٢). الفنى بس
+          بيشوف إدخالاته هنا عشان يراجع ويمسح غلطه على طول. */}
+      {isTech && <CableEntriesList />}
       </>)}
     </div>
   );

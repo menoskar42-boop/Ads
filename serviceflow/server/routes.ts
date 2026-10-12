@@ -9399,7 +9399,11 @@ export async function registerRoutes(
               (printed_at IS NOT NULL AND edit_unlocked_at IS NULL) AS "locked",
               -- يمكن للأدمن منح الصلاحية = مقفل ولم تمر 3 أيام على الطباعة
               (printed_at IS NOT NULL AND edit_unlocked_at IS NULL
-                 AND printed_at > now() - interval '3 days') AS "canUnlock"
+                 AND printed_at > now() - interval '3 days') AS "canUnlock",
+              -- رقم محمول الخط (خانة «ملاحظات» فى إفادة صرف سلك الصيانة — المالك ٢٠٢٦-١٠-١٢)
+              (SELECT lm.mobile FROM line_mobiles lm
+                WHERE lm.full_phone = '88' || regexp_replace(regexp_replace(cable_entries.phone_local, '\\D', '', 'g'), '^88', '')
+                LIMIT 1) AS "mobile"
        FROM cable_entries ${where}
        ORDER BY updated_at DESC`,
       params,
