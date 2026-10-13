@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNightPause, nightAwareInterval } from "@/lib/night-pause";
 
 // وقت الرفع بصيغة مختصرة: "اليوم HH:MM" أو "DD/MM HH:MM"
 function fmtUploadTime(iso?: string | null): string {
@@ -17,10 +18,12 @@ function fmtUploadTime(iso?: string | null): string {
 
 // شارة "آخر تحديث" لملف مصدر معيّن (مثلاً FCC / WFM / OSS) — تقرأ من /api/upload-times
 export function LastUpdatedBadge({ endpoint, label }: { endpoint: string; label: string }) {
+  // بالليل (١٢ ← ٧) مفيش تحديث دورى — أى سؤال للسيرفر بيصحّى القاعدة (إلا لو حد بيستعمل البرنامج)
+  const { refreshPaused: nightPaused } = useNightPause();
   const { data: uploadTimes = {} } = useQuery<Record<string, string | null>>({
     queryKey: ["/api/upload-times"],
     queryFn: () => fetch("/api/upload-times", { credentials: "include" }).then((r) => r.json()),
-    refetchInterval: 60000,
+    refetchInterval: nightAwareInterval(60000, nightPaused),
     staleTime: 30000,
   });
   return (

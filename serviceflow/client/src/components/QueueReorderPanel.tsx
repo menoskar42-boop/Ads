@@ -3,6 +3,7 @@ import { rescueMinutes } from "@shared/exec-timeouts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, ChevronUp, ChevronDown, Save, ListOrdered, Ban, Pause, Play, RotateCcw, AlertTriangle } from "lucide-react";
+import { refreshPausedNow } from "@/lib/night-pause";
 
 // ترتيب باتشات «الأولوية المتأخرة» (>3 خطوط من غير تقرير محتاجة رفع سرعة) — للسوبر أدمن.
 // الأولويات الأعلى (≤3 خطوط، ثم محتاجة رفع سرعة) بتتنفّذ قبلها دايماً ومش بتتأثر بالترتيب ده.
@@ -135,6 +136,7 @@ export function QueueReorderPanel() {
     const id = setInterval(() => {
       if (busyRef.current) return;
       if (typeof document !== "undefined" && document.hidden) return;
+      if (refreshPausedNow()) return;   // بالليل (١٢ ← ٧): القاعدة تنام
       load(true);
     }, 5000);
     return () => clearInterval(id);

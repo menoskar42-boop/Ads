@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Server, Loader2, Trash2, RefreshCw } from "lucide-react";
+import { Server, Loader2, Trash2, RefreshCw, Moon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
 import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, reloadWhenReachable, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
 import { rescueMinutes } from "@shared/exec-timeouts";
+import { executorPausedNow, refreshPausedNow, saveNightPause, useNightPause } from "@/lib/night-pause";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
 // المشكلة اللى بتوقف الطابور: Edge/Chrome بيعملوا للتاب اللى فى الخلفية
@@ -119,6 +120,8 @@ const WATCH_MS = 15 * 1000;      // تحديث حالة الطابور (كان �
 const HEARTBEAT_MS = 45 * 1000;  // نبضة الجهاز (كان ٢٠ث)
 const CLAIM_MS = 10 * 1000;      // سحب المهام + عدّاد المنتظر (كان ٤ث)
 const WATCHDOG_MS = 60 * 1000;   // حارس التعليق (كان ٣٠ث)
+// ساعة الإيقاف بالليل: فحص محلى كل دقيقة (من غير طلب) — والإعدادات بتتجاب كل نص ساعة بالنهار بس
+const NIGHT_TICK_MS = 60 * 1000;
 const JOB_POLL_MS = 10 * 1000;   // متابعة المهمة الجارية (كان ٥ث)
 
 const POPUP_BLOCKED = "popup_blocked";
@@ -162,6 +165,8 @@ export function ExecutorButton() {
   const [popupBlocked, setPopupBlocked] = useState(false);
   // التاب فاق بعد تجميد/انقطاع — بيتعرض على الزر عشان التوقف مايبقاش صامت
   const [stale, setStale] = useState(false);
+  // الإيقاف بالليل (١٢ ← ٧): الزرار يقول إنه نايم بقصد، مش واقف بغلط
+  const { executorPaused: nightPaused } = useNightPause();
   // آخر مرة المتصفح نيّم التاب (Sleeping tabs فى Edge / تجميد Chrome) — بتتحفظ فى localStorage
   // لأن النوم الطويل (>١٠ دقايق) بيعمل ريفريش فالحالة كانت بتضيع والمالك مايعرفش إنه نام.
   const [lastSleep, setLastSleep] = useState<{ min: number; at: number } | null>(() => {
@@ -222,6 +227,8 @@ export function ExecutorButton() {
   useEffect(() => {
     if (user?.role !== ROLES.SUPER_ADMIN) return;
     const load = async () => {
+      // بالليل (لو الإيقاف مفتوح): مفيش جهاز تنفيذ شغّال أصلاً، والسؤال نفسه بيصحّى القاعدة
+      if (executorPausedNow() || refreshPausedNow()) return;
       try {
         const [p, st] = await Promise.all([
           fetch("/api/exec-queue/pending", { credentials: "include" }).then((r) => r.json()),
@@ -325,6 +332,8 @@ export function ExecutorButton() {
     // آخر نبضة **نجحت** فعلاً — أساس الحارس اللى بيكتشف إن التاب كان متجمّد
     let lastBeatOk = Date.now();
     const heartbeat = () => {
+      // بالليل: مفيش نبضة إلا لو فيه مهمة لسه شغّالة (عشان السيرفر مايرجّعهاش للطابور كأنها يتيمة)
+      if (executorPausedNow() && running.size === 0) return;
       fetch("/api/exec-queue/heartbeat", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device }),
@@ -370,6 +379,8 @@ export function ExecutorButton() {
         reloadWhenReachable(`المسار ${lane.site} عدّى مهلته`);
         return;
       }
+      // بالليل النبضة واقفة بقصد — مش تاب متجمّد
+      if (executorPausedNow() && running.size === 0) { lastBeatOk = Date.now(); setStale(false); return; }
       const gap = Date.now() - lastBeatOk;
       if (gap < WAKE_MS) return;
       setStale(true);
@@ -855,6 +866,7 @@ export function ExecutorButton() {
     };
 
     const refreshPending = () => {
+      if (executorPausedNow()) return;
       fetch("/api/exec-queue/pending", { credentials: "include" })
         .then((r) => r.json()).then((d) => setPending(d?.pending ?? 0)).catch(() => {});
     };
@@ -862,6 +874,8 @@ export function ExecutorButton() {
     // افحص إنقاذ الباتش أولاً، ثم ابدأ السحب فوراً. لا ننتظر دورة الـ4 ثواني
     // الأولى حتى لا يظهر الجهاز مفعّلاً بينما كل المهام متوقفة.
     const pump = () => {
+      // الإيقاف بالليل (١٢ ← ٧): مفيش سحب مهام جديدة — اللى شغّال بيكمّل
+      if (executorPausedNow()) return;
       void refreshDueBatch().then(() => {
         if (!stopped && !batchRefreshTriggered.current) void claimAndRun();
       });
@@ -879,8 +893,30 @@ export function ExecutorButton() {
     const hb = setInterval(heartbeat, HEARTBEAT_MS);
     const poll = setInterval(() => { pump(); refreshPending(); }, CLAIM_MS);
     const wd = setInterval(watchdog, WATCHDOG_MS);
+    // الإيقاف بالليل: أول ما الليل يبدأ ومفيش حاجة شغّالة ⇒ «مش مفعّل» على السيرفر مرة واحدة
+    // (عشان الشاشات التانية ماتفتكرهوش متجمّد). والساعة ٧ يرجع لوحده من غير ولا ضغطة.
+    // وبالنهار بنجيب الإعدادات كل نص ساعة — عشان لو اتغيّرت من الموبايل الجهاز ده يعرف.
+    let nightOff = false;
+    let settingsAt = 0;
+    const nightTick = () => {
+      const paused = executorPausedNow();
+      if (paused && !nightOff && running.size === 0) {
+        nightOff = true;
+        fetch("/api/exec-queue/offline", { method: "POST", credentials: "include" }).catch(() => {});
+      } else if (!paused && nightOff) {
+        nightOff = false;
+        heartbeat(); refreshPending(); pump();
+      }
+      if (!paused && Date.now() - settingsAt > 30 * 60 * 1000) {
+        settingsAt = Date.now();
+        fetch("/api/exec-queue/lanes", { credentials: "include" })
+          .then((r) => (r.ok ? r.json() : null)).then((j) => saveNightPause(j?.nightPause)).catch(() => {});
+      }
+    };
+    nightTick();
+    const nt = setInterval(nightTick, NIGHT_TICK_MS);
     return () => {
-      stopped = true; clearInterval(hb); clearInterval(poll); clearInterval(wd);
+      stopped = true; clearInterval(hb); clearInterval(poll); clearInterval(wd); clearInterval(nt);
       document.removeEventListener("visibilitychange", onWake);
       window.removeEventListener("focus", onWake);
       window.removeEventListener("online", onWake);
@@ -908,12 +944,13 @@ export function ExecutorButton() {
           : "text-indigo-700 border-indigo-200 gap-1"}
         title={(popupBlocked ? popupBlockedMsg() : claimError) || "جهاز التنفيذ المركزى: لما يتفعّل، رفع السرعة/القياس/الإيقاف من أى جهاز بيتنفّذ هنا عبر طابور"}
       >
-        {active ? <Loader2 className="w-4 h-4 animate-spin" /> : <Server className="w-4 h-4" />}
+        {active ? (nightPaused && !current ? <Moon className="w-4 h-4" /> : <Loader2 className="w-4 h-4 animate-spin" />) : <Server className="w-4 h-4" />}
         {/* لو السحب فاشل الزر بيبقى أحمر ومكتوب عليه السبب — بدل ما التنفيذ يقف بصمت */}
         {active
           ? (popupBlocked ? "⚠️ المتصفح مانع فتح التابات — اسمح بالنوافذ المنبثقة"
              : claimError ? "⚠️ التنفيذ متوقف — خطأ فى الطابور"
              : stale ? "⚠️ التاب كان متجمّد — جارى الاستئناف"
+             : nightPaused && !current ? "🌙 جهاز التنفيذ نايم لحد ٧ الصبح"
              : current ? `⏳ ${current}`
              : `جهاز التنفيذ: مُفعَّل${pending ? ` (${pending})` : ""}`)
           : "جهاز التنفيذ"}

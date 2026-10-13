@@ -18,6 +18,7 @@ import { ROLES, REJECTION_REASONS } from "@shared/schema";
 import { TechActionModal } from "@/components/TechActionModal";
 import { isBoxBrokenReason, matchesBoxScoreFilter } from "@shared/om-box-score";
 import { MobileValue } from "@/lib/mobile-lookup";
+import { useNightPause, nightAwareInterval } from "@/lib/night-pause";
 
 interface Row {
   id: number;
@@ -362,6 +363,8 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
   const soKeys = useMemo(() => (canReexec
     ? [...new Set(displayRows.map((r) => String(r.serviceOrderId || "").replace(/\D/g, "")).filter(Boolean))].slice(0, 500)
     : []), [canReexec, displayRows]);
+  // بالليل (١٢ ← ٧) مفيش تحديث دورى — أى سؤال للسيرفر بيصحّى القاعدة (إلا لو حد بيستعمل البرنامج)
+  const { refreshPaused: nightPaused } = useNightPause();
   const { data: reexecLast, refetch: refetchReexec } = useQuery<{ data: Record<string, { result: string; reportedAt: string }> }>({
     queryKey: ["/api/oss-reexec/last", soKeys.join(",")],
     queryFn: async () => {
@@ -369,7 +372,7 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
       return r.ok ? r.json() : { data: {} };
     },
     enabled: soKeys.length > 0,
-    refetchInterval: 30_000,
+    refetchInterval: nightAwareInterval(30_000, nightPaused),
   });
   const [reexecBusy, setReexecBusy] = useState<string | null>(null);
   const runOssReexec = async (r: Row) => {

@@ -18,6 +18,7 @@ import { SmsButton } from "@/lib/mobile-lookup";
 import { ROLES } from "@shared/schema";
 import { Gauge, CheckCircle2, RotateCcw } from "lucide-react";
 import { maintStatusBadge, boxCoords, type MaintRow } from "@/components/MaintenanceComprehensiveReport";
+import { useNightPause, nightAwareInterval } from "@/lib/night-pause";
 
 // بوابة DZS expresse — تُفتح فى تاب جديد ويُمرَّر رقم الأكونت فى الـ hash ليقيسه
 // الـ Tampermonkey script (dzs-expresse-v10.user.js) ويرفع النتيجة لشيت 138.
@@ -631,6 +632,8 @@ export function PhoneLookupReport() {
   // (Update Work Status: Success / Change Port). بيعدّى على طابور التنفيذ زى «إلغاء الاسناد»
   // (مسار wfm.te.eg واحد)، والنتيجة بترجع من السكربت وبتظهر جنب الزرار.
   const acceptSid = String(line?.telNo || phone || "").replace(/\D/g, "").replace(/^88/, "");
+  // بالليل (١٢ ← ٧) مفيش تحديث دورى — أى سؤال للسيرفر بيصحّى القاعدة (إلا لو حد بيستعمل البرنامج)
+  const { refreshPaused: nightPaused } = useNightPause();
   const { data: acceptLast, refetch: refetchAccept } = useQuery<{ data: { result: string; message: string | null; workId: string | null; reportedAt: string } | null }>({
     queryKey: ["/api/wfm-tasks/accept-last", acceptSid],
     queryFn: async () => {
@@ -638,7 +641,7 @@ export function PhoneLookupReport() {
       return r.ok ? r.json() : { data: null };
     },
     enabled: isSuper && !!acceptSid,
-    refetchInterval: 30_000,
+    refetchInterval: nightAwareInterval(30_000, nightPaused),
   });
   const runAcceptPortChange = async () => {
     if (!acceptSid) { alert("مفيش رقم للمتابعة"); return; }
@@ -661,7 +664,7 @@ export function PhoneLookupReport() {
       return r.ok ? r.json() : { data: {} };
     },
     enabled: isSuper && !!reexecFull,
-    refetchInterval: 30_000,
+    refetchInterval: nightAwareInterval(30_000, nightPaused),
   });
   const reexecLastRow = reexecFull ? reexecLast?.data?.[reexecFull] : undefined;
   const runOssReexec = async () => {

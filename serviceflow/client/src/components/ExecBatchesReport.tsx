@@ -8,6 +8,7 @@ import { Loader2, RefreshCw, FileSpreadsheet, FileText, Layers, Search, X } from
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { arNorm, arIncludes } from "@shared/ar-norm";
+import { refreshPausedNow } from "@/lib/night-pause";
 
 // كل الباتشات اللى اتطلبت (قياس/رفع سرعة/إيقاف PO) مهما كانت أولويتها وحالتها:
 // اكتملت / اكتملت جزئياً / أُلغِيت / لسه فى الطابور / موقّفة مؤقتاً.
@@ -89,6 +90,7 @@ export function ExecBatchesReport() {
   useEffect(() => {
     const id = setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
+      if (refreshPausedNow()) return;   // بالليل (١٢ ← ٧): القاعدة تنام
       load(true);
     }, 5000);
     return () => clearInterval(id);

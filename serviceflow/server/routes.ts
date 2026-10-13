@@ -2395,6 +2395,24 @@ export async function registerRoutes(
       return Number.isFinite(n) ? Math.min(MEASURE_STALE_DAYS_MAX, Math.max(MEASURE_STALE_DAYS_MIN, n)) : MEASURE_STALE_DAYS_DEFAULT;
     } catch { return MEASURE_STALE_DAYS_DEFAULT; }
   };
+  // إيقاف بالليل (المالك ٢٠٢٦-١٠-١٣): «التحديث التلقائى يقف بالليل … من ١٢ بالليل لـ٧ الصبح حتى
+  // لو الزر مفتوح، وزرار فى الإعدادات يلغيها أو يفتحها … وزر يوقف جهاز التنفيذ فى نفس الفترة».
+  // القاعدة بتنام بعد ٥ دقايق من غير استعلامات وإحنا بندفع على كل ساعة صاحية — والجهاز
+  // اللى بيفضل مفتوح بالليل كان بيصحّيها طول الليل. الاتنين مفتوحين افتراضياً، والتطبيق
+  // نفسه على المتصفح (الساعة بتوقيت القاهرة) — السيرفر بيخزّن الاختيار بس.
+  const NIGHT_PAUSE_KEYS = { refresh: "exec_lanes_night_pause_refresh", executor: "exec_lanes_night_pause_executor" } as const;
+  const readNightPause = async (): Promise<{ refresh: boolean; executor: boolean }> => {
+    const out = { refresh: true, executor: true };
+    try {
+      const { rows } = await pool.query(`SELECT key, value FROM app_settings WHERE key = ANY($1::text[])`,
+        [Object.values(NIGHT_PAUSE_KEYS)]);
+      for (const r of rows) {
+        if (r.key === NIGHT_PAUSE_KEYS.refresh) out.refresh = String(r.value) !== "0";
+        if (r.key === NIGHT_PAUSE_KEYS.executor) out.executor = String(r.value) !== "0";
+      }
+    } catch {}
+    return out;
+  };
   type ExecLanes = { noreal: number; stop: number };
   const clampLanes = (v: any, def: number) => {
     const n = parseInt(String(v ?? ""), 10);
@@ -2446,12 +2464,13 @@ export async function registerRoutes(
       const { rows } = await pool.query(
         `SELECT (MAX(updated_at) AT TIME ZONE 'Africa/Cairo') AS "updatedAt",
                 (ARRAY_AGG(updated_by ORDER BY updated_at DESC))[1] AS "updatedBy"
-           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY]]);
+           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY, ...Object.values(NIGHT_PAUSE_KEYS)]]);
       res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES, refreshMinutes: REFRESH_MINUTES_DEFAULT, measureStaleDays: MEASURE_STALE_DAYS_DEFAULT },
         max: null, refreshMinutes: await readRefreshMinutes(),
         refreshRange: { min: REFRESH_MINUTES_MIN, max: REFRESH_MINUTES_MAX },
         measureStaleDays: await readMeasureStaleDays(),
-        measureStaleRange: { min: MEASURE_STALE_DAYS_MIN, max: MEASURE_STALE_DAYS_MAX }, ...(rows[0] || {}) });
+        measureStaleRange: { min: MEASURE_STALE_DAYS_MIN, max: MEASURE_STALE_DAYS_MAX },
+        nightPause: await readNightPause(), ...(rows[0] || {}) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.put("/api/exec-queue/lanes", requireAuth, requireSuperAdmin, async (req: any, res) => {
@@ -2478,13 +2497,20 @@ export async function registerRoutes(
           return res.status(400).json({ message: `أيام قياس ٩ الصبح لازم تكون من ${MEASURE_STALE_DAYS_MIN} لـ ${MEASURE_STALE_DAYS_MAX}` });
         vals.push([MEASURE_STALE_DAYS_KEY, n]);
       }
+      // الإيقاف بالليل: true/false بس
+      for (const k of ["refresh", "executor"] as const) {
+        const v = body.nightPause?.[k];
+        if (v == null) continue;
+        if (typeof v !== "boolean") return res.status(400).json({ message: "الإيقاف بالليل لازم يكون مفتوح أو مقفول" });
+        vals.push([NIGHT_PAUSE_KEYS[k], v ? 1 : 0]);
+      }
       for (const [key, n] of vals) {
         await pool.query(
           `INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)
            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`,
           [key, String(n), by]);
       }
-      res.json({ ok: true, ...(await readExecLanes(pool)), refreshMinutes: await readRefreshMinutes(), measureStaleDays: await readMeasureStaleDays() });
+      res.json({ ok: true, ...(await readExecLanes(pool)), refreshMinutes: await readRefreshMinutes(), measureStaleDays: await readMeasureStaleDays(), nightPause: await readNightPause() });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

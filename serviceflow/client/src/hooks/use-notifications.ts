@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { type Notification } from "@shared/schema";
+import { useNightPause, nightAwareInterval } from "@/lib/night-pause";
 
 interface NotificationsResponse {
   items: Notification[];
@@ -9,6 +10,8 @@ interface NotificationsResponse {
 export function useNotifications() {
   const queryClient = useQueryClient();
 
+  // بالليل (١٢ ← ٧) مفيش تحديث دورى — أى سؤال للسيرفر بيصحّى القاعدة (إلا لو حد بيستعمل البرنامج)
+  const { refreshPaused: nightPaused } = useNightPause();
   const { data } = useQuery({
     queryKey: ["/api/notifications"],
     queryFn: async () => {
@@ -16,7 +19,7 @@ export function useNotifications() {
       if (!res.ok) throw new Error("Failed to fetch notifications");
       return res.json() as Promise<NotificationsResponse>;
     },
-    refetchInterval: 60000,
+    refetchInterval: nightAwareInterval(60000, nightPaused),
   });
 
   const markRead = useMutation({

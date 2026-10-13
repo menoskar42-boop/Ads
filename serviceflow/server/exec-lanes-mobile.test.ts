@@ -17,7 +17,8 @@ test("numbers change with − / + buttons (no keyboard needed) and plain numeric
   assert.doesNotMatch(dlg, /type="number"/, "iOS number inputs are the fiddly ones");
   assert.match(dlg, /inputMode="numeric" pattern="\[0-9\]\*"/);
   // التلات قيم بالـstepper: جوّه row (بدون Real + إيقاف PO) + دقايق التحديث
-  assert.match(dlg, /\{stepper\(id, v, set, 1, max, 1, valid\(v\), label\)\}/);
+  // من غير سقف لعدد التابات (المالك ٢٠٢٦-١٠-١٣)
+  assert.match(dlg, /\{stepper\(id, v, set, 1, Number\.MAX_SAFE_INTEGER, 1, valid\(v\), label\)\}/);
   assert.match(dlg, /\{stepper\("refresh-minutes", refresh, setRefresh, rMin, rMax, 5, validRefresh, "دقايق التحديث"\)\}/);
 });
 

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
 import { runDailyUpdate } from "@/lib/daily-update";
+import { useNightPause, dailyRefreshPausedNow, saveNightPause } from "@/lib/night-pause";
 
 // مؤقّت «التحديث كل نص ساعة» فى الخلفية — مكوّن غير مرئى يتركّب دايماً فى الداشبورد.
 // قبل كده كان المؤقّت جوّه قسم «رفع الملفات»، فماكانش بيشتغل إلا وإنت فاتح التاب ده،
@@ -26,16 +27,19 @@ export function DailyAutoRefresh() {
     return () => { window.removeEventListener("sf-hourly-toggle", sync); window.removeEventListener("storage", sync); };
   }, []);
 
+  // بالليل (١٢ ← ٧) واقف حتى لو الزرار مفتوح — ومعاه سؤال السيرفر نفسه (أى سؤال بيصحّى القاعدة)
+  const { dailyPaused } = useNightPause();
   const { data: uploadTimes = {} } = useQuery<Record<string, string | null>>({
     queryKey: ["/api/upload-times"],
     queryFn: () => fetch("/api/upload-times", { credentials: "include" }).then((r) => r.json()),
-    enabled: isSuper && active,
+    enabled: isSuper && active && !dailyPaused,
     refetchInterval: 5 * 60 * 1000,
   });
   const { data: lanes } = useQuery<{ refreshMinutes?: number }>({
     queryKey: ["/api/exec-queue/lanes"],
-    queryFn: () => fetch("/api/exec-queue/lanes", { credentials: "include" }).then((r) => r.json()),
-    enabled: isSuper && active,
+    queryFn: () => fetch("/api/exec-queue/lanes", { credentials: "include" }).then((r) => r.json())
+      .then((j) => { saveNightPause(j?.nightPause); return j; }),
+    enabled: isSuper && active && !dailyPaused,
     refetchInterval: 10 * 60 * 1000,
   });
   const intervalMs = Math.max(5, Number(lanes?.refreshMinutes) || DEFAULT_INTERVAL_MIN) * 60 * 1000;
@@ -51,7 +55,10 @@ export function DailyAutoRefresh() {
     };
     // مفيش تشغيل فورى عند التركيب — بس فحص دورى كل 60ث؛ يشغّل أول ما يعدّى 30 دقيقة من آخر تشغيل.
     // كده ما بيطلعش الصفحات لمجرّد ما نفتح الموقع/نبدّل تاب، وبيلحق أى موعد فات خلال دقيقة.
-    const check = () => { if (Date.now() - readLast() >= intervalMs) tick(); };
+    const check = () => {
+      if (dailyRefreshPausedNow()) return;   // بالليل: ولا تحديث (أول دورة بعد ٧ الصبح بتلحق)
+      if (Date.now() - readLast() >= intervalMs) tick();
+    };
     // عند فتح الموقع من جديد بعد إغلاقه/تحديثه، افحص فوراً بدل انتظار أول دورة
     // من المؤقت؛ لو مرّت 30 دقيقة منذ آخر تشغيل يبدأ التحديث مباشرة.
     check();

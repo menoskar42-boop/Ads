@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { ROLES, type User } from "@shared/schema";
 import { z } from "zod";
+import { useNightPause, nightAwareInterval } from "@/lib/night-pause";
 
 type LoginInput = z.infer<typeof api.auth.login.input>;
 
@@ -12,6 +13,8 @@ export function useAuth() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  // بالليل (١٢ ← ٧) مفيش تحديث دورى — أى سؤال للسيرفر بيصحّى القاعدة (إلا لو حد بيستعمل البرنامج)
+  const { refreshPaused: nightPaused } = useNightPause();
   const { data: user, isLoading, error } = useQuery({
     queryKey: [api.auth.me.path],
     queryFn: async () => {
@@ -24,7 +27,7 @@ export function useAuth() {
     // إعادة التحقق من الجلسة عند عودة المستخدم للتاب أو بعد 15 دقيقة خمول
     refetchOnWindowFocus: true,
     staleTime: 5 * 60 * 1000,
-    refetchInterval: 15 * 60 * 1000,
+    refetchInterval: nightAwareInterval(15 * 60 * 1000, nightPaused),
   });
 
   const loginMutation = useMutation({

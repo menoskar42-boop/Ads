@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
+import { saveNightPause, NIGHT_PAUSE_DEFAULT, type NightPause } from "@/lib/night-pause";
 
 interface ExecLanes {
   noreal: number;
@@ -26,6 +28,8 @@ interface ExecLanes {
   measureStaleRange: { min: number; max: number };
   defaults: { noreal: number; stop: number; refreshMinutes: number; measureStaleDays: number };
   max: number | null;   // null = مفيش سقف
+  /** الإيقاف بالليل (١٢ بالليل ← ٧ الصبح): التحديث التلقائى وجهاز التنفيذ */
+  nightPause?: NightPause;
   updatedAt?: string | null;
   updatedBy?: string | null;
 }
@@ -38,6 +42,7 @@ export function ExecLanesSettingsButton() {
   const [stop, setStop] = useState("");
   const [refresh, setRefresh] = useState("");
   const [staleDays, setStaleDays] = useState("");
+  const [night, setNight] = useState<NightPause>(NIGHT_PAUSE_DEFAULT);
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data, isLoading, isError, refetch, isFetching } = useQuery<ExecLanes>({
@@ -45,7 +50,9 @@ export function ExecLanesSettingsButton() {
     queryFn: async () => {
       const r = await fetch(LANES_URL, { credentials: "include" });
       if (!r.ok) throw new Error(await r.text());
-      return r.json();
+      const j = await r.json();
+      saveNightPause(j?.nightPause);
+      return j;
     },
     enabled: open,
     retry: 1,
@@ -58,6 +65,7 @@ export function ExecLanesSettingsButton() {
       filled.current = true;
       setNoreal(String(data.noreal)); setStop(String(data.stop)); setRefresh(String(data.refreshMinutes));
       setStaleDays(String(data.measureStaleDays ?? 1));
+      setNight(data.nightPause ?? NIGHT_PAUSE_DEFAULT);
     }
   }, [open, data]);
 
@@ -72,13 +80,14 @@ export function ExecLanesSettingsButton() {
       const r = await fetch(LANES_URL, {
         method: "PUT", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays }),
+        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays, nightPause: night }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.message || `خطأ ${r.status}`);
       return j;
     },
-    onSuccess: () => {
+    onSuccess: (j: any) => {
+      saveNightPause(j?.nightPause ?? night);   // الجهاز ده يعرف على طول من غير ما يستنى
       qc.invalidateQueries({ queryKey: [LANES_URL] });
       qc.invalidateQueries({ queryKey: ["/api/exec-queue/lanes"] });
       toast({ title: "اتحفظ ✓", description: "الإعدادات الجديدة بتتطبّق من المهمة/الدورة الجاية." });
@@ -158,6 +167,24 @@ export function ExecLanesSettingsButton() {
                 <p className="text-xs text-muted-foreground">
                   {staleDays === "0" ? "٠ = كل الخطوط اللى ليها أكونت مهما كان آخر قياس." : "١ = أى خط ماتقاسش النهارده. ٠ = كل الخطوط اللى ليها أكونت."} والخطوط اللى ماتقاستش خالص بتدخل دايماً.
                 </p>
+              </div>
+              <div className="space-y-3 pt-2 border-t">
+                <p className="text-sm font-medium">الإيقاف بالليل — من ١٢ بالليل لـ٧ الصبح (توقيت القاهرة)</p>
+                <label className="flex items-start justify-between gap-3 cursor-pointer">
+                  <span className="space-y-0.5">
+                    <span className="block text-sm">التحديث التلقائى يقف بالليل</span>
+                    <span className="block text-xs text-muted-foreground">حتى لو زرار «التحديث التلقائى» مفتوح، ومعاه التحديث الدورى للشاشات المفتوحة. لو حد بيستعمل البرنامج بالليل بيرجع عادى.</span>
+                  </span>
+                  <Switch checked={night.refresh} onCheckedChange={(v) => setNight((n) => ({ ...n, refresh: v }))} aria-label="التحديث التلقائى يقف بالليل" />
+                </label>
+                <label className="flex items-start justify-between gap-3 cursor-pointer">
+                  <span className="space-y-0.5">
+                    <span className="block text-sm">جهاز التنفيذ يقف بالليل</span>
+                    <span className="block text-xs text-muted-foreground">مابيسحبش مهام جديدة (اللى شغّال بيكمّل)، وبيرجع لوحده الساعة ٧. المهام اللى تتضاف بالليل بتستنى للصبح.</span>
+                  </span>
+                  <Switch checked={night.executor} onCheckedChange={(v) => setNight((n) => ({ ...n, executor: v }))} aria-label="جهاز التنفيذ يقف بالليل" />
+                </label>
+                <p className="text-xs text-muted-foreground">قاعدة البيانات بتنام لما محدش يسألها، والفاتورة على كل ساعة هى صاحية فيها.</p>
               </div>
               {data.updatedAt && (
                 <p className="text-xs text-muted-foreground">

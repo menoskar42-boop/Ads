@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { closeReason } from "@/lib/close-codes";
 import PoStatusCell from "./PoStatusCell";
+import { refreshPausedNow } from "@/lib/night-pause";
 
 interface Row {
   id: number;
@@ -61,7 +62,11 @@ export function ManualRegularizedHighScoreReport() {
   useEffect(() => {
     void load();
     // القياس يُحفظ بعد انتهاء مهمة التنفيذ؛ حدّث التقرير تلقائياً إذا كان مفتوحاً.
-    const timer = window.setInterval(() => void load(), 30_000);
+    // التاب المخفى وبالليل (١٢ ← ٧) مايسألوش — أى سؤال بيصحّى القاعدة
+    const timer = window.setInterval(() => {
+      if (document.hidden || refreshPausedNow()) return;
+      void load();
+    }, 30_000);
     return () => window.clearInterval(timer);
   }, [load]);
 

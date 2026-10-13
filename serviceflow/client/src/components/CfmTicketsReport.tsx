@@ -8,6 +8,7 @@ import { Loader2, RefreshCw, AlertCircle, Search, FileSpreadsheet, FileText, Rad
 import * as XLSX from "xlsx";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool } from "@/lib/exec-queue";
+import { refreshPausedNow } from "@/lib/night-pause";
 
 const REFRESH_INTERVAL = 30;
 
@@ -385,7 +386,8 @@ export function CfmTicketsReport() {
   useEffect(() => {
     const id = setInterval(() => {
       setCountdown((c) => {
-        if (c <= 1) { fetchData(); return REFRESH_INTERVAL; }
+        // التاب المخفى وبالليل (١٢ ← ٧) مايسألوش — أى سؤال بيصحّى القاعدة
+        if (c <= 1) { if (!document.hidden && !refreshPausedNow()) fetchData(); return REFRESH_INTERVAL; }
         return c - 1;
       });
     }, 1000);
