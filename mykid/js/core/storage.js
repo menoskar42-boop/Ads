@@ -260,6 +260,14 @@ export const Store = {
     this.workbookDone[n] = (this.workbookDone[n] || 0) + 1;
     persist();
   },
+  // «كراسة الحروف»: نفس الفكرة (معرّف الصفحة ← عدد المرات)
+  get letterbookDone() {
+    return state.letterbookDone || (state.letterbookDone = {});
+  },
+  markLetterbookDone(id) {
+    this.letterbookDone[id] = (this.letterbookDone[id] || 0) + 1;
+    persist();
+  },
   recordWrite(key, fails, level) {
     const w = this.writeStats[key] || { n: 0, r: [] };
     w.n += 1;

@@ -16,6 +16,7 @@ import { ttsCacheKey, ttsPrebuiltPath, TTS_MODEL, TTS_VOICE, TTS_PREBUILT_DIR, O
 import * as WP from "../js/data/writingPhrases.js";
 import { hintForResult } from "../js/games/strokeJudge.js";
 import { PREWRITING, AR as AR_STROKES } from "../js/data/strokes.js";
+import { LB_LETTERS, LB_ORDER, LB_HARAKAT, LB_SHADOWS, LB_BUILD, nameOf as lbName, bare as lbBare } from "../js/data/letterbook.js";
 import { WB_AR, WB_COLORS, WB_NUMBERS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR, WB_LINES, colorPairOf } from "../js/data/workbook.js";
 
 const MZ = MIZO.toneInstructions; // توجيهات لهجة ميزو (لمطابقة مفاتيح الكاش)
@@ -177,6 +178,33 @@ add("برافو", AR);
     const [a, b] = [WB_COLORS[k1].ar, WB_COLORS[k2].ar];
     [W.meetColors(a, b), W.realColor(a, b), W.realColor(b, a)].forEach(addAr);
   }
+}
+
+// ===== «كراسة الحروف» (٢٠٢٦-١٠-١٣) — LB_SAY بكل الحروف + الفزّورة والكلمات والمقاطع =====
+{
+  const S = WP.LB_SAY;
+  [S.chooser, S.riddleWrong, S.harakaChoose, S.harakaWrong, S.startsWrong, S.startsMore, S.missing, S.missingWrong,
+    S.writeAlone, S.shadow, S.shadowWrong, S.colorLearned, S.colorWrong, S.matchFirst, S.matchWrong, S.sameSound,
+    S.sameWrong, S.positionWrong, S.buildWrong, ...S.formPos, ...S.cheer].forEach(addAr);
+  add("أنا اتعلّمت", AR); add("التهيئة", AR);
+  for (const ch of LB_ORDER) {
+    const L = LB_LETTERS[ch];
+    const name = lbName(ch);
+    const s3 = ["a", "u", "i"].map((h) => (ch === "أ" && h === "i" ? "إ" : ch) + LB_HARAKAT[h].mark);
+    [S.meet(name, s3.join("، ")), S.pop(name), S.popWrong(name), S.popMore(name), S.harakat(name), S.starts(name),
+      S.forms(name), S.position(name), WP.writeIntro("الحرف", name), L.riddle].forEach(addAr);
+    add(name, AR);
+    // المقاطع (بَ بُ بِ بْ) + «اقرأ بُ …»
+    for (const h of ["a", "u", "i", "o"]) {
+      const v = (ch === "أ" && h === "i" ? "إ" : ch) + LB_HARAKAT[h].mark;
+      add(v, AR);
+      if (h !== "o") addAr(S.harakaPic(v));
+    }
+    // كل كلمة: بالتشكيل (الحركات) ومن غيره (الصور والفزّورة)
+    for (const x of [...L.harakat, ...L.forms, ...L.more, L.answer]) { add(x.w, AR); add(lbBare(x.w), AR); }
+  }
+  for (const x of LB_SHADOWS) add(x.w, AR);
+  for (const b of LB_BUILD) { add(b.w, AR); addAr(S.build(lbName(b.a), lbName(b.b))); }
 }
 
 // ===== --dry: يعدّ الناقص بس (من غير مفتاح ولا تكلفة) — للفحص والـCI =====

@@ -12,6 +12,13 @@ export const ACTIVITIES = {
       params: { datasetKey: "prewriting", lang: "ar-EG", title: "✍️ تمارين قبل الكتابة" },
     },
     {
+      emoji: "📕",
+      title: "كراسة الحروف",
+      desc: "الكتاب كله حرف حرف بالفتحة والضمة والكسرة — نكتب شوية ونلعب شوية",
+      screen: "letterbook",
+      params: {},
+    },
+    {
       emoji: "🧑‍🏫",
       title: "معلّم الحروف",
       desc: "شرح الحرف وكتابته بالحركة",
