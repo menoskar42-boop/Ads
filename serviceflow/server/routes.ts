@@ -9652,10 +9652,14 @@ export async function registerRoutes(
         });
       }
       stockTech = st.tech;
-    } catch (e) { /* الخصم إضافى — مايوقّفش حفظ الكمية */ }
+    } catch (e) {
+      // الخصم إضافى — مايوقّفش حفظ الكمية. بس الفنى اللى سجّل بنفسه بيتخصم منه حتى لو التحديد وقع
+      // (المالك ٢٠٢٦-١٠-١٣: «اسلام مسجّل لكن فى الرصيد بتاعه ظاهر صفر»).
+      if (req.user?.role === ROLES.TECH) stockTech = matchTechnician(userName);
+    }
     // سلك الصيانة: التاريخ اللى اتكتب فى الشاشة (المالك ٢٠٢٦-١٠-١٣ — النهارده افتراضياً ويتعدّل)؛
-    // من غيره (نسخة قديمة) تاريخ إغلاق العطل زى الأول. التركيب/النقل: تاريخ إغلاق أمر الشغل.
-    const chosenDay = type === "صيانة" ? chosenWorkDay : null;
+    // من غيره (نسخة قديمة) يوم التسجيل («مسجّل من الفنى من تاريخ …»). التركيب/النقل: تاريخ إغلاق أمر الشغل.
+    const chosenDay = type === "صيانة" ? chosenWorkDay ?? new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }) : null;
     const stockDate = pendingAfter != null ? null : link ? link.closeDate
       : chosenDay ?? await workDate(pool, local, type).catch(() => null);
     try {

@@ -14,7 +14,7 @@
 import type { Express } from "express";
 import type { Pool } from "pg";
 import { ROLES } from "@shared/schema";
-import { TECHNICIANS, matchTechnician } from "@shared/technicians";
+import { TECHNICIANS, matchTechnician, techNorm, variantsOf } from "@shared/technicians";
 import { phoneNormSql as sp } from "./phone-norm";
 
 export type CableType = "install" | "maint";
@@ -216,18 +216,27 @@ export async function workDate(pool: Pool, phoneLocal: string, workOrderType: st
 }
 
 /**
- * الإدخالات اللى اتسجّلت قبل ما المخزن يتعمل (أو وهو شغّال من غير تاريخ): نحدّد لها الفنى
+ * الإدخالات اللى اتسجّلت قبل ما المخزن يتعمل (أو وهو شغّال من غير تاريخ/فنى): نحدّد لها الفنى
  * وتاريخ الشغل — والقاعدة (تاريخ الشغل ≥ تاريخ الاحتساب COUNT_FROM) هى اللى بتقرّر تتحسب ولا لأ.
- * مرة واحدة لكل إدخال (stock_date بيتملى حتى لو الفنى فضل مش معروف).
+ * وكمان اللى اتحفظ من غير فنى (تحديد الفنى وقع وقت الحفظ — المالك ٢٠٢٦-١٠-١٣: «اسلام مسجّل لكن
+ * فى الرصيد بتاعه ظاهر صفر»): الفنى اللى سجّله بنفسه، وإلا فنى الإغلاق. اللى فاضل مش معروف
+ * بيظهر فى «محتاج تحدّد الفنى».
  */
+/** اسم المستخدم = اسم فنى من الخمسة بالظبط (مش بداية اسم) — للحسابات اللى دورها مش «فنى». */
+export const exactTechOf = (username: unknown): string | null => {
+  const v = techNorm(username);
+  if (v.length < 3) return null;
+  return TECHNICIANS.find((t) => variantsOf(t).some((x) => techNorm(x) === v))?.name ?? null;
+};
+
 export async function backfillStock(pool: Pool, limit = 5000): Promise<{ done: number; withTech: number }> {
   const { rows } = await pool.query(
-    `SELECT ce.id, ce.phone_local, ce.work_order_type, ce.created_at, ce.stock_tech_name,
+    `SELECT ce.id, ce.phone_local, ce.work_order_type, ce.created_at, ce.stock_tech_name, ce.stock_date::text AS stock_date,
             u.role, u.username,
             (SELECT tn.tech_name FROM technician_names tn WHERE btrim(tn.worker_code) = btrim(COALESCE(u.worker_code, ''))
                AND btrim(COALESCE(u.worker_code, '')) <> '' ORDER BY tn.id DESC LIMIT 1) AS self_name
        FROM cable_entries ce LEFT JOIN users u ON u.id = ce.created_by_id
-      WHERE ce.stock_date IS NULL AND ce.created_at > now() - interval '180 days'
+      WHERE (ce.stock_date IS NULL OR ce.stock_tech_name IS NULL) AND ce.created_at > now() - interval '180 days'
         -- المستنى أمر شغل (server/cable-link.ts) مابيتخصمش غير لما أمر الشغل يظهر
         AND ce.pending_after_wo IS NULL
       ORDER BY ce.id LIMIT $1`, [limit]);
@@ -235,9 +244,12 @@ export async function backfillStock(pool: Pool, limit = 5000): Promise<{ done: n
   for (const r of rows) {
     let tech: string | null = r.stock_tech_name;
     if (!tech && r.role === ROLES.TECH) tech = matchTechnician(r.self_name) || matchTechnician(r.username);
+    if (!tech) tech = exactTechOf(r.username);   // حساب تانى (مش فنى) اسمه بالظبط اسم فنى من الخمسة
     if (!tech) tech = (await closingTech(pool, r.phone_local, r.work_order_type)).tech;
-    const d = await workDate(pool, r.phone_local, r.work_order_type, r.created_at);
-    await pool.query(`UPDATE cable_entries SET stock_date = $2::date, stock_tech_name = COALESCE(stock_tech_name, $3) WHERE id = $1`, [r.id, d, tech]);
+    // صيانة ⇒ يوم التسجيل (المالك ٢٠٢٦-١٠-١٣: «مسجّل من الفنى من تاريخ …»)؛ تركيب/نقل ⇒ تاريخ إغلاق أمر الشغل
+    const d = r.stock_date ?? (cableTypeOf(r.work_order_type) === "maint" ? cairoToday(new Date(r.created_at))
+      : await workDate(pool, r.phone_local, r.work_order_type, r.created_at));
+    await pool.query(`UPDATE cable_entries SET stock_date = COALESCE(stock_date, $2::date), stock_tech_name = COALESCE(stock_tech_name, $3) WHERE id = $1`, [r.id, d, tech]);
     if (tech) withTech++;
   }
   return { done: rows.length, withTech };
@@ -279,22 +291,29 @@ export async function notifyIfNegative(pool: Pool, tech: string, type: CableType
 }
 
 /* ───────────── الراوتس ───────────── */
+/** أقل مدة بين تصليحين لما حد يفتح الأرصدة. */
+export const BACKFILL_ON_VIEW_MS = 10 * 60 * 1000;
+
 export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth: any; selfTechName: (user: any) => Promise<string | null> }): void {
   const { pool, requireAuth } = deps;
-  let backfilling = false;
-  const runBackfill = () => {
-    if (backfilling) return;
-    backfilling = true;
-    backfillStock(pool)
+  let backfilling: Promise<void> | null = null;
+  let lastBackfill = 0;
+  const runBackfill = (): Promise<void> => {
+    if (backfilling) return backfilling;
+    lastBackfill = Date.now();
+    backfilling = backfillStock(pool)
       .then((r) => { if (r.done) console.log(`[local-store] تاريخ الشغل والفنى لـ ${r.done} إدخال (${r.withTech} بفنى)`); })
       .catch((e) => console.error("[local-store] backfill:", e?.message))
-      .finally(() => { backfilling = false; });
+      .finally(() => { backfilling = null; });
+    return backfilling;
   };
   setTimeout(runBackfill, 30_000).unref?.();
   const viewer = (req: any, res: any, next: any) => (canViewStore(req.user?.role) ? next() : res.status(403).json({ message: "المخزن المحلى: مسئول البيانات والإدارة والشئون الخارجية بس" }));
   const recorder = (req: any, res: any, next: any) => (canRecordMoves(req.user?.role) ? next() : res.status(403).json({ message: "تسجيل حركات المخزن: مسئول البيانات والسوبر أدمن بس" }));
 
   app.get("/api/local-store/summary", requireAuth, viewer, async (req: any, res) => {
+    // إدخال اتحفظ من غير فنى/تاريخ بيتصلّح قبل ما الرصيد يتعرض (مرة كل ١٠ دقايق بالكتير)
+    if (Date.now() - lastBackfill > BACKFILL_ON_VIEW_MS) await runBackfill();
     try { res.json({ ...(await storeSummary(pool)), techNames: STORE_TECHS, canRecord: canRecordMoves(req.user?.role), canEditOpening: canEditOpening(req.user?.role), canEditMoves: canEditMoves(req.user?.role) }); }
     catch (e: any) { res.status(500).json({ message: e.message }); }
   });

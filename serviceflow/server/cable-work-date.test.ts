@@ -19,7 +19,8 @@ test("السيرفر: سلك الصيانة بيتسجّل بالتاريخ ال
   const r = src("server/routes.ts");
   assert.match(r, /const chosenWorkDay = String\(req\.body\?\.workDate \?\? ""\)\.trim\(\) \|\| null;/);
   assert.match(r, /التاريخ مايبقاش بعد النهارده/);
-  assert.match(r, /const chosenDay = type === "صيانة" \? chosenWorkDay : null;/);
+  // من غير تاريخ (نسخة قديمة) ⇒ يوم التسجيل (المالك ٢٠٢٦-١٠-١٣)
+  assert.match(r, /const chosenDay = type === "صيانة" \? chosenWorkDay \?\? new Date\(\)\.toLocaleDateString\("en-CA", \{ timeZone: "Africa\/Cairo" \}\) : null;/);
   assert.match(r, /: chosenDay \?\? await workDate\(pool, local, type\)/);
   assert.match(r, /stock_date::text AS "workDate"/);
 });
