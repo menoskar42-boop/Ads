@@ -237,3 +237,26 @@ test("start badges never sit on top of each other (B, E, M, ت …) — capital,
   assert.deepEqual(bad, []);
   assert.deepEqual(startMarks(strokesFor("ب")), [[86, 42], [50, 78]], "no overlap ⇒ untouched");
 });
+
+// ===== «لوحده»: الحرف كله بنسبة (المالك ٢٠٢٦-١٠-١٣: «ميشدّش على الميل والزوايا») =====
+test("scoreDrawing: same letter smaller/shifted/slanted/shaky passes; another letter or reversed fails", async () => {
+  const { scoreDrawing, SCORE_PASS } = await import("../js/games/strokeJudge.js");
+  const tf = (st, f) => st.map((s) => (s.length === 1 ? s : densify(s, 2)).map(f));
+  for (const g of ["M", "ب", "ج", "٥", "3"]) {
+    const m = strokesFor(g);
+    assert.equal(scoreDrawing(m, m).score, 100, g);
+    const small = tf(m, ([x, y]) => [x * 0.6 + 12, y * 0.6 + 20]);
+    assert.ok(scoreDrawing(m, small).score >= 95, `${g} small and in a corner`);
+    const slant = tf(m, ([x, y]) => [x + (y - 50) * 0.2, y]);
+    assert.ok(scoreDrawing(m, slant).score >= SCORE_PASS, `${g} slanted ${scoreDrawing(m, slant).score}`);
+    let k = 0;
+    const shaky = tf(m, ([x, y]) => { k += 0.3; return [x + Math.sin(k) * 3, y + Math.cos(k * 0.7) * 3]; });
+    assert.ok(scoreDrawing(m, shaky).score >= SCORE_PASS, `${g} shaky`);
+    const rev = scoreDrawing(m, m.map((s) => [...s].reverse()));
+    if (g !== "٥") assert.ok(rev.score < SCORE_PASS && rev.reversed > 0, `${g} reversed`);
+  }
+  for (const [a, b] of [["M", "N"], ["3", "8"], ["ب", "ن"], ["ج", "د"], ["A", "H"], ["٥", "٠"]]) {
+    assert.ok(scoreDrawing(strokesFor(a), strokesFor(b)).score < 50, `${a} written as ${b}`);
+  }
+  assert.equal(scoreDrawing(strokesFor("ب"), []).score, 0);
+});

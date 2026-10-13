@@ -132,3 +132,87 @@ export function hintForResult(r, isDot) {
     default: return "";
   }
 }
+
+// ===== «لوحده»: الحرف كله يتكتب من غير وقفة، والحكم فى الآخر بنسبة =====
+// المالك ٢٠٢٦-١٠-١٣: «ميزو بيشدّ أوى إن الحرف يتكتب بنفس الميل والزوايا … يشوفه صح ولا غلط
+// بنسبة … ميوقفوش فى وسط ما هو بيكتب الحرف». فهنا مفيش حكم خط بخط: بنقارن **شكل** اللى
+// اتكتب كله بشكل الحرف بعد ما نوحّد المقاس والمكان (حرف صغير أو فى ركن المربع = نفس الحرف)،
+// والميل الخفيف بيخصم شوية بس. الخط بالمقلوب بيخصم كتير (الاتجاه مهم للخط بعدين)، وعدد الخطوط شوية.
+
+/** النسبة اللى فوقها الكتابة «صح» (٠–١٠٠). */
+export const SCORE_PASS = 70;
+/** خط مكتوب بالمقلوب (من آخره لأوله) بيخصم كده — الشكل صح بس الاتجاه لأ ⇒ مابيعدّيش. */
+export const REV_PENALTY = 35;
+
+function normalizeSets(sets) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const s of sets) for (const [x, y] of s) {
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  const sc = Math.max(x1 - x0, y1 - y0, 1e-6), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  return sets.map((s) => s.map(([x, y]) => [(x - cx) / sc, (y - cy) / sc]));
+}
+function meanMin(A, B) {
+  let sum = 0;
+  for (const a of A) {
+    let m = Infinity;
+    for (const b of B) { const d = (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2; if (d < m) m = d; }
+    sum += Math.sqrt(m);
+  }
+  return A.length ? sum / A.length : 1;
+}
+
+const pathLen = (p) => { let l = 0; for (let i = 1; i < p.length; i++) l += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); return l; };
+/** `n` نقطة على مسافات متساوية بطول الخط (نقطة واحدة ⇒ نفسها `n` مرة). */
+function resample(p, n) {
+  if (p.length < 2) return Array.from({ length: n }, () => p[0]);
+  const cum = cumulative(p), L = cum[cum.length - 1] || 1e-9, out = [];
+  let j = 1;
+  for (let k = 0; k < n; k++) {
+    const s = (L * k) / (n - 1);
+    while (j < p.length - 1 && cum[j] < s) j++;
+    const t = Math.max(0, Math.min(1, (s - cum[j - 1]) / ((cum[j] - cum[j - 1]) || 1e-9)));
+    out.push([p[j - 1][0] + (p[j][0] - p[j - 1][0]) * t, p[j - 1][1] + (p[j][1] - p[j - 1][1]) * t]);
+  }
+  return out;
+}
+
+/**
+ * نسبة قرب اللى اتكتب (`drawn`: خطوط، كل خط نقط) من الحرف (`model`) — من ٠ لـ١٠٠.
+ * بيرجّع { score, shape, reversed, countDiff }.
+ */
+export function scoreDrawing(model, drawn) {
+  const strokes = (drawn || []).filter((s) => s && s.length);
+  if (!strokes.length) return { score: 0, shape: 0, reversed: 0, countDiff: model.length };
+  const dens = (s) => (s.length === 1 ? s : densify(s, 1.5));
+  const nm = normalizeSets(model.map(dens));
+  const nd = normalizeSets(strokes.map(dens));
+  const M = nm.flat(), D = nd.flat();
+  const chamfer = (meanMin(D, M) + meanMin(M, D)) / 2;
+  // بالترتيب: كل خط قصاد خطه (نفس العدد) نقطة بنقطة — بيفرّق 3 عن 8 وM عن N
+  // (اللى شكلهم «مغطّى» بس الحركة مختلفة)
+  let ordered = chamfer, revPairs = 0;
+  if (nm.length === nd.length) {
+    let sum = 0, wsum = 0;
+    for (let i = 0; i < nm.length; i++) {
+      const a = resample(nm[i], 32), b = resample(nd[i], 32);
+      const w = Math.max(0.05, pathLen(nm[i]));
+      let t = 0, tr = 0;
+      for (let k = 0; k < 32; k++) {
+        t += Math.hypot(a[k][0] - b[k][0], a[k][1] - b[k][1]);
+        tr += Math.hypot(a[k][0] - b[31 - k][0], a[k][1] - b[31 - k][1]);
+      }
+      // الخط صح بس بالمقلوب ⇒ الشكل بيتحسب، والاتجاه بيخصم تحت
+      if (tr < t * 0.6) { t = tr; revPairs++; }
+      sum += (t / 32) * w; wsum += w;
+    }
+    ordered = sum / wsum;
+  }
+  const d = 0.5 * chamfer + 0.5 * ordered;
+  // d≈٠.٠٣ لحرف مكتوب كويس بإيد طفل، و≈٠.٢ لشكل تانى خالص
+  const shape = Math.max(0, Math.min(100, Math.round(100 * (1 - (d - 0.035) / 0.17))));
+  const reversed = revPairs;
+  const countDiff = Math.abs(model.length - strokes.length);
+  const score = Math.max(0, Math.min(100, shape - REV_PENALTY * reversed - 10 * countDiff));
+  return { score, shape, reversed, countDiff };
+}

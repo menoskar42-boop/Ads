@@ -11,7 +11,8 @@ import { Store } from "../core/storage.js";
 import { femAdapt } from "../data/mizo.js";
 import { writeStatus, practiceOrder } from "./writeProgress.js";
 import { openWorksheet } from "./worksheet.js";
-import { ROUND_MSG, writeIntro, ALONE_TARGET, aloneAgainMsg } from "../data/writingPhrases.js";
+import { ROUND_MSG, writeIntro, ALONE_TARGET, SHOW_BELOW, aloneAgainMsg } from "../data/writingPhrases.js";
+import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
 // كل حرف بيتكتب كذا مرة (نقط ← نقط ← لوحده)، فالجلسة ٤ حروف بدل ٦ (الإنجليزى: زوجين A/a)
@@ -25,7 +26,7 @@ const RES = 300; // دقّة داخلية ثابتة
 // الطريقة القديمة (التغطية) فاضلة لأى رمز مالوش خطوط.
 
 /** كلام ميزو للطفل — بصيغة البنت لو الطفلة بنت. */
-/** ٢٠ مرة صح لوحده — الاختبارات بس بتقصّرها (__MYKID_ALONE_TARGET__) عشان ماتكتبش كل حرف ٢٠ مرة. */
+/** ١٠ مرات صح ورا بعض لوحده — الاختبارات بس بتقصّرها (__MYKID_ALONE_TARGET__). */
 const aloneTarget = () => {
   const t = Number(globalThis.__MYKID_ALONE_TARGET__);
   return Number.isInteger(t) && t > 0 ? t : ALONE_TARGET;
@@ -76,7 +77,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
   }
   let idx = 0;
   // خطة الحرف الحالى (renderBoard): المستوى لكل جولة + الجولة الحالية
-  let plan = null, step = 0, planFor = null, extraLoops = 0, aloneOk = 0;
+  let plan = null, step = 0, planFor = null, extraLoops = 0, aloneOk = 0, showNext = false;
   // رسالة ميزو فى آخر الجولة بتفضل ظاهرة فى أول الجولة اللى بعدها (الشاشة بتتبنى من جديد)
   let carryMsg = "";
 
@@ -295,6 +296,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       step = 0;
       extraLoops = 0;
       aloneOk = 0;
+      showNext = false;
     }
     const level = plan[step];
 
@@ -303,11 +305,11 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     const lvlBtn = document.createElement("button");
     lvlBtn.className = "wb-level";
     lvlBtn.type = "button";
-    // الحروف والأرقام: «لوحدك» بيتعدّ لحد ٢٠ مرة صح؛ قبلها (النقط) رقم الجولة
+    // الحروف والأرقام: «لوحدك» بيتعدّ المرات الصح ورا بعض لحد ١٠؛ قبلها (النقط) رقم الجولة
     const drill = !isPre && level === 3;
     lvlBtn.textContent = drill ? `${LEVEL_LABELS[level]} · ✓ ${aloneOk}/${aloneTarget()}` : `${LEVEL_LABELS[level]} · ${step + 1}/${plan.length}`;
     lvlBtn.setAttribute("aria-label", drill
-      ? `لوحدك: ${aloneOk} مرة صح من ${aloneTarget()} — اضغط لتغيير المساعدة`
+      ? `لوحدك: ${aloneOk} مرة صح ورا بعض من ${aloneTarget()} — اضغط لتغيير المساعدة`
       : `الجولة ${step + 1} من ${plan.length}: ${LEVEL_LABELS[level]} — اضغط لتغيير المساعدة`);
     lvlBtn.addEventListener("click", () => {
       Sfx.tap();
@@ -329,14 +331,16 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       ...penBoardOptions((text) => showHint(tell(text))),
       strokes,
       level,
+      // «لوحده» للحروف والأرقام: من غير وقفة فى النص، والحكم بنسبة فى الآخر
+      free: !isPre && level === 3,
       from: it.from,
       to: it.to,
       onHint: (text) => {
         Sfx.wrong();
         showHint(tell(text));
       },
-      onDone: ({ fails }) => {
-        Sfx.correct();
+      onDone: ({ fails, score }) => {
+        if (score == null || score >= SCORE_PASS) Sfx.correct(); else Sfx.wrong();
         board.el.animate(
           [{ transform: "scale(1)" }, { transform: "scale(1.1)" }, { transform: "scale(1)" }],
           { duration: 500 }
@@ -351,24 +355,27 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
           }
           return say(plan[step + 1] === 3 ? ROUND_MSG.toAlone : ROUND_MSG.againDots, nextRound);
         }
-        // جولة «لوحده»
-        if (fails <= 2 && !isPre) {
-          // الحروف والأرقام (المالك ٢٠٢٦-١٠-١٣): «مش أقل من ٢٠ مرة صح بدون نقط» — كل مرة صح بتتعدّ،
-          // ولحد ما يوصل ٢٠ بيكتبه لوحده تانى
-          aloneOk++;
-          Store.recordWrite(levelKey, fails, 3);
-          if (aloneOk < aloneTarget()) {
-            plan.push(3);
-            return say(aloneAgainMsg(aloneOk), nextRound, 1500);
-          }
-          Store.setWriteLevel(levelKey, 3);
-          Speech.say(sayDone, { lang: speakLang });
-          return say(ROUND_MSG.doneAloneAll, next, 2200);
-        }
+        // جولة «لوحده» — الحروف والأرقام (المالك ٢٠٢٦-١٠-١٣): الحرف اتكتب كله واتحكم عليه بنسبة.
+        // نسبة عالية ⇒ تتعدّ؛ أقل ⇒ العدّ يرجع صفر (لازم ١٠ ورا بعض). وفى الحالتين بيكتبه تانى.
         if (!isPre) {
-          // غلط وهو لوحده ⇒ مرة على النقط وبعدين لوحده تانى (المرة الغلط مابتتعدّش)
-          plan.splice(step + 1, 0, 2, 3);
-          return say(ROUND_MSG.backToDots, nextRound);
+          const ok = score >= SCORE_PASS;
+          const sayPct = (msg, then, wait) => {
+            carryMsg = `${score}٪ · ${tell(msg)}`;
+            showHint(carryMsg);
+            setTimeout(then, wait);
+          };
+          Store.recordWrite(levelKey, ok ? 0 : 3, 3);
+          aloneOk = ok ? aloneOk + 1 : 0;
+          if (aloneOk >= aloneTarget()) {
+            Store.setWriteLevel(levelKey, 3);
+            Speech.say(sayDone, { lang: speakLang });
+            return sayPct(ROUND_MSG.doneAloneAll, next, 2200);
+          }
+          plan.push(3);
+          if (ok) return sayPct(aloneAgainMsg(aloneOk), nextRound, 1600);
+          if (score >= SHOW_BELOW) return sayPct(ROUND_MSG.aloneClose, nextRound, 1900);
+          showNext = true;    // بعيد ⇒ الصباع يوريه الأول
+          return sayPct(ROUND_MSG.aloneShow, nextRound, 1900);
         }
         if (fails <= 2) {
           Store.recordWrite(levelKey, fails, 3);
@@ -436,6 +443,10 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
         if (isPre) tell(it.say);
         else tell(writeIntro(noun, label));
         setTimeout(() => board.demo(), 1400);
+      } else if (showNext) {
+        // على طول — قبل ما يلحق يبدأ يكتب (العرض بيمسح اللوحة)
+        showNext = false;
+        board.demo();
       }
     });
   }

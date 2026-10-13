@@ -8,7 +8,7 @@
 //   • المساعدة بتقلّ بالتدريج: ١ خط عريض كامل · ٢ نقط بس · ٣ مربع فاضى.
 //
 // الحكم نفسه فى `strokeJudge.js` (دوال صافية متقاسة فى node).
-import { StrokeTracker, densify, cumulative, hintForResult } from "./strokeJudge.js";
+import { StrokeTracker, densify, cumulative, hintForResult, scoreDrawing, SCORE_PASS } from "./strokeJudge.js";
 import { Sfx } from "../core/audio.js";
 
 const RES = 300;
@@ -57,7 +57,8 @@ function arrowsOn(ctx, pts, every, only1 = false) {
 
 /**
  * يركّب لوحة الكتابة جوّه `host`.
- * opts: { strokes, level, from, to, onStroke(ok), onHint(text, result), onDone({fails}) }
+ * opts: { strokes, level, from, to, free, onStroke(ok), onHint(text, result), onDone({fails, score}) }
+ * free = «لوحده» من غير وقفة: الحرف كله يتكتب والحكم فى الآخر بنسبة (scoreDrawing).
  * بيرجّع { el, demo(), reset(), destroy() }.
  */
 export function mountWriteBoard(host, opts) {
@@ -72,6 +73,12 @@ export function mountWriteBoard(host, opts) {
   let pid = null;
   let last = null;
   let alive = true;
+  // «لوحده» من غير وقفة (المالك ٢٠٢٦-١٠-١٣): مفيش حكم خط بخط ولا مسح فى النص — الطفل
+  // بيكمّل الحرف، وبعد ما يرفع آخر خط (أو يقف شوية) بنحسب النسبة مرة واحدة
+  const free = !!opts.free;
+  let drawn = [];
+  let curPts = null;
+  let evalTimer = null;
 
   // نموذج صغير فوق المربع فى المستوى ٣ (المربع فاضى — بس الطفل لازم يعرف هيكتب إيه).
   // برّه المربع: جوّاه كان بيغطّى مكان بداية حروف زى ج.
@@ -147,11 +154,13 @@ export function mountWriteBoard(host, opts) {
       const now = i === cur && !finished;
       if (st.length === 1) {
         const [x, y] = st[0];
+        if (done && free) return;
         if (done) { gctx.fillStyle = DONE; gctx.beginPath(); gctx.arc(x * K, y * K, 13, 0, 7); gctx.fill(); }
         else if (level === 1) { gctx.strokeStyle = LINE; gctx.lineWidth = 4; gctx.beginPath(); gctx.arc(x * K, y * K, 14, 0, 7); gctx.stroke(); }
         else if (level === 2) { gctx.fillStyle = LINE; gctx.beginPath(); gctx.arc(x * K, y * K, 5, 0, 7); gctx.fill(); }
         return;
       }
+      if (done && free) return;   // لوحده: الحبر بتاعه هو اللى ظاهر، مش الحرف المظبوط
       if (done) {
         gctx.strokeStyle = DONE; gctx.lineWidth = 24; pathOn(gctx, st); gctx.stroke();
         return;
@@ -386,10 +395,58 @@ export function mountWriteBoard(host, opts) {
       clearInk(true);
     }
   }
-  ink.addEventListener("pointerdown", down);
-  ink.addEventListener("pointermove", move);
-  ink.addEventListener("pointerup", up);
-  ink.addEventListener("pointercancel", cancel);
+  // ===== «لوحده» من غير وقفة =====
+  const FREE_DONE_MS = 800;   // بعد آخر خط
+  const FREE_IDLE_MS = 2600;  // وقف قبل ما يكمّل كل الخطوط ⇒ نحكم على اللى اتكتب
+  function freeDown(e) {
+    if (busy || finished || drawing || ignorable(e)) return;
+    e.preventDefault();
+    clearTimeout(evalTimer);
+    try { ink.setPointerCapture(e.pointerId); } catch (_) {}
+    pid = e.pointerId;
+    const p = toUnits(e);
+    curPts = [p];
+    inkDot(p);
+    drawing = true;
+    last = p;
+  }
+  function freeMove(e) {
+    if (!drawing || e.pointerId !== pid) return;
+    e.preventDefault();
+    const evs = typeof e.getCoalescedEvents === "function" ? e.getCoalescedEvents() : [];
+    for (const ev of evs.length ? evs : [e]) {
+      const p = toUnits(ev);
+      inkLine(last, p);
+      curPts.push(p);
+      last = p;
+    }
+  }
+  function freeUp(e) {
+    if (!drawing || e.pointerId !== pid) return;
+    drawing = false;
+    drawn.push(curPts);
+    curPts = null;
+    cur = drawn.length;
+    paint();
+    clearTimeout(evalTimer);
+    evalTimer = setTimeout(freeJudge, drawn.length >= strokes.length ? FREE_DONE_MS : FREE_IDLE_MS);
+  }
+  function freeJudge() {
+    if (!alive || finished || drawing || !drawn.length) return;
+    finished = true;
+    const r = scoreDrawing(strokes, drawn);
+    paint();
+    if (r.score >= SCORE_PASS) Sfx.pop();
+    if (opts.onDone) opts.onDone({ fails: r.score >= SCORE_PASS ? 0 : 3, score: r.score, result: r });
+  }
+  function freeCancel(e) {
+    if (drawing && e.pointerId === pid) { drawing = false; curPts = null; }
+  }
+
+  ink.addEventListener("pointerdown", (e) => (free ? freeDown(e) : down(e)));
+  ink.addEventListener("pointermove", (e) => (free ? freeMove(e) : move(e)));
+  ink.addEventListener("pointerup", (e) => (free ? freeUp(e) : up(e)));
+  ink.addEventListener("pointercancel", (e) => (free ? freeCancel(e) : cancel(e)));
 
   /**
    * «شوف إزاى»: صباع بيمشى على الخطوط بالترتيب وبيسيب أثر. `only` = خط واحد بس.
@@ -399,6 +456,7 @@ export function mountWriteBoard(host, opts) {
     busy = true;
     drawing = false;
     clearInk(false);
+    if (free) { clearTimeout(evalTimer); drawn = []; curPts = null; cur = 0; paint(); }
     const hand = document.createElement("div");
     hand.className = "wb-hand";
     hand.textContent = "👆";
@@ -454,6 +512,9 @@ export function mountWriteBoard(host, opts) {
     fails = 0;
     finished = false;
     drawing = false;
+    clearTimeout(evalTimer);
+    drawn = [];
+    curPts = null;
     clearInk(false);
     paint();
   }
@@ -464,6 +525,6 @@ export function mountWriteBoard(host, opts) {
     demo,
     reset,
     get level() { return level; },
-    destroy() { alive = false; box.remove(); if (mini) mini.remove(); },
+    destroy() { alive = false; clearTimeout(evalTimer); box.remove(); if (mini) mini.remove(); },
   };
 }
