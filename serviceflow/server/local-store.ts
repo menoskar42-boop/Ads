@@ -74,33 +74,28 @@ export async function storeStart(pool: Pool): Promise<string | null> {
 }
 
 /**
- * الاستخدام اللى بيتخصم (المالك ٢٠٢٦-١٠-٠٧): فيه سلك اتسجّل قبل كده من الفنيين — ده مايتحسبش.
- * بيتحسب بس الشغل اللى تاريخه (stock_date = تاريخ إغلاق أمر الشغل، أو إغلاق العطل للصيانة)
- * يوم أول صرف للفنى ده من النوع ده **أو بعده**.
+ * الاستخدام اللى بيتخصم من رصيد الفنى — تاريخ ثابت لكل نوع سلك (المالك ٢٠٢٦-١٠-١٣):
+ *   • سلك الصيانة: «أى سلك صيانة مسجّل من الفنى من تاريخ 29-9-2026» (اليوم ده محسوب).
+ *   • سلك التركيبات (تركيب ونقل — نفس الرصيد): «أى تركيب تم إغلاقه من يوم 6-10-2026».
+ * stock_date = تاريخ إغلاق أمر الشغل للتركيب/النقل، وتاريخ الشغل اللى اتكتب للصيانة.
+ * ده بدل قاعدة ٢٠٢٦-١٠-٠٧ (من أول صرف لكل فنى) — اللى كانت بتشيل استخدام الفنى اللى مااستلمش
+ * خالص فرصيده يفضل صفر بدل ما يطلع بالسالب.
  */
-const FIRST_ISSUE = `(SELECT tech_name, cable_type, min(move_date) AS first_issue FROM local_store_moves
-                       WHERE deleted_at IS NULL AND kind = 'issue' GROUP BY 1, 2)`;
-// بداية المخزن لكل نوع سلك (أقدم حركة: افتتاحى/وارد/صرف).
-// المالك ٢٠٢٦-١٠-١٣: «سلك الصيانة لإسلام مسجّل لكن رصيده ظاهر صفر — المفروض يطلع بالسالب لأنه
-// مستلمش». الفنى اللى مااستلمش خالص من النوع ده كان مالوش «أول صرف» فاستخدامه كله كان بيتشال.
-// دلوقتى: من أول صرف ليه لو استلم (زى الأول بالظبط)، ولو مااستلمش ⇒ من بداية المخزن للنوع ده.
-const TYPE_START = `(SELECT cable_type, min(move_date) AS type_start FROM local_store_moves
-                      WHERE deleted_at IS NULL GROUP BY 1)`;
-const USAGE_FROM = `cable_entries ce
-                      JOIN ${TYPE_START} ts ON ts.cable_type = ${cableTypeSql("ce.work_order_type")}
-                      LEFT JOIN ${FIRST_ISSUE} fi ON fi.tech_name = ce.stock_tech_name AND fi.cable_type = ts.cable_type`;
-const USAGE_COND = `ce.stock_tech_name IS NOT NULL AND ce.stock_date >= COALESCE(fi.first_issue, ts.type_start)`;
-/** من إمتى الشغل اللى مش معروف يتخصم من مين بيتعدّ: أول صرف لأى فنى من النوع، أو بداية المخزن. */
-const UNASSIGNED_FROM = (typeExpr: string) => `COALESCE(
-    (SELECT min(f.first_issue) FROM ${FIRST_ISSUE} f WHERE f.cable_type = ${typeExpr}),
-    (SELECT t.type_start FROM ${TYPE_START} t WHERE t.cable_type = ${typeExpr}))`;
+export const COUNT_FROM: Record<CableType, string> = { maint: "2026-09-29", install: "2026-10-06" };
+const countFrom = (typeExpr: string) =>
+  `(CASE WHEN ${typeExpr} = 'maint' THEN DATE '${COUNT_FROM.maint}' ELSE DATE '${COUNT_FROM.install}' END)`;
+const USAGE_FROM = `cable_entries ce`;
+const USAGE_COND = `ce.stock_tech_name IS NOT NULL
+  AND ce.stock_date >= ${countFrom(cableTypeSql("ce.work_order_type"))}`;
+/** الشغل اللى مش معروف يتخصم من مين: بيتعدّ من نفس التاريخ. */
+const UNASSIGNED_FROM = (typeExpr: string) => countFrom(typeExpr);
 
 export interface TechBalance { tech: string; type: CableType; issued: number; used: number; balance: number }
 export interface StoreSummary {
   startDate: string | null;
   store: Record<CableType, { opening: number; received: number; issued: number; balance: number; lastReceipt: string | null }>;
   techs: TechBalance[];
-  /** شغل بعد أول صرف ومش معروف يتخصم من مين (فنى الإغلاق مش من الخمسة) — محتاج يتحدّد */
+  /** شغل من تاريخ الاحتساب (COUNT_FROM) ومش معروف يتخصم من مين (فنى الإغلاق مش من الخمسة) — محتاج يتحدّد */
   unassigned: Record<CableType, number>;
 }
 
@@ -222,7 +217,7 @@ export async function workDate(pool: Pool, phoneLocal: string, workOrderType: st
 
 /**
  * الإدخالات اللى اتسجّلت قبل ما المخزن يتعمل (أو وهو شغّال من غير تاريخ): نحدّد لها الفنى
- * وتاريخ الشغل — والقاعدة (تاريخ الشغل ≥ أول صرف للفنى) هى اللى بتقرّر تتحسب ولا لأ.
+ * وتاريخ الشغل — والقاعدة (تاريخ الشغل ≥ تاريخ الاحتساب COUNT_FROM) هى اللى بتقرّر تتحسب ولا لأ.
  * مرة واحدة لكل إدخال (stock_date بيتملى حتى لو الفنى فضل مش معروف).
  */
 export async function backfillStock(pool: Pool, limit = 5000): Promise<{ done: number; withTech: number }> {
@@ -484,7 +479,7 @@ export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth
       if (isDate(to)) { params.push(to); dateConds.push(`ce.stock_date <= $${params.length}::date`); }
       let sql: string;
       if (tech === "__none__") {
-        // بعد أول صرف (لأى فنى من النوع ده) ومش معروف يتخصم من مين
+        // من تاريخ الاحتساب (COUNT_FROM) ومش معروف يتخصم من مين
         sql = `SELECT ce.id, ce.phone_full AS "phone", ce.work_order_type AS "workOrderType",
                       NULLIF(ce.cable_quantity, '')::float AS qty, NULL AS "tech", ce.stock_date::text AS "date", ce.created_by_name AS "enteredBy"
                  FROM cable_entries ce
@@ -497,7 +492,7 @@ export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth
         sql = `SELECT ce.id, ce.phone_full AS "phone", ce.work_order_type AS "workOrderType",
                       NULLIF(ce.cable_quantity, '')::float AS qty, ce.stock_tech_name AS "tech", ce.stock_date::text AS "date", ce.created_by_name AS "enteredBy"
                  FROM ${USAGE_FROM}
-                WHERE ${USAGE_COND} AND ts.cable_type = $1 ${dateConds.map((c) => "AND " + c).join(" ")}
+                WHERE ${USAGE_COND} AND ${cableTypeSql("ce.work_order_type")} = $1 ${dateConds.map((c) => "AND " + c).join(" ")}
                 ORDER BY ce.stock_date, ce.id`;
       }
       const { rows } = await pool.query(sql, params);
