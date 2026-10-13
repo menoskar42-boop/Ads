@@ -80,9 +80,20 @@ export async function storeStart(pool: Pool): Promise<string | null> {
  */
 const FIRST_ISSUE = `(SELECT tech_name, cable_type, min(move_date) AS first_issue FROM local_store_moves
                        WHERE deleted_at IS NULL AND kind = 'issue' GROUP BY 1, 2)`;
-const USAGE_FROM = `cable_entries ce JOIN ${FIRST_ISSUE} fi
-                      ON fi.tech_name = ce.stock_tech_name AND fi.cable_type = ${cableTypeSql("ce.work_order_type")}`;
-const USAGE_COND = `ce.stock_date >= fi.first_issue`;
+// بداية المخزن لكل نوع سلك (أقدم حركة: افتتاحى/وارد/صرف).
+// المالك ٢٠٢٦-١٠-١٣: «سلك الصيانة لإسلام مسجّل لكن رصيده ظاهر صفر — المفروض يطلع بالسالب لأنه
+// مستلمش». الفنى اللى مااستلمش خالص من النوع ده كان مالوش «أول صرف» فاستخدامه كله كان بيتشال.
+// دلوقتى: من أول صرف ليه لو استلم (زى الأول بالظبط)، ولو مااستلمش ⇒ من بداية المخزن للنوع ده.
+const TYPE_START = `(SELECT cable_type, min(move_date) AS type_start FROM local_store_moves
+                      WHERE deleted_at IS NULL GROUP BY 1)`;
+const USAGE_FROM = `cable_entries ce
+                      JOIN ${TYPE_START} ts ON ts.cable_type = ${cableTypeSql("ce.work_order_type")}
+                      LEFT JOIN ${FIRST_ISSUE} fi ON fi.tech_name = ce.stock_tech_name AND fi.cable_type = ts.cable_type`;
+const USAGE_COND = `ce.stock_tech_name IS NOT NULL AND ce.stock_date >= COALESCE(fi.first_issue, ts.type_start)`;
+/** من إمتى الشغل اللى مش معروف يتخصم من مين بيتعدّ: أول صرف لأى فنى من النوع، أو بداية المخزن. */
+const UNASSIGNED_FROM = (typeExpr: string) => `COALESCE(
+    (SELECT min(f.first_issue) FROM ${FIRST_ISSUE} f WHERE f.cable_type = ${typeExpr}),
+    (SELECT t.type_start FROM ${TYPE_START} t WHERE t.cable_type = ${typeExpr}))`;
 
 export interface TechBalance { tech: string; type: CableType; issued: number; used: number; balance: number }
 export interface StoreSummary {
@@ -121,8 +132,7 @@ export async function storeSummary(pool: Pool): Promise<StoreSummary> {
   const unassigned: Record<CableType, number> = { install: 0, maint: 0 };
   for (const r of (await pool.query(
     `SELECT ${cableTypeSql("ce.work_order_type")} AS cable_type, count(*)::int AS n FROM cable_entries ce
-      WHERE ce.stock_tech_name IS NULL AND ce.stock_date >= (SELECT min(f.first_issue) FROM ${FIRST_ISSUE} f
-                                                               WHERE f.cable_type = ${cableTypeSql("ce.work_order_type")})
+      WHERE ce.stock_tech_name IS NULL AND ce.stock_date >= ${UNASSIGNED_FROM(cableTypeSql("ce.work_order_type"))}
       GROUP BY 1`)).rows) unassigned[r.cable_type as CableType] = r.n;
   const map = new Map<string, TechBalance>();
   const get = (tech: string, type: CableType) => {
@@ -479,7 +489,7 @@ export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth
                       NULLIF(ce.cable_quantity, '')::float AS qty, NULL AS "tech", ce.stock_date::text AS "date", ce.created_by_name AS "enteredBy"
                  FROM cable_entries ce
                 WHERE ce.stock_tech_name IS NULL AND ${cableTypeSql("ce.work_order_type")} = $1
-                  AND ce.stock_date >= (SELECT min(f.first_issue) FROM ${FIRST_ISSUE} f WHERE f.cable_type = $1)
+                  AND ce.stock_date >= ${UNASSIGNED_FROM("$1")}
                   ${dateConds.map((c) => "AND " + c).join(" ")}
                 ORDER BY ce.stock_date, ce.id`;
       } else {
@@ -487,7 +497,7 @@ export function registerLocalStore(app: Express, deps: { pool: Pool; requireAuth
         sql = `SELECT ce.id, ce.phone_full AS "phone", ce.work_order_type AS "workOrderType",
                       NULLIF(ce.cable_quantity, '')::float AS qty, ce.stock_tech_name AS "tech", ce.stock_date::text AS "date", ce.created_by_name AS "enteredBy"
                  FROM ${USAGE_FROM}
-                WHERE ${USAGE_COND} AND fi.cable_type = $1 ${dateConds.map((c) => "AND " + c).join(" ")}
+                WHERE ${USAGE_COND} AND ts.cable_type = $1 ${dateConds.map((c) => "AND " + c).join(" ")}
                 ORDER BY ce.stock_date, ce.id`;
       }
       const { rows } = await pool.query(sql, params);
