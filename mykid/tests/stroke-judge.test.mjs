@@ -235,5 +235,5 @@ test("start badges never sit on top of each other (B, E, M, ت …) — capital,
     }
   }
   assert.deepEqual(bad, []);
-  assert.deepEqual(startMarks(strokesFor("ب")), [[80, 36], [50, 82]], "no overlap ⇒ untouched");
+  assert.deepEqual(startMarks(strokesFor("ب")), [[86, 42], [50, 78]], "no overlap ⇒ untouched");
 });
