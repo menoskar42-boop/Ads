@@ -64,6 +64,10 @@ export function CableEntriesList() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const isAdmin = user?.role === ROLES.ADMIN || user?.role === ROLES.SUPER_ADMIN;
+  const isSuper = user?.role === ROLES.SUPER_ADMIN;
+  // سلك الصيانة: الإلغاء للسوبر أدمن بس (حتى لو اتطبع) — المالك ٢٠٢٦-١٠-١٣
+  const canDelete = (en: CableEntry) => (en.workOrderType === "صيانة" ? isSuper : isAdmin || user?.id === en.createdById);
+  const deleteLocked = (en: CableEntry) => en.workOrderType !== "صيانة" && en.locked;
   const [search, setSearch] = useState("");
   const { data: entries = [], isFetching } = useCableEntries(search);
 
@@ -179,10 +183,11 @@ export function CableEntriesList() {
                         <KeyRound className="w-4 h-4" />
                       </Button>
                     )}
-                    {(isAdmin || user?.id === en.createdById) && (
+                    {canDelete(en) && (
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-30"
-                        onClick={() => deleteMutation.mutate(en.id)} disabled={deleteMutation.isPending || en.locked}
-                        title={en.locked ? "مقفل بعد الطباعة" : "حذف"}>
+                        onClick={() => { if (en.workOrderType !== "صيانة" || confirm(`إلغاء سلك الصيانة ${en.cableQuantity} م للرقم ${en.phoneFull}؟`)) deleteMutation.mutate(en.id); }}
+                        disabled={deleteMutation.isPending || deleteLocked(en)}
+                        title={deleteLocked(en) ? "مقفل بعد الطباعة" : "حذف"}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     )}
@@ -207,6 +212,26 @@ const ITEM_NAME = "سلك واحد جوز";
 
 /** إفادة صرف سلك الصيانة — زى الورقة بالظبط، وتوقيع الفنى فاضى. */
 export function MaintCableSheet() {
+  // السوبر أدمن بس (المالك ٢٠٢٦-١٠-١٣): يلغى سلك صيانة منزّله الفنى أو يعدّل تاريخه — الكمية لأ
+  const { user } = useAuth();
+  const isSuper = user?.role === ROLES.SUPER_ADMIN;
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["/api/cable-entries"] });
+    qc.invalidateQueries({ queryKey: ["/api/local-store"] });
+  };
+  const cancelMutation = useMutation({
+    mutationFn: async (id: number) => (await apiRequest("DELETE", `/api/cable-entries/${id}`)).json(),
+    onSuccess: () => { refresh(); toast({ title: "اتلغى", duration: 2500 }); },
+    onError: (e: Error) => toast({ title: "ماتلغاش", description: errMsg(e), variant: "destructive", duration: 6000 }),
+  });
+  const dateMutation = useMutation({
+    mutationFn: async ({ id, date }: { id: number; date: string }) =>
+      (await apiRequest("PATCH", `/api/cable-entries/${id}/date`, { date })).json(),
+    onSuccess: (d: any) => { refresh(); toast({ title: "اتعدّل التاريخ", description: d?.date, duration: 2500 }); },
+    onError: (e: Error) => { refresh(); toast({ title: "التاريخ ماتعدّلش", description: errMsg(e), variant: "destructive", duration: 6000 }); },
+  });
   const [from, setFrom] = useState(() => todayCairo().slice(0, 8) + "01");
   const [to, setTo] = useState(todayCairo);
   const { data: entries = [], isFetching } = useCableEntries("");
@@ -251,11 +276,14 @@ export function MaintCableSheet() {
       <div className="overflow-x-auto">
         <Table className="text-right text-sm" dir="rtl">
           <TableHeader className="bg-muted/50">
-            <TableRow>{MAINT_SHEET_COLS.map((c) => <TableHead key={c} className="text-right font-bold whitespace-nowrap">{c}</TableHead>)}</TableRow>
+            <TableRow>
+              {MAINT_SHEET_COLS.map((c) => <TableHead key={c} className="text-right font-bold whitespace-nowrap">{c}</TableHead>)}
+              {isSuper && <TableHead className="text-right font-bold whitespace-nowrap">السوبر أدمن</TableHead>}
+            </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow><TableCell colSpan={MAINT_SHEET_COLS.length} className="text-center py-10 text-muted-foreground">
+              <TableRow><TableCell colSpan={MAINT_SHEET_COLS.length + (isSuper ? 1 : 0)} className="text-center py-10 text-muted-foreground">
                 {isFetching ? "جاري التحميل..." : "مفيش صرف سلك صيانة فى الفترة دى"}
               </TableCell></TableRow>
             ) : rows.map((e) => (
@@ -264,6 +292,24 @@ export function MaintCableSheet() {
                   <TableCell key={j} dir={j === 0 || j === 6 ? "ltr" : undefined}
                     className={`whitespace-nowrap ${j === 0 || j === 6 ? "font-mono text-right" : ""} ${j === 5 ? "min-w-[120px]" : ""}`}>{c}</TableCell>
                 ))}
+                {isSuper && (
+                  <TableCell className="whitespace-nowrap">
+                    <div className="flex items-center gap-1">
+                      <Input type="date" defaultValue={entryDay(e)} max={todayCairo()} dir="ltr" key={`${e.id}-${entryDay(e)}`}
+                        className="h-8 w-36 text-xs" aria-label={`تاريخ سلك ${e.phoneLocal || e.phoneFull}`}
+                        disabled={dateMutation.isPending}
+                        onBlur={(ev) => {
+                          const v = ev.target.value;
+                          if (v && v !== entryDay(e)) dateMutation.mutate({ id: e.id, date: v });
+                        }} />
+                      <Button variant="ghost" size="sm" className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 gap-1"
+                        disabled={cancelMutation.isPending}
+                        onClick={() => { if (confirm(`إلغاء سلك الصيانة ${e.cableQuantity} م للرقم ${e.phoneLocal || e.phoneFull}؟`)) cancelMutation.mutate(e.id); }}>
+                        <Trash2 className="w-4 h-4" /> إلغاء
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

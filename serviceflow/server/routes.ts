@@ -9699,9 +9699,17 @@ export async function registerRoutes(
     const id = parseInt(req.params.id);
     if (!id || isNaN(id)) return res.status(400).json({ message: "معرّف غير صالح" });
     const { rows } = await pool.query(
-      `SELECT printed_at, edit_unlocked_at, created_by_id FROM cable_entries WHERE id = $1`, [id],
+      `SELECT printed_at, edit_unlocked_at, created_by_id, work_order_type FROM cable_entries WHERE id = $1`, [id],
     );
     if (!rows.length) return res.json({ ok: true });
+    // سلك الصيانة (المالك ٢٠٢٦-١٠-١٣): «السوبر أدمن فقط يقدر يلغى حاجة منزّلها الفنى» — ولا الفنى
+    // ولا الأدمن. والسوبر أدمن بيلغيها حتى لو التقرير اتطبع.
+    if (rows[0].work_order_type === "صيانة") {
+      if (req.user.role !== ROLES.SUPER_ADMIN)
+        return res.status(403).json({ message: "إلغاء سلك الصيانة للسوبر أدمن بس" });
+      await pool.query(`DELETE FROM cable_entries WHERE id = $1`, [id]);
+      return res.json({ ok: true });
+    }
     const userId: number = req.user.id;
     const isAdmin: boolean = hasAdminAccess(req.user.role);
     if (!isAdmin && rows[0].created_by_id !== userId) {
@@ -9712,6 +9720,23 @@ export async function registerRoutes(
     }
     await pool.query(`DELETE FROM cable_entries WHERE id = $1`, [id]);
     res.json({ ok: true });
+  });
+
+  // PATCH /api/cable-entries/:id/date — تعديل تاريخ سلك الصيانة (السوبر أدمن بس — المالك ٢٠٢٦-١٠-١٣:
+  // «يعدّل التاريخ لكن ميقدرش يعدّل كمية السلك»). التاريخ = stock_date (خصم الرصيد والتقارير).
+  app.patch("/api/cable-entries/:id/date", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    const id = parseInt(req.params.id);
+    if (!id || isNaN(id)) return res.status(400).json({ message: "معرّف غير صالح" });
+    const day = String(req.body?.date ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day)))
+      return res.status(400).json({ message: "التاريخ غير صالح" });
+    if (day > new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }))
+      return res.status(400).json({ message: "التاريخ مايبقاش بعد النهارده" });
+    const r = await pool.query(
+      `UPDATE cable_entries SET stock_date = $2::date, updated_at = now()
+        WHERE id = $1 AND work_order_type = 'صيانة' RETURNING id`, [id, day]);
+    if (!r.rowCount) return res.status(404).json({ message: "الإدخال مش موجود أو مش سلك صيانة" });
+    res.json({ ok: true, date: day });
   });
 
   // POST /api/cable-entries/mark-printed — يُستدعى عند طباعة تقرير أوامر الشغل.
