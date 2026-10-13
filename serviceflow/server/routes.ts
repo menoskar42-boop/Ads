@@ -9532,6 +9532,7 @@ export async function registerRoutes(
               work_order_type AS "workOrderType", cable_quantity AS "cableQuantity",
               created_by_id AS "createdById", created_by_name AS "createdByName",
               created_at AS "createdAt", updated_at AS "updatedAt",
+              stock_date::text AS "workDate",
               printed_at AS "printedAt", edit_unlocked_at AS "editUnlockedAt",
               -- تركيب/نقل لسه مستنى أمر الشغل (server/cable-link.ts) — وبيتمسح إمتى لو ماظهرش
               (pending_after_wo IS NOT NULL) AS "pending",
@@ -9599,6 +9600,12 @@ export async function registerRoutes(
     // رقم المحمول (يظهر فى الواجهة عند اختيار «صيانة» فقط) — يُسجَّل فى مخزن أرقام المحمول للخطوط
     // (line_mobiles) فيظهر عند البحث برقم التليفون. ON CONFLICT بيحدّث الرقم القديم تلقائياً بأحدث رقم.
     const mobileVal = String(mobile ?? "").trim();
+    // تاريخ الشغل (YYYY-MM-DD بتوقيت القاهرة) — مايبقاش فى المستقبل
+    const chosenWorkDay = String(req.body?.workDate ?? "").trim() || null;
+    if (chosenWorkDay && (!/^\d{4}-\d{2}-\d{2}$/.test(chosenWorkDay) || Number.isNaN(Date.parse(chosenWorkDay))))
+      return res.status(400).json({ message: "التاريخ غير صالح" });
+    if (chosenWorkDay && chosenWorkDay > new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }))
+      return res.status(400).json({ message: "التاريخ مايبقاش بعد النهارده" });
     const userId = req.user.id;
     const userName = req.user.username;
     // رفض التكرار صراحةً: لو الرقم + النوع موجود من قبل
@@ -9646,7 +9653,11 @@ export async function registerRoutes(
       }
       stockTech = st.tech;
     } catch (e) { /* الخصم إضافى — مايوقّفش حفظ الكمية */ }
-    const stockDate = pendingAfter != null ? null : link ? link.closeDate : await workDate(pool, local, type).catch(() => null);
+    // سلك الصيانة: التاريخ اللى اتكتب فى الشاشة (المالك ٢٠٢٦-١٠-١٣ — النهارده افتراضياً ويتعدّل)؛
+    // من غيره (نسخة قديمة) تاريخ إغلاق العطل زى الأول. التركيب/النقل: تاريخ إغلاق أمر الشغل.
+    const chosenDay = type === "صيانة" ? chosenWorkDay : null;
+    const stockDate = pendingAfter != null ? null : link ? link.closeDate
+      : chosenDay ?? await workDate(pool, local, type).catch(() => null);
     try {
       const { rows } = await pool.query(
         `INSERT INTO cable_entries (phone_local, phone_full, work_order_type, cable_quantity, created_by_id, created_by_name, stock_tech_name, stock_date, wo_ref, pending_after_wo)

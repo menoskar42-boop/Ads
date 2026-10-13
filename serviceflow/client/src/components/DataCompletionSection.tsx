@@ -27,6 +27,10 @@ export function DataCompletionSection() {
   const workOrderType = "صيانة";
   const [cableQuantity, setCableQuantity] = useState("");
   const [mobile, setMobile] = useState(""); // رقم المحمول — يظهر عند اختيار «صيانة» فقط
+  // تاريخ الشغل (المالك ٢٠٢٦-١٠-١٣): السلك بيتسجّل بالتاريخ ده — النهارده افتراضياً ويتعدّل.
+  // بيفضل زى ما هو بعد الحفظ (عشان إدخال كذا رقم من نفس اليوم ورا بعض).
+  const cairoToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+  const [workDay, setWorkDay] = useState(cairoToday);
   // المخزن المحلى: لو فنى الإغلاق مش من الخمسة السيرفر بيرجّع 422 needTech ⇒ نختار الفنى
   // اللى الكمية تتخصم من رصيده (server/local-store.ts)
   const [stockTech, setStockTech] = useState("");
@@ -59,7 +63,7 @@ export function DataCompletionSection() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/cable-entries", {
-        phone, workOrderType, cableQuantity,
+        phone, workOrderType, cableQuantity, workDate: workDay,
         mobile: workOrderType === "صيانة" ? mobile : "", // المحمول يُرسل مع «صيانة» فقط
         ...(stockTech ? { stockTech } : {}),
       });
@@ -108,7 +112,8 @@ export function DataCompletionSection() {
     if (v === "" || /^\d*$/.test(v)) { setPhone(v); setNeedTechNames(null); setStockTech(""); }
   };
 
-  const canSubmit = phone.trim().length >= 5 && /^\d+(\.\d+)?$/.test(cableQuantity.trim());
+  const validDay = /^\d{4}-\d{2}-\d{2}$/.test(workDay) && workDay <= cairoToday();
+  const canSubmit = phone.trim().length >= 5 && /^\d+(\.\d+)?$/.test(cableQuantity.trim()) && validDay;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,6 +198,21 @@ export function DataCompletionSection() {
               placeholder="مثال: 12.5"
               dir="ltr"
               className="text-sm text-left"
+            />
+          </div>
+
+          {/* التاريخ — السلك بيتسجّل بيه (النهارده افتراضياً) */}
+          <div className="w-full sm:w-40">
+            <Label htmlFor="cable-work-day" className="text-xs text-muted-foreground block mb-1">التاريخ</Label>
+            <Input
+              id="cable-work-day"
+              type="date"
+              value={workDay}
+              max={cairoToday()}
+              onChange={(e) => setWorkDay(e.target.value)}
+              dir="ltr"
+              className="text-sm text-left"
+              aria-invalid={!validDay}
             />
           </div>
 

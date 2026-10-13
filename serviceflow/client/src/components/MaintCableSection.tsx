@@ -28,6 +28,8 @@ export interface CableEntry {
   createdByName: string;
   createdAt: string;
   updatedAt: string;
+  /** تاريخ الشغل اللى السلك اتسجّل بيه (للصيانة: اللى اتكتب فى الشاشة) — YYYY-MM-DD */
+  workDate?: string | null;
   printedAt: string | null;
   editUnlockedAt: string | null;
   locked: boolean;
@@ -90,6 +92,7 @@ export function CableEntriesList() {
       "رقم التليفون": en.phoneFull,
       "نوع امر الشغل": en.workOrderType,
       "كمية السلك (متر)": en.cableQuantity,
+      "التاريخ": entryDay(en),
       "بواسطة": en.createdByName,
       "آخر تحديث": format(new Date(en.updatedAt), "yyyy/MM/dd HH:mm"),
     }));
@@ -101,9 +104,9 @@ export function CableEntriesList() {
   const handleExportPDF = () => {
     printTablePDF({
       title: "إدخالات السلك — كمية السلك",
-      columns: ["#", "رقم التليفون", "نوع امر الشغل", "كمية السلك (متر)", "بواسطة", "آخر تحديث"],
+      columns: ["#", "رقم التليفون", "نوع امر الشغل", "كمية السلك (متر)", "التاريخ", "بواسطة", "آخر تحديث"],
       rows: entries.map((en, i) => [
-        i + 1, en.phoneFull, en.workOrderType, en.cableQuantity, en.createdByName,
+        i + 1, en.phoneFull, en.workOrderType, en.cableQuantity, entryDay(en), en.createdByName,
         format(new Date(en.updatedAt), "yyyy/MM/dd HH:mm"),
       ]),
     });
@@ -137,6 +140,7 @@ export function CableEntriesList() {
               <TableHead className="text-right font-bold">رقم التليفون</TableHead>
               <TableHead className="text-right font-bold">نوع امر الشغل</TableHead>
               <TableHead className="text-right font-bold">كمية السلك (متر)</TableHead>
+              <TableHead className="text-right font-bold">التاريخ</TableHead>
               <TableHead className="text-right font-bold">بواسطة</TableHead>
               <TableHead className="text-right font-bold">آخر تحديث</TableHead>
               <TableHead className="text-right font-bold w-12"></TableHead>
@@ -145,7 +149,7 @@ export function CableEntriesList() {
           <TableBody>
             {entries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-14 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-14 text-muted-foreground">
                   {isFetching ? "جاري التحميل..." : "لا توجد إدخالات بعد"}
                 </TableCell>
               </TableRow>
@@ -159,6 +163,7 @@ export function CableEntriesList() {
                   </span>
                 </TableCell>
                 <TableCell className="text-center font-semibold">{en.cableQuantity}</TableCell>
+                <TableCell dir="ltr" className="text-right text-xs whitespace-nowrap">{entryDay(en)}</TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{en.createdByName}</TableCell>
                 <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(en.updatedAt), "yyyy/MM/dd HH:mm")}</TableCell>
                 <TableCell>
@@ -193,6 +198,8 @@ export function CableEntriesList() {
 }
 
 const cairoDay = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+/** تاريخ الإدخال: تاريخ الشغل اللى اتكتب (المالك ٢٠٢٦-١٠-١٣)، ولو مش موجود يوم التسجيل */
+const entryDay = (e: CableEntry) => e.workDate || cairoDay(e.createdAt);
 const todayCairo = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 export const MAINT_SHEET_TITLE = "إفادة بصرف سلك للصيانة الهوائية بإدارة سنترال الغنايم";
 export const MAINT_SHEET_COLS = ["رقم التليفون", "التاريخ", "اسم الصنف", "الكمية بالمتر", "اسم الفنى", "توقيع الفنى", "ملاحظات"];
@@ -205,10 +212,10 @@ export function MaintCableSheet() {
   const { data: entries = [], isFetching } = useCableEntries("");
   const rows = useMemo(() => entries
     .filter((e) => e.workOrderType === "صيانة")
-    .filter((e) => { const d = cairoDay(e.createdAt); return (!from || d >= from) && (!to || d <= to); })
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt)), [entries, from, to]);
+    .filter((e) => { const d = entryDay(e); return (!from || d >= from) && (!to || d <= to); })
+    .sort((a, b) => entryDay(a).localeCompare(entryDay(b)) || a.createdAt.localeCompare(b.createdAt)), [entries, from, to]);
   const cells = (e: CableEntry) => [
-    e.phoneLocal || e.phoneFull, format(new Date(e.createdAt), "yyyy/MM/dd"), ITEM_NAME,
+    e.phoneLocal || e.phoneFull, entryDay(e).replace(/-/g, "/"), ITEM_NAME,
     `${e.cableQuantity} م`, e.createdByName || "", "", e.mobile || "",
   ];
   const period = `${from || "البداية"} إلى ${to || "اليوم"}`;

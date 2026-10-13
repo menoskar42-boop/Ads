@@ -67,7 +67,8 @@ test("wiring: tables + column in ensureSchema and schema.ts, cable entry charges
   assert.match(post, /status\(422\)\.json\(\{\s*needTech: true/);
   assert.match(post, /VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8::date,\$9,\$10\) RETURNING id/);
   // تاريخ الشغل: المستنى أمر شغل مالوش تاريخ (مابيتخصمش)، المربوط = إغلاق أمر الشغل، والصيانة زى الأول
-  assert.match(post, /const stockDate = pendingAfter != null \? null : link \? link\.closeDate : await workDate\(pool, local, type\)/);
+  // سلك الصيانة: التاريخ المختار فى الشاشة (المالك ٢٠٢٦-١٠-١٣)، ومن غيره نفس الأول
+  assert.match(post, /const stockDate = pendingAfter != null \? null : link \? link\.closeDate\s*: chosenDay \?\? await workDate\(pool, local, type\)/);
   assert.match(db, /ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS stock_date date/);
   const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
   assert.match(dash, /adminTab === "local-store" && \(/);
