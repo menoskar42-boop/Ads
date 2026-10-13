@@ -11,7 +11,7 @@ import { Store } from "../core/storage.js";
 import { femAdapt } from "../data/mizo.js";
 import { writeStatus, practiceOrder } from "./writeProgress.js";
 import { openWorksheet } from "./worksheet.js";
-import { ROUND_MSG, writeIntro } from "../data/writingPhrases.js";
+import { ROUND_MSG, writeIntro, ALONE_TARGET, aloneAgainMsg } from "../data/writingPhrases.js";
 import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
 // كل حرف بيتكتب كذا مرة (نقط ← نقط ← لوحده)، فالجلسة ٤ حروف بدل ٦ (الإنجليزى: زوجين A/a)
@@ -25,6 +25,12 @@ const RES = 300; // دقّة داخلية ثابتة
 // الطريقة القديمة (التغطية) فاضلة لأى رمز مالوش خطوط.
 
 /** كلام ميزو للطفل — بصيغة البنت لو الطفلة بنت. */
+/** ٢٠ مرة صح لوحده — الاختبارات بس بتقصّرها (__MYKID_ALONE_TARGET__) عشان ماتكتبش كل حرف ٢٠ مرة. */
+const aloneTarget = () => {
+  const t = Number(globalThis.__MYKID_ALONE_TARGET__);
+  return Number.isInteger(t) && t > 0 ? t : ALONE_TARGET;
+};
+
 function tell(text) {
   let t = text;
   try { if (Store.childGender === "girl") t = femAdapt(text); } catch (e) {}
@@ -70,7 +76,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
   }
   let idx = 0;
   // خطة الحرف الحالى (renderBoard): المستوى لكل جولة + الجولة الحالية
-  let plan = null, step = 0, planFor = null, extraLoops = 0;
+  let plan = null, step = 0, planFor = null, extraLoops = 0, aloneOk = 0;
   // رسالة ميزو فى آخر الجولة بتفضل ظاهرة فى أول الجولة اللى بعدها (الشاشة بتتبنى من جديد)
   let carryMsg = "";
 
@@ -288,6 +294,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       plan = Store.getWriteLevel(levelKey) >= 3 || isPre ? [2, 3] : [2, 2, 3];
       step = 0;
       extraLoops = 0;
+      aloneOk = 0;
     }
     const level = plan[step];
 
@@ -296,8 +303,12 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     const lvlBtn = document.createElement("button");
     lvlBtn.className = "wb-level";
     lvlBtn.type = "button";
-    lvlBtn.textContent = `${LEVEL_LABELS[level]} · ${step + 1}/${plan.length}`;
-    lvlBtn.setAttribute("aria-label", `الجولة ${step + 1} من ${plan.length}: ${LEVEL_LABELS[level]} — اضغط لتغيير المساعدة`);
+    // الحروف والأرقام: «لوحدك» بيتعدّ لحد ٢٠ مرة صح؛ قبلها (النقط) رقم الجولة
+    const drill = !isPre && level === 3;
+    lvlBtn.textContent = drill ? `${LEVEL_LABELS[level]} · ✓ ${aloneOk}/${aloneTarget()}` : `${LEVEL_LABELS[level]} · ${step + 1}/${plan.length}`;
+    lvlBtn.setAttribute("aria-label", drill
+      ? `لوحدك: ${aloneOk} مرة صح من ${aloneTarget()} — اضغط لتغيير المساعدة`
+      : `الجولة ${step + 1} من ${plan.length}: ${LEVEL_LABELS[level]} — اضغط لتغيير المساعدة`);
     lvlBtn.addEventListener("click", () => {
       Sfx.tap();
       plan[step] = level >= 3 ? 1 : level + 1;
@@ -341,6 +352,24 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
           return say(plan[step + 1] === 3 ? ROUND_MSG.toAlone : ROUND_MSG.againDots, nextRound);
         }
         // جولة «لوحده»
+        if (fails <= 2 && !isPre) {
+          // الحروف والأرقام (المالك ٢٠٢٦-١٠-١٣): «مش أقل من ٢٠ مرة صح بدون نقط» — كل مرة صح بتتعدّ،
+          // ولحد ما يوصل ٢٠ بيكتبه لوحده تانى
+          aloneOk++;
+          Store.recordWrite(levelKey, fails, 3);
+          if (aloneOk < aloneTarget()) {
+            plan.push(3);
+            return say(aloneAgainMsg(aloneOk), nextRound, 1500);
+          }
+          Store.setWriteLevel(levelKey, 3);
+          Speech.say(sayDone, { lang: speakLang });
+          return say(ROUND_MSG.doneAloneAll, next, 2200);
+        }
+        if (!isPre) {
+          // غلط وهو لوحده ⇒ مرة على النقط وبعدين لوحده تانى (المرة الغلط مابتتعدّش)
+          plan.splice(step + 1, 0, 2, 3);
+          return say(ROUND_MSG.backToDots, nextRound);
+        }
         if (fails <= 2) {
           Store.recordWrite(levelKey, fails, 3);
           Store.setWriteLevel(levelKey, 3);

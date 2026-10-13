@@ -16,7 +16,16 @@ export const ROUND_MSG = {
   doneAloneShape: "برافو! رسمته لوحدك",
   backToDots: "تعالى نكتبه على النقط تانى، وبعدين لوحدك",
   practiceLater: "برافو! هنتمرّن عليه تانى المرة الجاية",
+  // المالك ٢٠٢٦-١٠-١٣: «يدرّبه على الكتابة بدون نقط مرات عديدة مش أقل من ٢٠ مرة صح»
+  aloneAgain1: "برافو! كمان مرة لوحدك من غير نقط",
+  aloneAgain2: "شاطر! اكتبه تانى لوحدك",
+  aloneAgain3: "هايل! يلا مرة كمان لوحدك",
+  doneAloneAll: "برافو! كتبته لوحدك عشرين مرة",
 };
+/** عدد المرات الصح «لوحده» (من غير نقط) قبل ما الحرف/الرقم يخلص. */
+export const ALONE_TARGET = 20;
+/** جملة التشجيع بين المرات (بتتبدّل عشان مايبقاش نفس الكلام كل مرة). */
+export const aloneAgainMsg = (n) => [ROUND_MSG.aloneAgain1, ROUND_MSG.aloneAgain2, ROUND_MSG.aloneAgain3][n % 3];
 
 /** أول جملة لما الحرف/الرقم يتفتح. */
 export const writeIntro = (noun, label) => `اكتب ${noun} ${label}. ابدأ من النقطة الخضرا وامشي مع السهم`;
