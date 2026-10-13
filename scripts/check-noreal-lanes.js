@@ -41,10 +41,11 @@ check('العدد من الإعدادات وقت السحب (readExecLanes)', /c
 check('الاختيار والـUPDATE الاتنين بنفس القاعدة وبنفس العدد', /siteFreeFor\("e", "e\.site_k", lanes\)/.test(claim) && /siteFreeFor\("exec_jobs", "\$3", lanes\)/.test(claim));
 check('إنقاذ المهام اليتيمة مابيعتبرش تاب من نفس المجموعة دليل إن الأول اتعدّى', /AND NOT \(\$\{parallelGroup\("e"\)\} IS NOT NULL AND \$\{parallelGroup\("e"\)\} = \$\{parallelGroup\("j2"\)\}\)/.test(routes));
 // ── الإعدادات (رفع الملفات ← إعدادات) ──
-const maxLanes = +((routes.match(/const EXEC_LANES_MAX = (\d+);/) || [])[1] || 0);
-const execMax = +((exec.match(/const MAX_LANES = (\d+);/) || [])[1] || 0);
-check('سقف الإعدادات = سقف جهاز التنفيذ (MAX_LANES)', maxLanes >= 1 && maxLanes === execMax);
-check('القيمة بتتقصّ بين 1 والسقف قبل ما تدخل الـSQL', /Math\.min\(EXEC_LANES_MAX, Math\.max\(1, n\)\)/.test(routes));
+// المالك ٢٠٢٦-١٠-١٣: «الرقم اللى اضعه هو اللى يحدد… بدون سقف» (كان ٨)
+check('مفيش سقف لعدد التابات فى السيرفر', !/EXEC_LANES_MAX/.test(routes));
+check('القيمة بتتقرا رقم صحيح ≥ 1 قبل ما تدخل الـSQL', /Number\.isFinite\(n\) \? Math\.max\(1, n\) : def/.test(routes));
+check('جهاز التنفيذ مالوش سقف تابات (الحلقة حد أمان للدورة بس)', !/MAX_LANES/.test(exec) && /const CLAIMS_PER_CYCLE = \d+;/.test(exec));
+check('شاشة الإعدادات مافيهاش سقف', !/\+v <= max/.test(read('client/src/components/ExecLanesSettingsButton.tsx')));
 check('تعديل العدد سوبر أدمن بس', /app\.put\("\/api\/exec-queue\/lanes", requireAuth, requireSuperAdmin/.test(routes)
   && /if \(key\.startsWith\("exec_lanes_"\)\) return res\.status\(403\)/.test(routes));
 const upload = read('client/src/components/FileUploadSection.tsx');
@@ -104,4 +105,4 @@ if (errors.length) {
   errors.forEach((e) => console.log('   · ' + e));
   process.exit(1);
 }
-console.log(`✅ check-noreal-lanes: «بدون Real» افتراضى ${lanes} تاب و«إيقاف PO» تابات من الإعدادات (سقف ${maxLanes})، وReal وباقى المواقع مهمة واحدة زى ما هم.`);
+console.log(`✅ check-noreal-lanes: «بدون Real» افتراضى ${lanes} تاب و«إيقاف PO» تابات من الإعدادات (من غير سقف)، وReal وباقى المواقع مهمة واحدة زى ما هم.`);

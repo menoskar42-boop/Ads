@@ -724,8 +724,9 @@ export function ExecutorButton() {
     const runningSince = new Map<string, { at: number; type: ExecJobType; batchId?: string | null }>();
     const showRunning = () => setCurrent(Array.from(running.values()).join(" • "));
 
-    // عدد المواقع المختلفة — سقف عدد المهام اللى ممكن تشتغل مع بعض (مسار لكل موقع).
-    const MAX_LANES = 8;
+    // حد أمان لحلقة السحب فى الدورة الواحدة بس (مش سقف للتابات): الدورة اللى بعدها (٤ ثوانى)
+    // بتكمّل تسحب. عدد التابات نفسه بيحدّده السيرفر من الإعدادات — من غير سقف (المالك ٢٠٢٦-١٠-١٣).
+    const CLAIMS_PER_CYCLE = 100;
 
     const claimAndRun = async () => {
       if (busy.current || stopped || batchRefreshBusy.current || batchRefreshTriggered.current) return;
@@ -735,7 +736,7 @@ export function ExecutorButton() {
         // بنفضل نسحب لحد ما السيرفر يقول «مفيش مهمة مؤهّلة» — كده كل المسارات
         // الفاضية بتشتغل فى نفس اللحظة بدل ما كل مسار يستنى دورة سحب (4 ثوانى).
         // السيرفر بيضمن مهمة واحدة بس لكل موقع، فالحلقة دى بتقف لوحدها.
-        for (let lane = 0; lane < MAX_LANES && !stopped; lane++) {
+        for (let lane = 0; lane < CLAIMS_PER_CYCLE && !stopped; lane++) {
         // مهلة 20ث: طلب سحب معلّق (بروكسى واقف/جهاز نايم) كان بيسيب busy مقفول
         // للأبد — الجهاز يفضل يبعت نبضات «مفعّل» من غير ما يسحب أى مهمة تانى.
         const ctrl = new AbortController();

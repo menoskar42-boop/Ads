@@ -2369,8 +2369,8 @@ export async function registerRoutes(
   // النوعين مابيتخلطوش مع بعض على نفس الموقع — كل نوع ياخد تاباته وهو لوحده.
   const POSTOP_LANES = 3;   // الافتراضى لو مفيش إعداد
   // العدد الفعلى بيتغيّر من «رفع الملفات ← إعدادات» (سوبر أدمن) ويتخزّن فى app_settings.
-  // السقف = MAX_LANES فى جهاز التنفيذ. ١ = تاب واحد زى القديم.
-  const EXEC_LANES_MAX = 8;
+  // ١ = تاب واحد زى القديم. ومفيش سقف (المالك ٢٠٢٦-١٠-١٣: «الرقم اللى اضعه هو اللى
+  // يحدد… بدون سقف») — كان ٨. القيمة بتتقرا رقم صحيح ≥ ١ قبل ما تدخل الـSQL.
   const EXEC_LANE_KEYS = { noreal: "exec_lanes_noreal", stop: "exec_lanes_stop" } as const;
   // فترة «تحديث التقارير اليومية» التلقائى (كانت ٣٠ دقيقة ثابتة فى الكود — المالك ٢٠٢٦-١٠-٠٦)
   const REFRESH_MINUTES_KEY = "exec_lanes_refresh_minutes";   // نفس البادئة = تعديله سوبر أدمن بس
@@ -2398,7 +2398,7 @@ export async function registerRoutes(
   type ExecLanes = { noreal: number; stop: number };
   const clampLanes = (v: any, def: number) => {
     const n = parseInt(String(v ?? ""), 10);
-    return Number.isFinite(n) ? Math.min(EXEC_LANES_MAX, Math.max(1, n)) : def;
+    return Number.isFinite(n) ? Math.max(1, n) : def;
   };
   const readExecLanes = async (db: { query: (t: string, v?: any[]) => Promise<any> }): Promise<ExecLanes> => {
     const out: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES };
@@ -2448,7 +2448,7 @@ export async function registerRoutes(
                 (ARRAY_AGG(updated_by ORDER BY updated_at DESC))[1] AS "updatedBy"
            FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY]]);
       res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES, refreshMinutes: REFRESH_MINUTES_DEFAULT, measureStaleDays: MEASURE_STALE_DAYS_DEFAULT },
-        max: EXEC_LANES_MAX, refreshMinutes: await readRefreshMinutes(),
+        max: null, refreshMinutes: await readRefreshMinutes(),
         refreshRange: { min: REFRESH_MINUTES_MIN, max: REFRESH_MINUTES_MAX },
         measureStaleDays: await readMeasureStaleDays(),
         measureStaleRange: { min: MEASURE_STALE_DAYS_MIN, max: MEASURE_STALE_DAYS_MAX }, ...(rows[0] || {}) });
@@ -2462,8 +2462,8 @@ export async function registerRoutes(
       for (const k of ["noreal", "stop"] as const) {
         if (body[k] == null) continue;
         const n = parseInt(String(body[k]), 10);
-        if (!Number.isFinite(n) || n < 1 || n > EXEC_LANES_MAX)
-          return res.status(400).json({ message: `عدد التابات لازم يكون من 1 لـ ${EXEC_LANES_MAX}` });
+        if (!Number.isFinite(n) || n < 1 || !/^\d+$/.test(String(body[k]).trim()))
+          return res.status(400).json({ message: "عدد التابات لازم يكون رقم صحيح 1 أو أكتر" });
         vals.push([EXEC_LANE_KEYS[k], n]);
       }
       if (body.refreshMinutes != null) {

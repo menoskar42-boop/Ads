@@ -25,7 +25,7 @@ interface ExecLanes {
   measureStaleDays: number;
   measureStaleRange: { min: number; max: number };
   defaults: { noreal: number; stop: number; refreshMinutes: number; measureStaleDays: number };
-  max: number;
+  max: number | null;   // null = مفيش سقف
   updatedAt?: string | null;
   updatedBy?: string | null;
 }
@@ -61,8 +61,8 @@ export function ExecLanesSettingsButton() {
     }
   }, [open, data]);
 
-  const max = data?.max ?? 8;
-  const valid = (v: string) => /^\d+$/.test(v) && +v >= 1 && +v <= max;
+  // مفيش سقف لعدد التابات (المالك ٢٠٢٦-١٠-١٣) — الرقم اللى يتكتب هو اللى يتطبّق
+  const valid = (v: string) => /^\d+$/.test(v) && +v >= 1;
   const rMin = data?.refreshRange?.min ?? 5, rMax = data?.refreshRange?.max ?? 240;
   const validRefresh = /^\d+$/.test(refresh) && +refresh >= rMin && +refresh <= rMax;
   const sMin = data?.measureStaleRange?.min ?? 0, sMax = data?.measureStaleRange?.max ?? 30;
@@ -107,8 +107,8 @@ export function ExecLanesSettingsButton() {
     <div className="space-y-1">
       <label htmlFor={id} className="text-sm font-medium">{label}</label>
       <div className="flex flex-wrap items-center gap-2">
-        {stepper(id, v, set, 1, max, 1, valid(v), label)}
-        <span className="text-xs text-muted-foreground">تاب (من 1 لـ {max}{def != null ? ` — الافتراضى ${def}` : ""})</span>
+        {stepper(id, v, set, 1, Number.MAX_SAFE_INTEGER, 1, valid(v), label)}
+        <span className="text-xs text-muted-foreground">تاب (1 أو أكتر{def != null ? ` — الافتراضى ${def}` : ""})</span>
       </div>
       <p className="text-xs text-muted-foreground">{hint}</p>
     </div>
