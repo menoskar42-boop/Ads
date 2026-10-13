@@ -2406,15 +2406,24 @@ export async function registerRoutes(
   // القاعدة بتنام بعد ٥ دقايق من غير استعلامات وإحنا بندفع على كل ساعة صاحية — والجهاز
   // اللى بيفضل مفتوح بالليل كان بيصحّيها طول الليل. الاتنين مفتوحين افتراضياً، والتطبيق
   // نفسه على المتصفح (الساعة بتوقيت القاهرة) — السيرفر بيخزّن الاختيار بس.
-  const NIGHT_PAUSE_KEYS = { refresh: "exec_lanes_night_pause_refresh", executor: "exec_lanes_night_pause_executor" } as const;
-  const readNightPause = async (): Promise<{ refresh: boolean; executor: boolean }> => {
-    const out = { refresh: true, executor: true };
+  // والمدة نفسها من الإعدادات (المالك ٢٠٢٦-١٠-١٣: «خلى التوقيت ده برده ممكن التحكم فيه») —
+  // «HH:MM» بتوقيت القاهرة، والافتراضى ٠٠:٠٠ ← ٠٧:٠٠. ممكن تعدّى نص الليل (٢٢:٠٠ ← ٠٦:٠٠).
+  const NIGHT_PAUSE_KEYS = {
+    refresh: "exec_lanes_night_pause_refresh", executor: "exec_lanes_night_pause_executor",
+    start: "exec_lanes_night_start", end: "exec_lanes_night_end",
+  } as const;
+  const NIGHT_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  type NightPauseSetting = { refresh: boolean; executor: boolean; start: string; end: string };
+  const readNightPause = async (): Promise<NightPauseSetting> => {
+    const out: NightPauseSetting = { refresh: true, executor: true, start: "00:00", end: "07:00" };
     try {
       const { rows } = await pool.query(`SELECT key, value FROM app_settings WHERE key = ANY($1::text[])`,
         [Object.values(NIGHT_PAUSE_KEYS)]);
       for (const r of rows) {
         if (r.key === NIGHT_PAUSE_KEYS.refresh) out.refresh = String(r.value) !== "0";
         if (r.key === NIGHT_PAUSE_KEYS.executor) out.executor = String(r.value) !== "0";
+        if (r.key === NIGHT_PAUSE_KEYS.start && NIGHT_TIME_RE.test(String(r.value))) out.start = String(r.value);
+        if (r.key === NIGHT_PAUSE_KEYS.end && NIGHT_TIME_RE.test(String(r.value))) out.end = String(r.value);
       }
     } catch {}
     return out;
@@ -2483,7 +2492,7 @@ export async function registerRoutes(
     try {
       const by = (req.user?.fullName || req.user?.username || "").toString();
       const body = req.body || {};
-      const vals: [string, number][] = [];
+      const vals: [string, number | string][] = [];
       for (const k of ["noreal", "stop"] as const) {
         if (body[k] == null) continue;
         const n = parseInt(String(body[k]), 10);
@@ -2503,13 +2512,21 @@ export async function registerRoutes(
           return res.status(400).json({ message: `أيام قياس ٩ الصبح لازم تكون من ${MEASURE_STALE_DAYS_MIN} لـ ${MEASURE_STALE_DAYS_MAX}` });
         vals.push([MEASURE_STALE_DAYS_KEY, n]);
       }
-      // الإيقاف بالليل: true/false بس
+      // الإيقاف بالليل: true/false، والمدة «HH:MM»
       for (const k of ["refresh", "executor"] as const) {
         const v = body.nightPause?.[k];
         if (v == null) continue;
         if (typeof v !== "boolean") return res.status(400).json({ message: "الإيقاف بالليل لازم يكون مفتوح أو مقفول" });
         vals.push([NIGHT_PAUSE_KEYS[k], v ? 1 : 0]);
       }
+      for (const k of ["start", "end"] as const) {
+        const v = body.nightPause?.[k];
+        if (v == null) continue;
+        if (typeof v !== "string" || !NIGHT_TIME_RE.test(v)) return res.status(400).json({ message: "وقت الإيقاف لازم يكون ساعة ودقيقة (زى 00:00)" });
+        vals.push([NIGHT_PAUSE_KEYS[k], v]);
+      }
+      if (body.nightPause?.start != null && body.nightPause.start === body.nightPause.end)
+        return res.status(400).json({ message: "بداية فترة الإيقاف ونهايتها لازم يختلفوا" });
       for (const [key, n] of vals) {
         await pool.query(
           `INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)
@@ -2545,6 +2562,10 @@ export async function registerRoutes(
         // واحد. فالتوازى فى الإيقاف لجهاز بيعلن إنه بيدعمه بس (caps: ["stop-lanes"]).
         const caps: string[] = Array.isArray(req.body?.caps) ? req.body.caps.map(String) : [];
         if (!caps.includes("stop-lanes")) lanes.stop = 1;
+        // فترة الإيقاف (المالك ٢٠٢٦-١٠-١٣): جهاز التنفيذ بيخلّص اللى كان فى الطابور قبل بداية
+        // الفترة بس — أى طلب جديد اتضاف بعدها بيستنى لآخر الفترة. الجهاز بيبعت بداية الفترة.
+        const beforeRaw = req.body?.before ? new Date(String(req.body.before)) : null;
+        const before = beforeRaw && !Number.isNaN(beforeRaw.getTime()) ? beforeRaw.toISOString() : null;
         const skippedSites: string[] = [];
         while (true) {
           // ⚡ أول مهمة فى الدور **لكل موقع** بس هى اللى بيتفحص إذا كان موقعها فاضى
@@ -2560,6 +2581,7 @@ export async function registerRoutes(
                        FROM exec_jobs h
                       WHERE h.status = 'pending' AND h.paused_at IS NULL
                         AND COALESCE(h.site, '10.42.187.101') <> ALL($1::text[])
+                        AND ($2::timestamptz IS NULL OR h.created_at <= $2::timestamptz)
                       ORDER BY COALESCE(h.site, '10.42.187.101'), h.priority DESC,
                                CASE WHEN h.queue_order > 0 THEN h.queue_order ELSE 9223372036854775807 END ASC,
                                h.created_at, h.id) e
@@ -2570,7 +2592,7 @@ export async function registerRoutes(
                        CASE WHEN e.queue_order > 0 THEN e.queue_order ELSE 9223372036854775807 END ASC,
                        e.created_at, e.id
               LIMIT 1`,
-            [skippedSites],
+            [skippedSites, before],
           );
           const candidate = candidates[0];
           if (!candidate) return null;
@@ -2890,10 +2912,15 @@ export async function registerRoutes(
   });
 
   // عدد المهام المنتظرة (للعرض)
-  app.get("/api/exec-queue/pending", requireAuth, async (_req, res) => {
+  app.get("/api/exec-queue/pending", requireAuth, async (req, res) => {
     try {
       await expireOrphanedExecJobs();
-      const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM exec_jobs WHERE status IN ('pending','claimed')`);
+      // ?before= : فترة الإيقاف — الباقى من اللى كان فى الطابور قبل بدايتها بس (اللى الجهاز هيخلّصه)
+      const b = req.query.before ? new Date(String(req.query.before)) : null;
+      const before = b && !Number.isNaN(b.getTime()) ? b.toISOString() : null;
+      const { rows } = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM exec_jobs WHERE status IN ('pending','claimed')
+            AND ($1::timestamptz IS NULL OR created_at <= $1::timestamptz)`, [before]);
       res.json({ pending: rows[0]?.n ?? 0 });
     } catch { res.json({ pending: 0 }); }
   });

@@ -65,7 +65,7 @@ export function ExecLanesSettingsButton() {
       filled.current = true;
       setNoreal(String(data.noreal)); setStop(String(data.stop)); setRefresh(String(data.refreshMinutes));
       setStaleDays(String(data.measureStaleDays ?? 1));
-      setNight(data.nightPause ?? NIGHT_PAUSE_DEFAULT);
+      setNight({ ...NIGHT_PAUSE_DEFAULT, ...(data.nightPause ?? {}) });
     }
   }, [open, data]);
 
@@ -75,6 +75,8 @@ export function ExecLanesSettingsButton() {
   const validRefresh = /^\d+$/.test(refresh) && +refresh >= rMin && +refresh <= rMax;
   const sMin = data?.measureStaleRange?.min ?? 0, sMax = data?.measureStaleRange?.max ?? 30;
   const validStale = /^\d+$/.test(staleDays) && +staleDays >= sMin && +staleDays <= sMax;
+  const TIME_OK = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const validNight = TIME_OK.test(night.start) && TIME_OK.test(night.end) && night.start !== night.end;
   const save = useMutation({
     mutationFn: async () => {
       const r = await fetch(LANES_URL, {
@@ -169,20 +171,30 @@ export function ExecLanesSettingsButton() {
                 </p>
               </div>
               <div className="space-y-3 pt-2 border-t">
-                <p className="text-sm font-medium">الإيقاف بالليل — من ١٢ بالليل لـ٧ الصبح (توقيت القاهرة)</p>
+                <p className="text-sm font-medium">فترة الإيقاف (توقيت القاهرة)</p>
+                <div className="flex flex-wrap items-center gap-2 text-sm" dir="rtl">
+                  <label htmlFor="night-start">من</label>
+                  <Input id="night-start" type="time" value={night.start} className="h-10 w-28 text-center" dir="ltr"
+                    onChange={(e) => setNight((n) => ({ ...n, start: e.target.value }))} aria-invalid={!validNight} />
+                  <label htmlFor="night-end">لحد</label>
+                  <Input id="night-end" type="time" value={night.end} className="h-10 w-28 text-center" dir="ltr"
+                    onChange={(e) => setNight((n) => ({ ...n, end: e.target.value }))} aria-invalid={!validNight} />
+                  <span className="text-xs text-muted-foreground">(الافتراضى 00:00 لحد 07:00)</span>
+                </div>
+                {!validNight && <p className="text-xs text-destructive">البداية والنهاية لازم يبقوا ساعة ودقيقة ومختلفين.</p>}
                 <label className="flex items-start justify-between gap-3 cursor-pointer">
                   <span className="space-y-0.5">
-                    <span className="block text-sm">التحديث التلقائى يقف بالليل</span>
+                    <span className="block text-sm">التحديث التلقائى يقف فى الفترة دى</span>
                     <span className="block text-xs text-muted-foreground">حتى لو زرار «التحديث التلقائى» مفتوح، ومعاه التحديث الدورى للشاشات المفتوحة. لو حد بيستعمل البرنامج بالليل بيرجع عادى.</span>
                   </span>
-                  <Switch checked={night.refresh} onCheckedChange={(v) => setNight((n) => ({ ...n, refresh: v }))} aria-label="التحديث التلقائى يقف بالليل" />
+                  <Switch checked={night.refresh} onCheckedChange={(v) => setNight((n) => ({ ...n, refresh: v }))} aria-label="التحديث التلقائى يقف فى فترة الإيقاف" />
                 </label>
                 <label className="flex items-start justify-between gap-3 cursor-pointer">
                   <span className="space-y-0.5">
-                    <span className="block text-sm">جهاز التنفيذ يقف بالليل</span>
-                    <span className="block text-xs text-muted-foreground">مابيسحبش مهام جديدة (اللى شغّال بيكمّل)، وبيرجع لوحده الساعة ٧. المهام اللى تتضاف بالليل بتستنى للصبح.</span>
+                    <span className="block text-sm">جهاز التنفيذ يقف فى الفترة دى</span>
+                    <span className="block text-xs text-muted-foreground">مابيستقبلش طلبات جديدة: بيخلّص اللى كان فى الطابور قبل بداية الفترة ويقف، وبيرجع لوحده آخرها. الطلبات اللى تتضاف جوّه الفترة بتستنى لآخرها.</span>
                   </span>
-                  <Switch checked={night.executor} onCheckedChange={(v) => setNight((n) => ({ ...n, executor: v }))} aria-label="جهاز التنفيذ يقف بالليل" />
+                  <Switch checked={night.executor} onCheckedChange={(v) => setNight((n) => ({ ...n, executor: v }))} aria-label="جهاز التنفيذ يقف فى فترة الإيقاف" />
                 </label>
                 <p className="text-xs text-muted-foreground">قاعدة البيانات بتنام لما محدش يسألها، والفاتورة على كل ساعة هى صاحية فيها.</p>
               </div>
@@ -195,7 +207,7 @@ export function ExecLanesSettingsButton() {
           )}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button disabled={!data || !valid(noreal) || !valid(stop) || !validRefresh || !validStale || save.isPending} onClick={() => save.mutate()}>
+            <Button disabled={!data || !valid(noreal) || !valid(stop) || !validRefresh || !validStale || !validNight || save.isPending} onClick={() => save.mutate()}>
               {save.isPending && <Loader2 className="w-4 h-4 animate-spin ml-1" />} حفظ
             </Button>
           </DialogFooter>
