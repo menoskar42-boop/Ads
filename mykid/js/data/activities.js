@@ -3,6 +3,14 @@
 // كل نشاط: { emoji, title, desc, screen, params }
 export const ACTIVITIES = {
   arabic: [
+    // المالك ٢٠٢٦-١٠-١٣: تمارين قبل الكتابة أول حاجة — اليد بتتعلّم الخطوط قبل الحروف
+    {
+      emoji: "✍️",
+      title: "تمارين قبل الكتابة",
+      desc: "خط واقف ونايم ودايرة… قبل الحروف",
+      screen: "trace",
+      params: { datasetKey: "prewriting", lang: "ar-EG", title: "✍️ تمارين قبل الكتابة" },
+    },
     {
       emoji: "🧑‍🏫",
       title: "معلّم الحروف",
@@ -37,13 +45,6 @@ export const ACTIVITIES = {
       desc: "اكتب حروف اسمك واحد ورا التانى",
       screen: "writeName",
       params: {},
-    },
-    {
-      emoji: "✍️",
-      title: "تمارين قبل الكتابة",
-      desc: "خط واقف ونايم ودايرة… قبل الحروف",
-      screen: "trace",
-      params: { datasetKey: "prewriting", lang: "ar-EG", title: "✍️ تمارين قبل الكتابة" },
     },
     {
       emoji: "✏️",

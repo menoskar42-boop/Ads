@@ -293,3 +293,8 @@ test("المالك: الجمع والساعة بعد ما الأرقام كله�
   for (let seed = 1; seed <= 30; seed++) pageSteps(add, seeded(seed)).forEach((st) => st.kind === "parts" && reps.add(st.rep));
   for (const r of ["things", "fingers", "dots", "vertical"]) assert.ok(reps.has(r), "صفحة الجمع: " + r);
 });
+
+test("pre-writing exercises are the first Arabic activity (owner 2026-10-13)", async () => {
+  const { ACTIVITIES } = await import("../js/data/activities.js");
+  assert.equal(ACTIVITIES.arabic[0].params.datasetKey, "prewriting");
+});
