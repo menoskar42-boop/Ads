@@ -278,7 +278,7 @@ export function MaintCableSheet() {
           <TableHeader className="bg-muted/50">
             <TableRow>
               {MAINT_SHEET_COLS.map((c) => <TableHead key={c} className="text-right font-bold whitespace-nowrap">{c}</TableHead>)}
-              {isSuper && <TableHead className="text-right font-bold whitespace-nowrap">السوبر أدمن</TableHead>}
+              {isSuper && <TableHead className="text-right font-bold whitespace-nowrap">إلغاء</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -290,11 +290,9 @@ export function MaintCableSheet() {
               <TableRow key={e.id}>
                 {cells(e).map((c, j) => (
                   <TableCell key={j} dir={j === 0 || j === 6 ? "ltr" : undefined}
-                    className={`whitespace-nowrap ${j === 0 || j === 6 ? "font-mono text-right" : ""} ${j === 5 ? "min-w-[120px]" : ""}`}>{c}</TableCell>
-                ))}
-                {isSuper && (
-                  <TableCell className="whitespace-nowrap">
-                    <div className="flex items-center gap-1">
+                    className={`whitespace-nowrap ${j === 0 || j === 6 ? "font-mono text-right" : ""} ${j === 5 ? "min-w-[120px]" : ""}`}>
+                    {/* السوبر أدمن بيعدّل التاريخ فى عمود «التاريخ» نفسه (المالك ٢٠٢٦-١٠-١٣) */}
+                    {j === 1 && isSuper ? (
                       <Input type="date" defaultValue={entryDay(e)} max={todayCairo()} dir="ltr" key={`${e.id}-${entryDay(e)}`}
                         className="h-8 w-36 text-xs" aria-label={`تاريخ سلك ${e.phoneLocal || e.phoneFull}`}
                         disabled={dateMutation.isPending}
@@ -302,6 +300,12 @@ export function MaintCableSheet() {
                           const v = ev.target.value;
                           if (v && v !== entryDay(e)) dateMutation.mutate({ id: e.id, date: v });
                         }} />
+                    ) : c}
+                  </TableCell>
+                ))}
+                {isSuper && (
+                  <TableCell className="whitespace-nowrap">
+                    <div className="flex items-center gap-1">
                       <Button variant="ghost" size="sm" className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 gap-1"
                         disabled={cancelMutation.isPending}
                         onClick={() => { if (confirm(`إلغاء سلك الصيانة ${e.cableQuantity} م للرقم ${e.phoneLocal || e.phoneFull}؟`)) cancelMutation.mutate(e.id); }}>
