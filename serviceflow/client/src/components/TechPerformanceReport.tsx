@@ -18,6 +18,7 @@ import { ROLES } from "@shared/schema";
 import { printTablePDF } from "@/lib/print-pdf";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
 import { useHorizontalKeyboardScroll } from "@/hooks/use-horizontal-keyboard-scroll";
+import { chargedTechOf, chargedTechOptions } from "@/lib/charged-tech";
 
 interface RepDetailRow {
   phoneNumber: string; centralName: string; lineCabin: string | null; lineBox: string | null;
@@ -485,28 +486,22 @@ export function TechPerformanceReport() {
 
   // ── حوارات التفاصيل: الأرقام المكررة + أعطال تجاوزت 24 ساعة ──
   const fmtDT = (d: string | null) => (d ? new Date(d).toLocaleString("ar-EG") : "");
-  // الفلترة بتتم على مستوى الـ server (الفني يرى أرقامه فقط — فنى الإغلاق أو فنى المنطقة؛
-  // الأدمن يرى الكل)، فهنا بنعرض اللى رجع من الـ API مباشرة.
-  // فلتر اسم الفنى داخل النوافذ (يطابق فنى الإغلاق أو فنى المنطقة)
+  // الفلترة بتتم على مستوى الـ server (الفني يرى المحسوب عليه بس؛ الأدمن يرى الكل).
+  // فلتر اسم الفنى داخل النوافذ = العطل محسوب على مين (المالك ٢٠٢٦-١٠-١٣): فنى الإغلاق، أو فنى
+  // المنطقة لو الإغلاق غير معروف — نفس الأرقام اللى فى الجدول. قبل كده كان بيطابق فنى الإغلاق
+  // «أو» فنى المنطقة، فعطل قفله فنى تانى كان بيظهر تحت فنى المنطقة كأنه محسوب عليه.
   const [detailTech, setDetailTech] = useState("");
-  const techOptsFrom = (arr: any[] | null) => {
-    const s = new Set<string>();
-    for (const r of (arr ?? [])) {
-      if (r.closeByName && r.closeByName !== "غير معروف") s.add(r.closeByName);
-      if (r.areaTechName && r.areaTechName !== "غير معروف") s.add(r.areaTechName);
-    }
-    return [...s].sort((a, b) => a.localeCompare(b, "ar"));
-  };
+  const techOptsFrom = (arr: any[] | null) => chargedTechOptions(arr);
   const repTechOptions = useMemo(() => techOptsFrom(repDetailData), [repDetailData]);
   const b24TechOptions = useMemo(() => techOptsFrom(b24Data), [b24Data]);
   const repFiltered = useMemo(() => {
     const d = repDetailData ?? [];
-    return detailTech ? d.filter((r: any) => r.closeByName === detailTech || r.areaTechName === detailTech) : d;
+    return detailTech ? d.filter((r: any) => chargedTechOf(r) === detailTech) : d;
   }, [repDetailData, detailTech]);
   const repMobileLookup = useMobileLookup(repFiltered.map((r) => r.phoneNumber));
   const b24Filtered = useMemo(() => {
     const d = b24Data ?? [];
-    return detailTech ? d.filter((r: any) => r.closeByName === detailTech || r.areaTechName === detailTech) : d;
+    return detailTech ? d.filter((r: any) => chargedTechOf(r) === detailTech) : d;
   }, [b24Data, detailTech]);
 
   const loadDetail = async (

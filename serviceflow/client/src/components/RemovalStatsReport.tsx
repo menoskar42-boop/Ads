@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ROLES } from "@shared/schema";
 import { useHorizontalKeyboardScroll } from "@/hooks/use-horizontal-keyboard-scroll";
+import { chargedTechOf, chargedTechOptions } from "@/lib/charged-tech";
 
 interface StatRow {
   centralName: string | null;
@@ -89,20 +90,13 @@ export function RemovalStatsReport() {
   const [beyond24Data, setBeyond24Data]     = useState<Beyond24Row[] | null>(null);
   const [beyond24Tech, setBeyond24Tech]     = useState("");   // فلتر اسم الفنى داخل النافذة
   const [beyond24Loading, setBeyond24Loading] = useState(false);
-  // خيارات فلتر الفنى (فنى الإغلاق + فنى المنطقة) + الصفوف بعد الفلترة
-  const beyond24TechOptions = useMemo(() => {
-    if (!beyond24Data) return [];
-    const s = new Set<string>();
-    for (const r of beyond24Data) {
-      if (r.closeByName && r.closeByName !== "غير معروف") s.add(r.closeByName);
-      if (r.areaTechName && r.areaTechName !== "غير معروف") s.add(r.areaTechName);
-    }
-    return [...s].sort((a, b) => a.localeCompare(b, "ar"));
-  }, [beyond24Data]);
+  // فلتر الفنى = العطل محسوب على مين: فنى الإغلاق، أو فنى المنطقة لو الإغلاق غير معروف
+  // (المالك ٢٠٢٦-١٠-١٣) — نفس الأرقام اللى فى الجدول.
+  const beyond24TechOptions = useMemo(() => chargedTechOptions(beyond24Data), [beyond24Data]);
   const beyond24Filtered = useMemo(() => {
     if (!beyond24Data) return [];
     if (!beyond24Tech) return beyond24Data;
-    return beyond24Data.filter((r) => r.closeByName === beyond24Tech || r.areaTechName === beyond24Tech);
+    return beyond24Data.filter((r) => chargedTechOf(r) === beyond24Tech);
   }, [beyond24Data, beyond24Tech]);
   const [assigningNo, setAssigningNo]       = useState<string | null>(null);
   const beyond24Scroll = useHorizontalKeyboardScroll(beyond24Open && !!beyond24Data && !beyond24Loading);

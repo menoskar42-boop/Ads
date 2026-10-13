@@ -15799,7 +15799,8 @@ export async function registerRoutes(
       if (dateFrom) { params.push(dateFrom); dateClause += ` AND (src.complain_time AT TIME ZONE 'UTC')::date >= $${params.length}`; }
       if (dateTo)   { params.push(dateTo);   dateClause += ` AND (src.complain_time AT TIME ZONE 'UTC')::date <= $${params.length}`; }
 
-      // الفنى: يرى أعطاله فقط — سواء هو فنى الإغلاق أو فنى المنطقة (على الأسماء المحسوبة)
+      // الفنى: يرى الأعطال المحسوبة عليه بس — فنى الإغلاق، أو فنى المنطقة لو الإغلاق غير معروف
+      // (المالك ٢٠٢٦-١٠-١٣) — نفس قاعدة الأرقام فى combined-stats (effTechSql).
       let techClause = "";
       if (req.user?.role === ROLES.TECH) {
         const wc = String((req.user as any).workerCode || "").trim();
@@ -15809,7 +15810,7 @@ export async function registerRoutes(
           myTech = tr.rows[0]?.tech_name || "";
         }
         params.push(myTech);
-        techClause = ` AND (b."closeByName" = $${params.length} OR b."areaTechName" = $${params.length})`;
+        techClause = ` AND b."chargedTech" = $${params.length}`;
       }
 
       let srcCTE: string;
@@ -15900,7 +15901,12 @@ export async function registerRoutes(
           FROM src
           WHERE TRUE ${dateClause}
         )
-        SELECT * FROM base b WHERE b."hoursExact" > 24 ${techClause} ORDER BY b."hoursExact" DESC LIMIT 5000
+        SELECT * FROM (
+          SELECT base.*,
+                 -- محسوب على مين: فنى الإغلاق، أو فنى المنطقة لو الإغلاق غير معروف
+                 CASE WHEN base."closeByName" <> 'غير معروف' THEN base."closeByName" ELSE base."areaTechName" END AS "chargedTech"
+            FROM base
+        ) b WHERE b."hoursExact" > 24 ${techClause} ORDER BY b."hoursExact" DESC LIMIT 5000
       `, params);
 
       res.json(rows);
