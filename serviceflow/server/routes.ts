@@ -42,20 +42,24 @@ import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign 
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
 import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
+import { QuietSessionStore, cachedUser } from "./db-quiet";
 
 const scryptAsync = promisify(scrypt);
 const MemStore = MemoryStore(session);
 // جلسات دائمة فى Postgres (جدول sf_session المُنشأ فى ensureSchema). لو فشلت التهيئة
 // لأى سبب نرجع لـ MemoryStore عشان الدخول مايتعطّلش أبداً.
+let quietSessions: QuietSessionStore | null = null;
 function buildSessionStore() {
   try {
     const PgSession = connectPgSimple(session);
-    // pruneSessionInterval: connect-pg-simple بيمسح الجلسات المنتهية كل ساعة.
-    // من غيره الجدول بيكبر بلا حدود (الفهرس على expire كان موجود بس مفيش حد بيمسح).
-    return new PgSession({
+    // التنضيف (مسح الجلسات المنتهية) كان مؤقّت كل ساعة ⇒ ٢٤ صحيان للقاعدة فى اليوم حتى لو
+    // محدش شغّال. دلوقتى مرة فى اليوم ولما القاعدة صاحية أصلاً (QuietSessionStore.maybePrune).
+    // والجلسة بتتقرا من الذاكرة بدل القاعدة مع كل طلب — شوف server/db-quiet.ts.
+    quietSessions = new QuietSessionStore(new PgSession({
       pool, tableName: "sf_session", createTableIfMissing: false,
-      pruneSessionInterval: 60 * 60,
-    });
+      pruneSessionInterval: false,
+    }));
+    return quietSessions;
   } catch (e) {
     console.error("[session] PgSession init failed → MemoryStore fallback:", (e as Error).message);
     return new MemStore({ checkPeriod: 86400000 });
@@ -1845,6 +1849,7 @@ export async function registerRoutes(
 
   app.use(passport.initialize());
   app.use(passport.session());
+  app.use((_req, _res, next) => { quietSessions?.maybePrune(); next(); });
 
   // === Cable-Fault-Manager (CFM) المدموج — راوتس تحت /api/cfm/* (تعيد استخدام نفس الجلسة) ===
   registerCfmRoutes(app);
@@ -1867,7 +1872,8 @@ export async function registerRoutes(
   passport.serializeUser((user: any, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
     try {
-      const user = await storage.getUser(id);
+      // من الذاكرة ١٥ دقيقة (وأى كتابة فى users بتمسحها) — بدل قراية القاعدة مع كل طلب
+      const user = await cachedUser(id, (i) => storage.getUser(i));
       done(null, user);
     } catch (err) {
       done(err);

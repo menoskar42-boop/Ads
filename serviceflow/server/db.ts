@@ -5,6 +5,7 @@ import { join } from "path";
 import * as schema from "@shared/schema";
 import { phoneNormSql } from "./phone-norm";
 import { SEED_BATCH, SEED_CHANGES, SEED_EFFECTIVE_LOCAL } from "./cabinet-reassign";
+import { watchPool } from "./db-quiet";
 
 const { Pool } = pg;
 
@@ -38,6 +39,8 @@ const currentPoolMax = Number.isFinite(configuredCurrentPoolMax) && configuredCu
   : 2;
 
 export const archivePool = new Pool({ connectionString: archiveDatabaseUrl });
+// «خلّى القاعدة تنام»: بنعرف إمتى القاعدة صاحية، وأى كتابة فى users بتمسح ذاكرة المستخدمين
+watchPool(archivePool);
 export const pool = archivePool;
 export const currentPool = currentDatabaseUrl
   ? new Pool({
