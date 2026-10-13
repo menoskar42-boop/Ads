@@ -2,7 +2,7 @@
 // @name         Provisioning Portal → Service-Flow (تحديث البورتات + غيّر البورت MSAN)
 // @namespace    service-flow.provisioning
 // @description  سكربت واحد لموقع Provisioning Portal (WE) — فيه ثلاث تدفّقات مستقلة تماماً بماركرات مختلفة لمنع أى تعارض: (1) sf_ports = تحديث ملف البورتات (Get MSAN Data لكل أكواد الأمسان المخزّنة فى Service-Flow). (2) sf_msan = غيّر البورت (MSAN Replacement) لرقم واحد — يملأ Old/New Cabin Code ويحقن ملف CSV ويضغط Submit، ثم يراقب 30 ثانية للتأكد إنه مرجعش للّوجين (نجح) قبل ما يقفل التاب (بدون متابعة تلقائية). (3) sf_pcheck = تحديث البورت (يدوى) — يفتح Search For My Requests مرة واحدة لرقم، يطابقه، ولو COMPLETED يجيب New Frame + New Msan ويحدّث بيان البورت فى Service-Flow. كل تدفّق فى نافذة باسم مستقل فالـ sessionStorage منفصل ومفيش تداخل.
-// @version      1.6.2
+// @version      1.6.1
 // @match        *://provisioningportal.te.eg/provisioningPortal/*
 // @connect      service-flow-menoskar42.replit.app
 // @connect      ads-menoskar42.replit.app
@@ -792,14 +792,13 @@
         }
         return;
       }
-      // اللى مش متسجّل عندنا الأول. ولو كله متسجّل قبل كده ⇒ نعيد قراية الأحدث ونرفعه تانى
-      // (المالك ٢٠٢٦-١٠-١٣: «كاتب انه اتحدث قبل كده و هو ما اتحدثش») — بيان البورت فى
-      // Service-Flow ممكن يكون رجع للقديم بعد التسجيل الأول، والرفع تانى بيحدّثه (upsert).
+      // نستبعد المسجّل عندنا قبل كده (اتحدّث/اتسجّل) — عشان الضغط تانى ميعيدش
       const seen = await sfSeen(phone);
-      let fresh = todayRows.filter((r) => seen.indexOf(r.requestId) < 0);
+      const fresh = todayRows.filter((r) => seen.indexOf(r.requestId) < 0);
       if (!fresh.length) {
-        fresh = todayRows;
-        logln("ℹ️ " + phone + " — طلب اليوم متسجّل قبل كده (Request IDs: " + todayRows.map((r) => r.requestId).join(", ") + ") → بنعيد قرايته ونحدّث البيان تانى.");
+        banner("✅ طلب تغيير البورت للرقم " + phone + " اتسجّل/اتحدّث قبل كده.", "#2e7d32");
+        logln("ℹ️ " + phone + " — كل طلبات اليوم متسجّلة قبل كده (Request IDs: " + todayRows.map((r) => r.requestId).join(", ") + ").");
+        return;
       }
       // لو فيه أكتر من طلب غير محدّث → ناخد الأحدث على البروفيجن
       const mine = pcPickLatest(fresh);
