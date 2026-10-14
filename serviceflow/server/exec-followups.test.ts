@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { followupFor, STOP_AFTER_RAISE_MIN, MEASURE_AFTER_STOP_MIN } from "./exec-followups";
+import { followupFor, recheckFor, STOP_AFTER_RAISE_MIN, MEASURE_AFTER_STOP_MIN, RECHECK_MARK } from "./exec-followups";
 
 const SRC = "بحث برقم التليفون";
 
@@ -12,9 +12,10 @@ test("raise +إيقاف → stop after 7 min, marked for the measure", () => {
   assert.equal(STOP_AFTER_RAISE_MIN, 7);
 });
 
-test("stop +قياس → Real measure after 2 min with the original source (no marks)", () => {
+test("stop +قياس → Real measure after 2 min with the original source (marked for a score re-check)", () => {
   const f = followupFor({ type: "stop", note: `${SRC} +قياس`, result: "tab_closed" });
-  assert.deepEqual(f, { type: "measure", note: SRC, afterMin: 2 });
+  assert.deepEqual(f, { type: "measure", note: `${SRC} ${RECHECK_MARK}`, afterMin: 2 });
+  assert.ok(f!.note.includes(SRC), "same source ⇒ «A recent fix» like any measure from phone lookup");
   assert.equal(MEASURE_AFTER_STOP_MIN, 2);
   // القياس مش «بدون Real»
   assert.doesNotMatch(f!.note, /بدون Real/);
@@ -75,4 +76,24 @@ test("speed-drop report: mobile column like current faults + details button next
   assert.match(ui, /<MobileValue mobile=\{mobileOf\(r\) \|\| null\} phone=\{r\.phone\} \/>/);
   assert.match(ui, /onClick=\{\(\) => setDetailPhone\(r\.phone\)\} title="تفاصيل الخط والاتصال"/);
   assert.match(ui, /<LineDetailsDialog phone=\{detailPhone\}/);
+});
+
+// المالك ٢٠٢٦-١٠-١٤: «لو القياس طلع اسكور أعلى من ١٠٠ تجدول قياس تانى بعد دقيقتين»
+test("chain measure with score > 100 → one more measure after 2 min (once)", () => {
+  const m = { type: "measure", note: `${SRC} ${RECHECK_MARK}`, result: "done" };
+  assert.deepEqual(recheckFor(m, 135), { type: "measure", note: SRC, afterMin: 2 });
+  assert.equal(recheckFor(m, 100), null, "100 بالظبط مش أعلى من ١٠٠");
+  assert.equal(recheckFor(m, 40), null);
+  assert.equal(recheckFor(m, null), null, "مفيش قياس جديد اتسجّل");
+  assert.equal(recheckFor({ ...m, result: "timeout" }, 150), null);
+  // القياس التانى مالوش علامة ⇒ مابيكرّرش، وأى قياس عادى برّه السلسلة مالوش إعادة
+  assert.equal(recheckFor({ type: "measure", note: SRC, result: "done" }, 150), null);
+  assert.equal(followupFor({ type: "measure", note: `${SRC} ${RECHECK_MARK}`, result: "done" }), null);
+});
+
+test("wiring: done reads the fresh score (after claim) and schedules the re-check", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  assert.match(routes, /RETURNING id, type, accounts, note, requested_by, claimed_at/);
+  assert.match(routes, /SELECT score FROM case_138 WHERE account_no = \$1 AND uploaded_at >= COALESCE\(\$2::timestamptz/);
+  assert.match(routes, /const rc = recheckFor\(\{ type: j\.type, note: j\.note, result \}, sc\[0\]\?\.score\);/);
 });

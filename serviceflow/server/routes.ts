@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { pool, currentPool, hasCurrentDatabase } from "./db";
 import { cleanWfmMobile } from "./wfm-mobile";
-import { followupFor } from "./exec-followups";
+import { followupFor, recheckFor, RECHECK_MARK } from "./exec-followups";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
@@ -2649,7 +2649,7 @@ export async function registerRoutes(
       const result = String((req.body || {}).result || "").trim() || null;
       const { rows: doneRows } = await pool.query(
         `UPDATE exec_jobs SET status = 'done', done_at = now(), result = $2 WHERE id = $1 AND status <> 'done'
-         RETURNING id, type, accounts, note, requested_by`, [parseInt(req.params.id), result]);
+         RETURNING id, type, accounts, note, requested_by, claimed_at`, [parseInt(req.params.id), result]);
       // «رفع السرعة ثم الإيقاف» على مراحل: الرفع خلص ⇒ إيقاف PO بعد ٧ دقايق، والإيقاف خلص ⇒
       // قياس Real بعد دقيقتين (server/exec-followups.ts). «AND status <> 'done'» بيمنع التكرار.
       const j = doneRows[0];
@@ -2663,7 +2663,25 @@ export async function registerRoutes(
             [fu.type, acc, fu.note, j.requested_by, j.id, fu.afterMin]);
         }
       }
-      res.json({ ok: true, followup: fu ? { type: fu.type, afterMin: fu.afterMin } : null });
+      // قياس السلسلة (رفع ← إيقاف ← قياس) طلع اسكور أعلى من ١٠٠ ⇒ قياس تانى بعد دقيقتين
+      // (المالك ٢٠٢٦-١٠-١٤). الاسكور = آخر قياس اتسجّل للأكونت بعد ما المهمة اتسحبت.
+      let recheck = 0;
+      if (j && j.type === "measure" && String(j.note || "").includes(RECHECK_MARK)) {
+        const accs: string[] = (Array.isArray(j.accounts) ? j.accounts : []).map((a: any) => String(a).trim()).filter(Boolean);
+        for (const acc of accs) {
+          const { rows: sc } = await pool.query(
+            `SELECT score FROM case_138 WHERE account_no = $1 AND uploaded_at >= COALESCE($2::timestamptz, now() - interval '30 minutes')
+              ORDER BY id DESC LIMIT 1`, [acc, j.claimed_at]);
+          const rc = recheckFor({ type: j.type, note: j.note, result }, sc[0]?.score);
+          if (!rc) continue;
+          await pool.query(
+            `INSERT INTO exec_followups (type, account, note, requested_by, source_job_id, run_at)
+             VALUES ($1, $2, $3, $4, $5, now() + make_interval(mins => $6))`,
+            [rc.type, acc, rc.note, j.requested_by, j.id, rc.afterMin]);
+          recheck++;
+        }
+      }
+      res.json({ ok: true, followup: fu ? { type: fu.type, afterMin: fu.afterMin } : null, recheck });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   // تأكيد تحديث القياس: آخر وقت قياس (case_138.uploaded_at) لرقم أكونت — جهاز التنفيذ
