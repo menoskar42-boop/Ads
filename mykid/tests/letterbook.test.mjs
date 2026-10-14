@@ -98,7 +98,7 @@ async function open(pageId, extra = {}) {
 
 /** غلطة واحدة: المس حاجة مش data-good — ميزو يشجّع، ومفيش «غلط». */
 async function oneMistake() {
-  const wrong = page.locator(".wbk-body button:not([data-good]):not(.candy-btn):not(.wbk-mizo-btn):not(.lbk-pic-big):not(.lbk-sign):not(.lbk-piece)");
+  const wrong = page.locator(".wbk-body button:not([data-good]):not(.candy-btn):not(.wbk-mizo-btn):not(.lbk-pic-big):not(.lbk-sign):not(.lbk-piece):not(.lbk-circle-pic)");
   if (!(await wrong.count())) return false;
   await wrong.first().click();
   await page.waitForTimeout(1100);
@@ -165,7 +165,7 @@ async function playPage(pageId, opts = {}) {
 
 test("letter page (ب): every book activity in order, with harakat", async () => {
   const seen = await playPage("Lب");
-  assert.deepEqual(seen, ["meet", "write", "riddle", "pop", "write", "harakat", "harakaChoose", "starts", "forms", "missing", "write"]);
+  assert.deepEqual(seen, ["meet", "write", "riddle", "pop", "write", "harakat", "harakaChoose", "starts", "forms", "circle", "missing", "write"]);
   // اتعلّمت ونجمة على الصفحة
   assert.equal(await page.evaluate(async () => (await import("/js/core/storage.js")).Store.letterbookDone["Lب"]), 1);
   assert.deepEqual(errors, []);

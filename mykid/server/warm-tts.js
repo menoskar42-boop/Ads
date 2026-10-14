@@ -192,7 +192,8 @@ add("برافو", AR);
     const name = lbName(ch);
     const s3 = ["a", "u", "i"].map((h) => (ch === "أ" && h === "i" ? "إ" : ch) + LB_HARAKAT[h].mark);
     [S.meet(name, s3.join("، ")), S.pop(name), S.popWrong(name), S.popMore(name), S.harakat(name), S.starts(name),
-      S.forms(name), S.position(name), WP.writeIntro("الحرف", name), L.riddle].forEach(addAr);
+      S.forms(name), S.position(name), WP.writeIntro("الحرف", name), L.riddle,
+      S.circle(name, 0), S.circle(name, 1), S.circle(name, 2), S.circleWrong(name)].forEach(addAr);
     add(name, AR);
     // المقاطع (بَ بُ بِ بْ) + «اقرأ بُ …»
     for (const h of ["a", "u", "i", "o"]) {
@@ -201,7 +202,7 @@ add("برافو", AR);
       if (h !== "o") addAr(S.harakaPic(v));
     }
     // كل كلمة: بالتشكيل (الحركات) ومن غيره (الصور والفزّورة)
-    for (const x of [...L.harakat, ...L.forms, ...L.more, L.answer]) { add(x.w, AR); add(lbBare(x.w), AR); }
+    for (const x of [...L.harakat, ...L.forms, ...L.more, L.answer, ...(L.circle || [])]) { add(x.w, AR); add(lbBare(x.w), AR); }
   }
   for (const x of LB_SHADOWS) add(x.w, AR);
   for (const b of LB_BUILD) { add(b.w, AR); addAr(S.build(lbName(b.a), lbName(b.b))); }
@@ -237,6 +238,8 @@ async function generate(text, voice, instructions) {
         instructions ||
         "Speak slowly, warmly and clearly, like a friendly teacher for a 3-5 year old child.",
     }),
+    // طلب واحد علّق ماكانش بيوقّف التشغيل كله (المالك ٢٠٢٦-١٠-١٤: «معلّق كده بقاله فترة»)
+    signal: AbortSignal.timeout(45_000),
   });
   if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`);
   return Buffer.from(await r.arrayBuffer());
@@ -255,6 +258,7 @@ for (const p of phrases) {
     fs.writeFileSync(`${file}.tmp`, buf);
     fs.renameSync(`${file}.tmp`, file);
     miss++;
+    console.log(`  ✓ ${miss}: ${p.text}`);   // كل عبارة جديدة بتبان — عشان مايبانش إنه واقف
   } catch (e) {
     fail++;
     console.warn(`✗ ${p.text} — ${e.message}`);

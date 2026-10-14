@@ -38,6 +38,8 @@ export const LB_LETTERS = {
     harakat: [{ ...W("أَرنب", "🐰"), h: "a" }, { ...W("أُخطبوط", "🐙"), h: "u" }, { ...W("إِصبع", "☝️"), h: "i" }, { ...W("فأْس", "🪓"), h: "o" }],
     forms: [W("أسد", "🦁"), W("فأر", "🐭"), W("كتاب", "📖")],
     more: [W("أناناس", "🍍"), W("أذن", "👂")],
+    // «حط دايرة»: كلمة بتنتهى بالألف (الكتاب بيحسب ا زى أ — كتاب)
+    circle: [W("بيتزا", "🍕")],
   },
   "م": {
     riddle: "دى أداة بنقصّ بيها الورق، واسمها بيبدأ بحرف م. هى إيه؟",
@@ -182,6 +184,31 @@ export function splitAt(w, ch) {
   return { before: b.slice(0, i).join(""), letter: b[i], after: b.slice(i + 1).join("") };
 }
 
+/**
+ * الكلمة حروف منفصلة للمس — كل حرف بشكله الموصول (ZWJ قبله/بعده) فالكلمة تفضل شكلها.
+ * good = أماكن الحرف المطلوب فيها (لو متكرّر أى واحد منهم صح)، idx = أول ظهور.
+ */
+const ZWJ = "\u200D";
+export function letterTiles(w, ch) {
+  const b = [...bare(w)];
+  const tiles = b.map((c, i) => (i > 0 && joinsNext(b[i - 1]) ? ZWJ : "") + c + (i < b.length - 1 && joinsNext(c) ? ZWJ : ""));
+  const good = b.map((c, i) => (same(c, ch) ? i : -1)).filter((i) => i >= 0);
+  return { tiles, good, idx: good[0] ?? -1 };
+}
+/**
+ * «حط دايرة حوالين الحرف» (المالك ٢٠٢٦-١٠-١٤): كلمة بتبدأ بالحرف ← كلمة بتنتهى بيه ← كلمة هو فى وسطها.
+ * من كلمات الحرف نفسها (أشكال الحرف، وبعدين الباقى) — اللى مالوش كلمة فى مكان معيّن بيتعدّى.
+ */
+export const CIRCLE_ORDER = [0, 2, 1];
+export function circleWords(ch) {
+  const L = LB_LETTERS[ch];
+  if (!L) return [];
+  const pool = [...L.forms, ...L.more, L.answer, ...L.harakat, ...(L.circle || [])].map((x) => ({ w: bare(x.w), e: x.e }));
+  return CIRCLE_ORDER.map((pos) => pool.find((x) => posOf(x.w, ch) === pos))
+    .filter(Boolean)
+    .map((x) => ({ ...x, pos: posOf(x.w, ch), ...letterTiles(x.w, ch) }));
+}
+
 /** كل كلمات الكتاب بصورها (من غير تكرار) — للمشتّتات. */
 export function allWords() {
   const seen = new Map();
@@ -260,6 +287,11 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   }
   // ٩) لاحظ أشكال الحرف: أول · وسط · آخر الكلمة (الحرف ملوّن والطفل يلمسه)
   if (want("forms")) steps.push({ kind: "forms", ch, words: L.forms.map((x) => ({ ...x, pos: posOf(x.w, ch), ...splitAt(x.w, ch) })) });
+  // ٩ب) حط دايرة حوالين الحرف: فى أول الكلمة ← آخرها ← وسطها (المالك ٢٠٢٦-١٠-١٤)
+  if (want("circle")) {
+    const words = circleWords(ch);
+    if (words.length) steps.push({ kind: "circle", ch, words });
+  }
   // ١٠) اكتب الحرف الناقص: يختار الحرف، وبعدين يكتبه لوحده
   if (want("missing")) {
     // أ: الكلمات اللى فيها «أ» نفسها (مش «ا» زى كتاب) — عشان الحرف اللى يختاره هو اللى يتكتب

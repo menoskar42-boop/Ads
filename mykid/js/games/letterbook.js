@@ -444,6 +444,44 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       body.appendChild(grid);
     },
 
+    // حط دايرة حوالين الحرف (المالك ٢٠٢٦-١٠-١٤): كلمة وصورتها، والطفل يلمس الحرف فى الكلمة
+    // فيترسم حواليه دايرة — فى أول الكلمة، وبعدين آخرها، وبعدين وسطها
+    circle(body, s) {
+      const name = nameOf(s.ch);
+      let r = 0;
+      const round = () => {
+        const x = s.words[r];
+        const hint = hintLine();
+        const card = el("div", "lbk-circle-card");
+        const pic = button("lbk-circle-pic", x.e, () => { Sfx.tap(); Speech.ar(x.w); });
+        pic.setAttribute("aria-label", x.w);
+        const ref = el("span", "lbk-circle-ref", s.ch);
+        ref.setAttribute("aria-hidden", "true");
+        const word = el("div", "lbk-circle-word");
+        word.setAttribute("dir", "rtl");
+        let done = false;
+        x.tiles.forEach((t, i) => {
+          const good = x.good.includes(i);
+          const b = button("lbk-tile", t, () => {
+            if (done) return;
+            if (!good) { Sfx.wrong(); flash(b, "wbk-wiggle"); return hint.show(LB_SAY.circleWrong(name)); }
+            done = true;
+            b.classList.add("lbk-ringed", "ok");
+            Sfx.pop();
+            Speech.ar(x.w);
+            if (++r < s.words.length) setTimeout(() => { if (body.isConnected) round(); }, 1800);
+            else stepDone(1800);
+          });
+          b.setAttribute("aria-label", `حرف ${i + 1} من الكلمة`);
+          if (good) b.dataset.good = "1";
+          word.appendChild(b);
+        });
+        card.append(pic, word);
+        body.replaceChildren(prompt(LB_SAY.circle(name, x.pos)), ref, card, hint);
+      };
+      round();
+    },
+
     // اكتب الحرف الناقص: الكلمة ناقصة حرف — يختاره (والخطوة اللى بعدها يكتبه لوحده)
     missing(body, s) {
       body.appendChild(prompt(LB_SAY.missing));

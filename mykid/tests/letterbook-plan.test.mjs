@@ -57,7 +57,7 @@ const SEEDS = 30;
 test("letter page: the book's activities in order, write ×3 (road → dots → alone)", () => {
   for (const ch of LB_ORDER) {
     const steps = letterPage(ch, seeded(1));
-    assert.deepEqual(steps.map((s) => s.kind), ["meet", "write", "riddle", "pop", "write", "harakat", "harakaChoose", "starts", "forms", "missing", "write"]);
+    assert.deepEqual(steps.map((s) => s.kind), ["meet", "write", "riddle", "pop", "write", "harakat", "harakaChoose", "starts", "forms", "circle", "missing", "write"]);
     assert.deepEqual(steps.filter((s) => s.kind === "write").map((s) => s.level), [1, 2, 3]);
   }
 });
@@ -141,4 +141,26 @@ test("Mizo's instructions turn feminine for a girl, and never say «غلط»", (
     assert.notEqual(femAdapt(t), t, t);
   }
   assert.equal(femAdapt(LB_SAY.pop("باء")), "دوّري على حرف باء، والمسي كل واحد تلاقيه");
+});
+
+// المالك ٢٠٢٦-١٠-١٤: «حط دايرة حوالين الحرف» — كلمة بتبدأ بيه ← بتنتهى بيه ← هو فى وسطها
+test("circle: every letter has start → end → middle words with pictures, tiles that rebuild the word, and the right target", async () => {
+  const { circleWords, letterTiles, LB_LETTERS, CIRCLE_ORDER, bare, posOf } = await import("../js/data/letterbook.js");
+  assert.deepEqual(CIRCLE_ORDER, [0, 2, 1]);
+  for (const ch of Object.keys(LB_LETTERS)) {
+    const ws = circleWords(ch);
+    assert.deepEqual(ws.map((x) => x.pos), [0, 2, 1], `${ch}: أول ← آخر ← وسط`);
+    for (const x of ws) {
+      assert.ok(x.e && x.w, `${ch}: ${x.w} ليها صورة`);
+      assert.equal(x.tiles.join("").replace(/‍/g, ""), bare(x.w), `${ch}: الحروف بتكوّن الكلمة`);
+      assert.ok(x.good.length >= 1 && x.good.includes(x.idx));
+      assert.equal(posOf(x.w, ch), x.pos);
+    }
+  }
+  // الحرف الموصول بياخد ZWJ من الناحيتين عشان يفضل شكله جوّه الكلمة
+  const t = letterTiles("تفاح", "ف");
+  assert.deepEqual(t.good, [1]);
+  assert.equal(t.tiles[1], "‍ف‍");
+  assert.equal(t.tiles[2], "‍ا", "ا مابتتوصلش باللى بعدها");
+  assert.equal(t.tiles[3], "ح");
 });
