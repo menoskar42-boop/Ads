@@ -97,6 +97,13 @@ export function useWebSocket() {
             queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
           }
 
+          // سلك اتسجّل/اتلغى أو حركة مخزن ⇒ الأرصدة والإفادة والإشعارات (رصيد بالسالب) فوراً
+          if (message.type === WS_EVENTS.STORE_UPDATE) {
+            queryClient.invalidateQueries({ queryKey: ["/api/local-store"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/cable-entries"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+          }
+
           // اترفع ملف جديد → نبطّل صلاحية كل الاستعلامات فالتقرير المفتوح يعيد الجلب
           // لوحده فوراً (الأعطال الحالية/المنتظمة، التركيبات والنقل، متعذرات OM، … أياً كان).
           // invalidateQueries من غير فلتر بتعيد جلب الاستعلامات النشِطة بس، فالتكلفة =

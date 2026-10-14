@@ -1726,6 +1726,7 @@ export async function registerRoutes(
   // === WebSocket Setup ===
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
+  const STORE_WRITE_RE = /^\/api\/(cable-entries|local-store)(\/|$)/;
   const broadcast = (data: any) => {
     const message = JSON.stringify(data);
     wss.clients.forEach((client) => {
@@ -1750,6 +1751,17 @@ export async function registerRoutes(
         if (res.statusCode >= 200 && res.statusCode < 300) {
           broadcast({ type: WS_EVENTS.DATA_IMPORT, payload: { key: req.path } });
         }
+      });
+    }
+    next();
+  });
+
+  // أى تعديل ناجح على السلك أو المخزن المحلى ⇒ كل المتصفحات المفتوحة على المخزن/الإفادة/الإشعارات
+  // بتتحدّث فوراً. حدث بس (مفيش استعلام زيادة على القاعدة) — والشاشة المفتوحة بس هى اللى بتعيد الجلب.
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && STORE_WRITE_RE.test(req.path)) {
+      res.on("finish", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) broadcast({ type: WS_EVENTS.STORE_UPDATE });
       });
     }
     next();
