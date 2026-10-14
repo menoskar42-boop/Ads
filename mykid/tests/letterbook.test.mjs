@@ -171,6 +171,33 @@ test("letter page (ب): every book activity in order, with harakat", async () =>
   assert.deepEqual(errors, []);
 });
 
+test("writing alone in the book: the whole letter, scored — a far-off try repeats the same step (no stop mid-letter)", async () => {
+  await open("Lب", { only: ["write", "missing"] });
+  // الخطوات اللى قبل «لوحده» (الخط/النقط + الحرف الناقص) — لوحده = فيه النموذج الصغير فوق المربع
+  for (let g = 0; g < 8; g++) {
+    if ((await kind()) === "missing") { const k = await nowChip(); await tapGood(k); await advanced(k); continue; }
+    await page.waitForSelector(".wb-hand", { timeout: 4000 });
+    await waitIdle();
+    if (await page.locator(".wb-mini").count()) break;
+    const k = await nowChip();
+    const glyph = await page.locator(".wbk-write").getAttribute("data-glyph");
+    for (const st of strokesFor(glyph)) await stroke(st);
+    await advanced(k);
+  }
+  assert.equal(await page.locator(".wb-mini").count(), 1, "وصلنا خطوة «لوحده»");
+  const i = await nowChip();
+  await stroke([[50, 10], [50, 50], [50, 90]]);                  // خط واقف — شكل بعيد خالص عن ب
+  assert.equal(await page.locator(".wb-hand").count(), 0, "مفيش وقفة ولا شرح فى النص");
+  await page.waitForFunction(() => /\d+٪/.test(document.querySelector(".wbk-hint")?.textContent || ""), null, { timeout: 4000 });
+  assert.match(await page.locator(".wbk-hint").textContent(), /نشوفه إزاى/);
+  assert.equal(await nowChip(), i, "نفس الخطوة — مايعدّيش بنسبة واطية");
+  await page.waitForSelector(".wb-hand", { timeout: 4000 });     // الصباع بيوريه الأول
+  await waitIdle();
+  for (const st of strokesFor("ب")) await stroke(st);
+  await advanced(i);
+  assert.deepEqual(errors, []);
+});
+
 test("hamza letter (أ) for a girl: kasra shows إِ, Mizo speaks to her as a girl", async () => {
   await open("Lأ", { girl: true, only: ["meet", "harakat"] });
   assert.match(await page.locator(".wbk-say").textContent(), /المسي/);

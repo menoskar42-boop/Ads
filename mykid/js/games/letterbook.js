@@ -15,9 +15,10 @@ import { strokesFor, PREWRITING } from "../data/strokes.js";
 import {
   LB_UNITS, LB_PAGES, LB_HARAKAT, letterbookSteps, isLbWrite, nameOf, splitAt, joinsNext, bare,
 } from "../data/letterbook.js";
-import { LB_SAY, ROUND_MSG, writeIntro } from "../data/writingPhrases.js";
+import { LB_SAY, ROUND_MSG, SHOW_BELOW, writeIntro } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity } from "./common.js";
 import { mountWriteBoard } from "./writeBoard.js";
+import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
@@ -691,10 +692,22 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       ...penBoardOptions((text) => hint.show(text)),
       strokes,
       level,
+      // «لوحده» (المالك ٢٠٢٦-١٠-١٤ — زى «ارسم الحرف»): الحرف كله من غير وقفة، والحكم بنسبة فى الآخر
+      free: !line && level === 3,
       from: line && line.from,
       to: line && line.to,
       onHint: (text) => { Sfx.wrong(); hint.show(text); },
-      onDone: ({ fails }) => {
+      onDone: ({ fails, score }) => {
+        const pct = () => { if (score != null) hint.textContent = `${score}٪ · ${hint.textContent}`; };
+        if (score != null && score < SCORE_PASS) {
+          // نسبة واطية ⇒ نفس الخطوة تانى (وتحت ٥٠٪ الصباع بيوريه الأول)
+          Sfx.wrong();
+          hint.show(score >= SHOW_BELOW ? ROUND_MSG.aloneClose : ROUND_MSG.aloneShow);
+          pct();
+          setTimeout(() => { board.reset(); if (score < SHOW_BELOW) board.demo(); }, 1700);
+          return;
+        }
+        if (score != null) hint.textContent = `${score}٪ ✓`;
         board.el.animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 450 });
         if (!line) Speech.ar(nameOf(v));
         if (!line && level === 3) Store.recordWrite("g:" + v, fails, level);

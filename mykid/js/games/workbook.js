@@ -16,9 +16,10 @@ import {
   WB_COLORS, WB_AR, WB_PAGES, WB_UNITS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR,
   WB_LOCKED_IDS, pageSteps, colorPairOf, isWriteStep, afterNumbersOpen,
 } from "../data/workbook.js";
-import { WB_SAY, writeIntro } from "../data/writingPhrases.js";
+import { WB_SAY, ROUND_MSG, SHOW_BELOW, writeIntro } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity } from "./common.js";
 import { mountWriteBoard } from "./writeBoard.js";
+import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
@@ -1374,10 +1375,22 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       ...penBoardOptions((text) => hint.show(text)),
       strokes,
       level,
+      // «لوحده» (المالك ٢٠٢٦-١٠-١٤ — زى «ارسم الحرف»): الحرف كله من غير وقفة، والحكم بنسبة فى الآخر
+      free: !line && level === 3,
       from: line && line.from,
       to: line && line.to,
       onHint: (text) => { Sfx.wrong(); hint.show(text); },
-      onDone: ({ fails }) => {
+      onDone: ({ fails, score }) => {
+        const pct = () => { if (score != null) hint.textContent = `${score}٪ · ${hint.textContent}`; };
+        if (score != null && score < SCORE_PASS) {
+          // نسبة واطية ⇒ نفس الخطوة تانى (وتحت ٥٠٪ الصباع بيوريه الأول)
+          Sfx.wrong();
+          hint.show(score >= SHOW_BELOW ? ROUND_MSG.aloneClose : ROUND_MSG.aloneShow);
+          pct();
+          setTimeout(() => { board.reset(); if (score < SHOW_BELOW) board.demo(); }, 1700);
+          return;
+        }
+        if (score != null) hint.textContent = `${score}٪ ✓`;
         board.el.animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 450 });
         if (!line) Speech.en(shape ? shape.en : enName(v));
         done(fails);
