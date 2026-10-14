@@ -17,6 +17,7 @@ import * as WP from "../js/data/writingPhrases.js";
 import { hintForResult } from "../js/games/strokeJudge.js";
 import { PREWRITING, AR as AR_STROKES } from "../js/data/strokes.js";
 import { LB_LETTERS, LB_ORDER, LB_HARAKAT, LB_SHADOWS, LB_BUILD, nameOf as lbName, bare as lbBare } from "../js/data/letterbook.js";
+import { EB_PAGES, EB_WORDS, NUM_EN, ebSteps } from "../js/data/englishbook.js";
 import { WB_AR, WB_COLORS, WB_NUMBERS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR, WB_LINES, colorPairOf } from "../js/data/workbook.js";
 
 const MZ = MIZO.toneInstructions; // توجيهات لهجة ميزو (لمطابقة مفاتيح الكاش)
@@ -215,6 +216,53 @@ add("برافو", AR);
     const ch = it.char;
     if (!ch) continue;
     for (const h of ["a", "u", "i", "o"]) add((ch === "أ" && h === "i" ? "إ" : ch) + MARKS[h], AR);
+  }
+}
+
+// ===== «كتاب الإنجليزى» (٢٠٢٦-١٠-١٤) — كلام ميزو بالعربى + كل كلمة وجملة وحرف إنجليزى فى الكتاب =====
+{
+  const S = WP.EB_SAY;
+  const en = (t) => add(t, EN);
+  [S.chooser, S.meetWords, S.find, S.findWrong, S.sortWrong, S.count12, S.count12Wrong, S.sentences, S.pickSentence,
+    S.pickWrong, S.opposites, S.firstWrong, S.firstMore, S.matchLetter, S.matchWrong, S.count, S.countWrong,
+    S.endWrong, S.choose, S.rhyme, S.rhymeWrong, S.build, S.buildWrong, S.missing, S.missingWrong].forEach(addAr);
+  S.cheerEn.forEach(en);
+  for (const w of Object.keys(EB_WORDS)) en(w);
+  for (const C of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+    const c = C.toLowerCase();
+    en(C); en(c); en(`big ${C}`); en(`small ${c}`);
+    [S.writeCap(C), S.writeSmall(c), S.popLetter(C), S.popWrong(C)].forEach(addAr);
+  }
+  // كل الخطوات بكذا ترتيب عشوائى (المشتّتات والبالونات بتتغيّر) — نجمع كل نص بيتنطق
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (const pg of EB_PAGES) {
+    const L = pg.label || pg.ch;
+    if (pg.type === "letter") { [S.letterMeet(L), S.firstSound(L), S.endSound(L)].forEach(addAr); en(L); en(L.toLowerCase()); }
+    if (pg.type === "sight") { [S.sightMeet(pg.word), S.spell(pg.word), S.findColor(pg.word), S.findColorWrong(pg.word)].forEach(addAr); en(pg.word); }
+    if (pg.title) en(pg.title);
+    if (pg.sort) addAr(pg.sort.say);
+    for (let k = 0; k < 12; k++) {
+      for (const st of ebSteps(pg, rnd)) {
+        (st.words || []).forEach(en);
+        (st.lines || []).forEach((l) => en(l.text));
+        (st.rounds || []).forEach((r) => {
+          if (Array.isArray(r)) { const [w, n] = r; en(`${NUM_EN[n]} ${n > 1 ? w + "s" : w}`); return; }
+          [r.target, r.text, r.q, r.w].forEach(en);
+          (r.options || []).forEach((o) => (typeof o === "string" ? en(o) : en(o.say)));
+          if (r.w) [...r.w].forEach(en);
+        });
+        (st.items || []).forEach((it) => {
+          if (Array.isArray(it)) { const [w, n] = it; en(`I have ${NUM_EN[n]} ${w}.`); return; }
+          en(it.w); if (it.say) en(it.say);
+        });
+        (st.pair || []).forEach(([w]) => en(w));
+        (st.pairs || []).forEach((p) => (Array.isArray(p) ? p.forEach(en) : (en(p.ch), en(p.w))));
+        (st.cells || []).forEach(en);
+        if (st.kind === "write") en(st.glyph);
+        if (st.kind === "spell") [...st.word].forEach(en);
+      }
+    }
   }
 }
 

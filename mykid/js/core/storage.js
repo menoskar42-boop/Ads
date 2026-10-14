@@ -260,6 +260,14 @@ export const Store = {
     this.workbookDone[n] = (this.workbookDone[n] || 0) + 1;
     persist();
   },
+  // «كتاب الإنجليزى» (٢٠٢٦-١٠-١٤): الصفحات اللى خلصت
+  get englishbookDone() {
+    return state.englishbookDone || (state.englishbookDone = {});
+  },
+  markEnglishbookDone(id) {
+    this.englishbookDone[id] = (this.englishbookDone[id] || 0) + 1;
+    persist();
+  },
   // «كراسة الحروف»: نفس الفكرة (معرّف الصفحة ← عدد المرات)
   get letterbookDone() {
     return state.letterbookDone || (state.letterbookDone = {});

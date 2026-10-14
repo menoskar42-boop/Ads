@@ -140,6 +140,13 @@ export const ACTIVITIES = {
   ],
   english: [
     {
+      emoji: "📘",
+      title: "كتاب الإنجليزى",
+      desc: "Hello! Little Stars — الكتاب كله: كلمات وحروف وجمل وكتابة، والعب مع ميزو",
+      screen: "englishbook",
+      params: {},
+    },
+    {
       emoji: "🧑‍🏫",
       title: "معلّم الحروف",
       desc: "Letter explanation & writing",

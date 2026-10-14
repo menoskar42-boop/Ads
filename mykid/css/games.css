@@ -1443,3 +1443,75 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
   pointer-events: none; animation: lbk-ring-in .45s ease-out both; }
 @keyframes lbk-ring-in { from { transform: scale(.4) rotate(-40deg); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .lbk-tile.lbk-ringed::after { animation: none; } }
+
+/* ===== كتاب الإنجليزى «Hello! Little Stars» (englishbook.js) — نفس ورقة الكراسات + كلام إنجليزى ===== */
+.ebk-body { gap: 14px; }
+.ebk-word, .ebk-sent, .ebk-bigletter b, .ebk-star b, .ebk-balloon, .ebk-starcell, .ebk-tile, .ebk-slots, .ebk-en-inline, .ebk-pc-letter, .ebk-pc-sight, .ebk-title b, .ebk-bin b, .ebk-spell { font-family: var(--font-en, "Andika", "Comic Sans MS", sans-serif); }
+.ebk-pic .ebk-word { font-size: clamp(19px, 5.4vw, 25px); font-weight: 800; direction: ltr; }
+.ebk-hl { color: var(--wbk-c1); text-decoration: underline 3px; text-underline-offset: 4px; }
+.ebk-en-inline { direction: ltr; unicode-bidi: isolate; color: var(--wbk-c1); }
+.ebk-title span { font-family: var(--font-en, sans-serif); }
+.ebk-again { align-self: center; min-width: 64px; font-size: 26px; }
+.lbk-ringed-card::after { content: ""; position: absolute; inset: -6px; border: 4px solid var(--wbk-c1); border-radius: 50%; pointer-events: none; animation: lbk-draw .5s ease; }
+
+/* الجمل: كلمة كلمة بتنوّر وهى بتتقرا */
+.ebk-sents { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.ebk-sentcard { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; border: 3px solid color-mix(in srgb, var(--wbk-c1) 35%, #e4e4e7); border-radius: 18px; background: #fff; color: var(--c-ink); text-align: start; cursor: pointer; }
+.ebk-sentcard.ok { border-color: var(--c-green); background: #f0fdf4; }
+.ebk-sent-pic { flex: none; font-size: clamp(32px, 9vw, 42px); line-height: 1; }
+.ebk-sent { flex: 1; margin: 0; font-size: clamp(20px, 5.6vw, 27px); font-weight: 700; line-height: 1.4; direction: ltr; text-align: left; }
+.ebk-body > .ebk-sent { flex: none; padding: 6px 14px; border-radius: 14px; background: color-mix(in srgb, var(--wbk-c2) 18%, #fff); text-align: center; }
+.ebk-w { display: inline-block; padding: 0 2px; border-radius: 8px; transition: background .15s ease, transform .15s ease; }
+.ebk-w.on { background: color-mix(in srgb, var(--wbk-c2) 55%, #fff); transform: translateY(-2px); }
+.ebk-sight { color: var(--wbk-c1); text-decoration: underline 3px; text-underline-offset: 4px; }
+
+/* He/She · air/land/water · eat/drink: أزرار الإجابة */
+.ebk-bins { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.ebk-bin { display: flex; flex-direction: column; align-items: center; min-width: 104px; padding: 8px 14px; }
+.ebk-bin b { font-size: 28px; }
+.ebk-bin small { font-size: 14px; font-weight: 800; color: #6b7280; }
+
+/* اعدّ */
+.ebk-count { font-size: clamp(42px, 13vw, 60px); line-height: 1.2; letter-spacing: 6px; text-align: center; }
+.ebk-num { min-width: 70px; font-size: 34px; }
+
+/* الحرف الكبير وكلمة النجمة */
+.ebk-bigletter { display: flex; flex-direction: column; align-items: center; border: 0; background: none; color: var(--wbk-c1); cursor: pointer; animation: lbk-float 3s ease-in-out infinite; }
+.ebk-bigletter b { font-size: clamp(96px, 30vw, 150px); line-height: 1; -webkit-text-stroke: 3px color-mix(in srgb, var(--wbk-c1) 55%, #000); text-shadow: 0 8px 0 color-mix(in srgb, var(--wbk-c1) 25%, transparent); }
+.ebk-bigletter small { font: 800 24px var(--font-en, sans-serif); color: #6b7280; }
+.ebk-bigletter[data-on] { animation: lbk-bounce .6s ease; }
+.ebk-star { display: grid; place-items: center; width: min(62vw, 230px); aspect-ratio: 1; border: 0; background: #facc15; clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); cursor: pointer; animation: lbk-float 3s ease-in-out infinite; }
+.ebk-star b { margin-top: 12%; font-size: clamp(38px, 12vw, 58px); color: #3a2c66; }
+.ebk-sight-pic { font-size: 64px; line-height: 1; }
+.ebk-spell { display: flex; gap: 6px; justify-content: center; margin: 0; font-size: 44px; font-weight: 800; color: #d4d4d8; }
+.ebk-spell .done { color: var(--c-green); }
+.ebk-spell .now { color: var(--wbk-c1); text-decoration: underline 4px; text-underline-offset: 6px; }
+
+/* Find "the" — Color it! */
+.ebk-stars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: min(100%, 420px); }
+.ebk-starcell { display: grid; place-items: center; aspect-ratio: 1; border: 0; background: #e4e4e7; clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); font-size: clamp(16px, 4.6vw, 21px); font-weight: 800; color: #27272a; cursor: pointer; }
+.ebk-starcell span { margin-top: 18%; }
+.ebk-starcell[data-on] { background: #facc15; animation: lbk-bounce .5s ease; }
+.ebk-balloon { font-size: clamp(34px, 10vw, 44px); }
+
+/* Do you like…? / What do you want to be? */
+.ebk-choose { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: min(100%, 420px); }
+.ebk-choose-many { grid-template-columns: repeat(3, 1fr); }
+.ebk-choice { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 104px; padding: 10px 6px; border: 3px solid color-mix(in srgb, var(--wbk-c1) 35%, #e4e4e7); border-radius: 20px; background: #fff; color: var(--c-ink); cursor: pointer; }
+.ebk-choice .ebk-word { font-size: clamp(15px, 4.4vw, 20px); font-weight: 800; }
+.ebk-choice.ok { border-color: var(--c-green); background: #ecfdf5; animation: lbk-bounce .6s ease; }
+
+/* ركّب الكلمة · الحرف الناقص */
+.ebk-slots { display: flex; gap: 8px; justify-content: center; margin: 0; }
+.ebk-slot { display: grid; place-items: center; width: 54px; height: 62px; border: 3px dashed color-mix(in srgb, var(--wbk-c1) 55%, #d4d4d8); border-radius: 12px; background: #fff; font-size: 38px; font-weight: 800; color: #27272a; }
+.ebk-slot.on { border-style: solid; border-color: #27272a; }
+.ebk-slot-new { color: var(--wbk-c1); border-color: var(--wbk-c1) !important; animation: lbk-bounce .5s ease; }
+.ebk-tiles { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.ebk-tile { min-width: 62px; height: 62px; padding: 0 10px; border: 3px solid #27272a; border-radius: 16px; background: color-mix(in srgb, var(--wbk-c2) 25%, #fff); font-size: 36px; font-weight: 800; color: #27272a; box-shadow: 0 5px 0 rgba(0, 0, 0, .18); cursor: pointer; }
+.ebk-tile.used { opacity: .25; box-shadow: none; transform: translateY(4px); }
+
+/* كروت الخريطة */
+.ebk-pc-letter { font-size: 38px !important; color: var(--unit); }
+.ebk-pc-sight { font-size: 24px !important; color: var(--unit); }
+@media (max-width: 380px) { .ebk-slot { width: 46px; height: 54px; font-size: 32px; } .ebk-choose-many { grid-template-columns: 1fr 1fr; } }
+@media (prefers-reduced-motion: reduce) { .ebk-bigletter, .ebk-star, .ebk-starcell[data-on], .ebk-choice.ok, .ebk-slot-new, .lbk-ringed-card::after { animation: none; } }
