@@ -185,6 +185,23 @@ test("alone: N good tries in a row (10 in the app) finish the letter", async () 
   assert.equal(await level("g:د"), 3);
 });
 
+test("Arabic: after the letter is mastered alone, she writes it with fatha, damma, kasra and sukun (the mark last)", async () => {
+  const { harakaStrokes } = await import("../js/data/strokes.js");
+  await page.goto(base);
+  await page.evaluate(async () => { localStorage.clear(); (await import("/js/core/storage.js")).Store.setWriteLevel("g:د", 3); });
+  await open({ levelKey: "g:د", trace: { datasetKey: "arabic", focus: "د", returnLesson: true, regionId: "arabic", regionIndex: 0 } }, 0);
+  await writeRound("د");                                   // النقط
+  await writeRound("د");                                   // لوحده (مرة واحدة فى الاختبار)
+  for (const [h, name] of [["a", "بالفتحة"], ["u", "بالضمة"], ["i", "بالكسرة"], ["o", "بالسكون"]]) {
+    await page.waitForFunction((n) => (document.querySelector(".stage p")?.textContent || "").includes(n), name, { timeout: 8000 });
+    assert.match(await chip(), /النقط/, `${name}: على النقط`);
+    await waitIdle();
+    for (const st of harakaStrokes("د", h)) await stroke(st);
+  }
+  await page.waitForFunction(() => /بكل الحركات/.test(document.body.textContent), null, { timeout: 6000 });
+  assert.deepEqual(errors, []);
+});
+
 test("ALONE_TARGET is 10 in a row in the app", async () => {
   const { ALONE_TARGET } = await import("../js/data/writingPhrases.js");
   assert.equal(ALONE_TARGET, 10);

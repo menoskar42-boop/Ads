@@ -24,6 +24,12 @@ export const ROUND_MSG = {
   aloneClose: "قربت! يلا مرة كمان لوحدك",
   aloneShow: "تعالى نشوفه إزاى، وبعدين اكتبه تانى لوحدك",
   doneAloneAll: "برافو! كتبته صح عشر مرات ورا بعض",
+  // الحرف بالحركات زى كتاب العربى (المالك ٢٠٢٦-١٠-١٤) — الحركة آخر حاجة بتتكتب
+  harakaA: "يلا نكتبه بالفتحة: اكتب الحرف، وبعدين شرطة صغيرة فوقه",
+  harakaU: "دلوقتى بالضمة: اكتب الحرف، وبعدين واو صغيرة فوقه",
+  harakaI: "دلوقتى بالكسرة: اكتب الحرف، وبعدين شرطة صغيرة تحته",
+  harakaO: "وآخر حاجة بالسكون: اكتب الحرف، وبعدين دايرة صغيرة فوقه",
+  harakatDone: "برافو! كتبت الحرف بكل الحركات زى الكتاب",
   // النسبة قليلة ⇒ ميزو بيقول السبب بلطف وبيشجّع (المالك ٢٠٢٦-١٠-١٤) — سبب واحد بس كل مرة
   fixTiny: "حلو! بس اكتبه أكبر شوية، المربع كله بتاعك",
   fixMissingDots: "شاطر! فاضل النقط بس، متنساش تحطها",
@@ -46,6 +52,8 @@ export const fixMsg = (issue) => ({
   "dot-above": ROUND_MSG.fixDotAbove, "dot-belows": ROUND_MSG.fixDotsBelow, "dot-aboves": ROUND_MSG.fixDotsAbove, start: ROUND_MSG.fixStart, "too-wide": ROUND_MSG.fixTooWide,
   "too-tall": ROUND_MSG.fixTooTall,
 }[issue] || ROUND_MSG.fixShape);
+/** جملة كل حركة (a فتحة · u ضمة · i كسرة · o سكون). */
+export const harakaMsg = (h) => ({ a: ROUND_MSG.harakaA, u: ROUND_MSG.harakaU, i: ROUND_MSG.harakaI, o: ROUND_MSG.harakaO }[h]);
 /** «لوحده»: عدد المرات الصح **ورا بعض** (نسبة ≥ SCORE_PASS) قبل ما الحرف/الرقم يخلص. */
 export const ALONE_TARGET = 10;
 /** تحت النسبة دى ميزو بيوريه الحرف بالصباع الأول قبل المرة الجاية. */

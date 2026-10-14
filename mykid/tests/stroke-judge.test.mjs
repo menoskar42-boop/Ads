@@ -290,3 +290,25 @@ test("scoreDrawing.issue: the one main reason, and Mizo's kind sentence for it",
   assert.equal(fixMsg("nope"), ROUND_MSG.fixShape);
   assert.equal(femAdapt(ROUND_MSG.fixMissingDots), "شاطرة! فاضل النقط بس، متنسيش تحطيها");
 });
+
+// المالك ٢٠٢٦-١٠-١٤: «يكتب الحرف بالضمة والفتحة والكسرة والسكون زى كتاب العربى»
+test("harakaStrokes: the letter fits in the middle, the mark is the last stroke — above (fatha/damma/sukun) or below (kasra)", async () => {
+  const { harakaStrokes, harakaGlyph, HARAKAT_ORDER } = await import("../js/data/strokes.js");
+  const { getDataset } = await import("../js/data/datasets.js");
+  assert.deepEqual(HARAKAT_ORDER, ["a", "u", "i", "o"]);
+  assert.equal(harakaGlyph("أ", "i"), "إ", "الألف بالكسرة إِ زى الكتاب");
+  for (const it of getDataset("arabic").items) {
+    for (const h of HARAKAT_ORDER) {
+      const g = harakaGlyph(it.char, h);
+      const st = harakaStrokes(g, h);
+      assert.ok(st, `${g}${h}`);
+      assert.equal(st.length, strokesFor(g).length + 1, `${g}${h}: الحركة خط زيادة فى الآخر`);
+      const body = st.slice(0, -1).flat(), mark = st[st.length - 1];
+      for (const [x, y] of [...body, ...mark]) assert.ok(x >= 0 && x <= 100 && y >= 0 && y <= 100, `${g}${h} جوّه المربع`);
+      const top = Math.min(...body.map((p) => p[1])), bottom = Math.max(...body.map((p) => p[1]));
+      const my = mark.map((p) => p[1]);
+      if (h === "i") assert.ok(Math.min(...my) > bottom, `${g}: الكسرة تحت الحرف`);
+      else assert.ok(Math.max(...my) < top, `${g}${h}: الحركة فوق الحرف`);
+    }
+  }
+});

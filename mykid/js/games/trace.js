@@ -5,13 +5,13 @@ import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { gameTopbar, shuffle, showCheer, finishActivity, examplePhrase, glyphPicker } from "./common.js";
 import { judge, hintFor } from "./traceJudge.js";
-import { strokesFor, PREWRITING } from "../data/strokes.js";
+import { strokesFor, PREWRITING, harakaStrokes, harakaGlyph, HARAKAT_ORDER } from "../data/strokes.js";
 import { mountWriteBoard, LEVEL_LABELS } from "./writeBoard.js";
 import { Store } from "../core/storage.js";
 import { femAdapt } from "../data/mizo.js";
 import { writeStatus, practiceOrder } from "./writeProgress.js";
 import { openWorksheet } from "./worksheet.js";
-import { ROUND_MSG, writeIntro, ALONE_TARGET, SHOW_BELOW, aloneAgainMsg, fixMsg } from "../data/writingPhrases.js";
+import { ROUND_MSG, writeIntro, ALONE_TARGET, SHOW_BELOW, aloneAgainMsg, fixMsg, harakaMsg } from "../data/writingPhrases.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
@@ -78,6 +78,11 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
   let idx = 0;
   // خطة الحرف الحالى (renderBoard): المستوى لكل جولة + الجولة الحالية
   let plan = null, step = 0, planFor = null, extraLoops = 0, aloneOk = 0, showNext = false;
+  // الحرف بالحركات بعد ما يتقن الحرف لوحده (العربى بس): الحركة الحالية والباقى
+  let haraka = null, harakaQ = [];
+  const withHarakat = datasetKey === "arabic";
+  const HARAKA_MARKS = { a: "\u064E", u: "\u064F", i: "\u0650", o: "\u0652" };
+  const HARAKA_AR = { a: "بالفتحة", u: "بالضمة", i: "بالكسرة", o: "بالسكون" };
   // رسالة ميزو فى آخر الجولة بتفضل ظاهرة فى أول الجولة اللى بعدها (الشاشة بتتبنى من جديد)
   let carryMsg = "";
 
@@ -115,7 +120,9 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     titleEl.textContent = isPre ? `${it.emoji} ${label}` : `تتبّع ${noun}: ${label}`;
     stage.appendChild(titleEl);
 
-    const strokes = isPre ? it.strokes : strokesFor(glyph);
+    const hGlyph = haraka ? harakaGlyph(glyph, haraka) : glyph;
+    if (haraka) titleEl.textContent = `اكتب ${hGlyph}${HARAKA_MARKS[haraka]} — ${label} ${HARAKA_AR[haraka]}`;
+    const strokes = isPre ? it.strokes : haraka ? harakaStrokes(hGlyph, haraka) : strokesFor(glyph);
     if (strokes) return renderBoard({ it, glyph, label, sayDone, strokes });
 
     const box = document.createElement("div");
@@ -297,6 +304,8 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       extraLoops = 0;
       aloneOk = 0;
       showNext = false;
+      haraka = null;
+      harakaQ = [];
     }
     const level = plan[step];
 
@@ -347,6 +356,18 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
         );
         const say = (msg, then, wait = 1900) => { carryMsg = tell(msg); showHint(carryMsg); setTimeout(then, wait); };
         const nextRound = () => { step++; render(); };
+        // جولات الحركات (بَ بُ بِ بْ): كل حركة مرة على النقط، وبعدها اللى بعدها
+        if (haraka) {
+          Speech.ar(harakaGlyph(glyph, haraka) + HARAKA_MARKS[haraka]);
+          if (harakaQ.length) {
+            haraka = harakaQ.shift();
+            plan.push(2);
+            return setTimeout(() => say(harakaMsg(haraka), nextRound, 2400), 900);
+          }
+          haraka = null;
+          Speech.say(sayDone, { lang: speakLang });
+          return setTimeout(() => say(ROUND_MSG.harakatDone, next, 2400), 900);
+        }
         if (level < 3) {
           // جولة بمساعدة: لو اتلخبط جامد على النقط، جولة على الخط العريض قبل اللى بعدها
           if (level === 2 && fails >= 4 && !plan.includes(1)) {
@@ -368,6 +389,13 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
           aloneOk = ok ? aloneOk + 1 : 0;
           if (aloneOk >= aloneTarget()) {
             Store.setWriteLevel(levelKey, 3);
+            // العربى: بعد ما يتقن الحرف، يكتبه بالفتحة والضمة والكسرة والسكون زى كتاب العربى (المالك ٢٠٢٦-١٠-١٤)
+            if (withHarakat && harakaStrokes(harakaGlyph(glyph, "a"), "a")) {
+              harakaQ = HARAKAT_ORDER.slice();
+              haraka = harakaQ.shift();
+              plan.push(2);
+              return sayPct(ROUND_MSG.doneAloneAll, () => say(harakaMsg(haraka), nextRound, 2600), 2200);
+            }
             Speech.say(sayDone, { lang: speakLang });
             return sayPct(ROUND_MSG.doneAloneAll, next, 2200);
           }

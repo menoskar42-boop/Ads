@@ -208,6 +208,16 @@ add("برافو", AR);
   for (const b of LB_BUILD) { add(b.w, AR); addAr(S.build(lbName(b.a), lbName(b.b))); }
 }
 
+// ===== «ارسم الحرف» بالحركات (٢٠٢٦-١٠-١٤): كل حرف عربى بَ بُ بِ بْ — بيتنطق بعد كل جولة =====
+{
+  const MARKS = { a: "\u064E", u: "\u064F", i: "\u0650", o: "\u0652" };
+  for (const it of DATASETS.arabic.items) {
+    const ch = it.char;
+    if (!ch) continue;
+    for (const h of ["a", "u", "i", "o"]) add((ch === "أ" && h === "i" ? "إ" : ch) + MARKS[h], AR);
+  }
+}
+
 // ===== --dry: يعدّ الناقص بس (من غير مفتاح ولا تكلفة) — للفحص والـCI =====
 if (process.argv.includes("--dry")) {
   const missing = phrases.filter((p) => !fs.existsSync(ttsPrebuiltPath(ttsCacheKey(p.text, p.voice, p.instructions))));

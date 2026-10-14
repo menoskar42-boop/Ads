@@ -276,6 +276,31 @@ export function strokesFor(glyph) {
   return null;
 }
 
+// ===== الحرف بالحركات (المالك ٢٠٢٦-١٠-١٤: «يكتب الحرف بالضمة والفتحة والكسرة والسكون زى الكتاب») =====
+// الحرف بيتصغّر شوية فى النص (٢٣–٨٢) عشان الحركة يبقى ليها مكان فوق (٤–٢٠) أو تحت (٨٤–٩٦)،
+// والحركة آخر خط — بتتكتب بعد الحرف زى المدرسة.
+export const HARAKAT_ORDER = ["a", "u", "i", "o"];
+const HARAKA_MARK = {
+  a: L([58, 9], [42, 17]),                                                     // فتحة: شرطة مايلة فوق
+  u: cat(arc(52, 9, 4.5, 4.5, 135, 450), bez([52, 13.5], [53, 18], [49, 21], [42, 21])), // ضمة: واو صغيرة فوق
+  i: L([58, 87], [42, 95]),                                                    // كسرة: شرطة مايلة تحت
+  o: arc(50, 12, 6, 6, -90, 270),                                              // سكون: دايرة صغيرة فوق
+};
+/** الحرف `ch` بالحركة `h` (a فتحة · u ضمة · i كسرة · o سكون) — خطوط الحرف متصغّرة + خط الحركة. */
+export function harakaStrokes(ch, h) {
+  const base = strokesFor(ch);
+  if (!base || !HARAKA_MARK[h]) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const st of base) for (const [x, y] of st) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const bw = Math.max(1, x1 - x0), bh = Math.max(1, y1 - y0);
+  const k = Math.min(1, 59 / bh, 84 / bw);
+  const top = 23 + (59 - bh * k) / 2, cx = (x0 + x1) / 2;
+  const fit = base.map((st) => st.map(([x, y]) => [r1(50 + (x - cx) * k), r1(top + (y - y0) * k)]));
+  return [...fit, HARAKA_MARK[h]];
+}
+/** المقطع زى الكتاب (بَ بُ بِ بْ) — الألف بالكسرة بتبقى إِ. */
+export const harakaGlyph = (ch, h) => (ch === "أ" && h === "i" ? "إ" : ch);
+
 /**
  * حروف الاسم اللى تتكتب على اللوحة، بالترتيب (العربى من اليمين، والإنجليزى زى ما هو: Betty = B + e t t y).
  * بيشيل التشكيل والتطويل والمسافات، وأى حرف مالوش خطوط بيتعدّى (مابيوقّفش الطفل).
