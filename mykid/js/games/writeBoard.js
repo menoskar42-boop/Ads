@@ -9,7 +9,6 @@
 //
 // الحكم نفسه فى `strokeJudge.js` (دوال صافية متقاسة فى node).
 import { StrokeTracker, densify, cumulative, hintForResult, scoreDrawing, SCORE_PASS } from "./strokeJudge.js";
-import { Sfx } from "../core/audio.js";
 
 const RES = 300;
 const K = RES / 100; // وحدات المربع (٠–١٠٠) → بكسلات الكانفاس
@@ -219,7 +218,6 @@ export function mountWriteBoard(host, opts) {
     clearInk(false);
     cur++;
     fails = 0;
-    Sfx.pop();
     if (opts.onStroke) opts.onStroke(true);
     if (cur >= strokes.length) {
       finished = true;
@@ -436,7 +434,6 @@ export function mountWriteBoard(host, opts) {
     finished = true;
     const r = scoreDrawing(strokes, drawn);
     paint();
-    if (r.score >= SCORE_PASS) Sfx.pop();
     if (opts.onDone) opts.onDone({ fails: r.score >= SCORE_PASS ? 0 : 3, score: r.score, result: r });
   }
   function freeCancel(e) {

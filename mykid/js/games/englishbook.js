@@ -250,7 +250,8 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     renderStep();
   }
   function stepDone(delay = 1300) {
-    Sfx.correct();
+    // بعد الكتابة صوت ميزو بس (من غير صوت «نجاح»)
+    if (!(steps[idx] && isEbWrite(steps[idx]))) Sfx.correct();
     awardStars(1);
     clearGuide();
     // تشجيع بالإنجليزى بعد كل خطوة («Great job!» …) — بيتبدّل عشان مايتكررش
@@ -857,11 +858,11 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
       strokes,
       level,
       free: level === 3,
-      onHint: (text) => { Sfx.wrong(); hint.show(text); },
+      // من غير صوت «غلط» ولا «نجاح» على اللوحة (المالك ٢٠٢٦-١٠-١٤): صوت ميزو وكلامه بس
+      onHint: (text) => hint.show(text),
       onDone: ({ fails, score, result }) => {
         const pct = () => { if (score != null) hint.textContent = `${score}٪ · ${hint.textContent}`; };
         if (score != null && score < SCORE_PASS) {
-          Sfx.wrong();
           hint.show(fixMsg(result && result.issue));
           pct();
           setTimeout(() => { board.reset(); if (score < SHOW_BELOW) board.demo(); }, 2600);

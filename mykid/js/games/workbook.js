@@ -304,7 +304,8 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     renderStep();
   }
   function stepDone(delay = 900) {
-    Sfx.correct();
+    // بعد الكتابة صوت ميزو بس (من غير صوت «نجاح»)
+    if (!(steps[idx] && isWriteStep(steps[idx]))) Sfx.correct();
     awardStars(1);
     clearGuide();
     const img = stage.querySelector(".wbk-prompt .wbk-mizo");
@@ -1379,12 +1380,12 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       free: !line && level === 3,
       from: line && line.from,
       to: line && line.to,
-      onHint: (text) => { Sfx.wrong(); hint.show(text); },
+      // من غير صوت «غلط» ولا «نجاح» على اللوحة (المالك ٢٠٢٦-١٠-١٤): صوت ميزو وكلامه بس
+      onHint: (text) => hint.show(text),
       onDone: ({ fails, score, result }) => {
         const pct = () => { if (score != null) hint.textContent = `${score}٪ · ${hint.textContent}`; };
         if (score != null && score < SCORE_PASS) {
           // نسبة واطية ⇒ نفس الخطوة تانى (وتحت ٥٠٪ الصباع بيوريه الأول)
-          Sfx.wrong();
           // ميزو بيقول السبب بلطف (المالك ٢٠٢٦-١٠-١٤)
           hint.show(fixMsg(result && result.issue));
           pct();

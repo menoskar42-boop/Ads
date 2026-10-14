@@ -11,7 +11,7 @@ import { Store } from "../core/storage.js";
 import { femAdapt } from "../data/mizo.js";
 import { writeStatus, practiceOrder } from "./writeProgress.js";
 import { openWorksheet } from "./worksheet.js";
-import { ROUND_MSG, writeIntro, ALONE_TARGET, SHOW_BELOW, aloneAgainMsg, fixMsg, harakaMsg } from "../data/writingPhrases.js";
+import { ROUND_MSG, writeIntro, ALONE_TARGET, SHOW_BELOW, aloneAgainMsg, fixMsg, harakaMsg, DOTS_TARGET, DOTS_PASS, dotsAgainMsg } from "../data/writingPhrases.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
@@ -30,6 +30,12 @@ const RES = 300; // دقّة داخلية ثابتة
 const aloneTarget = () => {
   const t = Number(globalThis.__MYKID_ALONE_TARGET__);
   return Number.isInteger(t) && t > 0 ? t : ALONE_TARGET;
+};
+/** على النقط: ٣ مرات عالية ورا بعض (والحرف اللى اتقنه قبل كده: مرة) — الاختبارات بتقصّرها. */
+const dotsTarget = (mastered) => {
+  if (mastered) return 1;
+  const t = Number(globalThis.__MYKID_DOTS_TARGET__);
+  return Number.isInteger(t) && t > 0 ? t : DOTS_TARGET;
 };
 
 function tell(text) {
@@ -78,6 +84,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
   let idx = 0;
   // خطة الحرف الحالى (renderBoard): المستوى لكل جولة + الجولة الحالية
   let plan = null, step = 0, planFor = null, extraLoops = 0, aloneOk = 0, showNext = false;
+  let dotsOk = 0, dotsLow = 0, dotsNeed = DOTS_TARGET;
   // الحرف بالحركات بعد ما يتقن الحرف لوحده (العربى بس): الحركة الحالية والباقى
   let haraka = null, harakaQ = [];
   const withHarakat = datasetKey === "arabic";
@@ -299,10 +306,16 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     // كده: نقط ← لوحده). الخطة بتتعمل أول ما الحرف يتفتح وبتتعدّل حسب الغلط.
     if (planFor !== it) {
       planFor = it;
-      plan = Store.getWriteLevel(levelKey) >= 3 || isPre ? [2, 3] : [2, 2, 3];
+      // الحروف والأرقام (المالك ٢٠٢٦-١٠-١٤): النقط بتتحسب بنسبة، والجولات بتتضاف واحدة واحدة —
+      // مايروحش «لوحده» غير بعد نسبة عالية على النقط كذا مرة ورا بعض
+      const mastered = Store.getWriteLevel(levelKey) >= 3;
+      plan = isPre ? [2, 3] : [2];
       step = 0;
       extraLoops = 0;
       aloneOk = 0;
+      dotsOk = 0;
+      dotsLow = 0;
+      dotsNeed = dotsTarget(mastered);
       showNext = false;
       haraka = null;
       harakaQ = [];
@@ -315,10 +328,11 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     lvlBtn.className = "wb-level";
     lvlBtn.type = "button";
     // الحروف والأرقام: «لوحدك» بيتعدّ المرات الصح ورا بعض لحد ١٠؛ قبلها (النقط) رقم الجولة
-    const drill = !isPre && level === 3;
-    lvlBtn.textContent = drill ? `${LEVEL_LABELS[level]} · ✓ ${aloneOk}/${aloneTarget()}` : `${LEVEL_LABELS[level]} · ${step + 1}/${plan.length}`;
+    const drill = !isPre && !haraka && level >= 2;
+    const [got, need] = level === 3 ? [aloneOk, aloneTarget()] : [dotsOk, dotsNeed];
+    lvlBtn.textContent = drill ? `${LEVEL_LABELS[level]} · ✓ ${got}/${need}` : `${LEVEL_LABELS[level]} · ${step + 1}/${plan.length}`;
     lvlBtn.setAttribute("aria-label", drill
-      ? `لوحدك: ${aloneOk} مرة صح ورا بعض من ${aloneTarget()} — اضغط لتغيير المساعدة`
+      ? `${LEVEL_LABELS[level]}: ${got} مرة صح ورا بعض من ${need} — اضغط لتغيير المساعدة`
       : `الجولة ${step + 1} من ${plan.length}: ${LEVEL_LABELS[level]} — اضغط لتغيير المساعدة`);
     lvlBtn.addEventListener("click", () => {
       Sfx.tap();
@@ -340,22 +354,25 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       ...penBoardOptions((text) => showHint(tell(text))),
       strokes,
       level,
-      // «لوحده» للحروف والأرقام: من غير وقفة فى النص، والحكم بنسبة فى الآخر
-      free: !isPre && level === 3,
+      // الحروف والأرقام على النقط ولوحده: من غير وقفة فى النص، والحكم بنسبة فى الآخر
+      // (الحركات والخط العريض بيفضلوا خط بخط)
+      free: !isPre && !haraka && level >= 2,
       from: it.from,
       to: it.to,
-      onHint: (text) => {
-        Sfx.wrong();
-        showHint(tell(text));
-      },
+      // من غير صوت «غلط» ولا «نجاح» (المالك ٢٠٢٦-١٠-١٤): صوت ميزو وكلامه بس
+      onHint: (text) => showHint(tell(text)),
       onDone: ({ fails, score, result }) => {
-        if (score == null || score >= SCORE_PASS) Sfx.correct(); else Sfx.wrong();
         board.el.animate(
           [{ transform: "scale(1)" }, { transform: "scale(1.1)" }, { transform: "scale(1)" }],
           { duration: 500 }
         );
         const say = (msg, then, wait = 1900) => { carryMsg = tell(msg); showHint(carryMsg); setTimeout(then, wait); };
         const nextRound = () => { step++; render(); };
+        const sayPct = (msg, then, wait) => {
+          carryMsg = `${score}٪ · ${tell(msg)}`;
+          showHint(carryMsg);
+          setTimeout(then, wait);
+        };
         // جولات الحركات (بَ بُ بِ بْ): كل حركة مرة على النقط، وبعدها اللى بعدها
         if (haraka) {
           Speech.ar(harakaGlyph(glyph, haraka) + HARAKA_MARKS[haraka]);
@@ -368,23 +385,39 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
           Speech.say(sayDone, { lang: speakLang });
           return setTimeout(() => say(ROUND_MSG.harakatDone, next, 2400), 900);
         }
+        // على النقط (الحروف والأرقام): نسبة عالية ⇒ تتعدّ؛ أقل ⇒ العدّ يرجع صفر ومرة كمان على النقط
+        if (!isPre && level === 2 && score != null) {
+          const ok = score >= DOTS_PASS;
+          dotsOk = ok ? dotsOk + 1 : 0;
+          dotsLow = score < SHOW_BELOW ? dotsLow + 1 : 0;
+          if (dotsOk >= dotsNeed) {
+            plan.push(3);
+            return sayPct(ROUND_MSG.toAlone, nextRound, 2000);
+          }
+          // اتلخبط جامد مرتين ورا بعض ⇒ جولة على الخط العريض وبعدين النقط تانى
+          if (dotsLow >= 2 && !plan.includes(1)) {
+            dotsLow = 0;
+            plan.push(1, 2);
+            return sayPct(ROUND_MSG.toRoad, nextRound, 2600);
+          }
+          plan.push(2);
+          if (ok) return sayPct(dotsAgainMsg(dotsOk, dotsNeed), nextRound, 1600);
+          if (score < SHOW_BELOW) showNext = true;
+          return sayPct(fixMsg(result && result.issue, true), nextRound, 2600);
+        }
         if (level < 3) {
           // جولة بمساعدة: لو اتلخبط جامد على النقط، جولة على الخط العريض قبل اللى بعدها
           if (level === 2 && fails >= 4 && !plan.includes(1)) {
             plan.splice(step + 1, 0, 1);
             return say(ROUND_MSG.toRoad, nextRound);
           }
+          if (plan[step + 1] == null) plan.push(isPre ? 3 : 2);
           return say(plan[step + 1] === 3 ? ROUND_MSG.toAlone : ROUND_MSG.againDots, nextRound);
         }
         // جولة «لوحده» — الحروف والأرقام (المالك ٢٠٢٦-١٠-١٣): الحرف اتكتب كله واتحكم عليه بنسبة.
         // نسبة عالية ⇒ تتعدّ؛ أقل ⇒ العدّ يرجع صفر (لازم ١٠ ورا بعض). وفى الحالتين بيكتبه تانى.
         if (!isPre) {
           const ok = score >= SCORE_PASS;
-          const sayPct = (msg, then, wait) => {
-            carryMsg = `${score}٪ · ${tell(msg)}`;
-            showHint(carryMsg);
-            setTimeout(then, wait);
-          };
           Store.recordWrite(levelKey, ok ? 0 : 3, 3);
           aloneOk = ok ? aloneOk + 1 : 0;
           if (aloneOk >= aloneTarget()) {
