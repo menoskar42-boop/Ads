@@ -232,18 +232,38 @@ export function MaintCableSheet() {
     onSuccess: (d: any) => { refresh(); toast({ title: "اتعدّل التاريخ", description: d?.date, duration: 2500 }); },
     onError: (e: Error) => { refresh(); toast({ title: "التاريخ ماتعدّلش", description: errMsg(e), variant: "destructive", duration: 6000 }); },
   });
-  const [from, setFrom] = useState(() => todayCairo().slice(0, 8) + "01");
+  // المالك ٢٠٢٦-١٠-١٤: الأحدث فوق · بحث برقم التليفون · فلتر الفنى · والتاريخ الافتراضى من آخر
+  // إضافة سلك صيانة للمخزن (آخر وارد) لحد النهارده
+  const { data: summary } = useQuery<{ startDate: string | null; store: Record<"install" | "maint", { lastReceipt: string | null }> }>({
+    queryKey: ["/api/local-store", "summary"],
+    queryFn: async () => {
+      const res = await fetch("/api/local-store/summary", { credentials: "include" });
+      if (!res.ok) throw new Error("فشل التحميل");
+      return res.json();
+    },
+  });
+  const autoFrom = summary?.store?.maint?.lastReceipt || summary?.startDate || todayCairo().slice(0, 8) + "01";
+  const [fromPick, setFrom] = useState<string | null>(null);
+  const from = fromPick ?? autoFrom;
   const [to, setTo] = useState(todayCairo);
+  const [phoneQ, setPhoneQ] = useState("");
+  const [tech, setTech] = useState("all");
   const { data: entries = [], isFetching } = useCableEntries("");
-  const rows = useMemo(() => entries
-    .filter((e) => e.workOrderType === "صيانة")
-    .filter((e) => { const d = entryDay(e); return (!from || d >= from) && (!to || d <= to); })
-    .sort((a, b) => entryDay(a).localeCompare(entryDay(b)) || a.createdAt.localeCompare(b.createdAt)), [entries, from, to]);
+  const maint = useMemo(() => entries.filter((e) => e.workOrderType === "صيانة"), [entries]);
+  const techNames = useMemo(() => Array.from(new Set(maint.map((e) => e.createdByName).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ar")), [maint]);
+  const rows = useMemo(() => {
+    const q = phoneQ.replace(/\D/g, "");
+    return maint
+      .filter((e) => { const d = entryDay(e); return (!from || d >= from) && (!to || d <= to); })
+      .filter((e) => !q || `${e.phoneLocal || ""} ${e.phoneFull || ""}`.replace(/[^\d ]/g, "").includes(q))
+      .filter((e) => tech === "all" || e.createdByName === tech)
+      .sort((a, b) => entryDay(b).localeCompare(entryDay(a)) || b.createdAt.localeCompare(a.createdAt));
+  }, [maint, from, to, phoneQ, tech]);
   const cells = (e: CableEntry) => [
     e.phoneLocal || e.phoneFull, entryDay(e).replace(/-/g, "/"), ITEM_NAME,
     `${e.cableQuantity} م`, e.createdByName || "", "", e.mobile || "",
   ];
-  const period = `${from || "البداية"} إلى ${to || "اليوم"}`;
+  const period = `${from || "البداية"} إلى ${to || "اليوم"}${tech !== "all" ? ` — الفنى ${tech}` : ""}`;
   const excel = () => {
     const ws = XLSX.utils.aoa_to_sheet([[MAINT_SHEET_TITLE], [period], MAINT_SHEET_COLS, ...rows.map(cells)]);
     const wb = XLSX.utils.book_new();
@@ -262,6 +282,15 @@ export function MaintCableSheet() {
               <Input id="mcs-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
             <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="mcs-to">إلى</label>
               <Input id="mcs-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
+            <div className="relative"><label className="text-xs text-muted-foreground block mb-1" htmlFor="mcs-phone">رقم التليفون</label>
+              <Search className="absolute right-2 bottom-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <Input id="mcs-phone" value={phoneQ} onChange={(e) => setPhoneQ(e.target.value)} placeholder="ابحث برقم التليفون" inputMode="numeric" className="text-sm w-44 pr-8" dir="ltr" /></div>
+            <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="mcs-tech">الفنى</label>
+              <select id="mcs-tech" value={tech} onChange={(e) => setTech(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm w-40">
+                <option value="all">كل الفنيين</option>
+                {techNames.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select></div>
             <span className="text-sm text-muted-foreground pb-2">
               {isFetching && <Loader2 className="w-4 h-4 animate-spin inline ml-1" />}
               <b className="text-foreground">{rows.length}</b> صرف — إجمالى <b className="text-foreground tabular-nums">{Math.round(total * 100) / 100}</b> متر

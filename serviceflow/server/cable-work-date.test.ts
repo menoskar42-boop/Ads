@@ -57,3 +57,13 @@ test("الشاشة: خانة التاريخ وزرار الإلغاء للسوب
   assert.match(s, /`\/api\/cable-entries\/\$\{id\}\/date`/);
   assert.match(s, /en\.workOrderType === "صيانة" \? isSuper : isAdmin \|\| user\?\.id === en\.createdById/);
 });
+
+test("إفادة سلك الصيانة: الأحدث فوق، بحث برقم التليفون، فلتر الفنى، ومن آخر وارد صيانة (المالك ٢٠٢٦-١٠-١٤)", () => {
+  const s = src("client/src/components/MaintCableSection.tsx");
+  assert.match(s, /\.sort\(\(a, b\) => entryDay\(b\)\.localeCompare\(entryDay\(a\)\) \|\| b\.createdAt\.localeCompare\(a\.createdAt\)\)/, "الأحدث فوق");
+  assert.match(s, /id="mcs-phone"/);
+  assert.match(s, /id="mcs-tech"[\s\S]{0,300}<option value="all">كل الفنيين<\/option>/);
+  assert.match(s, /\.filter\(\(e\) => tech === "all" \|\| e\.createdByName === tech\)/);
+  assert.match(s, /const autoFrom = summary\?\.store\?\.maint\?\.lastReceipt \|\| summary\?\.startDate \|\|/);
+  assert.match(s, /const from = fromPick \?\? autoFrom;/);
+});
