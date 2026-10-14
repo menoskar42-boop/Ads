@@ -207,6 +207,13 @@ export function scoreDrawing(model, drawn) {
       sum += (t / 32) * w; wsum += w;
     }
     ordered = sum / wsum;
+  } else if (nm.length === 1) {
+    // حرف خط واحد (زى M من تحت) والطفل رفع إيده فى النص: خطوطه ورا بعض قصاد الخط —
+    // من غيرها N كانت بتعدّى على إنها M (نفس الشكل «المغطّى» بس الحركة عكس)
+    const a = resample(nm[0], 48), b = resample(nd.flat(), 48);
+    let t = 0;
+    for (let k = 0; k < 48; k++) t += Math.hypot(a[k][0] - b[k][0], a[k][1] - b[k][1]);
+    ordered = Math.max(chamfer, t / 48);
   }
   const d = 0.5 * chamfer + 0.5 * ordered;
   // d≈٠.٠٣ لحرف مكتوب كويس بإيد طفل، و≈٠.٢ لشكل تانى خالص

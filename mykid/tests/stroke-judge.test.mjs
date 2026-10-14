@@ -259,6 +259,12 @@ test("scoreDrawing: same letter smaller/shifted/slanted/shaky passes; another le
     assert.ok(scoreDrawing(strokesFor(a), strokesFor(b)).score < 50, `${a} written as ${b}`);
   }
   assert.equal(scoreDrawing(strokesFor("ب"), []).score, 0);
+  // M من تحت خط واحد: لو رفع إيده فى النص وكمّل يعدّى، وN مايعدّيش
+  const M = strokesFor("M");
+  assert.equal(M.length, 1);
+  assert.deepEqual(M[0][0], [24, 85], "M starts at the bottom");
+  assert.ok(scoreDrawing(M, [[[24, 85], [24, 15], [50, 62]], [[50, 62], [76, 15], [76, 85]]]).score >= SCORE_PASS, "M lifted at the valley");
+  assert.ok(scoreDrawing(M, [[[24, 15], [24, 85]], [[24, 15], [50, 62], [76, 15], [76, 85]]]).score < SCORE_PASS, "M from the top no longer counts");
 });
 
 // المالك ٢٠٢٦-١٠-١٤: «ميزو يوضّح للطفل سبب المشكلة بطريقة لطيفة» — سبب واحد بس، والجملة بتشجّع
@@ -273,7 +279,8 @@ test("scoreDrawing.issue: the one main reason, and Mizo's kind sentence for it",
   assert.equal(issue(B, [B[0], [[50, 30]]]), "dot-below", "النقطة فوق بدل تحت");
   assert.equal(issue(T, [T[0], [[58, 80]], [[42, 80]]]), "dot-aboves", "نقط ت تحت بدل فوق");
   assert.equal(issue(B, [[...B[0]].reverse(), B[1]]), "reversed");
-  assert.equal(issue(M, [M[0]]), "missing");
+  const H = strokesFor("H");
+  assert.equal(issue(H, [H[0]]), "missing");
   assert.equal(issue(M, [...M, [[10, 10], [20, 20]]]), "extra");
   assert.equal(issue(M, tf(M, ([x, y]) => [50 + (x - 50) * 0.35, y])), "too-tall", "مضغوط ⇒ أعرض شوية");
   assert.equal(issue(M, tf(M, ([x, y]) => [x, 50 + (y - 50) * 0.3])), "too-wide", "ممطوط ⇒ أطول شوية");
