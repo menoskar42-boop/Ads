@@ -24,7 +24,28 @@ export const ROUND_MSG = {
   aloneClose: "قربت! يلا مرة كمان لوحدك",
   aloneShow: "تعالى نشوفه إزاى، وبعدين اكتبه تانى لوحدك",
   doneAloneAll: "برافو! كتبته صح عشر مرات ورا بعض",
+  // النسبة قليلة ⇒ ميزو بيقول السبب بلطف وبيشجّع (المالك ٢٠٢٦-١٠-١٤) — سبب واحد بس كل مرة
+  fixTiny: "حلو! بس اكتبه أكبر شوية، المربع كله بتاعك",
+  fixMissingDots: "شاطر! فاضل النقط بس، متنساش تحطها",
+  fixMissing: "حلو أوى! بس فيه حتة ناقصة، كمّل الحرف كله",
+  fixExtra: "شاطر! بس فيه خطوط زيادة، الحرف ده أبسط من كده",
+  fixReversed: "الشكل جميل! بس ابدأ من النقطة الخضرا وامشي مع السهم",
+  fixDotBelow: "قربت أوى! بس النقطة مكانها تحت الحرف",
+  fixDotAbove: "قربت أوى! بس النقطة مكانها فوق الحرف",
+  fixDotsBelow: "قربت أوى! بس النقط مكانها تحت الحرف",
+  fixDotsAbove: "قربت أوى! بس النقط مكانها فوق الحرف",
+  fixStart: "حلو! ابدأ من النقطة الخضرا عشان الحرف يطلع مظبوط",
+  fixTooWide: "قربت! بس الحرف ده أطول من كده شوية",
+  fixTooTall: "قربت! بس الحرف ده أعرض من كده شوية",
+  fixShape: "قربنا! بص على الحرف الصغير اللى فوق، وتعالى نكتبه سوا",
 };
+/** جملة ميزو لسبب النسبة القليلة (issue من scoreDrawing). */
+export const fixMsg = (issue) => ({
+  tiny: ROUND_MSG.fixTiny, "missing-dots": ROUND_MSG.fixMissingDots, missing: ROUND_MSG.fixMissing,
+  extra: ROUND_MSG.fixExtra, reversed: ROUND_MSG.fixReversed, "dot-below": ROUND_MSG.fixDotBelow,
+  "dot-above": ROUND_MSG.fixDotAbove, "dot-belows": ROUND_MSG.fixDotsBelow, "dot-aboves": ROUND_MSG.fixDotsAbove, start: ROUND_MSG.fixStart, "too-wide": ROUND_MSG.fixTooWide,
+  "too-tall": ROUND_MSG.fixTooTall,
+}[issue] || ROUND_MSG.fixShape);
 /** «لوحده»: عدد المرات الصح **ورا بعض** (نسبة ≥ SCORE_PASS) قبل ما الحرف/الرقم يخلص. */
 export const ALONE_TARGET = 10;
 /** تحت النسبة دى ميزو بيوريه الحرف بالصباع الأول قبل المرة الجاية. */

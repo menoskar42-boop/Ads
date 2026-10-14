@@ -15,7 +15,7 @@ import { strokesFor, PREWRITING } from "../data/strokes.js";
 import {
   LB_UNITS, LB_PAGES, LB_HARAKAT, letterbookSteps, isLbWrite, nameOf, splitAt, joinsNext, bare,
 } from "../data/letterbook.js";
-import { LB_SAY, ROUND_MSG, SHOW_BELOW, writeIntro } from "../data/writingPhrases.js";
+import { LB_SAY, ROUND_MSG, SHOW_BELOW, fixMsg, writeIntro } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity } from "./common.js";
 import { mountWriteBoard } from "./writeBoard.js";
 import { SCORE_PASS } from "./strokeJudge.js";
@@ -697,14 +697,15 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       from: line && line.from,
       to: line && line.to,
       onHint: (text) => { Sfx.wrong(); hint.show(text); },
-      onDone: ({ fails, score }) => {
+      onDone: ({ fails, score, result }) => {
         const pct = () => { if (score != null) hint.textContent = `${score}٪ · ${hint.textContent}`; };
         if (score != null && score < SCORE_PASS) {
           // نسبة واطية ⇒ نفس الخطوة تانى (وتحت ٥٠٪ الصباع بيوريه الأول)
           Sfx.wrong();
-          hint.show(score >= SHOW_BELOW ? ROUND_MSG.aloneClose : ROUND_MSG.aloneShow);
+          // ميزو بيقول السبب بلطف (المالك ٢٠٢٦-١٠-١٤)
+          hint.show(fixMsg(result && result.issue));
           pct();
-          setTimeout(() => { board.reset(); if (score < SHOW_BELOW) board.demo(); }, 1700);
+          setTimeout(() => { board.reset(); if (score < SHOW_BELOW) board.demo(); }, 2600);
           return;
         }
         if (score != null) hint.textContent = `${score}٪ ✓`;

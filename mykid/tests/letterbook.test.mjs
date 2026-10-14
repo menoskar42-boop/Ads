@@ -189,7 +189,7 @@ test("writing alone in the book: the whole letter, scored — a far-off try repe
   await stroke([[50, 10], [50, 50], [50, 90]]);                  // خط واقف — شكل بعيد خالص عن ب
   assert.equal(await page.locator(".wb-hand").count(), 0, "مفيش وقفة ولا شرح فى النص");
   await page.waitForFunction(() => /\d+٪/.test(document.querySelector(".wbk-hint")?.textContent || ""), null, { timeout: 4000 });
-  assert.match(await page.locator(".wbk-hint").textContent(), /نشوفه إزاى/);
+  assert.match(await page.locator(".wbk-hint").textContent(), /بص على الحرف الصغير/);
   assert.equal(await nowChip(), i, "نفس الخطوة — مايعدّيش بنسبة واطية");
   await page.waitForSelector(".wb-hand", { timeout: 4000 });     // الصباع بيوريه الأول
   await waitIdle();

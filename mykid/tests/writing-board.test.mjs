@@ -164,7 +164,7 @@ test("alone: the whole letter is written without stops, then scored — a far-of
   // شكل بعيد خالص: مفيش وقفة فى النص — الحبر بيفضل، والحكم بعد ما يرفع
   await stroke([[10, 80], [50, 82], [90, 80]]);
   assert.equal(await page.locator(".wb-hand").count(), 0, "no stop/re-explain while writing");
-  await page.waitForFunction(() => /نشوفه إزاى/.test(document.body.textContent), null, { timeout: 4000 });
+  await page.waitForFunction(() => /بص على الحرف الصغير/.test(document.body.textContent), null, { timeout: 4000 });
   await page.waitForSelector(".wb-hand", { timeout: 5000 });   // الصباع بيوريه الأول
   await waitIdle();
   assert.match(await chip(), /لوحدك · ✓ 0\/3/, "a low score resets the in-a-row count");

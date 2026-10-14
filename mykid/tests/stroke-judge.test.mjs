@@ -260,3 +260,33 @@ test("scoreDrawing: same letter smaller/shifted/slanted/shaky passes; another le
   }
   assert.equal(scoreDrawing(strokesFor("ب"), []).score, 0);
 });
+
+// المالك ٢٠٢٦-١٠-١٤: «ميزو يوضّح للطفل سبب المشكلة بطريقة لطيفة» — سبب واحد بس، والجملة بتشجّع
+test("scoreDrawing.issue: the one main reason, and Mizo's kind sentence for it", async () => {
+  const { scoreDrawing } = await import("../js/games/strokeJudge.js");
+  const { fixMsg, ROUND_MSG } = await import("../js/data/writingPhrases.js");
+  const { femAdapt } = await import("../js/data/mizo.js");
+  const tf = (st, f) => st.map((s) => (s.length === 1 ? s : densify(s, 2)).map(f));
+  const B = strokesFor("ب"), T = strokesFor("ت"), M = strokesFor("M");
+  const issue = (m, d) => scoreDrawing(m, d).issue;
+  assert.equal(issue(B, [B[0]]), "missing-dots", "نسى النقطة");
+  assert.equal(issue(B, [B[0], [[50, 30]]]), "dot-below", "النقطة فوق بدل تحت");
+  assert.equal(issue(T, [T[0], [[58, 80]], [[42, 80]]]), "dot-aboves", "نقط ت تحت بدل فوق");
+  assert.equal(issue(B, [[...B[0]].reverse(), B[1]]), "reversed");
+  assert.equal(issue(M, [M[0]]), "missing");
+  assert.equal(issue(M, [...M, [[10, 10], [20, 20]]]), "extra");
+  assert.equal(issue(M, tf(M, ([x, y]) => [50 + (x - 50) * 0.35, y])), "too-tall", "مضغوط ⇒ أعرض شوية");
+  assert.equal(issue(M, tf(M, ([x, y]) => [x, 50 + (y - 50) * 0.3])), "too-wide", "ممطوط ⇒ أطول شوية");
+  assert.equal(issue(B, tf(B, ([x, y]) => [x * 0.15 + 40, y * 0.15 + 40])), "tiny");
+  assert.equal(issue(strokesFor("ج"), strokesFor("د")), "shape", "شكل تانى خالص مش «النقطة بس»");
+  assert.equal(issue(strokesFor("د"), [[[10, 80], [50, 82], [90, 80]]]), "shape");
+  // كل سبب ليه جملة، والجمل بتبدأ بتشجيع ومافيهاش «غلط»
+  for (const k of ["tiny", "missing-dots", "missing", "extra", "reversed", "dot-below", "dot-above", "dot-belows", "dot-aboves", "start", "too-wide", "too-tall", "shape", undefined]) {
+    const msg = fixMsg(k);
+    assert.ok(msg && msg.length > 10, String(k));
+    assert.doesNotMatch(msg, /غلط|خطأ|وحش/, String(k));
+    assert.match(msg, /^(حلو|شاطر|الشكل جميل|قربت|قربنا)/, `${k}: بتبدأ بتشجيع`);
+  }
+  assert.equal(fixMsg("nope"), ROUND_MSG.fixShape);
+  assert.equal(femAdapt(ROUND_MSG.fixMissingDots), "شاطرة! فاضل النقط بس، متنسيش تحطيها");
+});

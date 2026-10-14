@@ -16,7 +16,7 @@ import {
   WB_COLORS, WB_AR, WB_PAGES, WB_UNITS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR,
   WB_LOCKED_IDS, pageSteps, colorPairOf, isWriteStep, afterNumbersOpen,
 } from "../data/workbook.js";
-import { WB_SAY, ROUND_MSG, SHOW_BELOW, writeIntro } from "../data/writingPhrases.js";
+import { WB_SAY, SHOW_BELOW, fixMsg, writeIntro } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity } from "./common.js";
 import { mountWriteBoard } from "./writeBoard.js";
 import { SCORE_PASS } from "./strokeJudge.js";
@@ -1380,14 +1380,15 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       from: line && line.from,
       to: line && line.to,
       onHint: (text) => { Sfx.wrong(); hint.show(text); },
-      onDone: ({ fails, score }) => {
+      onDone: ({ fails, score, result }) => {
         const pct = () => { if (score != null) hint.textContent = `${score}٪ · ${hint.textContent}`; };
         if (score != null && score < SCORE_PASS) {
           // نسبة واطية ⇒ نفس الخطوة تانى (وتحت ٥٠٪ الصباع بيوريه الأول)
           Sfx.wrong();
-          hint.show(score >= SHOW_BELOW ? ROUND_MSG.aloneClose : ROUND_MSG.aloneShow);
+          // ميزو بيقول السبب بلطف (المالك ٢٠٢٦-١٠-١٤)
+          hint.show(fixMsg(result && result.issue));
           pct();
-          setTimeout(() => { board.reset(); if (score < SHOW_BELOW) board.demo(); }, 1700);
+          setTimeout(() => { board.reset(); if (score < SHOW_BELOW) board.demo(); }, 2600);
           return;
         }
         if (score != null) hint.textContent = `${score}٪ ✓`;

@@ -11,7 +11,7 @@ import { Store } from "../core/storage.js";
 import { femAdapt } from "../data/mizo.js";
 import { writeStatus, practiceOrder } from "./writeProgress.js";
 import { openWorksheet } from "./worksheet.js";
-import { ROUND_MSG, writeIntro, ALONE_TARGET, SHOW_BELOW, aloneAgainMsg } from "../data/writingPhrases.js";
+import { ROUND_MSG, writeIntro, ALONE_TARGET, SHOW_BELOW, aloneAgainMsg, fixMsg } from "../data/writingPhrases.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
@@ -339,7 +339,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
         Sfx.wrong();
         showHint(tell(text));
       },
-      onDone: ({ fails, score }) => {
+      onDone: ({ fails, score, result }) => {
         if (score == null || score >= SCORE_PASS) Sfx.correct(); else Sfx.wrong();
         board.el.animate(
           [{ transform: "scale(1)" }, { transform: "scale(1.1)" }, { transform: "scale(1)" }],
@@ -373,9 +373,9 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
           }
           plan.push(3);
           if (ok) return sayPct(aloneAgainMsg(aloneOk), nextRound, 1600);
-          if (score >= SHOW_BELOW) return sayPct(ROUND_MSG.aloneClose, nextRound, 1900);
-          showNext = true;    // بعيد ⇒ الصباع يوريه الأول
-          return sayPct(ROUND_MSG.aloneShow, nextRound, 1900);
+          // النسبة قليلة ⇒ ميزو بيقول السبب بلطف (المالك ٢٠٢٦-١٠-١٤)، وتحت ٥٠٪ الصباع يوريه كمان
+          if (score < SHOW_BELOW) showNext = true;
+          return sayPct(fixMsg(result && result.issue), nextRound, 2600);
         }
         if (fails <= 2) {
           Store.recordWrite(levelKey, fails, 3);

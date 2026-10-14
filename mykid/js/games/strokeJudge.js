@@ -214,5 +214,48 @@ export function scoreDrawing(model, drawn) {
   const reversed = revPairs;
   const countDiff = Math.abs(model.length - strokes.length);
   const score = Math.max(0, Math.min(100, shape - REV_PENALTY * reversed - 10 * countDiff));
-  return { score, shape, reversed, countDiff };
+  const issue = writingIssue(model, strokes, nm, nd, reversed, shape);
+  return { score, shape, reversed, countDiff, issue };
+}
+
+// ===== ليه النسبة قليلة؟ (المالك ٢٠٢٦-١٠-١٤: «ميزو يوضّح للطفل سبب المشكلة بطريقة لطيفة») =====
+// أهم سبب واحد بس — الطفل الصغير مابيقدرش يصلّح حاجتين مع بعض.
+const bbox = (sets) => {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const s of sets) for (const [x, y] of s) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  return { w: x1 - x0, h: y1 - y0 };
+};
+const isDotLike = (s) => s.length === 1 || pathLen(s) < 6;
+function writingIssue(model, drawn, nm, nd, reversed, shape = 100) {
+  const db = bbox(drawn), mb = bbox(model);
+  if (Math.max(db.w, db.h) < 22 && Math.max(mb.w, mb.h) >= 40) return "tiny";
+  const mDots = model.filter((s) => s.length === 1).length;
+  const dDots = drawn.filter(isDotLike).length;
+  if (drawn.length < model.length) {
+    // «فاضل النقط بس» لما الجسم نفسه قريب — غير كده الشكل كله محتاج يتظبط
+    if (mDots > dDots && model.length - mDots <= drawn.length - dDots) return shape >= 55 ? "missing-dots" : "shape";
+    return "missing";
+  }
+  if (drawn.length > model.length) return "extra";
+  if (reversed > 0) return "reversed";
+  // النقط: تحت الحرف ولا فوقه (بالنسبة لنص جسم الحرف)
+  const bodyY = (sets, strokes) => {
+    const ys = sets.filter((_, i) => !isDotLike(strokes[i])).flat().map((p) => p[1]);
+    return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : 0;
+  };
+  const my = bodyY(nm, model), dy = bodyY(nd, drawn);
+  for (let i = 0; i < model.length; i++) {
+    if (model[i].length !== 1 || !nd[i]) continue;
+    const mBelow = nm[i][0][1] > my, dBelow = nd[i][0][1] > dy;
+    if (mBelow !== dBelow) return (mBelow ? "dot-below" : "dot-above") + (mDots > 1 ? "s" : "");
+  }
+  // بدأ من مكان تانى (الخط الأول)
+  if (shape >= 35 && model[0].length > 1 && Math.hypot(nd[0][0][0] - nm[0][0][0], nd[0][0][1] - nm[0][0][1]) > 0.35) return "start";
+  // ممطوط أو مضغوط: نسبة العرض للطول بعيدة عن الحرف
+  if (mb.w >= 8 && mb.h >= 8 && db.w >= 4 && db.h >= 4) {
+    const r = (db.w / db.h) / (mb.w / mb.h);
+    if (r > 1.8) return "too-wide";
+    if (r < 0.55) return "too-tall";
+  }
+  return "shape";
 }
