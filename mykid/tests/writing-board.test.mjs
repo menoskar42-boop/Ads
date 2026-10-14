@@ -504,6 +504,24 @@ test("English «write it» from the teacher: capital A first, then small a, each
   assert.equal(await level("g:A"), 3);
 });
 
+test("English: two buttons switch the same letter between capital and small (both ways)", async () => {
+  await page.goto(base);
+  await page.evaluate(() => localStorage.clear());
+  await open({ levelKey: "g:M", trace: { datasetKey: "english", lang: "en-US", focus: "M", returnLesson: true, regionId: "english", regionIndex: 1 } }, 0);
+  assert.equal(await page.locator(".tr-case-btn").count(), 2);
+  assert.match(await page.locator(".tr-case-btn.is-on").textContent(), /M كابيتال/);
+  await page.locator(".tr-case-btn", { hasText: "صغير" }).click();
+  await page.waitForFunction(() => /small m/.test(document.querySelector(".stage p")?.textContent || ""));
+  assert.match(await page.locator(".tr-case-btn.is-on").textContent(), /m صغير/);
+  assert.equal(await page.locator(".wb-box").count(), 1);
+  await page.locator(".tr-case-btn", { hasText: "كابيتال" }).click();
+  await page.waitForFunction(() => /الحرف: M$/.test(document.querySelector(".stage p")?.textContent || ""));
+  // العربى مالوش الزرارين
+  await open(BA, 0);
+  assert.equal(await page.locator(".tr-case-btn").count(), 0);
+  assert.deepEqual(errors, []);
+});
+
 test("the English writing picker and the parent page list small letters too", async () => {
   await mount("/js/games/trace.js", "renderTrace", { datasetKey: "english", lang: "en-US", regionId: "english", regionIndex: 1 });
   await page.waitForSelector(".glyph-picker");

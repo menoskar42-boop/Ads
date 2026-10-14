@@ -127,6 +127,9 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     titleEl.textContent = isPre ? `${it.emoji} ${label}` : `تتبّع ${noun}: ${label}`;
     stage.appendChild(titleEl);
 
+    // الإنجليزى: زرارين ينقلوا على طول بين الكابيتال والصغير لنفس الحرف (المالك ٢٠٢٦-١٠-١٤)
+    if (datasetKey === "english" && !haraka) stage.appendChild(caseSwitch(it));
+
     const hGlyph = haraka ? harakaGlyph(glyph, haraka) : glyph;
     if (haraka) titleEl.textContent = `اكتب ${hGlyph}${HARAKA_MARKS[haraka]} — ${label} ${HARAKA_AR[haraka]}`;
     const strokes = isPre ? it.strokes : haraka ? harakaStrokes(hGlyph, haraka) : strokesFor(glyph);
@@ -510,6 +513,34 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
         board.demo();
       }
     });
+  }
+
+  /** «A كابيتال» / «a صغير»: لو الاتنين فى الجلسة بنروح للى فيها، وإلا بيتبدّل الحرف الحالى. */
+  function caseSwitch(it) {
+    const cap = it.small ? ds.items.find((x) => x.lower === it.lower) : it;
+    if (!cap) return document.createTextNode("");
+    const row = document.createElement("div");
+    row.className = "tr-case";
+    row.setAttribute("role", "group");
+    row.setAttribute("aria-label", "كابيتال ولا صغير");
+    for (const [target, text, on] of [[cap, `${cap.char} كابيتال`, !it.small], [smallOf(cap), `${cap.lower} صغير`, !!it.small]]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tr-case-btn" + (on ? " is-on" : "");
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.innerHTML = `<b dir="ltr">${text.split(" ")[0]}</b> ${text.split(" ")[1]}`;
+      b.addEventListener("click", () => {
+        if (on) return;
+        Sfx.tap();
+        Speech.stop();
+        const j = letters.findIndex((x) => glyphOf(x) === glyphOf(target));
+        if (j >= 0) idx = j;
+        else letters[idx] = target;
+        render();
+      });
+      row.appendChild(b);
+    }
+    return row;
   }
 
   function next() {
