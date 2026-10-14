@@ -2456,7 +2456,10 @@ export async function registerRoutes(
   const queueRank = (a: string) =>
     `ROW(-${a}.priority, CASE WHEN ${a}.queue_order > 0 THEN ${a}.queue_order ELSE 9223372036854775807 END, ${a}.created_at, ${a}.id)`;
   // الموقع «فاضى» للمهمة e: مفيش حاجة شغّالة عليه، أو استثناء التوازى («بدون Real»/«إيقاف PO»).
-  const siteFreeFor = (e: string, siteSql: string, L: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES }) => `(
+  // beforeSql: بداية فترة الإيقاف بالليل (أو NULL). الطلب اللى اتضاف بعدها مستنى الصبح — فمايمنعش
+  // التابات الزيادة (المالك ٢٠٢٦-١٠-١٤: طلب قياس حسن الساعة ١٢:٤٩ بالليل خلّى «بدون Real» يمشى خط خط
+  // لحد الصبح: كان مستنى إن الطلب ده ياخد الموقع، والطلب نفسه مش هيتسحب قبل نهاية الفترة).
+  const siteFreeFor = (e: string, siteSql: string, L: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES }, beforeSql = "NULL::timestamptz") => `(
     NOT EXISTS (SELECT 1 FROM exec_jobs b
                  WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql})
     OR (${laneCap(e, L)} > 1
@@ -2469,6 +2472,7 @@ export async function registerRoutes(
                          WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> ${e}.id
                            AND COALESCE(x.site, '10.42.187.101') = ${siteSql}
                            AND ${parallelGroup("x")} IS DISTINCT FROM ${parallelGroup(e)}
+                           AND (${beforeSql} IS NULL OR x.created_at <= ${beforeSql})
                            AND ${queueRank("x")} < ${queueRank(e)}))
   )`;
 
@@ -2587,7 +2591,7 @@ export async function registerRoutes(
                                h.created_at, h.id) e
               -- الدومين لازم يكون فاضى: مفيش مهمة شغّالة على نفس الموقع دلوقتى
               -- (أو استثناء «بدون Real» — siteFreeFor فوق)
-              WHERE ${siteFreeFor("e", "e.site_k", lanes)}
+              WHERE ${siteFreeFor("e", "e.site_k", lanes, "$2::timestamptz")}
               ORDER BY e.priority DESC,
                        CASE WHEN e.queue_order > 0 THEN e.queue_order ELSE 9223372036854775807 END ASC,
                        e.created_at, e.id
@@ -2611,10 +2615,10 @@ export async function registerRoutes(
           const { rows } = await tx.query(
             `UPDATE exec_jobs SET status = 'claimed', claimed_at = now(), executed_by = $1
              WHERE id = $2 AND status = 'pending' AND paused_at IS NULL
-               AND ${siteFreeFor("exec_jobs", "$3", lanes)}
+               AND ${siteFreeFor("exec_jobs", "$3", lanes, "$4::timestamptz")}
              RETURNING id, type, accounts, requested_by AS "requestedBy", note, priority, site,
                        batch_id AS "batchId", params`,
-            [execIdentity(req), candidate.id, candidate.site],
+            [execIdentity(req), candidate.id, candidate.site, before],
           );
           if (rows[0]) return rows[0];
 

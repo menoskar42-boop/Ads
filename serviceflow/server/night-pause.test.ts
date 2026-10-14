@@ -104,3 +104,13 @@ test("شاشة الإعدادات فيها وقت البداية والنهاي�
   assert.match(s, /id="night-end" type="time"/);
   assert.match(s, /!validNight \|\| save\.isPending/);
 });
+
+test("بالليل: طلب اتضاف بعد بداية الفترة (مستنى الصبح) مايوقّفش تابات «بدون Real» الزيادة", () => {
+  // المالك ٢٠٢٦-١٠-١٤: طلب قياس الساعة ١٢:٤٩ بالليل خلّى «بدون Real» يمشى خط خط لحد الصبح
+  const r = src("server/routes.ts");
+  const helper = r.slice(r.indexOf("const siteFreeFor ="), r.indexOf('app.get("/api/exec-queue/lanes"'));
+  assert.match(helper, /beforeSql = "NULL::timestamptz"/);
+  assert.match(helper, /AND \(\$\{beforeSql\} IS NULL OR x\.created_at <= \$\{beforeSql\}\)\s+AND \$\{queueRank\("x"\)\} < \$\{queueRank\(e\)\}/);
+  assert.match(r, /siteFreeFor\("e", "e\.site_k", lanes, "\$2::timestamptz"\)/);
+  assert.match(r, /\[execIdentity\(req\), candidate\.id, candidate\.site, before\],/);
+});
