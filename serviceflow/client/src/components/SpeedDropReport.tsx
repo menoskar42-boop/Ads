@@ -40,6 +40,8 @@ export function SpeedDropReport() {
   const [from, setFrom] = useState(() => today().slice(0, 8) + "01");
   const [to, setTo] = useState(today);
   const [minDrop, setMinDrop] = useState("10");
+  // فلتر الفنى (المالك ٢٠٢٦-١٠-١٥) — والأزرار والإكسيل والـPDF بيشتغلوا على المفلتر بس
+  const [tech, setTech] = useState("all");
   // أزرار القياس ورفع السرعة والإيقاف (المالك ٢٠٢٦-١٠-١٢) — نفس باقى تقارير القياسات
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
@@ -72,7 +74,13 @@ export function SpeedDropReport() {
     },
     refetchOnMount: "always",
   });
-  const rows = q.data?.data ?? [];
+  const allRows = q.data?.data ?? [];
+  const techNames = Array.from(new Set(allRows.map((r) => (r.techName ?? "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ar"));
+  const NO_TECH = "__none__";
+  const hasNoTech = allRows.some((r) => !(r.techName ?? "").trim());
+  const rows = tech === "all" ? allRows
+    : tech === NO_TECH ? allRows.filter((r) => !(r.techName ?? "").trim())
+    : allRows.filter((r) => (r.techName ?? "").trim() === tech);
   const mobileLookup = useMobileLookup(rows.map((r) => r.phone));
   const mobileOf = (r: DropRow) => mobileLookup[phoneLookupKey(r.phone)] ?? "";
   const cells = (r: DropRow, i: number) => [
@@ -104,7 +112,8 @@ export function SpeedDropReport() {
     window.open(buildDZSUrl([acc]), "dzs_measure");
   };
 
-  const title = `انخفاض السرعة بعد الانتظام (أكتر من ${minDrop || 10}%) — ${from} إلى ${to}`;
+  const techLabel = tech === "all" ? "" : ` — الفنى: ${tech === NO_TECH ? "بدون فنى" : tech}`;
+  const title = `انخفاض السرعة بعد الانتظام (أكتر من ${minDrop || 10}%) — ${from} إلى ${to}${techLabel}`;
   const excel = () => {
     const ws = XLSX.utils.aoa_to_sheet([COLS, ...rows.map(cells)]);
     const wb = XLSX.utils.book_new();
@@ -151,9 +160,17 @@ export function SpeedDropReport() {
           <Input id="sd-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
         <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-min">الانخفاض أكتر من %</label>
           <Input id="sd-min" inputMode="numeric" value={minDrop} onChange={(e) => setMinDrop(e.target.value.replace(/[^\d]/g, ""))} className="text-sm w-24" dir="ltr" /></div>
+        <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-tech">الفنى</label>
+          <select id="sd-tech" value={tech} onChange={(e) => setTech(e.target.value)} data-testid="select-speed-drop-tech"
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm w-44">
+            <option value="all">كل الفنيين</option>
+            {techNames.map((n) => <option key={n} value={n}>{n} ({allRows.filter((r) => (r.techName ?? "").trim() === n).length})</option>)}
+            {hasNoTech && <option value={NO_TECH}>بدون فنى</option>}
+            {tech !== "all" && tech !== NO_TECH && !techNames.includes(tech) && <option value={tech}>{tech}</option>}
+          </select></div>
         <span className="text-sm text-muted-foreground pb-2">
           {q.isFetching && <Loader2 className="w-4 h-4 animate-spin inline ml-1" />}
-          إجمالى: <b className="text-foreground">{rows.length}</b> خط
+          إجمالى: <b className="text-foreground">{rows.length}</b> خط{tech !== "all" && <> من {allRows.length}</>}
         </span>
       </div>
       {q.isError && <p className="text-sm text-destructive">{(q.error as Error).message}</p>}
