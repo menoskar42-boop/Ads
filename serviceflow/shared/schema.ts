@@ -68,6 +68,8 @@ export const users = pgTable("users", {
   cfmUserId: text("cfm_user_id"), // 🆕 البوابة الموحّدة: ربط بحساب الكوابل المقابل
   mobile: text("mobile"), // 🆕 رقم محمول الفنى — بيظهر فى رسالة SMS المتابعة للعميل
   suspended: boolean("suspended").default(false).notNull(),
+  // 🆕 رفع ملفات FCC (شكاوى DSL + FTTH) وWFM يدوى لغير الأدمن — بيتدّى/يتشال من «المستخدمين» (المالك ٢٠٢٦-١٠-١٦)
+  canUploadFiles: boolean("can_upload_files").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

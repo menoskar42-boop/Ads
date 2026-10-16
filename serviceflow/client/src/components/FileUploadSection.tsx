@@ -403,7 +403,7 @@ function UploadCard({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function FileUploadSection() {
+export function FileUploadSection({ onlyFccWfm = false }: { onlyFccWfm?: boolean } = {}) {
   const { user } = useAuth();
   // شريط أزرار التحكّم (تحديث/431/430D/منافذ MSAN/التقارير اليومية/كل نص ساعة/مراجعة الاسم) — سوبر أدمن فقط
   const isSuperAdmin = user?.role === ROLES.SUPER_ADMIN;
@@ -659,6 +659,23 @@ export function FileUploadSection() {
   // زر «تحديث الصفحة» كان بينادى qc وهى معرّفة فى كومبوننت تانى — undefined وقت
   // التشغيل، فالضغط على الزر كان بيرمى استثناء بدل ما يحدّث.
   const qc = useQueryClient();
+
+  // مش أدمن ومعاه «رفع الملفات» (المالك ٢٠٢٦-١٠-١٦): ملفات FCC (DSL + FTTH) وWFM بس — مش كل الملفات
+  if (onlyFccWfm) {
+    return (
+      <div className="space-y-5" dir="rtl">
+        <Card className="p-4 bg-white border-0 shadow-sm space-y-3" data-testid="upload-fcc-wfm-only">
+          <p className="text-sm font-semibold text-muted-foreground">رفع ملفات FCC وWFM</p>
+          <UploadCard label="ملف wfm" icon={Wrench} endpoint="/api/maintenance-orders/import" queryKey="/api/maintenance-orders"
+            color="border-orange-200 bg-orange-50/50" lastUpload={ut("/api/maintenance-orders/import")} />
+          <UploadCard label="شكاوى DSL/نحاس (fcc)" icon={PhoneCall} endpoint="/api/ticket-queue/import" queryKey="/api/tickets"
+            color="border-purple-200 bg-purple-50/50" lastUpload={ut("/api/ticket-queue/import")} />
+          <UploadCard label="شكاوى FTTH (fcc )" icon={PhoneCall} endpoint="/api/ticket-queue-ftth/import" queryKey="/api/tickets"
+            color="border-fuchsia-200 bg-fuchsia-50/50" lastUpload={ut("/api/ticket-queue-ftth/import")} />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5" dir="rtl">

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, UsersRound, UserPlus, KeyRound, Trash2, Pencil, Ban, CheckCircle } from "lucide-react";
+import { Loader2, UsersRound, UserPlus, KeyRound, Trash2, Pencil, Ban, CheckCircle, Upload } from "lucide-react";
 
 // بوابة إدارة المستخدمين الموحّدة (سوبر أدمن فقط):
 // حساب واحد للموقعين — الدور الموحّد يحدّد دور الطلبات ودور الكوابل، والدخول موحّد (SSO).
@@ -15,6 +15,7 @@ interface PortalUser {
   suspended: boolean; cfmId: string | null; cfmRole: string | null; cfmName: string | null; unifiedRole: string;
   passwordPlain: string | null; // للسوبر أدمن فقط — يظهر لو الباسورد اتعمل/اتغيّر بعد إضافة الميزة
   mobile: string | null; // رقم محمول الفنى — بيظهر فى رسالة SMS المتابعة للعميل
+  canUploadFiles?: boolean; // رفع ملفات FCC + WFM يدوى (لغير الأدمن)
 }
 
 const api = async (url: string, opts?: RequestInit) => {
@@ -104,6 +105,14 @@ export function UnifiedUsersManager() {
 
   const deleteUser = useMutation({
     mutationFn: (username: string) => api(`/api/portal/users/${encodeURIComponent(username)}`, { method: "DELETE" }),
+    onSuccess: invalidate,
+    onError: (e: any) => alert(e.message),
+  });
+
+  // «رفع الملفات» (FCC + WFM) — يتدّى أو يتشال لأى مستخدم (المالك ٢٠٢٦-١٠-١٦)
+  const setUploads = useMutation({
+    mutationFn: ({ username, allowed }: { username: string; allowed: boolean }) =>
+      api(`/api/portal/users/${encodeURIComponent(username)}/uploads`, { method: "PATCH", body: JSON.stringify({ allowed }) }),
     onSuccess: invalidate,
     onError: (e: any) => alert(e.message),
   });
@@ -245,6 +254,16 @@ export function UnifiedUsersManager() {
                       </td>
                       <td className="p-2">
                         <div className="flex gap-1 justify-end">
+                          {u.sfId != null && !["admin", "super_admin"].includes(String(u.sfRole)) && (
+                            <Button size="sm" variant="outline"
+                              className={`h-8 px-2 gap-1 text-xs ${u.canUploadFiles ? "text-emerald-700 border-emerald-300 bg-emerald-50" : "text-gray-500 border-gray-200"}`}
+                              title={u.canUploadFiles ? "بيرفع ملفات FCC وWFM — اضغط للإلغاء" : "اديله صلاحية رفع ملفات FCC وWFM"}
+                              data-testid={`button-user-uploads-${u.username}`}
+                              aria-pressed={!!u.canUploadFiles}
+                              onClick={() => { if (confirm(u.canUploadFiles ? `إلغاء صلاحية رفع الملفات من ${u.username}؟` : `تدّى ${u.username} صلاحية رفع ملفات FCC وWFM؟`)) setUploads.mutate({ username: u.username, allowed: !u.canUploadFiles }); }}>
+                              <Upload className="w-4 h-4" /> {u.canUploadFiles ? "رفع ✓" : "رفع"}
+                            </Button>
+                          )}
                           <Button size="sm" variant="outline" className={`h-8 px-2 ${u.suspended ? "text-green-700 border-green-200" : "text-orange-700 border-orange-200"}`}
                             title={u.suspended ? "تنشيط الحساب" : "إيقاف تنشيط الحساب"}
                             onClick={() => { if (confirm(`${u.suspended ? "تنشيط" : "إيقاف"} حساب ${u.username}؟`)) suspendUser.mutate({ username: u.username, suspended: !u.suspended }); }}>

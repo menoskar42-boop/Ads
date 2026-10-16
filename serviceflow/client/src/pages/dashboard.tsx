@@ -634,7 +634,7 @@ export default function Dashboard() {
                     المخزن المحلى
                   </button>
                 )}
-                {(user.role === ROLES.ADMIN || user.role === ROLES.DATA_MANAGER || user.role === ROLES.EXTERNAL) && (
+                {(user.role === ROLES.ADMIN || user.role === ROLES.DATA_MANAGER || (user as any).canUploadFiles) && (
                   <button
                     onClick={() => setAdminTab("file-upload")}
                     data-testid="tab-admin-file-upload"
@@ -882,9 +882,10 @@ export default function Dashboard() {
         )}
 
         {/* ── FILE UPLOAD TAB (Admin, Data Manager & External — external sees the upload cards only, not the super-admin control toolbar) ── */}
-        {(user.role === ROLES.ADMIN || user.role === ROLES.DATA_MANAGER || user.role === ROLES.EXTERNAL) && adminTab === "file-upload" && (
+        {(user.role === ROLES.ADMIN || user.role === ROLES.DATA_MANAGER || (user as any).canUploadFiles) && adminTab === "file-upload" && (
           <div className="space-y-6">
-            <FileUploadSection />
+            {/* غير الأدمن ومسئول البيانات: ملفات FCC وWFM بس (صلاحية «رفع الملفات» من المستخدمين) */}
+            <FileUploadSection onlyFccWfm={user.role !== ROLES.ADMIN && user.role !== ROLES.DATA_MANAGER} />
           </div>
         )}
 

@@ -2165,6 +2165,14 @@ export async function registerRoutes(
     if (req.isAuthenticated() && hasAdminAccess(req.user.role)) return next();
     res.status(403).json({ message: "Admin access required" });
   };
+  // رفع ملفات FCC (DSL + FTTH) وWFM يدوى: الأدمن، أو أى مستخدم السوبر أدمن ادّاله «رفع الملفات»
+  // من «المستخدمين» (المالك ٢٠٢٦-١٠-١٦). الملفات دى بس — باقى الرفع زى ما هو للأدمن.
+  const canUploadFccWfm = (user: any) => !!user && !user.suspended && (hasAdminAccess(user.role) || user.canUploadFiles === true);
+  const requireFccWfmUploader = (allowToken: boolean) => (req: any, res: any, next: any) => {
+    if (allowToken && req.headers["x-upload-token"] === UPLOAD_TOKEN) { setUploadCors(res); return next(); }
+    if (req.isAuthenticated() && canUploadFccWfm(req.user)) return next();
+    res.status(403).json({ message: "مالكش صلاحية رفع الملفات — اطلبها من السوبر أدمن (المستخدمين ← رفع الملفات)" });
+  };
 
   // === طابور التنفيذ المركزى (رفع سرعة / قياس / إيقاف) ===
   // جهاز التنفيذ = براوزر سوبر أدمن مفعّل الزر، بيبعت نبضة (heartbeat) ويسحب المهام وينفّذها.
@@ -4417,7 +4425,7 @@ export async function registerRoutes(
     try {
       const { rows } = await pool.query(`
         SELECT u.id AS "sfId", u.username, u.role AS "sfRole", u.worker_code AS "workerCode",
-               u.password_plain AS "passwordPlain", u.mobile,
+               u.password_plain AS "passwordPlain", u.mobile, COALESCE(u.can_upload_files, false) AS "canUploadFiles",
                COALESCE(u.suspended, false) AS suspended, cu.id AS "cfmId", cu.role AS "cfmRole", cu.name AS "cfmName"
         FROM users u
         LEFT JOIN LATERAL (
@@ -4426,7 +4434,7 @@ export async function registerRoutes(
         ) cu ON true
         UNION ALL
         SELECT NULL AS "sfId", cu.username, NULL AS "sfRole", NULL AS "workerCode",
-               NULL AS "passwordPlain", NULL AS mobile,
+               NULL AS "passwordPlain", NULL AS mobile, false AS "canUploadFiles",
                COALESCE(cu.suspended, false) AS suspended, cu.id AS "cfmId", cu.role AS "cfmRole", cu.name AS "cfmName"
         FROM cfm_users cu
         WHERE NOT EXISTS (SELECT 1 FROM users u2 WHERE u2.cfm_user_id = cu.id OR u2.username = cu.username)
@@ -4520,6 +4528,17 @@ export async function registerRoutes(
   // تغيير الاسم الظاهر — يُخزَّن فى حساب الطلبات (users.full_name، ويُستخدم أيضاً فى برنامج الصيانة
   // عبر SSO) وفى حساب الكوابل (cfm_users.name، اللى بيظهر لما المستخدم يضيف حاجة). أى واحد منهم يكفى.
   // رقم محمول المستخدم (الفنى) — بيتكتب فى رسالة SMS المتابعة للعميل. فاضى = يتمسح.
+  // «رفع الملفات» (FCC + WFM يدوى) لأى مستخدم — يتدّى أو يتشال (المالك ٢٠٢٦-١٠-١٦)
+  app.patch("/api/portal/users/:username/uploads", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const uname = String(req.params.username || "").trim();
+      const allowed = req.body?.allowed === true;
+      const r = await pool.query(`UPDATE users SET can_upload_files = $1 WHERE username = $2`, [allowed, uname]);
+      if (!r.rowCount) return res.status(404).json({ message: "المستخدم مالوش حساب فى الطلبات" });
+      res.json({ ok: true, canUploadFiles: allowed });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.patch("/api/portal/users/:username/mobile", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
       const uname = String(req.params.username || "").trim();
@@ -9887,7 +9906,7 @@ export async function registerRoutes(
 
   // POST /api/maintenance-orders/import — Work_Orders / wfm (3 destinations)
   app.options("/api/maintenance-orders/import", (_req, res) => { setUploadCors(res); res.sendStatus(204); });
-  app.post("/api/maintenance-orders/import", requireAdminOrToken, upload.single("file"), async (req: any, res) => {
+  app.post("/api/maintenance-orders/import", requireFccWfmUploader(true), upload.single("file"), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "لا يوجد ملف" });
       const wb = XLSX.read(req.file.buffer, { type: "buffer", cellDates: false });
@@ -9977,7 +9996,7 @@ export async function registerRoutes(
 
   // POST /api/ticket-queue/import — DSL/copper TicketQueue (3 destinations)
   app.options("/api/ticket-queue/import", (_req, res) => { setUploadCors(res); res.sendStatus(204); });
-  app.post("/api/ticket-queue/import", requireAdminOrToken, upload.single("file"), async (req: any, res) => {
+  app.post("/api/ticket-queue/import", requireFccWfmUploader(true), upload.single("file"), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "لا يوجد ملف" });
       const rows = parseTicketFile(req.file.buffer);
@@ -9997,7 +10016,7 @@ export async function registerRoutes(
   });
 
   // POST /api/ticket-queue-ftth/import — FTTH TicketQueue (3 destinations)
-  app.post("/api/ticket-queue-ftth/import", requireAuth, requireAdmin, upload.single("file"), async (req: any, res) => {
+  app.post("/api/ticket-queue-ftth/import", requireAuth, requireFccWfmUploader(false), upload.single("file"), async (req: any, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "لا يوجد ملف" });
       const rows = parseTicketFile(req.file.buffer);

@@ -167,6 +167,14 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_user_id varchar`);
   // رقم محمول الفنى — بيتكتب فى رسالة SMS المتابعة للعميل («أو مع الفنى المختص على …»)
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile text`);
+  // رفع ملفات FCC/WFM يدوى لغير الأدمن (المالك ٢٠٢٦-١٠-١٦: «الشئون الخارجية جه يرفع ملف fcc
+  // وwfm اداله رسالة خطأ»). أول مرة العمود يتعمل بس: الشئون الخارجية بياخدوها — وبعد كده
+  // السوبر أدمن هو اللى بيدّيها/يشيلها من «المستخدمين» (مش هترجع لوحدها بعد ما تتشال).
+  {
+    const had = await pool.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'can_upload_files'`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_upload_files boolean NOT NULL DEFAULT false`);
+    if (!had.rowCount) await pool.query(`UPDATE users SET can_upload_files = true WHERE role = 'external'`);
+  }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id serial PRIMARY KEY,
