@@ -10,11 +10,15 @@ import { gameTopbar, shuffle, finishActivity, mizoBuddy } from "./common.js";
 
 const ROUNDS = 8;
 
-export function renderPhonics({ regionId, regionIndex, datasetKey, lang, title, bg }) {
+export function renderPhonics({ regionId, regionIndex, datasetKey, lang, title, bg, focus = null, words = null }) {
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang || "ar-EG";
   const isAr = speakLang.startsWith("ar");
-  const rounds = shuffle(ds.items).slice(0, ROUNDS);
+  // «كراسة الحروف»: كلمات بتبدأ بحرف الصفحة ({ word, emoji }) — والاختيارات حروف
+  const focusIt = focus != null ? ds.items.find((x) => x.char === focus) : null;
+  const rounds = focusIt
+    ? (words && words.length ? words : [{ word: focusIt.word, emoji: focusIt.emoji }]).map((w) => ({ ...focusIt, ...w }))
+    : shuffle(ds.items).slice(0, ROUNDS);
   let round = 0;
 
   const screen = document.createElement("div");
@@ -61,6 +65,7 @@ export function renderPhonics({ regionId, regionIndex, datasetKey, lang, title, 
       b.className = "choice";
       b.style.fontWeight = "800";
       b.textContent = opt.char;
+      if (opt.char === target.char) b.dataset.good = "1";
       b.addEventListener("click", () => {
         if (opt.char === target.char) {
           b.classList.add("correct");

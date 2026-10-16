@@ -19,11 +19,14 @@ function baseSpeak(it, lang) {
   Speech.say(it.name || it.arName || baseGlyph(it), { lang: it.arDigit ? "ar-EG" : lang });
 }
 
-export function renderSequence({ regionId, regionIndex, datasetKey, lang, title }) {
+export function renderSequence({ regionId, regionIndex, datasetKey, lang, title, focus = null }) {
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang;
   const items = ds.items;
   let round = 0;
+  // «كراسة الحروف»: جولتين، والناقص دايماً حرف الصفحة
+  const fi = focus != null ? items.findIndex((x) => x.char === focus) : -1;
+  const ROUNDS_N = fi >= 0 ? 2 : ROUNDS;
   // الإنجليزى: جولة كابيتال (A B ؟) وجولة صغير (a b ؟) بالتبادل
   const caseMode = !!(items[0] && items[0].lower && items[0].lower !== items[0].char);
 
@@ -40,16 +43,24 @@ export function renderSequence({ regionId, regionIndex, datasetKey, lang, title 
 
   function render() {
     // نختار بداية عشوائية تسمح بسلسلة طولها WIN
-    const start = (Math.random() * (items.length - WIN)) | 0;
+    let start = (Math.random() * (items.length - WIN)) | 0;
+    let gap = 1 + ((Math.random() * (WIN - 2)) | 0); // موضع الفجوة (ليس الأول)
+    if (fi >= 0) {
+      // الفجوة على حرف الصفحة: مكانه جوّه السلسلة (مش الأول) والسلسلة جوّه الحروف
+      const okGaps = [];
+      for (let g = 1; g < WIN; g++) if (fi - g >= 0 && fi - g + WIN <= items.length) okGaps.push(g);
+      gap = okGaps.length ? okGaps[(Math.random() * okGaps.length) | 0] : Math.min(fi, WIN - 1);
+      start = Math.max(0, Math.min(fi - gap, items.length - WIN));
+      gap = fi - start;
+    }
     const seq = items.slice(start, start + WIN);
-    const gap = 1 + ((Math.random() * (WIN - 2)) | 0); // موضع الفجوة (ليس الأول)
     const answer = seq[gap];
     const small = caseMode && round % 2 === 1;
     const glyph = (it) => (small ? it.lower : baseGlyph(it));
     const speakName = (it, lang) => (small ? Speech.say(caseSay("small", it.lower), { lang: "en-US" }) : baseSpeak(it, lang));
 
     stage.innerHTML = "";
-    stage.appendChild(progressDots(ROUNDS, round - 1));
+    stage.appendChild(progressDots(ROUNDS_N, round - 1));
 
     const ask = document.createElement("p");
     ask.style.cssText = "font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.2);font-size:clamp(17px,4.6vw,22px)";
@@ -89,14 +100,14 @@ export function renderSequence({ regionId, regionIndex, datasetKey, lang, title 
     };
     const advance = () => {
       round++;
-      if (round >= ROUNDS) setTimeout(() => finishActivity({ regionId, regionIndex, stars: 7, onDone: back }), 900);
+      if (round >= ROUNDS_N) setTimeout(() => finishActivity({ regionId, regionIndex, stars: 7, onDone: back }), 900);
       else setTimeout(render, 1000);
     };
     choices.forEach((c) => {
       const b = document.createElement("button");
       b.className = "choice";
       b.innerHTML = `<span style="font-weight:800">${glyph(c)}</span>`;
-      if (c === answer) correctBtn = b;
+      if (c === answer) { correctBtn = b; b.dataset.good = "1"; }
       b.addEventListener("click", () => {
         if (solved) return;
         if (c === answer) {

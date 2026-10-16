@@ -65,7 +65,10 @@ export const Sfx = {
     if (onCorrect) { try { onCorrect(); } catch (e) {} } // ميزو يعمل علامة OK عند الصح
   },
 
+  /** عدد الغلطات من أول التشغيل — صفحة الكتاب بتحسب منه غلطات كل خطوة للتقييم. */
+  wrongs: 0,
   wrong() {
+    Sfx.wrongs++;
     tone(200, 0, 0.18, "sawtooth", 0.12);
     if (onWrong) { try { onWrong(); } catch (e) {} } // تشجيع ميزو عند أي خطأ
   },

@@ -54,11 +54,21 @@ test("letter forms: first, middle, last (أ: first and middle, like the book)", 
 });
 
 const SEEDS = 30;
-test("letter page: the book's activities in order, write ×3 (road → dots → alone)", () => {
+// المالك ٢٠٢٦-١٠-١٦: ألعاب القلعة جوّه صفحة الحرف + «٣ بالنقط و٥ لوحده» + شهادة فى الآخر
+test("letter page: book activities + castle games in order, write 3 on dots then 5 alone", () => {
   for (const ch of LB_ORDER) {
     const steps = letterPage(ch, seeded(1));
-    assert.deepEqual(steps.map((s) => s.kind), ["meet", "write", "riddle", "pop", "write", "harakat", "harakaChoose", "starts", "forms", "circle", "missing", "write"]);
-    assert.deepEqual(steps.filter((s) => s.kind === "write").map((s) => s.level), [1, 2, 3]);
+    assert.deepEqual(steps.map((s) => (s.kind === "game" ? s.game : s.kind)), [
+      "meet", "write", "puzzle", "riddle", "pop", "flash", "harakat", "harakaChoose", "write", "eggs",
+      "starts", "phonics", "forms", "circle", "catch", "missing", "sequence", "write", "review"]);
+    const w = steps.filter((s) => s.kind === "write");
+    assert.deepEqual(w.map((s) => [s.level, s.reps]), [[2, 3], [3, 2], [3, 3]]);
+    // بأى حرف تبدأ: كلمات بتبدأ بالحرف فعلاً · المراجعة: الحرف ده + اللى قبله فى الكتاب
+    const ph = steps.find((s) => s.game === "phonics");
+    assert.ok(ph.words.length >= 1 && ph.words.every((x) => startsWith(x.w, ch)), ch);
+    const rv = steps.find((s) => s.game === "review");
+    assert.equal(rv.set[0], ch);
+    assert.ok(rv.set.every((c) => LB_ORDER.indexOf(c) <= LB_ORDER.indexOf(ch)));
   }
 });
 

@@ -15,7 +15,7 @@ import { gameTopbar, finishActivity, diffCount } from "./common.js";
 import { FUN_SAY, PUZZLE_SAY } from "../data/writingPhrases.js";
 import {
   funItems, frogRounds, FROG_HOPS, flashRounds, pianoKeys, pianoLengths, pianoTune,
-  rocketRounds, eggRounds, EGG_TAPS, hatchOf, puzzleGrid, puzzleRounds, snapsTo,
+  rocketRounds, eggRounds, EGG_TAPS, hatchOf, puzzleGrid, puzzleRounds, snapsTo, focusItem,
 } from "../data/funGames.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
@@ -158,10 +158,11 @@ export function renderFrog({ regionId, regionIndex, kind = "arabic" }) {
 }
 
 // ===================== 🔦 الكشّاف =====================
-export function renderFlashlight({ regionId, regionIndex, kind = "arabic" }) {
+export function renderFlashlight({ regionId, regionIndex, kind = "arabic", focus = null }) {
   const items = funItems(kind);
   const g = shell({ regionId, regionIndex, title: "🔦 الكشّاف", scene: "flash" });
-  const rounds = flashRounds(items, Math.random, diffCount(4, 6));
+  // فى الكتاب: ٣ جولات على حرف الصفحة
+  const rounds = flashRounds(items, Math.random, diffCount(4, 6), focusItem(items, focus), 3);
   let r = 0;
   const night = el("div", "fg-night");
   const field = el("div", "fg-field");
@@ -377,10 +378,10 @@ export function renderRocket({ regionId, regionIndex, kind = "arabic" }) {
 }
 
 // ===================== 🥚 بيض المفاجآت =====================
-export function renderEggs({ regionId, regionIndex, kind = "arabic" }) {
+export function renderEggs({ regionId, regionIndex, kind = "arabic", focus = null }) {
   const items = funItems(kind);
   const g = shell({ regionId, regionIndex, title: "🥚 بيض المفاجآت", scene: "eggs" });
-  const rounds = eggRounds(items, Math.random, diffCount(2, 3));
+  const rounds = eggRounds(items, Math.random, diffCount(2, 3), focusItem(items, focus), 3);
   let r = 0;
   const nest = el("div", "fg-nest");
   const show = el("div", "fg-hatch");
@@ -455,12 +456,12 @@ export function renderEggs({ regionId, regionIndex, kind = "arabic" }) {
 const PUZZLE_BG = [["#f472b6", "#fb923c", "#facc15"], ["#a78bfa", "#38bdf8", "#4ade80"], ["#fb7185", "#c084fc", "#60a5fa"], ["#34d399", "#fbbf24", "#f472b6"]];
 // زينة صغيرة مختلفة فى كل حتة — عشان كل حتة ليها شكل يتعرف (حتى الحتت اللى مفيهاش من الحرف)
 const PUZZLE_DECO = ["⭐", "🌸", "🎈", "🦋", "🍭", "✨"];
-export function renderLetterPuzzle({ regionId, regionIndex, kind = "arabic" }) {
+export function renderLetterPuzzle({ regionId, regionIndex, kind = "arabic", focus = null }) {
   const items = funItems(kind);
   const isNum = kind === "numbers";
   const g = shell({ regionId, regionIndex, title: isNum ? "🧩 بازل الرقم" : "🧩 بازل الحرف", scene: "puzzle" });
   const grid = puzzleGrid(Store.ageBand !== "small");
-  const rounds = puzzleRounds(items, Math.random, grid);
+  const rounds = puzzleRounds(items, Math.random, grid, focusItem(items, focus), 2);
   let r = 0;
   const board = el("div", "fg-pz-board");
   board.dir = "ltr"; // العواميد من الشمال لليمين زى الصورة (من غيرها RTL بيعكس الحتت والحرف يطلع مقلوب)

@@ -1642,3 +1642,47 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
 .fg-pz-piece.fg-pz-picked { outline: 4px solid #7c3aed; outline-offset: 2px; rotate: 0deg; }
 .fg-pz-piece.fg-pz-placed { animation: fg-pop .35s ease; }
 @media (prefers-reduced-motion: reduce) { .fg-pz-board.fg-pz-done, .fg-pz-piece.fg-pz-placed { animation: none; } }
+
+/* ===== ألعاب القلعة جوّه «كراسة الحروف» + شهادة الحرف (المالك ٢٠٢٦-١٠-١٦) ===== */
+.is-embedded { min-height: 0 !important; padding-bottom: 10px; border-radius: 22px; overflow: hidden; margin: 6px 0 4px; box-shadow: 0 6px 18px rgba(60, 30, 120, .18); }
+.is-embedded .sky { height: 48vh; }
+.lbk-game-title { margin: 4px 0 0; text-align: center; font-weight: 900; font-size: clamp(17px, 4.6vw, 22px); color: #4c1d95; }
+.lbk-reps { margin: 6px auto 0; width: fit-content; padding: 6px 16px; border-radius: 999px; background: #fff; color: #5b21b6; font-weight: 900; font-size: 15px; box-shadow: 0 3px 10px rgba(80, 40, 160, .15); font-variant-numeric: tabular-nums; }
+
+.lgc { z-index: 60; }
+.lgc .lgc-card { width: min(92vw, 360px); padding: 18px 18px 16px; border-radius: 28px; text-align: center; background: radial-gradient(circle at 50% 0%, #fff8e6, #ffffff 62%); box-shadow: 0 18px 48px rgba(40, 20, 90, .35); display: grid; gap: 8px; }
+.lgc-ribbon { justify-self: center; padding: 5px 16px; border-radius: 999px; background: linear-gradient(90deg, #f59e0b, #f97316); color: #fff; font-weight: 900; }
+.lgc-glyph { font-size: 76px; line-height: 1.1; font-weight: 900; color: #7c3aed; }
+.lgc-stars { font-size: 34px; letter-spacing: 4px; color: #f59e0b; }
+.lgc-total { display: flex; align-items: baseline; justify-content: center; gap: 6px; color: #1f1147; }
+.lgc-total b { font-size: 46px; font-variant-numeric: tabular-nums; }
+.lgc-total span { font-size: 18px; color: #6b5a9a; font-weight: 800; }
+.lgc-label { font-size: 22px; font-weight: 900; }
+.lgc-t-great .lgc-label { color: #16a34a; }
+.lgc-t-good .lgc-label { color: #2563eb; }
+.lgc-t-ok .lgc-label { color: #d97706; }
+.lgc-t-practice .lgc-label { color: #db2777; }
+.lgc-row { display: grid; grid-template-columns: 7.5em 1fr 2.4em; align-items: center; gap: 8px; text-align: start; font-weight: 800; color: #3b2a6b; font-size: 15px; }
+.lgc-bar { height: 12px; border-radius: 999px; background: #ede9fe; overflow: hidden; }
+.lgc-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a78bfa, #7c3aed); }
+.lgc-v { font-variant-numeric: tabular-nums; text-align: end; }
+.lgc-ok { margin-top: 6px; justify-self: center; }
+
+/* 🏅 شهادات الحروف فى شاشة ولى الأمر */
+.lg-row { display: block; border-top: 1px solid #f0ebff; }
+.lg-row.lg-new { display: flex; align-items: center; gap: 10px; padding: 8px 4px; color: #9a8fbf; font-weight: 800; }
+.lg-row summary { display: flex; align-items: center; gap: 10px; padding: 9px 4px; cursor: pointer; list-style: none; font-weight: 800; color: #2a1a5e; }
+.lg-row summary::-webkit-details-marker { display: none; }
+.lg-g { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: #f3efff; color: #6d28d9; font-size: 24px; }
+.lg-stars { margin-inline-start: auto; }
+.lg-lab { font-size: 13px; }
+.lg-tot { min-width: 2.6em; text-align: center; padding: 3px 8px; border-radius: 10px; background: #f3efff; font-variant-numeric: tabular-nums; }
+.lg-new .lg-tot { margin-inline-start: auto; }
+.lg-t-great .lg-tot { background: #dcfce7; color: #15803d; }
+.lg-t-good .lg-tot { background: #dbeafe; color: #1d4ed8; }
+.lg-t-ok .lg-tot { background: #fef3c7; color: #b45309; }
+.lg-t-practice .lg-tot { background: #fce7f3; color: #be185d; }
+.lg-detail { padding: 2px 6px 12px; color: #3b2a6b; font-size: 14px; line-height: 1.7; }
+.lg-detail p { margin: 6px 0 2px; }
+.lg-detail ul { margin: 0; padding-inline-start: 18px; }
+.lg-skip { color: #be185d; font-weight: 800; }

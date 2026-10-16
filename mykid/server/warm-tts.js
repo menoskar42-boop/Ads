@@ -208,6 +208,8 @@ add("برافو", AR);
     for (const x of [...L.harakat, ...L.forms, ...L.more, L.answer, ...(L.circle || [])]) { add(x.w, AR); add(lbBare(x.w), AR); }
   }
   for (const x of LB_SHADOWS) add(x.w, AR);
+  // شهادة الحرف (٢٠٢٦-١٠-١٦): كلمة ميزو لكل حرف × كل مستوى
+  for (const ch of LB_ORDER) for (const f of Object.values(WP.GRADE_SAY)) addAr(f(lbName(ch)));
   for (const b of LB_BUILD) { add(b.w, AR); addAr(S.build(lbName(b.a), lbName(b.b))); }
 }
 

@@ -158,8 +158,23 @@ export function revealAnswer(correctBtn) {
   if (correctBtn) correctBtn.classList.add("reveal-hint");
 }
 
+// ===== لعبة جوّه صفحة كتاب (المالك ٢٠٢٦-١٠-١٦): «الألعاب تبقى جزء من المغامرة» =====
+// الكتاب بيرسم اللعبة نفسها (نفس شكلها برّه) جوّه الخطوة: من غير شريطها، ولما تخلص
+// بترجع للكتاب بعدد الغلطات بدل احتفال «خلّصت النشاط».
+let EMBED = null;
+/** يرسم اللعبة مضمّنة؛ onDone({ mistakes }) لما تخلص. */
+export function renderEmbedded(render, onDone) {
+  EMBED = { onDone, base: Sfx.wrongs };
+  const node = render();
+  if (node && node.classList) node.classList.add("is-embedded");
+  return node;
+}
+/** الطفل ساب الخطوة قبل ما اللعبة تخلص. */
+export function endEmbedded() { EMBED = null; }
+
 /** شريط علوي موحّد للألعاب */
 export function gameTopbar(title, onBack) {
+  if (EMBED) { const b = document.createElement("div"); b.hidden = true; return b; }
   const bar = document.createElement("div");
   bar.className = "topbar";
   bar.innerHTML = `
@@ -210,6 +225,11 @@ export function showCheer(emoji, text, onClose) {
 
 /** إنهاء نشاط: منح نجوم، تحديث تقدّم المنطقة، احتمال مكافأة، ثم رجوع */
 export function finishActivity({ regionId, regionIndex, stars = 5, onDone }) {
+  if (EMBED) {
+    const e = EMBED;
+    EMBED = null;
+    return e.onDone({ mistakes: Sfx.wrongs - e.base });
+  }
   // إن أُطلق النشاط من "رحلة اليوم" نعلّم خطوته كمكتملة
   if (Store.activeStep != null) {
     Store.markDailyStep(Store.activeStep);

@@ -101,7 +101,7 @@ async function oneMistake() {
   const wrong = page.locator(".wbk-body button:not([data-good]):not(.candy-btn):not(.wbk-mizo-btn):not(.lbk-pic-big):not(.lbk-sign):not(.lbk-piece):not(.lbk-circle-pic)");
   if (!(await wrong.count())) return false;
   await wrong.first().click();
-  await page.waitForTimeout(1100);
+  await page.waitForFunction(() => (document.querySelector(".wbk-hint")?.textContent || "").length > 0, null, { timeout: 3000 }).catch(() => {});
   const hint = (await page.locator(".wbk-hint").first().textContent()) || "";
   assert.ok(hint.length > 0, "ميزو بيقول حاجة بعد الغلطة");
   assert.doesNotMatch(hint, /غلط|خطأ|وحش/, "ميزو مابيقولش غلط");
@@ -138,21 +138,52 @@ async function write(i) {
   // كل لوحة بتبدأ بالصباع بيوريه (بعد ١٫٤ ثانية) — نستناه يخلص قبل ما نكتب
   await page.waitForSelector(".wb-hand", { timeout: 2500 });
   await waitIdle();
-  for (const s of strokes) await stroke(s);
+  // «٣ بالنقط + ٥ لوحده»: نفس اللوحة بتتفضّى بعد كل مرة لحد ما العدّاد يكمل (✓ ٣/٣)
+  for (let rep = 0; rep < 6; rep++) {
+    const before = await page.locator(".lbk-reps").textContent().catch(() => "");
+    for (const s of strokes) await stroke(s);
+    await page.waitForFunction(({ b, i }) => {
+      const k = [...document.querySelectorAll(".wbk-chip")].findIndex((c) => c.classList.contains("now"));
+      return (document.querySelector(".lbk-reps")?.textContent || "") !== b || k !== i || !!document.querySelector(".lgc");
+    }, { b: before, i }, { timeout: 9000 }).catch(() => {});
+    if ((await nowChip()) !== i || (await page.locator(".lgc").count())) return;
+    const m = ((await page.locator(".lbk-reps").textContent().catch(() => "")) || "").match(/(\d+)\/(\d+)/);
+    if (!m || m[1] === m[2]) return advanced(i); // آخر مرة ⇒ الخطوة بتقفل
+    await page.waitForTimeout(1700); // اللوحة بتتفضّى
+  }
+  await advanced(i);
+}
+/** لعبة من ألعاب القلعة جوّه الصفحة: البازل لمسة-لمسة، والباقى لمس الإجابة الصح (حتى لو بتتحرك). */
+async function game(i) {
+  assert.equal(await page.locator(".wbk-body .is-embedded .topbar").count(), 0, "اللعبة من غير شريطها جوّه الكتاب");
+  for (let g = 0; g < 120; g++) {
+    if ((await nowChip()) !== i || (await page.locator(".lgc").count())) return;
+    const pc = page.locator(".wbk-body .fg-pz-tray .fg-pz-piece").first();
+    if (await pc.count()) {
+      const id = await pc.getAttribute("data-id");
+      await pc.click();
+      await page.locator(`.wbk-body .fg-pz-slot[data-id="${id}"]`).click();
+    } else {
+      await page.evaluate(() => { const e = document.querySelector(".wbk-body .is-embedded [data-good]:not([data-on]):not(.correct)"); if (e) e.click(); });
+    }
+    await page.waitForTimeout(350);
+  }
   await advanced(i);
 }
 
 async function playPage(pageId, opts = {}) {
   await open(pageId, opts);
   const seen = [];
-  for (let guard = 0; guard < 20; guard++) {
+  for (let guard = 0; guard < 30; guard++) {
     if (!(await page.locator(".wbk-chip").count())) break;
+    if (await page.locator(".lgc").count()) break;
     if (await page.evaluate(() => Object.values(localStorage).some((v) => /"letterbookDone":\{"/.test(v)))) break;
     const i = await nowChip();
     const k = await kind();
-    seen.push(k);
+    seen.push(k === "game" ? await page.evaluate(() => document.querySelector(".lbk-game-title")?.textContent.trim().split(" ")[0]) : k);
     await shot(`${pageId}-${k}`);
     if (k === "write") await write(i);
+    else if (k === "game") await game(i);
     else if (k === "shadow" || k === "matchFirst") await pair(i);
     else {
       if (!["meet", "harakat", "forms"].includes(k)) await oneMistake();
@@ -163,11 +194,41 @@ async function playPage(pageId, opts = {}) {
   return seen;
 }
 
-test("letter page (ب): every book activity in order, with harakat", async () => {
+test("letter page (ب): book activities + castle games in order, 3+5 writes, then the letter's grade", async () => {
   const seen = await playPage("Lب");
-  assert.deepEqual(seen, ["meet", "write", "riddle", "pop", "write", "harakat", "harakaChoose", "starts", "forms", "circle", "missing", "write"]);
+  assert.deepEqual(seen, ["meet", "write", "🧩", "riddle", "pop", "🔦", "harakat", "harakaChoose", "write", "🥚",
+    "starts", "🔤", "forms", "circle", "🎯", "missing", "🔠", "write", "🧠"]);
+  // شهادة الحرف: درجة من ١٠٠ ونجوم، ومحفوظة بالتفاصيل لولى الأمر
+  await page.waitForSelector(".lgc .lgc-total b");
+  await shot("Lب-grade");
+  const total = Number(await page.locator(".lgc .lgc-total b").textContent());
+  assert.ok(total >= 60 && total <= 100, "درجة " + total);
+  const g = await page.evaluate(async () => (await import("/js/core/storage.js")).Store.letterGrades["ar:ب"]);
+  assert.equal(g.tries, 1);
+  assert.equal(g.last.total, total);
+  assert.equal(g.last.detail.writes.length, 8, "٣ بالنقط + ٥ لوحده");
+  assert.deepEqual(g.last.detail.writes.map((w) => w.level), [2, 2, 2, 3, 3, 3, 3, 3]);
+  assert.deepEqual(Object.keys(g.last.detail.games).sort(), ["catch", "eggs", "flash", "phonics", "puzzle", "review", "sequence"]);
+  assert.ok(Object.values(g.last.detail.games).every((x) => !x.skipped));
+  assert.ok(g.last.detail.acts.riddle.mistakes >= 1, "الغلطة اتحسبت");
+  await page.locator(".lgc-ok").click();
+  // احتفال النشاط/المكافأة/الشهادة بتاع finishActivity — نشيلهم عشان نفتح شاشة ولى الأمر
+  await page.waitForTimeout(500);
+  await page.evaluate(() => document.querySelectorAll(".cheer").forEach((e) => e.remove()));
   // اتعلّمت ونجمة على الصفحة
   assert.equal(await page.evaluate(async () => (await import("/js/core/storage.js")).Store.letterbookDone["Lب"]), 1);
+  // وفى شاشة ولى الأمر: الحرف بدرجته وتفاصيله
+  await page.evaluate(async () => {
+    (await import("/js/core/storage.js")).Store.setParentPin("1234");
+    const { renderParent } = await import("/js/screens/parent.js");
+    document.getElementById("app").replaceChildren(renderParent());
+  });
+  await page.fill("#gateInput", "1234");
+  await page.click("#gateOk");
+  const row = page.locator(".lg-box details").first();
+  await row.locator("summary").click();
+  assert.match(await row.textContent(), new RegExp(`ب[\\s\\S]*${total}[\\s\\S]*على النقط[\\s\\S]*لوحده[\\s\\S]*الكشّاف`));
+  await shot("parent-grades");
   assert.deepEqual(errors, []);
 });
 
@@ -179,9 +240,15 @@ test("writing alone in the book: the whole letter, scored — a far-off try repe
     await page.waitForSelector(".wb-hand", { timeout: 4000 });
     await waitIdle();
     if (await page.locator(".wb-mini").count()) break;
+    // على النقط ٣ مرات (الصباع وراه خلاص)
     const k = await nowChip();
-    const glyph = await page.locator(".wbk-write").getAttribute("data-glyph");
-    for (const st of strokesFor(glyph)) await stroke(st);
+    for (let r = 1; r <= 3; r++) {
+      for (const st of strokesFor("ب")) await stroke(st);
+      if (r < 3) {
+        await page.waitForFunction((r) => (document.querySelector(".lbk-reps")?.textContent || "").includes(`✓ ${r}/3`), r, { timeout: 6000 });
+        await page.waitForTimeout(1700);
+      }
+    }
     await advanced(k);
   }
   assert.equal(await page.locator(".wb-mini").count(), 1, "وصلنا خطوة «لوحده»");
@@ -194,7 +261,9 @@ test("writing alone in the book: the whole letter, scored — a far-off try repe
   await page.waitForSelector(".wb-hand", { timeout: 4000 });     // الصباع بيوريه الأول
   await waitIdle();
   for (const st of strokesFor("ب")) await stroke(st);
-  await advanced(i);
+  // اتحسبت مرة (✓ ١/٢) ونفس الخطوة لسه — «لوحده» مرتين هنا
+  await page.waitForFunction(() => /✓ 1\/2/.test(document.querySelector(".lbk-reps")?.textContent || ""), null, { timeout: 6000 });
+  assert.equal(await nowChip(), i);
   assert.deepEqual(errors, []);
 });
 

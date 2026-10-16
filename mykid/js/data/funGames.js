@@ -53,6 +53,13 @@ function distractors(rnd, items, target, n) {
   return near.concat(pickN(rnd, items, n - near.length, [target, ...near]));
 }
 
+/** الحروف المطلوبة فى الجولات: عشوائى — أو فى «كراسة الحروف» حرف الصفحة نفسه n مرة. */
+function targetsOf(rnd, items, count, focus, n) {
+  return focus ? Array.from({ length: n }, () => focus) : pickN(rnd, items, count);
+}
+/** عنصر حرف الصفحة (أ / A / ٣) من عناصر اللعبة. */
+export const focusItem = (items, focus) => (focus == null ? null : items.find((x) => x.id === String(focus) || x.glyph === focus) || null);
+
 // ===== 🐸 نطّة الضفدع: ٦ نطّات، فى كل نطّة ورقتين أو ٣ =====
 export const FROG_HOPS = 6;
 export function frogRounds(items, rnd = Math.random, pads = 3) {
@@ -61,8 +68,8 @@ export function frogRounds(items, rnd = Math.random, pads = 3) {
 
 // ===== 🔦 الكشّاف: ٥ جولات، فى كل جولة ٦ حاجات مستخبية فى أماكن مش فوق بعض =====
 export const FLASH_ROUNDS = 5;
-export function flashRounds(items, rnd = Math.random, count = 6) {
-  return pickN(rnd, items, FLASH_ROUNDS).map((target) => {
+export function flashRounds(items, rnd = Math.random, count = 6, focus = null, n = FLASH_ROUNDS) {
+  return targetsOf(rnd, items, FLASH_ROUNDS, focus, n).map((target) => {
     const all = shuffled(rnd, [target, ...distractors(rnd, items, target, count - 1)]);
     return { target, spots: placeSpots(rnd, all) };
   });
@@ -108,8 +115,8 @@ export function rocketRounds(items, rnd = Math.random, len = 5) {
 // ===== 🥚 بيض المفاجآت: ٥ جولات، ٣ بيضات، والبيضة بتتكسر بـ٣ خبطات =====
 export const EGG_ROUNDS = 5;
 export const EGG_TAPS = 3;
-export function eggRounds(items, rnd = Math.random, eggs = 3) {
-  return pickN(rnd, items, EGG_ROUNDS).map((target) => ({ target, eggs: shuffled(rnd, [target, ...distractors(rnd, items, target, eggs - 1)]) }));
+export function eggRounds(items, rnd = Math.random, eggs = 3, focus = null, n = EGG_ROUNDS) {
+  return targetsOf(rnd, items, EGG_ROUNDS, focus, n).map((target) => ({ target, eggs: shuffled(rnd, [target, ...distractors(rnd, items, target, eggs - 1)]) }));
 }
 /** اللى بيطلع من البيضة: صاحب الحرف (🦆 بطة) — وللأرقام كتاكيت بعدد الرقم. */
 export const hatchOf = (item) => (item.value ? "🐥".repeat(item.value) : item.emoji || "🐣");
@@ -124,9 +131,9 @@ export function puzzlePieces({ cols, rows }) {
   return out;
 }
 /** الجولات: حروف/أرقام مختلفة، والقطع متلخبطة (عمرها ما تبدأ مترتّبة). */
-export function puzzleRounds(items, rnd = Math.random, grid = puzzleGrid(false)) {
+export function puzzleRounds(items, rnd = Math.random, grid = puzzleGrid(false), focus = null, n = PUZZLE_ROUNDS) {
   const pieces = puzzlePieces(grid);
-  return pickN(rnd, items, PUZZLE_ROUNDS).map((target) => {
+  return targetsOf(rnd, items, PUZZLE_ROUNDS, focus, n).map((target) => {
     let tray = shuffled(rnd, pieces);
     if (tray.every((p, i) => p === pieces[i])) tray = tray.slice(1).concat(tray[0]);
     return { target, tray };

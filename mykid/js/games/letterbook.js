@@ -13,10 +13,17 @@ import { awardStars } from "../core/rewards.js";
 import { femAdapt } from "../data/mizo.js";
 import { strokesFor, PREWRITING } from "../data/strokes.js";
 import {
-  LB_UNITS, LB_PAGES, LB_HARAKAT, letterbookSteps, isLbWrite, nameOf, splitAt, joinsNext, bare,
+  LB_UNITS, LB_PAGES, LB_HARAKAT, letterbookSteps, isLbWrite, nameOf, splitAt, joinsNext, bare, LB_DOTS_PASS,
 } from "../data/letterbook.js";
 import { LB_SAY, ROUND_MSG, SHOW_BELOW, fixMsg, writeIntro } from "../data/writingPhrases.js";
-import { gameTopbar, finishActivity } from "./common.js";
+import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
+import { renderLetterPuzzle, renderFlashlight, renderEggs } from "./funGames.js";
+import { renderPhonics } from "./phonics.js";
+import { renderCatch } from "./catch.js";
+import { renderSequence } from "./sequence.js";
+import { renderReview } from "./review.js";
+import { letterGrade, LB_GAME_INFO } from "../data/letterGrade.js";
+import { showLetterGrade } from "./letterGradeCard.js";
 import { mountWriteBoard } from "./writeBoard.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
@@ -60,6 +67,9 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   let steps = [];
   let idx = 0;
   let cleanup = () => {};
+  // تقييم الحرف (المالك ٢٠٢٦-١٠-١٦): كل كتابة بنسبتها، وغلطات كل لعبة/نشاط، واللى اتعدّى
+  let res = null;
+  let stepWrongs = 0;
   const toRegion = () => Router.go("region", { id: regionId, index: regionIndex });
   screen.appendChild(gameTopbar("📕 كراسة الحروف", () => {
     Speech.stop();
@@ -116,6 +126,11 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     cur = pg;
     steps = letterbookSteps(pg, Math.random, only); // only: أنشطة بعينها (للاختبار)
     idx = 0;
+    res = {
+      writes: [], writeFails: 0, games: {}, acts: {}, skipped: [],
+      expectedWrites: steps.filter((x) => x.kind === "write").reduce((n, x) => n + (x.reps || 1), 0),
+      expectedGames: steps.filter((x) => x.kind === "game").map((x) => x.game),
+    };
     const i = Math.max(0, LB_PAGES.indexOf(pg));
     screen.style.setProperty("--wbk-c1", LETTER_COLORS[i % LETTER_COLORS.length]);
     screen.style.setProperty("--wbk-c2", LETTER_COLORS[(i + 3) % LETTER_COLORS.length]);
@@ -134,7 +149,8 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     else if (cur.type === "review") title.innerHTML = `<b>🏆</b><span>${cur.letters.join(" ")}</span>`;
     else title.innerHTML = `<b>〰️</b><span>التهيئة</span>`;
     const track = el("div", "wbk-track");
-    steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""), isLbWrite(s) ? "✏️" : "🎲")));
+    steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""),
+      isLbWrite(s) ? "✏️" : s.kind === "game" ? (LB_GAME_INFO[s.game] || {}).icon || "🎲" : "🎲")));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;
@@ -215,6 +231,8 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     renderStep();
   }
   function stepDone(delay = 1000) {
+    const s = steps[idx];
+    if (res && s && s.kind !== "write" && s.kind !== "game") res.acts[s.kind] = (res.acts[s.kind] || 0) + (Sfx.wrongs - stepWrongs);
     // بعد الكتابة صوت ميزو بس (من غير صوت «نجاح»)
     if (!(steps[idx] && isLbWrite(steps[idx]))) Sfx.correct();
     awardStars(1);
@@ -227,7 +245,15 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   }
   function finishPage() {
     Store.markLetterbookDone(cur.id);
-    finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
+    const end = () => finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
+    // شهادة الحرف: الدرجة للطفل، والتفاصيل لولى الأمر فى الإعدادات
+    if (cur.type !== "letter" || !res) return end();
+    const g = letterGrade(res);
+    Store.recordLetterGrade("ar", cur.ch, g);
+    const pg = cur;
+    cur = null;
+    // بعد ما نجوم آخر خطوة تطير (عشان ماتغطّيش الدرجة)
+    setTimeout(() => showLetterGrade({ glyph: pg.ch, name: nameOf(pg.ch), grade: g, onClose: end }), 900);
   }
   function renderStep() {
     cleanup();
@@ -238,9 +264,14 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     const s = steps[idx];
     const body = el("section", "wbk-body lbk-body wbk-step-" + s.kind);
     stage.appendChild(body);
-    const skip = button("wbk-skip", "⏭", () => { Sfx.tap(); Speech.stop(); nextStep(); });
+    const skip = button("wbk-skip", "⏭", () => {
+      Sfx.tap(); Speech.stop();
+      if (res) res.skipped.push(s.kind === "game" ? s.game : s.kind);
+      nextStep();
+    });
     skip.setAttribute("aria-label", "الخطوة اللى بعدها");
     stage.appendChild(skip);
+    stepWrongs = Sfx.wrongs;
     STEP[s.kind](body, s);
     armGuide();
   }
@@ -289,9 +320,33 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     // ✏️ الكتابة: الخط العريض ← النقط ← لوحده
     write(body, s) {
       const pre = s.ch.startsWith("pre:");
+      // أول كتابة للحرف (على النقط): «اكتب الحرف …»؛ ولوحده: «اكتبه لوحدك»
       const intro = pre ? preLine(s.ch.slice(4)).say
-        : s.level === 1 ? writeIntro("الحرف", nameOf(s.ch)) : s.level === 2 ? ROUND_MSG.againDots : LB_SAY.writeAlone;
-      writeBoard(body, s.ch, s.level, intro, () => stepDone(800));
+        : s.level === 1 || (s.level === 2 && idx <= 2) ? writeIntro("الحرف", nameOf(s.ch)) : s.level === 2 ? ROUND_MSG.againDots : LB_SAY.writeAlone;
+      writeBoard(body, s.ch, s.level, intro, () => stepDone(800), s.reps || 1);
+    },
+
+    // 🎲 لعبة من ألعاب القلعة جوّه صفحة الحرف — بنفس شكلها، على حرف الصفحة
+    game(body, s) {
+      const p = { regionId, regionIndex };
+      const ar = { ...p, datasetKey: "arabic", lang: "ar-EG" };
+      const GAMES = {
+        puzzle: () => renderLetterPuzzle({ ...p, kind: "arabic", focus: s.ch }),
+        flash: () => renderFlashlight({ ...p, kind: "arabic", focus: s.ch }),
+        eggs: () => renderEggs({ ...p, kind: "arabic", focus: s.ch }),
+        phonics: () => renderPhonics({ ...ar, focus: s.ch, words: (s.words || []).map((x) => ({ word: x.w, emoji: x.e })) }),
+        catch: () => renderCatch({ ...ar, focus: s.ch }),
+        sequence: () => renderSequence({ ...ar, focus: s.ch }),
+        review: () => renderReview({ ...ar, focusSet: s.set }),
+      };
+      const info = LB_GAME_INFO[s.game] || {};
+      body.appendChild(el("p", "lbk-game-title", `${info.icon || "🎲"} ${info.title || ""}`));
+      const node = renderEmbedded(GAMES[s.game], ({ mistakes }) => {
+        if (res) res.games[s.game] = mistakes;
+        stepDone(700);
+      });
+      body.appendChild(node);
+      cleanup = () => endEmbedded();
     },
 
     // فزّورة ميزو: ٣ صور والحل بيبدأ بالحرف
@@ -719,27 +774,34 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   }
 
   /** لوحة الكتابة للحرف (أو «pre:…» خط التهيئة) بمستوى المساعدة ده. */
-  function writeBoard(host, v, level, intro, done) {
+  function writeBoard(host, v, level, intro, done, reps = 1) {
     const line = v.startsWith("pre:") ? preLine(v.slice(4)) : null;
     const strokes = line ? line.strokes : strokesFor(v);
     const hint = hintLine();
     const wrap = el("div", "wbk-write");
     wrap.dataset.glyph = v;
+    // «٣ بالنقط + ٥ لوحده»: النقط بتعدّى بـ٧٥٪ ولوحده بـ٧٠٪، وكل مرة بتتعدّ (✓ ١/٣)
+    const pass = !line && level === 2 ? LB_DOTS_PASS : SCORE_PASS;
+    let got = 0;
+    const count = el("p", "lbk-reps");
+    const showCount = () => { count.textContent = `${level === 2 ? "🔵 على النقط" : "⭐ لوحدك"} · ✓ ${got}/${reps}`; };
+    if (reps > 1) { showCount(); host.appendChild(count); }
     host.appendChild(wrap);
-    if (intro) host.insertBefore(prompt(intro), wrap);
+    if (intro) host.insertBefore(prompt(intro), reps > 1 ? count : wrap);
     const board = mountWriteBoard(wrap, {
       ...penBoardOptions((text) => hint.show(text)),
       strokes,
       level,
       // «لوحده» (المالك ٢٠٢٦-١٠-١٤ — زى «ارسم الحرف»): الحرف كله من غير وقفة، والحكم بنسبة فى الآخر
-      free: !line && level === 3,
+      free: !line && level >= 2,
       from: line && line.from,
       to: line && line.to,
       // من غير صوت «غلط» ولا «نجاح» على اللوحة (المالك ٢٠٢٦-١٠-١٤): صوت ميزو وكلامه بس
       onHint: (text) => hint.show(text),
       onDone: ({ fails, score, result }) => {
         const pct = () => { if (score != null) hint.textContent = `${score}٪ · ${hint.textContent}`; };
-        if (score != null && score < SCORE_PASS) {
+        if (score != null && score < pass) {
+          if (res && !line) res.writeFails++;
           // نسبة واطية ⇒ نفس الخطوة تانى (وتحت ٥٠٪ الصباع بيوريه الأول)
           // ميزو بيقول السبب بلطف (المالك ٢٠٢٦-١٠-١٤)
           hint.show(fixMsg(result && result.issue));
@@ -751,6 +813,11 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
         board.el.animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 450 });
         if (!line) Speech.ar(nameOf(v));
         if (!line && level === 3) Store.recordWrite("g:" + v, fails, level);
+        if (res && !line && score != null) res.writes.push({ level, score });
+        got++;
+        if (reps > 1) showCount();
+        // لسه فيه مرات: نفس اللوحة فاضية تانى بعد ما يشوف النسبة
+        if (got < reps) { setTimeout(() => { if (wrap.isConnected) board.reset(); }, 1500); return; }
         done(fails);
       },
     });

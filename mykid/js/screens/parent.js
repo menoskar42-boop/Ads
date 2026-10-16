@@ -10,6 +10,8 @@ import { updateStarCounter } from "../core/rewards.js";
 import { strokesFor } from "../data/strokes.js";
 import { writeStatus, STATUS_LABEL } from "../games/writeProgress.js";
 import { openWorksheet } from "../games/worksheet.js";
+import { LB_ORDER, nameOf as lbName } from "../data/letterbook.js";
+import { LB_GAME_INFO, LB_ACT_INFO } from "../data/letterGrade.js";
 
 export function renderParent() {
   const screen = document.createElement("div");
@@ -135,6 +137,7 @@ export function renderParent() {
   wrap.appendChild(mBox);
 
   wrap.appendChild(writingBox());
+  wrap.appendChild(gradesBox());
 
   // تفصيل المناطق
   REGIONS.forEach((r) => {
@@ -359,6 +362,43 @@ function masteryBar(datasetKey, label) {
       <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#34d399,#10b981);border-radius:8px"></div>
     </div>`;
   return el;
+}
+
+/**
+ * 🏅 شهادات الحروف (المالك ٢٠٢٦-١٠-١٦): «كل حرف له تقييم مفصّل». حرف حرف من «كراسة الحروف»:
+ * الدرجة ومستواها وعدد المرات، ولمسة بتفتح التفاصيل — نسبة كل كتابة، وغلطات كل لعبة ونشاط،
+ * واللى الطفل عدّاه من غير ما يلعبه.
+ */
+function gradesBox() {
+  const box = document.createElement("div");
+  box.className = "pw-box lg-box";
+  const G = Store.letterGrades;
+  const done = LB_ORDER.filter((ch) => G["ar:" + ch]);
+  const fmtDate = (t) => { try { return new Date(t).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }); } catch (e) { return ""; } };
+  const mis = (x) => (x.skipped ? `<span class="lg-skip">اتعدّت</span>` : x.mistakes ? `${x.mistakes} غلطة` : "من غير غلط ✓");
+  let html = `<div class="pw-title">🏅 شهادات الحروف</div>
+    <p class="pw-sub">درجة كل حرف خلّصه الطفل فى «كراسة الحروف» (من ١٠٠): الكتابة ٤٠٪ · الألعاب ٣٥٪ · أنشطة الكتاب ٢٥٪.
+    اضغط على الحرف تشوف التفاصيل. خلّص ${done.length} من ${LB_ORDER.length} حرف.</p>`;
+  for (const ch of LB_ORDER) {
+    const e = G["ar:" + ch];
+    if (!e) { html += `<div class="lg-row lg-new"><b class="lg-g">${ch}</b><span>${lbName(ch)}</span><span class="lg-tot">لسه</span></div>`; continue; }
+    const g = e.last;
+    const d = g.detail || {};
+    const dots = (d.writes || []).filter((w) => w.level === 2).map((w) => w.score + "٪").join("، ") || "—";
+    const alone = (d.writes || []).filter((w) => w.level === 3).map((w) => w.score + "٪").join("، ") || "—";
+    const games = Object.entries(d.games || {}).map(([k, x]) => `<li>${(LB_GAME_INFO[k] || {}).icon || ""} ${(LB_GAME_INFO[k] || {}).title || k}: <b>${x.score}</b> · ${mis(x)}</li>`).join("");
+    const acts = Object.entries(d.acts || {}).map(([k, x]) => `<li>${LB_ACT_INFO[k] || k}: <b>${x.score}</b> · ${mis(x)}</li>`).join("");
+    html += `<details class="lg-row lg-t-${g.tone}"><summary><b class="lg-g">${ch}</b><span>${lbName(ch)}</span>
+        <span class="lg-stars">${"⭐".repeat(g.stars)}</span><span class="lg-lab">${g.label}</span><span class="lg-tot">${g.total}</span></summary>
+      <div class="lg-detail">
+        <p>آخر مرة ${fmtDate(g.at)} · اتلعب ${e.tries} مرة · أعلى درجة ${e.best.total}</p>
+        <p><b>✏️ الكتابة: ${g.writing ?? "—"}</b><br>على النقط: ${dots}<br>لوحده: ${alone}${d.writeFails ? `<br>محاولات اتعادت: ${d.writeFails}` : ""}</p>
+        <p><b>🎲 الألعاب: ${g.games ?? "—"}</b></p><ul>${games}</ul>
+        <p><b>📕 أنشطة الكتاب: ${g.acts ?? "—"}</b></p><ul>${acts}</ul>
+      </div></details>`;
+  }
+  box.innerHTML = html;
+  return box;
 }
 
 /**

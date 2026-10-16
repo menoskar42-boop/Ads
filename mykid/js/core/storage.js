@@ -276,6 +276,20 @@ export const Store = {
     this.letterbookDone[id] = (this.letterbookDone[id] || 0) + 1;
     persist();
   },
+  /** شهادات الحروف (المالك ٢٠٢٦-١٠-١٦): «ar:ب» ← { last, best, tries } — لولى الأمر فى الإعدادات. */
+  get letterGrades() {
+    return state.letterGrades || (state.letterGrades = {});
+  },
+  recordLetterGrade(book, ch, grade) {
+    const k = `${book}:${ch}`;
+    const prev = this.letterGrades[k];
+    this.letterGrades[k] = {
+      last: grade,
+      best: !prev || grade.total >= prev.best.total ? grade : prev.best,
+      tries: (prev ? prev.tries : 0) + 1,
+    };
+    persist();
+  },
   recordWrite(key, fails, level) {
     const w = this.writeStats[key] || { n: 0, r: [] };
     w.n += 1;

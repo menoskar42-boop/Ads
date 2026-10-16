@@ -246,22 +246,43 @@ function lettersAround(ch) {
 }
 
 // ===== صفحة الحرف: يكتب شوية ويلعب شوية (نفس ترتيب أنشطة الكتاب) =====
-export const LB_LETTER_KINDS = ["meet", "write", "riddle", "pop", "harakat", "harakaChoose", "starts", "forms", "missing"];
+export const LB_LETTER_KINDS = ["meet", "write", "riddle", "pop", "harakat", "harakaChoose", "starts", "forms", "missing", "game"];
+
+// ===== الكتابة الكتير (المالك ٢٠٢٦-١٠-١٦: «٣ بالنقط + ٥ لوحده»): النقط ماتتحسبش غير بـ٧٥٪،
+// ولوحده غير بـ٧٠٪ — كل مرة بتتحسب لوحدها فى العدّاد (✓ ١/٣) =====
+export const LB_DOTS_REPS = 3;
+export const LB_ALONE_REPS = [2, 3]; // لوحده: مرتين فى النص و٣ فى الآخر = ٥
+export const LB_DOTS_PASS = 75;
+
+/**
+ * ألعاب القلعة جوّه صفحة الحرف (المالك ٢٠٢٦-١٠-١٦: «تبقى جزء من المغامرة، وبرّه زى ما هى»):
+ * نفس اللعبة بشكلها، بس على حرف الصفحة وجولات أقل.
+ */
+export const LB_GAMES = ["puzzle", "flash", "eggs", "phonics", "catch", "sequence", "review"];
+/** الحروف اللى بتتراجع مع حرف الصفحة: هو + آخر ٣ حروف قبله فى الكتاب. */
+export function reviewSet(ch) {
+  const i = LB_ORDER.indexOf(ch);
+  return [ch, ...LB_ORDER.slice(Math.max(0, i - 3), Math.max(0, i))];
+}
 
 export function letterPage(ch, rnd = Math.random, only = null) {
   const L = LB_LETTERS[ch];
   const steps = [];
   const want = (k) => !only || only.includes(k);
-  // ١) استمع وانطق: الحرف كبير، وميزو بيقول اسمه وصوته
+  const game = (g) => { if (want("game") || want(g)) steps.push({ kind: "game", game: g, ch, ...(g === "review" ? { set: reviewSet(ch) } : {}), ...(g === "phonics" ? { words: shuffled(rnd, wordsStarting(ch)).slice(0, 3) } : {}) }); };
+  const write = (level, reps) => { if (want("write")) steps.push({ kind: "write", ch, level, reps }); };
+  // ١) استمع وانطق: الحرف كبير، وميزو بيقول اسمه وصوته (= «تعرّف على الحرف»)
   if (want("meet")) steps.push({ kind: "meet", ch });
-  // ٢) ✏️ على الخط العريض
-  if (want("write")) steps.push({ kind: "write", ch, level: 1 });
-  // ٣) فزّورة ميزو (فقاعة الكتاب)
+  // ٢) ✏️ على النقط ٣ مرات
+  write(2, LB_DOTS_REPS);
+  // ٣) 🧩 بازل الحرف
+  game("puzzle");
+  // ٤) فزّورة ميزو (فقاعة الكتاب)
   if (want("riddle")) {
     const wrong = othersNotStarting(ch, rnd, 2, [L.answer.e]);
     steps.push({ kind: "riddle", ch, text: L.riddle, answer: L.answer, options: shuffled(rnd, [L.answer, ...wrong]) });
   }
-  // ٤) «لوّن اللى فيه الحرف» (الأرانب/الفراشات/النجوم فى الكتاب)
+  // ٥) «لوّن اللى فيه الحرف» (الأرانب/الفراشات/النجوم فى الكتاب)
   if (want("pop")) {
     const others = lettersAround(ch);
     const k = 3 + Math.floor(rnd() * 2); // ٣ أو ٤
@@ -269,38 +290,51 @@ export function letterPage(ch, rnd = Math.random, only = null) {
       ...Array(8 - k).fill(0).map(() => ({ ch: pickOf(rnd, others), good: false }))];
     steps.push({ kind: "pop", ch, cells: shuffled(rnd, cells) });
   }
-  // ٥) ✏️ على النقط
-  if (want("write")) steps.push({ kind: "write", ch, level: 2 });
-  // ٦) استمع واكتب الحرف بالحركات: الكلمات الأربعة (فتحة · ضمة · كسرة · سكون)
+  // ٦) 🔦 الكشّاف
+  game("flash");
+  // ٧) استمع واكتب الحرف بالحركات: الكلمات الأربعة (فتحة · ضمة · كسرة · سكون)
   if (want("harakat")) steps.push({ kind: "harakat", ch, words: L.harakat.map((x) => ({ ...x, s: syl(ch === "أ" && x.h === "i" ? "إ" : ch, x.h) })) });
-  // ٧) اختر الصوت المناسب للصورة (فتحة/ضمة/كسرة)
+  // ٨) اختر الصوت المناسب للصورة (فتحة/ضمة/كسرة)
   if (want("harakaChoose")) {
     const opts = ["a", "u", "i"].map((h) => ({ h, s: syl(ch === "أ" && h === "i" ? "إ" : ch, h) }));
     const rounds = shuffled(rnd, L.harakat.filter((x) => x.h !== "o")).map((x) => ({ ...x, options: shuffled(rnd, opts) }));
     steps.push({ kind: "harakaChoose", ch, rounds });
   }
-  // ٨) ضع دائرة حول الصورة اللى بتبدأ بالحرف
+  // ٩) ✏️ لوحده مرتين
+  write(3, LB_ALONE_REPS[0]);
+  // ١٠) 🥚 بيض المفاجآت
+  game("eggs");
+  // ١١) ضع دائرة حول الصورة اللى بتبدأ بالحرف
   if (want("starts")) {
     const good = shuffled(rnd, wordsStarting(ch)).slice(0, 3);
     const bad = othersNotStarting(ch, rnd, 3, good.map((x) => x.e));
     steps.push({ kind: "starts", ch, items: shuffled(rnd, [...good.map((x) => ({ ...x, good: true })), ...bad.map((x) => ({ ...x, good: false }))]) });
   }
-  // ٩) لاحظ أشكال الحرف: أول · وسط · آخر الكلمة (الحرف ملوّن والطفل يلمسه)
+  // ١٢) 🔤 بأى حرف تبدأ؟
+  game("phonics");
+  // ١٣) لاحظ أشكال الحرف: أول · وسط · آخر الكلمة (الحرف ملوّن والطفل يلمسه)
   if (want("forms")) steps.push({ kind: "forms", ch, words: L.forms.map((x) => ({ ...x, pos: posOf(x.w, ch), ...splitAt(x.w, ch) })) });
-  // ٩ب) حط دايرة حوالين الحرف: فى أول الكلمة ← آخرها ← وسطها (المالك ٢٠٢٦-١٠-١٤)
+  // ١٣ب) حط دايرة حوالين الحرف: فى أول الكلمة ← آخرها ← وسطها (المالك ٢٠٢٦-١٠-١٤)
   if (want("circle")) {
     const words = circleWords(ch);
     if (words.length) steps.push({ kind: "circle", ch, words });
   }
-  // ١٠) اكتب الحرف الناقص: يختار الحرف، وبعدين يكتبه لوحده
+  // ١٤) 🎯 اصطياد الحروف
+  game("catch");
+  // ١٥) اكتب الحرف الناقص فى الكلمة
   if (want("missing")) {
     // أ: الكلمات اللى فيها «أ» نفسها (مش «ا» زى كتاب) — عشان الحرف اللى يختاره هو اللى يتكتب
     const fits = L.forms.filter((f) => splitAt(f.w, ch).letter === ch);
     const x = pickOf(rnd, fits.length ? fits : L.forms);
     const others = shuffled(rnd, lettersAround(ch)).slice(0, 2);
     steps.push({ kind: "missing", ch, ...x, ...splitAt(x.w, ch), options: shuffled(rnd, [ch, ...others]) });
-    if (want("write")) steps.push({ kind: "write", ch, level: 3 });
   }
+  // ١٦) 🔠 الحرف الناقص فى الحروف (أ ب ؟)
+  game("sequence");
+  // ١٧) ✏️ لوحده ٣ مرات
+  write(3, LB_ALONE_REPS[1]);
+  // ١٨) 🧠 المراجعة الذكية: الحرف ده + اللى قبله — وبعدها شهادة الحرف
+  game("review");
   return steps;
 }
 

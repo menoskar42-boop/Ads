@@ -9,12 +9,15 @@ import { CATCH_SAY, caseSay } from "../data/writingPhrases.js";
 
 const ROUNDS = 5;
 
-export function renderCatch({ regionId, regionIndex, datasetKey, lang }) {
+export function renderCatch({ regionId, regionIndex, datasetKey, lang, focus = null }) {
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang;
   const items = ds.items;
 
-  const targets = shuffle(items).slice(0, ROUNDS);
+  // «كراسة الحروف»: ٣ جولات على حرف الصفحة
+  const focusIt = focus != null ? items.find((x) => x.char === focus) : null;
+  const ROUNDS_N = focusIt ? 3 : ROUNDS;
+  const targets = focusIt ? [focusIt, focusIt, focusIt] : shuffle(items).slice(0, ROUNDS);
   // الإنجليزى: جولات «اصطاد الحرف الصغير/الكابيتال» وسط حروف بالحالتين — والفخ هو نفس
   // الحرف بالحالة التانية (b وسطها B). بيعلّم الفرق (المالك ٢٠٢٦-١٠-١٠).
   const caseMode = !!(items[0] && items[0].lower && items[0].lower !== items[0].char);
@@ -71,6 +74,7 @@ export function renderCatch({ regionId, regionIndex, datasetKey, lang }) {
         item,
       };
       el.style.transform = `translate(${f.x}px, ${f.y}px)`;
+      if (item.char === target.char) el.dataset.good = "1"; // صباع الكتاب بيشاور عليه
       el.addEventListener("click", () => handleTap(f, target));
       fallers.push(f);
     });
@@ -147,7 +151,7 @@ export function renderCatch({ regionId, regionIndex, datasetKey, lang }) {
 
   function nextRound() {
     round++;
-    if (round >= ROUNDS) {
+    if (round >= ROUNDS_N) {
       running = false;
       clearFallers();
       finishActivity({ regionId, regionIndex, stars: 6, onDone: back });

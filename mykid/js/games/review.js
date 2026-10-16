@@ -24,7 +24,7 @@ function speakItem(it, lang) {
   else Speech.say(it.name, { lang: "ar-EG" });
 }
 
-export function renderReview({ regionId, regionIndex, datasetKey, lang, title }) {
+export function renderReview({ regionId, regionIndex, datasetKey, lang, title, focusSet = null }) {
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang;
   const items = ds.items;
@@ -36,7 +36,9 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title })
   const scored = pool
     .map((it) => ({ it, lvl: Store.getMastery(datasetKey, itemKey(it)) }))
     .sort((a, b) => a.lvl - b.lvl || Math.random() - 0.5);
-  const rounds = shuffle(scored.slice(0, ROUNDS).map((s) => s.it));
+  // «كراسة الحروف»: حرف الصفحة + الحروف اللى خلصها قبله (المراجعة الذكية جوّه المغامرة)
+  const fromSet = focusSet ? items.filter((it) => focusSet.includes(it.char)) : [];
+  const rounds = fromSet.length ? shuffle(fromSet) : shuffle(scored.slice(0, ROUNDS).map((s) => s.it));
   let i = 0;
   // الإنجليزى: «اسمع واختار» بالحالة — small b أو capital B، والفخ هو نفس الحرف بالحالة التانية
   const caseMode = !!(items[0] && items[0].lower && items[0].lower !== items[0].char);
@@ -78,6 +80,7 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title })
       const b = document.createElement("button");
       b.className = "choice";
       b.innerHTML = `<span style="font-weight:800">${glyph(c)}</span>`;
+      if (itemKey(c) === itemKey(target)) b.dataset.good = "1";
       b.addEventListener("click", () => {
         if (itemKey(c) === itemKey(target)) {
           Sfx.correct();
