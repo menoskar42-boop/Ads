@@ -17,7 +17,7 @@ import { SPELL_WORDS } from "../js/data/spelling.js";
 import { READING_RULES, CLASSIFY_SETS } from "../js/data/readingRules.js";
 import { REGIONS } from "../js/data/regions.js";
 import { ACTIVITIES } from "../js/data/activities.js";
-import { MIZO_REGION_HOOKS, MIZO_PRAISE, MIZO_HELLO, MIZO_INTRO, femAdapt } from "../js/data/mizo.js";
+import { MIZO_REGION_HOOKS, MIZO_PRAISE, MIZO_HELLO, MIZO_INTRO, MIZO_CATCH, femAdapt } from "../js/data/mizo.js";
 import fs from "node:fs";
 
 /** { name, how } من مصفوفة جوّه شاشة (الأوسمة/إكسسوارات ميزو) — الشاشة نفسها بتلمس الصفحة فمابنستوردهاش. */
@@ -26,6 +26,14 @@ function namesHows(file, arr) {
   const body = src.slice(src.indexOf(`${arr} = [`), src.indexOf("];", src.indexOf(`${arr} = [`)));
   return [...body.matchAll(/name:\s*"([^"]*)",\s*how:\s*"([^"]*)"/g)].map((m) => ({ name: m[1], how: m[2] }));
 }
+
+/** كتلة `const X = [ … ];` من ملف شاشة/لعبة (من غير استيراده). */
+function block(file, decl) {
+  const src = fs.readFileSync(new URL(file, import.meta.url), "utf8");
+  const i = src.indexOf(`${decl} = [`);
+  return i < 0 ? "" : src.slice(i, src.indexOf("\n];", i));
+}
+const namesIn = (txt) => [...txt.matchAll(/name:\s*"([^"]*)"/g)].map((m) => m[1]);
 
 export function addGamePhrases({ say, mizo }) {
   const ds = (k) => (DATASETS[k] ? DATASETS[k].items : []);
@@ -119,13 +127,18 @@ export function addGamePhrases({ say, mizo }) {
   mizo("ابدأ اللعب لتفتح أوّل وسام!");
   for (const a of namesHows("../js/screens/profile.js", "const ACCS")) if (a.how) mizo(`لتفتح ${a.name}: ${a.how}`);
 
-  // ١٠) «حصلت على …» و«وسام …» و«لتفتح …» — المكافآت (core/rewards.js بيلمس الصفحة،
-  //    فبنستورده لو ينفع؛ وإلا tts-crawl بيلقطها من اللعب)
-  return import("../js/core/rewards.js").then(({ COLLECTIBLES }) => {
-    for (const c of COLLECTIBLES || []) {
-      say(c.name);
-      say(`حصلت على ${c.name}`);
-      if (c.how) mizo(`لتفتح ${c.name}: ${c.how}`);
-    }
-  }).catch(() => {});
+  // ١٠) الكنوز: «حصلت على …» (core/rewards.js بيلمس الصفحة فبنقرا القايمة من الملف)
+  for (const n of namesIn(block("../js/core/rewards.js", "export const COLLECTIBLES"))) { say(n); say(`حصلت على ${n}`); }
+
+  // ١١) «لوّن الصور» · «اعرف الإحساس» · «وصّل النقاط» · «اكتشف المختلف» · العجلة · رحلة اليوم
+  for (const n of namesIn(block("../js/games/coloring.js", "const PICTURES"))) say(`لوّن ${n}`);
+  for (const n of namesIn(block("../js/games/emotions.js", "const FACES"))) { mizo("برافو! ده إحساس " + n); mizo("شوف... ده " + n); }
+  for (const m of block("../js/games/dotdot.js", "const FIGURES").matchAll(/name:\s*"([^"]*)",\s*emoji:\s*"([^"]*)",\s*dots:\s*\[(.*)\]\s*\}/g)) {
+    const n = (m[3].match(/\[/g) || []).length;
+    mizo("اضغط الأرقام بالترتيب من ١ لـ" + n + " وشوف الصورة!");
+    mizo("برافو! طلعت " + m[1] + " " + m[2]);
+  }
+  for (let k = 2; k <= 10; k++) mizo("دوّر على رقم " + k);
+  for (const st of [3, 5, 8, 10]) mizo(`جامد! ربحت ${st} نجوم!`);
+  for (const c of MIZO_CATCH) mizo(`${c} دي رحلتنا النهارده، يلا بينا!`);
 }
