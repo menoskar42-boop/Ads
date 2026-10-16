@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import "../server/_node-shim.mjs";
 import {
+  puzzleRounds, puzzleGrid, puzzlePieces, snapsTo, PUZZLE_ROUNDS,
   funItems, frogRounds, flashRounds, pianoTune, rocketRounds, eggRounds, hatchOf, FROG_HOPS, FLASH_ROUNDS, ROCKETS, EGG_ROUNDS,
 } from "../js/data/funGames.js";
 import { FUN_SAY } from "../js/data/writingPhrases.js";
@@ -62,7 +63,7 @@ test("Mizo's words: no «غلط», a girl hears the feminine form, and all 5 gam
   assert.match(femAdapt(FUN_SAY.pianoIntro), /اعزفي زيه/);
   for (const region of ["arabic", "english", "numbers"]) {
     const screens = ACTIVITIES[region].filter((a) => a.params?.kind === region).map((a) => a.screen);
-    assert.deepEqual(screens, ["frog", "flashlight", "eggs", "rocket", "piano"], region);
+    assert.deepEqual(screens, ["letterPuzzle", "frog", "flashlight", "eggs", "rocket", "piano"], region);
   }
 });
 
@@ -216,8 +217,103 @@ test("🎹 piano: Mizo plays, the child plays it back; a wrong key replays the t
   assert.deepEqual(errors, []);
 });
 
+test("🧩 puzzle data: pieces cover the whole letter, never start in order, snapping is forgiving", () => {
+  for (const big of [false, true]) {
+    const grid = puzzleGrid(big);
+    const all = puzzlePieces(grid);
+    assert.equal(all.length, big ? 6 : 4);
+    for (let k = 0; k < 30; k++) {
+      const rs = puzzleRounds(funItems("arabic"), rnd, grid);
+      assert.equal(rs.length, PUZZLE_ROUNDS);
+      for (const r of rs) {
+        assert.deepEqual([...r.tray].map((p) => p.id).sort(), all.map((p) => p.id).sort());
+        assert.ok(r.tray.some((p, i) => p !== all[i]), "shuffled");
+      }
+    }
+  }
+  assert.ok(snapsTo(30, -20, 100, 100) && !snapsTo(60, 0, 100, 100));
+});
+
+test("🧩 puzzle: a piece dropped far away goes back (gentle hint); dragged near its place it snaps; tap-then-tap works too", async () => {
+  await open("renderLetterPuzzle", "arabic", true);
+  await shot("puzzle");
+  assert.match(await page.locator(".fg-say").textContent(), /اسحبي كل حتة لمكانها، وركّبي الحرف/);
+  const n = await page.locator(".fg-pz-tray .fg-pz-piece").count();
+  assert.equal(n, 6, "default (5–6 years): 6 pieces");
+  const ids = await page.locator(".fg-pz-slot").evaluateAll((els) => els.map((e) => e.dataset.id));
+  const drag = async (pc, target) => {
+    const a = await pc.boundingBox();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(a.x + a.width / 2 + 10, a.y + a.height / 2 + 10, { steps: 3 });
+    await page.mouse.move(target.x, target.y, { steps: 8 });
+    await page.mouse.up();
+  };
+  const slotCenter = async (id) => { const b = await page.locator(`.fg-pz-slot[data-id="${id}"]`).boundingBox(); return { x: b.x + b.width / 2 + 8, y: b.y + b.height / 2 - 6 }; };
+  // غلطة: نسيب الحتة فى مكان حتة تانية
+  const first = page.locator(".fg-pz-tray .fg-pz-piece").first();
+  const id0 = await first.getAttribute("data-id");
+  const other = ids.find((x) => x !== id0);
+  await drag(first, await slotCenter(other));
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator(".fg-pz-tray .fg-pz-piece").count(), 6, "went back to the tray");
+  assert.match(await page.locator(".fg-say").textContent(), /مش مكانها/);
+  assert.doesNotMatch(await page.locator(".fg-say").textContent(), /غلط/);
+  // سحب صح (قريب من المكان مش فى نصه بالظبط) ⇒ تتشدّ
+  await drag(first, await slotCenter(id0));
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator(`.fg-pz-slot[data-id="${id0}"] .fg-pz-piece`).count(), 1, "snapped into its slot");
+  // لمسة على الحتة وبعدين لمسة على مكانها
+  const second = page.locator(".fg-pz-tray .fg-pz-piece").first();
+  const id1 = await second.getAttribute("data-id");
+  await second.click();
+  await page.locator(`.fg-pz-slot[data-id="${id1}"]`).click();
+  assert.equal(await page.locator(`.fg-pz-slot[data-id="${id1}"] .fg-pz-piece`).count(), 1, "tap-then-tap placed it");
+  // الباقى ⇒ الحرف يكمل وصاحبه يطلع
+  for (let i = 0; i < 4; i++) {
+    const pc = page.locator(".fg-pz-tray .fg-pz-piece").first();
+    const id = await pc.getAttribute("data-id");
+    await pc.click();
+    await page.locator(`.fg-pz-slot[data-id="${id}"]`).click();
+  }
+  await page.waitForSelector(".fg-pz-board.fg-pz-done");
+  // كل حتة فى مكانها الحقيقى: الحتة col=0 على الشمال (مش معكوسة فى RTL)
+  const xs = await page.locator(".fg-pz-slot").evaluateAll((els) => els.map((e) => [e.dataset.id, e.getBoundingClientRect().left]));
+  const left = Object.fromEntries(xs);
+  assert.ok(left["0-0"] < left["1-0"], "column 0 is on the left");
+  await page.waitForSelector(".fg-hatch.on .fg-word");
+  await shot("puzzle-done");
+  // الجولات الباقية لحد الآخر
+  for (let k = 0; k < 150 && !(await finished()); k++) {
+    const pc = page.locator(".fg-pz-tray .fg-pz-piece").first();
+    if (await pc.count()) {
+      const id = await pc.getAttribute("data-id");
+      await pc.click();
+      await page.locator(`.fg-pz-slot[data-id="${id}"]`).click();
+    }
+    await page.waitForTimeout(300);
+  }
+  assert.ok(await finished());
+  assert.deepEqual(errors, []);
+});
+
+test("🧩 puzzle for the little ones (3–4): 4 big pieces", async () => {
+  await page.goto(base);
+  await page.evaluate(async () => {
+    localStorage.clear();
+    const { Store } = await import("/js/core/storage.js");
+    Store.setAgeBand("small");
+    const m = await import("/js/games/funGames.js");
+    document.getElementById("app").replaceChildren(m.renderLetterPuzzle({ regionId: "numbers", regionIndex: 0, kind: "numbers" }));
+  });
+  await page.waitForSelector(".fg-pz-piece");
+  const small = await page.evaluate(async () => (await import("/js/core/storage.js")).Store.ageBand);
+  assert.equal(small, "small");
+  assert.equal(await page.locator(".fg-pz-tray .fg-pz-piece").count(), 4);
+});
+
 test("every game opens for every kind, fits a phone, no errors", async () => {
-  for (const fn of ["renderFrog", "renderFlashlight", "renderPiano", "renderRocket", "renderEggs"]) {
+  for (const fn of ["renderLetterPuzzle", "renderFrog", "renderFlashlight", "renderPiano", "renderRocket", "renderEggs"]) {
     for (const kind of KINDS) {
       await open(fn, kind);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, `${fn}/${kind} overflow`);

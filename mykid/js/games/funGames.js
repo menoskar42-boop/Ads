@@ -12,10 +12,10 @@ import { Store } from "../core/storage.js";
 import { awardStars } from "../core/rewards.js";
 import { femAdapt } from "../data/mizo.js";
 import { gameTopbar, finishActivity, diffCount } from "./common.js";
-import { FUN_SAY } from "../data/writingPhrases.js";
+import { FUN_SAY, PUZZLE_SAY } from "../data/writingPhrases.js";
 import {
   funItems, frogRounds, FROG_HOPS, flashRounds, pianoKeys, pianoLengths, pianoTune,
-  rocketRounds, eggRounds, EGG_TAPS, hatchOf,
+  rocketRounds, eggRounds, EGG_TAPS, hatchOf, puzzleGrid, puzzleRounds, snapsTo,
 } from "../data/funGames.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
@@ -443,6 +443,171 @@ export function renderEggs({ regionId, regionIndex, kind = "arabic" }) {
       await new Promise((res) => sayThen(nums[i], res, 1100));
     }
     return wait(900);
+  }
+  setTimeout(round, 50);
+  return g.screen;
+}
+
+// ===================== 🧩 بازل الحرف/الرقم =====================
+// الحرف كبير على لوحة ملوّنة (ومعاه صاحبه فى الركن: ب + 🦆) متقطّع ٤ حتت (٦ للكبار).
+// الطفل يسحب الحتة لمكانها — قريبة من مكانها ⇒ تتشدّ لوحدها. ولو مش بيعرف يسحب: يلمس
+// الحتة وبعدين يلمس مكانها. لما يكمّل: الحرف ينوّر وميزو يقوله ويقول صاحبه.
+const PUZZLE_BG = [["#f472b6", "#fb923c", "#facc15"], ["#a78bfa", "#38bdf8", "#4ade80"], ["#fb7185", "#c084fc", "#60a5fa"], ["#34d399", "#fbbf24", "#f472b6"]];
+// زينة صغيرة مختلفة فى كل حتة — عشان كل حتة ليها شكل يتعرف (حتى الحتت اللى مفيهاش من الحرف)
+const PUZZLE_DECO = ["⭐", "🌸", "🎈", "🦋", "🍭", "✨"];
+export function renderLetterPuzzle({ regionId, regionIndex, kind = "arabic" }) {
+  const items = funItems(kind);
+  const isNum = kind === "numbers";
+  const g = shell({ regionId, regionIndex, title: isNum ? "🧩 بازل الرقم" : "🧩 بازل الحرف", scene: "puzzle" });
+  const grid = puzzleGrid(Store.ageBand !== "small");
+  const rounds = puzzleRounds(items, Math.random, grid);
+  let r = 0;
+  const board = el("div", "fg-pz-board");
+  board.dir = "ltr"; // العواميد من الشمال لليمين زى الصورة (من غيرها RTL بيعكس الحتت والحرف يطلع مقلوب)
+  const tray = el("div", "fg-pz-tray");
+  const reveal = el("div", "fg-hatch");
+  g.stage.append(board, reveal, tray);
+
+  /** صورة الحرف كاملة (اللى بتتقطّع): خلفية ملوّنة + الحرف كبير + صاحبه فى الركن. */
+  function picture(it, colors, S) {
+    const p = el("div", "fg-pz-pic");
+    p.style.width = p.style.height = S + "px";
+    p.style.background = `linear-gradient(135deg, ${colors.join(", ")})`;
+    const pw = S / grid.cols, ph = S / grid.rows;
+    let deco = "";
+    for (let row = 0; row < grid.rows; row++) for (let col = 0; col < grid.cols; col++) {
+      // الزينة فى الركن البعيد عن نص الصورة (مكان الحرف)
+      const x = (col + (col < grid.cols / 2 ? 0.22 : 0.78)) * pw, y = (row + (row < grid.rows / 2 ? 0.24 : 0.76)) * ph;
+      deco += `<span class="fg-pz-deco" style="left:${x}px;top:${y}px;font-size:${Math.round(Math.min(pw, ph) * 0.26)}px">${PUZZLE_DECO[(row * grid.cols + col) % PUZZLE_DECO.length]}</span>`;
+    }
+    p.innerHTML = `${deco}<b class="fg-pz-glyph" dir="auto" style="font-size:${Math.round(S * 0.55)}px">${it.glyph}</b>`;
+    return p;
+  }
+
+  function round() {
+    const R = rounds[r];
+    const it = R.target;
+    g.progress(r, rounds.length);
+    const S = Math.round(Math.min(window.innerWidth * 0.8, 300));
+    const pw = S / grid.cols, ph = S / grid.rows;
+    const color = PUZZLE_BG[r % PUZZLE_BG.length];
+    board.replaceChildren();
+    tray.replaceChildren();
+    reveal.classList.remove("on");
+    reveal.replaceChildren();
+    board.style.width = board.style.height = S + "px";
+    board.style.gridTemplateColumns = `repeat(${grid.cols}, ${pw}px)`;
+    board.style.gridTemplateRows = `repeat(${grid.rows}, ${ph}px)`;
+    board.classList.remove("fg-pz-done");
+    // الخيال الباهت تحت: الطفل شايف الحرف رايح فين
+    const ghost = picture(it, color, S);
+    ghost.classList.add("fg-pz-ghost");
+    board.appendChild(ghost);
+    const slots = {};
+    for (let row = 0; row < grid.rows; row++) for (let col = 0; col < grid.cols; col++) {
+      const sl = el("div", "fg-pz-slot");
+      sl.dataset.id = `${col}-${row}`;
+      sl.style.gridColumn = col + 1;
+      sl.style.gridRow = row + 1;
+      slots[sl.dataset.id] = sl;
+      board.appendChild(sl);
+    }
+    let left = R.tray.length;
+    let picked = null;
+
+    const place = (pc, piece) => {
+      const sl = slots[piece.id];
+      pc.classList.remove("fg-pz-picked", "fg-pz-drag");
+      pc.style.transform = "";
+      pc.dataset.on = "1";
+      delete pc.dataset.good;
+      sl.appendChild(pc);
+      pc.classList.add("fg-pz-placed");
+      Sfx.pop();
+      picked = null;
+      if (--left > 0) {
+        if (left === Math.floor(R.tray.length / 2)) say(PUZZLE_SAY.good[r % PUZZLE_SAY.good.length]);
+        return;
+      }
+      done();
+    };
+    const miss = (pc) => {
+      Sfx.wrong();
+      pc.classList.remove("fg-pz-drag");
+      pc.style.transform = "";
+      wiggle(pc);
+      g.tell(PUZZLE_SAY.wrong);
+    };
+
+    R.tray.forEach((piece) => {
+      const pc = el("button", "fg-pz-piece");
+      pc.type = "button";
+      pc.dataset.id = piece.id;
+      pc.dataset.good = "1";
+      pc.style.width = pw + "px";
+      pc.style.height = ph + "px";
+      pc.style.setProperty("--tilt", `${(Math.random() - 0.5) * 14}deg`);
+      const inner = picture(it, color, S);
+      inner.style.transform = `translate(${-piece.col * pw}px, ${-piece.row * ph}px)`;
+      pc.appendChild(inner);
+      pc.setAttribute("aria-label", "حتة من البازل");
+      // سحب: الحتة ماشية مع الصباع، ولما تتساب قريب من مكانها تتشدّ
+      let start = null;
+      pc.addEventListener("pointerdown", (e) => {
+        if (pc.dataset.on || !g.alive) return;
+        start = { x: e.clientX, y: e.clientY, moved: false };
+        try { pc.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+      pc.addEventListener("pointermove", (e) => {
+        if (!start) return;
+        const dx = e.clientX - start.x, dy = e.clientY - start.y;
+        if (!start.moved && Math.hypot(dx, dy) < 6) return;
+        start.moved = true;
+        pc.classList.add("fg-pz-drag");
+        pc.style.transform = `translate(${dx}px, ${dy}px)`;
+      });
+      pc.addEventListener("pointerup", (e) => {
+        if (!start) return;
+        const moved = start.moved;
+        start = null;
+        if (!moved) {
+          // لمسة: نختار الحتة، وبعدين لمسة على مكانها
+          tray.querySelectorAll(".fg-pz-picked").forEach((x) => x.classList.remove("fg-pz-picked"));
+          picked = { pc, piece };
+          pc.classList.add("fg-pz-picked");
+          Sfx.tap();
+          return;
+        }
+        const a = pc.getBoundingClientRect(), b = slots[piece.id].getBoundingClientRect();
+        if (snapsTo(a.left + a.width / 2 - (b.left + b.width / 2), a.top + a.height / 2 - (b.top + b.height / 2), b.width, b.height)) place(pc, piece);
+        else miss(pc);
+      });
+      pc.addEventListener("pointercancel", () => { start = null; pc.classList.remove("fg-pz-drag"); pc.style.transform = ""; });
+      tray.appendChild(pc);
+    });
+    Object.values(slots).forEach((sl) => sl.addEventListener("click", () => {
+      if (!picked || !g.alive) return;
+      if (picked.piece.id === sl.dataset.id) place(picked.pc, picked.piece);
+      else miss(picked.pc);
+    }));
+    g.tell(r === 0 ? (isNum ? PUZZLE_SAY.introNumber : PUZZLE_SAY.introLetter) : (isNum ? PUZZLE_SAY.againNumber : PUZZLE_SAY.again));
+  }
+
+  async function done() {
+    board.classList.add("fg-pz-done");
+    stepWin(g);
+    const it = rounds[r].target;
+    reveal.classList.add("on");
+    reveal.innerHTML = isNum
+      ? `<span class="fg-baby">${hatchOf(it)}</span>`
+      : `<span class="fg-baby">${it.emoji}</span><b class="fg-word" dir="auto">${it.word}</b>`;
+    const seq = [{ text: fem(PUZZLE_SAY.done), lang: "ar-EG" }, { text: it.say, lang: it.lang }];
+    if (it.word) seq.push({ text: it.word, lang: it.lang });
+    Speech.sequence(seq, 200);
+    await wait(3200);
+    if (!g.alive) return;
+    if (++r >= rounds.length) return g.finish();
+    round();
   }
   setTimeout(round, 50);
   return g.screen;

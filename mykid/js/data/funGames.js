@@ -113,3 +113,24 @@ export function eggRounds(items, rnd = Math.random, eggs = 3) {
 }
 /** اللى بيطلع من البيضة: صاحب الحرف (🦆 بطة) — وللأرقام كتاكيت بعدد الرقم. */
 export const hatchOf = (item) => (item.value ? "🐥".repeat(item.value) : item.emoji || "🐣");
+
+// ===== 🧩 بازل الحرف/الرقم (المالك ٢٠٢٦-١٠-١٦): الحرف كبير متقطّع، والطفل يرجّع كل حتة مكانها =====
+export const PUZZLE_ROUNDS = 4;
+/** القطع: ٢×٢ للصغار، ٣×٢ للكبار. كل قطعة { id, col, row }. */
+export const puzzleGrid = (big) => (big ? { cols: 2, rows: 3 } : { cols: 2, rows: 2 });
+export function puzzlePieces({ cols, rows }) {
+  const out = [];
+  for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) out.push({ id: `${col}-${row}`, col, row });
+  return out;
+}
+/** الجولات: حروف/أرقام مختلفة، والقطع متلخبطة (عمرها ما تبدأ مترتّبة). */
+export function puzzleRounds(items, rnd = Math.random, grid = puzzleGrid(false)) {
+  const pieces = puzzlePieces(grid);
+  return pickN(rnd, items, PUZZLE_ROUNDS).map((target) => {
+    let tray = shuffled(rnd, pieces);
+    if (tray.every((p, i) => p === pieces[i])) tray = tray.slice(1).concat(tray[0]);
+    return { target, tray };
+  });
+}
+/** يقع فين: القطعة اتسابت قريب من مكانها الصح (نص مقاسها) ⇒ تتشدّ لوحدها. */
+export const snapsTo = (dx, dy, w, h) => Math.abs(dx) <= w * 0.5 && Math.abs(dy) <= h * 0.5;

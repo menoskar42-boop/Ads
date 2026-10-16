@@ -19,6 +19,7 @@ export const ACTIVITIES = {
       params: {},
     },
     // «ألعاب ميزو» (٢٠٢٦-١٠-١٦): خمس ألعاب جديدة بنفس الكود للعربى والإنجليزى والأرقام
+    { emoji: "🧩", title: "بازل الحرف", desc: "الحرف اتكسر حتت! رجّع كل حتة مكانها", screen: "letterPuzzle", params: { kind: "arabic" } },
     { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الحرف ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "arabic" } },
     { emoji: "🔦", title: "الكشّاف", desc: "الدنيا ضلمة! دوّر بالكشّاف على الحرف", screen: "flashlight", params: { kind: "arabic" } },
     { emoji: "🥚", title: "بيض المفاجآت", desc: "اكسر بيضة الحرف وشوف إيه اللى طلع منها", screen: "eggs", params: { kind: "arabic" } },
@@ -153,6 +154,7 @@ export const ACTIVITIES = {
       params: {},
     },
     // «ألعاب ميزو» (٢٠٢٦-١٠-١٦): خمس ألعاب جديدة بنفس الكود للعربى والإنجليزى والأرقام
+    { emoji: "🧩", title: "بازل الحرف", desc: "الحرف اتكسر حتت! رجّع كل حتة مكانها", screen: "letterPuzzle", params: { kind: "english" } },
     { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الحرف ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "english" } },
     { emoji: "🔦", title: "الكشّاف", desc: "الدنيا ضلمة! دوّر بالكشّاف على الحرف", screen: "flashlight", params: { kind: "english" } },
     { emoji: "🥚", title: "بيض المفاجآت", desc: "اكسر بيضة الحرف وشوف إيه اللى طلع منها", screen: "eggs", params: { kind: "english" } },
@@ -254,6 +256,7 @@ export const ACTIVITIES = {
       params: {},
     },
     // «ألعاب ميزو» (٢٠٢٦-١٠-١٦): خمس ألعاب جديدة بنفس الكود للعربى والإنجليزى والأرقام
+    { emoji: "🧩", title: "بازل الرقم", desc: "الرقم اتكسر حتت! رجّع كل حتة مكانها", screen: "letterPuzzle", params: { kind: "numbers" } },
     { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الرقم ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "numbers" } },
     { emoji: "🔦", title: "الكشّاف", desc: "الدنيا ضلمة! دوّر بالكشّاف على الرقم", screen: "flashlight", params: { kind: "numbers" } },
     { emoji: "🥚", title: "بيض المفاجآت", desc: "اكسر بيضة الرقم وعِدّ الكتاكيت اللى طلعت", screen: "eggs", params: { kind: "numbers" } },

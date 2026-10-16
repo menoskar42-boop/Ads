@@ -269,6 +269,7 @@ add("برافو", AR);
 
 // ===== «ألعاب ميزو» للحروف والأرقام (٢٠٢٦-١٠-١٦) — الجمل ثابتة واسم الحرف/الرقم بيتقال بعدها لوحده =====
 Object.values(WP.FUN_SAY).forEach(addAr);
+[...Object.values(WP.PUZZLE_SAY)].flat().forEach(addAr);
 // اللى بيطلع من البيضة: كلمة الحرف بلغته (بطة / Apple) — واسم الحرف/الرقم نفسه
 for (const k of ["arabic", "english", "numbers"]) for (const it of funItems(k)) { add(it.say, it.lang.startsWith("en") ? EN : AR); if (it.word) add(it.word, it.lang.startsWith("en") ? EN : AR); }
 
