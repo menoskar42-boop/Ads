@@ -4,7 +4,7 @@
 // @description  v1.5.0: رجع البحث عن الزرار الأخضر زى الأول (اللى كان بيلاقيه صح)، والخطوات اللى بعده بتضغط الأيقونة اللى فى نفس المكان (نفس الصف ونفس العمود)؛ OK بيتضغط على الزرار الحقيقى ويتأكد إن الرسالة اتقفلت؛ ورسالة «Updated Successfully» بتفضل ٣ ثوانى قبل OK. v1.4.0: «بدء المهمة» و«تحديث الحالة» بيتعملوا على صف الشئون الخارجية (Fix External Affairs) اللى اتقبل بس — كان بياخد Work Id أول صف فى الجدول (مهمة الفنى Fix FME) ويضغط أيقونتها فتفتح «Update Work Status» بتاعتها؛ ولو المهمة متقبلة من قبل ومخلصتش بيكمّلها. v1.3.0: لو WFM أعاد تحميل الصفحة بعد OK بتاع «Update Work Status» (أو Yes بتاع Start) السكربت بيكمّل من نفس الخطوة ويضغط OK على «Updated Successfully» قبل ما يبلّغ Service-Flow — كان بيبدأ البحث من الأول والتاب يتقفل والرسالة مفتوحة. موافقة الشئون الخارجية على تغيير البورت فى WFM: بعد ما تسجّل دخول بنفسك، السكربت بيفتح Work Orders، يكتب الرقم فى Service Id ويضغط Search، يفتح أمر الشغل، يروح لتبويب Assignments، ولو لقى الزرار الأخضر بيكمّل على **نفس الصف** تلات خطوات: (١) الأخضر ← «Accept This Task» ← Yes، (٢) السهم الأبيض ← «Start This Task» ← Yes ← «Task Started Successfully» ← OK، (٣) المربع الأبيض ← «Update Work Status» (Success / Change Port) ← OK ← «Updated Successfully» ← OK. لو مالقاش الرقم أو الزرار الأخضر بيقول كده. مابيكتبش كلمة سر ومابيضغطش Save ولا Cancel بتاع أمر الشغل أبداً.
 // @version      1.5.0
 // @match        https://wfm.te.eg/WorkOrder/*
-// @connect      ads-menoskar42.replit.app
+// @connect      sf-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
 // @grant        none
 // @run-at       document-idle
@@ -48,7 +48,7 @@
   // نفس الدومين والتوكن بتوع سكربت «إلغاء الاسناد». الدومين بيتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')
   // ملحوظة: الرقم بيتشال من الهاش أول ما يتقرا (boot) ويفضل فى sessionStorage لحد ما الشغل يخلص.
-  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";
+  const SF_DEFAULT_BASE = "https://sf-menoskar42.replit.app/serviceflow";
   function sfBase() {
     try {
       const v = localStorage.getItem("sf_base");

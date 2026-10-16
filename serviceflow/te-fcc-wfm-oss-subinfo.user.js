@@ -15,7 +15,7 @@
 // @grant        GM_getValue
 // @grant        GM_xmlhttpRequest
 // @connect      service-flow-menoskar42.replit.app
-// @connect      ads-menoskar42.replit.app
+// @connect      sf-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
 // @connect      replit.app
 // @connect      replit.dev
@@ -139,7 +139,7 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
+  const SF_DEFAULT_BASE = "https://sf-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
   function sfBase() {
     try {
       var v = null;
@@ -1407,7 +1407,7 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
+  const SF_DEFAULT_BASE = "https://sf-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
   function sfBase() {
     try {
       var v = null;
@@ -2798,7 +2798,7 @@
   // نفس الدومين والتوكن بتوع سكربت «إلغاء الاسناد». الدومين بيتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')
   // ملحوظة: الرقم بيتشال من الهاش أول ما يتقرا (boot) ويفضل فى sessionStorage لحد ما الشغل يخلص.
-  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";
+  const SF_DEFAULT_BASE = "https://sf-menoskar42.replit.app/serviceflow";
   function sfBase() {
     try {
       const v = localStorage.getItem("sf_base");

@@ -106,7 +106,7 @@
   const RESET_TOKEN = "3";
 
   // 🆕 رفع تلقائى لشيت 138 فى Service-Flow
-  const SF_API_BASE   = "https://ads-menoskar42.replit.app/serviceflow/"; // ← عدّليه لو الدومين اتغيّر
+  const SF_API_BASE   = "https://sf-menoskar42.replit.app/serviceflow/"; // ← عدّليه لو الدومين اتغيّر
   const SF_INGEST_TOKEN = "sf-dzs-138-ingest-2026"; // ← لازم يطابق DZS_INGEST_TOKEN فى السيرفر
   const SF_AUTO_UPLOAD = true; // false لو عايزه CSV فقط من غير رفع تلقائى
 

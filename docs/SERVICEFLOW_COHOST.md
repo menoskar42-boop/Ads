@@ -319,7 +319,7 @@ SERVICEFLOW_HOST = serviceflow.oscardevs.com,<اسم-النشر>.replit.app
 
 > ⚠️ **استثناء بقرار المالك (٢٠٢٦-٠٩-٢٣): `dzs-expresse-v10.user.js`** مابيستخدمش
 > `sfBase()`. الملف بقى **نسخة حرفية من الكود اللى شغّال عند المالك** (v10.22.0)،
-> ورابطه ثابت: `SF_API_BASE = "https://ads-menoskar42.replit.app/serviceflow/"`.
+> ورابطه ثابت: `SF_API_BASE = "https://sf-menoskar42.replit.app/serviceflow/"`.
 > الرابط ده بيوصل (البوّاب بيشيل `/serviceflow` ويبعت `/api/…` لـService Flow،
 > والسيرفر عنده CORS لـ`X-DZS-Token`). والحارس `check-userscript-base` بيثبّت
 > القيمة دى بالظبط فى `OWNER_PINNED` — لو اتغيّرت، الفحص بيقع.
@@ -357,7 +357,7 @@ Check** (أول واحد تحت «Most Recent collected data» — دايماً 
 
 اتصلّح كده: الدومين بقى بيتحسب من `sfBase()`:
 
-1. الافتراضي = `https://ads-menoskar42.replit.app/serviceflow` (باب المسار — قرار المالك
+1. الافتراضي = `https://sf-menoskar42.replit.app/serviceflow` (باب المسار — قرار المالك
    ٢٠٢٦-٠٩-٢٨). كان `serviceflow.oscardevs.com`، بس النطاق ده بيرجّع صفحة أوسكار ديفز
    لو مش مكتوب فى `SERVICEFLOW_HOST` — فرفع WFM قال «اتحدّث» والتقرير ماتحدّثش.
    ⚠️ **بالمسار** `/serviceflow`: الهوست لوحده بيروح لأوسكار ديفز.

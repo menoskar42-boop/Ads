@@ -12,7 +12,7 @@ description: سحب آخر تعديلات الفرع claude/build-oscardevs-ads-
 
 - المشروع: https://replit.com/@menoskar42/sf (اسمه كان `Ads`، دلوقتى `sf`)
 - الفرع الوحيد: `claude/build-oscardevs-ads-mvp-8krfN`
-- الموقع المنشور: https://ads-menoskar42.replit.app/ (وعليه oscardevs.com، mykid، Service Flow، mybible)
+- الموقع المنشور: https://sf-menoskar42.replit.app/ (وعليه oscardevs.com، mykid، Service Flow، mybible)
 
 ## قبل ما تبدأ
 
@@ -62,7 +62,7 @@ cd ~/workspace/mykid && node --import ./server/_node-shim.mjs server/warm-tts.js
 الـlogs زى ما هى، ومتحاولش تصلّح من غير ما تقول للمالك.
 
 ### ٥) اتأكد
-- افتح https://ads-menoskar42.replit.app/ — لازم تفتح عادى (مش صفحة خطأ).
+- افتح https://sf-menoskar42.replit.app/ — لازم تفتح عادى (مش صفحة خطأ).
 - لو التعديل فى حاجة معيّنة (صفحة فى mykid، تقرير فى Service Flow…) افتحها واتأكد إن التعديل ظاهر،
   وخد صورة. (mykid بيستخدم service worker — لو شايف النسخة القديمة اعمل reload مرتين.)
 

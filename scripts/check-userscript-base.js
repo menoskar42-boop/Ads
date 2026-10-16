@@ -8,7 +8,7 @@
  * القديم — فالمهمة تفضل «قيد التنفيذ» للأبد على الموقع الجديد.
  *
  * الفحص ده بيتأكد من أربع حاجات (الرابعة من ٢٠٢٦-٠٩-٢٨: الافتراضى = باب المسار
- * https://ads-menoskar42.replit.app/serviceflow — بالمسار):
+ * https://sf-menoskar42.replit.app/serviceflow — بالمسار):
  *   ١. مفيش أى دومين ريبليت قديم مكتوب بالحروف فى كود السكربتات ولا فى موقع
  *      الصيانة (سطور @connect مسموحة — دى إذن اتصال مش وجهة).
  *   ٢. كل سكربت بيكلّم Service-Flow بيحسب الدومين من sfBase() مش من ثابت.
@@ -29,16 +29,16 @@ const SF = path.join(ROOT, 'serviceflow');
 // serviceflow.oscardevs.com كان بيرجّع صفحة أوسكار ديفز مش Service Flow (مش فى
 // SERVICEFLOW_HOST)، فرفع WFM قال «اتحدّث» والتقرير ماتحدّثش. والهوست من غير
 // «/serviceflow» بيروح لأوسكار ديفز برضه — المسار جزء من الوجهة.
-const DEFAULT_BASE = 'https://ads-menoskar42.replit.app/serviceflow';
-const NEW_HOST = 'ads-menoskar42.replit.app';
+const DEFAULT_BASE = 'https://sf-menoskar42.replit.app/serviceflow';
+const NEW_HOST = 'sf-menoskar42.replit.app';
 const OLD_RE = /service-flow-{1,2}menoskar42\.replit\.app/;
 
 /* الملف ← القيمة الوحيدة المسموحة لـSF_API_BASE فيه (زى كود المالك بالظبط).
- * `ads-menoskar42.replit.app/serviceflow/` بيوصل: البوّاب (src/lib/host_gateway.js)
+ * `sf-menoskar42.replit.app/serviceflow/` بيوصل: البوّاب (src/lib/host_gateway.js)
  * بيشيل `/serviceflow` من أى نطاق ويبعت `/api/…` لـService Flow، والسيرفر عنده
  * OPTIONS + CORS لـX-DZS-Token على /api/case-138/measurements. */
 const OWNER_PINNED = {
-  'serviceflow/dzs-expresse-v10.user.js': 'https://ads-menoskar42.replit.app/serviceflow/',
+  'serviceflow/dzs-expresse-v10.user.js': 'https://sf-menoskar42.replit.app/serviceflow/',
 };
 
 const errors = [];

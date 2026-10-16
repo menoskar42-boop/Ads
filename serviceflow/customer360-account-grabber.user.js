@@ -5,7 +5,7 @@
 // @version      1.3.1
 // @match        https://customer360.te.eg/*
 // @connect      service-flow-menoskar42.replit.app
-// @connect      ads-menoskar42.replit.app
+// @connect      sf-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
 // @grant        none
 // @run-at       document-idle
@@ -21,7 +21,7 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
+  const SF_DEFAULT_BASE = "https://sf-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
   function sfBase() {
     try {
       var v = null;
