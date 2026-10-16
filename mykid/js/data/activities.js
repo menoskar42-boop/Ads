@@ -18,6 +18,12 @@ export const ACTIVITIES = {
       screen: "letterbook",
       params: {},
     },
+    // «ألعاب ميزو» (٢٠٢٦-١٠-١٦): خمس ألعاب جديدة بنفس الكود للعربى والإنجليزى والأرقام
+    { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الحرف ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "arabic" } },
+    { emoji: "🔦", title: "الكشّاف", desc: "الدنيا ضلمة! دوّر بالكشّاف على الحرف", screen: "flashlight", params: { kind: "arabic" } },
+    { emoji: "🥚", title: "بيض المفاجآت", desc: "اكسر بيضة الحرف وشوف إيه اللى طلع منها", screen: "eggs", params: { kind: "arabic" } },
+    { emoji: "🚀", title: "صاروخ الترتيب", desc: "رتّب الحروف أ ب ت عشان الصاروخ يتملى وينطلق", screen: "rocket", params: { kind: "arabic" } },
+    { emoji: "🎹", title: "بيانو ميزو", desc: "اسمع ميزو بيعزف الحرف، واعزف زيه", screen: "piano", params: { kind: "arabic" } },
     {
       emoji: "🧑‍🏫",
       title: "معلّم الحروف",
@@ -146,6 +152,12 @@ export const ACTIVITIES = {
       screen: "englishbook",
       params: {},
     },
+    // «ألعاب ميزو» (٢٠٢٦-١٠-١٦): خمس ألعاب جديدة بنفس الكود للعربى والإنجليزى والأرقام
+    { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الحرف ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "english" } },
+    { emoji: "🔦", title: "الكشّاف", desc: "الدنيا ضلمة! دوّر بالكشّاف على الحرف", screen: "flashlight", params: { kind: "english" } },
+    { emoji: "🥚", title: "بيض المفاجآت", desc: "اكسر بيضة الحرف وشوف إيه اللى طلع منها", screen: "eggs", params: { kind: "english" } },
+    { emoji: "🚀", title: "صاروخ الترتيب", desc: "رتّب الحروف A B C عشان الصاروخ يتملى وينطلق", screen: "rocket", params: { kind: "english" } },
+    { emoji: "🎹", title: "بيانو ميزو", desc: "اسمع ميزو بيعزف الحرف، واعزف زيه", screen: "piano", params: { kind: "english" } },
     {
       emoji: "🧑‍🏫",
       title: "معلّم الحروف",
@@ -241,6 +253,12 @@ export const ACTIVITIES = {
       screen: "workbook",
       params: {},
     },
+    // «ألعاب ميزو» (٢٠٢٦-١٠-١٦): خمس ألعاب جديدة بنفس الكود للعربى والإنجليزى والأرقام
+    { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الرقم ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "numbers" } },
+    { emoji: "🔦", title: "الكشّاف", desc: "الدنيا ضلمة! دوّر بالكشّاف على الرقم", screen: "flashlight", params: { kind: "numbers" } },
+    { emoji: "🥚", title: "بيض المفاجآت", desc: "اكسر بيضة الرقم وعِدّ الكتاكيت اللى طلعت", screen: "eggs", params: { kind: "numbers" } },
+    { emoji: "🚀", title: "صاروخ الترتيب", desc: "رتّب الأرقام ١ ٢ ٣ عشان الصاروخ يتملى وينطلق", screen: "rocket", params: { kind: "numbers" } },
+    { emoji: "🎹", title: "بيانو ميزو", desc: "اسمع ميزو بيعزف الأرقام، واعزف زيه", screen: "piano", params: { kind: "numbers" } },
     {
       emoji: "🧑‍🏫",
       title: "معلّم الأرقام",

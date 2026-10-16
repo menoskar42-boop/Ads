@@ -18,6 +18,7 @@ import { hintForResult } from "../js/games/strokeJudge.js";
 import { PREWRITING, AR as AR_STROKES } from "../js/data/strokes.js";
 import { LB_LETTERS, LB_ORDER, LB_HARAKAT, LB_SHADOWS, LB_BUILD, nameOf as lbName, bare as lbBare } from "../js/data/letterbook.js";
 import { EB_PAGES, EB_WORDS, NUM_EN, ebSteps } from "../js/data/englishbook.js";
+import { funItems } from "../js/data/funGames.js";
 import { WB_AR, WB_COLORS, WB_NUMBERS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR, WB_LINES, colorPairOf } from "../js/data/workbook.js";
 
 const MZ = MIZO.toneInstructions; // توجيهات لهجة ميزو (لمطابقة مفاتيح الكاش)
@@ -265,6 +266,11 @@ add("برافو", AR);
     }
   }
 }
+
+// ===== «ألعاب ميزو» للحروف والأرقام (٢٠٢٦-١٠-١٦) — الجمل ثابتة واسم الحرف/الرقم بيتقال بعدها لوحده =====
+Object.values(WP.FUN_SAY).forEach(addAr);
+// اللى بيطلع من البيضة: كلمة الحرف بلغته (بطة / Apple) — واسم الحرف/الرقم نفسه
+for (const k of ["arabic", "english", "numbers"]) for (const it of funItems(k)) { add(it.say, it.lang.startsWith("en") ? EN : AR); if (it.word) add(it.word, it.lang.startsWith("en") ? EN : AR); }
 
 // ===== --dry: يعدّ الناقص بس (من غير مفتاح ولا تكلفة) — للفحص والـCI =====
 if (process.argv.includes("--dry")) {
