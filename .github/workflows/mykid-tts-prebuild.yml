@@ -25,6 +25,8 @@ on:
     paths:
       - 'mykid/js/**'
       - 'mykid/server/warm-tts.js'
+      - 'mykid/server/tts-games.js'
+      - 'mykid/server/tts-extra.json'
       - 'mykid/server/openai.js'
       - '.github/workflows/mykid-tts-prebuild.yml'
 

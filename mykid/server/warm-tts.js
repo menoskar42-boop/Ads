@@ -19,6 +19,7 @@ import { PREWRITING, AR as AR_STROKES } from "../js/data/strokes.js";
 import { LB_LETTERS, LB_ORDER, LB_HARAKAT, LB_SHADOWS, LB_BUILD, nameOf as lbName, bare as lbBare } from "../js/data/letterbook.js";
 import { EB_PAGES, EB_WORDS, NUM_EN, ebSteps } from "../js/data/englishbook.js";
 import { funItems } from "../js/data/funGames.js";
+import { addGamePhrases } from "./tts-games.js";
 import { WB_AR, WB_COLORS, WB_NUMBERS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR, WB_LINES, colorPairOf } from "../js/data/workbook.js";
 
 const MZ = MIZO.toneInstructions; // توجيهات لهجة ميزو (لمطابقة مفاتيح الكاش)
@@ -273,10 +274,30 @@ Object.values(WP.FUN_SAY).forEach(addAr);
 // اللى بيطلع من البيضة: كلمة الحرف بلغته (بطة / Apple) — واسم الحرف/الرقم نفسه
 for (const k of ["arabic", "english", "numbers"]) for (const it of funItems(k)) { add(it.say, it.lang.startsWith("en") ? EN : AR); if (it.word) add(it.word, it.lang.startsWith("en") ? EN : AR); }
 
+// ===== الألعاب القديمة اللى بتركّب الجملة من البيانات (٢٠٢٦-١٠-١٦) — server/tts-games.js =====
+await addGamePhrases({ say: (t) => t && add(t, AR), mizo: (t) => t && addMizo(t) });
+
+// ===== جمل قديمة اتلقطت من اللعب نفسه (٢٠٢٦-١٠-١٦) — server/tts-crawl.mjs بيلعب كل نشاط
+// ويكتب هنا اللى اتقال ومش فى القايمة فوق (كان بيتحفظ فى .tts-cache بس ويتمسح مع كل Republish) =====
+try {
+  const extraUrl = new URL("./tts-extra.json", import.meta.url);
+  const extra = JSON.parse(fs.readFileSync(extraUrl, "utf8"));
+  // --trim-extra: اشيل من الملف اللى بقى فى القايمة فوق (الملف يفضل للّى مالوش مصدر غير اللعب)
+  if (process.argv.includes("--trim-extra")) {
+    const keep = extra.filter((p) => !seen.has(`${p.voice || TTS_VOICE}|${p.instructions || ""}|${p.text}`));
+    fs.writeFileSync(extraUrl, JSON.stringify(keep, null, 1) + "\n");
+    console.log(`tts-extra.json: ${extra.length} ← ${keep.length} (الباقى بقى فى القايمة)`);
+  }
+  for (const p of extra) add(p.text, p.voice || TTS_VOICE, p.instructions || "");
+} catch (e) { /* مفيش ملف ⇒ مفيش إضافات */ }
+
 // ===== --dry: يعدّ الناقص بس (من غير مفتاح ولا تكلفة) — للفحص والـCI =====
 if (process.argv.includes("--dry")) {
   const missing = phrases.filter((p) => !fs.existsSync(ttsPrebuiltPath(ttsCacheKey(p.text, p.voice, p.instructions))));
   console.log(`${phrases.length} عبارة ثابتة · موجود صوتها فى الكود: ${phrases.length - missing.length} · ناقص: ${missing.length}`);
+  // تكلفة تقريبية (gpt-4o-mini-tts ≈ $0.015 للدقيقة): ميزو بيتكلّم ببطء ≈ ١٢ حرف فى الثانية، وأقل جملة ~ثانية
+  const secs = missing.reduce((s, p) => s + Math.max(1, p.text.length / 12), 0);
+  console.log(`مدة الناقص ≈ ${(secs / 60).toFixed(0)} دقيقة صوت · التكلفة التقريبية ≈ $${((secs / 60) * 0.015).toFixed(2)}`);
   if (process.argv.includes("--list")) missing.forEach((p) => console.log(`  - ${p.text}`));
   process.exit(0);
 }
