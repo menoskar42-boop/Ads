@@ -322,8 +322,9 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       const pre = s.ch.startsWith("pre:");
       // أول كتابة للحرف (على النقط): «اكتب الحرف …»؛ ولوحده: «اكتبه لوحدك»
       const intro = pre ? preLine(s.ch.slice(4)).say
-        : s.level === 1 || (s.level === 2 && idx <= 2) ? writeIntro("الحرف", nameOf(s.ch)) : s.level === 2 ? ROUND_MSG.againDots : LB_SAY.writeAlone;
-      writeBoard(body, s.ch, s.level, intro, () => stepDone(800), s.reps || 1);
+        : s.level === 1 || (s.level === 2 && idx <= 2) ? writeIntro("الحرف", nameOf(s.ch)) : s.level === 2 ? ROUND_MSG.againDots
+        : s.noStart ? ROUND_MSG.noDot : LB_SAY.writeAlone;
+      writeBoard(body, s.ch, s.level, intro, () => stepDone(800), s.reps || 1, !!s.noStart);
     },
 
     // 🎲 لعبة من ألعاب القلعة جوّه صفحة الحرف — بنفس شكلها، على حرف الصفحة
@@ -774,7 +775,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   }
 
   /** لوحة الكتابة للحرف (أو «pre:…» خط التهيئة) بمستوى المساعدة ده. */
-  function writeBoard(host, v, level, intro, done, reps = 1) {
+  function writeBoard(host, v, level, intro, done, reps = 1, noStart = false) {
     const line = v.startsWith("pre:") ? preLine(v.slice(4)) : null;
     const strokes = line ? line.strokes : strokesFor(v);
     const hint = hintLine();
@@ -784,7 +785,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     const pass = !line && level === 2 ? LB_DOTS_PASS : SCORE_PASS;
     let got = 0;
     const count = el("p", "lbk-reps");
-    const showCount = () => { count.textContent = `${level === 2 ? "🔵 على النقط" : "⭐ لوحدك"} · ✓ ${got}/${reps}`; };
+    const showCount = () => { count.textContent = `${level === 2 ? "🔵 على النقط" : noStart ? "🌟 من غير النقطة" : "⭐ لوحدك"} · ✓ ${got}/${reps}`; };
     if (reps > 1) { showCount(); host.appendChild(count); }
     host.appendChild(wrap);
     if (intro) host.insertBefore(prompt(intro), reps > 1 ? count : wrap);
@@ -794,6 +795,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       level,
       // «لوحده» (المالك ٢٠٢٦-١٠-١٤ — زى «ارسم الحرف»): الحرف كله من غير وقفة، والحكم بنسبة فى الآخر
       free: !line && level >= 2,
+      noStart: !line && noStart,
       from: line && line.from,
       to: line && line.to,
       // من غير صوت «غلط» ولا «نجاح» على اللوحة (المالك ٢٠٢٦-١٠-١٤): صوت ميزو وكلامه بس

@@ -20,6 +20,8 @@ const LINE = "#b9a6f5";
 const ARROW = "#8b5cf6";
 
 export const LEVEL_LABELS = { 1: "✏️ على الخط", 2: "••• على النقط", 3: "⭐ لوحدك" };
+/** آخر مرحلة: لوحده من غير النقطة الخضرا (opts.noStart). */
+export const NO_START_LABEL = "🌟 من غير النقطة";
 
 function pathOn(ctx, pts) {
   ctx.beginPath();
@@ -176,7 +178,8 @@ export function mountWriteBoard(host, opts) {
       }
       // المستوى ٣: مفيش خط — النقطة الخضرا بس
     });
-    if (finished || cur >= strokes.length) { start.style.display = "none"; return; }
+    // opts.noStart (المالك ٢٠٢٦-١٠-١٦): آخر مرحلة — من غير النقطة الخضرا، الطفل يعرف يبدأ منين
+    if (finished || cur >= strokes.length || opts.noStart) { start.style.display = "none"; return; }
     const [sx, sy] = strokes[cur][0];
     start.style.display = "";
     start.style.left = sx + "%";

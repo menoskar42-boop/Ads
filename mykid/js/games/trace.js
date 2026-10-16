@@ -6,7 +6,7 @@ import { Sfx } from "../core/audio.js";
 import { gameTopbar, shuffle, showCheer, finishActivity, examplePhrase, glyphPicker } from "./common.js";
 import { judge, hintFor } from "./traceJudge.js";
 import { strokesFor, PREWRITING, harakaStrokes, harakaGlyph, HARAKAT_ORDER } from "../data/strokes.js";
-import { mountWriteBoard, LEVEL_LABELS } from "./writeBoard.js";
+import { mountWriteBoard, LEVEL_LABELS, NO_START_LABEL } from "./writeBoard.js";
 import { Store } from "../core/storage.js";
 import { femAdapt } from "../data/mizo.js";
 import { writeStatus, practiceOrder } from "./writeProgress.js";
@@ -333,7 +333,11 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     // الحروف والأرقام: «لوحدك» بيتعدّ المرات الصح ورا بعض لحد ١٠؛ قبلها (النقط) رقم الجولة
     const drill = !isPre && !haraka && level >= 2;
     const [got, need] = level === 3 ? [aloneOk, aloneTarget()] : [dotsOk, dotsNeed];
-    lvlBtn.textContent = drill ? `${LEVEL_LABELS[level]} · ✓ ${got}/${need}` : `${LEVEL_LABELS[level]} · ${step + 1}/${plan.length}`;
+    // المالك ٢٠٢٦-١٠-١٦: النقط ← النقطة الخضرا بس ← ولا حاجة. نص «لوحده» التانى من غير النقطة
+    // (والغلطة بترجّع العدّ صفر، فالنقطة بترجع معاه)
+    const noStart = drill && level === 3 && aloneOk >= Math.ceil(aloneTarget() / 2);
+    const lvlLabel = noStart ? NO_START_LABEL : LEVEL_LABELS[level];
+    lvlBtn.textContent = drill ? `${lvlLabel} · ✓ ${got}/${need}` : `${lvlLabel} · ${step + 1}/${plan.length}`;
     lvlBtn.setAttribute("aria-label", drill
       ? `${LEVEL_LABELS[level]}: ${got} مرة صح ورا بعض من ${need} — اضغط لتغيير المساعدة`
       : `الجولة ${step + 1} من ${plan.length}: ${LEVEL_LABELS[level]} — اضغط لتغيير المساعدة`);
@@ -360,6 +364,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       // الحروف والأرقام على النقط ولوحده: من غير وقفة فى النص، والحكم بنسبة فى الآخر
       // (الحركات والخط العريض بيفضلوا خط بخط)
       free: !isPre && !haraka && level >= 2,
+      noStart,
       from: it.from,
       to: it.to,
       // من غير صوت «غلط» ولا «نجاح» (المالك ٢٠٢٦-١٠-١٤): صوت ميزو وكلامه بس
@@ -436,7 +441,7 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
             return sayPct(ROUND_MSG.doneAloneAll, next, 2200);
           }
           plan.push(3);
-          if (ok) return sayPct(aloneAgainMsg(aloneOk), nextRound, 1600);
+          if (ok) return sayPct(aloneOk === Math.ceil(aloneTarget() / 2) ? ROUND_MSG.noDot : aloneAgainMsg(aloneOk), nextRound, 1600);
           // النسبة قليلة ⇒ ميزو بيقول السبب بلطف (المالك ٢٠٢٦-١٠-١٤)، وتحت ٥٠٪ الصباع يوريه كمان
           if (score < SHOW_BELOW) showNext = true;
           return sayPct(fixMsg(result && result.issue), nextRound, 2600);

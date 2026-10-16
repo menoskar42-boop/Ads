@@ -201,8 +201,13 @@ test("alone: N good tries in a row (10 in the app) finish the letter", async () 
   await open({ levelKey: "g:د", trace: { datasetKey: "arabic", focus: "د", returnLesson: true, regionId: "arabic", regionIndex: 0 } }, 0);
   await page.evaluate(() => { window.__MYKID_ALONE_TARGET__ = 2; });
   await writeRound("د");
+  // أول نص «لوحده»: النقطة الخضرا لسه ظاهرة
+  assert.match(await chip(), /لوحدك · ✓ 0\/2/);
+  assert.equal(await page.locator(".wb-start").evaluate((e) => getComputedStyle(e).display), "block");
   await writeRound("د");
-  assert.match(await chip(), /لوحدك · ✓ 1\/2/);
+  // المالك ٢٠٢٦-١٠-١٦: النص التانى من غير النقطة الخضرا — النقط ← النقطة بس ← ولا حاجة
+  assert.match(await chip(), /من غير النقطة · ✓ 1\/2/);
+  assert.equal(await page.locator(".wb-start").evaluate((e) => getComputedStyle(e).display), "none");
   for (const s2 of strokesFor("د")) await stroke(s2);
   await page.waitForFunction(() => /عشر مرات ورا بعض/.test(document.body.textContent), null, { timeout: 4000 });
   assert.equal(await level("g:د"), 3);

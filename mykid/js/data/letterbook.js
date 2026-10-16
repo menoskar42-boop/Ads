@@ -270,7 +270,7 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   const steps = [];
   const want = (k) => !only || only.includes(k);
   const game = (g) => { if (want("game") || want(g)) steps.push({ kind: "game", game: g, ch, ...(g === "review" ? { set: reviewSet(ch) } : {}), ...(g === "phonics" ? { words: shuffled(rnd, wordsStarting(ch)).slice(0, 3) } : {}) }); };
-  const write = (level, reps) => { if (want("write")) steps.push({ kind: "write", ch, level, reps }); };
+  const write = (level, reps, noStart = false) => { if (want("write")) steps.push({ kind: "write", ch, level, reps, ...(noStart ? { noStart } : {}) }); };
   // ١) استمع وانطق: الحرف كبير، وميزو بيقول اسمه وصوته (= «تعرّف على الحرف»)
   if (want("meet")) steps.push({ kind: "meet", ch });
   // ٢) ✏️ على النقط ٣ مرات
@@ -331,8 +331,8 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   }
   // ١٦) 🔠 الحرف الناقص فى الحروف (أ ب ؟)
   game("sequence");
-  // ١٧) ✏️ لوحده ٣ مرات
-  write(3, LB_ALONE_REPS[1]);
+  // ١٧) ✏️ لوحده ٣ مرات — ومن غير النقطة الخضرا كمان (النقط ← النقطة بس ← ولا حاجة)
+  write(3, LB_ALONE_REPS[1], true);
   // ١٨) 🧠 المراجعة الذكية: الحرف ده + اللى قبله — وبعدها شهادة الحرف
   game("review");
   return steps;
