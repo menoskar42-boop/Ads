@@ -38,6 +38,14 @@ check('الترتيب: ذاكرة ← ملفات الكود (tts-prebuilt) ← �
   tts.indexOf('ttsMem.get(hash)') > 0
   && tts.indexOf('ttsMem.get(hash)') < tts.indexOf('for (const p of [ttsPrebuiltPath(hash), filePath])')
   && tts.indexOf('for (const p of [ttsPrebuiltPath(hash), filePath])') < tts.indexOf('/audio/speech'));
+// المالك ٢٠٢٦-١٠-١٦: «رصيد الذكاء الاصطناعى خلص… الويب سبيتش شغّال على جمل اشتغلت قبل كده».
+// التبريد بعد فشل OpenAI كان بيقلب كل الكلام Web Speech — حتى المتسجّل فى الكود.
+const speechJs = raw('mykid/js/core/speech.js');
+check('النطق بيستخدم isTTSReady (المتسجّل شغّال حتى والـAI واقف)، مش isAIReady',
+  /isTTSReady\(\)/.test(speechJs) && !/isAIReady\(\)/.test(speechJs), 'mykid/js/core/speech.js');
+check('فى فترة توقف الـAI المتصفح بيطلب المتسجّل بس، والخادم بيرد ٤٠٤ على طول للناقص',
+  /X-TTS-Cache-Only/.test(raw('mykid/js/core/ai.js')) && /X-TTS-Cache-Only[\s\S]{0,80}404/.test(tts));
+check('الخادم بيقول tts: true فى /api/health (المتسجّل مش محتاج مفتاح)', /tts:\s*true/.test(srv));
 check('والصوت الجديد بيتحفظ ملف (مش قاعدة بيانات)', /fs\.promises\s*\.writeFile\(`\$\{filePath\}\.tmp`, buf\)/.test(tts));
 check('قرص التشغيل (.tts-cache) مايدخلش المستودع — فيه أسامى أطفال والمستودع عام',
   /mykid\/server\/\.tts-cache\//.test(raw('.gitignore')));

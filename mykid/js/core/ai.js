@@ -3,6 +3,9 @@
 // كل شيء يفشل بهدوء (graceful) ليرجع التطبيق إلى Web Speech عند الحاجة.
 
 let aiAvailable = null; // null = لم يُفحص بعد
+// الأصوات المتسجّلة فى الكود (tts-prebuilt) بيقدّمها الخادم من غير ذكاء اصطناعى خالص —
+// فبتفضل شغّالة حتى لو الرصيد خلص أو مفيش مفتاح (المالك ٢٠٢٦-١٠-١٦)
+let ttsAvailable = false;
 let userDisabled = false; // يضبطه ولي الأمر (تعطيل الميكروفون/الذكاء الاصطناعي)
 let audioEl = null;
 // عند فشل OpenAI (نفاد الرصيد/الحصة 429، أو خطأ خادم 5xx) نُبرّد الـ AI مؤقتاً
@@ -26,8 +29,10 @@ export async function checkAI() {
     if (!r.ok) throw new Error("health");
     const data = await r.json();
     aiAvailable = Boolean(data.ai);
+    ttsAvailable = data.tts != null ? Boolean(data.tts) : aiAvailable;
   } catch (e) {
     aiAvailable = false; // لا خادم (مثلاً GitHub Pages) → بديل Web Speech
+    ttsAvailable = false;
   }
   return aiAvailable;
 }
@@ -35,6 +40,19 @@ export async function checkAI() {
 export function isAIReady() {
   return aiAvailable === true && !userDisabled && Date.now() >= aiCooldownUntil;
 }
+
+/**
+ * صوت ميزو من الخادم: المتسجّل بيشتغل دايماً، والتبريد بيوقّف التوليد الجديد بس.
+ * (قبل كده التبريد كان بيقلب كل الكلام Web Speech — حتى الجمل اللى صوتها متسجّل.)
+ */
+export function isTTSReady() {
+  return ttsAvailable === true && !userDisabled;
+}
+/** فى التبريد: اطلب المتسجّل بس (الخادم يرد ٤٠٤ على طول لو مش موجود). */
+const ttsHeaders = () => ({
+  "Content-Type": "application/json",
+  ...(aiAvailable !== true || Date.now() < aiCooldownUntil ? { "X-TTS-Cache-Only": "1" } : {}),
+});
 
 /**
  * نطق نص عبر OpenAI TTS. يُرجع Promise:
@@ -49,7 +67,7 @@ export function aiSpeak(text, opts = {}) {
       if (!url) {
         const r = await fetch("/api/tts", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: ttsHeaders(),
           body: JSON.stringify({
             text,
             voice: opts.voice,
@@ -86,7 +104,7 @@ export function aiPrepareTTS(text, opts = {}) {
     if (!text) return null;
     const r = await fetch("/api/tts", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: ttsHeaders(),
       body: JSON.stringify({ text, voice: opts.voice, instructions: opts.instructions }),
     });
     if (!r.ok) { noteAIFailure(r.status); throw new Error("tts " + r.status); }

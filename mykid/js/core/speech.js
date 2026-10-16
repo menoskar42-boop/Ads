@@ -1,5 +1,5 @@
 // ===== النطق الهجين: OpenAI TTS أولاً ثم Web Speech كبديل =====
-import { isAIReady, aiSpeak, aiStop, aiPrepareTTS } from "./ai.js";
+import { isTTSReady, aiSpeak, aiStop, aiPrepareTTS } from "./ai.js";
 import { MIZO, femAdapt } from "../data/mizo.js";
 import { Store } from "./storage.js";
 import { playChildName } from "./nameclip.js";
@@ -79,7 +79,7 @@ export const Speech = {
 
     // المسار المفضّل: OpenAI TTS. وإن تعثّر/تأخّر أكثر من المهلة → Web Speech
     // (مع إلغاء طلب الـ AI المعلّق أولاً كي لا يتداخل صوتان معاً).
-    if (useAI && isAIReady()) {
+    if (useAI && isTTSReady()) {
       if (enabled) { try { window.speechSynthesis.cancel(); } catch (e) {} }
       const voice = AI_VOICE[lang.slice(0, 2)] || undefined;
       const ctrl = "AbortController" in window ? new AbortController() : null;
@@ -127,7 +127,7 @@ export const Speech = {
     let name = "";
     try { name = Store.childName; } catch (e) {}
     if (name) {
-      if (useAI && isAIReady()) {
+      if (useAI && isTTSReady()) {
         // نحضّر صوت الجملة بالتوازي مع نطق اسم الطفل لإخفاء زمن التحميل (تقليل الفجوة)
         let prep = null;
         try { prep = aiPrepareTTS(t, { voice: AI_VOICE.ar, instructions: mizoOpts.instructions }); } catch (e) {}

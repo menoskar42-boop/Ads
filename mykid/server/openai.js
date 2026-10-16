@@ -97,10 +97,15 @@ const ttsLimit = rateLimit({ windowMs: 60000, max: 150 });
 const askLimit = rateLimit({ windowMs: 60000, max: 20 });
 const sttLimit = rateLimit({ windowMs: 60000, max: 20 });
 
+// لما OpenAI يرفض (الرصيد خلص/المفتاح غلط) بنبطّل نطلب منه شوية — والمتسجّل بيفضل يتقدّم عادى
+let ttsAiDownUntil = 0;
+const TTS_AI_DOWN_MS = 10 * 60 * 1000;
+
 export function registerOpenAIRoutes(app) {
   // فحص توفّر الميزات (للواجهة كي تقرّر: AI أم Web Speech)
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, ai: Boolean(key()) });
+    // tts: الأصوات المتسجّلة فى الكود شغّالة دايماً — حتى من غير مفتاح أو رصيد (المالك ٢٠٢٦-١٠-١٦)
+    res.json({ ok: true, ai: Boolean(key()), tts: true });
   });
 
   // ===== حالة مخزون الصوت + سياسة استخدام الذكاء الاصطناعي (موثّقة) =====
@@ -157,6 +162,11 @@ export function registerOpenAIRoutes(app) {
       }
     }
 
+    // المتصفح فى فترة «الـAI واقف» بيطلب المتسجّل بس: مش موجود ⇒ يرد فوراً، والمتصفح يقول الجملة Web Speech
+    if (req.get("X-TTS-Cache-Only") === "1") return res.status(404).json({ error: "not_cached", fallback: true });
+    // الرصيد خلص/المفتاح اترفض من شوية ⇒ مانضيّعش وقت الطفل فى طلب هيفشل تانى
+    if (Date.now() < ttsAiDownUntil) return res.status(503).json({ error: "ai_unavailable", fallback: true });
+
     // التوليد يحتاج المفتاح؛ إن لم يوجد → بديل Web Speech في المتصفح
     if (!ensureKey(res)) return;
 
@@ -181,6 +191,8 @@ export function registerOpenAIRoutes(app) {
 
       if (!r.ok) {
         const detail = await r.text();
+        // الرصيد خلص (429 insufficient_quota) أو المفتاح اترفض (401/403) ⇒ نوقّف التوليد ١٠ دقايق
+        if (r.status === 401 || r.status === 403 || r.status === 429) ttsAiDownUntil = Date.now() + TTS_AI_DOWN_MS;
         return res.status(502).json({ error: "openai_tts_failed", detail, fallback: true });
       }
 

@@ -3,7 +3,7 @@ import { Router } from "./core/router.js";
 import { Sfx, setOnWrong, setOnCorrect } from "./core/audio.js";
 import { Speech, setAISpeech } from "./core/speech.js";
 import { MIZO_OOPS, pick } from "./data/mizo.js";
-import { checkAI, setAIEnabled } from "./core/ai.js";
+import { checkAI, setAIEnabled, isTTSReady } from "./core/ai.js";
 import { mountAssistantButton, reactAssistant } from "./core/assistant.js";
 import { REGIONS } from "./data/regions.js";
 import { Store } from "./core/storage.js";
@@ -201,10 +201,11 @@ function startApp() {
 
   // فحص توفّر خادم OpenAI: إن توفّر (ولم يُعطّله ولي الأمر) نستخدم نطق الـ AI، وإلا Web Speech
   checkAI().then((ready) => {
-    const on = ready && Store.aiEnabled;
+    // صوت ميزو المتسجّل بيشتغل حتى من غير ذكاء اصطناعى (رصيد خلص/مفيش مفتاح)
+    const on = isTTSReady() && Store.aiEnabled;
     setAISpeech(on);
     if (!on) Speech.say(" ", { lang: "ar-EG" }); // تنشيط Web Speech الصامت
-    else mountAssistantButton(); // المساعد الصوتي يحتاج خادم OpenAI
+    if (ready && Store.aiEnabled) mountAssistantButton(); // المساعد الصوتي يحتاج خادم OpenAI
   });
 
   splash.classList.add("hidden");
