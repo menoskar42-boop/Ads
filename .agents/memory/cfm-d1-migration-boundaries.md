@@ -3,7 +3,7 @@ name: CFM D1 migration boundary
 description: User-approved Service Flow data-layer migration scope and production-safety constraints.
 ---
 
-- Keep PostgreSQL as the production default and retain it for sessions, execution queues, claims, locks, retries, and related state.
+- Keep all application user tables (including `cfm_users`), sessions, execution queues, claims, locks, retries, and related state in PostgreSQL; PostgreSQL remains the production default.
 - Keep files and media in Cloudflare R2.
 - Do not move ticket workflows or `box_fault_tickets` writes until cross-database partial-failure recovery is implemented and tested.
 - Do not query or migrate production data, deploy a Worker, create paid Cloudflare resources, or redirect production traffic without the required review and approval.

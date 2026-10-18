@@ -4,7 +4,7 @@ Local-only application proof. No production route is wired to this Worker and
 all storage selectors remain unset in the running application.
 The test imports the actual CFM route registration and reuses the actual
 `/api/cfm/auth/login` handler, `requireAuth` middleware, user-management routes,
-CRUD handlers for all CFM reference tables, and ticket list/detail/create,
+CRUD handlers for all non-user CFM reference tables, and ticket list/detail/create,
 status/repair/confirmation/reopen/delete, work/measurement, task/inventory, and
 incoming-stock operations. Task entry and its stock movements use one D1 batch;
 ticket creation claims covered boxes atomically to reject concurrent duplicates.
@@ -39,7 +39,9 @@ change current behavior and is deliberately not part of this proof.
 Expired-cookie behavior is not simulated with MemoryStore; a tampered cookie
 and a CFM account suspended after login are tested instead.
 
-The synthetic HMAC/service tokens are test fixtures, not production secrets.
+The synthetic HMAC/service tokens and CFM user rows are test fixtures, not
+production secrets or migration inputs. The export converter rejects all user
+tables, including `cfm_users`; user accounts and sessions stay in PostgreSQL.
 Service Flow CFM account linking and box-fault ticket creation/settlement still
 use PostgreSQL because they cross into PostgreSQL-owned identity, orders, and OM
 read models. Ticket box-score enrichment and box-case reporting also remain
@@ -47,7 +49,7 @@ PostgreSQL reads. No production data, paid Cloudflare resource, or production
 route was used or changed.
 
 `../../import-cfm-reference-export.mjs` converts an allowlisted PostgreSQL JSON
-export (or synthetic fixture) for the 14 CFM tables plus
+export (or synthetic fixture) for the 13 non-user CFM tables plus
 `tech_coverage_grants` into deterministic, idempotent D1 SQL. It preserves
 stable IDs, normalizes timestamps, booleans, numeric values, and JSON, validates
 duplicate primary/unique keys, and orders rows by foreign-key dependencies.

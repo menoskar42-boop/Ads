@@ -80,6 +80,14 @@ function inventoryStorage(req: any) {
   });
 }
 
+function cfmMasterDataStorage(req: any) {
+  if (process.env.SF_CFM_MASTER_DATA_STORAGE !== "d1") return storage;
+  return createCfmD1ReferenceStorageFromEnv(() => {
+    const actor = req.session.cfmUser;
+    return actor?.id && actor?.role ? { id: actor.id, role: actor.role } : null;
+  });
+}
+
 type TicketBoxScoreLine = {
   fullPhone: string;
   score: number | null;
@@ -419,7 +427,7 @@ export function registerCfmRoutes(app: Express) {
   // Centrals
   app.get("/api/cfm/master-data/centrals", requireAuth, async (req, res) => {
     try {
-      const centrals = await storage.getAllCentrals();
+      const centrals = await cfmMasterDataStorage(req).getAllCentrals();
       res.json(centrals);
     } catch (error) {
       console.error("Get centrals error:", error);
@@ -434,7 +442,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid central data", details: validation.error });
       }
 
-      const central = await storage.createCentral(validation.data);
+      const central = await cfmMasterDataStorage(req).createCentral(validation.data);
       res.status(201).json(central);
     } catch (error) {
       console.error("Create central error:", error);
@@ -445,7 +453,7 @@ export function registerCfmRoutes(app: Express) {
   app.patch("/api/cfm/master-data/centrals/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const central = await storage.updateCentral(id, req.body);
+      const central = await cfmMasterDataStorage(req).updateCentral(id, req.body);
       if (!central) {
         return res.status(404).json({ error: "Central not found" });
       }
@@ -459,7 +467,7 @@ export function registerCfmRoutes(app: Express) {
   app.delete("/api/cfm/master-data/centrals/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      await storage.deleteCentral(id);
+      await cfmMasterDataStorage(req).deleteCentral(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Delete central error:", error);
@@ -502,7 +510,7 @@ export function registerCfmRoutes(app: Express) {
   // Cables
   app.get("/api/cfm/master-data/cables", requireAuth, async (req, res) => {
     try {
-      const cables = await storage.getAllCables();
+      const cables = await cfmMasterDataStorage(req).getAllCables();
       res.json(cables);
     } catch (error) {
       console.error("Get cables error:", error);
@@ -517,7 +525,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid cable data", details: validation.error });
       }
 
-      const cable = await storage.createCable(validation.data);
+      const cable = await cfmMasterDataStorage(req).createCable(validation.data);
       res.status(201).json(cable);
     } catch (error) {
       console.error("Create cable error:", error);
@@ -528,7 +536,7 @@ export function registerCfmRoutes(app: Express) {
   app.patch("/api/cfm/master-data/cables/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const cable = await storage.updateCable(id, req.body);
+      const cable = await cfmMasterDataStorage(req).updateCable(id, req.body);
       if (!cable) {
         return res.status(404).json({ error: "Cable not found" });
       }
@@ -542,7 +550,7 @@ export function registerCfmRoutes(app: Express) {
   app.delete("/api/cfm/master-data/cables/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      await storage.deleteCable(id);
+      await cfmMasterDataStorage(req).deleteCable(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Delete cable error:", error);
@@ -553,7 +561,7 @@ export function registerCfmRoutes(app: Express) {
   // Fault Types
   app.get("/api/cfm/master-data/fault-types", requireAuth, async (req, res) => {
     try {
-      const faultTypes = await storage.getAllFaultTypes();
+      const faultTypes = await cfmMasterDataStorage(req).getAllFaultTypes();
       res.json(faultTypes);
     } catch (error) {
       console.error("Get fault types error:", error);
@@ -568,7 +576,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid fault type data", details: validation.error });
       }
 
-      const faultType = await storage.createFaultType(validation.data);
+      const faultType = await cfmMasterDataStorage(req).createFaultType(validation.data);
       res.status(201).json(faultType);
     } catch (error) {
       console.error("Create fault type error:", error);
@@ -579,7 +587,7 @@ export function registerCfmRoutes(app: Express) {
   app.patch("/api/cfm/master-data/fault-types/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const faultType = await storage.updateFaultType(id, req.body);
+      const faultType = await cfmMasterDataStorage(req).updateFaultType(id, req.body);
       if (!faultType) {
         return res.status(404).json({ error: "Fault type not found" });
       }
@@ -593,7 +601,7 @@ export function registerCfmRoutes(app: Express) {
   app.delete("/api/cfm/master-data/fault-types/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      await storage.deleteFaultType(id);
+      await cfmMasterDataStorage(req).deleteFaultType(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Delete fault type error:", error);
@@ -604,7 +612,7 @@ export function registerCfmRoutes(app: Express) {
   // Work Types
   app.get("/api/cfm/master-data/work-types", requireAuth, async (req, res) => {
     try {
-      const workTypes = await storage.getAllWorkTypes();
+      const workTypes = await cfmMasterDataStorage(req).getAllWorkTypes();
       res.json(workTypes);
     } catch (error) {
       console.error("Get work types error:", error);
@@ -619,7 +627,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid work type data", details: validation.error });
       }
 
-      const workType = await storage.createWorkType(validation.data);
+      const workType = await cfmMasterDataStorage(req).createWorkType(validation.data);
       res.status(201).json(workType);
     } catch (error) {
       console.error("Create work type error:", error);
@@ -630,7 +638,7 @@ export function registerCfmRoutes(app: Express) {
   app.patch("/api/cfm/master-data/work-types/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const workType = await storage.updateWorkType(id, req.body);
+      const workType = await cfmMasterDataStorage(req).updateWorkType(id, req.body);
       if (!workType) {
         return res.status(404).json({ error: "Work type not found" });
       }
@@ -644,7 +652,7 @@ export function registerCfmRoutes(app: Express) {
   app.delete("/api/cfm/master-data/work-types/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      await storage.deleteWorkType(id);
+      await cfmMasterDataStorage(req).deleteWorkType(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Delete work type error:", error);
@@ -655,7 +663,7 @@ export function registerCfmRoutes(app: Express) {
   // Task Types
   app.get("/api/cfm/master-data/task-types", requireAuth, async (req, res) => {
     try {
-      const taskTypes = await storage.getAllTaskTypes();
+      const taskTypes = await cfmMasterDataStorage(req).getAllTaskTypes();
       res.json(taskTypes);
     } catch (error) {
       console.error("Get task types error:", error);
@@ -670,7 +678,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid task type data", details: validation.error });
       }
 
-      const taskType = await storage.createTaskType(validation.data);
+      const taskType = await cfmMasterDataStorage(req).createTaskType(validation.data);
       res.status(201).json(taskType);
     } catch (error) {
       console.error("Create task type error:", error);
@@ -681,7 +689,7 @@ export function registerCfmRoutes(app: Express) {
   app.patch("/api/cfm/master-data/task-types/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const taskType = await storage.updateTaskType(id, req.body);
+      const taskType = await cfmMasterDataStorage(req).updateTaskType(id, req.body);
       if (!taskType) {
         return res.status(404).json({ error: "Task type not found" });
       }
@@ -695,7 +703,7 @@ export function registerCfmRoutes(app: Express) {
   app.delete("/api/cfm/master-data/task-types/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      await storage.deleteTaskType(id);
+      await cfmMasterDataStorage(req).deleteTaskType(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Delete task type error:", error);
@@ -706,7 +714,7 @@ export function registerCfmRoutes(app: Express) {
   // Contractors
   app.get("/api/cfm/master-data/contractors", requireAuth, async (req, res) => {
     try {
-      const contractors = await storage.getAllContractors();
+      const contractors = await cfmMasterDataStorage(req).getAllContractors();
       res.json(contractors);
     } catch (error) {
       console.error("Get contractors error:", error);
@@ -721,7 +729,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid contractor data", details: validation.error });
       }
 
-      const contractor = await storage.createContractor(validation.data);
+      const contractor = await cfmMasterDataStorage(req).createContractor(validation.data);
       res.status(201).json(contractor);
     } catch (error) {
       console.error("Create contractor error:", error);
@@ -732,7 +740,7 @@ export function registerCfmRoutes(app: Express) {
   app.patch("/api/cfm/master-data/contractors/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const contractor = await storage.updateContractor(id, req.body);
+      const contractor = await cfmMasterDataStorage(req).updateContractor(id, req.body);
       if (!contractor) {
         return res.status(404).json({ error: "Contractor not found" });
       }
@@ -746,7 +754,7 @@ export function registerCfmRoutes(app: Express) {
   app.delete("/api/cfm/master-data/contractors/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      await storage.deleteContractor(id);
+      await cfmMasterDataStorage(req).deleteContractor(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Delete contractor error:", error);
@@ -757,7 +765,7 @@ export function registerCfmRoutes(app: Express) {
   // Excavation Workers
   app.get("/api/cfm/master-data/excavation-workers", requireAuth, async (req, res) => {
     try {
-      const workers = await storage.getAllExcavationWorkers();
+      const workers = await cfmMasterDataStorage(req).getAllExcavationWorkers();
       res.json(workers);
     } catch (error) {
       console.error("Get excavation workers error:", error);
@@ -772,7 +780,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid excavation worker data", details: validation.error });
       }
 
-      const worker = await storage.createExcavationWorker(validation.data);
+      const worker = await cfmMasterDataStorage(req).createExcavationWorker(validation.data);
       res.status(201).json(worker);
     } catch (error: any) {
       console.error("Create excavation worker error:", error);
@@ -786,7 +794,7 @@ export function registerCfmRoutes(app: Express) {
   app.patch("/api/cfm/master-data/excavation-workers/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const worker = await storage.updateExcavationWorker(id, req.body);
+      const worker = await cfmMasterDataStorage(req).updateExcavationWorker(id, req.body);
       if (!worker) {
         return res.status(404).json({ error: "Excavation worker not found" });
       }
@@ -803,7 +811,7 @@ export function registerCfmRoutes(app: Express) {
   app.delete("/api/cfm/master-data/excavation-workers/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      await storage.deleteExcavationWorker(id);
+      await cfmMasterDataStorage(req).deleteExcavationWorker(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Delete excavation worker error:", error);
@@ -831,7 +839,7 @@ export function registerCfmRoutes(app: Express) {
             case "centrals":
               const centralValidation = insertCentralSchema.safeParse(items[i]);
               if (centralValidation.success) {
-                result = await storage.createCentral(centralValidation.data);
+                result = await cfmMasterDataStorage(req).createCentral(centralValidation.data);
               } else {
                 errors.push({ index: i, error: centralValidation.error });
               }
@@ -839,7 +847,7 @@ export function registerCfmRoutes(app: Express) {
             case "cables":
               const cableValidation = insertCableSchema.safeParse(items[i]);
               if (cableValidation.success) {
-                result = await storage.createCable(cableValidation.data);
+                result = await cfmMasterDataStorage(req).createCable(cableValidation.data);
               } else {
                 errors.push({ index: i, error: cableValidation.error });
               }
@@ -847,7 +855,7 @@ export function registerCfmRoutes(app: Express) {
             case "fault-types":
               const faultTypeValidation = insertFaultTypeSchema.safeParse(items[i]);
               if (faultTypeValidation.success) {
-                result = await storage.createFaultType(faultTypeValidation.data);
+                result = await cfmMasterDataStorage(req).createFaultType(faultTypeValidation.data);
               } else {
                 errors.push({ index: i, error: faultTypeValidation.error });
               }
@@ -855,7 +863,7 @@ export function registerCfmRoutes(app: Express) {
             case "work-types":
               const workTypeValidation = insertWorkTypeSchema.safeParse(items[i]);
               if (workTypeValidation.success) {
-                result = await storage.createWorkType(workTypeValidation.data);
+                result = await cfmMasterDataStorage(req).createWorkType(workTypeValidation.data);
               } else {
                 errors.push({ index: i, error: workTypeValidation.error });
               }
@@ -863,7 +871,7 @@ export function registerCfmRoutes(app: Express) {
             case "task-types":
               const taskTypeValidation = insertTaskTypeSchema.safeParse(items[i]);
               if (taskTypeValidation.success) {
-                result = await storage.createTaskType(taskTypeValidation.data);
+                result = await cfmMasterDataStorage(req).createTaskType(taskTypeValidation.data);
               } else {
                 errors.push({ index: i, error: taskTypeValidation.error });
               }
@@ -871,7 +879,7 @@ export function registerCfmRoutes(app: Express) {
             case "contractors":
               const contractorValidation = insertContractorSchema.safeParse(items[i]);
               if (contractorValidation.success) {
-                result = await storage.createContractor(contractorValidation.data);
+                result = await cfmMasterDataStorage(req).createContractor(contractorValidation.data);
               } else {
                 errors.push({ index: i, error: contractorValidation.error });
               }
@@ -879,7 +887,7 @@ export function registerCfmRoutes(app: Express) {
             case "excavation-workers":
               const excavationWorkerValidation = insertExcavationWorkerSchema.safeParse(items[i]);
               if (excavationWorkerValidation.success) {
-                result = await storage.createExcavationWorker(excavationWorkerValidation.data);
+                result = await cfmMasterDataStorage(req).createExcavationWorker(excavationWorkerValidation.data);
               } else {
                 errors.push({ index: i, error: excavationWorkerValidation.error });
               }
@@ -915,9 +923,16 @@ export function registerCfmRoutes(app: Express) {
     return t;
   };
 
+  const hydrateTicketCreators = async (tickets: any[]) => Promise.all(tickets.map(async (ticket) => {
+    if (ticket?.createdByUser || !ticket?.createdBy) return ticket;
+    const user = await storage.getUser(ticket.createdBy);
+    return { ...ticket, createdByUser: user ?? null };
+  }));
+
   app.get("/api/cfm/tickets", requireAuth, async (req, res) => {
     try {
-      const tickets = await storage.getAllTickets();
+      const ticketStore = ticketMutationStorage(req);
+      const tickets = await hydrateTicketCreators(await ticketStore.getAllTickets());
       let scoreLines = new Map<string, TicketBoxScoreLine[]>();
       try {
         scoreLines = await getTicketBoxScoreLines();
@@ -1046,7 +1061,8 @@ export function registerCfmRoutes(app: Express) {
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
-      res.json(sanitizeTicket(ticket));
+      const [hydrated] = await hydrateTicketCreators([ticket]);
+      res.json(sanitizeTicket(hydrated));
     } catch (error) {
       console.error("Get ticket error:", error);
       res.status(500).json({ error: "Internal server error" });

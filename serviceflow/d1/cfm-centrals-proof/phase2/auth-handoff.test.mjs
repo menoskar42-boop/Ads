@@ -35,6 +35,9 @@ let baseUrl;
 let currentUsers;
 let forwardedClaims = [];
 let originalStorage;
+let savedMasterDataFlag;
+let savedTicketMutationFlag;
+let savedD1Env;
 let requestActor = null;
 let d1CommandNumber = 0;
 let importedExportSql = "";
@@ -180,6 +183,11 @@ async function queryLocalD1(sql) {
 }
 
 before(async () => {
+  savedMasterDataFlag = process.env.SF_CFM_MASTER_DATA_STORAGE;
+  savedTicketMutationFlag = process.env.SF_CFM_TICKET_MUTATIONS_STORAGE;
+  savedD1Env = Object.fromEntries([
+    "SF_D1_WORKER_URL", "SF_D1_SERVICE_TOKEN", "SF_D1_CONTEXT_SECRET", "SF_D1_CONTEXT_AUDIENCE",
+  ].map((key) => [key, process.env[key]]));
   const passwordHash = await bcrypt.hash(password, 4);
   currentUsers = new Map([
     ["cfm-admin", {
@@ -253,29 +261,24 @@ before(async () => {
     "d1", "execute", "serviceflow-cfm-centrals-proof",
     "--local", "--persist-to", stateDir, "--file", "../fixtures.sql", "--yes",
   ]);
+  await executeLocalD1(await readFile(new URL("./auth-test-fixture.sql", import.meta.url), "utf8"));
   const userRows = [...currentUsers.values()].map((user) =>
     `INSERT INTO cfm_users (id, username, password, name, role, is_initial_password, created_at, suspended)
      VALUES (${sqlLiteral(user.id)}, ${sqlLiteral(user.username)}, ${sqlLiteral(user.password)},
        ${sqlLiteral(user.name)}, ${sqlLiteral(user.role)}, 1, '2026-10-18T08:00:00.000Z', 0);`,
   ).join("\n");
-  await executeLocalD1(userRows);
+  const syntheticImportedUser = `
+    INSERT INTO cfm_users (id, username, password, name, role, is_initial_password, created_at, suspended)
+    VALUES ('synthetic-import-user', 'synthetic-import-user', ${sqlLiteral(await bcrypt.hash(password, 4))},
+      'Synthetic Imported User', 'ext_tech', 1, '2026-10-18T08:09:00.000Z', 0);
+  `;
+  await executeLocalD1(`${userRows}\n${syntheticImportedUser}`);
   const syntheticExport = JSON.parse(await readFile(
     new URL("./synthetic-postgres-export.json", import.meta.url), "utf8",
   ));
-  syntheticExport.cfm_users = [{
-    id: "synthetic-import-user",
-    username: "synthetic-import-user",
-    password: await bcrypt.hash(password, 4),
-    name: "Synthetic Imported User",
-    role: "ext_tech",
-    avatar: null,
-    is_initial_password: true,
-    created_at: "2026-10-18T08:09:00Z",
-    suspended: false,
-  }];
   const convertedExport = convertPgExportToD1Sql(syntheticExport);
   assert.ok(convertedExport.order.indexOf("centrals") < convertedExport.order.indexOf("cables"));
-  assert.equal(convertedExport.rowCounts.cfm_users, 1);
+  assert.equal(Object.hasOwn(convertedExport.rowCounts, "cfm_users"), false);
   importedExportSql = convertedExport.sql;
   await executeLocalD1(importedExportSql);
   await executeLocalD1(importedExportSql);
@@ -293,10 +296,11 @@ before(async () => {
   }
   const importedCounts = new Map(countRows.map((row) => [row.table_name, Number(row.row_count)]));
   for (const table of [
-    "cfm_users", "cables", "fault_types", "work_types", "task_types", "contractors",
+    "cables", "fault_types", "work_types", "task_types", "contractors",
     "excavation_workers", "tech_coverage_grants", "tickets", "measurement_entries", "work_entries",
     "used_task_entries", "inventory_transactions", "box_fault_tickets",
-  ]) assert.equal(importedCounts.get(table), table === "cfm_users" ? 3 : 1, `${table} import count`);
+  ]) assert.equal(importedCounts.get(table), 1, `${table} import count`);
+  assert.equal(importedCounts.get("cfm_users"), 3, "only local synthetic users are present");
   assert.equal(importedCounts.get("centrals"), 3, "central count includes two local base fixtures and one imported row");
   const [importedTicket] = await queryLocalD1(
     "SELECT id, ticket_number, status, latitude, longitude FROM tickets WHERE id = 'synthetic-import-ticket'",
@@ -357,6 +361,12 @@ before(async () => {
     }
   }
   assert.ok(Date.now() < readyDeadline, "Local Worker did not become ready");
+  process.env.SF_D1_WORKER_URL = workerUrl;
+  process.env.SF_D1_SERVICE_TOKEN = serviceToken;
+  process.env.SF_D1_CONTEXT_SECRET = contextSecret;
+  process.env.SF_D1_CONTEXT_AUDIENCE = audience;
+  process.env.SF_CFM_MASTER_DATA_STORAGE = "d1";
+  process.env.SF_CFM_TICKET_MUTATIONS_STORAGE = "d1";
 
   const app = express();
   app.use(express.json());
@@ -445,6 +455,14 @@ after(async () => {
     }
   }
   if (originalStorage) Object.assign(storage, originalStorage);
+  if (savedMasterDataFlag === undefined) delete process.env.SF_CFM_MASTER_DATA_STORAGE;
+  else process.env.SF_CFM_MASTER_DATA_STORAGE = savedMasterDataFlag;
+  if (savedTicketMutationFlag === undefined) delete process.env.SF_CFM_TICKET_MUTATIONS_STORAGE;
+  else process.env.SF_CFM_TICKET_MUTATIONS_STORAGE = savedTicketMutationFlag;
+  for (const [key, value] of Object.entries(savedD1Env ?? {})) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
   if (stateDir) await rm(stateDir, { recursive: true, force: true });
 });
 
@@ -587,7 +605,7 @@ test("PostgreSQL export converter is deterministic and rejects unsafe or unstabl
   assert.throws(() => convertPgExportToD1Sql({
     cfm_users: [{ id: "bad-bool", username: "u", password: "hash", name: "U", role: "admin",
       is_initial_password: "yes", created_at: "2026-10-18" }],
-  }), /must be boolean or 0\/1/);
+  }), /Unsupported export tables/);
 });
 
 test("a Service Flow Passport session without a CFM session is denied", async () => {
@@ -768,6 +786,11 @@ test("actual CFM reference routes use the typed D1 adapter with FK and CRUD chec
 test("actual CFM ticket list route reads D1 relations and sanitizes the creator", async () => {
   const { response: loginResponse, cookie } = await login("synthetic-admin");
   assert.equal(loginResponse.status, 200);
+  requestActor = { id: "cfm-admin", role: "admin" };
+  const originalGetUser = storage.getUser;
+  storage.getUser = async (id) => id === "synthetic-import-user"
+    ? { id, username: id, name: "Synthetic Imported User", role: "ext_tech", avatar: null, password: "test-hash" }
+    : originalGetUser(id);
   const response = await callCfmApi("GET", "/api/cfm/tickets", cookie);
   assert.equal(response.status, 200);
   const tickets = await response.json();
@@ -786,6 +809,8 @@ test("actual CFM ticket list route reads D1 relations and sanitizes the creator"
   const detailResponse = await callCfmApi("GET", `/api/cfm/tickets/${ticket.id}`, cookie);
   assert.equal(detailResponse.status, 200);
   assert.deepEqual((await detailResponse.json()).works, ticket.works);
+  storage.getUser = originalGetUser;
+  requestActor = null;
 });
 
 test("actual CFM ticket creation route allocates D1 ticket numbers and rejects box overlaps", async () => {

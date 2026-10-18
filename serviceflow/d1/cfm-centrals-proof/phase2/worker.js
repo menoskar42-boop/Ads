@@ -127,11 +127,10 @@ async function loadTicket(env, id) {
   const row = await env.DB.prepare("SELECT * FROM tickets WHERE id = ?").bind(id).first();
   if (!row) return null;
   const ticket = camelRow(row);
-  const [central, cable, faultType, createdByUser, works, usedTasks, measurements] = await Promise.all([
+  const [central, cable, faultType, works, usedTasks, measurements] = await Promise.all([
     env.DB.prepare("SELECT * FROM centrals WHERE id = ?").bind(row.central_id).first(),
     env.DB.prepare("SELECT * FROM cables WHERE id = ?").bind(row.cable_id).first(),
     env.DB.prepare("SELECT * FROM fault_types WHERE id = ?").bind(row.fault_type_id).first(),
-    env.DB.prepare(`SELECT ${USER_SELECT} FROM cfm_users WHERE id = ?`).bind(row.created_by).first(),
     env.DB.prepare("SELECT * FROM work_entries WHERE ticket_id = ?").bind(id).all(),
     env.DB.prepare("SELECT * FROM used_task_entries WHERE ticket_id = ?").bind(id).all(),
     env.DB.prepare("SELECT * FROM measurement_entries WHERE ticket_id = ?").bind(id).all(),
@@ -139,7 +138,7 @@ async function loadTicket(env, id) {
   ticket.central = camelRow(central);
   ticket.cable = camelRow(cable);
   ticket.faultType = camelRow(faultType);
-  ticket.createdByUser = userRow(createdByUser);
+  ticket.createdByUser = null;
   ticket.works = await Promise.all(works.results.map(async (entry) => {
     const result = camelRow(entry, ["items"]);
     result.contractor = entry.contractor_id

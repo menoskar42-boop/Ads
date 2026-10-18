@@ -49,7 +49,7 @@ production mappings.
 
 | PostgreSQL → D1 table | Keys, constraints, indexes | Types / conversion | Known reads and writes |
 |---|---|---|---|
-| `cfm_users` → `cfm_users` | Text UUID PK; unique `username`; no secondary index in runtime DDL | Generate UUID in Node; booleans `is_initial_password`, `suspended` → SQLite integer 0/1; password remains a bcrypt hash | `storage` user CRUD/auth; CFM login, refresh, password change, technician/admin user routes in `server/cfm/routes.ts`; Service Flow SSO and account provisioning/lookup/deletion in `server/routes.ts` (including direct `users.cfm_user_id` mapping). Isolated local proof exercises login/refresh and user-management handlers; normal application runtime still uses PostgreSQL. PG `sf_session` remains. |
+| `cfm_users` → PostgreSQL only | Text UUID PK; unique `username`; no secondary index in runtime DDL | Excluded from the D1 export; IDs remain text references only | All user accounts, CFM login/refresh/password management, Service Flow SSO, and `users.cfm_user_id` stay PostgreSQL-owned. D1 fixture user rows exist only for isolated authentication tests. |
 | `centrals` → `centrals` | Text UUID PK; unique `code` | Generate UUID in Node; timestamps → canonical UTC text | `storage` CRUD and CFM selectors; `server/box-fault-ticket.ts` resolves and joins central names for duplicate coverage and automatic ticket creation. |
 | `cables` → `cables` | Text UUID PK; FK `central_id → centrals.id` cascade; unique `(central_id, number)` | UUID in Node; all varchar/text → SQLite TEXT | `storage` CRUD; CFM ticket forms; `server/box-fault-ticket.ts` resolves cabinets and joins ticket coverage. |
 | `fault_types` → `fault_types` | Text UUID PK; no unique/index in runtime DDL; tickets reference it | UUID in Node; text fields | `storage` CRUD and ticket forms; `server/box-fault-ticket.ts` searches the Arabic fault name using PostgreSQL regex `~` and orders by `length(name)`. |
@@ -98,7 +98,8 @@ production mappings.
 
 - `cfm-centrals-proof/` proves a read-only central query locally.
 - `cfm-centrals-proof/phase2/` exercises the existing CFM login handler,
-  `requireAuth`, user-management/password handlers, CRUD handlers for all
+  `requireAuth`, and user-management/password handlers against synthetic
+  fixture users only; it exercises CRUD handlers for all
   reference tables, and ticket/child-entry/inventory routes through the typed
   D1 adapter and local Worker. Service Flow account-linking and box-fault
   integration remain PG-owned.

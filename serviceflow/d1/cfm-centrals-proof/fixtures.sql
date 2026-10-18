@@ -1,17 +1,5 @@
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE cfm_users (
-  id TEXT PRIMARY KEY NOT NULL,
-  username TEXT NOT NULL UNIQUE,
-  password TEXT NOT NULL,
-  name TEXT NOT NULL,
-  role TEXT NOT NULL,
-  avatar TEXT,
-  is_initial_password INTEGER DEFAULT 1,
-  created_at TEXT NOT NULL,
-  suspended INTEGER DEFAULT 0
-);
-
 CREATE TABLE centrals (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,
@@ -91,7 +79,7 @@ CREATE TABLE tickets (
   final_repair_repaired_by TEXT,
   closed_at TEXT,
   closed_by TEXT,
-  created_by TEXT NOT NULL REFERENCES cfm_users(id),
+  created_by TEXT NOT NULL,
   opened_by_label TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -114,7 +102,7 @@ CREATE TABLE measurement_entries (
   direction TEXT,
   notes TEXT,
   performed_by TEXT,
-  created_by TEXT NOT NULL REFERENCES cfm_users(id),
+  created_by TEXT NOT NULL,
   recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -128,7 +116,7 @@ CREATE TABLE work_entries (
   performed_by TEXT NOT NULL,
   works_by TEXT,
   contractor_id TEXT REFERENCES contractors(id),
-  created_by TEXT NOT NULL REFERENCES cfm_users(id),
+  created_by TEXT NOT NULL,
   recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -140,7 +128,7 @@ CREATE TABLE used_task_entries (
   items TEXT NOT NULL CHECK (json_valid(items)),
   notes TEXT,
   performed_by TEXT NOT NULL,
-  created_by TEXT NOT NULL REFERENCES cfm_users(id),
+  created_by TEXT NOT NULL,
   recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

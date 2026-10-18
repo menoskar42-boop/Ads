@@ -3,7 +3,6 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
 const TABLES = [
-  { key: "cfm_users", required: ["id", "username", "password", "name", "role", "created_at"] },
   { key: "centrals", required: ["id", "name", "code", "created_at"] },
   { key: "task_types", required: ["id", "name", "created_at"] },
   { key: "fault_types", required: ["id", "name", "category", "created_at"] },
@@ -20,7 +19,6 @@ const TABLES = [
   { key: "box_fault_tickets", required: ["source", "ref_key", "created_at"], keyColumns: ["source", "ref_key"] },
 ];
 const COLUMNS = {
-  cfm_users: ["id", "username", "password", "name", "role", "avatar", "is_initial_password", "created_at", "suspended"],
   centrals: ["id", "name", "code", "created_at"],
   cables: ["id", "central_id", "number", "cable_number", "cabinet_number", "type", "created_at"],
   fault_types: ["id", "name", "category", "created_at"],
@@ -37,7 +35,6 @@ const COLUMNS = {
   box_fault_tickets: ["id", "source", "ref_key", "central_name", "cabin_number", "box_number", "tech_name", "responded_at", "ticket_id", "ticket_number", "created_at", "repair_confirm", "repair_confirm_by", "repair_confirm_at", "repair_confirm_note", "reopened_ticket_number", "reopened_by", "reopened_at"],
 };
 const UNIQUE_KEYS = {
-  cfm_users: [["id"], ["username"]],
   centrals: [["id"], ["code"]],
   cables: [["id"], ["central_id", "number"]],
   fault_types: [["id"]],
@@ -53,7 +50,7 @@ const UNIQUE_KEYS = {
   inventory_transactions: [["id"]],
   box_fault_tickets: [["id"], ["source", "ref_key"]],
 };
-const BOOLEAN_COLUMNS = new Set(["is_initial_password", "suspended"]);
+const BOOLEAN_COLUMNS = new Set();
 const JSON_COLUMNS = new Set(["associated_materials", "items"]);
 const DATE_COLUMNS = new Set([
   "created_at", "updated_at", "recorded_at", "date", "final_repair_repaired_at", "closed_at",
