@@ -1,0 +1,11 @@
+# Local-only D1 compatibility proof. This is not a deployable production config.
+name = "serviceflow-cfm-centrals-proof"
+main = "worker.js"
+# Wrangler 4.86 local runtime currently supports dates through 2026-05-03.
+compatibility_date = "2026-05-03"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "serviceflow-cfm-centrals-proof"
+# Placeholder only. Run all commands with --local; never create a remote DB.
+database_id = "00000000-0000-0000-0000-000000000000"
