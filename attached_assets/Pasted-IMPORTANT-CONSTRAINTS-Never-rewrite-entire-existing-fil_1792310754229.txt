@@ -1,0 +1,126 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+PROJECT: Service Flow
+
+OBJECTIVE:
+Begin the migration of Service Flow from PostgreSQL to
+Cloudflare D1 for relational data and Cloudflare R2 for
+file storage.
+
+The final goal is for the entire live application to use
+Cloudflare D1 and R2 instead of the existing PostgreSQL
+database.
+
+The existing PostgreSQL database must remain intact and
+available for rollback. Never delete, clear, or modify its
+data during this migration.
+
+COST IS THE PRIMARY PRIORITY.
+Avoid unnecessary paid resources, duplicate infrastructure,
+unnecessary dependencies, and expensive agent operations.
+
+ASSUMED DATABASE SIZE:
+Plan for a total relational dataset of up to 2 GB.
+This is a planning assumption, not a verified measurement.
+
+IMPORTANT EXECUTION RULES:
+- Work in small, verifiable phases.
+- Do not switch the production application to D1 yet.
+- Do not modify the existing PostgreSQL database.
+- Do not create paid Cloudflare resources without approval.
+- Do not expose database URLs, credentials, or secrets.
+- Do not perform destructive operations.
+- Do not assume PostgreSQL SQL is compatible with D1.
+- Do not mark a phase complete unless its acceptance criteria
+  have actually been verified.
+
+PHASE 1: PREPARE THE D1 MIGRATION FOUNDATION
+
+Start with the existing Service Flow source code.
+
+1. Inspect the existing database schema definitions,
+   ensureSchema() implementation, Drizzle configuration,
+   maintenance schema, and existing migrations.
+
+2. Identify all tables required by the complete application,
+   including tables created dynamically at runtime and
+   maintenance-related tables.
+
+3. Identify primary keys, foreign keys, unique constraints,
+   check constraints, indexes, defaults, and relationships.
+
+4. Identify PostgreSQL-specific SQL and functionality that
+   must be adapted for SQLite/D1, including:
+   DISTINCT ON, ILIKE, FILTER, ANY/ALL, unnest, JSONB,
+   sequences, custom PostgreSQL functions, triggers,
+   advisory locks, SKIP LOCKED, transactions, and RETURNING.
+
+5. Identify all database access paths across the application,
+   including routes, storage modules, imports, scheduled jobs,
+   background tasks, authentication, reporting, and maintenance.
+
+6. Inspect the existing Cloudflare R2 integration.
+   Reuse the existing bucket and stored objects where possible.
+   Do not upload duplicate files.
+
+7. Check whether the repository already contains D1 bindings,
+   configuration, migration tooling, or a Cloudflare Workers
+   application entry point. Do not assume that these exist.
+
+8. Design a D1-compatible schema and migration strategy that
+   preserves the existing application's required behavior.
+
+9. Estimate whether the schema and dataset can fit within the
+   intended D1 plan. Clearly distinguish verified facts from
+   assumptions. Do not invent database size or usage metrics.
+
+IMPLEMENTATION SCOPE FOR THIS PHASE:
+
+Create the D1 schema and migration artifacts needed for
+review, using new files where practical.
+
+If existing files require changes, make only the smallest
+targeted edits necessary, following the constraints above.
+
+Do not yet:
+- Switch production traffic to D1.
+- Change the production database target.
+- Remove PostgreSQL dependencies.
+- Delete or modify the old PostgreSQL database.
+- Copy production data into D1.
+- Change production R2 objects.
+- Create paid infrastructure.
+- Implement the entire application migration in one step.
+
+TESTING:
+
+Validate the proposed D1 schema and migration artifacts using
+available local or non-production tools.
+
+If a D1-specific test requires provisioning a Cloudflare
+resource or incurring charges, stop and report the requirement
+instead of proceeding.
+
+ACCEPTANCE CRITERIA:
+
+Before reporting Phase 1 complete, provide:
+
+1. A list of all identified tables and schemas.
+2. The new D1 schema/migration files created.
+3. Any existing files changed and the reason for each change.
+4. Validation results from available non-production tests.
+5. A list of unresolved PostgreSQL compatibility issues.
+6. A list of application components that still need migration.
+7. Expected Cloudflare plan requirements and cost risks.
+8. The next smallest implementation step.
+
+Stop after Phase 1 and report the results.
+Do not switch the production application to D1 until I approve
+the next phase.
