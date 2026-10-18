@@ -1,0 +1,152 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+PROJECT: Service Flow
+NEXT PHASE: Complete Local CFM Migration Proof
+
+PRIMARY OBJECTIVE:
+Move beyond schema-only tests and build a realistic,
+end-to-end local proof for the complete CFM data group.
+
+The long-term goal is to reduce PostgreSQL costs by moving
+suitable application data to Cloudflare D1, while retaining
+the existing PostgreSQL database until migration correctness
+and rollback are fully validated.
+
+Cost is more important than speed. Slower response times
+are acceptable if the resulting solution is cheaper and reliable.
+
+STEP 1: AUDIT THE CURRENT CFM GROUP
+
+Review:
+- serviceflow/d1/CFM-FIRST-GROUP-PLAN.md
+- serviceflow/d1/cfm-group-proof/
+- serviceflow/d1/cfm-centrals-proof/
+- The existing CFM routes, authentication, storage code,
+  and all consumers of box_fault_tickets.
+- The existing PostgreSQL schema and relevant query patterns
+  available in the repository.
+
+Identify the exact 13 CFM tables plus box_fault_tickets.
+Trace every known read and write path for this group.
+
+Do not query production databases.
+
+STEP 2: CHECK MIGRATION COMPLETENESS
+
+Produce a table-by-table mapping showing:
+- PostgreSQL table and D1 table.
+- Primary and foreign keys.
+- Unique constraints and indexes.
+- Data types and required transformations.
+- All application modules that read or write the table.
+- PostgreSQL-specific SQL that must be rewritten.
+- Dependencies that must remain in PostgreSQL.
+
+Pay particular attention to:
+- UUID generation.
+- Ticket-number generation.
+- RETURNING behavior.
+- JSON and timestamp handling.
+- User identity and authorization.
+- Writes involving both CFM records and box_fault_tickets.
+- Error handling and partial failures.
+
+Do not assume cross-database transactions are possible.
+
+STEP 3: BUILD THE COMPLETE LOCAL APPLICATION PROOF
+
+If the audit shows that the scope is sufficiently understood,
+implement the smallest practical local integration for the
+complete CFM group.
+
+Use local D1 and synthetic data only.
+
+Implement the actual application-facing read/write operations
+needed by this group, not just a generic database demonstration.
+
+Requirements:
+- Preserve existing authentication and authorization semantics.
+- Do not expose generic SQL execution.
+- Do not connect to production databases.
+- Do not change production routes or database selection.
+- Keep PostgreSQL as the production default.
+- Do not create paid resources or deploy a Worker.
+- Do not change unrelated modules.
+
+If a complete local implementation would require a broad rewrite,
+stop and report the blocker instead of making speculative changes.
+
+STEP 4: TEST END-TO-END BEHAVIOR
+
+Test:
+1. CFM reads and writes using synthetic users and records.
+2. Authorization and unauthenticated requests.
+3. Foreign-key and uniqueness constraints.
+4. Invalid JSON, UUIDs, and timestamps.
+5. Ticket-number and UUID generation.
+6. Worker timeout, network failure, and HTTP errors.
+7. Partial failure between CFM records and box_fault_tickets.
+8. Retry behavior and duplicate prevention.
+9. Data integrity after simulated failures.
+10. The explicit rollback path to the existing PostgreSQL code.
+
+Where production behavior cannot be verified locally,
+document the limitation clearly.
+
+STEP 5: PREPARE A DATA MIGRATION TOOL DESIGN
+
+Determine how a future PostgreSQL export can be transformed
+and imported into D1.
+
+Do not export production data in this phase.
+
+Provide a deterministic mapping and validation strategy,
+including:
+- Row counts per table.
+- Primary and foreign-key integrity.
+- Unique-constraint checks.
+- Representative application query comparisons.
+- A method to detect missing or mismatched records.
+
+Do not create a production backup or alter production data.
+
+STEP 6: COST AND SIZE ANALYSIS
+
+Use existing audit evidence only.
+
+Do not assume the current production database size or the
+CFM group's size.
+
+Identify the exact measurements needed to determine:
+- Whether this group fits in D1 Free.
+- Expected reads and writes.
+- Whether Workers Paid would be required.
+- Whether migrating this group alone meaningfully reduces
+  PostgreSQL costs.
+
+Do not create Cloudflare resources or upgrade any plan.
+
+STEP 7: VALIDATE AND REPORT
+
+Run all relevant local tests and git diff --check.
+
+Report:
+- Files added and modified.
+- Tests passed and failed.
+- Remaining PostgreSQL dependencies.
+- Known consistency and rollback limitations.
+- Estimated cost implications and uncertainties.
+- Whether the group is ready for a future controlled
+  integration test.
+
+Do not deploy, migrate production data, change production
+configuration, or redirect real application traffic.
+
+STOP after reporting the results and wait for approval.

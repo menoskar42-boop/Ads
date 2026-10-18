@@ -86,6 +86,8 @@ test("FK, unique, and JSON constraints reject invalid rows", async () => {
     VALUES ('bad-unique','TKT-2026-001','x','central-a','cable-a','x','1','fault-a','u-synthetic')`]));
   await assert.rejects(execute(["--command", `INSERT INTO work_entries
     (id,ticket_id,items,performed_by,created_by) VALUES ('bad-json','ticket-a','{not-json}','Tech','u-synthetic')`]));
+  await assert.rejects(execute(["--command", `INSERT INTO work_types
+    (id,name,associated_materials) VALUES ('bad-work-json','Bad JSON','{not-json}')`]));
 });
 
 test("box-fault integration upsert is idempotent by source and reference", async () => {
