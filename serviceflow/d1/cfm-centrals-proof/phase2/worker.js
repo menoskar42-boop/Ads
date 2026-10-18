@@ -1,4 +1,3 @@
-const PATH = "/api/cfm/master-data/centrals";
 const CONTEXT_HEADER = "x-sf-cfm-context";
 const SIGNATURE_HEADER = "x-sf-cfm-signature";
 const encoder = new TextEncoder();
@@ -62,15 +61,115 @@ async function verifyContext(request, env) {
   return claims;
 }
 
+const REFERENCE_RESOURCES = {
+  centrals: { table: "centrals", fields: { name: "name", code: "code" }, required: ["name", "code"] },
+  cables: {
+    table: "cables",
+    fields: { centralId: "central_id", number: "number", cableNumber: "cable_number", cabinetNumber: "cabinet_number", type: "type" },
+    required: ["centralId", "number", "type"],
+  },
+  "fault-types": { table: "fault_types", fields: { name: "name", category: "category" }, required: ["name", "category"] },
+  "work-types": {
+    table: "work_types", fields: { name: "name", associatedMaterials: "associated_materials" },
+    required: ["name"], jsonFields: ["associatedMaterials"],
+  },
+  "task-types": { table: "task_types", fields: { name: "name" }, required: ["name"] },
+  contractors: { table: "contractors", fields: { name: "name" }, required: ["name"] },
+  "excavation-workers": {
+    table: "excavation_workers", fields: { name: "name", nationalId: "national_id" },
+    required: ["name", "nationalId"],
+  },
+};
+
+function resourceRow(row, resource) {
+  if (!row) return row;
+  const result = { id: row.id, createdAt: row.createdAt };
+  for (const [apiName, column] of Object.entries(resource.fields)) {
+    let value = row[apiName];
+    if (resource.jsonFields?.includes(apiName) && typeof value === "string") {
+      try { value = JSON.parse(value); } catch { return null; }
+    }
+    result[apiName] = value;
+  }
+  return result;
+}
+
+function resourceColumns(resource) {
+  return [
+    "id",
+    ...Object.entries(resource.fields).map(([apiName, column]) => `${column} AS ${apiName}`),
+    "created_at AS createdAt",
+  ].join(", ");
+}
+
+function resourceValue(resource, apiName, value) {
+  if (resource.jsonFields?.includes(apiName) && value != null) {
+    if (typeof value === "string") {
+      JSON.parse(value);
+      return value;
+    }
+    return JSON.stringify(value);
+  }
+  return value;
+}
+
+async function handleReferenceResource(request, env, resourceName, resourceId) {
+  const resource = REFERENCE_RESOURCES[resourceName];
+  if (!resource) return Response.json({ error: "Not found" }, { status: 404 });
+  const collectionPath = `/api/cfm/master-data/${resourceName}`;
+  const selected = resourceColumns(resource);
+  if (request.method === "GET" && !resourceId) {
+    const { results } = await env.DB.prepare(`SELECT ${selected} FROM ${resource.table}`).all();
+    return Response.json(results.map((row) => resourceRow(row, resource)));
+  }
+  if (request.method === "POST" && !resourceId) {
+    const body = await request.json();
+    const keys = Object.keys(body);
+    if (keys.some((key) => !Object.hasOwn(resource.fields, key)) ||
+        resource.required.some((key) => typeof body[key] !== "string")) {
+      return Response.json({ error: "Invalid reference data" }, { status: 400 });
+    }
+    const included = Object.keys(resource.fields).filter((key) => Object.hasOwn(body, key));
+    const columns = ["id", ...included.map((key) => resource.fields[key]), "created_at"];
+    const placeholders = columns.map(() => "?").join(", ");
+    const values = [crypto.randomUUID(), ...included.map((key) => resourceValue(resource, key, body[key])), new Date().toISOString()];
+    const row = await env.DB.prepare(
+      `INSERT INTO ${resource.table} (${columns.join(", ")}) VALUES (${placeholders}) RETURNING ${selected}`,
+    ).bind(...values).first();
+    return Response.json(resourceRow(row, resource), { status: 201 });
+  }
+  if (request.method === "PATCH" && resourceId) {
+    const body = await request.json();
+    const keys = Object.keys(body);
+    if (!keys.length || keys.some((key) => !Object.hasOwn(resource.fields, key)) ||
+        keys.some((key) => typeof body[key] === "undefined")) {
+      return Response.json({ error: "Invalid reference data" }, { status: 400 });
+    }
+    const assignments = keys.map((key) => `${resource.fields[key]} = ?`).join(", ");
+    const values = keys.map((key) => resourceValue(resource, key, body[key]));
+    const row = await env.DB.prepare(
+      `UPDATE ${resource.table} SET ${assignments} WHERE id = ? RETURNING ${selected}`,
+    ).bind(...values, resourceId).first();
+    return row ? Response.json(resourceRow(row, resource)) : Response.json({ error: "Not found" }, { status: 404 });
+  }
+  if (request.method === "DELETE" && resourceId) {
+    await env.DB.prepare(`DELETE FROM ${resource.table} WHERE id = ?`).bind(resourceId).run();
+    return Response.json({ success: true });
+  }
+  return Response.json({ error: "Method not allowed" }, { status: 405 });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const userBasePath = "/api/cfm/auth/users";
     const userByUsername = url.pathname === `${userBasePath}/by-username`;
     const userMatch = url.pathname.match(/^\/api\/cfm\/auth\/users\/([^/]+)$/);
-    const centralId = url.pathname.startsWith(`${PATH}/`) ? url.pathname.slice(PATH.length + 1) : null;
-    const centralRoute = url.pathname === PATH || Boolean(centralId);
-    if (!userByUsername && !userMatch && !centralRoute) {
+    const referenceMatch = url.pathname.match(/^\/api\/cfm\/master-data\/([^/]+)(?:\/([^/]+))?$/);
+    const resourceName = referenceMatch?.[1];
+    const resourceId = referenceMatch?.[2] ? decodeURIComponent(referenceMatch[2]) : null;
+    const referenceRoute = Boolean(resourceName && REFERENCE_RESOURCES[resourceName]);
+    if (!userByUsername && !userMatch && !referenceRoute) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
     if (request.method !== "GET" && (userByUsername || userMatch)) {
@@ -113,41 +212,7 @@ export default {
         ).bind(decodeURIComponent(userMatch[1])).first();
         return row ? Response.json(row) : Response.json({ error: "User not found" }, { status: 404 });
       }
-      if (request.method === "GET" && url.pathname === PATH) {
-        const { results } = await env.DB
-          .prepare("SELECT id, name, code, created_at AS createdAt FROM centrals")
-          .all();
-        return Response.json(results);
-      }
-      if (request.method === "POST" && url.pathname === PATH) {
-        const body = await request.json();
-        if (typeof body.name !== "string" || typeof body.code !== "string") {
-          return Response.json({ error: "Invalid central data" }, { status: 400 });
-        }
-        const row = await env.DB.prepare(
-          `INSERT INTO centrals (id, name, code, created_at)
-           VALUES (?, ?, ?, ?) RETURNING id, name, code, created_at AS createdAt`,
-        ).bind(crypto.randomUUID(), body.name, body.code, new Date().toISOString()).first();
-        return Response.json(row, { status: 201 });
-      }
-      if (request.method === "PATCH" && centralId) {
-        const body = await request.json();
-        const fields = ["name", "code"].filter((key) => Object.hasOwn(body, key));
-        if (!fields.length || fields.some((key) => typeof body[key] !== "string")) {
-          return Response.json({ error: "Invalid central data" }, { status: 400 });
-        }
-        const assignments = fields.map((key) => `${key} = ?`).join(", ");
-        const values = fields.map((key) => body[key]);
-        const row = await env.DB.prepare(
-          `UPDATE centrals SET ${assignments} WHERE id = ? RETURNING id, name, code, created_at AS createdAt`,
-        ).bind(...values, centralId).first();
-        return row ? Response.json(row) : Response.json({ error: "Central not found" }, { status: 404 });
-      }
-      if (request.method === "DELETE" && centralId) {
-        await env.DB.prepare("DELETE FROM centrals WHERE id = ?").bind(centralId).run();
-        return Response.json({ success: true });
-      }
-      return Response.json({ error: "Method not allowed" }, { status: 405 });
+      return handleReferenceResource(request, env, resourceName, resourceId);
     } catch {
       return Response.json({ error: "D1 operation failed" }, { status: 500 });
     }

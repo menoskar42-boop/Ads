@@ -1,0 +1,61 @@
+{
+  "centrals": [
+    {
+      "id": "synthetic-import-central",
+      "name": "Imported synthetic central",
+      "code": "IMPORT-001",
+      "created_at": "2026-10-18T08:10:00+00:00"
+    }
+  ],
+  "cables": [
+    {
+      "id": "synthetic-import-cable",
+      "central_id": "synthetic-import-central",
+      "number": "IMPORT-CABLE-001",
+      "cable_number": null,
+      "cabinet_number": null,
+      "type": "fiber",
+      "created_at": "2026-10-18T08:11:00Z"
+    }
+  ],
+  "fault_types": [
+    {
+      "id": "synthetic-import-fault",
+      "name": "Imported synthetic fault",
+      "category": "cable",
+      "created_at": "2026-10-18T08:12:00Z"
+    }
+  ],
+  "work_types": [
+    {
+      "id": "synthetic-import-work",
+      "name": "Imported synthetic work",
+      "associated_materials": [
+        { "taskTypeId": "synthetic-import-task", "defaultQuantity": 2 }
+      ],
+      "created_at": "2026-10-18T08:13:00Z"
+    }
+  ],
+  "task_types": [
+    {
+      "id": "synthetic-import-task",
+      "name": "Imported synthetic task",
+      "created_at": "2026-10-18T08:14:00Z"
+    }
+  ],
+  "contractors": [
+    {
+      "id": "synthetic-import-contractor",
+      "name": "Imported synthetic contractor",
+      "created_at": "2026-10-18T08:15:00Z"
+    }
+  ],
+  "excavation_workers": [
+    {
+      "id": "synthetic-import-excavation-worker",
+      "name": "Imported synthetic excavation worker",
+      "national_id": "SYNTH-IMPORT-001",
+      "created_at": "2026-10-18T08:16:00Z"
+    }
+  ]
+}

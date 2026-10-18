@@ -19,19 +19,21 @@ password login, role checks, ticket-number allocation, task-to-inventory
 writes, and box-ticket creation/confirmation/reopen flows all need to move
 together or be covered by a deliberate compatibility boundary.
 
-The local proof now exercises the actual CFM login and authentication
-middleware, and actual centrals GET/POST/PATCH/DELETE route handlers. The test
-uses synthetic `cfm_users` in local D1 for login and user refresh, and redirects
-only those auth reads plus central storage calls to a local typed D1 Worker.
-This is a working vertical slice, not a complete CFM implementation: CFM user
-administration, Service Flow's direct CFM-user reads/writes, and every other
-CFM entity/workflow remain on their existing PG paths. Production storage
-selection is unchanged.
+The local proof exercises the actual CFM login/authentication middleware and
+CRUD route handlers for centrals, cables, fault types, work types, task types,
+contractors, and excavation workers. Synthetic `cfm_users` are read from local
+D1 for login and session refresh. A typed `CfmD1ReferenceStorage` implements
+the matching `IStorage` subset and is wired only in the isolated test process.
+A reusable JSON-export converter imports these reference records into local
+D1; the import is rerun to verify idempotence. Production storage selection is
+unchanged.
 
-The central CRUD slice is not a safe standalone production cutover: PostgreSQL
-`cables.central_id` references PostgreSQL `centrals`, while the local proof's D1
-fixture contains no cross-database cable relationship. `centrals` may only move
-with `cables` or with a separately reviewed replacement for that relationship.
+This is not a production cutover candidate. User administration and Service
+Flow's direct CFM-user reads/writes remain PostgreSQL. PostgreSQL `tickets`
+references `centrals`, `cables`, and `fault_types`, so moving reference rows
+alone would break existing foreign-key and ticket behavior. Ticket workflows
+and `box_fault_tickets` remain PostgreSQL until partial-failure recovery is
+implemented and tested.
 
 ## Table-by-table mapping
 
@@ -87,10 +89,12 @@ production mappings.
 
 - `cfm-centrals-proof/` proves a read-only central query locally.
 - `cfm-centrals-proof/phase2/` exercises the existing CFM login handler,
-  `requireAuth`, and central CRUD route handlers through a test-only adapter to
-  the local Worker. Synthetic CFM user rows are read from local D1; user
-  administration is not moved, and the proof does not replace the complete
-  CFM `IStorage`.
+  `requireAuth`, and CRUD handlers for all reference tables through the typed
+  D1 adapter and local Worker. Synthetic CFM user rows are read from local D1;
+  user administration is not moved, and the adapter does not replace the
+  complete CFM `IStorage`.
+- `d1/import-cfm-reference-export.mjs` converts an allowlisted PostgreSQL JSON
+  export into deterministic, idempotent D1 SQL and preserves stable IDs.
 - `cfm-centrals-proof/phase3/` covers a bridge contract/design, not CFM data
   writes or production routes.
 - `cfm-group-proof/` imports synthetic data into the full table schema and

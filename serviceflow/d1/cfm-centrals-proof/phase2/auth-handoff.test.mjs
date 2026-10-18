@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { spawn } from "node:child_process";
 import { after, before, test } from "node:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import express from "express";
 import session from "express-session";
 import bcrypt from "bcryptjs";
 import passport from "passport";
+import { convertPgExportToD1Sql } from "../../import-cfm-reference-export.mjs";
 
 // Keep any imported PG pool pointed at a guaranteed-invalid local URL. Test
 // storage methods are replaced below, and the live app session/config is never imported.
@@ -16,6 +17,7 @@ process.env.DATABASE_URL = "postgres://no-db@127.0.0.1:1/no-db";
 
 const { registerCfmRoutes } = await import("../../../server/cfm/routes.ts");
 const { storage } = await import("../../../server/cfm/storage.ts");
+const { CfmD1ReferenceStorage } = await import("../../../server/cfm/d1-reference-storage.ts");
 const phase2Dir = new URL(".", import.meta.url).pathname;
 const centralPath = "/api/cfm/master-data/centrals";
 const workerUrl = "http://127.0.0.1:8789";
@@ -34,6 +36,7 @@ let forwardedClaims = [];
 let originalStorage;
 let requestActor = null;
 let d1CommandNumber = 0;
+let importedExportSql = "";
 
 const registered = [];
 const fakeApp = {
@@ -196,21 +199,28 @@ before(async () => {
     updateCentral: storage.updateCentral,
     deleteCentral: storage.deleteCentral,
   };
-  const normalizeUser = (user) => user && ({
-    ...user,
-    isInitialPassword: Boolean(user.isInitialPassword),
-    suspended: Boolean(user.suspended),
+  const d1Storage = new CfmD1ReferenceStorage({
+    baseUrl: workerUrl,
+    serviceToken,
+    contextSecret,
+    audience,
+    actor: () => {
+      if (requestActor) forwardedClaims.push(claimsFor(requestActor));
+      return requestActor;
+    },
   });
-  storage.getUser = async (id) => normalizeUser(await invokeWorker(
-    "GET", `/api/cfm/auth/users/${encodeURIComponent(id)}`,
-  ));
-  storage.getUserByUsername = async (username) => normalizeUser(await invokeWorker(
-    "GET", `/api/cfm/auth/users/by-username?username=${encodeURIComponent(username)}`, undefined, null,
-  ));
-  storage.getAllCentrals = async () => invokeWorker("GET", centralPath);
-  storage.createCentral = async (central) => invokeWorker("POST", centralPath, central);
-  storage.updateCentral = async (id, central) => invokeWorker("PATCH", `${centralPath}/${encodeURIComponent(id)}`, central);
-  storage.deleteCentral = async (id) => { await invokeWorker("DELETE", `${centralPath}/${encodeURIComponent(id)}`); };
+  for (const method of [
+    "getUser", "getUserByUsername",
+    "getAllCentrals", "createCentral", "updateCentral", "deleteCentral",
+    "getAllCables", "createCable", "updateCable", "deleteCable",
+    "getAllFaultTypes", "createFaultType", "updateFaultType", "deleteFaultType",
+    "getAllWorkTypes", "createWorkType", "updateWorkType", "deleteWorkType",
+    "getAllTaskTypes", "createTaskType", "updateTaskType", "deleteTaskType",
+    "getAllContractors", "createContractor", "updateContractor", "deleteContractor",
+    "getAllExcavationWorkers", "createExcavationWorker", "updateExcavationWorker", "deleteExcavationWorker",
+  ]) {
+    storage[method] = d1Storage[method].bind(d1Storage);
+  }
   registerCfmRoutes(fakeApp);
 
   const loginRoute = route("POST", "/api/cfm/auth/login");
@@ -228,6 +238,26 @@ before(async () => {
        ${sqlLiteral(user.name)}, ${sqlLiteral(user.role)}, 1, '2026-10-18T08:00:00.000Z', 0);`,
   ).join("\n");
   await executeLocalD1(userRows);
+  const syntheticExport = JSON.parse(await readFile(
+    new URL("./synthetic-postgres-export.json", import.meta.url), "utf8",
+  ));
+  syntheticExport.cfm_users = [{
+    id: "synthetic-import-user",
+    username: "synthetic-import-user",
+    password: await bcrypt.hash(password, 4),
+    name: "Synthetic Imported User",
+    role: "ext_tech",
+    avatar: null,
+    is_initial_password: true,
+    created_at: "2026-10-18T08:09:00Z",
+    suspended: false,
+  }];
+  const convertedExport = convertPgExportToD1Sql(syntheticExport);
+  assert.ok(convertedExport.order.indexOf("centrals") < convertedExport.order.indexOf("cables"));
+  assert.equal(convertedExport.rowCounts.cfm_users, 1);
+  importedExportSql = convertedExport.sql;
+  await executeLocalD1(importedExportSql);
+  await executeLocalD1(importedExportSql);
 
   worker = spawn("npx", [
     "--yes", "wrangler@4", "dev",
@@ -291,6 +321,15 @@ before(async () => {
   app.post(centralPath, ...route("POST", centralPath).handlers);
   app.patch(`${centralPath}/:id`, ...route("PATCH", `${centralPath}/:id`).handlers);
   app.delete(`${centralPath}/:id`, ...route("DELETE", `${centralPath}/:id`).handlers);
+  for (const resource of [
+    "cables", "fault-types", "work-types", "task-types", "contractors", "excavation-workers",
+  ]) {
+    const path = `/api/cfm/master-data/${resource}`;
+    app.get(path, ...route("GET", path).handlers);
+    app.post(path, ...route("POST", path).handlers);
+    app.patch(`${path}/:id`, ...route("PATCH", `${path}/:id`).handlers);
+    app.delete(`${path}/:id`, ...route("DELETE", `${path}/:id`).handlers);
+  }
 
   await new Promise((resolve) => {
     server = app.listen(0, "127.0.0.1", resolve);
@@ -333,7 +372,9 @@ test("existing CFM login creates a session and authorized user reaches local D1"
     authorization: "Bearer forged-browser-token",
   });
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).length, 2);
+  const centrals = await response.json();
+  assert.equal(centrals.length, 3);
+  assert.ok(centrals.some((central) => central.id === "synthetic-import-central"));
   assert.equal(forwardedClaims.at(-1).sub, "cfm-admin");
   assert.equal(forwardedClaims.at(-1).role, "admin");
   assert.notEqual(forwardedClaims.at(-1).sub, "forged-admin");
@@ -344,6 +385,34 @@ test("D1-backed CFM login rejects an unknown user and incorrect password", async
   assert.equal(unknown.response.status, 401);
   const incorrect = await login("synthetic-admin", "incorrect-synthetic-password");
   assert.equal(incorrect.response.status, 401);
+});
+
+test("imported D1 user booleans and password hash work through existing login", async () => {
+  const { response, cookie } = await login("synthetic-import-user");
+  assert.equal(response.status, 200);
+  const safeUser = await response.json();
+  assert.equal(safeUser.isInitialPassword, true);
+  assert.equal(Object.hasOwn(safeUser, "password"), false);
+  assert.equal((await callCentrals(cookie)).status, 200);
+});
+
+test("PostgreSQL export converter is deterministic and rejects unsafe or unstable input", () => {
+  const fixture = {
+    centrals: [{
+      id: "stable-central", name: "Central", code: "STABLE-1",
+      created_at: "2026-10-18T08:00:00+00:00",
+    }],
+  };
+  const first = convertPgExportToD1Sql(fixture);
+  const second = convertPgExportToD1Sql(fixture);
+  assert.equal(first.sql, second.sql);
+  assert.match(first.sql, /2026-10-18T08:00:00\.000Z/);
+  assert.throws(() => convertPgExportToD1Sql({ centrals: [{ id: "", name: "No stable ID" }] }), /stable non-empty string/);
+  assert.throws(() => convertPgExportToD1Sql({ tickets: [] }), /Unsupported export tables/);
+  assert.throws(() => convertPgExportToD1Sql({
+    cfm_users: [{ id: "bad-bool", username: "u", password: "hash", name: "U", role: "admin",
+      is_initial_password: "yes", created_at: "2026-10-18" }],
+  }), /must be boolean or 0\/1/);
 });
 
 test("a Service Flow Passport session without a CFM session is denied", async () => {
@@ -440,12 +509,83 @@ test("actual CFM central create/update/delete routes use local D1 and retain rou
   assert.equal(duplicateResponse.status, 500);
   const afterDuplicate = await callCentrals(cookie);
   assert.equal(afterDuplicate.status, 200);
-  assert.equal((await afterDuplicate.json()).length, 3);
+  assert.equal((await afterDuplicate.json()).length, 4);
 
   const deletedResponse = await callCfmApi("DELETE", `${centralPath}/${created.id}`, cookie);
   assert.equal(deletedResponse.status, 200);
   assert.deepEqual(await deletedResponse.json(), { success: true });
   const afterDelete = await callCentrals(cookie);
-  assert.equal((await afterDelete.json()).length, 2);
+  assert.equal((await afterDelete.json()).length, 3);
   assert.equal(forwardedClaims.at(-1).role, "ext_tech");
+});
+
+test("actual CFM reference routes use the typed D1 adapter with FK and CRUD checks", async () => {
+  const { response: loginResponse, cookie } = await login("synthetic-admin");
+  assert.equal(loginResponse.status, 200);
+  const cases = [
+    ["cables", { centralId: "proof-central-1", number: "SYN-CABLE-1", type: "fiber" }, { number: "SYN-CABLE-1B" }],
+    ["fault-types", { name: "Synthetic fault", category: "cable" }, { name: "Synthetic fault updated" }],
+    ["work-types", { name: "Synthetic work", associatedMaterials: [{ taskTypeId: "synthetic-task", defaultQuantity: 2 }] }, { name: "Synthetic work updated" }],
+    ["task-types", { name: "Synthetic task" }, { name: "Synthetic task updated" }],
+    ["contractors", { name: "Synthetic contractor" }, { name: "Synthetic contractor updated" }],
+    ["excavation-workers", { name: "Synthetic worker", nationalId: "SYN-EXC-001" }, { name: "Synthetic worker updated" }],
+  ];
+  const importedIds = {
+    cables: "synthetic-import-cable",
+    "fault-types": "synthetic-import-fault",
+    "work-types": "synthetic-import-work",
+    "task-types": "synthetic-import-task",
+    contractors: "synthetic-import-contractor",
+    "excavation-workers": "synthetic-import-excavation-worker",
+  };
+
+  const invalidCable = await callCfmApi("POST", "/api/cfm/master-data/cables", cookie, {
+    centralId: "missing-central", number: "INVALID-FK", type: "fiber",
+  });
+  assert.equal(invalidCable.status, 500);
+
+  for (const [resource, body, update] of cases) {
+    const path = `/api/cfm/master-data/${resource}`;
+    const createdResponse = await callCfmApi("POST", path, cookie, body);
+    assert.equal(createdResponse.status, 201, `${resource} create`);
+    const created = await createdResponse.json();
+    assert.match(created.id, /^[0-9a-f-]{36}$/i);
+
+    const listed = await callCfmApi("GET", path, cookie);
+    assert.equal(listed.status, 200, `${resource} list`);
+    const listedRows = await listed.json();
+    assert.ok(listedRows.some((row) => row.id === created.id));
+    assert.equal(listedRows.filter((row) => row.id === importedIds[resource]).length, 1);
+    if (resource === "work-types") {
+      assert.deepEqual(
+        listedRows.find((row) => row.id === importedIds[resource]).associatedMaterials,
+        [{ taskTypeId: "synthetic-import-task", defaultQuantity: 2 }],
+      );
+    }
+
+    if (resource === "cables") {
+      const duplicate = await callCfmApi("POST", path, cookie, body);
+      assert.equal(duplicate.status, 500);
+    }
+
+    const updatedResponse = await callCfmApi("PATCH", `${path}/${created.id}`, cookie, update);
+    assert.equal(updatedResponse.status, 200, `${resource} update`);
+    const updated = await updatedResponse.json();
+    for (const [key, value] of Object.entries(update)) assert.equal(updated[key], value);
+
+    const deletedResponse = await callCfmApi("DELETE", `${path}/${created.id}`, cookie);
+    assert.equal(deletedResponse.status, 200, `${resource} delete`);
+  }
+
+  const parentResponse = await callCfmApi("POST", centralPath, cookie, {
+    name: "Cascade parent", code: "CASCADE-001",
+  });
+  const parent = await parentResponse.json();
+  const childResponse = await callCfmApi("POST", "/api/cfm/master-data/cables", cookie, {
+    centralId: parent.id, number: "CASCADE-CABLE-1", type: "copper",
+  });
+  assert.equal(childResponse.status, 201);
+  assert.equal((await callCfmApi("DELETE", `${centralPath}/${parent.id}`, cookie)).status, 200);
+  const cables = await (await callCfmApi("GET", "/api/cfm/master-data/cables", cookie)).json();
+  assert.ok(!cables.some((cable) => cable.centralId === parent.id));
 });

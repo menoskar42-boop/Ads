@@ -29,3 +29,4 @@
 - [Service Flow database billing scope](serviceflow-database-billing-scope.md) — Service Flow is the only site the user identifies as using a Replit-hosted database; other sites use Supabase.
 - [Service Flow change constraints](serviceflow-change-constraints.md) — make incremental edits with `str_replace`, one feature at a time, and confirm between complex steps.
 - [Local D1 emulation](local-d1-emulation.md) — set SQLite foreign-key enforcement in each Wrangler local execute call; CLI invocations do not share the pragma state.
+- [CFM D1 migration boundary](cfm-d1-migration-boundaries.md) — keep sessions/queues in PostgreSQL and files in R2; ticket writes stay PostgreSQL until partial-failure recovery is tested.

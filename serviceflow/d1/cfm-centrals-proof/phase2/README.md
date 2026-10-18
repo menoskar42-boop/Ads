@@ -3,14 +3,17 @@
 Local-only application proof. No production route is wired to this Worker.
 The test imports the actual CFM route registration and reuses the actual
 `/api/cfm/auth/login` handler, `requireAuth` middleware, and centrals GET/POST/
-PATCH/DELETE handlers. In the isolated test process it redirects only the
-CFM login/refresh user reads and centrals storage calls to local D1, points the
-PG pool at an unreachable loopback URL, and uses Express MemoryStore sessions.
+PATCH/DELETE handlers plus the corresponding CRUD handlers for cables, fault
+types, work types, task types, contractors, and excavation workers. In the
+isolated test process it redirects CFM login/refresh user reads and reference
+storage calls to local D1 through `CfmD1ReferenceStorage`, points the PG pool
+at an unreachable loopback URL, and uses Express MemoryStore sessions.
 
 After `requireAuth` refreshes the active CFM user from local D1, a
-test-only storage adapter signs a short-lived HMAC context and calls a local
-Worker. The Worker performs central list/create/update/delete operations with
-prepared D1 statements. It requires both the server-side service token and a
+typed storage adapter signs a short-lived HMAC context and calls a local
+Worker. The Worker performs allowlisted reference-table operations with
+prepared D1 statements, including the `centrals` → `cables` foreign key. It
+requires both the server-side service token and a
 valid, unexpired, audience-bound user context. Browser-supplied identity and
 authorization headers are not forwarded.
 
@@ -36,3 +39,9 @@ The synthetic HMAC/service tokens are test fixtures, not production secrets.
 This exercise validates one app-facing data slice, not the complete CFM storage
 interface or user-administration writes, secret provisioning/rotation, replay
 handling for future write operations, or a production deploy.
+
+`../../import-cfm-reference-export.mjs` converts a local PostgreSQL JSON export (or
+synthetic fixture) into deterministic, idempotent D1 SQL. It preserves source
+IDs, normalizes timestamps, booleans, and associated-material JSON, and orders
+centrals before dependent cables. The test imports the synthetic fixture twice
+into local D1 and verifies the imported records through the actual CFM routes.
