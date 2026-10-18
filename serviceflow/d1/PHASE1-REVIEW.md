@@ -1,7 +1,9 @@
 # Service Flow D1 migration foundation — source review
 
-Status: inventory draft only. This file is not a D1 schema and must not be
-applied as a migration. No production database was queried or changed.
+Status: source inventory plus a core SQLite/D1 schema draft. The SQL draft
+covers only the 67 Drizzle-declared tables; it is not a complete migration
+and must not be applied to production. No production database was queried or
+changed.
 
 ## Current database architecture
 
@@ -93,8 +95,15 @@ this as a cost estimate or provision a paid resource.
 
 ## Review gate
 
-This inventory is not yet an executable D1 migration. Before generating one,
-the runtime-only table definitions, dynamic table variants, defaults,
-constraints, indexes, and cross-schema relationships must be reconciled into
-a canonical SQLite schema. PostgreSQL-specific application behavior remains
-unmigrated. Production PostgreSQL remains the rollback source of truth.
+`migrations/0001_core_schema.draft.sql` was generated from the Drizzle table
+metadata. It contains the 67 declared tables, 57 foreign-key constraints,
+18 unique constraints, and the two declared indexes. It passed a local SQLite
+syntax check. The draft does not yet include runtime-only tables, generated
+table variants, the maintenance schema, or all constraints expressed only in
+runtime DDL. It is not an executable migration for the complete application.
+
+Before Phase 1 can be considered complete, reconcile those omissions,
+review defaults and type mappings, and adapt the PostgreSQL-only behavior
+into a canonical SQLite/D1 schema. PostgreSQL-specific application behavior
+remains unmigrated. Production PostgreSQL remains the rollback source of
+truth.
