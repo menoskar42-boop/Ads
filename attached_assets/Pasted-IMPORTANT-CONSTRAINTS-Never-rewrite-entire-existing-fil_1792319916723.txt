@@ -1,0 +1,164 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+PROJECT: Service Flow
+MISSION: EXECUTE THE POSTGRESQL-TO-D1 MIGRATION
+
+I do not want another lengthy audit, planning document,
+or measurement-only phase.
+
+The existing discovery, compatibility matrix, CFM migration
+plan, and local D1 proofs are sufficient to begin practical
+implementation.
+
+PRIMARY OBJECTIVE:
+Move Service Flow toward a lower-cost architecture using:
+- Cloudflare D1 for suitable relational data.
+- Cloudflare R2 for existing media files.
+- PostgreSQL temporarily for execution queues, queue locks,
+  retries, and user sessions.
+
+I accept slower response times when they reduce cost.
+
+IMPORTANT:
+Keep the existing production PostgreSQL database intact.
+Do not delete or overwrite its data.
+Do not perform production cutover or create paid resources
+without explicit approval.
+Do not spend this phase generating more reports instead
+of implementing working code.
+
+STEP 1: START IMPLEMENTATION IMMEDIATELY
+
+Use the existing:
+- serviceflow/d1/CFM-FIRST-GROUP-PLAN.md
+- serviceflow/d1/CFM-LOCAL-APPLICATION-PROOF-AUDIT.md
+- serviceflow/d1/DB-OPERATION-COMPATIBILITY-MATRIX.md
+- serviceflow/d1/TABLE-BY-TABLE-MIGRATION-PLAN.md
+- Existing CFM local proof files.
+
+Do not repeat completed discovery work.
+
+STEP 2: IMPLEMENT THE COMPLETE CFM D1 DATA LAYER
+
+Implement the typed storage interface and D1 adapter needed
+for the CFM group, including box_fault_tickets integration
+where technically safe.
+
+Cover the actual operations used by the application:
+reads, inserts, updates, deletes, ticket numbering,
+user-related operations, repairs, reopening, and associated
+records, as applicable to the existing code.
+
+Do not implement a generic SQL endpoint.
+
+Preserve existing authentication and authorization behavior.
+
+Keep PostgreSQL as the production default while the new
+D1 implementation is being developed and tested locally.
+
+STEP 3: HANDLE CROSS-DATABASE OPERATIONS PRACTICALLY
+
+Do not assume that PostgreSQL and D1 share atomic transactions.
+
+For workflows touching both databases:
+- Identify the authoritative owner of each record.
+- Implement idempotent operations where appropriate.
+- Use explicit status tracking or a durable retry mechanism
+  where needed and supported by the existing architecture.
+- Prevent duplicate tickets and duplicate inventory links.
+- Ensure partial failures can be recovered.
+- Keep existing PostgreSQL queues and sessions intact.
+
+Do not claim a workflow is safe unless tests demonstrate it.
+
+If an operation cannot safely be moved without redesigning
+a critical workflow, isolate that operation and continue
+implementing the remaining safe operations. Do not abandon
+the entire migration because one operation is blocked.
+
+STEP 4: PREPARE DATA EXPORT AND IMPORT
+
+Implement a reusable migration utility that can transform
+PostgreSQL export data into the D1 schema.
+
+Requirements:
+- Deterministic type conversion.
+- Stable identifiers.
+- Correct foreign-key ordering.
+- Idempotent import where feasible.
+- Validation of row counts and relationships.
+- Clear errors for invalid or incompatible records.
+
+Use synthetic fixtures first.
+
+Do not query, export, or modify production data.
+
+STEP 5: LOCAL END-TO-END TESTING
+
+Test the implemented operations using local D1 and synthetic
+data.
+
+Verify:
+- Reads and writes.
+- Authentication and authorization.
+- Constraints and relationships.
+- Ticket creation and numbering.
+- Repairs and reopening.
+- Inventory linkage.
+- Partial failures and retries.
+- Import correctness.
+- Rollback behavior.
+- Existing PostgreSQL behavior remains unchanged.
+
+Reuse existing tests instead of duplicating them.
+
+STEP 6: CONTINUE TO THE NEXT MIGRATION GROUP
+
+Once the CFM implementation and its local tests are complete,
+use the existing table-by-table migration plan to identify
+and implement the next suitable group.
+
+Do not stop to create another planning-only phase.
+
+Prioritize migration groups that reduce PostgreSQL dependency
+and bring us closer to eliminating its recurring cost.
+
+Keep queues and sessions in PostgreSQL for now.
+
+STEP 7: PRODUCTION SAFETY
+
+Do not:
+- Deploy a Worker.
+- Create D1 production databases.
+- Upgrade Cloudflare plans.
+- Move real production data.
+- Change production routing or database selection.
+- Delete or modify the existing PostgreSQL database.
+- Modify R2 objects.
+
+Those actions require my explicit approval.
+
+STEP 8: REPORT ONLY AFTER MAKING PRACTICAL PROGRESS
+
+Report:
+- Working implementation completed.
+- Files added or modified.
+- Tests passed and failed.
+- Operations that remain blocked.
+- The exact remaining steps to enable the migration.
+- Any unavoidable cost or production approval required.
+
+Avoid lengthy repeated audits and speculative cost estimates.
+
+Continue implementation until the local migration slice
+is genuinely working, or a specific technical blocker
+prevents further progress.
+
+Then stop and wait for my approval.

@@ -19,11 +19,19 @@ password login, role checks, ticket-number allocation, task-to-inventory
 writes, and box-ticket creation/confirmation/reopen flows all need to move
 together or be covered by a deliberate compatibility boundary.
 
-Implementing only a sample central/ticket endpoint would leave untested and
-still-PG-dependent behavior while appearing to prove the whole group. A
-complete port would replace the CFM storage boundary and update many route and
-core call sites; that is the broad rewrite explicitly excluded by this phase's
-guardrail. Therefore **no application-facing D1 integration was added**.
+The local proof now exercises the actual CFM login and authentication
+middleware, and actual centrals GET/POST/PATCH/DELETE route handlers. The test
+uses synthetic `cfm_users` in local D1 for login and user refresh, and redirects
+only those auth reads plus central storage calls to a local typed D1 Worker.
+This is a working vertical slice, not a complete CFM implementation: CFM user
+administration, Service Flow's direct CFM-user reads/writes, and every other
+CFM entity/workflow remain on their existing PG paths. Production storage
+selection is unchanged.
+
+The central CRUD slice is not a safe standalone production cutover: PostgreSQL
+`cables.central_id` references PostgreSQL `centrals`, while the local proof's D1
+fixture contains no cross-database cable relationship. `centrals` may only move
+with `cables` or with a separately reviewed replacement for that relationship.
 
 ## Table-by-table mapping
 
@@ -35,7 +43,7 @@ production mappings.
 
 | PostgreSQL → D1 table | Keys, constraints, indexes | Types / conversion | Known reads and writes |
 |---|---|---|---|
-| `cfm_users` → `cfm_users` | Text UUID PK; unique `username`; no secondary index in runtime DDL | Generate UUID in Node; booleans `is_initial_password`, `suspended` → SQLite integer 0/1; password remains a bcrypt hash | `storage` user CRUD/auth; CFM login, refresh, password change, technician/admin user routes in `server/cfm/routes.ts`; Service Flow SSO and account provisioning/lookup/deletion in `server/routes.ts` (including direct `users.cfm_user_id` mapping). PG `sf_session` remains. |
+| `cfm_users` → `cfm_users` | Text UUID PK; unique `username`; no secondary index in runtime DDL | Generate UUID in Node; booleans `is_initial_password`, `suspended` → SQLite integer 0/1; password remains a bcrypt hash | `storage` user CRUD/auth; CFM login, refresh, password change, technician/admin user routes in `server/cfm/routes.ts`; Service Flow SSO and account provisioning/lookup/deletion in `server/routes.ts` (including direct `users.cfm_user_id` mapping). Current local slice uses D1 only for login and refresh reads. PG `sf_session` remains. |
 | `centrals` → `centrals` | Text UUID PK; unique `code` | Generate UUID in Node; timestamps → canonical UTC text | `storage` CRUD and CFM selectors; `server/box-fault-ticket.ts` resolves and joins central names for duplicate coverage and automatic ticket creation. |
 | `cables` → `cables` | Text UUID PK; FK `central_id → centrals.id` cascade; unique `(central_id, number)` | UUID in Node; all varchar/text → SQLite TEXT | `storage` CRUD; CFM ticket forms; `server/box-fault-ticket.ts` resolves cabinets and joins ticket coverage. |
 | `fault_types` → `fault_types` | Text UUID PK; no unique/index in runtime DDL; tickets reference it | UUID in Node; text fields | `storage` CRUD and ticket forms; `server/box-fault-ticket.ts` searches the Arabic fault name using PostgreSQL regex `~` and orders by `length(name)`. |
@@ -78,10 +86,11 @@ production mappings.
 ## Existing proofs reviewed
 
 - `cfm-centrals-proof/` proves a read-only central query locally.
-- `cfm-centrals-proof/phase2/` exercises the existing CFM login handler and
-  `requireAuth`, then uses a test-only bridge to the local Worker. It is still
-  one GET endpoint and uses synthetic user storage; it does not replace the
-  complete CFM `IStorage`.
+- `cfm-centrals-proof/phase2/` exercises the existing CFM login handler,
+  `requireAuth`, and central CRUD route handlers through a test-only adapter to
+  the local Worker. Synthetic CFM user rows are read from local D1; user
+  administration is not moved, and the proof does not replace the complete
+  CFM `IStorage`.
 - `cfm-centrals-proof/phase3/` covers a bridge contract/design, not CFM data
   writes or production routes.
 - `cfm-group-proof/` imports synthetic data into the full table schema and

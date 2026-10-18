@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { spawn } from "node:child_process";
 import { after, before, test } from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import express from "express";
@@ -32,6 +32,8 @@ let baseUrl;
 let currentUsers;
 let forwardedClaims = [];
 let originalStorage;
+let requestActor = null;
+let d1CommandNumber = 0;
 
 const registered = [];
 const fakeApp = {
@@ -81,11 +83,11 @@ function sessionCookie(response) {
   return header.split(";")[0];
 }
 
-async function login(username) {
+async function login(username, passwordValue = password) {
   const response = await fetch(`${baseUrl}/api/cfm/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password: passwordValue }),
   });
   return { response, cookie: response.ok ? sessionCookie(response) : null };
 }
@@ -96,8 +98,44 @@ async function callCentrals(cookie, clientHeaders = {}) {
   });
 }
 
+async function callCfmApi(method, path, cookie, body) {
+  return fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      ...(cookie ? { cookie } : {}),
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
 async function callWorker(headers) {
   return fetch(`${workerUrl}${centralPath}`, { headers });
+}
+
+async function invokeWorker(method, path, body, actor = requestActor) {
+  const claims = actor ? claimsFor(actor) : null;
+  const headers = { authorization: `Bearer ${serviceToken}` };
+  if (claims) {
+    Object.assign(headers, headersFor(claims));
+    forwardedClaims.push({ ...claims });
+  }
+  const response = await fetch(`${workerUrl}${path}`, {
+    method,
+    headers: {
+      ...headers,
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const result = await response.json();
+  if (response.status === 404 && (method === "PATCH" || path.includes("/auth/users/"))) return undefined;
+  if (!response.ok) {
+    const error = new Error(result.error || "D1 operation failed");
+    error.status = response.status;
+    throw error;
+  }
+  return result;
 }
 
 function runWrangler(args) {
@@ -116,6 +154,17 @@ function runWrangler(args) {
       else reject(new Error(`wrangler exited ${code}\n${output}`));
     });
   });
+}
+
+const sqlLiteral = (value) => `'${String(value).replaceAll("'", "''")}'`;
+
+async function executeLocalD1(sql) {
+  const file = join(stateDir, `test-${++d1CommandNumber}.sql`);
+  await writeFile(file, `PRAGMA foreign_keys = ON;\n${sql}\n`);
+  return runWrangler([
+    "d1", "execute", "serviceflow-cfm-centrals-proof",
+    "--local", "--persist-to", stateDir, "--file", file, "--yes",
+  ]);
 }
 
 before(async () => {
@@ -142,22 +191,43 @@ before(async () => {
   originalStorage = {
     getUser: storage.getUser,
     getUserByUsername: storage.getUserByUsername,
+    getAllCentrals: storage.getAllCentrals,
+    createCentral: storage.createCentral,
+    updateCentral: storage.updateCentral,
+    deleteCentral: storage.deleteCentral,
   };
-  storage.getUser = async (id) => currentUsers.get(id);
-  storage.getUserByUsername = async (username) =>
-    [...currentUsers.values()].find((user) => user.username === username);
+  const normalizeUser = (user) => user && ({
+    ...user,
+    isInitialPassword: Boolean(user.isInitialPassword),
+    suspended: Boolean(user.suspended),
+  });
+  storage.getUser = async (id) => normalizeUser(await invokeWorker(
+    "GET", `/api/cfm/auth/users/${encodeURIComponent(id)}`,
+  ));
+  storage.getUserByUsername = async (username) => normalizeUser(await invokeWorker(
+    "GET", `/api/cfm/auth/users/by-username?username=${encodeURIComponent(username)}`, undefined, null,
+  ));
+  storage.getAllCentrals = async () => invokeWorker("GET", centralPath);
+  storage.createCentral = async (central) => invokeWorker("POST", centralPath, central);
+  storage.updateCentral = async (id, central) => invokeWorker("PATCH", `${centralPath}/${encodeURIComponent(id)}`, central);
+  storage.deleteCentral = async (id) => { await invokeWorker("DELETE", `${centralPath}/${encodeURIComponent(id)}`); };
   registerCfmRoutes(fakeApp);
 
   const loginRoute = route("POST", "/api/cfm/auth/login");
   const centralsRoute = route("GET", centralPath);
-  const requireAuth = centralsRoute.handlers[0];
-  assert.equal(typeof requireAuth, "function");
+  assert.equal(typeof centralsRoute.handlers[0], "function");
 
   stateDir = await mkdtemp(join(tmpdir(), "serviceflow-cfm-auth-proof-"));
   await runWrangler([
     "d1", "execute", "serviceflow-cfm-centrals-proof",
     "--local", "--persist-to", stateDir, "--file", "../fixtures.sql", "--yes",
   ]);
+  const userRows = [...currentUsers.values()].map((user) =>
+    `INSERT INTO cfm_users (id, username, password, name, role, is_initial_password, created_at, suspended)
+     VALUES (${sqlLiteral(user.id)}, ${sqlLiteral(user.username)}, ${sqlLiteral(user.password)},
+       ${sqlLiteral(user.name)}, ${sqlLiteral(user.role)}, 1, '2026-10-18T08:00:00.000Z', 0);`,
+  ).join("\n");
+  await executeLocalD1(userRows);
 
   worker = spawn("npx", [
     "--yes", "wrangler@4", "dev",
@@ -196,6 +266,10 @@ before(async () => {
     store: new session.MemoryStore(),
     cookie: { httpOnly: true, secure: false, maxAge: 60_000 },
   }));
+  app.use((req, _res, next) => {
+    requestActor = req.session.cfmUser ?? null;
+    next();
+  });
   passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser((id, done) => done(null, { id, username: "sf-only-user" }));
   app.use(passport.initialize());
@@ -211,27 +285,12 @@ before(async () => {
   });
   app.post("/api/cfm/auth/login", ...loginRoute.handlers);
 
-  // Use the actual requireAuth middleware registered on the existing route.
-  // The terminal handler below is test-only and stands in for the proposed
-  // Node-to-Worker bridge; the real PG-backed route is not modified.
-  app.get(centralPath, requireAuth, async (req, res) => {
-    const user = req.session.cfmUser;
-    const claims = claimsFor(user);
-    forwardedClaims.push({ ...claims });
-    const { raw, signature } = encodeContext(claims);
-    try {
-      const upstream = await fetch(`${workerUrl}${centralPath}`, {
-        headers: {
-          authorization: `Bearer ${serviceToken}`,
-          "x-sf-cfm-context": raw,
-          "x-sf-cfm-signature": signature,
-        },
-      });
-      res.status(upstream.status).json(await upstream.json());
-    } catch {
-      res.status(502).json({ error: "Worker unavailable" });
-    }
-  });
+  // Exercise the actual CFM route handlers with only their storage seam
+  // redirected to the local D1 Worker; no production route is changed.
+  app.get(centralPath, ...route("GET", centralPath).handlers);
+  app.post(centralPath, ...route("POST", centralPath).handlers);
+  app.patch(`${centralPath}/:id`, ...route("PATCH", `${centralPath}/:id`).handlers);
+  app.delete(`${centralPath}/:id`, ...route("DELETE", `${centralPath}/:id`).handlers);
 
   await new Promise((resolve) => {
     server = app.listen(0, "127.0.0.1", resolve);
@@ -265,6 +324,7 @@ test("unauthenticated request is rejected by the existing CFM requireAuth middle
 test("existing CFM login creates a session and authorized user reaches local D1", async () => {
   const { response: loginResponse, cookie } = await login("synthetic-admin");
   assert.equal(loginResponse.status, 200);
+  assert.equal(Object.hasOwn(await loginResponse.json(), "password"), false);
 
   const response = await callCentrals(cookie, {
     // These are untrusted browser-supplied values. The bridge must ignore them.
@@ -277,6 +337,13 @@ test("existing CFM login creates a session and authorized user reaches local D1"
   assert.equal(forwardedClaims.at(-1).sub, "cfm-admin");
   assert.equal(forwardedClaims.at(-1).role, "admin");
   assert.notEqual(forwardedClaims.at(-1).sub, "forged-admin");
+});
+
+test("D1-backed CFM login rejects an unknown user and incorrect password", async () => {
+  const unknown = await login("missing-user");
+  assert.equal(unknown.response.status, 401);
+  const incorrect = await login("synthetic-admin", "incorrect-synthetic-password");
+  assert.equal(incorrect.response.status, 401);
 });
 
 test("a Service Flow Passport session without a CFM session is denied", async () => {
@@ -298,10 +365,10 @@ test("an authenticated CFM role allowed by the existing route reaches D1", async
 test("a CFM account suspended after login is rejected by the existing middleware", async () => {
   const { response: loginResponse, cookie } = await login("synthetic-admin");
   assert.equal(loginResponse.status, 200);
-  currentUsers.get("cfm-admin").suspended = true;
+  await executeLocalD1("UPDATE cfm_users SET suspended = 1 WHERE id = 'cfm-admin';");
   const response = await callCentrals(cookie);
   assert.equal(response.status, 401);
-  currentUsers.get("cfm-admin").suspended = false;
+  await executeLocalD1("UPDATE cfm_users SET suspended = 0 WHERE id = 'cfm-admin';");
 });
 
 test("invalid Express session cookie is rejected", async () => {
@@ -337,4 +404,48 @@ test("Worker rejects missing/invalid service credentials and unsigned or expired
     { iat: nowSeconds() - 90, exp: nowSeconds() - 30 },
   ));
   assert.equal((await callWorker(expired)).status, 401);
+});
+
+test("actual CFM central create/update/delete routes use local D1 and retain route auth", async () => {
+  assert.equal((await callCfmApi("POST", centralPath, null, { name: "Unauthorized", code: "NO-AUTH" })).status, 401);
+
+  const { response: loginResponse, cookie } = await login("synthetic-tech");
+  assert.equal(loginResponse.status, 200);
+
+  const invalidResponse = await callCfmApi("POST", centralPath, cookie, {
+    name: 27,
+    code: "",
+  });
+  assert.equal(invalidResponse.status, 400);
+
+  const createdResponse = await callCfmApi("POST", centralPath, cookie, {
+    name: "Central created through CFM route",
+    code: "CRUD-001",
+  });
+  assert.equal(createdResponse.status, 201);
+  const created = await createdResponse.json();
+  assert.match(created.id, /^[0-9a-f-]{36}$/i);
+  assert.equal(created.code, "CRUD-001");
+
+  const updatedResponse = await callCfmApi("PATCH", `${centralPath}/${created.id}`, cookie, {
+    name: "Central updated through CFM route",
+  });
+  assert.equal(updatedResponse.status, 200);
+  assert.equal((await updatedResponse.json()).name, "Central updated through CFM route");
+
+  const duplicateResponse = await callCfmApi("POST", centralPath, cookie, {
+    name: "Duplicate code",
+    code: "CRUD-001",
+  });
+  assert.equal(duplicateResponse.status, 500);
+  const afterDuplicate = await callCentrals(cookie);
+  assert.equal(afterDuplicate.status, 200);
+  assert.equal((await afterDuplicate.json()).length, 3);
+
+  const deletedResponse = await callCfmApi("DELETE", `${centralPath}/${created.id}`, cookie);
+  assert.equal(deletedResponse.status, 200);
+  assert.deepEqual(await deletedResponse.json(), { success: true });
+  const afterDelete = await callCentrals(cookie);
+  assert.equal((await afterDelete.json()).length, 2);
+  assert.equal(forwardedClaims.at(-1).role, "ext_tech");
 });
