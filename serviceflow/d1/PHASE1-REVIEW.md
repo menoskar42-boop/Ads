@@ -1,9 +1,9 @@
 # Service Flow D1 migration foundation — source review
 
-Status: source inventory plus a core SQLite/D1 schema draft. The SQL draft
-covers only the 67 Drizzle-declared tables; it is not a complete migration
-and must not be applied to production. No production database was queried or
-changed.
+Status: source inventory plus core and supplemental SQLite/D1 schema drafts.
+The drafts cover the 67 Drizzle-declared tables plus selected runtime-only,
+CFM, and maintenance tables; they are not a complete migration and must not
+be applied to production. No production database was queried or changed.
 
 ## Current database architecture
 
@@ -97,13 +97,17 @@ this as a cost estimate or provision a paid resource.
 
 `migrations/0001_core_schema.draft.sql` was generated from the Drizzle table
 metadata. It contains the 67 declared tables, 57 foreign-key constraints,
-18 unique constraints, and the two declared indexes. It passed a local SQLite
-syntax check. The draft does not yet include runtime-only tables, generated
-table variants, the maintenance schema, or all constraints expressed only in
-runtime DDL. It is not an executable migration for the complete application.
+18 unique constraints, and the two declared indexes. Supplemental
+`migrations/0002_runtime_maintenance.draft.sql` adds runtime-only tables,
+the CFM tables, and prefixed maintenance tables. Both remain review artifacts,
+not executable migrations for the complete application.
 
-Before Phase 1 can be considered complete, reconcile those omissions,
-review defaults and type mappings, and adapt the PostgreSQL-only behavior
-into a canonical SQLite/D1 schema. PostgreSQL-specific application behavior
-remains unmigrated. Production PostgreSQL remains the rollback source of
-truth.
+Remaining gaps include dynamic table variants and their per-table constraints,
+the runtime `work_orders_premigration_backup` clone behavior, runtime-only
+tables not yet included in the supplemental draft, and all application/runtime
+behavior requiring PostgreSQL. CFM text IDs currently rely on PostgreSQL UUID
+defaults; the draft omits a D1 default and requires application-side ID
+generation. Flattened maintenance names require an app adapter update before
+any eventual cutover. Review all defaults, types, indexes, constraints, and
+source SQL before treating the drafts as canonical. Production PostgreSQL
+remains the rollback source of truth.
