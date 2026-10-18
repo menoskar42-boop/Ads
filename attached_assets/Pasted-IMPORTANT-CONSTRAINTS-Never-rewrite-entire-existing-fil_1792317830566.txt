@@ -1,0 +1,139 @@
+IMPORTANT CONSTRAINTS:
+
+* Never rewrite entire existing files
+* Always use str_replace for edits to existing files
+* Add new features one at a time
+* For files over 200 lines: insert code sections only,
+  never full file replacement
+* If a task is complex, break it into steps and
+  confirm after each step
+
+PROJECT: Service Flow
+
+OBJECTIVE:
+Accelerate the migration from PostgreSQL to Cloudflare D1.
+Prioritize reducing recurring database costs while preserving
+correctness and keeping the existing PostgreSQL database
+intact for rollback.
+
+The goal is to migrate suitable groups of related tables and
+their associated application logic, rather than spending
+multiple phases building an isolated bridge for only one query.
+
+IMPORTANT:
+This is an implementation-planning and local-proof phase.
+Do not deploy, perform production cutover, create paid resources,
+or modify production data without explicit approval.
+
+STEP 1: REASSESS THE EXISTING MIGRATION PLAN
+
+Review:
+
+* serviceflow/d1/PHASE1-REVIEW.md
+* serviceflow/d1/DB-OPERATION-COMPATIBILITY-MATRIX.md
+* serviceflow/d1/TABLE-BY-TABLE-MIGRATION-PLAN.md
+* All existing Phase 1, Phase 2, and Phase 3 proof files.
+* Existing Drizzle schemas, runtime schema creation, and the
+  actual application modules that query the candidate tables.
+
+Do not repeat previous discovery work unnecessarily.
+
+STEP 2: SELECT THE FIRST COMPLETE TABLE GROUP
+
+Identify the largest practical group of related tables that can
+be migrated together without requiring a broad application
+rewrite.
+
+Prioritize:
+
+* A clear ownership boundary in the application.
+* Limited cross-module dependencies.
+* SQL operations that can be translated safely to D1.
+* Read and write paths that can be tested locally.
+* Meaningful reduction in PostgreSQL dependency.
+
+Do not select a group based only on the number of tables.
+
+Provide:
+
+1. Table names and relationships.
+2. Application modules and routes that use them.
+3. Every known cross-group dependency.
+4. PostgreSQL-specific SQL that requires changes.
+5. Expected migration complexity.
+6. A rollback strategy.
+7. How to validate data correctness.
+8. Whether the group can operate independently in D1 without
+   cross-database joins or transactions.
+
+STEP 3: REVIEW DATABASE SIZE AND COST ASSUMPTIONS
+
+Do not connect to or query production databases.
+
+Use existing audit results and repository evidence to identify
+what remains unknown about:
+
+* Current production database size.
+* Estimated size of the proposed D1 table group.
+* Expected D1 reads and writes.
+* Whether the complete migration fits within the Free limits.
+* Whether the final architecture would require Workers Paid.
+
+Do not assume that a 2 GB estimate is verified.
+
+Do not create resources or upgrade any plan.
+
+STEP 4: PREPARE THE FIRST MIGRATION SLICE
+
+After identifying the best candidate, prepare a detailed,
+small implementation plan for that table group.
+
+Include:
+
+* D1 schema and index requirements.
+* Data export and import procedure using synthetic or local data.
+* Required application code changes.
+* Data consistency and validation tests.
+* Read and write behavior.
+* Error handling.
+* Rollback to the existing PostgreSQL implementation.
+* A clear list of files that would need modification.
+
+Prefer moving a complete functional group with its associated
+queries rather than building an isolated one-query integration.
+
+Do not modify production routes or database selection yet.
+
+STEP 5: LOCAL PROOF
+
+If the first candidate can be tested safely without production
+access, implement only the isolated local proof for that group.
+
+Use synthetic fixtures and local D1.
+
+Test the relevant read/write operations, constraints, joins,
+and error cases.
+
+Do not introduce generic SQL execution endpoints.
+
+Do not migrate real data or change production configuration.
+
+STEP 6: REPORT AND STOP
+
+Report:
+
+* The selected table group and why it is the best first move.
+* Files added or changed.
+* Local test results.
+* Remaining PostgreSQL dependencies.
+* Estimated cost implications and uncertainties.
+* What is required before production integration.
+* The next group that could be migrated after this one.
+
+Keep the existing PostgreSQL database intact.
+Keep queues and sessions in PostgreSQL temporarily.
+Keep media files in R2.
+Do not create paid resources, deploy changes, or perform
+production cutover without explicit approval.
+
+STOP after this phase and wait for review.
