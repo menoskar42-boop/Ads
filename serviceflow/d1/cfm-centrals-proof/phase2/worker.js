@@ -152,7 +152,183 @@ async function loadTicket(env, id) {
   return ticket;
 }
 
-async function handleTicketReads(request, env, ticketId) {
+function asciiDigits(value) {
+  return String(value ?? "").replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
+}
+
+function normalizeCentral(value) {
+  return String(value ?? "").replace(/\s*-\s*/g, "-").replace(/\s+/g, " ").trim();
+}
+
+function normalizeCabinet(value) {
+  return asciiDigits(value).replace(/[\\\/_‐‑‒–—―]/g, "-")
+    .replace(/\s*-\s*/g, "-").replace(/\s+/g, " ").trim();
+}
+
+function expandBoxSet(value) {
+  const output = [];
+  for (const part of asciiDigits(value).trim().split(/[&*،,.]/)) {
+    const segment = part.trim();
+    if (!segment) continue;
+    if (segment.includes(":")) {
+      const [left, right] = segment.split(":").map((x) => parseInt(x.replace(/[^0-9]/g, ""), 10));
+      if (Number.isFinite(left) && Number.isFinite(right)) {
+        const lo = Math.min(left, right), hi = Math.min(Math.max(left, right), lo + 999);
+        for (let box = lo; box <= hi; box++) output.push(String(box));
+        continue;
+      }
+    }
+    const digits = segment.replace(/[^0-9]/g, "");
+    if (digits) output.push(String(parseInt(digits, 10)));
+  }
+  return [...new Set(output)];
+}
+
+async function handleTicketReads(request, env, claims, ticketId) {
+  if (request.method === "POST" && !ticketId) {
+    const input = await request.json();
+    if (!input || input.createdBy !== claims.sub || !input.centralDepartment ||
+        !input.centralId || !input.cableId || !input.cabinet || !input.box || !input.faultTypeId) {
+      return Response.json({ error: "Invalid ticket data or creator" }, { status: 400 });
+    }
+    const targetCable = await env.DB.prepare(
+      `SELECT c.name AS central, cb.number AS cabinet
+         FROM cables cb JOIN centrals c ON c.id = cb.central_id
+        WHERE cb.id = ?`,
+    ).bind(input.cableId).first();
+    if (!targetCable) return Response.json({ error: "Cable not found" }, { status: 400 });
+    const targetBoxes = expandBoxSet(input.box);
+    const { results: openTickets } = await env.DB.prepare(
+      `SELECT t.ticket_number, t.box, t.created_at, c.name AS central,
+              cb.number AS cabinet, ft.name AS fault_type
+         FROM tickets t
+         JOIN centrals c ON c.id = t.central_id
+         JOIN cables cb ON cb.id = t.cable_id
+         LEFT JOIN fault_types ft ON ft.id = t.fault_type_id
+        WHERE t.status = 'open'
+        ORDER BY t.created_at DESC`,
+    ).all();
+    const duplicate = openTickets.find((ticket) =>
+      normalizeCentral(ticket.central) === normalizeCentral(targetCable.central) &&
+      normalizeCabinet(ticket.cabinet) === normalizeCabinet(targetCable.cabinet) &&
+      expandBoxSet(ticket.box).some((box) => targetBoxes.includes(box)));
+    if (duplicate) {
+      const matchedBox = expandBoxSet(duplicate.box).find((box) => targetBoxes.includes(box));
+      return Response.json({
+        error: "Duplicate open ticket",
+        duplicate: {
+          ticketNumber: duplicate.ticket_number, central: duplicate.central, cabinet: duplicate.cabinet,
+          box: duplicate.box, faultType: duplicate.fault_type, createdAt: duplicate.created_at, matchedBox,
+        },
+      }, { status: 409 });
+    }
+    const year = new Date().getFullYear();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { results } = await env.DB.prepare(
+        "SELECT ticket_number FROM tickets WHERE ticket_number LIKE ?",
+      ).bind(`TKT-${year}-%`).all();
+      const max = results.reduce((value, row) => {
+        const match = new RegExp(`^TKT-${year}-([0-9]+)$`).exec(row.ticket_number);
+        return match ? Math.max(value, Number(match[1])) : value;
+      }, 0);
+      const ticketNumber = `TKT-${year}-${String(max + 1).padStart(3, "0")}`;
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      try {
+        const createTicketStatement = env.DB.prepare(
+          `INSERT INTO tickets
+            (id, ticket_number, central_department, central_id, cable_id, cabinet, box, fault_type_id,
+             notes, latitude, longitude, status, created_by, opened_by_label, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+        ).bind(
+          id, ticketNumber, input.centralDepartment, input.centralId, input.cableId, input.cabinet,
+          input.box, input.faultTypeId, input.notes ?? null, input.latitude ?? null, input.longitude ?? null,
+          input.status || "open", input.createdBy, input.openedByLabel ?? null, now, now,
+        );
+        const claimStatements = input.status && input.status !== "open" ? [] : targetBoxes.map((box) =>
+          env.DB.prepare(
+            "INSERT INTO ticket_box_claims (central_key, cabinet_key, box_key, ticket_id) VALUES (?, ?, ?, ?)",
+          ).bind(normalizeCentral(targetCable.central), normalizeCabinet(targetCable.cabinet), box, id));
+        await env.DB.batch([createTicketStatement, ...claimStatements]);
+        const row = await env.DB.prepare("SELECT * FROM tickets WHERE id = ?").bind(id).first();
+        return Response.json(camelRow(row), { status: 201 });
+      } catch (error) {
+        if (/ticket_box_claims/.test(String(error?.message || error))) {
+          return Response.json({ error: "Duplicate open ticket" }, { status: 409 });
+        }
+        if (attempt < 4 && /unique|constraint/i.test(String(error?.message || error))) continue;
+        throw error;
+      }
+    }
+    return Response.json({ error: "Ticket number could not be allocated" }, { status: 409 });
+  }
+  if (request.method === "DELETE") {
+    if (!ticketId) return Response.json({ deleted: false });
+    const linked = await env.DB.prepare("SELECT 1 FROM box_fault_tickets WHERE ticket_id = ? LIMIT 1")
+      .bind(ticketId).first();
+    if (linked) return Response.json({ deleted: false, reason: "ticket is linked to Service Flow box-fault history" });
+    const children = await env.DB.prepare(
+      `SELECT
+        EXISTS(SELECT 1 FROM work_entries WHERE ticket_id = ?) OR
+        EXISTS(SELECT 1 FROM used_task_entries WHERE ticket_id = ?) OR
+        EXISTS(SELECT 1 FROM measurement_entries WHERE ticket_id = ?) AS has_children`,
+    ).bind(ticketId, ticketId, ticketId).first();
+    if (children?.has_children) return Response.json({ deleted: false, reason: "ticket has child entries" });
+    const deleted = await env.DB.prepare("DELETE FROM tickets WHERE id = ?").bind(ticketId).run();
+    return Response.json({ deleted: Number(deleted.meta?.changes || 0) > 0 });
+  }
+  if (request.method === "PATCH") {
+    const input = await request.json();
+    const columns = {
+      status: "status",
+      notes: "notes",
+      finalRepairId: "final_repair_id",
+      finalRepairDescription: "final_repair_description",
+      finalRepairRepairedAt: "final_repair_repaired_at",
+      finalRepairRepairedBy: "final_repair_repaired_by",
+      closedAt: "closed_at",
+      closedBy: "closed_by",
+    };
+    const entries = Object.entries(input || {}).filter(([key]) => Object.hasOwn(columns, key));
+    if (!ticketId || !entries.length || entries.length !== Object.keys(input || {}).length) {
+      return Response.json({ error: "Invalid ticket update" }, { status: 400 });
+    }
+    const current = await env.DB.prepare("SELECT * FROM tickets WHERE id = ?").bind(ticketId).first();
+    if (!current) return Response.json({ error: "Ticket not found" }, { status: 404 });
+    const sets = entries.map(([key]) => `${columns[key]} = ?`);
+    const values = entries.map(([, value]) => value instanceof Date ? value.toISOString() : value);
+    sets.push("updated_at = ?");
+    values.push(new Date().toISOString(), ticketId);
+    const statements = [env.DB.prepare(
+      `UPDATE tickets SET ${sets.join(", ")} WHERE id = ?`,
+    ).bind(...values)];
+    if (Object.hasOwn(input, "status")) {
+      statements.push(env.DB.prepare("DELETE FROM ticket_box_claims WHERE ticket_id = ?").bind(ticketId));
+      if (input.status === "open") {
+        const location = await env.DB.prepare(
+          `SELECT c.name AS central, cb.number AS cabinet
+             FROM cables cb JOIN centrals c ON c.id = cb.central_id
+            WHERE cb.id = ?`,
+        ).bind(current.cable_id).first();
+        statements.push(...expandBoxSet(current.box).map((box) =>
+          env.DB.prepare(
+            "INSERT INTO ticket_box_claims (central_key, cabinet_key, box_key, ticket_id) VALUES (?, ?, ?, ?)",
+          ).bind(normalizeCentral(location.central), normalizeCabinet(location.cabinet), box, ticketId)));
+      }
+    }
+    try {
+      await env.DB.batch(statements);
+    } catch (error) {
+      if (/ticket_box_claims/.test(String(error?.message || error))) {
+        return Response.json({ error: "Duplicate open ticket" }, { status: 409 });
+      }
+      throw error;
+    }
+    const row = await env.DB.prepare("SELECT * FROM tickets WHERE id = ?").bind(ticketId).first();
+    return Response.json(camelRow(row));
+  }
   if (request.method !== "GET") return Response.json({ error: "Method not allowed" }, { status: 405 });
   if (ticketId) {
     const ticket = await loadTicket(env, ticketId);
@@ -160,6 +336,144 @@ async function handleTicketReads(request, env, ticketId) {
   }
   const { results } = await env.DB.prepare("SELECT id FROM tickets").all();
   return Response.json(await Promise.all(results.map(({ id }) => loadTicket(env, id))));
+}
+
+async function handleTaskInventory(request, env, claims) {
+  if (request.method === "GET") {
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id) return Response.json({ error: "Task entry ID is required" }, { status: 400 });
+    const row = await env.DB.prepare("SELECT * FROM used_task_entries WHERE id = ?").bind(id).first();
+    return row
+      ? Response.json(camelRow(row, ["items"]))
+      : Response.json({ error: "Task entry not found" }, { status: 404 });
+  }
+  const body = await request.json();
+  if (request.method === "POST") {
+    const entry = body?.entry;
+    if (!entry || entry.createdBy !== claims.sub || !Array.isArray(entry.items)) {
+      return Response.json({ error: "Invalid task entry" }, { status: 400 });
+    }
+    if (entry.items.some((item) => !item?.taskTypeId || !Number.isInteger(item.quantity) || item.quantity <= 0)) {
+      return Response.json({ error: "Invalid task item" }, { status: 400 });
+    }
+    const id = entry.id || crypto.randomUUID();
+    const now = new Date().toISOString();
+    const statements = [
+      env.DB.prepare(
+        `INSERT INTO used_task_entries
+          (id, ticket_id, measurement_id, items, notes, performed_by, created_by, recorded_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        id, entry.ticketId, entry.measurementId || null, JSON.stringify(entry.items), entry.notes || null,
+        entry.performedBy, entry.createdBy, entry.recordedAt || now, now,
+      ),
+      ...entry.items.map((item) => env.DB.prepare(
+        `INSERT INTO inventory_transactions
+          (id, type, task_type_id, quantity, date, ticket_id, notes)
+         VALUES (?, 'outgoing', ?, ?, ?, ?, ?)`,
+      ).bind(crypto.randomUUID(), item.taskTypeId, item.quantity, now, entry.ticketId, "Used in ticket via task entry")),
+    ];
+    await env.DB.batch(statements);
+    const created = await env.DB.prepare("SELECT * FROM used_task_entries WHERE id = ?").bind(id).first();
+    return Response.json(camelRow(created, ["items"]), { status: 201 });
+  }
+
+  if (!["admin", "cable_engineer", "supervisor"].includes(claims.role)) {
+    return Response.json({ error: "Insufficient permissions" }, { status: 403 });
+  }
+  const { id, ticketId } = body || {};
+  if (!id || !ticketId) return Response.json({ error: "Task entry and ticket are required" }, { status: 400 });
+  const existing = await env.DB.prepare(
+    "SELECT items FROM used_task_entries WHERE id = ? AND ticket_id = ?",
+  ).bind(id, ticketId).first();
+  if (!existing) return Response.json({ deleted: false });
+  let items;
+  try { items = JSON.parse(existing.items); } catch { return Response.json({ error: "Invalid stored task items" }, { status: 500 }); }
+  if (!Array.isArray(items)) return Response.json({ error: "Invalid stored task items" }, { status: 500 });
+  const statements = items
+    .filter((item) => item?.taskTypeId && item.quantity)
+    .map((item) => env.DB.prepare(
+      `INSERT INTO inventory_transactions
+        (id, type, task_type_id, quantity, date, ticket_id, notes)
+       SELECT ?, 'incoming', ?, ?, ?, ?, ?
+        WHERE EXISTS (SELECT 1 FROM used_task_entries WHERE id = ? AND ticket_id = ?)`,
+    ).bind(
+      crypto.randomUUID(), item.taskTypeId, item.quantity, new Date().toISOString(), ticketId,
+      "إرجاع خامات — حذف بند مهمات من التكت", id, ticketId,
+    ));
+  statements.push(env.DB.prepare(
+    "DELETE FROM used_task_entries WHERE id = ? AND ticket_id = ?",
+  ).bind(id, ticketId));
+  const results = await env.DB.batch(statements);
+  return Response.json({ deleted: Number(results.at(-1)?.meta?.changes || 0) > 0 });
+}
+
+async function handleTicketEntries(request, env, claims, kind, entryId) {
+  const table = kind === "work" ? "work_entries" : "measurement_entries";
+  const jsonItems = kind === "work";
+  if (request.method === "GET") {
+    if (!entryId) return Response.json({ error: "Entry ID is required" }, { status: 400 });
+    const row = await env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(entryId).first();
+    return row
+      ? Response.json(camelRow(row, jsonItems ? ["items"] : []))
+      : Response.json({ error: "Entry not found" }, { status: 404 });
+  }
+  if (request.method === "POST") {
+    const entry = await request.json();
+    if (!entry || entry.createdBy !== claims.sub || !entry.ticketId) {
+      return Response.json({ error: "Invalid entry" }, { status: 400 });
+    }
+    const id = entry.id || crypto.randomUUID();
+    const now = new Date().toISOString();
+    const query = kind === "work"
+      ? env.DB.prepare(
+          `INSERT INTO work_entries
+            (id, ticket_id, measurement_id, items, notes, performed_by, works_by, contractor_id, created_by, recorded_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          id, entry.ticketId, entry.measurementId || null, JSON.stringify(entry.items),
+          entry.notes || null, entry.performedBy, entry.worksBy || null, entry.contractorId || null,
+          entry.createdBy, entry.recordedAt || now, now,
+        )
+      : env.DB.prepare(
+          `INSERT INTO measurement_entries
+            (id, ticket_id, reading, distance, direction, notes, performed_by, created_by, recorded_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          id, entry.ticketId, entry.reading, entry.distance ?? null, entry.direction || null,
+          entry.notes || null, entry.performedBy || null, entry.createdBy, entry.recordedAt || now, now,
+        );
+    await query.run();
+    const row = await env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first();
+    return Response.json(camelRow(row, jsonItems ? ["items"] : []), { status: 201 });
+  }
+  if (!["admin", "cable_engineer", "supervisor"].includes(claims.role)) {
+    return Response.json({ error: "Insufficient permissions" }, { status: 403 });
+  }
+  if (!entryId) return Response.json({ error: "Entry ID is required" }, { status: 400 });
+  const result = await env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(entryId).run();
+  return Response.json({ deleted: Number(result.meta?.changes || 0) > 0 });
+}
+
+async function handleInventoryTransactions(request, env, claims) {
+  if (request.method === "GET") {
+    const { results } = await env.DB.prepare("SELECT * FROM inventory_transactions").all();
+    return Response.json(results.map((row) => camelRow(row)));
+  }
+  const entry = await request.json();
+  if (!entry || entry.type !== "incoming" || !entry.taskTypeId ||
+      !Number.isInteger(entry.quantity) || entry.quantity <= 0 || !entry.date) {
+    return Response.json({ error: "Invalid incoming inventory transaction" }, { status: 400 });
+  }
+  const id = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO inventory_transactions
+      (id, type, task_type_id, quantity, date, ticket_id, notes, created_at)
+     VALUES (?, 'incoming', ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, entry.taskTypeId, entry.quantity, entry.date, entry.ticketId || null, entry.notes || null, createdAt).run();
+  const row = await env.DB.prepare("SELECT * FROM inventory_transactions WHERE id = ?").bind(id).first();
+  return Response.json(camelRow(row), { status: 201 });
 }
 
 const USER_SELECT = `id, username, password, name, role, avatar,
@@ -292,15 +606,24 @@ export default {
     const grantMatch = url.pathname.match(/^\/api\/serviceflow\/tech-coverage-grants(?:\/([^/]+))?$/);
     const grantId = grantMatch?.[1] ? decodeURIComponent(grantMatch[1]) : null;
     const grantRoute = Boolean(grantMatch);
-    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute) {
+    const taskInventoryRoute = url.pathname === "/api/cfm/task-entry-inventory";
+    const ticketEntryMatch = url.pathname.match(/^\/api\/cfm\/ticket-entries\/(work|measurement)(?:\/([^/]+))?$/);
+    const ticketEntryKind = ticketEntryMatch?.[1];
+    const ticketEntryId = ticketEntryMatch?.[2] ? decodeURIComponent(ticketEntryMatch[2]) : null;
+    const ticketEntryRoute = Boolean(ticketEntryKind);
+    const inventoryRoute = url.pathname === "/api/cfm/inventory-transactions";
+    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
     if ((userByUsername && request.method !== "GET") ||
         (userCollection && !["GET", "POST"].includes(request.method)) ||
         (userMatch && !["GET", "PATCH", "DELETE"].includes(request.method)) ||
         (userPasswordMatch && request.method !== "PATCH") ||
-        (ticketRoute && request.method !== "GET") ||
-        (grantRoute && !["GET", "POST", "DELETE"].includes(request.method))) {
+        (ticketRoute && !["GET", "POST", "PATCH", "DELETE"].includes(request.method)) ||
+        (grantRoute && !["GET", "POST", "DELETE"].includes(request.method)) ||
+        (taskInventoryRoute && !["GET", "POST", "DELETE"].includes(request.method)) ||
+        (ticketEntryRoute && !["GET", "POST", "DELETE"].includes(request.method)) ||
+        (inventoryRoute && !["GET", "POST"].includes(request.method))) {
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
     const expectedServiceToken = env.SERVICE_TOKEN;
@@ -401,7 +724,10 @@ export default {
         await env.DB.prepare("DELETE FROM cfm_users WHERE id = ?").bind(id).run();
         return Response.json({ success: true });
       }
-      if (ticketRoute) return handleTicketReads(request, env, ticketId);
+      if (ticketRoute) return handleTicketReads(request, env, claims, ticketId);
+      if (taskInventoryRoute) return handleTaskInventory(request, env, claims);
+      if (ticketEntryRoute) return handleTicketEntries(request, env, claims, ticketEntryKind, ticketEntryId);
+      if (inventoryRoute) return handleInventoryTransactions(request, env, claims);
       if (grantRoute) return handleTechCoverageGrants(request, env, claims, grantId);
       return handleReferenceResource(request, env, resourceName, resourceId);
     } catch {

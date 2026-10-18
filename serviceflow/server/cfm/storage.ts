@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "./db";
 import {
   cfmUsers as users,
@@ -101,6 +101,7 @@ export interface IStorage {
   getTicketById(id: string): Promise<Ticket | undefined>;
   createTicket(ticket: InsertTicket): Promise<Ticket>;
   updateTicket(id: string, ticket: Partial<InsertTicket>): Promise<Ticket | undefined>;
+  deleteTicket(id: string): Promise<boolean>;
   
   // WorkEntries
   getWorkEntriesByTicketId(ticketId: string): Promise<WorkEntry[]>;
@@ -113,6 +114,11 @@ export interface IStorage {
   getUsedTaskEntryById(id: string): Promise<UsedTaskEntry | undefined>;
   createUsedTaskEntry(usedTaskEntry: InsertUsedTaskEntry): Promise<UsedTaskEntry>;
   deleteUsedTaskEntry(id: string): Promise<void>;
+  createUsedTaskEntryWithInventory(usedTaskEntry: InsertUsedTaskEntry): Promise<UsedTaskEntry>;
+  deleteUsedTaskEntryWithInventory(
+    id: string,
+    ticketId: string,
+  ): Promise<boolean>;
   
   // MeasurementEntries
   getMeasurementEntriesByTicketId(ticketId: string): Promise<MeasurementEntry[]>;
@@ -379,8 +385,58 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async createUsedTaskEntryWithInventory(
+    usedTaskEntry: InsertUsedTaskEntry,
+  ): Promise<UsedTaskEntry> {
+    return db.transaction(async (tx) => {
+      const [entry] = await tx.insert(usedTaskEntries).values(usedTaskEntry).returning();
+      const items = Array.isArray(usedTaskEntry.items) ? usedTaskEntry.items : [];
+      for (const item of items as Array<{ taskTypeId: string; quantity: number }>) {
+        const transaction: InsertInventoryTransaction = {
+          type: "outgoing",
+          taskTypeId: item.taskTypeId,
+          quantity: item.quantity,
+          date: new Date(),
+          ticketId: usedTaskEntry.ticketId,
+          notes: "Used in ticket via task entry",
+        };
+        await tx.insert(inventoryTransactions).values(transaction);
+      }
+      return entry;
+    });
+  }
+
   async deleteUsedTaskEntry(id: string): Promise<void> {
     await db.delete(usedTaskEntries).where(eq(usedTaskEntries.id, id));
+  }
+
+  async deleteUsedTaskEntryWithInventory(
+    id: string,
+    ticketId: string,
+  ): Promise<boolean> {
+    return db.transaction(async (tx) => {
+      const [entry] = await tx.select().from(usedTaskEntries)
+        .where(and(eq(usedTaskEntries.id, id), eq(usedTaskEntries.ticketId, ticketId)));
+      if (!entry) return false;
+      const deleted = await tx.delete(usedTaskEntries)
+        .where(and(eq(usedTaskEntries.id, id), eq(usedTaskEntries.ticketId, ticketId)))
+        .returning({ id: usedTaskEntries.id });
+      if (!deleted.length) return false;
+      const items = Array.isArray(entry.items) ? entry.items : [];
+      for (const item of items as Array<{ taskTypeId: string; quantity: number }>) {
+        if (!item?.taskTypeId || !item.quantity) continue;
+        const transaction: InsertInventoryTransaction = {
+          type: "incoming",
+          taskTypeId: item.taskTypeId,
+          quantity: item.quantity,
+          date: new Date(),
+          ticketId,
+          notes: "إرجاع خامات — حذف بند مهمات من التكت",
+        };
+        await tx.insert(inventoryTransactions).values(transaction);
+      }
+      return true;
+    });
   }
 
   // ===== MEASUREMENT ENTRIES ===== //

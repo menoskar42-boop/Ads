@@ -57,11 +57,11 @@ production mappings.
 | `task_types` → `task_types` | Text UUID PK; no unique/index; inventory transactions reference it | UUID in Node; text fields | `storage` CRUD and inventory/task forms; task creation/deletion routes create inventory transactions. |
 | `contractors` → `contractors` | Text UUID PK; no unique/index; optional FK from work entries | UUID in Node; text fields | `storage` CRUD and work-entry forms. |
 | `excavation_workers` → `excavation_workers` | Text UUID PK; unique `national_id` | UUID in Node; text fields | `storage` CRUD and excavation-worker forms. |
-| `tickets` → `tickets` | Text UUID PK; unique `ticket_number` plus existing `ticket_number_idx`; `status_idx`; FKs to central, cable, fault type, and author | UUID in Node; timestamps → UTC text; nullable coordinates → REAL; preserve status vocabulary and nullability | `storage` list/detail/create/update/delete and joined relation loads; the local proof now exercises D1 list/detail reads, while create/update/status/repair/delete writes remain PostgreSQL. `server/box-fault-ticket.ts` and Service Flow callers also directly read/write tickets. |
-| `measurement_entries` → `measurement_entries` | Text UUID PK; ticket FK cascade; author FK; no explicit secondary index in runtime DDL | UUID in Node; distance → REAL; dates → UTC text | `storage` list/get/create/delete; measurement create/delete and ticket relation checks in `server/cfm/routes.ts`. |
-| `work_entries` → `work_entries` | Text UUID PK; ticket and optional measurement FKs cascade; optional contractor FK; author FK | `items` JSON → valid JSON text; dates → UTC text | `storage` list/get/create/delete; CFM work create/delete and ticket relation checks. |
-| `used_task_entries` → `used_task_entries` | Text UUID PK; ticket and optional measurement FKs cascade; author FK | `items` JSON → valid JSON text; dates → UTC text | `storage` list/get/create/delete; CFM task create/delete. Task route also writes one inventory row per item as separate calls. |
-| `inventory_transactions` → `inventory_transactions` | Text UUID PK; task-type FK; optional ticket FK `ON DELETE SET NULL`; no explicit secondary index in runtime DDL | UUID in Node; integer quantity; date → UTC text | `storage` list/create; task routes add/remove transactions; incoming-stock route adds transactions. These writes are not currently wrapped with the associated task-entry write in one transaction. |
+| `tickets` → `tickets` | Text UUID PK; unique `ticket_number` plus existing `ticket_number_idx`; `status_idx`; FKs to central, cable, fault type, and author | UUID in Node; timestamps → UTC text; nullable coordinates → REAL; preserve status vocabulary and nullability | Local proof exercises D1 list/detail/create/status/repair/confirm/reopen/delete. Open-ticket creation uses `ticket_box_claims` in the same D1 batch to reject concurrent box claims. Service Flow box-fault callers and box-case/report reads remain PostgreSQL. |
+| `measurement_entries` → `measurement_entries` | Text UUID PK; ticket FK cascade; author FK; no explicit secondary index in runtime DDL | UUID in Node; distance → REAL; dates → UTC text | Local proof exercises D1 get/create/delete and relation checks through existing authenticated routes. |
+| `work_entries` → `work_entries` | Text UUID PK; ticket and optional measurement FKs cascade; optional contractor FK; author FK | `items` JSON → valid JSON text; dates → UTC text | Local proof exercises D1 get/create/delete through existing authenticated routes. |
+| `used_task_entries` → `used_task_entries` | Text UUID PK; ticket and optional measurement FKs cascade; author FK | `items` JSON → valid JSON text; dates → UTC text | Local proof exercises task create/delete with task rows and all associated stock movements in one D1 batch. |
+| `inventory_transactions` → `inventory_transactions` | Text UUID PK; task-type FK; optional ticket FK `ON DELETE SET NULL`; no explicit secondary index in runtime DDL | UUID in Node; integer quantity; date → UTC text | Local proof exercises inventory listing, incoming stock, and atomic task-related outgoing/refund movements. |
 | `box_fault_tickets` → `box_fault_tickets` | Integer serial PK; unique `(source, ref_key)`; `box_fault_tickets_ticket_idx` on `ticket_id`; intentionally no declared FK to `tickets` | serial → SQLite integer key; timestamptz → UTC text; ticket ID stays text | `server/box-fault-ticket.ts` creates/updates/checks records; `server/routes.ts` reads/updates records for backfill, repair confirmation, reopen, and closed-ticket reports. Both call sites currently use the shared PG pool. |
 | `tech_coverage_grants` → `tech_coverage_grants` | Integer serial PK; unique `(grantee_tech_name, covered_tech_name)`; no FK | Preserve integer IDs; timestamps → UTC text; creator is an actor label | `coverageCodes` and `/api/coverage-grants` support an explicit D1 adapter flag. The joined `technician_names` code lookup remains PostgreSQL; flag unset means the existing PostgreSQL query path. |
 
@@ -79,29 +79,29 @@ production mappings.
 - The coverage-grant D1 path still resolves worker codes from PostgreSQL
   `technician_names`; that lookup remains an explicit cross-store read, not a
   shared transaction.
-- `server/box-fault-ticket.ts` allocates ticket numbers with PostgreSQL regex,
+- `server/box-fault-ticket.ts` still allocates Service Flow-linked ticket numbers with PostgreSQL regex,
   `split_part`, cast, `MAX`, `lpad`, `RETURNING`, and retry on unique violation.
   It also uses a PostgreSQL `~` regex for fault lookup and updates ticket notes.
-- Ticket creation is followed by a separate `box_fault_tickets` upsert whose
+- Service Flow ticket creation is followed by a separate `box_fault_tickets` upsert whose
   error is swallowed. This can leave a ticket without its integration record.
   The backfill and repair/reopen routes also perform multiple PG operations.
-- A CFM task route creates the task row, then creates inventory rows in a loop;
-  a later failure can leave a partial set. D1 `batch()` can make D1-only writes
-  atomic, but it cannot make a PostgreSQL + D1 transaction atomic.
+- D1 task/inventory writes use `batch()` locally. This does not make a
+  PostgreSQL + D1 transaction atomic and does not resolve Service Flow's
+  `box_fault_tickets` integration.
 - `RETURNING` is used throughout Drizzle storage. The replacement API must
   verify exact result/absence behavior, not only whether SQLite accepts SQL.
-- The local user/master-data proof exercises actual CFM Express handlers
-  against D1. Ticket, child-entry, inventory, and Service Flow box-ticket
-  handlers are not yet routed through D1.
+- The local proof exercises actual CFM Express ticket and child-entry routes
+  against D1. Service Flow box-ticket creation/settlement, box-case reporting,
+  and ticket box-score enrichment remain PG-owned.
 
 ## Existing proofs reviewed
 
 - `cfm-centrals-proof/` proves a read-only central query locally.
 - `cfm-centrals-proof/phase2/` exercises the existing CFM login handler,
-  `requireAuth`, user-management/password handlers, and CRUD handlers for all
-  reference tables through the typed D1 adapter and local Worker. The adapter
-  covers that tested `IStorage` subset; ticket, child-entry, inventory, and
-  Service Flow account-linking operations remain outside the proof.
+  `requireAuth`, user-management/password handlers, CRUD handlers for all
+  reference tables, and ticket/child-entry/inventory routes through the typed
+  D1 adapter and local Worker. Service Flow account-linking and box-fault
+  integration remain PG-owned.
 - `d1/import-cfm-reference-export.mjs` converts an allowlisted PostgreSQL JSON
   export into deterministic, idempotent D1 SQL and preserves stable IDs.
 - `cfm-centrals-proof/phase3/` covers a bridge contract/design, not CFM data
@@ -113,28 +113,22 @@ production mappings.
 ## Remaining application integration
 
 The completed local proof remains a bounded subset, not a full CFM cutover.
-Before selecting D1 for real application requests, the implementation needs a
-typed contract for remaining ticket, child-entry, inventory, and core Service
-Flow operations, plus a testable Node-to-Worker adapter. That contract must
-specify:
+All D1 selectors remain unset and real application traffic continues to use
+PostgreSQL. Before selecting D1 for production requests, remaining work must:
 
 1. Which Express side performs each authorization decision and which identity
    claims are signed to the Worker.
-2. Typed read/write operations for all 14 tables, including relations used by
-   `getAllTickets` / `getTicketById`, not a table-name or SQL passthrough.
-3. Ticket-number generation that preserves year, numeric ordering, formatting,
-   concurrent create retries, and duplicate prevention.
-4. Idempotency/repair for ticket creation plus `box_fault_tickets`, task-entry
-   plus inventory writes, and other multi-step workflows. The current PG
-   behavior on partial failure must be explicitly preserved or deliberately
-   improved and reviewed.
-5. HTTP timeout, network, 4xx/5xx, retry, and no-silent-fallback behavior.
-6. An explicit backend selector whose production default remains PostgreSQL,
-   with no production route change until separate approval.
+2. Move or redesign PostgreSQL-dependent box-case and box-score read models.
+3. Replace Service Flow's direct ticket and `box_fault_tickets` accesses with
+   a durable, idempotent cross-store operation and reconciliation procedure.
+4. Test all interruption, timeout, overload, and retry boundaries; ticket
+   number and open-box claim concurrency is covered locally, but the complete
+   cross-store workflows are not.
+5. Review a versioned copy/rollback procedure before any production data copy.
 
 The current safe boundary is to keep all real application traffic on
-PostgreSQL. The test adapter is not selected at runtime; it does not migrate
-data or change production routing.
+PostgreSQL. D1 selection flags are used only by isolated local tests; no
+production flag, Worker deployment, data copy, or route cutover was performed.
 
 ## Future deterministic synthetic export/import validation
 

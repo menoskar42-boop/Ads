@@ -8,6 +8,15 @@ import type { Express } from "express";
 import express from "express";
 import bcrypt from "bcryptjs";  // نسخة JS خالصة — تتحقق من هاش bcrypt ($2b$) بتاع مستخدمى CFM بدون native build
 import { storage } from "./storage";
+import {
+  cfmTaskInventoryUsesD1,
+  cfmInventoryUsesD1,
+  cfmTicketEntriesUseD1,
+  cfmTicketCreationUsesD1,
+  cfmTicketMutationsUseD1,
+  CfmD1RequestError,
+  createCfmD1ReferenceStorageFromEnv,
+} from "./d1-reference-storage";
 import { pool } from "../db";
 import { findOpenTicketCoveringCableBox } from "../box-fault-ticket";
 import { boxKey, expandBoxes } from "@shared/cab-norm";
@@ -37,6 +46,38 @@ declare module "express-session" {
 function sanitizeUser(user: User) {
   const { password, ...userWithoutPassword } = user;
   return userWithoutPassword;
+}
+
+function taskInventoryStorage(req: any) {
+  if (!cfmTaskInventoryUsesD1()) return storage;
+  return createCfmD1ReferenceStorageFromEnv(() => {
+    const actor = req.session.cfmUser;
+    return actor?.id && actor?.role ? { id: actor.id, role: actor.role } : null;
+  });
+}
+
+function ticketMutationStorage(req: any) {
+  if (!cfmTicketMutationsUseD1()) return storage;
+  return createCfmD1ReferenceStorageFromEnv(() => {
+    const actor = req.session.cfmUser;
+    return actor?.id && actor?.role ? { id: actor.id, role: actor.role } : null;
+  });
+}
+
+function ticketEntryStorage(req: any) {
+  if (!cfmTicketEntriesUseD1()) return storage;
+  return createCfmD1ReferenceStorageFromEnv(() => {
+    const actor = req.session.cfmUser;
+    return actor?.id && actor?.role ? { id: actor.id, role: actor.role } : null;
+  });
+}
+
+function inventoryStorage(req: any) {
+  if (!cfmInventoryUsesD1()) return storage;
+  return createCfmD1ReferenceStorageFromEnv(() => {
+    const actor = req.session.cfmUser;
+    return actor?.id && actor?.role ? { id: actor.id, role: actor.role } : null;
+  });
 }
 
 type TicketBoxScoreLine = {
@@ -1000,7 +1041,8 @@ export function registerCfmRoutes(app: Express) {
   app.get("/api/cfm/tickets/:id", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const ticket = await storage.getTicketById(id);
+      const ticketStorage = ticketMutationStorage(req);
+      const ticket = await ticketStorage.getTicketById(id);
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
@@ -1021,6 +1063,39 @@ export function registerCfmRoutes(app: Express) {
 
       if (!validation.success) {
         return res.status(400).json({ error: "Invalid ticket data", details: validation.error });
+      }
+
+      if (cfmTicketCreationUsesD1()) {
+        const d1Storage = createCfmD1ReferenceStorageFromEnv(() => {
+          const actor = req.session.cfmUser;
+          return actor?.id && actor?.role ? { id: actor.id, role: actor.role } : null;
+        });
+        try {
+          const ticket = await d1Storage.createTicket(validation.data);
+          return res.status(201).json(ticket);
+        } catch (error) {
+          if (error instanceof CfmD1RequestError && error.status === 409) {
+            const duplicate = (error.payload as any)?.duplicate;
+            if (duplicate) {
+              const when = duplicate.createdAt ? new Date(duplicate.createdAt).toLocaleDateString("ar-EG") : "";
+              const details = [
+                `سنترال ${duplicate.central}`,
+                `كابينة ${duplicate.cabinet}`,
+                `بكس ${duplicate.box}`,
+                duplicate.faultType ? `نوع العطل ${duplicate.faultType}` : "",
+                when ? `تاريخ الفتح ${when}` : "",
+              ].filter(Boolean).join(" — ");
+              return res.status(409).json({
+                error: `تعذّر فتح التكت — البكس ${duplicate.matchedBox} موجود بالفعل فى تكت مفتوحة رقم ${duplicate.ticketNumber} `
+                     + `وبياناتها الفنية: ${details}. لازم التكت دى تتقفل أو تروح لانتظار التأكيد الأول.`,
+              });
+            }
+            return res.status(409).json({
+              error: "تعذّر فتح التكت — يوجد طلب آخر فتح تكت على نفس البكس. أعد تحميل البيانات قبل المحاولة مرة أخرى.",
+            });
+          }
+          throw error;
+        }
       }
 
       // منع تكرار التكت على نفس البكس — نفس السنترال ونفس الكابينة ونفس البكس
@@ -1092,7 +1167,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(403).json({ error: "غير مسموح لهذا الدور بتغيير حالة التكت" });
       }
 
-      const ticket = await storage.updateTicket(id, { status });
+      const ticket = await ticketMutationStorage(req).updateTicket(id, { status });
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
@@ -1100,6 +1175,9 @@ export function registerCfmRoutes(app: Express) {
       res.json(ticket);
     } catch (error) {
       console.error("Update ticket status error:", error);
+      if (error instanceof CfmD1RequestError && error.status === 409) {
+        return res.status(409).json({ error: "يوجد تكت مفتوحة بالفعل تغطي نفس البكس" });
+      }
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -1116,7 +1194,8 @@ export function registerCfmRoutes(app: Express) {
       }
 
       // Get ticket with all related entries
-      const ticket = await storage.getTicketById(id);
+      const ticketStorage = ticketMutationStorage(req);
+      const ticket = await ticketStorage.getTicketById(id);
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
@@ -1138,7 +1217,7 @@ export function registerCfmRoutes(app: Express) {
         });
       }
 
-      const deleted = await storage.deleteTicket(id);
+      const deleted = await ticketStorage.deleteTicket(id);
       if (!deleted) {
         return res.status(500).json({ error: "Failed to delete ticket" });
       }
@@ -1146,6 +1225,9 @@ export function registerCfmRoutes(app: Express) {
       res.json({ success: true, message: "Ticket deleted successfully" });
     } catch (error) {
       console.error("Delete ticket error:", error);
+      if (error instanceof CfmD1RequestError && error.status === 409) {
+        return res.status(409).json({ error: "لا يمكن حذف التكت المرتبطة بسجل أعطال Service Flow" });
+      }
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -1154,7 +1236,8 @@ export function registerCfmRoutes(app: Express) {
   app.post("/api/cfm/tickets/:id/works", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const ticket = await storage.getTicketById(id);
+      const entryStorage = ticketEntryStorage(req);
+      const ticket = await entryStorage.getTicketById(id);
       if (!ticket) return res.status(404).json({ error: "Ticket not found" });
       if (ticket.status === 'closed' && req.session.cfmUser!.role !== 'admin') {
         return res.status(403).json({ error: "Forbidden: Only admin can modify closed tickets" });
@@ -1174,7 +1257,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid work entry data", details: validation.error });
       }
 
-      const workEntry = await storage.createWorkEntry(validation.data);
+      const workEntry = await entryStorage.createWorkEntry(validation.data);
       res.status(201).json(workEntry);
     } catch (error) {
       console.error("Create work entry error:", error);
@@ -1186,7 +1269,8 @@ export function registerCfmRoutes(app: Express) {
   app.post("/api/cfm/tickets/:id/tasks", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const ticket = await storage.getTicketById(id);
+      const taskStorage = taskInventoryStorage(req);
+      const ticket = await taskStorage.getTicketById(id);
       if (!ticket) return res.status(404).json({ error: "Ticket not found" });
       if (ticket.status === 'closed' && req.session.cfmUser!.role !== 'admin') {
         return res.status(403).json({ error: "Forbidden: Only admin can modify closed tickets" });
@@ -1211,21 +1295,8 @@ export function registerCfmRoutes(app: Express) {
       if (!Array.isArray(validation.data.items)) {
         return res.status(400).json({ error: "items لازم تكون مصفوفة بنود" });
       }
-      // Create the used task entry
-      const usedTaskEntry = await storage.createUsedTaskEntry(validation.data);
-
-      // Create inventory transactions for each task item
-      const items = validation.data.items as Array<{id: string, taskTypeId: string, quantity: number}>;
-      for (const item of items) {
-        await storage.createInventoryTransaction({
-          type: "outgoing",
-          taskTypeId: item.taskTypeId,
-          quantity: item.quantity,
-          date: new Date(),
-          ticketId: id,
-          notes: `Used in ticket via task entry`,
-        });
-      }
+      // Persist the task and its stock movements as one database transaction.
+      const usedTaskEntry = await taskStorage.createUsedTaskEntryWithInventory(validation.data);
 
       res.status(201).json(usedTaskEntry);
     } catch (error) {
@@ -1238,7 +1309,8 @@ export function registerCfmRoutes(app: Express) {
   app.post("/api/cfm/tickets/:id/measurements", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
-      const ticket = await storage.getTicketById(id);
+      const entryStorage = ticketEntryStorage(req);
+      const ticket = await entryStorage.getTicketById(id);
       if (!ticket) return res.status(404).json({ error: "Ticket not found" });
       if (ticket.status === 'closed' && req.session.cfmUser!.role !== 'admin') {
         return res.status(403).json({ error: "Forbidden: Only admin can modify closed tickets" });
@@ -1258,7 +1330,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid measurement entry data", details: validation.error });
       }
 
-      const measurementEntry = await storage.createMeasurementEntry(validation.data);
+      const measurementEntry = await entryStorage.createMeasurementEntry(validation.data);
       res.status(201).json(measurementEntry);
     } catch (error) {
       console.error("Create measurement entry error:", error);
@@ -1272,6 +1344,7 @@ export function registerCfmRoutes(app: Express) {
       const ticketId = req.params.ticketId as string;
       const id = req.params.id as string;
       const userRole = req.session.cfmUser!.role;
+      const entryStorage = ticketEntryStorage(req);
       
       // Only admin, cable_engineer, and supervisor can delete work entries
       if (userRole !== 'admin' && userRole !== 'cable_engineer' && userRole !== 'supervisor') {
@@ -1279,7 +1352,7 @@ export function registerCfmRoutes(app: Express) {
       }
       
       // Validate entry exists and belongs to the ticket
-      const entry = await storage.getWorkEntryById(id);
+      const entry = await entryStorage.getWorkEntryById(id);
       if (!entry) {
         return res.status(404).json({ error: "Work entry not found" });
       }
@@ -1288,12 +1361,12 @@ export function registerCfmRoutes(app: Express) {
       }
 
       // For closed tickets, only admin can delete
-      const parentTicket = await storage.getTicketById(ticketId);
+      const parentTicket = await entryStorage.getTicketById(ticketId);
       if (parentTicket?.status === 'closed' && userRole !== 'admin') {
         return res.status(403).json({ error: "Forbidden: Only admin can modify closed tickets" });
       }
       
-      await storage.deleteWorkEntry(id);
+      await entryStorage.deleteWorkEntry(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Delete work entry error:", error);
@@ -1307,6 +1380,7 @@ export function registerCfmRoutes(app: Express) {
       const ticketId = req.params.ticketId as string;
       const id = req.params.id as string;
       const userRole = req.session.cfmUser!.role;
+      const taskStorage = taskInventoryStorage(req);
       
       // Only admin, cable_engineer, and supervisor can delete task entries
       if (userRole !== 'admin' && userRole !== 'cable_engineer' && userRole !== 'supervisor') {
@@ -1314,7 +1388,7 @@ export function registerCfmRoutes(app: Express) {
       }
       
       // Validate entry exists and belongs to the ticket
-      const entry = await storage.getUsedTaskEntryById(id);
+      const entry = await taskStorage.getUsedTaskEntryById(id);
       if (!entry) {
         return res.status(404).json({ error: "Task entry not found" });
       }
@@ -1323,28 +1397,15 @@ export function registerCfmRoutes(app: Express) {
       }
 
       // For closed tickets, only admin can delete
-      const parentTicket = await storage.getTicketById(ticketId);
+      const parentTicket = await taskStorage.getTicketById(ticketId);
       if (parentTicket?.status === 'closed' && userRole !== 'admin') {
         return res.status(403).json({ error: "Forbidden: Only admin can modify closed tickets" });
       }
       
       // إرجاع الخامات للمخزن: الحذف كان بيشيل السطر ويسيب حركات الصرف زى ما هى،
       // فتصحيح كمية غلط (حذف وإعادة إضافة) كان بيخصم الخامة مرتين للأبد.
-      const entryItems = Array.isArray(entry.items)
-        ? (entry.items as Array<{ taskTypeId: string; quantity: number }>)
-        : [];
-      for (const item of entryItems) {
-        if (!item?.taskTypeId || !item?.quantity) continue;
-        await storage.createInventoryTransaction({
-          type: "incoming",
-          taskTypeId: item.taskTypeId,
-          quantity: item.quantity,
-          date: new Date(),
-          ticketId,
-          notes: "إرجاع خامات — حذف بند مهمات من التكت",
-        });
-      }
-      await storage.deleteUsedTaskEntry(id);
+      const deleted = await taskStorage.deleteUsedTaskEntryWithInventory(id, ticketId);
+      if (!deleted) return res.status(404).json({ error: "Task entry not found" });
       res.json({ success: true });
     } catch (error) {
       console.error("Delete task entry error:", error);
@@ -1358,6 +1419,7 @@ export function registerCfmRoutes(app: Express) {
       const ticketId = req.params.ticketId as string;
       const id = req.params.id as string;
       const userRole = req.session.cfmUser!.role;
+      const entryStorage = ticketEntryStorage(req);
       
       // Only admin, cable_engineer, and supervisor can delete measurement entries
       if (userRole !== 'admin' && userRole !== 'cable_engineer' && userRole !== 'supervisor') {
@@ -1365,7 +1427,7 @@ export function registerCfmRoutes(app: Express) {
       }
       
       // Validate entry exists and belongs to the ticket
-      const entry = await storage.getMeasurementEntryById(id);
+      const entry = await entryStorage.getMeasurementEntryById(id);
       if (!entry) {
         return res.status(404).json({ error: "Measurement entry not found" });
       }
@@ -1374,12 +1436,12 @@ export function registerCfmRoutes(app: Express) {
       }
 
       // For closed tickets, only admin can delete
-      const parentTicket = await storage.getTicketById(ticketId);
+      const parentTicket = await entryStorage.getTicketById(ticketId);
       if (parentTicket?.status === 'closed' && userRole !== 'admin') {
         return res.status(403).json({ error: "Forbidden: Only admin can modify closed tickets" });
       }
       
-      await storage.deleteMeasurementEntry(id);
+      await entryStorage.deleteMeasurementEntry(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Delete measurement entry error:", error);
@@ -1397,13 +1459,14 @@ export function registerCfmRoutes(app: Express) {
       if (req.session.cfmUser!.role === "splice_tech") {
         return res.status(403).json({ error: "غير مسموح لهذا الدور بتسجيل التنظيم" });
       }
-      const cur = await storage.getTicketById(id);
+      const ticketStorage = ticketMutationStorage(req);
+      const cur = await ticketStorage.getTicketById(id);
       if (!cur) return res.status(404).json({ error: "Ticket not found" });
       if (cur.status === "closed") {
         return res.status(400).json({ error: "التكت مغلقة — أعد فتحها الأول (revert)" });
       }
 
-      const ticket = await storage.updateTicket(id, {
+      const ticket = await ticketStorage.updateTicket(id, {
         finalRepairId: crypto.randomUUID(),
         finalRepairDescription: finalRepairDescription || "Repair completed",
         finalRepairRepairedAt: new Date(),
@@ -1433,7 +1496,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(403).json({ error: "Not authorized to revert repair" });
       }
 
-      const ticket = await storage.updateTicket(id, {
+      const ticket = await ticketMutationStorage(req).updateTicket(id, {
         finalRepairId: null,
         finalRepairDescription: null,
         finalRepairRepairedAt: null,
@@ -1465,13 +1528,14 @@ export function registerCfmRoutes(app: Express) {
       if (!["admin", "external_affairs", "supervisor"].includes(roleC)) {
         return res.status(403).json({ error: "غير مسموح لهذا الدور بتأكيد الإغلاق" });
       }
-      const curC = await storage.getTicketById(id);
+      const ticketStorage = ticketMutationStorage(req);
+      const curC = await ticketStorage.getTicketById(id);
       if (!curC) return res.status(404).json({ error: "Ticket not found" });
       if (curC.status !== "pending_confirmation") {
         return res.status(400).json({ error: "التكت مش فى انتظار التأكيد" });
       }
 
-      const ticket = await storage.updateTicket(id, {
+      const ticket = await ticketStorage.updateTicket(id, {
         status: "closed",
         closedAt: new Date(),
         closedBy: req.session.cfmUser!.id,
@@ -1493,7 +1557,7 @@ export function registerCfmRoutes(app: Express) {
   // GET /api/inventory/transactions
   app.get("/api/cfm/inventory/transactions", requireAuth, async (req, res) => {
     try {
-      const transactions = await storage.getAllInventoryTransactions();
+      const transactions = await inventoryStorage(req).getAllInventoryTransactions();
       res.json(transactions);
     } catch (error) {
       console.error("Get inventory transactions error:", error);
@@ -1514,7 +1578,7 @@ export function registerCfmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid transaction data", details: validation.error });
       }
 
-      const transaction = await storage.createInventoryTransaction(validation.data);
+      const transaction = await inventoryStorage(req).createInventoryTransaction(validation.data);
       res.status(201).json(transaction);
     } catch (error) {
       console.error("Create inventory transaction error:", error);

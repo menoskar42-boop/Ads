@@ -98,6 +98,13 @@ CREATE TABLE tickets (
 );
 CREATE INDEX ticket_number_idx ON tickets(ticket_number);
 CREATE INDEX status_idx ON tickets(status);
+CREATE TABLE ticket_box_claims (
+  central_key TEXT NOT NULL,
+  cabinet_key TEXT NOT NULL,
+  box_key TEXT NOT NULL,
+  ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  PRIMARY KEY (central_key, cabinet_key, box_key)
+);
 
 CREATE TABLE measurement_entries (
   id TEXT PRIMARY KEY NOT NULL,

@@ -214,6 +214,9 @@ before(async () => {
     deleteCentral: storage.deleteCentral,
     getAllTickets: storage.getAllTickets,
     getTicketById: storage.getTicketById,
+    getUsedTaskEntryById: storage.getUsedTaskEntryById,
+    createUsedTaskEntryWithInventory: storage.createUsedTaskEntryWithInventory,
+    deleteUsedTaskEntryWithInventory: storage.deleteUsedTaskEntryWithInventory,
   };
   const d1Storage = new CfmD1ReferenceStorage({
     baseUrl: workerUrl,
@@ -229,6 +232,7 @@ before(async () => {
     "getUser", "getUserByUsername", "createUser", "updateUser", "deleteUser", "getAllUsers", "updateUserPassword",
     "getAllCentrals", "createCentral", "updateCentral", "deleteCentral",
     "getAllTickets", "getTicketById",
+    "getUsedTaskEntryById", "createUsedTaskEntryWithInventory", "deleteUsedTaskEntryWithInventory",
     "getAllCables", "createCable", "updateCable", "deleteCable",
     "getAllFaultTypes", "createFaultType", "updateFaultType", "deleteFaultType",
     "getAllWorkTypes", "createWorkType", "updateWorkType", "deleteWorkType",
@@ -397,6 +401,20 @@ before(async () => {
   app.delete(`${centralPath}/:id`, ...route("DELETE", `${centralPath}/:id`).handlers);
   app.get("/api/cfm/tickets", ...route("GET", "/api/cfm/tickets").handlers);
   app.get("/api/cfm/tickets/:id", ...route("GET", "/api/cfm/tickets/:id").handlers);
+  app.post("/api/cfm/tickets", ...route("POST", "/api/cfm/tickets").handlers);
+  app.patch("/api/cfm/tickets/:id/status", ...route("PATCH", "/api/cfm/tickets/:id/status").handlers);
+  app.post("/api/cfm/tickets/:id/final-repair", ...route("POST", "/api/cfm/tickets/:id/final-repair").handlers);
+  app.post("/api/cfm/tickets/:id/confirm", ...route("POST", "/api/cfm/tickets/:id/confirm").handlers);
+  app.post("/api/cfm/tickets/:id/revert-repair", ...route("POST", "/api/cfm/tickets/:id/revert-repair").handlers);
+  app.delete("/api/cfm/tickets/:id", ...route("DELETE", "/api/cfm/tickets/:id").handlers);
+  app.post("/api/cfm/tickets/:id/works", ...route("POST", "/api/cfm/tickets/:id/works").handlers);
+  app.delete("/api/cfm/tickets/:ticketId/works/:id", ...route("DELETE", "/api/cfm/tickets/:ticketId/works/:id").handlers);
+  app.post("/api/cfm/tickets/:id/measurements", ...route("POST", "/api/cfm/tickets/:id/measurements").handlers);
+  app.delete("/api/cfm/tickets/:ticketId/measurements/:id", ...route("DELETE", "/api/cfm/tickets/:ticketId/measurements/:id").handlers);
+  app.get("/api/cfm/inventory/transactions", ...route("GET", "/api/cfm/inventory/transactions").handlers);
+  app.post("/api/cfm/inventory/incoming", ...route("POST", "/api/cfm/inventory/incoming").handlers);
+  app.post("/api/cfm/tickets/:id/tasks", ...route("POST", "/api/cfm/tickets/:id/tasks").handlers);
+  app.delete("/api/cfm/tickets/:ticketId/tasks/:id", ...route("DELETE", "/api/cfm/tickets/:ticketId/tasks/:id").handlers);
   for (const resource of [
     "cables", "fault-types", "work-types", "task-types", "contractors", "excavation-workers",
   ]) {
@@ -768,4 +786,302 @@ test("actual CFM ticket list route reads D1 relations and sanitizes the creator"
   const detailResponse = await callCfmApi("GET", `/api/cfm/tickets/${ticket.id}`, cookie);
   assert.equal(detailResponse.status, 200);
   assert.deepEqual((await detailResponse.json()).works, ticket.works);
+});
+
+test("actual CFM ticket creation route allocates D1 ticket numbers and rejects box overlaps", async () => {
+  const oldFlag = process.env.SF_CFM_TICKET_CREATE_STORAGE;
+  const d1Env = {
+    SF_D1_WORKER_URL: process.env.SF_D1_WORKER_URL,
+    SF_D1_SERVICE_TOKEN: process.env.SF_D1_SERVICE_TOKEN,
+    SF_D1_CONTEXT_SECRET: process.env.SF_D1_CONTEXT_SECRET,
+    SF_D1_CONTEXT_AUDIENCE: process.env.SF_D1_CONTEXT_AUDIENCE,
+  };
+  process.env.SF_CFM_TICKET_CREATE_STORAGE = "d1";
+  process.env.SF_D1_WORKER_URL = workerUrl;
+  process.env.SF_D1_SERVICE_TOKEN = serviceToken;
+  process.env.SF_D1_CONTEXT_SECRET = contextSecret;
+  process.env.SF_D1_CONTEXT_AUDIENCE = audience;
+  try {
+    const { response: loginResponse, cookie } = await login("synthetic-admin");
+    assert.equal(loginResponse.status, 200);
+    const body = {
+      centralDepartment: "Synthetic department",
+      centralId: "synthetic-import-central",
+      cableId: "synthetic-import-cable",
+      cabinet: "Synthetic cabinet",
+      box: "999",
+      faultTypeId: "synthetic-import-fault",
+      notes: "Created through local D1 route",
+    };
+    const createdResponse = await callCfmApi("POST", "/api/cfm/tickets", cookie, body);
+    assert.equal(createdResponse.status, 201);
+    const ticket = await createdResponse.json();
+    assert.match(ticket.ticketNumber, /^TKT-\d{4}-\d{3,}$/);
+    assert.equal(ticket.status, "open");
+    const duplicateResponse = await callCfmApi("POST", "/api/cfm/tickets", cookie, body);
+    assert.equal(duplicateResponse.status, 409);
+    assert.match((await duplicateResponse.json()).error, /تكت مفتوحة/);
+    const concurrentBody = { ...body, box: "1000" };
+    const concurrentResponses = await Promise.all([
+      callCfmApi("POST", "/api/cfm/tickets", cookie, concurrentBody),
+      callCfmApi("POST", "/api/cfm/tickets", cookie, concurrentBody),
+    ]);
+    assert.deepEqual(concurrentResponses.map((response) => response.status).sort(), [201, 409]);
+  } finally {
+    if (oldFlag === undefined) delete process.env.SF_CFM_TICKET_CREATE_STORAGE;
+    else process.env.SF_CFM_TICKET_CREATE_STORAGE = oldFlag;
+    for (const [key, value] of Object.entries(d1Env)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test("actual CFM task routes commit task entries and stock movements atomically in local D1", async () => {
+  const oldFlag = process.env.SF_CFM_TASK_INVENTORY_STORAGE;
+  const d1Env = {
+    SF_D1_WORKER_URL: process.env.SF_D1_WORKER_URL,
+    SF_D1_SERVICE_TOKEN: process.env.SF_D1_SERVICE_TOKEN,
+    SF_D1_CONTEXT_SECRET: process.env.SF_D1_CONTEXT_SECRET,
+    SF_D1_CONTEXT_AUDIENCE: process.env.SF_D1_CONTEXT_AUDIENCE,
+  };
+  process.env.SF_CFM_TASK_INVENTORY_STORAGE = "d1";
+  process.env.SF_D1_WORKER_URL = workerUrl;
+  process.env.SF_D1_SERVICE_TOKEN = serviceToken;
+  process.env.SF_D1_CONTEXT_SECRET = contextSecret;
+  process.env.SF_D1_CONTEXT_AUDIENCE = audience;
+  try {
+    const { response: loginResponse, cookie } = await login("synthetic-admin");
+    assert.equal(loginResponse.status, 200);
+    const ticketId = "synthetic-import-ticket";
+    const createdResponse = await callCfmApi("POST", `/api/cfm/tickets/${ticketId}/tasks`, cookie, {
+      performedBy: "Synthetic technician",
+      items: [{ id: "synthetic-stock-item", taskTypeId: "synthetic-import-task", quantity: 2 }],
+    });
+    assert.equal(createdResponse.status, 201);
+    const created = await createdResponse.json();
+    assert.ok(created.id);
+    assert.deepEqual(created.items, [{ id: "synthetic-stock-item", taskTypeId: "synthetic-import-task", quantity: 2 }]);
+    const outgoing = await queryLocalD1(
+      `SELECT type, quantity FROM inventory_transactions WHERE ticket_id = ${sqlLiteral(ticketId)} AND notes = 'Used in ticket via task entry'`,
+    );
+    assert.deepEqual(outgoing, [{ type: "outgoing", quantity: 2 }]);
+
+    const deletedResponse = await callCfmApi("DELETE", `/api/cfm/tickets/${ticketId}/tasks/${created.id}`, cookie);
+    assert.equal(deletedResponse.status, 200);
+    assert.deepEqual(await deletedResponse.json(), { success: true });
+    const stockMovements = await queryLocalD1(
+      `SELECT type, quantity FROM inventory_transactions WHERE ticket_id = ${sqlLiteral(ticketId)} AND notes = 'إرجاع خامات — حذف بند مهمات من التكت'`,
+    );
+    assert.deepEqual(stockMovements, [{ type: "incoming", quantity: 2 }]);
+
+    const beforeInvalid = Number((await queryLocalD1(
+      `SELECT COUNT(*) AS count FROM used_task_entries WHERE ticket_id = ${sqlLiteral(ticketId)}`,
+    ))[0].count);
+    const invalidResponse = await callCfmApi("POST", `/api/cfm/tickets/${ticketId}/tasks`, cookie, {
+      performedBy: "Synthetic technician",
+      items: [{ id: "invalid-stock-item", taskTypeId: "missing-task-type", quantity: 5 }],
+    });
+    assert.equal(invalidResponse.status, 500);
+    const afterInvalid = Number((await queryLocalD1(
+      `SELECT COUNT(*) AS count FROM used_task_entries WHERE ticket_id = ${sqlLiteral(ticketId)}`,
+    ))[0].count);
+    assert.equal(afterInvalid, beforeInvalid, "failed inventory FK must roll back the task entry");
+  } finally {
+    if (oldFlag === undefined) delete process.env.SF_CFM_TASK_INVENTORY_STORAGE;
+    else process.env.SF_CFM_TASK_INVENTORY_STORAGE = oldFlag;
+    for (const [key, value] of Object.entries(d1Env)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test("actual CFM status, repair, confirmation, and reopen routes update D1 tickets", async () => {
+  const oldFlag = process.env.SF_CFM_TICKET_MUTATIONS_STORAGE;
+  const d1Env = {
+    SF_D1_WORKER_URL: process.env.SF_D1_WORKER_URL,
+    SF_D1_SERVICE_TOKEN: process.env.SF_D1_SERVICE_TOKEN,
+    SF_D1_CONTEXT_SECRET: process.env.SF_D1_CONTEXT_SECRET,
+    SF_D1_CONTEXT_AUDIENCE: process.env.SF_D1_CONTEXT_AUDIENCE,
+  };
+  process.env.SF_CFM_TICKET_MUTATIONS_STORAGE = "d1";
+  process.env.SF_D1_WORKER_URL = workerUrl;
+  process.env.SF_D1_SERVICE_TOKEN = serviceToken;
+  process.env.SF_D1_CONTEXT_SECRET = contextSecret;
+  process.env.SF_D1_CONTEXT_AUDIENCE = audience;
+  try {
+    const { response: loginResponse, cookie } = await login("synthetic-admin");
+    assert.equal(loginResponse.status, 200);
+    const ticketId = "synthetic-import-ticket";
+    const statusResponse = await callCfmApi("PATCH", `/api/cfm/tickets/${ticketId}/status`, cookie, {
+      status: "pending_confirmation",
+    });
+    assert.equal(statusResponse.status, 200);
+    assert.equal((await statusResponse.json()).status, "pending_confirmation");
+    const repairResponse = await callCfmApi("POST", `/api/cfm/tickets/${ticketId}/final-repair`, cookie, {
+      finalRepairDescription: "Synthetic repair",
+    });
+    assert.equal(repairResponse.status, 200);
+    const repair = await repairResponse.json();
+    assert.equal(repair.status, "pending_confirmation");
+    assert.equal(repair.finalRepairDescription, "Synthetic repair");
+    assert.ok(repair.finalRepairId);
+    const confirmResponse = await callCfmApi("POST", `/api/cfm/tickets/${ticketId}/confirm`, cookie);
+    assert.equal(confirmResponse.status, 200);
+    assert.equal((await confirmResponse.json()).status, "closed");
+    const reopenResponse = await callCfmApi("POST", `/api/cfm/tickets/${ticketId}/revert-repair`, cookie);
+    assert.equal(reopenResponse.status, 200);
+    const reopened = await reopenResponse.json();
+    assert.equal(reopened.status, "open");
+    assert.equal(reopened.finalRepairId, null);
+    assert.equal(reopened.closedAt, null);
+  } finally {
+    if (oldFlag === undefined) delete process.env.SF_CFM_TICKET_MUTATIONS_STORAGE;
+    else process.env.SF_CFM_TICKET_MUTATIONS_STORAGE = oldFlag;
+    for (const [key, value] of Object.entries(d1Env)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test("actual CFM ticket deletion route removes only unreferenced D1 tickets", async () => {
+  const oldFlag = process.env.SF_CFM_TICKET_MUTATIONS_STORAGE;
+  const d1Env = {
+    SF_D1_WORKER_URL: process.env.SF_D1_WORKER_URL,
+    SF_D1_SERVICE_TOKEN: process.env.SF_D1_SERVICE_TOKEN,
+    SF_D1_CONTEXT_SECRET: process.env.SF_D1_CONTEXT_SECRET,
+    SF_D1_CONTEXT_AUDIENCE: process.env.SF_D1_CONTEXT_AUDIENCE,
+  };
+  process.env.SF_CFM_TICKET_MUTATIONS_STORAGE = "d1";
+  process.env.SF_D1_WORKER_URL = workerUrl;
+  process.env.SF_D1_SERVICE_TOKEN = serviceToken;
+  process.env.SF_D1_CONTEXT_SECRET = contextSecret;
+  process.env.SF_D1_CONTEXT_AUDIENCE = audience;
+  try {
+    await executeLocalD1(`
+      INSERT INTO tickets
+        (id, ticket_number, central_department, central_id, cable_id, cabinet, box, fault_type_id, created_by, created_at, updated_at)
+      VALUES
+        ('synthetic-delete-ticket', 'TKT-2026-LOCAL-DELETE', 'Synthetic', 'synthetic-import-central',
+         'synthetic-import-cable', '1', '999', 'synthetic-import-fault', 'synthetic-import-user',
+         '2026-10-18T08:30:00.000Z', '2026-10-18T08:30:00.000Z');
+    `);
+    const { response: loginResponse, cookie } = await login("synthetic-admin");
+    assert.equal(loginResponse.status, 200);
+    const response = await callCfmApi("DELETE", "/api/cfm/tickets/synthetic-delete-ticket", cookie);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { success: true, message: "Ticket deleted successfully" });
+    assert.deepEqual(await queryLocalD1("SELECT id FROM tickets WHERE id = 'synthetic-delete-ticket'"), []);
+  } finally {
+    if (oldFlag === undefined) delete process.env.SF_CFM_TICKET_MUTATIONS_STORAGE;
+    else process.env.SF_CFM_TICKET_MUTATIONS_STORAGE = oldFlag;
+    for (const [key, value] of Object.entries(d1Env)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test("actual CFM work and measurement routes use typed D1 storage", async () => {
+  const oldFlag = process.env.SF_CFM_TICKET_ENTRIES_STORAGE;
+  const d1Env = {
+    SF_D1_WORKER_URL: process.env.SF_D1_WORKER_URL,
+    SF_D1_SERVICE_TOKEN: process.env.SF_D1_SERVICE_TOKEN,
+    SF_D1_CONTEXT_SECRET: process.env.SF_D1_CONTEXT_SECRET,
+    SF_D1_CONTEXT_AUDIENCE: process.env.SF_D1_CONTEXT_AUDIENCE,
+  };
+  process.env.SF_CFM_TICKET_ENTRIES_STORAGE = "d1";
+  process.env.SF_D1_WORKER_URL = workerUrl;
+  process.env.SF_D1_SERVICE_TOKEN = serviceToken;
+  process.env.SF_D1_CONTEXT_SECRET = contextSecret;
+  process.env.SF_D1_CONTEXT_AUDIENCE = audience;
+  try {
+    const { response: loginResponse, cookie } = await login("synthetic-admin");
+    assert.equal(loginResponse.status, 200);
+    const ticketId = "synthetic-import-ticket";
+    const workResponse = await callCfmApi("POST", `/api/cfm/tickets/${ticketId}/works`, cookie, {
+      performedBy: "Synthetic worker",
+      contractorId: "synthetic-import-contractor",
+      items: [{ id: "synthetic-work-item", workTypeId: "synthetic-import-work", quantity: 1 }],
+    });
+    assert.equal(workResponse.status, 201);
+    const work = await workResponse.json();
+    assert.deepEqual(work.items, [{ id: "synthetic-work-item", workTypeId: "synthetic-import-work", quantity: 1 }]);
+    const deleteWork = await callCfmApi("DELETE", `/api/cfm/tickets/${ticketId}/works/${work.id}`, cookie);
+    assert.equal(deleteWork.status, 200);
+
+    const measurementResponse = await callCfmApi("POST", `/api/cfm/tickets/${ticketId}/measurements`, cookie, {
+      reading: "Synthetic D1 measurement",
+      distance: 12.5,
+      performedBy: "Synthetic worker",
+    });
+    assert.equal(measurementResponse.status, 201);
+    const measurement = await measurementResponse.json();
+    assert.equal(measurement.reading, "Synthetic D1 measurement");
+    const deleteMeasurement = await callCfmApi(
+      "DELETE", `/api/cfm/tickets/${ticketId}/measurements/${measurement.id}`, cookie,
+    );
+    assert.equal(deleteMeasurement.status, 200);
+  } finally {
+    if (oldFlag === undefined) delete process.env.SF_CFM_TICKET_ENTRIES_STORAGE;
+    else process.env.SF_CFM_TICKET_ENTRIES_STORAGE = oldFlag;
+    for (const [key, value] of Object.entries(d1Env)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test("actual CFM inventory routes list and add incoming stock through D1", async () => {
+  const oldFlag = process.env.SF_CFM_INVENTORY_STORAGE;
+  const d1Env = {
+    SF_D1_WORKER_URL: process.env.SF_D1_WORKER_URL,
+    SF_D1_SERVICE_TOKEN: process.env.SF_D1_SERVICE_TOKEN,
+    SF_D1_CONTEXT_SECRET: process.env.SF_D1_CONTEXT_SECRET,
+    SF_D1_CONTEXT_AUDIENCE: process.env.SF_D1_CONTEXT_AUDIENCE,
+  };
+  process.env.SF_CFM_INVENTORY_STORAGE = "d1";
+  process.env.SF_D1_WORKER_URL = workerUrl;
+  process.env.SF_D1_SERVICE_TOKEN = serviceToken;
+  process.env.SF_D1_CONTEXT_SECRET = contextSecret;
+  process.env.SF_D1_CONTEXT_AUDIENCE = audience;
+  try {
+    const { response: loginResponse, cookie } = await login("synthetic-admin");
+    assert.equal(loginResponse.status, 200);
+    const incomingResponse = await callCfmApi("POST", "/api/cfm/inventory/incoming", cookie, {
+      taskTypeId: "synthetic-import-task",
+      quantity: 4,
+      notes: "synthetic inbound",
+    });
+    assert.equal(incomingResponse.status, 201);
+    const incoming = await incomingResponse.json();
+    assert.equal(incoming.type, "incoming");
+    assert.equal(incoming.quantity, 4);
+    const listed = await callCfmApi("GET", "/api/cfm/inventory/transactions", cookie);
+    assert.equal(listed.status, 200);
+    assert.ok((await listed.json()).some((row) => row.id === incoming.id));
+
+    const beforeInvalid = Number((await queryLocalD1(
+      "SELECT COUNT(*) AS count FROM inventory_transactions",
+    ))[0].count);
+    const invalid = await callCfmApi("POST", "/api/cfm/inventory/incoming", cookie, {
+      taskTypeId: "missing-task-type",
+      quantity: 9,
+      notes: "must rollback",
+    });
+    assert.equal(invalid.status, 500);
+    const afterInvalid = Number((await queryLocalD1(
+      "SELECT COUNT(*) AS count FROM inventory_transactions",
+    ))[0].count);
+    assert.equal(afterInvalid, beforeInvalid);
+  } finally {
+    if (oldFlag === undefined) delete process.env.SF_CFM_INVENTORY_STORAGE;
+    else process.env.SF_CFM_INVENTORY_STORAGE = oldFlag;
+    for (const [key, value] of Object.entries(d1Env)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });

@@ -17,6 +17,15 @@ import type {
   ExcavationWorker,
   InsertExcavationWorker,
   Ticket,
+  InsertTicket,
+  UsedTaskEntry,
+  InsertUsedTaskEntry,
+  WorkEntry,
+  InsertWorkEntry,
+  MeasurementEntry,
+  InsertMeasurementEntry,
+  InventoryTransaction,
+  InsertInventoryTransaction,
 } from "@shared/cfm-schema";
 import type { IStorage } from "./storage";
 
@@ -29,7 +38,11 @@ type D1Slice = Pick<IStorage,
   | "getAllTaskTypes" | "createTaskType" | "updateTaskType" | "deleteTaskType"
   | "getAllContractors" | "createContractor" | "updateContractor" | "deleteContractor"
   | "getAllExcavationWorkers" | "createExcavationWorker" | "updateExcavationWorker" | "deleteExcavationWorker"
-   | "getAllTickets" | "getTicketById"
+    | "getAllTickets" | "getTicketById" | "createTicket" | "updateTicket" | "deleteTicket"
+    | "getUsedTaskEntryById" | "createUsedTaskEntryWithInventory" | "deleteUsedTaskEntryWithInventory"
+   | "getWorkEntryById" | "createWorkEntry" | "deleteWorkEntry"
+   | "getMeasurementEntryById" | "createMeasurementEntry" | "deleteMeasurementEntry"
+   | "getAllInventoryTransactions" | "createInventoryTransaction"
 >;
 
 type Actor = { id: string; role: string };
@@ -40,6 +53,17 @@ type Options = {
   audience: string;
   actor: () => Actor | null;
 };
+
+export class CfmD1RequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly payload: unknown,
+    message: string,
+  ) {
+    super(message);
+    this.name = "CfmD1RequestError";
+  }
+}
 
 export class CfmD1ReferenceStorage implements D1Slice {
   constructor(private readonly options: Options) {}
@@ -76,9 +100,10 @@ export class CfmD1ReferenceStorage implements D1Slice {
     const result = await response.json().catch(() => null) as T | { error?: string } | null;
     if (response.status === 404) return undefined as T;
     if (!response.ok) {
-      throw new Error(`CFM D1 ${method} ${path} failed (${response.status}): ${
-        result && typeof result === "object" && "error" in result ? result.error : "request failed"
-      }`);
+      const message = result && typeof result === "object" && "error" in result
+        ? String(result.error)
+        : "request failed";
+      throw new CfmD1RequestError(response.status, result, `CFM D1 ${method} ${path} failed (${response.status}): ${message}`);
     }
     return result as T;
   }
@@ -176,6 +201,112 @@ export class CfmD1ReferenceStorage implements D1Slice {
     return this.ticket(row);
   }
 
+  async updateTicket(id: string, ticket: Partial<InsertTicket>): Promise<Ticket | undefined> {
+    const row = await this.request<Record<string, any>>(
+      `/api/cfm/tickets/${encodeURIComponent(id)}`, "PATCH", ticket,
+    );
+    return this.ticket(row);
+  }
+
+  async createTicket(ticket: InsertTicket): Promise<Ticket> {
+    const row = await this.request<Record<string, any>>("/api/cfm/tickets", "POST", ticket);
+    return this.ticket(row)!;
+  }
+
+  async deleteTicket(id: string): Promise<boolean> {
+    const result = await this.request<{ deleted: boolean }>(
+      `/api/cfm/tickets/${encodeURIComponent(id)}`, "DELETE",
+    );
+    if (!result?.deleted) {
+      throw new CfmD1RequestError(409, result, "Ticket is still referenced and cannot be deleted");
+    }
+    return result.deleted;
+  }
+
+  async createUsedTaskEntryWithInventory(entry: InsertUsedTaskEntry): Promise<UsedTaskEntry> {
+    const row = await this.request<Record<string, any>>(
+      "/api/cfm/task-entry-inventory", "POST", { entry },
+    );
+    return {
+      ...row,
+      recordedAt: new Date(String(row.recordedAt)),
+      createdAt: new Date(String(row.createdAt)),
+    } as UsedTaskEntry;
+  }
+
+  async deleteUsedTaskEntryWithInventory(id: string, ticketId: string): Promise<boolean> {
+    const result = await this.request<{ deleted: boolean }>(
+      "/api/cfm/task-entry-inventory", "DELETE", { id, ticketId },
+    );
+    return result.deleted;
+  }
+
+  async getUsedTaskEntryById(id: string): Promise<UsedTaskEntry | undefined> {
+    const row = await this.request<Record<string, any>>(
+      `/api/cfm/task-entry-inventory?id=${encodeURIComponent(id)}`,
+    );
+    if (!row) return undefined;
+    return {
+      ...row,
+      items: Array.isArray(row.items) ? row.items : JSON.parse(String(row.items)),
+      recordedAt: new Date(String(row.recordedAt)),
+      createdAt: new Date(String(row.createdAt)),
+    } as UsedTaskEntry;
+  }
+
+  async getWorkEntryById(id: string): Promise<WorkEntry | undefined> {
+    const row = await this.request<Record<string, any>>(`/api/cfm/ticket-entries/work/${encodeURIComponent(id)}`);
+    if (!row) return undefined;
+    return {
+      ...row,
+      items: Array.isArray(row.items) ? row.items : JSON.parse(String(row.items)),
+      recordedAt: new Date(String(row.recordedAt)),
+      createdAt: new Date(String(row.createdAt)),
+    } as WorkEntry;
+  }
+  async createWorkEntry(entry: InsertWorkEntry): Promise<WorkEntry> {
+    const row = await this.request<Record<string, any>>("/api/cfm/ticket-entries/work", "POST", entry);
+    return {
+      ...row,
+      items: Array.isArray(row.items) ? row.items : JSON.parse(String(row.items)),
+      recordedAt: new Date(String(row.recordedAt)),
+      createdAt: new Date(String(row.createdAt)),
+    } as WorkEntry;
+  }
+  async deleteWorkEntry(id: string): Promise<void> {
+    await this.request(`/api/cfm/ticket-entries/work/${encodeURIComponent(id)}`, "DELETE");
+  }
+
+  async getMeasurementEntryById(id: string): Promise<MeasurementEntry | undefined> {
+    const row = await this.request<Record<string, any>>(`/api/cfm/ticket-entries/measurement/${encodeURIComponent(id)}`);
+    if (!row) return undefined;
+    return { ...row, recordedAt: new Date(String(row.recordedAt)), createdAt: new Date(String(row.createdAt)) } as MeasurementEntry;
+  }
+  async createMeasurementEntry(entry: InsertMeasurementEntry): Promise<MeasurementEntry> {
+    const row = await this.request<Record<string, any>>("/api/cfm/ticket-entries/measurement", "POST", entry);
+    return { ...row, recordedAt: new Date(String(row.recordedAt)), createdAt: new Date(String(row.createdAt)) } as MeasurementEntry;
+  }
+  async deleteMeasurementEntry(id: string): Promise<void> {
+    await this.request(`/api/cfm/ticket-entries/measurement/${encodeURIComponent(id)}`, "DELETE");
+  }
+
+  async getAllInventoryTransactions(): Promise<InventoryTransaction[]> {
+    const rows = await this.request<Record<string, any>[]>("/api/cfm/inventory-transactions");
+    return rows.map((row) => ({
+      ...row,
+      date: new Date(String(row.date)),
+      createdAt: new Date(String(row.createdAt)),
+    }) as InventoryTransaction);
+  }
+  async createInventoryTransaction(entry: InsertInventoryTransaction): Promise<InventoryTransaction> {
+    const row = await this.request<Record<string, any>>("/api/cfm/inventory-transactions", "POST", entry);
+    return {
+      ...row,
+      date: new Date(String(row.date)),
+      createdAt: new Date(String(row.createdAt)),
+    } as InventoryTransaction;
+  }
+
   getAllCentrals(): Promise<Central[]> { return this.collection("centrals"); }
   createCentral(value: InsertCentral): Promise<Central> { return this.create("centrals", value); }
   updateCentral(id: string, value: Partial<InsertCentral>): Promise<Central | undefined> { return this.update("centrals", id, value); }
@@ -210,4 +341,40 @@ export class CfmD1ReferenceStorage implements D1Slice {
   createExcavationWorker(value: InsertExcavationWorker): Promise<ExcavationWorker> { return this.create("excavation-workers", value); }
   updateExcavationWorker(id: string, value: Partial<InsertExcavationWorker>): Promise<ExcavationWorker | undefined> { return this.update("excavation-workers", id, value); }
   deleteExcavationWorker(id: string): Promise<void> { return this.remove("excavation-workers", id); }
+}
+
+export function cfmTaskInventoryUsesD1(): boolean {
+  return process.env.SF_CFM_TASK_INVENTORY_STORAGE === "d1";
+}
+
+export function cfmTicketMutationsUseD1(): boolean {
+  return process.env.SF_CFM_TICKET_MUTATIONS_STORAGE === "d1";
+}
+
+export function cfmTicketCreationUsesD1(): boolean {
+  return process.env.SF_CFM_TICKET_CREATE_STORAGE === "d1";
+}
+
+export function cfmTicketEntriesUseD1(): boolean {
+  return process.env.SF_CFM_TICKET_ENTRIES_STORAGE === "d1";
+}
+
+export function cfmInventoryUsesD1(): boolean {
+  return process.env.SF_CFM_INVENTORY_STORAGE === "d1";
+}
+
+export function createCfmD1ReferenceStorageFromEnv(
+  actor: () => { id: string; role: string } | null,
+): CfmD1ReferenceStorage {
+  const options: Options = {
+    baseUrl: process.env.SF_D1_WORKER_URL || "",
+    serviceToken: process.env.SF_D1_SERVICE_TOKEN || "",
+    contextSecret: process.env.SF_D1_CONTEXT_SECRET || "",
+    audience: process.env.SF_D1_CONTEXT_AUDIENCE || "",
+    actor,
+  };
+  if ([options.baseUrl, options.serviceToken, options.contextSecret, options.audience].some((value) => !value)) {
+    throw new Error("CFM D1 storage requires SF_D1_WORKER_URL, SF_D1_SERVICE_TOKEN, SF_D1_CONTEXT_SECRET, and SF_D1_CONTEXT_AUDIENCE");
+  }
+  return new CfmD1ReferenceStorage(options);
 }
