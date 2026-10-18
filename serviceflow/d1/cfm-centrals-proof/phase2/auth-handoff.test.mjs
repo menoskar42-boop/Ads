@@ -170,6 +170,14 @@ async function executeLocalD1(sql) {
   ]);
 }
 
+async function queryLocalD1(sql) {
+  const output = await runWrangler([
+    "d1", "execute", "serviceflow-cfm-centrals-proof",
+    "--local", "--persist-to", stateDir, "--command", sql, "--json", "--yes",
+  ]);
+  return JSON.parse(output)[0].results;
+}
+
 before(async () => {
   const passwordHash = await bcrypt.hash(password, 4);
   currentUsers = new Map([
@@ -194,6 +202,11 @@ before(async () => {
   originalStorage = {
     getUser: storage.getUser,
     getUserByUsername: storage.getUserByUsername,
+    createUser: storage.createUser,
+    updateUser: storage.updateUser,
+    deleteUser: storage.deleteUser,
+    getAllUsers: storage.getAllUsers,
+    updateUserPassword: storage.updateUserPassword,
     getAllCentrals: storage.getAllCentrals,
     createCentral: storage.createCentral,
     updateCentral: storage.updateCentral,
@@ -210,7 +223,7 @@ before(async () => {
     },
   });
   for (const method of [
-    "getUser", "getUserByUsername",
+    "getUser", "getUserByUsername", "createUser", "updateUser", "deleteUser", "getAllUsers", "updateUserPassword",
     "getAllCentrals", "createCentral", "updateCentral", "deleteCentral",
     "getAllCables", "createCable", "updateCable", "deleteCable",
     "getAllFaultTypes", "createFaultType", "updateFaultType", "deleteFaultType",
@@ -258,6 +271,48 @@ before(async () => {
   importedExportSql = convertedExport.sql;
   await executeLocalD1(importedExportSql);
   await executeLocalD1(importedExportSql);
+  assert.deepEqual(await queryLocalD1("PRAGMA foreign_key_check;"), []);
+  const countTables = [
+    "cfm_users", "centrals", "cables", "fault_types", "work_types", "task_types",
+    "contractors", "excavation_workers", "tickets", "measurement_entries",
+    "work_entries", "used_task_entries", "inventory_transactions", "box_fault_tickets",
+  ];
+  const countRows = [];
+  for (let offset = 0; offset < countTables.length; offset += 4) {
+    countRows.push(...await queryLocalD1(countTables.slice(offset, offset + 4)
+      .map((table) => `SELECT '${table}' AS table_name, COUNT(*) AS row_count FROM ${table}`)
+      .join(" UNION ALL ")));
+  }
+  const importedCounts = new Map(countRows.map((row) => [row.table_name, Number(row.row_count)]));
+  for (const table of [
+    "cfm_users", "cables", "fault_types", "work_types", "task_types", "contractors",
+    "excavation_workers", "tickets", "measurement_entries", "work_entries",
+    "used_task_entries", "inventory_transactions", "box_fault_tickets",
+  ]) assert.equal(importedCounts.get(table), table === "cfm_users" ? 3 : 1, `${table} import count`);
+  assert.equal(importedCounts.get("centrals"), 3, "central count includes two local base fixtures and one imported row");
+  const [importedTicket] = await queryLocalD1(
+    "SELECT id, ticket_number, status, latitude, longitude FROM tickets WHERE id = 'synthetic-import-ticket'",
+  );
+  assert.deepEqual(importedTicket, {
+    id: "synthetic-import-ticket",
+    ticket_number: "TKT-2026-IMPORT-001",
+    status: "open",
+    latitude: 31.95,
+    longitude: 35.91,
+  });
+  const [importedWork] = await queryLocalD1(
+    "SELECT id, ticket_id, measurement_id, items, contractor_id FROM work_entries WHERE id = 'synthetic-import-work-entry'",
+  );
+  assert.equal(importedWork.ticket_id, importedTicket.id);
+  assert.equal(importedWork.measurement_id, "synthetic-import-measurement");
+  assert.deepEqual(JSON.parse(importedWork.items), [{ quantity: 1, workTypeId: "synthetic-import-work" }]);
+  assert.equal(importedWork.contractor_id, "synthetic-import-contractor");
+  const [importedBoxFault] = await queryLocalD1(
+    "SELECT id, source, ref_key, ticket_id, ticket_number FROM box_fault_tickets WHERE ref_key = 'synthetic-import-box-ref'",
+  );
+  assert.equal(importedBoxFault.id, 77);
+  assert.equal(importedBoxFault.ticket_id, importedTicket.id);
+  assert.equal(importedBoxFault.ticket_number, importedTicket.ticket_number);
 
   worker = spawn("npx", [
     "--yes", "wrangler@4", "dev",
@@ -314,6 +369,13 @@ before(async () => {
     });
   });
   app.post("/api/cfm/auth/login", ...loginRoute.handlers);
+  app.post("/api/cfm/auth/change-password", ...route("POST", "/api/cfm/auth/change-password").handlers);
+  app.get("/api/cfm/users/technicians", ...route("GET", "/api/cfm/users/technicians").handlers);
+  app.get("/api/cfm/users", ...route("GET", "/api/cfm/users").handlers);
+  app.post("/api/cfm/users", ...route("POST", "/api/cfm/users").handlers);
+  app.patch("/api/cfm/users/:id", ...route("PATCH", "/api/cfm/users/:id").handlers);
+  app.delete("/api/cfm/users/:id", ...route("DELETE", "/api/cfm/users/:id").handlers);
+  app.post("/api/cfm/users/:id/reset-password", ...route("POST", "/api/cfm/users/:id/reset-password").handlers);
 
   // Exercise the actual CFM route handlers with only their storage seam
   // redirected to the local D1 Worker; no production route is changed.
@@ -396,6 +458,58 @@ test("imported D1 user booleans and password hash work through existing login", 
   assert.equal((await callCentrals(cookie)).status, 200);
 });
 
+test("actual CFM user-management and password routes use D1 with existing admin rules", async () => {
+  const { response: adminLogin, cookie: adminCookie } = await login("synthetic-admin");
+  assert.equal(adminLogin.status, 200);
+  const { cookie: techCookie } = await login("synthetic-tech");
+
+  assert.equal((await callCfmApi("GET", "/api/cfm/users", techCookie)).status, 403);
+  assert.equal((await callCfmApi("POST", "/api/cfm/users", techCookie, {
+    username: "blocked-user", password: "initial-pass", name: "Blocked", role: "ext_tech",
+  })).status, 403);
+  assert.equal((await callCfmApi("DELETE", "/api/cfm/users/cfm-admin", adminCookie)).status, 400);
+
+  const createdResponse = await callCfmApi("POST", "/api/cfm/users", adminCookie, {
+    username: "managed-synthetic-user", password: "initial-pass", name: "Managed Synthetic",
+    role: "splice_tech", isInitialPassword: true,
+  });
+  assert.equal(createdResponse.status, 201);
+  const created = await createdResponse.json();
+  assert.ok(created.id);
+  assert.equal(Object.hasOwn(created, "password"), false);
+
+  const updateResponse = await callCfmApi("PATCH", `/api/cfm/users/${created.id}`, adminCookie, {
+    name: "Managed Synthetic Updated",
+  });
+  assert.equal(updateResponse.status, 200);
+  assert.equal((await updateResponse.json()).name, "Managed Synthetic Updated");
+  assert.ok((await (await callCfmApi("GET", "/api/cfm/users", adminCookie)).json())
+    .some((user) => user.id === created.id));
+  const technicians = await callCfmApi("GET", "/api/cfm/users/technicians", techCookie);
+  assert.equal(technicians.status, 200);
+  const technicianRows = await technicians.json();
+  assert.deepEqual(technicianRows.map((user) => user.id), [created.id]);
+
+  const reset = await callCfmApi("POST", `/api/cfm/users/${created.id}/reset-password`, adminCookie, {
+    newPassword: "reset-password-123",
+  });
+  assert.equal(reset.status, 200);
+  assert.equal((await reset.json()).isInitialPassword, true);
+
+  const { response: userLogin, cookie: userCookie } = await login("managed-synthetic-user", "reset-password-123");
+  assert.equal(userLogin.status, 200);
+  const change = await callCfmApi("POST", "/api/cfm/auth/change-password", userCookie, {
+    currentPassword: "reset-password-123",
+    newPassword: "changed-password-123",
+  });
+  assert.equal(change.status, 200);
+  assert.equal(Object.hasOwn(await change.json(), "password"), false);
+  assert.equal((await login("managed-synthetic-user", "changed-password-123")).response.status, 200);
+
+  assert.equal((await callCfmApi("DELETE", `/api/cfm/users/${created.id}`, adminCookie)).status, 200);
+  assert.equal((await login("managed-synthetic-user", "changed-password-123")).response.status, 401);
+});
+
 test("PostgreSQL export converter is deterministic and rejects unsafe or unstable input", () => {
   const fixture = {
     centrals: [{
@@ -408,7 +522,11 @@ test("PostgreSQL export converter is deterministic and rejects unsafe or unstabl
   assert.equal(first.sql, second.sql);
   assert.match(first.sql, /2026-10-18T08:00:00\.000Z/);
   assert.throws(() => convertPgExportToD1Sql({ centrals: [{ id: "", name: "No stable ID" }] }), /stable non-empty string/);
-  assert.throws(() => convertPgExportToD1Sql({ tickets: [] }), /Unsupported export tables/);
+  assert.throws(() => convertPgExportToD1Sql({ unsupported_table: [] }), /Unsupported export tables/);
+  assert.throws(() => convertPgExportToD1Sql({ centrals: [
+    { id: "central-1", name: "First", code: "DUPLICATE", created_at: "2026-10-18" },
+    { id: "central-2", name: "Second", code: "DUPLICATE", created_at: "2026-10-18" },
+  ] }), /duplicates unique key/);
   assert.throws(() => convertPgExportToD1Sql({
     cfm_users: [{ id: "bad-bool", username: "u", password: "hash", name: "U", role: "admin",
       is_initial_password: "yes", created_at: "2026-10-18" }],

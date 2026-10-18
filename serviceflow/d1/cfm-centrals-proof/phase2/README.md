@@ -2,12 +2,11 @@
 
 Local-only application proof. No production route is wired to this Worker.
 The test imports the actual CFM route registration and reuses the actual
-`/api/cfm/auth/login` handler, `requireAuth` middleware, and centrals GET/POST/
-PATCH/DELETE handlers plus the corresponding CRUD handlers for cables, fault
-types, work types, task types, contractors, and excavation workers. In the
-isolated test process it redirects CFM login/refresh user reads and reference
-storage calls to local D1 through `CfmD1ReferenceStorage`, points the PG pool
-at an unreachable loopback URL, and uses Express MemoryStore sessions.
+`/api/cfm/auth/login` handler, `requireAuth` middleware, user-management routes,
+and CRUD handlers for all CFM reference tables. In the isolated test process
+it redirects CFM login/refresh, user-management, and reference storage calls to
+local D1 through `CfmD1ReferenceStorage`, points the PG pool at an unreachable
+loopback URL, and uses Express MemoryStore sessions.
 
 After `requireAuth` refreshes the active CFM user from local D1, a
 typed storage adapter signs a short-lived HMAC context and calls a local
@@ -36,12 +35,15 @@ Expired-cookie behavior is not simulated with MemoryStore; a tampered cookie
 and a CFM account suspended after login are tested instead.
 
 The synthetic HMAC/service tokens are test fixtures, not production secrets.
-This exercise validates one app-facing data slice, not the complete CFM storage
-interface or user-administration writes, secret provisioning/rotation, replay
-handling for future write operations, or a production deploy.
+This exercise validates the user/authentication and master-data app-facing
+slices, not ticket/child/inventory route storage, Service Flow CFM account
+linking, secret provisioning/rotation, or a production deploy.
 
-`../../import-cfm-reference-export.mjs` converts a local PostgreSQL JSON export (or
-synthetic fixture) into deterministic, idempotent D1 SQL. It preserves source
-IDs, normalizes timestamps, booleans, and associated-material JSON, and orders
-centrals before dependent cables. The test imports the synthetic fixture twice
-into local D1 and verifies the imported records through the actual CFM routes.
+`../../import-cfm-reference-export.mjs` converts an allowlisted PostgreSQL JSON
+export (or synthetic fixture) for all 14 CFM tables into deterministic,
+idempotent D1 SQL. It preserves stable IDs, normalizes timestamps, booleans,
+numeric values, and JSON, validates duplicate primary/unique keys, and orders
+rows by foreign-key dependencies. The test imports the synthetic full-group
+fixture twice into local D1, checks row counts and `PRAGMA foreign_key_check`,
+then exercises users and reference routes. This does not migrate or query
+production data.

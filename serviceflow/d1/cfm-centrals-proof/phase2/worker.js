@@ -113,6 +113,18 @@ function resourceValue(resource, apiName, value) {
   return value;
 }
 
+const USER_SELECT = `id, username, password, name, role, avatar,
+  is_initial_password AS isInitialPassword, created_at AS createdAt, suspended`;
+
+function userRow(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    isInitialPassword: Boolean(row.isInitialPassword),
+    suspended: Boolean(row.suspended),
+  };
+}
+
 async function handleReferenceResource(request, env, resourceName, resourceId) {
   const resource = REFERENCE_RESOURCES[resourceName];
   if (!resource) return Response.json({ error: "Not found" }, { status: 404 });
@@ -164,15 +176,20 @@ export default {
     const url = new URL(request.url);
     const userBasePath = "/api/cfm/auth/users";
     const userByUsername = url.pathname === `${userBasePath}/by-username`;
+    const userCollection = url.pathname === userBasePath;
+    const userPasswordMatch = url.pathname.match(/^\/api\/cfm\/auth\/users\/([^/]+)\/password$/);
     const userMatch = url.pathname.match(/^\/api\/cfm\/auth\/users\/([^/]+)$/);
     const referenceMatch = url.pathname.match(/^\/api\/cfm\/master-data\/([^/]+)(?:\/([^/]+))?$/);
     const resourceName = referenceMatch?.[1];
     const resourceId = referenceMatch?.[2] ? decodeURIComponent(referenceMatch[2]) : null;
     const referenceRoute = Boolean(resourceName && REFERENCE_RESOURCES[resourceName]);
-    if (!userByUsername && !userMatch && !referenceRoute) {
+    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
-    if (request.method !== "GET" && (userByUsername || userMatch)) {
+    if ((userByUsername && request.method !== "GET") ||
+        (userCollection && !["GET", "POST"].includes(request.method)) ||
+        (userMatch && !["GET", "PATCH", "DELETE"].includes(request.method)) ||
+        (userPasswordMatch && request.method !== "PATCH")) {
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
     const expectedServiceToken = env.SERVICE_TOKEN;
@@ -186,12 +203,8 @@ export default {
       try {
         const username = url.searchParams.get("username");
         if (!username) return Response.json({ error: "Username required" }, { status: 400 });
-        const row = await env.DB.prepare(
-          `SELECT id, username, password, name, role, avatar,
-                  is_initial_password AS isInitialPassword, created_at AS createdAt, suspended
-             FROM cfm_users WHERE username = ?`,
-        ).bind(username).first();
-        return row ? Response.json(row) : Response.json({ error: "User not found" }, { status: 404 });
+        const row = await env.DB.prepare(`SELECT ${USER_SELECT} FROM cfm_users WHERE username = ?`).bind(username).first();
+        return row ? Response.json(userRow(row)) : Response.json({ error: "User not found" }, { status: 404 });
       } catch {
         return Response.json({ error: "D1 operation failed" }, { status: 500 });
       }
@@ -201,16 +214,81 @@ export default {
     if (!claims) return unauthorized();
 
     try {
-      if (userMatch) {
-        if (claims.sub !== decodeURIComponent(userMatch[1])) {
-          return Response.json({ error: "Forbidden" }, { status: 403 });
+      if (userCollection && request.method === "GET") {
+        const { results } = await env.DB.prepare(`SELECT ${USER_SELECT} FROM cfm_users`).all();
+        return Response.json(results.map(userRow));
+      }
+      if (userCollection && request.method === "POST") {
+        if (claims.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+        const body = await request.json();
+        const allowed = ["username", "password", "name", "role", "avatar", "isInitialPassword", "suspended"];
+        if (Object.keys(body).some((key) => !allowed.includes(key)) ||
+            ["username", "password", "name", "role"].some((key) => typeof body[key] !== "string") ||
+            (body.avatar != null && typeof body.avatar !== "string") ||
+            (body.isInitialPassword !== undefined && typeof body.isInitialPassword !== "boolean") ||
+            (body.suspended !== undefined && typeof body.suspended !== "boolean")) {
+          return Response.json({ error: "Invalid user data" }, { status: 400 });
         }
         const row = await env.DB.prepare(
-          `SELECT id, username, password, name, role, avatar,
-                  is_initial_password AS isInitialPassword, created_at AS createdAt, suspended
-             FROM cfm_users WHERE id = ?`,
-        ).bind(decodeURIComponent(userMatch[1])).first();
-        return row ? Response.json(row) : Response.json({ error: "User not found" }, { status: 404 });
+          `INSERT INTO cfm_users (id, username, password, name, role, avatar, is_initial_password, created_at, suspended)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${USER_SELECT}`,
+        ).bind(
+          crypto.randomUUID(), body.username, body.password, body.name, body.role, body.avatar ?? null,
+          body.isInitialPassword === undefined ? 1 : Number(Boolean(body.isInitialPassword)),
+          new Date().toISOString(), Number(Boolean(body.suspended)),
+        ).first();
+        return Response.json(userRow(row), { status: 201 });
+      }
+      if (userPasswordMatch) {
+        const id = decodeURIComponent(userPasswordMatch[1]);
+        if (claims.sub !== id && claims.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+        const body = await request.json();
+        if (typeof body.password !== "string" || Object.keys(body).some((key) => key !== "password")) {
+          return Response.json({ error: "Invalid password update" }, { status: 400 });
+        }
+        const row = await env.DB.prepare(
+          `UPDATE cfm_users SET password = ? WHERE id = ? RETURNING ${USER_SELECT}`,
+        ).bind(body.password, id).first();
+        return row ? Response.json(userRow(row)) : Response.json({ error: "User not found" }, { status: 404 });
+      }
+      if (userMatch) {
+        const id = decodeURIComponent(userMatch[1]);
+        if (request.method === "GET" && claims.sub !== id) return Response.json({ error: "Forbidden" }, { status: 403 });
+        if (["PATCH", "DELETE"].includes(request.method) && claims.role !== "admin") {
+          return Response.json({ error: "Forbidden" }, { status: 403 });
+        }
+        if (request.method === "GET") {
+          const row = await env.DB.prepare(`SELECT ${USER_SELECT} FROM cfm_users WHERE id = ?`).bind(id).first();
+          return row ? Response.json(userRow(row)) : Response.json({ error: "User not found" }, { status: 404 });
+        }
+        if (request.method === "PATCH") {
+          const body = await request.json();
+          const columns = {
+            username: "username", password: "password", name: "name", role: "role", avatar: "avatar",
+            isInitialPassword: "is_initial_password", suspended: "suspended",
+          };
+          const keys = Object.keys(body);
+          if (!keys.length || keys.some((key) => !Object.hasOwn(columns, key)) ||
+              keys.some((key) => {
+                if (key === "isInitialPassword" || key === "suspended") return typeof body[key] !== "boolean";
+                if (key === "avatar") return body[key] !== null && typeof body[key] !== "string";
+                return typeof body[key] !== "string";
+              })) {
+            return Response.json({ error: "Invalid user data" }, { status: 400 });
+          }
+          const values = keys.map((key) => {
+            const value = body[key];
+            return key === "isInitialPassword" || key === "suspended" ? Number(Boolean(value)) : value;
+          });
+          const assignments = keys.map((key) => `${columns[key]} = ?`).join(", ");
+          const row = await env.DB.prepare(
+            `UPDATE cfm_users SET ${assignments} WHERE id = ? RETURNING ${USER_SELECT}`,
+          ).bind(...values, id).first();
+          return row ? Response.json(userRow(row)) : Response.json({ error: "User not found" }, { status: 404 });
+        }
+        if (id === claims.sub) return Response.json({ error: "Cannot delete your own account" }, { status: 400 });
+        await env.DB.prepare("DELETE FROM cfm_users WHERE id = ?").bind(id).run();
+        return Response.json({ success: true });
       }
       return handleReferenceResource(request, env, resourceName, resourceId);
     } catch {

@@ -1,7 +1,7 @@
 # Complete CFM local application proof — audit and blocker
 
-**Scope:** repository audit and local proof feasibility only. No production
-database was queried, no application route or database selector was changed,
+**Scope:** local implementation and application-proof progress. No production
+database was queried, no production route or database selector was changed,
 and no Cloudflare resource was created.
 
 ## Finding
@@ -19,14 +19,14 @@ password login, role checks, ticket-number allocation, task-to-inventory
 writes, and box-ticket creation/confirmation/reopen flows all need to move
 together or be covered by a deliberate compatibility boundary.
 
-The local proof exercises the actual CFM login/authentication middleware and
-CRUD route handlers for centrals, cables, fault types, work types, task types,
-contractors, and excavation workers. Synthetic `cfm_users` are read from local
-D1 for login and session refresh. A typed `CfmD1ReferenceStorage` implements
-the matching `IStorage` subset and is wired only in the isolated test process.
-A reusable JSON-export converter imports these reference records into local
-D1; the import is rerun to verify idempotence. Production storage selection is
-unchanged.
+The local proof exercises actual CFM login/authentication, user-management,
+password, and reference-table route handlers. A typed
+`CfmD1ReferenceStorage` implements that `IStorage` subset and is wired only in
+the isolated test process. The export converter now accepts all 14 CFM tables,
+preserves stable IDs, rejects duplicate primary/unique keys, and emits
+dependency-ordered idempotent SQL. Synthetic rows for every table are imported
+twice into local D1; the proof compares per-table counts and verifies
+`PRAGMA foreign_key_check`. Production storage selection is unchanged.
 
 This is not a production cutover candidate. User administration and Service
 Flow's direct CFM-user reads/writes remain PostgreSQL. PostgreSQL `tickets`
@@ -45,7 +45,7 @@ production mappings.
 
 | PostgreSQL → D1 table | Keys, constraints, indexes | Types / conversion | Known reads and writes |
 |---|---|---|---|
-| `cfm_users` → `cfm_users` | Text UUID PK; unique `username`; no secondary index in runtime DDL | Generate UUID in Node; booleans `is_initial_password`, `suspended` → SQLite integer 0/1; password remains a bcrypt hash | `storage` user CRUD/auth; CFM login, refresh, password change, technician/admin user routes in `server/cfm/routes.ts`; Service Flow SSO and account provisioning/lookup/deletion in `server/routes.ts` (including direct `users.cfm_user_id` mapping). Current local slice uses D1 only for login and refresh reads. PG `sf_session` remains. |
+| `cfm_users` → `cfm_users` | Text UUID PK; unique `username`; no secondary index in runtime DDL | Generate UUID in Node; booleans `is_initial_password`, `suspended` → SQLite integer 0/1; password remains a bcrypt hash | `storage` user CRUD/auth; CFM login, refresh, password change, technician/admin user routes in `server/cfm/routes.ts`; Service Flow SSO and account provisioning/lookup/deletion in `server/routes.ts` (including direct `users.cfm_user_id` mapping). Isolated local proof exercises login/refresh and user-management handlers; normal application runtime still uses PostgreSQL. PG `sf_session` remains. |
 | `centrals` → `centrals` | Text UUID PK; unique `code` | Generate UUID in Node; timestamps → canonical UTC text | `storage` CRUD and CFM selectors; `server/box-fault-ticket.ts` resolves and joins central names for duplicate coverage and automatic ticket creation. |
 | `cables` → `cables` | Text UUID PK; FK `central_id → centrals.id` cascade; unique `(central_id, number)` | UUID in Node; all varchar/text → SQLite TEXT | `storage` CRUD; CFM ticket forms; `server/box-fault-ticket.ts` resolves cabinets and joins ticket coverage. |
 | `fault_types` → `fault_types` | Text UUID PK; no unique/index in runtime DDL; tickets reference it | UUID in Node; text fields | `storage` CRUD and ticket forms; `server/box-fault-ticket.ts` searches the Arabic fault name using PostgreSQL regex `~` and orders by `length(name)`. |
@@ -82,17 +82,18 @@ production mappings.
   atomic, but it cannot make a PostgreSQL + D1 transaction atomic.
 - `RETURNING` is used throughout Drizzle storage. The replacement API must
   verify exact result/absence behavior, not only whether SQLite accepts SQL.
-- Existing D1 SQL schema and synthetic tests cover the relational shape but
-  do not execute the CFM Express handlers against D1.
+- The local user/master-data proof exercises actual CFM Express handlers
+  against D1. Ticket, child-entry, inventory, and Service Flow box-ticket
+  handlers are not yet routed through D1.
 
 ## Existing proofs reviewed
 
 - `cfm-centrals-proof/` proves a read-only central query locally.
 - `cfm-centrals-proof/phase2/` exercises the existing CFM login handler,
-  `requireAuth`, and CRUD handlers for all reference tables through the typed
-  D1 adapter and local Worker. Synthetic CFM user rows are read from local D1;
-  user administration is not moved, and the adapter does not replace the
-  complete CFM `IStorage`.
+  `requireAuth`, user-management/password handlers, and CRUD handlers for all
+  reference tables through the typed D1 adapter and local Worker. The adapter
+  covers that tested `IStorage` subset; ticket, child-entry, inventory, and
+  Service Flow account-linking operations remain outside the proof.
 - `d1/import-cfm-reference-export.mjs` converts an allowlisted PostgreSQL JSON
   export into deterministic, idempotent D1 SQL and preserves stable IDs.
 - `cfm-centrals-proof/phase3/` covers a bridge contract/design, not CFM data
@@ -101,11 +102,13 @@ production mappings.
   tests relational SQL behavior, but does not invoke actual CFM application
   routes or role checks.
 
-## Required next design, not implemented in this phase
+## Remaining application integration
 
-Before a full local application proof, the implementation needs a reviewed
-typed contract for all operations in `IStorage` and core CFM consumers, plus a
-testable Node-to-Worker adapter. That contract must specify:
+The completed local proof remains a bounded subset, not a full CFM cutover.
+Before selecting D1 for real application requests, the implementation needs a
+typed contract for remaining ticket, child-entry, inventory, and core Service
+Flow operations, plus a testable Node-to-Worker adapter. That contract must
+specify:
 
 1. Which Express side performs each authorization decision and which identity
    claims are signed to the Worker.
@@ -121,26 +124,24 @@ testable Node-to-Worker adapter. That contract must specify:
 6. An explicit backend selector whose production default remains PostgreSQL,
    with no production route change until separate approval.
 
-This is broad enough that proceeding with only a few sample API routes would
-not meet the “complete CFM group” requirement and could misrepresent coverage.
-The safe outcome for this phase is to stop at this audit and retain the
-existing PostgreSQL application path unchanged.
+The current safe boundary is to keep all real application traffic on
+PostgreSQL. The test adapter is not selected at runtime; it does not migrate
+data or change production routing.
 
 ## Future deterministic synthetic export/import validation
 
-No PostgreSQL export, including a synthetic PostgreSQL dump, was executed in
-this phase. The current `fixtures.sql` is a D1-ready synthetic seed, not a
-PostgreSQL-to-D1 converter. Before a real copy is considered, the local proof
-should add a deterministic synthetic export transformation with these checks:
+No PostgreSQL export or production data was queried. The current fixture is
+synthetic and the converter emits SQL only. Before a real copy is considered,
+the local proof still needs these additional checks:
 
 1. Preserve primary keys; convert booleans to `0`/`1`, timestamps to UTC ISO
    text, JSON/JSONB to valid canonical JSON text, and serial IDs to stable
    integer IDs where required.
 2. Import in FK dependency order (users/lookups, tickets, child entries, then
-   `box_fault_tickets`) and reject duplicate primary/unique keys rather than
-   silently overwriting records.
-3. Compare row counts per table; check duplicate PKs and unique-key groups
-   before import; run `PRAGMA foreign_key_check` afterward.
+   `box_fault_tickets`); this is now exercised with synthetic rows.
+3. Compare row counts per table and run `PRAGMA foreign_key_check`; synthetic
+   import coverage now checks both. Compare these with an independently
+   generated source export before any production import.
 4. Compare representative normalized application reads (ticket detail with
    measurements/work/tasks, inventory totals, and box-fault/repair report rows)
    between a synthetic PostgreSQL source and local D1.

@@ -57,5 +57,107 @@
       "national_id": "SYNTH-IMPORT-001",
       "created_at": "2026-10-18T08:16:00Z"
     }
+  ],
+  "tickets": [
+    {
+      "id": "synthetic-import-ticket",
+      "ticket_number": "TKT-2026-IMPORT-001",
+      "central_department": "synthetic",
+      "central_id": "synthetic-import-central",
+      "cable_id": "synthetic-import-cable",
+      "cabinet": "CAB-01",
+      "box": "BOX-01",
+      "fault_type_id": "synthetic-import-fault",
+      "notes": "Synthetic import ticket",
+      "latitude": 31.95,
+      "longitude": 35.91,
+      "status": "open",
+      "final_repair_id": null,
+      "final_repair_description": null,
+      "final_repair_repaired_at": null,
+      "final_repair_repaired_by": null,
+      "closed_at": null,
+      "closed_by": null,
+      "created_by": "synthetic-import-user",
+      "opened_by_label": "Synthetic importer",
+      "created_at": "2026-10-18T08:17:00Z",
+      "updated_at": "2026-10-18T08:17:00Z"
+    }
+  ],
+  "measurement_entries": [
+    {
+      "id": "synthetic-import-measurement",
+      "ticket_id": "synthetic-import-ticket",
+      "reading": "Synthetic reading",
+      "distance": 12.5,
+      "direction": "north",
+      "notes": null,
+      "performed_by": "Synthetic technician",
+      "created_by": "synthetic-import-user",
+      "recorded_at": "2026-10-18T08:18:00Z",
+      "created_at": "2026-10-18T08:18:00Z"
+    }
+  ],
+  "work_entries": [
+    {
+      "id": "synthetic-import-work-entry",
+      "ticket_id": "synthetic-import-ticket",
+      "measurement_id": "synthetic-import-measurement",
+      "items": [{ "workTypeId": "synthetic-import-work", "quantity": 1 }],
+      "notes": null,
+      "performed_by": "Synthetic technician",
+      "works_by": null,
+      "contractor_id": "synthetic-import-contractor",
+      "created_by": "synthetic-import-user",
+      "recorded_at": "2026-10-18T08:19:00Z",
+      "created_at": "2026-10-18T08:19:00Z"
+    }
+  ],
+  "used_task_entries": [
+    {
+      "id": "synthetic-import-used-task",
+      "ticket_id": "synthetic-import-ticket",
+      "measurement_id": "synthetic-import-measurement",
+      "items": [{ "taskTypeId": "synthetic-import-task", "quantity": 1 }],
+      "notes": null,
+      "performed_by": "Synthetic technician",
+      "created_by": "synthetic-import-user",
+      "recorded_at": "2026-10-18T08:20:00Z",
+      "created_at": "2026-10-18T08:20:00Z"
+    }
+  ],
+  "inventory_transactions": [
+    {
+      "id": "synthetic-import-inventory",
+      "type": "outgoing",
+      "task_type_id": "synthetic-import-task",
+      "quantity": 1,
+      "date": "2026-10-18T08:21:00Z",
+      "ticket_id": "synthetic-import-ticket",
+      "notes": null,
+      "created_at": "2026-10-18T08:21:00Z"
+    }
+  ],
+  "box_fault_tickets": [
+    {
+      "id": 77,
+      "source": "طلبات",
+      "ref_key": "synthetic-import-box-ref",
+      "central_name": "Imported synthetic central",
+      "cabin_number": "CAB-01",
+      "box_number": "BOX-01",
+      "tech_name": "Synthetic technician",
+      "responded_at": "2026-10-18T08:22:00Z",
+      "ticket_id": "synthetic-import-ticket",
+      "ticket_number": "TKT-2026-IMPORT-001",
+      "created_at": "2026-10-18T08:22:00Z",
+      "repair_confirm": null,
+      "repair_confirm_by": null,
+      "repair_confirm_at": null,
+      "repair_confirm_note": null,
+      "reopened_ticket_number": null,
+      "reopened_by": null,
+      "reopened_at": null
+    }
   ]
 }

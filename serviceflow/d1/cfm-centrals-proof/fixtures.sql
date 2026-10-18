@@ -63,6 +63,106 @@ CREATE TABLE excavation_workers (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE tickets (
+  id TEXT PRIMARY KEY NOT NULL,
+  ticket_number TEXT NOT NULL UNIQUE,
+  central_department TEXT NOT NULL,
+  central_id TEXT NOT NULL REFERENCES centrals(id),
+  cable_id TEXT NOT NULL REFERENCES cables(id),
+  cabinet TEXT NOT NULL,
+  box TEXT NOT NULL,
+  fault_type_id TEXT NOT NULL REFERENCES fault_types(id),
+  notes TEXT,
+  latitude REAL,
+  longitude REAL,
+  status TEXT NOT NULL DEFAULT 'open',
+  final_repair_id TEXT,
+  final_repair_description TEXT,
+  final_repair_repaired_at TEXT,
+  final_repair_repaired_by TEXT,
+  closed_at TEXT,
+  closed_by TEXT,
+  created_by TEXT NOT NULL REFERENCES cfm_users(id),
+  opened_by_label TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX ticket_number_idx ON tickets(ticket_number);
+CREATE INDEX status_idx ON tickets(status);
+
+CREATE TABLE measurement_entries (
+  id TEXT PRIMARY KEY NOT NULL,
+  ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  reading TEXT NOT NULL,
+  distance REAL,
+  direction TEXT,
+  notes TEXT,
+  performed_by TEXT,
+  created_by TEXT NOT NULL REFERENCES cfm_users(id),
+  recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE work_entries (
+  id TEXT PRIMARY KEY NOT NULL,
+  ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  measurement_id TEXT REFERENCES measurement_entries(id) ON DELETE CASCADE,
+  items TEXT NOT NULL CHECK (json_valid(items)),
+  notes TEXT,
+  performed_by TEXT NOT NULL,
+  works_by TEXT,
+  contractor_id TEXT REFERENCES contractors(id),
+  created_by TEXT NOT NULL REFERENCES cfm_users(id),
+  recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE used_task_entries (
+  id TEXT PRIMARY KEY NOT NULL,
+  ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  measurement_id TEXT REFERENCES measurement_entries(id) ON DELETE CASCADE,
+  items TEXT NOT NULL CHECK (json_valid(items)),
+  notes TEXT,
+  performed_by TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES cfm_users(id),
+  recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE inventory_transactions (
+  id TEXT PRIMARY KEY NOT NULL,
+  type TEXT NOT NULL,
+  task_type_id TEXT NOT NULL REFERENCES task_types(id),
+  quantity INTEGER NOT NULL,
+  date TEXT NOT NULL,
+  ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE box_fault_tickets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source TEXT NOT NULL,
+  ref_key TEXT NOT NULL,
+  central_name TEXT,
+  cabin_number TEXT,
+  box_number TEXT,
+  tech_name TEXT,
+  responded_at TEXT,
+  ticket_id TEXT,
+  ticket_number TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  repair_confirm TEXT,
+  repair_confirm_by TEXT,
+  repair_confirm_at TEXT,
+  repair_confirm_note TEXT,
+  reopened_ticket_number TEXT,
+  reopened_by TEXT,
+  reopened_at TEXT,
+  UNIQUE (source, ref_key)
+);
+CREATE INDEX box_fault_tickets_ticket_idx ON box_fault_tickets(ticket_id);
+
 INSERT INTO centrals (id, name, code, created_at) VALUES
   ('proof-central-1', 'مركز تجريبي أول', 'PROOF-001', '2026-10-18T08:00:00.000Z'),
   ('proof-central-2', 'مركز تجريبي ثانٍ', 'PROOF-002', '2026-10-18T08:01:00.000Z');

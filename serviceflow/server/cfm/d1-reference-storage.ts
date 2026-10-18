@@ -20,7 +20,7 @@ import type {
 import type { IStorage } from "./storage";
 
 type D1Slice = Pick<IStorage,
-  | "getUser" | "getUserByUsername"
+  | "getUser" | "getUserByUsername" | "createUser" | "updateUser" | "deleteUser" | "getAllUsers" | "updateUserPassword"
   | "getAllCentrals" | "createCentral" | "updateCentral" | "deleteCentral"
   | "getAllCables" | "createCable" | "updateCable" | "deleteCable"
   | "getAllFaultTypes" | "createFaultType" | "updateFaultType" | "deleteFaultType"
@@ -81,6 +81,16 @@ export class CfmD1ReferenceStorage implements D1Slice {
     return result as T;
   }
 
+  private user(row: Record<string, unknown> | undefined): User | undefined {
+    if (!row) return undefined;
+    return {
+      ...row,
+      isInitialPassword: Boolean(row.isInitialPassword),
+      suspended: Boolean(row.suspended),
+      createdAt: new Date(String(row.createdAt)),
+    } as User;
+  }
+
   private async collection<T>(name: string): Promise<T[]> {
     const rows = await this.request<T[]>(`/api/cfm/master-data/${name}`);
     return rows.map((row) => this.dated(row));
@@ -98,23 +108,33 @@ export class CfmD1ReferenceStorage implements D1Slice {
 
   async getUser(id: string): Promise<User | undefined> {
     const row = await this.request<Record<string, unknown>>(`/api/cfm/auth/users/${encodeURIComponent(id)}`);
-    return row ? {
-      ...row,
-      isInitialPassword: Boolean(row.isInitialPassword),
-      suspended: Boolean(row.suspended),
-      createdAt: new Date(String(row.createdAt)),
-    } as User : undefined;
+    return this.user(row);
   }
   async getUserByUsername(username: string): Promise<User | undefined> {
     const row = await this.request<Record<string, unknown>>(
       `/api/cfm/auth/users/by-username?username=${encodeURIComponent(username)}`, "GET", undefined, true,
     );
-    return row ? {
-      ...row,
-      isInitialPassword: Boolean(row.isInitialPassword),
-      suspended: Boolean(row.suspended),
-      createdAt: new Date(String(row.createdAt)),
-    } as User : undefined;
+    return this.user(row);
+  }
+  async getAllUsers(): Promise<User[]> {
+    const rows = await this.request<Record<string, unknown>[]>("/api/cfm/auth/users");
+    return rows.map((row) => this.user(row)!);
+  }
+  async createUser(value: InsertUser): Promise<User> {
+    return this.user(await this.request<Record<string, unknown>>("/api/cfm/auth/users", "POST", value))!;
+  }
+  async updateUser(id: string, value: Partial<InsertUser>): Promise<User | undefined> {
+    return this.user(await this.request<Record<string, unknown>>(
+      `/api/cfm/auth/users/${encodeURIComponent(id)}`, "PATCH", value,
+    ));
+  }
+  async deleteUser(id: string): Promise<void> {
+    await this.request(`/api/cfm/auth/users/${encodeURIComponent(id)}`, "DELETE");
+  }
+  async updateUserPassword(id: string, password: string): Promise<User | undefined> {
+    return this.user(await this.request<Record<string, unknown>>(
+      `/api/cfm/auth/users/${encodeURIComponent(id)}/password`, "PATCH", { password },
+    ));
   }
 
   getAllCentrals(): Promise<Central[]> { return this.collection("centrals"); }
