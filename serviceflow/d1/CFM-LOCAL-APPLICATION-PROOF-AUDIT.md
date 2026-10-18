@@ -20,13 +20,17 @@ writes, and box-ticket creation/confirmation/reopen flows all need to move
 together or be covered by a deliberate compatibility boundary.
 
 The local proof exercises actual CFM login/authentication, user-management,
-password, and reference-table route handlers. A typed
+password, reference-table, and ticket list/detail read handlers, plus Service
+Flow's typed coverage-grant D1 adapter. A typed
 `CfmD1ReferenceStorage` implements that `IStorage` subset and is wired only in
 the isolated test process. The export converter now accepts all 14 CFM tables,
-preserves stable IDs, rejects duplicate primary/unique keys, and emits
-dependency-ordered idempotent SQL. Synthetic rows for every table are imported
-twice into local D1; the proof compares per-table counts and verifies
-`PRAGMA foreign_key_check`. Production storage selection is unchanged.
+and the selected `tech_coverage_grants` table, preserving stable IDs, rejecting
+duplicate primary/unique keys, and emitting dependency-ordered idempotent SQL.
+Synthetic rows for every selected table are imported twice into local D1; the
+proof compares per-table counts and verifies `PRAGMA foreign_key_check`.
+`tech_coverage_grants` application consumers now support an explicit
+`SF_TECH_COVERAGE_STORAGE=d1` option; PostgreSQL remains the default, and the
+unrelated `technician_names` lookup stays in PostgreSQL.
 
 This is not a production cutover candidate. User administration and Service
 Flow's direct CFM-user reads/writes remain PostgreSQL. PostgreSQL `tickets`
@@ -53,12 +57,13 @@ production mappings.
 | `task_types` → `task_types` | Text UUID PK; no unique/index; inventory transactions reference it | UUID in Node; text fields | `storage` CRUD and inventory/task forms; task creation/deletion routes create inventory transactions. |
 | `contractors` → `contractors` | Text UUID PK; no unique/index; optional FK from work entries | UUID in Node; text fields | `storage` CRUD and work-entry forms. |
 | `excavation_workers` → `excavation_workers` | Text UUID PK; unique `national_id` | UUID in Node; text fields | `storage` CRUD and excavation-worker forms. |
-| `tickets` → `tickets` | Text UUID PK; unique `ticket_number` plus existing `ticket_number_idx`; `status_idx`; FKs to central, cable, fault type, and author | UUID in Node; timestamps → UTC text; nullable coordinates → REAL; preserve status vocabulary and nullability | `storage` list/detail/create/update/delete and joined relation loads; CFM ticket/status/repair/delete routes; direct joins, reads, inserts, and status/note updates in `server/box-fault-ticket.ts`; Service Flow SSO/user-related routes do not eliminate PG `users` dependency. |
+| `tickets` → `tickets` | Text UUID PK; unique `ticket_number` plus existing `ticket_number_idx`; `status_idx`; FKs to central, cable, fault type, and author | UUID in Node; timestamps → UTC text; nullable coordinates → REAL; preserve status vocabulary and nullability | `storage` list/detail/create/update/delete and joined relation loads; the local proof now exercises D1 list/detail reads, while create/update/status/repair/delete writes remain PostgreSQL. `server/box-fault-ticket.ts` and Service Flow callers also directly read/write tickets. |
 | `measurement_entries` → `measurement_entries` | Text UUID PK; ticket FK cascade; author FK; no explicit secondary index in runtime DDL | UUID in Node; distance → REAL; dates → UTC text | `storage` list/get/create/delete; measurement create/delete and ticket relation checks in `server/cfm/routes.ts`. |
 | `work_entries` → `work_entries` | Text UUID PK; ticket and optional measurement FKs cascade; optional contractor FK; author FK | `items` JSON → valid JSON text; dates → UTC text | `storage` list/get/create/delete; CFM work create/delete and ticket relation checks. |
 | `used_task_entries` → `used_task_entries` | Text UUID PK; ticket and optional measurement FKs cascade; author FK | `items` JSON → valid JSON text; dates → UTC text | `storage` list/get/create/delete; CFM task create/delete. Task route also writes one inventory row per item as separate calls. |
 | `inventory_transactions` → `inventory_transactions` | Text UUID PK; task-type FK; optional ticket FK `ON DELETE SET NULL`; no explicit secondary index in runtime DDL | UUID in Node; integer quantity; date → UTC text | `storage` list/create; task routes add/remove transactions; incoming-stock route adds transactions. These writes are not currently wrapped with the associated task-entry write in one transaction. |
 | `box_fault_tickets` → `box_fault_tickets` | Integer serial PK; unique `(source, ref_key)`; `box_fault_tickets_ticket_idx` on `ticket_id`; intentionally no declared FK to `tickets` | serial → SQLite integer key; timestamptz → UTC text; ticket ID stays text | `server/box-fault-ticket.ts` creates/updates/checks records; `server/routes.ts` reads/updates records for backfill, repair confirmation, reopen, and closed-ticket reports. Both call sites currently use the shared PG pool. |
+| `tech_coverage_grants` → `tech_coverage_grants` | Integer serial PK; unique `(grantee_tech_name, covered_tech_name)`; no FK | Preserve integer IDs; timestamps → UTC text; creator is an actor label | `coverageCodes` and `/api/coverage-grants` support an explicit D1 adapter flag. The joined `technician_names` code lookup remains PostgreSQL; flag unset means the existing PostgreSQL query path. |
 
 ### Cross-cutting PostgreSQL dependencies and behavior
 
@@ -71,6 +76,9 @@ production mappings.
 - `server/routes.ts` directly reads and writes `cfm_users` for Service Flow
   SSO/account management. `users.cfm_user_id` is a PG-owned identity link.
   Sessions and Service Flow users remain in PG under the project constraints.
+- The coverage-grant D1 path still resolves worker codes from PostgreSQL
+  `technician_names`; that lookup remains an explicit cross-store read, not a
+  shared transaction.
 - `server/box-fault-ticket.ts` allocates ticket numbers with PostgreSQL regex,
   `split_part`, cast, `MAX`, `lpad`, `RETURNING`, and retry on unique violation.
   It also uses a PostgreSQL `~` regex for fault lookup and updates ticket notes.

@@ -16,6 +16,7 @@ import type {
   InsertContractor,
   ExcavationWorker,
   InsertExcavationWorker,
+  Ticket,
 } from "@shared/cfm-schema";
 import type { IStorage } from "./storage";
 
@@ -28,6 +29,7 @@ type D1Slice = Pick<IStorage,
   | "getAllTaskTypes" | "createTaskType" | "updateTaskType" | "deleteTaskType"
   | "getAllContractors" | "createContractor" | "updateContractor" | "deleteContractor"
   | "getAllExcavationWorkers" | "createExcavationWorker" | "updateExcavationWorker" | "deleteExcavationWorker"
+   | "getAllTickets" | "getTicketById"
 >;
 
 type Actor = { id: string; role: string };
@@ -91,6 +93,33 @@ export class CfmD1ReferenceStorage implements D1Slice {
     } as User;
   }
 
+  private ticket(row: Record<string, any> | undefined): Ticket | undefined {
+    if (!row) return undefined;
+    const asDate = (value: unknown) => value == null ? value : new Date(String(value));
+    const mapChild = (child: Record<string, any>) => ({
+      ...child,
+      recordedAt: asDate(child.recordedAt),
+      createdAt: asDate(child.createdAt),
+    });
+    return {
+      ...row,
+      finalRepairRepairedAt: asDate(row.finalRepairRepairedAt),
+      closedAt: asDate(row.closedAt),
+      createdAt: asDate(row.createdAt),
+      updatedAt: asDate(row.updatedAt),
+      createdByUser: this.user(row.createdByUser),
+      central: this.dated(row.central),
+      cable: this.dated(row.cable),
+      faultType: this.dated(row.faultType),
+      works: (row.works ?? []).map((work: Record<string, any>) => ({
+        ...mapChild(work),
+        contractor: this.dated(work.contractor),
+      })),
+      usedTasks: (row.usedTasks ?? []).map(mapChild),
+      measurements: (row.measurements ?? []).map(mapChild),
+    } as unknown as Ticket;
+  }
+
   private async collection<T>(name: string): Promise<T[]> {
     const rows = await this.request<T[]>(`/api/cfm/master-data/${name}`);
     return rows.map((row) => this.dated(row));
@@ -135,6 +164,16 @@ export class CfmD1ReferenceStorage implements D1Slice {
     return this.user(await this.request<Record<string, unknown>>(
       `/api/cfm/auth/users/${encodeURIComponent(id)}/password`, "PATCH", { password },
     ));
+  }
+
+  async getAllTickets(): Promise<Ticket[]> {
+    const rows = await this.request<Record<string, any>[]>("/api/cfm/tickets");
+    return rows.map((row) => this.ticket(row)!);
+  }
+
+  async getTicketById(id: string): Promise<Ticket | undefined> {
+    const row = await this.request<Record<string, any>>(`/api/cfm/tickets/${encodeURIComponent(id)}`);
+    return this.ticket(row);
   }
 
   getAllCentrals(): Promise<Central[]> { return this.collection("centrals"); }

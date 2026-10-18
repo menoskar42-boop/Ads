@@ -29,6 +29,7 @@ import { phoneNormSql } from "./phone-norm";
 import { nameMatch, nameMatchTokens, nameTokens, buildFirstNameIndex, NAME_MATCH_THRESHOLD } from "@shared/name-match";
 import { registerCfmRoutes } from "./cfm/routes";
 import { storage as cfmStorage } from "./cfm/storage";
+import { createTechCoverageGrantsD1FromEnv, techCoverageGrantsUseD1 } from "./tech-coverage-grants-d1";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
 import { loopMeters, preserveLoopLength, speedKbps } from "./loop-length";
@@ -1959,13 +1960,28 @@ export async function registerRoutes(
         const tn = String(techName).trim();
         // (1) منح التغطية الدائمة
         try {
-          const { rows } = await pool.query(
-            `SELECT DISTINCT g.covered_tech_name AS name, tnm.worker_code AS code
-             FROM tech_coverage_grants g
-             LEFT JOIN technician_names tnm ON btrim(tnm.tech_name) = btrim(g.covered_tech_name)
-             WHERE btrim(g.grantee_tech_name) = btrim($1)`, [tn]);
-          for (const r of rows) { if (r.name) coveredNames.add(String(r.name).trim()); if (r.code) covered.add(String(r.code).trim()); }
-        } catch (e) {}
+          if (techCoverageGrantsUseD1()) {
+            const grants = await createTechCoverageGrantsD1FromEnv().listForGrantee(tn, {
+              id: String(user?.id || user?.username || ""), role: String(user?.role || ""), techName: tn,
+            });
+            for (const grant of grants) coveredNames.add(grant.coveredTechName.trim());
+            if (coveredNames.size) {
+              const { rows } = await pool.query(
+                `SELECT DISTINCT btrim(tech_name) AS name, worker_code AS code
+                 FROM technician_names WHERE btrim(tech_name) = ANY($1::text[])`,
+                [[...coveredNames]],
+              );
+              for (const row of rows) if (row.code) covered.add(String(row.code).trim());
+            }
+          } else {
+            const { rows } = await pool.query(
+              `SELECT DISTINCT g.covered_tech_name AS name, tnm.worker_code AS code
+               FROM tech_coverage_grants g
+               LEFT JOIN technician_names tnm ON btrim(tnm.tech_name) = btrim(g.covered_tech_name)
+               WHERE btrim(g.grantee_tech_name) = btrim($1)`, [tn]);
+            for (const r of rows) { if (r.name) coveredNames.add(String(r.name).trim()); if (r.code) covered.add(String(r.code).trim()); }
+          }
+        } catch (e) { if (techCoverageGrantsUseD1()) throw e; }
         // (2) تغطية اليوم من جدول الورديات: زميل «راحه/إجازة» النهارده والمستخدم هو القائم بالعمل
         try {
           const { rows } = await pool.query(
@@ -15372,12 +15388,16 @@ export async function registerRoutes(
   });
 
   // === منح التغطية الدائمة (tech_coverage_grants) — السوبر أدمن فقط ===
-  app.get("/api/coverage-grants", requireAuth, requireSuperAdmin, async (_req, res) => {
+  app.get("/api/coverage-grants", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
-      const { rows } = await pool.query(
-        `SELECT id, grantee_tech_name AS "granteeTechName", covered_tech_name AS "coveredTechName",
-                created_by AS "createdBy", created_at AS "createdAt"
-         FROM tech_coverage_grants ORDER BY grantee_tech_name, covered_tech_name`);
+      const rows = techCoverageGrantsUseD1()
+        ? await createTechCoverageGrantsD1FromEnv().listAll({
+            id: String(req.user?.id || req.user?.username || ""), role: String(req.user?.role || ""),
+          })
+        : (await pool.query(
+            `SELECT id, grantee_tech_name AS "granteeTechName", covered_tech_name AS "coveredTechName",
+                    created_by AS "createdBy", created_at AS "createdAt"
+             FROM tech_coverage_grants ORDER BY grantee_tech_name, covered_tech_name`)).rows;
       res.json(rows);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -15387,16 +15407,30 @@ export async function registerRoutes(
       const covered = String((req.body || {}).coveredTechName || "").trim();
       if (!grantee || !covered) return res.status(400).json({ message: "اختر الفنى القائم بالعمل والفنى صاحب الخطوط" });
       if (grantee === covered) return res.status(400).json({ message: "لا يمكن منح الفنى تغطية نفسه" });
-      await pool.query(
-        `INSERT INTO tech_coverage_grants (grantee_tech_name, covered_tech_name, created_by)
-         VALUES ($1,$2,$3) ON CONFLICT (grantee_tech_name, covered_tech_name) DO NOTHING`,
-        [grantee, covered, String(req.user.username || "")]);
+      if (techCoverageGrantsUseD1()) {
+        await createTechCoverageGrantsD1FromEnv().create(
+          grantee, covered, String(req.user.username || ""),
+          { id: String(req.user?.id || req.user?.username || ""), role: String(req.user?.role || "") },
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO tech_coverage_grants (grantee_tech_name, covered_tech_name, created_by)
+           VALUES ($1,$2,$3) ON CONFLICT (grantee_tech_name, covered_tech_name) DO NOTHING`,
+          [grantee, covered, String(req.user.username || "")]);
+      }
       res.json({ ok: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.delete("/api/coverage-grants/:id", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
-      await pool.query(`DELETE FROM tech_coverage_grants WHERE id = $1`, [parseInt(req.params.id)]);
+      if (techCoverageGrantsUseD1()) {
+        await createTechCoverageGrantsD1FromEnv().delete(
+          parseInt(req.params.id, 10),
+          { id: String(req.user?.id || req.user?.username || ""), role: String(req.user?.role || "") },
+        );
+      } else {
+        await pool.query(`DELETE FROM tech_coverage_grants WHERE id = $1`, [parseInt(req.params.id, 10)]);
+      }
       res.json({ ok: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

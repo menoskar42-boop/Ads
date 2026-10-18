@@ -113,6 +113,55 @@ function resourceValue(resource, apiName, value) {
   return value;
 }
 
+function camelRow(row, jsonColumns = []) {
+  if (!row) return row;
+  const result = {};
+  for (const [column, raw] of Object.entries(row)) {
+    const key = column.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+    result[key] = jsonColumns.includes(column) && typeof raw === "string" ? JSON.parse(raw) : raw;
+  }
+  return result;
+}
+
+async function loadTicket(env, id) {
+  const row = await env.DB.prepare("SELECT * FROM tickets WHERE id = ?").bind(id).first();
+  if (!row) return null;
+  const ticket = camelRow(row);
+  const [central, cable, faultType, createdByUser, works, usedTasks, measurements] = await Promise.all([
+    env.DB.prepare("SELECT * FROM centrals WHERE id = ?").bind(row.central_id).first(),
+    env.DB.prepare("SELECT * FROM cables WHERE id = ?").bind(row.cable_id).first(),
+    env.DB.prepare("SELECT * FROM fault_types WHERE id = ?").bind(row.fault_type_id).first(),
+    env.DB.prepare(`SELECT ${USER_SELECT} FROM cfm_users WHERE id = ?`).bind(row.created_by).first(),
+    env.DB.prepare("SELECT * FROM work_entries WHERE ticket_id = ?").bind(id).all(),
+    env.DB.prepare("SELECT * FROM used_task_entries WHERE ticket_id = ?").bind(id).all(),
+    env.DB.prepare("SELECT * FROM measurement_entries WHERE ticket_id = ?").bind(id).all(),
+  ]);
+  ticket.central = camelRow(central);
+  ticket.cable = camelRow(cable);
+  ticket.faultType = camelRow(faultType);
+  ticket.createdByUser = userRow(createdByUser);
+  ticket.works = await Promise.all(works.results.map(async (entry) => {
+    const result = camelRow(entry, ["items"]);
+    result.contractor = entry.contractor_id
+      ? camelRow(await env.DB.prepare("SELECT * FROM contractors WHERE id = ?").bind(entry.contractor_id).first())
+      : null;
+    return result;
+  }));
+  ticket.usedTasks = usedTasks.results.map((entry) => camelRow(entry, ["items"]));
+  ticket.measurements = measurements.results.map((entry) => camelRow(entry));
+  return ticket;
+}
+
+async function handleTicketReads(request, env, ticketId) {
+  if (request.method !== "GET") return Response.json({ error: "Method not allowed" }, { status: 405 });
+  if (ticketId) {
+    const ticket = await loadTicket(env, ticketId);
+    return ticket ? Response.json(ticket) : Response.json({ error: "Ticket not found" }, { status: 404 });
+  }
+  const { results } = await env.DB.prepare("SELECT id FROM tickets").all();
+  return Response.json(await Promise.all(results.map(({ id }) => loadTicket(env, id))));
+}
+
 const USER_SELECT = `id, username, password, name, role, avatar,
   is_initial_password AS isInitialPassword, created_at AS createdAt, suspended`;
 
@@ -171,6 +220,60 @@ async function handleReferenceResource(request, env, resourceName, resourceId) {
   return Response.json({ error: "Method not allowed" }, { status: 405 });
 }
 
+async function handleTechCoverageGrants(request, env, claims, grantId) {
+  const basePath = "/api/serviceflow/tech-coverage-grants";
+  if (request.method === "GET" && !grantId) {
+    const granteeName = new URL(request.url).searchParams.get("granteeTechName");
+    if (granteeName) {
+      if (claims.role !== "super_admin" &&
+          (typeof claims.techName !== "string" || claims.techName.trim() !== granteeName.trim())) {
+        return Response.json({ error: "Forbidden" }, { status: 403 });
+      }
+      const { results } = await env.DB.prepare(
+        `SELECT id, grantee_tech_name AS granteeTechName, covered_tech_name AS coveredTechName,
+                created_by AS createdBy, created_at AS createdAt
+         FROM tech_coverage_grants WHERE trim(grantee_tech_name) = trim(?)
+         ORDER BY covered_tech_name`,
+      ).bind(granteeName).all();
+      return Response.json(results);
+    }
+    if (claims.role !== "super_admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+    const { results } = await env.DB.prepare(
+      `SELECT id, grantee_tech_name AS granteeTechName, covered_tech_name AS coveredTechName,
+              created_by AS createdBy, created_at AS createdAt
+       FROM tech_coverage_grants ORDER BY grantee_tech_name, covered_tech_name`,
+    ).all();
+    return Response.json(results);
+  }
+  if (request.method === "POST" && !grantId) {
+    if (claims.role !== "super_admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+    const body = await request.json();
+    if (Object.keys(body).some((key) => !["granteeTechName", "coveredTechName", "createdBy"].includes(key)) ||
+        typeof body.granteeTechName !== "string" || !body.granteeTechName.trim() ||
+        typeof body.coveredTechName !== "string" || !body.coveredTechName.trim() ||
+        (body.createdBy != null && typeof body.createdBy !== "string")) {
+      return Response.json({ error: "Invalid coverage grant" }, { status: 400 });
+    }
+    await env.DB.prepare(
+      `INSERT INTO tech_coverage_grants (grantee_tech_name, covered_tech_name, created_by)
+       VALUES (?, ?, ?) ON CONFLICT(grantee_tech_name, covered_tech_name) DO NOTHING`,
+    ).bind(body.granteeTechName.trim(), body.coveredTechName.trim(), body.createdBy ?? null).run();
+    const row = await env.DB.prepare(
+      `SELECT id, grantee_tech_name AS granteeTechName, covered_tech_name AS coveredTechName,
+              created_by AS createdBy, created_at AS createdAt
+       FROM tech_coverage_grants WHERE grantee_tech_name = ? AND covered_tech_name = ?`,
+    ).bind(body.granteeTechName.trim(), body.coveredTechName.trim()).first();
+    return Response.json(row, { status: 200 });
+  }
+  if (request.method === "DELETE" && grantId) {
+    if (claims.role !== "super_admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+    if (!/^\d+$/.test(grantId)) return Response.json({ error: "Invalid grant ID" }, { status: 400 });
+    await env.DB.prepare("DELETE FROM tech_coverage_grants WHERE id = ?").bind(Number(grantId)).run();
+    return Response.json({ ok: true });
+  }
+  return Response.json({ error: "Method not allowed" }, { status: 405 });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -183,13 +286,21 @@ export default {
     const resourceName = referenceMatch?.[1];
     const resourceId = referenceMatch?.[2] ? decodeURIComponent(referenceMatch[2]) : null;
     const referenceRoute = Boolean(resourceName && REFERENCE_RESOURCES[resourceName]);
-    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute) {
+    const ticketMatch = url.pathname.match(/^\/api\/cfm\/tickets(?:\/([^/]+))?$/);
+    const ticketId = ticketMatch?.[1] ? decodeURIComponent(ticketMatch[1]) : null;
+    const ticketRoute = Boolean(ticketMatch);
+    const grantMatch = url.pathname.match(/^\/api\/serviceflow\/tech-coverage-grants(?:\/([^/]+))?$/);
+    const grantId = grantMatch?.[1] ? decodeURIComponent(grantMatch[1]) : null;
+    const grantRoute = Boolean(grantMatch);
+    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
     if ((userByUsername && request.method !== "GET") ||
         (userCollection && !["GET", "POST"].includes(request.method)) ||
         (userMatch && !["GET", "PATCH", "DELETE"].includes(request.method)) ||
-        (userPasswordMatch && request.method !== "PATCH")) {
+        (userPasswordMatch && request.method !== "PATCH") ||
+        (ticketRoute && request.method !== "GET") ||
+        (grantRoute && !["GET", "POST", "DELETE"].includes(request.method))) {
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
     const expectedServiceToken = env.SERVICE_TOKEN;
@@ -290,6 +401,8 @@ export default {
         await env.DB.prepare("DELETE FROM cfm_users WHERE id = ?").bind(id).run();
         return Response.json({ success: true });
       }
+      if (ticketRoute) return handleTicketReads(request, env, ticketId);
+      if (grantRoute) return handleTechCoverageGrants(request, env, claims, grantId);
       return handleReferenceResource(request, env, resourceName, resourceId);
     } catch {
       return Response.json({ error: "D1 operation failed" }, { status: 500 });

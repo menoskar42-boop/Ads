@@ -18,6 +18,7 @@ process.env.DATABASE_URL = "postgres://no-db@127.0.0.1:1/no-db";
 const { registerCfmRoutes } = await import("../../../server/cfm/routes.ts");
 const { storage } = await import("../../../server/cfm/storage.ts");
 const { CfmD1ReferenceStorage } = await import("../../../server/cfm/d1-reference-storage.ts");
+const { ServiceFlowTechCoverageD1Storage } = await import("../../../server/tech-coverage-grants-d1.ts");
 const phase2Dir = new URL(".", import.meta.url).pathname;
 const centralPath = "/api/cfm/master-data/centrals";
 const workerUrl = "http://127.0.0.1:8789";
@@ -211,6 +212,8 @@ before(async () => {
     createCentral: storage.createCentral,
     updateCentral: storage.updateCentral,
     deleteCentral: storage.deleteCentral,
+    getAllTickets: storage.getAllTickets,
+    getTicketById: storage.getTicketById,
   };
   const d1Storage = new CfmD1ReferenceStorage({
     baseUrl: workerUrl,
@@ -225,6 +228,7 @@ before(async () => {
   for (const method of [
     "getUser", "getUserByUsername", "createUser", "updateUser", "deleteUser", "getAllUsers", "updateUserPassword",
     "getAllCentrals", "createCentral", "updateCentral", "deleteCentral",
+    "getAllTickets", "getTicketById",
     "getAllCables", "createCable", "updateCable", "deleteCable",
     "getAllFaultTypes", "createFaultType", "updateFaultType", "deleteFaultType",
     "getAllWorkTypes", "createWorkType", "updateWorkType", "deleteWorkType",
@@ -274,7 +278,7 @@ before(async () => {
   assert.deepEqual(await queryLocalD1("PRAGMA foreign_key_check;"), []);
   const countTables = [
     "cfm_users", "centrals", "cables", "fault_types", "work_types", "task_types",
-    "contractors", "excavation_workers", "tickets", "measurement_entries",
+    "contractors", "excavation_workers", "tech_coverage_grants", "tickets", "measurement_entries",
     "work_entries", "used_task_entries", "inventory_transactions", "box_fault_tickets",
   ];
   const countRows = [];
@@ -286,7 +290,7 @@ before(async () => {
   const importedCounts = new Map(countRows.map((row) => [row.table_name, Number(row.row_count)]));
   for (const table of [
     "cfm_users", "cables", "fault_types", "work_types", "task_types", "contractors",
-    "excavation_workers", "tickets", "measurement_entries", "work_entries",
+    "excavation_workers", "tech_coverage_grants", "tickets", "measurement_entries", "work_entries",
     "used_task_entries", "inventory_transactions", "box_fault_tickets",
   ]) assert.equal(importedCounts.get(table), table === "cfm_users" ? 3 : 1, `${table} import count`);
   assert.equal(importedCounts.get("centrals"), 3, "central count includes two local base fixtures and one imported row");
@@ -313,6 +317,14 @@ before(async () => {
   assert.equal(importedBoxFault.id, 77);
   assert.equal(importedBoxFault.ticket_id, importedTicket.id);
   assert.equal(importedBoxFault.ticket_number, importedTicket.ticket_number);
+  const [importedCoverageGrant] = await queryLocalD1(
+    "SELECT id, grantee_tech_name, covered_tech_name FROM tech_coverage_grants WHERE id = 77",
+  );
+  assert.deepEqual(importedCoverageGrant, {
+    id: 77,
+    grantee_tech_name: "Imported synthetic grantee",
+    covered_tech_name: "Imported synthetic covered",
+  });
 
   worker = spawn("npx", [
     "--yes", "wrangler@4", "dev",
@@ -383,6 +395,8 @@ before(async () => {
   app.post(centralPath, ...route("POST", centralPath).handlers);
   app.patch(`${centralPath}/:id`, ...route("PATCH", `${centralPath}/:id`).handlers);
   app.delete(`${centralPath}/:id`, ...route("DELETE", `${centralPath}/:id`).handlers);
+  app.get("/api/cfm/tickets", ...route("GET", "/api/cfm/tickets").handlers);
+  app.get("/api/cfm/tickets/:id", ...route("GET", "/api/cfm/tickets/:id").handlers);
   for (const resource of [
     "cables", "fault-types", "work-types", "task-types", "contractors", "excavation-workers",
   ]) {
@@ -508,6 +522,31 @@ test("actual CFM user-management and password routes use D1 with existing admin 
 
   assert.equal((await callCfmApi("DELETE", `/api/cfm/users/${created.id}`, adminCookie)).status, 200);
   assert.equal((await login("managed-synthetic-user", "changed-password-123")).response.status, 401);
+});
+
+test("Service Flow tech-coverage grants use typed D1 operations with stable IDs and admin checks", async () => {
+  const store = new ServiceFlowTechCoverageD1Storage({
+    baseUrl: workerUrl,
+    serviceToken,
+    contextSecret,
+    audience,
+  });
+  const admin = { id: "synthetic-sf-admin", role: "super_admin" };
+  const technician = { id: "synthetic-sf-tech", role: "tech", techName: "Synthetic grantee" };
+  const created = await store.create("Synthetic grantee", "Synthetic covered", "Synthetic admin", admin);
+  const repeated = await store.create("Synthetic grantee", "Synthetic covered", "Synthetic admin", admin);
+  assert.equal(repeated.id, created.id, "unique grant retries must not create duplicates");
+  assert.ok(created.createdAt instanceof Date);
+  assert.equal((await store.listForGrantee("Synthetic grantee", technician)).length, 1);
+  await assert.rejects(() => store.listForGrantee("Another grantee", technician), /403/);
+  await assert.rejects(() => store.listAll(technician), /403/);
+  await assert.rejects(
+    () => store.create("Unauthorized", "Grant", "Technician", technician),
+    /403/,
+  );
+  await assert.rejects(() => store.delete(created.id, technician), /403/);
+  await store.delete(created.id, admin);
+  assert.equal((await store.listForGrantee("Synthetic grantee", technician)).length, 0);
 });
 
 test("PostgreSQL export converter is deterministic and rejects unsafe or unstable input", () => {
@@ -706,4 +745,27 @@ test("actual CFM reference routes use the typed D1 adapter with FK and CRUD chec
   assert.equal((await callCfmApi("DELETE", `${centralPath}/${parent.id}`, cookie)).status, 200);
   const cables = await (await callCfmApi("GET", "/api/cfm/master-data/cables", cookie)).json();
   assert.ok(!cables.some((cable) => cable.centralId === parent.id));
+});
+
+test("actual CFM ticket list route reads D1 relations and sanitizes the creator", async () => {
+  const { response: loginResponse, cookie } = await login("synthetic-admin");
+  assert.equal(loginResponse.status, 200);
+  const response = await callCfmApi("GET", "/api/cfm/tickets", cookie);
+  assert.equal(response.status, 200);
+  const tickets = await response.json();
+  const ticket = tickets.find((row) => row.id === "synthetic-import-ticket");
+  assert.ok(ticket);
+  assert.equal(ticket.ticketNumber, "TKT-2026-IMPORT-001");
+  assert.equal(ticket.central.name, "Imported synthetic central");
+  assert.equal(ticket.cable.centralId, "synthetic-import-central");
+  assert.equal(ticket.faultType.name, "Imported synthetic fault");
+  assert.equal(ticket.createdByUser.name, "Synthetic Imported User");
+  assert.equal(Object.hasOwn(ticket.createdByUser, "password"), false);
+  assert.equal(ticket.works[0].contractor.name, "Imported synthetic contractor");
+  assert.deepEqual(ticket.works[0].items, [{ quantity: 1, workTypeId: "synthetic-import-work" }]);
+  assert.equal(ticket.usedTasks[0].ticketId, ticket.id);
+  assert.equal(ticket.measurements[0].reading, "Synthetic reading");
+  const detailResponse = await callCfmApi("GET", `/api/cfm/tickets/${ticket.id}`, cookie);
+  assert.equal(detailResponse.status, 200);
+  assert.deepEqual((await detailResponse.json()).works, ticket.works);
 });

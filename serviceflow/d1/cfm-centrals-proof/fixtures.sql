@@ -63,6 +63,15 @@ CREATE TABLE excavation_workers (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE tech_coverage_grants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  grantee_tech_name TEXT NOT NULL,
+  covered_tech_name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by TEXT,
+  UNIQUE (grantee_tech_name, covered_tech_name)
+);
+
 CREATE TABLE tickets (
   id TEXT PRIMARY KEY NOT NULL,
   ticket_number TEXT NOT NULL UNIQUE,

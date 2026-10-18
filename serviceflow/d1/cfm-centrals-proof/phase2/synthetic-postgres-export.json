@@ -58,6 +58,15 @@
       "created_at": "2026-10-18T08:16:00Z"
     }
   ],
+  "tech_coverage_grants": [
+    {
+      "id": 77,
+      "grantee_tech_name": "Imported synthetic grantee",
+      "covered_tech_name": "Imported synthetic covered",
+      "created_at": "2026-10-18T08:16:30Z",
+      "created_by": "Synthetic administrator"
+    }
+  ],
   "tickets": [
     {
       "id": "synthetic-import-ticket",

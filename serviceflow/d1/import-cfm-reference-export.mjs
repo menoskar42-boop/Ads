@@ -10,6 +10,7 @@ const TABLES = [
   { key: "work_types", required: ["id", "name", "created_at"] },
   { key: "contractors", required: ["id", "name", "created_at"] },
   { key: "excavation_workers", required: ["id", "name", "national_id", "created_at"] },
+  { key: "tech_coverage_grants", required: ["id", "grantee_tech_name", "covered_tech_name", "created_at"], keyColumns: ["grantee_tech_name", "covered_tech_name"] },
   { key: "cables", required: ["id", "central_id", "number", "type", "created_at"] },
   { key: "tickets", required: ["id", "ticket_number", "central_department", "central_id", "cable_id", "cabinet", "box", "fault_type_id", "status", "created_by", "created_at", "updated_at"] },
   { key: "measurement_entries", required: ["id", "ticket_id", "reading", "created_by", "recorded_at", "created_at"] },
@@ -27,6 +28,7 @@ const COLUMNS = {
   task_types: ["id", "name", "created_at"],
   contractors: ["id", "name", "created_at"],
   excavation_workers: ["id", "name", "national_id", "created_at"],
+  tech_coverage_grants: ["id", "grantee_tech_name", "covered_tech_name", "created_at", "created_by"],
   tickets: ["id", "ticket_number", "central_department", "central_id", "cable_id", "cabinet", "box", "fault_type_id", "notes", "latitude", "longitude", "status", "final_repair_id", "final_repair_description", "final_repair_repaired_at", "final_repair_repaired_by", "closed_at", "closed_by", "created_by", "opened_by_label", "created_at", "updated_at"],
   measurement_entries: ["id", "ticket_id", "reading", "distance", "direction", "notes", "performed_by", "created_by", "recorded_at", "created_at"],
   work_entries: ["id", "ticket_id", "measurement_id", "items", "notes", "performed_by", "works_by", "contractor_id", "created_by", "recorded_at", "created_at"],
@@ -43,6 +45,7 @@ const UNIQUE_KEYS = {
   task_types: [["id"]],
   contractors: [["id"]],
   excavation_workers: [["id"], ["national_id"]],
+  tech_coverage_grants: [["id"], ["grantee_tech_name", "covered_tech_name"]],
   tickets: [["id"], ["ticket_number"]],
   measurement_entries: [["id"]],
   work_entries: [["id"]],
@@ -88,10 +91,10 @@ function convertValue(table, column, value, rowIndex) {
     const parsed = typeof value === "string" ? JSON.parse(value) : value;
     return JSON.stringify(canonicalJson(parsed));
   }
-  if (NUMBER_COLUMNS.has(column) || (table === "box_fault_tickets" && column === "id")) {
+  if (NUMBER_COLUMNS.has(column) || (["box_fault_tickets", "tech_coverage_grants"].includes(table) && column === "id")) {
     const number = Number(value);
     if (!Number.isFinite(number) || (column === "quantity" && !Number.isInteger(number)) ||
-        (table === "box_fault_tickets" && column === "id" && !Number.isInteger(number))) {
+        (["box_fault_tickets", "tech_coverage_grants"].includes(table) && column === "id" && !Number.isInteger(number))) {
       throw new Error(`${table}[${rowIndex}].${column} must be a finite${column === "quantity" ? " integer" : ""}`);
     }
     return number;
