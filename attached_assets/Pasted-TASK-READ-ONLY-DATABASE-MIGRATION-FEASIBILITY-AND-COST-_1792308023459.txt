@@ -1,0 +1,185 @@
+TASK: READ-ONLY DATABASE MIGRATION FEASIBILITY AND COST AUDIT
+
+Project: Service Flow
+
+OBJECTIVE
+Determine whether migrating Service Flow from its current PostgreSQL production database to Cloudflare D1, while keeping existing files and maintenance media in Cloudflare R2, would reduce total monthly operating costs.
+
+Cost reduction is the primary objective. Performance is secondary, provided the application remains functionally correct and reliable.
+
+CRITICAL RESTRICTIONS
+1. READ-ONLY AUDIT ONLY.
+2. Do not modify, create, delete, or overwrite any files.
+3. Never rewrite entire existing files.
+4. Do not run database migrations or schema changes.
+5. Do not create Cloudflare resources or enable paid services.
+6. Do not run load tests, benchmarks, or repeated queries against production.
+7. Do not download or export the full production database.
+8. Do not print environment variables, credentials, connection strings, or secrets.
+9. Do not install packages or dependencies.
+10. Prefer inspecting existing code, configuration, and available logs.
+11. Use existing audit results and metrics when available.
+12. Clearly distinguish verified facts from estimates and unknowns.
+
+KNOWN PROJECT CONTEXT
+
+Previous Service Flow audits reported:
+- PostgreSQL production database size approximately 555 MiB.
+- Maintenance images already stored in Cloudflare R2.
+- The maintenance R2 bucket previously contained approximately 2,007 objects totaling 483.1 MB.
+- The production configuration previously selected the Service Flow database target named "archive".
+- The application launcher passed SERVICEFLOW_DATABASE_URL to the Service Flow process.
+- Approximately 11,867 phone lines, 11,580 phone ports, and 10,683 line-account mappings were reported.
+- A scheduled job named registerCabinetReassign was previously identified as running every minute.
+- The application performs frequent database reads and may scan large tables.
+
+Previous Replit billing evidence:
+- Production database compute: 151.44 hours.
+- Production database compute charge: $24.23.
+- Project storage charge: $0 in the displayed breakdown.
+- Production database logical storage charge: $0 in the displayed breakdown.
+- An unexpected Storage-category spending spike of approximately $14.57 was observed on October 16, 2026. Its exact resource and billing cause have not yet been verified.
+
+These figures are historical observations. Do not assume they represent current database size, current billing, or current application activity.
+
+AUDIT TASKS
+
+STEP 1: DATABASE INVENTORY
+
+Inspect the existing schema and code to identify:
+- All PostgreSQL tables.
+- Approximate row counts and table sizes, only when already available from existing logs or metadata.
+- Indexes, primary keys, foreign keys, unique constraints, and relationships.
+- Views, materialized views, triggers, stored procedures, sequences, and extensions.
+- Large tables and columns, including JSON, JSONB, TEXT, BYTEA, and other large fields.
+- Tables that are frequently read or updated.
+- Tables used by scheduled tasks and background processes.
+
+Do not execute expensive production queries merely to collect statistics.
+If exact row counts or sizes are unavailable, report that limitation.
+
+STEP 2: POSTGRESQL COMPATIBILITY
+
+Identify PostgreSQL-specific functionality that may not work directly with Cloudflare D1, which uses SQLite.
+
+Inspect:
+- SQL syntax and database queries.
+- INSERT, UPDATE, DELETE, UPSERT, JOIN, and transaction usage.
+- JSON and JSONB operations.
+- Array types and PostgreSQL-specific operators.
+- UUID handling.
+- Date and timestamp operations.
+- Sequences and auto-generated IDs.
+- RETURNING clauses.
+- Full-text search.
+- Stored procedures, triggers, and extensions.
+- Connection pooling and transaction assumptions.
+- ORM configuration and raw SQL.
+- Concurrency-sensitive operations.
+
+For each incompatibility, identify the relevant file and function, without printing secrets.
+
+Classify findings as:
+A. Compatible.
+B. Compatible with minor changes.
+C. Requires significant changes.
+D. Unsupported or requires redesign.
+
+STEP 3: READ AND WRITE WORKLOAD
+
+Use existing logs and metrics to estimate:
+- Database queries per day.
+- Approximate rows read per day, if available.
+- Approximate rows written per day.
+- Largest tables scanned.
+- Queries that read entire tables.
+- Repeated polling and scheduled tasks.
+- Queries that could read millions of rows despite returning few results.
+- Current evidence of unnecessary database activity.
+
+Do not invent workload figures.
+If metrics are unavailable, provide a short list of the exact metrics needed to calculate costs.
+
+STEP 4: CLOUDFLARE D1 COST ESTIMATE
+
+Use verified current pricing information if accessible. Otherwise, explicitly mark pricing as unverified and list the official pricing page that must be checked manually.
+
+Official pricing:
+https://developers.cloudflare.com/d1/platform/pricing/
+
+Evaluate both:
+- D1 Free plan.
+- Workers Paid plan, including its base subscription and included D1 quotas.
+
+Calculate:
+- Estimated monthly D1 storage.
+- Estimated monthly rows read.
+- Estimated monthly rows written.
+- Estimated additional D1 charges.
+- Whether daily or monthly quotas could be exceeded.
+- The consequences of exceeding Free plan quotas.
+- Any additional Workers costs required to connect the existing application to D1.
+
+Do not treat SQL query count as equivalent to rows read.
+Do not assume a query returning 10 rows only consumes 10 rows read.
+Use EXPLAIN QUERY PLAN or existing query metrics only when safe and available. Do not run costly production experiments.
+
+If workload measurements are missing, provide low, medium, and high scenarios with clearly labeled assumptions.
+
+STEP 5: CLOUDFLARE R2 COST ESTIMATE
+
+Official pricing:
+https://developers.cloudflare.com/r2/pricing/
+
+Inspect how the existing application accesses R2 and whether the current maintenance media are already stored there.
+
+Estimate:
+- Storage requirements for any proposed data migration.
+- Class A and Class B operations, if measurable.
+- Whether the workload could exceed free monthly quotas.
+- Any additional R2 operations required by the proposed architecture.
+- Whether storing database tables as JSON or Parquet objects would require an additional query engine or application-side joins.
+
+Do not assume R2 supports PostgreSQL-style SQL queries or relational joins.
+
+STEP 6: ALTERNATIVES
+
+Compare these options:
+
+A. Keep PostgreSQL and optimize database activity.
+B. Keep essential relational tables in PostgreSQL and move selected historical or large data to R2.
+C. Migrate the relational database to Cloudflare D1 and keep files in R2.
+D. Store most data in R2 and use a minimal database or another query mechanism.
+
+For each option, estimate:
+- Monthly infrastructure cost.
+- Migration effort.
+- Code changes required.
+- Risks to existing features.
+- Expected effect on database compute charges.
+- Whether the approach can realistically reduce total cost.
+
+Do not recommend D1 solely because it has a generous free quota. Evaluate PostgreSQL compatibility and the application's actual workload.
+
+STEP 7: FINAL REPORT
+
+Produce a concise but technically grounded report containing:
+
+1. Executive recommendation.
+2. Current architecture and database inventory.
+3. Largest tables and available size measurements.
+4. PostgreSQL-to-D1 compatibility findings.
+5. Workload metrics and their reliability.
+6. Monthly cost comparison for all four options.
+7. Missing information needed for a reliable estimate.
+8. Recommended migration sequence, if migration is justified.
+9. Risks and rollback considerations.
+
+FINAL RULES
+
+- Do not change the application.
+- Do not perform any migration.
+- Do not modify production resources.
+- Do not claim a migration is safe without sufficient evidence.
+- Do not claim exact savings without verified workload and pricing data.
+- End with a clear decision: migrate to D1, optimize PostgreSQL first, or investigate further.
