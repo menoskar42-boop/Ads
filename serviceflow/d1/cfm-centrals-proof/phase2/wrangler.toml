@@ -1,0 +1,9 @@
+# Local-only Phase 2 proof. No remote D1 resource or deploy route is configured.
+name = "serviceflow-cfm-centrals-auth-proof"
+main = "worker.js"
+compatibility_date = "2026-05-03"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "serviceflow-cfm-centrals-proof"
+database_id = "00000000-0000-0000-0000-000000000000"

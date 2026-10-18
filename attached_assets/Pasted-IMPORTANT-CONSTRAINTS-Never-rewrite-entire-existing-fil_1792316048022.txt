@@ -1,0 +1,67 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+I approve Phase 1 of the local CFM D1 proof of concept.
+
+Proceed with Phase 2: a local-only authenticated-user
+context handoff from Express to the Cloudflare Worker.
+
+OBJECTIVE:
+Prove that an authenticated Service Flow user can access
+the local D1 CFM centrals endpoint while preserving the
+existing application's authentication and authorization
+semantics.
+
+REQUIREMENTS:
+
+1. Inspect the existing Express authentication and
+   authorization middleware before designing the handoff.
+
+2. Use synthetic users and test sessions only.
+
+3. The Express side must establish the user's identity
+   using the existing authentication mechanism.
+
+4. The Worker must not trust arbitrary client-supplied
+   user IDs, role names, or authorization headers.
+
+5. Design and test a secure server-to-Worker request.
+   Any shared secret must remain server-side and must
+   never be exposed to browser clients or logs.
+
+6. Test at least:
+   - Unauthenticated user rejected.
+   - Authenticated user with permission accepted.
+   - Authenticated user without permission rejected.
+   - Missing or invalid internal authentication rejected.
+   - Client cannot forge a privileged role or user ID.
+   - Invalid or expired session rejected where feasible.
+
+7. Preserve the existing live Express route unchanged.
+   Do not modify production authentication behavior.
+
+8. Use local D1 emulation and synthetic data only.
+
+STRICT RULES:
+- Do not access production databases.
+- Do not migrate production data.
+- Do not change production configuration.
+- Do not create Cloudflare resources or incur charges.
+- Do not implement write operations.
+- Do not change existing PostgreSQL behavior.
+- Do not introduce a new authentication system unnecessarily.
+
+If the existing Express authentication flow cannot be
+tested safely in isolation, stop and explain the blocker
+rather than inventing a parallel authentication mechanism.
+
+After testing, report changed files, test results, security
+limitations, and the next smallest step.
+
+Stop after Phase 2 and wait for review.
