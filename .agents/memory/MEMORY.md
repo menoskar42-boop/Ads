@@ -27,3 +27,4 @@
 - [Nutrition goals and shopping state](nutrition-goals-shopping-state.md) — keep patient goal logs separate from goals and scope shopping marks to the plan version.
 - [Safari Kids lesson videos](safari-kids-video-placement.md) — match age-appropriate channel videos to existing Safari Kids activities, not a new homepage section.
 - [Service Flow database billing scope](serviceflow-database-billing-scope.md) — Service Flow is the only site the user identifies as using a Replit-hosted database; other sites use Supabase.
+- [Service Flow change constraints](serviceflow-change-constraints.md) — make incremental edits with `str_replace`, one feature at a time, and confirm between complex steps.
