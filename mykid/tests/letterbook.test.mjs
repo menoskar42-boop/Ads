@@ -153,6 +153,35 @@ async function write(i) {
   }
   await advanced(i);
 }
+/** الحرف بالحركة: لوحة على النقط وبعدين لوحة لوحده (من غير عدّاد). */
+async function harakaWrite(i) {
+  for (let phase = 0; phase < 2; phase++) {
+    if ((await nowChip()) !== i) return;
+    const glyph = await page.locator(".wbk-write").getAttribute("data-glyph");
+    const h = { "\u064E": "a", "\u064F": "u", "\u0650": "i", "\u0652": "o" }[glyph.slice(-1)];
+    const { harakaStrokes } = await import("../js/data/strokes.js");
+    await page.waitForSelector(".wb-hand", { timeout: 4000 });
+    await waitIdle();
+    for (const st of harakaStrokes(glyph.slice(0, -1), h)) await stroke(st);
+    await page.waitForFunction(({ i, phase }) => {
+      const k = [...document.querySelectorAll(".wbk-chip")].findIndex((c) => c.classList.contains("now"));
+      return k !== i || (phase === 0 && !!document.querySelector(".wb-mini"));
+    }, { i, phase }, { timeout: 9000 });
+  }
+  await advanced(i);
+}
+/** اسمع واعرف الحركة: غلطة واحدة (ميزو مابيقولش غلط) وبعدين الصح لحد ما النجوم تكمل. */
+async function harakaQuiz(i) {
+  await page.waitForSelector(".hq-opt");
+  await page.waitForTimeout(400);
+  await page.locator(".hq-opt:not([data-good])").first().click();
+  assert.doesNotMatch(await page.locator(".hq-say").textContent(), /غلط/);
+  for (let g = 0; g < 80 && (await nowChip()) === i; g++) {
+    await page.evaluate(() => document.querySelector(".hq-opt[data-good]:not(.hq-pop)")?.click());
+    await page.waitForTimeout(500);
+  }
+  await advanced(i);
+}
 /** لعبة من ألعاب القلعة جوّه الصفحة: البازل لمسة-لمسة، والباقى لمس الإجابة الصح (حتى لو بتتحرك). */
 async function game(i) {
   assert.equal(await page.locator(".wbk-body .is-embedded .topbar").count(), 0, "اللعبة من غير شريطها جوّه الكتاب");
@@ -174,7 +203,7 @@ async function game(i) {
 async function playPage(pageId, opts = {}) {
   await open(pageId, opts);
   const seen = [];
-  for (let guard = 0; guard < 30; guard++) {
+  for (let guard = 0; guard < 40; guard++) {
     if (!(await page.locator(".wbk-chip").count())) break;
     if (await page.locator(".lgc").count()) break;
     if (await page.evaluate(() => Object.values(localStorage).some((v) => /"letterbookDone":\{"/.test(v)))) break;
@@ -183,6 +212,8 @@ async function playPage(pageId, opts = {}) {
     seen.push(k === "game" ? await page.evaluate(() => document.querySelector(".lbk-game-title")?.textContent.trim().split(" ")[0]) : k);
     await shot(`${pageId}-${k}`);
     if (k === "write") await write(i);
+    else if (k === "harakaWrite") await harakaWrite(i);
+    else if (k === "harakaQuiz") await harakaQuiz(i);
     else if (k === "game") await game(i);
     else if (k === "shadow" || k === "matchFirst") await pair(i);
     else {
@@ -196,8 +227,9 @@ async function playPage(pageId, opts = {}) {
 
 test("letter page (ب): book activities + castle games in order, 3+5 writes, then the letter's grade", async () => {
   const seen = await playPage("Lب");
-  assert.deepEqual(seen, ["meet", "write", "🧩", "riddle", "pop", "🔦", "harakat", "harakaChoose", "write", "🥚",
-    "starts", "🔤", "forms", "circle", "🎯", "missing", "🔠", "write", "🧠"]);
+  assert.deepEqual(seen, ["meet", "write", "🧩", "riddle", "pop", "🔦", "harakat", "write", "🥚",
+    "starts", "🔤", "forms", "circle", "🎯", "missing", "🔠", "write",
+    "harakaWrite", "harakaWrite", "harakaWrite", "harakaWrite", "harakaQuiz", "🧠"]);
   // شهادة الحرف: درجة من ١٠٠ ونجوم، ومحفوظة بالتفاصيل لولى الأمر
   await page.waitForSelector(".lgc .lgc-total b");
   await shot("Lب-grade");
@@ -206,8 +238,10 @@ test("letter page (ب): book activities + castle games in order, 3+5 writes, the
   const g = await page.evaluate(async () => (await import("/js/core/storage.js")).Store.letterGrades["ar:ب"]);
   assert.equal(g.tries, 1);
   assert.equal(g.last.total, total);
-  assert.equal(g.last.detail.writes.length, 8, "٣ بالنقط + ٥ لوحده");
-  assert.deepEqual(g.last.detail.writes.map((w) => w.level), [2, 2, 2, 3, 3, 3, 3, 3]);
+  assert.equal(g.last.detail.writes.length, 16, "٣ بالنقط + ٥ لوحده + كل حركة مرتين");
+  assert.deepEqual(g.last.detail.writes.map((w) => w.level), [2, 2, 2, 3, 3, 3, 3, 3, 2, 3, 2, 3, 2, 3, 2, 3]);
+  assert.deepEqual(g.last.detail.writes.filter((w) => w.glyph).map((w) => w.glyph), ["بَ", "بَ", "بُ", "بُ", "بِ", "بِ", "بْ", "بْ"]);
+  assert.ok(g.last.detail.acts.harakaQuiz.mistakes >= 1, "غلطة لعبة الحركات اتحسبت");
   assert.deepEqual(Object.keys(g.last.detail.games).sort(), ["catch", "eggs", "flash", "phonics", "puzzle", "review", "sequence"]);
   assert.ok(Object.values(g.last.detail.games).every((x) => !x.skipped));
   assert.ok(g.last.detail.acts.riddle.mistakes >= 1, "الغلطة اتحسبت");

@@ -11,11 +11,12 @@ import { Sfx } from "../core/audio.js";
 import { Store } from "../core/storage.js";
 import { awardStars } from "../core/rewards.js";
 import { femAdapt } from "../data/mizo.js";
-import { strokesFor, PREWRITING } from "../data/strokes.js";
+import { strokesFor, PREWRITING, harakaStrokes, harakaGlyph } from "../data/strokes.js";
+import { mountHarakaQuiz } from "./harakaQuiz.js";
 import {
   LB_UNITS, LB_PAGES, LB_HARAKAT, letterbookSteps, isLbWrite, nameOf, splitAt, joinsNext, bare, LB_DOTS_PASS,
 } from "../data/letterbook.js";
-import { LB_SAY, ROUND_MSG, SHOW_BELOW, fixMsg, writeIntro } from "../data/writingPhrases.js";
+import { LB_SAY, ROUND_MSG, SHOW_BELOW, fixMsg, writeIntro, HQ_SAY } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
 import { renderLetterPuzzle, renderFlashlight, renderEggs } from "./funGames.js";
 import { renderPhonics } from "./phonics.js";
@@ -128,7 +129,8 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     idx = 0;
     res = {
       writes: [], writeFails: 0, games: {}, acts: {}, skipped: [],
-      expectedWrites: steps.filter((x) => x.kind === "write").reduce((n, x) => n + (x.reps || 1), 0),
+      // الحرف بالحركة = مرتين (النقط ولوحده)
+      expectedWrites: steps.filter(isLbWrite).reduce((n, x) => n + (x.kind === "harakaWrite" ? 2 : x.reps || 1), 0),
       expectedGames: steps.filter((x) => x.kind === "game").map((x) => x.game),
     };
     const i = Math.max(0, LB_PAGES.indexOf(pg));
@@ -232,7 +234,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   }
   function stepDone(delay = 1000) {
     const s = steps[idx];
-    if (res && s && s.kind !== "write" && s.kind !== "game") res.acts[s.kind] = (res.acts[s.kind] || 0) + (Sfx.wrongs - stepWrongs);
+    if (res && s && !isLbWrite(s) && s.kind !== "game") res.acts[s.kind] = (res.acts[s.kind] || 0) + (Sfx.wrongs - stepWrongs);
     // بعد الكتابة صوت ميزو بس (من غير صوت «نجاح»)
     if (!(steps[idx] && isLbWrite(steps[idx]))) Sfx.correct();
     awardStars(1);
@@ -325,6 +327,26 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
         : s.level === 1 || (s.level === 2 && idx <= 2) ? writeIntro("الحرف", nameOf(s.ch)) : s.level === 2 ? ROUND_MSG.againDots
         : s.noStart ? ROUND_MSG.noDot : LB_SAY.writeAlone;
       writeBoard(body, s.ch, s.level, intro, () => stepDone(800), s.reps || 1, !!s.noStart);
+    },
+
+    // ✏️ الحرف بالحركة (المالك ٢٠٢٦-١٠-١٩): على النقط وبعدين لوحده — كل واحدة لازم بنسبتها
+    harakaWrite(body, s) {
+      const g = harakaGlyph(s.ch, s.h);
+      const strokes = harakaStrokes(g, s.h);
+      const sylText = g + LB_HARAKAT[s.h].mark;
+      const opt = { strokes, say: sylText, glyph: sylText };
+      writeBoard(body, s.ch, 2, HQ_SAY.writeH(s.h), () => {
+        cleanup();
+        body.replaceChildren();
+        writeBoard(body, s.ch, 3, ROUND_MSG.harakaAlone, () => stepDone(800), 1, false, opt);
+      }, 1, false, opt);
+    },
+
+    // 👂 اسمع واعرف الحركة: لحد ما الطفل يعرف كل حركة من صوت الكلمة
+    harakaQuiz(body, s) {
+      body.appendChild(el("p", "lbk-game-title", "👂 اسمع واعرف الحركة"));
+      const q = mountHarakaQuiz(body, { ch: s.ch, fem, onDone: () => stepDone(600) });
+      cleanup = () => q.destroy();
     },
 
     // 🎲 لعبة من ألعاب القلعة جوّه صفحة الحرف — بنفس شكلها، على حرف الصفحة
@@ -420,40 +442,6 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
         grid.appendChild(c);
       });
       body.appendChild(grid);
-    },
-
-    // اختر الصوت المناسب للصورة: الصورة بتتنطق، والطفل يختار بَ ولا بُ ولا بِ
-    harakaChoose(body, s) {
-      body.appendChild(prompt(LB_SAY.harakaChoose));
-      const hint = hintLine();
-      const area = el("div", "lbk-round");
-      body.append(area, hint);
-      let r = 0;
-      const show = () => {
-        const x = s.rounds[r];
-        area.replaceChildren();
-        const pic = picCard(x, null, "lbk-pic lbk-pic-big");
-        pic.addEventListener("click", () => { Sfx.tap(); Speech.ar(x.w); });
-        const opts = el("div", "wbk-opts");
-        x.options.forEach((o) => {
-          const good = o.h === x.h;
-          const b = button("wbk-opt lbk-opt", "", () => {
-            if (b.classList.contains("correct")) return;
-            if (!good) { Sfx.wrong(); flash(b, "wbk-wiggle"); return hint.show(LB_SAY.harakaWrong); }
-            b.classList.add("correct");
-            pic.querySelector(".lbk-word").innerHTML = wordHtml(x.w, s.ch);
-            Sfx.correct();
-            Speech.sequence([{ text: o.s, lang: "ar-EG" }, { text: x.w, lang: "ar-EG" }]);
-            setTimeout(() => { if (++r >= s.rounds.length) stepDone(800); else show(); }, 1700);
-          });
-          b.innerHTML = `${o.s}<small>${LB_HARAKAT[o.h].hand}</small>`;
-          if (good) b.dataset.good = "1";
-          opts.appendChild(b);
-        });
-        area.append(pic, opts);
-        setTimeout(() => Speech.ar(x.w), 900);
-      };
-      show();
     },
 
     // ضع دائرة حول الصورة اللى بتبدأ بالحرف
@@ -775,12 +763,13 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   }
 
   /** لوحة الكتابة للحرف (أو «pre:…» خط التهيئة) بمستوى المساعدة ده. */
-  function writeBoard(host, v, level, intro, done, reps = 1, noStart = false) {
+  function writeBoard(host, v, level, intro, done, reps = 1, noStart = false, opt = {}) {
     const line = v.startsWith("pre:") ? preLine(v.slice(4)) : null;
-    const strokes = line ? line.strokes : strokesFor(v);
+    // opt.strokes: الحرف بالحركة (بَ) — ونطقه opt.say
+    const strokes = opt.strokes || (line ? line.strokes : strokesFor(v));
     const hint = hintLine();
     const wrap = el("div", "wbk-write");
-    wrap.dataset.glyph = v;
+    wrap.dataset.glyph = opt.glyph || v;
     // «٣ بالنقط + ٥ لوحده»: النقط بتعدّى بـ٧٥٪ ولوحده بـ٧٠٪، وكل مرة بتتعدّ (✓ ١/٣)
     const pass = !line && level === 2 ? LB_DOTS_PASS : SCORE_PASS;
     let got = 0;
@@ -813,9 +802,9 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
         }
         if (score != null) hint.textContent = `${score}٪ ✓`;
         board.el.animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 450 });
-        if (!line) Speech.ar(nameOf(v));
-        if (!line && level === 3) Store.recordWrite("g:" + v, fails, level);
-        if (res && !line && score != null) res.writes.push({ level, score, ...(noStart ? { noStart: true } : {}) });
+        if (!line) Speech.ar(opt.say || nameOf(v));
+        if (!line && !opt.strokes && level === 3) Store.recordWrite("g:" + v, fails, level);
+        if (res && !line && score != null) res.writes.push({ level, score, ...(noStart ? { noStart: true } : {}), ...(opt.glyph ? { glyph: opt.glyph } : {}) });
         got++;
         if (reps > 1) showCount();
         // لسه فيه مرات: نفس اللوحة فاضية تانى بعد ما يشوف النسبة

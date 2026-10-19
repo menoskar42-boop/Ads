@@ -6,7 +6,8 @@ import {
   LB_UNITS, LB_PAGES, LB_ORDER, LB_LETTERS, LB_HARAKAT, LB_BUILD, letterbookSteps, letterPage, reviewPage,
   startsWith, posOf, bare, splitAt, nameOf,
 } from "../js/data/letterbook.js";
-import { strokesFor } from "../js/data/strokes.js";
+import { strokesFor, harakaStrokes, harakaGlyph } from "../js/data/strokes.js";
+import { harakaQuizRounds } from "../js/data/harakaQuiz.js";
 import { LB_SAY } from "../js/data/writingPhrases.js";
 import { femAdapt } from "../js/data/mizo.js";
 import { seeded } from "../js/data/workbook.js";
@@ -59,8 +60,12 @@ test("letter page: book activities + castle games in order, write 3 on dots then
   for (const ch of LB_ORDER) {
     const steps = letterPage(ch, seeded(1));
     assert.deepEqual(steps.map((s) => (s.kind === "game" ? s.game : s.kind)), [
-      "meet", "write", "puzzle", "riddle", "pop", "flash", "harakat", "harakaChoose", "write", "eggs",
-      "starts", "phonics", "forms", "circle", "catch", "missing", "sequence", "write", "review"]);
+      "meet", "write", "puzzle", "riddle", "pop", "flash", "harakat", "write", "eggs",
+      "starts", "phonics", "forms", "circle", "catch", "missing", "sequence", "write",
+      "harakaWrite", "harakaWrite", "harakaWrite", "harakaWrite", "harakaQuiz", "review"]);
+    // المالك ٢٠٢٦-١٠-١٩: بعد الحرف من غير تشكيل — بالفتحة والضمة والكسرة والسكون، وكل واحدة ليها خطوط
+    assert.deepEqual(steps.filter((s) => s.kind === "harakaWrite").map((s) => s.h), ["a", "u", "i", "o"]);
+    for (const s of steps.filter((x) => x.kind === "harakaWrite")) assert.ok(harakaStrokes(harakaGlyph(ch, s.h), s.h)?.length, `${ch} ${s.h}`);
     const w = steps.filter((s) => s.kind === "write");
     assert.deepEqual(w.map((s) => [s.level, s.reps]), [[2, 3], [3, 2], [3, 3]]);
     // بأى حرف تبدأ + البيض: كلمات مختلفة بتبدأ بالحرف فعلاً (البيضة كل مرة حاجة جديدة)
@@ -86,12 +91,11 @@ test("letter page answers are right for every seed", () => {
       const good = by.pop.cells.filter((c) => c.good);
       assert.ok(good.length >= 3 && good.length <= 4);
       assert.ok(by.pop.cells.every((c) => c.good === (c.ch === ch)));
-      // اختر الصوت: ٣ جولات (فتحة/ضمة/كسرة)، والإجابة الصح موجودة مرة
-      assert.equal(by.harakaChoose.rounds.length, 3);
-      for (const x of by.harakaChoose.rounds) {
-        assert.deepEqual(x.options.map((o) => o.h).sort(), ["a", "i", "u"]);
-        assert.ok(x.options.some((o) => o.h === x.h));
-      }
+      // اسمع واعرف الحركة: كل حركة مرتين (الحرف بالحركة + كلمة من الكتاب)، ومفيش حركتين ورا بعض
+      const hq = harakaQuizRounds(ch, seeded(seed * 7 + 3));
+      assert.deepEqual(hq.map((r) => r.h).sort(), ["a", "a", "i", "i", "o", "o", "u", "u"]);
+      assert.ok(hq.every((r, i) => !i || r.h !== hq[i - 1].h), ch);
+      for (const r of hq.filter((x) => x.w)) assert.ok(r.w.includes(r.s), `${ch}: ${r.w} فيها ${r.s}`);
       // ضع دائرة: ٣ بتبدأ بالحرف و٣ لأ — ومفيش صورة متكررة
       const st = by.starts.items;
       assert.equal(st.filter((x) => x.good).length, 3);
@@ -147,7 +151,7 @@ test("splitAt keeps the word whole around the letter", () => {
 test("Mizo's instructions turn feminine for a girl, and never say «غلط»", () => {
   const all = Object.values(LB_SAY).flatMap((v) => (typeof v === "function" ? [v("باء", "بَ")] : Array.isArray(v) ? v : [v]));
   for (const t of all) assert.doesNotMatch(t, /غلط|خطأ|وحش|فاشل/, t);
-  for (const t of [LB_SAY.pop("باء"), LB_SAY.starts("باء"), LB_SAY.harakaChoose, LB_SAY.missing, LB_SAY.shadow, LB_SAY.matchFirst, LB_SAY.harakaPic("بَ")]) {
+  for (const t of [LB_SAY.pop("باء"), LB_SAY.starts("باء"), LB_SAY.missing, LB_SAY.shadow, LB_SAY.matchFirst, LB_SAY.harakaPic("بَ")]) {
     assert.notEqual(femAdapt(t), t, t);
   }
   assert.equal(femAdapt(LB_SAY.pop("باء")), "دوّري على حرف باء، والمسي كل واحد تلاقيه");

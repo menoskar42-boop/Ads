@@ -213,7 +213,8 @@ test("alone: N good tries in a row (10 in the app) finish the letter", async () 
   assert.equal(await level("g:د"), 3);
 });
 
-test("Arabic: after the letter is mastered alone, she writes it with fatha, damma, kasra and sukun (the mark last)", async () => {
+// المالك ٢٠٢٦-١٠-١٩: كل حركة على النقط وبعدين لوحده، وبعدها «اسمع واعرف الحركة» لحد ما يعرفها من الصوت
+test("Arabic: after the letter is mastered alone — each haraka on dots then alone, then the listening game until every haraka is known", async () => {
   const { harakaStrokes } = await import("../js/data/strokes.js");
   await page.goto(base);
   await page.evaluate(async () => { localStorage.clear(); (await import("/js/core/storage.js")).Store.setWriteLevel("g:د", 3); });
@@ -225,8 +226,22 @@ test("Arabic: after the letter is mastered alone, she writes it with fatha, damm
     assert.match(await chip(), /النقط/, `${name}: على النقط`);
     await waitIdle();
     for (const st of harakaStrokes("د", h)) await stroke(st);
+    await page.waitForFunction(() => /لوحدك/.test(document.querySelector(".wb-level")?.textContent || ""), null, { timeout: 8000 });
+    await waitIdle();
+    for (const st of harakaStrokes("د", h)) await stroke(st);
   }
-  await page.waitForFunction(() => /بكل الحركات/.test(document.body.textContent), null, { timeout: 6000 });
+  // لعبة الحركات من الصوت: ٨ جولات (كل حركة مرتين) — غلطة بترجّع الجولة فى الآخر
+  await page.waitForSelector(".hq-opt", { timeout: 9000 });
+  assert.equal(await page.locator(".hq-opt").count(), 4);
+  assert.match(await page.locator(".hq-say").textContent(), /بالفتحة ولا بالضمة ولا بالكسرة ولا بالسكون/);
+  await page.locator(".hq-opt:not([data-good])").first().click();
+  assert.doesNotMatch(await page.locator(".hq-say").textContent(), /غلط/);
+  for (let k = 0; k < 60 && (await page.locator(".hq-opt").count()); k++) {
+    await page.evaluate(() => document.querySelector(".hq-opt[data-good]:not(.hq-pop)")?.click());
+    await page.waitForTimeout(400);
+    if (await page.locator(".cheer").count()) break;
+  }
+  await page.waitForFunction(() => document.querySelectorAll(".hq-star.on").length === 8 || document.querySelector(".cheer"), null, { timeout: 15000 });
   assert.deepEqual(errors, []);
 });
 

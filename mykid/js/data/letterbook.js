@@ -246,7 +246,7 @@ function lettersAround(ch) {
 }
 
 // ===== صفحة الحرف: يكتب شوية ويلعب شوية (نفس ترتيب أنشطة الكتاب) =====
-export const LB_LETTER_KINDS = ["meet", "write", "riddle", "pop", "harakat", "harakaChoose", "starts", "forms", "missing", "game"];
+export const LB_LETTER_KINDS = ["meet", "write", "riddle", "pop", "harakat", "starts", "forms", "missing", "game", "harakaWrite", "harakaQuiz"];
 
 // ===== الكتابة الكتير (المالك ٢٠٢٦-١٠-١٦: «٣ بالنقط + ٥ لوحده»): النقط ماتتحسبش غير بـ٧٥٪،
 // ولوحده غير بـ٧٠٪ — كل مرة بتتحسب لوحدها فى العدّاد (✓ ١/٣) =====
@@ -290,12 +290,6 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   game("flash");
   // ٧) استمع واكتب الحرف بالحركات: الكلمات الأربعة (فتحة · ضمة · كسرة · سكون)
   if (want("harakat")) steps.push({ kind: "harakat", ch, words: L.harakat.map((x) => ({ ...x, s: syl(ch === "أ" && x.h === "i" ? "إ" : ch, x.h) })) });
-  // ٨) اختر الصوت المناسب للصورة (فتحة/ضمة/كسرة)
-  if (want("harakaChoose")) {
-    const opts = ["a", "u", "i"].map((h) => ({ h, s: syl(ch === "أ" && h === "i" ? "إ" : ch, h) }));
-    const rounds = shuffled(rnd, L.harakat.filter((x) => x.h !== "o")).map((x) => ({ ...x, options: shuffled(rnd, opts) }));
-    steps.push({ kind: "harakaChoose", ch, rounds });
-  }
   // ٩) ✏️ لوحده مرتين
   write(3, LB_ALONE_REPS[0]);
   // ١٠) 🥚 بيض المفاجآت
@@ -329,6 +323,10 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   game("sequence");
   // ١٧) ✏️ لوحده ٣ مرات — ومن غير النقطة الخضرا كمان (النقط ← النقطة بس ← ولا حاجة)
   write(3, LB_ALONE_REPS[1], true);
+  // ١٧ب) المالك ٢٠٢٦-١٠-١٩: بعد ما يتقن الحرف من غير تشكيل — يكتبه بكل حركة (على النقط وبعدين
+  // لوحده)، وبعدها «اسمع واعرف الحركة» لحد ما يعرف الحركة من صوت الكلمة
+  if (want("harakaWrite")) for (const h of LB_HARAKA_ORDER) steps.push({ kind: "harakaWrite", ch, h });
+  if (want("harakaQuiz")) steps.push({ kind: "harakaQuiz", ch });
   // ١٨) 🧠 المراجعة الذكية على الحرف نفسه — وبعدها شهادة الحرف
   game("review");
   return steps;
@@ -417,4 +415,4 @@ export function letterbookSteps(page, rnd = Math.random, only = null) {
   if (page.type === "review") return reviewPage(page.letters, rnd, only);
   return letterPage(page.ch, rnd, only);
 }
-export const isLbWrite = (s) => s.kind === "write";
+export const isLbWrite = (s) => s.kind === "write" || s.kind === "harakaWrite";

@@ -45,6 +45,7 @@ export const LB_ACT_INFO = {
   pop: "لوّن الحرف",
   harakat: "الحركات",
   harakaChoose: "اختار الصوت",
+  harakaQuiz: "اسمع واعرف الحركة",
   starts: "بيبدأ بالحرف",
   forms: "أشكال الحرف",
   circle: "حط دايرة",

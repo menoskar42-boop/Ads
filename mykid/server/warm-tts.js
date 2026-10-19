@@ -208,6 +208,8 @@ add("برافو", AR);
     for (const x of [...L.harakat, ...L.forms, ...L.more, L.answer, ...(L.circle || [])]) { add(x.w, AR); add(lbBare(x.w), AR); }
   }
   for (const x of LB_SHADOWS) add(x.w, AR);
+  // «اسمع واعرف الحركة» + كتابة الحرف بكل حركة (٢٠٢٦-١٠-١٩)
+  { const H = WP.HQ_SAY; [H.intro, H.wrong, H.reveal, H.done, ...Object.values(H.right), ...["a", "u", "i", "o"].map(H.writeH)].forEach(addAr); }
   // شهادة الحرف (٢٠٢٦-١٠-١٦): كلمة ميزو لكل حرف × كل مستوى
   for (const ch of LB_ORDER) for (const f of Object.values(WP.GRADE_SAY)) addAr(f(lbName(ch)));
   // وكتاب الإنجليزى (حرف A) وكتاب الأرقام (رقم أربعة) — ٢٠٢٦-١٠-١٧
@@ -251,7 +253,7 @@ add("برافو", AR);
     if (pg.sort) addAr(pg.sort.say);
     for (let k = 0; k < 12; k++) {
       for (const st of ebSteps(pg, rnd)) {
-        (st.words || []).forEach(en);
+        (st.words || []).forEach((x) => en(typeof x === "string" ? x : x.w)); // ألعاب الصفحة: { w, e }
         (st.lines || []).forEach((l) => en(l.text));
         (st.rounds || []).forEach((r) => {
           if (Array.isArray(r)) { const [w, n] = r; en(`${NUM_EN[n]} ${n > 1 ? w + "s" : w}`); return; }

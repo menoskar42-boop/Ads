@@ -12,6 +12,7 @@ import { femAdapt } from "../data/mizo.js";
 import { writeStatus, practiceOrder } from "./writeProgress.js";
 import { openWorksheet } from "./worksheet.js";
 import { ROUND_MSG, writeIntro, ALONE_TARGET, SHOW_BELOW, aloneAgainMsg, fixMsg, harakaMsg, DOTS_TARGET, DOTS_PASS, dotsAgainMsg } from "../data/writingPhrases.js";
+import { mountHarakaQuiz } from "./harakaQuiz.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, gripButton, penBoardOptions } from "./grip.js";
 
@@ -363,7 +364,8 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       level,
       // الحروف والأرقام على النقط ولوحده: من غير وقفة فى النص، والحكم بنسبة فى الآخر
       // (الحركات والخط العريض بيفضلوا خط بخط)
-      free: !isPre && !haraka && level >= 2,
+      // والحركات كمان (المالك ٢٠٢٦-١٠-١٩): على النقط وبعدين لوحده، بنسبة
+      free: !isPre && level >= 2,
       noStart,
       from: it.from,
       to: it.to,
@@ -381,17 +383,27 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
           showHint(carryMsg);
           setTimeout(then, wait);
         };
-        // جولات الحركات (بَ بُ بِ بْ): كل حركة مرة على النقط، وبعدها اللى بعدها
+        // جولات الحركات (بَ بُ بِ بْ) — المالك ٢٠٢٦-١٠-١٩: كل حركة على النقط وبعدين لوحده، والنسبة
+        // الواطية بتعيد نفس الجولة؛ وبعد الأربعة لعبة «اسمع واعرف الحركة» لحد ما يعرفها من الصوت
         if (haraka) {
+          const pass = level >= 3 ? SCORE_PASS : DOTS_PASS;
+          if (score != null && score < pass) {
+            if (score < SHOW_BELOW) showNext = true;
+            plan.push(level);
+            return sayPct(fixMsg(result && result.issue), nextRound, 2600);
+          }
           Speech.ar(harakaGlyph(glyph, haraka) + HARAKA_MARKS[haraka]);
+          if (level < 3) {
+            plan.push(3);
+            return setTimeout(() => sayPct(ROUND_MSG.harakaAlone, nextRound, 2000), 900);
+          }
           if (harakaQ.length) {
             haraka = harakaQ.shift();
             plan.push(2);
             return setTimeout(() => say(harakaMsg(haraka), nextRound, 2400), 900);
           }
           haraka = null;
-          Speech.say(sayDone, { lang: speakLang });
-          return setTimeout(() => say(ROUND_MSG.harakatDone, next, 2400), 900);
+          return setTimeout(() => say(ROUND_MSG.harakatDone, () => harakaQuiz(glyph, sayDone), 2400), 900);
         }
         // على النقط (الحروف والأرقام): نسبة عالية ⇒ تتعدّ؛ أقل ⇒ العدّ يرجع صفر ومرة كمان على النقط
         if (!isPre && level === 2 && score != null) {
@@ -546,6 +558,22 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       row.appendChild(b);
     }
     return row;
+  }
+
+  /** «اسمع واعرف الحركة» بعد كتابة الحركات الأربعة — والحرف بيخلص لما الطفل يعرفها كلها من الصوت. */
+  function harakaQuiz(glyph, sayDone) {
+    stage.innerHTML = "";
+    const t = document.createElement("p");
+    t.style.cssText = "font-weight:800;font-size:clamp(18px,5vw,24px);color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.18)";
+    t.textContent = "👂 اسمع واعرف الحركة";
+    const box = document.createElement("div");
+    box.className = "hq-host";
+    stage.append(t, box);
+    mountHarakaQuiz(box, {
+      ch: glyph,
+      fem: (x) => (Store.childGender === "girl" ? femAdapt(x) : x),
+      onDone: () => { Speech.say(sayDone, { lang: speakLang }); setTimeout(next, 1600); },
+    });
   }
 
   function next() {

@@ -1686,3 +1686,28 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
 .lg-detail p { margin: 6px 0 2px; }
 .lg-detail ul { margin: 0; padding-inline-start: 18px; }
 .lg-skip { color: #be185d; font-weight: 800; }
+
+/* ===== «اسمع واعرف الحركة» (المالك ٢٠٢٦-١٠-١٩) ===== */
+.hq { display: grid; gap: 12px; justify-items: center; padding: 6px 4px 10px; }
+.hq-say { margin: 0; text-align: center; font-weight: 900; font-size: clamp(16px, 4.4vw, 20px); color: #3b1d78; text-wrap: balance; }
+.hq-stars { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.hq-star { font-size: 20px; filter: grayscale(1); opacity: .35; transition: filter .3s, opacity .3s, transform .3s; }
+.hq-star.on { filter: none; opacity: 1; transform: scale(1.15); }
+.hq-card { display: grid; justify-items: center; gap: 4px; min-width: 190px; padding: 14px 22px; border: 0; border-radius: 26px; background: linear-gradient(160deg, #fff7d6, #ffe1f0); box-shadow: 0 8px 22px rgba(124, 58, 237, .18); cursor: pointer; }
+.hq-card small { font-size: 22px; }
+.hq-emoji { font-size: 64px; line-height: 1; }
+.hq-word { font-size: 40px; color: #1f1147; }
+.hq-hl { color: #db2777; }
+.hq-letter { font-size: 92px; line-height: 1; color: #7c3aed; }
+.hq-q { font-size: 40px; color: #f59e0b; font-weight: 900; }
+.hq-opts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: min(100%, 420px); }
+.hq-opt { display: grid; justify-items: center; gap: 2px; padding: 10px 2px 8px; border: 0; border-radius: 20px; background: #fff; box-shadow: 0 5px 0 #c4b5fd, 0 8px 18px rgba(80, 40, 160, .15); cursor: pointer; }
+.hq-opt b { font-size: 46px; line-height: 1.15; color: #6d28d9; }
+.hq-hand { font-size: 22px; }
+.hq-opt small { font-weight: 900; color: #4c1d95; font-size: 13px; }
+.hq-opt:focus-visible, .hq-card:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
+.hq-pop { animation: hq-pop .5s ease; background: #dcfce7; box-shadow: 0 5px 0 #4ade80; }
+@keyframes hq-pop { 50% { transform: scale(1.18) rotate(-4deg); } }
+.hq-shake { animation: hq-shake .4s ease; }
+@keyframes hq-shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .hq-pop, .hq-shake { animation: none; } }
