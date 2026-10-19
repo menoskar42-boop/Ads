@@ -611,7 +611,8 @@ export default {
     const ticketEntryId = ticketEntryMatch?.[2] ? decodeURIComponent(ticketEntryMatch[2]) : null;
     const ticketEntryRoute = Boolean(ticketEntryKind);
     const inventoryRoute = url.pathname === "/api/cfm/inventory-transactions";
-    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute) {
+    const maintenanceCabinetCodesRoute = url.pathname === "/api/maintenance/cabinet-codes";
+    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !maintenanceCabinetCodesRoute) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
     if ((userByUsername && request.method !== "GET") ||
@@ -622,7 +623,8 @@ export default {
         (grantRoute && !["GET", "POST", "DELETE"].includes(request.method)) ||
         (taskInventoryRoute && !["GET", "POST", "DELETE"].includes(request.method)) ||
         (ticketEntryRoute && !["GET", "POST", "DELETE"].includes(request.method)) ||
-        (inventoryRoute && !["GET", "POST"].includes(request.method))) {
+        (inventoryRoute && !["GET", "POST"].includes(request.method)) ||
+        (maintenanceCabinetCodesRoute && request.method !== "GET")) {
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
     const expectedServiceToken = env.SERVICE_TOKEN;
@@ -647,6 +649,18 @@ export default {
     if (!claims) return unauthorized();
 
     try {
+      if (maintenanceCabinetCodesRoute) {
+        if (!["admin", "inspector", "technician"].includes(claims.role)) {
+          return Response.json({ error: "Forbidden" }, { status: 403 });
+        }
+        const { results } = await env.DB.prepare(
+          `SELECT id, exchange_name, cabinet_number, exchange_code, decent_life,
+                  area_technician, worker_code, cabinet_code
+           FROM maintenance_cabinet_codes
+           ORDER BY exchange_name, cabinet_number`,
+        ).all();
+        return Response.json(results);
+      }
       if (userCollection && request.method === "GET") {
         const { results } = await env.DB.prepare(`SELECT ${USER_SELECT} FROM cfm_users`).all();
         return Response.json(results.map(userRow));

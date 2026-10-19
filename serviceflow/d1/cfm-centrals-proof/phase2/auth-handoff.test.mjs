@@ -10,6 +10,8 @@ import session from "express-session";
 import bcrypt from "bcryptjs";
 import passport from "passport";
 import { convertPgExportToD1Sql } from "../../import-cfm-reference-export.mjs";
+import { convertMaintenanceCabinetCodesExport } from "../../import-maintenance-cabinet-codes.mjs";
+import { convertMaintenanceRelationalExport } from "../../import-maintenance-relational-export.mjs";
 
 // Keep any imported PG pool pointed at a guaranteed-invalid local URL. Test
 // storage methods are replaced below, and the live app session/config is never imported.
@@ -18,6 +20,10 @@ process.env.DATABASE_URL = "postgres://no-db@127.0.0.1:1/no-db";
 const { registerCfmRoutes } = await import("../../../server/cfm/routes.ts");
 const { storage } = await import("../../../server/cfm/storage.ts");
 const { CfmD1ReferenceStorage } = await import("../../../server/cfm/d1-reference-storage.ts");
+const maintenanceD1 = await import("../../../server/maintenance/app/utils/d1-cabinet-codes.js");
+const getMaintenanceCabinetCodes = maintenanceD1.default.getCabinetCodes;
+const maintenanceReports = await import("../../../server/maintenance/app/routes/reports.js");
+const maintenanceReportsRouter = maintenanceReports.default;
 const { ServiceFlowTechCoverageD1Storage } = await import("../../../server/tech-coverage-grants-d1.ts");
 const phase2Dir = new URL(".", import.meta.url).pathname;
 const centralPath = "/api/cfm/master-data/centrals";
@@ -259,8 +265,25 @@ before(async () => {
   stateDir = await mkdtemp(join(tmpdir(), "serviceflow-cfm-auth-proof-"));
   await runWrangler([
     "d1", "execute", "serviceflow-cfm-centrals-proof",
+    "--local", "--persist-to", stateDir, "--file", "../../migrations/0003_maintenance_cabinet_codes.sql", "--yes",
+  ]);
+  await runWrangler([
+    "d1", "execute", "serviceflow-cfm-centrals-proof",
+    "--local", "--persist-to", stateDir, "--file", "../../migrations/0004_maintenance_relational_core.sql", "--yes",
+  ]);
+  await runWrangler([
+    "d1", "execute", "serviceflow-cfm-centrals-proof",
     "--local", "--persist-to", stateDir, "--file", "../fixtures.sql", "--yes",
   ]);
+  const maintenanceExport = convertMaintenanceCabinetCodesExport({
+    tables: { cabinet_codes: { rows: [{
+      id: 1, exchange_name: "Synthetic Exchange", cabinet_number: "S-1",
+      exchange_code: "SYN", decent_life: "not-applicable", area_technician: "Synthetic Technician",
+      worker_code: "000001", cabinet_code: "SYN-001",
+    }] } },
+  });
+  await executeLocalD1(maintenanceExport.sql);
+  await executeLocalD1(maintenanceExport.sql);
   await executeLocalD1(await readFile(new URL("./auth-test-fixture.sql", import.meta.url), "utf8"));
   const userRows = [...currentUsers.values()].map((user) =>
     `INSERT INTO cfm_users (id, username, password, name, role, is_initial_password, created_at, suspended)
@@ -666,6 +689,116 @@ test("Worker rejects missing/invalid service credentials and unsigned or expired
     { iat: nowSeconds() - 90, exp: nowSeconds() - 30 },
   ));
   assert.equal((await callWorker(expired)).status, 401);
+});
+
+test("maintenance cabinet-code reads use typed, role-checked local D1 storage", async () => {
+  const rows = await getMaintenanceCabinetCodes({ id: 12, role: "admin" });
+  assert.deepEqual(rows, [{
+    id: 1,
+    exchange_name: "Synthetic Exchange",
+    cabinet_number: "S-1",
+    exchange_code: "SYN",
+    decent_life: "not-applicable",
+    area_technician: "Synthetic Technician",
+    worker_code: "000001",
+    cabinet_code: "SYN-001",
+  }]);
+  assert.deepEqual(
+    await getMaintenanceCabinetCodes({ id: 13, role: "technician" }),
+    rows,
+  );
+  await assert.rejects(
+    getMaintenanceCabinetCodes({ id: 14, role: "viewer" }),
+    /failed \(403\)/,
+  );
+});
+
+test("actual maintenance cabinet-code report route reads and filters local D1 rows", async () => {
+  const oldFlag = process.env.SF_MAINTENANCE_CABINET_CODES_STORAGE;
+  process.env.SF_MAINTENANCE_CABINET_CODES_STORAGE = "d1";
+  try {
+    const request = { session: { user: { id: 12, role: "admin" } } };
+    const [enriched] = await maintenanceReports.default.attachCabinetCodes(request, [{
+      exchange_name: "Synthetic Exchange",
+      cabinet_number: "S-1",
+      exchange_code: "stale-pg-value",
+      cabinet_code: "stale-pg-value",
+    }]);
+    assert.equal(enriched.exchange_code, "SYN");
+    assert.equal(enriched.cabinet_code, "SYN-001");
+    assert.match(maintenanceReports.default.cabinetCodesJoinSql(), /NULL::TEXT/);
+    const route = maintenanceReportsRouter.stack.find((layer) =>
+      layer.route?.path === "/cabinet-codes",
+    ).route;
+    const handler = route.stack.at(-1).handle;
+    let rendered;
+    await handler({
+      ...request,
+      query: { exchange: "Synthetic Exchange", q: "S-1" },
+    }, {
+      render(view, data) { rendered = { view, data }; },
+    });
+    assert.equal(rendered.view, "reports/cabinet_codes");
+    assert.deepEqual(rendered.data.rows.map((row) => row.cabinet_number), ["S-1"]);
+    assert.deepEqual(rendered.data.exchanges, ["Synthetic Exchange"]);
+
+    const exportRoute = maintenanceReportsRouter.stack.find((layer) =>
+      layer.route?.path === "/cabinet-codes/export",
+    ).route;
+    const exportHeaders = {};
+    let workbook;
+    await exportRoute.stack.at(-1).handle(request, {
+      setHeader(name, value) { exportHeaders[name] = value; },
+      send(buffer) { workbook = buffer; },
+    });
+    assert.match(exportHeaders["Content-Disposition"], /cabinet_codes_/);
+    assert.equal(exportHeaders["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    assert.equal(workbook.toString("ascii", 0, 2), "PK");
+  } finally {
+    if (oldFlag === undefined) delete process.env.SF_MAINTENANCE_CABINET_CODES_STORAGE;
+    else process.env.SF_MAINTENANCE_CABINET_CODES_STORAGE = oldFlag;
+  }
+});
+
+test("maintenance relational D1 schema keeps user and media tables in PostgreSQL and validates synthetic links", async () => {
+  const tables = await queryLocalD1(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'maintenance_%' ORDER BY name",
+  );
+  const names = tables.map((row) => row.name);
+  assert.ok(names.includes("maintenance_exchanges"));
+  assert.ok(names.includes("maintenance_box_line_numbers"));
+  assert.ok(!names.includes("maintenance_users"));
+  assert.ok(!names.includes("maintenance_photos"));
+
+  const inspectionFks = await queryLocalD1("PRAGMA foreign_key_list('maintenance_inspections')");
+  assert.deepEqual(inspectionFks.map((row) => row.table), ["maintenance_boxes"]);
+
+  const imported = convertMaintenanceRelationalExport({ tables: {
+    exchanges: { rows: [{ id: 9001, name: "Synthetic hierarchy" }] },
+    cabinets: { rows: [{ id: 9002, exchange_id: 9001, number: "C-1" }] },
+    boxes: { rows: [{ id: 9003, cabinet_id: 9002, number: "B-1", status: "pending_inspection" }] },
+    inspections: { rows: [{ id: 9004, box_id: 9003, inspector_id: 777 }] },
+    inspection_items: { rows: [{
+      id: 9005, inspection_id: 9004, item_key: "box_fix", item_type: "good_bad", value: "good",
+    }] },
+    tasks: { rows: [{ id: 9006, inspection_id: 9004, technician_id: 778, status: "in_progress" }] },
+    item_status: { rows: [{ id: 9007, task_id: 9006, item_key: "box_fix", is_done: true, done_by: 778 }] },
+    box_line_numbers: { rows: [{
+      id: 9008, inspection_id: 9004, phone: "synthetic-only", source: "service_flow",
+    }] },
+  } });
+  assert.equal(imported.rowCount, 8);
+  await executeLocalD1(imported.sql);
+  await executeLocalD1(imported.sql);
+  for (const table of [
+    "maintenance_exchanges", "maintenance_cabinets", "maintenance_boxes",
+    "maintenance_inspections", "maintenance_inspection_items",
+    "maintenance_tasks", "maintenance_item_status", "maintenance_box_line_numbers",
+  ]) {
+    const [count] = await queryLocalD1(`SELECT COUNT(*) AS count FROM ${table}`);
+    assert.equal(count.count, 1, `${table} should be idempotent`);
+  }
+  assert.deepEqual(await queryLocalD1("PRAGMA foreign_key_check"), []);
 });
 
 test("actual CFM central create/update/delete routes use local D1 and retain route auth", async () => {

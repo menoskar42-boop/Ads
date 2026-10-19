@@ -248,6 +248,7 @@ async function migrate() {
     try { await sp(`ALTER TABLE inspections ADD COLUMN IF NOT EXISTS ${col} ${typ}`); } catch {}
   }
 
+  if (process.env.SF_MAINTENANCE_CABINET_CODES_STORAGE !== 'd1') {
   // cabinet_codes lookup table (Exchange + Cabinet → cabinet code + technician info)
   try {
     await sp(`
@@ -334,6 +335,7 @@ async function migrate() {
       console.log('✓ Seeded cabinet_codes (55 rows)');
     }
   } catch (e) { console.error('cabinet_codes seed error:', e.message); }
+  }
 }
 
 async function initialize() {

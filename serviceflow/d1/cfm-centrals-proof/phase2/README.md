@@ -56,3 +56,18 @@ duplicate primary/unique keys, and orders rows by foreign-key dependencies.
 The test imports the synthetic data twice into local D1, checks row counts and
 `PRAGMA foreign_key_check`, then exercises users, references, and typed
 coverage-grant operations. No production data is queried or migrated.
+
+The same local D1 proof also includes the maintenance `cabinet_codes` lookup:
+its D1 schema, deterministic importer, role-checked read endpoint, cabinet-code
+listing/export, and maintenance-report enrichment are wired behind
+`SF_MAINTENANCE_CABINET_CODES_STORAGE=d1`. PostgreSQL remains the default;
+maintenance users and all photo/video metadata and R2 objects remain untouched.
+
+For the linked maintenance hierarchy, local D1 migrations and a deterministic,
+dependency-ordered synthetic/export importer now cover exchanges, cabinets,
+boxes, inspections, inspection items, tasks, item statuses, and box line numbers.
+Inspector/technician IDs are retained as references without moving user rows;
+maintenance users and photos are excluded. The import uses retry-safe
+`INSERT OR IGNORE` statements rather than a cross-database transaction.
+Application routes for this hierarchy still use PostgreSQL and are not ready
+for D1 routing or production data import.

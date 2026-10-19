@@ -1,0 +1,135 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+CONTINUE IMPLEMENTATION. DO NOT STOP AFTER THIS REPORT.
+
+You have been asked repeatedly to execute the Service Flow
+PostgreSQL-to-D1 migration continuously, without asking for
+approval after each phase.
+
+The latest report confirms that only the local CFM proof has
+been extended. This is not sufficient progress toward the
+migration objective.
+
+Your task is to resume from the CURRENT repository state and
+continue implementation until all work possible without
+production access, paid resources, or destructive actions
+has been completed.
+
+Do not repeat completed audits.
+Do not create another planning-only phase.
+Do not ask whether to continue.
+Do not finish by merely proposing the next phase.
+
+PRIORITY 1: MAINTENANCE MODULE
+
+Start immediately with the maintenance-related tables and
+application workflows.
+
+Inspect the existing maintenance schema, storage operations,
+routes, and R2 integration.
+
+Implement the local D1 schema, typed storage operations,
+and application integration for suitable relational metadata.
+
+Keep photo and video objects in R2. Do not duplicate or
+migrate existing R2 objects.
+
+Preserve existing maintenance behavior and authentication.
+Keep production PostgreSQL as the default.
+
+PRIORITY 2: COMPLETE THE REMAINING CFM WORK
+
+Continue with all suitable CFM operations that remain
+incomplete, including ticket creation, updates, repairs,
+reopening, measurements, child records, inventory linkage,
+and cross-links to Service Flow.
+
+Do not leave functionality implemented only in test fixtures.
+
+PRIORITY 3: MIGRATE REMAINING SUITABLE TABLE GROUPS
+
+After maintenance and CFM, continue through the existing
+TABLE-BY-TABLE-MIGRATION-PLAN.md.
+
+Migrate suitable groups in dependency order. For each group:
+- Implement its D1 schema and constraints.
+- Implement typed storage operations.
+- Integrate the actual application consumers.
+- Extend the PostgreSQL export/import utility.
+- Validate relationships and data integrity.
+- Add and run regression tests.
+- Fix failures and continue to the next group.
+
+Do not stop after completing a single group.
+
+PRIORITY 4: CROSS-DATABASE RELIABILITY
+
+For workflows involving both PostgreSQL and D1:
+- Define authoritative record ownership.
+- Prevent duplicate writes and repeated side effects.
+- Implement idempotency, retry, and recovery where required.
+- Test partial failures and reconciliation.
+- Never assume atomic transactions across databases.
+
+If one workflow cannot be migrated safely, keep that specific
+workflow on PostgreSQL and continue with independent work.
+
+PRIORITY 5: DATA MIGRATION TOOLING
+
+Continue improving the existing importer so every selected
+table group can be exported, transformed, imported, and
+validated deterministically.
+
+Use synthetic data and local databases only.
+Do not access or export production data.
+
+CONTINUOUS EXECUTION RULE
+
+After completing a group, immediately start the next suitable
+group. Do not ask me for phase-by-phase approval.
+
+If the environment interrupts execution, preserve progress
+and resume from the last verified implementation.
+
+Do not waste time repeating successful tests unless code
+changes require them.
+
+COST AND SAFETY BOUNDARIES
+
+- Do not create paid resources or upgrade plans.
+- Do not deploy Workers or create production D1 resources.
+- Do not migrate production data.
+- Do not modify production routing or database selection.
+- Do not delete or modify the existing PostgreSQL database.
+- Keep sessions, execution queues, locks, and retries in
+  PostgreSQL temporarily.
+- Keep media files in R2.
+- Do not enable partial production cutover.
+
+The goal is to reduce PostgreSQL dependency as much as
+possible and prepare for its eventual removal, not merely
+to run D1 beside PostgreSQL indefinitely.
+
+FINAL REPORT
+
+Only after exhausting all implementation possible under
+these constraints, provide one consolidated report covering:
+- Completed migration groups and operations.
+- Tables and application consumers implemented.
+- Import/export tooling.
+- Tests and validation.
+- Remaining PostgreSQL dependencies.
+- Exact external blockers preventing further work.
+- Readiness for controlled production migration.
+
+Clearly distinguish local implementation from production
+migration. Do not claim that production data has been moved.
+
+START WITH MAINTENANCE NOW AND CONTINUE AUTOMATICALLY.

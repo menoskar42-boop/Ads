@@ -1542,7 +1542,43 @@ router.get('/service-flow', staffOnly, async (req, res) => {
 });
 
 // ── تقرير البوكسات بدون ملاحظات ──────────────────────────────────────────────
-async function noIssuesReportRows(filters) {
+function cabinetCodesJoinSql() {
+  if (process.env.SF_MAINTENANCE_CABINET_CODES_STORAGE === 'd1') {
+    return `LEFT JOIN (SELECT NULL::TEXT AS exchange_code, NULL::TEXT AS cabinet_code) cc ON TRUE`;
+  }
+  return `LEFT JOIN cabinet_codes cc ON cc.exchange_name = e.name AND cc.cabinet_number = c.number`;
+}
+
+async function cabinetCodesForRequest(req) {
+  if (process.env.SF_MAINTENANCE_CABINET_CODES_STORAGE === 'd1') {
+    return require('../utils/d1-cabinet-codes').getCabinetCodes(req.session.user);
+  }
+  return db.all('SELECT * FROM cabinet_codes ORDER BY exchange_name, cabinet_number');
+}
+
+async function attachCabinetCodes(req, rows) {
+  if (process.env.SF_MAINTENANCE_CABINET_CODES_STORAGE !== 'd1') return rows;
+  const codes = await cabinetCodesForRequest(req);
+  const byIdentity = new Map(codes.map((code) => [
+    JSON.stringify([String(code.exchange_name), String(code.cabinet_number)]), code,
+  ]));
+  return rows.map((row) => {
+    const code = byIdentity.get(JSON.stringify([String(row.exchange_name), String(row.cabinet_number)]));
+    return { ...row, exchange_code: code?.exchange_code ?? null, cabinet_code: code?.cabinet_code ?? null };
+  });
+}
+
+function sqlLike(value, term) {
+  const source = `%${String(term)}%`;
+  const pattern = source.split('').map((char) => {
+    if (char === '%') return '.*';
+    if (char === '_') return '.';
+    return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }).join('');
+  return new RegExp(`^${pattern}$`, 'iu').test(String(value ?? ''));
+}
+
+async function noIssuesReportRows(req, filters) {
   const { from, to, exchange_id, cabinet_id, box_q } = filters;
   const conds = [];
   const params = [];
@@ -1552,7 +1588,7 @@ async function noIssuesReportRows(filters) {
   if (cabinet_id)  { params.push(cabinet_id);   conds.push(`c.id = ?`); }
   if (box_q)       { params.push(`%${box_q}%`); conds.push(`b.number ILIKE ?`); }
   const extra = conds.length ? 'AND ' + conds.join(' AND ') : '';
-  return db.all(`
+  const rows = await db.all(`
     SELECT
       i.id           AS inspection_id,
       i.date         AS work_date,
@@ -1568,7 +1604,7 @@ async function noIssuesReportRows(filters) {
     JOIN boxes b ON b.id = i.box_id
     JOIN cabinets c ON c.id = b.cabinet_id
     JOIN exchanges e ON e.id = c.exchange_id
-    LEFT JOIN cabinet_codes cc ON cc.exchange_name = e.name AND cc.cabinet_number = c.number
+    ${cabinetCodesJoinSql()}
     WHERE COALESCE(i.auto_created, 0) = 0
       AND NOT EXISTS (
       SELECT 1 FROM inspection_items ii
@@ -1580,6 +1616,7 @@ async function noIssuesReportRows(filters) {
       CASE WHEN c.number ~ '^[0-9\\-]+$' THEN c.number ELSE c.number END,
       CASE WHEN b.number ~ '^[0-9]+$' THEN b.number::INTEGER ELSE 0 END, b.number
   `, params);
+  return attachCabinetCodes(req, rows);
 }
 
 router.get('/no-issues-report', staffOnly, async (req, res) => {
@@ -1589,7 +1626,7 @@ router.get('/no-issues-report', staffOnly, async (req, res) => {
     const [exchanges, cabinets, rows, phoneMap, khalid] = await Promise.all([
       db.all('SELECT id, name FROM exchanges ORDER BY name'),
       exchange_id ? db.all('SELECT id, number FROM cabinets WHERE exchange_id = ? ORDER BY number', [exchange_id]) : Promise.resolve([]),
-      noIssuesReportRows(req.query),
+      noIssuesReportRows(req, req.query),
       buildPhoneFirstMap().catch(() => new Map()),
       db.get(`SELECT full_name, worker_code FROM users WHERE full_name ILIKE '%خالد عبد الرحمن%' LIMIT 1`),
     ]);
@@ -1616,7 +1653,7 @@ router.get('/no-issues-report/export', staffOnly, async (req, res) => {
   try {
     const { buildPhoneFirstMap } = require('./service_flow');
     const [rows, phoneMap, khalid] = await Promise.all([
-      noIssuesReportRows(req.query),
+      noIssuesReportRows(req, req.query),
       buildPhoneFirstMap().catch(() => new Map()),
       db.get(`SELECT full_name, worker_code FROM users WHERE full_name ILIKE '%خالد عبد الرحمن%' LIMIT 1`),
     ]);
@@ -1650,7 +1687,7 @@ router.get('/no-issues-report/export', staffOnly, async (req, res) => {
 // ── تقرير الصيانة ──────────────────────────────────────────────────────────────
 const EXCLUDED_ITEMS = `('electricity_conflict','air_conflict','overlap')`;
 
-async function maintenanceReportRows(filters) {
+async function maintenanceReportRows(req, filters) {
   const { from, to, exchange_id, cabinet_id, box_q } = filters;
   const cwWhere = ['work_date IS NOT NULL'];
   const params = [];
@@ -1660,7 +1697,7 @@ async function maintenanceReportRows(filters) {
   if (cabinet_id)  { params.push(cabinet_id);       cwWhere.push(`cabinet_id = ?`); }
   if (box_q)       { params.push(`%${box_q}%`);     cwWhere.push(`box_number ILIKE ?`); }
 
-  return db.all(`
+  const rows = await db.all(`
     WITH completed_work AS (
       SELECT
         mt.id          AS task_id,
@@ -1690,8 +1727,7 @@ async function maintenanceReportRows(filters) {
       JOIN cabinets c     ON c.id  = b.cabinet_id
       JOIN exchanges e    ON e.id  = c.exchange_id
       JOIN users u        ON u.id  = mt.technician_id
-      LEFT JOIN cabinet_codes cc
-        ON cc.exchange_name = e.name AND cc.cabinet_number = c.number
+      ${cabinetCodesJoinSql()}
       WHERE mt.technician_id IS NOT NULL
         AND (i.is_archived IS NULL OR i.is_archived = 0)
         AND EXISTS (
@@ -1721,6 +1757,7 @@ async function maintenanceReportRows(filters) {
              CASE WHEN cabinet_number ~ '^[0-9\\-]+$' THEN cabinet_number ELSE cabinet_number END,
              CASE WHEN box_number ~ '^[0-9]+$' THEN box_number::INTEGER ELSE 0 END, box_number
   `, params);
+  return attachCabinetCodes(req, rows);
 }
 
 router.get('/maintenance-report', staffOnly, async (req, res) => {
@@ -1730,7 +1767,7 @@ router.get('/maintenance-report', staffOnly, async (req, res) => {
     const [exchanges, cabinets, rows, phoneMap] = await Promise.all([
       db.all('SELECT id, name FROM exchanges ORDER BY name'),
       exchange_id ? db.all('SELECT id, number FROM cabinets WHERE exchange_id = ? ORDER BY number', [exchange_id]) : Promise.resolve([]),
-      maintenanceReportRows(req.query),
+      maintenanceReportRows(req, req.query),
       buildPhoneFirstMap().catch(() => new Map()),
     ]);
     // Attach first phone number to each row — try full name then prefix-only
@@ -1761,7 +1798,7 @@ router.get('/maintenance-report/export', staffOnly, async (req, res) => {
   try {
     const { buildPhoneFirstMap } = require('./service_flow');
     const [rows, phoneMap] = await Promise.all([
-      maintenanceReportRows(req.query),
+      maintenanceReportRows(req, req.query),
       buildPhoneFirstMap().catch(() => new Map()),
     ]);
     const headers = [
@@ -1797,7 +1834,7 @@ router.get('/maintenance-report/export', staffOnly, async (req, res) => {
 });
 
 // ── تقرير التأكيد المبدئى (شئون خارجية) ──────────────────────────────────────────
-async function prelimConfirmationRows(filters) {
+async function prelimConfirmationRows(req, filters) {
   const { from, to, exchange_id, cabinet_id, box_q } = filters;
   const cwWhere = ['work_date IS NOT NULL'];
   const params = [];
@@ -1807,7 +1844,7 @@ async function prelimConfirmationRows(filters) {
   if (cabinet_id)  { params.push(cabinet_id);       cwWhere.push(`cabinet_id = ?`); }
   if (box_q)       { params.push(`%${box_q}%`);     cwWhere.push(`box_number ILIKE ?`); }
 
-  return db.all(`
+  const rows = await db.all(`
     WITH prelim_work AS (
       SELECT
         mt.id          AS task_id,
@@ -1838,8 +1875,7 @@ async function prelimConfirmationRows(filters) {
       JOIN cabinets c     ON c.id  = b.cabinet_id
       JOIN exchanges e    ON e.id  = c.exchange_id
       JOIN users u        ON u.id  = mt.technician_id
-      LEFT JOIN cabinet_codes cc
-        ON cc.exchange_name = e.name AND cc.cabinet_number = c.number
+      ${cabinetCodesJoinSql()}
       WHERE mt.technician_id IS NOT NULL
         AND mt.prelim_confirmed_at IS NOT NULL
         AND (i.is_archived IS NULL OR i.is_archived = 0)
@@ -1850,6 +1886,7 @@ async function prelimConfirmationRows(filters) {
              CASE WHEN cabinet_number ~ '^[0-9\\-]+$' THEN cabinet_number ELSE cabinet_number END,
              CASE WHEN box_number ~ '^[0-9]+$' THEN box_number::INTEGER ELSE 0 END, box_number
   `, params);
+  return attachCabinetCodes(req, rows);
 }
 
 router.get('/prelim-confirmation', staffOnly, async (req, res) => {
@@ -1859,7 +1896,7 @@ router.get('/prelim-confirmation', staffOnly, async (req, res) => {
     const [exchanges, cabinets, rows, phoneMap] = await Promise.all([
       db.all('SELECT id, name FROM exchanges ORDER BY name'),
       exchange_id ? db.all('SELECT id, number FROM cabinets WHERE exchange_id = ? ORDER BY number', [exchange_id]) : Promise.resolve([]),
-      prelimConfirmationRows(req.query),
+      prelimConfirmationRows(req, req.query),
       buildPhoneFirstMap().catch(() => new Map()),
     ]);
     rows.forEach(r => {
@@ -1886,7 +1923,7 @@ router.get('/prelim-confirmation/export', staffOnly, async (req, res) => {
   try {
     const { buildPhoneFirstMap } = require('./service_flow');
     const [rows, phoneMap] = await Promise.all([
-      prelimConfirmationRows(req.query),
+      prelimConfirmationRows(req, req.query),
       buildPhoneFirstMap().catch(() => new Map()),
     ]);
     // Same columns as the maintenance report — preliminary date is NOT included in Excel.
@@ -1925,19 +1962,13 @@ router.get('/prelim-confirmation/export', staffOnly, async (req, res) => {
 // ── أكواد الكباين ────────────────────────────────────────────────────────────
 router.get('/cabinet-codes', staffOnly, async (req, res) => {
   const { exchange, q } = req.query;
-  const cond = [];
-  const params = [];
-  if (exchange) { params.push(exchange); cond.push(`exchange_name = ?`); }
-  if (q) {
-    params.push(`%${q}%`);
-    cond.push(`(cabinet_number ILIKE ? OR cabinet_code ILIKE ? OR area_technician ILIKE ? OR exchange_code ILIKE ?)`);
-    params.push(`%${q}%`, `%${q}%`, `%${q}%`);
-  }
-  const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
-  const [rows, exchanges] = await Promise.all([
-    db.all(`SELECT * FROM cabinet_codes ${where} ORDER BY exchange_name, cabinet_number`, params),
-    db.all(`SELECT DISTINCT exchange_name FROM cabinet_codes ORDER BY exchange_name`),
-  ]);
+  const allRows = await cabinetCodesForRequest(req);
+  const rows = allRows.filter((row) =>
+    (!exchange || row.exchange_name === exchange) &&
+    (!q || ['cabinet_number', 'cabinet_code', 'area_technician', 'exchange_code']
+      .some((field) => sqlLike(row[field], q))),
+  );
+  const exchanges = [...new Set(allRows.map((row) => row.exchange_name))];
   res.render('reports/cabinet_codes', {
     title: 'أكواد الكباين',
     rows, exchanges, query: req.query,
@@ -1945,7 +1976,7 @@ router.get('/cabinet-codes', staffOnly, async (req, res) => {
 });
 
 router.get('/cabinet-codes/export', staffOnly, async (req, res) => {
-  const rows = await db.all(`SELECT * FROM cabinet_codes ORDER BY exchange_name, cabinet_number`);
+  const rows = await cabinetCodesForRequest(req);
   const data = [
     ['اسم السنترال','رقم الكابينة','كود السنترال','حياة كريمة','فنى المنطقه','كود العامل','كود الكابينه'],
     ...rows.map(r => [r.exchange_name, r.cabinet_number, r.exchange_code, r.decent_life, r.area_technician, r.worker_code, r.cabinet_code]),
@@ -2024,3 +2055,5 @@ router.get('/phone-report/export', staffOnly, async (req, res) => {
 module.exports = router;
 module.exports.overlapDistanceRows = overlapDistanceRows;
 module.exports.overlapSummary = overlapSummary;
+module.exports.cabinetCodesJoinSql = cabinetCodesJoinSql;
+module.exports.attachCabinetCodes = attachCabinetCodes;

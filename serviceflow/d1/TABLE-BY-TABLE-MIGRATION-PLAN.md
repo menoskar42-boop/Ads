@@ -196,8 +196,8 @@ boundary, not a claim that today's PG schemas are separate databases.
 | `maintenance.maintenance_tasks` | C | serial `id`; inspection, optional technician; constrained status | Technician and inspector task lifecycle | H; completion/approval/reject/revert transaction |
 | `maintenance.maintenance_item_status` | C | serial `id`; task cascade; unique `(task_id,item_key)` | Task toggles/approval/report | M; transactional task state and completion evidence |
 | `maintenance.photos` | C | serial `id`; box/inspection refs; photo type CHECK | Upload/download/delete in boxes, inspectors, technicians, reports; R2 or legacy BYTEA/local path | H; keep metadata in D1 only with R2 compensation; do not copy bytes |
-| `maintenance.box_line_numbers` | C | serial `id`; inspection cascade; unique identity requires verification | Inspector phone entry, reports and service-flow API | M; line/inspection joins and import/delete semantics |
-| `maintenance.cabinet_codes` | C | serial `id`; key/unique rule requires source verification | Admin, cabinet-code reports and exports | L/M; verify uniqueness and report joins before moving |
+| `maintenance.box_line_numbers` | C | serial `id`; inspection cascade; unique identity requires verification | Inspector phone entry, reports and service-flow API | M; line/inspection joins and import/delete semantics; local D1 core schema/import proof now covers this linked group, while application routes remain PostgreSQL |
+| `maintenance.cabinet_codes` | A | serial `id`; unique `(exchange_name,cabinet_number)`; no FK | Admin cabinet-code listing/export and three maintenance reports | M; D1 schema, allowlisted import, typed read and report enrichment implemented locally behind opt-in; PostgreSQL remains default pending source-data review |
 
 ### Catalog exceptions and reconciliation gates
 
