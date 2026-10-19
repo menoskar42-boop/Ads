@@ -106,7 +106,8 @@ export function registerChurchRoutes(app: Express) {
   app.get('/api/churches', async (req, res) => {
     try {
       const approved = await db.select().from(churches).where(eq(churches.status, 'approved'));
-      res.json({ churches: approved });
+      // رقم مسئول الكنيسة مش للعرض العام (لوحة أدمن الموقع ليها راوت لوحدها)
+      res.json({ churches: approved.map(({ adminPhone: _p, ...c }) => c) });
     } catch (err) {
       console.error('[churches] list error:', err);
       res.status(500).json({ error: 'فشل تحميل الكنائس' });
@@ -116,7 +117,7 @@ export function registerChurchRoutes(app: Express) {
   app.get('/api/churches/all', async (req, res) => {
     try {
       const all = await db.select().from(churches);
-      res.json({ churches: all });
+      res.json({ churches: all.map(({ adminPhone: _p, ...c }) => c) });
     } catch (err) {
       console.error('[churches] list all error:', err);
       res.status(500).json({ error: 'فشل تحميل الكنائس' });
@@ -278,12 +279,14 @@ export function registerChurchRoutes(app: Express) {
       }
 
       const groups = await db.select().from(readingGroups).where(eq(readingGroups.churchId, id));
+      // ⛔ كان بيبعت للكل مفتاح قائد كل مجموعة (صلاحية الأدمن) وأرقام مسئولى الكنيسة
       const adminsResult = await pool.query(
-        `SELECT id, church_id AS "churchId", phone, name, COALESCE(role, 'admin') AS role, created_at AS "createdAt"
+        `SELECT id, church_id AS "churchId", name, COALESCE(role, 'admin') AS role, created_at AS "createdAt"
          FROM church_admins WHERE church_id = $1`, [id]
       );
+      const { adminPhone: _p, ...publicChurch } = church;
 
-      res.json({ church, groups, admins: adminsResult.rows });
+      res.json({ church: publicChurch, groups: groups.map(({ leaderKey: _k, ...g }) => g), admins: adminsResult.rows });
     } catch (err) {
       console.error('[churches] get error:', err);
       res.status(500).json({ error: 'فشل تحميل الكنيسة' });

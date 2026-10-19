@@ -87,3 +87,17 @@ export function migrateOldStorage(): void {
     }
   } catch {}
 }
+
+/**
+ * هيدر «أنا مين» لطلب بيانات المجموعة: السيرفر مابقاش بيبعت مفاتيح الأعضاء ولا أرقامهم
+ * لأى حد معاه الكود — فالموبايل بيبعت مفتاحه هو، ويرجعله «me» (بياناته) والأرقام لو أدمن.
+ * بيتقرا من التخزين وقت الطلب نفسه (الضيف الجديد بياخد مفتاحه بعد أول تحميل).
+ */
+export function memberKeyHeaders(groupCode: string): Record<string, string> {
+  let key = '';
+  try {
+    key = JSON.parse(localStorage.getItem(`group_${groupCode}`) || '{}').memberKey
+      || getUserGroupEntry(groupCode)?.memberKey || '';
+  } catch {}
+  return key ? { 'X-Member-Key': key } : {};
+}

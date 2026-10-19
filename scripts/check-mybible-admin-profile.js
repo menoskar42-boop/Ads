@@ -98,7 +98,7 @@ const view = strip(VIEW);
 if ((view.match(/\{ userName, memberKey, (?:bookName|book):/g) || []).length < 2) {
   fail('GroupView مابيبعتش memberKey مع القراءة');
 }
-if (!/m\.memberKey === memberKey\);\s*if \(!me\?\.userName\) return;/.test(view)) {
+if (!/const me = \(data as any\)\.me;\s*if \(!me\?\.userName\) return;/.test(view)) {
   fail('GroupView مابياخدش اسم العضو من حسابه بعد ما الأدمن يغيّره');
 }
 

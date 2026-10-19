@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { SEOHead } from '@/components/SEOHead';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { getUserGroupEntry, addUserGroup, removeUserGroup } from '@/lib/user-groups';
+import { getUserGroupEntry, addUserGroup, removeUserGroup, memberKeyHeaders } from '@/lib/user-groups';
 import { fetchBookIntro, fetchVerseTafsir, fetchChapterTafsir, getCSVFileName } from '@/lib/tafsir-csv-service';
 import { OfflineManager } from '@/components/OfflineManager';
 import { postReading, flushReadingQueue } from '@/lib/reading-queue';
@@ -1332,7 +1332,7 @@ export default function GroupView() {
     const CACHE_KEY = `group_arc_${groupCode}`;
     const DATA_CACHE_KEY = `group_data_${groupCode}`;
     try {
-      const res = await fetch(`/api/groups/${groupCode}`);
+      const res = await fetch(`/api/groups/${groupCode}`, { headers: memberKeyHeaders(groupCode) });
       if (!res.ok) throw new Error();
       const d = await res.json();
       setData(d);
@@ -1580,14 +1580,15 @@ export default function GroupView() {
   useEffect(() => {
     if (!data || !userName) return;
     const { members: mbs, group: grp } = data as any;
-    // Find by exact match or by name+isAdmin (fallback when memberKey is missing)
-    const me = mbs?.find((m: any) => m.userName === userName && m.memberKey === memberKey)
+    // السيرفر بيعرّفنا من مفتاحنا (me / isLeader) — ومفاتيح الأعضاء مابقتش فى الرد.
+    // الرجوع بالاسم+أدمن (لما مفيش مفتاح) بيعرض الشاشة بس؛ أى عملية أدمن السيرفر بيطلب لها المفتاح.
+    const me = (data as any).me
       || (memberKey ? null : mbs?.find((m: any) => m.userName === userName && m.isAdmin === true));
-    const serverIsAdmin = me?.isAdmin === true || grp?.leaderKey === memberKey;
+    const serverIsAdmin = me?.isAdmin === true || (data as any).isLeader === true;
     if (serverIsAdmin) {
       if (!isAdminConfirmed) setIsAdminConfirmed(true);
       if (!isAdmin) {
-        const restoredKey = me?.memberKey || memberKey;
+        const restoredKey = memberKey;
         const entry = getUserGroupEntry(groupCode);
         addUserGroup({
           ...(entry || {}),
@@ -1609,7 +1610,7 @@ export default function GroupView() {
   const [, setNameSync] = useState(0);
   useEffect(() => {
     if (!data || !memberKey) return;
-    const me = (data as any).members?.find((m: any) => m.memberKey === memberKey);
+    const me = (data as any).me;
     if (!me?.userName) return;
     const registered = !!me.phone;
     if (me.userName === userName && !(registered && isGuest)) return;
@@ -1672,14 +1673,15 @@ export default function GroupView() {
   const { data: joinRequestsData, refetch: refetchJoinRequests } = useQuery({
     queryKey: ['join-requests', groupCode],
     queryFn: async () => {
-      const res = await fetch(`/api/groups/${groupCode}/join-requests`);
+      const res = await fetch(`/api/groups/${groupCode}/join-requests`, { headers: memberKeyHeaders(groupCode) });
       if (!res.ok) throw new Error();
       return res.json();
     },
     enabled: !!groupCode && isAdminConfirmed,
   });
 
-  const joinRequests = joinRequestsData?.joinRequests || [];
+  // السيرفر بيرجّعها باسم requests (joinRequests كان دايماً فاضى فالكارت ماكانش بيظهر)
+  const joinRequests = joinRequestsData?.requests || joinRequestsData?.joinRequests || [];
 
   const handleApproveRequest = async (requestId: number) => {
     try {
@@ -1984,13 +1986,14 @@ export default function GroupView() {
   // الضيف يُعتبر عضو مباشرة (حتى لو في تأخير DB بعد أول دخول)
   // العضوية تُطابَق بالمفتاح (memberKey) وحده — لا تتأثر بتغيير الاسم أو تأخّر تحديث القائمة
   const isMember = (isGuest && !!memberKey) ||
-    (!!memberKey && members.some((m: any) => m.memberKey === memberKey)) ||
+    // (members[].memberKey: نسخة أوفلاين محفوظة من قبل التحديث بس — السيرفر مابقاش بيبعته)
+    (!!memberKey && (!!(data as any).me || members.some((m: any) => m.memberKey === memberKey))) ||
     members.some((m: any) => m.userName === userName && m.isAdmin === true && !memberKey);
 
-  const serverMember = members.find((m: any) => (memberKey && m.memberKey === memberKey) || (m.userName === userName && m.memberKey === memberKey));
+  const serverMember = (data as any).me || (memberKey ? members.find((m: any) => m.memberKey === memberKey) : null);
   // Fallback: if memberKey is missing but name matches leader name
   const serverMemberByName = !serverMember && userName ? members.find((m: any) => m.userName === userName && m.isAdmin === true) : null;
-  const isAdminFinal = isAdmin || serverMember?.isAdmin === true || group.leaderKey === memberKey || !!serverMemberByName;
+  const isAdminFinal = isAdmin || serverMember?.isAdmin === true || (data as any).isLeader === true || !!serverMemberByName;
 
   if (!isMember && !isAdminFinal) {
     if (guestJoining || (data?.group?.guestAccessEnabled && !userName)) {

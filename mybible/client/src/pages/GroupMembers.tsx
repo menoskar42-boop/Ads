@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getUserGroupEntry } from '@/lib/user-groups';
+import { getUserGroupEntry, memberKeyHeaders } from '@/lib/user-groups';
 
 function RankStars({ count }: { count: number }) {
   const levels = [
@@ -70,7 +70,7 @@ export default function GroupMembers() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['group', groupCode],
     queryFn: async () => {
-      const res = await fetch(`/api/groups/${groupCode}`);
+      const res = await fetch(`/api/groups/${groupCode}`, { headers: memberKeyHeaders(groupCode) });
       if (!res.ok) throw new Error();
       return res.json();
     },

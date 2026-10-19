@@ -10,6 +10,7 @@ import {
 } from "@shared/schema";
 import crypto from "crypto";
 import { canMergeGuest, checkAdminProfile, normalizePhone } from './guest-identity';
+import { groupViewFor, publicGroup } from './group-privacy';
 import { getOrLoad, invalidate as invalidateGroupCache } from './group-cache';
 
 const pool = dbPool;
@@ -147,22 +148,22 @@ export function registerGroupRoutes(app: Express) {
             // انقل التاريخ ثم غيّر الاسم — عشان التقدّم يفضل متربط بالعضو
             await migrateMemberName(group.id, found.userName, newName);
             await db.update(groupMembers).set({ userName: newName }).where(eq(groupMembers.id, found.id));
-            return res.json({ group, member: { ...found, userName: newName }, status: 'already_member' });
+            return res.json({ group: publicGroup(group), member: { ...found, userName: newName }, status: 'already_member' });
           }
           // الاسم محجوز لعضو تاني → سيب اسمه زي ما هو وتعرّف عليه بس
-          return res.json({ group, member: found, status: 'already_member' });
+          return res.json({ group: publicGroup(group), member: found, status: 'already_member' });
         }
-        return res.json({ group, member: found, status: 'already_member' });
+        return res.json({ group: publicGroup(group), member: found, status: 'already_member' });
       }
 
-      // البحث بالاسم كـ fallback
+      // البحث بالاسم كـ fallback — ⛔ الاسم لوحده مش إثبات هوية (نفس قاعدة canMergeGuest):
+      // كان بيسلّم مفتاح أى عضو (والأدمن) لأى حد يكتب اسمه بأى رقم. دلوقتى الرقم لازم يطابق.
       const [existing] = await db.select().from(groupMembers)
         .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, userName.trim())));
       if (existing) {
-        if (!existing.phone && normalizedPhone) {
-          await db.update(groupMembers).set({ phone: normalizedPhone }).where(eq(groupMembers.id, existing.id));
-        }
-        return res.json({ group, member: existing, status: 'already_member' });
+        const decision = canMergeGuest(existing, normalizedPhone);
+        if (!decision.ok) return res.status(403).json({ error: decision.message, reason: decision.reason });
+        return res.json({ group: publicGroup(group), member: existing, status: 'already_member' });
       }
 
       if (group.linkJoinMode === 'auto') {
@@ -186,15 +187,15 @@ export function registerGroupRoutes(app: Express) {
             .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.phone, normalizedPhone)));
           const dup = dupPhone[0] || (await db.select().from(groupMembers)
             .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, userName.trim()))))[0];
-          return res.json({ group, member: dup, status: 'already_member' });
+          return res.json({ group: publicGroup(group), member: dup, status: 'already_member' });
         }
-        return res.json({ group, member: result.rows[0], status: 'joined', memberKey });
+        return res.json({ group: publicGroup(group), member: result.rows[0], status: 'joined', memberKey });
       }
 
       // وضع الموافقة — هل يوجد طلب معلق؟
       const [pending] = await db.select().from(groupJoinRequests)
         .where(and(eq(groupJoinRequests.groupId, group.id), eq(groupJoinRequests.userName, userName.trim()), eq(groupJoinRequests.status, 'pending')));
-      if (pending) return res.json({ group, status: 'pending', request: pending });
+      if (pending) return res.json({ group: publicGroup(group), status: 'pending', request: pending });
 
       // إنشاء طلب انضمام جديد
       const [request] = await db.insert(groupJoinRequests).values({
@@ -203,7 +204,7 @@ export function registerGroupRoutes(app: Express) {
         phone: phone.trim(),
         status: 'pending',
       }).returning();
-      res.json({ group, status: 'pending', request });
+      res.json({ group: publicGroup(group), status: 'pending', request });
     } catch (err) {
       console.error('[groups] invite-join error:', err);
       res.status(500).json({ error: 'فشل الانضمام' });
@@ -605,22 +606,20 @@ export function registerGroupRoutes(app: Express) {
           if (!takenByOther) {
             await migrateMemberName(group.id, found.userName, newName);
             await db.update(groupMembers).set({ userName: newName }).where(eq(groupMembers.id, found.id));
-            return res.json({ group, member: { ...found, userName: newName }, status: 'already_member' });
+            return res.json({ group: publicGroup(group), member: { ...found, userName: newName }, status: 'already_member' });
           }
-          return res.json({ group, member: found, status: 'already_member' });
+          return res.json({ group: publicGroup(group), member: found, status: 'already_member' });
         }
-        return res.json({ group, member: found, status: 'already_member' });
+        return res.json({ group: publicGroup(group), member: found, status: 'already_member' });
       }
 
-      // البحث بالاسم كـ fallback
+      // البحث بالاسم كـ fallback — ⛔ الاسم لوحده مش إثبات هوية (نفس قاعدة canMergeGuest)
       const existing = await db.select().from(groupMembers)
         .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, userName)));
       if (existing.length > 0) {
-        if (!existing[0].phone && phone) {
-          await db.update(groupMembers).set({ phone: normalizedJoinPhone })
-            .where(eq(groupMembers.id, existing[0].id));
-        }
-        return res.json({ group, member: { ...existing[0], phone: normalizedJoinPhone }, status: 'already_member' });
+        const decision = canMergeGuest(existing[0], normalizedJoinPhone);
+        if (!decision.ok) return res.status(403).json({ error: decision.message, reason: decision.reason });
+        return res.json({ group: publicGroup(group), member: existing[0], status: 'already_member' });
       }
 
       const pendingRequest = await db.select().from(groupJoinRequests)
@@ -630,7 +629,7 @@ export function registerGroupRoutes(app: Express) {
           eq(groupJoinRequests.status, 'pending')
         ));
       if (pendingRequest.length > 0) {
-        return res.json({ group, status: 'pending', request: pendingRequest[0] });
+        return res.json({ group: publicGroup(group), status: 'pending', request: pendingRequest[0] });
       }
 
       const [request] = await db.insert(groupJoinRequests).values({
@@ -640,7 +639,7 @@ export function registerGroupRoutes(app: Express) {
         status: 'pending',
       }).returning();
 
-      res.json({ group, status: 'pending', request });
+      res.json({ group: publicGroup(group), status: 'pending', request });
     } catch (err) {
       console.error('[groups] join error:', err);
       res.status(500).json({ error: 'فشل الانضمام' });
@@ -651,6 +650,10 @@ export function registerGroupRoutes(app: Express) {
     try {
       const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, req.params.code.toUpperCase()));
       if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
+
+      // فيها أرقام موبايل اللى طالبين الانضمام ⇒ للأدمن بس
+      const authorized = await isAdminByLeaderKey(group, String(req.get('x-member-key') || ''));
+      if (!authorized) return res.status(403).json({ error: 'غير مسموح' });
 
       const requests = await db.select().from(groupJoinRequests)
         .where(and(eq(groupJoinRequests.groupId, group.id), eq(groupJoinRequests.status, 'pending')))
@@ -725,7 +728,10 @@ export function registerGroupRoutes(app: Express) {
       const code = req.params.code.toUpperCase();
       const payload = await getOrLoad(`group:${code}`, () => loadGroupPayload(code));
       if (!payload) return res.status(404).json({ error: 'المجموعة غير موجودة' });
-      res.json(payload);
+      // الرد بيختلف حسب مين بيسأل (مفتاحه فى الهيدر) ⇒ مايتحفظش فى كاش مشترك
+      res.setHeader('Vary', 'X-Member-Key');
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.json(groupViewFor(payload, String(req.get('x-member-key') || '')));
     } catch (err) {
       console.error('[groups] get group error:', err);
       res.status(500).json({ error: 'فشل تحميل المجموعة' });
