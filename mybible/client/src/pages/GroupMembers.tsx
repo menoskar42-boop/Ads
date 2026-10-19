@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
-import { Users, Search, Shield, ShieldOff, X, ArrowRight, UserPlus, Loader2, Check, BookOpen, ChevronRight } from 'lucide-react';
+import { Users, Search, Shield, ShieldOff, X, ArrowRight, UserPlus, Loader2, Check, BookOpen, ChevronRight, Phone } from 'lucide-react';
 import { InlineChapterReader } from '@/components/InlineChapterReader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,12 @@ export default function GroupMembers() {
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameLoading, setRenameLoading] = useState(false);
+
+  // تسجيل اسم وموبايل عضو — كأنه سجّلهم بنفسه (لو غيّر موبايله يرجع لحسابه بيهم)
+  const [profileTarget, setProfileTarget] = useState<string | null>(null);
+  const [profileName, setProfileName] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileLoading, setProfileLoading] = useState(false);
 
   const [readingsTarget, setReadingsTarget] = useState<string | null>(null);
   const [readingsData, setReadingsData] = useState<{ book: string; chapter: number; assignmentId: number }[] | null>(null);
@@ -182,6 +188,29 @@ export default function GroupMembers() {
       toast.error(err.message || 'فشل تعديل الاسم');
     } finally {
       setRenameLoading(false);
+    }
+  };
+
+  const handleProfile = async () => {
+    if (!profileTarget || !profileName.trim()) return;
+    if (profilePhone.replace(/\D/g, '').length < 10) { toast.error('رقم الموبايل غير صحيح'); return; }
+    setProfileLoading(true);
+    try {
+      const res = await fetch(`/api/groups/${groupCode}/members/${encodeURIComponent(profileTarget)}/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leaderKey: memberKey, userName: profileName.trim(), phone: profilePhone.trim() }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      toast.success('تم تسجيل بيانات العضو');
+      setProfileTarget(null);
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['member-stats', groupCode] });
+    } catch (err: any) {
+      toast.error(err.message || 'فشل حفظ بيانات العضو');
+    } finally {
+      setProfileLoading(false);
     }
   };
 
@@ -354,6 +383,16 @@ export default function GroupMembers() {
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7"
+                      title="تسجيل الاسم والموبايل"
+                      onClick={() => { setProfileTarget(m.userName); setProfileName(m.userName); setProfilePhone(m.phone || ''); }}
+                      data-testid={`button-profile-${m.userName}`}
+                    >
+                      <Phone className={`w-3.5 h-3.5 ${m.phone ? 'text-green-600' : 'text-muted-foreground'}`} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
                       title={m.isAdmin ? 'إزالة أدمن' : 'تعيين كأدمن'}
                       onClick={() => toggleAdmin(m.userName, !m.isAdmin)}
                       data-testid={`button-toggle-admin-${m.userName}`}
@@ -484,6 +523,32 @@ export default function GroupMembers() {
               ))}
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Member name + mobile (admin registers on the member's behalf) */}
+      <Dialog open={!!profileTarget} onOpenChange={(o) => { if (!o) setProfileTarget(null); }}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle>تسجيل الاسم والموبايل</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="profile-name">الاسم</Label>
+              <Input id="profile-name" value={profileName} onChange={e => setProfileName(e.target.value)} placeholder="اسم العضو" />
+            </div>
+            <div>
+              <Label htmlFor="profile-phone">رقم الموبايل</Label>
+              <Input id="profile-phone" type="tel" inputMode="tel" dir="ltr" value={profilePhone} onChange={e => setProfilePhone(e.target.value)} placeholder="01xxxxxxxxx" />
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              كأن العضو سجّلهم بنفسه: قراءاته كلها بتفضل معاه بالاسم الجديد، ولو غيّر موبايله يرجع لحسابه لما يكتب نفس الاسم أو نفس الرقم.
+            </p>
+            <Button onClick={handleProfile} disabled={profileLoading || !profileName.trim() || !profilePhone.trim()} className="w-full">
+              {profileLoading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Check className="w-4 h-4 ml-2" />}
+              حفظ
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

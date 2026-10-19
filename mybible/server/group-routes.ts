@@ -9,7 +9,7 @@ import {
   groupAssignments, assignmentReadings, groupJoinRequests, groupGuestTokens,
 } from "@shared/schema";
 import crypto from "crypto";
-import { canMergeGuest } from './guest-identity';
+import { canMergeGuest, checkAdminProfile, normalizePhone } from './guest-identity';
 import { getOrLoad, invalidate as invalidateGroupCache } from './group-cache';
 
 const pool = dbPool;
@@ -72,6 +72,19 @@ async function migrateMemberName(groupId: number, oldName: string, newName: stri
     `UPDATE group_messages SET user_name = $1 WHERE group_id = $2 AND user_name = $3`,
     [newName, groupId, oldName]
   );
+}
+
+// اسم القارئ: من حسابه (memberKey) لو اتبعت — مش من الاسم المحفوظ على الموبايل.
+// الأدمن ممكن يغيّر اسم العضو (تسجيل البيانات/التصحيح) والموبايل لسه شايل القديم؛
+// من غير ده قراءاته كانت هتتسجّل على اسم مالوش عضو وتضيع من تقدّمه.
+async function readerName(groupId: number, body: any): Promise<string> {
+  const key = typeof body?.memberKey === 'string' ? body.memberKey : '';
+  if (key) {
+    const [m] = await db.select({ userName: groupMembers.userName }).from(groupMembers)
+      .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.memberKey, key)));
+    if (m?.userName) return m.userName;
+  }
+  return body?.userName;
 }
 
 export function registerGroupRoutes(app: Express) {
@@ -321,7 +334,14 @@ export function registerGroupRoutes(app: Express) {
       const normalizedRegPhone = phone?.trim().replace(/\s+/g, '') || '';
       const nameConflict = await db.select().from(groupMembers)
         .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, newName.trim())));
-      const existingReal = nameConflict.find(m => m.memberKey !== memberKey);
+      /* أو بالرقم: لو الرقم ده متسجّل لعضو تانى (العضو نفسه أو الأدمن سجّله) يبقى ده حسابه
+       * حتى لو كتب الاسم بشكل مختلف — زى الانضمام برابط الدعوة اللى بيدوّر بالرقم الأول.
+       * من غير كده التحديث تحت كان بيقع على فهرس الرقم الفريد («فشل التسجيل»). */
+      let existingReal = nameConflict.find(m => m.memberKey !== memberKey);
+      if (!existingReal && normalizePhone(normalizedRegPhone)) {
+        const all = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
+        existingReal = all.find(m => m.memberKey !== memberKey && normalizePhone(m.phone) === normalizePhone(normalizedRegPhone));
+      }
 
       if (existingReal) {
         /* ⛔ الاسم لوحده **مش إثبات هوية**. الأسامي معروضة لأي حد معاه
@@ -752,7 +772,8 @@ export function registerGroupRoutes(app: Express) {
       const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, req.params.code.toUpperCase()));
       if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
 
-      const { userName, book, chapter, timeSpent, scrollPercent } = req.body;
+      const { book, chapter, timeSpent, scrollPercent } = req.body;
+      const userName = await readerName(group.id, req.body);
       // قراءة جاية من طابور الموبايل (القاعدة كانت واقعة) ⇒ بيوم قراءتها الحقيقى
       const date = readDateFrom(req.body.readAt).date;
 
@@ -1034,6 +1055,43 @@ export function registerGroupRoutes(app: Express) {
     } catch (err) {
       console.error('[groups] rename member error:', err);
       res.status(500).json({ error: 'فشل تعديل الاسم' });
+    }
+  });
+
+  // ── تسجيل اسم وموبايل عضو (أدمن فقط) — بالظبط كأن العضو سجّلهم بنفسه ──
+  // نفس اللى بيحصل لما الضيف يسجّل («سجّل اسمك»): الاسم الجديد بتاريخه كله، والرقم
+  // يتحفظ — فلو العضو غيّر موبايله يرجع لحسابه بالاسم والرقم. ومن غير دمج: الاسم والرقم
+  // لازم مايكونوش لعضو تانى (الدمج المقصود له «تعديل / تصحيح الاسم»).
+  app.put('/api/groups/:code/members/:memberName/profile', async (req, res) => {
+    try {
+      const code = req.params.code.toUpperCase();
+      const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, code));
+      if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
+
+      const { leaderKey, userName: rawName, phone: rawPhone } = req.body;
+      const authorized = await isAdminByLeaderKey(group, leaderKey);
+      if (!authorized) return res.status(403).json({ error: 'غير مسموح' });
+
+      const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
+      const fromName = decodeURIComponent(req.params.memberName);
+      const target = members.find((m) => m.userName === fromName);
+      if (!target) return res.status(404).json({ error: 'العضو غير موجود' });
+
+      const decision = checkAdminProfile(members, target.id, rawName, rawPhone);
+      if (!decision.ok) return res.status(409).json({ error: decision.message });
+      const { userName, phone } = decision;
+
+      // التاريخ كله ينتقل للاسم الجديد (قراءات + مهام + رسائل) قبل تغيير الاسم
+      await migrateMemberName(group.id, target.userName, userName);
+      await db.update(groupMembers).set({ userName, phone }).where(eq(groupMembers.id, target.id));
+      // الضيف: الرقم فى توكن الضيف برضه (زى «سجّل اسمك» بالظبط)
+      await db.update(groupGuestTokens).set({ phone })
+        .where(and(eq(groupGuestTokens.groupCode, code), eq(groupGuestTokens.memberKey, target.memberKey)));
+
+      res.json({ success: true, userName, phone, renamed: userName !== target.userName });
+    } catch (err) {
+      console.error('[groups] member profile error:', err);
+      res.status(500).json({ error: 'فشل حفظ بيانات العضو' });
     }
   });
 
@@ -1845,7 +1903,8 @@ export function registerGroupRoutes(app: Express) {
       if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
 
       const assignmentId = parseInt(req.params.assignmentId);
-      const { userName, bookName, timeSpent, scrollCount, scrollDepth } = req.body;
+      const { bookName, timeSpent, scrollCount, scrollDepth } = req.body;
+      const userName = await readerName(group.id, req.body);
       const chapter = parseInt(req.body.chapter);
       // قراءة جاية من طابور الموبايل ⇒ يومها ووقتها الحقيقى (read-date.ts)
       const rd = readDateFrom(req.body.readAt);

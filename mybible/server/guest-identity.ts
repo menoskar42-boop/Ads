@@ -88,3 +88,36 @@ export function canMergeGuest(
 
   return { ok: true };
 }
+
+export type AdminProfileDecision =
+  | { ok: true; userName: string; phone: string }
+  | { ok: false; message: string };
+
+/**
+ * الأدمن بيسجّل الاسم والموبايل لعضو (المالك ٢٠٢٦-١٠-١٩) — «بالظبط كأن العضو سجّلهم بنفسه».
+ * بعدها العضو لو غيّر موبايله يرجع لحسابه بالاسم والرقم (`canMergeGuest` فوق).
+ *
+ * الشرطين اللي بيمنعوا دمج شخصين: الاسم والرقم مايكونوش متسجّلين لعضو **تاني**
+ * في نفس المجموعة. الدمج المقصود له زرار لوحده («تعديل / تصحيح الاسم»).
+ */
+export function checkAdminProfile(
+  members: { id: number; userName: string; phone?: string | null }[],
+  targetId: number,
+  rawName?: string | null,
+  rawPhone?: string | null,
+): AdminProfileDecision {
+  const userName = String(rawName ?? '').trim().replace(/\s+/g, ' ');
+  if (!userName) return { ok: false, message: 'اكتب اسم العضو' };
+  if (userName.length > 60) return { ok: false, message: 'الاسم طويل — ٦٠ حرف بالكتير' };
+  const phone = normalizePhone(rawPhone);
+  if (phone.length < 10) return { ok: false, message: 'رقم الموبايل غير صحيح' };
+
+  const others = members.filter((m) => m.id !== targetId);
+  if (others.some((m) => m.userName === userName)) {
+    return { ok: false, message: 'الاسم ده مسجّل لعضو تاني. لو هو نفس الشخص استخدم «تعديل / تصحيح الاسم» عشان تدمجهم' };
+  }
+  if (others.some((m) => normalizePhone(m.phone) === phone)) {
+    return { ok: false, message: 'الرقم ده مسجّل لعضو تاني في المجموعة' };
+  }
+  return { ok: true, userName, phone };
+}

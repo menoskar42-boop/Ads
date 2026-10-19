@@ -65,12 +65,14 @@ const MIN_SECONDS = 40;
 const MIN_SCROLLS = 5;
 const MIN_DEPTH = 80;
 
-function InlineChapterReader({ bookName: initialBookName, chapter: initialChapter, groupCode, assignmentId, userName, chapters, schedule, onComplete, onChapterDone }: {
+function InlineChapterReader({ bookName: initialBookName, chapter: initialChapter, groupCode, assignmentId, userName, memberKey, chapters, schedule, onComplete, onChapterDone }: {
   bookName: string;
   chapter: number;
   groupCode: string;
   assignmentId: number | null;
   userName: string;
+  // حساب القارئ: السيرفر بيسجّل القراءة على اسمه الحالى حتى لو الأدمن غيّره والموبايل لسه شايل القديم
+  memberKey?: string;
   chapters?: number[];
   schedule?: {book: string; chapter: number}[];
   onComplete: () => void;
@@ -244,9 +246,9 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
   const recordReading = async (chap: number, timeSpent: number) => {
     const r = assignmentId !== null
       ? await postReading(`/api/groups/${groupCode}/assignments/${assignmentId}/read`,
-          { userName, bookName: currentBook, chapter: chap, timeSpent, scrollCount, scrollDepth })
+          { userName, memberKey, bookName: currentBook, chapter: chap, timeSpent, scrollCount, scrollDepth })
       : await postReading(`/api/groups/${groupCode}/reading`,
-          { userName, book: currentBook, chapter: chap, timeSpent, scrollPercent: scrollDepth });
+          { userName, memberKey, book: currentBook, chapter: chap, timeSpent, scrollPercent: scrollDepth });
     return { ...(r.data || {}), queued: r.queued };
   };
 
@@ -606,6 +608,7 @@ function AssignmentSection({ groupCode, isAdmin, memberKey, userName, allBooks, 
           groupCode={groupCode}
           assignmentId={readingChapter.assignmentId}
           userName={userName}
+          memberKey={memberKey}
           chapters={readingChapter.chapters}
           onComplete={handleReadComplete}
         />
@@ -1081,6 +1084,7 @@ function DailyReadingCard({ autoReading, autoConfig, stats, progress, challengeT
           groupCode={groupCode}
           assignmentId={reading.assignmentId ?? null}
           userName={userName}
+          memberKey={memberKey}
           schedule={reading.schedule}
           onComplete={() => { setReading(null); onReadComplete(); }}
           onChapterDone={markChapterDone}
@@ -1599,6 +1603,26 @@ export default function GroupView() {
       }
     }
   }, [data, memberKey, userName, groupCode, isAdmin, isAdminConfirmed]);
+
+  // الأدمن سجّل اسم العضو ورقمه (أو صحّح اسمه) ⇒ الموبايل ياخد الاسم من حسابه (memberKey)،
+  // ولو اتسجّل رقم يبطّل «ضيف» — بالظبط كأن العضو سجّلهم بنفسه من «سجّل اسمك».
+  const [, setNameSync] = useState(0);
+  useEffect(() => {
+    if (!data || !memberKey) return;
+    const me = (data as any).members?.find((m: any) => m.memberKey === memberKey);
+    if (!me?.userName) return;
+    const registered = !!me.phone;
+    if (me.userName === userName && !(registered && isGuest)) return;
+    const curr = JSON.parse(localStorage.getItem(`group_${groupCode}`) || '{}');
+    localStorage.setItem(`group_${groupCode}`, JSON.stringify({
+      ...curr, userName: me.userName, memberKey, ...(registered ? { isGuest: false } : {}),
+    }));
+    const entry = getUserGroupEntry(groupCode);
+    if (entry) addUserGroup({ ...entry, userName: me.userName } as any);
+    if (guestCreds) setGuestCreds(registered ? null : { userName: me.userName, memberKey });
+    if (registered) setIsGuest(false);
+    setNameSync((n) => n + 1);
+  }, [data, memberKey, userName, isGuest, groupCode]);
 
   const { data: leaderboardData } = useQuery({
     queryKey: ['leaderboard', groupCode],
