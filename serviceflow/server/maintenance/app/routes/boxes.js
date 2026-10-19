@@ -6,11 +6,18 @@ const db = require('../database');
 const DATA_DIR = require('../utils/datadir');
 const { appendMediaToArchive, removeMediaFiles } = require('../utils/photo');
 const {
+  createMaintenanceBox,
   createMaintenanceCabinet,
   createMaintenanceExchange,
+  deleteMaintenanceCabinet,
+  deleteMaintenanceExchange,
+  getMaintenanceBoxes,
+  getMaintenanceBoxDetails,
+  getMaintenanceCabinet,
   getMaintenanceCabinets,
   getMaintenanceExchanges,
   isMaintenanceHierarchyProofEnabled,
+  updateMaintenanceBoxLocation,
 } = require('../utils/d1-hierarchy');
 const { requireLogin, requireRole } = require('../middleware/auth');
 
@@ -86,6 +93,20 @@ router.post('/exchanges/create', adminOnly, async (req, res) => {
 });
 
 router.post('/exchanges/:id/delete', adminOnly, async (req, res) => {
+  if (isMaintenanceHierarchyProofEnabled()) {
+    try {
+      await deleteMaintenanceExchange(req.session.user, req.params.id);
+      req.session.flash = { type: 'success', msg: 'تم حذف السنترال.' };
+    } catch (error) {
+      req.session.flash = {
+        type: 'danger',
+        msg: error.status === 409
+          ? 'لا يمكن حذف السنترال قبل حذف الكبائن التابعة له.'
+          : 'فشل حذف السنترال: ' + error.message,
+      };
+    }
+    return res.redirect('/boxes/exchanges');
+  }
   try {
     const cabinets = await db.all('SELECT id FROM cabinets WHERE exchange_id = ?', [req.params.id]);
     for (const c of cabinets) {
@@ -139,6 +160,23 @@ router.post('/exchanges/:eid/cabinets/create', adminOnly, async (req, res) => {
 });
 
 router.post('/cabinets/:id/delete', adminOnly, async (req, res) => {
+  if (isMaintenanceHierarchyProofEnabled()) {
+    let exchangeId = '';
+    try {
+      const deleted = await deleteMaintenanceCabinet(req.session.user, req.params.id);
+      exchangeId = deleted.exchange_id;
+      req.session.flash = { type: 'success', msg: 'تم حذف الكابينة.' };
+    } catch (error) {
+      exchangeId = error.payload?.exchange_id || '';
+      req.session.flash = {
+        type: 'danger',
+        msg: error.status === 409
+          ? 'لا يمكن حذف الكابينة قبل حذف البوكسات التابعة لها.'
+          : 'فشل حذف الكابينة: ' + error.message,
+      };
+    }
+    return res.redirect(`/boxes/exchanges/${exchangeId}/cabinets`);
+  }
   const cab = await db.get('SELECT exchange_id FROM cabinets WHERE id = ?', [req.params.id]);
   try {
     const boxes = await db.all('SELECT id FROM boxes WHERE cabinet_id = ?', [req.params.id]);
@@ -156,6 +194,10 @@ router.post('/cabinets/:id/delete', adminOnly, async (req, res) => {
 router.get('/', requireLogin, async (req, res) => {
   const { status, exchange_id, cabinet_id, search } = req.query;
   const user = req.session.user;
+  if (isMaintenanceHierarchyProofEnabled()) {
+    const { boxes, exchanges, cabinets, counts } = await getMaintenanceBoxes(user, req.query);
+    return res.render('boxes/list', { title: 'البوكسات', boxes, exchanges, cabinets, counts, query: req.query });
+  }
 
   let sql = `
     SELECT b.*, c.number as cabinet_number, e.name as exchange_name
@@ -189,7 +231,17 @@ router.get('/', requireLogin, async (req, res) => {
 });
 
 router.get('/cabinets/:cid/create', requireRole('admin', 'inspector'), async (req, res) => {
-  const cabinet = await db.get('SELECT c.*, e.name as exchange_name FROM cabinets c JOIN exchanges e ON e.id = c.exchange_id WHERE c.id = ?', [req.params.cid]);
+  let cabinet;
+  if (isMaintenanceHierarchyProofEnabled()) {
+    try {
+      cabinet = await getMaintenanceCabinet(req.session.user, req.params.cid);
+    } catch (error) {
+      if (error.status === 404) return res.redirect('/boxes/exchanges');
+      throw error;
+    }
+  } else {
+    cabinet = await db.get('SELECT c.*, e.name as exchange_name FROM cabinets c JOIN exchanges e ON e.id = c.exchange_id WHERE c.id = ?', [req.params.cid]);
+  }
   if (!cabinet) return res.redirect('/boxes/exchanges');
   res.render('boxes/box_form', { title: 'إضافة بوكس', cabinet, errors: [], inputNumber: req.query.number || '' });
 });
@@ -199,6 +251,18 @@ router.post('/cabinets/:cid/create', requireRole('admin', 'inspector'), async (r
   if (!number || !number.trim()) {
     req.session.flash = { type: 'danger', msg: 'رقم البوكس مطلوب.' };
     return res.redirect(`/boxes/cabinets/${req.params.cid}/create`);
+  }
+  if (isMaintenanceHierarchyProofEnabled()) {
+    try {
+      await createMaintenanceBox(req.session.user, req.params.cid, number);
+      const cabinet = await getMaintenanceCabinet(req.session.user, req.params.cid);
+      req.session.flash = { type: 'success', msg: `تم إضافة البوكس رقم ${number.trim()} بنجاح.` };
+      return res.redirect(`/boxes/exchanges/${cabinet.exchange_id}/cabinets`);
+    } catch (error) {
+      if (error.status !== 409) throw error;
+      req.session.flash = { type: 'danger', msg: `البوكس رقم ${number.trim()} موجود بالفعل في هذه الكابينة.` };
+      return res.redirect(`/boxes/cabinets/${req.params.cid}/create?number=${encodeURIComponent(number.trim())}`);
+    }
   }
   const existing = await db.get('SELECT id FROM boxes WHERE cabinet_id = ? AND number = ?', [req.params.cid, number.trim()]);
   if (existing) {
@@ -217,6 +281,51 @@ router.post('/cabinets/:cid/create', requireRole('admin', 'inspector'), async (r
 });
 
 router.get('/:id', requireLogin, async (req, res) => {
+  if (isMaintenanceHierarchyProofEnabled()) {
+    let details;
+    try {
+      details = await getMaintenanceBoxDetails(req.session.user, req.params.id);
+    } catch (error) {
+      if (error.status === 404) return res.redirect('/boxes');
+      throw error;
+    }
+    const { box, items, archivedInspections } = details;
+    const addInspectorName = async (inspection) => {
+      if (!inspection?.inspector_id) return { ...inspection, inspector_name: '' };
+      const user = await db.get('SELECT full_name FROM users WHERE id = ?', [inspection.inspector_id]);
+      return { ...inspection, inspector_name: user?.full_name || '' };
+    };
+    const inspection = details.inspection ? await addInspectorName(details.inspection) : null;
+    const archivedWithNames = await Promise.all(archivedInspections.map(addInspectorName));
+    const photos = await db.all(
+      'SELECT p.id, p.box_id, p.inspection_id, p.photo_type, p.filename, p.uploaded_by, p.taken_at, p.latitude, p.longitude, p.uploaded_at, u.full_name as uploader FROM photos p LEFT JOIN users u ON u.id = p.uploaded_by WHERE p.box_id = ? ORDER BY p.uploaded_at',
+      [req.params.id],
+    );
+    let task = details.task;
+    if (task?.technician_id) {
+      const technician = await db.get('SELECT full_name FROM users WHERE id = ?', [task.technician_id]);
+      task = { ...task, tech_name: technician?.full_name || '' };
+    }
+    const itemStatusMap = details.itemStatusMap;
+    const PRELIM_EXCLUDED = ['electricity_conflict', 'air_conflict', 'overlap'];
+    const relevant = items.filter((item) =>
+      ['bad', 'yes'].includes(item.value) && !PRELIM_EXCLUDED.includes(item.item_key));
+    const prelimReady = !!task && relevant.length > 0 &&
+      relevant.every((item) => itemStatusMap[item.item_key]?.is_done);
+    return res.render('boxes/detail', {
+      title: `بوكس ${box.number}`,
+      box,
+      inspection,
+      archivedInspections: archivedWithNames,
+      items,
+      checklist: CHECKLIST,
+      itemStatusMap,
+      photos,
+      task,
+      prelimReady,
+      query: req.query,
+    });
+  }
   const box = await db.get(`
     SELECT b.*, c.number as cabinet_number, e.name as exchange_name, e.id as exchange_id
     FROM boxes b JOIN cabinets c ON c.id = b.cabinet_id JOIN exchanges e ON e.id = c.exchange_id
@@ -259,6 +368,13 @@ router.get('/:id', requireLogin, async (req, res) => {
 });
 
 router.post('/:id/delete', adminOnly, async (req, res) => {
+  if (isMaintenanceHierarchyProofEnabled()) {
+    req.session.flash = {
+      type: 'danger',
+      msg: 'حذف البوكس متوقف في وضع إثبات D1 حتى تكتمل استعادة بيانات التفتيش والصور بين القاعدتين.',
+    };
+    return res.redirect('/boxes');
+  }
   try {
     await cascadeDeleteBox(req.params.id);
     req.session.flash = { type: 'success', msg: 'تم حذف البوكس وجميع بياناته.' };
@@ -303,6 +419,14 @@ router.get('/:id/photos/download', requireLogin, async (req, res) => {
 router.post('/:id/location', requireRole('admin', 'inspector'), async (req, res) => {
   const { lat, lng } = req.body;
   if (!lat || !lng) return res.status(400).json({ ok: false, msg: 'لا توجد إحداثيات.' });
+  if (isMaintenanceHierarchyProofEnabled()) {
+    try {
+      const updated = await updateMaintenanceBoxLocation(req.session.user, req.params.id, lat, lng);
+      return res.json(updated);
+    } catch (error) {
+      return res.status(error.status || 400).json({ ok: false, msg: error.message });
+    }
+  }
   const box = await db.get('SELECT id FROM boxes WHERE id = ?', [req.params.id]);
   if (!box) return res.status(404).json({ ok: false, msg: 'البوكس غير موجود.' });
   try {

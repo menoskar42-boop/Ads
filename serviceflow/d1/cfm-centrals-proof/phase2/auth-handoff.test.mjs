@@ -22,6 +22,8 @@ const { storage } = await import("../../../server/cfm/storage.ts");
 const { CfmD1ReferenceStorage } = await import("../../../server/cfm/d1-reference-storage.ts");
 const maintenanceD1 = await import("../../../server/maintenance/app/utils/d1-cabinet-codes.js");
 const getMaintenanceCabinetCodes = maintenanceD1.default.getCabinetCodes;
+const maintenanceDatabase = await import("../../../server/maintenance/app/database.js");
+const maintenanceDb = maintenanceDatabase.default;
 const maintenanceBoxes = await import("../../../server/maintenance/app/routes/boxes.js");
 const maintenanceBoxesRouter = maintenanceBoxes.default;
 const maintenanceReports = await import("../../../server/maintenance/app/routes/reports.js");
@@ -856,6 +858,159 @@ test("actual maintenance exchanges page can render the local D1 read proof", asy
     });
     assert.equal(cabinetsRendered.view, "boxes/cabinet_list");
     assert.deepEqual(cabinetsRendered.data.cabinets.map((row) => row.number), ["C-1", "C-2"]);
+
+    const cabinetBoxForm = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/cabinets/:cid/create" && layer.route.methods.get,
+    ).route.stack.at(-1).handle;
+    let boxFormRendered;
+    await cabinetBoxForm({
+      session: { user: { id: 12, role: "admin" } },
+      params: { cid: "9002" },
+      query: {},
+    }, {
+      render(view, data) { boxFormRendered = { view, data }; },
+      redirect(path) { throw new Error(`Unexpected redirect to ${path}`); },
+    });
+    assert.equal(boxFormRendered.view, "boxes/box_form");
+    assert.equal(boxFormRendered.data.cabinet.exchange_name, "Synthetic hierarchy");
+
+    const boxCreate = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/cabinets/:cid/create" && layer.route.methods.post,
+    ).route.stack.at(-1).handle;
+    const boxCreateRequest = {
+      session: { user: { id: 12, role: "admin" }, flash: null },
+      params: { cid: "9002" },
+      body: { number: "B-2" },
+    };
+    let boxCreateRedirect;
+    await boxCreate(boxCreateRequest, { redirect(path) { boxCreateRedirect = path; } });
+    assert.equal(boxCreateRedirect, "/boxes/exchanges/9001/cabinets");
+    assert.equal(boxCreateRequest.session.flash.type, "success");
+
+    const boxList = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/" && layer.route.methods.get,
+    ).route.stack.at(-1).handle;
+    let boxListRendered;
+    await boxList({
+      session: { user: { id: 12, role: "admin" } },
+      query: { exchange_id: "9001", search: "B-" },
+    }, {
+      render(view, data) { boxListRendered = { view, data }; },
+    });
+    assert.equal(boxListRendered.view, "boxes/list");
+    assert.deepEqual(boxListRendered.data.boxes.map((row) => row.number), ["B-1", "B-2"]);
+
+    await executeLocalD1(`
+      INSERT OR IGNORE INTO maintenance_inspections(id, box_id, inspector_id, general_notes)
+      VALUES (9005, 9003, 77, 'Synthetic inspection');
+      INSERT OR IGNORE INTO maintenance_inspection_items(id, inspection_id, item_key, item_type, value)
+      VALUES (9006, 9005, 'access', 'good_bad', 'bad');
+      INSERT OR IGNORE INTO maintenance_tasks(id, inspection_id, technician_id, status)
+      VALUES (9007, 9005, 78, 'completed');
+      INSERT OR IGNORE INTO maintenance_item_status(id, task_id, item_key, is_done)
+      VALUES (9008, 9007, 'access', 1);
+    `);
+    const originalDbGet = maintenanceDb.get;
+    const originalDbAll = maintenanceDb.all;
+    maintenanceDb.get = async (_sql, [userId]) => ({
+      full_name: userId === 77 ? "Synthetic Inspector" : "Synthetic Technician",
+    });
+    maintenanceDb.all = async () => [];
+    try {
+      const boxDetail = maintenanceBoxesRouter.stack.find((layer) =>
+        layer.route?.path === "/:id" && layer.route.methods.get,
+      ).route.stack.at(-1).handle;
+      let boxDetailRendered;
+      await boxDetail({
+        session: { user: { id: 12, role: "admin" } },
+        params: { id: "9003" },
+        query: {},
+      }, {
+        render(view, data) { boxDetailRendered = { view, data }; },
+        redirect(path) { throw new Error(`Unexpected redirect to ${path}`); },
+      });
+      assert.equal(boxDetailRendered.view, "boxes/detail");
+      assert.equal(boxDetailRendered.data.inspection.inspector_name, "Synthetic Inspector");
+      assert.equal(boxDetailRendered.data.task.tech_name, "Synthetic Technician");
+      assert.equal(boxDetailRendered.data.itemStatusMap.access.is_done, 1);
+      assert.equal(boxDetailRendered.data.prelimReady, true);
+    } finally {
+      maintenanceDb.get = originalDbGet;
+      maintenanceDb.all = originalDbAll;
+    }
+
+    const locationUpdate = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/:id/location" && layer.route.methods.post,
+    ).route.stack.at(-1).handle;
+    let locationResponse;
+    await locationUpdate({
+      session: { user: { id: 12, role: "inspector" } },
+      params: { id: "9003" },
+      body: { lat: "31.95", lng: "35.91" },
+    }, {
+      status(code) { this.statusCode = code; return this; },
+      json(body) { locationResponse = { status: this.statusCode || 200, body }; },
+    });
+    assert.deepEqual(locationResponse, { status: 200, body: { ok: true, lat: 31.95, lng: 35.91 } });
+    const locationRows = await queryLocalD1("SELECT latitude, longitude FROM maintenance_boxes WHERE id = 9003");
+    assert.equal(locationRows[0].latitude, 31.95);
+    assert.equal(locationRows[0].longitude, 35.91);
+
+    const boxDelete = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/:id/delete",
+    ).route.stack.at(-1).handle;
+    const boxDeleteRequest = {
+      session: { user: { id: 12, role: "admin" }, flash: null },
+      params: { id: "9003" },
+    };
+    let boxDeleteRedirect;
+    await boxDelete(boxDeleteRequest, { redirect(path) { boxDeleteRedirect = path; } });
+    assert.equal(boxDeleteRedirect, "/boxes");
+    assert.equal(boxDeleteRequest.session.flash.type, "danger");
+    assert.equal((await queryLocalD1("SELECT COUNT(*) AS count FROM maintenance_boxes WHERE id = 9003"))[0].count, 1);
+
+    const exchangeDelete = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/exchanges/:id/delete",
+    ).route.stack.at(-1).handle;
+    const exchangeDeleteRequest = {
+      session: { user: { id: 12, role: "admin" }, flash: null },
+      params: { id: "9001" },
+    };
+    let exchangeDeleteRedirect;
+    await exchangeDelete(exchangeDeleteRequest, {
+      redirect(path) { exchangeDeleteRedirect = path; },
+    });
+    assert.equal(exchangeDeleteRedirect, "/boxes/exchanges");
+    assert.equal(exchangeDeleteRequest.session.flash.type, "danger");
+    assert.equal((await queryLocalD1("SELECT COUNT(*) AS count FROM maintenance_exchanges WHERE id = 9001"))[0].count, 1);
+
+    const cabinetDelete = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/cabinets/:id/delete",
+    ).route.stack.at(-1).handle;
+    const cabinetDeleteRequest = {
+      session: { user: { id: 12, role: "admin" }, flash: null },
+      params: { id: "9002" },
+    };
+    let cabinetDeleteRedirect;
+    await cabinetDelete(cabinetDeleteRequest, {
+      redirect(path) { cabinetDeleteRedirect = path; },
+    });
+    assert.equal(cabinetDeleteRedirect, "/boxes/exchanges/9001/cabinets");
+    assert.equal(cabinetDeleteRequest.session.flash.type, "danger");
+    assert.equal((await queryLocalD1("SELECT COUNT(*) AS count FROM maintenance_boxes WHERE id = 9003"))[0].count, 1);
+
+    const createdExchange = await queryLocalD1(
+      "SELECT id FROM maintenance_exchanges WHERE name = 'D1 created exchange'",
+    );
+    const emptyExchangeDeleteRequest = {
+      session: { user: { id: 12, role: "admin" }, flash: null },
+      params: { id: String(createdExchange[0].id) },
+    };
+    await exchangeDelete(emptyExchangeDeleteRequest, { redirect() {} });
+    assert.equal(emptyExchangeDeleteRequest.session.flash.type, "success");
+    assert.equal((await queryLocalD1(
+      `SELECT COUNT(*) AS count FROM maintenance_exchanges WHERE id = ${Number(createdExchange[0].id)}`,
+    ))[0].count, 0);
   } finally {
     if (oldMode === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
     else process.env.SF_MAINTENANCE_HIERARCHY_PROOF = oldMode;

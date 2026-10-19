@@ -46,6 +46,7 @@ async function maintenanceHierarchyRequest(actor, path, { method = 'GET', body }
   if (!response.ok) {
     const error = new Error(payload?.error || `Maintenance hierarchy D1 request failed (${response.status})`);
     error.status = response.status;
+    error.payload = payload;
     throw error;
   }
   return payload;
@@ -84,6 +85,89 @@ async function getMaintenanceCabinets(actor, exchangeId) {
   return payload;
 }
 
+async function getMaintenanceCabinet(actor, cabinetId) {
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/cabinets/${encodeURIComponent(cabinetId)}`,
+  );
+  if (!payload || !Number.isSafeInteger(payload.id) || !Number.isSafeInteger(payload.exchange_id) ||
+      typeof payload.number !== 'string' || typeof payload.exchange_name !== 'string') {
+    throw new Error('Maintenance hierarchy D1 returned an invalid cabinet');
+  }
+  return payload;
+}
+
+async function getMaintenanceBoxes(actor, filters = {}) {
+  const query = new URLSearchParams();
+  for (const key of ['status', 'exchange_id', 'cabinet_id', 'search']) {
+    if (filters[key] != null && String(filters[key]) !== '') query.set(key, String(filters[key]));
+  }
+  const suffix = query.size ? `?${query.toString()}` : '';
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/boxes${suffix}`,
+  );
+  if (!payload || !Array.isArray(payload.boxes) || !Array.isArray(payload.exchanges) ||
+      !Array.isArray(payload.cabinets) || !payload.counts || typeof payload.counts !== 'object' ||
+      payload.boxes.some((row) => !row || !Number.isSafeInteger(row.id) ||
+        !Number.isSafeInteger(row.cabinet_id) || typeof row.number !== 'string' ||
+        typeof row.status !== 'string' || typeof row.cabinet_number !== 'string' ||
+        typeof row.exchange_name !== 'string')) {
+    throw new Error('Maintenance hierarchy D1 returned invalid box rows');
+  }
+  return payload;
+}
+
+async function getMaintenanceBoxDetails(actor, boxId) {
+  if (!Number.isSafeInteger(Number(boxId)) || Number(boxId) <= 0) {
+    throw new Error('Invalid box id');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/boxes/${encodeURIComponent(boxId)}`,
+  );
+  if (!payload || !payload.box || !Number.isSafeInteger(payload.box.id) ||
+      !Number.isSafeInteger(payload.box.cabinet_id) || typeof payload.box.number !== 'string' ||
+      !Array.isArray(payload.archivedInspections) || !Array.isArray(payload.items) ||
+      !payload.itemStatusMap || typeof payload.itemStatusMap !== 'object' ||
+      (payload.inspection && !Number.isSafeInteger(payload.inspection.id)) ||
+      (payload.task && !Number.isSafeInteger(payload.task.id))) {
+    throw new Error('Maintenance hierarchy D1 returned invalid box details');
+  }
+  return payload;
+}
+
+async function createMaintenanceBox(actor, cabinetId, number) {
+  if (!Number.isSafeInteger(Number(cabinetId)) || Number(cabinetId) <= 0 ||
+      typeof number !== 'string' || !number.trim() || number.trim().length > 120) {
+    throw new Error('A valid cabinet and box number are required');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/cabinets/${encodeURIComponent(cabinetId)}/boxes`,
+    { method: 'POST', body: { number: number.trim() } },
+  );
+  if (!payload || !Number.isSafeInteger(payload.id) || payload.cabinet_id !== Number(cabinetId) ||
+      payload.number !== number.trim() || typeof payload.status !== 'string') {
+    throw new Error('Maintenance hierarchy D1 returned an invalid box');
+  }
+  return payload;
+}
+
+async function updateMaintenanceBoxLocation(actor, boxId, lat, lng) {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  if (!Number.isSafeInteger(Number(boxId)) || Number(boxId) <= 0 ||
+      !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new Error('Valid box coordinates are required');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/boxes/${encodeURIComponent(boxId)}/location`,
+    { method: 'POST', body: { lat: latitude, lng: longitude } },
+  );
+  if (!payload || payload.ok !== true || payload.lat !== latitude || payload.lng !== longitude) {
+    throw new Error('Maintenance hierarchy D1 returned an invalid location result');
+  }
+  return payload;
+}
+
 async function createMaintenanceCabinet(actor, exchangeId, number) {
   if (typeof number !== 'string' || !number.trim() || number.trim().length > 120) {
     throw new Error('Cabinet number must be between 1 and 120 characters');
@@ -94,9 +178,36 @@ async function createMaintenanceCabinet(actor, exchangeId, number) {
   );
 }
 
+async function deleteMaintenanceExchange(actor, exchangeId) {
+  if (!Number.isSafeInteger(Number(exchangeId)) || Number(exchangeId) <= 0) {
+    throw new Error('Invalid exchange id');
+  }
+  return maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/exchanges/${encodeURIComponent(exchangeId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+async function deleteMaintenanceCabinet(actor, cabinetId) {
+  if (!Number.isSafeInteger(Number(cabinetId)) || Number(cabinetId) <= 0) {
+    throw new Error('Invalid cabinet id');
+  }
+  return maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/cabinets/${encodeURIComponent(cabinetId)}`,
+    { method: 'DELETE' },
+  );
+}
+
 module.exports = {
   createMaintenanceCabinet,
+  createMaintenanceBox,
   createMaintenanceExchange,
+  updateMaintenanceBoxLocation,
+  getMaintenanceBoxes,
+  getMaintenanceCabinet,
+  deleteMaintenanceCabinet,
+  deleteMaintenanceExchange,
+  getMaintenanceBoxDetails,
   getMaintenanceCabinets,
   getMaintenanceExchanges,
   isMaintenanceHierarchyProofEnabled,

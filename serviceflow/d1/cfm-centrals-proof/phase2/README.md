@@ -69,9 +69,14 @@ boxes, inspections, inspection items, tasks, item statuses, and box line numbers
 Inspector/technician IDs are retained as references without moving user rows;
 maintenance users and photos are excluded. The import uses retry-safe
 `INSERT OR IGNORE` statements rather than a cross-database transaction.
-The local-only `SF_MAINTENANCE_HIERARCHY_PROOF=d1` mode now routes exchange
-listing/creation and cabinet listing/creation through typed D1 operations while
-preserving the existing admin/inspector permissions. The application rejects
-this proof flag in production. Box/inspection/task/line-number workflows,
-delete cascades, reports, and exports still use PostgreSQL; the hierarchy group
-is incomplete and is not ready for production data import or cutover.
+The local-only `SF_MAINTENANCE_HIERARCHY_PROOF=d1` mode routes exchange and
+cabinet lists/creates, box listing/creation, box detail reads, and location
+updates through typed D1 operations and preserves the existing role checks.
+The box detail's hierarchy, inspection/task snapshot, and item statuses come
+from D1; user display names and photo metadata remain in PostgreSQL. Empty
+exchanges/cabinets can be deleted; deletion is rejected when child records
+exist, and box deletion is disabled in proof mode to avoid partial
+PostgreSQL/R2 cleanup. The application rejects this proof flag in production.
+Inspection creation/updates, technician task mutations, phone lines, reports,
+and exports still use PostgreSQL. The hierarchy group is incomplete and is not
+ready for production data import or cutover.

@@ -613,8 +613,14 @@ export default {
     const inventoryRoute = url.pathname === "/api/cfm/inventory-transactions";
     const maintenanceCabinetCodesRoute = url.pathname === "/api/maintenance/cabinet-codes";
     const maintenanceExchangesRoute = url.pathname === "/api/maintenance/hierarchy/exchanges";
+    const maintenanceExchangeMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/exchanges\/(\d+)$/);
     const maintenanceCabinetsMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/exchanges\/(\d+)\/cabinets$/);
-    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceCabinetsMatch) {
+    const maintenanceCabinetMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/cabinets\/(\d+)$/);
+    const maintenanceBoxesRoute = url.pathname === "/api/maintenance/hierarchy/boxes";
+    const maintenanceBoxMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/boxes\/(\d+)$/);
+    const maintenanceBoxLocationMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/boxes\/(\d+)\/location$/);
+    const maintenanceCabinetBoxesMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/cabinets\/(\d+)\/boxes$/);
+    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceExchangeMatch && !maintenanceCabinetsMatch && !maintenanceCabinetMatch && !maintenanceBoxesRoute && !maintenanceBoxMatch && !maintenanceBoxLocationMatch && !maintenanceCabinetBoxesMatch) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
     if ((userByUsername && request.method !== "GET") ||
@@ -628,7 +634,13 @@ export default {
         (inventoryRoute && !["GET", "POST"].includes(request.method)) ||
         (maintenanceCabinetCodesRoute && request.method !== "GET") ||
         (maintenanceExchangesRoute && !["GET", "POST"].includes(request.method)) ||
-        (maintenanceCabinetsMatch && !["GET", "POST"].includes(request.method))) {
+        (maintenanceExchangeMatch && request.method !== "DELETE") ||
+        (maintenanceCabinetsMatch && !["GET", "POST"].includes(request.method)) ||
+        (maintenanceCabinetMatch && !["GET", "DELETE"].includes(request.method)) ||
+        (maintenanceBoxesRoute && request.method !== "GET") ||
+        (maintenanceBoxMatch && request.method !== "GET") ||
+        (maintenanceBoxLocationMatch && request.method !== "POST") ||
+        (maintenanceCabinetBoxesMatch && request.method !== "POST")) {
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
     const expectedServiceToken = env.SERVICE_TOKEN;
@@ -664,6 +676,196 @@ export default {
            ORDER BY exchange_name, cabinet_number`,
         ).all();
         return Response.json(results);
+      }
+      if (maintenanceExchangeMatch) {
+        if (claims.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+        const id = Number(maintenanceExchangeMatch[1]);
+        if (!Number.isSafeInteger(id)) return Response.json({ error: "Invalid exchange id" }, { status: 400 });
+        const deleted = await env.DB.prepare(
+          `DELETE FROM maintenance_exchanges
+           WHERE id = ? AND NOT EXISTS (
+             SELECT 1 FROM maintenance_cabinets WHERE exchange_id = ?
+           )
+           RETURNING id`,
+        ).bind(id, id).first();
+        if (!deleted) {
+          const exchange = await env.DB.prepare(
+            `SELECT id FROM maintenance_exchanges WHERE id = ?`,
+          ).bind(id).first();
+          if (!exchange) return Response.json({ error: "Exchange not found" }, { status: 404 });
+          return Response.json({ error: "Exchange has cabinets; cascading deletion is not enabled", id }, { status: 409 });
+        }
+        return Response.json({ id });
+      }
+      if (maintenanceCabinetMatch) {
+        const id = Number(maintenanceCabinetMatch[1]);
+        if (!Number.isSafeInteger(id)) return Response.json({ error: "Invalid cabinet id" }, { status: 400 });
+        if (request.method === "GET") {
+          if (!["admin", "inspector"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+          const cabinet = await env.DB.prepare(
+            `SELECT c.id, c.exchange_id, c.number, e.name AS exchange_name
+             FROM maintenance_cabinets c
+             JOIN maintenance_exchanges e ON e.id = c.exchange_id
+             WHERE c.id = ?`,
+          ).bind(id).first();
+          return cabinet ? Response.json(cabinet) : Response.json({ error: "Cabinet not found" }, { status: 404 });
+        }
+        if (claims.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+        const deleted = await env.DB.prepare(
+          `DELETE FROM maintenance_cabinets
+           WHERE id = ? AND NOT EXISTS (
+             SELECT 1 FROM maintenance_boxes WHERE cabinet_id = ?
+           )
+           RETURNING id, exchange_id`,
+        ).bind(id, id).first();
+        if (!deleted) {
+          const cabinet = await env.DB.prepare(
+            `SELECT id, exchange_id FROM maintenance_cabinets WHERE id = ?`,
+          ).bind(id).first();
+          if (!cabinet) return Response.json({ error: "Cabinet not found" }, { status: 404 });
+          return Response.json({
+            error: "Cabinet has boxes; cascading deletion is not enabled",
+            id,
+            exchange_id: cabinet.exchange_id,
+          }, { status: 409 });
+        }
+        return Response.json({ id: deleted.id, exchange_id: deleted.exchange_id });
+      }
+      if (maintenanceBoxesRoute) {
+        const statuses = ["pending_inspection", "inspected", "needs_maintenance", "in_progress", "pending_approval", "completed"];
+        const params = [];
+        const where = [];
+        const status = url.searchParams.get("status");
+        const exchangeIdRaw = url.searchParams.get("exchange_id");
+        const cabinetIdRaw = url.searchParams.get("cabinet_id");
+        const search = url.searchParams.get("search");
+        if (claims.role === "technician") {
+          where.push("b.status IN ('needs_maintenance','in_progress','completed')");
+        } else {
+          if (status) {
+            if (!statuses.includes(status)) return Response.json({ error: "Invalid status filter" }, { status: 400 });
+            where.push("b.status = ?");
+            params.push(status);
+          }
+          for (const [raw, column] of [[exchangeIdRaw, "e.id"], [cabinetIdRaw, "b.cabinet_id"]]) {
+            if (raw) {
+              const id = Number(raw);
+              if (!Number.isSafeInteger(id) || id <= 0) return Response.json({ error: "Invalid hierarchy filter" }, { status: 400 });
+              where.push(`${column} = ?`);
+              params.push(id);
+            }
+          }
+          if (search) {
+            if (search.length > 100) return Response.json({ error: "Search text is too long" }, { status: 400 });
+            where.push("(b.number LIKE ? OR c.number LIKE ? OR e.name LIKE ?)");
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+          }
+        }
+        const sql = `SELECT b.id, b.cabinet_id, b.number, b.status, b.created_at, b.updated_at,
+                            b.latitude, b.longitude, c.number AS cabinet_number, e.name AS exchange_name
+                     FROM maintenance_boxes b
+                     JOIN maintenance_cabinets c ON c.id = b.cabinet_id
+                     JOIN maintenance_exchanges e ON e.id = c.exchange_id
+                     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+                     ORDER BY e.name, c.number,
+                              CASE WHEN b.number <> '' AND b.number NOT GLOB '*[^0-9]*'
+                                   THEN CAST(b.number AS INTEGER) ELSE 0 END,
+                              b.number`;
+        const { results: boxes } = await env.DB.prepare(sql).bind(...params).all();
+        const { results: exchanges } = await env.DB.prepare(
+          `SELECT id, name FROM maintenance_exchanges ORDER BY name`,
+        ).all();
+        const cabinetQuery = url.searchParams.get("exchange_id");
+        let cabinets = [];
+        if (cabinetQuery && claims.role !== "technician") {
+          const exchangeId = Number(cabinetQuery);
+          const result = await env.DB.prepare(
+            `SELECT id, number FROM maintenance_cabinets WHERE exchange_id = ? ORDER BY number`,
+          ).bind(exchangeId).all();
+          cabinets = result.results;
+        }
+        const { results: countRows } = await env.DB.prepare(
+          `SELECT status, COUNT(*) AS count FROM maintenance_boxes GROUP BY status`,
+        ).all();
+        return Response.json({ boxes, exchanges, cabinets, counts: Object.fromEntries(countRows.map((row) => [row.status, row.count])) });
+      }
+      if (maintenanceBoxMatch) {
+        const id = Number(maintenanceBoxMatch[1]);
+        if (!Number.isSafeInteger(id) || id <= 0) return Response.json({ error: "Invalid box id" }, { status: 400 });
+        const box = await env.DB.prepare(
+          `SELECT b.*, c.number AS cabinet_number, e.name AS exchange_name, e.id AS exchange_id
+           FROM maintenance_boxes b
+           JOIN maintenance_cabinets c ON c.id = b.cabinet_id
+           JOIN maintenance_exchanges e ON e.id = c.exchange_id
+           WHERE b.id = ?`,
+        ).bind(id).first();
+        if (!box) return Response.json({ error: "Box not found" }, { status: 404 });
+        const { results: inspections } = await env.DB.prepare(
+          `SELECT * FROM maintenance_inspections WHERE box_id = ? ORDER BY id DESC`,
+        ).bind(id).all();
+        const inspection = inspections[0] || null;
+        const archivedInspections = inspections.slice(1).reverse();
+        const { results: items } = inspection
+          ? await env.DB.prepare(`SELECT * FROM maintenance_inspection_items WHERE inspection_id = ?`).bind(inspection.id).all()
+          : { results: [] };
+        const task = inspection
+          ? await env.DB.prepare(`SELECT * FROM maintenance_tasks WHERE inspection_id = ? ORDER BY id DESC LIMIT 1`).bind(inspection.id).first()
+          : null;
+        const { results: statuses } = task
+          ? await env.DB.prepare(`SELECT * FROM maintenance_item_status WHERE task_id = ?`).bind(task.id).all()
+          : { results: [] };
+        return Response.json({
+          box,
+          inspection,
+          archivedInspections,
+          items,
+          task,
+          itemStatusMap: Object.fromEntries(statuses.map((row) => [row.item_key, row])),
+        });
+      }
+      if (maintenanceBoxLocationMatch) {
+        if (!["admin", "inspector"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+        const id = Number(maintenanceBoxLocationMatch[1]);
+        const body = await request.json().catch(() => null);
+        const lat = typeof body?.lat === "number" || typeof body?.lat === "string" ? Number(body.lat) : NaN;
+        const lng = typeof body?.lng === "number" || typeof body?.lng === "string" ? Number(body.lng) : NaN;
+        if (!Number.isSafeInteger(id) || id <= 0 || !body ||
+            Object.keys(body).some((key) => !["lat", "lng"].includes(key)) ||
+            !Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+          return Response.json({ error: "Invalid coordinates" }, { status: 400 });
+        }
+        const row = await env.DB.prepare(
+          `UPDATE maintenance_boxes SET latitude = ?, longitude = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? RETURNING id, latitude, longitude`,
+        ).bind(lat, lng, id).first();
+        return row ? Response.json({ ok: true, lat: row.latitude, lng: row.longitude })
+          : Response.json({ error: "Box not found" }, { status: 404 });
+      }
+      if (maintenanceCabinetBoxesMatch) {
+        if (!["admin", "inspector"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+        const cabinetId = Number(maintenanceCabinetBoxesMatch[1]);
+        if (!Number.isSafeInteger(cabinetId)) return Response.json({ error: "Invalid cabinet id" }, { status: 400 });
+        const cabinet = await env.DB.prepare(
+          `SELECT id, exchange_id FROM maintenance_cabinets WHERE id = ?`,
+        ).bind(cabinetId).first();
+        if (!cabinet) return Response.json({ error: "Cabinet not found" }, { status: 404 });
+        const body = await request.json().catch(() => null);
+        if (!body || Object.keys(body).some((key) => key !== "number") ||
+            typeof body.number !== "string" || !body.number.trim() || body.number.trim().length > 120) {
+          return Response.json({ error: "Invalid box number" }, { status: 400 });
+        }
+        try {
+          const box = await env.DB.prepare(
+            `INSERT INTO maintenance_boxes (cabinet_id, number)
+             VALUES (?, ?) RETURNING id, cabinet_id, number, status, created_at`,
+          ).bind(cabinetId, body.number.trim()).first();
+          return Response.json(box, { status: 201 });
+        } catch (error) {
+          if (/UNIQUE constraint failed/i.test(String(error?.message))) {
+            return Response.json({ error: "Box already exists in this cabinet" }, { status: 409 });
+          }
+          throw error;
+        }
       }
       if (maintenanceExchangesRoute) {
         if (request.method === "GET") {
