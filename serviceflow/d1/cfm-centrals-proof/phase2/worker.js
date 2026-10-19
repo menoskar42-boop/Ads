@@ -635,7 +635,8 @@ export default {
     const maintenanceBoxDataReviewRoute = url.pathname === "/api/maintenance/hierarchy/integration/box-data-review";
     const maintenanceReviewReportsRoute = url.pathname === "/api/maintenance/hierarchy/data-review/reports";
     const maintenanceReviewReportPhonesMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/data-review\/reports\/(\d+)\/phones$/);
-    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !wfmCustomerMobilesRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceExchangeMatch && !maintenanceCabinetsMatch && !maintenanceCabinetMatch && !maintenanceBoxesRoute && !maintenanceBoxMatch && !maintenanceBoxLocationMatch && !maintenanceCabinetBoxesMatch && !maintenanceInspectionsRoute && !maintenanceInspectionMatch && !maintenanceInspectionLocationMatch && !maintenancePhotosRoute && !maintenancePhotoByFilenameMatch && !maintenancePhotoMatch && !maintenanceTasksRoute && !maintenanceTaskMatch && !maintenanceTaskActionMatch && !maintenanceBoxDataReviewRoute && !maintenanceReviewReportsRoute && !maintenanceReviewReportPhonesMatch) {
+    const cabinetCapacityRoute = url.pathname === "/api/cabinet-capacity";
+    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !wfmCustomerMobilesRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceExchangeMatch && !maintenanceCabinetsMatch && !maintenanceCabinetMatch && !maintenanceBoxesRoute && !maintenanceBoxMatch && !maintenanceBoxLocationMatch && !maintenanceCabinetBoxesMatch && !maintenanceInspectionsRoute && !maintenanceInspectionMatch && !maintenanceInspectionLocationMatch && !maintenancePhotosRoute && !maintenancePhotoByFilenameMatch && !maintenancePhotoMatch && !maintenanceTasksRoute && !maintenanceTaskMatch && !maintenanceTaskActionMatch && !maintenanceBoxDataReviewRoute && !maintenanceReviewReportsRoute && !maintenanceReviewReportPhonesMatch && !cabinetCapacityRoute) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
     if ((userByUsername && request.method !== "GET") ||
@@ -668,7 +669,8 @@ export default {
         (maintenanceTaskActionMatch && request.method !== "POST") ||
         (maintenanceBoxDataReviewRoute && request.method !== "POST") ||
         (maintenanceReviewReportsRoute && request.method !== "GET") ||
-        (maintenanceReviewReportPhonesMatch && request.method !== "GET")) {
+        (maintenanceReviewReportPhonesMatch && request.method !== "GET") ||
+        (cabinetCapacityRoute && !["GET", "POST"].includes(request.method))) {
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
     const expectedServiceToken = env.SERVICE_TOKEN;
@@ -1024,6 +1026,43 @@ export default {
         if (rangeBindings.length) reportQuery = reportQuery.bind(...rangeBindings);
         const { results } = await reportQuery.all();
         return Response.json(results);
+      }
+      if (cabinetCapacityRoute) {
+        if (request.method === "GET") {
+          const { results } = await env.DB.prepare(
+            `SELECT id,central_name AS centralName,exch_code AS exchCode,exch_name AS exchName,
+                    cabin_number AS cabinNumber,cabinet_type AS cabinetType,
+                    primary_capacity AS primaryCapacity,secondary_capacity AS secondaryCapacity,
+                    uploaded_at AS uploadedAt,uploaded_by_id AS uploadedById
+             FROM cabinet_capacity ORDER BY central_name,cabin_number,id LIMIT 5000`,
+          ).all();
+          return Response.json(results);
+        }
+        if (claims.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+        const rows = body?.rows;
+        const validText = (value, max = 240) => value == null || (typeof value === "string" && value.length <= max);
+        if (!Array.isArray(rows) || rows.length > 5000 || rows.some((row) =>
+          !row || !validText(row.centralName) || !validText(row.exchCode, 80) ||
+          !validText(row.exchName) || !validText(row.cabinNumber, 80) ||
+          !validText(row.cabinetType, 120) ||
+          (row.primaryCapacity !== null && !Number.isSafeInteger(row.primaryCapacity)) ||
+          (row.secondaryCapacity !== null && !Number.isSafeInteger(row.secondaryCapacity)))) {
+          return Response.json({ error: "Invalid cabinet capacity rows" }, { status: 400 });
+        }
+        const statements = [env.DB.prepare("DELETE FROM cabinet_capacity")];
+        for (let offset = 0; offset < rows.length; offset += 100) {
+          const chunk = rows.slice(offset, offset + 100);
+          const tuple = "(?,?,?,?,?,?,?)";
+          const sql = `INSERT INTO cabinet_capacity
+            (central_name,exch_code,exch_name,cabin_number,cabinet_type,primary_capacity,secondary_capacity)
+            VALUES ${chunk.map(() => tuple).join(",")}`;
+          statements.push(env.DB.prepare(sql).bind(...chunk.flatMap((row) => [
+            row.centralName, row.exchCode, row.exchName, row.cabinNumber, row.cabinetType,
+            row.primaryCapacity, row.secondaryCapacity,
+          ])));
+        }
+        await env.DB.batch(statements);
+        return Response.json({ inserted: rows.length });
       }
       if (maintenanceExchangeMatch) {
         if (claims.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });

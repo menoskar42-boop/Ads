@@ -8170,19 +8170,49 @@ export async function registerRoutes(
 
       const centralMatch = `LOWER(REPLACE(BTRIM(COALESCE(central_name, '')), ' ', '')) =
                             LOWER(REPLACE(BTRIM($1), ' ', ''))`;
-      const { rows: capacityRows } = await pool.query(
-        `SELECT exch_code AS "exchangeCode", primary_capacity AS "primaryCapacity"
-         FROM cabinet_capacity
-         WHERE ${centralMatch} AND ${cabinMatches("cabin_number")}
-         ORDER BY CASE
-                    WHEN BTRIM(COALESCE(cabin_number, '')) = BTRIM($3) THEN 0
-                    WHEN BTRIM(COALESCE(cabin_number, '')) = BTRIM($2) THEN 1
-                    ELSE 2
-                  END,
-                  uploaded_at DESC, id DESC
-         LIMIT 1`,
-        [central, cabin, rawCabin],
-      );
+      let capacityRows: any[];
+      if (maintenanceD1.isMaintenanceHierarchyProofEnabled()) {
+        const actorId = Number(req.user?.id);
+        if (!Number.isSafeInteger(actorId) || actorId <= 0) {
+          return res.status(401).json({ message: "جلسة غير صالحة" });
+        }
+        const normalize = (value: unknown) => String(value ?? "").replace(/ /g, "").toLowerCase();
+        const rawCompact = normalize(rawCabin);
+        const strictPair = /^\d+-\d+$/.test(rawCompact);
+        const matching = (row: any) => {
+          if (normalize(row.centralName) !== normalize(central)) return false;
+          const stored = String(row.cabinNumber ?? "").trim();
+          const compact = normalize(stored);
+          if (strictPair) return compact === rawCompact;
+          return stored === String(cabin).trim() || stored === String(rawCabin).trim() ||
+            (/^\d+-\d+$/.test(compact) && compact.split("-").at(-1) === String(cabin).trim());
+        };
+        const rows = await maintenanceD1.getCabinetCapacity({ id: actorId, role: "admin" });
+        const priority = (row: any) => String(row.cabinNumber ?? "").trim() === String(rawCabin).trim()
+          ? 0 : String(row.cabinNumber ?? "").trim() === String(cabin).trim() ? 1 : 2;
+        capacityRows = rows.filter(matching).sort((a: any, b: any) =>
+          priority(a) - priority(b) ||
+          String(b.uploadedAt ?? "").localeCompare(String(a.uploadedAt ?? "")) ||
+          b.id - a.id,
+        ).slice(0, 1).map((row: any) => ({
+          exchangeCode: row.exchCode, primaryCapacity: row.primaryCapacity,
+        }));
+      } else {
+        const { rows } = await pool.query(
+          `SELECT exch_code AS "exchangeCode", primary_capacity AS "primaryCapacity"
+           FROM cabinet_capacity
+           WHERE ${centralMatch} AND ${cabinMatches("cabin_number")}
+           ORDER BY CASE
+                      WHEN BTRIM(COALESCE(cabin_number, '')) = BTRIM($3) THEN 0
+                      WHEN BTRIM(COALESCE(cabin_number, '')) = BTRIM($2) THEN 1
+                      ELSE 2
+                    END,
+                    uploaded_at DESC, id DESC
+           LIMIT 1`,
+          [central, cabin, rawCabin],
+        );
+        capacityRows = rows;
+      }
       const exchangeCodes: Record<string, string> = {
         "الغنايم": "GHNAT",
         "الغنايم-دير الجنادله": "DRGAT",
@@ -12011,6 +12041,21 @@ export async function registerRoutes(
         ]);
       }
 
+      if (maintenanceD1.isMaintenanceHierarchyProofEnabled()) {
+        const actorId = Number(req.user?.id);
+        if (!Number.isSafeInteger(actorId) || actorId <= 0) {
+          return res.status(401).json({ message: "جلسة غير صالحة" });
+        }
+        const d1Rows = inserts.map((row) => ({
+          centralName: row[0], exchCode: row[1], exchName: row[2], cabinNumber: row[3],
+          cabinetType: row[4], primaryCapacity: row[5], secondaryCapacity: row[6],
+        }));
+        const result = await maintenanceD1.replaceCabinetCapacity(
+          { id: actorId, role: "admin" }, d1Rows,
+        );
+        return res.json({ inserted: result.inserted, total: inserts.length });
+      }
+
       const inserted = await withTx(async (tx) => {
       await tx.query("DELETE FROM cabinet_capacity");
       let inserted = 0;
@@ -12058,6 +12103,28 @@ export async function registerRoutes(
   // GET /api/cabinet-capacity — list with search
   app.get("/api/cabinet-capacity", requireAuth, async (req, res) => {
     const { q } = req.query as Record<string, string>;
+    if (maintenanceD1.isMaintenanceHierarchyProofEnabled()) {
+      const actorId = Number(req.user?.id);
+      if (!Number.isSafeInteger(actorId) || actorId <= 0) {
+        return res.status(401).json({ message: "جلسة غير صالحة" });
+      }
+      const rows = await maintenanceD1.getCabinetCapacity({ id: actorId, role: "admin" });
+      const needle = arNorm(String(q ?? "").trim());
+      const filtered = needle
+        ? rows.filter((row: any) => [
+          row.centralName, row.exchCode, row.cabinNumber, row.cabinetType,
+        ].some((value) => arNorm(String(value ?? "")).includes(needle)))
+        : rows;
+      return res.json(filtered.slice(0, 5000).map((row: any) => ({
+        centralName: row.centralName,
+        exchCode: row.exchCode,
+        exchName: row.exchName,
+        cabinNumber: row.cabinNumber,
+        cabinetType: row.cabinetType,
+        primaryCapacity: row.primaryCapacity,
+        secondaryCapacity: row.secondaryCapacity,
+      })));
+    }
     const params: any[] = [];
     let where = "";
     if (q?.trim()) {
@@ -15204,6 +15271,21 @@ export async function registerRoutes(
       conds.push(`NOT (ct.cabin_code = ANY($${params.length}::text[]))`);
       if (central) { params.push(central); conds.push(`ct.central_name = $${params.length}`); }
       const where = "WHERE " + conds.join(" AND ");
+      const useD1Capacity = maintenanceD1.isMaintenanceHierarchyProofEnabled();
+      const reportActorId = Number(req.user?.id);
+      if (useD1Capacity && (!Number.isSafeInteger(reportActorId) || reportActorId <= 0)) {
+        return res.status(401).json({ message: "جلسة غير صالحة" });
+      }
+      const d1CapacityRows = useD1Capacity
+        ? await maintenanceD1.getCabinetCapacity({ id: reportActorId, role: "admin" })
+        : null;
+      const capacityExpression = useD1Capacity
+        ? "0::int"
+        : `(SELECT SUM(cc.secondary_capacity) FROM cabinet_capacity cc
+              JOIN cabinet_technicians ct2
+                ON REPLACE(ct2.central_name, ' ', '') = REPLACE(cc.central_name, ' ', '')
+               AND TRIM(ct2.cabin_number) = TRIM(cc.cabin_number)
+              WHERE ct2.cabin_code = ct.cabin_code)::int`;
       const { rows } = await pool.query(
         `SELECT
            MIN(ct.central_name)                                          AS "centralName",
@@ -15224,11 +15306,7 @@ export async function registerRoutes(
            -- السعة = مجموع السعة الثانوية للكباين النحاسية المربوطة على الـ MSAN (من FCC).
            -- الربط بأرقام الكباين النحاسية داخل الـ MSAN؛ نتسامح مع فروق المسافات فى اسم
            -- السنترال وأى مسافات حول رقم الكابينة.
-           COALESCE((SELECT SUM(cc.secondary_capacity) FROM cabinet_capacity cc
-                       JOIN cabinet_technicians ct2
-                         ON REPLACE(ct2.central_name, ' ', '') = REPLACE(cc.central_name, ' ', '')
-                        AND TRIM(ct2.cabin_number) = TRIM(cc.cabin_number)
-                       WHERE ct2.cabin_code = ct.cabin_code), 0)::int      AS "capacity",
+            COALESCE(${capacityExpression}, 0)::int                         AS "capacity",
            (SELECT COUNT(*) FROM (
               SELECT cd.complain_no FROM complaint_details cd
                 WHERE cd.msan_id = ct.cabin_code
@@ -15245,6 +15323,32 @@ export async function registerRoutes(
          GROUP BY ct.cabin_code`,
         params,
       );
+      if (useD1Capacity && rows.length) {
+        const msanCodes = [...new Set(rows.map((row: any) => String(row.msanCode || "")).filter(Boolean))];
+        const { rows: linkedCabinets } = await pool.query(
+          `SELECT cabin_code AS "msanCode", central_name AS "centralName",
+                  cabin_number AS "cabinNumber"
+             FROM cabinet_technicians WHERE cabin_code = ANY($1::text[])`,
+          [msanCodes],
+        );
+        const normCapacityKey = (value: unknown) =>
+          String(value ?? "").replace(/ /g, "").toLowerCase();
+        const capacityByMsan = new Map<string, number>();
+        for (const linked of linkedCabinets) {
+          const central = normCapacityKey(linked.centralName);
+          const cabin = String(linked.cabinNumber ?? "").trim();
+          const total = (d1CapacityRows || []).reduce((sum: number, capacity: any) =>
+            normCapacityKey(capacity.centralName) === central &&
+            String(capacity.cabinNumber ?? "").trim() === cabin
+              ? sum + Number(capacity.secondaryCapacity || 0)
+              : sum, 0);
+          capacityByMsan.set(
+            linked.msanCode,
+            (capacityByMsan.get(linked.msanCode) || 0) + total,
+          );
+        }
+        for (const row of rows) row.capacity = capacityByMsan.get(row.msanCode) || 0;
+      }
       // حساب أعطال/الألف + الفلترة (> 70 عطل و > 30 عطل/الألف) + الترتيب التنازلى
       const enriched = rows
         .map((r: any) => ({

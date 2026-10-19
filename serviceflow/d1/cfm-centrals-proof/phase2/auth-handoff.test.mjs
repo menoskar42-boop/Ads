@@ -309,6 +309,10 @@ before(async () => {
   ]);
   await runWrangler([
     "d1", "execute", "serviceflow-cfm-centrals-proof",
+    "--local", "--persist-to", stateDir, "--file", "../../migrations/0008_cabinet_capacity.sql", "--yes",
+  ]);
+  await runWrangler([
+    "d1", "execute", "serviceflow-cfm-centrals-proof",
     "--local", "--persist-to", stateDir, "--file", "../fixtures.sql", "--yes",
   ]);
   const maintenanceExport = convertMaintenanceCabinetCodesExport({
@@ -1383,6 +1387,46 @@ test("actual maintenance exchanges page can render the local D1 read proof", asy
         ),
         [],
       );
+      const capacityActor = { id: 78, role: "admin" };
+      const capacityRows = [
+        {
+          centralName: "Synthetic Central", exchCode: "SYN", exchName: "Synthetic",
+          cabinNumber: "2-1", cabinetType: "copper", primaryCapacity: 120,
+          secondaryCapacity: 90,
+        },
+        {
+          centralName: "Synthetic Central", exchCode: "SYN", exchName: "Synthetic",
+          cabinNumber: "2-2", cabinetType: "copper", primaryCapacity: null,
+          secondaryCapacity: 70,
+        },
+      ];
+      assert.deepEqual(
+        await maintenanceHierarchy.default.replaceCabinetCapacity(capacityActor, capacityRows),
+        { inserted: 2 },
+      );
+      const storedCapacityRows = await maintenanceHierarchy.default.getCabinetCapacity(capacityActor);
+      assert.equal(storedCapacityRows.length, 2);
+      assert.deepEqual(
+        storedCapacityRows.map(({ cabinNumber, primaryCapacity, secondaryCapacity }) =>
+          ({ cabinNumber, primaryCapacity, secondaryCapacity })),
+        [
+          { cabinNumber: "2-1", primaryCapacity: 120, secondaryCapacity: 90 },
+          { cabinNumber: "2-2", primaryCapacity: null, secondaryCapacity: 70 },
+        ],
+      );
+      await assert.rejects(
+        maintenanceHierarchy.default.replaceCabinetCapacity(capacityActor, [
+          { ...capacityRows[0], centralName: { invalid: true } },
+        ]),
+        /Invalid cabinet capacity rows/,
+      );
+      await assert.rejects(
+        maintenanceHierarchy.default.replaceCabinetCapacity(
+          { id: 79, role: "ext_tech" }, capacityRows,
+        ),
+        /Forbidden/,
+      );
+      assert.equal((await maintenanceHierarchy.default.getCabinetCapacity(capacityActor)).length, 2);
       const reviewReportPhones = await maintenanceHierarchy.default.getMaintenanceBoxDataReviewReportPhones(
         { id: 78, role: "admin" }, 9034,
       );

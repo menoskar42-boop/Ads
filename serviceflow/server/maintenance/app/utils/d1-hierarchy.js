@@ -471,6 +471,37 @@ async function getMaintenanceBoxDataReviewReportPhones(actor, inspectionId) {
   return payload;
 }
 
+async function getCabinetCapacity(actor) {
+  const payload = await maintenanceHierarchyRequest(actor, '/api/cabinet-capacity');
+  if (!Array.isArray(payload) || payload.some((row) =>
+    !row || !Number.isSafeInteger(row.id) ||
+    (row.centralName !== null && typeof row.centralName !== 'string') ||
+    (row.exchCode !== null && typeof row.exchCode !== 'string') ||
+    (row.exchName !== null && typeof row.exchName !== 'string') ||
+    (row.cabinNumber !== null && typeof row.cabinNumber !== 'string') ||
+    (row.cabinetType !== null && typeof row.cabinetType !== 'string') ||
+    (row.primaryCapacity !== null && !Number.isSafeInteger(row.primaryCapacity)) ||
+    (row.secondaryCapacity !== null && !Number.isSafeInteger(row.secondaryCapacity)))) {
+    throw new Error('Maintenance hierarchy D1 returned invalid cabinet capacity rows');
+  }
+  return payload;
+}
+
+async function replaceCabinetCapacity(actor, rows) {
+  if (!Array.isArray(rows) || rows.length > 5000 || rows.some((row) =>
+    !row || (row.primaryCapacity !== null && !Number.isSafeInteger(row.primaryCapacity)) ||
+    (row.secondaryCapacity !== null && !Number.isSafeInteger(row.secondaryCapacity)))) {
+    throw new Error('Invalid cabinet capacity import rows');
+  }
+  const payload = await maintenanceHierarchyRequest(actor, '/api/cabinet-capacity', {
+    method: 'POST', body: { rows },
+  });
+  if (!payload || payload.inserted !== rows.length) {
+    throw new Error('Maintenance hierarchy D1 did not replace the complete cabinet capacity set');
+  }
+  return payload;
+}
+
 async function createMaintenanceCabinet(actor, exchangeId, number) {
   if (typeof number !== 'string' || !number.trim() || number.trim().length > 120) {
     throw new Error('Cabinet number must be between 1 and 120 characters');
@@ -511,6 +542,8 @@ module.exports = {
   createMaintenanceBoxDataReview,
   getMaintenanceBoxDataReviewReports,
   getMaintenanceBoxDataReviewReportPhones,
+  getCabinetCapacity,
+  replaceCabinetCapacity,
   getMaintenanceBoxes,
   getMaintenanceCabinet,
   deleteMaintenanceCabinet,

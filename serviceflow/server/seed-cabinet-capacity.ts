@@ -5,6 +5,12 @@
 // كل صف: [exch_code, cabin_number, cabinet_type, primary_capacity, secondary_capacity]
 // ============================================================================
 import { pool } from "./db";
+import { createRequire } from "module";
+
+const requireMaintenanceD1 = createRequire(
+  typeof __filename !== "undefined" ? __filename : `${process.cwd()}/server/seed-cabinet-capacity.ts`,
+);
+const maintenanceD1: any = requireMaintenanceD1("./maintenance/app/utils/d1-hierarchy.js");
 
 const EXCH_TO_CENTRAL: Record<string, string> = {
   GHNAT: "الغنايم",
@@ -86,6 +92,14 @@ const DATA: [string, string, string, number, number][] = [
 // بدون كونسول، ومن غير ما يمسح أى داتا تترفع لاحقاً من بطاقة الرفع.
 export async function seedCabinetCapacityIfEmpty(): Promise<void> {
   try {
+    if (maintenanceD1.isMaintenanceHierarchyProofEnabled()) {
+      const current = await maintenanceD1.getCabinetCapacity({ id: "system-seed", role: "admin" });
+      if (current.length === 0) {
+        const inserted = await seedCabinetCapacity();
+        console.log(`[seedCabinetCapacity] auto-seeded ${inserted} cabinets into local D1 (table was empty)`);
+      }
+      return;
+    }
     const { rows } = await pool.query("SELECT COUNT(*)::int AS n FROM cabinet_capacity");
     if ((rows[0]?.n ?? 0) === 0) {
       const inserted = await seedCabinetCapacity();
@@ -97,6 +111,27 @@ export async function seedCabinetCapacityIfEmpty(): Promise<void> {
 }
 
 export async function seedCabinetCapacity(): Promise<number> {
+  if (maintenanceD1.isMaintenanceHierarchyProofEnabled()) {
+    const EXCH_TO_CENTRAL: Record<string, string> = {
+      GHNAT: "الغنايم",
+      DRGAT: "الغنايم-دير الجنادله",
+      AMZAT: "الغنايم-العزايزة",
+      NGOAT: "الغنايم-نجع العمدة",
+    };
+    const rows = DATA.map(([exchCode, cabinNumber, cabinetType, primaryCapacity, secondaryCapacity]) => ({
+      centralName: EXCH_TO_CENTRAL[exchCode] || null,
+      exchCode,
+      exchName: EXCH_TO_CENTRAL[exchCode] || null,
+      cabinNumber,
+      cabinetType,
+      primaryCapacity,
+      secondaryCapacity,
+    }));
+    const result = await maintenanceD1.replaceCabinetCapacity(
+      { id: "system-seed", role: "admin" }, rows,
+    );
+    return result.inserted;
+  }
   await pool.query("DELETE FROM cabinet_capacity");
   const BATCH = 200;
   let inserted = 0;
