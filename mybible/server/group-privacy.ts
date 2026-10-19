@@ -17,14 +17,18 @@ export function publicGroup<T extends { leaderKey?: unknown }>(group: T): Omit<T
 }
 
 /** نسخة الرد للى بيسأل بمفتاحه `key` (فاضى = زائر). مابتعدّلش الكاش المشترك. */
-export function groupViewFor(payload: { group: any; members: any[]; [k: string]: any }, key: string) {
+export function groupViewFor(payload: { group: any; members: any[]; [k: string]: any }, key: string, name = '') {
   const leaderKey = payload.group?.leaderKey;
-  const meRow = key ? payload.members.find((m) => m.memberKey === key) : null;
+  // نفس المفتاح على أكتر من صف (من أغلاط قديمة) ⇒ الصف اللى اسمه زى اسم الموبايل، و`ambiguous`
+  // عشان الموبايل مايغيّرش اسمه لاسم عضو تانى (قراياته كانت هتروح عليه)
+  const rows = key ? payload.members.filter((m) => m.memberKey === key) : [];
+  const meRow = rows.find((m) => m.userName === name) || rows[0] || null;
   const isLeader = !!key && leaderKey === key;
   const admin = isLeader || meRow?.isAdmin === true;
   const members = payload.members.map(({ memberKey: _k, phone, ...m }) => (admin ? { ...m, phone } : m));
   const me = meRow
-    ? { id: meRow.id, userName: meRow.userName, isAdmin: meRow.isAdmin === true, isMuted: meRow.isMuted === true, phone: meRow.phone || null }
+    ? { id: meRow.id, userName: meRow.userName, isAdmin: meRow.isAdmin === true, isMuted: meRow.isMuted === true,
+        phone: meRow.phone || null, ambiguous: rows.length > 1 }
     : null;
   return { ...payload, group: publicGroup(payload.group), members, me, isLeader };
 }

@@ -121,3 +121,19 @@ export function checkAdminProfile(
   }
   return { ok: true, userName, phone };
 }
+
+/**
+ * الانضمام برابط الدعوة/بالكود باسم عضو موجود (المالك ٢٠٢٦-١٠-١٩: «مش عاوز غلط يأثر على قراءات
+ * الأعضاء»): العضو العادى اللى **مالوش رقم متسجّل** بيرجع لحسابه بالاسم زى الأول (ورقمه
+ * بيتسجّل) — عشان مايتعملّوش حساب جديد وقراياته تتقسم. الأدمن، أو أى عضو ليه رقم متسجّل،
+ * لازم الرقم يطابق — كان أى حد يكتب اسم الأدمن بأى رقم ياخد صلاحيته.
+ */
+export function canRejoinByName(
+  existing: { phone?: string | null; isAdmin?: boolean | null },
+  submittedPhone?: string | null,
+): MergeDecision & { setPhone?: boolean } {
+  if (!normalizePhone(existing.phone) && existing.isAdmin !== true) {
+    return { ok: true, setPhone: !!normalizePhone(submittedPhone) };
+  }
+  return canMergeGuest(existing, submittedPhone);
+}

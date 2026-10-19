@@ -94,11 +94,19 @@ for (const route of ["'/api/groups/:code/reading'", "'/api/groups/:code/assignme
     fail(`${route} بياخد الاسم من الموبايل مش من الحساب (readerName)`);
   }
 }
+{
+  // «مش عاوز غلط يأثر على قراءات الأعضاء»: الاسم اللى من الموبايل بيكسب لو هو اسم صاحب المفتاح،
+  // والتغيير بس لو المفتاح لعضو واحد
+  const rn = src.slice(src.indexOf('async function readerName('), src.indexOf('async function readerName(') + 700);
+  if (!/if \(rows\.some\(\(r\) => r\.userName === body\?\.userName\)\) return body\.userName;\s*if \(rows\.length === 1/.test(rn)) {
+    fail('readerName لازم يسيب اسم الموبايل لو هو اسم صاحب المفتاح، ومايغيّرش غير لو المفتاح لعضو واحد');
+  }
+}
 const view = strip(VIEW);
 if ((view.match(/\{ userName, memberKey, (?:bookName|book):/g) || []).length < 2) {
   fail('GroupView مابيبعتش memberKey مع القراءة');
 }
-if (!/const me = \(data as any\)\.me;\s*if \(!me\?\.userName\) return;/.test(view)) {
+if (!/const me = \(data as any\)\.me;\s*if \(!me\?\.userName \|\| me\.ambiguous\) return;/.test(view)) {
   fail('GroupView مابياخدش اسم العضو من حسابه بعد ما الأدمن يغيّره');
 }
 

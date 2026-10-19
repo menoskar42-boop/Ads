@@ -1611,7 +1611,7 @@ export default function GroupView() {
   useEffect(() => {
     if (!data || !memberKey) return;
     const me = (data as any).me;
-    if (!me?.userName) return;
+    if (!me?.userName || me.ambiguous) return;
     const registered = !!me.phone;
     if (me.userName === userName && !(registered && isGuest)) return;
     const curr = JSON.parse(localStorage.getItem(`group_${groupCode}`) || '{}');

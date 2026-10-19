@@ -93,11 +93,16 @@ export function migrateOldStorage(): void {
  * لأى حد معاه الكود — فالموبايل بيبعت مفتاحه هو، ويرجعله «me» (بياناته) والأرقام لو أدمن.
  * بيتقرا من التخزين وقت الطلب نفسه (الضيف الجديد بياخد مفتاحه بعد أول تحميل).
  */
+// ⚠️ نفس ترتيب GroupView/GroupMembers بالظبط (userEntry الأول ثم group_X) — لو اختلف، السيرفر
+// كان ممكن يعرّف الموبايل كعضو تانى غير اللى الشاشة شايفاه.
 export function memberKeyHeaders(groupCode: string): Record<string, string> {
-  let key = '';
+  let key = '', name = '';
   try {
-    key = JSON.parse(localStorage.getItem(`group_${groupCode}`) || '{}').memberKey
-      || getUserGroupEntry(groupCode)?.memberKey || '';
+    const entry = getUserGroupEntry(groupCode);
+    const stored = JSON.parse(localStorage.getItem(`group_${groupCode}`) || '{}');
+    key = entry?.memberKey || stored.memberKey || '';
+    name = entry?.userName || stored.userName || '';
   } catch {}
-  return key ? { 'X-Member-Key': key } : {};
+  if (!key) return {};
+  return name ? { 'X-Member-Key': key, 'X-Member-Name': encodeURIComponent(name) } : { 'X-Member-Key': key };
 }

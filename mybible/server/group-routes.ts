@@ -9,7 +9,7 @@ import {
   groupAssignments, assignmentReadings, groupJoinRequests, groupGuestTokens,
 } from "@shared/schema";
 import crypto from "crypto";
-import { canMergeGuest, checkAdminProfile, normalizePhone } from './guest-identity';
+import { canMergeGuest, canRejoinByName, checkAdminProfile, normalizePhone } from './guest-identity';
 import { groupViewFor, publicGroup } from './group-privacy';
 import { getOrLoad, invalidate as invalidateGroupCache } from './group-cache';
 
@@ -78,12 +78,15 @@ async function migrateMemberName(groupId: number, oldName: string, newName: stri
 // اسم القارئ: من حسابه (memberKey) لو اتبعت — مش من الاسم المحفوظ على الموبايل.
 // الأدمن ممكن يغيّر اسم العضو (تسجيل البيانات/التصحيح) والموبايل لسه شايل القديم؛
 // من غير ده قراءاته كانت هتتسجّل على اسم مالوش عضو وتضيع من تقدّمه.
+// ⚠️ حذر: لو الاسم اللى جاى من الموبايل هو نفسه اسم صاحب المفتاح ⇒ زى ما هو (نفس السلوك القديم
+// بالظبط). بيتغيّر **بس** لو الموبايل شايل اسم قديم والمفتاح لعضو واحد بس — غير كده زى ما هو.
 async function readerName(groupId: number, body: any): Promise<string> {
   const key = typeof body?.memberKey === 'string' ? body.memberKey : '';
   if (key) {
-    const [m] = await db.select({ userName: groupMembers.userName }).from(groupMembers)
+    const rows = await db.select({ userName: groupMembers.userName }).from(groupMembers)
       .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.memberKey, key)));
-    if (m?.userName) return m.userName;
+    if (rows.some((r) => r.userName === body?.userName)) return body.userName;
+    if (rows.length === 1 && rows[0].userName) return rows[0].userName;
   }
   return body?.userName;
 }
@@ -156,13 +159,16 @@ export function registerGroupRoutes(app: Express) {
         return res.json({ group: publicGroup(group), member: found, status: 'already_member' });
       }
 
-      // البحث بالاسم كـ fallback — ⛔ الاسم لوحده مش إثبات هوية (نفس قاعدة canMergeGuest):
-      // كان بيسلّم مفتاح أى عضو (والأدمن) لأى حد يكتب اسمه بأى رقم. دلوقتى الرقم لازم يطابق.
+      // البحث بالاسم كـ fallback — ⛔ كان بيسلّم مفتاح أى عضو (والأدمن) لأى حد يكتب اسمه بأى رقم.
+      // دلوقتى (canRejoinByName): العضو العادى من غير رقم متسجّل زى الأول؛ الأدمن واللى ليه رقم لازم يطابق.
       const [existing] = await db.select().from(groupMembers)
         .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, userName.trim())));
       if (existing) {
-        const decision = canMergeGuest(existing, normalizedPhone);
+        const decision = canRejoinByName(existing, normalizedPhone);
         if (!decision.ok) return res.status(403).json({ error: decision.message, reason: decision.reason });
+        if (decision.setPhone) {
+          await db.update(groupMembers).set({ phone: normalizedPhone }).where(eq(groupMembers.id, existing.id));
+        }
         return res.json({ group: publicGroup(group), member: existing, status: 'already_member' });
       }
 
@@ -613,12 +619,15 @@ export function registerGroupRoutes(app: Express) {
         return res.json({ group: publicGroup(group), member: found, status: 'already_member' });
       }
 
-      // البحث بالاسم كـ fallback — ⛔ الاسم لوحده مش إثبات هوية (نفس قاعدة canMergeGuest)
+      // البحث بالاسم كـ fallback — نفس قاعدة invite-join فوق (canRejoinByName)
       const existing = await db.select().from(groupMembers)
         .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, userName)));
       if (existing.length > 0) {
-        const decision = canMergeGuest(existing[0], normalizedJoinPhone);
+        const decision = canRejoinByName(existing[0], normalizedJoinPhone);
         if (!decision.ok) return res.status(403).json({ error: decision.message, reason: decision.reason });
+        if (decision.setPhone) {
+          await db.update(groupMembers).set({ phone: normalizedJoinPhone }).where(eq(groupMembers.id, existing[0].id));
+        }
         return res.json({ group: publicGroup(group), member: existing[0], status: 'already_member' });
       }
 
@@ -731,7 +740,9 @@ export function registerGroupRoutes(app: Express) {
       // الرد بيختلف حسب مين بيسأل (مفتاحه فى الهيدر) ⇒ مايتحفظش فى كاش مشترك
       res.setHeader('Vary', 'X-Member-Key');
       res.setHeader('Cache-Control', 'private, no-store');
-      res.json(groupViewFor(payload, String(req.get('x-member-key') || '')));
+      let name = '';
+      try { name = decodeURIComponent(String(req.get('x-member-name') || '')); } catch {}
+      res.json(groupViewFor(payload, String(req.get('x-member-key') || ''), name));
     } catch (err) {
       console.error('[groups] get group error:', err);
       res.status(500).json({ error: 'فشل تحميل المجموعة' });

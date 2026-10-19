@@ -40,8 +40,18 @@ try {
   fs.writeFileSync(probe, `
 const m = await import(${JSON.stringify('file://' + PRIV)});
 const p = ${JSON.stringify(payload)};
-const r = { visitor: m.groupViewFor(p, ''), forged: m.groupViewFor(p, 'guess'), member: m.groupViewFor(p, 'k_mina'),
-            admin: m.groupViewFor(p, 'LEADER-SECRET'), cacheAfter: p };
+const dup = { ...p, members: [...p.members, { id: 4, userName: 'مينا القديم', memberKey: 'k_mina', phone: null, isAdmin: false }] };
+const id = await import(${JSON.stringify('file://' + path.join(MB, 'server/guest-identity.ts'))});
+const rejoin = [
+  ['عادى من غير رقم', id.canRejoinByName({ phone: null, isAdmin: false }, '01011112222').ok, true],
+  ['أدمن من غير رقم', id.canRejoinByName({ phone: null, isAdmin: true }, '01011112222').ok, false],
+  ['ليه رقم والمكتوب غيره', id.canRejoinByName({ phone: '01000000003', isAdmin: false }, '01011112222').ok, false],
+  ['ليه رقم والمكتوب هو', id.canRejoinByName({ phone: '01000000003', isAdmin: false }, '+201000000003').ok, true],
+  ['أدمن بالرقم الصح', id.canRejoinByName({ phone: '01000000001', isAdmin: true }, '01000000001').ok, true],
+];
+const r = { visitor: m.groupViewFor(p, ''), forged: m.groupViewFor(p, 'guess'), member: m.groupViewFor(p, 'k_mina', 'مينا'),
+            admin: m.groupViewFor(p, 'LEADER-SECRET'), cacheAfter: p,
+            dupOld: m.groupViewFor(dup, 'k_mina', 'مينا القديم'), dupNew: m.groupViewFor(dup, 'k_mina', 'مينا'), rejoin };
 process.stdout.write('@@JSON@@' + JSON.stringify(r));
 `, 'utf8');
   const raw = execFileSync(process.execPath, ['--no-warnings', probe]).toString('utf8');
@@ -51,6 +61,13 @@ process.stdout.write('@@JSON@@' + JSON.stringify(r));
   console.error('⚠️  مش قادر أشغّل group-privacy.ts (محتاج Node ≥ 22.6): ' + String(e.stderr || e.message).split('\n')[0]);
   process.exit(1);
 }
+for (const [label, got, want] of out.rejoin) {
+  if (got !== want) fail(`الانضمام بالاسم «${label}» المفروض ${want ? 'يرجع لحسابه' : 'يترفض'}`);
+}
+if (out.dupOld.me?.userName !== 'مينا القديم' || out.dupNew.me?.userName !== 'مينا' || !out.dupOld.me?.ambiguous) {
+  fail('مفتاح على صفّين: «me» لازم يبقى الصف اللى اسمه زى الموبايل، ومعلَّم ambiguous عشان الموبايل مايغيّرش اسمه');
+}
+if (out.member.me?.ambiguous) fail('مفتاح على صف واحد اتعلّم ambiguous');
 for (const who of ['visitor', 'forged', 'member', 'admin']) {
   const r = out[who];
   const text = JSON.stringify(r);
@@ -96,7 +113,7 @@ for (const sig of ["app.post('/api/groups/:code/invite-join'", "app.post('/api/g
   const nameQ = body.search(/eq\(groupMembers\.userName, userName(\.trim\(\))?\)\)\);\s*if \((existing|existing\.length > 0)\)/);
   const blk = nameQ < 0 ? '' : body.slice(nameQ, nameQ + 600);
   if (!blk) { fail(`${sig}: مالقيتش بلوك الانضمام بالاسم — الفحص مش قادر يقيس`); continue; }
-  if (!/canMergeGuest\(/.test(blk) || blk.indexOf('canMergeGuest(') > blk.indexOf('member:')) {
+  if (!/canRejoinByName\(/.test(blk) || blk.indexOf('canRejoinByName(') > blk.indexOf('member:')) {
     fail(`${sig}: الانضمام بالاسم بيسلّم حساب العضو من غير ما الرقم يطابق`);
   }
   void fb;
