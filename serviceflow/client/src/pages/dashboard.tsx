@@ -350,6 +350,9 @@ export default function Dashboard() {
   // من غير التفصيلى بتاع كل رقم). والسرعات/الاسكور لكل خط بيشيلها السيرفر نفسه (server/measure-redact.ts).
   const MEASURE_GROUP = "القياسات";
   const MEASURE_SHARED: ReportTab[] = ["box-score-avg"];
+  // ومسئول البيانات بيفضل له «بدون أكونت» و«أعطال الشبكة الأرضية» زى ما هم — من غير أعمدة السرعة/الاسكور
+  // (المالك ٢٠٢٦-١٠-١٩: «رجّعه من غير السرعات»)
+  const MEASURE_DM: ReportTab[] = ["no-account", "ground-network"];
   const visibleGroups = REPORT_GROUPS
     .filter((g) =>
       (user?.role !== ROLES.DATA_MANAGER || DM_ALLOWED_GROUPS.includes(g.label)) &&
@@ -369,7 +372,8 @@ export default function Dashboard() {
     // تقارير مقصورة على السوبر أدمن جوّه مجموعات عادية (مش مجموعة كاملة).
     // بيتفلتروا هنا بعد كل الأدوار عشان يتشالوا من الأدمن العادى كمان.
     .map((g) => (isSuperAdmin ? g : { ...g, items: g.items.filter((it) => !SUPER_ONLY_REPORTS.includes(it.id)
-      && (g.label !== MEASURE_GROUP || MEASURE_SHARED.includes(it.id))) }))
+      && (g.label !== MEASURE_GROUP || MEASURE_SHARED.includes(it.id)
+        || (user?.role === ROLES.DATA_MANAGER && MEASURE_DM.includes(it.id)))) }))
     .filter((g) => g.items.length > 0);
   // حارس: لو التاب الحالى مش من ضمن المسموح لدور المستخدم، نرجّعه لأول تاب مسموح ونفتح
   // مجموعته. ضرورى لأن القيمة الافتراضية لـ reportTab بتتحسب عند **أول رندر بس**، وساعتها
@@ -414,10 +418,9 @@ export default function Dashboard() {
       // فنى الصيانة: مالوش تقارير فى الطلبات — نوجّهه فوراً لموقع الصيانة (SSO بيسجّله تلقائياً).
       window.location.href = "/maintenance";
     } else if (!authLoading && user?.role === ROLES.DATA_MANAGER) {
-      // «بدون أكونت» بقى للسوبر أدمن بس (تاب القياسات — ٢٠٢٦-١٠-١٩) ⇒ مسئول البيانات يبدأ بأوامر الشغل
       setAdminTab("reports");
-      setOpenGroups(["تركيبات و نقل و اوامر شغل"]);
-      setReportTab("work-orders");
+      setOpenGroups(["القياسات"]);
+      setReportTab("no-account");
     }
   }, [authLoading, user, setLocation]);
 

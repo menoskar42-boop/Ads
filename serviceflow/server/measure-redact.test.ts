@@ -79,4 +79,8 @@ test("«بحث برقم التليفون» مستثنى فى الشاشة وال
   assert.match(dash, /if \(!authUser \|\| isSuperAdmin\) return;\s*return installMeasureHider\(\);/);
   // تاب القياسات: للسوبر أدمن بس — إلا «متوسط القياسات»
   assert.match(dash, /MEASURE_SHARED: ReportTab\[\] = \["box-score-avg"\]/);
+  // ومسئول البيانات: «بدون أكونت» و«أعطال الشبكة الأرضية» زى ما هم (من غير السرعات) ويبدأ بيهم
+  assert.match(dash, /MEASURE_DM: ReportTab\[\] = \["no-account", "ground-network"\]/);
+  assert.match(dash, /user\?\.role === ROLES\.DATA_MANAGER && MEASURE_DM\.includes\(it\.id\)/);
+  assert.match(dash, /setOpenGroups\(\["القياسات"\]\);\s*setReportTab\("no-account"\);/);
 });
