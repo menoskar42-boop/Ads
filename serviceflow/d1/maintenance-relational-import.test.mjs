@@ -15,28 +15,47 @@ const tables = {
   box_line_numbers: { rows: [{
     id: 8, inspection_id: 4, phone: "synthetic-only", source: "service_flow",
   }] },
+  photos: { rows: [{
+    id: 9, box_id: 3, inspection_id: 4, photo_type: "before", filename: "synthetic.jpg",
+    uploaded_at: "2026-10-19T00:00:00Z", media_type: "photo",
+    storage_key: "maintenance/synthetic.jpg",
+  }] },
 };
 
-test("maintenance relational import is ordered, deterministic, and excludes user/media records", () => {
+test("maintenance relational import is ordered, deterministic, and moves metadata without media bytes", () => {
   const first = convertMaintenanceRelationalExport({ tables });
   const reordered = Object.fromEntries(Object.entries(tables).reverse().map(([name, value]) => [
     name, { rows: [...value.rows].reverse() },
   ]));
   const second = convertMaintenanceRelationalExport({ tables: reordered });
   assert.deepEqual(first, second);
-  assert.equal(first.rowCount, 8);
+  assert.equal(first.rowCount, 9);
   assert.doesNotMatch(first.sql, /^BEGIN;|^COMMIT;|^SAVEPOINT/m);
   assert.ok(first.sql.indexOf("maintenance_exchanges") < first.sql.indexOf("maintenance_cabinets"));
   assert.ok(first.sql.indexOf("maintenance_inspections") < first.sql.indexOf("maintenance_tasks"));
   assert.match(first.sql, /'synthetic-only'/);
   assert.ok(first.sql.includes("VALUES (7, 6, 'box_fix', 1, NULL, 78)"));
-  assert.doesNotMatch(first.sql, /maintenance_users|maintenance_photos/);
+  assert.ok(first.sql.includes("maintenance_photos"));
+  assert.doesNotMatch(first.sql, /maintenance_users|\bdata\b/);
+  assert.match(first.sql, /'maintenance\/synthetic\.jpg'/);
 });
 
-test("maintenance relational import rejects protected tables, unknown schemas, bad links, and invalid values", () => {
+test("maintenance relational import rejects user tables, media bytes, unknown schemas, bad links, and invalid values", () => {
   assert.throws(
-    () => convertMaintenanceRelationalExport({ tables: { ...tables, photos: { rows: [{ id: 1 }] } } }),
-    /protected table: photos/,
+    () => convertMaintenanceRelationalExport({ tables: { ...tables, photos: { rows: [{ ...tables.photos.rows[0], data: "bytes" }] } } }),
+    /unsupported columns: data/,
+  );
+  assert.throws(
+    () => convertMaintenanceRelationalExport({ tables: { ...tables, photos: { rows: [{ ...tables.photos.rows[0], storage_key: "" }] } } }),
+    /storage_key must be non-empty text/,
+  );
+  assert.throws(
+    () => convertMaintenanceRelationalExport({ tables: { ...tables, photos: { rows: [{ ...tables.photos.rows[0], photo_type: "unknown" }] } } }),
+    /photo_type is invalid/,
+  );
+  assert.throws(
+    () => convertMaintenanceRelationalExport({ tables: { ...tables, maintenance_photos: { rows: [{ id: 1 }] } } }),
+    /protected table: maintenance_photos/,
   );
   assert.throws(
     () => convertMaintenanceRelationalExport({ tables: { ...tables, orders: { rows: [] } } }),

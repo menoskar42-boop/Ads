@@ -186,6 +186,21 @@ async function getMaintenancePhotos(actor, inspectionId) {
   return payload;
 }
 
+async function getMaintenancePhotosForBox(actor, boxId) {
+  const id = Number(boxId);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Invalid maintenance box id');
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/photos?box_id=${encodeURIComponent(id)}`,
+  );
+  if (!Array.isArray(payload) || payload.some((row) =>
+    !row || !Number.isSafeInteger(row.id) || row.box_id !== id ||
+    typeof row.filename !== 'string' || typeof row.storage_key !== 'string' ||
+    !['before', 'after'].includes(row.photo_type) || !['photo', 'video'].includes(row.media_type))) {
+    throw new Error('Maintenance hierarchy D1 returned invalid box photo metadata');
+  }
+  return payload;
+}
+
 async function getMaintenancePhotoByFilename(actor, filename) {
   if (typeof filename !== 'string' || !filename || filename.length > 255 ||
       filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
@@ -433,6 +448,7 @@ module.exports = {
   getMaintenanceInspections,
   getMaintenanceInspectionDetails,
   getMaintenancePhotos,
+  getMaintenancePhotosForBox,
   getMaintenancePhotoByFilename,
   getMaintenancePhotoForDelivery,
   createMaintenancePhoto,

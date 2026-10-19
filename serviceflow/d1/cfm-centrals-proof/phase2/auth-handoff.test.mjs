@@ -26,6 +26,9 @@ const maintenanceDatabase = await import("../../../server/maintenance/app/databa
 const maintenanceDb = maintenanceDatabase.default;
 const maintenanceBoxes = await import("../../../server/maintenance/app/routes/boxes.js");
 const maintenanceBoxesRouter = maintenanceBoxes.default;
+const maintenanceHierarchy = await import("../../../server/maintenance/app/utils/d1-hierarchy.js");
+const maintenanceAdmin = await import("../../../server/maintenance/app/routes/admin.js");
+const maintenanceAdminRouter = maintenanceAdmin.default;
 const maintenanceInspector = await import("../../../server/maintenance/app/routes/inspector.js");
 const maintenanceInspectorRouter = maintenanceInspector.default;
 const maintenanceTechnician = await import("../../../server/maintenance/app/routes/technician.js");
@@ -501,6 +504,41 @@ after(async () => {
   if (stateDir) await rm(stateDir, { recursive: true, force: true });
 });
 
+test("local D1 proof blocks legacy deletes that could alter PostgreSQL or R2", async () => {
+  const oldProof = process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+  const oldNodeEnv = process.env.NODE_ENV;
+  process.env.SF_MAINTENANCE_HIERARCHY_PROOF = "d1";
+  process.env.NODE_ENV = "test";
+  try {
+    const photoDelete = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/photos/:photoId/delete",
+    ).route.stack.at(-1).handle;
+    let photoResult;
+    await photoDelete({
+      session: { user: { id: 1, sf_role: "super_admin" } },
+      params: { photoId: "9010" },
+    }, {
+      status(code) { this.statusCode = code; return this; },
+      json(body) { photoResult = { status: this.statusCode, body }; },
+    });
+    assert.equal(photoResult.status, 409);
+
+    const inspectionDelete = maintenanceAdminRouter.stack.find((layer) =>
+      layer.route?.path === "/inspections/:id/delete",
+    ).route.stack.at(-1).handle;
+    let redirected;
+    const request = { session: { user: { id: 1 }, flash: null }, params: { id: "9004" } };
+    await inspectionDelete(request, { redirect(path) { redirected = path; } });
+    assert.equal(redirected, "/inspector");
+    assert.match(request.session.flash.msg, /متوقف في وضع إثبات D1/);
+  } finally {
+    if (oldProof === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+    else process.env.SF_MAINTENANCE_HIERARCHY_PROOF = oldProof;
+    if (oldNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = oldNodeEnv;
+  }
+});
+
 test("unauthenticated request is rejected by the existing CFM requireAuth middleware", async () => {
   const response = await callCentrals(null);
   assert.equal(response.status, 401);
@@ -798,18 +836,32 @@ test("maintenance relational D1 schema keeps user tables in PostgreSQL and valid
     box_line_numbers: { rows: [{
       id: 9008, inspection_id: 9004, phone: "synthetic-only", source: "service_flow",
     }] },
+    photos: { rows: [{
+      id: 9009, box_id: 9003, inspection_id: 9004, photo_type: "before",
+      filename: "synthetic-before.jpg", uploaded_by: 777,
+      uploaded_at: "2026-10-19T00:00:00Z", media_type: "photo",
+      storage_key: "maintenance/synthetic-before.jpg",
+    }] },
   } });
-  assert.equal(imported.rowCount, 8);
+  assert.equal(imported.rowCount, 9);
   await executeLocalD1(imported.sql);
   await executeLocalD1(imported.sql);
   for (const table of [
     "maintenance_exchanges", "maintenance_cabinets", "maintenance_boxes",
     "maintenance_inspections", "maintenance_inspection_items",
     "maintenance_tasks", "maintenance_item_status", "maintenance_box_line_numbers",
+    "maintenance_photos",
   ]) {
     const [count] = await queryLocalD1(`SELECT COUNT(*) AS count FROM ${table}`);
     assert.equal(count.count, 1, `${table} should be idempotent`);
   }
+  const [importedPhoto] = await queryLocalD1(
+    "SELECT filename, storage_key FROM maintenance_photos WHERE id = 9009",
+  );
+  assert.deepEqual(importedPhoto, {
+    filename: "synthetic-before.jpg",
+    storage_key: "maintenance/synthetic-before.jpg",
+  });
   assert.deepEqual(await queryLocalD1("PRAGMA foreign_key_check"), []);
 });
 
@@ -1005,6 +1057,14 @@ test("actual maintenance exchanges page can render the local D1 read proof", asy
       VALUES (9010, 9003, ${inspectionRows[0].id}, 'before', 'synthetic-before.jpg', 77,
               'photo', 'maintenance/synthetic-before.jpg');
     `);
+    const boxPhotos = await maintenanceHierarchy.default.getMaintenancePhotosForBox(
+      { id: 77, role: "inspector" }, 9003,
+    );
+    assert.equal(boxPhotos.length, 2);
+    assert.equal(
+      boxPhotos.find((photo) => photo.id === 9010)?.storage_key,
+      "maintenance/synthetic-before.jpg",
+    );
     assert.equal(inspectionRows[0].inspector_id, 77);
     assert.equal(inspectionRows[0].general_notes, "Synthetic D1 inspection");
     const inspectionItemRows = await queryLocalD1(

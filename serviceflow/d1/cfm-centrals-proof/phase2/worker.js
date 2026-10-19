@@ -1058,15 +1058,18 @@ export default {
         return Response.json({ ok: true });
       }
       if (maintenancePhotosRoute) {
-        if (!["admin", "inspector", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
         if (request.method === "GET") {
-          const inspectionId = Number(url.searchParams.get("inspection_id"));
-          if (!Number.isSafeInteger(inspectionId) || inspectionId <= 0) return Response.json({ error: "Invalid inspection id" }, { status: 400 });
-          const { results } = await env.DB.prepare(
-            `SELECT * FROM maintenance_photos WHERE inspection_id=? ORDER BY uploaded_at,id`,
-          ).bind(inspectionId).all();
+          const inspectionValue = url.searchParams.get("inspection_id");
+          const boxValue = url.searchParams.get("box_id");
+          if ((inspectionValue === null) === (boxValue === null)) return Response.json({ error: "Exactly one photo scope is required" }, { status: 400 });
+          const id = Number(inspectionValue ?? boxValue);
+          if (!Number.isSafeInteger(id) || id <= 0) return Response.json({ error: "Invalid photo scope id" }, { status: 400 });
+          const { results } = await env.DB.prepare(inspectionValue !== null
+            ? `SELECT * FROM maintenance_photos WHERE inspection_id=? ORDER BY uploaded_at,id`
+            : `SELECT * FROM maintenance_photos WHERE box_id=? ORDER BY uploaded_at,id`).bind(id).all();
           return Response.json(results);
         }
+        if (!["admin", "inspector", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
         const body = await request.json().catch(() => null);
         if (!body || Object.keys(body).some((key) =>
           !["boxId", "inspectionId", "photoType", "mediaType", "filename", "storageKey", "takenAt", "latitude", "longitude"].includes(key)) ||

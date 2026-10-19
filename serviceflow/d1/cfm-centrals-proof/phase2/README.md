@@ -66,7 +66,9 @@ D1, and media bytes remain in R2.
 
 For the linked maintenance hierarchy, local D1 migrations and a deterministic,
 dependency-ordered synthetic/export importer now cover exchanges, cabinets,
-boxes, inspections, inspection items, tasks, item statuses, and box line numbers.
+boxes, inspections, inspection items, tasks, item statuses, box line numbers,
+and photo/video metadata. Metadata import requires an existing `storage_key` and
+rejects inline media bytes; it does not copy, modify, or delete R2 objects.
 Inspector/technician IDs are retained as references without moving user rows.
 The import uses retry-safe
 `INSERT OR IGNORE` statements rather than a cross-database transaction.
@@ -85,9 +87,11 @@ ordinary lifecycle actions, inspector approve/reject/preliminary-confirm/revert,
 and box line-number CRUD now use D1 in the local proof. Each task transition
 updates its task and box status within one D1 batch; phone rows are scoped to the
 task's inspection. Photo/video metadata reads, writes, location updates, and
-deletes use D1 while media bytes remain in R2. R2/D1 operations are not atomic:
-failed metadata inserts trigger best-effort R2 cleanup, while failed deletes may
-leave an orphaned R2 object. The special `data_review` action, reports, and bulk
+per-box archive metadata use D1 while media bytes remain in R2. Photo and
+inspection deletion are blocked in proof mode until safe R2/rollback handling is
+reviewed. Real R2 upload/download flows have not been exercised by the local
+synthetic tests. R2/D1 operations are not atomic: failed metadata inserts trigger
+best-effort R2 cleanup. The special `data_review` action, reports, and bulk
 exports remain PostgreSQL-backed. No application-wide dual-store transaction is
 assumed. The hierarchy group remains incomplete and is not ready for production
 data import or cutover.

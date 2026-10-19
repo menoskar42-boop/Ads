@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const xlsx = require('xlsx');
 const multer = require('multer');
 const db = require('../database');
+const { isMaintenanceHierarchyProofEnabled } = require('../utils/d1-hierarchy');
 const { requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -184,6 +185,13 @@ router.post('/import', adminOnly, upload.single('file'), async (req, res) => {
 });
 
 router.post('/inspections/:id/delete', adminOnly, async (req, res) => {
+  if (isMaintenanceHierarchyProofEnabled()) {
+    req.session.flash = {
+      type: 'danger',
+      msg: 'حذف الفحص متوقف في وضع إثبات D1 حتى تكتمل استعادة الفحص والصور بأمان.',
+    };
+    return res.redirect('/inspector');
+  }
   const inspection = await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
   if (!inspection) {
     req.session.flash = { type: 'danger', msg: 'الفحص غير موجود.' };

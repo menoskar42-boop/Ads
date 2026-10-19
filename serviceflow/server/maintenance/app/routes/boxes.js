@@ -14,6 +14,7 @@ const {
   deleteMaintenanceExchange,
   getMaintenanceBoxes,
   getMaintenanceBoxDetails,
+  getMaintenancePhotosForBox,
   getMaintenanceCabinet,
   getMaintenanceCabinets,
   getMaintenanceExchanges,
@@ -387,14 +388,29 @@ router.post('/:id/delete', adminOnly, async (req, res) => {
 });
 
 router.get('/:id/photos/download', requireLogin, async (req, res) => {
-  const box = await db.get(`
-    SELECT b.*, c.number as cabinet_number, e.name as exchange_name
-    FROM boxes b JOIN cabinets c ON c.id = b.cabinet_id JOIN exchanges e ON e.id = c.exchange_id
-    WHERE b.id = ?`, [req.params.id]);
+  let box;
+  let beforePhotos;
+  let afterPhotos;
+  if (isMaintenanceHierarchyProofEnabled()) {
+    try {
+      const details = await getMaintenanceBoxDetails(req.session.user, req.params.id);
+      box = details.box;
+      const photos = await getMaintenancePhotosForBox(req.session.user, req.params.id);
+      beforePhotos = photos.filter((photo) => photo.photo_type === 'before' && photo.media_type === 'photo');
+      afterPhotos = photos.filter((photo) => photo.photo_type === 'after' && photo.media_type === 'photo');
+    } catch (error) {
+      if (error.status === 404) return res.redirect('/boxes');
+      throw error;
+    }
+  } else {
+    box = await db.get(`
+      SELECT b.*, c.number as cabinet_number, e.name as exchange_name
+      FROM boxes b JOIN cabinets c ON c.id = b.cabinet_id JOIN exchanges e ON e.id = c.exchange_id
+      WHERE b.id = ?`, [req.params.id]);
+    beforePhotos = await db.all(`SELECT id, filename, data, storage_key FROM photos WHERE box_id = ? AND photo_type = 'before' ORDER BY uploaded_at`, [req.params.id]);
+    afterPhotos = await db.all(`SELECT id, filename, data, storage_key FROM photos WHERE box_id = ? AND photo_type = 'after' ORDER BY uploaded_at`, [req.params.id]);
+  }
   if (!box) return res.redirect('/boxes');
-
-  const beforePhotos = await db.all(`SELECT id, filename, data, storage_key FROM photos WHERE box_id = ? AND photo_type = 'before' ORDER BY uploaded_at`, [req.params.id]);
-  const afterPhotos  = await db.all(`SELECT id, filename, data, storage_key FROM photos WHERE box_id = ? AND photo_type = 'after'  ORDER BY uploaded_at`, [req.params.id]);
 
   if (!beforePhotos.length && !afterPhotos.length) {
     req.session.flash = { type: 'warning', msg: 'لا توجد صور لهذا البوكس.' };
@@ -451,6 +467,12 @@ router.post('/photos/:photoId/delete', requireLogin, async (req, res) => {
   const u = req.session.user || {};
   if (String(u.sf_role || '') !== 'super_admin') {
     return res.status(403).json({ ok: false, msg: 'حذف الصور للسوبر أدمن بس.' });
+  }
+  if (isMaintenanceHierarchyProofEnabled()) {
+    return res.status(409).json({
+      ok: false,
+      msg: 'حذف الصور متوقف في وضع إثبات D1 حتى تتم مراجعة تنظيف الملفات في R2.',
+    });
   }
   const photo = isMaintenanceHierarchyProofEnabled()
     ? await deleteMaintenancePhoto(req.session.user, req.params.photoId)

@@ -151,7 +151,7 @@ boundary, not a claim that today's PG schemas are separate databases.
 | `repeat_reviews` | C | `id`; review business keys vary; JSONB at-fault field | Repeat-review workflows, startup correction, fault/case reports | H; timezone/JSON/date migration and audit behavior |
 | `lines_no_account` | C | `full_phone`; marker actor → `users` | Missing-account workflows; deleted by line_accounts trigger | H; inseparable invariant with line_accounts |
 | `repeat_review_comments` | C | `id`; review → `repeat_reviews` cascade; author → `users` | Review/comment APIs | H; same transaction and FK deletion behavior |
-| `om_responses` | C | `serial_number`; no declared FK | OM response/manual box status APIs and reports | M; preserve response upsert and time fields |
+| `om_responses` | C | `serial_number`; no declared FK | OM response/manual box status APIs, two-way sync with `orders`, `om_order_matches`, box-fault automation and reports | H; keep PostgreSQL until the linked order/match writers and all report readers can move as one reviewed consistency boundary |
 | `wfm_task_cancels` | C | `id`; no declared FK; phone index | WFM cancellation and automated task filtering | M; exact match/date and dedupe rules |
 | `wfm_task_accepts` | C | `id`; no declared FK; phone index | WFM accepted-task filtering and automation | M; race with queue state; migrate with WFM consumers |
 | `oss_reexecs` | C | `id`; indexed `key_value` | OSS rerun dedupe and queue/task automation | M; idempotency record must remain co-located with operation |
@@ -195,8 +195,8 @@ boundary, not a claim that today's PG schemas are separate databases.
 | `maintenance.inspection_items` | C | serial `id`; inspection cascade; unique `(inspection_id,item_key)`; item type CHECK | Inspection create/update/report | M; preserve constraints and item-type domain |
 | `maintenance.maintenance_tasks` | C | serial `id`; inspection, optional technician; constrained status | Technician and inspector task lifecycle | H; completion/approval/reject/revert transaction |
 | `maintenance.maintenance_item_status` | C | serial `id`; task cascade; unique `(task_id,item_key)` | Task toggles/approval/report | M; transactional task state and completion evidence |
-| `maintenance.photos` | C | serial `id`; box/inspection refs; photo type CHECK | Upload/download/delete in boxes, inspectors, technicians, reports; R2 or legacy BYTEA/local path | H; keep metadata in D1 only with R2 compensation; do not copy bytes |
-| `maintenance.box_line_numbers` | C | serial `id`; inspection cascade; unique identity requires verification | Inspector phone entry, reports and service-flow API | M; line/inspection joins and import/delete semantics; local D1 core schema/import proof now covers this linked group, while application routes remain PostgreSQL |
+| `maintenance.photos` | C | serial `id`; box/inspection refs; photo type CHECK | Upload/download/delete in boxes, inspectors, technicians, reports; R2 or legacy BYTEA/local path | H; local D1 metadata/import/read/write/location and per-box archive metadata proof require R2 keys and reject inline bytes; photo/inspection deletes are blocked in proof until R2-safe rollback is reviewed; production import/cutover still requires review; never copy bytes |
+| `maintenance.box_line_numbers` | C | serial `id`; inspection cascade; unique identity requires verification | Inspector phone entry, reports and service-flow API | M; local D1 schema/import and inspector/technician CRUD proof exist; `data_review`, reports, and exports remain PostgreSQL-backed pending dependency audit |
 | `maintenance.cabinet_codes` | A | serial `id`; unique `(exchange_name,cabinet_number)`; no FK | Admin cabinet-code listing/export and three maintenance reports | M; D1 schema, allowlisted import, typed read and report enrichment implemented locally behind opt-in; PostgreSQL remains default pending source-data review |
 
 ### Catalog exceptions and reconciliation gates

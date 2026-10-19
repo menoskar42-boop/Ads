@@ -60,6 +60,16 @@ const TABLES = [
     integer: ["id", "inspection_id"],
     text: ["phone", "notes", "source", "created_at", "updated_at"],
   },
+  {
+    source: "photos", target: "maintenance_photos",
+    columns: ["id", "box_id", "inspection_id", "photo_type", "filename", "uploaded_by", "uploaded_at", "taken_at", "latitude", "longitude", "media_type", "storage_key"],
+    required: ["id", "box_id", "photo_type", "filename", "uploaded_at", "media_type", "storage_key"],
+    integer: ["id", "box_id", "inspection_id", "uploaded_by"],
+    number: ["latitude", "longitude"],
+    text: ["photo_type", "filename", "uploaded_at", "taken_at", "media_type", "storage_key"],
+    nonEmpty: ["filename", "storage_key"],
+    enum: { photo_type: ["before", "after"], media_type: ["photo", "video"] },
+  },
 ];
 
 const REFERENCES = [
@@ -70,11 +80,13 @@ const REFERENCES = [
   ["tasks", "inspection_id", "inspections"],
   ["item_status", "task_id", "tasks"],
   ["box_line_numbers", "inspection_id", "inspections"],
+  ["photos", "box_id", "boxes"],
+  ["photos", "inspection_id", "inspections", true],
 ];
 const PROTECTED_TABLES = new Set([
   "users", "maintenance_users", "maintenance.users", "cfm_users",
   "sf_session", "exec_jobs", "exec_followups",
-  "photos", "maintenance_photos", "maintenance.photos",
+  "maintenance_photos", "maintenance.photos",
 ]);
 
 function quote(value) {
@@ -119,6 +131,14 @@ function validateRows(table, rows) {
     for (const column of table.required) {
       if (row[column] == null) throw new Error(`${table.source}.${column} is required`);
     }
+    for (const [column, values] of Object.entries(table.enum || {})) {
+      if (!values.includes(row[column])) throw new Error(`${table.source}.${column} is invalid`);
+    }
+    for (const column of table.nonEmpty || []) {
+      if (typeof row[column] !== "string" || !row[column].trim()) {
+        throw new Error(`${table.source}.${column} must be non-empty text`);
+      }
+    }
     const id = Number(row.id);
     if (!Number.isSafeInteger(id) || id < 1 || seenIds.has(id)) throw new Error(`${table.source} has an invalid or duplicate id`);
     seenIds.add(id);
@@ -153,8 +173,9 @@ export function convertMaintenanceRelationalExport(input) {
   const ids = Object.fromEntries(TABLES.map((table) => [
     table.source, new Set(normalized[table.source].map((row) => Number(row.id))),
   ]));
-  for (const [child, column, parent] of REFERENCES) {
+  for (const [child, column, parent, optional] of REFERENCES) {
     for (const row of normalized[child]) {
+      if (optional && row[column] === "NULL") continue;
       if (!ids[parent].has(Number(row[column]))) {
         throw new Error(`${child}.${column} references a missing ${parent} row`);
       }
