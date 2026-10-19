@@ -12,6 +12,7 @@
 const express = require('express');
 const db = require('../database');
 const { requireLogin } = require('../middleware/auth');
+const maintenanceHierarchy = require('../utils/d1-hierarchy');
 
 const router = express.Router();
 
@@ -41,6 +42,12 @@ const CAB_N = (e) => `btrim(regexp_replace(regexp_replace(
 // فنى الصيانة كمان بيشوف الكل: هو مش فنى منطقة ومالوش كباين فى cabinet_technicians،
 // فلو فلترناه بكباينه كانت الشاشة هتطلعله فاضية دايماً — وهو أصلاً اللى بيقف على البكس.
 const SEES_ALL_SF_ROLES = ['external', 'super_admin', 'admin', 'maintenance_tech'];
+function canReadD1Review(user) {
+  return maintenanceHierarchy.isMaintenanceHierarchyProofEnabled()
+    && ['admin', 'technician'].includes(String(user.role || ''))
+    && ownScope(user).clause === '';
+}
+
 function ownScope(user) {
   if (user.role === 'admin' || user.role === 'technician'
       || SEES_ALL_SF_ROLES.includes(String(user.sf_role || ''))) {
@@ -61,6 +68,22 @@ router.get('/', requireLogin, async (req, res) => {
   try {
     const user = req.session.user;
     const scope = ownScope(user);
+    if (canReadD1Review(user)) {
+      const { tasks } = await maintenanceHierarchy.getMaintenanceTasks(user, { review: '1' });
+      const rows = tasks.map((row) => ({
+        task_id: row.id,
+        inspection_id: row.inspection_id,
+        opened_by_name: row.opened_by_name,
+        general_notes: row.inspection_notes,
+        box_number: row.box_number,
+        cabinet_number: row.cabinet_number,
+        exchange_name: row.exchange_name,
+        phones_count: Number(row.phones_count || 0),
+      }));
+      return res.render('data_review/list', {
+        title: 'مراجعة بيانات البكس', rows, seesAll: true,
+      });
+    }
     const rows = await db.all(`
       SELECT mt.id AS task_id, i.id AS inspection_id, i.opened_by_name, i.general_notes,
              b.number AS box_number, c.number AS cabinet_number, e.name AS exchange_name,
@@ -97,8 +120,28 @@ async function allowedTask(user, taskId) {
      LIMIT 1`, [taskId, ...scope.params]);
 }
 
+async function getD1ReviewTask(user, taskId) {
+  const payload = await maintenanceHierarchy.getMaintenanceTaskDetails(user, taskId);
+  return payload.inspItems.some((item) => item.item_key === 'data_review') ? payload : null;
+}
+
 router.get('/:id', requireLogin, async (req, res) => {
   try {
+    if (canReadD1Review(req.session.user)) {
+      const payload = await getD1ReviewTask(req.session.user, req.params.id);
+      if (!payload) return res.redirect('/data-review');
+      const task = {
+        ...payload.task,
+        task_id: payload.task.id,
+        general_notes: payload.task.inspection_notes,
+      };
+      const done = payload.itemStatuses.find((row) =>
+        row.item_key === 'data_review' && Number(row.is_done) === 1);
+      return res.render('data_review/detail', {
+        title: `مراجعة بيانات — بوكس ${task.box_number}`,
+        task, phones: payload.boxPhones, isDone: Boolean(done),
+      });
+    }
     const task = await allowedTask(req.session.user, req.params.id);
     if (!task) return res.redirect('/data-review');
     const phones = await db.all(
@@ -118,6 +161,24 @@ router.get('/:id', requireLogin, async (req, res) => {
 
 router.post('/:id/phones', requireLogin, async (req, res) => {
   try {
+    if (canReadD1Review(req.session.user)) {
+      const task = await getD1ReviewTask(req.session.user, req.params.id);
+      if (!task) return res.redirect('/data-review');
+      const phone = String(req.body.phone || '').trim();
+      if (phone) {
+        try {
+          await maintenanceHierarchy.applyMaintenanceTaskAction(
+            req.session.user, req.params.id, {
+              action: 'phone-add', phone, notes: String(req.body.notes || '').trim(),
+            },
+          );
+        } catch (error) {
+          if (error.status !== 409) throw error;
+          req.session.flash = { type: 'warning', msg: 'الرقم ده موجود بالفعل فى القائمة.' };
+        }
+      }
+      return res.redirect(`/data-review/${req.params.id}`);
+    }
     const task = await allowedTask(req.session.user, req.params.id);
     if (!task) return res.redirect('/data-review');
     const phone = String(req.body.phone || '').trim();
@@ -139,6 +200,25 @@ router.post('/:id/phones', requireLogin, async (req, res) => {
 
 router.post('/:id/phones/:phoneId', requireLogin, async (req, res) => {
   try {
+    if (canReadD1Review(req.session.user)) {
+      const task = await getD1ReviewTask(req.session.user, req.params.id);
+      if (!task) return res.redirect('/data-review');
+      const phone = String(req.body.phone || '').trim();
+      if (phone) {
+        try {
+          await maintenanceHierarchy.applyMaintenanceTaskAction(
+            req.session.user, req.params.id, {
+              action: 'phone-update', phoneId: Number(req.params.phoneId),
+              phone, notes: String(req.body.notes || '').trim(),
+            },
+          );
+        } catch (error) {
+          if (error.status !== 409) throw error;
+          req.session.flash = { type: 'warning', msg: 'الرقم ده موجود بالفعل فى القائمة.' };
+        }
+      }
+      return res.redirect(`/data-review/${req.params.id}`);
+    }
     const task = await allowedTask(req.session.user, req.params.id);
     if (!task) return res.redirect('/data-review');
     const phone = String(req.body.phone || '').trim();
@@ -156,6 +236,16 @@ router.post('/:id/phones/:phoneId', requireLogin, async (req, res) => {
 
 router.post('/:id/phones/:phoneId/delete', requireLogin, async (req, res) => {
   try {
+    if (canReadD1Review(req.session.user)) {
+      const task = await getD1ReviewTask(req.session.user, req.params.id);
+      if (!task) return res.redirect('/data-review');
+      await maintenanceHierarchy.applyMaintenanceTaskAction(
+        req.session.user, req.params.id, {
+          action: 'phone-delete', phoneId: Number(req.params.phoneId),
+        },
+      );
+      return res.redirect(`/data-review/${req.params.id}`);
+    }
     const task = await allowedTask(req.session.user, req.params.id);
     if (!task) return res.redirect('/data-review');
     await db.run('DELETE FROM box_line_numbers WHERE id = ? AND inspection_id = ?',
@@ -225,6 +315,16 @@ async function finishDataReview(taskId, userId) {
 
 router.post('/:id/done', requireLogin, async (req, res) => {
   try {
+    if (canReadD1Review(req.session.user)) {
+      const task = await getD1ReviewTask(req.session.user, req.params.id);
+      if (!task) return res.redirect('/data-review');
+      const result = await maintenanceHierarchy.applyMaintenanceTaskAction(
+        req.session.user, req.params.id, { action: 'data-review-done' },
+      );
+      req.session.flash = { type: 'success',
+        msg: result.closed ? 'تمت مراجعة بيانات البكس وقفلت المهمة.' : 'تمت مراجعة بيانات البكس.' };
+      return res.redirect('/data-review');
+    }
     const task = await allowedTask(req.session.user, req.params.id);
     if (!task) return res.redirect('/data-review');
     const r = await finishDataReview(task.task_id, req.session.user.id);

@@ -34,6 +34,8 @@ const maintenanceInspector = await import("../../../server/maintenance/app/route
 const maintenanceInspectorRouter = maintenanceInspector.default;
 const maintenanceTechnician = await import("../../../server/maintenance/app/routes/technician.js");
 const maintenanceTechnicianRouter = maintenanceTechnician.default;
+const maintenanceDataReview = await import("../../../server/maintenance/app/routes/data_review.js");
+const maintenanceDataReviewRouter = maintenanceDataReview.default;
 const maintenanceReports = await import("../../../server/maintenance/app/routes/reports.js");
 const maintenanceReportsRouter = maintenanceReports.default;
 const { ServiceFlowTechCoverageD1Storage } = await import("../../../server/tech-coverage-grants-d1.ts");
@@ -1281,6 +1283,91 @@ test("actual maintenance exchanges page can render the local D1 read proof", asy
         status: "completed", technician_id: 78, is_done: 1, done_by: 78,
         box_status: "pending_inspection",
       }]);
+
+      await executeLocalD1(`
+        INSERT INTO maintenance_exchanges(id,name) VALUES (9030,'Synthetic review listing');
+        INSERT INTO maintenance_cabinets(id,exchange_id,number) VALUES (9031,9030,'DR-1');
+        INSERT INTO maintenance_boxes(id,cabinet_id,number,status)
+          VALUES (9032,9031,'DRB-1','needs_maintenance');
+        INSERT INTO maintenance_inspections(id,box_id,inspector_id,auto_created,opened_by_name,general_notes)
+          VALUES (9033,9032,78,1,'Synthetic reviewer','Synthetic review note');
+        INSERT INTO maintenance_inspection_items(inspection_id,item_key,item_type,value)
+          VALUES (9033,'data_review','yes_no','yes');
+        INSERT INTO maintenance_tasks(id,inspection_id,status) VALUES (9034,9033,'pending');
+        INSERT INTO maintenance_box_line_numbers(id,inspection_id,phone,notes,source)
+          VALUES (9035,9033,'synthetic-review-phone','synthetic note','technician');
+      `);
+      const reviewListHandler = maintenanceDataReviewRouter.stack.find((layer) =>
+        layer.route?.path === '/' && layer.route.methods.get,
+      ).route.stack.at(-1).handle;
+      let renderedList;
+      await reviewListHandler(
+        { session: { user: { id: 78, role: "admin" } } },
+        { render(view, locals) { renderedList = { view, locals }; } },
+      );
+      assert.equal(renderedList.view, "data_review/list");
+      const listedReview = renderedList.locals.rows.find((row) => row.task_id === 9034);
+      assert.deepEqual({
+        task_id: listedReview?.task_id,
+        phones_count: listedReview?.phones_count,
+        exchange_name: listedReview?.exchange_name,
+      }, { task_id: 9034, phones_count: 1, exchange_name: "Synthetic review listing" });
+
+      const reviewDetailHandler = maintenanceDataReviewRouter.stack.find((layer) =>
+        layer.route?.path === '/:id' && layer.route.methods.get,
+      ).route.stack.at(-1).handle;
+      let renderedDetail;
+      await reviewDetailHandler(
+        { session: { user: { id: 78, role: "admin" } }, params: { id: "9034" } },
+        { render(view, locals) { renderedDetail = { view, locals }; }, redirect(path) {
+          renderedDetail = { redirect: path };
+        } },
+      );
+      assert.equal(renderedDetail.view, "data_review/detail");
+      assert.equal(renderedDetail.locals.task.general_notes, "Synthetic review note");
+      assert.equal(renderedDetail.locals.phones[0].phone, "synthetic-review-phone");
+      assert.equal(renderedDetail.locals.isDone, false);
+
+      const postReviewRoute = async (path, params = {}, body = {}) => {
+        const handler = maintenanceDataReviewRouter.stack.find((layer) =>
+          layer.route?.path === path && layer.route.methods.post,
+        ).route.stack.at(-1).handle;
+        let redirect;
+        const session = { user: { id: 78, role: "admin" } };
+        await handler(
+          { session, params: { id: "9034", ...params }, body },
+          { redirect(path) { redirect = path; } },
+        );
+        return { redirect, flash: session.flash };
+      };
+      assert.deepEqual(await postReviewRoute("/:id/phones", {}, {
+        phone: "synthetic-added-phone", notes: "added via D1 proof",
+      }), { redirect: "/data-review/9034", flash: undefined });
+      const duplicatePhone = await postReviewRoute("/:id/phones", {}, {
+        phone: "synthetic-added-phone",
+      });
+      assert.equal(duplicatePhone.flash?.type, "warning");
+      assert.deepEqual(await postReviewRoute("/:id/phones/:phoneId", { phoneId: "9035" }, {
+        phone: "synthetic-updated-phone", notes: "updated via D1 proof",
+      }), { redirect: "/data-review/9034", flash: undefined });
+      assert.deepEqual(await queryLocalD1(
+        `SELECT phone,notes FROM maintenance_box_line_numbers WHERE id=9035`,
+      ), [{ phone: "synthetic-updated-phone", notes: "updated via D1 proof" }]);
+      const addedPhone = await queryLocalD1(
+        `SELECT id FROM maintenance_box_line_numbers WHERE inspection_id=9033 AND phone='synthetic-added-phone'`,
+      );
+      assert.equal(addedPhone.length, 1);
+      assert.deepEqual(await postReviewRoute("/:id/phones/:phoneId/delete", {
+        phoneId: String(addedPhone[0].id),
+      }), { redirect: "/data-review/9034", flash: undefined });
+      const finishReview = await postReviewRoute("/:id/done");
+      assert.equal(finishReview.redirect, "/data-review");
+      assert.equal(finishReview.flash?.type, "success");
+      assert.deepEqual(await queryLocalD1(
+        `SELECT t.status, ms.is_done FROM maintenance_tasks t
+         JOIN maintenance_item_status ms ON ms.task_id=t.id AND ms.item_key='data_review'
+         WHERE t.id=9034`,
+      ), [{ status: "completed", is_done: 1 }]);
     } finally {
       maintenanceDb.get = originalTaskActionGet;
       if (oldTaskActionFlag === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
