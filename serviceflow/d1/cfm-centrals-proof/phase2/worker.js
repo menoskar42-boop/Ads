@@ -1319,7 +1319,8 @@ export default {
           return Response.json({ error: "Invalid task action" }, { status: 400 });
         }
         const task = await env.DB.prepare(
-          `SELECT mt.id, mt.status, mt.inspection_id, i.box_id, i.inspector_id
+          `SELECT mt.id, mt.status, mt.inspection_id, i.box_id, i.inspector_id,
+                  COALESCE(i.auto_created,0) AS auto_created
            FROM maintenance_tasks mt JOIN maintenance_inspections i ON i.id=mt.inspection_id
            WHERE mt.id=?`,
         ).bind(id).first();
@@ -1391,13 +1392,64 @@ export default {
           }
           return Response.json({ ok: true });
         }
+        if (body.action === "data-review-done") {
+          if (!["admin", "technician"].includes(claims.role) || Object.keys(body).length !== 1) {
+            return Response.json({ error: "Forbidden" }, { status: 403 });
+          }
+          const item = await env.DB.prepare(
+            `SELECT id FROM maintenance_inspection_items
+             WHERE inspection_id=? AND item_key='data_review'`,
+          ).bind(task.inspection_id).first();
+          if (!item) return Response.json({ error: "Data-review item not found" }, { status: 404 });
+
+          const statements = [
+            env.DB.prepare(
+              `INSERT INTO maintenance_item_status (task_id,item_key,is_done,done_at,done_by)
+               VALUES (?,'data_review',1,CURRENT_TIMESTAMP,?)
+               ON CONFLICT(task_id,item_key) DO UPDATE SET
+                 is_done=1,done_at=CURRENT_TIMESTAMP,done_by=excluded.done_by`,
+            ).bind(id, actorId),
+          ];
+          let shouldClose = Number(task.auto_created) === 1 && task.status === "pending";
+          if (shouldClose) {
+            const unresolved = await env.DB.prepare(
+              `SELECT 1 FROM maintenance_inspection_items ii
+               WHERE ii.inspection_id=? AND ii.value IN ('bad','yes') AND ii.item_key<>'data_review'
+                 AND NOT EXISTS (SELECT 1 FROM maintenance_item_status ms
+                   WHERE ms.task_id=? AND ms.item_key=ii.item_key AND ms.is_done=1) LIMIT 1`,
+            ).bind(task.inspection_id, id).first();
+            shouldClose = !unresolved;
+          }
+          if (shouldClose) {
+            statements.push(
+              env.DB.prepare(
+                `UPDATE maintenance_tasks
+                 SET status='completed',completed_at=CURRENT_TIMESTAMP,
+                     technician_id=COALESCE(technician_id,?)
+                 WHERE id=? AND status='pending'`,
+              ).bind(actorId, id),
+              env.DB.prepare(
+                `UPDATE maintenance_boxes SET status='pending_inspection',updated_at=CURRENT_TIMESTAMP
+                 WHERE id=? AND status='needs_maintenance'
+                   AND NOT EXISTS (
+                     SELECT 1 FROM maintenance_inspections i
+                     JOIN maintenance_tasks t ON t.inspection_id=i.id
+                     WHERE i.box_id=? AND COALESCE(i.auto_created,0)=0
+                       AND t.status<>'completed' AND COALESCE(i.is_archived,0)=0
+                   )`,
+              ).bind(task.box_id, task.box_id),
+            );
+          }
+          const results = await env.DB.batch(statements);
+          return Response.json({ ok: true, closed: shouldClose && Boolean(results[1]?.meta?.changes) });
+        }
         if (body.action === "toggle") {
           if (!["admin", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
           if (Object.keys(body).some((key) => !["action", "itemKey"].includes(key)) ||
               typeof body.itemKey !== "string" || !body.itemKey || body.itemKey.length > 80) {
             return Response.json({ error: "Invalid item toggle" }, { status: 400 });
           }
-          if (body.itemKey === "data_review") return Response.json({ error: "Data review is still managed by its PostgreSQL workflow" }, { status: 409 });
+          if (body.itemKey === "data_review") return Response.json({ error: "Use the data-review completion action" }, { status: 409 });
           const item = await env.DB.prepare(
             `SELECT id FROM maintenance_inspection_items WHERE inspection_id=? AND item_key=?`,
           ).bind(task.inspection_id, body.itemKey).first();

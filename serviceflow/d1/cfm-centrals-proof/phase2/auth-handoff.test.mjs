@@ -1224,14 +1224,14 @@ test("actual maintenance exchanges page can render the local D1 read proof", asy
     const oldTaskActionFlag = process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
     process.env.SF_MAINTENANCE_HIERARCHY_PROOF = "d1";
     try {
-      const postTaskRoute = async (path, body = {}, routeParams = {}) => {
+      const postTaskRoute = async (path, body = {}, routeParams = {}, selectedTaskId = taskIdRows[0].id) => {
         const handler = maintenanceTechnicianRouter.stack.find((layer) =>
           layer.route?.path === path && layer.route.methods.post,
         ).route.stack.at(-1).handle;
         let redirect;
         await handler({
           session: { user: { id: 78, role: "technician" } },
-          params: { id: String(taskIdRows[0].id), itemKey: "box_cover", ...routeParams },
+          params: { id: String(selectedTaskId), itemKey: "box_cover", ...routeParams },
           body,
         }, { redirect(path) { redirect = path; } });
         return redirect;
@@ -1257,6 +1257,30 @@ test("actual maintenance exchanges page can render the local D1 read proof", asy
         "/:id/phones/:phoneId/delete", {}, { phoneId: String(phoneRows[0].id) },
       ), `${taskUrl}#box-phones`);
       assert.equal(await postTaskRoute("/:id/complete"), taskUrl);
+
+      await executeLocalD1(`
+        INSERT INTO maintenance_exchanges(id,name) VALUES (9024,'Synthetic review closure');
+        INSERT INTO maintenance_cabinets(id,exchange_id,number) VALUES (9025,9024,'CR-1');
+        INSERT INTO maintenance_boxes(id,cabinet_id,number,status)
+          VALUES (9026,9025,'BR-1','needs_maintenance');
+        INSERT INTO maintenance_inspections(id,box_id,inspector_id,auto_created)
+          VALUES (9027,9026,78,1);
+        INSERT INTO maintenance_inspection_items(inspection_id,item_key,item_type,value)
+          VALUES (9027,'data_review','yes_no','yes');
+        INSERT INTO maintenance_tasks(id,inspection_id,status) VALUES (9028,9027,'pending');
+      `);
+      assert.equal(await postTaskRoute(
+        "/:id/items/:itemKey/toggle", {}, { itemKey: "data_review" }, 9028,
+      ), "/technician/9028");
+      assert.deepEqual(await queryLocalD1(
+        `SELECT t.status, t.technician_id, ms.is_done, ms.done_by, b.status AS box_status
+         FROM maintenance_tasks t
+         JOIN maintenance_item_status ms ON ms.task_id=t.id AND ms.item_key='data_review'
+         JOIN maintenance_boxes b ON b.id=9026 WHERE t.id=9028`,
+      ), [{
+        status: "completed", technician_id: 78, is_done: 1, done_by: 78,
+        box_status: "pending_inspection",
+      }]);
     } finally {
       maintenanceDb.get = originalTaskActionGet;
       if (oldTaskActionFlag === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;

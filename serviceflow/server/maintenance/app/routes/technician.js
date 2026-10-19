@@ -297,8 +297,9 @@ router.post('/:id/items/:itemKey/toggle', techOrAdmin, async (req, res) => {
   try {
     if (isMaintenanceHierarchyProofEnabled()) {
       await applyMaintenanceTaskAction(req.session.user, req.params.id, {
-        action: 'toggle',
-        itemKey: req.params.itemKey,
+        ...(req.params.itemKey === 'data_review'
+          ? { action: 'data-review-done' }
+          : { action: 'toggle', itemKey: req.params.itemKey }),
       });
       return res.redirect(`/technician/${req.params.id}`);
     }
