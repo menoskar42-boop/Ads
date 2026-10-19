@@ -30,6 +30,7 @@ import { nameMatch, nameMatchTokens, nameTokens, buildFirstNameIndex, NAME_MATCH
 import { registerCfmRoutes } from "./cfm/routes";
 import { storage as cfmStorage } from "./cfm/storage";
 import { createTechCoverageGrantsD1FromEnv, techCoverageGrantsUseD1 } from "./tech-coverage-grants-d1";
+import * as wfmCustomerMobilesD1 from "./wfm-customer-mobiles-d1";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
 import { loopMeters, preserveLoopLength, speedKbps } from "./loop-length";
@@ -2777,6 +2778,9 @@ export async function registerRoutes(
         sql = `SELECT MAX(reported_at) AS at FROM oss_reexecs WHERE regexp_replace(key_value, '\\D', '', 'g') = regexp_replace($1, '\\D', '', 'g')`;
       } else if (type === "wfmmobile") {
         // أى نتيجة (اتجاب / مفيش موبايل / مش موجود / فشل) معناها إن السكربت خلص الرقم
+        if (wfmCustomerMobilesD1.isEnabled()) {
+          return res.json({ at: await wfmCustomerMobilesD1.latestAt(key) });
+        }
         sql = `SELECT MAX(reported_at) AS at FROM wfm_customer_mobiles WHERE ${sp("phone_number")} = ${sp("$1")}`;
       } else return res.json({ at: null });   // wfmreport مالهاش أثر على رقم — بتعتمد على قفل التاب
       const { rows } = await pool.query(sql, [key]);
@@ -2853,11 +2857,17 @@ export async function registerRoutes(
     try {
       const who = await pool.query(
         `SELECT username FROM op_intents WHERE account = $1 AND op_type = 'wfmmobile' LIMIT 1`, [phone]);
-      const { rows } = await pool.query(
-        `INSERT INTO wfm_customer_mobiles (phone_number, mobile, alt_mobile, work_order_id, result, message, requested_by, reported_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, now()) RETURNING id`,
-        [phone, mobile, alt, String(b.workOrderId || "").replace(/\D/g, "").slice(0, 30) || null,
-         result, String(b.message || "").trim().slice(0, 500) || null, who.rows[0]?.username || null]);
+      const workOrderId = String(b.workOrderId || "").replace(/\D/g, "").slice(0, 30) || null;
+      const message = String(b.message || "").trim().slice(0, 500) || null;
+      const requestedBy = who.rows[0]?.username || null;
+      const insertedId = wfmCustomerMobilesD1.isEnabled()
+        ? (await wfmCustomerMobilesD1.append({
+          phone, mobile, altMobile: alt, workOrderId, result, message, requestedBy,
+        })).id
+        : (await pool.query(
+          `INSERT INTO wfm_customer_mobiles (phone_number, mobile, alt_mobile, work_order_id, result, message, requested_by, reported_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, now()) RETURNING id`,
+          [phone, mobile, alt, workOrderId, result, message, requestedBy])).rows[0]?.id;
       let saved = false;
       if (mobile) {
         // مابنكتبش فوق موبايل متسجّل (إدخال يدوى أو جلب قديم) — الزرار أصلاً للخطوط اللى مالهاش
@@ -2868,7 +2878,7 @@ export async function registerRoutes(
         saved = (ins.rowCount ?? 0) > 0;
         broadcast({ type: WS_EVENTS.DATA_IMPORT, payload: { key: "/api/wfm-mobile/ingest" } });
       }
-      res.json({ ok: true, id: rows[0]?.id, result, saved });
+      res.json({ ok: true, id: insertedId, result, saved });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   // آخر نتيجة جلب لكل رقم (+ التليفون البديل) — للأعطال الحالية (سوبر أدمن)
@@ -2878,18 +2888,26 @@ export async function registerRoutes(
       .filter(Boolean))).slice(0, 5000);
     if (!phones.length) return res.json({ data: {} });
     try {
-      const { rows } = await pool.query(
-        `SELECT DISTINCT ON (phone_number) phone_number AS phone, result, mobile, alt_mobile AS "altMobile",
-                message, (reported_at AT TIME ZONE 'Africa/Cairo') AS "reportedAt"
-           FROM wfm_customer_mobiles WHERE phone_number = ANY($1::text[])
-          ORDER BY phone_number, reported_at DESC`, [phones]);
-      // التليفون البديل من آخر جلب **لقاه** (محاولة فاشلة بعدها مابتمسحوش)
-      const { rows: alts } = await pool.query(
-        `SELECT DISTINCT ON (phone_number) phone_number AS phone, alt_mobile AS "altMobile"
-           FROM wfm_customer_mobiles WHERE phone_number = ANY($1::text[]) AND result = 'done'
-          ORDER BY phone_number, reported_at DESC`, [phones]);
-      const altOf = new Map(alts.map((r: any) => [r.phone, r.altMobile]));
-      res.json({ data: Object.fromEntries(rows.map((r: any) => [r.phone, { ...r, altMobile: altOf.get(r.phone) ?? null }])) });
+      if (wfmCustomerMobilesD1.isEnabled()) {
+        const rows = await wfmCustomerMobilesD1.latest(phones);
+        res.json({ data: Object.fromEntries(rows.map((row: any) => [row.phone_number, {
+          phone: row.phone_number, result: row.result, mobile: row.mobile,
+          altMobile: row.alt_mobile, message: row.message, reportedAt: row.reported_at,
+        }])) });
+      } else {
+        const { rows } = await pool.query(
+          `SELECT DISTINCT ON (phone_number) phone_number AS phone, result, mobile, alt_mobile AS "altMobile",
+                  message, (reported_at AT TIME ZONE 'Africa/Cairo') AS "reportedAt"
+             FROM wfm_customer_mobiles WHERE phone_number = ANY($1::text[])
+            ORDER BY phone_number, reported_at DESC`, [phones]);
+        // التليفون البديل من آخر جلب **لقاه** (محاولة فاشلة بعدها مابتمسحوش)
+        const { rows: alts } = await pool.query(
+          `SELECT DISTINCT ON (phone_number) phone_number AS phone, alt_mobile AS "altMobile"
+             FROM wfm_customer_mobiles WHERE phone_number = ANY($1::text[]) AND result = 'done'
+            ORDER BY phone_number, reported_at DESC`, [phones]);
+        const altOf = new Map(alts.map((r: any) => [r.phone, r.altMobile]));
+        res.json({ data: Object.fromEntries(rows.map((r: any) => [r.phone, { ...r, altMobile: altOf.get(r.phone) ?? null }])) });
+      }
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -3296,11 +3314,15 @@ export async function registerRoutes(
 
       // جلب الموبايل من WFM: آخر نتيجة لكل رقم
       const wmKeys = keysOf("wfmmobile").map(short);
-      const wmo = wmKeys.length ? M<any>((await pool.query(
-        `SELECT DISTINCT ON (phone_number) phone_number AS k, result, mobile, alt_mobile, message, reported_at
-           FROM wfm_customer_mobiles WHERE phone_number = ANY($1::text[])
-          ORDER BY phone_number, reported_at DESC`, [wmKeys])).rows,
-        (r) => String(r.k)) : new Map();
+      const wmoRows = wmKeys.length
+        ? (wfmCustomerMobilesD1.isEnabled()
+          ? await wfmCustomerMobilesD1.latest(wmKeys)
+          : (await pool.query(
+            `SELECT DISTINCT ON (phone_number) phone_number AS k, result, mobile, alt_mobile, message, reported_at
+               FROM wfm_customer_mobiles WHERE phone_number = ANY($1::text[])
+              ORDER BY phone_number, reported_at DESC`, [wmKeys])).rows)
+        : [];
+      const wmo = M<any>(wmoRows, (r) => String(r.k ?? r.phone_number));
 
       // Re-Execute على OSS: آخر نتيجة لكل رقم/Service Order ID
       const rxKeys = keysOf("ossreexec").map((k: string) => String(k).replace(/\D/g, ""));
@@ -3512,6 +3534,7 @@ export async function registerRoutes(
    */
   const autoFetchCurrentFaultMobiles = async (trigger: string) => {
     try {
+      const useD1WfmMobile = wfmCustomerMobilesD1.isEnabled();
       const { rows } = await pool.query(
         `WITH cf AS (
            SELECT DISTINCT ${sp("t.phone_number")} AS short
@@ -3529,12 +3552,19 @@ export async function registerRoutes(
                               AND wc.mobile !~ '[A-Za-z=/]' AND wc.mobile ~ '[0-9]{5,}')
             AND NOT EXISTS (SELECT 1 FROM ftth_orders_current fo WHERE fo.service_number IN (cf.short, '88' || cf.short)
                               AND fo.customer_mobile !~ '[A-Za-z=/]' AND fo.customer_mobile ~ '[0-9]{5,}')
-            AND NOT EXISTS (SELECT 1 FROM wfm_customer_mobiles w WHERE w.phone_number = cf.short
-                              AND (w.reported_at > now() - interval '3 hours'
-                                   OR (w.result IN ('no_mobile', 'not_found') AND w.reported_at > now() - interval '24 hours')))
+             ${useD1WfmMobile ? "" : `AND NOT EXISTS (SELECT 1 FROM wfm_customer_mobiles w WHERE w.phone_number = cf.short
+                               AND (w.reported_at > now() - interval '3 hours'
+                                    OR (w.result IN ('no_mobile', 'not_found') AND w.reported_at > now() - interval '24 hours')))`}
             AND ${notQueuedSql("cf.short", ["wfmmobile"])}
           ORDER BY 1`);
-      const phones = rows.map((r: any) => String(r.short)).filter(Boolean);
+      let phones = rows.map((r: any) => String(r.short)).filter(Boolean);
+      if (useD1WfmMobile && phones.length) {
+        const suppressions = await wfmCustomerMobilesD1.recentSuppression(phones);
+        const suppressed = new Set(suppressions
+          .filter((row: any) => row.attempted_recently || row.no_mobile_recently)
+          .map((row: any) => row.phone_number));
+        phones = phones.filter((phone: string) => !suppressed.has(phone));
+      }
       const b = await enqueueAutoBatch("wfmmobile", phones, "جلب الموبايل من WFM — أعطال حالية بدون موبايل (بعد تحديث الأعطال الحالية)");
       if (b.count) console.log(`[wfm-mobile-auto] (${trigger}): ${b.count} رقم اتضافوا للطابور`);
       return b;
@@ -4215,6 +4245,12 @@ export async function registerRoutes(
     const total = accs.length;
     if (!total || !claimedAt) return { done: 0, total };
     let q: string;
+    if (type === "wfmmobile" && wfmCustomerMobilesD1.isEnabled()) {
+      try {
+        const done = await wfmCustomerMobilesD1.progress(accs, claimedAt);
+        return { done: Math.min(done, total), total };
+      } catch { return { done: 0, total }; }
+    }
     if (type === "measure") {
       q = `SELECT COUNT(DISTINCT account_no)::int AS n FROM case_138 WHERE account_no = ANY($1::text[]) AND uploaded_at >= $2`;
     } else if (type === "c360") {
@@ -4256,6 +4292,13 @@ export async function registerRoutes(
     let accs: string[] = [];
     try { accs = (Array.isArray(accountsRaw) ? accountsRaw : JSON.parse(accountsRaw || "[]")).map((a: any) => String(a).trim()).filter(Boolean); } catch { accs = []; }
     if (!accs.length || !claimedAt) return accs;
+    if (type === "wfmmobile" && wfmCustomerMobilesD1.isEnabled()) {
+      try {
+        const normalized = accs.map((account) => account.replace(/\D/g, "").replace(/^88/, ""));
+        const done = await wfmCustomerMobilesD1.completedPhones(normalized, claimedAt);
+        return accs.filter((account, index) => !done.has(normalized[index]));
+      } catch { return accs; }
+    }
     let q: string;
     if (type === "measure") {
       q = `SELECT DISTINCT account_no FROM case_138 WHERE account_no = ANY($1::text[]) AND uploaded_at >= $2`;

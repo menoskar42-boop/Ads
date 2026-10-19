@@ -146,27 +146,5 @@
       "notes": null,
       "created_at": "2026-10-18T08:21:00Z"
     }
-  ],
-  "box_fault_tickets": [
-    {
-      "id": 77,
-      "source": "طلبات",
-      "ref_key": "synthetic-import-box-ref",
-      "central_name": "Imported synthetic central",
-      "cabin_number": "CAB-01",
-      "box_number": "BOX-01",
-      "tech_name": "Synthetic technician",
-      "responded_at": "2026-10-18T08:22:00Z",
-      "ticket_id": "synthetic-import-ticket",
-      "ticket_number": "TKT-2026-IMPORT-001",
-      "created_at": "2026-10-18T08:22:00Z",
-      "repair_confirm": null,
-      "repair_confirm_by": null,
-      "repair_confirm_at": null,
-      "repair_confirm_note": null,
-      "reopened_ticket_number": null,
-      "reopened_by": null,
-      "reopened_at": null
-    }
   ]
 }

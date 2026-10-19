@@ -16,7 +16,6 @@ const TABLES = [
   { key: "work_entries", required: ["id", "ticket_id", "items", "performed_by", "created_by", "recorded_at", "created_at"] },
   { key: "used_task_entries", required: ["id", "ticket_id", "items", "performed_by", "created_by", "recorded_at", "created_at"] },
   { key: "inventory_transactions", required: ["id", "type", "task_type_id", "quantity", "date", "created_at"] },
-  { key: "box_fault_tickets", required: ["source", "ref_key", "created_at"], keyColumns: ["source", "ref_key"] },
 ];
 const COLUMNS = {
   centrals: ["id", "name", "code", "created_at"],
@@ -32,7 +31,6 @@ const COLUMNS = {
   work_entries: ["id", "ticket_id", "measurement_id", "items", "notes", "performed_by", "works_by", "contractor_id", "created_by", "recorded_at", "created_at"],
   used_task_entries: ["id", "ticket_id", "measurement_id", "items", "notes", "performed_by", "created_by", "recorded_at", "created_at"],
   inventory_transactions: ["id", "type", "task_type_id", "quantity", "date", "ticket_id", "notes", "created_at"],
-  box_fault_tickets: ["id", "source", "ref_key", "central_name", "cabin_number", "box_number", "tech_name", "responded_at", "ticket_id", "ticket_number", "created_at", "repair_confirm", "repair_confirm_by", "repair_confirm_at", "repair_confirm_note", "reopened_ticket_number", "reopened_by", "reopened_at"],
 };
 const UNIQUE_KEYS = {
   centrals: [["id"], ["code"]],
@@ -48,7 +46,6 @@ const UNIQUE_KEYS = {
   work_entries: [["id"]],
   used_task_entries: [["id"]],
   inventory_transactions: [["id"]],
-  box_fault_tickets: [["id"], ["source", "ref_key"]],
 };
 const BOOLEAN_COLUMNS = new Set();
 const JSON_COLUMNS = new Set(["associated_materials", "items"]);

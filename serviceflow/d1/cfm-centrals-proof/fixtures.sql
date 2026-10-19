@@ -1,13 +1,13 @@
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE centrals (
+CREATE TABLE IF NOT EXISTS centrals (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,
   code TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL
 );
 
-CREATE TABLE cables (
+CREATE TABLE IF NOT EXISTS cables (
   id TEXT PRIMARY KEY NOT NULL,
   central_id TEXT NOT NULL REFERENCES centrals(id) ON DELETE CASCADE,
   number TEXT NOT NULL,
@@ -18,40 +18,40 @@ CREATE TABLE cables (
   UNIQUE (central_id, number)
 );
 
-CREATE TABLE fault_types (
+CREATE TABLE IF NOT EXISTS fault_types (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,
   category TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE work_types (
+CREATE TABLE IF NOT EXISTS work_types (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,
   associated_materials TEXT CHECK (associated_materials IS NULL OR json_valid(associated_materials)),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE task_types (
+CREATE TABLE IF NOT EXISTS task_types (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE contractors (
+CREATE TABLE IF NOT EXISTS contractors (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE excavation_workers (
+CREATE TABLE IF NOT EXISTS excavation_workers (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,
   national_id TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE tech_coverage_grants (
+CREATE TABLE IF NOT EXISTS tech_coverage_grants (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   grantee_tech_name TEXT NOT NULL,
   covered_tech_name TEXT NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE tech_coverage_grants (
   UNIQUE (grantee_tech_name, covered_tech_name)
 );
 
-CREATE TABLE tickets (
+CREATE TABLE IF NOT EXISTS tickets (
   id TEXT PRIMARY KEY NOT NULL,
   ticket_number TEXT NOT NULL UNIQUE,
   central_department TEXT NOT NULL,
@@ -84,9 +84,9 @@ CREATE TABLE tickets (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX ticket_number_idx ON tickets(ticket_number);
-CREATE INDEX status_idx ON tickets(status);
-CREATE TABLE ticket_box_claims (
+CREATE INDEX IF NOT EXISTS ticket_number_idx ON tickets(ticket_number);
+CREATE INDEX IF NOT EXISTS status_idx ON tickets(status);
+CREATE TABLE IF NOT EXISTS ticket_box_claims (
   central_key TEXT NOT NULL,
   cabinet_key TEXT NOT NULL,
   box_key TEXT NOT NULL,
@@ -94,7 +94,7 @@ CREATE TABLE ticket_box_claims (
   PRIMARY KEY (central_key, cabinet_key, box_key)
 );
 
-CREATE TABLE measurement_entries (
+CREATE TABLE IF NOT EXISTS measurement_entries (
   id TEXT PRIMARY KEY NOT NULL,
   ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
   reading TEXT NOT NULL,
@@ -107,7 +107,7 @@ CREATE TABLE measurement_entries (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE work_entries (
+CREATE TABLE IF NOT EXISTS work_entries (
   id TEXT PRIMARY KEY NOT NULL,
   ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
   measurement_id TEXT REFERENCES measurement_entries(id) ON DELETE CASCADE,
@@ -121,7 +121,7 @@ CREATE TABLE work_entries (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE used_task_entries (
+CREATE TABLE IF NOT EXISTS used_task_entries (
   id TEXT PRIMARY KEY NOT NULL,
   ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
   measurement_id TEXT REFERENCES measurement_entries(id) ON DELETE CASCADE,
@@ -133,7 +133,7 @@ CREATE TABLE used_task_entries (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE inventory_transactions (
+CREATE TABLE IF NOT EXISTS inventory_transactions (
   id TEXT PRIMARY KEY NOT NULL,
   type TEXT NOT NULL,
   task_type_id TEXT NOT NULL REFERENCES task_types(id),
@@ -144,7 +144,7 @@ CREATE TABLE inventory_transactions (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE box_fault_tickets (
+CREATE TABLE IF NOT EXISTS box_fault_tickets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source TEXT NOT NULL,
   ref_key TEXT NOT NULL,
@@ -165,7 +165,7 @@ CREATE TABLE box_fault_tickets (
   reopened_at TEXT,
   UNIQUE (source, ref_key)
 );
-CREATE INDEX box_fault_tickets_ticket_idx ON box_fault_tickets(ticket_id);
+CREATE INDEX IF NOT EXISTS box_fault_tickets_ticket_idx ON box_fault_tickets(ticket_id);
 
 INSERT INTO centrals (id, name, code, created_at) VALUES
   ('proof-central-1', 'مركز تجريبي أول', 'PROOF-001', '2026-10-18T08:00:00.000Z'),

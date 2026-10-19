@@ -1,6 +1,8 @@
 const CONTEXT_HEADER = "x-sf-cfm-context";
 const SIGNATURE_HEADER = "x-sf-cfm-signature";
 const encoder = new TextEncoder();
+const WFM_MOBILE_RESULTS = new Set(["done", "no_mobile", "not_found", "failed"]);
+const WFM_PHONE = /^\d{1,32}$/;
 
 function decodeBase64Url(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -611,6 +613,7 @@ export default {
     const ticketEntryId = ticketEntryMatch?.[2] ? decodeURIComponent(ticketEntryMatch[2]) : null;
     const ticketEntryRoute = Boolean(ticketEntryKind);
     const inventoryRoute = url.pathname === "/api/cfm/inventory-transactions";
+    const wfmCustomerMobilesRoute = url.pathname === "/api/serviceflow/wfm-customer-mobiles";
     const maintenanceCabinetCodesRoute = url.pathname === "/api/maintenance/cabinet-codes";
     const maintenanceExchangesRoute = url.pathname === "/api/maintenance/hierarchy/exchanges";
     const maintenanceExchangeMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/exchanges\/(\d+)$/);
@@ -629,7 +632,7 @@ export default {
     const maintenanceTasksRoute = url.pathname === "/api/maintenance/hierarchy/tasks";
     const maintenanceTaskMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/tasks\/(\d+)$/);
     const maintenanceTaskActionMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/tasks\/(\d+)\/action$/);
-    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceExchangeMatch && !maintenanceCabinetsMatch && !maintenanceCabinetMatch && !maintenanceBoxesRoute && !maintenanceBoxMatch && !maintenanceBoxLocationMatch && !maintenanceCabinetBoxesMatch && !maintenanceInspectionsRoute && !maintenanceInspectionMatch && !maintenanceInspectionLocationMatch && !maintenancePhotosRoute && !maintenancePhotoByFilenameMatch && !maintenancePhotoMatch && !maintenanceTasksRoute && !maintenanceTaskMatch && !maintenanceTaskActionMatch) {
+    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !wfmCustomerMobilesRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceExchangeMatch && !maintenanceCabinetsMatch && !maintenanceCabinetMatch && !maintenanceBoxesRoute && !maintenanceBoxMatch && !maintenanceBoxLocationMatch && !maintenanceCabinetBoxesMatch && !maintenanceInspectionsRoute && !maintenanceInspectionMatch && !maintenanceInspectionLocationMatch && !maintenancePhotosRoute && !maintenancePhotoByFilenameMatch && !maintenancePhotoMatch && !maintenanceTasksRoute && !maintenanceTaskMatch && !maintenanceTaskActionMatch) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
     if ((userByUsername && request.method !== "GET") ||
@@ -641,6 +644,7 @@ export default {
         (taskInventoryRoute && !["GET", "POST", "DELETE"].includes(request.method)) ||
         (ticketEntryRoute && !["GET", "POST", "DELETE"].includes(request.method)) ||
         (inventoryRoute && !["GET", "POST"].includes(request.method)) ||
+        (wfmCustomerMobilesRoute && request.method !== "POST") ||
         (maintenanceCabinetCodesRoute && request.method !== "GET") ||
         (maintenanceExchangesRoute && !["GET", "POST"].includes(request.method)) ||
         (maintenanceExchangeMatch && request.method !== "DELETE") ||
@@ -702,6 +706,111 @@ export default {
     if (!claims) return unauthorized();
 
     try {
+      if (wfmCustomerMobilesRoute) {
+        if (claims.role !== "system" || claims.sub !== "serviceflow-wfm-customer-mobiles") {
+          return Response.json({ error: "Forbidden" }, { status: 403 });
+        }
+        let body;
+        try { body = await request.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
+        if (!body || typeof body !== "object" || Array.isArray(body) ||
+            typeof body.operation !== "string") {
+          return Response.json({ error: "Invalid WFM operation" }, { status: 400 });
+        }
+        if (body.operation === "append") {
+          const allowed = ["operation", "phone", "mobile", "altMobile", "workOrderId", "result", "message", "requestedBy"];
+          if (Object.keys(body).some((key) => !allowed.includes(key)) ||
+              typeof body.phone !== "string" || !WFM_PHONE.test(body.phone) ||
+              !WFM_MOBILE_RESULTS.has(body.result) ||
+              ["mobile", "altMobile", "workOrderId", "message", "requestedBy"].some((key) =>
+                body[key] != null && typeof body[key] !== "string") ||
+              (body.workOrderId != null && body.workOrderId.length > 30) ||
+              (body.message != null && body.message.length > 500) ||
+              (body.requestedBy != null && body.requestedBy.length > 255)) {
+            return Response.json({ error: "Invalid WFM result" }, { status: 400 });
+          }
+          const inserted = await env.DB.prepare(
+            `INSERT INTO wfm_customer_mobiles
+              (phone_number,mobile,alt_mobile,work_order_id,result,message,requested_by,reported_at)
+             VALUES (?,?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now')) RETURNING id`,
+          ).bind(body.phone, body.mobile ?? null, body.altMobile ?? null, body.workOrderId ?? null,
+            body.result, body.message ?? null, body.requestedBy ?? null).first();
+          if (!inserted || !Number.isSafeInteger(inserted.id)) {
+            return Response.json({ error: "WFM insert failed" }, { status: 500 });
+          }
+          return Response.json({ id: inserted.id });
+        }
+        if (body.operation === "latest_at") {
+          if (typeof body.phone !== "string" || !WFM_PHONE.test(body.phone) ||
+              Object.keys(body).some((key) => !["operation", "phone"].includes(key))) {
+            return Response.json({ error: "Invalid WFM phone" }, { status: 400 });
+          }
+          const row = await env.DB.prepare(
+            `SELECT reported_at AS at FROM wfm_customer_mobiles WHERE phone_number=?
+              ORDER BY julianday(reported_at) DESC,id DESC LIMIT 1`,
+          ).bind(body.phone).first();
+          return Response.json({ at: row?.at ?? null });
+        }
+        const phones = body.phones;
+        if (!Array.isArray(phones) || phones.length > 5000 ||
+            phones.some((phone) => typeof phone !== "string" || !WFM_PHONE.test(phone))) {
+          return Response.json({ error: "Invalid WFM phone list" }, { status: 400 });
+        }
+        if (phones.length === 0) return Response.json(body.operation === "latest" || body.operation === "recent_suppression" ? [] : body.operation === "progress" ? { done: 0 } : []);
+        const placeholders = phones.map(() => "?").join(",");
+        if (body.operation === "latest") {
+          const { results } = await env.DB.prepare(
+            `WITH selected AS (
+               SELECT phone_number,mobile,alt_mobile,result,message,reported_at,id
+                 FROM wfm_customer_mobiles WHERE phone_number IN (${placeholders})
+             ),
+             latest AS (
+               SELECT *, ROW_NUMBER() OVER (PARTITION BY phone_number ORDER BY julianday(reported_at) DESC,id DESC) AS rn
+                 FROM selected
+             ),
+             latest_success AS (
+               SELECT phone_number,alt_mobile,
+                      ROW_NUMBER() OVER (PARTITION BY phone_number ORDER BY julianday(reported_at) DESC,id DESC) AS rn
+                 FROM selected WHERE result='done'
+             )
+             SELECT l.phone_number,l.result,l.mobile,s.alt_mobile,l.message,l.reported_at
+               FROM latest l LEFT JOIN latest_success s
+                 ON s.phone_number=l.phone_number AND s.rn=1
+              WHERE l.rn=1`,
+          ).bind(...phones).all();
+          return Response.json(results);
+        }
+        if (body.operation === "progress" || body.operation === "completed_phones") {
+          const claimedAt = new Date(body.claimedAt);
+          if (!Number.isFinite(claimedAt.valueOf()) ||
+              Object.keys(body).some((key) => !["operation", "phones", "claimedAt"].includes(key))) {
+            return Response.json({ error: "Invalid WFM progress time" }, { status: 400 });
+          }
+          if (body.operation === "progress") {
+            const row = await env.DB.prepare(
+              `SELECT COUNT(DISTINCT phone_number) AS done FROM wfm_customer_mobiles
+                WHERE phone_number IN (${placeholders}) AND julianday(reported_at) >= julianday(?)`,
+            ).bind(...phones, claimedAt.toISOString()).first();
+            return Response.json({ done: row?.done ?? 0 });
+          }
+          const { results } = await env.DB.prepare(
+            `SELECT DISTINCT phone_number FROM wfm_customer_mobiles
+              WHERE phone_number IN (${placeholders}) AND julianday(reported_at) >= julianday(?)`,
+          ).bind(...phones, claimedAt.toISOString()).all();
+          return Response.json(results.map((row) => row.phone_number));
+        }
+        if (body.operation === "recent_suppression") {
+          const { results } = await env.DB.prepare(
+            `SELECT phone_number,
+                    MAX(CASE WHEN julianday(reported_at) >= julianday('now','-3 hours') THEN 1 ELSE 0 END) AS attempted_recently,
+                    MAX(CASE WHEN result IN ('no_mobile','not_found')
+                              AND julianday(reported_at) >= julianday('now','-24 hours') THEN 1 ELSE 0 END) AS no_mobile_recently
+               FROM wfm_customer_mobiles WHERE phone_number IN (${placeholders})
+              GROUP BY phone_number`,
+          ).bind(...phones).all();
+          return Response.json(results);
+        }
+        return Response.json({ error: "Unsupported WFM operation" }, { status: 400 });
+      }
       if (maintenanceCabinetCodesRoute) {
         if (!["admin", "inspector", "technician"].includes(claims.role)) {
           return Response.json({ error: "Forbidden" }, { status: 403 });

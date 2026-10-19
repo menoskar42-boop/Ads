@@ -27,6 +27,7 @@ const maintenanceDb = maintenanceDatabase.default;
 const maintenanceBoxes = await import("../../../server/maintenance/app/routes/boxes.js");
 const maintenanceBoxesRouter = maintenanceBoxes.default;
 const maintenanceHierarchy = await import("../../../server/maintenance/app/utils/d1-hierarchy.js");
+const wfmCustomerMobilesD1 = await import("../../../server/wfm-customer-mobiles-d1.ts");
 const maintenanceAdmin = await import("../../../server/maintenance/app/routes/admin.js");
 const maintenanceAdminRouter = maintenanceAdmin.default;
 const maintenanceInspector = await import("../../../server/maintenance/app/routes/inspector.js");
@@ -199,6 +200,14 @@ async function queryLocalD1(sql) {
   return JSON.parse(output)[0].results;
 }
 
+async function queryLocalD1At(persistDir, sql) {
+  const output = await runWrangler([
+    "d1", "execute", "serviceflow-cfm-centrals-proof",
+    "--local", "--persist-to", persistDir, "--command", sql, "--json", "--yes",
+  ]);
+  return JSON.parse(output)[0].results;
+}
+
 before(async () => {
   savedMasterDataFlag = process.env.SF_CFM_MASTER_DATA_STORAGE;
   savedTicketMutationFlag = process.env.SF_CFM_TICKET_MUTATIONS_STORAGE;
@@ -288,6 +297,14 @@ before(async () => {
   ]);
   await runWrangler([
     "d1", "execute", "serviceflow-cfm-centrals-proof",
+    "--local", "--persist-to", stateDir, "--file", "../../migrations/0006_wfm_customer_mobiles.sql", "--yes",
+  ]);
+  await runWrangler([
+    "d1", "execute", "serviceflow-cfm-centrals-proof",
+    "--local", "--persist-to", stateDir, "--file", "../../migrations/0007_cfm_non_user_cluster.sql", "--yes",
+  ]);
+  await runWrangler([
+    "d1", "execute", "serviceflow-cfm-centrals-proof",
     "--local", "--persist-to", stateDir, "--file", "../fixtures.sql", "--yes",
   ]);
   const maintenanceExport = convertMaintenanceCabinetCodesExport({
@@ -324,7 +341,7 @@ before(async () => {
   const countTables = [
     "cfm_users", "centrals", "cables", "fault_types", "work_types", "task_types",
     "contractors", "excavation_workers", "tech_coverage_grants", "tickets", "measurement_entries",
-    "work_entries", "used_task_entries", "inventory_transactions", "box_fault_tickets",
+    "work_entries", "used_task_entries", "inventory_transactions",
   ];
   const countRows = [];
   for (let offset = 0; offset < countTables.length; offset += 4) {
@@ -336,7 +353,7 @@ before(async () => {
   for (const table of [
     "cables", "fault_types", "work_types", "task_types", "contractors",
     "excavation_workers", "tech_coverage_grants", "tickets", "measurement_entries", "work_entries",
-    "used_task_entries", "inventory_transactions", "box_fault_tickets",
+    "used_task_entries", "inventory_transactions",
   ]) assert.equal(importedCounts.get(table), 1, `${table} import count`);
   assert.equal(importedCounts.get("cfm_users"), 3, "only local synthetic users are present");
   assert.equal(importedCounts.get("centrals"), 3, "central count includes two local base fixtures and one imported row");
@@ -357,12 +374,6 @@ before(async () => {
   assert.equal(importedWork.measurement_id, "synthetic-import-measurement");
   assert.deepEqual(JSON.parse(importedWork.items), [{ quantity: 1, workTypeId: "synthetic-import-work" }]);
   assert.equal(importedWork.contractor_id, "synthetic-import-contractor");
-  const [importedBoxFault] = await queryLocalD1(
-    "SELECT id, source, ref_key, ticket_id, ticket_number FROM box_fault_tickets WHERE ref_key = 'synthetic-import-box-ref'",
-  );
-  assert.equal(importedBoxFault.id, 77);
-  assert.equal(importedBoxFault.ticket_id, importedTicket.id);
-  assert.equal(importedBoxFault.ticket_number, importedTicket.ticket_number);
   const [importedCoverageGrant] = await queryLocalD1(
     "SELECT id, grantee_tech_name, covered_tech_name FROM tech_coverage_grants WHERE id = 77",
   );
@@ -678,6 +689,9 @@ test("PostgreSQL export converter is deterministic and rejects unsafe or unstabl
   assert.throws(() => convertPgExportToD1Sql({
     cfm_users: [{ id: "bad-bool", username: "u", password: "hash", name: "U", role: "admin",
       is_initial_password: "yes", created_at: "2026-10-18" }],
+  }), /Unsupported export tables/);
+  assert.throws(() => convertPgExportToD1Sql({
+    box_fault_tickets: [{ source: "OM", ref_key: "linked-to-serviceflow" }],
   }), /Unsupported export tables/);
 });
 
@@ -1060,7 +1074,7 @@ test("actual maintenance exchanges page can render the local D1 read proof", asy
     const boxPhotos = await maintenanceHierarchy.default.getMaintenancePhotosForBox(
       { id: 77, role: "inspector" }, 9003,
     );
-    assert.equal(boxPhotos.length, 2);
+    assert.ok(boxPhotos.some((photo) => photo.id === 9010), "the local D1 photo must be returned");
     assert.equal(
       boxPhotos.find((photo) => photo.id === 9010)?.storage_key,
       "maintenance/synthetic-before.jpg",
@@ -1783,5 +1797,76 @@ test("actual CFM inventory routes list and add incoming stock through D1", async
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
+  }
+});
+
+test("synthetic WFM customer-mobile history uses the signed local D1 proof API", async () => {
+  const envKeys = [
+    "SF_D1_WORKER_URL", "SF_D1_SERVICE_TOKEN", "SF_D1_CONTEXT_SECRET", "SF_D1_CONTEXT_AUDIENCE",
+  ];
+  const previous = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+  process.env.SF_D1_WORKER_URL = workerUrl;
+  process.env.SF_D1_SERVICE_TOKEN = serviceToken;
+  process.env.SF_D1_CONTEXT_SECRET = contextSecret;
+  process.env.SF_D1_CONTEXT_AUDIENCE = audience;
+  const phone = "9753108642";
+  try {
+    await wfmCustomerMobilesD1.append({
+      phone, result: "done", mobile: "01012345678", altMobile: "01112345678",
+      workOrderId: "123456", message: "synthetic success", requestedBy: "synthetic-admin",
+    });
+    await wfmCustomerMobilesD1.append({
+      phone, result: "failed", message: "synthetic retry", requestedBy: "synthetic-admin",
+    });
+    await wfmCustomerMobilesD1.append({
+      phone, result: "no_mobile", message: "synthetic no mobile", requestedBy: "synthetic-admin",
+    });
+
+    const latest = await wfmCustomerMobilesD1.latest([phone]);
+    assert.equal(latest.length, 1);
+    assert.equal(latest[0].result, "no_mobile");
+    assert.equal(latest[0].alt_mobile, "01112345678", "a later failed attempt must not erase the last successful alternate");
+    assert.equal(await wfmCustomerMobilesD1.latestAt(phone) !== null, true);
+    const claimedAt = new Date(Date.now() - 60_000);
+    assert.equal(await wfmCustomerMobilesD1.progress([phone], claimedAt), 1);
+    assert.deepEqual([...await wfmCustomerMobilesD1.completedPhones([phone], claimedAt)], [phone]);
+    const suppressions = await wfmCustomerMobilesD1.recentSuppression([phone]);
+    assert.equal(suppressions[0].attempted_recently, 1);
+    assert.equal(suppressions[0].no_mobile_recently, 1);
+    await assert.rejects(wfmCustomerMobilesD1.latest(["not-a-phone"]));
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test("CFM non-user migration builds relational D1 schema without users, queues, or cross-system box tickets", async () => {
+  const migrationState = await mkdtemp(join(tmpdir(), "serviceflow-cfm-non-user-schema-"));
+  try {
+    await runWrangler([
+      "d1", "execute", "serviceflow-cfm-centrals-proof",
+      "--local", "--persist-to", migrationState,
+      "--file", "../../migrations/0007_cfm_non_user_cluster.sql", "--yes",
+    ]);
+    const tables = await queryLocalD1At(migrationState,
+      "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
+    const names = new Set(tables.map((row) => row.name));
+    for (const table of [
+      "centrals", "cables", "fault_types", "work_types", "task_types",
+      "contractors", "excavation_workers", "tickets", "ticket_box_claims",
+      "measurement_entries", "work_entries", "used_task_entries",
+      "inventory_transactions", "tech_coverage_grants",
+    ]) assert.ok(names.has(table), `Expected migrated table ${table}`);
+    for (const table of ["cfm_users", "users", "exec_jobs", "exec_followups", "sf_session", "box_fault_tickets"]) {
+      assert.ok(!names.has(table), `Must not migrate protected or cross-system table ${table}`);
+    }
+    const ticketFks = await queryLocalD1At(migrationState, "PRAGMA foreign_key_list('tickets')");
+    assert.deepEqual(new Set(ticketFks.map((fk) => fk.table)), new Set(["centrals", "cables", "fault_types"]));
+    const workEntryFks = await queryLocalD1At(migrationState, "PRAGMA foreign_key_list('work_entries')");
+    assert.ok(!workEntryFks.some((fk) => fk.table === "cfm_users"), "author IDs must not create D1 user dependencies");
+  } finally {
+    await rm(migrationState, { recursive: true, force: true });
   }
 });
