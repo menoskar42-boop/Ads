@@ -17,6 +17,7 @@ const DATA_DIR = require("./utils/datadir");
 const db = require("./database");
 const r2 = require("./utils/r2");
 const basePath = require("./basepath");
+const { getMaintenancePhotoForDelivery, isMaintenanceHierarchyProofEnabled } = require("./utils/d1-hierarchy");
 
 const BASE_PATH = (process.env.MAINTENANCE_BASE_PATH || "/maintenance").replace(/\/+$/, "");
 const MAINT_DB_URL = process.env.MAINTENANCE_DATABASE_URL || process.env.DATABASE_URL;
@@ -101,7 +102,11 @@ app.get("/uploads/:filename", async (req, res) => {
    * نفسها بترمى. دلوقتى كل حالة بتقول نفسها فى اللوج. */
   let row = null;
   try {
-    row = await db.get("SELECT data, storage_key, media_type FROM photos WHERE filename = ?", [filename]);
+    if (isMaintenanceHierarchyProofEnabled()) {
+      row = await getMaintenancePhotoForDelivery(filename);
+    } else {
+      row = await db.get("SELECT data, storage_key, media_type FROM photos WHERE filename = ?", [filename]);
+    }
   } catch (e) {
     console.error(`[maintenance] /uploads/${filename}: فشل قراءة الصورة من القاعدة:`, e.message);
     return res.status(500).end();

@@ -9,6 +9,7 @@ const {
   createMaintenanceBox,
   createMaintenanceCabinet,
   createMaintenanceExchange,
+  deleteMaintenancePhoto,
   deleteMaintenanceCabinet,
   deleteMaintenanceExchange,
   getMaintenanceBoxes,
@@ -18,6 +19,7 @@ const {
   getMaintenanceExchanges,
   isMaintenanceHierarchyProofEnabled,
   updateMaintenanceBoxLocation,
+  updateMaintenancePhotoLocation,
 } = require('../utils/d1-hierarchy');
 const { requireLogin, requireRole } = require('../middleware/auth');
 
@@ -450,9 +452,11 @@ router.post('/photos/:photoId/delete', requireLogin, async (req, res) => {
   if (String(u.sf_role || '') !== 'super_admin') {
     return res.status(403).json({ ok: false, msg: 'حذف الصور للسوبر أدمن بس.' });
   }
-  const photo = await db.get('SELECT id, box_id, filename, storage_key, photo_type FROM photos WHERE id = ?', [req.params.photoId]);
+  const photo = isMaintenanceHierarchyProofEnabled()
+    ? await deleteMaintenancePhoto(req.session.user, req.params.photoId)
+    : await db.get('SELECT id, box_id, filename, storage_key, photo_type FROM photos WHERE id = ?', [req.params.photoId]);
   if (!photo) return res.status(404).json({ ok: false, msg: 'الصورة غير موجودة.' });
-  await db.run('DELETE FROM photos WHERE id = ?', [photo.id]);
+  if (!isMaintenanceHierarchyProofEnabled()) await db.run('DELETE FROM photos WHERE id = ?', [photo.id]);
   await removeMediaFiles([photo], path.join(DATA_DIR, 'uploads'));
   console.log(`[maintenance] 🗑️ صورة اتمسحت: #${photo.id} ${photo.filename} (بوكس ${photo.box_id}، ${photo.photo_type}) — بواسطة ${u.full_name || u.username || u.id}`);
   res.json({ ok: true });
@@ -461,10 +465,21 @@ router.post('/photos/:photoId/delete', requireLogin, async (req, res) => {
 router.post('/photos/:photoId/location', requireLogin, async (req, res) => {
   const { lat, lng } = req.body;
   if (!lat || !lng) return res.status(400).json({ ok: false, msg: 'لا توجد إحداثيات.' });
-  const photo = await db.get('SELECT id FROM photos WHERE id = ?', [req.params.photoId]);
-  if (!photo) return res.status(404).json({ ok: false, msg: 'الصورة غير موجودة.' });
-  await db.run('UPDATE photos SET latitude=?, longitude=? WHERE id=?', [parseFloat(lat), parseFloat(lng), req.params.photoId]);
-  res.json({ ok: true, lat: parseFloat(lat), lng: parseFloat(lng) });
+  const latitude = parseFloat(lat);
+  const longitude = parseFloat(lng);
+  if (isMaintenanceHierarchyProofEnabled()) {
+    try {
+      await updateMaintenancePhotoLocation(req.session.user, req.params.photoId, latitude, longitude);
+    } catch (error) {
+      if (error.status === 404) return res.status(404).json({ ok: false, msg: 'الصورة غير موجودة.' });
+      return res.status(400).json({ ok: false, msg: error.message });
+    }
+  } else {
+    const photo = await db.get('SELECT id FROM photos WHERE id = ?', [req.params.photoId]);
+    if (!photo) return res.status(404).json({ ok: false, msg: 'الصورة غير موجودة.' });
+    await db.run('UPDATE photos SET latitude=?, longitude=? WHERE id=?', [latitude, longitude, req.params.photoId]);
+  }
+  res.json({ ok: true, lat: latitude, lng: longitude });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

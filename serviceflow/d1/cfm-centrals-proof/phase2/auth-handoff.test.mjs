@@ -26,6 +26,10 @@ const maintenanceDatabase = await import("../../../server/maintenance/app/databa
 const maintenanceDb = maintenanceDatabase.default;
 const maintenanceBoxes = await import("../../../server/maintenance/app/routes/boxes.js");
 const maintenanceBoxesRouter = maintenanceBoxes.default;
+const maintenanceInspector = await import("../../../server/maintenance/app/routes/inspector.js");
+const maintenanceInspectorRouter = maintenanceInspector.default;
+const maintenanceTechnician = await import("../../../server/maintenance/app/routes/technician.js");
+const maintenanceTechnicianRouter = maintenanceTechnician.default;
 const maintenanceReports = await import("../../../server/maintenance/app/routes/reports.js");
 const maintenanceReportsRouter = maintenanceReports.default;
 const { ServiceFlowTechCoverageD1Storage } = await import("../../../server/tech-coverage-grants-d1.ts");
@@ -274,6 +278,10 @@ before(async () => {
   await runWrangler([
     "d1", "execute", "serviceflow-cfm-centrals-proof",
     "--local", "--persist-to", stateDir, "--file", "../../migrations/0004_maintenance_relational_core.sql", "--yes",
+  ]);
+  await runWrangler([
+    "d1", "execute", "serviceflow-cfm-centrals-proof",
+    "--local", "--persist-to", stateDir, "--file", "../../migrations/0005_maintenance_photo_metadata.sql", "--yes",
   ]);
   await runWrangler([
     "d1", "execute", "serviceflow-cfm-centrals-proof",
@@ -764,7 +772,7 @@ test("actual maintenance cabinet-code report route reads and filters local D1 ro
   }
 });
 
-test("maintenance relational D1 schema keeps user and media tables in PostgreSQL and validates synthetic links", async () => {
+test("maintenance relational D1 schema keeps user tables in PostgreSQL and validates synthetic links", async () => {
   const tables = await queryLocalD1(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'maintenance_%' ORDER BY name",
   );
@@ -772,7 +780,7 @@ test("maintenance relational D1 schema keeps user and media tables in PostgreSQL
   assert.ok(names.includes("maintenance_exchanges"));
   assert.ok(names.includes("maintenance_box_line_numbers"));
   assert.ok(!names.includes("maintenance_users"));
-  assert.ok(!names.includes("maintenance_photos"));
+  assert.ok(names.includes("maintenance_photos"));
 
   const inspectionFks = await queryLocalD1("PRAGMA foreign_key_list('maintenance_inspections')");
   assert.deepEqual(inspectionFks.map((row) => row.table), ["maintenance_boxes"]);
@@ -955,6 +963,262 @@ test("actual maintenance exchanges page can render the local D1 read proof", asy
     const locationRows = await queryLocalD1("SELECT latitude, longitude FROM maintenance_boxes WHERE id = 9003");
     assert.equal(locationRows[0].latitude, 31.95);
     assert.equal(locationRows[0].longitude, 35.91);
+
+    const inspectionCreate = maintenanceInspectorRouter.stack.find((layer) =>
+      layer.route?.path === "/create/:boxId" && layer.route.methods.post,
+    ).route.stack.at(-1).handle;
+    const checklistKeys = [
+      "connector_fix", "box_fix", "box_cover", "box_numbering", "box_height",
+      "branch_path", "wire_path", "electricity_conflict", "air_conflict", "overlap", "data_review",
+    ];
+    const inspectionBody = { general_notes: "Synthetic D1 inspection" };
+    for (const key of checklistKeys) {
+      inspectionBody[`item_${key}`] = [
+        "electricity_conflict", "air_conflict", "overlap", "data_review",
+      ].includes(key) ? "no" : "good";
+    }
+    inspectionBody.item_box_cover = "bad";
+    let inspectionRedirect;
+    const previousFlag = process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+    process.env.SF_MAINTENANCE_HIERARCHY_PROOF = "d1";
+    try {
+      await inspectionCreate({
+        session: { user: { id: 77, role: "inspector" } },
+        params: { boxId: "9003" },
+        body: inspectionBody,
+      }, {
+        redirect(path) { inspectionRedirect = path; },
+        render(_view, data) { throw new Error(`Unexpected form errors: ${JSON.stringify(data.errors)}`); },
+        status(code) { throw new Error(`Unexpected inspection response ${code}`); },
+      });
+    } finally {
+      if (previousFlag === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+      else process.env.SF_MAINTENANCE_HIERARCHY_PROOF = previousFlag;
+    }
+    assert.match(inspectionRedirect, /^\/inspector\/\d+$/);
+    const inspectionRows = await queryLocalD1(
+      "SELECT id, inspector_id, general_notes FROM maintenance_inspections WHERE box_id = 9003 ORDER BY id DESC LIMIT 1",
+    );
+    await executeLocalD1(`
+      INSERT INTO maintenance_photos
+        (id, box_id, inspection_id, photo_type, filename, uploaded_by, media_type, storage_key)
+      VALUES (9010, 9003, ${inspectionRows[0].id}, 'before', 'synthetic-before.jpg', 77,
+              'photo', 'maintenance/synthetic-before.jpg');
+    `);
+    assert.equal(inspectionRows[0].inspector_id, 77);
+    assert.equal(inspectionRows[0].general_notes, "Synthetic D1 inspection");
+    const inspectionItemRows = await queryLocalD1(
+      `SELECT COUNT(*) AS count FROM maintenance_inspection_items WHERE inspection_id = ${inspectionRows[0].id}`,
+    );
+    assert.equal(inspectionItemRows[0].count, 11);
+    const inspectionTaskRows = await queryLocalD1(
+      `SELECT COUNT(*) AS count FROM maintenance_tasks WHERE inspection_id = ${inspectionRows[0].id}`,
+    );
+    assert.equal(inspectionTaskRows[0].count, 1);
+    const inspectionBoxRows = await queryLocalD1(
+      "SELECT status FROM maintenance_boxes WHERE id = 9003",
+    );
+    assert.equal(inspectionBoxRows[0].status, "needs_maintenance");
+    const saveInspectionLocation = maintenanceInspectorRouter.stack.find((layer) =>
+      layer.route?.path === "/:id/save-location" && layer.route.methods.post,
+    ).route.stack.at(-1).handle;
+    let savedInspectionLocation;
+    await saveInspectionLocation({
+      session: { user: { id: 77, role: "inspector" } },
+      params: { id: String(inspectionRows[0].id) },
+      body: { lat: "31.2", lng: "35.9" },
+    }, {
+      json(payload) { savedInspectionLocation = payload; },
+      status(code) { throw new Error(`Unexpected inspection location response ${code}`); },
+    });
+    assert.deepEqual(savedInspectionLocation, { ok: true });
+    const savedInspectionCoords = await queryLocalD1(
+      `SELECT latitude, longitude FROM maintenance_inspections WHERE id = ${inspectionRows[0].id}`,
+    );
+    assert.equal(savedInspectionCoords[0].latitude, 31.2);
+    assert.equal(savedInspectionCoords[0].longitude, 35.9);
+    const originalInspectorDbGet = maintenanceDb.get;
+    maintenanceDb.get = async () => ({ full_name: "Synthetic Inspector" });
+    try {
+      const inspectorList = maintenanceInspectorRouter.stack.find((layer) =>
+        layer.route?.path === "/" && layer.route.methods.get,
+      ).route.stack.at(-1).handle;
+      let inspectionListRendered;
+      await inspectorList({
+        session: { user: { id: 77, role: "inspector" } },
+        query: { exchange_id: "9001" },
+      }, {
+        render(view, data) { inspectionListRendered = { view, data }; },
+        status(code) { throw new Error(`Unexpected inspection list response ${code}`); },
+      });
+      assert.equal(inspectionListRendered.view, "inspector/list");
+      assert.ok(inspectionListRendered.data.inspections.some((row) => row.id === inspectionRows[0].id));
+      assert.equal(
+        inspectionListRendered.data.inspections.find((row) => row.id === inspectionRows[0].id).inspector_name,
+        "Synthetic Inspector",
+      );
+    } finally {
+      maintenanceDb.get = originalInspectorDbGet;
+    }
+    const originalDetailDbGet = maintenanceDb.get;
+    const originalDetailDbAll = maintenanceDb.all;
+    maintenanceDb.get = async () => ({ full_name: "Synthetic Inspector" });
+    maintenanceDb.all = async () => [];
+    const oldInspectionProofFlag = process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+    process.env.SF_MAINTENANCE_HIERARCHY_PROOF = "d1";
+    try {
+      const inspectorDetail = maintenanceInspectorRouter.stack.find((layer) =>
+        layer.route?.path === "/:id" && layer.route.methods.get,
+      ).route.stack.at(-1).handle;
+      let inspectionDetailRendered;
+      await inspectorDetail({
+        session: { user: { id: 77, role: "inspector" } },
+        params: { id: String(inspectionRows[0].id) },
+      }, {
+        render(view, data) { inspectionDetailRendered = { view, data }; },
+        status(code) { throw new Error(`Unexpected inspection detail response ${code}`); },
+        redirect(path) { throw new Error(`Unexpected inspection detail redirect ${path}`); },
+      });
+      assert.equal(inspectionDetailRendered.view, "inspector/detail");
+      assert.equal(inspectionDetailRendered.data.inspection.id, inspectionRows[0].id);
+      assert.equal(inspectionDetailRendered.data.inspection.inspector_name, "Synthetic Inspector");
+      assert.equal(inspectionDetailRendered.data.photos.length, 1);
+      assert.equal(inspectionDetailRendered.data.photos[0].filename, "synthetic-before.jpg");
+      assert.equal(inspectionDetailRendered.data.photos[0].uploader, "Synthetic Inspector");
+    } finally {
+      maintenanceDb.get = originalDetailDbGet;
+      maintenanceDb.all = originalDetailDbAll;
+      if (oldInspectionProofFlag === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+      else process.env.SF_MAINTENANCE_HIERARCHY_PROOF = oldInspectionProofFlag;
+    }
+    const originalTechDbGet = maintenanceDb.get;
+    maintenanceDb.get = async () => ({ full_name: "Synthetic Technician" });
+    const oldTaskProofFlag = process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+    process.env.SF_MAINTENANCE_HIERARCHY_PROOF = "d1";
+    try {
+      const technicianList = maintenanceTechnicianRouter.stack.find((layer) =>
+        layer.route?.path === "/" && layer.route.methods.get,
+      ).route.stack.at(-1).handle;
+      let taskListRendered;
+      await technicianList({
+        session: { user: { id: 78, role: "technician" } },
+        query: {},
+      }, {
+        render(view, data) { taskListRendered = { view, data }; },
+        status(code) { throw new Error(`Unexpected task list response ${code}`); },
+      });
+      assert.equal(taskListRendered.view, "technician/list");
+      assert.ok(taskListRendered.data.tasks.some((task) => task.inspection_id === inspectionRows[0].id));
+    } finally {
+      maintenanceDb.get = originalTechDbGet;
+      if (oldTaskProofFlag === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+      else process.env.SF_MAINTENANCE_HIERARCHY_PROOF = oldTaskProofFlag;
+    }
+    const taskIdRows = await queryLocalD1(
+      `SELECT id FROM maintenance_tasks WHERE inspection_id = ${inspectionRows[0].id} ORDER BY id DESC LIMIT 1`,
+    );
+    const originalTaskDetailGet = maintenanceDb.get;
+    const originalTaskDetailAll = maintenanceDb.all;
+    maintenanceDb.get = async () => ({ full_name: "Synthetic Inspector" });
+    maintenanceDb.all = async () => [];
+    const oldTaskDetailFlag = process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+    process.env.SF_MAINTENANCE_HIERARCHY_PROOF = "d1";
+    try {
+      const technicianDetail = maintenanceTechnicianRouter.stack.find((layer) =>
+        layer.route?.path === "/:id" && layer.route.methods.get,
+      ).route.stack.at(-1).handle;
+      let taskDetailRendered;
+      await technicianDetail({
+        session: { user: { id: 78, role: "technician" } },
+        params: { id: String(taskIdRows[0].id) },
+      }, {
+        render(view, data) { taskDetailRendered = { view, data }; },
+        status(code) { throw new Error(`Unexpected technician detail response ${code}`); },
+        redirect(path) { throw new Error(`Unexpected technician detail redirect ${path}`); },
+      });
+      assert.equal(taskDetailRendered.view, "technician/detail");
+      assert.equal(taskDetailRendered.data.task.id, taskIdRows[0].id);
+      assert.equal(taskDetailRendered.data.task.inspector_name, "Synthetic Inspector");
+    } finally {
+      maintenanceDb.get = originalTaskDetailGet;
+      maintenanceDb.all = originalTaskDetailAll;
+      if (oldTaskDetailFlag === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+      else process.env.SF_MAINTENANCE_HIERARCHY_PROOF = oldTaskDetailFlag;
+    }
+    const originalTaskActionGet = maintenanceDb.get;
+    maintenanceDb.get = async () => ({ c: 1 });
+    const oldTaskActionFlag = process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+    process.env.SF_MAINTENANCE_HIERARCHY_PROOF = "d1";
+    try {
+      const postTaskRoute = async (path, body = {}, routeParams = {}) => {
+        const handler = maintenanceTechnicianRouter.stack.find((layer) =>
+          layer.route?.path === path && layer.route.methods.post,
+        ).route.stack.at(-1).handle;
+        let redirect;
+        await handler({
+          session: { user: { id: 78, role: "technician" } },
+          params: { id: String(taskIdRows[0].id), itemKey: "box_cover", ...routeParams },
+          body,
+        }, { redirect(path) { redirect = path; } });
+        return redirect;
+      };
+      const taskUrl = `/technician/${taskIdRows[0].id}`;
+      assert.equal(await postTaskRoute("/:id/start"), taskUrl);
+      assert.equal(await postTaskRoute("/:id/items/:itemKey/toggle"), taskUrl);
+      assert.equal(await postTaskRoute("/:id/notes", { notes: "Synthetic technician note" }), taskUrl);
+      assert.equal(await postTaskRoute("/:id/phones", { phone: "synthetic-line", notes: "before edit" }), `${taskUrl}#box-phones`);
+      const phoneRows = await queryLocalD1(
+        `SELECT id FROM maintenance_box_line_numbers WHERE inspection_id = ${inspectionRows[0].id} AND phone = 'synthetic-line'`,
+      );
+      assert.equal(phoneRows.length, 1);
+      assert.equal(await postTaskRoute(
+        "/:id/phones/:phoneId", { phone: "synthetic-line-updated", notes: "after edit" }, { phoneId: String(phoneRows[0].id) },
+      ), `${taskUrl}#box-phones`);
+      const updatedPhoneRows = await queryLocalD1(
+        `SELECT phone, notes FROM maintenance_box_line_numbers WHERE id = ${phoneRows[0].id}`,
+      );
+      assert.equal(updatedPhoneRows[0].phone, "synthetic-line-updated");
+      assert.equal(updatedPhoneRows[0].notes, "after edit");
+      assert.equal(await postTaskRoute(
+        "/:id/phones/:phoneId/delete", {}, { phoneId: String(phoneRows[0].id) },
+      ), `${taskUrl}#box-phones`);
+      assert.equal(await postTaskRoute("/:id/complete"), taskUrl);
+    } finally {
+      maintenanceDb.get = originalTaskActionGet;
+      if (oldTaskActionFlag === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+      else process.env.SF_MAINTENANCE_HIERARCHY_PROOF = oldTaskActionFlag;
+    }
+    const taskStateRows = await queryLocalD1(
+      `SELECT status, technician_id, notes FROM maintenance_tasks WHERE id = ${taskIdRows[0].id}`,
+    );
+    assert.equal(taskStateRows[0].status, "pending_approval");
+    assert.equal(taskStateRows[0].technician_id, 78);
+    assert.equal(taskStateRows[0].notes, "Synthetic technician note");
+    const taskItemState = await queryLocalD1(
+      `SELECT is_done FROM maintenance_item_status WHERE task_id = ${taskIdRows[0].id} AND item_key = 'box_cover'`,
+    );
+    assert.equal(taskItemState[0].is_done, 1);
+    const inspectorApprove = maintenanceInspectorRouter.stack.find((layer) =>
+      layer.route?.path === "/tasks/:taskId/approve" && layer.route.methods.post,
+    ).route.stack.at(-1).handle;
+    const oldApproveFlag = process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+    process.env.SF_MAINTENANCE_HIERARCHY_PROOF = "d1";
+    let approvalRedirect;
+    try {
+      await inspectorApprove({
+        session: { user: { id: 77, role: "inspector" } },
+        params: { taskId: String(taskIdRows[0].id) },
+        body: {},
+      }, { redirect(path) { approvalRedirect = path; } });
+    } finally {
+      if (oldApproveFlag === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+      else process.env.SF_MAINTENANCE_HIERARCHY_PROOF = oldApproveFlag;
+    }
+    assert.equal(approvalRedirect, `/inspector/${inspectionRows[0].id}`);
+    const approvedTaskRows = await queryLocalD1(
+      `SELECT status FROM maintenance_tasks WHERE id = ${taskIdRows[0].id}`,
+    );
+    assert.equal(approvedTaskRows[0].status, "completed");
 
     const boxDelete = maintenanceBoxesRouter.stack.find((layer) =>
       layer.route?.path === "/:id/delete",

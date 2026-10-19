@@ -134,6 +134,194 @@ async function getMaintenanceBoxDetails(actor, boxId) {
   return payload;
 }
 
+async function getMaintenanceInspections(actor, filters = {}) {
+  const params = new URLSearchParams();
+  for (const key of ['exchange_id', 'cabinet_id', 'box_q', 'from', 'to']) {
+    const value = filters[key];
+    if (value !== undefined && value !== null && String(value) !== '') params.set(key, String(value));
+  }
+  const suffix = params.size ? `?${params.toString()}` : '';
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/inspections${suffix}`,
+  );
+  if (!Array.isArray(payload) || payload.some((row) =>
+    !row || !Number.isSafeInteger(row.id) || !Number.isSafeInteger(row.box_id) ||
+    !Number.isSafeInteger(row.inspector_id) || typeof row.box_number !== 'string' ||
+    typeof row.cabinet_number !== 'string' || typeof row.exchange_name !== 'string')) {
+    throw new Error('Maintenance hierarchy D1 returned invalid inspection rows');
+  }
+  return payload;
+}
+
+async function getMaintenanceInspectionDetails(actor, inspectionId) {
+  if (!Number.isSafeInteger(Number(inspectionId)) || Number(inspectionId) <= 0) {
+    throw new Error('Invalid inspection id');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/inspections/${encodeURIComponent(inspectionId)}`,
+  );
+  if (!payload || !payload.inspection || !Number.isSafeInteger(payload.inspection.id) ||
+      !Number.isSafeInteger(payload.inspection.box_id) || !Array.isArray(payload.items) ||
+      !payload.itemStatusMap || typeof payload.itemStatusMap !== 'object' ||
+      (payload.task && !Number.isSafeInteger(payload.task.id))) {
+    throw new Error('Maintenance hierarchy D1 returned invalid inspection details');
+  }
+  return payload;
+}
+
+async function getMaintenancePhotos(actor, inspectionId) {
+  if (!Number.isSafeInteger(Number(inspectionId)) || Number(inspectionId) <= 0) {
+    throw new Error('Invalid maintenance inspection id');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/photos?inspection_id=${encodeURIComponent(inspectionId)}`,
+  );
+  if (!Array.isArray(payload) || payload.some((row) =>
+    !row || !Number.isSafeInteger(row.id) || !Number.isSafeInteger(row.box_id) ||
+    row.inspection_id !== Number(inspectionId) || typeof row.filename !== 'string' ||
+    typeof row.storage_key !== 'string' || !['before', 'after'].includes(row.photo_type) ||
+    !['photo', 'video'].includes(row.media_type))) {
+    throw new Error('Maintenance hierarchy D1 returned invalid photo metadata');
+  }
+  return payload;
+}
+
+async function getMaintenancePhotoByFilename(actor, filename) {
+  if (typeof filename !== 'string' || !filename || filename.length > 255 ||
+      filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+    throw new Error('Invalid maintenance photo filename');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/photos/by-filename/${encodeURIComponent(filename)}`,
+  );
+  if (!payload || typeof payload.filename !== 'string' || typeof payload.storage_key !== 'string' ||
+      !['photo', 'video'].includes(payload.media_type)) {
+    throw new Error('Maintenance hierarchy D1 returned invalid photo metadata');
+  }
+  return payload;
+}
+
+async function getMaintenancePhotoForDelivery(filename) {
+  if (typeof filename !== 'string' || !filename || filename.length > 255 ||
+      filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+    throw new Error('Invalid maintenance photo filename');
+  }
+  const baseUrl = process.env.SF_D1_WORKER_URL;
+  const serviceToken = process.env.SF_D1_SERVICE_TOKEN;
+  if (!baseUrl || !serviceToken) throw new Error('Maintenance photo delivery requires the private D1 Worker');
+  const response = await fetch(new URL(
+    `/api/maintenance/hierarchy/photos/by-filename/${encodeURIComponent(filename)}`, baseUrl,
+  ), {
+    headers: { authorization: `Bearer ${serviceToken}` },
+    signal: AbortSignal.timeout(5000),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = new Error(payload?.error || `Maintenance photo lookup failed (${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
+  if (!payload || payload.filename !== filename || typeof payload.storage_key !== 'string' ||
+      !['photo', 'video'].includes(payload.media_type)) {
+    throw new Error('Maintenance hierarchy D1 returned invalid photo metadata');
+  }
+  return payload;
+}
+
+async function createMaintenancePhoto(actor, photo) {
+  if (!photo || !Number.isSafeInteger(Number(photo.boxId)) || !Number.isSafeInteger(Number(photo.inspectionId)) ||
+      !['before', 'after'].includes(photo.photoType) || !['photo', 'video'].includes(photo.mediaType) ||
+      typeof photo.filename !== 'string' || !photo.filename.trim() ||
+      typeof photo.storageKey !== 'string' || !photo.storageKey.trim()) {
+    throw new Error('Invalid maintenance photo metadata');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, '/api/maintenance/hierarchy/photos',
+    { method: 'POST', body: { ...photo, boxId: Number(photo.boxId), inspectionId: Number(photo.inspectionId) } },
+  );
+  if (!payload || !Number.isSafeInteger(payload.id) || typeof payload.storage_key !== 'string') {
+    throw new Error('Maintenance hierarchy D1 returned invalid photo metadata');
+  }
+  return payload;
+}
+
+async function updateMaintenancePhotoLocation(actor, photoId, latitude, longitude) {
+  const id = Number(photoId);
+  if (!Number.isSafeInteger(id) || id <= 0 ||
+      !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new Error('Invalid maintenance photo location');
+  }
+  return maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/photos/${id}`,
+    { method: 'PATCH', body: { latitude, longitude } },
+  );
+}
+
+async function deleteMaintenancePhoto(actor, photoId) {
+  const id = Number(photoId);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Invalid maintenance photo id');
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/photos/${id}`, { method: 'DELETE' },
+  );
+  if (!payload?.photo || payload.photo.id !== id || !payload.photo.storage_key) {
+    throw new Error('Maintenance hierarchy D1 returned invalid deleted photo metadata');
+  }
+  return payload.photo;
+}
+
+async function getMaintenanceTasks(actor, filters = {}) {
+  const params = new URLSearchParams();
+  for (const key of ['status', 'q', 'exchange_id', 'cabinet_id', 'box_q', 'from', 'to', 'review']) {
+    const value = filters[key];
+    if (value !== undefined && value !== null && String(value) !== '') params.set(key, String(value));
+  }
+  const suffix = params.size ? `?${params.toString()}` : '';
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/tasks${suffix}`,
+  );
+  const validTask = (row) => row && Number.isSafeInteger(row.id) &&
+    Number.isSafeInteger(row.inspection_id) && Number.isSafeInteger(row.box_id) &&
+    typeof row.status === 'string' && typeof row.box_number === 'string' &&
+    typeof row.cabinet_number === 'string' && typeof row.exchange_name === 'string';
+  if (!payload || !Array.isArray(payload.tasks) || !Array.isArray(payload.archivedTasks) ||
+      !Number.isSafeInteger(payload.reviewCount) ||
+      payload.tasks.some((row) => !validTask(row)) ||
+      payload.archivedTasks.some((row) => !validTask(row))) {
+    throw new Error('Maintenance hierarchy D1 returned invalid task rows');
+  }
+  return payload;
+}
+
+async function getMaintenanceTaskDetails(actor, taskId) {
+  if (!Number.isSafeInteger(Number(taskId)) || Number(taskId) <= 0) {
+    throw new Error('Invalid maintenance task id');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/tasks/${encodeURIComponent(taskId)}`,
+  );
+  if (!payload || !payload.task || !Number.isSafeInteger(payload.task.id) ||
+      !Number.isSafeInteger(payload.task.inspection_id) || !Array.isArray(payload.inspItems) ||
+      !Array.isArray(payload.itemStatuses) || !Array.isArray(payload.boxPhones)) {
+    throw new Error('Maintenance hierarchy D1 returned invalid task details');
+  }
+  return payload;
+}
+
+async function applyMaintenanceTaskAction(actor, taskId, action) {
+  if (!Number.isSafeInteger(Number(taskId)) || Number(taskId) <= 0 ||
+      !action || typeof action.action !== 'string') {
+    throw new Error('Invalid maintenance task action');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor,
+    `/api/maintenance/hierarchy/tasks/${encodeURIComponent(taskId)}/action`,
+    { method: 'POST', body: action },
+  );
+  if (!payload || payload.ok !== true) throw new Error('Maintenance task action was not applied');
+  return payload;
+}
+
 async function createMaintenanceBox(actor, cabinetId, number) {
   if (!Number.isSafeInteger(Number(cabinetId)) || Number(cabinetId) <= 0 ||
       typeof number !== 'string' || !number.trim() || number.trim().length > 120) {
@@ -164,6 +352,38 @@ async function updateMaintenanceBoxLocation(actor, boxId, lat, lng) {
   );
   if (!payload || payload.ok !== true || payload.lat !== latitude || payload.lng !== longitude) {
     throw new Error('Maintenance hierarchy D1 returned an invalid location result');
+  }
+  return payload;
+}
+
+async function updateMaintenanceInspectionLocation(actor, inspectionId, lat, lng) {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  if (!Number.isSafeInteger(Number(inspectionId)) || Number(inspectionId) <= 0 ||
+      !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new Error('Valid inspection coordinates are required');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/inspections/${encodeURIComponent(inspectionId)}/location`,
+    { method: 'POST', body: { latitude, longitude } },
+  );
+  if (!payload || payload.ok !== true) throw new Error('Maintenance hierarchy D1 rejected inspection coordinates');
+  return payload;
+}
+
+async function createMaintenanceInspection(actor, boxId, inspection) {
+  if (!Number.isSafeInteger(Number(boxId)) || Number(boxId) <= 0 ||
+      !inspection || typeof inspection.generalNotes !== 'string' || !Array.isArray(inspection.items)) {
+    throw new Error('Invalid maintenance inspection');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor,
+    '/api/maintenance/hierarchy/inspections',
+    { method: 'POST', body: { boxId: Number(boxId), ...inspection } },
+  );
+  if (!payload || !Number.isSafeInteger(payload.id) || typeof payload.needsMaintenance !== 'boolean') {
+    throw new Error('Maintenance hierarchy D1 returned an invalid inspection result');
   }
   return payload;
 }
@@ -203,11 +423,24 @@ module.exports = {
   createMaintenanceBox,
   createMaintenanceExchange,
   updateMaintenanceBoxLocation,
+  updateMaintenanceInspectionLocation,
+  createMaintenanceInspection,
   getMaintenanceBoxes,
   getMaintenanceCabinet,
   deleteMaintenanceCabinet,
   deleteMaintenanceExchange,
   getMaintenanceBoxDetails,
+  getMaintenanceInspections,
+  getMaintenanceInspectionDetails,
+  getMaintenancePhotos,
+  getMaintenancePhotoByFilename,
+  getMaintenancePhotoForDelivery,
+  createMaintenancePhoto,
+  updateMaintenancePhotoLocation,
+  deleteMaintenancePhoto,
+  getMaintenanceTasks,
+  getMaintenanceTaskDetails,
+  applyMaintenanceTaskAction,
   getMaintenanceCabinets,
   getMaintenanceExchanges,
   isMaintenanceHierarchyProofEnabled,

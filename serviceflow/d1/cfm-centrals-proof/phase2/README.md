@@ -61,22 +61,33 @@ The same local D1 proof also includes the maintenance `cabinet_codes` lookup:
 its D1 schema, deterministic importer, role-checked read endpoint, cabinet-code
 listing/export, and maintenance-report enrichment are wired behind
 `SF_MAINTENANCE_CABINET_CODES_STORAGE=d1`. PostgreSQL remains the default;
-maintenance users and all photo/video metadata and R2 objects remain untouched.
+maintenance user rows stay in PostgreSQL, photo/video metadata is stored in
+D1, and media bytes remain in R2.
 
 For the linked maintenance hierarchy, local D1 migrations and a deterministic,
 dependency-ordered synthetic/export importer now cover exchanges, cabinets,
 boxes, inspections, inspection items, tasks, item statuses, and box line numbers.
-Inspector/technician IDs are retained as references without moving user rows;
-maintenance users and photos are excluded. The import uses retry-safe
+Inspector/technician IDs are retained as references without moving user rows.
+The import uses retry-safe
 `INSERT OR IGNORE` statements rather than a cross-database transaction.
 The local-only `SF_MAINTENANCE_HIERARCHY_PROOF=d1` mode routes exchange and
-cabinet lists/creates, box listing/creation, box detail reads, and location
-updates through typed D1 operations and preserves the existing role checks.
-The box detail's hierarchy, inspection/task snapshot, and item statuses come
-from D1; user display names and photo metadata remain in PostgreSQL. Empty
+cabinet lists/creates, box listing/creation, box detail reads, location
+updates, and inspection creation through typed D1 operations and preserves the
+existing role checks. Inspection creation, checklist items, task creation, and
+box status updates are committed in one D1 batch. The box detail's hierarchy,
+inspection/task snapshot, item statuses, and photo metadata come from D1; user
+display names still come from PostgreSQL. Empty
 exchanges/cabinets can be deleted; deletion is rejected when child records
 exist, and box deletion is disabled in proof mode to avoid partial
 PostgreSQL/R2 cleanup. The application rejects this proof flag in production.
-Inspection creation/updates, technician task mutations, phone lines, reports,
-and exports still use PostgreSQL. The hierarchy group is incomplete and is not
-ready for production data import or cutover.
+Inspection list/detail reads and creation, technician task list/detail and
+ordinary lifecycle actions, inspector approve/reject/preliminary-confirm/revert,
+and box line-number CRUD now use D1 in the local proof. Each task transition
+updates its task and box status within one D1 batch; phone rows are scoped to the
+task's inspection. Photo/video metadata reads, writes, location updates, and
+deletes use D1 while media bytes remain in R2. R2/D1 operations are not atomic:
+failed metadata inserts trigger best-effort R2 cleanup, while failed deletes may
+leave an orphaned R2 object. The special `data_review` action, reports, and bulk
+exports remain PostgreSQL-backed. No application-wide dual-store transaction is
+assumed. The hierarchy group remains incomplete and is not ready for production
+data import or cutover.

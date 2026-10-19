@@ -3,6 +3,20 @@ const db = require('../database');
 const { requireRole } = require('../middleware/auth');
 const { memUpload, compressToBuffer, storeMedia, memVideoUpload, compressVideoToDisk, storeVideoFile, removeLocalUpload } = require('../utils/photo');
 const r2 = require('../utils/r2');
+const {
+  createMaintenanceInspection,
+  createMaintenancePhoto,
+  applyMaintenanceTaskAction,
+  getMaintenanceCabinets,
+  getMaintenanceBoxDetails,
+  getMaintenanceExchanges,
+  getMaintenanceInspectionDetails,
+  getMaintenanceInspections,
+  getMaintenancePhotos,
+  getMaintenanceTaskDetails,
+  isMaintenanceHierarchyProofEnabled,
+  updateMaintenanceInspectionLocation,
+} = require('../utils/d1-hierarchy');
 
 const router = express.Router();
 const inspectorOrAdmin = requireRole('admin', 'inspector');
@@ -33,6 +47,25 @@ router.get('/', inspectorOrAdmin, async (req, res) => {
     const isAdmin = req.session.user.role === 'admin';
     const { exchange_id, cabinet_id, box_q, from, to } = req.query;
 
+    if (isMaintenanceHierarchyProofEnabled()) {
+      const rows = await getMaintenanceInspections(req.session.user, req.query);
+      const inspections = await Promise.all(rows.map(async (row) => {
+        const user = await db.get('SELECT full_name FROM users WHERE id = ?', [row.inspector_id]);
+        return { ...row, inspector_name: user?.full_name || '' };
+      }));
+      const exchanges = await getMaintenanceExchanges(req.session.user);
+      const cabinets = exchange_id
+        ? (await getMaintenanceCabinets(req.session.user, exchange_id)).cabinets
+        : [];
+      return res.render('inspector/list', {
+        title: 'الفحوصات',
+        inspections,
+        exchanges,
+        cabinets,
+        query: req.query,
+      });
+    }
+
     let sql = `SELECT i.*, b.number as box_number, b.id as box_id, c.number as cabinet_number,
       e.name as exchange_name, u.full_name as inspector_name
       FROM inspections i JOIN boxes b ON b.id = i.box_id
@@ -62,12 +95,15 @@ router.get('/', inspectorOrAdmin, async (req, res) => {
 
 router.get('/create/:boxId', inspectorOrAdmin, async (req, res) => {
   try {
-    const box = await db.get(`SELECT b.*, c.number as cabinet_number, e.name as exchange_name
+    const box = isMaintenanceHierarchyProofEnabled()
+      ? (await getMaintenanceBoxDetails(req.session.user, req.params.boxId)).box
+      : await db.get(`SELECT b.*, c.number as cabinet_number, e.name as exchange_name
       FROM boxes b JOIN cabinets c ON c.id = b.cabinet_id JOIN exchanges e ON e.id = c.exchange_id
       WHERE b.id = ?`, [req.params.boxId]);
     if (!box) return res.redirect('/boxes');
     res.render('inspector/form', { title: `فحص بوكس ${box.number}`, box, checklist: CHECKLIST, errors: [] });
   } catch (e) {
+    if (e.status === 404) return res.redirect('/boxes');
     console.error('inspector create form error:', e.message);
     res.status(500).render('error', { title: 'خطأ', message: 'حدث خطأ. حاول مرة أخرى.' });
   }
@@ -75,7 +111,10 @@ router.get('/create/:boxId', inspectorOrAdmin, async (req, res) => {
 
 router.post('/create/:boxId', inspectorOrAdmin, async (req, res) => {
   try {
-    const box = await db.get('SELECT * FROM boxes WHERE id = ?', [req.params.boxId]);
+    const d1Mode = isMaintenanceHierarchyProofEnabled();
+    const box = d1Mode
+      ? (await getMaintenanceBoxDetails(req.session.user, req.params.boxId)).box
+      : await db.get('SELECT * FROM boxes WHERE id = ?', [req.params.boxId]);
     if (!box) return res.redirect('/boxes');
 
     const { general_notes } = req.body;
@@ -91,11 +130,38 @@ router.post('/create/:boxId', inspectorOrAdmin, async (req, res) => {
       }
     }
     if (errors.length) {
-      const fullBox = await db.get(`SELECT b.*, c.number as cabinet_number, e.name as exchange_name FROM boxes b JOIN cabinets c ON c.id = b.cabinet_id JOIN exchanges e ON e.id = c.exchange_id WHERE b.id = ?`, [box.id]);
+      const fullBox = d1Mode ? box : await db.get(`SELECT b.*, c.number as cabinet_number, e.name as exchange_name FROM boxes b JOIN cabinets c ON c.id = b.cabinet_id JOIN exchanges e ON e.id = c.exchange_id WHERE b.id = ?`, [box.id]);
       return res.render('inspector/form', { title: `فحص بوكس ${box.number}`, box: fullBox, checklist: CHECKLIST, errors });
     }
 
     let inspId, requiresMaintenance;
+    if (d1Mode) {
+      const items = CHECKLIST.map((item) => {
+        const value = req.body[`item_${item.key}`];
+        const extraDistance = value === 'yes' && req.body[`extra_distance_${item.key}`]
+          ? parseFloat(req.body[`extra_distance_${item.key}`]) || null
+          : null;
+        return {
+          itemKey: item.key,
+          itemType: item.type,
+          value,
+          notes: req.body[`notes_${item.key}`] || '',
+          extraType: value === 'yes' ? (req.body[`extra_type_${item.key}`] || '').trim() : null,
+          extraDistance,
+        };
+      });
+      const result = await createMaintenanceInspection(req.session.user, box.id, {
+        generalNotes: general_notes || '',
+        items,
+      });
+      req.session.flash = {
+        type: 'success',
+        msg: result.needsMaintenance
+          ? 'تم الفحص. البوكس يحتاج صيانة وتم تحويله تلقائياً.'
+          : 'تم الفحص بنجاح.',
+      };
+      return res.redirect(`/inspector/${result.id}`);
+    }
 
     await db.transaction(async (q) => {
       const prevCoords = await q(
@@ -144,6 +210,41 @@ router.post('/create/:boxId', inspectorOrAdmin, async (req, res) => {
 
 router.get('/:id', inspectorOrAdmin, async (req, res) => {
   try {
+    if (isMaintenanceHierarchyProofEnabled()) {
+      const details = await getMaintenanceInspectionDetails(req.session.user, req.params.id);
+      const user = await db.get('SELECT full_name FROM users WHERE id = ?', [details.inspection.inspector_id]);
+      const inspection = { ...details.inspection, inspector_name: user?.full_name || '' };
+      const id = req.params.id;
+      const allPhotos = await getMaintenancePhotos(req.session.user, details.inspection.id);
+      await Promise.all(allPhotos.map(async (photo) => {
+        if (photo.uploaded_by) {
+          const uploader = await db.get('SELECT full_name FROM users WHERE id = ?', [photo.uploaded_by]);
+          photo.uploader = uploader?.full_name || '';
+        } else photo.uploader = '';
+      }));
+      const photos = allPhotos.filter((photo) => photo.photo_type === 'before' && photo.media_type === 'photo');
+      const afterPhotos = allPhotos.filter((photo) => photo.photo_type === 'after' && photo.media_type === 'photo');
+      const beforeVideos = allPhotos.filter((photo) => photo.photo_type === 'before' && photo.media_type === 'video');
+      const afterVideos = allPhotos.filter((photo) => photo.photo_type === 'after' && photo.media_type === 'video');
+      const { items, task, itemStatusMap } = details;
+      const relevant = items.filter((item) =>
+        ['bad', 'yes'].includes(item.value) && !PRELIM_EXCLUDED.includes(item.item_key));
+      const prelimReady = !!task && relevant.length > 0 &&
+        relevant.every((item) => itemStatusMap[item.item_key]?.is_done);
+      return res.render('inspector/detail', {
+        title: `تفاصيل الفحص #${id}`,
+        inspection,
+        items,
+        photos,
+        afterPhotos,
+        beforeVideos,
+        afterVideos,
+        checklist: CHECKLIST,
+        itemStatusMap,
+        task,
+        prelimReady,
+      });
+    }
     const inspection = await db.get(`SELECT i.*, b.number as box_number, b.id as box_id, b.status as box_status,
       b.latitude as box_latitude, b.longitude as box_longitude,
       c.id as cabinet_id, c.number as cabinet_number,
@@ -193,6 +294,10 @@ router.post('/:id/save-location', inspectorOrAdmin, async (req, res) => {
     const lng = parseFloat(req.body.lng);
     if (!lat || !lng || isNaN(lat) || isNaN(lng))
       return res.status(400).json({ ok: false, msg: 'لا توجد إحداثيات صالحة.' });
+    if (isMaintenanceHierarchyProofEnabled()) {
+      await updateMaintenanceInspectionLocation(req.session.user, req.params.id, lat, lng);
+      return res.json({ ok: true });
+    }
     const exists = await db.get('SELECT id FROM inspections WHERE id = ?', [req.params.id]);
     if (!exists) return res.status(404).json({ ok: false, msg: 'الفحص غير موجود.' });
     await db.run('UPDATE inspections SET latitude=?, longitude=? WHERE id=?', [lat, lng, req.params.id]);
@@ -203,7 +308,9 @@ router.post('/:id/save-location', inspectorOrAdmin, async (req, res) => {
 });
 
 router.post('/:id/photos', inspectorOrAdmin, (req, res, next) => {
-  db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]).then(inspection => {
+  (isMaintenanceHierarchyProofEnabled()
+    ? getMaintenanceInspectionDetails(req.session.user, req.params.id).then((details) => details.inspection)
+    : db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id])).then(inspection => {
     if (!inspection) {
       const isAjax = (req.headers.accept || '').includes('application/json');
       if (isAjax) return res.status(404).json({ ok: false, msg: 'الفحص غير موجود.' });
@@ -213,24 +320,46 @@ router.post('/:id/photos', inspectorOrAdmin, (req, res, next) => {
   }).catch(next);
 }, memUpload.single('photo'), async (req, res) => {
   const isAjax = (req.headers.accept || '').includes('application/json');
-  const inspection = await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
+  const inspection = isMaintenanceHierarchyProofEnabled()
+    ? (await getMaintenanceInspectionDetails(req.session.user, req.params.id)).inspection
+    : await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
   if (!req.file) {
     if (isAjax) return res.status(400).json({ ok: false, msg: 'يرجى اختيار صورة.' });
     req.session.flash = { type: 'danger', msg: 'يرجى اختيار صورة.' };
     return res.redirect(`/inspector/${req.params.id}`);
   }
+  let uploadedKey = null;
+  let persisted = false;
+  let filename = null;
   try {
-    const { filename, data } = await compressToBuffer(req.file.buffer, `before_${inspection.box_id}`);
+    const compressed = await compressToBuffer(req.file.buffer, `before_${inspection.box_id}`);
+    filename = compressed.filename;
+    const { data } = compressed;
     // R2 الأول؛ لو مضبوط ونجح الرفع بيرجّع data=null فالقاعدة ما تشيلش البايتات.
     const stored = await storeMedia(filename, data, 'photo');
+    uploadedKey = stored.storageKey;
     const takenAt = req.body.taken_at || null;
     const lat = req.body.lat ? parseFloat(req.body.lat) : null;
     const lng = req.body.lng ? parseFloat(req.body.lng) : null;
-    await db.run("INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, data, storage_key, uploaded_by, taken_at, latitude, longitude) VALUES (?, ?, 'before', 'photo', ?, ?, ?, ?, ?, ?, ?)",
-      [inspection.box_id, inspection.id, filename, stored.data, stored.storageKey, req.session.user.id, takenAt, lat, lng]);
+    if (isMaintenanceHierarchyProofEnabled()) {
+      if (!uploadedKey) throw new Error('D1 proof requires the photo to be stored in R2.');
+      await createMaintenancePhoto(req.session.user, {
+        boxId: inspection.box_id, inspectionId: inspection.id,
+        photoType: 'before', mediaType: 'photo', filename, storageKey: uploadedKey,
+        takenAt, latitude: lat, longitude: lng,
+      });
+    } else {
+      await db.run("INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, data, storage_key, uploaded_by, taken_at, latitude, longitude) VALUES (?, ?, 'before', 'photo', ?, ?, ?, ?, ?, ?, ?)",
+        [inspection.box_id, inspection.id, filename, stored.data, uploadedKey, req.session.user.id, takenAt, lat, lng]);
+    }
+    persisted = true;
     if (isAjax) return res.json({ ok: true, filename });
     req.session.flash = { type: 'success', msg: 'تم رفع الصورة وضغطها.' };
   } catch (e) {
+    if (isMaintenanceHierarchyProofEnabled() && uploadedKey && !persisted) {
+      try { await r2.deleteObject(uploadedKey); } catch (cleanupError) { console.error('orphan inspector photo cleanup failed:', cleanupError.message); }
+    }
+    if (isMaintenanceHierarchyProofEnabled() && !persisted) removeLocalUpload(filename);
     if (isAjax) return res.status(500).json({ ok: false, msg: e.message });
     req.session.flash = { type: 'danger', msg: `فشل رفع الصورة: ${e.message}` };
   }
@@ -238,7 +367,9 @@ router.post('/:id/photos', inspectorOrAdmin, (req, res, next) => {
 });
 
 router.post('/:id/after-photos', inspectorOrAdmin, (req, res, next) => {
-  db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]).then(inspection => {
+  (isMaintenanceHierarchyProofEnabled()
+    ? getMaintenanceInspectionDetails(req.session.user, req.params.id).then((details) => details.inspection)
+    : db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id])).then(inspection => {
     if (!inspection) {
       const isAjax = (req.headers.accept || '').includes('application/json');
       if (isAjax) return res.status(404).json({ ok: false, msg: 'الفحص غير موجود.' });
@@ -248,24 +379,46 @@ router.post('/:id/after-photos', inspectorOrAdmin, (req, res, next) => {
   }).catch(next);
 }, memUpload.single('photo'), async (req, res) => {
   const isAjax = (req.headers.accept || '').includes('application/json');
-  const inspection = await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
+  const inspection = isMaintenanceHierarchyProofEnabled()
+    ? (await getMaintenanceInspectionDetails(req.session.user, req.params.id)).inspection
+    : await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
   if (!req.file) {
     if (isAjax) return res.status(400).json({ ok: false, msg: 'يرجى اختيار صورة.' });
     req.session.flash = { type: 'danger', msg: 'يرجى اختيار صورة.' };
     return res.redirect(`/inspector/${req.params.id}`);
   }
+  let uploadedKey = null;
+  let persisted = false;
+  let filename = null;
   try {
-    const { filename, data } = await compressToBuffer(req.file.buffer, `after_${inspection.box_id}`);
+    const compressed = await compressToBuffer(req.file.buffer, `after_${inspection.box_id}`);
+    filename = compressed.filename;
+    const { data } = compressed;
     // R2 الأول؛ لو مضبوط ونجح الرفع بيرجّع data=null فالقاعدة ما تشيلش البايتات.
     const stored = await storeMedia(filename, data, 'photo');
+    uploadedKey = stored.storageKey;
     const takenAt = req.body.taken_at || null;
     const lat = req.body.lat ? parseFloat(req.body.lat) : null;
     const lng = req.body.lng ? parseFloat(req.body.lng) : null;
-    await db.run("INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, data, storage_key, uploaded_by, taken_at, latitude, longitude) VALUES (?, ?, 'after', 'photo', ?, ?, ?, ?, ?, ?, ?)",
-      [inspection.box_id, inspection.id, filename, stored.data, stored.storageKey, req.session.user.id, takenAt, lat, lng]);
+    if (isMaintenanceHierarchyProofEnabled()) {
+      if (!uploadedKey) throw new Error('D1 proof requires the photo to be stored in R2.');
+      await createMaintenancePhoto(req.session.user, {
+        boxId: inspection.box_id, inspectionId: inspection.id,
+        photoType: 'after', mediaType: 'photo', filename, storageKey: uploadedKey,
+        takenAt, latitude: lat, longitude: lng,
+      });
+    } else {
+      await db.run("INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, data, storage_key, uploaded_by, taken_at, latitude, longitude) VALUES (?, ?, 'after', 'photo', ?, ?, ?, ?, ?, ?, ?)",
+        [inspection.box_id, inspection.id, filename, stored.data, uploadedKey, req.session.user.id, takenAt, lat, lng]);
+    }
+    persisted = true;
     if (isAjax) return res.json({ ok: true, filename });
     req.session.flash = { type: 'success', msg: 'تم رفع صورة بعد الصيانة.' };
   } catch (e) {
+    if (isMaintenanceHierarchyProofEnabled() && uploadedKey && !persisted) {
+      try { await r2.deleteObject(uploadedKey); } catch (cleanupError) { console.error('orphan inspector photo cleanup failed:', cleanupError.message); }
+    }
+    if (isMaintenanceHierarchyProofEnabled() && !persisted) removeLocalUpload(filename);
     if (isAjax) return res.status(500).json({ ok: false, msg: e.message });
     req.session.flash = { type: 'danger', msg: `فشل رفع الصورة: ${e.message}` };
   }
@@ -280,7 +433,9 @@ router.post('/:id/videos', inspectorOrAdmin, memVideoUpload.single('video'), asy
   let uploadedKey = null;
   let persisted = false;
   try {
-    const inspection = await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
+    const inspection = isMaintenanceHierarchyProofEnabled()
+      ? (await getMaintenanceInspectionDetails(req.session.user, req.params.id)).inspection
+      : await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
     if (!inspection) {
       if (isAjax) return res.status(404).json({ ok: false, msg: 'الفحص غير موجود.' });
       return res.redirect('/inspector');
@@ -293,10 +448,18 @@ router.post('/:id/videos', inspectorOrAdmin, memVideoUpload.single('video'), asy
     ({ filename } = await compressVideoToDisk(req.file.buffer, `bvid_${inspection.box_id}`));
     const stored = await storeVideoFile(filename);
     uploadedKey = stored.storageKey;
-    await db.run(
-      "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, storage_key, uploaded_by) VALUES (?, ?, 'before', 'video', ?, ?, ?)",
-      [inspection.box_id, inspection.id, filename, uploadedKey, req.session.user.id]
-    );
+    if (isMaintenanceHierarchyProofEnabled()) {
+      if (!uploadedKey) throw new Error('D1 proof requires the video to be stored in R2.');
+      await createMaintenancePhoto(req.session.user, {
+        boxId: inspection.box_id, inspectionId: inspection.id,
+        photoType: 'before', mediaType: 'video', filename, storageKey: uploadedKey,
+      });
+    } else {
+      await db.run(
+        "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, storage_key, uploaded_by) VALUES (?, ?, 'before', 'video', ?, ?, ?)",
+        [inspection.box_id, inspection.id, filename, uploadedKey, req.session.user.id]
+      );
+    }
     persisted = true;
     removeLocalUpload(filename);
     if (isAjax) return res.json({ ok: true, filename });
@@ -319,7 +482,9 @@ router.post('/:id/after-videos', inspectorOrAdmin, memVideoUpload.single('video'
   let uploadedKey = null;
   let persisted = false;
   try {
-    const inspection = await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
+    const inspection = isMaintenanceHierarchyProofEnabled()
+      ? (await getMaintenanceInspectionDetails(req.session.user, req.params.id)).inspection
+      : await db.get('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
     if (!inspection) {
       if (isAjax) return res.status(404).json({ ok: false, msg: 'الفحص غير موجود.' });
       return res.redirect('/inspector');
@@ -332,10 +497,18 @@ router.post('/:id/after-videos', inspectorOrAdmin, memVideoUpload.single('video'
     ({ filename } = await compressVideoToDisk(req.file.buffer, `avid_${inspection.box_id}`));
     const stored = await storeVideoFile(filename);
     uploadedKey = stored.storageKey;
-    await db.run(
-      "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, storage_key, uploaded_by) VALUES (?, ?, 'after', 'video', ?, ?, ?)",
-      [inspection.box_id, inspection.id, filename, uploadedKey, req.session.user.id]
-    );
+    if (isMaintenanceHierarchyProofEnabled()) {
+      if (!uploadedKey) throw new Error('D1 proof requires the video to be stored in R2.');
+      await createMaintenancePhoto(req.session.user, {
+        boxId: inspection.box_id, inspectionId: inspection.id,
+        photoType: 'after', mediaType: 'video', filename, storageKey: uploadedKey,
+      });
+    } else {
+      await db.run(
+        "INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, storage_key, uploaded_by) VALUES (?, ?, 'after', 'video', ?, ?, ?)",
+        [inspection.box_id, inspection.id, filename, uploadedKey, req.session.user.id]
+      );
+    }
     persisted = true;
     removeLocalUpload(filename);
     if (isAjax) return res.json({ ok: true, filename });
@@ -354,6 +527,13 @@ router.post('/:id/after-videos', inspectorOrAdmin, memVideoUpload.single('video'
 
 const adminOrOwner = async (req, res, next) => {
   try {
+    if (isMaintenanceHierarchyProofEnabled()) {
+      const details = await getMaintenanceTaskDetails(req.session.user, req.params.taskId);
+      if (req.session.user.role === 'admin' ||
+          Number(details.task.inspector_id) === Number(req.session.user.id)) return next();
+      req.session.flash = { type: 'danger', msg: 'هذه المهمة ليست من فحوصاتك.' };
+      return res.redirect('/inspector');
+    }
     const insp = await db.get(
       `SELECT i.inspector_id FROM inspections i
        JOIN maintenance_tasks mt ON mt.inspection_id = i.id
@@ -366,6 +546,20 @@ const adminOrOwner = async (req, res, next) => {
 };
 
 router.post('/tasks/:taskId/approve', inspectorOrAdmin, adminOrOwner, async (req, res) => {
+  if (isMaintenanceHierarchyProofEnabled()) {
+    const details = await getMaintenanceTaskDetails(req.session.user, req.params.taskId);
+    if (details.task.status !== 'pending_approval') {
+      req.session.flash = { type: 'danger', msg: 'لا يمكن تأكيد هذه المهمة.' };
+      return res.redirect(`/inspector/${details.task.inspection_id}`);
+    }
+    await applyMaintenanceTaskAction(req.session.user, req.params.taskId, {
+      action: 'approve',
+      redirect: String(req.body.redirect || ''),
+    });
+    req.session.flash = { type: 'success', msg: 'تم تأكيد إكمال المهمة.' };
+    const back = String(req.body.redirect || '');
+    return res.redirect(/^\/[A-Za-z0-9/_-]/.test(back) ? back : `/inspector/${details.task.inspection_id}`);
+  }
   const task = await db.get('SELECT * FROM maintenance_tasks WHERE id = ?', [req.params.taskId]);
   if (!task || task.status !== 'pending_approval') {
     req.session.flash = { type: 'danger', msg: 'لا يمكن تأكيد هذه المهمة.' };
@@ -384,6 +578,21 @@ router.post('/tasks/:taskId/approve', inspectorOrAdmin, adminOrOwner, async (req
 // Preliminary confirmation: external affairs confirm the non-excluded notes are fixed,
 // without waiting for the technician to mark the whole task done.
 router.post('/tasks/:taskId/prelim-confirm', inspectorOrAdmin, adminOrOwner, async (req, res) => {
+  if (isMaintenanceHierarchyProofEnabled()) {
+    const details = await getMaintenanceTaskDetails(req.session.user, req.params.taskId);
+    try {
+      await applyMaintenanceTaskAction(req.session.user, req.params.taskId, { action: 'prelim-confirm' });
+      req.session.flash = { type: 'success', msg: 'تم التأكيد المبدئى على إزالة الملاحظات.' };
+    } catch (error) {
+      req.session.flash = {
+        type: 'danger',
+        msg: error.status === 409
+          ? 'لا يمكن التأكيد المبدئى — توجد ملاحظات لم يتم إصلاحها بعد أو سبق تأكيدها.'
+          : 'حدث خطأ أثناء التأكيد المبدئى.',
+      };
+    }
+    return res.redirect(`/inspector/${details.task.inspection_id}`);
+  }
   const task = await db.get('SELECT * FROM maintenance_tasks WHERE id = ?', [req.params.taskId]);
   if (!task) {
     req.session.flash = { type: 'danger', msg: 'المهمة غير موجودة.' };
@@ -415,6 +624,19 @@ router.post('/tasks/:taskId/prelim-confirm', inspectorOrAdmin, adminOrOwner, asy
 });
 
 router.post('/tasks/:taskId/reject', inspectorOrAdmin, adminOrOwner, async (req, res) => {
+  if (isMaintenanceHierarchyProofEnabled()) {
+    const details = await getMaintenanceTaskDetails(req.session.user, req.params.taskId);
+    try {
+      await applyMaintenanceTaskAction(req.session.user, req.params.taskId, {
+        action: 'reject',
+        reason: String(req.body.reason || '').trim(),
+      });
+      req.session.flash = { type: 'success', msg: 'تم رفض الإكمال وإعادة المهمة إلى الفني.' };
+    } catch {
+      req.session.flash = { type: 'danger', msg: 'لا يمكن رفض هذه المهمة.' };
+    }
+    return res.redirect(`/inspector/${details.task.inspection_id}`);
+  }
   const task = await db.get('SELECT * FROM maintenance_tasks WHERE id = ?', [req.params.taskId]);
   if (!task || task.status !== 'pending_approval') {
     req.session.flash = { type: 'danger', msg: 'لا يمكن رفض هذه المهمة.' };
@@ -433,6 +655,19 @@ router.post('/tasks/:taskId/reject', inspectorOrAdmin, adminOrOwner, async (req,
 });
 
 router.post('/tasks/:taskId/revert', adminOnly, async (req, res) => {
+  if (isMaintenanceHierarchyProofEnabled()) {
+    const details = await getMaintenanceTaskDetails(req.session.user, req.params.taskId);
+    try {
+      await applyMaintenanceTaskAction(req.session.user, req.params.taskId, {
+        action: 'revert',
+        reason: String(req.body.reason || '').trim(),
+      });
+      req.session.flash = { type: 'success', msg: 'تم إرجاع المهمة إلى الفني.' };
+    } catch {
+      req.session.flash = { type: 'danger', msg: 'لا يمكن إرجاع هذه المهمة.' };
+    }
+    return res.redirect(`/inspector/${details.task.inspection_id}`);
+  }
   const task = await db.get('SELECT * FROM maintenance_tasks WHERE id = ?', [req.params.taskId]);
   if (!task || task.status !== 'completed') {
     req.session.flash = { type: 'danger', msg: 'لا يمكن إرجاع هذه المهمة (ليست مكتملة).' };

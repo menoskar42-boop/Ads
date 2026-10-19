@@ -620,7 +620,16 @@ export default {
     const maintenanceBoxMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/boxes\/(\d+)$/);
     const maintenanceBoxLocationMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/boxes\/(\d+)\/location$/);
     const maintenanceCabinetBoxesMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/cabinets\/(\d+)\/boxes$/);
-    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceExchangeMatch && !maintenanceCabinetsMatch && !maintenanceCabinetMatch && !maintenanceBoxesRoute && !maintenanceBoxMatch && !maintenanceBoxLocationMatch && !maintenanceCabinetBoxesMatch) {
+    const maintenanceInspectionsRoute = url.pathname === "/api/maintenance/hierarchy/inspections";
+    const maintenanceInspectionMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/inspections\/(\d+)$/);
+    const maintenanceInspectionLocationMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/inspections\/(\d+)\/location$/);
+    const maintenancePhotosRoute = url.pathname === "/api/maintenance/hierarchy/photos";
+    const maintenancePhotoByFilenameMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/photos\/by-filename\/([^/]+)$/);
+    const maintenancePhotoMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/photos\/(\d+)$/);
+    const maintenanceTasksRoute = url.pathname === "/api/maintenance/hierarchy/tasks";
+    const maintenanceTaskMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/tasks\/(\d+)$/);
+    const maintenanceTaskActionMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/tasks\/(\d+)\/action$/);
+    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceExchangeMatch && !maintenanceCabinetsMatch && !maintenanceCabinetMatch && !maintenanceBoxesRoute && !maintenanceBoxMatch && !maintenanceBoxLocationMatch && !maintenanceCabinetBoxesMatch && !maintenanceInspectionsRoute && !maintenanceInspectionMatch && !maintenanceInspectionLocationMatch && !maintenancePhotosRoute && !maintenancePhotoByFilenameMatch && !maintenancePhotoMatch && !maintenanceTasksRoute && !maintenanceTaskMatch && !maintenanceTaskActionMatch) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
     if ((userByUsername && request.method !== "GET") ||
@@ -640,7 +649,16 @@ export default {
         (maintenanceBoxesRoute && request.method !== "GET") ||
         (maintenanceBoxMatch && request.method !== "GET") ||
         (maintenanceBoxLocationMatch && request.method !== "POST") ||
-        (maintenanceCabinetBoxesMatch && request.method !== "POST")) {
+        (maintenanceCabinetBoxesMatch && request.method !== "POST") ||
+        (maintenanceInspectionsRoute && !["GET", "POST"].includes(request.method)) ||
+        (maintenanceInspectionMatch && request.method !== "GET") ||
+        (maintenanceInspectionLocationMatch && request.method !== "POST") ||
+        (maintenancePhotosRoute && !["GET", "POST"].includes(request.method)) ||
+        (maintenancePhotoByFilenameMatch && request.method !== "GET") ||
+        (maintenancePhotoMatch && !["PATCH", "DELETE"].includes(request.method)) ||
+        (maintenanceTasksRoute && request.method !== "GET") ||
+        (maintenanceTaskMatch && request.method !== "GET") ||
+        (maintenanceTaskActionMatch && request.method !== "POST")) {
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
     const expectedServiceToken = env.SERVICE_TOKEN;
@@ -656,6 +674,25 @@ export default {
         if (!username) return Response.json({ error: "Username required" }, { status: 400 });
         const row = await env.DB.prepare(`SELECT ${USER_SELECT} FROM cfm_users WHERE username = ?`).bind(username).first();
         return row ? Response.json(userRow(row)) : Response.json({ error: "User not found" }, { status: 404 });
+      } catch {
+        return Response.json({ error: "D1 operation failed" }, { status: 500 });
+      }
+    }
+
+    if (maintenancePhotoByFilenameMatch) {
+      let filename;
+      try { filename = decodeURIComponent(maintenancePhotoByFilenameMatch[1]); }
+      catch { return Response.json({ error: "Invalid filename" }, { status: 400 }); }
+      if (!filename || filename.length > 255 || filename.includes("/") || filename.includes("\\") || filename.includes("..")) {
+        return Response.json({ error: "Invalid filename" }, { status: 400 });
+      }
+      try {
+        const row = await env.DB.prepare(
+          `SELECT id,box_id,inspection_id,photo_type,media_type,filename,storage_key,uploaded_by,uploaded_at,
+                  taken_at,latitude,longitude
+           FROM maintenance_photos WHERE filename=? ORDER BY id DESC LIMIT 1`,
+        ).bind(filename).first();
+        return row ? Response.json(row) : Response.json({ error: "Photo not found" }, { status: 404 });
       } catch {
         return Response.json({ error: "D1 operation failed" }, { status: 500 });
       }
@@ -841,6 +878,499 @@ export default {
         return row ? Response.json({ ok: true, lat: row.latitude, lng: row.longitude })
           : Response.json({ error: "Box not found" }, { status: 404 });
       }
+      if (maintenanceInspectionsRoute) {
+        if (!["admin", "inspector"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+        if (request.method === "GET") {
+          const params = [];
+          const where = [];
+          const exchangeId = url.searchParams.get("exchange_id");
+          const cabinetId = url.searchParams.get("cabinet_id");
+          const boxQuery = url.searchParams.get("box_q");
+          const from = url.searchParams.get("from");
+          const to = url.searchParams.get("to");
+          if (claims.role !== "admin") {
+            const inspectorId = Number(claims.sub);
+            if (!Number.isSafeInteger(inspectorId) || inspectorId <= 0) return Response.json({ error: "Invalid actor" }, { status: 400 });
+            where.push("i.inspector_id = ?");
+            params.push(inspectorId);
+          }
+          if (exchangeId !== null) {
+            if (!/^\d+$/.test(exchangeId)) return Response.json({ error: "Invalid exchange filter" }, { status: 400 });
+            where.push("e.id = ?");
+            params.push(Number(exchangeId));
+          }
+          if (cabinetId !== null) {
+            if (!/^\d+$/.test(cabinetId)) return Response.json({ error: "Invalid cabinet filter" }, { status: 400 });
+            where.push("b.cabinet_id = ?");
+            params.push(Number(cabinetId));
+          }
+          if (boxQuery !== null) {
+            if (boxQuery.length > 100) return Response.json({ error: "Invalid box search" }, { status: 400 });
+            where.push("b.number LIKE ?");
+            params.push(`%${boxQuery}%`);
+          }
+          for (const [name, value, comparison] of [["from", from, ">="], ["to", to, "<="]]) {
+            if (value !== null) {
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return Response.json({ error: `Invalid ${name} date` }, { status: 400 });
+              where.push(`i.date ${comparison} ?`);
+              params.push(value);
+            }
+          }
+          const { results } = await env.DB.prepare(
+            `SELECT i.*, b.number AS box_number, b.id AS box_id, c.number AS cabinet_number,
+                    e.name AS exchange_name
+             FROM maintenance_inspections i
+             JOIN maintenance_boxes b ON b.id = i.box_id
+             JOIN maintenance_cabinets c ON c.id = b.cabinet_id
+             JOIN maintenance_exchanges e ON e.id = c.exchange_id
+             ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+             ORDER BY i.id DESC LIMIT 500`,
+          ).bind(...params).all();
+          return Response.json(results);
+        }
+        const inspectorId = Number(claims.sub);
+        const body = await request.json().catch(() => null);
+        const checklist = [
+          ["connector_fix", "good_bad"], ["box_fix", "good_bad"], ["box_cover", "good_bad"],
+          ["box_numbering", "good_bad"], ["box_height", "good_bad"], ["branch_path", "good_bad"],
+          ["wire_path", "good_bad"], ["electricity_conflict", "yes_no"], ["air_conflict", "yes_no"],
+          ["overlap", "yes_no"], ["data_review", "yes_no"],
+        ];
+        if (!Number.isSafeInteger(inspectorId) || inspectorId <= 0 ||
+            !body || !Number.isSafeInteger(body.boxId) || body.boxId <= 0 ||
+            typeof body.generalNotes !== "string" || body.generalNotes.length > 10000 ||
+            !Array.isArray(body.items) || body.items.length !== checklist.length) {
+          return Response.json({ error: "Invalid inspection" }, { status: 400 });
+        }
+        const itemByKey = new Map(body.items.map((item) => [item?.itemKey, item]));
+        const normalizedItems = [];
+        for (const [itemKey, itemType] of checklist) {
+          const item = itemByKey.get(itemKey);
+          const allowed = itemType === "good_bad" ? ["good", "bad"] : ["yes", "no"];
+          const notes = typeof item?.notes === "string" ? item.notes : "";
+          const extraType = item?.value === "yes" && typeof item.extraType === "string" ? item.extraType.trim() : "";
+          const extraDistance = item?.value === "yes" && item.extraDistance !== null && item.extraDistance !== ""
+            ? Number(item.extraDistance) : null;
+          if (!item || item.itemType !== itemType || !allowed.includes(item.value) ||
+              notes.length > 2000 || extraType.length > 120 ||
+              (extraDistance !== null && (!Number.isFinite(extraDistance) || extraDistance < 0 || extraDistance > 100000))) {
+            return Response.json({ error: `Invalid inspection item: ${itemKey}` }, { status: 400 });
+          }
+          if (["overlap", "air_conflict"].includes(itemKey) && item.value === "yes" && !extraType) {
+            return Response.json({ error: `Extra type is required for ${itemKey}` }, { status: 400 });
+          }
+          normalizedItems.push({ itemKey, itemType, value: item.value, notes, extraType: extraType || null, extraDistance });
+        }
+        if (itemByKey.size !== checklist.length) return Response.json({ error: "Unexpected inspection item" }, { status: 400 });
+        const box = await env.DB.prepare(`SELECT id FROM maintenance_boxes WHERE id = ?`).bind(body.boxId).first();
+        if (!box) return Response.json({ error: "Box not found" }, { status: 404 });
+        const coords = await env.DB.prepare(
+          `SELECT latitude, longitude FROM maintenance_inspections
+           WHERE box_id = ? AND (is_archived = 1 OR is_archived IS NULL)
+             AND (latitude IS NOT NULL OR longitude IS NOT NULL)
+           ORDER BY id DESC LIMIT 1`,
+        ).bind(body.boxId).first();
+        const needsMaintenance = normalizedItems.some((item) =>
+          (item.itemType === "good_bad" && item.value === "bad") ||
+          (item.itemType === "yes_no" && item.value === "yes"));
+        const statements = [
+          env.DB.prepare(
+            `UPDATE maintenance_inspections SET is_archived = 1
+             WHERE box_id = ? AND (is_archived IS NULL OR is_archived = 0)`,
+          ).bind(body.boxId),
+          env.DB.prepare(
+            `INSERT INTO maintenance_inspections
+             (box_id, inspector_id, general_notes, latitude, longitude, is_archived)
+             VALUES (?, ?, ?, ?, ?, 0)`,
+          ).bind(body.boxId, inspectorId, body.generalNotes, coords?.latitude ?? null, coords?.longitude ?? null),
+        ];
+        for (const item of normalizedItems) {
+          statements.push(env.DB.prepare(
+            `INSERT INTO maintenance_inspection_items
+             (inspection_id, item_key, item_type, value, notes, extra_type, extra_distance)
+             SELECT id, ?, ?, ?, ?, ?, ? FROM maintenance_inspections
+             WHERE box_id = ? ORDER BY id DESC LIMIT 1`,
+          ).bind(item.itemKey, item.itemType, item.value, item.notes, item.extraType, item.extraDistance, body.boxId));
+        }
+        if (needsMaintenance) {
+          statements.push(env.DB.prepare(
+            `INSERT INTO maintenance_tasks (inspection_id, status)
+             SELECT id, 'pending' FROM maintenance_inspections
+             WHERE box_id = ? ORDER BY id DESC LIMIT 1`,
+          ).bind(body.boxId));
+        }
+        statements.push(env.DB.prepare(
+          `UPDATE maintenance_boxes SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        ).bind(needsMaintenance ? "needs_maintenance" : "inspected", body.boxId));
+        statements.push(env.DB.prepare(
+          `SELECT i.id FROM maintenance_inspections i WHERE i.box_id = ? ORDER BY i.id DESC LIMIT 1`,
+        ).bind(body.boxId));
+        const result = await env.DB.batch(statements);
+        const inspectionId = result.at(-1)?.results?.[0]?.id;
+        if (!Number.isSafeInteger(inspectionId)) throw new Error("Inspection creation did not return an id");
+        return Response.json({ id: inspectionId, needsMaintenance });
+      }
+      if (maintenanceInspectionMatch) {
+        if (!["admin", "inspector"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+        const id = Number(maintenanceInspectionMatch[1]);
+        if (!Number.isSafeInteger(id) || id <= 0) return Response.json({ error: "Invalid inspection id" }, { status: 400 });
+        const inspection = await env.DB.prepare(
+          `SELECT i.*, b.number AS box_number, b.id AS box_id, b.status AS box_status,
+                  b.latitude AS box_latitude, b.longitude AS box_longitude,
+                  c.id AS cabinet_id, c.number AS cabinet_number,
+                  e.id AS exchange_id, e.name AS exchange_name
+           FROM maintenance_inspections i
+           JOIN maintenance_boxes b ON b.id = i.box_id
+           JOIN maintenance_cabinets c ON c.id = b.cabinet_id
+           JOIN maintenance_exchanges e ON e.id = c.exchange_id
+           WHERE i.id = ?`,
+        ).bind(id).first();
+        if (!inspection) return Response.json({ error: "Inspection not found" }, { status: 404 });
+        const { results: items } = await env.DB.prepare(
+          `SELECT * FROM maintenance_inspection_items WHERE inspection_id = ?`,
+        ).bind(id).all();
+        const task = await env.DB.prepare(
+          `SELECT * FROM maintenance_tasks WHERE inspection_id = ? ORDER BY id DESC LIMIT 1`,
+        ).bind(id).first();
+        const { results: statuses } = task
+          ? await env.DB.prepare(`SELECT * FROM maintenance_item_status WHERE task_id = ?`).bind(task.id).all()
+          : { results: [] };
+        return Response.json({
+          inspection,
+          items,
+          task,
+          itemStatusMap: Object.fromEntries(statuses.map((row) => [row.item_key, row])),
+        });
+      }
+      if (maintenanceInspectionLocationMatch) {
+        if (!["admin", "inspector"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+        const inspectionId = Number(maintenanceInspectionLocationMatch[1]);
+        const body = await request.json().catch(() => null);
+        if (!Number.isSafeInteger(inspectionId) || inspectionId <= 0 || !body ||
+            !Number.isFinite(body.latitude) || !Number.isFinite(body.longitude) ||
+            body.latitude < -90 || body.latitude > 90 || body.longitude < -180 || body.longitude > 180) {
+          return Response.json({ error: "Invalid inspection coordinates" }, { status: 400 });
+        }
+        const result = await env.DB.prepare(
+          `UPDATE maintenance_inspections SET latitude=?,longitude=? WHERE id=?`,
+        ).bind(body.latitude, body.longitude, inspectionId).run();
+        if (!result.meta?.changes) return Response.json({ error: "Inspection not found" }, { status: 404 });
+        return Response.json({ ok: true });
+      }
+      if (maintenancePhotosRoute) {
+        if (!["admin", "inspector", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+        if (request.method === "GET") {
+          const inspectionId = Number(url.searchParams.get("inspection_id"));
+          if (!Number.isSafeInteger(inspectionId) || inspectionId <= 0) return Response.json({ error: "Invalid inspection id" }, { status: 400 });
+          const { results } = await env.DB.prepare(
+            `SELECT * FROM maintenance_photos WHERE inspection_id=? ORDER BY uploaded_at,id`,
+          ).bind(inspectionId).all();
+          return Response.json(results);
+        }
+        const body = await request.json().catch(() => null);
+        if (!body || Object.keys(body).some((key) =>
+          !["boxId", "inspectionId", "photoType", "mediaType", "filename", "storageKey", "takenAt", "latitude", "longitude"].includes(key)) ||
+            !Number.isSafeInteger(body.boxId) || body.boxId <= 0 ||
+            !Number.isSafeInteger(body.inspectionId) || body.inspectionId <= 0 ||
+            !["before", "after"].includes(body.photoType) ||
+            !["photo", "video"].includes(body.mediaType) ||
+            typeof body.filename !== "string" || !body.filename.trim() || body.filename.length > 255 ||
+            typeof body.storageKey !== "string" || !body.storageKey.trim() || body.storageKey.length > 1024 ||
+            (body.takenAt !== null && body.takenAt !== undefined && typeof body.takenAt !== "string") ||
+            (body.latitude !== null && body.latitude !== undefined && (!Number.isFinite(body.latitude) || body.latitude < -90 || body.latitude > 90)) ||
+            (body.longitude !== null && body.longitude !== undefined && (!Number.isFinite(body.longitude) || body.longitude < -180 || body.longitude > 180))) {
+          return Response.json({ error: "Invalid photo metadata" }, { status: 400 });
+        }
+        const linked = await env.DB.prepare(
+          `SELECT 1 FROM maintenance_inspections WHERE id=? AND box_id=?`,
+        ).bind(body.inspectionId, body.boxId).first();
+        if (!linked) return Response.json({ error: "Inspection/box mismatch" }, { status: 409 });
+        const id = Number(claims.sub);
+        if (!Number.isSafeInteger(id) || id <= 0) return Response.json({ error: "Invalid actor" }, { status: 400 });
+        const row = await env.DB.prepare(
+          `INSERT INTO maintenance_photos
+            (box_id,inspection_id,photo_type,media_type,filename,storage_key,uploaded_by,taken_at,latitude,longitude)
+           VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING *`,
+        ).bind(body.boxId, body.inspectionId, body.photoType, body.mediaType, body.filename.trim(),
+          body.storageKey.trim(), id, body.takenAt || null, body.latitude ?? null, body.longitude ?? null).first();
+        return Response.json(row, { status: 201 });
+      }
+      if (maintenancePhotoMatch) {
+        if (!["admin", "inspector", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+        const photoId = Number(maintenancePhotoMatch[1]);
+        if (!Number.isSafeInteger(photoId) || photoId <= 0) return Response.json({ error: "Invalid photo id" }, { status: 400 });
+        if (request.method === "PATCH") {
+          const body = await request.json().catch(() => null);
+          if (!body || Object.keys(body).some((key) => !["latitude", "longitude"].includes(key)) ||
+              !Number.isFinite(body.latitude) || body.latitude < -90 || body.latitude > 90 ||
+              !Number.isFinite(body.longitude) || body.longitude < -180 || body.longitude > 180) {
+            return Response.json({ error: "Invalid photo coordinates" }, { status: 400 });
+          }
+          const result = await env.DB.prepare(
+            `UPDATE maintenance_photos SET latitude=?,longitude=? WHERE id=?`,
+          ).bind(body.latitude, body.longitude, photoId).run();
+          return result.meta?.changes ? Response.json({ ok: true }) : Response.json({ error: "Photo not found" }, { status: 404 });
+        }
+        const photo = await env.DB.prepare(`SELECT * FROM maintenance_photos WHERE id=?`).bind(photoId).first();
+        if (!photo) return Response.json({ error: "Photo not found" }, { status: 404 });
+        await env.DB.prepare(`DELETE FROM maintenance_photos WHERE id=?`).bind(photoId).run();
+        return Response.json({ ok: true, photo });
+      }
+      if (maintenanceTasksRoute) {
+        if (!["admin", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+        const params = [];
+        const where = ["(COALESCE(i.is_archived, 0) = 0 OR mt.status IN ('completed','pending_approval'))"];
+        const status = url.searchParams.get("status");
+        const search = url.searchParams.get("q");
+        const exchangeId = url.searchParams.get("exchange_id");
+        const cabinetId = url.searchParams.get("cabinet_id");
+        const boxQuery = url.searchParams.get("box_q");
+        const from = url.searchParams.get("from");
+        const to = url.searchParams.get("to");
+        const review = url.searchParams.get("review");
+        if (status) { where.push("mt.status = ?"); params.push(status); }
+        if (search) {
+          if (search.length > 100) return Response.json({ error: "Invalid search" }, { status: 400 });
+          where.push("(e.name LIKE ? OR c.number LIKE ? OR b.number LIKE ?)");
+          params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
+        if (exchangeId !== null) { if (!/^\d+$/.test(exchangeId)) return Response.json({ error: "Invalid exchange filter" }, { status: 400 }); where.push("e.id = ?"); params.push(Number(exchangeId)); }
+        if (cabinetId !== null) { if (!/^\d+$/.test(cabinetId)) return Response.json({ error: "Invalid cabinet filter" }, { status: 400 }); where.push("c.id = ?"); params.push(Number(cabinetId)); }
+        if (boxQuery !== null) { if (boxQuery.length > 100) return Response.json({ error: "Invalid box search" }, { status: 400 }); where.push("b.number LIKE ?"); params.push(`%${boxQuery}%`); }
+        for (const [name, value, op] of [["from", from, ">="], ["to", to, "<="]]) {
+          if (value !== null) { if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return Response.json({ error: `Invalid ${name} date` }, { status: 400 }); where.push(`i.date ${op} ?`); params.push(value); }
+        }
+        if (review) where.push(`(EXISTS (SELECT 1 FROM maintenance_inspection_items ii WHERE ii.inspection_id=i.id AND ii.item_key='data_review')
+          AND NOT EXISTS (SELECT 1 FROM maintenance_item_status ms WHERE ms.task_id=mt.id AND ms.item_key='data_review' AND ms.is_done=1))`);
+        const select = `SELECT mt.*, i.box_id, i.general_notes AS inspection_notes, i.date AS inspection_date,
+          b.number AS box_number, c.number AS cabinet_number, e.name AS exchange_name,
+          i.opened_by_name, EXISTS (SELECT 1 FROM maintenance_inspection_items ii
+            WHERE ii.inspection_id=i.id AND ii.item_key='data_review') AND NOT EXISTS (
+            SELECT 1 FROM maintenance_item_status ms WHERE ms.task_id=mt.id AND ms.item_key='data_review' AND ms.is_done=1) AS needs_data_review,
+          (SELECT COUNT(*) FROM maintenance_box_line_numbers bl WHERE bl.inspection_id=i.id) AS phones_count
+          FROM maintenance_tasks mt JOIN maintenance_inspections i ON i.id=mt.inspection_id
+          JOIN maintenance_boxes b ON b.id=i.box_id JOIN maintenance_cabinets c ON c.id=b.cabinet_id
+          JOIN maintenance_exchanges e ON e.id=c.exchange_id`;
+        const { results: tasks } = await env.DB.prepare(
+          `${select} WHERE ${where.join(" AND ")} ORDER BY e.name,c.number,b.number LIMIT 1000`,
+        ).bind(...params).all();
+        let archivedTasks = [];
+        if (!status && !search) {
+          const { results } = await env.DB.prepare(
+            `${select} WHERE COALESCE(i.is_archived,0)=1 AND mt.status!='completed' ORDER BY mt.id DESC LIMIT 1000`,
+          ).all();
+          archivedTasks = results;
+        }
+        const reviewCount = await env.DB.prepare(
+          `SELECT COUNT(*) AS count FROM maintenance_tasks mt
+           JOIN maintenance_inspections i ON i.id=mt.inspection_id
+           WHERE COALESCE(i.is_archived,0)=0 AND mt.status!='completed'
+             AND EXISTS (SELECT 1 FROM maintenance_inspection_items ii WHERE ii.inspection_id=i.id AND ii.item_key='data_review')
+             AND NOT EXISTS (SELECT 1 FROM maintenance_item_status ms WHERE ms.task_id=mt.id AND ms.item_key='data_review' AND ms.is_done=1)`,
+        ).first();
+        return Response.json({ tasks, archivedTasks, reviewCount: reviewCount?.count || 0 });
+      }
+      if (maintenanceTaskMatch) {
+        if (!["admin", "technician", "inspector"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+        const id = Number(maintenanceTaskMatch[1]);
+        if (!Number.isSafeInteger(id) || id <= 0) return Response.json({ error: "Invalid task id" }, { status: 400 });
+        const task = await env.DB.prepare(
+          `SELECT mt.*, i.box_id, i.general_notes AS inspection_notes, i.date AS inspection_date,
+                  i.latitude AS insp_latitude, i.longitude AS insp_longitude,
+                  b.number AS box_number, b.latitude AS box_latitude, b.longitude AS box_longitude,
+                  c.number AS cabinet_number, e.name AS exchange_name,
+                  i.inspector_id AS inspector_id
+           FROM maintenance_tasks mt JOIN maintenance_inspections i ON i.id=mt.inspection_id
+           JOIN maintenance_boxes b ON b.id=i.box_id JOIN maintenance_cabinets c ON c.id=b.cabinet_id
+           JOIN maintenance_exchanges e ON e.id=c.exchange_id WHERE mt.id=?`,
+        ).bind(id).first();
+        if (!task) return Response.json({ error: "Task not found" }, { status: 404 });
+        if (claims.role === "inspector" && Number(claims.sub) !== task.inspector_id) {
+          return Response.json({ error: "Forbidden" }, { status: 403 });
+        }
+        const { results: inspItems } = await env.DB.prepare(
+          `SELECT * FROM maintenance_inspection_items WHERE inspection_id=?`,
+        ).bind(task.inspection_id).all();
+        const { results: itemStatuses } = await env.DB.prepare(
+          `SELECT * FROM maintenance_item_status WHERE task_id=?`,
+        ).bind(id).all();
+        const { results: boxPhones } = await env.DB.prepare(
+          `SELECT * FROM maintenance_box_line_numbers WHERE inspection_id=? ORDER BY id`,
+        ).bind(task.inspection_id).all();
+        return Response.json({ task, inspItems, itemStatuses, boxPhones });
+      }
+      if (maintenanceTaskActionMatch) {
+        if (!["admin", "inspector", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+        const id = Number(maintenanceTaskActionMatch[1]);
+        const body = await request.json().catch(() => null);
+        if (!Number.isSafeInteger(id) || id <= 0 || !body || typeof body.action !== "string") {
+          return Response.json({ error: "Invalid task action" }, { status: 400 });
+        }
+        const task = await env.DB.prepare(
+          `SELECT mt.id, mt.status, mt.inspection_id, i.box_id, i.inspector_id
+           FROM maintenance_tasks mt JOIN maintenance_inspections i ON i.id=mt.inspection_id
+           WHERE mt.id=?`,
+        ).bind(id).first();
+        if (!task) return Response.json({ error: "Task not found" }, { status: 404 });
+        const actorId = Number(claims.sub);
+        if (!Number.isSafeInteger(actorId) || actorId <= 0) return Response.json({ error: "Invalid actor" }, { status: 400 });
+        if (claims.role === "inspector" && actorId !== task.inspector_id) return Response.json({ error: "Forbidden" }, { status: 403 });
+        if (body.action === "start") {
+          if (!["admin", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+          if (Object.keys(body).length !== 1) return Response.json({ error: "Invalid start action" }, { status: 400 });
+          if (task.status !== "pending") return Response.json({ error: "Cannot start this task" }, { status: 409 });
+          await env.DB.batch([
+            env.DB.prepare(`UPDATE maintenance_tasks SET status='in_progress', technician_id=?, started_at=CURRENT_TIMESTAMP WHERE id=?`).bind(actorId, id),
+            env.DB.prepare(`UPDATE maintenance_boxes SET status='in_progress', updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(task.box_id),
+          ]);
+          return Response.json({ ok: true });
+        }
+        if (body.action === "notes") {
+          if (!["admin", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+          if (Object.keys(body).some((key) => !["action", "notes"].includes(key)) ||
+              typeof body.notes !== "string" || body.notes.length > 10000) {
+            return Response.json({ error: "Invalid task notes" }, { status: 400 });
+          }
+          await env.DB.prepare(`UPDATE maintenance_tasks SET notes=? WHERE id=?`).bind(body.notes, id).run();
+          return Response.json({ ok: true });
+        }
+        if (body.action === "phone-add") {
+          if (!["admin", "technician"].includes(claims.role) ||
+              Object.keys(body).some((key) => !["action", "phone", "notes"].includes(key)) ||
+              typeof body.phone !== "string" || !body.phone.trim() || body.phone.trim().length > 80 ||
+              typeof (body.notes ?? "") !== "string" || (body.notes ?? "").length > 2000) {
+            return Response.json({ error: "Invalid phone number" }, { status: 400 });
+          }
+          const duplicate = await env.DB.prepare(
+            `SELECT id FROM maintenance_box_line_numbers WHERE inspection_id=? AND phone=?`,
+          ).bind(task.inspection_id, body.phone.trim()).first();
+          if (duplicate) return Response.json({ error: "Phone number already exists" }, { status: 409 });
+          const row = await env.DB.prepare(
+            `INSERT INTO maintenance_box_line_numbers (inspection_id,phone,notes,source)
+             VALUES (?,?,?,'technician') RETURNING id`,
+          ).bind(task.inspection_id, body.phone.trim(), (body.notes ?? "").trim()).first();
+          return Response.json({ ok: true, id: row.id }, { status: 201 });
+        }
+        if (body.action === "phone-update" || body.action === "phone-delete") {
+          if (!["admin", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+          const isDelete = body.action === "phone-delete";
+          if (Object.keys(body).some((key) => !["action", "phoneId", "phone", "notes"].includes(key)) ||
+              !Number.isSafeInteger(body.phoneId) || body.phoneId <= 0 ||
+              (!isDelete && (typeof body.phone !== "string" || !body.phone.trim() || body.phone.trim().length > 80 ||
+                typeof (body.notes ?? "") !== "string" || (body.notes ?? "").length > 2000))) {
+            return Response.json({ error: "Invalid phone number action" }, { status: 400 });
+          }
+          const phoneRow = await env.DB.prepare(
+            `SELECT id FROM maintenance_box_line_numbers WHERE id=? AND inspection_id=?`,
+          ).bind(body.phoneId, task.inspection_id).first();
+          if (!phoneRow) return Response.json({ error: "Phone number not found" }, { status: 404 });
+          if (isDelete) {
+            await env.DB.prepare(`DELETE FROM maintenance_box_line_numbers WHERE id=? AND inspection_id=?`)
+              .bind(body.phoneId, task.inspection_id).run();
+          } else {
+            const duplicate = await env.DB.prepare(
+              `SELECT id FROM maintenance_box_line_numbers WHERE inspection_id=? AND phone=? AND id<>?`,
+            ).bind(task.inspection_id, body.phone.trim(), body.phoneId).first();
+            if (duplicate) return Response.json({ error: "Phone number already exists" }, { status: 409 });
+            await env.DB.prepare(
+              `UPDATE maintenance_box_line_numbers SET phone=?,notes=?,updated_at=CURRENT_TIMESTAMP
+               WHERE id=? AND inspection_id=?`,
+            ).bind(body.phone.trim(), (body.notes ?? "").trim(), body.phoneId, task.inspection_id).run();
+          }
+          return Response.json({ ok: true });
+        }
+        if (body.action === "toggle") {
+          if (!["admin", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+          if (Object.keys(body).some((key) => !["action", "itemKey"].includes(key)) ||
+              typeof body.itemKey !== "string" || !body.itemKey || body.itemKey.length > 80) {
+            return Response.json({ error: "Invalid item toggle" }, { status: 400 });
+          }
+          if (body.itemKey === "data_review") return Response.json({ error: "Data review is still managed by its PostgreSQL workflow" }, { status: 409 });
+          const item = await env.DB.prepare(
+            `SELECT id FROM maintenance_inspection_items WHERE inspection_id=? AND item_key=?`,
+          ).bind(task.inspection_id, body.itemKey).first();
+          if (!item) return Response.json({ error: "Inspection item not found" }, { status: 404 });
+          await env.DB.batch([
+            env.DB.prepare(
+              `INSERT INTO maintenance_item_status (task_id,item_key,is_done,done_at,done_by)
+               VALUES (?, ?, 1, CURRENT_TIMESTAMP, ?)
+               ON CONFLICT(task_id,item_key) DO UPDATE SET
+                 is_done=CASE WHEN maintenance_item_status.is_done=1 THEN 0 ELSE 1 END,
+                 done_at=CASE WHEN maintenance_item_status.is_done=1 THEN NULL ELSE CURRENT_TIMESTAMP END,
+                 done_by=excluded.done_by`,
+            ).bind(id, body.itemKey, actorId),
+          ]);
+          return Response.json({ ok: true });
+        }
+        if (body.action === "complete") {
+          if (!["admin", "technician"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
+          if (Object.keys(body).length !== 1) return Response.json({ error: "Invalid complete action" }, { status: 400 });
+          if (["completed", "pending_approval"].includes(task.status)) return Response.json({ error: "Cannot complete this task" }, { status: 409 });
+          const { results: unresolved } = await env.DB.prepare(
+            `SELECT ii.item_key FROM maintenance_inspection_items ii
+             WHERE ii.inspection_id=? AND ii.value IN ('bad','yes')
+               AND NOT EXISTS (SELECT 1 FROM maintenance_item_status ms
+                 WHERE ms.task_id=? AND ms.item_key=ii.item_key AND ms.is_done=1)`,
+          ).bind(task.inspection_id, id).all();
+          if (unresolved.length) return Response.json({ error: `Unresolved checklist items: ${unresolved.length}` }, { status: 409 });
+          await env.DB.batch([
+            env.DB.prepare(`UPDATE maintenance_tasks SET status='pending_approval', completed_at=NULL WHERE id=?`).bind(id),
+            env.DB.prepare(`UPDATE maintenance_boxes SET status='pending_approval', updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(task.box_id),
+          ]);
+          return Response.json({ ok: true });
+        }
+        if (body.action === "approve") {
+          if (!["admin", "inspector"].includes(claims.role) || Object.keys(body).some((key) => !["action", "redirect"].includes(key)) ||
+              (body.redirect !== undefined && typeof body.redirect !== "string")) {
+            return Response.json({ error: "Forbidden" }, { status: 403 });
+          }
+          if (task.status !== "pending_approval") return Response.json({ error: "Cannot approve this task" }, { status: 409 });
+          await env.DB.batch([
+            env.DB.prepare(`UPDATE maintenance_tasks SET status='completed', completed_at=CURRENT_TIMESTAMP WHERE id=?`).bind(id),
+            env.DB.prepare(`UPDATE maintenance_boxes SET status='completed', updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(task.box_id),
+          ]);
+          return Response.json({ ok: true });
+        }
+        if (body.action === "prelim-confirm") {
+          if (!["admin", "inspector"].includes(claims.role) || Object.keys(body).length !== 1) {
+            return Response.json({ error: "Forbidden" }, { status: 403 });
+          }
+          const current = await env.DB.prepare(`SELECT prelim_confirmed_at FROM maintenance_tasks WHERE id=?`).bind(id).first();
+          if (current?.prelim_confirmed_at) return Response.json({ error: "Already preliminarily confirmed" }, { status: 409 });
+          const blocking = await env.DB.prepare(
+            `SELECT 1 FROM maintenance_inspection_items ii
+             WHERE ii.inspection_id=? AND ii.value IN ('bad','yes')
+               AND ii.item_key NOT IN ('electricity_conflict','air_conflict','overlap')
+               AND NOT EXISTS (SELECT 1 FROM maintenance_item_status ms
+                 WHERE ms.task_id=? AND ms.item_key=ii.item_key AND ms.is_done=1) LIMIT 1`,
+          ).bind(task.inspection_id, id).first();
+          if (blocking) return Response.json({ error: "Unresolved preliminary items" }, { status: 409 });
+          await env.DB.prepare(
+            `UPDATE maintenance_tasks SET prelim_confirmed_at=CURRENT_TIMESTAMP, prelim_confirmed_by=? WHERE id=?`,
+          ).bind(actorId, id).run();
+          return Response.json({ ok: true });
+        }
+        if (body.action === "reject" || body.action === "revert") {
+          const isRevert = body.action === "revert";
+          if ((isRevert && claims.role !== "admin") ||
+              (!isRevert && !["admin", "inspector"].includes(claims.role)) ||
+              Object.keys(body).some((key) => !["action", "reason"].includes(key)) ||
+              (body.reason !== undefined && (typeof body.reason !== "string" || body.reason.length > 2000))) {
+            return Response.json({ error: "Forbidden" }, { status: 403 });
+          }
+          const expected = isRevert ? "completed" : "pending_approval";
+          if (task.status !== expected) return Response.json({ error: isRevert ? "Cannot revert this task" : "Cannot reject this task" }, { status: 409 });
+          await env.DB.batch([
+            env.DB.prepare(`DELETE FROM maintenance_item_status WHERE task_id=?`).bind(id),
+            env.DB.prepare(
+              `UPDATE maintenance_tasks SET status='in_progress', completed_at=NULL, rejection_reason=? WHERE id=?`,
+            ).bind(body.reason?.trim() || null, id),
+            env.DB.prepare(`UPDATE maintenance_boxes SET status='in_progress', updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(task.box_id),
+          ]);
+          return Response.json({ ok: true });
+        }
+        return Response.json({ error: "Unsupported task action" }, { status: 400 });
+      }
       if (maintenanceCabinetBoxesMatch) {
         if (!["admin", "inspector"].includes(claims.role)) return Response.json({ error: "Forbidden" }, { status: 403 });
         const cabinetId = Number(maintenanceCabinetBoxesMatch[1]);
@@ -869,7 +1399,7 @@ export default {
       }
       if (maintenanceExchangesRoute) {
         if (request.method === "GET") {
-          if (!["admin", "inspector"].includes(claims.role)) {
+          if (!["admin", "inspector", "technician"].includes(claims.role)) {
             return Response.json({ error: "Forbidden" }, { status: 403 });
           }
           const { results } = await env.DB.prepare(
@@ -910,7 +1440,7 @@ export default {
         ).bind(exchangeId).first();
         if (!exchange) return Response.json({ error: "Exchange not found" }, { status: 404 });
         if (request.method === "GET") {
-          if (!["admin", "inspector"].includes(claims.role)) {
+          if (!["admin", "inspector", "technician"].includes(claims.role)) {
             return Response.json({ error: "Forbidden" }, { status: 403 });
           }
           const { results } = await env.DB.prepare(
@@ -1023,7 +1553,8 @@ export default {
       if (inventoryRoute) return handleInventoryTransactions(request, env, claims);
       if (grantRoute) return handleTechCoverageGrants(request, env, claims, grantId);
       return handleReferenceResource(request, env, resourceName, resourceId);
-    } catch {
+    } catch (error) {
+      console.error("[d1-worker] operation failed", error instanceof Error ? error.message : String(error));
       return Response.json({ error: "D1 operation failed" }, { status: 500 });
     }
   },
