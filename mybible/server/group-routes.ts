@@ -282,27 +282,45 @@ export function registerGroupRoutes(app: Express) {
         }
       }
 
-      // إنشاء ضيف جديد — احسب رقم العضوية التالي
-      const guestsInGroup = await db.select().from(groupGuestTokens).where(eq(groupGuestTokens.groupCode, code));
-      const memberNumber = guestsInGroup.length + 1;
-      const userName = `عضو ${memberNumber}`;
+      // إنشاء ضيف جديد — رقم العضوية التالي.
+      // ⚠️ كان «عدد التوكنات + ١»: لما ضيف يرجع لحسابه («سجّل اسمك» بيمسح توكنه) العدد
+      // بيقلّ، فالضيف اللى بعده كان ممكن ياخد رقم ضيف موجود — اسمين «عضو N» لشخصين،
+      // وقراءاتهم (متربطة بالاسم) بتتخلط. ودخولين فى نفس اللحظة كانوا بياخدوا نفس الرقم.
+      // دلوقتى: أكبر رقم + ١، ومن غير اسم مستخدم، وجوّه قفل على المجموعة.
       const newToken = crypto.randomUUID();
       const memberKey = 'g_' + crypto.randomBytes(8).toString('hex');
+      let memberNumber = 0;
+      let userName = '';
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`guest-join:${code}`]);
+        const { rows: mx } = await client.query(
+          `SELECT COALESCE(MAX(member_number), 0)::int AS n FROM group_guest_tokens WHERE group_code = $1`, [code]);
+        const { rows: taken } = await client.query(
+          `SELECT user_name FROM group_members WHERE group_id = $1 AND user_name LIKE 'عضو %'`, [group.id]);
+        const takenNames = new Set(taken.map((r: any) => r.user_name));
+        memberNumber = (mx[0]?.n ?? 0) + 1;
+        while (takenNames.has(`عضو ${memberNumber}`)) memberNumber++;
+        userName = `عضو ${memberNumber}`;
 
-      // أضف في group_members كعضو فعلي
-      await pool.query(
-        `INSERT INTO group_members (group_id, user_name, member_key, is_admin, is_muted) VALUES ($1, $2, $3, false, false)`,
-        [group.id, userName, memberKey]
-      );
-
-      // احفظ التوكن
-      await db.insert(groupGuestTokens).values({
-        token: newToken,
-        groupId: group.id,
-        groupCode: code,
-        memberNumber,
-        memberKey,
-      });
+        // أضف في group_members كعضو فعلي
+        await client.query(
+          `INSERT INTO group_members (group_id, user_name, member_key, is_admin, is_muted) VALUES ($1, $2, $3, false, false)`,
+          [group.id, userName, memberKey]
+        );
+        // احفظ التوكن
+        await client.query(
+          `INSERT INTO group_guest_tokens (token, group_id, group_code, member_number, member_key) VALUES ($1, $2, $3, $4, $5)`,
+          [newToken, group.id, code, memberNumber, memberKey]
+        );
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw e;
+      } finally {
+        client.release();
+      }
 
       // اضبط الـ cookie (سنة كاملة)
       const newTokens = { ...guestTokens, [code]: newToken };

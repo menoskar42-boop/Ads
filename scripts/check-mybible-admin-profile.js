@@ -108,4 +108,14 @@ if (/memberKey/.test(strip(ADMIN_READER))) {
 }
 if (!/\/profile`/.test(strip(MEMBERS))) fail('شاشة الأعضاء مافيهاش «تسجيل الاسم والموبايل»');
 
-if (!process.exitCode) console.log('✅ تسجيل اسم وموبايل العضو من الأدمن: القرار والراوت والقراءة على الحساب سليمين');
+/* ── ٥) رقم عضوية الضيف ماينفعش يتكرر (اسم «عضو N» لشخصين = قراءاتهم بتتخلط) ── */
+{
+  const gj = src.indexOf("'/api/groups/:code/guest-join'");
+  const body = gj < 0 ? '' : src.slice(gj, gj + 4000);
+  if (/guestsInGroup\.length \+ 1/.test(body)) fail('رقم الضيف بيتحسب من عدد التوكنات — بيتكرر بعد أى «سجّل اسمك»');
+  if (!/MAX\(member_number\)/.test(body)) fail('رقم الضيف لازم يبقى أكبر رقم + ١');
+  if (!/pg_advisory_xact_lock/.test(body)) fail('دخولين فى نفس اللحظة ممكن ياخدوا نفس الرقم — محتاج قفل');
+  if (!/takenNames\.has\(/.test(body)) fail('الرقم الجديد لازم مايكونش اسم عضو موجود');
+}
+
+if (!process.exitCode) console.log('✅ تسجيل اسم وموبايل العضو من الأدمن: القرار والراوت والقراءة على الحساب ورقم الضيف سليمين');
