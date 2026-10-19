@@ -20,9 +20,62 @@ const USERS_WRITE = /\b(insert\s+into|update|delete\s+from)\s+"?users"?\b/i;
 const userCache = new Map<number, { user: any; at: number }>();
 export const USER_CACHE_MS = 15 * 60 * 1000;
 
+// ===== عدّاد صحيان القاعدة (المالك ٢٠٢٦-١٠-١٩: «حاسس إن الموضوع مش هيبقى ذو جدوى» — نقيس بالأرقام) =====
+// القاعدة بتنام بعد ٥ دقايق من غير استعلامات ⇒ الدقيقة دى «صاحية» لو فيه استعلام فى آخر ٥ دقايق.
+// كله فى الذاكرة (٤٨ ساعة) — قرايته مابتلمسش القاعدة.
+const METER_MIN = 48 * 60;
+const SLEEP_AFTER_MIN = 5;
+const minuteHits = new Uint32Array(METER_MIN);   // عدد الاستعلامات فى كل دقيقة (ring)
+const minuteStamp = new Float64Array(METER_MIN); // رقم الدقيقة اللى الخانة دى بتمثّلها
+const hourSources = new Map<number, Map<string, number>>(); // ساعة ← (مصدر ← عدد)
+const sourceOf = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 60).replace(/\$\d+|\b\d+\b/g, "#");
+
+function meter(text: string) {
+  const m = Math.floor(Date.now() / 60_000);
+  const i = m % METER_MIN;
+  if (minuteStamp[i] !== m) { minuteStamp[i] = m; minuteHits[i] = 0; }
+  minuteHits[i]++;
+  const h = Math.floor(m / 60);
+  let src = hourSources.get(h);
+  if (!src) {
+    src = new Map();
+    hourSources.set(h, src);
+    for (const k of hourSources.keys()) if (k < h - 48) hourSources.delete(k);
+  }
+  const key = sourceOf(text);
+  if (src.size < 400 || src.has(key)) src.set(key, (src.get(key) || 0) + 1);
+}
+
+/** آخر ٤٨ ساعة: لكل ساعة عدد الاستعلامات والدقايق اللى القاعدة كانت صاحية فيها + أكتر المصادر. */
+export function dbWakeReport(hours = 48) {
+  const nowMin = Math.floor(Date.now() / 60_000);
+  const hits = (m: number) => (minuteStamp[m % METER_MIN] === m ? minuteHits[m % METER_MIN] : 0);
+  const out: { hour: string; queries: number; awakeMin: number; top: [string, number][] }[] = [];
+  for (let h = Math.floor(nowMin / 60) - hours + 1; h <= Math.floor(nowMin / 60); h++) {
+    let q = 0, awake = 0;
+    for (let m = h * 60; m < h * 60 + 60 && m <= nowMin; m++) {
+      q += hits(m);
+      let on = false;
+      for (let k = 0; k < SLEEP_AFTER_MIN && !on; k++) on = hits(m - k) > 0;
+      if (on) awake++;
+    }
+    const top = [...(hourSources.get(h) || new Map()).entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    out.push({ hour: new Date(h * 3_600_000).toISOString(), queries: q, awakeMin: awake, top });
+  }
+  const awakeMin = out.reduce((n, r) => n + r.awakeMin, 0);
+  return { hours: out, awakeHours: Math.round((awakeMin / 60) * 10) / 10, since: out[0]?.hour };
+}
+
+/** «نسخة» طابور التنفيذ: بتزيد مع أى كتابة فى exec_jobs / exec_followups من العملية دى. */
+export let execQueueVersion = 0;
+const EXEC_WRITE = /\b(insert\s+into|update|delete\s+from)\s+"?exec_(jobs|followups)"?/i;
+
 function noteQuery(text: unknown): void {
   lastDbQueryAt = Date.now();
-  if (typeof text === "string" && text.includes("users") && USERS_WRITE.test(text)) userCache.clear();
+  if (typeof text !== "string") return;
+  meter(text);
+  if (text.includes("users") && USERS_WRITE.test(text)) userCache.clear();
+  if (text.includes("exec_") && EXEC_WRITE.test(text)) execQueueVersion++;
 }
 
 /** بيتنادى مرة على الـpool: كل استعلام (pool.query، withTx، drizzle) بيعدّى من هنا. */

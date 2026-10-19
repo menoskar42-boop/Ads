@@ -46,7 +46,7 @@ import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign 
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
 import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
-import { QuietSessionStore, cachedUser } from "./db-quiet";
+import { QuietSessionStore, cachedUser, dbWakeReport, execQueueVersion, lastDbQueryAt } from "./db-quiet";
 
 const requireMaintenanceD1 = createRequire(
   typeof __filename !== "undefined" ? __filename : `${process.cwd()}/server/routes.ts`,
@@ -2242,6 +2242,33 @@ export async function registerRoutes(
   // الخنق من غير ما تخفى جهاز واقف فعلاً (وإيقاف التفعيل بيمسح النبضة فوراً برضه).
   const EXEC_ACTIVE_WINDOW = "interval '150 seconds'";
 
+  // ===== «خلّى القاعدة تنام» ٢ (المالك ٢٠٢٦-١٠-١٩) — جهاز التنفيذ من الذاكرة =====
+  // جهاز التنفيذ مفتوح طول اليوم والليل: نبضة كل ٤٥ث + سحب كل ١٠ث + حالة كل ١٥ث — وكل واحدة
+  // كانت استعلام أو أكتر، فالقاعدة عمرها ما بتسكت ٥ دقايق تنام فيهم حتى والطابور فاضى.
+  // دلوقتى: النبضة فى الذاكرة (وفى القاعدة كل ٦ ساعات بس أو لو الجهاز اتغيّر)، والطابور الفاضى
+  // بيترد من الذاكرة لحد ما يحصل أى كتابة فى exec_jobs/exec_followups (db-quiet بيعرفها من نص
+  // الاستعلام نفسه) — أو كل ٣٠ دقيقة كأمان. أول ما حاجة تتضاف للطابور بتتسحب فى السحبة اللى بعدها.
+  const EXEC_ACTIVE_MS = 150 * 1000;
+  const BEAT_PERSIST_MS = 6 * 60 * 60 * 1000;
+  const EXEC_IDLE_RECHECK_MS = 30 * 60 * 1000;
+  let execBeat: { value: string; at: number; savedAt: number } | null = null;
+  let execReloadToken: string | null = null;
+  let execIdle: { version: number; key: string; at: number } | null = null;
+  const pendingMemo = new Map<string, { version: number; at: number; n: number }>();
+  let followupsSeen = -1;
+  let nextFollowupAt = 0;
+  let lastOmSnapshotAt = 0;
+  // «القاعدة صاحية من غيرنا»: استعلام فى آخر دقيقة **مش** من استعلامات جهاز التنفيذ نفسها —
+  // من غير الاستثناء ده النبضة (كل ٤٥ث) كانت هتشوف استعلامها اللى قبله وتفضل تصحّيها للأبد.
+  let execSelfAt = 0;
+  const markExecSelf = () => { execSelfAt = lastDbQueryAt; };
+  const dbAwake = () => lastDbQueryAt !== execSelfAt && Date.now() - lastDbQueryAt < 60 * 1000;
+  const beatStatus = () => {
+    if (!execBeat) return null;
+    const since = (Date.now() - execBeat.at) / 1000;
+    return { active: since * 1000 < EXEC_ACTIVE_MS, value: execBeat.value, since };
+  };
+
   // تصنيف الباتش بأولوية **واحدة** = أعلى أولوية بين مهامه النشطة.
   // ⚠️ لازم يكون التصنيف بالباتش مش بالصف: الباتش الواحد ممكن يبقى فيه صفوف
   // بأولويتين مختلفتين (تكملة بعد مقاطعة مثلاً)، والتصنيف بالصف كان بيخلّيه يظهر
@@ -2254,6 +2281,9 @@ export async function registerRoutes(
   // المتابعات المؤجّلة اللى وقتها جه ⇒ مهام عادية فى الطابور (أولوية الطلب الصغير ٢، باتش لوحدها).
   // بتتنادى من نبضة جهاز التنفيذ (كل ~٢٠ث) — مفيش داعى لها من غير جهاز تنفيذ أصلاً.
   const runExecFollowups = async () => {
+    // المتابعات بتتضاف بـ INSERT INTO exec_followups (بيغيّر النسخة) — ومن غير كده بنستنى أقرب ميعاد
+    if (followupsSeen === execQueueVersion && Date.now() < nextFollowupAt) return;
+    followupsSeen = execQueueVersion;
     try {
       await withTx(async (tx) => {
         const { rows } = await tx.query(
@@ -2268,19 +2298,33 @@ export async function registerRoutes(
             [f.type, JSON.stringify([f.account]), f.requested_by, f.note, batchId, SITE_OF_TYPE[f.type] || "10.42.187.101"]);
           await tx.query(`UPDATE exec_followups SET enqueued_at = now(), job_id = $2 WHERE id = $1`, [f.id, ins[0].id]);
         }
+        const { rows: nx } = await tx.query(
+          `SELECT EXTRACT(EPOCH FROM (MIN(run_at) - now())) AS secs FROM exec_followups WHERE enqueued_at IS NULL`);
+        const secs = nx[0]?.secs;
+        nextFollowupAt = secs == null ? Number.POSITIVE_INFINITY : Date.now() + Math.max(0, Number(secs)) * 1000;
       });
-    } catch (e: any) { console.error("[exec-followups]", e?.message || e); }
+      followupsSeen = execQueueVersion;
+    } catch (e: any) { followupsSeen = -1; console.error("[exec-followups]", e?.message || e); }
   };
 
   // نبضة جهاز التنفيذ (كل ~20ث) — تُخزَّن فى app_state
   app.post("/api/exec-queue/heartbeat", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
-      await pool.query(
-        `INSERT INTO app_state (key, value, updated_at) VALUES ('exec_heartbeat', $1, now())
-         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`,
-        // «اسم المستخدم · المتصفح/النظام · معرّف الجهاز» — عشان يبان الجهاز المفعّل
-        [execIdentity(req)],
-      );
+      // «اسم المستخدم · المتصفح/النظام · معرّف الجهاز» — عشان يبان الجهاز المفعّل.
+      // فى الذاكرة كل نبضة؛ وفى القاعدة كل ٦ ساعات بس أو لو الجهاز اتغيّر (بعد إعادة تشغيل السيرفر أول نبضة بترجّعها للذاكرة)
+      const ident = execIdentity(req);
+      const now = Date.now();
+      let savedAt = execBeat?.savedAt ?? 0;
+      if (!execBeat || execBeat.value !== ident || now - savedAt > BEAT_PERSIST_MS) {
+        await pool.query(
+          `INSERT INTO app_state (key, value, updated_at) VALUES ('exec_heartbeat', $1, now())
+           ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`,
+          [ident],
+        );
+        savedAt = now;
+        markExecSelf();
+      }
+      execBeat = { value: ident, at: now, savedAt };
       // «رمز إعادة التحميل»: أى سوبر أدمن (من الموبايل مثلاً) يقدر يطلب ريفريش لمتصفح
       // جهاز التنفيذ. بنركب على النبضة الموجودة (كل ~20 ثانية) فمفيش اتصال إضافى.
       //
@@ -2290,8 +2334,13 @@ export async function registerRoutes(
       // النبضة متأخرة، والتاب المخنوق (بيبعت نبضة كل دقيقة) بيلاقى الرمز اتغيّر
       // فيعمل reload، وبعد الـ reload يتخنق تانى فيتكرر كل دقيقة للأبد — وكل
       // reload بيقتل الباتش الشغّال. بالمسح: كل طلب بينفّذ ريفريش واحد وخلاص.
-      const { rows: rl } = await pool.query(
-        `DELETE FROM app_state WHERE key = 'exec_reload' RETURNING value`);
+      // طلب الريفريش بييجى من نفس السيرفر ⇒ فى الذاكرة؛ والقاعدة بنبص فيها بس لو صاحية أصلاً
+      let rl: any[] = execReloadToken ? [{ value: execReloadToken }] : [];
+      execReloadToken = null;
+      if (!rl.length && dbAwake()) {
+        ({ rows: rl } = await pool.query(`DELETE FROM app_state WHERE key = 'exec_reload' RETURNING value`));
+        markExecSelf();
+      }
       // تعويض الباتشات اليومية: لو الجهاز كان مطفى الساعة ٩ (أو السيرفر كان نايم)،
       // أول نبضة بعد التفعيل بتفتحها فوراً. الدالة بتخرج فوراً لو اتعملت النهاردة.
       void runDailyAutoBatches("heartbeat");
@@ -2303,8 +2352,12 @@ export async function registerRoutes(
       // مراجعة البيان الفنى اليومية ١٢ الضهر — نفس السبب: النبضة هى اللى بتشتغل هناك
       void runPortsMissingSubinfo("heartbeat");
       void runExecFollowups();
-      // «بوكس مليان» اللى وصل من مسار غير رد الفنى (مزامنة طلب مربوط/تأكيد) → الشغّال يتسجّل
-      void snapshotOmBoxFullWorking().catch(() => {});
+      // «بوكس مليان» اللى وصل من مسار غير رد الفنى (مزامنة طلب مربوط/تأكيد) → الشغّال يتسجّل.
+      // كان كل نبضة (UPDATE على om_responses كل ٤٥ث ليل ونهار) — دلوقتى كل ٣٠ دقيقة وبس لو القاعدة صاحية
+      if (now - lastOmSnapshotAt > 30 * 60 * 1000 && dbAwake()) {
+        lastOmSnapshotAt = now;
+        void snapshotOmBoxFullWorking().catch(() => {});
+      }
       res.json({ ok: true, reload: rl[0]?.value ?? null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -2315,6 +2368,7 @@ export async function registerRoutes(
   app.post("/api/exec-queue/request-reload", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
       const token = new Date().toISOString() + "|" + String(req.user?.username || "");
+      execReloadToken = token;
       await pool.query(
         `INSERT INTO app_state (key, value, updated_at) VALUES ('exec_reload', $1, now())
          ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`, [token]);
@@ -2333,6 +2387,9 @@ export async function registerRoutes(
   // حالة جهاز التنفيذ: مفعّل لو فيه نبضة خلال نافذة الحياة
   app.get("/api/exec-queue/status", requireAuth, async (_req, res) => {
     try {
+      // من الذاكرة (النبضة بتيجى للسيرفر ده) — القاعدة بس بعد إعادة تشغيل السيرفر
+      const b = beatStatus();
+      if (b) return res.json({ active: b.active, executor: b.active ? b.value : null, lastSeenSec: b.since, lastExecutor: b.value });
       const { rows } = await pool.query(
         `SELECT value, updated_at, (now() - updated_at < ${EXEC_ACTIVE_WINDOW}) AS active,
                 EXTRACT(EPOCH FROM (now() - updated_at)) AS since
@@ -2587,7 +2644,18 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // عدّاد صحيان القاعدة (السوبر أدمن): آخر ٤٨ ساعة — من الذاكرة، مابيصحّيش القاعدة
+  app.get("/api/admin/db-wake", requireAuth, requireSuperAdmin, (_req, res) => {
+    res.json(dbWakeReport());
+  });
+
   app.post("/api/exec-queue/claim", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    // طابور فاضى ومفيش كتابة فيه من آخر سحبة فاضية (ونفس فترة الإيقاف) ⇒ «مفيش» من الذاكرة.
+    // ولو القاعدة صاحية أصلاً من شغل تانى بنسأل عادى (مابيكلّفش، وبيلقط اللى اتضاف من نشر تانى)
+    const idleKey = JSON.stringify([req.body?.before || null, req.body?.caps || null]);
+    if (execIdle && execIdle.version === execQueueVersion && execIdle.key === idleKey
+        && Date.now() - execIdle.at < EXEC_IDLE_RECHECK_MS && !dbAwake()) return res.json(null);
+    const requeueRanBefore = lastRequeueAt;
     try {
       // نظّف المهام اليتيمة قبل السحب — عشان أى مهمة عالقة ترجع للطابور وتتنفّذ فى مكانها
       // الصحيح حسب الأولوية، بدل ما الجهاز يعدّيها ويكمّل فى باتشات أقل أولوية.
@@ -2673,6 +2741,14 @@ export async function registerRoutes(
           skippedSites.push(String(candidate.site));
         }
       });
+      execIdle = null;
+      // مفيش مهمة: نفتكر إن الطابور فاضى — بشرط مفيش مهمة شغّالة (claimed — ممكن تتيتّم وترجع بالوقت)
+      // وإن «رجّع الإيرورات» اشتغل فعلاً فى السحبة دى (بيتخنق دقيقة — من غيره كانت ممكن تستنى ٣٠ دقيقة)
+      if (!row && lastRequeueAt !== requeueRanBefore) {
+        const { rows: busy } = await pool.query(`SELECT EXISTS (SELECT 1 FROM exec_jobs WHERE status = 'claimed') AS b`);
+        if (!busy[0]?.b) execIdle = { version: execQueueVersion, key: idleKey, at: Date.now() };
+      }
+      markExecSelf();
       res.json(row);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -2972,6 +3048,7 @@ export async function registerRoutes(
   // يُستدعى لما السوبر أدمن يقفل زر جهاز التنفيذ — يمنع إضافة مهام لطابور مفيش حد بينفّذه.
   app.post("/api/exec-queue/offline", requireAuth, requireSuperAdmin, async (_req, res) => {
     try {
+      execBeat = null;
       await pool.query(`DELETE FROM app_state WHERE key = 'exec_heartbeat'`);
       res.json({ ok: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -2999,14 +3076,23 @@ export async function registerRoutes(
   // عدد المهام المنتظرة (للعرض)
   app.get("/api/exec-queue/pending", requireAuth, async (req, res) => {
     try {
-      await expireOrphanedExecJobs();
       // ?before= : فترة الإيقاف — الباقى من اللى كان فى الطابور قبل بدايتها بس (اللى الجهاز هيخلّصه)
       const b = req.query.before ? new Date(String(req.query.before)) : null;
       const before = b && !Number.isNaN(b.getTime()) ? b.toISOString() : null;
+      // صفر ومفيش كتابة فى الطابور من ساعتها ⇒ صفر من الذاكرة (نفس فكرة السحب الفاضى)
+      const memo = pendingMemo.get(before || "");
+      if (memo && memo.n === 0 && memo.version === execQueueVersion && Date.now() - memo.at < EXEC_IDLE_RECHECK_MS && !dbAwake()) {
+        return res.json({ pending: 0 });
+      }
+      await expireOrphanedExecJobs();
       const { rows } = await pool.query(
         `SELECT COUNT(*)::int AS n FROM exec_jobs WHERE status IN ('pending','claimed')
             AND ($1::timestamptz IS NULL OR created_at <= $1::timestamptz)`, [before]);
-      res.json({ pending: rows[0]?.n ?? 0 });
+      const n = rows[0]?.n ?? 0;
+      if (pendingMemo.size > 20) pendingMemo.clear();
+      pendingMemo.set(before || "", { version: execQueueVersion, at: Date.now(), n });
+      markExecSelf();
+      res.json({ pending: n });
     } catch { res.json({ pending: 0 }); }
   });
 
