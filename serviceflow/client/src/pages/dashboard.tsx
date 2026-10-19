@@ -91,6 +91,7 @@ import { canAccessCFM, canAccessMaint } from "@shared/roles-access";
 import { useLocation } from "wouter";
 import { Printer, LogOut, LayoutDashboard, FileSpreadsheet, Loader2, BarChart3, ClipboardList, Upload, Zap, Phone, Box, AlertTriangle, FileText, Wrench, ChevronDown, Menu, Cable, Server, CalendarDays, Warehouse } from "lucide-react";
 import * as XLSX from 'xlsx';
+import { installMeasureHider } from "@/lib/measure-hide";
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload" | "local-store";
@@ -280,6 +281,12 @@ export default function Dashboard() {
   // الأدمن الأعلى (super_admin) يرى واجهة الأدمن كاملة (وصول كامل) — نطبّعه لـ admin فى كل فحوص العرض،
   // ونحتفظ بـ isSuperAdmin للصلاحيات الإضافية (إدارة الأدمنز).
   const isSuperAdmin = authUser?.role === ROLES.SUPER_ADMIN;
+  // المالك ٢٠٢٦-١٠-١٩: أعمدة السرعة/الاسكور مخفية فى كل جدول وإكسيل وPDF لغير السوبر أدمن
+  // (إلا «بحث برقم التليفون»). البيانات نفسها السيرفر بيشيلها (server/measure-redact.ts).
+  useEffect(() => {
+    if (!authUser || isSuperAdmin) return;
+    return installMeasureHider();
+  }, [authUser, isSuperAdmin]);
   const user = authUser && isSuperAdmin ? { ...authUser, role: ROLES.ADMIN } : authUser;
   const { orders, isLoading: ordersLoading } = useOrders();
   const [, setLocation] = useLocation();
@@ -339,6 +346,10 @@ export default function Dashboard() {
   // تقارير للسوبر أدمن فقط رغم إنها جوّه مجموعات مشتركة (السيرفر بيرفضها كمان بـ 403)
   // «ردود التكرار» — تقرير السوبر أدمن (٢٠٢٦-١٠-٠٤)؛ الرد نفسه من «إحصائيات التكرار».
   const SUPER_ONLY_REPORTS: ReportTab[] = ["lines-mobile-checked", "om-order-match", "repeat-reviews"];
+  // المالك ٢٠٢٦-١٠-١٩: «تاب القياسات» كله للسوبر أدمن بس — إلا «متوسط القياسات» (متوسط لكل كابينة/بكس
+  // من غير التفصيلى بتاع كل رقم). والسرعات/الاسكور لكل خط بيشيلها السيرفر نفسه (server/measure-redact.ts).
+  const MEASURE_GROUP = "القياسات";
+  const MEASURE_SHARED: ReportTab[] = ["box-score-avg"];
   const visibleGroups = REPORT_GROUPS
     .filter((g) =>
       (user?.role !== ROLES.DATA_MANAGER || DM_ALLOWED_GROUPS.includes(g.label)) &&
@@ -357,7 +368,9 @@ export default function Dashboard() {
     })
     // تقارير مقصورة على السوبر أدمن جوّه مجموعات عادية (مش مجموعة كاملة).
     // بيتفلتروا هنا بعد كل الأدوار عشان يتشالوا من الأدمن العادى كمان.
-    .map((g) => (isSuperAdmin ? g : { ...g, items: g.items.filter((it) => !SUPER_ONLY_REPORTS.includes(it.id)) }));
+    .map((g) => (isSuperAdmin ? g : { ...g, items: g.items.filter((it) => !SUPER_ONLY_REPORTS.includes(it.id)
+      && (g.label !== MEASURE_GROUP || MEASURE_SHARED.includes(it.id))) }))
+    .filter((g) => g.items.length > 0);
   // حارس: لو التاب الحالى مش من ضمن المسموح لدور المستخدم، نرجّعه لأول تاب مسموح ونفتح
   // مجموعته. ضرورى لأن القيمة الافتراضية لـ reportTab بتتحسب عند **أول رندر بس**، وساعتها
   // بيانات المستخدم ممكن تكون لسه بتتحمّل — فأدمن المبيعات كان بيقع على «الأعطال الحالية»
@@ -401,9 +414,10 @@ export default function Dashboard() {
       // فنى الصيانة: مالوش تقارير فى الطلبات — نوجّهه فوراً لموقع الصيانة (SSO بيسجّله تلقائياً).
       window.location.href = "/maintenance";
     } else if (!authLoading && user?.role === ROLES.DATA_MANAGER) {
+      // «بدون أكونت» بقى للسوبر أدمن بس (تاب القياسات — ٢٠٢٦-١٠-١٩) ⇒ مسئول البيانات يبدأ بأوامر الشغل
       setAdminTab("reports");
-      setOpenGroups(["القياسات"]);
-      setReportTab("no-account");
+      setOpenGroups(["تركيبات و نقل و اوامر شغل"]);
+      setReportTab("work-orders");
     }
   }, [authLoading, user, setLocation]);
 

@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { measureRedactor } from "./measure-redact";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
@@ -1870,6 +1871,8 @@ export async function registerRoutes(
   app.use(passport.initialize());
   app.use(passport.session());
   app.use((_req, _res, next) => { quietSessions?.maybePrune(); next(); });
+  // المالك ٢٠٢٦-١٠-١٩: سرعة واسكور كل خط للسوبر أدمن بس (غير «بحث برقم التليفون»)، والمتوسطات للكل
+  app.use(measureRedactor(ROLES.SUPER_ADMIN));
 
   // === Cable-Fault-Manager (CFM) المدموج — راوتس تحت /api/cfm/* (تعيد استخدام نفس الجلسة) ===
   registerCfmRoutes(app);

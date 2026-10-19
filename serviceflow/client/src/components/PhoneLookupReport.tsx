@@ -12,6 +12,7 @@ import { openCustomer360 } from "@/lib/customer360";
 import { LineDataCorrection } from "@/components/LineDataCorrection";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { enqueueIfExecutorActive, latestMeasureAt, latestPoEventAt, sleep, recordOpIntent, canRunLocalExecutor, dispatchSpeedTool, openOpSite, PHONE_LOOKUP_SOURCE, NOREAL_MARK, WFM_ACCEPT_AR, OSS_REEXEC_AR } from "@/lib/exec-queue";
+import { withMeasureOpen } from "@/lib/measure-hide";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
 import { useAuth } from "@/hooks/use-auth";
 import { SmsButton } from "@/lib/mobile-lookup";
@@ -957,7 +958,8 @@ export function PhoneLookupReport() {
   };
 
   return (
-    <div className="space-y-4" dir="rtl">
+    // المالك ٢٠٢٦-١٠-١٩: «بحث برقم التليفون» هو المكان الوحيد اللى السرعات بتظهر فيه لكل المستخدمين
+    <div className="space-y-4" dir="rtl" data-measure-open="1">
       <Card className="overflow-hidden shadow-sm border-0 bg-white">
         <div className="p-4 border-b">
           <h3 className="font-semibold text-base flex items-center gap-2">
@@ -1234,11 +1236,11 @@ export function PhoneLookupReport() {
                   )}
                 </span>
               )}
-              <Button variant="outline" onClick={handleExportExcel} className="bg-white gap-2">
+              <Button variant="outline" onClick={() => withMeasureOpen(handleExportExcel)} className="bg-white gap-2">
                 <FileSpreadsheet className="w-4 h-4 text-green-600" />
                 Excel
               </Button>
-              <Button variant="outline" onClick={handleExportPDF} className="bg-white gap-2">
+              <Button variant="outline" onClick={() => withMeasureOpen(handleExportPDF)} className="bg-white gap-2">
                 <Printer className="w-4 h-4 text-red-600" />
                 PDF
               </Button>
