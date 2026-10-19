@@ -155,7 +155,7 @@ boundary, not a claim that today's PG schemas are separate databases.
 | `wfm_task_cancels` | C | `id`; no declared FK; phone index | WFM cancellation and automated task filtering | M; exact match/date and dedupe rules |
 | `wfm_task_accepts` | C | `id`; no declared FK; phone index | WFM accepted-task filtering and automation | M; race with queue state; migrate with WFM consumers |
 | `oss_reexecs` | C | `id`; indexed `key_value` | OSS rerun dedupe and queue/task automation | M; idempotency record must remain co-located with operation |
-| `wfm_customer_mobiles` | C | `id`; phone index, no declared FK | WFM import, mobile lookup and fault reports | M; preserve normalization and import freshness |
+| `wfm_customer_mobiles` | C | `id`; phone index, no declared FK | DZS ingest, last-result lookup, operation freshness/progress, retry filtering and automatic current-fault enqueue | H; keep PostgreSQL until all readers and the ingest writer move as one reviewed queue-consistency boundary; preserve per-attempt history, normalization, and Cairo time behavior |
 
 ### Runtime-only and dynamically generated core tables
 
