@@ -5,6 +5,13 @@ const archiver = require('archiver');
 const db = require('../database');
 const DATA_DIR = require('../utils/datadir');
 const { appendMediaToArchive, removeMediaFiles } = require('../utils/photo');
+const {
+  createMaintenanceCabinet,
+  createMaintenanceExchange,
+  getMaintenanceCabinets,
+  getMaintenanceExchanges,
+  isMaintenanceHierarchyProofEnabled,
+} = require('../utils/d1-hierarchy');
 const { requireLogin, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -44,14 +51,16 @@ const CHECKLIST = [
 // ── Exchanges ─────────────────────────────────────────────────────────────────
 
 router.get('/exchanges', requireRole('admin', 'inspector'), async (req, res) => {
-  const exchanges = await db.all(`
-    SELECT e.*, COUNT(DISTINCT c.id) as cabinet_count,
-           COUNT(DISTINCT b.id) as box_count
-    FROM exchanges e
-    LEFT JOIN cabinets c ON c.exchange_id = e.id
-    LEFT JOIN boxes b ON b.cabinet_id = c.id
-    GROUP BY e.id ORDER BY e.name
-  `);
+  const exchanges = isMaintenanceHierarchyProofEnabled()
+    ? await getMaintenanceExchanges(req.session.user)
+    : await db.all(`
+      SELECT e.*, COUNT(DISTINCT c.id) as cabinet_count,
+             COUNT(DISTINCT b.id) as box_count
+      FROM exchanges e
+      LEFT JOIN cabinets c ON c.exchange_id = e.id
+      LEFT JOIN boxes b ON b.cabinet_id = c.id
+      GROUP BY e.id ORDER BY e.name
+    `);
   res.render('boxes/exchange_list', { title: 'السنترالات', exchanges });
 });
 
@@ -63,9 +72,14 @@ router.post('/exchanges/create', adminOnly, async (req, res) => {
   const { name } = req.body;
   if (!name || !name.trim()) return res.render('boxes/exchange_form', { title: 'إضافة سنترال', exchange: req.body, errors: ['اسم السنترال مطلوب.'] });
   try {
-    await db.run('INSERT INTO exchanges (name) VALUES (?)', [name.trim()]);
+    if (isMaintenanceHierarchyProofEnabled()) {
+      await createMaintenanceExchange(req.session.user, name);
+    } else {
+      await db.run('INSERT INTO exchanges (name) VALUES (?)', [name.trim()]);
+    }
     req.session.flash = { type: 'success', msg: 'تم إضافة السنترال.' };
-  } catch {
+  } catch (error) {
+    if (isMaintenanceHierarchyProofEnabled() && error.status !== 409) throw error;
     return res.render('boxes/exchange_form', { title: 'إضافة سنترال', exchange: req.body, errors: ['السنترال موجود بالفعل.'] });
   }
   res.redirect('/boxes/exchanges');
@@ -90,13 +104,20 @@ router.post('/exchanges/:id/delete', adminOnly, async (req, res) => {
 // ── Cabinets ──────────────────────────────────────────────────────────────────
 
 router.get('/exchanges/:eid/cabinets', requireRole('admin', 'inspector'), async (req, res) => {
-  const exchange = await db.get('SELECT * FROM exchanges WHERE id = ?', [req.params.eid]);
-  if (!exchange) return res.redirect('/boxes/exchanges');
-  const cabinets = await db.all(`
-    SELECT c.*, COUNT(b.id) as box_count FROM cabinets c
-    LEFT JOIN boxes b ON b.cabinet_id = c.id
-    WHERE c.exchange_id = ? GROUP BY c.id ORDER BY c.number
-  `, [req.params.eid]);
+  let exchange;
+  let cabinets;
+  if (isMaintenanceHierarchyProofEnabled()) {
+    ({ exchange, cabinets } = await getMaintenanceCabinets(req.session.user, req.params.eid));
+    if (!exchange) return res.redirect('/boxes/exchanges');
+  } else {
+    exchange = await db.get('SELECT * FROM exchanges WHERE id = ?', [req.params.eid]);
+    if (!exchange) return res.redirect('/boxes/exchanges');
+    cabinets = await db.all(`
+      SELECT c.*, COUNT(b.id) as box_count FROM cabinets c
+      LEFT JOIN boxes b ON b.cabinet_id = c.id
+      WHERE c.exchange_id = ? GROUP BY c.id ORDER BY c.number
+    `, [req.params.eid]);
+  }
   res.render('boxes/cabinet_list', { title: `كباين: ${exchange.name}`, exchange, cabinets });
 });
 
@@ -104,9 +125,14 @@ router.post('/exchanges/:eid/cabinets/create', adminOnly, async (req, res) => {
   const { number } = req.body;
   if (!number || !number.trim()) { req.session.flash = { type: 'danger', msg: 'رقم الكابينة مطلوب.' }; return res.redirect(`/boxes/exchanges/${req.params.eid}/cabinets`); }
   try {
-    await db.run('INSERT INTO cabinets (exchange_id, number) VALUES (?, ?)', [req.params.eid, number.trim()]);
+    if (isMaintenanceHierarchyProofEnabled()) {
+      await createMaintenanceCabinet(req.session.user, req.params.eid, number);
+    } else {
+      await db.run('INSERT INTO cabinets (exchange_id, number) VALUES (?, ?)', [req.params.eid, number.trim()]);
+    }
     req.session.flash = { type: 'success', msg: 'تم إضافة الكابينة.' };
-  } catch {
+  } catch (error) {
+    if (isMaintenanceHierarchyProofEnabled() && error.status !== 409) throw error;
     req.session.flash = { type: 'danger', msg: 'الكابينة موجودة بالفعل.' };
   }
   res.redirect(`/boxes/exchanges/${req.params.eid}/cabinets`);

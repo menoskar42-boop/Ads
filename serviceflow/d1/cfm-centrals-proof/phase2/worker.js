@@ -612,7 +612,9 @@ export default {
     const ticketEntryRoute = Boolean(ticketEntryKind);
     const inventoryRoute = url.pathname === "/api/cfm/inventory-transactions";
     const maintenanceCabinetCodesRoute = url.pathname === "/api/maintenance/cabinet-codes";
-    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !maintenanceCabinetCodesRoute) {
+    const maintenanceExchangesRoute = url.pathname === "/api/maintenance/hierarchy/exchanges";
+    const maintenanceCabinetsMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/exchanges\/(\d+)\/cabinets$/);
+    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceCabinetsMatch) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
     if ((userByUsername && request.method !== "GET") ||
@@ -624,7 +626,9 @@ export default {
         (taskInventoryRoute && !["GET", "POST", "DELETE"].includes(request.method)) ||
         (ticketEntryRoute && !["GET", "POST", "DELETE"].includes(request.method)) ||
         (inventoryRoute && !["GET", "POST"].includes(request.method)) ||
-        (maintenanceCabinetCodesRoute && request.method !== "GET")) {
+        (maintenanceCabinetCodesRoute && request.method !== "GET") ||
+        (maintenanceExchangesRoute && !["GET", "POST"].includes(request.method)) ||
+        (maintenanceCabinetsMatch && !["GET", "POST"].includes(request.method))) {
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
     const expectedServiceToken = env.SERVICE_TOKEN;
@@ -660,6 +664,80 @@ export default {
            ORDER BY exchange_name, cabinet_number`,
         ).all();
         return Response.json(results);
+      }
+      if (maintenanceExchangesRoute) {
+        if (request.method === "GET") {
+          if (!["admin", "inspector"].includes(claims.role)) {
+            return Response.json({ error: "Forbidden" }, { status: 403 });
+          }
+          const { results } = await env.DB.prepare(
+            `SELECT e.id, e.name,
+                    COUNT(DISTINCT c.id) AS cabinet_count,
+                    COUNT(DISTINCT b.id) AS box_count
+             FROM maintenance_exchanges e
+             LEFT JOIN maintenance_cabinets c ON c.exchange_id = e.id
+             LEFT JOIN maintenance_boxes b ON b.cabinet_id = c.id
+             GROUP BY e.id, e.name
+             ORDER BY e.name`,
+          ).all();
+          return Response.json(results);
+        }
+        if (claims.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+        const body = await request.json().catch(() => null);
+        if (!body || Object.keys(body).some((key) => key !== "name") ||
+            typeof body.name !== "string" || !body.name.trim() || body.name.trim().length > 120) {
+          return Response.json({ error: "Invalid exchange name" }, { status: 400 });
+        }
+        try {
+          const row = await env.DB.prepare(
+            `INSERT INTO maintenance_exchanges (name) VALUES (?) RETURNING id, name, created_at`,
+          ).bind(body.name.trim()).first();
+          return Response.json(row, { status: 201 });
+        } catch (error) {
+          if (/UNIQUE constraint failed/i.test(String(error?.message))) {
+            return Response.json({ error: "Exchange already exists" }, { status: 409 });
+          }
+          throw error;
+        }
+      }
+      if (maintenanceCabinetsMatch) {
+        const exchangeId = Number(maintenanceCabinetsMatch[1]);
+        if (!Number.isSafeInteger(exchangeId)) return Response.json({ error: "Invalid exchange id" }, { status: 400 });
+        const exchange = await env.DB.prepare(
+          `SELECT id, name FROM maintenance_exchanges WHERE id = ?`,
+        ).bind(exchangeId).first();
+        if (!exchange) return Response.json({ error: "Exchange not found" }, { status: 404 });
+        if (request.method === "GET") {
+          if (!["admin", "inspector"].includes(claims.role)) {
+            return Response.json({ error: "Forbidden" }, { status: 403 });
+          }
+          const { results } = await env.DB.prepare(
+            `SELECT c.id, c.exchange_id, c.number, COUNT(b.id) AS box_count
+             FROM maintenance_cabinets c
+             LEFT JOIN maintenance_boxes b ON b.cabinet_id = c.id
+             WHERE c.exchange_id = ?
+             GROUP BY c.id, c.exchange_id, c.number
+             ORDER BY c.number`,
+          ).bind(exchangeId).all();
+          return Response.json({ exchange, cabinets: results });
+        }
+        if (claims.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+        const body = await request.json().catch(() => null);
+        if (!body || Object.keys(body).some((key) => key !== "number") ||
+            typeof body.number !== "string" || !body.number.trim() || body.number.trim().length > 120) {
+          return Response.json({ error: "Invalid cabinet number" }, { status: 400 });
+        }
+        try {
+          const row = await env.DB.prepare(
+            `INSERT INTO maintenance_cabinets (exchange_id, number) VALUES (?, ?) RETURNING id, exchange_id, number`,
+          ).bind(exchangeId, body.number.trim()).first();
+          return Response.json(row, { status: 201 });
+        } catch (error) {
+          if (/UNIQUE constraint failed/i.test(String(error?.message))) {
+            return Response.json({ error: "Cabinet already exists" }, { status: 409 });
+          }
+          throw error;
+        }
       }
       if (userCollection && request.method === "GET") {
         const { results } = await env.DB.prepare(`SELECT ${USER_SELECT} FROM cfm_users`).all();

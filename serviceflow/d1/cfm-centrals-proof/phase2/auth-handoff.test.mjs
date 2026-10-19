@@ -22,6 +22,8 @@ const { storage } = await import("../../../server/cfm/storage.ts");
 const { CfmD1ReferenceStorage } = await import("../../../server/cfm/d1-reference-storage.ts");
 const maintenanceD1 = await import("../../../server/maintenance/app/utils/d1-cabinet-codes.js");
 const getMaintenanceCabinetCodes = maintenanceD1.default.getCabinetCodes;
+const maintenanceBoxes = await import("../../../server/maintenance/app/routes/boxes.js");
+const maintenanceBoxesRouter = maintenanceBoxes.default;
 const maintenanceReports = await import("../../../server/maintenance/app/routes/reports.js");
 const maintenanceReportsRouter = maintenanceReports.default;
 const { ServiceFlowTechCoverageD1Storage } = await import("../../../server/tech-coverage-grants-d1.ts");
@@ -799,6 +801,67 @@ test("maintenance relational D1 schema keeps user and media tables in PostgreSQL
     assert.equal(count.count, 1, `${table} should be idempotent`);
   }
   assert.deepEqual(await queryLocalD1("PRAGMA foreign_key_check"), []);
+});
+
+test("actual maintenance exchanges page can render the local D1 read proof", async () => {
+  const oldMode = process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+  const oldNodeEnv = process.env.NODE_ENV;
+  process.env.SF_MAINTENANCE_HIERARCHY_PROOF = "d1";
+  process.env.NODE_ENV = "test";
+  try {
+    await executeLocalD1(`
+      INSERT OR IGNORE INTO maintenance_exchanges(id, name) VALUES (9001, 'Synthetic hierarchy');
+      INSERT OR IGNORE INTO maintenance_cabinets(id, exchange_id, number) VALUES (9002, 9001, 'C-1');
+      INSERT OR IGNORE INTO maintenance_boxes(id, cabinet_id, number) VALUES (9003, 9002, 'B-1');
+    `);
+    const route = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/exchanges",
+    ).route;
+    let rendered;
+    await route.stack.at(-1).handle({
+      session: { user: { id: 12, role: "admin" } },
+    }, {
+      render(view, data) { rendered = { view, data }; },
+    });
+    assert.equal(rendered.view, "boxes/exchange_list");
+    assert.deepEqual(rendered.data.exchanges.map((row) => ({
+      name: row.name, cabinet_count: row.cabinet_count, box_count: row.box_count,
+    })), [{ name: "Synthetic hierarchy", cabinet_count: 1, box_count: 1 }]);
+
+    const exchangeCreate = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/exchanges/create" && layer.route.methods.post,
+    ).route.stack.at(-1).handle;
+    const exchangeRequest = { session: { user: { id: 12, role: "admin" }, flash: null }, body: { name: "D1 created exchange" } };
+    let exchangeRedirect;
+    await exchangeCreate(exchangeRequest, { redirect(path) { exchangeRedirect = path; } });
+    assert.equal(exchangeRedirect, "/boxes/exchanges");
+    assert.equal(exchangeRequest.session.flash.type, "success");
+
+    const cabinetCreate = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/exchanges/:eid/cabinets/create",
+    ).route.stack.at(-1).handle;
+    const cabinetRequest = { session: { user: { id: 12, role: "admin" }, flash: null }, params: { eid: "9001" }, body: { number: "C-2" } };
+    let cabinetRedirect;
+    await cabinetCreate(cabinetRequest, { redirect(path) { cabinetRedirect = path; } });
+    assert.equal(cabinetRedirect, "/boxes/exchanges/9001/cabinets");
+    assert.equal(cabinetRequest.session.flash.type, "success");
+
+    const cabinetsPage = maintenanceBoxesRouter.stack.find((layer) =>
+      layer.route?.path === "/exchanges/:eid/cabinets" && layer.route.methods.get,
+    ).route.stack.at(-1).handle;
+    let cabinetsRendered;
+    await cabinetsPage({ session: { user: { id: 12, role: "admin" } }, params: { eid: "9001" } }, {
+      render(view, data) { cabinetsRendered = { view, data }; },
+      redirect(path) { throw new Error(`Unexpected redirect to ${path}`); },
+    });
+    assert.equal(cabinetsRendered.view, "boxes/cabinet_list");
+    assert.deepEqual(cabinetsRendered.data.cabinets.map((row) => row.number), ["C-1", "C-2"]);
+  } finally {
+    if (oldMode === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;
+    else process.env.SF_MAINTENANCE_HIERARCHY_PROOF = oldMode;
+    if (oldNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = oldNodeEnv;
+  }
 });
 
 test("actual CFM central create/update/delete routes use local D1 and retain route auth", async () => {
