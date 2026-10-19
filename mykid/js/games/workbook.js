@@ -16,8 +16,14 @@ import {
   WB_COLORS, WB_AR, WB_PAGES, WB_UNITS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR,
   WB_LOCKED_IDS, pageSteps, colorPairOf, isWriteStep, afterNumbersOpen,
 } from "../data/workbook.js";
-import { WB_SAY, SHOW_BELOW, fixMsg, writeIntro } from "../data/writingPhrases.js";
-import { gameTopbar, finishActivity } from "./common.js";
+import { WB_SAY, SHOW_BELOW, fixMsg, writeIntro, ROUND_MSG } from "../data/writingPhrases.js";
+import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
+import { renderLetterPuzzle, renderFlashlight, renderEggs } from "./funGames.js";
+import { renderSequence } from "./sequence.js";
+import { renderReview } from "./review.js";
+import { letterGrade, gameInfo } from "../data/letterGrade.js";
+import { showLetterGrade } from "./letterGradeCard.js";
+import { LB_DOTS_PASS } from "../data/letterbook.js";
 import { mountWriteBoard } from "./writeBoard.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
@@ -88,6 +94,9 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
   let steps = [];
   let idx = 0;
   let cleanup = () => {};
+  // شهادة الرقم (المالك ٢٠٢٦-١٠-١٧ — زى «كراسة الحروف»)
+  let res = null;
+  let stepWrongs = 0;
   const toRegion = () => Router.go("region", { id: regionId, index: regionIndex });
   screen.appendChild(gameTopbar("📒 كراسة الأرقام", () => {
     Speech.stop();
@@ -169,6 +178,11 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     cur = pg;
     steps = pageSteps(pg, Math.random, only); // only: تمارين بعينها (للاختبار)
     idx = 0;
+    res = {
+      writes: [], writeFails: 0, games: {}, acts: {}, skipped: [],
+      expectedWrites: steps.filter((x) => x.kind === "write").reduce((n, x) => n + (x.reps || 1), 0),
+      expectedGames: steps.filter((x) => x.kind === "game").map((x) => x.game),
+    };
     const [c1, c2] = pg.type === "number" ? colorPairOf(pg.n) : pg.type === "shapes" ? WB_COLOR_PAIRS[(pg.pair + 2) % 4]
       : pg.type === "colors" ? WB_COLOR_PAIRS[pg.pair] : WB_COLOR_PAIRS[(WB_PAGES.indexOf(pg) + 1) % 4];
     screen.style.setProperty("--wbk-c1", col(c1).hex);
@@ -206,7 +220,8 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     }
     const track = el("div", "wbk-track");
     steps.forEach((s, i) => {
-      const chip = el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""), isWriteStep(s) ? "✏️" : "🎲");
+      const chip = el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""),
+        isWriteStep(s) ? "✏️" : s.kind === "game" ? gameInfo(s.game, "num").icon : "🎲");
       track.appendChild(chip);
     });
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
@@ -304,6 +319,8 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     renderStep();
   }
   function stepDone(delay = 900) {
+    const st = steps[idx];
+    if (res && st && st.kind !== "write" && st.kind !== "game") res.acts[st.kind] = (res.acts[st.kind] || 0) + (Sfx.wrongs - stepWrongs);
     // بعد الكتابة صوت ميزو بس (من غير صوت «نجاح»)
     if (!(steps[idx] && isWriteStep(steps[idx]))) Sfx.correct();
     awardStars(1);
@@ -317,7 +334,13 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
 
   function finishPage() {
     Store.markWorkbookDone(cur.id);
-    finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
+    const end = () => finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
+    if (cur.type !== "number" || !res) return end();
+    const g = letterGrade(res);
+    Store.recordLetterGrade("num", String(cur.n), g);
+    const pg = cur;
+    cur = null;
+    setTimeout(() => showLetterGrade({ glyph: `<span dir="ltr">${pg.n}</span>`, name: WB_AR[pg.n], noun: "رقم", grade: g, onClose: end }), 900);
   }
 
   function renderStep() {
@@ -329,9 +352,14 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     const s = steps[idx];
     const body = el("section", "wbk-body wbk-step-" + s.kind);
     stage.appendChild(body);
-    const skip = button("wbk-skip", "⏭", () => { Sfx.tap(); Speech.stop(); nextStep(); });
+    const skip = button("wbk-skip", "⏭", () => {
+      Sfx.tap(); Speech.stop();
+      if (res) res.skipped.push(s.kind === "game" ? s.game : s.kind);
+      nextStep();
+    });
     skip.setAttribute("aria-label", "الخطوة اللى بعدها");
     stage.appendChild(skip);
+    stepWrongs = Sfx.wrongs;
     STEP[s.kind](body, s);
     armGuide();
   }
@@ -368,7 +396,31 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
 
     // ✏️ الكتابة: على الخط ← على النقط (والـ«لوحده» جوّه الرقم الناقص)
     write(body, s) {
-      writeBoard(body, s.n, s.level, s.level === 1 ? writeIntro("الرقم", WB_AR[s.n]) : WB_SAY.againDots, () => stepDone(700));
+      // أول كتابة (على النقط): «اكتب الرقم …»؛ وبعدين «اكتبه لوحدك» وآخر حاجة من غير النقطة الخضرا
+      const intro = s.level === 1 || (s.level === 2 && s.reps) ? writeIntro("الرقم", WB_AR[s.n])
+        : s.noStart ? ROUND_MSG.noDot : s.reps ? ROUND_MSG.toAlone : WB_SAY.againDots;
+      writeBoard(body, s.n, s.level, intro, () => stepDone(700), s.reps || 1, !!s.noStart);
+    },
+
+    // 🎲 لعبة من ألعاب القلعة جوّه صفحة الرقم — بأرقام الكتاب (4 four)
+    game(body, s) {
+      const p = { regionId, regionIndex };
+      const en = { ...p, datasetKey: "englishNumbers", lang: "en-US" };
+      const GAMES = {
+        puzzle: () => renderLetterPuzzle({ ...p, kind: "enNumbers", focus: String(s.n) }),
+        flash: () => renderFlashlight({ ...p, kind: "enNumbers", focus: String(s.n) }),
+        eggs: () => renderEggs({ ...p, kind: "enNumbers", focus: String(s.n) }),
+        sequence: () => renderSequence({ ...en, focus: String(s.n) }),
+        review: () => renderReview({ ...en, focus: String(s.n) }),
+      };
+      const info = gameInfo(s.game, "num");
+      body.appendChild(el("p", "lbk-game-title", `${info.icon} ${info.title}`));
+      const node = renderEmbedded(GAMES[s.game], ({ mistakes }) => {
+        if (res) res.games[s.game] = mistakes;
+        stepDone(700);
+      });
+      body.appendChild(node);
+      cleanup = () => endEmbedded();
     },
 
     // «Color four of the dresses» — بلون الكتاب من علبة الألوان
@@ -1363,28 +1415,38 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
 
   /** لوحة الكتابة للرقم v بمستوى المساعدة ده. done(fails). */
   /** `v` = رقم، أو مفتاح شكل من WB_SHAPES (ارسم الشكل). */
-  function writeBoard(host, v, level, intro, done) {
+  function writeBoard(host, v, level, intro, done, reps = 1, noStart = false) {
     const shape = WB_SHAPES[v];
     const line = typeof v === "string" && v.startsWith("pre:") ? preLine(v.slice(4)) : null;
     const strokes = line ? line.strokes : shape ? shape.strokes : strokesFor(String(v));
     const hint = hintLine();
     const wrap = el("div", "wbk-write");
     wrap.dataset.glyph = String(v);
+    // «٣ بالنقط + ٥ لوحده» (المالك ٢٠٢٦-١٠-١٧): النقط بـ٧٥٪ ولوحده بـ٧٠٪، وكل مرة بتتعدّ (✓ ١/٣)
+    const drill = reps > 1 && !line && !shape;
+    const free = !line && (level === 3 || drill);
+    const pass = level === 2 && drill ? LB_DOTS_PASS : SCORE_PASS;
+    let got = 0;
+    const count = el("p", "lbk-reps");
+    const showCount = () => { count.textContent = `${level === 2 ? "🔵 على النقط" : noStart ? "🌟 من غير النقطة" : "⭐ لوحدك"} · ✓ ${got}/${reps}`; };
+    if (drill) { showCount(); host.appendChild(count); }
     host.appendChild(wrap);
-    if (intro) host.insertBefore(prompt(intro), wrap);
+    if (intro) host.insertBefore(prompt(intro), drill ? count : wrap);
     const board = mountWriteBoard(wrap, {
       ...penBoardOptions((text) => hint.show(text)),
       strokes,
       level,
       // «لوحده» (المالك ٢٠٢٦-١٠-١٤ — زى «ارسم الحرف»): الحرف كله من غير وقفة، والحكم بنسبة فى الآخر
-      free: !line && level === 3,
+      free,
+      noStart: drill && noStart,
       from: line && line.from,
       to: line && line.to,
       // من غير صوت «غلط» ولا «نجاح» على اللوحة (المالك ٢٠٢٦-١٠-١٤): صوت ميزو وكلامه بس
       onHint: (text) => hint.show(text),
       onDone: ({ fails, score, result }) => {
         const pct = () => { if (score != null) hint.textContent = `${score}٪ · ${hint.textContent}`; };
-        if (score != null && score < SCORE_PASS) {
+        if (score != null && score < pass) {
+          if (res && drill) res.writeFails++;
           // نسبة واطية ⇒ نفس الخطوة تانى (وتحت ٥٠٪ الصباع بيوريه الأول)
           // ميزو بيقول السبب بلطف (المالك ٢٠٢٦-١٠-١٤)
           hint.show(fixMsg(result && result.issue));
@@ -1395,6 +1457,10 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
         if (score != null) hint.textContent = `${score}٪ ✓`;
         board.el.animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 450 });
         if (!line) Speech.en(shape ? shape.en : enName(v));
+        if (res && drill && score != null) res.writes.push({ level, score, ...(noStart ? { noStart: true } : {}) });
+        got++;
+        if (drill) showCount();
+        if (got < reps) { setTimeout(() => { if (wrap.isConnected) board.reset(); }, 1500); return; }
         done(fails);
       },
     });

@@ -63,12 +63,12 @@ test("letter page: book activities + castle games in order, write 3 on dots then
       "starts", "phonics", "forms", "circle", "catch", "missing", "sequence", "write", "review"]);
     const w = steps.filter((s) => s.kind === "write");
     assert.deepEqual(w.map((s) => [s.level, s.reps]), [[2, 3], [3, 2], [3, 3]]);
-    // بأى حرف تبدأ: كلمات بتبدأ بالحرف فعلاً · المراجعة: الحرف ده + اللى قبله فى الكتاب
-    const ph = steps.find((s) => s.game === "phonics");
-    assert.ok(ph.words.length >= 1 && ph.words.every((x) => startsWith(x.w, ch)), ch);
-    const rv = steps.find((s) => s.game === "review");
-    assert.equal(rv.set[0], ch);
-    assert.ok(rv.set.every((c) => LB_ORDER.indexOf(c) <= LB_ORDER.indexOf(ch)));
+    // بأى حرف تبدأ + البيض: كلمات مختلفة بتبدأ بالحرف فعلاً (البيضة كل مرة حاجة جديدة)
+    for (const g of ["phonics", "eggs"]) {
+      const st = steps.find((s) => s.game === g);
+      assert.ok(st.words.length >= 2 && st.words.every((x) => startsWith(x.w, ch)), `${g} ${ch}`);
+      assert.equal(new Set(st.words.map((x) => x.e)).size, st.words.length, `${g} ${ch}: صور مختلفة`);
+    }
   }
 });
 

@@ -40,7 +40,7 @@ export const EB_WORDS = {
   gorilla: "🦍", grapes: "🍇", whale: "🐋", window: "🪟", watermelon: "🍉", six: "6️⃣", box: "📦", fox: "🦊",
   // الوحدة ٧: هدومنا
   jacket: "🧥", "t-shirt": "👕", shorts: "🩳", sandals: "🩴", shoes: "👟", scarf: "🧣", gloves: "🧤", hat: "👒",
-  van: "🚐", violin: "🎻", vase: "🏺", up: "⬆️", under: "⬇️", umbrella: "☂️",
+  van: "🚐", violin: "🎻", vase: "🏺", up: "⬆️", under: "⬇️", umbrella: "☂️", unicorn: "🦄",
   jam: "🫙", jellyfish: "🪼", queen: "👸", quack: "🦆", quiet: "🤫",
   // الوحدة ٨: الجو
   cold: "🥶", hot: "🥵", rainy: "🌧️", windy: "🌬️", sunny: "🌤️", snowy: "❄️",
@@ -415,19 +415,36 @@ export function ebSteps(pg, rnd = Math.random, only = null) {
     if (want("find")) steps.push({ kind: "find", rounds: findRounds(pg.words, rnd).slice(0, 3) });
   } else if (pg.type === "letter") {
     const lo = pg.ch.toLowerCase();
-    // زى الكتاب: الحرف وكلماته الـ٣، وكتابة الكابيتال والصغير — كتابة ولعب بالتناوب عشان مايزهقش
+    // المالك ٢٠٢٦-١٠-١٦/١٧: زى «كراسة الحروف» — ألعاب القلعة جوّه الصفحة، والكابيتال والصغير
+    // كل واحد ٣ على النقط + ٥ لوحده (آخر ٣ من غير النقطة الخضرا)، وفى الآخر شهادة الحرف
+    const write = (glyph, level, reps, noStart = false) => { if (want("write")) steps.push({ kind: "write", glyph, level, reps, ...(noStart ? { noStart } : {}) }); };
+    const pics = [...new Set([...pg.words, ...wordsStarting(pg.ch)])].filter((w) => !ABSTRACT.includes(w) && (pg.pos === "end" || w[0].toUpperCase() === pg.ch));
+    const words = shuffled(rnd, pics).slice(0, 3).map((w) => ({ w, e: emojiOf(w) }));
+    const game = (g) => {
+      if (g === "phonics" && pg.pos === "end") return; // X: الصوت فى آخر الكلمة — «بتبدأ بإيه؟» مالهاش معنى
+      if (want("game") || want(g)) steps.push({ kind: "game", game: g, ch: pg.ch, ...(g === "phonics" || g === "eggs" ? { words } : {}) });
+    };
     if (want("letterMeet")) steps.push({ kind: "letterMeet", ch: pg.ch, label: pg.label || pg.ch, sound: pg.sound, pos: pg.pos || "start", words: pg.words });
-    if (want("write")) steps.push({ kind: "write", glyph: pg.ch, level: 1 });
+    write(pg.ch, 2, 3);
+    game("puzzle");
+    write(lo, 2, 3);
     if (want("firstSound")) steps.push({ kind: "firstSound", ch: pg.ch, label: pg.label || pg.ch, pos: pg.pos || "start", items: firstSound(pg, rnd, pg.words) });
-    if (want("write")) steps.push({ kind: "write", glyph: lo, level: 1 });
+    game("flash");
     if (want("popLetter")) {
       const others = pick(rnd, [...new Set(EB_LETTERS.concat(["B", "E", "G", "K", "L", "U", "W", "Y"]))].filter((c) => c !== pg.ch), 5);
       const cells = shuffled(rnd, [pg.ch, pg.ch, lo, lo, ...others.slice(0, 2), ...others.slice(2, 4).map((c) => c.toLowerCase())]);
       steps.push({ kind: "popLetter", ch: pg.ch, cells });
     }
-    if (want("write")) steps.push({ kind: "write", glyph: pg.ch, level: 2 });
+    write(pg.ch, 3, 2);
+    game("eggs");
+    write(lo, 3, 2);
+    game("phonics");
     if (want("find")) steps.push({ kind: "find", rounds: findRounds(pg.words, rnd) });
-    if (want("write")) steps.push({ kind: "write", glyph: lo, level: 3 });
+    game("catch");
+    game("sequence");
+    write(pg.ch, 3, 3, true);
+    write(lo, 3, 3, true);
+    game("review");
   } else if (pg.type === "story") {
     if (pg.opposites && want("opposites")) steps.push({ kind: "opposites", pair: pg.opposites });
     if (want("sentences")) steps.push({ kind: "sentences", lines: pg.lines });

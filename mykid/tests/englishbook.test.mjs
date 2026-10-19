@@ -137,6 +137,42 @@ async function writeOne() {
   await waitIdle();
   for (const s of strokesFor(glyph)) await stroke(s);
 }
+/** كتابة بعدّاد (✓ n/m): نفس اللوحة بتتفضّى بعد كل مرة لحد ما العدّاد يكمل. */
+async function writeReps(i) {
+  const glyph = await page.locator(".wbk-write").getAttribute("data-glyph");
+  await page.waitForSelector(".wb-hand", { timeout: 4000 });
+  await waitIdle();
+  for (let rep = 0; rep < 6; rep++) {
+    const before = (await page.locator(".lbk-reps").textContent().catch(() => "")) || "";
+    for (const st of strokesFor(glyph)) await stroke(st);
+    await page.waitForFunction(({ b, i }) => {
+      const k = [...document.querySelectorAll(".wbk-chip")].findIndex((c) => c.classList.contains("now"));
+      return (document.querySelector(".lbk-reps")?.textContent || "") !== b || k !== i || !!document.querySelector(".lgc");
+    }, { b: before, i }, { timeout: 9000 }).catch(() => {});
+    if ((await nowChip()) !== i || (await page.locator(".lgc").count())) return;
+    const m = ((await page.locator(".lbk-reps").textContent().catch(() => "")) || "").match(/(\d+)\/(\d+)/);
+    if (!m || m[1] === m[2]) return advanced(i);
+    await page.waitForTimeout(1700);
+  }
+  await advanced(i);
+}
+/** لعبة من ألعاب القلعة جوّه الصفحة: البازل لمسة-لمسة، والباقى لمس الإجابة الصح. */
+async function gameStep(i) {
+  assert.equal(await page.locator(".wbk-body .is-embedded .topbar").count(), 0);
+  for (let g = 0; g < 120; g++) {
+    if ((await nowChip()) !== i || (await page.locator(".lgc").count())) return;
+    const pc = page.locator(".wbk-body .fg-pz-tray .fg-pz-piece").first();
+    if (await pc.count()) {
+      const id = await pc.getAttribute("data-id");
+      await pc.click();
+      await page.locator(`.wbk-body .fg-pz-slot[data-id="${id}"]`).click();
+    } else {
+      await page.evaluate(() => { const e = document.querySelector(".wbk-body .is-embedded [data-good]:not([data-on]):not(.correct)"); if (e) e.click(); });
+    }
+    await page.waitForTimeout(350);
+  }
+  await advanced(i);
+}
 async function build(i) {
   for (let guard = 0; guard < 30 && (await nowChip()) === i; guard++) {
     // الجولة اللى خلصت بتفضل ظاهرة لحد ما الجاية تيجى — نستنى حروف جديدة
@@ -159,13 +195,16 @@ async function build(i) {
 async function playPage(pageId, opts = {}) {
   await open(pageId, opts);
   const seen = [];
-  for (let guard = 0; guard < 20; guard++) {
-    if (!(await page.locator(".wbk-chip").count()) || (await finished())) break;
+  for (let guard = 0; guard < 30; guard++) {
+    if (!(await page.locator(".wbk-chip").count()) || (await finished()) || (await page.locator(".lgc").count())) break;
     const i = await nowChip();
     const k = await kind();
-    seen.push(k);
+    seen.push(k === "game" ? await page.evaluate(() => document.querySelector(".lbk-game-title")?.textContent.trim().split(" ")[0]) : k);
     await shot(`${pageId}-${k}`);
-    if (k === "write") { await writeOne(); await advanced(i); }
+    if (k === "write") {
+      if (await page.locator(".lbk-reps").count()) await writeReps(i);
+      else { await writeOne(); await advanced(i); }
+    } else if (k === "game") await gameStep(i);
     else if (k === "spell") {
       const n = await page.locator(".ebk-spell span").count();
       for (let g = 0; g < n; g++) {
@@ -190,8 +229,16 @@ test("vocab page (family): words, find, He/She sort", async () => {
   assert.deepEqual(errors, []);
 });
 
-test("letter page (M): meet, write capital and small, first sound, balloons, find", async () => {
-  assert.deepEqual(await playPage("u1-M"), ["letterMeet", "write", "firstSound", "write", "popLetter", "write", "find", "write"]);
+test("letter page (M): castle games inside, capital and small 3+5 each, then the letter's grade", async () => {
+  assert.deepEqual(await playPage("u1-M"), ["letterMeet", "write", "🧩", "write", "firstSound", "🔦", "popLetter", "write", "🥚", "write",
+    "🔤", "find", "🎯", "🔠", "write", "write", "🧠"]);
+  await page.waitForSelector(".lgc .lgc-total b");
+  await shot("u1-M-grade");
+  const g = await page.evaluate(async () => (await import("/js/core/storage.js")).Store.letterGrades["en:M"]);
+  assert.equal(g.last.detail.writes.length, 16, "M و m: كل واحد ٣ بالنقط + ٥ لوحده");
+  assert.deepEqual([...new Set(g.last.detail.writes.map((w) => w.glyph))].sort(), ["M", "m"]);
+  assert.equal(g.last.detail.writes.filter((w) => w.noStart).length, 6, "آخر ٣ لكل واحد من غير النقطة");
+  assert.ok(Object.values(g.last.detail.games).every((x) => !x.skipped));
   assert.deepEqual(errors, []);
 });
 

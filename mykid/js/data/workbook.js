@@ -71,6 +71,9 @@ export const WB_REPS = ["digit", "dots", "things", "fingers"];
 /** تمارين اللعب اللى بتتوزّع على صفحات الأرقام (كل صفحة فى الكتاب ليها تشكيلة مختلفة). */
 // المالك ٢٠٢٦-١٠-١٢: «جمع الأرقام لازم يكون بعد الانتهاء من تعليم كامل الأرقام» — فمكوّنات الرقم
 // والجمع (parts) مش هنا؛ هى فى صفحة الجمع والمراجعة بس (الوحدة الأخيرة).
+/** الكتابة الكتير (زى «كراسة الحروف»): ٣ على النقط + ٥ لوحده (٢ ثم ٣ من غير النقطة). */
+export const WB_DOTS_REPS = 3;
+export const WB_ALONE_REPS = [2, 3];
 export const WB_PLAYS = ["countChoose", "match", "find", "frameFill", "repeated", "stamp"];
 export const WB_LAST = ["paint", "colorBar", "hexKey"];
 
@@ -185,17 +188,25 @@ export function workbookPage(n, rnd = Math.random, only = null) {
   }
 
   const steps = [];
+  // المالك ٢٠٢٦-١٠-١٧: «كمّل الأرقام بنفس الشكل» — ألعاب القلعة جوّه الصفحة (بأرقام الكتاب 4 four)
+  // و«٣ بالنقط + ٥ لوحده» (آخر ٣ من غير النقطة الخضرا)، وفى الآخر شهادة الرقم.
+  // only (للاختبار): الألعاب بتظهر لو «game» أو اسمها فى only
+  const game = (g) => { if (!only || only.includes("game") || only.includes(g)) steps.push({ kind: "game", game: g, n }); };
+  const write = (level, reps, noStart = false) => steps.push({ kind: "write", n, level, reps, ...(noStart ? { noStart } : {}) });
   // اعرف الرقم: شريط الدواير (٥ خانات، أو ١٠ لو الرقم أكبر من ٥) — الطفل بيلمس ويعدّ
   steps.push({ kind: "meet", n, frame: n > 5 ? 10 : 5 });
-  steps.push({ kind: "write", n, level: 1 });
+  write(2, WB_DOTS_REPS);
+  game("puzzle");
   // «Color four of the dresses» — بلون الكتاب، وفيه علبة ألوان والطفل يختار الصح
   const extra = n <= 3 ? 2 : n <= 7 ? 3 : 12 - n;
   steps.push({
     kind: "colorN", n, total: n + Math.max(2, extra), thing: t1, color: c1,
     palette: shuffled(rnd, [c1, c2, pickOf(rnd, WB_COLOR_PAIRS.filter((p) => !p.includes(c1)))[0]]),
   });
+  game("flash");
   if (plays[0]) steps.push(make[plays[0]]());
-  steps.push({ kind: "write", n, level: 2 });
+  write(3, WB_ALONE_REPS[0]);
+  game("eggs");
   for (const k of plays.slice(1)) steps.push(make[k]());
 
   // «The previous, middle, and next number» — والناقص هو رقمنا: يكتبه لوحده
@@ -206,8 +217,11 @@ export function workbookPage(n, rnd = Math.random, only = null) {
   const missOthers = WB_NUMBERS.filter((v) => !seq.includes(v))
     .sort((x, y) => Math.abs(x - n) - Math.abs(y - n) || x - y).slice(0, 2);
   steps.push({ kind: "missing", n, mode, seq, blank: seq.indexOf(n), level: 3, options: shuffled(rnd, [n, ...missOthers]) });
+  game("sequence");
+  write(3, WB_ALONE_REPS[1], true);
 
   steps.push(make[last]());
+  game("review");
   return steps;
 }
 

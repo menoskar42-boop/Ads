@@ -11,7 +11,9 @@ import { strokesFor } from "../data/strokes.js";
 import { writeStatus, STATUS_LABEL } from "../games/writeProgress.js";
 import { openWorksheet } from "../games/worksheet.js";
 import { LB_ORDER, nameOf as lbName } from "../data/letterbook.js";
-import { LB_GAME_INFO, LB_ACT_INFO } from "../data/letterGrade.js";
+import { gameInfo, LB_ACT_INFO } from "../data/letterGrade.js";
+import { EB_PAGES } from "../data/englishbook.js";
+import { WB_PAGES } from "../data/workbook.js";
 
 export function renderParent() {
   const screen = document.createElement("div");
@@ -373,29 +375,40 @@ function gradesBox() {
   const box = document.createElement("div");
   box.className = "pw-box lg-box";
   const G = Store.letterGrades;
-  const done = LB_ORDER.filter((ch) => G["ar:" + ch]);
   const fmtDate = (t) => { try { return new Date(t).toLocaleDateString("ar-EG", { day: "numeric", month: "short" }); } catch (e) { return ""; } };
   const mis = (x) => (x.skipped ? `<span class="lg-skip">اتعدّت</span>` : x.mistakes ? `${x.mistakes} غلطة` : "من غير غلط ✓");
-  let html = `<div class="pw-title">🏅 شهادات الحروف</div>
-    <p class="pw-sub">درجة كل حرف خلّصه الطفل فى «كراسة الحروف» (من ١٠٠): الكتابة ٤٠٪ · الألعاب ٣٥٪ · أنشطة الكتاب ٢٥٪.
-    اضغط على الحرف تشوف التفاصيل. خلّص ${done.length} من ${LB_ORDER.length} حرف.</p>`;
-  for (const ch of LB_ORDER) {
-    const e = G["ar:" + ch];
-    if (!e) { html += `<div class="lg-row lg-new"><b class="lg-g">${ch}</b><span>${lbName(ch)}</span><span class="lg-tot">لسه</span></div>`; continue; }
-    const g = e.last;
-    const d = g.detail || {};
-    const dots = (d.writes || []).filter((w) => w.level === 2).map((w) => w.score + "٪").join("، ") || "—";
-    const alone = (d.writes || []).filter((w) => w.level === 3).map((w) => w.score + "٪").join("، ") || "—";
-    const games = Object.entries(d.games || {}).map(([k, x]) => `<li>${(LB_GAME_INFO[k] || {}).icon || ""} ${(LB_GAME_INFO[k] || {}).title || k}: <b>${x.score}</b> · ${mis(x)}</li>`).join("");
-    const acts = Object.entries(d.acts || {}).map(([k, x]) => `<li>${LB_ACT_INFO[k] || k}: <b>${x.score}</b> · ${mis(x)}</li>`).join("");
-    html += `<details class="lg-row lg-t-${g.tone}"><summary><b class="lg-g">${ch}</b><span>${lbName(ch)}</span>
-        <span class="lg-stars">${"⭐".repeat(g.stars)}</span><span class="lg-lab">${g.label}</span><span class="lg-tot">${g.total}</span></summary>
-      <div class="lg-detail">
-        <p>آخر مرة ${fmtDate(g.at)} · اتلعب ${e.tries} مرة · أعلى درجة ${e.best.total}</p>
-        <p><b>✏️ الكتابة: ${g.writing ?? "—"}</b><br>على النقط: ${dots}<br>لوحده: ${alone}${d.writeFails ? `<br>محاولات اتعادت: ${d.writeFails}` : ""}</p>
-        <p><b>🎲 الألعاب: ${g.games ?? "—"}</b></p><ul>${games}</ul>
-        <p><b>📕 أنشطة الكتاب: ${g.acts ?? "—"}</b></p><ul>${acts}</ul>
-      </div></details>`;
+  // الكتب التلاتة: كل حرف/رقم بمفتاحه (ar:ب · en:A · num:3)
+  const BOOKS = [
+    { book: "ar", title: "📕 كراسة الحروف", noun: "حرف", items: LB_ORDER.map((ch) => ({ k: ch, g: ch, name: lbName(ch) })) },
+    { book: "en", title: "📘 My English Book", noun: "حرف", items: EB_PAGES.filter((p) => p.type === "letter").map((p) => ({ k: p.ch, g: (p.label || p.ch) + (p.label || p.ch).toLowerCase(), name: p.label || p.ch })) },
+    { book: "num", title: "📗 كراسة الأرقام", noun: "رقم", items: WB_PAGES.filter((p) => p.type === "number").map((p) => ({ k: String(p.n), g: String(p.n), name: String(p.n) })) },
+  ];
+  let html = `<div class="pw-title">🏅 شهادات الحروف والأرقام</div>
+    <p class="pw-sub">درجة كل حرف أو رقم خلّصه الطفل فى الكتب (من ١٠٠): الكتابة ٤٠٪ · الألعاب ٣٥٪ · أنشطة الكتاب ٢٥٪.
+    اضغط على الحرف تشوف التفاصيل.</p>`;
+  for (const B of BOOKS) {
+    const done = B.items.filter((it) => G[`${B.book}:${it.k}`]).length;
+    html += `<div class="pw-set"><span>${B.title}</span><span class="pw-count">خلّص ${done} من ${B.items.length}</span></div>`;
+    for (const it of B.items) {
+      const e = G[`${B.book}:${it.k}`];
+      if (!e) { html += `<div class="lg-row lg-new"><b class="lg-g" dir="auto">${it.g}</b><span>${it.name}</span><span class="lg-tot">لسه</span></div>`; continue; }
+      const g = e.last;
+      const d = g.detail || {};
+      const ws = (lvl, noStart) => (d.writes || []).filter((w) => w.level === lvl && !!w.noStart === noStart).map((w) => (w.glyph ? w.glyph + " " : "") + w.score + "٪").join("، ");
+      const writeLines = [[2, false, "على النقط"], [3, false, "لوحده"], [3, true, "من غير النقطة"]]
+        .map(([l, n, t]) => { const v = ws(l, n); return v ? `${t}: ${v}` : ""; }).filter(Boolean).join("<br>") || "—";
+      const actName = (k) => { const t = LB_ACT_INFO[k] || k; return B.book === "num" ? t.replace("الحرف", "الرقم") : t; };
+      const games = Object.entries(d.games || {}).map(([k, x]) => { const gi = gameInfo(k, B.book); return `<li>${gi.icon} ${gi.title}: <b>${x.score}</b> · ${mis(x)}</li>`; }).join("");
+      const acts = Object.entries(d.acts || {}).map(([k, x]) => `<li>${actName(k)}: <b>${x.score}</b> · ${mis(x)}</li>`).join("");
+      html += `<details class="lg-row lg-t-${g.tone}"><summary><b class="lg-g" dir="auto">${it.g}</b><span>${it.name}</span>
+          <span class="lg-stars">${"⭐".repeat(g.stars)}</span><span class="lg-lab">${g.label}</span><span class="lg-tot">${g.total}</span></summary>
+        <div class="lg-detail">
+          <p>آخر مرة ${fmtDate(g.at)} · اتلعب ${e.tries} مرة · أعلى درجة ${e.best.total}</p>
+          <p><b>✏️ الكتابة: ${g.writing ?? "—"}</b><br>${writeLines}${d.writeFails ? `<br>محاولات اتعادت: ${d.writeFails}` : ""}</p>
+          <p><b>🎲 الألعاب: ${g.games ?? "—"}</b></p><ul>${games}</ul>
+          <p><b>📕 أنشطة الكتاب: ${g.acts ?? "—"}</b></p><ul>${acts}</ul>
+        </div></details>`;
+    }
   }
   box.innerHTML = html;
   return box;

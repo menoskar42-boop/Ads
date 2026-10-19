@@ -30,7 +30,7 @@ test("every step builds, every word has a picture, every write glyph has strokes
       const steps = ebSteps(pg, rnd);
       assert.ok(steps.length >= 2, pg.id);
       for (const s of steps) {
-        const words = [...(s.words || []), ...(s.rounds || []).flatMap((r) => (Array.isArray(r) ? [r[0]] : s.kind === "find" ? r.options : [r.w].filter(Boolean))),
+        const words = [...(s.words || []).map((x) => (typeof x === "string" ? x : x.w)), ...(s.rounds || []).flatMap((r) => (Array.isArray(r) ? [r[0]] : s.kind === "find" ? r.options : [r.w].filter(Boolean))),
           ...(s.items || []).map((it) => (Array.isArray(it) ? it[0] : it.w)), ...(s.pairs || []).flatMap((p) => (Array.isArray(p) ? p : [p.w]))];
         for (const w of words) assert.ok(EB_WORDS[w] || PLURAL.includes(w), `${pg.id}/${s.kind}: ${w}`);
         if (s.kind === "write") assert.ok(strokesFor(s.glyph)?.length, s.glyph);
@@ -54,6 +54,27 @@ test("every step builds, every word has a picture, every write glyph has strokes
         if (s.kind === "rhyme") for (const [a, b] of s.pairs) assert.equal(a.slice(-2), b.slice(-2), `${a}/${b}`);
       }
     }
+  }
+});
+
+// المالك ٢٠٢٦-١٠-١٧: «كمّل الإنجليزى بنفس الشكل» — ألعاب القلعة + كابيتال وصغير ٣ بالنقط و٥ لوحده
+test("letter page: castle games inside, capital and small each 3 on dots + 5 alone (last 3 without the dot)", () => {
+  for (const pg of EB_PAGES.filter((p) => p.type === "letter")) {
+    const steps = ebSteps(pg, rnd);
+    const games = steps.filter((s) => s.kind === "game").map((s) => s.game);
+    assert.deepEqual(games, pg.pos === "end"
+      ? ["puzzle", "flash", "eggs", "catch", "sequence", "review"]
+      : ["puzzle", "flash", "eggs", "phonics", "catch", "sequence", "review"], pg.id);
+    const lo = pg.ch.toLowerCase();
+    for (const g of [pg.ch, lo]) {
+      const w = steps.filter((s) => s.kind === "write" && s.glyph === g);
+      assert.deepEqual(w.map((s) => [s.level, s.reps, !!s.noStart]), [[2, 3, false], [3, 2, false], [3, 3, true]], `${pg.id} ${g}`);
+    }
+    // البيض: كل بيضة حاجة مختلفة بتبدأ بالحرف (أو فيها الصوت — X)
+    const eggs = steps.find((s) => s.game === "eggs");
+    assert.ok(eggs.words.length >= 2, pg.id);
+    assert.equal(new Set(eggs.words.map((x) => x.e)).size, eggs.words.length, pg.id);
+    for (const x of eggs.words) assert.ok(pg.pos === "end" ? x.w.includes(lo) : x.w[0].toUpperCase() === pg.ch, `${pg.id}: ${x.w}`);
   }
 });
 

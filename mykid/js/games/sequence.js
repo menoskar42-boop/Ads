@@ -25,7 +25,7 @@ export function renderSequence({ regionId, regionIndex, datasetKey, lang, title,
   const items = ds.items;
   let round = 0;
   // «كراسة الحروف»: جولتين، والناقص دايماً حرف الصفحة
-  const fi = focus != null ? items.findIndex((x) => x.char === focus) : -1;
+  const fi = focus != null ? items.findIndex((x) => String(x.char ?? x.value) === String(focus)) : -1;
   const ROUNDS_N = fi >= 0 ? 2 : ROUNDS;
   // الإنجليزى: جولة كابيتال (A B ؟) وجولة صغير (a b ؟) بالتبادل
   const caseMode = !!(items[0] && items[0].lower && items[0].lower !== items[0].char);

@@ -210,6 +210,9 @@ add("برافو", AR);
   for (const x of LB_SHADOWS) add(x.w, AR);
   // شهادة الحرف (٢٠٢٦-١٠-١٦): كلمة ميزو لكل حرف × كل مستوى
   for (const ch of LB_ORDER) for (const f of Object.values(WP.GRADE_SAY)) addAr(f(lbName(ch)));
+  // وكتاب الإنجليزى (حرف A) وكتاب الأرقام (رقم أربعة) — ٢٠٢٦-١٠-١٧
+  for (const pg of EB_PAGES.filter((p) => p.type === "letter")) for (const f of Object.values(WP.GRADE_SAY)) addAr(f(pg.label || pg.ch));
+  for (let v = 1; v <= 10; v++) for (const f of Object.values(WP.GRADE_SAY)) addAr(f(WB_AR[v], "رقم"));
   for (const b of LB_BUILD) { add(b.w, AR); addAr(S.build(lbName(b.a), lbName(b.b))); }
 }
 

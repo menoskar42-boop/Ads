@@ -13,8 +13,16 @@ import { awardStars } from "../core/rewards.js";
 import { femAdapt } from "../data/mizo.js";
 import { strokesFor } from "../data/strokes.js";
 import { EB_UNITS, EB_PAGES, ebSteps, isEbWrite, EB_WORDS, emojiOf, NUM_EN } from "../data/englishbook.js";
-import { EB_SAY, SHOW_BELOW, fixMsg } from "../data/writingPhrases.js";
-import { gameTopbar, finishActivity } from "./common.js";
+import { EB_SAY, SHOW_BELOW, fixMsg, ROUND_MSG } from "../data/writingPhrases.js";
+import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
+import { renderLetterPuzzle, renderFlashlight, renderEggs } from "./funGames.js";
+import { renderPhonics } from "./phonics.js";
+import { renderCatch } from "./catch.js";
+import { renderSequence } from "./sequence.js";
+import { renderReview } from "./review.js";
+import { letterGrade, gameInfo } from "../data/letterGrade.js";
+import { showLetterGrade } from "./letterGradeCard.js";
+import { LB_DOTS_PASS } from "../data/letterbook.js";
 import { mountWriteBoard } from "./writeBoard.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
@@ -82,6 +90,9 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
   let steps = [];
   let idx = 0;
   let cleanup = () => {};
+  // شهادة الحرف (المالك ٢٠٢٦-١٠-١٧ — زى «كراسة الحروف»): الكتابة بنسبها وغلطات كل لعبة/نشاط
+  let res = null;
+  let stepWrongs = 0;
   const toRegion = () => Router.go("region", { id: regionId, index: regionIndex });
   screen.appendChild(gameTopbar("📘 My English Book", () => {
     Speech.stop();
@@ -143,6 +154,11 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     cur = pg;
     steps = ebSteps(pg, Math.random, only);
     idx = 0;
+    res = {
+      writes: [], writeFails: 0, games: {}, acts: {}, skipped: [],
+      expectedWrites: steps.filter((x) => x.kind === "write").reduce((n, x) => n + (x.reps || 1), 0),
+      expectedGames: steps.filter((x) => x.kind === "game").map((x) => x.game),
+    };
     const i = Math.max(0, EB_PAGES.indexOf(pg));
     screen.style.setProperty("--wbk-c1", PAGE_COLORS[i % PAGE_COLORS.length]);
     screen.style.setProperty("--wbk-c2", PAGE_COLORS[(i + 3) % PAGE_COLORS.length]);
@@ -162,7 +178,8 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     else if (cur.type === "review") title.innerHTML = `<b>🏆</b><span dir="ltr">Review</span>`;
     else title.innerHTML = `<b>${cur.type === "story" ? cur.icon || "📖" : cur.type === "cvc" ? "🔤" : "🗣️"}</b><span dir="ltr">${cur.title}</span>`;
     const track = el("div", "wbk-track");
-    steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""), isEbWrite(s) ? "✏️" : "🎲")));
+    steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""),
+      isEbWrite(s) ? "✏️" : s.kind === "game" ? gameInfo(s.game).icon : "🎲")));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;
@@ -250,6 +267,8 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     renderStep();
   }
   function stepDone(delay = 1300) {
+    const st = steps[idx];
+    if (res && st && !isEbWrite(st) && st.kind !== "game") res.acts[st.kind] = (res.acts[st.kind] || 0) + (Sfx.wrongs - stepWrongs);
     // بعد الكتابة صوت ميزو بس (من غير صوت «نجاح»)
     if (!(steps[idx] && isEbWrite(steps[idx]))) Sfx.correct();
     awardStars(1);
@@ -264,7 +283,14 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
   }
   function finishPage() {
     Store.markEnglishbookDone(cur.id);
-    finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
+    const end = () => finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
+    if (cur.type !== "letter" || !res) return end();
+    const g = letterGrade(res);
+    Store.recordLetterGrade("en", cur.ch, g);
+    const pg = cur;
+    cur = null;
+    const L = pg.label || pg.ch;
+    setTimeout(() => showLetterGrade({ glyph: `<span dir="ltr">${L}${L.toLowerCase()}</span>`, name: L, grade: g, onClose: end }), 900);
   }
   function renderStep() {
     cleanup();
@@ -275,9 +301,14 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     const s = steps[idx];
     const body = el("section", "wbk-body lbk-body ebk-body wbk-step-" + s.kind);
     stage.appendChild(body);
-    const skip = button("wbk-skip", "⏭", () => { Sfx.tap(); Speech.stop(); nextStep(); });
+    const skip = button("wbk-skip", "⏭", () => {
+      Sfx.tap(); Speech.stop();
+      if (res) res.skipped.push(s.kind === "game" ? s.game : s.kind);
+      nextStep();
+    });
     skip.setAttribute("aria-label", "الخطوة اللى بعدها");
     stage.appendChild(skip);
+    stepWrongs = Sfx.wrongs;
     STEP[s.kind](body, s);
     armGuide();
   }
@@ -553,8 +584,32 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     // ✏️ الكتابة: الخط العريض ← النقط ← لوحده (لوحده = الحرف كله والحكم بنسبة)
     write(body, s) {
       const cap = s.glyph === s.glyph.toUpperCase();
-      const intro = cap ? EB_SAY.writeCap(s.glyph) : EB_SAY.writeSmall(s.glyph);
-      writeBoard(body, s.glyph, s.level, intro, () => stepDone(900));
+      const intro = s.noStart ? ROUND_MSG.noDot : cap ? EB_SAY.writeCap(s.glyph) : EB_SAY.writeSmall(s.glyph);
+      writeBoard(body, s.glyph, s.level, intro, () => stepDone(900), null, s.reps || 1, !!s.noStart);
+    },
+
+    // 🎲 لعبة من ألعاب القلعة جوّه صفحة الحرف — بنفس شكلها، على حرف الصفحة
+    game(body, s) {
+      const p = { regionId, regionIndex };
+      const en = { ...p, datasetKey: "english", lang: "en-US" };
+      const words = (s.words || []).map((x) => ({ word: x.w, emoji: x.e }));
+      const GAMES = {
+        puzzle: () => renderLetterPuzzle({ ...p, kind: "english", focus: s.ch }),
+        flash: () => renderFlashlight({ ...p, kind: "english", focus: s.ch }),
+        eggs: () => renderEggs({ ...p, kind: "english", focus: s.ch, words }),
+        phonics: () => renderPhonics({ ...en, focus: s.ch, words }),
+        catch: () => renderCatch({ ...en, focus: s.ch }),
+        sequence: () => renderSequence({ ...en, focus: s.ch }),
+        review: () => renderReview({ ...en, focus: s.ch }),
+      };
+      const info = gameInfo(s.game);
+      body.appendChild(el("p", "lbk-game-title", `${info.icon} ${info.title}`));
+      const node = renderEmbedded(GAMES[s.game], ({ mistakes }) => {
+        if (res) res.games[s.game] = mistakes;
+        stepDone(700);
+      });
+      body.appendChild(node);
+      cleanup = () => endEmbedded();
     },
 
     // كلمة النجمة (Sight word)
@@ -846,23 +901,33 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
   };
 
   /** لوحة الكتابة للحرف بمستوى المساعدة ده (٣ = لوحده: الحرف كله والحكم بنسبة). */
-  function writeBoard(host, v, level, intro, done, before = null) {
+  function writeBoard(host, v, level, intro, done, before = null, reps = 1, noStart = false) {
     const strokes = strokesFor(v);
     const hint = hintLine();
     const wrap = el("div", "wbk-write");
     wrap.dataset.glyph = v;
+    // «٣ بالنقط + ٥ لوحده» (زى «كراسة الحروف»): النقط بـ٧٥٪ ولوحده بـ٧٠٪، وكل مرة بتتعدّ
+    // (الهجاء — كلمة النجمة — بيفضل حرف حرف خط بخط زى ما كان)
+    const free = level === 3 || reps > 1;
+    const pass = level === 2 && free ? LB_DOTS_PASS : SCORE_PASS;
+    let got = 0;
+    const count = el("p", "lbk-reps");
+    const showCount = () => { count.textContent = `${level === 2 ? "🔵 على النقط" : noStart ? "🌟 من غير النقطة" : "⭐ لوحدك"} · ✓ ${got}/${reps}`; };
+    if (reps > 1) { showCount(); host.appendChild(count); }
     host.appendChild(wrap);
-    if (intro) host.insertBefore(prompt(intro), before || wrap);
+    if (intro) host.insertBefore(prompt(intro), before || (reps > 1 ? count : wrap));
     const board = mountWriteBoard(wrap, {
       ...penBoardOptions((text) => hint.show(text)),
       strokes,
       level,
-      free: level === 3,
+      free,
+      noStart,
       // من غير صوت «غلط» ولا «نجاح» على اللوحة (المالك ٢٠٢٦-١٠-١٤): صوت ميزو وكلامه بس
       onHint: (text) => hint.show(text),
       onDone: ({ fails, score, result }) => {
         const pct = () => { if (score != null) hint.textContent = `${score}٪ · ${hint.textContent}`; };
-        if (score != null && score < SCORE_PASS) {
+        if (score != null && score < pass) {
+          if (res) res.writeFails++;
           hint.show(fixMsg(result && result.issue));
           pct();
           setTimeout(() => { board.reset(); if (score < SHOW_BELOW) board.demo(); }, 2600);
@@ -872,6 +937,10 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
         board.el.animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 450 });
         en(v);
         if (level === 3) Store.recordWrite("g:" + v, fails, level);
+        if (res && score != null) res.writes.push({ level, score, glyph: v, ...(noStart ? { noStart: true } : {}) });
+        got++;
+        if (reps > 1) showCount();
+        if (got < reps) { setTimeout(() => { if (wrap.isConnected) board.reset(); }, 1500); return; }
         done(fails);
       },
     });

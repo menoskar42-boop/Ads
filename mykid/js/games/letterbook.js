@@ -334,11 +334,11 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       const GAMES = {
         puzzle: () => renderLetterPuzzle({ ...p, kind: "arabic", focus: s.ch }),
         flash: () => renderFlashlight({ ...p, kind: "arabic", focus: s.ch }),
-        eggs: () => renderEggs({ ...p, kind: "arabic", focus: s.ch }),
+        eggs: () => renderEggs({ ...p, kind: "arabic", focus: s.ch, words: (s.words || []).map((x) => ({ word: x.w, emoji: x.e })) }),
         phonics: () => renderPhonics({ ...ar, focus: s.ch, words: (s.words || []).map((x) => ({ word: x.w, emoji: x.e })) }),
         catch: () => renderCatch({ ...ar, focus: s.ch }),
         sequence: () => renderSequence({ ...ar, focus: s.ch }),
-        review: () => renderReview({ ...ar, focusSet: s.set }),
+        review: () => renderReview({ ...ar, focus: s.ch }),
       };
       const info = LB_GAME_INFO[s.game] || {};
       body.appendChild(el("p", "lbk-game-title", `${info.icon || "🎲"} ${info.title || ""}`));
@@ -815,7 +815,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
         board.el.animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 450 });
         if (!line) Speech.ar(nameOf(v));
         if (!line && level === 3) Store.recordWrite("g:" + v, fails, level);
-        if (res && !line && score != null) res.writes.push({ level, score });
+        if (res && !line && score != null) res.writes.push({ level, score, ...(noStart ? { noStart: true } : {}) });
         got++;
         if (reps > 1) showCount();
         // لسه فيه مرات: نفس اللوحة فاضية تانى بعد ما يشوف النسبة

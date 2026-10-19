@@ -9,7 +9,7 @@ import { GRADE_SAY } from "../data/writingPhrases.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
 
-export function showLetterGrade({ glyph, name, grade, onClose }) {
+export function showLetterGrade({ glyph, name, grade, onClose, noun = "حرف" }) {
   const g = grade;
   const bar = (icon, label, v) => v == null ? "" : `
     <div class="lgc-row"><span class="lgc-lbl">${icon} ${label}</span>
@@ -17,8 +17,8 @@ export function showLetterGrade({ glyph, name, grade, onClose }) {
   const overlay = document.createElement("div");
   overlay.className = "cheer lgc";
   overlay.innerHTML = `
-    <div class="lgc-card lgc-t-${g.tone}" role="dialog" aria-label="شهادة حرف ${name}">
-      <div class="lgc-ribbon">🏅 شهادة الحرف</div>
+    <div class="lgc-card lgc-t-${g.tone}" role="dialog" aria-label="شهادة ${noun} ${name}">
+      <div class="lgc-ribbon">🏅 شهادة ${noun === "رقم" ? "الرقم" : "الحرف"}</div>
       <div class="lgc-glyph" dir="auto">${glyph}</div>
       <div class="lgc-stars" aria-label="${g.stars} نجوم">${"⭐".repeat(g.stars)}${"☆".repeat(3 - g.stars)}</div>
       <div class="lgc-total"><b>${g.total}</b><span>من ١٠٠</span></div>
@@ -28,7 +28,7 @@ export function showLetterGrade({ glyph, name, grade, onClose }) {
     </div>`;
   document.body.appendChild(overlay);
   Sfx.win();
-  Speech.ar(fem(GRADE_SAY[g.tone](name)));
+  Speech.ar(fem(GRADE_SAY[g.tone](name, noun)));
   let closed = false;
   overlay.querySelector(".lgc-ok").addEventListener("click", () => {
     if (closed) return;

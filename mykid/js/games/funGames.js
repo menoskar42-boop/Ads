@@ -15,7 +15,7 @@ import { gameTopbar, finishActivity, diffCount } from "./common.js";
 import { FUN_SAY, PUZZLE_SAY } from "../data/writingPhrases.js";
 import {
   funItems, frogRounds, FROG_HOPS, flashRounds, pianoKeys, pianoLengths, pianoTune,
-  rocketRounds, eggRounds, EGG_TAPS, hatchOf, puzzleGrid, puzzleRounds, snapsTo, focusItem,
+  rocketRounds, eggRounds, EGG_TAPS, hatchOf, puzzleGrid, puzzleRounds, snapsTo, focusItem, isNumKind,
 } from "../data/funGames.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
@@ -378,7 +378,8 @@ export function renderRocket({ regionId, regionIndex, kind = "arabic" }) {
 }
 
 // ===================== 🥚 بيض المفاجآت =====================
-export function renderEggs({ regionId, regionIndex, kind = "arabic", focus = null }) {
+export function renderEggs({ regionId, regionIndex, kind = "arabic", focus = null, words = null }) {
+  // الكتب (المالك ٢٠٢٦-١٠-١٧): كل بيضة يطلع منها حاجة مختلفة بتبدأ بالحرف ({ word, emoji })
   const items = funItems(kind);
   const g = shell({ regionId, regionIndex, title: "🥚 بيض المفاجآت", scene: "eggs" });
   const rounds = eggRounds(items, Math.random, diffCount(2, 3), focusItem(items, focus), 3);
@@ -429,8 +430,9 @@ export function renderEggs({ regionId, regionIndex, kind = "arabic", focus = nul
   async function hatch(it) {
     show.classList.add("on");
     if (!it.value) {
-      show.innerHTML = `<span class="fg-baby">${hatchOf(it)}</span><b class="fg-word" dir="auto">${it.word || ""}</b>`;
-      Speech.sequence([{ text: fem(FUN_SAY.eggHatch), lang: "ar-EG" }, { text: it.word || it.say, lang: it.lang }], 150);
+      const w = words && words.length ? words[r % words.length] : { word: it.word, emoji: hatchOf(it) };
+      show.innerHTML = `<span class="fg-baby">${w.emoji}</span><b class="fg-word" dir="auto">${w.word || ""}</b>`;
+      Speech.sequence([{ text: fem(FUN_SAY.eggHatch), lang: "ar-EG" }, { text: w.word || it.say, lang: it.lang }], 150);
       return wait(2600);
     }
     const chicks = [...hatchOf(it)].filter((c) => c.trim());
@@ -458,7 +460,7 @@ const PUZZLE_BG = [["#f472b6", "#fb923c", "#facc15"], ["#a78bfa", "#38bdf8", "#4
 const PUZZLE_DECO = ["⭐", "🌸", "🎈", "🦋", "🍭", "✨"];
 export function renderLetterPuzzle({ regionId, regionIndex, kind = "arabic", focus = null }) {
   const items = funItems(kind);
-  const isNum = kind === "numbers";
+  const isNum = isNumKind(kind);
   const g = shell({ regionId, regionIndex, title: isNum ? "🧩 بازل الرقم" : "🧩 بازل الحرف", scene: "puzzle" });
   const grid = puzzleGrid(Store.ageBand !== "small");
   const rounds = puzzleRounds(items, Math.random, grid, focusItem(items, focus), 2);

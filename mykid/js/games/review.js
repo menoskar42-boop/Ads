@@ -24,7 +24,7 @@ function speakItem(it, lang) {
   else Speech.say(it.name, { lang: "ar-EG" });
 }
 
-export function renderReview({ regionId, regionIndex, datasetKey, lang, title, focusSet = null }) {
+export function renderReview({ regionId, regionIndex, datasetKey, lang, title, focus = null }) {
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang;
   const items = ds.items;
@@ -36,9 +36,9 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title, f
   const scored = pool
     .map((it) => ({ it, lvl: Store.getMastery(datasetKey, itemKey(it)) }))
     .sort((a, b) => a.lvl - b.lvl || Math.random() - 0.5);
-  // «كراسة الحروف»: حرف الصفحة + الحروف اللى خلصها قبله (المراجعة الذكية جوّه المغامرة)
-  const fromSet = focusSet ? items.filter((it) => focusSet.includes(it.char)) : [];
-  const rounds = fromSet.length ? shuffle(fromSet) : shuffle(scored.slice(0, ROUNDS).map((s) => s.it));
+  // الكتب (المالك ٢٠٢٦-١٠-١٧: «يراجع على الحرف نفسه»): ٤ جولات على حرف الصفحة، والاختيارات بتتغيّر
+  const focusIt = focus != null ? items.find((it) => String(it.char ?? it.value) === String(focus)) : null;
+  const rounds = focusIt ? [focusIt, focusIt, focusIt, focusIt] : shuffle(scored.slice(0, ROUNDS).map((s) => s.it));
   let i = 0;
   // الإنجليزى: «اسمع واختار» بالحالة — small b أو capital B، والفخ هو نفس الحرف بالحالة التانية
   const caseMode = !!(items[0] && items[0].lower && items[0].lower !== items[0].char);
@@ -131,6 +131,7 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title, f
       const b = document.createElement("button");
       b.className = "choice";
       b.innerHTML = `<span style="font-weight:800">${ch}</span>`;
+      if (ch === want) b.dataset.good = "1";
       b.addEventListener("click", () => {
         if (ch === want) {
           Sfx.correct();

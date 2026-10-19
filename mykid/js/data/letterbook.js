@@ -259,17 +259,13 @@ export const LB_DOTS_PASS = 75;
  * نفس اللعبة بشكلها، بس على حرف الصفحة وجولات أقل.
  */
 export const LB_GAMES = ["puzzle", "flash", "eggs", "phonics", "catch", "sequence", "review"];
-/** الحروف اللى بتتراجع مع حرف الصفحة: هو + آخر ٣ حروف قبله فى الكتاب. */
-export function reviewSet(ch) {
-  const i = LB_ORDER.indexOf(ch);
-  return [ch, ...LB_ORDER.slice(Math.max(0, i - 3), Math.max(0, i))];
-}
 
 export function letterPage(ch, rnd = Math.random, only = null) {
   const L = LB_LETTERS[ch];
   const steps = [];
   const want = (k) => !only || only.includes(k);
-  const game = (g) => { if (want("game") || want(g)) steps.push({ kind: "game", game: g, ch, ...(g === "review" ? { set: reviewSet(ch) } : {}), ...(g === "phonics" ? { words: shuffled(rnd, wordsStarting(ch)).slice(0, 3) } : {}) }); };
+  // بأى حرف تبدأ + بيض المفاجآت: كلمات مختلفة بتبدأ بالحرف (كل جولة حاجة جديدة)
+  const game = (g) => { if (want("game") || want(g)) steps.push({ kind: "game", game: g, ch, ...(g === "phonics" || g === "eggs" ? { words: shuffled(rnd, wordsStarting(ch)).slice(0, 3) } : {}) }); };
   const write = (level, reps, noStart = false) => { if (want("write")) steps.push({ kind: "write", ch, level, reps, ...(noStart ? { noStart } : {}) }); };
   // ١) استمع وانطق: الحرف كبير، وميزو بيقول اسمه وصوته (= «تعرّف على الحرف»)
   if (want("meet")) steps.push({ kind: "meet", ch });
@@ -333,7 +329,7 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   game("sequence");
   // ١٧) ✏️ لوحده ٣ مرات — ومن غير النقطة الخضرا كمان (النقط ← النقطة بس ← ولا حاجة)
   write(3, LB_ALONE_REPS[1], true);
-  // ١٨) 🧠 المراجعة الذكية: الحرف ده + اللى قبله — وبعدها شهادة الحرف
+  // ١٨) 🧠 المراجعة الذكية على الحرف نفسه — وبعدها شهادة الحرف
   game("review");
   return steps;
 }

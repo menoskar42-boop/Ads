@@ -331,7 +331,33 @@ const solve = {
     const glyph = await page.locator(".wbk-write").last().getAttribute("data-glyph");
     const strokes = glyph.startsWith("pre:") ? PREWRITING.find((p) => p.id === glyph.slice(4)).strokes
       : WB_SHAPES[glyph] ? WB_SHAPES[glyph].strokes : strokesFor(glyph);
-    for (const st of strokes) await stroke(st);
+    // «٣ بالنقط + ٥ لوحده» (✓ n/m): نفس اللوحة بتتفضّى بعد كل مرة لحد ما العدّاد يكمل
+    for (let rep = 0; rep < 6; rep++) {
+      const before = (await page.locator(".lbk-reps").textContent().catch(() => "")) || "";
+      for (const st of strokes) await stroke(st);
+      if (!before) return;
+      await page.waitForFunction((b) => (document.querySelector(".lbk-reps")?.textContent || "") !== b, before, { timeout: 9000 });
+      const m = ((await page.locator(".lbk-reps").textContent()) || "").match(/(\d+)\/(\d+)/);
+      if (m[1] === m[2]) return;
+      await page.waitForTimeout(1700);
+    }
+  },
+  // لعبة من ألعاب القلعة جوّه الصفحة: البازل لمسة-لمسة، والباقى لمس الإجابة الصح
+  async game() {
+    assert.equal(await page.locator(".wbk-body .is-embedded .topbar").count(), 0);
+    const i = await nowChip();
+    for (let g = 0; g < 150; g++) {
+      if ((await nowChip()) !== i || (await page.locator(".lgc").count())) return;
+      const pc = page.locator(".wbk-body .fg-pz-tray .fg-pz-piece").first();
+      if (await pc.count()) {
+        const id = await pc.getAttribute("data-id");
+        await pc.click();
+        await page.locator(`.wbk-body .fg-pz-slot[data-id="${id}"]`).click();
+      } else {
+        await page.evaluate(() => { const e = document.querySelector(".wbk-body .is-embedded [data-good]:not([data-on]):not(.correct)"); if (e) e.click(); });
+      }
+      await page.waitForTimeout(350);
+    }
   },
   async colorN(n) {
     const want = WB_COLORS[colorPairOf(n)[0]].ar;
@@ -464,10 +490,20 @@ for (const [n, only] of CASES) {
       await solve[k](n);
       done.push(k);
       if (i < total - 1) await nextStepFrom(i);
-      else await page.waitForSelector(".cheer", { timeout: 5000 }); // آخر خطوة ← احتفال ونجوم
+      else {
+        // صفحة الرقم: شهادة الرقم الأول (المالك ٢٠٢٦-١٠-١٧)، وبعدين احتفال ونجوم
+        await page.waitForSelector(".cheer", { timeout: 8000 });
+        if (await page.locator(".lgc").count()) {
+          await shot(`${n}-grade`);
+          const g = await page.evaluate(async (n) => (await import("/js/core/storage.js")).Store.letterGrades["num:" + n], n);
+          assert.ok(g && g.last.total > 0, "شهادة الرقم اتسجّلت");
+          assert.equal(g.last.detail.writes.length, 8, "٣ بالنقط + ٥ لوحده");
+          await page.locator(".lgc-ok").click();
+        }
+      }
     }
     const writes = done.filter((k) => ["write", "missing", "countWrite", "traceShape"].includes(k)).length;
-    if (typeof n === "number") assert.equal(writes, 3);
+    if (typeof n === "number") assert.equal(writes, 4);
     else if (/^[cs]\d$/.test(n)) assert.equal(writes, 2);
     // آخر الصفحة: النجوم وبعدين الرجوع لاختيار الرقم بنجمة على الرقم ده
     for (let t = 0; t < 12 && !(await page.locator(".wbk-map").count()); t++) {

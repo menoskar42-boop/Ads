@@ -19,15 +19,17 @@ test("كل رقم من ١ لـ١٠ ليه صفحة، وليه خطوط كتاب�
   assert.throws(() => workbookPage(11));
 });
 
-test("يكتب شوية ويلعب شوية: ٣ كتابات، ومفيش كتابتين ورا بعض، والمساعدة بتقلّ", () => {
+// المالك ٢٠٢٦-١٠-١٧: ألعاب القلعة جوّه صفحة الرقم + «٣ بالنقط و٥ لوحده» (آخر ٣ من غير النقطة)
+test("يكتب شوية ويلعب شوية: ٣ بالنقط و٥ لوحده، وألعاب القلعة بين التمارين، ومفيش كتابتين ورا بعض", () => {
   for (const [n, steps] of pages) {
-    const w = steps.map((s, i) => (isWriteStep(s) ? i : -1)).filter((i) => i >= 0);
-    assert.equal(w.length, 3, `صفحة ${n}`);
+    const w = steps.map((s, i) => (s.kind === "write" ? i : -1)).filter((i) => i >= 0);
+    assert.deepEqual(w.map((i) => [steps[i].level, steps[i].reps, !!steps[i].noStart]), [[2, 3, false], [3, 2, false], [3, 3, true]], `صفحة ${n}`);
     for (let k = 1; k < w.length; k++) assert.ok(w[k] - w[k - 1] >= 2, `صفحة ${n}: كتابتين ورا بعض`);
-    assert.deepEqual(w.map((i) => steps[i].level), [1, 2, 3], `صفحة ${n}: الخط ← النقط ← لوحده`);
-    assert.deepEqual(steps.slice(0, 3).map((s) => s.kind), ["meet", "write", "colorN"]);
-    assert.equal(steps.at(-2).kind, "missing");
-    assert.ok(WB_LAST.includes(steps.at(-1).kind));
+    assert.deepEqual(steps.slice(0, 4).map((s) => s.kind), ["meet", "write", "game", "colorN"]);
+    assert.deepEqual(steps.filter((s) => s.kind === "game").map((s) => s.game), ["puzzle", "flash", "eggs", "sequence", "review"]);
+    assert.equal(steps.at(-1).game, "review");
+    assert.ok(WB_LAST.includes(steps.at(-2).kind));
+    assert.ok(steps.some((s) => s.kind === "missing"));
     const plays = steps.filter((s) => WB_PLAYS.includes(s.kind)).map((s) => s.kind);
     assert.equal(plays.length, 3, `صفحة ${n}: ٣ ألعاب`);
     assert.equal(new Set(plays).size, 3, "مفيش لعبة متكرّرة فى نفس الصفحة");

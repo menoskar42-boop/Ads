@@ -17,7 +17,29 @@ export const LB_GAME_INFO = {
   sequence: { icon: "🔠", title: "الحرف الناقص" },
   review: { icon: "🧠", title: "المراجعة الذكية" },
 };
+/** عناوين الألعاب فى كتاب الأرقام. */
+const NUM_TITLES = { puzzle: "بازل الرقم", sequence: "الرقم الناقص", review: "مراجعة الأرقام" };
+export const gameInfo = (g, book = "ar") => {
+  const base = LB_GAME_INFO[g] || { icon: "🎲", title: g };
+  return book === "num" && NUM_TITLES[g] ? { ...base, title: NUM_TITLES[g] } : base;
+};
 export const LB_ACT_INFO = {
+  // كتاب الإنجليزى
+  letterMeet: "تعرّف على الحرف",
+  firstSound: "أول صوت فى الكلمة",
+  popLetter: "لوّن الحرف",
+  find: "دوّر على الصورة",
+  // كتاب الأرقام
+  countChoose: "عدّ واختار",
+  colorN: "لوّن على قد الرقم",
+  match: "وصّل",
+  repeated: "الرقم المتكرّر",
+  parts: "فكّ الرقم",
+  stamp: "اختم على قد الرقم",
+  frameFill: "املا الإطار",
+  paint: "لوّن بالأرقام",
+  colorBar: "لوّن الشريط",
+  hexKey: "مفتاح الألوان",
   meet: "تعرّف على الحرف",
   riddle: "فزّورة ميزو",
   pop: "لوّن الحرف",
@@ -69,7 +91,7 @@ export function letterGrade(res, at = Date.now()) {
   return {
     total, ...gradeLevel(total),
     writing, games: gamesScore, acts: actsScore,
-    detail: { writes: res.writes.map((w) => ({ level: w.level, score: w.score })), writeFails: res.writeFails || 0, games, acts },
+    detail: { writes: res.writes.map((w) => ({ level: w.level, score: w.score, ...(w.noStart ? { noStart: true } : {}), ...(w.glyph ? { glyph: w.glyph } : {}) })), writeFails: res.writeFails || 0, games, acts },
     at,
   };
 }

@@ -21,6 +21,10 @@ export function funItems(kind) {
   if (kind === "english") {
     return ENGLISH_LETTERS.map((x) => ({ id: x.char, glyph: x.char, alt: x.lower || x.char.toLowerCase(), say: x.name, lang: "en-US", word: x.word, emoji: x.emoji }));
   }
+  // «كراسة الأرقام» (المالك ٢٠٢٦-١٠-١٧): الأرقام بالإنجليزى زى الكتاب (4 four)
+  if (kind === "enNumbers") {
+    return NUMBERS.slice(0, 10).map((x) => ({ id: String(x.value), glyph: String(x.value), say: x.enName, lang: "en-US", value: x.value, emoji: "🐥" }));
+  }
   if (kind === "numbers") {
     return NUMBERS.slice(0, 10).map((x) => ({ id: String(x.value), glyph: x.arDigit, say: x.arName, lang: "ar-EG", value: x.value, emoji: "🐥" }));
   }
@@ -28,7 +32,8 @@ export function funItems(kind) {
 }
 
 /** اسم النوع فى كلام ميزو: «حرف» ولا «رقم». */
-export const nounOf = (kind) => (kind === "numbers" ? "رقم" : "حرف");
+export const isNumKind = (kind) => kind === "numbers" || kind === "enNumbers";
+export const nounOf = (kind) => (isNumKind(kind) ? "رقم" : "حرف");
 
 // ===== أدوات =====
 export function shuffled(rnd, a) {

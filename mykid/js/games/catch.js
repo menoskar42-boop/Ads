@@ -110,6 +110,7 @@ export function renderCatch({ regionId, regionIndex, datasetKey, lang, focus = n
         item: { ch },
       };
       el.style.transform = `translate(${f.x}px, ${f.y}px)`;
+      if (ch === want) el.dataset.good = "1";
       el.addEventListener("click", () => {
         if (ch === want) {
           Sfx.correct();
