@@ -120,6 +120,15 @@ async function appendMediaToArchive(archive, p, name, uploadsDir = UPLOAD_DIR) {
   return false;
 }
 
+function groupBoxArchiveMedia(rows) {
+  const grouped = { before: [], after: [] };
+  for (const row of rows || []) {
+    if (row?.photo_type === 'before') grouped.before.push(row);
+    else if (row?.photo_type === 'after') grouped.after.push(row);
+  }
+  return grouped;
+}
+
 /**
  * بيمسح ملفات الصور/الفيديوهات من القرص ومن R2 — بعد ما الصف اتمسح من القاعدة.
  * كل خطوة لوحدها best-effort: ملف يتيم على R2 بيكلّف كام كيلو، لكن رمى خطأ
@@ -194,4 +203,4 @@ async function compressVideoToDisk(buffer, prefix) {
   }
 }
 
-module.exports = { memUpload, compressAndSave, compressToBuffer, storeMedia, storeVideoFile, removeLocalUpload, appendMediaToArchive, removeMediaFiles, memVideoUpload, compressVideoToDisk };
+module.exports = { memUpload, compressAndSave, compressToBuffer, storeMedia, storeVideoFile, removeLocalUpload, appendMediaToArchive, groupBoxArchiveMedia, removeMediaFiles, memVideoUpload, compressVideoToDisk };

@@ -4,7 +4,7 @@ const fs = require('fs');
 const archiver = require('archiver');
 const db = require('../database');
 const DATA_DIR = require('../utils/datadir');
-const { appendMediaToArchive, removeMediaFiles } = require('../utils/photo');
+const { appendMediaToArchive, groupBoxArchiveMedia, removeMediaFiles } = require('../utils/photo');
 const {
   createMaintenanceBox,
   createMaintenanceCabinet,
@@ -396,8 +396,7 @@ router.get('/:id/photos/download', requireLogin, async (req, res) => {
       const details = await getMaintenanceBoxDetails(req.session.user, req.params.id);
       box = details.box;
       const photos = await getMaintenancePhotosForBox(req.session.user, req.params.id);
-      beforePhotos = photos.filter((photo) => photo.photo_type === 'before' && photo.media_type === 'photo');
-      afterPhotos = photos.filter((photo) => photo.photo_type === 'after' && photo.media_type === 'photo');
+      ({ before: beforePhotos, after: afterPhotos } = groupBoxArchiveMedia(photos));
     } catch (error) {
       if (error.status === 404) return res.redirect('/boxes');
       throw error;
