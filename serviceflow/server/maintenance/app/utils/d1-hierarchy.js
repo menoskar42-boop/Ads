@@ -403,6 +403,74 @@ async function createMaintenanceInspection(actor, boxId, inspection) {
   return payload;
 }
 
+async function createMaintenanceBoxDataReview(actor, review) {
+  if (!review || !Number.isSafeInteger(Number(review.inspectorId)) || Number(review.inspectorId) <= 0 ||
+      !['central', 'cabinet', 'box'].every((key) =>
+        typeof review[key] === 'string' && review[key].trim() && review[key].trim().length <= 120) ||
+      !Array.isArray(review.phones) || review.phones.length > 5000) {
+    throw new Error('Invalid maintenance box data-review request');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor,
+    '/api/maintenance/hierarchy/integration/box-data-review',
+    {
+      method: 'POST',
+      body: {
+        inspectorId: Number(review.inspectorId),
+        central: review.central.trim(),
+        cabinet: review.cabinet.trim(),
+        box: review.box.trim(),
+        openedBy: String(review.openedBy || '').trim(),
+        origin: String(review.origin || '').trim(),
+        originRef: String(review.originRef || '').trim(),
+        phones: review.phones,
+      },
+    },
+  );
+  if (!payload || payload.ok !== true || !Number.isSafeInteger(payload.inspectionId) ||
+      !Number.isSafeInteger(payload.boxId) || typeof payload.created !== 'boolean' ||
+      !Number.isSafeInteger(payload.phonesAdded) || payload.phonesAdded < 0) {
+    throw new Error('Maintenance hierarchy D1 returned an invalid data-review result');
+  }
+  return payload;
+}
+
+async function getMaintenanceBoxDataReviewReports(actor, range = {}) {
+  const query = new URLSearchParams();
+  for (const key of ['fromUtc', 'toUtc']) {
+    if (range[key] != null && range[key] !== '') {
+      if (Number.isNaN(Date.parse(range[key]))) throw new Error(`Invalid report range: ${key}`);
+      query.set(key === 'fromUtc' ? 'from_utc' : 'to_utc', range[key]);
+    }
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/data-review/reports${query.size ? `?${query}` : ''}`,
+  );
+  if (!Array.isArray(payload) || payload.some((row) =>
+    !row || !Number.isSafeInteger(row.inspectionId) || typeof row.central !== 'string' ||
+    typeof row.cabinet !== 'string' || typeof row.box !== 'string' ||
+    !Number.isSafeInteger(row.phonesCount) ||
+    (row.reviewedById !== null && !Number.isSafeInteger(row.reviewedById)))) {
+    throw new Error('Maintenance hierarchy D1 returned invalid review report rows');
+  }
+  return payload;
+}
+
+async function getMaintenanceBoxDataReviewReportPhones(actor, inspectionId) {
+  if (!Number.isSafeInteger(Number(inspectionId)) || Number(inspectionId) <= 0) {
+    throw new Error('Invalid data-review report inspection id');
+  }
+  const payload = await maintenanceHierarchyRequest(
+    actor, `/api/maintenance/hierarchy/data-review/reports/${encodeURIComponent(inspectionId)}/phones`,
+  );
+  if (!Array.isArray(payload) || payload.some((row) =>
+    !row || typeof row.phone !== 'string' || typeof row.notes !== 'string' ||
+    typeof row.source !== 'string')) {
+    throw new Error('Maintenance hierarchy D1 returned invalid review phone rows');
+  }
+  return payload;
+}
+
 async function createMaintenanceCabinet(actor, exchangeId, number) {
   if (typeof number !== 'string' || !number.trim() || number.trim().length > 120) {
     throw new Error('Cabinet number must be between 1 and 120 characters');
@@ -440,6 +508,9 @@ module.exports = {
   updateMaintenanceBoxLocation,
   updateMaintenanceInspectionLocation,
   createMaintenanceInspection,
+  createMaintenanceBoxDataReview,
+  getMaintenanceBoxDataReviewReports,
+  getMaintenanceBoxDataReviewReportPhones,
   getMaintenanceBoxes,
   getMaintenanceCabinet,
   deleteMaintenanceCabinet,

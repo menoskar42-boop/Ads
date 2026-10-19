@@ -3,6 +3,7 @@
 const express = require('express');
 const reports = require('./reports');
 const db = require('../database');
+const maintenanceHierarchy = require('../utils/d1-hierarchy');
 
 const router = express.Router();
 
@@ -194,6 +195,18 @@ router.post('/box-data-review', express.json({ limit: '1mb' }), async (req, res)
     const phones = Array.isArray(b.phones) ? b.phones : [];
     if (!central || !cabinet || !box) {
       return res.status(400).json({ error: 'central و cabinet و box مطلوبين' });
+    }
+
+    if (maintenanceHierarchy.isMaintenanceHierarchyProofEnabled()) {
+      const systemInspector = await db.get(
+        "SELECT id FROM users WHERE role IN ('admin','inspector') AND COALESCE(is_active,1) = 1 ORDER BY id LIMIT 1",
+      );
+      if (!systemInspector) return res.status(500).json({ error: 'مافيش مستخدم فاحص/أدمن نربط بيه الفحص' });
+      const result = await maintenanceHierarchy.createMaintenanceBoxDataReview(
+        { id: Number(systemInspector.id), role: 'admin' },
+        { central, cabinet, box, openedBy, origin, originRef, phones },
+      );
+      return res.json(result);
     }
 
     const bx = await findOrCreateBox(central, cabinet, box);

@@ -632,7 +632,10 @@ export default {
     const maintenanceTasksRoute = url.pathname === "/api/maintenance/hierarchy/tasks";
     const maintenanceTaskMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/tasks\/(\d+)$/);
     const maintenanceTaskActionMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/tasks\/(\d+)\/action$/);
-    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !wfmCustomerMobilesRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceExchangeMatch && !maintenanceCabinetsMatch && !maintenanceCabinetMatch && !maintenanceBoxesRoute && !maintenanceBoxMatch && !maintenanceBoxLocationMatch && !maintenanceCabinetBoxesMatch && !maintenanceInspectionsRoute && !maintenanceInspectionMatch && !maintenanceInspectionLocationMatch && !maintenancePhotosRoute && !maintenancePhotoByFilenameMatch && !maintenancePhotoMatch && !maintenanceTasksRoute && !maintenanceTaskMatch && !maintenanceTaskActionMatch) {
+    const maintenanceBoxDataReviewRoute = url.pathname === "/api/maintenance/hierarchy/integration/box-data-review";
+    const maintenanceReviewReportsRoute = url.pathname === "/api/maintenance/hierarchy/data-review/reports";
+    const maintenanceReviewReportPhonesMatch = url.pathname.match(/^\/api\/maintenance\/hierarchy\/data-review\/reports\/(\d+)\/phones$/);
+    if (!userByUsername && !userCollection && !userPasswordMatch && !userMatch && !referenceRoute && !grantRoute && !ticketRoute && !taskInventoryRoute && !ticketEntryRoute && !inventoryRoute && !wfmCustomerMobilesRoute && !maintenanceCabinetCodesRoute && !maintenanceExchangesRoute && !maintenanceExchangeMatch && !maintenanceCabinetsMatch && !maintenanceCabinetMatch && !maintenanceBoxesRoute && !maintenanceBoxMatch && !maintenanceBoxLocationMatch && !maintenanceCabinetBoxesMatch && !maintenanceInspectionsRoute && !maintenanceInspectionMatch && !maintenanceInspectionLocationMatch && !maintenancePhotosRoute && !maintenancePhotoByFilenameMatch && !maintenancePhotoMatch && !maintenanceTasksRoute && !maintenanceTaskMatch && !maintenanceTaskActionMatch && !maintenanceBoxDataReviewRoute && !maintenanceReviewReportsRoute && !maintenanceReviewReportPhonesMatch) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
     if ((userByUsername && request.method !== "GET") ||
@@ -662,7 +665,10 @@ export default {
         (maintenancePhotoMatch && !["PATCH", "DELETE"].includes(request.method)) ||
         (maintenanceTasksRoute && request.method !== "GET") ||
         (maintenanceTaskMatch && request.method !== "GET") ||
-        (maintenanceTaskActionMatch && request.method !== "POST")) {
+        (maintenanceTaskActionMatch && request.method !== "POST") ||
+        (maintenanceBoxDataReviewRoute && request.method !== "POST") ||
+        (maintenanceReviewReportsRoute && request.method !== "GET") ||
+        (maintenanceReviewReportPhonesMatch && request.method !== "GET")) {
       return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
     const expectedServiceToken = env.SERVICE_TOKEN;
@@ -821,6 +827,202 @@ export default {
            FROM maintenance_cabinet_codes
            ORDER BY exchange_name, cabinet_number`,
         ).all();
+        return Response.json(results);
+      }
+      if (maintenanceBoxDataReviewRoute) {
+        if (claims.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+        const body = await request.json().catch(() => null);
+        const inspectorId = Number(body?.inspectorId);
+        const central = typeof body?.central === "string" ? body.central.trim() : "";
+        const cabinet = typeof body?.cabinet === "string" ? body.cabinet.trim() : "";
+        const boxNumber = typeof body?.box === "string" ? body.box.trim() : "";
+        const openedBy = typeof body?.openedBy === "string" ? body.openedBy.trim() : "";
+        const origin = typeof body?.origin === "string" ? body.origin.trim() : "";
+        const originRef = typeof body?.originRef === "string" ? body.originRef.trim() : "";
+        const phones = Array.isArray(body?.phones) ? body.phones : null;
+        if (Object.keys(body || {}).some((key) =>
+          !["inspectorId", "central", "cabinet", "box", "openedBy", "origin", "originRef", "phones"].includes(key)) ||
+            !Number.isSafeInteger(inspectorId) || inspectorId <= 0 ||
+            !central || central.length > 120 || !cabinet || cabinet.length > 120 ||
+            !boxNumber || boxNumber.length > 120 || openedBy.length > 200 ||
+            origin.length > 80 || originRef.length > 500 || !phones || phones.length > 5000 ||
+            phones.some((entry) => {
+              const phone = typeof entry === "string" ? entry : entry?.phone;
+              const notes = typeof entry === "object" && entry ? entry.notes : "";
+              return typeof phone !== "string" || phone.trim().length > 80 ||
+                typeof (notes ?? "") !== "string" || (notes ?? "").length > 2000;
+            })) {
+          return Response.json({ error: "Invalid box-data-review request" }, { status: 400 });
+        }
+        const asciiDigits = (value) => String(value ?? "")
+          .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+          .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
+        const normalizeCentral = (value) => String(value ?? "")
+          .replace(/[\u0623\u0625\u0622\u0671]/g, "\u0627").replace(/\u0629/g, "\u0647")
+          .replace(/\u0649/g, "\u064a").replace(/\s*-\s*/g, "-")
+          .replace(/\s+/g, " ").trim().toLowerCase();
+        const normalizeCabinet = (value) => asciiDigits(value)
+          .replace(/[\\/_\u2010\u2011\u2012\u2013\u2014\u2015]/g, "-")
+          .replace(/\s*-\s*/g, "-").replace(/\s+/g, " ").trim();
+        const normalizeBox = (value) => {
+          const digits = asciiDigits(value).replace(/[^0-9]/g, "");
+          return digits ? String(Number.parseInt(digits, 10)) : "";
+        };
+        const plainNumber = (value) => /^[0-9\u0660-\u0669]+$/.test(String(value ?? "").trim());
+
+        let exchanges = await env.DB.prepare(
+          `SELECT id,name FROM maintenance_exchanges ORDER BY id`,
+        ).all();
+        let exchange = exchanges.results.find((row) =>
+          normalizeCentral(row.name) === normalizeCentral(central));
+        if (!exchange) {
+          exchange = await env.DB.prepare(
+            `INSERT INTO maintenance_exchanges (name) VALUES (?) RETURNING id,name`,
+          ).bind(central).first();
+        }
+        const cabinets = await env.DB.prepare(
+          `SELECT id,number FROM maintenance_cabinets WHERE exchange_id=? ORDER BY id`,
+        ).bind(exchange.id).all();
+        let cabinetRow = cabinets.results.find((row) =>
+          normalizeCabinet(row.number) === normalizeCabinet(cabinet));
+        if (!cabinetRow) {
+          cabinetRow = await env.DB.prepare(
+            `INSERT INTO maintenance_cabinets (exchange_id,number) VALUES (?,?) RETURNING id,number`,
+          ).bind(exchange.id, cabinet).first();
+        }
+        const boxes = await env.DB.prepare(
+          `SELECT id,number,status FROM maintenance_boxes WHERE cabinet_id=? ORDER BY id`,
+        ).bind(cabinetRow.id).all();
+        const exactBox = boxes.results.find((row) => String(row.number).trim() === boxNumber);
+        const numericBox = boxes.results.find((row) => plainNumber(row.number) && plainNumber(boxNumber) &&
+          normalizeBox(row.number) === normalizeBox(boxNumber));
+        let box = exactBox || numericBox;
+        if (!box) {
+          box = await env.DB.prepare(
+            `INSERT INTO maintenance_boxes (cabinet_id,number,status)
+             VALUES (?,?,'pending_inspection') RETURNING id,number,status`,
+          ).bind(cabinetRow.id, boxNumber).first();
+        }
+
+        const noteText = `مطلوب مراجعة بيانات البكس — ${openedBy || "Service-Flow"}${originRef ? ` · ${originRef}` : ""}`;
+        let inspection = await env.DB.prepare(
+          `SELECT i.id,i.auto_created FROM maintenance_inspections i
+           WHERE i.box_id=? AND COALESCE(i.is_archived,0)=0
+             AND NOT EXISTS (SELECT 1 FROM maintenance_tasks t
+                             WHERE t.inspection_id=i.id AND t.status='completed')
+           ORDER BY i.id DESC LIMIT 1`,
+        ).bind(box.id).first();
+        let created = false;
+        if (!inspection) {
+          inspection = await env.DB.prepare(
+            `INSERT INTO maintenance_inspections
+             (box_id,inspector_id,general_notes,opened_by_name,origin,origin_ref,auto_created)
+             VALUES (?,?,?,?,?,?,1) RETURNING id,auto_created`,
+          ).bind(box.id, inspectorId, noteText, openedBy || null, origin || null, originRef || null).first();
+          const checklist = [
+            ["connector_fix", "good_bad", "good"], ["box_fix", "good_bad", "good"],
+            ["box_cover", "good_bad", "good"], ["box_numbering", "good_bad", "good"],
+            ["box_height", "good_bad", "good"], ["branch_path", "good_bad", "good"],
+            ["wire_path", "good_bad", "good"], ["electricity_conflict", "yes_no", "no"],
+            ["air_conflict", "yes_no", "no"], ["overlap", "yes_no", "no"],
+            ["data_review", "yes_no", "yes"],
+          ];
+          await env.DB.batch(checklist.map(([itemKey, itemType, value]) =>
+            env.DB.prepare(
+              `INSERT INTO maintenance_inspection_items
+               (inspection_id,item_key,item_type,value,notes) VALUES (?,?,?,?,?)
+               ON CONFLICT(inspection_id,item_key) DO NOTHING`,
+            ).bind(inspection.id, itemKey, itemType, value,
+              itemKey === "data_review" ? noteText : `اتفتح تلقائياً مع طلب مراجعة بيانات البكس (${openedBy || "Service-Flow"})`),
+          ));
+          created = true;
+        } else {
+          await env.DB.prepare(
+            `INSERT INTO maintenance_inspection_items (inspection_id,item_key,item_type,value,notes)
+             VALUES (?,'data_review','yes_no','yes',?)
+             ON CONFLICT(inspection_id,item_key) DO UPDATE SET value='yes',notes=excluded.notes`,
+          ).bind(inspection.id, noteText).run();
+        }
+        const openTask = await env.DB.prepare(
+          `SELECT id FROM maintenance_tasks WHERE inspection_id=? AND status<>'completed' ORDER BY id DESC LIMIT 1`,
+        ).bind(inspection.id).first();
+        if (!openTask) {
+          await env.DB.prepare(
+            `INSERT INTO maintenance_tasks (inspection_id,status)
+             SELECT ?,'pending' WHERE NOT EXISTS (
+               SELECT 1 FROM maintenance_tasks WHERE inspection_id=? AND status<>'completed'
+             )`,
+          ).bind(inspection.id, inspection.id).run();
+        }
+        const openStatuses = ["pending_inspection", "inspected", "needs_maintenance", "in_progress", "pending_approval"];
+        if (openStatuses.includes(box.status) && box.status !== "in_progress" && box.status !== "pending_approval") {
+          await env.DB.prepare(
+            `UPDATE maintenance_boxes SET status='needs_maintenance',updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+          ).bind(box.id).run();
+        }
+        let phonesAdded = 0;
+        for (const entry of phones) {
+          const phone = (typeof entry === "string" ? entry : entry.phone).trim();
+          if (!phone) continue;
+          const duplicate = await env.DB.prepare(
+            `SELECT id FROM maintenance_box_line_numbers WHERE inspection_id=? AND phone=?`,
+          ).bind(inspection.id, phone).first();
+          if (duplicate) continue;
+          const notes = typeof entry === "object" && entry ? (entry.notes || "").trim() : "";
+          await env.DB.prepare(
+            `INSERT INTO maintenance_box_line_numbers (inspection_id,phone,notes,source)
+             VALUES (?,?,?,'service_flow')`,
+          ).bind(inspection.id, phone, notes).run();
+          phonesAdded++;
+        }
+        return Response.json({ ok: true, inspectionId: inspection.id, boxId: box.id, created, phonesAdded });
+      }
+      if (maintenanceReviewReportsRoute || maintenanceReviewReportPhonesMatch) {
+        if (claims.role !== "admin") return Response.json({ error: "Forbidden" }, { status: 403 });
+        if (maintenanceReviewReportPhonesMatch) {
+          const inspectionId = Number(maintenanceReviewReportPhonesMatch[1]);
+          if (!Number.isSafeInteger(inspectionId) || inspectionId <= 0) {
+            return Response.json({ error: "Invalid inspection id" }, { status: 400 });
+          }
+          const { results } = await env.DB.prepare(
+            `SELECT phone,COALESCE(notes,'') AS notes,source
+             FROM maintenance_box_line_numbers WHERE inspection_id=? ORDER BY id`,
+          ).bind(inspectionId).all();
+          return Response.json(results);
+        }
+        const fromUtc = url.searchParams.get("from_utc");
+        const toUtc = url.searchParams.get("to_utc");
+        if ((fromUtc && Number.isNaN(Date.parse(fromUtc))) || (toUtc && Number.isNaN(Date.parse(toUtc)))) {
+          return Response.json({ error: "Invalid report range" }, { status: 400 });
+        }
+        const rangeConditions = [];
+        const rangeBindings = [];
+        if (fromUtc) {
+          rangeConditions.push("julianday(mis.done_at) >= julianday(?)");
+          rangeBindings.push(fromUtc);
+        }
+        if (toUtc) {
+          rangeConditions.push("julianday(mis.done_at) < julianday(?)");
+          rangeBindings.push(toUtc);
+        }
+        let reportQuery = env.DB.prepare(
+          `SELECT i.id AS inspectionId,e.name AS central,c.number AS cabinet,b.number AS box,
+                  i.opened_by_name AS openedBy,i.origin,i.origin_ref AS originRef,
+                  i.date AS inspectionDate,mis.done_at AS reviewedAt,mis.done_by AS reviewedById,
+                  (SELECT COUNT(*) FROM maintenance_box_line_numbers bl WHERE bl.inspection_id=i.id) AS phonesCount,
+                  b.status AS boxStatus
+           FROM maintenance_item_status mis
+           JOIN maintenance_tasks t ON t.id=mis.task_id
+           JOIN maintenance_inspections i ON i.id=t.inspection_id
+           JOIN maintenance_boxes b ON b.id=i.box_id
+           JOIN maintenance_cabinets c ON c.id=b.cabinet_id
+           JOIN maintenance_exchanges e ON e.id=c.exchange_id
+           WHERE mis.item_key='data_review' AND mis.is_done=1
+           ${rangeConditions.length ? `AND ${rangeConditions.join(" AND ")}` : ""}
+           ORDER BY julianday(mis.done_at) DESC LIMIT 5000`,
+        );
+        if (rangeBindings.length) reportQuery = reportQuery.bind(...rangeBindings);
+        const { results } = await reportQuery.all();
         return Response.json(results);
       }
       if (maintenanceExchangeMatch) {

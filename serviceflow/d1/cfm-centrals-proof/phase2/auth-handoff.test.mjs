@@ -36,6 +36,8 @@ const maintenanceTechnician = await import("../../../server/maintenance/app/rout
 const maintenanceTechnicianRouter = maintenanceTechnician.default;
 const maintenanceDataReview = await import("../../../server/maintenance/app/routes/data_review.js");
 const maintenanceDataReviewRouter = maintenanceDataReview.default;
+const maintenanceIntegration = await import("../../../server/maintenance/app/routes/integration.js");
+const maintenanceIntegrationRouter = maintenanceIntegration.default;
 const maintenanceReports = await import("../../../server/maintenance/app/routes/reports.js");
 const maintenanceReportsRouter = maintenanceReports.default;
 const { ServiceFlowTechCoverageD1Storage } = await import("../../../server/tech-coverage-grants-d1.ts");
@@ -1368,6 +1370,70 @@ test("actual maintenance exchanges page can render the local D1 read proof", asy
          JOIN maintenance_item_status ms ON ms.task_id=t.id AND ms.item_key='data_review'
          WHERE t.id=9034`,
       ), [{ status: "completed", is_done: 1 }]);
+      const reviewReports = await maintenanceHierarchy.default.getMaintenanceBoxDataReviewReports({
+        id: 78, role: "admin",
+      });
+      const completedReport = reviewReports.find((row) => row.inspectionId === 9034);
+      assert.ok(completedReport);
+      assert.equal(completedReport.reviewedById, 78);
+      assert.equal(completedReport.phonesCount, 1);
+      assert.deepEqual(
+        await maintenanceHierarchy.default.getMaintenanceBoxDataReviewReports(
+          { id: 78, role: "admin" }, { fromUtc: "2099-01-01T00:00:00.000Z" },
+        ),
+        [],
+      );
+      const reviewReportPhones = await maintenanceHierarchy.default.getMaintenanceBoxDataReviewReportPhones(
+        { id: 78, role: "admin" }, 9034,
+      );
+      assert.deepEqual(reviewReportPhones.map((row) => row.phone), ["synthetic-updated-phone"]);
+
+      const integrationHandler = maintenanceIntegrationRouter.stack.find((layer) =>
+        layer.route?.path === "/box-data-review" && layer.route.methods.post,
+      ).route.stack.at(-1).handle;
+      const originalIntegrationDbGet = maintenanceDb.get;
+      maintenanceDb.get = async () => ({ id: 78 });
+      try {
+        const integrationBody = {
+          central: "Synthetic Integration Central",
+          cabinet: "2/1",
+          box: "٠٥",
+          openedBy: "Synthetic test",
+          origin: "OM",
+          originRef: "synthetic-ref",
+          phones: ["synthetic-integration-phone", { phone: "synthetic-integration-phone", notes: "duplicate" }],
+        };
+        const invokeIntegration = async () => {
+          let response;
+          await integrationHandler({ body: integrationBody }, {
+            json(value) { response = value; },
+            status(code) { return { json(value) { response = { status: code, ...value }; } }; },
+          });
+          return response;
+        };
+        const first = await invokeIntegration();
+        assert.equal(first.ok, true);
+        assert.equal(first.created, true);
+        assert.equal(first.phonesAdded, 1);
+        const second = await invokeIntegration();
+        assert.equal(second.ok, true);
+        assert.equal(second.created, false);
+        assert.equal(second.phonesAdded, 0);
+        assert.equal(second.boxId, first.boxId);
+        assert.equal(second.inspectionId, first.inspectionId);
+        assert.deepEqual(await queryLocalD1(
+          `SELECT COUNT(*) AS count FROM maintenance_inspections WHERE id=${first.inspectionId}`,
+        ), [{ count: 1 }]);
+        assert.deepEqual(await queryLocalD1(
+          `SELECT COUNT(*) AS count FROM maintenance_tasks WHERE inspection_id=${first.inspectionId} AND status<>'completed'`,
+        ), [{ count: 1 }]);
+        assert.deepEqual(await queryLocalD1(
+          `SELECT COUNT(*) AS count FROM maintenance_box_line_numbers
+           WHERE inspection_id=${first.inspectionId} AND phone='synthetic-integration-phone'`,
+        ), [{ count: 1 }]);
+      } finally {
+        maintenanceDb.get = originalIntegrationDbGet;
+      }
     } finally {
       maintenanceDb.get = originalTaskActionGet;
       if (oldTaskActionFlag === undefined) delete process.env.SF_MAINTENANCE_HIERARCHY_PROOF;

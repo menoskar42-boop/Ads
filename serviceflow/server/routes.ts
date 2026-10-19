@@ -18,6 +18,7 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
+import { createRequire } from "module";
 import MemoryStore from "memorystore";
 import connectPgSimple from "connect-pg-simple";
 import bcryptjs from "bcryptjs";
@@ -45,6 +46,11 @@ import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolve
 import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
 import { QuietSessionStore, cachedUser } from "./db-quiet";
+
+const requireMaintenanceD1 = createRequire(
+  typeof __filename !== "undefined" ? __filename : `${process.cwd()}/server/routes.ts`,
+);
+const maintenanceD1: any = requireMaintenanceD1("./maintenance/app/utils/d1-hierarchy.js");
 
 const scryptAsync = promisify(scrypt);
 const MemStore = MemoryStore(session);
@@ -9424,6 +9430,85 @@ export async function registerRoutes(
     if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });
     try {
       const { dateFrom = "", dateTo = "" } = req.query as Record<string, string>;
+      if (maintenanceD1.isMaintenanceHierarchyProofEnabled()) {
+        const validDate = (value: string) => {
+          if (!value) return true;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+          const parsed = new Date(`${value}T00:00:00Z`);
+          return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+        };
+        if (!validDate(dateFrom) || !validDate(dateTo)) {
+          return res.status(400).json({ message: "تاريخ غير صالح" });
+        }
+        const cairoDayStartUtc = (value: string) => {
+          const [year, month, day] = value.split("-").map(Number);
+          const noonUtc = Date.UTC(year, month - 1, day, 12);
+          const parts = new Intl.DateTimeFormat("en-GB", {
+            timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+          }).formatToParts(new Date(noonUtc));
+          const part = (type: string) => Number(parts.find((item) => item.type === type)?.value || 0);
+          const localAsUtc = Date.UTC(
+            part("year"), part("month") - 1, part("day"),
+            part("hour"), part("minute"), part("second"),
+          );
+          return new Date(Date.UTC(year, month - 1, day) - (localAsUtc - noonUtc)).toISOString();
+        };
+        const nextCalendarDay = (value: string) => {
+          const [year, month, day] = value.split("-").map(Number);
+          return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+        };
+        const actorId = Number(req.user?.id);
+        if (!Number.isSafeInteger(actorId) || actorId <= 0) {
+          return res.status(401).json({ message: "جلسة غير صالحة" });
+        }
+        const d1Rows = await maintenanceD1.getMaintenanceBoxDataReviewReports({
+          id: actorId, role: "admin",
+        }, {
+          fromUtc: dateFrom ? cairoDayStartUtc(dateFrom) : undefined,
+          toUtc: dateTo ? cairoDayStartUtc(nextCalendarDay(dateTo)) : undefined,
+        });
+        const reviewerIds = [...new Set(d1Rows
+          .map((row: any) => Number(row.reviewedById))
+          .filter((id: number) => Number.isSafeInteger(id) && id > 0))];
+        const reviewerRows = reviewerIds.length
+          ? (await pool.query(
+            `SELECT id, full_name, username FROM maintenance.users WHERE id = ANY($1::int[])`,
+            [reviewerIds],
+          )).rows
+          : [];
+        const reviewers = new Map(reviewerRows.map((row: any) => [Number(row.id), row]));
+        const cairoDate = (value: unknown) => {
+          if (value == null) return "";
+          const raw = String(value);
+          const instant = new Date(/[zZ]|[+-]\d{2}:\d{2}$/.test(raw)
+            ? raw : `${raw.replace(" ", "T")}Z`);
+          if (Number.isNaN(instant.getTime())) return "";
+          const parts = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit",
+          }).formatToParts(instant);
+          const part = (type: string) => parts.find((item) => item.type === type)?.value || "";
+          return `${part("year")}-${part("month")}-${part("day")}`;
+        };
+        return res.json(d1Rows
+          .filter((row: any) => {
+            const date = cairoDate(row.reviewedAt);
+            return date && (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
+          })
+          .map((row: any) => {
+            const reviewer = reviewers.get(Number(row.reviewedById)) as any;
+            const raw = String(row.reviewedAt || "");
+            const reviewedAt = raw
+              ? new Date(/[zZ]|[+-]\d{2}:\d{2}$/.test(raw) ? raw : `${raw.replace(" ", "T")}Z`).toISOString()
+              : null;
+            return {
+              ...row,
+              reviewedAt,
+              reviewedByName: reviewer?.full_name ?? null,
+              reviewedBy: reviewer?.username ?? null,
+            };
+          }));
+      }
       const params: any[] = [];
       const conds: string[] = ["mis.is_done = 1"];
       if (dateFrom) { params.push(dateFrom); conds.push(`(mis.done_at AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}::date`); }
@@ -9463,6 +9548,15 @@ export async function registerRoutes(
     const id = parseInt(String(req.params.id), 10);
     if (!id || isNaN(id)) return res.status(400).json({ message: "معرّف غير صالح" });
     try {
+      if (maintenanceD1.isMaintenanceHierarchyProofEnabled()) {
+        const actorId = Number(req.user?.id);
+        if (!Number.isSafeInteger(actorId) || actorId <= 0) {
+          return res.status(401).json({ message: "جلسة غير صالحة" });
+        }
+        return res.json(await maintenanceD1.getMaintenanceBoxDataReviewReportPhones(
+          { id: actorId, role: "admin" }, id,
+        ));
+      }
       const { rows } = await pool.query(
         `SELECT phone, COALESCE(notes, '') AS notes, source
            FROM maintenance.box_line_numbers WHERE inspection_id = $1 ORDER BY id`, [id]);
