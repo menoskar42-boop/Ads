@@ -38,6 +38,8 @@ export function openProfileOptimization(
   const url = `${PO_BASE}?lineId=${encodeURIComponent(accs[0])}#sf_po=${encodeURIComponent(accs.join(","))}${flags}`;
   // نفس اسم نافذة القياس (dzs_measure) — القياس/رفع السرعة/الإيقاف كلهم يعيدوا استخدام **نفس النافذة**
   // (النافذة الجديدة تحلّ محل القديمة) فمفيش نوافذ متعددة ولا تداخل.
-  // تاب «إيقاف PO» التانى/التالت… نافذة لوحده (dzs_po_2…) — الأول زى ما هو.
-  return window.open(url, lane ? `dzs_po_${lane}` : "dzs_measure");
+  // تاب «إيقاف PO» التانى/التالت… نافذة لوحده (dzs_po_2…). والأول كمان بقى نافذة لوحده (dzs_po_1):
+  // الإيقاف بيشتغل جنب «بدون Real» (المالك ٢٠٢٦-١٠-٢٠)، وتاب «بدون Real» الأول اسمه dzs_measure —
+  // لو الإيقاف فتح فى نفس الاسم كان هيحلّ محل القياس الشغّال. رفع السرعة لسه dzs_measure (بيشتغل لوحده).
+  return window.open(url, opts.stopOnly ? `dzs_po_${lane || 1}` : "dzs_measure");
 }

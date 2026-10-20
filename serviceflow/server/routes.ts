@@ -2554,6 +2554,11 @@ export async function registerRoutes(
   // مجموعة التوازى: «بدون Real» أو «إيقاف PO» — وأى نوع تانى NULL (تاب واحد للموقع).
   const parallelGroup = (a: string) =>
     `(CASE WHEN ${isNoRealJob(a)} THEN 'noreal' WHEN ${isPoStopJob(a)} THEN 'stop' END)`;
+  // «بدون Real» و«إيقاف PO» بيشتغلوا **مع بعض** على DZS (المالك ٢٠٢٦-١٠-٢٠: «لو فيه مهمة عاجلة
+  // إيقاف PO وكانت شغّالة مهمة مجدولة قياس بدون Real الاتنين يشتغلوا مع بعض، لكن رفع السرعة
+  // يشتغل لوحده وكمان قياس Real»). كل نوع بعدد تاباته هو (laneCap)، ورفع السرعة/Real/أى نوع
+  // تانى بياخد الموقع لوحده.
+  const sharedGroup = (a: string) => `(${isNoRealJob(a)} OR ${isPoStopJob(a)})`;
   const laneCap = (a: string, L: ExecLanes) =>
     `(CASE WHEN ${isNoRealJob(a)} THEN ${clampLanes(L.noreal, 1)} WHEN ${isPoStopJob(a)} THEN ${clampLanes(L.stop, 1)} ELSE 1 END)`;
   const queueRank = (a: string) =>
@@ -2565,16 +2570,20 @@ export async function registerRoutes(
   const siteFreeFor = (e: string, siteSql: string, L: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES }, beforeSql = "NULL::timestamptz") => `(
     NOT EXISTS (SELECT 1 FROM exec_jobs b
                  WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql})
-    OR (${laneCap(e, L)} > 1
+    OR (${sharedGroup(e)}
+        -- تابات نوعها هو أقل من العدد المسموح له (بدون Real مايعدّش تابات الإيقاف والعكس)
         AND (SELECT COUNT(*) FROM exec_jobs b
-              WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}) < ${laneCap(e, L)}
+              WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
+                AND ${parallelGroup("b")} = ${parallelGroup(e)}) < ${laneCap(e, L)}
+        -- مفيش رفع سرعة/Real/نوع تانى شغّال على الموقع (دول بياخدوه لوحدهم)
         AND NOT EXISTS (SELECT 1 FROM exec_jobs b
                          WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
-                           AND ${parallelGroup("b")} IS DISTINCT FROM ${parallelGroup(e)})
+                           AND NOT ${sharedGroup("b")})
+        -- ولا مهمة من النوع اللى بياخد الموقع لوحده قبله فى الطابور (Real مايتجوّعش)
         AND NOT EXISTS (SELECT 1 FROM exec_jobs x
                          WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> ${e}.id
                            AND COALESCE(x.site, '10.42.187.101') = ${siteSql}
-                           AND ${parallelGroup("x")} IS DISTINCT FROM ${parallelGroup(e)}
+                           AND NOT ${sharedGroup("x")}
                            AND (${beforeSql} IS NULL OR x.created_at <= ${beforeSql})
                            AND ${queueRank("x")} < ${queueRank(e)}))
   )`;
@@ -2694,13 +2703,13 @@ export async function registerRoutes(
           // على نفس الموقع مؤهّلة (نفس الشروط أو أشد — شوف siteFreeFor).
           const { rows: candidates } = await tx.query(
             `SELECT e.id, e.site_k AS site
-               FROM (SELECT DISTINCT ON (COALESCE(h.site, '10.42.187.101')) h.*,
+               FROM (SELECT DISTINCT ON (COALESCE(h.site, '10.42.187.101'), COALESCE(${parallelGroup("h")}, '')) h.*,
                             COALESCE(h.site, '10.42.187.101') AS site_k
                        FROM exec_jobs h
                       WHERE h.status = 'pending' AND h.paused_at IS NULL
                         AND COALESCE(h.site, '10.42.187.101') <> ALL($1::text[])
                         AND ($2::timestamptz IS NULL OR h.created_at <= $2::timestamptz)
-                      ORDER BY COALESCE(h.site, '10.42.187.101'), h.priority DESC,
+                      ORDER BY COALESCE(h.site, '10.42.187.101'), COALESCE(${parallelGroup("h")}, ''), h.priority DESC,
                                CASE WHEN h.queue_order > 0 THEN h.queue_order ELSE 9223372036854775807 END ASC,
                                h.created_at, h.id) e
               -- الدومين لازم يكون فاضى: مفيش مهمة شغّالة على نفس الموقع دلوقتى
@@ -4260,8 +4269,8 @@ export async function registerRoutes(
                AND EXISTS (SELECT 1 FROM exec_jobs j2
                             WHERE j2.claimed_at > e.claimed_at
                               AND COALESCE(j2.site, '10.42.187.101') = COALESCE(e.site, '10.42.187.101')
-                              -- تابات «بدون Real»/«إيقاف PO» شغّالة مع بعض (نفس المجموعة) مش دليل إن الأقدم اتعدّى
-                              AND NOT (${parallelGroup("e")} IS NOT NULL AND ${parallelGroup("e")} = ${parallelGroup("j2")})))
+                              -- تابات «بدون Real»/«إيقاف PO» شغّالة مع بعض (حتى لو نوعين مختلفين) مش دليل إن الأقدم اتعدّى
+                              AND NOT (${sharedGroup("e")} AND ${sharedGroup("j2")})))
               -- (2) المُنقِذ الأساسى: عدّت مهلة نوعها القصوى → عالقة أكيد، رجّعها
               OR e.claimed_at < now() - ${maxRunSql}
             )`,
@@ -4438,7 +4447,7 @@ export async function registerRoutes(
     try {
       const jobId = parseInt(String(req.query.jobId || ""));
       if (!jobId) return res.json({ active: false, preempt: false, measured: 0, total: 0 });
-      const { rows } = await pool.query(`SELECT priority, status, accounts, type, claimed_at, site FROM exec_jobs WHERE id = $1`, [jobId]);
+      const { rows } = await pool.query(`SELECT priority, status, accounts, type, claimed_at, site, note FROM exec_jobs WHERE id = $1`, [jobId]);
       const job = rows[0];
       if (!job) return res.json({ active: false, preempt: false, measured: 0, total: 0 });
       const active = job.status === "claimed";
@@ -4452,8 +4461,12 @@ export async function registerRoutes(
             -- ومابتقاطعش مهمة شغّالة: بتستنى اللى شغّال يخلص وتتنفّذ بعده على طول.
             -- (المقاطعة مقصودة لتحديث الملفات اليومية بس.)
             AND retry_round = 0
-            AND COALESCE(site, '10.42.187.101') = COALESCE($2, '10.42.187.101') LIMIT 1`,
-        [job.priority ?? 0, job.site]);
+            AND COALESCE(site, '10.42.187.101') = COALESCE($2, '10.42.187.101')
+            -- «بدون Real» و«إيقاف PO» بيشتغلوا مع بعض ⇒ الإيقاف العاجل مايقطعش «بدون Real» (والعكس):
+            -- بياخد تاب جنبه. رفع السرعة/Real لسه بيقطعوا زى الأول.
+            AND NOT ($3::boolean AND ${sharedGroup("exec_jobs")}) LIMIT 1`,
+        [job.priority ?? 0, job.site,
+         (job.type === "stop") || (job.type === "measure" && String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK))]);
       const prog = await jobProgress(job.accounts, job.type, job.claimed_at);
       res.json({ active, preempt: p.length > 0, measured: prog.done, total: prog.total });
     } catch {

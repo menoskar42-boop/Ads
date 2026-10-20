@@ -34,12 +34,17 @@ check('الاستثناء لمهام قياس «بدون Real» و«إيقاف P
   && /const isPoStopJob = \(a: string\) => `\(\$\{a\}\.type = 'stop'\)`;/.test(routes)
   && /const parallelGroup = [\s\S]{0,200}THEN 'noreal' WHEN \$\{isPoStopJob\(a\)\} THEN 'stop' END\)`;/.test(routes));
 check('بحد عدد التابات بتاع نوعها (laneCap) — وأى نوع تانى تاب واحد', /< \$\{laneCap\(e, L\)\}/.test(helper) && /ELSE 1 END\)`;/.test(routes));
-check('بشرط إن الشغّال كله من نفس المجموعة (Real/رفع بيقفلوا الموقع، والنوعين مابيتخلطوش)', /AND \$\{parallelGroup\("b"\)\} IS DISTINCT FROM \$\{parallelGroup\(e\)\}/.test(helper));
-check('وإن مفيش مهمة من مجموعة تانية قبله فى الطابور (Real مايتجوّعش)', /AND \$\{parallelGroup\("x"\)\} IS DISTINCT FROM \$\{parallelGroup\(e\)\}\s+AND \$\{queueRank\("x"\)\} < \$\{queueRank\(e\)\}/.test(helper));
+// المالك ٢٠٢٦-١٠-٢٠: «بدون Real» و«إيقاف PO» بيشتغلوا **مع بعض**، ورفع السرعة وReal كل واحد لوحده
+check('«بدون Real» و«إيقاف PO» مجموعة مشتركة', /const sharedGroup = \(a: string\) => `\(\$\{isNoRealJob\(a\)\} OR \$\{isPoStopJob\(a\)\}\)`;/.test(routes)
+  && /OR \(\$\{sharedGroup\(e\)\}/.test(helper));
+check('كل نوع بعدد تاباته هو (الإيقاف مابيتعدّش من تابات «بدون Real»)', /AND \$\{parallelGroup\("b"\)\} = \$\{parallelGroup\(e\)\}\) < \$\{laneCap\(e, L\)\}/.test(helper));
+check('رفع السرعة/Real/أى نوع تانى شغّال ⇒ الموقع مقفول', /AND NOT \$\{sharedGroup\("b"\)\}\)/.test(helper));
+check('وإن مفيش رفع سرعة/Real قبله فى الطابور (Real مايتجوّعش)', /AND NOT \$\{sharedGroup\("x"\)\}[\s\S]{0,120}AND \$\{queueRank\("x"\)\} < \$\{queueRank\(e\)\}/.test(helper));
+check('الإيقاف العاجل مايقطعش «بدون Real» (بياخد تاب جنبه)', /AND NOT \(\$3::boolean AND \$\{sharedGroup\("exec_jobs"\)\}\)/.test(routes));
 const claim = routes.slice(routes.indexOf('app.post("/api/exec-queue/claim"'), routes.indexOf('app.post("/api/exec-queue/:id/done"'));
 check('العدد من الإعدادات وقت السحب (readExecLanes)', /const lanes = await readExecLanes\(tx\);/.test(claim));
-check('الاختيار والـUPDATE الاتنين بنفس القاعدة وبنفس العدد', /siteFreeFor\("e", "e\.site_k", lanes\)/.test(claim) && /siteFreeFor\("exec_jobs", "\$3", lanes\)/.test(claim));
-check('إنقاذ المهام اليتيمة مابيعتبرش تاب من نفس المجموعة دليل إن الأول اتعدّى', /AND NOT \(\$\{parallelGroup\("e"\)\} IS NOT NULL AND \$\{parallelGroup\("e"\)\} = \$\{parallelGroup\("j2"\)\}\)/.test(routes));
+check('الاختيار والـUPDATE الاتنين بنفس القاعدة وبنفس العدد', /siteFreeFor\("e", "e\.site_k", lanes, "\$2::timestamptz"\)/.test(claim) && /siteFreeFor\("exec_jobs", "\$3", lanes, "\$4::timestamptz"\)/.test(claim));
+check('إنقاذ المهام اليتيمة مابيعتبرش تاب من المجموعة المشتركة دليل إن التانى اتعدّى', /AND NOT \(\$\{sharedGroup\("e"\)\} AND \$\{sharedGroup\("j2"\)\}\)/.test(routes));
 // ── الإعدادات (رفع الملفات ← إعدادات) ──
 // المالك ٢٠٢٦-١٠-١٣: «الرقم اللى اضعه هو اللى يحدد… بدون سقف» (كان ٨)
 check('مفيش سقف لعدد التابات فى السيرفر', !/EXEC_LANES_MAX/.test(routes));
@@ -68,9 +73,10 @@ check('«بدون Real»: دقيقة من غير نتيجة → يفتح الت�
 // ٢٠٢٦-٠٩-٣٠: التاب التانى/التالت/الرابع ماكانتش بتتفتح — فحص «الموقع فاضى» كان بيتعمل على
 // كل المهام المعلّقة (O(n²)): باتش ٤٦٠٠ خط + تاب شغّال = سحب ٧ث محلياً و>٢٠ث على الحقيقى،
 // فجهاز التنفيذ يلغى الطلب. لازم الفحص على أول مهمة لكل موقع بس.
-check('السحب بيفحص أول مهمة لكل موقع بس (من غيره: تاب واحدة مع الباتشات الكبيرة)',
-  /FROM \(SELECT DISTINCT ON \(COALESCE\(h\.site, '10\.42\.187\.101'\)\) h\.\*/.test(routes)
-  && /WHERE \$\{siteFreeFor\("e", "e\.site_k", lanes\)\}/.test(routes));
+// ولكل نوع: إيقاف ورا «بدون Real» مليان تاباته لازم يتشاف (والعكس)
+check('السحب بيفحص أول مهمة لكل موقع ولكل نوع بس (من غيره: تاب واحدة مع الباتشات الكبيرة)',
+  /FROM \(SELECT DISTINCT ON \(COALESCE\(h\.site, '10\.42\.187\.101'\), COALESCE\(\$\{parallelGroup\("h"\)\}, ''\)\) h\.\*/.test(routes)
+  && /WHERE \$\{siteFreeFor\("e", "e\.site_k", lanes, "\$2::timestamptz"\)\}/.test(routes));
 
 // ── السكربت ──
 const ver = (script.match(/@version\s+(\d+)\.(\d+)/) || []).slice(1).map(Number);
@@ -90,7 +96,9 @@ check('جهاز التنفيذ بيوزّع رقم تاب لـ«إيقاف PO» 
 // المالك ٢٠٢٦-١٠-٠٦: ثانية واحدة — بـ٨ ثوانى كل تاب كان بيخلص قبل اللى بعده فالتوازى مابيبانش.
 check('تابات «إيقاف PO» بتفتح بفاصل ثانية بعدّاد لوحده', /const STOP_STAGGER_MS = 1000;/.test(exec)
   && /if \(type === "stop"\) \{\s+const wait = nextStopOpenAt - Date\.now\(\);/.test(exec));
-check('رقم التاب بيروح لرابط PO (sf_lane) ونافذة لكل تاب', /&sf_lane=\$\{lane\}/.test(poLib) && /lane \? `dzs_po_\$\{lane\}` : "dzs_measure"/.test(poLib));
+check('رقم التاب بيروح لرابط PO (sf_lane) ونافذة لكل تاب — والأول كمان مش dzs_measure (بيشتغل جنب «بدون Real»)',
+  /&sf_lane=\$\{lane\}/.test(poLib) && /opts\.stopOnly \? `dzs_po_\$\{lane \|\| 1\}` : "dzs_measure"/.test(poLib)
+  && /const laneKey = isPoStop \? `\$\{site\}#P\$\{lane\}`/.test(exec));
 const pv = (po.match(/@version\s+(\d+)\.(\d+)\.(\d+)/) || []).slice(1).map(Number);
 check('سكربت PO v0.9.9 أو أحدث', pv[0] > 0 || pv[1] > 9 || (pv[1] === 9 && pv[2] >= 9));
 check('سكربت PO: رقم التاب من sf_lane ويتحفظ فى sessionStorage', /sf_lane=\(\\d\+\)/.test(po) && /sessionStorage\.setItem\(LANE_SESSION_KEY, LANE\)/.test(po));
@@ -105,4 +113,4 @@ if (errors.length) {
   errors.forEach((e) => console.log('   · ' + e));
   process.exit(1);
 }
-console.log(`✅ check-noreal-lanes: «بدون Real» افتراضى ${lanes} تاب و«إيقاف PO» تابات من الإعدادات (من غير سقف)، وReal وباقى المواقع مهمة واحدة زى ما هم.`);
+console.log(`✅ check-noreal-lanes: «بدون Real» افتراضى ${lanes} تاب و«إيقاف PO» تابات من الإعدادات (من غير سقف) **وبيشتغلوا مع بعض**، ورفع السرعة وReal وباقى المواقع مهمة واحدة.`);

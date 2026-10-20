@@ -805,7 +805,8 @@ export function ExecutorButton() {
           if (isPoStop) while (poStopLanes.has(lane)) lane++;
           if (isPoStop) poStopLanes.add(lane);
           const isLaned = isNoReal || isPoStop;
-          const laneKey = isLaned && lane > 1 ? `${site}#L${lane}` : site;
+          // «إيقاف PO» بمفتاح لوحده (#P) — بيشتغل جنب «بدون Real» على نفس الموقع، فمايتلخبطش مع تابه الأول
+          const laneKey = isPoStop ? `${site}#P${lane}` : (isLaned && lane > 1 ? `${site}#L${lane}` : site);
           running.set(laneKey, `${label}${isLaned && lane > 1 ? ` [تاب ${lane}]` : ""} (${accs.length} رقم)`);
           runningSince.set(laneKey, { at: Date.now(), type: job.type, batchId: job.batchId });
           showRunning();

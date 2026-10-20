@@ -346,7 +346,8 @@ test("claim endpoint locks sites independently without changing queue ordering",
   assert.match(claimRoute, /<> ALL\(\$1::text\[\]\)/);
   // فحص «الموقع فاضى» اتنقل لـsiteFreeFor (فيه استثناء «بدون Real» — تابين على DZS).
   // والمرشح = أول مهمة فى الدور لكل موقع (٢٠٢٦-٠٩-٣٠ — الفحص على كل المهام كان O(n²))
-  assert.match(claimRoute, /SELECT DISTINCT ON \(COALESCE\(h\.site, '10\.42\.187\.101'\)\) h\.\*/);
+  // ولكل نوع (المالك ٢٠٢٦-١٠-٢٠): «إيقاف PO» ورا «بدون Real» مليان تاباته لازم يتشاف — بيشتغلوا مع بعض
+  assert.match(claimRoute, /SELECT DISTINCT ON \(COALESCE\(h\.site, '10\.42\.187\.101'\), COALESCE\(\$\{parallelGroup\("h"\)\}, ''\)\) h\.\*/);
   assert.match(claimRoute, /siteFreeFor\("e", "e\.site_k", lanes, "\$2::timestamptz"\)/);
   assert.match(claimRoute, /siteFreeFor\("exec_jobs", "\$3", lanes, "\$4::timestamptz"\)/);
   const helper = routes.slice(routes.indexOf("const siteFreeFor ="), claimStart);

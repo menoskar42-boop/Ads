@@ -18,10 +18,10 @@ const LANES = process.env.LANES ? Number(process.env.LANES) : null;
 if (LANES != null) helpers = helpers.replace(/const NOREAL_LANES = \d+;/, `const NOREAL_LANES = ${LANES};`);
 const c0 = src.indexOf("const row = await withTx(async (tx) => {", src.indexOf('app.post("/api/exec-queue/claim"'));
 const bodyStart = src.indexOf("{", c0 + "const row = await withTx(async (tx) =>".length) + 1;
-const body = src.slice(bodyStart, src.indexOf("\n      });\n      res.json(row);", bodyStart));
+const body = src.slice(bodyStart, src.indexOf("\n      });\n      execIdle = null;", bodyStart));
 const LANES_EFF = LANES ?? Number((helpers.match(/const NOREAL_LANES = (\d+);/) || [])[1]);
 const mark = (src.match(/const AUTO_MEASURE_NOREAL_MARK = "([^"]+)";/) || [])[1];
-const tmp = `/tmp/claim-${process.pid}.mts`;
+const tmp = `${process.env.TMPDIR || "/tmp"}/claim-${process.pid}.mts`;
 writeFileSync(tmp, `const AUTO_MEASURE_NOREAL_MARK = ${JSON.stringify(mark)};\n${helpers}\nexport default async function claim(tx: any, req: any, execIdentity: any) {${body}\n}`);
 const claimFn = (await import(pathToFileURL(tmp).href)).default;
 const claim = async (caps: string[] = ["stop-lanes"]) => { const c = await pool.connect(); try { await c.query("BEGIN"); const r = await claimFn(c, { body: { caps } }, () => "test"); await c.query("COMMIT"); return r; } catch (e) { await c.query("ROLLBACK"); throw e; } finally { c.release(); } };
@@ -75,13 +75,33 @@ if (POSTOP > 1 && LANES !== 1) {
   const got: any[] = []; for (let z = 0; z < POSTOP; z++) got.push(await claim());
   ok(`إيقاف PO: أول ${POSTOP} اتسحبوا مع بعض (الافتراضى)`, got.every((j, z) => j?.id === st[z]), got.map((j) => j?.id).join(","));
   ok(`إيقاف PO: اللى بعدهم لأ (حد ${POSTOP})`, (await claim()) == null);
+  // المالك ٢٠٢٦-١٠-٢٠: «إيقاف PO» و«بدون Real» بيشتغلوا مع بعض — ورفع السرعة وReal لوحدهم
   const nrX = await add("measure", NR);
-  for (const j of got) await done(j.id);
   const g = await claim();
-  ok("إيقاف PO وبدون Real مابيتخلطوش: الإيقاف اللى قبل فى الدور بياخد الموقع", g?.id === st[POSTOP]);
-  ok("وبدون Real بيستنى الإيقاف يخلص", (await claim()) == null);
-  await done(g.id);
-  const h = await claim(); ok("وبعده بدون Real يبدأ", h?.id === nrX); await done(h.id);
+  ok("إيقاف PO مليان تاباته و«بدون Real» بياخد تاب جنبه (مع بعض)", g?.id === nrX, String(g?.id));
+  ok("والإيقاف الزيادة لسه مستنى تاب إيقاف يفضى", (await claim()) == null);
+  await done(got[0].id);
+  const h = await claim(); ok("تاب إيقاف فضى ⇒ الإيقاف اللى بعده (و«بدون Real» لسه شغّال)", h?.id === st[POSTOP], String(h?.id));
+  for (const j of [...got.slice(1), g, h]) await done(j.id);
+  // «بدون Real» شغّال وجه إيقاف عاجل (أولوية أعلى): بياخد تاب جنبه
+  const nrA = await add("measure", NR), stUrg = await add("stop", "إيقاف عاجل", 3);
+  const u1 = await claim(), u2 = await claim();
+  ok("إيقاف عاجل + «بدون Real» الاتنين اتسحبوا", [u1?.id, u2?.id].sort().join() === [nrA, stUrg].sort().join(), `${u1?.id},${u2?.id}`);
+  for (const j of [u1, u2]) await done(j.id);
+  // رفع السرعة لوحده: مفيش إيقاف ولا «بدون Real» جنبه
+  const rs = await add("raise", "رفع"); const stY = await add("stop", "إيقاف"); const nrY = await add("measure", NR);
+  const r = await claim(); ok("رفع السرعة لوحده", r?.id === rs && (await claim()) == null, String(r?.id));
+  await done(r.id);
+  const y1 = await claim(), y2 = await claim();
+  ok("بعد الرفع: الإيقاف و«بدون Real» مع بعض", [y1?.id, y2?.id].sort().join() === [stY, nrY].sort().join());
+  for (const j of [y1, y2]) await done(j.id);
+  // «بدون Real» + إيقاف شغّالين وReal مستنى: مفيش تاب زيادة لحد ما Real ياخد الموقع
+  const nrB = await add("measure", NR); const z1 = await claim();
+  const realW = await add("measure", "قياس", 2); await add("stop", "إيقاف");
+  ok("Real مستنى ⇒ الإيقاف مايتسحبش جنب «بدون Real»", (await claim()) == null);
+  await done(z1.id);
+  const zr = await claim(); ok("وبعدها Real لوحده", zr?.id === realW && (await claim()) == null, String(zr?.id));
+  await done(zr.id); void nrB;
   // جهاز تنفيذ قديم (مابيعلنش stop-lanes): إيقاف واحد بس — من غيره كانوا هيتفتحوا فى نفس التاب
   await q(`DELETE FROM exec_jobs`);
   for (let z = 0; z < 3; z++) await add("stop", "إيقاف");
@@ -102,7 +122,7 @@ if (POSTOP > 1 && LANES !== 1) {
   await q(`UPDATE app_settings SET value = '99' WHERE key = 'exec_lanes_stop'`);
   for (let z = 0; z < 10; z++) await add("stop", "إيقاف");
   let cnt = 0; while (await claim()) cnt++;
-  ok("قيمة غلط فى الإعداد (99) بتتقصّ للسقف 8", cnt === 8, String(cnt));
+  ok("مفيش سقف (المالك ٢٠٢٦-١٠-١٣): ٩٩ ⇒ العشرة اتسحبوا", cnt === 10, String(cnt));
   await q(`DELETE FROM app_settings WHERE key LIKE 'exec_lanes_%'`);
 }
 await q(`DELETE FROM exec_jobs`);
