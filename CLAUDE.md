@@ -202,6 +202,15 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   ريبليت بيعملها افتراضى (على Neon) — المالك ماعملش حساب Neon. وSupabase اتجرّب قبل كده وعدّى
   الـegress والـcompute المجانى فى أقل من يومين. صفحته:
   https://claude.ai/artifact/TCwrnbCyPPd77NSh94xbTb. **Trigger:** «ابعتلي برومبت حساب قاعدة ريبليت».
+- `docs/ORACLE_DB_SETUP_PROMPT.md` — **برومبت الإكستنشن لقاعدة Service Flow على Oracle Cloud
+  المجانى** (٢٠٢٦-١٠-٢٠). عدّاد `/api/admin/db-wake` أثبت إن قاعدة ريبليت صاحية طول ما الطابور
+  شغّال (٦٫٣ من ٦٫٥ ساعة) = حوالى ٤٥ دولار فى الشهر. الحل: سيرفر Ampere A1 (Always Free: نواتين
+  و١٢ جيجا من يونيو ٢٠٢٦) عليه Postgres بسكربت cloud-init. ⛔ **مش** «OCI Database with
+  PostgreSQL» (مدفوعة وشبكتها خاصة) ولا Autonomous (مش Postgres). الإكستنشن ماتكتبش كارت ولا
+  بيانات شخصية، والرابط بيتحط كسرّ **جديد** `SERVICEFLOW_ORACLE_DATABASE_URL` بـ`sslmode=no-verify`
+  (pg 8.23 بيعامل require كـverify-full والشهادة self-signed) — تجهيز بس، مفيش تحويل. وقبلها:
+  `/api/admin/host-info` (ذاكرة الـVM وPostgres متاح؟) للبديل المجانى التانى (Postgres جوّه الـVM).
+  الصفحة: https://claude.ai/artifact/KcKYLRU4edm4HUgxeokrXb. **Trigger:** «ابعتلي برومبت قاعدة Oracle».
 - `docs/R2_SETUP_PROMPT.md` — **برومبت الإكستنشن لتجهيز Cloudflare R2**
   لصور الصيانة (٧٨٦ ميجا = ٦٢٪ من حجم القاعدة). الإكستنشن بيعمل الباكِت
   والتوكن ويحطّ أربع أسرار فى ريبليت — **مفيش كود بيتكتب**. خطوط حمرا:
