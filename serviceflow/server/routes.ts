@@ -2653,6 +2653,18 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // «أرقام العرض التقديمى» (السوبر أدمن، قراية بس) — server/presentation-stats.ts
+  app.get("/api/admin/presentation-stats", requireAuth, requireSuperAdmin, async (req, res) => {
+    const { presentationStats, renderPresentationStats, presentationStatsXlsx } = await import("./presentation-stats");
+    const sections = await presentationStats(pool);
+    res.set("Cache-Control", "no-store");
+    if (req.query.format === "xlsx") {
+      res.setHeader("Content-Disposition", `attachment; filename="presentation-stats-${new Date().toISOString().slice(0, 10)}.xlsx"`);
+      return res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").send(presentationStatsXlsx(sections));
+    }
+    res.type("html").send(renderPresentationStats(sections));
+  });
+
   // عدّاد صحيان القاعدة (السوبر أدمن): آخر ٤٨ ساعة — من الذاكرة، مابيصحّيش القاعدة
   app.get("/api/admin/db-wake", requireAuth, requireSuperAdmin, (_req, res) => {
     res.json(dbWakeReport());
