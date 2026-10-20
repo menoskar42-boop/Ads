@@ -12,7 +12,8 @@ export type Deck = {
   career: { enabled: boolean; hireYear: string; items: string };
   area: { areaKm2: string; population: string; villages: string; housingUnits: string; mapId: string; extraRows: string };
   exchanges: DeckExchange[];
-  customers: { weData: string; marketShare: string };
+  /** showShare: الحصة السوقية فى العرض — مقفولة افتراضياً (المالك ٢٠٢٦-١٠-٢٠: طلعت 104% فغالباً غلط لحد ما تتراجع) */
+  customers: { weData: string; marketShare: string; showShare: boolean };
   decentLife: { enabled: boolean; phase1: string; phase2: string; notes: string };
   faults: { enabled: boolean; fromYear: string };
   // خطة الصيانة: المحقق بس — مفيش مستهدف (المالك ٢٠٢٦-١٠-٢٠)
@@ -42,7 +43,7 @@ export function defaultDeck(): Deck {
     career: { enabled: true, hireYear: "", items: "" },
     area: { areaKm2: "", population: "", villages: "", housingUnits: "", mapId: "", extraRows: "" },
     exchanges: DEFAULT_EXCHANGES.map((e) => ({ ...e })),
-    customers: { weData: "", marketShare: "" },
+    customers: { weData: "", marketShare: "", showShare: false },
     decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
     faults: { enabled: true, fromYear: "2024" },
     maintenance: { enabled: true, period: "2026", achievedCopper: "", achievedMsan: "", photoIds: [] },
@@ -251,7 +252,7 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     ["عدد الخطوط الشغالة صوت", v("total", "voiceUsed")],
     ["عدد الخطوط الشغالة داتا", v("total", "dataUsed")],
     ["عدد عملاء البيانات WE", weDataValue(deck, auto)],
-    ["الحصة السوقية WE DATA", marketShareValue(deck, auto)],
+    ...(deck.customers.showShare ? [["الحصة السوقية WE DATA", marketShareValue(deck, auto)]] : []),
     ...pairs(a.extraRows),
   ].filter(([, x]) => String(x).trim());
   slides.push({ kind: "table", title: deck.cover.title, columns: ["البيان", deck.cover.title], rows: overview, imageId: a.mapId, note: "", totalLast: false });
@@ -260,7 +261,7 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     ["عدد خطوط الصوت", v("total", "lines")],
     ["عدد عملاء البيانات (كل الشركات)", v("total", "dataUsed")],
     ["عدد عملاء البيانات WE", weDataValue(deck, auto)],
-    ["الحصة السوقية WE DATA", marketShareValue(deck, auto)],
+    ...(deck.customers.showShare ? [["الحصة السوقية WE DATA", marketShareValue(deck, auto)]] : []),
     ["عدد عملاء الصوت MSAN", v("total", "msanVoice")],
     ["عدد عملاء البيانات MSAN", v("total", "msanData")],
     ...(deck.decentLife.enabled ? [

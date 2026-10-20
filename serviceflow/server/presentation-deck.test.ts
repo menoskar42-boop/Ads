@@ -168,7 +168,11 @@ test("العملاء: البيانات = بورتات used، وWE = أكونت +
   d.customers.marketShare = "90%";
   assert.equal(marketShareValue(d, a), "90%");
   assert.equal(marketShareValue(defaultDeck(), null), "");
-  const cust = buildSlides(defaultDeck(), a).find((s) => s.kind === "table" && s.title.endsWith("العملاء"));
+  // الحصة مخفية افتراضياً (طلعت 104%) — بتظهر بالمفتاح بس
+  const hidden = buildSlides(defaultDeck(), a).find((s) => s.kind === "table" && s.title.endsWith("العملاء"));
+  assert.ok(hidden && hidden.kind === "table" && !hidden.rows.some((r) => r[0] === "الحصة السوقية WE DATA"));
+  const shown = defaultDeck(); shown.customers.showShare = true;
+  const cust = buildSlides(shown, a).find((s) => s.kind === "table" && s.title.endsWith("العملاء"));
   assert.ok(cust && cust.kind === "table" && cust.rows.some((r) => r[0] === "الحصة السوقية WE DATA" && r[1] === "89%"));
   assert.ok(cust.kind === "table" && !cust.rows.some((r) => r[0].includes("بأكونت")));
 });
@@ -209,7 +213,9 @@ test("نسبة الحجز وفك المتعذرات: أرقام الغنايم �
 test("شريحة النبذة فيها الشغال صوت والشغال داتا وعملاء WE والحصة السوقية", () => {
   assert.match(src, /voice_status, ''\)\)\) LIKE 'used%'/);
   const a: DeckAuto = { ...auto, total: { ...auto.total, voiceUsed: 9800, dataUsed: 8000, weData: 7120 } };
-  const ov = buildSlides(defaultDeck(), a).find((s) => s.kind === "table" && s.title === defaultDeck().cover.title);
+  const sd = defaultDeck(); sd.customers.showShare = true;
+  assert.equal(normalizeDeck({}).customers.showShare, false);
+  const ov = buildSlides(sd, a).find((s) => s.kind === "table" && s.title === defaultDeck().cover.title);
   assert.ok(ov && ov.kind === "table");
   const get = (k: string) => ov.rows.find((r) => r[0] === k)?.[1];
   assert.equal(get("عدد الخطوط الشغالة صوت"), "9,800");

@@ -296,6 +296,10 @@ export function PresentationReport() {
           </Section>
 
           <Section title="العملاء">
+            <label className="flex items-center gap-2 text-sm">
+              <span dir="ltr" className="inline-flex"><Switch checked={d.customers.showShare} onCheckedChange={(v) => upd("customers", { showShare: v })} /></span>
+              {d.customers.showShare ? "الحصة السوقية ظاهرة فى العرض" : "الحصة السوقية مخفية من العرض"}
+            </label>
             <div className="grid grid-cols-2 gap-3">
               <Field label="عدد عملاء البيانات WE" hint="فاضى = تلقائى: خطوط ليها أكونت وليها بورت حالى">
                 <Input value={d.customers.weData} onChange={(e) => upd("customers", { weData: e.target.value })} placeholder={deckValue({ ...d, customers: { ...d.customers, weData: "" } }, auto, "total", "weData")} />
