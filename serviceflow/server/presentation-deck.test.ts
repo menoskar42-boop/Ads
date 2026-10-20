@@ -9,7 +9,7 @@ const src = readFileSync(new URL("./presentation-deck.ts", import.meta.url), "ut
 const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
 
-const ZERO = { lines: 0, copperCabinets: 0, msanCabinets: 0, boxes: 0, capacity: 0, msanVoice: 0, msanData: 0, accounts: 0 };
+const ZERO = { lines: 0, copperCabinets: 0, msanCabinets: 0, boxes: 0, capacity: 0, msanVoice: 0, msanData: 0, accounts: 0, dataUsed: 0, weData: 0 };
 const auto: DeckAuto = {
   exchanges: { GHNAT: { ...ZERO, lines: 5000, boxes: 300 }, AMZAT: { ...ZERO, lines: 1200 }, DRGAT: { ...ZERO }, NGOAT: { ...ZERO } },
   total: { ...ZERO, lines: 6200, boxes: 300 },
@@ -152,4 +152,22 @@ test("المسار الوظيفى: خانة للوظيفة ومن وإلى (نص
   assert.deepEqual(s && s.kind === "list" ? s.items : null, ["مهندس صيانة   2009 - 2015", "مدير إدارة الغنايم   يناير 2020 - حتى الآن"]);
   d.career.items = careerItems([{ job: "", from: "", to: "" }]);
   assert.ok(!buildSlides(d, null).some((x) => x.kind === "list" && x.title.startsWith("المسار")));
+});
+
+test("العملاء: البيانات = بورتات used، وWE = أكونت + بورت حالى، والحصة السوقية بتتحسب منهم", async () => {
+  const { marketShareValue, weDataValue } = await import("../shared/presentation-deck");
+  assert.match(src, /LIKE 'used%'/);
+  assert.match(src, /EXISTS \(SELECT 1 FROM phone_ports pp WHERE pp\.phone_number = la\.full_phone\)/);
+  const a: DeckAuto = { ...auto, total: { ...auto.total, dataUsed: 8000, weData: 7120 } };
+  const d = defaultDeck();
+  assert.equal(weDataValue(d, a), "7,120");
+  assert.equal(marketShareValue(d, a), "89%");
+  d.customers.weData = "7500";
+  assert.equal(marketShareValue(d, a), "93.8%");
+  d.customers.marketShare = "90%";
+  assert.equal(marketShareValue(d, a), "90%");
+  assert.equal(marketShareValue(defaultDeck(), null), "");
+  const cust = buildSlides(defaultDeck(), a).find((s) => s.kind === "table" && s.title.endsWith("العملاء"));
+  assert.ok(cust && cust.kind === "table" && cust.rows.some((r) => r[0] === "الحصة السوقية WE DATA" && r[1] === "89%"));
+  assert.ok(cust.kind === "table" && !cust.rows.some((r) => r[0].includes("بأكونت")));
 });

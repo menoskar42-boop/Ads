@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, deckValue, marketShareValue, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 
 type Resp = { deck: Deck; auto: DeckAuto; updatedAt: string | null; updatedBy: string | null };
@@ -24,7 +24,8 @@ const METRICS: { key: keyof ExchangeAuto; label: string }[] = [
   { key: "boxes", label: "البكسيات" },
   { key: "msanVoice", label: "صوت MSAN" },
   { key: "msanData", label: "داتا MSAN" },
-  { key: "accounts", label: "خطوط بأكونت" },
+  { key: "dataUsed", label: "عملاء البيانات (كل الشركات)" },
+  { key: "weData", label: "عملاء بيانات WE" },
 ];
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
@@ -295,8 +296,12 @@ export function PresentationReport() {
 
           <Section title="العملاء">
             <div className="grid grid-cols-2 gap-3">
-              <Field label="عدد عملاء البيانات WE"><Input value={d.customers.weData} onChange={(e) => upd("customers", { weData: e.target.value })} /></Field>
-              <Field label="الحصة السوقية WE DATA"><Input value={d.customers.marketShare} onChange={(e) => upd("customers", { marketShare: e.target.value })} placeholder="مثال: 89%" /></Field>
+              <Field label="عدد عملاء البيانات WE" hint="فاضى = تلقائى: خطوط ليها أكونت وليها بورت حالى">
+                <Input value={d.customers.weData} onChange={(e) => upd("customers", { weData: e.target.value })} placeholder={deckValue({ ...d, customers: { ...d.customers, weData: "" } }, auto, "total", "weData")} />
+              </Field>
+              <Field label="الحصة السوقية WE DATA" hint="فاضى = تلقائى: عملاء WE ÷ عملاء البيانات كلهم (الداتا used)">
+                <Input value={d.customers.marketShare} onChange={(e) => upd("customers", { marketShare: e.target.value })} placeholder={marketShareValue({ ...d, customers: { ...d.customers, marketShare: "" } }, auto)} />
+              </Field>
             </div>
           </Section>
 

@@ -85,6 +85,10 @@ export function normalizeDeck(raw: any): Deck {
 export type ExchangeAuto = {
   lines: number; copperCabinets: number; msanCabinets: number; boxes: number; capacity: number;
   msanVoice: number; msanData: number; accounts: number;
+  /** عملاء البيانات (كل الشركات): بورتات الداتا فيها used (المالك ٢٠٢٦-١٠-٢٠) */
+  dataUsed: number;
+  /** عملاء بيانات WE: خطوط ليها أكونت وليها بورت حالى */
+  weData: number;
 };
 export type DeckAuto = {
   exchanges: Record<string, ExchangeAuto>;
@@ -119,6 +123,18 @@ export type Slide =
   | { kind: "chart"; title: string; seriesLabel: string; unit: string; points: { label: string; value: number }[]; note: string }
   | { kind: "photos"; title: string; photoIds: string[] }
   | { kind: "closing"; text: string };
+
+/** عملاء بيانات WE: المكتوب فى «العملاء» لو موجود، وإلا التلقائى (أكونت + بورت حالى) */
+export function weDataValue(deck: Deck, auto: DeckAuto | null): string {
+  return deck.customers.weData.trim() || deckValue(deck, auto, "total", "weData");
+}
+/** الحصة السوقية = عملاء WE ÷ عملاء البيانات كلهم — إلا لو المالك كاتبها */
+export function marketShareValue(deck: Deck, auto: DeckAuto | null): string {
+  if (deck.customers.marketShare.trim()) return deck.customers.marketShare.trim();
+  const n = (x: string) => Number(String(x).replace(/[,٬\s]/g, ""));
+  const we = n(weDataValue(deck, auto)), all = n(deckValue(deck, auto, "total", "dataUsed"));
+  return we > 0 && all > 0 ? `${Math.round((1000 * we) / all) / 10}%` : "";
+}
 
 /** المسار الوظيفى: سطر لكل وظيفة «الوظيفة | من | إلى» — التواريخ نص حر (2009 · يناير 2015 · حتى الآن).
  *  السطور القديمة «الوظيفة | الفترة» بتتقرى زى ما هى (الفترة كلها فى «من»). */
@@ -218,11 +234,11 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
 
   const cust: string[][] = [
     ["عدد خطوط الصوت", v("total", "lines")],
-    ["عدد خطوط الداتا (بأكونت)", v("total", "accounts")],
+    ["عدد عملاء البيانات (كل الشركات)", v("total", "dataUsed")],
+    ["عدد عملاء البيانات WE", weDataValue(deck, auto)],
+    ["الحصة السوقية WE DATA", marketShareValue(deck, auto)],
     ["عدد عملاء الصوت MSAN", v("total", "msanVoice")],
     ["عدد عملاء البيانات MSAN", v("total", "msanData")],
-    ["عدد عملاء البيانات WE", deck.customers.weData],
-    ["الحصة السوقية WE DATA", deck.customers.marketShare],
     ...(deck.decentLife.enabled ? [
       ["عدد قرى حياة كريمة مرحلة أولى", deck.decentLife.phase1],
       ["عدد قرى حياة كريمة مرحلة ثانية", deck.decentLife.phase2],
