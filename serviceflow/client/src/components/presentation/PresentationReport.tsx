@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, deckValue, marketShareValue, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, deckValue, bookingPct, marketShareValue, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 
 type Resp = { deck: Deck; auto: DeckAuto; updatedAt: string | null; updatedBy: string | null };
@@ -24,7 +24,8 @@ const METRICS: { key: keyof ExchangeAuto; label: string }[] = [
   { key: "boxes", label: "البكسيات" },
   { key: "msanVoice", label: "صوت MSAN" },
   { key: "msanData", label: "داتا MSAN" },
-  { key: "dataUsed", label: "عملاء البيانات (كل الشركات)" },
+  { key: "voiceUsed", label: "الشغال صوت" },
+  { key: "dataUsed", label: "الشغال داتا (كل الشركات)" },
   { key: "weData", label: "عملاء بيانات WE" },
 ];
 
@@ -345,13 +346,21 @@ export function PresentationReport() {
             <Field label="صور أعمال الصيانة"><Photos ids={d.maintenance.photoIds} onChange={(ids) => upd("maintenance", { photoIds: ids })} /></Field>
           </Section>
 
-          <Section title="فك المتعذرات" on={d.blocked.enabled} onToggle={(v) => upd("blocked", { enabled: v })}>
-            <div className="grid grid-cols-3 gap-3">
-              <Field label="الفترة"><Input value={d.blocked.period} onChange={(e) => upd("blocked", { period: e.target.value })} /></Field>
-              <Field label="إجمالى المتعذرات"><Input value={d.blocked.total} onChange={(e) => upd("blocked", { total: e.target.value })} /></Field>
-              <Field label="ما تم فكه"><Input value={d.blocked.resolved} onChange={(e) => upd("blocked", { resolved: e.target.value })} /></Field>
-              <Field label="نسبة توفير الإمكانية"><Input value={d.blocked.provisioningPct} onChange={(e) => upd("blocked", { provisioningPct: e.target.value })} /></Field>
-              <Field label="المتبقى"><Input value={d.blocked.remaining} onChange={(e) => upd("blocked", { remaining: e.target.value })} /></Field>
+          <Section title="نسبة الحجز وفك المتعذرات" on={d.booking.enabled} onToggle={(v) => upd("booking", { enabled: v })}>
+            <p className="text-xs text-muted-foreground">نفس أعمدة تقرير «نسبة الحجز» لمنطقة أسيوط — صف الغنايم. عدّل أى رقم لما ييجى تقرير أحدث.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Field label="حتى تاريخ"><Input value={d.booking.asOf} onChange={(e) => upd("booking", { asOf: e.target.value })} /></Field>
+              <Field label="إجمالى الطلبات (Grand Total)"><Input value={d.booking.total} onChange={(e) => upd("booking", { total: e.target.value })} /></Field>
+              <Field label="إجمالى الإمكانية"><Input value={d.booking.capacity} onChange={(e) => upd("booking", { capacity: e.target.value })} /></Field>
+              <Field label="متعذر"><Input value={d.booking.blocked} onChange={(e) => upd("booking", { blocked: e.target.value })} /></Field>
+              <Field label="توضيح عنوان"><Input value={d.booking.clarify} onChange={(e) => upd("booking", { clarify: e.target.value })} /></Field>
+              <Field label="بدون رد"><Input value={d.booking.noReply} onChange={(e) => upd("booking", { noReply: e.target.value })} /></Field>
+              <Field label="العنوان لا يتبع السنترال"><Input value={d.booking.otherExchange} onChange={(e) => upd("booking", { otherExchange: e.target.value })} /></Field>
+              <Field label="نسبة الحجز" hint="فاضى = الإمكانية ÷ الإجمالى">
+                <Input value={d.booking.pct} onChange={(e) => upd("booking", { pct: e.target.value })} placeholder={bookingPct({ ...d.booking, pct: "" })} />
+              </Field>
+              <Field label="للمقارنة: اسم المنطقة"><Input value={d.booking.regionName} onChange={(e) => upd("booking", { regionName: e.target.value })} /></Field>
+              <Field label="نسبة حجز المنطقة" hint="فاضى = مايظهرش"><Input value={d.booking.regionPct} onChange={(e) => upd("booking", { regionPct: e.target.value })} /></Field>
             </div>
           </Section>
 

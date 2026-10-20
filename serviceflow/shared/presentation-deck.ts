@@ -17,7 +17,10 @@ export type Deck = {
   faults: { enabled: boolean; fromYear: string };
   maintenance: { enabled: boolean; period: string; targetBoxes: string; targetCopper: string; targetMsan: string;
                  achievedCopper: string; achievedMsan: string; photoIds: string[] };
-  blocked: { enabled: boolean; period: string; total: string; resolved: string; provisioningPct: string; remaining: string };
+  /** نسبة الحجز وفك المتعذرات — نفس أعمدة تقرير «نسبة الحجز» بتاع منطقة أسيوط (المالك ٢٠٢٦-١٠-٢٠).
+   *  مفتاح جديد (كان blocked) عشان الافتراضيات (أرقام الغنايم حتى ١٨ أكتوبر) تتحط فى العرض المحفوظ. */
+  booking: { enabled: boolean; asOf: string; total: string; capacity: string; blocked: string; clarify: string;
+    noReply: string; otherExchange: string; pct: string; regionName: string; regionPct: string };
   achievements: { enabled: boolean; items: string; photoIds: string[] };
   vision: { enabled: boolean; items: string };
   closing: { enabled: boolean; text: string };
@@ -43,7 +46,8 @@ export function defaultDeck(): Deck {
     decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
     faults: { enabled: true, fromYear: "2024" },
     maintenance: { enabled: true, period: "2026", targetBoxes: "", targetCopper: "", targetMsan: "", achievedCopper: "", achievedMsan: "", photoIds: [] },
-    blocked: { enabled: false, period: "2026", total: "", resolved: "", provisioningPct: "", remaining: "" },
+    booking: { enabled: true, asOf: "18 أكتوبر 2026", total: "1267", capacity: "1230", blocked: "36", clarify: "0",
+      noReply: "0", otherExchange: "1", pct: "", regionName: "منطقة أسيوط", regionPct: "84%" },
     achievements: { enabled: false, items: "", photoIds: [] },
     vision: { enabled: false, items: "" },
     closing: { enabled: true, text: "شكراً لحسن استماعكم" },
@@ -67,7 +71,7 @@ export function normalizeDeck(raw: any): Deck {
     return out;
   };
   if (!raw || typeof raw !== "object") return d;
-  for (const k of ["cover", "person", "career", "area", "customers", "decentLife", "faults", "maintenance", "blocked", "achievements", "vision", "closing"] as const) {
+  for (const k of ["cover", "person", "career", "area", "customers", "decentLife", "faults", "maintenance", "booking", "achievements", "vision", "closing"] as const) {
     (d as any)[k] = pick((d as any)[k], raw[k]);
   }
   if (Array.isArray(raw.exchanges) && raw.exchanges.length) {
@@ -87,6 +91,8 @@ export type ExchangeAuto = {
   msanVoice: number; msanData: number; accounts: number;
   /** عملاء البيانات (كل الشركات): بورتات الداتا فيها used (المالك ٢٠٢٦-١٠-٢٠) */
   dataUsed: number;
+  /** الشغال صوت: بورتات الصوت فيها used */
+  voiceUsed: number;
   /** عملاء بيانات WE: خطوط ليها أكونت وليها بورت حالى */
   weData: number;
 };
@@ -125,6 +131,14 @@ export type Slide =
   | { kind: "chart"; title: string; seriesLabel: string; unit: string; points: { label: string; value: number }[]; note: string }
   | { kind: "photos"; title: string; photoIds: string[] }
   | { kind: "closing"; text: string };
+
+/** نسبة الحجز = الإمكانية ÷ إجمالى الطلبات — إلا لو مكتوبة */
+export function bookingPct(b: Deck["booking"]): string {
+  if (b.pct.trim()) return b.pct.trim();
+  const n = (x: string) => Number(String(x).replace(/[,٬\s]/g, ""));
+  const t = n(b.total), c = n(b.capacity);
+  return t > 0 && c >= 0 && Number.isFinite(c) ? `${Math.round((100 * c) / t)}%` : "";
+}
 
 /** عملاء بيانات WE: المكتوب فى «العملاء» لو موجود، وإلا التلقائى (أكونت + بورت حالى) */
 export function weDataValue(deck: Deck, auto: DeckAuto | null): string {
@@ -205,10 +219,12 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     if (rows.length) work.push({ kind: "table", title: `خطة الصيانة ورفع الكفاءة ${m.period}`, columns: ["البيان", "إجمالى الشبكة", "المستهدف", "المحقق", "النسبة"], rows, imageId: "", note: "", totalLast: false });
     if (m.photoIds.length) work.push({ kind: "photos", title: "بعض صور أعمال الصيانة", photoIds: m.photoIds });
   }
-  const b = deck.blocked;
-  if (b.enabled && (b.total || b.resolved)) {
-    work.push({ kind: "table", title: `فك المتعذرات ${b.period}`, columns: ["إجمالى المتعذرات", "ما تم فكه", "النسبة", "توفير الإمكانية", "المتبقى"],
-      rows: [[b.total, b.resolved, pct(b.total, b.resolved), b.provisioningPct, b.remaining]], imageId: "", note: "", totalLast: false });
+  const b = deck.booking;
+  if (b.enabled && (b.total || b.capacity || b.blocked)) {
+    work.push({ kind: "table", title: `نسبة الحجز وفك المتعذرات${b.asOf ? ` حتى ${b.asOf}` : ""}`,
+      columns: ["إجمالى الطلبات", "إجمالى الإمكانية", "متعذر", "توضيح عنوان", "بدون رد", "العنوان لا يتبع السنترال", "نسبة الحجز"],
+      rows: [[b.total, b.capacity, b.blocked, b.clarify, b.noReply, b.otherExchange, bookingPct(b)]], imageId: "",
+      note: b.regionPct.trim() ? `نسبة الحجز ${b.regionName.trim() ? `لـ${b.regionName.trim()}` : "للمنطقة"} فى نفس التاريخ: ${b.regionPct.trim()}` : "", totalLast: false });
   }
   if (deck.achievements.enabled && (deck.achievements.items || deck.achievements.photoIds.length)) {
     if (deck.achievements.items) work.push({ kind: "list", title: "أهم الإنجازات", lead: "", items: lines(deck.achievements.items) });
@@ -231,6 +247,11 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     ["عدد الكباين النحاسية", v("total", "copperCabinets")],
     ["عدد وحدات التجميع الذكية MSAN", v("total", "msanCabinets")],
     ["إجمالى بكسيات الإدارة", v("total", "boxes")],
+    // المالك ٢٠٢٦-١٠-٢٠: «هنا لازم تحط الشغال صوت و الشغال داتا و عدد عملاء وى و نسبه الحصه السوقيه»
+    ["عدد الخطوط الشغالة صوت", v("total", "voiceUsed")],
+    ["عدد الخطوط الشغالة داتا", v("total", "dataUsed")],
+    ["عدد عملاء البيانات WE", weDataValue(deck, auto)],
+    ["الحصة السوقية WE DATA", marketShareValue(deck, auto)],
     ...pairs(a.extraRows),
   ].filter(([, x]) => String(x).trim());
   slides.push({ kind: "table", title: deck.cover.title, columns: ["البيان", deck.cover.title], rows: overview, imageId: a.mapId, note: "", totalLast: false });

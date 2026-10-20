@@ -23,7 +23,7 @@ type Q = { query: (text: string, values?: unknown[]) => Promise<{ rows: any[] }>
 const NORM = (col: string) => `regexp_replace(translate(lower(COALESCE(${col}, '')), 'ةىأإآ', 'هيااا'), '\\s+', '', 'g')`;
 const normJs = (s: string) => s.toLowerCase().replace(/[ة]/g, "ه").replace(/[ى]/g, "ي").replace(/[أإآ]/g, "ا").replace(/\s+/g, "");
 
-const EMPTY: ExchangeAuto = { lines: 0, copperCabinets: 0, msanCabinets: 0, boxes: 0, capacity: 0, msanVoice: 0, msanData: 0, accounts: 0, dataUsed: 0, weData: 0 };
+const EMPTY: ExchangeAuto = { lines: 0, copperCabinets: 0, msanCabinets: 0, boxes: 0, capacity: 0, msanVoice: 0, msanData: 0, accounts: 0, dataUsed: 0, voiceUsed: 0, weData: 0 };
 
 /** الأرقام التلقائية لكل سنترال من Service Flow — قراية بس. */
 export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
@@ -65,6 +65,9 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
   await run("عملاء البيانات", `SELECT ${NORM("pl.central")} AS k, COUNT(DISTINCT pp.phone_number) AS n FROM phone_ports pp
                        JOIN phone_lines pl ON pl.full_phone = pp.phone_number
                        WHERE ${NORM("pl.central")} = ANY($1::text[]) AND lower(btrim(COALESCE(pp.data_status, ''))) LIKE 'used%' GROUP BY 1`, "dataUsed");
+  await run("الشغال صوت", `SELECT ${NORM("pl.central")} AS k, COUNT(DISTINCT pp.phone_number) AS n FROM phone_ports pp
+                       JOIN phone_lines pl ON pl.full_phone = pp.phone_number
+                       WHERE ${NORM("pl.central")} = ANY($1::text[]) AND lower(btrim(COALESCE(pp.voice_status, ''))) LIKE 'used%' GROUP BY 1`, "voiceUsed");
   // «عدد عملاء البيانات WE هما عدد الخطوط التى لها اكونت و لها بورت حالى»
   await run("عملاء بيانات WE", `SELECT ${NORM("pl.central")} AS k, COUNT(DISTINCT la.full_phone) AS n FROM line_accounts la
                        JOIN phone_lines pl ON pl.full_phone = la.full_phone

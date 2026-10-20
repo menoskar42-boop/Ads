@@ -9,7 +9,7 @@ const src = readFileSync(new URL("./presentation-deck.ts", import.meta.url), "ut
 const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
 
-const ZERO = { lines: 0, copperCabinets: 0, msanCabinets: 0, boxes: 0, capacity: 0, msanVoice: 0, msanData: 0, accounts: 0, dataUsed: 0, weData: 0 };
+const ZERO = { lines: 0, copperCabinets: 0, msanCabinets: 0, boxes: 0, capacity: 0, msanVoice: 0, msanData: 0, accounts: 0, dataUsed: 0, voiceUsed: 0, weData: 0 };
 const auto: DeckAuto = {
   exchanges: { GHNAT: { ...ZERO, lines: 5000, boxes: 300 }, AMZAT: { ...ZERO, lines: 1200 }, DRGAT: { ...ZERO }, NGOAT: { ...ZERO } },
   total: { ...ZERO, lines: 6200, boxes: 300 },
@@ -38,7 +38,8 @@ test("الأقسام الاختيارية (حياة كريمة · الإنجاز
   // الصيانة مفتوحة افتراضياً — المحقق من برنامج الصيانة (٢١٤) بيطلع جدولها
   assert.ok(off.includes("table:خطة الصيانة ورفع الكفاءة 2026"));
   // ومن غير أى بيانات ماينفعش يطلع فاصل «مبادرات» فاضى ولا يتكتب فى الأجندة
-  const bare = buildSlides(defaultDeck(), null);
+  const bareDeck = defaultDeck(); bareDeck.booking.enabled = false;
+  const bare = buildSlides(bareDeck, null);
   assert.ok(!bare.some((s) => s.kind === "divider" && s.title === "مبادرات وأهم الإنجازات"));
   assert.ok(!bare.some((s) => s.kind === "agenda" && s.items.includes("مبادرات وأهم الإنجازات")));
 
@@ -183,4 +184,36 @@ test("مؤشرات الأعطال: بتتطابق بـ exchange_name، ولو س
   assert.ok(charts[0].kind === "chart" && charts[0].title === "نسب تكرار الأعطال عام 2026");
   assert.deepEqual(charts[0].kind === "chart" && charts[0].points, [{ label: "يناير", value: 8 }, { label: "فبراير", value: 7 }]);
   assert.ok(charts[1].kind === "chart" && charts[1].note.includes("91%"));
+});
+
+test("نسبة الحجز وفك المتعذرات: أرقام الغنايم حتى ١٨ أكتوبر افتراضياً، والعرض المحفوظ قبل كده بياخدها، وبتتعدّل", async () => {
+  const { bookingPct } = await import("../shared/presentation-deck");
+  // عرض محفوظ قبل القسم ده (فيه blocked القديم) — الأرقام الافتراضية بتتحط
+  const old = normalizeDeck({ ...defaultDeck(), booking: undefined, blocked: { enabled: false, total: "" } });
+  assert.equal(old.booking.enabled, true);
+  assert.equal(old.booking.total, "1267");
+  assert.equal(bookingPct(old.booking), "97%");
+  const t = buildSlides(old, null).find((s) => s.kind === "table" && s.title.startsWith("نسبة الحجز"));
+  assert.ok(t && t.kind === "table");
+  assert.equal(t.title, "نسبة الحجز وفك المتعذرات حتى 18 أكتوبر 2026");
+  assert.deepEqual(t.rows, [["1267", "1230", "36", "0", "0", "1", "97%"]]);
+  assert.equal(t.note, "نسبة الحجز لـمنطقة أسيوط فى نفس التاريخ: 84%");
+  const d = normalizeDeck({ booking: { total: "1300", capacity: "1287" } });
+  assert.equal(bookingPct(d.booking), "99%");
+  d.booking.pct = "98.5%";
+  assert.equal(bookingPct(d.booking), "98.5%");
+  d.booking.enabled = false;
+  assert.ok(!buildSlides(d, null).some((s) => s.kind === "table" && s.title.startsWith("نسبة الحجز")));
+});
+
+test("شريحة النبذة فيها الشغال صوت والشغال داتا وعملاء WE والحصة السوقية", () => {
+  assert.match(src, /voice_status, ''\)\)\) LIKE 'used%'/);
+  const a: DeckAuto = { ...auto, total: { ...auto.total, voiceUsed: 9800, dataUsed: 8000, weData: 7120 } };
+  const ov = buildSlides(defaultDeck(), a).find((s) => s.kind === "table" && s.title === defaultDeck().cover.title);
+  assert.ok(ov && ov.kind === "table");
+  const get = (k: string) => ov.rows.find((r) => r[0] === k)?.[1];
+  assert.equal(get("عدد الخطوط الشغالة صوت"), "9,800");
+  assert.equal(get("عدد الخطوط الشغالة داتا"), "8,000");
+  assert.equal(get("عدد عملاء البيانات WE"), "7,120");
+  assert.equal(get("الحصة السوقية WE DATA"), "89%");
 });
