@@ -15,8 +15,8 @@ export type Deck = {
   customers: { weData: string; marketShare: string };
   decentLife: { enabled: boolean; phase1: string; phase2: string; notes: string };
   faults: { enabled: boolean; fromYear: string };
-  maintenance: { enabled: boolean; period: string; targetBoxes: string; targetCopper: string; targetMsan: string;
-                 achievedCopper: string; achievedMsan: string; photoIds: string[] };
+  // خطة الصيانة: المحقق بس — مفيش مستهدف (المالك ٢٠٢٦-١٠-٢٠)
+  maintenance: { enabled: boolean; period: string; achievedCopper: string; achievedMsan: string; photoIds: string[] };
   /** نسبة الحجز وفك المتعذرات — نفس أعمدة تقرير «نسبة الحجز» بتاع منطقة أسيوط (المالك ٢٠٢٦-١٠-٢٠).
    *  مفتاح جديد (كان blocked) عشان الافتراضيات (أرقام الغنايم حتى ١٨ أكتوبر) تتحط فى العرض المحفوظ. */
   booking: { enabled: boolean; asOf: string; total: string; capacity: string; blocked: string; clarify: string;
@@ -45,7 +45,7 @@ export function defaultDeck(): Deck {
     customers: { weData: "", marketShare: "" },
     decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
     faults: { enabled: true, fromYear: "2024" },
-    maintenance: { enabled: true, period: "2026", targetBoxes: "", targetCopper: "", targetMsan: "", achievedCopper: "", achievedMsan: "", photoIds: [] },
+    maintenance: { enabled: true, period: "2026", achievedCopper: "", achievedMsan: "", photoIds: [] },
     booking: { enabled: true, asOf: "18 أكتوبر 2026", total: "1267", capacity: "1230", blocked: "36", clarify: "0",
       noReply: "0", otherExchange: "1", pct: "", regionName: "منطقة أسيوط", regionPct: "84%" },
     achievements: { enabled: false, items: "", photoIds: [] },
@@ -212,11 +212,11 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     const doneYear = auto?.maintenance?.byYear.find((y) => y.year === m.period)?.done;
     const achievedBoxes = deck.overrides["total.maintBoxes"] || (doneYear != null ? String(doneYear) : "");
     const rows = [
-      ["البكسيات", v("total", "boxes"), m.targetBoxes, achievedBoxes, pct(m.targetBoxes, achievedBoxes)],
-      ["الكباين النحاسية", v("total", "copperCabinets"), m.targetCopper, m.achievedCopper, pct(m.targetCopper, m.achievedCopper)],
-      ["كباين MSAN", v("total", "msanCabinets"), m.targetMsan, m.achievedMsan, pct(m.targetMsan, m.achievedMsan)],
-    ].filter((r) => r[2] || r[3]);
-    if (rows.length) work.push({ kind: "table", title: `خطة الصيانة ورفع الكفاءة ${m.period}`, columns: ["البيان", "إجمالى الشبكة", "المستهدف", "المحقق", "النسبة"], rows, imageId: "", note: "", totalLast: false });
+      ["البكسيات", v("total", "boxes"), achievedBoxes],
+      ["الكباين النحاسية", v("total", "copperCabinets"), m.achievedCopper],
+      ["كباين MSAN", v("total", "msanCabinets"), m.achievedMsan],
+    ].filter((r) => String(r[2]).trim());
+    if (rows.length) work.push({ kind: "table", title: `خطة الصيانة ورفع الكفاءة ${m.period}`, columns: ["البيان", "إجمالى الشبكة", "المحقق"], rows, imageId: "", note: "", totalLast: false });
     if (m.photoIds.length) work.push({ kind: "photos", title: "بعض صور أعمال الصيانة", photoIds: m.photoIds });
   }
   const b = deck.booking;

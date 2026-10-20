@@ -331,17 +331,13 @@ export function PresentationReport() {
           </Section>
 
           <Section title="خطة الصيانة" on={d.maintenance.enabled} onToggle={(v) => upd("maintenance", { enabled: v })}>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Field label="السنة"><Input value={d.maintenance.period} onChange={(e) => upd("maintenance", { period: e.target.value })} /></Field>
-              <Field label="مستهدف البكسيات"><Input value={d.maintenance.targetBoxes} onChange={(e) => upd("maintenance", { targetBoxes: e.target.value })} /></Field>
-              <Field label="المحقق (بكسيات)" hint={`من برنامج الصيانة: ${auto?.maintenance?.byYear.find((y) => y.year === d.maintenance.period)?.done ?? "—"}`}>
+              <Field label="المحقق (بكسيات)" hint={`فاضى = من برنامج الصيانة: ${auto?.maintenance?.byYear.find((y) => y.year === d.maintenance.period)?.done ?? "—"}`}>
                 <Input value={d.overrides["total.maintBoxes"] ?? ""} placeholder="تلقائى" onChange={(e) => setOverride("total.maintBoxes", e.target.value)} />
               </Field>
-              <Field label="مستهدف كباين نحاس"><Input value={d.maintenance.targetCopper} onChange={(e) => upd("maintenance", { targetCopper: e.target.value })} /></Field>
-              <Field label="المحقق (نحاس)"><Input value={d.maintenance.achievedCopper} onChange={(e) => upd("maintenance", { achievedCopper: e.target.value })} /></Field>
-              <span />
-              <Field label="مستهدف كباين MSAN"><Input value={d.maintenance.targetMsan} onChange={(e) => upd("maintenance", { targetMsan: e.target.value })} /></Field>
-              <Field label="المحقق (MSAN)"><Input value={d.maintenance.achievedMsan} onChange={(e) => upd("maintenance", { achievedMsan: e.target.value })} /></Field>
+              <Field label="المحقق (كباين نحاس)"><Input value={d.maintenance.achievedCopper} onChange={(e) => upd("maintenance", { achievedCopper: e.target.value })} /></Field>
+              <Field label="المحقق (كباين MSAN)"><Input value={d.maintenance.achievedMsan} onChange={(e) => upd("maintenance", { achievedMsan: e.target.value })} /></Field>
             </div>
             <Field label="صور أعمال الصيانة"><Photos ids={d.maintenance.photoIds} onChange={(ids) => upd("maintenance", { photoIds: ids })} /></Field>
           </Section>

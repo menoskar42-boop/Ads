@@ -217,3 +217,12 @@ test("شريحة النبذة فيها الشغال صوت والشغال دات
   assert.equal(get("عدد عملاء البيانات WE"), "7,120");
   assert.equal(get("الحصة السوقية WE DATA"), "89%");
 });
+
+test("خطة الصيانة: المحقق بس من غير مستهدف", () => {
+  const d = defaultDeck(); d.maintenance.achievedCopper = "12";
+  const t = buildSlides(d, auto).find((s) => s.kind === "table" && s.title.startsWith("خطة الصيانة"));
+  assert.ok(t && t.kind === "table");
+  assert.deepEqual(t.columns, ["البيان", "إجمالى الشبكة", "المحقق"]);
+  assert.deepEqual(t.rows, [["البكسيات", "300", "214"], ["الكباين النحاسية", "0", "12"]]);
+  assert.equal((normalizeDeck({ maintenance: { targetBoxes: "400" } }).maintenance as any).targetBoxes, undefined);
+});
