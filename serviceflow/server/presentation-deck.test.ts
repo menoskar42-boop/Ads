@@ -171,3 +171,16 @@ test("العملاء: البيانات = بورتات used، وWE = أكونت +
   assert.ok(cust && cust.kind === "table" && cust.rows.some((r) => r[0] === "الحصة السوقية WE DATA" && r[1] === "89%"));
   assert.ok(cust.kind === "table" && !cust.rows.some((r) => r[0].includes("بأكونت")));
 });
+
+test("مؤشرات الأعطال: بتتطابق بـ exchange_name، ولو سنة واحدة الرسم بالشهور", () => {
+  assert.match(src, /NORM\("cd\.exchange_name"\)\} = ANY/);
+  assert.match(src, /COALESCE\(cd\.time_till_now/);
+  const a: DeckAuto = { ...auto, faultsByYear: [{ year: "2026", complaints: 500, repeatPct: 7.5, in48Pct: 91 }],
+    faultsByMonth: [{ month: "2026-01", complaints: 60, repeatPct: 8, in48Pct: 90 }, { month: "2026-02", complaints: 50, repeatPct: 7, in48Pct: 92 }] };
+  const d = defaultDeck(); d.faults.fromYear = "2026";
+  const charts = buildSlides(d, a).filter((s) => s.kind === "chart");
+  assert.equal(charts.length, 2);
+  assert.ok(charts[0].kind === "chart" && charts[0].title === "نسب تكرار الأعطال عام 2026");
+  assert.deepEqual(charts[0].kind === "chart" && charts[0].points, [{ label: "يناير", value: 8 }, { label: "فبراير", value: 7 }]);
+  assert.ok(charts[1].kind === "chart" && charts[1].note.includes("91%"));
+});

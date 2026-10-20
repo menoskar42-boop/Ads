@@ -15,6 +15,8 @@ import {
 export { defaultDeck, normalizeDeck, deckValue, DECK_KEY, IMG_PREFIX, DEFAULT_EXCHANGES };
 export type { Deck, DeckExchange, DeckAuto, ExchangeAuto };
 
+import { phoneNormSql } from "./phone-norm";
+
 type Q = { query: (text: string, values?: unknown[]) => Promise<{ rows: any[] }> };
 
 // اسم السنترال للمقارنة: «الغنايم - دير الجنادلة» = «الغنايم-دير الجنادله»
@@ -72,23 +74,42 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
   const total: ExchangeAuto = { ...EMPTY };
   for (const v of Object.values(exchanges)) for (const k of Object.keys(total) as (keyof ExchangeAuto)[]) total[k] += v[k];
 
+  // الأعطال (المالك ٢٠٢٦-١٠-٢٠: «مؤشرات أداء الأعطال مطلوب عن عام 2026») — بنفس تعريفات تقاريرنا:
+  //   · السنترال فى exchange_name (central_name دايماً فاضى فى complaint_details)
+  //   · التكرار زى «إحصائيات التكرار»: الأعطال المغلقة، (عدد الأعطال − عدد الأرقام) ÷ عدد الأرقام
+  //   · الإزالة خلال ٤٨ ساعة زى «إحصائيات الإزالة»: كل الأعطال، والساعات من عمود الشيت (sheetHoursSql)
+  //   · التاريخ: complain_time AT TIME ZONE 'UTC' (زى التقارير)
   let faultsByYear: DeckAuto["faultsByYear"] = [];
+  let faultsByMonth: DeckAuto["faultsByMonth"] = [];
   try {
-    const { rows } = await db.query(`
+    const main = keys[0] || "";
+    const sql = (fmt: string) => `
       WITH c AS (
-        SELECT regexp_replace(COALESCE(phone_number, ''), '\\D', '', 'g') AS phone, complain_time, close_time
-          FROM complaint_details
-         WHERE complain_time IS NOT NULL AND ${NORM("central_name")} = ANY($1::text[])),
-      l AS (SELECT *, LAG(complain_time) OVER (PARTITION BY phone ORDER BY complain_time) AS prev FROM c)
-      SELECT to_char(complain_time, 'YYYY') AS year, COUNT(*) AS complaints,
-             ROUND(100.0 * COUNT(*) FILTER (WHERE prev IS NOT NULL AND complain_time - prev <= interval '30 days') / NULLIF(COUNT(*), 0), 1) AS repeat_pct,
-             ROUND(100.0 * COUNT(*) FILTER (WHERE close_time IS NOT NULL AND close_time - complain_time <= interval '48 hours')
-                   / NULLIF(COUNT(*) FILTER (WHERE close_time IS NOT NULL), 0), 1) AS in48_pct
-        FROM l WHERE to_char(complain_time, 'YYYY') >= $2 GROUP BY 1 ORDER BY 1`, [keys, deck.faults.fromYear || "2000"]);
-    faultsByYear = rows.map((r: any) => ({
-      year: String(r.year), complaints: Number(r.complaints) || 0,
-      repeatPct: r.repeat_pct == null ? null : Number(r.repeat_pct), in48Pct: r.in48_pct == null ? null : Number(r.in48_pct),
-    }));
+        SELECT ${phoneNormSql("cd.phone_number")} AS phone, cd.close_time,
+               to_char(cd.complain_time AT TIME ZONE 'UTC', '${fmt}') AS p,
+               COALESCE(cd.time_till_now, CASE
+                 WHEN cd.close_time IS NULL THEN EXTRACT(EPOCH FROM ((now() AT TIME ZONE 'Africa/Cairo') - cd.complain_time)) / 3600.0
+                 ELSE EXTRACT(EPOCH FROM (cd.close_time - cd.complain_time)) / 3600.0 END) AS hours
+          FROM complaint_details cd
+         WHERE cd.complain_time IS NOT NULL
+           AND to_char(cd.complain_time AT TIME ZONE 'UTC', 'YYYY') >= $2
+           AND (${NORM("cd.exchange_name")} = ANY($1::text[]) OR ${NORM("cd.central_name")} = ANY($1::text[])
+                OR ($3 <> '' AND ${NORM("cd.exchange_name")} LIKE '%' || $3 || '%')))
+      SELECT p, COUNT(*) AS complaints, COUNT(*) FILTER (WHERE close_time IS NOT NULL) AS closed,
+             COUNT(DISTINCT phone) FILTER (WHERE close_time IS NOT NULL) AS phones,
+             COUNT(*) FILTER (WHERE hours <= 48) AS in48
+        FROM c GROUP BY 1 ORDER BY 1`;
+    const params = [keys, deck.faults.fromYear || "2000", main];
+    const conv = (r: any) => {
+      const n = Number(r.complaints) || 0, closed = Number(r.closed) || 0, phones = Number(r.phones) || 0;
+      return {
+        complaints: n,
+        repeatPct: phones > 0 ? Math.round((1000 * (closed - phones)) / phones) / 10 : null,
+        in48Pct: n > 0 ? Math.round((1000 * (Number(r.in48) || 0)) / n) / 10 : null,
+      };
+    };
+    faultsByYear = (await db.query(sql("YYYY"), params)).rows.map((r: any) => ({ year: String(r.p), ...conv(r) }));
+    faultsByMonth = (await db.query(sql("YYYY-MM"), params)).rows.map((r: any) => ({ month: String(r.p), ...conv(r) }));
   } catch (e: any) { errors.push(`الأعطال: ${e?.message || e}`); }
 
   // صيانة البكسيات من برنامج الصيانة (نفس القاعدة — سكيما maintenance). لو منفصلة الأرقام بتتكتب بالإيد.
@@ -124,6 +145,6 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
     decentLife = rows.map((r: any) => ({ value: String(r.value), cabinets: Number(r.cabinets) || 0, villages: Number(r.villages) || 0 }));
   } catch (e: any) { errors.push(`حياة كريمة: ${e?.message || e}`); }
 
-  return { exchanges, total, faultsByYear, maintenance, decentLife, errors, computedAt: new Date().toISOString() };
+  return { exchanges, total, faultsByYear, faultsByMonth, maintenance, decentLife, errors, computedAt: new Date().toISOString() };
 }
 

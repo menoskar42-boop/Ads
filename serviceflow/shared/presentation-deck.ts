@@ -94,6 +94,8 @@ export type DeckAuto = {
   exchanges: Record<string, ExchangeAuto>;
   total: ExchangeAuto;
   faultsByYear: { year: string; complaints: number; repeatPct: number | null; in48Pct: number | null }[];
+  /** نفس المؤشرات شهر بشهر (YYYY-MM) — لو الفترة سنة واحدة الرسم بيبقى بالشهور */
+  faultsByMonth?: { month: string; complaints: number; repeatPct: number | null; in48Pct: number | null }[];
   maintenance: { boxesTotal: number | null; boxesDone: number | null; byYear: { year: string; done: number }[] } | null;
   /** قيم «حياة كريمة» على الكباين زى ما هى متسجّلة (مساعدة للمالك وهو بيكتب المرحلة الأولى/التانية) */
   decentLife: { value: string; cabinets: number; villages: number }[];
@@ -151,6 +153,7 @@ export function careerItems(rows: CareerRow[]): string {
   return rows.map((r) => `${clean(r.job)} | ${clean(r.from)} | ${clean(r.to)}`).join("\n");
 }
 
+const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
 const lines = (s: string) => String(s || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
 const pairs = (s: string) => lines(s).map((l) => {
   const i = l.indexOf("|");
@@ -254,12 +257,24 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   if (showPerf && auto) {
     slides.push({ kind: "divider", title: "مؤشرات ومعدلات الأداء" });
     const fy = auto.faultsByYear;
-    const span = `من ${fy[0].year} حتى ${fy[fy.length - 1].year}`;
-    slides.push({ kind: "chart", title: `تحسن نسب تكرار الأعطال ${span}`, seriesLabel: "نسبة التكرار", unit: "%",
-      points: fy.filter((f) => f.repeatPct != null).map((f) => ({ label: f.year, value: f.repeatPct as number })),
-      note: "التكرار = نفس الرقم اشتكى تانى خلال ٣٠ يوم" });
-    slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 48 ساعة ${span}`, seriesLabel: "الإزالة خلال 48 ساعة", unit: "%",
-      points: fy.filter((f) => f.in48Pct != null).map((f) => ({ label: f.year, value: f.in48Pct as number })), note: "" });
+    const fm = auto.faultsByMonth || [];
+    const RNOTE = "التكرار = (الأعطال المغلقة − عدد الأرقام) ÷ عدد الأرقام";
+    const INOTE = "من إجمالى الأعطال المبلّغة فى الفترة";
+    if (fy.length === 1 && fm.length >= 2) {
+      // سنة واحدة (مثلاً 2026): عمود لكل شهر، ونسبة السنة كلها فى الملاحظة
+      const y = fy[0];
+      const pts = (k: "repeatPct" | "in48Pct") => fm.filter((m) => m[k] != null).map((m) => ({ label: MONTHS[Number(m.month.slice(5, 7)) - 1] || m.month, value: m[k] as number }));
+      slides.push({ kind: "chart", title: `نسب تكرار الأعطال عام ${y.year}`, seriesLabel: "نسبة التكرار شهرياً", unit: "%",
+        points: pts("repeatPct"), note: `إجمالى عام ${y.year}: ${y.repeatPct ?? "—"}% — ${RNOTE}` });
+      slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 48 ساعة عام ${y.year}`, seriesLabel: "الإزالة خلال 48 ساعة شهرياً", unit: "%",
+        points: pts("in48Pct"), note: `إجمالى عام ${y.year}: ${y.in48Pct ?? "—"}% (${y.complaints.toLocaleString("en-US")} عطل) — ${INOTE}` });
+    } else {
+      const span = fy.length === 1 ? `عام ${fy[0].year}` : `من ${fy[0].year} حتى ${fy[fy.length - 1].year}`;
+      slides.push({ kind: "chart", title: `${fy.length > 1 ? "تحسن " : ""}نسب تكرار الأعطال ${span}`, seriesLabel: "نسبة التكرار", unit: "%",
+        points: fy.filter((f) => f.repeatPct != null).map((f) => ({ label: f.year, value: f.repeatPct as number })), note: RNOTE });
+      slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 48 ساعة ${span}`, seriesLabel: "الإزالة خلال 48 ساعة", unit: "%",
+        points: fy.filter((f) => f.in48Pct != null).map((f) => ({ label: f.year, value: f.in48Pct as number })), note: INOTE });
+    }
   }
 
   // ── الإنجازات ── (الفاصل بيظهر بس لو تحته شرايح فعلاً)

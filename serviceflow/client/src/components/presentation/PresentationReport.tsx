@@ -324,6 +324,9 @@ export function PresentationReport() {
                 : "مفيش أعطال فى الفترة دى"}
               {" "}(بيتحدّث بعد الحفظ)
             </p>
+            <p className="text-xs text-muted-foreground">
+              نفس تعريفات «إحصائيات التكرار» و«إحصائيات الإزالة». لو الفترة سنة واحدة الرسم بيبقى عمود لكل شهر.
+            </p>
           </Section>
 
           <Section title="خطة الصيانة" on={d.maintenance.enabled} onToggle={(v) => upd("maintenance", { enabled: v })}>
