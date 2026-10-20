@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
 import { buildSlides, defaultDeck, deckValue, monthLabel, hiddenFaultMonths, bookingPct, marketShareValue, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
+import { withBase } from "@/lib/base-path";
 
 type Resp = { deck: Deck; auto: DeckAuto; updatedAt: string | null; updatedBy: string | null };
 
@@ -63,6 +64,112 @@ function CareerEditor({ items, onChange }: { items: string; onChange: (items: st
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" onClick={() => set([...list, { job: "", from: "", to: "" }])} data-testid="career-add">+ إضافة وظيفة</Button>
+    </div>
+  );
+}
+
+const getJson = async (url: string) => {
+  const r = await fetch(url, { credentials: "include" });
+  const j = await r.json().catch(() => null);
+  if (!r.ok) throw new Error(j?.message || "تعذّر التحميل");
+  return j;
+};
+
+/** صور من برنامج الصيانة: سنترال ← كابينة ← بكس ← صور قبل/بعد، والمالك بيختار (الحد ٨ صور فى العرض) */
+function MaintPhotoPicker({ room, onAdd }: { room: number; onAdd: (ids: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [ex, setEx] = useState("");
+  const [cab, setCab] = useState("");
+  const [box, setBox] = useState("");
+  // المختار ممكن ييجى من أكتر من بكس — بيفضل محفوظ وانت بتغيّر البكس
+  const [picked, setPicked] = useState<{ id: number; label: string }[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const exQ = useQuery<{ id: number; name: string; photos: number }[]>({ queryKey: ["/api/presentation/maint/exchanges"], enabled: open, queryFn: () => getJson("/api/presentation/maint/exchanges") });
+  const cabQ = useQuery<{ id: number; number: string; photos: number }[]>({ queryKey: ["maint-cab", ex], enabled: open && !!ex, queryFn: () => getJson(`/api/presentation/maint/cabinets?exchange=${ex}`) });
+  const boxQ = useQuery<{ id: number; number: string; before: number; after: number }[]>({ queryKey: ["maint-box", cab], enabled: open && !!cab, queryFn: () => getJson(`/api/presentation/maint/boxes?cabinet=${cab}`) });
+  const phQ = useQuery<{ id: number; type: "before" | "after"; at: string }[]>({ queryKey: ["maint-ph", box], enabled: open && !!box, queryFn: () => getJson(`/api/presentation/maint/photos?box=${box}`) });
+  const exName = exQ.data?.find((e) => String(e.id) === ex)?.name || "";
+  const cabNo = cabQ.data?.find((c) => String(c.id) === cab)?.number || "";
+  const boxNo = boxQ.data?.find((b) => String(b.id) === box)?.number || "";
+  const isPicked = (id: number) => picked.some((p) => p.id === id);
+  const toggle = (id: number, type: string) => {
+    if (isPicked(id)) return setPicked(picked.filter((p) => p.id !== id));
+    if (picked.length >= room) return setErr(`الحد ٨ صور فى العرض — فاضل ${room} بس`);
+    setErr(null);
+    setPicked([...picked, { id, label: `${exName} · كابينة ${cabNo} · بكس ${boxNo} · ${type === "after" ? "بعد" : "قبل"}` }]);
+  };
+  const add = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch("/api/presentation/maint/import", { method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: picked.map((p) => p.id) }) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(j?.message || "تعذّر نسخ الصور");
+      const ids = (j as { id: string | null }[]).map((x) => x.id).filter(Boolean) as string[];
+      if (ids.length < picked.length) setErr(`${picked.length - ids.length} صورة ماتلاقتش فى برنامج الصيانة`);
+      onAdd(ids); setPicked([]);
+    } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const sel = "h-9 rounded-md border bg-background px-2 text-sm min-w-0";
+  if (!open) return (
+    <Button type="button" variant="outline" size="sm" disabled={room === 0} onClick={() => setOpen(true)} data-testid="maint-picker-open">
+      اختيار صور من برنامج الصيانة {room === 0 ? "(وصلت للحد ٨)" : ""}
+    </Button>
+  );
+  const photos = phQ.data || [];
+  return (
+    <div className="rounded-md border p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <b className="text-sm">صور من برنامج الصيانة</b>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}><X className="w-4 h-4" /></Button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <select className={sel} value={ex} onChange={(e) => { setEx(e.target.value); setCab(""); setBox(""); }} data-testid="maint-ex">
+          <option value="">السنترال…</option>
+          {exQ.data?.map((e) => <option key={e.id} value={e.id}>{e.name} ({e.photos} صورة)</option>)}
+        </select>
+        <select className={sel} value={cab} disabled={!ex} onChange={(e) => { setCab(e.target.value); setBox(""); }} data-testid="maint-cab">
+          <option value="">الكابينة…</option>
+          {cabQ.data?.map((c) => <option key={c.id} value={c.id}>كابينة {c.number} ({c.photos})</option>)}
+        </select>
+        <select className={sel} value={box} disabled={!cab} onChange={(e) => setBox(e.target.value)} data-testid="maint-box">
+          <option value="">البكس…</option>
+          {boxQ.data?.map((b) => <option key={b.id} value={b.id}>بكس {b.number} (قبل {b.before} · بعد {b.after})</option>)}
+        </select>
+      </div>
+      {(exQ.error || cabQ.error || boxQ.error || phQ.error) && <div className="text-xs text-red-600">{String((exQ.error || cabQ.error || boxQ.error || phQ.error as any)?.message)}</div>}
+      {box && (phQ.isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+        <div className="space-y-2">
+          {(["before", "after"] as const).map((t) => {
+            const list = photos.filter((p) => p.type === t);
+            if (!list.length) return null;
+            return (
+              <div key={t}>
+                <div className="text-xs text-muted-foreground mb-1">{t === "before" ? "قبل" : "بعد"}</div>
+                <div className="flex flex-wrap gap-2">
+                  {list.map((p) => (
+                    <button key={p.id} type="button" onClick={() => toggle(p.id, t)} data-testid={`maint-photo-${p.id}`}
+                      className={`relative rounded border-2 ${isPicked(p.id) ? "border-[#57318A]" : "border-transparent"}`}>
+                      <img src={withBase(`/api/presentation/maint/photo/${p.id}`)} alt="" loading="lazy" className="w-28 h-20 object-cover rounded" />
+                      {isPicked(p.id) && <span className="absolute top-1 left-1 bg-[#57318A] text-white text-xs rounded px-1">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span>مختار {picked.length} — متاح {room}</span>
+        {picked.length > 0 && <Button type="button" size="sm" onClick={add} disabled={busy} data-testid="maint-picker-add">
+          {busy ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : null}إضافة المختار للعرض
+        </Button>}
+        {picked.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setPicked([])}>إلغاء الاختيار</Button>}
+      </div>
+      {picked.length > 0 && <ul className="text-xs text-muted-foreground list-disc pr-5">{picked.map((p) => <li key={p.id}>{p.label}</li>)}</ul>}
+      {err && <div className="text-xs text-amber-700">{err}</div>}
     </div>
   );
 }
@@ -366,6 +473,8 @@ export function PresentationReport() {
               <Field label="المحقق (كباين MSAN)"><Input value={d.maintenance.achievedMsan} onChange={(e) => upd("maintenance", { achievedMsan: e.target.value })} /></Field>
             </div>
             <Field label="صور أعمال الصيانة"><Photos ids={d.maintenance.photoIds} onChange={(ids) => upd("maintenance", { photoIds: ids })} /></Field>
+            <MaintPhotoPicker room={Math.max(0, 8 - d.maintenance.photoIds.length)}
+              onAdd={(ids) => upd("maintenance", { photoIds: [...d.maintenance.photoIds, ...ids].slice(0, 8) })} />
           </Section>
 
           <Section title="نسبة الحجز وفك المتعذرات" on={d.booking.enabled} onToggle={(v) => upd("booking", { enabled: v })}>

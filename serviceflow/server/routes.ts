@@ -2713,6 +2713,60 @@ export async function registerRoutes(
     if (!rows[0]?.value) return res.status(404).end();
     res.set("Cache-Control", "private, max-age=86400").type("image/jpeg").send(Buffer.from(rows[0].value, "base64"));
   });
+  // صور خطة الصيانة من برنامج الصيانة: سنترال ← كابينة ← بكس ← صور قبل/بعد، والمالك بيختار (server/presentation-maint-photos.ts)
+  const maintId = (v: unknown) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null; };
+  app.get("/api/presentation/maint/exchanges", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try { const m = await import("./presentation-maint-photos"); res.json(await m.maintExchanges(pool)); }
+    catch (e: any) { res.status(500).json({ message: "برنامج الصيانة مش متاح: " + e.message }); }
+  });
+  app.get("/api/presentation/maint/cabinets", requireAuth, requireSuperAdmin, async (req, res) => {
+    const id = maintId(req.query.exchange); if (!id) return res.status(400).json({ message: "السنترال مطلوب" });
+    try { const m = await import("./presentation-maint-photos"); res.json(await m.maintCabinets(pool, id)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.get("/api/presentation/maint/boxes", requireAuth, requireSuperAdmin, async (req, res) => {
+    const id = maintId(req.query.cabinet); if (!id) return res.status(400).json({ message: "الكابينة مطلوبة" });
+    try { const m = await import("./presentation-maint-photos"); res.json(await m.maintBoxes(pool, id)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.get("/api/presentation/maint/photos", requireAuth, requireSuperAdmin, async (req, res) => {
+    const id = maintId(req.query.box); if (!id) return res.status(400).json({ message: "البكس مطلوب" });
+    try { const m = await import("./presentation-maint-photos"); res.json(await m.maintPhotos(pool, id)); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // معاينة مصغّرة (٤٠٠ بكسل) للاختيار
+  app.get("/api/presentation/maint/photo/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+    const id = maintId(req.params.id); if (!id) return res.status(404).end();
+    try {
+      const m = await import("./presentation-maint-photos");
+      const buf = await m.maintPhotoBytes(pool, id);
+      if (!buf) return res.status(404).end();
+      const sharp = (await import("sharp")).default;
+      const thumb = await sharp(buf).rotate().resize({ width: 400, height: 400, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 70 }).toBuffer();
+      res.set("Cache-Control", "private, max-age=86400").type("image/jpeg").send(thumb);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // المختار بيتنسخ لصور العرض (١٦٠٠ بكسل JPEG) — وبيرجّع الأرقام الجديدة بنفس ترتيب الطلب
+  app.post("/api/presentation/maint/import", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const m = await import("./presentation-maint-photos");
+      const { IMG_PREFIX } = await import("./presentation-deck");
+      const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(maintId).filter(Boolean).slice(0, m.MAX_DECK_PHOTOS) as number[];
+      if (!ids.length) return res.status(400).json({ message: "مفيش صور مختارة" });
+      const sharp = (await import("sharp")).default;
+      const out: { photoId: number; id: string | null }[] = [];
+      for (const pid of ids) {
+        const buf = await m.maintPhotoBytes(pool, pid);
+        if (!buf) { out.push({ photoId: pid, id: null }); continue; }
+        const jpg = await sharp(buf).rotate().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer();
+        const id = randomBytes(9).toString("hex");
+        await pool.query(`INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)`,
+          [IMG_PREFIX + id, jpg.toString("base64"), String(req.user?.username || "")]);
+        out.push({ photoId: pid, id });
+      }
+      res.json(out);
+    } catch (e: any) { res.status(500).json({ message: "تعذّر نسخ الصور: " + e.message }); }
+  });
   // تحميل باور بوينت — نفس الشرايح اللى على الشاشة (server/presentation-pptx.ts)
   app.get("/api/presentation/pptx", requireAuth, requireSuperAdmin, async (_req, res) => {
     try {
