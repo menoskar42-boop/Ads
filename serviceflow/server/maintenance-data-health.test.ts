@@ -31,3 +31,10 @@ test("بيبيّن الصيانة المؤرشفة اللى تقرير الصي�
   assert.match(html, /مؤرشف — مش ظاهر/);
   assert.match(html, /بوكسات مكررة/);
 });
+
+test("كروت لوحة التقارير بتجمع الإجمالى: «بانتظار اعتماد المراقب» كانت ناقصة", () => {
+  const dash = readFileSync(new URL("./maintenance/app/views/reports/dashboard.ejs", import.meta.url), "utf8");
+  for (const k of ["pending_inspection", "inspected", "needs_maintenance", "in_progress", "pending_approval", "completed"]) {
+    assert.match(dash, new RegExp(`key: '${k}'`), k);
+  }
+});

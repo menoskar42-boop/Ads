@@ -8,10 +8,12 @@
     { key: 'inspected',          label: 'تم الفحص',        cls: 'info',      icon: 'clipboard-check' },
     { key: 'needs_maintenance',  label: 'يحتاج صيانة',    cls: 'warning',   icon: 'exclamation-triangle' },
     { key: 'in_progress',        label: 'قيد الصيانة',     cls: 'warning',   icon: 'tools' },
-    { key: 'completed',          label: 'مكتمل',           cls: 'success',   icon: 'check-circle' },
+    // كانت ناقصة: الفنى خلّص ومستنى موافقة المراقب — فالكروت ماكانتش بتجمع الإجمالى (٢٠٢٦-١٠-٢٠)
+    { key: 'pending_approval',   label: 'بانتظار اعتماد المراقب', cls: 'primary', icon: 'hourglass-split' },
+    { key: 'completed',          label: 'مكتمل (معتمد)',   cls: 'success',   icon: 'check-circle' },
   ]; %>
   <% cards.forEach(c => { %>
-  <div class="col-6 col-md-2">
+  <div class="col-6 col-md">
     <div class="card text-center py-3">
       <i class="bi bi-<%= c.icon %> text-<%= c.cls %> fs-3 mb-1"></i>
       <div class="fs-2 fw-bold"><%= counts[c.key] || 0 %></div>
@@ -19,7 +21,7 @@
     </div>
   </div>
   <% }) %>
-  <div class="col-6 col-md-2">
+  <div class="col-6 col-md">
     <div class="card text-center py-3">
       <i class="bi bi-box2 text-primary fs-3 mb-1"></i>
       <div class="fs-2 fw-bold text-primary"><%= totalBoxes %></div>
