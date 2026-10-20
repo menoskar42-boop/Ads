@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getUserGroupEntry, memberKeyHeaders } from '@/lib/user-groups';
+import { getUserGroupEntry, memberKeyHeaders, nameKey } from '@/lib/user-groups';
 
 function RankStars({ count }: { count: number }) {
   const levels = [
@@ -53,6 +53,9 @@ export default function GroupMembers() {
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameLoading, setRenameLoading] = useState(false);
+  // الدمج باختيار العضو من القايمة (اسمين شكلهم واحد ممكن يبقى بينهم حرف مخفى)
+  const [renameSourceId, setRenameSourceId] = useState<number | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
 
   // تسجيل اسم وموبايل عضو — كأنه سجّلهم بنفسه (لو غيّر موبايله يرجع لحسابه بيهم)
   const [profileTarget, setProfileTarget] = useState<string | null>(null);
@@ -175,7 +178,7 @@ export default function GroupMembers() {
       const res = await fetch(`/api/groups/${groupCode}/members/${encodeURIComponent(renameTarget)}/rename`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leaderKey: memberKey, newName: renameValue.trim() }),
+        body: JSON.stringify({ leaderKey: memberKey, newName: renameValue.trim(), sourceId: renameSourceId, targetId: mergeTargetId }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
@@ -374,7 +377,7 @@ export default function GroupMembers() {
                       size="icon"
                       className="h-7 w-7"
                       title="تعديل / تصحيح الاسم"
-                      onClick={() => { setRenameTarget(m.userName); setRenameValue(m.userName); }}
+                      onClick={() => { setRenameTarget(m.userName); setRenameValue(m.userName); setRenameSourceId(m.id ?? null); setMergeTargetId(null); }}
                       data-testid={`button-rename-${m.userName}`}
                     >
                       <span className="text-sm">✏️</span>
@@ -566,6 +569,33 @@ export default function GroupMembers() {
             <p className="text-xs text-muted-foreground leading-relaxed">
               لو الاسم الجديد موجود بالفعل لعضو آخر، سيتم <span className="font-semibold text-foreground">دمج الحسابين</span> ونقل كل القراءات للاسم الصحيح بدون تكرار.
             </p>
+            {(() => {
+              const similar = members.filter((x: any) => x.id !== renameSourceId && nameKey(x.userName) === nameKey(renameValue));
+              if (!similar.length) return null;
+              return (
+                <div className="space-y-2" data-testid="merge-candidates">
+                  <p className="text-xs font-semibold text-foreground">أعضاء بنفس الاسم — اختار اللى هيتدمج فيه:</p>
+                  {similar.map((x: any) => (
+                    <button
+                      key={x.id}
+                      type="button"
+                      onClick={() => setMergeTargetId(mergeTargetId === x.id ? null : x.id)}
+                      className={`w-full text-right rounded-lg border px-3 py-2 text-sm flex items-center justify-between gap-2 ${mergeTargetId === x.id ? 'border-primary bg-primary/10' : 'border-border'}`}
+                      data-testid={`merge-target-${x.id}`}
+                    >
+                      <span className="font-medium">{x.userName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {memberStats[x.userName] || 0} إصحاح
+                        {x.joinedAt ? ` · انضم ${new Date(x.joinedAt).toLocaleDateString('ar-EG')}` : ''}
+                      </span>
+                    </button>
+                  ))}
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    بعد الدمج بيفضل حساب واحد فيه كل القراءات — <b>الأحدث انضماماً</b> (اللى على موبايل العضو دلوقتى)، مهما كان اتجاه الدمج.
+                  </p>
+                </div>
+              );
+            })()}
             <Button onClick={handleRename} disabled={renameLoading || !renameValue.trim()} className="w-full">
               {renameLoading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Check className="w-4 h-4 ml-2" />}
               حفظ

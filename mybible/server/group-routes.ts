@@ -9,7 +9,7 @@ import {
   groupAssignments, assignmentReadings, groupJoinRequests, groupGuestTokens,
 } from "@shared/schema";
 import crypto from "crypto";
-import { canMergeGuest, canRejoinByName, checkAdminProfile, normalizePhone } from './guest-identity';
+import { canMergeGuest, canRejoinByName, checkAdminProfile, nameKey, normalizePhone } from './guest-identity';
 import { groupViewFor, publicGroup } from './group-privacy';
 import { getOrLoad, invalidate as invalidateGroupCache } from './group-cache';
 
@@ -357,14 +357,14 @@ export function registerGroupRoutes(app: Express) {
 
       // هل يوجد عضو آخر بنفس الاسم الجديد؟ (حالة الأدمن يسجّل دخوله من حساب ضيف)
       const normalizedRegPhone = phone?.trim().replace(/\s+/g, '') || '';
-      const nameConflict = await db.select().from(groupMembers)
-        .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, newName.trim())));
+      // الاسم بـ nameKey مش بالحرف: «ميري سامي» بحرف مخفى/مسافة زيادة كان بيعدّى كاسم تانى
+      // ويعمل للعضوة حساب تانى بنفس الاسم وقراياتها مقسومة (٢٠٢٦-١٠-٢٠).
+      const all = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
       /* أو بالرقم: لو الرقم ده متسجّل لعضو تانى (العضو نفسه أو الأدمن سجّله) يبقى ده حسابه
        * حتى لو كتب الاسم بشكل مختلف — زى الانضمام برابط الدعوة اللى بيدوّر بالرقم الأول.
        * من غير كده التحديث تحت كان بيقع على فهرس الرقم الفريد («فشل التسجيل»). */
-      let existingReal = nameConflict.find(m => m.memberKey !== memberKey);
+      let existingReal = all.find(m => m.memberKey !== memberKey && nameKey(m.userName) === nameKey(newName));
       if (!existingReal && normalizePhone(normalizedRegPhone)) {
-        const all = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
         existingReal = all.find(m => m.memberKey !== memberKey && normalizePhone(m.phone) === normalizePhone(normalizedRegPhone));
       }
 
@@ -1054,33 +1054,46 @@ export function registerGroupRoutes(app: Express) {
       const authorized = await isAdminByLeaderKey(group, leaderKey);
       if (!authorized) return res.status(403).json({ error: 'غير مسموح' });
 
+      // الدمج باختيار العضو (targetId/sourceId) مش بكتابة اسمه: اسمين شكلهم واحد وبينهم حرف
+      // مخفى أو مسافة (٢٠٢٦-١٠-٢٠) مايتكتبوش بالحرف — الأدمن بيختار من القايمة.
+      const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
+      const sourceId = Number(req.body.sourceId) || 0;
+      const targetId = Number(req.body.targetId) || 0;
       const fromName = decodeURIComponent(req.params.memberName);
-      const toName = (newName || '').trim();
-      if (!toName) return res.status(400).json({ error: 'الاسم الجديد مطلوب' });
-      if (fromName === toName) return res.json({ success: true, userName: toName, unchanged: true });
-
-      const [source] = await db.select().from(groupMembers)
-        .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, fromName)));
+      const source = sourceId ? members.find((m) => m.id === sourceId) : members.find((m) => m.userName === fromName);
       if (!source) return res.status(404).json({ error: 'العضو غير موجود' });
+      const picked = targetId ? members.find((m) => m.id === targetId) : null;
+      if (targetId && (!picked || picked.id === source.id)) return res.status(400).json({ error: 'اختار عضو تانى للدمج' });
+
+      const toName = picked ? picked.userName : (newName || '').trim();
+      if (!toName) return res.status(400).json({ error: 'الاسم الجديد مطلوب' });
+      if (source.userName === toName && !picked) return res.json({ success: true, userName: toName, unchanged: true });
 
       // هل يوجد عضو آخر بالاسم الجديد؟ → دمج
-      const [target] = await db.select().from(groupMembers)
-        .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, toName)));
+      const target = picked || members.find((m) => m.id !== source.id && m.userName === toName);
 
-      const merged = !!target && target.memberKey !== source.memberKey;
+      const merged = !!target;
 
-      // انقل كل تاريخ fromName إلى toName (helper مشترك — يعمل للحالتين)
-      await migrateMemberName(group.id, fromName, toName);
+      // انقل كل تاريخ الاسم القديم إلى toName (helper مشترك — يعمل للحالتين)
+      await migrateMemberName(group.id, source.userName, toName);
 
-      if (merged) {
-        // العضو الجديد موجود — احذف الصف المكرر (مع نقل صلاحية الأدمن لو لزم)
-        if (source.isAdmin && !target.isAdmin) {
-          await db.update(groupMembers).set({ isAdmin: true }).where(eq(groupMembers.id, target.id));
-        }
-        if (source.phone && !target.phone) {
-          await db.update(groupMembers).set({ phone: source.phone }).where(eq(groupMembers.id, target.id));
-        }
-        await db.delete(groupMembers).where(eq(groupMembers.id, source.id));
+      if (target) {
+        /* دمج: صف واحد بيفضل بالاسم المختار وكل القراءات. بيفضل **الأحدث انضماماً** — ده اللى
+         * على موبايل العضو دلوقتى (غيّر موبايله فاتعمله حساب جديد). لو اتمسح هو، الموبايل كان
+         * هيفضل يسجّل على حساب مش موجود. فالاتجاه مايفرقش لو الأدمن ضغط على أنهى واحد فيهم. */
+        const t = (m: any) => new Date(m.joinedAt || 0).getTime();
+        const keep = t(source) > t(target) ? source : target;
+        const drop = keep === source ? target : source;
+        // المسح الأول: الرقم عليه فهرس فريد، فنقله قبل المسح كان بيفشل
+        await db.delete(groupMembers).where(eq(groupMembers.id, drop.id));
+        const carry: any = {};
+        if (keep.userName !== toName) carry.userName = toName;
+        if (drop.isAdmin && !keep.isAdmin) carry.isAdmin = true;
+        if (drop.phone && !keep.phone) carry.phone = drop.phone;
+        if (Object.keys(carry).length) await db.update(groupMembers).set(carry).where(eq(groupMembers.id, keep.id));
+        // الموبايل القديم (لو اتمسح تخزينه ودخل تانى بالكوكى) يرجع للحساب اللى فاضل
+        await db.update(groupGuestTokens).set({ memberKey: keep.memberKey })
+          .where(and(eq(groupGuestTokens.groupId, group.id), eq(groupGuestTokens.memberKey, drop.memberKey)));
       } else {
         // مجرد إعادة تسمية
         await db.update(groupMembers).set({ userName: toName }).where(eq(groupMembers.id, source.id));

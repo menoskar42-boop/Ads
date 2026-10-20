@@ -106,3 +106,13 @@ export function memberKeyHeaders(groupCode: string): Record<string, string> {
   if (!key) return {};
   return name ? { 'X-Member-Key': key, 'X-Member-Name': encodeURIComponent(name) } : { 'X-Member-Key': key };
 }
+
+/** مفتاح مقارنة الأسامى — نسخة من nameKey فى server/guest-identity.ts (لازم يفضلوا زى بعض). */
+export function nameKey(raw?: string | null): string {
+  return String(raw ?? '')
+    .normalize('NFC')
+    .replace(/[​-‏‪-‮⁦-⁩﻿ـ]/g, '')
+    .replace(/[ً-ْٰ]/g, '')
+    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ').trim().toLowerCase();
+}

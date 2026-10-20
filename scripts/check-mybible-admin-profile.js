@@ -28,6 +28,11 @@ const fail = (m) => { console.error('❌ ' + m); process.exitCode = 1; };
 if (!fs.existsSync(ROUTES)) { console.log('⏭️  mybible مش موجود'); process.exit(0); }
 
 /* ── ١) القرار ─────────────────────────────────────────────────────────── */
+const NAME_CASES = [
+  ['ميري سامي', 'ميري سامي ', true], ['ميري سامي', 'ميري  سامي', true], ['ميري سامي', 'ميرى سامي', true],
+  ['ميري سامي', 'ميري\u200f سامي', true], ['ميري سامي', 'مِيري سامي', true], ['ميري سامي', 'ميري ساميه', false],
+  ['ميري سامي', 'مريم سامي', false],
+];
 const MEMBERS_ROWS = [
   { id: 1, userName: 'عضو 372', phone: null },
   { id: 2, userName: 'مينا', phone: '+20 101 234 5678' },
@@ -50,11 +55,16 @@ try {
 const m = await import(${JSON.stringify('file://' + IDENTITY)});
 const rows = ${JSON.stringify(MEMBERS_ROWS)};
 const out = ${JSON.stringify(CASES)}.map(([t, n, p, want, label]) => ({ label, want, d: m.checkAdminProfile(rows, t, n, p) }));
-process.stdout.write('@@JSON@@' + JSON.stringify(out));
+const names = ${JSON.stringify(NAME_CASES)}.map(([a, b, want]) => ({ a, b, want, got: m.nameKey(a) === m.nameKey(b) }));
+process.stdout.write('@@JSON@@' + JSON.stringify({ out, names }));
 `, 'utf8');
   const raw = execFileSync(process.execPath, ['--no-warnings', probe], { maxBuffer: 1 << 24 }).toString('utf8');
   fs.unlinkSync(probe);
-  results = JSON.parse(raw.slice(raw.indexOf('@@JSON@@') + 8));
+  const parsed = JSON.parse(raw.slice(raw.indexOf('@@JSON@@') + 8));
+  results = parsed.out;
+  for (const n of parsed.names) {
+    if (n.got !== n.want) fail(`nameKey: «${n.a}» و«${JSON.stringify(n.b)}» المفروض ${n.want ? 'يبقوا نفس الاسم' : 'يبقوا اسمين'}`);
+  }
 } catch (e) {
   console.error('⚠️  مش قادر أشغّل guest-identity.ts (محتاج Node ≥ 22.6): ' + String(e.stderr || e.message).split('\n')[0]);
   process.exit(1);
@@ -101,6 +111,16 @@ for (const route of ["'/api/groups/:code/reading'", "'/api/groups/:code/assignme
   if (!/if \(rows\.some\(\(r\) => r\.userName === body\?\.userName\)\) return body\.userName;\s*if \(rows\.length === 1/.test(rn)) {
     fail('readerName لازم يسيب اسم الموبايل لو هو اسم صاحب المفتاح، ومايغيّرش غير لو المفتاح لعضو واحد');
   }
+}
+{
+  // «سجّل اسمك» بيقارن الأسامى بـ nameKey (اسمين «ميري سامي» بحرف مخفى — ٢٠٢٦-١٠-٢٠)
+  const gr = src.slice(src.indexOf("'/api/groups/:code/guest-register'"), src.indexOf("'/api/groups/:code/guest-register'") + 2500);
+  if (!/nameKey\(m\.userName\) === nameKey\(newName\)/.test(gr)) fail('«سجّل اسمك» بيقارن الاسم بالحرف — اسم بحرف مخفى بيعمل حساب تانى بنفس الاسم');
+  // الدمج: بالاختيار (targetId) والأحدث انضماماً هو اللى بيفضل
+  const rn = src.slice(src.indexOf("'/api/groups/:code/members/:memberName/rename'"), src.indexOf("'/api/groups/:code/members/:memberName/rename'") + 4000);
+  if (!/req\.body\.targetId/.test(rn)) fail('الدمج مابيقبلش اختيار العضو (targetId)');
+  if (!/const keep = t\(source\) > t\(target\) \? source : target;/.test(rn)) fail('الدمج لازم يسيب الحساب الأحدث انضماماً (اللى على موبايل العضو)');
+  if (rn.indexOf('db.delete(groupMembers)') > rn.indexOf('carry.phone')) fail('الرقم بيتنقل قبل مسح الصف القديم — الفهرس الفريد هيرفض');
 }
 const view = strip(VIEW);
 if ((view.match(/\{ userName, memberKey, (?:bookName|book):/g) || []).length < 2) {

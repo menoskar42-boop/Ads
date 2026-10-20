@@ -40,6 +40,20 @@ export function normalizePhone(raw?: string | null): string {
   return digits;
 }
 
+/**
+ * مفتاح مقارنة الأسامى: «ميري سامي» و«ميرى  سامي » و«ميري سامي» بحرف مخفى = نفس الاسم.
+ * (حالة حقيقية ٢٠٢٦-١٠-٢٠: عضوة سجّلت اسمها على حساب جديد وطلع اسمين «ميري سامي» —
+ * الفرق مش باين للعين، والمقارنة بالحرف عدّته.) للمقارنة بس — الاسم بيتحفظ زى ما اتكتب.
+ */
+export function nameKey(raw?: string | null): string {
+  return String(raw ?? '')
+    .normalize('NFC')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF\u0640]/g, '') // حروف مخفية + تطويل
+    .replace(/[\u064B-\u0652\u0670]/g, '')                                      // تشكيل
+    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 export type MergeRefusal =
   | 'phone-missing'      // الضيف ما كتبش تليفون
   | 'no-phone-on-file'   // العضو القديم مالوش تليفون مسجّل — مفيش حاجة نطابق عليها
@@ -113,7 +127,7 @@ export function checkAdminProfile(
   if (phone.length < 10) return { ok: false, message: 'رقم الموبايل غير صحيح' };
 
   const others = members.filter((m) => m.id !== targetId);
-  if (others.some((m) => m.userName === userName)) {
+  if (others.some((m) => nameKey(m.userName) === nameKey(userName))) {
     return { ok: false, message: 'الاسم ده مسجّل لعضو تاني. لو هو نفس الشخص استخدم «تعديل / تصحيح الاسم» عشان تدمجهم' };
   }
   if (others.some((m) => normalizePhone(m.phone) === phone)) {
