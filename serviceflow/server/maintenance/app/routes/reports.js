@@ -1723,7 +1723,10 @@ async function maintenanceReportRows(req, filters) {
         u.worker_code  AS worker_code,
         cc.cabinet_code,
         cc.exchange_code,
-        (
+        -- تاريخ الأعمال = آخر بند **صيانة** اتعلّم. «مراجعة بيانات البكس» بتتقفل لوحدها (غالباً
+        -- من شاشة المراجعة بالجملة) — كانت بتسحب تاريخ كل البكسات ليومها، فالتقرير كله
+        -- بقى يومين (١٢ و١٣ أكتوبر). بتتحسب بس لو هى الشغل الوحيد فى المهمة.
+        COALESCE((
           SELECT MAX(mis.done_at)
           FROM maintenance_item_status mis
           JOIN inspection_items ii_sub
@@ -1732,7 +1735,12 @@ async function maintenanceReportRows(req, filters) {
             AND mis.is_done = 1
             AND ii_sub.value IN ('bad','yes')
             AND ii_sub.item_key NOT IN ${EXCLUDED_ITEMS}
-        ) AS work_date
+            AND ii_sub.item_key <> 'data_review'
+        ), (
+          SELECT MAX(mis.done_at)
+          FROM maintenance_item_status mis
+          WHERE mis.task_id = mt.id AND mis.is_done = 1 AND mis.item_key = 'data_review'
+        )) AS work_date
       FROM maintenance_tasks mt
       JOIN inspections i  ON i.id  = mt.inspection_id
       JOIN boxes b        ON b.id  = i.box_id
@@ -1740,8 +1748,13 @@ async function maintenanceReportRows(req, filters) {
       JOIN exchanges e    ON e.id  = c.exchange_id
       JOIN users u        ON u.id  = mt.technician_id
       ${cabinetCodesJoinSql()}
+      /* «كل البكسات اللى فنى الصيانة خلّص فيها كل حاجة ماعدا التعارضات التلاتة، سواء الشئون
+       * الخارجية أكدت ولا لأ» (المالك ٢٠٢٦-١٠-٢٠). حالتين كانوا بيخفوا صيانة خلصت فعلاً:
+       *  ١) البكس اتفحص تانى ⇒ الفحص القديم اتأرشف ⇒ صيانته اختفت. الصيانة اتعملت — بتفضل فى التقرير.
+       *  ٢) «مراجعة بيانات البكس» (من Service Flow) اتضافت على مهمة خلصت ⇒ بند جديد مش متعلّم
+       *     ⇒ البكس اختفى. مراجعة البيانات مش شغل صيانة — مابتمنعش «خلّص كل حاجة».
+       *     (مهمة مراجعة بيانات لوحدها بتظهر لما تخلص زى الأول.) */
       WHERE mt.technician_id IS NOT NULL
-        AND (i.is_archived IS NULL OR i.is_archived = 0)
         AND EXISTS (
           SELECT 1 FROM inspection_items ii
           JOIN maintenance_item_status mis2
@@ -1755,6 +1768,7 @@ async function maintenanceReportRows(req, filters) {
           WHERE ii2.inspection_id = i.id
             AND ii2.value IN ('bad','yes')
             AND ii2.item_key NOT IN ${EXCLUDED_ITEMS}
+            AND ii2.item_key <> 'data_review'
             AND NOT EXISTS (
               SELECT 1 FROM maintenance_item_status mis3
               WHERE mis3.task_id = mt.id

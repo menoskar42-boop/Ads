@@ -56,6 +56,13 @@
   </div>
   <div class="col-md-auto text-muted small pt-2">
     إجمالي: <strong><%= rows.length %></strong> بوكس
+    <% if (rows.length) {
+         const days = rows.map(r => r.work_date ? new Date(r.work_date).toISOString().split('T')[0] : null).filter(Boolean).sort();
+         const nDays = new Set(days).size; %>
+    <% if (days.length) { %> · من <strong dir="ltr"><%= days[0] %></strong> إلى <strong dir="ltr"><%= days[days.length - 1] %></strong> (<%= nDays %> يوم شغل)<% } %>
+    <%# الجدول بشريط تمرير خاص بيه — بيبان منه ~١٤ سطر والباقى جوّاه (المالك ٢٠٢٦-١٠-٢٠) %>
+    <% if (rows.length > 12) { %><span class="no-print text-primary"> · ↕ باقى السطور جوّه الجدول — مرّر عليه</span><% } %>
+    <% } %>
   </div>
 </form>
 
