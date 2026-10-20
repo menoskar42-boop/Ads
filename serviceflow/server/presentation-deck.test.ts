@@ -13,7 +13,8 @@ const ZERO = { lines: 0, copperCabinets: 0, msanCabinets: 0, boxes: 0, capacity:
 const auto: DeckAuto = {
   exchanges: { GHNAT: { ...ZERO, lines: 5000, boxes: 300 }, AMZAT: { ...ZERO, lines: 1200 }, DRGAT: { ...ZERO }, NGOAT: { ...ZERO } },
   total: { ...ZERO, lines: 6200, boxes: 300 },
-  faultsByYear: [{ year: "2024", complaints: 900, repeatPct: 12.5, in48Pct: 80 }, { year: "2025", complaints: 700, repeatPct: 9.1, in48Pct: 88 }],
+  faultsByYear: [],
+  faultsByMonth: [{ month: "2025-12", complaints: 900, repeatPct: 12.5, in48Pct: 80 }, { month: "2026-01", complaints: 700, repeatPct: 9.1, in48Pct: 88 }],
   maintenance: { boxesTotal: 1000, boxesDone: 214, byYear: [{ year: "2026", done: 214 }] },
   decentLife: [], errors: [], computedAt: "",
 };
@@ -58,11 +59,12 @@ test("الأقسام الاختيارية (حياة كريمة · الإنجاز
 });
 
 test("مؤشرات الأداء بتتشال لو مفيش أعطال أو المفتاح مقفول", () => {
-  assert.ok(!kinds(defaultDeck(), { ...auto, faultsByYear: [] }).some((k) => k.startsWith("chart")));
+  assert.ok(!kinds(defaultDeck(), { ...auto, faultsByMonth: [] }).some((k) => k.startsWith("chart")));
   const d = defaultDeck(); d.faults.enabled = false;
   assert.ok(!kinds(d).some((k) => k.startsWith("chart")));
   const chart = buildSlides(defaultDeck(), auto).find((s) => s.kind === "chart");
-  assert.deepEqual(chart && chart.kind === "chart" ? chart.points : null, [{ label: "2024", value: 12.5 }, { label: "2025", value: 9.1 }]);
+  // سنتين مختلفين ⇒ اسم الشهر + السنة القصيرة
+  assert.deepEqual(chart && chart.kind === "chart" ? chart.points : null, [{ label: "ديسمبر 25", value: 12.5 }, { label: "يناير 26", value: 9.1 }]);
 });
 
 test("الرقم المكتوب بالإيد يغلب التلقائى، والإجمالى آخر صف فى جدول السنترالات", () => {
@@ -177,17 +179,28 @@ test("العملاء: البيانات = بورتات used، وWE = أكونت +
   assert.ok(cust.kind === "table" && !cust.rows.some((r) => r[0].includes("بأكونت")));
 });
 
-test("مؤشرات الأعطال: بتتطابق بـ exchange_name، ولو سنة واحدة الرسم بالشهور", () => {
+test("مؤشرات الأعطال: آخر ١٢ شهر + الحالى، كل شهر لوحده، وزرار يخفى أى شهر", async () => {
+  const { faultsStartMonth } = await import("../shared/presentation-deck");
   assert.match(src, /NORM\("cd\.exchange_name"\)\} = ANY/);
   assert.match(src, /COALESCE\(cd\.time_till_now/);
-  const a: DeckAuto = { ...auto, faultsByYear: [{ year: "2026", complaints: 500, repeatPct: 7.5, in48Pct: 91 }],
-    faultsByMonth: [{ month: "2026-01", complaints: 60, repeatPct: 8, in48Pct: 90 }, { month: "2026-02", complaints: 50, repeatPct: 7, in48Pct: 92 }] };
-  const d = defaultDeck(); d.faults.fromYear = "2026";
-  const charts = buildSlides(d, a).filter((s) => s.kind === "chart");
+  assert.match(src, /'YYYY-MM'\) >= \$2/);
+  assert.equal(faultsStartMonth(new Date("2026-10-20T12:00:00Z")), "2025-10");
+  assert.equal(faultsStartMonth(new Date("2026-01-05T12:00:00Z")), "2025-01");
+  const a: DeckAuto = { ...auto, computedAt: "2026-10-20T18:00:00Z",
+    faultsByMonth: [{ month: "2026-08", complaints: 70, repeatPct: 9, in48Pct: 85 }, { month: "2026-09", complaints: 60, repeatPct: 8, in48Pct: 90 },
+      { month: "2026-10", complaints: 50, repeatPct: 7, in48Pct: 92 }] };
+  const d = defaultDeck();
+  let charts = buildSlides(d, a).filter((s) => s.kind === "chart");
   assert.equal(charts.length, 2);
-  assert.ok(charts[0].kind === "chart" && charts[0].title === "نسب تكرار الأعطال عام 2026");
-  assert.deepEqual(charts[0].kind === "chart" && charts[0].points, [{ label: "يناير", value: 8 }, { label: "فبراير", value: 7 }]);
-  assert.ok(charts[1].kind === "chart" && charts[1].note.includes("91%"));
+  assert.ok(charts[0].kind === "chart" && charts[0].title === "نسب تكرار الأعطال شهرياً (أغسطس 2026 – أكتوبر 2026)");
+  assert.deepEqual(charts[0].kind === "chart" && charts[0].points.map((p) => p.label), ["أغسطس", "سبتمبر", "أكتوبر"]);
+  assert.ok(charts[1].kind === "chart" && charts[1].note.includes("أكتوبر من أوله لحد 20 أكتوبر"));
+  // المالك يقفل أغسطس ⇒ سبتمبر وأكتوبر بس، كل واحد بنسبته هو
+  d.faults.hiddenMonths = "2026-08";
+  charts = buildSlides(d, a).filter((s) => s.kind === "chart");
+  assert.deepEqual(charts[0].kind === "chart" && charts[0].points, [{ label: "سبتمبر", value: 8 }, { label: "أكتوبر", value: 7 }]);
+  d.faults.hiddenMonths = "2026-08,2026-09,2026-10";
+  assert.ok(!buildSlides(d, a).some((s) => s.kind === "chart" || (s.kind === "divider" && s.title === "مؤشرات ومعدلات الأداء")));
 });
 
 test("نسبة الحجز وفك المتعذرات: أرقام الغنايم حتى ١٨ أكتوبر افتراضياً، والعرض المحفوظ قبل كده بياخدها، وبتتعدّل", async () => {
@@ -201,7 +214,9 @@ test("نسبة الحجز وفك المتعذرات: أرقام الغنايم �
   assert.ok(t && t.kind === "table");
   assert.equal(t.title, "نسبة الحجز وفك المتعذرات حتى 18 أكتوبر 2026");
   assert.deepEqual(t.rows, [["1267", "1230", "36", "0", "0", "1", "97%"]]);
-  assert.equal(t.note, "نسبة الحجز لـمنطقة أسيوط فى نفس التاريخ: 84%");
+  // مفيش مقارنة بالمنطقة (المالك: «أنا ليا نتيجتى فقط»)
+  assert.equal(t.note, "");
+  assert.doesNotMatch(JSON.stringify(t), /أسيوط|84%/);
   const d = normalizeDeck({ booking: { total: "1300", capacity: "1287" } });
   assert.equal(bookingPct(d.booking), "99%");
   d.booking.pct = "98.5%";

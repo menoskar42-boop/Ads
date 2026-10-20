@@ -15,13 +15,14 @@ export type Deck = {
   /** showShare: الحصة السوقية فى العرض — مقفولة افتراضياً (المالك ٢٠٢٦-١٠-٢٠: طلعت 104% فغالباً غلط لحد ما تتراجع) */
   customers: { weData: string; marketShare: string; showShare: boolean };
   decentLife: { enabled: boolean; phase1: string; phase2: string; notes: string };
-  faults: { enabled: boolean; fromYear: string };
+  /** hiddenMonths: شهور مخفية من الرسم «YYYY-MM» مفصولة بفاصلة (المالك: زرار قدّام كل شهر) */
+  faults: { enabled: boolean; hiddenMonths: string };
   // خطة الصيانة: المحقق بس — مفيش مستهدف (المالك ٢٠٢٦-١٠-٢٠)
   maintenance: { enabled: boolean; period: string; achievedCopper: string; achievedMsan: string; photoIds: string[] };
   /** نسبة الحجز وفك المتعذرات — نفس أعمدة تقرير «نسبة الحجز» بتاع منطقة أسيوط (المالك ٢٠٢٦-١٠-٢٠).
    *  مفتاح جديد (كان blocked) عشان الافتراضيات (أرقام الغنايم حتى ١٨ أكتوبر) تتحط فى العرض المحفوظ. */
   booking: { enabled: boolean; asOf: string; total: string; capacity: string; blocked: string; clarify: string;
-    noReply: string; otherExchange: string; pct: string; regionName: string; regionPct: string };
+    noReply: string; otherExchange: string; pct: string };
   achievements: { enabled: boolean; items: string; photoIds: string[] };
   vision: { enabled: boolean; items: string };
   closing: { enabled: boolean; text: string };
@@ -45,10 +46,10 @@ export function defaultDeck(): Deck {
     exchanges: DEFAULT_EXCHANGES.map((e) => ({ ...e })),
     customers: { weData: "", marketShare: "", showShare: false },
     decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
-    faults: { enabled: true, fromYear: "2024" },
+    faults: { enabled: true, hiddenMonths: "" },
     maintenance: { enabled: true, period: "2026", achievedCopper: "", achievedMsan: "", photoIds: [] },
     booking: { enabled: true, asOf: "18 أكتوبر 2026", total: "1267", capacity: "1230", blocked: "36", clarify: "0",
-      noReply: "0", otherExchange: "1", pct: "", regionName: "منطقة أسيوط", regionPct: "84%" },
+      noReply: "0", otherExchange: "1", pct: "" },
     achievements: { enabled: false, items: "", photoIds: [] },
     vision: { enabled: false, items: "" },
     closing: { enabled: true, text: "شكراً لحسن استماعكم" },
@@ -168,6 +169,23 @@ export function careerItems(rows: CareerRow[]): string {
   return rows.map((r) => `${clean(r.job)} | ${clean(r.from)} | ${clean(r.to)}`).join("\n");
 }
 
+/** أول شهر فى فترة مؤشرات الأعطال: ١٢ شهر قبل الشهر الحالى (UTC زى التقارير) — «YYYY-MM» */
+export function faultsStartMonth(now: Date): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 12, 1));
+  return d.toISOString().slice(0, 7);
+}
+/** «2026-09» ⇒ «سبتمبر» / «سبتمبر 26» / «سبتمبر 2026» */
+export function monthLabel(m: string, year: "none" | "short" | "full"): string {
+  const name = MONTHS[Number(m.slice(5, 7)) - 1] || m;
+  return year === "none" ? name : `${name} ${year === "short" ? m.slice(2, 4) : m.slice(0, 4)}`;
+}
+export const hiddenFaultMonths = (deck: Deck) => new Set(deck.faults.hiddenMonths.split(",").map((x) => x.trim()).filter(Boolean));
+/** شهور الرسم: اللى فيها أعطال، فى الفترة، ومش مخفية */
+export function visibleFaultMonths(deck: Deck, auto: DeckAuto | null) {
+  const hidden = hiddenFaultMonths(deck);
+  return (auto?.faultsByMonth || []).filter((m) => !hidden.has(m.month));
+}
+
 const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
 const lines = (s: string) => String(s || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
 const pairs = (s: string) => lines(s).map((l) => {
@@ -205,7 +223,8 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     });
   }
 
-  const showPerf = deck.faults.enabled && (auto?.faultsByYear?.length ?? 0) > 0;
+  const perfMonths = visibleFaultMonths(deck, auto);
+  const showPerf = deck.faults.enabled && perfMonths.length > 0;
   // شرايح «مبادرات وأهم الإنجازات» بتتحسب الأول عشان الأجندة والفاصل مايظهروش وهى فاضية
   const work: Slide[] = [];
   const m = deck.maintenance;
@@ -224,8 +243,8 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   if (b.enabled && (b.total || b.capacity || b.blocked)) {
     work.push({ kind: "table", title: `نسبة الحجز وفك المتعذرات${b.asOf ? ` حتى ${b.asOf}` : ""}`,
       columns: ["إجمالى الطلبات", "إجمالى الإمكانية", "متعذر", "توضيح عنوان", "بدون رد", "العنوان لا يتبع السنترال", "نسبة الحجز"],
-      rows: [[b.total, b.capacity, b.blocked, b.clarify, b.noReply, b.otherExchange, bookingPct(b)]], imageId: "",
-      note: b.regionPct.trim() ? `نسبة الحجز ${b.regionName.trim() ? `لـ${b.regionName.trim()}` : "للمنطقة"} فى نفس التاريخ: ${b.regionPct.trim()}` : "", totalLast: false });
+      // المالك ٢٠٢٦-١٠-٢٠: «احذف المقارنة بأسيوط — أنا ليا نتيجتى فقط»
+      rows: [[b.total, b.capacity, b.blocked, b.clarify, b.noReply, b.otherExchange, bookingPct(b)]], imageId: "", note: "", totalLast: false });
   }
   if (deck.achievements.enabled && (deck.achievements.items || deck.achievements.photoIds.length)) {
     if (deck.achievements.items) work.push({ kind: "list", title: "أهم الإنجازات", lead: "", items: lines(deck.achievements.items) });
@@ -278,25 +297,19 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   // ── الأداء ──
   if (showPerf && auto) {
     slides.push({ kind: "divider", title: "مؤشرات ومعدلات الأداء" });
-    const fy = auto.faultsByYear;
-    const fm = auto.faultsByMonth || [];
-    const RNOTE = "التكرار = (الأعطال المغلقة − عدد الأرقام) ÷ عدد الأرقام";
-    const INOTE = "من إجمالى الأعطال المبلّغة فى الفترة";
-    if (fy.length === 1 && fm.length >= 2) {
-      // سنة واحدة (مثلاً 2026): عمود لكل شهر، ونسبة السنة كلها فى الملاحظة
-      const y = fy[0];
-      const pts = (k: "repeatPct" | "in48Pct") => fm.filter((m) => m[k] != null).map((m) => ({ label: MONTHS[Number(m.month.slice(5, 7)) - 1] || m.month, value: m[k] as number }));
-      slides.push({ kind: "chart", title: `نسب تكرار الأعطال عام ${y.year}`, seriesLabel: "نسبة التكرار شهرياً", unit: "%",
-        points: pts("repeatPct"), note: `إجمالى عام ${y.year}: ${y.repeatPct ?? "—"}% — ${RNOTE}` });
-      slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 48 ساعة عام ${y.year}`, seriesLabel: "الإزالة خلال 48 ساعة شهرياً", unit: "%",
-        points: pts("in48Pct"), note: `إجمالى عام ${y.year}: ${y.in48Pct ?? "—"}% (${y.complaints.toLocaleString("en-US")} عطل) — ${INOTE}` });
-    } else {
-      const span = fy.length === 1 ? `عام ${fy[0].year}` : `من ${fy[0].year} حتى ${fy[fy.length - 1].year}`;
-      slides.push({ kind: "chart", title: `${fy.length > 1 ? "تحسن " : ""}نسب تكرار الأعطال ${span}`, seriesLabel: "نسبة التكرار", unit: "%",
-        points: fy.filter((f) => f.repeatPct != null).map((f) => ({ label: f.year, value: f.repeatPct as number })), note: RNOTE });
-      slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 48 ساعة ${span}`, seriesLabel: "الإزالة خلال 48 ساعة", unit: "%",
-        points: fy.filter((f) => f.in48Pct != null).map((f) => ({ label: f.year, value: f.in48Pct as number })), note: INOTE });
-    }
+    // كل شهر محسوب لوحده (الشهر الحالى من أوله لحد النهارده) — والمالك بيخفى أى شهر بزرار
+    const fm = perfMonths;
+    const sameYear = fm.every((m) => m.month.slice(0, 4) === fm[0].month.slice(0, 4));
+    const label = (m: string) => monthLabel(m, sameYear ? "none" : "short");
+    const span = fm.length === 1 ? monthLabel(fm[0].month, "full") : `${monthLabel(fm[0].month, "full")} – ${monthLabel(fm[fm.length - 1].month, "full")}`;
+    const cur = (auto.computedAt || new Date().toISOString()).slice(0, 7);
+    const partial = fm[fm.length - 1].month === cur
+      ? ` · ${monthLabel(cur, "none")} من أوله لحد ${Number((auto.computedAt || "").slice(8, 10)) || ""} ${monthLabel(cur, "none")}` : "";
+    const pts = (k: "repeatPct" | "in48Pct") => fm.filter((m) => m[k] != null).map((m) => ({ label: label(m.month), value: m[k] as number }));
+    slides.push({ kind: "chart", title: `نسب تكرار الأعطال شهرياً (${span})`, seriesLabel: "نسبة التكرار", unit: "%",
+      points: pts("repeatPct"), note: `كل شهر محسوب لوحده: (الأعطال المغلقة − عدد الأرقام) ÷ عدد الأرقام${partial}` });
+    slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 48 ساعة شهرياً (${span})`, seriesLabel: "الإزالة خلال 48 ساعة", unit: "%",
+      points: pts("in48Pct"), note: `كل شهر محسوب لوحده: من إجمالى الأعطال المبلّغة فى الشهر${partial}` });
   }
 
   // ── الإنجازات ── (الفاصل بيظهر بس لو تحته شرايح فعلاً)

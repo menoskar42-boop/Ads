@@ -153,6 +153,7 @@ function SlideBody({ s }: { s: Slide }) {
       const top = Math.ceil(max / 10) * 10 || 10;
       const W = 1000, H = 380, x0 = 140, y0 = 560;
       const bw = Math.min(110, (W / Math.max(1, s.points.length)) * 0.55);
+      const fs = s.points.length > 8 ? 16 : 22;   // ١٣ شهر: خط أصغر عشان الأسماء ماتدخلش فى بعض
       return (
         <>
           <div style={{ position: "absolute", top: 34, right: 48, left: 48, textAlign: "center" }}>
@@ -172,8 +173,8 @@ function SlideBody({ s }: { s: Slide }) {
               return (
                 <g key={p.label}>
                   <rect x={cx - bw / 2} y={y0 - h} width={bw} height={h} fill="#00B0F0" />
-                  <text x={cx} y={y0 - h - 12} fontSize={22} fontWeight={700} textAnchor="middle" fill="#111" fontFamily={font}>{p.value}{s.unit}</text>
-                  <text x={cx} y={y0 + 30} fontSize={22} fontWeight={700} textAnchor="middle" fill="#111" fontFamily={font}>{p.label}</text>
+                  <text x={cx} y={y0 - h - 12} fontSize={fs} fontWeight={700} textAnchor="middle" fill="#111" fontFamily={font}>{p.value}{s.unit}</text>
+                  <text x={cx} y={y0 + 30} fontSize={fs} fontWeight={700} textAnchor="middle" fill="#111" fontFamily={font}>{p.label}</text>
                 </g>
               );
             })}

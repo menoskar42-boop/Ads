@@ -228,8 +228,9 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
         const cx = x0 + (W / s.points.length) * (i + 0.5);
         const h = (p.value / top) * H;
         if (h > 0) sx.box(cx - bw / 2, y0 - h, bw, h, { fill: BAR });
-        sx.text(cx - 80, y0 - h - 40, 160, 30, [{ runs: [{ text: `${p.value}${s.unit}`, size: 22, bold: true }], align: "ctr" }]);
-        sx.text(cx - 80, y0 + 8, 160, 30, [{ runs: [{ text: p.label, size: 22, bold: true }], align: "ctr" }]);
+        const fs = s.points.length > 8 ? 16 : 22;   // نفس DeckSlide
+        sx.text(cx - 80, y0 - h - 40, 160, 30, [{ runs: [{ text: `${p.value}${s.unit}`, size: fs, bold: true }], align: "ctr" }]);
+        sx.text(cx - 80, y0 + 8, 160, 30, [{ runs: [{ text: p.label, size: fs, bold: true }], align: "ctr" }]);
       });
       if (s.note) sx.text(48, 720 - 108 - 28, 1184, 28, [{ runs: [{ text: s.note, size: 18, color: "555555" }], align: "ctr" }]);
       footer();

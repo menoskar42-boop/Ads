@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, deckValue, bookingPct, marketShareValue, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, deckValue, monthLabel, hiddenFaultMonths, bookingPct, marketShareValue, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 
 type Resp = { deck: Deck; auto: DeckAuto; updatedAt: string | null; updatedBy: string | null };
@@ -322,16 +322,38 @@ export function PresentationReport() {
           </Section>
 
           <Section title="مؤشرات الأداء (الأعطال)" on={d.faults.enabled} onToggle={(v) => upd("faults", { enabled: v })}>
-            <Field label="من سنة"><Input className="w-28" value={d.faults.fromYear} onChange={(e) => upd("faults", { fromYear: e.target.value })} /></Field>
             <p className="text-xs text-muted-foreground">
-              {auto?.faultsByYear?.length
-                ? auto.faultsByYear.map((f) => `${f.year}: ${f.complaints} شكوى · تكرار ${f.repeatPct ?? "—"}% · إزالة ٤٨ ساعة ${f.in48Pct ?? "—"}%`).join(" | ")
-                : "مفيش أعطال فى الفترة دى"}
-              {" "}(بيتحدّث بعد الحفظ)
+              آخر ١٢ شهر + الشهر الحالى (من أوله لحد النهارده) — كل شهر محسوب لوحده، بنفس تعريفات «إحصائيات التكرار»
+              و«إحصائيات الإزالة». اقفل أى شهر مش عايزه يظهر فى الرسم. (الأرقام بتتحدّث بعد الحفظ)
             </p>
-            <p className="text-xs text-muted-foreground">
-              نفس تعريفات «إحصائيات التكرار» و«إحصائيات الإزالة». لو الفترة سنة واحدة الرسم بيبقى عمود لكل شهر.
-            </p>
+            {auto?.faultsByMonth?.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="text-muted-foreground text-xs"><th className="text-right p-1">يظهر</th><th className="text-right p-1">الشهر</th>
+                    <th className="p-1">الأعطال</th><th className="p-1">التكرار</th><th className="p-1">الإزالة خلال ٤٨ ساعة</th></tr></thead>
+                  <tbody>
+                    {auto.faultsByMonth.map((m) => {
+                      const hidden = hiddenFaultMonths(d);
+                      const on = !hidden.has(m.month);
+                      const toggle = (v: boolean) => {
+                        const next = new Set(hidden);
+                        if (v) next.delete(m.month); else next.add(m.month);
+                        upd("faults", { hiddenMonths: [...next].sort().join(",") });
+                      };
+                      return (
+                        <tr key={m.month} className={`border-t ${on ? "" : "opacity-50"}`} data-testid={`fault-month-${m.month}`}>
+                          <td className="p-1"><span dir="ltr" className="inline-flex"><Switch checked={on} onCheckedChange={toggle} /></span></td>
+                          <td className="p-1 font-medium">{monthLabel(m.month, "full")}</td>
+                          <td className="p-1 text-center tabular-nums">{m.complaints.toLocaleString("en-US")}</td>
+                          <td className="p-1 text-center tabular-nums">{m.repeatPct ?? "—"}%</td>
+                          <td className="p-1 text-center tabular-nums">{m.in48Pct ?? "—"}%</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="text-xs text-muted-foreground">مفيش أعطال فى الفترة دى</p>}
           </Section>
 
           <Section title="خطة الصيانة" on={d.maintenance.enabled} onToggle={(v) => upd("maintenance", { enabled: v })}>
@@ -347,7 +369,7 @@ export function PresentationReport() {
           </Section>
 
           <Section title="نسبة الحجز وفك المتعذرات" on={d.booking.enabled} onToggle={(v) => upd("booking", { enabled: v })}>
-            <p className="text-xs text-muted-foreground">نفس أعمدة تقرير «نسبة الحجز» لمنطقة أسيوط — صف الغنايم. عدّل أى رقم لما ييجى تقرير أحدث.</p>
+            <p className="text-xs text-muted-foreground">نتيجة إدارة الغنايم — عدّل أى رقم لما ييجى تقرير أحدث.</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Field label="حتى تاريخ"><Input value={d.booking.asOf} onChange={(e) => upd("booking", { asOf: e.target.value })} /></Field>
               <Field label="إجمالى الطلبات (Grand Total)"><Input value={d.booking.total} onChange={(e) => upd("booking", { total: e.target.value })} /></Field>
@@ -359,8 +381,6 @@ export function PresentationReport() {
               <Field label="نسبة الحجز" hint="فاضى = الإمكانية ÷ الإجمالى">
                 <Input value={d.booking.pct} onChange={(e) => upd("booking", { pct: e.target.value })} placeholder={bookingPct({ ...d.booking, pct: "" })} />
               </Field>
-              <Field label="للمقارنة: اسم المنطقة"><Input value={d.booking.regionName} onChange={(e) => upd("booking", { regionName: e.target.value })} /></Field>
-              <Field label="نسبة حجز المنطقة" hint="فاضى = مايظهرش"><Input value={d.booking.regionPct} onChange={(e) => upd("booking", { regionPct: e.target.value })} /></Field>
             </div>
           </Section>
 

@@ -9,7 +9,7 @@
  * الأرقام التلقائية قراية بس، وكل رقم ممكن يتكتب فوقه (overrides) لو المالك عنده رقم أدق.
  */
 import {
-  defaultDeck, normalizeDeck, deckValue, DECK_KEY, IMG_PREFIX, DEFAULT_EXCHANGES,
+  defaultDeck, normalizeDeck, deckValue, faultsStartMonth, DECK_KEY, IMG_PREFIX, DEFAULT_EXCHANGES,
   type Deck, type DeckExchange, type DeckAuto, type ExchangeAuto,
 } from "../shared/presentation-deck";
 export { defaultDeck, normalizeDeck, deckValue, DECK_KEY, IMG_PREFIX, DEFAULT_EXCHANGES };
@@ -95,14 +95,15 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
                  ELSE EXTRACT(EPOCH FROM (cd.close_time - cd.complain_time)) / 3600.0 END) AS hours
           FROM complaint_details cd
          WHERE cd.complain_time IS NOT NULL
-           AND to_char(cd.complain_time AT TIME ZONE 'UTC', 'YYYY') >= $2
+           AND to_char(cd.complain_time AT TIME ZONE 'UTC', 'YYYY-MM') >= $2
            AND (${NORM("cd.exchange_name")} = ANY($1::text[]) OR ${NORM("cd.central_name")} = ANY($1::text[])
                 OR ($3 <> '' AND ${NORM("cd.exchange_name")} LIKE '%' || $3 || '%')))
       SELECT p, COUNT(*) AS complaints, COUNT(*) FILTER (WHERE close_time IS NOT NULL) AS closed,
              COUNT(DISTINCT phone) FILTER (WHERE close_time IS NOT NULL) AS phones,
              COUNT(*) FILTER (WHERE hours <= 48) AS in48
         FROM c GROUP BY 1 ORDER BY 1`;
-    const params = [keys, deck.faults.fromYear || "2000", main];
+    // المالك ٢٠٢٦-١٠-٢٠: الـ١٢ شهر اللى فاتوا + الشهر الحالى (من أوله لحد النهارده)، كل شهر محسوب لوحده
+    const params = [keys, faultsStartMonth(new Date()), main];
     const conv = (r: any) => {
       const n = Number(r.complaints) || 0, closed = Number(r.closed) || 0, phones = Number(r.phones) || 0;
       return {
@@ -111,7 +112,6 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
         in48Pct: n > 0 ? Math.round((1000 * (Number(r.in48) || 0)) / n) / 10 : null,
       };
     };
-    faultsByYear = (await db.query(sql("YYYY"), params)).rows.map((r: any) => ({ year: String(r.p), ...conv(r) }));
     faultsByMonth = (await db.query(sql("YYYY-MM"), params)).rows.map((r: any) => ({ month: String(r.p), ...conv(r) }));
   } catch (e: any) { errors.push(`الأعطال: ${e?.message || e}`); }
 
