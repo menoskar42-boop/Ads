@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, deckValue, monthLabel, hiddenFaultMonths, bookingPct, marketShareValue, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, bookingPct, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -23,11 +23,9 @@ const METRICS: { key: keyof ExchangeAuto; label: string }[] = [
   { key: "copperCabinets", label: "كباين نحاس" },
   { key: "msanCabinets", label: "كباين MSAN" },
   { key: "boxes", label: "البكسيات" },
-  { key: "msanVoice", label: "صوت MSAN" },
-  { key: "msanData", label: "داتا MSAN" },
-  { key: "voiceUsed", label: "الشغال صوت" },
-  { key: "dataUsed", label: "الشغال داتا (كل الشركات)" },
-  { key: "weData", label: "عملاء بيانات WE" },
+  // الشغال صوت/داتا = قاعدة العملاء (ملف مشتركى FTTH/ADSL) — المالك ٢٠٢٦-١٠-٢٠
+  { key: "msanVoice", label: "شغال صوت" },
+  { key: "msanData", label: "شغال داتا" },
 ];
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
@@ -372,6 +370,10 @@ export function PresentationReport() {
           </Section>
 
           <Section title="السنترالات والأرقام التلقائية">
+            <label className="flex items-center gap-2 text-sm">
+              <span dir="ltr" className="inline-flex"><Switch checked={d.exchangesTable.enabled} onCheckedChange={(v) => upd("exchangesTable", { enabled: v })} data-testid="exchanges-slide-toggle" /></span>
+              {d.exchangesTable.enabled ? "شريحة «سنترالات الإدارة» ظاهرة فى العرض" : "شريحة «سنترالات الإدارة» مخفية من العرض"}
+            </label>
             <p className="text-xs text-muted-foreground">الأرقام الرمادى جاية من Service Flow. اكتب فوقها لو عندك رقم أدق — الفاضى بيفضل تلقائى.</p>
             <div className="overflow-x-auto">
               <table className="text-xs w-full">
@@ -399,21 +401,6 @@ export function PresentationReport() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          </Section>
-
-          <Section title="العملاء">
-            <label className="flex items-center gap-2 text-sm">
-              <span dir="ltr" className="inline-flex"><Switch checked={d.customers.showShare} onCheckedChange={(v) => upd("customers", { showShare: v })} /></span>
-              {d.customers.showShare ? "الحصة السوقية ظاهرة فى العرض" : "الحصة السوقية مخفية من العرض"}
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="عدد عملاء البيانات WE" hint="فاضى = تلقائى: خطوط ليها أكونت وليها بورت حالى">
-                <Input value={d.customers.weData} onChange={(e) => upd("customers", { weData: e.target.value })} placeholder={deckValue({ ...d, customers: { ...d.customers, weData: "" } }, auto, "total", "weData")} />
-              </Field>
-              <Field label="الحصة السوقية WE DATA" hint="فاضى = تلقائى: عملاء WE ÷ عملاء البيانات كلهم (الداتا used)">
-                <Input value={d.customers.marketShare} onChange={(e) => upd("customers", { marketShare: e.target.value })} placeholder={marketShareValue({ ...d, customers: { ...d.customers, marketShare: "" } }, auto)} />
-              </Field>
             </div>
           </Section>
 

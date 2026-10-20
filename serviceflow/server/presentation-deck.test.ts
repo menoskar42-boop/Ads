@@ -52,7 +52,8 @@ test("الأقسام الاختيارية (حياة كريمة · الإنجاز
   const vision = on.find((s) => s.kind === "list" && s.title === "رؤية التطوير المستقبلية");
   assert.deepEqual(vision && "items" in vision ? vision.items : null, ["FTTH لكل القرى", "تحديث الكباين"]);
   assert.ok(on.some((s) => s.kind === "list" && s.title === "أهم الإنجازات"));
-  const cust = on.find((s) => s.kind === "table" && s.title.endsWith("العملاء"));
+  // حياة كريمة بقت فى شريحة النبذة (شريحة العملاء اتشالت)
+  const cust = on.find((s) => s.kind === "table" && s.title === d.cover.title);
   assert.ok(cust && cust.kind === "table" && cust.rows.some((r) => r.includes("12 قرية")));
   const agenda = on.find((s) => s.kind === "agenda");
   assert.ok(agenda && agenda.kind === "agenda" && agenda.items.includes("رؤية التطوير المستقبلية"));
@@ -157,26 +158,19 @@ test("المسار الوظيفى: خانة للوظيفة ومن وإلى (نص
   assert.ok(!buildSlides(d, null).some((x) => x.kind === "list" && x.title.startsWith("المسار")));
 });
 
-test("العملاء: البيانات = بورتات used، وWE = أكونت + بورت حالى، والحصة السوقية بتتحسب منهم", async () => {
-  const { marketShareValue, weDataValue } = await import("../shared/presentation-deck");
-  assert.match(src, /LIKE 'used%'/);
-  assert.match(src, /EXISTS \(SELECT 1 FROM phone_ports pp WHERE pp\.phone_number = la\.full_phone\)/);
-  const a: DeckAuto = { ...auto, total: { ...auto.total, dataUsed: 8000, weData: 7120 } };
-  const d = defaultDeck();
-  assert.equal(weDataValue(d, a), "7,120");
-  assert.equal(marketShareValue(d, a), "89%");
-  d.customers.weData = "7500";
-  assert.equal(marketShareValue(d, a), "93.8%");
-  d.customers.marketShare = "90%";
-  assert.equal(marketShareValue(d, a), "90%");
-  assert.equal(marketShareValue(defaultDeck(), null), "");
-  // الحصة مخفية افتراضياً (طلعت 104%) — بتظهر بالمفتاح بس
-  const hidden = buildSlides(defaultDeck(), a).find((s) => s.kind === "table" && s.title.endsWith("العملاء"));
-  assert.ok(hidden && hidden.kind === "table" && !hidden.rows.some((r) => r[0] === "الحصة السوقية WE DATA"));
-  const shown = defaultDeck(); shown.customers.showShare = true;
-  const cust = buildSlides(shown, a).find((s) => s.kind === "table" && s.title.endsWith("العملاء"));
-  assert.ok(cust && cust.kind === "table" && cust.rows.some((r) => r[0] === "الحصة السوقية WE DATA" && r[1] === "89%"));
-  assert.ok(cust.kind === "table" && !cust.rows.some((r) => r[0].includes("بأكونت")));
+test("قاعدة العملاء: الشغال صوت/داتا من ملف المشتركين، ومفيش عملاء WE ولا حصة ولا شريحة عملاء", () => {
+  assert.match(src, /LIKE 'used%'/);   // الحسبة القديمة لسه موجودة فى السيرفر (مش ظاهرة)
+  const a: DeckAuto = { ...auto, total: { ...auto.total, msanVoice: 11521, msanData: 10662, voiceUsed: 9800, dataUsed: 8000, weData: 7120 } };
+  const d = defaultDeck(); d.customers.showShare = true;
+  const slides = buildSlides(d, a);
+  assert.ok(!slides.some((s) => s.kind === "table" && s.title.endsWith("العملاء")));
+  const ov = slides.find((s) => s.kind === "table" && s.title === d.cover.title);
+  assert.ok(ov && ov.kind === "table");
+  const get = (k: string) => ov.rows.find((r) => r[0] === k)?.[1];
+  assert.equal(get("عدد الخطوط الشغالة صوت"), "11,521");
+  assert.equal(get("عدد الخطوط الشغالة داتا"), "10,662");
+  assert.equal(get("عدد عملاء البيانات WE"), undefined);
+  assert.equal(get("الحصة السوقية WE DATA"), undefined);
 });
 
 test("مؤشرات الأعطال: آخر ١٢ شهر + الحالى، كل شهر لوحده، وزرار يخفى أى شهر", async () => {
@@ -226,18 +220,12 @@ test("نسبة الحجز وفك المتعذرات: أرقام الغنايم �
   assert.ok(!buildSlides(d, null).some((s) => s.kind === "table" && s.title.startsWith("نسبة الحجز")));
 });
 
-test("شريحة النبذة فيها الشغال صوت والشغال داتا وعملاء WE والحصة السوقية", () => {
-  assert.match(src, /voice_status, ''\)\)\) LIKE 'used%'/);
-  const a: DeckAuto = { ...auto, total: { ...auto.total, voiceUsed: 9800, dataUsed: 8000, weData: 7120 } };
-  const sd = defaultDeck(); sd.customers.showShare = true;
-  assert.equal(normalizeDeck({}).customers.showShare, false);
-  const ov = buildSlides(sd, a).find((s) => s.kind === "table" && s.title === defaultDeck().cover.title);
-  assert.ok(ov && ov.kind === "table");
-  const get = (k: string) => ov.rows.find((r) => r[0] === k)?.[1];
-  assert.equal(get("عدد الخطوط الشغالة صوت"), "9,800");
-  assert.equal(get("عدد الخطوط الشغالة داتا"), "8,000");
-  assert.equal(get("عدد عملاء البيانات WE"), "7,120");
-  assert.equal(get("الحصة السوقية WE DATA"), "89%");
+test("شريحة «سنترالات الإدارة» اختيارية", () => {
+  const d = defaultDeck();
+  assert.ok(buildSlides(d, auto).some((s) => s.kind === "table" && s.title === "سنترالات الإدارة"));
+  d.exchangesTable.enabled = false;
+  assert.ok(!buildSlides(d, auto).some((s) => s.kind === "table" && s.title === "سنترالات الإدارة"));
+  assert.equal(normalizeDeck({}).exchangesTable.enabled, true);
 });
 
 test("خطة الصيانة: المحقق بس من غير مستهدف", () => {

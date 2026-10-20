@@ -12,6 +12,8 @@ export type Deck = {
   career: { enabled: boolean; hireYear: string; items: string };
   area: { areaKm2: string; population: string; villages: string; housingUnits: string; mapId: string; extraRows: string };
   exchanges: DeckExchange[];
+  /** شريحة «سنترالات الإدارة» (جدول السنترالات الأربعة) — اختيارية */
+  exchangesTable: { enabled: boolean };
   /** showShare: الحصة السوقية فى العرض — مقفولة افتراضياً (المالك ٢٠٢٦-١٠-٢٠: طلعت 104% فغالباً غلط لحد ما تتراجع) */
   customers: { weData: string; marketShare: string; showShare: boolean };
   decentLife: { enabled: boolean; phase1: string; phase2: string; notes: string };
@@ -45,6 +47,7 @@ export function defaultDeck(): Deck {
     area: { areaKm2: "", population: "", villages: "", housingUnits: "", mapId: "", extraRows: "" },
     exchanges: DEFAULT_EXCHANGES.map((e) => ({ ...e })),
     customers: { weData: "", marketShare: "", showShare: false },
+    exchangesTable: { enabled: true },
     decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
     faults: { enabled: true, hiddenMonths: "" },
     maintenance: { enabled: true, period: "2026", achievedCopper: "", achievedMsan: "", photoIds: [] },
@@ -73,7 +76,7 @@ export function normalizeDeck(raw: any): Deck {
     return out;
   };
   if (!raw || typeof raw !== "object") return d;
-  for (const k of ["cover", "person", "career", "area", "customers", "decentLife", "faults", "maintenance", "booking", "achievements", "vision", "closing"] as const) {
+  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "achievements", "vision", "closing"] as const) {
     (d as any)[k] = pick((d as any)[k], raw[k]);
   }
   if (Array.isArray(raw.exchanges) && raw.exchanges.length) {
@@ -271,32 +274,24 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     ["عدد الكباين النحاسية", v("total", "copperCabinets")],
     ["عدد وحدات التجميع الذكية MSAN", v("total", "msanCabinets")],
     ["إجمالى بكسيات الإدارة", v("total", "boxes")],
-    // المالك ٢٠٢٦-١٠-٢٠: «هنا لازم تحط الشغال صوت و الشغال داتا و عدد عملاء وى و نسبه الحصه السوقيه»
-    ["عدد الخطوط الشغالة صوت", v("total", "voiceUsed")],
-    ["عدد الخطوط الشغالة داتا", v("total", "dataUsed")],
-    ["عدد عملاء البيانات WE", weDataValue(deck, auto)],
-    ...(deck.customers.showShare ? [["الحصة السوقية WE DATA", marketShareValue(deck, auto)]] : []),
-    ...pairs(a.extraRows),
-  ].filter(([, x]) => String(x).trim());
-  slides.push({ kind: "table", title: deck.cover.title, columns: ["البيان", deck.cover.title], rows: overview, imageId: a.mapId, note: "", totalLast: false });
-
-  const cust: string[][] = [
-    ["عدد خطوط الصوت", v("total", "lines")],
-    ["عدد عملاء البيانات (كل الشركات)", v("total", "dataUsed")],
-    ["عدد عملاء البيانات WE", weDataValue(deck, auto)],
-    ...(deck.customers.showShare ? [["الحصة السوقية WE DATA", marketShareValue(deck, auto)]] : []),
-    ["عدد عملاء الصوت MSAN", v("total", "msanVoice")],
-    ["عدد عملاء البيانات MSAN", v("total", "msanData")],
+    // المالك ٢٠٢٦-١٠-٢٠: الشغال صوت والشغال داتا «من قاعدة العملاء» (ملف مشتركى FTTH/ADSL: fv_subs / fbb_subs
+    // بكود MSAN كباين الإدارة — نفس «الشغال» بتاع تقرير الأعطال فى الألف)، وعملاء WE والحصة اتشالوا.
+    ["عدد الخطوط الشغالة صوت", v("total", "msanVoice")],
+    ["عدد الخطوط الشغالة داتا", v("total", "msanData")],
     ...(deck.decentLife.enabled ? [
       ["عدد قرى حياة كريمة مرحلة أولى", deck.decentLife.phase1],
       ["عدد قرى حياة كريمة مرحلة ثانية", deck.decentLife.phase2],
     ] : []),
+    ...pairs(a.extraRows),
   ].filter(([, x]) => String(x).trim());
-  slides.push({ kind: "table", title: `${deck.cover.title} — العملاء`, columns: ["البيان", deck.cover.title], rows: cust, imageId: "", note: deck.decentLife.enabled ? deck.decentLife.notes : "", totalLast: false });
+  slides.push({ kind: "table", title: deck.cover.title, columns: ["البيان", deck.cover.title], rows: overview, imageId: a.mapId,
+    note: deck.decentLife.enabled ? deck.decentLife.notes : "", totalLast: false });
+  // شريحة «العملاء» اتشالت (المالك ٢٠٢٦-١٠-٢٠: «السلايد دى شيلها»)
 
   const exRows = deck.exchanges.map((e) => [exName(e), e.code, v(e.code, "lines"), v(e.code, "copperCabinets"), v(e.code, "msanCabinets"), v(e.code, "boxes"), v(e.code, "msanVoice"), v(e.code, "msanData")]);
   exRows.push(["الإجمالى", "", v("total", "lines"), v("total", "copperCabinets"), v("total", "msanCabinets"), v("total", "boxes"), v("total", "msanVoice"), v("total", "msanData")]);
-  slides.push({ kind: "table", title: "سنترالات الإدارة", columns: ["السنترال", "الكود", "الخطوط", "كباين نحاس", "كباين MSAN", "البكسيات", "صوت MSAN", "داتا MSAN"], rows: exRows, imageId: "", note: "", totalLast: true });
+  // اختيارية (المالك ٢٠٢٦-١٠-٢٠: «خلى السلايد دى اختيارية تظهر ولا لأ»)
+  if (deck.exchangesTable.enabled) slides.push({ kind: "table", title: "سنترالات الإدارة", columns: ["السنترال", "الكود", "الخطوط", "كباين نحاس", "كباين MSAN", "البكسيات", "صوت MSAN", "داتا MSAN"], rows: exRows, imageId: "", note: "", totalLast: true });
 
   // ── الأداء ──
   if (showPerf && auto) {
