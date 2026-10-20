@@ -2713,6 +2713,42 @@ export async function registerRoutes(
     if (!rows[0]?.value) return res.status(404).end();
     res.set("Cache-Control", "private, max-age=86400").type("image/jpeg").send(Buffer.from(rows[0].value, "base64"));
   });
+  // تحميل باور بوينت — نفس الشرايح اللى على الشاشة (server/presentation-pptx.ts)
+  app.get("/api/presentation/pptx", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      const { autoDeck, IMG_PREFIX } = await import("./presentation-deck");
+      const { buildSlides } = await import("../shared/presentation-deck");
+      const { deckPptx } = await import("./presentation-pptx");
+      const sharp = (await import("sharp")).default;
+      const { readFile } = await import("fs/promises");
+      const { join } = await import("path");
+      const { deck } = await readDeck();
+      const slides = buildSlides(deck, await autoDeck(pool, deck));
+      const load = async (data: Buffer, ext: "png" | "jpeg") => {
+        const m = await sharp(data).metadata();
+        return { data, ext, w: m.width || 0, h: m.height || 0 };
+      };
+      const asset = async (f: string) => load(await readFile(join(process.cwd(), "client/src/assets/presentation", f)), "png");
+      const assets = { weWhite: await asset("we-white.png"), wePurple: await asset("we-purple.png"), telecomEgypt: await asset("telecomegypt.png") };
+      const ids = new Set<string>();
+      for (const s of slides) {
+        if (s.kind === "cv" && s.photoId) ids.add(s.photoId);
+        if (s.kind === "table" && s.imageId) ids.add(s.imageId);
+        if (s.kind === "photos") s.photoIds.forEach((i) => ids.add(i));
+      }
+      const images = new Map<string, any>();
+      if (ids.size) {
+        const { rows } = await pool.query(`SELECT key, value FROM app_settings WHERE key = ANY($1::text[])`, [[...ids].map((i) => IMG_PREFIX + i)]);
+        for (const r of rows) {
+          try { images.set(String(r.key).slice(IMG_PREFIX.length), await load(Buffer.from(r.value, "base64"), "jpeg")); } catch {}
+        }
+      }
+      const buf = await deckPptx(slides, assets, images, deck.cover.title);
+      const name = `${deck.cover.title || "العرض التقديمى"} ${new Date().toISOString().slice(0, 10)}.pptx`;
+      res.setHeader("Content-Disposition", `attachment; filename="presentation.pptx"; filename*=UTF-8''${encodeURIComponent(name)}`);
+      res.set("Cache-Control", "no-store").type("application/vnd.openxmlformats-officedocument.presentationml.presentation").send(buf);
+    } catch (e: any) { res.status(500).json({ message: "تعذّر تجهيز ملف الباور بوينت: " + e.message }); }
+  });
   app.delete("/api/presentation/image/:id", requireAuth, requireSuperAdmin, async (req, res) => {
     const { IMG_PREFIX } = await import("./presentation-deck");
     if (!/^[a-f0-9]{6,40}$/.test(req.params.id)) return res.status(404).end();

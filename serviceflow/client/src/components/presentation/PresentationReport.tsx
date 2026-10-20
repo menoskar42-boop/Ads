@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation } from "lucide-react";
+import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
 import { buildSlides, defaultDeck, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 
@@ -94,6 +94,21 @@ export function PresentationReport() {
       await qc.invalidateQueries({ queryKey: ["/api/presentation"] });
     } catch (e: any) { setMsg(e.message); } finally { setSaving(false); }
   };
+  // باور بوينت: بيحفظ الأول لو فيه تعديلات، وبعدين بينزّل الملف (fetch عشان مسار الجذر والأخطاء)
+  const [exporting, setExporting] = useState(false);
+  const downloadPptx = async () => {
+    setExporting(true); setMsg(null);
+    try {
+      if (dirty) await save();
+      const r = await fetch("/api/presentation/pptx", { credentials: "include" });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.message || "تعذّر تجهيز الملف");
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement("a");
+      a.href = url; a.download = `${deck.cover.title || "العرض التقديمى"} ${new Date().toISOString().slice(0, 10)}.pptx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e: any) { setMsg(e.message); } finally { setExporting(false); }
+  };
   const upload = async (file: File): Promise<string | null> => {
     const fd = new FormData(); fd.append("file", file);
     const r = await fetch("/api/presentation/image", { method: "POST", credentials: "include", body: fd });
@@ -152,6 +167,9 @@ export function PresentationReport() {
           <Button variant={view === "edit" ? "default" : "outline"} size="sm" onClick={() => setView("edit")}>البيانات</Button>
           <Button variant={view === "slides" ? "default" : "outline"} size="sm" onClick={() => setView("slides")}>الشرايح ({slides.length})</Button>
           <Button size="sm" className="bg-[#57318A] hover:bg-[#46276f]" onClick={() => setPresent(0)}><Maximize2 className="w-4 h-4 ml-1" />عرض</Button>
+          <Button size="sm" variant="outline" onClick={downloadPptx} disabled={exporting} data-testid="button-deck-pptx">
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Download className="w-4 h-4 ml-1" />}تحميل PowerPoint
+          </Button>
           <Button size="sm" onClick={save} disabled={saving || !dirty} data-testid="button-save-deck">
             {saving ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Save className="w-4 h-4 ml-1" />}حفظ
           </Button>

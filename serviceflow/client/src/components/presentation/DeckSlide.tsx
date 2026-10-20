@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { Slide } from "@shared/presentation-deck";
+import { withBase } from "@/lib/base-path";
 import weWhite from "@/assets/presentation/we-white.png";
 import wePurple from "@/assets/presentation/we-purple.png";
 import telecomEgypt from "@/assets/presentation/telecomegypt.png";
@@ -16,7 +17,8 @@ export const TITLE = "#7030A0";
 const ROW_A = "#CFD5EA";
 const ROW_B = "#E9EBF5";
 
-export const deckImage = (id: string) => `/api/presentation/image/${id}`;
+// <img> مابيعدّيش على لفّة fetch اللى فى main.tsx — فمسار الجذر (/serviceflow/) بيتحط هنا
+export const deckImage = (id: string) => withBase(`/api/presentation/image/${id}`);
 
 const font = "Arial, 'Segoe UI', Tahoma, sans-serif";
 

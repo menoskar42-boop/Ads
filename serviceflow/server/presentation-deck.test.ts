@@ -108,3 +108,32 @@ test("autoDeck: استعلام وقع مايوقّعش الباقى، والسن
   assert.equal(a.maintenance, null);
   assert.ok(a.errors.some((e) => e.startsWith("الصيانة")));
 });
+
+test("باور بوينت: نفس الشرايح، أول عمود على اليمين، والنص متأمّن، والمسار للسوبر أدمن", async () => {
+  const JSZip = (await import("jszip")).default;
+  const { deckPptx } = await import("./presentation-pptx");
+  // صورة PNG ١×١
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  const im = { data: png, ext: "png" as const, w: 1, h: 1 };
+  const d = defaultDeck();
+  d.cover.title = "إدارة <الغنايم> & co";
+  d.maintenance.photoIds = ["abcdef12"];
+  const slides = buildSlides(d, auto);
+  const buf = await deckPptx(slides, { weWhite: im, wePurple: im, telecomEgypt: im }, new Map([["abcdef12", { ...im, ext: "jpeg" as const }]]));
+  const zip = await JSZip.loadAsync(buf);
+  const names = Object.keys(zip.files);
+  assert.equal(names.filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n)).length, slides.length);
+  const ct = await zip.file("[Content_Types].xml")!.async("string");
+  for (let i = 1; i <= slides.length; i++) assert.ok(ct.includes(`/ppt/slides/slide${i}.xml`));
+  const cover = await zip.file("ppt/slides/slide1.xml")!.async("string");
+  assert.match(cover, /إدارة &lt;الغنايم&gt; &amp; co/);
+  assert.match(cover, /57318A/);
+  const exIdx = slides.findIndex((s) => s.kind === "table" && s.title === "سنترالات الإدارة") + 1;
+  const ex = await zip.file(`ppt/slides/slide${exIdx}.xml`)!.async("string");
+  const heads = [...ex.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => m[1]);
+  // أول عمود («السنترال») آخر واحد فى الـ XML = أقصى اليمين
+  assert.ok(heads.indexOf("داتا MSAN") < heads.indexOf("السنترال"));
+  assert.doesNotMatch(ex, /tblPr rtl/);
+  assert.ok(names.some((n) => n.endsWith(".jpeg")));
+  assert.ok(routes.includes(`app.get("/api/presentation/pptx", requireAuth, requireSuperAdmin`));
+});
