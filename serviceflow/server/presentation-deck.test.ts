@@ -1,0 +1,110 @@
+// «العرض التقديمى» (المالك ٢٠٢٦-١٠-٢٠) — البيانات المكتوبة + الأرقام التلقائية + الشرايح
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { buildSlides, defaultDeck, normalizeDeck, deckValue, type DeckAuto } from "../shared/presentation-deck";
+import { autoDeck } from "./presentation-deck";
+
+const src = readFileSync(new URL("./presentation-deck.ts", import.meta.url), "utf8");
+const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
+
+const ZERO = { lines: 0, copperCabinets: 0, msanCabinets: 0, boxes: 0, capacity: 0, msanVoice: 0, msanData: 0, accounts: 0 };
+const auto: DeckAuto = {
+  exchanges: { GHNAT: { ...ZERO, lines: 5000, boxes: 300 }, AMZAT: { ...ZERO, lines: 1200 }, DRGAT: { ...ZERO }, NGOAT: { ...ZERO } },
+  total: { ...ZERO, lines: 6200, boxes: 300 },
+  faultsByYear: [{ year: "2024", complaints: 900, repeatPct: 12.5, in48Pct: 80 }, { year: "2025", complaints: 700, repeatPct: 9.1, in48Pct: 88 }],
+  maintenance: { boxesTotal: 1000, boxesDone: 214, byYear: [{ year: "2026", done: 214 }] },
+  decentLife: [], errors: [], computedAt: "",
+};
+const kinds = (d = defaultDeck(), a: DeckAuto | null = auto) => buildSlides(d, a).map((s) => s.kind + ":" + ("title" in s ? s.title : ""));
+
+test("قراية بس، والمسارات كلها للسوبر أدمن، والتاب للسوبر أدمن", () => {
+  assert.doesNotMatch(src, /\b(INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|ALTER\s+TABLE|DROP\s+|TRUNCATE)\b/i);
+  for (const r of [`app.get("/api/presentation"`, `app.put("/api/presentation"`, `app.post("/api/presentation/image"`,
+    `app.get("/api/presentation/image/:id"`, `app.delete("/api/presentation/image/:id"`]) {
+    assert.ok(routes.includes(`${r}, requireAuth, requireSuperAdmin`), r);
+  }
+  assert.match(dash, /reportTab === "presentation"\s+&& isSuperAdmin && <PresentationReport \/>/);
+  assert.match(dash, /\(g\.label !== "العرض التقديمى" \|\| isSuperAdmin\)/);
+});
+
+test("الأقسام الاختيارية (حياة كريمة · الإنجازات · رؤية التطوير) مقفولة افتراضياً وبتظهر لما تتفتح", () => {
+  const off = kinds();
+  assert.ok(!off.some((k) => k.includes("رؤية التطوير") || k === "list:أهم الإنجازات"));
+  assert.equal(off[0], "cover:" + defaultDeck().cover.title);
+  assert.equal(off[off.length - 1], "closing:");
+  assert.ok(off.includes("divider:مؤشرات ومعدلات الأداء"));
+  // الصيانة مفتوحة افتراضياً — المحقق من برنامج الصيانة (٢١٤) بيطلع جدولها
+  assert.ok(off.includes("table:خطة الصيانة ورفع الكفاءة 2026"));
+  // ومن غير أى بيانات ماينفعش يطلع فاصل «مبادرات» فاضى ولا يتكتب فى الأجندة
+  const bare = buildSlides(defaultDeck(), null);
+  assert.ok(!bare.some((s) => s.kind === "divider" && s.title === "مبادرات وأهم الإنجازات"));
+  assert.ok(!bare.some((s) => s.kind === "agenda" && s.items.includes("مبادرات وأهم الإنجازات")));
+
+  const d = defaultDeck();
+  d.vision = { enabled: true, items: "FTTH لكل القرى\nتحديث الكباين" };
+  d.achievements = { enabled: true, items: "صيانة ٢١٤ بكس", photoIds: [] };
+  d.decentLife = { enabled: true, phase1: "12 قرية", phase2: "8 قرى", notes: "" };
+  const on = buildSlides(d, auto);
+  const vision = on.find((s) => s.kind === "list" && s.title === "رؤية التطوير المستقبلية");
+  assert.deepEqual(vision && "items" in vision ? vision.items : null, ["FTTH لكل القرى", "تحديث الكباين"]);
+  assert.ok(on.some((s) => s.kind === "list" && s.title === "أهم الإنجازات"));
+  const cust = on.find((s) => s.kind === "table" && s.title.endsWith("العملاء"));
+  assert.ok(cust && cust.kind === "table" && cust.rows.some((r) => r.includes("12 قرية")));
+  const agenda = on.find((s) => s.kind === "agenda");
+  assert.ok(agenda && agenda.kind === "agenda" && agenda.items.includes("رؤية التطوير المستقبلية"));
+});
+
+test("مؤشرات الأداء بتتشال لو مفيش أعطال أو المفتاح مقفول", () => {
+  assert.ok(!kinds(defaultDeck(), { ...auto, faultsByYear: [] }).some((k) => k.startsWith("chart")));
+  const d = defaultDeck(); d.faults.enabled = false;
+  assert.ok(!kinds(d).some((k) => k.startsWith("chart")));
+  const chart = buildSlides(defaultDeck(), auto).find((s) => s.kind === "chart");
+  assert.deepEqual(chart && chart.kind === "chart" ? chart.points : null, [{ label: "2024", value: 12.5 }, { label: "2025", value: 9.1 }]);
+});
+
+test("الرقم المكتوب بالإيد يغلب التلقائى، والإجمالى آخر صف فى جدول السنترالات", () => {
+  const d = defaultDeck();
+  assert.equal(deckValue(d, auto, "GHNAT", "lines"), "5,000");
+  d.overrides["GHNAT.lines"] = "5100";
+  assert.equal(deckValue(d, auto, "GHNAT", "lines"), "5100");
+  assert.equal(deckValue(d, null, "AMZAT", "lines"), "");
+  const ex = buildSlides(d, auto).find((s) => s.kind === "table" && s.title === "سنترالات الإدارة");
+  assert.ok(ex && ex.kind === "table" && ex.totalLast);
+  assert.equal(ex.kind === "table" && ex.rows.length, 5);
+  assert.equal(ex.kind === "table" && ex.rows[0][2], "5100");
+});
+
+test("normalizeDeck بيشيل الحقول الغريبة والصور والمفاتيح الغلط", () => {
+  const d = normalizeDeck({
+    cover: { title: "x", evil: "<script>" }, vision: { enabled: "yes", items: 5 },
+    achievements: { enabled: true, photoIds: ["abcdef12", "../../etc", 3] },
+    overrides: { "GHNAT.lines": "10", "bad key": "1", "GHNAT.boxes": "  " },
+    exchanges: [{ code: "GHNAT", name: "الغنايم", match: "الغنايم", extra: 1 }, {}],
+    hacker: true,
+  });
+  assert.equal((d.cover as any).evil, undefined);
+  assert.equal(d.vision.enabled, false);
+  assert.equal(d.vision.items, "5");
+  assert.deepEqual(d.achievements.photoIds, ["abcdef12"]);
+  assert.deepEqual(d.overrides, { "GHNAT.lines": "10" });
+  assert.equal(d.exchanges.length, 1);
+  assert.equal((d as any).hacker, undefined);
+  assert.equal(normalizeDeck(null).exchanges.length, 4);
+});
+
+test("autoDeck: استعلام وقع مايوقّعش الباقى، والسنترال بيتطابق بالاسم بعد التطبيع", async () => {
+  const db = {
+    query: async (sql: string) => {
+      if (sql.includes("maintenance.")) throw new Error("no schema");
+      if (sql.includes("COUNT(DISTINCT tel_no)")) return { rows: [{ k: "الغنايم-العزايزه", n: "1200" }, { k: "غريب", n: "9" }] };
+      return { rows: [] };
+    },
+  };
+  const a = await autoDeck(db, defaultDeck());
+  assert.equal(a.exchanges.AMZAT.lines, 1200);
+  assert.equal(a.total.lines, 1200);
+  assert.equal(a.maintenance, null);
+  assert.ok(a.errors.some((e) => e.startsWith("الصيانة")));
+});

@@ -58,6 +58,7 @@ import { OmBoxFreedReport } from "@/components/OmBoxFreedReport";
 import { CfmTicketsReport } from "@/components/CfmTicketsReport";
 import { GroundNetworkFaultsTab } from "@/components/GroundNetworkFaultsTab";
 import { SlotCardsReport } from "@/components/SlotCardsReport";
+import { PresentationReport } from "@/components/presentation/PresentationReport";
 import { CabinetPortFreeReport } from "@/components/CabinetPortFreeReport";
 import { RemovedPortsReport } from "@/components/RemovedPortsReport";
 import { BoxFaultTicketsReport } from "@/components/BoxFaultTicketsReport";
@@ -89,13 +90,13 @@ import { useWakeLock } from "@/lib/use-wake-lock";
 import { ROLES, ORDER_STATUS } from "@shared/schema";
 import { canAccessCFM, canAccessMaint } from "@shared/roles-access";
 import { useLocation } from "wouter";
-import { Printer, LogOut, LayoutDashboard, FileSpreadsheet, Loader2, BarChart3, ClipboardList, Upload, Zap, Phone, Box, AlertTriangle, FileText, Wrench, ChevronDown, Menu, Cable, Server, CalendarDays, Warehouse } from "lucide-react";
+import { Printer, LogOut, LayoutDashboard, FileSpreadsheet, Loader2, BarChart3, ClipboardList, Upload, Zap, Phone, Box, AlertTriangle, FileText, Wrench, ChevronDown, Menu, Cable, Server, CalendarDays, Warehouse, Presentation } from "lucide-react";
 import * as XLSX from 'xlsx';
 import { installMeasureHider } from "@/lib/measure-hide";
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload" | "local-store";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -274,6 +275,14 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
       { id: "inspection-reports", label: "تقارير التفتيش (سنترال + كابينة)" },
     ],
   },
+  {
+    // المالك ٢٠٢٦-١٠-٢٠: عرض إدارة سنترالات الغنايم لاجتماع رئيس القطاعات الجنوبية — للسوبر أدمن بس
+    label: "العرض التقديمى",
+    icon: Presentation,
+    items: [
+      { id: "presentation", label: "عرض إدارة السنترالات" },
+    ],
+  },
 ];
 
 export default function Dashboard() {
@@ -360,7 +369,8 @@ export default function Dashboard() {
       (!isCentralView || CENTRAL_VIEW_ALLOWED_GROUPS.includes(g.label)) &&
       (user?.role !== ROLES.SALES_ADMIN || SALES_ADMIN_ALLOWED_GROUPS.includes(g.label)) &&
       // «معاملات التنفيذ» للسوبر أدمن فقط
-      (g.label !== "معاملات التنفيذ" || isSuperAdmin),
+      (g.label !== "معاملات التنفيذ" || isSuperAdmin) &&
+      (g.label !== "العرض التقديمى" || isSuperAdmin),
     )
     .map((g) => {
       if (user?.role === ROLES.DATA_MANAGER) return { ...g, items: g.items.filter((it) => DM_ALLOWED.includes(it.id)) };
@@ -866,6 +876,7 @@ export default function Dashboard() {
               {reportTab === "engineering-inspection"  && <EngineeringInspectionReport />}
               {reportTab === "manual-regularized-range" && <ManualRegularizedFaultsRangeReport />}
               {reportTab === "exec-jobs"           && isSuperAdmin && <ExecJobsReport />}
+              {reportTab === "presentation"        && isSuperAdmin && <PresentationReport />}
               {reportTab === "queue-reorder"       && isSuperAdmin && <QueueReorderPanel />}
               {reportTab === "exec-batches"        && isSuperAdmin && <ExecBatchesReport />}
             </div>

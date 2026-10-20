@@ -2665,6 +2665,61 @@ export async function registerRoutes(
     res.type("html").send(renderPresentationStats(sections));
   });
 
+  // «العرض التقديمى» (السوبر أدمن) — server/presentation-deck.ts: البيانات المكتوبة + الأرقام التلقائية + الصور
+  const deckUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+  const readDeck = async () => {
+    const { normalizeDeck, DECK_KEY } = await import("./presentation-deck");
+    const { rows } = await pool.query(`SELECT value, updated_at, updated_by FROM app_settings WHERE key = $1`, [DECK_KEY]);
+    let raw: any = null;
+    try { raw = rows[0]?.value ? JSON.parse(rows[0].value) : null; } catch {}
+    return { deck: normalizeDeck(raw), updatedAt: rows[0]?.updated_at ?? null, updatedBy: rows[0]?.updated_by ?? null };
+  };
+  app.get("/api/presentation", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      const { autoDeck } = await import("./presentation-deck");
+      const saved = await readDeck();
+      res.set("Cache-Control", "no-store").json({ ...saved, auto: await autoDeck(pool, saved.deck) });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.put("/api/presentation", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const { normalizeDeck, DECK_KEY } = await import("./presentation-deck");
+      const deck = normalizeDeck(req.body?.deck);
+      await pool.query(
+        `INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+        [DECK_KEY, JSON.stringify(deck), String(req.user?.fullName || req.user?.username || "")]);
+      res.json({ ok: true, deck });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // صورة (الشخصية · الخريطة · أعمال الصيانة · الإنجازات): بتتصغّر لـ ١٦٠٠ بكسل JPEG وتتحفظ فى app_settings
+  app.post("/api/presentation/image", requireAuth, requireSuperAdmin, deckUpload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file?.buffer) return res.status(400).json({ message: "مفيش صورة" });
+      const { IMG_PREFIX } = await import("./presentation-deck");
+      const sharp = (await import("sharp")).default;
+      const buf = await sharp(req.file.buffer).rotate().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 82 }).toBuffer();
+      const id = randomBytes(9).toString("hex");
+      await pool.query(`INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)`,
+        [IMG_PREFIX + id, buf.toString("base64"), String(req.user?.username || "")]);
+      res.json({ id });
+    } catch (e: any) { res.status(400).json({ message: "تعذّر قراءة الصورة: " + e.message }); }
+  });
+  app.get("/api/presentation/image/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+    const { IMG_PREFIX } = await import("./presentation-deck");
+    if (!/^[a-f0-9]{6,40}$/.test(req.params.id)) return res.status(404).end();
+    const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = $1`, [IMG_PREFIX + req.params.id]);
+    if (!rows[0]?.value) return res.status(404).end();
+    res.set("Cache-Control", "private, max-age=86400").type("image/jpeg").send(Buffer.from(rows[0].value, "base64"));
+  });
+  app.delete("/api/presentation/image/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+    const { IMG_PREFIX } = await import("./presentation-deck");
+    if (!/^[a-f0-9]{6,40}$/.test(req.params.id)) return res.status(404).end();
+    await pool.query(`DELETE FROM app_settings WHERE key = $1`, [IMG_PREFIX + req.params.id]);
+    res.json({ ok: true });
+  });
+
   // عدّاد صحيان القاعدة (السوبر أدمن): آخر ٤٨ ساعة — من الذاكرة، مابيصحّيش القاعدة
   app.get("/api/admin/db-wake", requireAuth, requireSuperAdmin, (_req, res) => {
     res.json(dbWakeReport());

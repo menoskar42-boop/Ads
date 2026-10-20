@@ -1,0 +1,238 @@
+/**
+ * «العرض التقديمى» — الأنواع والافتراضى وقراية القيمة المعروضة (مشتركة بين الشاشة والسيرفر).
+ * التفاصيل: server/presentation-deck.ts
+ */
+export const DECK_KEY = "presentation_deck_v1";
+export const IMG_PREFIX = "presentation_img_";
+
+export type DeckExchange = { code: string; name: string; match: string };
+export type Deck = {
+  cover: { title: string; subtitle: string; meeting: string; date: string };
+  person: { name: string; birthDate: string; job: string; department: string; sector: string; photoId: string; qualifications: string };
+  career: { enabled: boolean; hireYear: string; items: string };
+  area: { areaKm2: string; population: string; villages: string; housingUnits: string; mapId: string; extraRows: string };
+  exchanges: DeckExchange[];
+  customers: { weData: string; marketShare: string };
+  decentLife: { enabled: boolean; phase1: string; phase2: string; notes: string };
+  faults: { enabled: boolean; fromYear: string };
+  maintenance: { enabled: boolean; period: string; targetBoxes: string; targetCopper: string; targetMsan: string;
+                 achievedCopper: string; achievedMsan: string; photoIds: string[] };
+  blocked: { enabled: boolean; period: string; total: string; resolved: string; provisioningPct: string; remaining: string };
+  achievements: { enabled: boolean; items: string; photoIds: string[] };
+  vision: { enabled: boolean; items: string };
+  closing: { enabled: boolean; text: string };
+  /** رقم مكتوب بإيد المالك بدل التلقائى: «GHNAT.lines» أو «total.boxes» … */
+  overrides: Record<string, string>;
+};
+
+export const DEFAULT_EXCHANGES: DeckExchange[] = [
+  { code: "GHNAT", name: "الغنايم", match: "الغنايم" },
+  { code: "AMZAT", name: "العزايزة", match: "الغنايم-العزايزة" },
+  { code: "DRGAT", name: "دير الجنادلة", match: "الغنايم-دير الجنادله" },
+  { code: "NGOAT", name: "نجع العمدة", match: "الغنايم-نجع العمدة" },
+];
+
+export function defaultDeck(): Deck {
+  return {
+    cover: { title: "إدارة سنترالات الغنايم", subtitle: "عرض تقديمى", meeting: "", date: "" },
+    person: { name: "", birthDate: "", job: "مدير إدارة سنترالات الغنايم", department: "منطقة أسيوط", sector: "قطاع وسط الصعيد", photoId: "", qualifications: "" },
+    career: { enabled: true, hireYear: "", items: "" },
+    area: { areaKm2: "", population: "", villages: "", housingUnits: "", mapId: "", extraRows: "" },
+    exchanges: DEFAULT_EXCHANGES.map((e) => ({ ...e })),
+    customers: { weData: "", marketShare: "" },
+    decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
+    faults: { enabled: true, fromYear: "2024" },
+    maintenance: { enabled: true, period: "2026", targetBoxes: "", targetCopper: "", targetMsan: "", achievedCopper: "", achievedMsan: "", photoIds: [] },
+    blocked: { enabled: false, period: "2026", total: "", resolved: "", provisioningPct: "", remaining: "" },
+    achievements: { enabled: false, items: "", photoIds: [] },
+    vision: { enabled: false, items: "" },
+    closing: { enabled: true, text: "شكراً لحسن استماعكم" },
+    overrides: {},
+  };
+}
+
+/** بيانات محفوظة قديمة/ناقصة + الافتراضى = Deck كامل (ومفيش حقول غريبة بتتحفظ). */
+export function normalizeDeck(raw: any): Deck {
+  const d = defaultDeck();
+  const str = (v: unknown, max = 4000) => (typeof v === "string" ? v.slice(0, max) : v == null ? "" : String(v).slice(0, max));
+  const bool = (v: unknown, def: boolean) => (typeof v === "boolean" ? v : def);
+  const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && /^[a-z0-9]{6,40}$/.test(x)).slice(0, 12) : []);
+  const pick = <T extends Record<string, any>>(base: T, src: any): T => {
+    const out: any = { ...base };
+    for (const k of Object.keys(base)) {
+      if (src?.[k] === undefined) continue;
+      const b = (base as any)[k];
+      out[k] = typeof b === "boolean" ? bool(src[k], b) : Array.isArray(b) ? ids(src[k]) : str(src[k]);
+    }
+    return out;
+  };
+  if (!raw || typeof raw !== "object") return d;
+  for (const k of ["cover", "person", "career", "area", "customers", "decentLife", "faults", "maintenance", "blocked", "achievements", "vision", "closing"] as const) {
+    (d as any)[k] = pick((d as any)[k], raw[k]);
+  }
+  if (Array.isArray(raw.exchanges) && raw.exchanges.length) {
+    d.exchanges = raw.exchanges.slice(0, 8).map((e: any) => ({ code: str(e?.code, 20), name: str(e?.name, 80), match: str(e?.match, 120) }))
+      .filter((e: DeckExchange) => e.code || e.name || e.match);
+  }
+  if (raw.overrides && typeof raw.overrides === "object") {
+    for (const [k, v] of Object.entries(raw.overrides)) {
+      if (/^[A-Za-z0-9_]{1,20}\.[A-Za-z0-9_]{1,40}$/.test(k) && String(v ?? "").trim()) d.overrides[k] = str(v, 60);
+    }
+  }
+  return d;
+}
+
+export type ExchangeAuto = {
+  lines: number; copperCabinets: number; msanCabinets: number; boxes: number; capacity: number;
+  msanVoice: number; msanData: number; accounts: number;
+};
+export type DeckAuto = {
+  exchanges: Record<string, ExchangeAuto>;
+  total: ExchangeAuto;
+  faultsByYear: { year: string; complaints: number; repeatPct: number | null; in48Pct: number | null }[];
+  maintenance: { boxesTotal: number | null; boxesDone: number | null; byYear: { year: string; done: number }[] } | null;
+  /** قيم «حياة كريمة» على الكباين زى ما هى متسجّلة (مساعدة للمالك وهو بيكتب المرحلة الأولى/التانية) */
+  decentLife: { value: string; cabinets: number; villages: number }[];
+  errors: string[];
+  computedAt: string;
+};
+
+/** الرقم اللى بيظهر: المكتوب بالإيد لو موجود، وإلا التلقائى. */
+export function deckValue(deck: Deck, auto: DeckAuto | null, scope: string, field: keyof ExchangeAuto): string {
+  const o = deck.overrides[`${scope}.${field}`];
+  if (o != null && String(o).trim()) return String(o).trim();
+  const src = scope === "total" ? auto?.total : auto?.exchanges[scope];
+  const n = src?.[field];
+  return n == null ? "" : Number(n).toLocaleString("en-US");
+}
+
+// ───────────────────────── الشرايح ─────────────────────────
+// قايمة الشرايح بالترتيب — نفس القايمة بترسمها الشاشة (React) وبيتعمل منها ملف الباور بوينت،
+// فالاتنين مايختلفوش. الأقسام الاختيارية بتتشال لما مفتاحها مقفول أو مافيهاش بيانات.
+export type Slide =
+  | { kind: "cover"; title: string; subtitle: string; meeting: string; date: string }
+  | { kind: "divider"; title: string }
+  | { kind: "agenda"; title: string; items: string[] }
+  | { kind: "cv"; title: string; photoId: string; fields: [string, string][]; qualificationsTitle: string; qualifications: string[] }
+  | { kind: "list"; title: string; lead: string; items: string[] }
+  | { kind: "table"; title: string; columns: string[]; rows: string[][]; imageId: string; note: string; totalLast: boolean }
+  | { kind: "chart"; title: string; seriesLabel: string; unit: string; points: { label: string; value: number }[]; note: string }
+  | { kind: "photos"; title: string; photoIds: string[] }
+  | { kind: "closing"; text: string };
+
+const lines = (s: string) => String(s || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+const pairs = (s: string) => lines(s).map((l) => {
+  const i = l.indexOf("|");
+  return (i < 0 ? [l, ""] : [l.slice(0, i).trim(), l.slice(i + 1).trim()]) as [string, string];
+});
+const pct = (a: string, b: string) => {
+  const x = Number(String(a).replace(/[,٬\s]/g, "")), y = Number(String(b).replace(/[,٬\s]/g, ""));
+  return x > 0 && y >= 0 && Number.isFinite(y) ? `${Math.round((100 * y) / x)}%` : "";
+};
+
+export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
+  const v = (scope: string, f: keyof ExchangeAuto) => deckValue(deck, auto, scope, f);
+  const exName = (e: DeckExchange) => e.name || e.code;
+  const slides: Slide[] = [];
+  const c = deck.cover;
+  slides.push({ kind: "cover", title: c.title, subtitle: c.subtitle, meeting: c.meeting, date: c.date });
+
+  const p = deck.person;
+  slides.push({
+    kind: "cv", title: "السيرة الذاتية", photoId: p.photoId,
+    fields: ([["الاســـم", p.name], ["تاريخ الميلاد", p.birthDate], ["الوظيفة", p.job], ["الإدارة العامة", p.department], ["القطاع", p.sector]] as [string, string][])
+      .filter(([, x]) => x.trim()),
+    qualificationsTitle: "المؤهل الدراسى", qualifications: lines(p.qualifications),
+  });
+  if (deck.career.enabled && (deck.career.hireYear || deck.career.items)) {
+    slides.push({
+      kind: "list", title: "المسار الوظيفى بالشركة المصرية للاتصالات",
+      lead: deck.career.hireYear ? `تعيين سنة ${deck.career.hireYear} بالشركة المصرية للاتصالات` : "",
+      items: pairs(deck.career.items).map(([a, b]) => (b ? `${a}   ${b}` : a)),
+    });
+  }
+
+  const showPerf = deck.faults.enabled && (auto?.faultsByYear?.length ?? 0) > 0;
+  // شرايح «مبادرات وأهم الإنجازات» بتتحسب الأول عشان الأجندة والفاصل مايظهروش وهى فاضية
+  const work: Slide[] = [];
+  const m = deck.maintenance;
+  if (m.enabled) {
+    const doneYear = auto?.maintenance?.byYear.find((y) => y.year === m.period)?.done;
+    const achievedBoxes = deck.overrides["total.maintBoxes"] || (doneYear != null ? String(doneYear) : "");
+    const rows = [
+      ["البكسيات", v("total", "boxes"), m.targetBoxes, achievedBoxes, pct(m.targetBoxes, achievedBoxes)],
+      ["الكباين النحاسية", v("total", "copperCabinets"), m.targetCopper, m.achievedCopper, pct(m.targetCopper, m.achievedCopper)],
+      ["كباين MSAN", v("total", "msanCabinets"), m.targetMsan, m.achievedMsan, pct(m.targetMsan, m.achievedMsan)],
+    ].filter((r) => r[2] || r[3]);
+    if (rows.length) work.push({ kind: "table", title: `خطة الصيانة ورفع الكفاءة ${m.period}`, columns: ["البيان", "إجمالى الشبكة", "المستهدف", "المحقق", "النسبة"], rows, imageId: "", note: "", totalLast: false });
+    if (m.photoIds.length) work.push({ kind: "photos", title: "بعض صور أعمال الصيانة", photoIds: m.photoIds });
+  }
+  const b = deck.blocked;
+  if (b.enabled && (b.total || b.resolved)) {
+    work.push({ kind: "table", title: `فك المتعذرات ${b.period}`, columns: ["إجمالى المتعذرات", "ما تم فكه", "النسبة", "توفير الإمكانية", "المتبقى"],
+      rows: [[b.total, b.resolved, pct(b.total, b.resolved), b.provisioningPct, b.remaining]], imageId: "", note: "", totalLast: false });
+  }
+  if (deck.achievements.enabled && (deck.achievements.items || deck.achievements.photoIds.length)) {
+    if (deck.achievements.items) work.push({ kind: "list", title: "أهم الإنجازات", lead: "", items: lines(deck.achievements.items) });
+    if (deck.achievements.photoIds.length) work.push({ kind: "photos", title: "من الإنجازات", photoIds: deck.achievements.photoIds });
+  }
+  const showWork = work.length > 0;
+  const agenda = ["نبذة عن إدارة سنترالات الغنايم", ...(showPerf ? ["مؤشرات ومعدلات الأداء"] : []),
+    ...(showWork ? ["مبادرات وأهم الإنجازات"] : []), ...(deck.vision.enabled && deck.vision.items ? ["رؤية التطوير المستقبلية"] : [])];
+  slides.push({ kind: "agenda", title: "الأجندة", items: agenda });
+
+  // ── نبذة ──
+  slides.push({ kind: "divider", title: "نبذة عن إدارة سنترالات الغنايم" });
+  const a = deck.area;
+  const overview: string[][] = [
+    ["المساحة الجغرافية", a.areaKm2 ? `${a.areaKm2} كم²` : ""],
+    ["عدد السكان", a.population],
+    ["عدد القرى والتوابع", a.villages],
+    ["عدد الوحدات السكنية المشغولة", a.housingUnits],
+    ["عدد السنترالات", String(deck.exchanges.length)],
+    ["عدد الكباين النحاسية", v("total", "copperCabinets")],
+    ["عدد وحدات التجميع الذكية MSAN", v("total", "msanCabinets")],
+    ["إجمالى بكسيات الإدارة", v("total", "boxes")],
+    ...pairs(a.extraRows),
+  ].filter(([, x]) => String(x).trim());
+  slides.push({ kind: "table", title: deck.cover.title, columns: ["البيان", deck.cover.title], rows: overview, imageId: a.mapId, note: "", totalLast: false });
+
+  const cust: string[][] = [
+    ["عدد خطوط الصوت", v("total", "lines")],
+    ["عدد خطوط الداتا (بأكونت)", v("total", "accounts")],
+    ["عدد عملاء الصوت MSAN", v("total", "msanVoice")],
+    ["عدد عملاء البيانات MSAN", v("total", "msanData")],
+    ["عدد عملاء البيانات WE", deck.customers.weData],
+    ["الحصة السوقية WE DATA", deck.customers.marketShare],
+    ...(deck.decentLife.enabled ? [
+      ["عدد قرى حياة كريمة مرحلة أولى", deck.decentLife.phase1],
+      ["عدد قرى حياة كريمة مرحلة ثانية", deck.decentLife.phase2],
+    ] : []),
+  ].filter(([, x]) => String(x).trim());
+  slides.push({ kind: "table", title: `${deck.cover.title} — العملاء`, columns: ["البيان", deck.cover.title], rows: cust, imageId: "", note: deck.decentLife.enabled ? deck.decentLife.notes : "", totalLast: false });
+
+  const exRows = deck.exchanges.map((e) => [exName(e), e.code, v(e.code, "lines"), v(e.code, "copperCabinets"), v(e.code, "msanCabinets"), v(e.code, "boxes"), v(e.code, "msanVoice"), v(e.code, "msanData")]);
+  exRows.push(["الإجمالى", "", v("total", "lines"), v("total", "copperCabinets"), v("total", "msanCabinets"), v("total", "boxes"), v("total", "msanVoice"), v("total", "msanData")]);
+  slides.push({ kind: "table", title: "سنترالات الإدارة", columns: ["السنترال", "الكود", "الخطوط", "كباين نحاس", "كباين MSAN", "البكسيات", "صوت MSAN", "داتا MSAN"], rows: exRows, imageId: "", note: "", totalLast: true });
+
+  // ── الأداء ──
+  if (showPerf && auto) {
+    slides.push({ kind: "divider", title: "مؤشرات ومعدلات الأداء" });
+    const fy = auto.faultsByYear;
+    const span = `من ${fy[0].year} حتى ${fy[fy.length - 1].year}`;
+    slides.push({ kind: "chart", title: `تحسن نسب تكرار الأعطال ${span}`, seriesLabel: "نسبة التكرار", unit: "%",
+      points: fy.filter((f) => f.repeatPct != null).map((f) => ({ label: f.year, value: f.repeatPct as number })),
+      note: "التكرار = نفس الرقم اشتكى تانى خلال ٣٠ يوم" });
+    slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 48 ساعة ${span}`, seriesLabel: "الإزالة خلال 48 ساعة", unit: "%",
+      points: fy.filter((f) => f.in48Pct != null).map((f) => ({ label: f.year, value: f.in48Pct as number })), note: "" });
+  }
+
+  // ── الإنجازات ── (الفاصل بيظهر بس لو تحته شرايح فعلاً)
+  if (work.length) slides.push({ kind: "divider", title: "مبادرات وأهم الإنجازات" }, ...work);
+  if (deck.vision.enabled && deck.vision.items) {
+    slides.push({ kind: "divider", title: "رؤية التطوير المستقبلية" });
+    slides.push({ kind: "list", title: "رؤية التطوير المستقبلية", lead: "", items: lines(deck.vision.items) });
+  }
+  if (deck.closing.enabled) slides.push({ kind: "closing", text: deck.closing.text || "شكراً" });
+  return slides;
+}
