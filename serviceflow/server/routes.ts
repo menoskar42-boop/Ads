@@ -2760,6 +2760,13 @@ export async function registerRoutes(
   app.get("/api/admin/db-wake", requireAuth, requireSuperAdmin, (_req, res) => {
     res.json(dbWakeReport());
   });
+  // قياس السيرفر (السوبر أدمن): الذاكرة والقرص وPostgres متاح ولا لأ — مابيكلّمش القاعدة (server/host-info.ts)
+  app.get("/api/admin/host-info", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      const { hostInfo } = await import("./host-info");
+      res.set("Cache-Control", "no-store").json(await hostInfo());
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
 
   app.post("/api/exec-queue/claim", requireAuth, requireSuperAdmin, async (req: any, res) => {
     // طابور فاضى ومفيش كتابة فيه من آخر سحبة فاضية (ونفس فترة الإيقاف) ⇒ «مفيش» من الذاكرة.
