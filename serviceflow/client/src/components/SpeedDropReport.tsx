@@ -16,6 +16,7 @@ import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
+import { arIncludes } from "@shared/ar-norm";
 
 const DZS_URL = "https://10.42.187.101:8080/expresse/";
 const buildDZSUrl = (accounts: string[]) => `${DZS_URL}#sf_accounts=${encodeURIComponent(accounts.join(","))}`;
@@ -42,6 +43,8 @@ export function SpeedDropReport() {
   const [minDrop, setMinDrop] = useState("10");
   // فلتر الفنى (المالك ٢٠٢٦-١٠-١٥) — والأزرار والإكسيل والـPDF بيشتغلوا على المفلتر بس
   const [tech, setTech] = useState("all");
+  // بحث فى كل خانات الجدول (المالك ٢٠٢٦-١٠-٢٠)
+  const [search, setSearch] = useState("");
   // أزرار القياس ورفع السرعة والإيقاف (المالك ٢٠٢٦-١٠-١٢) — نفس باقى تقارير القياسات
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
@@ -78,15 +81,19 @@ export function SpeedDropReport() {
   const techNames = Array.from(new Set(allRows.map((r) => (r.techName ?? "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ar"));
   const NO_TECH = "__none__";
   const hasNoTech = allRows.some((r) => !(r.techName ?? "").trim());
-  const rows = tech === "all" ? allRows
+  const byTech = tech === "all" ? allRows
     : tech === NO_TECH ? allRows.filter((r) => !(r.techName ?? "").trim())
     : allRows.filter((r) => (r.techName ?? "").trim() === tech);
-  const mobileLookup = useMobileLookup(rows.map((r) => r.phone));
+  const mobileLookup = useMobileLookup(byTech.map((r) => r.phone));
   const mobileOf = (r: DropRow) => mobileLookup[phoneLookupKey(r.phone)] ?? "";
   const cells = (r: DropRow, i: number) => [
     i + 1, r.phone, mobileOf(r), r.central ?? "", r.cabinet ?? "", r.techName ?? "", r.accountNo ?? "", r.complainNo ?? "", day(r.complainTime),
     dt(r.firstAt), kb(r.firstKbps), dt(r.lastAt), kb(r.lastKbps), `${r.dropPct}%`, r.lastScore ?? "",
   ];
+  // البحث بيدوّر فى نفس الخانات اللى فى الجدول/الإكسيل (من غير المسلسل)، والإكسيل والـPDF
+  // والقياس ورفع السرعة بيشتغلوا على النتيجة
+  const term = search.trim();
+  const rows = !term ? byTech : byTech.filter((r) => arIncludes(cells(r, 0).slice(1).map(String).join(" | "), term));
   const accountsOf = () => {
     const seen = new Set<string>();
     return rows.map((r) => String(r.accountNo ?? "").trim()).filter((a) => a && !seen.has(a) && seen.add(a));
@@ -113,7 +120,7 @@ export function SpeedDropReport() {
   };
 
   const techLabel = tech === "all" ? "" : ` — الفنى: ${tech === NO_TECH ? "بدون فنى" : tech}`;
-  const title = `انخفاض السرعة بعد الانتظام (أكتر من ${minDrop || 10}%) — ${from} إلى ${to}${techLabel}`;
+  const title = `انخفاض السرعة بعد الانتظام (أكتر من ${minDrop || 10}%) — ${from} إلى ${to}${techLabel}${term ? ` — بحث: ${term}` : ""}`;
   const excel = () => {
     const ws = XLSX.utils.aoa_to_sheet([COLS, ...rows.map(cells)]);
     const wb = XLSX.utils.book_new();
@@ -168,9 +175,12 @@ export function SpeedDropReport() {
             {hasNoTech && <option value={NO_TECH}>بدون فنى</option>}
             {tech !== "all" && tech !== NO_TECH && !techNames.includes(tech) && <option value={tech}>{tech}</option>}
           </select></div>
+        <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-search">بحث فى كل خانات الجدول</label>
+          <Input id="sd-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="تليفون، موبايل، فنى، كابينة، أكونت…"
+            className="text-sm w-56" data-testid="input-speed-drop-search" /></div>
         <span className="text-sm text-muted-foreground pb-2">
           {q.isFetching && <Loader2 className="w-4 h-4 animate-spin inline ml-1" />}
-          إجمالى: <b className="text-foreground">{rows.length}</b> خط{tech !== "all" && <> من {allRows.length}</>}
+          إجمالى: <b className="text-foreground">{rows.length}</b> خط{(tech !== "all" || term) && <> من {allRows.length}</>}
         </span>
       </div>
       {q.isError && <p className="text-sm text-destructive">{(q.error as Error).message}</p>}
