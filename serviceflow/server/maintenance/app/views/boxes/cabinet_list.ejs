@@ -50,6 +50,18 @@
             <i class="bi bi-eye"></i> البوكسات
           </a>
         </div>
+        <% if (user.role === 'admin' && cabinets.length > 1) { %>
+        <form method="post" action="/boxes/cabinets/<%= cab.id %>/merge-into" class="d-flex gap-1 mt-2"
+              onsubmit="var s=this.target_id; return s.value && confirm('دمج كابينة «<%= cab.number %>» (<%= cab.box_count %> بوكس) فى «' + s.options[s.selectedIndex].text + '»؟\nالبوكسات والفحوصات والصور كلها بتتنقل، والطلبات الجاية بالاسم ده هتروح للكابينة المختارة.');">
+          <select name="target_id" class="form-select form-select-sm" required>
+            <option value="">دمج فى كابينة…</option>
+            <% cabinets.filter(o => o.id !== cab.id).forEach(o => { %>
+            <option value="<%= o.id %>"><%= o.number %> (<%= o.box_count %> بوكس)</option>
+            <% }) %>
+          </select>
+          <button class="btn btn-outline-warning btn-sm text-nowrap"><i class="bi bi-intersect"></i> دمج</button>
+        </form>
+        <% } %>
       </div>
     </div>
   </div>

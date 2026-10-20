@@ -248,6 +248,9 @@ async function migrate() {
     try { await sp(`ALTER TABLE inspections ADD COLUMN IF NOT EXISTS ${col} ${typ}`); } catch {}
   }
 
+  // أسماء بديلة للكباين (دمج «sheltr» و«العزايزه» فى كابينة واحدة) — utils/cabinet-merge.js
+  try { await sp(require('./utils/cabinet-merge').ALIAS_DDL); } catch (e) { console.error('cabinet_aliases error:', e.message); }
+
   if (process.env.SF_MAINTENANCE_CABINET_CODES_STORAGE !== 'd1') {
   // cabinet_codes lookup table (Exchange + Cabinet → cabinet code + technician info)
   try {

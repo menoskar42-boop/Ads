@@ -98,6 +98,7 @@ router.get('/overlap-distance-pending', async (req, res) => {
 // ── توحيد أسماء السناتر وأرقام الكباين والبكسيات ─────────────────────────────
 // نسخة مطابقة لـ shared/cab-norm.ts (الملف ده CommonJS جوّه تطبيق الصيانة فمينفعش
 // يستورد منه). أى تعديل هناك لازم ينزل هنا — فيه اختبار بيقارن الاتنين.
+const { aliasKey, cabinetByAlias } = require('../utils/cabinet-merge');
 const toAsciiDigits = (s) => String(s ?? "")
   .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
   .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
@@ -144,7 +145,11 @@ async function findOrCreateBox(central, cabinet, box) {
   if (!cab) {
     const cabs = await db.all('SELECT id, number FROM cabinets WHERE exchange_id = ?', [ex.id]);
     const hit = cabs.find((r) => cabNorm(r.number) === cabNorm(cabinet));
-    cab = hit ? { id: hit.id }
+    // اسم بديل (الأدمن دمج «sheltr»/«العزايزه» فى كابينة واحدة) أو نفس الاسم بكتابة تانية
+    // («العزايزة»/«العزايزه» · «AMZAT»/«amzat») ⇒ نفس الكابينة، مش كابينة جديدة
+    const alias = hit ? null : await cabinetByAlias(db, ex.id, cabinet);
+    const loose = hit || alias ? null : cabs.find((r) => aliasKey(r.number) === aliasKey(cabinet));
+    cab = hit ? { id: hit.id } : alias ? { id: alias.id } : loose ? { id: loose.id }
               : await db.get('INSERT INTO cabinets (exchange_id, number) VALUES (?, ?) RETURNING id', [ex.id, cabinet]);
   }
   let bx = await db.get('SELECT id, status FROM boxes WHERE cabinet_id = ? AND number = ?', [cab.id, box]);

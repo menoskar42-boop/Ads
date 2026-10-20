@@ -514,6 +514,7 @@ router.post('/photos/:photoId/location', requireLogin, async (req, res) => {
 // القاعدة: الكابينة **الأصلية** هى اللى فيها بوكسات أكتر (وعند التساوى الأقدم).
 // كل بوكس فى المكرّرة بيروح للأصلية؛ ولو فيه بوكس بنفس الرقم هناك، الفحوصات والصور
 // بتتنقل للبوكس الموجود والمكرّر يتمسح. مفيش أى بيانات بتضيع.
+const { mergeCabinetInto } = require('../utils/cabinet-merge');
 const cabKey = (s) => String(s ?? '')
   .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
   .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
@@ -559,6 +560,23 @@ async function duplicateCabinetGroups() {
   return groups;
 }
 
+// دمج يدوى: الأدمن بيختار الكابينة اللى هتتدمج فيها (أسماء مختلفة لنفس الكابينة — المالك ٢٠٢٦-١٠-٢٠)
+router.post('/cabinets/:id/merge-into', adminOnly, async (req, res) => {
+  const back = (eid) => res.redirect(eid ? `/boxes/exchanges/${eid}/cabinets` : '/boxes/exchanges');
+  const src = await db.get('SELECT id, exchange_id FROM cabinets WHERE id = ?', [req.params.id]).catch(() => null);
+  try {
+    if (isMaintenanceHierarchyProofEnabled()) throw new Error('الدمج مش متاح فى وضع D1');
+    const r = await mergeCabinetInto(db, Number(req.params.id), Number(req.body.target_id));
+    console.log(`[maintenance] 🔀 دمج كابينة «${r.from}» فى «${r.to}»: ${r.moved} بوكس اتنقل، ${r.merged} اتدمج — بواسطة ${req.session.user?.username}`);
+    req.session.flash = { type: 'success',
+      msg: `اتدمجت «${r.from}» فى «${r.to}»: ${r.moved} بوكس اتنقل، ${r.merged} بوكس اتدمج فى بوكس بنفس الرقم. والطلبات الجاية باسم «${r.from}» هتروح لـ«${r.to}».` };
+  } catch (e) {
+    console.error('cabinet merge-into error:', e.message);
+    req.session.flash = { type: 'danger', msg: 'تعذّر الدمج: ' + e.message };
+  }
+  back(src?.exchange_id);
+});
+
 router.get('/cabinets/duplicates', adminOnly, async (req, res) => {
   try {
     const groups = await duplicateCabinetGroups();
@@ -574,25 +592,10 @@ router.post('/cabinets/duplicates/merge', adminOnly, async (req, res) => {
     const groups = await duplicateCabinetGroups();
     let movedBoxes = 0, mergedBoxes = 0, removedCabinets = 0;
     for (const g of groups) {
-      const keepBoxes = await db.all('SELECT id, number FROM boxes WHERE cabinet_id = ?', [g.keep.id]);
       for (const d of g.drop) {
-        const dupBoxes = await db.all('SELECT id, number FROM boxes WHERE cabinet_id = ?', [d.id]);
-        for (const b of dupBoxes) {
-          const twin = findTwin(keepBoxes, b);
-          if (twin) {
-            // نفس البوكس موجود فى الأصلية → ننقل الفحوصات والصور ونمسح المكرّر
-            await db.run('UPDATE inspections SET box_id = ? WHERE box_id = ?', [twin.id, b.id]);
-            await db.run('UPDATE photos SET box_id = ? WHERE box_id = ?', [twin.id, b.id]);
-            await db.run('DELETE FROM boxes WHERE id = ?', [b.id]);
-            mergedBoxes++;
-          } else {
-            await db.run('UPDATE boxes SET cabinet_id = ? WHERE id = ?', [g.keep.id, b.id]);
-            keepBoxes.push({ id: b.id, number: b.number });
-            movedBoxes++;
-          }
-        }
-        await db.run('DELETE FROM cabinets WHERE id = ?', [d.id]);
-        removedCabinets++;
+        // نفس الدمج اليدوى: معاملة واحدة + الاسم القديم بيتسجّل اسم بديل (utils/cabinet-merge.js)
+        const r = await mergeCabinetInto(db, d.id, g.keep.id);
+        movedBoxes += r.moved; mergedBoxes += r.merged; removedCabinets++;
       }
     }
     req.session.flash = { type: 'success',

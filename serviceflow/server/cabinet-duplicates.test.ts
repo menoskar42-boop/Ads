@@ -46,8 +46,9 @@ test("the maintenance normalizers mirror shared/cab-norm", () => {
 });
 
 test("the merge moves every box and never drops an inspection", () => {
-  const fn = boxes.slice(boxes.indexOf("router.post('/cabinets/duplicates/merge'"),
-                         boxes.indexOf("module.exports"));
+  // الدمج اتنقل لـ utils/cabinet-merge.js (مشترك مع الدمج اليدوى — ٢٠٢٦-١٠-٢٠)
+  assert.match(boxes.slice(boxes.indexOf("router.post('/cabinets/duplicates/merge'")), /mergeCabinetInto\(db, d\.id, g\.keep\.id\)/);
+  const fn = readFileSync(new URL("./maintenance/app/utils/cabinet-merge.js", import.meta.url), "utf8");
   // بوكس بنفس الرقم فى الأصلية → ننقل الفحوصات والصور وبعدين نمسح المكرّر
   assert.match(fn, /UPDATE inspections SET box_id = \? WHERE box_id = \?/);
   assert.match(fn, /UPDATE photos SET box_id = \? WHERE box_id = \?/);
