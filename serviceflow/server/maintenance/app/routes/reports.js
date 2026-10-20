@@ -36,6 +36,18 @@ router.get('/', staffOnly, async (req, res) => {
   }
 });
 
+// فحص سلامة البيانات (أدمن، قراية بس) — /maintenance/reports/data-health
+router.get('/data-health', requireRole('admin'), async (req, res) => {
+  try {
+    const { dataHealth, renderDataHealth } = require('../utils/data-health');
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || '')) ? String(req.query.from) : '2026-09-01';
+    res.set('Cache-Control', 'no-store').send(renderDataHealth(await dataHealth(db, { from })));
+  } catch (e) {
+    console.error('/reports/data-health error:', e.message);
+    res.status(500).send('خطأ: ' + String(e.message).replace(/[<>&]/g, ''));
+  }
+});
+
 router.get('/inspected', staffOnly, async (req, res) => {
   try {
     const { exchange_id, from, to, cabinet_id, box_q } = req.query;
