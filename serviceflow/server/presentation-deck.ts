@@ -100,7 +100,7 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
                 OR ($3 <> '' AND ${NORM("cd.exchange_name")} LIKE '%' || $3 || '%')))
       SELECT p, COUNT(*) AS complaints, COUNT(*) FILTER (WHERE close_time IS NOT NULL) AS closed,
              COUNT(DISTINCT phone) FILTER (WHERE close_time IS NOT NULL) AS phones,
-             COUNT(*) FILTER (WHERE hours <= 48) AS in48
+             COUNT(*) FILTER (WHERE hours <= 24) AS in24
         FROM c GROUP BY 1 ORDER BY 1`;
     // المالك ٢٠٢٦-١٠-٢٠: الـ١٢ شهر اللى فاتوا + الشهر الحالى (من أوله لحد النهارده)، كل شهر محسوب لوحده
     const params = [keys, faultsStartMonth(new Date()), main];
@@ -109,11 +109,45 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
       return {
         complaints: n,
         repeatPct: phones > 0 ? Math.round((1000 * (closed - phones)) / phones) / 10 : null,
-        in48Pct: n > 0 ? Math.round((1000 * (Number(r.in48) || 0)) / n) / 10 : null,
+        in24Pct: n > 0 ? Math.round((1000 * (Number(r.in24) || 0)) / n) / 10 : null,
       };
     };
-    faultsByMonth = (await db.query(sql("YYYY-MM"), params)).rows.map((r: any) => ({ month: String(r.p), ...conv(r) }));
+    faultsByMonth = (await db.query(sql("YYYY-MM"), params)).rows.map((r: any) => ({ month: String(r.p), ...conv(r), msanFaults: null, perThousand: null }));
   } catch (e: any) { errors.push(`الأعطال: ${e?.message || e}`); }
+
+  // «عدد الأعطال فى الألف» شهر بشهر — نفس تقرير «عدد الأعطال فى الألف» (server/cabinet-reassign.ts):
+  // الأعطال = 430D + المتبقى بكود MSAN بتاع كباين الإدارة (كل بلاغ مرة واحدة على أول يوم ظهر فيه)،
+  // والشغال = مجموع fbb_subs من ملف مشتركى FTTH/ADSL لنفس الأكواد. الملف ده لقطة واحدة (آخر رفع)
+  // فالشغال واحد لكل الشهور.
+  let faultsWorking: number | null = null;
+  try {
+    const { rows: cr } = await db.query(`SELECT DISTINCT cabin_code AS c FROM cabinet_technicians
+      WHERE ${NORM("central_name")} = ANY($1::text[]) AND COALESCE(cabin_code, '') <> ''`, [keys]);
+    const codes = cr.map((r: any) => String(r.c));
+    if (codes.length) {
+      const { rows: wr } = await db.query(`SELECT COALESCE(SUM(fbb_subs), 0)::int AS n FROM ftth_subscribers WHERE msan_gpon_code = ANY($1::text[])`, [codes]);
+      faultsWorking = Number(wr[0]?.n) || 0;
+      const { rows: fr } = await db.query(`
+        SELECT to_char(d, 'YYYY-MM') AS m, COUNT(*)::int AS n FROM (
+          SELECT complain_no, MIN(d) AS d FROM (
+            SELECT cd.complain_no, (cd.complain_time AT TIME ZONE 'UTC')::date AS d FROM complaint_details cd
+             WHERE cd.msan_id = ANY($1::text[]) AND to_char(cd.complain_time AT TIME ZONE 'UTC', 'YYYY-MM') >= $2
+            UNION ALL
+            SELECT rc.complain_no, (rc.complain_time AT TIME ZONE 'UTC')::date FROM remaining_complaints rc
+             WHERE rc.msan_id = ANY($1::text[]) AND to_char(rc.complain_time AT TIME ZONE 'UTC', 'YYYY-MM') >= $2
+          ) u GROUP BY complain_no
+        ) x GROUP BY 1 ORDER BY 1`, [codes, faultsStartMonth(new Date())]);
+      const byMonth = new Map<string, any>(faultsByMonth!.map((m) => [m.month, m]));
+      for (const r of fr) {
+        const n = Number(r.n) || 0;
+        const pt = faultsWorking > 0 ? Math.round((10000 * n) / faultsWorking) / 10 : null;
+        const m = byMonth.get(String(r.m));
+        if (m) { m.msanFaults = n; m.perThousand = pt; }
+        else byMonth.set(String(r.m), { month: String(r.m), complaints: 0, repeatPct: null, in24Pct: null, msanFaults: n, perThousand: pt });
+      }
+      faultsByMonth = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
+    }
+  } catch (e: any) { errors.push(`الأعطال فى الألف: ${e?.message || e}`); }
 
   // صيانة البكسيات من برنامج الصيانة (نفس القاعدة — سكيما maintenance). لو منفصلة الأرقام بتتكتب بالإيد.
   let maintenance: DeckAuto["maintenance"] = null;
@@ -148,6 +182,6 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
     decentLife = rows.map((r: any) => ({ value: String(r.value), cabinets: Number(r.cabinets) || 0, villages: Number(r.villages) || 0 }));
   } catch (e: any) { errors.push(`حياة كريمة: ${e?.message || e}`); }
 
-  return { exchanges, total, faultsByYear, faultsByMonth, maintenance, decentLife, errors, computedAt: new Date().toISOString() };
+  return { exchanges, total, faultsByYear, faultsByMonth, faultsWorking, maintenance, decentLife, errors, computedAt: new Date().toISOString() };
 }
 

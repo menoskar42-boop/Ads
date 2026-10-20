@@ -433,11 +433,14 @@ export function PresentationReport() {
               آخر ١٢ شهر + الشهر الحالى (من أوله لحد النهارده) — كل شهر محسوب لوحده، بنفس تعريفات «إحصائيات التكرار»
               و«إحصائيات الإزالة». اقفل أى شهر مش عايزه يظهر فى الرسم. (الأرقام بتتحدّث بعد الحفظ)
             </p>
+            {auto?.faultsWorking ? (
+              <p className="text-xs">الشغال (آخر ملف مشتركين FTTH/ADSL): <b className="tabular-nums">{auto.faultsWorking.toLocaleString("en-US")}</b> — الأعطال فى الألف = أعطال الشهر ÷ الشغال × 1000، زى تقرير «عدد الأعطال فى الألف».</p>
+            ) : null}
             {auto?.faultsByMonth?.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="text-muted-foreground text-xs"><th className="text-right p-1">يظهر</th><th className="text-right p-1">الشهر</th>
-                    <th className="p-1">الأعطال</th><th className="p-1">التكرار</th><th className="p-1">الإزالة خلال ٤٨ ساعة</th></tr></thead>
+                    <th className="p-1">الأعطال</th><th className="p-1">الأعطال فى الألف</th><th className="p-1">التكرار</th><th className="p-1">الإزالة خلال ٢٤ ساعة</th></tr></thead>
                   <tbody>
                     {auto.faultsByMonth.map((m) => {
                       const hidden = hiddenFaultMonths(d);
@@ -451,9 +454,10 @@ export function PresentationReport() {
                         <tr key={m.month} className={`border-t ${on ? "" : "opacity-50"}`} data-testid={`fault-month-${m.month}`}>
                           <td className="p-1"><span dir="ltr" className="inline-flex"><Switch checked={on} onCheckedChange={toggle} /></span></td>
                           <td className="p-1 font-medium">{monthLabel(m.month, "full")}</td>
-                          <td className="p-1 text-center tabular-nums">{m.complaints.toLocaleString("en-US")}</td>
+                          <td className="p-1 text-center tabular-nums">{(m.msanFaults ?? m.complaints).toLocaleString("en-US")}</td>
+                          <td className="p-1 text-center tabular-nums">{m.perThousand ?? "—"}</td>
                           <td className="p-1 text-center tabular-nums">{m.repeatPct ?? "—"}%</td>
-                          <td className="p-1 text-center tabular-nums">{m.in48Pct ?? "—"}%</td>
+                          <td className="p-1 text-center tabular-nums">{m.in24Pct ?? "—"}%</td>
                         </tr>
                       );
                     })}

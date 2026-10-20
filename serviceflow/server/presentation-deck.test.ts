@@ -14,7 +14,7 @@ const auto: DeckAuto = {
   exchanges: { GHNAT: { ...ZERO, lines: 5000, boxes: 300 }, AMZAT: { ...ZERO, lines: 1200 }, DRGAT: { ...ZERO }, NGOAT: { ...ZERO } },
   total: { ...ZERO, lines: 6200, boxes: 300 },
   faultsByYear: [],
-  faultsByMonth: [{ month: "2025-12", complaints: 900, repeatPct: 12.5, in48Pct: 80 }, { month: "2026-01", complaints: 700, repeatPct: 9.1, in48Pct: 88 }],
+  faultsByMonth: [{ month: "2025-12", complaints: 900, repeatPct: 12.5, in24Pct: 80, msanFaults: null, perThousand: null }, { month: "2026-01", complaints: 700, repeatPct: 9.1, in24Pct: 88, msanFaults: null, perThousand: null }],
   maintenance: { boxesTotal: 1000, boxesDone: 214, byYear: [{ year: "2026", done: 214 }] },
   decentLife: [], errors: [], computedAt: "",
 };
@@ -187,8 +187,9 @@ test("مؤشرات الأعطال: آخر ١٢ شهر + الحالى، كل شه
   assert.equal(faultsStartMonth(new Date("2026-10-20T12:00:00Z")), "2025-10");
   assert.equal(faultsStartMonth(new Date("2026-01-05T12:00:00Z")), "2025-01");
   const a: DeckAuto = { ...auto, computedAt: "2026-10-20T18:00:00Z",
-    faultsByMonth: [{ month: "2026-08", complaints: 70, repeatPct: 9, in48Pct: 85 }, { month: "2026-09", complaints: 60, repeatPct: 8, in48Pct: 90 },
-      { month: "2026-10", complaints: 50, repeatPct: 7, in48Pct: 92 }] };
+    faultsByMonth: [{ month: "2026-08", complaints: 70, repeatPct: 9, in24Pct: 85, msanFaults: null, perThousand: null },
+      { month: "2026-09", complaints: 60, repeatPct: 8, in24Pct: 90, msanFaults: null, perThousand: null },
+      { month: "2026-10", complaints: 50, repeatPct: 7, in24Pct: 92, msanFaults: null, perThousand: null }] };
   const d = defaultDeck();
   let charts = buildSlides(d, a).filter((s) => s.kind === "chart");
   assert.equal(charts.length, 2);

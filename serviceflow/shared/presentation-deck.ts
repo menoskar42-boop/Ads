@@ -101,9 +101,13 @@ export type ExchangeAuto = {
 export type DeckAuto = {
   exchanges: Record<string, ExchangeAuto>;
   total: ExchangeAuto;
-  faultsByYear: { year: string; complaints: number; repeatPct: number | null; in48Pct: number | null }[];
+  faultsByYear: { year: string; complaints: number; repeatPct: number | null; in24Pct: number | null }[];
   /** نفس المؤشرات شهر بشهر (YYYY-MM) — لو الفترة سنة واحدة الرسم بيبقى بالشهور */
-  faultsByMonth?: { month: string; complaints: number; repeatPct: number | null; in48Pct: number | null }[];
+  /** complaints/repeatPct/in24Pct: أعطال السنترال (exchange_name)؛ msanFaults/perThousand: زى تقرير «عدد الأعطال فى الألف» */
+  faultsByMonth?: { month: string; complaints: number; repeatPct: number | null; in24Pct: number | null;
+    msanFaults: number | null; perThousand: number | null }[];
+  /** الشغال (fbb_subs من آخر ملف FTTH/ADSL) اللى الأعطال فى الألف بتتقسم عليه */
+  faultsWorking?: number | null;
   maintenance: { boxesTotal: number | null; boxesDone: number | null; byYear: { year: string; done: number }[] } | null;
   /** قيم «حياة كريمة» على الكباين زى ما هى متسجّلة (مساعدة للمالك وهو بيكتب المرحلة الأولى/التانية) */
   decentLife: { value: string; cabinets: number; villages: number }[];
@@ -305,11 +309,20 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     const cur = (auto.computedAt || new Date().toISOString()).slice(0, 7);
     const partial = fm[fm.length - 1].month === cur
       ? ` · ${monthLabel(cur, "none")} من أوله لحد ${Number((auto.computedAt || "").slice(8, 10)) || ""} ${monthLabel(cur, "none")}` : "";
-    const pts = (k: "repeatPct" | "in48Pct") => fm.filter((m) => m[k] != null).map((m) => ({ label: label(m.month), value: m[k] as number }));
-    slides.push({ kind: "chart", title: `نسب تكرار الأعطال شهرياً (${span})`, seriesLabel: "نسبة التكرار", unit: "%",
+    const pts = (k: "repeatPct" | "in24Pct" | "perThousand") => fm.filter((m) => m[k] != null).map((m) => ({ label: label(m.month), value: m[k] as number }));
+    const work = auto.faultsWorking;
+    // المالك ٢٠٢٦-١٠-٢٠: «عدد الأعطال فى الألف خلال الشهر + مقارنة الأعطال بالشغال + التكرار + الإزالة خلال ٢٤ ساعة»
+    if (work && fm.some((m) => m.perThousand != null)) {
+      slides.push({ kind: "chart", title: `عدد الأعطال فى الألف شهرياً (${span})`, seriesLabel: "أعطال لكل ١٠٠٠ مشترك شغال", unit: "",
+        points: pts("perThousand"), note: `الأعطال ÷ الشغال (${work.toLocaleString("en-US")}) × 1000 — نفس تقرير «عدد الأعطال فى الألف»${partial}` });
+      slides.push({ kind: "table", title: `الأعطال مقارنة بالشغال (${span})`, columns: ["الشهر", "عدد الأعطال", "الشغال", "الأعطال فى الألف"],
+        rows: fm.filter((m) => m.msanFaults != null).map((m) => [monthLabel(m.month, "full"), m.msanFaults!.toLocaleString("en-US"), work.toLocaleString("en-US"), String(m.perThousand ?? "")]),
+        imageId: "", note: "الشغال من آخر ملف مشتركين مرفوع (نفس الرقم لكل الشهور)", totalLast: false });
+    }
+    if (fm.some((m) => m.repeatPct != null)) slides.push({ kind: "chart", title: `نسب تكرار الأعطال شهرياً (${span})`, seriesLabel: "نسبة التكرار", unit: "%",
       points: pts("repeatPct"), note: `كل شهر محسوب لوحده: (الأعطال المغلقة − عدد الأرقام) ÷ عدد الأرقام${partial}` });
-    slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 48 ساعة شهرياً (${span})`, seriesLabel: "الإزالة خلال 48 ساعة", unit: "%",
-      points: pts("in48Pct"), note: `كل شهر محسوب لوحده: من إجمالى الأعطال المبلّغة فى الشهر${partial}` });
+    if (fm.some((m) => m.in24Pct != null)) slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 24 ساعة شهرياً (${span})`, seriesLabel: "الإزالة خلال 24 ساعة", unit: "%",
+      points: pts("in24Pct"), note: `كل شهر محسوب لوحده: من إجمالى الأعطال المبلّغة فى الشهر — زى «إحصائيات الإزالة»${partial}` });
   }
 
   // ── الإنجازات ── (الفاصل بيظهر بس لو تحته شرايح فعلاً)
