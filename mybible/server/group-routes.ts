@@ -91,6 +91,13 @@ async function readerName(groupId: number, body: any): Promise<string> {
   return body?.userName;
 }
 
+// طلب انضمام صاحبه بقى عضو بالفعل (انضم بعدها برابط الدعوة مثلاً) = نفس الرقم.
+// الاسم لوحده لأ: ممكن يبقوا شخصين اسمهم «مينا».
+function memberForRequest(members: any[], request: { phone?: string | null }) {
+  const phone = normalizePhone(request.phone);
+  return (phone && members.find((m) => normalizePhone(m.phone) === phone)) || null;
+}
+
 export function registerGroupRoutes(app: Express) {
 
   // ── معلومات الدعوة (endpoint عام بدون auth) ──
@@ -631,6 +638,28 @@ export function registerGroupRoutes(app: Express) {
         return res.json({ group: publicGroup(group), member: existing[0], status: 'already_member' });
       }
 
+      // «انضمام فورى» من الإعدادات: الصفحة دى (الانضمام بالكود) كانت بتتجاهله وتعمل طلب دايماً —
+      // ومن هنا جت طلبات الانضمام اللى ظهرت والمجموعة على «انضمام فورى» (٢٠٢٦-١٠-٢٠). زى invite-join.
+      if (group.linkJoinMode === 'auto') {
+        const memberKey = generateKey();
+        const result = await pool.query(
+          `INSERT INTO group_members (group_id, user_name, member_key, phone, is_admin, is_muted)
+           SELECT $1, $2, $3, $4, false, false
+           WHERE NOT EXISTS (
+             SELECT 1 FROM group_members WHERE group_id = $1 AND (user_name = $2 OR phone = $4)
+           )
+           RETURNING *`,
+          [group.id, userName.trim(), memberKey, normalizedJoinPhone]
+        );
+        if (result.rows.length > 0) {
+          const row = result.rows[0];
+          return res.json({
+            group: publicGroup(group), status: 'joined', memberKey,
+            member: { id: row.id, userName: row.user_name, memberKey, isAdmin: false },
+          });
+        }
+      }
+
       const pendingRequest = await db.select().from(groupJoinRequests)
         .where(and(
           eq(groupJoinRequests.groupId, group.id),
@@ -664,9 +693,20 @@ export function registerGroupRoutes(app: Express) {
       const authorized = await isAdminByLeaderKey(group, String(req.get('x-member-key') || ''));
       if (!authorized) return res.status(403).json({ error: 'غير مسموح' });
 
-      const requests = await db.select().from(groupJoinRequests)
+      const pending = await db.select().from(groupJoinRequests)
         .where(and(eq(groupJoinRequests.groupId, group.id), eq(groupJoinRequests.status, 'pending')))
         .orderBy(desc(groupJoinRequests.createdAt));
+
+      // طلبات قديمة صاحبها بقى عضو بالفعل (الكارت كان مخفى فمحدش قفلها) ⇒ تتقفل لوحدها
+      const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
+      const requests: typeof pending = [];
+      for (const r of pending) {
+        if (memberForRequest(members, r)) {
+          await db.update(groupJoinRequests).set({ status: 'approved' }).where(eq(groupJoinRequests.id, r.id));
+        } else {
+          requests.push(r);
+        }
+      }
 
       res.json({ requests });
     } catch (err) {
@@ -681,9 +721,9 @@ export function registerGroupRoutes(app: Express) {
       const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, req.params.code.toUpperCase()));
       if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
 
-      const adminMember = await db.select().from(groupMembers)
-        .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.memberKey, leaderKey), eq(groupMembers.isAdmin, true)));
-      if (adminMember.length === 0) return res.status(403).json({ error: 'غير مصرح' });
+      // نفس صلاحية باقى أزرار الأدمن (القائد بمفتاح المجموعة أو عضو أدمن)
+      const authorized = await isAdminByLeaderKey(group, leaderKey);
+      if (!authorized) return res.status(403).json({ error: 'غير مصرح' });
 
       const requestId = parseInt(req.params.requestId);
       const [request] = await db.select().from(groupJoinRequests).where(eq(groupJoinRequests.id, requestId));
@@ -691,18 +731,33 @@ export function registerGroupRoutes(app: Express) {
         return res.status(404).json({ error: 'الطلب غير موجود' });
       }
 
+      /* كان بيقع («فشل قبول الطلب»): لو صاحب الطلب انضم بعدها برابط الدعوة، رقمه موجود
+       * والفهرس الفريد على الرقم بيرفض الإضافة — وكان بيعلّم الطلب «مقبول» قبل الإضافة.
+       * دلوقتى: لو عضو بالفعل ⇒ الطلب يتقفل وبس (من غير عضو مكرر)، وإلا يتضاف وبعدين يتقفل. */
+      const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
+      let member = memberForRequest(members, request);
+      if (!member) {
+        // نفس الاسم لعضو تانى برقم تانى ⇒ مانضيفش (القراءات متربطة بالاسم فهتتخلط)
+        const sameName = members.find((m) => nameKey(m.userName) === nameKey(request.userName));
+        if (sameName) {
+          return res.status(409).json({
+            error: `فيه عضو اسمه «${sameName.userName}» بالفعل. لو هو نفس الشخص اضغط «رفض»، `
+              + 'ولو شخص تانى اطلب منه يقدّم باسمه بالكامل.',
+          });
+        }
+        const phone = normalizePhone(request.phone) || null;
+        [member] = await db.insert(groupMembers).values({
+          groupId: group.id,
+          userName: request.userName.trim(),
+          memberKey: generateKey(),
+          phone,
+          isAdmin: false,
+        }).returning();
+      }
       await db.update(groupJoinRequests).set({ status: 'approved' }).where(eq(groupJoinRequests.id, requestId));
 
-      const memberKey = generateKey();
-      const [member] = await db.insert(groupMembers).values({
-        groupId: group.id,
-        userName: request.userName,
-        memberKey,
-        phone: request.phone || null,
-        isAdmin: false,
-      }).returning();
-
-      res.json({ member });
+      const { memberKey: _k, ...publicMember } = member as any;
+      res.json({ member: publicMember, alreadyMember: members.includes(member) });
     } catch (err) {
       console.error('[groups] approve error:', err);
       res.status(500).json({ error: 'فشل الموافقة' });
@@ -715,12 +770,12 @@ export function registerGroupRoutes(app: Express) {
       const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, req.params.code.toUpperCase()));
       if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
 
-      const adminMember = await db.select().from(groupMembers)
-        .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.memberKey, leaderKey), eq(groupMembers.isAdmin, true)));
-      if (adminMember.length === 0) return res.status(403).json({ error: 'غير مصرح' });
+      const authorized = await isAdminByLeaderKey(group, leaderKey);
+      if (!authorized) return res.status(403).json({ error: 'غير مصرح' });
 
       const requestId = parseInt(req.params.requestId);
-      await db.update(groupJoinRequests).set({ status: 'rejected' }).where(eq(groupJoinRequests.id, requestId));
+      await db.update(groupJoinRequests).set({ status: 'rejected' })
+        .where(and(eq(groupJoinRequests.id, requestId), eq(groupJoinRequests.groupId, group.id)));
 
       res.json({ success: true });
     } catch (err) {

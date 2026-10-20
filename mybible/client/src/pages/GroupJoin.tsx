@@ -45,7 +45,8 @@ export default function GroupJoin() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      if (data.status === 'already_member') {
+      // joined: المجموعة على «انضمام فورى» — نفس دخول العضو الموجود
+      if (data.status === 'already_member' || data.status === 'joined') {
         const isAdmin = data.member.isAdmin === true;
         localStorage.setItem(`group_${data.group.groupCode}`, JSON.stringify({
           userName: userName.trim(),
@@ -61,7 +62,7 @@ export default function GroupJoin() {
           userName: userName.trim(),
           memberKey: data.member.memberKey,
         });
-        toast.success('أنت عضو بالفعل في هذه المجموعة');
+        toast.success(data.status === 'joined' ? 'تم الانضمام بنجاح!' : 'أنت عضو بالفعل في هذه المجموعة');
         navigate(`/group/${data.group.groupCode}`);
       } else if (data.status === 'pending') {
         setPendingGroup({ name: data.group.name });

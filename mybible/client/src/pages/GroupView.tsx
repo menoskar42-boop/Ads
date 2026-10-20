@@ -1690,12 +1690,13 @@ export default function GroupView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leaderKey: memberKey }),
       });
-      if (!res.ok) throw new Error();
-      toast.success('تم قبول العضو');
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d?.error);
+      toast.success(d?.alreadyMember ? 'العضو ده موجود بالفعل — اتقفل الطلب' : 'تم قبول العضو');
       refetchJoinRequests();
       fetchGroup();
-    } catch {
-      toast.error('فشل قبول الطلب');
+    } catch (err: any) {
+      toast.error(err?.message || 'فشل قبول الطلب');
     }
   };
 

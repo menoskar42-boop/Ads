@@ -119,6 +119,18 @@ for (const sig of ["app.post('/api/groups/:code/invite-join'", "app.post('/api/g
   void fb;
 }
 
+/* ── ٢ب) طلبات الانضمام (٢٠٢٦-١٠-٢٠: «فشل قبول الطلب» + طلبات والمجموعة على «انضمام فورى») ── */
+{
+  const ap = route("app.post('/api/groups/:code/join-requests/:requestId/approve'", 3000);
+  if (!/isAdminByLeaderKey\(group, leaderKey\)/.test(ap)) fail('قبول الطلب مش بنفس صلاحية باقى أزرار الأدمن');
+  const ins = ap.indexOf('db.insert(groupMembers)');
+  const done = ap.indexOf("set({ status: 'approved' })");
+  if (ins < 0 || done < ins) fail('الطلب بيتعلّم «مقبول» قبل ما العضو يتضاف — لو الإضافة وقعت الطلب بيضيع');
+  if (!/memberForRequest\(members, request\)/.test(ap)) fail('قبول طلب صاحبه عضو بالفعل بيضيف عضو مكرر (والفهرس الفريد بيوقّعه)');
+  const jn = route("app.post('/api/groups/join'", 7000);
+  if (!/group\.linkJoinMode === 'auto'/.test(jn)) fail('الانضمام بالكود بيتجاهل «انضمام فورى» وبيعمل طلب');
+}
+
 /* ── ٣) صفحة الكنيسة ──────────────────────────────────────────────────── */
 const ch = strip(CHURCH);
 const cid = ch.slice(ch.indexOf("app.get('/api/churches/:id', async"), ch.indexOf("app.get('/api/churches/:id', async") + 1200);
