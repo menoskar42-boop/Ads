@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 
 type Resp = { deck: Deck; auto: DeckAuto; updatedAt: string | null; updatedBy: string | null };
@@ -37,6 +37,34 @@ function Field({ label, children, hint }: { label: string; children: React.React
   );
 }
 
+/** سطر لكل وظيفة: الوظيفة · من · إلى (التواريخ نص حر) */
+function CareerEditor({ items, onChange }: { items: string; onChange: (items: string) => void }) {
+  // حالة محلية: لو اتقرت من النص مع كل حرف كانت المسافات فى آخر الكلمة بتتمسح وانت بتكتب
+  const [list, setList] = useState<CareerRow[]>(() => (careerRows(items).length ? careerRows(items) : [{ job: "", from: "", to: "" }]));
+  useEffect(() => {
+    // اتغيّر من برّه (تحميل/حفظ) → نقراه تانى
+    if (careerItems(list) !== items) setList(careerRows(items).length ? careerRows(items) : [{ job: "", from: "", to: "" }]);
+  }, [items]);
+  const set = (next: CareerRow[]) => { setList(next); onChange(careerItems(next)); };
+  const edit = (i: number, patch: Partial<CareerRow>) => set(list.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  return (
+    <div className="space-y-2">
+      <div className="hidden sm:grid grid-cols-[1fr_130px_130px_36px] gap-2 text-xs text-muted-foreground">
+        <span>الوظيفة</span><span>من</span><span>إلى</span><span />
+      </div>
+      {list.map((r, i) => (
+        <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_130px_130px_36px] gap-2 items-center">
+          <Input placeholder="الوظيفة" value={r.job} onChange={(e) => edit(i, { job: e.target.value })} data-testid={`career-job-${i}`} />
+          <Input placeholder="من (مثال: 2009)" value={r.from} onChange={(e) => edit(i, { from: e.target.value })} />
+          <Input placeholder="إلى (أو: حتى الآن)" value={r.to} onChange={(e) => edit(i, { to: e.target.value })} />
+          <Button type="button" variant="ghost" size="sm" title="حذف" onClick={() => set(list.filter((_, j) => j !== i))}><Trash2 className="w-4 h-4" /></Button>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" onClick={() => set([...list, { job: "", from: "", to: "" }])} data-testid="career-add">+ إضافة وظيفة</Button>
+    </div>
+  );
+}
+
 function Section({ title, on, onToggle, children }: { title: string; on?: boolean; onToggle?: (v: boolean) => void; children: React.ReactNode }) {
   return (
     <Card className="p-4 space-y-3">
@@ -45,7 +73,8 @@ function Section({ title, on, onToggle, children }: { title: string; on?: boolea
         {onToggle && (
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             {on ? "ظاهر فى العرض" : "مش ظاهر"}
-            <Switch checked={!!on} onCheckedChange={onToggle} />
+            {/* dir=ltr: فى الصفحة العربى الزرار كان بيطلع برّه مكانه ويغطّى الكلام */}
+            <span dir="ltr" className="inline-flex"><Switch checked={!!on} onCheckedChange={onToggle} /></span>
           </label>
         )}
       </div>
@@ -215,8 +244,8 @@ export function PresentationReport() {
 
           <Section title="المسار الوظيفى" on={d.career.enabled} onToggle={(v) => upd("career", { enabled: v })}>
             <Field label="سنة التعيين"><Input value={d.career.hireYear} onChange={(e) => upd("career", { hireYear: e.target.value })} /></Field>
-            <Field label="الوظائف" hint="سطر لكل وظيفة: الوظيفة | الفترة — مثال: مدير إدارة سنترالات الغنايم | 2024 - حتى الآن">
-              <Textarea rows={5} value={d.career.items} onChange={(e) => upd("career", { items: e.target.value })} />
+            <Field label="الوظائف" hint="التواريخ نص عادى — اكتب أى حاجة: 2009 · يناير 2015 · حتى الآن">
+              <CareerEditor items={d.career.items} onChange={(items) => upd("career", { items })} />
             </Field>
           </Section>
 

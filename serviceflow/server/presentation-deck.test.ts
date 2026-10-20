@@ -137,3 +137,19 @@ test("باور بوينت: نفس الشرايح، أول عمود على الي
   assert.ok(names.some((n) => n.endsWith(".jpeg")));
   assert.ok(routes.includes(`app.get("/api/presentation/pptx", requireAuth, requireSuperAdmin`));
 });
+
+test("المسار الوظيفى: خانة للوظيفة ومن وإلى (نص حر)، والسطور القديمة بتتقرى، والفاضى مايطلعش شريحة", async () => {
+  const { careerRows, careerItems } = await import("../shared/presentation-deck");
+  const rows = [{ job: "مهندس صيانة", from: "2009", to: "2015" }, { job: "مدير إدارة | الغنايم", from: "يناير 2020", to: "حتى الآن" }];
+  const items = careerItems(rows);
+  assert.deepEqual(careerRows(items)[0], rows[0]);
+  // المسافة فى آخر الكلمة بتفضل (بيتنادى مع كل حرف)
+  assert.equal(careerItems([{ job: "مدير ", from: "", to: "" }]), "مدير  |  | ");
+  assert.deepEqual(careerRows("مدير سنترال | 2012 - 2020"), [{ job: "مدير سنترال", from: "2012 - 2020", to: "" }]);
+  const d = defaultDeck();
+  d.career.items = items;
+  const s = buildSlides(d, null).find((x) => x.kind === "list" && x.title.startsWith("المسار"));
+  assert.deepEqual(s && s.kind === "list" ? s.items : null, ["مهندس صيانة   2009 - 2015", "مدير إدارة الغنايم   يناير 2020 - حتى الآن"]);
+  d.career.items = careerItems([{ job: "", from: "", to: "" }]);
+  assert.ok(!buildSlides(d, null).some((x) => x.kind === "list" && x.title.startsWith("المسار")));
+});

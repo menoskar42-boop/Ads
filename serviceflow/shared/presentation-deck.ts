@@ -120,6 +120,21 @@ export type Slide =
   | { kind: "photos"; title: string; photoIds: string[] }
   | { kind: "closing"; text: string };
 
+/** المسار الوظيفى: سطر لكل وظيفة «الوظيفة | من | إلى» — التواريخ نص حر (2009 · يناير 2015 · حتى الآن).
+ *  السطور القديمة «الوظيفة | الفترة» بتتقرى زى ما هى (الفترة كلها فى «من»). */
+export type CareerRow = { job: string; from: string; to: string };
+export function careerRows(items: string): CareerRow[] {
+  return String(items || "").split(/\r?\n/).filter((l) => l.trim()).map((l) => {
+    const [job = "", from = "", ...rest] = l.split("|").map((x) => x.trim());
+    return { job, from, to: rest.join(" ").trim() };
+  });
+}
+export function careerItems(rows: CareerRow[]): string {
+  // من غير trim: بيتنادى مع كل حرف، والمسافة اللى المالك لسه كاتبها لازم تفضل
+  const clean = (x: string) => String(x || "").replace(/\|/g, "").replace(/[\r\n]+/g, " ");
+  return rows.map((r) => `${clean(r.job)} | ${clean(r.from)} | ${clean(r.to)}`).join("\n");
+}
+
 const lines = (s: string) => String(s || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
 const pairs = (s: string) => lines(s).map((l) => {
   const i = l.indexOf("|");
@@ -144,11 +159,15 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
       .filter(([, x]) => x.trim()),
     qualificationsTitle: "المؤهل الدراسى", qualifications: lines(p.qualifications),
   });
-  if (deck.career.enabled && (deck.career.hireYear || deck.career.items)) {
+  const sp = (x: string) => x.replace(/\s+/g, " ").trim();
+  const career = careerRows(deck.career.items).map((r) => ({ job: sp(r.job), from: sp(r.from), to: sp(r.to) }))
+    .filter((r) => r.job || r.from || r.to)
+    .map((r) => [r.job, [r.from, r.to].filter(Boolean).join(" - ")].filter(Boolean).join("   "));
+  if (deck.career.enabled && (deck.career.hireYear.trim() || career.length)) {
     slides.push({
       kind: "list", title: "المسار الوظيفى بالشركة المصرية للاتصالات",
       lead: deck.career.hireYear ? `تعيين سنة ${deck.career.hireYear} بالشركة المصرية للاتصالات` : "",
-      items: pairs(deck.career.items).map(([a, b]) => (b ? `${a}   ${b}` : a)),
+      items: career,
     });
   }
 
