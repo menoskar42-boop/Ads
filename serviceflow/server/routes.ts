@@ -2828,6 +2828,37 @@ export async function registerRoutes(
       res.set("Cache-Control", "no-store").json(await hostInfo());
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
+  // «نقل القاعدة لـ Oracle» (السوبر أدمن): نسخ كل الجداول من قاعدة الموقع (قراية بس) لقاعدة Oracle
+  // ومقارنة الأعداد — الموقع بيفضل على قاعدته (server/db-migrate.ts)
+  app.get("/api/admin/db-migrate/status", requireAuth, requireSuperAdmin, async (_req, res) => {
+    const { migrateStatus } = await import("./db-migrate");
+    res.set("Cache-Control", "no-store").json(migrateStatus());
+  });
+  app.post("/api/admin/db-migrate/probe", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      const { probeMigrate } = await import("./db-migrate");
+      res.set("Cache-Control", "no-store").json(await probeMigrate());
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post("/api/admin/db-migrate/start", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      const { probeMigrate, startMigrate } = await import("./db-migrate");
+      const p = await probeMigrate();
+      if (!p.canCopy) return res.status(409).json({ message: p.reasons.join(" · ") });
+      res.json(await startMigrate());
+    } catch (e: any) { res.status(409).json({ message: e.message }); }
+  });
+  app.post("/api/admin/db-migrate/cancel", requireAuth, requireSuperAdmin, async (_req, res) => {
+    const { cancelMigrate, migrateStatus } = await import("./db-migrate");
+    cancelMigrate();
+    res.json(migrateStatus());
+  });
+  app.post("/api/admin/db-migrate/compare", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      const { compareMigrate } = await import("./db-migrate");
+      res.set("Cache-Control", "no-store").json(await compareMigrate());
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
 
   app.post("/api/exec-queue/claim", requireAuth, requireSuperAdmin, async (req: any, res) => {
     // طابور فاضى ومفيش كتابة فيه من آخر سحبة فاضية (ونفس فترة الإيقاف) ⇒ «مفيش» من الذاكرة.

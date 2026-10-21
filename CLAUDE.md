@@ -211,6 +211,14 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   (pg 8.23 بيعامل require كـverify-full والشهادة self-signed) — تجهيز بس، مفيش تحويل. وقبلها:
   `/api/admin/host-info` (ذاكرة الـVM وPostgres متاح؟) للبديل المجانى التانى (Postgres جوّه الـVM).
   الصفحة: https://claude.ai/artifact/KcKYLRU4edm4HUgxeokrXb. **Trigger:** «ابعتلي برومبت قاعدة Oracle».
+- `docs/ORACLE_MIGRATE_PROMPT.md` — **برومبت الإكستنشن: نشر أداة «نقل القاعدة لـ Oracle» + أول نسخة
+  تجربة** (٢٠٢٦-١٠-٢١). القاعدة اتعملت (A1 1/6 · Ashburn) والمالك وافق صراحةً على نقل بيانات Service
+  Flow كلها (ومعاها بيانات العملاء) لسيرفر Oracle على حسابه. الأداة (سوبر أدمن: التقارير ← القاعدة)
+  بتقرا من قاعدة ريبليت جوّه transaction `READ ONLY`، وبتعيد بناء الهيكل والبيانات على Oracle، وبتقارن
+  الأعداد (`serviceflow/server/db-migrate.ts`). مش بتمسح قاعدة من غير علامة `sf_migration.copies`.
+  **التحويل** = سرّ `SERVICEFLOW_USE_ORACLE=1` + Republish (`server.js`)، **والرجوع** = مسح السرّ.
+  الحارس: `node scripts/check-oracle-migrate-prompt.js`. الصفحة:
+  https://claude.ai/artifact/1bc82SLW4wUuvmzyjeRWVg. **Trigger:** «ابعتلي برومبت نقل القاعدة».
 - `docs/GHANAYEM_MAP_PROMPT.md` — **برومبت الإكستنشن: خريطة مركز الغنايم + المساحة والسكان والقرى**
   لشريحة النبذة فى «العرض التقديمى» (٢٠٢٦-١٠-٢٠). بيئة كلود مقفول فيها ويكيبيديا وموقع المحافظة.
   البحث لقى: المساحة 49.24 كم² (موقع المحافظة) · السكان 154,088 (تقدير يناير 2023) · القرى مفيش رقم

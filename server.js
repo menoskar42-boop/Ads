@@ -1913,7 +1913,12 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
   // وإلا صفحة الـ٥٠٣ ما بتلاقيش سبب لأى منهم.
   // المفتاح الثابت معاهم: باب المسار شغّال على أى نطاق، فلازم يلاقى السبب.
   const sfHostList = parseHosts(process.env.SERVICEFLOW_HOST).concat([SERVICEFLOW_STATUS_KEY]);
-  const sfArchiveDatabaseUrl = String(process.env.SERVICEFLOW_DATABASE_URL || '').trim();
+  // التحويل لقاعدة Oracle (docs/ORACLE_DB_SETUP_PROMPT.md): سرّ واحد `SERVICEFLOW_USE_ORACLE=1`
+  // بعد نسخة كاملة مطابقة من «نقل القاعدة». الرجوع = مسح السرّ + Republish (قاعدة ريبليت زى ما هى).
+  const sfUseOracle = process.env.SERVICEFLOW_USE_ORACLE === '1';
+  const sfArchiveDatabaseUrl = String((sfUseOracle
+    ? process.env.SERVICEFLOW_ORACLE_DATABASE_URL
+    : process.env.SERVICEFLOW_DATABASE_URL) || '').trim();
   const sfUseSupabaseDatabase = process.env.SERVICEFLOW_DATABASE_TARGET === 'supabase';
   const sfCurrentDatabaseUrl = sfUseSupabaseDatabase
     ? String(process.env.ADS_DATABASE_URL || '').trim()
@@ -1940,10 +1945,10 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
     console.error('[co-host] Service Flow database target is missing — '
       + (missingTarget
         ? 'SERVICEFLOW_DATABASE_TARGET=supabase requires ADS_DATABASE_URL.'
-        : 'set SERVICEFLOW_DATABASE_URL.'));
+        : 'set ' + (sfUseOracle ? 'SERVICEFLOW_ORACLE_DATABASE_URL' : 'SERVICEFLOW_DATABASE_URL') + '.'));
     for (const h of sfHostList) setCoHostStatus(h, {
       app: 'Service Flow', state: 'missing-config',
-      reason: missingTarget ? 'ADS_DATABASE_URL' : 'SERVICEFLOW_DATABASE_URL',
+      reason: missingTarget ? 'ADS_DATABASE_URL' : (sfUseOracle ? 'SERVICEFLOW_ORACLE_DATABASE_URL' : 'SERVICEFLOW_DATABASE_URL'),
     });
   } else {
     const sfPort = process.env.SERVICEFLOW_PORT || '5003';
@@ -1974,7 +1979,8 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
       : { app: 'Service Flow', state: 'not-built' });
     if (started) {
       console.log('🛠️  Co-hosted Service Flow launched on 127.0.0.1:' + sfPort
-        + ' (hosts: ' + sfHostList.join(', ') + ', schedulers: ' + sfEnv.SF_SCHEDULERS + ')');
+        + ' (hosts: ' + sfHostList.join(', ') + ', schedulers: ' + sfEnv.SF_SCHEDULERS
+        + ', database: ' + (sfUseOracle ? 'oracle' : 'replit') + ')');
 
       /* إعداد ناقص بيقفل أجزاء كاملة **في صمت**، والوحيد اللي هيلاحظ هو
        * المستخدم اللي بيدوّر على حاجة مش موجودة. فبنقولها في اللوج وقت
