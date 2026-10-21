@@ -8,7 +8,7 @@ const src = readFileSync(new URL("./presentation-maint-photos.ts", import.meta.u
 const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../client/src/components/presentation/PresentationReport.tsx", import.meta.url), "utf8");
 
-test("قراية بس من الصيانة، والمسارات للسوبر أدمن، والحد ٨", () => {
+test("قراية بس من الصيانة، والمسارات للسوبر أدمن، والحد ٨", async () => {
   assert.doesNotMatch(src, /\b(INSERT\s+INTO|UPDATE\s+\S+\s+SET|DELETE\s+FROM|ALTER\s+TABLE|DROP\s+|TRUNCATE)\b/i);
   for (const p of ["exchanges", "cabinets", "boxes", "photos", "photo/:id"]) {
     assert.ok(routes.includes(`app.get("/api/presentation/maint/${p}", requireAuth, requireSuperAdmin`), p);
@@ -16,7 +16,10 @@ test("قراية بس من الصيانة، والمسارات للسوبر أد
   assert.ok(routes.includes(`app.post("/api/presentation/maint/import", requireAuth, requireSuperAdmin`));
   assert.match(routes, /\.slice\(0, m\.MAX_DECK_PHOTOS\)/);
   assert.equal(MAX_DECK_PHOTOS, 8);
-  assert.match(ui, /\[\.\.\.d\.maintenance\.photoIds, \.\.\.ids\]\.slice\(0, 8\)/);
+  // المالك ٢٠٢٦-١٠-٢١: الصور بقت «قبل وبعد» — لحد صورتين فى كل ناحية من كل سلايد (والسيرفر بيقصّ تانى وقت الحفظ)
+  assert.match(ui, /\[\.\.\.set\[t\], \.\.\.ids\]\.slice\(0, MAX_SET_PHOTOS\)/);
+  const { MAX_SET_PHOTOS } = await import("../shared/presentation-deck");
+  assert.equal(MAX_SET_PHOTOS, 2);
   // الفيديوهات مابتظهرش فى الاختيار
   assert.match(src, /COALESCE\(p\.media_type, 'photo'\) = 'photo'/);
 });
