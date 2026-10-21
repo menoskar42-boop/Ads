@@ -198,7 +198,33 @@ test("مؤشرات الأعطال: آخر ١٢ شهر + الحالى، كل شه
   charts = buildSlides(d, a).filter((s) => s.kind === "chart");
   assert.deepEqual(charts[0].kind === "chart" && charts[0].points, [{ label: "سبتمبر", value: 8 }, { label: "أكتوبر", value: 7 }]);
   d.faults.hiddenMonths = "2026-08,2026-09,2026-10";
-  assert.ok(!buildSlides(d, a).some((s) => s.kind === "chart" || (s.kind === "divider" && s.title === "مؤشرات ومعدلات الأداء")));
+  assert.ok(!buildSlides(d, a).some((s) => s.kind === "chart"));
+  // فاصل الأداء بيفضل طول ما الصيانة أو الحجز جوّاه — ويتشال لو القسم كله فاضى
+  d.maintenance.enabled = false; d.booking.enabled = false;
+  assert.ok(!buildSlides(d, a).some((s) => s.kind === "divider" && s.title === "مؤشرات ومعدلات الأداء"));
+});
+
+test("الصيانة وفك المتعذرات جوّه «مؤشرات ومعدلات الأداء» بعد الأعطال، والإنجازات بعدهم", () => {
+  const d = defaultDeck();
+  d.achievements = { enabled: true, items: "صيانة ٢١٤ بكس", photoIds: [] };
+  d.vision = { enabled: true, items: "FTTH لكل القرى" };
+  const k = kinds(d);
+  const at = (x: string) => k.findIndex((s) => s.startsWith(x));
+  const perf = k.indexOf("divider:مؤشرات ومعدلات الأداء");
+  assert.ok(perf > 0);
+  assert.ok(at("chart:") > perf);
+  assert.ok(at("table:خطة الصيانة") > at("chart:"));
+  assert.ok(at("compare:نسبة الحجز") > at("table:خطة الصيانة"));
+  assert.ok(at("list:أهم الإنجازات") > at("compare:نسبة الحجز"));
+  assert.ok(at("divider:رؤية التطوير") > at("list:أهم الإنجازات"));
+  // مفيش فاصل تانى بين الأعطال والصيانة والحجز
+  const between = k.slice(perf + 1, at("compare:نسبة الحجز"));
+  assert.ok(!between.some((s) => s.startsWith("divider:")));
+  // من غير أعطال: القسم لسه فى الأجندة لأن الصيانة والحجز جوّاه
+  const noFaults = defaultDeck(); noFaults.faults.enabled = false;
+  const agenda = buildSlides(noFaults, auto).find((s) => s.kind === "agenda") as any;
+  assert.ok(agenda.items.includes("مؤشرات ومعدلات الأداء"));
+  assert.ok(kinds(noFaults).includes("divider:مؤشرات ومعدلات الأداء"));
 });
 
 test("نسبة الحجز وفك المتعذرات: أرقام الغنايم حتى ١٨ أكتوبر افتراضياً، والعرض المحفوظ قبل كده بياخدها، وبتتعدّل", async () => {

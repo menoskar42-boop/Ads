@@ -334,10 +334,11 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   }
 
   const perfMonths = visibleFaultMonths(deck, auto);
-  const showPerf = deck.faults.enabled && perfMonths.length > 0;
-  // شرايح الشغل (الصيانة · الحجز · الإنجازات). المالك ٢٠٢٦-١٠-٢١: «بلاش مبادرات وأهم الإنجازات» —
-  // مالهاش سطر فى الأجندة ولا فاصل، والشرايح نفسها بتكمّل بعد مؤشرات الأداء على طول
-  const work: Slide[] = [];
+  const showFaults = deck.faults.enabled && perfMonths.length > 0;
+  // المالك ٢٠٢٦-١٠-٢١: «بلاش مبادرات وأهم الإنجازات» (مالهاش سطر فى الأجندة ولا فاصل)، و«خلى الصيانة
+  // وفك المتعذرات يبقوا جوّه مؤشرات الأداء» — فقسم الأداء بيظهر لو فيه أعطال أو صيانة أو حجز
+  const perfExtra: Slide[] = [];
+  const achv: Slide[] = [];
   const m = deck.maintenance;
   if (m.enabled) {
     const doneYear = auto?.maintenance?.byYear.find((y) => y.year === m.period)?.done;
@@ -347,8 +348,8 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
       ["الكباين النحاسية", v("total", "copperCabinets"), m.achievedCopper],
       ["كباين MSAN", v("total", "msanCabinets"), m.achievedMsan],
     ].filter((r) => String(r[2]).trim());
-    if (rows.length) work.push({ kind: "table", title: `خطة الصيانة ورفع الكفاءة ${m.period}`, columns: ["البيان", "إجمالى الشبكة", "المحقق"], rows, imageId: "", note: "", totalLast: false });
-    if (m.photoIds.length) work.push({ kind: "photos", title: "بعض صور أعمال الصيانة", photoIds: m.photoIds });
+    if (rows.length) perfExtra.push({ kind: "table", title: `خطة الصيانة ورفع الكفاءة ${m.period}`, columns: ["البيان", "إجمالى الشبكة", "المحقق"], rows, imageId: "", note: "", totalLast: false });
+    if (m.photoIds.length) perfExtra.push({ kind: "photos", title: "بعض صور أعمال الصيانة", photoIds: m.photoIds });
   }
   const b = deck.booking;
   if (b.enabled && (b.total || b.capacity || b.blocked)) {
@@ -358,13 +359,14 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     const rows = [[b.total, b.capacity, b.blocked, b.clarify, b.noReply, b.otherExchange, bookingPct(b)]];
     // المالك ٢٠٢٦-١٠-٢١: عند الاستلام ← دلوقتى. لو خانات المقارنة فاضية ⇒ الجدول زى ما كان بالظبط
     const panels = bookingCompare(b);
-    if (panels.length) work.push({ kind: "compare", title, panels, table: { columns, rows } });
-    else work.push({ kind: "table", title, columns, rows, imageId: "", note: "", totalLast: false });
+    if (panels.length) perfExtra.push({ kind: "compare", title, panels, table: { columns, rows } });
+    else perfExtra.push({ kind: "table", title, columns, rows, imageId: "", note: "", totalLast: false });
   }
   if (deck.achievements.enabled && (deck.achievements.items || deck.achievements.photoIds.length)) {
-    if (deck.achievements.items) work.push({ kind: "list", title: "أهم الإنجازات", lead: "", items: lines(deck.achievements.items) });
-    if (deck.achievements.photoIds.length) work.push({ kind: "photos", title: "من الإنجازات", photoIds: deck.achievements.photoIds });
+    if (deck.achievements.items) achv.push({ kind: "list", title: "أهم الإنجازات", lead: "", items: lines(deck.achievements.items) });
+    if (deck.achievements.photoIds.length) achv.push({ kind: "photos", title: "من الإنجازات", photoIds: deck.achievements.photoIds });
   }
+  const showPerf = showFaults || perfExtra.length > 0;
   const agenda = [`نبذة عن ${DEPT_NAME}`, ...(showPerf ? ["مؤشرات ومعدلات الأداء"] : []),
     ...(deck.vision.enabled && deck.vision.items ? ["رؤية التطوير المستقبلية"] : [])];
   slides.push({ kind: "agenda", title: "الأجندة", items: agenda });
@@ -401,8 +403,8 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   if (deck.exchangesTable.enabled) slides.push({ kind: "table", title: "سنترالات الإدارة", columns: ["السنترال", "الكود", "الخطوط", "كباين نحاس", "كباين MSAN", "البكسيات", "صوت MSAN", "داتا MSAN"], rows: exRows, imageId: "", note: "", totalLast: true });
 
   // ── الأداء ──
-  if (showPerf && auto) {
-    slides.push({ kind: "divider", title: "مؤشرات ومعدلات الأداء" });
+  if (showPerf) slides.push({ kind: "divider", title: "مؤشرات ومعدلات الأداء" });
+  if (showFaults && auto) {
     // كل شهر محسوب لوحده (الشهر الحالى من أوله لحد النهارده) — والمالك بيخفى أى شهر بزرار
     const fm = perfMonths;
     const sameYear = fm.every((m) => m.month.slice(0, 4) === fm[0].month.slice(0, 4));
@@ -429,8 +431,8 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
       points: pts("in24Pct"), note: `كل شهر محسوب لوحده: من إجمالى الأعطال المبلّغة فى الشهر — زى «إحصائيات الإزالة»${partial}` });
   }
 
-  // ── الإنجازات ── (الفاصل بيظهر بس لو تحته شرايح فعلاً)
-  slides.push(...work);
+  // الصيانة وفك المتعذرات جوّه قسم الأداء بعد الأعطال، والإنجازات بعدهم من غير فاصل
+  slides.push(...perfExtra, ...achv);
   if (deck.vision.enabled && deck.vision.items) {
     slides.push({ kind: "divider", title: "رؤية التطوير المستقبلية" });
     slides.push({ kind: "list", title: "رؤية التطوير المستقبلية", lead: "", items: lines(deck.vision.items) });
