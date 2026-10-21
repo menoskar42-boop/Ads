@@ -4,7 +4,7 @@
  * اللوحة ثابتة ١٢٨٠×٧٢٠ وبتتصغّر/تتكبّر بـ scale — نفس النسب فى المعاينة والعرض الكامل.
  */
 import { useEffect, useRef, useState } from "react";
-import type { Slide } from "@shared/presentation-deck";
+import { compareLayout, type Slide } from "@shared/presentation-deck";
 import { withBase } from "@/lib/base-path";
 import weWhite from "@/assets/presentation/we-white.png";
 import wePurple from "@/assets/presentation/we-purple.png";
@@ -180,6 +180,45 @@ function SlideBody({ s }: { s: Slide }) {
             })}
           </svg>
           {s.note && <div style={{ position: "absolute", bottom: 108, left: 0, right: 0, textAlign: "center", fontSize: 18, color: "#555" }}>{s.note}</div>}
+          <Footer />
+        </>
+      );
+    }
+    case "compare": {
+      // المالك ٢٠٢٦-١٠-٢١: الحال عند الاستلام ← دلوقتى. لوحة لكل مقارنة (أول واحدة يمين)، وتحتهم جدول التفاصيل.
+      const L = compareLayout(s.panels.length);
+      return (
+        <>
+          <Title text={s.title} />
+          {s.panels.map((p, i) => {
+            const x = L.xOf(i);
+            const card = (side: "before" | "after", cx: number) => (
+              <div style={{ position: "absolute", left: cx, top: L.cardTop, width: L.cardW, height: L.cardH, background: side === "after" ? "#F3ECFA" : ROW_B,
+                border: `2px solid ${side === "after" ? TITLE : "#C9CCE0"}`, borderRadius: 10, textAlign: "center" }}>
+                <div style={{ marginTop: 12, fontSize: 17, fontWeight: 700, color: "#444", padding: "0 8px", lineHeight: 1.25 }}>{p[side].label}</div>
+                <div style={{ position: "absolute", left: 0, right: 0, bottom: 14, fontSize: 52, fontWeight: 700, color: side === "after" ? TITLE : "#555" }}>{p[side].value}</div>
+              </div>
+            );
+            return (
+              <div key={i}>
+                <div style={{ position: "absolute", left: x, width: L.panelW, top: 118, textAlign: "center", fontSize: 24, fontWeight: 700, color: TITLE }}>{p.heading}</div>
+                {/* RTL: «قبل» يمين و«بعد» شمال، والسهم بينهم */}
+                {card("before", x + L.panelW - L.cardW)}
+                <div style={{ position: "absolute", left: x + L.cardW, width: L.panelW - 2 * L.cardW, top: L.cardTop + L.cardH / 2 - 30, textAlign: "center", fontSize: 44, fontWeight: 700, color: TITLE }}>←</div>
+                {card("after", x)}
+                <div style={{ position: "absolute", left: x, width: L.panelW, top: L.cardTop + L.cardH + 14, textAlign: "center" }}>
+                  <span style={{ display: "inline-block", background: "#E3F4E8", color: "#1E7B34", fontWeight: 700, fontSize: 26, padding: "3px 22px", borderRadius: 999 }}>{p.delta}</span>
+                </div>
+                {p.note && <div style={{ position: "absolute", left: x, width: L.panelW, top: L.cardTop + L.cardH + 64, textAlign: "center", fontSize: 17, color: "#444", lineHeight: 1.35 }}>{p.note}</div>}
+              </div>
+            );
+          })}
+          {s.table && (
+            <table style={{ position: "absolute", top: L.tableTop, right: 40, width: 1200, borderCollapse: "collapse", fontSize: 17, fontWeight: 700, textAlign: "center" }}>
+              <thead><tr>{s.table.columns.map((h, i) => <th key={i} style={{ background: TITLE, color: "#fff", padding: "6px 8px", border: "2px solid #fff" }}>{h}</th>)}</tr></thead>
+              <tbody>{s.table.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} style={{ background: ROW_A, padding: "6px 8px", border: "2px solid #fff" }}>{c}</td>)}</tr>)}</tbody>
+            </table>
+          )}
           <Footer />
         </>
       );

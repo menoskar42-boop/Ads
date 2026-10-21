@@ -5,7 +5,7 @@
  * ونصوص عادية قابلة للتعديل فى باور بوينت (الرسم البيانى أعمدة مرسومة بنفس شكل الريفرنس).
  */
 import JSZip from "jszip";
-import type { Slide } from "../shared/presentation-deck";
+import { compareLayout, type Slide } from "../shared/presentation-deck";
 
 export type DeckImage = { data: Buffer; ext: "png" | "jpeg"; w: number; h: number };
 export type DeckAssets = { weWhite: DeckImage; wePurple: DeckImage; telecomEgypt: DeckImage };
@@ -45,8 +45,8 @@ class SlideXml {
     }).join("");
   }
   /** مستطيل/دايرة (من غير نص أو بنص) */
-  box(x: number, y: number, w: number, h: number, o: { fill?: string; grad?: [string, string]; geom?: "rect" | "ellipse";
-    paras?: Para[]; anchor?: "t" | "ctr" | "b"; inset?: number; shadow?: boolean } = {}) {
+  box(x: number, y: number, w: number, h: number, o: { fill?: string; grad?: [string, string]; geom?: "rect" | "ellipse" | "roundRect";
+    paras?: Para[]; anchor?: "t" | "ctr" | "b"; inset?: number; shadow?: boolean; line?: string } = {}) {
     const fill = o.grad
       ? `<a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:srgbClr val="${o.grad[0]}"/></a:gs><a:gs pos="100000"><a:srgbClr val="${o.grad[1]}"/></a:gs></a:gsLst><a:lin ang="0" scaled="0"/></a:gradFill>`
       : o.fill ? `<a:solidFill><a:srgbClr val="${o.fill}"/></a:solidFill>` : "<a:noFill/>";
@@ -54,7 +54,8 @@ class SlideXml {
     const ins = e(o.inset ?? 0);
     const id = this.id();
     this.shapes.push(`<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Shape ${id}"/><p:cNvSpPr${o.paras ? ' txBox="1"' : ""}/><p:nvPr/></p:nvSpPr>`
-      + `<p:spPr>${this.xfrm(x, y, w, h)}<a:prstGeom prst="${o.geom || "rect"}"><a:avLst/></a:prstGeom>${fill}<a:ln><a:noFill/></a:ln>${shadow}</p:spPr>`
+      + `<p:spPr>${this.xfrm(x, y, w, h)}<a:prstGeom prst="${o.geom || "rect"}"><a:avLst/></a:prstGeom>${fill}`
+      + (o.line ? `<a:ln w="${e(2)}"><a:solidFill><a:srgbClr val="${o.line}"/></a:solidFill></a:ln>` : `<a:ln><a:noFill/></a:ln>`) + `${shadow}</p:spPr>`
       + `<p:txBody><a:bodyPr wrap="square" lIns="${ins}" tIns="${ins}" rIns="${ins}" bIns="${ins}" rtlCol="1" anchor="${o.anchor || "t"}"><a:noAutofit/></a:bodyPr><a:lstStyle/>`
       + (o.paras?.length ? this.paras(o.paras) : `<a:p><a:endParaRPr lang="ar-EG" dirty="0"/></a:p>`) + `</p:txBody></p:sp>`);
   }
@@ -233,6 +234,31 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
         sx.text(cx - 80, y0 + 8, 160, 30, [{ runs: [{ text: p.label, size: fs, bold: true }], align: "ctr" }]);
       });
       if (s.note) sx.text(48, 720 - 108 - 28, 1184, 28, [{ runs: [{ text: s.note, size: 18, color: "555555" }], align: "ctr" }]);
+      footer();
+      return;
+    }
+    case "compare": {
+      // نفس DeckSlide (compareLayout) — الحال عند الاستلام ← دلوقتى، وتحتهم جدول التفاصيل
+      title(s.title);
+      const L = compareLayout(s.panels.length);
+      s.panels.forEach((p, i) => {
+        const x = L.xOf(i);
+        sx.text(x, 118, L.panelW, 34, [{ runs: [{ text: p.heading, size: 24, bold: true, color: TITLE }], align: "ctr" }]);
+        const card = (side: "before" | "after", cx: number) => {
+          const after = side === "after";
+          sx.box(cx, L.cardTop, L.cardW, L.cardH, { geom: "roundRect", fill: after ? "F3ECFA" : ROW_B, line: after ? TITLE : "C9CCE0", inset: 8,
+            paras: [{ runs: [{ text: p[side].label, size: 17, bold: true, color: "444444" }], align: "ctr" },
+              { runs: [{ text: p[side].value, size: 52, bold: true, color: after ? TITLE : "555555" }], align: "ctr", spaceBefore: 10 }] });
+        };
+        card("before", x + L.panelW - L.cardW);
+        sx.text(x + L.cardW, L.cardTop + L.cardH / 2 - 30, L.panelW - 2 * L.cardW, 60, [{ runs: [{ text: "←", size: 44, bold: true, color: TITLE }], align: "ctr" }], "ctr");
+        card("after", x);
+        const dw = Math.min(L.panelW, textW(p.delta, 26) + 60);
+        sx.box(x + (L.panelW - dw) / 2, L.cardTop + L.cardH + 14, dw, 42, { geom: "roundRect", fill: "E3F4E8", anchor: "ctr",
+          paras: [{ runs: [{ text: p.delta, size: 26, bold: true, color: "1E7B34" }], align: "ctr" }] });
+        if (p.note) sx.text(x, L.cardTop + L.cardH + 64, L.panelW, 60, [{ runs: [{ text: p.note, size: 17, color: "444444" }], align: "ctr" }]);
+      });
+      if (s.table) sx.table(40, L.tableTop, 1200, s.table.columns, s.table.rows, 17, false);
       footer();
       return;
     }

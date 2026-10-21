@@ -112,13 +112,13 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
         in24Pct: n > 0 ? Math.round((1000 * (Number(r.in24) || 0)) / n) / 10 : null,
       };
     };
-    faultsByMonth = (await db.query(sql("YYYY-MM"), params)).rows.map((r: any) => ({ month: String(r.p), ...conv(r), msanFaults: null, perThousand: null }));
+    faultsByMonth = (await db.query(sql("YYYY-MM"), params)).rows.map((r: any) => ({ month: String(r.p), ...conv(r), msanFaults: null }));
   } catch (e: any) { errors.push(`الأعطال: ${e?.message || e}`); }
 
   // «عدد الأعطال فى الألف» شهر بشهر — نفس تقرير «عدد الأعطال فى الألف» (server/cabinet-reassign.ts):
   // الأعطال = 430D + المتبقى بكود MSAN بتاع كباين الإدارة (كل بلاغ مرة واحدة على أول يوم ظهر فيه)،
-  // والشغال = مجموع fbb_subs من ملف مشتركى FTTH/ADSL لنفس الأكواد. الملف ده لقطة واحدة (آخر رفع)
-  // فالشغال واحد لكل الشهور.
+  // والشغال الحالى = مجموع fbb_subs من ملف مشتركى FTTH/ADSL لنفس الأكواد. الملف ده لقطة واحدة (آخر رفع،
+  // مفيش أرشيف بتاريخ) — فشغال كل شهر بيكتبه المالك فى صفحة البيانات، والفاضى = الحالى.
   let faultsWorking: number | null = null;
   try {
     const { rows: cr } = await db.query(`SELECT DISTINCT cabin_code AS c FROM cabinet_technicians
@@ -140,10 +140,10 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
       const byMonth = new Map<string, any>(faultsByMonth!.map((m) => [m.month, m]));
       for (const r of fr) {
         const n = Number(r.n) || 0;
-        const pt = faultsWorking > 0 ? Math.round((10000 * n) / faultsWorking) / 10 : null;
+        // الأعطال فى الألف نفسها بتتحسب فى shared (monthPerThousand) على شغال كل شهر — مش هنا
         const m = byMonth.get(String(r.m));
-        if (m) { m.msanFaults = n; m.perThousand = pt; }
-        else byMonth.set(String(r.m), { month: String(r.m), complaints: 0, repeatPct: null, in24Pct: null, msanFaults: n, perThousand: pt });
+        if (m) m.msanFaults = n;
+        else byMonth.set(String(r.m), { month: String(r.m), complaints: 0, repeatPct: null, in24Pct: null, msanFaults: n });
       }
       faultsByMonth = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
     }

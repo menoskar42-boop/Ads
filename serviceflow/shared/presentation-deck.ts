@@ -18,13 +18,20 @@ export type Deck = {
   customers: { weData: string; marketShare: string; showShare: boolean };
   decentLife: { enabled: boolean; phase1: string; phase2: string; notes: string };
   /** hiddenMonths: شهور مخفية من الرسم «YYYY-MM» مفصولة بفاصلة (المالك: زرار قدّام كل شهر) */
-  faults: { enabled: boolean; hiddenMonths: string };
+  /** working: شغال كل شهر «YYYY-MM=العدد» مفصولة بفاصلة — الأعطال فى الألف بتتقسم عليه، والفاضى = الشغال الحالى
+   *  (المالك ٢٠٢٦-١٠-٢١: القسمة على الشغال الحالى كانت بتظلم الشهور القديمة) */
+  faults: { enabled: boolean; hiddenMonths: string; working: string };
   // خطة الصيانة: المحقق بس — مفيش مستهدف (المالك ٢٠٢٦-١٠-٢٠)
   maintenance: { enabled: boolean; period: string; achievedCopper: string; achievedMsan: string; photoIds: string[] };
   /** نسبة الحجز وفك المتعذرات — نفس أعمدة تقرير «نسبة الحجز» بتاع منطقة أسيوط (المالك ٢٠٢٦-١٠-٢٠).
    *  مفتاح جديد (كان blocked) عشان الافتراضيات (أرقام الغنايم حتى ١٨ أكتوبر) تتحط فى العرض المحفوظ. */
   booking: { enabled: boolean; asOf: string; total: string; capacity: string; blocked: string; clarify: string;
-    noReply: string; otherExchange: string; pct: string };
+    noReply: string; otherExchange: string; pct: string;
+    /** المقارنة عند الاستلام ← دلوقتى (المالك ٢٠٢٦-١٠-٢١، استلم ١ ديسمبر ٢٠٢٥). الفاضى = الشريحة زى الأول */
+    handoverPct: string; handoverLabel: string;
+    /** فك المتعذرات: المحلول من إجمالى المتعذرات = المستهدف × المحقق من المستهدف */
+    prevLabel: string; prevTarget: string; prevAchieved: string;
+    curLabel: string; curTarget: string; curAchieved: string };
   achievements: { enabled: boolean; items: string; photoIds: string[] };
   vision: { enabled: boolean; items: string };
   closing: { enabled: boolean; text: string };
@@ -39,6 +46,12 @@ export const DEFAULT_EXCHANGES: DeckExchange[] = [
   { code: "NGOAT", name: "نجع العمدة", match: "الغنايم-نجع العمدة" },
 ];
 
+/** شغال كل شهر من المالك (٢٠٢٦-١٠-٢١) — قيم مبدئية بتتعدّل من صفحة البيانات */
+export const DEFAULT_MONTH_WORKING = [
+  "2025-11=9781", "2025-12=9891", "2026-01=9998", "2026-02=10059", "2026-03=10160", "2026-04=10210",
+  "2026-05=10304", "2026-06=10356", "2026-07=10432", "2026-08=10497", "2026-09=10608", "2026-10=10751",
+].join(",");
+
 export function defaultDeck(): Deck {
   return {
     cover: { title: "إدارة سنترالات الغنايم", subtitle: "عرض تقديمى", meeting: "", date: "" },
@@ -49,10 +62,14 @@ export function defaultDeck(): Deck {
     customers: { weData: "", marketShare: "", showShare: false },
     exchangesTable: { enabled: true },
     decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
-    faults: { enabled: true, hiddenMonths: "" },
+    faults: { enabled: true, hiddenMonths: "", working: DEFAULT_MONTH_WORKING },
     maintenance: { enabled: true, period: "2026", achievedCopper: "", achievedMsan: "", photoIds: [] },
     booking: { enabled: true, asOf: "18 أكتوبر 2026", total: "1267", capacity: "1230", blocked: "36", clarify: "0",
-      noReply: "0", otherExchange: "1", pct: "" },
+      noReply: "0", otherExchange: "1", pct: "",
+      // أرقام المالك (٢٠٢٦-١٠-٢١) — مفاتيح جديدة فبتتحط فى العرض المحفوظ لوحدها، ولو اتمسحت الشريحة ترجع زى الأول
+      handoverPct: "88", handoverLabel: "ديسمبر 2025",
+      prevLabel: "العام الماضى (لحد نوفمبر 2025)", prevTarget: "50", prevAchieved: "105",
+      curLabel: "السنة دى", curTarget: "70", curAchieved: "97.5" },
     achievements: { enabled: false, items: "", photoIds: [] },
     vision: { enabled: false, items: "" },
     closing: { enabled: true, text: "شكراً لحسن استماعكم" },
@@ -106,9 +123,10 @@ export type DeckAuto = {
   total: ExchangeAuto;
   faultsByYear: { year: string; complaints: number; repeatPct: number | null; in24Pct: number | null }[];
   /** نفس المؤشرات شهر بشهر (YYYY-MM) — لو الفترة سنة واحدة الرسم بيبقى بالشهور */
-  /** complaints/repeatPct/in24Pct: أعطال السنترال (exchange_name)؛ msanFaults/perThousand: زى تقرير «عدد الأعطال فى الألف» */
+  /** complaints/repeatPct/in24Pct: أعطال السنترال (exchange_name)؛ msanFaults: زى تقرير «عدد الأعطال فى الألف».
+   *  الأعطال فى الألف بتتحسب هنا (monthPerThousand) على شغال الشهر — مش فى السيرفر */
   faultsByMonth?: { month: string; complaints: number; repeatPct: number | null; in24Pct: number | null;
-    msanFaults: number | null; perThousand: number | null }[];
+    msanFaults: number | null }[];
   /** الشغال (fbb_subs من آخر ملف FTTH/ADSL) اللى الأعطال فى الألف بتتقسم عليه */
   faultsWorking?: number | null;
   maintenance: { boxesTotal: number | null; boxesDone: number | null; byYear: { year: string; done: number }[] } | null;
@@ -139,7 +157,21 @@ export type Slide =
   | { kind: "table"; title: string; columns: string[]; rows: string[][]; imageId: string; note: string; totalLast: boolean }
   | { kind: "chart"; title: string; seriesLabel: string; unit: string; points: { label: string; value: number }[]; note: string }
   | { kind: "photos"; title: string; photoIds: string[] }
-  | { kind: "closing"; text: string };
+  | { kind: "closing"; text: string }
+  /** مقارنة قبل ← بعد (نسبة الحجز وفك المتعذرات)، وتحتها جدول التفاصيل */
+  | { kind: "compare"; title: string; panels: ComparePanel[]; table: { columns: string[]; rows: string[][] } | null };
+/** أماكن شريحة المقارنة على لوحة ١٢٨٠×٧٢٠ — واحدة للشاشة والباور بوينت */
+export function compareLayout(n: number) {
+  const gap = 60, total = 1160;
+  const panelW = n <= 1 ? 760 : (total - gap * (n - 1)) / n;
+  const startRight = n <= 1 ? 1280 - (1280 - panelW) / 2 : 1220;   // أول لوحة يمين
+  const cardW = (panelW - 60) / 2;
+  return {
+    panelW, cardW, cardH: 150, cardTop: 165, tableTop: 505,
+    xOf: (i: number) => startRight - panelW - i * (panelW + gap),   // left لكل لوحة
+  };
+}
+export type ComparePanel = { heading: string; before: { label: string; value: string }; after: { label: string; value: string }; delta: string; note: string };
 
 /** نسبة الحجز = الإمكانية ÷ إجمالى الطلبات — إلا لو مكتوبة */
 export function bookingPct(b: Deck["booking"]): string {
@@ -159,6 +191,71 @@ export function marketShareValue(deck: Deck, auto: DeckAuto | null): string {
   const n = (x: string) => Number(String(x).replace(/[,٬\s]/g, ""));
   const we = n(weDataValue(deck, auto)), all = n(deckValue(deck, auto, "total", "dataUsed"));
   return we > 0 && all > 0 ? `${Math.round((1000 * we) / all) / 10}%` : "";
+}
+
+/** رقم من نص المالك: بيقبل الأرقام العربى (٨٨) و«٫» و«،» و«%» */
+export function parseNum(v: unknown): number | null {
+  const t = String(v ?? "").trim()
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/٫/g, ".").replace(/[,،٬\s%٪]/g, "");
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+/** شغال كل شهر من صفحة البيانات «YYYY-MM=العدد» */
+export function parseMonthWorking(s: string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const part of String(s || "").split(",")) {
+    const [m, v] = part.split("=").map((x) => (x || "").trim());
+    const n = parseNum(v);
+    if (/^\d{4}-\d{2}$/.test(m) && n != null && n > 0) out.set(m, n);
+  }
+  return out;
+}
+export function serializeMonthWorking(m: Map<string, number | string>): string {
+  return [...m.entries()].filter(([, v]) => String(v).trim()).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${String(v).trim()}`).join(",");
+}
+/** شغال الشهر: المكتوب بإيد المالك، وإلا الشغال الحالى (آخر ملف مشتركين) */
+export function monthWorking(deck: Deck, auto: DeckAuto | null, month: string): number | null {
+  return parseMonthWorking(deck.faults.working).get(month) ?? (auto?.faultsWorking || null);
+}
+/** الأعطال فى الألف = أعطال الشهر ÷ شغال الشهر × 1000 (رقم عشرى واحد) */
+export function monthPerThousand(deck: Deck, auto: DeckAuto | null, m: { month: string; msanFaults: number | null }): number | null {
+  const w = monthWorking(deck, auto, m.month);
+  if (m.msanFaults == null || !w) return null;
+  return Math.round((10000 * m.msanFaults) / w) / 10;
+}
+
+/** «+9 نقاط» / «+15.75 نقطة» */
+const fmtNum = (n: number) => String(Number(n.toFixed(2)));
+export function pointsDelta(d: number): string {
+  const sign = d > 0 ? "+" : d < 0 ? "−" : "";
+  const a = Math.abs(d);
+  const word = Number.isInteger(Number(a.toFixed(2))) && a >= 3 && a <= 10 ? "نقاط" : "نقطة";
+  // \u200E (LRM): من غيرها الإشارة بتطلع بعد الرقم فى السطر العربى («9+ نقاط»)
+  return `\u200E${sign}${fmtNum(a)} ${word}`;
+}
+/** مقارنة نسبة الحجز وفك المتعذرات (عند الاستلام ← دلوقتى). الخانات الفاضية/الناقصة ⇒ مفيش لوحة */
+export function bookingCompare(b: Deck["booking"]): ComparePanel[] {
+  const panels: ComparePanel[] = [];
+  const h = parseNum(b.handoverPct), now = parseNum(bookingPct(b));
+  if (h != null && now != null) {
+    panels.push({ heading: "نسبة الحجز",
+      before: { label: `عند الاستلام${b.handoverLabel.trim() ? ` (${b.handoverLabel.trim()})` : ""}`, value: `${fmtNum(h)}%` },
+      after: { label: b.asOf.trim() ? `حالياً (حتى ${b.asOf.trim()})` : "حالياً", value: `${fmtNum(now)}%` },
+      delta: pointsDelta(now - h), note: "نسبة الحجز = الإمكانية ÷ إجمالى الطلبات" });
+  }
+  const pt = parseNum(b.prevTarget), pa = parseNum(b.prevAchieved), ct = parseNum(b.curTarget), ca = parseNum(b.curAchieved);
+  if (pt != null && pa != null && ct != null && ca != null) {
+    // الرقم الكبير = الصافى (المستهدف × المحقق) — مش المحقق لوحده (١٠٥٪ ← ٩٧٫٥٪ كان هيبان كأنه نزل)
+    const prev = (pt * pa) / 100, cur = (ct * ca) / 100;
+    panels.push({ heading: "فك المتعذرات (المحلول من إجمالى المتعذرات)",
+      before: { label: b.prevLabel.trim() || "العام الماضى", value: `${fmtNum(prev)}%` },
+      after: { label: b.curLabel.trim() || "السنة دى", value: `${fmtNum(cur)}%` },
+      delta: pointsDelta(cur - prev),
+      note: `المستهدف اترفع من ${fmtNum(pt)}% إلى ${fmtNum(ct)}% · المحقق من المستهدف ${fmtNum(pa)}% ثم ${fmtNum(ca)}%` });
+  }
+  return panels;
 }
 
 /** المسار الوظيفى: سطر لكل وظيفة «الوظيفة | من | إلى» — التواريخ نص حر (2009 · يناير 2015 · حتى الآن).
@@ -248,10 +345,14 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   }
   const b = deck.booking;
   if (b.enabled && (b.total || b.capacity || b.blocked)) {
-    work.push({ kind: "table", title: `نسبة الحجز وفك المتعذرات${b.asOf ? ` حتى ${b.asOf}` : ""}`,
-      columns: ["إجمالى الطلبات", "إجمالى الإمكانية", "متعذر", "توضيح عنوان", "بدون رد", "العنوان لا يتبع السنترال", "نسبة الحجز"],
-      // المالك ٢٠٢٦-١٠-٢٠: «احذف المقارنة بأسيوط — أنا ليا نتيجتى فقط»
-      rows: [[b.total, b.capacity, b.blocked, b.clarify, b.noReply, b.otherExchange, bookingPct(b)]], imageId: "", note: "", totalLast: false });
+    const title = `نسبة الحجز وفك المتعذرات${b.asOf ? ` حتى ${b.asOf}` : ""}`;
+    const columns = ["إجمالى الطلبات", "إجمالى الإمكانية", "متعذر", "توضيح عنوان", "بدون رد", "العنوان لا يتبع السنترال", "نسبة الحجز"];
+    // المالك ٢٠٢٦-١٠-٢٠: «احذف المقارنة بأسيوط — أنا ليا نتيجتى فقط»
+    const rows = [[b.total, b.capacity, b.blocked, b.clarify, b.noReply, b.otherExchange, bookingPct(b)]];
+    // المالك ٢٠٢٦-١٠-٢١: عند الاستلام ← دلوقتى. لو خانات المقارنة فاضية ⇒ الجدول زى ما كان بالظبط
+    const panels = bookingCompare(b);
+    if (panels.length) work.push({ kind: "compare", title, panels, table: { columns, rows } });
+    else work.push({ kind: "table", title, columns, rows, imageId: "", note: "", totalLast: false });
   }
   if (deck.achievements.enabled && (deck.achievements.items || deck.achievements.photoIds.length)) {
     if (deck.achievements.items) work.push({ kind: "list", title: "أهم الإنجازات", lead: "", items: lines(deck.achievements.items) });
@@ -304,15 +405,17 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     const cur = (auto.computedAt || new Date().toISOString()).slice(0, 7);
     const partial = fm[fm.length - 1].month === cur
       ? ` · ${monthLabel(cur, "none")} من أوله لحد ${Number((auto.computedAt || "").slice(8, 10)) || ""} ${monthLabel(cur, "none")}` : "";
-    const pts = (k: "repeatPct" | "in24Pct" | "perThousand") => fm.filter((m) => m[k] != null).map((m) => ({ label: label(m.month), value: m[k] as number }));
-    const work = auto.faultsWorking;
-    // المالك ٢٠٢٦-١٠-٢٠: «عدد الأعطال فى الألف خلال الشهر + مقارنة الأعطال بالشغال + التكرار + الإزالة خلال ٢٤ ساعة»
-    if (work && fm.some((m) => m.perThousand != null)) {
+    const pts = (k: "repeatPct" | "in24Pct") => fm.filter((m) => m[k] != null).map((m) => ({ label: label(m.month), value: m[k] as number }));
+    // المالك ٢٠٢٦-١٠-٢١: الأعطال فى الألف على شغال كل شهر (المكتوب فى صفحة البيانات، والفاضى = الشغال الحالى)
+    const ptMonths = fm.filter((m) => monthPerThousand(deck, auto, m) != null);
+    if (ptMonths.length) {
       slides.push({ kind: "chart", title: `عدد الأعطال فى الألف شهرياً (${span})`, seriesLabel: "أعطال لكل ١٠٠٠ مشترك شغال", unit: "",
-        points: pts("perThousand"), note: `الأعطال ÷ الشغال (${work.toLocaleString("en-US")}) × 1000 — نفس تقرير «عدد الأعطال فى الألف»${partial}` });
+        points: ptMonths.map((m) => ({ label: label(m.month), value: monthPerThousand(deck, auto, m)! })),
+        note: `الأعطال فى الألف محسوبة على عدد الشغال فى كل شهر${partial}` });
       slides.push({ kind: "table", title: `الأعطال مقارنة بالشغال (${span})`, columns: ["الشهر", "عدد الأعطال", "الشغال", "الأعطال فى الألف"],
-        rows: fm.filter((m) => m.msanFaults != null).map((m) => [monthLabel(m.month, "full"), m.msanFaults!.toLocaleString("en-US"), work.toLocaleString("en-US"), String(m.perThousand ?? "")]),
-        imageId: "", note: "الشغال من آخر ملف مشتركين مرفوع (نفس الرقم لكل الشهور)", totalLast: false });
+        rows: ptMonths.map((m) => [monthLabel(m.month, "full"), m.msanFaults!.toLocaleString("en-US"),
+          (monthWorking(deck, auto, m.month) ?? 0).toLocaleString("en-US"), String(monthPerThousand(deck, auto, m))]),
+        imageId: "", note: "الشغال: عدد مشتركى البيانات فى كل شهر — الأعطال فى الألف = أعطال الشهر ÷ شغال الشهر × 1000", totalLast: false });
     }
     if (fm.some((m) => m.repeatPct != null)) slides.push({ kind: "chart", title: `نسب تكرار الأعطال شهرياً (${span})`, seriesLabel: "نسبة التكرار", unit: "%",
       points: pts("repeatPct"), note: `كل شهر محسوب لوحده: (الأعطال المغلقة − عدد الأرقام) ÷ عدد الأرقام${partial}` });

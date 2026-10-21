@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, bookingPct, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -295,6 +295,14 @@ export function PresentationReport() {
   };
 
   const d = deck;
+  // شغال كل شهر (المالك ٢٠٢٦-١٠-٢١): بيتخزّن «YYYY-MM=العدد»، والفاضى = الشغال الحالى
+  const workingMap = new Map<string, string>([...parseMonthWorking(d.faults.working).entries()].map(([k, v]) => [k, String(v)]));
+  const setMonthWork = (month: string, v: string) => {
+    const next = new Map<string, string>(workingMap);
+    const clean = v.replace(/[^\d٠-٩]/g, "");
+    if (clean) next.set(month, clean); else next.delete(month);
+    upd("faults", { working: serializeMonthWorking(next) });
+  };
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex flex-wrap items-center gap-2 justify-between">
@@ -420,14 +428,15 @@ export function PresentationReport() {
               آخر ١٢ شهر + الشهر الحالى (من أوله لحد النهارده) — كل شهر محسوب لوحده، بنفس تعريفات «إحصائيات التكرار»
               و«إحصائيات الإزالة». اقفل أى شهر مش عايزه يظهر فى الرسم. (الأرقام بتتحدّث بعد الحفظ)
             </p>
-            {auto?.faultsWorking ? (
-              <p className="text-xs">الشغال (آخر ملف مشتركين FTTH/ADSL): <b className="tabular-nums">{auto.faultsWorking.toLocaleString("en-US")}</b> — الأعطال فى الألف = أعطال الشهر ÷ الشغال × 1000، زى تقرير «عدد الأعطال فى الألف».</p>
-            ) : null}
+            <p className="text-xs">
+              الأعطال فى الألف = أعطال الشهر ÷ <b>شغال الشهر</b> × 1000. اكتب الشغال لكل شهر فى عمود «الشغال» —
+              الفاضى بيتحسب على الشغال الحالى{auto?.faultsWorking ? <> (آخر ملف مشتركين: <b className="tabular-nums">{auto.faultsWorking.toLocaleString("en-US")}</b>)</> : null}.
+            </p>
             {auto?.faultsByMonth?.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="text-muted-foreground text-xs"><th className="text-right p-1">يظهر</th><th className="text-right p-1">الشهر</th>
-                    <th className="p-1">الأعطال</th><th className="p-1">الأعطال فى الألف</th><th className="p-1">التكرار</th><th className="p-1">الإزالة خلال ٢٤ ساعة</th></tr></thead>
+                    <th className="p-1">الأعطال</th><th className="p-1">الشغال</th><th className="p-1">الأعطال فى الألف</th><th className="p-1">التكرار</th><th className="p-1">الإزالة خلال ٢٤ ساعة</th></tr></thead>
                   <tbody>
                     {auto.faultsByMonth.map((m) => {
                       const hidden = hiddenFaultMonths(d);
@@ -442,7 +451,12 @@ export function PresentationReport() {
                           <td className="p-1"><span dir="ltr" className="inline-flex"><Switch checked={on} onCheckedChange={toggle} /></span></td>
                           <td className="p-1 font-medium">{monthLabel(m.month, "full")}</td>
                           <td className="p-1 text-center tabular-nums">{(m.msanFaults ?? m.complaints).toLocaleString("en-US")}</td>
-                          <td className="p-1 text-center tabular-nums">{m.perThousand ?? "—"}</td>
+                          <td className="p-1 text-center">
+                            <Input className="h-7 w-24 text-xs text-center tabular-nums mx-auto" inputMode="numeric" data-testid={`fault-working-${m.month}`}
+                              value={workingMap.get(m.month) ?? ""} placeholder={auto.faultsWorking ? String(auto.faultsWorking) : ""}
+                              onChange={(e) => setMonthWork(m.month, e.target.value)} />
+                          </td>
+                          <td className="p-1 text-center tabular-nums">{monthPerThousand(d, auto, m) ?? "—"}</td>
                           <td className="p-1 text-center tabular-nums">{m.repeatPct ?? "—"}%</td>
                           <td className="p-1 text-center tabular-nums">{m.in24Pct ?? "—"}%</td>
                         </tr>
@@ -481,6 +495,31 @@ export function PresentationReport() {
               <Field label="نسبة الحجز" hint="فاضى = الإمكانية ÷ الإجمالى">
                 <Input value={d.booking.pct} onChange={(e) => upd("booking", { pct: e.target.value })} placeholder={bookingPct({ ...d.booking, pct: "" })} />
               </Field>
+            </div>
+            {/* المالك ٢٠٢٦-١٠-٢١: الحال عند الاستلام (١ ديسمبر ٢٠٢٥) ← دلوقتى. الخانات الفاضية ⇒ الشريحة زى الأول */}
+            <div className="border-t pt-3 space-y-3">
+              <b className="text-sm">المقارنة: عند الاستلام ← دلوقتى</b>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Field label="نسبة الحجز عند الاستلام %"><Input value={d.booking.handoverPct} inputMode="decimal" data-testid="booking-handover-pct" onChange={(e) => upd("booking", { handoverPct: e.target.value })} /></Field>
+                <Field label="تاريخ الاستلام"><Input value={d.booking.handoverLabel} onChange={(e) => upd("booking", { handoverLabel: e.target.value })} placeholder="ديسمبر 2025" /></Field>
+              </div>
+              <p className="text-xs text-muted-foreground">فك المتعذرات: المحلول من إجمالى المتعذرات = المستهدف × المحقق من المستهدف — وده الرقم الكبير فى الشريحة.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {([["prev", "العام الماضى"], ["cur", "السنة دى"]] as const).map(([k, t]) => {
+                  const lab = `${k}Label` as const, tg = `${k}Target` as const, ac = `${k}Achieved` as const;
+                  const net = (() => { const a = parseNum(d.booking[tg]), b = parseNum(d.booking[ac]); return a != null && b != null ? `${Number(((a * b) / 100).toFixed(2))}%` : "—"; })();
+                  return (
+                    <div key={k} className="rounded-md border p-2 space-y-2">
+                      <Field label={`اسم الفترة (${t})`}><Input value={d.booking[lab]} onChange={(e) => upd("booking", { [lab]: e.target.value } as any)} /></Field>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Field label="المستهدف %"><Input value={d.booking[tg]} inputMode="decimal" data-testid={`booking-${k}-target`} onChange={(e) => upd("booking", { [tg]: e.target.value } as any)} /></Field>
+                        <Field label="المحقق من المستهدف %"><Input value={d.booking[ac]} inputMode="decimal" data-testid={`booking-${k}-achieved`} onChange={(e) => upd("booking", { [ac]: e.target.value } as any)} /></Field>
+                      </div>
+                      <div className="text-xs">المحلول من إجمالى المتعذرات: <b className="tabular-nums">{net}</b></div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </Section>
 
