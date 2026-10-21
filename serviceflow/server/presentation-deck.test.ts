@@ -260,12 +260,22 @@ test("شريحة «سنترالات الإدارة» اختيارية", () => {
   assert.equal(normalizeDeck({}).exchangesTable.enabled, true);
 });
 
-test("خطة الصيانة: المحقق بس من غير مستهدف", () => {
+test("خطة الصيانة: المحقق بس من غير مستهدف — والبكسيات 1049 (رقم المالك)، والفاضى = برنامج الصيانة", () => {
   const d = defaultDeck(); d.maintenance.achievedCopper = "12";
   const t = buildSlides(d, auto).find((s) => s.kind === "table" && s.title.startsWith("خطة الصيانة"));
   assert.ok(t && t.kind === "table");
   assert.deepEqual(t.columns, ["البيان", "إجمالى الشبكة", "المحقق"]);
-  assert.deepEqual(t.rows, [["البكسيات", "300", "214"], ["الكباين النحاسية", "0", "12"]]);
+  assert.deepEqual(t.rows, [["البكسيات", "300", "1049"], ["الكباين النحاسية", "0", "12"]]);
+  // المالك مسح الخانة ⇒ يرجع لبرنامج الصيانة (214) — ومش بيرجع 1049 تانى بعد الحفظ
+  d.maintenance.achievedBoxes = "";
+  const t2 = buildSlides(d, auto).find((s) => s.kind === "table" && s.title.startsWith("خطة الصيانة")) as any;
+  assert.deepEqual(t2.rows[0], ["البكسيات", "300", "214"]);
+  assert.equal(normalizeDeck(JSON.parse(JSON.stringify(d))).maintenance.achievedBoxes, "");
+  // عرض محفوظ قديم من غير الخانة ⇒ 1049، ولو كان كاتب رقم فى الخانة القديمة يفضل هو
+  assert.equal(normalizeDeck({ maintenance: { enabled: true, period: "2026" } }).maintenance.achievedBoxes, "1049");
+  const old = normalizeDeck({ maintenance: { enabled: true, period: "2026" }, overrides: { "total.maintBoxes": "260" } });
+  assert.equal(old.maintenance.achievedBoxes, "260");
+  assert.equal(old.overrides["total.maintBoxes"], undefined);
   assert.equal((normalizeDeck({ maintenance: { targetBoxes: "400" } }).maintenance as any).targetBoxes, undefined);
 });
 

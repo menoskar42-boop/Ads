@@ -23,7 +23,8 @@ export type Deck = {
    *  (المالك ٢٠٢٦-١٠-٢١: القسمة على الشغال الحالى كانت بتظلم الشهور القديمة) */
   faults: { enabled: boolean; hiddenPt: string; hiddenRepeat: string; hiddenIn24: string; working: string };
   // خطة الصيانة: المحقق بس — مفيش مستهدف (المالك ٢٠٢٦-١٠-٢٠)
-  maintenance: { enabled: boolean; period: string; achievedCopper: string; achievedMsan: string; photoIds: string[] };
+  /** achievedBoxes: البكسيات اللى اتعملت (المالك ٢٠٢٦-١٠-٢١: 1049). الفاضى = من برنامج الصيانة */
+  maintenance: { enabled: boolean; period: string; achievedBoxes: string; achievedCopper: string; achievedMsan: string; photoIds: string[] };
   /** نسبة الحجز وفك المتعذرات — نفس أعمدة تقرير «نسبة الحجز» بتاع منطقة أسيوط (المالك ٢٠٢٦-١٠-٢٠).
    *  مفتاح جديد (كان blocked) عشان الافتراضيات (أرقام الغنايم حتى ١٨ أكتوبر) تتحط فى العرض المحفوظ. */
   booking: { enabled: boolean; asOf: string; total: string; capacity: string; blocked: string; clarify: string;
@@ -75,7 +76,8 @@ export function defaultDeck(): Deck {
     exchangesTable: { enabled: true },
     decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
     faults: { enabled: true, hiddenPt: "", hiddenRepeat: "", hiddenIn24: "", working: DEFAULT_MONTH_WORKING },
-    maintenance: { enabled: true, period: "2026", achievedCopper: "", achievedMsan: "", photoIds: [] },
+    // 1049 = رقم المالك — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده، ولو اتمسح يرجع لبرنامج الصيانة
+    maintenance: { enabled: true, period: "2026", achievedBoxes: "1049", achievedCopper: "", achievedMsan: "", photoIds: [] },
     booking: { enabled: true, asOf: "18 أكتوبر 2026", total: "1267", capacity: "1230", blocked: "36", clarify: "0",
       noReply: "0", otherExchange: "1", pct: "",
       // أرقام المالك (٢٠٢٦-١٠-٢١) — مفاتيح جديدة فبتتحط فى العرض المحفوظ لوحدها، ولو اتمسحت الشريحة ترجع زى الأول
@@ -110,6 +112,10 @@ export function normalizeDeck(raw: any): Deck {
   for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "achievements", "vision", "closing"] as const) {
     (d as any)[k] = pick((d as any)[k], raw[k]);
   }
+  // البكسيات كانت بتتكتب فى overrides["total.maintBoxes"] — لو المالك كتب رقم هناك قبل كده، هو اللى يفضل
+  if (raw.maintenance?.achievedBoxes === undefined && String(raw.overrides?.["total.maintBoxes"] ?? "").trim()) {
+    d.maintenance.achievedBoxes = str(raw.overrides["total.maintBoxes"], 60);
+  }
   // عرض محفوظ قبل ما الفترة تبدأ من يناير 2025: شهور يناير–أكتوبر 2025 كلها فاضية ⇒ بتاخد شغال نوفمبر 2025
   {
     const w = parseMonthWorking(d.faults.working);
@@ -141,6 +147,7 @@ export function normalizeDeck(raw: any): Deck {
       if (/^[A-Za-z0-9_]{1,20}\.[A-Za-z0-9_]{1,40}$/.test(k) && String(v ?? "").trim()) d.overrides[k] = str(v, 60);
     }
   }
+  delete d.overrides["total.maintBoxes"];   // اتنقلت لـ maintenance.achievedBoxes (فوق)
   return d;
 }
 
@@ -543,7 +550,7 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   const m = deck.maintenance;
   if (m.enabled) {
     const doneYear = auto?.maintenance?.byYear.find((y) => y.year === m.period)?.done;
-    const achievedBoxes = deck.overrides["total.maintBoxes"] || (doneYear != null ? String(doneYear) : "");
+    const achievedBoxes = m.achievedBoxes.trim() || (doneYear != null ? String(doneYear) : "");
     const rows = [
       ["البكسيات", v("total", "boxes"), achievedBoxes],
       ["الكباين النحاسية", v("total", "copperCabinets"), m.achievedCopper],

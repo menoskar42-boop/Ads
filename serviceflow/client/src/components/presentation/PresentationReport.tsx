@@ -513,7 +513,9 @@ export function PresentationReport() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Field label="السنة"><Input value={d.maintenance.period} onChange={(e) => upd("maintenance", { period: e.target.value })} /></Field>
               <Field label="المحقق (بكسيات)" hint={`فاضى = من برنامج الصيانة: ${auto?.maintenance?.byYear.find((y) => y.year === d.maintenance.period)?.done ?? "—"}`}>
-                <Input value={d.overrides["total.maintBoxes"] ?? ""} placeholder="تلقائى" onChange={(e) => setOverride("total.maintBoxes", e.target.value)} />
+                <Input value={d.maintenance.achievedBoxes} inputMode="numeric" data-testid="maint-achieved-boxes"
+                  placeholder={String(auto?.maintenance?.byYear.find((y) => y.year === d.maintenance.period)?.done ?? "تلقائى")}
+                  onChange={(e) => upd("maintenance", { achievedBoxes: e.target.value })} />
               </Field>
               <Field label="المحقق (كباين نحاس)"><Input value={d.maintenance.achievedCopper} onChange={(e) => upd("maintenance", { achievedCopper: e.target.value })} /></Field>
               <Field label="المحقق (كباين MSAN)"><Input value={d.maintenance.achievedMsan} onChange={(e) => upd("maintenance", { achievedMsan: e.target.value })} /></Field>
