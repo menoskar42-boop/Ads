@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -466,6 +466,21 @@ export function PresentationReport() {
                 </table>
               </div>
             ) : <p className="text-xs text-muted-foreground">مفيش أعطال فى الفترة دى</p>}
+          </Section>
+
+          <Section title="مؤشرات تركيبات الصوت" on={d.installs.enabled} onToggle={(v) => upd("installs", { enabled: v })}>
+            <p className="text-xs text-muted-foreground">صف الغنايم من تقرير المنطقة الشهرى — النسبة بتتحسب لوحدها من الإجمالى.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Field label="الشهر"><Input value={d.installs.period} onChange={(e) => upd("installs", { period: e.target.value })} placeholder="سبتمبر 2026" /></Field>
+              <Field label="إجمالى التركيبات"><Input value={d.installs.total} inputMode="numeric" data-testid="installs-total" onChange={(e) => upd("installs", { total: e.target.value })} /></Field>
+              <Field label="خلال 24 ساعة (العدد)"><Input value={d.installs.in24} inputMode="numeric" data-testid="installs-in24" onChange={(e) => upd("installs", { in24: e.target.value })} /></Field>
+              <Field label="خلال 48 ساعة (العدد)"><Input value={d.installs.in48} inputMode="numeric" onChange={(e) => upd("installs", { in48: e.target.value })} /></Field>
+              <Field label="خلال 120 ساعة (العدد)"><Input value={d.installs.in120} inputMode="numeric" onChange={(e) => upd("installs", { in120: e.target.value })} /></Field>
+              <Field label="متوسط زمن التركيب (ساعة)"><Input value={d.installs.avgHours} inputMode="decimal" onChange={(e) => upd("installs", { avgHours: e.target.value })} /></Field>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              النسب: {installsRows(d.installs).filter((r) => r[2]).map((r) => `${r[0].replace("التركيب ", "")} ${r[2]}`).join(" · ") || "—"}
+            </p>
           </Section>
 
           <Section title="خطة الصيانة" on={d.maintenance.enabled} onToggle={(v) => upd("maintenance", { enabled: v })}>

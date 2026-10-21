@@ -199,8 +199,8 @@ test("مؤشرات الأعطال: آخر ١٢ شهر + الحالى، كل شه
   assert.deepEqual(charts[0].kind === "chart" && charts[0].points, [{ label: "سبتمبر", value: 8 }, { label: "أكتوبر", value: 7 }]);
   d.faults.hiddenMonths = "2026-08,2026-09,2026-10";
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "chart"));
-  // فاصل الأداء بيفضل طول ما الصيانة أو الحجز جوّاه — ويتشال لو القسم كله فاضى
-  d.maintenance.enabled = false; d.booking.enabled = false;
+  // فاصل الأداء بيفضل طول ما التركيبات أو الصيانة أو الحجز جوّاه — ويتشال لو القسم كله فاضى
+  d.maintenance.enabled = false; d.booking.enabled = false; d.installs.enabled = false;
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "divider" && s.title === "مؤشرات ومعدلات الأداء"));
 });
 
@@ -370,4 +370,33 @@ test("«إدارة سنترالات الغنايم» بقت «إدارة تشغ�
   assert.ok(slides.some((s) => s.kind === "divider" && s.title === `نبذة عن ${NEW}`));
   const agenda = slides.find((s) => s.kind === "agenda") as any;
   assert.equal(agenda.items[0], `نبذة عن ${NEW}`);
+});
+
+test("شريحة مؤشرات تركيبات الصوت جوّه «مؤشرات ومعدلات الأداء» — أرقام الغنايم سبتمبر 2026", () => {
+  const d = defaultDeck();
+  const slides = buildSlides(d, auto);
+  const k = slides.map((s) => s.kind + ":" + ("title" in s ? s.title : ""));
+  const i = k.indexOf("table:مؤشرات تركيبات الصوت - سبتمبر 2026");
+  assert.ok(i > k.indexOf("divider:مؤشرات ومعدلات الأداء") && i > k.findIndex((x) => x.startsWith("chart:")));
+  assert.ok(i < k.findIndex((x) => x.startsWith("table:خطة الصيانة")));
+  const t = slides[i] as any;
+  assert.deepEqual(t.columns, ["المؤشر", "العدد", "النسبة"]);
+  assert.deepEqual(t.rows, [
+    ["إجمالى التركيبات", "157", ""],
+    ["التركيب خلال 24 ساعة", "155", "99%"],
+    ["التركيب خلال 48 ساعة", "157", "100%"],
+    ["التركيب خلال 120 ساعة", "157", "100%"],
+    ["متوسط زمن التركيب", "6.2 ساعة", ""],
+  ]);
+  // من غير الشرايح التانية: التركيبات لوحدها بتظهّر قسم الأداء
+  const only = defaultDeck(); only.faults.enabled = false; only.maintenance.enabled = false; only.booking.enabled = false;
+  assert.ok(kinds(only).includes("divider:مؤشرات ومعدلات الأداء"));
+  // مقفولة أو فاضية ⇒ مفيش شريحة
+  only.installs.enabled = false;
+  assert.ok(!kinds(only).some((x) => x.includes("تركيبات")));
+  assert.ok(!kinds(only).includes("divider:مؤشرات ومعدلات الأداء"));
+  const empty = defaultDeck(); empty.installs = { ...empty.installs, total: "", in24: "", in48: "", in120: "", avgHours: "" };
+  assert.ok(!kinds(empty).some((x) => x.includes("تركيبات")));
+  // عرض محفوظ قبل الشريحة دى بياخد أرقام سبتمبر لوحده
+  assert.equal(normalizeDeck({ cover: { title: "x" } }).installs.in24, "155");
 });

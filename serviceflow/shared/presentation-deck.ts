@@ -32,6 +32,8 @@ export type Deck = {
     /** فك المتعذرات: المحلول من إجمالى المتعذرات = المستهدف × المحقق من المستهدف */
     prevLabel: string; prevTarget: string; prevAchieved: string;
     curLabel: string; curTarget: string; curAchieved: string };
+  /** مؤشرات تركيبات الصوت (المالك ٢٠٢٦-١٠-٢١، من تقرير المنطقة الشهرى) — صف الغنايم بس، من غير المنطقة */
+  installs: { enabled: boolean; period: string; total: string; in24: string; in48: string; in120: string; avgHours: string };
   achievements: { enabled: boolean; items: string; photoIds: string[] };
   vision: { enabled: boolean; items: string };
   closing: { enabled: boolean; text: string };
@@ -76,6 +78,8 @@ export function defaultDeck(): Deck {
       handoverPct: "88", handoverLabel: "ديسمبر 2025",
       prevLabel: "العام الماضى (لحد نوفمبر 2025)", prevTarget: "50", prevAchieved: "105",
       curLabel: "السنة دى", curTarget: "70", curAchieved: "97.5" },
+    // أرقام الغنايم من «تقرير مؤشرات تركيبات الصوت - سبتمبر 2026» — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
+    installs: { enabled: true, period: "سبتمبر 2026", total: "157", in24: "155", in48: "157", in120: "157", avgHours: "6.2" },
     achievements: { enabled: false, items: "", photoIds: [] },
     vision: { enabled: false, items: "" },
     closing: { enabled: true, text: "شكراً لحسن استماعكم" },
@@ -99,7 +103,7 @@ export function normalizeDeck(raw: any): Deck {
     return out;
   };
   if (!raw || typeof raw !== "object") return d;
-  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "achievements", "vision", "closing"] as const) {
+  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "achievements", "vision", "closing"] as const) {
     (d as any)[k] = pick((d as any)[k], raw[k]);
   }
   if (Array.isArray(raw.exchanges) && raw.exchanges.length) {
@@ -185,6 +189,21 @@ export function bookingPct(b: Deck["booking"]): string {
   const n = (x: string) => Number(String(x).replace(/[,٬\s]/g, ""));
   const t = n(b.total), c = n(b.capacity);
   return t > 0 && c >= 0 && Number.isFinite(c) ? `${Math.round((100 * c) / t)}%` : "";
+}
+
+/** صفوف شريحة التركيبات: العدد خلال كل مدة + نسبته من الإجمالى (مقرّبة لأقرب رقم صحيح زى تقرير المنطقة) */
+export function installsRows(i: Deck["installs"]): string[][] {
+  const total = parseNum(i.total);
+  const fmt = (x: string) => { const n = parseNum(x); return n == null ? "" : n.toLocaleString("en-US"); };
+  const pct = (x: string) => { const n = parseNum(x); return n != null && total ? `${Math.round((100 * n) / total)}%` : ""; };
+  const rows = [
+    ["إجمالى التركيبات", fmt(i.total), ""],
+    ["التركيب خلال 24 ساعة", fmt(i.in24), pct(i.in24)],
+    ["التركيب خلال 48 ساعة", fmt(i.in48), pct(i.in48)],
+    ["التركيب خلال 120 ساعة", fmt(i.in120), pct(i.in120)],
+    ["متوسط زمن التركيب", parseNum(i.avgHours) != null ? `${parseNum(i.avgHours)} ساعة` : "", ""],
+  ];
+  return rows.filter((r) => r[1]);
 }
 
 /** عملاء بيانات WE: المكتوب فى «العملاء» لو موجود، وإلا التلقائى (أكونت + بورت حالى) */
@@ -339,6 +358,11 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   // وفك المتعذرات يبقوا جوّه مؤشرات الأداء» — فقسم الأداء بيظهر لو فيه أعطال أو صيانة أو حجز
   const perfExtra: Slide[] = [];
   const achv: Slide[] = [];
+  // المالك ٢٠٢٦-١٠-٢١: «اعمل سلايد لنسبة التركيبات وخليها جوّه مؤشرات الأداء» — بعد الأعطال على طول
+  const ins = deck.installs;
+  const insRows = ins.enabled ? installsRows(ins) : [];
+  if (insRows.length > 1) perfExtra.push({ kind: "table", title: `مؤشرات تركيبات الصوت${ins.period ? ` - ${ins.period}` : ""}`,
+    columns: ["المؤشر", "العدد", "النسبة"], rows: insRows, imageId: "", note: "النسبة = التركيبات خلال المدة ÷ إجمالى التركيبات", totalLast: false });
   const m = deck.maintenance;
   if (m.enabled) {
     const doneYear = auto?.maintenance?.byYear.find((y) => y.year === m.period)?.done;
