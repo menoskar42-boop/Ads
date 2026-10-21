@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -478,6 +478,14 @@ export function PresentationReport() {
                 </table>
               </div>
             ) : <p className="text-xs text-muted-foreground">مفيش أعطال فى الفترة دى</p>}
+            {auto?.faultsByMonth?.length ? (
+              <div className="text-xs space-y-0.5 text-purple-900" data-testid="fault-period-averages">
+                {([["pt", "الأعطال فى الألف", ""], ["repeat", "التكرار", "%"], ["in24", "الإزالة خلال ٢٤ ساعة", "%"]] as const).map(([ind, name, unit]) => {
+                  const note = periodAverageNote(d, auto, ind, unit);
+                  return note ? <div key={ind}><b>{name}:</b> {note}</div> : null;
+                })}
+              </div>
+            ) : null}
           </Section>
 
           <Section title="مؤشرات تركيبات الصوت" on={d.installs.enabled} onToggle={(v) => upd("installs", { enabled: v })}>

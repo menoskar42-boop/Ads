@@ -5,7 +5,7 @@
  * ونصوص عادية قابلة للتعديل فى باور بوينت (الرسم البيانى أعمدة مرسومة بنفس شكل الريفرنس).
  */
 import JSZip from "jszip";
-import { compareLayout, chartLabelStyle, splitChartLabel, type Slide } from "../shared/presentation-deck";
+import { compareLayout, lineChartGeom, LINE_CHART, type Slide } from "../shared/presentation-deck";
 
 export type DeckImage = { data: Buffer; ext: "png" | "jpeg"; w: number; h: number };
 export type DeckAssets = { weWhite: DeckImage; wePurple: DeckImage; telecomEgypt: DeckImage };
@@ -106,11 +106,14 @@ class SlideXml {
       + `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1" bandRow="1"/>`
       + `<a:tblGrid>${colW.map((c) => `<a:gridCol w="${c}"/>`).join("")}</a:tblGrid>${head}${body}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`);
   }
-  line(x1: number, y1: number, x2: number, y2: number, color: string, width: number) {
+  /** خط من (x1,y1) لـ(x2,y2) فى أى اتجاه — الخط النازل لتحت يمين محتاج flipV (من غيره بيترسم بالمقلوب) */
+  line(x1: number, y1: number, x2: number, y2: number, color: string, width: number, o: { dash?: boolean } = {}) {
     const id = this.id();
+    const flip = (x2 - x1) * (y2 - y1) < 0;
+    const xf = this.xfrm(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
     this.shapes.push(`<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${id}" name="Line ${id}"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>`
-      + `<p:spPr>${this.xfrm(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1))}<a:prstGeom prst="line"><a:avLst/></a:prstGeom>`
-      + `<a:ln w="${e(width)}"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></a:ln></p:spPr></p:cxnSp>`);
+      + `<p:spPr>${flip ? xf.replace("<a:xfrm>", '<a:xfrm flipV="1">') : xf}<a:prstGeom prst="line"><a:avLst/></a:prstGeom>`
+      + `<a:ln w="${e(width)}" cap="rnd"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill>${o.dash ? '<a:prstDash val="dash"/>' : ""}</a:ln></p:spPr></p:cxnSp>`);
   }
   xml() {
     const bg = this.bg ? `<p:bg><p:bgPr><a:solidFill><a:srgbClr val="${this.bg}"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>` : "";
@@ -215,26 +218,28 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
       return;
     }
     case "chart": {
+      // نفس DeckSlide بالظبط (lineChartGeom): رسم خطى + خط «عند الاستلام» المتقطّع + سطر المتوسط
       pillCenter(s.title, 34, 28);
-      sx.text(48, 108, 1184, 40, [{ runs: [{ text: s.seriesLabel, size: 28, bold: true }], align: "ctr" }]);
-      const max = Math.max(1, ...s.points.map((p) => p.value));
-      const top = Math.ceil(max / 10) * 10 || 10;
-      const { fs, split, y0, H, noteY } = chartLabelStyle(s.points.length);   // نفس DeckSlide
-      const W = 1000, x0 = 140;
-      const bw = Math.min(110, (W / Math.max(1, s.points.length)) * 0.55);
-      for (const t of [0, 0.25, 0.5, 0.75, 1]) {
-        sx.line(x0, y0 - t * H, x0 + W, y0 - t * H, "DDDDDD", 1);
-        sx.text(x0 - 110, y0 - t * H - 13, 98, 26, [{ runs: [{ text: `${Math.round(t * top)}${s.unit}`, size: 18, color: "555555" }], align: "r" }]);
+      sx.text(48, 108, 1184, 40, [{ runs: [{ text: s.seriesLabel, size: 26, bold: true }], align: "ctr" }]);
+      const L = LINE_CHART;
+      const g = lineChartGeom(s.points, s.unit, s.baseline?.value);
+      for (const t of g.ticks) {
+        sx.line(L.x0, t.y, L.x0 + L.W, t.y, "E4E4E4", 1);
+        sx.text(L.x0 - 110, t.y - 11, 98, 24, [{ runs: [{ text: t.text, size: 15, color: "888888" }], align: "r" }]);
       }
-      s.points.forEach((p, i) => {
-        const cx = x0 + (W / s.points.length) * (i + 0.5);
-        const h = (p.value / top) * H;
-        if (h > 0) sx.box(cx - bw / 2, y0 - h, bw, h, { fill: BAR });
-        sx.text(cx - 80, y0 - h - 40, 160, 30, [{ runs: [{ text: `${p.value}${s.unit}`, size: fs, bold: true }], align: "ctr" }]);
-        const parts = split ? splitChartLabel(p.label) : [p.label];
-        sx.text(cx - 80, y0 + 8, 160, 30 * parts.length, parts.map((t) => ({ runs: [{ text: t, size: fs, bold: true }], align: "ctr" as const })));
-      });
-      if (s.note) sx.text(48, noteY, 1184, 28, [{ runs: [{ text: s.note, size: 18, color: "555555" }], align: "ctr" }]);
+      if (g.baselineY != null && s.baseline) {
+        sx.line(L.x0, g.baselineY, L.x0 + L.W, g.baselineY, TITLE, 2, { dash: true });
+        sx.text(L.x0 + L.W + 6, g.baselineY - 11, 1280 - (L.x0 + L.W + 6) - 4, 24, [{ runs: [{ text: s.baseline.label, size: 15, bold: true, color: TITLE }], align: "l" }]);
+      }
+      for (let i = 1; i < g.pts.length; i++) sx.line(g.pts[i - 1].cx, g.pts[i - 1].cy, g.pts[i].cx, g.pts[i].cy, L.lineColor, 4);
+      for (const p of g.pts) {
+        sx.box(p.cx - 7, p.cy - 7, 14, 14, { geom: "ellipse", fill: "FFFFFF", line: L.lineColor });
+        sx.text(p.cx - 80, p.cy - 16 - g.valueFs - 6, 160, g.valueFs + 10, [{ runs: [{ text: p.text, size: g.valueFs, bold: true, color: L.valueColor }], align: "ctr" }], "b");
+        sx.text(p.cx - 70, L.y0 + 8, 140, (g.labelFs + 4) * p.label.length + 4,
+          p.label.map((t) => ({ runs: [{ text: t, size: g.labelFs, color: L.monthColor }], align: "ctr" as const })));
+      }
+      if (s.note) sx.text(40, L.noteY, 1200, 24, [{ runs: [{ text: s.note, size: 16, color: "666666" }], align: "ctr" }]);
+      if (s.avgNote) sx.text(40, L.avgY, 1200, 28, [{ runs: [{ text: s.avgNote, size: 18, bold: true, color: TITLE }], align: "ctr" }]);
       footer();
       return;
     }

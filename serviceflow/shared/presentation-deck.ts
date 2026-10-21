@@ -119,10 +119,18 @@ export function normalizeDeck(raw: any): Deck {
       d.faults.working = serializeMonthWorking(w);
     }
   }
-  // عرض محفوظ قبل فصل الشهور: اختيار الشهور القديم (واحد للكل) بيتحط لكل مؤشر لحد ما يتغيّر
-  const legacyHidden = typeof raw.faults?.hiddenMonths === "string" ? str(raw.faults.hiddenMonths) : "";
-  for (const k of Object.values(HIDDEN_KEY)) {
-    if (raw.faults?.[k] === undefined && legacyHidden) d.faults[k] = legacyHidden;
+  // عرض محفوظ قبل فصل الشهور (كان فيه عمود «يظهر» واحد للكل): بياخد اختيار المالك الجديد — ٨ شهور لكل رسم
+  // (OWNER_FAULT_MONTHS) — مرة واحدة بس، ولو العرض فيه اختيار لكل مؤشر خلاص مابنلمسهوش.
+  // ولو اختيار المالك مش متاح (مفيش) يرجع للاختيار القديم الواحد لكل مؤشر عشان مفيش حاجة تبوظ.
+  if (raw.faults && typeof raw.faults === "object") {
+    const legacyHidden = typeof raw.faults.hiddenMonths === "string" ? str(raw.faults.hiddenMonths) : "";
+    const months = periodMonths(new Date());
+    for (const ind of Object.keys(HIDDEN_KEY) as FaultIndicator[]) {
+      const k = HIDDEN_KEY[ind];
+      if (raw.faults[k] !== undefined) continue;
+      const pick = new Set(OWNER_FAULT_MONTHS[ind] || []);
+      d.faults[k] = pick.size ? months.filter((m) => !pick.has(m)).join(",") : legacyHidden;
+    }
   }
   if (Array.isArray(raw.exchanges) && raw.exchanges.length) {
     d.exchanges = raw.exchanges.slice(0, 8).map((e: any) => ({ code: str(e?.code, 20), name: str(e?.name, 80), match: str(e?.match, 120) }))
@@ -154,7 +162,9 @@ export type DeckAuto = {
   /** complaints/repeatPct/in24Pct: أعطال السنترال (exchange_name)؛ msanFaults: زى تقرير «عدد الأعطال فى الألف».
    *  الأعطال فى الألف بتتحسب هنا (monthPerThousand) على شغال الشهر — مش فى السيرفر */
   faultsByMonth?: { month: string; complaints: number; repeatPct: number | null; in24Pct: number | null;
-    msanFaults: number | null }[];
+    msanFaults: number | null;
+    /** العدّ الخام (للمتوسط المرجّح للفترة): المغلقة · عدد الأرقام المغلقة · اللى اتشال خلال ٢٤ ساعة */
+    closed?: number; phones?: number; in24?: number }[];
   /** الشغال (fbb_subs من آخر ملف FTTH/ADSL) اللى الأعطال فى الألف بتتقسم عليه */
   faultsWorking?: number | null;
   maintenance: { boxesTotal: number | null; boxesDone: number | null; byYear: { year: string; done: number }[] } | null;
@@ -183,7 +193,11 @@ export type Slide =
   | { kind: "cv"; title: string; photoId: string; fields: [string, string][]; qualificationsTitle: string; qualifications: string[] }
   | { kind: "list"; title: string; lead: string; items: string[] }
   | { kind: "table"; title: string; columns: string[]; rows: string[][]; imageId: string; note: string; totalLast: boolean }
-  | { kind: "chart"; title: string; seriesLabel: string; unit: string; points: { label: string; value: number }[]; note: string }
+  | { kind: "chart"; title: string; seriesLabel: string; unit: string; points: { label: string; value: number }[]; note: string;
+      /** خط أفقى متقطّع عند قيمة أول شهر ظاهر (المالك: «عند الاستلام») */
+      baseline?: { value: number; label: string } | null;
+      /** «متوسط ديسمبر 2025 – سبتمبر 2026: X مقابل Y فى نوفمبر 2025» */
+      avgNote?: string }
   | { kind: "photos"; title: string; photoIds: string[] }
   | { kind: "closing"; text: string }
   /** مقارنة قبل ← بعد (نسبة الحجز وفك المتعذرات)، وتحتها جدول التفاصيل */
@@ -322,12 +336,98 @@ export const FAULTS_FROM_MONTH = "2025-01";
 export function faultsStartMonth(_now: Date): string {
   return FAULTS_FROM_MONTH;
 }
-/** مقاسات الرسم حسب عدد الشهور (الصفحة والباور بوينت بنفس الأرقام): من ١٤ شهر وطالع الاسم فوق والسنة تحته،
- *  والرسم بيقصر شوية عشان السطر اللى تحته (note) مايركبش على الأسماء. ومن ١٩ شهر الخط أصغر كمان. */
-export function chartLabelStyle(n: number): { fs: number; split: boolean; y0: number; H: number; noteY: number } {
-  if (n > 13) return { fs: n > 18 ? 11 : 13, split: true, y0: 540, H: 360, noteY: 600 };
-  return { fs: n > 8 ? 16 : 22, split: false, y0: 560, H: 380, noteY: 584 };
+/** شهور الفترة من يناير 2025 لحد الشهر الحالى (UTC) */
+export function periodMonths(now: Date): string[] {
+  const end = now.toISOString().slice(0, 7);
+  const out: string[] = [];
+  let [y, m] = FAULTS_FROM_MONTH.split("-").map(Number);
+  for (let k = 0; k < 600; k++) {
+    const s = `${y}-${String(m).padStart(2, "0")}`;
+    if (s > end) break;
+    out.push(s);
+    m === 12 ? (y++, m = 1) : m++;
+  }
+  return out;
 }
+
+/** المالك استلم الإدارة ١ ديسمبر ٢٠٢٥ ⇒ نوفمبر 2025 = «عند الاستلام»، والمتوسط من ديسمبر 2025 لسبتمبر 2026 */
+export const HANDOVER_MONTH = "2025-11";
+export const AVG_FROM = "2025-12";
+export const AVG_TO = "2026-09";
+
+/** اختيار المالك (٢٠٢٦-١٠-٢١) — ٨ شهور لكل رسم. بيتحط فى العرض المحفوظ مرة واحدة لو مفيهوش اختيار لكل مؤشر */
+export const OWNER_FAULT_MONTHS: Record<FaultIndicator, string[]> = {
+  pt: ["2025-11", "2025-12", "2026-02", "2026-03", "2026-04", "2026-06", "2026-07", "2026-08"],
+  repeat: ["2025-11", "2025-12", "2026-02", "2026-03", "2026-04", "2026-06", "2026-07", "2026-08"],
+  in24: ["2025-11", "2025-12", "2026-02", "2026-03", "2026-04", "2026-07", "2026-08", "2026-09"],
+};
+
+const round = (x: number, d: number) => Math.round(x * 10 ** d) / 10 ** d;
+/** متوسط الفترة (ديسمبر 2025 – سبتمبر 2026) لكل مؤشر — على كل شهور الفترة مش الظاهرة بس — وقيمة نوفمبر 2025:
+ *  · الأعطال فى الألف: متوسط قيم الشهور (كل شهر على شغاله)
+ *  · التكرار: مرجّح = Σ(المغلقة − عدد الأرقام) ÷ Σ عدد الأرقام — نفس تعريف «إحصائيات التكرار»
+ *  · الإزالة: مرجّح = Σ اللى اتشال خلال ٢٤ ساعة ÷ Σ الأعطال — نفس تعريف «إحصائيات الإزالة» */
+export function periodAverage(deck: Deck, auto: DeckAuto | null, ind: FaultIndicator): { avg: number | null; handover: number | null; method: string } {
+  const all = auto?.faultsByMonth || [];
+  const inRange = all.filter((m) => m.month >= AVG_FROM && m.month <= AVG_TO);
+  const nov = all.find((m) => m.month === HANDOVER_MONTH);
+  if (ind === "pt") {
+    const v = inRange.map((m) => monthPerThousand(deck, auto, m)).filter((x): x is number => x != null);
+    return { avg: v.length ? round(v.reduce((a, b) => a + b, 0) / v.length, 2) : null,
+      handover: nov ? monthPerThousand(deck, auto, nov) : null, method: "متوسط قيم الشهور" };
+  }
+  if (ind === "repeat") {
+    const ok = inRange.filter((m) => m.closed != null && m.phones != null);
+    const ph = ok.reduce((a, m) => a + (m.phones || 0), 0);
+    const rep = ok.reduce((a, m) => a + ((m.closed || 0) - (m.phones || 0)), 0);
+    return { avg: ph > 0 ? round((100 * rep) / ph, 1) : null, handover: nov?.repeatPct ?? null,
+      method: "مرجّح: التكرار ÷ الأرقام" };
+  }
+  const ok = inRange.filter((m) => m.in24 != null);
+  const n = ok.reduce((a, m) => a + m.complaints, 0);
+  const in24 = ok.reduce((a, m) => a + (m.in24 || 0), 0);
+  return { avg: n > 0 ? round((100 * in24) / n, 1) : null, handover: nov?.in24Pct ?? null,
+    method: "مرجّح: المُزال خلال 24 ساعة ÷ الأعطال" };
+}
+export function periodAverageNote(deck: Deck, auto: DeckAuto | null, ind: FaultIndicator, unit: string): string {
+  const { avg, handover, method } = periodAverage(deck, auto, ind);
+  if (avg == null) return "";
+  const vs = handover != null ? ` مقابل ${handover}${unit} فى ${monthLabel(HANDOVER_MONTH, "full")}` : "";
+  return `متوسط ${monthLabel(AVG_FROM, "full")} – ${monthLabel(AVG_TO, "full")}: ${avg}${unit}${vs} (${method})`;
+}
+
+/** هندسة الرسم الخطى — الصفحة (DeckSlide) والباور بوينت بيرسموا من نفس الأرقام بالظبط.
+ *  المحور مش من الصفر: من تحت أقل قيمة لفوق أعلى قيمة بهامش، عشان الفرق بين الشهور يبان.
+ *  أسماء الشهور ≈ ٦٠٪ من خط القيم ولون رمادى فاتح (المالك: «موجودة بس مش لافتة للنظر»). */
+export const LINE_CHART = { x0: 150, W: 980, y0: 515, H: 315, noteY: 578, avgY: 606, monthColor: "9AA0A6", valueColor: "111111", lineColor: "00B0F0" };
+export function lineChartGeom(points: { label: string; value: number }[], unit: string, baseline?: number | null) {
+  const { x0, W, y0, H } = LINE_CHART;
+  const n = Math.max(1, points.length);
+  const vals = points.map((p) => p.value).concat(baseline != null ? [baseline] : []);
+  const min = vals.length ? Math.min(...vals) : 0, max = vals.length ? Math.max(...vals) : 1;
+  const span = Math.max(max - min, Math.abs(max) * 0.05, 1);
+  const rawStep = (span * 1.7) / 4;
+  const pow = 10 ** Math.floor(Math.log10(rawStep));
+  const step = [1, 2, 2.5, 5, 10].map((k) => k * pow).find((k) => k >= rawStep) || 10 * pow;
+  let lo = Math.floor((min - span * 0.35) / step) * step;
+  const hi = Math.ceil((max + span * 0.35) / step) * step;
+  if (lo < 0 && min >= 0) lo = 0;
+  const y = (v: number) => y0 - ((v - lo) / (hi - lo || 1)) * H;
+  const ticks: { y: number; text: string }[] = [];
+  for (let v = lo; v <= hi + step / 1000; v += step) ticks.push({ y: y(v), text: `${round(v, step < 1 ? 1 : 0)}${unit}` });
+  const valueFs = n <= 8 ? 22 : n <= 13 ? 18 : 14;
+  const dec = points.some((p) => !Number.isInteger(p.value)) ? 1 : 0;
+  const labelFs = Math.max(9, Math.round(valueFs * 0.6));
+  const split = n > 13;
+  return {
+    ticks, valueFs, labelFs, split,
+    // كل القيم بنفس عدد العلامات العشرية (27.0 مش 27 جنب 27.9 — زى أرقام المالك)
+    pts: points.map((p, i) => ({ cx: x0 + (W / n) * (i + 0.5), cy: y(p.value), text: `${p.value.toFixed(dec)}${unit}`,
+      label: split ? splitChartLabel(p.label) : [p.label] })),
+    baselineY: baseline != null ? y(baseline) : null,
+  };
+}
+
 /** «سبتمبر 25» ⇒ ["سبتمبر", "25"] */
 export const splitChartLabel = (l: string) => {
   const i = l.lastIndexOf(" ");
@@ -477,12 +577,16 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
           ? ` · ${monthLabel(cur, "none")} من أوله لحد ${Number((auto.computedAt || "").slice(8, 10)) || ""} ${monthLabel(cur, "none")}` : "",
       };
     };
+    // خط «عند الاستلام» عند قيمة أول شهر ظاهر (نوفمبر 2025 فى اختيار المالك)
+    const base = (fm: typeof ptMonths, val: (m: (typeof ptMonths)[number]) => number) =>
+      ({ value: val(fm[0]), label: fm[0].month === HANDOVER_MONTH ? "عند الاستلام" : `أول شهر: ${monthLabel(fm[0].month, "full")}` });
     // المالك ٢٠٢٦-١٠-٢١: الأعطال فى الألف على شغال كل شهر (المكتوب فى صفحة البيانات، والفاضى = الشغال الحالى)
     if (ptMonths.length) {
       const { label, span, partial } = months(ptMonths);
       slides.push({ kind: "chart", title: `عدد الأعطال فى الألف شهرياً (${span})`, seriesLabel: "أعطال لكل ١٠٠٠ مشترك شغال", unit: "",
         points: ptMonths.map((m) => ({ label: label(m.month), value: monthPerThousand(deck, auto, m)! })),
-        note: `الأعطال فى الألف محسوبة على عدد الشغال فى كل شهر${partial}` });
+        note: `الأعطال فى الألف محسوبة على عدد الشغال فى كل شهر${partial}`,
+        baseline: base(ptMonths, (m) => monthPerThousand(deck, auto, m)!), avgNote: periodAverageNote(deck, auto, "pt", "") });
       slides.push({ kind: "table", title: `الأعطال مقارنة بالشغال (${span})`, columns: ["الشهر", "عدد الأعطال", "الشغال", "الأعطال فى الألف"],
         rows: ptMonths.map((m) => [monthLabel(m.month, "full"), m.msanFaults!.toLocaleString("en-US"),
           (monthWorking(deck, auto, m.month) ?? 0).toLocaleString("en-US"), String(monthPerThousand(deck, auto, m))]),
@@ -492,13 +596,15 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
       const { label, span, partial } = months(repMonths);
       slides.push({ kind: "chart", title: `نسب تكرار الأعطال شهرياً (${span})`, seriesLabel: "نسبة التكرار", unit: "%",
         points: repMonths.map((m) => ({ label: label(m.month), value: m.repeatPct as number })),
-        note: `كل شهر محسوب لوحده: (الأعطال المغلقة − عدد الأرقام) ÷ عدد الأرقام${partial}` });
+        note: `كل شهر محسوب لوحده: (الأعطال المغلقة − عدد الأرقام) ÷ عدد الأرقام${partial}`,
+        baseline: base(repMonths, (m) => m.repeatPct as number), avgNote: periodAverageNote(deck, auto, "repeat", "%") });
     }
     if (in24Months.length) {
       const { label, span, partial } = months(in24Months);
       slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 24 ساعة شهرياً (${span})`, seriesLabel: "الإزالة خلال 24 ساعة", unit: "%",
         points: in24Months.map((m) => ({ label: label(m.month), value: m.in24Pct as number })),
-        note: `كل شهر محسوب لوحده: من إجمالى الأعطال المبلّغة فى الشهر — زى «إحصائيات الإزالة»${partial}` });
+        note: `كل شهر محسوب لوحده: من إجمالى الأعطال المبلّغة فى الشهر — زى «إحصائيات الإزالة»${partial}`,
+        baseline: base(in24Months, (m) => m.in24Pct as number), avgNote: periodAverageNote(deck, auto, "in24", "%") });
     }
   }
 

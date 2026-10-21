@@ -110,6 +110,8 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
         complaints: n,
         repeatPct: phones > 0 ? Math.round((1000 * (closed - phones)) / phones) / 10 : null,
         in24Pct: n > 0 ? Math.round((1000 * (Number(r.in24) || 0)) / n) / 10 : null,
+        // العدّ الخام للمتوسط المرجّح بتاع الفترة (periodAverage فى shared)
+        closed, phones, in24: Number(r.in24) || 0,
       };
     };
     faultsByMonth = (await db.query(sql("YYYY-MM"), params)).rows.map((r: any) => ({ month: String(r.p), ...conv(r), msanFaults: null }));

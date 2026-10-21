@@ -328,12 +328,17 @@ test("نسبة الحجز وفك المتعذرات: خانات المقارنة
   assert.deepEqual(t.rows, [["1267", "1230", "36", "0", "0", "1", "97%"]]);
 });
 
-test("العرض المحفوظ قبل كده بياخد الخانات الجديدة لوحده (من غير SQL)، ومابيلمسش الإنجازات", () => {
+test("العرض المحفوظ قبل كده بياخد الخانات الجديدة لوحده (من غير SQL)، ومابيلمسش الإنجازات", async () => {
   const saved = normalizeDeck({ faults: { enabled: true, hiddenMonths: "2025-12" },
     booking: { enabled: true, asOf: "18 أكتوبر 2026", total: "1267", capacity: "1230" },
     achievements: { enabled: true, items: "سطر الحجز\nسطر فك المتعذرات", photoIds: [] } });
-  // اختيار الشهور القديم (واحد للكل) بيتحط لكل مؤشر
-  assert.deepEqual([saved.faults.hiddenPt, saved.faults.hiddenRepeat, saved.faults.hiddenIn24], ["2025-12", "2025-12", "2025-12"]);
+  // العمود القديم الواحد ⇒ اختيار المالك الجديد (٨ شهور لكل رسم) — كل شهر فى الفترة غيرهم مخفى
+  const { OWNER_FAULT_MONTHS, periodMonths } = await import("../shared/presentation-deck");
+  for (const [ind, k] of [["pt", "hiddenPt"], ["repeat", "hiddenRepeat"], ["in24", "hiddenIn24"]] as const) {
+    const hidden = new Set((saved.faults as any)[k].split(","));
+    const shown = periodMonths(new Date()).filter((m: string) => !hidden.has(m));
+    assert.deepEqual(shown, OWNER_FAULT_MONTHS[ind], ind);
+  }
   assert.match(saved.faults.working, /2025-11=9781/);
   assert.equal(saved.booking.handoverPct, "88");
   assert.equal(saved.booking.curAchieved, "97.5");
@@ -431,20 +436,21 @@ test("كل مؤشر بشهوره: الأعطال فى الألف · التكرا
   const s2 = buildSlides(d, a);
   assert.ok(!s2.some((s) => s.kind === "chart" && s.title.startsWith("نتائج إزالة")));
   assert.ok(s2.some((s) => s.kind === "chart" && s.title.startsWith("نسب تكرار")));
-  // عرض محفوظ فيه اختيار مستقل لمؤشر ماياخدش القديم
+  // عرض محفوظ فيه اختيار لمؤشر بيفضل زى ما هو (الفاضى = كل الشهور ظاهرة)
   const saved = normalizeDeck({ faults: { enabled: true, hiddenMonths: "2026-03", hiddenRepeat: "" } });
-  assert.deepEqual([saved.faults.hiddenPt, saved.faults.hiddenRepeat, saved.faults.hiddenIn24], ["2026-03", "", "2026-03"]);
+  assert.equal(saved.faults.hiddenRepeat, "");
 });
 
 test("الرسم بـ٢٢ شهر (يناير 2025 – أكتوبر 2026): خط أصغر والسنة تحت اسم الشهر — فى الصفحة والباور بوينت", async () => {
-  const { chartLabelStyle, splitChartLabel } = await import("../shared/presentation-deck");
-  assert.deepEqual(chartLabelStyle(5), { fs: 22, split: false, y0: 560, H: 380, noteY: 584 });
-  assert.deepEqual(chartLabelStyle(13), { fs: 16, split: false, y0: 560, H: 380, noteY: 584 });
-  assert.deepEqual(chartLabelStyle(16), { fs: 13, split: true, y0: 540, H: 360, noteY: 600 });
-  assert.deepEqual(chartLabelStyle(22), { fs: 11, split: true, y0: 540, H: 360, noteY: 600 });
-  // السطر اللى تحت الرسم بييجى تحت سطرين أسماء الشهور (y0 + 8 + سطرين)
-  const st = chartLabelStyle(22);
-  assert.ok(st.noteY >= st.y0 + 8 + 2 * (st.fs + 6));
+  const { lineChartGeom, LINE_CHART, splitChartLabel } = await import("../shared/presentation-deck");
+  // أسماء الشهور ≈ ٦٠٪ من خط القيم، ومن ١٤ شهر السنة تحت الاسم
+  const g8 = lineChartGeom(Array.from({ length: 8 }, (_, i) => ({ label: `م ${i}`, value: 20 + i })), "");
+  assert.deepEqual([g8.valueFs, g8.labelFs, g8.split], [22, 13, false]);
+  const g22 = lineChartGeom(Array.from({ length: 22 }, (_, i) => ({ label: `م ${i}`, value: 20 + i })), "");
+  assert.deepEqual([g22.valueFs, g22.labelFs, g22.split], [14, 9, true]);
+  // سطرين الملاحظة والمتوسط تحت سطرين أسماء الشهور
+  assert.ok(LINE_CHART.noteY >= LINE_CHART.y0 + 22 + 2 * (g22.labelFs + 2));
+  assert.ok(LINE_CHART.avgY > LINE_CHART.noteY + 20);
   assert.deepEqual(splitChartLabel("سبتمبر 25"), ["سبتمبر", "25"]);
   assert.deepEqual(splitChartLabel("مارس"), ["مارس"]);
   const months: string[] = [];
@@ -463,8 +469,11 @@ test("الرسم بـ٢٢ شهر (يناير 2025 – أكتوبر 2026): خط �
   const im = { data: png, ext: "png" as const, w: 1, h: 1 };
   const zip = await JSZip.loadAsync(await deckPptx([rep], { weWhite: im, wePurple: im, telecomEgypt: im }, new Map()));
   const xml = await zip.file("ppt/slides/slide1.xml")!.async("string");
-  // اسم الشهر والسنة فقرتين منفصلين جوّه نفس المربع
-  assert.match(xml, /<a:t>يناير<\/a:t><\/a:r>(?:<a:endParaRPr[^>]*\/>)?<\/a:p><a:p><a:pPr[^>]*>(?:<a:buNone\/>)?<\/a:pPr><a:r><a:rPr[^>]*>(?:(?!<\/a:r>).)*<a:t>25<\/a:t>/s);
+  // اسم الشهر والسنة فقرتين منفصلين جوّه نفس المربع، ولونهم رمادى فاتح
+  assert.match(xml, /<a:srgbClr val="9AA0A6"\/><\/a:solidFill>(?:(?!<\/a:r>).)*<a:t>يناير<\/a:t><\/a:r>(?:<a:endParaRPr[^>]*\/>)?<\/a:p><a:p><a:pPr[^>]*>(?:<a:buNone\/>)?<\/a:pPr><a:r><a:rPr[^>]*>(?:(?!<\/a:r>).)*<a:t>25<\/a:t>/s);
+  // رسم خطى: نقط (ellipse) وخط «عند الاستلام» المتقطّع — مفيش أعمدة
+  assert.match(xml, /prst="ellipse"/);
+  assert.match(xml, /<a:prstDash val="dash"\/>/);
 });
 
 test("شغال يناير–أكتوبر 2025 = شغال نوفمبر 2025 (9781) — فى الافتراضى وفى العرض المحفوظ", async () => {
@@ -485,4 +494,62 @@ test("شغال يناير–أكتوبر 2025 = شغال نوفمبر 2025 (9781
   // الأعطال فى الألف لشهر من 2025 بتتقسم على 9781
   const a: DeckAuto = { ...auto, faultsWorking: 10662 };
   assert.equal(monthPerThousand(defaultDeck(), a, { month: "2025-05", msanFaults: 300 }), 30.7);
+});
+
+test("اختيار المالك + القيم المتوقعة + خط «عند الاستلام» + متوسط ديسمبر 2025 – سبتمبر 2026", async () => {
+  const { periodAverage, OWNER_FAULT_MONTHS, periodMonths, monthPerThousand } = await import("../shared/presentation-deck");
+  // أعطال MSAN لكل شهر — نوفمبر/مارس/أبريل/أغسطس من المالك، والباقى بيطلّع القيم اللى المالك كتبها على شغال كل شهر
+  const faults: Record<string, number> = { "2025-11": 292, "2025-12": 266, "2026-01": 280, "2026-02": 253, "2026-03": 288,
+    "2026-04": 282, "2026-05": 285, "2026-06": 280, "2026-07": 291, "2026-08": 277, "2026-09": 290, "2026-10": 150 };
+  // التكرار والإزالة: عدّ خام بيطلّع نسب المالك (6.5% · 3.0% … و 93.6% · 94.3% …)
+  const rep: Record<string, [number, number]> = { "2025-11": [213, 200], "2025-12": [206, 200], "2026-01": [208, 200], "2026-02": [206.6, 200],
+    "2026-03": [207.6, 200], "2026-04": [205, 200], "2026-05": [208, 200], "2026-06": [211.4, 200], "2026-07": [207.8, 200],
+    "2026-08": [209, 200], "2026-09": [207, 200], "2026-10": [204, 200] };
+  const in24: Record<string, [number, number]> = { "2025-11": [936, 1000], "2025-12": [943, 1000], "2026-01": [940, 1000], "2026-02": [943, 1000],
+    "2026-03": [947, 1000], "2026-04": [951, 1000], "2026-05": [939, 1000], "2026-06": [940, 1000], "2026-07": [952, 1000],
+    "2026-08": [954, 1000], "2026-09": [950, 1000], "2026-10": [940, 1000] };
+  const a: DeckAuto = { ...auto, faultsWorking: 10662, computedAt: "2026-10-21T10:00:00Z",
+    faultsByMonth: Object.keys(faults).map((month) => {
+      const [closed, phones] = rep[month], [i24, n] = in24[month];
+      return { month, complaints: n, closed, phones, in24: i24, msanFaults: faults[month],
+        repeatPct: Math.round((1000 * (closed - phones)) / phones) / 10, in24Pct: Math.round((1000 * i24) / n) / 10 };
+    }) };
+  // القيم المتوقعة من المالك
+  const d = normalizeDeck({ faults: { enabled: true, hiddenMonths: "" } });   // عرض محفوظ قديم ⇒ اختيار المالك
+  const pt = (m: string) => monthPerThousand(d, a, { month: m, msanFaults: faults[m] });
+  assert.deepEqual(OWNER_FAULT_MONTHS.pt.map(pt), [29.9, 26.9, 25.2, 28.3, 27.6, 27.0, 27.9, 26.4]);
+  const slides = buildSlides(d, a);
+  const chart = (p: string) => slides.find((s) => s.kind === "chart" && s.title.startsWith(p)) as any;
+  const c1 = chart("عدد الأعطال فى الألف"), c2 = chart("نسب تكرار"), c3 = chart("نتائج إزالة");
+  assert.deepEqual(c1.points.map((p: any) => p.value), [29.9, 26.9, 25.2, 28.3, 27.6, 27.0, 27.9, 26.4]);
+  assert.deepEqual(c2.points.map((p: any) => p.value), [6.5, 3, 3.3, 3.8, 2.5, 5.7, 3.9, 4.5]);
+  assert.deepEqual(c3.points.map((p: any) => p.value), [93.6, 94.3, 94.3, 94.7, 95.1, 95.2, 95.4, 95]);
+  assert.deepEqual(c3.points.map((p: any) => p.label), ["نوفمبر 25", "ديسمبر 25", "فبراير 26", "مارس 26", "أبريل 26", "يوليو 26", "أغسطس 26", "سبتمبر 26"]);
+  // خط «عند الاستلام» عند قيمة نوفمبر 2025 فى التلاتة
+  assert.deepEqual([c1.baseline, c2.baseline, c3.baseline], [
+    { value: 29.9, label: "عند الاستلام" }, { value: 6.5, label: "عند الاستلام" }, { value: 93.6, label: "عند الاستلام" }]);
+  // المتوسط على كل شهور ديسمبر – سبتمبر (مش الظاهرة بس)
+  const months = periodMonths(new Date("2026-10-21T00:00:00Z")).filter((m) => m >= "2025-12" && m <= "2026-09");
+  assert.equal(months.length, 10);
+  const ptAvg = Math.round((months.map(pt).reduce((x, y) => x + (y as number), 0) / 10) * 100) / 100;
+  assert.deepEqual(periodAverage(d, a, "pt"), { avg: ptAvg, handover: 29.9, method: "متوسط قيم الشهور" });
+  // التكرار مرجّح: Σ(المغلقة − الأرقام) ÷ Σ الأرقام — مش متوسط النسب
+  const rs = months.reduce((x, m) => x + rep[m][0] - rep[m][1], 0), ps = months.reduce((x, m) => x + rep[m][1], 0);
+  assert.equal(periodAverage(d, a, "repeat").avg, Math.round((1000 * rs) / ps) / 10);
+  assert.equal(periodAverage(d, a, "repeat").handover, 6.5);
+  const is = months.reduce((x, m) => x + in24[m][0], 0), ns = months.reduce((x, m) => x + in24[m][1], 0);
+  assert.equal(periodAverage(d, a, "in24").avg, Math.round((1000 * is) / ns) / 10);
+  assert.equal(c1.avgNote, `متوسط ديسمبر 2025 – سبتمبر 2026: ${ptAvg} مقابل 29.9 فى نوفمبر 2025 (متوسط قيم الشهور)`);
+  assert.match(c2.avgNote, /^متوسط ديسمبر 2025 – سبتمبر 2026: [\d.]+% مقابل 6\.5% فى نوفمبر 2025 \(مرجّح/);
+  assert.match(c3.avgNote, /^متوسط ديسمبر 2025 – سبتمبر 2026: [\d.]+% مقابل 93\.6% فى نوفمبر 2025 \(مرجّح/);
+  // من غير العدّ الخام (بيانات قديمة) مفيش سطر متوسط مرجّح — بدل رقم غلط
+  const noRaw: DeckAuto = { ...a, faultsByMonth: a.faultsByMonth!.map(({ closed, phones, in24, ...m }) => m) };
+  assert.equal(periodAverage(d, noRaw, "repeat").avg, null);
+});
+
+test("قيم الرسم الخطى بعلامة عشرية واحدة لو فيه قيمة كسرية (27.0 · 3.0% · 95.0%)", async () => {
+  const { lineChartGeom } = await import("../shared/presentation-deck");
+  assert.deepEqual(lineChartGeom([{ label: "a", value: 27 }, { label: "b", value: 27.9 }], "").pts.map((p) => p.text), ["27.0", "27.9"]);
+  assert.deepEqual(lineChartGeom([{ label: "a", value: 3 }, { label: "b", value: 6.5 }], "%").pts.map((p) => p.text), ["3.0%", "6.5%"]);
+  assert.deepEqual(lineChartGeom([{ label: "a", value: 3 }, { label: "b", value: 6 }], "%").pts.map((p) => p.text), ["3%", "6%"]);
 });

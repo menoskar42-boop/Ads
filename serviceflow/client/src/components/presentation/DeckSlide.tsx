@@ -4,7 +4,7 @@
  * اللوحة ثابتة ١٢٨٠×٧٢٠ وبتتصغّر/تتكبّر بـ scale — نفس النسب فى المعاينة والعرض الكامل.
  */
 import { useEffect, useRef, useState } from "react";
-import { compareLayout, chartLabelStyle, splitChartLabel, type Slide } from "@shared/presentation-deck";
+import { compareLayout, lineChartGeom, LINE_CHART, type Slide } from "@shared/presentation-deck";
 import { withBase } from "@/lib/base-path";
 import weWhite from "@/assets/presentation/we-white.png";
 import wePurple from "@/assets/presentation/we-purple.png";
@@ -149,40 +149,45 @@ function SlideBody({ s }: { s: Slide }) {
       );
     }
     case "chart": {
-      const max = Math.max(1, ...s.points.map((p) => p.value));
-      const top = Math.ceil(max / 10) * 10 || 10;
-      // شهور كتير: خط أصغر، ومن ١٤ شهر الاسم فوق والسنة تحته والرسم أقصر (نفس presentation-pptx.ts)
-      const { fs, split, y0, H, noteY } = chartLabelStyle(s.points.length);
-      const W = 1000, x0 = 140;
-      const bw = Math.min(110, (W / Math.max(1, s.points.length)) * 0.55);
+      // المالك ٢٠٢٦-١٠-٢١: رسم خطى — نقطة لكل شهر عليها القيمة بخط واضح، وأسماء الشهور صغيرة ورمادى فاتح،
+      // وخط متقطّع «عند الاستلام»، وتحت الرسم سطر المتوسط. الهندسة كلها من lineChartGeom (نفس presentation-pptx.ts)
+      const L = LINE_CHART;
+      const g = lineChartGeom(s.points, s.unit, s.baseline?.value);
+      const poly = g.pts.map((p) => `${p.cx},${p.cy}`).join(" ");
       return (
         <>
           <div style={{ position: "absolute", top: 34, right: 48, left: 48, textAlign: "center" }}>
             <span style={{ background: TITLE, color: "#fff", fontWeight: 700, fontSize: 28, padding: "6px 30px" }}>{s.title}</span>
           </div>
-          <div style={{ position: "absolute", top: 110, left: 0, right: 0, textAlign: "center", fontSize: 28, fontWeight: 700 }}>{s.seriesLabel}</div>
+          <div style={{ position: "absolute", top: 110, left: 0, right: 0, textAlign: "center", fontSize: 26, fontWeight: 700 }}>{s.seriesLabel}</div>
           <svg width={SLIDE_W} height={SLIDE_H} style={{ position: "absolute", inset: 0 }}>
-            {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-              <g key={t}>
-                <line x1={x0} x2={x0 + W} y1={y0 - t * H} y2={y0 - t * H} stroke="#ddd" />
-                <text x={x0 - 12} y={y0 - t * H + 6} fontSize={18} textAnchor="end" fill="#555" fontFamily={font}>{Math.round(t * top)}{s.unit}</text>
+            {g.ticks.map((t) => (
+              <g key={t.text}>
+                <line x1={L.x0} x2={L.x0 + L.W} y1={t.y} y2={t.y} stroke="#E4E4E4" />
+                <text x={L.x0 - 12} y={t.y + 5} fontSize={15} textAnchor="end" fill="#888" fontFamily={font}>{t.text}</text>
               </g>
             ))}
-            {s.points.map((p, i) => {
-              const cx = x0 + (W / s.points.length) * (i + 0.5);
-              const h = (p.value / top) * H;
-              return (
-                <g key={p.label}>
-                  <rect x={cx - bw / 2} y={y0 - h} width={bw} height={h} fill="#00B0F0" />
-                  <text x={cx} y={y0 - h - 12} fontSize={fs} fontWeight={700} textAnchor="middle" fill="#111" fontFamily={font}>{p.value}{s.unit}</text>
-                  <text x={cx} y={y0 + 30} fontSize={fs} fontWeight={700} textAnchor="middle" fill="#111" fontFamily={font}>
-                    {split ? splitChartLabel(p.label).map((t, j) => <tspan key={j} x={cx} dy={j ? fs + 3 : 0}>{t}</tspan>) : p.label}
-                  </text>
-                </g>
-              );
-            })}
+            {g.baselineY != null && s.baseline && (
+              <g>
+                <line x1={L.x0} x2={L.x0 + L.W} y1={g.baselineY} y2={g.baselineY} stroke={TITLE} strokeWidth={2} strokeDasharray="10 7" />
+                {/* مثبّت على حافة الشريحة اليمين وبيمتد شمال لحد بعد آخر الخط (من غير ما الخط يعدّى فوقه).
+                    direction="ltr" صريح: الـSVG بيورث rtl من الصفحة وساعتها end/start بيتقلبوا */}
+                <text x={SLIDE_W - 6} y={g.baselineY + 5} fontSize={15} fontWeight={700} textAnchor="end" direction="ltr" fill={TITLE} fontFamily={font}>{s.baseline.label}</text>
+              </g>
+            )}
+            <polyline points={poly} fill="none" stroke={`#${L.lineColor}`} strokeWidth={4} strokeLinejoin="round" />
+            {g.pts.map((p, i) => (
+              <g key={i}>
+                <circle cx={p.cx} cy={p.cy} r={7} fill="#fff" stroke={`#${L.lineColor}`} strokeWidth={3} />
+                <text x={p.cx} y={p.cy - 16} fontSize={g.valueFs} fontWeight={700} textAnchor="middle" fill={`#${L.valueColor}`} fontFamily={font}>{p.text}</text>
+                <text x={p.cx} y={L.y0 + 22} fontSize={g.labelFs} textAnchor="middle" fill={`#${L.monthColor}`} fontFamily={font}>
+                  {p.label.map((t, j) => <tspan key={j} x={p.cx} dy={j ? g.labelFs + 2 : 0}>{t}</tspan>)}
+                </text>
+              </g>
+            ))}
           </svg>
-          {s.note && <div style={{ position: "absolute", top: noteY, left: 0, right: 0, textAlign: "center", fontSize: 18, color: "#555" }}>{s.note}</div>}
+          {s.note && <div style={{ position: "absolute", top: L.noteY, left: 40, right: 40, textAlign: "center", fontSize: 16, color: "#666" }}>{s.note}</div>}
+          {s.avgNote && <div style={{ position: "absolute", top: L.avgY, left: 40, right: 40, textAlign: "center", fontSize: 18, fontWeight: 700, color: TITLE }}>{s.avgNote}</div>}
           <Footer />
         </>
       );
