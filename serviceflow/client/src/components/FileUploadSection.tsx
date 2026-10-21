@@ -410,6 +410,7 @@ export function FileUploadSection({ onlyFccWfm = false }: { onlyFccWfm?: boolean
   // فترة التحديث التلقائى من الإعدادات (كانت «نص ساعة» ثابتة) — للنص على الزرار بس
   const { data: execSettings } = useQuery<{ refreshMinutes?: number }>({
     queryKey: ["/api/exec-queue/lanes"],
+    staleTime: 5 * 60 * 1000, refetchOnWindowFocus: true,   // الإعدادات واحدة لكل المتصفحات (مش أول نسخة اتجابت)
     queryFn: () => fetch("/api/exec-queue/lanes", { credentials: "include" }).then((r) => r.json()),
     enabled: isSuperAdmin,
   });

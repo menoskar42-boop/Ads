@@ -45,8 +45,16 @@ export function ExecLanesSettingsButton() {
   const [night, setNight] = useState<NightPause>(NIGHT_PAUSE_DEFAULT);
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data, isLoading, isError, refetch, isFetching } = useQuery<ExecLanes>({
+  // المالك ٢٠٢٦-١٠-٢١: «كل ما أفتح متصفح ألاقى إعدادات مختلفة» — الإعداد العام staleTime:Infinity
+  // كان بيخلّى كل تاب يعرض أول نسخة جابها (التاب المفتوح من امبارح يعرض إعدادات امبارح).
+  // الإعدادات فى القاعدة (app_settings) واحدة لكل المتصفحات — فالشاشة بتجيبها من السيرفر كل ما تتفتح،
+  // ومابتملاش الخانات غير من النسخة اللى اتجابت بعد الفتح.
+  const [openedAt, setOpenedAt] = useState(0);
+  useEffect(() => { if (open) setOpenedAt(Date.now()); }, [open]);
+  const { data, dataUpdatedAt, isLoading, isError, refetch, isFetching } = useQuery<ExecLanes>({
     queryKey: [LANES_URL],
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async () => {
       const r = await fetch(LANES_URL, { credentials: "include" });
       if (!r.ok) throw new Error(await r.text());
@@ -61,13 +69,13 @@ export function ExecLanesSettingsButton() {
   const filled = useRef(false);
   useEffect(() => { if (!open) filled.current = false; }, [open]);
   useEffect(() => {
-    if (open && data && !filled.current) {
+    if (open && data && !filled.current && openedAt && dataUpdatedAt >= openedAt) {
       filled.current = true;
       setNoreal(String(data.noreal)); setStop(String(data.stop)); setRefresh(String(data.refreshMinutes));
       setStaleDays(String(data.measureStaleDays ?? 1));
       setNight({ ...NIGHT_PAUSE_DEFAULT, ...(data.nightPause ?? {}) });
     }
-  }, [open, data]);
+  }, [open, data, dataUpdatedAt, openedAt]);
 
   // مفيش سقف لعدد التابات (المالك ٢٠٢٦-١٠-١٣) — الرقم اللى يتكتب هو اللى يتطبّق
   const valid = (v: string) => /^\d+$/.test(v) && +v >= 1;

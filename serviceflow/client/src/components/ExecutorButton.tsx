@@ -937,7 +937,10 @@ export function ExecutorButton() {
         setNightAsleep(false);
         heartbeat(); refreshPending(); pump();
       }
-      if (!paused && Date.now() - settingsAt > 30 * 60 * 1000) {
+      // الإعدادات من السيرفر (واحدة لكل المتصفحات) كل ٥ دقايق وهو شغّال — والجهاز شغّال يعنى القاعدة
+      // صاحية أصلاً. كانت كل ٣٠ دقيقة (المالك ٢٠٢٦-١٠-٢١: «جهاز التنفيذ يلتزم بالإعدادات»).
+      // وفى فترة الإيقاف مابيسألش خالص — أى سؤال بالليل بيصحّى القاعدة.
+      if (!paused && Date.now() - settingsAt > 5 * 60 * 1000) {
         settingsAt = Date.now();
         fetch("/api/exec-queue/lanes", { credentials: "include" })
           .then((r) => (r.ok ? r.json() : null)).then((j) => saveNightPause(j?.nightPause)).catch(() => {});

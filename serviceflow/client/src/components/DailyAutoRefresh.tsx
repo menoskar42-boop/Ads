@@ -37,6 +37,7 @@ export function DailyAutoRefresh() {
   });
   const { data: lanes } = useQuery<{ refreshMinutes?: number }>({
     queryKey: ["/api/exec-queue/lanes"],
+    staleTime: 5 * 60 * 1000, refetchOnWindowFocus: true,   // الإعدادات واحدة لكل المتصفحات (مش أول نسخة اتجابت)
     queryFn: () => fetch("/api/exec-queue/lanes", { credentials: "include" }).then((r) => r.json())
       .then((j) => { saveNightPause(j?.nightPause); return j; }),
     enabled: isSuper && active && !dailyPaused,
