@@ -2810,6 +2810,29 @@ export async function registerRoutes(
       res.set("Cache-Control", "no-store").type("application/vnd.openxmlformats-officedocument.presentationml.presentation").send(buf);
     } catch (e: any) { res.status(500).json({ message: "تعذّر تجهيز ملف الباور بوينت: " + e.message }); }
   });
+  // ملف باور بوينت لوحده بجداول حساب المتوسطات (المالك ٢٠٢٦-١٠-٢١) — نفس الشكل والأرقام اللى تحت الرسومات
+  app.get("/api/presentation/pptx-averages", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      const { autoDeck } = await import("./presentation-deck");
+      const { averageSlides } = await import("../shared/presentation-deck");
+      const { deckPptx } = await import("./presentation-pptx");
+      const sharp = (await import("sharp")).default;
+      const { readFile } = await import("fs/promises");
+      const { join } = await import("path");
+      const { deck } = await readDeck();
+      const slides = averageSlides(deck, await autoDeck(pool, deck));
+      const asset = async (f: string) => {
+        const data = await readFile(join(process.cwd(), "client/src/assets/presentation", f));
+        const m = await sharp(data).metadata();
+        return { data, ext: "png" as const, w: m.width || 0, h: m.height || 0 };
+      };
+      const assets = { weWhite: await asset("we-white.png"), wePurple: await asset("we-purple.png"), telecomEgypt: await asset("telecomegypt.png") };
+      const buf = await deckPptx(slides, assets, new Map(), "جداول حساب المتوسطات");
+      const name = `جداول حساب المتوسطات ${new Date().toISOString().slice(0, 10)}.pptx`;
+      res.setHeader("Content-Disposition", `attachment; filename="averages.pptx"; filename*=UTF-8''${encodeURIComponent(name)}`);
+      res.set("Cache-Control", "no-store").type("application/vnd.openxmlformats-officedocument.presentationml.presentation").send(buf);
+    } catch (e: any) { res.status(500).json({ message: "تعذّر تجهيز ملف جداول المتوسطات: " + e.message }); }
+  });
   app.delete("/api/presentation/image/:id", requireAuth, requireSuperAdmin, async (req, res) => {
     const { IMG_PREFIX } = await import("./presentation-deck");
     if (!/^[a-f0-9]{6,40}$/.test(req.params.id)) return res.status(404).end();

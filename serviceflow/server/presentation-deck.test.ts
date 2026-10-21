@@ -24,7 +24,8 @@ const kinds = (d = defaultDeck(), a: DeckAuto | null = auto) => buildSlides(d, a
 test("قراية بس، والمسارات كلها للسوبر أدمن، والتاب للسوبر أدمن", () => {
   assert.doesNotMatch(src, /\b(INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|ALTER\s+TABLE|DROP\s+|TRUNCATE)\b/i);
   for (const r of [`app.get("/api/presentation"`, `app.put("/api/presentation"`, `app.post("/api/presentation/image"`,
-    `app.get("/api/presentation/image/:id"`, `app.delete("/api/presentation/image/:id"`]) {
+    `app.get("/api/presentation/image/:id"`, `app.delete("/api/presentation/image/:id"`,
+    `app.get("/api/presentation/pptx"`, `app.get("/api/presentation/pptx-averages"`]) {
     assert.ok(routes.includes(`${r}, requireAuth, requireSuperAdmin`), r);
   }
   assert.match(dash, /reportTab === "presentation"\s+&& isSuperAdmin && <PresentationReport \/>/);
@@ -290,9 +291,8 @@ test("الأعطال فى الألف على شغال كل شهر — القيم 
   assert.ok(chart && chart.kind === "chart");
   assert.deepEqual(chart.points, [{ label: "نوفمبر 25", value: 29.9 }, { label: "أغسطس 26", value: 26.4 }]);
   assert.ok(chart.note.startsWith("الأعطال فى الألف محسوبة على عدد الشغال فى كل شهر"));
-  const tbl = slides.find((x) => x.kind === "table" && x.title.startsWith("الأعطال مقارنة بالشغال"));
-  assert.ok(tbl && tbl.kind === "table");
-  assert.deepEqual(tbl.rows, [["نوفمبر 2025", "292", "9,781", "29.9"], ["أغسطس 2026", "277", "10,497", "26.4"]]);
+  // جدول «الأعطال مقارنة بالشغال» اتشال من العرض — التفاصيل فى ملف «جداول المتوسطات»
+  assert.ok(!slides.some((x) => x.kind === "table" && x.title.startsWith("الأعطال مقارنة بالشغال")));
   // أرقام عربى ومسح خانة
   assert.equal(parseMonthWorking("2026-01=٩٩٩٨, 2026-02=, bad=5").get("2026-01"), 9998);
   assert.equal(parseMonthWorking("2026-01=٩٩٩٨, 2026-02=, bad=5").size, 1);
@@ -424,8 +424,7 @@ test("كل مؤشر بشهوره: الأعطال فى الألف · التكرا
   const chart = (p: string) => slides.find((s) => s.kind === "chart" && s.title.startsWith(p)) as any;
   assert.deepEqual(chart("عدد الأعطال فى الألف").points.map((p: any) => p.label), ["نوفمبر 25", "أغسطس 26"]);
   assert.equal(chart("عدد الأعطال فى الألف").title, "عدد الأعطال فى الألف شهرياً (نوفمبر 2025 – أغسطس 2026)");
-  const tbl = slides.find((s) => s.kind === "table" && s.title.startsWith("الأعطال مقارنة بالشغال")) as any;
-  assert.deepEqual(tbl.rows.map((r: string[]) => r[0]), ["نوفمبر 2025", "أغسطس 2026"]);
+  assert.ok(!slides.some((s) => s.kind === "table" && s.title.startsWith("الأعطال مقارنة بالشغال")));
   // نفس السنة ⇒ اسم الشهر بس، والعنوان بفترة المؤشر ده هو
   assert.deepEqual(chart("نسب تكرار").points, [{ label: "مارس", value: 12 }, { label: "أغسطس", value: 9 }]);
   assert.equal(chart("نسب تكرار").title, "نسب تكرار الأعطال شهرياً (مارس 2026 – أغسطس 2026)");
@@ -542,6 +541,32 @@ test("اختيار المالك + القيم المتوقعة + خط «عند ا
   assert.equal(c1.avgNote, `متوسط ديسمبر 2025 – سبتمبر 2026: ${ptAvg} مقابل 29.9 فى نوفمبر 2025 (متوسط قيم الشهور)`);
   assert.match(c2.avgNote, /^متوسط ديسمبر 2025 – سبتمبر 2026: [\d.]+% مقابل 6\.5% فى نوفمبر 2025 \(مرجّح/);
   assert.match(c3.avgNote, /^متوسط ديسمبر 2025 – سبتمبر 2026: [\d.]+% مقابل 93\.6% فى نوفمبر 2025 \(مرجّح/);
+  // ملف «جداول المتوسطات»: غلاف + ٣ جداول، نوفمبر أول صف، و١٠ شهور ديسمبر – سبتمبر، والصف الأخير = نفس رقم سطر المتوسط
+  const { averageSlides } = await import("../shared/presentation-deck");
+  const av = averageSlides(d, a) as any[];
+  assert.deepEqual(av.map((x) => x.kind), ["cover", "table", "table", "table"]);
+  assert.equal(av[0].title, "جداول حساب المتوسطات");
+  const [tp, tr, ti] = av.slice(1);
+  assert.equal(tp.rows.length, 12);
+  assert.deepEqual(tp.rows[0], ["نوفمبر 2025 (عند الاستلام)", "292", "9,781", "29.9"]);
+  assert.deepEqual(tp.rows[1], ["ديسمبر 2025", "266", "9,891", "26.9"]);
+  assert.deepEqual(tp.rows[11], ["المتوسط", "", "", ptAvg.toFixed(2)]);
+  assert.match(tp.note, /ديسمبر 2025 – سبتمبر 2026/);
+  assert.ok(tp.totalLast && tr.totalLast && ti.totalLast);
+  // التكرار: الصف الأخير إجماليات الفترة + النسبة المرجّحة
+  assert.deepEqual(tr.columns, ["الشهر", "الأعطال المغلقة", "عدد الأرقام", "التكرار", "نسبة التكرار"]);
+  assert.equal(tr.rows[11][2], ps.toLocaleString("en-US"));
+  assert.equal(tr.rows[11][4], `${(Math.round((1000 * rs) / ps) / 10).toFixed(1)}%`);
+  assert.equal(ti.rows[0][3], "93.6%");
+  assert.equal(ti.rows[11][1], ns.toLocaleString("en-US"));
+  assert.equal(ti.rows[11][3], `${(Math.round((1000 * is) / ns) / 10).toFixed(1)}%`);
+  // والملف بيتعمل باور بوينت سليم
+  const { deckPptx } = await import("./presentation-pptx");
+  const JSZip = (await import("jszip")).default;
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  const im = { data: png, ext: "png" as const, w: 1, h: 1 };
+  const zip = await JSZip.loadAsync(await deckPptx(av, { weWhite: im, wePurple: im, telecomEgypt: im }, new Map(), "x"));
+  assert.ok(zip.file("ppt/slides/slide4.xml"));
   // من غير العدّ الخام (بيانات قديمة) مفيش سطر متوسط مرجّح — بدل رقم غلط
   const noRaw: DeckAuto = { ...a, faultsByMonth: a.faultsByMonth!.map(({ closed, phones, in24, ...m }) => m) };
   assert.equal(periodAverage(d, noRaw, "repeat").avg, null);

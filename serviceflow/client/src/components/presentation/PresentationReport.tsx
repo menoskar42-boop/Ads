@@ -231,20 +231,23 @@ export function PresentationReport() {
     } catch (e: any) { setMsg(e.message); } finally { setSaving(false); }
   };
   // باور بوينت: بيحفظ الأول لو فيه تعديلات، وبعدين بينزّل الملف (fetch عشان مسار الجذر والأخطاء)
-  const [exporting, setExporting] = useState(false);
-  const downloadPptx = async () => {
-    setExporting(true); setMsg(null);
+  const [exporting, setExporting] = useState<"" | "deck" | "avg">("");
+  const fetchPptx = async (kind: "deck" | "avg", path: string, name: string) => {
+    setExporting(kind); setMsg(null);
     try {
       if (dirty) await save();
-      const r = await fetch("/api/presentation/pptx", { credentials: "include" });
+      const r = await fetch(path, { credentials: "include" });
       if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.message || "تعذّر تجهيز الملف");
       const url = URL.createObjectURL(await r.blob());
       const a = document.createElement("a");
-      a.href = url; a.download = `${deck.cover.title || "العرض التقديمى"} ${new Date().toISOString().slice(0, 10)}.pptx`;
+      a.href = url; a.download = `${name} ${new Date().toISOString().slice(0, 10)}.pptx`;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-    } catch (e: any) { setMsg(e.message); } finally { setExporting(false); }
+    } catch (e: any) { setMsg(e.message); } finally { setExporting(""); }
   };
+  const downloadPptx = () => fetchPptx("deck", "/api/presentation/pptx", deck.cover.title || "العرض التقديمى");
+  // ملف لوحده بجداول حساب المتوسطات (المالك ٢٠٢٦-١٠-٢١)
+  const downloadAverages = () => fetchPptx("avg", "/api/presentation/pptx-averages", "جداول حساب المتوسطات");
   const upload = async (file: File): Promise<string | null> => {
     const fd = new FormData(); fd.append("file", file);
     const r = await fetch("/api/presentation/image", { method: "POST", credentials: "include", body: fd });
@@ -311,8 +314,11 @@ export function PresentationReport() {
           <Button variant={view === "edit" ? "default" : "outline"} size="sm" onClick={() => setView("edit")}>البيانات</Button>
           <Button variant={view === "slides" ? "default" : "outline"} size="sm" onClick={() => setView("slides")}>الشرايح ({slides.length})</Button>
           <Button size="sm" className="bg-[#57318A] hover:bg-[#46276f]" onClick={() => setPresent(0)}><Maximize2 className="w-4 h-4 ml-1" />عرض</Button>
-          <Button size="sm" variant="outline" onClick={downloadPptx} disabled={exporting} data-testid="button-deck-pptx">
-            {exporting ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Download className="w-4 h-4 ml-1" />}تحميل PowerPoint
+          <Button size="sm" variant="outline" onClick={downloadPptx} disabled={!!exporting} data-testid="button-deck-pptx">
+            {exporting === "deck" ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Download className="w-4 h-4 ml-1" />}تحميل PowerPoint
+          </Button>
+          <Button size="sm" variant="outline" onClick={downloadAverages} disabled={!!exporting} data-testid="button-deck-avg-pptx">
+            {exporting === "avg" ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Download className="w-4 h-4 ml-1" />}جداول المتوسطات (PowerPoint)
           </Button>
           <Button size="sm" onClick={save} disabled={saving || !dirty} data-testid="button-save-deck">
             {saving ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Save className="w-4 h-4 ml-1" />}حفظ

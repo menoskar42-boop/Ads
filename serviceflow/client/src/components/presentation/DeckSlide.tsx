@@ -123,7 +123,7 @@ function SlideBody({ s }: { s: Slide }) {
       );
     case "table": {
       const many = s.columns.length > 4;
-      const fs = s.rows.length > 9 ? 17 : many ? 19 : 22;
+      const fs = s.rows.length > 11 ? 15 : s.rows.length > 9 ? 17 : many ? 19 : 22;   // ١٢ صف وطالع (جداول المتوسطات): أصغر عشان الملاحظة ماتركبش
       return (
         <>
           <Title text={s.title} />

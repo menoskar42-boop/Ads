@@ -208,7 +208,7 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
     case "table": {
       title(s.title);
       const many = s.columns.length > 4;
-      const fs = s.rows.length > 9 ? 17 : many ? 19 : 22;
+      const fs = s.rows.length > 11 ? 15 : s.rows.length > 9 ? 17 : many ? 19 : 22;   // ١٢ صف وطالع (جداول المتوسطات): أصغر عشان الملاحظة ماتركبش
       const map = s.imageId ? img(s.imageId) : null;
       if (map) sx.pic(map, 50, 120, 520, 500, "contain");
       const w = map ? 640 : 1200;

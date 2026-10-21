@@ -396,6 +396,46 @@ export function periodAverageNote(deck: Deck, auto: DeckAuto | null, ind: FaultI
   return `متوسط ${monthLabel(AVG_FROM, "full")} – ${monthLabel(AVG_TO, "full")}: ${avg}${unit}${vs} (${method})`;
 }
 
+/** ملف «جداول المتوسطات» (المالك ٢٠٢٦-١٠-٢١: «الجداول التفصيلية لحساب المتوسط اعملها فى ملف باور بوينت لوحدها»).
+ *  لكل مؤشر: نوفمبر 2025 (عند الاستلام) ← كل شهر من ديسمبر 2025 لسبتمبر 2026 ← صف أخير بالمتوسط/الإجمالى المرجّح.
+ *  الصف الأخير بيتحسب من periodAverage نفسها — نفس الرقم اللى تحت الرسم بالظبط. */
+export function averageSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
+  const all = auto?.faultsByMonth || [];
+  const nov = all.filter((m) => m.month === HANDOVER_MONTH);
+  const range = all.filter((m) => m.month >= AVG_FROM && m.month <= AVG_TO);
+  const span = `${monthLabel(AVG_FROM, "full")} – ${monthLabel(AVG_TO, "full")}`;
+  const n = (x: number | null | undefined, d = 0) => (x == null ? "—" : Number(x).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }));
+  const name = (m: string) => monthLabel(m, "full") + (m === HANDOVER_MONTH ? " (عند الاستلام)" : "");
+  // صف أخير بكلمة واحدة (سطر واحد) — والفترة مكتوبة فى العنوان والملاحظة
+  const out: Slide[] = [{ kind: "cover", title: "جداول حساب المتوسطات", subtitle: deck.cover.title,
+    meeting: `مؤشرات الأداء: متوسط ${span} مقابل ${monthLabel(HANDOVER_MONTH, "full")} (عند الاستلام)`, date: deck.cover.date }];
+
+  const pt = periodAverage(deck, auto, "pt");
+  const ptRows = [...nov, ...range].filter((m) => monthPerThousand(deck, auto, m) != null)
+    .map((m) => [name(m.month), n(m.msanFaults), n(monthWorking(deck, auto, m.month)), n(monthPerThousand(deck, auto, m), 1)]);
+  if (ptRows.length) out.push({ kind: "table", title: "الأعطال فى الألف — شهر بشهر", columns: ["الشهر", "عدد الأعطال", "الشغال", "الأعطال فى الألف"],
+    rows: [...ptRows, ["المتوسط", "", "", n(pt.avg, 2)]], imageId: "", totalLast: true,
+    note: `أعطال الشهر ÷ شغال الشهر × 1000 — المتوسط = متوسط قيم ${span}` });
+
+  const rp = periodAverage(deck, auto, "repeat");
+  const rpOk = (m: (typeof all)[number]) => m.closed != null && m.phones != null;
+  const rpRows = [...nov, ...range].filter(rpOk).map((m) => [name(m.month), n(m.closed), n(m.phones), n((m.closed || 0) - (m.phones || 0)), `${n(m.repeatPct, 1)}%`]);
+  const rpSum = (k: (m: (typeof all)[number]) => number) => range.filter(rpOk).reduce((a, m) => a + k(m), 0);
+  if (rpRows.length) out.push({ kind: "table", title: "نسبة التكرار — شهر بشهر", columns: ["الشهر", "الأعطال المغلقة", "عدد الأرقام", "التكرار", "نسبة التكرار"],
+    rows: [...rpRows, ["الإجمالى", n(rpSum((m) => m.closed || 0)), n(rpSum((m) => m.phones || 0)),
+      n(rpSum((m) => (m.closed || 0) - (m.phones || 0))), rp.avg == null ? "—" : `${n(rp.avg, 1)}%`]], imageId: "", totalLast: true,
+    note: `التكرار = المغلقة − عدد الأرقام · النسبة = التكرار ÷ عدد الأرقام · الإجمالى = ${span}` });
+
+  const rm = periodAverage(deck, auto, "in24");
+  const rmOk = (m: (typeof all)[number]) => m.in24 != null;
+  const rmRows = [...nov, ...range].filter(rmOk).map((m) => [name(m.month), n(m.complaints), n(m.in24), `${n(m.in24Pct, 1)}%`]);
+  const rmSum = (k: (m: (typeof all)[number]) => number) => range.filter(rmOk).reduce((a, m) => a + k(m), 0);
+  if (rmRows.length) out.push({ kind: "table", title: "الإزالة خلال 24 ساعة — شهر بشهر", columns: ["الشهر", "إجمالى الأعطال", "المُزال خلال 24 ساعة", "النسبة"],
+    rows: [...rmRows, ["الإجمالى", n(rmSum((m) => m.complaints)), n(rmSum((m) => m.in24 || 0)), rm.avg == null ? "—" : `${n(rm.avg, 1)}%`]],
+    imageId: "", totalLast: true, note: `النسبة = المُزال خلال 24 ساعة ÷ إجمالى الأعطال · الإجمالى = ${span}` });
+  return out;
+}
+
 /** هندسة الرسم الخطى — الصفحة (DeckSlide) والباور بوينت بيرسموا من نفس الأرقام بالظبط.
  *  المحور مش من الصفر: من تحت أقل قيمة لفوق أعلى قيمة بهامش، عشان الفرق بين الشهور يبان.
  *  أسماء الشهور ≈ ٦٠٪ من خط القيم ولون رمادى فاتح (المالك: «موجودة بس مش لافتة للنظر»). */
@@ -587,10 +627,7 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
         points: ptMonths.map((m) => ({ label: label(m.month), value: monthPerThousand(deck, auto, m)! })),
         note: `الأعطال فى الألف محسوبة على عدد الشغال فى كل شهر${partial}`,
         baseline: base(ptMonths, (m) => monthPerThousand(deck, auto, m)!), avgNote: periodAverageNote(deck, auto, "pt", "") });
-      slides.push({ kind: "table", title: `الأعطال مقارنة بالشغال (${span})`, columns: ["الشهر", "عدد الأعطال", "الشغال", "الأعطال فى الألف"],
-        rows: ptMonths.map((m) => [monthLabel(m.month, "full"), m.msanFaults!.toLocaleString("en-US"),
-          (monthWorking(deck, auto, m.month) ?? 0).toLocaleString("en-US"), String(monthPerThousand(deck, auto, m))]),
-        imageId: "", note: "الشغال: عدد مشتركى البيانات فى كل شهر — الأعطال فى الألف = أعطال الشهر ÷ شغال الشهر × 1000", totalLast: false });
+      // جدول «الأعطال مقارنة بالشغال» اتشال من العرض (المالك ٢٠٢٦-١٠-٢١) — التفاصيل فى ملف «جداول المتوسطات» (averageSlides)
     }
     if (repMonths.length) {
       const { label, span, partial } = months(repMonths);
