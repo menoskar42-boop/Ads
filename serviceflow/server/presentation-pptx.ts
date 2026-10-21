@@ -5,7 +5,7 @@
  * ونصوص عادية قابلة للتعديل فى باور بوينت (الرسم البيانى أعمدة مرسومة بنفس شكل الريفرنس).
  */
 import JSZip from "jszip";
-import { compareLayout, lineChartGeom, LINE_CHART, type Slide } from "../shared/presentation-deck";
+import { compareLayout, lineChartGeom, LINE_CHART, tableFs, subTableLayout, type Slide } from "../shared/presentation-deck";
 
 export type DeckImage = { data: Buffer; ext: "png" | "jpeg"; w: number; h: number };
 export type DeckAssets = { weWhite: DeckImage; wePurple: DeckImage; telecomEgypt: DeckImage };
@@ -207,12 +207,16 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
     }
     case "table": {
       title(s.title);
-      const many = s.columns.length > 4;
-      const fs = s.rows.length > 11 ? 15 : s.rows.length > 9 ? 17 : many ? 19 : 22;   // ١٢ صف وطالع (جداول المتوسطات): أصغر عشان الملاحظة ماتركبش
+      const fs = tableFs(s.rows.length, s.columns.length);   // نفس DeckSlide
       const map = s.imageId ? img(s.imageId) : null;
       if (map) sx.pic(map, 50, 120, 520, 500, "contain");
       const w = map ? 640 : 1200;
       sx.table(1280 - 40 - w, 122, w, s.columns, s.rows, fs, s.totalLast, s.columns.length === 2 ? [3, 2] : undefined);
+      if (s.sub) {
+        const L = subTableLayout(s.rows.length, s.columns.length);
+        sx.text(48, L.titleY, 1188, 30, [{ runs: [{ text: s.sub.title, size: 22, bold: true, color: TITLE }] }]);
+        sx.table(40, L.top, 1200, s.sub.columns, s.sub.rows, L.fs, s.sub.totalLast);
+      }
       if (s.note) sx.text(48, 720 - 110 - 28, 1184, 28, [{ runs: [{ text: s.note, size: 18, color: "444444" }] }]);
       footer();
       return;

@@ -4,7 +4,7 @@
  * اللوحة ثابتة ١٢٨٠×٧٢٠ وبتتصغّر/تتكبّر بـ scale — نفس النسب فى المعاينة والعرض الكامل.
  */
 import { useEffect, useRef, useState } from "react";
-import { compareLayout, lineChartGeom, LINE_CHART, type Slide } from "@shared/presentation-deck";
+import { compareLayout, lineChartGeom, LINE_CHART, tableFs, tableRowH, subTableLayout, type Slide } from "@shared/presentation-deck";
 import { withBase } from "@/lib/base-path";
 import weWhite from "@/assets/presentation/we-white.png";
 import wePurple from "@/assets/presentation/we-purple.png";
@@ -122,27 +122,40 @@ function SlideBody({ s }: { s: Slide }) {
         </>
       );
     case "table": {
-      const many = s.columns.length > 4;
-      const fs = s.rows.length > 11 ? 15 : s.rows.length > 9 ? 17 : many ? 19 : 22;   // ١٢ صف وطالع (جداول المتوسطات): أصغر عشان الملاحظة ماتركبش
+      // الخط وارتفاع الصف من shared (نفس presentation-pptx.ts) — والجدول التانى (sub) تحته فى نفس المكان بالظبط
+      const fs = tableFs(s.rows.length, s.columns.length);
+      const rowH = tableRowH(fs);
+      const cellPad = "0 10px";
+      const tbl = (cols: string[], rows: string[][], totalLast: boolean, f: number, top: number, width: number) => (
+        <table style={{ position: "absolute", top, right: 40, width, borderCollapse: "collapse", fontSize: f, fontWeight: 700, textAlign: "center", lineHeight: 1.15 }}>
+          <thead>
+            <tr style={{ height: tableRowH(f) }}>{cols.map((h, i) => <th key={i} style={{ background: TITLE, color: "#fff", padding: cellPad, border: "2px solid #fff" }}>{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const total = totalLast && i === rows.length - 1;
+              return (
+                <tr key={i} style={{ height: tableRowH(f) }}>{r.map((c, j) => (
+                  <td key={j} style={{ background: total ? TITLE : i % 2 ? ROW_B : ROW_A, color: total ? "#fff" : "#111", padding: cellPad, border: "2px solid #fff" }}>{c}</td>
+                ))}</tr>
+              );
+            })}
+          </tbody>
+        </table>
+      );
+      const sub = s.sub ? subTableLayout(s.rows.length, s.columns.length) : null;
+      void rowH;
       return (
         <>
           <Title text={s.title} />
           {s.imageId && <img src={deckImage(s.imageId)} alt="" style={{ position: "absolute", left: 50, top: 120, width: 520, height: 500, objectFit: "contain" }} />}
-          <table style={{ position: "absolute", top: 122, right: 40, width: s.imageId ? 640 : 1200, borderCollapse: "collapse", fontSize: fs, fontWeight: 700, textAlign: "center" }}>
-            <thead>
-              <tr>{s.columns.map((h, i) => <th key={i} style={{ background: TITLE, color: "#fff", padding: "8px 10px", border: "2px solid #fff" }}>{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {s.rows.map((r, i) => {
-                const total = s.totalLast && i === s.rows.length - 1;
-                return (
-                  <tr key={i}>{r.map((c, j) => (
-                    <td key={j} style={{ background: total ? TITLE : i % 2 ? ROW_B : ROW_A, color: total ? "#fff" : "#111", padding: "7px 10px", border: "2px solid #fff" }}>{c}</td>
-                  ))}</tr>
-                );
-              })}
-            </tbody>
-          </table>
+          {tbl(s.columns, s.rows, s.totalLast, fs, 122, s.imageId ? 640 : 1200)}
+          {s.sub && sub && (
+            <>
+              <div style={{ position: "absolute", top: sub.titleY, right: 44, fontSize: 22, fontWeight: 700, color: TITLE }}>{s.sub.title}</div>
+              {tbl(s.sub.columns, s.sub.rows, s.sub.totalLast, sub.fs, sub.top, 1200)}
+            </>
+          )}
           {s.note && <div style={{ position: "absolute", bottom: 110, right: 48, left: 48, fontSize: 18, color: "#444", textAlign: "right" }}>{s.note}</div>}
           <Footer />
         </>

@@ -168,10 +168,41 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
     const byYear = new Map<string, number>();
     for (const r of done.rows) byYear.set(String(r.year), (byYear.get(String(r.year)) || 0) + 1);
     const tot = await db.query(`SELECT COUNT(*) AS n FROM maintenance.boxes`);
+    // المالك ٢٠٢٦-١٠-٢١: «أى كابينة اتعمل فيها ولو بكس صيانة، اعتبر بكسياتها كلها اتصينت» — لكل سنة وكابينة:
+    // البكسيات اللى اتعملت فعلاً (بنفس تعريف «تمت» اللى فوق) + إجمالى بكسيات الكابينة من بيان التليفونات
+    // (نفس مصدر «إجمالى الشبكة»)، ولو الكابينة مش لاقيها هناك ⇒ عدد بكسياتها فى برنامج الصيانة.
+    const cab = await db.query(`
+      WITH d AS (
+        SELECT to_char(MAX(s.done_at) AT TIME ZONE 'Africa/Cairo', 'YYYY') AS year, i.box_id
+          FROM maintenance.maintenance_tasks mt
+          JOIN maintenance.inspections i ON i.id = mt.inspection_id
+          JOIN maintenance.maintenance_item_status s ON s.task_id = mt.id AND s.is_done = 1
+         WHERE mt.technician_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM maintenance.inspection_items y WHERE y.inspection_id = i.id
+                             AND y.value IN ('bad','yes') AND y.item_key NOT IN ('electricity_conflict','air_conflict','overlap','data_review')
+                             AND NOT EXISTS (SELECT 1 FROM maintenance.maintenance_item_status z
+                                              WHERE z.task_id = mt.id AND z.item_key = y.item_key AND z.is_done = 1))
+         GROUP BY mt.id, i.box_id),
+      c AS (
+        SELECT d.year, c.id AS cabinet_id, e.name AS exchange, c.number, COUNT(DISTINCT d.box_id) AS done
+          FROM d JOIN maintenance.boxes b ON b.id = d.box_id
+          JOIN maintenance.cabinets c ON c.id = b.cabinet_id JOIN maintenance.exchanges e ON e.id = c.exchange_id
+         GROUP BY 1, 2, 3, 4)
+      SELECT c.year, c.exchange, c.number, c.done::int AS done,
+             (SELECT COUNT(*) FROM maintenance.boxes b2 WHERE b2.cabinet_id = c.cabinet_id)::int AS program,
+             (SELECT COUNT(DISTINCT btrim(pl.box_number)) FROM phone_lines pl
+               WHERE ${NORM("pl.central")} = ${NORM("c.exchange")} AND btrim(pl.cabin_number) = btrim(c.number)
+                 AND NULLIF(btrim(pl.box_number), '') IS NOT NULL)::int AS network
+        FROM c ORDER BY c.year, c.exchange, NULLIF(regexp_replace(c.number, '\\D', '', 'g'), '')::int NULLS LAST, c.number`);
     maintenance = {
       boxesTotal: Number(tot.rows[0]?.n) || 0,
       boxesDone: done.rows.length,
       byYear: [...byYear.entries()].sort().map(([year, n]) => ({ year, done: n })),
+      cabinets: cab.rows.map((r: any) => {
+        const done = Number(r.done) || 0, network = Number(r.network) || 0, program = Number(r.program) || 0;
+        return { year: String(r.year), exchange: String(r.exchange), cabinet: String(r.number), done,
+          total: Math.max(network || program, done), source: network ? "network" as const : "program" as const };
+      }),
     };
   } catch (e: any) { errors.push(`الصيانة: ${e?.message || e}`); }
 

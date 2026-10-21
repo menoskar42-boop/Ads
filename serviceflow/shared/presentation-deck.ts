@@ -15,7 +15,8 @@ export type Deck = {
   /** شريحة «سنترالات الإدارة» (جدول السنترالات الأربعة) — اختيارية */
   exchangesTable: { enabled: boolean };
   /** showShare: الحصة السوقية فى العرض — مقفولة افتراضياً (المالك ٢٠٢٦-١٠-٢٠: طلعت 104% فغالباً غلط لحد ما تتراجع) */
-  customers: { weData: string; marketShare: string; showShare: boolean };
+  /** growth: شريحة «نمو قاعدة العملاء (الشغال)» من الاستلام لدلوقتى (المالك ٢٠٢٦-١٠-٢١) */
+  customers: { weData: string; marketShare: string; showShare: boolean; growth: boolean };
   decentLife: { enabled: boolean; phase1: string; phase2: string; notes: string };
   /** hiddenPt / hiddenRepeat / hiddenIn24: الشهور المخفية من كل مؤشر لوحده «YYYY-MM» مفصولة بفاصلة
    *  (المالك ٢٠٢٦-١٠-٢١: «مش لازم نفس الشهور لكل مؤشرات الأداء» — كانت hiddenMonths واحدة للكل) */
@@ -23,7 +24,7 @@ export type Deck = {
    *  (المالك ٢٠٢٦-١٠-٢١: القسمة على الشغال الحالى كانت بتظلم الشهور القديمة) */
   faults: { enabled: boolean; hiddenPt: string; hiddenRepeat: string; hiddenIn24: string; working: string };
   // خطة الصيانة: المحقق بس — مفيش مستهدف (المالك ٢٠٢٦-١٠-٢٠)
-  /** achievedBoxes: البكسيات اللى اتعملت (المالك ٢٠٢٦-١٠-٢١: 1049). الفاضى = من برنامج الصيانة */
+  /** achievedBoxes: المكتوب بالإيد يغلب. الفاضى = إجمالى بكسيات الكباين اللى اتعمل فيها ولو بكس (وإلا عدد برنامج الصيانة) */
   maintenance: { enabled: boolean; period: string; achievedBoxes: string; achievedCopper: string; achievedMsan: string; photoIds: string[] };
   /** نسبة الحجز وفك المتعذرات — نفس أعمدة تقرير «نسبة الحجز» بتاع منطقة أسيوط (المالك ٢٠٢٦-١٠-٢٠).
    *  مفتاح جديد (كان blocked) عشان الافتراضيات (أرقام الغنايم حتى ١٨ أكتوبر) تتحط فى العرض المحفوظ. */
@@ -72,12 +73,12 @@ export function defaultDeck(): Deck {
     career: { enabled: true, hireYear: "", items: "" },
     area: { areaKm2: "", population: "", villages: "", housingUnits: "", mapId: "", extraRows: "" },
     exchanges: DEFAULT_EXCHANGES.map((e) => ({ ...e })),
-    customers: { weData: "", marketShare: "", showShare: false },
+    customers: { weData: "", marketShare: "", showShare: false, growth: true },
     exchangesTable: { enabled: true },
     decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
     faults: { enabled: true, hiddenPt: "", hiddenRepeat: "", hiddenIn24: "", working: DEFAULT_MONTH_WORKING },
-    // 1049 = رقم المالك — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده، ولو اتمسح يرجع لبرنامج الصيانة
-    maintenance: { enabled: true, period: "2026", achievedBoxes: "1049", achievedCopper: "", achievedMsan: "", photoIds: [] },
+    // المحقق (بكسيات): فاضى = إجمالى بكسيات الكباين اللى اتعمل فيها ولو بكس (المالك ٢٠٢٦-١٠-٢١)، والمكتوب بالإيد يغلب
+    maintenance: { enabled: true, period: "2026", achievedBoxes: "", achievedCopper: "", achievedMsan: "", photoIds: [] },
     booking: { enabled: true, asOf: "18 أكتوبر 2026", total: "1267", capacity: "1230", blocked: "36", clarify: "0",
       noReply: "0", otherExchange: "1", pct: "",
       // أرقام المالك (٢٠٢٦-١٠-٢١) — مفاتيح جديدة فبتتحط فى العرض المحفوظ لوحدها، ولو اتمسحت الشريحة ترجع زى الأول
@@ -148,6 +149,14 @@ export function normalizeDeck(raw: any): Deck {
     }
   }
   delete d.overrides["total.maintBoxes"];   // اتنقلت لـ maintenance.achievedBoxes (فوق)
+  // المالك ٢٠٢٦-١٠-٢١: «خلى عدد خطوط الصوت 12019 والداتا 10751» — فى خانات الإجمالى، مرة واحدة بس:
+  // للعرض المحفوظ قبل النسخة دى (مفيهوش customers.growth). بعد أول حفظ مابتتحطش تانى، فلو اتمسحت ترجع للتلقائى.
+  // ورقم كان المالك كاتبه بإيده قبل كده بيفضل.
+  if (raw.customers?.growth === undefined) {
+    for (const [k, v] of [["total.msanVoice", "12,019"], ["total.msanData", "10,751"]] as const) {
+      if (!String(raw.overrides?.[k] ?? "").trim()) d.overrides[k] = v;
+    }
+  }
   return d;
 }
 
@@ -174,7 +183,9 @@ export type DeckAuto = {
     closed?: number; phones?: number; in24?: number }[];
   /** الشغال (fbb_subs من آخر ملف FTTH/ADSL) اللى الأعطال فى الألف بتتقسم عليه */
   faultsWorking?: number | null;
-  maintenance: { boxesTotal: number | null; boxesDone: number | null; byYear: { year: string; done: number }[] } | null;
+  maintenance: { boxesTotal: number | null; boxesDone: number | null; byYear: { year: string; done: number }[];
+    /** لكل سنة وكابينة اتعمل فيها ولو بكس: اللى اتعمل فعلاً + إجمالى بكسيات الكابينة (من بيان التليفونات، وإلا برنامج الصيانة) */
+    cabinets?: { year: string; exchange: string; cabinet: string; done: number; total: number; source: "network" | "program" }[] } | null;
   /** قيم «حياة كريمة» على الكباين زى ما هى متسجّلة (مساعدة للمالك وهو بيكتب المرحلة الأولى/التانية) */
   decentLife: { value: string; cabinets: number; villages: number }[];
   errors: string[];
@@ -199,7 +210,9 @@ export type Slide =
   | { kind: "agenda"; title: string; items: string[] }
   | { kind: "cv"; title: string; photoId: string; fields: [string, string][]; qualificationsTitle: string; qualifications: string[] }
   | { kind: "list"; title: string; lead: string; items: string[] }
-  | { kind: "table"; title: string; columns: string[]; rows: string[][]; imageId: string; note: string; totalLast: boolean }
+  | { kind: "table"; title: string; columns: string[]; rows: string[][]; imageId: string; note: string; totalLast: boolean;
+      /** جدول تانى تحت الجدول الأساسى (تفصيل الكباين فى خطة الصيانة) */
+      sub?: { title: string; columns: string[]; rows: string[][]; totalLast: boolean } | null }
   | { kind: "chart"; title: string; seriesLabel: string; unit: string; points: { label: string; value: number }[]; note: string;
       /** خط أفقى متقطّع عند قيمة أول شهر ظاهر (المالك: «عند الاستلام») */
       baseline?: { value: number; label: string } | null;
@@ -322,6 +335,16 @@ export function bookingCompare(b: Deck["booking"]): ComparePanel[] {
   return panels;
 }
 
+/** نمو قاعدة العملاء: شغال نوفمبر 2025 (عند الاستلام) ← شغال الشهر الحالى — من عمود «الشغال» (والفاضى = الحالى) */
+export function customerGrowth(deck: Deck, auto: DeckAuto | null) {
+  const cur = (auto?.computedAt || new Date().toISOString()).slice(0, 7);
+  const from = monthWorking(deck, auto, HANDOVER_MONTH), to = monthWorking(deck, auto, cur);
+  if (!from || !to || cur <= HANDOVER_MONTH) return null;
+  const months = periodMonths(new Date(`${cur}-15T00:00:00Z`)).filter((m) => m >= HANDOVER_MONTH)
+    .map((m) => ({ month: m, working: monthWorking(deck, auto, m) }));
+  return { from, to, toMonth: cur, diff: to - from, pct: Math.round((1000 * (to - from)) / from) / 10, months };
+}
+
 /** المسار الوظيفى: سطر لكل وظيفة «الوظيفة | من | إلى» — التواريخ نص حر (2009 · يناير 2015 · حتى الآن).
  *  السطور القديمة «الوظيفة | الفترة» بتتقرى زى ما هى (الفترة كلها فى «من»). */
 export type CareerRow = { job: string; from: string; to: string };
@@ -343,6 +366,19 @@ export const FAULTS_FROM_MONTH = "2025-01";
 export function faultsStartMonth(_now: Date): string {
   return FAULTS_FROM_MONTH;
 }
+/** تفصيل كباين الصيانة: أول ٦ صفوف تحت الجدول الأساسى، والباقى ١٢ صف فى كل شريحة «تابع» */
+export const MAINT_FIRST_ROWS = 6;
+export const MAINT_NEXT_ROWS = 12;
+/** خط الجدول وارتفاع الصف — الصفحة والباور بوينت بنفس الأرقام */
+export const tableFs = (rows: number, cols: number) => (rows > 11 ? 15 : rows > 9 ? 17 : cols > 4 ? 19 : 22);
+export const tableRowH = (fs: number) => fs * 1.25 + 14;
+export const SUB_TABLE_FS = 15;
+/** مكان الجدول التانى: تحت الجدول الأساسى بمسافة، وفوقه عنوان صغير */
+export function subTableLayout(rows: number, cols: number) {
+  const end = 122 + (rows + 1) * tableRowH(tableFs(rows, cols));
+  return { titleY: end + 12, top: end + 46, fs: SUB_TABLE_FS };
+}
+
 /** شهور الفترة من يناير 2025 لحد الشهر الحالى (UTC) */
 export function periodMonths(now: Date): string[] {
   const end = now.toISOString().slice(0, 7);
@@ -550,13 +586,31 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   const m = deck.maintenance;
   if (m.enabled) {
     const doneYear = auto?.maintenance?.byYear.find((y) => y.year === m.period)?.done;
-    const achievedBoxes = m.achievedBoxes.trim() || (doneYear != null ? String(doneYear) : "");
+    // المالك ٢٠٢٦-١٠-٢١: أى كابينة اتعمل فيها ولو بكس ⇒ بكسياتها كلها محسوبة — والمحقق = إجمالى بكسيات الكباين دى
+    const cabs = (auto?.maintenance?.cabinets || []).filter((c) => c.year === m.period);
+    const fullCab = cabs.reduce((a, c) => a + c.total, 0);
+    const achievedBoxes = m.achievedBoxes.trim() || (cabs.length ? String(fullCab) : doneYear != null ? String(doneYear) : "");
     const rows = [
       ["البكسيات", v("total", "boxes"), achievedBoxes],
       ["الكباين النحاسية", v("total", "copperCabinets"), m.achievedCopper],
       ["كباين MSAN", v("total", "msanCabinets"), m.achievedMsan],
     ].filter((r) => String(r[2]).trim());
-    if (rows.length) perfExtra.push({ kind: "table", title: `خطة الصيانة ورفع الكفاءة ${m.period}`, columns: ["البيان", "إجمالى الشبكة", "المحقق"], rows, imageId: "", note: "", totalLast: false });
+    // تفصيل الكباين تحت الجدول (أول ٦ صفوف)، والباقى فى شرايح «تابع» بنفس العنوان
+    const usedCab = cabs.length > 0 && !m.achievedBoxes.trim();
+    const detail = usedCab ? [
+      ...cabs.map((c) => [c.exchange, c.cabinet, c.done.toLocaleString("en-US"), c.total.toLocaleString("en-US")]),
+      ["الإجمالى", `${cabs.length} كابينة`, cabs.reduce((a, c) => a + c.done, 0).toLocaleString("en-US"), fullCab.toLocaleString("en-US")],
+    ] : [];
+    const dCols = ["السنترال", "الكابينة", "البكسيات اللى اتعملت", "إجمالى بكسيات الكابينة"];
+    const chunks: string[][][] = detail.length ? [detail.slice(0, MAINT_FIRST_ROWS)] : [];
+    for (let i = MAINT_FIRST_ROWS; i < detail.length; i += MAINT_NEXT_ROWS) chunks.push(detail.slice(i, i + MAINT_NEXT_ROWS));
+    const title = `خطة الصيانة ورفع الكفاءة ${m.period}`;
+    const noteFull = "المحقق = إجمالى بكسيات الكباين اللى اتعمل فيها صيانة ولو بكس واحد — الكابينة بتتحسب كلها";
+    if (rows.length) perfExtra.push({ kind: "table", title, columns: ["البيان", "إجمالى الشبكة", "المحقق"], rows, imageId: "",
+      note: usedCab ? noteFull : "", totalLast: false,
+      sub: chunks.length ? { title: "تفصيل الكباين", columns: dCols, rows: chunks[0], totalLast: chunks.length === 1 } : null });
+    chunks.slice(1).forEach((rowsI, i) => perfExtra.push({ kind: "table", title: `${title} — تفصيل الكباين (تابع)`, columns: dCols, rows: rowsI,
+      imageId: "", note: i === chunks.length - 2 ? noteFull : "", totalLast: i === chunks.length - 2 }));
     if (m.photoIds.length) perfExtra.push({ kind: "photos", title: "بعض صور أعمال الصيانة", photoIds: m.photoIds });
   }
   const b = deck.booking;
@@ -569,6 +623,23 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     const panels = bookingCompare(b);
     if (panels.length) perfExtra.push({ kind: "compare", title, panels, table: { columns, rows } });
     else perfExtra.push({ kind: "table", title, columns, rows, imageId: "", note: "", totalLast: false });
+  }
+  // المالك ٢٠٢٦-١٠-٢١: «وضّح معدل نمو العملاء (الشغال) من 11-2025 لليوم — كنتيجة على ارتفاع نسب الحجز»
+  const g = deck.customers.growth ? customerGrowth(deck, auto) : null;
+  if (g) {
+    const bk = parseNum(deck.booking.handoverPct), bn = parseNum(bookingPct(deck.booking));
+    // الفرق بالعدد فى السطر ده مش فى الشارة: نص عربى وأرقام بإشارات فى سطر واحد بيتقلب ترتيبهم
+    const plus = `${g.diff >= 0 ? "زيادة" : "نقص"} ${Math.abs(g.diff).toLocaleString("en-US")} مشترك فى ${g.months.length - 1} شهر`;
+    const why = deck.booking.enabled && bk != null && bn != null
+      ? `${plus} — نتيجة ارتفاع نسبة الحجز من ${fmtNum(bk)}% إلى ${fmtNum(bn)}% (طلبات أكتر اتركّبت)`
+      : plus;
+    perfExtra.push({ kind: "compare", title: "نمو قاعدة العملاء (الشغال) — نتيجة ارتفاع نسبة الحجز", panels: [{
+      heading: "عدد العملاء الشغالين (مشتركى البيانات)",
+      before: { label: `عند الاستلام (${monthLabel(HANDOVER_MONTH, "full")})`, value: g.from.toLocaleString("en-US") },
+      after: { label: `حالياً (${monthLabel(g.toMonth, "full")})`, value: g.to.toLocaleString("en-US") },
+      delta: `\u200E${g.pct >= 0 ? "+" : ""}${fmtNum(g.pct)}%`,
+      note: why }],
+      table: { columns: g.months.map((m) => monthLabel(m.month, "short")), rows: [g.months.map((m) => (m.working ?? 0).toLocaleString("en-US"))] } });
   }
   if (deck.achievements.enabled && (deck.achievements.items || deck.achievements.photoIds.length)) {
     if (deck.achievements.items) achv.push({ kind: "list", title: "أهم الإنجازات", lead: "", items: lines(deck.achievements.items) });

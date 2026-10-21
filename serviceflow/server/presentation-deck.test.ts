@@ -96,7 +96,8 @@ test("normalizeDeck بيشيل الحقول الغريبة والصور والم
   assert.equal(d.vision.enabled, false);
   assert.equal(d.vision.items, "5");
   assert.deepEqual(d.achievements.photoIds, ["abcdef12"]);
-  assert.deepEqual(d.overrides, { "GHNAT.lines": "10" });
+  // (+ خطوط الصوت والداتا بتاعة المالك — بتتحط مرة واحدة فى العرض المحفوظ القديم)
+  assert.deepEqual(d.overrides, { "GHNAT.lines": "10", "total.msanVoice": "12,019", "total.msanData": "10,751" });
   assert.equal(d.exchanges.length, 1);
   assert.equal((d as any).hacker, undefined);
   assert.equal(normalizeDeck(null).exchanges.length, 4);
@@ -203,7 +204,7 @@ test("مؤشرات الأعطال: من يناير 2025 لحد الشهر الح
   hideAll(d, "2026-08,2026-09,2026-10");
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "chart"));
   // فاصل الأداء بيفضل طول ما التركيبات أو الصيانة أو الحجز جوّاه — ويتشال لو القسم كله فاضى
-  d.maintenance.enabled = false; d.booking.enabled = false; d.installs.enabled = false;
+  d.maintenance.enabled = false; d.booking.enabled = false; d.installs.enabled = false; d.customers.growth = false;
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "divider" && s.title === "مؤشرات ومعدلات الأداء"));
 });
 
@@ -260,22 +261,47 @@ test("شريحة «سنترالات الإدارة» اختيارية", () => {
   assert.equal(normalizeDeck({}).exchangesTable.enabled, true);
 });
 
-test("خطة الصيانة: المحقق بس من غير مستهدف — والبكسيات 1049 (رقم المالك)، والفاضى = برنامج الصيانة", () => {
+test("خطة الصيانة: المحقق = إجمالى بكسيات الكباين اللى اتعمل فيها ولو بكس، وتفصيلها تحت الجدول", () => {
+  const cab = (cabinet: string, done: number, total: number) => ({ year: "2026", exchange: "الغنايم", cabinet, done, total, source: "network" as const });
+  const a: DeckAuto = { ...auto, maintenance: { boxesTotal: 1000, boxesDone: 248, byYear: [{ year: "2026", done: 248 }],
+    cabinets: [cab("1", 3, 40), cab("2", 1, 35), cab("5", 12, 30), { ...cab("9", 2, 0), year: "2025" }] } };
   const d = defaultDeck(); d.maintenance.achievedCopper = "12";
-  const t = buildSlides(d, auto).find((s) => s.kind === "table" && s.title.startsWith("خطة الصيانة"));
-  assert.ok(t && t.kind === "table");
+  const slides = buildSlides(d, a);
+  const t = slides.find((s) => s.kind === "table" && s.title === "خطة الصيانة ورفع الكفاءة 2026") as any;
   assert.deepEqual(t.columns, ["البيان", "إجمالى الشبكة", "المحقق"]);
-  assert.deepEqual(t.rows, [["البكسيات", "300", "1049"], ["الكباين النحاسية", "0", "12"]]);
-  // المالك مسح الخانة ⇒ يرجع لبرنامج الصيانة (214) — ومش بيرجع 1049 تانى بعد الحفظ
+  // ٣ كباين فى 2026 (التانية اتعمل فيها بكس واحد بس) ⇒ 40 + 35 + 30 = 105 بدل 248 (عدد البكسيات اللى اتعملت)
+  assert.deepEqual(t.rows, [["البكسيات", "300", "105"], ["الكباين النحاسية", "0", "12"]]);
+  assert.match(t.note, /ولو بكس واحد/);
+  assert.deepEqual(t.sub.columns, ["السنترال", "الكابينة", "البكسيات اللى اتعملت", "إجمالى بكسيات الكابينة"]);
+  assert.deepEqual(t.sub.rows, [["الغنايم", "1", "3", "40"], ["الغنايم", "2", "1", "35"], ["الغنايم", "5", "12", "30"], ["الإجمالى", "3 كابينة", "16", "105"]]);
+  assert.equal(t.sub.totalLast, true);
+  // الرقم المكتوب بالإيد يغلب، ومن غير تفصيل
+  d.maintenance.achievedBoxes = "1049";
+  const t2 = buildSlides(d, a).find((s) => s.kind === "table" && s.title === "خطة الصيانة ورفع الكفاءة 2026") as any;
+  assert.deepEqual(t2.rows[0], ["البكسيات", "300", "1049"]);
+  assert.equal(t2.sub, null);
+  assert.equal(t2.note, "");
+  // كباين كتير ⇒ أول ٦ تحت الجدول، والباقى ١٢ فى كل شريحة «تابع»، والإجمالى فى آخر واحدة
   d.maintenance.achievedBoxes = "";
-  const t2 = buildSlides(d, auto).find((s) => s.kind === "table" && s.title.startsWith("خطة الصيانة")) as any;
-  assert.deepEqual(t2.rows[0], ["البكسيات", "300", "214"]);
-  assert.equal(normalizeDeck(JSON.parse(JSON.stringify(d))).maintenance.achievedBoxes, "");
-  // عرض محفوظ قديم من غير الخانة ⇒ 1049، ولو كان كاتب رقم فى الخانة القديمة يفضل هو
-  assert.equal(normalizeDeck({ maintenance: { enabled: true, period: "2026" } }).maintenance.achievedBoxes, "1049");
+  const many: DeckAuto = { ...a, maintenance: { ...a.maintenance!, cabinets: Array.from({ length: 20 }, (_, i) => cab(String(i + 1), 1, 10)) } };
+  const all = buildSlides(d, many).filter((s) => s.kind === "table" && s.title.startsWith("خطة الصيانة ورفع الكفاءة 2026")) as any[];
+  assert.equal(all.length, 3);
+  assert.equal(all[0].sub.rows.length, 6);
+  assert.equal(all[0].sub.totalLast, false);
+  assert.equal(all[1].title, "خطة الصيانة ورفع الكفاءة 2026 — تفصيل الكباين (تابع)");
+  assert.equal(all[1].rows.length, 12);
+  assert.equal(all[2].rows.length, 3);
+  assert.deepEqual(all[2].rows[2], ["الإجمالى", "20 كابينة", "20", "200"]);
+  assert.ok(all[2].totalLast && !all[1].totalLast);
+  // من غير بيانات كباين ⇒ عدد برنامج الصيانة زى الأول
+  const t3 = buildSlides(d, auto).find((s) => s.kind === "table" && s.title.startsWith("خطة الصيانة")) as any;
+  assert.deepEqual(t3.rows[0], ["البكسيات", "300", "214"]);
+  assert.equal(t3.sub, null);
+  // عرض محفوظ قديم: لو كان كاتب رقم فى الخانة القديمة يفضل هو
   const old = normalizeDeck({ maintenance: { enabled: true, period: "2026" }, overrides: { "total.maintBoxes": "260" } });
   assert.equal(old.maintenance.achievedBoxes, "260");
   assert.equal(old.overrides["total.maintBoxes"], undefined);
+  assert.equal(normalizeDeck({ maintenance: { enabled: true, period: "2026" } }).maintenance.achievedBoxes, "");
   assert.equal((normalizeDeck({ maintenance: { targetBoxes: "400" } }).maintenance as any).targetBoxes, undefined);
 });
 
@@ -331,7 +357,7 @@ test("نسبة الحجز وفك المتعذرات: خانات المقارنة
   const d = defaultDeck();
   Object.assign(d.booking, { handoverPct: "", prevTarget: "", prevAchieved: "", curTarget: "", curAchieved: "" });
   const slides = buildSlides(d, null);
-  assert.ok(!slides.some((x) => x.kind === "compare"));
+  assert.ok(!slides.some((x) => x.kind === "compare" && x.title.startsWith("نسبة الحجز")));
   const t = slides.find((x) => x.kind === "table" && x.title.startsWith("نسبة الحجز"));
   assert.ok(t && t.kind === "table");
   assert.deepEqual(t.columns, ["إجمالى الطلبات", "إجمالى الإمكانية", "متعذر", "توضيح عنوان", "بدون رد", "العنوان لا يتبع السنترال", "نسبة الحجز"]);
@@ -407,7 +433,7 @@ test("شريحة مؤشرات تركيبات الصوت جوّه «مؤشرات 
     ["متوسط زمن التركيب", "6.2 ساعة", ""],
   ]);
   // من غير الشرايح التانية: التركيبات لوحدها بتظهّر قسم الأداء
-  const only = defaultDeck(); only.faults.enabled = false; only.maintenance.enabled = false; only.booking.enabled = false;
+  const only = defaultDeck(); only.faults.enabled = false; only.maintenance.enabled = false; only.booking.enabled = false; only.customers.growth = false;
   assert.ok(kinds(only).includes("divider:مؤشرات ومعدلات الأداء"));
   // مقفولة أو فاضية ⇒ مفيش شريحة
   only.installs.enabled = false;
@@ -587,4 +613,47 @@ test("قيم الرسم الخطى بعلامة عشرية واحدة لو في�
   assert.deepEqual(lineChartGeom([{ label: "a", value: 27 }, { label: "b", value: 27.9 }], "").pts.map((p) => p.text), ["27.0", "27.9"]);
   assert.deepEqual(lineChartGeom([{ label: "a", value: 3 }, { label: "b", value: 6.5 }], "%").pts.map((p) => p.text), ["3.0%", "6.5%"]);
   assert.deepEqual(lineChartGeom([{ label: "a", value: 3 }, { label: "b", value: 6 }], "%").pts.map((p) => p.text), ["3%", "6%"]);
+});
+
+test("نمو قاعدة العملاء (الشغال): نوفمبر 2025 ← الشهر الحالى، بعد شريحة الحجز وكنتيجة ليها", async () => {
+  const { customerGrowth } = await import("../shared/presentation-deck");
+  const a: DeckAuto = { ...auto, faultsWorking: 10662, computedAt: "2026-10-21T10:00:00Z" };
+  const d = defaultDeck();
+  const g = customerGrowth(d, a)!;
+  assert.deepEqual([g.from, g.to, g.diff, g.pct, g.toMonth], [9781, 10751, 970, 9.9, "2026-10"]);
+  assert.equal(g.months.length, 12);   // نوفمبر 2025 → أكتوبر 2026
+  const slides = buildSlides(d, a);
+  const k = slides.map((s) => s.kind + ":" + ("title" in s ? s.title : ""));
+  const gi = k.indexOf("compare:نمو قاعدة العملاء (الشغال) — نتيجة ارتفاع نسبة الحجز");
+  assert.ok(gi > 0 && gi === k.findIndex((x) => x.startsWith("compare:نسبة الحجز")) + 1);
+  assert.ok(gi > k.indexOf("divider:مؤشرات ومعدلات الأداء"));
+  const s = slides[gi] as any;
+  assert.equal(s.panels.length, 1);
+  assert.deepEqual(s.panels[0].before, { label: "عند الاستلام (نوفمبر 2025)", value: "9,781" });
+  assert.deepEqual(s.panels[0].after, { label: "حالياً (أكتوبر 2026)", value: "10,751" });
+  assert.equal(s.panels[0].delta, "\u200E+9.9%");
+  assert.equal(s.panels[0].note, "زيادة 970 مشترك فى 11 شهر — نتيجة ارتفاع نسبة الحجز من 88% إلى 97% (طلبات أكتر اتركّبت)");
+  assert.equal(s.table.columns[0], "نوفمبر 25");
+  assert.equal(s.table.rows[0][0], "9,781");
+  assert.equal(s.table.rows[0][11], "10,751");
+  // الزرار يخفيها
+  d.customers.growth = false;
+  assert.ok(!buildSlides(d, a).some((x) => x.kind === "compare" && x.title.startsWith("نمو قاعدة العملاء")));
+  // عرض محفوظ قديم بياخدها ظاهرة
+  assert.equal(normalizeDeck({ customers: { weData: "" } }).customers.growth, true);
+});
+
+test("خطوط الصوت 12,019 والداتا 10,751 (أرقام المالك) — مرة واحدة فى العرض المحفوظ القديم، والمسح بيرجّع التلقائى", () => {
+  const a: DeckAuto = { ...auto, total: { ...auto.total, msanVoice: 11521, msanData: 10662 } };
+  const old = normalizeDeck({ cover: { title: "x" }, customers: { weData: "" } });
+  assert.equal(old.overrides["total.msanVoice"], "12,019");
+  assert.equal(old.overrides["total.msanData"], "10,751");
+  const ov = buildSlides(old, a).find((s) => s.kind === "table" && s.title === old.cover.title) as any;
+  assert.equal(ov.rows.find((r: string[]) => r[0] === "عدد الخطوط الشغالة صوت")[1], "12,019");
+  assert.equal(ov.rows.find((r: string[]) => r[0] === "عدد الخطوط الشغالة داتا")[1], "10,751");
+  // بعد الحفظ (فيه customers.growth) والمالك مسح الخانة ⇒ مابترجعش
+  const saved = JSON.parse(JSON.stringify(old)); delete saved.overrides["total.msanVoice"];
+  assert.equal(normalizeDeck(saved).overrides["total.msanVoice"], undefined);
+  // رقم كان كاتبه قبل كده يفضل
+  assert.equal(normalizeDeck({ customers: {}, overrides: { "total.msanVoice": "11900" } }).overrides["total.msanVoice"], "11900");
 });

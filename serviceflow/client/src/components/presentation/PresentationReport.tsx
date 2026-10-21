@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -564,6 +564,20 @@ export function PresentationReport() {
                 })}
               </div>
             </div>
+          </Section>
+
+          <Section title="نمو قاعدة العملاء (الشغال)" on={d.customers.growth} onToggle={(v) => upd("customers", { growth: v })}>
+            {(() => {
+              const g = customerGrowth(d, auto);
+              return g ? (
+                <p className="text-sm" data-testid="customer-growth">
+                  عند الاستلام ({monthLabel("2025-11", "full")}): <b className="tabular-nums">{g.from.toLocaleString("en-US")}</b> ←
+                  حالياً ({monthLabel(g.toMonth, "full")}): <b className="tabular-nums">{g.to.toLocaleString("en-US")}</b> —
+                  الزيادة <b className="tabular-nums text-green-700">+{g.pct}% (+{g.diff.toLocaleString("en-US")} مشترك)</b>.
+                  <span className="block text-xs text-muted-foreground">الأرقام من عمود «الشغال» فى مؤشرات الأداء — والشريحة بتيجى بعد شريحة الحجز.</span>
+                </p>
+              ) : <p className="text-xs text-muted-foreground">محتاج شغال نوفمبر 2025 والشهر الحالى فى عمود «الشغال».</p>;
+            })()}
           </Section>
 
           <Section title="أهم الإنجازات" on={d.achievements.enabled} onToggle={(v) => upd("achievements", { enabled: v })}>
