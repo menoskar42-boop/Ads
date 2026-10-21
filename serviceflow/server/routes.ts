@@ -2561,6 +2561,8 @@ export async function registerRoutes(
   const sharedGroup = (a: string) => `(${isNoRealJob(a)} OR ${isPoStopJob(a)})`;
   const laneCap = (a: string, L: ExecLanes) =>
     `(CASE WHEN ${isNoRealJob(a)} THEN ${clampLanes(L.noreal, 1)} WHEN ${isPoStopJob(a)} THEN ${clampLanes(L.stop, 1)} ELSE 1 END)`;
+  // سقف الاتنين مع بعض = أكبر رقم فى الإعدادات (مش مجموعهم)
+  const sharedCap = (L: ExecLanes) => Math.max(clampLanes(L.noreal, 1), clampLanes(L.stop, 1));
   const queueRank = (a: string) =>
     `ROW(-${a}.priority, CASE WHEN ${a}.queue_order > 0 THEN ${a}.queue_order ELSE 9223372036854775807 END, ${a}.created_at, ${a}.id)`;
   // الموقع «فاضى» للمهمة e: مفيش حاجة شغّالة عليه، أو استثناء التوازى («بدون Real»/«إيقاف PO»).
@@ -2575,6 +2577,11 @@ export async function registerRoutes(
         AND (SELECT COUNT(*) FROM exec_jobs b
               WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
                 AND ${parallelGroup("b")} = ${parallelGroup(e)}) < ${laneCap(e, L)}
+        -- والاتنين مع بعض مايعدّوش أكبر رقم فيهم (المالك ٢٠٢٦-١٠-٢١: «لو ١٥ لبدون Real و١٠ للـPO
+        -- يبقى التابات اللى تتفتح مع بعض ماتزيدش عن ١٥ وليس ٢٥»)
+        AND (SELECT COUNT(*) FROM exec_jobs b
+              WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
+                AND ${sharedGroup("b")}) < ${sharedCap(L)}
         -- مفيش رفع سرعة/Real/نوع تانى شغّال على الموقع (دول بياخدوه لوحدهم)
         AND NOT EXISTS (SELECT 1 FROM exec_jobs b
                          WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}

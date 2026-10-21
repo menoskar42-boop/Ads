@@ -123,6 +123,21 @@ if (POSTOP > 1 && LANES !== 1) {
   for (let z = 0; z < 10; z++) await add("stop", "إيقاف");
   let cnt = 0; while (await claim()) cnt++;
   ok("مفيش سقف (المالك ٢٠٢٦-١٠-١٣): ٩٩ ⇒ العشرة اتسحبوا", cnt === 10, String(cnt));
+  // المالك ٢٠٢٦-١٠-٢١: الاتنين مع بعض مايعدّوش أكبر رقم فيهم (١٥ و١٠ ⇒ ١٥ مش ٢٥)
+  await q(`DELETE FROM exec_jobs`);
+  await q(`UPDATE app_settings SET value = '3' WHERE key = 'exec_lanes_noreal'`);
+  await q(`UPDATE app_settings SET value = '2' WHERE key = 'exec_lanes_stop'`);
+  for (let z = 0; z < 3; z++) await add("stop", "إيقاف");
+  for (let z = 0; z < 4; z++) await add("measure", NR);
+  const mixed: any[] = []; let m; while ((m = await claim())) mixed.push(m);
+  const nStop = mixed.filter((j) => j.type === "stop").length, nNr = mixed.length - nStop;
+  ok("بدون Real ٣ + إيقاف ٢ ⇒ ٣ تابات بس مع بعض (مش ٥)", mixed.length === 3 && nStop <= 2 && nNr <= 3, `${nStop} إيقاف + ${nNr} بدون Real`);
+  await done(mixed[0].id);
+  const m2 = await claim(); ok("تاب فضى ⇒ واحدة تانية بس", !!m2 && (await claim()) == null);
+  await q(`DELETE FROM exec_jobs`);
+  for (let z = 0; z < 5; z++) await add("measure", NR);
+  let only = 0; while (await claim()) only++;
+  ok("بدون Real لوحده ⇒ ٣ (رقمه هو)", only === 3, String(only));
   await q(`DELETE FROM app_settings WHERE key LIKE 'exec_lanes_%'`);
 }
 await q(`DELETE FROM exec_jobs`);
