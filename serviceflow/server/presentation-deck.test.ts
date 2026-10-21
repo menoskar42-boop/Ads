@@ -262,6 +262,9 @@ test("شريحة «سنترالات الإدارة» اختيارية", () => {
 });
 
 test("خطة الصيانة: المحقق = إجمالى بكسيات الكباين اللى اتعمل فيها ولو بكس، وتفصيلها تحت الجدول", () => {
+  // البكس «اتعمل» لو مهمته اتقفلت «مكتملة» فى برنامج الصيانة (نفس تقرير «الصيانة المكتملة») — مش لازم كل بنودها
+  assert.match(src, /WHERE mt\.status = 'completed'\s+OR \(mt\.technician_id IS NOT NULL/);
+  assert.match(src, /COALESCE\(mt\.completed_at, MAX\(s\.done_at\)\)/);
   const cab = (cabinet: string, done: number, total: number) => ({ year: "2026", exchange: "الغنايم", cabinet, done, total, source: "network" as const });
   const a: DeckAuto = { ...auto, maintenance: { boxesTotal: 1000, boxesDone: 248, byYear: [{ year: "2026", done: 248 }],
     cabinets: [cab("1", 3, 40), cab("2", 1, 35), cab("5", 12, 30), { ...cab("9", 2, 0), year: "2025" }] } };
@@ -443,6 +446,16 @@ test("شريحة مؤشرات تركيبات الصوت جوّه «مؤشرات 
   assert.ok(!kinds(empty).some((x) => x.includes("تركيبات")));
   // عرض محفوظ قبل الشريحة دى بياخد أرقام سبتمبر لوحده
   assert.equal(normalizeDeck({ cover: { title: "x" } }).installs.in24, "155");
+  // «متبقيات الأعطال» شريحة لوحدها بعد التركيبات على طول: 0 ⇒ «لا توجد متبقيات بإدارة الغنايم»
+  const ri = k.indexOf("table:متبقيات الأعطال");
+  assert.equal(ri, i + 1);
+  assert.deepEqual((slides[ri] as any).rows, [["متبقيات الأعطال بإدارة الغنايم", "لا توجد متبقيات"]]);
+  const d3 = defaultDeck(); d3.installs.remaining = "4";
+  const r3 = buildSlides(d3, auto).find((s) => s.kind === "table" && s.title === "متبقيات الأعطال") as any;
+  assert.deepEqual(r3.rows, [["متبقيات الأعطال بإدارة الغنايم", "4 عطل متبقى"]]);
+  d3.installs.remaining = "";
+  assert.ok(!buildSlides(d3, auto).some((s) => s.kind === "table" && s.title === "متبقيات الأعطال"));
+  assert.equal(normalizeDeck({ installs: { enabled: true } }).installs.remaining, "0");
 });
 
 test("كل مؤشر بشهوره: الأعطال فى الألف · التكرار · الإزالة — شهور مختلفة فى كل شريحة", () => {

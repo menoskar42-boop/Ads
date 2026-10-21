@@ -36,7 +36,8 @@ export type Deck = {
     prevLabel: string; prevTarget: string; prevAchieved: string;
     curLabel: string; curTarget: string; curAchieved: string };
   /** مؤشرات تركيبات الصوت (المالك ٢٠٢٦-١٠-٢١، من تقرير المنطقة الشهرى) — صف الغنايم بس، من غير المنطقة */
-  installs: { enabled: boolean; period: string; total: string; in24: string; in48: string; in120: string; avgHours: string };
+  /** remaining: متبقيات الأعطال (المالك ٢٠٢٦-١٠-٢١: «لا توجد متبقيات بإدارة الغنايم») — 0 = لا توجد، والفاضى = مش ظاهرة */
+  installs: { enabled: boolean; period: string; total: string; in24: string; in48: string; in120: string; avgHours: string; remaining: string };
   achievements: { enabled: boolean; items: string; photoIds: string[] };
   vision: { enabled: boolean; items: string };
   closing: { enabled: boolean; text: string };
@@ -86,7 +87,7 @@ export function defaultDeck(): Deck {
       prevLabel: "العام الماضى (لحد نوفمبر 2025)", prevTarget: "50", prevAchieved: "105",
       curLabel: "السنة دى", curTarget: "70", curAchieved: "97.5" },
     // أرقام الغنايم من «تقرير مؤشرات تركيبات الصوت - سبتمبر 2026» — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
-    installs: { enabled: true, period: "سبتمبر 2026", total: "157", in24: "155", in48: "157", in120: "157", avgHours: "6.2" },
+    installs: { enabled: true, period: "سبتمبر 2026", total: "157", in24: "155", in48: "157", in120: "157", avgHours: "6.2", remaining: "0" },
     achievements: { enabled: false, items: "", photoIds: [] },
     vision: { enabled: false, items: "" },
     closing: { enabled: true, text: "شكراً لحسن استماعكم" },
@@ -374,9 +375,10 @@ export const tableFs = (rows: number, cols: number) => (rows > 11 ? 15 : rows > 
 export const tableRowH = (fs: number) => fs * 1.25 + 14;
 export const SUB_TABLE_FS = 15;
 /** مكان الجدول التانى: تحت الجدول الأساسى بمسافة، وفوقه عنوان صغير */
-export function subTableLayout(rows: number, cols: number) {
+export function subTableLayout(rows: number, cols: number, subRows = 99) {
   const end = 122 + (rows + 1) * tableRowH(tableFs(rows, cols));
-  return { titleY: end + 12, top: end + 46, fs: SUB_TABLE_FS };
+  // جدول صغير (٣ صفوف أو أقل، زى «متبقيات الأعطال») بخط أكبر عشان يبان
+  return { titleY: end + 12, top: end + 46, fs: subRows <= 3 ? 20 : SUB_TABLE_FS };
 }
 
 /** شهور الفترة من يناير 2025 لحد الشهر الحالى (UTC) */
@@ -583,6 +585,11 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   const insRows = ins.enabled ? installsRows(ins) : [];
   if (insRows.length > 1) perfExtra.push({ kind: "table", title: `مؤشرات تركيبات الصوت${ins.period ? ` - ${ins.period}` : ""}`,
     columns: ["المؤشر", "العدد", "النسبة"], rows: insRows, imageId: "", note: "النسبة = التركيبات خلال المدة ÷ إجمالى التركيبات", totalLast: false });
+  // المالك ٢٠٢٦-١٠-٢١: «متبقيات الأعطال» — «لا توجد متبقيات بإدارة الغنايم» — فى شريحة لوحدها بعد التركيبات
+  const remN = parseNum(ins.remaining);
+  if (ins.enabled && remN != null) perfExtra.push({ kind: "table", title: "متبقيات الأعطال", columns: ["البيان", "الحالة"],
+    rows: [["متبقيات الأعطال بإدارة الغنايم", remN === 0 ? "لا توجد متبقيات" : `${fmtNum(remN)} عطل متبقى`]],
+    imageId: "", note: "", totalLast: false });
   const m = deck.maintenance;
   if (m.enabled) {
     const doneYear = auto?.maintenance?.byYear.find((y) => y.year === m.period)?.done;

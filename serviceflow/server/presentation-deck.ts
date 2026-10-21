@@ -173,16 +173,21 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
     // (نفس مصدر «إجمالى الشبكة»)، ولو الكابينة مش لاقيها هناك ⇒ عدد بكسياتها فى برنامج الصيانة.
     const cab = await db.query(`
       WITH d AS (
-        SELECT to_char(MAX(s.done_at) AT TIME ZONE 'Africa/Cairo', 'YYYY') AS year, i.box_id
+        -- بكس «اتعمل»: مهمته اتقفلت «مكتملة» فى برنامج الصيانة (نفس تقرير «الصيانة المكتملة» هناك) — أو كل بنودها
+        -- اتعلّمت تمت (التعريف القديم). المالك ٢٠٢٦-١٠-٢١: كباين دير الجنادلة كانت بتقع من التعريف القديم لوحده.
+        SELECT to_char(COALESCE(mt.completed_at, MAX(s.done_at)) AT TIME ZONE 'Africa/Cairo', 'YYYY') AS year, i.box_id
           FROM maintenance.maintenance_tasks mt
           JOIN maintenance.inspections i ON i.id = mt.inspection_id
-          JOIN maintenance.maintenance_item_status s ON s.task_id = mt.id AND s.is_done = 1
-         WHERE mt.technician_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM maintenance.inspection_items y WHERE y.inspection_id = i.id
+          LEFT JOIN maintenance.maintenance_item_status s ON s.task_id = mt.id AND s.is_done = 1
+         WHERE mt.status = 'completed'
+            OR (mt.technician_id IS NOT NULL
+                AND EXISTS (SELECT 1 FROM maintenance.maintenance_item_status x WHERE x.task_id = mt.id AND x.is_done = 1)
+                AND NOT EXISTS (SELECT 1 FROM maintenance.inspection_items y WHERE y.inspection_id = i.id
                              AND y.value IN ('bad','yes') AND y.item_key NOT IN ('electricity_conflict','air_conflict','overlap','data_review')
                              AND NOT EXISTS (SELECT 1 FROM maintenance.maintenance_item_status z
-                                              WHERE z.task_id = mt.id AND z.item_key = y.item_key AND z.is_done = 1))
-         GROUP BY mt.id, i.box_id),
+                                              WHERE z.task_id = mt.id AND z.item_key = y.item_key AND z.is_done = 1)))
+         GROUP BY mt.id, i.box_id, mt.completed_at
+        HAVING COALESCE(mt.completed_at, MAX(s.done_at)) IS NOT NULL),
       c AS (
         SELECT d.year, c.id AS cabinet_id, e.name AS exchange, c.number, COUNT(DISTINCT d.box_id) AS done
           FROM d JOIN maintenance.boxes b ON b.id = d.box_id

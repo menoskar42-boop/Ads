@@ -503,6 +503,9 @@ export function PresentationReport() {
               <Field label="خلال 48 ساعة (العدد)"><Input value={d.installs.in48} inputMode="numeric" onChange={(e) => upd("installs", { in48: e.target.value })} /></Field>
               <Field label="خلال 120 ساعة (العدد)"><Input value={d.installs.in120} inputMode="numeric" onChange={(e) => upd("installs", { in120: e.target.value })} /></Field>
               <Field label="متوسط زمن التركيب (ساعة)"><Input value={d.installs.avgHours} inputMode="decimal" onChange={(e) => upd("installs", { avgHours: e.target.value })} /></Field>
+              <Field label="متبقيات الأعطال (العدد)" hint="0 = «لا توجد متبقيات» · فاضى = مش ظاهرة">
+                <Input value={d.installs.remaining} inputMode="numeric" data-testid="installs-remaining" onChange={(e) => upd("installs", { remaining: e.target.value })} />
+              </Field>
             </div>
             <p className="text-xs text-muted-foreground">
               النسب: {installsRows(d.installs).filter((r) => r[2]).map((r) => `${r[0].replace("التركيب ", "")} ${r[2]}`).join(" · ") || "—"}
@@ -520,6 +523,19 @@ export function PresentationReport() {
               <Field label="المحقق (كباين نحاس)"><Input value={d.maintenance.achievedCopper} onChange={(e) => upd("maintenance", { achievedCopper: e.target.value })} /></Field>
               <Field label="المحقق (كباين MSAN)"><Input value={d.maintenance.achievedMsan} onChange={(e) => upd("maintenance", { achievedMsan: e.target.value })} /></Field>
             </div>
+            {(() => {
+              // الكباين اللى اتعمل فيها ولو بكس (بتتحسب كلها) — لكل سنترال، عشان المالك يتأكد إن كل السنترالات داخلة
+              const cabs = (auto?.maintenance?.cabinets || []).filter((c) => c.year === d.maintenance.period);
+              if (!cabs.length) return null;
+              const by = new Map<string, { n: number; boxes: number }>();
+              for (const c of cabs) { const x = by.get(c.exchange) || { n: 0, boxes: 0 }; x.n++; x.boxes += c.total; by.set(c.exchange, x); }
+              return (
+                <p className="text-xs text-purple-900" data-testid="maint-cabinets-by-exchange">
+                  الكباين اللى اتعمل فيها صيانة ({d.maintenance.period}) — بتتحسب بكل بكسياتها:{" "}
+                  {[...by.entries()].map(([ex, x]) => `${ex}: ${x.n} كابينة (${x.boxes.toLocaleString("en-US")} بكس)`).join(" · ")}
+                </p>
+              );
+            })()}
             <Field label="صور أعمال الصيانة"><Photos ids={d.maintenance.photoIds} onChange={(ids) => upd("maintenance", { photoIds: ids })} /></Field>
             <MaintPhotoPicker room={Math.max(0, 8 - d.maintenance.photoIds.length)}
               onAdd={(ids) => upd("maintenance", { photoIds: [...d.maintenance.photoIds, ...ids].slice(0, 8) })} />

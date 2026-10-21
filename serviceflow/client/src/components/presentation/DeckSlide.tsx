@@ -143,7 +143,7 @@ function SlideBody({ s }: { s: Slide }) {
           </tbody>
         </table>
       );
-      const sub = s.sub ? subTableLayout(s.rows.length, s.columns.length) : null;
+      const sub = s.sub ? subTableLayout(s.rows.length, s.columns.length, s.sub.rows.length) : null;
       void rowH;
       return (
         <>

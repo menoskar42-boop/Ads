@@ -213,7 +213,7 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
       const w = map ? 640 : 1200;
       sx.table(1280 - 40 - w, 122, w, s.columns, s.rows, fs, s.totalLast, s.columns.length === 2 ? [3, 2] : undefined);
       if (s.sub) {
-        const L = subTableLayout(s.rows.length, s.columns.length);
+        const L = subTableLayout(s.rows.length, s.columns.length, s.sub.rows.length);
         sx.text(48, L.titleY, 1188, 30, [{ runs: [{ text: s.sub.title, size: 22, bold: true, color: TITLE }] }]);
         sx.table(40, L.top, 1200, s.sub.columns, s.sub.rows, L.fs, s.sub.totalLast);
       }
