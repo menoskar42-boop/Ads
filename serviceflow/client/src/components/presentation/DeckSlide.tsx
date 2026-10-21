@@ -4,7 +4,7 @@
  * اللوحة ثابتة ١٢٨٠×٧٢٠ وبتتصغّر/تتكبّر بـ scale — نفس النسب فى المعاينة والعرض الكامل.
  */
 import { useEffect, useRef, useState } from "react";
-import { compareLayout, type Slide } from "@shared/presentation-deck";
+import { compareLayout, chartLabelStyle, splitChartLabel, type Slide } from "@shared/presentation-deck";
 import { withBase } from "@/lib/base-path";
 import weWhite from "@/assets/presentation/we-white.png";
 import wePurple from "@/assets/presentation/we-purple.png";
@@ -151,9 +151,10 @@ function SlideBody({ s }: { s: Slide }) {
     case "chart": {
       const max = Math.max(1, ...s.points.map((p) => p.value));
       const top = Math.ceil(max / 10) * 10 || 10;
-      const W = 1000, H = 380, x0 = 140, y0 = 560;
+      // شهور كتير: خط أصغر، ومن ١٤ شهر الاسم فوق والسنة تحته والرسم أقصر (نفس presentation-pptx.ts)
+      const { fs, split, y0, H, noteY } = chartLabelStyle(s.points.length);
+      const W = 1000, x0 = 140;
       const bw = Math.min(110, (W / Math.max(1, s.points.length)) * 0.55);
-      const fs = s.points.length > 8 ? 16 : 22;   // ١٣ شهر: خط أصغر عشان الأسماء ماتدخلش فى بعض
       return (
         <>
           <div style={{ position: "absolute", top: 34, right: 48, left: 48, textAlign: "center" }}>
@@ -174,12 +175,14 @@ function SlideBody({ s }: { s: Slide }) {
                 <g key={p.label}>
                   <rect x={cx - bw / 2} y={y0 - h} width={bw} height={h} fill="#00B0F0" />
                   <text x={cx} y={y0 - h - 12} fontSize={fs} fontWeight={700} textAnchor="middle" fill="#111" fontFamily={font}>{p.value}{s.unit}</text>
-                  <text x={cx} y={y0 + 30} fontSize={fs} fontWeight={700} textAnchor="middle" fill="#111" fontFamily={font}>{p.label}</text>
+                  <text x={cx} y={y0 + 30} fontSize={fs} fontWeight={700} textAnchor="middle" fill="#111" fontFamily={font}>
+                    {split ? splitChartLabel(p.label).map((t, j) => <tspan key={j} x={cx} dy={j ? fs + 3 : 0}>{t}</tspan>) : p.label}
+                  </text>
                 </g>
               );
             })}
           </svg>
-          {s.note && <div style={{ position: "absolute", bottom: 108, left: 0, right: 0, textAlign: "center", fontSize: 18, color: "#555" }}>{s.note}</div>}
+          {s.note && <div style={{ position: "absolute", top: noteY, left: 0, right: 0, textAlign: "center", fontSize: 18, color: "#555" }}>{s.note}</div>}
           <Footer />
         </>
       );

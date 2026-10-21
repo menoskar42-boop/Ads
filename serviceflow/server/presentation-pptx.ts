@@ -5,7 +5,7 @@
  * ونصوص عادية قابلة للتعديل فى باور بوينت (الرسم البيانى أعمدة مرسومة بنفس شكل الريفرنس).
  */
 import JSZip from "jszip";
-import { compareLayout, type Slide } from "../shared/presentation-deck";
+import { compareLayout, chartLabelStyle, splitChartLabel, type Slide } from "../shared/presentation-deck";
 
 export type DeckImage = { data: Buffer; ext: "png" | "jpeg"; w: number; h: number };
 export type DeckAssets = { weWhite: DeckImage; wePurple: DeckImage; telecomEgypt: DeckImage };
@@ -219,7 +219,8 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
       sx.text(48, 108, 1184, 40, [{ runs: [{ text: s.seriesLabel, size: 28, bold: true }], align: "ctr" }]);
       const max = Math.max(1, ...s.points.map((p) => p.value));
       const top = Math.ceil(max / 10) * 10 || 10;
-      const W = 1000, H = 380, x0 = 140, y0 = 560;
+      const { fs, split, y0, H, noteY } = chartLabelStyle(s.points.length);   // نفس DeckSlide
+      const W = 1000, x0 = 140;
       const bw = Math.min(110, (W / Math.max(1, s.points.length)) * 0.55);
       for (const t of [0, 0.25, 0.5, 0.75, 1]) {
         sx.line(x0, y0 - t * H, x0 + W, y0 - t * H, "DDDDDD", 1);
@@ -229,11 +230,11 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
         const cx = x0 + (W / s.points.length) * (i + 0.5);
         const h = (p.value / top) * H;
         if (h > 0) sx.box(cx - bw / 2, y0 - h, bw, h, { fill: BAR });
-        const fs = s.points.length > 8 ? 16 : 22;   // نفس DeckSlide
         sx.text(cx - 80, y0 - h - 40, 160, 30, [{ runs: [{ text: `${p.value}${s.unit}`, size: fs, bold: true }], align: "ctr" }]);
-        sx.text(cx - 80, y0 + 8, 160, 30, [{ runs: [{ text: p.label, size: fs, bold: true }], align: "ctr" }]);
+        const parts = split ? splitChartLabel(p.label) : [p.label];
+        sx.text(cx - 80, y0 + 8, 160, 30 * parts.length, parts.map((t) => ({ runs: [{ text: t, size: fs, bold: true }], align: "ctr" as const })));
       });
-      if (s.note) sx.text(48, 720 - 108 - 28, 1184, 28, [{ runs: [{ text: s.note, size: 18, color: "555555" }], align: "ctr" }]);
+      if (s.note) sx.text(48, noteY, 1184, 28, [{ runs: [{ text: s.note, size: 18, color: "555555" }], align: "ctr" }]);
       footer();
       return;
     }

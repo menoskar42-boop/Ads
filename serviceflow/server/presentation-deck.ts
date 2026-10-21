@@ -102,7 +102,7 @@ export async function autoDeck(db: Q, deck: Deck): Promise<DeckAuto> {
              COUNT(DISTINCT phone) FILTER (WHERE close_time IS NOT NULL) AS phones,
              COUNT(*) FILTER (WHERE hours <= 24) AS in24
         FROM c GROUP BY 1 ORDER BY 1`;
-    // المالك ٢٠٢٦-١٠-٢٠: الـ١٢ شهر اللى فاتوا + الشهر الحالى (من أوله لحد النهارده)، كل شهر محسوب لوحده
+    // المالك ٢٠٢٦-١٠-٢١: من يناير 2025 لحد الشهر الحالى (من أوله لحد النهارده)، كل شهر محسوب لوحده
     const params = [keys, faultsStartMonth(new Date()), main];
     const conv = (r: any) => {
       const n = Number(r.complaints) || 0, closed = Number(r.closed) || 0, phones = Number(r.phones) || 0;

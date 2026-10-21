@@ -177,13 +177,14 @@ test("قاعدة العملاء: الشغال صوت/داتا من ملف الم
   assert.equal(get("الحصة السوقية WE DATA"), undefined);
 });
 
-test("مؤشرات الأعطال: آخر ١٢ شهر + الحالى، كل شهر لوحده، وزرار يخفى أى شهر", async () => {
+test("مؤشرات الأعطال: من يناير 2025 لحد الشهر الحالى، كل شهر لوحده، وزرار يخفى أى شهر", async () => {
   const { faultsStartMonth } = await import("../shared/presentation-deck");
   assert.match(src, /NORM\("cd\.exchange_name"\)\} = ANY/);
   assert.match(src, /COALESCE\(cd\.time_till_now/);
   assert.match(src, /'YYYY-MM'\) >= \$2/);
-  assert.equal(faultsStartMonth(new Date("2026-10-20T12:00:00Z")), "2025-10");
-  assert.equal(faultsStartMonth(new Date("2026-01-05T12:00:00Z")), "2025-01");
+  // المالك ٢٠٢٦-١٠-٢١: «من يناير 2025 الى أكتوبر 2026» — البداية ثابتة، والنهاية الشهر الحالى
+  assert.equal(faultsStartMonth(new Date("2026-10-20T12:00:00Z")), "2025-01");
+  assert.equal(faultsStartMonth(new Date("2027-03-05T12:00:00Z")), "2025-01");
   const a: DeckAuto = { ...auto, computedAt: "2026-10-20T18:00:00Z",
     faultsByMonth: [{ month: "2026-08", complaints: 70, repeatPct: 9, in24Pct: 85, msanFaults: null },
       { month: "2026-09", complaints: 60, repeatPct: 8, in24Pct: 90, msanFaults: null },
@@ -433,4 +434,55 @@ test("كل مؤشر بشهوره: الأعطال فى الألف · التكرا
   // عرض محفوظ فيه اختيار مستقل لمؤشر ماياخدش القديم
   const saved = normalizeDeck({ faults: { enabled: true, hiddenMonths: "2026-03", hiddenRepeat: "" } });
   assert.deepEqual([saved.faults.hiddenPt, saved.faults.hiddenRepeat, saved.faults.hiddenIn24], ["2026-03", "", "2026-03"]);
+});
+
+test("الرسم بـ٢٢ شهر (يناير 2025 – أكتوبر 2026): خط أصغر والسنة تحت اسم الشهر — فى الصفحة والباور بوينت", async () => {
+  const { chartLabelStyle, splitChartLabel } = await import("../shared/presentation-deck");
+  assert.deepEqual(chartLabelStyle(5), { fs: 22, split: false, y0: 560, H: 380, noteY: 584 });
+  assert.deepEqual(chartLabelStyle(13), { fs: 16, split: false, y0: 560, H: 380, noteY: 584 });
+  assert.deepEqual(chartLabelStyle(16), { fs: 13, split: true, y0: 540, H: 360, noteY: 600 });
+  assert.deepEqual(chartLabelStyle(22), { fs: 11, split: true, y0: 540, H: 360, noteY: 600 });
+  // السطر اللى تحت الرسم بييجى تحت سطرين أسماء الشهور (y0 + 8 + سطرين)
+  const st = chartLabelStyle(22);
+  assert.ok(st.noteY >= st.y0 + 8 + 2 * (st.fs + 6));
+  assert.deepEqual(splitChartLabel("سبتمبر 25"), ["سبتمبر", "25"]);
+  assert.deepEqual(splitChartLabel("مارس"), ["مارس"]);
+  const months: string[] = [];
+  for (let y = 2025, m = 1; y < 2026 || m <= 10; m === 12 ? (y++, m = 1) : m++) months.push(`${y}-${String(m).padStart(2, "0")}`);
+  assert.equal(months.length, 22);
+  const a: DeckAuto = { ...auto, computedAt: "2026-10-20T18:00:00Z",
+    faultsByMonth: months.map((month, i) => ({ month, complaints: 100 + i, repeatPct: 10, in24Pct: 80, msanFaults: 250 + i })) };
+  const slides = buildSlides(defaultDeck(), a);
+  const rep = slides.find((s) => s.kind === "chart" && s.title.startsWith("نسب تكرار")) as any;
+  assert.equal(rep.points.length, 22);
+  assert.equal(rep.title, "نسب تكرار الأعطال شهرياً (يناير 2025 – أكتوبر 2026)");
+  assert.equal(rep.points[0].label, "يناير 25");
+  const { deckPptx } = await import("./presentation-pptx");
+  const JSZip = (await import("jszip")).default;
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  const im = { data: png, ext: "png" as const, w: 1, h: 1 };
+  const zip = await JSZip.loadAsync(await deckPptx([rep], { weWhite: im, wePurple: im, telecomEgypt: im }, new Map()));
+  const xml = await zip.file("ppt/slides/slide1.xml")!.async("string");
+  // اسم الشهر والسنة فقرتين منفصلين جوّه نفس المربع
+  assert.match(xml, /<a:t>يناير<\/a:t><\/a:r>(?:<a:endParaRPr[^>]*\/>)?<\/a:p><a:p><a:pPr[^>]*>(?:<a:buNone\/>)?<\/a:pPr><a:r><a:rPr[^>]*>(?:(?!<\/a:r>).)*<a:t>25<\/a:t>/s);
+});
+
+test("شغال يناير–أكتوبر 2025 = شغال نوفمبر 2025 (9781) — فى الافتراضى وفى العرض المحفوظ", async () => {
+  const { parseMonthWorking, monthPerThousand, EARLY_2025_MONTHS } = await import("../shared/presentation-deck");
+  const def = parseMonthWorking(defaultDeck().faults.working);
+  for (const m of EARLY_2025_MONTHS) assert.equal(def.get(m), 9781, m);
+  assert.equal(def.get("2025-11"), 9781);
+  assert.equal(def.size, 22);
+  // عرض محفوظ قبل كده (الشغال من نوفمبر بس) ⇒ يناير–أكتوبر بياخدوا رقم نوفمبر المحفوظ هو
+  const saved = normalizeDeck({ faults: { enabled: true, working: "2025-11=9800,2025-12=9891,2026-08=10497" } });
+  const w = parseMonthWorking(saved.faults.working);
+  for (const m of EARLY_2025_MONTHS) assert.equal(w.get(m), 9800, m);
+  assert.equal(w.get("2026-08"), 10497);
+  // لو المالك كتب أى شهر فيهم بإيده، مابنلمسش الباقى
+  const edited = parseMonthWorking(normalizeDeck({ faults: { enabled: true, working: "2025-03=9500,2025-11=9781" } }).faults.working);
+  assert.equal(edited.get("2025-03"), 9500);
+  assert.equal(edited.get("2025-01"), undefined);
+  // الأعطال فى الألف لشهر من 2025 بتتقسم على 9781
+  const a: DeckAuto = { ...auto, faultsWorking: 10662 };
+  assert.equal(monthPerThousand(defaultDeck(), a, { month: "2025-05", msanFaults: 300 }), 30.7);
 });

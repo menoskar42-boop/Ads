@@ -50,7 +50,10 @@ export const DEFAULT_EXCHANGES: DeckExchange[] = [
 ];
 
 /** شغال كل شهر من المالك (٢٠٢٦-١٠-٢١) — قيم مبدئية بتتعدّل من صفحة البيانات */
+/** المالك ٢٠٢٦-١٠-٢١: «الشغال من يناير 2025 لأكتوبر 2025 خليه زى شغال نوفمبر 2025» (9781) */
+export const EARLY_2025_MONTHS = ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10"];
 export const DEFAULT_MONTH_WORKING = [
+  ...EARLY_2025_MONTHS.map((m) => `${m}=9781`),
   "2025-11=9781", "2025-12=9891", "2026-01=9998", "2026-02=10059", "2026-03=10160", "2026-04=10210",
   "2026-05=10304", "2026-06=10356", "2026-07=10432", "2026-08=10497", "2026-09=10608", "2026-10=10751",
 ].join(",");
@@ -106,6 +109,15 @@ export function normalizeDeck(raw: any): Deck {
   if (!raw || typeof raw !== "object") return d;
   for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "achievements", "vision", "closing"] as const) {
     (d as any)[k] = pick((d as any)[k], raw[k]);
+  }
+  // عرض محفوظ قبل ما الفترة تبدأ من يناير 2025: شهور يناير–أكتوبر 2025 كلها فاضية ⇒ بتاخد شغال نوفمبر 2025
+  {
+    const w = parseMonthWorking(d.faults.working);
+    const nov = w.get("2025-11");
+    if (nov != null && EARLY_2025_MONTHS.every((m) => !w.has(m))) {
+      for (const m of EARLY_2025_MONTHS) w.set(m, nov);
+      d.faults.working = serializeMonthWorking(w);
+    }
   }
   // عرض محفوظ قبل فصل الشهور: اختيار الشهور القديم (واحد للكل) بيتحط لكل مؤشر لحد ما يتغيّر
   const legacyHidden = typeof raw.faults?.hiddenMonths === "string" ? str(raw.faults.hiddenMonths) : "";
@@ -304,11 +316,23 @@ export function careerItems(rows: CareerRow[]): string {
   return rows.map((r) => `${clean(r.job)} | ${clean(r.from)} | ${clean(r.to)}`).join("\n");
 }
 
-/** أول شهر فى فترة مؤشرات الأعطال: ١٢ شهر قبل الشهر الحالى (UTC زى التقارير) — «YYYY-MM» */
-export function faultsStartMonth(now: Date): string {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 12, 1));
-  return d.toISOString().slice(0, 7);
+/** أول شهر فى فترة مؤشرات الأعطال — المالك ٢٠٢٦-١٠-٢١: «من يناير 2025 لحد أكتوبر 2026» (لحد الشهر الحالى).
+ *  كانت ١٢ شهر قبل الشهر الحالى. */
+export const FAULTS_FROM_MONTH = "2025-01";
+export function faultsStartMonth(_now: Date): string {
+  return FAULTS_FROM_MONTH;
 }
+/** مقاسات الرسم حسب عدد الشهور (الصفحة والباور بوينت بنفس الأرقام): من ١٤ شهر وطالع الاسم فوق والسنة تحته،
+ *  والرسم بيقصر شوية عشان السطر اللى تحته (note) مايركبش على الأسماء. ومن ١٩ شهر الخط أصغر كمان. */
+export function chartLabelStyle(n: number): { fs: number; split: boolean; y0: number; H: number; noteY: number } {
+  if (n > 13) return { fs: n > 18 ? 11 : 13, split: true, y0: 540, H: 360, noteY: 600 };
+  return { fs: n > 8 ? 16 : 22, split: false, y0: 560, H: 380, noteY: 584 };
+}
+/** «سبتمبر 25» ⇒ ["سبتمبر", "25"] */
+export const splitChartLabel = (l: string) => {
+  const i = l.lastIndexOf(" ");
+  return i > 0 ? [l.slice(0, i), l.slice(i + 1)] : [l];
+};
 /** «2026-09» ⇒ «سبتمبر» / «سبتمبر 26» / «سبتمبر 2026» */
 export function monthLabel(m: string, year: "none" | "short" | "full"): string {
   const name = MONTHS[Number(m.slice(5, 7)) - 1] || m;
