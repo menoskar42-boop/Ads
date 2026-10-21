@@ -163,7 +163,8 @@ test("قاعدة العملاء: الشغال صوت/داتا من ملف الم
   const a: DeckAuto = { ...auto, total: { ...auto.total, msanVoice: 11521, msanData: 10662, voiceUsed: 9800, dataUsed: 8000, weData: 7120 } };
   const d = defaultDeck(); d.customers.showShare = true;
   const slides = buildSlides(d, a);
-  assert.ok(!slides.some((s) => s.kind === "table" && s.title.endsWith("العملاء")));
+  // اسم الإدارة نفسه بقى آخره «العملاء» (شريحة النبذة) — المقصود شريحة العملاء القديمة بس
+  assert.ok(!slides.some((s) => s.kind === "table" && s.title !== d.cover.title && s.title.endsWith("العملاء")));
   const ov = slides.find((s) => s.kind === "table" && s.title === d.cover.title);
   assert.ok(ov && ov.kind === "table");
   const get = (k: string) => ov.rows.find((r) => r[0] === k)?.[1];
@@ -318,4 +319,27 @@ test("باور بوينت: شريحة المقارنة بتطلع بنفس ال�
   const zip = await JSZip.loadAsync(await deckPptx(slides, { weWhite: im, wePurple: im, telecomEgypt: im }, new Map()));
   const xml = await zip.file(`ppt/slides/slide${idx}.xml`)!.async("string");
   for (const t of ["88%", "97%", "+9 نقاط", "52.5%", "68.25%", "+15.75 نقطة", "عند الاستلام (ديسمبر 2025)", "1267"]) assert.ok(xml.includes(t), t);
+});
+
+test("«إدارة سنترالات الغنايم» بقت «إدارة تشغيل الشبكة وعمليات العملاء» — فى الافتراضى وفى العرض المحفوظ", () => {
+  const NEW = "إدارة تشغيل الشبكة وعمليات العملاء";
+  const def = defaultDeck();
+  assert.equal(def.cover.title, NEW);
+  assert.equal(def.person.job, `مدير ${NEW}`);
+  // عرض محفوظ قبل التغيير (بكل أشكال الكتابة) بيتصلّح وقت التحميل من غير SQL
+  const saved = normalizeDeck({
+    cover: { title: "إدارة سنترالات الغنايم" },
+    person: { job: "مدير ادارة سنترالات الغنايم", department: "منطقة أسيوط" },
+    achievements: { enabled: true, items: "تطوير إداره سنترالات الغنايم\nسطر تانى" },
+  });
+  assert.equal(saved.cover.title, NEW);
+  assert.equal(saved.person.job, `مدير ${NEW}`);
+  assert.equal(saved.achievements.items, `تطوير ${NEW}\nسطر تانى`);
+  assert.equal(saved.person.department, "منطقة أسيوط");
+  const slides = buildSlides(saved, auto);
+  const text = JSON.stringify(slides);
+  assert.doesNotMatch(text, /سنترالات الغنايم/);
+  assert.ok(slides.some((s) => s.kind === "divider" && s.title === `نبذة عن ${NEW}`));
+  const agenda = slides.find((s) => s.kind === "agenda") as any;
+  assert.equal(agenda.items[0], `نبذة عن ${NEW}`);
 });

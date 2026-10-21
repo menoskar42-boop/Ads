@@ -52,10 +52,16 @@ export const DEFAULT_MONTH_WORKING = [
   "2026-05=10304", "2026-06=10356", "2026-07=10432", "2026-08=10497", "2026-09=10608", "2026-10=10751",
 ].join(",");
 
+/** اسم الإدارة فى العرض (المالك ٢٠٢٦-١٠-٢١: «أى حاجة فيها إدارة سنترالات الغنايم تبقى إدارة تشغيل الشبكة
+ * وعمليات العملاء»). الاسم القديم بيتبدّل كمان فى أى نص محفوظ وقت التحميل (normalizeDeck). */
+export const DEPT_NAME = "إدارة تشغيل الشبكة وعمليات العملاء";
+const OLD_DEPT_NAME = /[إاأ]دار[ةه]\s+سنترالات\s+الغنايم/g;
+export const renameDept = (s: string) => s.replace(OLD_DEPT_NAME, DEPT_NAME);
+
 export function defaultDeck(): Deck {
   return {
-    cover: { title: "إدارة سنترالات الغنايم", subtitle: "عرض تقديمى", meeting: "", date: "" },
-    person: { name: "", birthDate: "", job: "مدير إدارة سنترالات الغنايم", department: "منطقة أسيوط", sector: "قطاع وسط الصعيد", photoId: "", qualifications: "" },
+    cover: { title: DEPT_NAME, subtitle: "عرض تقديمى", meeting: "", date: "" },
+    person: { name: "", birthDate: "", job: `مدير ${DEPT_NAME}`, department: "منطقة أسيوط", sector: "قطاع وسط الصعيد", photoId: "", qualifications: "" },
     career: { enabled: true, hireYear: "", items: "" },
     area: { areaKm2: "", population: "", villages: "", housingUnits: "", mapId: "", extraRows: "" },
     exchanges: DEFAULT_EXCHANGES.map((e) => ({ ...e })),
@@ -80,7 +86,7 @@ export function defaultDeck(): Deck {
 /** بيانات محفوظة قديمة/ناقصة + الافتراضى = Deck كامل (ومفيش حقول غريبة بتتحفظ). */
 export function normalizeDeck(raw: any): Deck {
   const d = defaultDeck();
-  const str = (v: unknown, max = 4000) => (typeof v === "string" ? v.slice(0, max) : v == null ? "" : String(v).slice(0, max));
+  const str = (v: unknown, max = 4000) => renameDept(typeof v === "string" ? v.slice(0, max) : v == null ? "" : String(v).slice(0, max));
   const bool = (v: unknown, def: boolean) => (typeof v === "boolean" ? v : def);
   const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && /^[a-z0-9]{6,40}$/.test(x)).slice(0, 12) : []);
   const pick = <T extends Record<string, any>>(base: T, src: any): T => {
@@ -359,12 +365,12 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     if (deck.achievements.photoIds.length) work.push({ kind: "photos", title: "من الإنجازات", photoIds: deck.achievements.photoIds });
   }
   const showWork = work.length > 0;
-  const agenda = ["نبذة عن إدارة سنترالات الغنايم", ...(showPerf ? ["مؤشرات ومعدلات الأداء"] : []),
+  const agenda = [`نبذة عن ${DEPT_NAME}`, ...(showPerf ? ["مؤشرات ومعدلات الأداء"] : []),
     ...(showWork ? ["مبادرات وأهم الإنجازات"] : []), ...(deck.vision.enabled && deck.vision.items ? ["رؤية التطوير المستقبلية"] : [])];
   slides.push({ kind: "agenda", title: "الأجندة", items: agenda });
 
   // ── نبذة ──
-  slides.push({ kind: "divider", title: "نبذة عن إدارة سنترالات الغنايم" });
+  slides.push({ kind: "divider", title: `نبذة عن ${DEPT_NAME}` });
   const a = deck.area;
   const overview: string[][] = [
     ["المساحة الجغرافية", a.areaKm2 ? `${a.areaKm2} كم²` : ""],
