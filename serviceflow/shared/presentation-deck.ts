@@ -25,7 +25,10 @@ export type Deck = {
   faults: { enabled: boolean; hiddenPt: string; hiddenRepeat: string; hiddenIn24: string; working: string };
   // خطة الصيانة: المحقق بس — مفيش مستهدف (المالك ٢٠٢٦-١٠-٢٠)
   /** achievedBoxes: المكتوب بالإيد يغلب. الفاضى = إجمالى بكسيات الكباين اللى اتعمل فيها ولو بكس (وإلا عدد برنامج الصيانة) */
-  maintenance: { enabled: boolean; period: string; achievedBoxes: string; achievedCopper: string; achievedMsan: string; photoIds: string[] };
+  /** photoSets: شرايح صور «قبل وبعد» الصيانة (المالك ٢٠٢٦-١٠-٢١) — شريحة لكل مجموعة، لحد صورتين قبل وصورتين بعد.
+   *  photoIds: الصور القديمة (من غير قبل/بعد) — بتظهر بس لو مفيش مجموعات */
+  maintenance: { enabled: boolean; period: string; achievedBoxes: string; achievedCopper: string; achievedMsan: string; photoIds: string[];
+    photoSets: MaintPhotoSet[] };
   /** نسبة الحجز وفك المتعذرات — نفس أعمدة تقرير «نسبة الحجز» بتاع منطقة أسيوط (المالك ٢٠٢٦-١٠-٢٠).
    *  مفتاح جديد (كان blocked) عشان الافتراضيات (أرقام الغنايم حتى ١٨ أكتوبر) تتحط فى العرض المحفوظ. */
   booking: { enabled: boolean; asOf: string; total: string; capacity: string; blocked: string; clarify: string;
@@ -79,7 +82,7 @@ export function defaultDeck(): Deck {
     decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
     faults: { enabled: true, hiddenPt: "", hiddenRepeat: "", hiddenIn24: "", working: DEFAULT_MONTH_WORKING },
     // المحقق (بكسيات): فاضى = إجمالى بكسيات الكباين اللى اتعمل فيها ولو بكس (المالك ٢٠٢٦-١٠-٢١)، والمكتوب بالإيد يغلب
-    maintenance: { enabled: true, period: "2026", achievedBoxes: "", achievedCopper: "", achievedMsan: "", photoIds: [] },
+    maintenance: { enabled: true, period: "2026", achievedBoxes: "", achievedCopper: "", achievedMsan: "", photoIds: [], photoSets: [] },
     booking: { enabled: true, asOf: "18 أكتوبر 2026", total: "1267", capacity: "1230", blocked: "36", clarify: "0",
       noReply: "0", otherExchange: "1", pct: "",
       // أرقام المالك (٢٠٢٦-١٠-٢١) — مفاتيح جديدة فبتتحط فى العرض المحفوظ لوحدها، ولو اتمسحت الشريحة ترجع زى الأول
@@ -114,6 +117,11 @@ export function normalizeDeck(raw: any): Deck {
   for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "achievements", "vision", "closing"] as const) {
     (d as any)[k] = pick((d as any)[k], raw[k]);
   }
+  // شرايح «قبل وبعد»: لحد ١٢ شريحة، وكل واحدة لحد صورتين قبل وصورتين بعد (pick مابيعرفش المصفوفات المركّبة)
+  d.maintenance.photoSets = Array.isArray(raw.maintenance?.photoSets)
+    ? raw.maintenance.photoSets.slice(0, MAX_PHOTO_SETS).map((x: any) => ({
+        label: str(x?.label, 160), before: ids(x?.before).slice(0, MAX_SET_PHOTOS), after: ids(x?.after).slice(0, MAX_SET_PHOTOS) }))
+    : [];
   // البكسيات كانت بتتكتب فى overrides["total.maintBoxes"] — لو المالك كتب رقم هناك قبل كده، هو اللى يفضل
   if (raw.maintenance?.achievedBoxes === undefined && String(raw.overrides?.["total.maintBoxes"] ?? "").trim()) {
     d.maintenance.achievedBoxes = str(raw.overrides["total.maintBoxes"], 60);
@@ -220,6 +228,8 @@ export type Slide =
       /** «متوسط ديسمبر 2025 – سبتمبر 2026: X مقابل Y فى نوفمبر 2025» */
       avgNote?: string }
   | { kind: "photos"; title: string; photoIds: string[] }
+  /** صور قبل الصيانة (يمين) وبعدها (شمال) — لحد صورتين فى كل ناحية */
+  | { kind: "beforeAfter"; title: string; caption: string; before: string[]; after: string[] }
   | { kind: "closing"; text: string }
   /** مقارنة قبل ← بعد (نسبة الحجز وفك المتعذرات)، وتحتها جدول التفاصيل */
   | { kind: "compare"; title: string; panels: ComparePanel[]; table: { columns: string[]; rows: string[][] } | null };
@@ -234,6 +244,10 @@ export function compareLayout(n: number) {
     xOf: (i: number) => startRight - panelW - i * (panelW + gap),   // left لكل لوحة
   };
 }
+export type MaintPhotoSet = { label: string; before: string[]; after: string[] };
+export const MAX_SET_PHOTOS = 2;
+export const MAX_PHOTO_SETS = 12;
+
 export type ComparePanel = { heading: string; before: { label: string; value: string }; after: { label: string; value: string }; delta: string; note: string };
 
 /** نسبة الحجز = الإمكانية ÷ إجمالى الطلبات — إلا لو مكتوبة */
@@ -367,6 +381,22 @@ export const FAULTS_FROM_MONTH = "2025-01";
 export function faultsStartMonth(_now: Date): string {
   return FAULTS_FROM_MONTH;
 }
+/** شريحة «قبل وبعد»: قبل يمين وبعد شمال (عربى)، وكل ناحية لحد صورتين جنب بعض — الصفحة والباور بوينت بنفس الأرقام */
+export function beforeAfterLayout(nBefore: number, nAfter: number) {
+  const top = 178, h = 410, sideW = 580, gap = 12;
+  const side = (x0: number, n: number) => {
+    const k = Math.max(1, Math.min(MAX_SET_PHOTOS, n));
+    const w = (sideW - gap * (k - 1)) / k;
+    // اتجاه الصور جوّه الناحية من اليمين للشمال
+    return Array.from({ length: Math.min(n, MAX_SET_PHOTOS) }, (_, i) => ({ x: x0 + sideW - (i + 1) * w - i * gap, y: top, w, h }));
+  };
+  return {
+    before: { label: { x: 660, y: 118, w: sideW, h: 44 }, photos: side(660, nBefore) },
+    after: { label: { x: 40, y: 118, w: sideW, h: 44 }, photos: side(40, nAfter) },
+    captionY: 600,
+  };
+}
+
 /** تفصيل كباين الصيانة: أول ٦ صفوف تحت الجدول الأساسى، والباقى ١٢ صف فى كل شريحة «تابع» */
 export const MAINT_FIRST_ROWS = 6;
 export const MAINT_NEXT_ROWS = 12;
@@ -619,7 +649,10 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
       sub: chunks.length ? { title: "تفصيل الكباين", columns: dCols, rows: chunks[0], totalLast: chunks.length === 1 } : null });
     chunks.slice(1).forEach((rowsI, i) => perfExtra.push({ kind: "table", title: `${title} — تفصيل الكباين (تابع)`, columns: dCols, rows: rowsI,
       imageId: "", note: i === chunks.length - 2 ? noteFull : "", totalLast: i === chunks.length - 2 }));
-    if (m.photoIds.length) perfExtra.push({ kind: "photos", title: "بعض صور أعمال الصيانة", photoIds: m.photoIds });
+    // المالك ٢٠٢٦-١٠-٢١: صور الصيانة «قبل وبعد» — شريحة لكل مجموعة. الصور القديمة (من غير قبل/بعد) لو مفيش مجموعات بس
+    const sets = m.photoSets.filter((x) => x.before.length || x.after.length);
+    for (const x of sets) perfExtra.push({ kind: "beforeAfter", title: "صور أعمال الصيانة — قبل وبعد", caption: x.label.trim(), before: x.before, after: x.after });
+    if (!sets.length && m.photoIds.length) perfExtra.push({ kind: "photos", title: "بعض صور أعمال الصيانة", photoIds: m.photoIds });
   }
   const b = deck.booking;
   if (b.enabled && (b.total || b.capacity || b.blocked)) {

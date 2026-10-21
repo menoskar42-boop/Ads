@@ -5,7 +5,7 @@
  * ونصوص عادية قابلة للتعديل فى باور بوينت (الرسم البيانى أعمدة مرسومة بنفس شكل الريفرنس).
  */
 import JSZip from "jszip";
-import { compareLayout, lineChartGeom, LINE_CHART, tableFs, subTableLayout, type Slide } from "../shared/presentation-deck";
+import { compareLayout, lineChartGeom, LINE_CHART, tableFs, subTableLayout, beforeAfterLayout, type Slide } from "../shared/presentation-deck";
 
 export type DeckImage = { data: Buffer; ext: "png" | "jpeg"; w: number; h: number };
 export type DeckAssets = { weWhite: DeckImage; wePurple: DeckImage; telecomEgypt: DeckImage };
@@ -269,6 +269,25 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
         if (p.note) sx.text(x, L.cardTop + L.cardH + 64, L.panelW, 60, [{ runs: [{ text: p.note, size: 17, color: "444444" }], align: "ctr" }]);
       });
       if (s.table) sx.table(40, L.tableTop, 1200, s.table.columns, s.table.rows, 17, false);
+      footer();
+      return;
+    }
+    case "beforeAfter": {
+      // نفس DeckSlide (beforeAfterLayout): قبل يمين وبعد شمال، والصورة كاملة جوّه خانتها
+      pillCenter(s.title, 34, 28);
+      const L = beforeAfterLayout(s.before.length, s.after.length);
+      for (const [t, list] of [["before", s.before], ["after", s.after]] as const) {
+        const S = L[t];
+        sx.box(S.label.x, S.label.y, S.label.w, S.label.h, { fill: t === "after" ? TITLE : "8C8FA6", anchor: "ctr",
+          paras: [{ runs: [{ text: t === "before" ? "قبل الصيانة" : "بعد الصيانة", size: 24, bold: true, color: "FFFFFF" }], align: "ctr" }] });
+        list.slice(0, S.photos.length).forEach((id, i) => {
+          const r = S.photos[i];
+          sx.box(r.x, r.y, r.w, r.h, { fill: "F2F2F6" });
+          const im = img(id);
+          if (im) sx.pic(im, r.x, r.y, r.w, r.h, "contain");
+        });
+      }
+      if (s.caption) sx.text(40, L.captionY, 1200, 34, [{ runs: [{ text: s.caption, size: 22, bold: true, color: "333333" }], align: "ctr" }]);
       footer();
       return;
     }

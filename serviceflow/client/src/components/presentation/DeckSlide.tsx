@@ -4,7 +4,7 @@
  * اللوحة ثابتة ١٢٨٠×٧٢٠ وبتتصغّر/تتكبّر بـ scale — نفس النسب فى المعاينة والعرض الكامل.
  */
 import { useEffect, useRef, useState } from "react";
-import { compareLayout, lineChartGeom, LINE_CHART, tableFs, tableRowH, subTableLayout, type Slide } from "@shared/presentation-deck";
+import { compareLayout, lineChartGeom, LINE_CHART, tableFs, tableRowH, subTableLayout, beforeAfterLayout, type Slide } from "@shared/presentation-deck";
 import { withBase } from "@/lib/base-path";
 import weWhite from "@/assets/presentation/we-white.png";
 import wePurple from "@/assets/presentation/we-purple.png";
@@ -240,6 +240,36 @@ function SlideBody({ s }: { s: Slide }) {
               <tbody>{s.table.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} style={{ background: ROW_A, padding: "6px 8px", border: "2px solid #fff" }}>{c}</td>)}</tr>)}</tbody>
             </table>
           )}
+          <Footer />
+        </>
+      );
+    }
+    case "beforeAfter": {
+      // المالك ٢٠٢٦-١٠-٢١: قبل الصيانة يمين وبعدها شمال — الصورة كاملة (contain) على خلفية فاتحة. نفس presentation-pptx.ts
+      const L = beforeAfterLayout(s.before.length, s.after.length);
+      const side = (t: "before" | "after", ids: string[]) => {
+        const S = L[t];
+        return (
+          <>
+            <div style={{ position: "absolute", left: S.label.x, top: S.label.y, width: S.label.w, height: S.label.h, display: "flex", alignItems: "center",
+              justifyContent: "center", background: t === "after" ? TITLE : "#8C8FA6", color: "#fff", fontSize: 24, fontWeight: 700 }}>
+              {t === "before" ? "قبل الصيانة" : "بعد الصيانة"}
+            </div>
+            {ids.slice(0, S.photos.length).map((id, i) => (
+              <img key={id} src={deckImage(id)} alt="" style={{ position: "absolute", left: S.photos[i].x, top: S.photos[i].y,
+                width: S.photos[i].w, height: S.photos[i].h, objectFit: "contain", background: "#F2F2F6" }} />
+            ))}
+          </>
+        );
+      };
+      return (
+        <>
+          <div style={{ position: "absolute", top: 34, right: 48, left: 48, textAlign: "center" }}>
+            <span style={{ background: TITLE, color: "#fff", fontWeight: 700, fontSize: 28, padding: "6px 40px" }}>{s.title}</span>
+          </div>
+          {side("before", s.before)}
+          {side("after", s.after)}
+          {s.caption && <div style={{ position: "absolute", top: L.captionY, left: 40, right: 40, textAlign: "center", fontSize: 22, fontWeight: 700, color: "#333" }}>{s.caption}</div>}
           <Footer />
         </>
       );

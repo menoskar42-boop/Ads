@@ -670,3 +670,51 @@ test("خطوط الصوت 12,019 والداتا 10,751 (أرقام المالك)
   // رقم كان كاتبه قبل كده يفضل
   assert.equal(normalizeDeck({ customers: {}, overrides: { "total.msanVoice": "11900" } }).overrides["total.msanVoice"], "11900");
 });
+
+test("صور الصيانة «قبل وبعد»: شريحة لكل مجموعة، لحد صورتين قبل وصورتين بعد، والقديمة بس لو مفيش مجموعات", async () => {
+  const { beforeAfterLayout } = await import("../shared/presentation-deck");
+  const d = defaultDeck();
+  d.maintenance.photoIds = ["old0001"];
+  // من غير مجموعات ⇒ الشريحة القديمة زى ما هى
+  assert.ok(buildSlides(d, auto).some((s) => s.kind === "photos" && s.title === "بعض صور أعمال الصيانة"));
+  d.maintenance.photoSets = [
+    { label: "الغنايم · كابينة 1-1 · بكس 5", before: ["bef0001", "bef0002"], after: ["aft0001"] },
+    { label: "", before: [], after: [] },                     // فاضية ⇒ مالهاش شريحة
+    { label: "دير الجنادلة · كابينة 3-1", before: ["bef0003"], after: ["aft0002", "aft0003"] },
+  ];
+  const slides = buildSlides(d, auto);
+  const ba = slides.filter((s) => s.kind === "beforeAfter") as any[];
+  assert.equal(ba.length, 2);
+  assert.deepEqual(ba[0], { kind: "beforeAfter", title: "صور أعمال الصيانة — قبل وبعد", caption: "الغنايم · كابينة 1-1 · بكس 5",
+    before: ["bef0001", "bef0002"], after: ["aft0001"] });
+  assert.ok(!slides.some((s) => s.kind === "photos" && s.title === "بعض صور أعمال الصيانة"));
+  // بعد جدول الصيانة على طول
+  const k = slides.map((s) => s.kind + ":" + ("title" in s ? s.title : ""));
+  assert.equal(k.indexOf("beforeAfter:صور أعمال الصيانة — قبل وبعد"), k.findIndex((x) => x.startsWith("table:خطة الصيانة")) + 1);
+  // الحفظ بيقصّ لصورتين فى كل ناحية و١٢ مجموعة، وبيشيل المعرّفات الغلط
+  const n = normalizeDeck({ maintenance: { photoSets: [
+    { label: "x", before: ["aaaaaa1", "aaaaaa2", "aaaaaa3"], after: ["../evil", "bbbbbb1"] },
+    ...Array.from({ length: 20 }, () => ({ label: "", before: [], after: [] })) ] } });
+  assert.equal(n.maintenance.photoSets.length, 12);
+  assert.deepEqual(n.maintenance.photoSets[0], { label: "x", before: ["aaaaaa1", "aaaaaa2"], after: ["bbbbbb1"] });
+  assert.deepEqual(normalizeDeck({ maintenance: { enabled: true } }).maintenance.photoSets, []);
+  // الهندسة: قبل يمين وبعد شمال، وصورتين جنب بعض جوّه الناحية
+  const L = beforeAfterLayout(2, 1);
+  assert.ok(L.before.label.x > L.after.label.x);
+  assert.equal(L.before.photos.length, 2);
+  assert.ok(L.before.photos[0].x > L.before.photos[1].x);
+  assert.equal(L.after.photos.length, 1);
+  assert.equal(L.after.photos[0].w, 580);
+  // باور بوينت: لافتتين + الصور (contain) + الوصف
+  const JSZip = (await import("jszip")).default;
+  const { deckPptx } = await import("./presentation-pptx");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  const im = { data: png, ext: "png" as const, w: 1, h: 1 };
+  const images = new Map(["bef0001", "bef0002", "aft0001"].map((id) => [id, { ...im, ext: "jpeg" as const }]));
+  const zip = await JSZip.loadAsync(await deckPptx([ba[0]], { weWhite: im, wePurple: im, telecomEgypt: im }, images));
+  const xml = await zip.file("ppt/slides/slide1.xml")!.async("string");
+  assert.match(xml, /قبل الصيانة/);
+  assert.match(xml, /بعد الصيانة/);
+  assert.match(xml, /الغنايم · كابينة 1-1 · بكس 5/);
+  assert.equal((xml.match(/<p:pic>/g) || []).length, 3 + 2);   // ٣ صور + لوجوهين الفوتر
+});

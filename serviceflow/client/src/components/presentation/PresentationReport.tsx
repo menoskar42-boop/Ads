@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, MAX_SET_PHOTOS, MAX_PHOTO_SETS, type MaintPhotoSet, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -74,7 +74,7 @@ const getJson = async (url: string) => {
 };
 
 /** صور من برنامج الصيانة: سنترال ← كابينة ← بكس ← صور قبل/بعد، والمالك بيختار (الحد ٨ صور فى العرض) */
-function MaintPhotoPicker({ room, onAdd }: { room: number; onAdd: (ids: string[]) => void }) {
+function MaintPhotoPicker({ room, onAdd, limit = 8 }: { room: number; onAdd: (ids: string[]) => void; limit?: number }) {
   const [open, setOpen] = useState(false);
   const [ex, setEx] = useState("");
   const [cab, setCab] = useState("");
@@ -93,7 +93,7 @@ function MaintPhotoPicker({ room, onAdd }: { room: number; onAdd: (ids: string[]
   const isPicked = (id: number) => picked.some((p) => p.id === id);
   const toggle = (id: number, type: string) => {
     if (isPicked(id)) return setPicked(picked.filter((p) => p.id !== id));
-    if (picked.length >= room) return setErr(`الحد ٨ صور فى العرض — فاضل ${room} بس`);
+    if (picked.length >= room) return setErr(`الحد ${limit} صور هنا — فاضل ${room} بس`);
     setErr(null);
     setPicked([...picked, { id, label: `${exName} · كابينة ${cabNo} · بكس ${boxNo} · ${type === "after" ? "بعد" : "قبل"}` }]);
   };
@@ -112,7 +112,7 @@ function MaintPhotoPicker({ room, onAdd }: { room: number; onAdd: (ids: string[]
   const sel = "h-9 rounded-md border bg-background px-2 text-sm min-w-0";
   if (!open) return (
     <Button type="button" variant="outline" size="sm" disabled={room === 0} onClick={() => setOpen(true)} data-testid="maint-picker-open">
-      اختيار صور من برنامج الصيانة {room === 0 ? "(وصلت للحد ٨)" : ""}
+      اختيار من برنامج الصيانة {room === 0 ? `(وصلت للحد ${limit})` : ""}
     </Button>
   );
   const photos = phQ.data || [];
@@ -275,7 +275,7 @@ export function PresentationReport() {
       </div>
     );
   };
-  const Photos = ({ ids, onChange }: { ids: string[]; onChange: (ids: string[]) => void }) => {
+  const Photos = ({ ids, onChange, max = 8, testId }: { ids: string[]; onChange: (ids: string[]) => void; max?: number; testId?: string }) => {
     const ref = useRef<HTMLInputElement>(null);
     return (
       <div className="space-y-2">
@@ -288,11 +288,13 @@ export function PresentationReport() {
           ))}
         </div>
         <input ref={ref} type="file" accept="image/*" multiple className="hidden" onChange={async (e) => {
-          const files = Array.from(e.target.files || []).slice(0, 8 - ids.length); const out = [...ids];
+          const files = Array.from(e.target.files || []).slice(0, max - ids.length); const out = [...ids];
           for (const f of files) { const nid = await upload(f); if (nid) out.push(nid); }
           onChange(out); e.target.value = "";
         }} />
-        {ids.length < 8 && <Button type="button" variant="outline" size="sm" onClick={() => ref.current?.click()}><Upload className="w-4 h-4 ml-1" />إضافة صور (لحد ٨)</Button>}
+        {ids.length < max && <Button type="button" variant="outline" size="sm" onClick={() => ref.current?.click()} data-testid={testId}>
+          <Upload className="w-4 h-4 ml-1" />{max === 8 ? "إضافة صور (لحد ٨)" : `رفع صور (لحد ${max})`}
+        </Button>}
       </div>
     );
   };
@@ -536,9 +538,43 @@ export function PresentationReport() {
                 </p>
               );
             })()}
-            <Field label="صور أعمال الصيانة"><Photos ids={d.maintenance.photoIds} onChange={(ids) => upd("maintenance", { photoIds: ids })} /></Field>
-            <MaintPhotoPicker room={Math.max(0, 8 - d.maintenance.photoIds.length)}
-              onAdd={(ids) => upd("maintenance", { photoIds: [...d.maintenance.photoIds, ...ids].slice(0, 8) })} />
+            {/* المالك ٢٠٢٦-١٠-٢١: صور الصيانة «قبل وبعد» — شريحة لكل مجموعة، لحد صورتين قبل وصورتين بعد */}
+            <div className="space-y-3" data-testid="maint-photo-sets">
+              <div className="font-bold text-sm text-[#5b2a86]">صور الصيانة — قبل وبعد (شريحة لكل واحدة)</div>
+              {d.maintenance.photoSets.map((set, si) => {
+                const setOne = (patch: Partial<MaintPhotoSet>) =>
+                  upd("maintenance", { photoSets: d.maintenance.photoSets.map((x, j) => (j === si ? { ...x, ...patch } : x)) });
+                return (
+                  <div key={si} className="rounded-md border p-3 space-y-2" data-testid={`maint-set-${si}`}>
+                    <div className="flex items-center gap-2">
+                      <b className="text-sm whitespace-nowrap">سلايد {si + 1}</b>
+                      <Input value={set.label} placeholder="وصف تحت الصور (مثال: الغنايم · كابينة 1-1 · بكس 5)" onChange={(e) => setOne({ label: e.target.value })} />
+                      <Button type="button" variant="ghost" size="sm" title="حذف السلايد" data-testid={`maint-set-del-${si}`}
+                        onClick={() => upd("maintenance", { photoSets: d.maintenance.photoSets.filter((_, j) => j !== si) })}><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {(["before", "after"] as const).map((t) => (
+                        <div key={t} className="space-y-2">
+                          <div className="text-xs font-bold">{t === "before" ? "صور قبل الصيانة" : "صور بعد الصيانة"} (لحد {MAX_SET_PHOTOS})</div>
+                          <Photos ids={set[t]} max={MAX_SET_PHOTOS} testId={`maint-set-${si}-${t}-upload`} onChange={(ids) => setOne({ [t]: ids.slice(0, MAX_SET_PHOTOS) } as any)} />
+                          <MaintPhotoPicker room={Math.max(0, MAX_SET_PHOTOS - set[t].length)} limit={MAX_SET_PHOTOS}
+                            onAdd={(ids) => setOne({ [t]: [...set[t], ...ids].slice(0, MAX_SET_PHOTOS) } as any)} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {d.maintenance.photoSets.length < MAX_PHOTO_SETS && (
+                <Button type="button" variant="outline" size="sm" data-testid="maint-set-add"
+                  onClick={() => upd("maintenance", { photoSets: [...d.maintenance.photoSets, { label: "", before: [], after: [] }] })}>+ إضافة سلايد</Button>
+              )}
+            </div>
+            {d.maintenance.photoIds.length > 0 && (
+              <Field label="صور قديمة (من غير قبل/بعد) — بتظهر بس لو مفيش سلايدات قبل وبعد">
+                <Photos ids={d.maintenance.photoIds} onChange={(ids) => upd("maintenance", { photoIds: ids })} />
+              </Field>
+            )}
           </Section>
 
           <Section title="نسبة الحجز وفك المتعذرات" on={d.booking.enabled} onToggle={(v) => upd("booking", { enabled: v })}>

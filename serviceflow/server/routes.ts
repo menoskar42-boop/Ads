@@ -2796,6 +2796,7 @@ export async function registerRoutes(
         if (s.kind === "cv" && s.photoId) ids.add(s.photoId);
         if (s.kind === "table" && s.imageId) ids.add(s.imageId);
         if (s.kind === "photos") s.photoIds.forEach((i) => ids.add(i));
+        if (s.kind === "beforeAfter") [...s.before, ...s.after].forEach((i) => ids.add(i));
       }
       const images = new Map<string, any>();
       if (ids.size) {
