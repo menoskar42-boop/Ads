@@ -3,7 +3,7 @@
  * والأرقام اللى فيه بتيجى لوحدها (وينفع يتكتب فوقها رقم أدق)، والشرايح بتتعرض بنفس شكل الريفرنس —
  * معاينة + عرض بملء الشاشة بالأسهم. الأقسام الاختيارية ليها مفتاح.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -426,7 +426,8 @@ export function PresentationReport() {
           <Section title="مؤشرات الأداء (الأعطال)" on={d.faults.enabled} onToggle={(v) => upd("faults", { enabled: v })}>
             <p className="text-xs text-muted-foreground">
               آخر ١٢ شهر + الشهر الحالى (من أوله لحد النهارده) — كل شهر محسوب لوحده، بنفس تعريفات «إحصائيات التكرار»
-              و«إحصائيات الإزالة». اقفل أى شهر مش عايزه يظهر فى الرسم. (الأرقام بتتحدّث بعد الحفظ)
+              و«إحصائيات الإزالة». كل مؤشر بشهوره: الزرار اللى جنب الرقم بيظهّر/يخفى الشهر ده من شريحة المؤشر ده بس.
+              (الأرقام بتتحدّث بعد الحفظ)
             </p>
             <p className="text-xs">
               الأعطال فى الألف = أعطال الشهر ÷ <b>شغال الشهر</b> × 1000. اكتب الشغال لكل شهر فى عمود «الشغال» —
@@ -435,20 +436,31 @@ export function PresentationReport() {
             {auto?.faultsByMonth?.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="text-muted-foreground text-xs"><th className="text-right p-1">يظهر</th><th className="text-right p-1">الشهر</th>
+                  <thead><tr className="text-muted-foreground text-xs"><th className="text-right p-1">الشهر</th>
                     <th className="p-1">الأعطال</th><th className="p-1">الشغال</th><th className="p-1">الأعطال فى الألف</th><th className="p-1">التكرار</th><th className="p-1">الإزالة خلال ٢٤ ساعة</th></tr></thead>
                   <tbody>
                     {auto.faultsByMonth.map((m) => {
-                      const hidden = hiddenFaultMonths(d);
-                      const on = !hidden.has(m.month);
-                      const toggle = (v: boolean) => {
-                        const next = new Set(hidden);
-                        if (v) next.delete(m.month); else next.add(m.month);
-                        upd("faults", { hiddenMonths: [...next].sort().join(",") });
+                      // زرار لكل مؤشر فى كل شهر — مفيش اختيار شهور واحد للكل
+                      const shown = (ind: FaultIndicator) => !hiddenFaultMonths(d, ind).has(m.month);
+                      const show = (ind: FaultIndicator, value: ReactNode) => {
+                        const on = shown(ind);
+                        const toggle = (v: boolean) => {
+                          const next = hiddenFaultMonths(d, ind);
+                          if (v) next.delete(m.month); else next.add(m.month);
+                          upd("faults", { [HIDDEN_KEY[ind]]: [...next].sort().join(",") } as any);
+                        };
+                        return (
+                          <td className={`p-1 text-center tabular-nums ${on ? "" : "opacity-40"}`}>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span dir="ltr" className="inline-flex"><Switch checked={on} onCheckedChange={toggle} data-testid={`fault-show-${ind}-${m.month}`} /></span>
+                              {value}
+                            </span>
+                          </td>
+                        );
                       };
+                      const any = shown("pt") || shown("repeat") || shown("in24");
                       return (
-                        <tr key={m.month} className={`border-t ${on ? "" : "opacity-50"}`} data-testid={`fault-month-${m.month}`}>
-                          <td className="p-1"><span dir="ltr" className="inline-flex"><Switch checked={on} onCheckedChange={toggle} /></span></td>
+                        <tr key={m.month} className={`border-t ${any ? "" : "opacity-60"}`} data-testid={`fault-month-${m.month}`}>
                           <td className="p-1 font-medium">{monthLabel(m.month, "full")}</td>
                           <td className="p-1 text-center tabular-nums">{(m.msanFaults ?? m.complaints).toLocaleString("en-US")}</td>
                           <td className="p-1 text-center">
@@ -456,9 +468,9 @@ export function PresentationReport() {
                               value={workingMap.get(m.month) ?? ""} placeholder={auto.faultsWorking ? String(auto.faultsWorking) : ""}
                               onChange={(e) => setMonthWork(m.month, e.target.value)} />
                           </td>
-                          <td className="p-1 text-center tabular-nums">{monthPerThousand(d, auto, m) ?? "—"}</td>
-                          <td className="p-1 text-center tabular-nums">{m.repeatPct ?? "—"}%</td>
-                          <td className="p-1 text-center tabular-nums">{m.in24Pct ?? "—"}%</td>
+                          {show("pt", monthPerThousand(d, auto, m) ?? "—")}
+                          {show("repeat", `${m.repeatPct ?? "—"}%`)}
+                          {show("in24", `${m.in24Pct ?? "—"}%`)}
                         </tr>
                       );
                     })}

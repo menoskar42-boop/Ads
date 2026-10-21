@@ -18,6 +18,7 @@ const auto: DeckAuto = {
   maintenance: { boxesTotal: 1000, boxesDone: 214, byYear: [{ year: "2026", done: 214 }] },
   decentLife: [], errors: [], computedAt: "",
 };
+const hideAll = (d: any, v: string) => { d.faults.hiddenPt = v; d.faults.hiddenRepeat = v; d.faults.hiddenIn24 = v; };
 const kinds = (d = defaultDeck(), a: DeckAuto | null = auto) => buildSlides(d, a).map((s) => s.kind + ":" + ("title" in s ? s.title : ""));
 
 test("قراية بس، والمسارات كلها للسوبر أدمن، والتاب للسوبر أدمن", () => {
@@ -194,10 +195,10 @@ test("مؤشرات الأعطال: آخر ١٢ شهر + الحالى، كل شه
   assert.deepEqual(charts[0].kind === "chart" && charts[0].points.map((p) => p.label), ["أغسطس", "سبتمبر", "أكتوبر"]);
   assert.ok(charts[1].kind === "chart" && charts[1].note.includes("أكتوبر من أوله لحد 20 أكتوبر"));
   // المالك يقفل أغسطس ⇒ سبتمبر وأكتوبر بس، كل واحد بنسبته هو
-  d.faults.hiddenMonths = "2026-08";
+  hideAll(d, "2026-08");
   charts = buildSlides(d, a).filter((s) => s.kind === "chart");
   assert.deepEqual(charts[0].kind === "chart" && charts[0].points, [{ label: "سبتمبر", value: 8 }, { label: "أكتوبر", value: 7 }]);
-  d.faults.hiddenMonths = "2026-08,2026-09,2026-10";
+  hideAll(d, "2026-08,2026-09,2026-10");
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "chart"));
   // فاصل الأداء بيفضل طول ما التركيبات أو الصيانة أو الحجز جوّاه — ويتشال لو القسم كله فاضى
   d.maintenance.enabled = false; d.booking.enabled = false; d.installs.enabled = false;
@@ -282,7 +283,7 @@ test("الأعطال فى الألف على شغال كل شهر — القيم 
   assert.equal(monthWorking(d, a, "2026-08"), 10662);
   assert.equal(monthPerThousand(d, a, { month: "2026-08", msanFaults: 277 }), 26);
   // الشرايح: الرسم والجدول بنفس الأرقام، والسطر تحت الرسم، والشهور الظاهرة زى ما المالك اختارها
-  const d2 = defaultDeck(); d2.faults.hiddenMonths = "2026-03,2026-04";
+  const d2 = defaultDeck(); hideAll(d2, "2026-03,2026-04");
   const slides = buildSlides(d2, a);
   const chart = slides.find((x) => x.kind === "chart" && x.title.startsWith("عدد الأعطال فى الألف"));
   assert.ok(chart && chart.kind === "chart");
@@ -330,7 +331,8 @@ test("العرض المحفوظ قبل كده بياخد الخانات الجد
   const saved = normalizeDeck({ faults: { enabled: true, hiddenMonths: "2025-12" },
     booking: { enabled: true, asOf: "18 أكتوبر 2026", total: "1267", capacity: "1230" },
     achievements: { enabled: true, items: "سطر الحجز\nسطر فك المتعذرات", photoIds: [] } });
-  assert.equal(saved.faults.hiddenMonths, "2025-12");
+  // اختيار الشهور القديم (واحد للكل) بيتحط لكل مؤشر
+  assert.deepEqual([saved.faults.hiddenPt, saved.faults.hiddenRepeat, saved.faults.hiddenIn24], ["2025-12", "2025-12", "2025-12"]);
   assert.match(saved.faults.working, /2025-11=9781/);
   assert.equal(saved.booking.handoverPct, "88");
   assert.equal(saved.booking.curAchieved, "97.5");
@@ -399,4 +401,36 @@ test("شريحة مؤشرات تركيبات الصوت جوّه «مؤشرات 
   assert.ok(!kinds(empty).some((x) => x.includes("تركيبات")));
   // عرض محفوظ قبل الشريحة دى بياخد أرقام سبتمبر لوحده
   assert.equal(normalizeDeck({ cover: { title: "x" } }).installs.in24, "155");
+});
+
+test("كل مؤشر بشهوره: الأعطال فى الألف · التكرار · الإزالة — شهور مختلفة فى كل شريحة", () => {
+  const a: DeckAuto = { ...auto, computedAt: "2026-10-20T18:00:00Z",
+    faultsByMonth: [
+      { month: "2025-11", complaints: 300, repeatPct: 15, in24Pct: 70, msanFaults: 292 },
+      { month: "2026-03", complaints: 290, repeatPct: 12, in24Pct: 80, msanFaults: 288 },
+      { month: "2026-08", complaints: 280, repeatPct: 9, in24Pct: 90, msanFaults: 277 },
+    ] };
+  const d = defaultDeck();
+  d.faults.hiddenPt = "2026-03";            // الأعطال فى الألف: نوفمبر وأغسطس
+  d.faults.hiddenRepeat = "2025-11";        // التكرار: مارس وأغسطس
+  d.faults.hiddenIn24 = "2025-11,2026-08";  // الإزالة: مارس بس
+  const slides = buildSlides(d, a);
+  const chart = (p: string) => slides.find((s) => s.kind === "chart" && s.title.startsWith(p)) as any;
+  assert.deepEqual(chart("عدد الأعطال فى الألف").points.map((p: any) => p.label), ["نوفمبر 25", "أغسطس 26"]);
+  assert.equal(chart("عدد الأعطال فى الألف").title, "عدد الأعطال فى الألف شهرياً (نوفمبر 2025 – أغسطس 2026)");
+  const tbl = slides.find((s) => s.kind === "table" && s.title.startsWith("الأعطال مقارنة بالشغال")) as any;
+  assert.deepEqual(tbl.rows.map((r: string[]) => r[0]), ["نوفمبر 2025", "أغسطس 2026"]);
+  // نفس السنة ⇒ اسم الشهر بس، والعنوان بفترة المؤشر ده هو
+  assert.deepEqual(chart("نسب تكرار").points, [{ label: "مارس", value: 12 }, { label: "أغسطس", value: 9 }]);
+  assert.equal(chart("نسب تكرار").title, "نسب تكرار الأعطال شهرياً (مارس 2026 – أغسطس 2026)");
+  assert.deepEqual(chart("نتائج إزالة").points, [{ label: "مارس", value: 80 }]);
+  assert.equal(chart("نتائج إزالة").title, "نتائج إزالة الأعطال خلال 24 ساعة شهرياً (مارس 2026)");
+  // مؤشر كل شهوره مقفولة ⇒ شريحته بس اللى بتتشال
+  d.faults.hiddenIn24 = "2025-11,2026-03,2026-08";
+  const s2 = buildSlides(d, a);
+  assert.ok(!s2.some((s) => s.kind === "chart" && s.title.startsWith("نتائج إزالة")));
+  assert.ok(s2.some((s) => s.kind === "chart" && s.title.startsWith("نسب تكرار")));
+  // عرض محفوظ فيه اختيار مستقل لمؤشر ماياخدش القديم
+  const saved = normalizeDeck({ faults: { enabled: true, hiddenMonths: "2026-03", hiddenRepeat: "" } });
+  assert.deepEqual([saved.faults.hiddenPt, saved.faults.hiddenRepeat, saved.faults.hiddenIn24], ["2026-03", "", "2026-03"]);
 });
