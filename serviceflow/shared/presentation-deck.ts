@@ -598,10 +598,11 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     // تفصيل الكباين تحت الجدول (أول ٦ صفوف)، والباقى فى شرايح «تابع» بنفس العنوان
     const usedCab = cabs.length > 0 && !m.achievedBoxes.trim();
     const detail = usedCab ? [
-      ...cabs.map((c) => [c.exchange, c.cabinet, c.done.toLocaleString("en-US"), c.total.toLocaleString("en-US")]),
-      ["الإجمالى", `${cabs.length} كابينة`, cabs.reduce((a, c) => a + c.done, 0).toLocaleString("en-US"), fullCab.toLocaleString("en-US")],
+      // المالك: «اسم السنترال ورقم الكابينة وعدد البكسيات فى الكابينة» — وفى الآخر المجموع = المحقق
+      ...cabs.map((c) => [c.exchange, c.cabinet, c.total.toLocaleString("en-US")]),
+      ["الإجمالى", `${cabs.length} كابينة`, fullCab.toLocaleString("en-US")],
     ] : [];
-    const dCols = ["السنترال", "الكابينة", "البكسيات اللى اتعملت", "إجمالى بكسيات الكابينة"];
+    const dCols = ["السنترال", "رقم الكابينة", "عدد البكسيات فى الكابينة"];
     const chunks: string[][][] = detail.length ? [detail.slice(0, MAINT_FIRST_ROWS)] : [];
     for (let i = MAINT_FIRST_ROWS; i < detail.length; i += MAINT_NEXT_ROWS) chunks.push(detail.slice(i, i + MAINT_NEXT_ROWS));
     const title = `خطة الصيانة ورفع الكفاءة ${m.period}`;
