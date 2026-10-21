@@ -335,7 +335,8 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
 
   const perfMonths = visibleFaultMonths(deck, auto);
   const showPerf = deck.faults.enabled && perfMonths.length > 0;
-  // شرايح «مبادرات وأهم الإنجازات» بتتحسب الأول عشان الأجندة والفاصل مايظهروش وهى فاضية
+  // شرايح الشغل (الصيانة · الحجز · الإنجازات). المالك ٢٠٢٦-١٠-٢١: «بلاش مبادرات وأهم الإنجازات» —
+  // مالهاش سطر فى الأجندة ولا فاصل، والشرايح نفسها بتكمّل بعد مؤشرات الأداء على طول
   const work: Slide[] = [];
   const m = deck.maintenance;
   if (m.enabled) {
@@ -364,9 +365,8 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     if (deck.achievements.items) work.push({ kind: "list", title: "أهم الإنجازات", lead: "", items: lines(deck.achievements.items) });
     if (deck.achievements.photoIds.length) work.push({ kind: "photos", title: "من الإنجازات", photoIds: deck.achievements.photoIds });
   }
-  const showWork = work.length > 0;
   const agenda = [`نبذة عن ${DEPT_NAME}`, ...(showPerf ? ["مؤشرات ومعدلات الأداء"] : []),
-    ...(showWork ? ["مبادرات وأهم الإنجازات"] : []), ...(deck.vision.enabled && deck.vision.items ? ["رؤية التطوير المستقبلية"] : [])];
+    ...(deck.vision.enabled && deck.vision.items ? ["رؤية التطوير المستقبلية"] : [])];
   slides.push({ kind: "agenda", title: "الأجندة", items: agenda });
 
   // ── نبذة ──
@@ -430,7 +430,7 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   }
 
   // ── الإنجازات ── (الفاصل بيظهر بس لو تحته شرايح فعلاً)
-  if (work.length) slides.push({ kind: "divider", title: "مبادرات وأهم الإنجازات" }, ...work);
+  slides.push(...work);
   if (deck.vision.enabled && deck.vision.items) {
     slides.push({ kind: "divider", title: "رؤية التطوير المستقبلية" });
     slides.push({ kind: "list", title: "رؤية التطوير المستقبلية", lead: "", items: lines(deck.vision.items) });

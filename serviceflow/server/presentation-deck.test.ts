@@ -38,11 +38,13 @@ test("الأقسام الاختيارية (حياة كريمة · الإنجاز
   assert.ok(off.includes("divider:مؤشرات ومعدلات الأداء"));
   // الصيانة مفتوحة افتراضياً — المحقق من برنامج الصيانة (٢١٤) بيطلع جدولها
   assert.ok(off.includes("table:خطة الصيانة ورفع الكفاءة 2026"));
-  // ومن غير أى بيانات ماينفعش يطلع فاصل «مبادرات» فاضى ولا يتكتب فى الأجندة
-  const bareDeck = defaultDeck(); bareDeck.booking.enabled = false;
-  const bare = buildSlides(bareDeck, null);
-  assert.ok(!bare.some((s) => s.kind === "divider" && s.title === "مبادرات وأهم الإنجازات"));
-  assert.ok(!bare.some((s) => s.kind === "agenda" && s.items.includes("مبادرات وأهم الإنجازات")));
+  // المالك ٢٠٢٦-١٠-٢١: «بلاش مبادرات وأهم الإنجازات» — لا فى الأجندة ولا فاصل، حتى والشرايح نفسها موجودة
+  const full = defaultDeck(); full.achievements = { enabled: true, items: "صيانة ٢١٤ بكس", photoIds: [] };
+  const all = buildSlides(full, auto);
+  assert.ok(!JSON.stringify(all).includes("مبادرات"));
+  assert.deepEqual((all.find((s) => s.kind === "agenda") as any).items, [`نبذة عن ${full.cover.title}`, "مؤشرات ومعدلات الأداء"]);
+  assert.ok(all.some((s) => s.kind === "list" && s.title === "أهم الإنجازات"));
+  assert.ok(all.some((s) => s.kind === "compare" && s.title.startsWith("نسبة الحجز")));
 
   const d = defaultDeck();
   d.vision = { enabled: true, items: "FTTH لكل القرى\nتحديث الكباين" };
