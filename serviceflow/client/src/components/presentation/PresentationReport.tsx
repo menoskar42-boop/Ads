@@ -3,7 +3,7 @@
  * والأرقام اللى فيه بتيجى لوحدها (وينفع يتكتب فوقها رقم أدق)، والشرايح بتتعرض بنفس شكل الريفرنس —
  * معاينة + عرض بملء الشاشة بالأسهم. الأقسام الاختيارية ليها مفتاح.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -336,6 +336,16 @@ export function PresentationReport() {
   const d = deck;
   // شغال كل شهر (المالك ٢٠٢٦-١٠-٢١): بيتخزّن «YYYY-MM=العدد»، والفاضى = الشغال الحالى
   const workingMap = new Map<string, string>([...parseMonthWorking(d.faults.working).entries()].map(([k, v]) => [k, String(v)]));
+  // نسب التكرار/الإزالة بالإيد (المالك ٢٠٢٦-١٠-٢٢): النص زى ما اتكتب (عشان «4.» وانت بتكتب مايتمسحش)، والفاضى = المحسوبة
+  const rawMonths = (str: string) => new Map<string, string>(String(str || "").split(",").map((x) => x.split("=").map((y) => (y || "").trim()))
+    .filter(([m, v]) => /^\d{4}-\d{2}$/.test(m || "") && v) as [string, string][]);
+  const setMonthRate = (ind: "repeat" | "in24", month: string, v: string) => {
+    const key = ind === "repeat" ? "repeatManual" : "in24Manual";
+    const next = rawMonths(d.faults[key]);
+    const clean = v.replace(/[^\d٠-٩.,٫]/g, "").replace(/[,٫]/g, ".");
+    if (clean) next.set(month, clean); else next.delete(month);
+    upd("faults", { [key]: [...next.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => `${k}=${x}`).join(",") } as any);
+  };
   const setMonthWork = (month: string, v: string) => {
     const next = new Map<string, string>(workingMap);
     const clean = v.replace(/[^\d٠-٩]/g, "");
@@ -527,8 +537,19 @@ export function PresentationReport() {
                               onChange={(e) => setMonthWork(m.month, e.target.value)} />
                           </td>
                           {show("pt", monthPerThousand(d, auto, m) ?? "—")}
-                          {show("repeat", `${m.repeatPct ?? "—"}%`)}
-                          {show("in24", `${m.in24Pct ?? "—"}%`)}
+                          {(["repeat", "in24"] as const).map((ind) => {
+                            const manual = rawMonths(ind === "repeat" ? d.faults.repeatManual : d.faults.in24Manual).get(m.month) ?? "";
+                            const calc = ind === "repeat" ? m.repeatPct : m.in24Pct;
+                            return (
+                              <Fragment key={ind}>
+                                {show(ind, <span className="inline-flex items-center gap-0.5">
+                                  <Input className={`h-7 w-16 text-xs text-center tabular-nums ${manual ? "border-[#57318A] font-bold" : ""}`} inputMode="decimal"
+                                    value={manual} placeholder={calc != null ? String(calc) : "—"} title={calc != null ? `المحسوبة: ${calc}% — اكتب رقم يغلبها، وامسحه ترجع المحسوبة` : ""}
+                                    onChange={(e) => setMonthRate(ind, m.month, e.target.value)} data-testid={`fault-${ind}-${m.month}`} />%
+                                </span>)}
+                              </Fragment>
+                            );
+                          })}
                         </tr>
                       );
                     })}

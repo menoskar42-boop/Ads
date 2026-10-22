@@ -191,7 +191,7 @@ test("مؤشرات الأعطال: من يناير 2025 لحد الشهر الح
     faultsByMonth: [{ month: "2026-08", complaints: 70, repeatPct: 9, in24Pct: 85, msanFaults: null },
       { month: "2026-09", complaints: 60, repeatPct: 8, in24Pct: 90, msanFaults: null },
       { month: "2026-10", complaints: 50, repeatPct: 7, in24Pct: 92, msanFaults: null }] };
-  const d = defaultDeck();
+  const d = defaultDeck(); d.faults.repeatManual = "";   // الأرقام المحسوبة بس (سبتمبر 4.9% بالإيد ليه اختبار لوحده)
   let charts = buildSlides(d, a).filter((s) => s.kind === "chart");
   assert.equal(charts.length, 2);
   assert.ok(charts[0].kind === "chart" && charts[0].title === "نسب تكرار الأعطال شهرياً (أغسطس 2026 – أكتوبر 2026)");
@@ -564,6 +564,7 @@ test("اختيار المالك + القيم المتوقعة + خط «عند ا
     }) };
   // القيم المتوقعة من المالك
   const d = normalizeDeck({ faults: { enabled: true, hiddenMonths: "" } });   // عرض محفوظ قديم ⇒ اختيار المالك
+  d.faults.repeatManual = "";   // الاختبار ده على الأرقام المحسوبة (سبتمبر 4.9% بالإيد ليه اختبار لوحده)
   const pt = (m: string) => monthPerThousand(d, a, { month: m, msanFaults: faults[m] });
   assert.deepEqual(OWNER_FAULT_MONTHS.pt.map(pt), [29.9, 26.9, 25.2, 28.3, 27.6, 27.0, 27.9, 26.4]);
   const slides = buildSlides(d, a);
@@ -793,4 +794,37 @@ test("خطة MSAN: بعد «متبقيات الأعطال»، ملخص بعنا�
   const im = { data: png, ext: "png" as const, w: 1, h: 1 };
   const xml = await (await JSZip.loadAsync(await deckPptx([m], { weWhite: im, wePurple: im, telecomEgypt: im }, new Map()))).file("ppt/slides/slide1.xml")!.async("string");
   for (const t of ["المتبقى من عناصر التشغيل", "متجاوز ٣ شهور", "تم التمرير MPPS فى انتظار RFS", "11-1-216-41", "بندار الكرمانية", "SWAP"]) assert.ok(xml.includes(t), t);
+});
+
+
+test("نسب التكرار/الإزالة بالإيد: سبتمبر 2026 = 4.9% افتراضى، وبتغلب فى الرسم والمتوسط والجداول، والمسح يرجّع المحسوبة", async () => {
+  const { monthRate, periodAverage, averageSlides } = await import("../shared/presentation-deck");
+  const months = ["2025-11", "2025-12", "2026-08", "2026-09"];
+  const a: DeckAuto = { ...auto, computedAt: "2026-10-21T10:00:00Z", faultsByMonth: months.map((month) =>
+    ({ month, complaints: 1000, closed: 210, phones: 200, in24: 950, repeatPct: 5, in24Pct: 95, msanFaults: 280 })) };
+  const d = defaultDeck();
+  assert.equal(d.faults.repeatManual, "2026-09=4.9");
+  assert.equal(normalizeDeck({ faults: { enabled: true } }).faults.repeatManual, "2026-09=4.9");   // العرض المحفوظ بياخدها
+  const sep = a.faultsByMonth!.find((m) => m.month === "2026-09")!;
+  assert.equal(monthRate(d, sep, "repeat"), 4.9);
+  assert.equal(monthRate(d, sep, "in24"), 95);
+  // الرسم: سبتمبر ظاهر ⇒ 4.9
+  d.faults.hiddenRepeat = "";
+  const rep = buildSlides(d, a).find((s) => s.kind === "chart" && s.title.startsWith("نسب تكرار")) as any;
+  assert.deepEqual(rep.points.map((p: any) => p.value), [5, 5, 5, 4.9]);
+  // المتوسط المرجّح: سبتمبر = 4.9% × 200 رقم = 9.8 تكرار بدل 10 ⇒ (10 + 10 + 9.8) ÷ 600
+  assert.equal(periodAverage(d, a, "repeat").avg, Math.round((1000 * 29.8) / 600) / 10);
+  // جداول المتوسطات بالرقم اللى بالإيد
+  const tr = (averageSlides(d, a) as any[]).find((s) => s.title === "نسبة التكرار — شهر بشهر");
+  assert.equal(tr.rows.find((r: string[]) => r[0] === "سبتمبر 2026")[4], "4.9%");
+  // الإزالة بالإيد كمان
+  d.faults.in24Manual = "2025-11=93.6";
+  assert.equal(periodAverage(d, a, "in24").handover, 93.6);
+  // المالك مسح الخانة ⇒ المحسوبة، ومابترجعش 4.9 بعد الحفظ
+  d.faults.repeatManual = "";
+  assert.equal(monthRate(d, sep, "repeat"), 5);
+  assert.equal(normalizeDeck(JSON.parse(JSON.stringify(d))).faults.repeatManual, "");
+  // صفر مقبول
+  d.faults.repeatManual = "2026-08=0";
+  assert.equal(monthRate(d, a.faultsByMonth![2], "repeat"), 0);
 });

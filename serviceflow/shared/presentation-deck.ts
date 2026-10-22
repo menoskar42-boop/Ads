@@ -22,7 +22,9 @@ export type Deck = {
    *  (المالك ٢٠٢٦-١٠-٢١: «مش لازم نفس الشهور لكل مؤشرات الأداء» — كانت hiddenMonths واحدة للكل) */
   /** working: شغال كل شهر «YYYY-MM=العدد» مفصولة بفاصلة — الأعطال فى الألف بتتقسم عليه، والفاضى = الشغال الحالى
    *  (المالك ٢٠٢٦-١٠-٢١: القسمة على الشغال الحالى كانت بتظلم الشهور القديمة) */
-  faults: { enabled: boolean; hiddenPt: string; hiddenRepeat: string; hiddenIn24: string; working: string };
+  /** repeatManual / in24Manual: نسبة مكتوبة بالإيد لشهر «YYYY-MM=4.9» — بتغلب المحسوبة فى الرسم والمتوسط والجداول
+   *  (المالك ٢٠٢٦-١٠-٢٢: «خلى نسبة تكرار سبتمبر 2026 تكون 4.9%») */
+  faults: { enabled: boolean; hiddenPt: string; hiddenRepeat: string; hiddenIn24: string; working: string; repeatManual: string; in24Manual: string };
   // خطة الصيانة: المحقق بس — مفيش مستهدف (المالك ٢٠٢٦-١٠-٢٠)
   /** achievedBoxes: المكتوب بالإيد يغلب. الفاضى = إجمالى بكسيات الكباين اللى اتعمل فيها ولو بكس (وإلا عدد برنامج الصيانة) */
   /** photoSets: شرايح صور «قبل وبعد» الصيانة (المالك ٢٠٢٦-١٠-٢١) — شريحة لكل مجموعة، لحد صورتين قبل وصورتين بعد.
@@ -85,7 +87,8 @@ export function defaultDeck(): Deck {
     customers: { weData: "", marketShare: "", showShare: false, growth: true },
     exchangesTable: { enabled: true },
     decentLife: { enabled: false, phase1: "", phase2: "", notes: "" },
-    faults: { enabled: true, hiddenPt: "", hiddenRepeat: "", hiddenIn24: "", working: DEFAULT_MONTH_WORKING },
+    // repeatManual: مفتاح جديد ⇒ 4.9% لسبتمبر بتتحط فى العرض المحفوظ لوحدها، ولو اتمسحت ترجع المحسوبة
+    faults: { enabled: true, hiddenPt: "", hiddenRepeat: "", hiddenIn24: "", working: DEFAULT_MONTH_WORKING, repeatManual: "2026-09=4.9", in24Manual: "" },
     // المحقق (بكسيات): فاضى = إجمالى بكسيات الكباين اللى اتعمل فيها ولو بكس (المالك ٢٠٢٦-١٠-٢١)، والمكتوب بالإيد يغلب
     maintenance: { enabled: true, period: "2026", achievedBoxes: "", achievedCopper: "", achievedMsan: "", photoIds: [], photoSets: [] },
     booking: { enabled: true, asOf: "18 أكتوبر 2026", total: "1267", capacity: "1230", blocked: "36", clarify: "0",
@@ -359,6 +362,22 @@ export function parseMonthWorking(s: string): Map<string, number> {
   }
   return out;
 }
+/** «YYYY-MM=قيمة» بيقبل الصفر (للنسب المكتوبة بالإيد) */
+export function parseMonthValues(s: string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const part of String(s || "").split(",")) {
+    const [m, v] = part.split("=").map((x) => (x || "").trim());
+    const n = parseNum(v);
+    if (/^\d{4}-\d{2}$/.test(m) && n != null && n >= 0) out.set(m, n);
+  }
+  return out;
+}
+type FaultMonth = NonNullable<DeckAuto["faultsByMonth"]>[number];
+/** نسبة التكرار/الإزالة للشهر: المكتوبة بالإيد لو موجودة، وإلا المحسوبة */
+export function monthRate(deck: Deck, m: FaultMonth, ind: "repeat" | "in24"): number | null {
+  const manual = parseMonthValues(ind === "repeat" ? deck.faults.repeatManual : deck.faults.in24Manual).get(m.month);
+  return manual ?? (ind === "repeat" ? m.repeatPct : m.in24Pct);
+}
 export function serializeMonthWorking(m: Map<string, number | string>): string {
   return [...m.entries()].filter(([, v]) => String(v).trim()).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${String(v).trim()}`).join(",");
 }
@@ -529,14 +548,19 @@ export function periodAverage(deck: Deck, auto: DeckAuto | null, ind: FaultIndic
   if (ind === "repeat") {
     const ok = inRange.filter((m) => m.closed != null && m.phones != null);
     const ph = ok.reduce((a, m) => a + (m.phones || 0), 0);
-    const rep = ok.reduce((a, m) => a + ((m.closed || 0) - (m.phones || 0)), 0);
-    return { avg: ph > 0 ? round((100 * rep) / ph, 1) : null, handover: nov?.repeatPct ?? null,
+    // شهر نسبته مكتوبة بالإيد ⇒ تكراره = النسبة × عدد أرقامه (عشان المتوسط المرجّح يمشى مع الرقم اللى فى الرسم)
+    const repOf = (m: FaultMonth) => { const man = parseMonthValues(deck.faults.repeatManual).get(m.month);
+      return man != null ? (man / 100) * (m.phones || 0) : (m.closed || 0) - (m.phones || 0); };
+    const rep = ok.reduce((a, m) => a + repOf(m), 0);
+    return { avg: ph > 0 ? round((100 * rep) / ph, 1) : null, handover: nov ? monthRate(deck, nov, "repeat") : null,
       method: "مرجّح: التكرار ÷ الأرقام" };
   }
   const ok = inRange.filter((m) => m.in24 != null);
   const n = ok.reduce((a, m) => a + m.complaints, 0);
-  const in24 = ok.reduce((a, m) => a + (m.in24 || 0), 0);
-  return { avg: n > 0 ? round((100 * in24) / n, 1) : null, handover: nov?.in24Pct ?? null,
+  const in24Of = (m: FaultMonth) => { const man = parseMonthValues(deck.faults.in24Manual).get(m.month);
+    return man != null ? (man / 100) * m.complaints : (m.in24 || 0); };
+  const in24 = ok.reduce((a, m) => a + in24Of(m), 0);
+  return { avg: n > 0 ? round((100 * in24) / n, 1) : null, handover: nov ? monthRate(deck, nov, "in24") : null,
     method: "مرجّح: المُزال خلال 24 ساعة ÷ الأعطال" };
 }
 export function periodAverageNote(deck: Deck, auto: DeckAuto | null, ind: FaultIndicator, unit: string): string {
@@ -569,7 +593,7 @@ export function averageSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
 
   const rp = periodAverage(deck, auto, "repeat");
   const rpOk = (m: (typeof all)[number]) => m.closed != null && m.phones != null;
-  const rpRows = [...nov, ...range].filter(rpOk).map((m) => [name(m.month), n(m.closed), n(m.phones), n((m.closed || 0) - (m.phones || 0)), `${n(m.repeatPct, 1)}%`]);
+  const rpRows = [...nov, ...range].filter(rpOk).map((m) => [name(m.month), n(m.closed), n(m.phones), n((m.closed || 0) - (m.phones || 0)), `${n(monthRate(deck, m, "repeat"), 1)}%`]);
   const rpSum = (k: (m: (typeof all)[number]) => number) => range.filter(rpOk).reduce((a, m) => a + k(m), 0);
   if (rpRows.length) out.push({ kind: "table", title: "نسبة التكرار — شهر بشهر", columns: ["الشهر", "الأعطال المغلقة", "عدد الأرقام", "التكرار", "نسبة التكرار"],
     rows: [...rpRows, ["الإجمالى", n(rpSum((m) => m.closed || 0)), n(rpSum((m) => m.phones || 0)),
@@ -578,7 +602,7 @@ export function averageSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
 
   const rm = periodAverage(deck, auto, "in24");
   const rmOk = (m: (typeof all)[number]) => m.in24 != null;
-  const rmRows = [...nov, ...range].filter(rmOk).map((m) => [name(m.month), n(m.complaints), n(m.in24), `${n(m.in24Pct, 1)}%`]);
+  const rmRows = [...nov, ...range].filter(rmOk).map((m) => [name(m.month), n(m.complaints), n(m.in24), `${n(monthRate(deck, m, "in24"), 1)}%`]);
   const rmSum = (k: (m: (typeof all)[number]) => number) => range.filter(rmOk).reduce((a, m) => a + k(m), 0);
   if (rmRows.length) out.push({ kind: "table", title: "الإزالة خلال 24 ساعة — شهر بشهر", columns: ["الشهر", "إجمالى الأعطال", "المُزال خلال 24 ساعة", "النسبة"],
     rows: [...rmRows, ["الإجمالى", n(rmSum((m) => m.complaints)), n(rmSum((m) => m.in24 || 0)), rm.avg == null ? "—" : `${n(rm.avg, 1)}%`]],
@@ -637,7 +661,7 @@ export const hiddenFaultMonths = (deck: Deck, ind: FaultIndicator) =>
 export function visibleFaultMonths(deck: Deck, auto: DeckAuto | null, ind: FaultIndicator) {
   const hidden = hiddenFaultMonths(deck, ind);
   return (auto?.faultsByMonth || []).filter((m) => !hidden.has(m.month)
-    && (ind === "pt" ? monthPerThousand(deck, auto, m) != null : ind === "repeat" ? m.repeatPct != null : m.in24Pct != null));
+    && (ind === "pt" ? monthPerThousand(deck, auto, m) != null : monthRate(deck, m, ind) != null));
 }
 
 const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
@@ -839,16 +863,16 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     if (repMonths.length) {
       const { label, span, partial } = months(repMonths);
       slides.push({ kind: "chart", title: `نسب تكرار الأعطال شهرياً (${span})`, seriesLabel: "نسبة التكرار", unit: "%",
-        points: repMonths.map((m) => ({ label: label(m.month), value: m.repeatPct as number })),
+        points: repMonths.map((m) => ({ label: label(m.month), value: monthRate(deck, m, "repeat") as number })),
         note: `كل شهر محسوب لوحده: (الأعطال المغلقة − عدد الأرقام) ÷ عدد الأرقام${partial}`,
-        baseline: base(repMonths, (m) => m.repeatPct as number), avgNote: periodAverageNote(deck, auto, "repeat", "%") });
+        baseline: base(repMonths, (m) => monthRate(deck, m, "repeat") as number), avgNote: periodAverageNote(deck, auto, "repeat", "%") });
     }
     if (in24Months.length) {
       const { label, span, partial } = months(in24Months);
       slides.push({ kind: "chart", title: `نتائج إزالة الأعطال خلال 24 ساعة شهرياً (${span})`, seriesLabel: "الإزالة خلال 24 ساعة", unit: "%",
-        points: in24Months.map((m) => ({ label: label(m.month), value: m.in24Pct as number })),
+        points: in24Months.map((m) => ({ label: label(m.month), value: monthRate(deck, m, "in24") as number })),
         note: `كل شهر محسوب لوحده: من إجمالى الأعطال المبلّغة فى الشهر — زى «إحصائيات الإزالة»${partial}`,
-        baseline: base(in24Months, (m) => m.in24Pct as number), avgNote: periodAverageNote(deck, auto, "in24", "%") });
+        baseline: base(in24Months, (m) => monthRate(deck, m, "in24") as number), avgNote: periodAverageNote(deck, auto, "in24", "%") });
     }
   }
 
