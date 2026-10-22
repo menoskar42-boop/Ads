@@ -936,3 +936,23 @@ test("باور بوينت: شريحة FTTS بالنص بالطول للأعمد�
   const xml = await zip.file(`ppt/slides/slide${idx}.xml`)!.async("string");
   for (const t of ["خطة FTTS", "مسار مدنى", "لحام فيبر", "زيارات اورانج", "نسبة المدنى", "الغنايم", 'vert="vert270"']) assert.ok(xml.includes(t), t);
 });
+
+test("خطة FTTS المبدئية: أرقام أورانج بس، وفودافون فاضية — والعرض المحفوظ بالصف القديم بياخدها", async () => {
+  const { fttsRows, fttsCells, FTTS_INPUTS } = await import("../shared/presentation-deck");
+  const [r] = fttsRows(defaultDeck().ftts.rows);
+  const at = (lab: string) => r[FTTS_INPUTS.indexOf(lab)];
+  assert.equal(r[0], "الغنايم");
+  assert.equal(at("اورانج"), "1");
+  for (const g of ["مسار مدنى", "سحب", "لحام فيبر", "جاهز للتسليم"]) {
+    assert.equal(at(`${g} — اورانج`), "1", g);
+    assert.equal(at(`${g} — فودافون`), "", g);
+  }
+  assert.equal(at("زيارات اورانج — اولى"), "0");
+  assert.deepEqual(["فودافون", "زيارات فودافون — اولى", "زيارات فودافون — ثانية", "زيارات فودافون — ثالثة", "عدد المواقع"].map(at), ["", "", "", "", ""]);
+  // إجمالى كل مرحلة = 1 (أورانج لوحدها لحد ما فودافون تتملا)
+  const data = fttsCells("", [r]).filter((c) => c.border).map((c) => c.text);
+  assert.deepEqual([data[11], data[16], data[21], data[26]], ["1", "1", "1", "1"]);
+  // عرض محفوظ بالصف القديم ⇒ الجديد، ومتعدّل من المالك ⇒ زى ما هو
+  assert.equal(normalizeDeck({ ftts: { enabled: true, rows: "الغنايم" } }).ftts.rows, defaultDeck().ftts.rows);
+  assert.equal(normalizeDeck({ ftts: { enabled: true, rows: "الغنايم | 8" } }).ftts.rows, "الغنايم | 8");
+});

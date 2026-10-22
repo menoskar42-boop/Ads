@@ -112,8 +112,8 @@ export function defaultDeck(): Deck {
     msan: { enabled: true, title: "خطة MSAN أكتوبر 2026", region: "إدارة الغنايم", total: "", over3: "", under3: "", mpps: "", rfs: "", items: "" },
     // أرقام الغنايم من «Reopen Data Report - سبتمبر 2026» — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
     reassign: { enabled: true, period: "سبتمبر 2026", region: "الغنايم", reopen: "14", total: "348" },
-    // المالك بيملا الأرقام من الإعدادات — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده بصف «الغنايم» فاضى
-    ftts: { enabled: true, title: "خطة FTTS سبتمبر 2026", heading: "مواقع FTTS 2026 بإدارة الغنايم - 30/9/2026", rows: "الغنايم" },
+    // المالك ٢٠٢٦-١٠-٢٢: «ضيف مبدئياً أرقام خانة أورانج وسيب خانات فودافون» — الباقى بيتملا من الإعدادات
+    ftts: { enabled: true, title: "خطة FTTS سبتمبر 2026", heading: "مواقع FTTS 2026 بإدارة الغنايم - 30/9/2026", rows: defaultFttsRows() },
     // صف الغنايم من جدول المنطقة (اجتماع تقييم الأداء سبتمبر 2026) — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
     selfEffort: { enabled: true, region: "الغنايم", approved: "2", blocked: "33", boxes: "8", done: "0", resolved: "0", notes: "فى انتظار توفير المهمات" },
     achievements: { enabled: false, items: "", photoIds: [] },
@@ -184,6 +184,8 @@ export function normalizeDeck(raw: any): Deck {
     }
   }
   delete d.overrides["total.maintBoxes"];   // اتنقلت لـ maintenance.achievedBoxes (فوق)
+  // العرض المحفوظ بصف FTTS المبدئى القديم («الغنايم» لوحدها — المحرّر بيحفظ الخانات كلها بـ|) ⇒ ياخد أرقام أورانج
+  if (typeof raw.ftts?.rows === "string" && raw.ftts.rows.trim() === "الغنايم") d.ftts.rows = defaultFttsRows();
   if (Array.isArray(raw.hiddenSlides)) {
     d.hiddenSlides = [...new Set(raw.hiddenSlides.filter((x: unknown) => typeof x === "string" && x.trim()).map((x: string) => x.slice(0, 200)))].slice(0, 200) as string[];
   }
@@ -352,6 +354,14 @@ export function fttsRows(rows: string): string[][] {
 }
 export const fttsItems = (rows: string[][]) => rows.map((r) => r.map((c) => c.replace(/[|\r\n]/g, " ").trim()).join(" | ")).join("\n");
 export const FTTS_MAX_ROWS = 5;
+/** صف الغنايم المبدئى: أرقام أورانج من شريحة المنطقة (موقع واحد · ١ فى كل مرحلة · زيارة أولى ٠) وفودافون فاضية */
+export function defaultFttsRows() {
+  const r = FTTS_INPUTS.map(() => "");
+  r[0] = "الغنايم";
+  FTTS_INPUTS.forEach((lab, i) => { if (lab === "اورانج" || lab.endsWith("— اورانج")) r[i] = "1"; });
+  r[FTTS_INPUTS.indexOf("زيارات اورانج — اولى")] = "0";
+  return fttsItems([r]);
+}
 /** خانات شريحة FTTS (الصفحة والباور بوينت بنفس الأرقام): شريط العنوان · المراحل · الأعمدة بالطول · صف لكل منطقة */
 export function fttsCells(heading: string, rows: string[][]): MsanCell[] {
   const unit = 1240 / FTTS_COLS.reduce((a, c) => a + c.w, 0);
