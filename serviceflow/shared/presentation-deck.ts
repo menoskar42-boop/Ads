@@ -53,6 +53,8 @@ export type Deck = {
   reassign: { enabled: boolean; period: string; region: string; reopen: string; total: string };
   /** «تزويد بالجهود الذاتية» (المالك ٢٠٢٦-١٠-٢٢ — من «مبادرات تزويدات لإزالة المتعذرات بمنطقة أسيوط»): صف الغنايم بس،
    *  شريحة لوحدها بعد نسبة الحجز وفك المتعذرات (الشريحة دى مليانة) */
+  /** «خطة FTTS» (المالك ٢٠٢٦-١٠-٢٢ — زى شريحة المنطقة): rows = سطر لكل منطقة، خاناته بترتيب FTTS_INPUTS مفصولة بـ| */
+  ftts: { enabled: boolean; title: string; heading: string; rows: string };
   selfEffort: { enabled: boolean; region: string; approved: string; blocked: string; boxes: string; done: string; resolved: string; notes: string };
   achievements: { enabled: boolean; items: string; photoIds: string[] };
   vision: { enabled: boolean; items: string };
@@ -110,6 +112,8 @@ export function defaultDeck(): Deck {
     msan: { enabled: true, title: "خطة MSAN أكتوبر 2026", region: "إدارة الغنايم", total: "", over3: "", under3: "", mpps: "", rfs: "", items: "" },
     // أرقام الغنايم من «Reopen Data Report - سبتمبر 2026» — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
     reassign: { enabled: true, period: "سبتمبر 2026", region: "الغنايم", reopen: "14", total: "348" },
+    // المالك بيملا الأرقام من الإعدادات — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده بصف «الغنايم» فاضى
+    ftts: { enabled: true, title: "خطة FTTS سبتمبر 2026", heading: "مواقع FTTS 2026 بإدارة الغنايم - 30/9/2026", rows: "الغنايم" },
     // صف الغنايم من جدول المنطقة (اجتماع تقييم الأداء سبتمبر 2026) — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
     selfEffort: { enabled: true, region: "الغنايم", approved: "2", blocked: "33", boxes: "8", done: "0", resolved: "0", notes: "فى انتظار توفير المهمات" },
     achievements: { enabled: false, items: "", photoIds: [] },
@@ -136,7 +140,7 @@ export function normalizeDeck(raw: any): Deck {
     return out;
   };
   if (!raw || typeof raw !== "object") return d;
-  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "msan", "reassign", "selfEffort", "achievements", "vision", "closing"] as const) {
+  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "msan", "ftts", "reassign", "selfEffort", "achievements", "vision", "closing"] as const) {
     (d as any)[k] = pick((d as any)[k], raw[k]);
   }
   // شرايح «قبل وبعد»: لحد ١٢ شريحة، وكل واحدة لحد صورتين قبل وصورتين بعد (pick مابيعرفش المصفوفات المركّبة)
@@ -255,6 +259,8 @@ export type Slide =
   | { kind: "photos"; title: string; photoIds: string[] }
   /** «خطة MSAN»: ملخص بعناوين متداخلة (head) + جدول الكباين — head = null فى شرايح «تابع» */
   | { kind: "msan"; title: string; head: MsanHead | null; columns: string[]; rows: string[][] }
+  /** شريحة خانات جاهزة الأماكن (خطة FTTS: عناوين متداخلة بألوان الشركات) */
+  | { kind: "cells"; title: string; cells: MsanCell[] }
   /** صور قبل الصيانة (يمين) وبعدها (شمال) — لحد صورتين فى كل ناحية */
   | { kind: "beforeAfter"; title: string; caption: string; before: string[]; after: string[] }
   | { kind: "closing"; text: string }
@@ -293,7 +299,8 @@ export function msanLayout(nRows: number, withHead: boolean) {
 }
 
 /** خانات ملخص «خطة MSAN» جاهزة للرسم (مكان + لون + نص) — نفس الشكل فى الصفحة والباور بوينت */
-export type MsanCell = { x: number; y: number; w: number; h: number; text: string; fill: string; color: string; size: number; bold: boolean; border: boolean };
+/** vert: نص بالطول (من تحت لفوق) للأعمدة الضيقة */
+export type MsanCell = { x: number; y: number; w: number; h: number; text: string; fill: string; color: string; size: number; bold: boolean; border: boolean; vert?: boolean };
 export function msanHeadCells(h: MsanHead, L: NonNullable<ReturnType<typeof msanLayout>["head"]>): MsanCell[] {
   const [rg, tot, ov, un, mp, rf] = L.cols;
   const PUR = "7030A0", YEL = "FFFF00", RED = "C00000";
@@ -312,6 +319,82 @@ export function msanHeadCells(h: MsanHead, L: NonNullable<ReturnType<typeof msan
     hd(rf, "تم إصدار RFS فى انتظار الإحلال"),
     dt(rg, h.region, 17), dt(tot, h.total), dt(ov, h.over3), dt(un, h.under3), dt(mp, h.mpps), dt(rf, h.rfs, 15),
   ];
+}
+
+// ───────── «خطة FTTS» (المالك ٢٠٢٦-١٠-٢٢): نفس أعمدة جدول المنطقة وألوانه، والمالك بيملا الأرقام ─────────
+const F_RED = "FF0000", F_YEL = "FFC000", F_GRN = "A9D08E", F_PUR = "7030A0", F_BLU = "8EA9DB", F_GRY = "808080";
+type FttsCol = { label: string; group: string | null; fill: string; w: number; sum?: number[]; pct?: boolean };
+const OPS: [string, string][] = [["فودافون", F_RED], ["اورانج", F_YEL], ["اتصالات", F_GRN], ["we", F_PUR]];
+/** أعمدة الجدول من اليمين. sum = إجمالى المرحلة بيتحسب لوحده من خانات المرحلة (أرقام FTTS_INPUTS) */
+export const FTTS_COLS: FttsCol[] = (() => {
+  const cols: FttsCol[] = [
+    { label: "المنطقة", group: null, fill: F_GRY, w: 2.2 }, { label: "عدد المواقع", group: null, fill: F_GRY, w: 1.4 },
+    ...OPS.map(([label, fill]) => ({ label, group: null, fill, w: 1.25 })), { label: "تم الإلغاء", group: null, fill: F_BLU, w: 1.25 },
+  ];
+  let inp = cols.length;
+  for (const g of ["مسار مدنى", "سحب", "لحام فيبر", "جاهز للتسليم"]) {
+    cols.push(...OPS.map(([label, fill]) => ({ label, group: g, fill, w: 1.15 })));
+    cols.push({ label: "اجمالى", group: null, fill: F_GRY, w: 1.1, sum: [inp, inp + 1, inp + 2, inp + 3] });
+    inp += 4;
+  }
+  for (const [g, fill] of [["زيارات فودافون", F_RED], ["زيارات اورانج", F_YEL]]) {
+    cols.push(...["اولى", "ثانية", "ثالثة"].map((label) => ({ label, group: g, fill, w: 1 })));
+  }
+  cols.push({ label: "تسليم we", group: null, fill: F_PUR, w: 1.1 },
+    { label: "نسبة الكهربى", group: null, fill: F_GRY, w: 1.6, pct: true }, { label: "نسبة المدنى", group: null, fill: F_GRY, w: 1.6, pct: true });
+  return cols;
+})();
+/** الخانات اللى المالك بيكتبها (كل الأعمدة ماعدا الإجماليات) — بالترتيب ده فى deck.ftts.rows */
+export const FTTS_INPUTS = FTTS_COLS.filter((c) => !c.sum).map((c) => (c.group ? `${c.group} — ${c.label}` : c.label));
+export function fttsRows(rows: string): string[][] {
+  return rows.split(/\r?\n/).filter((l) => l.replace(/\|/g, "").trim())
+    .map((l) => { const c = l.split("|").map((x) => x.trim()); return FTTS_INPUTS.map((_, i) => c[i] || ""); });
+}
+export const fttsItems = (rows: string[][]) => rows.map((r) => r.map((c) => c.replace(/[|\r\n]/g, " ").trim()).join(" | ")).join("\n");
+export const FTTS_MAX_ROWS = 5;
+/** خانات شريحة FTTS (الصفحة والباور بوينت بنفس الأرقام): شريط العنوان · المراحل · الأعمدة بالطول · صف لكل منطقة */
+export function fttsCells(heading: string, rows: string[][]): MsanCell[] {
+  const unit = 1240 / FTTS_COLS.reduce((a, c) => a + c.w, 0);
+  let x = 1260;
+  const geo = FTTS_COLS.map((c) => { const w = c.w * unit; x -= w; return { x, w }; });
+  const yB = 118, hB = 50, yG = yB + hB, hG = 44, yS = yG + hG, hS = 112, yD = yS + hS;
+  const n = Math.min(rows.length, FTTS_MAX_ROWS), hD = n ? Math.min(64, Math.floor((600 - yD) / n)) : 0;
+  const light = (f: string) => f === F_PUR || f === F_GRY;
+  // «30-9-2026» جنب نص عربى بيتقلب (2026-9-30) — الشرطة مابتربطش الأرقام العربى، الشَرطة المايلة بتربطها
+  const head = heading.replace(/(\d)-(?=\d)/g, "$1/");
+  const out: MsanCell[] = [{ x: 20, y: yB, w: 1240, h: hB, text: head, fill: F_GRY, color: "FFFFFF", size: 22, bold: true, border: false }];
+  // عناوين المراحل فوق أعمدتها
+  for (let i = 0; i < FTTS_COLS.length;) {
+    const g = FTTS_COLS[i].group;
+    let j = i; while (j + 1 < FTTS_COLS.length && g && FTTS_COLS[j + 1].group === g) j++;
+    const c = FTTS_COLS[i], hdr = (y: number, h: number, text: string, fill: string, w0 = i, w1 = j): MsanCell => {
+      const left = geo[w1].x, w = geo[w0].x + geo[w0].w - left;
+      return { x: left, y, w, h, text, fill, color: light(fill) ? "FFFFFF" : "111111", size: 13, bold: true, border: false, vert: w < 56 && h > 80 };
+    };
+    if (g) {
+      out.push({ ...hdr(yG, hG, g, g.startsWith("زيارات") ? c.fill : F_GRY), size: 15 });
+      for (let k = i; k <= j; k++) out.push(hdr(yS, hS, FTTS_COLS[k].label, FTTS_COLS[k].fill, k, k));
+    } else out.push(hdr(yG, hG + hS, c.label, c.fill));
+    i = j + 1;
+  }
+  rows.slice(0, n).forEach((r, ri) => {
+    let inp = 0;
+    const vals = FTTS_COLS.map((c) => {
+      if (c.sum) {
+        const ns = c.sum.map((k) => parseNum(r[k]));
+        return ns.every((v) => v == null) ? "" : fmtNum(ns.reduce<number>((a, v) => a + (v ?? 0), 0));
+      }
+      const v = r[inp++] || "";
+      return c.pct && parseNum(v) != null && !v.includes("%") ? `${v}%` : v;
+    });
+    vals.forEach((t, k) => {
+      const c = FTTS_COLS[k], w = geo[k].w;
+      const size = k === 0 ? 14 : Math.max(10, Math.min(18, Math.floor(w / (Math.max(t.length, 1) * 0.75))));
+      out.push({ x: geo[k].x, y: yD + ri * hD, w, h: hD, text: t, fill: c.sum ? F_GRY : "FFFFFF", color: c.sum ? "FFFFFF" : "111111",
+        size, bold: true, border: true });
+    });
+  });
+  return out;
 }
 
 export type MaintPhotoSet = { label: string; before: string[]; after: string[] };
@@ -839,6 +922,14 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     // بعد «متبقيات الأعطال» — ولو مش موجودة بعد «مؤشرات تركيبات الصوت»، وإلا أول القسم
     const after = at >= 0 ? at : perfExtra.findIndex((x) => x.kind === "table" && x.title.startsWith("مؤشرات تركيبات الصوت"));
     perfExtra.splice(after + 1, 0, ...add);
+  }
+  // المالك ٢٠٢٦-١٠-٢٢: «خطة FTTS» زى شريحة المنطقة — بعد «خطة MSAN» (ولو مش موجودة بعد المتبقيات/التركيبات)
+  const ft = deck.ftts, fRows = fttsRows(ft.rows);
+  if (ft.enabled && fRows.length) {
+    const lastMsan = perfExtra.map((x) => x.kind).lastIndexOf("msan");
+    const rem = perfExtra.findIndex((x) => x.kind === "table" && (x.title === "متبقيات الأعطال" || x.title.startsWith("REASSIGN")));
+    const at = lastMsan >= 0 ? lastMsan : rem >= 0 ? rem : perfExtra.findIndex((x) => x.kind === "table" && x.title.startsWith("مؤشرات تركيبات الصوت"));
+    perfExtra.splice(at + 1, 0, { kind: "cells", title: ft.title.trim() || "خطة FTTS", cells: fttsCells(ft.heading.trim(), fRows) });
   }
   if (deck.achievements.enabled && (deck.achievements.items || deck.achievements.photoIds.length)) {
     if (deck.achievements.items) achv.push({ kind: "list", title: "أهم الإنجازات", lead: "", items: lines(deck.achievements.items) });

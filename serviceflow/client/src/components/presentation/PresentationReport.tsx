@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, slideKeys, visibleSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, reassignTable, MAX_SET_PHOTOS, MAX_PHOTO_SETS, type MaintPhotoSet, MSAN_COLUMNS, msanRows, msanItems, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, slideKeys, visibleSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, reassignTable, MAX_SET_PHOTOS, MAX_PHOTO_SETS, type MaintPhotoSet, MSAN_COLUMNS, msanRows, msanItems, FTTS_INPUTS, FTTS_MAX_ROWS, fttsRows, fttsItems, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -88,6 +88,47 @@ function MsanEditor({ items, onChange }: { items: string; onChange: (items: stri
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" onClick={() => set([...list, blank()])} data-testid="msan-add">+ إضافة كابينة</Button>
+    </div>
+  );
+}
+
+/** «خطة FTTS»: كارت لكل منطقة، والخانات متقسّمة بالمراحل زى الجدول (الإجماليات بتتحسب لوحدها) */
+function FttsEditor({ rows, onChange }: { rows: string; onChange: (rows: string) => void }) {
+  const blank = () => FTTS_INPUTS.map(() => "");
+  const [list, setList] = useState<string[][]>(() => (fttsRows(rows).length ? fttsRows(rows) : [blank()]));
+  useEffect(() => { if (fttsItems(list.filter((r) => r.some((c) => c.trim()))) !== rows) setList(fttsRows(rows).length ? fttsRows(rows) : [blank()]); }, [rows]);
+  const set = (next: string[][]) => { setList(next); onChange(fttsItems(next.filter((r) => r.some((c) => c.trim())))); };
+  // الخانات متجمّعة بالمرحلة («مسار مدنى — فودافون» ⇒ مجموعة «مسار مدنى» وخانة «فودافون»)
+  const groups: { name: string; idx: number[] }[] = [];
+  FTTS_INPUTS.forEach((lab, i) => {
+    const name = i === 0 ? "" : lab.includes(" — ") ? lab.split(" — ")[0] : i <= 6 ? "المواقع" : "التسليم والنسب";
+    const g = groups.find((x) => x.name === name);
+    if (g) g.idx.push(i); else groups.push({ name, idx: [i] });
+  });
+  return (
+    <div className="space-y-3">
+      {list.map((r, i) => (
+        <div key={i} className="rounded-md border p-2 space-y-2" data-testid={`ftts-row-${i}`}>
+          <div className="flex items-end gap-2">
+            <Field label="المنطقة / الإدارة"><Input className="h-8" value={r[0]} onChange={(e) => set(list.map((x, k) => (k === i ? x.map((y, q) => (q === 0 ? e.target.value : y)) : x)))} /></Field>
+            <Button type="button" variant="ghost" size="sm" title="حذف" onClick={() => set(list.filter((_, k) => k !== i))}><Trash2 className="w-4 h-4" /></Button>
+          </div>
+          {groups.filter((g) => g.name).map((g) => (
+            <div key={g.name}>
+              <div className="text-xs font-semibold mb-1">{g.name}</div>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
+                {g.idx.map((j) => (
+                  <label key={j} className="text-[11px] text-muted-foreground">{FTTS_INPUTS[j].split(" — ").pop()}
+                    <Input className="h-8 text-sm" value={r[j]} inputMode={/نسبة/.test(FTTS_INPUTS[j]) ? "decimal" : "numeric"} data-testid={`ftts-${i}-${j}`}
+                      onChange={(e) => set(list.map((x, k) => (k === i ? x.map((y, q) => (q === j ? e.target.value : y)) : x)))} />
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+      {list.length < FTTS_MAX_ROWS && <Button type="button" variant="outline" size="sm" onClick={() => set([...list, blank()])} data-testid="ftts-add">+ إضافة منطقة</Button>}
     </div>
   );
 }
@@ -630,6 +671,18 @@ export function PresentationReport() {
               </div>
             </div>
             <MsanEditor items={d.msan.items} onChange={(items) => upd("msan", { items })} />
+          </Section>
+          </div>
+
+          {/* المالك ٢٠٢٦-١٠-٢٢: «خطة FTTS» زى شريحة المنطقة — بعد «خطة MSAN» */}
+          <div className="lg:col-span-2">
+          <Section title="خطة FTTS" on={d.ftts.enabled} onToggle={(v) => upd("ftts", { enabled: v })}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="عنوان الشريحة"><Input value={d.ftts.title} onChange={(e) => upd("ftts", { title: e.target.value })} /></Field>
+              <Field label="عنوان الجدول (الشريط الرمادى)"><Input value={d.ftts.heading} onChange={(e) => upd("ftts", { heading: e.target.value })} /></Field>
+            </div>
+            <p className="text-xs text-muted-foreground">«إجمالى» كل مرحلة بيتحسب لوحده من خانات الشركات. النسب تتكتب رقم بس (100 ⇒ 100%).</p>
+            <FttsEditor rows={d.ftts.rows} onChange={(rows) => upd("ftts", { rows })} />
           </Section>
           </div>
 

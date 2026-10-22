@@ -4,7 +4,7 @@
  * اللوحة ثابتة ١٢٨٠×٧٢٠ وبتتصغّر/تتكبّر بـ scale — نفس النسب فى المعاينة والعرض الكامل.
  */
 import { useEffect, useRef, useState } from "react";
-import { compareLayout, lineChartGeom, LINE_CHART, tableFs, tableRowH, subTableLayout, beforeAfterLayout, msanLayout, msanHeadCells, type Slide } from "@shared/presentation-deck";
+import { compareLayout, lineChartGeom, LINE_CHART, tableFs, tableRowH, subTableLayout, beforeAfterLayout, msanLayout, msanHeadCells, type MsanCell, type Slide } from "@shared/presentation-deck";
 import { withBase } from "@/lib/base-path";
 import weWhite from "@/assets/presentation/we-white.png";
 import wePurple from "@/assets/presentation/we-purple.png";
@@ -27,6 +27,20 @@ function Footer() {
     <>
       <img src={wePurple} alt="WE" style={{ position: "absolute", left: 22, bottom: 20, width: 72, height: 72 }} />
       <img src={telecomEgypt} alt="telecomegypt" style={{ position: "absolute", right: 28, bottom: 28, width: 264 }} />
+    </>
+  );
+}
+
+/** خانات جاهزة الأماكن (ملخص MSAN · خطة FTTS) — نفس presentation-pptx.ts */
+function Cells({ list }: { list: MsanCell[] }) {
+  return (
+    <>
+      {list.map((c, i) => (
+        <div key={i} style={{ position: "absolute", left: c.x, top: c.y, width: c.w, height: c.h, background: `#${c.fill}`, color: `#${c.color}`,
+          fontSize: c.size, fontWeight: c.bold ? 700 : 400, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
+          boxSizing: "border-box", border: c.border ? "1px solid #BFBFBF" : "2px solid #fff", padding: c.vert ? "4px 0" : "0 6px", lineHeight: 1.2,
+          ...(c.vert ? { writingMode: "vertical-rl" as const, transform: "rotate(180deg)" } : {}) }}>{c.text}</div>
+      ))}
     </>
   );
 }
@@ -244,6 +258,15 @@ function SlideBody({ s }: { s: Slide }) {
         </>
       );
     }
+    case "cells":
+      // خطة FTTS — نفس fttsCells فى presentation-pptx.ts (vert = نص بالطول من تحت لفوق)
+      return (
+        <>
+          <Title text={s.title} />
+          <Cells list={s.cells} />
+          <Footer />
+        </>
+      );
     case "msan": {
       // المالك ٢٠٢٦-١٠-٢٢: زى شريحة المنطقة — ملخص بعناوين على صفين + جدول الكباين (نفس presentation-pptx.ts)
       const L = msanLayout(s.rows.length, !!s.head);
@@ -251,11 +274,7 @@ function SlideBody({ s }: { s: Slide }) {
       return (
         <>
           <Title text={s.title} />
-          {s.head && L.head && msanHeadCells(s.head, L.head).map((c, i) => (
-            <div key={i} style={{ position: "absolute", left: c.x, top: c.y, width: c.w, height: c.h, background: `#${c.fill}`, color: `#${c.color}`,
-              fontSize: c.size, fontWeight: c.bold ? 700 : 400, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
-              boxSizing: "border-box", border: c.border ? "1px solid #BFBFBF" : "2px solid #fff", padding: "0 6px", lineHeight: 1.2 }}>{c.text}</div>
-          ))}
+          {s.head && L.head && <Cells list={msanHeadCells(s.head, L.head)} />}
           {s.rows.length > 0 && (
             <table style={{ position: "absolute", top: L.table.y, left: L.table.x, width: L.table.w, borderCollapse: "collapse", fontSize: L.table.fs,
               fontWeight: 700, textAlign: "center", lineHeight: 1.15 }}>

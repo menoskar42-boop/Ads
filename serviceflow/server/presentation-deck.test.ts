@@ -205,7 +205,7 @@ test("مؤشرات الأعطال: من يناير 2025 لحد الشهر الح
   hideAll(d, "2026-08,2026-09,2026-10");
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "chart"));
   // فاصل الأداء بيفضل طول ما التركيبات أو الصيانة أو الحجز جوّاه — ويتشال لو القسم كله فاضى
-  d.maintenance.enabled = false; d.booking.enabled = false; d.installs.enabled = false; d.customers.growth = false; d.reassign.enabled = false; d.selfEffort.enabled = false;
+  d.maintenance.enabled = false; d.booking.enabled = false; d.installs.enabled = false; d.customers.growth = false; d.reassign.enabled = false; d.selfEffort.enabled = false; d.ftts.enabled = false;
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "divider" && s.title === "مؤشرات ومعدلات الأداء"));
 });
 
@@ -392,6 +392,7 @@ test("العرض المحفوظ قبل كده بياخد الخانات الجد
   assert.equal(saved.booking.curNet, "73");
   assert.deepEqual(saved.reassign, defaultDeck().reassign);
   assert.deepEqual(saved.selfEffort, defaultDeck().selfEffort);
+  assert.deepEqual(saved.ftts, defaultDeck().ftts);
   assert.equal(saved.achievements.items, "سطر الحجز\nسطر فك المتعذرات");
 });
 
@@ -447,7 +448,7 @@ test("شريحة مؤشرات تركيبات الصوت جوّه «مؤشرات 
     ["متوسط زمن التركيب", "6.2 ساعة", ""],
   ]);
   // من غير الشرايح التانية: التركيبات لوحدها بتظهّر قسم الأداء
-  const only = defaultDeck(); only.faults.enabled = false; only.maintenance.enabled = false; only.booking.enabled = false; only.customers.growth = false; only.selfEffort.enabled = false;
+  const only = defaultDeck(); only.faults.enabled = false; only.maintenance.enabled = false; only.booking.enabled = false; only.customers.growth = false; only.selfEffort.enabled = false; only.ftts.enabled = false;
   assert.ok(kinds(only).includes("divider:مؤشرات ومعدلات الأداء"));
   // مقفولة أو فاضية ⇒ مفيش شريحة
   only.installs.enabled = false; only.reassign.enabled = false;
@@ -892,4 +893,46 @@ test("تزويد بالجهود الذاتية: شريحة لوحدها بعد �
     const dd = defaultDeck(); Object.assign(dd.selfEffort, r);
     assert.ok(!buildSlides(dd, null).some((x) => x.kind === "table" && x.title === SELF_EFFORT_TITLE), JSON.stringify(r));
   }
+});
+
+test("خطة FTTS: نفس أعمدة جدول المنطقة، والإجماليات بتتحسب، وبعد خطة MSAN", async () => {
+  const { FTTS_COLS, FTTS_INPUTS, fttsRows, fttsItems, fttsCells } = await import("../shared/presentation-deck");
+  assert.equal(FTTS_COLS.length, 36);
+  assert.equal(FTTS_INPUTS.length, 32);
+  assert.equal(FTTS_INPUTS[7], "مسار مدنى — فودافون");
+  // صف أسيوط من صورة المالك: 8 مواقع (7 فودافون · 1 اورانج · 0 اتصالات) وكل مرحلة 7·1·0
+  const stage = ["7", "1", "0", ""];
+  const r = ["أسيوط", "8", "7", "1", "0", "", "0", ...stage, ...stage, ...stage, ...stage, "6", "4", "1", "0", "", "", "", "100", "100%"];
+  assert.equal(r.length, 32);
+  assert.deepEqual(fttsRows(fttsItems([r])), [r]);
+  const cells = fttsCells("مواقع FTTS 2026", [r]);
+  const data = cells.filter((c) => c.border).map((c) => c.text);
+  assert.equal(data.length, 36);
+  assert.deepEqual(data.slice(0, 7), ["أسيوط", "8", "7", "1", "0", "", "0"]);
+  assert.deepEqual(data.slice(7, 12), ["7", "1", "0", "", "8"]);   // مسار مدنى + إجماليه
+  assert.deepEqual(data.slice(-3), ["", "100%", "100%"]);
+  // كل الخانات جوّه اللوحة ومن اليمين للشمال
+  for (const c of cells) assert.ok(c.x >= 19.9 && c.x + c.w <= 1260.1 && c.y + c.h <= 620, JSON.stringify(c));
+  assert.ok(cells.some((c) => c.text === "زيارات فودافون") && cells.some((c) => c.text === "جاهز للتسليم"));
+  // مرحلة فاضية كلها ⇒ إجماليها فاضى
+  assert.equal(fttsCells("", [["الغنايم"]]).filter((c) => c.border)[11].text, "");
+  // فى العرض: بعد خطة MSAN
+  const d = defaultDeck(); d.msan.total = "3";
+  const k = buildSlides(d, null).map((s) => s.kind + ":" + ("title" in s ? s.title : ""));
+  const fi = k.indexOf("cells:خطة FTTS سبتمبر 2026");
+  assert.ok(fi > 0 && k[fi - 1].startsWith("msan:"));
+  d.ftts.enabled = false;
+  assert.ok(!buildSlides(d, null).some((s) => s.kind === "cells"));
+});
+
+test("باور بوينت: شريحة FTTS بالنص بالطول للأعمدة الضيقة", async () => {
+  const JSZip = (await import("jszip")).default;
+  const { deckPptx } = await import("./presentation-pptx");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  const im = { data: png, ext: "png" as const, w: 1, h: 1 };
+  const slides = buildSlides(defaultDeck(), null);
+  const idx = slides.findIndex((x) => x.kind === "cells") + 1;
+  const zip = await JSZip.loadAsync(await deckPptx(slides, { weWhite: im, wePurple: im, telecomEgypt: im }, new Map()));
+  const xml = await zip.file(`ppt/slides/slide${idx}.xml`)!.async("string");
+  for (const t of ["خطة FTTS", "مسار مدنى", "لحام فيبر", "زيارات اورانج", "نسبة المدنى", "الغنايم", 'vert="vert270"']) assert.ok(xml.includes(t), t);
 });

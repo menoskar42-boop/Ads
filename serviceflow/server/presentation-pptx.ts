@@ -5,7 +5,7 @@
  * ونصوص عادية قابلة للتعديل فى باور بوينت (الرسم البيانى أعمدة مرسومة بنفس شكل الريفرنس).
  */
 import JSZip from "jszip";
-import { compareLayout, lineChartGeom, LINE_CHART, tableFs, subTableLayout, beforeAfterLayout, msanLayout, msanHeadCells, type Slide } from "../shared/presentation-deck";
+import { compareLayout, lineChartGeom, LINE_CHART, tableFs, subTableLayout, beforeAfterLayout, msanLayout, msanHeadCells, type MsanCell, type Slide } from "../shared/presentation-deck";
 
 export type DeckImage = { data: Buffer; ext: "png" | "jpeg"; w: number; h: number };
 export type DeckAssets = { weWhite: DeckImage; wePurple: DeckImage; telecomEgypt: DeckImage };
@@ -46,7 +46,7 @@ class SlideXml {
   }
   /** مستطيل/دايرة (من غير نص أو بنص) */
   box(x: number, y: number, w: number, h: number, o: { fill?: string; grad?: [string, string]; geom?: "rect" | "ellipse" | "roundRect";
-    paras?: Para[]; anchor?: "t" | "ctr" | "b"; inset?: number; shadow?: boolean; line?: string } = {}) {
+    paras?: Para[]; anchor?: "t" | "ctr" | "b"; inset?: number; shadow?: boolean; line?: string; vert?: boolean } = {}) {
     const fill = o.grad
       ? `<a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:srgbClr val="${o.grad[0]}"/></a:gs><a:gs pos="100000"><a:srgbClr val="${o.grad[1]}"/></a:gs></a:gsLst><a:lin ang="0" scaled="0"/></a:gradFill>`
       : o.fill ? `<a:solidFill><a:srgbClr val="${o.fill}"/></a:solidFill>` : "<a:noFill/>";
@@ -56,7 +56,7 @@ class SlideXml {
     this.shapes.push(`<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Shape ${id}"/><p:cNvSpPr${o.paras ? ' txBox="1"' : ""}/><p:nvPr/></p:nvSpPr>`
       + `<p:spPr>${this.xfrm(x, y, w, h)}<a:prstGeom prst="${o.geom || "rect"}"><a:avLst/></a:prstGeom>${fill}`
       + (o.line ? `<a:ln w="${e(2)}"><a:solidFill><a:srgbClr val="${o.line}"/></a:solidFill></a:ln>` : `<a:ln><a:noFill/></a:ln>`) + `${shadow}</p:spPr>`
-      + `<p:txBody><a:bodyPr wrap="square" lIns="${ins}" tIns="${ins}" rIns="${ins}" bIns="${ins}" rtlCol="1" anchor="${o.anchor || "t"}"><a:noAutofit/></a:bodyPr><a:lstStyle/>`
+      + `<p:txBody><a:bodyPr wrap="square" lIns="${ins}" tIns="${ins}" rIns="${ins}" bIns="${ins}" rtlCol="1"${o.vert ? ' vert="vert270"' : ""} anchor="${o.anchor || "t"}"><a:noAutofit/></a:bodyPr><a:lstStyle/>`
       + (o.paras?.length ? this.paras(o.paras) : `<a:p><a:endParaRPr lang="ar-EG" dirty="0"/></a:p>`) + `</p:txBody></p:sp>`);
   }
   text(x: number, y: number, w: number, h: number, paras: Para[], anchor: "t" | "ctr" | "b" = "t") {
@@ -135,6 +135,10 @@ const NS = `xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmln
 const textW = (t: string, size: number) => Math.min(1180, Math.round(String(t).length * size * 0.56));
 
 function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => DeckImage | null) {
+  const cells = (list: MsanCell[]) => {
+    for (const c of list) sx.box(c.x, c.y, c.w, c.h, { fill: c.fill, line: c.border ? "BFBFBF" : "FFFFFF", anchor: "ctr", inset: c.vert ? 2 : 4, vert: c.vert,
+      paras: [{ runs: [{ text: c.text, size: c.size, bold: c.bold, color: c.color }], align: "ctr" }] });
+  };
   const footer = () => {
     sx.pic(A.wePurple, 22, 720 - 20 - 72, 72, 72);
     const th = (264 * A.telecomEgypt.h) / (A.telecomEgypt.w || 1);
@@ -272,14 +276,18 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
       footer();
       return;
     }
+    case "cells": {
+      // خطة FTTS: الخانات جاهزة الأماكن من fttsCells (نفس DeckSlide)
+      title(s.title);
+      cells(s.cells);
+      footer();
+      return;
+    }
     case "msan": {
       // نفس DeckSlide (msanLayout + msanHeadCells): الملخص بعناوين على صفين، وجدول الكباين تحته
       title(s.title);
       const L = msanLayout(s.rows.length, !!s.head);
-      if (s.head && L.head) for (const c of msanHeadCells(s.head, L.head)) {
-        sx.box(c.x, c.y, c.w, c.h, { fill: c.fill, line: c.border ? "BFBFBF" : "FFFFFF", anchor: "ctr", inset: 4,
-          paras: [{ runs: [{ text: c.text, size: c.size, bold: c.bold, color: c.color }], align: "ctr" }] });
-      }
+      if (s.head && L.head) cells(msanHeadCells(s.head, L.head));
       if (s.rows.length) sx.table(L.table.x, L.table.y, L.table.w, s.columns, s.rows, L.table.fs, false);
       footer();
       return;
