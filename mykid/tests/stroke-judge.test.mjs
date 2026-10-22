@@ -265,6 +265,13 @@ test("scoreDrawing: same letter smaller/shifted/slanted/shaky passes; another le
   assert.deepEqual(M[0][0], [24, 85], "M starts at the bottom");
   assert.ok(scoreDrawing(M, [[[24, 85], [24, 15], [50, 62]], [[50, 62], [76, 15], [76, 85]]]).score >= SCORE_PASS, "M lifted at the valley");
   assert.ok(scoreDrawing(M, [[[24, 15], [24, 85]], [[24, 15], [50, 62], [76, 15], [76, 85]]]).score < SCORE_PASS, "M from the top no longer counts");
+  // N من تحت زى M (المالك ٢٠٢٦-١٠-٢٢)
+  const N = strokesFor("N");
+  assert.equal(N.length, 1);
+  assert.deepEqual(N[0][0], [28, 85], "N starts at the bottom");
+  assert.ok(scoreDrawing(N, [[[28, 85], [28, 15], [72, 85], [72, 15]]]).score >= SCORE_PASS, "N in one stroke");
+  assert.ok(scoreDrawing(N, [[[28, 85], [28, 15]], [[28, 15], [72, 85], [72, 15]]]).score >= SCORE_PASS, "N lifted at the top");
+  assert.ok(scoreDrawing(N, [[[28, 15], [28, 85]], [[28, 15], [72, 85], [72, 15]]]).score < SCORE_PASS, "N from the top no longer counts");
 });
 
 // المالك ٢٠٢٦-١٠-١٤: «ميزو يوضّح للطفل سبب المشكلة بطريقة لطيفة» — سبب واحد بس، والجملة بتشجّع
