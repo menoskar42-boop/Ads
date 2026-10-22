@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, slideKeys, visibleSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, MAX_SET_PHOTOS, MAX_PHOTO_SETS, type MaintPhotoSet, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, slideKeys, visibleSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, MAX_SET_PHOTOS, MAX_PHOTO_SETS, type MaintPhotoSet, MSAN_COLUMNS, msanRows, msanItems, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -62,6 +62,32 @@ function CareerEditor({ items, onChange }: { items: string; onChange: (items: st
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" onClick={() => set([...list, { job: "", from: "", to: "" }])} data-testid="career-add">+ إضافة وظيفة</Button>
+    </div>
+  );
+}
+
+/** جدول كباين «خطة MSAN»: صف لكل كابينة بـ٦ خانات — حالة محلية زى المسار الوظيفى عشان المسافات ماتتمسحش وانت بتكتب */
+function MsanEditor({ items, onChange }: { items: string; onChange: (items: string) => void }) {
+  const blank = () => MSAN_COLUMNS.map(() => "");
+  const [list, setList] = useState<string[][]>(() => (msanRows(items).length ? msanRows(items) : [blank()]));
+  useEffect(() => { if (msanItems(list.filter((r) => r.some((c) => c.trim()))) !== items) setList(msanRows(items).length ? msanRows(items) : [blank()]); }, [items]);
+  const set = (next: string[][]) => { setList(next); onChange(msanItems(next.filter((r) => r.some((c) => c.trim())))); };
+  const ph = ["11-1-216-41", "سوهاج شرق", "بندار الكرمانية", "12/05/2026", "كهرباء فقط", "EXBAND"];
+  return (
+    <div className="space-y-2 overflow-x-auto">
+      <div className="grid grid-cols-[repeat(6,minmax(110px,1fr))_36px] gap-1 text-xs text-muted-foreground min-w-[760px]">
+        {MSAN_COLUMNS.map((c) => <span key={c}>{c}</span>)}<span />
+      </div>
+      {list.map((r, i) => (
+        <div key={i} className="grid grid-cols-[repeat(6,minmax(110px,1fr))_36px] gap-1 items-center min-w-[760px]" data-testid={`msan-row-${i}`}>
+          {r.map((c, j) => (
+            <Input key={j} className="h-8 text-sm" value={c} placeholder={i === 0 ? ph[j] : ""}
+              onChange={(e) => set(list.map((x, k) => (k === i ? x.map((y, q) => (q === j ? e.target.value : y)) : x)))} />
+          ))}
+          <Button type="button" variant="ghost" size="sm" title="حذف" onClick={() => set(list.filter((_, k) => k !== i))}><Trash2 className="w-4 h-4" /></Button>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" onClick={() => set([...list, blank()])} data-testid="msan-add">+ إضافة كابينة</Button>
     </div>
   );
 }
@@ -537,6 +563,28 @@ export function PresentationReport() {
               النسب: {installsRows(d.installs).filter((r) => r[2]).map((r) => `${r[0].replace("التركيب ", "")} ${r[2]}`).join(" · ") || "—"}
             </p>
           </Section>
+
+          {/* بعرض الصفحة كلها — جدول الكباين ٦ خانات */}
+          <div className="lg:col-span-2">
+          <Section title="خطة MSAN" on={d.msan.enabled} onToggle={(v) => upd("msan", { enabled: v })}>
+            <p className="text-xs text-muted-foreground">شريحة بعد «متبقيات الأعطال» — زى شريحة المنطقة. بتظهر لما تكتب أى رقم أو كابينة.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Field label="عنوان الشريحة"><Input value={d.msan.title} onChange={(e) => upd("msan", { title: e.target.value })} /></Field>
+              <Field label="المنطقة"><Input value={d.msan.region} onChange={(e) => upd("msan", { region: e.target.value })} /></Field>
+              <Field label="المتبقى — الإجمالى" hint={(() => {
+                const a = parseNum(d.msan.over3), b = parseNum(d.msan.under3);
+                return a != null && b != null ? `متجاوز + غير متجاوز = ${a + b}` : undefined;
+              })()}><Input value={d.msan.total} inputMode="numeric" data-testid="msan-total" onChange={(e) => upd("msan", { total: e.target.value })} /></Field>
+              <Field label="متجاوز ٣ شهور"><Input value={d.msan.over3} inputMode="numeric" onChange={(e) => upd("msan", { over3: e.target.value })} /></Field>
+              <Field label="غير متجاوز"><Input value={d.msan.under3} inputMode="numeric" onChange={(e) => upd("msan", { under3: e.target.value })} /></Field>
+              <Field label="تم التمرير MPPS فى انتظار RFS"><Input value={d.msan.mpps} onChange={(e) => upd("msan", { mpps: e.target.value })} /></Field>
+              <div className="col-span-2">
+                <Field label="تم إصدار RFS فى انتظار الإحلال"><Input value={d.msan.rfs} onChange={(e) => upd("msan", { rfs: e.target.value })} placeholder="مثال: 1 قطع 25 أكتوبر & 1 تحتاج تزويد 4 كروت" /></Field>
+              </div>
+            </div>
+            <MsanEditor items={d.msan.items} onChange={(items) => upd("msan", { items })} />
+          </Section>
+          </div>
 
           <Section title="خطة الصيانة" on={d.maintenance.enabled} onToggle={(v) => upd("maintenance", { enabled: v })}>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

@@ -5,7 +5,7 @@
  * ونصوص عادية قابلة للتعديل فى باور بوينت (الرسم البيانى أعمدة مرسومة بنفس شكل الريفرنس).
  */
 import JSZip from "jszip";
-import { compareLayout, lineChartGeom, LINE_CHART, tableFs, subTableLayout, beforeAfterLayout, type Slide } from "../shared/presentation-deck";
+import { compareLayout, lineChartGeom, LINE_CHART, tableFs, subTableLayout, beforeAfterLayout, msanLayout, msanHeadCells, type Slide } from "../shared/presentation-deck";
 
 export type DeckImage = { data: Buffer; ext: "png" | "jpeg"; w: number; h: number };
 export type DeckAssets = { weWhite: DeckImage; wePurple: DeckImage; telecomEgypt: DeckImage };
@@ -269,6 +269,18 @@ function render(s: Slide, sx: SlideXml, A: DeckAssets, img: (id: string) => Deck
         if (p.note) sx.text(x, L.cardTop + L.cardH + 64, L.panelW, 60, [{ runs: [{ text: p.note, size: 17, color: "444444" }], align: "ctr" }]);
       });
       if (s.table) sx.table(40, L.tableTop, 1200, s.table.columns, s.table.rows, 17, false);
+      footer();
+      return;
+    }
+    case "msan": {
+      // نفس DeckSlide (msanLayout + msanHeadCells): الملخص بعناوين على صفين، وجدول الكباين تحته
+      title(s.title);
+      const L = msanLayout(s.rows.length, !!s.head);
+      if (s.head && L.head) for (const c of msanHeadCells(s.head, L.head)) {
+        sx.box(c.x, c.y, c.w, c.h, { fill: c.fill, line: c.border ? "BFBFBF" : "FFFFFF", anchor: "ctr", inset: 4,
+          paras: [{ runs: [{ text: c.text, size: c.size, bold: c.bold, color: c.color }], align: "ctr" }] });
+      }
+      if (s.rows.length) sx.table(L.table.x, L.table.y, L.table.w, s.columns, s.rows, L.table.fs, false);
       footer();
       return;
     }

@@ -41,6 +41,9 @@ export type Deck = {
   /** مؤشرات تركيبات الصوت (المالك ٢٠٢٦-١٠-٢١، من تقرير المنطقة الشهرى) — صف الغنايم بس، من غير المنطقة */
   /** remaining: متبقيات الأعطال (المالك ٢٠٢٦-١٠-٢١: «لا توجد متبقيات بإدارة الغنايم») — 0 = لا توجد، والفاضى = مش ظاهرة */
   installs: { enabled: boolean; period: string; total: string; in24: string; in48: string; in120: string; avgHours: string; remaining: string };
+  /** «خطة MSAN» (المالك ٢٠٢٦-١٠-٢٢ — زى شريحة المنطقة): ملخص المتبقى من عناصر التشغيل + جدول الكباين.
+   *  items: سطر لكل كابينة «الكود | السنترال الرئيسى | السنترال | تاريخ التركيب | متبقى أعمال | سبب الإدراج» */
+  msan: { enabled: boolean; title: string; region: string; total: string; over3: string; under3: string; mpps: string; rfs: string; items: string };
   achievements: { enabled: boolean; items: string; photoIds: string[] };
   vision: { enabled: boolean; items: string };
   closing: { enabled: boolean; text: string };
@@ -93,6 +96,7 @@ export function defaultDeck(): Deck {
       curLabel: "السنة دى", curTarget: "70", curAchieved: "97.5" },
     // أرقام الغنايم من «تقرير مؤشرات تركيبات الصوت - سبتمبر 2026» — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
     installs: { enabled: true, period: "سبتمبر 2026", total: "157", in24: "155", in48: "157", in120: "157", avgHours: "6.2", remaining: "0" },
+    msan: { enabled: true, title: "خطة MSAN أكتوبر 2026", region: "إدارة الغنايم", total: "", over3: "", under3: "", mpps: "", rfs: "", items: "" },
     achievements: { enabled: false, items: "", photoIds: [] },
     vision: { enabled: false, items: "" },
     closing: { enabled: true, text: "شكراً لحسن استماعكم" },
@@ -117,7 +121,7 @@ export function normalizeDeck(raw: any): Deck {
     return out;
   };
   if (!raw || typeof raw !== "object") return d;
-  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "achievements", "vision", "closing"] as const) {
+  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "msan", "achievements", "vision", "closing"] as const) {
     (d as any)[k] = pick((d as any)[k], raw[k]);
   }
   // شرايح «قبل وبعد»: لحد ١٢ شريحة، وكل واحدة لحد صورتين قبل وصورتين بعد (pick مابيعرفش المصفوفات المركّبة)
@@ -234,6 +238,8 @@ export type Slide =
       /** «متوسط ديسمبر 2025 – سبتمبر 2026: X مقابل Y فى نوفمبر 2025» */
       avgNote?: string }
   | { kind: "photos"; title: string; photoIds: string[] }
+  /** «خطة MSAN»: ملخص بعناوين متداخلة (head) + جدول الكباين — head = null فى شرايح «تابع» */
+  | { kind: "msan"; title: string; head: MsanHead | null; columns: string[]; rows: string[][] }
   /** صور قبل الصيانة (يمين) وبعدها (شمال) — لحد صورتين فى كل ناحية */
   | { kind: "beforeAfter"; title: string; caption: string; before: string[]; after: string[] }
   | { kind: "closing"; text: string }
@@ -250,6 +256,49 @@ export function compareLayout(n: number) {
     xOf: (i: number) => startRight - panelW - i * (panelW + gap),   // left لكل لوحة
   };
 }
+export type MsanHead = { region: string; total: string; over3: string; under3: string; mpps: string; rfs: string };
+export const MSAN_COLUMNS = ["كود الكابينة", "السنترال الرئيسى", "السنترال", "تاريخ تركيب الكابينة", "متبقى أعمال", "سبب الإدراج"];
+export const MSAN_ROWS_PER_SLIDE = 11;
+/** سطور «خطة MSAN» ⇒ صفوف بـ٦ خانات (الناقص فاضى، والسطر الفاضى بيتشال) */
+export function msanRows(items: string): string[][] {
+  return String(items || "").split(/\r?\n/).filter((l) => l.trim())
+    .map((l) => { const c = l.split("|").map((x) => x.trim()); return MSAN_COLUMNS.map((_, i) => c[i] || ""); });
+}
+export const msanItems = (rows: string[][]) => rows.map((r) => r.map((c) => c.replace(/[|\r\n]/g, " ").trim()).join(" | ")).join("\n");
+
+/** هندسة «خطة MSAN» (الصفحة والباور بوينت بنفس الأرقام): الملخص فوق بعناوين على صفين، والجدول تحته فى النص */
+export function msanLayout(nRows: number, withHead: boolean) {
+  // الأعمدة من اليمين: المنطقة · الإجمالى · متجاوز ٣ شهور · غير متجاوز · MPPS · RFS
+  const widths = [230, 140, 150, 140, 200, 340];
+  let x = 1240;
+  const cols = widths.map((w) => { x -= w; return { x, w }; });
+  const head = withHead ? { y1: 116, h1: 44, y2: 160, h2: 36, yData: 196, hData: 56, cols } : null;
+  const fs = nRows > 8 ? 13 : nRows > 5 ? 15 : 17;
+  return { head, table: { x: 140, w: 1000, y: withHead ? 272 : 122, fs } };
+}
+
+/** خانات ملخص «خطة MSAN» جاهزة للرسم (مكان + لون + نص) — نفس الشكل فى الصفحة والباور بوينت */
+export type MsanCell = { x: number; y: number; w: number; h: number; text: string; fill: string; color: string; size: number; bold: boolean; border: boolean };
+export function msanHeadCells(h: MsanHead, L: NonNullable<ReturnType<typeof msanLayout>["head"]>): MsanCell[] {
+  const [rg, tot, ov, un, mp, rf] = L.cols;
+  const PUR = "7030A0", YEL = "FFFF00", RED = "C00000";
+  const both = L.h1 + L.h2;
+  const hd = (c: { x: number; w: number }, text: string, y = L.y1, hh = both): MsanCell =>
+    ({ x: c.x, y, w: c.w, h: hh, text, fill: PUR, color: "FFFFFF", size: 16, bold: true, border: false });
+  const yl = (c: { x: number; w: number }, text: string): MsanCell =>
+    ({ x: c.x, y: L.y2, w: c.w, h: L.h2, text, fill: YEL, color: RED, size: 16, bold: true, border: false });
+  const dt = (c: { x: number; w: number }, text: string, size = 20): MsanCell =>
+    ({ x: c.x, y: L.yData, w: c.w, h: L.hData, text, fill: "FFFFFF", color: "111111", size, bold: true, border: true });
+  return [
+    hd(rg, "المنطقة"),
+    hd({ x: un.x, w: rg.x - un.x }, "المتبقى من عناصر التشغيل", L.y1, L.h1),
+    yl(tot, "الإجمالى"), yl(ov, "متجاوز ٣ شهور"), yl(un, "غير متجاوز"),
+    hd(mp, "تم التمرير MPPS فى انتظار RFS"),
+    hd(rf, "تم إصدار RFS فى انتظار الإحلال"),
+    dt(rg, h.region, 17), dt(tot, h.total), dt(ov, h.over3), dt(un, h.under3), dt(mp, h.mpps), dt(rf, h.rfs, 15),
+  ];
+}
+
 export type MaintPhotoSet = { label: string; before: string[]; after: string[] };
 export const MAX_SET_PHOTOS = 2;
 export const MAX_PHOTO_SETS = 12;
@@ -707,6 +756,19 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
       delta: `\u200E${g.pct >= 0 ? "+" : ""}${fmtNum(g.pct)}%`,
       note: why }],
       table: { columns: g.months.map((m) => monthLabel(m.month, "short")), rows: [g.months.map((m) => (m.working ?? 0).toLocaleString("en-US"))] } });
+  }
+  // المالك ٢٠٢٦-١٠-٢٢: «خطة MSAN» بعد «متبقيات الأعطال» — والبيانات من صفحة الإعدادات
+  const ms = deck.msan;
+  const mRows = msanRows(ms.items);
+  const mHead: MsanHead = { region: ms.region, total: ms.total, over3: ms.over3, under3: ms.under3, mpps: ms.mpps, rfs: ms.rfs };
+  if (ms.enabled && (mRows.length || [ms.total, ms.over3, ms.under3, ms.mpps, ms.rfs].some((x) => x.trim()))) {
+    const at = perfExtra.findIndex((x) => x.kind === "table" && x.title === "متبقيات الأعطال");
+    const add: Slide[] = [{ kind: "msan", title: ms.title.trim() || "خطة MSAN", head: mHead, columns: MSAN_COLUMNS, rows: mRows.slice(0, MSAN_ROWS_PER_SLIDE) }];
+    for (let i = MSAN_ROWS_PER_SLIDE; i < mRows.length; i += 14)
+      add.push({ kind: "msan", title: `${ms.title.trim() || "خطة MSAN"} (تابع)`, head: null, columns: MSAN_COLUMNS, rows: mRows.slice(i, i + 14) });
+    // بعد «متبقيات الأعطال» — ولو مش موجودة بعد «مؤشرات تركيبات الصوت»، وإلا أول القسم
+    const after = at >= 0 ? at : perfExtra.findIndex((x) => x.kind === "table" && x.title.startsWith("مؤشرات تركيبات الصوت"));
+    perfExtra.splice(after + 1, 0, ...add);
   }
   if (deck.achievements.enabled && (deck.achievements.items || deck.achievements.photoIds.length)) {
     if (deck.achievements.items) achv.push({ kind: "list", title: "أهم الإنجازات", lead: "", items: lines(deck.achievements.items) });

@@ -4,7 +4,7 @@
  * اللوحة ثابتة ١٢٨٠×٧٢٠ وبتتصغّر/تتكبّر بـ scale — نفس النسب فى المعاينة والعرض الكامل.
  */
 import { useEffect, useRef, useState } from "react";
-import { compareLayout, lineChartGeom, LINE_CHART, tableFs, tableRowH, subTableLayout, beforeAfterLayout, type Slide } from "@shared/presentation-deck";
+import { compareLayout, lineChartGeom, LINE_CHART, tableFs, tableRowH, subTableLayout, beforeAfterLayout, msanLayout, msanHeadCells, type Slide } from "@shared/presentation-deck";
 import { withBase } from "@/lib/base-path";
 import weWhite from "@/assets/presentation/we-white.png";
 import wePurple from "@/assets/presentation/we-purple.png";
@@ -238,6 +238,31 @@ function SlideBody({ s }: { s: Slide }) {
             <table style={{ position: "absolute", top: L.tableTop, right: 40, width: 1200, borderCollapse: "collapse", fontSize: 17, fontWeight: 700, textAlign: "center" }}>
               <thead><tr>{s.table.columns.map((h, i) => <th key={i} style={{ background: TITLE, color: "#fff", padding: "6px 8px", border: "2px solid #fff" }}>{h}</th>)}</tr></thead>
               <tbody>{s.table.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} style={{ background: ROW_A, padding: "6px 8px", border: "2px solid #fff" }}>{c}</td>)}</tr>)}</tbody>
+            </table>
+          )}
+          <Footer />
+        </>
+      );
+    }
+    case "msan": {
+      // المالك ٢٠٢٦-١٠-٢٢: زى شريحة المنطقة — ملخص بعناوين على صفين + جدول الكباين (نفس presentation-pptx.ts)
+      const L = msanLayout(s.rows.length, !!s.head);
+      const rowH = tableRowH(L.table.fs);
+      return (
+        <>
+          <Title text={s.title} />
+          {s.head && L.head && msanHeadCells(s.head, L.head).map((c, i) => (
+            <div key={i} style={{ position: "absolute", left: c.x, top: c.y, width: c.w, height: c.h, background: `#${c.fill}`, color: `#${c.color}`,
+              fontSize: c.size, fontWeight: c.bold ? 700 : 400, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
+              boxSizing: "border-box", border: c.border ? "1px solid #BFBFBF" : "2px solid #fff", padding: "0 6px", lineHeight: 1.2 }}>{c.text}</div>
+          ))}
+          {s.rows.length > 0 && (
+            <table style={{ position: "absolute", top: L.table.y, left: L.table.x, width: L.table.w, borderCollapse: "collapse", fontSize: L.table.fs,
+              fontWeight: 700, textAlign: "center", lineHeight: 1.15 }}>
+              <thead><tr style={{ height: rowH }}>{s.columns.map((h, i) => <th key={i} style={{ background: TITLE, color: "#fff", border: "2px solid #fff", padding: "0 6px" }}>{h}</th>)}</tr></thead>
+              <tbody>{s.rows.map((r, i) => (
+                <tr key={i} style={{ height: rowH }}>{r.map((c, j) => <td key={j} style={{ background: i % 2 ? ROW_B : ROW_A, color: "#111", border: "2px solid #fff", padding: "0 6px" }}>{c}</td>)}</tr>
+              ))}</tbody>
             </table>
           )}
           <Footer />

@@ -746,3 +746,51 @@ test("زرار إخفاء الشريحة: المخفية مش فى العرض و
   // مسار الباور بوينت بيفلتر المخفية
   assert.match(routes, /const slides = visibleSlides\(deck, buildSlides\(deck, await autoDeck\(pool, deck\)\)\);/);
 });
+
+test("خطة MSAN: بعد «متبقيات الأعطال»، ملخص بعناوين على صفين + جدول الكباين، والباقى «تابع»", async () => {
+  const { msanRows, msanItems, msanLayout, msanHeadCells } = await import("../shared/presentation-deck");
+  const d = defaultDeck();
+  // فاضية ⇒ مفيش شريحة
+  assert.ok(!buildSlides(d, auto).some((s) => s.kind === "msan"));
+  const rows = [
+    ["11-1-216-41", "سوهاج شرق", "بندار الكرمانية", "12/05/2026", "كهرباء فقط", "EXBAND"],
+    ["11-1-267-30", "أخميم وساقلته", "سفلاق-ساقلته", "25/05/2026", "مدنى وكهرباء", "EXBAND"],
+    ["11-1-01-05", "سوهاج غرب", "سوهاج غرب", "20/08/2026", "مدنى وكهرباء", "SWAP"],
+  ];
+  Object.assign(d.msan, { region: "منطقة تليفونات سوهاج", total: "11", over3: "2", under3: "9", mpps: "1",
+    rfs: "1 قطع 25 أكتوبر & 1 تحتاج تزويد 4 كروت", items: msanItems(rows) });
+  assert.deepEqual(msanRows(d.msan.items), rows);
+  const all = buildSlides(d, auto);
+  const k = all.map((s) => s.kind + ":" + ("title" in s ? s.title : ""));
+  assert.equal(k.indexOf("msan:خطة MSAN أكتوبر 2026"), k.indexOf("table:متبقيات الأعطال") + 1);
+  const m = all.find((s) => s.kind === "msan") as any;
+  assert.deepEqual(m.head, { region: "منطقة تليفونات سوهاج", total: "11", over3: "2", under3: "9", mpps: "1", rfs: "1 قطع 25 أكتوبر & 1 تحتاج تزويد 4 كروت" });
+  assert.deepEqual(m.columns, ["كود الكابينة", "السنترال الرئيسى", "السنترال", "تاريخ تركيب الكابينة", "متبقى أعمال", "سبب الإدراج"]);
+  assert.deepEqual(m.rows, rows);
+  // الملخص: «المتبقى من عناصر التشغيل» فوق الإجمالى/متجاوز/غير متجاوز (أصفر)، والمنطقة يمين
+  const L = msanLayout(3, true);
+  const cells = msanHeadCells(m.head, L.head!);
+  const cell = (t: string) => cells.find((c) => c.text === t)!;
+  assert.ok(cell("المنطقة").x > cell("الإجمالى").x && cell("الإجمالى").x > cell("غير متجاوز").x);
+  const grp = cell("المتبقى من عناصر التشغيل");
+  assert.equal(grp.x, cell("غير متجاوز").x);
+  assert.equal(grp.x + grp.w, cell("الإجمالى").x + cell("الإجمالى").w);
+  assert.equal(cell("متجاوز ٣ شهور").fill, "FFFF00");
+  assert.equal(cell("المنطقة").h, cell("المتبقى من عناصر التشغيل").h + cell("الإجمالى").h);
+  assert.ok(L.table.y > L.head!.yData + L.head!.hData);
+  // ١١ كابينة فى الأولى، والباقى «تابع»
+  d.msan.items = msanItems(Array.from({ length: 20 }, (_, i) => [`11-1-${i}`, "x", "y", "01/01/2026", "z", "EXBAND"]));
+  const ms = buildSlides(d, auto).filter((s) => s.kind === "msan") as any[];
+  assert.deepEqual(ms.map((s) => [s.title, s.rows.length, !!s.head]), [["خطة MSAN أكتوبر 2026", 11, true], ["خطة MSAN أكتوبر 2026 (تابع)", 9, false]]);
+  // الحفظ بيحافظ عليها، والمقفولة مابتظهرش
+  assert.equal(normalizeDeck(JSON.parse(JSON.stringify(d))).msan.items, d.msan.items);
+  d.msan.enabled = false;
+  assert.ok(!buildSlides(d, auto).some((s) => s.kind === "msan"));
+  // باور بوينت
+  const JSZip = (await import("jszip")).default;
+  const { deckPptx } = await import("./presentation-pptx");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  const im = { data: png, ext: "png" as const, w: 1, h: 1 };
+  const xml = await (await JSZip.loadAsync(await deckPptx([m], { weWhite: im, wePurple: im, telecomEgypt: im }, new Map()))).file("ppt/slides/slide1.xml")!.async("string");
+  for (const t of ["المتبقى من عناصر التشغيل", "متجاوز ٣ شهور", "تم التمرير MPPS فى انتظار RFS", "11-1-216-41", "بندار الكرمانية", "SWAP"]) assert.ok(xml.includes(t), t);
+});
