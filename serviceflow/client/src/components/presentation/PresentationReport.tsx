@@ -585,6 +585,20 @@ export function PresentationReport() {
             </p>
           </Section>
 
+          {/* المالك ٢٠٢٦-١٠-٢٢: صف الغنايم من «مبادرات تزويدات لإزالة المتعذرات» — شريحة بعد نسبة الحجز */}
+          <Section title="تزويد بالجهود الذاتية" on={d.selfEffort.enabled} onToggle={(v) => upd("selfEffort", { enabled: v })}>
+            <p className="text-xs text-muted-foreground">شريحة لوحدها بعد «نسبة الحجز وفك المتعذرات» — كل الأرقام فاضية = مش ظاهرة.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <Field label="الإدارة"><Input value={d.selfEffort.region} onChange={(e) => upd("selfEffort", { region: e.target.value })} placeholder="الغنايم" /></Field>
+              <Field label="مبادرات تمت الموافقة عليها ولها جدوى"><Input value={d.selfEffort.approved} inputMode="numeric" data-testid="self-approved" onChange={(e) => upd("selfEffort", { approved: e.target.value })} /></Field>
+              <Field label="إجمالى عدد المتعذرات"><Input value={d.selfEffort.blocked} inputMode="numeric" onChange={(e) => upd("selfEffort", { blocked: e.target.value })} /></Field>
+              <Field label="البكسيات المطلوب إنشاؤها"><Input value={d.selfEffort.boxes} inputMode="numeric" onChange={(e) => upd("selfEffort", { boxes: e.target.value })} /></Field>
+              <Field label="مبادرات تم تنفيذها"><Input value={d.selfEffort.done} inputMode="numeric" onChange={(e) => upd("selfEffort", { done: e.target.value })} /></Field>
+              <Field label="عملاء تم فك تعذرهم"><Input value={d.selfEffort.resolved} inputMode="numeric" onChange={(e) => upd("selfEffort", { resolved: e.target.value })} /></Field>
+            </div>
+            <Field label="ملاحظات"><Input value={d.selfEffort.notes} onChange={(e) => upd("selfEffort", { notes: e.target.value })} /></Field>
+          </Section>
+
           {/* المالك ٢٠٢٦-١٠-٢٢: جدول REASSIGN تحت «متبقيات الأعطال» — صف الغنايم من «Reopen Data Report» */}
           <Section title="REASSIGN (إعادة فتح الشكوى)" on={d.reassign.enabled} onToggle={(v) => upd("reassign", { enabled: v })}>
             <p className="text-xs text-muted-foreground">بيظهر جدول تحت «متبقيات الأعطال» — النسبة بتتحسب لوحدها من الإجمالى.</p>

@@ -43,7 +43,8 @@ test("الأقسام الاختيارية (حياة كريمة · الإنجاز
   // المالك ٢٠٢٦-١٠-٢١: «بلاش مبادرات وأهم الإنجازات» — لا فى الأجندة ولا فاصل، حتى والشرايح نفسها موجودة
   const full = defaultDeck(); full.achievements = { enabled: true, items: "صيانة ٢١٤ بكس", photoIds: [] };
   const all = buildSlides(full, auto);
-  assert.ok(!JSON.stringify(all).includes("مبادرات"));
+  // («مبادرات تزويدات لإزالة المتعذرات» شريحة تانية طلبها المالك ٢٠٢٦-١٠-٢٢ — مش القسم ده)
+  assert.ok(!JSON.stringify(all).includes("مبادرات وأهم"));
   assert.deepEqual((all.find((s) => s.kind === "agenda") as any).items, [`نبذة عن ${full.cover.title}`, "مؤشرات ومعدلات الأداء"]);
   assert.ok(all.some((s) => s.kind === "list" && s.title === "أهم الإنجازات"));
   assert.ok(all.some((s) => s.kind === "compare" && s.title.startsWith("نسبة الحجز")));
@@ -204,7 +205,7 @@ test("مؤشرات الأعطال: من يناير 2025 لحد الشهر الح
   hideAll(d, "2026-08,2026-09,2026-10");
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "chart"));
   // فاصل الأداء بيفضل طول ما التركيبات أو الصيانة أو الحجز جوّاه — ويتشال لو القسم كله فاضى
-  d.maintenance.enabled = false; d.booking.enabled = false; d.installs.enabled = false; d.customers.growth = false; d.reassign.enabled = false;
+  d.maintenance.enabled = false; d.booking.enabled = false; d.installs.enabled = false; d.customers.growth = false; d.reassign.enabled = false; d.selfEffort.enabled = false;
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "divider" && s.title === "مؤشرات ومعدلات الأداء"));
 });
 
@@ -390,6 +391,7 @@ test("العرض المحفوظ قبل كده بياخد الخانات الجد
   assert.equal(saved.booking.curAchieved, "97.5");
   assert.equal(saved.booking.curNet, "73");
   assert.deepEqual(saved.reassign, defaultDeck().reassign);
+  assert.deepEqual(saved.selfEffort, defaultDeck().selfEffort);
   assert.equal(saved.achievements.items, "سطر الحجز\nسطر فك المتعذرات");
 });
 
@@ -445,7 +447,7 @@ test("شريحة مؤشرات تركيبات الصوت جوّه «مؤشرات 
     ["متوسط زمن التركيب", "6.2 ساعة", ""],
   ]);
   // من غير الشرايح التانية: التركيبات لوحدها بتظهّر قسم الأداء
-  const only = defaultDeck(); only.faults.enabled = false; only.maintenance.enabled = false; only.booking.enabled = false; only.customers.growth = false;
+  const only = defaultDeck(); only.faults.enabled = false; only.maintenance.enabled = false; only.booking.enabled = false; only.customers.growth = false; only.selfEffort.enabled = false;
   assert.ok(kinds(only).includes("divider:مؤشرات ومعدلات الأداء"));
   // مقفولة أو فاضية ⇒ مفيش شريحة
   only.installs.enabled = false; only.reassign.enabled = false;
@@ -648,7 +650,9 @@ test("نمو قاعدة العملاء (الشغال): نوفمبر 2025 ← ا�
   const slides = buildSlides(d, a);
   const k = slides.map((s) => s.kind + ":" + ("title" in s ? s.title : ""));
   const gi = k.indexOf("compare:نمو قاعدة العملاء (الشغال) — نتيجة ارتفاع نسبة الحجز");
-  assert.ok(gi > 0 && gi === k.findIndex((x) => x.startsWith("compare:نسبة الحجز")) + 1);
+  // بعد شريحة الحجز — وبينهم «تزويد بالجهود الذاتية» بس (المالك ٢٠٢٦-١٠-٢٢: «مع نسب الحجز والمتعذرات»)
+  const bi = k.findIndex((x) => x.startsWith("compare:نسبة الحجز"));
+  assert.ok(gi > 0 && k[bi + 1].startsWith("table:تزويد بالجهود الذاتية") && gi === bi + 2);
   assert.ok(gi > k.indexOf("divider:مؤشرات ومعدلات الأداء"));
   const s = slides[gi] as any;
   assert.equal(s.panels.length, 1);
@@ -870,4 +874,22 @@ test("باور بوينت: جدول REASSIGN بيطلع فى شريحة المت
   const zip = await JSZip.loadAsync(await deckPptx(slides, { weWhite: im, wePurple: im, telecomEgypt: im }, new Map()));
   const xml = await zip.file(`ppt/slides/slide${idx}.xml`)!.async("string");
   for (const t of ["REASSIGN", "Re-open", "348", "4%", "لا توجد متبقيات"]) assert.ok(xml.includes(t), t);
+});
+
+test("تزويد بالجهود الذاتية: شريحة لوحدها بعد نسبة الحجز بصف الغنايم", async () => {
+  const { SELF_EFFORT_TITLE } = await import("../shared/presentation-deck");
+  const d = defaultDeck();
+  const slides = buildSlides(d, null);
+  const i = slides.findIndex((x) => x.kind === "table" && x.title === SELF_EFFORT_TITLE);
+  assert.ok(i > 0);
+  assert.ok(slides[i - 1].kind === "compare" && slides[i - 1].title.startsWith("نسبة الحجز"));
+  const s = slides[i];
+  assert.ok(s.kind === "table");
+  assert.equal(s.columns.length, 7);
+  assert.deepEqual(s.rows, [["الغنايم", "2", "33", "8", "0", "0", "فى انتظار توفير المهمات"]]);
+  // مقفول أو كل الأرقام فاضية ⇒ مفيش شريحة
+  for (const r of [{ enabled: false }, { approved: "", blocked: "", boxes: "", done: "", resolved: "" }]) {
+    const dd = defaultDeck(); Object.assign(dd.selfEffort, r);
+    assert.ok(!buildSlides(dd, null).some((x) => x.kind === "table" && x.title === SELF_EFFORT_TITLE), JSON.stringify(r));
+  }
 });

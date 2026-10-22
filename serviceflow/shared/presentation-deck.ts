@@ -51,6 +51,9 @@ export type Deck = {
   /** REASSIGN (المالك ٢٠٢٦-١٠-٢٢ — من «Reopen Data Report»): إعادة فتح الشكوى مرة فأكثر ÷ الإجمالى — صف الغنايم بس،
    *  جدول تحت «متبقيات الأعطال» */
   reassign: { enabled: boolean; period: string; region: string; reopen: string; total: string };
+  /** «تزويد بالجهود الذاتية» (المالك ٢٠٢٦-١٠-٢٢ — من «مبادرات تزويدات لإزالة المتعذرات بمنطقة أسيوط»): صف الغنايم بس،
+   *  شريحة لوحدها بعد نسبة الحجز وفك المتعذرات (الشريحة دى مليانة) */
+  selfEffort: { enabled: boolean; region: string; approved: string; blocked: string; boxes: string; done: string; resolved: string; notes: string };
   achievements: { enabled: boolean; items: string; photoIds: string[] };
   vision: { enabled: boolean; items: string };
   closing: { enabled: boolean; text: string };
@@ -107,6 +110,8 @@ export function defaultDeck(): Deck {
     msan: { enabled: true, title: "خطة MSAN أكتوبر 2026", region: "إدارة الغنايم", total: "", over3: "", under3: "", mpps: "", rfs: "", items: "" },
     // أرقام الغنايم من «Reopen Data Report - سبتمبر 2026» — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
     reassign: { enabled: true, period: "سبتمبر 2026", region: "الغنايم", reopen: "14", total: "348" },
+    // صف الغنايم من جدول المنطقة (اجتماع تقييم الأداء سبتمبر 2026) — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
+    selfEffort: { enabled: true, region: "الغنايم", approved: "2", blocked: "33", boxes: "8", done: "0", resolved: "0", notes: "فى انتظار توفير المهمات" },
     achievements: { enabled: false, items: "", photoIds: [] },
     vision: { enabled: false, items: "" },
     closing: { enabled: true, text: "شكراً لحسن استماعكم" },
@@ -131,7 +136,7 @@ export function normalizeDeck(raw: any): Deck {
     return out;
   };
   if (!raw || typeof raw !== "object") return d;
-  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "msan", "reassign", "achievements", "vision", "closing"] as const) {
+  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "msan", "reassign", "selfEffort", "achievements", "vision", "closing"] as const) {
     (d as any)[k] = pick((d as any)[k], raw[k]);
   }
   // شرايح «قبل وبعد»: لحد ١٢ شريحة، وكل واحدة لحد صورتين قبل وصورتين بعد (pick مابيعرفش المصفوفات المركّبة)
@@ -433,6 +438,18 @@ export function bookingCompare(b: Deck["booking"]): ComparePanel[] {
       note: `المستهدف اترفع من ${fmtNum(pt)}% إلى ${fmtNum(ct)}% · المحقق من المستهدف ${fmtNum(pa)}% ثم ${fmtNum(curAch)}%` });
   }
   return panels;
+}
+
+/** «تزويد بالجهود الذاتية»: نفس أعمدة جدول المنطقة. كل الأرقام فاضية أو القسم مقفول ⇒ null (مفيش شريحة) */
+export const SELF_EFFORT_TITLE = "تزويد بالجهود الذاتية — مبادرات تزويدات لإزالة المتعذرات";
+export function selfEffortTable(x: Deck["selfEffort"]) {
+  const nums = [x.approved, x.blocked, x.boxes, x.done, x.resolved].map((v) => v.trim());
+  if (!x.enabled || nums.every((v) => !v)) return null;
+  return {
+    columns: ["الإدارة", "عدد المبادرات تم الموافقة عليها ولها جدوى", "إجمالى عدد المتعذرات", "عدد البكسيات المطلوب إنشاؤها",
+      "عدد المبادرات تم تنفيذها", "عدد العملاء تم فك تعذرهم", "ملاحظات"],
+    rows: [[x.region.trim() || "الغنايم", ...nums.map((v) => v || "0"), x.notes.trim()]],
+  };
 }
 
 /** REASSIGN: «إعادة فتح الشكوى مرة فأكثر» ÷ الإجمالى — زى «Reopen Data Report». ناقص رقم ⇒ null (مفيش جدول) */
@@ -790,6 +807,9 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
     if (panels.length) perfExtra.push({ kind: "compare", title, panels, table: { columns, rows } });
     else perfExtra.push({ kind: "table", title, columns, rows, imageId: "", note: "", totalLast: false });
   }
+  // المالك ٢٠٢٦-١٠-٢٢: «الجدول ده فيما يخص الغنايم اعمله مع نسب الحجز والمتعذرات ولو مش هيكفى فى سلايد لوحده»
+  const se = selfEffortTable(deck.selfEffort);
+  if (se) perfExtra.push({ kind: "table", title: SELF_EFFORT_TITLE, columns: se.columns, rows: se.rows, imageId: "", note: "", totalLast: false });
   // المالك ٢٠٢٦-١٠-٢١: «وضّح معدل نمو العملاء (الشغال) من 11-2025 لليوم — كنتيجة على ارتفاع نسب الحجز»
   const g = deck.customers.growth ? customerGrowth(deck, auto) : null;
   if (g) {
