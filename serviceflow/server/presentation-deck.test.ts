@@ -204,7 +204,7 @@ test("مؤشرات الأعطال: من يناير 2025 لحد الشهر الح
   hideAll(d, "2026-08,2026-09,2026-10");
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "chart"));
   // فاصل الأداء بيفضل طول ما التركيبات أو الصيانة أو الحجز جوّاه — ويتشال لو القسم كله فاضى
-  d.maintenance.enabled = false; d.booking.enabled = false; d.installs.enabled = false; d.customers.growth = false;
+  d.maintenance.enabled = false; d.booking.enabled = false; d.installs.enabled = false; d.customers.growth = false; d.reassign.enabled = false;
   assert.ok(!buildSlides(d, a).some((s) => s.kind === "divider" && s.title === "مؤشرات ومعدلات الأداء"));
 });
 
@@ -347,13 +347,20 @@ test("نسبة الحجز وفك المتعذرات: خانات المقارنة
   assert.deepEqual([bk.before.value, bk.after.value, bk.delta], ["88%", "97%", "\u200E+9 نقاط"]);
   assert.equal(bk.before.label, "عند الاستلام (ديسمبر 2025)");
   // الرقم الكبير = الصافى (المستهدف × المحقق)، مش المحقق لوحده
-  assert.deepEqual([bl.before.value, bl.after.value, bl.delta], ["52.5%", "68.25%", "\u200E+15.75 نقطة"]);
+  // المالك ٢٠٢٦-١٠-٢٢: «خلى نسبة التحقيق حالياً 73% بدل 68%» ⇒ curNet، والمحقق من المستهدف بيتحسب منه
+  assert.deepEqual([bl.before.value, bl.after.value, bl.delta], ["52.5%", "73%", "\u200E+20.5 نقطة"]);
   assert.match(bl.note, /المستهدف اترفع من 50% إلى 70%/);
+  assert.match(bl.note, /105% ثم 104\.3%/);
+  // من غير الرقم المكتوب بالإيد ⇒ المستهدف × المحقق زى الأول
+  const calc = bookingCompare({ ...d.booking, curNet: "" })[1];
+  assert.deepEqual([calc.after.value, calc.delta], ["68.25%", "\u200E+15.75 نقطة"]);
+  assert.match(calc.note, /105% ثم 97\.5%/);
   assert.doesNotMatch(`${bl.before.value} ${bl.after.value}`, /105|97\.5/);
   // جدول التفاصيل لسه تحتهم
   assert.deepEqual(s.table?.rows, [["1267", "1230", "36", "0", "0", "1", "97%"]]);
   // لوحة واحدة بس لو فك المتعذرات ناقص
-  assert.equal(bookingCompare({ ...d.booking, curAchieved: "" }).length, 1);
+  assert.equal(bookingCompare({ ...d.booking, curAchieved: "", curNet: "" }).length, 1);
+  assert.equal(bookingCompare({ ...d.booking, curAchieved: "" }).length, 2);
 });
 
 test("نسبة الحجز وفك المتعذرات: خانات المقارنة فاضية ⇒ الشريحة زى ما كانت بالظبط", () => {
@@ -381,6 +388,8 @@ test("العرض المحفوظ قبل كده بياخد الخانات الجد
   assert.match(saved.faults.working, /2025-11=9781/);
   assert.equal(saved.booking.handoverPct, "88");
   assert.equal(saved.booking.curAchieved, "97.5");
+  assert.equal(saved.booking.curNet, "73");
+  assert.deepEqual(saved.reassign, defaultDeck().reassign);
   assert.equal(saved.achievements.items, "سطر الحجز\nسطر فك المتعذرات");
 });
 
@@ -393,7 +402,7 @@ test("باور بوينت: شريحة المقارنة بتطلع بنفس ال�
   const idx = slides.findIndex((x) => x.kind === "compare") + 1;
   const zip = await JSZip.loadAsync(await deckPptx(slides, { weWhite: im, wePurple: im, telecomEgypt: im }, new Map()));
   const xml = await zip.file(`ppt/slides/slide${idx}.xml`)!.async("string");
-  for (const t of ["88%", "97%", "+9 نقاط", "52.5%", "68.25%", "+15.75 نقطة", "عند الاستلام (ديسمبر 2025)", "1267"]) assert.ok(xml.includes(t), t);
+  for (const t of ["88%", "97%", "+9 نقاط", "52.5%", "73%", "+20.5 نقطة", "عند الاستلام (ديسمبر 2025)", "1267"]) assert.ok(xml.includes(t), t);
 });
 
 test("«إدارة سنترالات الغنايم» بقت «إدارة تشغيل الشبكة وعمليات العملاء» — فى الافتراضى وفى العرض المحفوظ", () => {
@@ -439,7 +448,7 @@ test("شريحة مؤشرات تركيبات الصوت جوّه «مؤشرات 
   const only = defaultDeck(); only.faults.enabled = false; only.maintenance.enabled = false; only.booking.enabled = false; only.customers.growth = false;
   assert.ok(kinds(only).includes("divider:مؤشرات ومعدلات الأداء"));
   // مقفولة أو فاضية ⇒ مفيش شريحة
-  only.installs.enabled = false;
+  only.installs.enabled = false; only.reassign.enabled = false;
   assert.ok(!kinds(only).some((x) => x.includes("تركيبات")));
   assert.ok(!kinds(only).includes("divider:مؤشرات ومعدلات الأداء"));
   const empty = defaultDeck(); empty.installs = { ...empty.installs, total: "", in24: "", in48: "", in120: "", avgHours: "" };
@@ -827,4 +836,38 @@ test("نسب التكرار/الإزالة بالإيد: سبتمبر 2026 = 4.9
   // صفر مقبول
   d.faults.repeatManual = "2026-08=0";
   assert.equal(monthRate(d, a.faultsByMonth![2], "repeat"), 0);
+});
+
+test("REASSIGN: جدول تحت «متبقيات الأعطال» بصف الغنايم (14 · 348 · 4%)، وبيتعدّل من الإعدادات", async () => {
+  const { reassignTable } = await import("../shared/presentation-deck");
+  const d = defaultDeck();
+  const s = buildSlides(d, null).find((x) => x.kind === "table" && x.title === "متبقيات الأعطال");
+  assert.ok(s && s.kind === "table" && s.sub);
+  assert.equal(s.sub.title, "REASSIGN — Reopen Data Report - سبتمبر 2026");
+  assert.deepEqual(s.sub.columns, ["الإدارة", "إعادة فتح الشكوى مرة فأكثر (Re-open)", "Total", "النسبة"]);
+  assert.deepEqual(s.sub.rows, [["الغنايم", "14", "348", "4%"]]);
+  assert.deepEqual(s.rows, [["متبقيات الأعطال بإدارة الغنايم", "لا توجد متبقيات"]]);
+  // أرقام تانية ⇒ النسبة بتتحسب (عشر واحد)
+  assert.deepEqual(reassignTable({ ...d.reassign, reopen: "20", total: "300" })?.rows[0], ["الغنايم", "20", "300", "6.7%"]);
+  // مقفول أو ناقص ⇒ مفيش جدول، والشريحة زى ما كانت
+  for (const r of [{ enabled: false }, { total: "" }, { reopen: "" }, { total: "0" }]) {
+    const dd = defaultDeck(); Object.assign(dd.reassign, r);
+    const t = buildSlides(dd, null).find((x) => x.kind === "table" && x.title === "متبقيات الأعطال");
+    assert.ok(t && t.kind === "table" && !t.sub && t.note === "", JSON.stringify(r));
+  }
+  // المتبقيات فاضية ⇒ جدول REASSIGN فى نفس المكان لوحده
+  const d2 = defaultDeck(); d2.installs.remaining = "";
+  assert.ok(buildSlides(d2, null).some((x) => x.kind === "table" && x.title.startsWith("REASSIGN")));
+});
+
+test("باور بوينت: جدول REASSIGN بيطلع فى شريحة المتبقيات", async () => {
+  const JSZip = (await import("jszip")).default;
+  const { deckPptx } = await import("./presentation-pptx");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  const im = { data: png, ext: "png" as const, w: 1, h: 1 };
+  const slides = buildSlides(defaultDeck(), null);
+  const idx = slides.findIndex((x) => x.kind === "table" && x.title === "متبقيات الأعطال") + 1;
+  const zip = await JSZip.loadAsync(await deckPptx(slides, { weWhite: im, wePurple: im, telecomEgypt: im }, new Map()));
+  const xml = await zip.file(`ppt/slides/slide${idx}.xml`)!.async("string");
+  for (const t of ["REASSIGN", "Re-open", "348", "4%", "لا توجد متبقيات"]) assert.ok(xml.includes(t), t);
 });

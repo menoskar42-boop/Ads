@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, slideKeys, visibleSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, MAX_SET_PHOTOS, MAX_PHOTO_SETS, type MaintPhotoSet, MSAN_COLUMNS, msanRows, msanItems, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, slideKeys, visibleSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, reassignTable, MAX_SET_PHOTOS, MAX_PHOTO_SETS, type MaintPhotoSet, MSAN_COLUMNS, msanRows, msanItems, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -585,6 +585,18 @@ export function PresentationReport() {
             </p>
           </Section>
 
+          {/* المالك ٢٠٢٦-١٠-٢٢: جدول REASSIGN تحت «متبقيات الأعطال» — صف الغنايم من «Reopen Data Report» */}
+          <Section title="REASSIGN (إعادة فتح الشكوى)" on={d.reassign.enabled} onToggle={(v) => upd("reassign", { enabled: v })}>
+            <p className="text-xs text-muted-foreground">بيظهر جدول تحت «متبقيات الأعطال» — النسبة بتتحسب لوحدها من الإجمالى.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Field label="الشهر"><Input value={d.reassign.period} onChange={(e) => upd("reassign", { period: e.target.value })} placeholder="سبتمبر 2026" /></Field>
+              <Field label="الإدارة"><Input value={d.reassign.region} onChange={(e) => upd("reassign", { region: e.target.value })} placeholder="الغنايم" /></Field>
+              <Field label="إعادة فتح مرة فأكثر (Re-open)"><Input value={d.reassign.reopen} inputMode="numeric" data-testid="reassign-reopen" onChange={(e) => upd("reassign", { reopen: e.target.value })} /></Field>
+              <Field label="الإجمالى (Total)"><Input value={d.reassign.total} inputMode="numeric" data-testid="reassign-total" onChange={(e) => upd("reassign", { total: e.target.value })} /></Field>
+            </div>
+            <p className="text-xs text-muted-foreground">النسبة: <b className="tabular-nums">{reassignTable(d.reassign)?.rows[0][3] || "—"}</b></p>
+          </Section>
+
           {/* بعرض الصفحة كلها — جدول الكباين ٦ خانات */}
           <div className="lg:col-span-2">
           <Section title="خطة MSAN" on={d.msan.enabled} onToggle={(v) => upd("msan", { enabled: v })}>
@@ -696,6 +708,7 @@ export function PresentationReport() {
                 {([["prev", "العام الماضى"], ["cur", "السنة دى"]] as const).map(([k, t]) => {
                   const lab = `${k}Label` as const, tg = `${k}Target` as const, ac = `${k}Achieved` as const;
                   const net = (() => { const a = parseNum(d.booking[tg]), b = parseNum(d.booking[ac]); return a != null && b != null ? `${Number(((a * b) / 100).toFixed(2))}%` : "—"; })();
+                  const manual = k === "cur" && parseNum(d.booking.curNet) != null;
                   return (
                     <div key={k} className="rounded-md border p-2 space-y-2">
                       <Field label={`اسم الفترة (${t})`}><Input value={d.booking[lab]} onChange={(e) => upd("booking", { [lab]: e.target.value } as any)} /></Field>
@@ -703,7 +716,12 @@ export function PresentationReport() {
                         <Field label="المستهدف %"><Input value={d.booking[tg]} inputMode="decimal" data-testid={`booking-${k}-target`} onChange={(e) => upd("booking", { [tg]: e.target.value } as any)} /></Field>
                         <Field label="المحقق من المستهدف %"><Input value={d.booking[ac]} inputMode="decimal" data-testid={`booking-${k}-achieved`} onChange={(e) => upd("booking", { [ac]: e.target.value } as any)} /></Field>
                       </div>
-                      <div className="text-xs">المحلول من إجمالى المتعذرات: <b className="tabular-nums">{net}</b></div>
+                      {k === "cur" ? (
+                        <Field label="نسبة التحقيق حالياً % (مكتوبة بالإيد)" hint={`فاضى = المستهدف × المحقق (${net})`}>
+                          <Input value={d.booking.curNet} inputMode="decimal" data-testid="booking-cur-net" onChange={(e) => upd("booking", { curNet: e.target.value })} />
+                        </Field>
+                      ) : null}
+                      <div className="text-xs">المحلول من إجمالى المتعذرات: <b className="tabular-nums">{manual ? `${parseNum(d.booking.curNet)}%` : net}</b></div>
                     </div>
                   );
                 })}

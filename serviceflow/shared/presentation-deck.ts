@@ -39,13 +39,18 @@ export type Deck = {
     handoverPct: string; handoverLabel: string;
     /** فك المتعذرات: المحلول من إجمالى المتعذرات = المستهدف × المحقق من المستهدف */
     prevLabel: string; prevTarget: string; prevAchieved: string;
-    curLabel: string; curTarget: string; curAchieved: string };
+    curLabel: string; curTarget: string; curAchieved: string;
+    /** صافى السنة دى مكتوب بالإيد (المالك ٢٠٢٦-١٠-٢٢: «خلى نسبة التحقيق حالياً 73% بدل 68%») — الفاضى = المستهدف × المحقق */
+    curNet: string };
   /** مؤشرات تركيبات الصوت (المالك ٢٠٢٦-١٠-٢١، من تقرير المنطقة الشهرى) — صف الغنايم بس، من غير المنطقة */
   /** remaining: متبقيات الأعطال (المالك ٢٠٢٦-١٠-٢١: «لا توجد متبقيات بإدارة الغنايم») — 0 = لا توجد، والفاضى = مش ظاهرة */
   installs: { enabled: boolean; period: string; total: string; in24: string; in48: string; in120: string; avgHours: string; remaining: string };
   /** «خطة MSAN» (المالك ٢٠٢٦-١٠-٢٢ — زى شريحة المنطقة): ملخص المتبقى من عناصر التشغيل + جدول الكباين.
    *  items: سطر لكل كابينة «الكود | السنترال الرئيسى | السنترال | تاريخ التركيب | متبقى أعمال | سبب الإدراج» */
   msan: { enabled: boolean; title: string; region: string; total: string; over3: string; under3: string; mpps: string; rfs: string; items: string };
+  /** REASSIGN (المالك ٢٠٢٦-١٠-٢٢ — من «Reopen Data Report»): إعادة فتح الشكوى مرة فأكثر ÷ الإجمالى — صف الغنايم بس،
+   *  جدول تحت «متبقيات الأعطال» */
+  reassign: { enabled: boolean; period: string; region: string; reopen: string; total: string };
   achievements: { enabled: boolean; items: string; photoIds: string[] };
   vision: { enabled: boolean; items: string };
   closing: { enabled: boolean; text: string };
@@ -96,10 +101,12 @@ export function defaultDeck(): Deck {
       // أرقام المالك (٢٠٢٦-١٠-٢١) — مفاتيح جديدة فبتتحط فى العرض المحفوظ لوحدها، ولو اتمسحت الشريحة ترجع زى الأول
       handoverPct: "88", handoverLabel: "ديسمبر 2025",
       prevLabel: "العام الماضى (لحد نوفمبر 2025)", prevTarget: "50", prevAchieved: "105",
-      curLabel: "السنة دى", curTarget: "70", curAchieved: "97.5" },
+      curLabel: "السنة دى", curTarget: "70", curAchieved: "97.5", curNet: "73" },
     // أرقام الغنايم من «تقرير مؤشرات تركيبات الصوت - سبتمبر 2026» — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
     installs: { enabled: true, period: "سبتمبر 2026", total: "157", in24: "155", in48: "157", in120: "157", avgHours: "6.2", remaining: "0" },
     msan: { enabled: true, title: "خطة MSAN أكتوبر 2026", region: "إدارة الغنايم", total: "", over3: "", under3: "", mpps: "", rfs: "", items: "" },
+    // أرقام الغنايم من «Reopen Data Report - سبتمبر 2026» — مفتاح جديد فبيتحط فى العرض المحفوظ لوحده
+    reassign: { enabled: true, period: "سبتمبر 2026", region: "الغنايم", reopen: "14", total: "348" },
     achievements: { enabled: false, items: "", photoIds: [] },
     vision: { enabled: false, items: "" },
     closing: { enabled: true, text: "شكراً لحسن استماعكم" },
@@ -124,7 +131,7 @@ export function normalizeDeck(raw: any): Deck {
     return out;
   };
   if (!raw || typeof raw !== "object") return d;
-  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "msan", "achievements", "vision", "closing"] as const) {
+  for (const k of ["cover", "person", "career", "area", "customers", "exchangesTable", "decentLife", "faults", "maintenance", "booking", "installs", "msan", "reassign", "achievements", "vision", "closing"] as const) {
     (d as any)[k] = pick((d as any)[k], raw[k]);
   }
   // شرايح «قبل وبعد»: لحد ١٢ شريحة، وكل واحدة لحد صورتين قبل وصورتين بعد (pick مابيعرفش المصفوفات المركّبة)
@@ -412,16 +419,32 @@ export function bookingCompare(b: Deck["booking"]): ComparePanel[] {
       delta: pointsDelta(now - h), note: "نسبة الحجز = الإمكانية ÷ إجمالى الطلبات" });
   }
   const pt = parseNum(b.prevTarget), pa = parseNum(b.prevAchieved), ct = parseNum(b.curTarget), ca = parseNum(b.curAchieved);
-  if (pt != null && pa != null && ct != null && ca != null) {
+  const net = parseNum(b.curNet);
+  if (pt != null && pa != null && ct != null && (ca != null || net != null)) {
     // الرقم الكبير = الصافى (المستهدف × المحقق) — مش المحقق لوحده (١٠٥٪ ← ٩٧٫٥٪ كان هيبان كأنه نزل)
-    const prev = (pt * pa) / 100, cur = (ct * ca) / 100;
+    const prev = (pt * pa) / 100;
+    const cur = net ?? (ct * ca!) / 100;
+    // الصافى المكتوب بالإيد ⇒ المحقق من المستهدف بيتحسب منه (73 ÷ 70 = 104.3%) عشان السطر مايناقضش الرقم الكبير
+    const curAch = net != null && ct > 0 ? Math.round((1000 * net) / ct) / 10 : ca!;
     panels.push({ heading: "فك المتعذرات (المحلول من إجمالى المتعذرات)",
       before: { label: b.prevLabel.trim() || "العام الماضى", value: `${fmtNum(prev)}%` },
       after: { label: b.curLabel.trim() || "السنة دى", value: `${fmtNum(cur)}%` },
       delta: pointsDelta(cur - prev),
-      note: `المستهدف اترفع من ${fmtNum(pt)}% إلى ${fmtNum(ct)}% · المحقق من المستهدف ${fmtNum(pa)}% ثم ${fmtNum(ca)}%` });
+      note: `المستهدف اترفع من ${fmtNum(pt)}% إلى ${fmtNum(ct)}% · المحقق من المستهدف ${fmtNum(pa)}% ثم ${fmtNum(curAch)}%` });
   }
   return panels;
+}
+
+/** REASSIGN: «إعادة فتح الشكوى مرة فأكثر» ÷ الإجمالى — زى «Reopen Data Report». ناقص رقم ⇒ null (مفيش جدول) */
+export const REASSIGN_NOTE = "النسبة = الشكاوى اللى اتفتحت تانى مرة فأكثر ÷ إجمالى الشكاوى";
+export function reassignTable(r: Deck["reassign"]) {
+  const re = parseNum(r.reopen), tot = parseNum(r.total);
+  if (!r.enabled || re == null || tot == null || tot <= 0) return null;
+  return {
+    title: `REASSIGN — Reopen Data Report${r.period.trim() ? ` - ${r.period.trim()}` : ""}`,
+    columns: ["الإدارة", "إعادة فتح الشكوى مرة فأكثر (Re-open)", "Total", "النسبة"],
+    rows: [[r.region.trim() || "الغنايم", fmtNum(re), fmtNum(tot), `${fmtNum(Math.round((1000 * re) / tot) / 10)}%`]],
+  };
 }
 
 /** نمو قاعدة العملاء: شغال نوفمبر 2025 (عند الاستلام) ← شغال الشهر الحالى — من عمود «الشغال» (والفاضى = الحالى) */
@@ -715,10 +738,13 @@ export function buildSlides(deck: Deck, auto: DeckAuto | null): Slide[] {
   if (insRows.length > 1) perfExtra.push({ kind: "table", title: `مؤشرات تركيبات الصوت${ins.period ? ` - ${ins.period}` : ""}`,
     columns: ["المؤشر", "العدد", "النسبة"], rows: insRows, imageId: "", note: "النسبة = التركيبات خلال المدة ÷ إجمالى التركيبات", totalLast: false });
   // المالك ٢٠٢٦-١٠-٢١: «متبقيات الأعطال» — «لا توجد متبقيات بإدارة الغنايم» — فى شريحة لوحدها بعد التركيبات
-  const remN = parseNum(ins.remaining);
-  if (ins.enabled && remN != null) perfExtra.push({ kind: "table", title: "متبقيات الأعطال", columns: ["البيان", "الحالة"],
+  const remN = ins.enabled ? parseNum(ins.remaining) : null;
+  // المالك ٢٠٢٦-١٠-٢٢: «فى سلايد المتبقيات اعمل عنوان REASSIGN زى الجدول المرفق فيما يخص الغنايم» — جدول تحته
+  const ra = reassignTable(deck.reassign);
+  if (remN != null) perfExtra.push({ kind: "table", title: "متبقيات الأعطال", columns: ["البيان", "الحالة"],
     rows: [["متبقيات الأعطال بإدارة الغنايم", remN === 0 ? "لا توجد متبقيات" : `${fmtNum(remN)} عطل متبقى`]],
-    imageId: "", note: "", totalLast: false });
+    imageId: "", note: ra ? REASSIGN_NOTE : "", totalLast: false, sub: ra ? { ...ra, totalLast: false } : null });
+  else if (ra) perfExtra.push({ kind: "table", title: ra.title, columns: ra.columns, rows: ra.rows, imageId: "", note: REASSIGN_NOTE, totalLast: false });
   const m = deck.maintenance;
   if (m.enabled) {
     const doneYear = auto?.maintenance?.byYear.find((y) => y.year === m.period)?.done;
