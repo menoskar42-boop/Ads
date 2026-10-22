@@ -718,3 +718,31 @@ test("صور الصيانة «قبل وبعد»: شريحة لكل مجموعة�
   assert.match(xml, /الغنايم · كابينة 1-1 · بكس 5/);
   assert.equal((xml.match(/<p:pic>/g) || []).length, 3 + 2);   // ٣ صور + لوجوهين الفوتر
 });
+
+test("زرار إخفاء الشريحة: المخفية مش فى العرض ولا الباور بوينت، والمفتاح ثابت لو الشهور اتغيّرت", async () => {
+  const { slideKeys, visibleSlides } = await import("../shared/presentation-deck");
+  const d = defaultDeck();
+  const all = buildSlides(d, auto);
+  const keys = slideKeys(all);
+  assert.equal(new Set(keys).size, keys.length);   // كل شريحة ليها مفتاح لوحدها
+  // الفترة اللى بين القوسين مش جزء من المفتاح
+  const chartKey = keys[all.findIndex((s) => s.kind === "chart" && s.title.startsWith("نسب تكرار"))];
+  assert.equal(chartKey, "chart|نسب تكرار الأعطال شهرياً");
+  // شرايح بنفس العنوان (قبل وبعد / تابع) ⇒ رقم تكرار
+  assert.deepEqual(slideKeys([{ kind: "divider", title: "x" }, { kind: "divider", title: "x" }] as any), ["divider|x", "divider|x#2"]);
+  // نخفى شريحة السيرة الذاتية والتكرار
+  d.hiddenSlides = [keys[all.findIndex((s) => s.kind === "cv")], chartKey];
+  const vis = visibleSlides(d, all);
+  assert.equal(vis.length, all.length - 2);
+  assert.ok(!vis.some((s) => s.kind === "cv"));
+  assert.ok(!vis.some((s) => s.kind === "chart" && s.title.startsWith("نسب تكرار")));
+  // بعد ما الشهور تتغيّر الشريحة لسه مخفية
+  d.faults.hiddenRepeat = "2025-12";
+  assert.ok(!visibleSlides(d, buildSlides(d, auto)).some((s) => s.kind === "chart" && s.title.startsWith("نسب تكرار")));
+  // الحفظ بيحافظ عليها، وبيشيل الغلط والمكرر
+  const n = normalizeDeck({ hiddenSlides: ["cv|السيرة الذاتية", "cv|السيرة الذاتية", 5, ""] });
+  assert.deepEqual(n.hiddenSlides, ["cv|السيرة الذاتية"]);
+  assert.deepEqual(normalizeDeck({}).hiddenSlides, []);
+  // مسار الباور بوينت بيفلتر المخفية
+  assert.match(routes, /const slides = visibleSlides\(deck, buildSlides\(deck, await autoDeck\(pool, deck\)\)\);/);
+});

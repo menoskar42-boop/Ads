@@ -46,6 +46,8 @@ export type Deck = {
   closing: { enabled: boolean; text: string };
   /** رقم مكتوب بإيد المالك بدل التلقائى: «GHNAT.lines» أو «total.boxes» … */
   overrides: Record<string, string>;
+  /** الشرايح اللى المالك مخبّيها من «عرض» والباور بوينت (مفتاح كل شريحة من slideKeys) — المالك ٢٠٢٦-١٠-٢٢ */
+  hiddenSlides: string[];
 };
 
 export const DEFAULT_EXCHANGES: DeckExchange[] = [
@@ -95,6 +97,7 @@ export function defaultDeck(): Deck {
     vision: { enabled: false, items: "" },
     closing: { enabled: true, text: "شكراً لحسن استماعكم" },
     overrides: {},
+    hiddenSlides: [],
   };
 }
 
@@ -158,6 +161,9 @@ export function normalizeDeck(raw: any): Deck {
     }
   }
   delete d.overrides["total.maintBoxes"];   // اتنقلت لـ maintenance.achievedBoxes (فوق)
+  if (Array.isArray(raw.hiddenSlides)) {
+    d.hiddenSlides = [...new Set(raw.hiddenSlides.filter((x: unknown) => typeof x === "string" && x.trim()).map((x: string) => x.slice(0, 200)))].slice(0, 200) as string[];
+  }
   // المالك ٢٠٢٦-١٠-٢١: «خلى عدد خطوط الصوت 12019 والداتا 10751» — فى خانات الإجمالى، مرة واحدة بس:
   // للعرض المحفوظ قبل النسخة دى (مفيهوش customers.growth). بعد أول حفظ مابتتحطش تانى، فلو اتمسحت ترجع للتلقائى.
   // ورقم كان المالك كاتبه بإيده قبل كده بيفضل.
@@ -381,6 +387,26 @@ export const FAULTS_FROM_MONTH = "2025-01";
 export function faultsStartMonth(_now: Date): string {
   return FAULTS_FROM_MONTH;
 }
+/** مفتاح ثابت لكل شريحة (عشان زرار الإخفاء): النوع + العنوان من غير الفترة اللى بين قوسين (بتتغيّر مع اختيار الشهور)،
+ *  والوصف فى «قبل وبعد»، ورقم التكرار لو فيه شريحتين بنفس المفتاح (شرايح «تابع» مثلاً). */
+export function slideKeys(slides: Slide[]): string[] {
+  const seen = new Map<string, number>();
+  return slides.map((s) => {
+    const title = "title" in s ? s.title.replace(/\s*\([^)]*\)/g, "").trim() : s.kind === "closing" ? s.text : "";
+    const base = `${s.kind}|${title}${s.kind === "beforeAfter" ? `|${s.caption}` : ""}`;
+    const n = (seen.get(base) || 0) + 1;
+    seen.set(base, n);
+    return n === 1 ? base : `${base}#${n}`;
+  });
+}
+/** الشرايح اللى بتتعرض وبتنزل فى الباور بوينت — كل الشرايح ما عدا اللى المالك خبّاها */
+export function visibleSlides(deck: Deck, slides: Slide[]): Slide[] {
+  if (!deck.hiddenSlides.length) return slides;
+  const hidden = new Set(deck.hiddenSlides);
+  const keys = slideKeys(slides);
+  return slides.filter((_, i) => !hidden.has(keys[i]));
+}
+
 /** شريحة «قبل وبعد»: قبل يمين وبعد شمال (عربى)، وكل ناحية لحد صورتين جنب بعض — الصفحة والباور بوينت بنفس الأرقام */
 export function beforeAfterLayout(nBefore: number, nAfter: number) {
   const top = 178, h = 410, sideW = 580, gap = 12;

@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Maximize2, Save, Trash2, Upload, X, ChevronLeft, ChevronRight, Presentation, Download } from "lucide-react";
-import { buildSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, MAX_SET_PHOTOS, MAX_PHOTO_SETS, type MaintPhotoSet, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
+import { buildSlides, slideKeys, visibleSlides, defaultDeck, monthLabel, hiddenFaultMonths, HIDDEN_KEY, periodAverageNote, customerGrowth, type FaultIndicator, monthPerThousand, parseNum, parseMonthWorking, serializeMonthWorking, bookingPct, installsRows, MAX_SET_PHOTOS, MAX_PHOTO_SETS, type MaintPhotoSet, careerRows, careerItems, type CareerRow, type Deck, type DeckAuto, type ExchangeAuto } from "@shared/presentation-deck";
 import { DeckSlide, DeckSlideFit, deckImage } from "./DeckSlide";
 import { withBase } from "@/lib/base-path";
 
@@ -257,7 +257,15 @@ export function PresentationReport() {
   };
 
   const auto = q.data?.auto ?? null;
-  const slides = useMemo(() => buildSlides(deck, auto), [deck, auto]);
+  // كل الشرايح (لتاب «الشرايح» بزرار الإخفاء) — والعرض والباور بوينت بالظاهرة بس (المالك ٢٠٢٦-١٠-٢٢)
+  const allSlides = useMemo(() => buildSlides(deck, auto), [deck, auto]);
+  const allKeys = useMemo(() => slideKeys(allSlides), [allSlides]);
+  const slides = useMemo(() => visibleSlides(deck, allSlides), [deck, allSlides]);
+  const hiddenSet = new Set(deck.hiddenSlides);
+  const setSlideShown = (key: string, shown: boolean) => {
+    setDeck((d) => ({ ...d, hiddenSlides: shown ? d.hiddenSlides.filter((k) => k !== key) : [...d.hiddenSlides, key] }));
+    setDirty(true);   // زى أى خانة — «حفظ» بيتفتح، والتحميل بيحفظ الأول
+  };
 
   if (q.isLoading) return <div className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin inline" /></div>;
   if (q.error) return <div className="p-6 text-red-600">{String((q.error as Error).message)}</div>;
@@ -314,7 +322,9 @@ export function PresentationReport() {
         <h2 className="text-xl font-bold flex items-center gap-2"><Presentation className="w-5 h-5 text-[#5b2a86]" /> العرض التقديمى</h2>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant={view === "edit" ? "default" : "outline"} size="sm" onClick={() => setView("edit")}>البيانات</Button>
-          <Button variant={view === "slides" ? "default" : "outline"} size="sm" onClick={() => setView("slides")}>الشرايح ({slides.length})</Button>
+          <Button variant={view === "slides" ? "default" : "outline"} size="sm" onClick={() => setView("slides")}>
+            الشرايح ({slides.length}{slides.length !== allSlides.length ? ` من ${allSlides.length}` : ""})
+          </Button>
           <Button size="sm" className="bg-[#57318A] hover:bg-[#46276f]" onClick={() => setPresent(0)}><Maximize2 className="w-4 h-4 ml-1" />عرض</Button>
           <Button size="sm" variant="outline" onClick={downloadPptx} disabled={!!exporting} data-testid="button-deck-pptx">
             {exporting === "deck" ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Download className="w-4 h-4 ml-1" />}تحميل PowerPoint
@@ -333,12 +343,26 @@ export function PresentationReport() {
 
       {view === "slides" ? (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
-          {slides.map((s, i) => (
-            <button key={i} type="button" className="text-right min-w-0" onClick={() => setPresent(i)}>
-              <DeckSlideFit slide={s} />
-              <span className="text-xs text-muted-foreground">{i + 1}</span>
-            </button>
-          ))}
+          {allSlides.map((s, i) => {
+            const key = allKeys[i];
+            const shown = !hiddenSet.has(key);
+            const at = shown ? slides.indexOf(s) : -1;
+            return (
+              <div key={key} className="min-w-0 space-y-1" data-testid={`slide-card-${i}`}>
+                <button type="button" className={`text-right w-full block ${shown ? "" : "opacity-35 grayscale"}`} disabled={!shown}
+                  onClick={() => at >= 0 && setPresent(at)}>
+                  <DeckSlideFit slide={s} />
+                </button>
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">{shown ? `${at + 1}` : "مخفية — مش هتظهر فى العرض ولا الباور بوينت"}</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <span>{shown ? "ظاهرة" : "مخفية"}</span>
+                    <span dir="ltr" className="inline-flex"><Switch checked={shown} onCheckedChange={(v) => setSlideShown(key, v)} data-testid={`slide-shown-${i}`} /></span>
+                  </label>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">

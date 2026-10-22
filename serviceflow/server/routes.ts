@@ -2778,13 +2778,14 @@ export async function registerRoutes(
   app.get("/api/presentation/pptx", requireAuth, requireSuperAdmin, async (_req, res) => {
     try {
       const { autoDeck, IMG_PREFIX } = await import("./presentation-deck");
-      const { buildSlides } = await import("../shared/presentation-deck");
+      const { buildSlides, visibleSlides } = await import("../shared/presentation-deck");
       const { deckPptx } = await import("./presentation-pptx");
       const sharp = (await import("sharp")).default;
       const { readFile } = await import("fs/promises");
       const { join } = await import("path");
       const { deck } = await readDeck();
-      const slides = buildSlides(deck, await autoDeck(pool, deck));
+      // الشرايح اللى المالك خبّاها من تاب «الشرايح» مابتنزلش فى الملف
+      const slides = visibleSlides(deck, buildSlides(deck, await autoDeck(pool, deck)));
       const load = async (data: Buffer, ext: "png" | "jpeg") => {
         const m = await sharp(data).metadata();
         return { data, ext, w: m.width || 0, h: m.height || 0 };
