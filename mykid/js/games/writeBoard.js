@@ -9,6 +9,7 @@
 //
 // الحكم نفسه فى `strokeJudge.js` (دوال صافية متقاسة فى node).
 import { StrokeTracker, densify, cumulative, hintForResult, scoreDrawing, SCORE_PASS } from "./strokeJudge.js";
+import { strokeModels } from "../data/strokes.js";
 
 const RES = 300;
 const K = RES / 100; // وحدات المربع (٠–١٠٠) → بكسلات الكانفاس
@@ -435,7 +436,8 @@ export function mountWriteBoard(host, opts) {
   function freeJudge() {
     if (!alive || finished || drawing || !drawn.length) return;
     finished = true;
-    const r = scoreDrawing(strokes, drawn);
+    // أحسن نسبة بين الطرق الصح لكتابة الحرف (n الصغير: القوس من فوق العصاية أو خط واحد)
+    const r = strokeModels(strokes).map((m) => scoreDrawing(m, drawn)).reduce((a, b) => (b.score > a.score ? b : a));
     paint();
     if (opts.onDone) opts.onDone({ fails: r.score >= SCORE_PASS ? 0 : 3, score: r.score, result: r });
   }

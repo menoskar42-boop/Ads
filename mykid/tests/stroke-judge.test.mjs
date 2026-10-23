@@ -326,3 +326,22 @@ test("harakaStrokes: the letter fits in the middle, the mark is the last stroke 
     }
   }
 });
+
+// المالك ٢٠٢٦-١٠-٢٣: «n الصغير مكتوب كويس وميزو بيقول قربنا» — القوس من فوق العصاية (مدوّر/مدبّب)
+// أو خط واحد بيعدّى، والحروف التانية لأ
+test("small n: the usual ways children write it pass; other letters still don't", async () => {
+  const { strokeModels } = await import("../js/data/strokes.js");
+  const { scoreDrawing, SCORE_PASS } = await import("../js/games/strokeJudge.js");
+  const n = strokesFor("n");
+  const best = (d) => Math.max(...strokeModels(n).map((m) => scoreDrawing(m, d).score));
+  assert.equal(strokeModels(n)[0], n, "النقط والصباع على الشكل الأساسى");
+  assert.equal(strokeModels(strokesFor("h")).length, 1, "حروف من غير طرق تانية زى ما هى");
+  const LB_DOTS_PASS = 75;
+  // من صور المالك (على النقط): قوس مدبّب ورجل يمين مايلة · قوس مسطّح من فوق العصاية
+  const pointy = [[[34, 43], [37, 83]], [[34, 42], [49, 39], [57, 43], [61, 51], [66, 66], [70, 81]]];
+  const flat = [[[37, 37], [37, 80]], [[41, 38], [66, 40], [70, 46], [70, 77]]];
+  const oneStroke = [[[34, 45], [34, 80], [34, 55], [38, 49], [50, 46], [62, 49], [66, 58], [66, 80]]];
+  assert.ok(scoreDrawing(n, pointy).score < LB_DOTS_PASS, "قبل: المدبّب كان «قربنا»");
+  for (const [name, d] of [["pointy", pointy], ["flat", flat], ["one stroke", oneStroke]]) assert.ok(best(d) >= LB_DOTS_PASS, name);
+  for (const c of ["h", "r", "m", "u", "a", "b", "p", "v", "w", "z", "N", "M"]) assert.ok(best(strokesFor(c)) < SCORE_PASS, `${c} as n`);
+});
