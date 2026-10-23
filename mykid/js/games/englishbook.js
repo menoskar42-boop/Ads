@@ -12,7 +12,7 @@ import { Store } from "../core/storage.js";
 import { awardStars } from "../core/rewards.js";
 import { femAdapt } from "../data/mizo.js";
 import { strokesFor } from "../data/strokes.js";
-import { EB_UNITS, EB_PAGES, ebSteps, isEbWrite, EB_WORDS, emojiOf, NUM_EN } from "../data/englishbook.js";
+import { EB_UNITS, EB_PAGES, ebSteps, isEbWrite, EB_WORDS, emojiOf, NUM_EN, letterMeetMix } from "../data/englishbook.js";
 import { EB_SAY, SHOW_BELOW, fixMsg, ROUND_MSG } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
 import { renderLetterPuzzle, renderFlashlight, renderEggs } from "./funGames.js";
@@ -84,7 +84,7 @@ function readAlong(p, text) {
   }, 250 + i * 420));
 }
 
-export function renderEnglishbook({ regionId, regionIndex, page: startPage, only = null }) {
+export function renderEnglishbook({ regionId, regionIndex, page: startPage, only = null, mix = null }) {
   const screen = el("div", "region-screen wbk-screen lbk-screen ebk-screen");
   let cur = null;
   let steps = [];
@@ -96,7 +96,8 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
   const toRegion = () => Router.go("region", { id: regionId, index: regionIndex });
   screen.appendChild(gameTopbar("📘 My English Book", () => {
     Speech.stop();
-    if (cur) showChooser();
+    if (mix) { cleanup(); clearGuide(); toRegion(); }
+    else if (cur) showChooser();
     else toRegion();
   }));
   const stage = el("div", "stage wbk-stage");
@@ -165,21 +166,47 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     renderStep();
   }
 
+  // ===== «حروفى بالنجمة» (المالك ٢٠٢٦-١٠-٢٣): «تعرّف على الحرف» على الحروف اللى عليها نجمة، ورا بعض =====
+  function openMix() {
+    steps = letterMeetMix(Store.englishbookDone);
+    if (!steps.length) {
+      // لسه مفيش حرف خلصان: ميزو بيقول كده، وزرار يفتح الكتاب
+      stage.replaceChildren();
+      const box = el("div", "wbk-map");
+      const head = el("div", "wbk-maphead");
+      head.innerHTML = `<img class="wbk-mizo" src="/assets/mizo/mizo-hi.webp" alt="" width="64" height="64">`;
+      head.appendChild(el("p", "wbk-say", fem(EB_SAY.mixEmpty)));
+      box.append(head, button("candy-btn ebk-mix-open", "📘 افتح كتاب الإنجليزى", () => { Sfx.tap(); Router.go("englishbook", { regionId, regionIndex }); }));
+      stage.appendChild(box);
+      Speech.ar(fem(EB_SAY.mixEmpty));
+      return;
+    }
+    cur = { id: "mix-letterMeet", type: "mix", title: "My stars" };
+    idx = 0;
+    res = null;
+    screen.style.setProperty("--wbk-c1", PAGE_COLORS[0]);
+    screen.style.setProperty("--wbk-c2", PAGE_COLORS[4]);
+    renderStep();
+  }
+
   function header() {
     const head = el("div", "wbk-head");
     const title = button("wbk-title ebk-title", "", () => {
       Sfx.pop();
       if (cur.type === "letter") en(cur.label || cur.ch);
       else if (cur.type === "sight") en(cur.word);
+      else if (cur.type === "mix") en(steps[idx]?.label || "");
       else en(cur.title || "Review");
     });
     if (cur.type === "letter") { const L = cur.label || cur.ch; title.innerHTML = `<b dir="ltr">${L}${L.toLowerCase()}</b><span dir="ltr">/${cur.sound}/</span>`; }
     else if (cur.type === "sight") title.innerHTML = `<b dir="ltr">⭐ ${cur.word}</b><span>Sight word</span>`;
     else if (cur.type === "review") title.innerHTML = `<b>🏆</b><span dir="ltr">Review</span>`;
+    else if (cur.type === "mix") title.innerHTML = `<b>⭐</b><span dir="ltr">My stars</span>`;
     else title.innerHTML = `<b>${cur.type === "story" ? cur.icon || "📖" : cur.type === "cvc" ? "🔤" : "🗣️"}</b><span dir="ltr">${cur.title}</span>`;
     const track = el("div", "wbk-track");
-    steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""),
-      isEbWrite(s) ? "✏️" : s.kind === "game" ? gameInfo(s.game).icon : "🎲")));
+    // فى «حروفى بالنجمة» كل خانة عليها حرفها (Mm · Ss …) بدل 🎲
+    steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : "") + (cur.type === "mix" ? " ebk-chip-letter" : ""),
+      cur.type === "mix" ? `${s.label}${s.label.toLowerCase()}` : isEbWrite(s) ? "✏️" : s.kind === "game" ? gameInfo(s.game).icon : "🎲")));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;
@@ -282,6 +309,8 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     setTimeout(() => { if (cur) nextStep(); }, delay + 600);
   }
   function finishPage() {
+    // «حروفى بالنجمة» مراجعة — مابتعلّمش صفحة فى الكتاب ومالهاش شهادة
+    if (cur.type === "mix") { cur = null; return finishActivity({ regionId, regionIndex, stars: 5, onDone: toRegion }); }
     Store.markEnglishbookDone(cur.id);
     const end = () => finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
     if (cur.type !== "letter" || !res) return end();
@@ -957,7 +986,8 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
 
   setTimeout(() => {
     const pg = startPage && EB_PAGES.find((x) => x.id === startPage);
-    if (pg) openPage(pg);
+    if (mix === "letterMeet") openMix();
+    else if (pg) openPage(pg);
     else showChooser();
   }, 0);
   return screen;

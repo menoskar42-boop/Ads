@@ -234,7 +234,7 @@ add("برافو", AR);
   const en = (t) => add(t, EN);
   [S.chooser, S.meetWords, S.find, S.findWrong, S.sortWrong, S.count12, S.count12Wrong, S.sentences, S.pickSentence,
     S.pickWrong, S.opposites, S.firstWrong, S.firstMore, S.matchLetter, S.matchWrong, S.count, S.countWrong,
-    S.endWrong, S.choose, S.rhyme, S.rhymeWrong, S.build, S.buildWrong, S.missing, S.missingWrong].forEach(addAr);
+    S.endWrong, S.choose, S.rhyme, S.rhymeWrong, S.build, S.buildWrong, S.missing, S.missingWrong, S.mixEmpty].forEach(addAr);
   S.cheerEn.forEach(en);
   for (const w of Object.keys(EB_WORDS)) en(w);
   for (const C of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {

@@ -95,3 +95,32 @@ test("Mizo's words for a girl: feminine verbs, and no «غلط» anywhere", () =
   assert.match(girl(EB_SAY.findColor("we")), /ولوّني/);
   assert.match(girl(EB_SAY.sentences), /واسمعيها، وقوليها/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٣: «تعرّف على الحرف» برّه الكتاب على كذا حرف — الحروف اللى عليها نجمة بس
+test("«حروفى بالنجمة»: letterMeet for starred letters only (already-starred count), random, capped", async () => {
+  const { letterMeetMix, starredLetterPages, MIX_MAX } = await import("../js/data/englishbook.js");
+  const { ACTIVITIES } = await import("../js/data/activities.js");
+  // من غير نجوم ⇒ مفيش جولات (الشاشة بتقول «خلّص حرف فى الكتاب»)
+  assert.deepEqual(letterMeetMix({}, rnd), []);
+  assert.deepEqual(letterMeetMix(undefined, rnd), []);
+  // صفحات مش حروف عليها نجمة مابتدخلش
+  const done = { "u1-M": 2, "u1-A": 1, "u2-N": 1 };
+  const vocab = EB_PAGES.find((p) => p.type !== "letter");
+  done[vocab.id] = 1;
+  assert.deepEqual(starredLetterPages(done).map((p) => p.ch).sort(), ["A", "M", "N"]);
+  const steps = letterMeetMix(done, rnd);
+  assert.deepEqual(steps.map((s) => s.ch).sort(), ["A", "M", "N"]);
+  // نفس خطوة الكتاب بالظبط (الحرف وصوته وكلماته الـ٣)
+  const inBook = ebSteps(EB_PAGES.find((p) => p.id === "u1-M"), rnd).find((s) => s.kind === "letterMeet");
+  assert.deepEqual(steps.find((s) => s.ch === "M"), inBook);
+  for (const s of steps) assert.equal(s.kind, "letterMeet");
+  // كتير ⇒ لحد MIX_MAX، ومن غير تكرار
+  const all = Object.fromEntries(EB_PAGES.filter((p) => p.type === "letter").map((p) => [p.id, 1]));
+  const many = letterMeetMix(all, rnd);
+  assert.equal(many.length, MIX_MAX);
+  assert.equal(new Set(many.map((s) => s.ch)).size, MIX_MAX);
+  // اللعبة فى قايمة الإنجليزى برّه الكتاب، وكلام ميزو لما مفيش نجوم
+  assert.ok(ACTIVITIES.english.some((a) => a.screen === "englishbook" && a.params?.mix === "letterMeet"));
+  assert.ok(EB_SAY.mixEmpty.length > 10);
+  assert.match(femAdapt(EB_SAY.mixEmpty), /كمّلي/, "للبنت بصيغة المؤنّث");
+});

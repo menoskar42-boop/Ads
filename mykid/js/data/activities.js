@@ -153,6 +153,8 @@ export const ACTIVITIES = {
       screen: "englishbook",
       params: {},
     },
+    // المالك ٢٠٢٦-١٠-٢٣: لعبة «تعرّف على الحرف» من الكتاب برّه — على كل الحروف اللى عليها نجمة
+    { emoji: "⭐", title: "حروفى بالنجمة", desc: "راجع الحروف اللى خلّصتها فى الكتاب: المس الحرف واسمع صوته وصوره", screen: "englishbook", params: { mix: "letterMeet" } },
     // «ألعاب ميزو» (٢٠٢٦-١٠-١٦): خمس ألعاب جديدة بنفس الكود للعربى والإنجليزى والأرقام
     { emoji: "🧩", title: "بازل الحرف", desc: "الحرف اتكسر حتت! رجّع كل حتة مكانها", screen: "letterPuzzle", params: { kind: "english" } },
     { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الحرف ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "english" } },

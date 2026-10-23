@@ -392,6 +392,18 @@ const LIKE_OPTS = [{ label: "Yes, I do.", e: "👍" }, { label: "No, I don't.", 
 const aOrAn = (w) => (/^[aeiou]/.test(w) ? "an " : "a ") + w;
 
 /** خطوات الصفحة (`only` للاختبار: أنواع بعينها). */
+/** خطوة «تعرّف على الحرف»: الحرف وصوته وكلماته الـ٣ من الكتاب */
+const meetStep = (pg) => ({ kind: "letterMeet", ch: pg.ch, label: pg.label || pg.ch, sound: pg.sound, pos: pg.pos || "start", words: pg.words });
+
+/** صفحات الحروف اللى عليها نجمة فى الكتاب (الطفل خلّصها مرة على الأقل) */
+export const starredLetterPages = (done) => EB_PAGES.filter((pg) => pg.type === "letter" && done && done[pg.id]);
+/** «حروفى بالنجمة» (المالك ٢٠٢٦-١٠-٢٣): نفس «تعرّف على الحرف» برّه الكتاب على كذا حرف ورا بعض —
+ *  من الحروف اللى عليها نجمة بس (اللى خلّصها قبل كده محسوبة)، بترتيب عشوائى ولحد MIX_MAX فى المرة */
+export const MIX_MAX = 6;
+export function letterMeetMix(done, rnd = Math.random, max = MIX_MAX) {
+  return shuffled(rnd, starredLetterPages(done)).slice(0, max).map(meetStep);
+}
+
 export function ebSteps(pg, rnd = Math.random, only = null) {
   const want = (k) => !only || only.includes(k);
   const steps = [];
@@ -424,7 +436,7 @@ export function ebSteps(pg, rnd = Math.random, only = null) {
       if (g === "phonics" && pg.pos === "end") return; // X: الصوت فى آخر الكلمة — «بتبدأ بإيه؟» مالهاش معنى
       if (want("game") || want(g)) steps.push({ kind: "game", game: g, ch: pg.ch, ...(g === "phonics" || g === "eggs" ? { words } : {}) });
     };
-    if (want("letterMeet")) steps.push({ kind: "letterMeet", ch: pg.ch, label: pg.label || pg.ch, sound: pg.sound, pos: pg.pos || "start", words: pg.words });
+    if (want("letterMeet")) steps.push(meetStep(pg));
     write(pg.ch, 2, 3);
     game("puzzle");
     write(lo, 2, 3);
