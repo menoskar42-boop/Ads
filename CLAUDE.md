@@ -217,6 +217,9 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   بتقرا من قاعدة ريبليت جوّه transaction `READ ONLY`، وبتعيد بناء الهيكل والبيانات على Oracle، وبتقارن
   الأعداد (`serviceflow/server/db-migrate.ts`). مش بتمسح قاعدة من غير علامة `sf_migration.copies`.
   **التحويل** = سرّ `SERVICEFLOW_USE_ORACLE=1` + Republish (`server.js`)، **والرجوع** = مسح السرّ.
+  ✅ **اتحوّلنا فعلاً ٢٠٢٦-١٠-٢٤** — Service Flow شغّال على Oracle، والمهام المجدولة فى النسخة المستضافة.
+  قاعدة ريبليت (`SERVICEFLOW_DATABASE_URL`) فاضلة فى الأسرار للرجوع — ماتتلغيش قبل ٢٠٢٦-١١-٠٧.
+  **فاضل:** نسخة احتياطية يومية من Oracle على R2.
   الحارس: `node scripts/check-oracle-migrate-prompt.js`. الصفحة:
   https://claude.ai/artifact/1bc82SLW4wUuvmzyjeRWVg. **Trigger:** «ابعتلي برومبت نقل القاعدة».
 - `docs/GHANAYEM_MAP_PROMPT.md` — **برومبت الإكستنشن: خريطة مركز الغنايم + المساحة والسكان والقرى**
