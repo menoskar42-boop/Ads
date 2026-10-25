@@ -38,7 +38,18 @@ const currentPoolMax = Number.isFinite(configuredCurrentPoolMax) && configuredCu
   ? configuredCurrentPoolMax
   : 2;
 
-export const archivePool = new Pool({ connectionString: archiveDatabaseUrl });
+// القاعدة على سيرفر Oracle (من ٢٠٢٦-١٠-٢٤) اتصال مباشر على الإنترنت — مش ورا بروكسى زى Neon. لو اتصال
+// اتقطع فى السكوت، الاستعلام كان بيفضل مستنى على اتصال ميت والطلب بيعدّى ٣٠ ثانية فالبوّاب يقول «شغّال بس
+// مش رادّ». keepAlive بيكشف الاتصال الميت، والمهلة بتمنع الانتظار للأبد، والاتصالات الفاضية بتتقفل بدرى.
+export const archivePool = new Pool({
+  connectionString: archiveDatabaseUrl,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10_000,
+  connectionTimeoutMillis: 15_000,
+  idleTimeoutMillis: 30_000,
+});
+// اتصال فاضى اتقطع: pg بيرمى «error» على الـpool — من غير مستمع ده بيبقى uncaughtException
+archivePool.on("error", (err) => console.error("[db] idle client error:", err?.message || err));
 // «خلّى القاعدة تنام»: بنعرف إمتى القاعدة صاحية، وأى كتابة فى users بتمسح ذاكرة المستخدمين
 watchPool(archivePool);
 export const pool = archivePool;

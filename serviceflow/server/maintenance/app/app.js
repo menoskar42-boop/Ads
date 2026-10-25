@@ -182,7 +182,9 @@ app.use(express.json());
 app.use("/api/integration", require("./routes/integration"));
 app.use("/api", require("./routes/api"));
 
-const pool = new Pool({ connectionString: MAINT_DB_URL, options: `-c search_path=${MAINT_SCHEMA},public`, max: 3, connectionTimeoutMillis: 5000 });
+// keepAlive + مستمع للأخطاء: القاعدة على Oracle اتصال مباشر (شوف server/db.ts)
+const pool = new Pool({ connectionString: MAINT_DB_URL, options: `-c search_path=${MAINT_SCHEMA},public`, max: 3, connectionTimeoutMillis: 5000, keepAlive: true, idleTimeoutMillis: 30000 });
+pool.on("error", (err) => console.error("[maintenance db] idle client error:", err && err.message ? err.message : err));
 pool.on("connect", (client) => { client.query(`SET search_path TO ${MAINT_SCHEMA}, public`).catch(() => {}); });
 
 app.use(session({
