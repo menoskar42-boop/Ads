@@ -14938,11 +14938,20 @@ export async function registerRoutes(
       // استعلامات فرعية على سيرفر Oracle، وده ممكن يمسك اتصالات القاعدة كلها ويعلّق الموقع)
       if (data.length) {
         const { rows: techs } = await pool.query(
-          `SELECT x.fp, ${areaTechSql("pl.central", "pl.cabin_number", "now()", sp("x.fp"), { noShiftCover: true })} AS "techName"
+          `SELECT x.fp, ${areaTechSql("pl.central", "pl.cabin_number", "now()", sp("x.fp"), { noShiftCover: true })} AS "techName",
+                  -- «لها شكوى» (المالك ٢٠٢٦-١٠-٢٥): ليها رقم شكوى حالياً (على الشاشة) أو قبل كده
+                  -- (التفاصيل أو المتبقى) — المطابقة بالرقم المطبَّع على فهارس pnorm
+                  (EXISTS (SELECT 1 FROM ticket_dsl_current t WHERE ${sp("t.phone_number")} = ${sp("x.fp")})
+                   OR EXISTS (SELECT 1 FROM complaint_details cd WHERE ${sp("cd.phone_number")} = ${sp("x.fp")})
+                   OR EXISTS (SELECT 1 FROM remaining_complaints rc WHERE ${sp("rc.phone_number")} = ${sp("x.fp")})) AS "hasComplaint"
              FROM unnest($1::text[]) AS x(fp)
              LEFT JOIN phone_lines pl ON pl.full_phone = x.fp`, [data.map((r: any) => r.fullPhone)]);
-        const byPhone = new Map(techs.map((t: any) => [t.fp, t.techName]));
-        for (const r of data) r.techName = byPhone.get(r.fullPhone) ?? null;
+        const byPhone = new Map(techs.map((t: any) => [t.fp, t]));
+        for (const r of data) {
+          const t: any = byPhone.get(r.fullPhone);
+          r.techName = t?.techName ?? null;
+          r.hasComplaint = !!t?.hasComplaint;
+        }
       }
       res.json({ days, minDrop, data });
     } catch (e: any) { res.status(500).json({ message: e.message }); }

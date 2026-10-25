@@ -25,6 +25,7 @@ const buildDZSUrl = (accounts: string[]) => `${DZS_URL}#sf_accounts=${encodeURIC
 
 interface DropRow {
   phone: string; complainNo: string | null; complainTime: string | null; central: string | null; cabinet: string | null; box?: string | null;
+  hasComplaint?: boolean;
   techName: string | null; accountNo: string | null;
   firstSpeed: string | null; firstAt: string | null; firstScore: number | null;
   lastSpeed: string | null; lastAt: string | null; lastScore: number | null;
@@ -53,6 +54,8 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
   const [tech, setTech] = useState("all");
   // السرعة الحالية (المالك ٢٠٢٦-١٠-٢٥): الكل · صفر (اسكور ١٠١ / الخط مش متزامن) · أكبر من صفر
   const [speedNow, setSpeedNow] = useState<"all" | "zero" | "positive">("all");
+  // «لها شكوى» (المالك ٢٠٢٦-١٠-٢٥، تقرير الأسبوع): ليها رقم شكوى حالياً أو قبل كده
+  const [complaintOnly, setComplaintOnly] = useState(false);
   // بحث فى كل خانات الجدول (المالك ٢٠٢٦-١٠-٢٠)
   const [search, setSearch] = useState("");
   // أزرار القياس ورفع السرعة والإيقاف (المالك ٢٠٢٦-١٠-١٢) — نفس باقى تقارير القياسات
@@ -93,9 +96,10 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
   const techNames = Array.from(new Set(allRows.map((r) => (r.techName ?? "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ar"));
   const NO_TECH = "__none__";
   const hasNoTech = allRows.some((r) => !(r.techName ?? "").trim());
-  const bySpeed = speedNow === "all" ? allRows
-    : speedNow === "zero" ? allRows.filter((r) => r.lastKbps === 0)
-    : allRows.filter((r) => (r.lastKbps ?? 0) > 0);
+  const baseRows = weekly && complaintOnly ? allRows.filter((r) => r.hasComplaint) : allRows;
+  const bySpeed = speedNow === "all" ? baseRows
+    : speedNow === "zero" ? baseRows.filter((r) => r.lastKbps === 0)
+    : baseRows.filter((r) => (r.lastKbps ?? 0) > 0);
   const byTech = tech === "all" ? bySpeed
     : tech === NO_TECH ? bySpeed.filter((r) => !(r.techName ?? "").trim())
     : bySpeed.filter((r) => (r.techName ?? "").trim() === tech);
@@ -136,7 +140,8 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
   };
 
   const techLabel = (tech === "all" ? "" : ` — الفنى: ${tech === NO_TECH ? "بدون فنى" : tech}`)
-    + (speedNow === "zero" ? " — السرعة الحالية 0" : speedNow === "positive" ? " — السرعة الحالية أكبر من 0" : "");
+    + (speedNow === "zero" ? " — السرعة الحالية 0" : speedNow === "positive" ? " — السرعة الحالية أكبر من 0" : "")
+    + (weekly && complaintOnly ? " — لها شكوى" : "");
   const period = weekly ? `آخر ${days || 7} يوم` : `${from} إلى ${to}`;
   const title = `${NAME} (أكتر من ${minDrop || 10}%) — ${period}${techLabel}${term ? ` — بحث: ${term}` : ""}`;
   const excel = () => {
@@ -193,6 +198,13 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
         </>)}
         <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-min">الانخفاض أكتر من %</label>
           <Input id="sd-min" inputMode="numeric" value={minDrop} onChange={(e) => setMinDrop(e.target.value.replace(/[^\d]/g, ""))} className="text-sm w-24" dir="ltr" /></div>
+        {weekly && (
+          <Button type="button" size="sm" variant={complaintOnly ? "default" : "outline"} onClick={() => setComplaintOnly((v) => !v)}
+            className={`h-9 gap-1 ${complaintOnly ? "bg-red-600 hover:bg-red-700 text-white" : "text-red-700 border-red-200"}`}
+            title="الخطوط اللى ليها رقم شكوى حالياً (على الشاشة) أو قبل كده" data-testid="button-speed-drop-has-complaint">
+            لها شكوى ({allRows.filter((r) => r.hasComplaint).length})
+          </Button>
+        )}
         <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-speed">السرعة الحالية</label>
           <select id="sd-speed" value={speedNow} onChange={(e) => setSpeedNow(e.target.value as typeof speedNow)} data-testid="select-speed-drop-now"
             className="h-9 rounded-md border border-input bg-background px-2 text-sm w-48">
@@ -213,7 +225,7 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
             className="text-sm w-56" data-testid="input-speed-drop-search" /></div>
         <span className="text-sm text-muted-foreground pb-2">
           {q.isFetching && <Loader2 className="w-4 h-4 animate-spin inline ml-1" />}
-          إجمالى: <b className="text-foreground">{rows.length}</b> خط{(tech !== "all" || term || speedNow !== "all") && <> من {allRows.length}</>}
+          إجمالى: <b className="text-foreground">{rows.length}</b> خط{(tech !== "all" || term || speedNow !== "all" || (weekly && complaintOnly)) && <> من {allRows.length}</>}
         </span>
       </div>
       {q.isError && <p className="text-sm text-destructive">{(q.error as Error).message}</p>}

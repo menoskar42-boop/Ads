@@ -68,7 +68,8 @@ test("weekly speed-drop: all lines, current vs a week ago, same report page", ()
   const start = routes.indexOf('app.get("/api/reports/weekly-speed-drop"');
   assert.ok(start > 0);
   const ep = routes.slice(start, routes.indexOf("app.get(", start + 10));
-  assert.doesNotMatch(ep, /complaint_details|remaining_complaints/, "مش الأعطال بس");
+  // الخطوط نفسها مش من الأعطال (الشكاوى بتدخل بعدها بس لخانة «لها شكوى»)
+  assert.doesNotMatch(ep.slice(0, ep.indexOf("const data =")), /complaint_details|remaining_complaints/, "مش الأعطال بس");
   assert.match(ep, /measure_mode = 'noreal'/);
   assert.match(ep, /WHERE l\.at > now\(\) - \$1::int \* interval '1 day'/, "الحالى جوّه الأسبوع");
   assert.match(ep, /\(m\.at <= now\(\) - \$1::int \* interval '1 day'\) DESC/, "المقارنة بآخر قياس قبل الأسبوع الأول");

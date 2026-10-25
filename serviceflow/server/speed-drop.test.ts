@@ -30,8 +30,8 @@ test("score 101 = speed 0 → 100% drop, in both speed-drop reports", () => {
 test("speed-drop page: current-speed filter (all / zero / above zero)", () => {
   const ui = readFileSync(new URL("../client/src/components/SpeedDropReport.tsx", import.meta.url), "utf8");
   assert.match(ui, /data-testid="select-speed-drop-now"/);
-  assert.match(ui, /speedNow === "zero" \? allRows\.filter\(\(r\) => r\.lastKbps === 0\)/);
-  assert.match(ui, /allRows\.filter\(\(r\) => \(r\.lastKbps \?\? 0\) > 0\)/);
+  assert.match(ui, /speedNow === "zero" \? baseRows\.filter\(\(r\) => r\.lastKbps === 0\)/);
+  assert.match(ui, /baseRows\.filter\(\(r\) => \(r\.lastKbps \?\? 0\) > 0\)/);
   // فلتر الفنى بعد فلتر السرعة، والإكسيل/PDF/الأزرار على النتيجة
   assert.match(ui, /const byTech = tech === "all" \? bySpeed/);
 });
@@ -67,4 +67,17 @@ test("week drop before the complaint: yes / no / none, in both current-fault rep
     assert.match(ui, /weekDropLabel\(/, f);
   }
   assert.equal(WEEK_DROP_TITLE, "انخفاض السرعة خلال أسبوع قبل الشكوى");
+});
+
+// المالك ٢٠٢٦-١٠-٢٥: زرار «لها شكوى» فى «انخفاض السرعة خلال أسبوع» — رقم شكوى حالياً أو قبل كده
+test("weekly speed-drop: «has complaint» filter (current ticket, details or remaining)", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const st = routes.indexOf('app.get("/api/reports/weekly-speed-drop"');
+  const ep = routes.slice(st, routes.indexOf("app.get(", st + 10));
+  for (const t of ["ticket_dsl_current t", "complaint_details cd", "remaining_complaints rc"]) assert.ok(ep.includes(`FROM ${t} WHERE`), t);
+  assert.match(ep, /AS "hasComplaint"/);
+  assert.match(ep, /r\.hasComplaint = !!t\?\.hasComplaint/);
+  const ui = readFileSync(new URL("../client/src/components/SpeedDropReport.tsx", import.meta.url), "utf8");
+  assert.match(ui, /data-testid="button-speed-drop-has-complaint"/);
+  assert.match(ui, /weekly && complaintOnly \? allRows\.filter\(\(r\) => r\.hasComplaint\)/);
 });
