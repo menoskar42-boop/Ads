@@ -36,6 +36,7 @@ import * as wfmCustomerMobilesD1 from "./wfm-customer-mobiles-d1";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
 import { loopMeters, preserveLoopLength, speedKbps } from "./loop-length";
+import { speedDropOf } from "./speed-drop";
 import { normCab, normBox, expandBoxes, boxKey } from "@shared/cab-norm";
 import { cardCapacityOf, cardFreeOf } from "@shared/card-capacity";
 import { boxAverageFromAggregate, boxAverageFromAggregates, isBoxBrokenReason } from "@shared/om-box-score";
@@ -14880,9 +14881,7 @@ export async function registerRoutes(
            ) l ON true
           WHERE l.id <> f.id`, [from, to]);
       const data = rows.map((r: any) => {
-        const first = speedKbps(r.firstSpeed), last = speedKbps(r.lastSpeed);
-        const drop = first && last != null ? Math.round(((first - last) / first) * 1000) / 10 : null;
-        return { ...r, firstKbps: first, lastKbps: last, dropPct: drop };
+        return { ...r, ...speedDropOf(r) };
       }).filter((r: any) => r.dropPct != null && r.dropPct > minDrop)
         .sort((a: any, b: any) => b.dropPct - a.dropPct);
       res.json({ from, to, minDrop, data });
@@ -14926,9 +14925,7 @@ export async function registerRoutes(
           WHERE l.at > now() - $1::int * interval '1 day'
             AND ${hasFrameSql("l.full_phone")}`, [days]);
       const data = rows.map((r: any) => {
-        const first = speedKbps(r.firstSpeed), last = speedKbps(r.lastSpeed);
-        const drop = first && last != null ? Math.round(((first - last) / first) * 1000) / 10 : null;
-        return { ...r, complainNo: null, complainTime: null, firstKbps: first, lastKbps: last, dropPct: drop };
+        return { ...r, complainNo: null, complainTime: null, ...speedDropOf(r) };
       }).filter((r: any) => r.dropPct != null && r.dropPct > minDrop)
         .sort((a: any, b: any) => b.dropPct - a.dropPct);
       res.json({ days, minDrop, data });
