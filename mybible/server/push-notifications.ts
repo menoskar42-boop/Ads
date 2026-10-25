@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import cron from "node-cron";
 import { storage } from "./storage";
+import { bibleCache } from "./bible-cache";
 import { dbPool } from "./db-pool";
 
 const pgPool = dbPool;
@@ -102,7 +103,7 @@ export async function sendDailyVerseNotification() {
     const month = new Date().getMonth() + 1;
     const day   = new Date().getDate();
 
-    const calVerse = await storage.getCalendarDailyVerse(month, day);
+    const calVerse = await bibleCache.getCalendarDailyVerse(month, day);
     if (!calVerse) {
       console.warn(`[push] No calendar verse for ${month}/${day} — notification skipped (guard left open for retry)`);
       await storage.setAppSetting(LAST_RESULT_KEY, `${today} no-calendar-verse ${month}/${day}`).catch(() => {});
@@ -115,7 +116,7 @@ export async function sendDailyVerseNotification() {
     const bookName = refParts ? refParts[1].trim() : calVerse.verseReference;
     const chapter  = refParts ? parseInt(refParts[2]) : 1;
     const verseNum = refParts ? parseInt(refParts[3]) : 1;
-    const dbVerse  = await storage.getVerseByReference(bookName, chapter, verseNum);
+    const dbVerse  = await bibleCache.getVerseByReference(bookName, chapter, verseNum);
     const verseText = dbVerse?.text ?? calVerse.verseText;
     const verseRef  = `${bookName} ‎${chapter}:‎${verseNum}`;
 

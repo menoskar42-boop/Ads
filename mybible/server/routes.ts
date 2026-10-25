@@ -869,9 +869,9 @@ export async function registerRoutes(
     if (isNaN(id)) return next();
 
     try {
-      const verse = await storage.getVerseById(id);
+      const verse = await bibleCache.getVerseById(id);
       if (!verse) return next();
-      const book = await storage.getBookById(verse.bookId);
+      const book = await bibleCache.getBookById(verse.bookId);
       const bookName = book?.name || '';
       const ref = `${bookName} ${verse.chapter}:${verse.verse}`;
       const snippet = verse.text.length > 120 ? verse.text.slice(0, 120) + '...' : verse.text;
@@ -921,9 +921,9 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: 'Invalid verse ID' });
-      const verse = await storage.getVerseById(id);
+      const verse = await bibleCache.getVerseById(id);
       if (!verse) return res.status(404).json({ message: 'Verse not found' });
-      const book = await storage.getBookById(verse.bookId);
+      const book = await bibleCache.getBookById(verse.bookId);
       res.json({ ...verse, bookName: book?.name || '' });
     } catch {
       res.status(500).json({ message: 'Failed to fetch verse' });
@@ -1024,7 +1024,7 @@ export async function registerRoutes(
         const results = await storage.smartSearchVerses(query, limit);
         res.json(results);
       } else {
-        const verses = await storage.searchVerses(query, limit);
+        const verses = await bibleCache.searchVerses(query, limit);
         res.json(verses);
       }
     } catch (error) {
@@ -1162,7 +1162,7 @@ export async function registerRoutes(
           const chapter = parseInt(toWestern(m2[2]), 10);
           const verse = parseInt(toWestern(m2[3]), 10);
           try {
-            const found = await storage.getVerseByReference(book, chapter, verse);
+            const found = await bibleCache.getVerseByReference(book, chapter, verse);
             if (found) fetchedVerses.push({ ref: clean, book, chapter, verse, text: found.text });
           } catch { /* skip */ }
         }
@@ -1303,7 +1303,7 @@ ${excludedStr}
           const chapter = parseInt(toWestern(m[2]), 10);
           const verse = parseInt(toWestern(m[3]), 10);
           try {
-            const found = await storage.getVerseByReference(book, chapter, verse);
+            const found = await bibleCache.getVerseByReference(book, chapter, verse);
             if (found) {
               verses.push({ ref: clean, book, chapter, verse, text: found.text });
               seen.add(clean);
@@ -1391,7 +1391,7 @@ ${excludedStr}
           const chapter = parseInt(toWestern(m[2]), 10);
           const verse = parseInt(toWestern(m[3]), 10);
           try {
-            const found = await storage.getVerseByReference(book, chapter, verse);
+            const found = await bibleCache.getVerseByReference(book, chapter, verse);
             if (found && !seenIds.has(found.id)) {
               semanticResults.push({ ...found, bookName: book, relevanceScore: 0.9, matchType: 'semantic' });
               seenIds.add(found.id);
@@ -2194,12 +2194,12 @@ ${excludedStr}
   interface ReadingRef { book: string; fromCh: number; fromVs: number; toCh: number; toVs: number; label: string; }
 
   async function fetchReadingText(ref: ReadingRef): Promise<{ title: string; slides: string[] }> {
-    const bk = await storage.getBookByName(ref.book);
+    const bk = await bibleCache.getBookByName(ref.book);
     if (!bk) return { title: ref.label, slides: [`[ ${ref.label} ]`] };
 
     const versesPerCh = await Promise.all(
       Array.from({ length: ref.toCh - ref.fromCh + 1 }, (_, i) => ref.fromCh + i)
-        .map(ch => storage.getVersesByBook(bk.id, ch))
+        .map(ch => bibleCache.getVersesByBook(bk.id, ch))
     );
 
     const filtered = versesPerCh.flatMap((chVerses, i) => {

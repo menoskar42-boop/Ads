@@ -15,7 +15,8 @@ import type {
 } from "@shared/schema";
 import { storage } from "./storage";
 import { isDbUnavailable, logDbDegraded } from "./db-availability";
-import { snapshotBooks, snapshotVerses, verifySnapshotBooks, verifySnapshotVerses } from "./bible-snapshot";
+import { snapshotBooks, snapshotVerses, trustedSnapshotVerses, verifySnapshotBooks, verifySnapshotVerses, type VerseFingerprint } from "./bible-snapshot";
+import { dbPool } from "./db-pool";
 
 class BibleContentCache {
   private allBooks: BibleBook[] | null = null;
@@ -58,13 +59,40 @@ class BibleContentCache {
     return all.find((b) => b.name === name);
   }
 
-  /** Every verse of a book (all chapters), loaded from DB once and memoized. */
+  /* بصمات الأسفار من القاعدة — استعلام واحد صغير (أرقام بس، من غير النص) لكل عملية.
+   * لو بصمة سفر مطابقة للملف (`data/bible-snapshot`) الآيات بتتقري من الملف ومن غير
+   * ما النص يطلع من القاعدة خالص — كل كيلو بيتحسب من حصة Supabase المجانية. */
+  private fingerprints: Promise<Map<number, VerseFingerprint>> | null = null;
+  private dbFingerprints(): Promise<Map<number, VerseFingerprint>> {
+    if (!this.fingerprints) {
+      this.fingerprints = dbPool.query(
+        `SELECT book_id, count(*)::int AS n, sum(id)::text AS ids,
+                sum(chapter * 1000 + verse)::text AS pos, sum(char_length(text))::text AS len
+           FROM bible_verses GROUP BY book_id`,
+      ).then(({ rows }) => new Map(rows.map((r: any) => [Number(r.book_id), { n: r.n, ids: r.ids, pos: r.pos, len: r.len }])))
+        .catch((err) => { this.fingerprints = null; throw err; });
+    }
+    return this.fingerprints;
+  }
+
+  /** آيات السفر من الملف لو مطابق للقاعدة — وإلا null (والقراية من القاعدة زى الأول). */
+  private async fromSnapshot(bookId: number): Promise<BibleVerse[] | null> {
+    try {
+      await this.getAllBooks(); // بيطابق أسماء وأرقام الأسفار مع الملف (verifySnapshotBooks)
+      return trustedSnapshotVerses(bookId, (await this.dbFingerprints()).get(bookId)) as BibleVerse[] | null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Every verse of a book (all chapters), loaded once (file if it matches the DB, else DB) and memoized. */
   private async getAllVersesForBook(bookId: number): Promise<BibleVerse[]> {
     const cached = this.versesByBook.get(bookId);
     if (cached) return cached;
     let pending = this.versesByBookPromise.get(bookId);
     if (!pending) {
-      pending = storage.getVersesByBook(bookId)
+      pending = this.fromSnapshot(bookId)
+        .then((snap) => snap ?? storage.getVersesByBook(bookId))
         .then((verses) => { this.versesByBook.set(bookId, verses); verifySnapshotVerses(bookId, verses); return verses; })
         .catch((err) => {
           this.versesByBookPromise.delete(bookId);
@@ -129,6 +157,55 @@ class BibleContentCache {
   }
   getCalendarDailyVerse(month: number, day: number): Promise<CalendarDailyVerse | undefined> {
     return this.once(`calendar:${month}:${day}`, () => storage.getCalendarDailyVerse(month, day));
+  }
+
+  /* كل الآيات فى مصفوفة واحدة بترتيب الـid (نفس ترتيب الجدول) — للبحث والقراية بالرقم
+   * من الذاكرة بدل القاعدة. الأسفار المطابقة للملف مابتكلّفش القاعدة حاجة. */
+  private flat: Promise<{ list: (BibleVerse & { bookName: string })[]; byId: Map<number, BibleVerse> }> | null = null;
+  private allVerses() {
+    if (!this.flat) {
+      this.flat = (async () => {
+        const books = await this.getAllBooks();
+        const lists = await Promise.all(books.map((b) => this.getAllVersesForBook(b.id)));
+        const list = lists.flatMap((vs, i) => vs.map((v) => ({ ...v, bookName: books[i].name })));
+        list.sort((a, b) => a.id - b.id);
+        return { list, byId: new Map<number, BibleVerse>(list.map((v) => [v.id, v])) };
+      })().catch((err) => { this.flat = null; throw err; });
+    }
+    return this.flat;
+  }
+
+  async getVerseById(id: number): Promise<BibleVerse | undefined> {
+    const v = (await this.allVerses()).byId.get(id);
+    return v && { id: v.id, bookId: v.bookId, chapter: v.chapter, verse: v.verse, text: v.text };
+  }
+
+  /** زى `text ~* pattern` فى Postgres — أول `limit` آية بترتيب الجدول. */
+  async matchVerses(patterns: string[], limit: number): Promise<(BibleVerse & { bookName: string })[]> {
+    const res = patterns.map((p) => {
+      try { return new RegExp(p, "i"); } catch { return new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"); }
+    });
+    const out: (BibleVerse & { bookName: string })[] = [];
+    for (const v of (await this.allVerses()).list) {
+      if (res.some((r) => r.test(v.text))) {
+        out.push(v);
+        if (out.length >= limit) break;
+      }
+    }
+    return out;
+  }
+
+  /** زى `text ILIKE '%query%'` (من غير wildcards). */
+  async searchVerses(query: string, limit: number): Promise<BibleVerse[]> {
+    const q = query.toLowerCase();
+    const out: BibleVerse[] = [];
+    for (const v of (await this.allVerses()).list) {
+      if (v.text.toLowerCase().includes(q)) {
+        out.push({ id: v.id, bookId: v.bookId, chapter: v.chapter, verse: v.verse, text: v.text });
+        if (out.length >= limit) break;
+      }
+    }
+    return out;
   }
 
   /** Fuzzy book-name + chapter:verse lookup, served from cached books/verses. */

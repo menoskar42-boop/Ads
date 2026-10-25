@@ -1023,17 +1023,26 @@ export class DatabaseStorage implements IStorage {
       `text ~* '${pattern.replace(/'/g, "''")}'`
     ).join(' OR ');
     
-    const result = await this.db.execute(
-      sql.raw(`
-        SELECT bv.id, bv.book_id as "bookId", bv.chapter, bv.verse, bv.text, bb.name as "bookName"
-        FROM bible_verses bv
-        LEFT JOIN bible_books bb ON bv.book_id = bb.id
-        WHERE ${likeConditions}
-        LIMIT 500
-      `)
-    );
+    // البحث من الذاكرة (bible-cache) بدل ما ٥٠٠ آية تطلع من القاعدة مع كل بحث —
+    // توفير حصة Supabase. لو الذاكرة مش جاهزة لأى سبب: الاستعلام القديم زى ما هو.
+    let rows: unknown[];
+    try {
+      const { bibleCache } = await import('./bible-cache');
+      rows = await bibleCache.matchVerses(effectivePatterns, 500);
+    } catch {
+      const result = await this.db.execute(
+        sql.raw(`
+          SELECT bv.id, bv.book_id as "bookId", bv.chapter, bv.verse, bv.text, bb.name as "bookName"
+          FROM bible_verses bv
+          LEFT JOIN bible_books bb ON bv.book_id = bb.id
+          WHERE ${likeConditions}
+          LIMIT 500
+        `)
+      );
+      rows = result.rows;
+    }
     
-    const verses = result.rows as Array<{
+    const verses = rows as Array<{
       id: number;
       bookId: number;
       chapter: number;

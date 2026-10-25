@@ -19,17 +19,28 @@ if (/select\(\)\s*\.from\(groupMessages\)/.test(routes)) {
 if (!/messages\/:messageId\/image/.test(routes)) {
   problems.push("راوت صورة الرسالة `/api/groups/:code/messages/:messageId/image` مش موجود.");
 }
-if (!/getOrLoad\(`msgs:/.test(routes)) {
-  problems.push("تحديث الشات مش متجمّع في الذاكرة (getOrLoad msgs:).");
+if (!/getChat\(groupId/.test(routes)) {
+  problems.push("تحديث الشات مش من الذاكرة (getChat في chat-store.ts).");
 }
-for (const route of ["messages/:messageId/pin", "messages/:messageId/react", "members/:memberName/mute"]) {
+// كل كتابة على الرسائل لازم تحدّث نسخة الذاكرة — وإلا العضو يشوف رسايل قديمة
+const writes = [
+  ["app.post('/api/groups/:code/messages'", /chatAppend\(/],
+  ["messages/:messageId/pin", /chatPatch\(/],
+  ["app.delete('/api/groups/:code/messages/:messageId'", /chatRemove\(/],
+  ["messages/:messageId/react", /chatPatch\(/],
+  ["members/:memberName/mute", /chatDrop\(/],
+];
+for (const [route, re] of writes) {
   const i = routes.indexOf(route);
   const body = i < 0 ? "" : routes.slice(i, routes.indexOf("app.", i + route.length));
-  if (!/invalidateGroupCache\(`msgs:/.test(body)) problems.push(`${route}: مابيلغيش نسخة الشات بعد الكتابة.`);
+  if (!re.test(body)) problems.push(`${route}: مابيحدّثش نسخة الشات اللي في الذاكرة.`);
 }
+const renames = routes.split("UPDATE group_messages SET").length - 1;
+const drops = (routes.match(/UPDATE group_messages SET user_name[\s\S]{0,200}?chatDrop\(/g) || []).length;
+if (drops !== renames - 1) problems.push(`تغيير الاسم في group_messages: ${renames - 1} مكان و${drops} بس بيمسحوا نسخة الشات.`);
 
 if (problems.length) {
   problems.forEach((p) => console.log("❌ " + p));
   process.exit(1);
 }
-console.log("✅ صور شات mybible: التحديث بيرجّع رابط الصورة بس، والصورة بتتسحب مرة وتتحفظ، وكل كتابة بتلغي النسخة");
+console.log("✅ شات mybible: الرسايل من الذاكرة، والصورة رابط بيتسحب مرة، وكل كتابة بتحدّث النسخة");

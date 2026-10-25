@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { eq, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { dbPool } from "./db-pool";
+import { chatDrop, forgetGroupCodes } from "./chat-store";
+import { clearAll as clearGroupCache } from "./group-cache";
 import {
   churches, churchAdmins, readingGroups, groupMembers,
 } from "@shared/schema";
@@ -242,6 +244,8 @@ export function registerChurchRoutes(app: Express) {
       await db.delete(readingGroups).where(eq(readingGroups.churchId, id));
       await db.delete(churchAdmins).where(eq(churchAdmins.churchId, id));
       await db.delete(churches).where(eq(churches.id, id));
+      forgetGroupCodes(); // الشات من الذاكرة مايفضلش شغّال لمجموعة اتمسحت (chat-store.ts)
+      clearGroupCache();
 
       res.json({ success: true });
     } catch (err) {
@@ -262,6 +266,9 @@ export function registerChurchRoutes(app: Express) {
 
       await db.delete(groupMembers).where(eq(groupMembers.groupId, group.id));
       await db.delete(readingGroups).where(eq(readingGroups.id, group.id));
+      forgetGroupCodes();
+      chatDrop(group.id);
+      clearGroupCache();
 
       res.json({ success: true });
     } catch (err) {

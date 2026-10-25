@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
+import { bibleCache } from "./bible-cache";
 import { generateFAQSchema, generateBibleChapterTitle, generateBibleBookTitle } from "./seo-title";
 import { getInternalLinks, buildInternalLinksHtml } from "./internal-links";
 import { extractKeywords } from "./seo-topics";
@@ -1858,7 +1859,7 @@ let cachedBooks: Array<{ id: number; name: string; chaptersCount: number }> | nu
 
 async function ensureBooks() {
   if (!cachedBooks) {
-    cachedBooks = (await storage.getAllBooks()).map(b => ({
+    cachedBooks = (await bibleCache.getAllBooks()).map(b => ({
       id: b.id,
       name: b.name,
       chaptersCount: b.chaptersCount
@@ -1958,7 +1959,7 @@ export async function botSnapshotMiddleware(req: Request, res: Response, next: N
       const cacheKey = `ch:${bookName}:${chapter}`;
       if (serveCached(res, cacheKey)) return;
 
-      const verses = await storage.getVersesByBook(book.id, chapter);
+      const verses = await bibleCache.getVersesByBook(book.id, chapter);
       if (!verses || verses.length === 0) return next();
 
       const html = buildChapterSnapshot(
@@ -2395,7 +2396,7 @@ ${versesHtml ? `<article><h2>آيات عن ${esc(emotionType)} (${verses.length}
       const d = new Date(dateStr);
       const month = d.getMonth() + 1;
       const day = d.getDate();
-      const dv = await storage.getCalendarDailyVerse(month, day);
+      const dv = await bibleCache.getCalendarDailyVerse(month, day);
       if (dv?.verseText) {
         verseText = dv.verseText;
         verseRef = dv.verseReference ?? "";

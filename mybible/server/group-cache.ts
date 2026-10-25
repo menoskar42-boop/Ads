@@ -23,7 +23,10 @@
  * ما يقراش بيانات قديمة بعد ما غيّر حاجة بنفسه.
  */
 
-const TTL_MS = 8_000;
+/* كان ٨ ثواني. بقى ٥ دقايق (٢٠٢٦-١٠-٢٥، توفير حصة Supabase: كل تحميل = صفوف
+ * الـ٧٠٠ عضو) — وده آمن لأن كل كتابة على المجموعة بتلغي النسخة قبل الكتابة
+ * وبعدها (group-routes.ts)، وتحميل كان شغّال وقت الإلغاء مابيتحفظش. */
+const TTL_MS = 5 * 60_000;
 const MAX_GROUPS = 200;
 
 interface Entry<T> {
@@ -50,20 +53,27 @@ export function getOrLoad<T>(key: string, load: () => Promise<T>): Promise<T> {
   if (hit?.inFlight) return hit.inFlight;
   if (hit && hit.value !== undefined && hit.expiresAt > now) return Promise.resolve(hit.value);
 
+  const entry: Entry<T> = { expiresAt: now + TTL_MS };
   const inFlight = load().then(
     (value) => {
-      entries.set(key, { expiresAt: Date.now() + TTL_MS, value });
-      evict();
+      // اتلغى وقت التحميل (كتابة حصلت) ⇒ النتيجة دى ممكن تكون قديمة: ماتتحفظش.
+      // وnull/undefined (مجموعة مش موجودة) مابيتحفظش — ممكن تتعمل بعد ثانية.
+      if (entries.get(key) === entry) {
+        if (value === null || value === undefined) entries.delete(key);
+        else entries.set(key, { expiresAt: Date.now() + TTL_MS, value });
+        evict();
+      }
       return value;
     },
     (err) => {
       // الفشل مايتخزّنش — الطلب الجاي يحاول من أول وجديد
-      entries.delete(key);
+      if (entries.get(key) === entry) entries.delete(key);
       throw err;
     },
   );
 
-  entries.set(key, { expiresAt: now + TTL_MS, inFlight });
+  entry.inFlight = inFlight;
+  entries.set(key, entry);
   evict();
   return inFlight;
 }

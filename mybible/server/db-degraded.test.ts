@@ -120,3 +120,19 @@ test("the committed snapshot is the database export: 66 books, 31,102 verses, or
   assert.equal(snapshotVerses(1)![0].id, 1);
   assert.match(snapshotVerses(1)![0].text, /فِي ٱلْبَدْءِ/);
 });
+
+// ٢٠٢٦-١٠-٢٥: الآيات بتتقري من الملف بدل القاعدة (توفير حصة Supabase) — بس لو البصمة مطابقة
+test("verses come from the snapshot only when the DB fingerprint matches exactly", async () => {
+  const { fingerprintOf, sameFingerprint } = await import("./bible-snapshot");
+  const list = [
+    { id: 10, chapter: 1, verse: 1, text: "فِي الْبَدْءِ" },
+    { id: 11, chapter: 1, verse: 2, text: "وَكَانَتِ الأَرْضُ" },
+  ];
+  const fp = fingerprintOf(list);
+  // نفس شكل رد Postgres: count كرقم، والمجاميع نص
+  assert.equal(sameFingerprint(fp, { n: 2, ids: "21", pos: String(1001 + 1002), len: String(Array.from(list[0].text + list[1].text).length) }), true);
+  assert.equal(sameFingerprint(fp, fingerprintOf([list[0], { ...list[1], text: list[1].text + "ا" }])), false, "حرف زيادة فى القاعدة");
+  assert.equal(sameFingerprint(fp, fingerprintOf([list[0], { ...list[1], id: 12 }])), false, "رقم آية مختلف");
+  assert.equal(sameFingerprint(fp, fingerprintOf([list[0]])), false, "آية ناقصة");
+  assert.equal(sameFingerprint(fp, undefined), false, "سفر مش فى القاعدة");
+});

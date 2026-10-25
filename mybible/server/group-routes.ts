@@ -14,6 +14,15 @@ import { groupViewFor, publicGroup } from './group-privacy';
 import { getOrLoad, invalidate as invalidateGroupCache } from './group-cache';
 import { sql } from "drizzle-orm";
 import { INLINE_IMAGE, cacheImage, chatImageUrl, dropCachedImage, getCachedImage, parseDataUrl } from './chat-images';
+import { CHAT_WINDOW, chatAppend, chatDrop, chatPatch, chatRemove, getChat, groupIdByCode, type ChatMsg } from './chat-store';
+
+/** رقم المجموعة من الكود — من الذاكرة، من غير صف المجموعة كله (chat-store.ts). */
+function chatGroupId(code: string): Promise<number | null> {
+  return groupIdByCode(code, async () => {
+    const [g] = await db.select({ id: readingGroups.id }).from(readingGroups).where(eq(readingGroups.groupCode, code.toUpperCase()));
+    return g?.id ?? null;
+  });
+}
 
 const pool = dbPool;
 const db = drizzle(dbPool);
@@ -75,6 +84,7 @@ async function migrateMemberName(groupId: number, oldName: string, newName: stri
     `UPDATE group_messages SET user_name = $1 WHERE group_id = $2 AND user_name = $3`,
     [newName, groupId, oldName]
   );
+  chatDrop(groupId);
 }
 
 // اسم القارئ: من حسابه (memberKey) لو اتبعت — مش من الاسم المحفوظ على الموبايل.
@@ -106,9 +116,17 @@ export function registerGroupRoutes(app: Express) {
   /* أي كتابة على مجموعة بتلغي نسختها المحفوظة فوراً — العضو اللي سجّل
    * قراءة أو بعت رسالة لازم يشوف نتيجته هو، مش نسخة عمرها ثواني.
    * مسجّلة **قبل** كل راوتات المجموعات عشان تشوف كل الطلبات. */
-  app.use('/api/groups/:code', (req, _res, next) => {
-    if (req.method !== 'GET' && req.params.code) {
-      invalidateGroupCache(`group:${req.params.code.toUpperCase()}`);
+  /* ومرة تانية بعد ما الكتابة تخلص (`finish`) — عشان تحميل بدأ وقت الكتابة
+   * مايتحفظش بالبيانات القديمة. ده اللي بيخلّي النسخة تعيش دقايق مش ثواني
+   * (group-cache.ts) من غير ما حد يشوف حاجة قديمة. والانضمام (`/join`) الكود
+   * بتاعه في الـbody. */
+  app.use('/api/groups/:code', (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.params.code) {
+      const keys = [`group:${req.params.code.toUpperCase()}`];
+      const bodyCode = req.body && typeof req.body.groupCode === 'string' ? req.body.groupCode : '';
+      if (bodyCode) keys.push(`group:${bodyCode.toUpperCase()}`);
+      keys.forEach(invalidateGroupCache);
+      res.on('finish', () => keys.forEach(invalidateGroupCache));
     }
     next();
   });
@@ -426,6 +444,7 @@ export function registerGroupRoutes(app: Express) {
             `UPDATE group_messages SET user_name = $1 WHERE group_id = $2 AND user_name = $3`,
             [existingReal.userName, group.id, oldName]
           );
+          chatDrop(group.id);
         }
 
         // احذف حساب الضيف وأعد مفتاح العضو الأصلي
@@ -484,6 +503,7 @@ export function registerGroupRoutes(app: Express) {
           `UPDATE group_messages SET user_name = $1 WHERE group_id = $2 AND user_name = $3`,
           [newName.trim(), group.id, oldName]
         );
+        chatDrop(group.id);
       }
 
       // تحديث التليفون في guest_tokens
@@ -1272,13 +1292,14 @@ export function registerGroupRoutes(app: Express) {
 
   app.get('/api/groups/:code/messages', async (req, res) => {
     try {
-      const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, req.params.code.toUpperCase()));
-      if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
+      const code = req.params.code.toUpperCase();
+      const groupId = await chatGroupId(code);
+      if (!groupId) return res.status(404).json({ error: 'المجموعة غير موجودة' });
 
-      // الرد ده واحد لكل الأعضاء (مفيش حاجة فيه بتعتمد على مين بيطلب)، فبيتجمّع
-      // في الذاكرة — والصورة مابتتسحبش هنا خالص، بس رابطها (chat-images.ts).
-      const code = group.groupCode;
-      const filtered = await getOrLoad(`msgs:${code}`, async () => {
+      // الرد ده واحد لكل الأعضاء (مفيش حاجة فيه بتعتمد على مين بيطلب)، فبيتحفظ في
+      // الذاكرة وبيتحدّث مع كل كتابة (chat-store.ts) — والصورة مابتتسحبش هنا خالص،
+      // بس رابطها (chat-images.ts).
+      const filtered = await getChat(groupId, async () => {
         const messages = await db.select({
           id: groupMessages.id,
           groupId: groupMessages.groupId,
@@ -1294,17 +1315,17 @@ export function registerGroupRoutes(app: Express) {
           isPinned: groupMessages.isPinned,
           createdAt: groupMessages.createdAt,
         }).from(groupMessages)
-          .where(eq(groupMessages.groupId, group.id))
+          .where(eq(groupMessages.groupId, groupId))
           .orderBy(desc(groupMessages.createdAt))
-          .limit(100);
+          .limit(CHAT_WINDOW);
 
         const mutedMembers = await db.select({ userName: groupMembers.userName }).from(groupMembers)
-          .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.isMuted, true)));
+          .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.isMuted, true)));
         const mutedNames = new Set(mutedMembers.map(m => m.userName));
 
         return messages
           .filter(m => !mutedNames.has(m.userName))
-          .map(({ imageRef, ...m }) => ({ ...m, imageUrl: chatImageUrl(code, m.id, imageRef) }))
+          .map(({ imageRef, ...m }) => ({ ...m, imageUrl: chatImageUrl(code, m.id, imageRef) }) as ChatMsg)
           .reverse();
       });
       res.json({ messages: filtered });
@@ -1316,8 +1337,9 @@ export function registerGroupRoutes(app: Express) {
   // ── ملخص الشات (عداد غير مقروء + آخر رسالة) ──────────────────────────────
   }); app.get('/api/groups/:code/messages/summary', async (req, res) => {
     try {
-      const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, req.params.code.toUpperCase()));
-      if (!group) return res.status(404).json({ unreadCount: 0, lastMessage: null });
+      const groupId = await chatGroupId(req.params.code);
+      if (!groupId) return res.status(404).json({ unreadCount: 0, lastMessage: null });
+      const group = { id: groupId };
 
       const afterId = parseInt(req.query.afterId as string || '0') || 0;
 
@@ -1422,8 +1444,9 @@ export function registerGroupRoutes(app: Express) {
         replyToUserName: groupMessages.replyToUserName, reactions: groupMessages.reactions,
         isPinned: groupMessages.isPinned, createdAt: groupMessages.createdAt });
 
-      invalidateGroupCache(`msgs:${group.groupCode}`);
-      res.json({ message: { ...msg, imageUrl: imageUrl ? chatImageUrl(group.groupCode, msg.id, INLINE_IMAGE) : null } });
+      const sent = { ...msg, imageUrl: imageUrl ? chatImageUrl(group.groupCode, msg.id, String(imageUrl).startsWith('data:') ? INLINE_IMAGE : imageUrl) : null } as ChatMsg;
+      chatAppend(group.id, sent);
+      res.json({ message: sent });
 
       // إشعارات push — تعمل في الخلفية بعد الرد
       setImmediate(async () => {
@@ -1485,7 +1508,7 @@ export function registerGroupRoutes(app: Express) {
         .where(and(eq(groupMessages.id, parseInt(req.params.messageId)), eq(groupMessages.groupId, group.id)))
         .returning({ id: groupMessages.id, isPinned: groupMessages.isPinned });
 
-      invalidateGroupCache(`msgs:${group.groupCode}`);
+      if (msg) chatPatch(group.id, msg.id, { isPinned: msg.isPinned });
       res.json({ message: msg });
     } catch (err) {
       console.error('[groups] pin error:', err);
@@ -1506,7 +1529,7 @@ export function registerGroupRoutes(app: Express) {
 
       const msgId = parseInt(req.params.messageId);
       await db.delete(groupMessages).where(and(eq(groupMessages.id, msgId), eq(groupMessages.groupId, group.id)));
-      invalidateGroupCache(`msgs:${group.groupCode}`);
+      chatRemove(group.id, msgId);
       dropCachedImage(msgId);
       res.json({ success: true });
     } catch (err) {
@@ -1543,7 +1566,7 @@ export function registerGroupRoutes(app: Express) {
       }
 
       await pool.query('UPDATE group_messages SET reactions = $1 WHERE id = $2', [JSON.stringify(reactions), msgId]);
-      invalidateGroupCache(`msgs:${group.groupCode}`);
+      chatPatch(group.id, msgId, { reactions });
       res.json({ success: true, reactions });
     } catch (err) {
       console.error('[groups] react error:', err);
@@ -1566,7 +1589,7 @@ export function registerGroupRoutes(app: Express) {
         .set({ isMuted: muted })
         .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, req.params.memberName)));
 
-      invalidateGroupCache(`msgs:${group.groupCode}`);
+      chatDrop(group.id);
       res.json({ success: true });
     } catch (err) {
       console.error('[groups] mute error:', err);

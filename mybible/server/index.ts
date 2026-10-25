@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import { cacheSessionReads } from "./session-cache";
 import { isDbUnavailable, isReadRequest, logDbDegraded } from "./db-availability";
 import { dbPool } from "./db-pool";
 import { registerRoutes } from "./routes";
@@ -34,11 +35,12 @@ const isProduction = process.env.NODE_ENV === 'production';
 const PgSession = connectPgSimple(session);
 
 const sessionMiddleware = session({
-  store: new PgSession({
+  // القراية من الذاكرة بدل القاعدة مع كل طلب (توفير حصة Supabase) — session-cache.ts
+  store: cacheSessionReads(new PgSession({
     pool: dbPool,
     tableName: 'session',
     createTableIfMissing: true,
-  }),
+  })),
   secret: process.env.SESSION_SECRET || 'bible-companion-secret-key-change-in-production',
   resave: false,
   // Anonymous page/API reads must not create a PostgreSQL session row. A

@@ -48,7 +48,7 @@ function snapshot(file = SNAPSHOT_FILE): Snapshot | null {
     if (!fs.existsSync(file)) { loaded = null; return null; }
     const raw = JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString("utf8"));
     loaded = parseSnapshot(raw);
-    console.warn(`[bible-snapshot] القاعدة مش بترد — نص الكتاب المقدس من النسخة الاحتياطية (${loaded.books.length} سفر)`);
+    console.log(`[bible-snapshot] النسخة المحفوظة اتقرت (${loaded.books.length} سفر)`);
   } catch (e: any) {
     console.error("[bible-snapshot] تعذّر قراءة النسخة الاحتياطية:", e?.message || e);
     loaded = null;
@@ -92,5 +92,30 @@ export function verifySnapshotVerses(bookId: number, dbVerses: { id: number; cha
     if (ids.get(v.id) !== `${v.chapter}:${v.verse}`) return distrust(`آية ${v.id} مكانها مختلف`);
   }
 }
+/* بصمة سفر — عشان نقرا الآيات من الملف بدل القاعدة (توفير حصة Supabase) من غير
+ * ما نسحب النص نفسه: عدد الآيات + مجموع الأرقام + مجموع المواضع + مجموع طول النص.
+ * القاعدة بتحسب نفس الأربعة (`bible-cache.ts`) — لو أى رقم اختلف، السفر ده بيتقري
+ * من القاعدة زى الأول. الطول بعدد الحروف (code points) زى char_length فى Postgres. */
+export interface VerseFingerprint { n: number; ids: string; pos: string; len: string }
+export function fingerprintOf(list: { id: number; chapter: number; verse: number; text: string }[]): VerseFingerprint {
+  // المجاميع أقل بكتير من 2^53 (أكبر سفر ~٢٥٠٠ آية) فالأرقام العادية كفاية
+  let ids = 0, pos = 0, len = 0;
+  for (const v of list) {
+    ids += v.id;
+    pos += v.chapter * 1000 + v.verse;
+    len += Array.from(v.text).length;
+  }
+  return { n: list.length, ids: String(ids), pos: String(pos), len: String(len) };
+}
+export function sameFingerprint(a: VerseFingerprint | undefined, b: VerseFingerprint | undefined): boolean {
+  return !!a && !!b && a.n === b.n && a.ids === b.ids && a.pos === b.pos && a.len === b.len;
+}
+/** آيات سفر من الملف — بس لو بصمته مطابقة لبصمة القاعدة. */
+export function trustedSnapshotVerses(bookId: number, dbFp: VerseFingerprint | undefined): SnapshotVerse[] | null {
+  const list = snapshotVerses(bookId);
+  if (!list || !list.length) return null;
+  return sameFingerprint(fingerprintOf(list), dbFp) ? list : null;
+}
+
 /** للاختبار بس */
 export function _resetSnapshotForTest(file?: string): void { loaded = undefined; distrusted = false; if (file) snapshot(file); }

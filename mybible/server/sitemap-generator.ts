@@ -1,4 +1,5 @@
 import { storage } from "./storage";
+import { bibleCache } from "./bible-cache";
 import type { Request, Response } from "express";
 import { getAllVideoSeoEntries } from "./video-seo-data";
 import { agpeyaHoursFull } from "../client/src/lib/agpeya-content";
@@ -257,7 +258,7 @@ export async function sitemapBibleHandler(_req: Request, res: Response) {
   if (cached) return sendXml(res, cached);
 
   try {
-    const books = await storage.getAllBooks();
+    const books = await bibleCache.getAllBooks();
     const today = new Date().toISOString().split("T")[0];
     const urls: string[] = [];
 
@@ -445,7 +446,7 @@ export async function sitemapListenHandler(_req: Request, res: Response) {
   if (cached) return sendXml(res, cached);
 
   try {
-    const books = await storage.getAllBooks();
+    const books = await bibleCache.getAllBooks();
     const today = new Date().toISOString().split("T")[0];
     const urls: string[] = [];
 
