@@ -9,6 +9,7 @@ import { RefreshButton } from "@/components/RefreshButton";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
+import { WEEK_DROP_TITLE, weekDropLabel } from "@shared/week-drop";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -62,6 +63,8 @@ interface CurrentFault extends Measurement138 {
   lastContactAt: string | null;
   lastContactOutcome: "answered" | "no_answer" | null;
   majorSelected: boolean;
+  weekDrop?: "yes" | "no" | "none" | null;
+  weekDropPct?: number | null;
 }
 
 // تطبيع رقم المحمول للاتصال: أرقام فقط + إضافة صفر بادئ لو ناقص (1552… → 01552…)
@@ -414,6 +417,7 @@ export function CurrentFaultsReport() {
       "كود السنترال": f.centralCode,
       "آخر رفع سرعة": fmtDt(f.lastPoRaiseAt),
       "آخر إيقاف PO": fmtDt(f.lastPoStopAt),
+      [WEEK_DROP_TITLE]: weekDropLabel(f),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -431,7 +435,7 @@ export function CurrentFaultsReport() {
       <th>#</th><th>السنترال</th><th>التليفون</th><th>الأكونت</th><th>سرعة حالية</th><th>أقصى سرعة</th><th>الاسكور</th><th>حالة PO</th><th>تاريخ آخر قياس</th><th>وقت آخر اتصال</th><th>قياس حالى</th><th>آخر قياس</th><th>تكرار</th><th>Status</th>
       <th>MSAN</th><th>Frame</th>
       <th>الكابينه</th><th>البكس</th><th>ترمنال</th><th>وقت الشكوى</th><th>الوقت الفعلى</th><th>نوع الشكوى</th>
-      <th>تصنيف</th><th>كود العامل</th><th>اسم الفنى</th><th>نوع العطل</th><th>Voice</th><th>Data</th>
+      <th>تصنيف</th><th>كود العامل</th><th>اسم الفنى</th><th>نوع العطل</th><th>Voice</th><th>Data</th><th>${WEEK_DROP_TITLE}</th>
     </tr>`;
     let pages = "";
     for (let p = 0; p < totalPages; p++) {
@@ -466,6 +470,7 @@ export function CurrentFaultsReport() {
           <td>${esc(f.faultType)}</td>
           <td>${esc(f.voiceStatus)}</td>
           <td>${esc(f.dataStatus)}</td>
+          <td>${esc(weekDropLabel(f))}</td>
         </tr>`).join("");
       pages += `
         <section class="page">
@@ -683,12 +688,13 @@ export function CurrentFaultsReport() {
                 <TableHead className="text-right font-bold text-white">كود السنترال</TableHead>
                 <TableHead className="text-right font-bold text-white whitespace-nowrap">آخر رفع سرعة</TableHead>
                 <TableHead className="text-right font-bold text-white whitespace-nowrap">آخر إيقاف PO</TableHead>
+                <TableHead className="text-right font-bold text-white whitespace-nowrap">{WEEK_DROP_TITLE}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {displayed.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={37} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={38} className="text-center py-16 text-muted-foreground">
                     {isFetching
                       ? "جاري التحميل..."
                       : repeatedOnly
@@ -848,6 +854,11 @@ export function CurrentFaultsReport() {
                     <TableCell>{f.centralCode || "-"}</TableCell>
                     <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-emerald-700">{fmtDt(f.lastPoRaiseAt)}</TableCell>
                     <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{fmtDt(f.lastPoStopAt)}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap" data-testid={`week-drop-${f.ticketId}`}>
+                      <span className={f.weekDrop === "yes" ? "font-bold text-red-700 bg-red-50 rounded px-1.5 py-0.5" : f.weekDrop === "no" ? "text-gray-700" : "text-gray-400"}>
+                        {weekDropLabel(f)}
+                      </span>
+                    </TableCell>
                   </TableRow>
                 );
               })}

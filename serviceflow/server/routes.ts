@@ -36,7 +36,7 @@ import * as wfmCustomerMobilesD1 from "./wfm-customer-mobiles-d1";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
 import { loopMeters, preserveLoopLength, speedKbps } from "./loop-length";
-import { speedDropOf } from "./speed-drop";
+import { speedDropOf, weekDropJoinSql, WEEK_DROP_COLS, weekDropOf } from "./speed-drop";
 import { boxRangeCond } from "./box-range";
 import { normCab, normBox, expandBoxes, boxKey } from "@shared/cab-norm";
 import { cardCapacityOf, cardFreeOf } from "@shared/card-capacity";
@@ -14282,7 +14282,7 @@ export async function registerRoutes(
               (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt",
               -- بلاغ العميل من الصفحة العامة: محموله اللى كتبه هو الأحدث فبيتقدّم
               COALESCE(mf.reporter_mobile, mob.m) AS "mobile",
-              mf.reporter_mobile AS "reporterMobile", mf.report_note AS "reportNote"
+              mf.reporter_mobile AS "reporterMobile", mf.report_note AS "reportNote", ${WEEK_DROP_COLS}
        FROM manual_faults mf
        LEFT JOIN phone_ports pp ON pp.phone_number = mf.full_phone
        LEFT JOIN LATERAL (
@@ -14320,8 +14320,10 @@ export async function registerRoutes(
                AND fo.customer_mobile !~ '[A-Za-z=/]' AND fo.customer_mobile ~ '[0-9]{5,}'
          ) x WHERE NULLIF(btrim(x.m),'') IS NOT NULL ORDER BY pr LIMIT 1
        ) mob ON true
+       -- المالك ٢٠٢٦-١٠-٢٥: كان فى «انخفاض السرعة خلال أسبوع» وقت تسجيل العطل؟
+       ${weekDropJoinSql("mf.full_phone", "mf.flagged_at")}
        WHERE mf.status='open'${techWhere} ORDER BY mf.flagged_at DESC`, params);
-    res.json({ data: rows });
+    res.json({ data: rows.map((r: any) => ({ ...r, ...weekDropOf(r) })) });
   });
 
   // GET /api/reports/engineering-inspection?phones=... — بيانات إيميل «اغلاق تفتيش هندسى»:
@@ -14568,7 +14570,7 @@ export async function registerRoutes(
       // DISTINCT ON (ticket_id) — آخر حالة لكل شكوى (أعلى id)، ثم ترتيب بوقت الشكوى.
       const { rows } = await pool.query(
         `SELECT x.*, (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-                (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt" FROM (
+                (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", ${WEEK_DROP_COLS} FROM (
            SELECT DISTINCT ON (t.ticket_id)
              t.ticket_id             AS "ticketId",
              t.central_name          AS "centralName",
@@ -14724,10 +14726,14 @@ export async function registerRoutes(
            ORDER BY t.ticket_id, t.id DESC
          ) x
          LEFT JOIN line_po_events pe ON pe.account_no = x."accountNo"
+         -- المالك ٢٠٢٦-١٠-٢٥: كان فى «انخفاض السرعة خلال أسبوع» وقت الشكوى؟ complaint_time متخزّن بساعة
+         -- القاهرة ومتعلّم UTC (زى «(c.uploaded_at AT TIME ZONE 'Africa/Cairo') >= t.complaint_time» فوق)،
+         -- فاللحظة الحقيقية = نقراه كساعة وبعدين نحطّه فى توقيت القاهرة
+         ${weekDropJoinSql(`'88' || x."phoneShort"`, `((x."complainTime" AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Cairo')`)}
          ORDER BY x."complainTime" ASC NULLS LAST`,
         params,
       );
-      res.json(rows);
+      res.json(rows.map((r: any) => ({ ...r, ...weekDropOf(r) })));
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, RefreshCw, FileSpreadsheet, FileText, AlertTriangle, Wrench, X, Eye, User, Phone } from "lucide-react";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
+import { WEEK_DROP_TITLE, weekDropLabel, type WeekDrop } from "@shared/week-drop";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { ROLES } from "@shared/schema";
@@ -16,7 +17,7 @@ import { arNorm } from "@shared/ar-norm";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
 
 // «الأعطال الحالية خارج الشاشة» — الأعطال اليدوية (زر «الخط به عطل») اللى لسه ماانتظمتش.
-interface Row {
+interface Row extends WeekDrop {
   id: number;
   fullPhone: string | null;
   phoneShort: string | null;
@@ -143,7 +144,7 @@ export function ManualCurrentFaultsReport() {
     "تاريخ العطل", "رقم التليفون", "رقم الموبايل", "سجّل العطل", "السنترال", "الكابينة", "البكس", "كود MSAN", "اسم الفنى", "الفريم",
     "رقم الأكونت", "السرعة الحالية", "أقصى سرعة", "الاسكور", "حالة PO", "تاريخ آخر قياس", "القياس الحالى",
     "Shelf", "Slot", "Port", "Port Type", "voice", "data", "operator", "ONU",
-    "آخر رفع سرعة", "آخر إيقاف PO",
+    "آخر رفع سرعة", "آخر إيقاف PO", WEEK_DROP_TITLE,
   ];
   const dash = (v: any) => (v == null || v === "" ? "-" : String(v));
   const toRow = (x: Row) => [
@@ -153,6 +154,7 @@ export function ManualCurrentFaultsReport() {
     dash(x.accountNo), dash(x.lineCurrentSpeed), dash(x.lineMaxSpeed), dash(x.lastMeasScore), dash(x.poStatus), fmt(x.lastMeasTime), dash(x.curMeasScore),
     dash(x.shelf), dash(x.slot), dash(x.portNumber), dash(x.portType),
     dash(x.voiceStatus), dash(x.dataStatus), dash(x.operator), dash(x.onu), fmt(x.lastPoRaiseAt), fmt(x.lastPoStopAt),
+    weekDropLabel(x),
   ];
 
   const shown = onlyMine ? rows.filter(isMine) : rows;
@@ -218,6 +220,8 @@ export function ManualCurrentFaultsReport() {
                             </a>
                           )}
                         </span>
+                      ) : i === cells.length - 1 ? (
+                        <span className={x.weekDrop === "yes" ? "font-bold text-red-700 bg-red-50 rounded px-1.5 py-0.5" : x.weekDrop === "no" ? "text-gray-700" : "text-gray-400"}>{val}</span>
                       ) : i === 2 ? <MobileValue mobile={x.reporterMobile || (mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] ?? x.mobile)} phone={x.phoneShort || x.fullPhone} /> : i === 14 ? <PoStatusCell value={x.poStatus} /> : (val || "-")}
                     </TableCell>
                   ))}
