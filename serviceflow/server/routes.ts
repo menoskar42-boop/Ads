@@ -37,6 +37,7 @@ import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTick
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
 import { loopMeters, preserveLoopLength, speedKbps } from "./loop-length";
 import { speedDropOf } from "./speed-drop";
+import { boxRangeCond } from "./box-range";
 import { normCab, normBox, expandBoxes, boxKey } from "@shared/cab-norm";
 import { cardCapacityOf, cardFreeOf } from "@shared/card-capacity";
 import { boxAverageFromAggregate, boxAverageFromAggregates, isBoxBrokenReason } from "@shared/om-box-score";
@@ -7683,7 +7684,7 @@ export async function registerRoutes(
     const leftHighScore = req.path.endsWith("/left-speed-highscore");
     const leftRaised = req.path.endsWith("/left-speed-raised");
     const leftMode = leftHighScore || leftRaised;
-    const { central = "", cabin = "", box = "", page = "1", limit = "50", requireComplaint = "", requireComplaintAny = "", hasComplaint = "", poStoppedBefore = "", measuredBefore = "", scoreFrom = "", scoreTo = "", search = "", includeExcluded = "", excludeZeroScore = "" } = req.query as Record<string, string>;
+    const { central = "", cabin = "", box = "", boxTo = "", page = "1", limit = "50", requireComplaint = "", requireComplaintAny = "", hasComplaint = "", poStoppedBefore = "", measuredBefore = "", scoreFrom = "", scoreTo = "", search = "", includeExcluded = "", excludeZeroScore = "" } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
     const needComplaint = requireComplaint === "1" || requireComplaint === "true";
@@ -7846,7 +7847,7 @@ export async function registerRoutes(
     }
     if (central) { params.push(central); conds.push(`COALESCE(pl.central, cpl.central_name) = $${params.length}`); }
     if (cabin) { params.push(cabin); conds.push(`COALESCE(pl.cabin_number, cpl.cabinet_no) = $${params.length}`); }
-    if (box) { params.push(box); conds.push(`pl.box_number = $${params.length}`); }
+    { const bc = boxRangeCond(params, "pl.box_number", box, boxTo); if (bc) conds.push(bc); }
     // كباين مستثناة من التقرير افتراضياً (بقرار تشغيلى) — خطوطها مابتظهرش إلا لو المستخدم
     // ضغط زر «إظهار الكباين المستثناة» (includeExcluded=1). الاستثناء بيتم بكود الـ MSAN،
     // سواء الكود جاى من بيان البورتات للخط نفسه أو من جدول فنيى الكباين (سنترال + كابينة).
@@ -7952,7 +7953,7 @@ export async function registerRoutes(
   // المعيار: لها رقم أكونت + آخر قياس مرّ عليه أقل من 3 أيام + لا تحتاج رفع سرعة (عكس معيار
   //   محتاجة رفع سرعة). دى غالباً خطوط اتعملها Profile Optimization ومحتاجة إيقاف الـ nightly PO.
   app.get("/api/phone-lines/needs-po-stop", requireAuth, async (req, res) => {
-    const { central = "", cabin = "", box = "", poStoppedBefore = "", measuredBefore = "", page = "1", limit = "50", search = "", scoreFrom = "", scoreTo = "" } = req.query as Record<string, string>;
+    const { central = "", cabin = "", box = "", boxTo = "", poStoppedBefore = "", measuredBefore = "", page = "1", limit = "50", search = "", scoreFrom = "", scoreTo = "" } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
     const params: any[] = [];
@@ -8008,7 +8009,7 @@ export async function registerRoutes(
 
     if (central) { params.push(central); conds.push(`COALESCE(pl.central, cpl.central_name) = $${params.length}`); }
     if (cabin) { params.push(cabin); conds.push(`COALESCE(pl.cabin_number, cpl.cabinet_no) = $${params.length}`); }
-    if (box) { params.push(box); conds.push(`pl.box_number = $${params.length}`); }
+    { const bc = boxRangeCond(params, "pl.box_number", box, boxTo); if (bc) conds.push(bc); }
     // بحث نصّى: رقم التليفون (كامل أو قصير) أو رقم الأكونت — على مستوى السيرفر
     if (search.trim()) {
       params.push(arQ(search));

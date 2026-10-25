@@ -126,7 +126,9 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
   useSpeedToolSource(sourceName);
   const [central, setCentral] = useState("");
   const [cabin, setCabin] = useState("");
+  // «من بكس — إلى بكس» (المالك ٢٠٢٦-١٠-٢٥): «إلى» فاضية ⇒ البكس اللى فى «من» بس
   const [box, setBox] = useState("");
+  const [boxTo, setBoxTo] = useState("");
   const [poStoppedBefore, setPoStoppedBefore] = useState(""); // فلتر: يستبعد اللى تم إيقاف الـ PO بتاعها بعد التاريخ
   const [measuredBefore, setMeasuredBefore] = useState(""); // فلتر: يستبعد اللى تم قياسها بعد التاريخ
   const [scoreFrom, setScoreFrom] = useState("");
@@ -181,6 +183,7 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
     if (central) params.set("central", central);
     if (cabin) params.set("cabin", cabin);
     if (box) params.set("box", box);
+    if (boxTo) params.set("boxTo", boxTo);
     if (search) params.set("search", search);
     if (isNeedsSpeed && showExcludedCabins) params.set("includeExcluded", "1");
     if (excludeQueued) params.set("excludeQueued", excludeQueued);
@@ -198,7 +201,7 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: [endpoint, central, cabin, box, poStoppedBefore, measuredBefore, scoreFrom, scoreTo, search, page, requireComplaint, complaintFilter, showExcludedCabins, excludeQueued, excludeZeroScore, faultOnly],
+    queryKey: [endpoint, central, cabin, box, boxTo, poStoppedBefore, measuredBefore, scoreFrom, scoreTo, search, page, requireComplaint, complaintFilter, showExcludedCabins, excludeQueued, excludeZeroScore, faultOnly],
     queryFn: async () => {
       const res = await fetch(`${endpoint}?${buildParams()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch");
@@ -347,7 +350,7 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
             <SearchableCombobox
               options={filterOptions?.centrals ?? []}
               value={central}
-              onChange={(v) => { setCentral(v); setCabin(""); setBox(""); setPage(1); }}
+              onChange={(v) => { setCentral(v); setCabin(""); setBox(""); setBoxTo(""); setPage(1); }}
               placeholder="كل السنترالات"
               searchPlaceholder="ابحث في السنترالات..."
               className="w-full sm:w-44 text-sm"
@@ -355,7 +358,7 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
             <SearchableCombobox
               options={cabins}
               value={cabin}
-              onChange={(v) => { setCabin(v); setBox(""); setPage(1); }}
+              onChange={(v) => { setCabin(v); setBox(""); setBoxTo(""); setPage(1); }}
               placeholder="كل الكباين"
               searchPlaceholder="ابحث في الكباين..."
               disabled={!central}
@@ -364,11 +367,20 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
             <SearchableCombobox
               options={boxes}
               value={box}
-              onChange={(v) => { setBox(v); setPage(1); }}
-              placeholder="كل البكسيات"
+              onChange={(v) => { setBox(v); if (!v) setBoxTo(""); setPage(1); }}
+              placeholder={boxTo ? "من بكس" : "كل البكسيات (من بكس)"}
               searchPlaceholder="ابحث في البكسيات..."
               disabled={!cabin}
-              className="w-full sm:w-36 text-sm"
+              className="w-full sm:w-40 text-sm"
+            />
+            <SearchableCombobox
+              options={boxes}
+              value={boxTo}
+              onChange={(v) => { setBoxTo(v); setPage(1); }}
+              placeholder="إلى بكس (فاضى = البكس ده بس)"
+              searchPlaceholder="ابحث في البكسيات..."
+              disabled={!cabin || !box}
+              className="w-full sm:w-52 text-sm"
             />
             {showPoStopFilter && (
               <div className="flex items-center gap-1">
