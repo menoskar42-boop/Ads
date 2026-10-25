@@ -60,9 +60,29 @@ test("speed-drop report: regularized this month, no-Real first-after-complaint v
   assert.match(dash, /\{ id: "speed-drop", +label: "انخفاض السرعة بعد الانتظام" \}/);
 });
 
+// المالك ٢٠٢٦-١٠-٢٥: «انخفاض السرعة خلال أسبوع» — كل الخطوط، السرعة الحالية قصاد سرعة الخط من أسبوع
+test("weekly speed-drop: all lines, current vs a week ago, same report page", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const ui = readFileSync(new URL("../client/src/components/SpeedDropReport.tsx", import.meta.url), "utf8");
+  const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
+  const start = routes.indexOf('app.get("/api/reports/weekly-speed-drop"');
+  assert.ok(start > 0);
+  const ep = routes.slice(start, routes.indexOf("app.get(", start + 10));
+  assert.doesNotMatch(ep, /complaint_details|remaining_complaints/, "مش الأعطال بس");
+  assert.match(ep, /measure_mode = 'noreal'/);
+  assert.match(ep, /WHERE l\.at > now\(\) - \$1::int \* interval '1 day'/, "الحالى جوّه الأسبوع");
+  assert.match(ep, /\(m\.at <= now\(\) - \$1::int \* interval '1 day'\) DESC/, "المقارنة بآخر قياس قبل الأسبوع الأول");
+  assert.match(ep, /hasFrameSql/);
+  assert.match(ep, /r\.dropPct > minDrop/);
+  assert.match(ui, /weekly \? "\/api\/reports\/weekly-speed-drop"/);
+  assert.match(dash, /\{ id: "speed-drop-week", +label: "انخفاض السرعة خلال أسبوع" \}/);
+  assert.match(dash, /<SpeedDropReport key="week" weekly \/>/);
+});
+
 test("speed-drop report has the measure / no-Real / raise / stop buttons", () => {
   const ui = readFileSync(new URL("../client/src/components/SpeedDropReport.tsx", import.meta.url), "utf8");
-  assert.match(ui, /useSpeedToolSource\("انخفاض السرعة بعد الانتظام"\)/);
+  assert.match(ui, /const NAME = weekly \? "انخفاض السرعة خلال أسبوع" : "انخفاض السرعة بعد الانتظام"/);
+  assert.match(ui, /useSpeedToolSource\(NAME\)/);
   assert.match(ui, /dispatchSpeedTool\("measure", accounts, isSuper, \{ noReal \}\)/);
   assert.match(ui, /dispatchSpeedTool\(kind === "stop" \? "stop" : "raise", accounts, isSuper\)/);
   assert.match(ui, /handleMeasure\(true\)[\s\S]{0,300}قياس بدون Real/);
@@ -71,7 +91,8 @@ test("speed-drop report has the measure / no-Real / raise / stop buttons", () =>
 
 test("speed-drop report: mobile column like current faults + details button next to the phone", () => {
   const ui = readFileSync(new URL("../client/src/components/SpeedDropReport.tsx", import.meta.url), "utf8");
-  assert.match(ui, /const COLS = \["#", "رقم التليفون", "رقم الموبايل",/);
+  assert.match(ui, /const COLS_REG = \["#", "رقم التليفون", "رقم الموبايل",/);
+  assert.match(ui, /const WEEK_COLS = \["#", "رقم التليفون", "رقم الموبايل",/);
   // byTech (قبل البحث): الموبايل نفسه بيتبحث فيه، فلازم يتجاب قبل فلترة البحث
   assert.match(ui, /useMobileLookup\(byTech\.map\(\(r\) => r\.phone\)\)/);
   assert.match(ui, /<MobileValue mobile=\{mobileOf\(r\) \|\| null\} phone=\{r\.phone\} \/>/);

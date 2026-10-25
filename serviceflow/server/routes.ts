@@ -14889,6 +14889,52 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // GET /api/reports/weekly-speed-drop — «انخفاض السرعة خلال أسبوع» (المالك ٢٠٢٦-١٠-٢٥): زى «انخفاض السرعة
+  // بعد الانتظام» بس لكل الخطوط مش الأعطال بس. السرعة الحالية = آخر قياس «بدون Real» (لازم يكون جوّه
+  // آخر `days` يوم)، وبتتقارن بسرعة الخط من أسبوع = آخر قياس «بدون Real» قبل بداية الأسبوع (لحد أسبوع
+  // كمان قبلها)، ولو الخط مااتقاسش قبلها = أول قياس جوّه الأسبوع. الخط بيظهر لو نزلت أكتر من minDrop%.
+  app.get("/api/reports/weekly-speed-drop", requireAuth, async (req: any, res) => {
+    try {
+      if (req.user?.role === ROLES.SALES || req.user?.role === ROLES.SALES_ADMIN) return res.status(403).json({ message: "غير مسموح" });
+      const days = Math.min(60, Math.max(1, Math.round(Number(req.query.days ?? 7)) || 7));
+      const minDrop = Math.min(100, Math.max(0, Number(req.query.minDrop ?? 10) || 10));
+      const { rows } = await pool.query(
+        `WITH m AS (
+           SELECT c.id, c.full_phone, c.current_speed, c.max_speed, c.score, c.account_no,
+                  COALESCE(c.measured_at, c.uploaded_at) AS at
+             FROM case_138 c
+            WHERE c.measure_mode = 'noreal' AND COALESCE(c.full_phone, '') <> ''
+              AND COALESCE(c.measured_at, c.uploaded_at) >= now() - ($1::int * 2) * interval '1 day'
+         ), l AS (
+           SELECT DISTINCT ON (full_phone) * FROM m ORDER BY full_phone, at DESC, id DESC
+         ), b AS (
+           -- الأول: آخر قياس قبل بداية الأسبوع · لو مفيش: أول قياس جوّه الأسبوع (قبل الحالى)
+           SELECT DISTINCT ON (m.full_phone) m.*
+             FROM m JOIN l ON l.full_phone = m.full_phone AND m.id <> l.id AND m.at < l.at
+            ORDER BY m.full_phone, (m.at <= now() - $1::int * interval '1 day') DESC,
+                     CASE WHEN m.at <= now() - $1::int * interval '1 day' THEN m.at END DESC NULLS LAST, m.at, m.id
+         )
+         SELECT ${sp("l.full_phone")} AS phone, pl.central, pl.cabin_number AS cabinet, pl.box_number AS box,
+                ${areaTechSql("pl.central", "pl.cabin_number", "now()", sp("l.full_phone"), { noShiftCover: true })} AS "techName",
+                b.id AS "firstId", b.current_speed AS "firstSpeed", b.max_speed AS "firstMax", b.score AS "firstScore",
+                (b.at AT TIME ZONE 'Africa/Cairo') AS "firstAt",
+                l.id AS "lastId", l.current_speed AS "lastSpeed", l.max_speed AS "lastMax", l.score AS "lastScore",
+                (l.at AT TIME ZONE 'Africa/Cairo') AS "lastAt", l.account_no AS "accountNo"
+           FROM l
+           JOIN b ON b.full_phone = l.full_phone
+           LEFT JOIN phone_lines pl ON pl.full_phone = l.full_phone
+          WHERE l.at > now() - $1::int * interval '1 day'
+            AND ${hasFrameSql("l.full_phone")}`, [days]);
+      const data = rows.map((r: any) => {
+        const first = speedKbps(r.firstSpeed), last = speedKbps(r.lastSpeed);
+        const drop = first && last != null ? Math.round(((first - last) / first) * 1000) / 10 : null;
+        return { ...r, complainNo: null, complainTime: null, firstKbps: first, lastKbps: last, dropPct: drop };
+      }).filter((r: any) => r.dropPct != null && r.dropPct > minDrop)
+        .sort((a: any, b: any) => b.dropPct - a.dropPct);
+      res.json({ days, minDrop, data });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.get("/api/reports/regularized-faults-range", requireAuth, async (req, res) => {
     // المالك ٢٠٢٦-١٠-١٢: مش للشئون الخارجية ولا مهندس الكوابل (external) ولا الأدمن — الفنى والسوبر أدمن
     if (req.user?.role === ROLES.EXTERNAL || req.user?.role === ROLES.ADMIN) return res.status(403).json({ message: "التقرير ده مش متاح" });

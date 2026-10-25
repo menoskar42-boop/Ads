@@ -1,6 +1,8 @@
 // «انخفاض السرعة بعد الانتظام» — تاب القياسات (المالك ٢٠٢٦-١٠-١٢): خطوط الأعطال المنتظمة فى الفترة
 // (الافتراضى الشهر الحالى) اللى سرعتها الحالية («بدون Real» الأخير) أقل بأكتر من ١٠٪ من أول قياس
 // «بدون Real» بعد تاريخ الشكوى. السيرفر: /api/reports/regularized-speed-drop.
+// و`weekly` (المالك ٢٠٢٦-١٠-٢٥) = «انخفاض السرعة خلال أسبوع»: نفس الشاشة بس لكل الخطوط مش الأعطال —
+// السرعة الحالية قصاد سرعة الخط من أسبوع. السيرفر: /api/reports/weekly-speed-drop.
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
@@ -22,7 +24,7 @@ const DZS_URL = "https://10.42.187.101:8080/expresse/";
 const buildDZSUrl = (accounts: string[]) => `${DZS_URL}#sf_accounts=${encodeURIComponent(accounts.join(","))}`;
 
 interface DropRow {
-  phone: string; complainNo: string | null; complainTime: string | null; central: string | null; cabinet: string | null;
+  phone: string; complainNo: string | null; complainTime: string | null; central: string | null; cabinet: string | null; box?: string | null;
   techName: string | null; accountNo: string | null;
   firstSpeed: string | null; firstAt: string | null; firstScore: number | null;
   lastSpeed: string | null; lastAt: string | null; lastScore: number | null;
@@ -34,10 +36,16 @@ const day = (v: string | null) => (v ? String(v).slice(0, 10) : "");
 const dt = (v: string | null) => (v ? String(v).slice(0, 16).replace("T", " ") : "");
 const kb = (n: number | null) => (n == null ? "" : n.toLocaleString("en-US"));
 
-const COLS = ["#", "رقم التليفون", "رقم الموبايل", "السنترال", "الكابينة", "الفنى", "رقم الأكونت", "رقم الشكوى", "تاريخ الشكوى",
+const COLS_REG = ["#", "رقم التليفون", "رقم الموبايل", "السنترال", "الكابينة", "الفنى", "رقم الأكونت", "رقم الشكوى", "تاريخ الشكوى",
   "أول قياس بعد الشكوى", "السرعة وقتها (kbps)", "آخر قياس", "السرعة الحالية (kbps)", "الانخفاض %", "الاسكور الحالى"];
+// نفس أماكن الخانات (التليفون ١ · الموبايل ٢ · الأكونت ٦ · الانخفاض ١٣) — خانتين الشكوى بقوا البوكس واسكور القياس القديم
+const WEEK_COLS = ["#", "رقم التليفون", "رقم الموبايل", "السنترال", "الكابينة", "الفنى", "رقم الأكونت", "البوكس", "الاسكور وقتها",
+  "قياس المقارنة (من أسبوع)", "السرعة وقتها (kbps)", "آخر قياس", "السرعة الحالية (kbps)", "الانخفاض %", "الاسكور الحالى"];
 
-export function SpeedDropReport() {
+export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
+  const COLS = weekly ? WEEK_COLS : COLS_REG;
+  const NAME = weekly ? "انخفاض السرعة خلال أسبوع" : "انخفاض السرعة بعد الانتظام";
+  const [days, setDays] = useState("7");
   const [from, setFrom] = useState(() => today().slice(0, 8) + "01");
   const [to, setTo] = useState(today);
   const [minDrop, setMinDrop] = useState("10");
@@ -48,7 +56,7 @@ export function SpeedDropReport() {
   // أزرار القياس ورفع السرعة والإيقاف (المالك ٢٠٢٦-١٠-١٢) — نفس باقى تقارير القياسات
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
-  useSpeedToolSource("انخفاض السرعة بعد الانتظام");
+  useSpeedToolSource(NAME);
   // رقم الموبايل + زرار التفاصيل جنب رقم التليفون (المالك ٢٠٢٦-١٠-١٢) — زى «الأعطال الحالية»
   const qc = useQueryClient();
   const [detailPhone, setDetailPhone] = useState<string | null>(null);
@@ -67,11 +75,13 @@ export function SpeedDropReport() {
       await qc.invalidateQueries({ queryKey: ["/api/phone-lines/mobile-lookup"] });
     } catch { alert("تعذّر حفظ رقم الموبايل"); } finally { setSavingMobile(false); }
   };
+  const endpoint = weekly ? "/api/reports/weekly-speed-drop" : "/api/reports/regularized-speed-drop";
   const q = useQuery<{ data: DropRow[] }>({
-    queryKey: ["/api/reports/regularized-speed-drop", from, to, minDrop],
+    queryKey: weekly ? [endpoint, days, minDrop] : [endpoint, from, to, minDrop],
     queryFn: async () => {
-      const p = new URLSearchParams({ dateFrom: from, dateTo: to, minDrop: minDrop || "10" });
-      const r = await fetch(`/api/reports/regularized-speed-drop?${p}`, { credentials: "include" });
+      const p = weekly ? new URLSearchParams({ days: days || "7", minDrop: minDrop || "10" })
+        : new URLSearchParams({ dateFrom: from, dateTo: to, minDrop: minDrop || "10" });
+      const r = await fetch(`${endpoint}?${p}`, { credentials: "include" });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "تعذّر التحميل");
       return r.json();
     },
@@ -87,7 +97,8 @@ export function SpeedDropReport() {
   const mobileLookup = useMobileLookup(byTech.map((r) => r.phone));
   const mobileOf = (r: DropRow) => mobileLookup[phoneLookupKey(r.phone)] ?? "";
   const cells = (r: DropRow, i: number) => [
-    i + 1, r.phone, mobileOf(r), r.central ?? "", r.cabinet ?? "", r.techName ?? "", r.accountNo ?? "", r.complainNo ?? "", day(r.complainTime),
+    i + 1, r.phone, mobileOf(r), r.central ?? "", r.cabinet ?? "", r.techName ?? "", r.accountNo ?? "",
+    ...(weekly ? [r.box ?? "", r.firstScore ?? ""] : [r.complainNo ?? "", day(r.complainTime)]),
     dt(r.firstAt), kb(r.firstKbps), dt(r.lastAt), kb(r.lastKbps), `${r.dropPct}%`, r.lastScore ?? "",
   ];
   // البحث بيدوّر فى نفس الخانات اللى فى الجدول/الإكسيل (من غير المسلسل)، والإكسيل والـPDF
@@ -120,12 +131,13 @@ export function SpeedDropReport() {
   };
 
   const techLabel = tech === "all" ? "" : ` — الفنى: ${tech === NO_TECH ? "بدون فنى" : tech}`;
-  const title = `انخفاض السرعة بعد الانتظام (أكتر من ${minDrop || 10}%) — ${from} إلى ${to}${techLabel}${term ? ` — بحث: ${term}` : ""}`;
+  const period = weekly ? `آخر ${days || 7} يوم` : `${from} إلى ${to}`;
+  const title = `${NAME} (أكتر من ${minDrop || 10}%) — ${period}${techLabel}${term ? ` — بحث: ${term}` : ""}`;
   const excel = () => {
     const ws = XLSX.utils.aoa_to_sheet([COLS, ...rows.map(cells)]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "انخفاض السرعة");
-    XLSX.writeFile(wb, `speed-drop-${from}-${to}.xlsx`);
+    XLSX.writeFile(wb, weekly ? `speed-drop-week-${today()}.xlsx` : `speed-drop-${from}-${to}.xlsx`);
   };
   const pdf = () => printTablePDF({ title, columns: COLS, rows: rows.map(cells), rowsPerPage: 14 });
 
@@ -133,9 +145,11 @@ export function SpeedDropReport() {
     <Card className="p-4 space-y-4" dir="rtl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold flex items-center gap-2"><TrendingDown className="w-5 h-5 text-red-600" /> انخفاض السرعة بعد الانتظام</h2>
+          <h2 className="text-lg font-bold flex items-center gap-2"><TrendingDown className="w-5 h-5 text-red-600" /> {NAME}</h2>
           <p className="text-xs text-muted-foreground">
-            خطوط الأعطال المنتظمة فى الفترة اللى سرعتها الحالية (آخر قياس بدون Real) أقل من أول قياس بدون Real بعد تاريخ الشكوى.
+            {weekly
+              ? "كل الخطوط (مش الأعطال بس) اللى سرعتها الحالية (آخر قياس بدون Real، جوّه الفترة) أقل من سرعتها من أسبوع — آخر قياس بدون Real قبل بداية الفترة، ولو مااتقاسش قبلها أول قياس جوّه الفترة."
+              : "خطوط الأعطال المنتظمة فى الفترة اللى سرعتها الحالية (آخر قياس بدون Real) أقل من أول قياس بدون Real بعد تاريخ الشكوى."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -161,10 +175,16 @@ export function SpeedDropReport() {
         </div>
       </div>
       <div className="flex flex-wrap items-end gap-3">
-        <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-from">شكاوى من</label>
-          <Input id="sd-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
-        <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-to">إلى</label>
-          <Input id="sd-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
+        {weekly ? (
+          <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-days">خلال (يوم)</label>
+            <Input id="sd-days" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value.replace(/[^\d]/g, ""))}
+              className="text-sm w-24" dir="ltr" data-testid="input-speed-drop-days" /></div>
+        ) : (<>
+          <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-from">شكاوى من</label>
+            <Input id="sd-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
+          <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-to">إلى</label>
+            <Input id="sd-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
+        </>)}
         <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-min">الانخفاض أكتر من %</label>
           <Input id="sd-min" inputMode="numeric" value={minDrop} onChange={(e) => setMinDrop(e.target.value.replace(/[^\d]/g, ""))} className="text-sm w-24" dir="ltr" /></div>
         <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-tech">الفنى</label>
