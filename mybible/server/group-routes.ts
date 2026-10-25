@@ -12,6 +12,8 @@ import crypto from "crypto";
 import { canMergeGuest, canRejoinByName, checkAdminProfile, nameKey, normalizePhone } from './guest-identity';
 import { groupViewFor, publicGroup } from './group-privacy';
 import { getOrLoad, invalidate as invalidateGroupCache } from './group-cache';
+import { sql } from "drizzle-orm";
+import { INLINE_IMAGE, cacheImage, chatImageUrl, dropCachedImage, getCachedImage, parseDataUrl } from './chat-images';
 
 const pool = dbPool;
 const db = drizzle(dbPool);
@@ -1273,17 +1275,39 @@ export function registerGroupRoutes(app: Express) {
       const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, req.params.code.toUpperCase()));
       if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
 
-      const messages = await db.select().from(groupMessages)
-        .where(eq(groupMessages.groupId, group.id))
-        .orderBy(desc(groupMessages.createdAt))
-        .limit(100);
+      // الرد ده واحد لكل الأعضاء (مفيش حاجة فيه بتعتمد على مين بيطلب)، فبيتجمّع
+      // في الذاكرة — والصورة مابتتسحبش هنا خالص، بس رابطها (chat-images.ts).
+      const code = group.groupCode;
+      const filtered = await getOrLoad(`msgs:${code}`, async () => {
+        const messages = await db.select({
+          id: groupMessages.id,
+          groupId: groupMessages.groupId,
+          userName: groupMessages.userName,
+          message: groupMessages.message,
+          imageRef: sql<string | null>`CASE WHEN ${groupMessages.imageUrl} IS NULL OR ${groupMessages.imageUrl} = '' THEN NULL
+            WHEN left(${groupMessages.imageUrl}, 5) = 'data:' THEN 'data'
+            ELSE ${groupMessages.imageUrl} END`,
+          replyToId: groupMessages.replyToId,
+          replyToText: groupMessages.replyToText,
+          replyToUserName: groupMessages.replyToUserName,
+          reactions: groupMessages.reactions,
+          isPinned: groupMessages.isPinned,
+          createdAt: groupMessages.createdAt,
+        }).from(groupMessages)
+          .where(eq(groupMessages.groupId, group.id))
+          .orderBy(desc(groupMessages.createdAt))
+          .limit(100);
 
-      const mutedMembers = await db.select().from(groupMembers)
-        .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.isMuted, true)));
-      const mutedNames = new Set(mutedMembers.map(m => m.userName));
+        const mutedMembers = await db.select({ userName: groupMembers.userName }).from(groupMembers)
+          .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.isMuted, true)));
+        const mutedNames = new Set(mutedMembers.map(m => m.userName));
 
-      const filtered = messages.filter(m => !mutedNames.has(m.userName));
-      res.json({ messages: filtered.reverse() });
+        return messages
+          .filter(m => !mutedNames.has(m.userName))
+          .map(({ imageRef, ...m }) => ({ ...m, imageUrl: chatImageUrl(code, m.id, imageRef) }))
+          .reverse();
+      });
+      res.json({ messages: filtered });
     } catch (err) {
       console.error('[groups] messages error:', err);
       res.status(500).json({ error: 'فشل تحميل الرسائل' });
@@ -1297,8 +1321,14 @@ export function registerGroupRoutes(app: Express) {
 
       const afterId = parseInt(req.query.afterId as string || '0') || 0;
 
-      // آخر رسالة للمعاينة
-      const [last] = await db.select().from(groupMessages)
+      // آخر رسالة للمعاينة — من غير ما الصورة نفسها تتسحب
+      const [last] = await db.select({
+        id: groupMessages.id,
+        userName: groupMessages.userName,
+        message: groupMessages.message,
+        imageUrl: sql<boolean>`(${groupMessages.imageUrl} IS NOT NULL AND ${groupMessages.imageUrl} <> '')`,
+        createdAt: groupMessages.createdAt,
+      }).from(groupMessages)
         .where(eq(groupMessages.groupId, group.id))
         .orderBy(desc(groupMessages.createdAt))
         .limit(1);
@@ -1323,6 +1353,36 @@ export function registerGroupRoutes(app: Express) {
     } catch (err) {
       console.error('[groups] messages summary error:', err);
       res.status(500).json({ unreadCount: 0, lastMessage: null });
+    }
+  });
+
+  // صورة رسالة — بتتسحب من القاعدة مرة واحدة، وبعدها من الذاكرة ومن كاش المتصفح
+  app.get('/api/groups/:code/messages/:messageId/image', async (req, res) => {
+    try {
+      const msgId = parseInt(req.params.messageId);
+      if (!msgId) return res.status(404).end();
+      const code = req.params.code.toUpperCase();
+      let img = getCachedImage(msgId);
+      if (!img) {
+        const { rows } = await pool.query(
+          `SELECT m.image_url FROM group_messages m JOIN reading_groups g ON g.id = m.group_id
+            WHERE m.id = $1 AND g.group_code = $2`,
+          [msgId, code],
+        );
+        const parsed = parseDataUrl(rows[0]?.image_url);
+        if (!parsed) return res.status(404).end();
+        img = parsed;
+        cacheImage(msgId, img);
+      }
+      res.set({
+        'Content-Type': img.type,
+        'Cache-Control': 'private, max-age=31536000, immutable',
+        'X-Robots-Tag': 'noindex',
+      });
+      res.send(img.body);
+    } catch (err) {
+      console.error('[groups] message image error:', err);
+      res.status(500).end();
     }
   });
 
@@ -1357,9 +1417,13 @@ export function registerGroupRoutes(app: Express) {
         message: message || '',
         ...(imageUrl ? { imageUrl } : {}),
         ...(replyToId ? { replyToId, replyToText: replyToText || null, replyToUserName: replyToUserName || null } : {}),
-      }).returning();
+      }).returning({ id: groupMessages.id, groupId: groupMessages.groupId, userName: groupMessages.userName,
+        message: groupMessages.message, replyToId: groupMessages.replyToId, replyToText: groupMessages.replyToText,
+        replyToUserName: groupMessages.replyToUserName, reactions: groupMessages.reactions,
+        isPinned: groupMessages.isPinned, createdAt: groupMessages.createdAt });
 
-      res.json({ message: msg });
+      invalidateGroupCache(`msgs:${group.groupCode}`);
+      res.json({ message: { ...msg, imageUrl: imageUrl ? chatImageUrl(group.groupCode, msg.id, INLINE_IMAGE) : null } });
 
       // إشعارات push — تعمل في الخلفية بعد الرد
       setImmediate(async () => {
@@ -1418,9 +1482,10 @@ export function registerGroupRoutes(app: Express) {
 
       const [msg] = await db.update(groupMessages)
         .set({ isPinned: true })
-        .where(eq(groupMessages.id, parseInt(req.params.messageId)))
-        .returning();
+        .where(and(eq(groupMessages.id, parseInt(req.params.messageId)), eq(groupMessages.groupId, group.id)))
+        .returning({ id: groupMessages.id, isPinned: groupMessages.isPinned });
 
+      invalidateGroupCache(`msgs:${group.groupCode}`);
       res.json({ message: msg });
     } catch (err) {
       console.error('[groups] pin error:', err);
@@ -1439,7 +1504,10 @@ export function registerGroupRoutes(app: Express) {
         return res.status(403).json({ error: 'غير مسموح' });
       }
 
-      await db.delete(groupMessages).where(eq(groupMessages.id, parseInt(req.params.messageId)));
+      const msgId = parseInt(req.params.messageId);
+      await db.delete(groupMessages).where(and(eq(groupMessages.id, msgId), eq(groupMessages.groupId, group.id)));
+      invalidateGroupCache(`msgs:${group.groupCode}`);
+      dropCachedImage(msgId);
       res.json({ success: true });
     } catch (err) {
       console.error('[groups] delete message error:', err);
@@ -1456,7 +1524,7 @@ export function registerGroupRoutes(app: Express) {
       if (!emoji || !userName) return res.status(400).json({ error: 'emoji و userName مطلوبان' });
 
       const msgId = parseInt(req.params.messageId);
-      const [msg] = await db.select().from(groupMessages)
+      const [msg] = await db.select({ reactions: groupMessages.reactions }).from(groupMessages)
         .where(and(eq(groupMessages.id, msgId), eq(groupMessages.groupId, group.id)));
       if (!msg) return res.status(404).json({ error: 'الرسالة غير موجودة' });
 
@@ -1475,6 +1543,7 @@ export function registerGroupRoutes(app: Express) {
       }
 
       await pool.query('UPDATE group_messages SET reactions = $1 WHERE id = $2', [JSON.stringify(reactions), msgId]);
+      invalidateGroupCache(`msgs:${group.groupCode}`);
       res.json({ success: true, reactions });
     } catch (err) {
       console.error('[groups] react error:', err);
@@ -1497,6 +1566,7 @@ export function registerGroupRoutes(app: Express) {
         .set({ isMuted: muted })
         .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, req.params.memberName)));
 
+      invalidateGroupCache(`msgs:${group.groupCode}`);
       res.json({ success: true });
     } catch (err) {
       console.error('[groups] mute error:', err);
