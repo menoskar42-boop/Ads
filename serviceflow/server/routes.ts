@@ -14914,8 +14914,7 @@ export async function registerRoutes(
             ORDER BY m.full_phone, (m.at <= now() - $1::int * interval '1 day') DESC,
                      CASE WHEN m.at <= now() - $1::int * interval '1 day' THEN m.at END DESC NULLS LAST, m.at, m.id
          )
-         SELECT ${sp("l.full_phone")} AS phone, pl.central, pl.cabin_number AS cabinet, pl.box_number AS box,
-                ${areaTechSql("pl.central", "pl.cabin_number", "now()", sp("l.full_phone"), { noShiftCover: true })} AS "techName",
+         SELECT ${sp("l.full_phone")} AS phone, l.full_phone AS "fullPhone", pl.central, pl.cabin_number AS cabinet, pl.box_number AS box,
                 b.id AS "firstId", b.current_speed AS "firstSpeed", b.max_speed AS "firstMax", b.score AS "firstScore",
                 (b.at AT TIME ZONE 'Africa/Cairo') AS "firstAt",
                 l.id AS "lastId", l.current_speed AS "lastSpeed", l.max_speed AS "lastMax", l.score AS "lastScore",
@@ -14926,9 +14925,19 @@ export async function registerRoutes(
           WHERE l.at > now() - $1::int * interval '1 day'
             AND ${hasFrameSql("l.full_phone")}`, [days]);
       const data = rows.map((r: any) => {
-        return { ...r, complainNo: null, complainTime: null, ...speedDropOf(r) };
+        return { ...r, complainNo: null, complainTime: null, techName: null, ...speedDropOf(r) };
       }).filter((r: any) => r.dropPct != null && r.dropPct > minDrop)
         .sort((a: any, b: any) => b.dropPct - a.dropPct);
+      // الفنى بيتحسب بعد الفلترة — للخطوط اللى نزلت بس، مش لكل خط اتقاس فى الأسبوعين (كان آلاف
+      // استعلامات فرعية على سيرفر Oracle، وده ممكن يمسك اتصالات القاعدة كلها ويعلّق الموقع)
+      if (data.length) {
+        const { rows: techs } = await pool.query(
+          `SELECT x.fp, ${areaTechSql("pl.central", "pl.cabin_number", "now()", sp("x.fp"), { noShiftCover: true })} AS "techName"
+             FROM unnest($1::text[]) AS x(fp)
+             LEFT JOIN phone_lines pl ON pl.full_phone = x.fp`, [data.map((r: any) => r.fullPhone)]);
+        const byPhone = new Map(techs.map((t: any) => [t.fp, t.techName]));
+        for (const r of data) r.techName = byPhone.get(r.fullPhone) ?? null;
+      }
       res.json({ days, minDrop, data });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
