@@ -106,6 +106,11 @@ app.get("/api/health", async (_req, res) => {
   {
     const { checkDbIdentity } = await import("./db-identity");
     const { pool, currentPool, hasCurrentDatabase } = await import("./db");
+    /* استنى القاعدة بدل ما نقع (المالك ٢٠٢٦-١٠-٢٥): سيرفر Oracle ماردّش كام دقيقة، والتطبيق وقع
+     * ٥ مرات ورا بعض فى أقل من ٣ دقايق والمستضيف بطّل يحاول — فالموقع فضل واقف لحد نشر جديد رغم إن
+     * القاعدة رجعت. دلوقتى بنحاول كل ١٠ ثوانى لحد ١٠ دقايق، وأول ما تردّ بنكمّل عادى. */
+    const { waitForDatabase } = await import("./boot-wait");
+    await waitForDatabase(() => pool.query("SELECT 1"));
     const identity = await checkDbIdentity(pool);
     if (!identity.ok) {
       console.error('\n============ [WRONG DATABASE] Service Flow ============');
