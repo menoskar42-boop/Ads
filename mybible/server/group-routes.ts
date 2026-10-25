@@ -13,7 +13,7 @@ import { canMergeGuest, canRejoinByName, checkAdminProfile, nameKey, normalizePh
 import { groupViewFor, publicGroup } from './group-privacy';
 import { getOrLoad, invalidate as invalidateGroupCache } from './group-cache';
 import { sql } from "drizzle-orm";
-import { INLINE_IMAGE, cacheImage, chatImageUrl, dropCachedImage, getCachedImage, parseDataUrl } from './chat-images';
+import { INLINE_IMAGE, R2_REF, cacheImage, chatImageUrl, dropCachedImage, forgetChatImage, getCachedImage, loadChatImage, storeChatImage } from './chat-images';
 import { CHAT_WINDOW, chatAppend, chatDrop, chatPatch, chatRemove, getChat, groupIdByCode, type ChatMsg } from './chat-store';
 
 /** رقم المجموعة من الكود — من الذاكرة، من غير صف المجموعة كله (chat-store.ts). */
@@ -1306,7 +1306,7 @@ export function registerGroupRoutes(app: Express) {
           userName: groupMessages.userName,
           message: groupMessages.message,
           imageRef: sql<string | null>`CASE WHEN ${groupMessages.imageUrl} IS NULL OR ${groupMessages.imageUrl} = '' THEN NULL
-            WHEN left(${groupMessages.imageUrl}, 5) = 'data:' THEN 'data'
+            WHEN left(${groupMessages.imageUrl}, 5) = 'data:' OR left(${groupMessages.imageUrl}, 3) = 'r2:' THEN 'data'
             ELSE ${groupMessages.imageUrl} END`,
           replyToId: groupMessages.replyToId,
           replyToText: groupMessages.replyToText,
@@ -1378,7 +1378,7 @@ export function registerGroupRoutes(app: Express) {
     }
   });
 
-  // صورة رسالة — بتتسحب من القاعدة مرة واحدة، وبعدها من الذاكرة ومن كاش المتصفح
+  // صورة رسالة — من R2 (أو القاعدة للقديم) مرة واحدة، وبعدها من الذاكرة ومن كاش المتصفح
   app.get('/api/groups/:code/messages/:messageId/image', async (req, res) => {
     try {
       const msgId = parseInt(req.params.messageId);
@@ -1391,7 +1391,7 @@ export function registerGroupRoutes(app: Express) {
             WHERE m.id = $1 AND g.group_code = $2`,
           [msgId, code],
         );
-        const parsed = parseDataUrl(rows[0]?.image_url);
+        const parsed = await loadChatImage(rows[0]?.image_url);
         if (!parsed) return res.status(404).end();
         img = parsed;
         cacheImage(msgId, img);
@@ -1433,18 +1433,21 @@ export function registerGroupRoutes(app: Express) {
         }
       }
 
+      // الصورة على R2 والقاعدة بتشيل المفتاح بس (chat-images.ts)
+      const storedImage = imageUrl ? await storeChatImage(String(imageUrl), group.id) : null;
       const [msg] = await db.insert(groupMessages).values({
         groupId: group.id,
         userName,
         message: message || '',
-        ...(imageUrl ? { imageUrl } : {}),
+        ...(storedImage ? { imageUrl: storedImage } : {}),
         ...(replyToId ? { replyToId, replyToText: replyToText || null, replyToUserName: replyToUserName || null } : {}),
       }).returning({ id: groupMessages.id, groupId: groupMessages.groupId, userName: groupMessages.userName,
         message: groupMessages.message, replyToId: groupMessages.replyToId, replyToText: groupMessages.replyToText,
         replyToUserName: groupMessages.replyToUserName, reactions: groupMessages.reactions,
         isPinned: groupMessages.isPinned, createdAt: groupMessages.createdAt });
 
-      const sent = { ...msg, imageUrl: imageUrl ? chatImageUrl(group.groupCode, msg.id, String(imageUrl).startsWith('data:') ? INLINE_IMAGE : imageUrl) : null } as ChatMsg;
+      const inlineOrR2 = !!storedImage && (storedImage.startsWith('data:') || storedImage.startsWith(R2_REF));
+      const sent = { ...msg, imageUrl: storedImage ? chatImageUrl(group.groupCode, msg.id, inlineOrR2 ? INLINE_IMAGE : storedImage) : null } as ChatMsg;
       chatAppend(group.id, sent);
       res.json({ message: sent });
 
@@ -1528,7 +1531,13 @@ export function registerGroupRoutes(app: Express) {
       }
 
       const msgId = parseInt(req.params.messageId);
-      await db.delete(groupMessages).where(and(eq(groupMessages.id, msgId), eq(groupMessages.groupId, group.id)));
+      // مفتاح R2 بس (مش الصورة لو لسه في القاعدة)
+      const { rows: gone } = await pool.query(
+        `DELETE FROM group_messages WHERE id = $1 AND group_id = $2
+         RETURNING CASE WHEN left(image_url, 3) = 'r2:' THEN image_url END AS r2`,
+        [msgId, group.id],
+      );
+      forgetChatImage(gone[0]?.r2);
       chatRemove(group.id, msgId);
       dropCachedImage(msgId);
       res.json({ success: true });

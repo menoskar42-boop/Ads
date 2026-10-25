@@ -16,6 +16,7 @@ import { sitemapHandler, robotsHandler, llmsHandler, sitemapBibleHandler, sitema
 import { INDEXNOW_KEY, indexNowKeyFileHandler, indexNowPingHandler, scheduleIndexNow } from "./indexnow";
 import { ogImageHandler } from "./og-image";
 import { setupVapid, scheduleDailyNotification } from "./push-notifications";
+import { scheduleChatImageMigration } from "./chat-image-migrate";
 
 const app = express();
 const httpServer = createServer({ maxHeaderSize: 65536 }, app);
@@ -180,6 +181,7 @@ app.use((req, res, next) => {
   setupVapid();
   scheduleDailyNotification();
   scheduleIndexNow();
+  scheduleChatImageMigration(); // صور الشات القديمة → R2 (chat-image-migrate.ts)
 
   app.use(botSnapshotMiddleware);
 

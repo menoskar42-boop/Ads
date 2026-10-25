@@ -13,6 +13,8 @@
  *   - والسيرفر بيحفظ آخر الصور في الذاكرة، فالـ٧٠٠ عضو بيقروها من القاعدة
  *     مرة واحدة مش ٧٠٠ مرة.
  */
+import crypto from "node:crypto";
+import { r2Configured, r2Delete, r2Get, r2Put } from "./r2";
 
 /** الاسم اللي الاستعلام بيرجّعه بدل الصورة لما تكون base64 جوّه القاعدة (مكتوب حرفياً كمان في استعلام الشات). */
 export const INLINE_IMAGE = "data";
@@ -71,4 +73,54 @@ export function dropCachedImage(id: number): void {
   if (!old) return;
   cachedBytes -= old.body.length;
   cache.delete(id);
+}
+
+/* ── R2 (٢٠٢٦-١٠-٢٥) ────────────────────────────────────────────────────────
+ * الصورة الجديدة بتترفع على Cloudflare R2، والقاعدة بتشيل المفتاح بس
+ * (`r2:mybible/chat/<group>/<...>.jpg`). الخروج من R2 مجاني، فالصورة مابقتش
+ * بتتحسب من حصة Supabase ولا من حجم القاعدة (٥٠٠ ميجا في الباقة المجانية).
+ * لو R2 مش مضبوط أو الرفع فشل → الصورة بتتخزّن في القاعدة زي الأول (مابتضيعش).
+ * والقديمة بتتنقل في الخلفية (`chat-image-migrate.ts`).
+ * `MYBIBLE_CHAT_IMAGES_R2=off` بيوقّف الاتنين. */
+
+export const R2_REF = "r2:";
+
+export function chatImagesOnR2(): boolean {
+  return process.env.MYBIBLE_CHAT_IMAGES_R2 !== "off" && r2Configured();
+}
+
+const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+
+export function r2KeyFor(groupId: number, type: string): string {
+  return `mybible/chat/${groupId}/${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${EXT[type] || "bin"}`;
+}
+
+/** القيمة اللي تتكتب في image_url لصورة جديدة: مفتاح R2، أو الصورة نفسها لو R2 مش متاح. */
+export async function storeChatImage(dataUrl: string, groupId: number): Promise<string> {
+  const img = parseDataUrl(dataUrl);
+  if (!img || !chatImagesOnR2()) return dataUrl;
+  const key = r2KeyFor(groupId, img.type);
+  try {
+    await r2Put(key, img.body, img.type);
+    return R2_REF + key;
+  } catch (err: any) {
+    console.error("[chat-images] الرفع على R2 فشل — الصورة اتخزّنت في القاعدة:", err?.message || err);
+    return dataUrl;
+  }
+}
+
+/** الصورة من القيمة المخزّنة (R2 أو base64). null = مش موجودة. */
+export async function loadChatImage(stored: string | null | undefined): Promise<Cached | null> {
+  if (!stored) return null;
+  if (stored.startsWith(R2_REF)) {
+    const obj = await r2Get(stored.slice(R2_REF.length));
+    return obj && obj.body.length ? { type: obj.type, body: obj.body } : null;
+  }
+  return parseDataUrl(stored);
+}
+
+/** بعد حذف رسالة — الصورة تتمسح من R2 كمان (من غير ما فشلها يوقّف الحذف). */
+export function forgetChatImage(stored: string | null | undefined): void {
+  if (!stored || !stored.startsWith(R2_REF) || !r2Configured()) return;
+  r2Delete(stored.slice(R2_REF.length)).catch((err) => console.error("[chat-images] مسح من R2 فشل:", err?.message || err));
 }

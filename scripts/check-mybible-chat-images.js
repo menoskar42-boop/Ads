@@ -35,6 +35,18 @@ for (const [route, re] of writes) {
   const body = i < 0 ? "" : routes.slice(i, routes.indexOf("app.", i + route.length));
   if (!re.test(body)) problems.push(`${route}: مابيحدّثش نسخة الشات اللي في الذاكرة.`);
 }
+// الصورة الجديدة على R2 (والقاعدة لو R2 مش متاح) — والراوت بيقرا الاتنين
+const post = routes.slice(routes.indexOf("app.post('/api/groups/:code/messages'"));
+if (!/storeChatImage\(/.test(post.slice(0, post.indexOf("app.", 10)))) problems.push("إرسال رسالة بصورة مابيعدّيش على storeChatImage (R2).");
+if (!/loadChatImage\(/.test(routes)) problems.push("راوت الصورة مابيقراش من R2 (loadChatImage).");
+const images = fs.readFileSync(path.join(__dirname, "../mybible/server/chat-images.ts"), "utf8");
+const storeFn = images.slice(images.indexOf("export async function storeChatImage"));
+if (!/catch[\s\S]{0,200}return dataUrl;/.test(storeFn.slice(0, 900))) problems.push("storeChatImage: لو الرفع على R2 فشل لازم ترجّع الصورة نفسها (تتخزّن في القاعدة) — وإلا الصورة تضيع.");
+const migrate = fs.readFileSync(path.join(__dirname, "../mybible/server/chat-image-migrate.ts"), "utf8");
+if (!/sha256\(back\.body\) !== sha256\(img\.body\)/.test(migrate) || !/md5\(image_url\) = \$3/.test(migrate)) {
+  problems.push("نقل الصور القديمة لازم يتأكد من النسخة على R2 (sha256) وإن الصورة في القاعدة ماتغيّرتش (md5) قبل ما يغيّر image_url.");
+}
+
 const renames = routes.split("UPDATE group_messages SET").length - 1;
 const drops = (routes.match(/UPDATE group_messages SET user_name[\s\S]{0,200}?chatDrop\(/g) || []).length;
 if (drops !== renames - 1) problems.push(`تغيير الاسم في group_messages: ${renames - 1} مكان و${drops} بس بيمسحوا نسخة الشات.`);
@@ -43,4 +55,4 @@ if (problems.length) {
   problems.forEach((p) => console.log("❌ " + p));
   process.exit(1);
 }
-console.log("✅ شات mybible: الرسايل من الذاكرة، والصورة رابط بيتسحب مرة، وكل كتابة بتحدّث النسخة");
+console.log("✅ شات mybible: الرسايل من الذاكرة، والصور على R2 (والقاعدة احتياطي)، والنقل بيتأكد قبل ما يغيّر، وكل كتابة بتحدّث النسخة");
