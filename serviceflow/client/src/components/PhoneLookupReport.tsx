@@ -181,8 +181,19 @@ export function PhoneLookupReport() {
   const isSuper = user?.role === ROLES.SUPER_ADMIN;
   useSpeedToolSource(PHONE_LOOKUP_SOURCE);
   const NO_EXECUTOR_MSG = "غير متاح حالياً — لا توجد أجهزة مفعّلة للتنفيذ. فعّل «جهاز التنفيذ» على متصفح السوبر أدمن أولاً.";
-  const [input, setInput] = useState("");
-  const [phone, setPhone] = useState("");
+  // المالك ٢٠٢٦-١٠-٢٥: الرقم يفضل فى خانة البحث لما يروح تاب تانى (التقارير مثلاً) ويرجع —
+  // التاب بيتقفل ويتفتح من جديد، فالمكتوب وآخر بحث بيتحفظوا فى sessionStorage (التاب ده بس،
+  // وبيتمسح لما يتقفل) ولكل مستخدم لوحده عشان اللى يدخل بعده مايلاقيش رقمه.
+  const memKey = (k: string) => (user?.id != null ? `sf_lookup_${k}_${user.id}` : "");
+  const remembered = (k: string) => { try { const key = memKey(k); return key ? sessionStorage.getItem(key) || "" : ""; } catch { return ""; } };
+  const [input, setInput] = useState(() => remembered("input"));
+  const [phone, setPhone] = useState(() => remembered("phone"));
+  useEffect(() => {
+    try { const key = memKey("input"); if (key) sessionStorage.setItem(key, input); } catch {}
+  }, [input, user?.id]);
+  useEffect(() => {
+    try { const key = memKey("phone"); if (key) sessionStorage.setItem(key, phone); } catch {}
+  }, [phone, user?.id]);
   // عدّاد يتزايد مع كل ضغطة «بحث» — يدخل فى queryKey لإجبار إعادة التحميل حتى لو الرقم
   // نفسه لم يتغيّر (مثلاً بعد جلب الأكونت من Customer360 فى تاب تانى نرجع ونبحث فيتحدّث).
   const [searchSeq, setSearchSeq] = useState(0);
