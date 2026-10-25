@@ -51,6 +51,8 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
   const [minDrop, setMinDrop] = useState("10");
   // فلتر الفنى (المالك ٢٠٢٦-١٠-١٥) — والأزرار والإكسيل والـPDF بيشتغلوا على المفلتر بس
   const [tech, setTech] = useState("all");
+  // السرعة الحالية (المالك ٢٠٢٦-١٠-٢٥): الكل · صفر (اسكور ١٠١ / الخط مش متزامن) · أكبر من صفر
+  const [speedNow, setSpeedNow] = useState<"all" | "zero" | "positive">("all");
   // بحث فى كل خانات الجدول (المالك ٢٠٢٦-١٠-٢٠)
   const [search, setSearch] = useState("");
   // أزرار القياس ورفع السرعة والإيقاف (المالك ٢٠٢٦-١٠-١٢) — نفس باقى تقارير القياسات
@@ -91,9 +93,12 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
   const techNames = Array.from(new Set(allRows.map((r) => (r.techName ?? "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ar"));
   const NO_TECH = "__none__";
   const hasNoTech = allRows.some((r) => !(r.techName ?? "").trim());
-  const byTech = tech === "all" ? allRows
-    : tech === NO_TECH ? allRows.filter((r) => !(r.techName ?? "").trim())
-    : allRows.filter((r) => (r.techName ?? "").trim() === tech);
+  const bySpeed = speedNow === "all" ? allRows
+    : speedNow === "zero" ? allRows.filter((r) => r.lastKbps === 0)
+    : allRows.filter((r) => (r.lastKbps ?? 0) > 0);
+  const byTech = tech === "all" ? bySpeed
+    : tech === NO_TECH ? bySpeed.filter((r) => !(r.techName ?? "").trim())
+    : bySpeed.filter((r) => (r.techName ?? "").trim() === tech);
   const mobileLookup = useMobileLookup(byTech.map((r) => r.phone));
   const mobileOf = (r: DropRow) => mobileLookup[phoneLookupKey(r.phone)] ?? "";
   const cells = (r: DropRow, i: number) => [
@@ -130,7 +135,8 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
     window.open(buildDZSUrl([acc]), "dzs_measure");
   };
 
-  const techLabel = tech === "all" ? "" : ` — الفنى: ${tech === NO_TECH ? "بدون فنى" : tech}`;
+  const techLabel = (tech === "all" ? "" : ` — الفنى: ${tech === NO_TECH ? "بدون فنى" : tech}`)
+    + (speedNow === "zero" ? " — السرعة الحالية 0" : speedNow === "positive" ? " — السرعة الحالية أكبر من 0" : "");
   const period = weekly ? `آخر ${days || 7} يوم` : `${from} إلى ${to}`;
   const title = `${NAME} (أكتر من ${minDrop || 10}%) — ${period}${techLabel}${term ? ` — بحث: ${term}` : ""}`;
   const excel = () => {
@@ -187,6 +193,13 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
         </>)}
         <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-min">الانخفاض أكتر من %</label>
           <Input id="sd-min" inputMode="numeric" value={minDrop} onChange={(e) => setMinDrop(e.target.value.replace(/[^\d]/g, ""))} className="text-sm w-24" dir="ltr" /></div>
+        <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-speed">السرعة الحالية</label>
+          <select id="sd-speed" value={speedNow} onChange={(e) => setSpeedNow(e.target.value as typeof speedNow)} data-testid="select-speed-drop-now"
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm w-48">
+            <option value="all">الكل ({allRows.length})</option>
+            <option value="zero">السرعة الحالية 0 ({allRows.filter((r) => r.lastKbps === 0).length})</option>
+            <option value="positive">أكبر من 0 ({allRows.filter((r) => (r.lastKbps ?? 0) > 0).length})</option>
+          </select></div>
         <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="sd-tech">الفنى</label>
           <select id="sd-tech" value={tech} onChange={(e) => setTech(e.target.value)} data-testid="select-speed-drop-tech"
             className="h-9 rounded-md border border-input bg-background px-2 text-sm w-44">
@@ -200,7 +213,7 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
             className="text-sm w-56" data-testid="input-speed-drop-search" /></div>
         <span className="text-sm text-muted-foreground pb-2">
           {q.isFetching && <Loader2 className="w-4 h-4 animate-spin inline ml-1" />}
-          إجمالى: <b className="text-foreground">{rows.length}</b> خط{(tech !== "all" || term) && <> من {allRows.length}</>}
+          إجمالى: <b className="text-foreground">{rows.length}</b> خط{(tech !== "all" || term || speedNow !== "all") && <> من {allRows.length}</>}
         </span>
       </div>
       {q.isError && <p className="text-sm text-destructive">{(q.error as Error).message}</p>}

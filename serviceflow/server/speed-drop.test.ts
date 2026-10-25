@@ -25,3 +25,13 @@ test("score 101 = speed 0 → 100% drop, in both speed-drop reports", () => {
     assert.doesNotMatch(body, /speedKbps\(r\.lastSpeed\)/, `${ep}: الحساب من مكان واحد`);
   }
 });
+
+// المالك ٢٠٢٦-١٠-٢٥: «دروب ليست: الكل · السرعة الحالية 0 · السرعة الحالية أكبر من 0» — للتقريرين
+test("speed-drop page: current-speed filter (all / zero / above zero)", () => {
+  const ui = readFileSync(new URL("../client/src/components/SpeedDropReport.tsx", import.meta.url), "utf8");
+  assert.match(ui, /data-testid="select-speed-drop-now"/);
+  assert.match(ui, /speedNow === "zero" \? allRows\.filter\(\(r\) => r\.lastKbps === 0\)/);
+  assert.match(ui, /allRows\.filter\(\(r\) => \(r\.lastKbps \?\? 0\) > 0\)/);
+  // فلتر الفنى بعد فلتر السرعة، والإكسيل/PDF/الأزرار على النتيجة
+  assert.match(ui, /const byTech = tech === "all" \? bySpeed/);
+});
