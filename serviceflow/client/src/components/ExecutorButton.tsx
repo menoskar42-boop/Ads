@@ -4,7 +4,7 @@ import { Server, Loader2, Trash2, RefreshCw, Moon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
 import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, reloadWhenReachable, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
-import { rescueMinutes } from "@shared/exec-timeouts";
+import { rescueMinutes, EXEC_RUN_MINUTES } from "@shared/exec-timeouts";
 import { executorPausedNow, refreshPausedNow, saveNightPause, useNightPause, nightWindowStart, readNightPause } from "@/lib/night-pause";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
@@ -419,7 +419,8 @@ export function ExecutorButton() {
 
     // مهلة كل خط (بالمللى): القياس ٣ دقائق قبل إنقاذ جهاز التنفيذ، رفع سرعة بحد أقصى ٨د
     // (لكن يعدّى أول ما يتأكد)، إيقاف ٣٠ث.
-    const MEASURE_MAX_MS = 3 * 60 * 1000, RAISE_MAX_MS = 8 * 60 * 1000, STOP_MS = 30 * 1000;
+    // الإيقاف من shared/exec-timeouts.ts (٣ دقايق) — نفس الرقم اللى السيرفر بيحسب عليه الإنقاذ
+    const MEASURE_MAX_MS = 3 * 60 * 1000, RAISE_MAX_MS = 8 * 60 * 1000, STOP_MS = EXEC_RUN_MINUTES.stop * 60 * 1000;
     // المراجعة بتحتاج دخول FCC + بحث + قراءة البيانات — 3 دقايق سقف كريم للرقم الواحد
     const SUBINFO_MAX_MS = 3 * 60 * 1000;
 

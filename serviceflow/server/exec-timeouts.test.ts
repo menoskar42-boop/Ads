@@ -23,8 +23,10 @@ test("every job type is rescued after its own run time, never before", () => {
 });
 
 test("the stop job — the one that stalled — is rescued in minutes, not in twenty", () => {
-  assert.equal(EXEC_RUN_MINUTES.stop, 0.5);
+  // المالك ٢٠٢٦-١٠-٢٥: ٣٠ ثانية كانت بتقفل التاب قبل ما الإيقاف يتسجّل ⇒ ٣ دقايق، والإنقاذ لسه بعدها
+  assert.equal(EXEC_RUN_MINUTES.stop, 3);
   assert.equal(rescueMinutes("stop"), 5);
+  assert.match(executor, /STOP_MS = EXEC_RUN_MINUTES\.stop \* 60 \* 1000/, "جهاز التنفيذ بياخد المهلة من نفس الملف");
   assert.ok(rescueMinutes("stop") < 13, "باتش واقف ١٣ دقيقة كان لازم يترجّع قبلها بكتير");
 });
 
@@ -49,7 +51,7 @@ test("the server, the stuck badge and the executor all read the one source", () 
     "مافيش نسخة مكتوبة بالنص فاضلة فى السيرفر");
   assert.match(panel, /import \{ rescueMinutes \} from "@shared\/exec-timeouts"/);
   assert.match(panel, /const stuckMinsFor = rescueMinutes;/);
-  assert.match(executor, /import \{ rescueMinutes \} from "@shared\/exec-timeouts"/);
+  assert.match(executor, /import \{ rescueMinutes, EXEC_RUN_MINUTES \} from "@shared\/exec-timeouts"/);
 });
 
 // جهاز التنفيذ: النبضة وحدها مش كفاية — التاب ممكن يبقى حى والمهمة متعلّقة جوّاه.
