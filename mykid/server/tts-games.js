@@ -19,6 +19,7 @@ import { REGIONS } from "../js/data/regions.js";
 import { ACTIVITIES } from "../js/data/activities.js";
 import { MIZO_REGION_HOOKS, MIZO_PRAISE, MIZO_HELLO, MIZO_INTRO, MIZO_CATCH, femAdapt } from "../js/data/mizo.js";
 import fs from "node:fs";
+import { bodyMapPhrases } from "../js/data/bodyMap.js";
 
 /** { name, how } من مصفوفة جوّه شاشة (الأوسمة/إكسسوارات ميزو) — الشاشة نفسها بتلمس الصفحة فمابنستوردهاش. */
 function namesHows(file, arr) {
@@ -141,4 +142,9 @@ export function addGamePhrases({ say, mizo }) {
   for (let k = 2; k <= 10; k++) mizo("دوّر على رقم " + k);
   for (const st of [3, 5, 8, 10]) mizo(`جامد! ربحت ${st} نجوم!`);
   for (const c of MIZO_CATCH) mizo(`${c} دي رحلتنا النهارده، يلا بينا!`);
+
+  // ١٢) «جسمي بالإنجليزي» (games/bodyMap.js): اسم كل جزء بالإنجليزى والعربى، «Where is your …?»، وكلمات الأغنية
+  const bm = bodyMapPhrases();
+  bm.en.forEach(say);
+  bm.ar.forEach(say);
 }

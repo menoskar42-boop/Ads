@@ -537,6 +537,13 @@ export const ACTIVITIES = {
       params: { datasetKey: "body", title: "🔎 جِد الجزء", verb: "أين", bg: "linear-gradient(180deg,#ffc2d2,#ff5f8d)" } },
     { emoji: "🧩", title: "لعبة الذاكرة", desc: "اقلب البطاقات المتشابهة", screen: "memory",
       params: { datasetKey: "body", title: "🧩 ذاكرة", bg: "linear-gradient(180deg,#ffc2d2,#ff5f8d)" } },
+    // جسمي بالإنجليزي (٢٠٢٦-١٠-٢٦) — صورة طفل والطفل يلمس الجزء (games/bodyMap.js)
+    { emoji: "🧒", title: "جسمي بالإنجليزي", desc: "المس أى جزء واسمع اسمه بالإنجليزى", screen: "bodyMap",
+      params: { mode: "learn", title: "🧒 My Body", bg: "linear-gradient(180deg,#ffc2d2,#ff5f8d)" } },
+    { emoji: "👆", title: "Where is your nose?", desc: "ميزو يسأل بالإنجليزى وانت تلمس الجزء", screen: "bodyMap",
+      params: { mode: "find", title: "👆 Where is…?", bg: "linear-gradient(180deg,#ffc2d2,#ff5f8d)" } },
+    { emoji: "🎵", title: "Head, Shoulders, Knees and Toes", desc: "غنّى مع ميزو والمس كل جزء", screen: "bodyMap",
+      params: { mode: "song", title: "🎵 Head, Shoulders, Knees & Toes", bg: "linear-gradient(180deg,#ffd6e3,#ff7aa2)" } },
   ],
   transport: [
     { emoji: "🚗", title: "استكشف المواصلات", desc: "اضغط على كل وسيلة لتعرفها", screen: "explore",
