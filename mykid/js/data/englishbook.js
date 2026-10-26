@@ -21,7 +21,8 @@ export const EB_WORDS = {
   turtle: "🐢", toy: "🧸", train: "🚂", pants: "👖", pen: "🖊️", pan: "🍳",
   numbers: "🔢", night: "🌙", nest: "🪺", map: "🗺️",
   // الوحدة ٣: فصلى
-  bag: "🎒", pencil: "✏️", book: "📕", eraser: "🧽", "pencil case": "👝", table: "🪑",
+  // table اتشال (المالك ٢٠٢٦-١٠-٢٦: «حاطط رسمه كرسى و مسميه table») — مفيش إيموجى ترابيزة
+  bag: "🎒", pencil: "✏️", book: "📕", eraser: "🧽", "pencil case": "👝",
   in: "📥", ink: "🖋️", insect: "🐞", cow: "🐄", cap: "🧢", cloud: "☁️",
   teacher: "🧑‍🏫", school: "🏫", playground: "🛝", classroom: "🧑‍🎓",
   fan: "🪭", frog: "🐸", fork: "🍴", desk: "🗄️", dog: "🐶", dress: "👗", cat: "🐱",
@@ -415,7 +416,8 @@ export function ebSteps(pg, rnd = Math.random, only = null) {
     if (pg.where && want("sentences")) {
       steps.push({ kind: "sentences", lines: pg.where.map(([w, prep, place]) => ({
         text: `Where is my ${w}? It is ${prep} ${place}.`,
-        e: `${EB_WORDS[w]} ${prep === "in" ? "➡️" : "⬆️"} ${EB_WORDS[place.replace("the ", "")]}`,
+        // «the table» مالهاش صورة (مفيش إيموجى ترابيزة — الكرسى كان غلط): السهم بس
+        e: `${EB_WORDS[w]} ${prep === "in" ? "➡️" : "⬆️"} ${EB_WORDS[place.replace("the ", "")] || ""}`.trim(),
       })) });
     }
     if (pg.this && want("sentences")) steps.push({ kind: "sentences", lines: pg.this.map((w) => ({ text: `This is my ${w}.`, e: EB_WORDS[w] })) });

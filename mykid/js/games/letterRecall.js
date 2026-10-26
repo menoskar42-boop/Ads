@@ -101,7 +101,8 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
       stage.append(el("p", SAY_CSS + ";opacity:.85;font-size:15px", `${i + 1} من ${rounds.length}`));
       if (r.kind === "letter") {
         stage.append(el("div", "text-align:center;font-size:clamp(90px,26vw,150px);line-height:1;margin:4px", r.pic.e));
-        stage.append(el("p", SAY_CSS + ";font-size:clamp(26px,7vw,36px)", r.pic.w));
+        // الإنجليزى: الكلمة مابتتكتبش (الحرف بس بالإنجليزى — المالك ٢٠٢٦-١٠-٢٦)
+        if (isAr) stage.append(el("p", SAY_CSS + ";font-size:clamp(26px,7vw,36px)", r.pic.w));
       }
       stage.append(el("p", SAY_CSS, fem(partsText(ask))));
       stage.append(buddy.el);
@@ -133,9 +134,10 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
         for (const o of r.options) {
           const b = el("button", "font-size:58px;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:96px");
           b.className = "choice choice-img";
-          b.append(el("span", "", o.pic.e), el("small", "font-size:15px;font-weight:800", o.pic.w));
+          b.append(el("span", "", o.pic.e));
+          if (isAr) b.append(el("small", "font-size:15px;font-weight:800", o.pic.w));
           b.addEventListener("click", () => {
-            Speech.say(o.pic.w, { lang: voice });
+            if (isAr) Speech.say(o.pic.w, { lang: voice });
             if (o.ch === r.ch) ok(b); else bad(b);
           });
           row.append(b);
@@ -256,14 +258,15 @@ export function connectOpts(lang, round, onDone) {
   return {
     rtl: lang !== "en",
     left: round.letters.map((k) => ({ key: String(k), label: isNum ? String(k) : lang === "ar" ? k : `${k}${k.toLowerCase()}`, k })),
-    right: round.pictures.map((p) => ({ key: String(p.ch), e: p.pic.e, w: isNum ? "" : p.pic.w, small: isNum && p.pic.n > 1, p })),
+    // الإنجليزى: الصورة من غير الكلمة (الحرف بس بالإنجليزى)
+    right: round.pictures.map((p) => ({ key: String(p.ch), e: p.pic.e, w: lang === "ar" ? p.pic.w : "", small: isNum && p.pic.n > 1, p })),
     onPickLeft: (it) => Speech.say(nameOf(it.k), { lang: voice }),
     onMatch: (it) => {
       awardStars(1);
       if (isNum) Speech.say(WB_AR[it.p.ch], { lang: voice });
       else sayParts(S.starts(it.p.pic.w, nameOf(it.p.ch)));
     },
-    onWrong: (it) => { if (!isNum) Speech.say(it.p.pic.w, { lang: voice }); },
+    onWrong: (it) => { if (lang === "ar") Speech.say(it.p.pic.w, { lang: voice }); },
     onDone,
   };
 }

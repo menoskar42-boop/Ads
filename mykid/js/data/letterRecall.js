@@ -33,6 +33,10 @@ export const AR_PIC_EXTRA = {
   "ي": [P("يخت", "🛥️"), P("يمامة", "🕊️")],
 };
 
+/** صور إنجليزى مش واضحة لوحدها (دُرج = 🗄️، طين = 🟤، أستيكة = 🧽…) — بتتعرض فى الكتاب جنب
+ *  الكلمة، بس فى ألعاب الصور من غير كلمة الطفل مش هيعرفها. */
+const EN_PIC_SKIP = ["desk", "mud", "eraser", "classroom", "people", "yam", "tin", "pin", "log", "dig", "pup", "wig", "nest", "ink"];
+
 /** صور كلمات بتبدأ بالحرف — العربى من «كراسة الحروف» + كلمة الحرف، والإنجليزى من «كتاب الإنجليزى». */
 export function picturesFor(lang, ch) {
   const out = [];
@@ -56,7 +60,7 @@ export function picturesFor(lang, ch) {
     const pg = EB_PAGES.find((p) => p.type === "letter" && p.ch === ch);
     if (pg && pg.pos === "end") return []; // X: الصوت فى الآخر — «بيبدأ بإيه؟» مالهاش معنى
     for (const w of [...(pg ? pg.words : []), ...wordsStarting(ch)]) {
-      if (w[0].toUpperCase() === ch && !["eyes", "ears", "in", "up", "under", "quiet", "kick", "nap", "sit", "food", "drink", "numbers", "elbow", "tap", "zero", "six"].includes(w)) add(w, emojiOf(w));
+      if (w[0].toUpperCase() === ch && !EN_PIC_SKIP.includes(w) && !["eyes", "ears", "in", "up", "under", "quiet", "kick", "nap", "sit", "food", "drink", "numbers", "elbow", "tap", "zero", "six"].includes(w)) add(w, emojiOf(w));
     }
   }
   return out;
@@ -199,9 +203,11 @@ export const RECALL_SAY = {
   en: {
     // المالك ٢٠٢٦-١٠-٢٦: «مش عاوز السؤال هنا يبقى بالانجليزى» — السؤال بالعربى، والكلمة والحرف
     // بس بالإنجليزى (كل حتة بتتنطق بلغتها)
-    whichLetter: (w) => [EN(w), AR("بتبدأ بحرف إيه؟")],
+    // وبعدها (نفس اليوم): «الحرف بس بالانجليزى… ميزو يتكلم عربى و الحرف بالانجليزى» — الكلمة
+    // الإنجليزى مابتتقالش ولا بتتكتب؛ الطفل يعرف الصورة لوحده ويختار حرفها
+    whichLetter: () => [AR("الصورة دى بتبدأ بحرف إيه؟")],
     whichPicture: (ch) => [AR("اختار الصورة اللى بتبدأ بحرف"), EN(ch)],
-    starts: (w, ch) => [EN(w), AR("بتبدأ بحرف"), EN(ch)],
+    starts: (_w, ch) => [AR("برافو! بتبدأ بحرف"), EN(ch)],
     choose: "اختار الحرف اللى عايز تتمرّن على صوره",
     noStars: "لسه مفيش حروف عليها نجمة. خلّص حرف فى كتاب الإنجليزى الأول وتعالى",
     peek: "بص على الحرف كويس… وبعدين اكتبه لوحدك",
