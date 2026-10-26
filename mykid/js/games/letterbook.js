@@ -105,6 +105,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     recall.append(
       button("candy-btn", "🖼️ صور الحروف", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "pics", lang: "ar", back: "letterbook" }); }),
       button("candy-btn", "🧠 اكتب من الذاكرة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "write", lang: "ar", back: "letterbook" }); }),
+      button("candy-btn", "🔗 وصّل الحرف بالصورة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "connect", lang: "ar", back: "letterbook" }); }),
     );
     map.appendChild(recall);
     LB_UNITS.forEach((u, ui) => {

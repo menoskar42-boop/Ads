@@ -3,6 +3,8 @@
 //                 صورة ← «بتبدأ بحرف إيه؟» · و«اختار الصورة اللى بتبدأ بحرف …»
 // mode = "write": ميزو يقول الحرف (من حروف النجمة بس) والطفل يكتبه **من غير ما يشوفه**.
 //                 لو النسبة قليلة: الحرف بيبان ثانيتين («بص عليه كويس») وبعدين يكتبه تانى لوحده.
+// mode = "connect": «وصّل الحرف بالصورة» — عمود حروف وعمود صور، والطفل يسحب خط من الحرف لصورته
+//                 (أو يلمس الحرف وبعدين الصورة). ٣ جولات × ٤ حروف، حروف النجمة الأول.
 // lang = "ar" | "en". back = "letterbook" | "englishbook" لو جاى من جوّه الكتاب.
 import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
@@ -17,7 +19,7 @@ import { SCORE_PASS } from "./strokeJudge.js";
 import { fixMsg } from "../data/writingPhrases.js";
 import { penBoardOptions } from "./grip.js";
 import {
-  RECALL_SAY, starredLetters, pickableLetters, picRounds, writePlan, letterName,
+  RECALL_SAY, starredLetters, pickableLetters, picRounds, writePlan, letterName, connectRounds,
 } from "../data/letterRecall.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
@@ -35,7 +37,7 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
   screen.className = "region-screen";
   screen.style.background = bg || (isAr ? "linear-gradient(180deg,#ffe0a8,#ff9f5a)" : "linear-gradient(180deg,#bfe3ff,#7aa8f0)");
   const back = () => (backTo ? Router.go(backTo, { regionId, regionIndex }) : Router.go("region", { id: regionId, index: regionIndex }));
-  screen.appendChild(gameTopbar(title || (mode === "write" ? "🧠 اكتب من الذاكرة" : "🖼️ صور الحروف"), back));
+  screen.appendChild(gameTopbar(title || (mode === "write" ? "🧠 اكتب من الذاكرة" : mode === "connect" ? "🔗 وصّل الحرف بالصورة" : "🖼️ صور الحروف"), back));
   const stage = el("div");
   screen.appendChild(stage);
   let cleanup = () => {};
@@ -198,8 +200,127 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
     next();
   }
 
+  // ── وصّل الحرف بالصورة ────────────────────────────────────────────────────
+  function playConnect() {
+    const rounds = connectRounds(lang, starred);
+    let ri = 0;
+    const NS = "http://www.w3.org/2000/svg";
+    const next = () => {
+      if (ri >= rounds.length) return finishActivity({ regionId, regionIndex, stars: 6, onDone: back });
+      clear();
+      const r = rounds[ri];
+      stage.append(el("p", SAY_CSS + ";opacity:.85;font-size:15px", `${ri + 1} من ${rounds.length}`));
+      stage.append(el("p", SAY_CSS, fem(S.connect)));
+      // العربى: الحروف يمين والصور شمال — والإنجليزى العكس (زى اتجاه القراية)
+      const wrap = el("div", "position:relative;display:flex;justify-content:space-between;gap:24px;max-width:min(94vw,460px);margin:6px auto 24px;padding:4px 6px;touch-action:none;user-select:none");
+      wrap.dir = isAr ? "rtl" : "ltr";
+      const colL = el("div", "display:flex;flex-direction:column;gap:14px");
+      const colP = el("div", "display:flex;flex-direction:column;gap:14px");
+      const svg = document.createElementNS(NS, "svg");
+      svg.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible";
+      wrap.append(colL, colP, svg);
+      stage.append(wrap);
+      const cardCss = "width:clamp(84px,24vw,112px);height:clamp(76px,20vw,96px);border-radius:18px;background:#fff;border:3px solid rgba(0,0,0,.08);box-shadow:0 4px 0 rgba(0,0,0,.12);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:none";
+      const letters = r.letters.map((ch) => {
+        const c = el("div", cardCss + ";font-size:clamp(40px,11vw,54px);font-weight:900;color:#3a2a6b", isAr ? ch : `${ch}${ch.toLowerCase()}`);
+        c.dataset.ch = ch;
+        colL.append(c);
+        return c;
+      });
+      const pics = r.pictures.map((p) => {
+        const c = el("div", cardCss);
+        c.append(el("span", "font-size:clamp(40px,11vw,52px);line-height:1", p.pic.e), el("small", "font-size:14px;font-weight:800;color:#555", p.pic.w));
+        c.dataset.pic = p.ch;
+        c._p = p;
+        colP.append(c);
+        return c;
+      });
+      // نقطة على حافة الكارت اللى ناحية العمود التانى
+      const anchor = (card, side) => {
+        const w = wrap.getBoundingClientRect(), b = card.getBoundingClientRect();
+        const toward = side === "letter" ? (isAr ? b.left : b.right) : (isAr ? b.right : b.left);
+        return [toward - w.left, b.top + b.height / 2 - w.top];
+      };
+      const line = (color, width = 7) => {
+        const l = document.createElementNS(NS, "line");
+        l.setAttribute("stroke", color); l.setAttribute("stroke-width", width); l.setAttribute("stroke-linecap", "round");
+        svg.append(l);
+        return l;
+      };
+      const setLine = (l, [x1, y1], [x2, y2]) => { l.setAttribute("x1", x1); l.setAttribute("y1", y1); l.setAttribute("x2", x2); l.setAttribute("y2", y2); };
+      const doneLines = [];
+      const redraw = () => doneLines.forEach(({ l, a, b }) => setLine(l, anchor(a, "letter"), anchor(b, "pic")));
+      const onResize = () => redraw();
+      window.addEventListener("resize", onResize);
+      cleanup = () => window.removeEventListener("resize", onResize);
+
+      let sel = null, temp = null, moved = false, matched = 0;
+      const pick = (c) => {
+        letters.forEach((x) => (x.style.borderColor = "rgba(0,0,0,.08)"));
+        sel = c;
+        if (c) { c.style.borderColor = "#8b5cf6"; Speech.say(letterName(lang, c.dataset.ch), { lang: voice }); }
+      };
+      const tryPic = (pc) => {
+        if (!sel || !pc || pc.dataset.done) return false;
+        if (pc.dataset.pic === sel.dataset.ch) {
+          const l = line("#22c55e");
+          setLine(l, anchor(sel, "letter"), anchor(pc, "pic"));
+          doneLines.push({ l, a: sel, b: pc });
+          for (const c of [sel, pc]) { c.dataset.done = "1"; c.style.borderColor = "#22c55e"; c.style.background = "#ecfdf3"; }
+          Sfx.correct();
+          awardStars(1);
+          Speech.say(S.starts(pc._p.pic.w, letterName(lang, pc._p.ch)), { lang: voice });
+          pick(null);
+          sel = null;
+          if (++matched === letters.length) { ri++; setTimeout(next, 2200); }
+        } else {
+          // خط أحمر لحظة وبعدين يختفى
+          const l = line("#ef4444");
+          setLine(l, anchor(sel, "letter"), anchor(pc, "pic"));
+          setTimeout(() => l.remove(), 600);
+          Sfx.wrong();
+          Speech.say(pc._p.pic.w, { lang: voice });
+          pc.animate([{ transform: "translateX(0)" }, { transform: "translateX(-6px)" }, { transform: "translateX(6px)" }, { transform: "translateX(0)" }], { duration: 350 });
+        }
+        return true;
+      };
+      // سحب من الحرف (أو لمس الحرف وبعدين الصورة)
+      wrap.addEventListener("pointerdown", (e) => {
+        const lc = e.target.closest("[data-ch]");
+        const pc = e.target.closest("[data-pic]");
+        if (pc && sel) { tryPic(pc); return; }
+        if (!lc || lc.dataset.done) return;
+        pick(lc);
+        moved = false;
+        temp = line("#8b5cf6", 6);
+        temp.setAttribute("stroke-dasharray", "2 10");
+        const w = wrap.getBoundingClientRect();
+        setLine(temp, anchor(lc, "letter"), [e.clientX - w.left, e.clientY - w.top]);
+        try { wrap.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+      wrap.addEventListener("pointermove", (e) => {
+        if (!temp || !sel) return;
+        moved = true;
+        const w = wrap.getBoundingClientRect();
+        setLine(temp, anchor(sel, "letter"), [e.clientX - w.left, e.clientY - w.top]);
+      });
+      wrap.addEventListener("pointerup", (e) => {
+        if (!temp) return;
+        temp.remove();
+        temp = null;
+        if (!moved) return; // لمسة: الحرف فضل متختار، والطفل يلمس الصورة بعدها
+        const under = document.elementFromPoint(e.clientX, e.clientY);
+        const pc = under && under.closest && under.closest("[data-pic]");
+        if (!tryPic(pc)) pick(null);
+      });
+      sayAr(S.connect);
+    };
+    next();
+  }
+
   setTimeout(() => {
     if (mode === "write") { if (!starred.length) noStars(); else playWrite(); }
+    else if (mode === "connect") playConnect();
     else chooser();
   }, 0);
   return screen;

@@ -118,6 +118,31 @@ export function picRounds(lang, ch, letters, rnd = Math.random, n = PIC_ROUNDS) 
   });
 }
 
+/**
+ * «وصّل الحرف بالصورة» (المالك ٢٠٢٦-١٠-٢٦): كل جولة `k` حروف مختلفة، ولكل حرف صورة بتبدأ بيه —
+ * الطفل يوصّل بخط. الحروف من حروف النجمة الأول، ولو أقل من `k` بنكمّل من حروف الكتاب بالترتيب.
+ * الصور ماتتكرّرش فى نفس المرة لحد ما صور الحرف تخلص.
+ */
+export const CONNECT_ROUNDS = 3;
+export const CONNECT_K = 4;
+export function connectRounds(lang, letters = [], rnd = Math.random, rounds = CONNECT_ROUNDS, k = CONNECT_K) {
+  const pool = pickableLetters(lang, letters);
+  const mine = letters.filter((c) => pool.includes(c));
+  const base = mine.length >= k ? mine : [...mine, ...pool.filter((c) => !mine.includes(c))].slice(0, Math.max(k, mine.length));
+  // كل حرف ليه صوره بترتيب عشوائى، وبنلفّ عليهم — فالصورة ماتتكرّرش لحد ما صوره تخلص
+  const decks = new Map();
+  const picOf = (c) => {
+    let d = decks.get(c);
+    if (!d || !d.left.length) { d = { left: shuffle(rnd, picturesFor(lang, c)) }; decks.set(c, d); }
+    return d.left.shift();
+  };
+  return Array.from({ length: rounds }, () => {
+    const chosen = shuffle(rnd, base).slice(0, k);
+    const pairs = chosen.map((ch) => ({ ch, pic: picOf(ch) }));
+    return { letters: chosen, pictures: shuffle(rnd, pairs) };
+  });
+}
+
 export const WRITE_MAX = 6;
 
 /** «اكتب من الذاكرة»: حروف النجمة بترتيب عشوائى — والإنجليزى كابيتال وصغير بالتبادل. */
@@ -138,6 +163,7 @@ export const RECALL_SAY = {
     choose: "اختار الحرف اللى عايز تتمرّن على صوره",
     noStars: "لسه مفيش حروف عليها نجمة. خلّص حرف فى الكراسة الأول وتعالى",
     peek: "بص على الحرف كويس… وبعدين اكتبه لوحدك",
+    connect: "وصّل كل حرف بالصورة اللى بتبدأ بيه",
   },
   en: {
     whichLetter: (w) => `What letter does ${w} start with?`,
@@ -146,6 +172,7 @@ export const RECALL_SAY = {
     choose: "اختار الحرف اللى عايز تتمرّن على صوره",
     noStars: "لسه مفيش حروف عليها نجمة. خلّص حرف فى كتاب الإنجليزى الأول وتعالى",
     peek: "بص على الحرف كويس… وبعدين اكتبه لوحدك",
+    connect: "وصّل كل حرف بالصورة اللى بتبدأ بيه",
   },
 };
 
@@ -159,7 +186,7 @@ export function recallPhrases() {
       bag.add(S.whichPicture(name));
       for (const p of picturesFor(lang, ch)) { bag.add(p.w); bag.add(S.whichLetter(p.w)); bag.add(S.starts(p.w, name)); }
     }
-    ar.add(S.choose); ar.add(S.noStars); ar.add(S.peek);
+    ar.add(S.choose); ar.add(S.noStars); ar.add(S.peek); ar.add(S.connect);
   }
   for (const p of LB_PAGES.filter((x) => x.type === "letter")) ar.add(`اكتب حرف ${nameOf(p.ch)}`);
   for (const p of EB_PAGES.filter((x) => x.type === "letter")) { en.add(`Write capital ${p.ch}`); en.add(`Write small ${p.ch.toLowerCase()}`); }

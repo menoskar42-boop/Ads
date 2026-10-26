@@ -71,3 +71,19 @@ test("every spoken phrase is registered for the prebuilt voices", () => {
   const tts = fs.readFileSync(new URL("../server/tts-games.js", import.meta.url), "utf8");
   assert.match(tts, /recallPhrases\(\)/);
 });
+
+// «وصّل الحرف بالصورة» (المالك ٢٠٢٦-١٠-٢٦)
+test("connect: 4 different letters a round, each with one picture that starts with it", async () => {
+  const { connectRounds, picturesFor: pf } = await import("../js/data/letterRecall.js");
+  for (const lang of ["ar", "en"]) {
+    const rounds = connectRounds(lang, lang === "ar" ? ["ل", "م"] : ["M"], Math.random);
+    assert.equal(rounds.length, 3);
+    for (const r of rounds) {
+      assert.equal(new Set(r.letters).size, 4);
+      assert.deepEqual([...r.pictures.map((p) => p.ch)].sort(), [...r.letters].sort());
+      for (const p of r.pictures) assert.ok(pf(lang, p.ch).some((x) => x.w === p.pic.w), p.pic.w);
+    }
+  }
+  // حروف النجمة جوّه الجولة دايماً لما يكونوا أقل من ٤
+  assert.ok(connectRounds("ar", ["ل", "م"], Math.random).every((r) => r.letters.includes("ل") && r.letters.includes("م")));
+});

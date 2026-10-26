@@ -131,6 +131,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     recall.append(
       button("candy-btn", "🖼️ صور الحروف", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "pics", lang: "en", back: "englishbook" }); }),
       button("candy-btn", "🧠 اكتب من الذاكرة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "write", lang: "en", back: "englishbook" }); }),
+      button("candy-btn", "🔗 وصّل الحرف بالصورة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "connect", lang: "en", back: "englishbook" }); }),
     );
     map.appendChild(recall);
     EB_UNITS.forEach((u, ui) => {

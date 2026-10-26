@@ -22,6 +22,7 @@ export const ACTIVITIES = {
     // المالك ٢٠٢٦-١٠-٢٦: صور كل حرف (لؤلؤ بتبدأ بإيه؟) · وميزو يقول الحرف والطفل يكتبه من غير ما يشوفه (حروف النجمة)
     { emoji: "🖼️", title: "صور الحروف", desc: "اختار حرف: الصورة دى بتبدأ بإيه؟ واختار الصورة اللى بتبدأ بالحرف", screen: "letterRecall", params: { mode: "pics", lang: "ar" } },
     { emoji: "🧠", title: "اكتب من الذاكرة", desc: "ميزو يقول الحرف وانت تكتبه لوحدك — للحروف اللى عليها نجمة", screen: "letterRecall", params: { mode: "write", lang: "ar" } },
+    { emoji: "🔗", title: "وصّل الحرف بالصورة", desc: "اسحب خط من كل حرف للصورة اللى بتبدأ بيه", screen: "letterRecall", params: { mode: "connect", lang: "ar" } },
     { emoji: "🧩", title: "بازل الحرف", desc: "الحرف اتكسر حتت! رجّع كل حتة مكانها", screen: "letterPuzzle", params: { kind: "arabic" } },
     { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الحرف ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "arabic" } },
     { emoji: "🔦", title: "الكشّاف", desc: "الدنيا ضلمة! دوّر بالكشّاف على الحرف", screen: "flashlight", params: { kind: "arabic" } },
@@ -161,6 +162,7 @@ export const ACTIVITIES = {
     // المالك ٢٠٢٦-١٠-٢٦: صور كل حرف (apple بيبدأ بإيه؟) · وميزو يقول الحرف والطفل يكتبه من غير ما يشوفه (حروف النجمة)
     { emoji: "🖼️", title: "صور الحروف", desc: "اختار حرف: الصورة دى بتبدأ بإيه؟ واختار الصورة اللى بتبدأ بالحرف", screen: "letterRecall", params: { mode: "pics", lang: "en", title: "🖼️ First letter pictures" } },
     { emoji: "🧠", title: "اكتب من الذاكرة", desc: "ميزو يقول الحرف وانت تكتبه لوحدك — للحروف اللى عليها نجمة", screen: "letterRecall", params: { mode: "write", lang: "en", title: "🧠 Write from memory" } },
+    { emoji: "🔗", title: "وصّل الحرف بالصورة", desc: "اسحب خط من كل حرف للصورة اللى بتبدأ بيه", screen: "letterRecall", params: { mode: "connect", lang: "en", title: "🔗 Match the letter" } },
     // «ألعاب ميزو» (٢٠٢٦-١٠-١٦): خمس ألعاب جديدة بنفس الكود للعربى والإنجليزى والأرقام
     { emoji: "🧩", title: "بازل الحرف", desc: "الحرف اتكسر حتت! رجّع كل حتة مكانها", screen: "letterPuzzle", params: { kind: "english" } },
     { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الحرف ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "english" } },
