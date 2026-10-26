@@ -21,6 +21,7 @@ import { MIZO_REGION_HOOKS, MIZO_PRAISE, MIZO_HELLO, MIZO_INTRO, MIZO_CATCH, fem
 import fs from "node:fs";
 import { bodyMapPhrases } from "../js/data/bodyMap.js";
 import { recallPhrases } from "../js/data/letterRecall.js";
+import { ML_SAY } from "../js/data/missingLine.js";
 
 /** { name, how } من مصفوفة جوّه شاشة (الأوسمة/إكسسوارات ميزو) — الشاشة نفسها بتلمس الصفحة فمابنستوردهاش. */
 function namesHows(file, arr) {
@@ -154,4 +155,7 @@ export function addGamePhrases({ say, mizo }) {
   const rc = recallPhrases();
   rc.en.forEach(say);
   for (const t of rc.ar) { say(t); say(femAdapt(t)); }
+
+  // ١٤) «كمّل الأرقام ١–١٠» (games/missingLine.js) — بصيغة الولد والبنت
+  for (const t of Object.values(ML_SAY)) { say(t); say(femAdapt(t)); }
 }
