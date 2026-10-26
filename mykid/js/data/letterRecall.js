@@ -179,12 +179,17 @@ export function writePlan(lang, letters, rnd = Math.random, max = WRITE_MAX) {
   });
 }
 
-// الجمل اللى ميزو بيقولها — كلها بتتسجّل صوت مرة واحدة (server/tts-games.js)
+// الجمل اللى ميزو بيقولها — كلها بتتسجّل صوت مرة واحدة (server/tts-games.js).
+// الأسئلة حتت { text, lang }: العربى بيتنطق عربى والكلمة الإنجليزى بتتنطق إنجليزى.
+const AR = (text) => ({ text, lang: "ar-EG" });
+const EN = (text) => ({ text, lang: "en-US" });
+/** نص الجملة للعرض (الحتت جنب بعض). */
+export const partsText = (parts) => parts.map((p) => p.text).join(" ");
 export const RECALL_SAY = {
   ar: {
-    whichLetter: (w) => `كلمة ${w} بتبدأ بحرف إيه؟`,
-    whichPicture: (name) => `اختار الصورة اللى بتبدأ بحرف ${name}`,
-    starts: (w, name) => `كلمة ${w} بتبدأ بحرف ${name}`,
+    whichLetter: (w) => [AR(`كلمة ${w} بتبدأ بحرف إيه؟`)],
+    whichPicture: (name) => [AR(`اختار الصورة اللى بتبدأ بحرف ${name}`)],
+    starts: (w, name) => [AR(`كلمة ${w} بتبدأ بحرف ${name}`)],
     choose: "اختار الحرف اللى عايز تتمرّن على صوره",
     noStars: "لسه مفيش حروف عليها نجمة. خلّص حرف فى الكراسة الأول وتعالى",
     peek: "بص على الحرف كويس… وبعدين اكتبه لوحدك",
@@ -192,9 +197,11 @@ export const RECALL_SAY = {
     needTwo: "لازم حرفين عليهم نجمة على الأقل عشان نوصّل. خلّص حرف كمان فى الكراسة وتعالى",
   },
   en: {
-    whichLetter: (w) => `What letter does ${w} start with?`,
-    whichPicture: (ch) => `Find the picture that starts with ${ch}`,
-    starts: (w, ch) => `${w} starts with ${ch}`,
+    // المالك ٢٠٢٦-١٠-٢٦: «مش عاوز السؤال هنا يبقى بالانجليزى» — السؤال بالعربى، والكلمة والحرف
+    // بس بالإنجليزى (كل حتة بتتنطق بلغتها)
+    whichLetter: (w) => [EN(w), AR("بتبدأ بحرف إيه؟")],
+    whichPicture: (ch) => [AR("اختار الصورة اللى بتبدأ بحرف"), EN(ch)],
+    starts: (w, ch) => [EN(w), AR("بتبدأ بحرف"), EN(ch)],
     choose: "اختار الحرف اللى عايز تتمرّن على صوره",
     noStars: "لسه مفيش حروف عليها نجمة. خلّص حرف فى كتاب الإنجليزى الأول وتعالى",
     peek: "بص على الحرف كويس… وبعدين اكتبه لوحدك",
@@ -214,8 +221,9 @@ export function recallPhrases() {
     const bag = lang === "ar" ? ar : en;
     for (const ch of pickableLetters(lang)) {
       const name = letterName(lang, ch);
-      bag.add(S.whichPicture(name));
-      for (const p of picturesFor(lang, ch)) { bag.add(p.w); bag.add(S.whichLetter(p.w)); bag.add(S.starts(p.w, name)); }
+      const put = (parts) => parts.forEach((x) => (x.lang === "ar-EG" ? ar : en).add(x.text));
+      put(S.whichPicture(name));
+      for (const p of picturesFor(lang, ch)) { bag.add(p.w); put(S.whichLetter(p.w)); put(S.starts(p.w, name)); }
     }
     ar.add(S.choose); ar.add(S.noStars); ar.add(S.peek); ar.add(S.connect); ar.add(S.needTwo);
   }

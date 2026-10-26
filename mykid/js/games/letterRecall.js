@@ -20,8 +20,14 @@ import { fixMsg } from "../data/writingPhrases.js";
 import { penBoardOptions } from "./grip.js";
 import {
   RECALL_SAY, starredLetters, pickableLetters, picRounds, writePlan, letterName, connectRounds,
-  numberConnectRounds, starredNumbers,
+  numberConnectRounds, starredNumbers, partsText,
 } from "../data/letterRecall.js";
+
+/** جملة متقسّمة حتت (عربى + كلمة إنجليزى): كل حتة بلغتها، والعربى بصيغة البنت للبنت. */
+function sayParts(parts) {
+  const girl = Store.childGender === "girl";
+  Speech.sequence(parts.map((p) => ({ text: p.lang === "ar-EG" && girl ? femAdapt(p.text) : p.text, lang: p.lang })), 150);
+}
 import { mountConnect } from "./connectBoard.js";
 import { WB_AR } from "../data/workbook.js";
 
@@ -97,7 +103,7 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
         stage.append(el("div", "text-align:center;font-size:clamp(90px,26vw,150px);line-height:1;margin:4px", r.pic.e));
         stage.append(el("p", SAY_CSS + ";font-size:clamp(26px,7vw,36px)", r.pic.w));
       }
-      stage.append(el("p", SAY_CSS, ask));
+      stage.append(el("p", SAY_CSS, fem(partsText(ask))));
       stage.append(buddy.el);
       const row = el("div");
       row.className = "choice-row";
@@ -106,7 +112,7 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
         Sfx.correct();
         buddy.win();
         awardStars(1);
-        Speech.say(S.starts(r.pic.w, name), { lang: voice });
+        sayParts(S.starts(r.pic.w, name));
         i++;
         setTimeout(next, 1900);
       };
@@ -136,7 +142,7 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
         }
       }
       stage.append(row);
-      Speech.say(ask, { lang: r.kind === "letter" || !isAr ? voice : "ar-EG" });
+      sayParts(ask);
     };
     next();
   }
@@ -254,7 +260,8 @@ export function connectOpts(lang, round, onDone) {
     onPickLeft: (it) => Speech.say(nameOf(it.k), { lang: voice }),
     onMatch: (it) => {
       awardStars(1);
-      Speech.say(isNum ? WB_AR[it.p.ch] : S.starts(it.p.pic.w, nameOf(it.p.ch)), { lang: voice });
+      if (isNum) Speech.say(WB_AR[it.p.ch], { lang: voice });
+      else sayParts(S.starts(it.p.pic.w, nameOf(it.p.ch)));
     },
     onWrong: (it) => { if (!isNum) Speech.say(it.p.pic.w, { lang: voice }); },
     onDone,

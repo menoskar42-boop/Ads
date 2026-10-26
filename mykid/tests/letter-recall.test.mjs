@@ -66,7 +66,9 @@ test("the letter is never shown while the child writes from memory", () => {
 test("every spoken phrase is registered for the prebuilt voices", () => {
   const { ar, en } = recallPhrases();
   assert.ok(ar.includes("كلمة لؤلؤ بتبدأ بحرف إيه؟"));
-  assert.ok(en.includes("What letter does apple start with?"));
+  // الإنجليزى: السؤال بالعربى، والكلمة والحرف بس إنجليزى (المالك ٢٠٢٦-١٠-٢٦)
+  assert.ok(ar.includes("بتبدأ بحرف إيه؟") && ar.includes("اختار الصورة اللى بتبدأ بحرف") && en.includes("apple"));
+  assert.ok(!en.some((t) => /start|Find the picture/.test(t)), "مفيش سؤال بالإنجليزى");
   assert.ok(en.includes("Write small m") && ar.includes("اكتب حرف لام"));
   const tts = fs.readFileSync(new URL("../server/tts-games.js", import.meta.url), "utf8");
   assert.match(tts, /recallPhrases\(\)/);
