@@ -48,7 +48,7 @@ test("the reply lives next to the phone in «الأعطال المكررة خل�
   // الزرار فى خلية رقم التليفون نفسها (قبل خلية الموبايل)
   assert.ok(rep.indexOf("data-testid={`button-repeat-review-") < rep.indexOf("<TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneShort)]}"));
   assert.doesNotMatch(stats, /RepeatReviewDialog/);
-  assert.match(dash, /const SUPER_ONLY_REPORTS: ReportTab\[\] = \[[^\]]*"repeat-reviews"\]/);
+  assert.match(dash, /const SUPER_ONLY_REPORTS: ReportTab\[\] = \[[^\]]*"repeat-reviews"[^\]]*\]/);
   assert.match(dash, /reportTab === "repeat-reviews" && isSuperAdmin && <RepeatReviewsReport \/>/);
 });
 

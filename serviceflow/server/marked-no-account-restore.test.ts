@@ -17,7 +17,7 @@ test("automatically restores marked lines found in the regularized range", () =>
     reportRoute,
     /\$\{sp\("na\.full_phone"\)\} = \$\{sp\("candidate\.phone"\)\}/,
   );
-  assert.match(reportRoute, /req\.user\?\.role !== ROLES\.SALES/);
+  assert.match(reportRoute, /\(?req\.user\?\.role(?: as string\))? !== ROLES\.SALES/);
 });
 
 test("does not place automatic restoration in the neighboring installations report", () => {

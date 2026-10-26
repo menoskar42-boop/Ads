@@ -14,6 +14,7 @@ import { registerPublicReport } from "./public-report";
 import { z } from "zod";
 import multer from "multer";
 import * as XLSX from "xlsx";
+import { keepBigIntegersAsText } from "./big-ids";
 import session from "express-session";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
@@ -187,6 +188,7 @@ function fixSheetRange(ws: any): void {
 // XLSX.utils.sheet_to_json المباشر فى كل أماكن استيراد الملفات.
 function sheetRows(ws: any): any[][] {
   fixSheetRange(ws);
+  keepBigIntegersAsText(ws); // المسلسل/رقم المرجع الطويل ماينفعش يتقرّب (big-ids.ts)
   return XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
 }
 
@@ -14421,6 +14423,8 @@ export async function registerRoutes(
   // أعطال خارج الشاشة اتنظمت وكان أول قياس DZS بعدها أعلى من 25 فقط.
   // ربط القياس بوقت الانتظام ومصدره يمنع إدخال أى خط لمجرد أن له اسكور قديم مرتفع.
   app.get("/api/manual-faults/regularized-high-score", requireAuth, async (req: any, res) => {
+    // المالك ٢٠٢٦-١٠-٢٦: للسوبر أدمن بس
+    if (req.user?.role !== ROLES.SUPER_ADMIN) return res.status(403).json({ message: "التقرير ده للسوبر أدمن بس" });
     const params: any[] = [];
     const conditions = ["mf.status = 'regularized'", "mf.regularized_at IS NOT NULL"];
     if (req.user?.role === ROLES.TECH) {
@@ -14960,13 +14964,15 @@ export async function registerRoutes(
   app.get("/api/reports/regularized-faults-range", requireAuth, async (req, res) => {
     // المالك ٢٠٢٦-١٠-١٢: مش للشئون الخارجية ولا مهندس الكوابل (external) ولا الأدمن — الفنى والسوبر أدمن
     if (req.user?.role === ROLES.EXTERNAL || req.user?.role === ROLES.ADMIN) return res.status(403).json({ message: "التقرير ده مش متاح" });
+    // المالك ٢٠٢٦-١٠-٢٦: للسوبر أدمن بس (الفنى كمان مايشوفهوش)
+    if (req.user?.role !== ROLES.SUPER_ADMIN) return res.status(403).json({ message: "التقرير ده للسوبر أدمن بس" });
     try {
       const {
         central = "", cabin = "", box = "", closingTech = "",
         q = "", dateFrom = "", dateTo = "", measuredBefore = "",
       } =
         req.query as Record<string, string>;
-      const isTech = req.user?.role === ROLES.TECH;
+      const isTech = (req.user?.role as string) === ROLES.TECH;
       // التاريخ الافتراضى هو الشهر الحالى بتوقيت القاهرة. للفنى نثبت الشهر الحالى
       // على السيرفر أيضاً حتى لا يستطيع تغيير النطاق من خلال الطلب مباشرة.
       const cairoParts = new Intl.DateTimeFormat("en-US", {
@@ -15346,7 +15352,7 @@ export async function registerRoutes(
       // ألغِ العلامة بنفس أثر زر الاسترجاع فى تقرير الأرقام المعلَّمة. نستخدم
       // مطابقة الرقم الكامل/القصير بعد التطبيع، ونتجنب التنفيذ لحسابات المبيعات
       // لأن مسار الاسترجاع اليدوى يمنعها بنفس القاعدة.
-      if (req.user?.role !== ROLES.SALES) {
+      if ((req.user?.role as string) !== ROLES.SALES) {
         const regularizedPhones = rows
           .map((row: any) => String(row.phoneShort ?? "").trim())
           .filter(Boolean);

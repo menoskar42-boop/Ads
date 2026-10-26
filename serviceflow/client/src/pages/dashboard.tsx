@@ -365,7 +365,10 @@ export default function Dashboard() {
   const SALES_ADMIN_ALLOWED_GROUPS = ["متعذرات OM"];
   // تقارير للسوبر أدمن فقط رغم إنها جوّه مجموعات مشتركة (السيرفر بيرفضها كمان بـ 403)
   // «ردود التكرار» — تقرير السوبر أدمن (٢٠٢٦-١٠-٠٤)؛ الرد نفسه من «إحصائيات التكرار».
-  const SUPER_ONLY_REPORTS: ReportTab[] = ["lines-mobile-checked", "om-order-match", "repeat-reviews"];
+  // المالك ٢٠٢٦-١٠-٢٦: «الأعطال المنتظمة هذا الشهر» (فترة من/إلى) و«منتظمة خارج الشاشة - اسكور عالي»
+  // للسوبر أدمن بس — حتى الفنى مايشوفهمش.
+  const SUPER_ONLY_REPORTS: ReportTab[] = ["lines-mobile-checked", "om-order-match", "repeat-reviews",
+    "regularized-faults-range", "manual-regularized-high-score"];
   // المالك ٢٠٢٦-١٠-١٩: «تاب القياسات» كله للسوبر أدمن بس — إلا «متوسط القياسات» (متوسط لكل كابينة/بكس
   // من غير التفصيلى بتاع كل رقم). والسرعات/الاسكور لكل خط بيشيلها السيرفر نفسه (server/measure-redact.ts).
   const MEASURE_GROUP = "القياسات";
@@ -778,7 +781,7 @@ export default function Dashboard() {
               {reportTab === "maint-cable" && <MaintCableSection />}
               {reportTab === "port-change"       && <PortChangeReport />}
               {reportTab === "regularized-faults" && <RegularizedFaultsReport />}
-              {reportTab === "regularized-faults-range" && <RegularizedFaultsRangeReport />}
+              {reportTab === "regularized-faults-range" && isSuperAdmin && <RegularizedFaultsRangeReport />}
               {reportTab === "repeated-within-month" && <RepeatedWithinMonthReport />}
               {reportTab === "current-installations" && (
                 <InstallationsReport
@@ -787,6 +790,7 @@ export default function Dashboard() {
                   title="تقرير التركيبات والنقل الحالى"
                   sheetName="التركيبات الحالية"
                   fileName="current-installations"
+                  wfmCancel
                   updateBadge={{ endpoint: "/api/maintenance-orders/import", label: "آخر تحديث WFM" }}
                 />
               )}
@@ -807,6 +811,7 @@ export default function Dashboard() {
                   title="تقرير المعاينات الحالية"
                   sheetName="المعاينات الحالية"
                   fileName="current-surveys"
+                  wfmCancel
                   phoneLabel="المسلسل"
                   updateBadge={{ endpoint: "/api/maintenance-orders/import", label: "آخر تحديث WFM" }}
                 />
@@ -885,7 +890,7 @@ export default function Dashboard() {
               {reportTab === "lines-mobile-checked" && isSuperAdmin && <LinesNoMobileReport checked />}
               {reportTab === "cfm-tickets"         && <CfmTicketsReport />}
               {reportTab === "manual-current-faults"   && <ManualCurrentFaultsReport />}
-              {reportTab === "manual-regularized-high-score" && <ManualRegularizedHighScoreReport />}
+              {reportTab === "manual-regularized-high-score" && isSuperAdmin && <ManualRegularizedHighScoreReport />}
               {reportTab === "engineering-inspection"  && <EngineeringInspectionReport />}
               {reportTab === "manual-regularized-range" && <ManualRegularizedFaultsRangeReport />}
               {reportTab === "exec-jobs"           && isSuperAdmin && <ExecJobsReport />}

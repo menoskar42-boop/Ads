@@ -11,6 +11,7 @@ import { Loader2, FileSpreadsheet, Printer } from "lucide-react";
 import { LastUpdatedBadge } from "@/components/LastUpdatedBadge";
 import { format } from "date-fns";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
+import { WfmCancelButton } from "@/components/WfmCancelButton";
 
 interface Installation {
   centralName: string | null;
@@ -58,7 +59,7 @@ const CENTRALS = ["الغنايم", "الغنايم-العزايزة", "الغن
 
 export function InstallationsReport({
   endpoint, queryKey, title, regularized = false, sheetName, fileName,
-  showDates = false, extraParams, phoneLabel = "التليفون", updateBadge,
+  showDates = false, extraParams, phoneLabel = "التليفون", updateBadge, wfmCancel = false,
 }: {
   endpoint: string;
   queryKey: string;
@@ -70,6 +71,8 @@ export function InstallationsReport({
   extraParams?: Record<string, string>;
   phoneLabel?: string;
   updateBadge?: { endpoint: string; label: string };
+  /** زر «إلغاء الاسناد» جنب الرقم (التركيبات والمعاينات الحالية — المالك ٢٠٢٦-١٠-٢٦) */
+  wfmCancel?: boolean;
 }) {
   const [central, setCentral] = useState("");
   const [q, setQ] = useState("");
@@ -332,7 +335,12 @@ export function InstallationsReport({
                   <TableCell>
                     <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{o.workOrderId ?? "-"}</span>
                   </TableCell>
-                  <TableCell dir="ltr" className="text-left font-mono">{o.phoneNumber || "-"}</TableCell>
+                  <TableCell dir="ltr" className="text-left font-mono">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>{o.phoneNumber || "-"}</span>
+                      {wfmCancel && <span dir="rtl"><WfmCancelButton phone={o.phoneNumber} isSerial={phoneLabel === "المسلسل"} defaultTech={o.techName} /></span>}
+                    </div>
+                  </TableCell>
                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(o.phoneNumber)] ?? o.mobile} phone={o.phoneNumber} /></TableCell>
                   <TableCell className="max-w-[180px] whitespace-normal break-words align-top">{o.customerName || "-"}</TableCell>
                   <TableCell className="max-w-[260px] whitespace-normal break-words align-top">{o.address || "-"}</TableCell>

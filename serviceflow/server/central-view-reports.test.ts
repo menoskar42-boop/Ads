@@ -36,3 +36,15 @@ test("OM soy/resolved show the tech reply like the current report (read only)", 
   assert.match(om, /const canRespond = bucket === "current" &&/);
   assert.match(om, /\.\.\.\(bucket === "current" && \(canRespond \|\| canResetResp \|\| isSuperAdmin \|\| isExternal\)/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٦: «الأعطال المنتظمة هذا الشهر» و«منتظمة خارج الشاشة - اسكور عالي» للسوبر أدمن بس
+test("regularized this month + manual high score are super-admin only (UI and server)", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const only = dash.match(/const SUPER_ONLY_REPORTS: ReportTab\[\] = \[([\s\S]*?)\];/)![1];
+  assert.match(only, /"regularized-faults-range"/);
+  assert.match(only, /"manual-regularized-high-score"/);
+  for (const ep of ['app.get("/api/reports/regularized-faults-range"', 'app.get("/api/manual-faults/regularized-high-score"']) {
+    const body = routes.slice(routes.indexOf(ep), routes.indexOf(ep) + 600);
+    assert.match(body, /if \(req\.user\?\.role !== ROLES\.SUPER_ADMIN\) return res\.status\(403\)/, ep);
+  }
+});
