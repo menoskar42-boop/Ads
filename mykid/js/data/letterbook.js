@@ -246,7 +246,7 @@ function lettersAround(ch) {
 }
 
 // ===== صفحة الحرف: يكتب شوية ويلعب شوية (نفس ترتيب أنشطة الكتاب) =====
-export const LB_LETTER_KINDS = ["meet", "write", "riddle", "pop", "harakat", "starts", "forms", "missing", "game", "harakaWrite", "harakaQuiz"];
+export const LB_LETTER_KINDS = ["meet", "write", "riddle", "pop", "harakat", "starts", "forms", "missing", "game", "harakaWrite", "harakaQuiz", "connect"];
 
 // ===== الكتابة الكتير (المالك ٢٠٢٦-١٠-١٦: «٣ بالنقط + ٥ لوحده»): النقط ماتتحسبش غير بـ٧٥٪،
 // ولوحده غير بـ٧٠٪ — كل مرة بتتحسب لوحدها فى العدّاد (✓ ١/٣) =====
@@ -302,6 +302,9 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   }
   // ١٢) 🔤 بأى حرف تبدأ؟
   game("phonics");
+  // ١٢ب) 🔗 وصّل الحرف بالصورة (المالك ٢٠٢٦-١٠-٢٦): حرف الصفحة + حروف النجمة — الشاشة بتبنى الجولة
+  //      (لو مفيش حرف تانى عليه نجمة الخطوة بتتشال)
+  if (want("connect")) steps.push({ kind: "connect", ch });
   // ١٣) لاحظ أشكال الحرف: أول · وسط · آخر الكلمة (الحرف ملوّن والطفل يلمسه)
   if (want("forms")) steps.push({ kind: "forms", ch, words: L.forms.map((x) => ({ ...x, pos: posOf(x.w, ch), ...splitAt(x.w, ch) })) });
   // ١٣ب) حط دايرة حوالين الحرف: فى أول الكلمة ← آخرها ← وسطها (المالك ٢٠٢٦-١٠-١٤)

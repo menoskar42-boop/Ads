@@ -24,6 +24,9 @@ import { letterGrade, gameInfo } from "../data/letterGrade.js";
 import { showLetterGrade } from "./letterGradeCard.js";
 import { LB_DOTS_PASS } from "../data/letterbook.js";
 import { mountWriteBoard } from "./writeBoard.js";
+import { mountConnect } from "./connectBoard.js";
+import { connectOpts } from "./letterRecall.js";
+import { connectStepFor, starredLetters, RECALL_SAY } from "../data/letterRecall.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
 
@@ -164,6 +167,12 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
   function openPage(pg) {
     cur = pg;
     steps = ebSteps(pg, Math.random, only);
+    // «وصّل الحرف بالصورة»: الجولة من حروف النجمة دلوقتى — ولو مفيش حرف تانى عليه نجمة الخطوة بتتشال
+    steps = steps.flatMap((x) => {
+      if (x.kind !== "connect") return [x];
+      const round = connectStepFor("en", x.ch, starredLetters("en", Store.englishbookDone));
+      return round ? [{ ...x, round }] : [];
+    });
     idx = 0;
     res = {
       writes: [], writeFails: 0, games: {}, acts: {}, skipped: [],
@@ -216,7 +225,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     const track = el("div", "wbk-track");
     // فى «حروفى بالنجمة» كل خانة عليها حرفها (Mm · Ss …) بدل 🎲
     steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : "") + (cur.type === "mix" ? " ebk-chip-letter" : ""),
-      cur.type === "mix" ? `${s.label}${s.label.toLowerCase()}` : isEbWrite(s) ? "✏️" : s.kind === "game" ? gameInfo(s.game).icon : "🎲")));
+      cur.type === "mix" ? `${s.label}${s.label.toLowerCase()}` : isEbWrite(s) ? "✏️" : s.kind === "connect" ? "🔗" : s.kind === "game" ? gameInfo(s.game).icon : "🎲")));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;
@@ -378,6 +387,13 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
         grid.appendChild(c);
       });
       body.appendChild(grid);
+    },
+
+    // 🔗 وصّل الحرف بالصورة (games/connectBoard.js) — نفس اللعبة المنفردة
+    connect(body, s) {
+      body.appendChild(prompt(RECALL_SAY.en.connect));
+      const board = mountConnect(body, connectOpts("en", s.round, () => stepDone(1500)));
+      cleanup = () => board.destroy();
     },
 
     // اسمع الكلمة والمس صورتها (من غير الكلمة مكتوبة — عشان يسمع)

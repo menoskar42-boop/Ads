@@ -266,6 +266,8 @@ export const ACTIVITIES = {
       params: {},
     },
     // «ألعاب ميزو» (٢٠٢٦-١٠-١٦): خمس ألعاب جديدة بنفس الكود للعربى والإنجليزى والأرقام
+    // المالك ٢٠٢٦-١٠-٢٦: وصّل الرقم بالصورة اللى فيها نفس العدد — للأرقام اللى عليها نجمة فى الكراسة
+    { emoji: "🔗", title: "وصّل الرقم بالصورة", desc: "اسحب خط من كل رقم للصورة اللى فيها نفس العدد — للأرقام اللى عليها نجمة", screen: "letterRecall", params: { mode: "connect", lang: "num" } },
     { emoji: "🧩", title: "بازل الرقم", desc: "الرقم اتكسر حتت! رجّع كل حتة مكانها", screen: "letterPuzzle", params: { kind: "numbers" } },
     { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الرقم ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "numbers" } },
     { emoji: "🔦", title: "الكشّاف", desc: "الدنيا ضلمة! دوّر بالكشّاف على الرقم", screen: "flashlight", params: { kind: "numbers" } },

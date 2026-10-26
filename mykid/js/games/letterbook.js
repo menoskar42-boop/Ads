@@ -26,6 +26,9 @@ import { renderReview } from "./review.js";
 import { letterGrade, LB_GAME_INFO } from "../data/letterGrade.js";
 import { showLetterGrade } from "./letterGradeCard.js";
 import { mountWriteBoard } from "./writeBoard.js";
+import { mountConnect } from "./connectBoard.js";
+import { connectOpts } from "./letterRecall.js";
+import { connectStepFor, starredLetters, RECALL_SAY } from "../data/letterRecall.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
 
@@ -136,6 +139,12 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   function openPage(pg) {
     cur = pg;
     steps = letterbookSteps(pg, Math.random, only); // only: أنشطة بعينها (للاختبار)
+    // «وصّل الحرف بالصورة»: الجولة من حروف النجمة دلوقتى — ولو مفيش حرف تانى عليه نجمة الخطوة بتتشال
+    steps = steps.flatMap((x) => {
+      if (x.kind !== "connect") return [x];
+      const round = connectStepFor("ar", x.ch, starredLetters("ar", Store.letterbookDone));
+      return round ? [{ ...x, round }] : [];
+    });
     idx = 0;
     res = {
       writes: [], writeFails: 0, games: {}, acts: {}, skipped: [],
@@ -162,7 +171,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     else title.innerHTML = `<b>〰️</b><span>التهيئة</span>`;
     const track = el("div", "wbk-track");
     steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""),
-      isLbWrite(s) ? "✏️" : s.kind === "game" ? (LB_GAME_INFO[s.game] || {}).icon || "🎲" : "🎲")));
+      isLbWrite(s) ? "✏️" : s.kind === "connect" ? "🔗" : s.kind === "game" ? (LB_GAME_INFO[s.game] || {}).icon || "🎲" : "🎲")));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;
@@ -452,6 +461,13 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
         grid.appendChild(c);
       });
       body.appendChild(grid);
+    },
+
+    // 🔗 وصّل الحرف بالصورة (games/connectBoard.js) — نفس اللعبة المنفردة
+    connect(body, s) {
+      body.appendChild(prompt(RECALL_SAY.ar.connect));
+      const board = mountConnect(body, connectOpts("ar", s.round, () => stepDone(1500)));
+      cleanup = () => board.destroy();
     },
 
     // ضع دائرة حول الصورة اللى بتبدأ بالحرف

@@ -451,6 +451,8 @@ export function ebSteps(pg, rnd = Math.random, only = null) {
     game("eggs");
     write(lo, 3, 2);
     game("phonics");
+    // 🔗 وصّل الحرف بالصورة (المالك ٢٠٢٦-١٠-٢٦): حرف الصفحة + حروف النجمة — الشاشة بتبنى الجولة
+    if (pg.pos !== "end" && want("connect")) steps.push({ kind: "connect", ch: pg.ch });
     if (want("find")) steps.push({ kind: "find", rounds: findRounds(pg.words, rnd) });
     game("catch");
     game("sequence");

@@ -119,27 +119,52 @@ export function picRounds(lang, ch, letters, rnd = Math.random, n = PIC_ROUNDS) 
 }
 
 /**
- * «وصّل الحرف بالصورة» (المالك ٢٠٢٦-١٠-٢٦): كل جولة `k` حروف مختلفة، ولكل حرف صورة بتبدأ بيه —
- * الطفل يوصّل بخط. الحروف من حروف النجمة الأول، ولو أقل من `k` بنكمّل من حروف الكتاب بالترتيب.
+ * «وصّل الحرف بالصورة» (المالك ٢٠٢٦-١٠-٢٦): **حروف النجمة بس** («خليهم للحروف اللى عليها نجمه
+ * يعنى خلصت»). كل جولة لحد ٤ حروف مختلفة، ولكل حرف صورة بتبدأ بيه — والطفل يوصّل بخط.
+ * أقل من حرفين عليهم نجمة → مفيش جولات (الشاشة بتقول يخلّص حرف كمان).
  * الصور ماتتكرّرش فى نفس المرة لحد ما صور الحرف تخلص.
  */
 export const CONNECT_ROUNDS = 3;
 export const CONNECT_K = 4;
-export function connectRounds(lang, letters = [], rnd = Math.random, rounds = CONNECT_ROUNDS, k = CONNECT_K) {
-  const pool = pickableLetters(lang, letters);
-  const mine = letters.filter((c) => pool.includes(c));
-  const base = mine.length >= k ? mine : [...mine, ...pool.filter((c) => !mine.includes(c))].slice(0, Math.max(k, mine.length));
-  // كل حرف ليه صوره بترتيب عشوائى، وبنلفّ عليهم — فالصورة ماتتكرّرش لحد ما صوره تخلص
+function picDeck(lang, rnd) {
   const decks = new Map();
-  const picOf = (c) => {
+  return (c) => {
     let d = decks.get(c);
     if (!d || !d.left.length) { d = { left: shuffle(rnd, picturesFor(lang, c)) }; decks.set(c, d); }
     return d.left.shift();
   };
+}
+export function connectRounds(lang, starred = [], rnd = Math.random, rounds = CONNECT_ROUNDS, k = CONNECT_K) {
+  const mine = starred.filter((c) => picturesFor(lang, c).length);
+  if (mine.length < 2) return [];
+  const picOf = picDeck(lang, rnd);
   return Array.from({ length: rounds }, () => {
-    const chosen = shuffle(rnd, base).slice(0, k);
-    const pairs = chosen.map((ch) => ({ ch, pic: picOf(ch) }));
-    return { letters: chosen, pictures: shuffle(rnd, pairs) };
+    const chosen = shuffle(rnd, mine).slice(0, k);
+    return { letters: chosen, pictures: shuffle(rnd, chosen.map((ch) => ({ ch, pic: picOf(ch) }))) };
+  });
+}
+
+/** خطوة «وصّل» جوّه صفحة حرف فى الكتاب: حرف الصفحة + لحد ٣ حروف عليها نجمة. أقل من حرفين → null. */
+export function connectStepFor(lang, ch, starred = [], rnd = Math.random) {
+  const others = shuffle(rnd, starred.filter((c) => c !== ch && picturesFor(lang, c).length)).slice(0, CONNECT_K - 1);
+  if (!others.length || !picturesFor(lang, ch).length) return null;
+  const picOf = picDeck(lang, rnd);
+  const letters = shuffle(rnd, [ch, ...others]);
+  return { letters, pictures: shuffle(rnd, letters.map((c) => ({ ch: c, pic: picOf(c) }))) };
+}
+
+// ── الأرقام: «وصّل الرقم بالصورة» — الرقم ↔ صورة فيها نفس العدد (حاجات من كراسة الأرقام) ──
+const NUM_THINGS = ["🦆", "👑", "🐰", "🍎", "🎈", "🐟", "🍌", "⭐", "🐤", "🍓", "🐢", "🦀"];
+/** الأرقام اللى عليها نجمة فى «كراسة الأرقام» (١–١٠). */
+export function starredNumbers(done) {
+  return Array.from({ length: 10 }, (_, i) => i + 1).filter((n) => done && done[String(n)]);
+}
+export function numberConnectRounds(starred = [], rnd = Math.random, rounds = CONNECT_ROUNDS, k = CONNECT_K) {
+  if (starred.length < 2) return [];
+  return Array.from({ length: rounds }, () => {
+    const chosen = shuffle(rnd, starred).slice(0, k);
+    const things = shuffle(rnd, NUM_THINGS);
+    return { letters: chosen, pictures: shuffle(rnd, chosen.map((n, i) => ({ ch: n, pic: { e: things[i].repeat(n), n } }))) };
   });
 }
 
@@ -164,6 +189,7 @@ export const RECALL_SAY = {
     noStars: "لسه مفيش حروف عليها نجمة. خلّص حرف فى الكراسة الأول وتعالى",
     peek: "بص على الحرف كويس… وبعدين اكتبه لوحدك",
     connect: "وصّل كل حرف بالصورة اللى بتبدأ بيه",
+    needTwo: "لازم حرفين عليهم نجمة على الأقل عشان نوصّل. خلّص حرف كمان فى الكراسة وتعالى",
   },
   en: {
     whichLetter: (w) => `What letter does ${w} start with?`,
@@ -173,6 +199,11 @@ export const RECALL_SAY = {
     noStars: "لسه مفيش حروف عليها نجمة. خلّص حرف فى كتاب الإنجليزى الأول وتعالى",
     peek: "بص على الحرف كويس… وبعدين اكتبه لوحدك",
     connect: "وصّل كل حرف بالصورة اللى بتبدأ بيه",
+    needTwo: "لازم حرفين عليهم نجمة على الأقل عشان نوصّل. خلّص حرف كمان فى كتاب الإنجليزى وتعالى",
+  },
+  num: {
+    connect: "وصّل كل رقم بالصورة اللى فيها نفس العدد",
+    needTwo: "لازم رقمين عليهم نجمة على الأقل عشان نوصّل. خلّص رقم كمان فى كراسة الأرقام وتعالى",
   },
 };
 
@@ -186,10 +217,11 @@ export function recallPhrases() {
       bag.add(S.whichPicture(name));
       for (const p of picturesFor(lang, ch)) { bag.add(p.w); bag.add(S.whichLetter(p.w)); bag.add(S.starts(p.w, name)); }
     }
-    ar.add(S.choose); ar.add(S.noStars); ar.add(S.peek); ar.add(S.connect);
+    ar.add(S.choose); ar.add(S.noStars); ar.add(S.peek); ar.add(S.connect); ar.add(S.needTwo);
   }
   for (const p of LB_PAGES.filter((x) => x.type === "letter")) ar.add(`اكتب حرف ${nameOf(p.ch)}`);
   for (const p of EB_PAGES.filter((x) => x.type === "letter")) { en.add(`Write capital ${p.ch}`); en.add(`Write small ${p.ch.toLowerCase()}`); }
+  ar.add(RECALL_SAY.num.connect); ar.add(RECALL_SAY.num.needTwo);
   return { ar: [...ar], en: [...en] };
 }
 

@@ -139,6 +139,11 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     const say = el("p", "wbk-say", fem(WB_SAY.chooser));
     head.appendChild(say);
     map.appendChild(head);
+    // «وصّل الرقم بالصورة» للأرقام اللى عليها نجمة (المالك ٢٠٢٦-١٠-٢٦ — games/letterRecall.js)
+    const recall = el("div", "wbk-recall");
+    recall.style.cssText = "display:flex;justify-content:center;margin:4px 0 12px";
+    recall.append(button("candy-btn", "🔗 وصّل الرقم بالصورة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "connect", lang: "num", back: "workbook" }); }));
+    map.appendChild(recall);
     WB_UNITS.forEach((u, ui) => {
       const sec = el("section", "wbk-unit");
       sec.style.setProperty("--unit", ["#ef4444", "#f59e0b", "#3b82f6", "#16a34a", "#8b5cf6", "#ec4899"][ui % 6]);

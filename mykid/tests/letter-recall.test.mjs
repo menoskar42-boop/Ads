@@ -72,18 +72,45 @@ test("every spoken phrase is registered for the prebuilt voices", () => {
   assert.match(tts, /recallPhrases\(\)/);
 });
 
-// «وصّل الحرف بالصورة» (المالك ٢٠٢٦-١٠-٢٦)
-test("connect: 4 different letters a round, each with one picture that starts with it", async () => {
+// «وصّل الحرف بالصورة» (المالك ٢٠٢٦-١٠-٢٦): «خليهم للحروف اللى عليها نجمه» — والأرقام كمان
+test("connect: starred letters only (at least 2), each with a picture that starts with it", async () => {
   const { connectRounds, picturesFor: pf } = await import("../js/data/letterRecall.js");
+  assert.equal(connectRounds("ar", ["ل"], Math.random).length, 0, "حرف واحد مايكفيش");
+  assert.equal(connectRounds("ar", [], Math.random).length, 0);
+  const starred = { ar: ["ل", "م", "ب", "ف", "ن"], en: ["M", "A", "S"] };
   for (const lang of ["ar", "en"]) {
-    const rounds = connectRounds(lang, lang === "ar" ? ["ل", "م"] : ["M"], Math.random);
+    const rounds = connectRounds(lang, starred[lang], Math.random);
     assert.equal(rounds.length, 3);
     for (const r of rounds) {
-      assert.equal(new Set(r.letters).size, 4);
+      assert.equal(r.letters.length, Math.min(4, starred[lang].length));
+      assert.equal(new Set(r.letters).size, r.letters.length);
+      assert.ok(r.letters.every((c) => starred[lang].includes(c)), "حروف النجمة بس");
       assert.deepEqual([...r.pictures.map((p) => p.ch)].sort(), [...r.letters].sort());
       for (const p of r.pictures) assert.ok(pf(lang, p.ch).some((x) => x.w === p.pic.w), p.pic.w);
     }
   }
-  // حروف النجمة جوّه الجولة دايماً لما يكونوا أقل من ٤
-  assert.ok(connectRounds("ar", ["ل", "م"], Math.random).every((r) => r.letters.includes("ل") && r.letters.includes("م")));
+});
+
+test("connect step inside a book page: the page letter + starred letters, or no step", async () => {
+  const { connectStepFor } = await import("../js/data/letterRecall.js");
+  assert.equal(connectStepFor("ar", "ل", [], Math.random), null, "مفيش حرف تانى عليه نجمة");
+  assert.equal(connectStepFor("ar", "ل", ["ل"], Math.random), null);
+  const st = connectStepFor("en", "S", ["M", "A", "B", "C", "D"], Math.random);
+  assert.ok(st.letters.includes("S") && st.letters.length === 4);
+  const lb = fs.readFileSync(new URL("../js/games/letterbook.js", import.meta.url), "utf8");
+  const eb = fs.readFileSync(new URL("../js/games/englishbook.js", import.meta.url), "utf8");
+  for (const src of [lb, eb]) {
+    assert.match(src, /connectStepFor\("(ar|en)", x\.ch, starredLetters/);
+    assert.match(src, /connect\(body, s\) \{/);
+  }
+});
+
+test("numbers: starred numbers from the workbook, picture has that many things", async () => {
+  const { numberConnectRounds, starredNumbers } = await import("../js/data/letterRecall.js");
+  assert.deepEqual(starredNumbers({ "1": 1, "3": 2, colors0: 1, lines: 1 }), [1, 3]);
+  assert.equal(numberConnectRounds([2], Math.random).length, 0);
+  for (const r of numberConnectRounds([1, 2, 3, 7, 10], Math.random)) {
+    for (const p of r.pictures) assert.equal([...p.pic.e].length, p.ch, `${p.ch}: ${p.pic.e}`);
+    assert.equal(new Set(r.pictures.map((p) => [...p.pic.e][0])).size, r.pictures.length, "كل صورة حاجة مختلفة");
+  }
 });
