@@ -165,7 +165,7 @@ export function renderBodyMap({ regionId, regionIndex, mode = "learn", title, bg
     const ask = () => {
       const p = bodyPart(plan[i]);
       wrongs = 0;
-      label.set(p.ask, `${i + 1} / ${plan.length}`);
+      label.set(p.ask, `${i + 1} من ${plan.length}`);
       Speech.en(p.ask);
     };
     const fig = figure((id) => {

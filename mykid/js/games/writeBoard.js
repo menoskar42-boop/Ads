@@ -59,7 +59,7 @@ function arrowsOn(ctx, pts, every, only1 = false) {
 
 /**
  * يركّب لوحة الكتابة جوّه `host`.
- * opts: { strokes, level, from, to, free, onStroke(ok), onHint(text, result), onDone({fails, score}) }
+ * opts: { strokes, level, from, to, free, hideModel, onStroke(ok), onHint(text, result), onDone({fails, score}) }
  * free = «لوحده» من غير وقفة: الحرف كله يتكتب والحكم فى الآخر بنسبة (scoreDrawing).
  * بيرجّع { el, demo(), reset(), destroy() }.
  */
@@ -100,6 +100,8 @@ export function mountWriteBoard(host, opts) {
       st.forEach(([x, y], i) => (i ? m.lineTo(x * 1.2, y * 1.2) : m.moveTo(x * 1.2, y * 1.2)));
       m.stroke();
     }
+    // «اكتب من الذاكرة» (المالك ٢٠٢٦-١٠-٢٦): الحرف مستخبّى، وبيبان بس لما نعمل peek()
+    if (opts.hideModel) mini.style.visibility = "hidden";
     host.appendChild(mini);
   }
 
@@ -527,6 +529,13 @@ export function mountWriteBoard(host, opts) {
     demo,
     reset,
     get level() { return level; },
+    /** يورّى الحرف (النموذج الصغير) `ms` وبعدين يخبّيه تانى — للمساعدة فى «اكتب من الذاكرة». */
+    peek(ms = 2500) {
+      if (!mini) return;
+      mini.style.visibility = "visible";
+      mini.animate([{ transform: "scale(.6)" }, { transform: "scale(1.15)" }, { transform: "scale(1)" }], { duration: 450 });
+      setTimeout(() => { if (alive && opts.hideModel) mini.style.visibility = "hidden"; }, ms);
+    },
     destroy() { alive = false; clearTimeout(evalTimer); box.remove(); if (mini) mini.remove(); },
   };
 }

@@ -20,6 +20,7 @@ import { ACTIVITIES } from "../js/data/activities.js";
 import { MIZO_REGION_HOOKS, MIZO_PRAISE, MIZO_HELLO, MIZO_INTRO, MIZO_CATCH, femAdapt } from "../js/data/mizo.js";
 import fs from "node:fs";
 import { bodyMapPhrases } from "../js/data/bodyMap.js";
+import { recallPhrases } from "../js/data/letterRecall.js";
 
 /** { name, how } من مصفوفة جوّه شاشة (الأوسمة/إكسسوارات ميزو) — الشاشة نفسها بتلمس الصفحة فمابنستوردهاش. */
 function namesHows(file, arr) {
@@ -147,4 +148,10 @@ export function addGamePhrases({ say, mizo }) {
   const bm = bodyMapPhrases();
   bm.en.forEach(say);
   bm.ar.forEach(say);
+
+  // ١٣) «صور الحروف» و«اكتب من الذاكرة» (games/letterRecall.js): كلمات كل حرف وأسئلتها، و«اكتب حرف …»
+  //     — والعربى بصيغة الولد والبنت (الشاشة بتنطقه Speech.ar(fem(t)))
+  const rc = recallPhrases();
+  rc.en.forEach(say);
+  for (const t of rc.ar) { say(t); say(femAdapt(t)); }
 }

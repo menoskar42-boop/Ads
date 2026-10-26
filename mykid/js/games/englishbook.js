@@ -124,6 +124,15 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     head.innerHTML = `<img class="wbk-mizo" src="/assets/mizo/mizo-hi.webp" alt="" width="64" height="64">`;
     head.appendChild(el("p", "wbk-say", fem(EB_SAY.chooser)));
     map.appendChild(head);
+    // «صور الحروف» و«اكتب من الذاكرة» (المالك ٢٠٢٦-١٠-٢٦): تمارين تتأكد إن الطفل حافظ صور كل حرف،
+    // وبيكتب حروف النجمة من غير ما يشوفها (games/letterRecall.js) — والرجوع بيرجّع للكراسة/الكتاب
+    const recall = el("div", "wbk-recall");
+    recall.style.cssText = "display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:4px 0 12px";
+    recall.append(
+      button("candy-btn", "🖼️ صور الحروف", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "pics", lang: "en", back: "englishbook" }); }),
+      button("candy-btn", "🧠 اكتب من الذاكرة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "write", lang: "en", back: "englishbook" }); }),
+    );
+    map.appendChild(recall);
     EB_UNITS.forEach((u, ui) => {
       const sec = el("section", "wbk-unit");
       sec.style.setProperty("--unit", UNIT_COLORS[ui % UNIT_COLORS.length]);
