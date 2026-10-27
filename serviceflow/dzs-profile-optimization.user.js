@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DZS Profile Optimization (رفع السرعة) — Service-Flow
 // @namespace    service-flow.dzs.po
-// @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. v0.9.9: «إيقاف PO» ممكن يشتغل فى أكتر من تاب مع بعض (sf_lane=2،3…) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2…) وعلامة PO_TAB فى sessionStorage بتوقّف سكربت القياس فى التاب ده؛ العدد بيتحدّد من «رفع الملفات ← إعدادات» فى Service-Flow. التاب الأول من غير لاحقة زى v0.9.8 بالظبط. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
-// @version      0.9.9
+// @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. v0.9.10: «إيقاف PO» بعد رفع السرعة (المهمة المجدولة بعد ٧ دقايق) كان بيلاقى حالة تانية غير Nightly/Not Started (الرفع لسه بيخلص) فيتخطّى الرقم من غير ما يوقّف ولا يسجّل — دلوقتى فى وضع الإيقاف بيستنى لحد ما الحالة تبقى Nightly (فيوقّفه) أو Not Started (فيسجّل)، ومابيتخطّاش. v0.9.9: «إيقاف PO» ممكن يشتغل فى أكتر من تاب مع بعض (sf_lane=2،3…) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2…) وعلامة PO_TAB فى sessionStorage بتوقّف سكربت القياس فى التاب ده؛ العدد بيتحدّد من «رفع الملفات ← إعدادات» فى Service-Flow. التاب الأول من غير لاحقة زى v0.9.8 بالظبط. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
+// @version      0.9.10
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
 // @connect      sf-menoskar42.replit.app
@@ -345,7 +345,14 @@
         // «In Nightly PO» → لازم نوقف الـ nightly PO الأول ثم نبدأ
         if (selectAction(RE_STOP)) { phase = "confirm-stop"; dialogShown = false; banner("⛔ إيقاف الـ Nightly PO أولاً…", "#ef6c00"); }
       } else if (status) {
-        // حالة أخرى غير معروفة → تخطّى
+        // وضع الإيقاف (v0.9.10): حالة تانية = غالباً رفع السرعة لسه بيخلص (الإيقاف المجدول بعد ٧ دقايق
+        // من الرفع). قبل كده كان بيتخطّى الرقم من غير إيقاف ولا تسجيل، والتاب يتقفل فجهاز التنفيذ
+        // يحسبها «اتقفل» ويكمّل للقياس — والإيقاف ماحصلش. دلوقتى بنستنى الحالة تبقى Nightly أو Not Started.
+        if (MODE === "stop") {
+          phase = "wait-rt-then-stop"; banner("⏳ " + CURRENT + " حالته: " + status + " — استنى يخلّص عشان الإيقاف…", "#1565c0");
+          return;
+        }
+        // رفع السرعة: حالة أخرى غير معروفة → تخطّى
         banner("ℹ️ الرقم " + CURRENT + " حالته: " + status + " — تخطّى.", "#ef6c00");
         clearInterval(tick); setTimeout(advance, 1500);
       }
@@ -355,7 +362,7 @@
     // ---- wait-rt-then-stop: (وضع الإيقاف) استنى الـ Real-time PO يخلّص ثم أوقف الـ nightly ----
     if (phase === "wait-rt-then-stop") {
       const mins = Math.floor((Date.now() - startedAt) / 60000);
-      banner("⏳ Real-time PO شغّال للرقم " + CURRENT + " (" + mins + " دق) — استنى يخلّص للإيقاف…", "#1565c0");
+      banner("⏳ " + (status || "Real-time PO") + " للرقم " + CURRENT + " (" + mins + " دق) — استنى يخلّص للإيقاف…", "#1565c0");
       if (/nightly/i.test(status)) { if (selectAction(RE_STOP)) { phase = "confirm-stop"; dialogShown = false; banner("⛔ خلّص — إيقاف الـ Nightly PO…", "#ef6c00"); } }
       else if (/not\s*started/i.test(status)) { postPoEvent(CURRENT, "stop"); banner("✅ خلّص بدون nightly — سُجّل كـ إيقاف PO.", "#2e7d32"); clearInterval(tick); setTimeout(advance, 1200); }
       return;

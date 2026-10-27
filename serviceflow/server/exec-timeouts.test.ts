@@ -24,8 +24,9 @@ test("every job type is rescued after its own run time, never before", () => {
 
 test("the stop job — the one that stalled — is rescued in minutes, not in twenty", () => {
   // المالك ٢٠٢٦-١٠-٢٥: ٣٠ ثانية كانت بتقفل التاب قبل ما الإيقاف يتسجّل ⇒ ٣ دقايق، والإنقاذ لسه بعدها
-  assert.equal(EXEC_RUN_MINUTES.stop, 3);
-  assert.equal(rescueMinutes("stop"), 5);
+  // وبعدها (٢٠٢٦-١٠-٢٧): الإيقاف المجدول بعد الرفع بيستنى الرفع يخلص ⇒ ٩، والإنقاذ بعد ٩ + هامش الدقيقتين
+  assert.equal(EXEC_RUN_MINUTES.stop, 9);
+  assert.equal(rescueMinutes("stop"), 12);
   assert.match(executor, /STOP_MS = EXEC_RUN_MINUTES\.stop \* 60 \* 1000/, "جهاز التنفيذ بياخد المهلة من نفس الملف");
   assert.ok(rescueMinutes("stop") < 13, "باتش واقف ١٣ دقيقة كان لازم يترجّع قبلها بكتير");
 });

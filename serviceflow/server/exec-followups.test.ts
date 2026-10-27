@@ -120,3 +120,16 @@ test("wiring: done reads the fresh score (after claim) and schedules the re-chec
   assert.match(routes, /SELECT score FROM case_138 WHERE account_no = \$1 AND uploaded_at >= COALESCE\(\$2::timestamptz/);
   assert.match(routes, /const rc = recheckFor\(\{ type: j\.type, note: j\.note, result \}, sc\[0\]\?\.score\);/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٧: «تاريخ الإيقاف مش بيتحدث لما يبقى الإيقاف مهمة مجدولة فى رفع السرعة» — سكربت PO
+// فى وضع الإيقاف كان بيتخطّى أى حالة غير Nightly/Not Started (الرفع لسه بيخلص) فالتاب يتقفل والقياس
+// يتجدول والإيقاف ماحصلش. دلوقتى بيستنى.
+test("PO script in stop mode waits on an unknown status instead of skipping the line", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
+  const init = src.slice(src.indexOf('if (phase === "init")'), src.indexOf('if (phase === "wait-rt-then-stop")'));
+  const other = init.slice(init.indexOf("} else if (status) {"));
+  assert.match(other, /if \(MODE === "stop"\) \{\s*phase = "wait-rt-then-stop";/);
+  assert.ok(other.indexOf('MODE === "stop"') < other.indexOf("advance"), "الإيقاف مايتخطّاش");
+  assert.match(src, /@version\s+0\.9\.10/);
+});
