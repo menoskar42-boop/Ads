@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { withPoStopResult } from "@shared/po-stop";
 import PoStatusCell from "./PoStatusCell";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -36,7 +37,7 @@ interface Row extends WeekDrop {
   lastMeasScore: number | null; lastMeasComplainNo: string | null; lastMeasTime: string | null;
   poStatus: string | null;   // حالة تحسين البروفايل وقت القياس
   curMeasScore: number | null; curMeasCurrentSpeed: string | null; curMeasMaxSpeed: string | null; curMeasTime: string | null;
-  lastPoRaiseAt: string | null; lastPoStopAt: string | null;
+  lastPoRaiseAt: string | null; lastPoStopAt: string | null; lastPoStopResult?: string | null;
   mobile: string | null;
   // بلاغ العميل من الصفحة العامة: محمول التواصل اللى كتبه + نوع المشكلة
   reporterMobile?: string | null;
@@ -153,7 +154,7 @@ export function ManualCurrentFaultsReport() {
     dash(x.central), dash(x.cabinNumber), dash(x.boxNumber), dash(x.msanCode), dash(x.techName), dash(x.frame),
     dash(x.accountNo), dash(x.lineCurrentSpeed), dash(x.lineMaxSpeed), dash(x.lastMeasScore), dash(x.poStatus), fmt(x.lastMeasTime), dash(x.curMeasScore),
     dash(x.shelf), dash(x.slot), dash(x.portNumber), dash(x.portType),
-    dash(x.voiceStatus), dash(x.dataStatus), dash(x.operator), dash(x.onu), fmt(x.lastPoRaiseAt), fmt(x.lastPoStopAt),
+    dash(x.voiceStatus), dash(x.dataStatus), dash(x.operator), dash(x.onu), fmt(x.lastPoRaiseAt), withPoStopResult(fmt(x.lastPoStopAt), x.lastPoStopResult),
     weekDropLabel(x),
   ];
 

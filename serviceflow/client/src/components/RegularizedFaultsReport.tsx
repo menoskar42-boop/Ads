@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { withPoStopResult } from "@shared/po-stop";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
@@ -46,6 +47,7 @@ interface RegularizedFault extends Measurement138 {
   centralCode: string | null;
   lastPoRaiseAt: string | null;
   lastPoStopAt: string | null;
+  lastPoStopResult?: string | null;
   effectiveFaultHours: number | null;
 }
 
@@ -254,7 +256,7 @@ export function RegularizedFaultsReport() {
       "LastOfPort number": f.portNumber,
       "كود السنترال": f.centralCode,
       "آخر رفع سرعة": fmtDt(f.lastPoRaiseAt),
-      "آخر إيقاف PO": fmtDt(f.lastPoStopAt),
+      "آخر إيقاف PO": withPoStopResult(fmtDt(f.lastPoStopAt), f.lastPoStopResult),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -584,7 +586,7 @@ export function RegularizedFaultsReport() {
                     <TableCell>{f.portNumber || "-"}</TableCell>
                     <TableCell>{f.centralCode || "-"}</TableCell>
                     <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-emerald-700">{fmtDt(f.lastPoRaiseAt)}</TableCell>
-                    <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{fmtDt(f.lastPoStopAt)}</TableCell>
+                    <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{withPoStopResult(fmtDt(f.lastPoStopAt), f.lastPoStopResult)}</TableCell>
                   </TableRow>
                 );
               })}

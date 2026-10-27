@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { withPoStopResult } from "@shared/po-stop";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
@@ -61,6 +62,7 @@ interface PhoneLine extends Measurement138 {
   subAdd: string | null;
   lastPoRaiseAt: string | null;
   lastPoStopAt: string | null;
+  lastPoStopResult?: string | null;
   msanCode: string | null;
   frameNo: string | null;
   // مالوش فريم دلوقتى: "تم رفعه نهائياً" (كان ليه بورت وانشال) أو "لم يُفحص بعد" (مالوش بورت من الأساس)
@@ -311,7 +313,7 @@ export function PhoneLinesReport() {
       "Port": r.port,
       "LEN": r.len,
       "آخر رفع سرعة": fmtPoDt(r.lastPoRaiseAt),
-      "آخر إيقاف PO": fmtPoDt(r.lastPoStopAt),
+      "آخر إيقاف PO": withPoStopResult(fmtPoDt(r.lastPoStopAt), r.lastPoStopResult),
       "Fiber Block": r.fiberBlock,
       "Fiber Out": r.fiberOut,
       "الفنى": r.techName ?? "",
@@ -545,7 +547,7 @@ export function PhoneLinesReport() {
                       <TableCell>{r.fiberOut || "-"}</TableCell>
                       <TableCell className="whitespace-nowrap font-medium text-indigo-700">{r.techName || "-"}</TableCell>
                       <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-emerald-700">{fmtPoDt(r.lastPoRaiseAt)}</TableCell>
-                      <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{fmtPoDt(r.lastPoStopAt)}</TableCell>
+                      <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{withPoStopResult(fmtPoDt(r.lastPoStopAt), r.lastPoStopResult)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

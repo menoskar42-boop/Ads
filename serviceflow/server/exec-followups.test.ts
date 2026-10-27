@@ -131,5 +131,28 @@ test("PO script in stop mode waits on an unknown status instead of skipping the 
   const other = init.slice(init.indexOf("} else if (status) {"));
   assert.match(other, /if \(MODE === "stop"\) \{\s*phase = "wait-rt-then-stop";/);
   assert.ok(other.indexOf('MODE === "stop"') < other.indexOf("advance"), "الإيقاف مايتخطّاش");
-  assert.match(src, /@version\s+0\.9\.10/);
+  assert.match(src, /@version\s+0\.9\.1\d/);
+});
+
+// المالك ٢٠٢٦-١٠-٢٧: «Not Started يسجّل التاريخ وإنه لم يقم بعملية الإيقاف · In Nightly PO يسجّل التاريخ
+// وإنه تم الإيقاف · حالة تانية يستنى لحد Nightly ويوقّف ويسجّل تم الإيقاف»
+test("the stop is recorded with its outcome: stopped (was Nightly) or already (was Not Started)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
+  const calls = [...src.matchAll(/postPoEvent\(CURRENT, "stop"(?:, "(\w+)")?\)/g)].map((m) => m[1]);
+  assert.deepEqual(calls.sort(), ["already", "already", "stopped"], "كل إيقاف بيبعت نتيجته");
+  // «stopped» بس بعد ما الحالة ترجع Not Started عقب Yes على Stop Nightly PO
+  const after = src.slice(src.indexOf('if (phase === "await-not-started")'));
+  assert.match(after.slice(0, 400), /postPoEvent\(CURRENT, "stop", "stopped"\)/);
+  const { poStopResultOf, withPoStopResult } = await import("../shared/po-stop");
+  assert.equal(poStopResultOf("Stopped"), "stopped");
+  assert.equal(poStopResultOf("x"), null);
+  assert.equal(withPoStopResult("2026/10/27 09:40", "stopped"), "2026/10/27 09:40 — تم الإيقاف");
+  assert.equal(withPoStopResult("2026/10/27 09:40", "already"), "2026/10/27 09:40 — لم يتم الإيقاف (كان Not Started)");
+  assert.equal(withPoStopResult("—", "stopped"), "—", "من غير تاريخ مفيش نتيجة");
+  assert.equal(withPoStopResult("2026/10/27 09:40", null), "2026/10/27 09:40", "سكربت قديم");
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  assert.match(routes, /last_stop_result = \$3/);
+  const n = (routes.match(/AS "lastPoStopAt"/g) || []).length;
+  assert.equal((routes.match(/AS "lastPoStopAt", pe\.last_stop_result AS "lastPoStopResult"/g) || []).length, n, "كل تقرير بيرجّع النتيجة");
 });

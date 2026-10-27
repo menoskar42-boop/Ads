@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { withPoStopResult } from "@shared/po-stop";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
@@ -58,6 +59,7 @@ interface CurrentFault extends Measurement138 {
   effectiveFaultHours: number | null;
   lastPoRaiseAt: string | null;
   lastPoStopAt: string | null;
+  lastPoStopResult?: string | null;
   mobile: string | null;
   customerAddress: string | null;
   lastContactAt: string | null;
@@ -416,7 +418,7 @@ export function CurrentFaultsReport() {
       "LastOfPort number": f.portNumber,
       "كود السنترال": f.centralCode,
       "آخر رفع سرعة": fmtDt(f.lastPoRaiseAt),
-      "آخر إيقاف PO": fmtDt(f.lastPoStopAt),
+      "آخر إيقاف PO": withPoStopResult(fmtDt(f.lastPoStopAt), f.lastPoStopResult),
       [WEEK_DROP_TITLE]: weekDropLabel(f),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -853,7 +855,7 @@ export function CurrentFaultsReport() {
                     <TableCell>{f.portNumber || "-"}</TableCell>
                     <TableCell>{f.centralCode || "-"}</TableCell>
                     <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-emerald-700">{fmtDt(f.lastPoRaiseAt)}</TableCell>
-                    <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{fmtDt(f.lastPoStopAt)}</TableCell>
+                    <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{withPoStopResult(fmtDt(f.lastPoStopAt), f.lastPoStopResult)}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap" data-testid={`week-drop-${f.ticketId}`}>
                       <span className={f.weekDrop === "yes" ? "font-bold text-red-700 bg-red-50 rounded px-1.5 py-0.5" : f.weekDrop === "no" ? "text-gray-700" : "text-gray-400"}>
                         {weekDropLabel(f)}

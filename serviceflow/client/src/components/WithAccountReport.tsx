@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { withPoStopResult } from "@shared/po-stop";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { QueueExcludeSelect, type QueueExcludeValue } from "@/components/QueueExcludeSelect";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
@@ -64,6 +65,7 @@ interface PhoneLine extends Measurement138 {
   accountSource: string;
   lastPoRaiseAt: string | null;
   lastPoStopAt: string | null;
+  lastPoStopResult?: string | null;
 }
 
 interface FilterOptions {
@@ -432,7 +434,7 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
       "Port": r.port,
       "LEN": r.len,
       "آخر رفع سرعة": fmtMeasDate(r.lastPoRaiseAt),
-      "آخر إيقاف PO": fmtMeasDate(r.lastPoStopAt),
+      "آخر إيقاف PO": withPoStopResult(fmtMeasDate(r.lastPoStopAt), r.lastPoStopResult),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -855,7 +857,7 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
                       <TableCell>{r.port || "-"}</TableCell>
                       <TableCell>{r.len || "-"}</TableCell>
                       <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-emerald-700">{fmtMeasDate(r.lastPoRaiseAt)}</TableCell>
-                      <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{fmtMeasDate(r.lastPoStopAt)}</TableCell>
+                      <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{withPoStopResult(fmtMeasDate(r.lastPoStopAt), r.lastPoStopResult)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { withPoStopResult } from "@shared/po-stop";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
@@ -38,6 +39,7 @@ interface OpenTicketLine {
   ticketCreatedAt: string;
   lastPoRaiseAt: string | null;
   lastPoStopAt: string | null;
+  lastPoStopResult?: string | null;
 }
 
 const fmtPoDt = (d: string | null) => {
@@ -150,7 +152,7 @@ export function OpenTicketLinesReport() {
       "رقم البكس": l.boxNumber,
       "DP Terminal": l.dpTerminal,
       "آخر رفع سرعة": fmtPoDt(l.lastPoRaiseAt),
-      "آخر إيقاف PO": fmtPoDt(l.lastPoStopAt),
+      "آخر إيقاف PO": withPoStopResult(fmtPoDt(l.lastPoStopAt), l.lastPoStopResult),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -316,7 +318,7 @@ export function OpenTicketLinesReport() {
                     <TableCell className="font-medium">{l.boxNumber || "-"}</TableCell>
                     <TableCell>{l.dpTerminal || "-"}</TableCell>
                     <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-emerald-700">{fmtPoDt(l.lastPoRaiseAt)}</TableCell>
-                    <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{fmtPoDt(l.lastPoStopAt)}</TableCell>
+                    <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{withPoStopResult(fmtPoDt(l.lastPoStopAt), l.lastPoStopResult)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
+import { withPoStopResult } from "@shared/po-stop";
 import { useQuery } from "@tanstack/react-query";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { Card } from "@/components/ui/card";
@@ -71,6 +72,7 @@ interface LineData {
   lastPoRaiseAt: string | null;
   raisedBy: string | null;
   lastPoStopAt: string | null;
+  lastPoStopResult?: string | null;
   stoppedBy: string | null;
   lastComplaintAt: string | null;
   portType: string | null;
@@ -849,7 +851,7 @@ export function PhoneLookupReport() {
         // اتنين جنب بعض = سطر واحد، فالترتيب اللى تحت مابيتزحلقش.
         ["نوع القياس", meas(measureModeCell(line.measureMode, line.histLabel))],  ["Loop Length", meas(loopLengthCell(line.measureMode, line.loopLength))],
         ["آخر رفع سرعة", meas(withBy(fmtDate(line.lastPoRaiseAt), line.raisedBy))],  ["voice status", dash(line.voiceStatus)],
-        ["آخر إيقاف PO", meas(withBy(fmtDate(line.lastPoStopAt), line.stoppedBy))],   ["data status", dash(line.dataStatus)],
+        ["آخر إيقاف PO", meas(withBy(withPoStopResult(fmtDate(line.lastPoStopAt), line.lastPoStopResult), line.stoppedBy))],   ["data status", dash(line.dataStatus)],
         ["تاريخ آخر شكوى", fmtDate(line.lastComplaintAt)], ["Row", dash(line.rowNo)],
         ["حالة صيانة البكس", boxMaintCell],             ["Column", dash(line.columnNo)],
         ["هل البكس له تكت أرضية", groundCell],
@@ -924,7 +926,7 @@ export function PhoneLookupReport() {
       "Port Type": line.portType ?? "",
       "آخر رفع سرعة": fmtDate(line.lastPoRaiseAt),
       "Row": line.rowNo ?? "",
-      "آخر إيقاف PO": fmtDate(line.lastPoStopAt),
+      "آخر إيقاف PO": withPoStopResult(fmtDate(line.lastPoStopAt), line.lastPoStopResult),
       "Column": line.columnNo ?? "",
       "تاريخ آخر شكوى": fmtDate(line.lastComplaintAt),
       "voice status": line.voiceStatus ?? "",
@@ -963,7 +965,7 @@ export function PhoneLookupReport() {
         line.portType ?? "-", line.rowNo ?? "-", line.columnNo ?? "-", line.voiceStatus ?? "-", line.dataStatus ?? "-", line.operator ?? "-", line.shelf ?? "-", line.slot ?? "-",
         line.iduNo ?? "-", line.oduNo ?? "-", line.primaryBlockNo ?? "-", line.cabinetIn ?? "-", line.secBlockNo ?? "-",
         line.cabinetOut ?? "-", line.dpTerminal ?? "-", line.port ?? "-", line.len ?? "-", line.fiberBlock ?? "-", line.fiberOut ?? "-",
-        fmtDate(line.lastPoRaiseAt), fmtDate(line.lastPoStopAt), fmtDate(line.lastComplaintAt),
+        fmtDate(line.lastPoRaiseAt), withPoStopResult(fmtDate(line.lastPoStopAt), line.lastPoStopResult), fmtDate(line.lastComplaintAt),
       ]],
     });
   };

@@ -27,6 +27,7 @@ import bcryptjs from "bcryptjs";
 import { sfRoleOf, cfmRoleOf, sitesForRole, UNIFIED_ROLE_ACCESS } from "@shared/roles-access";
 import { arNorm } from "@shared/ar-norm";
 import { rescueIntervalSql, EXEC_RESCUE_MINUTES } from "@shared/exec-timeouts";
+import { poStopResultOf } from "@shared/po-stop";
 import { canonicalTechSql, matchTechnician, preferFullName, fullNameOf } from "@shared/technicians";
 import { phoneNormSql } from "./phone-norm";
 import { nameMatch, nameMatchTokens, nameTokens, buildFirstNameIndex, NAME_MATCH_THRESHOLD } from "@shared/name-match";
@@ -1237,7 +1238,7 @@ async function queryRegularizedFaults(opts: { central?: string; q?: string; date
   const where = "WHERE " + conds.join(" AND ");
   const { rows } = await pool.query(
     `SELECT x.*, (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-            (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt" FROM (
+            (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult" FROM (
        SELECT DISTINCT ON (t.ticket_id)
          t.ticket_id             AS "ticketId",
          t.central_name          AS "centralName",
@@ -5890,7 +5891,7 @@ export async function registerRoutes(
               c138p.complain_no AS "lastMeasComplainNo",
               (c138p.uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastMeasTime",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt"
+              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult"
        ${joinClause} ${c138Join} ${where}
        ORDER BY pl.id NULLS LAST, k.full_phone
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -6949,7 +6950,7 @@ export async function registerRoutes(
               c138p.po_status AS "poStatus",
               (c138p.uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastMeasTime",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt"
+              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult"
        ${joinClause} ${c138Join} ${where}${c138Where}${staleClause}${queuedClause}
        ORDER BY pl.central NULLS LAST, LPAD(COALESCE(pl.cabin_number,''), 8, '0'), LPAD(COALESCE(pl.box_number,''), 8, '0'), la.full_phone
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -7934,7 +7935,7 @@ export async function registerRoutes(
               -- نفس اتفاقية تقرير «الأعطال الحالية»: خام + الواجهة بتعرض بـ getUTC.
               cpl.complain_time AS "complaintTime",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt",
+              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult",
               -- هل الرقم ظاهر دلوقتى فى «الأعطال الحالية» أو «الأعطال المنتظمة اليوم»؟
               ${inCurrentFaultsSql} AS "inCurrentFault",
               ${inRegularizedTodaySql} AS "inRegularizedToday"
@@ -8061,7 +8062,7 @@ export async function registerRoutes(
               (m.uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastMeasTime",
               NULL AS "complaintNo", NULL AS "complaintTime",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt"
+              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult"
        ${joinClause} ${where}
        ORDER BY COALESCE(pl.central, cpl.central_name), LPAD(COALESCE(pl.cabin_number, cpl.cabinet_no, ''), 8, '0'),
                 LPAD(COALESCE(pl.box_number, ''), 8, '0'), m.uploaded_at DESC, m.full_phone
@@ -8083,7 +8084,7 @@ export async function registerRoutes(
     "accountNo", "markedNoAccount", "noAccountBy", "noAccountAt",
     "currentSpeed", "maxSpeed", "score", "lastMeasTime", "measureMode", "loopLength",
     "histLabel", "poStatus", "measuredBy",
-    "lastPoRaiseAt", "raisedBy", "lastPoStopAt", "stoppedBy",
+    "lastPoRaiseAt", "raisedBy", "lastPoStopAt", "stoppedBy", "lastPoStopResult",
   ] as const;
   const lookupPhoneLine = async (reqUser: any, phone: string) => {
     // مطابقة الرقم الكامل أو القصير (مع/بدون بادئة 88).
@@ -8158,7 +8159,7 @@ export async function registerRoutes(
               c.po_status AS "poStatus",
               c.measured_by AS "measuredBy",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt", pe.last_raise_by AS "raisedBy",
-              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_by AS "stoppedBy",
+              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult", pe.last_stop_by AS "stoppedBy",
               (cpl.complain_time AT TIME ZONE 'UTC') AS "lastComplaintAt",
               -- ownedByMe: خطوطى أنا ($4 = كودى) → أى خط فى كباينى.
               -- خطوط زميل مشمول بالتغطية ($5 = أكواد الزملاء) → **فقط** لو عليها عطل حالى
@@ -8784,7 +8785,7 @@ export async function registerRoutes(
               c138p.po_status AS "poStatus",
               (c138p.uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastMeasTime",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt"
+              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult"
        ${joinClause} ${where}
        ORDER BY la.full_phone, pl.central NULLS LAST, LPAD(COALESCE(pl.cabin_number,''), 8, '0'), LPAD(COALESCE(pl.box_number,''), 8, '0'), pl.id
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -11352,11 +11353,17 @@ export async function registerRoutes(
       // مين طلب الرفع/الإيقاف ده؟ من op_intents
       const { rows: oi } = await pool.query(`SELECT username FROM op_intents WHERE account = $1 AND op_type = $2`, [acc, ev]);
       const by = oi[0]?.username || null;
+      // الإيقاف: اتعمل فعلاً ولا الخط كان Not Started أصلاً (سكربت PO v0.9.11) — والقديم مابيبعتهاش (null)
+      const result = ev === "stop" ? poStopResultOf(it?.result) : null;
       await pool.query(
-        `INSERT INTO line_po_events (account_no, ${col}, ${byCol}, updated_at)
-         VALUES ($1, now(), $2, now())
-         ON CONFLICT (account_no) DO UPDATE SET ${col} = now(), ${byCol} = $2, updated_at = now()`,
-        [acc, by],
+        ev === "stop"
+          ? `INSERT INTO line_po_events (account_no, last_stop_at, last_stop_by, last_stop_result, updated_at)
+             VALUES ($1, now(), $2, $3, now())
+             ON CONFLICT (account_no) DO UPDATE SET last_stop_at = now(), last_stop_by = $2, last_stop_result = $3, updated_at = now()`
+          : `INSERT INTO line_po_events (account_no, ${col}, ${byCol}, updated_at)
+             VALUES ($1, now(), $2, now())
+             ON CONFLICT (account_no) DO UPDATE SET ${col} = now(), ${byCol} = $2, updated_at = now()`,
+        ev === "stop" ? [acc, by, result] : [acc, by],
       );
       saved++;
     }
@@ -14281,7 +14288,7 @@ export async function registerRoutes(
               c138c.score AS "curMeasScore", c138c.current_speed AS "curMeasCurrentSpeed",
               c138c.max_speed AS "curMeasMaxSpeed", (c138c.uploaded_at AT TIME ZONE 'Africa/Cairo') AS "curMeasTime",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt",
+              (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult",
               -- بلاغ العميل من الصفحة العامة: محموله اللى كتبه هو الأحدث فبيتقدّم
               COALESCE(mf.reporter_mobile, mob.m) AS "mobile",
               mf.reporter_mobile AS "reporterMobile", mf.report_note AS "reportNote", ${WEEK_DROP_COLS}
@@ -14574,7 +14581,7 @@ export async function registerRoutes(
       // DISTINCT ON (ticket_id) — آخر حالة لكل شكوى (أعلى id)، ثم ترتيب بوقت الشكوى.
       const { rows } = await pool.query(
         `SELECT x.*, (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-                (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", ${WEEK_DROP_COLS} FROM (
+                (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult", ${WEEK_DROP_COLS} FROM (
            SELECT DISTINCT ON (t.ticket_id)
              t.ticket_id             AS "ticketId",
              t.central_name          AS "centralName",
@@ -15311,7 +15318,7 @@ export async function registerRoutes(
         )
          SELECT d.*, mob.m AS "mobile",
                 (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-                (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt" FROM (
+                (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult" FROM (
           -- شكوى واحدة لكل complain_no: نحتفظ بأحدث سجل (آخر تاريخ إغلاق) فيكون
           -- الـ Status Code هو الأخير، ونرفق أول/آخر تاريخ إغلاق
           SELECT DISTINCT ON (c."ticketId")
@@ -17078,7 +17085,7 @@ export async function registerRoutes(
                 c138p.score AS "lastMeasScore",
                 c138p.po_status AS "poStatus",
                 (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
-                (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt"
+                (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult"
          FROM phone_lines pl
          LEFT JOIN line_accounts la ON la.full_phone = pl.full_phone
          LEFT JOIN line_po_events pe ON pe.account_no = la.account_no

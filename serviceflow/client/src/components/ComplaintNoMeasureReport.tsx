@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { withPoStopResult } from "@shared/po-stop";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { QueueExcludeSelect, type QueueExcludeValue } from "@/components/QueueExcludeSelect";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
@@ -51,6 +52,7 @@ interface Row {
   lastMeasTime: string | null;
   lastPoRaiseAt: string | null;
   lastPoStopAt: string | null;
+  lastPoStopResult?: string | null;
 }
 
 interface FilterOptions {
@@ -215,7 +217,7 @@ export function ComplaintNoMeasureReport() {
       "رقم التليفون": r.telNo,
       "DP Terminal": r.dpTerminal,
       "آخر رفع سرعة": fmtPoDt(r.lastPoRaiseAt),
-      "آخر إيقاف PO": fmtPoDt(r.lastPoStopAt),
+      "آخر إيقاف PO": withPoStopResult(fmtPoDt(r.lastPoStopAt), r.lastPoStopResult),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -383,7 +385,7 @@ export function ComplaintNoMeasureReport() {
                       <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} phone={r.telNo || r.fullPhone} /></TableCell>
                       <TableCell>{r.dpTerminal || "-"}</TableCell>
                       <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-emerald-700">{fmtPoDt(r.lastPoRaiseAt)}</TableCell>
-                      <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{fmtPoDt(r.lastPoStopAt)}</TableCell>
+                      <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{withPoStopResult(fmtPoDt(r.lastPoStopAt), r.lastPoStopResult)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

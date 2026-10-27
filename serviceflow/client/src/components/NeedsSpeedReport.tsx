@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { withPoStopResult } from "@shared/po-stop";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { QueueExcludeSelect, type QueueExcludeValue } from "@/components/QueueExcludeSelect";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
@@ -52,6 +53,7 @@ interface SpeedLine {
   complaintTime: string | null;
   lastPoRaiseAt: string | null;
   lastPoStopAt: string | null;
+  lastPoStopResult?: string | null;
   /** هل الرقم ظاهر دلوقتى فى «الأعطال الحالية» / «الأعطال المنتظمة اليوم» */
   inCurrentFault?: boolean;
   inRegularizedToday?: boolean;
@@ -290,7 +292,7 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
       "DP Terminal": r.dpTerminal,
       "Port": r.port,
       "آخر رفع سرعة": fmtDateTime(r.lastPoRaiseAt),
-      "آخر إيقاف PO": fmtDateTime(r.lastPoStopAt),
+      "آخر إيقاف PO": withPoStopResult(fmtDateTime(r.lastPoStopAt), r.lastPoStopResult),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -621,7 +623,7 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
                       <TableCell>{r.dpTerminal || "-"}</TableCell>
                       <TableCell>{r.port || "-"}</TableCell>
                       <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-emerald-700">{fmtDateTime(r.lastPoRaiseAt)}</TableCell>
-                      <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{fmtDateTime(r.lastPoStopAt)}</TableCell>
+                      <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{withPoStopResult(fmtDateTime(r.lastPoStopAt), r.lastPoStopResult)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
