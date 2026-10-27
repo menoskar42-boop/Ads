@@ -206,3 +206,12 @@ test("both stop outcomes count as recorded, and a due retry is dropped once a st
     { type: "measure", note: `${SRC} ${RECHECK_MARK}`, afterMin: 2 });
   assert.equal(followupFor({ type: "stop", note: `تحتاج إيقاف PO ${STOP_RETRY_MARK}1`, result: "done" }), null);
 });
+
+// المالك ٢٠٢٦-١٠-٢٧: بحث عن رقم تانى كان بيلاقى زر القياس لسه «فى انتظار القياس»
+test("phone lookup: op wait is per account, not for the whole page", () => {
+  const ui = readFileSync(new URL("../client/src/components/PhoneLookupReport.tsx", import.meta.url), "utf8");
+  assert.match(ui, /const \[awaiting, setAwaiting\] = useState<Record<string, "measure" \| "raise" \| "stop">>\(\{\}\);/);
+  assert.match(ui, /const awaitingOp = shownAcc \? awaiting\[shownAcc\] \?\? null : null;/);
+  assert.match(ui, /if \(!tok\.cancelled && shownAccRef\.current === account\) setSearchSeq/);
+  assert.doesNotMatch(ui, /setAwaitingOp\(/);
+});

@@ -254,29 +254,49 @@ export function PhoneLookupReport() {
   // ثم نعيد البحث تلقائياً عشان تظهر النتيجة الجديدة من غير ما المستخدم يعمل حاجة.
   // الانتظار **قابل للإلغاء**: لو القياس وقف لأى سبب، المستخدم يدوس على الزر يلغى الانتظار
   //  ومايفضلش عالق أبداً (وكمان بيلغى تلقائياً بعد المهلة القصوى).
-  // awaitingOp: نوع العملية اللى بنستنّاها (قياس/رفع/إيقاف) أو null لو مفيش انتظار.
-  const [awaitingOp, setAwaitingOp] = useState<null | "measure" | "raise" | "stop">(null);
-  const opCancel = useRef(false);
-  const cancelOpWait = () => { opCancel.current = true; setAwaitingOp(null); };
+  // الانتظار **لكل أكونت لوحده** (المالك ٢٠٢٦-١٠-٢٧): كان على الصفحة كلها، فبحث عن رقم تانى كان
+  // بيلاقى الزر لسه «فى انتظار القياس» ومايقدرش يقيس لحد ما الأول يخلص. دلوقتى الرقم الجديد زرايره
+  // فاضية، والانتظار القديم بيكمّل فى الخلفية ومابيعيدش البحث غير لو لسه فاتح نفس الرقم.
+  // awaitingOp: نوع العملية اللى بنستنّاها للرقم المعروض (قياس/رفع/إيقاف) أو null لو مفيش انتظار.
+  const [awaiting, setAwaiting] = useState<Record<string, "measure" | "raise" | "stop">>({});
+  const shownAcc = String(line?.accountNo ?? "").trim();
+  const awaitingOp = shownAcc ? awaiting[shownAcc] ?? null : null;
+  const shownAccRef = useRef(shownAcc);
+  shownAccRef.current = shownAcc;
+  const opWaits = useRef(new Map<string, { cancelled: boolean }>());
+  const endOpWait = (account: string, tok: { cancelled: boolean }) => {
+    if (opWaits.current.get(account) !== tok) return;
+    opWaits.current.delete(account);
+    setAwaiting((a) => { const n = { ...a }; delete n[account]; return n; });
+  };
+  const cancelOpWait = () => {
+    const tok = opWaits.current.get(shownAcc);
+    if (!tok) return;
+    tok.cancelled = true;
+    endOpWait(shownAcc, tok);
+  };
   // بنقرا القيمة قبل الإرسال، ونفضل نسأل السيرفر لحد ما تتحدّث (اتنفّذت) ثم نعيد البحث.
   const readAt = (op: "measure" | "raise" | "stop", account: string) =>
     op === "measure" ? latestMeasureAt(account) : latestPoEventAt(account, op);
   const waitForOpThenRefresh = async (op: "measure" | "raise" | "stop", account: string) => {
     const before = await readAt(op, account);
-    opCancel.current = false;
-    setAwaitingOp(op);
+    const prev = opWaits.current.get(account);
+    if (prev) prev.cancelled = true; // عملية جديدة على نفس الرقم بتحلّ محل الانتظار القديم
+    const tok = { cancelled: false };
+    opWaits.current.set(account, tok);
+    setAwaiting((a) => ({ ...a, [account]: op }));
     const deadline = Date.now() + 8 * 60 * 1000; // نستنّى لحد 8 دقائق (ممكن يكون قدامه مهام فى الطابور)
     try {
       while (Date.now() < deadline) {
         await sleep(5000);
-        if (opCancel.current) return; // المستخدم ألغى الانتظار
+        if (tok.cancelled) return; // المستخدم ألغى الانتظار
         const now = await readAt(op, account);
         if (now > before) break; // اتنفّذت العملية فعلاً
       }
     } finally {
-      const wasCancelled = opCancel.current;
-      setAwaitingOp(null);
-      if (!wasCancelled) setSearchSeq((s) => s + 1); // إعادة البحث لعرض النتيجة المحدّثة (مش لو اتلغى)
+      endOpWait(account, tok);
+      // إعادة البحث لعرض النتيجة المحدّثة — مش لو اتلغى، ولا لو المستخدم فاتح رقم تانى دلوقتى
+      if (!tok.cancelled && shownAccRef.current === account) setSearchSeq((s) => s + 1);
     }
   };
 
@@ -1135,7 +1155,7 @@ export function PhoneLookupReport() {
                         alert(afterStop
                           ? "تم إضافة رفع السرعة للطابور — وبعده بـ٧ دقايق إيقاف الـ PO، وبعده بدقيقتين قياس Real (لوحدهم). الصفحة هتتحدّث تلقائياً"
                           : "تم إضافة الرقم لطابور رفع السرعة — هيتنفّذ على جهاز التنفيذ، والصفحة هتتحدّث تلقائياً");
-                        void waitForOpThenRefresh("raise", String(acc));
+                        void waitForOpThenRefresh("raise", String(acc).trim());
                         return;
                       }
                       if (!isSuper || !canRunLocalExecutor()) { alert(NO_EXECUTOR_MSG); return; }
@@ -1157,7 +1177,7 @@ export function PhoneLookupReport() {
                       void recordOpIntent("stop", [acc]);
                       if (await enqueueIfExecutorActive("stop", [acc])) {
                         alert("تم إضافة الرقم لطابور إيقاف PO — هيتنفّذ على جهاز التنفيذ، والصفحة هتتحدّث تلقائياً بعد التنفيذ");
-                        void waitForOpThenRefresh("stop", String(acc));
+                        void waitForOpThenRefresh("stop", String(acc).trim());
                         return;
                       }
                       if (!isSuper || !canRunLocalExecutor()) { alert(NO_EXECUTOR_MSG); return; }
