@@ -225,3 +225,15 @@ test("daily auto batch stamps its own intent so results don't inherit a stale na
   assert.match(fn, /INSERT INTO op_intents \(account, op_type, username, created_at\)\s*\n\s*SELECT a, \$2, \$3, now\(\) FROM unnest\(\$1::text\[\]\) AS a/);
   assert.match(fn, /\[\[\.\.\.new Set\(accounts\)\], type, AUTO_INTENT_BY\]/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٧: باتش تلقائى اتحط فى الطابور قبل التحديث لسه بيتختم باسم قديم ⇒ «بواسطة» من المهمة نفسها
+test("result stamps come from the claimed queue job (auto ⇒ تلقائى), op_intents only as fallback", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const fn = routes.slice(routes.indexOf("const execRequesterOf = async"), routes.indexOf("const execRequesterOf = async") + 900);
+  assert.match(fn, /WHERE status = 'claimed' AND type = \$2 AND jsonb_exists\(accounts, \$1\)/);
+  assert.match(fn, /by === "auto" \? AUTO_INTENT_BY : by/);
+  assert.match(fn, /FROM op_intents WHERE account = \$1 AND op_type = \$2/);
+  assert.match(routes, /measuredBy = await execRequesterOf\(accountNo, "measure"\);/);
+  assert.match(routes, /const by = await execRequesterOf\(acc, ev as "raise" \| "stop"\);/);
+  assert.doesNotMatch(routes, /op_type = 'measure'`, \[accountNo\]/);
+});

@@ -3875,6 +3875,19 @@ export async function registerRoutes(
   // بيوقّظ السيرفر والنبضة بتنادى الدالة دى فوراً).
   const AUTO_BATCH_HOUR = 9;              // ٩ صباحاً بتوقيت القاهرة
   const AUTO_INTENT_BY = "تلقائى";         // «بواسطة» للقياس/الإيقاف اللى عمله الباتش اليومى
+  // «بواسطة» لنتيجة قياس/رفع/إيقاف وصلت من السكربت: صاحب مهمة الطابور الشغّالة دلوقتى على الرقم
+  // (requested_by — «auto» ⇒ «تلقائى»)، ولو مفيش مهمة (تشغيل من غير طابور) ⇒ op_intents.
+  // المالك ٢٠٢٦-١٠-٢٧: باتش تلقائى اتحط فى الطابور قبل التحديث كان لسه بيتختم باسم قديم.
+  const execRequesterOf = async (account: string, type: "measure" | "raise" | "stop"): Promise<string | null> => {
+    const { rows } = await pool.query(
+      `SELECT requested_by FROM exec_jobs
+        WHERE status = 'claimed' AND type = $2 AND jsonb_exists(accounts, $1)
+        ORDER BY claimed_at DESC NULLS LAST LIMIT 1`, [account, type]);
+    const by = String(rows[0]?.requested_by || "").trim();
+    if (by) return by === "auto" ? AUTO_INTENT_BY : by;
+    const { rows: oi } = await pool.query(`SELECT username FROM op_intents WHERE account = $1 AND op_type = $2`, [account, type]);
+    return oi[0]?.username || null;
+  };
   // آخر قياس من كام يوم: إعداد «أيام قياس ٩ الصبح» (readMeasureStaleDays، الافتراضى ١ — المالك
   // ٢٠٢٦-١٠-١٢). كانت ٢ ثابتة، و٤ لحد ٢٠٢٦-٠٩-٢٨، و٨ ثم ١٠ قبلها.
   // باتش القياس اليومى «بدون Real» (قرار المالك ٢٠٢٦-٠٩-٢٣): العلامة دى فى note
@@ -11310,11 +11323,10 @@ export async function registerRoutes(
       }
       // لا بد من مفتاح ربط واحد على الأقل
       if (!phoneShort && !complainNo && !accountNo) continue;
-      // مين طلب القياس ده؟ من op_intents (اتسجّلت وقت الضغط على زر القياس)
+      // مين طلب القياس ده؟ صاحب مهمة الطابور الشغّالة، وإلا op_intents (execRequesterOf)
       let measuredBy: string | null = null;
       if (accountNo) {
-        const { rows: oi } = await pool.query(`SELECT username FROM op_intents WHERE account = $1 AND op_type = 'measure'`, [accountNo]);
-        measuredBy = oi[0]?.username || null;
+        measuredBy = await execRequesterOf(accountNo, "measure");
       }
       // «Profile Optimization Status» زى ما السكربت قراه من شاشة ClearView (نص حر).
       // بنقصّه على 600 حرف — الشاشة بتعرض سطرين، وأى حاجة أطول من كده مش منها.
@@ -11394,9 +11406,8 @@ export async function registerRoutes(
       if (!acc || (ev !== "raise" && ev !== "stop")) continue;
       const col = ev === "raise" ? "last_raise_at" : "last_stop_at";
       const byCol = ev === "raise" ? "last_raise_by" : "last_stop_by";
-      // مين طلب الرفع/الإيقاف ده؟ من op_intents
-      const { rows: oi } = await pool.query(`SELECT username FROM op_intents WHERE account = $1 AND op_type = $2`, [acc, ev]);
-      const by = oi[0]?.username || null;
+      // مين طلب الرفع/الإيقاف ده؟ صاحب مهمة الطابور الشغّالة، وإلا op_intents (execRequesterOf)
+      const by = await execRequesterOf(acc, ev as "raise" | "stop");
       // الإيقاف: اتعمل فعلاً ولا الخط كان Not Started أصلاً (سكربت PO v0.9.11) — والقديم مابيبعتهاش (null)
       const result = ev === "stop" ? poStopResultOf(it?.result) : null;
       await pool.query(
