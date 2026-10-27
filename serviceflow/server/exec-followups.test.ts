@@ -241,7 +241,7 @@ test("result stamps come from the claimed queue job (auto ⇒ تلقائى), op_
 // المالك ٢٠٢٦-١٠-٢٧: «مش بيحصل إيقاف» — الإيقاف بعد الانتظار كان بيدوس Yes على صفحة مش نضيفة
 test("PO v0.9.12: reload before a stop that waited, verify after Yes, count a reloaded Not Started as stopped", () => {
   const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
-  assert.match(po, /@version\s+0\.9\.12/);
+  assert.match(po, /@version\s+0\.9\.1[2-9]/);
   const wait = po.slice(po.indexOf('if (phase === "wait-rt-then-stop")'), po.indexOf('if (phase === "confirm-stop")'));
   assert.match(wait, /if \(\/nightly\/i\.test\(status\)\) \{ reloadPoPage\(/);
   assert.doesNotMatch(wait, /selectAction\(RE_STOP\)/);
@@ -250,4 +250,18 @@ test("PO v0.9.12: reload before a stop that waited, verify after Yes, count a re
   assert.match(po, /if \(stopTries\(\) > 0\) \{ postPoEvent\(CURRENT, "stop", "stopped"\);/);
   assert.match(po, /MODE === "stop" && stopTries\(\) >= MAX_STOP_TRIES/);
   assert.match(po, /function advance\(\) \{\s*\n\s*clearStopSent\(\);/);
+});
+
+// المالك ٢٠٢٦-١٠-٢٧: «لسه ساعات يوقّف وساعات لأ — راجع الكود القديم»: Yes كان ممكن يتداس على دروب ليست
+test("PO v0.9.13: Yes only inside the visible confirm dialog, never in a dropdown; dialog detected by itself", () => {
+  const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
+  assert.match(po, /@version\s+0\.9\.13/);
+  const fy = po.slice(po.indexOf("function findYes()"), po.indexOf("function findYes()") + 700);
+  assert.match(fy, /isVisible\(b\) && !inDropdown\(b\)/);
+  assert.match(fy, /: \["button", "input\[type='button'\]", "input\[type='submit'\]"\];/);
+  assert.match(po, /const inDropdown = \(el\) => !!\(el\.closest && el\.closest\("\.ui-helper-hidden-accessible, \.ui-selectonemenu, select"\)\);/);
+  assert.doesNotMatch(po, /stop\\s\*nightly\\s\*po\|are/);
+  assert.equal((po.match(/const dlg = !!findYes\(\);/g) || []).length, 2);
+  assert.match(po, /else if \(!dialogShown && Date\.now\(\) - lastSelectAt > 6000\) selectAction\(RE_STOP\);/);
+  assert.match(po, /else if \(!dialogShown && Date\.now\(\) - lastSelectAt > 6000\) selectAction\(RE_START\);/);
 });

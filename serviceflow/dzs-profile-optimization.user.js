@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DZS Profile Optimization (رفع السرعة) — Service-Flow
 // @namespace    service-flow.dzs.po
-// @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. v0.9.12: «إيقاف PO» بعد الانتظار (الحالة اتغيّرت لـ In Nightly PO والصفحة مفتوحة من بدرى) بيحمّل الصفحة من جديد قبل الإيقاف — كان بيدوس Yes على دروب ليست مش نضيفة ومفيش إيقاف بيحصل. وبعد Yes لو الحالة مارجعتش Not Started فى دقيقة ونص بيحمّل الصفحة ويتأكد: Not Started ⇒ «تم الإيقاف»، لسه Nightly ⇒ يعيد الإيقاف (لحد ٣ مرات). v0.9.11: «إيقاف PO» بيبعت نتيجته مع التاريخ — «stopped» لو الخط كان In Nightly PO واتوقف، و«already» لو كان Not Started فماكانش فيه حاجة توقّف — وService-Flow بيكتبها جنب «آخر إيقاف PO». v0.9.10: «إيقاف PO» بعد رفع السرعة (المهمة المجدولة بعد ٧ دقايق) كان بيلاقى حالة تانية غير Nightly/Not Started (الرفع لسه بيخلص) فيتخطّى الرقم من غير ما يوقّف ولا يسجّل — دلوقتى فى وضع الإيقاف بيستنى لحد ما الحالة تبقى Nightly (فيوقّفه) أو Not Started (فيسجّل)، ومابيتخطّاش. v0.9.9: «إيقاف PO» ممكن يشتغل فى أكتر من تاب مع بعض (sf_lane=2،3…) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2…) وعلامة PO_TAB فى sessionStorage بتوقّف سكربت القياس فى التاب ده؛ العدد بيتحدّد من «رفع الملفات ← إعدادات» فى Service-Flow. التاب الأول من غير لاحقة زى v0.9.8 بالظبط. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
-// @version      0.9.12
+// @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. v0.9.13: ضغط Yes بقى جوّه نافذة التأكيد الظاهرة بس — لو النافذة اتأخرت كان بيدوس «Yes» بتاع دروب ليست «Enable PO» ويفتكر إنه أكّد، فالإيقاف (أو رفع السرعة) ساعات مايحصلش. وظهور النافذة بيتعرف من النافذة نفسها مش من نص الصفحة («Stop Nightly PO» موجود دايماً فى اختيارات الدروب ليست). v0.9.12: «إيقاف PO» بعد الانتظار (الحالة اتغيّرت لـ In Nightly PO والصفحة مفتوحة من بدرى) بيحمّل الصفحة من جديد قبل الإيقاف — كان بيدوس Yes على دروب ليست مش نضيفة ومفيش إيقاف بيحصل. وبعد Yes لو الحالة مارجعتش Not Started فى دقيقة ونص بيحمّل الصفحة ويتأكد: Not Started ⇒ «تم الإيقاف»، لسه Nightly ⇒ يعيد الإيقاف (لحد ٣ مرات). v0.9.11: «إيقاف PO» بيبعت نتيجته مع التاريخ — «stopped» لو الخط كان In Nightly PO واتوقف، و«already» لو كان Not Started فماكانش فيه حاجة توقّف — وService-Flow بيكتبها جنب «آخر إيقاف PO». v0.9.10: «إيقاف PO» بعد رفع السرعة (المهمة المجدولة بعد ٧ دقايق) كان بيلاقى حالة تانية غير Nightly/Not Started (الرفع لسه بيخلص) فيتخطّى الرقم من غير ما يوقّف ولا يسجّل — دلوقتى فى وضع الإيقاف بيستنى لحد ما الحالة تبقى Nightly (فيوقّفه) أو Not Started (فيسجّل)، ومابيتخطّاش. v0.9.9: «إيقاف PO» ممكن يشتغل فى أكتر من تاب مع بعض (sf_lane=2،3…) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2…) وعلامة PO_TAB فى sessionStorage بتوقّف سكربت القياس فى التاب ده؛ العدد بيتحدّد من «رفع الملفات ← إعدادات» فى Service-Flow. التاب الأول من غير لاحقة زى v0.9.8 بالظبط. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
+// @version      0.9.13
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
 // @connect      sf-menoskar42.replit.app
@@ -225,7 +225,9 @@
   }
 
   // يفتح دروب ليست "Choose Action" ويختار العنصر المطابق للـ regex (Start Realtime PO أو Stop Nightly PO)
+  let lastSelectAt = 0;
   function selectAction(re) {
+    lastSelectAt = Date.now();
     // 1) native <select>
     for (const sel of document.querySelectorAll("select")) {
       const opt = [...sel.options].find(o => re.test(o.textContent || ""));
@@ -251,6 +253,25 @@
 
   // العنصر ظاهر فعلاً؟ (getClientRects أدقّ من offsetParent مع ديالوجات position:fixed)
   const isVisible = (el) => { try { return el.getClientRects().length > 0; } catch (e) { return false; } };
+  // v0.9.13: نافذة التأكيد (PrimeFaces dialog) الظاهرة دلوقتى — أو null لو لسه ماظهرتش
+  const visibleDialog = () => [...document.querySelectorAll(".ui-dialog, .ui-confirm-dialog, [role='dialog'], [role='alertdialog']")]
+    .find(d => isVisible(d) && /\byes\b/i.test(d.textContent || "")) || null;
+  // دروب ليست PrimeFaces جوّاها <select> مخفى (ui-helper-hidden-accessible) — مش زرار
+  const inDropdown = (el) => !!(el.closest && el.closest(".ui-helper-hidden-accessible, .ui-selectonemenu, select"));
+  // زرار Yes بتاع نافذة التأكيد (أو null لو النافذة لسه ماظهرتش): جوّه النافذة الظاهرة بأى نوع عنصر،
+  // ولو النافذة مش بشكل PrimeFaces المعروف ⇒ <button>/<input> ظاهر نصّه Yes بس (مش span/div/td).
+  // وفى الحالتين مش جوّه دروب ليست.
+  function findYes() {
+    const root = visibleDialog();
+    const sels = root
+      ? ["button", "input[type='button']", "input[type='submit']", "a", "span", "div", "td"]
+      : ["button", "input[type='button']", "input[type='submit']"];
+    for (const sel of sels) {
+      const el = [...(root || document).querySelectorAll(sel)].find(b => isVisible(b) && !inDropdown(b) && /^yes$/i.test((b.textContent || b.value || "").trim()));
+      if (el) return el;
+    }
+    return null;
+  }
 
   // فى نافذة Confirm Action: (اختيارى) يحطّ شيك مارك per-tone ثم يضغط Yes.
   // ملاحظة: فى PrimeFaces الأزرار (Yes/No) بتكون فى buttonpane منفصل عن نص الرسالة،
@@ -267,11 +288,11 @@
       }
     }
     // زر Yes — نجرّب أنواع العناصر بالترتيب (button أولاً) وناخد أول عنصر ظاهر نصّه "Yes"
-    const sels = ["button", "input[type='button']", "input[type='submit']", "a", "span", "div", "td"];
-    for (const sel of sels) {
-      const el = [...document.querySelectorAll(sel)].find(b => isVisible(b) && /^yes$/i.test((b.textContent || b.value || "").trim()));
-      if (el) { el.click(); return true; }
-    }
+    // v0.9.13: من findYes — جوّه نافذة التأكيد، ومش جوّه دروب ليست. قبل كده لو النافذة اتأخرت عن
+    // الـtick (٨٠٠ms) كان بيلاقى «Yes» بتاع دروب ليست «Enable PO» (div مخفى جوّاه <select>) ويدوسه،
+    // ويفتكر إنه أكّد الإيقاف — والإيقاف ماحصلش. ده كان «ساعات يوقّف وساعات لأ».
+    const el = findYes();
+    if (el) { el.click(); return true; }
     return false;
   }
 
@@ -395,11 +416,14 @@
 
     // ---- confirm-stop: تأكيد إيقاف الـ Nightly PO (Yes بدون شيك مارك) ----
     if (phase === "confirm-stop") {
-      const dlg = /confirm\s*action|stop\s*nightly\s*po|are\s*you\s*sure/i.test(txt());
+      // v0.9.13: النافذة الظاهرة نفسها — «Stop Nightly PO» موجود على طول فى نص الصفحة (اختيارات الدروب ليست)
+      // فكان بيعتبر النافذة ظهرت من أول tick.
+      const dlg = !!findYes();
       // ⚠️ مانسجّلش «إيقاف PO» هنا (وقت طلب الإيقاف/ضغط Yes) — نسجّله بس لما الحالة ترجع Not Started
       // فعلاً (فى await-not-started) عشان جهاز التنفيذ مايعلّمهاش «تم» قبل ما الإيقاف يخلّص فعلياً.
       if (dlg) { dialogShown = true; if (confirmDialogYes(false)) { if (MODE === "stop") markStopSent(); phase = "await-not-started"; awaitSince = Date.now(); banner("⏳ جارٍ الإيقاف — استنى ترجع Not Started…", "#ef6c00"); } }
-      else if (!dialogShown) selectAction(RE_STOP);
+      // v0.9.13: النافذة لسه ماظهرتش ⇒ نعيد اختيار الأكشن كل ٦ث بس (مش كل tick)
+      else if (!dialogShown && Date.now() - lastSelectAt > 6000) selectAction(RE_STOP);
       return;
     }
 
@@ -426,7 +450,7 @@
 
     // ---- confirm-start: نافذة تأكيد Start Realtime PO → شيك مارك (per-tone) + Yes ----
     if (phase === "confirm-start") {
-      const dlg = /confirm\s*action|options\s*for\s*the\s*realtime\s*po|per\s*tone\s*data/i.test(txt());
+      const dlg = !!findYes();
       if (dlg) {
         dialogShown = true;
         if (confirmDialogYes(true)) {
@@ -440,7 +464,7 @@
             phase = "started"; banner("✅ اتبعت طلب رفع السرعة — التالى…", "#2e7d32"); setTimeout(() => { clearInterval(tick); advance(); }, SETTLE_AFTER_YES_MS);
           }
         }
-      } else if (!dialogShown) selectAction(RE_START);
+      } else if (!dialogShown && Date.now() - lastSelectAt > 6000) selectAction(RE_START);
       return;
     }
 
