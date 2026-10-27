@@ -273,3 +273,11 @@ test("PO v0.9.14: auto-refresh 10 s after Yes with a visible countdown", () => {
   assert.match(po, /const AWAIT_STOP_RELOAD_MS = 10 \* 1000;/);
   assert.match(po, /ريفريش تلقائى بعد " \+ left \+ "ث/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٧: «ويعمل ريفريش بالظبط زى ما أنا بعمله يدوى»
+test("PO v0.9.14: the auto refresh is a real location.reload on the same line's page", () => {
+  const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
+  const fn = po.slice(po.indexOf("const reloadPoPage = (msg) =>"), po.indexOf("const reloadPoPage = (msg) =>") + 500);
+  assert.match(fn, /new URLSearchParams\(location\.search\)\.get\("lineId"\) === String\(CURRENT\)/);
+  assert.match(fn, /if \(onThisLine\) location\.reload\(\); else location\.href = PO_URL \+ encodeURIComponent\(CURRENT\);/);
+});
