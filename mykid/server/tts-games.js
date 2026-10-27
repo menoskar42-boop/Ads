@@ -22,6 +22,7 @@ import fs from "node:fs";
 import { bodyMapPhrases } from "../js/data/bodyMap.js";
 import { recallPhrases } from "../js/data/letterRecall.js";
 import { ML_SAY } from "../js/data/missingLine.js";
+import { lfPhrases } from "../js/data/letterForms.js";
 
 /** { name, how } من مصفوفة جوّه شاشة (الأوسمة/إكسسوارات ميزو) — الشاشة نفسها بتلمس الصفحة فمابنستوردهاش. */
 function namesHows(file, arr) {
@@ -158,4 +159,8 @@ export function addGamePhrases({ say, mizo }) {
 
   // ١٤) «كمّل الأرقام ١–١٠» (games/missingLine.js) — بصيغة الولد والبنت
   for (const t of Object.values(ML_SAY)) { say(t); say(femAdapt(t)); }
+
+  // ١٥) ستّ ألعاب أشكال الحرف (games/formsPlay.js — المالك ٢٠٢٦-١٠-٢٧): تعليمات كل حرف، والكلمات،
+  //     و«ليه شكله اتغيّر»، و«دوّر على حرف … فى اسمك» لكل الحروف — بصيغة الولد والبنت
+  for (const t of lfPhrases()) { say(t); say(femAdapt(t)); }
 }

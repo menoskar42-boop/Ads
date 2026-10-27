@@ -23,6 +23,13 @@ export const ACTIVITIES = {
     { emoji: "🖼️", title: "صور الحروف", desc: "اختار حرف: الصورة دى بتبدأ بإيه؟ واختار الصورة اللى بتبدأ بالحرف", screen: "letterRecall", params: { mode: "pics", lang: "ar" } },
     { emoji: "🧠", title: "اكتب من الذاكرة", desc: "ميزو يقول الحرف وانت تكتبه لوحدك — للحروف اللى عليها نجمة", screen: "letterRecall", params: { mode: "write", lang: "ar" } },
     { emoji: "🔗", title: "وصّل الحرف بالصورة", desc: "اسحب خط من كل حرف للصورة اللى بتبدأ بيه", screen: "letterRecall", params: { mode: "connect", lang: "ar" } },
+    // المالك ٢٠٢٦-١٠-٢٧: ستّ ألعاب لشكل الحرف فى أول ووسط وآخر الكلمة (وجوّه كراسة الحروف مع كل حرف)
+    { emoji: "🤝", title: "الحرف بيمسك إيد صاحبه", desc: "المس الحرف يمسك إيد جيرانه فى الكلمة، وشوف شكله بيتغيّر", screen: "formsPlay", params: { mode: "hands" } },
+    { emoji: "🧩", title: "كمّل الكلمة بالشكل الصح", desc: "الكلمة ناقصة حرف: اختار شكله الصح فى أول الكلمة أو وسطها أو آخرها", screen: "formsPlay", params: { mode: "formComplete" } },
+    { emoji: "🚂", title: "اسمع وحط فى العربية", desc: "اسمع الكلمة وحط الحرف فى عربية الأول أو الوسط أو الآخر", screen: "formsPlay", params: { mode: "formListen" } },
+    { emoji: "📛", title: "دوّر على حروف اسمك", desc: "اسمك مكتوب كبير: لاقى كل حرف فيه وهو فى الأول ولا الوسط ولا الآخر", screen: "formsPlay", params: { mode: "nameHunt" } },
+    { emoji: "🔖", title: "ختم الحرف", desc: "اختار ختم شكل الحرف وختّم بيه مكانه فى كل كلمة", screen: "formsPlay", params: { mode: "formStamp" } },
+    { emoji: "✍️", title: "اكتب الحرف موصول", desc: "اكتب الحرف وهو ماسك إيد أصحابه زى ما بيتكتب جوّه الكلمة", screen: "formsPlay", params: { mode: "formTrace" } },
     { emoji: "🧩", title: "بازل الحرف", desc: "الحرف اتكسر حتت! رجّع كل حتة مكانها", screen: "letterPuzzle", params: { kind: "arabic" } },
     { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الحرف ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "arabic" } },
     { emoji: "🔦", title: "الكشّاف", desc: "الدنيا ضلمة! دوّر بالكشّاف على الحرف", screen: "flashlight", params: { kind: "arabic" } },

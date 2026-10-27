@@ -50,6 +50,13 @@ export const LB_ACT_INFO = {
   forms: "أشكال الحرف",
   circle: "حط دايرة",
   missing: "الحرف الناقص فى الكلمة",
+  // ستّ ألعاب أشكال الحرف (٢٠٢٦-١٠-٢٧)
+  hands: "الحرف بيمسك إيد صاحبه",
+  formComplete: "كمّل الكلمة بالشكل الصح",
+  formListen: "اسمع وحط فى العربية",
+  formStamp: "ختم الحرف",
+  formTrace: "اكتب الحرف موصول",
+  nameHunt: "حروف اسمك",
 };
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));

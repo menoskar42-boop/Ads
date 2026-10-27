@@ -246,7 +246,9 @@ function lettersAround(ch) {
 }
 
 // ===== صفحة الحرف: يكتب شوية ويلعب شوية (نفس ترتيب أنشطة الكتاب) =====
-export const LB_LETTER_KINDS = ["meet", "write", "riddle", "pop", "harakat", "starts", "forms", "missing", "game", "harakaWrite", "harakaQuiz", "connect"];
+export const LB_LETTER_KINDS = ["meet", "write", "riddle", "pop", "harakat", "starts", "forms", "missing", "game", "harakaWrite", "harakaQuiz", "connect",
+  // ستّ ألعاب أشكال الحرف (المالك ٢٠٢٦-١٠-٢٧ — data/letterForms.js): الشاشة بتبنى الجولات
+  "hands", "formComplete", "formListen", "formStamp", "formTrace", "nameHunt"];
 
 // ===== الكتابة الكتير (المالك ٢٠٢٦-١٠-١٦: «٣ بالنقط + ٥ لوحده»): النقط ماتتحسبش غير بـ٧٥٪،
 // ولوحده غير بـ٧٠٪ — كل مرة بتتحسب لوحدها فى العدّاد (✓ ١/٣) =====
@@ -307,11 +309,17 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   if (want("connect")) steps.push({ kind: "connect", ch });
   // ١٣) لاحظ أشكال الحرف: أول · وسط · آخر الكلمة (الحرف ملوّن والطفل يلمسه)
   if (want("forms")) steps.push({ kind: "forms", ch, words: L.forms.map((x) => ({ ...x, pos: posOf(x.w, ch), ...splitAt(x.w, ch) })) });
+  // ١٣أ) 🤝 الحرف بيمسك إيد صاحبه: ليه شكله بيتغيّر (المالك ٢٠٢٦-١٠-٢٧)
+  const lf = (k) => { if (want(k)) steps.push({ kind: k, ch }); };
+  lf("hands");
   // ١٣ب) حط دايرة حوالين الحرف: فى أول الكلمة ← آخرها ← وسطها (المالك ٢٠٢٦-١٠-١٤)
   if (want("circle")) {
     const words = circleWords(ch);
     if (words.length) steps.push({ kind: "circle", ch, words });
   }
+  // ١٣ج) 🧩 كمّل الكلمة بالشكل الصح · 🚂 اسمع وحط فى العربية
+  lf("formComplete");
+  lf("formListen");
   // ١٤) 🎯 اصطياد الحروف
   game("catch");
   // ١٥) اكتب الحرف الناقص فى الكلمة
@@ -322,10 +330,15 @@ export function letterPage(ch, rnd = Math.random, only = null) {
     const others = shuffled(rnd, lettersAround(ch)).slice(0, 2);
     steps.push({ kind: "missing", ch, ...x, ...splitAt(x.w, ch), options: shuffled(rnd, [ch, ...others]) });
   }
+  // ١٥ب) 🔖 ختم الحرف
+  lf("formStamp");
   // ١٦) 🔠 الحرف الناقص فى الحروف (أ ب ؟)
   game("sequence");
   // ١٧) ✏️ لوحده ٣ مرات — ومن غير النقطة الخضرا كمان (النقط ← النقطة بس ← ولا حاجة)
   write(3, LB_ALONE_REPS[1], true);
+  // ١٧أ) ✍️ اكتب الحرف وهو ماسك إيد صاحبه · 📛 دوّر عليه فى اسمك (الشاشة بتشيلها لو مش فى الاسم)
+  lf("formTrace");
+  lf("nameHunt");
   // ١٧ب) المالك ٢٠٢٦-١٠-١٩: بعد ما يتقن الحرف من غير تشكيل — يكتبه بكل حركة (على النقط وبعدين
   // لوحده)، وبعدها «اسمع واعرف الحركة» لحد ما يعرف الحركة من صوت الكلمة
   if (want("harakaWrite")) for (const h of LB_HARAKA_ORDER) steps.push({ kind: "harakaWrite", ch, h });

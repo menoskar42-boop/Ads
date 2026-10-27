@@ -30,6 +30,9 @@ import { mountConnect } from "./connectBoard.js";
 import { connectOpts } from "./letterRecall.js";
 import { connectStepFor, starredLetters, RECALL_SAY } from "../data/letterRecall.js";
 import { SCORE_PASS } from "./strokeJudge.js";
+import { mountFormsGame } from "./formsPlay.js";
+import { nameRound, LF_KINDS } from "../data/letterForms.js";
+const LF_ICON = { hands: "🤝", formComplete: "🧩", formListen: "🚂", formStamp: "🔖", nameHunt: "📛" };
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
@@ -141,6 +144,8 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     steps = letterbookSteps(pg, Math.random, only); // only: أنشطة بعينها (للاختبار)
     // «وصّل الحرف بالصورة»: الجولة من حروف النجمة دلوقتى — ولو مفيش حرف تانى عليه نجمة الخطوة بتتشال
     steps = steps.flatMap((x) => {
+      // «دوّر على حروف اسمك»: بس لو الحرف فى اسم الطفل
+      if (x.kind === "nameHunt") return nameRound(Store.childName, x.ch) ? [x] : [];
       if (x.kind !== "connect") return [x];
       const round = connectStepFor("ar", x.ch, starredLetters("ar", Store.letterbookDone));
       return round ? [{ ...x, round }] : [];
@@ -171,7 +176,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     else title.innerHTML = `<b>〰️</b><span>التهيئة</span>`;
     const track = el("div", "wbk-track");
     steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""),
-      isLbWrite(s) ? "✏️" : s.kind === "connect" ? "🔗" : s.kind === "game" ? (LB_GAME_INFO[s.game] || {}).icon || "🎲" : "🎲")));
+      isLbWrite(s) || s.kind === "formTrace" ? "✏️" : s.kind === "connect" ? "🔗" : LF_ICON[s.kind] || (s.kind === "game" ? (LB_GAME_INFO[s.game] || {}).icon || "🎲" : "🎲"))));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;
@@ -469,6 +474,16 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       const board = mountConnect(body, connectOpts("ar", s.round, () => stepDone(1500)));
       cleanup = () => board.destroy();
     },
+
+    // ستّ ألعاب أشكال الحرف (المالك ٢٠٢٦-١٠-٢٧) — نفس اللعبة اللى فى القلعة على حرف الصفحة
+    ...Object.fromEntries(LF_KINDS.map((k) => [k, (body, s) => {
+      let row = null;
+      const hint = hintLine();
+      const ask = (text) => { const p = prompt(text); if (row) row.replaceWith(p); else body.prepend(p); row = p; };
+      const game = mountFormsGame(body, k, s.ch, { ask, hint: (t) => hint.show(t), onDone: () => stepDone(1200), skip: () => nextStep() });
+      body.appendChild(hint);
+      cleanup = () => game.destroy();
+    }])),
 
     // ضع دائرة حول الصورة اللى بتبدأ بالحرف
     starts(body, s) {

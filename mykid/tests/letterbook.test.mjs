@@ -98,7 +98,7 @@ async function open(pageId, extra = {}) {
 
 /** غلطة واحدة: المس حاجة مش data-good — ميزو يشجّع، ومفيش «غلط». */
 async function oneMistake() {
-  const wrong = page.locator(".wbk-body button:not([data-good]):not(.candy-btn):not(.wbk-mizo-btn):not(.lbk-pic-big):not(.lbk-sign):not(.lbk-piece):not(.lbk-circle-pic)");
+  const wrong = page.locator(".wbk-body button:not([data-good]):not(.candy-btn):not(.wbk-mizo-btn):not(.lbk-pic-big):not(.lbk-sign):not(.lbk-piece):not(.lbk-circle-pic):not(.lf-aux)");
   if (!(await wrong.count())) return false;
   await wrong.first().click();
   await page.waitForFunction(() => (document.querySelector(".wbk-hint")?.textContent || "").length > 0, null, { timeout: 3000 }).catch(() => {});
@@ -115,6 +115,23 @@ async function tapGood(i) {
     if (await pending.count()) await pending.first().click();
     await page.waitForTimeout(450);
   }
+}
+/** 🔖 ختم الحرف: لكل كلمة اختار الختم بتاعها وبعدين المس مكانه (وغلطة الأول: ختم مش مقاسه). */
+async function stampAll(i) {
+  const words = page.locator(".lf-stamp-word");
+  const n = await words.count();
+  const s0 = await words.first().getAttribute("data-shape");
+  await page.locator(".lf-stamp").filter({ hasNotText: s0 }).first().click();
+  await words.first().click();
+  await page.waitForTimeout(600);
+  assert.ok(((await page.locator(".wbk-hint").first().textContent()) || "").length > 0, "ميزو بيقول حاجة بعد الختم الغلط");
+  for (let j = 0; j < n; j++) {
+    const shape = await words.nth(j).getAttribute("data-shape");
+    await page.locator(".lf-stamp", { hasText: new RegExp(`^${shape}$`) }).first().click();
+    await words.nth(j).click();
+    await page.waitForTimeout(300);
+  }
+  await advanced(i);
 }
 async function pair(i) {
   const lefts = page.locator(".lbk-pair .lbk-col:first-child > *");
@@ -216,6 +233,8 @@ async function playPage(pageId, opts = {}) {
     else if (k === "harakaQuiz") await harakaQuiz(i);
     else if (k === "game") await game(i);
     else if (k === "shadow" || k === "matchFirst") await pair(i);
+    else if (k === "formStamp") await stampAll(i);
+    else if (k === "formTrace") { await page.locator(".wbk-skip").click(); await advanced(i); }
     else {
       if (!["meet", "harakat", "forms"].includes(k)) await oneMistake();
       await tapGood(i);
@@ -228,8 +247,8 @@ async function playPage(pageId, opts = {}) {
 test("letter page (ب): book activities + castle games in order, 3+5 writes, then the letter's grade", async () => {
   const seen = await playPage("Lب");
   assert.deepEqual(seen, ["meet", "write", "🧩", "riddle", "pop", "🔦", "harakat", "write", "🥚",
-    "starts", "🔤", "forms", "circle", "🎯", "missing", "🔠", "write",
-    "harakaWrite", "harakaWrite", "harakaWrite", "harakaWrite", "harakaQuiz", "🧠"]);
+    "starts", "🔤", "forms", "hands", "circle", "formComplete", "formListen", "🎯", "missing", "formStamp", "🔠", "write",
+    "formTrace", "harakaWrite", "harakaWrite", "harakaWrite", "harakaWrite", "harakaQuiz", "🧠"]);
   // شهادة الحرف: درجة من ١٠٠ ونجوم، ومحفوظة بالتفاصيل لولى الأمر
   await page.waitForSelector(".lgc .lgc-total b");
   await shot("Lب-grade");
