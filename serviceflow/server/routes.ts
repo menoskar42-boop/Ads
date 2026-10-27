@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { pool, currentPool, hasCurrentDatabase } from "./db";
 import { cleanWfmMobile } from "./wfm-mobile";
-import { followupFor, recheckFor, stopRetryFor, RECHECK_MARK } from "./exec-followups";
+import { followupFor, recheckFor, stopRetryFor, stopRetryCount, RECHECK_MARK } from "./exec-followups";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
@@ -2292,10 +2292,24 @@ export async function registerRoutes(
     try {
       await withTx(async (tx) => {
         const { rows } = await tx.query(
-          `SELECT id, type, account, note, requested_by FROM exec_followups
+          `SELECT id, type, account, note, requested_by, created_at FROM exec_followups
             WHERE enqueued_at IS NULL AND run_at <= now()
             ORDER BY run_at, id LIMIT 50 FOR UPDATE SKIP LOCKED`);
         for (const f of rows) {
+          // إعادة إيقاف وقتها جه بس الإيقاف اتسجّل بعد ما اتجدولت («تم الإيقاف» أو Not Started وصلت
+          // متأخر، أو إيقاف يدوى) ⇒ السلسلة تقف: مفيش إيقاف تانى، والقياس بعد دقيقتين لو عليها «+قياس».
+          if (f.type === "stop" && stopRetryCount(f.note) > 0) {
+            const { rows: st } = await tx.query(
+              `SELECT 1 FROM line_po_events WHERE account_no = $1 AND last_stop_at >= $2 LIMIT 1`, [f.account, f.created_at]);
+            if (st.length) {
+              const m = followupFor({ type: "stop", note: f.note, result: "done" });
+              if (m) await tx.query(
+                `UPDATE exec_followups SET type = $2, note = $3, run_at = now() + make_interval(mins => $4) WHERE id = $1`,
+                [f.id, m.type, m.note, m.afterMin]);
+              else await tx.query(`UPDATE exec_followups SET enqueued_at = now() WHERE id = $1`, [f.id]);
+              continue;
+            }
+          }
           const batchId = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
           const { rows: ins } = await tx.query(
             `INSERT INTO exec_jobs (type, accounts, requested_by, note, priority, batch_id, site, requested_from)

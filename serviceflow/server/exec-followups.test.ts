@@ -190,3 +190,19 @@ test("wiring: done handler checks line_po_events since claim and skips the measu
   assert.match(h, /stopRetryFor\(\{ type: j\.type, note: j\.note, result \}, st\.length > 0\)/);
   assert.match(h, /if \(retried\.has\(acc\)\) continue;/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٧: «لو جه إنه تم الإيقاف أو Not Started كده يقف» — حتى لو الحدث وصل بعد ما الإعادة اتجدولت
+test("both stop outcomes count as recorded, and a due retry is dropped once a stop lands", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const ing = routes.slice(routes.indexOf('app.post("/api/po-events/ingest"'), routes.indexOf('app.post("/api/op-intent"'));
+  // stopped وalready الاتنين بيحدّثوا last_stop_at ⇒ recorded ⇒ مفيش إعادة
+  assert.match(ing, /ON CONFLICT \(account_no\) DO UPDATE SET last_stop_at = now\(\), last_stop_by = \$2, last_stop_result = \$3/);
+  const run = routes.slice(routes.indexOf("const runExecFollowups = async"), routes.indexOf('app.post("/api/exec-queue/heartbeat"'));
+  assert.match(run, /if \(f\.type === "stop" && stopRetryCount\(f\.note\) > 0\)/);
+  assert.match(run, /FROM line_po_events WHERE account_no = \$1 AND last_stop_at >= \$2 LIMIT 1`, \[f\.account, f\.created_at\]/);
+  assert.match(run, /followupFor\(\{ type: "stop", note: f\.note, result: "done" \}\)/);
+  // الإعادة اللى اتلغت ⇒ القياس بعد دقيقتين من غير علامة الإعادة
+  assert.deepEqual(followupFor({ type: "stop", note: `${SRC} +قياس ${STOP_RETRY_MARK}2`, result: "done" }),
+    { type: "measure", note: `${SRC} ${RECHECK_MARK}`, afterMin: 2 });
+  assert.equal(followupFor({ type: "stop", note: `تحتاج إيقاف PO ${STOP_RETRY_MARK}1`, result: "done" }), null);
+});
