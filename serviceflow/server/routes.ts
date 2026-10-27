@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { pool, currentPool, hasCurrentDatabase } from "./db";
 import { cleanWfmMobile } from "./wfm-mobile";
-import { followupFor, recheckFor, RECHECK_MARK } from "./exec-followups";
+import { followupFor, recheckFor, stopRetryFor, RECHECK_MARK } from "./exec-followups";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
@@ -3005,9 +3005,30 @@ export async function registerRoutes(
       // قياس Real بعد دقيقتين (server/exec-followups.ts). «AND status <> 'done'» بيمنع التكرار.
       const j = doneRows[0];
       const fu = j ? followupFor({ type: j.type, note: j.note, result }) : null;
+      // الإيقاف اتقفل من غير ما يتسجّل للرقم (تاب اتقفل بعد ١٠ دقايق عشان الطابور يكمل / وقف) ⇒
+      // إيقاف تانى بعد ١٠ دقايق بدل القياس (المالك ٢٠٢٦-١٠-٢٧ — server/exec-followups.ts).
+      let stopRetry = 0;
+      const retried = new Set<string>();
+      if (j && j.type === "stop") {
+        const accs: string[] = (Array.isArray(j.accounts) ? j.accounts : []).map((a: any) => String(a).trim()).filter(Boolean);
+        for (const acc of accs) {
+          const { rows: st } = await pool.query(
+            `SELECT 1 FROM line_po_events WHERE account_no = $1 AND last_stop_at >= COALESCE($2::timestamptz, now() - interval '30 minutes') LIMIT 1`,
+            [acc, j.claimed_at]);
+          const rt = stopRetryFor({ type: j.type, note: j.note, result }, st.length > 0);
+          if (!rt) continue;
+          await pool.query(
+            `INSERT INTO exec_followups (type, account, note, requested_by, source_job_id, run_at)
+             VALUES ($1, $2, $3, $4, $5, now() + make_interval(mins => $6))`,
+            [rt.type, acc, rt.note, j.requested_by, j.id, rt.afterMin]);
+          retried.add(acc);
+          stopRetry++;
+        }
+      }
       if (j && fu) {
         const accs: string[] = (Array.isArray(j.accounts) ? j.accounts : []).map((a: any) => String(a).trim()).filter(Boolean);
         for (const acc of accs) {
+          if (retried.has(acc)) continue;
           await pool.query(
             `INSERT INTO exec_followups (type, account, note, requested_by, source_job_id, run_at)
              VALUES ($1, $2, $3, $4, $5, now() + make_interval(mins => $6))`,
@@ -3032,7 +3053,7 @@ export async function registerRoutes(
           recheck++;
         }
       }
-      res.json({ ok: true, followup: fu ? { type: fu.type, afterMin: fu.afterMin } : null, recheck });
+      res.json({ ok: true, followup: fu ? { type: fu.type, afterMin: fu.afterMin } : null, recheck, stopRetry });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   // تأكيد تحديث القياس: آخر وقت قياس (case_138.uploaded_at) لرقم أكونت — جهاز التنفيذ

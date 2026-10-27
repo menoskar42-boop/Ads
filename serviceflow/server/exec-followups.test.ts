@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { followupFor, recheckFor, STOP_AFTER_RAISE_MIN, MEASURE_AFTER_STOP_MIN, RECHECK_MARK } from "./exec-followups";
+import { followupFor, recheckFor, stopRetryFor, stopRetryCount, STOP_AFTER_RAISE_MIN, MEASURE_AFTER_STOP_MIN, RECHECK_MARK, STOP_RETRY_MARK, STOP_RETRY_AFTER_MIN, STOP_RETRY_MAX } from "./exec-followups";
 
 const SRC = "بحث برقم التليفون";
 
@@ -155,4 +155,38 @@ test("the stop is recorded with its outcome: stopped (was Nightly) or already (w
   assert.match(routes, /last_stop_result = \$3/);
   const n = (routes.match(/AS "lastPoStopAt"/g) || []).length;
   assert.equal((routes.match(/AS "lastPoStopAt", pe\.last_stop_result AS "lastPoStopResult"/g) || []).length, n, "كل تقرير بيرجّع النتيجة");
+});
+
+// المالك ٢٠٢٦-١٠-٢٧: الإيقاف اتقفل بعد ١٠ دقايق من غير ما يتسجّل ⇒ إيقاف تانى لنفس الرقم بعد ١٠ دقايق
+test("stop closed without being recorded → another stop after 10 min (keeps +قياس, capped at 3)", () => {
+  const r1 = stopRetryFor({ type: "stop", note: `${SRC} +قياس`, result: "tab_closed" }, false);
+  assert.deepEqual(r1, { type: "stop", note: `${SRC} +قياس ${STOP_RETRY_MARK}1`, afterMin: 10 });
+  assert.equal(STOP_RETRY_AFTER_MIN, 10);
+  const r2 = stopRetryFor({ type: "stop", note: r1!.note, result: "timeout" }, false);
+  assert.equal(r2!.note, `${SRC} +قياس ${STOP_RETRY_MARK}2`);
+  const r3 = stopRetryFor({ type: "stop", note: r2!.note, result: "tab_closed" }, false);
+  assert.equal(stopRetryCount(r3!.note), 3);
+  assert.equal(stopRetryFor({ type: "stop", note: r3!.note, result: "tab_closed" }, false), null, "cap");
+  // إيقاف عادى (من غير سلسلة) بيتعاد برده
+  assert.equal(stopRetryFor({ type: "stop", note: "تحتاج إيقاف PO", result: "tab_closed" }, false)!.note, `تحتاج إيقاف PO ${STOP_RETRY_MARK}1`);
+  // القياس بعد إيقاف معاد مافيهوش علامة الإعادة
+  assert.deepEqual(followupFor({ type: "stop", note: r1!.note, result: "done" }), { type: "measure", note: `${SRC} ${RECHECK_MARK}`, afterMin: 2 });
+});
+
+test("no stop retry when the stop was recorded, canceled, stopped, preempted, or not a stop", () => {
+  assert.equal(stopRetryFor({ type: "stop", note: `${SRC} +قياس`, result: "tab_closed" }, true), null);
+  for (const result of ["canceled", "stopped", "preempted", "done"]) {
+    assert.equal(stopRetryFor({ type: "stop", note: `${SRC} +قياس`, result }, false), null, result);
+  }
+  assert.equal(stopRetryFor({ type: "raise", note: `${SRC} +إيقاف`, result: "tab_closed" }, false), null);
+  assert.equal(stopRetryFor({ type: "measure", note: SRC, result: "tab_closed" }, false), null);
+  assert.equal(STOP_RETRY_MAX, 3);
+});
+
+test("wiring: done handler checks line_po_events since claim and skips the measure for retried accounts", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const h = routes.slice(routes.indexOf('app.post("/api/exec-queue/:id/done"'), routes.indexOf('app.get("/api/exec-queue/measure-check"'));
+  assert.match(h, /FROM line_po_events WHERE account_no = \$1 AND last_stop_at >= COALESCE\(\$2::timestamptz/);
+  assert.match(h, /stopRetryFor\(\{ type: j\.type, note: j\.note, result \}, st\.length > 0\)/);
+  assert.match(h, /if \(retried\.has\(acc\)\) continue;/);
 });
