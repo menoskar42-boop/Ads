@@ -267,9 +267,9 @@ test("PO v0.9.13: Yes only inside the visible confirm dialog, never in a dropdow
 });
 
 // المالك ٢٠٢٦-١٠-٢٧: «بتقف كده ولما بعمل ريفريش يدوى بينفّذ الإيقاف» — بعد آخر سكربت
-test("PO v0.9.14: auto-refresh 15 s after Yes with a visible countdown", () => {
+test("PO v0.9.14: auto-refresh 10 s after Yes with a visible countdown", () => {
   const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
   assert.match(po, /@version\s+0\.9\.14/);
-  assert.match(po, /const AWAIT_STOP_RELOAD_MS = 15 \* 1000;/);
+  assert.match(po, /const AWAIT_STOP_RELOAD_MS = 10 \* 1000;/);
   assert.match(po, /ريفريش تلقائى بعد " \+ left \+ "ث/);
 });
