@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DZS Expresse Continuous Flow v10.7 (Service-Flow 138 sheet + auto-upload)
-// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.27: مابيشتغلش فى تابات «إيقاف PO» التانية/التالتة (علامة PO_TAB فى sessionStorage). v10.26: عدد تابات «بدون Real» من السيرفر بس (NOREAL_LANES، أى sf_lane). رقم التاب بيتعرف من رقم الخط اللى فى رابط الصفحة (clearview/lineSummary?lineId=) — فى v10.25 كان من sessionStorage بس، فأى خطوة بتفتح فى تاب/نافذة جديدة كانت بتضيّع الرقم وتشتغل على خط التاب الأول (اللى اتسجّل خلاص) فالتاب التانى مايسجّلش. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
-// @version      10.27.0
+// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.28: «بدون Real» لما تطلع حالة خاصة (103 no longer provisioned / 101 / 105) بياخد برده أحدث تاريخ من History Check بدل وقت الوصول. v10.27: مابيشتغلش فى تابات «إيقاف PO» التانية/التالتة (علامة PO_TAB فى sessionStorage). v10.26: عدد تابات «بدون Real» من السيرفر بس (NOREAL_LANES، أى sf_lane). رقم التاب بيتعرف من رقم الخط اللى فى رابط الصفحة (clearview/lineSummary?lineId=) — فى v10.25 كان من sessionStorage بس، فأى خطوة بتفتح فى تاب/نافذة جديدة كانت بتضيّع الرقم وتشتغل على خط التاب الأول (اللى اتسجّل خلاص) فالتاب التانى مايسجّلش. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
+// @version      10.28.0
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
 // @grant        none
@@ -627,12 +627,27 @@
   function handleSpecialAndClose(score) {
     if (processingComplete) return;
     processingComplete = true;
-    // حتى فى الحالات الخاصة (خارج الخدمة/مش متركّب…) بنسجّل حالة البروفايل لو الشاشة عرضتها
-    saveResult(CURRENT_LINE_ID, score, "", "", "-", findProfileOptimizationStatus() || earlyPo);
-    maybeDownloadFinal();
-    if (iAmTheDownloader) { showFinalMessage(); return; } // آخر خط — يفضل مفتوح للـ CSV
-    stopHeartbeat();            // 🆕 حرّر سلوت هذا التاب فوراً قبل فتح التالى — يمنع deadlock لو كل التابات وصلت حالة خاصة معاً
-    openNextLine(closeThisTab); // افتح التالى (مع احترام الحد) ثم اقفل التاب ده — متتكسرش السلسلة ومتفيضش الذاكرة
+    const finish = (extra) => {
+      // حتى فى الحالات الخاصة (خارج الخدمة/مش متركّب…) بنسجّل حالة البروفايل لو الشاشة عرضتها
+      saveResult(CURRENT_LINE_ID, score, "", "", "-", findProfileOptimizationStatus() || earlyPo, extra);
+      maybeDownloadFinal();
+      if (iAmTheDownloader) { showFinalMessage(); return; } // آخر خط — يفضل مفتوح للـ CSV
+      stopHeartbeat();            // 🆕 حرّر سلوت هذا التاب فوراً قبل فتح التالى — يمنع deadlock لو كل التابات وصلت حالة خاصة معاً
+      openNextLine(closeThisTab); // افتح التالى (مع احترام الحد) ثم اقفل التاب ده — متتكسرش السلسلة ومتفيضش الذاكرة
+    };
+    if (!NOREAL) { finish(); return; }
+    // v10.28 (المالك ٢٠٢٦-١٠-٢٧): «بدون Real» وطلعت حالة خاصة (103 no longer provisioned…) ⇒ كان بيسجّل
+    // من غير تاريخ فالسيرفر يحط وقت الوصول. دلوقتى بياخد أحدث تاريخ من History Check برده (نستنى
+    // القايمة لحد ٦ث لو لسه ماظهرتش).
+    const t0 = Date.now();
+    const wait = setInterval(() => {
+      const h = findHistoryCheck();
+      const hp = h && h.idx >= 0 ? parseHist(h.text) : null;
+      if (!hp && Date.now() - t0 < 6000) return;
+      clearInterval(wait);
+      if (!hp) console.warn("⚠️ «بدون Real» (حالة " + score + "): مالقيتش تاريخ فى History Check — هنسجّل من غير تاريخ.");
+      finish(hp ? { measuredAt: noRealMeasuredAt(hp), histLabel: hp.label, histRealtime: hp.realtime } : undefined);
+    }, 500);
   }
 
   /* ================== v10.23: «قياس بدون Real» ================== */
@@ -726,6 +741,18 @@
     return sib ? norm(sib.textContent) : "";
   }
 
+  // تاريخ القياس من خيار History Check: لو فيه وقت → هو ده. لو تاريخ بس («2026-09-22») → الوقت من
+  // «Collection Date» اللى الشاشة بتعرضه، بشرط يكون نفس اليوم؛ غير كده اليوم الساعة 00:00
+  // (والـlabel بيتبعت زى ما هو فبيبان إنه يوم بس).
+  function noRealMeasuredAt(hp) {
+    if (hp.time) return hp.date + " " + hp.time;
+    const cd = readRowValue("Collection Date") || "";
+    const cm = cd.match(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    return cm && cm[1] === hp.date
+      ? cm[1] + " " + String(cm[2]).padStart(2, "0") + ":" + cm[3] + ":" + (cm[4] || "00")
+      : hp.date + " 00:00:00";
+  }
+
   let noRealStarted = false;
   // على clearview بعد Line Details: اختار أحدث تاريخ، استنى الشاشة تتحدّث، اقرا، خزّن،
   // وروح لشاشة DSL. الـreal-time مابيتضغطش خالص.
@@ -773,17 +800,7 @@
         // التاريخ: لو الخيار فيه وقت → هو ده. لو تاريخ بس («2026-09-22») → الوقت من
         // «Collection Date» اللى الشاشة بتعرضه بعد الاختيار، بشرط يكون نفس اليوم؛
         // غير كده بنسجّل اليوم الساعة 00:00 (والـlabel بيتبعت زى ما هو فبيبان إنه يوم بس).
-        let measuredAt = "";
-        if (hp) {
-          if (hp.time) measuredAt = hp.date + " " + hp.time;
-          else {
-            const cd = readRowValue("Collection Date") || "";
-            const cm = cd.match(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-            measuredAt = cm && cm[1] === hp.date
-              ? cm[1] + " " + String(cm[2]).padStart(2, "0") + ":" + cm[3] + ":" + (cm[4] || "00")
-              : hp.date + " 00:00:00";
-          }
-        }
+        const measuredAt = hp ? noRealMeasuredAt(hp) : "";
         const pending = {
           lineId: CURRENT_LINE_ID, t: Date.now(), measuredAt,
           histLabel: hp ? hp.label : "", histRealtime: !!(hp && hp.realtime),

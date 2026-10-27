@@ -24,7 +24,7 @@ test("the script reads the status and keeps an early copy of it", () => {
   assert.match(script, /if \(po\) earlyPo = po;/);
   assert.match(script, /const po = findProfileOptimizationStatus\(\) \|\| earlyPo;/);
   // وحتى فى الحالات الخاصة (خارج الخدمة/104…) بيتسجّل لو الشاشة عرضته
-  assert.match(script, /saveResult\(CURRENT_LINE_ID, score, "", "", "-", findProfileOptimizationStatus\(\) \|\| earlyPo\)/);
+  assert.match(script, /saveResult\(CURRENT_LINE_ID, score, "", "", "-", findProfileOptimizationStatus\(\) \|\| earlyPo, extra\)/);
 });
 
 test("the status never breaks the CSV: one line, no semicolons, and a matching column", () => {
@@ -53,4 +53,15 @@ test("the script sends it and the server stores it", () => {
 test("the new column exists in both the schema and ensureSchema (قاعدة #8)", () => {
   assert.match(schema, /poStatus: text\("po_status"\)/);
   assert.match(db, /ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS po_status text/);
+});
+
+// المالك ٢٠٢٦-١٠-٢٧: «قياس بدون Real» على خط طلع 103 اتسجّل بتاريخ النهاردة مش تاريخ History Check
+test("noreal special state (103/101/105) still takes the History Check date", () => {
+  assert.match(script, /@version\s+10\.28\.0/);
+  const fn = script.slice(script.indexOf("function handleSpecialAndClose("), script.indexOf("function handleSpecialAndClose(") + 2200);
+  assert.match(fn, /if \(!NOREAL\) \{ finish\(\); return; \}/);
+  assert.match(fn, /const h = findHistoryCheck\(\);/);
+  assert.match(fn, /finish\(hp \? \{ measuredAt: noRealMeasuredAt\(hp\), histLabel: hp\.label, histRealtime: hp\.realtime \} : undefined\)/);
+  assert.match(script, /function noRealMeasuredAt\(hp\) \{/);
+  assert.match(script, /const measuredAt = hp \? noRealMeasuredAt\(hp\) : "";/);
 });
