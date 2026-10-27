@@ -3874,6 +3874,7 @@ export async function registerRoutes(
   // مصدرين: الفحص الدورى كل ٥ دقايق، ونبضة جهاز التنفيذ نفسها (أول ما يتفعّل
   // بيوقّظ السيرفر والنبضة بتنادى الدالة دى فوراً).
   const AUTO_BATCH_HOUR = 9;              // ٩ صباحاً بتوقيت القاهرة
+  const AUTO_INTENT_BY = "تلقائى";         // «بواسطة» للقياس/الإيقاف اللى عمله الباتش اليومى
   // آخر قياس من كام يوم: إعداد «أيام قياس ٩ الصبح» (readMeasureStaleDays، الافتراضى ١ — المالك
   // ٢٠٢٦-١٠-١٢). كانت ٢ ثابتة، و٤ لحد ٢٠٢٦-٠٩-٢٨، و٨ ثم ١٠ قبلها.
   // باتش القياس اليومى «بدون Real» (قرار المالك ٢٠٢٦-٠٩-٢٣): العلامة دى فى note
@@ -3894,6 +3895,14 @@ export async function registerRoutes(
     await pool.query(
       `INSERT INTO exec_jobs (type, accounts, requested_by, note, priority, batch_id, site, requested_from)
        VALUES ${values}`, params);
+    // «بواسطة» بيتاخد من op_intents (آخر حد طلب العملية دى للرقم) — والباتش التلقائى ماكانش بيسجّل
+    // نيّة، فإيقاف ٩ الصبح كان بيتختم باسم آخر فنى طلب إيقاف للرقم ولو من أسابيع (المالك ٢٠٢٦-١٠-٢٧:
+    // «إزاى إسلام عامل إيقاف على خطوط العزايزة يوم ٢٤-١٠؟»). دلوقتى بيتختم «تلقائى».
+    await pool.query(
+      `INSERT INTO op_intents (account, op_type, username, created_at)
+       SELECT a, $2, $3, now() FROM unnest($1::text[]) AS a
+       ON CONFLICT (account, op_type) DO UPDATE SET username = EXCLUDED.username, created_at = now()`,
+      [[...new Set(accounts)], type, AUTO_INTENT_BY]);
     return { count: accounts.length, batchId };
   };
 

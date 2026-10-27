@@ -215,3 +215,13 @@ test("phone lookup: op wait is per account, not for the whole page", () => {
   assert.match(ui, /if \(!tok\.cancelled && shownAccRef\.current === account\) setSearchSeq/);
   assert.doesNotMatch(ui, /setAwaitingOp\(/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٧: «إزاى إسلام عامل إيقاف على خطوط العزايزة يوم ٢٤-١٠؟» — إيقاف ٩ الصبح التلقائى
+// كان بيتختم باسم آخر حد طلب إيقاف للرقم (op_intents من غير تاريخ صلاحية)
+test("daily auto batch stamps its own intent so results don't inherit a stale name", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const fn = routes.slice(routes.indexOf("const enqueueAutoBatch = async"), routes.indexOf("const enqueueAutoBatch = async") + 2200);
+  assert.match(routes, /const AUTO_INTENT_BY = "تلقائى";/);
+  assert.match(fn, /INSERT INTO op_intents \(account, op_type, username, created_at\)\s*\n\s*SELECT a, \$2, \$3, now\(\) FROM unnest\(\$1::text\[\]\) AS a/);
+  assert.match(fn, /\[\[\.\.\.new Set\(accounts\)\], type, AUTO_INTENT_BY\]/);
+});
