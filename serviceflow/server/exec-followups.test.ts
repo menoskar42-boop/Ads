@@ -140,7 +140,7 @@ test("the stop is recorded with its outcome: stopped (was Nightly) or already (w
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
   const calls = [...src.matchAll(/postPoEvent\(CURRENT, "stop"(?:, "(\w+)")?\)/g)].map((m) => m[1]);
-  assert.deepEqual(calls.sort(), ["already", "already", "stopped"], "كل إيقاف بيبعت نتيجته");
+  assert.deepEqual(calls.sort(), ["already", "already", "stopped", "stopped"], "كل إيقاف بيبعت نتيجته");
   // «stopped» بس بعد ما الحالة ترجع Not Started عقب Yes على Stop Nightly PO
   const after = src.slice(src.indexOf('if (phase === "await-not-started")'));
   assert.match(after.slice(0, 400), /postPoEvent\(CURRENT, "stop", "stopped"\)/);
@@ -236,4 +236,18 @@ test("result stamps come from the claimed queue job (auto ⇒ تلقائى), op_
   assert.match(routes, /measuredBy = await execRequesterOf\(accountNo, "measure"\);/);
   assert.match(routes, /const by = await execRequesterOf\(acc, ev as "raise" \| "stop"\);/);
   assert.doesNotMatch(routes, /op_type = 'measure'`, \[accountNo\]/);
+});
+
+// المالك ٢٠٢٦-١٠-٢٧: «مش بيحصل إيقاف» — الإيقاف بعد الانتظار كان بيدوس Yes على صفحة مش نضيفة
+test("PO v0.9.12: reload before a stop that waited, verify after Yes, count a reloaded Not Started as stopped", () => {
+  const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
+  assert.match(po, /@version\s+0\.9\.12/);
+  const wait = po.slice(po.indexOf('if (phase === "wait-rt-then-stop")'), po.indexOf('if (phase === "confirm-stop")'));
+  assert.match(wait, /if \(\/nightly\/i\.test\(status\)\) \{ reloadPoPage\(/);
+  assert.doesNotMatch(wait, /selectAction\(RE_STOP\)/);
+  assert.match(po, /if \(MODE === "stop"\) markStopSent\(\); phase = "await-not-started"; awaitSince = Date\.now\(\);/);
+  assert.match(po, /MODE === "stop" && awaitSince && Date\.now\(\) - awaitSince > AWAIT_STOP_RELOAD_MS/);
+  assert.match(po, /if \(stopTries\(\) > 0\) \{ postPoEvent\(CURRENT, "stop", "stopped"\);/);
+  assert.match(po, /MODE === "stop" && stopTries\(\) >= MAX_STOP_TRIES/);
+  assert.match(po, /function advance\(\) \{\s*\n\s*clearStopSent\(\);/);
 });

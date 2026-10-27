@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DZS Profile Optimization (رفع السرعة) — Service-Flow
 // @namespace    service-flow.dzs.po
-// @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. v0.9.11: «إيقاف PO» بيبعت نتيجته مع التاريخ — «stopped» لو الخط كان In Nightly PO واتوقف، و«already» لو كان Not Started فماكانش فيه حاجة توقّف — وService-Flow بيكتبها جنب «آخر إيقاف PO». v0.9.10: «إيقاف PO» بعد رفع السرعة (المهمة المجدولة بعد ٧ دقايق) كان بيلاقى حالة تانية غير Nightly/Not Started (الرفع لسه بيخلص) فيتخطّى الرقم من غير ما يوقّف ولا يسجّل — دلوقتى فى وضع الإيقاف بيستنى لحد ما الحالة تبقى Nightly (فيوقّفه) أو Not Started (فيسجّل)، ومابيتخطّاش. v0.9.9: «إيقاف PO» ممكن يشتغل فى أكتر من تاب مع بعض (sf_lane=2،3…) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2…) وعلامة PO_TAB فى sessionStorage بتوقّف سكربت القياس فى التاب ده؛ العدد بيتحدّد من «رفع الملفات ← إعدادات» فى Service-Flow. التاب الأول من غير لاحقة زى v0.9.8 بالظبط. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
-// @version      0.9.11
+// @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. v0.9.12: «إيقاف PO» بعد الانتظار (الحالة اتغيّرت لـ In Nightly PO والصفحة مفتوحة من بدرى) بيحمّل الصفحة من جديد قبل الإيقاف — كان بيدوس Yes على دروب ليست مش نضيفة ومفيش إيقاف بيحصل. وبعد Yes لو الحالة مارجعتش Not Started فى دقيقة ونص بيحمّل الصفحة ويتأكد: Not Started ⇒ «تم الإيقاف»، لسه Nightly ⇒ يعيد الإيقاف (لحد ٣ مرات). v0.9.11: «إيقاف PO» بيبعت نتيجته مع التاريخ — «stopped» لو الخط كان In Nightly PO واتوقف، و«already» لو كان Not Started فماكانش فيه حاجة توقّف — وService-Flow بيكتبها جنب «آخر إيقاف PO». v0.9.10: «إيقاف PO» بعد رفع السرعة (المهمة المجدولة بعد ٧ دقايق) كان بيلاقى حالة تانية غير Nightly/Not Started (الرفع لسه بيخلص) فيتخطّى الرقم من غير ما يوقّف ولا يسجّل — دلوقتى فى وضع الإيقاف بيستنى لحد ما الحالة تبقى Nightly (فيوقّفه) أو Not Started (فيسجّل)، ومابيتخطّاش. v0.9.9: «إيقاف PO» ممكن يشتغل فى أكتر من تاب مع بعض (sf_lane=2،3…) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2…) وعلامة PO_TAB فى sessionStorage بتوقّف سكربت القياس فى التاب ده؛ العدد بيتحدّد من «رفع الملفات ← إعدادات» فى Service-Flow. التاب الأول من غير لاحقة زى v0.9.8 بالظبط. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
+// @version      0.9.12
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
 // @connect      sf-menoskar42.replit.app
@@ -281,8 +281,19 @@
   let phase = "init"; // init → [confirm-stop → await-not-started → init] → confirm-start → started
   let dialogShown = false;
   const startedAt = Date.now();
+  // v0.9.12: «إيقاف PO» اتبعت للرقم ده (Yes) — بيعيش بعد إعادة تحميل الصفحة (sessionStorage خاص بالتاب).
+  // «رقم|عدد المحاولات». لو الصفحة اتحمّلت تانى ولقت Not Started ⇒ «تم الإيقاف» (مش «لم يتم»).
+  const STOP_SENT_KEY = K("PO_STOP_SENT");
+  const MAX_STOP_TRIES = 3;
+  const AWAIT_STOP_RELOAD_MS = 90 * 1000; // بعد Yes بدقيقة ونص من غير Not Started ⇒ نحمّل الصفحة ونشوف
+  const stopTries = () => { try { const [a, n] = String(sessionStorage.getItem(STOP_SENT_KEY) || "").split("|"); return a === String(CURRENT) ? (parseInt(n, 10) || 0) : 0; } catch (e) { return 0; } };
+  const markStopSent = () => { try { sessionStorage.setItem(STOP_SENT_KEY, CURRENT + "|" + (stopTries() + 1)); } catch (e) {} };
+  const clearStopSent = () => { try { sessionStorage.removeItem(STOP_SENT_KEY); } catch (e) {} };
+  const reloadPoPage = (msg) => { banner(msg, "#1565c0"); clearInterval(tick); setTimeout(() => { location.href = PO_URL + encodeURIComponent(CURRENT); }, 1500); };
+  let awaitSince = 0;
 
   function advance() {
+    clearStopSent();
     setIndex(idx + 1);
     if (idx + 1 >= ACCOUNTS.length) {
       localStorage.removeItem(PO_ACTIVE_KEY);
@@ -339,10 +350,20 @@
         }
       } else if (/not\s*started/i.test(status)) {
         // وضع الإيقاف فقط: مفيش nightly شغّال → مفيش حاجة نعملها، عدّى
-        if (MODE === "stop") { postPoEvent(CURRENT, "stop", "already"); banner("ℹ️ " + CURRENT + " أصلاً Not Started — اتسجّل التاريخ و«لم يتم الإيقاف».", "#607d8b"); clearInterval(tick); setTimeout(advance, 1200); return; }
+        if (MODE === "stop") {
+          // v0.9.12: لو إحنا اللى بعتنا الإيقاف قبل إعادة التحميل ⇒ ده إيقاف اتعمل فعلاً
+          if (stopTries() > 0) { postPoEvent(CURRENT, "stop", "stopped"); banner("✅ اتوقف الـ PO للرقم " + CURRENT + " فعلاً — اتسجّل «تم الإيقاف» — التالى.", "#2e7d32"); }
+          else { postPoEvent(CURRENT, "stop", "already"); banner("ℹ️ " + CURRENT + " أصلاً Not Started — اتسجّل التاريخ و«لم يتم الإيقاف».", "#607d8b"); }
+          clearInterval(tick); setTimeout(advance, 1200); return;
+        }
         // ابدأ Start Realtime PO
         if (selectAction(RE_START)) { phase = "confirm-start"; dialogShown = false; banner("▶️ Start Realtime PO…", "#1565c0"); }
       } else if (/nightly/i.test(status)) {
+        // v0.9.12: بعتنا الإيقاف ٣ مرات والحالة لسه Nightly ⇒ نعدّى من غير تسجيل (السيرفر بيعيد الإيقاف بعد ١٠ دقايق)
+        if (MODE === "stop" && stopTries() >= MAX_STOP_TRIES) {
+          banner("⛔ الإيقاف ماتمّش للرقم " + CURRENT + " بعد " + MAX_STOP_TRIES + " محاولات — للتالى.", "#c62828");
+          clearInterval(tick); setTimeout(advance, 1500); return;
+        }
         // «In Nightly PO» → لازم نوقف الـ nightly PO الأول ثم نبدأ
         if (selectAction(RE_STOP)) { phase = "confirm-stop"; dialogShown = false; banner("⛔ إيقاف الـ Nightly PO أولاً…", "#ef6c00"); }
       } else if (status) {
@@ -364,7 +385,10 @@
     if (phase === "wait-rt-then-stop") {
       const mins = Math.floor((Date.now() - startedAt) / 60000);
       banner("⏳ " + (status || "Real-time PO") + " للرقم " + CURRENT + " (" + mins + " دق) — استنى يخلّص للإيقاف…", "#1565c0");
-      if (/nightly/i.test(status)) { if (selectAction(RE_STOP)) { phase = "confirm-stop"; dialogShown = false; banner("⛔ خلّص — إيقاف الـ Nightly PO…", "#ef6c00"); } }
+      // v0.9.12: الحالة اتغيّرت والصفحة لسه نفس التحميل القديم — دروب ليست «Choose Action» بتفضل مش نضيفة
+      // (نفس سبب إعادة التحميل بعد الإيقاف فى الوضع الكامل)، فالـ Yes كان بيتداس ومفيش إيقاف بيحصل.
+      // دلوقتى بنحمّل الصفحة من جديد والإيقاف بيتعمل من أول (init) على صفحة نضيفة.
+      if (/nightly/i.test(status)) { reloadPoPage("↻ خلّص وبقى In Nightly PO — إعادة تحميل الصفحة عشان الإيقاف…"); return; }
       else if (/not\s*started/i.test(status)) { postPoEvent(CURRENT, "stop", "already"); banner("ℹ️ خلّص من غير Nightly (Not Started) — اتسجّل التاريخ و«لم يتم الإيقاف».", "#607d8b"); clearInterval(tick); setTimeout(advance, 1200); }
       return;
     }
@@ -374,7 +398,7 @@
       const dlg = /confirm\s*action|stop\s*nightly\s*po|are\s*you\s*sure/i.test(txt());
       // ⚠️ مانسجّلش «إيقاف PO» هنا (وقت طلب الإيقاف/ضغط Yes) — نسجّله بس لما الحالة ترجع Not Started
       // فعلاً (فى await-not-started) عشان جهاز التنفيذ مايعلّمهاش «تم» قبل ما الإيقاف يخلّص فعلياً.
-      if (dlg) { dialogShown = true; if (confirmDialogYes(false)) { phase = "await-not-started"; banner("⏳ جارٍ الإيقاف — استنى ترجع Not Started…", "#ef6c00"); } }
+      if (dlg) { dialogShown = true; if (confirmDialogYes(false)) { if (MODE === "stop") markStopSent(); phase = "await-not-started"; awaitSince = Date.now(); banner("⏳ جارٍ الإيقاف — استنى ترجع Not Started…", "#ef6c00"); } }
       else if (!dialogShown) selectAction(RE_STOP);
       return;
     }
@@ -389,6 +413,13 @@
         banner("↻ اتوقف الـ Nightly — إعادة تحميل للبدء برفع السرعة…", "#1565c0");
         clearInterval(tick);
         setTimeout(() => { location.href = PO_URL + encodeURIComponent(CURRENT); }, 1500);
+        return;
+      }
+      // v0.9.12 (وضع الإيقاف): عدّت دقيقة ونص من غير Not Started ⇒ نحمّل الصفحة ونشوف الحالة الحقيقية:
+      // Not Started ⇒ «تم الإيقاف» · لسه Nightly ⇒ نعيد الإيقاف (لحد ٣ مرات). قبل كده كان بيفضل مستنى
+      // لحد مهلة الـ١٠ دقايق والإيقاف ماحصلش أصلاً.
+      if (MODE === "stop" && awaitSince && Date.now() - awaitSince > AWAIT_STOP_RELOAD_MS) {
+        reloadPoPage("↻ الحالة مارجعتش Not Started — إعادة تحميل الصفحة للتأكد من الإيقاف…");
       }
       return;
     }
