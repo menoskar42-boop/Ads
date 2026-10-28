@@ -208,6 +208,11 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   وبعدها نقرّر ننقل الكتاب المقدس فين — **المالك عايز سيرفر Oracle A1 يفضل لـService Flow بس**
   (البديل المقترح: سيرفر Oracle Micro منفصل). الصفحة: https://claude.ai/artifact/GYC78sfow3CgJQMzLRb2Pf.
   **Trigger:** «ابعتلي برومبت استهلاك Supabase».
+  **النتيجة:** 9.49 جيجا (الحد 5) **كلها من مشروع clinicalflow عن طريق Shared Pooler** — حوالى ٢ جيجا
+  فى اليوم حتى بعد تعديلات ٢٥ أكتوبر. clinicalflow غالباً القاعدة المشتركة (`ADS_DATABASE_URL`: موقع
+  OscarDevs كله + schema `mybible`). **البرومبت ٢** فى نفس الملف = ٤ استعلامات قراية بس على
+  `pg_stat_statements` وحجم كل schema، صفحته: https://claude.ai/artifact/T5m18EvWE24hFwYEnW8CT1.
+  **Trigger:** «ابعتلي برومبت أتقل استعلامات Supabase».
 - `docs/ORACLE_DB_SETUP_PROMPT.md` — **برومبت الإكستنشن لقاعدة Service Flow على Oracle Cloud
   المجانى** (٢٠٢٦-١٠-٢٠). عدّاد `/api/admin/db-wake` أثبت إن قاعدة ريبليت صاحية طول ما الطابور
   شغّال (٦٫٣ من ٦٫٥ ساعة) = حوالى ٤٥ دولار فى الشهر. الحل: سيرفر Ampere A1 (Always Free: نواتين
