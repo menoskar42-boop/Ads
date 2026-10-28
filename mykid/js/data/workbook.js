@@ -358,13 +358,14 @@ export const WB_LOCKED_IDS = WB_UNITS.filter((u) => u.afterNumbers).flatMap((u) 
 /** الجمع والساعة والمراجعة مفتوحين؟ (كل صفحات الأرقام خلصت) — `done` = Store.workbookDone. */
 export const afterNumbersOpen = (done) => WB_NUMBER_PAGE_IDS.every((id) => done && done[id]);
 /** الجمع على قدّ الأرقام اللى خلصت (المالك ٢٠٢٦-١٠-٢٨: «لو ٤ عليها نجمة يبقى الجمع من ١ لـ٤
- *  لكن مفيش ٥ أو أكتر»): أكبر رقم خلصت صفحته هو وكل اللى قبله. ٠ لو رقم ١ لسه. */
+ *  لكن مفيش ٥ أو أكتر»، و«لو ٣ خلصانة يبقى ١ و٢ و٣ يدخلوا حتى لو ١ و٢ مش عليهم نجمة»):
+ *  أكبر رقم عليه نجمة — والأصغر منه داخلين كلهم. ٠ لو مفيش رقم خلص. */
 export function addMaxOf(done) {
   let m = 0;
-  while (m < 10 && done && done[String(m + 1)]) m++;
+  for (let v = 1; v <= 10; v++) if (done && done[String(v)]) m = v;
   return m;
 }
-/** الجمع بيفتح من أول ما رقم ١ و٢ يخلصوا (أصغر جمع ١ + ١ = ٢). */
+/** الجمع بيفتح من أول ما رقم ٢ أو أكبر يخلص (أصغر جمع ١ + ١ = ٢). */
 export const ADD_MIN = 2;
 export const addOpen = (done) => addMaxOf(done) >= ADD_MIN;
 

@@ -309,7 +309,11 @@ test("addition opens with 1 and 2 and never goes past the starred numbers", () =
   assert.equal(addOpen({ 1: 1 }), false);
   assert.equal(addOpen({ 1: 1, 2: 1 }), true);
   assert.equal(addMaxOf({ 1: 1, 2: 1, 3: 1, 4: 1 }), 4);
-  assert.equal(addMaxOf({ 1: 1, 2: 1, 3: 1, 4: 1, 6: 1 }), 4, "لازم يبقوا ورا بعض");
+  // «لو ٣ خلصانة يبقى ١ و٢ و٣ يدخلوا حتى لو ١ و٢ مش عليهم نجمة»
+  assert.equal(addMaxOf({ 3: 1 }), 3);
+  assert.equal(addOpen({ 3: 1 }), true);
+  assert.equal(addMaxOf({ 1: 1, 2: 1, 3: 1, 4: 1, 6: 1 }), 6, "أكبر رقم عليه نجمة");
+  assert.equal(addMaxOf({ 0: 1, lines: 1, c0: 1 }), 0, "الصفر والصفحات التانية مالهمش دعوة");
   for (const top of [2, 3, 4, 5, 8, 10]) {
     for (let i = 0; i < 300; i++) {
       for (const s of addPage(seeded(i * 31 + top), top)) {
