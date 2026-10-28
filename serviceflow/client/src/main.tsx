@@ -4,6 +4,7 @@ import "./index.css";
 import { BASE, withBase } from "./lib/base-path";
 import { installExcelSafeCopy } from "./lib/excel-safe-copy";
 import { installPrintWindowIcon } from "./lib/print-window-icon";
+import { installArrowScroll } from "./lib/arrow-scroll";
 
 // ⚠️ لازم قبل أى نداء: التطبيق فيه ٢٤٤ نداء مكتوب فيهم "/api/..." بمسار مطلق،
 // وتعديلهم واحد واحد مخاطرة بلا داعى. اللفّة دى بتحطّ مسار الجذر على أى مسار
@@ -24,5 +25,8 @@ installExcelSafeCopy();
 
 // نوافذ الطباعة/PDF كانت بتطلع بلوجو أوسكار ديفز (أيقونة جذر الدومين) — شوف lib/print-window-icon.ts
 installPrintWindowIcon();
+
+// أسهم الكيبورد يمين/شمال بتحرّك الجدول العريض (التقارير) — شوف lib/arrow-scroll.ts
+installArrowScroll();
 
 createRoot(document.getElementById("root")!).render(<App />);
