@@ -1670,30 +1670,27 @@ export function registerGroupRoutes(app: Express) {
       const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, req.params.code.toUpperCase()));
       if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
 
-      const logs = await db.select().from(groupReadingLogs)
-        .where(eq(groupReadingLogs.groupId, group.id));
-
-      const memberStats: Record<string, { chaptersReadCount: number; lastReadingDate: string; totalReadingTimeMinutes: number }> = {};
-      const seenChapters = new Set<string>();
-      for (const log of logs) {
-        if (!memberStats[log.userName]) {
-          memberStats[log.userName] = { chaptersReadCount: 0, lastReadingDate: '', totalReadingTimeMinutes: 0 };
-        }
-        const chapterKey = `${log.userName}|${log.book}|${log.chapter}`;
-        if (!seenChapters.has(chapterKey)) {
-          seenChapters.add(chapterKey);
-          memberStats[log.userName].chaptersReadCount++;
-        }
-        memberStats[log.userName].totalReadingTimeMinutes += Math.round((log.timeSpent || 0) / 60);
-        if (log.date > memberStats[log.userName].lastReadingDate) {
-          memberStats[log.userName].lastReadingDate = log.date;
-        }
-      }
-
-      const leaderboard = Object.entries(memberStats)
-        .map(([userName, stats]) => ({ userName, ...stats }))
-        .sort((a, b) => b.chaptersReadCount - a.chaptersReadCount)
-        .slice(0, 10);
+      // الحساب جوّه القاعدة (Supabase ٢٠٢٦-١٠-٢٨): كان بيسحب سجل الجروب كله (~٤٨ ألف صف لدرس
+      // مار مرقس) مع كل فتح للصفحة — أكبر سبب لاستهلاك الـEgress (٥٠٨ مليون صف). دلوقتى ١٠ صفوف،
+      // ونفس الأرقام: إصحاحات مختلفة · مجموع الدقايق (كل قراية متقرّبة لوحدها) · آخر يوم.
+      const { rows: top } = await pool.query(
+        `SELECT user_name,
+                COUNT(DISTINCT book || '|' || chapter::text)::int AS chapters,
+                COALESCE(SUM(ROUND(COALESCE(time_spent, 0) / 60.0)), 0)::int AS minutes,
+                MAX(date COLLATE "C") AS last_date
+           FROM group_reading_logs
+          WHERE group_id = $1
+          GROUP BY user_name
+          ORDER BY chapters DESC
+          LIMIT 10`,
+        [group.id]
+      );
+      const leaderboard = top.map((r: any) => ({
+        userName: r.user_name,
+        chaptersReadCount: Number(r.chapters) || 0,
+        lastReadingDate: r.last_date || '',
+        totalReadingTimeMinutes: Number(r.minutes) || 0,
+      }));
 
       res.json({ leaderboard });
     } catch (err) {
@@ -1946,9 +1943,9 @@ export function registerGroupRoutes(app: Express) {
       const activeMission = missions[0] || null;
 
       if (activeMission) {
-        const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
-        const logs = await db.select().from(groupReadingLogs)
-          .where(eq(groupReadingLogs.groupId, group.id));
+        // أسامى الأعضاء بس، وعدّ قرايات المهمة جوّه القاعدة — كان بيسحب كل الأعمدة لكل الأعضاء
+        // وسجل القراية كله للجروب (Supabase ٢٠٢٦-١٠-٢٨). نفس العدّ: كل قراية للسفر ده فى المدى.
+        const members = await db.select({ userName: groupMembers.userName }).from(groupMembers).where(eq(groupMembers.groupId, group.id));
 
         const missionChapters = new Set<string>();
         for (let ch = activeMission.startChapter; ch <= activeMission.endChapter; ch++) {
@@ -1959,11 +1956,15 @@ export function registerGroupRoutes(app: Express) {
         const memberProgress: Record<string, number> = {};
         for (const m of members) { memberProgress[m.userName] = 0; }
 
-        for (const log of logs) {
-          const key = `${log.book}-${log.chapter}`;
-          if (missionChapters.has(key) && memberProgress[log.userName] !== undefined) {
-            memberProgress[log.userName]++;
-          }
+        const { rows: counts } = await pool.query(
+          `SELECT user_name, COUNT(*)::int AS n
+             FROM group_reading_logs
+            WHERE group_id = $1 AND book = $2 AND chapter BETWEEN $3 AND $4
+            GROUP BY user_name`,
+          [group.id, activeMission.bookName, activeMission.startChapter, activeMission.endChapter]
+        );
+        for (const r of counts as any[]) {
+          if (memberProgress[r.user_name] !== undefined) memberProgress[r.user_name] = Number(r.n) || 0;
         }
 
         const completedMembers = Object.values(memberProgress).filter(c => c >= totalChapters).length;
