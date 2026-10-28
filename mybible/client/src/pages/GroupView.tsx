@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, Link, useLocation } from 'wouter';
 import { motion } from 'framer-motion';
-import { Users, BookOpen, BarChart3, MessageCircle, Settings, Check, X, Copy, Loader2, LogOut, Shield, ShieldOff, Trophy, Award, Target, Share2, AlertTriangle, ArrowRight, Clock, Plus, Eye, Trash2, ChevronDown, ChevronUp, ScrollText, UserPlus, Link2, Zap, RotateCcw, Play, Search } from 'lucide-react';
+import { Users, BookOpen, BarChart3, MessageCircle, Settings, Check, X, Copy, Loader2, LogOut, Shield, ShieldOff, Trophy, Award, Target, Share2, AlertTriangle, ArrowRight, Clock, Plus, Eye, Trash2, ChevronDown, ChevronUp, ScrollText, UserPlus, UserX, Link2, Zap, RotateCcw, Play, Search } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { OT_BOOKS, NT_BOOKS, OT_FLAT, NT_FLAT, getAutoReadingForDate, todayStr, findFlatIndex, DEUTEROCANONICAL_BOOKS, type AutoReadingConfig } from '@/lib/group-auto-reading';
@@ -18,6 +18,7 @@ import { SEOHead } from '@/components/SEOHead';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { getUserGroupEntry, addUserGroup, removeUserGroup, memberKeyHeaders } from '@/lib/user-groups';
+import { getMinistryUser, clearMinistryUser } from '@/lib/ministry-auth';
 import { fetchBookIntro, fetchVerseTafsir, fetchChapterTafsir, getCSVFileName } from '@/lib/tafsir-csv-service';
 import { OfflineManager } from '@/components/OfflineManager';
 import { postReading, flushReadingQueue } from '@/lib/reading-queue';
@@ -1889,6 +1890,21 @@ export default function GroupView() {
     }
   };
 
+  // «مش أنا؟» (المالك ٢٠٢٦-١٠-٢٨): الموبايل بينسى العضو ده فى المجموعة دى بس — العضو وقراءاته
+  // مابيتلمسوش — وبعدين صاحب الموبايل يدخل باسمه ورقمه هو (/groups/join?switch=1 من غير ملء تلقائى).
+  const handleNotMe = async () => {
+    // الدخول تانى باسمه محتاج القاعدة — لو مش متاحة (Supabase وقف ٢٨ أكتوبر) مانخرجش حد من حسابه
+    const reachable = await fetch(`/api/groups/${groupCode}/invite-info`).then((r) => r.ok).catch(() => false);
+    if (!reachable) { toast.error('الموقع مش قادر يوصل لبيانات المجموعة دلوقتى — جرّب تانى بعد شوية'); return; }
+    if (!window.confirm(`انت مش ${userName}؟\n\nهنخرج من حساب ${userName} على الموبايل ده بس — قراءاته ورسايله مش هتتمسح.\nوبعدين ادخل باسمك انت ورقم موبايلك انت (مش رقم ${userName}).`)) return;
+    try { await fetch(`/api/groups/${groupCode}/forget-device`, { method: 'POST', credentials: 'include' }); } catch {}
+    removeUserGroup(groupCode);
+    // تسجيل دخول «متابعة القراءة» على الموبايل باسم نفس الشخص ⇒ يتشال كمان (غير كده بيملا اسمه تانى)
+    const mu = getMinistryUser();
+    if (mu && mu.name && mu.name.trim() === String(userName).trim()) clearMinistryUser();
+    navigate(`/groups/join?code=${groupCode}&switch=1`);
+  };
+
   const handleCopyInviteLink = async () => {
     const link = `${window.location.origin}/invite/${groupCode}`;
     const shareText = `انضم لمجموعة "${data?.group?.name || groupCode}" في تطبيق الكتاب المقدس رفيقي:\n${link}`;
@@ -2074,6 +2090,10 @@ export default function GroupView() {
                 سجّل اسمك
               </Button>
             )}
+            <Button size="sm" variant="ghost" className="text-xs shrink-0 h-7 px-2 text-muted-foreground" onClick={handleNotMe} data-testid="button-not-me">
+              <UserX className="w-3 h-3 ml-1" />
+              مش أنا؟
+            </Button>
           </div>
         )}
 

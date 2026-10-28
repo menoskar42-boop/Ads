@@ -285,6 +285,26 @@ export function registerGroupRoutes(app: Express) {
   });
 
   // ── الدخول الضيف (تلقائي بدون بيانات) ──────────────────────────────────
+  // «مش أنا؟» (المالك ٢٠٢٦-١٠-٢٨): موبايل واحد عليه أكتر من فرد (زهران كان بيكتب باسم وداد
+  // ويشوف قراءاتها). الموبايل بينسى عضويته فى المجموعة دى بس: بيشيل المجموعة من كوكى الضيف
+  // (HttpOnly — الصفحة ماتقدرش تمسحه)، فرابط الدعوة مايرجّعش نفس العضو تانى. مابيلمسش القاعدة:
+  // العضو وقراءاته زى ما هم، وصاحبها يرجع لهم بالدخول باسمه.
+  app.post('/api/groups/:code/forget-device', (req, res) => {
+    const code = req.params.code.toUpperCase();
+    let guestTokens: Record<string, string> = {};
+    try {
+      const match = (req.headers.cookie || '').match(/mbg_guest=([^;]+)/);
+      if (match) guestTokens = JSON.parse(decodeURIComponent(match[1]));
+    } catch {}
+    if (guestTokens && typeof guestTokens === 'object' && code in guestTokens) {
+      const { [code]: _gone, ...rest } = guestTokens;
+      res.setHeader('Set-Cookie', Object.keys(rest).length
+        ? `mbg_guest=${encodeURIComponent(JSON.stringify(rest))}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax`
+        : 'mbg_guest=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax');
+    }
+    res.json({ ok: true });
+  });
+
   app.post('/api/groups/:code/guest-join', async (req, res) => {
     try {
       const code = req.params.code.toUpperCase();

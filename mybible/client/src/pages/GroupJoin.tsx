@@ -16,9 +16,11 @@ export default function GroupJoin() {
   const user = getMinistryUser();
 
   const urlCode = new URLSearchParams(window.location.search).get('code') || '';
+  // جاى من «مش أنا؟»: من غير ملء تلقائى (الاسم والرقم المحفوظين ممكن يبقوا بتوع الشخص التانى)
+  const switching = new URLSearchParams(window.location.search).get('switch') === '1';
   const [groupCode, setGroupCode] = useState(urlCode.toUpperCase());
-  const [userName, setUserName] = useState(user?.name || '');
-  const [phone, setPhone] = useState(user?.phone || '');
+  const [userName, setUserName] = useState(switching ? '' : (user?.name || ''));
+  const [phone, setPhone] = useState(switching ? '' : (user?.phone || ''));
   const [loading, setLoading] = useState(false);
   const [pendingGroup, setPendingGroup] = useState<{ name: string } | null>(null);
 
@@ -91,6 +93,12 @@ export default function GroupJoin() {
             رجوع
           </Button>
         </div>
+
+        {switching && !pendingGroup && (
+          <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-200" data-testid="text-switch-note">
+            اكتب اسمك زى ما اتسجّلت بيه فى المجموعة، ورقم موبايلك انت — مش رقم حد تانى من البيت، عشان ماترجعش على حسابه.
+          </p>
+        )}
 
         {pendingGroup ? (
           <Card className="p-8 text-center">
