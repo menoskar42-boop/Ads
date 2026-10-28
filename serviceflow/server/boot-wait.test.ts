@@ -25,5 +25,5 @@ test("boot waits for the database instead of crashing, gives up after maxMs", as
   } finally { Date.now = realNow; }
   // بيتنادى قبل أى استعلام تانى وقت الإقلاع
   const idx = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
-  assert.ok(idx.indexOf("await waitForDatabase(") > 0 && idx.indexOf("await waitForDatabase(") < idx.indexOf("await checkDbIdentity(pool)"));
+  assert.ok(idx.indexOf("waitForDatabase(() => pool") > 0 && idx.indexOf("waitForDatabase(() => pool") < idx.indexOf("checkDbIdentity(pool)"));
 });

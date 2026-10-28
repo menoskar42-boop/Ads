@@ -96,6 +96,31 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
+/* خطوات الإقلاع فى اللوج (المالك ٢٠٢٦-١٠-٢٨): بعد نشر، Service Flow فضل «شغّال بس مش رادّ»
+ * ومحدّش عرف وقف فين — نشر تانى اشتغل والسبب ضاع. دلوقتى كل خطوة بتكتب بدايتها ونهايتها
+ * ووقتها، ولو خطوة طوّلت بتكتب كل ٣٠ ثانية إنها لسه فيها (ومعاها آخر جملة SQL لو فيه) —
+ * فاللوج بيقول مكان الوقفة حتى لو الخطوة ماخلصتش أبداً. ابحث فى اللوج عن «[boot]». */
+const BOOT_T0 = Date.now();
+const BOOT_SLOW_MS = 30_000;
+async function bootStep<T>(name: string, fn: () => Promise<T>, detail?: () => string): Promise<T> {
+  const t = Date.now();
+  console.log(`[boot] ▶ ${name}`);
+  const slow = setInterval(() => {
+    const d = detail ? detail() : "";
+    console.warn(`[boot] ⏳ لسه فى «${name}» من ${Math.round((Date.now() - t) / 1000)} ثانية${d ? ` — آخر SQL: ${d}` : ""}`);
+  }, BOOT_SLOW_MS);
+  try {
+    const r = await fn();
+    console.log(`[boot] ✓ ${name} — ${Date.now() - t}ms`);
+    return r;
+  } catch (e) {
+    console.error(`[boot] ✗ ${name} — فشلت بعد ${Date.now() - t}ms`);
+    throw e;
+  } finally {
+    clearInterval(slow);
+  }
+}
+
 (async () => {
   /* قبل أي حاجة تلمس القاعدة: هل دي قاعدتنا أصلاً؟
    *
@@ -110,8 +135,8 @@ app.get("/api/health", async (_req, res) => {
      * ٥ مرات ورا بعض فى أقل من ٣ دقايق والمستضيف بطّل يحاول — فالموقع فضل واقف لحد نشر جديد رغم إن
      * القاعدة رجعت. دلوقتى بنحاول كل ١٠ ثوانى لحد ١٠ دقايق، وأول ما تردّ بنكمّل عادى. */
     const { waitForDatabase } = await import("./boot-wait");
-    await waitForDatabase(() => pool.query("SELECT 1"));
-    const identity = await checkDbIdentity(pool);
+    await bootStep("الاتصال بالقاعدة", () => waitForDatabase(() => pool.query("SELECT 1")));
+    const identity = await bootStep("التأكد إنها قاعدة Service Flow", () => checkDbIdentity(pool));
     if (!identity.ok) {
       console.error('\n============ [WRONG DATABASE] Service Flow ============');
       console.error(identity.message);
@@ -137,21 +162,37 @@ app.get("/api/health", async (_req, res) => {
     }
   }
 
-  await ensureSchema();
+  {
+    // تجهيز الجداول = مئات الجمل؛ بنفتكر آخر واحدة اتبعتت عشان رسالة «لسه فيها» تقول أنهى جملة واقفة
+    const { pool } = await import("./db");
+    let lastSql = "";
+    const poolAny = pool as any;
+    const origQuery = poolAny.query.bind(pool);
+    poolAny.query = (...args: any[]) => {
+      const q = args[0];
+      lastSql = String(typeof q === "string" ? q : q?.text || "").replace(/\s+/g, " ").trim().slice(0, 160);
+      return origQuery(...args);
+    };
+    try {
+      await bootStep("تجهيز الجداول (ensureSchema)", () => ensureSchema(), () => lastSql);
+    } finally {
+      delete poolAny.query;
+    }
+  }
   {
     const { hasCurrentDatabase, syncCurrentCase138Snapshot } = await import("./db");
     if (hasCurrentDatabase) {
-      const synced = await syncCurrentCase138Snapshot();
+      const synced = await bootStep("مزامنة نسخة القياسات الحالية", () => syncCurrentCase138Snapshot());
       console.log(`[db-identity] current case_138 snapshot synchronized: ${synced} rows`);
     }
   }
   // إدخال سعة الكباين تلقائياً لو الجدول فاضى (يشتغل مع النشر بدون كونسول)
   const { seedCabinetCapacityIfEmpty } = await import("./seed-cabinet-capacity");
-  await seedCabinetCapacityIfEmpty();
+  await bootStep("سعة الكباين", () => seedCabinetCapacityIfEmpty());
   // إدخال بكسيات DP تلقائياً لو الجدول فاضى (من صور Network Inventory — للاختبار/التشغيل الأولى)
   const { seedDpInventoryIfEmpty } = await import("./seed-dp-inventory");
-  await seedDpInventoryIfEmpty();
-  await registerRoutes(httpServer, app);
+  await bootStep("بكسيات DP", () => seedDpInventoryIfEmpty());
+  await bootStep("تسجيل المسارات", () => registerRoutes(httpServer, app));
 
   // ركّب تطبيق الصيانة (Express+EJS) تحت /maintenance — بيتحمّل كـ CommonJS **غير مبنْدَل** عشان
   // مكتباته الأصلية (sharp/bcrypt…) و__dirname/قوالب EJS يتحلّوا وقت التشغيل. لازم قبل الـ catch-all
@@ -207,6 +248,7 @@ app.get("/api/health", async (_req, res) => {
     },
     () => {
       log(`serving on port ${port}`);
+      console.log(`[boot] ✅ Service Flow جاهز على بورت ${port} — الإقلاع خد ${Math.round((Date.now() - BOOT_T0) / 1000)} ثانية`);
     },
   );
 })().catch((err) => {
