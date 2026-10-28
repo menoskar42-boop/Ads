@@ -95,7 +95,7 @@ export function addGamePhrases({ say, mizo }) {
   for (let n = 0; n <= 20; n++) say(String(n));
   for (let n = 1; n <= 6; n++) say(`أطعمني ${n}`);
   for (const n of [5, 7, 10]) say(`اجمع ${n} نجوم`);
-  for (let a = 1; a <= 4; a++) for (let b = 1; b <= 4; b++) say(`كم يساوي ${a} زائد ${b}؟`);
+  for (let a = 1; a <= 4; a++) for (let b = 1; b <= 4; b++) { say(`كم يساوي ${a} زائد ${b}؟`); say(`What is ${a} plus ${b}?`); }
   for (let a = 2; a <= 8; a++) for (let b = 1; b < a; b++) say(`${a} ناقص ${b}، كم بقي؟`);
   for (let n = 2; n <= 9; n++) say(`نعم، ${n} أكثر`);
 

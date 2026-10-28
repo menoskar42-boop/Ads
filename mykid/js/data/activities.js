@@ -347,9 +347,16 @@ export const ACTIVITIES = {
     {
       emoji: "➕",
       title: "الجمع البسيط",
-      desc: "اجمع المجموعتين واختر الناتج",
+      desc: "اجمع المجموعتين واختر الناتج — أرقام ونطق عربى",
       screen: "addition",
-      params: {},
+      params: { lang: "ar" },
+    },
+    {
+      emoji: "➕",
+      title: "الجمع بالإنجليزى",
+      desc: "Addition — أرقام ونطق إنجليزى",
+      screen: "addition",
+      params: { lang: "en" },
     },
     {
       emoji: "➖",

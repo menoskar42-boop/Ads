@@ -282,8 +282,16 @@ export function renderCollect({ regionId, regionIndex }) {
 
 // ===== لعبة ٥: الجمع البسيط =====
 // مجموعتان من العناصر، يجمعها الطفل ويختار المجموع الصحيح من ثلاثة.
-export function renderAddition({ regionId, regionIndex }) {
-  const { screen, stage, back } = baseScreen("➕ الجمع البسيط", regionId, regionIndex);
+// lang (المالك ٢٠٢٦-١٠-٢٨: «عاوز الأرقام الإنجليزى لوحدها ونطقها إنجليزى، والعربى لوحدها والنطق
+// عربى لوحده»): "ar" = أرقام ١٢٣ ونطق عربى بس · "en" = أرقام 123 ونطق إنجليزى بس. كانت المعادلة
+// بأرقام 123 والاختيارات بأرقام ١٢٣ والنطق بالاتنين.
+const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+export const additionDigit = (n, lang) => (lang === "en" ? String(n) : String(n).replace(/\d/g, (d) => AR_DIGITS[d]));
+export const additionAsk = (a, b, lang) => (lang === "en" ? `What is ${a} plus ${b}?` : `كم يساوي ${a} زائد ${b}؟`);
+export function renderAddition({ regionId, regionIndex, lang = "ar" }) {
+  const en = lang === "en";
+  const { screen, stage, back } = baseScreen(en ? "➕ Addition" : "➕ الجمع البسيط", regionId, regionIndex);
+  const D = (n) => additionDigit(n, lang);
   const ROUNDS = 6;
   let round = 0;
 
@@ -312,9 +320,10 @@ export function renderAddition({ regionId, regionIndex }) {
 
     const ask = document.createElement("p");
     ask.style.cssText = "font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.2);font-size:clamp(18px,5vw,26px);margin:6px 0";
-    ask.textContent = `${a} ➕ ${b} = ؟`;
+    ask.dir = en ? "ltr" : "rtl";
+    ask.textContent = `${D(a)} ➕ ${D(b)} = ${en ? "?" : "؟"}`;
     stage.appendChild(ask);
-    Speech.ar(`كم يساوي ${a} زائد ${b}؟`);
+    if (en) Speech.en(additionAsk(a, b, lang)); else Speech.ar(additionAsk(a, b, lang));
 
     const opts = new Set([sum]);
     while (opts.size < 3) {
@@ -328,12 +337,12 @@ export function renderAddition({ regionId, regionIndex }) {
       const btn = document.createElement("button");
       btn.className = "choice";
       btn.style.fontWeight = "800";
-      btn.textContent = num.arDigit;
+      btn.textContent = D(val);
       btn.addEventListener("click", () => {
         if (val === sum) {
           btn.classList.add("correct");
           Sfx.correct();
-          speakBoth(num);
+          if (en) Speech.en(num.enName); else Speech.ar(num.arName);
           awardStars(1);
           setTimeout(nextRound, 1100);
         } else {
