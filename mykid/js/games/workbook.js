@@ -14,7 +14,7 @@ import { NUMBERS } from "../data/numbers.js";
 import { strokesFor, PREWRITING } from "../data/strokes.js";
 import {
   WB_COLORS, WB_AR, WB_PAGES, WB_UNITS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR,
-  WB_LOCKED_IDS, pageSteps, colorPairOf, isWriteStep, afterNumbersOpen,
+  WB_LOCKED_IDS, pageSteps, colorPairOf, isWriteStep, afterNumbersOpen, addMaxOf, addOpen,
 } from "../data/workbook.js";
 import { WB_SAY, SHOW_BELOW, fixMsg, writeIntro, ROUND_MSG } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
@@ -121,6 +121,8 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     else if (pg.type === "colors") { icon = WB_COLOR_PAIRS[pg.pair].map((k) => `<i class="wbk-pc-sw" style="background:${col(k).hex}"></i>`).join(""); label = "ألوان"; }
     else if (pg.type === "shapes") { icon = WB_SHAPE_PAIRS[pg.pair].map((k) => shapeSvg(k, "wbk-shape-mini")).join(""); label = "أشكال"; }
     else { icon = PAGE_META[pg.type].icon; label = PAGE_META[pg.type].ar; }
+    // الجمع على قدّ الأرقام اللى خلصت — الكارت بيقول لحد كام
+    if (pg.type === "add") { const m = addMaxOf(Store.workbookDone); if (m >= 2 && m < 10) label += ` لحد ${m}`; }
     return { icon, label };
   }
   const map = el("div", "wbk-map");
@@ -132,7 +134,8 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     stage.replaceChildren();
     map.replaceChildren();
     const open = afterNumbersOpen(Store.workbookDone);
-    const locked = (pg) => !open && WB_LOCKED_IDS.includes(pg.id);
+    // الجمع بيفتح مع رقم ١ و٢ (ويكبر مع كل رقم بيخلص) — الساعة والمراجعة بعد الأرقام كلها
+    const locked = (pg) => (pg.type === "add" ? !addOpen(Store.workbookDone) : !open && WB_LOCKED_IDS.includes(pg.id));
     const nextId = (WB_PAGES.find((pg) => !Store.workbookDone[pg.id] && !locked(pg)) || WB_PAGES[0]).id;
     const head = el("div", "wbk-maphead");
     head.innerHTML = `<img class="wbk-mizo" src="/assets/mizo/mizo-hi.webp" alt="" width="64" height="64">`;
@@ -148,7 +151,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       const sec = el("section", "wbk-unit");
       sec.style.setProperty("--unit", ["#ef4444", "#f59e0b", "#3b82f6", "#16a34a", "#8b5cf6", "#ec4899"][ui % 6]);
       const done = u.pages.filter((pg) => Store.workbookDone[pg.id]).length;
-      sec.appendChild(el("h3", "wbk-unit-title", `${u.afterNumbers && !open ? "🔒 " : ""}${u.title}  ${"⭐".repeat(done)}`));
+      sec.appendChild(el("h3", "wbk-unit-title", `${u.afterNumbers && u.pages.every(locked) ? "🔒 " : ""}${u.title}  ${"⭐".repeat(done)}`));
       const grid = el("div", "wbk-unit-grid");
       u.pages.forEach((pg) => {
         const { icon, label } = pageCard(pg);
@@ -157,8 +160,9 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
           if (!locked(pg)) return openPage(pg);
           // الجمع والساعة بعد الأرقام كلها: ميزو يقول كده ويشاور على الصفحة اللى عليها الدور
           flash(card, "wbk-wiggle");
-          say.textContent = fem(WB_SAY.locked);
-          Speech.ar(fem(WB_SAY.locked));
+          const msg = pg.type === "add" ? WB_SAY.lockedAdd : pg.type === "clock" ? WB_SAY.lockedClock : WB_SAY.locked;
+          say.textContent = fem(msg);
+          Speech.ar(fem(msg));
           const nx = map.querySelector(".is-next");
           if (nx) nx.scrollIntoView({ block: "center", behavior: "smooth" });
         });
@@ -181,7 +185,9 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
 
   function openPage(pg) {
     cur = pg;
-    steps = pageSteps(pg, Math.random, only); // only: تمارين بعينها (للاختبار)
+    // الجمع: النواتج لحد أكبر رقم خلص (addMaxOf) — مفيش رقم لسه مااتعلّمش
+    const pgFor = pg.type === "add" ? { ...pg, max: addMaxOf(Store.workbookDone) } : pg;
+    steps = pageSteps(pgFor, Math.random, only); // only: تمارين بعينها (للاختبار)
     idx = 0;
     res = {
       writes: [], writeFails: 0, games: {}, acts: {}, skipped: [],

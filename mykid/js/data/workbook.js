@@ -357,6 +357,16 @@ export const WB_NUMBER_PAGE_IDS = WB_PAGES.filter((p) => p.type === "number" || 
 export const WB_LOCKED_IDS = WB_UNITS.filter((u) => u.afterNumbers).flatMap((u) => u.pages.map((p) => p.id));
 /** الجمع والساعة والمراجعة مفتوحين؟ (كل صفحات الأرقام خلصت) — `done` = Store.workbookDone. */
 export const afterNumbersOpen = (done) => WB_NUMBER_PAGE_IDS.every((id) => done && done[id]);
+/** الجمع على قدّ الأرقام اللى خلصت (المالك ٢٠٢٦-١٠-٢٨: «لو ٤ عليها نجمة يبقى الجمع من ١ لـ٤
+ *  لكن مفيش ٥ أو أكتر»): أكبر رقم خلصت صفحته هو وكل اللى قبله. ٠ لو رقم ١ لسه. */
+export function addMaxOf(done) {
+  let m = 0;
+  while (m < 10 && done && done[String(m + 1)]) m++;
+  return m;
+}
+/** الجمع بيفتح من أول ما رقم ١ و٢ يخلصوا (أصغر جمع ١ + ١ = ٢). */
+export const ADD_MIN = 2;
+export const addOpen = (done) => addMaxOf(done) >= ADD_MIN;
 
 /** مناطق صورة «لوّن حسب الرقم» (كب كيك زى الكتاب): كريزة · ٣ طبقات كريمة · ٥ خطوط ورقة. */
 export const WB_PICTURE_REGIONS = 9;
@@ -421,7 +431,7 @@ export function pageSteps(page, rnd = Math.random, only = null) {
   if (page.type === "general") return generalPage(page.nums, rnd, only);
   if (page.type === "clock") return clockPage(rnd);
   if (page.type === "zero") return zeroPage(rnd);
-  if (page.type === "add") return addPage(rnd);
+  if (page.type === "add") return addPage(rnd, page.max ?? 10);
   if (page.type === "review") return reviewPage(rnd);
   return workbookPage(page.n, rnd, only);
 }
@@ -552,21 +562,26 @@ export function zeroPage(rnd = Math.random) {
 }
 
 // ===== الجمع (Addition ص ٥٩–٦٠) =====
-function addParts(rnd, rep, write, maxSum = 9) {
+function addParts(rnd, rep, write, maxSum = 9, top = 10) {
+  maxSum = Math.max(2, Math.min(maxSum, top));
   const n = 2 + Math.floor(rnd() * (maxSum - 1));
   const lo = rep === "fingers" || rep === "dots" ? Math.max(1, n - 5) : 1;
   const hi = rep === "fingers" || rep === "dots" ? Math.min(5, n - 1) : n - 1;
   const a = lo + Math.floor(rnd() * (hi - lo + 1));
-  return { kind: "parts", n, a, b: n - a, thing: pickOf(rnd, WB_THINGS), rep, write, options: shuffled(rnd, [n, ...neighbours(rnd, n, 2)]) };
+  // الاختيارات الغلط كمان من الأرقام اللى خلصت بس (لو فيه)
+  return { kind: "parts", n, a, b: n - a, thing: pickOf(rnd, WB_THINGS), rep, write, options: shuffled(rnd, [n, ...neighbours(rnd, n, 2, Math.max(n, Math.min(top, 10)))]) };
 }
-export function addPage(rnd = Math.random) {
+/** max = أكبر رقم خلص (addMaxOf) — كل ناتج من ٢ لحد max، ومفيش رقم أكبر منه فى التمرين. */
+export function addPage(rnd = Math.random, max = 10) {
+  const top = Math.max(ADD_MIN, Math.min(10, max));
+  const sum = (lo, hi) => { hi = Math.min(hi, top); lo = Math.min(lo, hi); return lo + Math.floor(rnd() * (hi - lo + 1)); };
   return [
-    hop(rnd, "add", 2 + Math.floor(rnd() * 8)),
-    addParts(rnd, "things", 2, 6),
-    addParts(rnd, "fingers", 0, 9),
-    addParts(rnd, "dots", 0, 9),
-    hop(rnd, "add", 3 + Math.floor(rnd() * 7)),
-    addParts(rnd, "vertical", 3, 9),
+    hop(rnd, "add", sum(2, 9)),
+    addParts(rnd, "things", 2, 6, top),
+    addParts(rnd, "fingers", 0, 9, top),
+    addParts(rnd, "dots", 0, 9, top),
+    hop(rnd, "add", sum(3, 9)),
+    addParts(rnd, "vertical", 3, 9, top),
   ];
 }
 

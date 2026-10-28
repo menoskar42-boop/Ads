@@ -2,7 +2,7 @@
 //   node --test mykid/tests/workbook-plan.test.mjs
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, WB_SHAPES, WB_SHAPE_PAIRS, WB_ROBOT_PARTS, WB_UNITS, WB_LINES, WB_LOCKED_IDS, WB_NUMBER_PAGE_IDS, afterNumbersOpen, colorsPage, shapesPage, pageSteps } from "../js/data/workbook.js";
+import { workbookPage, seeded, isWriteStep, WB_NUMBERS, WB_COLORS, colorPairOf, WB_AR, WB_PAGES, WB_REAL, WB_COLOR_PAIRS, WB_PICTURE_REGIONS, WB_PLAYS, WB_LAST, WB_SHAPES, WB_SHAPE_PAIRS, WB_ROBOT_PARTS, WB_UNITS, WB_LINES, WB_LOCKED_IDS, WB_NUMBER_PAGE_IDS, afterNumbersOpen, addMaxOf, addOpen, addPage, colorsPage, shapesPage, pageSteps } from "../js/data/workbook.js";
 import { strokesFor } from "../js/data/strokes.js";
 import { WB_SAY } from "../js/data/writingPhrases.js";
 import { femAdapt } from "../js/data/mizo.js";
@@ -300,4 +300,29 @@ test("المالك: الجمع والساعة بعد ما الأرقام كله�
 test("pre-writing exercises are the first Arabic activity (owner 2026-10-13)", async () => {
   const { ACTIVITIES } = await import("../js/data/activities.js");
   assert.equal(ACTIVITIES.arabic[0].params.datasetKey, "prewriting");
+});
+
+// المالك ٢٠٢٦-١٠-٢٨: «خلّى الجمع يفتح على الأرقام اللى عليها نجمة — لو ٤ عليها نجمة يبقى الجمع
+// من ١ لـ٤ لكن مفيش ٥ أو أكتر»
+test("addition opens with 1 and 2 and never goes past the starred numbers", () => {
+  assert.equal(addMaxOf({}), 0);
+  assert.equal(addOpen({ 1: 1 }), false);
+  assert.equal(addOpen({ 1: 1, 2: 1 }), true);
+  assert.equal(addMaxOf({ 1: 1, 2: 1, 3: 1, 4: 1 }), 4);
+  assert.equal(addMaxOf({ 1: 1, 2: 1, 3: 1, 4: 1, 6: 1 }), 4, "لازم يبقوا ورا بعض");
+  for (const top of [2, 3, 4, 5, 8, 10]) {
+    for (let i = 0; i < 300; i++) {
+      for (const s of addPage(seeded(i * 31 + top), top)) {
+        const nums = s.kind === "parts" ? [s.n, s.a, s.b, ...s.options] : [s.answer, s.from, s.by];
+        for (const v of nums) assert.ok(v <= top, `حد ${top}: طلع ${v} فى ${s.kind}`);
+        if (s.kind === "parts") assert.ok(s.a >= 1 && s.b >= 1 && s.a + s.b === s.n);
+      }
+    }
+  }
+  // صفحة الجمع بتاخد الحد من pageSteps
+  const add = WB_PAGES.find((p) => p.id === "add");
+  for (const s of pageSteps({ ...add, max: 3 }, seeded(5))) {
+    const nums = s.kind === "parts" ? [s.n, ...s.options] : [s.answer];
+    for (const v of nums) assert.ok(v <= 3);
+  }
 });

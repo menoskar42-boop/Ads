@@ -550,6 +550,16 @@ test("خريطة الكراسة: ٦ وحدات زى فهرس الكتاب، و«
   await page.locator('.wbk-pc[data-id="clock"]').click();
   assert.equal(await page.locator(".wbk-step-meetClock").count(), 0, "مقفولة");
   assert.match(await page.locator(".wbk-maphead .wbk-say").textContent(), /بعد ما نخلّص كل الأرقام/);
+  // الجمع بيفتح على قدّ الأرقام اللى خلصت (المالك ٢٠٢٦-١٠-٢٨): ١–٤ خلصوا ⇒ الجمع لحد ٤، والساعة لسه مقفولة
+  await page.evaluate(async () => {
+    const { Store } = await import("/js/core/storage.js");
+    for (const id of ["1", "2", "3", "4"]) Store.markWorkbookDone(id);
+    const { renderWorkbook } = await import("/js/games/workbook.js");
+    document.getElementById("app").replaceChildren(renderWorkbook({ regionId: "numbers", regionIndex: 1 }));
+  });
+  await page.waitForSelector(".wbk-map");
+  assert.equal(await page.locator(".wbk-pc.is-locked").count(), 2);
+  assert.match(await page.locator('.wbk-pc[data-id="add"]').textContent(), /الجمع لحد 4/);
   await page.evaluate(async () => {
     const { Store } = await import("/js/core/storage.js");
     for (const id of ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]) Store.markWorkbookDone(id);

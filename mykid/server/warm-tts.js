@@ -165,7 +165,7 @@ add("برافو", AR);
   });
   for (const [a, b] of WB_SHAPE_PAIRS) addAr(W.meetShapes(WB_SHAPES[a].ar, WB_SHAPES[b].ar));
   // باقى الكتاب: الخطوط · خط الأعداد · الساعة · الصفر · الجمع · المراجعة
-  [W.locked, W.oddColor, W.countKinds, W.meetClock, W.clockChoose, W.clockWrite, W.clockMatch, W.clockWrong, W.meetZero, W.writeAnswer, W.codeKey].forEach(addAr);
+  [W.locked, W.lockedAdd, W.lockedClock, W.oddColor, W.countKinds, W.meetClock, W.clockChoose, W.clockWrite, W.clockMatch, W.clockWrong, W.meetZero, W.writeAnswer, W.codeKey].forEach(addAr);
   WB_LINES.forEach((id) => addAr(W.lineSpot(PREWRITING.find((p) => p.id === id).name)));
   add(WB_AR[0], AR);
   addAr(W.find(WB_AR[0]));
