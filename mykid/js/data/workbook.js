@@ -156,9 +156,11 @@ export function workbookPage(n, rnd = Math.random, only = null) {
     stamp() {
       return { kind: "stamp", n, shape: pickOf(rnd, ["triangle", "square", "circle", "star", "heart"]), color: c2 };
     },
-    // «Count, write the number, then add dots»: يعدّ الحاجات ويحط نقطة لكل واحدة فى الشريط
+    // «Count, write the number, then add dots»: يعدّ الحاجات ويحط نقطة لكل واحدة فى الشريط.
+    // العدد = رقم الصفحة أو أقل منه — مش أكتر أبداً (المالك ٢٠٢٦-١٠-٢٨: «لو العدد بتاعنا ٣ يبقى
+    // ممكن ١-٢-٣ لكن مش أكتر من ٣»). كان رقم جنبه من الناحيتين، فصفحة ٣ كانت بتطلع ٤ و٥ كمان.
     frameFill() {
-      const k = rnd() < 0.6 ? n : neighbours(rnd, n, 1)[0];
+      const k = n > 1 && rnd() >= 0.6 ? 1 + Math.floor(rnd() * (n - 1)) : n;
       return { kind: "frameFill", count: k, thing: t6, frame: k > 5 ? 10 : 5, color: c1 };
     },
     // «Color number 1 pink and number 2 yellow» — الرقم وصورته (نقط/حاجات/صوابع) كل واحد بلونه

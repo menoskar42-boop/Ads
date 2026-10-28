@@ -87,6 +87,7 @@ test("الإجابة الصح موجودة دايماً، والمشتّتات �
     const ff = by("frameFill");
     if (ff) {
       assert.ok(ff.count >= 1 && ff.count <= ff.frame && ff.count <= 10);
+      assert.ok(ff.count <= n, `صفحة ${n}: العدد ${ff.count} أكتر من رقم الصفحة`);
       assert.equal(ff.frame, ff.count > 5 ? 10 : 5);
     }
     const rp = by("repeated");
