@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Server, Loader2, Trash2, RefreshCw, Moon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
-import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, reloadWhenReachable, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
+import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, reloadWhenReachable, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, FCC_ORIGIN, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
 import { rescueMinutes, EXEC_RUN_MINUTES } from "@shared/exec-timeouts";
 import { executorPausedNow, refreshPausedNow, saveNightPause, useNightPause, nightWindowStart, readNightPause } from "@/lib/night-pause";
 
@@ -424,6 +424,43 @@ export function ExecutorButton() {
     // المراجعة بتحتاج دخول FCC + بحث + قراءة البيانات — 3 دقايق سقف كريم للرقم الواحد
     const SUBINFO_MAX_MS = 3 * 60 * 1000;
 
+    // ── تاب مراجعة واحد للأرقام كلها (المالك ٢٠٢٦-١٠-٢٨) ─────────────────────────
+    // «الـsubinfo لما بيبقى ٣٢ رقم بيدخل كل رقم ويقفل الصفحة ويفتحها تانى ويدخل كلمة السر…
+    // عاوزين يغيّر الرقم مش لازم كل مرة يفتح صفحة جديدة، بس لو فيه تحديث FCC عاجل يقفل
+    // الصفحة ويفتح العاجل ينفّذه وبعدين نرجع نكمّل الخطوط اللى متعملتش».
+    // الطابور لسه مهمة لكل رقم (فالتحديث العاجل بياخد دوره بين رقم والتانى زى ما هو)، بس
+    // تاب FCC بيفضل مفتوح بعد الرقم، والرقم اللى بعده بيوصله برسالة: السكربت يغيّر الرقم فى
+    // خانة البحث ويدوس بحث. لو السكربت مارّدش فى ثوانى (نسخة قديمة / الصفحة بتحمّل) بنقفله
+    // ونفتح تاب جديد زى الأول. وأى مهمة FCC تانية (التحديث اليومى) بتقفله قبل ما تفتح تابها.
+    const SI_ACK_MS = 8 * 1000;
+    const SI_KEEP_IDLE_MS = 60 * 1000;   // مفيش رقم جه بعد دقيقة ⇒ نقفل التاب
+    let siWin: Window | null = null;
+    let siIdle: ReturnType<typeof setTimeout> | null = null;
+    const siWaiters = new Set<(d: any) => void>();
+    const onSiMessage = (e: MessageEvent) => {
+      if (e.origin !== FCC_ORIGIN) return;
+      const d = e.data;
+      if (!d || typeof d !== "object" || typeof d.type !== "string" || !d.type.startsWith("sf_si_")) return;
+      for (const w of Array.from(siWaiters)) w(d);
+    };
+    window.addEventListener("message", onSiMessage);
+    // بيستنى رسالة من تاب المراجعة لرقم معيّن — بيرجّع false لو المهلة خلصت
+    const siAwait = (type: string, phone: string, ms: number) => new Promise<boolean>((resolve) => {
+      const fn = (d: any) => { if (d.type === type && String(d.phone) === phone) finish(true); };
+      const t = setTimeout(() => finish(false), ms);
+      const finish = (ok: boolean) => { siWaiters.delete(fn); clearTimeout(t); resolve(ok); };
+      siWaiters.add(fn);
+    });
+    const closeSiWin = () => {
+      if (siIdle) { clearTimeout(siIdle); siIdle = null; }
+      try { if (siWin && !siWin.closed) siWin.close(); } catch {}
+      siWin = null;
+    };
+    const keepSiWin = () => {
+      if (siIdle) clearTimeout(siIdle);
+      siIdle = setTimeout(closeSiWin, SI_KEEP_IDLE_MS);
+    };
+
     // سقف زمنى لكل عملية «تفتح موقع خارجى». وجود النوع هنا معناه إنه بيتنفّذ بالمسار العام
     // (فتح التاب ← انتظار الإشارة أو قفل التاب). غيّر البورت أطول لأن الـ Submit بيدوى.
     const OP_MAX_MS: Partial<Record<ExecJobType, number>> = {
@@ -534,6 +571,8 @@ export function ExecutorButton() {
       // المستخدم بيقفله لما يخلّص يدوى)، وأثر العملية فى قاعدة البيانات إشارة إضافية بتخلّينا
       // نعدّى أسرع من غير انتظار قفل التاب. الاتنين بيحرّروا مسار الدومين للمهمة اللى بعده.
       if (OP_MAX_MS[type] != null) {
+        // التحديث اليومى على FCC: تاب المراجعة يتقفل الأول — جلستين FCC مع بعض بيعملوا LoginException
+        if (type === "fccdaily") closeSiWin();
         const key = type === "c360" ? accs.join(",") : accs[0];
         // الأنواع اللى على مستوى الموقع كله (ports) مفتاحها صورى — op-check بيتجاهله
         //
@@ -572,21 +611,33 @@ export function ExecutorButton() {
         closeWin();
         return stopped ? "stopped" : "timeout";
       }
-      // مراجعة الاسم والعنوان من FCC — رقم واحد لكل مهمة (سكربت FCC بياخد الرقم من اسم النافذة).
+      // مراجعة الاسم والعنوان من FCC — رقم واحد لكل مهمة.
       // بنستنى fetched_at يتحدّث فى line_subscriber_info كدليل إن المراجعة خلصت فعلاً.
+      // التاب بيفضل مفتوح للرقم اللى بعده (شوف «تاب مراجعة واحد» فوق).
       if (type === "subinfo") {
         const phone = accs[0];
         const before = await latestSubInfoAt(phone);
-        const win = executeBatch("subinfo", accs);
-        if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
-        const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
+        if (siIdle) { clearTimeout(siIdle); siIdle = null; }
+        let win: Window | null = null;
+        if (siWin && !siWin.closed) {
+          const acked = siAwait("sf_si_ack", phone, SI_ACK_MS);
+          try { siWin.postMessage({ type: "sf_si_next", phone }, FCC_ORIGIN); } catch {}
+          if (await acked) win = siWin; else closeSiWin();
+        }
+        if (!win) {
+          win = executeBatch("subinfo", accs, { keep: true });
+          if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
+          siWin = win;
+        }
+        const closeWin = closeSiWin;
         const deadline = Date.now() + SUBINFO_MAX_MS;
         while (!stopped && Date.now() < deadline) {
-          await sleep(JOB_POLL_MS);
+          // «خلصت الرقم» من السكربت بتصحّينا بدرى بدل ما نستنى الـ١٠ ثوانى كاملة
+          await siAwait("sf_si_done", phone, JOB_POLL_MS);
           const chk = await jobCheck(jobId);
           if (!chk.active) { closeWin(); return "canceled"; }
-          if ((await latestSubInfoAt(phone)) > before) { closeWin(); return "done"; }
-          if (win && win.closed) return "tab_closed";
+          if ((await latestSubInfoAt(phone)) > before) { keepSiWin(); return "done"; }
+          if (win.closed) { siWin = null; return "tab_closed"; }
           // تحديث ملفات FCC مستنى على نفس الدومين → اقفل صفحة المراجعة دلوقتى، والمراجعة
           // بترجع للطابور بنفس أولويتها فتكمّل أول ما التحديث يخلص.
           if (chk.preempt) { closeWin(); return "preempted"; }
@@ -956,6 +1007,8 @@ export function ExecutorButton() {
       window.removeEventListener("focus", onWake);
       window.removeEventListener("online", onWake);
       document.removeEventListener("resume", onWake as any);
+      window.removeEventListener("message", onSiMessage);
+      closeSiWin();
       stopSilentKeepAlive();
       stopWakeLock();
       stopWebLock();

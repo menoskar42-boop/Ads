@@ -126,10 +126,17 @@ function openUrl(url: string, target: string, existing?: Window | null): Window 
 
 // سكربت FCC بيقرا الرقم المطلوب من اسم النافذة (window.name = "sf_subinfo_one:<رقم>")،
 // والهاش للتوضيح بس. نفس اللى بيعمله زر «مراجعة» لما بينفّذ محلياً.
-export function openSubInfo(phone: string): Window | null {
+//
+// keep (جهاز التنفيذ بس — المالك ٢٠٢٦-١٠-٢٨): التاب مايقفلش بعد الرقم. بيفضل على شاشة
+// البحث، والرقم اللى بعده بيوصله برسالة (postMessage) فيغيّر الرقم فى خانة البحث ويدوس
+// بحث — من غير تاب جديد ولا دخول تانى. sf_si_from = أصل صفحتنا: السكربت مابيقبلش رسايل
+// إلا منه، وبيبعت عليه «خلصت الرقم».
+export const FCC_ORIGIN = "https://fcc.te.eg";
+export function openSubInfo(phone: string, opts?: { keep?: boolean }): Window | null {
   const p = String(phone ?? "").trim();
   if (!p) return null;
-  return window.open(`${FCC_URL}#sf_si=one:${encodeURIComponent(p)}`, "sf_subinfo_one:" + p);
+  const keep = opts?.keep ? `&sf_si_keep=1&sf_si_from=${encodeURIComponent(location.origin)}` : "";
+  return window.open(`${FCC_URL}#sf_si=one:${encodeURIComponent(p)}${keep}`, "sf_subinfo_one:" + p);
 }
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -416,7 +423,7 @@ export function measureTabName(lane?: number): string {
   return lane && lane > 1 ? `${DZS_MEASURE_TARGET}_${lane}` : DZS_MEASURE_TARGET;
 }
 
-export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; noReal?: boolean; lane?: number; afterStop?: boolean; params?: ExecJobParams | null }): Window | null {
+export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; noReal?: boolean; lane?: number; afterStop?: boolean; keep?: boolean; params?: ExecJobParams | null }): Window | null {
   const accs = accounts.map((a) => String(a ?? "").trim()).filter(Boolean);
   if (!accs.length) return null;
   // العمليات الجديدة: c360 بياخد كل الأرقام مرة واحدة، والباقى رقم واحد لكل مهمة.
@@ -426,7 +433,7 @@ export function executeBatch(type: ExecJobType, accounts: (string | number)[], o
   }
   // المراجعة بتتعمل رقم-رقم (سكربت FCC بياخد رقم واحد فى النافذة)، والطابور أصلاً بيقسّم
   // كل طلب لمهمة لكل رقم، فالمصفوفة هنا بتبقى رقم واحد.
-  if (type === "subinfo") return openSubInfo(accs[0]);
+  if (type === "subinfo") return openSubInfo(accs[0], { keep: opts?.keep });
   // afterStop: يرفع السرعة ثم يوقف الـ nightly الناتج فى **نفس تشغيلة PO** (مهمة واحدة، مفيش تداخل).
   // بنرجّع النافذة (كانت null) — جهاز التنفيذ محتاجها يكشف إن التاب اتقفل = خلص، ويقفله بنفسه.
   if (type === "raise") return openProfileOptimization(accs, opts?.afterStop ? { afterStop: true } : {});
