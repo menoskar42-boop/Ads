@@ -213,6 +213,9 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   OscarDevs كله + schema `mybible`). **البرومبت ٢** فى نفس الملف = ٤ استعلامات قراية بس على
   `pg_stat_statements` وحجم كل schema، صفحته: https://claude.ai/artifact/T5m18EvWE24hFwYEnW8CT1.
   **Trigger:** «ابعتلي برومبت أتقل استعلامات Supabase».
+  ✅ **السبب اتلقى واتصلّح (`60a1723`):** `/leaderboard` و`/missions` فى الكتاب المقدس كانوا بيسحبوا سجل
+  القراية كله (~٤٨ ألف صف كل مرة = ٥٠٨ مليون صف). بقوا يحسبوا جوّه القاعدة. الحارس:
+  `node scripts/check-mybible-egress.js`.
 - `docs/ORACLE_DB_SETUP_PROMPT.md` — **برومبت الإكستنشن لقاعدة Service Flow على Oracle Cloud
   المجانى** (٢٠٢٦-١٠-٢٠). عدّاد `/api/admin/db-wake` أثبت إن قاعدة ريبليت صاحية طول ما الطابور
   شغّال (٦٫٣ من ٦٫٥ ساعة) = حوالى ٤٥ دولار فى الشهر. الحل: سيرفر Ampere A1 (Always Free: نواتين

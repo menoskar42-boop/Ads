@@ -101,3 +101,15 @@ order by sum(pg_total_relation_size(format('%I.%I', table_schema, table_name))) 
   أى سرّ فى الشات.
 - لو استعلام طلع خطأ، انسخ الخطأ زى ما هو ووقّف — ماتجرّبش تعدّل الاستعلام.
 ```
+
+## نتيجة البرومبت ٢ والتصليح (٢٠٢٦-١٠-٢٨)
+
+العدّادات من ١٧ سبتمبر. أكبر سحب: `select * from group_reading_logs where group_id = $1` —
+**٥٠٨ مليون صف فى ١٠٤٤٦ نداء (~٤٨٦٢٥ صف كل مرة)**، أكتر بـ٣٠ مرة من اللى بعده
+(`group_members` كله: ١٦٫٥ مليون صف فى ١٤٢٧٦ نداء). المصدر: `/api/groups/:code/leaderboard`
+و`/missions` فى `mybible/server/group-routes.ts` — كانوا بيسحبوا سجل القراية كله ويحسبوا فى السيرفر.
+**اتصلّح (commit `60a1723`):** الحساب بقى جوّه القاعدة (ترتيب القراءة ١٠ صفوف، والمهمة عدّ لكل عضو)،
+ومتأكّد على Postgres محلى ببيانات عشوائية إن الأرقام مطابقة للقديم. الحارس:
+`node scripts/check-mybible-egress.js`. أحجام الـschemas: mybible 52MB · serviceflow 45MB ·
+mybible_runtime_test 44MB · mybible_staging 44MB · public 32MB (التلاتة الأولانيين للكتاب المقدس —
+schemas تجربة من النقل، ممكن تتمسح بعد موافقة المالك).
