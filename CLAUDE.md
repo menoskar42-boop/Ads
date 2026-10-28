@@ -202,6 +202,12 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   ريبليت بيعملها افتراضى (على Neon) — المالك ماعملش حساب Neon. وSupabase اتجرّب قبل كده وعدّى
   الـegress والـcompute المجانى فى أقل من يومين. صفحته:
   https://claude.ai/artifact/TCwrnbCyPPd77NSh94xbTb. **Trigger:** «ابعتلي برومبت حساب قاعدة ريبليت».
+- `docs/SUPABASE_EGRESS_PROMPT.md` — **برومبت الإكستنشن: استهلاك Supabase (Egress) يوم بيوم** (٢٠٢٦-١٠-٢٨،
+  قراية بس). Supabase حظر المنظّمة `oscardevs` (6.72 من 5.5 جيجا لحد ٢٤ نوفمبر)، بس الموقع لسه بيوصل
+  القاعدة مباشرة. الأرقام من ٢٦ أكتوبر بتقول تعديلات التوفير (٢٥ أكتوبر) كفاية لباقة مجانية ولا لأ،
+  وبعدها نقرّر ننقل الكتاب المقدس فين — **المالك عايز سيرفر Oracle A1 يفضل لـService Flow بس**
+  (البديل المقترح: سيرفر Oracle Micro منفصل). الصفحة: https://claude.ai/artifact/GYC78sfow3CgJQMzLRb2Pf.
+  **Trigger:** «ابعتلي برومبت استهلاك Supabase».
 - `docs/ORACLE_DB_SETUP_PROMPT.md` — **برومبت الإكستنشن لقاعدة Service Flow على Oracle Cloud
   المجانى** (٢٠٢٦-١٠-٢٠). عدّاد `/api/admin/db-wake` أثبت إن قاعدة ريبليت صاحية طول ما الطابور
   شغّال (٦٫٣ من ٦٫٥ ساعة) = حوالى ٤٥ دولار فى الشهر. الحل: سيرفر Ampere A1 (Always Free: نواتين
