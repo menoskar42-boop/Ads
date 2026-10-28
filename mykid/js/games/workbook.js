@@ -245,7 +245,8 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     return head;
   }
 
-  const sayColors = (cs, onDone) => Speech.sequence(cs.flatMap((c) => [{ text: c.ar, lang: "ar-EG" }, { text: c.en, lang: "en-US" }]), 350, onDone);
+  // الإنجليزى الأول وبعده العربى (المالك ٢٠٢٦-١٠-٢٨) — زى نطق الأرقام (sayNumber)
+  const sayColors = (cs, onDone) => Speech.sequence(cs.flatMap((c) => [{ text: c.en, lang: "en-US" }, { text: c.ar, lang: "ar-EG" }]), 350, onDone);
   const sayNumber = (v) => Speech.sequence([{ text: enName(v), lang: "en-US" }, { text: WB_AR[v], lang: "ar-EG" }]);
 
   /** سطر التعليمات: بيتكتب ويتنطق (بصيغة البنت للبنت) — وزرار 🔊 يعيده. */
