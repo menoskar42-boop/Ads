@@ -240,7 +240,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     return head;
   }
 
-  const sayColors = (cs) => Speech.sequence(cs.flatMap((c) => [{ text: c.ar, lang: "ar-EG" }, { text: c.en, lang: "en-US" }]));
+  const sayColors = (cs, onDone) => Speech.sequence(cs.flatMap((c) => [{ text: c.ar, lang: "ar-EG" }, { text: c.en, lang: "en-US" }]), 350, onDone);
   const sayNumber = (v) => Speech.sequence([{ text: enName(v), lang: "en-US" }, { text: WB_AR[v], lang: "ar-EG" }]);
 
   /** سطر التعليمات: بيتكتب ويتنطق (بصيغة البنت للبنت) — وزرار 🔊 يعيده. */
@@ -1257,11 +1257,17 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
         const c = col(k);
         const card = button("wbk-swatch", "", () => {
           Sfx.pop();
-          sayColors([c]);
           card.classList.add("seen");
           delete card.dataset.good;
           seen.add(k);
-          if (seen.size === s.colors.length) setTimeout(() => stepDone(600), 1600);
+          const last = seen.size === s.colors.length;
+          // آخر لون: الخطوة بتستنى الاسم الإنجليزى يخلص (المالك ٢٠٢٦-١٠-٢٨: «الألوان مكتوبة عربى
+          // وإنجليزى لكن بتتنطق عربى بس») — كانت بتعدّى بعد ١٫٦ ثانية فتقطع «light blue» قبل ما يتقال.
+          // سقف ٦ ثوانى لو النطق ماردّش.
+          let moved = false;
+          const go = () => { if (moved || !last) return; moved = true; stepDone(600); };
+          sayColors([c], () => setTimeout(go, 300));
+          if (last) setTimeout(go, 6000);
         });
         card.style.setProperty("--sw", c.hex);
         card.innerHTML = `<span class="wbk-drip"></span><span class="wbk-sw-things">${s.examples[k].join(" ")}</span>`

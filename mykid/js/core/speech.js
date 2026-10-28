@@ -180,10 +180,11 @@ export const Speech = {
   },
 
   /** نطق متسلسل: عناصر بالشكل {text, lang} */
-  sequence(items, gap = 350) {
+  /** onDone: بعد ما آخر جملة تخلص (لو ماحدّش قطعها) */
+  sequence(items, gap = 350, onDone = null) {
     let i = 0;
     const next = () => {
-      if (i >= items.length) return;
+      if (i >= items.length) { if (onDone) onDone(); return; }
       const item = items[i++];
       this.say(item.text, {
         lang: item.lang || "ar-EG",
