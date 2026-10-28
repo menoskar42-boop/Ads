@@ -1,6 +1,6 @@
 // ===== Service Worker: تخزين مؤقت للعمل دون اتصال =====
 // Bump this version whenever cached app code or styles change; static assets are cache-first.
-const CACHE = "safari-kids-v286";
+const CACHE = "safari-kids-v287";
 const ASSETS = [
   "/app",
   "/manifest.webmanifest",
@@ -10,6 +10,11 @@ const ASSETS = [
   "/js/app.js",
 ];
 
+// النسخة الجديدة لازم تنزّل الملفات من السيرفر نفسه، مش من كاش المتصفح (المالك ٢٠٢٦-١٠-٢٨:
+// الجمع فضل مقفول على الموبايل بعد النشر و«قفلت وفتحت كذا مرة»). من غير cache: "reload" المتصفح
+// (أو إعداد Browser Cache TTL بتاع Cloudflare) ممكن يدّى الـSW النسخة القديمة من workbook.js،
+// فيخزّنها تحت اسم الكاش الجديد ويفضل يشغّل القديم.
+const fresh = (u) => new Request(u, { cache: "reload" });
 self.addEventListener("install", (e) => {
   e.waitUntil(
     caches.open(CACHE).then(async (c) => {
@@ -19,9 +24,9 @@ self.addEventListener("install", (e) => {
         const res = await fetch("/asset-manifest.json", { cache: "no-store" });
         const data = await res.json();
         const all = [...new Set([...ASSETS, ...(data.assets || [])])];
-        await c.addAll(all);
+        await c.addAll(all.map(fresh));
       } catch (_e) {
-        await c.addAll(ASSETS).catch(() => {});
+        await c.addAll(ASSETS.map(fresh)).catch(() => {});
       }
     })
   );

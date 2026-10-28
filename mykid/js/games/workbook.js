@@ -147,6 +147,10 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     recall.style.cssText = "display:flex;justify-content:center;margin:4px 0 12px";
     recall.append(button("candy-btn", "🔗 وصّل الرقم بالصورة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "connect", lang: "num", back: "workbook" }); }));
     map.appendChild(recall);
+    // رقم النسخة اللى شغّالة على الجهاز (صغير تحت الخريطة) — عشان نعرف التحديث وصل ولا لأ
+    const ver = el("p", "wbk-ver");
+    ver.style.cssText = "text-align:center;font-size:11px;color:#9ca3af;margin:18px 0 4px";
+    try { caches.keys().then((ks) => { const k = ks.find((x) => x.startsWith("safari-kids-")); if (k) ver.textContent = "نسخة " + k.replace("safari-kids-", ""); }).catch(() => {}); } catch (_e) {}
     WB_UNITS.forEach((u, ui) => {
       const sec = el("section", "wbk-unit");
       sec.style.setProperty("--unit", ["#ef4444", "#f59e0b", "#3b82f6", "#16a34a", "#8b5cf6", "#ec4899"][ui % 6]);
@@ -177,6 +181,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       sec.appendChild(grid);
       map.appendChild(sec);
     });
+    map.appendChild(ver);
     stage.appendChild(map);
     Speech.ar(fem(WB_SAY.chooser));
     const nextCard = map.querySelector(".is-next");
