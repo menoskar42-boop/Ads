@@ -84,3 +84,15 @@ test("auto batch: after the current-faults import, lines without a mobile are qu
   assert.match(fn, /notQueuedSql\("cf\.short", \["wfmmobile"\]\)/);
   assert.match(fn, /enqueueAutoBatch\("wfmmobile", phones,/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٨: «حتى لو الرقم مش موجود فى أمر الشغل ممكن أضغط جلب أرقام الموبايل من WFM يدوى»
+test("a number WFM said is missing can still be fetched again by hand", () => {
+  // جنب «مش موجود فى أوامر الشغل» فى خانة الموبايل: «جلب تانى» للرقم ده
+  assert.match(report, /<WfmMobileMiss last=\{wfmMobileLast\[phoneLookupKey\(f\.phoneShort\)\]\} phone=\{phoneLookupKey\(f\.phoneShort\)\} \/>/);
+  assert.match(tools, /data-testid="button-wfm-mobile-retry"/);
+  assert.match(tools, /try \{ await sendWfmMobiles\(\[phone\], qc\); \}/);
+  // الزرار الكبير مابيتقفلش لو كل الأرقام اتجرّبت — بيسأل يجرّبها تانى
+  assert.match(report, /retry=\{noMobilePhones\.filter\(\(p\) => !wfmMobileTargets\.includes\(p\)\)\}/);
+  assert.match(tools, /disabled=\{\(!n && !retry\.length\) \|\| busy\}/);
+  assert.match(tools, /send = retry;/);
+});

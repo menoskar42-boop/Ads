@@ -49,39 +49,51 @@ export function useWfmMobileLast(phones: Array<string | null | undefined>, enabl
   return data ?? {};
 }
 
-/** زرار «جلب الموبايل من WFM» — بيبعت الأرقام اللى مالهاش موبايل لطابور جهاز التنفيذ. */
-export function FetchWfmMobilesButton({ phones, skipped }: { phones: string[]; skipped: number }) {
+/** يبعت الأرقام لطابور جهاز التنفيذ (أو يفتح WFM هنا لرقم واحد لو مفيش جهاز) ويحدّث الخانة. */
+async function sendWfmMobiles(phones: string[], qc: ReturnType<typeof useQueryClient>) {
+  if (await dispatchSpeedTool("wfmmobile", phones, true)) {
+    // النتايج بتوصل رقم-رقم — نحدّث الخانة كل شوية لحد ما الطابور يخلص
+    [30, 90, 180, 360].forEach((s) => setTimeout(() => {
+      qc.invalidateQueries({ queryKey: ["/api/phone-lines/mobile-lookup"] });
+      qc.invalidateQueries({ queryKey: ["/api/wfm-mobile/last"] });
+    }, s * 1000));
+    return;
+  }
+  // مفيش جهاز تنفيذ: رقم واحد يتفتح هنا، أكتر من كده لازم الطابور (رقم-رقم فى نفس التاب)
+  if (phones.length === 1) openOpSite("wfmmobile", phones[0]);
+  else alert("فعّل «جهاز التنفيذ» الأول — جلب الموبايل لكذا رقم بيتنفّذ رقم-رقم من الطابور.");
+}
+
+/** زرار «جلب الموبايل من WFM» — بيبعت الأرقام اللى مالهاش موبايل لطابور جهاز التنفيذ.
+ *  retry = الأرقام اللى اتجرّبت خلال آخر يوم ورجعت «مش موجود»/«مفيش موبايل»: مابتدخلش
+ *  تلقائى، بس لو مفيش غيرها الزرار بيفضل شغّال ويسأل يجرّبها تانى يدوى (المالك ٢٠٢٦-١٠-٢٨:
+ *  «حتى لو الرقم مش موجود فى أمر الشغل ممكن أضغط جلب أرقام الموبايل من WFM يدوى»). */
+export function FetchWfmMobilesButton({ phones, retry = [] }: { phones: string[]; retry?: string[] }) {
   const [busy, setBusy] = useState(false);
   const qc = useQueryClient();
   const n = phones.length;
   const run = async () => {
-    if (!n || busy) return;
-    const extra = skipped ? `\n(${skipped} رقم اتجرّبوا خلال آخر يوم وWFM قال مفيش موبايل — مش هيتكرّروا)` : "";
-    if (!confirm(`جلب رقم الموبايل من WFM لـ ${n} خط مالوش موبايل؟${extra}\n\nكل رقم: Work Order ← Service Id ← Cust. Mobile على جهاز التنفيذ.`)) return;
+    if (busy || (!n && !retry.length)) return;
+    let send = phones;
+    if (n) {
+      const extra = retry.length ? `\n(${retry.length} رقم اتجرّبوا خلال آخر يوم وWFM مارجّعش موبايل — مش هيتكرّروا. تقدر تجرّب أى واحد منهم بزرار «جلب تانى» جنبه)` : "";
+      if (!confirm(`جلب رقم الموبايل من WFM لـ ${n} خط مالوش موبايل؟${extra}\n\nكل رقم: Work Order ← Service Id ← Cust. Mobile على جهاز التنفيذ.`)) return;
+    } else {
+      if (!confirm(`الـ${retry.length} رقم دول اتجرّبوا خلال آخر يوم وWFM مارجّعش موبايل (مش موجود فى أوامر الشغل أو مفيش موبايل).\n\nأجرّبهم تانى دلوقتى؟`)) return;
+      send = retry;
+    }
     setBusy(true);
-    try {
-      if (await dispatchSpeedTool("wfmmobile", phones, true)) {
-        // النتايج بتوصل رقم-رقم — نحدّث الخانة كل شوية لحد ما الطابور يخلص
-        [30, 90, 180, 360].forEach((s) => setTimeout(() => {
-          qc.invalidateQueries({ queryKey: ["/api/phone-lines/mobile-lookup"] });
-          qc.invalidateQueries({ queryKey: ["/api/wfm-mobile/last"] });
-        }, s * 1000));
-        return;
-      }
-      // مفيش جهاز تنفيذ: رقم واحد يتفتح هنا، أكتر من كده لازم الطابور (رقم-رقم فى نفس التاب)
-      if (n === 1) openOpSite("wfmmobile", phones[0]);
-      else alert("فعّل «جهاز التنفيذ» الأول — جلب الموبايل لكذا رقم بيتنفّذ رقم-رقم من الطابور.");
-    } finally { setBusy(false); }
+    try { await sendWfmMobiles(send, qc); } finally { setBusy(false); }
   };
   return (
     <Button
-      variant="outline" size="sm" onClick={run} disabled={!n || busy}
+      variant="outline" size="sm" onClick={run} disabled={(!n && !retry.length) || busy}
       className="gap-1 text-indigo-700 border-indigo-200"
       title="الخطوط المعروضة اللى مالهاش رقم موبايل — يجيب «رقم الموبايل» و«تليفون بديل» من WFM (Cust. Mobile)"
       data-testid="button-fetch-wfm-mobiles"
     >
       {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}
-      جلب الموبايل من WFM ({n})
+      جلب الموبايل من WFM ({n || (retry.length ? `${retry.length} تانى` : 0)})
     </Button>
   );
 }
@@ -118,12 +130,31 @@ export function AltMobileButton({ alt, mobile }: { alt: string | null | undefine
   );
 }
 
-/** سطر صغير تحت خانة فاضية: آخر محاولة جلب ماجابتش رقم (عشان مايتجرّبش على الفاضى). */
-export function WfmMobileMiss({ last }: { last: WfmMobileLast | undefined }) {
+/** سطر صغير تحت خانة فاضية: آخر محاولة جلب ماجابتش رقم (عشان مايتجرّبش على الفاضى)،
+ *  وجنبه «جلب تانى» يدوى للرقم ده بس — حتى لو WFM قال إنه مش موجود فى أوامر الشغل. */
+export function WfmMobileMiss({ last, phone }: { last: WfmMobileLast | undefined; phone?: string }) {
+  const [busy, setBusy] = useState(false);
+  const qc = useQueryClient();
   if (!last || last.result === "done") return null;
+  const retry = async () => {
+    if (!phone || busy) return;
+    setBusy(true);
+    try { await sendWfmMobiles([phone], qc); } finally { setBusy(false); }
+  };
   return (
     <span className="block text-[10px] text-muted-foreground" title={last.message || undefined}>
       WFM: {WFM_MOBILE_AR[last.result] || last.result}
+      {phone && (
+        <button
+          type="button" onClick={retry} disabled={busy}
+          className="ms-1 inline-flex items-center gap-0.5 rounded border border-indigo-200 px-1 text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+          title="جلب الموبايل من WFM للرقم ده تانى"
+          data-testid="button-wfm-mobile-retry"
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Smartphone className="h-3 w-3" />}
+          جلب تانى
+        </button>
+      )}
     </span>
   );
 }

@@ -604,7 +604,7 @@ export function CurrentFaultsReport() {
           المتبقيات: <strong>{displayed.filter((f) => f.faultClass === "المتبقيات").length}</strong>
         </span>
         {isSuper && (
-          <FetchWfmMobilesButton phones={wfmMobileTargets} skipped={noMobilePhones.length - wfmMobileTargets.length} />
+          <FetchWfmMobilesButton phones={wfmMobileTargets} retry={noMobilePhones.filter((p) => !wfmMobileTargets.includes(p))} />
         )}
         {showSpeedTools && (<>
         <Button
@@ -774,7 +774,7 @@ export function CurrentFaultsReport() {
                               {mobile ? "تعديل" : "＋ إضافة"}
                             </button>
                           )}
-                          {isSuper && !mobile && <WfmMobileMiss last={wfmMobileLast[phoneLookupKey(f.phoneShort)]} />}
+                          {isSuper && !mobile && <WfmMobileMiss last={wfmMobileLast[phoneLookupKey(f.phoneShort)]} phone={phoneLookupKey(f.phoneShort)} />}
                         </span>
                       )}
                     </TableCell>
