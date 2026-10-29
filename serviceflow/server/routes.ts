@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { pool, currentPool, hasCurrentDatabase } from "./db";
 import { cleanWfmMobile } from "./wfm-mobile";
-import { followupFor, recheckFor, stopRetryFor, stopRetryCount, RECHECK_MARK } from "./exec-followups";
+import { followupFor, recheckFor, stopRetryFor, stopRetryCount, RECHECK_MARK, RAISE_STOP_MARK, STOP_MEASURE_MARK, STOP_RETRY_MARK } from "./exec-followups";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
@@ -18,7 +18,7 @@ import { keepBigIntegersAsText } from "./big-ids";
 import session from "express-session";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { scrypt, randomBytes, timingSafeEqual } from "crypto";
+import { scrypt, randomBytes, timingSafeEqual, createHash } from "crypto";
 import { promisify } from "util";
 import { createRequire } from "module";
 import MemoryStore from "memorystore";
@@ -2955,6 +2955,8 @@ export async function registerRoutes(
                             COALESCE(h.site, '10.42.187.101') AS site_k
                        FROM exec_jobs h
                       WHERE h.status = 'pending' AND h.paused_at IS NULL
+                        -- محجوزة لجسر Tampermonkey ⇒ الجسر هو اللى هينفّذها (لحد ما الحجز يخلص)
+                        AND (h.bridge_lease_until IS NULL OR h.bridge_lease_until < now())
                         AND COALESCE(h.site, '10.42.187.101') <> ALL($1::text[])
                         AND ($2::timestamptz IS NULL OR h.created_at <= $2::timestamptz)
                       ORDER BY COALESCE(h.site, '10.42.187.101'), COALESCE(${parallelGroup("h")}, ''), h.priority DESC,
@@ -2986,6 +2988,7 @@ export async function registerRoutes(
           const { rows } = await tx.query(
             `UPDATE exec_jobs SET status = 'claimed', claimed_at = now(), executed_by = $1
              WHERE id = $2 AND status = 'pending' AND paused_at IS NULL
+               AND (bridge_lease_until IS NULL OR bridge_lease_until < now())
                AND ${siteFreeFor("exec_jobs", "$3", lanes, "$4::timestamptz")}
              RETURNING id, type, accounts, requested_by AS "requestedBy", note, priority, site,
                        batch_id AS "batchId", params`,
@@ -3009,6 +3012,166 @@ export async function registerRoutes(
       res.json(row);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
+  // ── جسر Tampermonkey (المالك ٢٠٢٦-١٠-٢٩) ─────────────────────────────────────────────────
+  // تأمين شبكة الشركة ممكن يحظر oscardevs.com فى أى لحظة (زى ما حظر ريبليت)، وجهاز التنفيذ صفحة
+  // على الدومين ده. فسكربت «جسر Service-Flow» (serviceflow/sf-bridge.user.js) بيسحب الباتشات
+  // المؤجّلة لما السيرفر يرد، وبينفّذها على DZS حتّة حتّة حتى لو السيرفر وقع بعدها، وبيرفع النتايج
+  // من الطابور اللى فى السكربت. اتفقنا على أول نسخة:
+  //   • ياخد قياس «بدون Real» فى باتش عادى (أولوية 0) بس، ومن غير أى علامة متابعة. Real ورفع السرعة
+  //     والإيقاف والمتابعات وجلب الموبايل كلهم على جهاز التنفيذ زى ما هم (AXON بيسمح بـreal-time
+  //     واحد بس للجلسة، والمتابعات لازم تتعمل فى وقتها).
+  //   • المحجوز للجسر بيفضل pending (العدّادات والشاشات زى ما هى) بـbridge_lease_until، وجهاز
+  //     التنفيذ مابيسحبهوش لحد ما الحجز يخلص (١٢ ساعة) — يعنى لو الجسر مات الشغل بيرجع لوحده.
+  //   • قبل كل حتّة الجسر بيسأل /bridge/start، وده بيطبّق siteFreeFor نفسها: «بدون Real» بيشتغل جنب
+  //     إيقاف PO، بس مابيبدأش فوق Real/رفع سرعة ولا قبل واحد منهم مستنى قدّامه. ومهمة واحدة من
+  //     الحتّة بتتعلّم claimed (= تاب «بدون Real» واحد شغّال) والجسر بيجدّدها كل دقيقتين (/alive).
+  //   • الجسر بيدخل بمفتاح (X-Bridge-Token)، بيتعمل من صفحة Service-Flow بحساب سوبر أدمن
+  //     (/bridge/token) ومحفوظ هنا كـsha256 بس — مش كلمة سر ولا جلسة.
+  const BRIDGE_TOKEN_KEY = "bridge_token_sha256";
+  const BRIDGE_LEASE_HOURS = 12;
+  const BRIDGE_SITE = "10.42.187.101";
+  const bridgeHash = (t: string) => createHash("sha256").update(t).digest("hex");
+  let bridgeHashCache: { v: string | null; at: number } | null = null;
+  const readBridgeHash = async (): Promise<string | null> => {
+    if (bridgeHashCache && Date.now() - bridgeHashCache.at < 60_000) return bridgeHashCache.v;
+    const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = $1`, [BRIDGE_TOKEN_KEY]);
+    bridgeHashCache = { v: rows[0]?.value || null, at: Date.now() };
+    return bridgeHashCache.v;
+  };
+  const requireBridge = async (req: any, res: any, next: any) => {
+    const token = String(req.headers["x-bridge-token"] || "");
+    const saved = await readBridgeHash().catch(() => null);
+    const a = Buffer.from(bridgeHash(token)), b = Buffer.from(String(saved || ""));
+    if (!token || !saved || a.length !== b.length || !timingSafeEqual(a, b)) {
+      return res.status(401).json({ message: "مفتاح الجسر مش صحيح — فعّل الجسر تانى من صفحة Service Flow" });
+    }
+    next();
+  };
+  const bridgeDevice = (req: any) => `جسر Tampermonkey · ${String(req.body?.device || "جهاز").slice(0, 60)}`;
+  const toJobIds = (v: any): number[] =>
+    (Array.isArray(v) ? v : []).map((x: any) => parseInt(x, 10)).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 2000);
+  /** المهمة ينفع تروح للجسر: قياس «بدون Real» فى باتش عادى، من غير أى علامة متابعة. */
+  const bridgeable = (a: string) => `(${a}.type = 'measure' AND ${a}.priority = 0 AND ${isNoRealJob(a)}
+    AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
+    AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
+    AND POSITION('${RECHECK_MARK}' IN COALESCE(${a}.note, '')) = 0
+    AND POSITION('${STOP_RETRY_MARK}' IN COALESCE(${a}.note, '')) = 0)`;
+
+  // مفتاح جديد للجسر (والقديم بيبطل) — من صفحة Service-Flow بحساب سوبر أدمن
+  app.post("/api/exec-queue/bridge/token", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const token = randomBytes(24).toString("hex");
+      const by = (req.user?.fullName || req.user?.username || "").toString();
+      await pool.query(
+        `INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+        [BRIDGE_TOKEN_KEY, bridgeHash(token), by]);
+      bridgeHashCache = null;
+      res.json({ token });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // احجز مهام للجسر (بتفضل pending) — بنفس ترتيب الطابور
+  app.post("/api/exec-queue/bridge/lease", requireBridge, async (req: any, res) => {
+    try {
+      const max = Math.min(Math.max(parseInt(req.body?.max, 10) || 300, 1), 1000);
+      const { rows } = await pool.query(
+        `WITH c AS (
+           SELECT h.id FROM exec_jobs h
+            WHERE h.status = 'pending' AND h.paused_at IS NULL AND ${bridgeable("h")}
+              AND (h.bridge_lease_until IS NULL OR h.bridge_lease_until < now())
+            ORDER BY CASE WHEN h.queue_order > 0 THEN h.queue_order ELSE 9223372036854775807 END, h.created_at, h.id
+            LIMIT $1 FOR UPDATE SKIP LOCKED)
+         UPDATE exec_jobs e SET bridge_lease_until = now() + make_interval(hours => $2), bridge_device = $3
+           FROM c WHERE e.id = c.id
+         RETURNING e.id, e.accounts, e.batch_id AS "batchId"`,
+        [max, BRIDGE_LEASE_HOURS, bridgeDevice(req)]);
+      res.json({ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // «أبدأ الحتّة دى؟» — نفس قاعدة الموقع بتاعة جهاز التنفيذ (siteFreeFor). drop = مهام اتلغت/اتوقفت/
+  // خلص حجزها (الجسر بيشيلها). ok = ابدأ (وmarker = المهمة اللى بقت claimed)، وإلا استنى.
+  app.post("/api/exec-queue/bridge/start", requireBridge, async (req: any, res) => {
+    const ids = toJobIds(req.body?.ids);
+    if (!ids.length) return res.json({ ok: false, drop: [] });
+    try {
+      const out = await withTx(async (tx) => {
+        const { rows: gone } = await tx.query(
+          `SELECT id FROM exec_jobs WHERE id = ANY($1::int[])
+              AND NOT (status IN ('pending', 'claimed') AND paused_at IS NULL AND bridge_lease_until > now())`, [ids]);
+        const drop = gone.map((r: any) => Number(r.id));
+        const live = ids.filter((i) => !drop.includes(i));
+        if (!live.length) return { ok: false, drop };
+        // الحتّة كانت بدأت (التاب اتعمله ريفريش) ⇒ كمّل بنفس العلامة
+        const { rows: mk } = await tx.query(
+          `UPDATE exec_jobs SET claimed_at = now() WHERE id = ANY($1::int[]) AND status = 'claimed' RETURNING id`, [live]);
+        if (mk[0]) return { ok: true, marker: Number(mk[0].id), drop };
+        const lanes = await readExecLanes(tx);
+        const { rows: lk } = await tx.query(
+          `SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS locked`, [`exec-queue-site:${BRIDGE_SITE}`]);
+        if (!lk[0]?.locked) return { ok: false, wait: true, drop };
+        // ⚠️ siteFreeFor لوحدها بتقول «فاضى» لو مفيش حاجة شغّالة خالص — وجهاز التنفيذ بيعتمد إنه بيسحب
+        // بالأولوية. الجسر مابيعدّيش على الترتيب ده، فلازم نقول صراحة: Real/رفع سرعة/أى مهمة بتاخد DZS
+        // لوحدها ومستنية قدّامه (مش محجوزة للجسر) ⇒ استنى. (اتلقطت فى اختبار على Postgres حقيقى.)
+        const { rows } = await tx.query(
+          `UPDATE exec_jobs SET status = 'claimed', claimed_at = now(), executed_by = $2
+            WHERE id = $1 AND status = 'pending' AND paused_at IS NULL
+              AND ${siteFreeFor("exec_jobs", "$3", lanes)}
+              AND NOT EXISTS (SELECT 1 FROM exec_jobs x
+                               WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> exec_jobs.id
+                                 AND COALESCE(x.site, '10.42.187.101') = $3
+                                 AND (x.bridge_lease_until IS NULL OR x.bridge_lease_until < now())
+                                 AND NOT ${sharedGroup("x")}
+                                 AND ${queueRank("x")} < ${queueRank("exec_jobs")})
+            RETURNING id`, [live[0], bridgeDevice(req), BRIDGE_SITE]);
+        return rows[0] ? { ok: true, marker: Number(rows[0].id), drop } : { ok: false, wait: true, drop };
+      });
+      markExecSelf();
+      res.json(out);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // الحتّة لسه شغّالة — من غيرها العلامة بتتعتبر يتيمة بعد ٤ دقايق (expireOrphanedExecJobs)
+  app.post("/api/exec-queue/bridge/alive", requireBridge, async (req: any, res) => {
+    try {
+      const marker = parseInt(req.body?.marker, 10) || 0;
+      const { rows } = await pool.query(
+        `UPDATE exec_jobs SET claimed_at = now() WHERE id = $1 AND status = 'claimed' AND bridge_lease_until IS NOT NULL RETURNING id`, [marker]);
+      res.json({ ok: !!rows[0] });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // نتيجة الحتّة (done = خلصت/وقفت) ورجوع اللى مش هيتعمل (release). بيوصل من الطابور اللى فى السكربت
+  // بنفس رقمه (?sf_eid) — ingest-dedupe بيمنع إنه يتسجّل مرتين. stale = رجعت يتيمة وهى مع الجسر.
+  app.post("/api/exec-queue/bridge/report", requireBridge, async (req: any, res) => {
+    try {
+      const done = (Array.isArray(req.body?.done) ? req.body.done : []).slice(0, 2000)
+        .map((d: any) => ({ id: parseInt(d?.id, 10), result: String(d?.result || "done").slice(0, 40), at: d?.at && !Number.isNaN(Date.parse(d.at)) ? new Date(d.at).toISOString() : null }))
+        .filter((d: any) => Number.isInteger(d.id) && d.id > 0);
+      let doneN = 0;
+      if (done.length) {
+        const r = await pool.query(
+          `UPDATE exec_jobs e SET status = 'done', done_at = COALESCE(d.at, now()), result = d.result, bridge_lease_until = NULL
+             FROM unnest($1::int[], $2::text[], $3::timestamptz[]) AS d(id, result, at)
+            WHERE e.id = d.id AND e.bridge_device IS NOT NULL AND e.status IN ('pending', 'claimed', 'stale')`,
+          [done.map((d: any) => d.id), done.map((d: any) => d.result), done.map((d: any) => d.at)]);
+        doneN = r.rowCount || 0;
+      }
+      const release = toJobIds(req.body?.release);
+      let releasedN = 0;
+      if (release.length) {
+        const r = await pool.query(
+          `UPDATE exec_jobs SET bridge_lease_until = NULL, bridge_device = NULL,
+                  claimed_at = CASE WHEN status = 'claimed' THEN NULL ELSE claimed_at END,
+                  status = CASE WHEN status = 'claimed' THEN 'pending' ELSE status END
+            WHERE id = ANY($1::int[]) AND status IN ('pending', 'claimed')`, [release]);
+        releasedN = r.rowCount || 0;
+      }
+      res.json({ ok: true, done: doneN, released: releasedN });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // تعليم مهمة كمنفّذة
   app.post("/api/exec-queue/:id/done", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
@@ -3905,6 +4068,15 @@ export async function registerRoutes(
    * الصغيرة على WFM (إلغاء الإسناد · موافقة تغيير البورت). لو بقى ٢ لأى عدد، باتش ٢٠٠ خط كان هيقف
    * قدّامهم ساعات — الموقع الواحد بيشغّل مهمة واحدة. ومابيروحش للجسر خالص. */
   const wfmMobilePriority = (n: number) => (n <= 30 ? 2 : 1);
+  // والباتشات اللى كانت فى الطابور قبل القاعدة دى (المالك: «فيه باتشات شغّالة حالياً، عاوز يشملها
+  // التعديل»): جلب موبايل لسه pending بأولوية 0 = اتعمل قبلها ⇒ ياخد أولويته الجديدة بحجم باتشه.
+  // بيشتغل مع كل إقلاع ومابيلمسش غير الـ0 (الجديد بياخد ١ أو ٢ من الأول).
+  pool.query(
+    `UPDATE exec_jobs e SET priority = CASE WHEN b.n <= 30 THEN 2 ELSE 1 END
+       FROM (SELECT batch_id, COUNT(*) AS n FROM exec_jobs WHERE type = 'wfmmobile' AND batch_id IS NOT NULL GROUP BY batch_id) b
+      WHERE e.batch_id = b.batch_id AND e.type = 'wfmmobile' AND e.status = 'pending' AND e.priority = 0`,
+  ).then((r) => { if (r.rowCount) console.log(`[wfm-mobile] ${r.rowCount} مهمة جلب موبايل قديمة خدت أولويتها الجديدة`); })
+   .catch((e) => console.error("[wfm-mobile] legacy priority:", e.message));
   const enqueueAutoBatch = async (type: "stop" | "measure" | "subinfo" | "wfmmobile", accounts: string[], note: string) => {
     if (!accounts.length) return { count: 0, batchId: null as string | null };
     const batchId = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);

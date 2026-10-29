@@ -788,6 +788,10 @@ export const execJobs = pgTable("exec_jobs", {
   // الجهاز/المتصفح اللى **اتبعت منه الطلب** (وقت الإضافة للطابور) — ده اللى الرقابة
   // بتدوّر عليه: مين طلب العملية ومن أى جهاز. executed_by بيفضل جهاز التنفيذ نفسه.
   requestedFrom: text("requested_from"),
+  // جسر Tampermonkey (المالك ٢٠٢٦-١٠-٢٩): المهمة محجوزة للجسر لحد الوقت ده — بتفضل pending
+  // (عشان العدّادات والشاشات)، بس جهاز التنفيذ مابيسحبهاش. server/routes.ts «جسر Tampermonkey».
+  bridgeLeaseUntil: timestamp("bridge_lease_until", { withTimezone: true }),
+  bridgeDevice: text("bridge_device"),
 });
 
 export type ExecJob = typeof execJobs.$inferSelect;

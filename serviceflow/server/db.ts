@@ -1453,6 +1453,9 @@ export async function ensureSchema() {
     ALTER TABLE exec_jobs ADD COLUMN IF NOT EXISTS executed_by text;
     -- الجهاز/المتصفح اللى اتبعت منه الطلب (وقت الإضافة للطابور)
     ALTER TABLE exec_jobs ADD COLUMN IF NOT EXISTS requested_from text;
+    -- جسر Tampermonkey: المهمة محجوزة للجسر لحد الوقت ده (بتفضل pending) + الجهاز اللى حجزها
+    ALTER TABLE exec_jobs ADD COLUMN IF NOT EXISTS bridge_lease_until timestamptz;
+    ALTER TABLE exec_jobs ADD COLUMN IF NOT EXISTS bridge_device text;
     -- ⚠️ الفهارس دى على أعمدة بتتضاف بالـ ALTERs اللى فوق — لازم تفضل **بعدهم**:
     -- على قاعدة فاضية CREATE TABLE مافيهوش batch_id/result/retry_round، ولو الفهرس
     -- اتعمل قبل الـ ALTER البلوك كله بيفشل ويترجع وensureSchema يقع من أوله.
