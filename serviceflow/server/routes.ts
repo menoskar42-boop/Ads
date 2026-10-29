@@ -3099,7 +3099,8 @@ export async function registerRoutes(
     try {
       const max = Math.min(Math.max(parseInt(req.body?.max, 10) || 300, 1), 1000);
       // الجسر مقفول من الإعدادات ⇒ مفيش شغل له (وجهاز التنفيذ بياخد كل حاجة)
-      if (!(await readExecLanes(pool)).bridge) return res.json({ jobs: [], disabled: true });
+      const lanes = await readExecLanes(pool);
+      if (!lanes.bridge) return res.json({ jobs: [], disabled: true });
       const { rows } = await pool.query(
         `WITH c AS (
            SELECT h.id FROM exec_jobs h
@@ -3115,7 +3116,8 @@ export async function registerRoutes(
          SELECT id, accounts, batch_id AS "batchId" FROM u
           ORDER BY CASE WHEN queue_order > 0 THEN queue_order ELSE 9223372036854775807 END, created_at, id`,
         [max, BRIDGE_LEASE_HOURS, bridgeDevice(req)]);
-      res.json({ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS });
+      // lanes = عدد تابات «بدون Real» فى الإعدادات: الجسر بيفتح لحده، وstart بيعدّ تاباته مع تابات جهاز التنفيذ
+      res.json({ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS, lanes: lanes.noreal });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

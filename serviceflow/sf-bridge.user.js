@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Service-Flow Bridge — جسر القياس «بدون Real»
 // @namespace    serviceflow.bridge
-// @version      1.2.0
-// @description  v1.2.0: قبل كل حتّة بيبعت كل الخطوط اللى معاه، فلو باتش اتوقّف مؤقتاً أو اتلغى أو اترتّب من جديد فى «ترتيب الطابور»، الجسر بيسيب اللى يخصّه على طول ويسحب من جديد بالترتيب الجديد (الحتّة الشغّالة بس بتكمّل، ١٠ خطوط بالكتير). v1.1.1: زرار «اسحب الشغل دلوقتى» بيقول السبب لو ماسحبش حاجة (الجسر مقفول فى الإعدادات، ولا مفيش باتش «بدون Real» مؤجّل) بدل «اتسحب 0 خط». v1.1.0: بيشتغل بس لما زرار «جسر Tampermonkey» يبقى مفتوح فى إعدادات Service Flow (رفع الملفات ← إعدادات) — ساعتها جهاز التنفيذ بيسيب الباتشات المؤجّلة دى للجسر وياخد العاجل بس. لو اتقفل، الجسر بيرجّع اللى معاه وبيقول ده فى اللوحة. v1.0.0: جسر بيشتغل مكان جهاز التنفيذ لباتشات القياس «بدون Real» العادية — احتياطى لو oscardevs.com اتحظر، وبيخفّف الطلبات على السيرفر. بيسحب الشغل لما السيرفر يرد، وبيقيس على DZS حتّة حتّة (١٠ خطوط) فى تاب لوحده (lane 90) حتى لو السيرفر وقع، وبيرفع النتايج من طابوره. جوجل (أو صفحة Service-Flow) هو اللى بيشغّله ويفضل مفتوح وهو شغّال. Real ورفع السرعة والإيقاف وجلب الموبايل مالهمش دعوة بيه.
+// @version      1.3.0
+// @description  v1.3.0: بيفتح أكتر من تاب قياس مع بعض (90، 91، …) لحد عدد «قياس بدون Real» فى الإعدادات، والسيرفر بيعدّ تاباته مع تابات جهاز التنفيذ — فالمجموع مايعدّيش العدد ولا سقف «بدون Real + إيقاف PO». v1.2.0: قبل كل حتّة بيبعت كل الخطوط اللى معاه، فلو باتش اتوقّف مؤقتاً أو اتلغى أو اترتّب من جديد فى «ترتيب الطابور»، الجسر بيسيب اللى يخصّه على طول ويسحب من جديد بالترتيب الجديد (الحتّة الشغّالة بس بتكمّل، ١٠ خطوط بالكتير). v1.1.1: زرار «اسحب الشغل دلوقتى» بيقول السبب لو ماسحبش حاجة (الجسر مقفول فى الإعدادات، ولا مفيش باتش «بدون Real» مؤجّل) بدل «اتسحب 0 خط». v1.1.0: بيشتغل بس لما زرار «جسر Tampermonkey» يبقى مفتوح فى إعدادات Service Flow (رفع الملفات ← إعدادات) — ساعتها جهاز التنفيذ بيسيب الباتشات المؤجّلة دى للجسر وياخد العاجل بس. لو اتقفل، الجسر بيرجّع اللى معاه وبيقول ده فى اللوحة. v1.0.0: جسر بيشتغل مكان جهاز التنفيذ لباتشات القياس «بدون Real» العادية — احتياطى لو oscardevs.com اتحظر، وبيخفّف الطلبات على السيرفر. بيسحب الشغل لما السيرفر يرد، وبيقيس على DZS حتّة حتّة (١٠ خطوط) فى تاب لوحده (lane 90) حتى لو السيرفر وقع، وبيرفع النتايج من طابوره. جوجل (أو صفحة Service-Flow) هو اللى بيشغّله ويفضل مفتوح وهو شغّال. Real ورفع السرعة والإيقاف وجلب الموبايل مالهمش دعوة بيه.
 // @match        https://www.google.com/*
 // @match        https://www.google.com.eg/*
 // @match        *://10.42.187.101:8080/expresse/*
@@ -210,7 +210,8 @@
   // وDZS وهميين (serviceflow/server/sf-bridge.test.ts). تحت ده، السكربت بيوصّله بالحاجات الحقيقية.
   const BRIDGE = {
     DZS_URL: "https://10.42.187.101:8080/expresse/",
-    LANE: "90",                       // تاب الجسر فى سكربت القياس: مفاتيحه بلاحقة _L90 — منفصلة عن تابات جهاز التنفيذ (١–١٥)
+    LANE: "90",                       // أول تاب للجسر فى سكربت القياس (مفاتيحه بلاحقة _L90) — والتانى 91 وهكذا.
+                                      // منفصلة عن تابات جهاز التنفيذ (١…عدد «بدون Real» فى الإعدادات)
     CHUNK: 10,                        // الحتّة: ١٠ خطوط، وبين كل حتّة والتانية بنسأل السيرفر
     LEASE_LOW: 100, LEASE_MAX: 400,   // لما الشغل المحجوز يقل عن ١٠٠ بنحجز لحد ٤٠٠
     ALIVE_MS: 2 * 60 * 1000,          // «لسه شغّال» كل دقيقتين (العلامة بتتعتبر يتيمة بعد ٤)
@@ -220,8 +221,12 @@
     IDLE_MS: 3 * 60 * 1000,           // مفيش شغل / DZS مش متاح ⇒ نبص تانى بعد ٣ دقايق
     LEAD_MS: 150 * 1000,              // التاب القائد (جوجل أو Service-Flow) — لو ماجدّدش ٢٥٠ث، تاب تانى ياخد مكانه
   };
-  const bridgeLaneUrl = (accs) =>
-    BRIDGE.DZS_URL + "#sf_accounts=" + encodeURIComponent(accs.join(",")) + "&sf_mode=noreal&sf_lane=" + BRIDGE.LANE + "&sf_bridge=1";
+  const bridgeLaneUrl = (accs, lane) =>
+    BRIDGE.DZS_URL + "#sf_accounts=" + encodeURIComponent(accs.join(",")) + "&sf_mode=noreal&sf_lane=" + (lane || BRIDGE.LANE) + "&sf_bridge=1";
+  /** تاب الجسر رقم n (من ٠) ⇒ "90"، "91"… */
+  const bridgeLane = (n) => String(Number(BRIDGE.LANE) + n);
+  const isBridgeLane = (lane) => /^\d+$/.test(String(lane || "")) && Number(lane) >= Number(BRIDGE.LANE);
+  const bridgeGotKey = (lane) => "sfb_got_L" + lane;
 
   /** الحتّة وصلت لفين: got = {رقم الأكونت: وقت ما خلص} من تاب القياس. */
   function bridgeProgress(chunk, got, t) {
@@ -238,12 +243,29 @@
   /**
    * env: now() · get(k, d) / set(k, v) (تخزين الجسر — مشترك بين كل صفحاته) · live(path, body) ⇒ {status, json} أو null لو مفيش باب ·
    * report(body) (بيتخزّن فى الطابور ويتبعت لوحده) · openTab(url) · dzsReachable() ⇒ Promise<bool> · device() · tabId
+   *
+   * عدد التابات (المالك ٢٠٢٦-١٠-٢٩: «القياس والإيقاف ليهم عدد تابات مايتخطّوهوش»): الجسر بيفتح لحد عدد
+   * «قياس بدون Real» فى الإعدادات (السيرفر بيبعته مع الحجز)، وكل تاب منهم مهمة claimed على السيرفر — فالسيرفر
+   * بيعدّ تابات الجسر وتابات جهاز التنفيذ مع بعض، وبيقول «استنى» لو العدد أو سقف «بدون Real + إيقاف PO» اتملى.
    */
   function makeBridge(env) {
-    let busy = false, waitUntil = 0, lastAliveAt = 0, off = false;
+    let busy = false, waitUntil = 0, off = false;
     const OFF_TEXT = "الجسر مقفول من إعدادات Service Flow — جهاز التنفيذ بياخد كل الشغل";
     const status = (text) => env.set("sfb_status", { text, at: env.now() });
     const jobs = () => env.get("sfb_jobs", []);
+    const chunks = () => {
+      const list = env.get("sfb_chunks", null);
+      if (list) return list;
+      // نسخة 1.2 وقبلها: حتّة واحدة فى sfb_chunk على تاب 90
+      const old = env.get("sfb_chunk", null);
+      if (!old) return [];
+      old.lane = BRIDGE.LANE;
+      env.set(bridgeGotKey(BRIDGE.LANE), env.get("sfb_got", {}));
+      env.set("sfb_chunks", [old]); env.set("sfb_chunk", null);
+      return [old];
+    };
+    const maxTabs = () => Math.max(1, parseInt(env.get("sfb_lanes", 1), 10) || 1);
+    const busyIds = (list) => new Set([].concat(...list.map((c) => c.ids)));
     const lead = () => {
       const l = env.get("sfb_lead", null);
       if (!l || l.id === env.tabId || env.now() - l.at > BRIDGE.LEAD_MS) { env.set("sfb_lead", { id: env.tabId, at: env.now() }); return true; }
@@ -254,10 +276,11 @@
       const r = await env.live("/api/exec-queue/bridge/lease", { max: BRIDGE.LEASE_MAX, device: env.device() });
       if (!r) return null;
       if (r.status === 401) { status("مفتاح الجسر مش صحيح — فعّله تانى من صفحة Service Flow"); return null; }
-      // الجسر مقفول من إعدادات Service Flow ⇒ السيرفر رجّع المحجوز لجهاز التنفيذ، فنسيبه (إلا الحتّة الشغّالة)
+      if (r.json && r.json.lanes) env.set("sfb_lanes", r.json.lanes);
+      // الجسر مقفول من إعدادات Service Flow ⇒ السيرفر رجّع المحجوز لجهاز التنفيذ، فنسيبه (إلا الحتت الشغّالة)
       off = !!(r.json && r.json.disabled);
       if (off) {
-        const ch = env.get("sfb_chunk", null), keep = new Set(ch ? ch.ids : []);
+        const keep = busyIds(chunks());
         env.set("sfb_jobs", jobs().filter((j) => keep.has(j.id)));
         return 0;
       }
@@ -272,46 +295,65 @@
       env.report({ done: bridgeReport(chunk, got), device: env.device() });
       const ids = new Set(chunk.ids);
       env.set("sfb_jobs", jobs().filter((j) => !ids.has(j.id)));
-      env.set("sfb_chunk", null);
-      env.set("sfb_got", {});
-      const total = Number(env.get("sfb_total_done", 0)) + chunk.ids.length;
-      env.set("sfb_total_done", total);
-      status("خلصت حتّة (" + chunk.accs.filter((a) => got[a]).length + "/" + chunk.accs.length + ") — فاضل " + jobs().length + " خط");
+      env.set(bridgeGotKey(chunk.lane), {});
+      env.set("sfb_total_done", Number(env.get("sfb_total_done", 0)) + chunk.ids.length);
     }
     async function tick(force) {
       if (busy || env.get("sfb_paused", false)) return;
       if (!lead()) return;
       busy = true;
       try {
-        let chunk = env.get("sfb_chunk", null);
-        if (chunk) {
-          const got = env.get("sfb_got", {});
-          const p = bridgeProgress(chunk, got, env.now());
-          if (p.n !== chunk.doneN || p.lastAt !== chunk.lastAt) { chunk.doneN = p.n; chunk.lastAt = p.lastAt; env.set("sfb_chunk", chunk); }
-          if (p.complete || p.stalled) { finish(chunk, got); waitUntil = 0; return; }
-          status("بيقيس حتّة: " + p.n + " من " + chunk.accs.length + " — فاضل " + (jobs().length - chunk.ids.length) + " خط بعدها");
-          if (chunk.marker && env.now() - lastAliveAt > BRIDGE.ALIVE_MS) {
-            lastAliveAt = env.now();
-            await env.live("/api/exec-queue/bridge/alive", { marker: chunk.marker });
+        // ١) الحتت الشغّالة: اتقدّمت؟ خلصت؟ وقفت؟ — وكل واحدة بتجدّد علامتها كل دقيقتين
+        const running = [];
+        let ended = 0, measured = 0, total = 0;
+        for (const c of chunks()) {
+          const got = env.get(bridgeGotKey(c.lane), {});
+          const p = bridgeProgress(c, got, env.now());
+          c.doneN = p.n; c.lastAt = p.lastAt;
+          if (p.complete || p.stalled) { finish(c, got); ended++; continue; }
+          if (c.marker && env.now() - (c.aliveAt || c.startedAt) > BRIDGE.ALIVE_MS) {
+            c.aliveAt = env.now();
+            await env.live("/api/exec-queue/bridge/alive", { marker: c.marker });
           }
-          return;
+          running.push(c); measured += p.n; total += c.accs.length;
         }
+        env.set("sfb_chunks", running);
+        if (ended) waitUntil = 0;
+        const runText = running.length ? "شغّال على " + running.length + " تاب (" + measured + " من " + total + " خط)" : "";
+        if (running.length) status(runText + " — فاضل " + (jobs().length - busyIds(running).size) + " خط بعدها");
+        if (running.length >= maxTabs()) return;          // كل التابات المسموحة شغّالة
         if (!force && env.now() < waitUntil) return;
+
+        // ٢) تاب جديد: حتّة من الشغل اللى مش فى تاب
         await lease();
-        const list = jobs();
-        if (!list.length) { status(!env.token() ? "الجسر مش متفعّل — فعّله من صفحة Service Flow" : off ? OFF_TEXT : "مفيش شغل للجسر دلوقتى"); waitUntil = env.now() + BRIDGE.IDLE_MS; return; }
-        if (!force && !(await env.dzsReachable())) { status("مستنى DZS يفتح (الـVPN) — معاه " + list.length + " خط"); waitUntil = env.now() + BRIDGE.IDLE_MS; return; }
+        const inUse = busyIds(running);
+        const list = jobs().filter((j) => !inUse.has(j.id));
+        if (!list.length) {
+          if (!running.length) status(!env.token() ? "الجسر مش متفعّل — فعّله من صفحة Service Flow" : off ? OFF_TEXT : "مفيش شغل للجسر دلوقتى");
+          waitUntil = env.now() + BRIDGE.IDLE_MS; return;
+        }
+        if (!force && !running.length && !(await env.dzsReachable())) { status("مستنى DZS يفتح (الـVPN) — معاه " + list.length + " خط"); waitUntil = env.now() + BRIDGE.IDLE_MS; return; }
         const pick = list.slice(0, BRIDGE.CHUNK);
         const r = await env.live("/api/exec-queue/bridge/start", { ids: pick.map((j) => j.id), held: list.map((j) => j.id), device: env.device() });
         let marker = null, drop = [];
         if (r && r.status === 401) { status("مفتاح الجسر مش صحيح — فعّله تانى من صفحة Service Flow"); waitUntil = env.now() + BRIDGE.IDLE_MS; return; }
-        if (r && r.status >= 500) { status("السيرفر فيه مشكلة — هنحاول تانى"); waitUntil = env.now() + BRIDGE.WAIT_MS; return; }
+        if (r && r.status >= 500) { if (!running.length) status("السيرفر فيه مشكلة — هنحاول تانى"); waitUntil = env.now() + BRIDGE.WAIT_MS; return; }
         if (r) {
           drop = (r.json && r.json.drop) || [];
           if (drop.length) env.set("sfb_jobs", jobs().filter((j) => drop.indexOf(j.id) < 0));
           if (!r.json || !r.json.ok) {
-            if (r.json && r.json.wait) { status("مستنى — فيه Real أو رفع سرعة على DZS قدّام الجسر"); waitUntil = env.now() + BRIDGE.WAIT_MS; }
-            if (r.json && r.json.disabled) { off = true; env.set("sfb_jobs", []); status(OFF_TEXT); waitUntil = env.now() + BRIDGE.IDLE_MS; }
+            if (r.json && r.json.wait) {
+              status(running.length ? runText + " — العدد المسموح فى الإعدادات اتملى (مع تابات جهاز التنفيذ)"
+                : "مستنى — فيه Real أو رفع سرعة على DZS قدّام الجسر، أو تابات «بدون Real»/الإيقاف مليانة");
+              waitUntil = env.now() + BRIDGE.WAIT_MS;
+            }
+            if (r.json && r.json.disabled) {
+              off = true;
+              const keep = busyIds(running);
+              env.set("sfb_jobs", jobs().filter((j) => keep.has(j.id)));
+              if (!running.length) status(OFF_TEXT);
+              waitUntil = env.now() + BRIDGE.IDLE_MS;
+            }
             return;
           }
           marker = r.json.marker;
@@ -319,26 +361,29 @@
         // r = null ⇒ مفيش باب رادّ: جهاز التنفيذ نفسه واقف، فالجسر يكمّل لوحده
         const use = pick.filter((j) => drop.indexOf(j.id) < 0);
         if (!use.length) return;
-        chunk = { ids: use.map((j) => j.id), accs: use.map((j) => j.acc), marker, offline: !r, startedAt: env.now(), lastAt: env.now(), doneN: 0 };
-        env.set("sfb_got", {});
-        env.set("sfb_chunk", chunk);
-        lastAliveAt = env.now();
-        status((r ? "" : "(من غير السيرفر) ") + "بدأت حتّة " + chunk.accs.length + " خطوط");
-        env.openTab(bridgeLaneUrl(chunk.accs));
+        const taken = new Set(running.map((c) => c.lane));
+        let n = 0; while (taken.has(bridgeLane(n))) n++;
+        const chunk = { lane: bridgeLane(n), ids: use.map((j) => j.id), accs: use.map((j) => j.acc), marker, offline: !r,
+          startedAt: env.now(), lastAt: env.now(), aliveAt: env.now(), doneN: 0 };
+        env.set(bridgeGotKey(chunk.lane), {});
+        env.set("sfb_chunks", running.concat([chunk]));
+        status((r ? "" : "(من غير السيرفر) ") + "بدأت حتّة " + chunk.accs.length + " خطوط على تاب " + (n + 1) + " من " + maxTabs());
+        env.openTab(bridgeLaneUrl(chunk.accs, chunk.lane));
       } finally { busy = false; }
     }
-    /** «رجّع الشغل لجهاز التنفيذ»: كل المحجوز (والحتّة الشغّالة) يرجع للطابور. */
+    /** «رجّع الشغل لجهاز التنفيذ»: كل المحجوز (والحتت الشغّالة) يرجع للطابور. */
     function releaseAll() {
       const ids = jobs().map((j) => j.id);
       if (ids.length) env.report({ release: ids, device: env.device() });
-      env.set("sfb_jobs", []); env.set("sfb_chunk", null); env.set("sfb_got", {});
+      chunks().forEach((c) => env.set(bridgeGotKey(c.lane), {}));
+      env.set("sfb_jobs", []); env.set("sfb_chunks", []);
       status("رجّعت " + ids.length + " خط لجهاز التنفيذ");
       return ids.length;
     }
     return { tick, lease, releaseAll, isOff: () => off, OFF_TEXT };
   }
 
-  /** فى تابات DZS بتاعة الجسر (lane 90) بس: كل خط بيخلص بيتنقل لتخزين الجسر عشان القائد يشوفه. */
+  /** فى تابات DZS بتاعة الجسر (lane 90 وما بعده) بس: كل خط بيخلص بيتنقل لتخزين الجسر عشان القائد يشوفه. */
   function bridgeHarvest(chunk, results, got, t) {
     if (!chunk) return null;
     let changed = false;
@@ -400,8 +445,8 @@
   });
 
   // ── تابات DZS بتاعة الجسر: انقل كل خط بيخلص لتخزين الجسر ──────────────────────────────
-  // التاب ده بتاع الجسر لو جه بـsf_lane=90 فى الرابط، أو سكربت القياس حفظ رقمه 90 (التابات اللى بتتفتح
-  // لكل خط بتاخد نسخة من sessionStorage التاب اللى فتحها). تابات جهاز التنفيذ (١–١٥) مالهاش دعوة.
+  // التاب ده بتاع الجسر لو جه بـsf_lane=90 أو أكتر فى الرابط، أو سكربت القياس حفظ رقمه (التابات اللى بتتفتح
+  // لكل خط بتاخد نسخة من sessionStorage التاب اللى فتحها). تابات جهاز التنفيذ (١…العدد) مالهاش دعوة.
   if (ON_DZS) {
     const laneOf = () => {
       const h = (location.hash.match(/[#&]sf_lane=(\d+)/) || [])[1];
@@ -409,11 +454,13 @@
       try { return sessionStorage.getItem("DZS_LANE") || ""; } catch (e) { return ""; }
     };
     const harvest = () => {
-      if (laneOf() !== BRIDGE.LANE) return;
+      const lane = laneOf();
+      if (!isBridgeLane(lane)) return;
+      const chunk = (GET("sfb_chunks", []) || []).find((c) => c.lane === lane) || null;
       let results = [];
-      try { results = JSON.parse(localStorage.getItem("DZS_RESULTS_L" + BRIDGE.LANE) || "[]"); } catch (e) {}
-      const next = bridgeHarvest(GET("sfb_chunk", null), results, GET("sfb_got", {}), Date.now());
-      if (next) SET("sfb_got", next);
+      try { results = JSON.parse(localStorage.getItem("DZS_RESULTS_L" + lane) || "[]"); } catch (e) {}
+      const next = bridgeHarvest(chunk, results, GET(bridgeGotKey(lane), {}), Date.now());
+      if (next) SET(bridgeGotKey(lane), next);
     };
     harvest();                      // document-start: قبل ما سكربت القياس يصفّر نتايج الحتّة اللى فاتت
     setInterval(harvest, 1000);     // التاب بيتقفل بعد الخط بثانيتين — كل ثانية يلحقه
@@ -432,7 +479,7 @@
   function paint() {
     try {
       if (!IS_TOP || !(ON_SF || ON_GOOGLE) || !document.body) return;
-      const st = GET("sfb_status", null), jobsN = GET("sfb_jobs", []).length, chunk = GET("sfb_chunk", null);
+      const st = GET("sfb_status", null), jobsN = GET("sfb_jobs", []).length, chunk = (GET("sfb_chunks", []) || []).length || GET("sfb_chunk", null);
       const paused = !!GET("sfb_paused", false), hasToken = !!GET("sfb_token", "");
       if (ON_GOOGLE && !jobsN && !chunk) { if (panel) { panel.remove(); panel = null; } return; }
       if (!panel) {

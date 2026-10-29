@@ -15,8 +15,13 @@ function world(opts: { reachable?: boolean; server?: (path: string, body: any) =
   const store = new Map<string, any>();
   let clock = 1_000_000;
   const calls: Call[] = [], reports: any[] = [], opened: string[] = [];
+  let leased = false;   // زى السيرفر الحقيقى: المحجوز مابيرجعش تانى
   const server = opts.server || ((path: string, body: any) => {
-    if (path.endsWith("/lease")) return { status: 200, json: { jobs: Array.from({ length: 23 }, (_, i) => ({ id: 100 + i, accounts: ["acc" + i] })) } };
+    if (path.endsWith("/lease")) {
+      const jobs = leased ? [] : Array.from({ length: 23 }, (_, i) => ({ id: 100 + i, accounts: ["acc" + i] }));
+      leased = true;
+      return { status: 200, json: { jobs } };
+    }
     if (path.endsWith("/start")) return { status: 200, json: { ok: true, marker: body.ids[0], drop: [] } };
     return { status: 200, json: { ok: true } };
   });
@@ -32,17 +37,19 @@ function world(opts: { reachable?: boolean; server?: (path: string, body: any) =
   };
   const ctx: any = { console, Date, JSON, Math, Set, Object, Array, Number, String, Promise, encodeURIComponent };
   vm.createContext(ctx);
-  vm.runInContext(core + "\n;globalThis.__b = { makeBridge, bridgeHarvest, bridgeLaneUrl, BRIDGE };", ctx);
+  vm.runInContext(core + "\n;globalThis.__b = { makeBridge, bridgeHarvest, bridgeLaneUrl, bridgeLane, BRIDGE };", ctx);
   const B = ctx.__b;
   return { B, bridge: B.makeBridge(env), env, store, calls, reports, opened, tick: (ms: number) => { clock += ms; } };
 }
 /** تاب القياس خلّص الخطوط دى (زى ما سكربت القياس بيحفظها فى DZS_RESULTS_L90) والجسر نقلها. */
-function measure(w: ReturnType<typeof world>, accs: string[]) {
-  const chunk = w.store.get("sfb_chunk");
+function measure(w: ReturnType<typeof world>, accs: string[], lane = "90") {
+  const chunk = (w.store.get("sfb_chunks") || []).find((c: any) => c.lane === lane) || null;
   const results = accs.map((a) => ({ lineId: a, timestamp: new Date(1_700_000_000_000).toISOString() }));
-  const next = w.B.bridgeHarvest(chunk, results, w.store.get("sfb_got") || {}, 1);
-  if (next) w.store.set("sfb_got", next);
+  const next = w.B.bridgeHarvest(chunk, results, w.store.get("sfb_got_L" + lane) || {}, 1);
+  if (next) w.store.set("sfb_got_L" + lane, next);
 }
+/** الحتّة الشغّالة رقم i (الترتيب اللى اتفتحت بيه) */
+const chunkOf = (w: ReturnType<typeof world>, i = 0) => (w.store.get("sfb_chunks") || [])[i] ?? null;
 
 test("leases, then measures in chunks of 10 on its own lane, and reports each chunk", async () => {
   const w = world();
@@ -50,12 +57,12 @@ test("leases, then measures in chunks of 10 on its own lane, and reports each ch
   assert.equal(w.store.get("sfb_jobs").length, 23, "اتحجز الشغل");
   assert.equal(w.opened.length, 1);
   assert.match(w.opened[0], /^https:\/\/10\.42\.187\.101:8080\/expresse\/#sf_accounts=acc0%2Cacc1%2C.*acc9&sf_mode=noreal&sf_lane=90&sf_bridge=1$/);
-  const chunk = w.store.get("sfb_chunk");
+  const chunk = chunkOf(w);
   assert.deepEqual(Array.from(chunk.ids), [100, 101, 102, 103, 104, 105, 106, 107, 108, 109]);
   assert.equal(chunk.marker, 100);
   measure(w, chunk.accs.slice(0, 4));
   w.tick(5000); await w.bridge.tick();
-  assert.equal(w.store.get("sfb_chunk").doneN, 4);
+  assert.equal(chunkOf(w).doneN, 4);
   assert.equal(w.reports.length, 0, "لسه ماخلصتش");
   measure(w, chunk.accs);
   w.tick(5000); await w.bridge.tick();
@@ -90,12 +97,12 @@ test("canceled jobs (drop) are removed; server down → continues on its own", a
     return { status: 200, json: {} };
   } });
   await w.bridge.tick();
-  assert.deepEqual(Array.from(w.store.get("sfb_chunk").ids), [2, 3]);
+  assert.deepEqual(Array.from(chunkOf(w).ids), [2, 3]);
   assert.ok(!w.store.get("sfb_jobs").some((j: any) => j.id === 1));
 
   const off = world({ server: (path) => (path.endsWith("/lease") ? { status: 200, json: { jobs: [{ id: 7, accounts: ["x"] }] } } : null) });
   await off.bridge.tick();
-  const c = off.store.get("sfb_chunk");
+  const c = chunkOf(off);
   assert.equal(c.offline, true);
   assert.equal(c.marker, null);
   assert.equal(off.opened.length, 1, "مفيش باب رادّ ⇒ جهاز التنفيذ نفسه واقف، فالجسر يكمّل");
@@ -114,7 +121,7 @@ test("DZS not reachable (Wi-Fi) → keeps the jobs and waits; nothing opened", a
 test("a stuck chunk ends as timeout; the marker is kept alive every 2 minutes", async () => {
   const w = world();
   await w.bridge.tick();
-  const chunk = w.store.get("sfb_chunk");
+  const chunk = chunkOf(w);
   measure(w, chunk.accs.slice(0, 3));
   for (let i = 0; i < 5; i++) { w.tick(60_000); await w.bridge.tick(); }
   assert.ok(w.calls.filter((c) => c.path.endsWith("/alive")).length >= 1, "لسه شغّال");
@@ -134,7 +141,7 @@ test("only one leader tab acts; release returns everything to the executor", asy
   const n = w.bridge.releaseAll();
   assert.equal(n, 23);
   assert.deepEqual(Array.from(w.reports.at(-1).release).slice(0, 2), [100, 101]);
-  assert.equal(w.store.get("sfb_chunk"), null);
+  assert.equal(w.store.get("sfb_chunks").length, 0);
 });
 
 test("harvest only picks the chunk's own accounts", () => {
@@ -166,7 +173,7 @@ test("script wiring: pages, permissions, and the server rules it depends on", ()
 test("a long chunk that keeps moving keeps its marker alive (< 4 min apart) and is not cut", async () => {
   const w = world();
   await w.bridge.tick();
-  const chunk = w.store.get("sfb_chunk");
+  const chunk = chunkOf(w);
   const aliveAt: number[] = [];
   for (let i = 1; i <= 10; i++) {
     w.tick(60_000);
@@ -187,7 +194,7 @@ test("settings switch: off by default, super-admin key, lease/start refuse while
   assert.match(routes, /const BRIDGE_ON_KEY = "exec_lanes_bridge";/, "بادئة exec_lanes_ = تعديله سوبر أدمن بس");
   assert.match(routes, /bridge: false \};/, "مقفول افتراضياً — ميزة اختيارية");
   assert.match(routes, /if \(r\.key === BRIDGE_ON_KEY\) out\.bridge = String\(r\.value\) === "1";/);
-  assert.match(routes, /if \(!\(await readExecLanes\(pool\)\)\.bridge\) return res\.json\(\{ jobs: \[\], disabled: true \}\);/);
+  assert.match(routes, /if \(!lanes\.bridge\) return res\.json\(\{ jobs: \[\], disabled: true \}\);/);
   assert.match(routes, /if \(!\(await readExecLanes\(pool\)\)\.bridge\) return res\.json\(\{ ok: false, disabled: true, drop: held \}\);/);
   // اتقفل ⇒ المحجوز المستنى يرجع لجهاز التنفيذ على طول (والحتّة الشغّالة تكمّل وترفع)
   assert.match(routes, /if \(body\.bridge === false\) \{\n\s+await pool\.query\(`UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`\);/);
@@ -210,8 +217,8 @@ test("bridge switched off: drops what it holds (keeps a running chunk) and says 
   assert.equal(w.opened.length, 1);
   disabled = true;
   await w.bridge.lease();   // زرار «اسحب» وسط الحتّة
-  assert.deepEqual(w.store.get("sfb_jobs").map((j: any) => j.id), Array.from(w.store.get("sfb_chunk").ids), "الحتّة الشغّالة بس");
-  measure(w, w.store.get("sfb_chunk").accs);
+  assert.deepEqual(w.store.get("sfb_jobs").map((j: any) => j.id), Array.from(chunkOf(w).ids), "الحتّة الشغّالة بس");
+  measure(w, chunkOf(w).accs);
   w.tick(5000); await w.bridge.tick();
   assert.equal(w.reports.length, 1, "الحتّة كمّلت ورفعت نتايجها");
   w.tick(5000); await w.bridge.tick();
@@ -253,13 +260,65 @@ test("pause / cancel / reorder after the bridge pulled the work: it lets go of e
   await w.bridge.tick();
   const startCall = w.calls.find((c) => c.path.endsWith("/start"))!;
   assert.equal(startCall.body.held.length, 30, "بيبعت الـ٣٠ مش الـ١٠ بس");
-  measure(w, w.store.get("sfb_chunk").accs);
-  w.tick(5000); await w.bridge.tick();          // الحتّة خلصت
-  paused = new Set(Array.from({ length: 15 }, (_, i) => 11 + i));   // باتش اتوقّف: ١١…٢٥
-  w.tick(5000); await w.bridge.tick();
+  paused = new Set(Array.from({ length: 15 }, (_, i) => 11 + i));   // باتش اتوقّف: ١١…٢٥ وهى بتقيس
+  measure(w, chunkOf(w).accs);
+  w.tick(5000); await w.bridge.tick();          // الحتّة خلصت، والجاية كلها موقّفة
   const left = w.store.get("sfb_jobs").map((j: any) => j.id);
   assert.ok(!left.some((id: number) => paused.has(id)), "كل الموقّف اتشال مرة واحدة: " + left);
   assert.equal(w.opened.length, 1, "الحتّة اللى كانت جاية كلها موقّفة ⇒ مابتتفتحش");
   w.tick(5000); await w.bridge.tick();
-  assert.deepEqual(Array.from(w.store.get("sfb_chunk").ids), [26, 27, 28, 29, 30]);
+  assert.deepEqual(Array.from(chunkOf(w).ids), [26, 27, 28, 29, 30]);
+});
+
+// المالك ٢٠٢٦-١٠-٢٩: «القياس والإيقاف ليهم عدد تابات لا يتخطّوها — فإيه العمل؟»
+test("several tabs at once, up to the «بدون Real» count, and the server can say «full»", async () => {
+  let full = false, starts = 0;
+  const w = world({ server: (path, body) => {
+    if (path.endsWith("/lease")) return { status: 200, json: starts ? { jobs: [], lanes: 3 } : { jobs: Array.from({ length: 60 }, (_, i) => ({ id: 1 + i, accounts: ["a" + i] })), lanes: 3 } };
+    if (path.endsWith("/start")) { starts++; return full ? { status: 200, json: { ok: false, wait: true, drop: [] } } : { status: 200, json: { ok: true, marker: body.ids[0], drop: [] } }; }
+    return { status: 200, json: { ok: true } };
+  } });
+  for (let i = 0; i < 5; i++) { await w.bridge.tick(); w.tick(5000); }
+  assert.equal(w.opened.length, 3, "لحد ٣ بس (العدد فى الإعدادات)");
+  assert.deepEqual(w.opened.map((u) => (u.match(/sf_lane=(\d+)/) || [])[1]), ["90", "91", "92"]);
+  const ids = w.store.get("sfb_chunks").map((c: any) => Array.from(c.ids));
+  assert.deepEqual(Array.from(ids.map((x: number[]) => x[0])), [1, 11, 21], "كل تاب حتّة مختلفة");
+
+  // تاب 91 خلص ⇒ رقمه بيرجع لحتّة جديدة، والتانيين مكمّلين
+  measure(w, w.store.get("sfb_chunks")[1].accs, "91");
+  await w.bridge.tick();
+  assert.equal(w.reports.length, 1);
+  assert.deepEqual(Array.from(w.reports[0].done.map((d: any) => d.id)).slice(0, 2), [11, 12]);
+  assert.equal(w.opened.length, 4);
+  assert.match(w.opened[3], /sf_lane=91&/);
+  assert.deepEqual(Array.from(w.store.get("sfb_chunks").map((c: any) => c.lane)).sort(), ["90", "91", "92"]);
+
+  // السيرفر قال «مليانة» (تابات جهاز التنفيذ واخدة الباقى) ⇒ مابيفتحش، وبيسأل بعد دقيقة
+  measure(w, w.store.get("sfb_chunks")[0].accs, "90");
+  full = true;
+  w.tick(5000); await w.bridge.tick();
+  assert.equal(w.opened.length, 4);
+  assert.match(w.store.get("sfb_status").text, /العدد المسموح فى الإعدادات اتملى/);
+  w.tick(30_000); const s1 = starts; await w.bridge.tick();
+  assert.equal(starts, s1, "مابيسألش قبل الدقيقة");
+  full = false; w.tick(31_000); await w.bridge.tick();
+  assert.equal(w.opened.length, 5);
+  assert.match(w.opened[4], /sf_lane=90&/);
+});
+
+test("a chunk running under 1.2 (sfb_chunk) carries over to tab 90", async () => {
+  const w = world();
+  w.store.set("sfb_jobs", [{ id: 5, acc: "x5" }, { id: 6, acc: "x6" }]);
+  w.store.set("sfb_chunk", { ids: [5, 6], accs: ["x5", "x6"], marker: 5, startedAt: 1_000_000, lastAt: 1_000_000, doneN: 0 });
+  w.store.set("sfb_got", { x5: 1 });
+  await w.bridge.tick();
+  assert.equal(w.store.get("sfb_chunk"), null);
+  assert.equal(chunkOf(w).lane, "90");
+  measure(w, ["x6"], "90");
+  w.tick(5000); await w.bridge.tick();
+  assert.deepEqual(Array.from(w.reports[0].done.map((d: any) => d.result)), ["done", "done"]);
+});
+
+test("server sends the «بدون Real» tab count with the lease", () => {
+  assert.match(routes, /res\.json\(\{ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS, lanes: lanes\.noreal \}\);/);
 });
