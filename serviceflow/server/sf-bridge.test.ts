@@ -468,15 +468,23 @@ test("the bridge pauses itself only when login pages keep coming for a minute, n
   const storm = world();
   storm.store.set("sfb_login_hits", Array.from({ length: 9 }, (_, i) => 900_000 + i * 11_000));
   await storm.bridge.tick();
-  assert.equal(storm.store.get("sfb_paused"), true);
+  assert.notEqual(storm.store.get("sfb_paused"), true, "1.9.2: مش وقفة للأبد");
   assert.equal(storm.opened.length, 0);
-  assert.match(storm.store.get("sfb_status").text, /صفحة دخول AXON/);
+  assert.match(storm.store.get("sfb_status").text, /صفحة دخول AXON[\s\S]*بيكمّل لوحده/);
+  assert.doesNotMatch(storm.store.get("sfb_status").text, /بإيدك/, "المالك: «مش عاوز أسجّل الدخول بإيدى ولا مرة»");
+  storm.tick(60_000); await storm.bridge.tick();
+  assert.equal(storm.opened.length, 0, "لسه فى الدقيقتين");
+  storm.tick(61_000); await storm.bridge.tick();
+  assert.ok(storm.opened.length > 0, "بعد الدقيقتين بيكمّل لوحده");
   // قديمة (أكتر من ٣ دقايق) ⇒ مالهاش دعوة
   const old = world();
   old.store.set("sfb_login_hits", Array.from({ length: 12 }, (_, i) => 1 + i * 20_000));
   await old.bridge.tick();
   assert.notEqual(old.store.get("sfb_paused"), true);
-  assert.match(src, /if \(\/\\\/expresse\\\/login\/i\.test\(location\.pathname\)\)/);
+  // تابات «إيقاف PO» مابتتعدّش (كانت بتوقّف الجسر وهى بتلفّ على الدخول)
+  assert.match(src, /if \(!poTab && \/\\\/expresse\\\/login\/i\.test\(location\.pathname\)\)/);
+  assert.match(src, /const poTab = \/\[#&\]sf_po=\/\.test\(location\.hash\) \|\| [^\n]*sessionStorage\.getItem\("PO_TAB"\) === "1"/);
+  assert.match(src, /if \(!GET\("sfb_unpaused_192", false\)\) \{ SET\("sfb_paused", false\);/);
 });
 
 // المالك ٢٠٢٦-١٠-٢٩: «بتتفتح صفحات أول ما فتحت إيدج مع إن جوجل مش شغّال» — جوجل هو اللى بيشغّل الجسر
