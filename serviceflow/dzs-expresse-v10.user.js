@@ -1,8 +1,9 @@
 // ==UserScript==
 // @name         DZS Expresse Continuous Flow v10.7 (Service-Flow 138 sheet + auto-upload)
-// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.27: مابيشتغلش فى تابات «إيقاف PO» التانية/التالتة (علامة PO_TAB فى sessionStorage). v10.26: عدد تابات «بدون Real» من السيرفر بس (NOREAL_LANES، أى sf_lane). رقم التاب بيتعرف من رقم الخط اللى فى رابط الصفحة (clearview/lineSummary?lineId=) — فى v10.25 كان من sessionStorage بس، فأى خطوة بتفتح فى تاب/نافذة جديدة كانت بتضيّع الرقم وتشتغل على خط التاب الأول (اللى اتسجّل خلاص) فالتاب التانى مايسجّلش. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
-// @version      10.27.0
+// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.29.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v10.27: مابيشتغلش فى تابات «إيقاف PO» التانية/التالتة (علامة PO_TAB فى sessionStorage). v10.26: عدد تابات «بدون Real» من السيرفر بس (NOREAL_LANES، أى sf_lane). رقم التاب بيتعرف من رقم الخط اللى فى رابط الصفحة (clearview/lineSummary?lineId=) — فى v10.25 كان من sessionStorage بس، فأى خطوة بتفتح فى تاب/نافذة جديدة كانت بتضيّع الرقم وتشتغل على خط التاب الأول (اللى اتسجّل خلاص) فالتاب التانى مايسجّلش. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
+// @version      10.29.0
 // @match        *://10.42.187.101:8080/expresse/*
+// @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
 // @grant        none
 // @run-at       document-idle
@@ -106,7 +107,115 @@
   const RESET_TOKEN = "3";
 
   // 🆕 رفع تلقائى لشيت 138 فى Service-Flow
-  const SF_API_BASE   = "https://sf-menoskar42.replit.app/serviceflow/"; // ← عدّليه لو الدومين اتغيّر
+  const SF_API_BASE   = "https://oscardevs.com/serviceflow/"; // أول باب — والباقى فى SF_BASES تحت (sfFetch بيجرّبهم)
+  // ── أبواب Service-Flow (المالك ٢٠٢٦-١٠-٢٩) ────────────────────────────────────
+  // تأمين شبكة الشركة حظر ريبليت، وأى دومين ممكن يتحظر بعدين. فالسكربت بقى عنده قايمة
+  // أبواب لنفس Service-Flow: بيجرّبهم بالترتيب ويثبت على أول واحد يرد (sf_base_ok). ولو
+  // كلهم مقفولين، النتيجة (JSON صغير) بتتخزّن وتتبعت لوحدها أول ما أى باب يرجع — مفيش
+  // نتيجة بتضيع. باب زيادة من غير تعديل السكربت (مفصولين بفاصلة)، من كونسول أى صفحة السكربت شغّال فيها:
+  //   localStorage.setItem('sf_bases_extra', 'https://…/serviceflow')
+  // الترتيب مقصود (المالك: «عاوز أقلّل الاعتماد على Cloudflare»): oscardevs.com من غير سَبدومين رايح للسيرفر
+  // مباشرة (IP جوجل كلاود، مش Cloudflare)، وserviceflow.oscardevs.com بيعدّى على Cloudflare Worker وكوتته
+  // (خلصت يوم ١٩ سبتمبر) — فهو آخر باب، مابيتجرّبش غير لو الاتنين التانيين مقفولين.
+  const SF_DEFAULT_BASE = "https://oscardevs.com/serviceflow";
+  const SF_BASES = [SF_DEFAULT_BASE, "https://sf-menoskar42.replit.app/serviceflow", "https://serviceflow.oscardevs.com/serviceflow"];
+  const sfStore = {
+    get(k, d) {
+      try { if (typeof GM_getValue === "function") { const v = GM_getValue(k, undefined); if (v !== undefined && v !== null) return v; } } catch (e) {}
+      try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; }
+    },
+    set(k, v) {
+      try { if (typeof GM_setValue === "function") { GM_setValue(k, v); return; } } catch (e) {}
+      try { localStorage.setItem(k, v); } catch (e) {}
+    },
+  };
+  function sfBases() {
+    const out = [];
+    const add = (b) => { b = String(b || "").trim().replace(/\/+$/, ""); if (/^https?:\/\/[^/]+/.test(b) && out.indexOf(b) < 0) out.push(b); };
+    add(sfStore.get("sf_base_ok", ""));
+    add(sfStore.get("sf_base", ""));
+    SF_BASES.forEach(add);
+    String(sfStore.get("sf_bases_extra", "") || "").split(",").forEach(add);
+    return out;
+  }
+  function sfBase() { return sfBases()[0]; }
+  /** «/api/…» لو الرابط رايح لأى باب من أبواب Service-Flow، وإلا null (طلبات المواقع التانية بتعدّى زى ما هى). */
+  function sfApiPath(url) {
+    const m = String(url || "").match(/^https?:\/\/([^/?#]+)(?:\/serviceflow)?(\/api\/[\s\S]*)$/i);
+    if (!m) return null;
+    const host = m[1].toLowerCase();
+    const hosts = [];
+    sfBases().forEach((b) => { try { hosts.push(new URL(b).host.toLowerCase()); } catch (e) {} });
+    return hosts.indexOf(host) >= 0 ? m[2] : null;
+  }
+  // صفحة HTML = مش Service-Flow (صفحة حظر الشبكة، صفحة خطأ Cloudflare، أو صفحة أوسكار ديفز)
+  const sfIsOurs = (status, ctype) => status > 0 && !/text\/html/i.test(String(ctype || ""));
+  const SF_OUTBOX = "sf_outbox";
+  function sfOutbox() { try { const v = JSON.parse(sfStore.get(SF_OUTBOX, "[]") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function sfQueue(path, method, headers, body) {
+    const box = sfOutbox();
+    box.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), path, method, headers, body, at: Date.now() });
+    while (box.length > 3000 || (box.length > 1 && JSON.stringify(box).length > 3000000)) box.shift();
+    sfStore.set(SF_OUTBOX, JSON.stringify(box));
+    console.warn("[Service-Flow] مفيش باب رادّ — النتيجة اتخزّنت وهتتبعت لوحدها (" + box.length + " مستنية)");
+  }
+  let sfFlushing = false;
+  async function sfFlush() {
+    if (sfFlushing || !sfOutbox().length) return;
+    const lock = Number(sfStore.get("sf_outbox_lock", "0")) || 0;
+    if (Date.now() - lock < 60000) return;   // تاب تانى بيبعت دلوقتى
+    sfFlushing = true;
+    sfStore.set("sf_outbox_lock", String(Date.now()));
+    let sent = 0;
+    try {
+      for (const it of sfOutbox()) {
+        if (!(await sfSendQueued(it))) break;
+        sfStore.set(SF_OUTBOX, JSON.stringify(sfOutbox().filter((x) => x.id !== it.id)));
+        sfStore.set("sf_outbox_lock", String(Date.now()));
+        sent++;
+      }
+    } catch (e) {} finally {
+      sfFlushing = false;
+      sfStore.set("sf_outbox_lock", "0");
+      if (sent) console.log("[Service-Flow] اتبعت " + sent + " نتيجة كانت مستنية — فاضل " + sfOutbox().length);
+    }
+  }
+  setTimeout(() => { sfFlush(); }, 8000);
+  setInterval(() => { sfFlush(); }, 120000);
+  /** fetch لـService-Flow بالأبواب: باب ورا باب، ولو كله مقفول والطلب JSON بيتخزّن (يرجّع 202 queued). */
+  async function sfFetch(url, opts, noQueue) {
+    opts = opts || {};
+    const path = sfApiPath(url);
+    if (path == null) return fetch(url, opts);
+    const big = opts.body != null && typeof opts.body !== "string";
+    let last = null, lastErr = null;
+    for (const base of sfBases()) {
+      const ctrl = typeof AbortController === "function" ? new AbortController() : null;
+      const t = ctrl ? setTimeout(() => ctrl.abort(), big ? 300000 : 25000) : null;
+      try {
+        const r = await fetch(base + path, Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}));
+        if (sfIsOurs(r.status, r.headers.get("content-type"))) {
+          if (sfStore.get("sf_base_ok", "") !== base) sfStore.set("sf_base_ok", base);
+          if (!noQueue) setTimeout(() => { sfFlush(); }, 1500);
+          return r;
+        }
+        last = r;
+      } catch (e) { lastErr = e; } finally { if (t) clearTimeout(t); }
+    }
+    const method = String(opts.method || "GET").toUpperCase();
+    if (!noQueue && method !== "GET" && typeof opts.body === "string") {
+      sfQueue(path, method, opts.headers || {}, opts.body);
+      return new Response(JSON.stringify({ ok: true, queued: true }), { status: 202, headers: { "Content-Type": "application/json" } });
+    }
+    if (last) return last;
+    throw lastErr || new TypeError("Service-Flow unreachable");
+  }
+  async function sfSendQueued(it) {
+    try {
+      const r = await sfFetch(sfBase() + it.path, { method: it.method, headers: it.headers, body: it.body }, true);
+      return sfIsOurs(r.status, r.headers.get("content-type"));
+    } catch (e) { return false; }
+  }
   const SF_INGEST_TOKEN = "sf-dzs-138-ingest-2026"; // ← لازم يطابق DZS_INGEST_TOKEN فى السيرفر
   const SF_AUTO_UPLOAD = true; // false لو عايزه CSV فقط من غير رفع تلقائى
 
@@ -459,7 +568,7 @@
   function postToServiceFlow(rec) {
     if (!SF_AUTO_UPLOAD || !SF_API_BASE) return;
     try {
-      fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/case-138/measurements", {
+      sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/case-138/measurements", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-DZS-Token": SF_INGEST_TOKEN },
         body: JSON.stringify({ items: [{

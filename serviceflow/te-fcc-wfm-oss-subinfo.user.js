@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         TE FCC + WFM + OSS + SubInfo (All-in-One)
 // @namespace    te.eg.autoexport
-// @version      3.8.0
-// @description  FCC + WFM + OSS export + جلب اسم/عنوان العميل — كله فى سكربت واحد. v3.8.0: مراجعة البيان الفنى من جهاز التنفيذ بقت فى تاب واحد — بعد الرقم التاب مايقفلش، والرقم اللى بعده بييجى برسالة من Service-Flow فيتغيّر فى خانة البحث ويدوس بحث (من غير تاب جديد ولا كلمة سر). تحديث FCC العاجل بيقفل التاب ويتنفّذ، وبعده الأرقام الباقية بتكمّل. والتاب بيقفل نفسه بعد ٣ دقايق من غير رقم جديد. v3.7.1: «جلب الموبايل» — الرقم اللى مش بيبدأ بصفر على الشمال (زى 1900000000) مش رقم موبايل وبيتساب، وبيجرّب أمر الشغل اللى بعده. v3.7.0: «جلب الموبايل» من WFM (#sf_accept=الرقم&sf_kind=mobile) — Work Order ← Service Id ← Search ← فتح الأمر ← «Cust. Mobile» بدل Assignments ← يقرا «رقم الموبايل» و«تليفون بديل» ويبعتهم لـ Service-Flow (الأعطال الحالية). ولو WFM حوّل التاب على الدخول ورجع من غير الهاش، الرقم بيتاخد من الطلب المحفوظ. v3.6.9: رجّعنا ريفريش صفحة دخول WFM (3.6.8) — الدخول لو طوّل بيستنى زى FCC، وإعادة تشغيل المهمة اللى علقت بقت من موقعنا (جهاز التنفيذ بعد ٤ دقايق). v3.6.7: «إلغاء/إعادة الإسناد» لو وقف (مفيش مهمة، البند مش متاح، الإسناد فشل، الوضع ضايع) بيبلّغ Service-Flow بالسبب — جهاز التنفيذ مابقاش يستنى ٦ دقايق والسبب بيظهر فى «معاملات التنفيذ». v3.6.6: «إعادة الإسناد»/«إلغاء الاسناد» — الوضع وكود العامل بيتحفظوا مع الرقم أول ما التاب يفتح، فلو WFM حوّله على صفحة الدخول ورجع من غير الهاش مايضيعوش («مفيش sf_mode محفوظ»). v3.5.3: «إلغاء الاسناد» و«موافقة تغيير البورت» بيشتغلوا جوّه الصفحة نفسها زى السكربتين القدام (ولو الصفحة منعت ده بيشتغلوا من الـsandbox)؛ رفع الملفات زى ما هو. v3.5.2: «إلغاء الاسناد» و«موافقة تغيير البورت» جوّه السكربت المدموج: أحداث الماوس من غير view: window (فى sandbox بتاع Tampermonkey كانت بتترفض فى صمت فقائمة السطر فى Dispatcher ماكانتش بتفتح). v3.5.1: صفحة دخول WFM من غير أى علامة = تحديث يومى (Service-Flow القديم قبل الـRepublish بيفتحها كده) — إلا لو التاب عليه طلب إلغاء/موافقة شغّال. v3.5.0: سكربتا «إلغاء الاسناد» و«موافقة تغيير البورت» اتدمجوا هنا (احذفهم من Tampermonkey) — راوتر WFM واحد بيحدّد نوع التاب من الرابط أول ما يفتح (إلغاء / موافقة / تحديث يومى)، ودخول واحد، وتصدير أوامر الشغل بيشتغل **بس** على تاب متفتح كتحديث يومى (#sf_wfm_daily). v3.4.3: الدخول على WFM بنفس اسم المستخدم وكلمة السر بتوع FCC. v3.4.2: مابيشغّلش تصدير أوامر الشغل على تاب «موافقة تغيير بورت» (#sf_accept= أو sf_accept_pending) — كان بيصدّر نتيجة البحث المفلترة على رقم واحد فتترفع كملف كامل وتمسح التركيبات الحالية. v3.4.0: منع التعارض مع سكربت «إلغاء الاسناد» على wfm.te.eg — التاب اللى بيفتح بعلامة #sf_cancel= بيبقى تاب إلغاء إسناد، فتدفّق تصدير أوامر الشغل بيتوقّف عليه بدل ما يخطفه لشاشة Work Order Management ويفتح نافذة Export. v3.3.0: زر «مراجعة الاسم والعنوان» بقى يحترم كمان نطاق الأرقام (من رقم/إلى رقم) من بيان التليفونات — بيتبعت فى الهاش (sf_sif = سنترال~كابينة~بكس~من~إلى) ولـ /pending كـ phoneFrom/phoneTo، فالمراجعة تقتصر على أرقام النطاق المحدد. v3.2.0: زر «مراجعة الاسم والعنوان» فى بيان التليفونات بقى يحترم الفلتر (سنترال/كابينة/بكس) — الفلتر بيتبعت فى الهاش (sf_sif) ولـ /pending، فكل تاب مراجعة يجيب أرقام فلتره بس؛ تقدر تفتح مراجعتين بفلترين مختلفين فى نفس الوقت (كل واحدة نافذة مستقلة) بلا طابور مشترك. v3.1.0: زر المراجعة اليدوى الشامل بيراجع كل الأرقام المطلوبة (مش 300 بس) — بيجيب القائمة كاملة (لحد 15000)؛ المراجعة اليومية بعد التصدير لسه دفعة صغيرة (40) عبر maxCount. v3.0.9: تنسيق تابات FCC — كل تاب مسجّل دخول بيكتب نبضة (localStorage). لو تاب التصدير لقى FCC مفتوح ومسجّل دخول فى تاب تانى → مايعملش دخول جديد (اللى كان بيطلع «Invalid username or password») ويروح Home بنفس الجلسة (الكوكيز مشتركة)؛ ولو في تاب تاني بيراجع بالفعل يقفل بعد التصدير بدل مراجعة مكرّرة. v3.0.8: (1) أولوية تصدير شيت FCC — لو التحديث اليومى اشتغل والتاب وسط مراجعة بيانات فنية، السيرفر بيسلّح علامة «صدّر الآن»؛ الراوتر يشوفها فيصدّر الشيت الأول ثم يكمّل المراجعة (المتبقى من الأرقام يفضل مستبعَد فبيكمّل من مكانه). (2) تنظيف استخراج WorkOrdDate (يقتطع التاريخ فقط) وWorkOrdNo (أرقام فقط). v3.0.7: إصلاح المراجعة بعد التصدير اليومى — كانت بتستخدم علامة عابرة (sf_fcc_phase) بتضيع مع الـ reload اللى بيحصل وقت فتح Complains، فكان main يرجع يشغّل runFCC على صفحة Complains ويعلّق من غير ما يدخل أرقام. دلوقتى بتستخدم نفس العلامة الثابتة sf_si_mode (اللى بتشتغل فى المراجعة الفردية/الشاملة) + دفعة 40 + بتتمسح فى الآخر عشان تاب fcc_daily يرجع يصدّر عادى. v3.0.6: المراجعة اليومية بعد التصدير بقت دفعة صغيرة (40 رقم) عشان تاب FCC يقفل بسرعة ومايحمّلش FCC؛ والزر الشامل اليدوى لسه بيراجع لحد 300. (السيرفر بيرجّع بس أرقام 88+7 خانات الصحيحة). v3.0.5: (1) علامة المراجعة كمان فى الـ hash احتياطى (#sf_si=one:الرقم / #sf_si=auto) لو المتصفح مسح window.name. (2) تشخيص فى اللوج «علامة الراوتر» يوضّح ليه راح للتصدير بدل المراجعة. (3) البحث عن خانات/زر البحث فى كل الـ iframes + تشخيص الحقول siDumpFields. v3.0.4: إصلاح — التهدئة بقت *فقط* لو ظهرت رسالة رفض/قفل فعلية (Invalid username or password / LoginException). بطء تسجيل الدخول (لسه على صفحة الدخول من غير رسالة) مابيتحسبش فشل خالص — بنستنى بصبر لحد ما يخرج من صفحة الدخول (نجاح) أو تظهر رسالة (تهدئة). شِلنا عدّاد «محاولتين فاشلتين» اللى كان بيوقف الدخول بالغلط وقت التأخير. v3.0.3: قفل حساب FCC مؤقت (~20 دقيقة) — فترة تهدئة ~22 دقيقة (مشتركة عبر كل تابات FCC عبر localStorage) بعد رفض الدخول، وبعدها يحاول لوحده. v3.0.2: (1) علامة وضع المراجعة (sf_subinfo_one/auto) بتتثبّت فى sessionStorage عند document-start قبل ما FCC يمسح window.name — فزر «مراجعة» بقى يفتح Complains ويدخل رقم التليفون بدل ما يقع فى تدفّق التصدير. (2) الدخول يقف فوراً لو ظهرت «Invalid username or password». v3.0.1: المراجعة تفتح Complains بـ activate (زى بلاطة Ticket Queue) + حد 300 رقم لكل تشغيل (الباقى يكمّل الدورة الجاية). v3.0.0: دمجنا سكربت SubInfo هنا — تاب FCC اليومى بعد التصدير يراجع الأرقام (بورتات بدون بيانات فنية) فى نفس الدخول ثم يقفل؛ وزر المراجعة اليدوى (sf_subinfo_auto/one) بيشتغل لوحده. (احذف سكربت SubInfo المنفصل القديم).
+// @version      3.9.0
+// @description  FCC + WFM + OSS export + جلب اسم/عنوان العميل — كله فى سكربت واحد. v3.9.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v3.8.0: مراجعة البيان الفنى من جهاز التنفيذ بقت فى تاب واحد — بعد الرقم التاب مايقفلش، والرقم اللى بعده بييجى برسالة من Service-Flow فيتغيّر فى خانة البحث ويدوس بحث (من غير تاب جديد ولا كلمة سر). تحديث FCC العاجل بيقفل التاب ويتنفّذ، وبعده الأرقام الباقية بتكمّل. والتاب بيقفل نفسه بعد ٣ دقايق من غير رقم جديد. v3.7.1: «جلب الموبايل» — الرقم اللى مش بيبدأ بصفر على الشمال (زى 1900000000) مش رقم موبايل وبيتساب، وبيجرّب أمر الشغل اللى بعده. v3.7.0: «جلب الموبايل» من WFM (#sf_accept=الرقم&sf_kind=mobile) — Work Order ← Service Id ← Search ← فتح الأمر ← «Cust. Mobile» بدل Assignments ← يقرا «رقم الموبايل» و«تليفون بديل» ويبعتهم لـ Service-Flow (الأعطال الحالية). ولو WFM حوّل التاب على الدخول ورجع من غير الهاش، الرقم بيتاخد من الطلب المحفوظ. v3.6.9: رجّعنا ريفريش صفحة دخول WFM (3.6.8) — الدخول لو طوّل بيستنى زى FCC، وإعادة تشغيل المهمة اللى علقت بقت من موقعنا (جهاز التنفيذ بعد ٤ دقايق). v3.6.7: «إلغاء/إعادة الإسناد» لو وقف (مفيش مهمة، البند مش متاح، الإسناد فشل، الوضع ضايع) بيبلّغ Service-Flow بالسبب — جهاز التنفيذ مابقاش يستنى ٦ دقايق والسبب بيظهر فى «معاملات التنفيذ». v3.6.6: «إعادة الإسناد»/«إلغاء الاسناد» — الوضع وكود العامل بيتحفظوا مع الرقم أول ما التاب يفتح، فلو WFM حوّله على صفحة الدخول ورجع من غير الهاش مايضيعوش («مفيش sf_mode محفوظ»). v3.5.3: «إلغاء الاسناد» و«موافقة تغيير البورت» بيشتغلوا جوّه الصفحة نفسها زى السكربتين القدام (ولو الصفحة منعت ده بيشتغلوا من الـsandbox)؛ رفع الملفات زى ما هو. v3.5.2: «إلغاء الاسناد» و«موافقة تغيير البورت» جوّه السكربت المدموج: أحداث الماوس من غير view: window (فى sandbox بتاع Tampermonkey كانت بتترفض فى صمت فقائمة السطر فى Dispatcher ماكانتش بتفتح). v3.5.1: صفحة دخول WFM من غير أى علامة = تحديث يومى (Service-Flow القديم قبل الـRepublish بيفتحها كده) — إلا لو التاب عليه طلب إلغاء/موافقة شغّال. v3.5.0: سكربتا «إلغاء الاسناد» و«موافقة تغيير البورت» اتدمجوا هنا (احذفهم من Tampermonkey) — راوتر WFM واحد بيحدّد نوع التاب من الرابط أول ما يفتح (إلغاء / موافقة / تحديث يومى)، ودخول واحد، وتصدير أوامر الشغل بيشتغل **بس** على تاب متفتح كتحديث يومى (#sf_wfm_daily). v3.4.3: الدخول على WFM بنفس اسم المستخدم وكلمة السر بتوع FCC. v3.4.2: مابيشغّلش تصدير أوامر الشغل على تاب «موافقة تغيير بورت» (#sf_accept= أو sf_accept_pending) — كان بيصدّر نتيجة البحث المفلترة على رقم واحد فتترفع كملف كامل وتمسح التركيبات الحالية. v3.4.0: منع التعارض مع سكربت «إلغاء الاسناد» على wfm.te.eg — التاب اللى بيفتح بعلامة #sf_cancel= بيبقى تاب إلغاء إسناد، فتدفّق تصدير أوامر الشغل بيتوقّف عليه بدل ما يخطفه لشاشة Work Order Management ويفتح نافذة Export. v3.3.0: زر «مراجعة الاسم والعنوان» بقى يحترم كمان نطاق الأرقام (من رقم/إلى رقم) من بيان التليفونات — بيتبعت فى الهاش (sf_sif = سنترال~كابينة~بكس~من~إلى) ولـ /pending كـ phoneFrom/phoneTo، فالمراجعة تقتصر على أرقام النطاق المحدد. v3.2.0: زر «مراجعة الاسم والعنوان» فى بيان التليفونات بقى يحترم الفلتر (سنترال/كابينة/بكس) — الفلتر بيتبعت فى الهاش (sf_sif) ولـ /pending، فكل تاب مراجعة يجيب أرقام فلتره بس؛ تقدر تفتح مراجعتين بفلترين مختلفين فى نفس الوقت (كل واحدة نافذة مستقلة) بلا طابور مشترك. v3.1.0: زر المراجعة اليدوى الشامل بيراجع كل الأرقام المطلوبة (مش 300 بس) — بيجيب القائمة كاملة (لحد 15000)؛ المراجعة اليومية بعد التصدير لسه دفعة صغيرة (40) عبر maxCount. v3.0.9: تنسيق تابات FCC — كل تاب مسجّل دخول بيكتب نبضة (localStorage). لو تاب التصدير لقى FCC مفتوح ومسجّل دخول فى تاب تانى → مايعملش دخول جديد (اللى كان بيطلع «Invalid username or password») ويروح Home بنفس الجلسة (الكوكيز مشتركة)؛ ولو في تاب تاني بيراجع بالفعل يقفل بعد التصدير بدل مراجعة مكرّرة. v3.0.8: (1) أولوية تصدير شيت FCC — لو التحديث اليومى اشتغل والتاب وسط مراجعة بيانات فنية، السيرفر بيسلّح علامة «صدّر الآن»؛ الراوتر يشوفها فيصدّر الشيت الأول ثم يكمّل المراجعة (المتبقى من الأرقام يفضل مستبعَد فبيكمّل من مكانه). (2) تنظيف استخراج WorkOrdDate (يقتطع التاريخ فقط) وWorkOrdNo (أرقام فقط). v3.0.7: إصلاح المراجعة بعد التصدير اليومى — كانت بتستخدم علامة عابرة (sf_fcc_phase) بتضيع مع الـ reload اللى بيحصل وقت فتح Complains، فكان main يرجع يشغّل runFCC على صفحة Complains ويعلّق من غير ما يدخل أرقام. دلوقتى بتستخدم نفس العلامة الثابتة sf_si_mode (اللى بتشتغل فى المراجعة الفردية/الشاملة) + دفعة 40 + بتتمسح فى الآخر عشان تاب fcc_daily يرجع يصدّر عادى. v3.0.6: المراجعة اليومية بعد التصدير بقت دفعة صغيرة (40 رقم) عشان تاب FCC يقفل بسرعة ومايحمّلش FCC؛ والزر الشامل اليدوى لسه بيراجع لحد 300. (السيرفر بيرجّع بس أرقام 88+7 خانات الصحيحة). v3.0.5: (1) علامة المراجعة كمان فى الـ hash احتياطى (#sf_si=one:الرقم / #sf_si=auto) لو المتصفح مسح window.name. (2) تشخيص فى اللوج «علامة الراوتر» يوضّح ليه راح للتصدير بدل المراجعة. (3) البحث عن خانات/زر البحث فى كل الـ iframes + تشخيص الحقول siDumpFields. v3.0.4: إصلاح — التهدئة بقت *فقط* لو ظهرت رسالة رفض/قفل فعلية (Invalid username or password / LoginException). بطء تسجيل الدخول (لسه على صفحة الدخول من غير رسالة) مابيتحسبش فشل خالص — بنستنى بصبر لحد ما يخرج من صفحة الدخول (نجاح) أو تظهر رسالة (تهدئة). شِلنا عدّاد «محاولتين فاشلتين» اللى كان بيوقف الدخول بالغلط وقت التأخير. v3.0.3: قفل حساب FCC مؤقت (~20 دقيقة) — فترة تهدئة ~22 دقيقة (مشتركة عبر كل تابات FCC عبر localStorage) بعد رفض الدخول، وبعدها يحاول لوحده. v3.0.2: (1) علامة وضع المراجعة (sf_subinfo_one/auto) بتتثبّت فى sessionStorage عند document-start قبل ما FCC يمسح window.name — فزر «مراجعة» بقى يفتح Complains ويدخل رقم التليفون بدل ما يقع فى تدفّق التصدير. (2) الدخول يقف فوراً لو ظهرت «Invalid username or password». v3.0.1: المراجعة تفتح Complains بـ activate (زى بلاطة Ticket Queue) + حد 300 رقم لكل تشغيل (الباقى يكمّل الدورة الجاية). v3.0.0: دمجنا سكربت SubInfo هنا — تاب FCC اليومى بعد التصدير يراجع الأرقام (بورتات بدون بيانات فنية) فى نفس الدخول ثم يقفل؛ وزر المراجعة اليدوى (sf_subinfo_auto/one) بيشتغل لوحده. (احذف سكربت SubInfo المنفصل القديم).
 // @match        https://fcc.te.eg/TroubleTicket/faces/*
 // @match        https://wfm.te.eg/WorkOrder/*
 // @match        https://wfm.te.eg/Dispatcher/*
@@ -14,6 +14,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_xmlhttpRequest
+// @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
 // @connect      sf-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
@@ -146,15 +147,124 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://sf-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
-  function sfBase() {
+  // ── أبواب Service-Flow (المالك ٢٠٢٦-١٠-٢٩) ────────────────────────────────────
+  // تأمين شبكة الشركة حظر ريبليت، وأى دومين ممكن يتحظر بعدين. فالسكربت بقى عنده قايمة
+  // أبواب لنفس Service-Flow: بيجرّبهم بالترتيب ويثبت على أول واحد يرد (sf_base_ok). ولو
+  // كلهم مقفولين، النتيجة (JSON صغير) بتتخزّن وتتبعت لوحدها أول ما أى باب يرجع — مفيش
+  // نتيجة بتضيع. باب زيادة من غير تعديل السكربت (مفصولين بفاصلة)، من كونسول أى صفحة السكربت شغّال فيها:
+  //   localStorage.setItem('sf_bases_extra', 'https://…/serviceflow')
+  // الترتيب مقصود (المالك: «عاوز أقلّل الاعتماد على Cloudflare»): oscardevs.com من غير سَبدومين رايح للسيرفر
+  // مباشرة (IP جوجل كلاود، مش Cloudflare)، وserviceflow.oscardevs.com بيعدّى على Cloudflare Worker وكوتته
+  // (خلصت يوم ١٩ سبتمبر) — فهو آخر باب، مابيتجرّبش غير لو الاتنين التانيين مقفولين.
+  const SF_DEFAULT_BASE = "https://oscardevs.com/serviceflow";
+  const SF_BASES = [SF_DEFAULT_BASE, "https://sf-menoskar42.replit.app/serviceflow", "https://serviceflow.oscardevs.com/serviceflow"];
+  const sfStore = {
+    get(k, d) {
+      try { if (typeof GM_getValue === "function") { const v = GM_getValue(k, undefined); if (v !== undefined && v !== null) return v; } } catch (e) {}
+      try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; }
+    },
+    set(k, v) {
+      try { if (typeof GM_setValue === "function") { GM_setValue(k, v); return; } } catch (e) {}
+      try { localStorage.setItem(k, v); } catch (e) {}
+    },
+  };
+  function sfBases() {
+    const out = [];
+    const add = (b) => { b = String(b || "").trim().replace(/\/+$/, ""); if (/^https?:\/\/[^/]+/.test(b) && out.indexOf(b) < 0) out.push(b); };
+    add(sfStore.get("sf_base_ok", ""));
+    add(sfStore.get("sf_base", ""));
+    SF_BASES.forEach(add);
+    String(sfStore.get("sf_bases_extra", "") || "").split(",").forEach(add);
+    return out;
+  }
+  function sfBase() { return sfBases()[0]; }
+  /** «/api/…» لو الرابط رايح لأى باب من أبواب Service-Flow، وإلا null (طلبات المواقع التانية بتعدّى زى ما هى). */
+  function sfApiPath(url) {
+    const m = String(url || "").match(/^https?:\/\/([^/?#]+)(?:\/serviceflow)?(\/api\/[\s\S]*)$/i);
+    if (!m) return null;
+    const host = m[1].toLowerCase();
+    const hosts = [];
+    sfBases().forEach((b) => { try { hosts.push(new URL(b).host.toLowerCase()); } catch (e) {} });
+    return hosts.indexOf(host) >= 0 ? m[2] : null;
+  }
+  // صفحة HTML = مش Service-Flow (صفحة حظر الشبكة، صفحة خطأ Cloudflare، أو صفحة أوسكار ديفز)
+  const sfIsOurs = (status, ctype) => status > 0 && !/text\/html/i.test(String(ctype || ""));
+  const SF_OUTBOX = "sf_outbox";
+  function sfOutbox() { try { const v = JSON.parse(sfStore.get(SF_OUTBOX, "[]") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function sfQueue(path, method, headers, body) {
+    const box = sfOutbox();
+    box.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), path, method, headers, body, at: Date.now() });
+    while (box.length > 3000 || (box.length > 1 && JSON.stringify(box).length > 3000000)) box.shift();
+    sfStore.set(SF_OUTBOX, JSON.stringify(box));
+    console.warn("[Service-Flow] مفيش باب رادّ — النتيجة اتخزّنت وهتتبعت لوحدها (" + box.length + " مستنية)");
+  }
+  let sfFlushing = false;
+  async function sfFlush() {
+    if (sfFlushing || !sfOutbox().length) return;
+    const lock = Number(sfStore.get("sf_outbox_lock", "0")) || 0;
+    if (Date.now() - lock < 60000) return;   // تاب تانى بيبعت دلوقتى
+    sfFlushing = true;
+    sfStore.set("sf_outbox_lock", String(Date.now()));
+    let sent = 0;
     try {
-      var v = null;
-      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
-      if (!v) v = localStorage.getItem("sf_base");
-      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
-    } catch (e) {}
-    return SF_DEFAULT_BASE;
+      for (const it of sfOutbox()) {
+        if (!(await sfSendQueued(it))) break;
+        sfStore.set(SF_OUTBOX, JSON.stringify(sfOutbox().filter((x) => x.id !== it.id)));
+        sfStore.set("sf_outbox_lock", String(Date.now()));
+        sent++;
+      }
+    } catch (e) {} finally {
+      sfFlushing = false;
+      sfStore.set("sf_outbox_lock", "0");
+      if (sent) console.log("[Service-Flow] اتبعت " + sent + " نتيجة كانت مستنية — فاضل " + sfOutbox().length);
+    }
+  }
+  setTimeout(() => { sfFlush(); }, 8000);
+  setInterval(() => { sfFlush(); }, 120000);
+  const sfCtype = (r) => (String((r && r.responseHeaders) || "").match(/^content-type:\s*([^\r\n]*)/im) || [])[1];
+  /** GM_xmlhttpRequest بالأبواب — نفس الشكل والـcallbacks. أى رابط مش Service-Flow بيعدّى زى ما هو. */
+  function sfGmx(opts) {
+    const path = sfApiPath(opts && opts.url);
+    if (path == null) return GM_xmlhttpRequest(opts);
+    const bases = sfBases();
+    const big = opts.data != null && typeof opts.data !== "string";
+    let i = 0, last = null, lastErr = null, lastKind = "error";
+    const next = () => {
+      if (i >= bases.length) {
+        const method = String(opts.method || "GET").toUpperCase();
+        if (!opts.sfNoQueue && method !== "GET" && typeof opts.data === "string") {
+          sfQueue(path, method, opts.headers || {}, opts.data);
+          const q = '{"ok":true,"queued":true}';
+          if (opts.onload) opts.onload({ status: 202, statusText: "Queued", readyState: 4, responseText: q, response: q, responseHeaders: "content-type: application/json\r\n", finalUrl: opts.url });
+          return;
+        }
+        if (last && opts.onload) return opts.onload(last);
+        if (lastKind === "timeout" && opts.ontimeout) return opts.ontimeout(lastErr);
+        if (opts.onerror) opts.onerror(lastErr || { status: 0, error: "Service-Flow unreachable" });
+        return;
+      }
+      const base = bases[i++];
+      GM_xmlhttpRequest(Object.assign({}, opts, {
+        url: base + path,
+        timeout: opts.timeout || (big ? 300000 : 25000),
+        onload: (r) => {
+          if (sfIsOurs(r.status, sfCtype(r))) {
+            if (sfStore.get("sf_base_ok", "") !== base) sfStore.set("sf_base_ok", base);
+            if (!opts.sfNoQueue) setTimeout(() => { sfFlush(); }, 1500);
+            if (opts.onload) opts.onload(r);
+          } else { last = r; next(); }
+        },
+        onerror: (r) => { lastErr = r; lastKind = "error"; next(); },
+        ontimeout: (r) => { lastErr = r; lastKind = "timeout"; next(); },
+      }));
+    };
+    next();
+  }
+  function sfSendQueued(it) {
+    return new Promise((resolve) => sfGmx({
+      method: it.method, url: sfBase() + it.path, headers: it.headers, data: it.body, sfNoQueue: true,
+      onload: (r) => resolve(sfIsOurs(r.status, sfCtype(r))), onerror: () => resolve(false), ontimeout: () => resolve(false),
+    }));
   }
   const SF_URL = sfBase();
   const SF_UPLOAD_TOKEN = 'sf-auto-upload-2026';
@@ -215,7 +325,7 @@
     if (!SF_URL || SF_URL.includes('YOUR-SERVICE-FLOW')) { log('⚠️ SF_URL غير مضبوط'); return; }
     log('📤 رفع إلى SF:', endpoint, '(' + Math.round(blob.size / 1024) + ' KB)');
     const fd = new FormData(); fd.append('file', blob, filename);
-    GM_xmlhttpRequest({
+    sfGmx({
       method: 'POST', url: SF_URL + endpoint,
       headers: { 'X-Upload-Token': SF_UPLOAD_TOKEN },
       data: fd, timeout: 300000,
@@ -731,7 +841,7 @@
     let done = false;
     function gmReq(opts) {
       return new Promise((resolve) => {
-        GM_xmlhttpRequest(Object.assign({
+        sfGmx(Object.assign({
           responseType: 'arraybuffer', timeout: 60000,
           onload: (r) => resolve({ status: r.status, buf: r.response || new ArrayBuffer(0) }),
           onerror: () => resolve({ status: 0, buf: new ArrayBuffer(0) }),
@@ -920,7 +1030,7 @@
     log('📤 OSS Re-Execute →', result, message || '');
     return new Promise((resolve) => {
       try {
-        GM_xmlhttpRequest({
+        sfGmx({
           method: 'POST', url: SF_URL + '/api/oss-reexec/ingest',
           headers: { 'Content-Type': 'application/json', 'X-DZS-Token': 'sf-dzs-138-ingest-2026' },
           data: JSON.stringify({ key: job.value, by: job.by, result, message: message || '' }), timeout: 30000,
@@ -1197,7 +1307,7 @@
     }
     return null;
   }
-  function siGm(opts) { return new Promise((resolve) => { GM_xmlhttpRequest(Object.assign({ timeout: 30000, onload: r => resolve({ ok: r.status >= 200 && r.status < 300, status: r.status, text: r.responseText || '' }), onerror: () => resolve({ ok: false, status: 0, text: '' }), ontimeout: () => resolve({ ok: false, status: 0, text: '' }) }, opts)); }); }
+  function siGm(opts) { return new Promise((resolve) => { sfGmx(Object.assign({ timeout: 30000, onload: r => resolve({ ok: r.status >= 200 && r.status < 300, status: r.status, text: r.responseText || '' }), onerror: () => resolve({ ok: false, status: 0, text: '' }), ontimeout: () => resolve({ ok: false, status: 0, text: '' }) }, opts)); }); }
   async function siGetPending() { var flt = ''; try { flt = sessionStorage.getItem('sf_si_filter') || ''; } catch (e) {} var fq = ''; if (flt) { var _p = flt.split('~'); if (_p[0]) fq += '&central=' + encodeURIComponent(_p[0]); if (_p[1]) fq += '&cabin=' + encodeURIComponent(_p[1]); if (_p[2]) fq += '&box=' + encodeURIComponent(_p[2]); if (_p[3]) fq += '&phoneFrom=' + encodeURIComponent(_p[3]); if (_p[4]) fq += '&phoneTo=' + encodeURIComponent(_p[4]); } const r = await siGm({ method: 'GET', url: SF_URL + '/api/line-subscriber-info/pending?limit=' + SI_FETCH_LIMIT + fq, headers: { 'X-DZS-Token': DZS_TOKEN } }); if (!r.ok) { log('❌ SubInfo: فشل جلب القائمة', r.status); return []; } try { return JSON.parse(r.text).phones || []; } catch (e) { return []; } }
   async function siIngest(phoneNumber, data) { const r = await siGm({ method: 'POST', url: SF_URL + '/api/line-subscriber-info/ingest', headers: { 'Content-Type': 'application/json', 'X-DZS-Token': DZS_TOKEN }, data: JSON.stringify(Object.assign({ phoneNumber }, data)) }); if (!r.ok) log('❌ SubInfo: فشل الرفع', phoneNumber, r.status); return r.ok; }
   const siHasSearch = () => !!(findInputByLabel('CityCode') && findInputByLabel('TelNo'));
@@ -1468,15 +1578,113 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://sf-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
-  function sfBase() {
+  // ── أبواب Service-Flow (المالك ٢٠٢٦-١٠-٢٩) ────────────────────────────────────
+  // تأمين شبكة الشركة حظر ريبليت، وأى دومين ممكن يتحظر بعدين. فالسكربت بقى عنده قايمة
+  // أبواب لنفس Service-Flow: بيجرّبهم بالترتيب ويثبت على أول واحد يرد (sf_base_ok). ولو
+  // كلهم مقفولين، النتيجة (JSON صغير) بتتخزّن وتتبعت لوحدها أول ما أى باب يرجع — مفيش
+  // نتيجة بتضيع. باب زيادة من غير تعديل السكربت (مفصولين بفاصلة)، من كونسول أى صفحة السكربت شغّال فيها:
+  //   localStorage.setItem('sf_bases_extra', 'https://…/serviceflow')
+  // الترتيب مقصود (المالك: «عاوز أقلّل الاعتماد على Cloudflare»): oscardevs.com من غير سَبدومين رايح للسيرفر
+  // مباشرة (IP جوجل كلاود، مش Cloudflare)، وserviceflow.oscardevs.com بيعدّى على Cloudflare Worker وكوتته
+  // (خلصت يوم ١٩ سبتمبر) — فهو آخر باب، مابيتجرّبش غير لو الاتنين التانيين مقفولين.
+  const SF_DEFAULT_BASE = "https://oscardevs.com/serviceflow";
+  const SF_BASES = [SF_DEFAULT_BASE, "https://sf-menoskar42.replit.app/serviceflow", "https://serviceflow.oscardevs.com/serviceflow"];
+  const sfStore = {
+    get(k, d) {
+      try { if (typeof GM_getValue === "function") { const v = GM_getValue(k, undefined); if (v !== undefined && v !== null) return v; } } catch (e) {}
+      try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; }
+    },
+    set(k, v) {
+      try { if (typeof GM_setValue === "function") { GM_setValue(k, v); return; } } catch (e) {}
+      try { localStorage.setItem(k, v); } catch (e) {}
+    },
+  };
+  function sfBases() {
+    const out = [];
+    const add = (b) => { b = String(b || "").trim().replace(/\/+$/, ""); if (/^https?:\/\/[^/]+/.test(b) && out.indexOf(b) < 0) out.push(b); };
+    add(sfStore.get("sf_base_ok", ""));
+    add(sfStore.get("sf_base", ""));
+    SF_BASES.forEach(add);
+    String(sfStore.get("sf_bases_extra", "") || "").split(",").forEach(add);
+    return out;
+  }
+  function sfBase() { return sfBases()[0]; }
+  /** «/api/…» لو الرابط رايح لأى باب من أبواب Service-Flow، وإلا null (طلبات المواقع التانية بتعدّى زى ما هى). */
+  function sfApiPath(url) {
+    const m = String(url || "").match(/^https?:\/\/([^/?#]+)(?:\/serviceflow)?(\/api\/[\s\S]*)$/i);
+    if (!m) return null;
+    const host = m[1].toLowerCase();
+    const hosts = [];
+    sfBases().forEach((b) => { try { hosts.push(new URL(b).host.toLowerCase()); } catch (e) {} });
+    return hosts.indexOf(host) >= 0 ? m[2] : null;
+  }
+  // صفحة HTML = مش Service-Flow (صفحة حظر الشبكة، صفحة خطأ Cloudflare، أو صفحة أوسكار ديفز)
+  const sfIsOurs = (status, ctype) => status > 0 && !/text\/html/i.test(String(ctype || ""));
+  const SF_OUTBOX = "sf_outbox";
+  function sfOutbox() { try { const v = JSON.parse(sfStore.get(SF_OUTBOX, "[]") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function sfQueue(path, method, headers, body) {
+    const box = sfOutbox();
+    box.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), path, method, headers, body, at: Date.now() });
+    while (box.length > 3000 || (box.length > 1 && JSON.stringify(box).length > 3000000)) box.shift();
+    sfStore.set(SF_OUTBOX, JSON.stringify(box));
+    console.warn("[Service-Flow] مفيش باب رادّ — النتيجة اتخزّنت وهتتبعت لوحدها (" + box.length + " مستنية)");
+  }
+  let sfFlushing = false;
+  async function sfFlush() {
+    if (sfFlushing || !sfOutbox().length) return;
+    const lock = Number(sfStore.get("sf_outbox_lock", "0")) || 0;
+    if (Date.now() - lock < 60000) return;   // تاب تانى بيبعت دلوقتى
+    sfFlushing = true;
+    sfStore.set("sf_outbox_lock", String(Date.now()));
+    let sent = 0;
     try {
-      var v = null;
-      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
-      if (!v) v = localStorage.getItem("sf_base");
-      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
-    } catch (e) {}
-    return SF_DEFAULT_BASE;
+      for (const it of sfOutbox()) {
+        if (!(await sfSendQueued(it))) break;
+        sfStore.set(SF_OUTBOX, JSON.stringify(sfOutbox().filter((x) => x.id !== it.id)));
+        sfStore.set("sf_outbox_lock", String(Date.now()));
+        sent++;
+      }
+    } catch (e) {} finally {
+      sfFlushing = false;
+      sfStore.set("sf_outbox_lock", "0");
+      if (sent) console.log("[Service-Flow] اتبعت " + sent + " نتيجة كانت مستنية — فاضل " + sfOutbox().length);
+    }
+  }
+  setTimeout(() => { sfFlush(); }, 8000);
+  setInterval(() => { sfFlush(); }, 120000);
+  /** fetch لـService-Flow بالأبواب: باب ورا باب، ولو كله مقفول والطلب JSON بيتخزّن (يرجّع 202 queued). */
+  async function sfFetch(url, opts, noQueue) {
+    opts = opts || {};
+    const path = sfApiPath(url);
+    if (path == null) return fetch(url, opts);
+    const big = opts.body != null && typeof opts.body !== "string";
+    let last = null, lastErr = null;
+    for (const base of sfBases()) {
+      const ctrl = typeof AbortController === "function" ? new AbortController() : null;
+      const t = ctrl ? setTimeout(() => ctrl.abort(), big ? 300000 : 25000) : null;
+      try {
+        const r = await fetch(base + path, Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}));
+        if (sfIsOurs(r.status, r.headers.get("content-type"))) {
+          if (sfStore.get("sf_base_ok", "") !== base) sfStore.set("sf_base_ok", base);
+          if (!noQueue) setTimeout(() => { sfFlush(); }, 1500);
+          return r;
+        }
+        last = r;
+      } catch (e) { lastErr = e; } finally { if (t) clearTimeout(t); }
+    }
+    const method = String(opts.method || "GET").toUpperCase();
+    if (!noQueue && method !== "GET" && typeof opts.body === "string") {
+      sfQueue(path, method, opts.headers || {}, opts.body);
+      return new Response(JSON.stringify({ ok: true, queued: true }), { status: 202, headers: { "Content-Type": "application/json" } });
+    }
+    if (last) return last;
+    throw lastErr || new TypeError("Service-Flow unreachable");
+  }
+  async function sfSendQueued(it) {
+    try {
+      const r = await sfFetch(sfBase() + it.path, { method: it.method, headers: it.headers, body: it.body }, true);
+      return sfIsOurs(r.status, r.headers.get("content-type"));
+    } catch (e) { return false; }
   }
   const SF_API_BASE = sfBase();
   const SF_TOKEN = "sf-dzs-138-ingest-2026";                        // = DZS_INGEST_TOKEN فى السيرفر
@@ -2101,7 +2309,7 @@
   // مانفترضش النجاح.
   async function sfReportCancel(phone, status) {
     try {
-      const r = await window.fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/wfm-tasks/cancel-ingest", {
+      const r = await sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/wfm-tasks/cancel-ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-DZS-Token": SF_TOKEN },
         body: JSON.stringify({ phone: String(phone || "").replace(/\D/g, ""), status: status || "" }),
@@ -2859,13 +3067,113 @@
   // نفس الدومين والتوكن بتوع سكربت «إلغاء الاسناد». الدومين بيتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')
   // ملحوظة: الرقم بيتشال من الهاش أول ما يتقرا (boot) ويفضل فى sessionStorage لحد ما الشغل يخلص.
-  const SF_DEFAULT_BASE = "https://sf-menoskar42.replit.app/serviceflow";
-  function sfBase() {
+  // ── أبواب Service-Flow (المالك ٢٠٢٦-١٠-٢٩) ────────────────────────────────────
+  // تأمين شبكة الشركة حظر ريبليت، وأى دومين ممكن يتحظر بعدين. فالسكربت بقى عنده قايمة
+  // أبواب لنفس Service-Flow: بيجرّبهم بالترتيب ويثبت على أول واحد يرد (sf_base_ok). ولو
+  // كلهم مقفولين، النتيجة (JSON صغير) بتتخزّن وتتبعت لوحدها أول ما أى باب يرجع — مفيش
+  // نتيجة بتضيع. باب زيادة من غير تعديل السكربت (مفصولين بفاصلة)، من كونسول أى صفحة السكربت شغّال فيها:
+  //   localStorage.setItem('sf_bases_extra', 'https://…/serviceflow')
+  // الترتيب مقصود (المالك: «عاوز أقلّل الاعتماد على Cloudflare»): oscardevs.com من غير سَبدومين رايح للسيرفر
+  // مباشرة (IP جوجل كلاود، مش Cloudflare)، وserviceflow.oscardevs.com بيعدّى على Cloudflare Worker وكوتته
+  // (خلصت يوم ١٩ سبتمبر) — فهو آخر باب، مابيتجرّبش غير لو الاتنين التانيين مقفولين.
+  const SF_DEFAULT_BASE = "https://oscardevs.com/serviceflow";
+  const SF_BASES = [SF_DEFAULT_BASE, "https://sf-menoskar42.replit.app/serviceflow", "https://serviceflow.oscardevs.com/serviceflow"];
+  const sfStore = {
+    get(k, d) {
+      try { if (typeof GM_getValue === "function") { const v = GM_getValue(k, undefined); if (v !== undefined && v !== null) return v; } } catch (e) {}
+      try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; }
+    },
+    set(k, v) {
+      try { if (typeof GM_setValue === "function") { GM_setValue(k, v); return; } } catch (e) {}
+      try { localStorage.setItem(k, v); } catch (e) {}
+    },
+  };
+  function sfBases() {
+    const out = [];
+    const add = (b) => { b = String(b || "").trim().replace(/\/+$/, ""); if (/^https?:\/\/[^/]+/.test(b) && out.indexOf(b) < 0) out.push(b); };
+    add(sfStore.get("sf_base_ok", ""));
+    add(sfStore.get("sf_base", ""));
+    SF_BASES.forEach(add);
+    String(sfStore.get("sf_bases_extra", "") || "").split(",").forEach(add);
+    return out;
+  }
+  function sfBase() { return sfBases()[0]; }
+  /** «/api/…» لو الرابط رايح لأى باب من أبواب Service-Flow، وإلا null (طلبات المواقع التانية بتعدّى زى ما هى). */
+  function sfApiPath(url) {
+    const m = String(url || "").match(/^https?:\/\/([^/?#]+)(?:\/serviceflow)?(\/api\/[\s\S]*)$/i);
+    if (!m) return null;
+    const host = m[1].toLowerCase();
+    const hosts = [];
+    sfBases().forEach((b) => { try { hosts.push(new URL(b).host.toLowerCase()); } catch (e) {} });
+    return hosts.indexOf(host) >= 0 ? m[2] : null;
+  }
+  // صفحة HTML = مش Service-Flow (صفحة حظر الشبكة، صفحة خطأ Cloudflare، أو صفحة أوسكار ديفز)
+  const sfIsOurs = (status, ctype) => status > 0 && !/text\/html/i.test(String(ctype || ""));
+  const SF_OUTBOX = "sf_outbox";
+  function sfOutbox() { try { const v = JSON.parse(sfStore.get(SF_OUTBOX, "[]") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function sfQueue(path, method, headers, body) {
+    const box = sfOutbox();
+    box.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), path, method, headers, body, at: Date.now() });
+    while (box.length > 3000 || (box.length > 1 && JSON.stringify(box).length > 3000000)) box.shift();
+    sfStore.set(SF_OUTBOX, JSON.stringify(box));
+    console.warn("[Service-Flow] مفيش باب رادّ — النتيجة اتخزّنت وهتتبعت لوحدها (" + box.length + " مستنية)");
+  }
+  let sfFlushing = false;
+  async function sfFlush() {
+    if (sfFlushing || !sfOutbox().length) return;
+    const lock = Number(sfStore.get("sf_outbox_lock", "0")) || 0;
+    if (Date.now() - lock < 60000) return;   // تاب تانى بيبعت دلوقتى
+    sfFlushing = true;
+    sfStore.set("sf_outbox_lock", String(Date.now()));
+    let sent = 0;
     try {
-      const v = localStorage.getItem("sf_base");
-      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
-    } catch (e) {}
-    return SF_DEFAULT_BASE;
+      for (const it of sfOutbox()) {
+        if (!(await sfSendQueued(it))) break;
+        sfStore.set(SF_OUTBOX, JSON.stringify(sfOutbox().filter((x) => x.id !== it.id)));
+        sfStore.set("sf_outbox_lock", String(Date.now()));
+        sent++;
+      }
+    } catch (e) {} finally {
+      sfFlushing = false;
+      sfStore.set("sf_outbox_lock", "0");
+      if (sent) console.log("[Service-Flow] اتبعت " + sent + " نتيجة كانت مستنية — فاضل " + sfOutbox().length);
+    }
+  }
+  setTimeout(() => { sfFlush(); }, 8000);
+  setInterval(() => { sfFlush(); }, 120000);
+  /** fetch لـService-Flow بالأبواب: باب ورا باب، ولو كله مقفول والطلب JSON بيتخزّن (يرجّع 202 queued). */
+  async function sfFetch(url, opts, noQueue) {
+    opts = opts || {};
+    const path = sfApiPath(url);
+    if (path == null) return fetch(url, opts);
+    const big = opts.body != null && typeof opts.body !== "string";
+    let last = null, lastErr = null;
+    for (const base of sfBases()) {
+      const ctrl = typeof AbortController === "function" ? new AbortController() : null;
+      const t = ctrl ? setTimeout(() => ctrl.abort(), big ? 300000 : 25000) : null;
+      try {
+        const r = await fetch(base + path, Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}));
+        if (sfIsOurs(r.status, r.headers.get("content-type"))) {
+          if (sfStore.get("sf_base_ok", "") !== base) sfStore.set("sf_base_ok", base);
+          if (!noQueue) setTimeout(() => { sfFlush(); }, 1500);
+          return r;
+        }
+        last = r;
+      } catch (e) { lastErr = e; } finally { if (t) clearTimeout(t); }
+    }
+    const method = String(opts.method || "GET").toUpperCase();
+    if (!noQueue && method !== "GET" && typeof opts.body === "string") {
+      sfQueue(path, method, opts.headers || {}, opts.body);
+      return new Response(JSON.stringify({ ok: true, queued: true }), { status: 202, headers: { "Content-Type": "application/json" } });
+    }
+    if (last) return last;
+    throw lastErr || new TypeError("Service-Flow unreachable");
+  }
+  async function sfSendQueued(it) {
+    try {
+      const r = await sfFetch(sfBase() + it.path, { method: it.method, headers: it.headers, body: it.body }, true);
+      return sfIsOurs(r.status, r.headers.get("content-type"));
+    } catch (e) { return false; }
   }
   const SF_TOKEN = "sf-dzs-138-ingest-2026";   // = DZS_INGEST_TOKEN فى السيرفر
 
@@ -3028,7 +3336,7 @@
   async function sfReport(phone, result, message) {
     if (!phone) return;
     try {
-      const r = await window.fetch(sfBase() + "/api/wfm-tasks/accept-ingest", {
+      const r = await sfFetch(sfBase() + "/api/wfm-tasks/accept-ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-DZS-Token": SF_TOKEN },
         body: JSON.stringify({ phone: localPhone(phone), result, message, workId: currentWid }),
@@ -3057,7 +3365,7 @@
     const o = mobileOut || { result: /مش موجود فى أوامر الشغل/.test(message) ? "not_found" : "failed" };
     mobileOut = null;
     try {
-      const r = await window.fetch(sfBase() + "/api/wfm-mobile/ingest", {
+      const r = await sfFetch(sfBase() + "/api/wfm-mobile/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-DZS-Token": SF_TOKEN },
         body: JSON.stringify({ phone: localPhone(phone), result: o.result, mobile: o.mobile || "", alt: o.alt || "", message }),

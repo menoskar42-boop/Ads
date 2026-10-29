@@ -44,7 +44,7 @@ test("queue: wfmmobile is a super-admin WFM job on the accept tab with sf_kind=m
 });
 
 test("script: Cust. Mobile instead of Assignments, both numbers sent", () => {
-  assert.match(script, /@version\s+3\.8\.0/);
+  assert.match(script, /@version\s+3\.9\.0/);
   assert.match(script, /const zeroLed = \(v\) => \(\/\^0\\d\/\.test\(v \|\| ""\) \? v : ""\);/);
   assert.match(script, /if \(isMobileKind\(\)\) return mobileFlow\(phone, links, idx\);/);
   assert.match(script, /cust\(omer\)\?\\\\?\.\?\\s\*mobile/);

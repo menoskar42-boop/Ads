@@ -14,6 +14,15 @@
  *   ٢. كل سكربت بيكلّم Service-Flow بيحسب الدومين من sfBase() مش من ثابت.
  *   ٣. الهيدر فيه @connect للدومين الجديد، وإلا GM_xmlhttpRequest هيترفض.
  *
+ * ٥. (٢٠٢٦-١٠-٢٩) تأمين شبكة الشركة حظر ريبليت: الافتراضى بقى https://oscardevs.com/serviceflow
+ *    (رايح للسيرفر مباشرة، مش عن طريق Cloudflare Worker)، وكل سكربت شغّال عنده قايمة أبواب
+ *    SF_BASES بالترتيب: oscardevs.com ← ريبليت ← serviceflow.oscardevs.com (ده بيعدّى على
+ *    الـWorker وكوتته، فهو الأخير — المالك: «عاوز أقلّل الاعتماد على Cloudflare»). وكل طلب
+ *    لـService-Flow بيعدّى على sfFetch/sfGmx (اللى بتجرّب الأبواب وتخزّن النتيجة لو كلهم مقفولين).
+ *    السلوك نفسه متختبر فى serviceflow/server/userscript-doors.test.ts.
+ *
+ * السكربتات فى RETIRED اتدمجت فى سكربتات تانية والمالك قافلها فى Tampermonkey — مابتتحدّثش.
+ *
  * ⚠️ استثناء بقرار المالك (٢٠٢٦-٠٩-٢٣): ملفات فى OWNER_PINNED لازم تفضل **زى
  * الكود اللى شغّال عند المالك حرفياً** — فمابنفرضش عليها sfBase(). بدل كده
  * بنثبّت قيمة SF_API_BASE نفسها: لو اتغيّرت لأى حاجة (خصوصاً الدومين القديم
@@ -29,8 +38,18 @@ const SF = path.join(ROOT, 'serviceflow');
 // serviceflow.oscardevs.com كان بيرجّع صفحة أوسكار ديفز مش Service Flow (مش فى
 // SERVICEFLOW_HOST)، فرفع WFM قال «اتحدّث» والتقرير ماتحدّثش. والهوست من غير
 // «/serviceflow» بيروح لأوسكار ديفز برضه — المسار جزء من الوجهة.
-const DEFAULT_BASE = 'https://sf-menoskar42.replit.app/serviceflow';
-const NEW_HOST = 'sf-menoskar42.replit.app';
+const DEFAULT_BASE = 'https://oscardevs.com/serviceflow';
+const NEW_HOST = 'oscardevs.com';
+const BASES_LINE = 'const SF_BASES = [SF_DEFAULT_BASE, "https://sf-menoskar42.replit.app/serviceflow", "https://serviceflow.oscardevs.com/serviceflow"];';
+// اتدمجت فى سكربت تانى (والمالك قافلها فى Tampermonkey) — مابتتحدّثش ومابنفحصهاش
+const RETIRED = new Set([
+  'fcc-subscriber-info.user.js',      // ← TE FCC + WFM + OSS + SubInfo (All-in-One) v3.0.0
+  'wfm-accept-task.user.js',          // ← All-in-One v3.5.0
+  'wfm-dispatcher-reassign.user.js',  // ← All-in-One v3.5.0
+  'provisioning-portal-ports.user.js',// ← provisioning-portal.user.js (تدفّق sf_ports)
+  'oas-430d-details.user.js',         // ← we-oas-bi-login.user.js (تقرير 430D) — ومابيكلّمش Service-Flow
+  'tampermonkey-v2.9.js',             // ← te-fcc-wfm-oss-subinfo.user.js (نسخة All-in-One قديمة 3.0.10)
+]);
 const OLD_RE = /service-flow-{1,2}menoskar42\.replit\.app/;
 
 /* الملف ← القيمة الوحيدة المسموحة لـSF_API_BASE فيه (زى كود المالك بالظبط).
@@ -38,7 +57,8 @@ const OLD_RE = /service-flow-{1,2}menoskar42\.replit\.app/;
  * بيشيل `/serviceflow` من أى نطاق ويبعت `/api/…` لـService Flow، والسيرفر عنده
  * OPTIONS + CORS لـX-DZS-Token على /api/case-138/measurements. */
 const OWNER_PINNED = {
-  'serviceflow/dzs-expresse-v10.user.js': 'https://sf-menoskar42.replit.app/serviceflow/',
+  // المالك ٢٠٢٦-١٠-٢٩: «عدّل الـ13 سكربت» بعد حظر ريبليت — أول باب بقى oscardevs.com
+  'serviceflow/dzs-expresse-v10.user.js': 'https://oscardevs.com/serviceflow/',
 };
 
 const errors = [];
@@ -49,7 +69,7 @@ if (!fs.existsSync(SF)) {
 }
 
 const scripts = fs.readdirSync(SF)
-  .filter((f) => f.endsWith('.user.js') || f === 'tampermonkey-v2.9.js')
+  .filter((f) => (f.endsWith('.user.js') || f === 'tampermonkey-v2.9.js') && !RETIRED.has(f))
   .map((f) => path.join(SF, f));
 
 if (!scripts.length) errors.push('مفيش أى سكربت تمبر منكى فى serviceflow/ — الفحص بلا معنى');
@@ -69,8 +89,15 @@ for (const file of scripts) {
     }
   }
 
-  // ١ + ٣: الهيدر
+  // ٥: قايمة الأبواب وكل الطلبات بتعدّى عليها
   const usesSf = /\bSF_(API_BASE|URL)\b/.test(src);
+  if (usesSf) {
+    if (!src.includes(BASES_LINE)) errors.push(`${rel}: ناقص قايمة الأبواب بالترتيب: ${BASES_LINE}`);
+    if (/window\.fetch\(\s*(SF_API_BASE|sfBase\(\))|(?<![\w.])fetch\(SF_API_BASE/.test(src)) errors.push(`${rel}: fetch مباشر لـService-Flow — لازم sfFetch(…)`);
+    const noHelper = src.replace(/function sfGmx\(opts\) \{[\s\S]*?\n  \}\n/g, '').replace(/^\/\/ @grant.*$/gm, '');
+    if (/(?<![\w.])GM_xmlhttpRequest\(/.test(noHelper)) errors.push(`${rel}: GM_xmlhttpRequest مباشر — لازم sfGmx(…)`);
+  }
+  // ١ + ٣: الهيدر
   if (usesSf && !pinned) {
     if (!new RegExp(`^//\\s*@connect\\s+${NEW_HOST.replace(/\./g, '\\.')}\\s*$`, 'm').test(src)) {
       errors.push(`${rel}: ناقص "// @connect ${NEW_HOST}" فى الهيدر`);
@@ -122,4 +149,4 @@ if (errors.length) {
   for (const e of errors) console.error('  - ' + e);
   process.exit(1);
 }
-console.log(`✅ check-userscript-base: ${scripts.length} سكربت — الدومين متغيّر ومفيش أثر للقديم (${Object.keys(OWNER_PINNED).length} مثبّت بقرار المالك)`);
+console.log(`✅ check-userscript-base: ${scripts.length} سكربت شغّال على أبواب oscardevs.com ← ريبليت ← serviceflow.oscardevs.com (${RETIRED.size} مدموجين متخطّيين، ${Object.keys(OWNER_PINNED).length} مثبّت بقرار المالك)`);

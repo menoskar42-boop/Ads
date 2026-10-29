@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         WE OAS BI — تقرير 131 أرقام التليفونات على كابينة
 // @namespace    service-flow.we-oas.131
-// @description  يسجّل الدخول على we-oas.te.eg، يفتح تقرير «131»، يجلب كباين النحاس بتوعنا من Service-Flow، يمرّ على كل كابينة (P_CABINET_NO + Apply) ويجمع شيتات نحاسي+فيبر+دوائر فى ملف واحد، ينزّله، ويرفعه لـ Service-Flow (يستبدل رقم التليفون الموجود ويضيف الجديد على بيان التليفونات 131).
-// @version      1.1.3
+// @description  يسجّل الدخول على we-oas.te.eg، يفتح تقرير «131»، يجلب كباين النحاس بتوعنا من Service-Flow، يمرّ على كل كابينة (P_CABINET_NO + Apply) ويجمع شيتات نحاسي+فيبر+دوائر فى ملف واحد، ينزّله، ويرفعه لـ Service-Flow (يستبدل رقم التليفون الموجود ويضيف الجديد على بيان التليفونات 131). v1.2.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع.
+// @version      1.2.0
 // @match        *://we-oas.te.eg/*
 // @grant        GM_xmlhttpRequest
+// @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
 // @connect      sf-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
@@ -26,15 +27,124 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://sf-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
-  function sfBase() {
+  // ── أبواب Service-Flow (المالك ٢٠٢٦-١٠-٢٩) ────────────────────────────────────
+  // تأمين شبكة الشركة حظر ريبليت، وأى دومين ممكن يتحظر بعدين. فالسكربت بقى عنده قايمة
+  // أبواب لنفس Service-Flow: بيجرّبهم بالترتيب ويثبت على أول واحد يرد (sf_base_ok). ولو
+  // كلهم مقفولين، النتيجة (JSON صغير) بتتخزّن وتتبعت لوحدها أول ما أى باب يرجع — مفيش
+  // نتيجة بتضيع. باب زيادة من غير تعديل السكربت (مفصولين بفاصلة)، من كونسول أى صفحة السكربت شغّال فيها:
+  //   localStorage.setItem('sf_bases_extra', 'https://…/serviceflow')
+  // الترتيب مقصود (المالك: «عاوز أقلّل الاعتماد على Cloudflare»): oscardevs.com من غير سَبدومين رايح للسيرفر
+  // مباشرة (IP جوجل كلاود، مش Cloudflare)، وserviceflow.oscardevs.com بيعدّى على Cloudflare Worker وكوتته
+  // (خلصت يوم ١٩ سبتمبر) — فهو آخر باب، مابيتجرّبش غير لو الاتنين التانيين مقفولين.
+  const SF_DEFAULT_BASE = "https://oscardevs.com/serviceflow";
+  const SF_BASES = [SF_DEFAULT_BASE, "https://sf-menoskar42.replit.app/serviceflow", "https://serviceflow.oscardevs.com/serviceflow"];
+  const sfStore = {
+    get(k, d) {
+      try { if (typeof GM_getValue === "function") { const v = GM_getValue(k, undefined); if (v !== undefined && v !== null) return v; } } catch (e) {}
+      try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; }
+    },
+    set(k, v) {
+      try { if (typeof GM_setValue === "function") { GM_setValue(k, v); return; } } catch (e) {}
+      try { localStorage.setItem(k, v); } catch (e) {}
+    },
+  };
+  function sfBases() {
+    const out = [];
+    const add = (b) => { b = String(b || "").trim().replace(/\/+$/, ""); if (/^https?:\/\/[^/]+/.test(b) && out.indexOf(b) < 0) out.push(b); };
+    add(sfStore.get("sf_base_ok", ""));
+    add(sfStore.get("sf_base", ""));
+    SF_BASES.forEach(add);
+    String(sfStore.get("sf_bases_extra", "") || "").split(",").forEach(add);
+    return out;
+  }
+  function sfBase() { return sfBases()[0]; }
+  /** «/api/…» لو الرابط رايح لأى باب من أبواب Service-Flow، وإلا null (طلبات المواقع التانية بتعدّى زى ما هى). */
+  function sfApiPath(url) {
+    const m = String(url || "").match(/^https?:\/\/([^/?#]+)(?:\/serviceflow)?(\/api\/[\s\S]*)$/i);
+    if (!m) return null;
+    const host = m[1].toLowerCase();
+    const hosts = [];
+    sfBases().forEach((b) => { try { hosts.push(new URL(b).host.toLowerCase()); } catch (e) {} });
+    return hosts.indexOf(host) >= 0 ? m[2] : null;
+  }
+  // صفحة HTML = مش Service-Flow (صفحة حظر الشبكة، صفحة خطأ Cloudflare، أو صفحة أوسكار ديفز)
+  const sfIsOurs = (status, ctype) => status > 0 && !/text\/html/i.test(String(ctype || ""));
+  const SF_OUTBOX = "sf_outbox";
+  function sfOutbox() { try { const v = JSON.parse(sfStore.get(SF_OUTBOX, "[]") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function sfQueue(path, method, headers, body) {
+    const box = sfOutbox();
+    box.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), path, method, headers, body, at: Date.now() });
+    while (box.length > 3000 || (box.length > 1 && JSON.stringify(box).length > 3000000)) box.shift();
+    sfStore.set(SF_OUTBOX, JSON.stringify(box));
+    console.warn("[Service-Flow] مفيش باب رادّ — النتيجة اتخزّنت وهتتبعت لوحدها (" + box.length + " مستنية)");
+  }
+  let sfFlushing = false;
+  async function sfFlush() {
+    if (sfFlushing || !sfOutbox().length) return;
+    const lock = Number(sfStore.get("sf_outbox_lock", "0")) || 0;
+    if (Date.now() - lock < 60000) return;   // تاب تانى بيبعت دلوقتى
+    sfFlushing = true;
+    sfStore.set("sf_outbox_lock", String(Date.now()));
+    let sent = 0;
     try {
-      var v = null;
-      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
-      if (!v) v = localStorage.getItem("sf_base");
-      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
-    } catch (e) {}
-    return SF_DEFAULT_BASE;
+      for (const it of sfOutbox()) {
+        if (!(await sfSendQueued(it))) break;
+        sfStore.set(SF_OUTBOX, JSON.stringify(sfOutbox().filter((x) => x.id !== it.id)));
+        sfStore.set("sf_outbox_lock", String(Date.now()));
+        sent++;
+      }
+    } catch (e) {} finally {
+      sfFlushing = false;
+      sfStore.set("sf_outbox_lock", "0");
+      if (sent) console.log("[Service-Flow] اتبعت " + sent + " نتيجة كانت مستنية — فاضل " + sfOutbox().length);
+    }
+  }
+  setTimeout(() => { sfFlush(); }, 8000);
+  setInterval(() => { sfFlush(); }, 120000);
+  const sfCtype = (r) => (String((r && r.responseHeaders) || "").match(/^content-type:\s*([^\r\n]*)/im) || [])[1];
+  /** GM_xmlhttpRequest بالأبواب — نفس الشكل والـcallbacks. أى رابط مش Service-Flow بيعدّى زى ما هو. */
+  function sfGmx(opts) {
+    const path = sfApiPath(opts && opts.url);
+    if (path == null) return GM_xmlhttpRequest(opts);
+    const bases = sfBases();
+    const big = opts.data != null && typeof opts.data !== "string";
+    let i = 0, last = null, lastErr = null, lastKind = "error";
+    const next = () => {
+      if (i >= bases.length) {
+        const method = String(opts.method || "GET").toUpperCase();
+        if (!opts.sfNoQueue && method !== "GET" && typeof opts.data === "string") {
+          sfQueue(path, method, opts.headers || {}, opts.data);
+          const q = '{"ok":true,"queued":true}';
+          if (opts.onload) opts.onload({ status: 202, statusText: "Queued", readyState: 4, responseText: q, response: q, responseHeaders: "content-type: application/json\r\n", finalUrl: opts.url });
+          return;
+        }
+        if (last && opts.onload) return opts.onload(last);
+        if (lastKind === "timeout" && opts.ontimeout) return opts.ontimeout(lastErr);
+        if (opts.onerror) opts.onerror(lastErr || { status: 0, error: "Service-Flow unreachable" });
+        return;
+      }
+      const base = bases[i++];
+      GM_xmlhttpRequest(Object.assign({}, opts, {
+        url: base + path,
+        timeout: opts.timeout || (big ? 300000 : 25000),
+        onload: (r) => {
+          if (sfIsOurs(r.status, sfCtype(r))) {
+            if (sfStore.get("sf_base_ok", "") !== base) sfStore.set("sf_base_ok", base);
+            if (!opts.sfNoQueue) setTimeout(() => { sfFlush(); }, 1500);
+            if (opts.onload) opts.onload(r);
+          } else { last = r; next(); }
+        },
+        onerror: (r) => { lastErr = r; lastKind = "error"; next(); },
+        ontimeout: (r) => { lastErr = r; lastKind = "timeout"; next(); },
+      }));
+    };
+    next();
+  }
+  function sfSendQueued(it) {
+    return new Promise((resolve) => sfGmx({
+      method: it.method, url: sfBase() + it.path, headers: it.headers, data: it.body, sfNoQueue: true,
+      onload: (r) => resolve(sfIsOurs(r.status, sfCtype(r))), onerror: () => resolve(false), ontimeout: () => resolve(false),
+    }));
   }
   const SF_URL = sfBase();
   const SF_TOKEN = "sf-auto-upload-2026";
@@ -246,7 +356,7 @@
   function sfGet(path) {
     return new Promise((resolve) => {
       try {
-        GM_xmlhttpRequest({
+        sfGmx({
           method: "GET", url: SF_URL + path, headers: { "X-Upload-Token": SF_TOKEN }, timeout: 60000,
           onload: (r) => {
             let data = null;
@@ -268,7 +378,7 @@
       try {
         const blob = new Blob(["﻿" + content], { type: "application/vnd.ms-excel;charset=utf-8" });
         const fd = new FormData(); fd.append("file", blob, filename);
-        GM_xmlhttpRequest({
+        sfGmx({
           method: "POST", url: SF_URL + "/api/phone-lines/import", headers: { "X-Upload-Token": SF_TOKEN }, data: fd, timeout: 300000,
           onload: (r) => { console.log("[131] رفع 131", r.status, (r.responseText || "").slice(0, 220)); resolve(r.status >= 200 && r.status < 300); },
           onerror: (r) => { console.warn("[131] فشل الرفع", r && r.status); resolve(false); }, ontimeout: () => resolve(false),

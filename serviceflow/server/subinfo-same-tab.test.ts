@@ -37,7 +37,7 @@ test("any FCC daily update closes the kept review tab before opening its own", (
 });
 
 test("script: keep mode is captured at document-start and only from the hash pair", () => {
-  assert.match(script, /@version\s+3\.8\.0/);
+  assert.match(script, /@version\s+3\.9\.0/);
   assert.match(script, /if \(_mk && _mo\) \{ sessionStorage\.setItem\('sf_si_keep', '1'\);/);
   // تاب مراجعة يدوى (من غير keep) فى نفس التاب ماياخدش العلامة القديمة
   assert.match(script, /else \{ sessionStorage\.removeItem\('sf_si_keep'\); sessionStorage\.removeItem\('sf_si_from'\); \}/);

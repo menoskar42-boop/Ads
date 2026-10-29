@@ -372,6 +372,26 @@ Service Flow أصلاً). من غير ده، النسخة المسطّبة عن�
 
 الحارس: `node scripts/check-userscript-base.js`.
 
+### أبواب Service-Flow فى السكربتات (٢٠٢٦-١٠-٢٩)
+
+تأمين شبكة الشركة قفل ريبليت خالص (الاسم والـIP: `ping` timed out، والـIP فى المتصفح
+`ERR_CONNECTION_CLOSED`)، و`oscardevs.com` شغّال. فكل سكربت شغّال بقى عنده `SF_BASES` بالترتيب:
+
+1. `https://oscardevs.com/serviceflow` — بيروح للسيرفر مباشرة (IP جوجل كلاود 34.111.179.208)، **مش**
+   عن طريق Cloudflare Worker، فمابياكلش من الكوتة.
+2. `https://sf-menoskar42.replit.app/serviceflow` — لو الحظر اتشال.
+3. `https://serviceflow.oscardevs.com/serviceflow` — **آخر باب** لأنه بيعدّى على الـWorker وكوتته
+   (خلصت ١٩ سبتمبر). المالك: «عاوز أقلّل الاعتماد على Cloudflare».
+
+كل طلب بيعدّى على `sfFetch` (سكربتات fetch) أو `sfGmx` (سكربتات GM_xmlhttpRequest): بتجرّب الأبواب
+بالترتيب، وأول باب يرد بيتحفظ (`sf_base_ok`) ويتجرّب الأول بعد كده. صفحة HTML (حظر/Cloudflare/أوسكار
+ديفز) = مش Service-Flow ⇒ الباب اللى بعده. ولو كلهم مقفولين والطلب JSON، بيتخزّن فى `sf_outbox`
+ويتبعت لوحده أول ما باب يرجع (الملفات الكبيرة لأ — بتتصدّر تانى الدورة الجاية). باب زيادة من غير
+تعديل: `localStorage.setItem('sf_bases_extra', 'https://…/serviceflow')`.
+
+السلوك متختبر على شبكة وهمية فى `serviceflow/server/userscript-doors.test.ts`، والحارس بيمنع أى
+`fetch`/`GM_xmlhttpRequest` مباشر لـService-Flow. السكربتات المدموجة (`RETIRED` فى الحارس) مابتتحدّثش.
+
 ## موقع الصيانة كان بينادي الدومين القديم برضه
 
 `server/maintenance/app/routes/service_flow.js` و`reports.js` كانوا شايلين

@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Provisioning Portal → Service-Flow (تحديث البورتات + غيّر البورت MSAN)
 // @namespace    service-flow.provisioning
-// @description  سكربت واحد لموقع Provisioning Portal (WE) — فيه ثلاث تدفّقات مستقلة تماماً بماركرات مختلفة لمنع أى تعارض: (1) sf_ports = تحديث ملف البورتات (Get MSAN Data لكل أكواد الأمسان المخزّنة فى Service-Flow). (2) sf_msan = غيّر البورت (MSAN Replacement) لرقم واحد — يملأ Old/New Cabin Code ويحقن ملف CSV ويضغط Submit، ثم يراقب 30 ثانية للتأكد إنه مرجعش للّوجين (نجح) قبل ما يقفل التاب (بدون متابعة تلقائية). (3) sf_pcheck = تحديث البورت (يدوى) — يفتح Search For My Requests مرة واحدة لرقم، يطابقه، ولو COMPLETED يجيب New Frame + New Msan ويحدّث بيان البورت فى Service-Flow. كل تدفّق فى نافذة باسم مستقل فالـ sessionStorage منفصل ومفيش تداخل.
-// @version      1.6.1
+// @description  سكربت واحد لموقع Provisioning Portal (WE) — فيه ثلاث تدفّقات مستقلة تماماً بماركرات مختلفة لمنع أى تعارض: (1) sf_ports = تحديث ملف البورتات (Get MSAN Data لكل أكواد الأمسان المخزّنة فى Service-Flow). (2) sf_msan = غيّر البورت (MSAN Replacement) لرقم واحد — يملأ Old/New Cabin Code ويحقن ملف CSV ويضغط Submit، ثم يراقب 30 ثانية للتأكد إنه مرجعش للّوجين (نجح) قبل ما يقفل التاب (بدون متابعة تلقائية). (3) sf_pcheck = تحديث البورت (يدوى) — يفتح Search For My Requests مرة واحدة لرقم، يطابقه، ولو COMPLETED يجيب New Frame + New Msan ويحدّث بيان البورت فى Service-Flow. كل تدفّق فى نافذة باسم مستقل فالـ sessionStorage منفصل ومفيش تداخل. v1.7.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع.
+// @version      1.7.0
 // @match        *://provisioningportal.te.eg/provisioningPortal/*
+// @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
 // @connect      sf-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
@@ -54,15 +55,113 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://sf-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
-  function sfBase() {
+  // ── أبواب Service-Flow (المالك ٢٠٢٦-١٠-٢٩) ────────────────────────────────────
+  // تأمين شبكة الشركة حظر ريبليت، وأى دومين ممكن يتحظر بعدين. فالسكربت بقى عنده قايمة
+  // أبواب لنفس Service-Flow: بيجرّبهم بالترتيب ويثبت على أول واحد يرد (sf_base_ok). ولو
+  // كلهم مقفولين، النتيجة (JSON صغير) بتتخزّن وتتبعت لوحدها أول ما أى باب يرجع — مفيش
+  // نتيجة بتضيع. باب زيادة من غير تعديل السكربت (مفصولين بفاصلة)، من كونسول أى صفحة السكربت شغّال فيها:
+  //   localStorage.setItem('sf_bases_extra', 'https://…/serviceflow')
+  // الترتيب مقصود (المالك: «عاوز أقلّل الاعتماد على Cloudflare»): oscardevs.com من غير سَبدومين رايح للسيرفر
+  // مباشرة (IP جوجل كلاود، مش Cloudflare)، وserviceflow.oscardevs.com بيعدّى على Cloudflare Worker وكوتته
+  // (خلصت يوم ١٩ سبتمبر) — فهو آخر باب، مابيتجرّبش غير لو الاتنين التانيين مقفولين.
+  const SF_DEFAULT_BASE = "https://oscardevs.com/serviceflow";
+  const SF_BASES = [SF_DEFAULT_BASE, "https://sf-menoskar42.replit.app/serviceflow", "https://serviceflow.oscardevs.com/serviceflow"];
+  const sfStore = {
+    get(k, d) {
+      try { if (typeof GM_getValue === "function") { const v = GM_getValue(k, undefined); if (v !== undefined && v !== null) return v; } } catch (e) {}
+      try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; }
+    },
+    set(k, v) {
+      try { if (typeof GM_setValue === "function") { GM_setValue(k, v); return; } } catch (e) {}
+      try { localStorage.setItem(k, v); } catch (e) {}
+    },
+  };
+  function sfBases() {
+    const out = [];
+    const add = (b) => { b = String(b || "").trim().replace(/\/+$/, ""); if (/^https?:\/\/[^/]+/.test(b) && out.indexOf(b) < 0) out.push(b); };
+    add(sfStore.get("sf_base_ok", ""));
+    add(sfStore.get("sf_base", ""));
+    SF_BASES.forEach(add);
+    String(sfStore.get("sf_bases_extra", "") || "").split(",").forEach(add);
+    return out;
+  }
+  function sfBase() { return sfBases()[0]; }
+  /** «/api/…» لو الرابط رايح لأى باب من أبواب Service-Flow، وإلا null (طلبات المواقع التانية بتعدّى زى ما هى). */
+  function sfApiPath(url) {
+    const m = String(url || "").match(/^https?:\/\/([^/?#]+)(?:\/serviceflow)?(\/api\/[\s\S]*)$/i);
+    if (!m) return null;
+    const host = m[1].toLowerCase();
+    const hosts = [];
+    sfBases().forEach((b) => { try { hosts.push(new URL(b).host.toLowerCase()); } catch (e) {} });
+    return hosts.indexOf(host) >= 0 ? m[2] : null;
+  }
+  // صفحة HTML = مش Service-Flow (صفحة حظر الشبكة، صفحة خطأ Cloudflare، أو صفحة أوسكار ديفز)
+  const sfIsOurs = (status, ctype) => status > 0 && !/text\/html/i.test(String(ctype || ""));
+  const SF_OUTBOX = "sf_outbox";
+  function sfOutbox() { try { const v = JSON.parse(sfStore.get(SF_OUTBOX, "[]") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function sfQueue(path, method, headers, body) {
+    const box = sfOutbox();
+    box.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), path, method, headers, body, at: Date.now() });
+    while (box.length > 3000 || (box.length > 1 && JSON.stringify(box).length > 3000000)) box.shift();
+    sfStore.set(SF_OUTBOX, JSON.stringify(box));
+    console.warn("[Service-Flow] مفيش باب رادّ — النتيجة اتخزّنت وهتتبعت لوحدها (" + box.length + " مستنية)");
+  }
+  let sfFlushing = false;
+  async function sfFlush() {
+    if (sfFlushing || !sfOutbox().length) return;
+    const lock = Number(sfStore.get("sf_outbox_lock", "0")) || 0;
+    if (Date.now() - lock < 60000) return;   // تاب تانى بيبعت دلوقتى
+    sfFlushing = true;
+    sfStore.set("sf_outbox_lock", String(Date.now()));
+    let sent = 0;
     try {
-      var v = null;
-      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
-      if (!v) v = localStorage.getItem("sf_base");
-      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
-    } catch (e) {}
-    return SF_DEFAULT_BASE;
+      for (const it of sfOutbox()) {
+        if (!(await sfSendQueued(it))) break;
+        sfStore.set(SF_OUTBOX, JSON.stringify(sfOutbox().filter((x) => x.id !== it.id)));
+        sfStore.set("sf_outbox_lock", String(Date.now()));
+        sent++;
+      }
+    } catch (e) {} finally {
+      sfFlushing = false;
+      sfStore.set("sf_outbox_lock", "0");
+      if (sent) console.log("[Service-Flow] اتبعت " + sent + " نتيجة كانت مستنية — فاضل " + sfOutbox().length);
+    }
+  }
+  setTimeout(() => { sfFlush(); }, 8000);
+  setInterval(() => { sfFlush(); }, 120000);
+  /** fetch لـService-Flow بالأبواب: باب ورا باب، ولو كله مقفول والطلب JSON بيتخزّن (يرجّع 202 queued). */
+  async function sfFetch(url, opts, noQueue) {
+    opts = opts || {};
+    const path = sfApiPath(url);
+    if (path == null) return fetch(url, opts);
+    const big = opts.body != null && typeof opts.body !== "string";
+    let last = null, lastErr = null;
+    for (const base of sfBases()) {
+      const ctrl = typeof AbortController === "function" ? new AbortController() : null;
+      const t = ctrl ? setTimeout(() => ctrl.abort(), big ? 300000 : 25000) : null;
+      try {
+        const r = await fetch(base + path, Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}));
+        if (sfIsOurs(r.status, r.headers.get("content-type"))) {
+          if (sfStore.get("sf_base_ok", "") !== base) sfStore.set("sf_base_ok", base);
+          if (!noQueue) setTimeout(() => { sfFlush(); }, 1500);
+          return r;
+        }
+        last = r;
+      } catch (e) { lastErr = e; } finally { if (t) clearTimeout(t); }
+    }
+    const method = String(opts.method || "GET").toUpperCase();
+    if (!noQueue && method !== "GET" && typeof opts.body === "string") {
+      sfQueue(path, method, opts.headers || {}, opts.body);
+      return new Response(JSON.stringify({ ok: true, queued: true }), { status: 202, headers: { "Content-Type": "application/json" } });
+    }
+    if (last) return last;
+    throw lastErr || new TypeError("Service-Flow unreachable");
+  }
+  async function sfSendQueued(it) {
+    try {
+      const r = await sfFetch(sfBase() + it.path, { method: it.method, headers: it.headers, body: it.body }, true);
+      return sfIsOurs(r.status, r.headers.get("content-type"));
+    } catch (e) { return false; }
   }
   const SF_API_BASE = sfBase();
   const SF_TOKEN = "sf-dzs-138-ingest-2026";                        // = DZS_INGEST_TOKEN فى السيرفر
@@ -203,7 +302,7 @@
 
   /* ================== Service-Flow ================== */
   async function sfGetCabins() {
-    const r = await window.fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/phone-ports/cabins", {
+    const r = await sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/phone-ports/cabins", {
       headers: { "X-DZS-Token": SF_TOKEN },
     });
     const j = await r.json();
@@ -211,7 +310,7 @@
   }
   async function sfPostPorts(cabin, rows) {
     const items = rows.map((o) => Object.assign({ msanCode: cabin }, o));
-    const r = await window.fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/phone-ports/ingest", {
+    const r = await sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/phone-ports/ingest", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-DZS-Token": SF_TOKEN },
       body: JSON.stringify({ items }),
@@ -578,7 +677,7 @@
   const todayISO = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); };
   async function sfSeen(phone) {
     try {
-      const r = await window.fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/port-change/seen?phone=" + encodeURIComponent(phone), { headers: { "X-DZS-Token": SF_TOKEN } });
+      const r = await sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/port-change/seen?phone=" + encodeURIComponent(phone), { headers: { "X-DZS-Token": SF_TOKEN } });
       const j = await r.json(); return Array.isArray(j.requestIds) ? j.requestIds.map(String) : [];
     } catch (e) { return []; }
   }
@@ -595,7 +694,7 @@
         body: JSON.stringify(payload),
       };
       if (ctrl) opts.signal = ctrl.signal;
-      const r = await window.fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/port-change/ingest", opts);
+      const r = await sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/port-change/ingest", opts);
       // لازم نتأكد إن السيرفر قبلها فعلاً — قبل كده كنا بنرجّع الـ json مهما كانت الحالة،
       // فأى 401/500 كان بيعدّى وتظهر رسالة نجاح خضراء والبيانات مش متحدّثة.
       const j = await r.json().catch(() => ({}));
