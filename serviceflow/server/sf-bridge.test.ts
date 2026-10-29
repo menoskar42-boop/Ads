@@ -386,7 +386,6 @@ test("one line per tab (like the executor), up to 3 new tabs per cycle, and the 
   assert.equal(w.opened.length, 6, "والتاب اتفتح لخط جديد");
   assert.match(w.opened[5], /sf_lane=90&/, "على نفس الرقم اللى فضى");
   assert.match(src, /^\/\/ @grant\s+window\.close$/m, "تاب الجسر بيقفل نفسه");
-  assert.match(src, /sessionStorage\.setItem\("SFB_TAB"/);
 });
 
 test("a DZS tab can lead too (the Google tab gets throttled in the background)", () => {
@@ -398,7 +397,10 @@ test("windows mode is the default (10 lines, DZS opens each in a window); the fi
   const w = world();
   assert.equal(w.store.get("sfb_mode"), undefined);
   assert.match(src, /const pick = list\.slice\(0, env\.get\("sfb_mode", "windows"\) === "tabs" \? BRIDGE\.TAB_CHUNK : BRIDGE\.CHUNK\);/);
-  assert.match(src, /isFirst = !window\.opener;/, "نوافذ سكربت القياس (ليها opener) مابتقفلش نفسها من هنا");
+  // العلامة فى window.name: مابتتنسخش للنوافذ (sessionStorage بيتنسخ، وwindow.opener بيبقى null لما الفاتح يتقفل)
+  assert.match(src, /window\.name = "sfb_first\|" \+ lane \+ "\|" \+ acc;/);
+  assert.doesNotMatch(src, /sessionStorage\.setItem\("SFB_TAB"/);
+  assert.doesNotMatch(src, /isFirst = !window\.opener;/);
   assert.match(src, /if \(gone >= 3 \|\| \(doneAt && Date\.now\(\) - doneAt > 12 \* 1000\)\)/);
   assert.match(src, /btn\(tabsMode \? "الوضع: تابات" : "الوضع: نوافذ"/);
 });
