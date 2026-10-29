@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WE OAS BI — دخول تلقائى + تقرير 430D
 // @namespace    service-flow.we-oas.login
-// @description  يسجّل الدخول على we-oas.te.eg BI، يفتح تقرير «430D Trial - Details متابعة اعطال»، يملأ from_date/to_date ويضغط Apply لتبويبى التفاصيل والمتبقى، ويلتقط ملف Excel الكامل الذى يولّده التقرير نفسه من داخل سياق الصفحة (unsafeWindow) عبر اعتراض XHR/fetch/form مبكراً (document-start)، ينزّله للمراجعة، وبعد تأكيدك يرفعه لموقع Service-Flow. v1.10.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v1.9.3: بيستنى خانات التاريخ نفسها (مش زر Apply بس) ويتأكد إن التاريخ اتكتب قبل Apply، ولو التبويب ماطلّعش ملف بيعيده مرة — فى التحديث اليومى (تاب فى الخلفية) التفاصيل كان بيتعدّى من غير تواريخ وينزّل المتبقى بس. v1.9.4: فى التشغيل التلقائى بيعمل ريفريش واحد لصفحة التقرير قبل Apply (أو بعد ٢٠ث لو فضلت بيضا)، وبيستنى لحد ٤ دقايق بدل ٢٠ث اللى كان بيقف بعدها ساكت.
-// @version      1.10.0
+// @description  يسجّل الدخول على we-oas.te.eg BI، يفتح تقرير «430D Trial - Details متابعة اعطال»، يملأ from_date/to_date ويضغط Apply لتبويبى التفاصيل والمتبقى، ويلتقط ملف Excel الكامل الذى يولّده التقرير نفسه من داخل سياق الصفحة (unsafeWindow) عبر اعتراض XHR/fetch/form مبكراً (document-start)، ينزّله للمراجعة، وبعد تأكيدك يرفعه لموقع Service-Flow. v1.11.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v1.10.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v1.9.3: بيستنى خانات التاريخ نفسها (مش زر Apply بس) ويتأكد إن التاريخ اتكتب قبل Apply، ولو التبويب ماطلّعش ملف بيعيده مرة — فى التحديث اليومى (تاب فى الخلفية) التفاصيل كان بيتعدّى من غير تواريخ وينزّل المتبقى بس. v1.9.4: فى التشغيل التلقائى بيعمل ريفريش واحد لصفحة التقرير قبل Apply (أو بعد ٢٠ث لو فضلت بيضا)، وبيستنى لحد ٤ دقايق بدل ٢٠ث اللى كان بيقف بعدها ساكت.
+// @version      1.11.0
 // @match        *://we-oas.te.eg/*
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
@@ -32,10 +32,13 @@
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
   // ── أبواب Service-Flow (المالك ٢٠٢٦-١٠-٢٩) ────────────────────────────────────
-  // تأمين شبكة الشركة حظر ريبليت، وأى دومين ممكن يتحظر بعدين. فالسكربت بقى عنده قايمة
-  // أبواب لنفس Service-Flow: بيجرّبهم بالترتيب ويثبت على أول واحد يرد (sf_base_ok). ولو
-  // كلهم مقفولين، النتيجة (JSON صغير) بتتخزّن وتتبعت لوحدها أول ما أى باب يرجع — مفيش
-  // نتيجة بتضيع. باب زيادة من غير تعديل السكربت (مفصولين بفاصلة)، من كونسول أى صفحة السكربت شغّال فيها:
+  // تأمين شبكة الشركة حظر ريبليت، وأى دومين ممكن يتحظر بعدين. فالسكربت عنده قايمة أبواب لنفس
+  // Service-Flow: بيجرّبهم بالترتيب ويثبت على أول واحد يرد (sf_base_ok).
+  // كل نتيجة (JSON) بتتكتب فى الطابور (sf_outbox) **قبل** ما تتبعت، وبتتمسح بس لما السيرفر يأكّد —
+  // فلو كل الأبواب مقفولة، أو الرد ضاع، أو التاب اتقفل فى النص، النتيجة بتتبعت لوحدها بعدين
+  // بنفس رقمها (?sf_eid=…) والسيرفر مابيسجّلهاش مرتين (server/ingest-dedupe.ts).
+  // ⚠️ مسح السكربت من Tampermonkey بيمسح النتايج اللى لسه مستنية — استنى العلامة البرتقانى تختفى.
+  // باب زيادة من غير تعديل السكربت (مفصولين بفاصلة)، من كونسول أى صفحة السكربت شغّال فيها:
   //   localStorage.setItem('sf_bases_extra', 'https://…/serviceflow')
   // الترتيب مقصود (المالك: «عاوز أقلّل الاعتماد على Cloudflare»): oscardevs.com من غير سَبدومين رايح للسيرفر
   // مباشرة (IP جوجل كلاود، مش Cloudflare)، وserviceflow.oscardevs.com بيعدّى على Cloudflare Worker وكوتته
@@ -73,18 +76,44 @@
   }
   // صفحة HTML = مش Service-Flow (صفحة حظر الشبكة، صفحة خطأ Cloudflare، أو صفحة أوسكار ديفز)
   const sfIsOurs = (status, ctype) => status > 0 && !/text\/html/i.test(String(ctype || ""));
+  // السيرفر استلمها فعلاً؟ ٥xx (السيرفر/القاعدة واقعة) و٤٠٨/٤٢٥/٤٢٩ = «جرّب تانى بعدين» ⇒ تفضل فى الطابور
+  const sfDelivered = (status) => status > 0 && status < 500 && [408, 425, 429].indexOf(status) < 0;
   const SF_OUTBOX = "sf_outbox";
+  const SF_MAX_TRIES = 30;            // سيرفر ردّ ورفضها ٣٠ مرة = مش هتتقبل — بتتشال (الحظر مابيتعدّش)
+  const sfInFlight = {};
   function sfOutbox() { try { const v = JSON.parse(sfStore.get(SF_OUTBOX, "[]") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function sfSaveOutbox(box) { sfStore.set(SF_OUTBOX, JSON.stringify(box)); sfBadge(); }
   function sfQueue(path, method, headers, body) {
     const box = sfOutbox();
-    box.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), path, method, headers, body, at: Date.now() });
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    box.push({ id, path, method, headers, body, at: Date.now(), tries: 0 });
     while (box.length > 3000 || (box.length > 1 && JSON.stringify(box).length > 3000000)) box.shift();
-    sfStore.set(SF_OUTBOX, JSON.stringify(box));
-    console.warn("[Service-Flow] مفيش باب رادّ — النتيجة اتخزّنت وهتتبعت لوحدها (" + box.length + " مستنية)");
+    sfSaveOutbox(box);
+    return id;
+  }
+  function sfUnqueue(id) { sfSaveOutbox(sfOutbox().filter((x) => x.id !== id)); }
+  const sfWithEid = (path, id) => path + (path.indexOf("?") >= 0 ? "&" : "?") + "sf_eid=" + id;
+  /** علامة برتقانى صغيرة لما فيه نتايج لسه ماوصلتش: عددها وعمر أقدم واحدة. */
+  function sfBadge() {
+    try {
+      if (window.top !== window || !document.body) return;
+      const box = sfOutbox();
+      let el = document.getElementById("sf-outbox-badge");
+      if (!box.length) { if (el) el.remove(); return; }
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "sf-outbox-badge";
+        el.style.cssText = "position:fixed;left:10px;bottom:10px;z-index:2147483647;background:#b45309;color:#fff;font:600 13px/1.5 Tahoma,sans-serif;padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.3);direction:rtl;pointer-events:none;max-width:60vw";
+        document.body.appendChild(el);
+      }
+      const mins = Math.round((Date.now() - Math.min.apply(null, box.map((x) => x.at || Date.now()))) / 60000);
+      el.textContent = "⏳ " + box.length + " نتيجة مستنية توصل Service-Flow — أقدم واحدة من " + (mins < 1 ? "أقل من دقيقة" : mins + " دقيقة") + ". ماتمسحش السكربت قبل ما توصل.";
+    } catch (e) {}
   }
   let sfFlushing = false;
   async function sfFlush() {
-    if (sfFlushing || !sfOutbox().length) return;
+    sfBadge();
+    if (sfFlushing || !sfOutbox().some((x) => !sfInFlight[x.id])) return;
     const lock = Number(sfStore.get("sf_outbox_lock", "0")) || 0;
     if (Date.now() - lock < 60000) return;   // تاب تانى بيبعت دلوقتى
     sfFlushing = true;
@@ -92,10 +121,19 @@
     let sent = 0;
     try {
       for (const it of sfOutbox()) {
-        if (!(await sfSendQueued(it))) break;
-        sfStore.set(SF_OUTBOX, JSON.stringify(sfOutbox().filter((x) => x.id !== it.id)));
+        if (sfInFlight[it.id]) continue;
+        const r = await sfSendQueued(it);
+        if (r === "down") break;            // مفيش باب رادّ — نستنى المرة الجاية
+        if (r === "sent") { sfUnqueue(it.id); sent++; }
+        else {
+          const box = sfOutbox(); const x = box.find((y) => y.id === it.id);
+          if (x) {
+            x.tries = (x.tries || 0) + 1;
+            if (x.tries >= SF_MAX_TRIES) { box.splice(box.indexOf(x), 1); console.warn("[Service-Flow] السيرفر رفض النتيجة " + x.tries + " مرة — اتشالت:", x.path); }
+            sfSaveOutbox(box);
+          }
+        }
         sfStore.set("sf_outbox_lock", String(Date.now()));
-        sent++;
       }
     } catch (e) {} finally {
       sfFlushing = false;
@@ -106,35 +144,45 @@
   setTimeout(() => { sfFlush(); }, 8000);
   setInterval(() => { sfFlush(); }, 120000);
   const sfCtype = (r) => (String((r && r.responseHeaders) || "").match(/^content-type:\s*([^\r\n]*)/im) || [])[1];
-  /** GM_xmlhttpRequest بالأبواب — نفس الشكل والـcallbacks. أى رابط مش Service-Flow بيعدّى زى ما هو. */
+  /** GM_xmlhttpRequest بالأبواب — نفس الشكل والـcallbacks. أى رابط مش Service-Flow بيعدّى زى ما هو.
+   *  نتيجة JSON بتتكتب فى الطابور الأول، وبتتمسح بس لما السيرفر يستلمها (sfQueued = إعادة إرسال من الطابور). */
   function sfGmx(opts) {
     const path = sfApiPath(opts && opts.url);
     if (path == null) return GM_xmlhttpRequest(opts);
+    const queued = opts.sfQueued || null;
+    const method = String(opts.method || "GET").toUpperCase();
+    const keep = !queued && method !== "GET" && typeof opts.data === "string";
+    const id = queued ? queued.id : (keep ? sfQueue(path, method, opts.headers || {}, opts.data) : null);
     const bases = sfBases();
     const big = opts.data != null && typeof opts.data !== "string";
     let i = 0, last = null, lastErr = null, lastKind = "error";
+    if (id) sfInFlight[id] = 1;
+    const done = () => { if (id) delete sfInFlight[id]; };
     const next = () => {
       if (i >= bases.length) {
-        const method = String(opts.method || "GET").toUpperCase();
-        if (!opts.sfNoQueue && method !== "GET" && typeof opts.data === "string") {
-          sfQueue(path, method, opts.headers || {}, opts.data);
+        done();
+        if (keep) {
           const q = '{"ok":true,"queued":true}';
           if (opts.onload) opts.onload({ status: 202, statusText: "Queued", readyState: 4, responseText: q, response: q, responseHeaders: "content-type: application/json\r\n", finalUrl: opts.url });
           return;
         }
-        if (last && opts.onload) return opts.onload(last);
+        if (last && !queued && opts.onload) return opts.onload(last);
         if (lastKind === "timeout" && opts.ontimeout) return opts.ontimeout(lastErr);
         if (opts.onerror) opts.onerror(lastErr || { status: 0, error: "Service-Flow unreachable" });
         return;
       }
       const base = bases[i++];
       GM_xmlhttpRequest(Object.assign({}, opts, {
-        url: base + path,
+        url: base + (id ? sfWithEid(path, id) : path),
         timeout: opts.timeout || (big ? 300000 : 25000),
         onload: (r) => {
           if (sfIsOurs(r.status, sfCtype(r))) {
+            done();
             if (sfStore.get("sf_base_ok", "") !== base) sfStore.set("sf_base_ok", base);
-            if (!opts.sfNoQueue) setTimeout(() => { sfFlush(); }, 1500);
+            if (!queued) {
+              if (id && sfDelivered(r.status)) sfUnqueue(id);
+              setTimeout(() => { sfFlush(); }, 1500);
+            }
             if (opts.onload) opts.onload(r);
           } else { last = r; next(); }
         },
@@ -144,10 +192,12 @@
     };
     next();
   }
+  /** «sent» السيرفر استلمها · «retry» ردّ بس قال بعدين · «down» مفيش باب رادّ */
   function sfSendQueued(it) {
     return new Promise((resolve) => sfGmx({
-      method: it.method, url: sfBase() + it.path, headers: it.headers, data: it.body, sfNoQueue: true,
-      onload: (r) => resolve(sfIsOurs(r.status, sfCtype(r))), onerror: () => resolve(false), ontimeout: () => resolve(false),
+      method: it.method, url: sfBase() + it.path, headers: it.headers, data: it.body, sfQueued: it,
+      onload: (r) => resolve(sfDelivered(r.status) ? "sent" : "retry"),
+      onerror: () => resolve("down"), ontimeout: () => resolve("down"),
     }));
   }
   const SF_URL = sfBase();

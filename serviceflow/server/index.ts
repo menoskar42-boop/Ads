@@ -192,6 +192,12 @@ async function bootStep<T>(name: string, fn: () => Promise<T>, detail?: () => st
   // إدخال بكسيات DP تلقائياً لو الجدول فاضى (من صور Network Inventory — للاختبار/التشغيل الأولى)
   const { seedDpInventoryIfEmpty } = await import("./seed-dp-inventory");
   await bootStep("بكسيات DP", () => seedDpInventoryIfEmpty());
+  // النتيجة اللى اتبعتت مرتين من التمبر منكى (نفس ?sf_eid) ماتتسجّلش مرتين — قبل كل المسارات
+  {
+    const { pool } = await import("./db");
+    const { ingestDedupe } = await import("./ingest-dedupe");
+    app.use(ingestDedupe((text, params) => pool.query(text, params as any[])));
+  }
   await bootStep("تسجيل المسارات", () => registerRoutes(httpServer, app));
 
   // ركّب تطبيق الصيانة (Express+EJS) تحت /maintenance — بيتحمّل كـ CommonJS **غير مبنْدَل** عشان

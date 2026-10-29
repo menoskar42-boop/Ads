@@ -1037,6 +1037,18 @@ export async function ensureSchema() {
   // مين طلب تغيير/تحديث البورت — بيتاخد من op_intents وقت وصول نتيجة السكربت (زى القياس ورفع السرعة)
   await pool.query(`ALTER TABLE port_change_requests ADD COLUMN IF NOT EXISTS requested_by text`);
 
+  // sf_ingest_events — أرقام النتايج اللى وصلت من سكربتات التمبر منكى (?sf_eid=…)، عشان النتيجة
+  // اللى اتبعتت مرتين (الرد ضاع أو التاب اتقفل) ماتتسجّلش مرتين. server/ingest-dedupe.ts
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sf_ingest_events (
+      event_id text PRIMARY KEY,
+      path text,
+      status text NOT NULL DEFAULT 'processing',
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sf_ingest_events_created_idx ON sf_ingest_events (created_at)`);
+
   // app_settings — إعدادات عامة مشتركة (key/value) تثبت على السيرفر لكل المستخدمين لحد ما تتغيّر.
   // تُستخدم مثلاً لقائمة «الكباين المغلقة بورتات» عشان اللى يدخلها يثبت للجميع (مش localStorage محلى).
   await pool.query(`

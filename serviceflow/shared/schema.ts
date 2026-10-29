@@ -941,6 +941,15 @@ export const omOrderMatches = pgTable("om_order_matches", {
 export type OmOrderMatch = typeof omOrderMatches.$inferSelect;
 
 // app_settings — إعدادات عامة مشتركة (key/value) تثبت على السيرفر لكل المستخدمين لحد ما تتغيّر.
+// أرقام النتايج اللى وصلت من سكربتات التمبر منكى (?sf_eid=…) — عشان النتيجة اللى اتبعتت مرتين
+// (الرد ضاع أو التاب اتقفل) ماتتسجّلش مرتين. server/ingest-dedupe.ts — بتتمسح بعد ١٤ يوم.
+export const sfIngestEvents = pgTable("sf_ingest_events", {
+  eventId: text("event_id").primaryKey(),
+  path: text("path"),
+  status: text("status").notNull().default("processing"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ createdIdx: index("sf_ingest_events_created_idx").on(t.createdAt) }));
+
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value"),
