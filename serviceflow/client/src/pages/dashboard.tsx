@@ -68,6 +68,7 @@ import { BoxOverlapReport } from "@/components/BoxOverlapReport";
 import { MaintenancePlanH2Report } from "@/components/MaintenancePlanH2Report";
 import { CabinetCapacityReport } from "@/components/CabinetCapacityReport";
 import { ExecutorButton } from "@/components/ExecutorButton";
+import { BridgeButtons } from "@/components/BridgeButtons";
 import { DailyAutoRefresh } from "@/components/DailyAutoRefresh";
 import { ExecQueueWatcher } from "@/components/ExecQueueWatcher";
 import { ExecJobsReport } from "@/components/ExecJobsReport";
@@ -580,6 +581,8 @@ export default function Dashboard() {
               </a>
             )}
             <ExecutorButton />
+            {/* جسر Tampermonkey: «افتح الجسر» (بيفتح Edge) / «اقفل الجسر» — سوبر أدمن بس */}
+            <BridgeButtons />
             {/* واتساب المتابعة — سوبر أدمن بس (٢٠٢٦-١٠-٠٥) */}
             {isSuperAdmin && <WhatsAppSetupButton />}
             {/* الفنى والشئون الخارجية (ومهندس الكوابل) بقى عندهم جرس — تعليقات الإدارة على «ردود التكرار» */}

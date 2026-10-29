@@ -3080,6 +3080,49 @@ export async function registerRoutes(
   const bridgeDevice = (req: any) => `جسر Tampermonkey · ${String(req.body?.device || "جهاز").slice(0, 60)}`;
   const toJobIds = (v: any): number[] =>
     (Array.isArray(v) ? v : []).map((x: any) => parseInt(x, 10)).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 2000);
+  // «اقفل الجسر» / «افتح الجسر» (المالك ٢٠٢٦-١٠-٢٩: «اقفل يوقف الجسر ويوقف القياس… زرار الإعدادات غير كافى لأنه
+  // هيحوّل على جهاز التنفيذ»). مقفول ⇒ lease/start مابيدّوش شغل، وprogress بيقول stop فالجسر بيقفل تابات القياس
+  // بتاعته وتاب جوجل. ومش بيلمس زرار الإعدادات: جهاز التنفيذ لسه سايب المؤجّل للجسر، فالشغل بيستنى لحد «افتح».
+  const BRIDGE_STOP_KEY = "bridge_stopped";
+  let bridgeStopCache: { v: boolean; at: number } | null = null;
+  const readBridgeStopped = async (): Promise<boolean> => {
+    if (bridgeStopCache && Date.now() - bridgeStopCache.at < 5_000) return bridgeStopCache.v;
+    const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = $1`, [BRIDGE_STOP_KEY]);
+    bridgeStopCache = { v: String(rows[0]?.value || "") === "1", at: Date.now() };
+    return bridgeStopCache.v;
+  };
+  const setBridgeStopped = async (on: boolean, by: string) => {
+    await pool.query(
+      `INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+      [BRIDGE_STOP_KEY, on ? "1" : "0", by]);
+    bridgeStopCache = { v: on, at: Date.now() };
+  };
+  app.post("/api/exec-queue/bridge/stop", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      await setBridgeStopped(true, (req.user?.fullName || req.user?.username || "").toString());
+      // الخطوط اللى كانت بتتقاس ترجع للطابور (ويفضل bridge_device: لو نتيجتها وصلت متأخر تتسجّل)، والمحجوز يتفك
+      const { rowCount: back } = await pool.query(
+        `UPDATE exec_jobs SET status = 'pending', claimed_at = NULL, bridge_lease_until = NULL
+          WHERE status = 'claimed' AND bridge_lease_until IS NOT NULL`);
+      const { rowCount: freed } = await pool.query(
+        `UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`);
+      res.json({ ok: true, stopped: true, requeued: back ?? 0, released: freed ?? 0 });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post("/api/exec-queue/bridge/go", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      await setBridgeStopped(false, (req.user?.fullName || req.user?.username || "").toString());
+      res.json({ ok: true, stopped: false });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.get("/api/exec-queue/bridge/state", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      res.json({ stopped: await readBridgeStopped(), enabled: !!(await readExecLanes(pool)).bridge,
+        seenSec: bridgeSeen ? Math.round((Date.now() - bridgeSeen.at) / 1000) : null, device: bridgeSeen?.device || null });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // مفتاح جديد للجسر (والقديم بيبطل) — من صفحة Service-Flow بحساب سوبر أدمن
   app.post("/api/exec-queue/bridge/token", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
@@ -3101,6 +3144,7 @@ export async function registerRoutes(
       // الجسر مقفول من الإعدادات ⇒ مفيش شغل له (وجهاز التنفيذ بياخد كل حاجة)
       const lanes = await readExecLanes(pool);
       if (!lanes.bridge) return res.json({ jobs: [], disabled: true });
+      if (await readBridgeStopped()) return res.json({ jobs: [], stop: true, lanes: lanes.noreal });
       const { rows } = await pool.query(
         `WITH c AS (
            SELECT h.id FROM exec_jobs h
@@ -3131,6 +3175,7 @@ export async function registerRoutes(
     try {
       // الجسر اتقفل ⇒ الحتّة دى مابتبدأش، وكل الخطوط اللى معاه بتتشال (رجعت لجهاز التنفيذ لما اتقفل)
       if (!(await readExecLanes(pool)).bridge) return res.json({ ok: false, disabled: true, drop: held });
+      if (await readBridgeStopped()) return res.json({ ok: false, stop: true, drop: held });
       const out = await withTx(async (tx) => {
         const { rows: gone } = await tx.query(
           `SELECT id FROM exec_jobs WHERE id = ANY($1::int[])
@@ -3195,6 +3240,8 @@ export async function registerRoutes(
         if (!at) continue;
         for (const id of toJobIds(c?.ids).slice(0, 50)) { ids.push(id); since.push(at); }
       }
+      const stop = await readBridgeStopped();
+      if (stop) return res.json({ ok: true, measured: [], stop: true, lanes: (await readExecLanes(pool)).noreal });
       if (markers.length) {
         await pool.query(
           `UPDATE exec_jobs SET claimed_at = now() WHERE id = ANY($1::int[]) AND status = 'claimed' AND bridge_lease_until IS NOT NULL`, [markers]);

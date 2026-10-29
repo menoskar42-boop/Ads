@@ -480,3 +480,51 @@ test("windows view: even the first line is a window opened by the page itself; b
   assert.match(src, /if \(GET\("sfb_view", "tabs"\) === "windows"\) \{\n\s+let w = null;\n\s+try \{ w = window\.open\(url, "_blank", "width=1280,height=800,/);
   assert.match(src, /if \(w\) return w;\n\s+\}\n\s+try \{ return GM_openInTab\(url, \{ active: false, insert: true \}\);/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٩: «اعمل الأزرار الجديدة افتح واقفل — يوقف الجسر ويوقف القياس… زرار الإعدادات غير كافى لأنه
+// هيحوّل على جهاز التنفيذ»
+test("«اقفل الجسر»: the bridge drops its work, closes its measuring tabs, and comes back after «افتح»", async () => {
+  let stop = false;
+  const w = world({ realChunk: true, server: (path, body) => {
+    if (path.endsWith("/lease")) return { status: 200, json: stop ? { jobs: [], stop: true, lanes: 3 } : { jobs: Array.from({ length: 6 }, (_, i) => ({ id: 1 + i, accounts: ["a" + i] })), lanes: 3 } };
+    if (path.endsWith("/start")) return { status: 200, json: stop ? { ok: false, stop: true, drop: body.held } : { ok: true, marker: body.ids[0], drop: [], now: "2026-10-29T18:00:00.000Z" } };
+    if (path.endsWith("/progress")) return { status: 200, json: stop ? { ok: true, measured: [], stop: true } : { ok: true, measured: [] } };
+    return { status: 200, json: { ok: true } };
+  } });
+  await w.bridge.tick();
+  assert.equal(w.opened.length, 3);
+  stop = true;
+  w.tick(11_000); await w.bridge.tick();
+  assert.equal(w.store.get("sfb_chunks").length, 0);
+  assert.equal(w.store.get("sfb_jobs").length, 0);
+  assert.ok(w.handles.every((h: any) => h.closed), "تابات القياس اتقفلت");
+  assert.equal(w.store.get("sfb_stopped"), true);
+  assert.ok(w.store.get("sfb_stop_at") > 0, "تاب جوجل بيقفل نفسه");
+  assert.match(w.store.get("sfb_status").text, /مقفول من Service Flow/);
+  const n = w.calls.length;
+  w.tick(30_000); await w.bridge.tick();
+  assert.equal(w.calls.length, n, "مابيسألش قبل دقيقة");
+  w.tick(31_000); await w.bridge.tick();
+  assert.equal(w.opened.length, 3, "لسه مقفول ⇒ مفيش تابات");
+  stop = false;   // «افتح الجسر»
+  w.tick(61_000); await w.bridge.tick();
+  assert.equal(w.store.get("sfb_stopped"), false);
+  assert.equal(w.opened.length, 6, "رجع يفتح");
+});
+
+test("server: stop / go / state, and lease / start / progress honor the stop", () => {
+  assert.match(routes, /const BRIDGE_STOP_KEY = "bridge_stopped";/);
+  assert.match(routes, /app\.post\("\/api\/exec-queue\/bridge\/stop", requireAuth, requireSuperAdmin/);
+  assert.match(routes, /app\.post\("\/api\/exec-queue\/bridge\/go", requireAuth, requireSuperAdmin/);
+  assert.match(routes, /app\.get\("\/api\/exec-queue\/bridge\/state", requireAuth, requireSuperAdmin/);
+  // القياس الشغّال يرجع للطابور — ومش بيلمس زرار الإعدادات (مايروحش لجهاز التنفيذ)
+  assert.match(routes, /UPDATE exec_jobs SET status = 'pending', claimed_at = NULL, bridge_lease_until = NULL\n\s+WHERE status = 'claimed' AND bridge_lease_until IS NOT NULL/);
+  assert.match(routes, /if \(await readBridgeStopped\(\)\) return res\.json\(\{ jobs: \[\], stop: true, lanes: lanes\.noreal \}\);/);
+  assert.match(routes, /if \(await readBridgeStopped\(\)\) return res\.json\(\{ ok: false, stop: true, drop: held \}\);/);
+  assert.match(routes, /if \(stop\) return res\.json\(\{ ok: true, measured: \[\], stop: true,/);
+  const stopRoute = routes.slice(routes.indexOf('app.post("/api/exec-queue/bridge/stop"'), routes.indexOf('app.post("/api/exec-queue/bridge/go"'));
+  assert.doesNotMatch(stopRoute, /BRIDGE_ON_KEY/);
+  // صفحات الجسر بتقفل نفسها وهو مقفول، وتاب جوجل اللى كان مفتوح قبل القفل
+  assert.match(src, /if \(GET\("sfb_stopped", false\) !== true\) return;/);
+  assert.match(src, /if \(ON_GOOGLE && IS_TOP\) setInterval\(\(\) => \{ if \(Number\(GET\("sfb_stop_at", 0\)\) > LOAD_AT\)/);
+});
