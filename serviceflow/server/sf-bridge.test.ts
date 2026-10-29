@@ -419,14 +419,10 @@ test("DZS script presses Search when clearview opens with the search box only", 
 });
 
 // المالك ٢٠٢٦-١٠-٢٩: «ليه اتفتح تابات داخل نفس النافذة ونوافذ منفصلة فى نفس الوقت»
-test("windows mode: even the first line opens in its own window, through a small launch page", () => {
-  assert.ok(src.includes("// @match        *://10.42.187.101:8080/sfb-launch*"));
-  assert.match(src, /const ON_DZS = host === "10\.42\.187\.101" && !ON_LAUNCH;/, "سكربت الجسر مايعاملش صفحة الإطلاق كتاب DZS");
-  assert.match(src, /if \(GET\("sfb_mode", "windows"\) !== "tabs"\) url = BRIDGE\.DZS_URL\.replace\(\/\\\/expresse\\\/\?\$\/, ""\) \+ "\/sfb-launch" \+ url\.slice\(url\.indexOf\("#"\)\);/);
-  assert.match(src, /else location\.replace\(target\);/, "الـpopups ممنوعة ⇒ يقيس فى التاب نفسه");
-  // صفحة الإطلاق مش تحت /expresse — فسكربت القياس (@match …/expresse/*) مابيشتغلش عليها
-  const dzs = readFileSync(new URL("../dzs-expresse-v10.user.js", import.meta.url), "utf8");
-  assert.doesNotMatch(dzs, /@match\s+\S*sfb-launch/);
+test("no launch page on the DZS host (it redirects to login-page) — the first line opens in a tab", () => {
+  assert.doesNotMatch(src, /@match\s+\S*sfb-launch/);
+  assert.doesNotMatch(src, /"\/sfb-launch" \+/);
+  assert.match(src, /openTab: \(url\) => \{ try \{ return GM_openInTab\(url, \{ active: false, insert: true \}\);/);
 });
 
 test("the tab count follows the settings even while the bridge holds 100+ lines", async () => {
