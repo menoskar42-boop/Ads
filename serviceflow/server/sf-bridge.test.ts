@@ -447,15 +447,22 @@ test("DZS script: one login at a time; the other windows wait and come back on t
   assert.match(login, /location\.href = "\/expresse\/welcome";/);
 });
 
-test("the bridge pauses itself when DZS windows keep landing on the AXON login page", async () => {
-  const w = world();
-  w.store.set("sfb_login_hits", [999_000, 999_500, 999_800, 999_900, 999_950, 999_990]);
-  await w.bridge.tick();
-  assert.equal(w.store.get("sfb_paused"), true);
-  assert.equal(w.opened.length, 0);
-  assert.match(w.store.get("sfb_status").text, /صفحة دخول AXON/);
+test("the bridge pauses itself only when login pages keep coming for a minute, not on a normal start", async () => {
+  // بداية عادية والجلسة منتهية: ٨ تابات وقعوا على الدخول فى ١٥ ثانية (واحد بيسجّل والباقى بيستنوه) ⇒ مايوقّفش
+  const start = world();
+  start.store.set("sfb_login_hits", Array.from({ length: 8 }, (_, i) => 985_000 + i * 2000));
+  await start.bridge.tick();
+  assert.notEqual(start.store.get("sfb_paused"), true, "بداية عادية");
+  // دايرة: صفحات دخول بتتكرر على مدى دقيقة ونص ⇒ يوقّف
+  const storm = world();
+  storm.store.set("sfb_login_hits", Array.from({ length: 9 }, (_, i) => 900_000 + i * 11_000));
+  await storm.bridge.tick();
+  assert.equal(storm.store.get("sfb_paused"), true);
+  assert.equal(storm.opened.length, 0);
+  assert.match(storm.store.get("sfb_status").text, /صفحة دخول AXON/);
+  // قديمة (أكتر من ٣ دقايق) ⇒ مالهاش دعوة
   const old = world();
-  old.store.set("sfb_login_hits", [1, 2, 3, 4, 5, 6]);   // من زمان — مالهاش دعوة
+  old.store.set("sfb_login_hits", Array.from({ length: 12 }, (_, i) => 1 + i * 20_000));
   await old.bridge.tick();
   assert.notEqual(old.store.get("sfb_paused"), true);
   assert.match(src, /if \(\/\\\/expresse\\\/login\/i\.test\(location\.pathname\)\)/);
