@@ -39,7 +39,8 @@ function world(opts: { reachable?: boolean; realChunk?: boolean; server?: (path:
   vm.createContext(ctx);
   vm.runInContext(core + "\n;globalThis.__b = { makeBridge, bridgeHarvest, bridgeLaneUrl, bridgeLane, BRIDGE };", ctx);
   const B = ctx.__b;
-  if (opts.realChunk) store.set("sfb_mode", "tabs");   // وضع «تابات»: خط لكل تاب
+  // الاختبارات القديمة مكتوبة على حتت ١٠ خطوط (وضع «نوافذ») — والافتراضى «تابات» ليه اختبار لوحده
+  if (!opts.realChunk) store.set("sfb_view", "windows");
   return { B, bridge: B.makeBridge(env), env, store, calls, reports, opened, handles, tick: (ms: number) => { clock += ms; } };
 }
 /** تاب القياس خلّص الخطوط دى (زى ما سكربت القياس بيحفظها فى DZS_RESULTS_L90) والجسر نقلها. */
@@ -373,7 +374,7 @@ test("one line per tab (like the executor), up to 3 new tabs per cycle, and the 
     if (path.endsWith("/progress")) return { status: 200, json: { ok: true, measured } };
     return { status: 200, json: { ok: true } };
   } });
-  assert.equal(w.B.BRIDGE.CHUNK, 10, "الافتراضى نوافذ: ١٠ خطوط");
+  assert.equal(w.store.get("sfb_view"), undefined, "مفيش اختيار ⇒ الافتراضى «تابات»");
   assert.equal(w.B.BRIDGE.TAB_CHUNK, 1);
   await w.bridge.tick();
   assert.equal(w.opened.length, 3, "٣ فى الدورة الأولى");
@@ -397,16 +398,13 @@ test("a DZS tab can lead too (the Google tab gets throttled in the background)",
   assert.match(src, /if \(gone >= 60 \|\|/);
 });
 
-test("windows mode is the default (10 lines, DZS opens each in a window); the first tab closes itself after its line", () => {
-  const w = world();
-  assert.equal(w.store.get("sfb_mode"), undefined);
-  assert.match(src, /const pick = list\.slice\(0, env\.get\("sfb_mode", "windows"\) === "tabs" \? BRIDGE\.TAB_CHUNK : BRIDGE\.CHUNK\);/);
+test("tabs is the default again (one line per tab, same window); windows stays a panel switch", () => {
+  assert.match(src, /const pick = list\.slice\(0, env\.get\("sfb_view", "tabs"\) === "windows" \? BRIDGE\.CHUNK : BRIDGE\.TAB_CHUNK\);/);
+  assert.match(src, /const tabsMode = GET\("sfb_view", "tabs"\) !== "windows";/);
+  assert.doesNotMatch(src, /"sfb_mode"/, "الاختيار القديم «نوافذ» مايفضلش شغّال");
   // العلامة فى window.name: مابتتنسخش للنوافذ (sessionStorage بيتنسخ، وwindow.opener بيبقى null لما الفاتح يتقفل)
   assert.match(src, /window\.name = "sfb_first\|" \+ lane \+ "\|" \+ acc;/);
-  assert.doesNotMatch(src, /sessionStorage\.setItem\("SFB_TAB"/);
-  assert.doesNotMatch(src, /isFirst = !window\.opener;/);
   assert.match(src, /\(doneAt && Date\.now\(\) - doneAt > 12 \* 1000\)\)/);
-  assert.match(src, /btn\(tabsMode \? "الوضع: تابات" : "الوضع: نوافذ"/);
 });
 
 // المالك ٢٠٢٦-١٠-٢٩: «الصفحة بتفتح كده من غير أزرار… دوست Search يدوى فالبيانات ظهرت»
@@ -419,10 +417,9 @@ test("DZS script presses Search when clearview opens with the search box only", 
 });
 
 // المالك ٢٠٢٦-١٠-٢٩: «ليه اتفتح تابات داخل نفس النافذة ونوافذ منفصلة فى نفس الوقت»
-test("no launch page on the DZS host (it redirects to login-page) — the first line opens in a tab", () => {
+test("no launch page on the DZS host (it redirects to login-page)", () => {
   assert.doesNotMatch(src, /@match\s+\S*sfb-launch/);
   assert.doesNotMatch(src, /"\/sfb-launch" \+/);
-  assert.match(src, /openTab: \(url\) => \{ try \{ return GM_openInTab\(url, \{ active: false, insert: true \}\);/);
 });
 
 test("the tab count follows the settings even while the bridge holds 100+ lines", async () => {
@@ -470,4 +467,9 @@ test("a DZS tab drives the bridge only while a Google / Service-Flow tab was ali
   assert.match(src, /if \(ON_GOOGLE \|\| ON_SF\) SET\(TRIGGER_KEY, Date\.now\(\)\);\n\s+else if \(Date\.now\(\) - Number\(GET\(TRIGGER_KEY, 0\)\) > TRIGGER_MS\) return;/);
   assert.match(src, /setInterval\(go, 5000\);/);
   assert.doesNotMatch(src, /setInterval\(\(\) => \{ bridge\.tick\(\); \}, 5000\);/);
+});
+
+test("windows view: even the first line is a window opened by the page itself; blocked popups fall back to a tab", () => {
+  assert.match(src, /if \(GET\("sfb_view", "tabs"\) === "windows"\) \{\n\s+let w = null;\n\s+try \{ w = window\.open\(url, "_blank", "width=1280,height=800,/);
+  assert.match(src, /if \(w\) return w;\n\s+\}\n\s+try \{ return GM_openInTab\(url, \{ active: false, insert: true \}\);/);
 });
