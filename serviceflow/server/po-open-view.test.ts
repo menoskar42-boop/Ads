@@ -14,7 +14,7 @@ test("PO stop opens as its own window when the setting says windows, a tab other
   saveOpenView("windows");
   assert.equal(store.get(OPEN_VIEW_KEY), "windows");
   openProfileOptimization(["111"], { stopOnly: true, lane: 3 });
-  assert.equal(calls[1][1], "dzs_po_3");
+  assert.equal(calls[1][1], "dzs_pow_3", "اسم غير التاب القديم dzs_po_3 — عشان مايرجعلوش");
   assert.match(String(calls[1][2] || ""), /^width=1280,height=800,left=\d+,top=\d+$/, "نافذة لوحده");
   openProfileOptimization(["111"], {});                    // رفع السرعة: تاب زى ما هو
   assert.deepEqual(calls[2].slice(1), ["dzs_measure"]);
@@ -23,4 +23,15 @@ test("PO stop opens as its own window when the setting says windows, a tab other
   saveOpenView("tabs");
   openProfileOptimization(["111"], { stopOnly: true });
   assert.deepEqual(calls[3].slice(1), ["dzs_po_1"]);
+});
+
+// المالك اختار «نوافذ» من Chrome وجهاز التنفيذ فى Edge فضل يفتح تابات — طريقة الفتح لازم تيجى من السيرفر مع كل سحبة
+test("the executor learns the open mode from every claim response, not from the browser that saved the settings", async () => {
+  const { readFileSync } = await import("node:fs");
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const exe = readFileSync(new URL("../client/src/components/ExecutorButton.tsx", import.meta.url), "utf8");
+  const claim = routes.slice(routes.indexOf('app.post("/api/exec-queue/claim"'), routes.indexOf("if (execIdle", routes.indexOf('app.post("/api/exec-queue/claim"')));
+  assert.match(claim, /if \(openViewMemo\) res\.set\("X-SF-Open-View", openViewMemo\);/, "قبل أى رد (حتى رد «مفيش» من الذاكرة)");
+  assert.match(routes, /bridgeOnMemo = !!out\.bridge;\n\s+openViewMemo = out\.bridgeView === "windows" \? "windows" : "tabs";/);
+  assert.match(exe, /saveOpenView\(r\.headers\.get\("X-SF-Open-View"\)\);/);
 });

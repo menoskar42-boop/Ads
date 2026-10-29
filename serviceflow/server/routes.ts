@@ -2572,6 +2572,9 @@ export async function registerRoutes(
   let execDrain: { at: number; before: string | null } | null = null;
   // آخر قيمة لزرار الجسر اتقرت من الإعدادات (readExecLanes) — للعدّ فى /pending من غير ما نصحّى القاعدة
   let bridgeOnMemo: boolean | null = null;
+  // طريقة الفتح (تابات/نوافذ) — بتتبعت لجهاز التنفيذ مع كل سحبة (X-SF-Open-View). قبل كده كانت بتتحفظ فى المتصفح
+  // اللى اتفتحت منه الإعدادات بس: المالك اختار «نوافذ» من Chrome وجهاز التنفيذ فى Edge فضل يفتح تابات (٢٠٢٦-١٠-٢٩).
+  let openViewMemo: "tabs" | "windows" | null = null;
   const BRIDGE_ON_KEY = "exec_lanes_bridge";   // نفس البادئة = تعديله سوبر أدمن بس
   // طريقة فتح صفحات القياس بتاعة الجسر (المالك ٢٠٢٦-١٠-٢٩: «اعمل زرار فى الإعدادات وأنا أختار طريقة الفتح»):
   // "tabs" = تابات فى نافذة واحدة (الافتراضى) · "windows" = كل خط فى نافذة لوحده. الجسر بياخدها مع lease/progress.
@@ -2594,6 +2597,7 @@ export async function registerRoutes(
         if (r.key === BRIDGE_VIEW_KEY) out.bridgeView = String(r.value) === "windows" ? "windows" : "tabs";
       }
       bridgeOnMemo = !!out.bridge;
+      openViewMemo = out.bridgeView === "windows" ? "windows" : "tabs";
     } catch {}
     return out;
   };
@@ -2967,6 +2971,7 @@ export async function registerRoutes(
     if (req.body?.before) {
       try { res.set("X-SF-Night-Pause", JSON.stringify(await cachedNightPause())); } catch {}
     }
+    if (openViewMemo) res.set("X-SF-Open-View", openViewMemo);
     if (execIdle && execIdle.version === execQueueVersion && execIdle.key === idleKey
         && Date.now() - execIdle.at < EXEC_IDLE_RECHECK_MS && !dbAwake()) return res.json(null);
     const requeueRanBefore = lastRequeueAt;

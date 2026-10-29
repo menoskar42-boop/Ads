@@ -44,10 +44,10 @@ export function openProfileOptimization(
   const name = opts.stopOnly ? `dzs_po_${lane || 1}` : "dzs_measure";
   // «كل خط فى نافذة لوحده» فى الإعدادات ⇒ تاب الإيقاف نافذة Edge لوحده (المالك ٢٠٢٦-١٠-٢٩: «ممكن تعمل الإيقاف فى
   // نافذة منفصلة بناءً على الإعدادات»). النافذة اللى قدّام مابتتنيّمش، والتاب اللى ورا فى نفس النافذة بيتنيّم.
-  // ⚠️ لو فيه تاب قديم بنفس الاسم مفتوح، المتصفح بيستخدمه زى ما هو (تاب) — بيبقى نافذة من المرة اللى بعد ما يتقفل.
+  // ⚠️ اسم مختلف (dzs_pow_…): لو فيه تاب قديم مفتوح بنفس الاسم، المتصفح كان هيرجع له ويفضل تاب.
   if (opts.stopOnly && openView() === "windows") {
     const n = lane || 1;
-    const w = window.open(url, name, `width=1280,height=800,left=${40 + ((n * 37) % 300)},top=${40 + ((n * 23) % 150)}`);
+    const w = window.open(url, `dzs_pow_${n}`, `width=1280,height=800,left=${40 + ((n * 37) % 300)},top=${40 + ((n * 23) % 150)}`);
     if (w) return w;
   }
   return window.open(url, name);
