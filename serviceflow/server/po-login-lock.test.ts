@@ -87,7 +87,10 @@ const open = (b: ReturnType<typeof browser>) => lanes.map((lane) => b.openTab(`#
 test("PO 0.9.17: many stop tabs, session expired — one logs in once, the rest wait and reach their line", () => {
   const b = browser();
   const tabs = open(b);
-  b.advance(40_000);
+  b.advance(10_000);
+  // 0.9.19: كلهم وصلوا فى ثوانى من الدخول — مش بعد ٢٠ث (المالك: «بيدخل بعد ١٩ث وده كتير»)
+  assert.deepEqual(tabs.map((t) => t.onPo), tabs.map(() => true), "كلهم وصلوا فى أقل من ١٠ث");
+  b.advance(30_000);
   const clicks = tabs.map((t) => t.clicks);
   assert.equal(clicks.reduce((a, c) => a + c, 0), 1, `ضغطات الدخول: ${clicks}`);
   assert.ok(Number(b.shared.get("DZS_LOGIN_AT")) > 0, "القفل المشترك مع سكربت القياس اتكتب");
@@ -114,6 +117,10 @@ test("PO 0.9.17: respects a login that the measuring script (10.32) just made", 
   const b = browser();
   const t = b.openTab("#sf_po=159079529&sf_stop=1&sf_lane=2");
   b.shared.set("DZS_LOGIN_AT", String(b.now()));               // سكربت القياس لسه داخل
-  b.advance(15_000);
+  b.advance(8_000);
   assert.equal(t.clicks, 0, "مستنى دخول القياس");
+  // دخول القياس مانفعش (الجلسة لسه خلصانة) ⇒ بيسجّل هو بعد ١٠ث بالكتير — مش ٢٠ (المالك: «بيكتب بعد ١٩ أو ٢١ث وده كتير»)
+  b.advance(4_000);
+  assert.equal(t.clicks, 1, "سجّل هو فى خلال ١٢ث");
+  assert.ok(t.onPo);
 });

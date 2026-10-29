@@ -450,8 +450,10 @@ test("the tab count follows the settings even while the bridge holds 100+ lines"
 // المالك ٢٠٢٦-١٠-٢٩: نوافذ كتير على login-page?sessionExpired=true — كلهم بيسجّلوا دخول مع بعض ويلغوا جلسات بعض
 test("DZS script: one login at a time; the other windows wait and come back on the new session", () => {
   const dzs = readFileSync(new URL("../dzs-expresse-v10.user.js", import.meta.url), "utf8");
-  assert.match(dzs, /@version\s+10\.32\.0/);
-  assert.match(dzs, /const LOGIN_AT_KEY = "DZS_LOGIN_AT", LOGIN_GAP_MS = 20 \* 1000;/);
+  const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
+  assert.match(dzs, /@version\s+10\.3[3-9]\.\d/);
+  assert.match(dzs, /const LOGIN_AT_KEY = "DZS_LOGIN_AT", LOGIN_GAP_MS = 10 \* 1000;/);
+  assert.match(po, /const LOGIN_AT_KEY = "DZS_LOGIN_AT", LOGIN_GAP_MS = 10 \* 1000;/, "نفس المهلة فى سكربت الإيقاف");
   const login = dzs.slice(dzs.indexOf("const loginTimer"), dzs.indexOf("/* ================== OPEN CLEARVIEW"));
   assert.ok(login.indexOf("localStorage.getItem(LOGIN_AT_KEY)") < login.indexOf("b.click()"), "بيبص على القفل قبل الدخول");
   assert.ok(login.indexOf("localStorage.setItem(LOGIN_AT_KEY") < login.indexOf("b.click()"), "وبيكتبه قبل ما يدوس");
