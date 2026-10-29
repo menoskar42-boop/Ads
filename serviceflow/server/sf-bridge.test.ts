@@ -39,8 +39,7 @@ function world(opts: { reachable?: boolean; realChunk?: boolean; server?: (path:
   vm.createContext(ctx);
   vm.runInContext(core + "\n;globalThis.__b = { makeBridge, bridgeHarvest, bridgeLaneUrl, bridgeLane, BRIDGE };", ctx);
   const B = ctx.__b;
-  // الاختبارات القديمة مكتوبة على حتت ١٠ خطوط — المنطق نفسه؛ والافتراضى (خط لكل تاب) ليه اختبار لوحده تحت
-  if (!opts.realChunk) B.BRIDGE.CHUNK = 10;
+  if (opts.realChunk) store.set("sfb_mode", "tabs");   // وضع «تابات»: خط لكل تاب
   return { B, bridge: B.makeBridge(env), env, store, calls, reports, opened, handles, tick: (ms: number) => { clock += ms; } };
 }
 /** تاب القياس خلّص الخطوط دى (زى ما سكربت القياس بيحفظها فى DZS_RESULTS_L90) والجسر نقلها. */
@@ -372,7 +371,8 @@ test("one line per tab (like the executor), up to 3 new tabs per cycle, and the 
     if (path.endsWith("/progress")) return { status: 200, json: { ok: true, measured } };
     return { status: 200, json: { ok: true } };
   } });
-  assert.equal(w.B.BRIDGE.CHUNK, 1);
+  assert.equal(w.B.BRIDGE.CHUNK, 10, "الافتراضى نوافذ: ١٠ خطوط");
+  assert.equal(w.B.BRIDGE.TAB_CHUNK, 1);
   await w.bridge.tick();
   assert.equal(w.opened.length, 3, "٣ فى الدورة الأولى");
   for (const u of w.opened) assert.match(u, /#sf_accounts=a\d&sf_mode=noreal&sf_lane=9\d&sf_bridge=1$/, "خط واحد فى كل تاب");
@@ -392,4 +392,13 @@ test("one line per tab (like the executor), up to 3 new tabs per cycle, and the 
 test("a DZS tab can lead too (the Google tab gets throttled in the background)", () => {
   assert.match(src, /if \(\(ON_GOOGLE \|\| ON_SF \|\| ON_DZS\) && IS_TOP\) \{/);
   assert.match(src, /LEAD_MS: 20 \* 1000,/);
+});
+
+test("windows mode is the default (10 lines, DZS opens each in a window); the first tab closes itself after its line", () => {
+  const w = world();
+  assert.equal(w.store.get("sfb_mode"), undefined);
+  assert.match(src, /const pick = list\.slice\(0, env\.get\("sfb_mode", "windows"\) === "tabs" \? BRIDGE\.TAB_CHUNK : BRIDGE\.CHUNK\);/);
+  assert.match(src, /isFirst = !window\.opener;/, "نوافذ سكربت القياس (ليها opener) مابتقفلش نفسها من هنا");
+  assert.match(src, /if \(gone >= 3 \|\| \(doneAt && Date\.now\(\) - doneAt > 12 \* 1000\)\)/);
+  assert.match(src, /btn\(tabsMode \? "الوضع: تابات" : "الوضع: نوافذ"/);
 });
