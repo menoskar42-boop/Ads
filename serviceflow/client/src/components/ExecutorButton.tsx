@@ -6,6 +6,7 @@ import { ROLES } from "@shared/schema";
 import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, reloadWhenReachable, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, FCC_ORIGIN, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
 import { rescueMinutes, EXEC_RUN_MINUTES } from "@shared/exec-timeouts";
 import { executorPausedNow, refreshPausedNow, saveNightPause, useNightPause, nightWindowStart, readNightPause } from "@/lib/night-pause";
+import { saveOpenView } from "@/lib/profile-optimization";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
 // المشكلة اللى بتوقف الطابور: Edge/Chrome بيعملوا للتاب اللى فى الخلفية
@@ -830,6 +831,10 @@ export function ExecutorButton() {
             ...(executorPausedNow() ? { before: nightWindowStart().toISOString() } : {}) }),
           signal: ctrl.signal,
         }).finally(() => clearTimeout(tmo));
+        // فى فترة الإيقاف السيرفر بيرجّع إعداداتها الحالية — لو اتغيّرت من متصفح تانى (اتقفلت أو المدة اتغيّرت)
+        // الجهاز ده يعرف على طول ويكمّل، بدل ما يفضل على النسخة القديمة لحد الصبح (المالك ٢٠٢٦-١٠-٢٩)
+        const np = r.headers.get("X-SF-Night-Pause");
+        if (np) { try { saveNightPause(JSON.parse(np)); } catch {} }
         // ⚠️ لازم نفرّق بين «مفيش مهمة مؤهّلة» و«الطلب فشل»: الاتنين كانوا بيتقروا
         // نفس القراءة (break صامت)، فأى خطأ فى السحب كان بيوقّف التنفيذ تماماً من
         // غير أى مؤشر — الموقع شغّال والقياسات واقفة ومحدش يعرف ليه.
@@ -992,10 +997,13 @@ export function ExecutorButton() {
       // الإعدادات من السيرفر (واحدة لكل المتصفحات) كل ٥ دقايق وهو شغّال — والجهاز شغّال يعنى القاعدة
       // صاحية أصلاً. كانت كل ٣٠ دقيقة (المالك ٢٠٢٦-١٠-٢١: «جهاز التنفيذ يلتزم بالإعدادات»).
       // وفى فترة الإيقاف مابيسألش خالص — أى سؤال بالليل بيصحّى القاعدة.
-      if (!paused && Date.now() - settingsAt > 5 * 60 * 1000) {
+      // ونايم بالليل: كل ربع ساعة — لو الفترة اتقفلت أو اتغيّرت من متصفح تانى، الجهاز ده كان بيفضل نايم على
+      // النسخة القديمة لحد الصبح (المالك ٢٠٢٦-١٠-٢٩). قاعدة Service Flow على Oracle من ٢٠٢٦-١٠-٢٤ (مابتتحاسبش بالساعة).
+      // وهو بيخلّص الطابور السحبة نفسها بترجّع الإعدادات (هيدر X-SF-Night-Pause).
+      if ((!paused || nightOff) && Date.now() - settingsAt > (paused ? 15 : 5) * 60 * 1000) {
         settingsAt = Date.now();
         fetch("/api/exec-queue/lanes", { credentials: "include" })
-          .then((r) => (r.ok ? r.json() : null)).then((j) => saveNightPause(j?.nightPause)).catch(() => {});
+          .then((r) => (r.ok ? r.json() : null)).then((j) => { saveNightPause(j?.nightPause); saveOpenView(j?.bridgeView); }).catch(() => {});
       }
     };
     nightTick();

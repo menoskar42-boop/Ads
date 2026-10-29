@@ -2556,6 +2556,22 @@ export async function registerRoutes(
   // التنفيذ مفتوحة… جهاز التنفيذ للباتش العاجل فقط… وحط فى الإعدادات زر يشغّل أو يوقف»).
   // مفتوح ⇒ جهاز التنفيذ مابيسحبش أى مهمة الجسر يقدر عليها (bridgeable) — حتى لو لسه ماتحجزتش — فالجسر
   // بس هو اللى بينفّذها. مقفول (الافتراضى) ⇒ الجسر مابياخدش حاجة وجهاز التنفيذ بيعمل كل حاجة زى الأول.
+  // جهاز التنفيذ بيحتفظ بنسخة من إعدادات الإيقاف عنده، وفى الفترة مابيسألش السيرفر خالص — فلو المالك غيّرها من
+  // متصفح تانى (Chrome)، جهاز التنفيذ (Edge) كان بيفضل «🌙 بيخلّص الطابور قبل الإيقاف» على النسخة القديمة لحد الصبح
+  // (المالك ٢٠٢٦-١٠-٢٩: الفترة ١١:٣٠م والزرارين مقفولين، والطابور واقف ١٠:٥١م). فكل سحبة فى الفترة بترجّع الإعدادات
+  // الحالية فى هيدر X-SF-Night-Pause — من الذاكرة (٥ دقايق) عشان ماتصحّيش القاعدة.
+  let nightPauseCache: { at: number; v: NightPauseSetting } | null = null;
+  const cachedNightPause = async (): Promise<NightPauseSetting> => {
+    if (nightPauseCache && Date.now() - nightPauseCache.at < 5 * 60 * 1000) return nightPauseCache.v;
+    const v = await readNightPause();
+    nightPauseCache = { at: Date.now(), v };
+    return v;
+  };
+  // آخر سحبة لجهاز التنفيذ (before = بداية فترة الإيقاف وهو بيخلّص الطابور، أو null بالنهار): الجسر مايستناش
+  // عاجل اتضاف بعد بداية الفترة — جهاز التنفيذ مش هيشغّله قبل آخرها.
+  let execDrain: { at: number; before: string | null } | null = null;
+  // آخر قيمة لزرار الجسر اتقرت من الإعدادات (readExecLanes) — للعدّ فى /pending من غير ما نصحّى القاعدة
+  let bridgeOnMemo: boolean | null = null;
   const BRIDGE_ON_KEY = "exec_lanes_bridge";   // نفس البادئة = تعديله سوبر أدمن بس
   // طريقة فتح صفحات القياس بتاعة الجسر (المالك ٢٠٢٦-١٠-٢٩: «اعمل زرار فى الإعدادات وأنا أختار طريقة الفتح»):
   // "tabs" = تابات فى نافذة واحدة (الافتراضى) · "windows" = كل خط فى نافذة لوحده. الجسر بياخدها مع lease/progress.
@@ -2577,6 +2593,7 @@ export async function registerRoutes(
         if (r.key === BRIDGE_ON_KEY) out.bridge = String(r.value) === "1";
         if (r.key === BRIDGE_VIEW_KEY) out.bridgeView = String(r.value) === "windows" ? "windows" : "tabs";
       }
+      bridgeOnMemo = !!out.bridge;
     } catch {}
     return out;
   };
@@ -2709,6 +2726,7 @@ export async function registerRoutes(
       if (body.bridge === false) {
         await pool.query(`UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`);
       }
+      nightPauseCache = null;
       res.json({ ok: true, ...(await readExecLanes(pool)), refreshMinutes: await readRefreshMinutes(), measureStaleDays: await readMeasureStaleDays(), nightPause: await readNightPause() });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -2942,6 +2960,13 @@ export async function registerRoutes(
     // طابور فاضى ومفيش كتابة فيه من آخر سحبة فاضية (ونفس فترة الإيقاف) ⇒ «مفيش» من الذاكرة.
     // ولو القاعدة صاحية أصلاً من شغل تانى بنسأل عادى (مابيكلّفش، وبيلقط اللى اتضاف من نشر تانى)
     const idleKey = JSON.stringify([req.body?.before || null, req.body?.caps || null]);
+    {
+      const bRaw = req.body?.before ? new Date(String(req.body.before)) : null;
+      execDrain = { at: Date.now(), before: bRaw && !Number.isNaN(bRaw.getTime()) ? bRaw.toISOString() : null };
+    }
+    if (req.body?.before) {
+      try { res.set("X-SF-Night-Pause", JSON.stringify(await cachedNightPause())); } catch {}
+    }
     if (execIdle && execIdle.version === execQueueVersion && execIdle.key === idleKey
         && Date.now() - execIdle.at < EXEC_IDLE_RECHECK_MS && !dbAwake()) return res.json(null);
     const requeueRanBefore = lastRequeueAt;
@@ -3209,19 +3234,23 @@ export async function registerRoutes(
             `SELECT (now() - updated_at < ${EXEC_ACTIVE_WINDOW}) AS a FROM app_state WHERE key = 'exec_heartbeat'`);
           execAlive = !!hb[0]?.a;
         }
+        // جهاز التنفيذ بيخلّص الطابور فى فترة الإيقاف ⇒ العاجل اللى اتضاف بعد بدايتها مش هيتنفّذ قبل آخرها، فالجسر
+        // مايستناهوش (كان بيفضل «مستنى — فيه … إيقاف عاجل» طول الليل). التاريخ جاى من Date.toISOString فى السحبة.
+        const drainBefore = execDrain && Date.now() - execDrain.at < 2 * 60 * 1000 ? execDrain.before : null;
+        const drainSql = drainBefore ? `AND x.created_at <= '${drainBefore}'::timestamptz` : "";
         const aheadSql = execAlive ? `
               AND NOT EXISTS (SELECT 1 FROM exec_jobs x
                                WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> exec_jobs.id
                                  AND COALESCE(x.site, '10.42.187.101') = $3
                                  AND (x.bridge_lease_until IS NULL OR x.bridge_lease_until < now())
                                  AND NOT ${sharedGroup("x")}
-                                 AND ${queueRank("x")} < ${queueRank("exec_jobs")})
+                                 AND ${queueRank("x")} < ${queueRank("exec_jobs")} ${drainSql})
               AND NOT EXISTS (SELECT 1 FROM exec_jobs x
                                WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> exec_jobs.id
                                  AND COALESCE(x.site, '10.42.187.101') = $3
                                  AND (x.bridge_lease_until IS NULL OR x.bridge_lease_until < now())
                                  AND ${sharedGroup("x")} AND NOT ${bridgeable("x")}
-                                 AND ${queueRank("x")} < ${queueRank("exec_jobs")}
+                                 AND ${queueRank("x")} < ${queueRank("exec_jobs")} ${drainSql}
                                  AND (SELECT COUNT(*) FROM exec_jobs b
                                        WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = $3
                                          AND ${parallelGroup("b")} = ${parallelGroup("x")}) < ${laneCap("x", lanes)})` : "";
@@ -3231,7 +3260,7 @@ export async function registerRoutes(
         const { rows } = await tx.query(
           `UPDATE exec_jobs SET status = 'claimed', claimed_at = now(), executed_by = $2
             WHERE id = $1 AND status = 'pending' AND paused_at IS NULL
-              AND ${siteFreeFor("exec_jobs", "$3", lanes, execAlive ? "NULL::timestamptz" : "'epoch'::timestamptz")}
+              AND ${siteFreeFor("exec_jobs", "$3", lanes, !execAlive ? "'epoch'::timestamptz" : drainBefore ? `'${drainBefore}'::timestamptz` : "NULL::timestamptz")}
               -- (aheadSql) Real/رفع سرعة قدّامه ⇒ استنى، وإيقاف PO / «بدون Real» عاجل قدّامه ومستنى السقف المشترك بس
               -- ⇒ هو الأول (المالك ٢٠٢٦-١٠-٢٩: «مستنى: DZS مشغول بقياس» على إيقافات عاجلة والجسر شغّال)
               ${aheadSql}
@@ -3669,17 +3698,23 @@ export async function registerRoutes(
       const b = req.query.before ? new Date(String(req.query.before)) : null;
       const before = b && !Number.isNaN(b.getTime()) ? b.toISOString() : null;
       // صفر ومفيش كتابة فى الطابور من ساعتها ⇒ صفر من الذاكرة (نفس فكرة السحب الفاضى)
-      const memo = pendingMemo.get(before || "");
+      // وهو بيخلّص الطابور: شغل الجسر مايتحسبش لو الجسر مفتوح — جهاز التنفيذ مابياخدهوش أصلاً، فكان بيفتكر إن عنده
+      // شغل ويفضل «بيخلّص الطابور» ١٠ دقايق والجسر واقف مستنيه (المالك ٢٠٢٦-١٠-٢٩: «(3689)» = خطوط الجسر بالظبط)
+      // من الذاكرة (آخر قراية للإعدادات) — سؤال القاعدة هنا كان هيصحّيها قبل الذاكرة اللى تحت
+      const skipBridge = before ? (bridgeOnMemo ?? (await readExecLanes(pool)).bridge) : false;
+      const memoKey = (before || "") + (skipBridge ? "|b" : "");
+      const memo = pendingMemo.get(memoKey);
       if (memo && memo.n === 0 && memo.version === execQueueVersion && Date.now() - memo.at < EXEC_IDLE_RECHECK_MS && !dbAwake()) {
         return res.json({ pending: 0 });
       }
       await expireOrphanedExecJobs();
       const { rows } = await pool.query(
         `SELECT COUNT(*)::int AS n FROM exec_jobs WHERE status IN ('pending','claimed')
-            AND ($1::timestamptz IS NULL OR created_at <= $1::timestamptz)`, [before]);
+            AND ($1::timestamptz IS NULL OR created_at <= $1::timestamptz)
+            AND NOT ${skipBridge ? bridgeable("exec_jobs") : "FALSE"}`, [before]);
       const n = rows[0]?.n ?? 0;
       if (pendingMemo.size > 20) pendingMemo.clear();
-      pendingMemo.set(before || "", { version: execQueueVersion, at: Date.now(), n });
+      pendingMemo.set(memoKey, { version: execQueueVersion, at: Date.now(), n });
       markExecSelf();
       res.json({ pending: n });
     } catch { res.json({ pending: 0 }); }

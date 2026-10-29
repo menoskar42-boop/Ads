@@ -46,5 +46,5 @@ test("الإعدادات واحدة لكل المتصفحات: الشاشة بت
   assert.match(dlg, /staleTime: 0,\s*\n\s*refetchOnMount: "always"/);
   assert.match(dlg, /dataUpdatedAt >= openedAt/);
   const exe = readFileSync(new URL("../client/src/components/ExecutorButton.tsx", import.meta.url), "utf8");
-  assert.match(exe, /if \(!paused && Date\.now\(\) - settingsAt > 5 \* 60 \* 1000\)/);
+  assert.match(exe, /if \(\(!paused \|\| nightOff\) && Date\.now\(\) - settingsAt > \(paused \? 15 : 5\) \* 60 \* 1000\)/);
 });

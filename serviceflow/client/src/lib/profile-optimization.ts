@@ -41,5 +41,23 @@ export function openProfileOptimization(
   // تاب «إيقاف PO» التانى/التالت… نافذة لوحده (dzs_po_2…). والأول كمان بقى نافذة لوحده (dzs_po_1):
   // الإيقاف بيشتغل جنب «بدون Real» (المالك ٢٠٢٦-١٠-٢٠)، وتاب «بدون Real» الأول اسمه dzs_measure —
   // لو الإيقاف فتح فى نفس الاسم كان هيحلّ محل القياس الشغّال. رفع السرعة لسه dzs_measure (بيشتغل لوحده).
-  return window.open(url, opts.stopOnly ? `dzs_po_${lane || 1}` : "dzs_measure");
+  const name = opts.stopOnly ? `dzs_po_${lane || 1}` : "dzs_measure";
+  // «كل خط فى نافذة لوحده» فى الإعدادات ⇒ تاب الإيقاف نافذة Edge لوحده (المالك ٢٠٢٦-١٠-٢٩: «ممكن تعمل الإيقاف فى
+  // نافذة منفصلة بناءً على الإعدادات»). النافذة اللى قدّام مابتتنيّمش، والتاب اللى ورا فى نفس النافذة بيتنيّم.
+  // ⚠️ لو فيه تاب قديم بنفس الاسم مفتوح، المتصفح بيستخدمه زى ما هو (تاب) — بيبقى نافذة من المرة اللى بعد ما يتقفل.
+  if (opts.stopOnly && openView() === "windows") {
+    const n = lane || 1;
+    const w = window.open(url, name, `width=1280,height=800,left=${40 + ((n * 37) % 300)},top=${40 + ((n * 23) % 150)}`);
+    if (w) return w;
+  }
+  return window.open(url, name);
+}
+
+/** طريقة الفتح من «رفع الملفات ← إعدادات» (نفس اختيار الجسر): بتتحفظ فى المتصفح ده كل ما الإعدادات تيجى من السيرفر. */
+export const OPEN_VIEW_KEY = "sf_open_view";
+export function saveOpenView(v: unknown): void {
+  try { if (v === "windows" || v === "tabs") localStorage.setItem(OPEN_VIEW_KEY, v); } catch {}
+}
+function openView(): "windows" | "tabs" {
+  try { return localStorage.getItem(OPEN_VIEW_KEY) === "windows" ? "windows" : "tabs"; } catch { return "tabs"; }
 }

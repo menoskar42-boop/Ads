@@ -95,7 +95,7 @@ test("السيرفر: السحب و«المنتظر» بيحترموا بداي�
   const r = src("server/routes.ts");
   assert.match(r, /AND \(\$2::timestamptz IS NULL OR h\.created_at <= \$2::timestamptz\)/);
   assert.match(r, /\[skippedSites, before\],/);
-  assert.match(r, /AND \(\$1::timestamptz IS NULL OR created_at <= \$1::timestamptz\)`, \[before\]\);/);
+  assert.match(r, /AND \(\$1::timestamptz IS NULL OR created_at <= \$1::timestamptz\)\n\s+AND NOT \$\{skipBridge \? bridgeable\("exec_jobs"\) : "FALSE"\}`, \[before\]\);/);
 });
 
 test("شاشة الإعدادات فيها وقت البداية والنهاية", () => {

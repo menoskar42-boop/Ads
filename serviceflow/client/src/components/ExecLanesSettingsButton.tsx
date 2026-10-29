@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { saveNightPause, NIGHT_PAUSE_DEFAULT, type NightPause } from "@/lib/night-pause";
+import { saveOpenView } from "@/lib/profile-optimization";
 
 interface ExecLanes {
   noreal: number;
@@ -69,6 +70,7 @@ export function ExecLanesSettingsButton() {
       if (!r.ok) throw new Error(await r.text());
       const j = await r.json();
       saveNightPause(j?.nightPause);
+      saveOpenView(j?.bridgeView);   // تابات «إيقاف PO» بتتفتح بنفس الطريقة
       return j;
     },
     enabled: open,
@@ -109,6 +111,7 @@ export function ExecLanesSettingsButton() {
     },
     onSuccess: (j: any) => {
       saveNightPause(j?.nightPause ?? night);   // الجهاز ده يعرف على طول من غير ما يستنى
+      saveOpenView(j?.bridgeView ?? bridgeView);
       qc.invalidateQueries({ queryKey: [LANES_URL] });
       qc.invalidateQueries({ queryKey: ["/api/exec-queue/lanes"] });
       toast({ title: "اتحفظ ✓", description: "الإعدادات الجديدة بتتطبّق من المهمة/الدورة الجاية." });
@@ -229,8 +232,8 @@ export function ExecLanesSettingsButton() {
                   <Switch checked={bridge} onCheckedChange={setBridge} aria-label="جسر Tampermonkey للباتشات المؤجّلة" />
                 </label>
                 <div className="space-y-1">
-                  <p className="text-sm">طريقة فتح صفحات القياس</p>
-                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="طريقة فتح صفحات القياس">
+                  <p className="text-sm">طريقة فتح صفحات القياس وإيقاف PO</p>
+                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="طريقة فتح صفحات القياس وإيقاف PO">
                     {([["tabs", "تابات فى نافذة واحدة"], ["windows", "كل خط فى نافذة لوحده"]] as const).map(([v, label]) => (
                       <Button key={v} type="button" size="sm" role="radio" aria-checked={bridgeView === v}
                         variant={bridgeView === v ? "default" : "outline"} onClick={() => setBridgeView(v)}>
@@ -243,6 +246,7 @@ export function ExecLanesSettingsButton() {
                       ? "كل خط بيتفتح فى نافذة Edge لوحده وبيتقفل لما يخلص. محتاج تسمح بالـpopups لـgoogle.com وgoogle.com.eg فى Edge — لو ممنوعة بيتفتح تاب."
                       : "كل خط فى تاب لوحده فى نفس النافذة، وبيتقفل لما يخلص — زى جهاز التنفيذ، ومن غير popups."}
                     {" "}التغيير بيتطبّق فى خلال ١٠ ثوانى على الصفحات الجديدة.
+                    {" "}وتابات «إيقاف PO» من جهاز التنفيذ بتتفتح بنفس الطريقة (فى النوافذ محتاج السماح بالـpopups لـoscardevs.com — وده مسموح أصلاً لو جهاز التنفيذ بيفتح تابات).
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
