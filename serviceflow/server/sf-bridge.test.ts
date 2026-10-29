@@ -428,3 +428,17 @@ test("windows mode: even the first line opens in its own window, through a small
   const dzs = readFileSync(new URL("../dzs-expresse-v10.user.js", import.meta.url), "utf8");
   assert.doesNotMatch(dzs, /@match\s+\S*sfb-launch/);
 });
+
+test("the tab count follows the settings even while the bridge holds 100+ lines", async () => {
+  assert.match(routes, /res\.json\(\{ ok: true, measured, lanes: \(await readExecLanes\(pool\)\)\.noreal \}\);/);
+  const w = world({ server: (path, body) => {
+    if (path.endsWith("/lease")) return { status: 200, json: { jobs: Array.from({ length: 150 }, (_, i) => ({ id: 1 + i, accounts: ["a" + i] })), lanes: 30 } };
+    if (path.endsWith("/start")) return { status: 200, json: { ok: true, marker: body.ids[0], drop: [], now: "2026-10-29T17:30:00.000Z" } };
+    if (path.endsWith("/progress")) return { status: 200, json: { ok: true, measured: [], lanes: 20 } };
+    return { status: 200, json: { ok: true } };
+  } });
+  await w.bridge.tick();
+  assert.equal(w.store.get("sfb_lanes"), 30);
+  w.tick(11_000); await w.bridge.tick();
+  assert.equal(w.store.get("sfb_lanes"), 20, "من /progress");
+});

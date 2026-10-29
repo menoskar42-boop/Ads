@@ -3209,7 +3209,8 @@ export async function registerRoutes(
           [ids, since]);
         measured = rows.map((r: any) => Number(r.id));
       }
-      res.json({ ok: true, measured });
+      // lanes: عدد «بدون Real» الحالى — الجسر مابيسألش lease وهو معاه ≥١٠٠ خط، فكان بيفضل شايف الرقم القديم
+      res.json({ ok: true, measured, lanes: (await readExecLanes(pool)).noreal });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
