@@ -33,7 +33,7 @@ function world(opts: { reachable?: boolean; realChunk?: boolean; server?: (path:
     report: (b: any) => reports.push(b),
     openTab: (u: string) => { opened.push(u); const h = { url: u, closed: false, close() { h.closed = true; } }; handles.push(h); return h; },
     dzsReachable: async () => opts.reachable !== false,
-    device: () => "PC-test", tabId: "tabA", token: () => "tok",
+    device: () => "PC-test", tabId: "tabA", token: () => "tok", sleep: async () => {},
   };
   const ctx: any = { console, Date, JSON, Math, Set, Object, Array, Number, String, Promise, encodeURIComponent };
   vm.createContext(ctx);
@@ -138,8 +138,8 @@ test("only one leader tab acts; release returns everything to the executor", asy
   w.store.set("sfb_lead", { id: "otherTab", at: 1_000_000 });
   await w.bridge.tick();
   assert.equal(w.calls.length, 0, "تاب تانى هو القائد");
-  w.tick(151_000); await w.bridge.tick();
-  assert.equal(w.opened.length, 1, "القائد سكت أكتر من ١٥٠ ثانية ⇒ ده ياخد مكانه");
+  w.tick(21_000); await w.bridge.tick();
+  assert.equal(w.opened.length, 1, "القائد سكت أكتر من ٢٠ ثانية (Edge بطّأه) ⇒ ده ياخد مكانه");
   const n = w.bridge.releaseAll();
   assert.equal(n, 23);
   assert.deepEqual(Array.from(w.reports.at(-1).release).slice(0, 2), [100, 101]);
@@ -387,4 +387,9 @@ test("one line per tab (like the executor), up to 3 new tabs per cycle, and the 
   assert.match(w.opened[5], /sf_lane=90&/, "على نفس الرقم اللى فضى");
   assert.match(src, /^\/\/ @grant\s+window\.close$/m, "تاب الجسر بيقفل نفسه");
   assert.match(src, /sessionStorage\.setItem\("SFB_TAB"/);
+});
+
+test("a DZS tab can lead too (the Google tab gets throttled in the background)", () => {
+  assert.match(src, /if \(\(ON_GOOGLE \|\| ON_SF \|\| ON_DZS\) && IS_TOP\) \{/);
+  assert.match(src, /LEAD_MS: 20 \* 1000,/);
 });
