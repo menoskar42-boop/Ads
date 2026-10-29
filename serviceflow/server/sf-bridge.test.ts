@@ -417,3 +417,14 @@ test("DZS script presses Search when clearview opens with the search box only", 
   assert.match(dzs, /if \(SEARCH_NUDGE_AT\.indexOf\(ld\) >= 0\) nudgeSearch\(\);\n\s+if \(ld >= MAX_LD\)/, "قبل مهلة الـ104");
   assert.match(dzs, /\/\^\\s\*search\\s\*\$\/i\.test/, "Search بالظبط — مش Advanced Search");
 });
+
+// المالك ٢٠٢٦-١٠-٢٩: «ليه اتفتح تابات داخل نفس النافذة ونوافذ منفصلة فى نفس الوقت»
+test("windows mode: even the first line opens in its own window, through a small launch page", () => {
+  assert.ok(src.includes("// @match        *://10.42.187.101:8080/sfb-launch*"));
+  assert.match(src, /const ON_DZS = host === "10\.42\.187\.101" && !ON_LAUNCH;/, "سكربت الجسر مايعاملش صفحة الإطلاق كتاب DZS");
+  assert.match(src, /if \(GET\("sfb_mode", "windows"\) !== "tabs"\) url = BRIDGE\.DZS_URL\.replace\(\/\\\/expresse\\\/\?\$\/, ""\) \+ "\/sfb-launch" \+ url\.slice\(url\.indexOf\("#"\)\);/);
+  assert.match(src, /else location\.replace\(target\);/, "الـpopups ممنوعة ⇒ يقيس فى التاب نفسه");
+  // صفحة الإطلاق مش تحت /expresse — فسكربت القياس (@match …/expresse/*) مابيشتغلش عليها
+  const dzs = readFileSync(new URL("../dzs-expresse-v10.user.js", import.meta.url), "utf8");
+  assert.doesNotMatch(dzs, /@match\s+\S*sfb-launch/);
+});
