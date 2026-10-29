@@ -412,7 +412,7 @@ test("windows mode is the default (10 lines, DZS opens each in a window); the fi
 // المالك ٢٠٢٦-١٠-٢٩: «الصفحة بتفتح كده من غير أزرار… دوست Search يدوى فالبيانات ظهرت»
 test("DZS script presses Search when clearview opens with the search box only", () => {
   const dzs = readFileSync(new URL("../dzs-expresse-v10.user.js", import.meta.url), "utf8");
-  assert.match(dzs, /@version\s+10\.31\.0/);
+  assert.match(dzs, /@version\s+10\.3[1-9]\.0/);
   assert.match(dzs, /const SEARCH_NUDGE_AT = \[14, 47, 80\];/);
   assert.match(dzs, /if \(SEARCH_NUDGE_AT\.indexOf\(ld\) >= 0\) nudgeSearch\(\);\n\s+if \(ld >= MAX_LD\)/, "قبل مهلة الـ104");
   assert.match(dzs, /\/\^\\s\*search\\s\*\$\/i\.test/, "Search بالظبط — مش Advanced Search");
@@ -437,4 +437,15 @@ test("the tab count follows the settings even while the bridge holds 100+ lines"
   assert.equal(w.store.get("sfb_lanes"), 30);
   w.tick(11_000); await w.bridge.tick();
   assert.equal(w.store.get("sfb_lanes"), 20, "من /progress");
+});
+
+// المالك ٢٠٢٦-١٠-٢٩: نوافذ كتير على login-page?sessionExpired=true — كلهم بيسجّلوا دخول مع بعض ويلغوا جلسات بعض
+test("DZS script: one login at a time; the other windows wait and come back on the new session", () => {
+  const dzs = readFileSync(new URL("../dzs-expresse-v10.user.js", import.meta.url), "utf8");
+  assert.match(dzs, /@version\s+10\.32\.0/);
+  assert.match(dzs, /const LOGIN_AT_KEY = "DZS_LOGIN_AT", LOGIN_GAP_MS = 20 \* 1000;/);
+  const login = dzs.slice(dzs.indexOf("const loginTimer"), dzs.indexOf("/* ================== OPEN CLEARVIEW"));
+  assert.ok(login.indexOf("localStorage.getItem(LOGIN_AT_KEY)") < login.indexOf("b.click()"), "بيبص على القفل قبل الدخول");
+  assert.ok(login.indexOf("localStorage.setItem(LOGIN_AT_KEY") < login.indexOf("b.click()"), "وبيكتبه قبل ما يدوس");
+  assert.match(login, /location\.href = "\/expresse\/welcome";/);
 });
