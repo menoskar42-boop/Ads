@@ -449,3 +449,17 @@ test("DZS script: one login at a time; the other windows wait and come back on t
   assert.ok(login.indexOf("localStorage.setItem(LOGIN_AT_KEY") < login.indexOf("b.click()"), "وبيكتبه قبل ما يدوس");
   assert.match(login, /location\.href = "\/expresse\/welcome";/);
 });
+
+test("the bridge pauses itself when DZS windows keep landing on the AXON login page", async () => {
+  const w = world();
+  w.store.set("sfb_login_hits", [999_000, 999_500, 999_800, 999_900, 999_950, 999_990]);
+  await w.bridge.tick();
+  assert.equal(w.store.get("sfb_paused"), true);
+  assert.equal(w.opened.length, 0);
+  assert.match(w.store.get("sfb_status").text, /صفحة دخول AXON/);
+  const old = world();
+  old.store.set("sfb_login_hits", [1, 2, 3, 4, 5, 6]);   // من زمان — مالهاش دعوة
+  await old.bridge.tick();
+  assert.notEqual(old.store.get("sfb_paused"), true);
+  assert.match(src, /if \(\/\\\/expresse\\\/login\/i\.test\(location\.pathname\)\)/);
+});
