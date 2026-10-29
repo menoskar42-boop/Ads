@@ -37,7 +37,7 @@ test("wiring: executor runs +إيقاف as a plain raise; done schedules; heartb
   assert.match(ex, /const raiseWithStop = false;/);
   assert.match(routes, /WHERE id = \$1 AND status <> 'done'\s*\n\s*RETURNING id, type, accounts, note, requested_by/);
   assert.match(routes, /INSERT INTO exec_followups \(type, account, note, requested_by, source_job_id, run_at\)/);
-  assert.match(routes, /WHERE enqueued_at IS NULL AND run_at <= now\(\)[\s\S]{0,80}FOR UPDATE SKIP LOCKED/);
+  assert.match(routes, /WHERE f\.enqueued_at IS NULL AND f\.run_at <= now\(\)[\s\S]{0,80}FOR UPDATE OF f SKIP LOCKED/);
   assert.match(routes, /void runPortsMissingSubinfo\("heartbeat"\);\s*\n\s*void runExecFollowups\(\);/);
   assert.match(db, /CREATE TABLE IF NOT EXISTS exec_followups/);
   assert.match(schema, /export const execFollowups = pgTable\("exec_followups"/);
@@ -280,4 +280,16 @@ test("PO v0.9.14: the auto refresh is a real location.reload on the same line's 
   const fn = po.slice(po.indexOf("const reloadPoPage = (msg) =>"), po.indexOf("const reloadPoPage = (msg) =>") + 500);
   assert.match(fn, /new URLSearchParams\(location\.search\)\.get\("lineId"\) === String\(CURRENT\)/);
   assert.match(fn, /if \(onThisLine\) location\.reload\(\); else location\.href = PO_URL \+ encodeURIComponent\(CURRENT\);/);
+});
+
+// المالك ٢٠٢٦-١٠-٢٩: «الإيقاف بتتفتح باتشات عاجلة كتير… بالرغم إن الباتش مؤجّل» — إعادة إيقاف لخط من باتش مؤجّل
+// (أولوية ٠) بتفضل مؤجّلة وبتتجمّع فى «<الباتش>-x»، والمتابعة من طلب عاجل (أو من غير أصل) بتفضل عاجلة باتش لوحدها.
+test("a followup keeps the source job's deferred priority and joins one '-x' batch", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const run = routes.slice(routes.indexOf("const runExecFollowups = async"), routes.indexOf('app.post("/api/exec-queue/heartbeat"'));
+  assert.match(run, /FROM exec_followups f LEFT JOIN exec_jobs j ON j\.id = f\.source_job_id/);
+  assert.match(run, /FOR UPDATE OF f SKIP LOCKED/, "LEFT JOIN محتاج OF f");
+  assert.match(run, /const deferred = Number\(f\.srcPriority\) === 0 && !!f\.srcBatch;/);
+  assert.match(run, /const batchId = deferred \? `\$\{String\(f\.srcBatch\)\.replace\(\/-x\$\/, ""\)\}-x`/);
+  assert.match(run, /VALUES \(\$1, \$2::jsonb, \$3, \$4, \$7, \$5, \$6, 'متابعة تلقائية \(رفع ← إيقاف ← قياس\)'\) RETURNING id`,\n\s+\[f\.type, JSON\.stringify\(\[f\.account\]\), f\.requested_by, f\.note, batchId, SITE_OF_TYPE\[f\.type\] \|\| "10\.42\.187\.101", deferred \? 0 : 2\]\);/);
 });

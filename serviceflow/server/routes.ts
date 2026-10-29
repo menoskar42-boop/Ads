@@ -2284,6 +2284,9 @@ export async function registerRoutes(
      GROUP BY batch_id`;
 
   // المتابعات المؤجّلة اللى وقتها جه ⇒ مهام عادية فى الطابور (أولوية الطلب الصغير ٢، باتش لوحدها).
+  // ⚠️ إلا لو المهمة الأصلية من باتش مؤجّل (أولوية ٠ — زى «تحتاج إيقاف PO (تشغيل يومى ٩ ص)»): المتابعة بتفضل مؤجّلة
+  // وكل متابعات الباتش ده بتتجمّع فى باتش واحد «<الباتش>-x». قبل كده كل إعادة إيقاف كانت باتش عاجل لوحده فبتعدّى قدّام
+  // القياس (المالك ٢٠٢٦-١٠-٢٩: «الإيقاف بتتفتح باتشات عاجلة كتير… بالرغم إن الباتش مؤجّل»، زى «-r1» اللى بيفضل مؤجّل).
   // بتتنادى من نبضة جهاز التنفيذ (كل ~٢٠ث) — مفيش داعى لها من غير جهاز تنفيذ أصلاً.
   const runExecFollowups = async () => {
     // المتابعات بتتضاف بـ INSERT INTO exec_followups (بيغيّر النسخة) — ومن غير كده بنستنى أقرب ميعاد
@@ -2292,9 +2295,11 @@ export async function registerRoutes(
     try {
       await withTx(async (tx) => {
         const { rows } = await tx.query(
-          `SELECT id, type, account, note, requested_by, created_at FROM exec_followups
-            WHERE enqueued_at IS NULL AND run_at <= now()
-            ORDER BY run_at, id LIMIT 50 FOR UPDATE SKIP LOCKED`);
+          `SELECT f.id, f.type, f.account, f.note, f.requested_by, f.created_at,
+                  j.priority AS "srcPriority", j.batch_id AS "srcBatch"
+             FROM exec_followups f LEFT JOIN exec_jobs j ON j.id = f.source_job_id
+            WHERE f.enqueued_at IS NULL AND f.run_at <= now()
+            ORDER BY f.run_at, f.id LIMIT 50 FOR UPDATE OF f SKIP LOCKED`);
         for (const f of rows) {
           // إعادة إيقاف وقتها جه بس الإيقاف اتسجّل بعد ما اتجدولت («تم الإيقاف» أو Not Started وصلت
           // متأخر، أو إيقاف يدوى) ⇒ السلسلة تقف: مفيش إيقاف تانى، والقياس بعد دقيقتين لو عليها «+قياس».
@@ -2310,11 +2315,13 @@ export async function registerRoutes(
               continue;
             }
           }
-          const batchId = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+          const deferred = Number(f.srcPriority) === 0 && !!f.srcBatch;
+          const batchId = deferred ? `${String(f.srcBatch).replace(/-x$/, "")}-x`
+            : "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
           const { rows: ins } = await tx.query(
             `INSERT INTO exec_jobs (type, accounts, requested_by, note, priority, batch_id, site, requested_from)
-             VALUES ($1, $2::jsonb, $3, $4, 2, $5, $6, 'متابعة تلقائية (رفع ← إيقاف ← قياس)') RETURNING id`,
-            [f.type, JSON.stringify([f.account]), f.requested_by, f.note, batchId, SITE_OF_TYPE[f.type] || "10.42.187.101"]);
+             VALUES ($1, $2::jsonb, $3, $4, $7, $5, $6, 'متابعة تلقائية (رفع ← إيقاف ← قياس)') RETURNING id`,
+            [f.type, JSON.stringify([f.account]), f.requested_by, f.note, batchId, SITE_OF_TYPE[f.type] || "10.42.187.101", deferred ? 0 : 2]);
           await tx.query(`UPDATE exec_followups SET enqueued_at = now(), job_id = $2 WHERE id = $1`, [f.id, ins[0].id]);
         }
         const { rows: nx } = await tx.query(
