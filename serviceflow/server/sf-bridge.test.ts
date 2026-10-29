@@ -11,10 +11,10 @@ const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 const core = src.slice(src.indexOf("// ── bridge-core-start"), src.indexOf("// ── bridge-core-end"));
 
 type Call = { path: string; body: any };
-function world(opts: { reachable?: boolean; server?: (path: string, body: any) => any } = {}) {
+function world(opts: { reachable?: boolean; realChunk?: boolean; server?: (path: string, body: any) => any } = {}) {
   const store = new Map<string, any>();
   let clock = 1_000_000;
-  const calls: Call[] = [], reports: any[] = [], opened: string[] = [];
+  const calls: Call[] = [], reports: any[] = [], opened: string[] = [], handles: any[] = [];
   let leased = false;   // زى السيرفر الحقيقى: المحجوز مابيرجعش تانى
   const server = opts.server || ((path: string, body: any) => {
     if (path.endsWith("/lease")) {
@@ -31,7 +31,7 @@ function world(opts: { reachable?: boolean; server?: (path: string, body: any) =
     set: (k: string, v: any) => store.set(k, v),
     live: async (path: string, body: any) => { calls.push({ path, body }); return server(path, body); },
     report: (b: any) => reports.push(b),
-    openTab: (u: string) => opened.push(u),
+    openTab: (u: string) => { opened.push(u); const h = { url: u, closed: false, close() { h.closed = true; } }; handles.push(h); return h; },
     dzsReachable: async () => opts.reachable !== false,
     device: () => "PC-test", tabId: "tabA", token: () => "tok",
   };
@@ -39,7 +39,9 @@ function world(opts: { reachable?: boolean; server?: (path: string, body: any) =
   vm.createContext(ctx);
   vm.runInContext(core + "\n;globalThis.__b = { makeBridge, bridgeHarvest, bridgeLaneUrl, bridgeLane, BRIDGE };", ctx);
   const B = ctx.__b;
-  return { B, bridge: B.makeBridge(env), env, store, calls, reports, opened, tick: (ms: number) => { clock += ms; } };
+  // الاختبارات القديمة مكتوبة على حتت ١٠ خطوط — المنطق نفسه؛ والافتراضى (خط لكل تاب) ليه اختبار لوحده تحت
+  if (!opts.realChunk) B.BRIDGE.CHUNK = 10;
+  return { B, bridge: B.makeBridge(env), env, store, calls, reports, opened, handles, tick: (ms: number) => { clock += ms; } };
 }
 /** تاب القياس خلّص الخطوط دى (زى ما سكربت القياس بيحفظها فى DZS_RESULTS_L90) والجسر نقلها. */
 function measure(w: ReturnType<typeof world>, accs: string[], lane = "90") {
@@ -265,8 +267,7 @@ test("pause / cancel / reorder after the bridge pulled the work: it lets go of e
   w.tick(5000); await w.bridge.tick();          // الحتّة خلصت، والجاية كلها موقّفة
   const left = w.store.get("sfb_jobs").map((j: any) => j.id);
   assert.ok(!left.some((id: number) => paused.has(id)), "كل الموقّف اتشال مرة واحدة: " + left);
-  assert.equal(w.opened.length, 1, "الحتّة اللى كانت جاية كلها موقّفة ⇒ مابتتفتحش");
-  w.tick(5000); await w.bridge.tick();
+  assert.equal(w.opened.length, 2, "الحتّة اللى كانت جاية كلها موقّفة ⇒ اتشالت والجسر فتح اللى بعدها فى نفس الدورة");
   assert.deepEqual(Array.from(chunkOf(w).ids), [26, 27, 28, 29, 30]);
 });
 
@@ -359,4 +360,31 @@ test("harvest ignores an older result for the same line; server keeps urgent sha
   assert.match(routes, /WHERE c\.account_no = e\.accounts->>0 AND c\.source = 'dzs' AND c\.uploaded_at >= d\.since/);
   assert.match(routes, /AND \$\{sharedGroup\("x"\)\} AND NOT \$\{bridgeable\("x"\)\}\n[\s\S]{0,400}< \$\{laneCap\("x", lanes\)\}\)/);
   assert.match(routes, /res\.json\(\{ \.\.\.out, now: new Date\(\)\.toISOString\(\) \}\);/);
+});
+
+// المالك ٢٠٢٦-١٠-٢٩: «بيفتح تابات فى نوافذ مش فى نفس النافذة» — ١٠ خطوط فى التاب خلّت سكربت القياس يفتح كل
+// خط فى نافذة (وضعه اليدوى). دلوقتى خط لكل تاب زى جهاز التنفيذ، والجسر بيقفل التاب لما خطه يخلص.
+test("one line per tab (like the executor), up to 3 new tabs per cycle, and the finished tab is closed", async () => {
+  let measured: number[] = [];
+  const w = world({ realChunk: true, server: (path, body) => {
+    if (path.endsWith("/lease")) return { status: 200, json: { jobs: Array.from({ length: 8 }, (_, i) => ({ id: 1 + i, accounts: ["a" + i] })), lanes: 5 } };
+    if (path.endsWith("/start")) return { status: 200, json: { ok: true, marker: body.ids[0], drop: [], now: "2026-10-29T17:30:00.000Z" } };
+    if (path.endsWith("/progress")) return { status: 200, json: { ok: true, measured } };
+    return { status: 200, json: { ok: true } };
+  } });
+  assert.equal(w.B.BRIDGE.CHUNK, 1);
+  await w.bridge.tick();
+  assert.equal(w.opened.length, 3, "٣ فى الدورة الأولى");
+  for (const u of w.opened) assert.match(u, /#sf_accounts=a\d&sf_mode=noreal&sf_lane=9\d&sf_bridge=1$/, "خط واحد فى كل تاب");
+  w.tick(5000); await w.bridge.tick();
+  assert.equal(w.opened.length, 5, "لحد العدد (٥)");
+  measured = [1];
+  w.tick(11_000); await w.bridge.tick();
+  assert.equal(w.reports.length, 1);
+  assert.equal(w.handles[0].closed, true, "تاب الخط اللى خلص اتقفل");
+  assert.equal(w.handles[1].closed, false);
+  assert.equal(w.opened.length, 6, "والتاب اتفتح لخط جديد");
+  assert.match(w.opened[5], /sf_lane=90&/, "على نفس الرقم اللى فضى");
+  assert.match(src, /^\/\/ @grant\s+window\.close$/m, "تاب الجسر بيقفل نفسه");
+  assert.match(src, /sessionStorage\.setItem\("SFB_TAB"/);
 });
