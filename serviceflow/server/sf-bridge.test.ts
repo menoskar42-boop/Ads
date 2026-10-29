@@ -408,3 +408,12 @@ test("windows mode is the default (10 lines, DZS opens each in a window); the fi
   assert.match(src, /\(doneAt && Date\.now\(\) - doneAt > 12 \* 1000\)\)/);
   assert.match(src, /btn\(tabsMode \? "الوضع: تابات" : "الوضع: نوافذ"/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٩: «الصفحة بتفتح كده من غير أزرار… دوست Search يدوى فالبيانات ظهرت»
+test("DZS script presses Search when clearview opens with the search box only", () => {
+  const dzs = readFileSync(new URL("../dzs-expresse-v10.user.js", import.meta.url), "utf8");
+  assert.match(dzs, /@version\s+10\.31\.0/);
+  assert.match(dzs, /const SEARCH_NUDGE_AT = \[14, 47, 80\];/);
+  assert.match(dzs, /if \(SEARCH_NUDGE_AT\.indexOf\(ld\) >= 0\) nudgeSearch\(\);\n\s+if \(ld >= MAX_LD\)/, "قبل مهلة الـ104");
+  assert.match(dzs, /\/\^\\s\*search\\s\*\$\/i\.test/, "Search بالظبط — مش Advanced Search");
+});
