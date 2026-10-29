@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Service-Flow Bridge — جسر القياس «بدون Real»
 // @namespace    serviceflow.bridge
-// @version      1.0.0
-// @description  v1.0.0: جسر بيشتغل مكان جهاز التنفيذ لباتشات القياس «بدون Real» العادية — احتياطى لو oscardevs.com اتحظر، وبيخفّف الطلبات على السيرفر. بيسحب الشغل لما السيرفر يرد، وبيقيس على DZS حتّة حتّة (١٠ خطوط) فى تاب لوحده (lane 90) حتى لو السيرفر وقع، وبيرفع النتايج من طابوره. جوجل (أو صفحة Service-Flow) هو اللى بيشغّله ويفضل مفتوح وهو شغّال. Real ورفع السرعة والإيقاف وجلب الموبايل مالهمش دعوة بيه.
+// @version      1.1.0
+// @description  v1.1.0: بيشتغل بس لما زرار «جسر Tampermonkey» يبقى مفتوح فى إعدادات Service Flow (رفع الملفات ← إعدادات) — ساعتها جهاز التنفيذ بيسيب الباتشات المؤجّلة دى للجسر وياخد العاجل بس. لو اتقفل، الجسر بيرجّع اللى معاه وبيقول ده فى اللوحة. v1.0.0: جسر بيشتغل مكان جهاز التنفيذ لباتشات القياس «بدون Real» العادية — احتياطى لو oscardevs.com اتحظر، وبيخفّف الطلبات على السيرفر. بيسحب الشغل لما السيرفر يرد، وبيقيس على DZS حتّة حتّة (١٠ خطوط) فى تاب لوحده (lane 90) حتى لو السيرفر وقع، وبيرفع النتايج من طابوره. جوجل (أو صفحة Service-Flow) هو اللى بيشغّله ويفضل مفتوح وهو شغّال. Real ورفع السرعة والإيقاف وجلب الموبايل مالهمش دعوة بيه.
 // @match        https://www.google.com/*
 // @match        https://www.google.com.eg/*
 // @match        *://10.42.187.101:8080/expresse/*
@@ -240,7 +240,8 @@
    * report(body) (بيتخزّن فى الطابور ويتبعت لوحده) · openTab(url) · dzsReachable() ⇒ Promise<bool> · device() · tabId
    */
   function makeBridge(env) {
-    let busy = false, waitUntil = 0, lastAliveAt = 0;
+    let busy = false, waitUntil = 0, lastAliveAt = 0, off = false;
+    const OFF_TEXT = "الجسر مقفول من إعدادات Service Flow — جهاز التنفيذ بياخد كل الشغل";
     const status = (text) => env.set("sfb_status", { text, at: env.now() });
     const jobs = () => env.get("sfb_jobs", []);
     const lead = () => {
@@ -253,6 +254,13 @@
       const r = await env.live("/api/exec-queue/bridge/lease", { max: BRIDGE.LEASE_MAX, device: env.device() });
       if (!r) return null;
       if (r.status === 401) { status("مفتاح الجسر مش صحيح — فعّله تانى من صفحة Service Flow"); return null; }
+      // الجسر مقفول من إعدادات Service Flow ⇒ السيرفر رجّع المحجوز لجهاز التنفيذ، فنسيبه (إلا الحتّة الشغّالة)
+      off = !!(r.json && r.json.disabled);
+      if (off) {
+        const ch = env.get("sfb_chunk", null), keep = new Set(ch ? ch.ids : []);
+        env.set("sfb_jobs", jobs().filter((j) => keep.has(j.id)));
+        return 0;
+      }
       const have = new Set(jobs().map((j) => j.id));
       const add = ((r.json && r.json.jobs) || [])
         .map((j) => ({ id: j.id, acc: String((j.accounts || [])[0] || "").trim() }))
@@ -291,7 +299,7 @@
         if (!force && env.now() < waitUntil) return;
         await lease();
         const list = jobs();
-        if (!list.length) { status(env.token() ? "مفيش شغل للجسر دلوقتى" : "الجسر مش متفعّل — فعّله من صفحة Service Flow"); waitUntil = env.now() + BRIDGE.IDLE_MS; return; }
+        if (!list.length) { status(!env.token() ? "الجسر مش متفعّل — فعّله من صفحة Service Flow" : off ? OFF_TEXT : "مفيش شغل للجسر دلوقتى"); waitUntil = env.now() + BRIDGE.IDLE_MS; return; }
         if (!force && !(await env.dzsReachable())) { status("مستنى DZS يفتح (الـVPN) — معاه " + list.length + " خط"); waitUntil = env.now() + BRIDGE.IDLE_MS; return; }
         const pick = list.slice(0, BRIDGE.CHUNK);
         const r = await env.live("/api/exec-queue/bridge/start", { ids: pick.map((j) => j.id), device: env.device() });
@@ -303,6 +311,7 @@
           if (drop.length) env.set("sfb_jobs", jobs().filter((j) => drop.indexOf(j.id) < 0));
           if (!r.json || !r.json.ok) {
             if (r.json && r.json.wait) { status("مستنى — فيه Real أو رفع سرعة على DZS قدّام الجسر"); waitUntil = env.now() + BRIDGE.WAIT_MS; }
+            if (r.json && r.json.disabled) { off = true; env.set("sfb_jobs", []); status(OFF_TEXT); waitUntil = env.now() + BRIDGE.IDLE_MS; }
             return;
           }
           marker = r.json.marker;

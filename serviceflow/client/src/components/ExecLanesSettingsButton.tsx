@@ -30,6 +30,11 @@ interface ExecLanes {
   max: number | null;   // null = مفيش سقف
   /** الإيقاف بالليل (١٢ بالليل ← ٧ الصبح): التحديث التلقائى وجهاز التنفيذ */
   nightPause?: NightPause;
+  /** جسر Tampermonkey: مفتوح ⇒ الباتشات المؤجّلة «بدون Real» للجسر بس، وجهاز التنفيذ للعاجل */
+  bridge?: boolean;
+  /** آخر مرة الجسر كلّم السيرفر (ثوانى) — null = ماكلّمهوش من آخر تشغيل للسيرفر */
+  bridgeSeenSec?: number | null;
+  bridgeDevice?: string | null;
   updatedAt?: string | null;
   updatedBy?: string | null;
 }
@@ -43,6 +48,7 @@ export function ExecLanesSettingsButton() {
   const [refresh, setRefresh] = useState("");
   const [staleDays, setStaleDays] = useState("");
   const [night, setNight] = useState<NightPause>(NIGHT_PAUSE_DEFAULT);
+  const [bridge, setBridge] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
   // المالك ٢٠٢٦-١٠-٢١: «كل ما أفتح متصفح ألاقى إعدادات مختلفة» — الإعداد العام staleTime:Infinity
@@ -74,6 +80,7 @@ export function ExecLanesSettingsButton() {
       setNoreal(String(data.noreal)); setStop(String(data.stop)); setRefresh(String(data.refreshMinutes));
       setStaleDays(String(data.measureStaleDays ?? 1));
       setNight({ ...NIGHT_PAUSE_DEFAULT, ...(data.nightPause ?? {}) });
+      setBridge(!!data.bridge);
     }
   }, [open, data, dataUpdatedAt, openedAt]);
 
@@ -90,7 +97,7 @@ export function ExecLanesSettingsButton() {
       const r = await fetch(LANES_URL, {
         method: "PUT", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays, nightPause: night }),
+        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays, nightPause: night, bridge }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.message || `خطأ ${r.status}`);
@@ -205,6 +212,24 @@ export function ExecLanesSettingsButton() {
                   <Switch checked={night.executor} onCheckedChange={(v) => setNight((n) => ({ ...n, executor: v }))} aria-label="جهاز التنفيذ يقف فى فترة الإيقاف" />
                 </label>
                 <p className="text-xs text-muted-foreground">قاعدة البيانات بتنام لما محدش يسألها، والفاتورة على كل ساعة هى صاحية فيها.</p>
+              </div>
+              <div className="space-y-2 pt-2 border-t">
+                <label className="flex items-start justify-between gap-3 cursor-pointer">
+                  <span className="space-y-0.5">
+                    <span className="block text-sm font-medium">جسر Tampermonkey للباتشات المؤجّلة</span>
+                    <span className="block text-xs text-muted-foreground">
+                      مفتوح: باتشات «قياس بدون Real» المؤجّلة (أكتر من ٣ خطوط، من غير متابعة) بيسحبها سكربت الجسر لوحده طول ما صفحة جوجل مفتوحة،
+                      وجهاز التنفيذ بياخد العاجل بس. مقفول: جهاز التنفيذ بيعمل كل حاجة زى الأول، واللى كان مع الجسر بيرجعله على طول.
+                    </span>
+                  </span>
+                  <Switch checked={bridge} onCheckedChange={setBridge} aria-label="جسر Tampermonkey للباتشات المؤجّلة" />
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  {data.bridgeSeenSec == null
+                    ? "الجسر ماكلّمش السيرفر من آخر تشغيل له."
+                    : `آخر مرة الجسر كلّم السيرفر: من ${data.bridgeSeenSec < 90 ? `${data.bridgeSeenSec} ثانية` : `${Math.round(data.bridgeSeenSec / 60)} دقيقة`}${data.bridgeDevice ? ` (${data.bridgeDevice})` : ""}.`}
+                  {bridge && (data.bridgeSeenSec == null || data.bridgeSeenSec > 600) && " ⚠️ لو الجسر مش شغّال، الباتشات دى هتفضل مستنية."}
+                </p>
               </div>
               {data.updatedAt && (
                 <p className="text-xs text-muted-foreground">

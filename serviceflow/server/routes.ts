@@ -2552,19 +2552,26 @@ export async function registerRoutes(
     } catch {}
     return out;
   };
-  type ExecLanes = { noreal: number; stop: number };
+  // جسر Tampermonkey (المالك ٢٠٢٦-١٠-٢٩: «الباتشات المؤجّلة تروح للتمبر منكى من غير ما يبقى صفحة جهاز
+  // التنفيذ مفتوحة… جهاز التنفيذ للباتش العاجل فقط… وحط فى الإعدادات زر يشغّل أو يوقف»).
+  // مفتوح ⇒ جهاز التنفيذ مابيسحبش أى مهمة الجسر يقدر عليها (bridgeable) — حتى لو لسه ماتحجزتش — فالجسر
+  // بس هو اللى بينفّذها. مقفول (الافتراضى) ⇒ الجسر مابياخدش حاجة وجهاز التنفيذ بيعمل كل حاجة زى الأول.
+  const BRIDGE_ON_KEY = "exec_lanes_bridge";   // نفس البادئة = تعديله سوبر أدمن بس
+  let bridgeSeen: { at: number; device: string } | null = null;   // آخر مرة الجسر كلّم السيرفر (للإعدادات)
+  type ExecLanes = { noreal: number; stop: number; bridge?: boolean };
   const clampLanes = (v: any, def: number) => {
     const n = parseInt(String(v ?? ""), 10);
     return Number.isFinite(n) ? Math.max(1, n) : def;
   };
   const readExecLanes = async (db: { query: (t: string, v?: any[]) => Promise<any> }): Promise<ExecLanes> => {
-    const out: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES };
+    const out: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES, bridge: false };
     try {
       const { rows } = await db.query(`SELECT key, value FROM app_settings WHERE key = ANY($1::text[])`,
-        [Object.values(EXEC_LANE_KEYS)]);
+        [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY]]);
       for (const r of rows) {
         if (r.key === EXEC_LANE_KEYS.noreal) out.noreal = clampLanes(r.value, NOREAL_LANES);
         if (r.key === EXEC_LANE_KEYS.stop) out.stop = clampLanes(r.value, POSTOP_LANES);
+        if (r.key === BRIDGE_ON_KEY) out.bridge = String(r.value) === "1";
       }
     } catch {}
     return out;
@@ -2572,6 +2579,12 @@ export async function registerRoutes(
   const isNoRealJob = (a: string) =>
     `(${a}.type = 'measure' AND POSITION('${AUTO_MEASURE_NOREAL_MARK}' IN COALESCE(${a}.note, '')) > 0)`;
   const isPoStopJob = (a: string) => `(${a}.type = 'stop')`;
+  /** المهمة ينفع تروح لجسر Tampermonkey: قياس «بدون Real» فى باتش مؤجّل (أولوية 0)، من غير أى علامة متابعة. */
+  const bridgeable = (a: string) => `(${a}.type = 'measure' AND ${a}.priority = 0 AND ${isNoRealJob(a)}
+    AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
+    AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
+    AND POSITION('${RECHECK_MARK}' IN COALESCE(${a}.note, '')) = 0
+    AND POSITION('${STOP_RETRY_MARK}' IN COALESCE(${a}.note, '')) = 0)`;
   // مجموعة التوازى: «بدون Real» أو «إيقاف PO» — وأى نوع تانى NULL (تاب واحد للموقع).
   const parallelGroup = (a: string) =>
     `(CASE WHEN ${isNoRealJob(a)} THEN 'noreal' WHEN ${isPoStopJob(a)} THEN 'stop' END)`;
@@ -2623,8 +2636,10 @@ export async function registerRoutes(
       const { rows } = await pool.query(
         `SELECT (MAX(updated_at) AT TIME ZONE 'Africa/Cairo') AS "updatedAt",
                 (ARRAY_AGG(updated_by ORDER BY updated_at DESC))[1] AS "updatedBy"
-           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY, ...Object.values(NIGHT_PAUSE_KEYS)]]);
+           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY, REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY, ...Object.values(NIGHT_PAUSE_KEYS)]]);
       res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES, refreshMinutes: REFRESH_MINUTES_DEFAULT, measureStaleDays: MEASURE_STALE_DAYS_DEFAULT },
+        bridgeSeenSec: bridgeSeen ? Math.round((Date.now() - bridgeSeen.at) / 1000) : null,
+        bridgeDevice: bridgeSeen?.device || null,
         max: null, refreshMinutes: await readRefreshMinutes(),
         refreshRange: { min: REFRESH_MINUTES_MIN, max: REFRESH_MINUTES_MAX },
         measureStaleDays: await readMeasureStaleDays(),
@@ -2671,11 +2686,20 @@ export async function registerRoutes(
       }
       if (body.nightPause?.start != null && body.nightPause.start === body.nightPause.end)
         return res.status(400).json({ message: "بداية فترة الإيقاف ونهايتها لازم يختلفوا" });
+      if (body.bridge != null) {
+        if (typeof body.bridge !== "boolean") return res.status(400).json({ message: "الجسر لازم يكون مفتوح أو مقفول" });
+        vals.push([BRIDGE_ON_KEY, body.bridge ? 1 : 0]);
+      }
       for (const [key, n] of vals) {
         await pool.query(
           `INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)
            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`,
           [key, String(n), by]);
+      }
+      // الجسر اتقفل ⇒ الشغل المحجوز له والمستنى يرجع لجهاز التنفيذ على طول (مش بعد ١٢ ساعة). الحتّة
+      // الشغّالة بتكمّل وبترفع نتايجها (bridge_device فاضل)، ولو جهاز التنفيذ سبقها مابتتسجّلش مرتين.
+      if (body.bridge === false) {
+        await pool.query(`UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`);
       }
       res.json({ ok: true, ...(await readExecLanes(pool)), refreshMinutes: await readRefreshMinutes(), measureStaleDays: await readMeasureStaleDays(), nightPause: await readNightPause() });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -2957,6 +2981,8 @@ export async function registerRoutes(
                       WHERE h.status = 'pending' AND h.paused_at IS NULL
                         -- محجوزة لجسر Tampermonkey ⇒ الجسر هو اللى هينفّذها (لحد ما الحجز يخلص)
                         AND (h.bridge_lease_until IS NULL OR h.bridge_lease_until < now())
+                        -- الجسر مفتوح من الإعدادات ⇒ المؤجّل اللى يقدر عليه للجسر بس (جهاز التنفيذ للعاجل)
+                        AND NOT ${lanes.bridge ? bridgeable("h") : "FALSE"}
                         AND COALESCE(h.site, '10.42.187.101') <> ALL($1::text[])
                         AND ($2::timestamptz IS NULL OR h.created_at <= $2::timestamptz)
                       ORDER BY COALESCE(h.site, '10.42.187.101'), COALESCE(${parallelGroup("h")}, ''), h.priority DESC,
@@ -2989,6 +3015,7 @@ export async function registerRoutes(
             `UPDATE exec_jobs SET status = 'claimed', claimed_at = now(), executed_by = $1
              WHERE id = $2 AND status = 'pending' AND paused_at IS NULL
                AND (bridge_lease_until IS NULL OR bridge_lease_until < now())
+               AND NOT ${lanes.bridge ? bridgeable("exec_jobs") : "FALSE"}
                AND ${siteFreeFor("exec_jobs", "$3", lanes, "$4::timestamptz")}
              RETURNING id, type, accounts, requested_by AS "requestedBy", note, priority, site,
                        batch_id AS "batchId", params`,
@@ -3027,6 +3054,8 @@ export async function registerRoutes(
   //     الحتّة بتتعلّم claimed (= تاب «بدون Real» واحد شغّال) والجسر بيجدّدها كل دقيقتين (/alive).
   //   • الجسر بيدخل بمفتاح (X-Bridge-Token)، بيتعمل من صفحة Service-Flow بحساب سوبر أدمن
   //     (/bridge/token) ومحفوظ هنا كـsha256 بس — مش كلمة سر ولا جلسة.
+  //   • زرار «جسر Tampermonkey» فى «رفع الملفات ← إعدادات» (BRIDGE_ON_KEY): مقفول ⇒ lease فاضى وstart
+  //     بيشيل كل الخطوط؛ مفتوح ⇒ جهاز التنفيذ مابيسحبش المؤجّل اللى الجسر يقدر عليه خالص (/claim).
   const BRIDGE_TOKEN_KEY = "bridge_token_sha256";
   const BRIDGE_LEASE_HOURS = 12;
   const BRIDGE_SITE = "10.42.187.101";
@@ -3045,18 +3074,12 @@ export async function registerRoutes(
     if (!token || !saved || a.length !== b.length || !timingSafeEqual(a, b)) {
       return res.status(401).json({ message: "مفتاح الجسر مش صحيح — فعّل الجسر تانى من صفحة Service Flow" });
     }
+    bridgeSeen = { at: Date.now(), device: String(req.body?.device || bridgeSeen?.device || "").slice(0, 60) };
     next();
   };
   const bridgeDevice = (req: any) => `جسر Tampermonkey · ${String(req.body?.device || "جهاز").slice(0, 60)}`;
   const toJobIds = (v: any): number[] =>
     (Array.isArray(v) ? v : []).map((x: any) => parseInt(x, 10)).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 2000);
-  /** المهمة ينفع تروح للجسر: قياس «بدون Real» فى باتش عادى، من غير أى علامة متابعة. */
-  const bridgeable = (a: string) => `(${a}.type = 'measure' AND ${a}.priority = 0 AND ${isNoRealJob(a)}
-    AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
-    AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
-    AND POSITION('${RECHECK_MARK}' IN COALESCE(${a}.note, '')) = 0
-    AND POSITION('${STOP_RETRY_MARK}' IN COALESCE(${a}.note, '')) = 0)`;
-
   // مفتاح جديد للجسر (والقديم بيبطل) — من صفحة Service-Flow بحساب سوبر أدمن
   app.post("/api/exec-queue/bridge/token", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
@@ -3075,6 +3098,8 @@ export async function registerRoutes(
   app.post("/api/exec-queue/bridge/lease", requireBridge, async (req: any, res) => {
     try {
       const max = Math.min(Math.max(parseInt(req.body?.max, 10) || 300, 1), 1000);
+      // الجسر مقفول من الإعدادات ⇒ مفيش شغل له (وجهاز التنفيذ بياخد كل حاجة)
+      if (!(await readExecLanes(pool)).bridge) return res.json({ jobs: [], disabled: true });
       const { rows } = await pool.query(
         `WITH c AS (
            SELECT h.id FROM exec_jobs h
@@ -3096,6 +3121,8 @@ export async function registerRoutes(
     const ids = toJobIds(req.body?.ids);
     if (!ids.length) return res.json({ ok: false, drop: [] });
     try {
+      // الجسر اتقفل ⇒ الحتّة دى مابتبدأش، وكل الخطوط اللى معاه بتتشال (رجعت لجهاز التنفيذ لما اتقفل)
+      if (!(await readExecLanes(pool)).bridge) return res.json({ ok: false, disabled: true, drop: ids });
       const out = await withTx(async (tx) => {
         const { rows: gone } = await tx.query(
           `SELECT id FROM exec_jobs WHERE id = ANY($1::int[])

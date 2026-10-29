@@ -155,8 +155,8 @@ test("script wiring: pages, permissions, and the server rules it depends on", ()
   assert.match(src, /method: "POST", url: sfBase\(\) \+ path, sfNoQueue: true/);
   // السيرفر: الجسر ياخد «بدون Real» أولوية 0 من غير متابعة، وجهاز التنفيذ مايسحبش المحجوز
   assert.match(routes, /const bridgeable = \(a: string\) => `\(\$\{a\}\.type = 'measure' AND \$\{a\}\.priority = 0 AND \$\{isNoRealJob\(a\)\}/);
-  assert.match(routes, /AND \(h\.bridge_lease_until IS NULL OR h\.bridge_lease_until < now\(\)\)\n\s+AND COALESCE\(h\.site/);
-  assert.match(routes, /AND \(bridge_lease_until IS NULL OR bridge_lease_until < now\(\)\)\n\s+AND \$\{siteFreeFor\("exec_jobs", "\$3", lanes, "\$4::timestamptz"\)\}/);
+  assert.match(routes, /AND \(h\.bridge_lease_until IS NULL OR h\.bridge_lease_until < now\(\)\)\n(\s+--.*\n)?\s+AND NOT \$\{lanes\.bridge \? bridgeable\("h"\) : "FALSE"\}\n\s+AND COALESCE\(h\.site/);
+  assert.match(routes, /AND \(bridge_lease_until IS NULL OR bridge_lease_until < now\(\)\)\n\s+AND NOT \$\{lanes\.bridge \? bridgeable\("exec_jobs"\) : "FALSE"\}\n\s+AND \$\{siteFreeFor\("exec_jobs", "\$3", lanes, "\$4::timestamptz"\)\}/);
   // ومابيبدأش لو Real/رفع سرعة مستنى قدّامه (اتلقطت على Postgres حقيقى)
   assert.match(routes, /AND NOT \$\{sharedGroup\("x"\)\}\n\s+AND \$\{queueRank\("x"\)\} < \$\{queueRank\("exec_jobs"\)\}\)/);
   assert.match(routes, /app\.post\("\/api\/exec-queue\/bridge\/token", requireAuth, requireSuperAdmin/);
@@ -179,4 +179,50 @@ test("a long chunk that keeps moving keeps its marker alive (< 4 min apart) and 
   for (let k = 1; k < aliveAt.length; k++) assert.ok(aliveAt[k] - aliveAt[k - 1] < 4, "مفيش فجوة ٤ دقايق");
   assert.equal(w.reports.length, 1);
   assert.ok(w.reports[0].done.every((d: any) => d.result === "done"));
+});
+
+// زرار «جسر Tampermonkey» فى الإعدادات (المالك ٢٠٢٦-١٠-٢٩): «الباتشات المؤجّلة تروح للتمبر منكى… جهاز
+// التنفيذ وصفحته لو الباتش عاجل فقط… وحط فى الإعدادات زر يشغّل أو يوقف الـAPI ده».
+test("settings switch: off by default, super-admin key, lease/start refuse while off", () => {
+  assert.match(routes, /const BRIDGE_ON_KEY = "exec_lanes_bridge";/, "بادئة exec_lanes_ = تعديله سوبر أدمن بس");
+  assert.match(routes, /bridge: false \};/, "مقفول افتراضياً — ميزة اختيارية");
+  assert.match(routes, /if \(r\.key === BRIDGE_ON_KEY\) out\.bridge = String\(r\.value\) === "1";/);
+  assert.match(routes, /if \(!\(await readExecLanes\(pool\)\)\.bridge\) return res\.json\(\{ jobs: \[\], disabled: true \}\);/);
+  assert.match(routes, /if \(!\(await readExecLanes\(pool\)\)\.bridge\) return res\.json\(\{ ok: false, disabled: true, drop: ids \}\);/);
+  // اتقفل ⇒ المحجوز المستنى يرجع لجهاز التنفيذ على طول (والحتّة الشغّالة تكمّل وترفع)
+  assert.match(routes, /if \(body\.bridge === false\) \{\n\s+await pool\.query\(`UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`\);/);
+  assert.match(routes, /bridgeSeenSec: bridgeSeen \?/);
+  const ui = readFileSync(new URL("../client/src/components/ExecLanesSettingsButton.tsx", import.meta.url), "utf8");
+  assert.match(ui, /measureStaleDays: \+staleDays, nightPause: night, bridge \}/);
+  assert.match(ui, /<Switch checked=\{bridge\} onCheckedChange=\{setBridge\}/);
+});
+
+test("bridge switched off: drops what it holds (keeps a running chunk) and says so", async () => {
+  let disabled = false;
+  const w = world({ server: (path, body) => {
+    if (path.endsWith("/lease")) return disabled ? { status: 200, json: { jobs: [], disabled: true } }
+      : { status: 200, json: { jobs: Array.from({ length: 15 }, (_, i) => ({ id: 1 + i, accounts: ["a" + i] })) } };
+    if (path.endsWith("/start")) return disabled ? { status: 200, json: { ok: false, disabled: true, drop: body.ids } }
+      : { status: 200, json: { ok: true, marker: body.ids[0], drop: [] } };
+    return { status: 200, json: { ok: true } };
+  } });
+  await w.bridge.tick();
+  assert.equal(w.opened.length, 1);
+  disabled = true;
+  await w.bridge.lease();   // زرار «اسحب» وسط الحتّة
+  assert.deepEqual(w.store.get("sfb_jobs").map((j: any) => j.id), Array.from(w.store.get("sfb_chunk").ids), "الحتّة الشغّالة بس");
+  measure(w, w.store.get("sfb_chunk").accs);
+  w.tick(5000); await w.bridge.tick();
+  assert.equal(w.reports.length, 1, "الحتّة كمّلت ورفعت نتايجها");
+  w.tick(5000); await w.bridge.tick();
+  assert.equal(w.opened.length, 1, "مفيش حتّة جديدة");
+  assert.match(w.store.get("sfb_status").text, /مقفول من إعدادات Service Flow/);
+
+  // وسكربت فاتته رسالة lease (معاه أكتر من ١٠٠ خط) ⇒ start بيشيل الخطوط
+  const w2 = world({ server: (path, body) => (path.endsWith("/start") ? { status: 200, json: { ok: false, disabled: true, drop: body.ids } } : { status: 200, json: {} }) });
+  w2.store.set("sfb_jobs", Array.from({ length: 120 }, (_, i) => ({ id: i + 1, acc: "x" + i })));
+  await w2.bridge.tick();
+  assert.equal(w2.opened.length, 0);
+  assert.equal(w2.store.get("sfb_jobs").length, 0);
+  assert.match(w2.store.get("sfb_status").text, /مقفول/);
 });
