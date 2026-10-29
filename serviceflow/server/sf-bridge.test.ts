@@ -137,8 +137,10 @@ test("only one leader tab acts; release returns everything to the executor", asy
   w.store.set("sfb_lead", { id: "otherTab", at: 1_000_000 });
   await w.bridge.tick();
   assert.equal(w.calls.length, 0, "تاب تانى هو القائد");
-  w.tick(21_000); await w.bridge.tick();
-  assert.equal(w.opened.length, 1, "القائد سكت أكتر من ٢٠ ثانية (Edge بطّأه) ⇒ ده ياخد مكانه");
+  w.tick(60_000); await w.bridge.tick();
+  assert.equal(w.opened.length, 0, "دقيقة لسه بتاعته (ممكن يكون مستنى ردود السيرفر)");
+  w.tick(31_000); await w.bridge.tick();
+  assert.equal(w.opened.length, 1, "القائد سكت أكتر من ٩٠ ثانية (Edge بطّأه) ⇒ ده ياخد مكانه");
   const n = w.bridge.releaseAll();
   assert.equal(n, 23);
   assert.deepEqual(Array.from(w.reports.at(-1).release).slice(0, 2), [100, 101]);
@@ -390,7 +392,9 @@ test("one line per tab (like the executor), up to 3 new tabs per cycle, and the 
 
 test("a DZS tab can lead too (the Google tab gets throttled in the background)", () => {
   assert.match(src, /if \(\(ON_GOOGLE \|\| ON_SF \|\| ON_DZS\) && IS_TOP\) \{/);
-  assert.match(src, /LEAD_MS: 20 \* 1000,/);
+  assert.match(src, /LEAD_MS: 90 \* 1000,/);
+  assert.match(src, /renew\(\);\n\s+const r = await env\.live\("\/api\/exec-queue\/bridge\/start"/, "بيجدّد قيادته قبل كل طلب");
+  assert.match(src, /if \(gone >= 60 \|\|/);
 });
 
 test("windows mode is the default (10 lines, DZS opens each in a window); the first tab closes itself after its line", () => {
@@ -401,6 +405,6 @@ test("windows mode is the default (10 lines, DZS opens each in a window); the fi
   assert.match(src, /window\.name = "sfb_first\|" \+ lane \+ "\|" \+ acc;/);
   assert.doesNotMatch(src, /sessionStorage\.setItem\("SFB_TAB"/);
   assert.doesNotMatch(src, /isFirst = !window\.opener;/);
-  assert.match(src, /if \(gone >= 3 \|\| \(doneAt && Date\.now\(\) - doneAt > 12 \* 1000\)\)/);
+  assert.match(src, /\(doneAt && Date\.now\(\) - doneAt > 12 \* 1000\)\)/);
   assert.match(src, /btn\(tabsMode \? "الوضع: تابات" : "الوضع: نوافذ"/);
 });
