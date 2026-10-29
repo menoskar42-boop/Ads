@@ -131,7 +131,7 @@ test("PO script in stop mode waits on an unknown status instead of skipping the 
   const other = init.slice(init.indexOf("} else if (status) {"));
   assert.match(other, /if \(MODE === "stop"\) \{\s*phase = "wait-rt-then-stop";/);
   assert.ok(other.indexOf('MODE === "stop"') < other.indexOf("advance"), "الإيقاف مايتخطّاش");
-  assert.match(src, /@version\s+0\.9\.1\d/);
+  assert.match(src, /@version\s+0\.9\.([1-9]\d)/);
 });
 
 // المالك ٢٠٢٦-١٠-٢٧: «Not Started يسجّل التاريخ وإنه لم يقم بعملية الإيقاف · In Nightly PO يسجّل التاريخ
@@ -241,7 +241,7 @@ test("result stamps come from the claimed queue job (auto ⇒ تلقائى), op_
 // المالك ٢٠٢٦-١٠-٢٧: «مش بيحصل إيقاف» — الإيقاف بعد الانتظار كان بيدوس Yes على صفحة مش نضيفة
 test("PO v0.9.12: reload before a stop that waited, verify after Yes, count a reloaded Not Started as stopped", () => {
   const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
-  assert.match(po, /@version\s+0\.9\.1[2-9]/);
+  assert.match(po, /@version\s+0\.9\.(1[2-9]|[2-9]\d)/);
   const wait = po.slice(po.indexOf('if (phase === "wait-rt-then-stop")'), po.indexOf('if (phase === "confirm-stop")'));
   assert.match(wait, /if \(\/nightly\/i\.test\(status\)\) \{ reloadPoPage\(/);
   assert.doesNotMatch(wait, /selectAction\(RE_STOP\)/);
@@ -255,7 +255,7 @@ test("PO v0.9.12: reload before a stop that waited, verify after Yes, count a re
 // المالك ٢٠٢٦-١٠-٢٧: «لسه ساعات يوقّف وساعات لأ — راجع الكود القديم»: Yes كان ممكن يتداس على دروب ليست
 test("PO v0.9.13: Yes only inside the visible confirm dialog, never in a dropdown; dialog detected by itself", () => {
   const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
-  assert.match(po, /@version\s+0\.9\.1[3-9]/);
+  assert.match(po, /@version\s+0\.9\.(1[3-9]|[2-9]\d)/);
   const fy = po.slice(po.indexOf("function findYes()"), po.indexOf("function findYes()") + 700);
   assert.match(fy, /isVisible\(b\) && !inDropdown\(b\)/);
   assert.match(fy, /: \["button", "input\[type='button'\]", "input\[type='submit'\]"\];/);
@@ -269,7 +269,7 @@ test("PO v0.9.13: Yes only inside the visible confirm dialog, never in a dropdow
 // المالك ٢٠٢٦-١٠-٢٧: «بتقف كده ولما بعمل ريفريش يدوى بينفّذ الإيقاف» — بعد آخر سكربت
 test("PO v0.9.14: auto-refresh 10 s after Yes with a visible countdown", () => {
   const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
-  assert.match(po, /@version\s+0\.9\.1[6-9]/);
+  assert.match(po, /@version\s+0\.9\.(1[6-9]|[2-9]\d)/);
   assert.match(po, /const AWAIT_STOP_RELOAD_MS = 10 \* 1000;/);
   assert.match(po, /ريفريش تلقائى بعد " \+ left \+ "ث/);
 });

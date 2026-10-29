@@ -16,14 +16,21 @@ function browser(opts: { session?: boolean; submitMoves?: boolean } = {}) {
   let session = !!opts.session;                                  // كوكى الجلسة — واحدة للمتصفح كله
   const submitMoves = opts.submitMoves !== false;
   const shared = new Map<string, string>();
-  const storage = (m: Map<string, string>) => ({
-    getItem: (k: string) => (m.has(k) ? m.get(k)! : null), setItem: (k: string, v: string) => void m.set(k, String(v)),
+  // localStorage مشترك: أى كتابة بتطلع حدث storage فى **باقى** التابات (زى المتصفح)
+  let writer: any = null;
+  const storage = (m: Map<string, string>, isShared = false) => ({
+    getItem: (k: string) => (m.has(k) ? m.get(k)! : null),
+    setItem: (k: string, v: string) => {
+      m.set(k, String(v));
+      if (isShared) for (const t of tabs) if (t !== writer && !t.onPo) t.page.listeners.forEach((fn: Function) => fn({ key: k, newValue: String(v) }));
+    },
     removeItem: (k: string) => void m.delete(k), key: (i: number) => [...m.keys()][i] ?? null, get length() { return m.size; },
   });
   const tabs: any[] = [];
+  const ls = storage(shared, true);
   function load(tab: any, hash: string) {
     // صفحة جديدة: مؤقتات جديدة، ونفس sessionStorage بتاع التاب
-    const page: any = { intervals: [] as Function[], timers: [] as any[], gone: false };
+    const page: any = { intervals: [] as Function[], timers: [] as any[], gone: false, listeners: [] as Function[] };
     tab.page = page; tab.loads++;
     const el = (tag = "div"): any => ({ tag, style: {}, value: "", setAttribute() {}, appendChild() {}, remove() {}, addEventListener() {},
       getContext: () => null, click() {
@@ -38,7 +45,13 @@ function browser(opts: { session?: boolean; submitMoves?: boolean } = {}) {
       if (page.gone) return;
       page.gone = true; tab.nav.push(url);
       // صفحة الرقم بالجلسة الشغّالة ⇒ التاب وصل (مش بنكمّل محاكاة صفحة الـPO نفسها)
-      if (session && /\/expresse\/profileOptimization/.test(url)) { tab.onPo = true; return; }
+      if (session && /\/expresse\/profileOptimization/.test(url)) {
+        tab.onPo = true; tab.onPoAt = clock;
+        // السكربت فى صفحة الرقم بيعلّم «الدخول نجح» (markLoginOk)
+        const at = Number(shared.get("DZS_LOGIN_AT") || 0);
+        if (at > Number(shared.get("DZS_LOGIN_OK") || 0)) { writer = tab; ls.setItem("DZS_LOGIN_OK", String(clock)); writer = null; }
+        return;
+      }
       load(tab, "");                                             // الجلسة خلصانة ⇒ السيرفر بيرجّعه لصفحة الدخول
     }
     const document: any = {
@@ -51,8 +64,8 @@ function browser(opts: { session?: boolean; submitMoves?: boolean } = {}) {
     const ctx: any = {
       console: { log() {}, warn() {} }, location: loc, document, navigator: {},
       history: { replaceState: () => { loc.hash = ""; } },
-      window: { addEventListener() {}, close() { tab.closed = true; } },
-      localStorage: storage(shared), sessionStorage: tab.ss,
+      window: { addEventListener: (ev: string, fn: Function) => { if (ev === "storage") page.listeners.push((e: any) => { if (!page.gone) fn(e); }); }, close() { tab.closed = true; } },
+      localStorage: ls, sessionStorage: tab.ss,
       setInterval: (fn: Function) => (page.intervals.push(fn), page.intervals.length), clearInterval: (id: number) => { page.intervals[id - 1] = () => {}; },
       setTimeout: (fn: Function, ms: number) => (page.timers.push({ at: clock + (ms || 0), fn }), page.timers.length), clearTimeout() {},
       fetch: () => new Promise(() => {}), URL, URLSearchParams, JSON, Promise, String, Number, Math, Array, Object, RegExp, Date: FakeDate,
@@ -87,9 +100,12 @@ const open = (b: ReturnType<typeof browser>) => lanes.map((lane) => b.openTab(`#
 test("PO 0.9.17: many stop tabs, session expired — one logs in once, the rest wait and reach their line", () => {
   const b = browser();
   const tabs = open(b);
-  b.advance(10_000);
-  // 0.9.19: كلهم وصلوا فى ثوانى من الدخول — مش بعد ٢٠ث (المالك: «بيدخل بعد ١٩ث وده كتير»)
-  assert.deepEqual(tabs.map((t) => t.onPo), tabs.map(() => true), "كلهم وصلوا فى أقل من ١٠ث");
+  b.advance(4_000);
+  // 0.9.20: أول ما التاب اللى سجّل يوصل، الباقى بيروحوا فى نفس اللحظة (المالك: «٤ث كتير الطابور هيتأخر»)
+  assert.deepEqual(tabs.map((t) => t.onPo), tabs.map(() => true), "كلهم وصلوا فى أقل من ٤ث");
+  const first = Math.min(...tabs.map((t) => t.onPoAt));
+  // الباقى وصلوا مع اللى سجّل — أول ما شافوا الإشارة (أو فى نفس دورة الفحص لو وصلوا صفحة الدخول بعدها)
+  assert.ok(Math.max(...tabs.map((t) => t.onPoAt)) - first <= 900, `الفرق: ${Math.max(...tabs.map((t) => t.onPoAt)) - first}ms`);
   b.advance(30_000);
   const clicks = tabs.map((t) => t.clicks);
   assert.equal(clicks.reduce((a, c) => a + c, 0), 1, `ضغطات الدخول: ${clicks}`);
@@ -120,7 +136,7 @@ test("PO 0.9.17: respects a login that the measuring script (10.32) just made", 
   b.advance(8_000);
   assert.equal(t.clicks, 0, "مستنى دخول القياس");
   // دخول القياس مانفعش (الجلسة لسه خلصانة) ⇒ بيسجّل هو بعد ١٠ث بالكتير — مش ٢٠ (المالك: «بيكتب بعد ١٩ أو ٢١ث وده كتير»)
-  b.advance(4_000);
-  assert.equal(t.clicks, 1, "سجّل هو فى خلال ١٢ث");
+  b.advance(6_000);                                             // ١٠ث + تأخير عشوائى صغير (لحد ١٫٥ث) عشان تابين مايسجّلوش مع بعض
+  assert.equal(t.clicks, 1, "سجّل هو فى خلال ١٤ث");
   assert.ok(t.onPo);
 });
