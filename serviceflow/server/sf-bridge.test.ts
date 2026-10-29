@@ -463,3 +463,11 @@ test("the bridge pauses itself when DZS windows keep landing on the AXON login p
   assert.notEqual(old.store.get("sfb_paused"), true);
   assert.match(src, /if \(\/\\\/expresse\\\/login\/i\.test\(location\.pathname\)\)/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٩: «بتتفتح صفحات أول ما فتحت إيدج مع إن جوجل مش شغّال» — جوجل هو اللى بيشغّل الجسر
+test("a DZS tab drives the bridge only while a Google / Service-Flow tab was alive in the last 3 minutes", () => {
+  assert.match(src, /const TRIGGER_KEY = "sfb_trigger_seen", TRIGGER_MS = 3 \* 60 \* 1000;/);
+  assert.match(src, /if \(ON_GOOGLE \|\| ON_SF\) SET\(TRIGGER_KEY, Date\.now\(\)\);\n\s+else if \(Date\.now\(\) - Number\(GET\(TRIGGER_KEY, 0\)\) > TRIGGER_MS\) return;/);
+  assert.match(src, /setInterval\(go, 5000\);/);
+  assert.doesNotMatch(src, /setInterval\(\(\) => \{ bridge\.tick\(\); \}, 5000\);/);
+});
