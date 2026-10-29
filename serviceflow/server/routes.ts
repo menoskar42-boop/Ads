@@ -3160,11 +3160,56 @@ export async function registerRoutes(
                                  AND (x.bridge_lease_until IS NULL OR x.bridge_lease_until < now())
                                  AND NOT ${sharedGroup("x")}
                                  AND ${queueRank("x")} < ${queueRank("exec_jobs")})
+              -- وإيقاف PO / «بدون Real» عاجل قدّامه ومستنى السقف المشترك بس (نوعه لسه تحت عدده) ⇒ هو الأول.
+              -- من غيرها الجسر كان بياخد آخر مكان فى السقف وإيقافات PO العاجلة تستنى حتّة كاملة
+              -- (المالك ٢٠٢٦-١٠-٢٩: «مستنى: DZS مشغول بقياس» على إيقافات عاجلة والجسر شغّال).
+              AND NOT EXISTS (SELECT 1 FROM exec_jobs x
+                               WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> exec_jobs.id
+                                 AND COALESCE(x.site, '10.42.187.101') = $3
+                                 AND (x.bridge_lease_until IS NULL OR x.bridge_lease_until < now())
+                                 AND ${sharedGroup("x")} AND NOT ${bridgeable("x")}
+                                 AND ${queueRank("x")} < ${queueRank("exec_jobs")}
+                                 AND (SELECT COUNT(*) FROM exec_jobs b
+                                       WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = $3
+                                         AND ${parallelGroup("b")} = ${parallelGroup("x")}) < ${laneCap("x", lanes)})
             RETURNING id`, [live[0], bridgeDevice(req), BRIDGE_SITE]);
         return rows[0] ? { ok: true, marker: Number(rows[0].id), drop } : { ok: false, wait: true, drop };
       });
       markExecSelf();
-      res.json(out);
+      // now = ساعة السيرفر: الجسر بيسأل بيها «الخطوط اللى اتقاست من ساعتها» (/bridge/progress)
+      res.json({ ...out, now: new Date().toISOString() });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // «الحتت دى وصلت لفين؟» — سكربت القياس بيرفع كل خط لـcase_138 لحظة ما يخلص (نفس اللى جهاز التنفيذ بيعتمد
+  // عليه فى /measure-check). فالجسر مش محتاج يلحق نتيجة الخط من تاب DZS قبل ما يتقفل بثانيتين: بيسأل هنا كل
+  // نص دقيقة، وده كمان بيجدّد علامات الحتت (بدل /alive). measured = مهام اتقاس خطها بعد since.
+  app.post("/api/exec-queue/bridge/progress", requireBridge, async (req: any, res) => {
+    try {
+      const chunks = (Array.isArray(req.body?.chunks) ? req.body.chunks : []).slice(0, 50);
+      const ids: number[] = [], since: string[] = [], markers: number[] = [];
+      for (const c of chunks) {
+        const at = c?.since && !Number.isNaN(Date.parse(c.since)) ? new Date(c.since).toISOString() : null;
+        const m = parseInt(c?.marker, 10);
+        if (Number.isInteger(m) && m > 0) markers.push(m);
+        if (!at) continue;
+        for (const id of toJobIds(c?.ids).slice(0, 50)) { ids.push(id); since.push(at); }
+      }
+      if (markers.length) {
+        await pool.query(
+          `UPDATE exec_jobs SET claimed_at = now() WHERE id = ANY($1::int[]) AND status = 'claimed' AND bridge_lease_until IS NOT NULL`, [markers]);
+      }
+      let measured: number[] = [];
+      if (ids.length) {
+        const { rows } = await pool.query(
+          `SELECT e.id FROM exec_jobs e
+             JOIN unnest($1::int[], $2::timestamptz[]) AS d(id, since) ON e.id = d.id
+            WHERE EXISTS (SELECT 1 FROM case_138 c
+                           WHERE c.account_no = e.accounts->>0 AND c.source = 'dzs' AND c.uploaded_at >= d.since)`,
+          [ids, since]);
+        measured = rows.map((r: any) => Number(r.id));
+      }
+      res.json({ ok: true, measured });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

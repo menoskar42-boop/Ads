@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Service-Flow Bridge — جسر القياس «بدون Real»
 // @namespace    serviceflow.bridge
-// @version      1.3.0
-// @description  v1.3.0: بيفتح أكتر من تاب قياس مع بعض (90، 91، …) لحد عدد «قياس بدون Real» فى الإعدادات، والسيرفر بيعدّ تاباته مع تابات جهاز التنفيذ — فالمجموع مايعدّيش العدد ولا سقف «بدون Real + إيقاف PO». v1.2.0: قبل كل حتّة بيبعت كل الخطوط اللى معاه، فلو باتش اتوقّف مؤقتاً أو اتلغى أو اترتّب من جديد فى «ترتيب الطابور»، الجسر بيسيب اللى يخصّه على طول ويسحب من جديد بالترتيب الجديد (الحتّة الشغّالة بس بتكمّل، ١٠ خطوط بالكتير). v1.1.1: زرار «اسحب الشغل دلوقتى» بيقول السبب لو ماسحبش حاجة (الجسر مقفول فى الإعدادات، ولا مفيش باتش «بدون Real» مؤجّل) بدل «اتسحب 0 خط». v1.1.0: بيشتغل بس لما زرار «جسر Tampermonkey» يبقى مفتوح فى إعدادات Service Flow (رفع الملفات ← إعدادات) — ساعتها جهاز التنفيذ بيسيب الباتشات المؤجّلة دى للجسر وياخد العاجل بس. لو اتقفل، الجسر بيرجّع اللى معاه وبيقول ده فى اللوحة. v1.0.0: جسر بيشتغل مكان جهاز التنفيذ لباتشات القياس «بدون Real» العادية — احتياطى لو oscardevs.com اتحظر، وبيخفّف الطلبات على السيرفر. بيسحب الشغل لما السيرفر يرد، وبيقيس على DZS حتّة حتّة (١٠ خطوط) فى تاب لوحده (lane 90) حتى لو السيرفر وقع، وبيرفع النتايج من طابوره. جوجل (أو صفحة Service-Flow) هو اللى بيشغّله ويفضل مفتوح وهو شغّال. Real ورفع السرعة والإيقاف وجلب الموبايل مالهمش دعوة بيه.
+// @version      1.4.0
+// @description  v1.4.0: بيعرف إن الخط اتقاس من السيرفر نفسه (سكربت القياس بيرفع كل خط لـService Flow) كل نص دقيقة، بدل ما يلحق النتيجة من تاب DZS قبل ما يتقفل — فى 1.3 كان بيفضل «0 من 40». وتابات DZS بتقرا نتايج كل الأرقام كاحتياطى. والسيرفر بقى يقدّم إيقاف PO العاجل على حتّة الجسر الجديدة. v1.3.0: بيفتح أكتر من تاب قياس مع بعض (90، 91، …) لحد عدد «قياس بدون Real» فى الإعدادات، والسيرفر بيعدّ تاباته مع تابات جهاز التنفيذ — فالمجموع مايعدّيش العدد ولا سقف «بدون Real + إيقاف PO». v1.2.0: قبل كل حتّة بيبعت كل الخطوط اللى معاه، فلو باتش اتوقّف مؤقتاً أو اتلغى أو اترتّب من جديد فى «ترتيب الطابور»، الجسر بيسيب اللى يخصّه على طول ويسحب من جديد بالترتيب الجديد (الحتّة الشغّالة بس بتكمّل، ١٠ خطوط بالكتير). v1.1.1: زرار «اسحب الشغل دلوقتى» بيقول السبب لو ماسحبش حاجة (الجسر مقفول فى الإعدادات، ولا مفيش باتش «بدون Real» مؤجّل) بدل «اتسحب 0 خط». v1.1.0: بيشتغل بس لما زرار «جسر Tampermonkey» يبقى مفتوح فى إعدادات Service Flow (رفع الملفات ← إعدادات) — ساعتها جهاز التنفيذ بيسيب الباتشات المؤجّلة دى للجسر وياخد العاجل بس. لو اتقفل، الجسر بيرجّع اللى معاه وبيقول ده فى اللوحة. v1.0.0: جسر بيشتغل مكان جهاز التنفيذ لباتشات القياس «بدون Real» العادية — احتياطى لو oscardevs.com اتحظر، وبيخفّف الطلبات على السيرفر. بيسحب الشغل لما السيرفر يرد، وبيقيس على DZS حتّة حتّة (١٠ خطوط) فى تاب لوحده (lane 90) حتى لو السيرفر وقع، وبيرفع النتايج من طابوره. جوجل (أو صفحة Service-Flow) هو اللى بيشغّله ويفضل مفتوح وهو شغّال. Real ورفع السرعة والإيقاف وجلب الموبايل مالهمش دعوة بيه.
 // @match        https://www.google.com/*
 // @match        https://www.google.com.eg/*
 // @match        *://10.42.187.101:8080/expresse/*
@@ -214,7 +214,7 @@
                                       // منفصلة عن تابات جهاز التنفيذ (١…عدد «بدون Real» فى الإعدادات)
     CHUNK: 10,                        // الحتّة: ١٠ خطوط، وبين كل حتّة والتانية بنسأل السيرفر
     LEASE_LOW: 100, LEASE_MAX: 400,   // لما الشغل المحجوز يقل عن ١٠٠ بنحجز لحد ٤٠٠
-    ALIVE_MS: 2 * 60 * 1000,          // «لسه شغّال» كل دقيقتين (العلامة بتتعتبر يتيمة بعد ٤)
+    PROGRESS_MS: 30 * 1000,           // كل نص دقيقة: «الخطوط دى اتقاست؟» من السيرفر + تجديد العلامات (بتبقى يتيمة بعد ٤ دقايق)
     LINE_STALL_MS: 3 * 60 * 1000,     // مفيش خط جديد خلص من ٣ دقايق ⇒ باقى الحتّة timeout
     FIRST_LINE_MS: 6 * 60 * 1000,     // ولا خط خلص من أول الحتّة ٦ دقايق (دخول AXON بطىء) ⇒ نفس الكلام
     WAIT_MS: 60 * 1000,               // السيرفر قال «استنى» ⇒ نسأل تانى بعد دقيقة
@@ -225,7 +225,6 @@
     BRIDGE.DZS_URL + "#sf_accounts=" + encodeURIComponent(accs.join(",")) + "&sf_mode=noreal&sf_lane=" + (lane || BRIDGE.LANE) + "&sf_bridge=1";
   /** تاب الجسر رقم n (من ٠) ⇒ "90"، "91"… */
   const bridgeLane = (n) => String(Number(BRIDGE.LANE) + n);
-  const isBridgeLane = (lane) => /^\d+$/.test(String(lane || "")) && Number(lane) >= Number(BRIDGE.LANE);
   const bridgeGotKey = (lane) => "sfb_got_L" + lane;
 
   /** الحتّة وصلت لفين: got = {رقم الأكونت: وقت ما خلص} من تاب القياس. */
@@ -249,7 +248,7 @@
    * بيعدّ تابات الجسر وتابات جهاز التنفيذ مع بعض، وبيقول «استنى» لو العدد أو سقف «بدون Real + إيقاف PO» اتملى.
    */
   function makeBridge(env) {
-    let busy = false, waitUntil = 0, off = false;
+    let busy = false, waitUntil = 0, off = false, progressAt = 0;
     const OFF_TEXT = "الجسر مقفول من إعدادات Service Flow — جهاز التنفيذ بياخد كل الشغل";
     const status = (text) => env.set("sfb_status", { text, at: env.now() });
     const jobs = () => env.get("sfb_jobs", []);
@@ -303,7 +302,24 @@
       if (!lead()) return;
       busy = true;
       try {
-        // ١) الحتت الشغّالة: اتقدّمت؟ خلصت؟ وقفت؟ — وكل واحدة بتجدّد علامتها كل دقيقتين
+        // ٠) السيرفر: سكربت القياس بيرفع كل خط لحظة ما يخلص — فبنسأل «اتقاس إيه من بداية كل حتّة»، وده
+        //    كمان بيجدّد علامات الحتت. (تاب DZS بيتقفل بعد الخط بثانيتين فقراية النتيجة منه ممكن تفوت.)
+        const now0 = chunks();
+        if (now0.length && env.now() - progressAt > BRIDGE.PROGRESS_MS) {
+          progressAt = env.now();
+          const pr = await env.live("/api/exec-queue/bridge/progress",
+            { chunks: now0.map((c) => ({ marker: c.marker, ids: c.ids, since: c.since })), device: env.device() });
+          const measured = (pr && pr.json && pr.json.measured) || [];
+          if (measured.length) {
+            now0.forEach((c) => {
+              const got = env.get(bridgeGotKey(c.lane), {});
+              let add = false;
+              c.ids.forEach((id, i) => { if (measured.indexOf(id) >= 0 && !got[c.accs[i]]) { got[c.accs[i]] = env.now(); add = true; } });
+              if (add) env.set(bridgeGotKey(c.lane), got);
+            });
+          }
+        }
+        // ١) الحتت الشغّالة: اتقدّمت؟ خلصت؟ وقفت؟
         const running = [];
         let ended = 0, measured = 0, total = 0;
         for (const c of chunks()) {
@@ -311,10 +327,6 @@
           const p = bridgeProgress(c, got, env.now());
           c.doneN = p.n; c.lastAt = p.lastAt;
           if (p.complete || p.stalled) { finish(c, got); ended++; continue; }
-          if (c.marker && env.now() - (c.aliveAt || c.startedAt) > BRIDGE.ALIVE_MS) {
-            c.aliveAt = env.now();
-            await env.live("/api/exec-queue/bridge/alive", { marker: c.marker });
-          }
           running.push(c); measured += p.n; total += c.accs.length;
         }
         env.set("sfb_chunks", running);
@@ -363,8 +375,10 @@
         if (!use.length) return;
         const taken = new Set(running.map((c) => c.lane));
         let n = 0; while (taken.has(bridgeLane(n))) n++;
+        // since = ساعة السيرفر وقت البداية (لـ/progress) — من غير سيرفر: ساعة الجهاز بدقيقتين قبلها
+        const since = (r && r.json && r.json.now) || new Date(env.now() - 2 * 60 * 1000).toISOString();
         const chunk = { lane: bridgeLane(n), ids: use.map((j) => j.id), accs: use.map((j) => j.acc), marker, offline: !r,
-          startedAt: env.now(), lastAt: env.now(), aliveAt: env.now(), doneN: 0 };
+          since, startedAt: env.now(), lastAt: env.now(), doneN: 0 };
         env.set(bridgeGotKey(chunk.lane), {});
         env.set("sfb_chunks", running.concat([chunk]));
         status((r ? "" : "(من غير السيرفر) ") + "بدأت حتّة " + chunk.accs.length + " خطوط على تاب " + (n + 1) + " من " + maxTabs());
@@ -390,7 +404,9 @@
     const out = Object.assign({}, got);
     (results || []).forEach((r) => {
       const a = r && r.lineId != null ? String(r.lineId) : "";
-      if (a && chunk.accs.indexOf(a) >= 0 && !out[a]) { out[a] = Date.parse(r.timestamp) || t; changed = true; }
+      const at = r && Date.parse(r.timestamp);
+      if (chunk.startedAt && at && at < chunk.startedAt - 60 * 1000) return;   // نتيجة قديمة لنفس الخط من قبل الحتّة
+      if (a && chunk.accs.indexOf(a) >= 0 && !out[a]) { out[a] = at || t; changed = true; }
     });
     return changed ? out : null;
   }
@@ -444,26 +460,28 @@
     dzsReachable, device: deviceId, tabId: TAB_ID, token: () => String(GET("sfb_token", "")),
   });
 
-  // ── تابات DZS بتاعة الجسر: انقل كل خط بيخلص لتخزين الجسر ──────────────────────────────
-  // التاب ده بتاع الجسر لو جه بـsf_lane=90 أو أكتر فى الرابط، أو سكربت القياس حفظ رقمه (التابات اللى بتتفتح
-  // لكل خط بتاخد نسخة من sessionStorage التاب اللى فتحها). تابات جهاز التنفيذ (١…العدد) مالهاش دعوة.
+  // ── تابات DZS: انقل كل خط بيخلص لتخزين الجسر ─────────────────────────────────────────
   if (ON_DZS) {
-    const laneOf = () => {
-      const h = (location.hash.match(/[#&]sf_lane=(\d+)/) || [])[1];
-      if (h) return h;
-      try { return sessionStorage.getItem("DZS_LANE") || ""; } catch (e) { return ""; }
-    };
+    // كل تابات DZS (أى رقم، حتى تابات جهاز التنفيذ) بتقرا نتايج **كل** المفاتيح (DZS_RESULTS و_L…) لكل الحتت
+    // الشغّالة: سكربت القياس ساعات بيحدّد رقم التاب من رقم الخط فيكتب تحت رقم تانى، والتاب بيتقفل بعد الخط
+    // بثانيتين. ده احتياطى — الأساس إن الجسر بيسأل السيرفر (/bridge/progress).
     const harvest = () => {
-      const lane = laneOf();
-      if (!isBridgeLane(lane)) return;
-      const chunk = (GET("sfb_chunks", []) || []).find((c) => c.lane === lane) || null;
+      const list = GET("sfb_chunks", []) || [];
+      if (!list.length) return;
       let results = [];
-      try { results = JSON.parse(localStorage.getItem("DZS_RESULTS_L" + lane) || "[]"); } catch (e) {}
-      const next = bridgeHarvest(chunk, results, GET(bridgeGotKey(lane), {}), Date.now());
-      if (next) SET(bridgeGotKey(lane), next);
+      try {
+        Object.keys(localStorage).filter((k) => /^DZS_RESULTS(_L\d+)?$/.test(k)).forEach((k) => {
+          try { results = results.concat(JSON.parse(localStorage.getItem(k) || "[]") || []); } catch (e) {}
+        });
+      } catch (e) {}
+      if (!results.length) return;
+      list.forEach((c) => {
+        const next = bridgeHarvest(c, results, GET(bridgeGotKey(c.lane), {}), Date.now());
+        if (next) SET(bridgeGotKey(c.lane), next);
+      });
     };
     harvest();                      // document-start: قبل ما سكربت القياس يصفّر نتايج الحتّة اللى فاتت
-    setInterval(harvest, 1000);     // التاب بيتقفل بعد الخط بثانيتين — كل ثانية يلحقه
+    setInterval(harvest, 1000);
   }
 
   // ── القائد: تاب جوجل أو Service-Flow (اللى مفتوح فيهم) ─────────────────────────────────

@@ -118,13 +118,13 @@ test("DZS not reachable (Wi-Fi) → keeps the jobs and waits; nothing opened", a
   assert.equal(w.opened.length, 1, "«ابدأ دلوقتى» بيتخطّى فحص DZS");
 });
 
-test("a stuck chunk ends as timeout; the marker is kept alive every 2 minutes", async () => {
+test("a stuck chunk ends as timeout; the marker is kept alive by /progress", async () => {
   const w = world();
   await w.bridge.tick();
   const chunk = chunkOf(w);
   measure(w, chunk.accs.slice(0, 3));
   for (let i = 0; i < 5; i++) { w.tick(60_000); await w.bridge.tick(); }
-  assert.ok(w.calls.filter((c) => c.path.endsWith("/alive")).length >= 1, "لسه شغّال");
+  assert.ok(w.calls.filter((c) => c.path.endsWith("/progress")).length >= 1, "لسه شغّال");
   assert.equal(w.reports.length, 1, "٣ دقايق من غير خط جديد ⇒ الحتّة خلصت");
   const res = w.reports[0].done.map((d: any) => d.result);
   assert.deepEqual(res.slice(0, 3), ["done", "done", "done"]);
@@ -180,7 +180,7 @@ test("a long chunk that keeps moving keeps its marker alive (< 4 min apart) and 
     measure(w, chunk.accs.slice(0, i));   // خط كل دقيقة
     const before = w.calls.length;
     await w.bridge.tick();
-    if (w.calls.slice(before).some((c) => c.path.endsWith("/alive"))) aliveAt.push(i);
+    if (w.calls.slice(before).some((c) => c.path.endsWith("/progress"))) aliveAt.push(i);
   }
   assert.ok(aliveAt.length >= 3, "دقيقتين بدقيقتين: " + aliveAt.join(","));
   for (let k = 1; k < aliveAt.length; k++) assert.ok(aliveAt[k] - aliveAt[k - 1] < 4, "مفيش فجوة ٤ دقايق");
@@ -321,4 +321,42 @@ test("a chunk running under 1.2 (sfb_chunk) carries over to tab 90", async () =>
 
 test("server sends the «بدون Real» tab count with the lease", () => {
   assert.match(routes, /res\.json\(\{ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS, lanes: lanes\.noreal \}\);/);
+});
+
+// المالك ٢٠٢٦-١٠-٢٩: «شغّال على 4 تاب (0 من 40 خط)» والتابات قاست فعلاً — تاب DZS بيتقفل بعد الخط بثانيتين
+// فنتيجته ممكن تفوت. الجسر بقى يسأل السيرفر (سكربت القياس بيرفع كل خط لـcase_138).
+test("progress comes from the server (case_138), even if no DZS tab result is ever seen", async () => {
+  let measured: number[] = [];
+  const w = world({ server: (path, body) => {
+    if (path.endsWith("/lease")) return { status: 200, json: { jobs: Array.from({ length: 10 }, (_, i) => ({ id: 1 + i, accounts: ["a" + i] })) } };
+    if (path.endsWith("/start")) return { status: 200, json: { ok: true, marker: body.ids[0], drop: [], now: "2026-10-29T17:30:00.000Z" } };
+    if (path.endsWith("/progress")) return { status: 200, json: { ok: true, measured } };
+    return { status: 200, json: { ok: true } };
+  } });
+  await w.bridge.tick();
+  assert.equal(chunkOf(w).since, "2026-10-29T17:30:00.000Z", "ساعة السيرفر");
+  measured = [1, 2, 3];
+  w.tick(31_000); await w.bridge.tick();
+  const pr = w.calls.filter((c) => c.path.endsWith("/progress")).at(-1)!;
+  assert.deepEqual(Array.from(pr.body.chunks[0].ids).slice(0, 2), [1, 2]);
+  assert.equal(pr.body.chunks[0].marker, 1);
+  assert.equal(chunkOf(w).doneN, 3);
+  w.tick(10_000); await w.bridge.tick();
+  assert.equal(w.calls.filter((c) => c.path.endsWith("/progress")).length, 1, "كل نص دقيقة بس");
+  measured = Array.from({ length: 10 }, (_, i) => 1 + i);
+  w.tick(31_000); await w.bridge.tick();
+  assert.equal(w.reports.length, 1);
+  assert.ok(w.reports[0].done.every((d: any) => d.result === "done"));
+});
+
+test("harvest ignores an older result for the same line; server keeps urgent shared jobs first", () => {
+  const w = world();
+  const chunk = { accs: ["a"], startedAt: Date.parse("2026-10-29T17:30:00Z") };
+  assert.equal(w.B.bridgeHarvest(chunk, [{ lineId: "a", timestamp: "2026-10-29T16:00:00Z" }], {}, 5), null, "قياس امبارح/من ساعة");
+  assert.ok(w.B.bridgeHarvest(chunk, [{ lineId: "a", timestamp: "2026-10-29T17:31:00Z" }], {}, 5));
+  assert.match(src, /\/\^DZS_RESULTS\(_L\\d\+\)\?\$\/\.test\(k\)/, "كل مفاتيح النتايج");
+  assert.match(routes, /app\.post\("\/api\/exec-queue\/bridge\/progress", requireBridge/);
+  assert.match(routes, /WHERE c\.account_no = e\.accounts->>0 AND c\.source = 'dzs' AND c\.uploaded_at >= d\.since/);
+  assert.match(routes, /AND \$\{sharedGroup\("x"\)\} AND NOT \$\{bridgeable\("x"\)\}\n[\s\S]{0,400}< \$\{laneCap\("x", lanes\)\}\)/);
+  assert.match(routes, /res\.json\(\{ \.\.\.out, now: new Date\(\)\.toISOString\(\) \}\);/);
 });
