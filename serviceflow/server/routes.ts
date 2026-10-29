@@ -2557,21 +2557,25 @@ export async function registerRoutes(
   // مفتوح ⇒ جهاز التنفيذ مابيسحبش أى مهمة الجسر يقدر عليها (bridgeable) — حتى لو لسه ماتحجزتش — فالجسر
   // بس هو اللى بينفّذها. مقفول (الافتراضى) ⇒ الجسر مابياخدش حاجة وجهاز التنفيذ بيعمل كل حاجة زى الأول.
   const BRIDGE_ON_KEY = "exec_lanes_bridge";   // نفس البادئة = تعديله سوبر أدمن بس
+  // طريقة فتح صفحات القياس بتاعة الجسر (المالك ٢٠٢٦-١٠-٢٩: «اعمل زرار فى الإعدادات وأنا أختار طريقة الفتح»):
+  // "tabs" = تابات فى نافذة واحدة (الافتراضى) · "windows" = كل خط فى نافذة لوحده. الجسر بياخدها مع lease/progress.
+  const BRIDGE_VIEW_KEY = "exec_lanes_bridge_view";
   let bridgeSeen: { at: number; device: string } | null = null;   // آخر مرة الجسر كلّم السيرفر (للإعدادات)
-  type ExecLanes = { noreal: number; stop: number; bridge?: boolean };
+  type ExecLanes = { noreal: number; stop: number; bridge?: boolean; bridgeView?: "tabs" | "windows" };
   const clampLanes = (v: any, def: number) => {
     const n = parseInt(String(v ?? ""), 10);
     return Number.isFinite(n) ? Math.max(1, n) : def;
   };
   const readExecLanes = async (db: { query: (t: string, v?: any[]) => Promise<any> }): Promise<ExecLanes> => {
-    const out: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES, bridge: false };
+    const out: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES, bridge: false, bridgeView: "tabs" };
     try {
       const { rows } = await db.query(`SELECT key, value FROM app_settings WHERE key = ANY($1::text[])`,
-        [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY]]);
+        [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY, BRIDGE_VIEW_KEY]]);
       for (const r of rows) {
         if (r.key === EXEC_LANE_KEYS.noreal) out.noreal = clampLanes(r.value, NOREAL_LANES);
         if (r.key === EXEC_LANE_KEYS.stop) out.stop = clampLanes(r.value, POSTOP_LANES);
         if (r.key === BRIDGE_ON_KEY) out.bridge = String(r.value) === "1";
+        if (r.key === BRIDGE_VIEW_KEY) out.bridgeView = String(r.value) === "windows" ? "windows" : "tabs";
       }
     } catch {}
     return out;
@@ -2636,7 +2640,7 @@ export async function registerRoutes(
       const { rows } = await pool.query(
         `SELECT (MAX(updated_at) AT TIME ZONE 'Africa/Cairo') AS "updatedAt",
                 (ARRAY_AGG(updated_by ORDER BY updated_at DESC))[1] AS "updatedBy"
-           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY, REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY, ...Object.values(NIGHT_PAUSE_KEYS)]]);
+           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY, BRIDGE_VIEW_KEY, REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY, ...Object.values(NIGHT_PAUSE_KEYS)]]);
       res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES, refreshMinutes: REFRESH_MINUTES_DEFAULT, measureStaleDays: MEASURE_STALE_DAYS_DEFAULT },
         bridgeSeenSec: bridgeSeen ? Math.round((Date.now() - bridgeSeen.at) / 1000) : null,
         bridgeDevice: bridgeSeen?.device || null,
@@ -2689,6 +2693,10 @@ export async function registerRoutes(
       if (body.bridge != null) {
         if (typeof body.bridge !== "boolean") return res.status(400).json({ message: "الجسر لازم يكون مفتوح أو مقفول" });
         vals.push([BRIDGE_ON_KEY, body.bridge ? 1 : 0]);
+      }
+      if (body.bridgeView != null) {
+        if (body.bridgeView !== "tabs" && body.bridgeView !== "windows") return res.status(400).json({ message: "طريقة فتح الجسر لازم تكون تابات أو نوافذ" });
+        vals.push([BRIDGE_VIEW_KEY, body.bridgeView]);
       }
       for (const [key, n] of vals) {
         await pool.query(
@@ -3161,7 +3169,7 @@ export async function registerRoutes(
           ORDER BY CASE WHEN queue_order > 0 THEN queue_order ELSE 9223372036854775807 END, created_at, id`,
         [max, BRIDGE_LEASE_HOURS, bridgeDevice(req)]);
       // lanes = عدد تابات «بدون Real» فى الإعدادات: الجسر بيفتح لحده، وstart بيعدّ تاباته مع تابات جهاز التنفيذ
-      res.json({ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS, lanes: lanes.noreal });
+      res.json({ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS, lanes: lanes.noreal, view: lanes.bridgeView });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -3192,22 +3200,22 @@ export async function registerRoutes(
         const { rows: lk } = await tx.query(
           `SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS locked`, [`exec-queue-site:${BRIDGE_SITE}`]);
         if (!lk[0]?.locked) return { ok: false, wait: true, drop };
-        // ⚠️ siteFreeFor لوحدها بتقول «فاضى» لو مفيش حاجة شغّالة خالص — وجهاز التنفيذ بيعتمد إنه بيسحب
-        // بالأولوية. الجسر مابيعدّيش على الترتيب ده، فلازم نقول صراحة: Real/رفع سرعة/أى مهمة بتاخد DZS
-        // لوحدها ومستنية قدّامه (مش محجوزة للجسر) ⇒ استنى. (اتلقطت فى اختبار على Postgres حقيقى.)
-        const { rows } = await tx.query(
-          `UPDATE exec_jobs SET status = 'claimed', claimed_at = now(), executed_by = $2
-            WHERE id = $1 AND status = 'pending' AND paused_at IS NULL
-              AND ${siteFreeFor("exec_jobs", "$3", lanes)}
+        // الجسر بيستنى العاجل (Real/رفع سرعة/إيقاف PO) اللى قدّامه عشان جهاز التنفيذ ياخده الأول — بس لو جهاز
+        // التنفيذ شغّال فعلاً. صفحته مقفولة ⇒ العاجل ده مش هيتنفّذ، والجسر كان هيفضل مستنى على طول. ساعتها
+        // بيتطبّق العدد والسقف بس (siteFreeFor بـ«epoch» = مفيش «قبله فى الطابور»).
+        let execAlive = beatStatus()?.active;
+        if (execAlive == null) {
+          const { rows: hb } = await tx.query(
+            `SELECT (now() - updated_at < ${EXEC_ACTIVE_WINDOW}) AS a FROM app_state WHERE key = 'exec_heartbeat'`);
+          execAlive = !!hb[0]?.a;
+        }
+        const aheadSql = execAlive ? `
               AND NOT EXISTS (SELECT 1 FROM exec_jobs x
                                WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> exec_jobs.id
                                  AND COALESCE(x.site, '10.42.187.101') = $3
                                  AND (x.bridge_lease_until IS NULL OR x.bridge_lease_until < now())
                                  AND NOT ${sharedGroup("x")}
                                  AND ${queueRank("x")} < ${queueRank("exec_jobs")})
-              -- وإيقاف PO / «بدون Real» عاجل قدّامه ومستنى السقف المشترك بس (نوعه لسه تحت عدده) ⇒ هو الأول.
-              -- من غيرها الجسر كان بياخد آخر مكان فى السقف وإيقافات PO العاجلة تستنى حتّة كاملة
-              -- (المالك ٢٠٢٦-١٠-٢٩: «مستنى: DZS مشغول بقياس» على إيقافات عاجلة والجسر شغّال).
               AND NOT EXISTS (SELECT 1 FROM exec_jobs x
                                WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> exec_jobs.id
                                  AND COALESCE(x.site, '10.42.187.101') = $3
@@ -3216,7 +3224,17 @@ export async function registerRoutes(
                                  AND ${queueRank("x")} < ${queueRank("exec_jobs")}
                                  AND (SELECT COUNT(*) FROM exec_jobs b
                                        WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = $3
-                                         AND ${parallelGroup("b")} = ${parallelGroup("x")}) < ${laneCap("x", lanes)})
+                                         AND ${parallelGroup("b")} = ${parallelGroup("x")}) < ${laneCap("x", lanes)})` : "";
+        // ⚠️ siteFreeFor لوحدها بتقول «فاضى» لو مفيش حاجة شغّالة خالص — وجهاز التنفيذ بيعتمد إنه بيسحب
+        // بالأولوية. الجسر مابيعدّيش على الترتيب ده، فلازم نقول صراحة: Real/رفع سرعة/أى مهمة بتاخد DZS
+        // لوحدها ومستنية قدّامه (مش محجوزة للجسر) ⇒ استنى. (اتلقطت فى اختبار على Postgres حقيقى.)
+        const { rows } = await tx.query(
+          `UPDATE exec_jobs SET status = 'claimed', claimed_at = now(), executed_by = $2
+            WHERE id = $1 AND status = 'pending' AND paused_at IS NULL
+              AND ${siteFreeFor("exec_jobs", "$3", lanes, execAlive ? "NULL::timestamptz" : "'epoch'::timestamptz")}
+              -- (aheadSql) Real/رفع سرعة قدّامه ⇒ استنى، وإيقاف PO / «بدون Real» عاجل قدّامه ومستنى السقف المشترك بس
+              -- ⇒ هو الأول (المالك ٢٠٢٦-١٠-٢٩: «مستنى: DZS مشغول بقياس» على إيقافات عاجلة والجسر شغّال)
+              ${aheadSql}
             RETURNING id`, [live[0], bridgeDevice(req), BRIDGE_SITE]);
         return rows[0] ? { ok: true, marker: Number(rows[0].id), drop } : { ok: false, wait: true, drop };
       });
@@ -3257,7 +3275,8 @@ export async function registerRoutes(
         measured = rows.map((r: any) => Number(r.id));
       }
       // lanes: عدد «بدون Real» الحالى — الجسر مابيسألش lease وهو معاه ≥١٠٠ خط، فكان بيفضل شايف الرقم القديم
-      res.json({ ok: true, measured, lanes: (await readExecLanes(pool)).noreal });
+      const L = await readExecLanes(pool);
+      res.json({ ok: true, measured, lanes: L.noreal, view: L.bridgeView });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

@@ -32,6 +32,8 @@ interface ExecLanes {
   nightPause?: NightPause;
   /** جسر Tampermonkey: مفتوح ⇒ الباتشات المؤجّلة «بدون Real» للجسر بس، وجهاز التنفيذ للعاجل */
   bridge?: boolean;
+  /** طريقة فتح صفحات القياس بتاعة الجسر: تابات فى نافذة واحدة / كل خط فى نافذة لوحده */
+  bridgeView?: "tabs" | "windows";
   /** آخر مرة الجسر كلّم السيرفر (ثوانى) — null = ماكلّمهوش من آخر تشغيل للسيرفر */
   bridgeSeenSec?: number | null;
   bridgeDevice?: string | null;
@@ -49,6 +51,7 @@ export function ExecLanesSettingsButton() {
   const [staleDays, setStaleDays] = useState("");
   const [night, setNight] = useState<NightPause>(NIGHT_PAUSE_DEFAULT);
   const [bridge, setBridge] = useState(false);
+  const [bridgeView, setBridgeView] = useState<"tabs" | "windows">("tabs");
   const qc = useQueryClient();
   const { toast } = useToast();
   // المالك ٢٠٢٦-١٠-٢١: «كل ما أفتح متصفح ألاقى إعدادات مختلفة» — الإعداد العام staleTime:Infinity
@@ -81,6 +84,7 @@ export function ExecLanesSettingsButton() {
       setStaleDays(String(data.measureStaleDays ?? 1));
       setNight({ ...NIGHT_PAUSE_DEFAULT, ...(data.nightPause ?? {}) });
       setBridge(!!data.bridge);
+      setBridgeView(data.bridgeView === "windows" ? "windows" : "tabs");
     }
   }, [open, data, dataUpdatedAt, openedAt]);
 
@@ -97,7 +101,7 @@ export function ExecLanesSettingsButton() {
       const r = await fetch(LANES_URL, {
         method: "PUT", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays, nightPause: night, bridge }),
+        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays, nightPause: night, bridge, bridgeView }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.message || `خطأ ${r.status}`);
@@ -224,6 +228,23 @@ export function ExecLanesSettingsButton() {
                   </span>
                   <Switch checked={bridge} onCheckedChange={setBridge} aria-label="جسر Tampermonkey للباتشات المؤجّلة" />
                 </label>
+                <div className="space-y-1">
+                  <p className="text-sm">طريقة فتح صفحات القياس</p>
+                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="طريقة فتح صفحات القياس">
+                    {([["tabs", "تابات فى نافذة واحدة"], ["windows", "كل خط فى نافذة لوحده"]] as const).map(([v, label]) => (
+                      <Button key={v} type="button" size="sm" role="radio" aria-checked={bridgeView === v}
+                        variant={bridgeView === v ? "default" : "outline"} onClick={() => setBridgeView(v)}>
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {bridgeView === "windows"
+                      ? "كل خط بيتفتح فى نافذة Edge لوحده وبيتقفل لما يخلص. محتاج تسمح بالـpopups لـgoogle.com وgoogle.com.eg فى Edge — لو ممنوعة بيتفتح تاب."
+                      : "كل خط فى تاب لوحده فى نفس النافذة، وبيتقفل لما يخلص — زى جهاز التنفيذ، ومن غير popups."}
+                    {" "}التغيير بيتطبّق فى خلال ١٠ ثوانى على الصفحات الجديدة.
+                  </p>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {data.bridgeSeenSec == null
                     ? "الجسر ماكلّمش السيرفر من آخر تشغيل له."

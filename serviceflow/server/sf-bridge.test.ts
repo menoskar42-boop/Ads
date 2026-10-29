@@ -39,8 +39,8 @@ function world(opts: { reachable?: boolean; realChunk?: boolean; server?: (path:
   vm.createContext(ctx);
   vm.runInContext(core + "\n;globalThis.__b = { makeBridge, bridgeHarvest, bridgeLaneUrl, bridgeLane, BRIDGE };", ctx);
   const B = ctx.__b;
-  // الاختبارات القديمة مكتوبة على حتت ١٠ خطوط (وضع «نوافذ») — والافتراضى «تابات» ليه اختبار لوحده
-  if (!opts.realChunk) store.set("sfb_view", "windows");
+  // الاختبارات القديمة مكتوبة على حتت ١٠ خطوط — المنطق نفسه؛ والافتراضى (خط لكل صفحة) ليه اختبار لوحده
+  if (!opts.realChunk) store.set("sfb_chunk_size", 10);
   return { B, bridge: B.makeBridge(env), env, store, calls, reports, opened, handles, tick: (ms: number) => { clock += ms; } };
 }
 /** تاب القياس خلّص الخطوط دى (زى ما سكربت القياس بيحفظها فى DZS_RESULTS_L90) والجسر نقلها. */
@@ -196,7 +196,7 @@ test("a long chunk that keeps moving keeps its marker alive (< 4 min apart) and 
 // التنفيذ وصفحته لو الباتش عاجل فقط… وحط فى الإعدادات زر يشغّل أو يوقف الـAPI ده».
 test("settings switch: off by default, super-admin key, lease/start refuse while off", () => {
   assert.match(routes, /const BRIDGE_ON_KEY = "exec_lanes_bridge";/, "بادئة exec_lanes_ = تعديله سوبر أدمن بس");
-  assert.match(routes, /bridge: false \};/, "مقفول افتراضياً — ميزة اختيارية");
+  assert.match(routes, /bridge: false, bridgeView: "tabs" \};/, "مقفول افتراضياً — ميزة اختيارية");
   assert.match(routes, /if \(r\.key === BRIDGE_ON_KEY\) out\.bridge = String\(r\.value\) === "1";/);
   assert.match(routes, /if \(!lanes\.bridge\) return res\.json\(\{ jobs: \[\], disabled: true \}\);/);
   assert.match(routes, /if \(!\(await readExecLanes\(pool\)\)\.bridge\) return res\.json\(\{ ok: false, disabled: true, drop: held \}\);/);
@@ -204,7 +204,7 @@ test("settings switch: off by default, super-admin key, lease/start refuse while
   assert.match(routes, /if \(body\.bridge === false\) \{\n\s+await pool\.query\(`UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`\);/);
   assert.match(routes, /bridgeSeenSec: bridgeSeen \?/);
   const ui = readFileSync(new URL("../client/src/components/ExecLanesSettingsButton.tsx", import.meta.url), "utf8");
-  assert.match(ui, /measureStaleDays: \+staleDays, nightPause: night, bridge \}/);
+  assert.match(ui, /measureStaleDays: \+staleDays, nightPause: night, bridge, bridgeView \}/);
   assert.match(ui, /<Switch checked=\{bridge\} onCheckedChange=\{setBridge\}/);
 });
 
@@ -323,7 +323,7 @@ test("a chunk running under 1.2 (sfb_chunk) carries over to tab 90", async () =>
 });
 
 test("server sends the «بدون Real» tab count with the lease", () => {
-  assert.match(routes, /res\.json\(\{ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS, lanes: lanes\.noreal \}\);/);
+  assert.match(routes, /res\.json\(\{ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS, lanes: lanes\.noreal, view: lanes\.bridgeView \}\);/);
 });
 
 // المالك ٢٠٢٦-١٠-٢٩: «شغّال على 4 تاب (0 من 40 خط)» والتابات قاست فعلاً — تاب DZS بيتقفل بعد الخط بثانيتين
@@ -374,8 +374,7 @@ test("one line per tab (like the executor), up to 3 new tabs per cycle, and the 
     if (path.endsWith("/progress")) return { status: 200, json: { ok: true, measured } };
     return { status: 200, json: { ok: true } };
   } });
-  assert.equal(w.store.get("sfb_view"), undefined, "مفيش اختيار ⇒ الافتراضى «تابات»");
-  assert.equal(w.B.BRIDGE.TAB_CHUNK, 1);
+  assert.equal(w.store.get("sfb_chunk_size"), undefined, "الافتراضى خط لكل صفحة");
   await w.bridge.tick();
   assert.equal(w.opened.length, 3, "٣ فى الدورة الأولى");
   for (const u of w.opened) assert.match(u, /#sf_accounts=a\d&sf_mode=noreal&sf_lane=9\d&sf_bridge=1$/, "خط واحد فى كل تاب");
@@ -398,13 +397,25 @@ test("a DZS tab can lead too (the Google tab gets throttled in the background)",
   assert.match(src, /if \(gone >= 60 \|\|/);
 });
 
-test("tabs is the default again (one line per tab, same window); windows stays a panel switch", () => {
-  assert.match(src, /const pick = list\.slice\(0, env\.get\("sfb_view", "tabs"\) === "windows" \? BRIDGE\.CHUNK : BRIDGE\.TAB_CHUNK\);/);
-  assert.match(src, /const tabsMode = GET\("sfb_view", "tabs"\) !== "windows";/);
-  assert.doesNotMatch(src, /"sfb_mode"/, "الاختيار القديم «نوافذ» مايفضلش شغّال");
-  // العلامة فى window.name: مابتتنسخش للنوافذ (sessionStorage بيتنسخ، وwindow.opener بيبقى null لما الفاتح يتقفل)
+test("one line per page in both views; the view comes from the settings (server), not a panel button", async () => {
+  assert.match(src, /const pick = list\.slice\(0, Math\.max\(1, parseInt\(env\.get\("sfb_chunk_size", 1\), 10\) \|\| 1\)\);/);
+  assert.doesNotMatch(src, /const tabsMode = GET\("sfb_view"/, "زرار الوضع اتشال من اللوحة");
+  assert.doesNotMatch(src, /"sfb_mode"/);
+  assert.match(routes, /const BRIDGE_VIEW_KEY = "exec_lanes_bridge_view";/);
+  assert.match(routes, /if \(body\.bridgeView !== "tabs" && body\.bridgeView !== "windows"\) return res\.status\(400\)/);
+  assert.match(routes, /lanes: lanes\.noreal, view: lanes\.bridgeView \}\);/);
+  assert.match(routes, /res\.json\(\{ ok: true, measured, lanes: L\.noreal, view: L\.bridgeView \}\);/);
+  const ui = readFileSync(new URL("../client/src/components/ExecLanesSettingsButton.tsx", import.meta.url), "utf8");
+  assert.match(ui, /bridgeView/);
+  const w = world({ realChunk: true, server: (path, body) => {
+    if (path.endsWith("/lease")) return { status: 200, json: { jobs: [{ id: 1, accounts: ["a1"] }], lanes: 2, view: "windows" } };
+    if (path.endsWith("/start")) return { status: 200, json: { ok: true, marker: body.ids[0], drop: [] } };
+    return { status: 200, json: { ok: true } };
+  } });
+  await w.bridge.tick();
+  assert.equal(w.store.get("sfb_view"), "windows", "من lease");
+  // العلامة فى window.name: مابتتنسخش للنوافذ
   assert.match(src, /window\.name = "sfb_first\|" \+ lane \+ "\|" \+ acc;/);
-  assert.match(src, /\(doneAt && Date\.now\(\) - doneAt > 12 \* 1000\)\)/);
 });
 
 // المالك ٢٠٢٦-١٠-٢٩: «الصفحة بتفتح كده من غير أزرار… دوست Search يدوى فالبيانات ظهرت»
@@ -423,7 +434,7 @@ test("no launch page on the DZS host (it redirects to login-page)", () => {
 });
 
 test("the tab count follows the settings even while the bridge holds 100+ lines", async () => {
-  assert.match(routes, /res\.json\(\{ ok: true, measured, lanes: \(await readExecLanes\(pool\)\)\.noreal \}\);/);
+  assert.match(routes, /res\.json\(\{ ok: true, measured, lanes: L\.noreal, view: L\.bridgeView \}\);/);
   const w = world({ server: (path, body) => {
     if (path.endsWith("/lease")) return { status: 200, json: { jobs: Array.from({ length: 150 }, (_, i) => ({ id: 1 + i, accounts: ["a" + i] })), lanes: 30 } };
     if (path.endsWith("/start")) return { status: 200, json: { ok: true, marker: body.ids[0], drop: [], now: "2026-10-29T17:30:00.000Z" } };
@@ -527,4 +538,10 @@ test("server: stop / go / state, and lease / start / progress honor the stop", (
   // صفحات الجسر بتقفل نفسها وهو مقفول، وتاب جوجل اللى كان مفتوح قبل القفل
   assert.match(src, /if \(GET\("sfb_stopped", false\) !== true\) return;/);
   assert.match(src, /if \(ON_GOOGLE && IS_TOP\) setInterval\(\(\) => \{ if \(Number\(GET\("sfb_stop_at", 0\)\) > LOAD_AT\)/);
+});
+
+test("the bridge waits for urgent work ahead only while the executor is alive (else it would wait forever)", () => {
+  assert.match(routes, /let execAlive = beatStatus\(\)\?\.active;/);
+  assert.match(routes, /const aheadSql = execAlive \? `/);
+  assert.match(routes, /\$\{siteFreeFor\("exec_jobs", "\$3", lanes, execAlive \? "NULL::timestamptz" : "'epoch'::timestamptz"\)\}/);
 });
