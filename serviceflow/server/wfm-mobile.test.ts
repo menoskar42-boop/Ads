@@ -96,3 +96,11 @@ test("a number WFM said is missing can still be fetched again by hand", () => {
   assert.match(tools, /disabled=\{\(!n && !retry\.length\) \|\| busy\}/);
   assert.match(tools, /send = retry;/);
 });
+
+// المالك ٢٠٢٦-١٠-٢٩: «خلّى جلب الموبايل لحد ٣٠ عادى» — عاجل لحد ٣٠ خط، وأكتر من كده قدّام الباتشات
+// العادية بس مش قدّام طلبات الزملا الصغيرة على WFM. يدوى وتلقائى نفس القاعدة.
+test("WFM mobile fetch is urgent up to 30 lines, above normal batches beyond that", () => {
+  assert.match(routes, /const wfmMobilePriority = \(n: number\) => \(n <= 30 \? 2 : 1\);/);
+  assert.match(routes, /: type === "wfmmobile" \? wfmMobilePriority\(uniqAccs\.length\)/);
+  assert.match(routes, /type === "wfmmobile" \? wfmMobilePriority\(accounts\.length\) : 0, batchId, site, "تشغيل يومى تلقائى"/);
+});

@@ -2450,7 +2450,9 @@ export async function registerRoutes(
       const isNeedsSpeed = /محتاجة رفع سرعة/.test(String(note || ""));
       // 3 = تحديث الملفات اليومية/الدورية: أعلى أولوية على الإطلاق وبتقاطع أى مهمة شغّالة على
       // **نفس الدومين** (مثلاً تحديث ملفات FCC بيوقف مراجعة البيان الفنى، والمراجعة بتكمّل بعده).
-      const priority = DAILY_TYPES.has(type) ? 3 : (uniqAccs.length <= 3 ? 2 : (isNeedsSpeed ? 1 : 0));
+      const priority = DAILY_TYPES.has(type) ? 3
+        : type === "wfmmobile" ? wfmMobilePriority(uniqAccs.length)
+        : (uniqAccs.length <= 3 ? 2 : (isNeedsSpeed ? 1 : 0));
       const batchId = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       const site = SITE_OF_TYPE[type] || "10.42.187.101";
       // أنواع NO_SPLIT بتتحوّل لمهمة واحدة بكل الأرقام (السكربت بيلفّ عليها جوّه نفس التاب).
@@ -3898,12 +3900,17 @@ export async function registerRoutes(
   const AUTO_PO_STOP_SKIP_DAYS = 3;       // اتعمله إيقاف خلال ٣ أيام → استبعاد
   let autoBatchDay = "";                  // حارس فى الذاكرة يوفّر ضربة قاعدة كل نبضة
 
+  /* جلب الموبايل من WFM عاجل (المالك ٢٠٢٦-١٠-٢٩: «خلّى جلب الموبايل لحد ٣٠ عادى»): لحد ٣٠ خط
+   * أولوية ٢ زى أى طلب صغير، وأكتر من كده ١ — قدّام كل الباتشات العادية، بس مش قدّام طلبات الزملا
+   * الصغيرة على WFM (إلغاء الإسناد · موافقة تغيير البورت). لو بقى ٢ لأى عدد، باتش ٢٠٠ خط كان هيقف
+   * قدّامهم ساعات — الموقع الواحد بيشغّل مهمة واحدة. ومابيروحش للجسر خالص. */
+  const wfmMobilePriority = (n: number) => (n <= 30 ? 2 : 1);
   const enqueueAutoBatch = async (type: "stop" | "measure" | "subinfo" | "wfmmobile", accounts: string[], note: string) => {
     if (!accounts.length) return { count: 0, batchId: null as string | null };
     const batchId = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const site = SITE_OF_TYPE[type] || "10.42.187.101";
     // مهمة لكل خط — نفس تقسيم /enqueue بالظبط عشان التقدّم والاستئناف يشتغلوا زى ما هما
-    const params: any[] = [type, "auto", note, 0, batchId, site, "تشغيل يومى تلقائى"];
+    const params: any[] = [type, "auto", note, type === "wfmmobile" ? wfmMobilePriority(accounts.length) : 0, batchId, site, "تشغيل يومى تلقائى"];
     const values = accounts.map((a) => { params.push(JSON.stringify([a])); return `($1, $${params.length}::jsonb, $2, $3, $4, $5, $6, $7)`; }).join(",");
     await pool.query(
       `INSERT INTO exec_jobs (type, accounts, requested_by, note, priority, batch_id, site, requested_from)

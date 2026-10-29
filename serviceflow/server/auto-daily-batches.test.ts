@@ -110,7 +110,8 @@ test("the batches are split per line and land at normal priority", () => {
   const enq = routes.slice(routes.indexOf("const enqueueAutoBatch"),
                            routes.indexOf("const autoPoStopAccounts"));
   assert.match(enq, /accounts\.map\(\(a\) => \{ params\.push\(JSON\.stringify\(\[a\]\)\)/, "job per line");
-  assert.match(enq, /const params: any\[\] = \[type, "auto", note, 0, batchId, site/, "priority 0");
+  // القياس والإيقاف والمراجعة أولوية 0؛ جلب الموبايل عاجل لحد ٣٠ خط (المالك ٢٠٢٦-١٠-٢٩ — wfm-mobile.test.ts)
+  assert.match(enq, /const params: any\[\] = \[type, "auto", note, type === "wfmmobile" \? wfmMobilePriority\(accounts\.length\) : 0, batchId, site/, "priority 0");
   assert.match(enq, /if \(!accounts\.length\) return \{ count: 0, batchId: null/);
 });
 
