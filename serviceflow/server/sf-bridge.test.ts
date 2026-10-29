@@ -188,7 +188,7 @@ test("settings switch: off by default, super-admin key, lease/start refuse while
   assert.match(routes, /bridge: false \};/, "مقفول افتراضياً — ميزة اختيارية");
   assert.match(routes, /if \(r\.key === BRIDGE_ON_KEY\) out\.bridge = String\(r\.value\) === "1";/);
   assert.match(routes, /if \(!\(await readExecLanes\(pool\)\)\.bridge\) return res\.json\(\{ jobs: \[\], disabled: true \}\);/);
-  assert.match(routes, /if \(!\(await readExecLanes\(pool\)\)\.bridge\) return res\.json\(\{ ok: false, disabled: true, drop: ids \}\);/);
+  assert.match(routes, /if \(!\(await readExecLanes\(pool\)\)\.bridge\) return res\.json\(\{ ok: false, disabled: true, drop: held \}\);/);
   // اتقفل ⇒ المحجوز المستنى يرجع لجهاز التنفيذ على طول (والحتّة الشغّالة تكمّل وترفع)
   assert.match(routes, /if \(body\.bridge === false\) \{\n\s+await pool\.query\(`UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`\);/);
   assert.match(routes, /bridgeSeenSec: bridgeSeen \?/);
@@ -225,4 +225,41 @@ test("bridge switched off: drops what it holds (keeps a running chunk) and says 
   assert.equal(w2.opened.length, 0);
   assert.equal(w2.store.get("sfb_jobs").length, 0);
   assert.match(w2.store.get("sfb_status").text, /مقفول/);
+});
+
+// المالك ٢٠٢٦-١٠-٢٩: «لو عاوز أعمل إيقاف أو تغيير فى تنفيذ الباتشات هينفع بعد سحب الشغل؟»
+test("pause / cancel / reorder after the bridge pulled the work: it lets go of everything affected", async () => {
+  // السيرفر: الإيقاف والترتيب بيفكّوا الحجز، وstart بيفحص كل اللى الجسر شايله
+  assert.match(routes, /SET paused_at = now\(\), bridge_lease_until = CASE WHEN status = 'pending' THEN NULL ELSE bridge_lease_until END\n\s+WHERE batch_id = \$1/);
+  assert.match(routes, /SET paused_at = now\(\), bridge_lease_until = CASE WHEN status = 'pending' THEN NULL ELSE bridge_lease_until END\n\s+WHERE status IN \('pending','claimed'\) AND paused_at IS NULL`\);/);
+  assert.match(routes, /WHERE e\.batch_id = v\.batch_id AND e\.priority = 0`,[\s\S]{0,400}UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL/);
+  assert.match(routes, /const held = \[\.\.\.new Set\(\[\.\.\.ids, \.\.\.toJobIds\(req\.body\?\.held\)\]\)\];/);
+  assert.match(routes, /AND NOT COALESCE\(status IN \('pending', 'claimed'\) AND paused_at IS NULL AND bridge_lease_until > now\(\), false\)`, \[held\]\);/, "الحجز الفاضى (NULL) لازم يتشال — اتلقطت على Postgres");
+
+  // السكربت: بيبعت كل اللى معاه، وبيشيل كل اللى السيرفر قال عليه مرة واحدة
+  let paused = new Set<number>(), leased = false;
+  const w = world({ server: (path, body) => {
+    if (path.endsWith("/lease")) {
+      const jobs = leased ? [] : Array.from({ length: 30 }, (_, i) => ({ id: 1 + i, accounts: ["a" + i] }));
+      leased = true;
+      return { status: 200, json: { jobs } };
+    }
+    if (path.endsWith("/start")) {
+      const drop = body.held.filter((id: number) => paused.has(id));
+      return { status: 200, json: { ok: true, marker: body.ids.find((i: number) => !paused.has(i)), drop } };
+    }
+    return { status: 200, json: { ok: true } };
+  } });
+  await w.bridge.tick();
+  const startCall = w.calls.find((c) => c.path.endsWith("/start"))!;
+  assert.equal(startCall.body.held.length, 30, "بيبعت الـ٣٠ مش الـ١٠ بس");
+  measure(w, w.store.get("sfb_chunk").accs);
+  w.tick(5000); await w.bridge.tick();          // الحتّة خلصت
+  paused = new Set(Array.from({ length: 15 }, (_, i) => 11 + i));   // باتش اتوقّف: ١١…٢٥
+  w.tick(5000); await w.bridge.tick();
+  const left = w.store.get("sfb_jobs").map((j: any) => j.id);
+  assert.ok(!left.some((id: number) => paused.has(id)), "كل الموقّف اتشال مرة واحدة: " + left);
+  assert.equal(w.opened.length, 1, "الحتّة اللى كانت جاية كلها موقّفة ⇒ مابتتفتحش");
+  w.tick(5000); await w.bridge.tick();
+  assert.deepEqual(Array.from(w.store.get("sfb_chunk").ids), [26, 27, 28, 29, 30]);
 });

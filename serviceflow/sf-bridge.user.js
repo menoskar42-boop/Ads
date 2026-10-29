@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Service-Flow Bridge — جسر القياس «بدون Real»
 // @namespace    serviceflow.bridge
-// @version      1.1.1
-// @description  v1.1.1: زرار «اسحب الشغل دلوقتى» بيقول السبب لو ماسحبش حاجة (الجسر مقفول فى الإعدادات، ولا مفيش باتش «بدون Real» مؤجّل) بدل «اتسحب 0 خط». v1.1.0: بيشتغل بس لما زرار «جسر Tampermonkey» يبقى مفتوح فى إعدادات Service Flow (رفع الملفات ← إعدادات) — ساعتها جهاز التنفيذ بيسيب الباتشات المؤجّلة دى للجسر وياخد العاجل بس. لو اتقفل، الجسر بيرجّع اللى معاه وبيقول ده فى اللوحة. v1.0.0: جسر بيشتغل مكان جهاز التنفيذ لباتشات القياس «بدون Real» العادية — احتياطى لو oscardevs.com اتحظر، وبيخفّف الطلبات على السيرفر. بيسحب الشغل لما السيرفر يرد، وبيقيس على DZS حتّة حتّة (١٠ خطوط) فى تاب لوحده (lane 90) حتى لو السيرفر وقع، وبيرفع النتايج من طابوره. جوجل (أو صفحة Service-Flow) هو اللى بيشغّله ويفضل مفتوح وهو شغّال. Real ورفع السرعة والإيقاف وجلب الموبايل مالهمش دعوة بيه.
+// @version      1.2.0
+// @description  v1.2.0: قبل كل حتّة بيبعت كل الخطوط اللى معاه، فلو باتش اتوقّف مؤقتاً أو اتلغى أو اترتّب من جديد فى «ترتيب الطابور»، الجسر بيسيب اللى يخصّه على طول ويسحب من جديد بالترتيب الجديد (الحتّة الشغّالة بس بتكمّل، ١٠ خطوط بالكتير). v1.1.1: زرار «اسحب الشغل دلوقتى» بيقول السبب لو ماسحبش حاجة (الجسر مقفول فى الإعدادات، ولا مفيش باتش «بدون Real» مؤجّل) بدل «اتسحب 0 خط». v1.1.0: بيشتغل بس لما زرار «جسر Tampermonkey» يبقى مفتوح فى إعدادات Service Flow (رفع الملفات ← إعدادات) — ساعتها جهاز التنفيذ بيسيب الباتشات المؤجّلة دى للجسر وياخد العاجل بس. لو اتقفل، الجسر بيرجّع اللى معاه وبيقول ده فى اللوحة. v1.0.0: جسر بيشتغل مكان جهاز التنفيذ لباتشات القياس «بدون Real» العادية — احتياطى لو oscardevs.com اتحظر، وبيخفّف الطلبات على السيرفر. بيسحب الشغل لما السيرفر يرد، وبيقيس على DZS حتّة حتّة (١٠ خطوط) فى تاب لوحده (lane 90) حتى لو السيرفر وقع، وبيرفع النتايج من طابوره. جوجل (أو صفحة Service-Flow) هو اللى بيشغّله ويفضل مفتوح وهو شغّال. Real ورفع السرعة والإيقاف وجلب الموبايل مالهمش دعوة بيه.
 // @match        https://www.google.com/*
 // @match        https://www.google.com.eg/*
 // @match        *://10.42.187.101:8080/expresse/*
@@ -302,7 +302,7 @@
         if (!list.length) { status(!env.token() ? "الجسر مش متفعّل — فعّله من صفحة Service Flow" : off ? OFF_TEXT : "مفيش شغل للجسر دلوقتى"); waitUntil = env.now() + BRIDGE.IDLE_MS; return; }
         if (!force && !(await env.dzsReachable())) { status("مستنى DZS يفتح (الـVPN) — معاه " + list.length + " خط"); waitUntil = env.now() + BRIDGE.IDLE_MS; return; }
         const pick = list.slice(0, BRIDGE.CHUNK);
-        const r = await env.live("/api/exec-queue/bridge/start", { ids: pick.map((j) => j.id), device: env.device() });
+        const r = await env.live("/api/exec-queue/bridge/start", { ids: pick.map((j) => j.id), held: list.map((j) => j.id), device: env.device() });
         let marker = null, drop = [];
         if (r && r.status === 401) { status("مفتاح الجسر مش صحيح — فعّله تانى من صفحة Service Flow"); waitUntil = env.now() + BRIDGE.IDLE_MS; return; }
         if (r && r.status >= 500) { status("السيرفر فيه مشكلة — هنحاول تانى"); waitUntil = env.now() + BRIDGE.WAIT_MS; return; }

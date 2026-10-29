@@ -3107,9 +3107,13 @@ export async function registerRoutes(
               AND (h.bridge_lease_until IS NULL OR h.bridge_lease_until < now())
             ORDER BY CASE WHEN h.queue_order > 0 THEN h.queue_order ELSE 9223372036854775807 END, h.created_at, h.id
             LIMIT $1 FOR UPDATE SKIP LOCKED)
+         , u AS (
          UPDATE exec_jobs e SET bridge_lease_until = now() + make_interval(hours => $2), bridge_device = $3
            FROM c WHERE e.id = c.id
-         RETURNING e.id, e.accounts, e.batch_id AS "batchId"`,
+         RETURNING e.id, e.accounts, e.batch_id, e.queue_order, e.created_at)
+         -- RETURNING مالوش ترتيب مضمون — والجسر بيقيس بترتيب الرد (اتلقطت على Postgres بعد «ترتيب الطابور»)
+         SELECT id, accounts, batch_id AS "batchId" FROM u
+          ORDER BY CASE WHEN queue_order > 0 THEN queue_order ELSE 9223372036854775807 END, created_at, id`,
         [max, BRIDGE_LEASE_HOURS, bridgeDevice(req)]);
       res.json({ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -3120,13 +3124,16 @@ export async function registerRoutes(
   app.post("/api/exec-queue/bridge/start", requireBridge, async (req: any, res) => {
     const ids = toJobIds(req.body?.ids);
     if (!ids.length) return res.json({ ok: false, drop: [] });
+    // held = كل اللى الجسر شايله (مش الحتّة بس): اللى اتوقّف/اتلغى/اترتّب من جديد بيتشال كله مرة واحدة
+    const held = [...new Set([...ids, ...toJobIds(req.body?.held)])];
     try {
       // الجسر اتقفل ⇒ الحتّة دى مابتبدأش، وكل الخطوط اللى معاه بتتشال (رجعت لجهاز التنفيذ لما اتقفل)
-      if (!(await readExecLanes(pool)).bridge) return res.json({ ok: false, disabled: true, drop: ids });
+      if (!(await readExecLanes(pool)).bridge) return res.json({ ok: false, disabled: true, drop: held });
       const out = await withTx(async (tx) => {
         const { rows: gone } = await tx.query(
           `SELECT id FROM exec_jobs WHERE id = ANY($1::int[])
-              AND NOT (status IN ('pending', 'claimed') AND paused_at IS NULL AND bridge_lease_until > now())`, [ids]);
+              -- COALESCE: الحجز الفاضى (اتفكّ بالترتيب/القفل) ⇒ NULL > now() = NULL وNOT NULL مابيرجعش الصف
+              AND NOT COALESCE(status IN ('pending', 'claimed') AND paused_at IS NULL AND bridge_lease_until > now(), false)`, [held]);
         const drop = gone.map((r: any) => Number(r.id));
         const live = ids.filter((i) => !drop.includes(i));
         if (!live.length) return { ok: false, drop };
@@ -3658,6 +3665,9 @@ export async function registerRoutes(
            FROM unnest($1::text[], $2::bigint[]) AS v(batch_id, ord)
           WHERE e.batch_id = v.batch_id AND e.priority = 0`,
         [ids, ids.map((_: string, i: number) => i + 1)]);
+      // الجسر حاجز شغل بالترتيب القديم ⇒ نفكّ حجزه، فأول ما يسأل قبل الحتّة الجاية بيسيبه كله ويحجز
+      // من جديد بالترتيب الجديد (الحتّة الشغّالة بتكمّل).
+      await pool.query(`UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`);
       res.json({ ok: true, count: ids.length });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -4563,7 +4573,9 @@ export async function registerRoutes(
       const batchId = String(req.body?.batchId || "").trim();
       if (!batchId) return res.status(400).json({ message: "لا يوجد باتش" });
       const { rowCount } = await pool.query(
-        `UPDATE exec_jobs SET paused_at = now() WHERE batch_id = $1 AND status IN ('pending','claimed') AND paused_at IS NULL`,
+        // ومع الإيقاف، الجسر بيسيب اللى كان حاجزه من الباتش (وبعد الاستئناف بيحجزه تانى)
+        `UPDATE exec_jobs SET paused_at = now(), bridge_lease_until = CASE WHEN status = 'pending' THEN NULL ELSE bridge_lease_until END
+          WHERE batch_id = $1 AND status IN ('pending','claimed') AND paused_at IS NULL`,
         [batchId],
       );
       res.json({ ok: true, paused: rowCount ?? 0 });
@@ -4588,7 +4600,8 @@ export async function registerRoutes(
   app.post("/api/exec-queue/pause-all", requireAuth, requireSuperAdmin, async (_req, res) => {
     try {
       const { rowCount } = await pool.query(
-        `UPDATE exec_jobs SET paused_at = now() WHERE status IN ('pending','claimed') AND paused_at IS NULL`);
+        `UPDATE exec_jobs SET paused_at = now(), bridge_lease_until = CASE WHEN status = 'pending' THEN NULL ELSE bridge_lease_until END
+          WHERE status IN ('pending','claimed') AND paused_at IS NULL`);
       res.json({ ok: true, paused: rowCount ?? 0 });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
