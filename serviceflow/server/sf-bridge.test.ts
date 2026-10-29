@@ -169,7 +169,7 @@ test("script wiring: pages, permissions, and the server rules it depends on", ()
   assert.match(routes, /AND \(h\.bridge_lease_until IS NULL OR h\.bridge_lease_until < now\(\)\)\n(\s+--.*\n)?\s+AND NOT \$\{lanes\.bridge \? bridgeable\("h"\) : "FALSE"\}\n\s+AND COALESCE\(h\.site/);
   assert.match(routes, /AND \(bridge_lease_until IS NULL OR bridge_lease_until < now\(\)\)\n\s+AND NOT \$\{lanes\.bridge \? bridgeable\("exec_jobs"\) : "FALSE"\}\n\s+AND \$\{siteFreeFor\("exec_jobs", "\$3", lanes, "\$4::timestamptz"\)\}/);
   // ومابيبدأش لو Real/رفع سرعة مستنى قدّامه (اتلقطت على Postgres حقيقى)
-  assert.match(routes, /AND NOT \$\{sharedGroup\("x"\)\}\n\s+AND \$\{queueRank\("x"\)\} < \$\{queueRank\("exec_jobs"\)\}\)/);
+  assert.match(routes, /AND NOT \$\{sharedGroup\("x"\)\}\n\s+AND \$\{queueRank\("x"\)\} < \$\{queueRank\("exec_jobs"\)\} \$\{drainSql\}\)/);
   assert.match(routes, /app\.post\("\/api\/exec-queue\/bridge\/token", requireAuth, requireSuperAdmin/);
   for (const p of ["lease", "start", "alive", "report"]) assert.match(routes, new RegExp(`app\\.post\\("/api/exec-queue/bridge/${p}", requireBridge`));
 });
@@ -447,46 +447,29 @@ test("the tab count follows the settings even while the bridge holds 100+ lines"
   assert.equal(w.store.get("sfb_lanes"), 20, "من /progress");
 });
 
-// المالك ٢٠٢٦-١٠-٢٩: نوافذ كتير على login-page?sessionExpired=true — كلهم بيسجّلوا دخول مع بعض ويلغوا جلسات بعض
-test("DZS script: one login at a time; the other windows wait and come back on the new session", () => {
+// المالك ٢٠٢٦-١٠-٢٩: «رجّع تسجيل الدخول زى ما كان فى الأول» — قفل الدخول الواحد (10.32–10.34 / 0.9.17–0.9.20)
+// ووقفة الجسر على صفحات الدخول (1.7.3–1.9.2) اتشالوا. كل نافذة/تاب بيسجّل دخول لوحده على طول زى الأول.
+test("login is back to the original: each DZS window and PO tab logs in by itself, no shared lock", () => {
   const dzs = readFileSync(new URL("../dzs-expresse-v10.user.js", import.meta.url), "utf8");
   const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
-  assert.match(dzs, /@version\s+10\.3[3-9]\.\d/);
-  assert.match(dzs, /const LOGIN_AT_KEY = "DZS_LOGIN_AT", LOGIN_GAP_MS = 10 \* 1000;/);
-  assert.match(po, /const LOGIN_AT_KEY = "DZS_LOGIN_AT", LOGIN_GAP_MS = 10 \* 1000;/, "نفس المهلة فى سكربت الإيقاف");
+  assert.match(dzs, /@version\s+10\.3[5-9]\.\d/);
+  assert.match(po, /@version\s+0\.9\.(2[1-9]|[3-9]\d)/);
+  for (const [name, src] of [["dzs", dzs], ["po", po]] as const) {
+    assert.doesNotMatch(src.slice(src.indexOf("// ==/UserScript==")), /DZS_LOGIN_AT|DZS_LOGIN_OK|PO_LOGIN_PROBE/, name);
+  }
   const login = dzs.slice(dzs.indexOf("const loginTimer"), dzs.indexOf("/* ================== OPEN CLEARVIEW"));
-  assert.ok(login.indexOf("localStorage.getItem(LOGIN_AT_KEY)") < login.indexOf("b.click()"), "بيبص على القفل قبل الدخول");
-  assert.ok(login.indexOf("localStorage.setItem(LOGIN_AT_KEY") < login.indexOf("b.click()"), "وبيكتبه قبل ما يدوس");
-  assert.match(login, /location\.href = "\/expresse\/welcome";/);
+  assert.match(login, /u\.value = USER; p\.value = PASS; b\.click\(\); clearInterval\(loginTimer\);/);
+  assert.match(po, /if \(u && p && b\) \{ u\.value = USER; p\.value = PASS; b\.click\(\); banner\("🔐 تسجيل الدخول…", "#6a1b9a"\); \}/);
 });
 
-test("the bridge pauses itself only when login pages keep coming for a minute, not on a normal start", async () => {
-  // بداية عادية والجلسة منتهية: ٨ تابات وقعوا على الدخول فى ١٥ ثانية (واحد بيسجّل والباقى بيستنوه) ⇒ مايوقّفش
-  const start = world();
-  start.store.set("sfb_login_hits", Array.from({ length: 8 }, (_, i) => 985_000 + i * 2000));
-  await start.bridge.tick();
-  assert.notEqual(start.store.get("sfb_paused"), true, "بداية عادية");
-  // دايرة: صفحات دخول بتتكرر على مدى دقيقة ونص ⇒ يوقّف
-  const storm = world();
-  storm.store.set("sfb_login_hits", Array.from({ length: 9 }, (_, i) => 900_000 + i * 11_000));
-  await storm.bridge.tick();
-  assert.notEqual(storm.store.get("sfb_paused"), true, "1.9.2: مش وقفة للأبد");
-  assert.equal(storm.opened.length, 0);
-  assert.match(storm.store.get("sfb_status").text, /صفحة دخول AXON[\s\S]*بيكمّل لوحده/);
-  assert.doesNotMatch(storm.store.get("sfb_status").text, /بإيدك/, "المالك: «مش عاوز أسجّل الدخول بإيدى ولا مرة»");
-  storm.tick(60_000); await storm.bridge.tick();
-  assert.equal(storm.opened.length, 0, "لسه فى الدقيقتين");
-  storm.tick(61_000); await storm.bridge.tick();
-  assert.ok(storm.opened.length > 0, "بعد الدقيقتين بيكمّل لوحده");
-  // قديمة (أكتر من ٣ دقايق) ⇒ مالهاش دعوة
-  const old = world();
-  old.store.set("sfb_login_hits", Array.from({ length: 12 }, (_, i) => 1 + i * 20_000));
-  await old.bridge.tick();
-  assert.notEqual(old.store.get("sfb_paused"), true);
-  // تابات «إيقاف PO» مابتتعدّش (كانت بتوقّف الجسر وهى بتلفّ على الدخول)
-  assert.match(src, /if \(!poTab && \/\\\/expresse\\\/login\/i\.test\(location\.pathname\)\)/);
-  assert.match(src, /const poTab = \/\[#&\]sf_po=\/\.test\(location\.hash\) \|\| [^\n]*sessionStorage\.getItem\("PO_TAB"\) === "1"/);
-  assert.match(src, /if \(!GET\("sfb_unpaused_192", false\)\) \{ SET\("sfb_paused", false\);/);
+test("the bridge never holds itself because of AXON login pages", async () => {
+  const w = world();
+  w.store.set("sfb_login_hits", Array.from({ length: 40 }, (_, i) => 900_000 + i * 2_000));
+  await w.bridge.tick();
+  assert.notEqual(w.store.get("sfb_paused"), true);
+  assert.ok(w.opened.length > 0, "بيفتح عادى");
+  assert.doesNotMatch(src, /LOGIN_STORM|sfb_cool_until/);
+  assert.doesNotMatch(src.slice(src.indexOf("// ── bridge-core-end")), /\/expresse\\\/login\/i\.test\(location\.pathname\)/);
 });
 
 // المالك ٢٠٢٦-١٠-٢٩: «بتتفتح صفحات أول ما فتحت إيدج مع إن جوجل مش شغّال» — جوجل هو اللى بيشغّل الجسر
@@ -553,5 +536,5 @@ test("server: stop / go / state, and lease / start / progress honor the stop", (
 test("the bridge waits for urgent work ahead only while the executor is alive (else it would wait forever)", () => {
   assert.match(routes, /let execAlive = beatStatus\(\)\?\.active;/);
   assert.match(routes, /const aheadSql = execAlive \? `/);
-  assert.match(routes, /\$\{siteFreeFor\("exec_jobs", "\$3", lanes, execAlive \? "NULL::timestamptz" : "'epoch'::timestamptz"\)\}/);
+  assert.match(routes, /\$\{siteFreeFor\("exec_jobs", "\$3", lanes, !execAlive \? "'epoch'::timestamptz" : drainBefore \? `'\$\{drainBefore\}'::timestamptz` : "NULL::timestamptz"\)\}/);
 });
