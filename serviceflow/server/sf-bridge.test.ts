@@ -459,7 +459,9 @@ test("login is back to the original: each DZS window and PO tab logs in by itsel
   }
   const login = dzs.slice(dzs.indexOf("const loginTimer"), dzs.indexOf("/* ================== OPEN CLEARVIEW"));
   assert.match(login, /u\.value = USER; p\.value = PASS; b\.click\(\); clearInterval\(loginTimer\);/);
-  assert.match(po, /if \(u && p && b\) \{ u\.value = USER; p\.value = PASS; b\.click\(\); banner\("🔐 تسجيل الدخول…", "#6a1b9a"\); \}/);
+  // ومن 0.9.22: ضغطة واحدة لكل صفحة زى سكربت القياس (كان بيضغط كل ٠٫٨ث فالطلبات بتتكوّم على AXON البطىء)
+  assert.match(po, /let loginClicked = false;\n  const tick = setInterval/);
+  assert.match(po, /if \(loginClicked\) return;\n\s+if \(u && p && b\) \{ u\.value = USER; p\.value = PASS; b\.click\(\); loginClicked = true; banner\("🔐 تسجيل الدخول…", "#6a1b9a"\); \}/);
 });
 
 test("the bridge never holds itself because of AXON login pages", async () => {
