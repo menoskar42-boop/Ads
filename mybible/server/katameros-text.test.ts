@@ -58,11 +58,17 @@ describe("katameros-text: النص من الكتاب عندنا", () => {
     const dan = await readingText("23.29:12-23@27.14:1-42", getVerses, ours);
     assert.deepEqual(dan.passages.map((p) => !!p.pending), [false, true], "دانيال ١٤ تتمة يونانية");
   });
-  it("سفر قانونى تانى ⇒ المرجع من غير نص", async () => {
-    const t = await readingText("70.1:1-5", getVerses, ours);
-    assert.equal(t.passages[0].pending, true);
-    assert.equal(t.passages[0].verses.length, 0);
-    assert.ok(t.passages[0].book.length > 0);
+  it("القانونية التانية من data/deutero: القراءة الكاملة بنصها، والناقصة مرجع بس", async () => {
+    const tob = (await readingText("68.2:1-14", getVerses, ours)).passages[0];
+    assert.equal(tob.book, "طوبيا");
+    assert.equal(tob.deutero, true);
+    assert.equal(tob.verses.length, 14);
+    assert.match(tob.verses[0].text, /طوبيت ابني/);
+    const sir = (await readingText("73.2:1-23", getVerses, ours)).passages[0];   // الملف فيه ١٨ آية بس
+    assert.equal(sir.pending, true);
+    assert.equal(sir.verses.length, 0);
+    assert.equal((await readingText("73.1:20-2:5", getVerses, ours)).passages[0].pending, true, "لحد آخر الإصحاح ⇒ مانعرفش طوله");
+    assert.equal((await readingText("70.1:1-5", getVerses, ours)).passages[0].book, "المكابيين الأول");
   });
 });
 
@@ -70,7 +76,7 @@ describe("katameros-text: ٤ سنين يوم بيوم", () => {
   it("كل مرجع من الأسفار ١–٦٦ طالع بآياته كلها", async () => {
     const start = n("2026-09-11");
     const bad = new Set<string>();
-    let pending = 0, passages = 0;
+    let pending = 0, passages = 0, deutero = 0;
     for (let k = start; k < start + 365 * 4 + 1; k++) {
       const d = iso(k);
       const p = await planWithText(getKatamerosPlan(d), getVerses, ours);
@@ -81,6 +87,7 @@ describe("katameros-text: ٤ سنين يوم بيوم", () => {
           t.passages.forEach((ps, i) => {
             passages++;
             if (ps.pending) { pending++; return; }
+            if (ps.deutero) deutero++;
             const s = parts[i].spec;
             const want = "list" in s ? s.list.length : s.to === "end" ? 1 : s.to - s.from + 1;
             const ok = "list" in s || s.to !== "end" ? ps.verses.length === want : ps.verses.length >= want;
@@ -91,6 +98,7 @@ describe("katameros-text: ٤ سنين يوم بيوم", () => {
     }
     assert.deepEqual([...bad].slice(0, 20), [], `${bad.size} مرجع ناقص`);
     assert.ok(passages > 15_000, String(passages));   // ١٥٩٩١ فقرة فى ٤ سنين
-    assert.ok(pending > 0 && pending < 300, "القانونية التانية: " + pending);
+    assert.ok(pending > 0 && pending < 300, "من غير نص: " + pending);
+    assert.ok(deutero > 0, "القانونية التانية بنصها: " + deutero);
   });
 });

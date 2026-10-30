@@ -5,8 +5,10 @@
  * - أرقام الأسفار ١–٦٦ عندهم = أرقامنا بالظبط وبنفس الترتيب (التكوين ١ … رؤيا يوحنا ٦٦).
  * - المزامير بترقيم فاندايك (العبرى) زى عندنا — مزمور ٧٢:١٠ «ملوك ترشيش…» مطابق حرفياً — ومفيش فروق ترقيم
  *   للعربى (جدول VerseRefMappings بتاعهم للإيطالى والألمانى والهولندى بس).
- * - الأسفار القانونية التانية (٦٧–٧٣: طوبيا، الحكمة، يشوع بن سيراخ…) ⇒ **المرجع من غير نص** (`pending`) لحد ما
- *   مصدر نصها يتأكد (data/deutero/README.md: النسبة لفاندايك غلط والمصدر محتاج تحقّق). ٣٨ مرجع، كلهم نبوات.
+ * - الأسفار القانونية التانية (٦٧–٧٣: باروخ، طوبيا، يهوديت، المكابيين، الحكمة، يشوع بن سيراخ — نبوات بس) ⇒ النص من
+ *   data/deutero/ عندنا (قرار المالك ٢٠٢٦-١٠-٣٠: «اعتمد على النص اللى عندنا»). الملفات دى مقتطفات مش أسفار كاملة،
+ *   فالقراءة بتتعرض بنصها **لو كل آياتها موجودة بس**؛ لو ناقصة آية أو المدى لحد «آخر الإصحاح» (مانعرفش طوله) ⇒
+ *   المرجع من غير نص (`pending`) — أحسن من قراءة ناقصة فى الكنيسة.
  * - دانيال ١٣ و١٤ (سوسنة وبيل والتنين) تتمة يونانية مش فى فاندايك ⇒ زى القانونية التانية.
  * - مراجع فيها غلطة أو ترقيم تانى (اتلقت بالاختبار) متصحّحة فى data/katameros/ref-fixes.json؛ اللى مش متأكدين من
  *   تصحيحه (`review`) بيتعرض مرجعه من غير نص.
@@ -25,8 +27,10 @@ export interface KatPassage {
   /** زى ما بيتكتب للقارئ: «متى ٢: ١-١٢» */
   label: string;
   verses: KatVerse[];
-  /** سفر قانونى تانى (أو مرجع لسه بيتراجع): النص مستنى مصدر متأكَّد منه */
+  /** سفر قانونى تانى نصه مش كامل عندنا (أو مرجع لسه بيتراجع) ⇒ المرجع بس */
   pending?: true;
+  /** النص من data/deutero (مش فاندايك) — الواجهة تكتب مصدره */
+  deutero?: true;
 }
 export interface KatReadingText { ref: string; passages: KatPassage[] }
 
@@ -86,6 +90,37 @@ export function katParts(ref: string): { part: RefPart; pending: boolean }[] {
   return out;
 }
 
+/** أرقام القانونية التانية عند katameros ⇒ اسم الملف فى data/deutero (= الاسم فى server/deutero.ts) */
+export const DEUTERO_NAMES: Record<number, string> = {
+  67: "باروخ", 68: "طوبيا", 69: "يهوديت", 70: "المكابيين الأول", 71: "المكابيين الثاني", 72: "الحكمة", 73: "يشوع بن سيراخ",
+};
+const DEUTERO_DIR = path.join(KATAMEROS_DIR, "..", "deutero");
+const deuteroCache = new Map<number, Map<number, Map<number, string>> | null>();
+/** آيات إصحاح من ملف data/deutero (verse ⇒ text)، أو null لو السفر أو الإصحاح مش موجود */
+export function deuteroChapter(bookId: number, chapter: number): Map<number, string> | null {
+  if (!deuteroCache.has(bookId)) {
+    const name = DEUTERO_NAMES[bookId];
+    const file = name ? path.join(DEUTERO_DIR, name + ".json") : "";
+    let chapters: Map<number, Map<number, string>> | null = null;
+    if (file && fs.existsSync(file)) {
+      const d = JSON.parse(fs.readFileSync(file, "utf8")) as { chapters: { chapter: number; verses: { verse: number; text: string }[] }[] };
+      chapters = new Map(d.chapters.map((c) => [c.chapter, new Map(c.verses.filter((v) => String(v.text || "").trim()).map((v) => [v.verse, v.text]))]));
+    }
+    deuteroCache.set(bookId, chapters);
+  }
+  return deuteroCache.get(bookId)?.get(chapter) ?? null;
+}
+/** نص قراءة قانونية تانية كاملة، أو null لو أى آية ناقصة */
+function deuteroPassage(part: RefPart): KatVerse[] | null {
+  const s = part.spec;
+  if (!(part.bookId in DEUTERO_NAMES) || ("to" in s && s.to === "end")) return null;
+  const ch = deuteroChapter(part.bookId, part.chapter);
+  if (!ch) return null;
+  const want = "list" in s ? s.list : Array.from({ length: (s.to as number) - s.from + 1 }, (_, i) => s.from + i);
+  if (!want.length || want.some((v) => !ch.has(v))) return null;
+  return want.map((v) => ({ verse: v, text: ch.get(v)! }));
+}
+
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
 const ar = (n: number | string) => String(n).replace(/\d/g, (d) => AR_DIGITS[Number(d)]);
 let bookNames: Map<number, string> | null = null;
@@ -95,7 +130,7 @@ function bookName(id: number, ours: Map<number, string>): string {
     const rows = JSON.parse(fs.readFileSync(path.join(KATAMEROS_DIR, "books.json"), "utf8")) as { id: number; ar: string }[];
     bookNames = new Map(rows.map((r) => [r.id, String(r.ar).replace(/^سفر\s+/, "").replace(/^1\s+/, "")]));
   }
-  return ours.get(id) ?? bookNames.get(id) ?? String(id);
+  return ours.get(id) ?? DEUTERO_NAMES[id] ?? bookNames.get(id) ?? String(id);
 }
 
 /** مصدر الآيات: (رقم السفر، الإصحاح) ⇒ الآيات. الافتراضى من bible-cache (ذاكرة ⇐ نسخة الكتاب ⇐ القاعدة). */
@@ -108,7 +143,13 @@ export async function readingText(ref: string, getVerses: VerseSource, ours: Map
     const s = part.spec;
     const range = "list" in s ? s.list.map(ar).join("، ") : `${ar(s.from)}${s.to === "end" ? "-آخره" : s.to === s.from ? "" : "-" + ar(s.to)}`;
     const label = `${book} ${ar(part.chapter)}: ${range}`;
-    if (pending) { passages.push({ bookId: part.bookId, book, chapter: part.chapter, label, verses: [], pending: true }); continue; }
+    if (pending) {
+      const dv = deuteroPassage(part);
+      passages.push(dv
+        ? { bookId: part.bookId, book, chapter: part.chapter, label, verses: dv, deutero: true }
+        : { bookId: part.bookId, book, chapter: part.chapter, label, verses: [], pending: true });
+      continue;
+    }
     const all = await getVerses(part.bookId, part.chapter);
     const pick = "list" in s
       ? s.list.map((v) => all.find((x) => x.verse === v)).filter((x): x is { verse: number; text: string } => !!x)
