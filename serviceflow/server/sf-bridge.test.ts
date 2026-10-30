@@ -165,7 +165,7 @@ test("script wiring: pages, permissions, and the server rules it depends on", ()
   assert.match(src, /const keep = !queued && !opts\.sfNoQueue && method !== "GET"/);
   assert.match(src, /method: "POST", url: sfBase\(\) \+ path, sfNoQueue: true/);
   // السيرفر: الجسر ياخد «بدون Real» أولوية 0 من غير متابعة، وجهاز التنفيذ مايسحبش المحجوز
-  assert.match(routes, /const bridgeable = \(a: string\) => `\(\$\{a\}\.type = 'measure' AND \$\{a\}\.priority = 0 AND \$\{isNoRealJob\(a\)\}/);
+  assert.match(routes, /const bridgeable = \(a: string\) => `\(\$\{a\}\.priority = 0 AND \(\n\s+\(\$\{a\}\.type = 'measure' AND \$\{isNoRealJob\(a\)\}/);
   assert.match(routes, /AND \(h\.bridge_lease_until IS NULL OR h\.bridge_lease_until < now\(\)\)\n(\s+--.*\n)?\s+AND NOT \$\{lanes\.bridge \? bridgeable\("h"\) : "FALSE"\}\n\s+AND COALESCE\(h\.site/);
   assert.match(routes, /AND \(bridge_lease_until IS NULL OR bridge_lease_until < now\(\)\)\n\s+AND NOT \$\{lanes\.bridge \? bridgeable\("exec_jobs"\) : "FALSE"\}\n\s+AND \$\{siteFreeFor\("exec_jobs", "\$3", lanes, "\$4::timestamptz"\)\}/);
   // ومابيبدأش لو Real/رفع سرعة مستنى قدّامه (اتلقطت على Postgres حقيقى)
@@ -398,7 +398,7 @@ test("a DZS tab can lead too (the Google tab gets throttled in the background)",
 });
 
 test("one line per page in both views; the view comes from the settings (server), not a panel button", async () => {
-  assert.match(src, /const pick = list\.slice\(0, Math\.max\(1, parseInt\(env\.get\("sfb_chunk_size", 1\), 10\) \|\| 1\)\);/);
+  assert.match(src, /const pick = list\.filter\(\(j\) => \(j\.type \|\| "measure"\) === kind\)\.slice\(0, Math\.max\(1, parseInt\(env\.get\("sfb_chunk_size", 1\), 10\) \|\| 1\)\);/);
   assert.doesNotMatch(src, /const tabsMode = GET\("sfb_view"/, "زرار الوضع اتشال من اللوحة");
   assert.doesNotMatch(src, /"sfb_mode"/);
   assert.match(routes, /const BRIDGE_VIEW_KEY = "exec_lanes_bridge_view";/);
@@ -539,4 +539,61 @@ test("the bridge waits for urgent work ahead only while the executor is alive (e
   assert.match(routes, /let execAlive = beatStatus\(\)\?\.active;/);
   assert.match(routes, /const aheadSql = execAlive \? `/);
   assert.match(routes, /\$\{siteFreeFor\("exec_jobs", "\$3", lanes, !execAlive \? "'epoch'::timestamptz" : drainBefore \? `'\$\{drainBefore\}'::timestamptz` : "NULL::timestamptz"\)\}/);
+});
+
+// ── المرحلة التانية (2.0.0 — المالك ٢٠٢٦-١٠-٣٠: «خلّى باقى الباتشات المؤجّلة على جهاز تنفيذ تمبر منكى») ──────────
+// الجسر بياخد كمان «إيقاف PO» المؤجّل: صفحة الإيقاف بدل صفحة القياس، مهلة ٩ دقايق، ولو تابات الإيقاف اتملت بيكمّل قياس.
+function mixedWorld(startFor: (body: any) => any = (b) => ({ ok: true, marker: b.ids[0], drop: [] })) {
+  let leased = false;
+  return world({ realChunk: true, server: (path: string, body: any) => {
+    if (path.endsWith("/lease")) {
+      const jobs = leased ? [] : [
+        { id: 1, type: "stop", accounts: ["5001"] }, { id: 2, type: "stop", accounts: ["5002"] },
+        { id: 3, type: "measure", accounts: ["7001"] }, { id: 4, type: "measure", accounts: ["7002"] },
+      ];
+      leased = true;
+      return { status: 200, json: { jobs, lanes: 4 } };
+    }
+    if (path.endsWith("/start")) return { status: 200, json: startFor(body) };
+    return { status: 200, json: { ok: true } };
+  } });
+}
+
+test("2.0.0: a deferred PO stop opens the stop page (sf_po + sf_stop) on a bridge lane", async () => {
+  const w = mixedWorld();
+  await w.bridge.tick();
+  assert.equal(w.opened[0], "https://10.42.187.101:8080/expresse/profileOptimization?lineId=5001#sf_po=5001&sf_stop=1&sf_lane=90&sf_bridge=1");
+  assert.equal(chunkOf(w, 0).type, "stop");
+  // القياس زى ما هو
+  const m = w.opened.find((u) => /sf_accounts=7001/.test(u));
+  assert.equal(m, "https://10.42.187.101:8080/expresse/#sf_accounts=7001&sf_mode=noreal&sf_lane=92&sf_bridge=1");
+});
+
+test("2.0.0: a stop line gets 9 minutes like the executor, a measure line 4", async () => {
+  const w = mixedWorld();
+  await w.bridge.tick();
+  const stops = () => (w.store.get("sfb_chunks") || []).filter((c: any) => c.type === "stop").length;
+  const measures = () => (w.store.get("sfb_chunks") || []).filter((c: any) => c.type === "measure").length;
+  assert.equal(stops(), 2); assert.equal(measures(), 1);
+  w.tick(5 * 60 * 1000); await w.bridge.tick();
+  assert.equal(stops(), 2, "الإيقاف لسه فى مهلته بعد ٥ دقايق");
+  assert.ok(w.reports.some((r) => (r.done || []).some((d: any) => d.id === 3 && d.result === "timeout")), "القياس خلص مهلته (٤ دقايق)");
+  w.tick(5 * 60 * 1000); await w.bridge.tick();
+  assert.ok(w.reports.some((r) => (r.done || []).some((d: any) => d.id === 1 && d.result === "timeout")), "الإيقاف بعد ٩");
+});
+
+test("2.0.0: when the server says the stop tabs are full, the bridge still opens measuring in the same tick", async () => {
+  const w = mixedWorld((b) => (b.ids[0] <= 2 ? { ok: false, wait: true, drop: [] } : { ok: true, marker: b.ids[0], drop: [] }));
+  await w.bridge.tick();
+  assert.ok(w.opened.length >= 1, "فتح حاجة");
+  assert.ok(w.opened.every((u) => /sf_accounts=/.test(u)), "قياس بس");
+  assert.ok(w.opened.some((u) => /sf_accounts=7001/.test(u)));
+});
+
+test("2.0.0: a bridge stop page knows its line from sf_po (else it closed itself after a minute mid-stop)", () => {
+  assert.match(src, /const acc = decodeURIComponent\(\(location\.hash\.match\(\/\[#&\]sf_\(\?:accounts\|po\)=\(\[\^&\]\+\)\/\)/);
+  // والسيرفر: الإيقاف المؤجّل للجسر، و«خلص» من آخر إيقاف للرقم، والإعادة لو ماتسجّلش
+  assert.match(routes, /OR \(\$\{a\}\.type = 'stop'\n\s+AND POSITION\('\$\{RAISE_STOP_MARK\}'/);
+  assert.match(routes, /OR \(e\.type = 'stop' AND EXISTS \(SELECT 1 FROM line_po_events p\n\s+WHERE p\.account_no = e\.accounts->>0 AND p\.last_stop_at >= d\.since\)\)/);
+  assert.match(routes, /SELECT id, type, accounts, batch_id AS "batchId" FROM u/);
 });

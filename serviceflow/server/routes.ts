@@ -2611,12 +2611,21 @@ export async function registerRoutes(
   const isNoRealJob = (a: string) =>
     `(${a}.type = 'measure' AND POSITION('${AUTO_MEASURE_NOREAL_MARK}' IN COALESCE(${a}.note, '')) > 0)`;
   const isPoStopJob = (a: string) => `(${a}.type = 'stop')`;
-  /** المهمة ينفع تروح لجسر Tampermonkey: قياس «بدون Real» فى باتش مؤجّل (أولوية 0)، من غير أى علامة متابعة. */
-  const bridgeable = (a: string) => `(${a}.type = 'measure' AND ${a}.priority = 0 AND ${isNoRealJob(a)}
-    AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
-    AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
-    AND POSITION('${RECHECK_MARK}' IN COALESCE(${a}.note, '')) = 0
-    AND POSITION('${STOP_RETRY_MARK}' IN COALESCE(${a}.note, '')) = 0)`;
+  /** المهمة ينفع تروح لجسر Tampermonkey: باتش مؤجّل (أولوية 0) من غير علامة متابعة —
+   *  قياس «بدون Real»، و(المرحلة التانية — المالك ٢٠٢٦-١٠-٣٠: «خلّى باقى الباتشات المؤجّلة على جهاز تنفيذ
+   *  تمبر منكى») إيقاف PO. إعادة الإيقاف (+إعادة) ينفع، لأن bridge/report بيعمل الإعادة اللى بعدها زى جهاز
+   *  التنفيذ؛ لكن «+قياس» (قياس بعد الإيقاف) لأ — المتابعة دى بتتعمل من /done بس. Real ورفع السرعة بيفضلوا على
+   *  جهاز التنفيذ: بياخدوا AXON لوحدهم (real-time واحد للجلسة). */
+  const bridgeable = (a: string) => `(${a}.priority = 0 AND (
+    (${a}.type = 'measure' AND ${isNoRealJob(a)}
+      AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
+      AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
+      AND POSITION('${RECHECK_MARK}' IN COALESCE(${a}.note, '')) = 0
+      AND POSITION('${STOP_RETRY_MARK}' IN COALESCE(${a}.note, '')) = 0)
+    OR (${a}.type = 'stop'
+      AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
+      AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
+      AND POSITION('${RECHECK_MARK}' IN COALESCE(${a}.note, '')) = 0)))`;
   // مجموعة التوازى: «بدون Real» أو «إيقاف PO» — وأى نوع تانى NULL (تاب واحد للموقع).
   const parallelGroup = (a: string) =>
     `(CASE WHEN ${isNoRealJob(a)} THEN 'noreal' WHEN ${isPoStopJob(a)} THEN 'stop' END)`;
@@ -3200,9 +3209,10 @@ export async function registerRoutes(
          , u AS (
          UPDATE exec_jobs e SET bridge_lease_until = now() + make_interval(hours => $2), bridge_device = $3
            FROM c WHERE e.id = c.id
-         RETURNING e.id, e.accounts, e.batch_id, e.queue_order, e.created_at)
+         RETURNING e.id, e.type, e.accounts, e.batch_id, e.queue_order, e.created_at)
          -- RETURNING مالوش ترتيب مضمون — والجسر بيقيس بترتيب الرد (اتلقطت على Postgres بعد «ترتيب الطابور»)
-         SELECT id, accounts, batch_id AS "batchId" FROM u
+         -- type: «measure» ⇒ صفحة قياس، «stop» ⇒ صفحة إيقاف PO
+         SELECT id, type, accounts, batch_id AS "batchId" FROM u
           ORDER BY CASE WHEN queue_order > 0 THEN queue_order ELSE 9223372036854775807 END, created_at, id`,
         [max, BRIDGE_LEASE_HOURS, bridgeDevice(req)]);
       // lanes = عدد تابات «بدون Real» فى الإعدادات: الجسر بيفتح لحده، وstart بيعدّ تاباته مع تابات جهاز التنفيذ
@@ -3310,8 +3320,11 @@ export async function registerRoutes(
         const { rows } = await pool.query(
           `SELECT e.id FROM exec_jobs e
              JOIN unnest($1::int[], $2::timestamptz[]) AS d(id, since) ON e.id = d.id
-            WHERE EXISTS (SELECT 1 FROM case_138 c
-                           WHERE c.account_no = e.accounts->>0 AND c.source = 'dzs' AND c.uploaded_at >= d.since)`,
+            WHERE (e.type <> 'stop' AND EXISTS (SELECT 1 FROM case_138 c
+                           WHERE c.account_no = e.accounts->>0 AND c.source = 'dzs' AND c.uploaded_at >= d.since))
+               -- إيقاف PO: سكربت PO بيسجّل «stopped» أو «already» ⇒ last_stop_at (زى ما جهاز التنفيذ بيعرف)
+               OR (e.type = 'stop' AND EXISTS (SELECT 1 FROM line_po_events p
+                           WHERE p.account_no = e.accounts->>0 AND p.last_stop_at >= d.since))`,
           [ids, since]);
         measured = rows.map((r: any) => Number(r.id));
       }
@@ -3343,9 +3356,26 @@ export async function registerRoutes(
         const r = await pool.query(
           `UPDATE exec_jobs e SET status = 'done', done_at = COALESCE(d.at, now()), result = d.result, bridge_lease_until = NULL
              FROM unnest($1::int[], $2::text[], $3::timestamptz[]) AS d(id, result, at)
-            WHERE e.id = d.id AND e.bridge_device IS NOT NULL AND e.status IN ('pending', 'claimed', 'stale')`,
+            WHERE e.id = d.id AND e.bridge_device IS NOT NULL AND e.status IN ('pending', 'claimed', 'stale')
+            RETURNING e.id, e.type, e.accounts, e.note, e.requested_by, e.claimed_at, e.result`,
           [done.map((d: any) => d.id), done.map((d: any) => d.result), done.map((d: any) => d.at)]);
         doneN = r.rowCount || 0;
+        // إيقاف PO مع الجسر اتقفل من غير ما يتسجّل ⇒ إعادة بعد ١٠ دقايق (لحد ٣ مرات) — نفس قاعدة /done بتاعة جهاز
+        // التنفيذ (server/exec-followups.ts)، والإعادة من باتش مؤجّل بتفضل مؤجّلة وبترجع للجسر.
+        for (const j of r.rows as any[]) {
+          if (j.type !== "stop") continue;
+          const acc = String((Array.isArray(j.accounts) ? j.accounts : [])[0] ?? "").trim();
+          if (!acc) continue;
+          const { rows: st } = await pool.query(
+            `SELECT 1 FROM line_po_events WHERE account_no = $1 AND last_stop_at >= COALESCE($2::timestamptz, now() - interval '30 minutes') LIMIT 1`,
+            [acc, j.claimed_at]);
+          const rt = stopRetryFor({ type: j.type, note: j.note, result: j.result === "done" ? "done" : "timeout" }, st.length > 0);
+          if (!rt) continue;
+          await pool.query(
+            `INSERT INTO exec_followups (type, account, note, requested_by, source_job_id, run_at)
+             VALUES ($1, $2, $3, $4, $5, now() + make_interval(mins => $6))`,
+            [rt.type, acc, rt.note, j.requested_by, j.id, rt.afterMin]);
+        }
       }
       const release = toJobIds(req.body?.release);
       let releasedN = 0;
