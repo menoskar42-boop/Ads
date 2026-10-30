@@ -1,0 +1,2566 @@
+{
+ "Construct29OfMonth": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.144:5,7"
+      ],
+      "gospels": [
+       "42.7:36-50"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.72:6-7"
+      ],
+      "gospels": [
+       "42.11:20-28"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "45.3:1-31"
+     },
+     {
+      "type": "catholic",
+      "ref": "62.1:1-10*@+62.2:1-6"
+     },
+     {
+      "type": "acts",
+      "ref": "44.7:23-34"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.45:10-11"
+      ],
+      "gospels": [
+       "42.1:26-38"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructAnnunciation": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.144:5,7"
+      ],
+      "gospels": [
+       "42.7:36-50"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.72:6-7"
+      ],
+      "gospels": [
+       "42.11:20-28"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "45.3:1-31"
+     },
+     {
+      "type": "catholic",
+      "ref": "62.1:1-10*@+62.2:1-6"
+     },
+     {
+      "type": "acts",
+      "ref": "44.7:23-34"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.45:10-11"
+      ],
+      "gospels": [
+       "42.1:26-38"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructChristmas": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.72:10"
+      ],
+      "gospels": [
+       "42.3:23-38"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.72:15"
+      ],
+      "gospels": [
+       "43.1:14-17"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "58.1:1-14*@+58.2:1-4"
+     },
+     {
+      "type": "catholic",
+      "ref": "61.1:12-17"
+     },
+     {
+      "type": "acts",
+      "ref": "44.13:26-33"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.2:7-8"
+      ],
+      "gospels": [
+       "40.2:1-12"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructFeastOfTheCross": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.4:6-8"
+      ],
+      "gospels": [
+       "43.8:28-42"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.60:4-5"
+      ],
+      "gospels": [
+       "43.12:26-36"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "46.1:17-31"
+     },
+     {
+      "type": "catholic",
+      "ref": "60.2:11-25"
+     },
+     {
+      "type": "acts",
+      "ref": "44.10:34-43"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.65:1-2"
+      ],
+      "gospels": [
+       "43.10:22-38"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructFeastOfTheCross2": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.99:9,5"
+      ],
+      "gospels": [
+       "43.4:19-24"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.118:28,16"
+      ],
+      "gospels": [
+       "43.3:14-21"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "48.6:11-18"
+     },
+     {
+      "type": "catholic",
+      "ref": "60.1:3-12"
+     },
+     {
+      "type": "acts",
+      "ref": "44.4:8-18"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.145:1-2"
+      ],
+      "gospels": [
+       "43.6:35-46"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructFeastOfTheCross3": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.45:6,17"
+      ],
+      "gospels": [
+       "40.16:21-26"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.74:2,12"
+      ],
+      "gospels": [
+       "41.8:34-38*@+41.9:1"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "51.2:6-19"
+     },
+     {
+      "type": "catholic",
+      "ref": "62.5:13-21"
+     },
+     {
+      "type": "acts",
+      "ref": "44.3:12-21"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.61:2,3,5"
+      ],
+      "gospels": [
+       "42.14:25-35"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructEaster": {
+  "sections": [
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.78:65,69"
+      ],
+      "gospels": [
+       "41.16:2-11"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "46.15:23-50"
+     },
+     {
+      "type": "catholic",
+      "ref": "60.3:15-4:6"
+     },
+     {
+      "type": "acts",
+      "ref": "44.2:22-35"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.118:24,25,27"
+      ],
+      "gospels": [
+       "43.20:1-18"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructEgyptEntrance": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.105:23,27"
+      ],
+      "gospels": [
+       "40.4:12-17"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.106:21,22,4"
+      ],
+      "gospels": [
+       "40.12:15-23"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "49.2:1-22"
+     },
+     {
+      "type": "catholic",
+      "ref": "62.4:7-19"
+     },
+     {
+      "type": "acts",
+      "ref": "44.7:20-34"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.105:36,38"
+      ],
+      "gospels": [
+       "40.2:13-23"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructGreatLentPreparationSaturday": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.17:1-2"
+      ],
+      "gospels": [
+       "42.17:3-6"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.119:49,52"
+      ],
+      "gospels": [
+       "41.13:33-37"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "47.6:14-18*@+47.7:1-16"
+     },
+     {
+      "type": "catholic",
+      "ref": "60.1:1-12"
+     },
+     {
+      "type": "acts",
+      "ref": "44.21:1-14"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.95:1-2"
+      ],
+      "gospels": [
+       "42.13:1-5"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructGreatLentPreparationSunday": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.46:10"
+      ],
+      "gospels": [
+       "41.11:22-26"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.100:2-3"
+      ],
+      "gospels": [
+       "42.17:3-10"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "47.11:16-28"
+     },
+     {
+      "type": "catholic",
+      "ref": "61.1:1-11"
+     },
+     {
+      "type": "acts",
+      "ref": "44.21:15-26"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.2:11,10"
+      ],
+      "gospels": [
+       "40.6:1-18"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructFeastOfJonas": {
+  "sections": [
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.30:10,11"
+      ],
+      "gospels": [
+       "41.8:10-21"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "45.10:4-18"
+     },
+     {
+      "type": "catholic",
+      "ref": "60.3:17-22"
+     },
+     {
+      "type": "acts",
+      "ref": "44.3:22-26"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.118:5,18"
+      ],
+      "gospels": [
+       "43.2:13-25"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructLazarusSaturday": {
+  "sections": [
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "1.49:1-28*@+23.40:9-31*@+36.3:14-20*@+38.9:9-15"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.30:3,11"
+      ],
+      "gospels": [
+       "42.18:35-43"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "46.2:1-8"
+     },
+     {
+      "type": "catholic",
+      "ref": "60.1:25*@+60.2:1-6"
+     },
+     {
+      "type": "acts",
+      "ref": "44.27:38-44*@+44.28:1-10"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.129:8,2"
+      ],
+      "gospels": [
+       "43.11:1-45"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructNativityParamoun": {
+  "annual": {
+   "month": 4,
+   "day": 28
+  }
+ },
+ "ConstructNayrouz": {
+  "annual": {
+   "month": 1,
+   "day": 1
+  }
+ },
+ "ConstructFastOfNinevah1": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "32.1:1-17"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.95:1-2"
+      ],
+      "gospels": [
+       "42.13:1-5"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.103:1,8"
+      ],
+      "gospels": [
+       "40.7:6-12"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "45.6:17-23"
+     },
+     {
+      "type": "catholic",
+      "ref": "65.1:1-13"
+     },
+     {
+      "type": "acts",
+      "ref": "44.2:38-47"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.130:3-4"
+      ],
+      "gospels": [
+       "40.12:35-45"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructFastOfNinevah2": {
+  "sections": [
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "32.2:2-10"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.103:14,15,9,10"
+      ],
+      "gospels": [
+       "42.13:6-9"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "51.1:21-29"
+     },
+     {
+      "type": "catholic",
+      "ref": "60.4:3-11"
+     },
+     {
+      "type": "acts",
+      "ref": "44.17:30-34"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.85:2-3"
+      ],
+      "gospels": [
+       "42.11:29-36"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructFastOfNinevah3": {
+  "sections": [
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "32.3:1-10*@+32.4:1-11"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.103:13,12"
+      ],
+      "gospels": [
+       "40.11:25-30"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "49.2:1-23"
+     },
+     {
+      "type": "catholic",
+      "ref": "62.2:12-17"
+     },
+     {
+      "type": "acts",
+      "ref": "44.15:12-20"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.32:1,5"
+      ],
+      "gospels": [
+       "40.15:32-39*@+40.16:1-4"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructPalmSunday": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.118:26-27"
+      ],
+      "gospels": [
+       "43.12:1-11"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.68:19,35"
+      ],
+      "gospels": [
+       "42.19:1-10"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "58.9:11-28"
+     },
+     {
+      "type": "catholic",
+      "ref": "60.4:1-11"
+     },
+     {
+      "type": "acts",
+      "ref": "44.28:11-31"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.81:3,1,2"
+      ],
+      "gospels": [
+       "40.21:1-17"
+      ],
+      "joyous": true
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [],
+      "gospels": [
+       "41.11:1-11"
+      ],
+      "joyous": true
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [],
+      "gospels": [
+       "42.19:29-48"
+      ],
+      "joyous": true
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.65:1-2"
+      ],
+      "gospels": [
+       "43.12:12-19"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructParamounTheophany": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.42:2,5"
+      ],
+      "gospels": [
+       "40.4:12-22"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.42:7,8"
+      ],
+      "gospels": [
+       "43.3:22-29"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "46.1:1-17"
+     },
+     {
+      "type": "catholic",
+      "ref": "61.1:12-19"
+     },
+     {
+      "type": "acts",
+      "ref": "44.16:25-34"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.45:2"
+      ],
+      "gospels": [
+       "42.3:1-18"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructPaschaFriday": {
+  "sections": [
+   {
+    "id": "hour-1",
+    "title": "{FirstHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "5.8:19-9:24"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.1:2-9"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.2:10-21"
+     },
+     {
+      "type": "prophecy",
+      "ref": "24.22:29-23:6"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.24:1-13"
+     },
+     {
+      "type": "prophecy",
+      "ref": "72.2:12-22"
+     },
+     {
+      "type": "prophecy",
+      "ref": "18.12:18-13:1"
+     },
+     {
+      "type": "prophecy",
+      "ref": "38.11:11-14"
+     },
+     {
+      "type": "prophecy",
+      "ref": "33.1:16-2:3"
+     },
+     {
+      "type": "prophecy",
+      "ref": "33.7:1-8"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.27:12*@+19.35:11,12,16"
+      ],
+      "gospels": [
+       "40.27:1-14",
+       "41.15:1-5",
+       "42.22:66-23:12",
+       "43.18:28-40"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   },
+   {
+    "id": "hour-3",
+    "title": "{ThirdHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "1.48:1-19"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.50:4-9"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.3:9-15"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.63:1-7"
+     },
+     {
+      "type": "prophecy",
+      "ref": "30.9:4-6*@+30.9:8-10"
+     },
+     {
+      "type": "prophecy",
+      "ref": "18.29:21-30:10"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.38:17*@+19.22:16"
+      ],
+      "gospels": [
+       "40.27:15-26",
+       "41.15:6-25",
+       "42.23:13-25",
+       "43.19:1-12"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   },
+   {
+    "id": "hour-6",
+    "title": "{SixthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "4.21:1-9"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.53:7-12"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.12:2-13:10"
+     },
+     {
+      "type": "prophecy",
+      "ref": "30.8:9-12"
+     },
+     {
+      "type": "pauline",
+      "ref": "48.6:14-18"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.38:21,22*@+19.22:17,18,19,8,9"
+      ],
+      "gospels": [
+       "40.27:27-45",
+       "41.15:26-33",
+       "42.23:26-44",
+       "43.19:1-12"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   },
+   {
+    "id": "hour-9",
+    "title": "{NinthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "24.11:18-12:13"
+     },
+     {
+      "type": "prophecy",
+      "ref": "38.14:5-11"
+     },
+     {
+      "type": "prophecy",
+      "ref": "29.2:1-3*@+29.2:10-11"
+     },
+     {
+      "type": "pauline",
+      "ref": "50.2:5-11"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.69:2,3,21"
+      ],
+      "gospels": [
+       "40.27:46-50",
+       "41.15:34-37",
+       "42.23:45-46",
+       "43.19:28-30"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   },
+   {
+    "id": "hour-11",
+    "title": "{EleventhHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "2.12:1-14"
+     },
+     {
+      "type": "prophecy",
+      "ref": "3.23:5-12"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.143:6,7*@+19.31:5"
+      ],
+      "gospels": [
+       "40.27:51-56",
+       "41.15:38-41",
+       "42.23:47-49",
+       "43.19:31-37"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   },
+   {
+    "id": "hour-12",
+    "title": "{TwelfthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "25.3:1-66"
+     },
+     {
+      "type": "prophecy",
+      "ref": "32.1:10-2:8"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.88:6*@+19.23:4*@+19.45:6,8"
+      ],
+      "gospels": [
+       "40.27:57-61",
+       "41.15:42-16:1",
+       "42.23:50-56",
+       "43.19:38-42"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructPaschaMonday": {
+  "sections": [
+   {
+    "id": "hour-1",
+    "title": "{FirstHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "1.1:1-31*@+1.2:1-3"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.5:1-9"
+     },
+     {
+      "type": "prophecy",
+      "ref": "73.1:1-19"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.72:18-19"
+      ],
+      "gospels": [
+       "41.11:12-24"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-3",
+    "title": "{ThirdHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "23.5:20-30"
+     },
+     {
+      "type": "prophecy",
+      "ref": "24.9:12-19"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.122:1-2"
+      ],
+      "gospels": [
+       "41.11:11-19"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-6",
+    "title": "{SixthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "2.32:7-15"
+     },
+     {
+      "type": "prophecy",
+      "ref": "72.1:1-9"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.122:4"
+      ],
+      "gospels": [
+       "43.2:13-17"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-9",
+    "title": "{NinthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "1.2:15-25*@+1.3:1-24"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.40:1-5"
+     },
+     {
+      "type": "prophecy",
+      "ref": "20.1:1-9"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.65:5,4"
+      ],
+      "gospels": [
+       "40.21:23-27"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-11",
+    "title": "{EleventhHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "23.50:1-3"
+     },
+     {
+      "type": "prophecy",
+      "ref": "73.1:20-30"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.13:3-4"
+      ],
+      "gospels": [
+       "43.8:51-59"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-1",
+    "title": "{FirstHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "38.1:1-6"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.62:7,6"
+      ],
+      "gospels": [
+       "42.13:23-30"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-3",
+    "title": "{ThirdHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "39.1:1-9"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.13:3,5"
+      ],
+      "gospels": [
+       "42.13:31-35"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-6",
+    "title": "{SixthHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "28.4:15-19*@+28.5:1-7"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.91:2,3"
+      ],
+      "gospels": [
+       "42.21:34-38"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-9",
+    "title": "{NinthHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "28.10:12-15*@+28.11:1-2"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.33:10,11"
+      ],
+      "gospels": [
+       "42.11:37-52"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-11",
+    "title": "{EleventhHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "30.5:6-14"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.122:4"
+      ],
+      "gospels": [
+       "41.13:32-37*@+41.14:1-2"
+      ],
+      "joyous": false
+     }
+    ]
+   }
+  ],
+  "nextDayFeast": "PaschaTuesday"
+ },
+ "ConstructPaschaSaturday": {
+  "sections": [
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "46.15:1-22"
+     },
+     {
+      "type": "catholic",
+      "ref": "60.1:1-9"
+     },
+     {
+      "type": "acts",
+      "ref": "44.3:12-21"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.3:5,3*@+19.82:8"
+      ],
+      "gospels": [
+       "40.28:1-20"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructPaschaThursday": {
+  "sections": [
+   {
+    "id": "hour-1",
+    "title": "{FirstHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "2.17:8-16"
+     },
+     {
+      "type": "prophecy",
+      "ref": "2.15:22-16:3"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.58:1-9"
+     },
+     {
+      "type": "prophecy",
+      "ref": "26.18:20-32"
+     },
+     {
+      "type": "acts",
+      "ref": "44.1:15-20"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.55:21,12"
+      ],
+      "gospels": [
+       "42.22:7-13"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-3",
+    "title": "{ThirdHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "2.32:30-33:5"
+     },
+     {
+      "type": "prophecy",
+      "ref": "73.24:1-11"
+     },
+     {
+      "type": "prophecy",
+      "ref": "38.9:11-14"
+     },
+     {
+      "type": "prophecy",
+      "ref": "20.30:2-6"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.94:21,23"
+      ],
+      "gospels": [
+       "40.26:17-19"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-6",
+    "title": "{SixthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "24.7:2-15"
+     },
+     {
+      "type": "prophecy",
+      "ref": "26.20:39-44"
+     },
+     {
+      "type": "prophecy",
+      "ref": "73.12:13-13:1"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.31:18,13"
+      ],
+      "gospels": [
+       "41.14:12-16"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-9",
+    "title": "{NinthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "1.22:1-19"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.61:1-7"
+     },
+     {
+      "type": "prophecy",
+      "ref": "1.14:17-20"
+     },
+     {
+      "type": "prophecy",
+      "ref": "18.27:2-28:13"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.23:1,2"
+      ],
+      "gospels": [
+       "40.26:17-19"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-11",
+    "title": "{EleventhHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "23.52:13-53:12"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.19:19-25"
+     },
+     {
+      "type": "prophecy",
+      "ref": "38.12:11-14*@+38.13:1-9*@+38.14:1-4*@+38.14:6-9"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.50:17,18"
+      ],
+      "gospels": [
+       "43.13:21-30"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-1",
+    "title": "{FirstHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "24.8:17-9:6"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.101:1,9"
+      ],
+      "gospels": [
+       "43.13:33-14:25",
+       "43.14:26-15:25",
+       "43.15:26-16:33",
+       "43.17:1-26"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-3",
+    "title": "{ThirdHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "26.36:16-23"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.108:1,2"
+      ],
+      "gospels": [
+       "40.26:30-35",
+       "41.14:26-31",
+       "42.22:31-39",
+       "43.18:1,2"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-6",
+    "title": "{SixthHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "26.22:23-28"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.58:2*@+19.68:21"
+      ],
+      "gospels": [
+       "40.26:36-46",
+       "41.14:32-42",
+       "42.22:40-46",
+       "43.18:3-9"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-9",
+    "title": "{NinthHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "24.9:6-10"
+     },
+     {
+      "type": "prophecy",
+      "ref": "26.21:33-37"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.27:3,4",
+       "19.34:4,5"
+      ],
+      "gospels": [
+       "40.26:47-58",
+       "41.14:43-54",
+       "42.22:47-55",
+       "43.18:10-14"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-11",
+    "title": "{EleventhHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "23.27:11-28:15"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.2:1-5"
+      ],
+      "gospels": [
+       "40.26:59-75",
+       "41.14:55-72",
+       "42.22:56-65",
+       "43.18:15-27"
+      ],
+      "joyous": false,
+      "simple": true
+     }
+    ]
+   }
+  ],
+  "nextDayFeast": "PaschaFriday"
+ },
+ "ConstructPaschaTuesday": {
+  "sections": [
+   {
+    "id": "hour-1",
+    "title": "{FirstHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "2.19:1-9"
+     },
+     {
+      "type": "prophecy",
+      "ref": "18.23:2-17*@+18.24:1-25"
+     },
+     {
+      "type": "prophecy",
+      "ref": "28.4:1-8"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.120:2,6,7"
+      ],
+      "gospels": [
+       "43.8:21-29"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-3",
+    "title": "{ThirdHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "5.8:11-20"
+     },
+     {
+      "type": "prophecy",
+      "ref": "73.2:1-9"
+     },
+     {
+      "type": "prophecy",
+      "ref": "18.27:1-20*@+18.28:1-2"
+     },
+     {
+      "type": "prophecy",
+      "ref": "11.19:9-14"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.119:154,155"
+      ],
+      "gospels": [
+       "40.23:37-39*@+40.24:1-2"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-6",
+    "title": "{SixthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "26.21:3-13"
+     },
+     {
+      "type": "prophecy",
+      "ref": "73.4:20-31*@+73.5:1-2"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.1:1-9"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.18:48,17"
+      ],
+      "gospels": [
+       "43.8:12-20"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-9",
+    "title": "{NinthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "1.6:5-22*@+1.7:1-24*@+1.8:1-22*@+1.9:1-7"
+     },
+     {
+      "type": "prophecy",
+      "ref": "20.9:1-11"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.40:9-31"
+     },
+     {
+      "type": "prophecy",
+      "ref": "27.7:9-15"
+     },
+     {
+      "type": "prophecy",
+      "ref": "20.8:1-12"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.25:1,2,3"
+      ],
+      "gospels": [
+       "40.24:3-35"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-11",
+    "title": "{EleventhHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "23.30:25-30"
+     },
+     {
+      "type": "prophecy",
+      "ref": "20.6:20-35*@+20.7:1-4"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.45:6*@+19.41:1"
+      ],
+      "gospels": [
+       "40.25:14-46*@+40.26:1-2"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-1",
+    "title": "{FirstHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "26.22:17-22"
+     },
+     {
+      "type": "prophecy",
+      "ref": "26.22:23-29"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.59:16,17"
+      ],
+      "gospels": [
+       "40.22:1-14"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-3",
+    "title": "{ThirdHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "30.5:18-27"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.65:4"
+      ],
+      "gospels": [
+       "40.24:36-51"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-6",
+    "title": "{SixthHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "24.16:9-13"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.102:1,2"
+      ],
+      "gospels": [
+       "40.25:1-13"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-9",
+    "title": "{NinthHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "28.9:14-17*@+28.10:1-2"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.22:20-21"
+      ],
+      "gospels": [
+       "40.23:29-36"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-11",
+    "title": "{EleventhHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "72.7:24-30"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.57:1"
+      ],
+      "gospels": [
+       "43.11:55-57"
+      ],
+      "joyous": false
+     }
+    ]
+   }
+  ],
+  "nextDayFeast": "PaschaWednesday"
+ },
+ "ConstructPaschaWednesday": {
+  "sections": [
+   {
+    "id": "hour-1",
+    "title": "{FirstHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "2.17:1-7"
+     },
+     {
+      "type": "prophecy",
+      "ref": "20.3:5-15"
+     },
+     {
+      "type": "prophecy",
+      "ref": "28.5:13-6:3"
+     },
+     {
+      "type": "prophecy",
+      "ref": "73.1:20-2:15"
+     },
+     {
+      "type": "prophecy",
+      "ref": "73.3:12-24"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.51:4*@+19.33:10"
+      ],
+      "gospels": [
+       "43.11:46-57"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-3",
+    "title": "{ThirdHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "2.13:17-22"
+     },
+     {
+      "type": "prophecy",
+      "ref": "73.22:7-18"
+     },
+     {
+      "type": "prophecy",
+      "ref": "18.27:16-20*@+18.28:1-2"
+     },
+     {
+      "type": "prophecy",
+      "ref": "20.4:4-5:4"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.41:6,1"
+      ],
+      "gospels": [
+       "42.22:1-6"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-6",
+    "title": "{SixthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "2.14:13-15:1"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.48:1-6"
+     },
+     {
+      "type": "prophecy",
+      "ref": "73.23:7-14"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.83:2,5"
+      ],
+      "gospels": [
+       "43.12:1-8"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-9",
+    "title": "{NinthHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "1.24:1-9"
+     },
+     {
+      "type": "prophecy",
+      "ref": "4.20:1-13"
+     },
+     {
+      "type": "prophecy",
+      "ref": "20.1:10-23"
+     },
+     {
+      "type": "prophecy",
+      "ref": "23.59:1-17"
+     },
+     {
+      "type": "prophecy",
+      "ref": "38.11:11-14"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.41:5-6"
+      ],
+      "gospels": [
+       "40.26:3-16"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "hour-11",
+    "title": "{EleventhHour}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "23.28:16-29"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.6:2*@+19.69:17"
+      ],
+      "gospels": [
+       "43.12:27-36"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-1",
+    "title": "{FirstHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "26.43:5-11"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.69:1,16"
+      ],
+      "gospels": [
+       "43.10:17-21"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-3",
+    "title": "{ThirdHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "30.4:4-13"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.55:21,1"
+      ],
+      "gospels": [
+       "41.14:3-11"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-6",
+    "title": "{SixthHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "30.3:1-11"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.140:1,2"
+      ],
+      "gospels": [
+       "43.12:36-43"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-9",
+    "title": "{NinthHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "26.20:27-33"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.7:1-2"
+      ],
+      "gospels": [
+       "43.10:29-38"
+      ],
+      "joyous": false
+     }
+    ]
+   },
+   {
+    "id": "eve-hour-11",
+    "title": "{EleventhHour} {EveOf} {NextDay}",
+    "subSections": [
+     {
+      "type": "prophecy",
+      "ref": "24.8:4-9"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.62:7,6"
+      ],
+      "gospels": [
+       "43.12:44-50"
+      ],
+      "joyous": false
+     }
+    ]
+   }
+  ],
+  "nextDayFeast": "PaschaThursday"
+ },
+ "ConstructTempleEntrance": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.116:16-19"
+      ],
+      "gospels": [
+       "42.2:15-20"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.66:13-15"
+      ],
+      "gospels": [
+       "42.2:40-52"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "50.3:1-12"
+     },
+     {
+      "type": "catholic",
+      "ref": "61.1:12-21"
+     },
+     {
+      "type": "acts",
+      "ref": "44.15:13-21"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.50:14,23"
+      ],
+      "gospels": [
+       "42.2:21-39"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ },
+ "ConstructTheophany": {
+  "annual": {
+   "month": 5,
+   "day": 11
+  }
+ },
+ "ConstructWeddingOfCana": {
+  "annual": {
+   "month": 5,
+   "day": 13
+  }
+ },
+ "ConstructTheophanyParamounSpecial": {
+  "sections": [
+   {
+    "id": "vespers",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.42:2,5"
+      ],
+      "gospels": [
+       "40.4:12-22"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "matins",
+    "title": null,
+    "subSections": [
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.42:7,8"
+      ],
+      "gospels": [
+       "43.3:22-29"
+      ],
+      "joyous": true
+     }
+    ]
+   },
+   {
+    "id": "liturgy",
+    "title": null,
+    "subSections": [
+     {
+      "type": "pauline",
+      "ref": "46.1:1-17"
+     },
+     {
+      "type": "catholic",
+      "ref": "61.1:12-19"
+     },
+     {
+      "type": "acts",
+      "ref": "44.16:25-34"
+     },
+     {
+      "type": "synaxarium"
+     },
+     {
+      "type": "psalm-gospel",
+      "psalms": [
+       "19.45:2"
+      ],
+      "gospels": [
+       "42.3:1-18"
+      ],
+      "joyous": true
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -63,6 +63,15 @@ for (const f of ['readings-annual.json', 'readings-sunday.json', 'readings-great
 }
 check('كل أرقام الأسفار فى المراجع موجودة', missing.size === 0, [...missing].slice(0, 5).join(' · '));
 
+// قراءات الأعياد (من الكود C# بسكربت mybible/scripts/katameros-feasts-from-cs.py) — ٢٩ عيد/حالة وكل مراجعها سليمة
+const feasts = fs.existsSync(path.join(D, 'feasts-readings.json')) ? load('feasts-readings.json') : {};
+check('قراءات الأعياد ٢٩ عيد/حالة', Object.keys(feasts).length === 29, Object.keys(feasts).length + ' — شغّل scripts/katameros-feasts-from-cs.py');
+const feastRefs = JSON.stringify(feasts).match(/"(?:ref|psalms|gospels)":(?:"[^"]*"|\[[^\]]*\])/g) || [];
+const badFeast = new Set();
+for (const r of feastRefs) for (const m of r.matchAll(/(?:"|[@+*])\s*(\d+)\.\d+:/g)) if (!books.has(Number(m[1]))) badFeast.add(m[1]);
+check('كل أرقام الأسفار فى قراءات الأعياد موجودة', feastRefs.length > 200 && badFeast.size === 0, feastRefs.length + ' مرجع · أسفار مش موجودة: ' + [...badFeast].join('، '));
+check('البصخة فيها الساعة الثانية عشر يوم الجمعة', !!(feasts.ConstructPaschaFriday && feasts.ConstructPaschaFriday.sections.some((x) => x.id === 'hour-12')), 'ناقصة');
+
 for (const f of ['Helpers/CopticDateHelper.cs', 'Repositories/LectionaryRepository.cs', 'Factories/FeastsFactory.cs', 'Factories/Feasts/Easter.cs', 'Factories/SpecialCases/Kiahk.cs']) {
   check('كود مرجعى: ' + f, fs.existsSync(path.join(D, 'reference-src', f)), 'ناقص — قراءات الأعياد وحساب التاريخ فيه');
 }
