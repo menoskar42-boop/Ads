@@ -98,6 +98,17 @@ const ksIds = [...ks.matchAll(/"([^"]+)":\s*(\d+)/g)].map((m) => m[1] + '=' + m[
 check('أرقام St-Takla الاحتياطى مطابقة لـ STTAKLA_BOOKS', stBooks.length === 7 && stBooks.every((x) => ksIds.includes(x)),
   'deutero.ts: ' + stBooks.join('، ') + ' · katameros-sources.ts: ' + ksIds.join('، '));
 
+// مسار St-Takla اللحظى (التبويب + الجروب) يفضل موجود زى ما هو — قرار المالك ٢٠٢٦-١٠-٣٠: «سيبه موجود زى ما هو
+// احتياطى متمسحوش». ملفنا sttakla-1877.json نسخة منه مش بديل عنه.
+const MB = path.join(D, '..', '..');
+const rd = (f) => (fs.existsSync(path.join(MB, f)) ? fs.readFileSync(path.join(MB, f), 'utf8') : '');
+check('مسار St-Takla اللحظى لسه موجود (السيرفر + تبويب الأسفار القانونية + الجروب)',
+  /app\.get\('\/api\/deutero\/sttakla\/books\/:bookId\/chapters\/:chapter'/.test(rd('server/routes.ts')) &&
+  /export async function getStTaklaChapter/.test(rd('server/deutero.ts')) &&
+  /api\.deuteroSource\.getChapter/.test(rd('client/src/components/RemoteDeuteroReader.tsx')) &&
+  /api\.deuteroSource\.getChapter/.test(rd('client/src/pages/GroupView.tsx')),
+  'ممنوع يتمسح — المالك عايزه احتياطى');
+
 for (const f of ['Helpers/CopticDateHelper.cs', 'Repositories/LectionaryRepository.cs', 'Factories/FeastsFactory.cs', 'Factories/Feasts/Easter.cs', 'Factories/SpecialCases/Kiahk.cs']) {
   check('كود مرجعى: ' + f, fs.existsSync(path.join(D, 'reference-src', f)), 'ناقص — قراءات الأعياد وحساب التاريخ فيه');
 }
