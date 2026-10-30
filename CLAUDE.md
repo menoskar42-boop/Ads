@@ -365,4 +365,9 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   القراءات والسنكسار من بياناتنا. المقارنة بالأنبا تكلا بالإكستنشن: `docs/KATAMEROS_COMPARE_PROMPT.md`
   (https://claude.ai/artifact/ViZoksMTQAQZTKg6aAxaA1) — **Trigger:** «ابعتلي برومبت مقارنة القطمارس».
   الحارس: `node scripts/check-mybible-katameros-data.js`.
+- `docs/DEUTERO_STTAKLA_IMPORT_PROMPT.md` — **برومبت الإكستنشن: نص الأسفار القانونية التانية كامل** (٢٠٢٦-١٠-٣٠).
+  اللى متخزّن عندنا مقتطفات بس، والتبويب بيجيب الأسفار كاملة لحظياً من الأنبا تكلا. الإكستنشن بيجمع الـ١٣٧ إصحاح
+  من `mybible.oscardevs.com/api/deutero/sttakla/...` (GET بس) فى ملف ويرفعه على GitHub فى فرع **`deutero-sttakla-import`**
+  لوحده. ⚠️ أرقام الأسفار فيه أرقام موقعنا مش katameros — الربط بالاسم. الصفحة:
+  https://claude.ai/artifact/F3VNw8YFhBk83mRXeAd2Ga. **Trigger:** «ابعتلي برومبت الأسفار القانونية».
 - `docs/MYBIBLE_COHOST.md` — **استضافة موقع الكتاب المقدس (mybible.oscardevs.com، ~700 عضو درس مار مرقس) داخل أوسكار ديفز على نفس Reserved VM** (توفير تكلفة النشر). البوّاب `src/lib/host_gateway.js` + تشغيل تلقائي في server.js + سورس في `mybible/`. مطفي لحد ما `MYBIBLE_UPSTREAM` يتحطّ. اقرأه قبل أي شغل على mybible — فيه القواعد المقدّسة (نفس الدومين/القاعدة/SESSION_SECRET، متمسحش المشروع القديم، الخط الأحمر لهوية الأعضاء).
