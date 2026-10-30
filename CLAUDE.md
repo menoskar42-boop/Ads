@@ -365,6 +365,11 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   القراءات والسنكسار من بياناتنا. المقارنة بالأنبا تكلا بالإكستنشن: `docs/KATAMEROS_COMPARE_PROMPT.md`
   (https://claude.ai/artifact/ViZoksMTQAQZTKg6aAxaA1) — **Trigger:** «ابعتلي برومبت مقارنة القطمارس».
   الحارس: `node scripts/check-mybible-katameros-data.js`.
+- `docs/KATAMEROS_TAKLA_COLLECT_PROMPT.md` — **برومبتين: جمع قراءات سنة ١٧٤٣ من katameros والأنبا تكلا** (٢٠٢٦-١٠-٣٠).
+  برومبت المقارنة على مانوس ماكملش (سكربته كان بيقارن ويحفظ فى الآخر بس، وبيوقف على كلمة captcha). البديل: مانوس
+  **يجمع بس** ويحفظ كل يوم أول ما يخلص (بيكمّل من آخر يوم) ⇒ txt ⇒ الإكستنشن يرفعه على فرع `katameros-takla-data`،
+  والمقارنة عند كلود على محرّكنا. يوم ٣٠ أكتوبر من تجربة مانوس مطابق لمحرّكنا. الصفحة:
+  https://claude.ai/artifact/Cw3yW5Jo8m4CtD2FaCW3Ce. **Trigger:** «ابعتلي برومبت جمع القطمارس».
 - `docs/DEUTERO_STTAKLA_IMPORT_PROMPT.md` — **برومبت الإكستنشن: نص الأسفار القانونية التانية كامل** (٢٠٢٦-١٠-٣٠).
   اللى متخزّن عندنا مقتطفات بس، والتبويب بيجيب الأسفار كاملة لحظياً من الأنبا تكلا. الإكستنشن بيجمع الـ١٣٧ إصحاح
   من `mybible.oscardevs.com/api/deutero/sttakla/...` (GET بس) فى ملف ويرفعه على GitHub فى فرع **`deutero-sttakla-import`**
