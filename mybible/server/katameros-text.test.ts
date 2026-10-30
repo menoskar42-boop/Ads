@@ -58,16 +58,18 @@ describe("katameros-text: النص من الكتاب عندنا", () => {
     const dan = await readingText("23.29:12-23@27.14:1-42", getVerses, ours);
     assert.deepEqual(dan.passages.map((p) => !!p.pending), [false, true], "دانيال ١٤ تتمة يونانية");
   });
-  it("القانونية التانية من data/deutero: القراءة الكاملة بنصها، والناقصة مرجع بس", async () => {
+  it("القانونية التانية من sttakla-1877.json (نفس نص تبويب الأسفار القانونية والجروب)", async () => {
     const tob = (await readingText("68.2:1-14", getVerses, ours)).passages[0];
     assert.equal(tob.book, "طوبيا");
     assert.equal(tob.deutero, true);
     assert.equal(tob.verses.length, 14);
-    assert.match(tob.verses[0].text, /طوبيت ابني/);
-    const sir = (await readingText("73.2:1-23", getVerses, ours)).passages[0];   // الملف فيه ١٨ آية بس
-    assert.equal(sir.pending, true);
-    assert.equal(sir.verses.length, 0);
-    assert.equal((await readingText("73.1:20-2:5", getVerses, ours)).passages[0].pending, true, "لحد آخر الإصحاح ⇒ مانعرفش طوله");
+    const sir = (await readingText("73.2:1-23", getVerses, ours)).passages[0];   // يشوع بن سيراخ ٢ = ٢٣ آية
+    assert.equal(sir.verses.length, 23);
+    const end = await readingText("73.1:20-2:5", getVerses, ours);              // لحد آخر الإصحاح: طوله معروف
+    assert.deepEqual(end.passages.map((p) => p.verses.length > 0), [true, true]);
+    assert.equal(end.passages[1].verses.length, 5);
+    assert.equal((await readingText("73.29:10-20", getVerses, ours)).passages[0].pending, true, "سيراخ ٢٩ ترقيمه مكسور فى المصدر");
+    assert.equal((await readingText("73.1:1-99", getVerses, ours)).passages[0].pending, true, "آية مش موجودة ⇒ مرجع بس");
     assert.equal((await readingText("70.1:1-5", getVerses, ours)).passages[0].book, "المكابيين الأول");
   });
 });
@@ -98,7 +100,7 @@ describe("katameros-text: ٤ سنين يوم بيوم", () => {
     }
     assert.deepEqual([...bad].slice(0, 20), [], `${bad.size} مرجع ناقص`);
     assert.ok(passages > 15_000, String(passages));   // ١٥٩٩١ فقرة فى ٤ سنين
-    assert.ok(pending > 0 && pending < 300, "من غير نص: " + pending);
+    assert.ok(pending > 0 && pending < 40, "من غير نص (دانيال ١٤ ومزمور ليلة الخميس بس): " + pending);
     assert.ok(deutero > 0, "القانونية التانية بنصها: " + deutero);
   });
 });

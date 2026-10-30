@@ -78,6 +78,18 @@ check('تصحيحات المراجع موجودة وكل بند ليه سبب و
   Object.values(fixes).every((f) => f.why && (f.review === true || /^\d+\.\d+:[\d,-]+$/.test(f.to || ''))),
   'data/katameros/ref-fixes.json ناقص أو فيه بند من غير سبب');
 
+// نص القانونية التانية (sttakla-1877.json): ٧ أسفار كاملة بنفس عدد الإصحاحات اللى فى server/deutero.ts، ومفيش آية فاضية
+const DF = path.join(D, '..', 'deutero', 'sttakla-1877.json');
+const deut = fs.existsSync(DF) ? JSON.parse(fs.readFileSync(DF, 'utf8')) : { books: [] };
+const WANT = { 'طوبيا': 14, 'يهوديت': 16, 'الحكمة': 19, 'يشوع بن سيراخ': 51, 'باروخ': 6, 'المكابيين الأول': 16, 'المكابيين الثاني': 15 };
+check('نص القانونية التانية: ٧ أسفار و١٣٧ إصحاح من الترجمة اليسوعية',
+  /اليسوعية/.test(deut.source || '') && Object.entries(WANT).every(([n, c]) => {
+    const b = deut.books.find((x) => x.name === n);
+    return b && b.chapters.length === c && b.chapters.every((ch, i) => ch.chapter === i + 1 && ch.verses.length && ch.verses.every((v) => v.text && v.text.trim()));
+  }), 'mybible/data/deutero/sttakla-1877.json ناقص — docs/DEUTERO_STTAKLA_IMPORT_PROMPT.md');
+const deutText = JSON.stringify(deut.books.map((b) => b.chapters.map((c) => c.verses.map((v) => v.text))));
+check('مفيش كود فى نص القانونية التانية', !/<script|\bon[a-z]+\s*=|javascript:/i.test(deutText), 'النص فيه كود');
+
 for (const f of ['Helpers/CopticDateHelper.cs', 'Repositories/LectionaryRepository.cs', 'Factories/FeastsFactory.cs', 'Factories/Feasts/Easter.cs', 'Factories/SpecialCases/Kiahk.cs']) {
   check('كود مرجعى: ' + f, fs.existsSync(path.join(D, 'reference-src', f)), 'ناقص — قراءات الأعياد وحساب التاريخ فيه');
 }
