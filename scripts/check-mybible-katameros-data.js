@@ -90,6 +90,14 @@ check('نص القانونية التانية: ٧ أسفار و١٣٧ إصحاح
 const deutText = JSON.stringify(deut.books.map((b) => b.chapters.map((c) => c.verses.map((v) => v.text))));
 check('مفيش كود فى نص القانونية التانية', !/<script|\bon[a-z]+\s*=|javascript:/i.test(deutText), 'النص فيه كود');
 
+// St-Takla الاحتياطى (katameros-sources.ts) بيطلب السفر برقمه فى STTAKLA_BOOKS — لو الأرقام اختلفت هيجيب سفر تانى
+const dts = fs.readFileSync(path.join(D, '..', '..', 'server', 'deutero.ts'), 'utf8');
+const ks = fs.readFileSync(path.join(D, '..', '..', 'server', 'katameros-sources.ts'), 'utf8');
+const stBooks = [...dts.slice(dts.indexOf('const STTAKLA_BOOKS')).matchAll(/(\d+):\s*\{\s*name:\s*'([^']+)'/g)].slice(0, 7).map((m) => m[2] + '=' + m[1]);
+const ksIds = [...ks.matchAll(/"([^"]+)":\s*(\d+)/g)].map((m) => m[1] + '=' + m[2]);
+check('أرقام St-Takla الاحتياطى مطابقة لـ STTAKLA_BOOKS', stBooks.length === 7 && stBooks.every((x) => ksIds.includes(x)),
+  'deutero.ts: ' + stBooks.join('، ') + ' · katameros-sources.ts: ' + ksIds.join('، '));
+
 for (const f of ['Helpers/CopticDateHelper.cs', 'Repositories/LectionaryRepository.cs', 'Factories/FeastsFactory.cs', 'Factories/Feasts/Easter.cs', 'Factories/SpecialCases/Kiahk.cs']) {
   check('كود مرجعى: ' + f, fs.existsSync(path.join(D, 'reference-src', f)), 'ناقص — قراءات الأعياد وحساب التاريخ فيه');
 }

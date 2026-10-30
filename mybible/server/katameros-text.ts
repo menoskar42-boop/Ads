@@ -10,6 +10,9 @@
  *   (الترجمة اليسوعية ١٨٧٧) — قرار المالك ٢٠٢٦-١٠-٣٠. اتقارن آية آية بالنص العربى فى قاعدة katameros نفسها: نفس
  *   الترجمة ونفس الترقيم (٤٣٣٩ من ٤٣٧٤ آية متطابقة غير الهمزات). إصحاح أرقام آياته مش متتالية (يشوع بن سيراخ ٢٩:
  *   صفحة المصدر ناقصة آيتين) مابيتعرضش منه نص؛ وأى آية ناقصة فى القراءة ⇒ المرجع من غير نص (`pending`).
+ *   **St-Takla احتياطى** (قرار المالك ٢٠٢٦-١٠-٣٠: «خلى سانت تكلا موجود احتياطى لو ملفاتنا مشتغلتش»): لو الملف مش
+ *   موجود أو بايظ أو الإصحاح مش فيه ⇒ نفس الإصحاح لحظياً من St-Takla (`deuteroLive` — نفس اللى الجروب بيقرا منه)،
+ *   وبنفس الشروط: ترقيم متتالى وكل آيات القراءة موجودة، وإلا المرجع بس.
  * - دانيال ١٣ و١٤ (سوسنة وبيل والتنين) تتمة يونانية مش فى فاندايك ⇒ زى القانونية التانية.
  * - مراجع فيها غلطة أو ترقيم تانى (اتلقت بالاختبار) متصحّحة فى data/katameros/ref-fixes.json؛ اللى مش متأكدين من
  *   تصحيحه (`review`) بيتعرض مرجعه من غير نص.
@@ -32,6 +35,8 @@ export interface KatPassage {
   pending?: true;
   /** النص من data/deutero/sttakla-1877.json (الترجمة اليسوعية ١٨٧٧ — مش فاندايك) — الواجهة تكتب مصدره */
   deutero?: true;
+  /** النص جه من St-Takla لحظياً (الاحتياطى) مش من ملفنا */
+  live?: true;
 }
 export interface KatReadingText { ref: string; passages: KatPassage[] }
 
@@ -96,36 +101,64 @@ export const DEUTERO_NAMES: Record<number, string> = {
   67: "باروخ", 68: "طوبيا", 69: "يهوديت", 70: "المكابيين الأول", 71: "المكابيين الثاني", 72: "الحكمة", 73: "يشوع بن سيراخ",
 };
 export const DEUTERO_FILE = path.join(KATAMEROS_DIR, "..", "deutero", "sttakla-1877.json");
+let deuteroFile = DEUTERO_FILE;
 let deuteroBooks: Map<string, Map<number, Map<number, string>>> | null = null;
+/** للاختبار: ملف تانى (أو مش موجود) بدل sttakla-1877.json */
+export function _setDeuteroFileForTest(file: string): void { deuteroFile = file; deuteroBooks = null; }
+/** آيات بترقيم متتالى من ١ ونص مش فاضى ⇒ Map، غير كده null (مانعتمدش على ترقيم مكسور) */
+function trustedChapter(verses: { verse: number; text: string }[] | null | undefined): Map<number, string> | null {
+  if (!verses?.length || !verses.every((v, i) => v.verse === i + 1 && String(v.text || "").trim())) return null;
+  return new Map(verses.map((v) => [v.verse, v.text]));
+}
 /** آيات إصحاح (verse ⇒ text)، أو null لو السفر أو الإصحاح مش موجود أو أرقام آياته مش متتالية من ١ */
 export function deuteroChapter(bookId: number, chapter: number): Map<number, string> | null {
   if (!deuteroBooks) {
     deuteroBooks = new Map();
-    if (fs.existsSync(DEUTERO_FILE)) {
-      const d = JSON.parse(fs.readFileSync(DEUTERO_FILE, "utf8")) as
-        { books: { name: string; chapters: { chapter: number; verses: { verse: number; text: string }[] }[] }[] };
-      for (const b of d.books) {
-        const chapters = new Map<number, Map<number, string>>();
-        for (const c of b.chapters) {
-          if (!c.verses.every((v, i) => v.verse === i + 1 && String(v.text || "").trim())) continue;   // ترقيم مكسور ⇒ مانعتمدش عليه
-          chapters.set(c.chapter, new Map(c.verses.map((v) => [v.verse, v.text])));
+    try {
+      if (fs.existsSync(deuteroFile)) {
+        const d = JSON.parse(fs.readFileSync(deuteroFile, "utf8")) as
+          { books: { name: string; chapters: { chapter: number; verses: { verse: number; text: string }[] }[] }[] };
+        for (const b of d.books) {
+          const chapters = new Map<number, Map<number, string>>();
+          for (const c of b.chapters) {
+            const t = trustedChapter(c.verses);
+            if (t) chapters.set(c.chapter, t);
+          }
+          deuteroBooks.set(b.name, chapters);
         }
-        deuteroBooks.set(b.name, chapters);
       }
+    } catch (e: any) {
+      // الملف بايظ ⇒ كأنه مش موجود، وSt-Takla الاحتياطى بيشتغل
+      console.error("[katameros] تعذّر قراءة sttakla-1877.json:", e?.message || e);
+      deuteroBooks = new Map();
     }
   }
   return deuteroBooks.get(DEUTERO_NAMES[bookId] ?? "")?.get(chapter) ?? null;
 }
-/** نص قراءة قانونية تانية كاملة، أو null لو أى آية ناقصة */
-function deuteroPassage(part: RefPart): KatVerse[] | null {
-  const s = part.spec;
-  if (!(part.bookId in DEUTERO_NAMES)) return null;
-  const ch = deuteroChapter(part.bookId, part.chapter);
-  if (!ch) return null;
+/** مصدر احتياطى لإصحاح قانونى تانى (باسم السفر) — على السيرفر St-Takla لحظياً (katameros-sources.ts) */
+export type DeuteroLive = (bookName: string, chapter: number) => Promise<{ verse: number; text: string }[] | null>;
+export interface TextOptions { deuteroLive?: DeuteroLive }
+
+/** آيات القراءة من الإصحاح، أو null لو أى آية ناقصة */
+function pickAll(ch: Map<number, string>, s: VerseSpec): KatVerse[] | null {
   const to = "list" in s ? 0 : s.to === "end" ? ch.size : s.to;
   const want = "list" in s ? s.list : Array.from({ length: to - s.from + 1 }, (_, i) => s.from + i);
   if (!want.length || want.some((v) => !ch.has(v))) return null;
   return want.map((v) => ({ verse: v, text: ch.get(v)! }));
+}
+/** نص قراءة قانونية تانية كاملة: من ملفنا، ولو مافيش ⇒ St-Takla الاحتياطى. null لو مفيش نص كامل متأكَّد منه */
+async function deuteroPassage(part: RefPart, opts?: TextOptions): Promise<{ verses: KatVerse[]; live: boolean } | null> {
+  if (!(part.bookId in DEUTERO_NAMES)) return null;
+  const local = deuteroChapter(part.bookId, part.chapter);
+  if (local) {
+    const v = pickAll(local, part.spec);
+    if (v) return { verses: v, live: false };
+  }
+  if (!opts?.deuteroLive) return null;
+  let remote: Map<number, string> | null = null;
+  try { remote = trustedChapter(await opts.deuteroLive(DEUTERO_NAMES[part.bookId], part.chapter)); } catch { remote = null; }
+  const v = remote && pickAll(remote, part.spec);
+  return v ? { verses: v, live: true } : null;
 }
 
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
@@ -143,7 +176,7 @@ function bookName(id: number, ours: Map<number, string>): string {
 /** مصدر الآيات: (رقم السفر، الإصحاح) ⇒ الآيات. الافتراضى من bible-cache (ذاكرة ⇐ نسخة الكتاب ⇐ القاعدة). */
 export type VerseSource = (bookId: number, chapter: number) => Promise<{ verse: number; text: string }[]>;
 
-export async function readingText(ref: string, getVerses: VerseSource, ours: Map<number, string>): Promise<KatReadingText> {
+export async function readingText(ref: string, getVerses: VerseSource, ours: Map<number, string>, opts?: TextOptions): Promise<KatReadingText> {
   const passages: KatPassage[] = [];
   for (const { part, pending } of katParts(ref)) {
     const book = bookName(part.bookId, ours);
@@ -151,9 +184,9 @@ export async function readingText(ref: string, getVerses: VerseSource, ours: Map
     const range = "list" in s ? s.list.map(ar).join("، ") : `${ar(s.from)}${s.to === "end" ? "-آخره" : s.to === s.from ? "" : "-" + ar(s.to)}`;
     const label = `${book} ${ar(part.chapter)}: ${range}`;
     if (pending) {
-      const dv = deuteroPassage(part);
+      const dv = await deuteroPassage(part, opts);
       passages.push(dv
-        ? { bookId: part.bookId, book, chapter: part.chapter, label, verses: dv, deutero: true }
+        ? { bookId: part.bookId, book, chapter: part.chapter, label, verses: dv.verses, deutero: true, ...(dv.live ? { live: true as const } : {}) }
         : { bookId: part.bookId, book, chapter: part.chapter, label, verses: [], pending: true });
       continue;
     }
@@ -168,16 +201,16 @@ export async function readingText(ref: string, getVerses: VerseSource, ours: Map
 
 export interface KatSubText extends KatSub { text?: KatReadingText; psalmsText?: KatReadingText[]; gospelsText?: KatReadingText[] }
 /** الخطة كلها بنصها — كل مرجع فى كل قسم */
-export async function planWithText(plan: KatPlan, getVerses: VerseSource, ours: Map<number, string>):
+export async function planWithText(plan: KatPlan, getVerses: VerseSource, ours: Map<number, string>, opts?: TextOptions):
   Promise<Omit<KatPlan, "sections"> & { sections: { id: string; title: string; subSections: KatSubText[] }[] }> {
   const sections = [];
   for (const sec of plan.sections) {
     const subSections: KatSubText[] = [];
     for (const sub of sec.subSections) {
       const t: KatSubText = { ...sub };
-      if (sub.ref) t.text = await readingText(sub.ref, getVerses, ours);
-      if (sub.psalms) t.psalmsText = await Promise.all(sub.psalms.map((r) => readingText(r, getVerses, ours)));
-      if (sub.gospels) t.gospelsText = await Promise.all(sub.gospels.map((r) => readingText(r, getVerses, ours)));
+      if (sub.ref) t.text = await readingText(sub.ref, getVerses, ours, opts);
+      if (sub.psalms) t.psalmsText = await Promise.all(sub.psalms.map((r) => readingText(r, getVerses, ours, opts)));
+      if (sub.gospels) t.gospelsText = await Promise.all(sub.gospels.map((r) => readingText(r, getVerses, ours, opts)));
       subSections.push(t);
     }
     sections.push({ id: sec.id, title: sec.title, subSections });

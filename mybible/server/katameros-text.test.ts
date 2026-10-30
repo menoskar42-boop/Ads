@@ -4,10 +4,12 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import zlib from "node:zlib";
 import { describe, it } from "node:test";
 import { getKatamerosPlan, KATAMEROS_DIR } from "./katameros-local";
-import { parseKatRef, katParts, readingText, planWithText, type VerseSource } from "./katameros-text";
+import { parseKatRef, katParts, readingText, planWithText, _setDeuteroFileForTest, DEUTERO_FILE, type VerseSource } from "./katameros-text";
+import { makeDeuteroLive, _clearDeuteroLiveCache, STTAKLA_IDS } from "./katameros-sources";
 import { parseSnapshot } from "./bible-snapshot";
 
 const SNAP = path.join(KATAMEROS_DIR, "..", "bible-snapshot", "bible.json.gz");
@@ -71,6 +73,51 @@ describe("katameros-text: النص من الكتاب عندنا", () => {
     assert.equal((await readingText("73.29:10-20", getVerses, ours)).passages[0].pending, true, "سيراخ ٢٩ ترقيمه مكسور فى المصدر");
     assert.equal((await readingText("73.1:1-99", getVerses, ours)).passages[0].pending, true, "آية مش موجودة ⇒ مرجع بس");
     assert.equal((await readingText("70.1:1-5", getVerses, ours)).passages[0].book, "المكابيين الأول");
+  });
+});
+
+describe("katameros-text: St-Takla احتياطى لو ملفنا مااشتغلش", () => {
+  const tobit2 = Array.from({ length: 14 }, (_, i) => ({ verse: i + 1, text: "آية " + (i + 1) }));
+  it("الملف مش موجود ⇒ نفس الإصحاح من St-Takla (بأرقام سفره عندنا)، ومتعلّم live", async () => {
+    _setDeuteroFileForTest("/nonexistent/sttakla-1877.json");
+    _clearDeuteroLiveCache();
+    const asked: string[] = [];
+    const live = makeDeuteroLive(async (id, ch) => { asked.push(`${id}:${ch}`); return { ok: true, verses: tobit2 }; });
+    const t = (await readingText("68.2:1-14", getVerses, ours, { deuteroLive: live })).passages[0];
+    assert.deepEqual(asked, [`${STTAKLA_IDS["طوبيا"]}:2`]);
+    assert.equal(t.live, true);
+    assert.equal(t.verses.length, 14);
+    await readingText("68.2:1-5", getVerses, ours, { deuteroLive: live });
+    assert.equal(asked.length, 1, "النتيجة متخزّنة — مفيش طلب تانى");
+    _setDeuteroFileForTest(DEUTERO_FILE);
+  });
+  it("الملف بايظ ⇒ برضه St-Takla", async () => {
+    const bad = path.join(os.tmpdir(), "kat-bad-deutero.json");
+    fs.writeFileSync(bad, "{not json");
+    _setDeuteroFileForTest(bad);
+    _clearDeuteroLiveCache();
+    const t = (await readingText("68.2:1-14", getVerses, ours, { deuteroLive: makeDeuteroLive(async () => ({ ok: true, verses: tobit2 })) })).passages[0];
+    assert.equal(t.live, true);
+    _setDeuteroFileForTest(DEUTERO_FILE);
+  });
+  it("St-Takla واقع أو ترقيمه مكسور ⇒ المرجع بس", async () => {
+    _setDeuteroFileForTest("/nonexistent/sttakla-1877.json");
+    _clearDeuteroLiveCache();
+    const down = await readingText("68.2:1-14", getVerses, ours, { deuteroLive: makeDeuteroLive(async () => { throw new Error("timeout"); }) });
+    assert.equal(down.passages[0].pending, true);
+    _clearDeuteroLiveCache();
+    const broken = tobit2.map((v) => (v.verse > 10 ? { ...v, verse: v.verse + 2 } : v));
+    const gap = await readingText("68.2:1-14", getVerses, ours, { deuteroLive: makeDeuteroLive(async () => ({ ok: true, verses: broken })) });
+    assert.equal(gap.passages[0].pending, true);
+    _setDeuteroFileForTest(DEUTERO_FILE);
+  });
+  it("ملفنا شغّال ⇒ مابنطلبش St-Takla خالص", async () => {
+    _clearDeuteroLiveCache();
+    let calls = 0;
+    const t = (await readingText("68.2:1-14", getVerses, ours, { deuteroLive: makeDeuteroLive(async () => { calls++; return { ok: false }; }) })).passages[0];
+    assert.equal(calls, 0);
+    assert.equal(t.deutero, true);
+    assert.ok(!t.live);
   });
 });
 
