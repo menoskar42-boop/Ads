@@ -72,6 +72,12 @@ for (const r of feastRefs) for (const m of r.matchAll(/(?:"|[@+*])\s*(\d+)\.\d+:
 check('كل أرقام الأسفار فى قراءات الأعياد موجودة', feastRefs.length > 200 && badFeast.size === 0, feastRefs.length + ' مرجع · أسفار مش موجودة: ' + [...badFeast].join('، '));
 check('البصخة فيها الساعة الثانية عشر يوم الجمعة', !!(feasts.ConstructPaschaFriday && feasts.ConstructPaschaFriday.sections.some((x) => x.id === 'hour-12')), 'ناقصة');
 
+// تصحيحات المراجع (المرحلة ٢): كل تصحيح ليه سبب، والبديل مرجع سليم أو review (يتعرض من غير نص)
+const fixes = fs.existsSync(path.join(D, 'ref-fixes.json')) ? (load('ref-fixes.json').fixes || {}) : null;
+check('تصحيحات المراجع موجودة وكل بند ليه سبب وبديل أو review', !!fixes && Object.keys(fixes).length >= 3 &&
+  Object.values(fixes).every((f) => f.why && (f.review === true || /^\d+\.\d+:[\d,-]+$/.test(f.to || ''))),
+  'data/katameros/ref-fixes.json ناقص أو فيه بند من غير سبب');
+
 for (const f of ['Helpers/CopticDateHelper.cs', 'Repositories/LectionaryRepository.cs', 'Factories/FeastsFactory.cs', 'Factories/Feasts/Easter.cs', 'Factories/SpecialCases/Kiahk.cs']) {
   check('كود مرجعى: ' + f, fs.existsSync(path.join(D, 'reference-src', f)), 'ناقص — قراءات الأعياد وحساب التاريخ فيه');
 }
