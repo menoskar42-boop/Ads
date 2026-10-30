@@ -1,0 +1,380 @@
+[
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 3,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 4,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 5,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 6,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 7,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 8,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 9,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 12,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 13,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 18,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 19,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 20,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 21,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 22,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 30,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 31,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 34,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 36,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 38,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 39,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 40,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 41,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 42,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 44,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 45,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 46,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 47,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 48,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 49,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 51,
+  "Offset": 2
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 52,
+  "Offset": 2
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 53,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 54,
+  "Offset": 2
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 55,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 56,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 57,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 58,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 59,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 60,
+  "Offset": 2
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 61,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 62,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 63,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 64,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 65,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 67,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 68,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 69,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 70,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 75,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 76,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 77,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 80,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 81,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 83,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 84,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 85,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 88,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 89,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 92,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 102,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 108,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 140,
+  "Offset": 1
+ },
+ {
+  "VersificationSchemeId": 1,
+  "BookId": 19,
+  "Chapter": 142,
+  "Offset": 1
+ }
+]

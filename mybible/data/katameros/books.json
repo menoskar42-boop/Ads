@@ -1,0 +1,367 @@
+[
+ {
+  "id": 1,
+  "name": "Genesis",
+  "ar": "تكوين"
+ },
+ {
+  "id": 2,
+  "name": "Exodus",
+  "ar": "خروج"
+ },
+ {
+  "id": 3,
+  "name": "Leviticus",
+  "ar": "لاويين"
+ },
+ {
+  "id": 4,
+  "name": "Numbers",
+  "ar": "عدد"
+ },
+ {
+  "id": 5,
+  "name": "Deuteronomy",
+  "ar": "تثنية"
+ },
+ {
+  "id": 6,
+  "name": "Joshua",
+  "ar": "يشوع"
+ },
+ {
+  "id": 7,
+  "name": "Judges",
+  "ar": "قضاة"
+ },
+ {
+  "id": 8,
+  "name": "Ruth",
+  "ar": "راعوث"
+ },
+ {
+  "id": 9,
+  "name": "1 Samuel",
+  "ar": "1 صموئيل"
+ },
+ {
+  "id": 10,
+  "name": "2 Samuel",
+  "ar": "2 صموئيل"
+ },
+ {
+  "id": 11,
+  "name": "1 Kings",
+  "ar": "1 ملوك"
+ },
+ {
+  "id": 12,
+  "name": "2 Kings",
+  "ar": "2 ملوك"
+ },
+ {
+  "id": 13,
+  "name": "1 Chronicles",
+  "ar": "1 اخبار"
+ },
+ {
+  "id": 14,
+  "name": "2 Chronicles",
+  "ar": "2 اخبار"
+ },
+ {
+  "id": 15,
+  "name": "Ezra",
+  "ar": "عزرا"
+ },
+ {
+  "id": 16,
+  "name": "Nehemiah",
+  "ar": "نحميا"
+ },
+ {
+  "id": 17,
+  "name": "Esther",
+  "ar": "استير"
+ },
+ {
+  "id": 18,
+  "name": "Job",
+  "ar": "ايوب"
+ },
+ {
+  "id": 19,
+  "name": "Psalms",
+  "ar": "مزامير"
+ },
+ {
+  "id": 20,
+  "name": "Proverbs",
+  "ar": "امثال"
+ },
+ {
+  "id": 21,
+  "name": "Ecclesiastes",
+  "ar": "جامعة"
+ },
+ {
+  "id": 22,
+  "name": "Song of Solomon",
+  "ar": "نشيدالانشاد"
+ },
+ {
+  "id": 23,
+  "name": "Isaiah",
+  "ar": "اشعياء"
+ },
+ {
+  "id": 24,
+  "name": "Jeremiah",
+  "ar": "ارميا"
+ },
+ {
+  "id": 25,
+  "name": "Lamentations",
+  "ar": "مراثي"
+ },
+ {
+  "id": 26,
+  "name": "Ezekiel",
+  "ar": "حزقيال"
+ },
+ {
+  "id": 27,
+  "name": "Daniel",
+  "ar": "دانيال"
+ },
+ {
+  "id": 28,
+  "name": "Hosea",
+  "ar": "هوشع"
+ },
+ {
+  "id": 29,
+  "name": "Joel",
+  "ar": "يوئيل"
+ },
+ {
+  "id": 30,
+  "name": "Amos",
+  "ar": "عاموس"
+ },
+ {
+  "id": 31,
+  "name": "Obadiah",
+  "ar": "عوبديا"
+ },
+ {
+  "id": 32,
+  "name": "Jonah",
+  "ar": "يونان"
+ },
+ {
+  "id": 33,
+  "name": "Micah",
+  "ar": "ميخا"
+ },
+ {
+  "id": 34,
+  "name": "Nahum",
+  "ar": "ناحوم"
+ },
+ {
+  "id": 35,
+  "name": "Habakkuk",
+  "ar": "حبقوق"
+ },
+ {
+  "id": 36,
+  "name": "Zephaniah",
+  "ar": "صفنيا"
+ },
+ {
+  "id": 37,
+  "name": "Haggai",
+  "ar": "حجى"
+ },
+ {
+  "id": 38,
+  "name": "Zechariah",
+  "ar": "زكريا"
+ },
+ {
+  "id": 39,
+  "name": "Malachi",
+  "ar": "ملاخي"
+ },
+ {
+  "id": 40,
+  "name": "Matthew",
+  "ar": "متى"
+ },
+ {
+  "id": 41,
+  "name": "Mark",
+  "ar": "مرقس"
+ },
+ {
+  "id": 42,
+  "name": "Luke",
+  "ar": "لوقا"
+ },
+ {
+  "id": 43,
+  "name": "John",
+  "ar": "يوحنا"
+ },
+ {
+  "id": 44,
+  "name": "Acts",
+  "ar": "اعمال"
+ },
+ {
+  "id": 45,
+  "name": "Romans",
+  "ar": "رومية"
+ },
+ {
+  "id": 46,
+  "name": "1 Corinthians",
+  "ar": "1 كورنثوس"
+ },
+ {
+  "id": 47,
+  "name": "2 Corinthians",
+  "ar": "2 كورنثوس"
+ },
+ {
+  "id": 48,
+  "name": "Galatians",
+  "ar": "غلاطية"
+ },
+ {
+  "id": 49,
+  "name": "Ephesians",
+  "ar": "افسس"
+ },
+ {
+  "id": 50,
+  "name": "Philippians",
+  "ar": "فيلبي"
+ },
+ {
+  "id": 51,
+  "name": "Colossians",
+  "ar": "كولوسي"
+ },
+ {
+  "id": 52,
+  "name": "1 Thessalonians",
+  "ar": "1 تسالونيكي"
+ },
+ {
+  "id": 53,
+  "name": "2 Thessalonians",
+  "ar": "2 تسالونيكي"
+ },
+ {
+  "id": 54,
+  "name": "1 Timothy",
+  "ar": "1 تيموثاوس"
+ },
+ {
+  "id": 55,
+  "name": "2 Timothy",
+  "ar": "2 تيموثاوس"
+ },
+ {
+  "id": 56,
+  "name": "Titus",
+  "ar": "تيطس"
+ },
+ {
+  "id": 57,
+  "name": "Philemon",
+  "ar": "فليمون"
+ },
+ {
+  "id": 58,
+  "name": "Hebrews",
+  "ar": "عبرانيين"
+ },
+ {
+  "id": 59,
+  "name": "James",
+  "ar": "يعقوب"
+ },
+ {
+  "id": 60,
+  "name": "1 Peter",
+  "ar": "1 بطرس"
+ },
+ {
+  "id": 61,
+  "name": "2 Peter",
+  "ar": "2 بطرس"
+ },
+ {
+  "id": 62,
+  "name": "1 John",
+  "ar": "1 يوحنا"
+ },
+ {
+  "id": 63,
+  "name": "2 John",
+  "ar": "2 يوحنا"
+ },
+ {
+  "id": 64,
+  "name": "3 John",
+  "ar": "3 يوحنا"
+ },
+ {
+  "id": 65,
+  "name": "Jude",
+  "ar": "يهوذا"
+ },
+ {
+  "id": 66,
+  "name": "Revelation",
+  "ar": "رؤيا"
+ },
+ {
+  "id": 67,
+  "name": "Baruch",
+  "ar": "سفر باروخ"
+ },
+ {
+  "id": 68,
+  "name": "Tobit",
+  "ar": "سفر طوبيا"
+ },
+ {
+  "id": 69,
+  "name": "Judith",
+  "ar": "سفر يهوديت"
+ },
+ {
+  "id": 70,
+  "name": "1 Maccabees",
+  "ar": "1 سفر المكابيين الأول"
+ },
+ {
+  "id": 71,
+  "name": "2 Maccabees",
+  "ar": "سفر المكابيين الثاني"
+ },
+ {
+  "id": 72,
+  "name": "Wisdom of Solomon",
+  "ar": "سفر الحكمة"
+ },
+ {
+  "id": 73,
+  "name": "Sirach",
+  "ar": "سفر يشوع بن سيراخ"
+ }
+]

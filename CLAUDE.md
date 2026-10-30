@@ -358,4 +358,8 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   نفس القاعدة لحد ما المالك يتأكد — والمهام المجدولة مقفولة في الجديدة
   (`SF_SCHEDULERS=off`) عشان ما تتنفّذش مرتين. الحارس:
   `node scripts/check-cohost.js`.
+- `docs/MYBIBLE_KATAMEROS_PLAN.md` — **خطة القطمارس القبطى لموقع الكتاب المقدس** (٢٠٢٦-١٠-٣٠): البيانات اتنقلت
+  من `pierresaid/katameros-api` (رخصة MIT) لـ`mybible/data/katameros/` — السنكسار بالعربى ٣٦٦ يوم، والقراءات
+  السنوية والآحاد والصوم الكبير والخماسين، وكود حساب الأعياد كمرجع. فاضل المحرّك والمقارنة بالأنبا تكلا والتحويل.
+  ⚠️ قصص السنكسار منقولة — ماتتحطش فى صفحات بتتأرشف. الحارس: `node scripts/check-mybible-katameros-data.js`.
 - `docs/MYBIBLE_COHOST.md` — **استضافة موقع الكتاب المقدس (mybible.oscardevs.com، ~700 عضو درس مار مرقس) داخل أوسكار ديفز على نفس Reserved VM** (توفير تكلفة النشر). البوّاب `src/lib/host_gateway.js` + تشغيل تلقائي في server.js + سورس في `mybible/`. مطفي لحد ما `MYBIBLE_UPSTREAM` يتحطّ. اقرأه قبل أي شغل على mybible — فيه القواعد المقدّسة (نفس الدومين/القاعدة/SESSION_SECRET، متمسحش المشروع القديم، الخط الأحمر لهوية الأعضاء).

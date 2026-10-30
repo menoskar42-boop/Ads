@@ -1,0 +1,195 @@
+{
+ "readings": [
+  {
+   "id": 1,
+   "name": "Psalm",
+   "meta": "Title",
+   "ar": "مزمور"
+  },
+  {
+   "id": 1,
+   "name": "Psalm",
+   "meta": "Introduction",
+   "ar": "من مزامير أبينا داود النبي والملك ، بركاته يكون معنا أمين"
+  },
+  {
+   "id": 1,
+   "name": "Psalm",
+   "meta": "Conclusion",
+   "ar": "هللويا!"
+  },
+  {
+   "id": 2,
+   "name": "Gospel",
+   "meta": "Title",
+   "ar": "الإنجيل"
+  },
+  {
+   "id": 2,
+   "name": "Gospel",
+   "meta": "Introduction",
+   "ar": "مبارك الآتي باسم الرب إله القوات ، ربنا وإلهنا ومخلصنا وملكنا كلنا، يسوع المسيح ابن الله الحي، الذي له المجد للأبد آمين."
+  },
+  {
+   "id": 2,
+   "name": "Gospel",
+   "meta": "Conclusion",
+   "ar": "ولله المجد لله الى الابد آمين."
+  },
+  {
+   "id": 3,
+   "name": "Pauline",
+   "meta": "Title",
+   "ar": "البولس"
+  },
+  {
+   "id": 3,
+   "name": "Pauline",
+   "meta": "Introduction",
+   "ar": "فصل من رسالة معلمنا بولس الرسول [الأولى][الثانية][الثالثة] إلى [ ][ ] $ بركاته تكون معنا آمين."
+  },
+  {
+   "id": 3,
+   "name": "Pauline",
+   "meta": "Conclusion",
+   "ar": "نعمة الله الآب تكون مع جميعكم. آمين."
+  },
+  {
+   "id": 4,
+   "name": "Catholic",
+   "meta": "Title",
+   "ar": "الكاثوليكون"
+  },
+  {
+   "id": 4,
+   "name": "Catholic",
+   "meta": "Introduction",
+   "ar": "الكاثوليكون من رسالة $ الرسول [الأولى][الثانية][الثالثة] . بركاته تكون معنى أمين"
+  },
+  {
+   "id": 4,
+   "name": "Catholic",
+   "meta": "Conclusion",
+   "ar": "لا تحبوا العالم ولا الأشياء التي في العالم؛ لأن العالم يمضي وشهوته. أما الذي يصنع إرادة الله فيثبت إلى الأبد. آمين."
+  },
+  {
+   "id": 5,
+   "name": "Acts",
+   "meta": "Title",
+   "ar": "الابركسيس"
+  },
+  {
+   "id": 5,
+   "name": "Acts",
+   "meta": "Introduction",
+   "ar": "فصل من اعمال آبائنأ الرسل الأطهار المشمولين بنعمة الروح القدس، بركتهم تكون معنا. آمين."
+  },
+  {
+   "id": 5,
+   "name": "Acts",
+   "meta": "Conclusion",
+   "ar": "لم تزل كلمة الرب تنمو وتعتز وتثبت في كنيسة الله المقدسة. آمين."
+  },
+  {
+   "id": 6,
+   "name": "Synaxarium",
+   "meta": "Title",
+   "ar": "السنكسار"
+  },
+  {
+   "id": 7,
+   "name": "Prophecy",
+   "meta": "Title",
+   "ar": "النبوة"
+  },
+  {
+   "id": 7,
+   "name": "Prophecy",
+   "meta": "Conclusion",
+   "ar": "مجداً للثالوث القدوس الهنا إلى أبد الأبدين كلها أمين."
+  }
+ ],
+ "sections": [
+  {
+   "id": 1,
+   "name": "Vesper",
+   "meta": "Title",
+   "ar": "العشية"
+  },
+  {
+   "id": 2,
+   "name": "Matin",
+   "meta": "Title",
+   "ar": "باكر"
+  },
+  {
+   "id": 3,
+   "name": "Liturgy",
+   "meta": "Title",
+   "ar": "قداس"
+  },
+  {
+   "id": 4,
+   "name": "FirstHour",
+   "meta": "Title",
+   "ar": "الساعة الأولى"
+  },
+  {
+   "id": 5,
+   "name": "ThirdHour",
+   "meta": "Title",
+   "ar": "الساعة الثالثة"
+  },
+  {
+   "id": 6,
+   "name": "SixthHour",
+   "meta": "Title",
+   "ar": "الساعة السادسة"
+  },
+  {
+   "id": 7,
+   "name": "NinthHour",
+   "meta": "Title",
+   "ar": "الساعة التاسعة"
+  },
+  {
+   "id": 8,
+   "name": "EleventhHour",
+   "meta": "Title",
+   "ar": "الساعة الحادية عشر"
+  }
+ ],
+ "subSections": [
+  {
+   "id": 1,
+   "name": "PsalmAndGospel",
+   "meta": "Title",
+   "ar": "المزمور والإنجيل"
+  },
+  {
+   "id": 1,
+   "name": "PsalmAndGospel",
+   "meta": "Introduction",
+   "ar": "قفوا بخوف أمام الله، وانصتوا لسماع الإنجيل المقدس. فصل شريف من بشارة معلمنا $ الإنجيلي. بركته تكون مع جميعنا، آمين."
+  },
+  {
+   "id": 2,
+   "name": "Prophecy",
+   "meta": "Title",
+   "ar": "النبوات"
+  },
+  {
+   "id": 10,
+   "name": "Synaxarium",
+   "meta": "Introduction",
+   "ar": "اليوم $ من الشهر المبارك $, أحسن الله استقباله، وأعاده علينا وعليكم، ونحن في هدوء واطمئنان، مغفوري الخطايا والآثام، من قِبَل مراحم الرب، يا آبائي وأخوتي.\r\nآمين."
+  }
+ ],
+ "sentences": [
+  {
+   "id": 1,
+   "name": "EveOf",
+   "ar": "عشية"
+  }
+ ]
+}
