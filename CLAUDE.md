@@ -370,7 +370,8 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   من `mybible.oscardevs.com/api/deutero/sttakla/...` (GET بس) فى ملف ويرفعه على GitHub فى فرع **`deutero-sttakla-import`**
   لوحده. ⚠️ أرقام الأسفار فيه أرقام موقعنا مش katameros — الربط بالاسم. ✅ **وصل واتنقل لـ
   `mybible/data/deutero/sttakla-1877.json`** (١٣٧ إصحاح · ٤٣٧٠ آية) ومتطابق مع ترقيم katameros. ⛔ **مسار St-Takla
-  اللحظى (التبويب والجروب) يفضل زى ما هو احتياطى — ممنوع يتمسح** (قرار المالك). الصفحة:
+  اللحظى (التبويب والجروب) يفضل زى ما هو احتياطى — ممنوع يتمسح** (قرار المالك). وجروب مار مرقس: St-Takla الأول،
+  ولو وقع بس ⇒ النسخة المحفوظة (`/api/deutero/local/...`). الصفحة:
   https://claude.ai/artifact/F3VNw8YFhBk83mRXeAd2Ga. **Trigger:** «ابعتلي برومبت الأسفار القانونية».
 - `docs/DEUTERO_MANUS_FILE_PROMPT.md` — **برومبتين: ملف الأسفار القانونية اللى عمله مانوس ← GitHub** (٢٠٢٦-١٠-٣٠).
   manus.im مقفول من بيئة كلود والمالك مش عارف ينزّل الـJSON. ١) مانوس يعيد حفظه zip/txt بالحرف + ملخّص المصدر

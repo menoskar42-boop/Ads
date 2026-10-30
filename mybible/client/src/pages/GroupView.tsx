@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Users, BookOpen, BarChart3, MessageCircle, Settings, Check, X, Copy, Loader2, LogOut, Shield, ShieldOff, Trophy, Award, Target, Share2, AlertTriangle, ArrowRight, Clock, Plus, Eye, Trash2, ChevronDown, ChevronUp, ScrollText, UserPlus, UserX, Link2, Zap, RotateCcw, Play, Search } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { OT_BOOKS, NT_BOOKS, OT_FLAT, NT_FLAT, getAutoReadingForDate, todayStr, findFlatIndex, DEUTEROCANONICAL_BOOKS, type AutoReadingConfig } from '@/lib/group-auto-reading';
+import { OT_BOOKS, NT_BOOKS, OT_FLAT, NT_FLAT, getAutoReadingForDate, todayStr, findFlatIndex, DEUTEROCANONICAL_BOOKS, DEUTERO_SOURCE_IDS, type AutoReadingConfig } from '@/lib/group-auto-reading';
 import { apocryphaBooks } from '@/lib/apocrypha-content';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -97,6 +97,7 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
   const [tafsirLoading, setTafsirLoading] = useState(false);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  const [fromLocalCopy, setFromLocalCopy] = useState(false);
 
   const openTafsir = async (type: 'intro' | 'verse' | 'chapter', verseNum?: number) => {
     setTafsirOpen(true);
@@ -163,15 +164,28 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
         // الأسفار القانونية الثانية — تُحمّل من St-Takla بنفس القارئ المستخدم
         // في قسم أرثوذوكسيات. اسم حكمة سليمان مختلف في كتالوج المصدر.
         if (isDeutero) {
+          // St-Takla الأول زى ما هو؛ لو وقع (أو الإصحاح جه فاضى) ⇒ نسختنا المحفوظة من نفس النص
+          // (قرار المالك ٢٠٢٦-١٠-٣٠).
           const sourceName = currentBook === 'حكمة سليمان' ? 'الحكمة' : currentBook;
-          const catalog = await api.deuteroSource.getCatalog();
-          const sourceBook = catalog.books.find(book => book.name === sourceName);
-          if (!sourceBook) {
+          let chapterData: Awaited<ReturnType<typeof api.deuteroSource.getChapter>> | null = null;
+          let local = false;
+          try {
+            const catalog = await api.deuteroSource.getCatalog();
+            const sourceBook = catalog.books.find(book => book.name === sourceName);
+            if (sourceBook) chapterData = await api.deuteroSource.getChapter(sourceBook.id, currentChapter);
+          } catch { chapterData = null; }
+          if (!chapterData?.verses?.length && DEUTERO_SOURCE_IDS[sourceName]) {
+            try {
+              chapterData = await api.deuteroSource.getLocalChapter(DEUTERO_SOURCE_IDS[sourceName], currentChapter);
+              local = true;
+            } catch { /* النسخة المحفوظة كمان مش متاحة */ }
+          }
+          if (!chapterData) {
             setSourceError('مصدر هذا السفر غير متاح حاليًا من St-Takla.');
             setLoading(false);
             return;
           }
-          const chapterData = await api.deuteroSource.getChapter(sourceBook.id, currentChapter);
+          setFromLocalCopy(local);
           setSourceUrl(chapterData.sourceUrl);
           setVerses(chapterData.verses.map(v => ({
             id: `${currentBook}-${currentChapter}-${v.verse}`,
@@ -324,7 +338,7 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
               className="mb-3 block text-xs text-muted-foreground underline underline-offset-2 hover:text-primary"
               data-testid="deutero-reading-source"
             >
-              المصدر: St-Takla.org
+              {fromLocalCopy ? 'المصدر: St-Takla.org (نسخة محفوظة — الموقع مش متاح دلوقتي)' : 'المصدر: St-Takla.org'}
             </a>
           )}
           <div className="grid grid-cols-2 gap-2">

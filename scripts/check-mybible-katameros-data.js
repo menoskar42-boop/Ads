@@ -109,6 +109,15 @@ check('مسار St-Takla اللحظى لسه موجود (السيرفر + تبو
   /api\.deuteroSource\.getChapter/.test(rd('client/src/pages/GroupView.tsx')),
   'ممنوع يتمسح — المالك عايزه احتياطى');
 
+// الجروب: St-Takla الأول زى ما هو، والنسخة المحفوظة لو وقع بس (قرار المالك ٢٠٢٦-١٠-٣٠) — وأرقام الأسفار نفسها
+const gv = rd('client/src/pages/GroupView.tsx');
+const gar = rd('client/src/lib/group-auto-reading.ts');
+const garIds = [...gar.slice(gar.indexOf('DEUTERO_SOURCE_IDS')).matchAll(/"([^"]+)":\s*(\d+)/g)].slice(0, 7).map((m) => m[1] + '=' + m[2]);
+check('الجروب: St-Takla الأول والنسخة المحفوظة بعده بنفس أرقام STTAKLA_BOOKS',
+  gv.indexOf('api.deuteroSource.getChapter') > 0 && gv.indexOf('api.deuteroSource.getLocalChapter') > gv.indexOf('api.deuteroSource.getChapter') &&
+  stBooks.every((x) => garIds.includes(x)) && /\/api\/deutero\/local\/books\/:bookId\/chapters\/:chapter/.test(rd('server/routes.ts')),
+  'GroupView لازم يجرّب St-Takla الأول، وDEUTERO_SOURCE_IDS = STTAKLA_BOOKS');
+
 for (const f of ['Helpers/CopticDateHelper.cs', 'Repositories/LectionaryRepository.cs', 'Factories/FeastsFactory.cs', 'Factories/Feasts/Easter.cs', 'Factories/SpecialCases/Kiahk.cs']) {
   check('كود مرجعى: ' + f, fs.existsSync(path.join(D, 'reference-src', f)), 'ناقص — قراءات الأعياد وحساب التاريخ فيه');
 }

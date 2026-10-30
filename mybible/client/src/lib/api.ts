@@ -406,5 +406,8 @@ export const api = {
     getCatalog: () => fetchApi<DeuteroSourceCatalog>('/deutero/sttakla'),
     getChapter: (bookId: number, chapter: number) =>
       fetchApi<DeuteroSourceChapter>(`/deutero/sttakla/books/${bookId}/chapters/${chapter}`),
+    /** نسختنا المحفوظة من نفس النص — احتياطى لو St-Takla وقع (نفس أرقام الأسفار) */
+    getLocalChapter: (bookId: number, chapter: number) =>
+      fetchApi<DeuteroSourceChapter>(`/deutero/local/books/${bookId}/chapters/${chapter}`),
   },
 };

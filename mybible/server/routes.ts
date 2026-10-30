@@ -494,6 +494,20 @@ export async function registerRoutes(
     }
   });
 
+  // نسختنا المحفوظة من نفس النص — احتياطى لجروب درس الكتاب لو St-Takla وقع (data/deutero/sttakla-1877.json).
+  // قراية من ملف بس، مفيش طلب برّه.
+  app.get('/api/deutero/local/books/:bookId/chapters/:chapter', async (req, res) => {
+    const bookId = Number(req.params.bookId);
+    const chapter = Number(req.params.chapter);
+    if (!Number.isInteger(bookId) || !Number.isInteger(chapter)) {
+      return res.status(400).json({ status: 'error', message: 'رقم السفر والإصحاح غير صالح' });
+    }
+    const { localDeuteroChapter } = await import('./deutero-local');
+    const out = localDeuteroChapter(bookId, chapter);
+    res.set('Cache-Control', out.ok ? 'public, max-age=86400' : 'no-store');
+    res.status(out.ok ? 200 : 404).json({ status: out.ok ? 'ok' : 'error', ...out });
+  });
+
   // استيراد سفر كامل من St-Takla — محمي بمفتاح، وبفاصل زمني بين الصفحات.
   app.post('/api/deutero/import-sttakla', async (req, res) => {
     if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
