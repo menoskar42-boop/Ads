@@ -345,3 +345,33 @@ test("small n: the usual ways children write it pass; other letters still don't"
   for (const [name, d] of [["pointy", pointy], ["flat", flat], ["one stroke", oneStroke]]) assert.ok(best(d) >= LB_DOTS_PASS, name);
   for (const c of ["h", "r", "m", "u", "a", "b", "p", "v", "w", "z", "N", "M"]) assert.ok(best(strokesFor(c)) < SCORE_PASS, `${c} as n`);
 });
+
+// المالك ٢٠٢٦-١٠-٣١: «حرف a مكتوب كويس وهو بيقول قربنا» (٥٤–٦٤٪) — الطفل بيكتب الدايرة زى c والعصاية بتقفلها.
+// نفس الطريقة فى d و q، ومفيش حرف جديد بقى بيعدّى عليهم (g من غيرها: s كانت بتعدّى).
+test("small a/d/q: a c-shaped bowl closed by the stick passes; no new letter passes as them", async () => {
+  const { strokeModels } = await import("../js/data/strokes.js");
+  const { scoreDrawing, SCORE_PASS } = await import("../js/games/strokeJudge.js");
+  const best = (g, d) => Math.max(...strokeModels(strokesFor(g)).map((m) => scoreDrawing(m, d).score));
+  // من صور المالك (لوحده، بكسل الشاشة): الدايرة مدبّبة شوية من فوق اليمين لتحت اليمين، والعصاية من فوق لتحت
+  const kid = [
+    [[[545, 1200], [400, 1195], [345, 1320], [355, 1400], [420, 1460], [500, 1440], [565, 1400]], [[575, 1170], [580, 1440]]],
+    [[[545, 1210], [420, 1185], [370, 1300], [360, 1440], [430, 1495], [525, 1470], [580, 1420]], [[580, 1185], [595, 1490]]],
+    [[[545, 1215], [410, 1200], [355, 1320], [370, 1390], [440, 1455], [520, 1440], [565, 1380]], [[575, 1170], [580, 1450]]],
+  ];
+  for (const d of kid) {
+    assert.ok(scoreDrawing(strokesFor("a"), d).score < SCORE_PASS, "قبل: «قربنا»");
+    assert.ok(best("a", d) >= SCORE_PASS, `a ${best("a", d)}`);
+  }
+  // نفس الدايرة بعصاية طويلة = d (وa مش d)
+  const tallD = kid[0].map((s, i) => (i === 1 ? [[575, 900], [580, 1440]] : s));
+  assert.ok(best("d", tallD) >= SCORE_PASS, `d ${best("d", tallD)}`);
+  assert.ok(best("a", tallD) < SCORE_PASS, "d مش a");
+  assert.ok(best("d", kid[0]) < SCORE_PASS, "a مش d");
+  assert.equal(strokeModels(strokesFor("g")).length, 1);
+  // الحروف اللى كانت بتعدّى قبل كده (c e o على a) زى ما هى — مفيش حرف جديد
+  const before = { a: ["c", "e", "o"], d: [], q: [] };
+  for (const t of ["a", "d", "q"]) {
+    const passing = "abcdefghijklmnopqrstuvwxyz".split("").filter((o) => o !== t && best(t, strokesFor(o)) >= SCORE_PASS);
+    assert.deepEqual(passing, before[t], t);
+  }
+});
