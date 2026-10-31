@@ -48,7 +48,8 @@ function wordLine(x, lang, filled) {
  * لوحة الحرف العربى بشكله (القناع من الخط نفسه — نفس طريقة «اكتب الحرف موصول»).
  * level 1/2: الرسم فوق الحرف (traceJudge) · level 3: مربع فاضى، والحكم بالشكل (blankJudge) لما يدوس «خلصت».
  */
-function maskBoard(shape, shapes, level, { onOk, onBad, onHint }) {
+export function maskBoard(shape, shapes, level, { onOk, onBad, onHint }, opt = {}) {
+  // opt.latin: حرف إنجليزى (ورقة الامتحان) — نفس الحكم بالشكل. opt.quiet: من غير الخلفية الخضرا لما يصح (الميس بتصحّح بعدين)
   const W = 480, H = 300;
   const box = el("div", "position:relative;width:min(90vw,440px);aspect-ratio:1.6;background:#fff;border-radius:24px;box-shadow:0 6px 0 rgba(0,0,0,.12);margin:8px auto;touch-action:none");
   box.className = "bw-board";
@@ -59,11 +60,12 @@ function maskBoard(shape, shapes, level, { onOk, onBad, onHint }) {
   const g = guide.getContext("2d"), d = draw.getContext("2d");
   const font = (ctx, glyph) => {
     let size = H * 0.62;
-    ctx.font = `bold ${size}px "Baloo Bhaijaan 2", sans-serif`;
+    const fam = opt.latin ? `"Baloo Bhaijaan 2", "Comic Sans MS", sans-serif` : `"Baloo Bhaijaan 2", sans-serif`;
+    ctx.font = `bold ${size}px ${fam}`;
     const w = ctx.measureText(glyph).width;
     if (w > W * 0.86) size *= (W * 0.86) / w;
-    ctx.font = `bold ${size}px "Baloo Bhaijaan 2", sans-serif`;
-    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.direction = "rtl";
+    ctx.font = `bold ${size}px ${fam}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.direction = opt.latin ? "ltr" : "rtl";
   };
   const Y = H / 2 + H * 0.06;
   const maskOf = (glyph) => {
@@ -91,7 +93,7 @@ function maskBoard(shape, shapes, level, { onOk, onBad, onHint }) {
   let drawing = false, last = null, done = false, inked = false;
   const pos = (e) => { const r = draw.getBoundingClientRect(); return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) }; };
   const alpha = () => { const dd = d.getImageData(0, 0, W, H).data, a = new Uint8Array(W * H); for (let i = 0; i < a.length; i++) a[i] = dd[i * 4 + 3]; return a; };
-  const win = () => { done = true; paint(1, "#bbf7d0"); onOk(); };
+  const win = () => { done = true; if (!opt.quiet) paint(1, "#bbf7d0"); onOk(); };
   const overlay = () => {
     const a = alpha();
     let covered = 0, drawn = 0;
@@ -129,6 +131,14 @@ function maskBoard(shape, shapes, level, { onOk, onBad, onHint }) {
   let peekTimer = 0;
   return {
     el: box,
+    /** الحكم بالشكل من غير ما اللوحة تقفل (ورقة الامتحان: الميس بتصحّح الكل مرة واحدة). */
+    check() {
+      if (!inked) return { ok: false, wrongShape: -1, empty: true };
+      return judgeShapes(alpha(), masks, 0, W, H);
+    },
+    /** صورة اللى الطفل كتبه (للكارت الصغير فى الورقة). */
+    snapshot() { return draw.toDataURL("image/png"); },
+    get inked() { return inked; },
     /** المستوى ٣: «✓ خلصت» — الحكم بالشكل. */
     submit() {
       if (done || lv !== 3) return;

@@ -31,6 +31,7 @@ export const ACTIVITIES = {
     { emoji: "🔖", title: "ختم الحرف", desc: "اختار ختم شكل الحرف وختّم بيه مكانه فى كل كلمة", screen: "formsPlay", params: { mode: "formStamp" } },
     { emoji: "✍️", title: "اكتب الحرف موصول", desc: "اكتب الحرف وهو ماسك إيد أصحابه زى ما بيتكتب جوّه الكلمة", screen: "formsPlay", params: { mode: "formTrace" } },
     { emoji: "📝", title: "كمّل الكلمة بإيدك", desc: "اسمع الكلمة واكتب الحرف الناقص بشكله فى أولها أو وسطها أو آخرها — زى الامتحان", screen: "blankWrite", params: { lang: "ar" } },
+    { emoji: "📄", title: "ورقة الامتحان", desc: "ورقة زى المدرسة: ٣ صور، اكتب الحرف الأول لكل كلمة وسلّم الورقة للميس تصحّحها — وتتطبع كمان", screen: "examSheet", params: { lang: "ar" } },
     { emoji: "🧩", title: "بازل الحرف", desc: "الحرف اتكسر حتت! رجّع كل حتة مكانها", screen: "letterPuzzle", params: { kind: "arabic" } },
     { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الحرف ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "arabic" } },
     { emoji: "🔦", title: "الكشّاف", desc: "الدنيا ضلمة! دوّر بالكشّاف على الحرف", screen: "flashlight", params: { kind: "arabic" } },
@@ -172,6 +173,7 @@ export const ACTIVITIES = {
     { emoji: "🧠", title: "اكتب من الذاكرة", desc: "ميزو يقول الحرف وانت تكتبه لوحدك — للحروف اللى عليها نجمة", screen: "letterRecall", params: { mode: "write", lang: "en", title: "🧠 اكتب من الذاكرة" } },
     { emoji: "🔗", title: "وصّل الحرف بالصورة", desc: "اسحب خط من كل حرف للصورة اللى بتبدأ بيه", screen: "letterRecall", params: { mode: "connect", lang: "en", title: "🔗 وصّل الحرف بالصورة" } },
     { emoji: "📝", title: "كمّل الكلمة بإيدك", desc: "Supply the missing letter: اسمع الكلمة واكتب الحرف الناقص — زى الامتحان", screen: "blankWrite", params: { lang: "en" } },
+    { emoji: "📄", title: "ورقة الامتحان", desc: "Supply the missing letter: ٣ صور زى ورقة المدرسة، والميس بتصحّح — وتتطبع كمان", screen: "examSheet", params: { lang: "en" } },
     // «ألعاب ميزو» (٢٠٢٦-١٠-١٦): خمس ألعاب جديدة بنفس الكود للعربى والإنجليزى والأرقام
     { emoji: "🧩", title: "بازل الحرف", desc: "الحرف اتكسر حتت! رجّع كل حتة مكانها", screen: "letterPuzzle", params: { kind: "english" } },
     { emoji: "🐸", title: "نطّة الضفدع", desc: "اسمع الحرف ونطّ بالضفدع على الورقة الصح لحد بيته", screen: "frog", params: { kind: "english" } },
