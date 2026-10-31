@@ -4857,6 +4857,14 @@ export async function registerRoutes(
              AND e.retry_round = 0
              AND e.retried_at IS NULL
              AND e.type IN ('measure','raise','stop')
+             -- إيقاف PO ليه إعادته هو (stopRetryFor فى /done وbridge/report: «+إعادة» لحد ٣ مرات) ⇒ هنا بس
+             -- «stopped» اللى هى مابتعيدهاش. من غير ده الإيقاف اللى اتقفل كان بيتعاد مرتين (+إعادة و«بعد إيرور»)،
+             -- واللى اتسجّل فعلاً بعد ما التاب اتقفل كان بيتعاد برضه (المالك ٢٠٢٦-١٠-٣١: «ايقاف الpo بيرجع منه نسبه
+             -- كبيره بعد ايرو»).
+             AND NOT (e.type = 'stop' AND e.result <> 'stopped')
+             AND NOT (e.type = 'stop' AND EXISTS (SELECT 1 FROM line_po_events p
+                                                  WHERE p.account_no = e.accounts->>0
+                                                    AND p.last_stop_at >= COALESCE(e.claimed_at, e.done_at - interval '30 minutes')))
              AND e.done_at > now() - interval '6 hours'
              -- الباتش خلص بالكامل
              AND NOT EXISTS (SELECT 1 FROM active b WHERE b.batch_id = e.batch_id)
