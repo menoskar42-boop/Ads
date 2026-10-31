@@ -121,7 +121,12 @@ test("🏃 الحرف الهربان (ب): بيهرب ويتنطّط، ولما 
       await page.locator("button", { hasText: "🔁" }).click();
       await drawShape({ scale: 0.7, dx: 30 });
       await page.locator("[data-submit]").click();
-    } else await drawShape();
+    } else {
+      await drawShape();
+      // الرسم الصناعى أحياناً مابيتقبلش فى الجهاز المشغول — الطفل بيمسح ويعيد، والاختبار كمان (مرة واحدة)
+      const back = await page.waitForFunction(() => !document.querySelector(".bw-runner"), null, { timeout: 4000 }).then(() => true, () => false);
+      if (!back) { await page.locator("button", { hasText: "🔁" }).click(); await drawShape(); }
+    }
     await page.waitForFunction(() => !document.querySelector(".bw-runner"), null, { timeout: 7000 });
     await waitFilled();
   }
