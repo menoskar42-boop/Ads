@@ -7,12 +7,16 @@
 > **البديل:** مانوس **يجمع بس** (من غير ما يفسّر ولا يقارن)، ويكتب كل يوم فى الملف أول ما يخلص (لو وقف بيكمّل من
 > آخر يوم)، وكلود يعمل المقارنة هنا بالكود على محرّك القطمارس بتاعنا (`mybible/server/katameros-local.ts`).
 > الملف بيوصل بنفس طريقة ملف الأسفار القانونية: txt من مانوس ← الإكستنشن يرفعه على فرع لوحده.
+> **٢٠٢٦-١٠-٣١:** مانوس رجّع مقارنة السنة (`mybible/data/katameros/review/2026-10-31-takla-review.md`) بس ٥١ يوم
+> ماتقروش (المحلّل بيدوّر على «العشية» وأيام الصوم مافيهاش عشية). السكربت اتصلّح (بيلاقى القراءات من لينكات `E_Ref`)
+> وبقى بيجمع الـ٥١ يوم دول بس — والسنة كلها بـ`python3 collect.py all`.
 > **Trigger:** «ابعتلي برومبت جمع القطمارس».
 
 ## البرومبت ١ — لمانوس
 
 ```
-عايزك تجمع قراءات القطمارس القبطى لكل يوم من ١١ سبتمبر ٢٠٢٦ لحد ١١ سبتمبر ٢٠٢٧ (٣٦٦ يوم) من موقعين،
+عايزك تجمع قراءات القطمارس القبطى من موقعين لـ٥١ يوم (صوم نينوى والصوم الكبير وأسبوع الآلام والقيامة ٢٠٢٧ —
+صفحاتهم ماتقروش فى المقارنة اللى فاتت لأن المحلّل كان بيدوّر على كلمة «العشية» وأيام الصوم مافيهاش عشية)،
 وتحفظها زى ما هى فى ملف. **جمع بس** — ماتقارنش ولا تفسّر ولا تعدّل أى مرجع؛ المقارنة هتتعمل بعدين.
 
 خطوط حمرا:
@@ -20,7 +24,8 @@
 - ٣ ثوانى على الأقل بين أى طلبين لنفس الموقع.
 - لو ظهر 403 أو 429 أو كابتشا أو حظر: وقّف فوراً وقولّى آخر يوم اتحفظ.
 
-شغّل السكربت ده بـ python3 (محتاج requests وbeautifulsoup4). بيكتب سطر لكل يوم فى katameros-takla-1743.jsonl
+شغّل السكربت ده بـ python3 (محتاج requests وbeautifulsoup4) — احفظه باسم collect.py وشغّله: python3 collect.py
+بيكتب سطر لكل يوم فى katameros-takla-1743.jsonl
 أول ما اليوم يخلص، ولو اتقفل أو وقف شغّله تانى وهو بيكمّل من بعد آخر يوم محفوظ:
 
 import json, os, time, sys
@@ -31,6 +36,19 @@ from bs4 import BeautifulSoup
 
 OUT = "katameros-takla-1743.jsonl"
 START, END = date(2026, 9, 11), date(2027, 9, 11)
+# الافتراضى: الـ٥١ يوم اللى صفحاتهم ماتقروش المرة اللى فاتت (صوم نينوى والصوم الكبير وأسبوع الآلام والقيامة).
+# python3 collect.py all ⇐ السنة كلها
+MISSING = [
+    "2027-01-08", "2027-02-23", "2027-02-24", "2027-02-25", "2027-03-08", "2027-03-09",
+    "2027-03-10", "2027-03-11", "2027-03-12", "2027-03-13", "2027-03-15", "2027-03-16",
+    "2027-03-17", "2027-03-18", "2027-03-19", "2027-03-20", "2027-03-22", "2027-03-23",
+    "2027-03-24", "2027-03-25", "2027-03-26", "2027-03-29", "2027-03-30", "2027-03-31",
+    "2027-04-01", "2027-04-02", "2027-04-03", "2027-04-05", "2027-04-06", "2027-04-08",
+    "2027-04-09", "2027-04-10", "2027-04-12", "2027-04-13", "2027-04-14", "2027-04-16",
+    "2027-04-17", "2027-04-19", "2027-04-20", "2027-04-21", "2027-04-22", "2027-04-23",
+    "2027-04-24", "2027-04-25", "2027-04-26", "2027-04-27", "2027-04-28", "2027-04-29",
+    "2027-04-30", "2027-05-01", "2027-05-02",
+]
 H = {"User-Agent": "Mozilla/5.0 (compatible; katameros-collect/1.0)"}
 
 def blocked(r):
@@ -57,12 +75,15 @@ def takla(d):
     if blocked(r): sys.exit(f"الأنبا تكلا اتقفل يوم {d} (HTTP {r.status_code})")
     if r.status_code != 200: return {"error": r.status_code}
     s = BeautifulSoup(r.text, "html.parser")
-    node = s.find(string=lambda x: x and x.strip() == "العشية")
-    if not node:
+    # أصغر div فيه كل لينكات القراءات (E_Ref) — مش بندوّر على «العشية» عشان أيام الصوم مافيهاش عشية
+    links = [a for a in s.find_all("a", href=True) if "E_Ref=" in a["href"]]
+    if not links:
         if "captcha" in r.text.lower(): sys.exit(f"الأنبا تكلا طلب كابتشا يوم {d}")
-        return {"error": "مفيش كلمة العشية فى الصفحة"}
+        return {"error": "مفيش لينكات قراءات فى الصفحة"}
+    box = next((dv for dv in links[0].find_parents("div")
+                if sum(1 for a in dv.find_all("a", href=True) if "E_Ref=" in a["href"]) == len(links)), s)
     items = []
-    for x in node.find_parent("div").find_all(["p", "a", "h1", "h2", "h3", "h4"]):
+    for x in box.find_all(["p", "a", "h1", "h2", "h3", "h4"]):
         txt = " ".join(x.get_text(" ", strip=True).split())
         if x.name == "a":
             href = x.get("href", "")
@@ -78,15 +99,19 @@ if os.path.exists(OUT):
     for line in open(OUT, encoding="utf-8"):
         try: done.add(json.loads(line)["date"])
         except Exception: pass
+days = []
 d = START
 while d <= END:
+    days.append(d); d += timedelta(days=1)
+if not (len(sys.argv) > 1 and sys.argv[1] == "all"):
+    days = [x for x in days if x.isoformat() in MISSING]
+for d in days:
     if d.isoformat() not in done:
         k = katameros(d); time.sleep(3)
         t = takla(d); time.sleep(3)
         with open(OUT, "a", encoding="utf-8") as f:
             f.write(json.dumps({"date": d.isoformat(), "katameros": k, "takla": t}, ensure_ascii=False) + "\n")
         print(d, "✓", flush=True)
-    d += timedelta(days=1)
 print("خلص:", len(open(OUT, encoding="utf-8").readlines()), "يوم")
 
 لما يخلص (أو لو وقف ومش راضى يكمّل):
