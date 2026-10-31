@@ -192,6 +192,25 @@ async function build(i) {
   await advanced(i);
 }
 
+/** 🕵️ غلطة ميزو جوّه الصفحة: يطلّع الحرف الغلط ويختار الصح — جولة جولة. */
+async function spot(i) {
+  for (let r = 0; r < 4; r++) {
+    if ((await nowChip()) !== i) return;
+    const has = await page.waitForSelector("[data-wrong]:not([data-seen])", { timeout: 6000 }).then(() => true, () => false);
+    if (!has) break;
+    await page.evaluate(() => document.querySelector("[data-wrong]").setAttribute("data-seen", "1"));
+    await page.locator("[data-wrong]").click();
+    await page.waitForSelector("[data-good]", { timeout: 4000 });
+    await page.locator("[data-good]").click();
+    await page.waitForFunction((i) => {
+      const x = document.querySelector("[data-seen]");
+      const now = [...document.querySelectorAll(".wbk-chip")].findIndex((c) => c.classList.contains("now"));
+      return now !== i || !x || (x.style.borderStyle === "solid" && !/[؟?]/.test(x.textContent));
+    }, i, { timeout: 7000 });
+  }
+  await advanced(i);
+}
+
 async function playPage(pageId, opts = {}) {
   await open(pageId, opts);
   const seen = [];
@@ -205,7 +224,9 @@ async function playPage(pageId, opts = {}) {
       if (await page.locator(".lbk-reps").count()) await writeReps(i);
       else { await writeOne(); await advanced(i); }
     } else if (k === "game") await gameStep(i);
-    else if (k === "blankWrite") { await page.locator(".wbk-skip").click(); await advanced(i); }   // بيتلعب فى blank-write-ui.test.mjs
+    else if (k === "spotMistake") await spot(i);
+    // الكتابة فى الكلمة بتتلعب فى blank-write-ui / stories-ui / exam-sheet-ui
+    else if (["blankWrite", "runaway", "train", "examSheet", "dueReview"].includes(k)) { await page.locator(".wbk-skip").click(); await advanced(i); }
     else if (k === "spell") {
       const n = await page.locator(".ebk-spell span").count();
       for (let g = 0; g < n; g++) {
@@ -232,7 +253,7 @@ test("vocab page (family): words, find, He/She sort", async () => {
 
 test("letter page (M): castle games inside, capital and small 3+5 each, then the letter's grade", async () => {
   assert.deepEqual(await playPage("u1-M"), ["letterMeet", "write", "🧩", "write", "firstSound", "🔦", "popLetter", "write", "🥚", "write",
-    "🔤", "find", "blankWrite", "🎯", "🔠", "write", "write", "🧠"]);
+    "🔤", "find", "blankWrite", "spotMistake", "🎯", "runaway", "🔠", "write", "train", "write", "examSheet", "🧠"]);
   await page.waitForSelector(".lgc .lgc-total b");
   await shot("u1-M-grade");
   const g = await page.evaluate(async () => (await import("/js/core/storage.js")).Store.letterGrades["en:M"]);

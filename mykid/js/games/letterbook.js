@@ -32,6 +32,7 @@ import { connectStepFor, starredLetters, RECALL_SAY } from "../data/letterRecall
 import { SCORE_PASS } from "./strokeJudge.js";
 import { mountFormsGame } from "./formsPlay.js";
 import { mountBlankWrite } from "./blankWrite.js";
+import { BOOK_WORD_KINDS, BOOK_WORD_ICON, prepBookWordStep, mountBookWordStep } from "./bookWordGames.js";
 import { nameRound, LF_KINDS } from "../data/letterForms.js";
 const LF_ICON = { hands: "🤝", formComplete: "🧩", formListen: "🚂", formStamp: "🔖", nameHunt: "📛", blankWrite: "✍️" };
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
@@ -147,6 +148,8 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     steps = steps.flatMap((x) => {
       // «دوّر على حروف اسمك»: بس لو الحرف فى اسم الطفل
       if (x.kind === "nameHunt") return nameRound(Store.childName, x.ch) ? [x] : [];
+      // ألعاب «الحرف فى الكلمة»: الجولات بتتجهّز دلوقتى (حروف النجمة · مراجعة النهارده)
+      if (BOOK_WORD_KINDS.includes(x.kind)) { const y = prepBookWordStep("ar", x, starredLetters("ar", Store.letterbookDone)); return y ? [y] : []; }
       if (x.kind !== "connect") return [x];
       const round = connectStepFor("ar", x.ch, starredLetters("ar", Store.letterbookDone));
       return round ? [{ ...x, round }] : [];
@@ -177,7 +180,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     else title.innerHTML = `<b>〰️</b><span>التهيئة</span>`;
     const track = el("div", "wbk-track");
     steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""),
-      isLbWrite(s) || s.kind === "formTrace" ? "✏️" : s.kind === "connect" ? "🔗" : LF_ICON[s.kind] || (s.kind === "game" ? (LB_GAME_INFO[s.game] || {}).icon || "🎲" : "🎲"))));
+      isLbWrite(s) || s.kind === "formTrace" ? "✏️" : s.kind === "connect" ? "🔗" : LF_ICON[s.kind] || BOOK_WORD_ICON[s.kind] || (s.kind === "game" ? (LB_GAME_INFO[s.game] || {}).icon || "🎲" : "🎲"))));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;
@@ -495,6 +498,16 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       body.appendChild(hint);
       cleanup = () => game.destroy();
     },
+
+    // 🏃 🚃 🕵️ 📄 🔁 ألعاب «الحرف فى الكلمة» من القلعة على حرف الصفحة (games/bookWordGames.js)
+    ...Object.fromEntries(BOOK_WORD_KINDS.map((k) => [k, (body, s) => {
+      let row = null;
+      const hint = hintLine();
+      const ask = (text) => { const p = prompt(text); if (row) row.replaceWith(p); else body.prepend(p); row = p; };
+      const game = mountBookWordStep(body, "ar", s, { ask, hint: (t) => hint.show(t), onDone: () => stepDone(800) });
+      body.appendChild(hint);
+      cleanup = () => game.destroy();
+    }])),
 
     // ضع دائرة حول الصورة اللى بتبدأ بالحرف
     starts(body, s) {

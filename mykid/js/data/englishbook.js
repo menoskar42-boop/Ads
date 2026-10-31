@@ -458,10 +458,17 @@ export function ebSteps(pg, rnd = Math.random, only = null) {
     if (want("find")) steps.push({ kind: "find", rounds: findRounds(pg.words, rnd) });
     // ✍️ Supply the missing letter (المالك ٢٠٢٦-١٠-٣١، امتحان بنته): _un — يكتب الحرف الصغير مكانه
     if (want("blankWrite")) steps.push({ kind: "blankWrite", ch: pg.ch });
+    // ألعاب «الحرف فى الكلمة» من القلعة (المالك ٢٠٢٦-١٠-٣١ — games/bookWordGames.js): الشاشة بتجهّز الجولات
+    const ww = (kind, extra = {}) => { if (want(kind)) steps.push({ kind, ch: pg.ch, ...extra }); };
+    ww("spotMistake");
     game("catch");
+    ww("runaway", { pick: rnd() });
     game("sequence");
     write(pg.ch, 3, 3, true);
+    ww("train", { pick: rnd() });
     write(lo, 3, 3, true);
+    ww("examSheet");
+    ww("dueReview");
     game("review");
   } else if (pg.type === "story") {
     if (pg.opposites && want("opposites")) steps.push({ kind: "opposites", pair: pg.opposites });

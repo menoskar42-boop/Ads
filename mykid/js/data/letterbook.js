@@ -248,7 +248,9 @@ function lettersAround(ch) {
 // ===== صفحة الحرف: يكتب شوية ويلعب شوية (نفس ترتيب أنشطة الكتاب) =====
 export const LB_LETTER_KINDS = ["meet", "write", "riddle", "pop", "harakat", "starts", "forms", "missing", "game", "harakaWrite", "harakaQuiz", "connect",
   // ستّ ألعاب أشكال الحرف (المالك ٢٠٢٦-١٠-٢٧ — data/letterForms.js): الشاشة بتبنى الجولات
-  "hands", "formComplete", "formListen", "formStamp", "formTrace", "nameHunt"];
+  "hands", "formComplete", "formListen", "formStamp", "formTrace", "nameHunt",
+  // ألعاب «الحرف فى الكلمة» من القلعة (المالك ٢٠٢٦-١٠-٣١ — games/bookWordGames.js): الشاشة بتجهّز الجولات
+  "runaway", "train", "spotMistake", "examSheet", "dueReview"];
 
 // ===== الكتابة الكتير (المالك ٢٠٢٦-١٠-١٦: «٣ بالنقط + ٥ لوحده»): النقط ماتتحسبش غير بـ٧٥٪،
 // ولوحده غير بـ٧٠٪ — كل مرة بتتحسب لوحدها فى العدّاد (✓ ١/٣) =====
@@ -320,6 +322,8 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   // ١٣ج) 🧩 كمّل الكلمة بالشكل الصح · 🚂 اسمع وحط فى العربية
   lf("formComplete");
   lf("formListen");
+  // ١٣د) 🏃 الحرف الهربان: كلمة واحدة من كلمات الحرف (pick = أنهى كلمة — الشاشة بتجهّزها)
+  if (want("runaway")) steps.push({ kind: "runaway", ch, pick: rnd() });
   // ١٤) 🎯 اصطياد الحروف
   game("catch");
   // ١٥) اكتب الحرف الناقص فى الكلمة
@@ -332,6 +336,8 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   }
   // ١٥أ) ✍️ كمّل الكلمة بإيدك (المالك ٢٠٢٦-١٠-٣١، امتحان بنته): نفس الفكرة بس يكتب الحرف بشكله فى أول/وسط/آخر الكلمة
   if (want("blankWrite")) steps.push({ kind: "blankWrite", ch });
+  // ١٥ج) 🕵️ غلطة ميزو: ميزو غلط فى حرف الصفحة والطفل يطلّعه
+  lf("spotMistake");
   // ١٥ب) 🔖 ختم الحرف
   lf("formStamp");
   // ١٦) 🔠 الحرف الناقص فى الحروف (أ ب ؟)
@@ -340,7 +346,12 @@ export function letterPage(ch, rnd = Math.random, only = null) {
   write(3, LB_ALONE_REPS[1], true);
   // ١٧أ) ✍️ اكتب الحرف وهو ماسك إيد صاحبه · 📛 دوّر عليه فى اسمك (الشاشة بتشيلها لو مش فى الاسم)
   lf("formTrace");
+  // ١٧ج) 🚃 قطر الكلمة: عربية فاضية (مربع فاضى زى الامتحان)
+  if (want("train")) steps.push({ kind: "train", ch, pick: rnd() });
   lf("nameHunt");
+  // ١٧د) 📄 ورقة الامتحان (حرف الصفحة + حروف النجمة) · 🔁 مراجعة اليوم (بس لو فيه كلمات عليها الدور)
+  lf("examSheet");
+  lf("dueReview");
   // ١٧ب) المالك ٢٠٢٦-١٠-١٩: بعد ما يتقن الحرف من غير تشكيل — يكتبه بكل حركة (على النقط وبعدين
   // لوحده)، وبعدها «اسمع واعرف الحركة» لحد ما يعرف الحركة من صوت الكلمة
   if (want("harakaWrite")) for (const h of LB_HARAKA_ORDER) steps.push({ kind: "harakaWrite", ch, h });

@@ -5,7 +5,7 @@
 //   form   الحرف مكتوب لوحده وهو المفروض يمسك إيد أصحابه (حـ ب ر بدل حبر) — نفس فكرة «أشكال الحرف».
 //   letter حرف شبهه بالنقط (ب ت ث ن · ج ح خ · د ذ · ر ز · س ش · ص ض · ط ظ · ع غ · ف ق) — والإنجليزى b/d p/q m/n…
 //
-// ملف صافى (من غير DOM) — الشاشة فى games/spotMistake.js، والاختبار tests/spot-mistake.test.mjs.
+// ملف صافى (من غير DOM) — الشاشة فى games/spotMistake.js، والاختبار tests/spot-review.test.mjs.
 import { BW_AR_LETTERS, BW_EN_LETTERS, arItems, enItems, arShapes } from "./blankWrite.js";
 import { joinsNext } from "./letterbook.js";
 

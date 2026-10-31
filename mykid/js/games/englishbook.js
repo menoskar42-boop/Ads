@@ -26,6 +26,7 @@ import { LB_DOTS_PASS } from "../data/letterbook.js";
 import { mountWriteBoard } from "./writeBoard.js";
 import { mountConnect } from "./connectBoard.js";
 import { mountBlankWrite } from "./blankWrite.js";
+import { BOOK_WORD_KINDS, BOOK_WORD_ICON, prepBookWordStep, mountBookWordStep } from "./bookWordGames.js";
 import { connectOpts } from "./letterRecall.js";
 import { connectStepFor, starredLetters, RECALL_SAY } from "../data/letterRecall.js";
 import { SCORE_PASS } from "./strokeJudge.js";
@@ -170,6 +171,8 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     steps = ebSteps(pg, Math.random, only);
     // «وصّل الحرف بالصورة»: الجولة من حروف النجمة دلوقتى — ولو مفيش حرف تانى عليه نجمة الخطوة بتتشال
     steps = steps.flatMap((x) => {
+      // ألعاب «الحرف فى الكلمة»: الجولات بتتجهّز دلوقتى (حروف النجمة · مراجعة النهارده)
+      if (BOOK_WORD_KINDS.includes(x.kind)) { const y = prepBookWordStep("en", x, starredLetters("en", Store.englishbookDone)); return y ? [y] : []; }
       if (x.kind !== "connect") return [x];
       const round = connectStepFor("en", x.ch, starredLetters("en", Store.englishbookDone));
       return round ? [{ ...x, round }] : [];
@@ -226,7 +229,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     const track = el("div", "wbk-track");
     // فى «حروفى بالنجمة» كل خانة عليها حرفها (Mm · Ss …) بدل 🎲
     steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : "") + (cur.type === "mix" ? " ebk-chip-letter" : ""),
-      cur.type === "mix" ? `${s.label}${s.label.toLowerCase()}` : isEbWrite(s) ? "✏️" : s.kind === "connect" ? "🔗" : s.kind === "game" ? gameInfo(s.game).icon : "🎲")));
+      cur.type === "mix" ? `${s.label}${s.label.toLowerCase()}` : isEbWrite(s) ? "✏️" : s.kind === "connect" ? "🔗" : s.kind === "blankWrite" ? "✍️" : BOOK_WORD_ICON[s.kind] || (s.kind === "game" ? gameInfo(s.game).icon : "🎲"))));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;
@@ -400,6 +403,16 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
       body.appendChild(hint);
       cleanup = () => game.destroy();
     },
+
+    // 🏃 🚃 🕵️ 📄 🔁 ألعاب «الحرف فى الكلمة» من القلعة على حرف الصفحة (games/bookWordGames.js)
+    ...Object.fromEntries(BOOK_WORD_KINDS.map((k) => [k, (body, s) => {
+      let row = null;
+      const hint = hintLine();
+      const ask = (text) => { const p = prompt(text); if (row) row.replaceWith(p); else body.prepend(p); row = p; };
+      const game = mountBookWordStep(body, "en", s, { ask, hint: (t) => hint.show(t), onDone: () => stepDone(800) });
+      body.appendChild(hint);
+      cleanup = () => game.destroy();
+    }])),
 
     connect(body, s) {
       body.appendChild(prompt(RECALL_SAY.en.connect));

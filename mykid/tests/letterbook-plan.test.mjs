@@ -61,8 +61,8 @@ test("letter page: book activities + castle games in order, write 3 on dots then
     const steps = letterPage(ch, seeded(1));
     assert.deepEqual(steps.map((s) => (s.kind === "game" ? s.game : s.kind)), [
       "meet", "write", "puzzle", "riddle", "pop", "flash", "harakat", "write", "eggs",
-      "starts", "phonics", "connect", "forms", "hands", "circle", "formComplete", "formListen", "catch", "missing", "blankWrite",
-      "formStamp", "sequence", "write", "formTrace", "nameHunt",
+      "starts", "phonics", "connect", "forms", "hands", "circle", "formComplete", "formListen", "runaway", "catch", "missing", "blankWrite",
+      "spotMistake", "formStamp", "sequence", "write", "formTrace", "train", "nameHunt", "examSheet", "dueReview",
       "harakaWrite", "harakaWrite", "harakaWrite", "harakaWrite", "harakaQuiz", "review"]);
     // المالك ٢٠٢٦-١٠-١٩: بعد الحرف من غير تشكيل — بالفتحة والضمة والكسرة والسكون، وكل واحدة ليها خطوط
     assert.deepEqual(steps.filter((s) => s.kind === "harakaWrite").map((s) => s.h), ["a", "u", "i", "o"]);

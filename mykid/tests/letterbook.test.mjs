@@ -217,6 +217,25 @@ async function game(i) {
   await advanced(i);
 }
 
+/** 🕵️ غلطة ميزو جوّه الصفحة: يطلّع الحرف الغلط ويختار الصح — جولة جولة. */
+async function spot(i) {
+  for (let r = 0; r < 4; r++) {
+    if ((await nowChip()) !== i) return;
+    const has = await page.waitForSelector("[data-wrong]:not([data-seen])", { timeout: 6000 }).then(() => true, () => false);
+    if (!has) break;
+    await page.evaluate(() => document.querySelector("[data-wrong]").setAttribute("data-seen", "1"));
+    await page.locator("[data-wrong]").click();
+    await page.waitForSelector("[data-good]", { timeout: 4000 });
+    await page.locator("[data-good]").click();
+    await page.waitForFunction((i) => {
+      const x = document.querySelector("[data-seen]");
+      const now = [...document.querySelectorAll(".wbk-chip")].findIndex((c) => c.classList.contains("now"));
+      return now !== i || !x || (x.style.borderStyle === "solid" && !/[؟?]/.test(x.textContent));
+    }, i, { timeout: 7000 });
+  }
+  await advanced(i);
+}
+
 async function playPage(pageId, opts = {}) {
   await open(pageId, opts);
   const seen = [];
@@ -234,7 +253,9 @@ async function playPage(pageId, opts = {}) {
     else if (k === "game") await game(i);
     else if (k === "shadow" || k === "matchFirst") await pair(i);
     else if (k === "formStamp") await stampAll(i);
-    else if (k === "formTrace" || k === "blankWrite") { await page.locator(".wbk-skip").click(); await advanced(i); }   // blankWrite بيتلعب فى blank-write-ui.test.mjs
+    else if (k === "spotMistake") await spot(i);
+    // الكتابة فى الكلمة بتتلعب فى blank-write-ui / stories-ui / exam-sheet-ui
+    else if (["formTrace", "blankWrite", "runaway", "train", "examSheet", "dueReview"].includes(k)) { await page.locator(".wbk-skip").click(); await advanced(i); }
     else {
       if (!["meet", "harakat", "forms"].includes(k)) await oneMistake();
       await tapGood(i);
@@ -247,8 +268,8 @@ async function playPage(pageId, opts = {}) {
 test("letter page (ب): book activities + castle games in order, 3+5 writes, then the letter's grade", async () => {
   const seen = await playPage("Lب");
   assert.deepEqual(seen, ["meet", "write", "🧩", "riddle", "pop", "🔦", "harakat", "write", "🥚",
-    "starts", "🔤", "forms", "hands", "circle", "formComplete", "formListen", "🎯", "missing", "blankWrite", "formStamp", "🔠", "write",
-    "formTrace", "harakaWrite", "harakaWrite", "harakaWrite", "harakaWrite", "harakaQuiz", "🧠"]);
+    "starts", "🔤", "forms", "hands", "circle", "formComplete", "formListen", "runaway", "🎯", "missing", "blankWrite", "spotMistake", "formStamp", "🔠", "write",
+    "formTrace", "train", "examSheet", "harakaWrite", "harakaWrite", "harakaWrite", "harakaWrite", "harakaQuiz", "🧠"]);
   // شهادة الحرف: درجة من ١٠٠ ونجوم، ومحفوظة بالتفاصيل لولى الأمر
   await page.waitForSelector(".lgc .lgc-total b");
   await shot("Lب-grade");
