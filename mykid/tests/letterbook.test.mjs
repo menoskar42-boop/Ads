@@ -234,7 +234,7 @@ async function playPage(pageId, opts = {}) {
     else if (k === "game") await game(i);
     else if (k === "shadow" || k === "matchFirst") await pair(i);
     else if (k === "formStamp") await stampAll(i);
-    else if (k === "formTrace") { await page.locator(".wbk-skip").click(); await advanced(i); }
+    else if (k === "formTrace" || k === "blankWrite") { await page.locator(".wbk-skip").click(); await advanced(i); }   // blankWrite بيتلعب فى blank-write-ui.test.mjs
     else {
       if (!["meet", "harakat", "forms"].includes(k)) await oneMistake();
       await tapGood(i);
@@ -247,7 +247,7 @@ async function playPage(pageId, opts = {}) {
 test("letter page (ب): book activities + castle games in order, 3+5 writes, then the letter's grade", async () => {
   const seen = await playPage("Lب");
   assert.deepEqual(seen, ["meet", "write", "🧩", "riddle", "pop", "🔦", "harakat", "write", "🥚",
-    "starts", "🔤", "forms", "hands", "circle", "formComplete", "formListen", "🎯", "missing", "formStamp", "🔠", "write",
+    "starts", "🔤", "forms", "hands", "circle", "formComplete", "formListen", "🎯", "missing", "blankWrite", "formStamp", "🔠", "write",
     "formTrace", "harakaWrite", "harakaWrite", "harakaWrite", "harakaWrite", "harakaQuiz", "🧠"]);
   // شهادة الحرف: درجة من ١٠٠ ونجوم، ومحفوظة بالتفاصيل لولى الأمر
   await page.waitForSelector(".lgc .lgc-total b");

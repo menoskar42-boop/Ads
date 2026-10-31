@@ -61,7 +61,7 @@ test("letter page: book activities + castle games in order, write 3 on dots then
     const steps = letterPage(ch, seeded(1));
     assert.deepEqual(steps.map((s) => (s.kind === "game" ? s.game : s.kind)), [
       "meet", "write", "puzzle", "riddle", "pop", "flash", "harakat", "write", "eggs",
-      "starts", "phonics", "connect", "forms", "hands", "circle", "formComplete", "formListen", "catch", "missing",
+      "starts", "phonics", "connect", "forms", "hands", "circle", "formComplete", "formListen", "catch", "missing", "blankWrite",
       "formStamp", "sequence", "write", "formTrace", "nameHunt",
       "harakaWrite", "harakaWrite", "harakaWrite", "harakaWrite", "harakaQuiz", "review"]);
     // المالك ٢٠٢٦-١٠-١٩: بعد الحرف من غير تشكيل — بالفتحة والضمة والكسرة والسكون، وكل واحدة ليها خطوط

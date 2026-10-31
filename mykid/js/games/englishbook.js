@@ -25,6 +25,7 @@ import { showLetterGrade } from "./letterGradeCard.js";
 import { LB_DOTS_PASS } from "../data/letterbook.js";
 import { mountWriteBoard } from "./writeBoard.js";
 import { mountConnect } from "./connectBoard.js";
+import { mountBlankWrite } from "./blankWrite.js";
 import { connectOpts } from "./letterRecall.js";
 import { connectStepFor, starredLetters, RECALL_SAY } from "../data/letterRecall.js";
 import { SCORE_PASS } from "./strokeJudge.js";
@@ -390,6 +391,16 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     },
 
     // 🔗 وصّل الحرف بالصورة (games/connectBoard.js) — نفس اللعبة المنفردة
+    // ✍️ Supply the missing letter: الكلمة ناقصة أول حرف (games/blankWrite.js)
+    blankWrite(body, s) {
+      let row = null;
+      const hint = hintLine();
+      const ask = (text) => { const p = prompt(text); if (row) row.replaceWith(p); else body.prepend(p); row = p; };
+      const game = mountBlankWrite(body, "en", s.ch, { ask, hint: (t) => hint.show(t), onDone: () => stepDone(800) });
+      body.appendChild(hint);
+      cleanup = () => game.destroy();
+    },
+
     connect(body, s) {
       body.appendChild(prompt(RECALL_SAY.en.connect));
       const board = mountConnect(body, connectOpts("en", s.round, () => stepDone(1500)));

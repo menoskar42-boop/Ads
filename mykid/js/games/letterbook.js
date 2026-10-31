@@ -31,8 +31,9 @@ import { connectOpts } from "./letterRecall.js";
 import { connectStepFor, starredLetters, RECALL_SAY } from "../data/letterRecall.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { mountFormsGame } from "./formsPlay.js";
+import { mountBlankWrite } from "./blankWrite.js";
 import { nameRound, LF_KINDS } from "../data/letterForms.js";
-const LF_ICON = { hands: "🤝", formComplete: "🧩", formListen: "🚂", formStamp: "🔖", nameHunt: "📛" };
+const LF_ICON = { hands: "🤝", formComplete: "🧩", formListen: "🚂", formStamp: "🔖", nameHunt: "📛", blankWrite: "✍️" };
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
@@ -484,6 +485,16 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       body.appendChild(hint);
       cleanup = () => game.destroy();
     }])),
+
+    // ✍️ كمّل الكلمة بإيدك: يكتب الحرف بشكله مكانه فى الكلمة (games/blankWrite.js)
+    blankWrite(body, s) {
+      let row = null;
+      const hint = hintLine();
+      const ask = (text) => { const p = prompt(text); if (row) row.replaceWith(p); else body.prepend(p); row = p; };
+      const game = mountBlankWrite(body, "ar", s.ch, { ask, hint: (t) => hint.show(t), onDone: () => stepDone(800) });
+      body.appendChild(hint);
+      cleanup = () => game.destroy();
+    },
 
     // ضع دائرة حول الصورة اللى بتبدأ بالحرف
     starts(body, s) {

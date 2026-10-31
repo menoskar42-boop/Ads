@@ -456,6 +456,8 @@ export function ebSteps(pg, rnd = Math.random, only = null) {
     // 🔗 وصّل الحرف بالصورة (المالك ٢٠٢٦-١٠-٢٦): حرف الصفحة + حروف النجمة — الشاشة بتبنى الجولة
     if (pg.pos !== "end" && want("connect")) steps.push({ kind: "connect", ch: pg.ch });
     if (want("find")) steps.push({ kind: "find", rounds: findRounds(pg.words, rnd) });
+    // ✍️ Supply the missing letter (المالك ٢٠٢٦-١٠-٣١، امتحان بنته): _un — يكتب الحرف الصغير مكانه
+    if (want("blankWrite")) steps.push({ kind: "blankWrite", ch: pg.ch });
     game("catch");
     game("sequence");
     write(pg.ch, 3, 3, true);

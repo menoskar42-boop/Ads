@@ -330,6 +330,8 @@ export function letterPage(ch, rnd = Math.random, only = null) {
     const others = shuffled(rnd, lettersAround(ch)).slice(0, 2);
     steps.push({ kind: "missing", ch, ...x, ...splitAt(x.w, ch), options: shuffled(rnd, [ch, ...others]) });
   }
+  // ١٥أ) ✍️ كمّل الكلمة بإيدك (المالك ٢٠٢٦-١٠-٣١، امتحان بنته): نفس الفكرة بس يكتب الحرف بشكله فى أول/وسط/آخر الكلمة
+  if (want("blankWrite")) steps.push({ kind: "blankWrite", ch });
   // ١٥ب) 🔖 ختم الحرف
   lf("formStamp");
   // ١٦) 🔠 الحرف الناقص فى الحروف (أ ب ؟)
