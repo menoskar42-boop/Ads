@@ -280,6 +280,15 @@ export const Store = {
   get letterGrades() {
     return state.letterGrades || (state.letterGrades = {});
   },
+  // «مراجعة اليوم» (المالك ٢٠٢٦-١٠-٣١): الكلمات اللى غلط فيها فى المربع الفاضى ومواعيد رجوعها (data/writeReview.js)
+  get writeReview() {
+    return state.writeReview || (state.writeReview = {});
+  },
+  setWriteReview(key, value) {
+    if (value == null) return;
+    this.writeReview[key] = value;
+    persist();
+  },
   recordLetterGrade(book, ch, grade) {
     const k = `${book}:${ch}`;
     const prev = this.letterGrades[k];

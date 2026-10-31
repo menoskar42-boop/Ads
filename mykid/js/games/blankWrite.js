@@ -21,8 +21,55 @@ import { penBoardOptions } from "./grip.js";
 import { judge } from "./traceJudge.js";
 import { judgeShapes } from "./blankJudge.js";
 import { starredLetters } from "../data/letterRecall.js";
-import { BW_SAY, BW_AR_LETTERS, BW_EN_LETTERS, arItems, arShapes, enItems, levelFor, nameOf } from "../data/blankWrite.js";
-import { joinsNext } from "../data/letterbook.js";
+import { BW_SAY, BW_AR_LETTERS, BW_EN_LETTERS, arItems, arShapes, enItems, levelFor, nameOf, askFor } from "../data/blankWrite.js";
+import { joinsNext, letterTiles } from "../data/letterbook.js";
+import { reviewKey, nextReview, todayISO, dueKeys, resolveKey, RV_SAY } from "../data/writeReview.js";
+
+let styled = false;
+/** حركات «الحرف الهربان» و«قطر الكلمة» (مرة واحدة فى الصفحة). */
+function ensureStyle() {
+  if (styled) return;
+  styled = true;
+  const s = document.createElement("style");
+  s.textContent = `@keyframes bwBob{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-12px) rotate(8deg)}}
+@keyframes bwDance{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(-12deg) scale(1.12)}75%{transform:rotate(12deg) scale(1.12)}}
+@keyframes bwShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.bw-runner{position:absolute;z-index:3;font-weight:900;color:#ec4899;transition:left .9s cubic-bezier(.5,-.4,.5,1.4),top .9s cubic-bezier(.5,-.4,.5,1.4);pointer-events:none;font-family:'Baloo Bhaijaan 2',sans-serif}
+.bw-runner.bob{animation:bwBob 1s ease-in-out infinite}
+.bw-dance{animation:bwDance .5s ease-in-out 3}
+.bw-train{transition:transform 1.6s ease-in}
+.bw-train.wait{animation:bwShake .5s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.bw-runner,.bw-train{transition:none}.bw-runner.bob,.bw-dance,.bw-train.wait{animation:none}}`;
+  document.head.appendChild(s);
+}
+
+/** 🚂 الكلمة عربيات قطر — كل عربية حرف بشكله الموصول، وعربية الحرف الناقص فاضية (أو مليانة لما يكتبه). */
+function trainLine(x, lang, filled) {
+  const ar = lang === "ar";
+  const wrap = el("div", "overflow:hidden;padding:6px 0");
+  const row = el("div", "display:flex;align-items:flex-end;justify-content:center;gap:0");
+  row.className = "bw-train" + (filled ? "" : " wait");
+  row.dir = ar ? "rtl" : "ltr";
+  const letters = ar ? letterTiles(x.w, x.letter).tiles : [...x.w];
+  const at = x.before ? [...x.before].length : 0;
+  const car = (txt, gap) => {
+    const c = el("span", `display:inline-flex;flex-direction:column;align-items:center;margin:0 1px`);
+    const box = el("span", `display:inline-flex;align-items:center;justify-content:center;min-width:1.15em;height:1.35em;padding:0 3px;border-radius:8px 8px 4px 4px;background:${gap ? (filled ? "#bbf7d0" : "#fff") : "#fde68a"};border:3px ${gap && !filled ? "dashed #8b5cf6" : "solid #f59e0b"};font-size:clamp(26px,7.5vw,38px);font-weight:900;color:${gap ? (filled ? "#16a34a" : "#8b5cf6") : "#78350f"};${ar ? "font-family:'Baloo Bhaijaan 2',sans-serif" : ""}`, txt);
+    const wheels = el("span", "font-size:12px;line-height:1;letter-spacing:6px", "⚫⚫");
+    c.append(box, wheels);
+    return c;
+  };
+  const link = () => el("span", `width:6px;height:4px;background:${filled ? "#16a34a" : "#a8a29e"};margin-bottom:16px;border-radius:2px`);
+  letters.forEach((t, i) => {
+    if (i) row.append(link());
+    row.append(car(i === at ? (filled ? t : ar ? "؟" : "?") : t, i === at));
+  });
+  // القاطرة قدّام: العربى ماشى شمال (القاطرة فى الآخر ناحية الشمال)، والإنجليزى ماشى يمين
+  const eng = el("span", `font-size:clamp(34px,9vw,48px);margin-bottom:10px;${ar ? "" : "transform:scaleX(-1);display:inline-block"}`, "🚂");
+  row.append(link(), eng);
+  wrap.append(row);
+  return wrap;
+}
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
 const el = (tag, css, text) => { const n = document.createElement(tag); if (css) n.style.cssText = css; if (text != null) n.textContent = text; return n; };
@@ -158,9 +205,12 @@ export function maskBoard(shape, shapes, level, { onOk, onBad, onHint }, opt = {
 
 /** اللعبة على حرف واحد (٣ كلمات بالترتيب: أول ← وسط ← آخر، والمستوى بيصعب كل كلمة). */
 export function mountBlankWrite(host, lang, ch, opts) {
-  const { ask, hint, onDone } = opts;
+  // flavor: write (الأساسى) · runaway (الحرف الهربان) · train (قطر الكلمة). items/level: «مراجعة اليوم» (كلمات من حروف مختلفة،
+  // كلها فى المربع الفاضى). كل جولة فى المربع الفاضى بتتسجّل فى المراجعة (الغلط يرجع تانى يوم).
+  const { ask, hint, onDone, flavor = "write", items: given = null, level: fixed = 0 } = opts;
+  ensureStyle();
   const ar = lang === "ar";
-  const items = ar ? arItems(ch) : enItems(ch);
+  const items = given || (ar ? arItems(ch) : enItems(ch)).map((x) => ({ ch, ...x }));
   const area = el("div", "padding-bottom:18px");
   host.append(area);
   let alive = true, timers = [], boardCleanup = () => {};
@@ -171,26 +221,71 @@ export function mountBlankWrite(host, lang, ch, opts) {
   const round = () => {
     boardCleanup(); boardCleanup = () => {};
     const x = items[r];
-    const level = levelFor(r, items.length);
+    const level = fixed || levelFor(r, items.length);
     area.replaceChildren();
-    ask(ar ? BW_SAY.ask(nameOf(ch), x.pos) : BW_SAY.askEn);
+    ask(askFor(flavor, lang, nameOf(x.ch || ch), x.pos));
     later(() => sayWord(x.w), 2600);
-    const card = el("div", CARD);
+    const card = el("div", CARD + ";position:relative");
     const pic = btn("display:block;margin:2px auto;font-size:clamp(76px,22vw,120px);line-height:1.1;background:none;border:0;cursor:pointer", x.e, () => { Sfx.tap(); sayWord(x.w); });
     pic.setAttribute("aria-label", "اسمع الكلمة");
-    let line = wordLine(x, lang, false);
+    const lineOf = (filled) => (flavor === "train" ? trainLine(x, lang, filled) : wordLine(x, lang, filled));
+    let line = lineOf(flavor === "runaway");
     card.append(pic, line, el("p", "margin:2px 0;font-weight:800;color:#7c3aed;font-size:15px", `${r + 1} من ${items.length} · ${LEVEL_TAG[level]}`));
     area.append(card);
     let fails = 0;
+    // 🏃 الحرف الهربان: الكلمة كاملة ثانية، وبعدين الحرف ينط منها ويقف يتنطّط فى ركن الكارت
+    let runner = null;
+    const slotPos = () => {
+      const g = line.querySelector("span:nth-of-type(1)") || line;
+      const a = g.getBoundingClientRect(), c = card.getBoundingClientRect();
+      return { left: a.left - c.left, top: a.top - c.top };
+    };
+    if (flavor === "runaway") {
+      later(() => {
+        const from = slotPos();
+        runner = el("span", `left:${from.left}px;top:${from.top}px;font-size:clamp(36px,10vw,54px)`, ar ? x.shape.replace(/ـ/g, "") : x.letter);
+        runner.className = "bw-runner";
+        card.append(runner);
+        const gapLine = lineOf(false);
+        line.replaceWith(gapLine); line = gapLine;
+        Sfx.pop();
+        requestAnimationFrame(() => { runner.style.left = `${card.clientWidth - 60}px`; runner.style.top = "4px"; });
+        later(() => runner && runner.classList.add("bob"), 950);
+      }, 1200);
+    }
+    const record = (ok) => {
+      if (level !== 3) return;
+      const k = reviewKey(lang, x.ch || ch, x.w);
+      Store.setWriteReview(k, nextReview(Store.writeReview[k], ok, todayISO()));
+    };
+    const finish = () => later(() => { r++; if (r < items.length) round(); else onDone(); }, flavor === "write" ? 3000 : 3600);
     const success = () => {
+      if (!fails) record(true);   // الغلط اتسجّل أول مرة غلط
       Sfx.correct();
       awardStars(fails ? 1 : 2);
-      const full = wordLine(x, lang, true);
+      const full = lineOf(true);
+      if (flavor === "runaway" && runner) {
+        // الحرف بيرجع مكانه، والصورة بترقص
+        runner.classList.remove("bob");
+        const to = slotPos();
+        runner.style.left = `${to.left}px`; runner.style.top = `${to.top}px`;
+        later(() => { if (runner) runner.remove(); runner = null; line.replaceWith(full); line = full; pic.classList.add("bw-dance"); }, 900);
+        Speech.ar(fem(BW_SAY.runBack));
+        later(() => sayWord(x.w), 2200);
+        return finish();
+      }
       line.replaceWith(full); line = full;
+      if (flavor === "train") {
+        // العربيات اتشبكت ⇒ توووت ⇒ القطر بيتحرّك برّه
+        Speech.ar(fem(BW_SAY.trainGo));
+        later(() => sayWord(x.w), 1500);
+        later(() => { const t = line.querySelector(".bw-train"); if (t) t.style.transform = `translateX(${ar ? "-" : ""}130%)`; }, 2000);
+        return finish();
+      }
       flash(card, "wbk-pop", 600);
       Speech.ar(fem(BW_SAY.done));
       later(() => sayWord(x.w), 1300);
-      later(() => { r++; if (r < items.length) round(); else onDone(); }, 3000);
+      finish();
     };
 
     if (ar) {
@@ -198,6 +293,7 @@ export function mountBlankWrite(host, lang, ch, opts) {
         onOk: success,
         onHint: (t) => hint(t),
         onBad: (why) => {
+          if (!fails) record(false);
           fails++;
           hint(why === "shape" ? BW_SAY.wrongShape(x.pos) : why === "more" ? BW_SAY.more : BW_SAY.out);
           if (fails === 2) later(() => { b.reset(); Speech.ar(fem(BW_SAY.peek)); b.peek(2800); }, 2200);
@@ -232,6 +328,7 @@ export function mountBlankWrite(host, lang, ch, opts) {
           onHint: (t) => { hintEl.textContent = t; },
           onDone: ({ score }) => {
             if (score != null && score < SCORE_PASS) {
+              if (!fails) record(false);
               fails++;
               hint(BW_SAY.out);
               later(() => {
@@ -262,13 +359,15 @@ export function mountBlankWrite(host, lang, ch, opts) {
 }
 
 // ===== اللعبة لوحدها (من قلعة الحروف العربى أو الإنجليزى) =====
-export function renderBlankWrite({ regionId, regionIndex, lang = "ar" }) {
+export function renderBlankWrite({ regionId, regionIndex, lang = "ar", mode = "write" }) {
+  // mode: write · runaway (🏃 الحرف الهربان) · train (🚂 قطر الكلمة) · review (🔁 مراجعة اليوم)
   const ar = lang === "ar";
   const screen = el("div");
   screen.className = "region-screen";
   screen.style.background = ar ? "linear-gradient(180deg,#e9e3ff,#b9a6f5)" : "linear-gradient(180deg,#d6ecff,#8fb8f2)";
   const back = () => Router.go("region", { id: regionId, index: regionIndex });
-  screen.appendChild(gameTopbar(ar ? BW_SAY.title : BW_SAY.titleEn, back));
+  const TITLE = { write: ar ? BW_SAY.title : BW_SAY.titleEn, runaway: BW_SAY.runTitle, train: BW_SAY.trainTitle, review: RV_SAY.title };
+  screen.appendChild(gameTopbar(TITLE[mode] || TITLE.write, back));
   const SAY_CSS = "text-align:center;font-weight:800;color:#3b2a6b;font-size:clamp(17px,4.8vw,24px);margin:10px 12px";
   const askEl = el("p", SAY_CSS);
   const hintEl = el("p", SAY_CSS + ";color:#be123c;min-height:1.4em;font-size:clamp(15px,4.2vw,20px)");
@@ -282,8 +381,26 @@ export function renderBlankWrite({ regionId, regionIndex, lang = "ar" }) {
   const start = (ch) => {
     if (game) game.destroy();
     stage.replaceChildren(askEl, buddy.el, hintEl);
-    game = mountBlankWrite(stage, lang, ch, { ask, hint, onDone: done });
+    game = mountBlankWrite(stage, lang, ch, { ask, hint, onDone: done, flavor: mode === "review" ? "write" : mode });
   };
+  // 🔁 مراجعة اليوم: الكلمات اللى عليها الدور (من كل الحروف) — كلها فى المربع الفاضى
+  function review() {
+    const items = dueKeys(Store.writeReview, lang, todayISO()).map(resolveKey).filter(Boolean);
+    if (!items.length) {
+      stage.replaceChildren(el("p", SAY_CSS, fem(RV_SAY.none)));
+      const go = btn("display:block;margin:12px auto", ar ? BW_SAY.title : BW_SAY.titleEn, () => { Sfx.tap(); Router.go("blankWrite", { regionId, regionIndex, lang }); });
+      go.className = "candy-btn";
+      stage.append(go);
+      Speech.ar(fem(RV_SAY.none));
+      return;
+    }
+    stage.replaceChildren(askEl, buddy.el, hintEl);
+    Speech.ar(fem(RV_SAY.intro));
+    setTimeout(() => {
+      if (!screen.isConnected) return;
+      game = mountBlankWrite(stage, lang, items[0].ch, { ask, hint, onDone: done, items, level: 3 });
+    }, 3200);
+  }
   function chooser() {
     stage.replaceChildren(el("p", SAY_CSS, fem(BW_SAY.choose)));
     const letters = ar ? BW_AR_LETTERS : BW_EN_LETTERS;
@@ -303,6 +420,6 @@ export function renderBlankWrite({ regionId, regionIndex, lang = "ar" }) {
     stage.append(grid);
     Speech.ar(fem(BW_SAY.choose));
   }
-  setTimeout(chooser, 0);
+  setTimeout(mode === "review" ? review : chooser, 0);
   return screen;
 }

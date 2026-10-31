@@ -137,13 +137,31 @@ export const BW_SAY = {
   wrongShape: (pos) => `ده شكل تانى للحرف. هنا الحرف ${LF_POS[pos]}`,
   peek: "بص على الحرف كويس، وبعدين اكتبه",
   done: "برافو! الكلمة كملت",
+  // 🏃 الفكرة التالتة: الحرف الهربان
+  runTitle: "🏃 الحرف الهربان",
+  run: (name) => `يا خبر! حرف ${name} هرب من الكلمة. اكتبه عشان يرجع مكانه`,
+  runEn: "يا خبر! الحرف هرب من الكلمة. اكتبه عشان يرجع مكانه",
+  runBack: "رجع! الكلمة رجعت كاملة",
+  // 🚂 الفكرة الرابعة: قطر الكلمة
+  trainTitle: "🚂 قطر الكلمة",
+  train: (name) => `عربية حرف ${name} فاضية. اكتب الحرف عشان القطر يتحرّك`,
+  trainEn: "فيه عربية فاضية فى القطر. اكتب الحرف الناقص عشان القطر يتحرّك",
+  trainGo: "توووت! العربيات اتشبكت والقطر اتحرّك",
 };
+/** الجمل حسب الحكاية (write · runaway · train). */
+export function askFor(flavor, lang, name, pos) {
+  if (flavor === "runaway") return lang === "ar" ? BW_SAY.run(name) : BW_SAY.runEn;
+  if (flavor === "train") return lang === "ar" ? BW_SAY.train(name) : BW_SAY.trainEn;
+  return lang === "ar" ? BW_SAY.ask(name, pos) : BW_SAY.askEn;
+}
 
 /** كل الجمل اللى ممكن تتقال (لتسجيل الصوت مرة واحدة). */
 export function bwPhrases() {
-  const out = new Set([BW_SAY.choose, BW_SAY.askEn, BW_SAY.more, BW_SAY.out, BW_SAY.peek, BW_SAY.done, ...Object.values(BW_SAY.level)]);
+  const out = new Set([BW_SAY.choose, BW_SAY.askEn, BW_SAY.more, BW_SAY.out, BW_SAY.peek, BW_SAY.done, ...Object.values(BW_SAY.level),
+    BW_SAY.runEn, BW_SAY.runBack, BW_SAY.trainEn, BW_SAY.trainGo]);
   for (const ch of BW_AR_LETTERS) {
     const name = nameOf(ch);
+    out.add(BW_SAY.run(name)); out.add(BW_SAY.train(name));
     for (const x of arItems(ch)) { out.add(BW_SAY.ask(name, x.pos)); out.add(x.w); }
   }
   for (const p of [0, 1, 2]) out.add(BW_SAY.wrongShape(p));

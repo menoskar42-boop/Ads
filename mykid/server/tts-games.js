@@ -25,6 +25,8 @@ import { ML_SAY } from "../js/data/missingLine.js";
 import { lfPhrases } from "../js/data/letterForms.js";
 import { bwPhrases } from "../js/data/blankWrite.js";
 import { exPhrases } from "../js/data/examSheet.js";
+import { rvPhrases } from "../js/data/writeReview.js";
+import { spPhrases } from "../js/data/spotMistake.js";
 
 /** { name, how } من مصفوفة جوّه شاشة (الأوسمة/إكسسوارات ميزو) — الشاشة نفسها بتلمس الصفحة فمابنستوردهاش. */
 function namesHows(file, arr) {
@@ -167,4 +169,6 @@ export function addGamePhrases({ say, mizo }) {
   for (const t of lfPhrases()) { say(t); say(femAdapt(t)); }
   for (const t of bwPhrases()) { say(t); say(femAdapt(t)); }
   for (const t of exPhrases()) { say(t); say(femAdapt(t)); }
+  for (const t of rvPhrases()) { say(t); say(femAdapt(t)); }
+  for (const t of spPhrases()) { say(t); say(femAdapt(t)); }
 }

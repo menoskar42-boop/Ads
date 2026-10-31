@@ -16,6 +16,7 @@ import { joinsNext } from "../data/letterbook.js";
 import { arShapes } from "../data/blankWrite.js";
 import { maskBoard } from "./blankWrite.js";
 import { EX_SAY, sheetItems, sheetLetters, teacherSay, printPages } from "../data/examSheet.js";
+import { reviewKey, nextReview, todayISO } from "../data/writeReview.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
 const el = (tag, css, text) => { const n = document.createElement(tag); if (css) n.style.cssText = css; if (text != null) n.textContent = text; return n; };
@@ -143,6 +144,8 @@ export function renderExamSheet({ regionId, regionIndex, lang = "ar" }) {
       cards.forEach((c, i) => {
         if (c.ok === true) { right++; return; }
         const r = boards[i].check();
+        // أول تصحيح للكارت بس يتسجّل فى «مراجعة اليوم» (الغلط يرجع تانى يوم)
+        if (!c.recorded) { c.recorded = true; const k = reviewKey(lang, c.x.ch, c.x.w); Store.setWriteReview(k, nextReview(Store.writeReview[k], r.ok, todayISO())); }
         c.ok = r.ok;
         if (r.ok) right++;
         c.why = r.wrongShape >= 0 ? (ar ? "shape" : "case") : "bad";
