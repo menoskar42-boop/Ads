@@ -98,7 +98,13 @@ export const KATAMEROS_DIR = path.join(process.cwd(), "data", "katameros");
 function load(): Data {
   if (cache) return cache;
   const read = (f: string) => JSON.parse(fs.readFileSync(path.join(KATAMEROS_DIR, f), "utf8"));
-  const byKey = (rows: RefRow[], key: (r: RefRow) => string) => new Map(rows.map((r) => [key(r), r] as [string, RefRow]));
+  // أول صف يكسب زى FirstAsync فى katameros: الصوم الكبير فيه صفّين للأسبوع ٧ يوم الخميس (Id 46 و53)، وkatameros
+  // والأنبا تكلا الاتنين على الأول (مزمور باكر ٦٣: ١ بس) — اتلقطت فى مقارنة ٢٠٢٦-١٠-٣١.
+  const byKey = (rows: RefRow[], key: (r: RefRow) => string) => {
+    const m = new Map<string, RefRow>();
+    for (const r of rows) if (!m.has(key(r))) m.set(key(r), r);
+    return m;
+  };
   const synaxarium = new Map<string, KatSynaxariumEntry[]>();
   for (const s of read("synaxarium.ar.json")) {
     const k = `${s.month}-${s.day}`;

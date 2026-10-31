@@ -52,6 +52,13 @@ describe("katameros-text: النص من الكتاب عندنا", () => {
     const t = await readingText("19.32:11,6", getVerses, ours);
     assert.deepEqual(t.passages[0].verses.map((v) => v.verse), [11, 6]);
   });
+  it("طوبيا (نبوة الجمعة ٦ من الصوم) إصحاحات كاملة: ١٤ إصحاح مرة واحدة كل واحد", async () => {
+    const t = await readingText("68.1:1-22*@+68.2:1-14*@+68.3:1-6*@+68.3:7-15*@+68.3:16-17*@+68.4:1-21*@+68.5:1-22*@+68.6:1-8*@+68.6:9-17*@+68.7:1-18*@+68.8:1-21*@+68.9:1-6*@+68.10:1-12*@+68.11:1-19*@+68.12:1-22*@+68.13:1-18*@+68.14:1-15", getVerses, ours);
+    assert.deepEqual(t.passages.map((p) => p.chapter), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+    assert.ok(t.passages.every((p) => p.deutero && p.verses.length > 0 && p.verses[0].verse === 1));
+    assert.equal(t.passages[0].verses.length, 25);
+    assert.equal(t.passages[8].verses.length, 12);
+  });
   it("التصحيحات: أفسس ٢ (٢٢ آية)، حزقيال ٢١ بترقيم فاندايك، ومزمور البصخة السبعينى بيتراجع", async () => {
     assert.equal((await readingText("49.2:1-23", getVerses, ours)).passages[0].verses.length, 22);
     const ez = (await readingText("26.21:33-37", getVerses, ours)).passages[0];
@@ -64,7 +71,7 @@ describe("katameros-text: النص من الكتاب عندنا", () => {
     const tob = (await readingText("68.2:1-14", getVerses, ours)).passages[0];
     assert.equal(tob.book, "طوبيا");
     assert.equal(tob.deutero, true);
-    assert.equal(tob.verses.length, 14);
+    assert.equal(tob.verses.length, 22, "طوبيا ٢ كامل (اليسوعية ٢٢ آية) — ref-fixes");
     const sir = (await readingText("73.2:1-23", getVerses, ours)).passages[0];   // يشوع بن سيراخ ٢ = ٢٣ آية
     assert.equal(sir.verses.length, 23);
     const end = await readingText("73.1:20-2:5", getVerses, ours);              // لحد آخر الإصحاح: طوله معروف

@@ -76,7 +76,7 @@ export function parseKatRef(ref: string): RefPart[] {
   return out;
 }
 
-let fixes: Record<string, { to?: string; review?: true }> | null = null;
+let fixes: Record<string, { to?: string; review?: true; skip?: true }> | null = null;
 function refFixes() {
   if (!fixes) fixes = (JSON.parse(fs.readFileSync(path.join(KATAMEROS_DIR, "ref-fixes.json"), "utf8")) as { fixes: typeof fixes }).fixes ?? {};
   return fixes!;
@@ -91,6 +91,7 @@ export function katParts(ref: string): { part: RefPart; pending: boolean }[] {
     const key = raw.trim();
     if (!key) continue;
     const fx = refFixes()[key];
+    if (fx?.skip) continue;
     for (const part of parseKatRef(fx?.to ?? key)) out.push({ part, pending: !!fx?.review || isDeutero(part.bookId, part.chapter) });
   }
   return out;

@@ -75,7 +75,7 @@ check('البصخة فيها الساعة الثانية عشر يوم الجم�
 // تصحيحات المراجع (المرحلة ٢): كل تصحيح ليه سبب، والبديل مرجع سليم أو review (يتعرض من غير نص)
 const fixes = fs.existsSync(path.join(D, 'ref-fixes.json')) ? (load('ref-fixes.json').fixes || {}) : null;
 check('تصحيحات المراجع موجودة وكل بند ليه سبب وبديل أو review', !!fixes && Object.keys(fixes).length >= 3 &&
-  Object.values(fixes).every((f) => f.why && (f.review === true || /^\d+\.\d+:[\d,-]+$/.test(f.to || ''))),
+  Object.values(fixes).every((f) => f.why && (f.review === true || f.skip === true || /^\d+\.\d+:[\d,-]+(end)?$/.test(f.to || ''))),
   'data/katameros/ref-fixes.json ناقص أو فيه بند من غير سبب');
 
 // نص القانونية التانية (sttakla-1877.json): ٧ أسفار كاملة بنفس عدد الإصحاحات اللى فى server/deutero.ts، ومفيش آية فاضية
