@@ -1,20 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNightPause, nightAwareInterval } from "@/lib/night-pause";
-
-// وقت الرفع بصيغة مختصرة: "اليوم HH:MM" أو "DD/MM HH:MM"
-function fmtUploadTime(iso?: string | null): string {
-  if (!iso) return "لم يُرفع";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "-";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  return sameDay ? `اليوم ${time}` : `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${time}`;
-}
+import { fmtUploadTime } from "@/lib/cairo-time";
 
 // شارة "آخر تحديث" لملف مصدر معيّن (مثلاً FCC / WFM / OSS) — تقرأ من /api/upload-times
 export function LastUpdatedBadge({ endpoint, label }: { endpoint: string; label: string }) {
