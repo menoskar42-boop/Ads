@@ -13,10 +13,10 @@ import { useQuery } from '@tanstack/react-query';
 const SYSTEM_SENDER = 'النظام';
 
 /** بعد «أنا عضو N»: المتصفح ده بياخد العضوية القديمة (ضيف برقمها) فى التخزينين اللى الصفحات بتقرا منهم. */
-function adoptRestoredMembership(groupCode: string, userName: string, memberKey: string) {
+function adoptRestoredMembership(groupCode: string, userName: string, memberKey: string, isGuest = true) {
   try {
     const cur = JSON.parse(localStorage.getItem(`group_${groupCode}`) || '{}');
-    localStorage.setItem(`group_${groupCode}`, JSON.stringify({ ...cur, userName, memberKey, isLeader: false, isGuest: true }));
+    localStorage.setItem(`group_${groupCode}`, JSON.stringify({ ...cur, userName, memberKey, isLeader: false, isGuest }));
   } catch {}
   try {
     const all = JSON.parse(localStorage.getItem('userGroups') || '[]');
@@ -294,8 +294,8 @@ export default function GroupChat() {
       const sent = await res.json().catch(() => ({}));
       // «أنا عضو 372»: السيستم دمج العضويتين ⇒ المتصفح ده بقى العضوية القديمة (server: handleMemberClaim)
       if (sent?.claim?.ok && sent.claim.memberKey) {
-        adoptRestoredMembership(groupCode, sent.claim.userName, sent.claim.memberKey);
-        toast.success(`رجعت ${sent.claim.userName} بقراياتك كلها`);
+        adoptRestoredMembership(groupCode, sent.claim.userName, sent.claim.memberKey, sent.claim.isGuest !== false);
+        toast.success(sent.claim.isGuest === false ? 'اتضمّت قرايات عضويتك القديمة' : `رجعت ${sent.claim.userName} بقراياتك كلها`);
         setTimeout(() => window.location.reload(), 1500);
       }
       setNewMessage('');

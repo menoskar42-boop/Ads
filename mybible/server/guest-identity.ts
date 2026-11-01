@@ -57,7 +57,8 @@ export function nameKey(raw?: string | null): string {
 export type MergeRefusal =
   | 'phone-missing'      // الضيف ما كتبش تليفون
   | 'no-phone-on-file'   // العضو القديم مالوش تليفون مسجّل — مفيش حاجة نطابق عليها
-  | 'phone-mismatch';    // كتب تليفون غير المسجّل
+  | 'phone-mismatch'     // كتب تليفون غير المسجّل
+  | 'guest-number';      // «عضو N» مابيرجعش بالاسم — بالرسالة على الجروب بس («أنا عضو N»)
 
 export type MergeDecision =
   | { ok: true }
@@ -144,9 +145,14 @@ export function checkAdminProfile(
  * لازم الرقم يطابق — كان أى حد يكتب اسم الأدمن بأى رقم ياخد صلاحيته.
  */
 export function canRejoinByName(
-  existing: { phone?: string | null; isAdmin?: boolean | null },
+  existing: { userName?: string | null; phone?: string | null; isAdmin?: boolean | null },
   submittedPhone?: string | null,
 ): MergeDecision & { setPhone?: boolean } {
+  /* المالك ٢٠٢٦-١١-٠١: «عضو N» (ضيف ماسجّلش) كان بيرجع لأى حد يكتب الاسم ده برابط الدعوة من غير ما حد
+   * يشوف. دلوقتى الرجوع ليه بالرسالة على الجروب بس («أنا عضو N») — قدام الكل. */
+  if (/^عضو \d+$/.test(String((existing as any).userName ?? '')) && !normalizePhone(existing.phone)) {
+    return { ok: false, reason: 'guest-number', message: `ده رقم عضوية. لو هو عضويتك القديمة ادخل الجروب وابعت فيه «أنا ${(existing as any).userName}».` };
+  }
   if (!normalizePhone(existing.phone) && existing.isAdmin !== true) {
     return { ok: true, setPhone: !!normalizePhone(submittedPhone) };
   }
@@ -160,7 +166,7 @@ export function canRejoinByName(
 // الحماية من التلاعب (اللى يدّعى رقم مش بتاعه الكل شايفه برقمه الجديد) — زى ما المالك قرّر.
 // الشروط اللى بتقفل الباب على الحسابات المهمة:
 //   • العضوية القديمة لسه «عضو N» من غير رقم موبايل ومش أدمن (المتسجّل بيرجع باسمه ورقمه بس).
-//   • اللى بيبعت عضوية «عضو M» جديدة من غير رقم ومش أدمن، وانضمت **بعد** القديمة.
+//   • اللى بيبعت مش أدمن، وعضويته انضمت **بعد** القديمة. لو كان سجّل اسم للجديدة اسمه هو اللى بيفضل.
 
 /** اسم السيستم فى الرسايل — محجوز: مفيش عضو يقدر يبعت بيه. */
 export const SYSTEM_SENDER = 'النظام';
@@ -170,13 +176,14 @@ const GUEST_NAME = /^عضو (\d+)$/;
 const toLatin = (s: string) => s.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
 
 /**
- * رقم العضوية من الرسالة لو هى «أنا عضو N» أو «انا عضو N» (أرقام إنجليزى أو عربى).
+ * رقم العضوية من الرسالة لو هى «أنا عضو N» أو «انا العضو N» (أرقام إنجليزى أو عربى).
  * المسافات براحتها (المالك: «ممكن تتكتب انا عضو372 — راعى الغلط فى المسافات»): من غير مسافة، أو أكتر من
  * واحدة، أو حروف الكيبورد المخفية. بس أى **حرف** زيادة (نقطة، كلمة، إيموجى، رقم تانى) ⇒ null.
  */
 export function parseMemberClaim(text?: string | null): number | null {
   const plain = String(text ?? '').replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, ' ');
-  const m = plain.trim().match(/^(?:أنا|انا)\s*عضو\s*([0-9٠-٩۰-۹]{1,7})$/u);
+  // «أنا/انا/إنا/آنا عضو N» أو «… العضو N» — الهمزة مابتفرقش (المالك: «مع تجاهل المسافات والهمزة»)
+  const m = plain.trim().match(/^[اأإآ]نا\s*(?:[اأإآ]ل\s*)?عضو\s*([0-9٠-٩۰-۹]{1,7})$/u);
   if (!m) return null;
   const n = Number(toLatin(m[1]));
   return Number.isInteger(n) && n > 0 ? n : null;
@@ -184,17 +191,21 @@ export function parseMemberClaim(text?: string | null): number | null {
 
 type ClaimMember = { id: number; userName: string; phone?: string | null; isAdmin?: boolean | null; joinedAt?: Date | string | null };
 export type ClaimDecision =
-  | { ok: true; target: ClaimMember }
-  | { ok: false; reason: 'not-guest-sender' | 'self' | 'no-target' | 'registered-target' | 'newer-target'; message: string };
+  /** keep: target = المتصفح الجديد بيرجع «عضو N» القديمة · sender = العضوية الجديدة متسجّلة باسم ⇒ الاسم ده اللى بيفضل */
+  | { ok: true; target: ClaimMember; keep: 'target' | 'sender' }
+  | { ok: false; reason: 'admin-sender' | 'self' | 'no-target' | 'registered-target' | 'newer-target'; message: string };
 
 const isPlainGuest = (m: ClaimMember) => GUEST_NAME.test(m.userName) && !normalizePhone(m.phone) && m.isAdmin !== true;
 const joinedMs = (m: ClaimMember) => (m.joinedAt ? new Date(m.joinedAt).getTime() : 0);
 
-/** هل `sender` (صاحب المفتاح اللى بعت الرسالة) يقدر ياخد عضوية «عضو n»؟ */
+/**
+ * هل `sender` (صاحب المفتاح اللى بعت الرسالة) يقدر ياخد عضوية «عضو n»؟ اللى بيبعت أى عضو مش أدمن:
+ * لو لسه «عضو M» ⇒ بيرجع «عضو n» (keep target)، ولو سجّل اسم للجديدة ⇒ اسمه بيفضل (keep sender — المالك ٢٠٢٦-١١-٠١).
+ */
 export function decideMemberClaim(members: ClaimMember[], sender: ClaimMember, n: number): ClaimDecision {
   const targetName = `عضو ${n}`;
-  if (!isPlainGuest(sender)) {
-    return { ok: false, reason: 'not-guest-sender', message: 'الطريقة دى للعضوية الجديدة اللى لسه ماتسجّلش اسم ورقم. لو محتاج تدمج حسابين كلّم الأدمن.' };
+  if (sender.isAdmin === true) {
+    return { ok: false, reason: 'admin-sender', message: 'الأدمن مايستخدمش الطريقة دى — الدمج من «تعديل / تصحيح الاسم».' };
   }
   if (sender.userName === targetName) return { ok: false, reason: 'self', message: `ده رقم عضويتك الحالى (${targetName}).` };
   const target = members.find((m) => m.userName === targetName);
@@ -205,8 +216,10 @@ export function decideMemberClaim(members: ClaimMember[], sender: ClaimMember, n
   if (joinedMs(target) && joinedMs(sender) && joinedMs(target) >= joinedMs(sender)) {
     return { ok: false, reason: 'newer-target', message: `${targetName} أحدث من عضويتك — ابعت الرسالة من العضوية الجديدة.` };
   }
-  return { ok: true, target };
+  return { ok: true, target, keep: isPlainGuest(sender) ? 'target' : 'sender' };
 }
 
 /** رد السيستم بعد الدمج (بيتبعت كرد على رسالة العضو). */
-export const claimDoneText = (from: string, to: string) => `تم الدمج — قرايات ${from} اتضمّت على ${to}، والمتصفح ده رجع ${to}.`;
+export const claimDoneText = (from: string, to: string, keep: 'target' | 'sender' = 'target') => (keep === 'target'
+  ? `تم الدمج — قرايات ${from} اتضمّت على ${to}، والمتصفح ده رجع ${to}.`
+  : `تم الدمج — قرايات ${to} اتضمّت على ${from}.`);

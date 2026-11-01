@@ -124,19 +124,22 @@ async function handleMemberClaim(group: any, memberKey: string, n: number, text:
     const decision = decideMemberClaim(members as any, sender as any, n);
     const fromName = sender.userName;
     let reply: string;
-    let restored: { userName: string; memberKey: string } | null = null;
+    let restored: { userName: string; memberKey: string; isGuest: boolean } | null = null;
     if (decision.ok) {
       const target = members.find((m) => m.id === decision.target.id)!;
-      // القرايات والمهام والرسايل ⇒ القديمة، وبعدين العضوية الجديدة تتشال وتوكن المتصفح يشاور على القديمة
-      await migrateMemberName(group.id, fromName, target.userName);
-      await db.delete(groupMembers).where(eq(groupMembers.id, sender.id));
-      await db.update(groupGuestTokens).set({ memberKey: target.memberKey })
-        .where(and(eq(groupGuestTokens.groupId, group.id), eq(groupGuestTokens.memberKey, sender.memberKey)));
+      // keep = اللى بيفضل: «عضو N» القديمة (الجديدة لسه ضيف) أو العضوية الجديدة لو اتسجّلت باسم
+      const keep = decision.keep === 'target' ? target : sender;
+      const drop = keep === target ? sender : target;
+      // القرايات والمهام والرسايل ⇒ اللى بيفضل، وبعدين التانية تتشال وتوكناتها تشاور على اللى فاضل
+      await migrateMemberName(group.id, drop.userName, keep.userName);
+      await db.delete(groupMembers).where(eq(groupMembers.id, drop.id));
+      await db.update(groupGuestTokens).set({ memberKey: keep.memberKey })
+        .where(and(eq(groupGuestTokens.groupId, group.id), eq(groupGuestTokens.memberKey, drop.memberKey)));
       await pool.query(
         `UPDATE group_push_subscriptions SET member_key = $1, user_name = $2 WHERE group_id = $3 AND member_key = $4`,
-        [target.memberKey, target.userName, group.id, sender.memberKey]).catch(() => {});
-      reply = claimDoneText(fromName, target.userName);
-      restored = { userName: target.userName, memberKey: target.memberKey };
+        [keep.memberKey, keep.userName, group.id, drop.memberKey]).catch(() => {});
+      reply = claimDoneText(fromName, target.userName, decision.keep);
+      restored = { userName: keep.userName, memberKey: keep.memberKey, isGuest: decision.keep === 'target' };
     } else {
       reply = decision.message;
     }
@@ -147,7 +150,7 @@ async function handleMemberClaim(group: any, memberKey: string, n: number, text:
       replyToId: claimMsg.id, replyToText: text, replyToUserName: fromName,
     });
     chatDrop(group.id);
-    return { message: { ...claimMsg, imageUrl: null }, claim: decision.ok ? { ok: true, ...restored, isGuest: true } : { ok: false, reason: decision.reason, message: reply } };
+    return { message: { ...claimMsg, imageUrl: null }, claim: decision.ok ? { ok: true, ...restored } : { ok: false, reason: decision.reason, message: reply } };
   } finally {
     await client.query('SELECT pg_advisory_unlock(hashtext($1))', [lock]).catch(() => {});
     client.release();

@@ -89,3 +89,27 @@ test("refusals: registered target, extra letters, no key, and nobody can post as
   const sys = await q(`SELECT count(*)::int AS n FROM group_messages WHERE user_name = 'النظام'`);
   assert.equal(sys[0].n, 1, "رد النظام على الرفض بس");
 });
+
+test("a new membership registered with a name keeps its name; «عضو 372» readings join it", { skip: !URL }, async () => {
+  const gid = await seed();
+  await pool.query(`UPDATE group_members SET user_name = 'مارك عادل' WHERE member_key = 'k1001'`);
+  await pool.query(`UPDATE group_reading_logs SET user_name = 'مارك عادل' WHERE user_name = 'عضو 1001'`);
+  const d: any = await (await post({ userName: "مارك عادل", memberKey: "k1001", message: "انا العضو ٣٧٢" })).json();
+  assert.deepEqual([d.claim.ok, d.claim.userName, d.claim.memberKey, d.claim.isGuest], [true, "مارك عادل", "k1001", false]);
+  const reads = await q(`SELECT user_name, chapter FROM group_reading_logs WHERE group_id = $1 ORDER BY chapter`, [gid]);
+  assert.deepEqual(reads.map((r: any) => `${r.user_name}:${r.chapter}`), ["مارك عادل:1", "مارك عادل:2", "مارك عادل:3", "مارك عادل:4"]);
+  assert.deepEqual((await q(`SELECT user_name FROM group_members WHERE group_id = $1 ORDER BY user_name`, [gid])).map((r: any) => r.user_name), ["عضو 50", "مارك عادل"]);
+  // متصفح 372 القديم (لو رجع بالكوكى) بيوصل للحساب اللى فاضل
+  assert.equal((await q(`SELECT member_key FROM group_guest_tokens WHERE token = 'tok372'`))[0].member_key, "k1001");
+  const sys = await q(`SELECT message FROM group_messages WHERE user_name = 'النظام'`);
+  assert.match(sys[0].message, /^تم الدمج — قرايات عضو 372 اتضمّت على مارك عادل/);
+});
+
+test("the invite form refuses the name «عضو 372» (return is by group message only)", { skip: !URL }, async () => {
+  await seed();
+  const r = await fetch(`${base}/api/groups/${code}/invite-join`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userName: "عضو 372", phone: "01099999999" }) });
+  assert.equal(r.status, 403);
+  assert.equal(((await r.json()) as any).reason, "guest-number");
+  assert.equal((await q(`SELECT phone FROM group_members WHERE user_name = 'عضو 372'`))[0].phone, null, "مااتسجّلش عليه رقم");
+});
