@@ -9,7 +9,7 @@ import {
   groupAssignments, assignmentReadings, groupJoinRequests, groupGuestTokens,
 } from "@shared/schema";
 import crypto from "crypto";
-import { canMergeGuest, canRejoinByName, checkAdminProfile, nameKey, normalizePhone } from './guest-identity';
+import { canMergeGuest, canRejoinByName, checkAdminProfile, nameKey, normalizePhone, parseMemberClaim, decideMemberClaim, isSystemName, SYSTEM_SENDER, claimDoneText } from './guest-identity';
 import { groupViewFor, publicGroup } from './group-privacy';
 import { getOrLoad, invalidate as invalidateGroupCache } from './group-cache';
 import { sql } from "drizzle-orm";
@@ -110,6 +110,50 @@ function memberForRequest(members: any[], request: { phone?: string | null }) {
   return (phone && members.find((m) => normalizePhone(m.phone) === phone)) || null;
 }
 
+/* «أنا عضو 372» (المالك ٢٠٢٦-١١-٠١ — القواعد فى guest-identity.ts): بيضم قرايات العضوية الجديدة على القديمة،
+ * والمتصفح الجديد بياخد مفتاح القديمة، ورسالة العضو بتفضل برقمه الجديد قدام الكل، والسيستم بيرد عليها.
+ * جوّه قفل على المجموعة عشان رسالتين فى نفس اللحظة مايدمجوش مرتين. */
+async function handleMemberClaim(group: any, memberKey: string, n: number, text: string) {
+  const client = await pool.connect();
+  const lock = `member-claim:${group.id}`;
+  try {
+    await client.query('SELECT pg_advisory_lock(hashtext($1))', [lock]);
+    const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
+    const sender = members.find((m) => m.memberKey === memberKey);
+    if (!sender) return null; // مفتاح مش معروف ⇒ رسالة عادية
+    const decision = decideMemberClaim(members as any, sender as any, n);
+    const fromName = sender.userName;
+    let reply: string;
+    let restored: { userName: string; memberKey: string } | null = null;
+    if (decision.ok) {
+      const target = members.find((m) => m.id === decision.target.id)!;
+      // القرايات والمهام والرسايل ⇒ القديمة، وبعدين العضوية الجديدة تتشال وتوكن المتصفح يشاور على القديمة
+      await migrateMemberName(group.id, fromName, target.userName);
+      await db.delete(groupMembers).where(eq(groupMembers.id, sender.id));
+      await db.update(groupGuestTokens).set({ memberKey: target.memberKey })
+        .where(and(eq(groupGuestTokens.groupId, group.id), eq(groupGuestTokens.memberKey, sender.memberKey)));
+      await pool.query(
+        `UPDATE group_push_subscriptions SET member_key = $1, user_name = $2 WHERE group_id = $3 AND member_key = $4`,
+        [target.memberKey, target.userName, group.id, sender.memberKey]).catch(() => {});
+      reply = claimDoneText(fromName, target.userName);
+      restored = { userName: target.userName, memberKey: target.memberKey };
+    } else {
+      reply = decision.message;
+    }
+    // رسالة العضو برقمه اللى بعت بيه (حتى بعد الدمج) — عشان الكل يشوف مين ادّعى الرقم
+    const [claimMsg] = await db.insert(groupMessages).values({ groupId: group.id, userName: fromName, message: text }).returning();
+    await db.insert(groupMessages).values({
+      groupId: group.id, userName: SYSTEM_SENDER, message: reply,
+      replyToId: claimMsg.id, replyToText: text, replyToUserName: fromName,
+    });
+    chatDrop(group.id);
+    return { message: { ...claimMsg, imageUrl: null }, claim: decision.ok ? { ok: true, ...restored, isGuest: true } : { ok: false, reason: decision.reason, message: reply } };
+  } finally {
+    await client.query('SELECT pg_advisory_unlock(hashtext($1))', [lock]).catch(() => {});
+    client.release();
+  }
+}
+
 export function registerGroupRoutes(app: Express) {
 
   // ── معلومات الدعوة (endpoint عام بدون auth) ──
@@ -153,6 +197,7 @@ export function registerGroupRoutes(app: Express) {
   app.post('/api/groups/:code/invite-join', async (req, res) => {
     try {
       const { userName, phone } = req.body;
+      if (isSystemName(userName)) return res.status(400).json({ error: 'الاسم ده محجوز للنظام' });
       const code = req.params.code.toUpperCase();
 
       if (!userName || !phone) return res.status(400).json({ error: 'الاسم ورقم الموبايل مطلوبان' });
@@ -392,6 +437,7 @@ export function registerGroupRoutes(app: Express) {
       const code = req.params.code.toUpperCase();
       const { memberKey, userName: newName, phone } = req.body;
       if (!memberKey || !newName?.trim()) return res.status(400).json({ error: 'بيانات ناقصة' });
+      if (isSystemName(newName)) return res.status(400).json({ error: 'الاسم ده محجوز للنظام' });
 
       const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, code));
       if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
@@ -634,6 +680,7 @@ export function registerGroupRoutes(app: Express) {
   app.post('/api/groups/join', async (req, res) => {
     try {
       const { groupCode, userName, phone } = req.body;
+      if (isSystemName(userName)) return res.status(400).json({ error: 'الاسم ده محجوز للنظام' });
       if (!groupCode || !userName) {
         return res.status(400).json({ error: 'الكود واسم المستخدم مطلوبان' });
       }
@@ -1438,6 +1485,9 @@ export function registerGroupRoutes(app: Express) {
         return res.status(400).json({ error: 'الرسالة واسم المستخدم مطلوبان' });
       }
 
+      // «النظام» محجوز لرسايل السيستم — مفيش عضو يبعت بيه
+      if (isSystemName(userName)) return res.status(403).json({ error: 'الاسم ده محجوز للنظام' });
+
       const mutedCheck = await db.select().from(groupMembers)
         .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userName, userName), eq(groupMembers.isMuted, true)));
       if (mutedCheck.length > 0) {
@@ -1451,6 +1501,13 @@ export function registerGroupRoutes(app: Express) {
         if (!isAdminSenderCheck) {
           return res.status(403).json({ error: 'الإرسال متاح للأدمن فقط حالياً' });
         }
+      }
+
+      // «أنا عضو 372» بالظبط ⇒ استرجاع العضوية القديمة (handleMemberClaim)
+      const claimN = !imageUrl && memberKey ? parseMemberClaim(message) : null;
+      if (claimN) {
+        const out = await handleMemberClaim(group, String(memberKey), claimN, String(message).trim());
+        if (out) return res.json(out);
       }
 
       // الصورة على R2 والقاعدة بتشيل المفتاح بس (chat-images.ts)

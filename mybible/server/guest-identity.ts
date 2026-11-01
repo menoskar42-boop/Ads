@@ -123,6 +123,7 @@ export function checkAdminProfile(
   const userName = String(rawName ?? '').trim().replace(/\s+/g, ' ');
   if (!userName) return { ok: false, message: 'اكتب اسم العضو' };
   if (userName.length > 60) return { ok: false, message: 'الاسم طويل — ٦٠ حرف بالكتير' };
+  if (isSystemName(userName)) return { ok: false, message: 'الاسم ده محجوز للنظام' };
   const phone = normalizePhone(rawPhone);
   if (phone.length < 10) return { ok: false, message: 'رقم الموبايل غير صحيح' };
 
@@ -151,3 +152,61 @@ export function canRejoinByName(
   }
   return canMergeGuest(existing, submittedPhone);
 }
+
+// ===== «أنا عضو 372» — استرجاع عضوية قديمة من الجروب (المالك ٢٠٢٦-١١-٠١) =====
+// العضو اللى ماسجّلش اسمه ورقمه وفتح من متصفح تانى بياخد رقم جديد (عضو 1001). يبعت على الجروب
+// «أنا عضو 372» (أو «انا عضو 372») من غير ولا حرف زيادة ⇒ السيستم بيضم قرايات العضويتين على 372
+// ويرجّع المتصفح الجديد عضو 372، ويرد على رسالته «تم الدمج». الرسالة على الجروب قدام الكل هى
+// الحماية من التلاعب (اللى يدّعى رقم مش بتاعه الكل شايفه برقمه الجديد) — زى ما المالك قرّر.
+// الشروط اللى بتقفل الباب على الحسابات المهمة:
+//   • العضوية القديمة لسه «عضو N» من غير رقم موبايل ومش أدمن (المتسجّل بيرجع باسمه ورقمه بس).
+//   • اللى بيبعت عضوية «عضو M» جديدة من غير رقم ومش أدمن، وانضمت **بعد** القديمة.
+
+/** اسم السيستم فى الرسايل — محجوز: مفيش عضو يقدر يبعت بيه. */
+export const SYSTEM_SENDER = 'النظام';
+export const isSystemName = (name?: string | null) => nameKey(name) === nameKey(SYSTEM_SENDER);
+
+const GUEST_NAME = /^عضو (\d+)$/;
+const toLatin = (s: string) => s.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
+
+/**
+ * رقم العضوية من الرسالة لو هى «أنا عضو N» أو «انا عضو N» (أرقام إنجليزى أو عربى).
+ * المسافات براحتها (المالك: «ممكن تتكتب انا عضو372 — راعى الغلط فى المسافات»): من غير مسافة، أو أكتر من
+ * واحدة، أو حروف الكيبورد المخفية. بس أى **حرف** زيادة (نقطة، كلمة، إيموجى، رقم تانى) ⇒ null.
+ */
+export function parseMemberClaim(text?: string | null): number | null {
+  const plain = String(text ?? '').replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, ' ');
+  const m = plain.trim().match(/^(?:أنا|انا)\s*عضو\s*([0-9٠-٩۰-۹]{1,7})$/u);
+  if (!m) return null;
+  const n = Number(toLatin(m[1]));
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+type ClaimMember = { id: number; userName: string; phone?: string | null; isAdmin?: boolean | null; joinedAt?: Date | string | null };
+export type ClaimDecision =
+  | { ok: true; target: ClaimMember }
+  | { ok: false; reason: 'not-guest-sender' | 'self' | 'no-target' | 'registered-target' | 'newer-target'; message: string };
+
+const isPlainGuest = (m: ClaimMember) => GUEST_NAME.test(m.userName) && !normalizePhone(m.phone) && m.isAdmin !== true;
+const joinedMs = (m: ClaimMember) => (m.joinedAt ? new Date(m.joinedAt).getTime() : 0);
+
+/** هل `sender` (صاحب المفتاح اللى بعت الرسالة) يقدر ياخد عضوية «عضو n»؟ */
+export function decideMemberClaim(members: ClaimMember[], sender: ClaimMember, n: number): ClaimDecision {
+  const targetName = `عضو ${n}`;
+  if (!isPlainGuest(sender)) {
+    return { ok: false, reason: 'not-guest-sender', message: 'الطريقة دى للعضوية الجديدة اللى لسه ماتسجّلش اسم ورقم. لو محتاج تدمج حسابين كلّم الأدمن.' };
+  }
+  if (sender.userName === targetName) return { ok: false, reason: 'self', message: `ده رقم عضويتك الحالى (${targetName}).` };
+  const target = members.find((m) => m.userName === targetName);
+  if (!target) return { ok: false, reason: 'no-target', message: `مفيش ${targetName} فى المجموعة.` };
+  if (!isPlainGuest(target)) {
+    return { ok: false, reason: 'registered-target', message: `${targetName} متسجّل باسم ورقم — ارجع له من «سجّل اسمك» بنفس الاسم والرقم، أو كلّم الأدمن.` };
+  }
+  if (joinedMs(target) && joinedMs(sender) && joinedMs(target) >= joinedMs(sender)) {
+    return { ok: false, reason: 'newer-target', message: `${targetName} أحدث من عضويتك — ابعت الرسالة من العضوية الجديدة.` };
+  }
+  return { ok: true, target };
+}
+
+/** رد السيستم بعد الدمج (بيتبعت كرد على رسالة العضو). */
+export const claimDoneText = (from: string, to: string) => `تم الدمج — قرايات ${from} اتضمّت على ${to}، والمتصفح ده رجع ${to}.`;

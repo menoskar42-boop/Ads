@@ -8,6 +8,23 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from 'sonner';
 import { SEOHead } from '@/components/SEOHead';
 import { useQuery } from '@tanstack/react-query';
+
+/** اسم السيستم فى رسايل الجروب (server/guest-identity.ts SYSTEM_SENDER). */
+const SYSTEM_SENDER = 'النظام';
+
+/** بعد «أنا عضو N»: المتصفح ده بياخد العضوية القديمة (ضيف برقمها) فى التخزينين اللى الصفحات بتقرا منهم. */
+function adoptRestoredMembership(groupCode: string, userName: string, memberKey: string) {
+  try {
+    const cur = JSON.parse(localStorage.getItem(`group_${groupCode}`) || '{}');
+    localStorage.setItem(`group_${groupCode}`, JSON.stringify({ ...cur, userName, memberKey, isLeader: false, isGuest: true }));
+  } catch {}
+  try {
+    const all = JSON.parse(localStorage.getItem('userGroups') || '[]');
+    if (Array.isArray(all)) {
+      localStorage.setItem('userGroups', JSON.stringify(all.map((g: any) => (g && g.groupId === groupCode ? { ...g, userName, memberKey, role: 'member' } : g))));
+    }
+  } catch {}
+}
 import { api } from '@/lib/api';
 
 interface MessageReaction { emoji: string; users: string[]; }
@@ -274,6 +291,13 @@ export default function GroupChat() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      const sent = await res.json().catch(() => ({}));
+      // «أنا عضو 372»: السيستم دمج العضويتين ⇒ المتصفح ده بقى العضوية القديمة (server: handleMemberClaim)
+      if (sent?.claim?.ok && sent.claim.memberKey) {
+        adoptRestoredMembership(groupCode, sent.claim.userName, sent.claim.memberKey);
+        toast.success(`رجعت ${sent.claim.userName} بقراياتك كلها`);
+        setTimeout(() => window.location.reload(), 1500);
+      }
       setNewMessage('');
       if (inputRef.current) inputRef.current.style.height = 'auto';
       setImagePreview(null);
@@ -436,6 +460,7 @@ export default function GroupChat() {
 
                 {group.messages.map((m, idx) => {
                   const isMe = m.userName === userName;
+                  const isSystem = m.userName === SYSTEM_SENDER;
                   const isFirstUnread = m.id === firstUnreadId && m.id > lastReadId && !initialScrollDone;
                   const showUnreadDivider = !initialScrollDone && isFirstUnread;
                   return (
@@ -487,15 +512,19 @@ export default function GroupChat() {
 
                         <div className={`max-w-[78%] min-w-0 flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                           {/* Sender name (for others) */}
-                          {!isMe && (
+                          {!isMe && (isSystem ? (
+                            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 px-1 mb-0.5" data-testid="system-sender">🤖 {m.userName}</span>
+                          ) : (
                             <span className="text-xs font-semibold text-primary px-1 mb-0.5">{m.userName}</span>
-                          )}
+                          ))}
 
                           <div
                             className={`rounded-2xl px-3 py-2 shadow-sm max-w-full min-w-0 ${
                               isMe
                                 ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                                : 'bg-muted dark:bg-muted/80 text-foreground rounded-tl-sm'
+                                : isSystem
+                                  ? 'bg-emerald-50 dark:bg-emerald-900/30 text-foreground border border-emerald-300 dark:border-emerald-700 rounded-tl-sm'
+                                  : 'bg-muted dark:bg-muted/80 text-foreground rounded-tl-sm'
                             } ${m.isPinned ? 'ring-2 ring-amber-400' : ''}`}
                             onContextMenu={e => { e.preventDefault(); setReactionPickerMsgId(m.id); }}
                             onTouchStart={() => { longPressTimerRef.current = setTimeout(() => setReactionPickerMsgId(m.id), 600); }}
