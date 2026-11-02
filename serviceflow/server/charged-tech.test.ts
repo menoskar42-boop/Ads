@@ -35,5 +35,6 @@ test("النوافذ والسيرفر مابيطابقوش «فنى الإغلا
   }
   const r = src("server/routes.ts");
   assert.doesNotMatch(r, /b\."closeByName" = \$\$\{params\.length\} OR b\."areaTechName"/);
-  assert.match(r, /CASE WHEN base\."closeByName" <> 'غير معروف' THEN base\."closeByName" ELSE base\."areaTechName" END AS "chargedTech"/);
+  // الشكوى المستبعدة (اتقفلت من التابلت عادى — ٢٠٢٦-١١-٠١) مش على حد، وبعدها فنى الإغلاق ← فنى المنطقة
+  assert.match(r, /CASE WHEN base\."techExcluded" THEN '\$\{EXCLUDED_TECH\}'\s+WHEN base\."closeByName" <> 'غير معروف' THEN base\."closeByName" ELSE base\."areaTechName" END AS "chargedTech"/);
 });

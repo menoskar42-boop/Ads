@@ -40,7 +40,8 @@ test("only the super admin gets the tech-name dropdown in the work-orders report
 
 // اسم من الفنيين الخمسة مايتعدّلش — لا دروب ليست تظهر ولا السيرفر بيقبل.
 test("a known technician name stays read-only in the report", () => {
-  assert.match(report, /o\.techKnown \|\| !canEditTech \?/);
+  // السوبر أدمن بس — وبيقدر يغيّر حتى لو الاسم من الخمسة (المالك ٢٠٢٦-١١-٠٢)؛ غيره الاسم نص بس
+  assert.match(report, /\{!canEditTech \? \(/);
   assert.match(report, /TECHNICIAN_NAMES\.map/);
   assert.match(report, /import \{ TECHNICIAN_NAMES \} from "@shared\/technicians";/);
 });

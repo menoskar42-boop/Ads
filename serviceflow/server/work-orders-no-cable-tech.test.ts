@@ -93,7 +93,7 @@ test("lines with no technical data get an automatic subinfo request every four h
 
 // الدروب ليست بتظهر بس للأسماء غير المعروفة، وممنوعة على الفنى.
 test("the tab shows the dropdown only for unknown names and hides it from technicians", () => {
-  assert.match(tab, /canEditTech = user\?\.role !== ROLES\.TECH/);
+  assert.match(tab, /canEditTech = user\?\.role === ROLES\.SUPER_ADMIN/);   // السوبر أدمن بس (٢٠٢٦-١١-٠٢)
   assert.match(tab, /r\.techKnown \? \(/);
   assert.match(tab, /apiRequest\("PUT", "\/api\/work-order-tech"/);
 });
