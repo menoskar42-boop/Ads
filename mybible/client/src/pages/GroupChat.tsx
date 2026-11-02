@@ -26,6 +26,7 @@ function adoptRestoredMembership(groupCode: string, userName: string, memberKey:
   } catch {}
 }
 import { api } from '@/lib/api';
+import { useKeepScreenOn } from '@/hooks/useKeepScreenOn';
 
 interface MessageReaction { emoji: string; users: string[]; }
 
@@ -94,6 +95,7 @@ function setLastReadId(groupCode: string, id: number) {
 
 export default function GroupChat() {
   const params = useParams<{ groupId: string }>();
+  useKeepScreenOn(); // الشاشة ماتنامش طول ما الجروب مفتوح (طلب عضو ٢٠٢٦-١١-٠٢)
   const groupCode = params.groupId || '';
   const [, navigate] = useLocation();
   const [messages, setMessages] = useState<Message[]>([]);

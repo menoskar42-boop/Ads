@@ -22,6 +22,7 @@ import { getMinistryUser, clearMinistryUser } from '@/lib/ministry-auth';
 import { fetchBookIntro, fetchVerseTafsir, fetchChapterTafsir, getCSVFileName } from '@/lib/tafsir-csv-service';
 import { OfflineManager } from '@/components/OfflineManager';
 import { postReading, flushReadingQueue } from '@/lib/reading-queue';
+import { useKeepScreenOn } from '@/hooks/useKeepScreenOn';
 
 interface GroupData {
   group: any;
@@ -1293,6 +1294,7 @@ function DailyReadingCard({ autoReading, autoConfig, stats, progress, challengeT
 
 export default function GroupView() {
   const params = useParams<{ groupId: string }>();
+  useKeepScreenOn(); // الشاشة ماتنامش طول ما الجروب مفتوح (طلب عضو ٢٠٢٦-١١-٠٢)
   const groupCode = params.groupId || '';
   const [, navigate] = useLocation();
   const [data, setData] = useState<GroupData | null>(null);
