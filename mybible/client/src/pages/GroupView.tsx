@@ -98,6 +98,8 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [fromLocalCopy, setFromLocalCopy] = useState(false);
+  // سفر مش فى St-Takla عندنا (المزمور 151 · صلاة منسى · المكابيين الثالث) ⇒ نص قسم أرثوذكسيات فى الموقع
+  const [fromSiteCopy, setFromSiteCopy] = useState(false);
 
   const openTafsir = async (type: 'intro' | 'verse' | 'chapter', verseNum?: number) => {
     setTafsirOpen(true);
@@ -159,6 +161,7 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
     const loadVerses = async () => {
       setSourceError(null);
       setSourceUrl(null);
+      setFromSiteCopy(false);
       setVerses([]);
       try {
         // الأسفار القانونية الثانية — تُحمّل من St-Takla بنفس القارئ المستخدم
@@ -179,6 +182,18 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
               chapterData = await api.deuteroSource.getLocalChapter(DEUTERO_SOURCE_IDS[sourceName], currentChapter);
               local = true;
             } catch { /* النسخة المحفوظة كمان مش متاحة */ }
+          }
+          // المزمور 151 وصلاة منسى والمكابيين الثالث مش فى مصدر St-Takla عندنا ولا فى النسخة المحفوظة — كانوا بيقولوا
+          // «غير متاح» للأعضاء (المالك ٢٠٢٦-١١-٠٢: «مزمور 151 منسى»). نفس النص اللى فى قسم أرثوذكسيات فى الموقع،
+          // ومكتوب تحته إنه منه — لحد ما نسخة St-Takla توصل.
+          if (!chapterData?.verses?.length) {
+            const ap = apocryphaBook?.chapters.find((c) => c.chapter === currentChapter);
+            if (ap?.verses?.length) {
+              setFromSiteCopy(true);
+              setVerses(ap.verses.map((v) => ({ id: `${currentBook}-${currentChapter}-${v.verse}`, verse: v.verse, text: v.text })));
+              setLoading(false);
+              return;
+            }
           }
           if (!chapterData) {
             setSourceError('مصدر هذا السفر غير متاح حاليًا من St-Takla.');
@@ -330,6 +345,11 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
               <span className="text-xs text-muted-foreground">{currentIdx + 1} / {navSchedule.length}</span>
             )}
           </div>
+          {isDeutero && fromSiteCopy && (
+            <p className="mb-3 text-xs text-muted-foreground" data-testid="deutero-site-copy">
+              النص من قسم «أرثوذكسيات» فى الموقع
+            </p>
+          )}
           {isDeutero && sourceUrl && (
             <a
               href={sourceUrl}
