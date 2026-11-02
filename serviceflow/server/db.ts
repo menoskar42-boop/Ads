@@ -662,6 +662,20 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS wo_ref integer`);
   await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS pending_after_wo integer`);
   await pool.query(`CREATE INDEX IF NOT EXISTS cable_entries_pending_idx ON cable_entries (pending_after_wo) WHERE pending_after_wo IS NOT NULL`);
+  // السلك من شيت WFM (Consumed Cables — المالك ٢٠٢٦-١١-٠٢، server/wo-sheet-cable.ts): source='sheet'، واليدوى القديم للمرجع
+  await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS source text`);
+  await pool.query(`ALTER TABLE cable_entries ADD COLUMN IF NOT EXISTS manual_quantity text`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS work_order_cable_overrides (
+      central_name text NOT NULL,
+      work_order_id bigint NOT NULL,
+      cable_quantity text NOT NULL,
+      updated_by_id integer,
+      updated_by_name text,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT work_order_cable_overrides_uniq UNIQUE (central_name, work_order_id)
+    )
+  `);
   // local_store_moves — حركات المخزن المحلى للسلك: رصيد افتتاحى / وارد من الفرعى / صرف لفنى
   await pool.query(`
     CREATE TABLE IF NOT EXISTS local_store_moves (

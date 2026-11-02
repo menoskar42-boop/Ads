@@ -22,7 +22,7 @@ test("a week of waiting, then the entry is deleted and its owner is told", async
 test("waiting entries link only to work orders that arrive later (id above the floor)", () => {
   assert.match(src, /WHERE w\.id > ce\.pending_after_wo/);
   // اللى ظاهر بالفعل بيتربط بيه بس لو مالوش سلك فى الملف
-  assert.match(src, /NULLIF\(btrim\(COALESCE\(w\.cable_quantity, ''\)\), ''\) IS NULL/);
+  assert.match(src, /AND \$\{sheetCableSql\(\)\} IS NULL/);   // من ٣-١١ الـ٥٠ = من غير كمية
   // كل join بين أوامر الشغل والإدخالات بيحترم الربط — والمستنى مابيتربطش بحاجة
   const { CE_LINK_COND } = { CE_LINK_COND: src.match(/export const CE_LINK_COND = `([^`]+)`/)![1] };
   assert.equal(CE_LINK_COND, "ce.pending_after_wo IS NULL AND (ce.wo_ref IS NULL OR ce.wo_ref = w.id)");

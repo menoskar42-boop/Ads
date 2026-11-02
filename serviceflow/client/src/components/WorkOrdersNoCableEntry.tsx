@@ -38,6 +38,8 @@ interface Row {
   needsLineData: boolean;           // محتاج مراجعة بيان فنى (اسم غير معروف + مافيش بيان)
   workerCode: string | null;        // كود العامل من الشيت (المطابقة بيه أدق)
   techKey: string | null;           // الفنى المعتمد (للمنطق) — العرض بيفضل بالاسم الكامل
+  sheetCable?: string | null;       // كمية السلك من شيت WFM (Consumed Cables) — من ٣-١١ الـ٥٠ = فاضى
+  claimOnly?: boolean;              // من ٣-١١: فنى الإغلاق مش من الخمسة ⇒ الفنى يسجّل إنه بتاعه، والسلك زى ما هو
 }
 
 // أول يوم فى الشهر الحالى → النهاردة (بتوقيت القاهرة)، بصيغة yyyy-MM-dd
@@ -78,7 +80,8 @@ export function WorkOrdersNoCableEntry() {
   const { user } = useAuth();
   // تعديل اسم الفنى متاح لكل مستخدمى التقرير **ما عدا الفنيين** (والمبيعات ممنوعة من
   // التقرير كله). بيظهر بس للأوامر اللى اسم الفنى فيها مش مطابق لأى فنى مسجّل.
-  const canEditTech = user?.role !== ROLES.TECH && user?.role !== ROLES.SALES && user?.role !== ROLES.SALES_ADMIN;
+  // المالك ٢٠٢٦-١١-٠٢: تعديل فنى الإغلاق للسوبر أدمن بس
+  const canEditTech = user?.role === ROLES.SUPER_ADMIN;
   const [savingTech, setSavingTech] = useState<number | null>(null);
 
   // الاختيارات من جدول أسماء الفنيين (اللى الأدمن بيرفعه) — وبتتعرض **بالاسم الكامل**:
@@ -179,6 +182,27 @@ export function WorkOrdersNoCableEntry() {
     } finally {
       setSavingTech(null);
     }
+  };
+
+  // «سجّل إنه بتاعى» (من ٣-١١، فنى الإغلاق مش من الخمسة): اسمه على الأمر وسلك الشيت يتخصم منه — الكمية زى ما هى
+  const claim = async (r: Row) => {
+    setSaving(r.id);
+    try {
+      const res = await apiRequest("POST", `/api/work-orders/${r.id}/claim`, {});
+      const d = await res.json();
+      toast({ title: "اتسجّل باسمك", description: `أمر شغل ${r.phoneNumber} — السلك ${r.sheetCable ?? "-"} متر من الشيت`, duration: 3500 });
+      if (typeof d?.stockBalance === "number" && d.stockBalance < 0) {
+        toast({ title: "الرصيد بقى بالسالب", description: `رصيد سلك التركيبات والنقل: ${d.stockBalance} متر`, variant: "destructive", duration: 8000 });
+      }
+      qc.invalidateQueries({ queryKey: ["/api/reports/work-orders-no-cable"] });
+      qc.invalidateQueries({ queryKey: ["/api/local-store"] });
+      qc.invalidateQueries({ queryKey: ["/api/work-orders"] });
+    } catch (e: any) {
+      let msg = String(e?.message || "حدث خطأ");
+      const m = msg.match(/^\d+:\s*(.*)$/s); if (m) msg = m[1];
+      try { const j = JSON.parse(msg); if (j?.message) msg = j.message; } catch { /* نص */ }
+      toast({ title: "ماتسجّلش", description: msg, variant: "destructive", duration: 6000 });
+    } finally { setSaving(null); }
   };
 
   const save = async (r: Row, stockTech?: string) => {
@@ -405,6 +429,20 @@ export function WorkOrdersNoCableEntry() {
                   </TableCell>
                   <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap">{fmtDate(r.closeDate)}</TableCell>
                   <TableCell>
+                    {r.claimOnly ? (
+                      <div className="flex flex-col gap-1 text-xs">
+                        <span>السلك من الشيت: <b dir="ltr">{r.sheetCable ?? "-"}</b> متر</span>
+                        {user?.role === ROLES.TECH ? (
+                          <Button size="sm" variant="outline" disabled={busy} onClick={() => void claim(r)}
+                            className="h-8 gap-1 text-primary border-primary/30" title="فنى الإغلاق مش من الخمسة — سجّل إن أمر الشغل ده بتاعك (الكمية مش هتتغيّر)">
+                            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            سجّل إنه بتاعى
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">مستنى الفنى يسجّله</span>
+                        )}
+                      </div>
+                    ) : (
                     <div className="flex items-center gap-1">
                       <Input
                         inputMode="decimal"
@@ -427,7 +465,8 @@ export function WorkOrdersNoCableEntry() {
                         حفظ
                       </Button>
                     </div>
-                    {needTech[r.id] && (
+                    )}
+                    {!r.claimOnly && needTech[r.id] && (
                       <select
                         value=""
                         disabled={busy}

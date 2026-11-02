@@ -53,17 +53,15 @@ test("a technician only sees their own installations", () => {
   assert.match(report, /NOT \$\{isKnown\}/, "unknown names must fall back to the area technician");
 });
 
-// تعديل الاسم: ممنوع على الفنى، وممنوع لو الاسم الحالى معروف، والاسم الجديد لازم يكون مسجّل.
-test("the override endpoint keeps its three guards", () => {
+// تعديل الاسم: السوبر أدمن بس (المالك ٢٠٢٦-١١-٠٢ — حتى لو الاسم الحالى من الخمسة)، والاسم الجديد لازم يكون مسجّل.
+test("the override endpoint: super admin only, and the new name must be one of the five", () => {
   const oStart = routes.indexOf('app.put("/api/work-order-tech"');
   const oEnd = routes.indexOf('app.get("/api/reports/installations-by-tech"', oStart);
   assert.ok(oStart >= 0 && oEnd > oStart);
   const ep = routes.slice(oStart, oEnd);
-  assert.match(ep, /role === ROLES\.SALES \|\| role === ROLES\.SALES_ADMIN \|\| role === ROLES\.TECH/);
+  assert.match(ep, /if \(role !== ROLES\.SUPER_ADMIN\) \{/);
   assert.match(ep, /مش من الفنيين المسجّلين/);
-  assert.match(ep, /أسماء الفنيين الخمسة مش قابلة للتغيير/);
-  assert.match(ep, /const currentKnown = matchTechnician\(wo\[0\]\.by_code\) \?\? matchTechnician\(current\)/,
-    "كود العامل بيتجرّب قبل الاسم");
+  assert.match(ep, /UPDATE cable_entries ce SET stock_tech_name = \$3/, "سلك الشيت بيتنقل لرصيد الفنى الجديد");
 });
 
 // القاعدة #6: فنى يحفظ كمية على اسم غير معروف → اسمه هو اللى يتسجّل، والمعروف مايتغيّرش.

@@ -269,6 +269,8 @@ export const cableEntries = pgTable("cable_entries", {
   stockDate: date("stock_date"),           // تاريخ الشغل (إغلاق أمر الشغل/العطل) — بيتحسب لو ≥ أول صرف للفنى
   woRef: integer("wo_ref"),                // أمر الشغل (work_orders.id) اللى الإدخال اليدوى اتربط بيه
   pendingAfterWo: integer("pending_after_wo"), // مستنى أمر شغل id بتاعه أكبر من ده — بيتمسح بعد ٧ أيام
+  source: text("source"),                  // 'sheet' = الكمية من شيت WFM (Consumed Cables) — server/wo-sheet-cable.ts
+  manualQuantity: text("manual_quantity"), // اللى الفنى كان داخله بإيده قبل ما الشيت يغطّيه (للمرجع بس)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (t) => ({
@@ -733,6 +735,16 @@ export const complaintTechExclusions = pgTable("complaint_tech_exclusions", {
   excludedByName: text("excluded_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// تعديل السوبر أدمن لكمية السلك على أمر شغل (٢٠٢٦-١١-٠٢ — server/wo-sheet-cable.ts) — بيغلب الشيت
+export const workOrderCableOverrides = pgTable("work_order_cable_overrides", {
+  centralName: text("central_name").notNull(),
+  workOrderId: bigint("work_order_id", { mode: "number" }).notNull(),
+  cableQuantity: text("cable_quantity").notNull(),
+  updatedById: integer("updated_by_id"),
+  updatedByName: text("updated_by_name"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ woUniq: unique("work_order_cable_overrides_uniq").on(t.centralName, t.workOrderId) }));
 
 // فنى بيشتغل مع فنى تانى من تاريخ (المالك ٢٠٢٦-١١-٠١) — server/cabinet-assignments.ts
 export const techPartners = pgTable("tech_partners", {

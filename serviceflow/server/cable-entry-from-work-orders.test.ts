@@ -57,6 +57,7 @@ test("manual install cable form lives in the no-cable tab: phone + install/move 
   assert.match(form, /"\/api\/reports\/work-orders-no-cable"/);
   // أمر الشغل اللى ييجى بعدين بنفس الرقم والنوع بيتربط بالكمية دى فمايظهرش فى القايمة
   const noCable = routes.slice(noCableStart, noCableEnd);
-  assert.match(noCable, /COALESCE\(NULLIF\(w\.cable_quantity, ''\), ce\.cable_quantity\) IS NULL/);
+  // من ٣-١١ الـ٥٠ فى الشيت = «لسه من غير كمية» (wo-sheet-cable.ts — المالك ٢٠٢٦-١١-٠٢)
+  assert.match(noCable, /COALESCE\(\$\{sheetCableSql\(\)\}, ce\.cable_quantity\) IS NULL/);
   assert.match(routes, /LEFT JOIN cable_entries ce\s+ON ce\.phone_local = CASE[\s\S]{0,400}AND ce\.work_order_type = CASE WHEN trim\(w\.service_type\) = 'نقل' THEN 'نقل' ELSE 'تركيب' END/);
 });

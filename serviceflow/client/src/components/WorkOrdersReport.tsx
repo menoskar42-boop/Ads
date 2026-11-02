@@ -146,6 +146,29 @@ export function WorkOrdersReport({ category = "success", over24 = false, title, 
   const canEditTech = user?.role === ROLES.SUPER_ADMIN;
   const [savingTech, setSavingTech] = useState<number | null>(null);
 
+  // السوبر أدمن بس يعدّل كمية السلك (المالك ٢٠٢٦-١١-٠٢) — بتغلب الشيت وبتتخصم من رصيد فنى الأمر
+  const [editCable, setEditCable] = useState<Record<number, string>>({});
+  const saveCable = async (o: WorkOrder) => {
+    const v = String(editCable[o.id] ?? "").trim();
+    if (!/^\d+(\.\d+)?$/.test(v)) { toast({ title: "اكتب رقم", variant: "destructive", duration: 3000 }); return; }
+    setSavingTech(o.id);
+    try {
+      const res = await fetch(`/api/work-orders/${o.id}/cable`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ cableQuantity: v }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.message || "تعذّر الحفظ");
+      toast({ title: "اتعدّلت كمية السلك", description: `${v} متر — أمر شغل ${o.workOrderId}`, duration: 3000 });
+      setEditCable((m) => { const n = { ...m }; delete n[o.id]; return n; });
+      qc.invalidateQueries({ queryKey: ["/api/work-orders"] });
+      qc.invalidateQueries({ queryKey: ["/api/reports/work-orders-no-cable"] });
+      qc.invalidateQueries({ queryKey: ["/api/local-store"] });
+    } catch (e: any) {
+      toast({ title: "تعذّر تعديل الكمية", description: e?.message || "حدث خطأ", variant: "destructive", duration: 6000 });
+    } finally { setSavingTech(null); }
+  };
+
   const saveTech = async (o: WorkOrder, techName: string) => {
     if (!techName) return;
     setSavingTech(o.id);
@@ -472,15 +495,32 @@ export function WorkOrdersReport({ category = "success", over24 = false, title, 
                       {formatDate(o.closeDate)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{o.itemName || "-"}</TableCell>
-                    <TableCell className="text-center">{o.cableQuantity || "-"}</TableCell>
+                    <TableCell className="text-center">
+                      {canEditTech && editCable[o.id] !== undefined ? (
+                        <div className="flex items-center gap-1 justify-center">
+                          <input value={editCable[o.id]} onChange={(e) => setEditCable((m) => ({ ...m, [o.id]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === "Enter") void saveCable(o); if (e.key === "Escape") setEditCable((m) => { const n = { ...m }; delete n[o.id]; return n; }); }}
+                            dir="ltr" inputMode="decimal" className="border rounded-md px-1 py-0.5 text-xs w-16 text-left" autoFocus />
+                          <button type="button" onClick={() => void saveCable(o)} className="text-xs text-primary" disabled={savingTech === o.id}>حفظ</button>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          {o.cableQuantity || "-"}
+                          {canEditTech && (
+                            <button type="button" className="text-[11px] text-blue-600 hover:underline" title="تعديل كمية السلك (سوبر أدمن)"
+                              onClick={() => setEditCable((m) => ({ ...m, [o.id]: String(o.cableQuantity ?? "") }))}>تعديل</button>
+                          )}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
-                      {o.techKnown || !canEditTech ? (
+                      {!canEditTech ? (
                         <span className={`whitespace-nowrap ${o.techKnown ? "" : "text-amber-700"}`}
                           title={o.techKnown ? "" : "مش مطابق لأى فنى مسجّل"}>
                           {o.techName || "-"}
                         </span>
                       ) : (
-                        // الاسم مش مطابق لأى فنى من الخمسة → سوبر أدمن يقدر يصحّحه
+                        // السوبر أدمن يقدر يغيّر فنى الإغلاق (المالك ٢٠٢٦-١١-٠٢ — حتى لو من الخمسة)
                         <div className="flex items-center gap-1">
                           <select
                             value=""

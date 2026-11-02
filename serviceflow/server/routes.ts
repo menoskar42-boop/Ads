@@ -48,6 +48,7 @@ import { registerRepeatReviews } from "./repeat-reviews";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
 import { registerCabinetAssignments, siteWorkerCode } from "./cabinet-assignments";
+import { sheetCableSql, syncSheetCableEntries, sheetRulesSql } from "./wo-sheet-cable";
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
 import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
@@ -1585,7 +1586,7 @@ async function queueMissingLineDataSubinfo(opts?: { force?: boolean }) {
          LEFT JOIN line_subscriber_info si ON si.phone_number = w.phone_number
         WHERE regexp_replace(coalesce(w.phone_number,''), '\\D', '', 'g') ~ '^88[0-9]{7}$'
           AND (w.close_category IS NULL OR w.close_category = 'Success')
-          AND COALESCE(NULLIF(w.cable_quantity, ''), ce.cable_quantity) IS NULL
+          AND COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NULL
           -- مافيش بيان فنى: لا سنترال/كابينة من ملف الخطوط ولا من مراجعة سابقة
           AND COALESCE(NULLIF(btrim(pl.central), ''), NULLIF(btrim(si.central), '')) IS NULL
           -- ⚠️ البيان الفنى بيتراجع **بس** لما اسم الفنى مش واحد من الخمسة: هو المصدر
@@ -9675,6 +9676,8 @@ export async function registerRoutes(
              FROM (VALUES ${values}) AS v(central_name, work_order_id, phone_number, service_type, close_date, item_name, cable_quantity, tech_name, close_category, creation_date, msan_code, work_order_type_raw, raw_data, uploaded_by_id, worker_code)
            ON CONFLICT (central_name, work_order_id) DO UPDATE SET
              close_category = EXCLUDED.close_category,
+             -- Consumed Cables (من ٣-١١ مصدر السلك — wo-sheet-cable.ts): آخر قيمة فى الشيت، ولو فاضية تفضل القديمة
+             cable_quantity = COALESCE(NULLIF(btrim(EXCLUDED.cable_quantity), ''), work_orders.cable_quantity),
              creation_date = COALESCE(EXCLUDED.creation_date, work_orders.creation_date),
              msan_code = COALESCE(EXCLUDED.msan_code, work_orders.msan_code),
              work_order_type_raw = COALESCE(EXCLUDED.work_order_type_raw, work_orders.work_order_type_raw),
@@ -9805,7 +9808,9 @@ export async function registerRoutes(
       // إدخالات السلك اليدوية اللى كانت مستنية أمر الشغل ده (server/cable-link.ts) — قبل الرد
       // عشان أمر الشغل مايظهرش فى «أوامر شغل بدون كمية سلك» وهو له سلك
       await linkCables();
-      res.json({ ok: true, inserted, skipped, purged, deactivated, total: dataRows.length, stampedAt });
+      // Consumed Cables من ٣-١١ ⇒ إدخالات سلك من الشيت (الفنى مايدخّلش غير لو ٥٠ — wo-sheet-cable.ts)
+      const sheetCable = await syncSheetCableEntries(pool).catch((e) => { console.error("[sheet-cable]", e?.message || e); return null; });
+      res.json({ ok: true, inserted, skipped, purged, deactivated, total: dataRows.length, stampedAt, sheetCable });
     } catch (e: any) {
       console.error("work-orders import error:", e);
       res.status(500).json({ message: "خطأ أثناء معالجة الملف", detail: e.message });
@@ -9843,7 +9848,7 @@ export async function registerRoutes(
       `SELECT w.id, w.central_name AS "centralName", w.work_order_id AS "workOrderId",
               w.phone_number AS "phoneNumber", w.service_type AS "serviceType",
               w.close_date AS "closeDate", w.item_name AS "itemName",
-              COALESCE(NULLIF(w.cable_quantity, ''), ce.cable_quantity) AS "cableQuantity",
+              COALESCE(${sheetCableSql()}, ce.cable_quantity) AS "cableQuantity",
               -- ⚠️ اسم الفنى لازم ياخد التعديل فى الاعتبار: لما فنى يسجّل كمية سلك
               -- على أمر شغل اسمه مش من الخمسة، اسمه هو اللى بيتسجّل. من غير الـ JOIN
               -- ده التعديل كان بيتخزّن والتقرير يفضل عارض الاسم القديم.
@@ -9946,8 +9951,9 @@ export async function registerRoutes(
         `regexp_replace(coalesce(w.phone_number,''), '\\D', '', 'g') ~ '^88[0-9]{7}$'`,
         // الناجحة فقط (زى الافتراضى فى تقرير أوامر الشغل)
         `(w.close_category IS NULL OR w.close_category = 'Success')`,
-        // مالهاش كمية سلك: لا فى work_orders ولا فى cable_entries
-        `COALESCE(NULLIF(w.cable_quantity, ''), ce.cable_quantity) IS NULL`,
+        // مالهاش كمية سلك (لا فى الشيت ولا فى cable_entries) — أو من ٣-١١ فنى إغلاقها مش من الخمسة ومحدش سجّلها
+        // (الشرط الكامل بيتضاف تحت بعد ما «معروف؟» يتحسب: needSql)
+        `TRUE`,
         // والأنواع اللى مابتستهلكش سلك أصلاً (تفعيل خدمة / التحقق من إتاحة رقم /
         // معاينة) مالهاش دعوة بالتقرير ده — شوف NO_CABLE_WO_TYPES_LC.
         `lower(btrim(COALESCE(w.work_order_type_raw, ''))) <> ALL(ARRAY[${
@@ -9975,6 +9981,10 @@ export async function registerRoutes(
       // الاسم المعتمد للفنى (أو NULL لو مش واحد من الخمسة) — ده تعريف «معروف».
       const knownName = `COALESCE(${canonicalTechSql(byWorkerCode)}, ${canonicalTechSql(effName)})`;
       const isKnown = `(${knownName} IS NOT NULL)`;
+      // «سجّل إنه بتاعك» (المالك ٢٠٢٦-١١-٠٢): من ٣-١١ وفنى الإغلاق مش من الخمسة ومحدش سجّله ⇒ يظهر للفنى حتى لو
+      // السلك مكتوب فى الشيت — بيسجّل اسمه بس، والسلك المكتوب مايتغيّرش (wo-sheet-cable.ts)
+      const claimOnlySql = `(${sheetRulesSql()} AND NOT ${isKnown} AND ovr.tech_name IS NULL AND ${sheetCableSql()} IS NOT NULL)`;
+      conds.push(`(COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NULL OR ${claimOnlySql})`);
       // فنى المنطقة من **البيانات الفنية للرقم** — نفس منطق «بحث برقم التليفون»
       // (بيان الخط ← كابينة ← فنى الكابينة، مع تغطية الوردية).
       const areaTech = areaTechSql("lm.central", "lm.cabin", "w.close_date", "lm.short");
@@ -10036,6 +10046,8 @@ export async function registerRoutes(
                 (ovr.tech_name IS NOT NULL) AS "techEdited",
                 ovr.updated_by_name AS "techEditedBy",
                 ${isKnown} AS "techKnown",
+                ${sheetCableSql()} AS "sheetCable",
+                (${claimOnlySql} AND COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NOT NULL) AS "claimOnly",
                 ${areaTech} AS "areaTechName",   -- بيتعرض بالاسم الكامل من الواجهة
                 (lm.central IS NOT NULL AND lm.cabin IS NOT NULL) AS "hasLineData",
                 -- البيان الفنى بيتراجع **بس** لما اسم الفنى مش واحد من الخمسة — لأنه
@@ -10248,8 +10260,9 @@ export async function registerRoutes(
 
   app.put("/api/work-order-tech", requireAuth, async (req: any, res) => {
     const role = req.user?.role;
-    if (role === ROLES.SALES || role === ROLES.SALES_ADMIN || role === ROLES.TECH) {
-      return res.status(403).json({ message: "غير مسموح" });
+    // تعديل فنى الإغلاق للسوبر أدمن بس (المالك ٢٠٢٦-١١-٠٢)
+    if (role !== ROLES.SUPER_ADMIN) {
+      return res.status(403).json({ message: "تعديل فنى الإغلاق للسوبر أدمن بس" });
     }
     const centralName = String(req.body?.centralName ?? "").trim();
     const workOrderId = parseInt(String(req.body?.workOrderId ?? ""), 10);
@@ -10276,11 +10289,8 @@ export async function registerRoutes(
     const storedName = preferFullName(techName);
 
     // الاسم الحالى لو بيرجع لأى فنى من الخمسة (بالكود أو بالاسم) → مايتغيّرش أبداً
-    const current = String(wo[0].override ?? wo[0].tech_name ?? "").trim();
-    const currentKnown = matchTechnician(wo[0].by_code) ?? matchTechnician(current);
-    if (currentKnown) {
-      return res.status(409).json({ message: `أمر الشغل ده على الفنى «${currentKnown}» — أسماء الفنيين الخمسة مش قابلة للتغيير.` });
-    }
+    // السوبر أدمن بيقدر يغيّر حتى لو الأمر على واحد من الخمسة (المالك ٢٠٢٦-١١-٠٢) — والسلك اللى من الشيت
+    // بيتخصم من رصيد الفنى الجديد.
 
     await pool.query(
       `INSERT INTO work_order_tech_overrides (central_name, work_order_id, tech_name, updated_by_id, updated_by_name, updated_at)
@@ -10289,7 +10299,56 @@ export async function registerRoutes(
          tech_name = EXCLUDED.tech_name, updated_by_id = EXCLUDED.updated_by_id,
          updated_by_name = EXCLUDED.updated_by_name, updated_at = now()`,
       [centralName, workOrderId, storedName, req.user.id, req.user.username]);
+    await pool.query(
+      `UPDATE cable_entries ce SET stock_tech_name = $3, updated_at = now()
+         FROM work_orders w WHERE w.central_name = $1 AND w.work_order_id = $2 AND ce.wo_ref = w.id AND ce.source = 'sheet'`,
+      [centralName, workOrderId, canonicalNew]);
     res.json({ ok: true, techName: storedName });
+  });
+
+  // PUT /api/work-orders/:id/cable — السوبر أدمن بس يعدّل كمية السلك على أمر شغل (بتغلب الشيت — wo-sheet-cable.ts)
+  app.put("/api/work-orders/:id/cable", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const qty = String(req.body?.cableQuantity ?? "").trim();
+      if (!id) return res.status(400).json({ message: "أمر شغل غير صالح" });
+      if (!/^\d+(\.\d+)?$/.test(qty)) return res.status(400).json({ message: "كمية السلك لازم تكون رقم" });
+      const { rows } = await pool.query(`SELECT central_name, work_order_id FROM work_orders WHERE id = $1`, [id]);
+      if (!rows.length) return res.status(404).json({ message: "أمر الشغل غير موجود" });
+      await pool.query(
+        `INSERT INTO work_order_cable_overrides (central_name, work_order_id, cable_quantity, updated_by_id, updated_by_name, updated_at)
+         VALUES ($1, $2, $3, $4, $5, now())
+         ON CONFLICT ON CONSTRAINT work_order_cable_overrides_uniq DO UPDATE SET cable_quantity = EXCLUDED.cable_quantity,
+           updated_by_id = EXCLUDED.updated_by_id, updated_by_name = EXCLUDED.updated_by_name, updated_at = now()`,
+        [rows[0].central_name, rows[0].work_order_id, qty, req.user.id, req.user.username]);
+      const sync = await syncSheetCableEntries(pool, [id]);
+      res.json({ ok: true, cableQuantity: qty, sync });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "تعذّر الحفظ" }); }
+  });
+
+  // POST /api/work-orders/:id/claim — الفنى بيسجّل إن أمر الشغل ده بتاعه (فنى الإغلاق مش من الخمسة، من ٣-١١):
+  // اسمه بيتكتب على الأمر وسلك الشيت بيتخصم من رصيده — الكمية نفسها مابتتغيّرش (المالك ٢٠٢٦-١١-٠٢).
+  app.post("/api/work-orders/:id/claim", requireAuth, async (req: any, res) => {
+    try {
+      if (req.user?.role !== ROLES.TECH) return res.status(403).json({ message: "للفنى بس" });
+      const id = parseInt(req.params.id, 10);
+      const me = matchTechnician((await coverageCodes(req.user)).techName) || matchTechnician(req.user.username);
+      if (!id || !me) return res.status(400).json({ message: "مش عارفين اسمك فى الفنيين — كلّم السوبر أدمن" });
+      const { rows } = await pool.query(`SELECT w.id FROM work_orders w WHERE w.id = $1 AND ${sheetRulesSql()}`, [id]);
+      if (!rows.length) return res.status(404).json({ message: "أمر الشغل غير موجود (أو قبل ٣-١١)" });
+      const woTech = await workOrderTech(pool, id);
+      if (woTech) return res.status(409).json({ message: `أمر الشغل ده على الفنى «${woTech}»` });
+      await claimWorkOrderName(req.user, id);
+      const { rows: ce } = await pool.query(
+        `UPDATE cable_entries SET stock_tech_name = $2, updated_at = now()
+          WHERE wo_ref = $1 AND source = 'sheet' AND stock_tech_name IS NULL RETURNING id`, [id, me]);
+      let stockBalance: number | null = null;
+      if (ce[0]) {
+        const q = (await pool.query(`SELECT cable_quantity AS q FROM cable_entries WHERE id = $1`, [ce[0].id])).rows[0]?.q;
+        stockBalance = await notifyIfNegative(pool, me, "install", Number(q) || 0).catch(() => null);
+      }
+      res.json({ ok: true, techName: me, stockBalance });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "تعذّر الحفظ" }); }
   });
 
   // GET /api/reports/box-full-reviewed — «متعذرات OM بوكس مليان تمت مراجعتها».

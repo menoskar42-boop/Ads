@@ -14,6 +14,7 @@ import { ROLES } from "@shared/schema";
 import { canonicalTechSql, matchTechnician } from "@shared/technicians";
 import { phoneNormSql as sp } from "./phone-norm";
 import { closingTech, notifyIfNegative, cableTypeOf } from "./local-store";
+import { sheetCableSql } from "./wo-sheet-cable";
 
 /** الإدخال اليدوى بيستنى أمر الشغل كام يوم قبل ما يتمسح. */
 export const PENDING_DAYS = 7;
@@ -37,7 +38,8 @@ export const CE_LINK_COND = `ce.pending_after_wo IS NULL AND (ce.wo_ref IS NULL 
 export async function findOpenWorkOrder(pool: Pool, phoneLocal: string, type: string, woRef?: number | null):
   Promise<{ id: number; closeDate: string } | null> {
   const params: any[] = [phoneLocal, type];
-  let extra = `AND NULLIF(btrim(COALESCE(w.cable_quantity, '')), '') IS NULL
+  // من ٣-١١ الـ٥٠ فى الشيت = «لسه من غير كمية» (wo-sheet-cable.ts)
+  let extra = `AND ${sheetCableSql()} IS NULL
                AND w.close_date >= now() - interval '${OPEN_WO_DAYS} days'`;
   if (woRef) { params.push(woRef); extra = `AND w.id = $3`; }
   const r = await pool.query(
