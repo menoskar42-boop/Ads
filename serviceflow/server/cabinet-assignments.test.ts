@@ -145,3 +145,71 @@ test("PUT /api/cabinet-assignments (super admin): saves rows, writes dated histo
     await new Promise((r) => httpServer.close(() => r(null)));
   }
 });
+
+test("faults-per-1000: a partner's segments from the partnership date equal his partner's", () => {
+  const r = buildAdslReport({
+    ct: [{ central: "الغنايم", cabin: "1-1", code: "M1", worker: "W1" }],
+    history: [],
+    names: new Map([["W1", "اسلام"]]),
+    working: new Map([["M1", 100]]),
+    daily: new Map([["M1", new Map([["2026-10-05", 2], ["2026-10-20", 3]])]]),
+    from: "2026-10-01", to: "2026-10-31",
+    partners: [{ tech: "مينا", partner: "اسلام", from: "2026-10-16", to: null }],
+  });
+  const by = Object.fromEntries(r.techs.map((t) => [t.techName, t]));
+  assert.equal(by["اسلام"].faultCount, 5);
+  assert.equal(by["مينا"].faultCount, 3, "من ١٦ أكتوبر بس");
+  assert.equal(by["مينا"].per1000, 30);
+});
+
+test("removal stats: no closer ⇒ the cabinet's technician ON THAT DAY; pairs=1 ⇒ partner gets the same rows", async (t) => {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.includes("no-db.invalid")) { t.skip("DATABASE_URL is not configured for PostgreSQL integration tests"); return; }
+  const [{ pool }, { registerRoutes }] = await Promise.all([import("./db"), import("./routes")]);
+  const sfx = `${process.pid}_${Date.now()}`;
+  const admin = `ca2-admin-${sfx}`, pass = `pw-${sfx}`;
+  const C = "الغنايم-تجربة";
+  const W = { old: `o${sfx}`, nw: `n${sfx}`, p: `p${sfx}` };
+  const N = { old: `قديم${sfx}`, nw: `جديد${sfx}`, p: `شريك${sfx}` };
+  const cno = [`T1${sfx}`, `T2${sfx}`];
+  const app = express(); app.use(express.json());
+  const httpServer = createServer(app);
+  const cleanup = async () => {
+    await pool.query(`DELETE FROM complaint_details WHERE complain_no = ANY($1::text[])`, [cno]);
+    await pool.query(`DELETE FROM cabinet_tech_history WHERE central_name = $1`, [C]);
+    await pool.query(`DELETE FROM cabinet_technicians WHERE central_name = $1`, [C]);
+    await pool.query(`DELETE FROM tech_partners WHERE tech_code = $1`, [W.p]);
+    await pool.query(`DELETE FROM technician_names WHERE worker_code = ANY($1::text[])`, [Object.values(W)]);
+    await pool.query(`DELETE FROM users WHERE username = $1`, [admin]);
+  };
+  try {
+    await cleanup();
+    const salt = randomBytes(16).toString("hex");
+    const hash = `${((await scryptAsync(pass, salt, 64)) as Buffer).toString("hex")}.${salt}`;
+    await pool.query(`INSERT INTO users (username, password, role) VALUES ($1, $2, 'super_admin')`, [admin, hash]);
+    await pool.query(`INSERT INTO technician_names (worker_code, tech_name) VALUES ($1, $4), ($2, $5), ($3, $6)`, [W.old, W.nw, W.p, N.old, N.nw, N.p]);
+    // الكابينة كانت مع «قديم» ومن ٢٠ أكتوبر مع «جديد»، والشريك شغال مع «جديد» من ٢٠ أكتوبر
+    await pool.query(`INSERT INTO cabinet_technicians (central_name, cabin_code, cabin_number, worker_code) VALUES ($1, 'MS-T', '9-9', $2)`, [C, W.nw]);
+    await pool.query(`INSERT INTO cabinet_tech_history (central_name, cabin_number, cabin_code, old_worker_code, new_worker_code, effective_date) VALUES ($1, '9-9', 'MS-T', $2, $3, '2026-10-20')`, [C, W.old, W.nw]);
+    await pool.query(`INSERT INTO tech_partners (tech_code, partner_code, effective_date) VALUES ($1, $2, '2026-10-20')`, [W.p, W.nw]);
+    // عطلين من غير فنى إغلاق: واحد ١٥ أكتوبر (قبل التغيير) وواحد ٢٥ أكتوبر (بعده)
+    await pool.query(
+      `INSERT INTO complaint_details (complain_no, exchange_name, complain_time, close_time, cabinet_no, phone_number)
+       VALUES ($1, $3, '2026-10-15 08:00+00', '2026-10-15 10:00+00', '9-9', '1999001'),
+              ($2, $3, '2026-10-25 08:00+00', '2026-10-25 10:00+00', '9-9', '1999002')`, [cno[0], cno[1], C]);
+    await registerRoutes(httpServer, app);
+    await new Promise<void>((r) => httpServer.listen(0, "127.0.0.1", () => r()));
+    const base = `http://127.0.0.1:${(httpServer.address() as any).port}`;
+    const cookie = (await fetch(`${base}/api/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: admin, password: pass }) })).headers.get("set-cookie")!.split(";")[0];
+    const q = `dateFrom=2026-10-01&dateTo=2026-10-31&central=${encodeURIComponent(C)}`;
+    const plain: any = await (await fetch(`${base}/api/reports/combined-stats?${q}`, { headers: { cookie } })).json();
+    const byName = (d: any) => Object.fromEntries((d.byTechOnly || []).map((r: any) => [r.techName, Number(r.total)]));
+    assert.deepEqual(byName(plain), { [N.old]: 1, [N.nw]: 1 }, "قبل ٢٠ أكتوبر على القديم، وبعده على الجديد");
+    const paired: any = await (await fetch(`${base}/api/reports/combined-stats?${q}&pairs=1`, { headers: { cookie } })).json();
+    assert.deepEqual(byName(paired), { [N.old]: 1, [`${N.nw} , ${N.p}`]: 1 }, "الشريك ياخد نفس عطل الجديد من تاريخ الشراكة");
+    assert.equal(Number(paired.overall.total), 2, "الإدارة: كل عطل مرة واحدة");
+  } finally {
+    await cleanup().catch(() => {});
+    await new Promise((r) => httpServer.close(() => r(null)));
+  }
+});

@@ -65,17 +65,24 @@ export interface TechAdsl {
  *     مجموع الأجزاء (يعنى المعدّل الشهرى = متوسط معدّلات الأجزاء موزون بعدد أيامها). «الشغال»
  *     اللى بيظهر = شغاله دلوقتى. كود MSAN عليه أكتر من فنى بيتقسم بينهم بالتساوى (مفيش صف مجمّع).
  */
+/** فنى بيشتغل مع فنى تانى (tech_partners — بالأسامى): من from لحد to نتايجه = نتايج partner. */
+export interface PartnerSpan { tech: string; partner: string; from: string; to: string | null }
+
 export function buildAdslReport(args: {
   ct: CtRow[]; history: HistRow[]; names: Map<string, string>;
   working: Map<string, number>; daily: Map<string, Map<string, number>>; from: string; to: string;
+  partners?: PartnerSpan[];
 }): { rows: AdslRow[]; techs: TechAdsl[] } {
   const { ct, history, names, working, daily, from, to } = args;
+  const partners = args.partners ?? [];
   const f = dayNum(from), t = dayNum(to);
   const byCode = new Map<string, CtRow[]>();
   for (const r of ct) { const l = byCode.get(r.code) || []; l.push(r); byCode.set(r.code, l); }
   const keysAll = new Set(ct.map((r) => keyOf(r.central, r.cabin)));
   const cuts = [...new Set(history.filter((h) => keysAll.has(keyOf(h.central, h.cabin)) && dayNum(h.date) > f && dayNum(h.date) <= t)
-    .map((h) => dayNum(h.date)))].sort((a, b) => a - b);
+    .map((h) => dayNum(h.date))
+    // بداية ونهاية الشراكة كمان حدود: الجزء ده بحسابه
+    .concat(partners.flatMap((p) => [dayNum(p.from), ...(p.to ? [dayNum(p.to) + 1] : [])]).filter((d) => d > f && d <= t)))].sort((a, b) => a - b);
   const bounds = [f, ...cuts, t + 1];
   const faultsIn = (code: string, s: number, e: number) => {
     let n = 0;
@@ -113,6 +120,18 @@ export function buildAdslReport(args: {
         a.segs[i].faults += fl / who.length;
         acc.set(h, a);
       }
+    }
+  }
+  // الشريك: كل جزء جوّه فترة الشراكة = جزء الفنى اللى معاه بالظبط (نفس الشغال ونفس الأعطال)
+  for (const p of partners) {
+    const src = acc.get(p.partner);
+    if (!src || p.tech === p.partner) continue;
+    for (let i = 0; i < segCount; i++) {
+      const s0 = bounds[i];
+      if (s0 < dayNum(p.from) || (p.to && s0 > dayNum(p.to))) continue;
+      const a = acc.get(p.tech) ?? { segs: Array.from({ length: segCount }, () => ({ working: 0, faults: 0 })) };
+      a.segs[i] = { ...src.segs[i] };
+      acc.set(p.tech, a);
     }
   }
   const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -285,7 +304,18 @@ export async function cabinetAdslFaultsByHistory(pool: Pool, opts: { where: stri
     daily.set(r.msan_id, m);
   }
   const span = adslSpan(opts.from, opts.to, [...daily.values()].flatMap((m) => [...m.keys()]), opts.today);
-  return buildAdslReport({ ct, history, names, working, daily, from: span.from, to: span.to });
+  // الشركاء (توزيع الكباين — المالك ٢٠٢٦-١١-٠١) بالأسامى زى ما التقرير بيعرضها
+  let partners: PartnerSpan[] = [];
+  try {
+    partners = (await pool.query(
+      `SELECT (SELECT MIN(tech_name) FROM technician_names WHERE worker_code = tp.tech_code) AS tech,
+              (SELECT MIN(tech_name) FROM technician_names WHERE worker_code = tp.partner_code) AS partner,
+              tp.effective_date::text AS "from", tp.end_date::text AS "to"
+         FROM tech_partners tp
+        WHERE tp.effective_date <= $2::date AND (tp.end_date IS NULL OR tp.end_date >= $1::date)`, [span.from, span.to])).rows
+      .filter((r: any) => r.tech && r.partner);
+  } catch { /* الجدول لسه مااتعملش */ }
+  return buildAdslReport({ ct, history, names, working, daily, from: span.from, to: span.to, partners });
 }
 
 /**

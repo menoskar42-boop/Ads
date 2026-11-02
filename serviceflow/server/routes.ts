@@ -47,7 +47,7 @@ import { schedulersEnabled } from './schedulers-enabled';
 import { registerRepeatReviews } from "./repeat-reviews";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
-import { registerCabinetAssignments } from "./cabinet-assignments";
+import { registerCabinetAssignments, siteWorkerCode } from "./cabinet-assignments";
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
 import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
@@ -1122,9 +1122,15 @@ const areaTechSql = (centralExpr: string, cabinExpr: string, dateExpr: string, p
   // نفس ترتيب «بحث برقم التليفون»: الصف اللى ليه كود كابينة الأول، وبعدين بالاسم —
   // عشان الاختيار يبقى ثابت ومطابق للتقرير التانى مهما كان عدد الصفوف المكررة.
   const CT_ORDER = `ORDER BY (ct.cabin_code IS NOT NULL AND ct.cabin_code <> '') DESC, tn.tech_name NULLS LAST`;
+  // الفنى اللى كان ماسك الكابينة **يوم الشكوى** (المالك ٢٠٢٦-١١-٠١ — «توزيع الكباين»): أول تغيير بعد اليوم ده
+  // ⇒ الفنى اللى كان قبله، وإلا الحالى. نفس قاعدة «الأعطال فى الألف» (cabinet-reassign.ts: workerAt).
+  const wAt = `COALESCE((SELECT h.old_worker_code FROM cabinet_tech_history h
+                          WHERE h.central_name = ct.central_name AND h.cabin_number = ct.cabin_number
+                            AND h.effective_date > ${dt}
+                          ORDER BY h.effective_date, h.id LIMIT 1), ct.worker_code)`;
   const bySheetCabin = `
       (SELECT tn.tech_name FROM cabinet_technicians ct
-         LEFT JOIN technician_names tn ON tn.worker_code = ct.worker_code
+         LEFT JOIN technician_names tn ON tn.worker_code = ${wAt}
         WHERE ct.central_name = ${centralExpr} AND ct.cabin_number = ${cabinExpr}
         ${CT_ORDER} LIMIT 1)`;
   // من غير رقم تليفون: الطريقة القديمة (كابينة الشيت) بس بترتيب ثابت
@@ -1144,7 +1150,7 @@ const areaTechSql = (centralExpr: string, cabinExpr: string, dateExpr: string, p
            FROM phone_lines pl
            JOIN cabinet_technicians ct
              ON ct.central_name = pl.central AND ct.cabin_number = pl.cabin_number
-           LEFT JOIN technician_names tn ON tn.worker_code = ct.worker_code
+           LEFT JOIN technician_names tn ON tn.worker_code = ${wAt}
           WHERE pl.tel_no = ${phoneExpr}
           ${CT_ORDER} LIMIT 1
        ) ctc ON true`
@@ -1172,6 +1178,10 @@ const effTechSql = (complainNoExpr: string, closeByExpr: string, centralExpr: st
     ${areaTechSql(centralExpr, cabinExpr, dateExpr, phoneExpr)},
     'غير معروف'
   )`;
+// أداء الفنيين (pairs=1): فنى بيشتغل مع فنى تانى (tech_partners) ⇒ من تاريخ الشراكة اسم الاتنين «أ , ب»،
+// والتقرير بيحسب الصف كامل على الاتنين — نتايجهم واحدة مين ما قفل (المالك ٢٠٢٦-١١-٠١، sf_tech_pair فى db.ts).
+const effTechPairSql = (complainNoExpr: string, closeByExpr: string, centralExpr: string, cabinExpr: string, dateExpr: string, phoneExpr?: string) =>
+  `sf_tech_pair(${effTechSql(complainNoExpr, closeByExpr, centralExpr, cabinExpr, dateExpr, phoneExpr)}, (${dateExpr} AT TIME ZONE 'Africa/Cairo')::date)`;
 
 // يُرفق بكل طلب اسم فنى الكابينة المالك (cabinet_technicians) حسب (السنترال + رقم
 // الكابينة) — بصرف النظر عن من ردّ على الطلب. يُستخدم لفلتر "متعذراتى" للفنى.
@@ -1879,6 +1889,19 @@ export async function registerRoutes(
   app.use((_req, _res, next) => { quietSessions?.maybePrune(); next(); });
   // المالك ٢٠٢٦-١٠-١٩: سرعة واسكور كل خط للسوبر أدمن بس (غير «بحث برقم التليفون»)، والمتوسطات للكل
   app.use(measureRedactor(ROLES.SUPER_ADMIN));
+  /* فنى بيشتغل مع فنى تانى («توزيع الكباين» — المالك ٢٠٢٦-١١-٠١): الموقع بيعرضله خطوط شريكه وأرقامه (القياس،
+   * الأعطال، المتعذرات، أوامر الشغل…). الفنى ده مالوش كباين، فكود العامل بتاع **الطلب ده بس** بيبقى كود الشريك
+   * — نسخة من المستخدم (المخزّن فى الذاكرة مابيتلمسش)، ومش فى الدخول و/api/user (اسمه بيفضل اسمه). */
+  app.use(async (req: any, _res, next) => {
+    try {
+      if (req.user?.role === ROLES.TECH && req.user.workerCode && !/^\/api\/(user|login|logout|register|portal)\b/.test(req.path)) {
+        const own = String(req.user.workerCode).trim();
+        const code = await siteWorkerCode(pool, own);
+        if (code && code !== own) req.user = { ...req.user, workerCode: code, ownWorkerCode: own };
+      }
+    } catch { /* زى ما هو */ }
+    next();
+  });
 
   // === Cable-Fault-Manager (CFM) المدموج — راوتس تحت /api/cfm/* (تعيد استخدام نفس الجلسة) ===
   registerCfmRoutes(app);
@@ -14262,6 +14285,23 @@ export async function registerRoutes(
         ORDER BY m.soy_total DESC, m.msan
       `, omParams);
 
+      // أداء الفنيين (pairs=1): الشريك اللى شغال النهارده مع فنى (tech_partners) بياخد كباين الفنى ده كاملة —
+      // المتعذرات مالهاش تاريخ لكل طلب، فبتمشى على الشراكة الحالية بس (المالك ٢٠٢٦-١١-٠١).
+      if ((req.query as any).pairs === "1") {
+        const { rows: pp } = await pool.query(
+          `SELECT (SELECT MIN(tech_name) FROM technician_names WHERE worker_code = tp.tech_code) AS tech,
+                  (SELECT MIN(tech_name) FROM technician_names WHERE worker_code = tp.partner_code) AS partner
+             FROM tech_partners tp
+            WHERE tp.effective_date <= (now() AT TIME ZONE 'Africa/Cairo')::date
+              AND (tp.end_date IS NULL OR tp.end_date >= (now() AT TIME ZONE 'Africa/Cairo')::date)`).catch(() => ({ rows: [] as any[] }));
+        for (const p of pp as any[]) {
+          if (!p.tech || !p.partner) continue;
+          for (const r of byCabinet as any[]) {
+            const names = String(r.techName || "").split(/\s*[,،]\s*/).filter(Boolean);
+            if (names.includes(p.partner) && !names.includes(p.tech)) r.techName = [...names, p.tech].join(" , ");
+          }
+        }
+      }
       // تجميع لكل فنى (مجموع كابيناته) — يُحسب فى JS لضمان تطابق الإجماليات.
       const techMap = new Map<string, { techName: string; soyTotal: number; currentTotal: number; resolved: number }>();
       let tSoy = 0, tCur = 0, tRes = 0;
@@ -16770,6 +16810,8 @@ export async function registerRoutes(
   // النِسب تُحسب على إجمالى الأعطال مجتمعة. ?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
   app.get("/api/reports/combined-stats", requireAuth, async (req, res) => {
     try {
+      // تقرير أداء الفنيين بيبعت pairs=1: الفنى وشريكه من تاريخ الشراكة اسم واحد «أ , ب» (effTechPairSql)
+      const techOf = (req.query as any).pairs === "1" ? effTechPairSql : effTechSql;
       const { dateFrom, dateTo, central } = req.query as Record<string, string>;
       const params: any[] = [];
       // فلتر التاريخ يُطبَّق على المصدرين بنفس البارامترات
@@ -16808,7 +16850,7 @@ export async function registerRoutes(
         base AS (
           SELECT
             src.exchange_name                               AS central_name,
-            ${effTechSql("src.complain_no", "src.close_by", "src.exchange_name", "src.cabinet_no", "src.complain_time", "src.phone_number")}
+            ${techOf("src.complain_no", "src.close_by", "src.exchange_name", "src.cabinet_no", "src.complain_time", "src.phone_number")}
                                                             AS tech_name,
             -- عمود الشيت «Time untill now(except 135)» — أكبر من يوم = تخطّى الـ24
             ${sheetHoursSql('src')}                        AS hours
@@ -16984,6 +17026,8 @@ export async function registerRoutes(
   // GET /api/reports/repetition-combined — المصدران معاً (UNION ALL) لتحديد التكرار عبر المغلقة والمفتوحة
   app.get("/api/reports/repetition-combined", requireAuth, async (req, res) => {
     try {
+      // تقرير أداء الفنيين بيبعت pairs=1: الفنى وشريكه من تاريخ الشراكة اسم واحد «أ , ب» (effTechPairSql)
+      const techOf = (req.query as any).pairs === "1" ? effTechPairSql : effTechSql;
       const { dateFrom, dateTo, central } = req.query as Record<string, string>;
       const params: any[] = [];
       let dateClause = "";
@@ -17023,7 +17067,7 @@ export async function registerRoutes(
             po.phone_key,
             po.close_time,
             po.complain_time,
-            ${effTechSql("po.complain_no", "po.close_by", "po.exchange_name", "po.cabinet_no", "po.complain_time", "po.phone_number")} AS tech_name
+            ${techOf("po.complain_no", "po.close_by", "po.exchange_name", "po.cabinet_no", "po.complain_time", "po.phone_number")} AS tech_name
           FROM src po
           WHERE TRUE ${dateClause}
         ),

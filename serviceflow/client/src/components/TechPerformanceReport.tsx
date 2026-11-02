@@ -213,13 +213,15 @@ export function TechPerformanceReport() {
   // مؤبَّد من غير ريفريش تلقائى؛ فلو التاب اتفتح قبل كده بنفس التاريخ/السنترال هيفضل يعرض
   // Snapshot قديم حتى لو البيانات اتغيرت (استيراد جديد مثلاً). هنا لازم نجيب أحدث بيانات كل مرة.
   const { data: removalData, isFetching: f1 } = useQuery({
-    queryKey: ["/api/reports/combined-stats", dateFrom, dateTo, central],
-    queryFn: () => fetchJson(`/api/reports/combined-stats?${buildParams()}`),
+    // pairs=1: فنى بيشتغل مع فنى تانى (توزيع الكباين) ⇒ نتايجهم واحدة من تاريخ الشراكة. المفتاح فيه «pairs» عشان
+    // مايتخلطش مع إحصائيات الإزالة (نفس الرابط من غيرها).
+    queryKey: ["/api/reports/combined-stats", dateFrom, dateTo, central, "pairs"],
+    queryFn: () => fetchJson(`/api/reports/combined-stats?${buildParams({ pairs: "1" })}`),
     refetchOnMount: "always",
   });
   const { data: repData, isFetching: f2 } = useQuery({
-    queryKey: ["/api/reports/repetition-combined", dateFrom, dateTo, central],
-    queryFn: () => fetchJson(`/api/reports/repetition-combined?${buildParams()}`),
+    queryKey: ["/api/reports/repetition-combined", dateFrom, dateTo, central, "pairs"],
+    queryFn: () => fetchJson(`/api/reports/repetition-combined?${buildParams({ pairs: "1" })}`),
     refetchOnMount: "always",
   });
   const { data: adslReport, isFetching: f3 } = useQuery<{ rows: any[]; techs: { techName: string; workingAdsl: number; faultCount: number; per1000: number }[] }>({
@@ -231,8 +233,8 @@ export function TechPerformanceReport() {
     // نسبة تحقيق المتعذرات فى أداء الفنيين تُحسب على متعذرات السنة الحالية (2026) فقط
     // + بتتبع فلتر السنترال زى نسب الإزالة والتكرار (كان الفلتر بيأثر على «الأعطال
     // فى الألف» بس، فالصف الواحد كان بيخلط متعذرات كل السنترالات مع أعطال سنترال واحد).
-    queryKey: ["/api/reports/om-stats", "current", central],
-    queryFn: () => fetchJson(`/api/reports/om-stats?yearFilter=current${central ? `&central=${encodeURIComponent(central)}` : ""}`),
+    queryKey: ["/api/reports/om-stats", "current", central, "pairs"],
+    queryFn: () => fetchJson(`/api/reports/om-stats?yearFilter=current&pairs=1${central ? `&central=${encodeURIComponent(central)}` : ""}`),
     refetchOnMount: "always",
   });
 
