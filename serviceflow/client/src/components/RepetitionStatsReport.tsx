@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
+import { TechExcludeToggle } from "@/components/TechExcludeToggle";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,7 @@ interface RepDetailRow {
   appearances: number;
   closeByName: string;
   areaTechName: string;
+  techExcluded?: boolean;
   chargedTech: string;   // الفنى المحمَّل عليه الرقم (صاحب إغلاق أول شكوى، أو فنى المنطقة لو الإغلاق غير معروف)
   lineCabin: string | null;
   lineBox: string | null;
@@ -727,7 +729,13 @@ export function RepetitionStatsReport() {
                           </span>
                         )}
                       </TableCell>
-                      <TableCell>{r.areaTechName}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {r.areaTechName}
+                          <TechExcludeToggle complainNo={r.complainNo} excluded={!!r.techExcluded} canEdit={user?.role === ROLES.SUPER_ADMIN}
+                            onChange={(v) => setRepDetailData((prev) => prev ? prev.map((x) => (x.complainNo === r.complainNo ? { ...x, techExcluded: v } : x)) : prev)} />
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {repDetailFiltered.length === 0 && (

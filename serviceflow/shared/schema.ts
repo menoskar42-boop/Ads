@@ -725,6 +725,15 @@ export const cabinetTechHistory = pgTable("cabinet_tech_history", {
   cabinIdx: index("cabinet_tech_history_cabin_idx").on(t.centralName, t.cabinNumber, t.effectiveDate),
 }));
 
+// شكوى مستبعدة من حساب الفنيين (اتقفلت من التابلت عادى) — بتفضل فى نتايج الإدارة (٢٠٢٦-١١-٠١)
+export const complaintTechExclusions = pgTable("complaint_tech_exclusions", {
+  complainNo: text("complain_no").primaryKey(),
+  reason: text("reason"),
+  excludedById: integer("excluded_by_id"),
+  excludedByName: text("excluded_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // فنى بيشتغل مع فنى تانى من تاريخ (المالك ٢٠٢٦-١١-٠١) — server/cabinet-assignments.ts
 export const techPartners = pgTable("tech_partners", {
   id: serial("id").primaryKey(),

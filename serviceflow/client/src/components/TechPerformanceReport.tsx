@@ -297,6 +297,8 @@ export function TechPerformanceReport() {
       ...remMap.keys(), ...repMap.keys(), ...adslMap.keys(), ...omMap.keys(),
     ]);
     allTechs.delete("غير معروف");
+    // شكاوى استبعدها السوبر أدمن (اتقفلت من التابلت عادى): مش على أى فنى — الإدارة بس
+    allTechs.delete("مستبعد من الفنيين");
 
     // المتوقع بنهاية الشهر = (أعطال ÷ أيام الفترة) × أيام الشهر × 1000 ÷ الشغال
     const per1000Map = new Map<string, number | null>();

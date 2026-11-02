@@ -1171,8 +1171,13 @@ const areaTechSql = (centralExpr: string, cabinExpr: string, dateExpr: string, p
 
 // التبعية الكاملة بالترتيب: (1) فنى الإغلاق المُدخَل يدوياً من السوبر أدمن — مرجع أساسى،
 // (2) كود عامل الإغلاق من 430D، (3) فنى المنطقة/الوردية أعلاه، (4) غير معروف.
+// شكوى مستبعدة من السوبر أدمن (اتقفلت من التابلت عادى — complaint_tech_exclusions): مش على أى فنى، والإدارة بتعدّها
+const EXCLUDED_TECH = "مستبعد من الفنيين";
+const excludedSql = (complainNoExpr: string) =>
+  `EXISTS (SELECT 1 FROM complaint_tech_exclusions x WHERE x.complain_no = ${complainNoExpr})`;
 const effTechSql = (complainNoExpr: string, closeByExpr: string, centralExpr: string, cabinExpr: string, dateExpr: string, phoneExpr?: string) => `
   COALESCE(
+    (SELECT '${EXCLUDED_TECH}'::text WHERE ${excludedSql(complainNoExpr)}),
     (SELECT mcb.tech_name FROM manual_close_by mcb WHERE mcb.complain_no = ${complainNoExpr} LIMIT 1),
     (SELECT tn.tech_name FROM technician_names tn WHERE tn.worker_code = ${closeByExpr} LIMIT 1),
     ${areaTechSql(centralExpr, cabinExpr, dateExpr, phoneExpr)},
@@ -10882,6 +10887,27 @@ export async function registerRoutes(
     }
   });
 
+  // استبعاد شكوى من حساب الفنيين (اتقفلت من التابلت عادى) — السوبر أدمن بس (المالك ٢٠٢٦-١١-٠١).
+  // بتختفى من نتايج كل فنى (الإغلاق والمنطقة) فى الإزالة والتكرار وأداء الفنيين، وبتفضل فى نتايج الإدارة.
+  app.post("/api/complaint-exclusions", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const no = String(req.body?.complainNo ?? "").trim();
+      if (!no) return res.status(400).json({ message: "رقم الشكوى مطلوب" });
+      if (req.body?.excluded === false) {
+        await pool.query(`DELETE FROM complaint_tech_exclusions WHERE complain_no = $1`, [no]);
+        return res.json({ ok: true, complainNo: no, excluded: false });
+      }
+      const reason = String(req.body?.reason ?? "").trim() || "اتقفلت من التابلت عادى";
+      await pool.query(
+        `INSERT INTO complaint_tech_exclusions (complain_no, reason, excluded_by_id, excluded_by_name)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (complain_no) DO UPDATE SET reason = EXCLUDED.reason, excluded_by_id = EXCLUDED.excluded_by_id,
+           excluded_by_name = EXCLUDED.excluded_by_name, created_at = now()`,
+        [no, reason, Number(req.user?.id) || null, String(req.user?.username || "")]);
+      res.json({ ok: true, complainNo: no, excluded: true });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "تعذّر الحفظ" }); }
+  });
+
   // DELETE /api/manual-close-by/:complainNo — إلغاء التعيين اليدوى
   app.delete("/api/manual-close-by/:complainNo", requireAdmin, async (req, res) => {
     const no = String(req.params.complainNo ?? "").trim();
@@ -17200,6 +17226,7 @@ export async function registerRoutes(
               'غير معروف'
             )                                                                            AS "closeByName",
             EXISTS (SELECT 1 FROM manual_close_by mcb WHERE mcb.complain_no = src.complain_no) AS "closeByManual",
+            ${excludedSql("src.complain_no")}                                            AS "techExcluded",
             COALESCE(
               ${areaTechSql("src.exchange_name", "src.cabinet_no", "src.complain_time", "src.phone_number")},
               'غير معروف'
@@ -17229,7 +17256,8 @@ export async function registerRoutes(
         SELECT * FROM (
           SELECT base.*,
                  -- محسوب على مين: فنى الإغلاق، أو فنى المنطقة لو الإغلاق غير معروف
-                 CASE WHEN base."closeByName" <> 'غير معروف' THEN base."closeByName" ELSE base."areaTechName" END AS "chargedTech"
+                 CASE WHEN base."techExcluded" THEN '${EXCLUDED_TECH}'
+                      WHEN base."closeByName" <> 'غير معروف' THEN base."closeByName" ELSE base."areaTechName" END AS "chargedTech"
             FROM base
         ) b WHERE b."hoursExact" > 24 ${techClause} ORDER BY b."hoursExact" DESC LIMIT 5000
       `, params);
@@ -17321,7 +17349,8 @@ export async function registerRoutes(
         SELECT * FROM (
         SELECT d.*,
           -- الفنى المحمَّل على الرقم = فنى إغلاق أول شكوى (الأقدم)، أو فنى المنطقة لو الإغلاق غير معروف
-          FIRST_VALUE(CASE WHEN d."closeByName" <> 'غير معروف' THEN d."closeByName" ELSE d."areaTechName" END)
+          FIRST_VALUE(CASE WHEN d."techExcluded" THEN '${EXCLUDED_TECH}'
+                           WHEN d."closeByName" <> 'غير معروف' THEN d."closeByName" ELSE d."areaTechName" END)
               OVER (PARTITION BY d."phoneKey" ORDER BY d."complainTime" ASC NULLS LAST, d."closeTime" ASC NULLS LAST) AS "chargedTech"
         FROM (
         SELECT
@@ -17341,6 +17370,7 @@ export async function registerRoutes(
             'غير معروف'
           )                                                                            AS "closeByName",
           EXISTS (SELECT 1 FROM manual_close_by mcb WHERE mcb.complain_no = r.complain_no) AS "closeByManual",
+          ${excludedSql("r.complain_no")}                                              AS "techExcluded",
           COALESCE(
             ${areaTechSql("r.central_name", "r.cabinet_no", "r.complain_time", "r.phone_number")},
             'غير معروف'

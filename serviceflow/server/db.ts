@@ -1373,6 +1373,18 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE cabinet_tech_history ADD COLUMN IF NOT EXISTS changed_by_id integer`);
   await pool.query(`CREATE INDEX IF NOT EXISTS cabinet_tech_history_cabin_idx ON cabinet_tech_history (central_name, cabin_number, effective_date)`);
 
+  // شكوى اتقفلت من التابلت عادى (المالك ٢٠٢٦-١١-٠١): السوبر أدمن بيستبعدها من حساب أى فنى (الإغلاق والمنطقة) —
+  // بتفضل محسوبة فى نتايج الإدارة. effTechSql بيرجّع «مستبعد من الفنيين» للشكوى دى.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS complaint_tech_exclusions (
+      complain_no text PRIMARY KEY,
+      reason text,
+      excluded_by_id integer,
+      excluded_by_name text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
   // فنى بيشتغل مع فنى تانى من تاريخ معيّن (المالك ٢٠٢٦-١١-٠١): الفنى ده مالوش كباين، ونتايجه من
   // effective_date لحد end_date = نتايج الاتنين مع بعض (مين ما قفل)، وبيشوف فى الموقع خطوط شريكه.
   // server/cabinet-assignments.ts.

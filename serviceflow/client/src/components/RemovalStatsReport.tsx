@@ -14,6 +14,7 @@ import { Loader2, FileSpreadsheet, Printer, Clock, UserPlus, Pencil, X } from "l
 import { format } from "date-fns";
 import { closeReason } from "@/lib/close-codes";
 import { useAuth } from "@/hooks/use-auth";
+import { TechExcludeToggle } from "@/components/TechExcludeToggle";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ROLES } from "@shared/schema";
@@ -51,6 +52,7 @@ interface Beyond24Row {
   hours: number;
   closeByName: string;
   closeByManual?: boolean;
+  techExcluded?: boolean;
   areaTechName: string;
   lineCabin: string | null;
   lineBox: string | null;
@@ -713,7 +715,13 @@ export function RemovalStatsReport() {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell>{r.areaTechName}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {r.areaTechName}
+                          <TechExcludeToggle complainNo={r.complainNo} excluded={!!r.techExcluded} canEdit={user?.role === ROLES.SUPER_ADMIN}
+                            onChange={(v) => setBeyond24Data((prev) => prev ? prev.map((x) => (x.complainNo === r.complainNo ? { ...x, techExcluded: v } : x)) : prev)} />
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {beyond24Data.length === 0 && (
