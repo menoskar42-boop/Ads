@@ -6579,7 +6579,7 @@ export async function registerRoutes(
       const {
         search = "", central = "", cabin = "", box = "",
         phoneFrom = "", phoneTo = "", dateFrom = "", dateTo = "",
-        page = "1", limit = "50",
+        page = "1", limit = "50", urgentOnly = "",
       } = req.query as Record<string, string>;
       const pageNum = Math.max(1, parseInt(page) || 1);
       const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
@@ -6672,6 +6672,12 @@ export async function registerRoutes(
       const pFromParam = pFrom ? `$${params.length}` : "";
       if (pTo) params.push(pTo);
       const pToParam = pTo ? `$${params.length}` : "";
+      // «عاجل» (المالك ٢٠٢٦-١١-٠٢): خطوط «انخفاض السرعة خلال أسبوع» اللى ليها شكوى — بتدخل التقرير مهما كان
+      // تاريخ شكواها (لو شكواها مش فى المدة بتيجى كصف «انخفاض السرعة» بآخر شكوى ليها)، وبتطلع فى الأول.
+      const urgentRows = await urgentSpeedDropRows();
+      const urgentByPhone = new Map(urgentRows.map((u: any) => [String(u.phone), u]));
+      params.push(urgentRows.map((u: any) => String(u.phone)));
+      const urgentParam = `$${params.length}`;
 
       const sourceSql = `
         WITH source_rows AS (
@@ -6795,6 +6801,41 @@ export async function registerRoutes(
             NULL::text AS "sourceTech"
           FROM ticket_dsl_sod s
           WHERE ${regularizedTodaySodConds.join(" AND ")}
+
+          UNION ALL
+
+          -- ===== عاجل: «انخفاض السرعة خلال أسبوع» وليها شكوى — بآخر شكوى للرقم من أى مصدر =====
+          SELECT
+            lc.no AS "ticketId",
+            'speed:' || u.ph AS "recordId",
+            'انخفاض السرعة'::text AS "source",
+            u.ph AS "phoneValue",
+            lc.central AS "sourceCentral",
+            lc.cabin AS "sourceCabin",
+            NULL::text AS "sourceBox",
+            NULL::text AS "sourceMsan",
+            lc.close_code AS "closeCode",
+            lc.type_name AS "complaintTypeName",
+            lc.at AS "complaintTime",
+            lc.closed_at AS "closeDate",
+            NULL::timestamptz AS "regularizedAt",
+            NULL::text AS "sourceTech"
+          FROM unnest(${urgentParam}::text[]) AS u(ph)
+          LEFT JOIN LATERAL (
+            SELECT * FROM (
+              SELECT t.ticket_id::text AS no, t.central_name::text AS central, t.cabinet_no::text AS cabin, NULL::text AS close_code,
+                     t.complain_type_name::text AS type_name, t.complaint_time AS at, NULL::timestamptz AS closed_at
+                FROM ticket_dsl_current t WHERE ${sp("t.phone_number")} = ${sp("u.ph")}
+              UNION ALL
+              SELECT cd.complain_no::text, cd.exchange_name::text, cd.cabinet_no::text, cd.close_code::text,
+                     cd.complain_type_name::text, cd.complain_time, cd.close_time
+                FROM complaint_details cd WHERE ${sp("cd.phone_number")} = ${sp("u.ph")}
+              UNION ALL
+              SELECT rc.complain_no::text, rc.exchange_name::text, rc.cabinet_no::text, rc.close_code::text,
+                     rc.complain_type::text, rc.complain_time, rc.close_time
+                FROM remaining_complaints rc WHERE ${sp("rc.phone_number")} = ${sp("u.ph")}
+            ) x ORDER BY x.at DESC NULLS LAST LIMIT 1
+          ) lc ON true
         ),
         deduped AS (
           SELECT DISTINCT ON (COALESCE(NULLIF(btrim("ticketId"), ''), "source" || ':' || "recordId")) *
@@ -6805,6 +6846,7 @@ export async function registerRoutes(
                      WHEN 'متبقى' THEN 1
                      WHEN 'منتظم اليوم' THEN 2
                      WHEN 'الأعطال الحالية' THEN 3
+                     WHEN 'انخفاض السرعة' THEN 5
                      ELSE 4
                    END
         ),
@@ -6813,7 +6855,9 @@ export async function registerRoutes(
                   ${sp('s."phoneValue"')} AS "phoneShort",
                   CASE WHEN ${sp('s."phoneValue"')} <> ''
                        THEN '88' || ${sp('s."phoneValue"')}
-                      ELSE '' END AS "fullPhone"
+                      ELSE '' END AS "fullPhone",
+                  ${sp('s."phoneValue"')} = ANY(${urgentParam}::text[]) AS urgent,
+                  bool_or(s."source" <> 'انخفاض السرعة') OVER (PARTITION BY ${sp('s."phoneValue"')}) AS "hasOther"
           FROM deduped s
         ),
         enriched AS (
@@ -6857,7 +6901,10 @@ export async function registerRoutes(
         `e."fullPhone" <> ''`,
         `NOT EXISTS (SELECT 1 FROM ${HAS_MOBILE_SET} hm WHERE hm.ph = ${sp('e."fullPhone"')})`,
         `NOT EXISTS (SELECT 1 FROM line_mobile_checked mc WHERE ${sp("mc.full_phone")} = ${sp('e."fullPhone"')})`,
+        // الرقم ظاهر من مصدر تانى ⇒ صف «انخفاض السرعة» زيادة (الصف التانى بيتعلّم «عاجل»)
+        `NOT (e."source" = 'انخفاض السرعة' AND e."hasOther")`,
       ];
+      if (urgentOnly === "1") outerConds.push("e.urgent");
       if (central) {
         params.push(central);
         outerConds.push(`e.central = $${params.length}`);
@@ -6891,14 +6938,15 @@ export async function registerRoutes(
         `${sourceSql}
          SELECT
            COUNT(*) OVER ()::int AS "__total",
-           ROW_NUMBER() OVER (ORDER BY COALESCE(e."closeDate", e."regularizedAt") DESC NULLS LAST, e."recordId")::int AS id,
+           COUNT(*) FILTER (WHERE e.urgent) OVER ()::int AS "__urgent",
+           ROW_NUMBER() OVER (ORDER BY e.urgent DESC, COALESCE(e."closeDate", e."regularizedAt") DESC NULLS LAST, e."recordId")::int AS id,
            e."ticketId", e."source", e."fullPhone", e."phoneShort",
            e.central, e."cabinNumber", e."boxNumber", e."msanCode",
            e."subName", e."subAdd", e."closeCode", e."complaintTypeName",
-           e."complaintTime", e."closeDate", e."regularizedAt", e."techName"
+           e."complaintTime", e."closeDate", e."regularizedAt", e."techName", e.urgent
          FROM enriched e
          ${where}
-         ORDER BY COALESCE(e."closeDate", e."regularizedAt") DESC NULLS LAST, e."recordId"
+         ORDER BY e.urgent DESC, COALESCE(e."closeDate", e."regularizedAt") DESC NULLS LAST, e."recordId"
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );
@@ -6908,8 +6956,12 @@ export async function registerRoutes(
         const totalRes = await pool.query(`${sourceSql} SELECT COUNT(*)::int AS c FROM enriched e ${where}`, params.slice(0, -2));
         total = totalRes.rows[0].c as number;
       }
-      const data = dataRes.rows.map(({ __total, ...r }: any) => r);
-      res.json({ data, total, page: pageNum, pageSize });
+      const data = dataRes.rows.map(({ __total, __urgent, ...r }: any) => {
+        const u: any = r.urgent ? urgentByPhone.get(String(r.phoneShort)) : null;
+        return { ...r, urgent: !!u, dropPct: u?.dropPct ?? null, dropFromKbps: u?.firstKbps ?? null, dropToKbps: u?.lastKbps ?? null };
+      });
+      const urgentTotal = dataRes.rows[0]?.__urgent ?? 0;
+      res.json({ data, total, urgentTotal, page: pageNum, pageSize });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -15516,6 +15568,13 @@ export async function registerRoutes(
       if (req.user?.role === ROLES.SALES || req.user?.role === ROLES.SALES_ADMIN) return res.status(403).json({ message: "غير مسموح" });
       const days = Math.min(60, Math.max(1, Math.round(Number(req.query.days ?? 7)) || 7));
       const minDrop = Math.min(100, Math.max(0, Number(req.query.minDrop ?? 10) || 10));
+      const data = await weeklySpeedDropRows(days, minDrop);
+      res.json({ days, minDrop, data });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  /** حسبة «انخفاض السرعة خلال أسبوع» — التقرير نفسه، وكمان «أرقام لها شكاوى بدون رقم موبايل» (العاجل) */
+  async function weeklySpeedDropRows(days: number, minDrop: number): Promise<any[]> {
       const { rows } = await pool.query(
         `WITH m AS (
            SELECT c.id, c.full_phone, c.current_speed, c.max_speed, c.score, c.account_no,
@@ -15565,9 +15624,18 @@ export async function registerRoutes(
           r.hasComplaint = !!t?.hasComplaint;
         }
       }
-      res.json({ days, minDrop, data });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+      return data;
+  }
+
+  // «أرقام لها شكاوى بدون رقم موبايل» بياخد خطوط «انخفاض السرعة خلال أسبوع» اللى ليها شكوى كـ«عاجل»
+  // (المالك ٢٠٢٦-١١-٠٢). الحسبة تقيلة شوية فبتتحفظ ٥ دقايق — التقرير بيتفتح صفحة ورا صفحة.
+  let urgentSpeedDropCache: { at: number; rows: any[] } | null = null;
+  async function urgentSpeedDropRows(): Promise<any[]> {
+    if (urgentSpeedDropCache && Date.now() - urgentSpeedDropCache.at < 5 * 60_000) return urgentSpeedDropCache.rows;
+    const rows = (await weeklySpeedDropRows(7, 10)).filter((r: any) => r.hasComplaint && r.phone);
+    urgentSpeedDropCache = { at: Date.now(), rows };
+    return rows;
+  }
 
   app.get("/api/reports/regularized-faults-range", requireAuth, async (req, res) => {
     // المالك ٢٠٢٦-١٠-١٢: مش للشئون الخارجية ولا مهندس الكوابل (external) ولا الأدمن — الفنى والسوبر أدمن

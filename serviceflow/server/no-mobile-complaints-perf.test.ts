@@ -22,5 +22,5 @@ test("التقرير بيعدّ فى نفس الاستعلام (مش بيعيد 
   assert.match(body, /COUNT\(\*\) OVER \(\)::int AS "__total"/);
   // الاستعلام المنفصل للإجمالى بقى للصفحة اللى بعد الآخر بس
   assert.match(body, /if \(!dataRes\.rows\.length && pageNum > 1\) \{\s+const totalRes/);
-  assert.match(body, /const data = dataRes\.rows\.map\(\(\{ __total, \.\.\.r \}: any\) => r\);/);
+  assert.match(body, /const data = dataRes\.rows\.map\(\(\{ __total, __urgent, \.\.\.r \}: any\) => \{/);
 });

@@ -14,7 +14,7 @@ import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-looku
 interface Row {
   id: number;
   ticketId: string | null;
-  source: "تفاصيل" | "متبقى" | "خارج الشاشة" | "الأعطال الحالية" | "منتظم اليوم";
+  source: "تفاصيل" | "متبقى" | "خارج الشاشة" | "الأعطال الحالية" | "منتظم اليوم" | "انخفاض السرعة";
   fullPhone: string;
   phoneShort: string | null;
   central: string | null;
@@ -29,7 +29,16 @@ interface Row {
   closeDate: string | null;
   regularizedAt: string | null;
   techName: string | null;
+  /** عاجل: الخط فى «انخفاض السرعة خلال أسبوع» وليه شكوى (المالك ٢٠٢٦-١١-٠٢) — بيطلع فى الأول */
+  urgent?: boolean;
+  dropPct?: number | null;
+  dropFromKbps?: number | null;
+  dropToKbps?: number | null;
 }
+
+const mbps = (kbps: number | null | undefined) => kbps == null ? "?" : (kbps / 1024).toFixed(1).replace(/\.0$/, "");
+const urgentText = (row: Row) =>
+  row.urgent ? `عاجل — السرعة نزلت ${row.dropPct ?? "?"}٪ (${mbps(row.dropFromKbps)} ← ${mbps(row.dropToKbps)} ميجا)` : "";
 
 interface FilterOptions {
   centrals: string[];
@@ -72,6 +81,7 @@ export function NoMobileComplaintsReport() {
   const [phoneFrom, setPhoneFrom] = useState("");
   const [phoneTo, setPhoneTo] = useState("");
   const [search, setSearch] = useState("");
+  const [urgentOnly, setUrgentOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [editingPhone, setEditingPhone] = useState<string | null>(null);
   const [mobileInput, setMobileInput] = useState("");
@@ -88,7 +98,7 @@ export function NoMobileComplaintsReport() {
     },
   });
 
-  const queryKey = [ENDPOINT, dateFrom, dateTo, central, cabin, box, phoneFrom, phoneTo, search, page];
+  const queryKey = [ENDPOINT, dateFrom, dateTo, central, cabin, box, phoneFrom, phoneTo, search, urgentOnly, page];
   const { data, isLoading, isError, error } = useQuery({
     queryKey,
     queryFn: async () => {
@@ -101,9 +111,10 @@ export function NoMobileComplaintsReport() {
       if (phoneFrom.trim()) params.set("phoneFrom", phoneFrom.trim());
       if (phoneTo.trim()) params.set("phoneTo", phoneTo.trim());
       if (search.trim()) params.set("search", search.trim());
+      if (urgentOnly) params.set("urgentOnly", "1");
       const res = await fetch(`${ENDPOINT}?${params}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch");
-      return res.json() as Promise<{ data: Row[]; total: number; page: number; pageSize: number }>;
+      return res.json() as Promise<{ data: Row[]; total: number; urgentTotal?: number; page: number; pageSize: number }>;
     },
     refetchOnMount: "always",
   });
@@ -123,6 +134,7 @@ export function NoMobileComplaintsReport() {
     if (phoneFrom.trim()) params.set("phoneFrom", phoneFrom.trim());
     if (phoneTo.trim()) params.set("phoneTo", phoneTo.trim());
     if (search.trim()) params.set("search", search.trim());
+    if (urgentOnly) params.set("urgentOnly", "1");
     return params;
   };
 
@@ -185,6 +197,7 @@ export function NoMobileComplaintsReport() {
     const rows = (json.data as Row[]).map((row, index) => ({
       "#": index + 1,
       "المصدر": row.source,
+      "عاجل": urgentText(row),
       "رقم الشكوى": row.ticketId ?? "",
       "رقم التليفون المحلى": localPhone(row),
       "تاريخ الشكوى": formatDate(row.complaintTime),
@@ -212,10 +225,10 @@ export function NoMobileComplaintsReport() {
     const rows = json.data as Row[];
     printTablePDF({
       title: `أرقام لها شكاوى بدون رقم موبايل (${dateFrom || "البداية"} → ${dateTo || "النهاية"})`,
-      columns: ["#", "المصدر", "رقم الشكوى", "رقم التليفون المحلى", "تاريخ الشكوى", "تاريخ الانتظام",
+      columns: ["#", "المصدر", "عاجل", "رقم الشكوى", "رقم التليفون المحلى", "تاريخ الشكوى", "تاريخ الانتظام",
         "السنترال", "اسم العميل", "العنوان", "الكابينة", "البكس", "MSAN", "سبب الإغلاق", "نوع الشكوى", "الفني"],
       rows: rows.map((row, index) => [
-        index + 1, row.source, row.ticketId ?? "-", localPhone(row),
+        index + 1, row.source, urgentText(row) || "-", row.ticketId ?? "-", localPhone(row),
         formatDate(row.complaintTime), formatDate(row.closeDate ?? row.regularizedAt), row.central ?? "-",
         row.subName ?? "-", row.subAdd ?? "-", row.cabinNumber ?? "-", row.boxNumber ?? "-",
         row.msanCode ?? "-", row.closeCode ?? "-", row.complaintTypeName ?? "-", row.techName ?? "-",
@@ -233,6 +246,10 @@ export function NoMobileComplaintsReport() {
           <p className="text-xs text-muted-foreground mt-0.5">
             الشكاوى المنتظمة داخل الشاشة وخارجها من {dateFrom || "البداية"} إلى {dateTo || "النهاية"}
             {data ? ` — ${data.total.toLocaleString("ar-EG")} رقم` : ""}
+          </p>
+          <p className="text-xs text-red-700 mt-0.5">
+            العاجل فى الأول: خطوط «انخفاض السرعة خلال أسبوع» اللى ليها شكوى — بتظهر مهما كان تاريخ شكواها
+            {data?.urgentTotal ? ` (${data.urgentTotal.toLocaleString("ar-EG")} رقم)` : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -280,6 +297,10 @@ export function NoMobileComplaintsReport() {
             <span className="text-xs text-muted-foreground">إلى</span>
             <Input inputMode="numeric" value={phoneTo} onChange={(e) => { setPhoneTo(e.target.value.replace(/\D/g, "")); resetPage(); }} placeholder="إلى رقم" dir="ltr" className="w-28 text-sm h-9" />
           </div>
+          <Button variant={urgentOnly ? "default" : "outline"} size="sm" onClick={() => { setUrgentOnly((v) => !v); resetPage(); }}
+            className={urgentOnly ? "bg-red-600 hover:bg-red-700" : "text-red-700 border-red-200"} data-testid="button-urgent-only">
+            العاجل بس
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExport} className="text-green-700 border-green-200">تصدير Excel</Button>
           <Button variant="outline" size="sm" onClick={handleExportPDF} className="text-red-700 border-red-200">تصدير PDF</Button>
         </div>
@@ -317,12 +338,18 @@ export function NoMobileComplaintsReport() {
                 {data?.data.length === 0 ? (
                   <TableRow><TableCell colSpan={14} className="text-center py-10 text-muted-foreground">لا توجد شكاوى منتظمة بدون رقم موبايل فى النطاق</TableCell></TableRow>
                 ) : data?.data.map((row) => (
-                  <TableRow key={`${row.source}-${row.id}`} className="hover:bg-muted/30 transition-colors">
+                  <TableRow key={`${row.source}-${row.id}`} className={`hover:bg-muted/30 transition-colors ${row.urgent ? "bg-red-50/60" : ""}`}>
                     <TableCell className="whitespace-nowrap">
+                       {row.urgent && (
+                         <span className="text-[11px] px-2 py-0.5 rounded font-bold bg-red-600 text-white ml-1" title={urgentText(row)}>
+                           عاجل {row.dropPct != null ? `↓${row.dropPct}٪` : ""}
+                         </span>
+                       )}
                        <span className={`text-[11px] px-2 py-0.5 rounded font-semibold ${
                          row.source === "خارج الشاشة" ? "bg-purple-100 text-purple-800" :
                          row.source === "الأعطال الحالية" ? "bg-red-100 text-red-800" :
                          row.source === "منتظم اليوم" ? "bg-blue-100 text-blue-800" :
+                         row.source === "انخفاض السرعة" ? "bg-rose-100 text-rose-800" :
                          "bg-amber-100 text-amber-800"
                        }`}>{row.source}</span>
                     </TableCell>
