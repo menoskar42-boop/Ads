@@ -8,6 +8,7 @@ import { OrdersTable } from "@/components/OrdersTable";
 import { CreateUserModal } from "@/components/CreateUserModal";
 import { UsersList } from "@/components/UsersList";
 import { UnifiedUsersManager } from "@/components/UnifiedUsersManager";
+import { CabinetAssignmentsManager } from "@/components/CabinetAssignmentsManager";
 import { BoxRejectionReport } from "@/components/BoxRejectionReport";
 import { PhoneLinesReport } from "@/components/PhoneLinesReport";
 import { PhoneLookupReport } from "@/components/PhoneLookupReport";
@@ -948,7 +949,11 @@ export default function Dashboard() {
                 {(user.role === ROLES.SALES || user.role === ROLES.SALES_ADMIN) && <CreateOrderModal />}
                 {isSuperAdmin ? (
                   // السوبر أدمن: بوابة موحّدة تدير مستخدمى الطلبات والكوابل معاً
-                  <UnifiedUsersManager />
+                  <>
+                    <UnifiedUsersManager />
+                    {/* توزيع الكباين على الفنيين — السوبر أدمن بس (المالك ٢٠٢٦-١١-٠١) */}
+                    <CabinetAssignmentsManager />
+                  </>
                 ) : (user.role === ROLES.ADMIN || user.role === ROLES.SALES_ADMIN) && (
                   <>
                     <CreateUserModal />

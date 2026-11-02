@@ -718,7 +718,24 @@ export const cabinetTechHistory = pgTable("cabinet_tech_history", {
   newWorkerCode: text("new_worker_code"),
   effectiveDate: date("effective_date").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}, (t) => ({ dateIdx: index("cabinet_tech_history_date_idx").on(t.effectiveDate) }));
+  // تعديل يدوى من «توزيع الكباين» (٢٠٢٦-١١-٠١): مين عدّل (change_id بيبقى فاضى)
+  changedById: integer("changed_by_id"),
+}, (t) => ({
+  dateIdx: index("cabinet_tech_history_date_idx").on(t.effectiveDate),
+  cabinIdx: index("cabinet_tech_history_cabin_idx").on(t.centralName, t.cabinNumber, t.effectiveDate),
+}));
+
+// فنى بيشتغل مع فنى تانى من تاريخ (المالك ٢٠٢٦-١١-٠١) — server/cabinet-assignments.ts
+export const techPartners = pgTable("tech_partners", {
+  id: serial("id").primaryKey(),
+  techCode: text("tech_code").notNull(),
+  partnerCode: text("partner_code").notNull(),
+  effectiveDate: date("effective_date").notNull(),
+  endDate: date("end_date"),
+  note: text("note"),
+  createdById: integer("created_by_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // سعة الكباين النحاسية من FCC Network Inventory — full replace each upload.
 // secondary_capacity = "السعة" فى شيت خطة الصيانة.

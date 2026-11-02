@@ -47,6 +47,7 @@ import { schedulersEnabled } from './schedulers-enabled';
 import { registerRepeatReviews } from "./repeat-reviews";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
+import { registerCabinetAssignments } from "./cabinet-assignments";
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
 import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
@@ -8821,6 +8822,8 @@ export async function registerRoutes(
   registerRepeatReviews(app, { pool, requireAuth, requireSuperAdmin, lookupPhoneLine, techMsanCodes, msanInCodesSql, areaTechSql });
   registerUrgentNoAccount(app, { pool, requireAuth });
   registerCabinetReassign(app, { pool, requireAuth, requireAdmin });
+  // «توزيع الكباين» — السوبر أدمن بس (المالك ٢٠٢٦-١١-٠١)
+  registerCabinetAssignments(app, { pool, requireAuth, requireSuperAdmin });
   registerLocalStore(app, { pool, requireAuth, selfTechName: async (u: any) => (u?.role === ROLES.TECH ? (await coverageCodes(u)).techName : null) });
 
   // محمول الفنى المختص: الاسم (أو أسماء الإسناد اليدوى «حسن , سعيد») → أول واحد متسجّل له

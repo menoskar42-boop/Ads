@@ -1369,6 +1369,40 @@ export async function ensureSchema() {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS cabinet_tech_history_date_idx ON cabinet_tech_history (effective_date)`);
+  // تعديل يدوى من «توزيع الكباين» (المالك ٢٠٢٦-١١-٠١) بيتسجّل هنا من غير change_id — مين عدّل.
+  await pool.query(`ALTER TABLE cabinet_tech_history ADD COLUMN IF NOT EXISTS changed_by_id integer`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS cabinet_tech_history_cabin_idx ON cabinet_tech_history (central_name, cabin_number, effective_date)`);
+
+  // فنى بيشتغل مع فنى تانى من تاريخ معيّن (المالك ٢٠٢٦-١١-٠١): الفنى ده مالوش كباين، ونتايجه من
+  // effective_date لحد end_date = نتايج الاتنين مع بعض (مين ما قفل)، وبيشوف فى الموقع خطوط شريكه.
+  // server/cabinet-assignments.ts.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tech_partners (
+      id serial PRIMARY KEY,
+      tech_code text NOT NULL,
+      partner_code text NOT NULL,
+      effective_date date NOT NULL,
+      end_date date,
+      note text,
+      created_by_id integer,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  /* اسم الفنى ⇒ «الشريك , الفنى» لو اتنين شغالين مع بعض يوم d (والاسم واحد منهم) — وإلا زى ما هو.
+   * التقارير بتفصل الاسم المجمّع وبتحسب الصف كامل على الاتنين (زى الكابينة المشتركة). */
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION sf_tech_pair(t text, d date) RETURNS text LANGUAGE sql STABLE AS $$
+      SELECT COALESCE((
+        SELECT pn.n || ' , ' || tn.n
+          FROM tech_partners tp
+          CROSS JOIN LATERAL (SELECT MIN(tech_name) AS n FROM technician_names WHERE worker_code = tp.partner_code) pn
+          CROSS JOIN LATERAL (SELECT MIN(tech_name) AS n FROM technician_names WHERE worker_code = tp.tech_code) tn
+         WHERE d >= tp.effective_date AND (tp.end_date IS NULL OR d <= tp.end_date)
+           AND pn.n IS NOT NULL AND tn.n IS NOT NULL
+           AND replace(sf_ar_norm(COALESCE(t, '')), ' ', '') IN (replace(sf_ar_norm(pn.n), ' ', ''), replace(sf_ar_norm(tn.n), ' ', ''))
+         ORDER BY tp.id LIMIT 1), t)
+    $$
+  `);
   // أول نقل (المالك ٢٠٢٦-١٠-٠٧): من الأحد ١١ أكتوبر ١٢ بالليل بتوقيت القاهرة. مرة واحدة —
   // بعد ما يتطبّق الصف بيفضل موجود (status=applied) فمابيتضافش تانى.
   for (const c of SEED_CHANGES) {
