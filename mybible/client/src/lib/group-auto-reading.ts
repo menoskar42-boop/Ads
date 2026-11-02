@@ -33,6 +33,8 @@ export const DEUTEROCANONICAL_BOOKS = new Set<string>([
 // (الكتالوج بيرجع فاضى وقتها). «حكمة سليمان» فى الجروب = «الحكمة» فى المصدر.
 export const DEUTERO_SOURCE_IDS: Record<string, number> = {
   "طوبيا": 67, "يهوديت": 68, "الحكمة": 69, "يشوع بن سيراخ": 70, "باروخ": 71, "المكابيين الأول": 72, "المكابيين الثاني": 73,
+  // مش فى St-Takla عندنا — النسخة المحفوظة بس (data/deutero/sttakla-extra.json، ٢٠٢٦-١١-٠٢)
+  "المزمور 151": 151,
 };
 
 export const NT_BOOKS: [string, number][] = [

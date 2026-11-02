@@ -180,7 +180,8 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
           if (!chapterData?.verses?.length && DEUTERO_SOURCE_IDS[sourceName]) {
             try {
               chapterData = await api.deuteroSource.getLocalChapter(DEUTERO_SOURCE_IDS[sourceName], currentChapter);
-              local = true;
+              // «الموقع مش متاح» بس للأسفار اللى بتتجاب من St-Takla لحظياً — المزمور 151 النسخة المحفوظة هى المصدر
+              local = DEUTERO_SOURCE_IDS[sourceName] < 100;
             } catch { /* النسخة المحفوظة كمان مش متاحة */ }
           }
           // المزمور 151 وصلاة منسى والمكابيين الثالث مش فى مصدر St-Takla عندنا ولا فى النسخة المحفوظة — كانوا بيقولوا

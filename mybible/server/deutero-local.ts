@@ -10,21 +10,32 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const LOCAL_DEUTERO_FILE = path.join(process.cwd(), "data", "deutero", "sttakla-1877.json");
+// أسفار مش فى STTAKLA_BOOKS (المزمور 151 = 151) — نص St-Takla جابه Replit Agent ٢٠٢٦-١١-٠٢ (docs/DEUTERO_EXTRA_REPLIT_PROMPT.md)
+export const EXTRA_DEUTERO_FILE = path.join(process.cwd(), "data", "deutero", "sttakla-extra.json");
 
 type Chapter = { chapter: number; sourceUrl: string; verses: { verse: number; text: string }[] };
 type Book = { siteBookId: number; name: string; chapters: Chapter[] };
-let loaded: { source: string; books: Map<number, Book> } | null | undefined;
+let loaded: { source: string; books: Map<number, Book>; sources: Map<number, string> } | null | undefined;
 let file = LOCAL_DEUTERO_FILE;
-export function _setLocalDeuteroFileForTest(f: string): void { file = f; loaded = undefined; }
+let extraFile = EXTRA_DEUTERO_FILE;
+export function _setLocalDeuteroFileForTest(f: string, extra = ""): void { file = f; extraFile = extra; loaded = undefined; }
 
 function data() {
   if (loaded !== undefined) return loaded;
   try {
     const d = JSON.parse(fs.readFileSync(file, "utf8")) as { source: string; books: Book[] };
-    loaded = { source: d.source, books: new Map(d.books.map((b) => [b.siteBookId, b])) };
+    loaded = { source: d.source, books: new Map(d.books.map((b) => [b.siteBookId, b])), sources: new Map() };
   } catch (e: any) {
     console.error("[deutero-local] تعذّر قراءة النسخة المحفوظة:", e?.message || e);
     loaded = null;
+    return loaded;
+  }
+  // الملف الإضافى اختيارى — لو مش موجود الأسفار السبعة زى ما هى
+  if (extraFile && fs.existsSync(extraFile)) {
+    try {
+      const x = JSON.parse(fs.readFileSync(extraFile, "utf8")) as { source: string; books: Book[] };
+      for (const b of x.books) if (!loaded.books.has(b.siteBookId)) { loaded.books.set(b.siteBookId, b); loaded.sources.set(b.siteBookId, x.source); }
+    } catch (e: any) { console.error("[deutero-local] الملف الإضافى:", e?.message || e); }
   }
   return loaded;
 }
@@ -39,7 +50,7 @@ export function localDeuteroChapter(siteBookId: number, chapter: number) {
     ok: true as const,
     book: { id: b.siteBookId, name: b.name, chapters: b.chapters.length },
     chapter,
-    source: d.source + " — نسخة محفوظة",
+    source: (d.sources.get(b.siteBookId) || d.source) + " — نسخة محفوظة",
     sourceUrl: c.sourceUrl,
     verses: c.verses.map((v) => ({ verse: v.verse, text: v.text })),
     local: true as const,

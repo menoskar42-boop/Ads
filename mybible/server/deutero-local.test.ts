@@ -34,3 +34,17 @@ describe("deutero-local: النسخة المحفوظة من St-Takla", () => {
     assert.equal(localDeuteroChapter(67, 1).ok, true);
   });
 });
+
+it("المزمور 151 (رقم 151 عندنا) من الملف الإضافى — نص St-Takla، 8 آيات بترقيمهم", async () => {
+  const { _setLocalDeuteroFileForTest, localDeuteroChapter, LOCAL_DEUTERO_FILE, EXTRA_DEUTERO_FILE } = await import("./deutero-local");
+  _setLocalDeuteroFileForTest(LOCAL_DEUTERO_FILE, EXTRA_DEUTERO_FILE);
+  const r = localDeuteroChapter(151, 1);
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.book.name, "المزمور 151");
+  assert.equal(r.verses.length, 8);
+  assert.match(r.verses[0].text, /^أَنَا صَغِيرًا كُنْتُ فِي إِخْوَتِي/);
+  assert.match(r.source, /^St-Takla\.org/);
+  // الأسفار السبعة زى ما هى
+  assert.equal(localDeuteroChapter(67, 1).ok, true);
+});
