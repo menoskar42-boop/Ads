@@ -384,4 +384,9 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   manus.im مقفول من بيئة كلود والمالك مش عارف ينزّل الـJSON. ١) مانوس يعيد حفظه zip/txt بالحرف + ملخّص المصدر
   والأعداد · ٢) الإكستنشن يرفعه فى فرع `deutero-sttakla-import` (أو `deutero-manus-import`). مانوس مابياخدش توكن.
   الصفحة: https://claude.ai/artifact/74K9Y4vZFfUeZEg8xVG6s9. **Trigger:** «ابعتلي برومبت ملف مانوس».
+- `docs/DEUTERO_EXTRA_REPLIT_PROMPT.md` — **برومبت Replit Agent (مشروع `sf`): المزمور ١٥١ وصلاة منسى والمكابيين الثالث
+  من الأنبا تكلا** (٢٠٢٦-١١-٠٢). عضو قال «مزمور ١٥١ منسى»: الأسفار التلاتة مش فى مصدر St-Takla عندنا (٧ أسفار بس) ولا
+  النسخة المحفوظة، فالجروب مؤقتاً بيعرض نص قسم «أرثوذكسيات» (والمكابيين الثالث ناقص إصحاحات). الـAgent بيجيب النص بالحرف
+  ويرفعه فى فرع **`deutero-extra-import`** من نسخة مؤقتة (مش من ~/workspace)، وكلود يراجعه ويحطه فى `data/deutero`.
+  الصفحة: https://claude.ai/artifact/FjrdzJqXbxjkK1ew8kLVsP. **Trigger:** «ابعتلي برومبت مزمور ١٥١».
 - `docs/MYBIBLE_COHOST.md` — **استضافة موقع الكتاب المقدس (mybible.oscardevs.com، ~700 عضو درس مار مرقس) داخل أوسكار ديفز على نفس Reserved VM** (توفير تكلفة النشر). البوّاب `src/lib/host_gateway.js` + تشغيل تلقائي في server.js + سورس في `mybible/`. مطفي لحد ما `MYBIBLE_UPSTREAM` يتحطّ. اقرأه قبل أي شغل على mybible — فيه القواعد المقدّسة (نفس الدومين/القاعدة/SESSION_SECRET، متمسحش المشروع القديم، الخط الأحمر لهوية الأعضاء).
