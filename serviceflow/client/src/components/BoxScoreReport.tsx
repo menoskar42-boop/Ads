@@ -9,7 +9,7 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, ChevronUp, ChevronDown, ChevronsUpDown, Radar, Wrench, List, X, AlertTriangle, History } from "lucide-react";
+import { Loader2, ChevronUp, ChevronDown, ChevronsUpDown, Radar, Wrench, List, X, AlertTriangle, History, Ruler } from "lucide-react";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
@@ -21,7 +21,7 @@ const buildDZSUrl = (accounts: string[]) =>
   `${DZS_URL}#sf_accounts=${encodeURIComponent(accounts.join(","))}`;
 
 // يجيب أرقام الأكونت لخطوط نطاق معيّن ويفتح بوابة DZS لقياسها
-async function measureAccountsFor(params: URLSearchParams, isSuper: boolean, noReal = false): Promise<number> {
+async function measureAccountsFor(params: URLSearchParams, isSuper: boolean, noReal = false, loop = false): Promise<number> {
   params.set("page", "1"); params.set("limit", "20000");
   const w = window.open("about:blank", "dzs_measure");
   try {
@@ -31,8 +31,8 @@ async function measureAccountsFor(params: URLSearchParams, isSuper: boolean, noR
       ((json.data as any[]) ?? []).map((r) => (r.accountNo ?? "").toString().trim()).filter(Boolean),
     )];
     if (!accounts.length) { try { w?.close(); } catch {} alert("لا توجد أرقام أكونت لقياسها فى هذا النطاق"); return 0; }
-    if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal })) { try { w?.close(); } catch {} return 0; }
-    if (w) w.location.href = noRealUrl(buildDZSUrl(accounts), noReal);
+    if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal, loop })) { try { w?.close(); } catch {} return 0; }
+    if (w) w.location.href = noRealUrl(buildDZSUrl(accounts), noReal, loop);
     return accounts.length;
   } catch {
     try { w?.close(); } catch {}
@@ -330,7 +330,7 @@ function BoxTab({ central, cabin, minScore }: { central: string; cabin: string; 
     await measureAccountsFor(p, isSuper);
     setTimeout(() => setDzsBox(null), 1500);
   };
-  const measureAll = async (noReal = false) => {
+  const measureAll = async (noReal = false, loop = false) => {
     const p = new URLSearchParams();
     if (central) p.set("central", central);
     if (cabin) p.set("cabin", cabin);
@@ -338,7 +338,7 @@ function BoxTab({ central, cabin, minScore }: { central: string; cabin: string; 
     if (!central && !cabin && !box) {
       if (!confirm("هتفتح قياس DZS لكل الخطوط اللى لها أكونت فى كل السنترالات — متأكد؟")) return;
     }
-    await measureAccountsFor(p, isSuper, noReal);
+    await measureAccountsFor(p, isSuper, noReal, loop);
   };
 
   const sorted = useMemo(() => {
@@ -443,6 +443,12 @@ function BoxTab({ central, cabin, minScore }: { central: string; cabin: string; 
           <Button variant="outline" size="sm" onClick={() => measureAll(true)} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
             <History className="w-4 h-4" /> قياس بدون Real
           </Button>
+          {isSuper && (
+            <Button variant="outline" size="sm" onClick={() => measureAll(true, true)} className="text-teal-700 border-teal-300 gap-1"
+              title="تحديث المسافة (Estimated Loop Length) بس من شاشة DSL — من غير قياس. لو AXON رجّع N/A أو فاضى المسافة القديمة بتفضل — سوبر أدمن بس">
+              <Ruler className="w-4 h-4" /> تحديث المسافة
+            </Button>
+          )}
           </>
           )}
           <Button variant="outline" size="sm" onClick={handleExportExcel} className="text-green-700 border-green-200">تصدير Excel</Button>

@@ -13,6 +13,16 @@ export function preserveLoopLength(incoming: unknown, previous: unknown): string
   return clean(incoming) ?? clean(previous);
 }
 
+/**
+ * قراية مسافة «حقيقية» (المالك ٢٠٢٦-١١-٠٣: «المسافة الجديدة بس هى اللى تمسح القديمة»): فاضى / N/A / «-»
+ * مش مسافة — بترجع null فالقديمة بتفضل، وبيتسجّل إن آخر قراية رجعت كده (ملحوظة جنب المسافة).
+ */
+export function validLoopLength(raw: unknown): string | null {
+  const s = String(raw ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+  if (!s || /^n\/?a$/i.test(s) || /^[-–—]+$/.test(s)) return null;
+  return s;
+}
+
 export function loopMeters(raw: unknown): number | null {
   const s = String(raw ?? "").trim().toLowerCase().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
   if (!s || /^n\/?a$/.test(s) || s === "-") return null;

@@ -5,7 +5,7 @@ import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, FileSpreadsheet, Printer, Phone, Radar, IdCard, RefreshCw, UserSearch, AlertTriangle, Wrench, History, X, ArrowLeftRight, Ban } from "lucide-react";
+import { Loader2, Search, FileSpreadsheet, Printer, Phone, Radar, IdCard, RefreshCw, UserSearch, AlertTriangle, Wrench, History, X, ArrowLeftRight, Ban, Ruler } from "lucide-react";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { CLOSE_CODE_REASONS, closeReason } from "@/lib/close-codes";
@@ -66,8 +66,13 @@ interface LineData {
   measuredBy: string | null;
   /** 'noreal' = «قياس بدون Real» (التاريخ من History Check) · 'real' = real-time */
   measureMode?: "real" | "noreal" | null;
-  /** «Estimated Loop Length» من شاشة DSL — بيتسجّل فى «بدون Real» بس ("" = اتقرا وكان فاضى) */
+  /** آخر مسافة معروفة («Estimated Loop Length» من شاشة DSL) — من «تحديث المسافة» أو القياسات القديمة */
   loopLength?: string | null;
+  /** إمتى «تحديث المسافة» قرا المسافة دى */
+  loopAt?: string | null;
+  /** آخر قراية من «تحديث المسافة» زى ما هى (ممكن N/A أو فاضية — ساعتها المسافة القديمة بتفضل) */
+  loopLastRaw?: string | null;
+  loopLastRawAt?: string | null;
   /** الخيار اللى اتاخد من History Check («2026-09-19 16:13:57(Realtime)» أو «2026-09-22») */
   histLabel?: string | null;
   lastPoRaiseAt: string | null;
@@ -158,15 +163,34 @@ function measureModeCell(mode?: "real" | "noreal" | null, histLabel?: string | n
   if (mode === "real") return <span className="text-sm px-2 py-0.5 rounded font-semibold bg-sky-100 text-sky-800">Real</span>;
   return <span className="text-gray-400">-</span>;
 }
-// Loop Length بيتقرا فى «بدون Real» بس. "" = اتقرا وكان فاضى فى الشاشة (بيتكتب كده).
-function loopLengthText(mode?: "real" | "noreal" | null, v?: string | null): string {
-  if (v == null) return "-";
-  if (v === "") return mode === "noreal" ? "فاضى" : "-";
-  return v;
+// المسافة (٢٠٢٦-١١-٠٣): من «تحديث المسافة» (مهمة لوحدها). لو آخر تحديث رجّع N/A أو فاضى، المسافة القديمة
+// بتفضل وجنبها ملحوظة — المسافة الجديدة بس هى اللى بتمسح القديمة.
+type LoopInfo = { loopLength?: string | null; loopAt?: string | null; loopLastRaw?: string | null; loopLastRawAt?: string | null };
+const isLoopValue = (v?: string | null) => !!v && !/^(n\/?a|-+)$/i.test(v.trim());
+const shortAt = (v?: string | null) => String(v || "").replace("T", " ").slice(0, 16);
+export function loopNote(l: LoopInfo): string {
+  if (!l.loopLastRawAt || isLoopValue(l.loopLastRaw)) return "";
+  // القراية الفاضية أحدث من آخر مسافة اتسجّلت (أو مفيش مسافة خالص)
+  if (l.loopAt && shortAt(l.loopAt) > shortAt(l.loopLastRawAt)) return "";
+  const what = (l.loopLastRaw || "").trim() ? `«${l.loopLastRaw!.trim()}»` : "فاضية";
+  return l.loopLength
+    ? `آخر تحديث (${shortAt(l.loopLastRawAt)}) رجع ${what} — دى آخر مسافة معروفة`
+    : `آخر تحديث (${shortAt(l.loopLastRawAt)}) رجع ${what}`;
 }
-function loopLengthCell(mode?: "real" | "noreal" | null, v?: string | null): ReactNode {
-  const t = loopLengthText(mode, v);
-  return t === "-" ? <span className="text-gray-400">-</span> : <span className="text-sm">{t}</span>;
+export function loopLengthText(l: LoopInfo): string {
+  const note = loopNote(l);
+  const v = isLoopValue(l.loopLength) ? l.loopLength!.trim() : "-";
+  return note ? `${v} (${note})` : v;
+}
+function loopLengthCell(l: LoopInfo): ReactNode {
+  const v = isLoopValue(l.loopLength) ? l.loopLength!.trim() : "";
+  const note = loopNote(l);
+  return (
+    <span className="text-sm">
+      {v || <span className="text-gray-400">-</span>}
+      {note && <span className="block text-[11px] font-semibold text-amber-700" data-testid="text-loop-note">{note}</span>}
+    </span>
+  );
 }
 
 const FULL_WIDTH_FIELDS = new Set<string>([
@@ -483,7 +507,7 @@ export function PhoneLookupReport() {
 
   // «قياس بدون Real» (سوبر أدمن بس — تجربة): نفس القياس لكن من غير real-time.
   // السكربت بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس)، ويقرا
-  // السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length».
+  // السرعات والاسكور وحالة PO (من غير المسافة — ٢٠٢٦-١١-٠٣ بقت «تحديث المسافة» لوحدها).
   // العلامة NOREAL_MARK فى note المهمة هى اللى بتقول لجهاز التنفيذ يبعت &sf_mode=noreal.
   const measureNoReal = async () => {
     if (!isSuper) return; // الزرار مش ظاهر لغيره أصلاً — ده حارس احتياطى
@@ -497,6 +521,15 @@ export function PhoneLookupReport() {
     }
     if (!canRunLocalExecutor()) { alert(NO_EXECUTOR_MSG); return; }
     window.open(buildDZSUrl([acc]) + "&sf_mode=noreal", "dzs_measure");
+  };
+
+  // «تحديث المسافة» (المالك ٢٠٢٦-١١-٠٣) — ظاهر للكل: سكربت القياس بيفتح شاشة DSL بس ويقرا «Estimated Loop Length».
+  // بياخد تابات «بدون Real» (فقياس Real يشتغل جنبه). لو AXON رجّع N/A أو فاضى المسافة القديمة بتفضل وجنبها ملحوظة.
+  const updateLoopLength = async () => {
+    const acc = (line?.accountNo ?? "").toString().trim();
+    if (!acc) { alert("لا يوجد رقم أكونت لهذا الخط — لا يمكن تحديث المسافة"); return; }
+    if (await dispatchSpeedTool("measure", [acc], isSuper, { noReal: true, loop: true })) return;
+    window.open(buildDZSUrl([acc]) + "&sf_mode=loop", "dzs_measure");
   };
 
   // غيّر البورت فى Provisioning (MSAN Replacement) — سوبر أدمن فقط.
@@ -870,7 +903,7 @@ export function PhoneLookupReport() {
         ["تاريخ آخر قياس", meas(withBy(fmtDate(line.lastMeasTime), line.measuredBy))], ["Port Type", dash(line.portType)],
         ["حالة تحسين البروفايل", meas(<PoStatusCell value={line.poStatus} />)],
         // اتنين جنب بعض = سطر واحد، فالترتيب اللى تحت مابيتزحلقش.
-        ["نوع القياس", meas(measureModeCell(line.measureMode, line.histLabel))],  ["Loop Length", meas(loopLengthCell(line.measureMode, line.loopLength))],
+        ["نوع القياس", meas(measureModeCell(line.measureMode, line.histLabel))],  ["المسافة (Loop Length)", meas(loopLengthCell(line))],
         ["آخر رفع سرعة", meas(withBy(fmtDate(line.lastPoRaiseAt), line.raisedBy))],  ["voice status", dash(line.voiceStatus)],
         ["آخر إيقاف PO", meas(withBy(withPoStopResult(fmtDate(line.lastPoStopAt), line.lastPoStopResult), line.stoppedBy))],   ["data status", dash(line.dataStatus)],
         ["تاريخ آخر شكوى", fmtDate(line.lastComplaintAt)], ["Row", dash(line.rowNo)],
@@ -943,7 +976,7 @@ export function PhoneLookupReport() {
       "رقم الفريم": line.frame ?? "",
       "تاريخ آخر قياس": fmtDate(line.lastMeasTime),
       "نوع القياس": measureModeText(line.measureMode, line.histLabel),
-      "Loop Length": loopLengthText(line.measureMode, line.loopLength),
+      "Loop Length": loopLengthText(line),
       "Port Type": line.portType ?? "",
       "آخر رفع سرعة": fmtDate(line.lastPoRaiseAt),
       "Row": line.rowNo ?? "",
@@ -982,7 +1015,7 @@ export function PhoneLookupReport() {
       rows: [[
         line.central, line.cabinNumber ?? "-", line.boxNumber ?? "-", boxMaint?.maintenance_status_ar ?? "-", line.boxNumber ? (boxGround?.hasOpenTicket ? "نعم" : "لا") : "-", line.msanCode ?? "-", line.techName ?? "-", line.frame ?? "-", line.accountNo ?? "-",
         line.currentSpeed ?? "-", line.maxSpeed ?? "-", line.score ?? "-", poStatusShort(line.poStatus) || "-", fmtDate(line.lastMeasTime),
-        measureModeText(line.measureMode, line.histLabel), loopLengthText(line.measureMode, line.loopLength),
+        measureModeText(line.measureMode, line.histLabel), loopLengthText(line),
         line.portType ?? "-", line.rowNo ?? "-", line.columnNo ?? "-", line.voiceStatus ?? "-", line.dataStatus ?? "-", line.operator ?? "-", line.shelf ?? "-", line.slot ?? "-",
         line.iduNo ?? "-", line.oduNo ?? "-", line.primaryBlockNo ?? "-", line.cabinetIn ?? "-", line.secBlockNo ?? "-",
         line.cabinetOut ?? "-", line.dpTerminal ?? "-", line.port ?? "-", line.len ?? "-", line.fiberBlock ?? "-", line.fiberOut ?? "-",
@@ -1133,12 +1166,22 @@ export function PhoneLookupReport() {
                       onClick={measureNoReal}
                       disabled={awaitingOp === "measure"}
                       className="bg-white gap-2 text-amber-700 border-amber-300"
-                      title="قياس من غير real-time: بياخد أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL — سوبر أدمن بس (تجربة)"
+                      title="قياس من غير real-time: بياخد أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) — من غير المسافة (ليها زرار «تحديث المسافة») — سوبر أدمن بس"
                     >
                       <History className="w-4 h-4" />
                       قياس بدون Real
                     </Button>
                   )}
+                  <Button
+                    variant="outline"
+                    onClick={updateLoopLength}
+                    className="bg-white gap-2 text-teal-700 border-teal-300"
+                    title="يقرا «Estimated Loop Length» من شاشة DSL بس (من غير قياس). لو رجع N/A أو فاضى المسافة القديمة بتفضل"
+                    data-testid="button-update-loop"
+                  >
+                    <Ruler className="w-4 h-4" />
+                    تحديث المسافة
+                  </Button>
                   <Button
                     variant="outline"
                     onClick={async () => {

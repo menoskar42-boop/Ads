@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, FileSpreadsheet, Printer, Radar, Gauge, History, Info } from "lucide-react";
+import { Loader2, FileSpreadsheet, Printer, Radar, Gauge, History, Info, Ruler } from "lucide-react";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
@@ -189,7 +189,7 @@ export function RegularizedFaultsReport() {
     full: f.phoneShort ? "88" + f.phoneShort : "",
   });
 
-  const handleMeasureDZS = async (noReal = false) => {
+  const handleMeasureDZS = async (noReal = false, loop = false) => {
     const seen = new Set<string>();
     const items = faults
       .map(toItem)
@@ -199,8 +199,8 @@ export function RegularizedFaultsReport() {
       return;
     }
     // لو فيه جهاز تنفيذ مفعّل → للطابور بدل الفتح المحلى (وإلا رسالة عدم الإتاحة لغير السوبر أدمن)
-    if (await dispatchSpeedTool("measure", items.map((i) => i.account), isSuper, { noReal })) return;
-    window.open(noRealUrl(buildDZSUrl(items), noReal), "dzs_measure");
+    if (await dispatchSpeedTool("measure", items.map((i) => i.account), isSuper, { noReal, loop })) return;
+    window.open(noRealUrl(buildDZSUrl(items), noReal, loop), "dzs_measure");
   };
 
   // رفع السرعة / إيقاف PO لأرقام الأعطال المعروضة.
@@ -397,6 +397,12 @@ export function RegularizedFaultsReport() {
         <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true)} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
           <History className="w-4 h-4" /> قياس بدون Real
         </Button>
+        {isSuper && (
+          <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true, true)} className="text-teal-700 border-teal-300 gap-1"
+            title="تحديث المسافة (Estimated Loop Length) بس من شاشة DSL — من غير قياس. لو AXON رجّع N/A أو فاضى المسافة القديمة بتفضل — سوبر أدمن بس">
+            <Ruler className="w-4 h-4" /> تحديث المسافة
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={() => handleRaisePO("raise")} className="text-emerald-700 border-emerald-200 gap-1" title="رفع السرعة (Profile Optimization) لأرقام الأعطال المعروضة">
           <Gauge className="w-4 h-4" /> رفع سرعة
         </Button>

@@ -84,7 +84,7 @@ test("speed-drop report has the measure / no-Real / raise / stop buttons", () =>
   const ui = readFileSync(new URL("../client/src/components/SpeedDropReport.tsx", import.meta.url), "utf8");
   assert.match(ui, /const NAME = weekly \? "انخفاض السرعة خلال أسبوع" : "انخفاض السرعة بعد الانتظام"/);
   assert.match(ui, /useSpeedToolSource\(NAME\)/);
-  assert.match(ui, /dispatchSpeedTool\("measure", accounts, isSuper, \{ noReal \}\)/);
+  assert.match(ui, /dispatchSpeedTool\("measure", accounts, isSuper, \{ noReal(, loop)? \}\)/);
   assert.match(ui, /dispatchSpeedTool\(kind === "stop" \? "stop" : "raise", accounts, isSuper\)/);
   assert.match(ui, /handleMeasure\(true\)[\s\S]{0,300}قياس بدون Real/);
   assert.match(ui, /handleRaisePO\("stop"\)[\s\S]{0,200}إيقاف PO/);

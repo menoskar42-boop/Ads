@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { loopMeters, preserveLoopLength, speedKbps } from "./loop-length";
+import { loopMeters, preserveLoopLength, speedKbps, validLoopLength } from "./loop-length";
 
 test("Loop Length text → meters", () => {
   assert.equal(loopMeters("1402 meters"), 1402);
@@ -24,6 +24,11 @@ test("an empty new Loop Length keeps the prior non-empty value, while a new valu
   assert.equal(preserveLoopLength("  ", "1.4 km"), "1.4 km");
   assert.equal(preserveLoopLength("1550 m", "1402 meters"), "1550 m");
   assert.equal(preserveLoopLength("", ""), null);
+});
+
+test("N/A, empty or a dash is not a distance — only a real new distance replaces the old one (owner 2026-11-03)", () => {
+  for (const v of ["", "  ", "N/A", "n/a", "NA", "-", "—", null, undefined]) assert.equal(validLoopLength(v), null, String(v));
+  assert.equal(validLoopLength(" 1402  meters "), "1402 meters");
 });
 
 test("speed text → kbps (dotted = Mbps × 1024, same as autoPoStopAccounts)", () => {
@@ -52,7 +57,9 @@ test("DZS ingestion carries the newest non-empty loop forward when a measurement
   const ingest = routes.slice(start, end);
 
   assert.ok(start >= 0 && end > start, "measurement ingest route exists");
-  assert.match(ingest, /preserveLoopLength\(it\.loopLength, null\)/);
+  // ٢٠٢٦-١١-٠٣: N/A أو فاضى مابيمسحش آخر مسافة، والقديمة اللى كانت N/A مابتتنقلش لقدّام
+  assert.match(ingest, /const loopLength = validLoopLength\(it\.loopLength\);/);
+  assert.match(ingest, /btrim\(c\.loop_length\) !~\* '\^\(n\/\?a\|-\+\)\$'/);
   assert.match(ingest, /COALESCE\(\s*NULLIF\(\$12::text, ''\)/);
   assert.match(ingest, /SELECT NULLIF\(btrim\(c\.loop_length\), ''\)/);
   assert.match(ingest, /c\.full_phone = \$6/);

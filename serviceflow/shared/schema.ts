@@ -1379,6 +1379,17 @@ export const opResults = pgTable("op_results", {
 });
 export type OpResult = typeof opResults.$inferSelect;
 
+// line_loop_lengths — «تحديث المسافة»: آخر مسافة معروفة لكل خط (N/A أو فاضى مابيمسحهاش — بيتسجّل فى last_raw)
+export const lineLoopLengths = pgTable("line_loop_lengths", {
+  fullPhone: text("full_phone").primaryKey(),
+  accountNo: text("account_no"),
+  loopLength: text("loop_length"),
+  loopAt: timestamp("loop_at", { withTimezone: true }),
+  lastRaw: text("last_raw"),
+  lastRawAt: timestamp("last_raw_at", { withTimezone: true }),
+  lastBy: text("last_by"),
+});
+
 // «Re-Execute» على OSS Abnormal WO (٢٠٢٦-١٠-٠٧) — الرقم الكامل أو Service Order ID + النتيجة
 export const ossReexecs = pgTable("oss_reexecs", {
   id: serial("id").primaryKey(),

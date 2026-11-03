@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, FileSpreadsheet, Printer, Info, Radar, Gauge, CircleSlash, X, History } from "lucide-react";
+import { Loader2, FileSpreadsheet, Printer, Info, Radar, Gauge, CircleSlash, X, History, Ruler } from "lucide-react";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
@@ -170,14 +170,14 @@ export function RepeatedWithinMonthReport() {
   };
 
   // قياس كل الأرقام المعروضة
-  const measureAll = async (noReal = false) => {
+  const measureAll = async (noReal = false, loop = false) => {
     const accounts = shownAccounts();
     if (!accounts.length) { alert("لا توجد أرقام أكونت فى الصفوف المعروضة"); return; }
     setBusy(true);
     const w = window.open("about:blank", "dzs_measure");
     try {
-      if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal })) { try { w?.close(); } catch {} return; }
-      if (w) w.location.href = noRealUrl(buildDZSUrl(accounts), noReal);
+      if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal, loop })) { try { w?.close(); } catch {} return; }
+      if (w) w.location.href = noRealUrl(buildDZSUrl(accounts), noReal, loop);
     } finally { setBusy(false); }
   };
 
@@ -390,6 +390,12 @@ export function RepeatedWithinMonthReport() {
             <Button variant="outline" size="sm" onClick={() => measureAll(true)} disabled={busy} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
               <History className="w-4 h-4" /> قياس بدون Real
             </Button>
+            {isSuper && (
+              <Button variant="outline" size="sm" onClick={() => measureAll(true, true)} className="text-teal-700 border-teal-300 gap-1"
+                title="تحديث المسافة (Estimated Loop Length) بس من شاشة DSL — من غير قياس. لو AXON رجّع N/A أو فاضى المسافة القديمة بتفضل — سوبر أدمن بس">
+                <Ruler className="w-4 h-4" /> تحديث المسافة
+              </Button>
+            )}
             <Button
               variant="outline" size="sm" onClick={() => raiseOrStop("raise")}
               disabled={busy || rows.length === 0}

@@ -112,7 +112,7 @@ test("userscripts: measure tabs no longer clear the shared PO flag; PO runs only
   const guard = m.slice(m.indexOf('if (/[#&]sf_accounts=/.test(location.hash)) { try {'), m.indexOf("DZS measure paused"));
   assert.doesNotMatch(guard, /PO_ACTIVE/);
   assert.match(guard, /sessionStorage\.getItem\("PO_TAB"\) === "1"/);
-  assert.match(m, /@version {6}10\.36\.0/);
+  assert.match(m, /@version {6}10\.(3[6-9]|[4-9]\d)\.\d+/);
   assert.match(po, /if \(!hasPoHash && !\(isPoTab && localStorage\.getItem\(PO_ACTIVE_KEY\) === "1"\)\) return;/);
   assert.match(po, /@version {6}0\.9\.25/);
 });

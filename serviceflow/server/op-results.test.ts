@@ -10,7 +10,7 @@ import express from "express";
 import test from "node:test";
 
 const read = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
-const cancelUs = read("../wfm-dispatcher-reassign.user.js");
+const allInOne = read("../te-fcc-wfm-oss-subinfo.user.js");
 const provUs = read("../provisioning-portal.user.js");
 const lookup = read("../client/src/components/PhoneLookupReport.tsx");
 const rowBtn = read("../client/src/components/WfmCancelButton.tsx");
@@ -19,11 +19,11 @@ const db = read("./db.ts");
 const schema = read("../shared/schema.ts");
 
 test("rollback copies of the old scripts are kept", () => {
-  for (const f of ["wfm-dispatcher-reassign-1.6.2", "provisioning-portal-1.8.0", "wfm-accept-task-1.5.0"]) {
+  for (const f of ["provisioning-portal-1.8.0", "dzs-expresse-v10-10.36.0"]) {
     const p = new URL(`../userscripts-rollback/${f}.user.js`, import.meta.url);
     assert.ok(existsSync(p), f);
   }
-  assert.match(read("../userscripts-rollback/wfm-dispatcher-reassign-1.6.2.user.js"), /@version {6}1\.6\.2/);
+  assert.match(read("../userscripts-rollback/dzs-expresse-v10-10.36.0.user.js"), /@version {6}10\.36\.0/);
   assert.match(read("../userscripts-rollback/provisioning-portal-1.8.0.user.js"), /@version {6}1\.8\.0/);
 });
 
@@ -32,14 +32,12 @@ test("schema: op_results in ensureSchema and schema.ts", () => {
   assert.match(schema, /export const opResults = pgTable\("op_results"/);
 });
 
-test("unassign script 1.7.0 reports every stop, not just success", () => {
-  assert.match(cancelUs, /@version {6}1\.7\.0/);
-  assert.match(cancelUs, /"\/api\/op-results\/ingest\?sf_eid="/);
-  for (const r of ["not_found", "completed", "unavailable", "unsure", "failed"]) {
-    assert.match(cancelUs, new RegExp(`stopWith\\(serviceId, "${r}"|sfReportOp\\([^,]+, "${r}"`), r);
+test("unassign runs inside the All-in-One script, which already reports every stop to cancel-ingest", () => {
+  // السيرفر بيصنّف النص (❌/⚠️ + السبب) — من غير تعديل فى السكربت
+  for (const why of ["مفيش مهمة للرقم فى Tasks Queue", "كل المهام Completed", "مش متاحة", "بس حالة السطر ما اتغيّرتش"]) {
+    assert.ok(allInOne.includes(why), why);
   }
-  // النجاح لسه رايح لـ cancel-ingest (التقارير القديمة بتقرا منه)
-  assert.match(cancelUs, /await sfReportCancel\(serviceId, st\)/);
+  assert.match(allInOne, /async function sfReportStop\(phone, why\) \{\s*const r = await sfReportCancel\(phone, why\);/);
 });
 
 test("port change script 1.9.0: snapshot before Submit, verify a new request after, report the result", () => {
@@ -103,7 +101,15 @@ test("API: ingest, last result, roles, op-check ends the job", async (t) => {
     let last: any = await (await fetch(`${base}/api/op-results/last?type=wfmcancel&keys=${phone}`, { headers: { cookie: cAd } })).json();
     assert.equal(last.data[phone].result, "completed");
 
-    // النجاح من cancel-ingest (حتى من السكربت القديم) بيبقى «آخر محاولة: اتعمل»، والـdone من op-results مابيتكرّرش
+    // الوقوف من السكربت المدموج بيوصل لـ cancel-ingest بالسبب ⇒ بيتصنّف
+    for (const [why, want] of [["❌ مفيش مهمة للرقم فى Tasks Queue", "not_found"], ["❌ كل المهام Completed — مفيش حاجة تتسند", "completed"],
+      ["❌ «Cancel» مش متاحة", "unavailable"], ["⚠️ اتضغط «Cancel» بس حالة السطر ما اتغيّرتش", "unsure"], ["❌ استنفد محاولات فتح WFM (6)", "failed"]]) {
+      await new Promise((r) => setTimeout(r, 15));
+      assert.equal((await post("/api/wfm-tasks/cancel-ingest", { phone, status: why })).status, 200);
+      const l: any = await (await fetch(`${base}/api/op-results/last?type=wfmcancel&keys=${phone}`, { headers: { cookie: cAd } })).json();
+      assert.equal(l.data[phone].result, want, why);
+    }
+    // النجاح من cancel-ingest بيبقى «آخر محاولة: اتعمل»، والـdone من op-results مابيتكرّرش
     await new Promise((r) => setTimeout(r, 20));
     assert.equal((await post("/api/wfm-tasks/cancel-ingest", { phone, status: "Started → canceled" })).status, 200);
     assert.equal((await post("/api/op-results/ingest", { type: "wfmcancel", key: phone, result: "done" })).status, 200);

@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChevronRight, ChevronLeft, Loader2, Radar, Pencil, Save, X, Ban, Gauge, IdCard, History } from "lucide-react";
+import { ChevronRight, ChevronLeft, Loader2, Radar, Pencil, Save, X, Ban, Gauge, IdCard, History, Ruler } from "lucide-react";
 import { openCustomer360 } from "@/lib/customer360";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
@@ -317,7 +317,7 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
 
   // القياس: نفتح كل أكونتس النطاق فى تاب DZS واحد — والسكريبت (dzs-expresse-v10.user.js)
   // يتولّى التقسيم لدفعات 50 خط والانتظار 400 ثانية بين كل دفعة والرفع التلقائى لشيت 138.
-  const handleMeasureDZS = async (noReal = false) => {
+  const handleMeasureDZS = async (noReal = false, loop = false) => {
     // افتح التاب فوراً وبشكل متزامن داخل ضغطة الزر (قبل أى await) — وإلا يحجبه الـ popup blocker
     const w = window.open("about:blank", "dzs_measure");
     setDzsLoading(true);
@@ -334,12 +334,12 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
       if (items.length === 0) { try { w?.close(); } catch {} setNotice("لا توجد أرقام أكونت فى النطاق المحدد"); return; }
       // التأكيد بالعدد الحقيقى اللى هيتبعت — مش بالعدد المعروض على الشاشة
       if (!(await confirmRealCount(items.length, data?.total ?? 0, "القياس"))) { try { w?.close(); } catch {} return; }
-      if (await dispatchSpeedTool("measure", items.map((i) => i.account), isSuper, { notify: setNotice, noReal })) {
+      if (await dispatchSpeedTool("measure", items.map((i) => i.account), isSuper, { notify: setNotice, noReal, loop })) {
         try { w?.close(); } catch {}
         qc.invalidateQueries({ queryKey: ["/api/phone-lines/with-account"] });  // الجدول يطابق الواقع
         return;
       }
-      if (w) w.location.href = noRealUrl(buildDZSUrl(items, scoreGt != null), noReal); // scoreGt != null = تقرير الأسكور>100 → فرض real-time
+      if (w) w.location.href = noRealUrl(buildDZSUrl(items, scoreGt != null), noReal, loop); // scoreGt != null = تقرير الأسكور>100 → فرض real-time
       setDzsCount(items.length);
       qc.invalidateQueries({ queryKey: ["/api/phone-lines/with-account"] });
     } catch {
@@ -654,6 +654,12 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
             <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true)} disabled={dzsLoading} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
               <History className="w-4 h-4" /> قياس بدون Real
             </Button>
+            {isSuper && (
+              <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true, true)} className="text-teal-700 border-teal-300 gap-1"
+                title="تحديث المسافة (Estimated Loop Length) بس من شاشة DSL — من غير قياس. لو AXON رجّع N/A أو فاضى المسافة القديمة بتفضل — سوبر أدمن بس">
+                <Ruler className="w-4 h-4" /> تحديث المسافة
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => handleRaiseSpeed("raise")} disabled={dzsLoading} className="text-emerald-700 border-emerald-200 gap-1" title="تشغيل Profile Optimization (رفع السرعة) لأرقام النطاق المحدد">
               <Gauge className="w-4 h-4" /> رفع سرعة
             </Button>

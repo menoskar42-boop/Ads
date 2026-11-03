@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { pool, currentPool, hasCurrentDatabase } from "./db";
 import { cleanWfmMobile } from "./wfm-mobile";
-import { followupFor, recheckFor, stopRetryFor, stopRetryCount, RECHECK_MARK, RAISE_STOP_MARK, STOP_MEASURE_MARK, STOP_RETRY_MARK } from "./exec-followups";
+import { followupFor, recheckFor, stopRetryFor, stopRetryCount, RECHECK_MARK, RAISE_STOP_MARK, STOP_MEASURE_MARK, STOP_RETRY_MARK, LOOP_MARK } from "./exec-followups";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
@@ -37,7 +37,7 @@ import { createTechCoverageGrantsD1FromEnv, techCoverageGrantsUseD1 } from "./te
 import * as wfmCustomerMobilesD1 from "./wfm-customer-mobiles-d1";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
-import { loopMeters, preserveLoopLength, speedKbps } from "./loop-length";
+import { loopMeters, speedKbps, validLoopLength } from "./loop-length";
 import { speedDropOf, weekDropJoinSql, WEEK_DROP_COLS, weekDropOf } from "./speed-drop";
 import { boxRangeCond } from "./box-range";
 import { normCab, normBox, expandBoxes, boxKey } from "@shared/cab-norm";
@@ -764,6 +764,17 @@ const arQ = (q: unknown) => `%${arNorm(String(q ?? "").trim())}%`;
 const sp = phoneNormSql;
 // مفتاح سجل «اتعمل ولا لأ» (op_results): أرقام بس ومن غير 88 فى الأول — نفس الشكل من السكربت ومن الواجهة
 const opKey = (v: unknown): string => String(v ?? "").replace(/\D/g, "").replace(/^88/, "");
+// نتيجة إلغاء/إعادة الإسناد من نص الحالة اللى السكربت المدموج بيبعته لـ cancel-ingest:
+// النجاح = «Started → canceled» / «… → re-assigned to …»؛ الوقوف بيبدأ بـ ❌ أو ⚠️ وفيه السبب.
+const cancelResultOf = (status: string): string => {
+  const s = String(status || "").trim();
+  if (!/^[❌⚠⛔]/u.test(s)) return "done";
+  if (/مفيش مهمة|No rows/i.test(s)) return "not_found";
+  if (/Completed/i.test(s)) return "completed";
+  if (/مش متاحة/.test(s)) return "unavailable";
+  if (/ما ?اتغيّرتش|ماتغيّرتش/.test(s)) return "unsure";
+  return "failed";
+};
 
 // بعض المصادر تكتب رقم الكابينة كزوج أرقام بفاصل أو ترتيب مختلف (2-3 / 3/2).
 // نرتب الزوج للمطابقة فقط، ونبقى القيم الأخرى كما هي دون تعديل البيانات المخزنة.
@@ -2589,6 +2600,15 @@ export async function registerRoutes(
       return Number.isFinite(n) ? Math.min(MEASURE_STALE_DAYS_MAX, Math.max(MEASURE_STALE_DAYS_MIN, n)) : MEASURE_STALE_DAYS_DEFAULT;
     } catch { return MEASURE_STALE_DAYS_DEFAULT; }
   };
+  // باتش ٩ الصبح التالت «تحديث المسافة» (المالك ٢٠٢٦-١١-٠٣): مقفول افتراضياً؛ لو اتفتح من الإعدادات بياخد
+  // نفس أرقام باتش «بدون Real» بتاع النهارده.
+  const AUTO_LOOP_BATCH_KEY = "exec_lanes_auto_loop_batch";   // نفس البادئة = سوبر أدمن بس
+  const readAutoLoopBatch = async (): Promise<boolean> => {
+    try {
+      const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = $1`, [AUTO_LOOP_BATCH_KEY]);
+      return String(rows[0]?.value ?? "") === "1";
+    } catch { return false; }
+  };
   // إيقاف بالليل (المالك ٢٠٢٦-١٠-١٣): «التحديث التلقائى يقف بالليل … من ١٢ بالليل لـ٧ الصبح حتى
   // لو الزر مفتوح، وزرار فى الإعدادات يلغيها أو يفتحها … وزر يوقف جهاز التنفيذ فى نفس الفترة».
   // القاعدة بتنام بعد ٥ دقايق من غير استعلامات وإحنا بندفع على كل ساعة صاحية — والجهاز
@@ -2678,7 +2698,9 @@ export async function registerRoutes(
       AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
       AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
       AND POSITION('${RECHECK_MARK}' IN COALESCE(${a}.note, '')) = 0
-      AND POSITION('${STOP_RETRY_MARK}' IN COALESCE(${a}.note, '')) = 0)
+      AND POSITION('${STOP_RETRY_MARK}' IN COALESCE(${a}.note, '')) = 0
+      -- «تحديث المسافة» بيفتح شاشة DSL بس (sf_mode=loop) — الجسر مابيعرفهوش، فجهاز التنفيذ هو اللى بياخدها
+      AND POSITION('${LOOP_MARK}' IN COALESCE(${a}.note, '')) = 0)
     OR (${a}.type = 'stop'
       AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
       AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
@@ -2755,7 +2777,7 @@ export async function registerRoutes(
       const { rows } = await pool.query(
         `SELECT (MAX(updated_at) AT TIME ZONE 'Africa/Cairo') AS "updatedAt",
                 (ARRAY_AGG(updated_by ORDER BY updated_at DESC))[1] AS "updatedBy"
-           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY, BRIDGE_VIEW_KEY, REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY, ...Object.values(NIGHT_PAUSE_KEYS)]]);
+           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY, BRIDGE_VIEW_KEY, REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY, AUTO_LOOP_BATCH_KEY, ...Object.values(NIGHT_PAUSE_KEYS)]]);
       res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES, refreshMinutes: REFRESH_MINUTES_DEFAULT, measureStaleDays: MEASURE_STALE_DAYS_DEFAULT },
         bridgeSeenSec: bridgeSeen ? Math.round((Date.now() - bridgeSeen.at) / 1000) : null,
         bridgeDevice: bridgeSeen?.device || null,
@@ -2763,6 +2785,7 @@ export async function registerRoutes(
         refreshRange: { min: REFRESH_MINUTES_MIN, max: REFRESH_MINUTES_MAX },
         measureStaleDays: await readMeasureStaleDays(),
         measureStaleRange: { min: MEASURE_STALE_DAYS_MIN, max: MEASURE_STALE_DAYS_MAX },
+        autoLoopBatch: await readAutoLoopBatch(),
         nightPause: await readNightPause(), ...(rows[0] || {}) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -2789,6 +2812,10 @@ export async function registerRoutes(
         if (!Number.isFinite(n) || n < MEASURE_STALE_DAYS_MIN || n > MEASURE_STALE_DAYS_MAX)
           return res.status(400).json({ message: `أيام قياس ٩ الصبح لازم تكون من ${MEASURE_STALE_DAYS_MIN} لـ ${MEASURE_STALE_DAYS_MAX}` });
         vals.push([MEASURE_STALE_DAYS_KEY, n]);
+      }
+      if (body.autoLoopBatch != null) {
+        if (typeof body.autoLoopBatch !== "boolean") return res.status(400).json({ message: "باتش «تحديث المسافة» لازم يكون مفتوح أو مقفول" });
+        vals.push([AUTO_LOOP_BATCH_KEY, body.autoLoopBatch ? 1 : 0]);
       }
       // الإيقاف بالليل: true/false، والمدة «HH:MM»
       for (const k of ["refresh", "executor"] as const) {
@@ -2825,7 +2852,7 @@ export async function registerRoutes(
         await pool.query(`UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`);
       }
       nightPauseCache = null;
-      res.json({ ok: true, ...(await readExecLanes(pool)), refreshMinutes: await readRefreshMinutes(), measureStaleDays: await readMeasureStaleDays(), nightPause: await readNightPause() });
+      res.json({ ok: true, ...(await readExecLanes(pool)), refreshMinutes: await readRefreshMinutes(), measureStaleDays: await readMeasureStaleDays(), autoLoopBatch: await readAutoLoopBatch(), nightPause: await readNightPause() });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -3634,10 +3661,12 @@ export async function registerRoutes(
          VALUES ($1, $2, $3, $4, now()) RETURNING id`,
         [phone, String(b.workOrderId || "").trim() || null, String(b.status || "").trim() || null,
          who.rows[0]?.username || null]);
-      // نفس النجاح فى سجل «اتعمل ولا لأ» — كده السكربت القديم (1.6.x) لو رجعناله نتايجه برضه بتظهر
+      // سجل «اتعمل ولا لأ» (op_results): السكربت المدموج (TE FCC + WFM ≥3.6.7) بيبعت الوقوف هنا برضه،
+      // والسبب فى status بيبدأ بـ ❌ أو ⚠️ — فبنصنّفه بدل ما نعتبره نجاح.
+      const st = String(b.status || "").trim();
       await pool.query(
-        `INSERT INTO op_results (op_type, key_value, result, message, requested_by) VALUES ('wfmcancel', $1, 'done', $2, $3)`,
-        [opKey(phone), String(b.status || "").trim().slice(0, 500) || null, who.rows[0]?.username || null]).catch(() => {});
+        `INSERT INTO op_results (op_type, key_value, result, message, requested_by) VALUES ('wfmcancel', $1, $2, $3, $4)`,
+        [opKey(phone), cancelResultOf(st), st.slice(0, 500) || null, who.rows[0]?.username || null]).catch(() => {});
       res.json({ ok: true, id: rows[0]?.id });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -4076,7 +4105,7 @@ export async function registerRoutes(
       for (const j of rows as any[]) {
         let accs: string[] = [];
         try { accs = (Array.isArray(j.accounts) ? j.accounts : JSON.parse(j.accounts || "[]")).map((a: any) => String(a).trim()).filter(Boolean); } catch {}
-        const prog = await jobProgress(j.accounts, j.type, j.claimedAt);
+        const prog = await jobProgress(j.accounts, j.type, j.claimedAt, j.source);
         out.push({
           id: j.id, type: j.type, status: j.status, result: j.result || null,
           requestedBy: j.requestedBy || null, source: j.source || null,
@@ -4188,6 +4217,13 @@ export async function registerRoutes(
                 complain_no, measured_by, uploaded_at
            FROM case_138 WHERE account_no = ANY($1::text[])
           ORDER BY account_no, id DESC`, [measAccs])).rows, (r) => String(r.account_no)) : new Map();
+      // «تحديث المسافة»: آخر قراية مسافة لكل أكونت
+      const loopAccs = jobs.filter((j: any) => j.type === "measure" && String(j.note || "").includes(LOOP_MARK))
+        .flatMap((j: any) => (Array.isArray(j.accounts) ? j.accounts : [])).map((a: any) => String(a).trim()).filter(Boolean);
+      const loops = loopAccs.length ? M<any>((await pool.query(
+        `SELECT DISTINCT ON (account_no) account_no, loop_length, loop_at, last_raw, last_raw_at
+           FROM line_loop_lengths WHERE account_no = ANY($1::text[])
+          ORDER BY account_no, last_raw_at DESC NULLS LAST`, [loopAccs])).rows, (r) => String(r.account_no)) : new Map();
 
       // رفع السرعة / الإيقاف
       const poAccs = [...keysOf("raise"), ...keysOf("stop")];
@@ -4276,7 +4312,13 @@ export async function registerRoutes(
         const key = list[0] || "";
         const p = j.params || {};
         let detail: any = null;
-        if (j.type === "measure") {
+        if (j.type === "measure" && String(j.note || "").includes(LOOP_MARK)) {
+          const l0 = loops.get(key) as any;
+          detail = {
+            loop: true, readInThisJob: !!(l0 && at(l0.last_raw_at) >= at(j.claimedAtRaw)),
+            lastRaw: l0?.last_raw ?? null, loopLength: l0?.loop_length ?? null, at: l0?.last_raw_at ?? null,
+          };
+        } else if (j.type === "measure") {
           const m = meas.get(key) as any;
           // «اتقاس فى المهمة دى» = فيه قياس بعد وقت سحب المهمة
           const during = !!(m && at(m.uploaded_at) >= at(j.claimedAtRaw));
@@ -4762,7 +4804,8 @@ export async function registerRoutes(
    * حتى لو اتنادت من أكتر من مكان فى نفس اللحظة.
    */
   type AutoBatchResult = { ran: boolean; reason?: string; stop: number; measure: number;
-                           stopBatchId?: string | null; measureBatchId?: string | null };
+                           stopBatchId?: string | null; measureBatchId?: string | null;
+                           loop?: number; loopBatchId?: string | null };
   // ignoreHour: للتشغيل اليدوى بس — السوبر أدمن يقدر يشغّلها فى أى وقت من غير ما
   // يستنى ٩ الصبح (من غيرها كان الزرار بيرجع «تمام» ومايعملش حاجة قبل ٩ بلا أى تفسير).
   const runDailyAutoBatches = async (trigger: string, ignoreHour = false): Promise<AutoBatchResult> => {
@@ -4790,9 +4833,15 @@ export async function registerRoutes(
       const meas = await enqueueAutoBatch(
         "measure", measAccs,
         `خطوط لها أكونت — ${staleDaysLabel(staleDays)} + شكاوى منتظمة بدون قياس بعدها (تشغيل يومى ٩ ص) — قياس ${AUTO_MEASURE_NOREAL_MARK}`);
-      console.log(`[auto-batches] ${date} (${trigger}): إيقاف PO ${stop.count} خط، قياس ${meas.count} خط`);
+      // الباتش التالت (اختيارى من الإعدادات): «تحديث المسافة» لنفس أرقام «بدون Real»
+      const loop = (await readAutoLoopBatch())
+        ? await enqueueAutoBatch("measure", measAccs,
+            `نفس أرقام قياس ٩ ص (تشغيل يومى ٩ ص) — ${AUTO_MEASURE_NOREAL_MARK} — ${LOOP_MARK}`)
+        : { count: 0, batchId: null as string | null };
+      console.log(`[auto-batches] ${date} (${trigger}): إيقاف PO ${stop.count} خط، قياس ${meas.count} خط، تحديث المسافة ${loop.count} خط`);
       return { ran: true, stop: stop.count, measure: meas.count,
-               stopBatchId: stop.batchId, measureBatchId: meas.batchId };
+               stopBatchId: stop.batchId, measureBatchId: meas.batchId,
+               loop: loop.count, loopBatchId: loop.batchId };
     } catch (e: any) {
       // الفشل مايكسرش النبضة ولا الفحص الدورى — والمحاولة بتتكرر بعد ٥ دقايق
       autoBatchDay = "";
@@ -5213,7 +5262,9 @@ export async function registerRoutes(
   // كام رقم اتنفّذ فعلاً من مهمة (بعد بدء تنفيذها claimed_at):
   //  - القياس: عدد أرقام الأكونت اللى ليها قياس جديد فى case_138 بعد claimed_at.
   //  - رفع/إيقاف: line_po_events.last_raise_at / last_stop_at بعد claimed_at.
-  const jobProgress = async (accountsRaw: any, type: string, claimedAt: any): Promise<{ done: number; total: number }> => {
+  // note: «تحديث المسافة» مهمة measure فى الطابور، بس أثرها فى line_loop_lengths مش case_138
+  const isLoopNote = (note: any) => String(note || "").includes(LOOP_MARK);
+  const jobProgress = async (accountsRaw: any, type: string, claimedAt: any, note?: any): Promise<{ done: number; total: number }> => {
     let accs: string[] = [];
     try { accs = (Array.isArray(accountsRaw) ? accountsRaw : JSON.parse(accountsRaw || "[]")).map((a: any) => String(a).trim()).filter(Boolean); } catch { accs = []; }
     const total = accs.length;
@@ -5225,7 +5276,9 @@ export async function registerRoutes(
         return { done: Math.min(done, total), total };
       } catch { return { done: 0, total }; }
     }
-    if (type === "measure") {
+    if (type === "measure" && isLoopNote(note)) {
+      q = `SELECT COUNT(DISTINCT account_no)::int AS n FROM line_loop_lengths WHERE account_no = ANY($1::text[]) AND last_raw_at >= $2`;
+    } else if (type === "measure") {
       // ٢٠٢٦-١١-٠٣: من القاعدة الأساسية (قياسات DZS) — مش القاعدة الحالية اللى اتصالها واحد
       q = `SELECT COUNT(DISTINCT account_no)::int AS n FROM case_138 WHERE account_no = ANY($1::text[]) AND uploaded_at >= $2 AND source = 'dzs'`;
     } else if (type === "c360") {
@@ -5263,7 +5316,7 @@ export async function registerRoutes(
 
   // أرقام الأكونت اللى لسه ماتنفّذتش من مهمة (للاستئناف بعد المقاطعة): الأرقام اللى مالهاش نتيجة
   // جديدة بعد claimed_at. (measure→case_138, raise/stop→line_po_events).
-  const jobRemainingAccounts = async (accountsRaw: any, type: string, claimedAt: any): Promise<string[]> => {
+  const jobRemainingAccounts = async (accountsRaw: any, type: string, claimedAt: any, note?: any): Promise<string[]> => {
     let accs: string[] = [];
     try { accs = (Array.isArray(accountsRaw) ? accountsRaw : JSON.parse(accountsRaw || "[]")).map((a: any) => String(a).trim()).filter(Boolean); } catch { accs = []; }
     if (!accs.length || !claimedAt) return accs;
@@ -5275,7 +5328,9 @@ export async function registerRoutes(
       } catch { return accs; }
     }
     let q: string;
-    if (type === "measure") {
+    if (type === "measure" && isLoopNote(note)) {
+      q = `SELECT DISTINCT account_no FROM line_loop_lengths WHERE account_no = ANY($1::text[]) AND last_raw_at >= $2`;
+    } else if (type === "measure") {
       q = `SELECT DISTINCT account_no FROM case_138 WHERE account_no = ANY($1::text[]) AND uploaded_at >= $2 AND source = 'dzs'`;
     } else if (type === "raise" || type === "stop") {
       const col = type === "stop" ? "last_stop_at" : "last_raise_at";
@@ -5341,7 +5396,7 @@ export async function registerRoutes(
         [job.priority ?? 0, job.site,
          (job.type === "stop") || (job.type === "measure" && String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK)),
          job.type === "measure" && !String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK)]);
-      const prog = await jobProgress(job.accounts, job.type, job.claimed_at);
+      const prog = await jobProgress(job.accounts, job.type, job.claimed_at, job.note);
       res.json({ active, preempt: p.length > 0, measured: prog.done, total: prog.total });
     } catch {
       res.json({ active: true, preempt: false, measured: 0, total: 0 }); // فشل الفحص → نكمّل (fail-safe)
@@ -5371,7 +5426,7 @@ export async function registerRoutes(
         `SELECT type, accounts, claimed_at, note, requested_by, priority, site, batch_id, params, requested_from FROM exec_jobs WHERE id = $1`, [id]);
       const job = rows[0];
       if (!job) return res.json({ ok: false });
-      const remaining = await jobRemainingAccounts(job.accounts, job.type, job.claimed_at);
+      const remaining = await jobRemainingAccounts(job.accounts, job.type, job.claimed_at, job.note);
       // حارس التكرار: لو الطلب اتكرر (إعادة محاولة شبكة مثلاً) المهمة مش claimed
       // خلاص — من غير الحارس كانت بتتضاف مهمة تكملة **تانية** بنفس الأرقام فتتقاس مرتين.
       const up = await pool.query(
@@ -5411,10 +5466,10 @@ export async function registerRoutes(
       await expireOrphanedExecJobs();
       const id = parseInt(String(req.query.id || ""));
       if (!id) return res.json({ found: false });
-      const { rows } = await pool.query(`SELECT status, created_at, claimed_at, accounts, type, result FROM exec_jobs WHERE id = $1`, [id]);
+      const { rows } = await pool.query(`SELECT status, created_at, claimed_at, accounts, type, result, note FROM exec_jobs WHERE id = $1`, [id]);
       const job = rows[0];
       if (!job) return res.json({ found: false });
-      const jobProg = await jobProgress(job.accounts, job.type, job.claimed_at);
+      const jobProg = await jobProgress(job.accounts, job.type, job.claimed_at, job.note);
       // أى حالة غير نشطة = نهائية: done (اتنفّذت) أو stale/canceled (اتلغت لأن جهاز التنفيذ اتقفل)
       if (job.status !== "pending" && job.status !== "claimed") {
         const canceled = job.status !== "done";
@@ -5429,10 +5484,10 @@ export async function registerRoutes(
       const ahead = a[0]?.ahead ?? 0;
       // المهمة الجاري تنفيذها الآن (أقدم مهمة claimed) — عشان المنتظرين يشوفوا وصلت لفين
       const { rows: cj } = await pool.query(
-        `SELECT accounts, type, claimed_at FROM exec_jobs WHERE status = 'claimed' ORDER BY created_at, id LIMIT 1`);
+        `SELECT accounts, type, claimed_at, note FROM exec_jobs WHERE status = 'claimed' ORDER BY created_at, id LIMIT 1`);
       let active: { type: string; done: number; total: number } | null = null;
       if (cj[0]) {
-        const ap = await jobProgress(cj[0].accounts, cj[0].type, cj[0].claimed_at);
+        const ap = await jobProgress(cj[0].accounts, cj[0].type, cj[0].claimed_at, cj[0].note);
         active = { type: cj[0].type, done: ap.done, total: ap.total };
       }
       res.json({
@@ -8776,7 +8831,7 @@ export async function registerRoutes(
   // لأنها بتقول هى كمان حاجة عن الأكونت.
   const LINE_MEASUREMENT_FIELDS = [
     "accountNo", "markedNoAccount", "noAccountBy", "noAccountAt",
-    "currentSpeed", "maxSpeed", "score", "lastMeasTime", "measureMode", "loopLength",
+    "currentSpeed", "maxSpeed", "score", "lastMeasTime", "measureMode", "loopLength", "loopAt", "loopLastRaw", "loopLastRawAt",
     "histLabel", "poStatus", "measuredBy",
     "lastPoRaiseAt", "raisedBy", "lastPoStopAt", "stoppedBy", "lastPoStopResult",
   ] as const;
@@ -8848,7 +8903,11 @@ export async function registerRoutes(
               CASE WHEN c.measure_mode = 'noreal' THEN 'noreal'
                    WHEN c.measure_mode = 'real' OR c.source = 'dzs' THEN 'real'
                    ELSE NULL END AS "measureMode",
-              c.loop_length AS "loopLength",
+              -- المسافة (٢٠٢٦-١١-٠٣): من «تحديث المسافة» (line_loop_lengths) الأول، وإلا آخر مسافة من القياسات القديمة.
+              -- N/A مش مسافة. ولو آخر «تحديث مسافة» رجع N/A أو فاضى، القديمة بتفضل وجنبها ملحوظة (loopLastRaw).
+              COALESCE(ll.loop_length, CASE WHEN btrim(c.loop_length) ~* '^(n/?a|-+)$' THEN NULL ELSE NULLIF(btrim(c.loop_length), '') END) AS "loopLength",
+              (ll.loop_at AT TIME ZONE 'Africa/Cairo') AS "loopAt",
+              ll.last_raw AS "loopLastRaw", (ll.last_raw_at AT TIME ZONE 'Africa/Cairo') AS "loopLastRawAt",
               c.hist_label AS "histLabel",
               c.po_status AS "poStatus",
               c.measured_by AS "measuredBy",
@@ -8960,6 +9019,7 @@ export async function registerRoutes(
                  c2.hist_label, c2.source
          FROM case_138 c2 WHERE c2.full_phone = COALESCE(pl.full_phone, t.full) ORDER BY c2.id DESC LIMIT 1
        ) c ON true
+       LEFT JOIN line_loop_lengths ll ON ll.full_phone = COALESCE(pl.full_phone, t.full)
        LEFT JOIN LATERAL (
          SELECT u.complain_no, u.central_name, u.cabinet_no, u.complain_time FROM (
            SELECT complain_no, complain_time, COALESCE(NULLIF(central_name,''), exchange_name) AS central_name, cabinet_no
@@ -9727,9 +9787,11 @@ export async function registerRoutes(
       const { rows } = await pool.query(
         `SELECT DISTINCT ON (pl.full_phone)
                 pl.full_phone AS "fullPhone", pl.central, pl.cabin_number AS "cabinNumber", pl.box_number AS "boxNumber",
-                c.loop_length AS "loopRaw", c.current_speed AS "currentRaw", c.max_speed AS "maxRaw", c.score,
+                COALESCE(ll.loop_length, c.loop_length) AS "loopRaw", c.current_speed AS "currentRaw", c.max_speed AS "maxRaw", c.score,
                 (COALESCE(c.measured_at, c.uploaded_at) AT TIME ZONE 'Africa/Cairo') AS "measuredAt"
            FROM phone_lines pl
+           -- «تحديث المسافة» (٢٠٢٦-١١-٠٣) هو المصدر الأول؛ القياسات القديمة احتياطى
+           LEFT JOIN line_loop_lengths ll ON ll.full_phone = pl.full_phone
            LEFT JOIN LATERAL (
              SELECT c.loop_length, c.current_speed, c.max_speed, c.score, c.measured_at, c.uploaded_at
                FROM case_138 c
@@ -12068,8 +12130,9 @@ export async function registerRoutes(
         ? rawAt : null;
       // طول الخط خاصية للخط نفسه؛ قياس Real غالباً لا يقرأها. القيمة الفارغة
       // لا تمسح آخر قيمة معروفة: تعبير INSERT أدناه ينقل أحدث قيمة غير فارغة لنفس الخط.
-      const incomingLoopLength = preserveLoopLength(it.loopLength, null);
-      const loopLength = incomingLoopLength ?? (measureMode === "noreal" ? "" : null);
+      // ٢٠٢٦-١١-٠٣: «بدون Real» مابقاش بيقرا المسافة (بقت «تحديث المسافة»). ولو سكربت قديم بعتها: N/A أو فاضى
+      // مابيمسحش آخر مسافة معروفة (validLoopLength) — المسافة الجديدة بس هى اللى بتتكتب.
+      const loopLength = validLoopLength(it.loopLength);
       // فى قياس بدون Real نحتفظ بتمييز القراءة الفارغة لو لم توجد قيمة سابقة.
       // الخيار اللى اتاخد من History Check زى ما هو — منه بيبان «(Realtime)» لو مكتوب.
       const histLabel = measureMode === "noreal"
@@ -12095,10 +12158,10 @@ export async function registerRoutes(
                      OR ($6::text IS NULL AND $1::text IS NULL
                          AND $7::text IS NOT NULL AND c.account_no = $7))
                     AND NULLIF(btrim(c.loop_length), '') IS NOT NULL
+                    AND btrim(c.loop_length) !~* '^(n/?a|-+)$'
                   ORDER BY c.id DESC
                   LIMIT 1
-               ),
-               CASE WHEN $10 = 'noreal' THEN '' ELSE NULL END
+               )
              ),
              $13)`,
         [...measurementValues, measureMode, measuredAt, loopLength, histLabel],
@@ -12113,6 +12176,47 @@ export async function registerRoutes(
     }
     if (inserted > 0) invalidateBoxScoreAggCache();
     res.json({ inserted });
+  });
+
+  // ===== «تحديث المسافة» (المالك ٢٠٢٦-١١-٠٣) — سكربت القياس 10.37.0 بـ sf_mode=loop =====
+  // body: { items: [{ accountNo, phoneShort?, fullPhone?, loopLength }] }. القراية بتتسجّل دايماً فى last_raw
+  // (جهاز التنفيذ بيعرف منها إن الخط خلص)، والمسافة نفسها بتتغيّر بس لو القراية مسافة فعلاً — N/A أو فاضى
+  // مابيمسحش القديمة، وبيظهر جنبها ملحوظة فى «بحث برقم التليفون».
+  app.options("/api/loop-length/ingest", (_req, res) => { setDzsCors(res); res.sendStatus(204); });
+  app.post("/api/loop-length/ingest", async (req: any, res) => {
+    setDzsCors(res);
+    if (req.headers["x-dzs-token"] !== DZS_INGEST_TOKEN) return res.status(401).json({ message: "invalid token" });
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    let saved = 0, kept = 0;
+    try {
+      for (const it of items) {
+        const accountNo = String(it?.accountNo ?? "").trim() || null;
+        const phoneShort = String(it?.phoneShort ?? "").replace(/\D/g, "").replace(/^88/, "") || null;
+        let fullPhone = String(it?.fullPhone ?? "").replace(/\D/g, "") || (phoneShort ? "88" + phoneShort : null);
+        if (!fullPhone && accountNo) {
+          const { rows: la } = await pool.query(`SELECT full_phone FROM line_accounts WHERE account_no = $1 LIMIT 1`, [accountNo]);
+          fullPhone = la[0]?.full_phone ? String(la[0].full_phone).trim() : null;
+        }
+        if (!fullPhone) continue;
+        const raw = String(it?.loopLength ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+        const good = validLoopLength(raw);
+        const by = accountNo ? await execRequesterOf(accountNo, "measure") : null;
+        await pool.query(
+          `INSERT INTO line_loop_lengths (full_phone, account_no, loop_length, loop_at, last_raw, last_raw_at, last_by)
+           VALUES ($1, $2, $3, CASE WHEN $3::text IS NULL THEN NULL ELSE now() END, $4, now(), $5)
+           ON CONFLICT (full_phone) DO UPDATE SET
+             account_no = COALESCE(EXCLUDED.account_no, line_loop_lengths.account_no),
+             loop_length = COALESCE(EXCLUDED.loop_length, line_loop_lengths.loop_length),
+             loop_at = CASE WHEN EXCLUDED.loop_length IS NULL THEN line_loop_lengths.loop_at ELSE now() END,
+             last_raw = EXCLUDED.last_raw, last_raw_at = now(), last_by = EXCLUDED.last_by`,
+          [fullPhone, accountNo, good, raw, by]);
+        if (good) saved++; else kept++;
+      }
+      res.json({ ok: true, saved, kept });
+    } catch (e: any) {
+      console.error("[loop-length] تسجيل المسافة فشل:", e?.message || e);
+      res.status(500).json({ message: e?.message || "تعذّر تسجيل المسافة" });
+    }
   });
 
   // ===== استقبال أحداث رفع السرعة / إيقاف PO من سكربت رفع السرعة (token-based, CORS) =====

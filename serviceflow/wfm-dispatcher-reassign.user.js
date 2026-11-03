@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WFM Dispatcher — إلغاء المهمة (Cancel)
 // @namespace    service-flow.wfm.dispatcher-reassign
-// @description  v1.7.0: بيبعت لـ Service-Flow نتيجة كل محاولة — اتعمل، أو سبب الوقوف (الرقم مالوش مهام / كله Completed / الزرار مش متاح / الحالة ماتغيّرتش / شاشة ناقصة) — وبتظهر «آخر محاولة» جنب الزرار زى Re-Execute. v1.6.2: الدخول على WFM بحساب FCC، والدخول البطىء مابيمسحش رقم الإلغاء (كان التاب بيتحوّل لتصدير WFM اليومى). إلغاء إسناد مهمة WFM أو إسنادها لفنى آخر. يبدأ من WFM العادى، يدخل Dispatcher ← Tasks Queue، يبحث بالـ Service Id، يختار سطر مش Completed، يفتح قائمة السطر ويضغط Cancel أو Re-assign حسب الوضع المطلوب من Service-Flow. فى وضع Re-assign بيظبط تاريخ النهاردة وكود العامل (ولو غلط يفتح المكبّر ← Search ← OK) ويضغط Assign. كل خطوة بتتحقق من نتيجتها قبل اللى بعدها. v1.6.0: لو سيرفر ADF رمى خطأ (Server Exception during PPR) أثناء تصعيد المحاولات، بيقفل الرسالة ويسيب العنصر ده فوراً وينتقل للى بعده بدل ما يفضل يضرب عليه. v1.5.9: إصلاح الريفريش نفسه — location.replace لعنوان بيختلف فى الهاش بس مابيعملش إعادة تحميل، فالصفحة كانت بتفضل واقفة. بقى: نحط الهاش ثم reload حقيقى. v1.5.8: الريفريش بقى بيحافظ على الهاش (كان بيتمسح فالعدّادات مابتتصفّرش والريفريش مايفيدش)، وأى تحميل جديد على صفحة الدخول بيصفّر عدّادات التنقّل. v1.5.7: ممنوع أى ريفريش بعد تنفيذ Cancel/Assign — التحقق بضغطة Search بس. v1.5.6: مافيش افتراض إن الوضع «إلغاء» — لو sf_mode ضاع بيوقف ويقول، بدل ما يحوّل طلب «إسناد لفنى» لـ «إلغاء» فى صمت. v1.5.5: لو صفحة WorkOrder علقت والتنقّل لـ Dispatcher ماحصلش، السكربت بيعمل الريفريش بنفسه (لحد مرتين) بدل ما تعمله بإيدك. v1.5.4: عدّاد الدخول المباشر بقى مؤقّت (دقيقة) بدل ما يعيش طول عمر التاب — كان بيتخطّى الدخول المباشر بسبب تشغيلة قديمة فتعلق الشاشة لحد ما تعمل ريفريش. وأى تنقّل بيتراقب: لو ماحصلش خلال 4 ثوانى بيعيد المحاولة. v1.5.3: بيعيد البحث بنفس الرقم قبل ما يحكم على النتيجة — جدول WFM مابيتحدّثش لوحده بعد Cancel/Assign والحالة الجديدة مابتظهرش غير بعد إعادة تحميل. v1.5.1: رسالة WFM بتفضل ظاهرة 4 ثوانى (DIALOG_SHOW_MS) قبل ضغط OK.
-// @version      1.7.0
+// @description  v1.6.2: الدخول على WFM بحساب FCC، والدخول البطىء مابيمسحش رقم الإلغاء (كان التاب بيتحوّل لتصدير WFM اليومى). إلغاء إسناد مهمة WFM أو إسنادها لفنى آخر. يبدأ من WFM العادى، يدخل Dispatcher ← Tasks Queue، يبحث بالـ Service Id، يختار سطر مش Completed، يفتح قائمة السطر ويضغط Cancel أو Re-assign حسب الوضع المطلوب من Service-Flow. فى وضع Re-assign بيظبط تاريخ النهاردة وكود العامل (ولو غلط يفتح المكبّر ← Search ← OK) ويضغط Assign. كل خطوة بتتحقق من نتيجتها قبل اللى بعدها. v1.6.0: لو سيرفر ADF رمى خطأ (Server Exception during PPR) أثناء تصعيد المحاولات، بيقفل الرسالة ويسيب العنصر ده فوراً وينتقل للى بعده بدل ما يفضل يضرب عليه. v1.5.9: إصلاح الريفريش نفسه — location.replace لعنوان بيختلف فى الهاش بس مابيعملش إعادة تحميل، فالصفحة كانت بتفضل واقفة. بقى: نحط الهاش ثم reload حقيقى. v1.5.8: الريفريش بقى بيحافظ على الهاش (كان بيتمسح فالعدّادات مابتتصفّرش والريفريش مايفيدش)، وأى تحميل جديد على صفحة الدخول بيصفّر عدّادات التنقّل. v1.5.7: ممنوع أى ريفريش بعد تنفيذ Cancel/Assign — التحقق بضغطة Search بس. v1.5.6: مافيش افتراض إن الوضع «إلغاء» — لو sf_mode ضاع بيوقف ويقول، بدل ما يحوّل طلب «إسناد لفنى» لـ «إلغاء» فى صمت. v1.5.5: لو صفحة WorkOrder علقت والتنقّل لـ Dispatcher ماحصلش، السكربت بيعمل الريفريش بنفسه (لحد مرتين) بدل ما تعمله بإيدك. v1.5.4: عدّاد الدخول المباشر بقى مؤقّت (دقيقة) بدل ما يعيش طول عمر التاب — كان بيتخطّى الدخول المباشر بسبب تشغيلة قديمة فتعلق الشاشة لحد ما تعمل ريفريش. وأى تنقّل بيتراقب: لو ماحصلش خلال 4 ثوانى بيعيد المحاولة. v1.5.3: بيعيد البحث بنفس الرقم قبل ما يحكم على النتيجة — جدول WFM مابيتحدّثش لوحده بعد Cancel/Assign والحالة الجديدة مابتظهرش غير بعد إعادة تحميل. v1.5.1: رسالة WFM بتفضل ظاهرة 4 ثوانى (DIALOG_SHOW_MS) قبل ضغط OK.
+// @version      1.6.2
 // @match        https://wfm.te.eg/WorkOrder/*
 // @match        https://wfm.te.eg/Dispatcher/*
 // @connect      service-flow-menoskar42.replit.app
@@ -168,10 +168,8 @@
     }
     bar.style.background = color || "#0d47a1";
     bar.textContent = msg;
-    lastBannerMsg = String(msg || "");
     console.log("[WFM-CANCEL]", msg);
   }
-  let lastBannerMsg = "";
   function logln(msg) {
     console.log("[WFM-CANCEL]", msg);
     if (!logBox) return;
@@ -696,32 +694,6 @@
     } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
   }
 
-  // v1.7.0 (المالك ٢٠٢٦-١١-٠٣): «اتعمل ولا لأ» زى Re-Execute — أى وقوف بيتبعت بسببه
-  // (النجاح بيروح لـ cancel-ingest زى الأول). result: not_found · completed · unavailable · unsure · failed
-  // sf_eid ثابت للمحاولة دى ⇒ لو الرد ضاع والسكربت بعته تانى مايتسجّلش مرتين.
-  async function sfReportOp(phone, result, message) {
-    const key = String(phone || "").replace(/\D/g, "");
-    if (!key) return;
-    const eid = "wc" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    const body = JSON.stringify({ type: "wfmcancel", key, result, message: String(message || "").slice(0, 400) });
-    for (let i = 0; i < 3; i++) {
-      try {
-        const r = await window.fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/op-results/ingest?sf_eid=" + eid, {
-          method: "POST", headers: { "Content-Type": "application/json", "X-DZS-Token": SF_TOKEN }, body,
-        });
-        if (r.ok) { logln("📨 النتيجة («" + result + "») اتبعتت لـ Service-Flow."); return; }
-        if (r.status < 500 && r.status !== 425) { logln("⚠️ Service-Flow رفض النتيجة (HTTP " + r.status + ")."); return; }
-      } catch (e) {}
-      await sleep(2000 * (i + 1));
-    }
-    logln("⚠️ تعذّر إرسال النتيجة لـ Service-Flow.");
-  }
-  // وقوف نهائى: نعرضه على الشاشة ونبعته
-  function stopWith(serviceId, result, msg, color) {
-    banner(msg, color);
-    void sfReportOp(serviceId, result, msg.replace(/^[^\u0600-\u06FFA-Za-z0-9]+/, ""));
-  }
-
   // فتح قائمة السطر. ADF بيرسم زر القائمة كمجموعة عناصر (أيقونة + سهم ▾) والـ handler
   // مش دايماً على العنصر صاحب الـ id — فبنجرّب كل عنصر قابل للضغط جوّه/حوالين الأيقونة،
   // **وبعد كل ضغطة بنتأكد** هل ظهرت «Cancel» جديدة ولا لأ (مش بنفترض إن الضغطة نفعت).
@@ -1132,13 +1104,13 @@
     // (sessionStorage اتمسح، تاب جديد، الهاش اتغيّر) كان الطلب هيتحوّل من «إسناد لفنى»
     // لـ «إلغاء» فى صمت — يعنى يلغى مهمة المفروض تتسند. فبنوقف ونقول بدل ما نخمّن.
     if (!MODE) {
-      stopWith(serviceId, "failed", "❌ الوضع (إلغاء ولا إسناد) مش محدّد — مش هنفّذ حاجة. ابدأ من Service-Flow تانى.", "#c62828");
+      banner("❌ الوضع (إلغاء ولا إسناد) مش محدّد — مش هنفّذ حاجة. ابدأ من Service-Flow تانى.", "#c62828");
       logln("⛔ مفيش sf_mode محفوظ ولا فى الهاش — وقفت بدل ما أفترض «إلغاء».");
       clearPending();
       return;
     }
     if (MODE === "reassign" && !WORKER) {
-      stopWith(serviceId, "failed", "❌ وضع الإسناد من غير كود عامل — مش هنفّذ.", "#c62828");
+      banner("❌ وضع الإسناد من غير كود عامل — مش هنفّذ.", "#c62828");
       clearPending();
       return;
     }
@@ -1185,11 +1157,11 @@
       if (!sidInput) {
         banner("📂 بفتح Tasks Queue…");
         if (!(await gotoTasksQueue(serviceId))) {
-          stopWith(serviceId, "failed", "❌ تعذّر فتح شاشة Tasks Queue.", "#c62828");
+          banner("❌ تعذّر فتح شاشة Tasks Queue.", "#c62828");
           return;
         }
         sidInput = findServiceIdInput();
-        if (!sidInput) { stopWith(serviceId, "failed", "❌ مش لاقى خانة Service Id.", "#c62828"); return; }
+        if (!sidInput) { banner("❌ مش لاقى خانة Service Id.", "#c62828"); return; }
       }
 
       // (3) اكتب الرقم فى Service Id واضغط Search
@@ -1197,7 +1169,7 @@
       setValue(sidInput, serviceId);
       await sleep(500);
       const searchBtn = findSearchButton();
-      if (!searchBtn) { stopWith(serviceId, "failed", "❌ مش لاقى زر Search.", "#c62828"); return; }
+      if (!searchBtn) { banner("❌ مش لاقى زر Search.", "#c62828"); return; }
       fireClick(searchBtn);
       logln("🔍 اتضغط Search…");
       await waitIdle(25000);   // ADF بيعتّم الشاشة لحد ما النتايج ترجع
@@ -1209,12 +1181,9 @@
         return r.length ? r : null;
       }, 25000);
       if (!rows) {
+        banner("• مفيش نتائج للرقم " + serviceId + ".", "#ef6c00");
         const hasNoRows = /no\s*rows\s*found|no\s*data/i.test(document.body.innerText || "");
         logln(hasNoRows ? "• الجدول رجّع «No rows found»." : "• معرفتش أقرا صفوف النتايج — راجع شكل الجدول.");
-        // «No rows found» = الرقم مالوش مهام فعلاً. غير كده = معرفناش نقرا الجدول (فشل مش «مش موجود»)
-        if (hasNoRows) stopWith(serviceId, "not_found", "• مفيش مهام للرقم " + serviceId + " على WFM (No rows found).", "#ef6c00");
-        else stopWith(serviceId, "failed", "• معرفتش أقرا نتايج البحث للرقم " + serviceId + " — راجع الشاشة.", "#ef6c00");
-        clearPending();
         return;
       }
       logln("📋 " + rows.length + " سطر: " + rows.map((r) => r.status).join(" ، "));
@@ -1222,7 +1191,7 @@
       // (5) الأسطر المقبولة: Started / Assigned فقط (مش Completed)
       const candidates = rows.filter((r) => OK_STATUSES.test(r.status.trim()));
       if (!candidates.length) {
-        stopWith(serviceId, "completed", "• كل السطور حالتها Completed (الموجود: " + rows.map((r) => r.status).join(" ، ") + ").", "#ef6c00");
+        banner("• كل السطور حالتها Completed (الموجود: " + rows.map((r) => r.status).join(" ، ") + ").", "#ef6c00");
         clearPending();   // نهاية مؤكّدة
         return;
       }
@@ -1268,13 +1237,12 @@
         opened = true;
         break;
       }
-      if (!opened) { stopWith(serviceId, "unavailable", "⚠️ «" + WANTED_LABEL + "» مش متاحة فى أى سطر مؤهّل (" + candidates.map((r) => r.status).join(" ، ") + ").", "#ef6c00"); clearPending(); return; }
+      if (!opened) { banner("⚠️ «" + WANTED_LABEL + "» مش متاحة فى أى سطر مؤهّل.", "#ef6c00"); clearPending(); return; }
 
       // (6ب) وضع الإسناد لفنى آخر: نافذة «Cancel Dispatch then Re-assign Task To»
       if (MODE === "reassign") {
         const ok = await doReassign(WORKER, reassignDlg);
-        // doReassign بيعرض سبب الفشل بنفسه — بنبعت نفس الرسالة
-        if (!ok) { void sfReportOp(serviceId, "failed", "Re-assign: " + (lastBannerMsg || "ماتمّش")); clearPending(); return; }
+        if (!ok) { clearPending(); return; }   // doReassign بيعرض سبب الفشل بنفسه
       }
 
       // (7) بعد Cancel ممكن تظهر نافذة تأكيد وممكن تظهر نافذة رسالة من WFM — بنضغط
@@ -1352,12 +1320,12 @@
       } else {
         // ملحوظة: WFM بيرجّع المهمة للطابور لوحده بعد شوية من الإلغاء، فلو إعادة البحث
         // جت متأخرة ممكن نلاقى السطر رجع بنفس الحالة. بنقول ده بدل ما نجزم بالفشل.
-        stopWith(serviceId, "unsure", "⚠️ اتضغط «" + WANTED_LABEL + "» بس حالة السطر ما اتغيّرتش (" + (beforeStatus || "؟") + ") — راجع الشاشة" +
+        banner("⚠️ اتضغط «" + WANTED_LABEL + "» بس حالة السطر ما اتغيّرتش — راجع الشاشة" +
                (MODE === "cancel" ? " (ممكن يكون اتلغى وWFM رجّعه للطابور تانى)." : "."), "#ef6c00");
       }
       clearPending();   // نهاية مؤكّدة (نجاح أو ضغطة اتنفّذت) — مايتكررش لوحده
     } catch (e) {
-      stopWith(serviceId, "failed", "❌ خطأ: " + (e && e.message || e), "#c62828");
+      banner("❌ خطأ: " + (e && e.message || e), "#c62828");
       logln("❌ " + (e && e.stack || e));
     } finally {
       running = false;
@@ -1411,7 +1379,6 @@
       let hops = 0; try { hops = Number(sessionStorage.getItem(PENDING_HOPS_KEY)) || 0; } catch (e) {}
       if (hops >= PENDING_MAX_HOPS) {
         logln("⛔ استنفدت المحاولات (" + hops + ") للرقم " + pending + " — بوقف.");
-        void sfReportOp(pending, "failed", "الصفحة اتحمّلت " + hops + " مرة من غير ما توصل Tasks Queue");
         clearPending(); pending = "";
       } else { try { sessionStorage.setItem(PENDING_HOPS_KEY, String(hops + 1)); } catch (e) {} }
     }

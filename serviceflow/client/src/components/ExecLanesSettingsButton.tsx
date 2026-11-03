@@ -27,6 +27,8 @@ interface ExecLanes {
   /** باتش قياس ٩ الصبح: آخر قياس من كام يوم (٠ = كل الخطوط اللى ليها أكونت) */
   measureStaleDays: number;
   measureStaleRange: { min: number; max: number };
+  /** باتش ٩ الصبح التالت «تحديث المسافة» لنفس أرقام «بدون Real» (مقفول افتراضياً) */
+  autoLoopBatch?: boolean;
   defaults: { noreal: number; stop: number; refreshMinutes: number; measureStaleDays: number };
   max: number | null;   // null = مفيش سقف
   /** الإيقاف بالليل (١٢ بالليل ← ٧ الصبح): التحديث التلقائى وجهاز التنفيذ */
@@ -52,6 +54,7 @@ export function ExecLanesSettingsButton() {
   const [staleDays, setStaleDays] = useState("");
   const [night, setNight] = useState<NightPause>(NIGHT_PAUSE_DEFAULT);
   const [bridge, setBridge] = useState(false);
+  const [autoLoop, setAutoLoop] = useState(false);
   const [bridgeView, setBridgeView] = useState<"tabs" | "windows">("tabs");
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -86,6 +89,7 @@ export function ExecLanesSettingsButton() {
       setStaleDays(String(data.measureStaleDays ?? 1));
       setNight({ ...NIGHT_PAUSE_DEFAULT, ...(data.nightPause ?? {}) });
       setBridge(!!data.bridge);
+      setAutoLoop(!!data.autoLoopBatch);
       setBridgeView(data.bridgeView === "windows" ? "windows" : "tabs");
     }
   }, [open, data, dataUpdatedAt, openedAt]);
@@ -103,7 +107,7 @@ export function ExecLanesSettingsButton() {
       const r = await fetch(LANES_URL, {
         method: "PUT", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays, nightPause: night, bridge, bridgeView }),
+        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays, autoLoopBatch: autoLoop, nightPause: night, bridge, bridgeView }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.message || `خطأ ${r.status}`);
@@ -191,6 +195,13 @@ export function ExecLanesSettingsButton() {
                 <p className="text-xs text-muted-foreground">
                   {staleDays === "0" ? "٠ = كل الخطوط اللى ليها أكونت مهما كان آخر قياس." : "١ = أى خط ماتقاسش النهارده. ٠ = كل الخطوط اللى ليها أكونت."} والخطوط اللى ماتقاستش خالص بتدخل دايماً.
                 </p>
+                <label className="flex items-start gap-2 text-sm pt-1 cursor-pointer" data-testid="toggle-auto-loop-batch">
+                  <input type="checkbox" className="mt-1 h-4 w-4" checked={autoLoop} onChange={(e) => setAutoLoop(e.target.checked)} />
+                  <span>
+                    باتش تالت «تحديث المسافة» الساعة ٩ الصبح
+                    <span className="block text-xs text-muted-foreground">بنفس أرقام باتش «بدون Real» — بيقرا المسافة بس من شاشة DSL. مقفول افتراضياً (قياس ٩ الصبح مابقاش بيقرا المسافة).</span>
+                  </span>
+                </label>
               </div>
               <div className="space-y-3 pt-2 border-t">
                 <p className="text-sm font-medium">فترة الإيقاف (توقيت القاهرة)</p>

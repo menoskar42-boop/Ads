@@ -55,6 +55,13 @@ function describe(j: Job): string {
   const d = j.detail || {};
   switch (j.type) {
     case "measure":
+      // «تحديث المسافة»: قراية Estimated Loop Length بس (N/A أو فاضى مابيمسحش المسافة القديمة)
+      if (d.loop) {
+        if (!d.readInThisJob) return `المسافة ماتقريتش فى المهمة دى${d.at ? ` (آخر قراية: ${fmt(d.at)})` : ""}`;
+        const ok = d.lastRaw && !/^(n\/?a|-+)$/i.test(String(d.lastRaw).trim());
+        return ok ? `المسافة: ${d.lastRaw} · ${fmt(d.at)}`
+          : `AXON رجّع «${d.lastRaw || "فاضى"}» — المسافة القديمة فضلت${d.loopLength ? ` (${d.loopLength})` : ""} · ${fmt(d.at)}`;
+      }
       return d.measuredInThisJob
         ? `اتقاس — الاسكور ${d.score ?? "؟"} · السرعة ${d.currentSpeed ?? "؟"}/${d.maxSpeed ?? "؟"}`
           + (d.complainNo ? ` · شكوى ${d.complainNo}` : "") + ` · ${fmt(d.at)}`

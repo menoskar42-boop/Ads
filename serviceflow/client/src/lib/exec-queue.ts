@@ -40,6 +40,11 @@ export const PHONE_LOOKUP_SOURCE = "بحث برقم التليفون";
 // السكربت مابيعملش real-time — بياخد أحدث تاريخ من «History Check» ويقرا القيم اللى
 // عليه، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length».
 export const NOREAL_MARK = "بدون Real";
+// «تحديث المسافة» (المالك ٢٠٢٦-١١-٠٣): «بدون Real» مابقاش بيقرا المسافة. القراية بقت مهمة لوحدها:
+// note فيها NOREAL_MARK + LOOP_MARK (فبتاخد تابات «بدون Real» وReal يشتغل جنبها)، وجهاز التنفيذ بيبعت
+// &sf_mode=loop فسكربت القياس (≥10.37.0) بيفتح شاشة DSL بس ويقرا «Estimated Loop Length».
+// لازم يفضل نفس نص LOOP_MARK فى server/exec-followups.ts.
+export const LOOP_MARK = "تحديث المسافة";
 
 const DZS_URL = "https://10.42.187.101:8080/expresse/";
 const FCC_URL = "https://fcc.te.eg/TroubleTicket/faces/security/pages/Login.jsf";
@@ -429,7 +434,7 @@ export function measureTabName(lane?: number): string {
   return lane && lane !== REAL_MEASURE_LANE ? `${DZS_MEASURE_TARGET}_${lane}` : DZS_MEASURE_TARGET;
 }
 
-export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; noReal?: boolean; lane?: number; afterStop?: boolean; keep?: boolean; params?: ExecJobParams | null }): Window | null {
+export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; noReal?: boolean; loop?: boolean; lane?: number; afterStop?: boolean; keep?: boolean; params?: ExecJobParams | null }): Window | null {
   const accs = accounts.map((a) => String(a ?? "").trim()).filter(Boolean);
   if (!accs.length) return null;
   // العمليات الجديدة: c360 بياخد كل الأرقام مرة واحدة، والباقى رقم واحد لكل مهمة.
@@ -448,19 +453,23 @@ export function executeBatch(type: ExecJobType, accounts: (string | number)[], o
 }
 
 /** رابط DZS لباتش قياس — جهاز التنفيذ بيحتاجه لوحده عشان يعيد تحميل **نفس التاب** */
-export function measureBatchUrl(accs: string[], opts?: { fixRecent?: boolean; noReal?: boolean; lane?: number }): string {
+export function measureBatchUrl(accs: string[], opts?: { fixRecent?: boolean; noReal?: boolean; loop?: boolean; lane?: number }): string {
   return `${DZS_URL}#sf_accounts=${encodeURIComponent(accs.join(","))}${measureHashFlags(opts)}`;
 }
 
 /** للتشغيل المحلى (سوبر أدمن من غير جهاز تنفيذ): علامة «بدون Real» على رابط DZS
  *  اللى التقرير بيبنيه بنفسه. نفس اللى جهاز التنفيذ بيعمله من الـnote. */
-export function noRealUrl(url: string, noReal?: boolean): string {
+export function noRealUrl(url: string, noReal?: boolean, loop?: boolean): string {
+  // «تحديث المسافة»: شاشة DSL بس (سكربت القياس ≥10.37.0)
+  if (loop) return url + "&sf_mode=loop";
   return noReal ? url + "&sf_mode=noreal" : url;
 }
 
 /** علامات القياس فى رابط DZS. «بدون Real» مالوش شاشة real-time أصلاً، فعلامة
  *  «A recent fix» (اللى بتختار حاجة فى شاشة الـreal-time) مالهاش معنى معاه. */
-export function measureHashFlags(opts?: { fixRecent?: boolean; noReal?: boolean; lane?: number }): string {
+export function measureHashFlags(opts?: { fixRecent?: boolean; noReal?: boolean; loop?: boolean; lane?: number }): string {
+  // «تحديث المسافة»: شاشة DSL بس — بنفس تابات «بدون Real»
+  if (opts?.loop) return "&sf_mode=loop" + (opts.lane && opts.lane > 1 ? `&sf_lane=${opts.lane}` : "");
   // التاب التانى لـ«بدون Real» (v10.25): السكربت بياخد رقمه ويحفظ حالته بلاحقة _L2.
   if (opts?.noReal) return "&sf_mode=noreal" + (opts.lane && opts.lane > 1 ? `&sf_lane=${opts.lane}` : "");
   // Real من جهاز التنفيذ: تابه (80) بمفاتيح لوحده فى سكربت القياس
@@ -729,6 +738,8 @@ export async function dispatchSpeedTool(
     // «قياس بدون Real»: العلامة NOREAL_MARK بتتحط فى note المهمة، وجهاز التنفيذ
     // بيحوّلها لـ&sf_mode=noreal (ExecutorButton). للقياس بس.
     noReal?: boolean;
+    /** «تحديث المسافة» (بيتحط مع noReal فى note المهمة) */
+    loop?: boolean;
   },
 ): Promise<boolean> {
   const accs = accounts.map((a) => String(a ?? "").trim()).filter(Boolean);
@@ -740,7 +751,9 @@ export async function dispatchSpeedTool(
   // (measured_by / last_raise_by / requested_by …). العمليات على مستوى الموقع كله مالهاش رقم.
   if (!SITE_WIDE_TYPES.has(type)) void recordOpIntent(type, accs);
   if (await isExecutorActive()) {
-    const note = type === "measure" && opts?.noReal
+    const note = type === "measure" && opts?.loop
+      ? [currentSource, NOREAL_MARK, LOOP_MARK].filter(Boolean).join(" — ")
+      : type === "measure" && opts?.noReal
       ? [currentSource, NOREAL_MARK].filter(Boolean).join(" ")
       : undefined;
     const res = await enqueueJob(type, accs, note, opts?.params);

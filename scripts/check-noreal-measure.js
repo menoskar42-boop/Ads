@@ -67,7 +67,7 @@ for (const l of ['نوع القياس', 'Loop Length']) {
 }
 need(/"آخر قياس", "نوع القياس", "Loop Length"/.test(plr), 'عمودين «نوع القياس» و«Loop Length» مش فى الـPDF (قيد #7).');
 need(/if \(opts\?\.noReal\) return "&sf_mode=noreal"(;| \+ )/.test(eq), 'measureHashFlags لازم يرجّع &sf_mode=noreal.');
-need(/const noReal = String\(note \|\| ""\)\.includes\(NOREAL_MARK\);/.test(exb) && /executeBatch\("measure", accs, \{ fixRecent, noReal(, lane)? \}\)/.test(exb),
+need(/const noReal = String\(note \|\| ""\)\.includes\(NOREAL_MARK\);/.test(exb) && /executeBatch\("measure", accs, \{ fixRecent, noReal(, loop)?(, lane)? \}\)/.test(exb),
   'جهاز التنفيذ لازم يحوّل NOREAL_MARK لـnoReal.');
 
 // ٦. (٢٠٢٦-٠٩-٢٣) الزرار فى **كل** تقرير فيه زرار القياس القديم، وباتش ٩ الصبح «بدون Real».
@@ -77,9 +77,9 @@ need((routes.match(/const AUTO_MEASURE_NOREAL_MARK = "([^"]+)";/) || [])[1] === 
   'علامة باتش ٩ الصبح فى السيرفر لازم = NOREAL_MARK بالحرف — وإلا جهاز التنفيذ هيعمل قياس Real.');
 need(/enqueueAutoBatch\(\s*"measure", measAccs,[\s\S]{0,300}قياس \$\{AUTO_MEASURE_NOREAL_MARK\}`\)/.test(routes),
   'باتش القياس اليومى (٩ ص) لازم الـnote بتاعه فيه AUTO_MEASURE_NOREAL_MARK.');
-need(/const note = type === "measure" && opts\?\.noReal\s*\?\s*\[currentSource, NOREAL_MARK\]/.test(eq),
+need(/type === "measure" && opts\?\.noReal\s*\?\s*\[currentSource, NOREAL_MARK\]/.test(eq),
   'dispatchSpeedTool لازم يحط NOREAL_MARK فى note لما noReal.');
-need(/export function noRealUrl\(url: string, noReal\?: boolean\): string \{\s*return noReal \? url \+ "&sf_mode=noreal" : url;/.test(eq),
+need(/export function noRealUrl\(url: string, noReal\?: boolean(, loop\?: boolean)?\): string \{[\s\S]{0,160}return noReal \? url \+ "&sf_mode=noreal" : url;/.test(eq),
   'noRealUrl لازم يزوّد &sf_mode=noreal (التشغيل المحلى).');
 const dir = path.join(__dirname, '..', 'serviceflow', 'client', 'src', 'components');
 let checked = 0;
@@ -89,7 +89,10 @@ for (const f of fs.readdirSync(dir).filter((x) => /Report\.tsx$/.test(x) && x !=
   if (!/\/>\}? قياس (DZS|الكل)\s*\n/.test(src)) continue;
   checked++;
   need(/قياس بدون Real\s*\n/.test(src), `${f}: فيه زرار القياس القديم ومافيهوش «قياس بدون Real».`);
-  need(/noReal \}\)|noReal: kind === "measure" && noReal \}\)|notify: setNotice, noReal \}\)/.test(src), `${f}: الزرار الجديد مابيبعتش noReal لـdispatchSpeedTool.`);
+  need(/noReal(, loop)? \}\)|noReal: kind === "measure" && noReal(, loop: kind === "measure" && loop)? \}\)|notify: setNotice, noReal(, loop)? \}\)/.test(src), `${f}: الزرار الجديد مابيبعتش noReal لـdispatchSpeedTool.`);
+  // «تحديث المسافة» (٢٠٢٦-١١-٠٣): جنب «بدون Real» زرار للسوبر أدمن بيبعت loop
+  need(/\{isSuper && \([\s\S]{0,200}\(true, true\)\}[\s\S]{0,400}تحديث المسافة/.test(src) || /handleBatch\("measure", true, true\)/.test(src),
+    `${f}: مافيهوش زرار «تحديث المسافة» (سوبر أدمن) جنب «بدون Real».`);
   // CFM «قياس الكل» مالوش تشغيل محلى أصلاً (جهاز التنفيذ بس) — فمالوش رابط يتعلّم.
   const localOnlyQueue = /if \(kind === "measure"\) \{ alert\("جهاز التنفيذ غير مفعّل/.test(src);
   if (!localOnlyQueue) need(/noRealUrl\(buildDZSUrl\(/.test(src), `${f}: التشغيل المحلى مابيزوّدش &sf_mode=noreal.`);

@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChevronRight, ChevronLeft, Loader2, Radar, X, Gauge, History } from "lucide-react";
+import { ChevronRight, ChevronLeft, Loader2, Radar, X, Gauge, History, Ruler } from "lucide-react";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import * as XLSX from "xlsx";
@@ -152,7 +152,7 @@ export function ComplaintNoMeasureReport() {
     window.open(buildDZSUrl([String(r.accountNo).trim()]), "dzs_measure");
   };
 
-  const handleMeasureDZS = async (noReal = false) => {
+  const handleMeasureDZS = async (noReal = false, loop = false) => {
     const w = window.open("about:blank", "dzs_measure");
     setDzsLoading(true);
     setDzsCount(null);
@@ -165,8 +165,8 @@ export function ComplaintNoMeasureReport() {
         .map((r) => (r.accountNo ?? "").toString().trim())
         .filter((a) => a && !seen.has(a) && seen.add(a));
       if (accounts.length === 0) { try { w?.close(); } catch {} alert("لا توجد أرقام أكونت فى النطاق المحدد"); return; }
-      if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal })) { try { w?.close(); } catch {} return; }
-      if (w) w.location.href = noRealUrl(buildDZSUrl(accounts), noReal);
+      if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal, loop })) { try { w?.close(); } catch {} return; }
+      if (w) w.location.href = noRealUrl(buildDZSUrl(accounts), noReal, loop);
       setDzsCount(accounts.length);
     } catch {
       try { w?.close(); } catch {}
@@ -291,6 +291,12 @@ export function ComplaintNoMeasureReport() {
             <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true)} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
               <History className="w-4 h-4" /> قياس بدون Real
             </Button>
+            {isSuper && (
+              <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true, true)} className="text-teal-700 border-teal-300 gap-1"
+                title="تحديث المسافة (Estimated Loop Length) بس من شاشة DSL — من غير قياس. لو AXON رجّع N/A أو فاضى المسافة القديمة بتفضل — سوبر أدمن بس">
+                <Ruler className="w-4 h-4" /> تحديث المسافة
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => handleRaisePO("raise")} className="text-emerald-700 border-emerald-200 gap-1" title="رفع السرعة (Profile Optimization) لأرقام النطاق المحدد">
               <Gauge className="w-4 h-4" /> رفع سرعة
             </Button>

@@ -205,7 +205,7 @@ test("settings switch: off by default, super-admin key, lease/start refuse while
   assert.match(routes, /if \(body\.bridge === false\) \{\n\s+await pool\.query\(`UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`\);/);
   assert.match(routes, /bridgeSeenSec: bridgeSeen \?/);
   const ui = readFileSync(new URL("../client/src/components/ExecLanesSettingsButton.tsx", import.meta.url), "utf8");
-  assert.match(ui, /measureStaleDays: \+staleDays, nightPause: night, bridge, bridgeView \}/);
+  assert.match(ui, /measureStaleDays: \+staleDays,( autoLoopBatch: autoLoop,)? nightPause: night, bridge, bridgeView \}/);
   assert.match(ui, /<Switch checked=\{bridge\} onCheckedChange=\{setBridge\}/);
 });
 

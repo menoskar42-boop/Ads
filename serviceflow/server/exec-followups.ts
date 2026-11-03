@@ -18,6 +18,10 @@ export const RECHECK_AFTER_MIN = 2;
 // الرقم بعد ١٠ دقايق». الإيقاف خلص (تاب اتقفل/وقف) ومفيش إيقاف اتسجّل للرقم من ساعة ما اتسحب ⇒
 // إيقاف جديد بعد ١٠ دقايق بنفس الملاحظة (فالقياس بعده لسه شغّال) + «+إعادة<رقم>»، لحد ٣ مرات.
 export const STOP_RETRY_MARK = "+إعادة";
+// «تحديث المسافة» (المالك ٢٠٢٦-١١-٠٣): قياس «بدون Real» مابقاش بيقرا المسافة — قراية «Estimated Loop Length»
+// بقت مهمة لوحدها. بتتحط فى note مع «بدون Real» فبتاخد نفس تابات «بدون Real» وQياس Real يشتغل جنبها،
+// وسكربت القياس بيفتح شاشة DSL بس (sf_mode=loop). مسارها: /api/loop-length/ingest ← line_loop_lengths.
+export const LOOP_MARK = "تحديث المسافة";
 export const STOP_RETRY_AFTER_MIN = 10;
 export const STOP_RETRY_MAX = 3;
 const STOP_RETRY_RE = /\+إعادة(\d*)/g;

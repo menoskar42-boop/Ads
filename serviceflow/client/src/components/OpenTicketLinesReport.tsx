@@ -9,7 +9,7 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, RefreshCw, AlertCircle, Radar, FileSpreadsheet, FileText, Gauge, History } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, Radar, FileSpreadsheet, FileText, Gauge, History, Ruler } from "lucide-react";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import * as XLSX from "xlsx";
@@ -113,7 +113,7 @@ export function OpenTicketLinesReport() {
     [lines, filterCentral, filterCabinet, onlyWithAccount],
   );
 
-  const handleMeasureDZS = async (noReal = false) => {
+  const handleMeasureDZS = async (noReal = false, loop = false) => {
     const accounts = [...new Set(
       filtered.map((l) => (l.accountNo ?? "").toString().trim()).filter(Boolean),
     )];
@@ -121,8 +121,8 @@ export function OpenTicketLinesReport() {
       alert("لا توجد أرقام أكونت فى الخطوط المعروضة لقياسها");
       return;
     }
-    if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal })) return;
-    window.open(noRealUrl(buildDZSUrl(accounts), noReal), "dzs_measure");
+    if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal, loop })) return;
+    window.open(noRealUrl(buildDZSUrl(accounts), noReal, loop), "dzs_measure");
     setDzsCount(accounts.length);
   };
 
@@ -223,6 +223,12 @@ export function OpenTicketLinesReport() {
             <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true)} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
               <History className="w-4 h-4" /> قياس بدون Real
             </Button>
+            {isSuper && (
+              <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true, true)} className="text-teal-700 border-teal-300 gap-1"
+                title="تحديث المسافة (Estimated Loop Length) بس من شاشة DSL — من غير قياس. لو AXON رجّع N/A أو فاضى المسافة القديمة بتفضل — سوبر أدمن بس">
+                <Ruler className="w-4 h-4" /> تحديث المسافة
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => handleRaisePO("raise")} className="text-emerald-700 border-emerald-200 gap-1" title="رفع السرعة (Profile Optimization) للخطوط المعروضة">
               <Gauge className="w-4 h-4" /> رفع سرعة
             </Button>

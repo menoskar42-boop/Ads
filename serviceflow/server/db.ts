@@ -1927,6 +1927,20 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS measured_at timestamptz`);
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS measure_mode text`);
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS loop_length text`);
+  // line_loop_lengths — «تحديث المسافة» (المالك ٢٠٢٦-١١-٠٣): آخر مسافة معروفة لكل خط. loop_length بيتغيّر
+  // بس لما القراية الجديدة تبقى مسافة فعلاً؛ N/A أو فاضى بيتسجّل فى last_raw (ملحوظة) والقديمة بتفضل.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS line_loop_lengths (
+      full_phone text PRIMARY KEY,
+      account_no text,
+      loop_length text,
+      loop_at timestamptz,
+      last_raw text,
+      last_raw_at timestamptz,
+      last_by text
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS line_loop_lengths_account_idx ON line_loop_lengths (account_no, last_raw_at)`);
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS hist_label text`);
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_raise_by text`);
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_stop_by text`);

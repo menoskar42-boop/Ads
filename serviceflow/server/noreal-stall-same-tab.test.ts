@@ -11,7 +11,7 @@ const q = readFileSync(new URL("../client/src/lib/exec-queue.ts", import.meta.ur
 test("the one-minute refresh navigates the same stuck tab by reference, not by tab name", () => {
   const block = ex.slice(ex.indexOf("if (noReal && !reopened"), ex.indexOf("if (noReal && !reopened") + 2200);
   assert.match(block, /win\.location\.href = "about:blank";/);
-  assert.match(block, /win\.location\.href = measureBatchUrl\(accs, \{ fixRecent, noReal, lane \}\); moved = true;/);
+  assert.match(block, /win\.location\.href = measureBatchUrl\(accs, \{ fixRecent, noReal,( loop,)? lane \}\); moved = true;/);
   // لو المرجع مابقاش صالح: نقفل القديم الأول وبعدين نفتح
   assert.match(block, /if \(!moved\) \{\s*closeWin\(\);\s*win = executeBatch\("measure"[^\n]*\n\s*if \(!win\) \{ setPopupBlocked\(true\); return POPUP_BLOCKED; \}/);
   assert.match(q, /export function measureBatchUrl\(/);
