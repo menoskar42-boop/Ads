@@ -791,6 +791,21 @@ export const execFollowups = pgTable("exec_followups", {
   jobId: integer("job_id"),
 });
 
+// سجل خطوات سكربت PO لكل خط (server/db.ts ensureSchema — po_traces)
+export const poTraces = pgTable("po_traces", {
+  id: serial("id").primaryKey(),
+  accountNo: text("account_no").notNull(),
+  mode: text("mode"),
+  outcome: text("outcome"),
+  lastStatus: text("last_status"),
+  lane: text("lane"),
+  scriptVersion: text("script_version"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  steps: jsonb("steps"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const execJobs = pgTable("exec_jobs", {
   id: serial("id").primaryKey(),
   type: text("type").notNull(),

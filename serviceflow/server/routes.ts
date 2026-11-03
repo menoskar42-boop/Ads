@@ -12006,6 +12006,65 @@ export async function registerRoutes(
     res.json({ saved });
   });
 
+  // ── سجل خطوات سكربت PO (المالك ٢٠٢٦-١١-٠٣) ─────────────────────────────────────────────
+  // السكربت (0.9.24+) بيبعت سطر لكل خط لما يخلص أو يتقطع: النتيجة + كل خطوة (الحالة اللى قراها، اللى عمله، الوقت).
+  // بيتبعت من طابور السكربت (sf_eid) فمابيتسجّلش مرتين. السجل بيتمسح بعد ٣٠ يوم.
+  const PO_TRACE_OUTCOMES = new Set(["stopped", "already", "raise", "gave_up", "timeout", "not_found", "skipped", "interrupted", "no_result"]);
+  let poTracePruneAt = 0;
+  app.options("/api/po-traces/ingest", (_req, res) => { setDzsCors(res); res.sendStatus(204); });
+  app.post("/api/po-traces/ingest", async (req: any, res) => {
+    setDzsCors(res);
+    if (req.headers["x-dzs-token"] !== DZS_INGEST_TOKEN) return res.status(401).json({ message: "invalid token" });
+    try {
+      const items = (Array.isArray(req.body?.items) ? req.body.items : []).slice(0, 50);
+      const clip = (v: any, n: number) => { const t = String(v ?? "").trim(); return t ? t.slice(0, n) : null; };
+      const when = (v: any) => { if (v == null || v === "") return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d.toISOString(); };
+      let saved = 0;
+      for (const it of items) {
+        const acc = clip(it?.accountNo, 40);
+        if (!acc) continue;
+        const outcome = PO_TRACE_OUTCOMES.has(String(it?.outcome)) ? String(it.outcome) : "no_result";
+        const steps = (Array.isArray(it?.steps) ? it.steps : []).slice(-120).map((x: any) => ({
+          t: when(x?.t), s: clip(x?.s, 80), m: clip(x?.m, 300),
+        }));
+        await pool.query(
+          `INSERT INTO po_traces (account_no, mode, outcome, last_status, lane, script_version, started_at, ended_at, steps)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+          [acc, clip(it?.mode, 10), outcome, clip(it?.lastStatus, 80), clip(it?.lane, 10), clip(it?.version, 20),
+           when(it?.startedAt), when(it?.endedAt), JSON.stringify(steps)]);
+        saved++;
+      }
+      if (Date.now() - poTracePruneAt > 6 * 3600_000) {
+        poTracePruneAt = Date.now();
+        await pool.query(`DELETE FROM po_traces WHERE created_at < now() - interval '30 days'`);
+      }
+      res.json({ saved });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // GET /api/po-traces — للسوبر أدمن: from/to (يوم بتوقيت القاهرة) · account · outcome · mode
+  app.get("/api/po-traces", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const q = req.query as Record<string, string>;
+      const day = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? v : null);
+      const params: any[] = [];
+      const conds: string[] = [];
+      const from = day(q.from), to = day(q.to);
+      if (from) { params.push(from); conds.push(`(created_at AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}::date`); }
+      if (to) { params.push(to); conds.push(`(created_at AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}::date`); }
+      if (String(q.account || "").trim()) { params.push(`%${String(q.account).trim()}%`); conds.push(`account_no LIKE $${params.length}`); }
+      if (PO_TRACE_OUTCOMES.has(String(q.outcome))) { params.push(q.outcome); conds.push(`outcome = $${params.length}`); }
+      if (q.mode === "stop" || q.mode === "full") { params.push(q.mode); conds.push(`mode = $${params.length}`); }
+      const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+      const { rows } = await pool.query(
+        `SELECT id, account_no AS "accountNo", mode, outcome, last_status AS "lastStatus", lane, script_version AS "version",
+                started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt", steps
+           FROM po_traces ${where} ORDER BY created_at DESC, id DESC LIMIT 3000`, params);
+      const { rows: counts } = await pool.query(`SELECT outcome, COUNT(*)::int AS n FROM po_traces ${where} GROUP BY outcome`, params);
+      res.json({ data: rows, counts: Object.fromEntries(counts.map((c: any) => [c.outcome, c.n])) });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // تسجيل «نيّة» العملية: مين المستخدم اللى ضغط قياس/رفع سرعة/إيقاف لأى أرقام — يُختم بعدها فى
   // case_138.measured_by / line_po_events.last_raise_by / last_stop_by لما النتيجة ترجع.
   app.post("/api/op-intent", requireAuth, async (req: any, res) => {

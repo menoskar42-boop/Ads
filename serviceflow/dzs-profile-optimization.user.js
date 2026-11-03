@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DZS Profile Optimization (رفع السرعة) — Service-Flow
 // @namespace    service-flow.dzs.po
-// @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. v0.9.23: «إيقاف PO» كان بيلف على خطوط In Nightly PO من غير ما يوقّفها: لو فى أى حتة فى الصفحة كلام «Real-time PO» (مثلاً من رفع سرعة قديم) كان بيفتكر إن فيه رفع شغّال، يستنى، يلاقى الحالة Nightly فيعمل ريفريش، ويرجع يفتكر نفس الحاجة — لحد ما المهلة تخلص من غير إيقاف ولا تسجيل، والسيرفر يعيد «+إعادة». دلوقتى الحالة نفسها (PO Status) هى اللى بتقرّر، ونص الصفحة بيتبصّ له بس لو الحالة مش معروفة، والاستنا بيحصل مرة واحدة بس لكل رقم. وكمان قراية الحالة بقت تدوّر على «PO Status» و«Status» وتاخد أول قيمة معروفة (Nightly/Not Started/Real-time) بدل أول خانة اسمها Status. v0.9.22: بيضغط «Log In» مرة واحدة بس لكل صفحة زى سكربت القياس (كان بيضغط كل ٠٫٨ث وAXON بطىء فالطلبات بتتكوّم ومحدش بيدخل). v0.9.21: تسجيل الدخول رجع زى 0.9.16 بالظبط — بطلب المالك؛ قفل الدخول الواحد (0.9.17–0.9.20) اتشال. v0.9.20: التاب اللى مستنى دخول تاب تانى بيكمّل فى نفس اللحظة اللى الدخول ينجح فيها (التاب اللى سجّل بيبعت إشارة للباقى) بدل ما يستنى ٤ ثوانى. v0.9.19: التاب اللى مستنى دخول تاب تانى بيجرّب صفحة رقمه كل ٤ ثوانى بدل ما يستنى ٢٠ ثانية — فبيدخل بعد ثوانى من دخول التاب التانى، ولو لازم يسجّل هو بيسجّل بعد ١٠ ثوانى بالكتير من آخر دخول (كانت ٢٠). v0.9.18: لو التاب وقع على صفحة الدخول، بيجرّب صفحة الرقم بالجلسة الحالية الأول (ممكن تكون شغّالة وصفحة الدخول قديمة)، وبيسجّل دخول بس لو رجع لصفحة الدخول تانى. v0.9.17: تسجيل دخول واحد فى المرة — لو الجلسة خلصت وفيه تابات إيقاف كتير، أول تاب بس بيسجّل دخول (ضغطة واحدة مش كل ثانية) والباقى بيستنوا ٢٠ ثانية ويكمّلوا بنفس الجلسة، بنفس قفل سكربت القياس 10.32 (كانوا كلهم بيسجّلوا دخول مع بعض فيلغوا جلسات بعض ويفضلوا واقفين على صفحة الدخول). v0.9.16: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v0.9.15: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v0.9.14: بعد Yes على الإيقاف لو الحالة مارجعتش Not Started فى ١٠ث (بدل دقيقة ونص) بيعمل ريفريش لوحده (location.reload — نفس الريفريش اليدوى بالظبط) ويعيد الإيقاف، والبانر بيعدّ الثوانى الباقية. v0.9.13: ضغط Yes بقى جوّه نافذة التأكيد الظاهرة بس — لو النافذة اتأخرت كان بيدوس «Yes» بتاع دروب ليست «Enable PO» ويفتكر إنه أكّد، فالإيقاف (أو رفع السرعة) ساعات مايحصلش. وظهور النافذة بيتعرف من النافذة نفسها مش من نص الصفحة («Stop Nightly PO» موجود دايماً فى اختيارات الدروب ليست). v0.9.12: «إيقاف PO» بعد الانتظار (الحالة اتغيّرت لـ In Nightly PO والصفحة مفتوحة من بدرى) بيحمّل الصفحة من جديد قبل الإيقاف — كان بيدوس Yes على دروب ليست مش نضيفة ومفيش إيقاف بيحصل. وبعد Yes لو الحالة مارجعتش Not Started فى دقيقة ونص بيحمّل الصفحة ويتأكد: Not Started ⇒ «تم الإيقاف»، لسه Nightly ⇒ يعيد الإيقاف (لحد ٣ مرات). v0.9.11: «إيقاف PO» بيبعت نتيجته مع التاريخ — «stopped» لو الخط كان In Nightly PO واتوقف، و«already» لو كان Not Started فماكانش فيه حاجة توقّف — وService-Flow بيكتبها جنب «آخر إيقاف PO». v0.9.10: «إيقاف PO» بعد رفع السرعة (المهمة المجدولة بعد ٧ دقايق) كان بيلاقى حالة تانية غير Nightly/Not Started (الرفع لسه بيخلص) فيتخطّى الرقم من غير ما يوقّف ولا يسجّل — دلوقتى فى وضع الإيقاف بيستنى لحد ما الحالة تبقى Nightly (فيوقّفه) أو Not Started (فيسجّل)، ومابيتخطّاش. v0.9.9: «إيقاف PO» ممكن يشتغل فى أكتر من تاب مع بعض (sf_lane=2،3…) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2…) وعلامة PO_TAB فى sessionStorage بتوقّف سكربت القياس فى التاب ده؛ العدد بيتحدّد من «رفع الملفات ← إعدادات» فى Service-Flow. التاب الأول من غير لاحقة زى v0.9.8 بالظبط. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
-// @version      0.9.23
+// @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. v0.9.24: سجل خطوات لكل خط بيتبعت لـService-Flow (تقرير «سجل خطوات PO» للسوبر أدمن): الحالة اللى قراها، اللى اختاره من Choose Action وبأنهى طريقة، داس Yes ولا لأ، الريفريشات، والنتيجة (اتوقف · كان Not Started · فشل بعد ٣ محاولات · المهلة خلصت · اتقطع لما التاب اتقفل) — عشان مايبقاش لازم حد يصوّر التابات. v0.9.23: «إيقاف PO» كان بيلف على خطوط In Nightly PO من غير ما يوقّفها: لو فى أى حتة فى الصفحة كلام «Real-time PO» (مثلاً من رفع سرعة قديم) كان بيفتكر إن فيه رفع شغّال، يستنى، يلاقى الحالة Nightly فيعمل ريفريش، ويرجع يفتكر نفس الحاجة — لحد ما المهلة تخلص من غير إيقاف ولا تسجيل، والسيرفر يعيد «+إعادة». دلوقتى الحالة نفسها (PO Status) هى اللى بتقرّر، ونص الصفحة بيتبصّ له بس لو الحالة مش معروفة، والاستنا بيحصل مرة واحدة بس لكل رقم. وكمان قراية الحالة بقت تدوّر على «PO Status» و«Status» وتاخد أول قيمة معروفة (Nightly/Not Started/Real-time) بدل أول خانة اسمها Status. v0.9.22: بيضغط «Log In» مرة واحدة بس لكل صفحة زى سكربت القياس (كان بيضغط كل ٠٫٨ث وAXON بطىء فالطلبات بتتكوّم ومحدش بيدخل). v0.9.21: تسجيل الدخول رجع زى 0.9.16 بالظبط — بطلب المالك؛ قفل الدخول الواحد (0.9.17–0.9.20) اتشال. v0.9.20: التاب اللى مستنى دخول تاب تانى بيكمّل فى نفس اللحظة اللى الدخول ينجح فيها (التاب اللى سجّل بيبعت إشارة للباقى) بدل ما يستنى ٤ ثوانى. v0.9.19: التاب اللى مستنى دخول تاب تانى بيجرّب صفحة رقمه كل ٤ ثوانى بدل ما يستنى ٢٠ ثانية — فبيدخل بعد ثوانى من دخول التاب التانى، ولو لازم يسجّل هو بيسجّل بعد ١٠ ثوانى بالكتير من آخر دخول (كانت ٢٠). v0.9.18: لو التاب وقع على صفحة الدخول، بيجرّب صفحة الرقم بالجلسة الحالية الأول (ممكن تكون شغّالة وصفحة الدخول قديمة)، وبيسجّل دخول بس لو رجع لصفحة الدخول تانى. v0.9.17: تسجيل دخول واحد فى المرة — لو الجلسة خلصت وفيه تابات إيقاف كتير، أول تاب بس بيسجّل دخول (ضغطة واحدة مش كل ثانية) والباقى بيستنوا ٢٠ ثانية ويكمّلوا بنفس الجلسة، بنفس قفل سكربت القياس 10.32 (كانوا كلهم بيسجّلوا دخول مع بعض فيلغوا جلسات بعض ويفضلوا واقفين على صفحة الدخول). v0.9.16: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v0.9.15: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v0.9.14: بعد Yes على الإيقاف لو الحالة مارجعتش Not Started فى ١٠ث (بدل دقيقة ونص) بيعمل ريفريش لوحده (location.reload — نفس الريفريش اليدوى بالظبط) ويعيد الإيقاف، والبانر بيعدّ الثوانى الباقية. v0.9.13: ضغط Yes بقى جوّه نافذة التأكيد الظاهرة بس — لو النافذة اتأخرت كان بيدوس «Yes» بتاع دروب ليست «Enable PO» ويفتكر إنه أكّد، فالإيقاف (أو رفع السرعة) ساعات مايحصلش. وظهور النافذة بيتعرف من النافذة نفسها مش من نص الصفحة («Stop Nightly PO» موجود دايماً فى اختيارات الدروب ليست). v0.9.12: «إيقاف PO» بعد الانتظار (الحالة اتغيّرت لـ In Nightly PO والصفحة مفتوحة من بدرى) بيحمّل الصفحة من جديد قبل الإيقاف — كان بيدوس Yes على دروب ليست مش نضيفة ومفيش إيقاف بيحصل. وبعد Yes لو الحالة مارجعتش Not Started فى دقيقة ونص بيحمّل الصفحة ويتأكد: Not Started ⇒ «تم الإيقاف»، لسه Nightly ⇒ يعيد الإيقاف (لحد ٣ مرات). v0.9.11: «إيقاف PO» بيبعت نتيجته مع التاريخ — «stopped» لو الخط كان In Nightly PO واتوقف، و«already» لو كان Not Started فماكانش فيه حاجة توقّف — وService-Flow بيكتبها جنب «آخر إيقاف PO». v0.9.10: «إيقاف PO» بعد رفع السرعة (المهمة المجدولة بعد ٧ دقايق) كان بيلاقى حالة تانية غير Nightly/Not Started (الرفع لسه بيخلص) فيتخطّى الرقم من غير ما يوقّف ولا يسجّل — دلوقتى فى وضع الإيقاف بيستنى لحد ما الحالة تبقى Nightly (فيوقّفه) أو Not Started (فيسجّل)، ومابيتخطّاش. v0.9.9: «إيقاف PO» ممكن يشتغل فى أكتر من تاب مع بعض (sf_lane=2،3…) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2…) وعلامة PO_TAB فى sessionStorage بتوقّف سكربت القياس فى التاب ده؛ العدد بيتحدّد من «رفع الملفات ← إعدادات» فى Service-Flow. التاب الأول من غير لاحقة زى v0.9.8 بالظبط. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
+// @version      0.9.24
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
@@ -220,6 +220,7 @@
   // يسجّل الحدث محلياً (للـ CSV) + يرفعه للموقع (للعمودين فى التقارير)
   // result (للإيقاف بس — v0.9.11): "stopped" = كان In Nightly PO واتوقف · "already" = كان Not Started أصلاً
   function postPoEvent(accountNo, event, result) {
+    try { if (String(accountNo) === String(CURRENT)) traceOutcome(event === "raise" ? "raise" : result === "already" ? "already" : "stopped"); } catch (e) {}
     try {
       const results = JSON.parse(localStorage.getItem(PO_RESULTS_KEY) || "[]");
       results.push({ accountNo: String(accountNo || ""), event, result: result || "", time: new Date().toISOString() });
@@ -337,9 +338,54 @@
   }
   const CURRENT = ACCOUNTS[idx];
 
+  /* ================== سجل الخطوات (v0.9.24 — المالك ٢٠٢٦-١١-٠٣) ==================
+     كل رسالة فى الشريط + كل اختيار/Yes بيتسجّل بالحالة ووقته فى سجل للرقم ده (localStorage بمفتاح التاب —
+     بيعيش بعد الريفريش). لما الرقم يخلص بيتبعت لـService-Flow (/api/po-traces/ingest) من الطابور، ولو التاب
+     اتقفل فى النص بيتبعت «اتقطع» أول ما التاب ده (نفس الـlane) يتفتح تانى. */
+  const SCRIPT_VERSION = (typeof GM_info !== "undefined" && GM_info && GM_info.script && GM_info.script.version) || "0.9.24";
+  const PO_TRACE_KEY = K("PO_TRACE");
+  let poLastStatus = "";
+  function traceGet() { try { const v = JSON.parse(localStorage.getItem(PO_TRACE_KEY) || "null"); return v && v.acc ? v : null; } catch (e) { return null; } }
+  function traceSet(tr) { try { if (tr) localStorage.setItem(PO_TRACE_KEY, JSON.stringify(tr)); else localStorage.removeItem(PO_TRACE_KEY); } catch (e) {} }
+  function traceNew() { return { acc: String(CURRENT), mode: MODE, startedAt: new Date().toISOString(), steps: [], outcome: "", lastStatus: "" }; }
+  function traceSend(tr, fallback) {
+    if (!tr || !SF_API_BASE) return;
+    try {
+      sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/po-traces/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-DZS-Token": SF_PO_TOKEN },
+        body: JSON.stringify({ items: [{ accountNo: tr.acc, mode: tr.mode, outcome: tr.outcome || fallback || "no_result",
+          lastStatus: tr.lastStatus || "", lane: LANE || "", version: SCRIPT_VERSION, startedAt: tr.startedAt,
+          endedAt: new Date().toISOString(), steps: tr.steps || [] }] }),
+      }).catch(() => {});
+    } catch (e) {}
+  }
+  // سجل رقم فات فى التاب ده ولسه ماتبعتش (التاب اتقفل فى النص، أو دفعة جديدة بنفس الرقم) ⇒ «اتقطع»
+  (function () {
+    const old = traceGet();
+    if (old && (old.acc !== String(CURRENT) || fromHash)) { traceSend(old, "interrupted"); traceSet(null); }
+  })();
+  function traceStep(msg) {
+    try {
+      const tr = traceGet() || traceNew();
+      const m = String(msg || "").slice(0, 300);
+      // العدّادات (الثوانى/المحاولة) مابتكرّرش السطر
+      const key = m.replace(/[0-9\u0660-\u0669]+/g, "#") + "|" + poLastStatus;
+      if (tr.lastKey === key) return;
+      tr.lastKey = key;
+      tr.lastStatus = poLastStatus || tr.lastStatus || "";
+      tr.steps.push({ t: new Date().toISOString(), s: poLastStatus, m });
+      if (tr.steps.length > 120) tr.steps.splice(0, tr.steps.length - 120);
+      traceSet(tr);
+    } catch (e) {}
+  }
+  function traceOutcome(o) { try { const tr = traceGet() || traceNew(); tr.outcome = o; traceSet(tr); } catch (e) {} }
+  function traceFinish(fallback) { const tr = traceGet(); if (tr) { traceSend(tr, fallback); traceSet(null); } }
+
   /* ================== UI شريط الحالة ================== */
   let statusBar;
   function banner(msg, color) {
+    traceStep(msg);
     try {
       if (!statusBar) {
         statusBar = document.createElement("div");
@@ -397,7 +443,7 @@
     // 1) native <select>
     for (const sel of document.querySelectorAll("select")) {
       const opt = [...sel.options].find(o => re.test(o.textContent || ""));
-      if (opt) { sel.value = opt.value; sel.dispatchEvent(new Event("change", { bubbles: true })); return true; }
+      if (opt) { sel.value = opt.value; sel.dispatchEvent(new Event("change", { bubbles: true })); traceStep("اختار «" + (opt.textContent || "").trim() + "» (select مخفى)"); return true; }
     }
     // 2) PrimeFaces/JSF styled dropdown: افتح البانل
     const openTriggers = [...document.querySelectorAll(".ui-selectonemenu-trigger, .ui-selectonemenu-label, [class*='selectonemenu']")];
@@ -408,10 +454,11 @@
     // بعد الفتح، دوّر على عنصر القائمة
     const items = [...document.querySelectorAll(".ui-selectonemenu-item, li[data-label], li[role='option'], .ui-selectonemenu-list li")];
     const target = items.find(li => re.test(li.textContent || ""));
-    if (target) { target.click(); return true; }
+    if (target) { target.click(); traceStep("اختار «" + (target.textContent || "").trim() + "» (من القايمة)"); return true; }
     // 3) أى عنصر ظاهر نصّه مطابق
     const any = [...document.querySelectorAll("li,a,span,div,option")].find(el => el.offsetParent !== null && re.test((el.textContent || "").trim()) && (el.textContent || "").trim().length < 60);
-    if (any) { any.click(); return true; }
+    if (any) { any.click(); traceStep("داس على عنصر ظاهر «" + (any.textContent || "").trim() + "» <" + any.tagName.toLowerCase() + ">"); return true; }
+    traceStep("مالقاش «" + (re === RE_STOP ? "Stop Nightly PO" : "Start Realtime PO") + "» فى Choose Action");
     return false;
   }
   const RE_START = /start\s*realtime\s*po/i;
@@ -458,7 +505,7 @@
     // الـtick (٨٠٠ms) كان بيلاقى «Yes» بتاع دروب ليست «Enable PO» (div مخفى جوّاه <select>) ويدوسه،
     // ويفتكر إنه أكّد الإيقاف — والإيقاف ماحصلش. ده كان «ساعات يوقّف وساعات لأ».
     const el = findYes();
-    if (el) { el.click(); return true; }
+    if (el) { el.click(); traceStep("داس Yes <" + el.tagName.toLowerCase() + ">" + (visibleDialog() ? " جوّه نافذة التأكيد" : " (من غير نافذة PrimeFaces)")); return true; }
     return false;
   }
 
@@ -491,9 +538,11 @@
       if (onThisLine) location.reload(); else location.href = PO_URL + encodeURIComponent(CURRENT);
     }, 1500);
   };
+  traceStep("الصفحة اتحمّلت: " + (onLoginPage() ? "صفحة الدخول" : onPoPage() ? "صفحة Profile Optimization" : location.pathname) + (stopTries() ? " · محاولات الإيقاف لحد دلوقتى " + stopTries() : ""));
   let awaitSince = 0;
 
   function advance() {
+    traceFinish("no_result");
     clearStopSent();
     setIndex(idx + 1);
     if (idx + 1 >= ACCOUNTS.length) {
@@ -520,7 +569,7 @@
   let loginClicked = false;
   const tick = setInterval(() => {
     // مهلة أمان
-    if (Date.now() - startedAt > PER_ACCOUNT_TIMEOUT_MS) { clearInterval(tick); console.warn("⏱️ PO timeout للرقم " + CURRENT + " — نعدّى للتالى."); advance(); return; }
+    if (Date.now() - startedAt > PER_ACCOUNT_TIMEOUT_MS) { clearInterval(tick); console.warn("⏱️ PO timeout للرقم " + CURRENT + " — نعدّى للتالى."); traceStep("⏱️ المهلة خلصت (" + Math.round(PER_ACCOUNT_TIMEOUT_MS / 60000) + " دقايق) من غير نتيجة"); traceOutcome("timeout"); advance(); return; }
 
     // 1) صفحة اللوجين
     if (onLoginPage()) {
@@ -535,12 +584,13 @@
 
     // 2.5) «Line ID Not Found» بعد البحث → الرقم غير موجود، ادخل على الخط اللى بعده فوراً (بدون تسجيل)
     if (/line\s*id\s*not\s*found|enter\s*a\s*valid\s*line\s*id/i.test(txt())) {
-      banner("⚠️ " + CURRENT + " غير موجود (Line ID Not Found) — للخط التالى.", "#607d8b");
+      banner("⚠️ " + CURRENT + " غير موجود (Line ID Not Found) — للخط التالى.", "#607d8b"); traceOutcome("not_found");
       clearInterval(tick); setTimeout(advance, 1200); return;
     }
 
     // 3) على صفحة الـ PO — استنى تحميلها
     const status = findPoStatus();
+    poLastStatus = status || "";
     const hasControl = /profile\s*optimization\s*control|choose\s*action/i.test(txt());
     if (!hasControl) return; // لسه بتحمّل
 
@@ -551,12 +601,13 @@
       // (وضع رفع السرعة زى ما هو.)
       const stKnown = MODE === "stop" && (/not\s*started/i.test(status) || (/nightly/i.test(status) && rtWaited()));
       if (RE_RT.test(status) || (!stKnown && RE_RT.test(txt()))) {
+        traceStep(RE_RT.test(status) ? "الحالة نفسها Real-time PO" : "الحالة «" + status + "» بس فيه نص «Real-time PO» فى الصفحة");
         // «Currently under Real-time PO» — فيه أوبتميزيشن شغّال دلوقتى
         if (MODE === "stop") {
           phase = "wait-rt-then-stop"; banner("⏳ فيه Real-time PO شغّال — استنى يخلّص عشان الإيقاف…", "#1565c0");
         } else {
           // رفع السرعة: متعملش حاجة — عدّى للخط اللى بعده
-          banner("ℹ️ " + CURRENT + " تحت Real-time PO بالفعل — تخطّى.", "#ef6c00");
+          banner("ℹ️ " + CURRENT + " تحت Real-time PO بالفعل — تخطّى.", "#ef6c00"); traceOutcome("skipped");
           clearInterval(tick); setTimeout(advance, 1500);
         }
       } else if (/not\s*started/i.test(status)) {
@@ -572,7 +623,7 @@
       } else if (/nightly/i.test(status)) {
         // v0.9.12: بعتنا الإيقاف ٣ مرات والحالة لسه Nightly ⇒ نعدّى من غير تسجيل (السيرفر بيعيد الإيقاف بعد ١٠ دقايق)
         if (MODE === "stop" && stopTries() >= MAX_STOP_TRIES) {
-          banner("⛔ الإيقاف ماتمّش للرقم " + CURRENT + " بعد " + MAX_STOP_TRIES + " محاولات — للتالى.", "#c62828");
+          banner("⛔ الإيقاف ماتمّش للرقم " + CURRENT + " بعد " + MAX_STOP_TRIES + " محاولات — للتالى.", "#c62828"); traceOutcome("gave_up");
           clearInterval(tick); setTimeout(advance, 1500); return;
         }
         // «In Nightly PO» → لازم نوقف الـ nightly PO الأول ثم نبدأ
@@ -586,7 +637,7 @@
           return;
         }
         // رفع السرعة: حالة أخرى غير معروفة → تخطّى
-        banner("ℹ️ الرقم " + CURRENT + " حالته: " + status + " — تخطّى.", "#ef6c00");
+        banner("ℹ️ الرقم " + CURRENT + " حالته: " + status + " — تخطّى.", "#ef6c00"); traceOutcome("skipped");
         clearInterval(tick); setTimeout(advance, 1500);
       }
       return;

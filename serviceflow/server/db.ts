@@ -1866,6 +1866,26 @@ export async function ensureSchema() {
     )
   `);
 
+  // po_traces — سجل خطوات سكربت PO لكل خط (المالك ٢٠٢٦-١١-٠٣: «يتسجل تقرير بإيه اللى حصل فى الإيقاف بالظبط
+  // لأنى مش هلحق أصوّر التابات»). سطر لكل خط: النتيجة + كل خطوة بحالتها ووقتها (steps). بيتمسح بعد ٣٠ يوم.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS po_traces (
+      id serial PRIMARY KEY,
+      account_no text NOT NULL,
+      mode text,
+      outcome text,
+      last_status text,
+      lane text,
+      script_version text,
+      started_at timestamptz,
+      ended_at timestamptz,
+      steps jsonb,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS po_traces_created_idx ON po_traces (created_at)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS po_traces_account_idx ON po_traces (account_no)`);
+
   // مين عمل آخر قياس/رفع سرعة/إيقاف: نسجّل «نيّة» المستخدم وقت الضغط (op_intents)، ولما النتيجة
   // ترجع (القياس على case_138، والأحداث على line_po_events) نختم اسم صاحب الطلب فى الأعمدة دى.
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS measured_by text`);

@@ -250,7 +250,8 @@ test("PO v0.9.12: reload before a stop that waited, verify after Yes, count a re
   assert.match(po, /MODE === "stop" && awaitSince && Date\.now\(\) - awaitSince > AWAIT_STOP_RELOAD_MS/);
   assert.match(po, /if \(stopTries\(\) > 0\) \{ postPoEvent\(CURRENT, "stop", "stopped"\);/);
   assert.match(po, /MODE === "stop" && stopTries\(\) >= MAX_STOP_TRIES/);
-  assert.match(po, /function advance\(\) \{\s*\n\s*clearStopSent\(\);/);
+  // v0.9.24: السجل بيتبعت الأول (traceFinish) وبعدين clearStopSent
+  assert.match(po, /function advance\(\) \{\s*\n(\s*traceFinish\("no_result"\);\n)?\s*clearStopSent\(\);/);
 });
 
 // المالك ٢٠٢٦-١٠-٢٧: «لسه ساعات يوقّف وساعات لأ — راجع الكود القديم»: Yes كان ممكن يتداس على دروب ليست

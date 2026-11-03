@@ -73,6 +73,7 @@ import { BridgeButtons } from "@/components/BridgeButtons";
 import { DailyAutoRefresh } from "@/components/DailyAutoRefresh";
 import { ExecQueueWatcher } from "@/components/ExecQueueWatcher";
 import { ExecJobsReport } from "@/components/ExecJobsReport";
+import { PoTraceReport } from "@/components/PoTraceReport";
 import { QueueReorderPanel } from "@/components/QueueReorderPanel";
 import { ExecBatchesReport } from "@/components/ExecBatchesReport";
 import { ManualCurrentFaultsReport } from "@/components/ManualCurrentFaultsReport";
@@ -99,7 +100,7 @@ import { installMeasureHider } from "@/lib/measure-hide";
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload" | "local-store";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -184,6 +185,7 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
     icon: Server,
     items: [
       { id: "exec-jobs", label: "سجل القياس/رفع السرعة/الإيقاف" },
+      { id: "po-traces", label: "سجل خطوات PO (الإيقاف بالتفصيل)" },
       { id: "exec-batches", label: "سجل كل الباتشات (المنفَّذة والملغاة)" },
       { id: "queue-reorder", label: "ترتيب الطابور (الباتشات المؤجّلة)" },
     ],
@@ -369,7 +371,7 @@ export default function Dashboard() {
   // «ردود التكرار» — تقرير السوبر أدمن (٢٠٢٦-١٠-٠٤)؛ الرد نفسه من «إحصائيات التكرار».
   // المالك ٢٠٢٦-١٠-٢٦: «الأعطال المنتظمة هذا الشهر» (فترة من/إلى) و«منتظمة خارج الشاشة - اسكور عالي»
   // للسوبر أدمن بس — حتى الفنى مايشوفهمش.
-  const SUPER_ONLY_REPORTS: ReportTab[] = ["lines-mobile-checked", "om-order-match", "repeat-reviews",
+  const SUPER_ONLY_REPORTS: ReportTab[] = ["lines-mobile-checked", "om-order-match", "repeat-reviews", "po-traces",
     "regularized-faults-range", "manual-regularized-high-score"];
   // المالك ٢٠٢٦-١٠-١٩: «تاب القياسات» كله للسوبر أدمن بس — إلا «متوسط القياسات» (متوسط لكل كابينة/بكس
   // من غير التفصيلى بتاع كل رقم). والسرعات/الاسكور لكل خط بيشيلها السيرفر نفسه (server/measure-redact.ts).
@@ -898,6 +900,7 @@ export default function Dashboard() {
               {reportTab === "engineering-inspection"  && <EngineeringInspectionReport />}
               {reportTab === "manual-regularized-range" && <ManualRegularizedFaultsRangeReport />}
               {reportTab === "exec-jobs"           && isSuperAdmin && <ExecJobsReport />}
+              {reportTab === "po-traces"           && isSuperAdmin && <PoTraceReport />}
               {reportTab === "presentation"        && isSuperAdmin && <PresentationReport />}
               {reportTab === "db-migrate"          && isSuperAdmin && <DbMigrateReport />}
               {reportTab === "queue-reorder"       && isSuperAdmin && <QueueReorderPanel />}

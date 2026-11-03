@@ -37,5 +37,5 @@ test("stop mode trusts the status: page text «Real-time PO» waits once per lin
   assert.match(src, /if \(RE_RT\.test\(status\) \|\| \(!stKnown && RE_RT\.test\(txt\(\)\)\)\)/);
   assert.match(src, /if \(\/nightly\/i\.test\(status\)\) \{ markRtWaited\(\); reloadPoPage\(/);
   assert.match(src, /sessionStorage\.removeItem\(RT_WAITED_KEY\)/, "بيتمسح مع الرقم اللى بعده");
-  assert.match(src, /@version {6}0\.9\.23/);
+  assert.match(src, /@version {6}0\.9\.(2[3-9]|[3-9]\d)/);
 });
