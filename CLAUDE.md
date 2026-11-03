@@ -391,6 +391,10 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   الصفحة: https://claude.ai/artifact/FjrdzJqXbxjkK1ew8kLVsP. **Trigger:** «ابعتلي برومبت مزمور ١٥١».
   ✅ **وصل (٢٠٢٦-١١-٠٢):** المزمور ١٥١ بس (٨ آيات بترقيم الأنبا تكلا) ⇒ `mybible/data/deutero/sttakla-extra.json` (رقمه 151)،
   والجروب وقسم أرثوذكسيات بيعرضوه. صلاة منسى والمكابيين الثالث مش موجودين كنص على الأنبا تكلا — فاضلين على نص أرثوذكسيات.
+- `docs/MACCABEES3_EXTENSION_PROMPT.md` — **برومبت الإكستنشن: سفر المكابيين الثالث (٧ إصحاحات)** (٢٠٢٦-١١-٠٣). Replit Agent
+  ملقاهوش على St-Takla، واللى عندنا منقول من «أرثوذكسيات» من غير مصدر مؤكد. الإكستنشن بيدوّر St-Takla ثم جوجل (ترجمة منشورة
+  باسمها، مصدر واحد للسفر كله) ويرفع `المكابيين الثالث.json` فى فرع **`deutero-3macc-import`**، وكلود يراجعه قبل ما يتعرض.
+  الصفحة: https://claude.ai/artifact/4EyeVr7V3vGNzy7HqGprfB. **Trigger:** «ابعتلي برومبت المكابيين الثالث».
 - `docs/MYBIBLE_GA_RECHECK_PROMPT.md` — **برومبت الإكستنشن: فحص mybible بعد النشر** (٢٠٢٦-١١-٠٣). تقرير Google Analytics
   «Ask Advisor» (بالإكستنشن) لقى `/plans` و`/bible` (و`/kids`) بيقعوا على شبكة الشغل: الفلتر بيحجب أى رابط فيه «YouTube»
   وملف كارت الفيديو كان `YouTubeCard-….js` ⇒ اتغيّر لـ`VideoCard` (`7c8d75ca`، الحارس `mybible/server/filtered-chunk-names.test.ts`).
