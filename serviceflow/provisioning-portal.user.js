@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Provisioning Portal → Service-Flow (تحديث البورتات + غيّر البورت MSAN)
 // @namespace    service-flow.provisioning
-// @description  سكربت واحد لموقع Provisioning Portal (WE) — فيه ثلاث تدفّقات مستقلة تماماً بماركرات مختلفة لمنع أى تعارض: (1) sf_ports = تحديث ملف البورتات (Get MSAN Data لكل أكواد الأمسان المخزّنة فى Service-Flow). (2) sf_msan = غيّر البورت (MSAN Replacement) لرقم واحد — يملأ Old/New Cabin Code ويحقن ملف CSV ويضغط Submit، ثم يراقب 30 ثانية للتأكد إنه مرجعش للّوجين (نجح) قبل ما يقفل التاب (بدون متابعة تلقائية). (3) sf_pcheck = تحديث البورت (يدوى) — يفتح Search For My Requests مرة واحدة لرقم، يطابقه، ولو COMPLETED يجيب New Frame + New Msan ويحدّث بيان البورت فى Service-Flow. كل تدفّق فى نافذة باسم مستقل فالـ sessionStorage منفصل ومفيش تداخل. v1.8.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v1.7.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع.
-// @version      1.8.0
+// @description  سكربت واحد لموقع Provisioning Portal (WE) — فيه ثلاث تدفّقات مستقلة تماماً بماركرات مختلفة لمنع أى تعارض: (1) sf_ports = تحديث ملف البورتات (Get MSAN Data لكل أكواد الأمسان المخزّنة فى Service-Flow). (2) sf_msan = غيّر البورت (MSAN Replacement) لرقم واحد — يملأ Old/New Cabin Code ويحقن ملف CSV ويضغط Submit، ثم يراقب 30 ثانية للتأكد إنه مرجعش للّوجين، وبعدها (v1.9.0) بيفتح Search For My Requests ويتأكد إن فيه طلب جديد للرقم، ويبعت النتيجة لـ Service-Flow (اتعمل / مفيش طلب / الفورم ماتبعتش / فشل) فتظهر «آخر محاولة» جنب الزرار زى Re-Execute. (3) sf_pcheck = تحديث البورت (يدوى) — يفتح Search For My Requests مرة واحدة لرقم، يطابقه، ولو COMPLETED يجيب New Frame + New Msan ويحدّث بيان البورت فى Service-Flow. كل تدفّق فى نافذة باسم مستقل فالـ sessionStorage منفصل ومفيش تداخل. v1.8.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v1.7.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع.
+// @version      1.9.0
 // @match        *://provisioningportal.te.eg/provisioningPortal/*
 // @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
@@ -676,6 +676,54 @@
     return false;
   }
 
+  // ── v1.9.0 (المالك ٢٠٢٦-١١-٠٣): «اتعمل ولا لأ» زى Re-Execute ─────────────────────────
+  // result: done (اتلقى طلب جديد للرقم فى Search For My Requests) · not_found (اتضغط Submit ومفيش طلب)
+  //         · not_submitted (الفورم اتملى والملف/الزرار ناقص) · failed (الجلسة بتقع / الصفحة مافتحتش).
+  // ⚠️ مابنسجّلش الطلب فى port_change_requests هنا — ده شغل «تحديث البورت» لما الطلب يخلص؛ لو سجّلناه
+  // دلوقتى «تحديث البورت» هيفتكره اتحدّث قبل كده ومش هيحدّث البورت الجديد.
+  const MSAN_BEFORE_KEY = "sf_msan_before";
+  const pcPhoneKey = (v) => String(v || "").replace(/\D/g, "").replace(/^88/, "");
+  async function sfReportMsan(phone, result, message, detail) {
+    const key = pcPhoneKey(phone);
+    if (!key) return;
+    try {
+      const r = await sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/op-results/ingest", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-DZS-Token": SF_TOKEN },
+        body: JSON.stringify({ type: "portchange", key, result, message: String(message || "").slice(0, 400), detail: detail || null }),
+      });
+      logln(r && r.ok ? "📨 النتيجة («" + result + "») اتبعتت لـ Service-Flow." : "⚠️ النتيجة متسجّلة وهتتبعت لوحدها أول ما Service-Flow يرد.");
+    } catch (e) { logln("⚠️ النتيجة متسجّلة وهتتبعت لوحدها: " + ((e && e.message) || e)); }
+  }
+  // طلبات الرقم بتاريخ النهارده على البورتال (Request IDs) — null لو الصفحة مافتحتش
+  async function msanTodayRequests(phone) {
+    if (!(await gotoSearchRequests(todayISO()))) return null;
+    const key = pcPhoneKey(phone);
+    return pcReadRequestRows().filter((r) => r.requestId && pcPhoneKey(r.phone) === key && pcDateIsToday(r.requestDate));
+  }
+  // قبل Submit: نحفظ طلبات النهارده للرقم، عشان بعده نعرف الطلب الجديد من القديم (مرة واحدة لكل تشغيلة)
+  async function msanSnapshotBefore(data) {
+    const tag = [data.phone, data.old, data.new].join("|");
+    // اللقطة صالحة لنفس التشغيلة بس (رجوع للّوجين بيعيد تحميل الصفحة) — ربع ساعة بالكتير
+    try { const v = JSON.parse(sessionStorage.getItem(MSAN_BEFORE_KEY) || "null"); if (v && v.tag === tag && Date.now() - Number(v.at || 0) < 15 * 60 * 1000) return v.ids; } catch (e) {}
+    let ids = null;
+    try { const rows = await msanTodayRequests(data.phone); ids = rows ? rows.map((r) => r.requestId) : null; } catch (e) {}
+    try { sessionStorage.setItem(MSAN_BEFORE_KEY, JSON.stringify({ tag, ids, at: Date.now() })); } catch (e) {}
+    logln(ids ? ("📸 طلبات النهارده للرقم قبل Submit: " + (ids.length ? ids.join(", ") : "مفيش")) : "⚠️ معرفتش أفتح Search For My Requests قبل Submit — هعتبر أى طلب النهارده هو الجديد.");
+    return ids;
+  }
+  // بعد Submit: ندوّر على طلب جديد للرقم — لحد دقيقة ونص (البورتال ساعات بيتأخر فى عرضه)
+  async function msanVerifyAfter(data, beforeIds) {
+    for (let i = 0; i < 4; i++) {
+      if (i) await sleep(20000);
+      banner("🔎 بتأكد إن الطلب اتلقى على البورتال (" + (i + 1) + "/4)…", "#00695c");
+      const rows = await msanTodayRequests(data.phone);
+      if (!rows) continue;
+      const fresh = beforeIds ? rows.filter((r) => beforeIds.indexOf(r.requestId) < 0) : rows;
+      if (fresh.length) return { row: pcPickLatest(fresh), sure: !!beforeIds };
+    }
+    return null;
+  }
+
   let msanRunning = false;
   async function runMsan() {
     if (msanRunning) return; msanRunning = true;
@@ -689,15 +737,34 @@
       for (let attempt = 1; attempt <= MAX; attempt++) {
         banner("🔁 غيّر البورت — رقم " + data.phone + " (محاولة " + attempt + ")", "#00695c");
         await ensureLoggedIn();
+        const beforeIds = await msanSnapshotBefore(data);
         const submitted = await fillAndSubmitMsan(data);
-        if (!submitted) { banner("✅ اتملأ الفورم — راجع/اضغط Submit بنفسك (مش لاقى الملف/الزر).", "#ef6c00"); return; }
+        if (!submitted) {
+          banner("⚠️ اتملأ الفورم — راجع/اضغط Submit بنفسك (مش لاقى الملف/الزر).", "#ef6c00");
+          void sfReportMsan(data.phone, "not_submitted", "الفورم اتملى بس Submit ماتضغطش — الملف أو الزرار ناقص");
+          return;
+        }
         // بعد Submit: نراقب 30 ثانية — waitFor بيرجع فوراً أول ما تظهر صفحة اللوجين (bounce → إعادة)،
         // أو بعد الـ 30 ثانية كاملة لو مظهرتش (يبقى اتأكدنا إن الـ Submit نجح فعلاً → نقفل التاب).
         banner("⏳ اتعمل Submit — بنتأكد 30 ثانية إنه مرجعش للّوجين…", "#00695c");
         const bounced = await waitFor(() => onLoginPage(), 30000);
         if (!bounced) {
-          banner("✅ تم الإرسال (Submit) ونجح (مفيش رجوع للّوجين خلال 30 ثانية) — بيتقفل التاب. لمتابعة النتيجة اضغط «تحديث البورت».", "#2e7d32");
-          logln("✅ اتأكدنا 30 ثانية إنه مرجعش للّوجين → نجح. التاب بيتقفل دلوقتى.");
+          logln("✅ اتأكدنا 30 ثانية إنه مرجعش للّوجين — بتأكد إن الطلب اتلقى…");
+          const found = await msanVerifyAfter(data, beforeIds);
+          try { sessionStorage.removeItem(MSAN_BEFORE_KEY); } catch (e) {}
+          if (!found) {
+            banner("❌ اتضغط Submit بس مالقيتش طلب جديد للرقم " + data.phone + " فى Search For My Requests — راجع البورتال.", "#c62828");
+            await sfReportMsan(data.phone, "not_found", "اتضغط Submit ومالقيتش طلب جديد للرقم فى Search For My Requests");
+            return;   // التاب بيفضل مفتوح عشان تشوف الشاشة
+          }
+          const r0 = found.row;
+          banner("✅ الطلب اتلقى على البورتال: Request " + r0.requestId + " (" + (r0.status || "؟") + ") — بيتقفل التاب. لمتابعة البورت الجديد اضغط «تحديث البورت».", "#2e7d32");
+          logln("✅ Request " + r0.requestId + " — " + (r0.status || "؟") + (found.sure ? "" : " (مش متأكد إنه الجديد — مكانش فيه لقطة قبل Submit)"));
+          await sfReportMsan(data.phone, "done", found.sure ? "" : "مش متأكد إنه الطلب الجديد (أى طلب النهارده)", {
+            requestId: r0.requestId, status: r0.status || "", reservationCode: r0.reservationCode || "",
+            old: data.old || "", new: data.new || "", pt: data.pt || "", sure: found.sure,
+          });
+          await sleep(1500);
           // اتأكدنا إن الـ Submit نجح → نقفل التاب (النافذة اتفتحت بـ window.open فمسموح غلقها بالسكربت)
           try { window.close(); } catch (e) {}
           return;
@@ -707,6 +774,10 @@
         await sleep(800);
       }
       banner("⚠️ جرّبنا " + MAX + " مرات ولسه بيرجع للّوجين — اعمل العملية يدوى أو أعد المحاولة.", "#c62828");
+      void sfReportMsan(data.phone, "failed", "جرّبنا " + MAX + " مرات ولسه البورتال بيرجع للّوجين بعد Submit");
+    } catch (e) {
+      banner("❌ " + ((e && e.message) || e), "#c62828");
+      void sfReportMsan((MSAN || {}).phone, "failed", "خطأ: " + ((e && e.message) || e));
     } finally {
       msanRunning = false;
       // مابنمسحش MSAN_KEY — لو حصل reload كامل للّوجين، الـ auto-fire هيعيد runMsan. البيانات

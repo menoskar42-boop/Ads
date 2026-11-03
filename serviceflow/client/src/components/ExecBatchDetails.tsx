@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { OSS_REEXEC_AR, WFM_ACCEPT_AR, WFM_MOBILE_AR } from "@/lib/exec-queue";
+import { OSS_REEXEC_AR, WFM_ACCEPT_AR, WFM_MOBILE_AR, WFM_CANCEL_AR, PORTCHANGE_AR } from "@/lib/exec-queue";
 import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -74,7 +74,13 @@ function describe(j: Job): string {
         ? `طلب ${d.requestId} · حالته ${d.portalStatus || "؟"}` + (d.portalCompleted ? " · اكتمل" : " · لسه/فشل")
         : "مافيش طلب مسجّل على البورتال";
       const now = d.currentFrame ? ` · البورت حالياً ${d.currentFrame}` : "";
-      return `${where} · نوع البورت ${d.portType || "؟"} — ${portal}`
+      // نتيجة السكربت نفسه: الطلب اتبعت ولا لأ (وده بيبان قبل ما «تحديث البورت» يتعمل)
+      const op = d.opResult
+        ? `${PORTCHANGE_AR[d.opResult] || d.opResult}${d.opDetail?.requestId ? ` · طلب ${d.opDetail.requestId}` : ""}`
+          + `${d.opDetail?.status ? ` (${d.opDetail.status})` : ""}${d.opResult !== "done" && d.opMessage ? ` · ${d.opMessage}` : ""}`
+          + `${d.opInThisJob ? "" : " (نتيجة قديمة)"} · ${fmt(d.opAt)} — `
+        : "";
+      return `${op}${where} · نوع البورت ${d.portType || "؟"} — ${portal}`
         + (d.portalNewFrame ? ` · البورت الجديد ${d.portalNewFrame}` : "") + now;
     }
     case "portcheck": {
@@ -94,7 +100,9 @@ function describe(j: Job): string {
     case "wfmcancel":
       return `${d.mode}${d.workerName ? ` · الفنى: ${d.workerName}` : ""}${d.worker ? ` (كود ${d.worker})` : ""}`
         // النتيجة اللى رجعت من WFM: اتنفّذ، أو سبب الوقوف (❌/⚠️)
-        + (d.result ? ` — ${d.result}${d.inThisJob ? "" : " (نتيجة قديمة)"} · ${fmt(d.at)}` : " — مافيش نتيجة رجعت من WFM فى المهمة دى");
+        + (d.opResult
+          ? ` — ${WFM_CANCEL_AR[d.opResult] || d.opResult}${d.opResult !== "done" && d.opMessage ? ` · ${d.opMessage}` : ""}${d.inThisJob ? "" : " (نتيجة قديمة)"} · ${fmt(d.at)}`
+          : d.result ? ` — ${d.result}${d.inThisJob ? "" : " (نتيجة قديمة)"} · ${fmt(d.at)}` : " — مافيش نتيجة رجعت من WFM فى المهمة دى");
     case "wfmaccept":
       return d.result
         ? `${WFM_ACCEPT_AR[d.result] || d.result}${d.workId ? ` · Work Id ${d.workId}` : ""}${d.inThisJob ? "" : " (نتيجة قديمة)"} · ${fmt(d.at)}`

@@ -1366,6 +1366,19 @@ export const wfmTaskAccepts = pgTable("wfm_task_accepts", {
 
 export type WfmTaskAccept = typeof wfmTaskAccepts.$inferSelect;
 
+// op_results — نتيجة «اتعمل ولا لأ» لإلغاء الإسناد وغيّر البورت (بروفيجن) — كل محاولة بتتسجّل
+export const opResults = pgTable("op_results", {
+  id: serial("id").primaryKey(),
+  opType: text("op_type").notNull(),
+  keyValue: text("key_value").notNull(),
+  result: text("result").notNull(),
+  message: text("message"),
+  detail: jsonb("detail"),
+  requestedBy: text("requested_by"),
+  reportedAt: timestamp("reported_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type OpResult = typeof opResults.$inferSelect;
+
 // «Re-Execute» على OSS Abnormal WO (٢٠٢٦-١٠-٠٧) — الرقم الكامل أو Service Order ID + النتيجة
 export const ossReexecs = pgTable("oss_reexecs", {
   id: serial("id").primaryKey(),

@@ -21,6 +21,7 @@ import { ROLES } from "@shared/schema";
 import { Gauge, CheckCircle2, RotateCcw } from "lucide-react";
 import { maintStatusBadge, boxCoords, type MaintRow } from "@/components/MaintenanceComprehensiveReport";
 import { useNightPause, nightAwareInterval } from "@/lib/night-pause";
+import { OpLastResult } from "@/components/OpLastResult";
 
 // بوابة DZS expresse — تُفتح فى تاب جديد ويُمرَّر رقم الأكونت فى الـ hash ليقيسه
 // الـ Tampermonkey script (dzs-expresse-v10.user.js) ويرفع النتيجة لشيت 138.
@@ -1041,6 +1042,7 @@ export function PhoneLookupReport() {
               إلغاء الاسناد
             </Button>
           )}
+          {!line && !!phone && !isFetching && canCancelWfm && <OpLastResult type="wfmcancel" phone={phone} />}
           {isSuper && reexecFull && (
             <span className="inline-flex items-center gap-2 flex-wrap">
               <Button
@@ -1226,6 +1228,7 @@ export function PhoneLookupReport() {
                   غيّر البورت (بروفيجن)
                 </Button>
               )}
+              {isSuper && <OpLastResult type="portchange" phone={line.telNo} />}
               {isSuper && (
                 <Button
                   variant="outline"
@@ -1248,6 +1251,7 @@ export function PhoneLookupReport() {
                   إلغاء الاسناد
                 </Button>
               )}
+              {canCancelWfm && <OpLastResult type="wfmcancel" phone={line.telNo || phone} />}
               {isSuper && acceptSid && (
                 <span className="inline-flex items-center gap-2 flex-wrap">
                   <Button

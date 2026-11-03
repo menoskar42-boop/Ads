@@ -1220,6 +1220,23 @@ export async function ensureSchema() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS wfm_task_accepts_phone_idx ON wfm_task_accepts (phone_number)`);
 
+  // op_results — نتيجة «اتعمل ولا لأ» لإلغاء الإسناد وغيّر البورت (بروفيجن) (المالك ٢٠٢٦-١١-٠٣، زى Re-Execute):
+  // كل محاولة بتتسجّل — نجاح أو سبب الوقوف — عشان تظهر جنب الزرار وفى تفاصيل الطابور.
+  // op_type: wfmcancel | portchange. key_value = الرقم من غير 88 (أو المسلسل).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS op_results (
+      id serial PRIMARY KEY,
+      op_type text NOT NULL,
+      key_value text NOT NULL,
+      result text NOT NULL,
+      message text,
+      detail jsonb,
+      requested_by text,
+      reported_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS op_results_key_idx ON op_results (op_type, key_value, reported_at DESC)`);
+
   // oss_reexecs — «Re-Execute» على OSS Abnormal WO (٢٠٢٦-١٠-٠٧، سوبر أدمن): key_value = الرقم الكامل
   // (من بحث برقم التليفون) أو Service Order ID (من المتعذرات الحالية). كل نتيجة بتتسجّل
   // (done = السطر اختفى من Abnormal WO / not_found / failed / unsure).

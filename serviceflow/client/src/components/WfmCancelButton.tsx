@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
 import { dispatchSpeedTool, openOpSite } from "@/lib/exec-queue";
+import { OpLastResult } from "@/components/OpLastResult";
 
 /** مين يقدر يلغى الاسناد من التقرير: السوبر أدمن والأدمن والشئون الخارجية — والفنى (التقرير بيجيله أوامره هو بس). */
 export function canCancelWfmFromReport(role: string | undefined): boolean {
@@ -28,6 +29,8 @@ export function WfmCancelButton({ phone, isSerial = false, defaultTech }: { phon
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"cancel" | "reassign">("cancel");
   const [tech, setTech] = useState("");
+  // النتيجة («اتعمل ولا لأ») بتتجاب بعد ما الزرار يتضغط بس — مش لكل سطر فى التقرير
+  const [sent, setSent] = useState(false);
 
   const { data: techList, isLoading, isError, refetch } = useQuery<{ workerCode: string; techName: string }[]>({
     queryKey: ["/api/technician-names"],
@@ -57,6 +60,7 @@ export function WfmCancelButton({ phone, isSerial = false, defaultTech }: { phon
       if (!worker) { alert(`الفنى «${tech}» مالوش كود عامل مسجّل — حدّثه من إدارة البيانات الفنية أولاً`); return; }
     }
     setOpen(false);
+    setSent(true);
     const params = mode === "reassign" ? { mode: "reassign", worker, workerName: tech } : { mode: "cancel" };
     if (await dispatchSpeedTool("wfmcancel", [sid], isSuper, { params })) return;
     openOpSite("wfmcancel", sid, params);
@@ -73,6 +77,7 @@ export function WfmCancelButton({ phone, isSerial = false, defaultTech }: { phon
       >
         <Ban className="w-3 h-3" /> إلغاء الاسناد
       </button>
+      {sent && <OpLastResult type="wfmcancel" phone={sid} enabled={sent} compact />}
       {open && (
         <div className="fixed inset-0 z-[9998] bg-black/40 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-4 space-y-3 text-sm" dir="rtl" onClick={(e) => e.stopPropagation()}>

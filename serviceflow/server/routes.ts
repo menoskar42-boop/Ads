@@ -762,6 +762,8 @@ const arQ = (q: unknown) => `%${arNorm(String(q ?? "").trim())}%`;
 // نفس التعبير المستخدَم فى فهارس server/db.ts بالحرف — لازم يتطابقوا عشان الـ planner
 // يستخدم الفهرس (وإلا الـ LATERAL بتاع الشكاوى يرجع seq scan لكل صف ويعلّق التقارير).
 const sp = phoneNormSql;
+// مفتاح سجل «اتعمل ولا لأ» (op_results): أرقام بس ومن غير 88 فى الأول — نفس الشكل من السكربت ومن الواجهة
+const opKey = (v: unknown): string => String(v ?? "").replace(/\D/g, "").replace(/^88/, "");
 
 // بعض المصادر تكتب رقم الكابينة كزوج أرقام بفاصل أو ترتيب مختلف (2-3 / 3/2).
 // نرتب الزوج للمطابقة فقط، ونبقى القيم الأخرى كما هي دون تعديل البيانات المخزنة.
@@ -3585,13 +3587,19 @@ export async function registerRoutes(
       if (type === "c360") {
         sql = `SELECT MAX(updated_at) AS at FROM line_accounts WHERE ${sp("full_phone")} = ${sp("$1")}`;
       } else if (type === "portchange") {
-        sql = `SELECT MAX(recorded_at) AS at FROM port_change_requests WHERE ${sp("phone_number")} = ${sp("$1")}`;
+        // نتيجة السكربت (≥1.9.0: اتبعت الطلب ولا لأ) أو طلب اتسجّل من «تحديث البورت»
+        sql = `SELECT GREATEST(
+                 (SELECT MAX(recorded_at) FROM port_change_requests WHERE ${sp("phone_number")} = ${sp("$1")}),
+                 (SELECT MAX(reported_at) FROM op_results WHERE op_type = 'portchange' AND key_value = regexp_replace(regexp_replace($1, '\\D', '', 'g'), '^88', ''))) AS at`;
       } else if (type === "portcheck") {
         // تحديث البورت بيعيد رفع نفس الـ Request ID (فـ recorded_at مابيتغيّرش) — الأثر الحقيقى
         // هو تحديث بيان البورت نفسه فى phone_ports.
         sql = `SELECT MAX(uploaded_at) AS at FROM phone_ports WHERE ${sp("phone_number")} = ${sp("$1")}`;
       } else if (type === "wfmcancel") {
-        sql = `SELECT MAX(canceled_at) AS at FROM wfm_task_cancels WHERE ${sp("phone_number")} = ${sp("$1")}`;
+        // أى نتيجة (اتلغى / مش موجود / كله Completed / Cancel مش متاحة / فشل) = السكربت خلص الرقم
+        sql = `SELECT GREATEST(
+                 (SELECT MAX(canceled_at) FROM wfm_task_cancels WHERE ${sp("phone_number")} = ${sp("$1")}),
+                 (SELECT MAX(reported_at) FROM op_results WHERE op_type = 'wfmcancel' AND key_value = regexp_replace(regexp_replace($1, '\\D', '', 'g'), '^88', ''))) AS at`;
       } else if (type === "wfmaccept") {
         // أى نتيجة (اتوافق / مش موجود / مفيش زرار أخضر / فشل) معناها إن السكربت خلص الرقم
         sql = `SELECT MAX(reported_at) AS at FROM wfm_task_accepts WHERE ${sp("phone_number")} = ${sp("$1")}`;
@@ -3626,7 +3634,66 @@ export async function registerRoutes(
          VALUES ($1, $2, $3, $4, now()) RETURNING id`,
         [phone, String(b.workOrderId || "").trim() || null, String(b.status || "").trim() || null,
          who.rows[0]?.username || null]);
+      // نفس النجاح فى سجل «اتعمل ولا لأ» — كده السكربت القديم (1.6.x) لو رجعناله نتايجه برضه بتظهر
+      await pool.query(
+        `INSERT INTO op_results (op_type, key_value, result, message, requested_by) VALUES ('wfmcancel', $1, 'done', $2, $3)`,
+        [opKey(phone), String(b.status || "").trim().slice(0, 500) || null, who.rows[0]?.username || null]).catch(() => {});
       res.json({ ok: true, id: rows[0]?.id });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ===== «اتعمل ولا لأ» لإلغاء الإسناد وغيّر البورت (بروفيجن) — المالك ٢٠٢٦-١١-٠٣ =====
+  // زى Re-Execute: السكربت بيبعت **كل** نتيجة (نجاح أو سبب الوقوف)، وبتظهر جنب الزرار وفى تفاصيل الطابور،
+  // وجهاز التنفيذ بيعرف إن الرقم خلص (op-check) بدل ما يستنى المهلة كلها.
+  //  wfmcancel (wfm-dispatcher-reassign ≥1.7.0): done · not_found · completed · unavailable · unsure · failed
+  //  portchange (provisioning-portal ≥1.9.0):    done · not_found · not_submitted · failed
+  const OP_RESULT_TYPES: Record<string, Set<string>> = {
+    wfmcancel: new Set(["done", "not_found", "completed", "unavailable", "unsure", "failed"]),
+    portchange: new Set(["done", "not_found", "not_submitted", "failed"]),
+  };
+  app.options("/api/op-results/ingest", (_req, res) => { setPortsCors(res); res.sendStatus(204); });
+  app.post("/api/op-results/ingest", async (req: any, res) => {
+    setPortsCors(res);
+    if (req.headers["x-dzs-token"] !== DZS_INGEST_TOKEN) return res.status(401).json({ message: "invalid token" });
+    const b = req.body || {};
+    const type = String(b.type || "");
+    const key = opKey(b.key);
+    const result = String(b.result || "");
+    if (!OP_RESULT_TYPES[type] || !key || !OP_RESULT_TYPES[type].has(result)) {
+      return res.status(400).json({ message: "type و key و result مطلوبين" });
+    }
+    // ⚠️ النجاح فى إلغاء الإسناد بيتسجّل من cancel-ingest (السكربت بيبعته هناك) — هنا الوقوف بس،
+    // عشان مايبقاش فيه سطرين «اتعمل» لنفس المحاولة.
+    if (type === "wfmcancel" && result === "done") return res.json({ ok: true, skipped: "done via cancel-ingest" });
+    try {
+      const who = await pool.query(
+        `SELECT username FROM op_intents WHERE regexp_replace(account, '^88', '') = $1 AND op_type = $2 LIMIT 1`, [key, type]);
+      const detail = b.detail && typeof b.detail === "object" ? JSON.stringify(b.detail).slice(0, 4000) : null;
+      const { rows } = await pool.query(
+        `INSERT INTO op_results (op_type, key_value, result, message, detail, requested_by)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6) RETURNING id`,
+        [type, key, result, String(b.message || "").trim().slice(0, 500) || null, detail, who.rows[0]?.username || null]);
+      res.json({ ok: true, id: rows[0]?.id });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // آخر نتيجة لكل رقم — جنب الزرار. غيّر البورت للسوبر أدمن بس؛ إلغاء الإسناد لكل اللى يقدر يعمله.
+  app.get("/api/op-results/last", requireAuth, async (req: any, res) => {
+    const type = String(req.query.type || "");
+    if (!OP_RESULT_TYPES[type]) return res.status(400).json({ message: "type غلط" });
+    const role = req.user?.role;
+    const allowed = type === "portchange"
+      ? role === ROLES.SUPER_ADMIN
+      : [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.EXTERNAL, ROLES.TECH].includes(role);
+    if (!allowed) return res.status(403).json({ message: "غير مسموح" });
+    const keys = String(req.query.keys || req.query.key || "").split(",").map(opKey).filter(Boolean).slice(0, 500);
+    if (!keys.length) return res.json({ data: {} });
+    try {
+      const { rows } = await pool.query(
+        `SELECT DISTINCT ON (key_value) key_value AS "key", result, message, detail, requested_by AS "requestedBy",
+                (reported_at AT TIME ZONE 'Africa/Cairo') AS "reportedAt"
+           FROM op_results WHERE op_type = $1 AND key_value = ANY($2::text[])
+          ORDER BY key_value, reported_at DESC`, [type, keys]);
+      res.json({ data: Object.fromEntries(rows.map((r: any) => [r.key, r])) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -4180,6 +4247,14 @@ export async function registerRoutes(
           ORDER BY k, canceled_at DESC`, [wcKeys])).rows,
         (r) => String(r.k)) : new Map();
 
+      // «اتعمل ولا لأ» لإلغاء الإسناد وغيّر البورت (op_results): آخر نتيجة لكل نوع+رقم
+      const orKeys = [...keysOf("wfmcancel"), ...keysOf("portchange")].map(opKey).filter(Boolean);
+      const opr = orKeys.length ? M<any>((await pool.query(
+        `SELECT DISTINCT ON (op_type, key_value) op_type, key_value, result, message, detail, reported_at
+           FROM op_results WHERE op_type IN ('wfmcancel', 'portchange') AND key_value = ANY($1::text[])
+          ORDER BY op_type, key_value, reported_at DESC`, [orKeys])).rows,
+        (r) => r.op_type + ":" + r.key_value) : new Map();
+
       // مراجعة الاسم والعنوان من FCC
       const siKeys = keysOf("subinfo");
       const si = siKeys.length ? M<any>((await pool.query(
@@ -4232,6 +4307,12 @@ export async function registerRoutes(
             currentMsan: cur?.msan_code ?? null, currentFrame: cur?.frame ?? null,
             currentPortType: cur?.port_type ?? null,
           };
+          // نتيجة السكربت نفسه (≥1.9.0): الطلب اتبعت واتلقى على البورتال ولا لأ
+          const o0 = opr.get("portchange:" + opKey(key)) as any;
+          if (o0) Object.assign(detail, {
+            opResult: o0.result, opMessage: o0.message, opDetail: o0.detail, opAt: o0.reported_at,
+            opInThisJob: at(o0.reported_at) >= at(j.claimedAtRaw),
+          });
         } else if (j.type === "portcheck") {
           const r0 = pcr.get(short(key)) as any;
           const cur = nowPorts.get(short(key)) as any;
@@ -4262,6 +4343,12 @@ export async function registerRoutes(
             result: r0?.assignment_status ?? null, at: r0?.canceled_at ?? null,
             inThisJob: r0 ? at(r0.canceled_at) >= at(j.claimedAtRaw) : false,
           };
+          // سبب الوقوف لو ماتلغاش (op_results — السكربت ≥1.7.0). لو أحدث من سطر النجاح هو اللى يتعرض.
+          const o0 = opr.get("wfmcancel:" + opKey(key)) as any;
+          if (o0 && (!r0 || at(o0.reported_at) > at(r0.canceled_at))) Object.assign(detail, {
+            opResult: o0.result, opMessage: o0.message, at: o0.reported_at,
+            inThisJob: at(o0.reported_at) >= at(j.claimedAtRaw),
+          });
         } else if (j.type === "ossreexec") {
           const r0 = orx.get(String(key).replace(/\D/g, "")) as any;
           detail = r0 ? {

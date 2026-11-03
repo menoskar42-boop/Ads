@@ -690,6 +690,22 @@ export const WFM_MOBILE_AR: Record<string, string> = {
   not_found: "❌ الرقم مش موجود فى أوامر الشغل",
   failed: "❌ ماتجابش (النافذة ماظهرتش أو زرار ناقص)",
 };
+// «اتعمل ولا لأ» لإلغاء الإسناد (op_results — wfm-dispatcher-reassign ≥1.7.0)
+export const WFM_CANCEL_AR: Record<string, string> = {
+  done: "✅ اتعمل — حالة المهمة اتغيّرت على WFM",
+  not_found: "❌ الرقم مالوش مهام على WFM (Tasks Queue)",
+  completed: "⚠️ كل مهام الرقم Completed — مفيش حاجة تتلغى",
+  unavailable: "⚠️ الزرار (Cancel / Re-assign) مش متاح فى أى سطر",
+  unsure: "⚠️ اتضغط بس حالة السطر ماتغيّرتش — راجعه على WFM",
+  failed: "❌ ماتنفّذش (شاشة أو زرار ناقص)",
+};
+// «اتعمل ولا لأ» لغيّر البورت (بروفيجن) (op_results — provisioning-portal ≥1.9.0)
+export const PORTCHANGE_AR: Record<string, string> = {
+  done: "✅ الطلب اتبعت واتلقى على البورتال",
+  not_found: "❌ اتضغط Submit بس مفيش طلب جديد على البورتال",
+  not_submitted: "⚠️ الفورم اتملى بس Submit ماتضغطش (الملف أو الزرار ناقص)",
+  failed: "❌ ماتنفّذش (الجلسة بتقع أو الصفحة مافتحتش)",
+};
 export const OSS_REEXEC_AR: Record<string, string> = {
   done: "✅ اتعمل Re-Execute — السطر اختفى من Abnormal WO",
   not_found: "❌ مش موجود فى Abnormal WO",

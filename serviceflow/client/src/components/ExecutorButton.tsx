@@ -467,7 +467,7 @@ export function ExecutorButton() {
     // (فتح التاب ← انتظار الإشارة أو قفل التاب). غيّر البورت أطول لأن الـ Submit بيدوى.
     const OP_MAX_MS: Partial<Record<ExecJobType, number>> = {
       c360: 20 * 60 * 1000,        // سقف أدنى — المهلة الفعلية بتتدرّج بعدد الأرقام (C360_PER_PHONE_MS)
-      portchange: 15 * 60 * 1000,  // المستخدم بيراجع ويضغط Submit بنفسه
+      portchange: 15 * 60 * 1000,  // Submit + تأكيد إن الطلب اتلقى (≥1.9.0) — والنتيجة بتنهى المهمة بدرى
       portcheck: 5 * 60 * 1000,
       ports: 30 * 60 * 1000,       // رفعة ملف البورتات كامل
       wfmcancel: 6 * 60 * 1000,
