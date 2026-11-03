@@ -531,6 +531,9 @@ export const ACTIVITIES = {
       params: { datasetKey: "colors", title: "🎨 حديقة الألوان", bg: "linear-gradient(180deg,#ffe29a,#ff9a6c)" } },
     { emoji: "🔎", title: "جِد اللون", desc: "اضغط على اللون المطلوب", screen: "findIt",
       params: { datasetKey: "colors", title: "🔎 جِد اللون", verb: "اضغط على", bg: "linear-gradient(180deg,#ffe29a,#ff9a6c)" } },
+    // المالك ٢٠٢٦-١١-٠٤: «فى حديقة الألوان عاوز الألوان عربى وإنجليزى» — نفس «جِد اللون» بس ميزو بيسأل بالإنجليزى
+    { emoji: "🔤", title: "Find the color", desc: "ميزو يقول اللون بالإنجليزى وانت تضغط عليه", screen: "findIt",
+      params: { datasetKey: "colors", title: "🔎 Find the color", lang: "en", bg: "linear-gradient(180deg,#ffe29a,#ff9a6c)" } },
     { emoji: "🎨", title: "لوّن الصور", desc: "اختر لوناً ولوّن الرسمة", screen: "coloring",
       params: { title: "🎨 لوّن الصور", bg: "linear-gradient(180deg,#ffe29a,#ff9a6c)" } },
     { emoji: "🧩", title: "لعبة الذاكرة", desc: "اقلب البطاقات المتشابهة", screen: "memory",

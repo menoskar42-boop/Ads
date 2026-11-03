@@ -117,10 +117,13 @@ export function renderSoundMatch({ regionId, regionIndex, datasetKey, title, bg,
 }
 
 // ===== إيجاد العنصر المطلوب =====
-export function renderFindIt({ regionId, regionIndex, datasetKey, title, bg, verb }) {
+// lang: "en" (المالك ٢٠٢٦-١١-٠٤: «فى حديقة الألوان عاوز الألوان عربى وإنجليزى») — ميزو بيسأل بالإنجليزى
+// («Find Red») والطفل يضغط، وبعد الصح بيقول الاسم بالإنجليزى وبعدين بالعربى. والعربى بيقول الاتنين برضه.
+export function renderFindIt({ regionId, regionIndex, datasetKey, title, bg, verb, lang }) {
   const items = getDataset(datasetKey).items;
   const { screen, stage, back } = frame(title || "🔎 جِد المطلوب", bg, regionId, regionIndex);
-  const action = verb || "اضغط على";
+  const en = lang === "en";
+  const action = en ? "Find" : (verb || "اضغط على");
   let round = 0;
 
   function render() {
@@ -131,9 +134,12 @@ export function renderFindIt({ regionId, regionIndex, datasetKey, title, bg, ver
 
     const ask = document.createElement("p");
     ask.style.cssText = "font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.2);font-size:clamp(18px,5vw,24px)";
-    ask.textContent = `${action} ${target.name}`;
+    const askName = en ? (target.en || target.name) : target.name;
+    ask.textContent = `${action} ${askName}`;
+    if (en) ask.dir = "ltr";
     stage.appendChild(ask);
-    Speech.mizo(`${action} ${target.name}`);
+    if (en) Speech.en(`${action} ${askName}`);
+    else Speech.mizo(`${action} ${target.name}`);
 
     const row = document.createElement("div");
     row.className = "choice-row";
@@ -146,7 +152,9 @@ export function renderFindIt({ regionId, regionIndex, datasetKey, title, bg, ver
           Sfx.correct();
           b.classList.add("correct");
           awardStars(1);
-          Speech.ar(target.name);
+          // الاسم باللغتين (اللى بيتسأل بيها الأول)
+          const ar = { text: target.name, lang: "ar-EG" }, enName = target.en ? { text: target.en, lang: "en-US" } : null;
+          Speech.sequence(enName ? (en ? [enName, ar] : [ar, enName]) : [ar]);
           round++;
           if (round >= 6) setTimeout(() => finishActivity({ regionId, regionIndex, stars: 7, onDone: back }), 700);
           else setTimeout(render, 800);

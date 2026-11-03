@@ -95,6 +95,9 @@ for (const key of ["arabic", "english", "numbers"]) {
   }
 }
 
+// «Find the color» (٢٠٢٦-١١-٠٤) — جِد اللون بالإنجليزى + اسم اللون باللغتين بعد الصح
+for (const it of DATASETS.colors?.items || []) { add(`Find ${it.en}`, EN); add(it.en, EN); add(it.name, AR); }
+
 // ===== الكتابة + الكابيتال/الصغير (٢٠٢٦-١٠-١٠) — من writingPhrases.js نفسه =====
 // كل جملة ثابتة بتتنطق فى «ارسم الحرف» و«اكتب اسمك» والقلم والاختيار وألعاب Aa.
 // tell() فى الشاشات بيأنّث للبنت ⇒ النسختين.
