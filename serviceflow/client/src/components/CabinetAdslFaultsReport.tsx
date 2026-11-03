@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
+import { partnersAfterPrincipal } from "@/lib/partner-order";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -127,16 +128,21 @@ export function CabinetAdslFaultsReport() {
       && (minProjected === "" || rowProjected(r, r.workingAdsl) > Number(minProjected)))
     // ترتيب تصاعدى: الأقل أعطال/1000 = الأفضل = الأول (كل ما تزيد الأعطال يبقى أوحش)
     .sort((a, b) => a.per1000 - b.per1000);
+  // والشريك بعد الفنى الأساسى على طول (المالك ٢٠٢٦-١١-٠٣)
+  const techRowsOrdered = partnersAfterPrincipal(techRows, (r: any) => r.techName, (r: any) => r.partnerOf);
 
   // تاب لكل بكس
   const boxRows = boxData
     .filter((r) => passMin(r.faultCount, r.workingLines))
     .sort((a, b) => per1000(b.faultCount, b.workingLines) - per1000(a.faultCount, a.workingLines));
 
-  const displayRows: any[] = isBox ? boxRows : (isTech ? techRows : cabinetRows);
+  const displayRows: any[] = isBox ? boxRows : (isTech ? techRowsOrdered : cabinetRows);
   const getW = (r: any) => isBox ? Number(r.workingLines) : Number(r.workingAdsl);
-  const totWorking  = displayRows.reduce((s, r) => s + getW(r), 0);
-  const totFaults   = displayRows.reduce((s, r) => s + (Number(r.faultCount) || 0), 0);
+  // ٢٠٢٦-١١-٠٣: إجمالى تاب الفنيين من الكباين نفسها (كل كابينة مرة) — الشريك صفه نسخة من الفنى اللى معاه، فجمع صفوف
+  // الفنيين كان بيحسب كباين الفنى ده مرتين (14608 بدل ~10600 لما إسلام اشتغل مع حسن)
+  const totSource: any[] = isTech ? cabinetData : displayRows;
+  const totWorking  = totSource.reduce((s, r) => s + getW(r), 0);
+  const totFaults   = totSource.reduce((s, r) => s + (Number(r.faultCount) || 0), 0);
   const totPer1000  = per1000(totFaults, totWorking);
   const totProjected = projected(totFaults, totWorking);
 
@@ -430,7 +436,12 @@ export function CabinetAdslFaultsReport() {
                         {!isTech && <TableCell className="font-semibold">{r.cabinNumber}</TableCell>}
                         {tab === "cabinet" && <TableCell className="font-mono text-xs">{r.msanCode}</TableCell>}
                         {tab === "box"     && <TableCell className="font-semibold">{r.boxNumber}</TableCell>}
-                        <TableCell className="whitespace-nowrap">{r.techName}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {r.techName}
+                          {isTech && r.partnerOf && (
+                            <span className="text-[11px] text-muted-foreground mr-1" title="شريك: نتايجه نسخة من الفنى اللى معاه، ومش داخلة فى الإجمالى">(مع {r.partnerOf})</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-center font-bold text-green-700">{w}</TableCell>
                         <TableCell className="text-center font-bold text-red-700">{fmtN(r.faultCount)}</TableCell>
                         <TableCell className="text-center font-bold text-blue-700">{rowPer1000(r, w)}</TableCell>

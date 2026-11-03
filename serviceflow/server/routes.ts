@@ -14551,7 +14551,11 @@ export async function registerRoutes(
           if (!p.tech || !p.partner) continue;
           for (const r of byCabinet as any[]) {
             const names = String(r.techName || "").split(/\s*[,،]\s*/).filter(Boolean);
-            if (names.includes(p.partner) && !names.includes(p.tech)) r.techName = [...names, p.tech].join(" , ");
+            // فى الاتجاهين (٢٠٢٦-١١-٠٣ — المالك: «إسلام ٨٤٫٨ وحسن ٨٤٫٦»): أى كابينة باسم واحد فيهم بس (مثلاً تعديل
+            // يدوى قديم باسم الشريك) بتتحسب للاتنين — فالنتيجة واحدة بالظبط
+            if (names.includes(p.partner) !== names.includes(p.tech)) {
+              r.techName = [...names, names.includes(p.partner) ? p.tech : p.partner].join(" , ");
+            }
           }
         }
       }

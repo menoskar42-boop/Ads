@@ -5,6 +5,7 @@ import { randomBytes, scrypt } from "node:crypto";
 import express from "express";
 import { createServer } from "node:http";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { planAssignments, checkPartners, dayBefore, type DbAssignRow } from "./cabinet-assignments";
 import { buildAdslReport } from "./cabinet-reassign";
 
@@ -212,4 +213,36 @@ test("removal stats: no closer ⇒ the cabinet's technician ON THAT DAY; pairs=1
     await cleanup().catch(() => {});
     await new Promise((r) => httpServer.close(() => r(null)));
   }
+});
+
+test("partner row is marked partnerOf; totals come from the cabinets, not the summed tech rows (2026-11-03)", () => {
+  const r = buildAdslReport({
+    ct: [
+      { central: "C", cabin: "1-1", code: "M1", worker: "W2" },   // حسن
+      { central: "C", cabin: "2-1", code: "M2", worker: "W3" },   // سامى (كابينة إسلام القديمة)
+    ],
+    history: [], names: new Map([["W2", "حسن"], ["W3", "سامى"], ["W1", "اسلام"]]),
+    working: new Map([["M1", 3945], ["M2", 1843]]),
+    daily: new Map([["M1", new Map([["2026-11-02", 2]])], ["M2", new Map([["2026-11-02", 1]])]]),
+    from: "2026-11-01", to: "2026-11-03",
+    partners: [{ tech: "اسلام", partner: "حسن", from: "2026-11-01", to: null }],
+  });
+  const by = Object.fromEntries(r.techs.map((t) => [t.techName, t]));
+  assert.equal(by["اسلام"].partnerOf, "حسن");
+  assert.equal(by["حسن"].partnerOf, undefined);
+  assert.deepEqual([by["اسلام"].workingAdsl, by["اسلام"].per1000], [by["حسن"].workingAdsl, by["حسن"].per1000]);
+  const rowsWorking = r.rows.reduce((s, x) => s + x.workingAdsl, 0);
+  assert.equal(rowsWorking, 3945 + 1843, "الإجمالى من الكباين — كابينة حسن مرة واحدة");
+  const ui = readFileSync(new URL("../client/src/components/CabinetAdslFaultsReport.tsx", import.meta.url), "utf8");
+  assert.match(ui, /const totSource: any\[\] = isTech \? cabinetData : displayRows;/);
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  assert.match(routes, /if \(names\.includes\(p\.partner\) !== names\.includes\(p\.tech\)\) \{/, "المتعذرات فى الاتجاهين");
+});
+
+test("the partner's row always comes right after his principal's row", async () => {
+  const { partnersAfterPrincipal } = await import("../client/src/lib/partner-order");
+  const rows = [{ n: "محمد" }, { n: "اسلام", p: "حسن" }, { n: "محمود" }, { n: "حسن" }, { n: "سامى" }];
+  assert.deepEqual(partnersAfterPrincipal(rows, (r) => r.n, (r) => r.p).map((r) => r.n), ["محمد", "محمود", "حسن", "اسلام", "سامى"]);
+  // الأساسى مش فى الجدول ⇒ الشريك يفضل مكانه
+  assert.deepEqual(partnersAfterPrincipal([{ n: "اسلام", p: "حسن" }, { n: "سامى" }], (r) => r.n, (r) => r.p).map((r) => r.n), ["اسلام", "سامى"]);
 });

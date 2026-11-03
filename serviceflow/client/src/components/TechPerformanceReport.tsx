@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { partnersAfterPrincipal } from "@/lib/partner-order";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
@@ -333,7 +334,10 @@ export function TechPerformanceReport() {
       });
     }
 
-    return result.sort((a, b) => b.total - a.total);
+    // الشريك (فنى بيشتغل مع فنى تانى) بعد الفنى الأساسى على طول (المالك ٢٠٢٦-١١-٠٣)
+    const partnerOf = new Map<string, string>();
+    for (const t of (adslReport?.techs ?? []) as any[]) if (t.partnerOf) partnerOf.set(t.techName, t.partnerOf);
+    return partnersAfterPrincipal(result.sort((a, b) => b.total - a.total), (r) => r.techName, (r) => partnerOf.get(r.techName));
   }, [removalData, repData, adslReport, omData, periodDays, monthDays]);
 
   // صف إجمالى الإدارة

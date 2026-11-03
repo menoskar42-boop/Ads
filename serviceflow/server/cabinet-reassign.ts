@@ -53,6 +53,8 @@ export interface TechAdsl {
   /** أعطال فى الألف للفترة = مجموع (أعطال الجزء × ١٠٠٠ ÷ شغال الجزء) لكل جزء من الفترة */
   per1000: number;
   segments: { from: string; to: string; days: number; working: number; faults: number }[];
+  /** شريك (tech_partners) فى آخر جزء من الفترة ⇒ اسم الفنى اللى معاه. صفه نسخة من صف الفنى ده فمابيدخلش فى الإجمالى */
+  partnerOf?: string;
 }
 
 /**
@@ -135,6 +137,9 @@ export function buildAdslReport(args: {
     }
   }
   const r2 = (x: number) => Math.round(x * 100) / 100;
+  const lastStart = bounds[segCount - 1];
+  const partnerNow = (tech: string) => partners.find((p) => p.tech === tech && p.tech !== p.partner && acc.has(p.partner)
+    && lastStart >= dayNum(p.from) && (!p.to || lastStart <= dayNum(p.to)))?.partner;
   const techs: TechAdsl[] = [...acc.entries()].map(([techName, a]) => {
     const segments = a.segs.map((g, i) => ({
       from: dayStr(bounds[i]), to: dayStr(bounds[i + 1] - 1), days: bounds[i + 1] - bounds[i],
@@ -147,6 +152,7 @@ export function buildAdslReport(args: {
       faultCount: r2(a.segs.reduce((sum, g) => sum + g.faults, 0)),
       per1000: r2(per1000),
       segments,
+      ...(partnerNow(techName) ? { partnerOf: partnerNow(techName) } : {}),
     };
   });
   rows.sort((a, b) => a.centralName.localeCompare(b.centralName, "ar") || a.cabinNumber.localeCompare(b.cabinNumber, "ar", { numeric: true }));
