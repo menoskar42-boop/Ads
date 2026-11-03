@@ -5,13 +5,14 @@ import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { awardStars } from "../core/rewards.js";
-import { gameTopbar, shuffle, finishActivity } from "./common.js";
+import { gameTopbar, shuffle, finishActivity, namesSeq } from "./common.js";
 import { glyphMarkup } from "./glyph.js";
 import { bothCasesSay } from "../data/writingPhrases.js";
 
 const PAIRS = 6; // عدد الأزواج (12 بطاقة)
 
-export function renderMemory({ regionId, regionIndex, datasetKey, title, bg }) {
+export function renderMemory({ regionId, regionIndex, datasetKey, title, bg, lang }) {
+  const en = lang === "en"; // الإنجليزى الأول (حديقة الألوان)
   const ds = getDataset(datasetKey);
   const picks = shuffle(ds.items).slice(0, PAIRS);
   // الحروف الإنجليزى: الزوج = الكابيتال مع الصغير بتاعه (A مع a) — عشان الطفل يفرق
@@ -34,7 +35,7 @@ export function renderMemory({ regionId, regionIndex, datasetKey, title, bg }) {
 
   const hint = document.createElement("p");
   hint.style.cssText = "text-align:center;font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.18);font-size:clamp(15px,4.2vw,20px);margin:12px";
-  hint.textContent = caseMode ? "وصّل الحرف الكابيتال بالصغير بتاعه: A مع a 🔍" : "اقلب بطاقتين متشابهتين! 🔍";
+  hint.textContent = caseMode ? "وصّل الحرف الكابيتال بالصغير بتاعه: A مع a 🔍" : en ? "Find two cards that match! 🔍 · اقلب بطاقتين زى بعض" : "اقلب بطاقتين متشابهتين! 🔍";
   screen.appendChild(hint);
 
   const grid = document.createElement("div");
@@ -65,7 +66,8 @@ export function renderMemory({ regionId, regionIndex, datasetKey, title, bg }) {
       if (caseMode) {
         Speech.en(bothCasesSay(card.it.char, card.it.lower));
         hint.textContent = `برافو! ${card.it.char} الكابيتال و ${card.it.lower} الصغير نفس الحرف`;
-      } else Speech.ar(card.it.name);
+      } else if (en) Speech.sequence(namesSeq(card.it, "en"));
+      else Speech.ar(card.it.name);
       setTimeout(() => {
         first.el.classList.add("done");
         el.classList.add("done");

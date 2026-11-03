@@ -97,6 +97,11 @@ for (const key of ["arabic", "english", "numbers"]) {
 
 // «Find the color» (٢٠٢٦-١١-٠٤) — جِد اللون بالإنجليزى + اسم اللون باللغتين بعد الصح
 for (const it of DATASETS.colors?.items || []) { add(`Find ${it.en}`, EN); add(it.en, EN); add(it.name, AR); }
+// كل تمارين الألوان بالإنجليزى الأول (٢٠٢٦-١١-٠٤): النمط · اكتشف المختلف · ألوان التلوين
+for (const it of DATASETS.colors?.items || []) add(`Great job! It's ${it.en}`, EN);
+["What comes next?", "Find the different one! 🔎", "Which one is different?", "Look closely! Which one is not the same?",
+  "Look here! This one is different.", "Pink"].forEach((t) => add(t, EN));
+add("بمبي", AR);
 
 // ===== الكتابة + الكابيتال/الصغير (٢٠٢٦-١٠-١٠) — من writingPhrases.js نفسه =====
 // كل جملة ثابتة بتتنطق فى «ارسم الحرف» و«اكتب اسمك» والقلم والاختيار وألعاب Aa.

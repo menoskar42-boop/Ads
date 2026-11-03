@@ -13,18 +13,24 @@ const PALETTE = [
   "#ff5d5d", "#ff924c", "#ffd23f", "#34d399",
   "#38bdf8", "#7c5fe6", "#ff6fb5", "#8b5e34", "#2b2b2b", "#ffffff",
 ];
+// اسم كل لون فى الألوان (حديقة الألوان — المالك ٢٠٢٦-١١-٠٤: الإنجليزى أهم): لما الطفل يختار لون بيسمع اسمه
+const PALETTE_NAMES = [
+  { en: "Red", name: "أحمر" }, { en: "Orange", name: "برتقالي" }, { en: "Yellow", name: "أصفر" }, { en: "Green", name: "أخضر" },
+  { en: "Blue", name: "أزرق" }, { en: "Purple", name: "بنفسجي" }, { en: "Pink", name: "بمبي" }, { en: "Brown", name: "بنّي" },
+  { en: "Black", name: "أسود" }, { en: "White", name: "أبيض" },
+];
 
 // كل صورة: اسم عربي + أجزاء SVG قابلة للتلوين (class="cl")
 const PICTURES = [
   {
-    name: "تُفّاحة",
+    name: "تُفّاحة", en: "an apple",
     svg: `
       <rect class="cl" x="96" y="38" width="9" height="26" rx="4"/>
       <ellipse class="cl" cx="122" cy="48" rx="18" ry="9" transform="rotate(-25 122 48)"/>
       <path class="cl" d="M100 62 C70 42 40 64 46 102 C50 142 80 166 100 166 C120 166 150 142 154 102 C160 64 130 42 100 62 Z"/>`,
   },
   {
-    name: "سمكة",
+    name: "سمكة", en: "a fish",
     svg: `
       <polygon class="cl" points="150,100 192,68 192,132"/>
       <ellipse class="cl" cx="95" cy="100" rx="62" ry="40"/>
@@ -32,7 +38,7 @@ const PICTURES = [
       <circle class="cl" cx="62" cy="88" r="10"/>`,
   },
   {
-    name: "منزل",
+    name: "منزل", en: "a house",
     svg: `
       <polygon class="cl" points="38,102 100,48 162,102"/>
       <rect class="cl" x="50" y="102" width="100" height="80"/>
@@ -41,7 +47,7 @@ const PICTURES = [
       <rect class="cl" x="118" y="116" width="22" height="22"/>`,
   },
   {
-    name: "فَراشة",
+    name: "فَراشة", en: "a butterfly",
     svg: `
       <ellipse class="cl" cx="72" cy="78" rx="30" ry="24"/>
       <ellipse class="cl" cx="128" cy="78" rx="30" ry="24"/>
@@ -50,14 +56,14 @@ const PICTURES = [
       <ellipse class="cl" cx="100" cy="100" rx="9" ry="42"/>`,
   },
   {
-    name: "بالون",
+    name: "بالون", en: "a balloon",
     svg: `
       <line x1="100" y1="148" x2="100" y2="186" stroke="#3a2c66" stroke-width="3"/>
       <ellipse class="cl" cx="100" cy="82" rx="50" ry="60"/>
       <polygon class="cl" points="92,140 108,140 100,154"/>`,
   },
   {
-    name: "زَهرة",
+    name: "زَهرة", en: "a flower",
     svg: `
       <rect class="cl" x="96" y="100" width="8" height="76"/>
       <ellipse class="cl" cx="128" cy="150" rx="22" ry="11"/>
@@ -69,7 +75,7 @@ const PICTURES = [
       <circle class="cl" cx="100" cy="90" r="20"/>`,
   },
   {
-    name: "سيّارة",
+    name: "سيّارة", en: "a car",
     svg: `
       <path class="cl" d="M68 96 L84 64 L134 64 L152 96 Z"/>
       <rect class="cl" x="34" y="96" width="132" height="42" rx="12"/>
@@ -77,7 +83,7 @@ const PICTURES = [
       <circle class="cl" cx="132" cy="142" r="18"/>`,
   },
   {
-    name: "شجرة",
+    name: "شجرة", en: "a tree",
     svg: `
       <rect class="cl" x="91" y="120" width="18" height="58" rx="4"/>
       <circle class="cl" cx="70" cy="100" r="30"/>
@@ -85,7 +91,7 @@ const PICTURES = [
       <circle class="cl" cx="100" cy="74" r="38"/>`,
   },
   {
-    name: "آيس كريم",
+    name: "آيس كريم", en: "an ice cream",
     svg: `
       <polygon class="cl" points="76,112 124,112 100,182"/>
       <circle class="cl" cx="80" cy="84" r="20"/>
@@ -93,7 +99,7 @@ const PICTURES = [
       <circle class="cl" cx="100" cy="68" r="24"/>`,
   },
   {
-    name: "قارب",
+    name: "قارب", en: "a boat",
     svg: `
       <rect class="cl" x="22" y="142" width="156" height="34" rx="10"/>
       <path class="cl" d="M52 112 L148 112 L130 144 L70 144 Z"/>
@@ -101,7 +107,7 @@ const PICTURES = [
       <polygon class="cl" points="96,40 96,108 52,108"/>`,
   },
   {
-    name: "شمس",
+    name: "شمس", en: "the sun",
     svg: `
       <polygon class="cl" points="92,52 108,52 100,16"/>
       <polygon class="cl" points="92,148 108,148 100,184"/>
@@ -110,7 +116,7 @@ const PICTURES = [
       <circle class="cl" cx="100" cy="100" r="42"/>`,
   },
   {
-    name: "قطّة",
+    name: "قطّة", en: "a cat",
     svg: `
       <polygon class="cl" points="55,72 72,32 96,74"/>
       <polygon class="cl" points="145,72 128,32 104,74"/>
@@ -118,7 +124,7 @@ const PICTURES = [
       <polygon class="cl" points="93,118 107,118 100,130"/>`,
   },
   {
-    name: "فِطر",
+    name: "فِطر", en: "a mushroom",
     svg: `
       <rect class="cl" x="82" y="100" width="36" height="72" rx="10"/>
       <path class="cl" d="M36 102 C36 58 164 58 164 102 Z"/>
@@ -126,7 +132,7 @@ const PICTURES = [
       <circle class="cl" cx="122" cy="80" r="13"/>`,
   },
   {
-    name: "مظلّة",
+    name: "مظلّة", en: "an umbrella",
     svg: `
       <rect class="cl" x="96" y="98" width="8" height="64" rx="3"/>
       <path class="cl" d="M28 100 C28 54 172 54 172 100 Z"/>
@@ -134,7 +140,7 @@ const PICTURES = [
       <polygon class="cl" points="128,100 150,120 172,100"/>`,
   },
   {
-    name: "طائرة ورقية",
+    name: "طائرة ورقية", en: "a kite",
     svg: `
       <polygon class="cl" points="100,28 52,100 100,100"/>
       <polygon class="cl" points="100,28 148,100 100,100"/>
@@ -142,7 +148,7 @@ const PICTURES = [
       <polygon class="cl" points="100,152 148,100 100,100"/>`,
   },
   {
-    name: "دبدوب",
+    name: "دبدوب", en: "a teddy bear",
     svg: `
       <circle class="cl" cx="62" cy="64" r="20"/>
       <circle class="cl" cx="138" cy="64" r="20"/>
@@ -151,7 +157,7 @@ const PICTURES = [
       <circle class="cl" cx="100" cy="112" r="8"/>`,
   },
   {
-    name: "بطّة",
+    name: "بطّة", en: "a duck",
     svg: `
       <ellipse class="cl" cx="92" cy="122" rx="52" ry="36"/>
       <ellipse class="cl" cx="88" cy="120" rx="26" ry="18"/>
@@ -159,7 +165,7 @@ const PICTURES = [
       <polygon class="cl" points="158,76 194,86 158,98"/>`,
   },
   {
-    name: "قطار",
+    name: "قطار", en: "a train",
     svg: `
       <rect class="cl" x="48" y="58" width="20" height="34"/>
       <rect class="cl" x="30" y="90" width="92" height="50" rx="8"/>
@@ -168,7 +174,7 @@ const PICTURES = [
       <circle class="cl" cx="118" cy="150" r="16"/>`,
   },
   {
-    name: "أصيص ورد",
+    name: "أصيص ورد", en: "a flower pot",
     svg: `
       <rect class="cl" x="94" y="72" width="8" height="50"/>
       <polygon class="cl" points="70,122 130,122 122,172 78,172"/>
@@ -178,7 +184,7 @@ const PICTURES = [
       <circle class="cl" cx="100" cy="58" r="15"/>`,
   },
   {
-    name: "روبوت",
+    name: "روبوت", en: "a robot",
     svg: `
       <circle class="cl" cx="100" cy="28" r="9"/>
       <rect class="cl" x="68" y="42" width="64" height="50" rx="10"/>
@@ -187,7 +193,7 @@ const PICTURES = [
       <rect class="cl" x="60" y="98" width="80" height="66" rx="10"/>`,
   },
   {
-    name: "كعكة",
+    name: "كعكة", en: "a cake",
     svg: `
       <ellipse class="cl" cx="100" cy="168" rx="72" ry="12"/>
       <rect class="cl" x="50" y="110" width="100" height="52" rx="8"/>
@@ -196,7 +202,7 @@ const PICTURES = [
       <circle class="cl" cx="100" cy="52" r="8"/>`,
   },
   {
-    name: "بطريق",
+    name: "بطريق", en: "a penguin",
     svg: `
       <ellipse class="cl" cx="100" cy="112" rx="48" ry="60"/>
       <ellipse class="cl" cx="100" cy="122" rx="28" ry="44"/>
@@ -205,7 +211,7 @@ const PICTURES = [
       <ellipse class="cl" cx="118" cy="170" rx="15" ry="8"/>`,
   },
   {
-    name: "فيل",
+    name: "فيل", en: "an elephant",
     svg: `
       <ellipse class="cl" cx="108" cy="108" rx="54" ry="42"/>
       <circle class="cl" cx="66" cy="96" r="34"/>
@@ -215,7 +221,7 @@ const PICTURES = [
       <rect class="cl" x="128" y="142" width="16" height="28" rx="5"/>`,
   },
   {
-    name: "سلحفاة",
+    name: "سلحفاة", en: "a turtle",
     svg: `
       <ellipse class="cl" cx="98" cy="104" rx="56" ry="40"/>
       <circle class="cl" cx="98" cy="104" r="22"/>
@@ -224,7 +230,7 @@ const PICTURES = [
       <ellipse class="cl" cx="132" cy="146" rx="16" ry="9"/>`,
   },
   {
-    name: "نحلة",
+    name: "نحلة", en: "a bee",
     svg: `
       <ellipse class="cl" cx="78" cy="76" rx="20" ry="14"/>
       <ellipse class="cl" cx="122" cy="76" rx="20" ry="14"/>
@@ -233,7 +239,7 @@ const PICTURES = [
       <rect class="cl" x="106" y="82" width="14" height="60" rx="3"/>`,
   },
   {
-    name: "زهرة التوليب",
+    name: "زهرة التوليب", en: "a tulip",
     svg: `
       <rect class="cl" x="96" y="95" width="8" height="72"/>
       <ellipse class="cl" cx="72" cy="134" rx="22" ry="10" transform="rotate(-25 72 134)"/>
@@ -241,7 +247,7 @@ const PICTURES = [
       <path class="cl" d="M72 75 Q72 45 100 50 Q128 45 128 75 L128 96 Q100 112 72 96 Z"/>`,
   },
   {
-    name: "سحابة ومطر",
+    name: "سحابة ومطر", en: "a rain cloud",
     svg: `
       <circle class="cl" cx="78" cy="78" r="24"/>
       <circle class="cl" cx="122" cy="78" r="28"/>
@@ -251,14 +257,14 @@ const PICTURES = [
       <ellipse class="cl" cx="118" cy="138" rx="8" ry="14"/>`,
   },
   {
-    name: "شمعة",
+    name: "شمعة", en: "a candle",
     svg: `
       <ellipse class="cl" cx="100" cy="58" rx="11" ry="18"/>
       <rect class="cl" x="78" y="82" width="44" height="72" rx="6"/>
       <rect class="cl" x="68" y="154" width="64" height="14" rx="6"/>`,
   },
   {
-    name: "عَلَم",
+    name: "عَلَم", en: "a flag",
     svg: `
       <rect class="cl" x="48" y="46" width="7" height="124" rx="3"/>
       <rect class="cl" x="55" y="50" width="92" height="26"/>
@@ -267,7 +273,8 @@ const PICTURES = [
   },
 ];
 
-export function renderColoring({ regionId, regionIndex, title, bg }) {
+export function renderColoring({ regionId, regionIndex, title, bg, lang }) {
+  const en = lang === "en"; // الإنجليزى الأول (حديقة الألوان)
   const pics = shuffle(PICTURES);
   let index = 0;
 
@@ -294,7 +301,7 @@ export function renderColoring({ regionId, regionIndex, title, bg }) {
 
   function loadPicture() {
     const pic = pics[index];
-    name.textContent = `لوّن: ${pic.name} 🖌️`;
+    name.textContent = en ? `Color ${pic.en} 🖌️ · لوّن: ${pic.name}` : `لوّن: ${pic.name} 🖌️`;
     stage.innerHTML =
       `<svg viewBox="0 0 200 200" class="color-svg" preserveAspectRatio="xMidYMid meet">${pic.svg}</svg>`;
     const svg = stage.querySelector("svg");
@@ -308,7 +315,8 @@ export function renderColoring({ regionId, regionIndex, title, bg }) {
         Sfx.pop();
       });
     });
-    Speech.ar(`لوّن ${pic.name}`);
+    if (en) Speech.sequence([{ text: `Color ${pic.en}`, lang: "en-US" }, { text: `لوّن ${pic.name}`, lang: "ar-EG" }]);
+    else Speech.ar(`لوّن ${pic.name}`);
   }
 
   // شريط الألوان
@@ -319,8 +327,11 @@ export function renderColoring({ regionId, regionIndex, title, bg }) {
     b.style.cssText =
       `width:38px;height:38px;border-radius:50%;border:4px solid ${idx === 0 ? "#5b3fb5" : "#fff"};` +
       `background:${col};box-shadow:var(--shadow-card);transition:transform .12s ease`;
+    b.setAttribute("aria-label", en ? PALETTE_NAMES[idx].en : PALETTE_NAMES[idx].name);
     b.addEventListener("click", () => {
       color = col; Sfx.tap();
+      // اسم اللون: الإنجليزى الأول فى حديقة الألوان
+      if (en) Speech.sequence([{ text: PALETTE_NAMES[idx].en, lang: "en-US" }, { text: PALETTE_NAMES[idx].name, lang: "ar-EG" }]);
       palette.querySelectorAll("button").forEach((x) => (x.style.border = "4px solid #fff"));
       b.style.border = "4px solid #5b3fb5";
       b.style.transform = "scale(1.15)";

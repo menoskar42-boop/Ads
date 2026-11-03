@@ -17,9 +17,12 @@ const PROMPTS = [
   "عينك حلوة! لاقي المختلف 👀",
   "مين اللي مش زيّ الباقي؟",
 ];
+// الإنجليزى (حديقة الألوان)
+const PROMPTS_EN = ["Find the different one! 🔎", "Which one is different?", "Look closely! Which one is not the same?"];
 const pick = (a) => a[(Math.random() * a.length) | 0];
 
-export function renderSpotDiff({ regionId, regionIndex, datasetKey, title, bg }) {
+export function renderSpotDiff({ regionId, regionIndex, datasetKey, title, bg, lang }) {
+  const en = lang === "en"; // الإنجليزى الأول (حديقة الألوان)
   const ds = getDataset(datasetKey || "animals");
   let round = 0;
 
@@ -43,6 +46,7 @@ export function renderSpotDiff({ regionId, regionIndex, datasetKey, title, bg })
   screen.appendChild(grid);
 
   const say = (t, ms) => { mizo.startTalking(ms || t.length * 90 + 900); Speech.mizo(t); };
+  const sayEn = (t, ms) => { mizo.startTalking(ms || t.length * 80 + 900); Speech.en(t); };
 
   function render() {
     grid.innerHTML = "";
@@ -50,9 +54,10 @@ export function renderSpotDiff({ regionId, regionIndex, datasetKey, title, bg })
     const n = diffCount(4, 6); // الصغار ٤ عناصر، الكبار ٦ (أصعب)
     const [base, odd] = shuffle(ds.items).slice(0, 2);
     const oddPos = (Math.random() * n) | 0;
-    const prompt = pick(PROMPTS);
+    const prompt = pick(en ? PROMPTS_EN : PROMPTS);
     bubble.textContent = prompt;
-    setTimeout(() => say(prompt), 150);
+    if (en) bubble.dir = "ltr";
+    setTimeout(() => (en ? sayEn(prompt) : say(prompt)), 150);
 
     let solved = false, wrong = 0;
     for (let i = 0; i < n; i++) {
@@ -67,7 +72,11 @@ export function renderSpotDiff({ regionId, regionIndex, datasetKey, title, bg })
           Sfx.correct();
           mizo.setMood("cheer", 1500);
           awardStars(1);
-          say("برافو! دي المختلفة 👏", 1400);
+          if (en && odd.en) {
+            bubble.textContent = `Great job! It's ${odd.en} · ${odd.name}`;
+            mizo.startTalking(2200);
+            Speech.sequence([{ text: `Great job! It's ${odd.en}`, lang: "en-US" }, { text: odd.name, lang: "ar-EG" }]);
+          } else say("برافو! دي المختلفة 👏", 1400);
           round++;
           if (round >= ROUNDS) setTimeout(() => finishActivity({ regionId, regionIndex, stars: 6, onDone: back }), 1200);
           else setTimeout(render, 1300);
@@ -79,7 +88,8 @@ export function renderSpotDiff({ regionId, regionIndex, datasetKey, title, bg })
           if (++wrong >= 2 && !solved) {
             mizo.setMood("point", 1600);
             grid.children[oddPos].classList.add("reveal-hint");
-            say("بصّ هنا... دي المختلفة!", 1500);
+            if (en) sayEn("Look here! This one is different.", 1500);
+            else say("بصّ هنا... دي المختلفة!", 1500);
           }
         }
       });

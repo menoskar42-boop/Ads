@@ -137,6 +137,16 @@ export function examplePhrase(item, lang) {
 }
 
 /** خلط مصفوفة (نسخة جديدة) */
+/**
+ * اسم العنصر باللغتين (المالك ٢٠٢٦-١١-٠٤: «كل تمارين الألوان عربى وإنجليزى، والإنجليزى أهم بكتير»).
+ * lang "en" ⇒ الإنجليزى الأول وبعده العربى؛ غير كده العربى الأول (والإنجليزى لو موجود).
+ */
+export function namesSeq(item, lang) {
+  const ar = item && item.name ? { text: item.name, lang: "ar-EG" } : null;
+  const en = item && item.en ? { text: item.en, lang: "en-US" } : null;
+  return (lang === "en" ? [en, ar] : [ar, en]).filter(Boolean);
+}
+
 export function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {

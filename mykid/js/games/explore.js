@@ -9,7 +9,8 @@ import { glyphMarkup } from "./glyph.js";
 import { getActivityLessonVideo } from "../data/activityLessonVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
 
-export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, sound }) {
+export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, sound, lang }) {
+  const en = lang === "en"; // الإنجليزى الأول (حديقة الألوان)
   const ds = getDataset(datasetKey);
   const items = ds.items;
   const seen = new Set();
@@ -23,7 +24,7 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
 
   const hint = document.createElement("p");
   hint.style.cssText = "text-align:center;font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.18);font-size:clamp(15px,4.2vw,20px);margin:12px";
-  hint.textContent = "اضغط على كل صديق ليتكلّم! 👆";
+  hint.textContent = en ? "Tap each one to hear its name! 👆 · اضغط واسمع" : "اضغط على كل صديق ليتكلّم! 👆";
   screen.appendChild(hint);
 
   const grid = document.createElement("div");
@@ -32,13 +33,13 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
     const card = document.createElement("button");
     card.className = "region-card";
     card.style.cssText = `animation-delay:${idx * 0.03}s;background:linear-gradient(160deg,#9be15d,#00c46a)`;
-    card.innerHTML = `${glyphMarkup(it, "region-emoji")}<span class="region-name">${it.name}</span><span class="region-name-en">${it.en}</span>`;
+    card.innerHTML = en && it.en
+      ? `${glyphMarkup(it, "region-emoji")}<span class="region-name" dir="ltr">${it.en}</span><span class="region-name-en">${it.name}</span>`
+      : `${glyphMarkup(it, "region-emoji")}<span class="region-name">${it.name}</span><span class="region-name-en">${it.en}</span>`;
     card.addEventListener("click", () => {
       Sfx.pop();
-      const seq = [
-        { text: it.name, lang: "ar-EG" },
-        { text: it.en, lang: "en-US" },
-      ];
+      const seq = en ? [{ text: it.en, lang: "en-US" }, { text: it.name, lang: "ar-EG" }]
+        : [{ text: it.name, lang: "ar-EG" }, { text: it.en, lang: "en-US" }];
       if (sound && it.sound) seq.push({ text: it.sound, lang: "ar-EG" });
       Speech.sequence(seq);
       card.animate(

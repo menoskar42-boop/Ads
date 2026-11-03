@@ -6,7 +6,7 @@ import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { awardStars } from "../core/rewards.js";
-import { gameTopbar, shuffle, finishActivity } from "./common.js";
+import { gameTopbar, shuffle, finishActivity, namesSeq } from "./common.js";
 import { glyphMarkup } from "./glyph.js";
 
 const ROUNDS = 6;
@@ -18,7 +18,8 @@ const UNITS = [
   [0, 1, 2],       // أ ب ج
 ];
 
-export function renderPattern({ regionId, regionIndex, datasetKey, title, bg }) {
+export function renderPattern({ regionId, regionIndex, datasetKey, title, bg, lang }) {
+  const en = lang === "en"; // الإنجليزى الأول (حديقة الألوان)
   const ds = getDataset(datasetKey);
   let round = 0;
 
@@ -30,7 +31,7 @@ export function renderPattern({ regionId, regionIndex, datasetKey, title, bg }) 
 
   const hint = document.createElement("p");
   hint.style.cssText = "text-align:center;font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.18);font-size:clamp(16px,4.4vw,22px);margin:12px";
-  hint.textContent = "ما الذي يأتي بعد؟ 🤔";
+  hint.textContent = en ? "What comes next? 🤔 · إيه اللى بعده؟" : "ما الذي يأتي بعد؟ 🤔";
   screen.appendChild(hint);
 
   const strip = document.createElement("div");
@@ -73,7 +74,8 @@ export function renderPattern({ regionId, regionIndex, datasetKey, title, bg }) 
         if (item === answerItem) {
           b.classList.add("correct");
           Sfx.correct();
-          Speech.ar(item.name);
+          if (en) Speech.sequence(namesSeq(item, "en"));
+          else Speech.ar(item.name);
           q.textContent = "";
           q.innerHTML = glyphMarkup(item, "pat-glyph");
           awardStars(1);
@@ -86,7 +88,8 @@ export function renderPattern({ regionId, regionIndex, datasetKey, title, bg }) 
       });
       row.appendChild(b);
     });
-    Speech.ar("ما الذي يأتي بعد؟");
+    if (en) Speech.en("What comes next?");
+    else Speech.ar("ما الذي يأتي بعد؟");
   }
 
   function nextRound() {
