@@ -22,6 +22,19 @@ export const STOP_RETRY_MARK = "+إعادة";
 // بقت مهمة لوحدها. بتتحط فى note مع «بدون Real» فبتاخد نفس تابات «بدون Real» وQياس Real يشتغل جنبها،
 // وسكربت القياس بيفتح شاشة DSL بس (sf_mode=loop). مسارها: /api/loop-length/ingest ← line_loop_lengths.
 export const LOOP_MARK = "تحديث المسافة";
+// «إعادة بعد 102 و 104» (المالك ٢٠٢٦-١١-٠٣): قياس Real طلع 102 (حقل Dispatch Score مش موجود) أو 104 (timeout/مشغول)
+// ⇒ بعد ٥ دقايق قياس Real تانى للخط فى باتش لوحده بالاسم ده — إلا لو أى حد قاس الخط فى الخمس دقايق دول.
+// مرة واحدة: لو الإعادة نفسها طلعت 102/104 تانى (جوّه نص ساعة) مفيش إعادة تالتة.
+export const RETRY_102_MARK = "إعادة بعد 102 و 104";
+export const RETRY_102_SCORES = new Set([102, 104]);
+export const RETRY_102_AFTER_MIN = 5;
+export const RETRY_102_ONCE_MIN = 30;
+/** القياس ده محتاج إعادة بعد ٥ دقايق؟ Real بس، والاسكور 102 أو 104. */
+export function retry102For(measureMode: string | null | undefined, score: unknown): boolean {
+  if (String(measureMode || "real") !== "real") return false;
+  const n = typeof score === "number" ? score : /^\s*\d+\s*$/.test(String(score ?? "")) ? parseInt(String(score), 10) : NaN;
+  return RETRY_102_SCORES.has(n);
+}
 export const STOP_RETRY_AFTER_MIN = 10;
 export const STOP_RETRY_MAX = 3;
 const STOP_RETRY_RE = /\+إعادة(\d*)/g;

@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { pool, currentPool, hasCurrentDatabase } from "./db";
 import { cleanWfmMobile } from "./wfm-mobile";
-import { followupFor, recheckFor, stopRetryFor, stopRetryCount, RECHECK_MARK, RAISE_STOP_MARK, STOP_MEASURE_MARK, STOP_RETRY_MARK, LOOP_MARK } from "./exec-followups";
+import { followupFor, recheckFor, stopRetryFor, stopRetryCount, RECHECK_MARK, RAISE_STOP_MARK, STOP_MEASURE_MARK, STOP_RETRY_MARK, LOOP_MARK, RETRY_102_MARK, RETRY_102_AFTER_MIN, RETRY_102_ONCE_MIN, retry102For } from "./exec-followups";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
@@ -2362,6 +2362,8 @@ export async function registerRoutes(
     followupsSeen = execQueueVersion;
     try {
       await withTx(async (tx) => {
+        // «إعادة بعد 102 و 104»: كل اللى وقتها جه فى السحبة دى ⇒ باتش واحد جديد
+        let retry102Batch: string | null = null;
         const { rows } = await tx.query(
           `SELECT f.id, f.type, f.account, f.note, f.requested_by, f.created_at,
                   j.priority AS "srcPriority", j.batch_id AS "srcBatch"
@@ -2382,6 +2384,22 @@ export async function registerRoutes(
               else await tx.query(`UPDATE exec_followups SET enqueued_at = now() WHERE id = $1`, [f.id]);
               continue;
             }
+          }
+          if (f.type === "measure" && f.note === RETRY_102_MARK) {
+            // حد قاس الخط فى الخمس دقايق (أى قياس) أو فيه قياس للخط مستنى فى الطابور ⇒ مفيش إعادة
+            const { rows: seen } = await tx.query(
+              `SELECT 1 FROM case_138 WHERE account_no = $1 AND uploaded_at > $2 AND source = 'dzs'
+               UNION ALL
+               SELECT 1 FROM exec_jobs WHERE type = 'measure' AND status IN ('pending', 'claimed') AND accounts @> $3::jsonb
+               LIMIT 1`, [f.account, f.created_at, JSON.stringify([f.account])]);
+            if (seen.length) { await tx.query(`UPDATE exec_followups SET enqueued_at = now() WHERE id = $1`, [f.id]); continue; }
+            retry102Batch = retry102Batch || "r102" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+            const { rows: ins } = await tx.query(
+              `INSERT INTO exec_jobs (type, accounts, requested_by, note, priority, batch_id, site, requested_from)
+               VALUES ('measure', $1::jsonb, $2, $3, 1, $4, $5, $3) RETURNING id`,
+              [JSON.stringify([f.account]), f.requested_by, RETRY_102_MARK, retry102Batch, SITE_OF_TYPE.measure]);
+            await tx.query(`UPDATE exec_followups SET enqueued_at = now(), job_id = $2 WHERE id = $1`, [f.id, ins[0].id]);
+            continue;
           }
           const deferred = Number(f.srcPriority) === 0 && !!f.srcBatch;
           const batchId = deferred ? `${String(f.srcBatch).replace(/-x$/, "")}-x`
@@ -12168,6 +12186,17 @@ export async function registerRoutes(
       );
       syncCurrentDzsMeasurementSoon(measurementValues);
       inserted++;
+      // «إعادة بعد 102 و 104» (المالك ٢٠٢٦-١١-٠٣): Real طلع 102 أو 104 ⇒ Real تانى بعد ٥ دقايق (مرة واحدة فى النص ساعة).
+      // requested_by = 'auto' ⇒ نتيجة الإعادة بتتختم «تلقائى» (execRequesterOf).
+      if (accountNo && retry102For(measureMode, it.score)) {
+        await pool.query(
+          `INSERT INTO exec_followups (type, account, note, requested_by, run_at)
+           SELECT 'measure', $1, $2, $3, now() + make_interval(mins => $4)
+            WHERE NOT EXISTS (SELECT 1 FROM exec_followups WHERE account = $1 AND note = $2
+                                 AND created_at > now() - make_interval(mins => $5))`,
+          [accountNo, RETRY_102_MARK, "auto", RETRY_102_AFTER_MIN, RETRY_102_ONCE_MIN]).catch((e: any) =>
+          console.warn("[case-138] جدولة «إعادة بعد 102 و 104» فشلت:", e?.message || e));
+      }
     }
     } catch (e: any) {
       console.error("[case-138] تسجيل القياس فشل:", e?.message || e);
