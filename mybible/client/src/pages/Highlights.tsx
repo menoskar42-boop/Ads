@@ -14,6 +14,7 @@ import {
   removeHighlightedVerse,
   type MergedVerse,
 } from '@/lib/saved-verses';
+import { track } from '@/lib/analytics';
 
 const highlightColorClasses: Record<string, string> = {
   yellow: 'bg-yellow-100 dark:bg-yellow-900/30',
@@ -43,6 +44,7 @@ export default function Highlights() {
   const handleShare = async (verse: MergedVerse) => {
     const shareText = verse.text + ' - ' + verse.reference;
 
+    track('verse_share', { source: 'highlights' });
     if (navigator.share) {
       try {
         await navigator.share({

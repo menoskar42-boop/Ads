@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { SEOHead } from '@/components/SEOHead';
 import { addUserGroup } from '@/lib/user-groups';
 import { getMinistryUser } from '@/lib/ministry-auth';
+import { track } from '@/lib/analytics';
 
 export default function GroupJoin() {
   const [, navigate] = useLocation();
@@ -46,6 +47,7 @@ export default function GroupJoin() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      track('group_join', { method: 'code', group_id: groupCode.trim().toUpperCase() });
 
       // joined: المجموعة على «انضمام فورى» — نفس دخول العضو الموجود
       if (data.status === 'already_member' || data.status === 'joined') {

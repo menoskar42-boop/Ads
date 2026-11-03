@@ -22,6 +22,7 @@ import { getDaoudLameiLessons } from '@/lib/daoud-lamei-rss';
 import { SEOHead } from '@/components/SEOHead';
 import { TafsirText } from '@/components/TafsirText';
 import { YouTubeCard } from '@/components/VideoCard';
+import { track } from '@/lib/analytics';
 
 type ViewMode = 'plans' | 'days' | 'reading' | 'chapter';
 
@@ -329,6 +330,7 @@ export default function Plans() {
     if (!existing) {
       const newProgress = [...userProgress, { planId: plan.id, currentDay: 1, completedDays: [] }];
       saveProgress(newProgress);
+      track('plan_start', { plan_id: plan.id, plan_days: plan.daysTotal });
     }
     setSelectedPlan(plan);
     setSelectedDay(existing?.currentDay || 1);
@@ -360,6 +362,10 @@ export default function Plans() {
       );
       saveProgress(newProgress);
       setShowDayComplete(true);
+      if (!existing.completedDays.includes(selectedDay)) {
+        track('plan_day_complete', { plan_id: selectedPlan.id, day: selectedDay });
+        if (newCompletedDays.length >= selectedPlan.daysTotal) track('plan_complete', { plan_id: selectedPlan.id, plan_days: selectedPlan.daysTotal });
+      }
     }
   };
 

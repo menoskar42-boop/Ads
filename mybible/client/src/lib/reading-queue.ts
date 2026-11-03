@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 /**
  * تسجيل قراءة درس الكتاب — ولو السيرفر مش متاح تتحفظ على الموبايل وتتبعت بعدين.
  *
@@ -34,6 +35,7 @@ export const pendingReadings = (): number => readQueue().length;
 
 export async function postReading(url: string, body: Record<string, unknown>): Promise<PostResult> {
   const payload = { ...body, readAt: body.readAt || new Date().toISOString() };
+  track('reading_log', { group_id: (url.match(/\/api\/groups\/([^/]+)/) || [])[1] });
   try {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json().catch(() => ({}));

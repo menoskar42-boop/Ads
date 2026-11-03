@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { getCSVFileName } from '@/lib/tafsir-csv-service';
 import { dailyReadings, feasts, type ReadingRef, type DayLectionary } from '@/lib/coptic-lectionary';
+import { track } from '@/lib/analytics';
 
 export type SyncStatus = 'idle' | 'syncing' | 'done' | 'error';
 export type UpdateAvailability = 'unknown' | 'checking' | 'up-to-date' | 'update-available';
@@ -113,6 +114,7 @@ export function useOfflineSync() {
     const signal = abortRef.current.signal;
     setStatus('syncing');
     setProgress({ done: 0, total: 0, currentBook: '' });
+    track('offline_download');
 
     try {
       const cache = await caches.open(CACHE_NAME);

@@ -22,6 +22,7 @@ import { SEOHead } from '@/components/SEOHead';
 import { TafsirText } from '@/components/TafsirText';
 import { YouTubeCard } from '@/components/VideoCard';
 import { saveHighlightedVerse, removeHighlightedVerse } from '@/lib/saved-verses';
+import { track } from '@/lib/analytics';
 
 type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink' | 'orange';
 
@@ -192,6 +193,7 @@ export default function Bible() {
       const ref = `${selectedBook.name} ${verse.chapter}:${verse.verse}`;
       removeHighlightedVerse(ref);
       saveHighlightedVerse(verse.text, ref, color);
+      track('verse_save', { source: 'bible' });
     }
   };
 
@@ -709,6 +711,7 @@ export default function Bible() {
                                 const shareUrl = `${window.location.origin}/share/verse/${verse.id}`;
                                 const shareText = `"${verse.text}"\n\n📖 ${selectedBook?.name} ${selectedChapter}:${verse.verse}\n\n${shareUrl}`;
                                 if (navigator.share) {
+                                  track('verse_share', { source: 'bible', book: selectedBook?.name });
                                   navigator.share({ title: `${selectedBook?.name} ${selectedChapter}:${verse.verse}`, text: shareText, url: shareUrl }).catch(() => navigator.clipboard.writeText(shareText));
                                 } else {
                                   navigator.clipboard.writeText(shareText);

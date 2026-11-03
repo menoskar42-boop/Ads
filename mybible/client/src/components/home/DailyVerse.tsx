@@ -23,6 +23,7 @@ function isStandalone(): boolean {
 }
 
 import { registerPushSubscription, unregisterPushSubscription, sendWelcomeNow } from '@/lib/push-notifications';
+import { track } from '@/lib/analytics';
 
 export function DailyVerse({ date }: { date?: string } = {}) {
   const [saved, setSaved] = useState(false);
@@ -84,6 +85,7 @@ export function DailyVerse({ date }: { date?: string } = {}) {
       await registerPushSubscription();
       setNotifState('subscribed');
       toast.success('سيصلك إشعار بآية اليوم كل صباح الساعة 8 ✓');
+      track('daily_verse_on');
       // إشعار تأكيد فوري — إن وصل فالخط كله يعمل
       const confirmed = await sendWelcomeNow();
       if (!confirmed) {
@@ -102,6 +104,7 @@ export function DailyVerse({ date }: { date?: string } = {}) {
     const verseReference = `${dailyVerse.book.name} ${dailyVerse.verse.chapter}:${dailyVerse.verse.verse}`;
     const shareText = verseText + ' - ' + verseReference;
 
+    track('verse_share', { source: 'daily_verse' });
     if (navigator.share) {
       try {
         await navigator.share({

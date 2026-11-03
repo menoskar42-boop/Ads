@@ -11,6 +11,7 @@ import { SEOHead } from '@/components/SEOHead';
 import { SeoSmartBlock } from '@/components/SeoSmartBlock';
 import { usePageTracker } from '@/hooks/usePageTracker';
 import { useExitTracker } from '@/hooks/useExitTracker';
+import { track } from '@/lib/analytics';
 
 type SearchResult = {
   id: number;
@@ -138,6 +139,8 @@ export default function Search() {
   const handleSearch = (q?: string) => {
     const term = (q ?? query).trim();
     if (!term) return;
+    // البحث العام فى الكتاب مش بيانات شخصية — بس بنبعت أول ٥٠ حرف
+    track('search', { search_term: term.slice(0, 50) });
     setLastQuery(term);
     setHasSearched(true);
     searchMutation.mutate(term);

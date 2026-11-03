@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { SEOHead } from '@/components/SEOHead';
 import { addUserGroup } from '@/lib/user-groups';
 import { getMinistryUser } from '@/lib/ministry-auth';
+import { track } from '@/lib/analytics';
 
 export default function GroupInvite() {
   const params = useParams<{ code: string }>();
@@ -87,6 +88,7 @@ export default function GroupInvite() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      track('group_join', { method: 'invite', group_id: groupCode });
 
       const savedData = {
         userName: userName.trim(),
