@@ -375,3 +375,25 @@ test("small a/d/q: a c-shaped bowl closed by the stick passes; no new letter pas
     assert.deepEqual(passing, before[t], t);
   }
 });
+
+// المالك ٢٠٢٦-١١-٠٤: «حرف ح مكتوب كويس وميزو بيقول قربنا اكتر من مره» (٤٨٪ «من غير النقطة») — الطفل بيكتب الشرطة
+// أطول ويرجع عليها لنصّها، والبطن أصغر وبتقفل لفوق. نفس الطريقة فى ج وخ، ومفيش حرف جديد بقى بيعدّى عليهم.
+test("ح/ج/خ: the child's longer top line and smaller upturned bowl pass; no new letter passes as them", async () => {
+  const { strokeModels, AR } = await import("../js/data/strokes.js");
+  const { scoreDrawing, SCORE_PASS } = await import("../js/games/strokeJudge.js");
+  const best = (g, d) => Math.max(...strokeModels(strokesFor(g)).map((m) => scoreDrawing(m, d).score));
+  // من صورة المالك (بكسل الشاشة، المربع من ١١٠ لـ٨١٠ ومن ٨٦٥ لـ١٥٦٥): شرطة من الشمال لليمين، رجوع لنصّها، والبطن
+  const kid = [[[345, 1065], [630, 1035], [470, 1050], [420, 1110], [380, 1200], [370, 1290], [400, 1360], [455, 1400], [520, 1390], [545, 1360]]];
+  assert.ok(scoreDrawing(strokesFor("ح"), kid).score < SCORE_PASS, "قبل: «قربنا»");
+  assert.ok(best("ح", kid) >= 75, `ح ${best("ح", kid)}`);
+  assert.ok(best("ج", [...kid, [[480, 1300]]]) >= 75, "ج بالنقطة جوّه");
+  assert.ok(best("خ", [...kid, [[440, 935]]]) >= 75, "خ بالنقطة فوق");
+  assert.equal(strokeModels(strokesFor("ح"))[0], strokesFor("ح"), "العرض والنقط على الشكل الأساسى");
+  assert.ok(best("ح", [kid[0].slice(2)]) < SCORE_PASS, "البطن من غير الشرطة مش ح");
+  // الحروف اللى بتعدّى عليهم زى ما كانت قبل كده بالظبط (ع/غ بالنقطة على ج/خ — قديمة)
+  const before = { "ح": [], "ج": ["ح", "خ", "ع"], "خ": ["ج", "ح", "ع", "غ"] };
+  for (const t of ["ح", "ج", "خ"]) {
+    const passing = Object.keys(AR).filter((o) => o !== t && best(t, AR[o]) >= SCORE_PASS);
+    assert.deepEqual(passing, before[t], t);
+  }
+});
