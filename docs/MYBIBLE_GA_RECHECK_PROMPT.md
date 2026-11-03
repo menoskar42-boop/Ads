@@ -3,7 +3,8 @@
 > ٢٠٢٦-١١-٠٣ — بعد تقرير Google Analytics «Ask Advisor» اللى عمله الإكستنشن: `/plans` و`/bible` (و`/kids`) كانت بتقع على
 > شبكة الشغل لأن فلترها بيحجب أى رابط فيه «YouTube»، وملف كارت الفيديو كان اسمه `YouTubeCard-….js`. اتغيّر لـ`VideoCard`
 > (commit `7c8d75ca`). البرومبت ده بيتشغّل **بعد** pull + Republish فى مشروع `sf`، ومن جهاز على **شبكة الشغل** —
-> قراية بس، مفيش أى تعديل. **Trigger:** «ابعتلي برومبت فحص mybible بعد النشر».
+> قراية بس، مفيش أى تعديل. ⚠️ الـstream بتاع الخاصية `G-DMRC5M7Z81`، وكود الموقع بيضبط `G-R3VTW81D67` وكل زيارة
+> بتروح للاتنين (تقرير Ask Advisor) — البرومبت بيعرف التانى ده تبع مين. **Trigger:** «ابعتلي برومبت فحص mybible بعد النشر».
 
 ```
 مهمتك: تتأكد إن صفحات موقع الكتاب المقدس https://mybible.oscardevs.com بقت بتفتح على شبكة الشغل بعد تصليح
@@ -36,15 +37,20 @@
 الجزء التانى — Google Analytics (قراية بس، ممكن تضيف ?hl=en للرابط زى المرة اللى فاتت):
   1) Property بتاع https://mybible.oscardevs.com/ (ID 535648347) ← Reports ← Realtime:
      هل الزيارات اللى عملتها فى الجزء الأول ظاهرة (page_view لـ/plans و/bible و/kids)؟ سكرين شوت.
-  2) Admin ← Data streams ← الـstream بتاع الموقع: الـMeasurement ID كام؟
-     (اللى فى كود الموقع G-R3VTW81D67 — قول متطابق ولا لأ.)
+  2) الكودين: كود الموقع بيضبط G-R3VTW81D67، وكل زيارة بتروح للاتنين G-R3VTW81D67 وG-DMRC5M7Z81، والـstream بتاع
+     الخاصية دى G-DMRC5M7Z81. عايز أعرف G-R3VTW81D67 ده إيه (قراية بس — ماتغيّرش ولا تمسح ولا تفصل حاجة):
+     أ) Admin ← Data streams ← stream الموقع ← «Configure tag settings» (أو Google tag): اكتب الـTag ID وقايمة
+        «Destinations» اللى جوّاه زى ما هى.
+     ب) لف على كل الخصائص اللى فى الحساب (اللى ظاهرة فى قايمة الخصائص فوق — mykid وoscardevs.com وأى خاصية تانية):
+        فى كل واحدة Admin ← Data streams، وقول أنهى واحدة الـMeasurement ID بتاعها G-R3VTW81D67 (لو فيه).
+     ج) فى الخاصية اللى طلع فيها G-R3VTW81D67 (لو لقيتها): Reports ← Realtime — بيوصلها زيارات mybible؟
   3) Admin ← Product links ← Search Console links: مربوط ولا لأ؟ (ماتربطوش — قول بس.)
 
 التقرير فى الآخر (بالعربى):
 - جدول للصفحات الأربعة: فتحت ولا لأ · ظهرت رسالة الخطأ ولا لأ · VideoCard (الـStatus) · طلب YouTubeCard موجود؟ ·
   أى طلب فاشل (الاسم + الـStatus) · أخطاء الـConsole بالحرف · الفيديو اشتغل ولا لأ.
 - Realtime: الزيارات ظهرت ولا لأ.
-- الـMeasurement ID ومتطابق ولا لأ.
+- G-R3VTW81D67: الـTag ID والـDestinations، وأنهى خاصية الـstream بتاعها، وبيوصلها زيارات ولا لأ.
 - Search Console مربوط ولا لأ.
 - السكرين شوتس.
 لو صفحة لسه بتقع: ابعت اسم الملف اللى رجع خطأ بالحرف — ده اللى محتاجه علشان أصلّح.

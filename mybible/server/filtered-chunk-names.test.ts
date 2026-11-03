@@ -15,3 +15,11 @@ test("no client source file name contains «youtube» (becomes a chunk URL the w
   const bad = walk(root).filter((p) => /youtube/i.test(p.slice(root.length)));
   assert.deepEqual(bad, []);
 });
+
+test("a chunk that keeps failing reloads the page once, not forever (each reload was a new page_view)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const main = readFileSync(new URL("../client/src/main.tsx", import.meta.url), "utf8");
+  const h = main.slice(main.indexOf('window.addEventListener("vite:preloadError"'), main.indexOf("// Register service worker"));
+  assert.match(h, /if \(Date\.now\(\) - last < 2 \* 60 \* 1000\) return;/);
+  assert.ok(h.indexOf("return;") < h.indexOf("event.preventDefault()"), "اللفّة بتقف قبل ما يمنع الخطأ يوصل لـErrorBoundary");
+});

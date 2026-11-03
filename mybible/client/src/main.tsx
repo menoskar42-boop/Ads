@@ -36,7 +36,15 @@ async function recoverClientShell(force = false) {
 
 // Vite dispatches this event when a lazy route chunk disappeared during a
 // deployment. Recover before React is left with a rejected dynamic import.
+// ٢٠٢٦-١١-٠٣ (تقرير Google Analytics): ملف محجوب على الشبكة (فلتر شركة) بيفشل كل مرة ⇒ كانت الصفحة بتعمل
+// ريفريش لنفسها للأبد، وكل ريفريش page_view جديد فى Analytics. دلوقتى ريفريش واحد بس فى الدقيقتين، وبعدها نسيب
+// الخطأ يوصل لـErrorBoundary (رسالة «تحديث الصفحة») بدل اللفّة.
+const PRELOAD_RELOAD_KEY = "mybible-preload-reload-at";
 window.addEventListener("vite:preloadError", (event) => {
+  let last = 0;
+  try { last = Number(sessionStorage.getItem(PRELOAD_RELOAD_KEY)) || 0; } catch { /* ignore */ }
+  if (Date.now() - last < 2 * 60 * 1000) return;   // اتعمل ريفريش من شوية وفشل تانى ⇒ مش هنلف
+  try { sessionStorage.setItem(PRELOAD_RELOAD_KEY, String(Date.now())); } catch { /* ignore */ }
   event.preventDefault();
   void recoverClientShell(true);
 });
