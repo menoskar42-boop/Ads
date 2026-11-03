@@ -390,13 +390,21 @@ export const LB_BUILD = [
 ];
 export const LB_REVIEW_KINDS = ["colorLearned", "matchFirst", "sameSound", "position", "harakaPic", "build"];
 
-export function reviewPage(letters, rnd = Math.random, only = null) {
+/**
+ * `learned` = الحروف اللى عليها نجمة (المالك ٢٠٢٦-١١-٠٤: «اعتبرها مخدتوش علشان المراجعة قبل حرف ح — المفروض يعتمد
+ * على النجمة مش إن المراجعة قبل ولا بعد الحرف»). الحروف الغلط فى «لوّن اللى اتعلمناها» من اللى مالهاش نجمة بس.
+ */
+export function reviewPage(letters, rnd = Math.random, only = null, learned = []) {
   const want = (k) => !only || only.includes(k);
   const steps = [];
   // ١) لوّن الحروف اللى اتعلمناها (من وسط حروف تانية)
   if (want("colorLearned")) {
-    const other = shuffled(rnd, LB_ORDER.filter((c) => !letters.includes(c))).slice(0, 4);
-    steps.push({ kind: "colorLearned", letters, cells: shuffled(rnd, [...letters.map((ch) => ({ ch, good: true })), ...other.map((ch) => ({ ch, good: false }))]) });
+    const known = new Set([...letters, ...learned]);
+    const other = shuffled(rnd, LB_ORDER.filter((c) => !known.has(c))).slice(0, 4);
+    // خلّص الكراسة كلها تقريباً (مفيش حروف من غير نجمة كفاية) ⇒ الحروف المتنجّمة التانية بتتلوّن هى كمان
+    const extra = other.length >= 2 ? [] : shuffled(rnd, learned.filter((c) => !letters.includes(c))).slice(0, 4 - other.length);
+    steps.push({ kind: "colorLearned", letters, cells: shuffled(rnd, [
+      ...letters.map((ch) => ({ ch, good: true })), ...extra.map((ch) => ({ ch, good: true })), ...other.map((ch) => ({ ch, good: false }))]) });
   }
   // ٢) صل كل صورة بالحرف الأول
   if (want("matchFirst")) {
@@ -439,9 +447,9 @@ export function reviewPage(letters, rnd = Math.random, only = null) {
 }
 
 /** خطوات أى صفحة من LB_PAGES. */
-export function letterbookSteps(page, rnd = Math.random, only = null) {
+export function letterbookSteps(page, rnd = Math.random, only = null, learned = []) {
   if (page.type === "prep") return prepPage(rnd, only);
-  if (page.type === "review") return reviewPage(page.letters, rnd, only);
+  if (page.type === "review") return reviewPage(page.letters, rnd, only, learned);
   return letterPage(page.ch, rnd, only);
 }
 export const isLbWrite = (s) => s.kind === "write" || s.kind === "harakaWrite";

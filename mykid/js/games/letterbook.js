@@ -143,7 +143,8 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
 
   function openPage(pg) {
     cur = pg;
-    steps = letterbookSteps(pg, Math.random, only); // only: أنشطة بعينها (للاختبار)
+    // المراجعة: الحروف اللى عليها نجمة = «اتعلمناها» (مش اللى قبل المراجعة فى الكراسة)
+    steps = letterbookSteps(pg, Math.random, only, starredLetters("ar", Store.letterbookDone)); // only: أنشطة بعينها (للاختبار)
     // «وصّل الحرف بالصورة»: الجولة من حروف النجمة دلوقتى — ولو مفيش حرف تانى عليه نجمة الخطوة بتتشال
     steps = steps.flatMap((x) => {
       // «دوّر على حروف اسمك»: بس لو الحرف فى اسم الطفل
@@ -634,6 +635,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       const hint = hintLine();
       const grid = el("div", "lbk-pop");
       let got = 0;
+      const need = s.cells.filter((c) => c.good).length;
       s.cells.forEach((c) => {
         const b = button("lbk-balloon lbk-outline", c.ch, () => {
           if (b.dataset.on) return;
@@ -641,7 +643,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
           b.dataset.on = "1";
           Sfx.pop();
           Speech.ar(nameOf(c.ch));
-          if (++got === s.letters.length) stepDone(1200);
+          if (++got === need) stepDone(1200);
         });
         if (c.good) b.dataset.good = "1";
         grid.appendChild(b);

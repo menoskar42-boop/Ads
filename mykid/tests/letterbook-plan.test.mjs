@@ -179,3 +179,31 @@ test("circle: every letter has start → end → middle words with pictures, til
   assert.equal(t.tiles[2], "‍ا", "ا مابتتوصلش باللى بعدها");
   assert.equal(t.tiles[3], "ح");
 });
+
+// المالك ٢٠٢٦-١١-٠٤: «بنتى اتعلّمت ح … فاتحة المراجعة اللى قبل حرف ح اعتبرها مخدتوش — المفروض يعتمد على النجمة»
+test("review «color the learned letters»: a starred letter is never a wrong answer, wherever it sits in the book", () => {
+  const first = LB_PAGES.find((p) => p.type === "review");
+  const later = LB_ORDER.filter((c) => !first.letters.includes(c));
+  const learned = [...first.letters, ...later.slice(0, 5)];      // زى ح: بعد المراجعة بس عليها نجمة
+  for (let seed = 1; seed <= SEEDS; seed++) {
+    const cl = reviewPage(first.letters, seeded(seed), ["colorLearned"], learned)[0];
+    const wrong = cl.cells.filter((c) => !c.good).map((c) => c.ch);
+    assert.ok(wrong.length >= 2, "فيه حروف غلط");
+    for (const ch of wrong) assert.ok(!learned.includes(ch), `${ch} عليه نجمة ومتعلّم غلط`);
+    assert.deepEqual(cl.cells.filter((c) => c.good).map((c) => c.ch).sort(), [...first.letters].sort());
+  }
+  // الكراسة كلها متنجّمة تقريباً ⇒ الحروف المتنجّمة التانية بتتلوّن كمان (مش «غلط»)
+  const almostAll = LB_ORDER.slice(0, -1);
+  for (let seed = 1; seed <= SEEDS; seed++) {
+    const cl = reviewPage(first.letters, seeded(seed), ["colorLearned"], almostAll)[0];
+    for (const c of cl.cells) assert.equal(c.good, almostAll.includes(c.ch), c.ch);
+  }
+});
+
+test("the game passes the starred letters to the review and counts every good balloon", async () => {
+  const { readFileSync } = await import("node:fs");
+  const g = readFileSync(new URL("../js/games/letterbook.js", import.meta.url), "utf8");
+  assert.match(g, /letterbookSteps\(pg, Math\.random, only, starredLetters\("ar", Store\.letterbookDone\)\)/);
+  assert.match(g, /const need = s\.cells\.filter\(\(c\) => c\.good\)\.length;/);
+  assert.match(g, /if \(\+\+got === need\) stepDone\(1200\);/);
+});
