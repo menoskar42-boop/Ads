@@ -352,7 +352,9 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     write(body, s) {
       const pre = s.ch.startsWith("pre:");
       // أول كتابة للحرف (على النقط): «اكتب الحرف …»؛ ولوحده: «اكتبه لوحدك»
+      // المراجعة فيها أكتر من حرف ⇒ ميزو بيقول أنهى حرف (من غير النقط، وبعدين من غير النقطة الخضرا كمان)
       const intro = pre ? preLine(s.ch.slice(4)).say
+        : cur && cur.type === "review" ? LB_SAY.reviewWrite(nameOf(s.ch), !!s.noStart)
         : s.level === 1 || (s.level === 2 && idx <= 2) ? writeIntro("الحرف", nameOf(s.ch)) : s.level === 2 ? ROUND_MSG.againDots
         : s.noStart ? ROUND_MSG.noDot : LB_SAY.writeAlone;
       writeBoard(body, s.ch, s.level, intro, () => stepDone(800), s.reps || 1, !!s.noStart);

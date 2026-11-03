@@ -239,7 +239,7 @@ async function spot(i) {
 async function playPage(pageId, opts = {}) {
   await open(pageId, opts);
   const seen = [];
-  for (let guard = 0; guard < 40; guard++) {
+  for (let guard = 0; guard < 90; guard++) {
     if (!(await page.locator(".wbk-chip").count())) break;
     if (await page.locator(".lgc").count()) break;
     if (await page.evaluate(() => Object.values(localStorage).some((v) => /"letterbookDone":\{"/.test(v)))) break;
@@ -355,7 +355,13 @@ test("hamza letter (أ) for a girl: kasra shows إِ, Mizo speaks to her as a gi
 });
 
 test("review page and the prep page play through", async () => {
-  assert.deepEqual(await playPage("R2"), ["colorLearned", "matchFirst", "sameSound", "position", "harakaPic", "build"]);
+  // المراجعة (٢٠٢٦-١١-٠٤): تمارين الحروف متوزّعة بين تمارين المراجعة الستة، وكل حرف بيتكتب مرتين لوحده (من غير النقط)
+  const r2 = await playPage("R2");
+  const core = r2.filter((k) => ["colorLearned", "matchFirst", "sameSound", "position", "harakaPic", "build"].includes(k));
+  assert.deepEqual(core, ["colorLearned", "matchFirst", "sameSound", "position", "harakaPic", "build"]);
+  assert.equal(r2[0], "colorLearned");
+  assert.equal(r2.filter((k) => k === "write").length, 8, "٤ حروف × مرتين");
+  assert.ok(r2.length >= 30, `${r2.length} خطوة`);
   assert.deepEqual(await playPage("prep"), ["shadow", "write", "write", "shadow", "write", "write"]);
   assert.deepEqual(errors, []);
 });

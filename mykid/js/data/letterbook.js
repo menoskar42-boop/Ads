@@ -389,6 +389,13 @@ export const LB_BUILD = [
   { a: "ي", b: "د", ...W("يد", "✋") },
 ];
 export const LB_REVIEW_KINDS = ["colorLearned", "matchFirst", "sameSound", "position", "harakaPic", "build"];
+// المالك ٢٠٢٦-١١-٠٤: «المراجعة محتاج يكون فيها تمارين كتير زى التمارين اللى بتبقى مع كل حرف، متنوعة وكتير وتغطى
+// المراجعة تمام، وفى كتابة الحرف مفيش نقط لأنها مراجعة». تمارين صفحة الحرف نفسها، متوزّعة على حروف المراجعة
+// (كل نوع لحرف، وكل حرف بياخد أنواع مختلفة) — والكتابة لوحده من غير النقط، وبعدين من غير النقطة الخضرا كمان.
+export const LB_REVIEW_DRILLS = ["riddle", "pop", "starts", "flash", "eggs", "phonics", "forms", "circle", "formComplete",
+  "formListen", "runaway", "catch", "missing", "blankWrite", "spotMistake", "formStamp", "train", "connect", "sequence",
+  "harakaQuiz", "puzzle"];
+export const LB_REVIEW_WRITE_REPS = 2;
 
 /**
  * `learned` = الحروف اللى عليها نجمة (المالك ٢٠٢٦-١١-٠٤: «اعتبرها مخدتوش علشان المراجعة قبل حرف ح — المفروض يعتمد
@@ -406,6 +413,26 @@ export function reviewPage(letters, rnd = Math.random, only = null, learned = []
     steps.push({ kind: "colorLearned", letters, cells: shuffled(rnd, [
       ...letters.map((ch) => ({ ch, good: true })), ...extra.map((ch) => ({ ch, good: true })), ...other.map((ch) => ({ ch, good: false }))]) });
   }
+  // تمارين الحروف: كل حرف بياخد أنواع مختلفة من تمارين صفحته، والأنواع كلها بتتغطّى على حروف المراجعة
+  const order = shuffled(rnd, letters);
+  const drillsOf = new Map(order.map((ch) => [ch, []]));
+  shuffled(rnd, LB_REVIEW_DRILLS.filter((k) => want(k) || want("drills")))
+    .forEach((k, i) => drillsOf.get(order[i % order.length]).push(k));
+  const round = (r) => {
+    for (const ch of order) {
+      const k = drillsOf.get(ch)[r];
+      if (k) steps.push(...letterPage(ch, rnd, [k]));
+    }
+  };
+  const writeAll = (noStart) => {
+    if (!want("write")) return;
+    for (const ch of order) steps.push({ kind: "write", ch, level: 3, reps: LB_REVIEW_WRITE_REPS, ...(noStart ? { noStart } : {}) });
+  };
+  const rounds = Math.max(0, ...[...drillsOf.values()].map((a) => a.length));
+  round(0);
+  // ✏️ كل حرف لوحده (من غير النقط)
+  writeAll(false);
+  round(1);
   // ٢) صل كل صورة بالحرف الأول
   if (want("matchFirst")) {
     const pics = letters.map((ch) => ({ ch, ...pickOf(rnd, wordsStarting(ch)) }));
@@ -420,6 +447,7 @@ export function reviewPage(letters, rnd = Math.random, only = null, learned = []
     });
     steps.push({ kind: "sameSound", rows });
   }
+  round(2);
   // ٤) استمع وارسم دائرة فى موضع الحرف فى الكلمة (أول/وسط/آخر)
   if (want("position")) {
     const rounds = shuffled(rnd, letters).slice(0, 3).map((ch) => {
@@ -436,6 +464,10 @@ export function reviewPage(letters, rnd = Math.random, only = null, learned = []
     });
     steps.push({ kind: "harakaPic", rounds });
   }
+  round(3);
+  // ✏️ كل حرف من غير النقطة الخضرا كمان (من الذاكرة)
+  writeAll(true);
+  for (let r = 4; r < rounds; r++) round(r);
   // ٦) انطق ثم اكتب الكلمة: حرف + حرف = كلمة (اختار صورتها)
   if (want("build")) {
     const pool = LB_BUILD.filter((b) => letters.includes(b.a) || letters.includes(b.b));

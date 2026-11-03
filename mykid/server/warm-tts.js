@@ -196,6 +196,7 @@ add("برافو", AR);
     const s3 = ["a", "u", "i"].map((h) => (ch === "أ" && h === "i" ? "إ" : ch) + LB_HARAKAT[h].mark);
     [S.meet(name, s3.join("، ")), S.pop(name), S.popWrong(name), S.popMore(name), S.harakat(name), S.starts(name),
       S.forms(name), S.position(name), WP.writeIntro("الحرف", name), L.riddle,
+      S.reviewWrite(name, false), S.reviewWrite(name, true),
       S.circle(name, 0), S.circle(name, 1), S.circle(name, 2), S.circleWrong(name)].forEach(addAr);
     add(name, AR);
     // المقاطع (بَ بُ بِ بْ) + «اقرأ بُ …»

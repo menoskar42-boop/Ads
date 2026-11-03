@@ -207,3 +207,32 @@ test("the game passes the starred letters to the review and counts every good ba
   assert.match(g, /const need = s\.cells\.filter\(\(c\) => c\.good\)\.length;/);
   assert.match(g, /if \(\+\+got === need\) stepDone\(1200\);/);
 });
+
+// المالك ٢٠٢٦-١١-٠٤: «المراجعة محتاج يكون فيها تمارين كتير زى اللى مع كل حرف، متنوعة وتغطى المراجعة، وفى كتابة الحرف
+// مفيش نقط لأنها مراجعة»
+test("review page: many varied drills spread over its letters, and writing without the dotted letter", async () => {
+  const { LB_REVIEW_DRILLS, LB_REVIEW_KINDS } = await import("../js/data/letterbook.js");
+  for (const pg of LB_PAGES.filter((p) => p.type === "review")) {
+    for (let seed = 1; seed <= 10; seed++) {
+      const st = letterbookSteps(pg, seeded(seed * 5 + 2));
+      assert.ok(st.length >= 30, `${pg.id}: ${st.length} خطوة بس`);
+      const writes = st.filter((s) => s.kind === "write");
+      assert.ok(writes.length >= pg.letters.length * 2, "كل حرف بيتكتب مرتين");
+      assert.ok(writes.every((w) => w.level === 3), "مفيش كتابة على النقط فى المراجعة");
+      for (const ch of pg.letters) {
+        assert.ok(writes.some((w) => w.ch === ch && !w.noStart), `${ch} لوحده`);
+        assert.ok(writes.some((w) => w.ch === ch && w.noStart), `${ch} من غير النقطة الخضرا`);
+        const mine = st.filter((s) => s.ch === ch && s.kind !== "write");
+        assert.ok(new Set(mine.map((s) => (s.kind === "game" ? s.game : s.kind))).size >= 3, `${ch}: تمارين متنوعة`);
+      }
+      // أنواع التمارين كلها موجودة (ما عدا اللى ممكن يتشال لو الحرف مالوش كلمات زى circle)
+      const kinds = new Set(st.map((s) => (s.kind === "game" ? s.game : s.kind)));
+      const missing = LB_REVIEW_DRILLS.filter((k) => !kinds.has(k) && k !== "circle");
+      assert.deepEqual(missing, [], pg.id);
+      for (const k of LB_REVIEW_KINDS) assert.ok(kinds.has(k), k);
+      assert.ok(!st.some((s) => s.kind === "harakaWrite"), "الحرف بالحركة على النقط مش فى المراجعة");
+    }
+  }
+  const g = (await import("node:fs")).readFileSync(new URL("../js/games/letterbook.js", import.meta.url), "utf8");
+  assert.match(g, /cur && cur\.type === "review" \? LB_SAY\.reviewWrite\(nameOf\(s\.ch\), !!s\.noStart\)/);
+});
