@@ -58,8 +58,14 @@ test("PO stop on a fake AXON page: stops a Nightly line despite old «Real-time 
     p.on("pageerror", (e) => errors.push(String(e)));
     p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
     await p.goto(`${base}/expresse/profileOptimization?lineId=${ACC}#sf_po=${ACC}&sf_stop=1&sf_lane=90&sf_bridge=1`);
+    // زى جهاز التنفيذ: أول ما نتيجة الإيقاف توصل السيرفر بيقفل التاب (قبل advance بتاع السكربت) —
+    // السجل لازم يكون اتبعت معاها (٠.٩.٢٤ كان بيبعته فى advance فبيتحبس فى التاب)
     const deadline = Date.now() + 60_000;
-    while (Date.now() < deadline && !traces.length) await new Promise((r) => setTimeout(r, 300));
+    while (Date.now() < deadline && !events.length) await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 300));
+    await p.close();
+    const t2 = Date.now() + 5_000;
+    while (Date.now() < t2 && !traces.length) await new Promise((r) => setTimeout(r, 100));
     assert.deepEqual(errors, []);
     assert.equal(status, "Not Started", "الإيقاف اتداس فعلاً");
     assert.deepEqual(events.map((e) => [e.accountNo, e.event, e.result]), [[ACC, "stop", "stopped"]]);
@@ -69,12 +75,12 @@ test("PO stop on a fake AXON page: stops a Nightly line despite old «Real-time 
     assert.equal(t.outcome, "stopped");
     assert.equal(t.mode, "stop");
     assert.equal(t.lane, "90");
-    assert.equal(t.version, "0.9.24");
+    assert.equal(t.version, "0.9.25");
     const text = t.steps.map((x: any) => `[${x.s}] ${x.m}`).join("\n");
     assert.match(text, /الصفحة اتحمّلت: صفحة Profile Optimization/);
     assert.match(text, /\[In Nightly PO\] .*اختار «Stop Nightly PO» \(select مخفى\)/);
     assert.match(text, /داس Yes <button> جوّه نافذة التأكيد/);
-    assert.match(text, /\[Not Started\] ✅ اتوقف/);
+    assert.match(text, /\[Not Started\] اتسجّلت النتيجة فى Service-Flow: اتوقف/);
     assert.ok(t.steps.every((x: any) => !Number.isNaN(Date.parse(x.t))));
   } finally {
     await browser.close();

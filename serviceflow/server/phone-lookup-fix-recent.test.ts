@@ -15,5 +15,6 @@ test("the Real measure from phone lookup carries its source explicitly, so the e
   assert.match(fn, /buildDZSUrl\(\[acc\]\) \+ "&sf_fix=recent"/);
   // جهاز التنفيذ بيقرّر من الـ note
   assert.match(executor, /const fixRecent = String\(note \|\| ""\)\.includes\(PHONE_LOOKUP_SOURCE\)/);
-  assert.match(queue, /return opts\?\.fixRecent \? "&sf_fix=recent" : "";/);
+  // ٢٠٢٦-١١-٠٣: Real من جهاز التنفيذ بيزوّد رقم تابه (sf_lane=80) بعد علامة «recent fix»
+  assert.match(queue, /return \(opts\?\.fixRecent \? "&sf_fix=recent" : ""\) \+ realLane;/);
 });

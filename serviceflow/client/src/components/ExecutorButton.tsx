@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Server, Loader2, Trash2, RefreshCw, Moon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
+import { REAL_MEASURE_LANE } from "@/lib/exec-queue";
 import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, reloadWhenReachable, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, FCC_ORIGIN, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
 import { rescueMinutes, EXEC_RUN_MINUTES } from "@shared/exec-timeouts";
 import { executorPausedNow, refreshPausedNow, saveNightPause, useNightPause, nightWindowStart, readNightPause } from "@/lib/night-pause";
@@ -863,9 +864,12 @@ export function ExecutorButton() {
           const isPoStop = job.type === "stop";
           if (isPoStop) while (poStopLanes.has(lane)) lane++;
           if (isPoStop) poStopLanes.add(lane);
+          // قياس Real (٢٠٢٦-١١-٠٣): بيشتغل جنب «بدون Real»/«إيقاف PO» ⇒ تاب لوحده (80) ومفتاح لوحده (#R)
+          const isReal = job.type === "measure" && !isNoReal;
+          if (isReal) lane = REAL_MEASURE_LANE;
           const isLaned = isNoReal || isPoStop;
           // «إيقاف PO» بمفتاح لوحده (#P) — بيشتغل جنب «بدون Real» على نفس الموقع، فمايتلخبطش مع تابه الأول
-          const laneKey = isPoStop ? `${site}#P${lane}` : (isLaned && lane > 1 ? `${site}#L${lane}` : site);
+          const laneKey = isPoStop ? `${site}#P${lane}` : isReal ? `${site}#R` : (isLaned && lane > 1 ? `${site}#L${lane}` : site);
           running.set(laneKey, `${label}${isLaned && lane > 1 ? ` [تاب ${lane}]` : ""} (${accs.length} رقم)`);
           runningSince.set(laneKey, { at: Date.now(), type: job.type, batchId: job.batchId });
           showRunning();

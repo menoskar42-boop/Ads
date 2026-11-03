@@ -418,9 +418,15 @@ export function executeSingle(type: ExecJobType, account: string | number, opts?
 
 // تنفيذ **مجموعة أرقام دفعة واحدة** — نبعتها كلها للسكربت (DZS/PO) اللى بيلفّ عليها بنفسه
 // (زى ما لو ضغطنا عليها والزر مطفى: 6/185…). كده مايفتحش صفحة منفصلة لكل رقم.
-/** اسم تاب القياس: التاب الأول (وقياس Real) زى ما هو، و«بدون Real» التانى تاب لوحده. */
+/** قياس Real من جهاز التنفيذ (المالك ٢٠٢٦-١١-٠٣: بيشتغل جنب «بدون Real» و«إيقاف PO»، Real واحد بس فى المرة —
+ *  السيرفر بيضمنها). بيفتح فى **نفس تاب القياس زى ما هو** (dzs_measure — «علشان يبقى مميز»)، بس مفاتيح سكربت
+ *  القياس بتاعته لوحدها (sf_lane=80 ⇒ _L80) عشان مايتلخبطش مع تاب «بدون Real» الأول. */
+export const REAL_MEASURE_LANE = 80;
+
+/** اسم تاب القياس: Real (والقياس اليدوى) فى التاب الأساسى dzs_measure. تابات «بدون Real» من جهاز التنفيذ كل واحد
+ *  تاب لوحده — حتى الأول (dzs_measure_1) عشان Real بقى بيشتغل جنبه ومايفتحش فوقه. */
 export function measureTabName(lane?: number): string {
-  return lane && lane > 1 ? `${DZS_MEASURE_TARGET}_${lane}` : DZS_MEASURE_TARGET;
+  return lane && lane !== REAL_MEASURE_LANE ? `${DZS_MEASURE_TARGET}_${lane}` : DZS_MEASURE_TARGET;
 }
 
 export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; noReal?: boolean; lane?: number; afterStop?: boolean; keep?: boolean; params?: ExecJobParams | null }): Window | null {
@@ -457,7 +463,9 @@ export function noRealUrl(url: string, noReal?: boolean): string {
 export function measureHashFlags(opts?: { fixRecent?: boolean; noReal?: boolean; lane?: number }): string {
   // التاب التانى لـ«بدون Real» (v10.25): السكربت بياخد رقمه ويحفظ حالته بلاحقة _L2.
   if (opts?.noReal) return "&sf_mode=noreal" + (opts.lane && opts.lane > 1 ? `&sf_lane=${opts.lane}` : "");
-  return opts?.fixRecent ? "&sf_fix=recent" : "";
+  // Real من جهاز التنفيذ: تابه (80) بمفاتيح لوحده فى سكربت القياس
+  const realLane = opts?.lane === REAL_MEASURE_LANE ? `&sf_lane=${REAL_MEASURE_LANE}` : "";
+  return (opts?.fixRecent ? "&sf_fix=recent" : "") + realLane;
 }
 
 // آخر وقت قياس لرقم أكونت (للتأكد إن القياس اتحدّث) — millis أو 0

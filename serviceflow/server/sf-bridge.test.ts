@@ -169,7 +169,8 @@ test("script wiring: pages, permissions, and the server rules it depends on", ()
   assert.match(routes, /AND \(h\.bridge_lease_until IS NULL OR h\.bridge_lease_until < now\(\)\)\n(\s+--.*\n)?\s+AND NOT \$\{lanes\.bridge \? bridgeable\("h"\) : "FALSE"\}\n\s+AND COALESCE\(h\.site/);
   assert.match(routes, /AND \(bridge_lease_until IS NULL OR bridge_lease_until < now\(\)\)\n\s+AND NOT \$\{lanes\.bridge \? bridgeable\("exec_jobs"\) : "FALSE"\}\n\s+AND \$\{siteFreeFor\("exec_jobs", "\$3", lanes, "\$4::timestamptz"\)\}/);
   // ومابيبدأش لو Real/رفع سرعة مستنى قدّامه (اتلقطت على Postgres حقيقى)
-  assert.match(routes, /AND NOT \$\{sharedGroup\("x"\)\}\n\s+AND \$\{queueRank\("x"\)\} < \$\{queueRank\("exec_jobs"\)\} \$\{drainSql\}\)/);
+  // ٢٠٢٦-١١-٠٣: Real قدّامه مابقاش بيوقّف الجسر (بيشتغلوا مع بعض) — رفع السرعة/الأنواع اللى لوحدها بس (soloJob)
+  assert.match(routes, /AND \$\{soloJob\("x"\)\}\n\s+AND \$\{queueRank\("x"\)\} < \$\{queueRank\("exec_jobs"\)\} \$\{drainSql\}\)/);
   assert.match(routes, /app\.post\("\/api\/exec-queue\/bridge\/token", requireAuth, requireSuperAdmin/);
   for (const p of ["lease", "start", "alive", "report"]) assert.match(routes, new RegExp(`app\\.post\\("/api/exec-queue/bridge/${p}", requireBridge`));
 });

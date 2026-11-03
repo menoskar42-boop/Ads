@@ -2664,6 +2664,16 @@ export async function registerRoutes(
   // يشتغل لوحده وكمان قياس Real»). كل نوع بعدد تاباته هو (laneCap)، ورفع السرعة/Real/أى نوع
   // تانى بياخد الموقع لوحده.
   const sharedGroup = (a: string) => `(${isNoRealJob(a)} OR ${isPoStopJob(a)})`;
+  // قياس Real (المالك ٢٠٢٦-١١-٠٣: «جرّبت Real مع بدون Real كتير وإيقاف PO فى نفس الوقت واشتغل كويس — مفيش داعى
+  // توقّف بدون Real أو الإيقاف عشان تفتح Real، أهم حاجة مايبقاش فيه قياسين Real أو أكتر مع بعض»):
+  // بيشتغل جنب «بدون Real»/«إيقاف PO» (تاب لوحده خارج عدّهم)، بس Real واحد بس فى المرة. رفع السرعة وباقى الأنواع
+  // لسه بياخدوا الموقع لوحدهم.
+  const isRealJob = (a: string) => `(${a}.type = 'measure' AND NOT ${isNoRealJob(a)})`;
+  /** بياخد الموقع لوحده: مش «بدون Real» ولا «إيقاف PO» ولا Real */
+  const soloJob = (a: string) => `(NOT ${sharedGroup(a)} AND NOT ${isRealJob(a)})`;
+  /** مهمتين ينفع يشتغلوا مع بعض على نفس الموقع: الاتنين من (بدون Real · إيقاف PO · Real) ومش الاتنين Real */
+  const coRunnable = (a: string, b: string) =>
+    `((${sharedGroup(a)} OR ${isRealJob(a)}) AND (${sharedGroup(b)} OR ${isRealJob(b)}) AND NOT (${isRealJob(a)} AND ${isRealJob(b)}))`;
   const laneCap = (a: string, L: ExecLanes) =>
     `(CASE WHEN ${isNoRealJob(a)} THEN ${clampLanes(L.noreal, 1)} WHEN ${isPoStopJob(a)} THEN ${clampLanes(L.stop, 1)} ELSE 1 END)`;
   // سقف الاتنين مع بعض = أكبر رقم فى الإعدادات (مش مجموعهم)
@@ -2687,15 +2697,26 @@ export async function registerRoutes(
         AND (SELECT COUNT(*) FROM exec_jobs b
               WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
                 AND ${sharedGroup("b")}) < ${sharedCap(L)}
-        -- مفيش رفع سرعة/Real/نوع تانى شغّال على الموقع (دول بياخدوه لوحدهم)
+        -- مفيش رفع سرعة/نوع تانى شغّال على الموقع (دول بياخدوه لوحدهم) — Real شغّال مايمنعش (٢٠٢٦-١١-٠٣)
         AND NOT EXISTS (SELECT 1 FROM exec_jobs b
                          WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
-                           AND NOT ${sharedGroup("b")})
-        -- ولا مهمة من النوع اللى بياخد الموقع لوحده قبله فى الطابور (Real مايتجوّعش)
+                           AND ${soloJob("b")})
+        -- ولا مهمة من النوع اللى بياخد الموقع لوحده قبله فى الطابور (رفع السرعة مايتجوّعش)
         AND NOT EXISTS (SELECT 1 FROM exec_jobs x
                          WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> ${e}.id
                            AND COALESCE(x.site, '10.42.187.101') = ${siteSql}
-                           AND NOT ${sharedGroup("x")}
+                           AND ${soloJob("x")}
+                           AND (${beforeSql} IS NULL OR x.created_at <= ${beforeSql})
+                           AND ${queueRank("x")} < ${queueRank(e)}))
+    -- قياس Real: جنب «بدون Real»/«إيقاف PO» — بس مفيش Real تانى شغّال، ولا رفع سرعة/نوع تانى شغّال أو قدّامه
+    OR (${isRealJob(e)}
+        AND NOT EXISTS (SELECT 1 FROM exec_jobs b
+                         WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
+                           AND (${isRealJob("b")} OR ${soloJob("b")}))
+        AND NOT EXISTS (SELECT 1 FROM exec_jobs x
+                         WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> ${e}.id
+                           AND COALESCE(x.site, '10.42.187.101') = ${siteSql}
+                           AND ${soloJob("x")}
                            AND (${beforeSql} IS NULL OR x.created_at <= ${beforeSql})
                            AND ${queueRank("x")} < ${queueRank(e)}))
   )`;
@@ -3295,7 +3316,7 @@ export async function registerRoutes(
                                WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> exec_jobs.id
                                  AND COALESCE(x.site, '10.42.187.101') = $3
                                  AND (x.bridge_lease_until IS NULL OR x.bridge_lease_until < now())
-                                 AND NOT ${sharedGroup("x")}
+                                 AND ${soloJob("x")}
                                  AND ${queueRank("x")} < ${queueRank("exec_jobs")} ${drainSql})
               AND NOT EXISTS (SELECT 1 FROM exec_jobs x
                                WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> exec_jobs.id
@@ -5007,7 +5028,7 @@ export async function registerRoutes(
                             WHERE j2.claimed_at > e.claimed_at
                               AND COALESCE(j2.site, '10.42.187.101') = COALESCE(e.site, '10.42.187.101')
                               -- تابات «بدون Real»/«إيقاف PO» شغّالة مع بعض (حتى لو نوعين مختلفين) مش دليل إن الأقدم اتعدّى
-                              AND NOT (${sharedGroup("e")} AND ${sharedGroup("j2")})))
+                              AND NOT ${coRunnable("e", "j2")}))
               -- (2) المُنقِذ الأساسى: عدّت مهلة نوعها القصوى → عالقة أكيد، رجّعها
               OR e.claimed_at < now() - ${maxRunSql}
             )`,
@@ -5201,9 +5222,12 @@ export async function registerRoutes(
             AND COALESCE(site, '10.42.187.101') = COALESCE($2, '10.42.187.101')
             -- «بدون Real» و«إيقاف PO» بيشتغلوا مع بعض ⇒ الإيقاف العاجل مايقطعش «بدون Real» (والعكس):
             -- بياخد تاب جنبه. رفع السرعة/Real لسه بيقطعوا زى الأول.
-            AND NOT ($3::boolean AND ${sharedGroup("exec_jobs")}) LIMIT 1`,
+            -- وقياس Real (٢٠٢٦-١١-٠٣) بيشتغل جنبهم: مايقطعهمش ولا هم بيقطعوه. Real عاجل لسه بيقطع Real.
+            AND NOT (($3::boolean OR $4::boolean) AND (${sharedGroup("exec_jobs")} OR ${isRealJob("exec_jobs")})
+                     AND NOT ($4::boolean AND ${isRealJob("exec_jobs")})) LIMIT 1`,
         [job.priority ?? 0, job.site,
-         (job.type === "stop") || (job.type === "measure" && String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK))]);
+         (job.type === "stop") || (job.type === "measure" && String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK)),
+         job.type === "measure" && !String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK)]);
       const prog = await jobProgress(job.accounts, job.type, job.claimed_at);
       res.json({ active, preempt: p.length > 0, measured: prog.done, total: prog.total });
     } catch {
