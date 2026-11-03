@@ -1898,6 +1898,12 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS po_status text`);
   await pool.query(`CREATE INDEX IF NOT EXISTS case_138_source_idx ON case_138 (source)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS case_138_dzs_phone_uploaded_idx ON case_138 (full_phone, uploaded_at, id) WHERE source = 'dzs'`);
+  // ٢٠٢٦-١١-٠٣: جهاز التنفيذ والجسر بيسألوا «الأكونت ده اتقاس من ساعة ما المهمة بدأت؟» كل كام ثانية لكل تاب
+  // (jobProgress · measure-check · bridge/progress) — من غير الفهرس ده كل سؤال بيعدّى على جدول القياسات كله.
+  // CONCURRENTLY: مابيقفلش الكتابة فى الجدول وهو بيتبنى (القياسات شغّالة على طول).
+  try {
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS case_138_account_uploaded_idx ON case_138 (account_no, uploaded_at)`);
+  } catch (e: any) { console.warn("[schema] case_138_account_uploaded_idx:", e?.message || e); }
   // «قياس بدون Real»: تاريخ القياس الحقيقى + نوعه + طول الخط (قيد #8 — نفس الكوميت
   // بتاع shared/schema.ts). ⚠️ مشروع Service Flow القديم على ريبليت شايف نفس القاعدة:
   // لو اتعمله Republish وظهر DROP COLUMN للأعمدة دى → Cancel (السكيما دى أحدث منه).

@@ -941,6 +941,31 @@ async function syncCurrentCase138(rows: Case138Row[]): Promise<number> {
   }
 }
 
+// المالك ٢٠٢٦-١١-٠٣ («القياس فيه إعادة كتير» — والطابور على جهاز التنفيذ فيه قياسات اتجرّبت ٤–٦ مرات):
+// القاعدة الحالية (currentPool) اتصالها واحد افتراضياً، وكل قياس بيكتب فيها مرتين وجهاز التنفيذ كان بيسألها عن تقدّم
+// كل تاب. وقت الضغط الطلب بيستنى اتصال ١٠ث ويقع، ومن غير try/catch الطلب مابيردّش خالص ⇒ منع التكرار يقول «لسه بتتسجّل»
+// (425) لكل محاولة لمدة ١٠ دقايق. دلوقتى: القياس بيتسجّل فى القاعدة الأساسية ويرد على طول، والنسخة الحالية بتتكتب
+// بعدها، ولو فشلت بتتعاد فى الخلفية (آخر قياس لكل رقم بس).
+const currentSyncRetry = new Map<string, any[]>();   // رقم ⇒ آخر قياس ماتنسخش
+let currentSyncTimer: NodeJS.Timeout | null = null;
+function syncCurrentDzsMeasurementSoon(values: any[]): void {
+  if (!hasCurrentDatabase) return;
+  syncCurrentDzsMeasurement(values).catch((e) => {
+    const key = String(values[5] || values[0] || values[6] || "");
+    if (key) currentSyncRetry.set(key, values);
+    console.warn("[case-138] نسخ القياس للقاعدة الحالية اتأجّل:", e?.message || e);
+    if (!currentSyncTimer) {
+      currentSyncTimer = setInterval(async () => {
+        for (const [k, v] of [...currentSyncRetry]) {
+          try { await syncCurrentDzsMeasurement(v); if (currentSyncRetry.get(k) === v) currentSyncRetry.delete(k); }
+          catch { break; }   // لسه واقعة — المرة الجاية
+        }
+        if (!currentSyncRetry.size && currentSyncTimer) { clearInterval(currentSyncTimer); currentSyncTimer = null; }
+      }, 30_000);
+    }
+  });
+}
+
 async function syncCurrentDzsMeasurement(values: any[]): Promise<void> {
   if (!hasCurrentDatabase) return;
   const fullPhone = values[5];
@@ -5114,7 +5139,8 @@ export async function registerRoutes(
       } catch { return { done: 0, total }; }
     }
     if (type === "measure") {
-      q = `SELECT COUNT(DISTINCT account_no)::int AS n FROM case_138 WHERE account_no = ANY($1::text[]) AND uploaded_at >= $2`;
+      // ٢٠٢٦-١١-٠٣: من القاعدة الأساسية (قياسات DZS) — مش القاعدة الحالية اللى اتصالها واحد
+      q = `SELECT COUNT(DISTINCT account_no)::int AS n FROM case_138 WHERE account_no = ANY($1::text[]) AND uploaded_at >= $2 AND source = 'dzs'`;
     } else if (type === "c360") {
       q = `SELECT COUNT(DISTINCT full_phone)::int AS n FROM line_accounts
             WHERE ${sp("full_phone")} = ANY(SELECT ${sp("x")} FROM unnest($1::text[]) AS x) AND updated_at >= $2`;
@@ -5142,8 +5168,8 @@ export async function registerRoutes(
       q = `SELECT COUNT(DISTINCT account_no)::int AS n FROM line_po_events WHERE account_no = ANY($1::text[]) AND ${col} >= $2`;
     }
     try {
-      const queryPool = type === "measure" ? currentPool : pool;
-      const { rows } = await queryPool.query(q, [accs, claimedAt]);
+      // ٢٠٢٦-١١-٠٣: القياس كمان من القاعدة الأساسية (كان من القاعدة الحالية — اتصال واحد وقت الضغط)
+      const { rows } = await pool.query(q, [accs, claimedAt]);
       return { done: Math.min(rows[0]?.n ?? 0, total), total };
     } catch { return { done: 0, total }; }
   };
@@ -5163,7 +5189,7 @@ export async function registerRoutes(
     }
     let q: string;
     if (type === "measure") {
-      q = `SELECT DISTINCT account_no FROM case_138 WHERE account_no = ANY($1::text[]) AND uploaded_at >= $2`;
+      q = `SELECT DISTINCT account_no FROM case_138 WHERE account_no = ANY($1::text[]) AND uploaded_at >= $2 AND source = 'dzs'`;
     } else if (type === "raise" || type === "stop") {
       const col = type === "stop" ? "last_stop_at" : "last_raise_at";
       q = `SELECT DISTINCT account_no FROM line_po_events WHERE account_no = ANY($1::text[]) AND ${col} >= $2`;
@@ -5191,8 +5217,8 @@ export async function registerRoutes(
       } catch { return accs; }
     }
     try {
-      const queryPool = type === "measure" ? currentPool : pool;
-      const { rows } = await queryPool.query(q, [accs, claimedAt]);
+      // ٢٠٢٦-١١-٠٣: القياس كمان من القاعدة الأساسية (كان من القاعدة الحالية — اتصال واحد وقت الضغط)
+      const { rows } = await pool.query(q, [accs, claimedAt]);
       const done = new Set((rows as any[]).map((r) => String(r.account_no).trim()));
       return accs.filter((a) => !done.has(a));
     } catch { return accs; }
@@ -11911,6 +11937,8 @@ export async function registerRoutes(
     const toInt = (v: any) =>
       v != null && /^\d+$/.test(String(v).trim()) ? parseInt(String(v).trim(), 10) : null;
     let inserted = 0;
+    // ٢٠٢٦-١١-٠٣: أى خطأ لازم يرجع رد (500) — من غيره الطلب بيفضل معلّق ومنع التكرار يرفض إعادته ١٠ دقايق
+    try {
     for (const it of items) {
       const phoneShort = (it.phoneShort ?? "").toString().trim() || null;
       const complainNo = (it.complainNo ?? "").toString().trim() || null;
@@ -11988,8 +12016,13 @@ export async function registerRoutes(
              $13)`,
         [...measurementValues, measureMode, measuredAt, loopLength, histLabel],
       );
-      await syncCurrentDzsMeasurement(measurementValues);
+      syncCurrentDzsMeasurementSoon(measurementValues);
       inserted++;
+    }
+    } catch (e: any) {
+      console.error("[case-138] تسجيل القياس فشل:", e?.message || e);
+      if (inserted > 0) invalidateBoxScoreAggCache();
+      return res.status(500).json({ message: e?.message || "تعذّر تسجيل القياس", inserted });
     }
     if (inserted > 0) invalidateBoxScoreAggCache();
     res.json({ inserted });
