@@ -243,7 +243,8 @@ test("PO v0.9.12: reload before a stop that waited, verify after Yes, count a re
   const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
   assert.match(po, /@version\s+0\.9\.(1[2-9]|[2-9]\d)/);
   const wait = po.slice(po.indexOf('if (phase === "wait-rt-then-stop")'), po.indexOf('if (phase === "confirm-stop")'));
-  assert.match(wait, /if \(\/nightly\/i\.test\(status\)\) \{ reloadPoPage\(/);
+  // v0.9.23: بيعلّم إنه استنى مرة قبل الريفريش (عشان مايلفّش تانى على نص «Real-time PO»)
+  assert.match(wait, /if \(\/nightly\/i\.test\(status\)\) \{ (markRtWaited\(\); )?reloadPoPage\(/);
   assert.doesNotMatch(wait, /selectAction\(RE_STOP\)/);
   assert.match(po, /if \(MODE === "stop"\) markStopSent\(\); phase = "await-not-started"; awaitSince = Date\.now\(\);/);
   assert.match(po, /MODE === "stop" && awaitSince && Date\.now\(\) - awaitSince > AWAIT_STOP_RELOAD_MS/);
