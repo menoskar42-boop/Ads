@@ -55,3 +55,39 @@
 - السكرين شوتس.
 لو صفحة لسه بتقع: ابعت اسم الملف اللى رجع خطأ بالحرف — ده اللى محتاجه علشان أصلّح.
 ```
+
+## البرومبت ٢: ربط Search Console بـ Analytics (بعد البرومبت ١)
+
+> المالك وافق صراحةً (٢٠٢٦-١١-٠٣): «خلّى الإكستنشن يربط Search Console بعد ما يخلص البرومبت اللى فات». ده **التعديل الوحيد**
+> المسموح — ربط واحد من Analytics. ممنوع إضافة موقع لـ Search Console أو التحقق منه أو لمس DNS.
+
+```
+مهمتك: تربط Google Search Console بخاصية Google Analytics بتاعة موقع الكتاب المقدس — ربط واحد بس، وده التعديل الوحيد
+المسموح لك فى المهمة دى. اعملها بعد ما تخلّص فحص mybible اللى قبلها.
+
+خطوط حمرا (ممنوع تتخطّاها):
+- ماتغيّرش أى إعداد تانى فى Analytics ولا Search Console (أحداث، Data streams، فلاتر، مستخدمين، تنبيهات… ولا حاجة).
+- ماتضيفش موقع جديد لـ Search Console، وماتعملش تحقق (Verification)، وماتلمسش DNS ولا Cloudflare.
+- لو الموقع مش ظاهر فى قايمة Search Console وقت الربط: اقف، وماتجرّبش أى طريقة تانية، وقولّى.
+- ماتسجّلش دخول بحساب جديد. لو طلب تسجيل دخول اقف وقولّى.
+
+الخطوات:
+1) افتح Google Analytics، واختار الخاصية https://mybible.oscardevs.com/ (ID 535648347 — مش mykid ولا oscardevs.com).
+   ممكن تضيف ?hl=en للرابط لو الواجهة العربى مش واضحة.
+2) Admin ← Product links ← Search Console links ← Link.
+   لو لقيت ربط موجود بالفعل لنفس الموقع: ماتعملش حاجة، اكتب «مربوط من قبل» وخد سكرين شوت، وخلصت.
+3) Choose accounts: اختار الـproperty بتاع الموقع فى Search Console. ممكن يكون مكتوب بواحد من الشكلين:
+   https://mybible.oscardevs.com/   أو   sc-domain:oscardevs.com
+   - لو الاتنين موجودين: اختار https://mybible.oscardevs.com/ .
+   - لو مالقيتش أى واحد منهم: اقف هنا (خط أحمر فوق) واكتب كل الـproperties اللى ظاهرة فى القايمة بالحرف.
+   ← Confirm ← Next.
+4) Select web stream: اختار الـstream بتاع الموقع (Measurement ID: G-DMRC5M7Z81). ← Next.
+5) Review: راجع إن الموقع والـstream صح ← Submit.
+6) ارجع لصفحة Search Console links وخد سكرين شوت للربط الجديد.
+
+التقرير فى الآخر:
+- اتربط ولا لأ (أو كان مربوط من قبل)، وأنهى Search Console property اتربط، وأنهى stream.
+- لو وقفت: وقفت فين بالظبط ورسالة الشاشة بالحرف + قايمة الـproperties اللى ظهرت.
+- السكرين شوت.
+- ملحوظة: بيانات البحث بتبدأ تظهر فى Analytics (Reports ← Search Console) بعد يوم أو اتنين — مش لازم تستناها.
+```

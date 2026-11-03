@@ -395,5 +395,5 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   «Ask Advisor» (بالإكستنشن) لقى `/plans` و`/bible` (و`/kids`) بيقعوا على شبكة الشغل: الفلتر بيحجب أى رابط فيه «YouTube»
   وملف كارت الفيديو كان `YouTubeCard-….js` ⇒ اتغيّر لـ`VideoCard` (`7c8d75ca`، الحارس `mybible/server/filtered-chunk-names.test.ts`).
   البرومبت قراية بس: الصفحات التلاتة من شبكة الشغل + Realtime + Data streams (الـstream `G-DMRC5M7Z81`، وكود الموقع بيضبط `G-R3VTW81D67` والزيارة بتروح للاتنين — البرومبت بيعرف التانى تبع مين) + ربط Search
-  Console (لسه مش مربوط). الصفحة: https://claude.ai/artifact/Vgx8Sdhckdn1yBZYb3UgkN. **Trigger:** «ابعتلي برومبت فحص mybible بعد النشر».
+  Console (لسه مش مربوط). و**البرومبت ٢** فى نفس الملف = ربط Search Console بالخاصية (التعديل الوحيد المسموح، بموافقة المالك ٢٠٢٦-١١-٠٣ — من غير إضافة/تحقق موقع ولا DNS). الصفحة: https://claude.ai/artifact/Vgx8Sdhckdn1yBZYb3UgkN. **Trigger:** «ابعتلي برومبت فحص mybible بعد النشر».
 - `docs/MYBIBLE_COHOST.md` — **استضافة موقع الكتاب المقدس (mybible.oscardevs.com، ~700 عضو درس مار مرقس) داخل أوسكار ديفز على نفس Reserved VM** (توفير تكلفة النشر). البوّاب `src/lib/host_gateway.js` + تشغيل تلقائي في server.js + سورس في `mybible/`. مطفي لحد ما `MYBIBLE_UPSTREAM` يتحطّ. اقرأه قبل أي شغل على mybible — فيه القواعد المقدّسة (نفس الدومين/القاعدة/SESSION_SECRET، متمسحش المشروع القديم، الخط الأحمر لهوية الأعضاء).
