@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { childrenStoriesData, type ChildrenStory } from '@/lib/children-stories-data';
-import { YouTubeCard } from '@/components/YouTubeCard';
+import { YouTubeCard } from '@/components/VideoCard';
 import { getStoryAudioFile } from '@/lib/stories-audio-mapping';
 import { kidsBibleVideos, videoCategories, getYouTubeThumbnail, searchVideos, kidsHymnsPlaylist, getHymnCategory, hymnCategories, type KidsVideo } from '@/lib/kids-bible-videos-data';
 

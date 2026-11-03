@@ -20,7 +20,7 @@ import { getDaoudLameiLessons, refreshDaoudLameiCache } from '@/lib/daoud-lamei-
 import { getBibleChapterSEO, getTafsirSEO, getVerseTafsirSEO } from '@/lib/seo-config';
 import { SEOHead } from '@/components/SEOHead';
 import { TafsirText } from '@/components/TafsirText';
-import { YouTubeCard } from '@/components/YouTubeCard';
+import { YouTubeCard } from '@/components/VideoCard';
 import { saveHighlightedVerse, removeHighlightedVerse } from '@/lib/saved-verses';
 
 type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink' | 'orange';

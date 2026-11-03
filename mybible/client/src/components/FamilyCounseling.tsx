@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronRight, ChevronLeft, PlayCircle, BookOpen } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { motion } from 'framer-motion';
-import { YouTubeCard } from '@/components/YouTubeCard';
+import { YouTubeCard } from '@/components/VideoCard';
 
 const courses = [
   {

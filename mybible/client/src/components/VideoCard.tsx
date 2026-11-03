@@ -1,3 +1,5 @@
+// اسم الملف من غير «YouTube» (٢٠٢٦-١١-٠٣): Vite بيسمّى الـchunk باسم الملف، وفلتر شبكة الشركة بيحجب أى رابط فيه
+// «YouTube» ⇒ صفحات /plans و/bible و/kids كانت بتقع كلها («عذراً، حدث خطأ فى تحميل الصفحة»). ماترجّعش الاسم.
 import { useState } from 'react';
 import { ExternalLink, Play } from 'lucide-react';
 

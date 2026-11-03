@@ -21,7 +21,7 @@ import { getChanteVideoId } from '@/lib/chanted-videos-data';
 import { getDaoudLameiLessons } from '@/lib/daoud-lamei-rss';
 import { SEOHead } from '@/components/SEOHead';
 import { TafsirText } from '@/components/TafsirText';
-import { YouTubeCard } from '@/components/YouTubeCard';
+import { YouTubeCard } from '@/components/VideoCard';
 
 type ViewMode = 'plans' | 'days' | 'reading' | 'chapter';
 
