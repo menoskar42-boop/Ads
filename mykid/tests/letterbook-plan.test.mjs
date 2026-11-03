@@ -203,7 +203,8 @@ test("review «color the learned letters»: a starred letter is never a wrong an
 test("the game passes the starred letters to the review and counts every good balloon", async () => {
   const { readFileSync } = await import("node:fs");
   const g = readFileSync(new URL("../js/games/letterbook.js", import.meta.url), "utf8");
-  assert.match(g, /letterbookSteps\(pg, Math\.random, only, starredLetters\("ar", Store\.letterbookDone\)\)/);
+  assert.match(g, /const starred = starredLetters\("ar", Store\.letterbookDone\);/);
+  assert.match(g, /letterbookSteps\(pg, Math\.random, only, starred\)/);
   assert.match(g, /const need = s\.cells\.filter\(\(c\) => c\.good\)\.length;/);
   assert.match(g, /if \(\+\+got === need\) stepDone\(1200\);/);
 });
@@ -235,4 +236,40 @@ test("review page: many varied drills spread over its letters, and writing witho
   }
   const g = (await import("node:fs")).readFileSync(new URL("../js/games/letterbook.js", import.meta.url), "utf8");
   assert.match(g, /cur && cur\.type === "review" \? LB_SAY\.reviewWrite\(nameOf\(s\.ch\), !!s\.noStart\)/);
+});
+
+// المالك ٢٠٢٦-١١-٠٤: «لما نضغط على المراجعة دايماً يجيب كل الحروف اللى عليها نجمة بصرف النظر مفتوحة منين … وتزود
+// عليها تمارين أكتر وأكتر» — والألف والميم مالهمش مراجعة
+test("review letters = every starred letter (any unit), capped at 8 per sitting; ≥5 different drills per letter", async () => {
+  const { reviewLetters, reviewDrillPlan, LB_REVIEW_DRILLS, LB_REVIEW_ALL, LB_REVIEW_MAX_LETTERS } = await import("../js/data/letterbook.js");
+  const r2 = LB_PAGES.find((p) => p.type === "review");
+  assert.deepEqual(reviewLetters(r2, ["أ", "م", "ح"]), ["أ", "م", "ح"], "حروف النجمة مش حروف الوحدة");
+  assert.deepEqual(reviewLetters(r2, []), r2.letters, "مفيش نجوم ⇒ حروف الوحدة");
+  assert.equal(LB_REVIEW_ALL.type, "review");
+  const many = LB_ORDER.slice(0, 14);
+  const seen = new Set();
+  // Math.random زى اللعبة (seeded القريبين من بعض مش موزّعين كويس) — ٢٠٠ مرة: احتمال إن حرف مايجيش ≈ ٠
+  for (let t = 0; t < 200; t++) {
+    const L = reviewLetters(LB_REVIEW_ALL, many, Math.random);
+    assert.equal(L.length, LB_REVIEW_MAX_LETTERS);
+    assert.ok(L.every((c) => many.includes(c)));
+    L.forEach((c) => seen.add(c));
+  }
+  assert.equal(seen.size, many.length, "كل حروف النجمة بتيجى على المرات");
+  for (const n of [1, 2, 4, 8]) {
+    for (let seed = 1; seed <= 10; seed++) {
+      const plan = reviewDrillPlan(LB_ORDER.slice(0, n), LB_REVIEW_DRILLS, seeded(seed));
+      const all = [...plan.values()].flat();
+      for (const [ch, ks] of plan) {
+        assert.ok(ks.length >= Math.min(5, LB_REVIEW_DRILLS.length), `${n}/${ch}: ${ks.length}`);
+        assert.equal(new Set(ks).size, ks.length, `${ch}: أنواع مختلفة`);
+      }
+      assert.deepEqual(LB_REVIEW_DRILLS.filter((k) => !all.includes(k)), [], `${n}: كل الأنواع`);
+      assert.ok(all.filter((k) => k === "harakaQuiz").length <= 1, "اسمع واعرف الحركة مرة واحدة");
+    }
+  }
+  const g = (await import("node:fs")).readFileSync(new URL("../js/games/letterbook.js", import.meta.url), "utf8");
+  assert.match(g, /if \(pg\.type === "review"\) pg = \{ \.\.\.pg, letters: reviewLetters\(pg, starred\) \};/);
+  assert.match(g, /if \(starredNow\.length >= 2\) \{/);
+  assert.match(g, /openPage\(LB_REVIEW_ALL\)/);
 });

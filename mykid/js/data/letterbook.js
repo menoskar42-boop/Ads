@@ -396,6 +396,39 @@ export const LB_REVIEW_DRILLS = ["riddle", "pop", "starts", "flash", "eggs", "ph
   "formListen", "runaway", "catch", "missing", "blankWrite", "spotMistake", "formStamp", "train", "connect", "sequence",
   "harakaQuiz", "puzzle"];
 export const LB_REVIEW_WRITE_REPS = 2;
+// المالك ٢٠٢٦-١١-٠٤: «لما نضغط على المراجعة دايماً يجيب كل الحروف اللى عليها نجمة بصرف النظر مفتوحة منين … وتزود
+// عليها تمارين أكتر وأكتر». كل حرف بياخد ٥ أنواع مختلفة على الأقل، والأنواع كلها بتتغطّى. «اسمع واعرف الحركة»
+// طويلة ⇒ مرة واحدة بس فى المراجعة. وكارت واحد فوق الكراسة بيراجع كل حروف النجمة.
+export const LB_REVIEW_PER_LETTER = 5;
+const LB_REVIEW_ONCE = new Set(["harakaQuiz"]);
+export const LB_REVIEW_ALL = { id: "Rall", type: "review", letters: [], all: true };
+/** حروف المراجعة: حروف النجمة كلها (مش حروف الوحدة)، ولو أكتر من ٨ ⇒ ٨ منهم عشوائى (بيتغيّروا كل مرة). */
+export const LB_REVIEW_MAX_LETTERS = 8;
+export function reviewLetters(page, starred, rnd = Math.random) {
+  const all = starred && starred.length ? [...starred] : [...(page.letters || [])];
+  return all.length > LB_REVIEW_MAX_LETTERS ? shuffled(rnd, all).slice(0, LB_REVIEW_MAX_LETTERS) : all;
+}
+/** توزيع أنواع التمارين على الحروف: كل حرف `per` أنواع مختلفة، وكل الأنواع بتظهر مرة على الأقل. */
+export function reviewDrillPlan(letters, kinds, rnd = Math.random, per = LB_REVIEW_PER_LETTER) {
+  const order = [...letters];
+  const plan = new Map(order.map((ch) => [ch, []]));
+  if (!order.length || !kinds.length) return plan;
+  const once = new Set();
+  let pool = [];
+  const total = Math.max(kinds.length, order.length * Math.min(per, kinds.length));
+  for (let i = 0, guard = 0; i < total && guard < total * 20; guard++) {
+    if (!pool.length) pool = shuffled(rnd, kinds);
+    const ch = order[i % order.length];
+    const mine = plan.get(ch);
+    const j = pool.findIndex((k) => !mine.includes(k) && !(LB_REVIEW_ONCE.has(k) && once.has(k)));
+    if (j < 0) { pool = []; if (mine.length >= kinds.length) i++; continue; }
+    const [k] = pool.splice(j, 1);
+    if (LB_REVIEW_ONCE.has(k)) once.add(k);
+    mine.push(k);
+    i++;
+  }
+  return plan;
+}
 
 /**
  * `learned` = الحروف اللى عليها نجمة (المالك ٢٠٢٦-١١-٠٤: «اعتبرها مخدتوش علشان المراجعة قبل حرف ح — المفروض يعتمد
@@ -408,16 +441,16 @@ export function reviewPage(letters, rnd = Math.random, only = null, learned = []
   if (want("colorLearned")) {
     const known = new Set([...letters, ...learned]);
     const other = shuffled(rnd, LB_ORDER.filter((c) => !known.has(c))).slice(0, 4);
+    // حروف كتير (مراجعة كل حروف النجمة) ⇒ ٦ منهم بس فى البلالين
+    const shown = letters.length > 6 ? shuffled(rnd, letters).slice(0, 6) : letters;
     // خلّص الكراسة كلها تقريباً (مفيش حروف من غير نجمة كفاية) ⇒ الحروف المتنجّمة التانية بتتلوّن هى كمان
-    const extra = other.length >= 2 ? [] : shuffled(rnd, learned.filter((c) => !letters.includes(c))).slice(0, 4 - other.length);
-    steps.push({ kind: "colorLearned", letters, cells: shuffled(rnd, [
-      ...letters.map((ch) => ({ ch, good: true })), ...extra.map((ch) => ({ ch, good: true })), ...other.map((ch) => ({ ch, good: false }))]) });
+    const extra = other.length >= 2 ? [] : shuffled(rnd, learned.filter((c) => !shown.includes(c))).slice(0, 4 - other.length);
+    steps.push({ kind: "colorLearned", letters: shown, cells: shuffled(rnd, [
+      ...shown.map((ch) => ({ ch, good: true })), ...extra.map((ch) => ({ ch, good: true })), ...other.map((ch) => ({ ch, good: false }))]) });
   }
   // تمارين الحروف: كل حرف بياخد أنواع مختلفة من تمارين صفحته، والأنواع كلها بتتغطّى على حروف المراجعة
   const order = shuffled(rnd, letters);
-  const drillsOf = new Map(order.map((ch) => [ch, []]));
-  shuffled(rnd, LB_REVIEW_DRILLS.filter((k) => want(k) || want("drills")))
-    .forEach((k, i) => drillsOf.get(order[i % order.length]).push(k));
+  const drillsOf = reviewDrillPlan(order, LB_REVIEW_DRILLS.filter((k) => want(k) || want("drills")), rnd);
   const round = (r) => {
     for (const ch of order) {
       const k = drillsOf.get(ch)[r];
@@ -435,8 +468,10 @@ export function reviewPage(letters, rnd = Math.random, only = null, learned = []
   round(1);
   // ٢) صل كل صورة بالحرف الأول
   if (want("matchFirst")) {
-    const pics = letters.map((ch) => ({ ch, ...pickOf(rnd, wordsStarting(ch)) }));
-    steps.push({ kind: "matchFirst", pics: shuffled(rnd, pics), letters: shuffled(rnd, letters) });
+    // ٤ حروف بالكتير فى المرة (المراجعة الكبيرة فيها حروف النجمة كلها)
+    const four = letters.length > 4 ? shuffled(rnd, letters).slice(0, 4) : letters;
+    const pics = four.map((ch) => ({ ch, ...pickOf(rnd, wordsStarting(ch)) }));
+    steps.push({ kind: "matchFirst", pics: shuffled(rnd, pics), letters: shuffled(rnd, four) });
   }
   // ٣) انطق ولوّن الصورتين اللى بيبدأوا بنفس الصوت (٣ صفوف)
   if (want("sameSound")) {

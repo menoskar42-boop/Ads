@@ -360,7 +360,9 @@ test("review page and the prep page play through", async () => {
   const core = r2.filter((k) => ["colorLearned", "matchFirst", "sameSound", "position", "harakaPic", "build"].includes(k));
   assert.deepEqual(core, ["colorLearned", "matchFirst", "sameSound", "position", "harakaPic", "build"]);
   assert.equal(r2[0], "colorLearned");
-  assert.equal(r2.filter((k) => k === "write").length, 8, "٤ حروف × مرتين");
+  // حروف المراجعة = حروف النجمة (أو حروف الوحدة لو مفيش نجوم) ⇒ كل حرف مرتين
+  const w = r2.filter((k) => k === "write").length;
+  assert.ok(w >= 2 && w % 2 === 0, `${w} كتابة`);
   assert.ok(r2.length >= 30, `${r2.length} خطوة`);
   assert.deepEqual(await playPage("prep"), ["shadow", "write", "write", "shadow", "write", "write"]);
   assert.deepEqual(errors, []);
@@ -371,7 +373,7 @@ test("map: book units in order, next page pointed at, no horizontal overflow on 
   const titles = await page.locator(".wbk-unit-title").allTextContents();
   assert.deepEqual(titles.map((t) => t.trim()), ["التهيئة", "أ م", "ب ف ن ل", "ح ر ت س", "ج ز د ق"]);
   assert.equal(await page.locator(".wbk-pc.is-next").getAttribute("data-id"), "prep");
-  assert.equal(await page.locator(".wbk-pc").count(), 18);
+  assert.equal(await page.locator(".wbk-unit .wbk-pc").count(), 18);
   await shot("map");
   const over = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   assert.equal(over, false);

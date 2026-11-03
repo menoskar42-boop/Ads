@@ -14,7 +14,7 @@ import { femAdapt } from "../data/mizo.js";
 import { strokesFor, PREWRITING, harakaStrokes, harakaGlyph } from "../data/strokes.js";
 import { mountHarakaQuiz } from "./harakaQuiz.js";
 import {
-  LB_UNITS, LB_PAGES, LB_HARAKAT, letterbookSteps, isLbWrite, nameOf, splitAt, joinsNext, bare, LB_DOTS_PASS,
+  LB_UNITS, LB_PAGES, LB_HARAKAT, letterbookSteps, isLbWrite, nameOf, splitAt, joinsNext, bare, LB_DOTS_PASS, LB_REVIEW_ALL, reviewLetters,
 } from "../data/letterbook.js";
 import { LB_SAY, ROUND_MSG, SHOW_BELOW, fixMsg, writeIntro, HQ_SAY } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
@@ -116,6 +116,17 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       button("candy-btn", "🔗 وصّل الحرف بالصورة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "connect", lang: "ar", back: "letterbook" }); }),
     );
     map.appendChild(recall);
+    // 🏆 مراجعة واحدة لكل حروف النجمة (المالك ٢٠٢٦-١١-٠٤) — بتظهر لما يبقى فيه حرفين عليهم نجمة
+    const starredNow = starredLetters("ar", done);
+    if (starredNow.length >= 2) {
+      const all = button("wbk-pc wbk-pc-all", "", () => { Sfx.tap(); openPage(LB_REVIEW_ALL); });
+      all.dataset.id = LB_REVIEW_ALL.id;
+      all.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;margin:0 0 14px";
+      all.innerHTML = `<span class="wbk-pc-icon">🏆 <b class="lbk-pc-review">${starredNow.join(" ")}</b></span>`
+        + `<span class="wbk-pc-label">راجع كل الحروف اللى عليها نجمة</span>`;
+      all.setAttribute("aria-label", "راجع كل الحروف اللى عليها نجمة");
+      map.appendChild(all);
+    }
     LB_UNITS.forEach((u, ui) => {
       const sec = el("section", "wbk-unit");
       sec.style.setProperty("--unit", UNIT_COLORS[ui % UNIT_COLORS.length]);
@@ -142,9 +153,12 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   }
 
   function openPage(pg) {
+    // المراجعة (المالك ٢٠٢٦-١١-٠٤): «دايماً يجيب كل الحروف اللى عليها نجمة بصرف النظر مفتوحة منين» — وأى حرف عليه
+    // نجمة = «اتعلمناها» (مش اللى قبل المراجعة فى الكراسة)
+    const starred = starredLetters("ar", Store.letterbookDone);
+    if (pg.type === "review") pg = { ...pg, letters: reviewLetters(pg, starred) };
     cur = pg;
-    // المراجعة: الحروف اللى عليها نجمة = «اتعلمناها» (مش اللى قبل المراجعة فى الكراسة)
-    steps = letterbookSteps(pg, Math.random, only, starredLetters("ar", Store.letterbookDone)); // only: أنشطة بعينها (للاختبار)
+    steps = letterbookSteps(pg, Math.random, only, starred); // only: أنشطة بعينها (للاختبار)
     // «وصّل الحرف بالصورة»: الجولة من حروف النجمة دلوقتى — ولو مفيش حرف تانى عليه نجمة الخطوة بتتشال
     steps = steps.flatMap((x) => {
       // «دوّر على حروف اسمك»: بس لو الحرف فى اسم الطفل
