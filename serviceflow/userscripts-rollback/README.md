@@ -4,7 +4,7 @@
 
 | النسخة القديمة | اتستبدلت بـ | ليه |
 |---|---|---|
-| `provisioning-portal-1.8.0.user.js` | `../provisioning-portal.user.js` 1.9.0 | غيّر البورت: بعد Submit بيتأكد إن الطلب اتلقى فى Search For My Requests ويبعت النتيجة |
+| `provisioning-portal-1.7.0.user.js` | `../provisioning-portal.user.js` 1.9.0 | غيّر البورت: بعد Submit بيتأكد إن الطلب اتلقى فى Search For My Requests ويبعت النتيجة. ⚠️ 1.7.0 هى اللى كانت متركّبة عند المالك (1.8.0 — طابور النتايج قبل الإرسال — ماتركّبتش، و1.9.0 فيها تعديلاتها) |
 | `dzs-expresse-v10-10.36.0.user.js` | `../dzs-expresse-v10.user.js` 10.37.0 | «بدون Real» مابقاش بيقرا المسافة، و«تحديث المسافة» (sf_mode=loop) مهمة لوحدها |
 
 **الرجوع:** افتح Tampermonkey ← السكربت ← امسح الكود والزق النسخة القديمة ← Save.

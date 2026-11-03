@@ -19,12 +19,13 @@ const db = read("./db.ts");
 const schema = read("../shared/schema.ts");
 
 test("rollback copies of the old scripts are kept", () => {
-  for (const f of ["provisioning-portal-1.8.0", "dzs-expresse-v10-10.36.0"]) {
+  for (const f of ["provisioning-portal-1.7.0", "dzs-expresse-v10-10.36.0"]) {
     const p = new URL(`../userscripts-rollback/${f}.user.js`, import.meta.url);
     assert.ok(existsSync(p), f);
   }
   assert.match(read("../userscripts-rollback/dzs-expresse-v10-10.36.0.user.js"), /@version {6}10\.36\.0/);
-  assert.match(read("../userscripts-rollback/provisioning-portal-1.8.0.user.js"), /@version {6}1\.8\.0/);
+  // 1.7.0 = اللى كان متركّب عند المالك (مش 1.8.0)
+  assert.match(read("../userscripts-rollback/provisioning-portal-1.7.0.user.js"), /@version {6}1\.7\.0/);
 });
 
 test("schema: op_results in ensureSchema and schema.ts", () => {
