@@ -143,8 +143,10 @@
 
 > ✅ **اتنفّذ ٢٠٢٦-١١-٠٤:** `group_join` و`reading_log` و`plan_start` بقوا Key events فى خاصية https://mybible.oscardevs.com/
 > (الإكستنشن لقاهم متعلّمين أصلاً الساعة ٣:١٣ — المهمة المجدولة علّمتهم — فمادسش على حاجة). `plan_day_complete` و`search`
-> ظاهرين فى Recent events ومش متعلّمين (مقصود). `purchase` حدث Google الافتراضى — سيبه. **فاضل:** قرار الخاصية التانية
-> G-R3VTW81D67 («Mybible friend»): توحيد ولا تفضل.
+> ظاهرين فى Recent events ومش متعلّمين (مقصود). `purchase` حدث Google الافتراضى — سيبه.
+> ✅ **وتوحّد العدّاد (نفس اليوم — المالك: «مفيش حد بيستخدم غيرى»):** `mybible/client/index.html` بقى بيضبط `G-DMRC5M7Z81`
+> (الخاصية الأساسية) بدل `G-R3VTW81D67`. الحارس: `mybible/server/ga-single-property.test.ts`. خاصية «Mybible friend» نفسها
+> لسه موجودة فى جوجل من غير زيارات جديدة — ممكن تتمسح من Admin لو حبيت، ومش لازم.
 
 > نتيجة البرومبت ٣ (٢٠٢٦-١١-٠٣): الأحداث وصلت. فى Realtime ظهر search وplan_start من التجربة، وreading_log ×٣ وgroup_join من أعضاء
 > حقيقيين، والموقع شغّال بـ `index-Bp8_XTUc.js`. بس صفحة Key events مافيهاش «New key event»: الطريقة الوحيدة النجمة جنب الحدث
