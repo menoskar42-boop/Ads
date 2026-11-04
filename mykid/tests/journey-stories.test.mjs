@@ -29,3 +29,18 @@ test("wiring: a journey step advances its story once a day; the screen shows str
   assert.match(scr, /<span class="jr-story"/);
   assert.match(scr, /story \? story\.nudge :/);
 });
+
+test("spin wheel: opens after today's journey; every prize says what the child did", async () => {
+  const { wheelSlices, becauseOf } = await import("../js/data/journeyStories.js");
+  const steps = [{ key: "write", emoji: "✏️", ch: "ب" }, { key: "number", emoji: "🔢", title: "جمع" }, { key: "color", emoji: "🎨" }];
+  const s = wheelSlices(steps);
+  assert.equal(s.length, 6);
+  assert.ok(s.every((x) => x.because && x.color));
+  assert.equal(s.filter((x) => x.treasure).length, 3);
+  assert.equal(becauseOf(steps[0]), "عشان كتبت حرف ب النهارده");
+  assert.equal(becauseOf(steps[1]), "عشان لعبت «جمع» النهارده");
+  const w = readFileSync(new URL("../js/screens/spinwheel.js", import.meta.url), "utf8");
+  assert.match(w, /const earned = steps\.every\(\(st\) => doneKeys\.includes\(st\.key\)\);/);
+  assert.match(w, /if \(!earned \|\| spinning \|\| !Store\.canSpinToday\(\)\) return;/);
+  assert.match(w, /msg\.textContent = `🌟 \$\{prize\.because\}: كسبت \$\{prize\.stars\} نجوم!`;/);
+});

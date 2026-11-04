@@ -20,7 +20,7 @@ import { LB_LETTERS, LB_ORDER, LB_HARAKAT, LB_SHADOWS, LB_BUILD, nameOf as lbNam
 import { EB_PAGES, EB_WORDS, NUM_EN, ebSteps } from "../js/data/englishbook.js";
 import { funItems } from "../js/data/funGames.js";
 import { addGamePhrases } from "./tts-games.js";
-import { STORIES as JSTORIES } from "../js/data/journeyStories.js";
+import { STORIES as JSTORIES, becauseOf } from "../js/data/journeyStories.js";
 import { ACHIEVEMENTS } from "../js/data/mastery.js";
 import { breakMission } from "../js/data/healthyBreak.js";
 import { COLORS } from "../js/data/colors.js";
@@ -303,6 +303,11 @@ for (let n = 1; n <= ACHIEVEMENTS.length; n++) addMizo(`إنت بقيت شاطر
 for (let n = 0; n < 4; n++) addMizo(breakMission({ n })[1]);
 for (const c of COLORS) add(`Bring something ${c.en}!`, EN);
 for (const ch of LB_ORDER) addMizo(breakMission({ n: 4, letter: ch })[1]);
+// عجلة الحظ: سبب الجايزة من مهمة النهارده (js/screens/spinwheel.js)
+addMizo("خلّص رحلة اليوم الأول، وبعدين نلف العجلة سوا!");
+for (const ch of LB_ORDER) addMizo(becauseOf({ key: "write", ch }));
+addMizo(becauseOf({ key: "write" })); addMizo(becauseOf({ key: "color" }));
+for (const t of ["عدّ واختار", "جمع", "أكبر وأصغر"]) addMizo(becauseOf({ key: "number", title: t }));
 
 // ===== الألعاب القديمة اللى بتركّب الجملة من البيانات (٢٠٢٦-١٠-١٦) — server/tts-games.js =====
 await addGamePhrases({ say: (t) => t && add(t, AR), mizo: (t) => t && addMizo(t) });

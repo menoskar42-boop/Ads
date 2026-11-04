@@ -23,7 +23,7 @@ const STONE_POS = [[12.9, 83.4], [18.8, 78.1], [24.5, 73.3], [29.6, 69.6], [34.4
 // الأماكن اللى بتتفتح: المكتبة (القلعة) · بوابة قوس قزح · حديقة الورد
 const PLACE_POS = { library: [12, 30], rainbow: [86, 24], garden: [74, 36] };
 
-function todaySteps() {
+export function todaySteps() {
   return journeySteps(dayIndex(), {
     dueWords: dueKeys(Store.writeReview, "ar", todayISO()).length,
     starred: starredLetters("ar", Store.letterbookDone),

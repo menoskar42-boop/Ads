@@ -1,4 +1,7 @@
 // ===== عجلة الحظ اليومية: مكافأة مرّة كل يوم تحفّز العودة =====
+// المالك ٢٠٢٦-١١-٠٤ (ملاحظة كوديكس «المكافأة لازم تقول حاجة»): العجلة بتتفتح بعد ما رحلة اليوم تخلص،
+// وشرايحها جاية من مهام النهارده (كتابة · أرقام · ألوان)، والجايزة بتقول سببها: «عشان كتبت حرف ب…».
+// المفاجأة نفسها فاضلة زى ما هى (المالك: «مش مهم» إنها عشوائية).
 import { Router } from "../core/router.js";
 import { Store } from "../core/storage.js";
 import { Speech } from "../core/speech.js";
@@ -8,18 +11,14 @@ import { awardStars, grantRandomCollectible, showRewardPopup } from "../core/rew
 import { gameTopbar } from "../games/common.js";
 import { createCharacter } from "../games/character.js";
 import { pick, MIZO_CATCH } from "../data/mizo.js";
-
-// شرائح العجلة: نجوم متنوّعة + كنز
-const SLICES = [
-  { label: "⭐×3", stars: 3, color: "#ffd23f" },
-  { label: "⭐×5", stars: 5, color: "#34d399" },
-  { label: "🎁 كنز", treasure: true, color: "#ff6fb5" },
-  { label: "⭐×8", stars: 8, color: "#7c5fe6" },
-  { label: "⭐×5", stars: 5, color: "#22c1c3" },
-  { label: "⭐×10", stars: 10, color: "#fc6076" },
-];
+import { todaySteps } from "./dailyPlan.js";
+import { wheelSlices } from "../data/journeyStories.js";
 
 export function renderSpinWheel() {
+  const steps = todaySteps();
+  const doneKeys = Store.dailyPlan.done;
+  const earned = steps.every((st) => doneKeys.includes(st.key));   // رحلة اليوم خلصت ⇒ العجلة اتفتحت
+  const SLICES = wheelSlices(steps);
   const screen = document.createElement("div");
   screen.className = "region-screen";
   screen.style.background = "linear-gradient(180deg,#ffe9b0,#ff9a8b)";
@@ -68,11 +67,23 @@ export function renderSpinWheel() {
   let spinning = false;
 
   function refresh() {
+    if (!earned) {
+      btn.textContent = "🎯 روح لرحلة اليوم";
+      btn.disabled = false;
+      btn.style.opacity = "1";
+      btn.onclick = () => { Sfx.tap(); Router.go("dailyPlan"); };
+      const left = steps.filter((st) => !doneKeys.includes(st.key)).length;
+      msg.textContent = `العجلة بتتفتح لما تخلّص رحلة اليوم — فاضل ${left} ${left === 1 ? "مهمة" : "مهام"}`;
+      mizo.setMood("happy");
+      Speech.mizo("خلّص رحلة اليوم الأول، وبعدين نلف العجلة سوا!");
+      return;
+    }
+    btn.onclick = null;
     if (Store.canSpinToday()) {
       btn.textContent = "🎡 لُفّ العجلة!";
       btn.disabled = false;
       btn.style.opacity = "1";
-      msg.textContent = "لديك لفّة اليوم — جرّب حظّك!";
+      msg.textContent = "خلّصت رحلة اليوم — لُفّ العجلة واكسب جايزتك!";
       mizo.setMood("happy");
       const greet = pick(MIZO_CATCH);
       mizo.startTalking(greet.length * 90 + 800);
@@ -86,7 +97,7 @@ export function renderSpinWheel() {
   }
 
   function spin() {
-    if (spinning || !Store.canSpinToday()) return;
+    if (!earned || spinning || !Store.canSpinToday()) return;   // قبل رحلة اليوم الزرار بيودّى للرحلة (onclick)
     spinning = true;
     btn.disabled = true;
     Sfx.pop();
@@ -101,15 +112,17 @@ export function renderSpinWheel() {
       const prize = SLICES[idx];
       Confetti.burst();
       mizo.setMood("cheer", 2000);
+      // الجايزة بتقول سببها (المهمة اللى عملها النهارده)
       if (prize.treasure) {
         const item = grantRandomCollectible();
-        if (item) showRewardPopup(item, refresh);
-        else { awardStars(10); Speech.mizo("جامد! خد ١٠ نجوم بدل الكنز!"); }
-        msg.textContent = "🎁 ربحت كنزًا!";
+        if (item) showRewardPopup({ ...item, name: `${item.name} — ${prize.because}` }, refresh);
+        else awardStars(10);
+        msg.textContent = item ? `🎁 ${prize.because}: كسبت ${item.emoji} ${item.name}!` : `🌟 ${prize.because}: كسبت ١٠ نجوم!`;
+        Speech.mizo(prize.because);
       } else {
         awardStars(prize.stars);
-        msg.textContent = `🌟 ربحت ${prize.stars} نجوم!`;
-        Speech.mizo(`جامد! ربحت ${prize.stars} نجوم!`);
+        msg.textContent = `🌟 ${prize.because}: كسبت ${prize.stars} نجوم!`;
+        Speech.mizo(prize.because);
       }
       spinning = false;
       if (!prize.treasure) setTimeout(refresh, 1500);
