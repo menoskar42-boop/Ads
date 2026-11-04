@@ -11,3 +11,17 @@ test("shapes region has the oval right after the circle; circle examples include
   assert.ok(WB_SHAPES.circle.things.includes("☀️"));
   assert.deepEqual(WB_SHAPES.oval.things.slice(0, 3), ["🥚", "🏉", "🎈"]);
 });
+
+// المالك ٢٠٢٦-١١-٠٤: الأشكال إنجليزى الأول زى الألوان، و«جِد الشكل» بالعربى فاضل
+test("shapes region is English-first like colors", async () => {
+  const { ACTIVITIES } = await import("../js/data/activities.js");
+  const acts = ACTIVITIES.shapes;
+  for (const screen of ["explore", "memory", "pattern", "spotDiff"]) {
+    const a = acts.find((x) => x.screen === screen);
+    assert.equal(a.params.lang, "en", `${screen} بالإنجليزى`);
+  }
+  const finds = acts.filter((x) => x.screen === "findIt");
+  assert.ok(finds.some((x) => x.params.lang === "en" && x.title === "Find the shape"));
+  assert.ok(finds.some((x) => !x.params.lang && x.title === "جِد الشكل"));
+  assert.ok(SHAPES.every((s) => s.en), "كل شكل ليه اسم إنجليزى");
+});
