@@ -489,7 +489,7 @@ export function ExecutorButton() {
     // ينفّذ **الجوب كله دفعة واحدة**: نبعت كل الأرقام للسكربت اللى بيلفّ عليها بنفسه (6/185…)
     // بدل ما نفتح صفحة لكل رقم. ننتظر لحد ما آخر رقم (السكربت بيمشى بالترتيب) يتأكد، أو سقف زمنى.
     // فحص المهمة الجارية: لسه شغّالة؟ فيه طلب عاجل يقطعها؟ اتقاس كام رقم؟
-    const jobCheck = async (jobId: number): Promise<{ active: boolean; preempt: boolean; measured: number; total: number }> => {
+    const jobCheck = async (jobId: number): Promise<{ active: boolean; preempt: boolean; measured: number; total: number; aliveSec?: number | null }> => {
       try {
         const r = await fetch(`/api/exec-queue/job-check?jobId=${jobId}`, { credentials: "include" });
         return await r.json();
@@ -543,7 +543,8 @@ export function ExecutorButton() {
     // لو مفيش تقدّم فى القياس لمدة ٣ دقائق (DZS وقف على خط فيه إيرور مثلاً)،
     // نعيد تشغيل جهاز التنفيذ بدل ما نترك المهمة معلّقة.
     const STALL_MS = EXEC_MEASURE_STALL_MS;
-    const NOREAL_STALL_MS = 60 * 1000;   // «بدون Real»: دقيقة لكل خط (ريفريش مرة، وبعدها قفل)
+    const NOREAL_STALL_MS = 60 * 1000;
+    const REAL_ALIVE_LOST_MS = 3 * 60 * 1000;   // Real: الإشارة وقفت ٣ دقايق ⇒ الصفحة ماتت   // «بدون Real»: دقيقة لكل خط (ريفريش مرة، وبعدها قفل)
 
     const refreshAfterMeasureTimeout = async (jobId: number, batchId?: string | null): Promise<"handled" | "failed"> => {
       return recoverTimedOutMeasure({
@@ -675,8 +676,11 @@ export function ExecutorButton() {
         // → نقفله ويتسجّل timeout (الطابور بيعيده مرة لوحده بعدين — requeueErroredJobs).
         const stallLimit = noReal ? NOREAL_STALL_MS : STALL_MS;
         let reopened = false;
-        // Real: ٧ دقايق للخط (EXEC_MEASURE_STALL_MS) — كانت ٣ فكان بيقطع Real وهو لسه شغّال ويعيده من الأول
-        const deadline = Date.now() + Math.min(accs.length * (noReal ? MEASURE_MAX_MS : Math.max(MEASURE_MAX_MS, STALL_MS)), MAX_TOTAL_MS);
+        // Real: مفيش مدة محددة (المالك ٢٠٢٦-١١-٠٤: «القديم كان بيستنى لما يخلص وبعدين يقفل») — بنستنى طول ما سكربت
+        // القياس (≥10.38.0) بيقول «لسه بقيس» (aliveSec). بنتصرّف بس لو الإشارة وقفت ٣ دقايق (الصفحة ماتت — «can't reach
+        // this page»)، أو لو السكربت قديم ومابيبعتهاش: ٧ دقايق (EXEC_MEASURE_STALL_MS) من غير قياس.
+        const deadline = Date.now() + (noReal ? Math.min(accs.length * MEASURE_MAX_MS, MAX_TOTAL_MS) : MAX_TOTAL_MS);
+        let sawAlive = false;
         // ⚠️ «مفيش تقدّم» = مفيش **خط جديد اتقاس** من ٣ دقايق — مش ٣ دقايق من أول
         // الباتش. كانت بتتقاس من البداية، فأى باتش قياس أطول من ٣ دقايق (٤-٥ خطوط
         // بدون Real، كل خط لحد ٤٥ث استنى الشاشة تهدى) كان بيتقطع وهو شغّال،
@@ -692,6 +696,8 @@ export function ExecutorButton() {
           if (win && win.closed) return "tab_closed"; // التاب اتقفل قبل ما يخلص
           if (canPreempt && chk.preempt) { closeWin(); return "preempted"; } // طلب عاجل يقطع
           if (chk.measured > lastMeasured) { lastMeasured = chk.measured; lastProgressAt = Date.now(); }
+          // Real: إشارة «لسه بقيس» من السكربت = تقدّم
+          if (!noReal && chk.aliveSec != null) { sawAlive = true; lastProgressAt = Math.max(lastProgressAt, Date.now() - chk.aliveSec * 1000); }
           if (noReal && !reopened && Date.now() - lastProgressAt >= stallLimit) {
             reopened = true;
             console.warn(`[exec] «بدون Real» تاب ${lane} مفيش نتيجة من دقيقة — بفتحه من الأول`);
@@ -718,7 +724,7 @@ export function ExecutorButton() {
             lastProgressAt = Date.now();
             continue;
           }
-          if (Date.now() - lastProgressAt >= stallLimit) {
+          if (Date.now() - lastProgressAt >= (!noReal && sawAlive ? REAL_ALIVE_LOST_MS : stallLimit)) {
             closeWin();
             // «بدون Real»: التاب ده بس اللى علق (جلسة باظت مثلاً) — مانعملش ريفريش للصفحة
             // كلها (كان بيقتل التابات التانية وهى شغّالة). الخط بيتسجّل timeout والطابور

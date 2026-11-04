@@ -2692,6 +2692,13 @@ export async function registerRoutes(
   const RETRY_102_MIN_KEY = "exec_lanes_retry_102_min";
   const RETRY_102_MIN_RANGE = { min: 1, max: 60 } as const;
   let realParallelMemo = true;
+  // آخر «لسه بقيس» لكل أكونت (سكربت القياس ≥10.38.0 — Real بس). MEASURE_ALIVE_MS = بعدها الصفحة تعتبر ماتت.
+  const measureAliveAt = new Map<string, number>();
+  const MEASURE_ALIVE_MS = 3 * 60 * 1000;
+  const aliveMeasureAccounts = () => {
+    const cut = Date.now() - MEASURE_ALIVE_MS;
+    return [...measureAliveAt].filter(([, t]) => t >= cut).map(([k]) => k);
+  };
   // طريقة فتح صفحات القياس بتاعة الجسر (المالك ٢٠٢٦-١٠-٢٩: «اعمل زرار فى الإعدادات وأنا أختار طريقة الفتح»):
   // "tabs" = تابات فى نافذة واحدة (الافتراضى) · "windows" = كل خط فى نافذة لوحده. الجسر بياخدها مع lease/progress.
   const BRIDGE_VIEW_KEY = "exec_lanes_bridge_view";
@@ -5316,8 +5323,10 @@ export async function registerRoutes(
                               AND NOT ${coRunnable("e", "j2")}))
               -- (2) المُنقِذ الأساسى: عدّت مهلة نوعها القصوى → عالقة أكيد، رجّعها
               OR e.claimed_at < now() - ${maxRunSql}
-            )`,
-        [MAX_ATTEMPTS, LONG_TYPES],
+            )
+            -- قياس Real سكربته لسه بيقول «بقيس» ⇒ مابيترجّعش مهما طوّل (المالك ٢٠٢٦-١١-٠٤)
+            AND NOT (e.type = 'measure' AND e.accounts->>0 = ANY($3::text[]))`,
+        [MAX_ATTEMPTS, LONG_TYPES, aliveMeasureAccounts()],
       );
       requeued = requeuedRes.rowCount ?? 0;
 
@@ -5330,8 +5339,9 @@ export async function registerRoutes(
       await pool.query(
         `UPDATE exec_jobs e SET status = 'stale', done_at = now(), result = 'stuck_max_attempts'
           WHERE e.status = 'claimed' AND e.attempts >= $1
-            AND e.claimed_at < now() - ${maxRunSql}`,
-        [MAX_ATTEMPTS, LONG_TYPES],
+            AND e.claimed_at < now() - ${maxRunSql}
+            AND NOT (e.type = 'measure' AND e.accounts->>0 = ANY($3::text[]))`,
+        [MAX_ATTEMPTS, LONG_TYPES, aliveMeasureAccounts()],
       );
 
       // (4) آخر حدّ مطلق: مهمة claimed عدّى عليها >6 ساعات مهما كانت محاولاتها.
@@ -5506,7 +5516,12 @@ export async function registerRoutes(
       // يلاقى «another real-time request is in progress» ويعيد، والخط الأول يرجع للطابور ويتقاس من الأول.
       if (job.type === "measure" && !String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK)) {
         const prog = await jobProgress(job.accounts, job.type, job.claimed_at, job.note);
-        return res.json({ active, preempt: false, measured: prog.done, total: prog.total });
+        // aliveSec: من كام ثانية سكربت القياس قال «لسه بقيس» (null = مابعتش — سكربت أقدم من 10.38.0)
+        const accs: string[] = (Array.isArray(job.accounts) ? job.accounts : []).map((a: any) => String(a).trim());
+        const lastAlive = Math.max(0, ...accs.map((a) => measureAliveAt.get(a) || 0));
+        const claimedMs = job.claimed_at ? new Date(job.claimed_at).getTime() : 0;
+        const aliveSec = lastAlive && lastAlive >= claimedMs - 60000 ? Math.round((Date.now() - lastAlive) / 1000) : null;
+        return res.json({ active, preempt: false, measured: prog.done, total: prog.total, aliveSec });
       }
       // المقاطعة **داخل نفس الدومين فقط**: المواقع المختلفة بتشتغل بالتوازى أصلاً فمفيش سبب
       // إن مهمة عاجلة على DZS توقف مهمة شغّالة على FCC. لكن تحديث ملفات FCC (أولوية 3) بيوقف
@@ -12358,6 +12373,22 @@ export async function registerRoutes(
   // body: { items: [{ accountNo, phoneShort?, fullPhone?, loopLength }] }. القراية بتتسجّل دايماً فى last_raw
   // (جهاز التنفيذ بيعرف منها إن الخط خلص)، والمسافة نفسها بتتغيّر بس لو القراية مسافة فعلاً — N/A أو فاضى
   // مابيمسحش القديمة، وبيظهر جنبها ملحوظة فى «بحث برقم التليفون».
+  // «لسه بقيس الخط ده» — سكربت القياس (≥10.38.0) بيبعتها كل ٣٠ ثانية وقياس Real شغّال (المالك ٢٠٢٦-١١-٠٤: «القديم كان
+  // بيستنى لما يخلص وبعدين يقفل من غير مدة»). جهاز التنفيذ والإنقاذ بيستنوا طول ما الإشارة بتوصل. فى الذاكرة بس.
+  app.options("/api/exec-queue/measure-alive", (_req, res) => { setDzsCors(res); res.sendStatus(204); });
+  app.get("/api/exec-queue/measure-alive", (req: any, res) => {
+    setDzsCors(res);
+    if (req.headers["x-dzs-token"] !== DZS_INGEST_TOKEN) return res.status(401).json({ message: "invalid token" });
+    const acc = String(req.query.acc || "").trim().slice(0, 40);
+    if (!acc) return res.status(400).json({ message: "acc مطلوب" });
+    measureAliveAt.set(acc, Date.now());
+    if (measureAliveAt.size > 500) {   // تنضيف القديم
+      const cut = Date.now() - 30 * 60 * 1000;
+      for (const [k, v] of measureAliveAt) if (v < cut) measureAliveAt.delete(k);
+    }
+    res.json({ ok: true });
+  });
+
   app.options("/api/loop-length/ingest", (_req, res) => { setDzsCors(res); res.sendStatus(204); });
   app.post("/api/loop-length/ingest", async (req: any, res) => {
     setDzsCors(res);

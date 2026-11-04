@@ -104,7 +104,51 @@ test("executor: a Real line gets 7 minutes (was 3 — it closed the tab mid-meas
   assert.equal(EXEC_RUN_MINUTES.measure, 7);
   assert.ok(EXEC_RESCUE_MINUTES.measure > EXEC_RUN_MINUTES.measure);
   const exe = read("../client/src/components/ExecutorButton.tsx");
-  assert.match(exe, /accs\.length \* \(noReal \? MEASURE_MAX_MS : Math\.max\(MEASURE_MAX_MS, STALL_MS\)\)/);
+  // Real مالوش مدة: بيستنى طول ما السكربت بيقول «لسه بقيس»، وبيتصرّف بس لو الإشارة وقفت ٣ دقايق
+  assert.match(exe, /const deadline = Date\.now\(\) \+ \(noReal \? Math\.min\(accs\.length \* MEASURE_MAX_MS, MAX_TOTAL_MS\) : MAX_TOTAL_MS\);/);
+  assert.match(exe, /if \(!noReal && chk\.aliveSec != null\) \{ sawAlive = true; lastProgressAt = Math\.max\(lastProgressAt, Date\.now\(\) - chk\.aliveSec \* 1000\); \}/);
+  assert.match(exe, /\(!noReal && sawAlive \? REAL_ALIVE_LOST_MS : stallLimit\)/);
+  assert.match(us, /"\/api\/exec-queue\/measure-alive\?acc=" \+ encodeURIComponent\(CURRENT_LINE_ID\)/);
+  assert.match(us, /if \(CURRENT_LINE_ID && !NOREAL && !LOOP && SF_AUTO_UPLOAD && SF_API_BASE\) \{/);
   const routes = read("./routes.ts");
-  assert.match(routes, /if \(job\.type === "measure" && !String\(job\.note \|\| ""\)\.includes\(AUTO_MEASURE_NOREAL_MARK\)\) \{\s*const prog = await jobProgress[^;]+;\s*return res\.json\(\{ active, preempt: false,/);
+  assert.match(routes, /AND NOT \(e\.type = 'measure' AND e\.accounts->>0 = ANY\(\$3::text\[\]\)\)/);
+  assert.match(routes, /if \(job\.type === "measure" && !String\(job\.note \|\| ""\)\.includes\(AUTO_MEASURE_NOREAL_MARK\)\) \{\s*const prog = await jobProgress[\s\S]*?return res\.json\(\{ active, preempt: false, measured: prog\.done, total: prog\.total, aliveSec \}\);/);
+});
+
+test("API: measure-alive needs the token and makes job-check report aliveSec for a running Real job", async (t) => {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.includes("no-db.invalid")) { t.skip("DATABASE_URL is not configured for PostgreSQL integration tests"); return; }
+  const [{ pool }, { registerRoutes }] = await Promise.all([import("./db"), import("./routes")]);
+  const sfx = `${process.pid}${Date.now()}`.slice(-7);
+  const acc = `AL${sfx}`, user = `al-sa-${sfx}`, pass = `pw-${sfx}`, batch = `al-batch-${sfx}`;
+  const app = express(); app.use(express.json());
+  const httpServer = createServer(app);
+  const cleanup = async () => {
+    await pool.query(`DELETE FROM exec_jobs WHERE batch_id = $1`, [batch]);
+    await pool.query(`DELETE FROM users WHERE username = $1`, [user]);
+  };
+  try {
+    await cleanup();
+    const salt = randomBytes(16).toString("hex");
+    const hash = `${((await scryptAsync(pass, salt, 64)) as Buffer).toString("hex")}.${salt}`;
+    await pool.query(`INSERT INTO users (username, password, role) VALUES ($1, $2, 'super_admin')`, [user, hash]);
+    const id = (await pool.query(
+      `INSERT INTO exec_jobs (type, accounts, status, requested_by, batch_id, claimed_at) VALUES ('measure', $1::jsonb, 'claimed', $2, $3, now() - interval '20 minutes') RETURNING id`,
+      [JSON.stringify([acc]), user, batch])).rows[0].id;
+    await registerRoutes(httpServer, app);
+    await new Promise<void>((r) => httpServer.listen(0, "127.0.0.1", () => r()));
+    const base = `http://127.0.0.1:${(httpServer.address() as any).port}`;
+    const cookie = (await fetch(`${base}/api/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: user, password: pass }) })).headers.get("set-cookie")!.split(";")[0];
+    const chk = async () => (await (await fetch(`${base}/api/exec-queue/job-check?jobId=${id}`, { headers: { cookie } })).json()) as any;
+    assert.equal((await chk()).aliveSec, null, "مفيش إشارة لسه");
+    assert.equal((await fetch(`${base}/api/exec-queue/measure-alive?acc=${acc}`)).status, 401);
+    const TOKEN = process.env.DZS_INGEST_TOKEN || "sf-dzs-138-ingest-2026";
+    assert.equal((await fetch(`${base}/api/exec-queue/measure-alive?acc=${acc}`, { headers: { "x-dzs-token": TOKEN } })).status, 200);
+    const c = await chk();
+    assert.equal(c.preempt, false);
+    assert.ok(c.aliveSec != null && c.aliveSec <= 2, JSON.stringify(c));
+  } finally {
+    await cleanup().catch(() => {});
+    await new Promise<void>((r) => httpServer.close(() => r()));
+  }
 });
