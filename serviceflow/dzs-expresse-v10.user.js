@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DZS Expresse Continuous Flow v10.7 (Service-Flow 138 sheet + auto-upload)
-// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.37.0: «بدون Real» مابقاش بيفتح شاشة DSL ولا بيقرا المسافة — بيسجّل القياس على طول من ClearView (أسرع). والمسافة بقت مهمة لوحدها «تحديث المسافة» (sf_mode=loop): بيفتح شاشة DSL بس ويقرا «Estimated Loop Length» ويبعتها لـ /api/loop-length/ingest — ولو N/A أو فاضية المسافة القديمة بتفضل. v10.36.0: القياس (Real أو بدون Real) بقى يشتغل جنب «إيقاف PO» من غير ما يبوّظه: تاب القياس كان بيمسح علامة PO_ACTIVE العامة أول ما يتفتح، فتاب الإيقاف الأول لما يعمل ريفريش بعد Yes كان السكربت بتاعه يقف ومايسجّلش الإيقاف («+إعادة»). دلوقتى الإيقاف بيتعرف من علامة التاب نفسه بس (PO_TAB فى sessionStorage). وقياس Real من جهاز التنفيذ بتاب لوحده (sf_lane=80) بمفاتيح لوحده. v10.35.0: تسجيل الدخول رجع زى 10.31 بالظبط (كل نافذة بتسجّل دخول لوحدها على طول) — بطلب المالك؛ قفل الدخول الواحد (10.32–10.34) اتشال. v10.34.0: النافذة اللى مستنية دخول نافذة تانية بترجع فى نفس اللحظة اللى الدخول ينجح فيها (إشارة بين النوافذ) بدل ما تستنى. v10.33.0: النافذة اللى مستنية دخول نافذة تانية بترجع بعد ٥ ثوانى بالكتير (كانت ٢٠) — فبتكمّل بعد ثوانى من الدخول. v10.32.0: تسجيل دخول واحد فى المرة — لو الجلسة خلصت وفيه نوافذ كتير، أول نافذة بس بتسجّل دخول والباقى بيستنوا ٢٠ ثانية ويرجعوا بنفس الجلسة (كانوا كلهم بيسجّلوا دخول مع بعض فيلغوا جلسات بعض ويلفّوا على login-page?sessionExpired). v10.31.0: لو صفحة clearview فتحت بخانة البحث بس (من غير بيانات الخط)، السكربت بيضغط Search لوحده بعد ٨ ثوانى (ويعيدها مرتين) بدل ما يستنى دقيقتين ويسجّل 104. v10.30.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v10.29.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v10.27: مابيشتغلش فى تابات «إيقاف PO» التانية/التالتة (علامة PO_TAB فى sessionStorage). v10.26: عدد تابات «بدون Real» من السيرفر بس (NOREAL_LANES، أى sf_lane). رقم التاب بيتعرف من رقم الخط اللى فى رابط الصفحة (clearview/lineSummary?lineId=) — فى v10.25 كان من sessionStorage بس، فأى خطوة بتفتح فى تاب/نافذة جديدة كانت بتضيّع الرقم وتشتغل على خط التاب الأول (اللى اتسجّل خلاص) فالتاب التانى مايسجّلش. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
-// @version      10.37.0
+// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.38.0: لو Real خلص ومالقاش الاسكور، قبل ما يسجّل 102 بيضغط «Line details» تانى ويستنى ٣ ثوانى ويقرا تانى. والرسالة البمبى اللى بتظهر فوق فى ClearView (زى «It is not possible to analyze the line…») بتتبعت بنصها كامل مع القياس وبتظهر فى «بحث برقم التليفون». ووقت قياس Real بيتبعت كمان (عشان «إعادة بعد 102 و 104» تتحسب من وقت القياس الأول). v10.37.0: «بدون Real» مابقاش بيفتح شاشة DSL ولا بيقرا المسافة — بيسجّل القياس على طول من ClearView (أسرع). والمسافة بقت مهمة لوحدها «تحديث المسافة» (sf_mode=loop): بيفتح شاشة DSL بس ويقرا «Estimated Loop Length» ويبعتها لـ /api/loop-length/ingest — ولو N/A أو فاضية المسافة القديمة بتفضل. v10.36.0: القياس (Real أو بدون Real) بقى يشتغل جنب «إيقاف PO» من غير ما يبوّظه: تاب القياس كان بيمسح علامة PO_ACTIVE العامة أول ما يتفتح، فتاب الإيقاف الأول لما يعمل ريفريش بعد Yes كان السكربت بتاعه يقف ومايسجّلش الإيقاف («+إعادة»). دلوقتى الإيقاف بيتعرف من علامة التاب نفسه بس (PO_TAB فى sessionStorage). وقياس Real من جهاز التنفيذ بتاب لوحده (sf_lane=80) بمفاتيح لوحده. v10.35.0: تسجيل الدخول رجع زى 10.31 بالظبط (كل نافذة بتسجّل دخول لوحدها على طول) — بطلب المالك؛ قفل الدخول الواحد (10.32–10.34) اتشال. v10.34.0: النافذة اللى مستنية دخول نافذة تانية بترجع فى نفس اللحظة اللى الدخول ينجح فيها (إشارة بين النوافذ) بدل ما تستنى. v10.33.0: النافذة اللى مستنية دخول نافذة تانية بترجع بعد ٥ ثوانى بالكتير (كانت ٢٠) — فبتكمّل بعد ثوانى من الدخول. v10.32.0: تسجيل دخول واحد فى المرة — لو الجلسة خلصت وفيه نوافذ كتير، أول نافذة بس بتسجّل دخول والباقى بيستنوا ٢٠ ثانية ويرجعوا بنفس الجلسة (كانوا كلهم بيسجّلوا دخول مع بعض فيلغوا جلسات بعض ويلفّوا على login-page?sessionExpired). v10.31.0: لو صفحة clearview فتحت بخانة البحث بس (من غير بيانات الخط)، السكربت بيضغط Search لوحده بعد ٨ ثوانى (ويعيدها مرتين) بدل ما يستنى دقيقتين ويسجّل 104. v10.30.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v10.29.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v10.27: مابيشتغلش فى تابات «إيقاف PO» التانية/التالتة (علامة PO_TAB فى sessionStorage). v10.26: عدد تابات «بدون Real» من السيرفر بس (NOREAL_LANES، أى sf_lane). رقم التاب بيتعرف من رقم الخط اللى فى رابط الصفحة (clearview/lineSummary?lineId=) — فى v10.25 كان من sessionStorage بس، فأى خطوة بتفتح فى تاب/نافذة جديدة كانت بتضيّع الرقم وتشتغل على خط التاب الأول (اللى اتسجّل خلاص) فالتاب التانى مايسجّلش. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
+// @version      10.38.0
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
@@ -488,6 +488,40 @@
     return null;
   }
 
+  /* v10.38.0: الرسالة البمبى فوق بيانات الخط فى ClearView (زى «It is not possible to analyze the line; potential problem
+     exists with the collected data» / «Real-time request currently unavailable…»). بنرجّع نصها كامل (كل سطر بـ « | »). */
+  const PAGE_MSG_RE = /not\s+possible\s+to\s+analy|problem\s+exists|currently\s+unavailable|timed-?\s*out|no\s+action\s+recommended|unable\s+to|failed|error|data\s+is\s+missing|out\s+of\s+service|not\s+provision/i;
+  function isPinkish(el) {
+    const m = String(getComputedStyle(el).backgroundColor || "").match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/);
+    if (!m || (m[4] !== undefined && +m[4] === 0)) return false;
+    const [r, g, b] = [+m[1], +m[2], +m[3]];
+    return r >= 220 && r - g >= 15 && r - b >= 15 && g >= 150 && b >= 150;   // بمبى/أحمر فاتح — مش أبيض ولا أحمر غامق
+  }
+  function findPageMessage() {
+    try {
+      const clean = (el) => String(el.innerText || "").split(/\n+/).map((x) => x.replace(/\s+/g, " ").trim()).filter(Boolean).join(" | ");
+      for (const el of document.querySelectorAll(".ui-messages-error, .ui-messages-warn, .ui-message-error, .ui-messages-fatal, .alert-danger")) {
+        const t = clean(el); if (t) return t.slice(0, 1000);
+      }
+      let best = null;
+      for (const el of document.querySelectorAll("div, td, span, p, li, ul")) {
+        if (!isPinkish(el)) continue;
+        const t = clean(el);
+        if (!t || t.length > 1000 || !PAGE_MSG_RE.test(t)) continue;
+        if (!best || t.length < best.length) best = t;   // أصغر صندوق بمبى فيه الكلام (مش الصفحة كلها)
+      }
+      return best || "";
+    } catch (e) { return ""; }
+  }
+  // وقت القاهرة «YYYY-MM-DD HH:MM:SS» — وقت قياس Real (السيرفر بيحسب منه «إعادة بعد 102 و 104»)
+  function cairoNow() {
+    try {
+      const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+      return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+    } catch (e) { return ""; }
+  }
+
   function findLineDetailsLink() {
     let link = document.querySelector("#dsl\\:detailLinkForm\\:lineDetailLink");
     if (link) return link;
@@ -629,6 +663,7 @@
           // v10.23: السيرفر بيستخدم measuredAt كتاريخ القياس فى noreal بس
           measureMode: rec.measureMode, measuredAt: rec.measuredAt, loopLength: rec.loopLength,
           histLabel: rec.histLabel, histRealtime: rec.histRealtime,
+          pageMsg: rec.pageMsg || "", measuredAtReal: rec.realAt || "",
         }] }),
       }).then(r => r.json()).then(j => console.log("☁️ 138 updated:", rec.accountNo, j))
         .catch(e => console.warn("☁️ 138 update failed:", e));
@@ -651,6 +686,9 @@
       loopLength: extra && typeof extra.loopLength === "string" ? extra.loopLength : undefined,
       histLabel: (extra && extra.histLabel) || "",          // الخيار زى ما هو فى History Check
       histRealtime: !!(extra && extra.histRealtime),        // جنبه «(Realtime)»؟
+      // v10.38.0: الرسالة البمبى زى ما هى، ووقت قياس Real (القاهرة)
+      pageMsg: findPageMessage(),
+      realAt: NOREAL ? "" : cairoNow(),
     };
     results.push(rec);
     localStorage.setItem(RESULTS_KEY, JSON.stringify(results));
@@ -768,9 +806,24 @@
     setTimeout(() => { downloadResults(); }, 1500);
   }
 
+  let ldRecheckDone = false;
   function readScoreThenClose() {
     if (processingComplete) return;
     processingComplete = true;
+    // v10.38.0 (المالك ٢٠٢٦-١١-٠٤): مالقاش الاسكور ⇒ قبل ما يتسجّل 102: «Line details» تانى + ٣ ثوانى ونقرا تانى
+    if (!ldRecheckDone && !NOREAL) {
+      const s0 = findDispatchScore();
+      if ((s0 === SCORE_NO_FIELD || isBadReading(s0)) && isBadReading(earlyScore)) {
+        const link = findLineDetailsLink();
+        if (link) {
+          ldRecheckDone = true;
+          console.log("🔁 مفيش اسكور — ضغط Line details تانى والاستنى ٣ ثوانى للخط " + CURRENT_LINE_ID);
+          try { link.scrollIntoView({ block: "center" }); link.click(); } catch (e) {}
+          setTimeout(() => { processingComplete = false; readScoreThenClose(); }, 3000);
+          return;
+        }
+      }
+    }
     const finalScore = findDispatchScore(), finalCur = findSynchRateDS(), finalMax = findMaxAchievableDS();
     let cur = finalCur, max = finalMax, usedEarly = false;
     if (isBadReading(cur) && !isBadReading(earlyCur)) { cur = earlyCur; usedEarly = true; }

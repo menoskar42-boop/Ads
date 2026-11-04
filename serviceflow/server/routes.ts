@@ -2364,6 +2364,7 @@ export async function registerRoutes(
       await withTx(async (tx) => {
         // «إعادة بعد 102 و 104»: كل اللى وقتها جه فى السحبة دى ⇒ باتش واحد جديد
         let retry102Batch: string | null = null;
+        let retry102On: boolean | null = null;   // زرار «إعادة بعد 102 و 104» — بيتقرا مرة واحدة فى اللفة
         const { rows } = await tx.query(
           `SELECT f.id, f.type, f.account, f.note, f.requested_by, f.created_at,
                   j.priority AS "srcPriority", j.batch_id AS "srcBatch"
@@ -2386,6 +2387,9 @@ export async function registerRoutes(
             }
           }
           if (f.type === "measure" && f.note === RETRY_102_MARK) {
+            // الزرار اتقفل من الإعدادات ⇒ الإعادات اللى كانت متجدولة مابتتنفّذش
+            if (retry102On === null) retry102On = (await readExecLanes(pool)).retry102 !== false;
+            if (!retry102On) { await tx.query(`UPDATE exec_followups SET enqueued_at = now() WHERE id = $1`, [f.id]); continue; }
             // حد قاس الخط فى الخمس دقايق (أى قياس) أو فيه قياس للخط مستنى فى الطابور ⇒ مفيش إعادة
             const { rows: seen } = await tx.query(
               `SELECT 1 FROM case_138 WHERE account_no = $1 AND uploaded_at > $2 AND source = 'dzs'
@@ -2678,26 +2682,43 @@ export async function registerRoutes(
   // اللى اتفتحت منه الإعدادات بس: المالك اختار «نوافذ» من Chrome وجهاز التنفيذ فى Edge فضل يفتح تابات (٢٠٢٦-١٠-٢٩).
   let openViewMemo: "tabs" | "windows" | null = null;
   const BRIDGE_ON_KEY = "exec_lanes_bridge";   // نفس البادئة = تعديله سوبر أدمن بس
+  // المالك ٢٠٢٦-١١-٠٤ — زرارين فى الإعدادات (الاتنين مفتوحين افتراضياً):
+  //   REAL_PARALLEL_KEY: قياس Real بيشتغل جنب «إيقاف PO» و«بدون Real» فى نفس الوقت. لو اتقفل Real بياخد الموقع لوحده
+  //                      زى قبل ٢٠٢٦-١١-٠٣ (بيستنى اللى شغّال يخلص، واللى بعده بيستناه).
+  //   RETRY_102_KEY:     «إعادة بعد 102 و 104». لو اتقفلت مفيش إعادات جديدة، واللى متجدولة مابتتنفّذش.
+  const REAL_PARALLEL_KEY = "exec_lanes_real_parallel";
+  const RETRY_102_KEY = "exec_lanes_retry_102";
+  // مدة «إعادة بعد 102 و 104» بالدقايق من وقت القياس الأول (المالك ٢٠٢٦-١١-٠٤: «تتحدد من الإعدادات»)
+  const RETRY_102_MIN_KEY = "exec_lanes_retry_102_min";
+  const RETRY_102_MIN_RANGE = { min: 1, max: 60 } as const;
+  let realParallelMemo = true;
   // طريقة فتح صفحات القياس بتاعة الجسر (المالك ٢٠٢٦-١٠-٢٩: «اعمل زرار فى الإعدادات وأنا أختار طريقة الفتح»):
   // "tabs" = تابات فى نافذة واحدة (الافتراضى) · "windows" = كل خط فى نافذة لوحده. الجسر بياخدها مع lease/progress.
   const BRIDGE_VIEW_KEY = "exec_lanes_bridge_view";
   let bridgeSeen: { at: number; device: string } | null = null;   // آخر مرة الجسر كلّم السيرفر (للإعدادات)
-  type ExecLanes = { noreal: number; stop: number; bridge?: boolean; bridgeView?: "tabs" | "windows" };
+  type ExecLanes = { noreal: number; stop: number; bridge?: boolean; bridgeView?: "tabs" | "windows"; realParallel?: boolean; retry102?: boolean; retry102Min?: number };
   const clampLanes = (v: any, def: number) => {
     const n = parseInt(String(v ?? ""), 10);
     return Number.isFinite(n) ? Math.max(1, n) : def;
   };
   const readExecLanes = async (db: { query: (t: string, v?: any[]) => Promise<any> }): Promise<ExecLanes> => {
-    const out: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES, bridge: false, bridgeView: "tabs" };
+    const out: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES, bridge: false, bridgeView: "tabs", realParallel: true, retry102: true, retry102Min: RETRY_102_AFTER_MIN };
     try {
       const { rows } = await db.query(`SELECT key, value FROM app_settings WHERE key = ANY($1::text[])`,
-        [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY, BRIDGE_VIEW_KEY]]);
+        [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY, BRIDGE_VIEW_KEY, REAL_PARALLEL_KEY, RETRY_102_KEY, RETRY_102_MIN_KEY]]);
       for (const r of rows) {
         if (r.key === EXEC_LANE_KEYS.noreal) out.noreal = clampLanes(r.value, NOREAL_LANES);
         if (r.key === EXEC_LANE_KEYS.stop) out.stop = clampLanes(r.value, POSTOP_LANES);
         if (r.key === BRIDGE_ON_KEY) out.bridge = String(r.value) === "1";
         if (r.key === BRIDGE_VIEW_KEY) out.bridgeView = String(r.value) === "windows" ? "windows" : "tabs";
+        if (r.key === REAL_PARALLEL_KEY) out.realParallel = String(r.value) !== "0";
+        if (r.key === RETRY_102_KEY) out.retry102 = String(r.value) !== "0";
+        if (r.key === RETRY_102_MIN_KEY) {
+          const n = parseInt(String(r.value), 10);
+          if (Number.isFinite(n)) out.retry102Min = Math.min(RETRY_102_MIN_RANGE.max, Math.max(RETRY_102_MIN_RANGE.min, n));
+        }
       }
+      realParallelMemo = out.realParallel !== false;
       bridgeOnMemo = !!out.bridge;
       openViewMemo = out.bridgeView === "windows" ? "windows" : "tabs";
     } catch {}
@@ -2741,11 +2762,13 @@ export async function registerRoutes(
   // بيشتغل جنب «بدون Real»/«إيقاف PO» (تاب لوحده خارج عدّهم)، بس Real واحد بس فى المرة. رفع السرعة وباقى الأنواع
   // لسه بياخدوا الموقع لوحدهم.
   const isRealJob = (a: string) => `(${a}.type = 'measure' AND NOT ${isNoRealJob(a)})`;
-  /** بياخد الموقع لوحده: مش «بدون Real» ولا «إيقاف PO» ولا Real */
-  const soloJob = (a: string) => `(NOT ${sharedGroup(a)} AND NOT ${isRealJob(a)})`;
+  /** بياخد الموقع لوحده: مش «بدون Real» ولا «إيقاف PO» ولا Real (ولو زرار «Real مع الإيقاف وبدون Real» مقفول ⇒ Real كمان لوحده) */
+  const soloJob = (a: string, rp = realParallelMemo) =>
+    rp ? `(NOT ${sharedGroup(a)} AND NOT ${isRealJob(a)})` : `(NOT ${sharedGroup(a)})`;
   /** مهمتين ينفع يشتغلوا مع بعض على نفس الموقع: الاتنين من (بدون Real · إيقاف PO · Real) ومش الاتنين Real */
-  const coRunnable = (a: string, b: string) =>
-    `((${sharedGroup(a)} OR ${isRealJob(a)}) AND (${sharedGroup(b)} OR ${isRealJob(b)}) AND NOT (${isRealJob(a)} AND ${isRealJob(b)}))`;
+  const coRunnable = (a: string, b: string, rp = realParallelMemo) => rp
+    ? `((${sharedGroup(a)} OR ${isRealJob(a)}) AND (${sharedGroup(b)} OR ${isRealJob(b)}) AND NOT (${isRealJob(a)} AND ${isRealJob(b)}))`
+    : `(${sharedGroup(a)} AND ${sharedGroup(b)})`;
   const laneCap = (a: string, L: ExecLanes) =>
     `(CASE WHEN ${isNoRealJob(a)} THEN ${clampLanes(L.noreal, 1)} WHEN ${isPoStopJob(a)} THEN ${clampLanes(L.stop, 1)} ELSE 1 END)`;
   // سقف الاتنين مع بعض = أكبر رقم فى الإعدادات (مش مجموعهم)
@@ -2756,7 +2779,7 @@ export async function registerRoutes(
   // beforeSql: بداية فترة الإيقاف بالليل (أو NULL). الطلب اللى اتضاف بعدها مستنى الصبح — فمايمنعش
   // التابات الزيادة (المالك ٢٠٢٦-١٠-١٤: طلب قياس حسن الساعة ١٢:٤٩ بالليل خلّى «بدون Real» يمشى خط خط
   // لحد الصبح: كان مستنى إن الطلب ده ياخد الموقع، والطلب نفسه مش هيتسحب قبل نهاية الفترة).
-  const siteFreeFor = (e: string, siteSql: string, L: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES }, beforeSql = "NULL::timestamptz") => `(
+  const siteFreeFor = (e: string, siteSql: string, L: ExecLanes = { noreal: NOREAL_LANES, stop: POSTOP_LANES }, beforeSql = "NULL::timestamptz", rp = L.realParallel ?? realParallelMemo) => `(
     NOT EXISTS (SELECT 1 FROM exec_jobs b
                  WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql})
     OR (${sharedGroup(e)}
@@ -2772,23 +2795,24 @@ export async function registerRoutes(
         -- مفيش رفع سرعة/نوع تانى شغّال على الموقع (دول بياخدوه لوحدهم) — Real شغّال مايمنعش (٢٠٢٦-١١-٠٣)
         AND NOT EXISTS (SELECT 1 FROM exec_jobs b
                          WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
-                           AND ${soloJob("b")})
+                           AND ${soloJob("b", rp)})
         -- ولا مهمة من النوع اللى بياخد الموقع لوحده قبله فى الطابور (رفع السرعة مايتجوّعش)
         AND NOT EXISTS (SELECT 1 FROM exec_jobs x
                          WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> ${e}.id
                            AND COALESCE(x.site, '10.42.187.101') = ${siteSql}
-                           AND ${soloJob("x")}
+                           AND ${soloJob("x", rp)}
                            AND (${beforeSql} IS NULL OR x.created_at <= ${beforeSql})
                            AND ${queueRank("x")} < ${queueRank(e)}))
     -- قياس Real: جنب «بدون Real»/«إيقاف PO» — بس مفيش Real تانى شغّال، ولا رفع سرعة/نوع تانى شغّال أو قدّامه
-    OR (${isRealJob(e)}
+    -- (لو زرار «Real مع الإيقاف وبدون Real» مقفول ⇒ Real بياخد الموقع لوحده: الشرط الأول فوق بس)
+    OR (${rp ? "TRUE" : "FALSE"} AND ${isRealJob(e)}
         AND NOT EXISTS (SELECT 1 FROM exec_jobs b
                          WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
-                           AND (${isRealJob("b")} OR ${soloJob("b")}))
+                           AND (${isRealJob("b")} OR ${soloJob("b", rp)}))
         AND NOT EXISTS (SELECT 1 FROM exec_jobs x
                          WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> ${e}.id
                            AND COALESCE(x.site, '10.42.187.101') = ${siteSql}
-                           AND ${soloJob("x")}
+                           AND ${soloJob("x", rp)}
                            AND (${beforeSql} IS NULL OR x.created_at <= ${beforeSql})
                            AND ${queueRank("x")} < ${queueRank(e)}))
   )`;
@@ -2800,7 +2824,7 @@ export async function registerRoutes(
       const { rows } = await pool.query(
         `SELECT (MAX(updated_at) AT TIME ZONE 'Africa/Cairo') AS "updatedAt",
                 (ARRAY_AGG(updated_by ORDER BY updated_at DESC))[1] AS "updatedBy"
-           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY, BRIDGE_VIEW_KEY, REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY, AUTO_LOOP_BATCH_KEY, ...Object.values(NIGHT_PAUSE_KEYS)]]);
+           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), BRIDGE_ON_KEY, BRIDGE_VIEW_KEY, REFRESH_MINUTES_KEY, MEASURE_STALE_DAYS_KEY, AUTO_LOOP_BATCH_KEY, REAL_PARALLEL_KEY, RETRY_102_KEY, RETRY_102_MIN_KEY, ...Object.values(NIGHT_PAUSE_KEYS)]]);
       res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES, refreshMinutes: REFRESH_MINUTES_DEFAULT, measureStaleDays: MEASURE_STALE_DAYS_DEFAULT },
         bridgeSeenSec: bridgeSeen ? Math.round((Date.now() - bridgeSeen.at) / 1000) : null,
         bridgeDevice: bridgeSeen?.device || null,
@@ -2808,6 +2832,7 @@ export async function registerRoutes(
         refreshRange: { min: REFRESH_MINUTES_MIN, max: REFRESH_MINUTES_MAX },
         measureStaleDays: await readMeasureStaleDays(),
         measureStaleRange: { min: MEASURE_STALE_DAYS_MIN, max: MEASURE_STALE_DAYS_MAX },
+        retry102MinRange: RETRY_102_MIN_RANGE, retry102MinDefault: RETRY_102_AFTER_MIN,
         autoLoopBatch: await readAutoLoopBatch(),
         nightPause: await readNightPause(), ...(rows[0] || {}) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -2839,6 +2864,17 @@ export async function registerRoutes(
       if (body.autoLoopBatch != null) {
         if (typeof body.autoLoopBatch !== "boolean") return res.status(400).json({ message: "باتش «تحديث المسافة» لازم يكون مفتوح أو مقفول" });
         vals.push([AUTO_LOOP_BATCH_KEY, body.autoLoopBatch ? 1 : 0]);
+      }
+      for (const [k, key, label] of [["realParallel", REAL_PARALLEL_KEY, "Real مع الإيقاف وبدون Real"], ["retry102", RETRY_102_KEY, "إعادة بعد 102 و 104"]] as const) {
+        if (body[k] == null) continue;
+        if (typeof body[k] !== "boolean") return res.status(400).json({ message: `«${label}» لازم يكون مفتوح أو مقفول` });
+        vals.push([key, body[k] ? 1 : 0]);
+      }
+      if (body.retry102Min != null) {
+        const m = parseInt(String(body.retry102Min), 10);
+        if (!/^\d+$/.test(String(body.retry102Min).trim()) || m < RETRY_102_MIN_RANGE.min || m > RETRY_102_MIN_RANGE.max)
+          return res.status(400).json({ message: `مدة «إعادة بعد 102 و 104» لازم تكون من ${RETRY_102_MIN_RANGE.min} لـ ${RETRY_102_MIN_RANGE.max} دقيقة` });
+        vals.push([RETRY_102_MIN_KEY, m]);
       }
       // الإيقاف بالليل: true/false، والمدة «HH:MM»
       for (const k of ["refresh", "executor"] as const) {
@@ -5479,11 +5515,13 @@ export async function registerRoutes(
             -- «بدون Real» و«إيقاف PO» بيشتغلوا مع بعض ⇒ الإيقاف العاجل مايقطعش «بدون Real» (والعكس):
             -- بياخد تاب جنبه. رفع السرعة/Real لسه بيقطعوا زى الأول.
             -- وقياس Real (٢٠٢٦-١١-٠٣) بيشتغل جنبهم: مايقطعهمش ولا هم بيقطعوه. Real عاجل لسه بيقطع Real.
-            AND NOT (($3::boolean OR $4::boolean) AND (${sharedGroup("exec_jobs")} OR ${isRealJob("exec_jobs")})
+            -- (لو زرار «Real مع الإيقاف وبدون Real» مقفول ⇒ Real بيقطع ويتقطع زى رفع السرعة — $4 بيبقى false)
+            AND NOT (($3::boolean OR $4::boolean) AND (${sharedGroup("exec_jobs")} OR ($5::boolean AND ${isRealJob("exec_jobs")}))
                      AND NOT ($4::boolean AND ${isRealJob("exec_jobs")})) LIMIT 1`,
         [job.priority ?? 0, job.site,
          (job.type === "stop") || (job.type === "measure" && String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK)),
-         job.type === "measure" && !String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK)]);
+         realParallelMemo && job.type === "measure" && !String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK),
+         realParallelMemo]);
       const prog = await jobProgress(job.accounts, job.type, job.claimed_at, job.note);
       res.json({ active, preempt: p.length > 0, measured: prog.done, total: prog.total });
     } catch {
@@ -7654,7 +7692,7 @@ export async function registerRoutes(
   app.get("/api/phone-lines/with-account", requireAuth, async (req, res) => {
     const { search = "", central = "", cabin = "", box = "", boxFrom = "", boxTo = "",
             page = "1", limit = "50", accountQ = "", staleDays = "", hasComplaint = "",
-            hasMobile = "", scoreGt = "", scoreLt = "", speedGt = "", speedLt = "", neverMeasured = "" } = req.query as Record<string, string>;
+            hasMobile = "", scoreGt = "", scoreLt = "", speedGt = "", speedLt = "", neverMeasured = "", noLoop = "" } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
     const q = search.trim().toLowerCase();
@@ -7668,6 +7706,13 @@ export async function registerRoutes(
     // فلتر "لم يتم قياسها من قبل": لا يوجد أى سجل لهذا الخط فى شيت 138 (case_138)
     if (neverMeasured === "1" || neverMeasured === "true") {
       conds.push(`NOT EXISTS (SELECT 1 FROM case_138 c WHERE c.full_phone = la.full_phone)`);
+    }
+    // فلتر «مالهاش مسافة» (المالك ٢٠٢٦-١١-٠٤): نفس مصادر المسافة فى «بحث برقم التليفون» — «تحديث المسافة»
+    // (line_loop_lengths) أو أى قياس قديم فيه مسافة حقيقية. N/A أو «-» أو فاضى مش مسافة.
+    if (noLoop === "1" || noLoop === "true") {
+      conds.push(`NOT EXISTS (SELECT 1 FROM line_loop_lengths ll WHERE ll.full_phone = la.full_phone AND NULLIF(btrim(ll.loop_length), '') IS NOT NULL)`);
+      conds.push(`NOT EXISTS (SELECT 1 FROM case_138 c WHERE c.full_phone = la.full_phone
+                                AND NULLIF(btrim(c.loop_length), '') IS NOT NULL AND btrim(c.loop_length) !~* '^(n/?a|-+)$')`);
     }
     // فلتر الشكوى: الرقم له أى شكوى — على شاشة الـ OSS (ticket_dsl_current المفتوحة) أو
     // خارجها فى 430D (complaint_details المغلقة + remaining_complaints)، أو عطل «خارج الشاشة»
@@ -8920,7 +8965,7 @@ export async function registerRoutes(
   const LINE_MEASUREMENT_FIELDS = [
     "accountNo", "markedNoAccount", "noAccountBy", "noAccountAt",
     "currentSpeed", "maxSpeed", "score", "lastMeasTime", "measureMode", "loopLength", "loopAt", "loopLastRaw", "loopLastRawAt",
-    "histLabel", "poStatus", "measuredBy",
+    "histLabel", "poStatus", "measuredBy", "pageMsg", "measureFailAt", "measureFailBy",
     "lastPoRaiseAt", "raisedBy", "lastPoStopAt", "stoppedBy", "lastPoStopResult",
   ] as const;
   const lookupPhoneLine = async (reqUser: any, phone: string) => {
@@ -8999,6 +9044,7 @@ export async function registerRoutes(
               c.hist_label AS "histLabel",
               c.po_status AS "poStatus",
               c.measured_by AS "measuredBy",
+              c.page_msg AS "pageMsg",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt", pe.last_raise_by AS "raisedBy",
               (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult", pe.last_stop_by AS "stoppedBy",
               (cpl.complain_time AT TIME ZONE 'UTC') AS "lastComplaintAt",
@@ -9104,7 +9150,7 @@ export async function registerRoutes(
                       LIMIT 1
                    )
                  ) AS loop_length,
-                 c2.hist_label, c2.source
+                 c2.hist_label, c2.source, c2.page_msg
          FROM case_138 c2 WHERE c2.full_phone = COALESCE(pl.full_phone, t.full) ORDER BY c2.id DESC LIMIT 1
        ) c ON true
        LEFT JOIN line_loop_lengths ll ON ll.full_phone = COALESCE(pl.full_phone, t.full)
@@ -9300,6 +9346,22 @@ export async function registerRoutes(
     const { line, codes } = await lookupPhoneLine(req.user, phone);
     if (!line || !line.hasData) return res.json({ found: false });
     delete line.hasData;
+    // آخر محاولة قياس ماكملتش (المالك ٢٠٢٦-١١-٠٤): صفحة DZS ماوصلتش («can't reach this page» / انتهت الجلسة) —
+    // دى صفحة غلط من المتصفح نفسه والسكربت مابيشتغلش عليها فمايقدرش يقرا نصها، فجهاز التنفيذ أو الجسر بيقفل
+    // التاب بعد المهلة ويقول timeout. بنعرضها لو أحدث من آخر قياس (آخر ٧ أيام بس).
+    line.measureFailAt = null; line.measureFailBy = null;
+    if (line.accountNo) {
+      try {
+        const { rows: mf } = await pool.query(
+          `SELECT (j.done_at AT TIME ZONE 'Africa/Cairo') AS at, j.executed_by AS by
+             FROM exec_jobs j
+            WHERE j.status = 'done' AND j.result = 'timeout' AND j.type = 'measure'
+              AND j.done_at > now() - interval '7 days' AND j.accounts @> $1::jsonb
+              AND j.done_at > COALESCE((SELECT max(c.uploaded_at) FROM case_138 c WHERE c.full_phone = $2), 'epoch'::timestamptz)
+            ORDER BY j.done_at DESC LIMIT 1`, [JSON.stringify([String(line.accountNo)]), line.fullPhone]);
+        if (mf[0]) { line.measureFailAt = mf[0].at; line.measureFailBy = mf[0].by; }
+      } catch {}
+    }
     // فنى حسابه مش مربوط بكود عامل: مفيش ولا خط هيبقى «بتاعه» — والرسالة العامة
     // «متاحة فقط لفنى المنطقة» كانت بتخبّى السبب ده. الشاشة بتقوله يكلّم الأدمن.
     line.myWorkerCodeMissing = req.user?.role === ROLES.TECH && codes.own.length === 0;
@@ -12223,6 +12285,8 @@ export async function registerRoutes(
       const loopLength = validLoopLength(it.loopLength);
       // فى قياس بدون Real نحتفظ بتمييز القراءة الفارغة لو لم توجد قيمة سابقة.
       // الخيار اللى اتاخد من History Check زى ما هو — منه بيبان «(Realtime)» لو مكتوب.
+      // DZS 10.38.0: الرسالة البمبى فى ClearView بنصها (لحد ١٠٠٠ حرف)
+      const pageMsg = (it.pageMsg ?? "").toString().replace(/\s+/g, " ").trim().slice(0, 1000) || null;
       const histLabel = measureMode === "noreal"
         ? ((it.histLabel ?? "").toString().replace(/^\s*\d+\.\s*/, "").replace(/\s+/g, " ").trim().slice(0, 80) || null)
         : null;
@@ -12231,7 +12295,7 @@ export async function registerRoutes(
       await pool.query(
         `INSERT INTO case_138
            (phone_short, complain_no, score, current_speed, max_speed, full_phone, account_no, measured_by, po_status, complain_time, source,
-            measure_mode, measured_at, loop_length, hist_label)
+            measure_mode, measured_at, loop_length, hist_label, page_msg)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now(), 'dzs',
             $10,
             -- LEAST: لو ساعة AXON متقدّمة شوية، مانسجّلش قياس فى المستقبل.
@@ -12251,20 +12315,26 @@ export async function registerRoutes(
                   LIMIT 1
                )
              ),
-             $13)`,
-        [...measurementValues, measureMode, measuredAt, loopLength, histLabel],
+             $13, $14)`,
+        [...measurementValues, measureMode, measuredAt, loopLength, histLabel, pageMsg],
       );
       syncCurrentDzsMeasurementSoon(measurementValues);
       inserted++;
       // «إعادة بعد 102 و 104» (المالك ٢٠٢٦-١١-٠٣): Real طلع 102 أو 104 ⇒ Real تانى بعد ٥ دقايق (مرة واحدة فى النص ساعة).
       // requested_by = 'auto' ⇒ نتيجة الإعادة بتتختم «تلقائى» (execRequesterOf).
-      if (accountNo && retry102For(measureMode, it.score)) {
+      // المدة من الإعدادات، ومحسوبة من وقت القياس الأول نفسه (لو السكربت بعته) مش من وقت وصوله للسيرفر.
+      const rl = accountNo && retry102For(measureMode, it.score) ? await readExecLanes(pool) : null;
+      if (rl && rl.retry102 !== false) {
+        // Real: DZS ≥10.38 بيبعت وقت القياس فى measuredAtReal (القاهرة) — الأقدم بيتحسب من وقت الوصول
+        const realAt = String(it.measuredAtReal ?? "").trim() || rawAt;
+        const firstAt = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(realAt) ? realAt.replace(" ", "T") : null;
         await pool.query(
           `INSERT INTO exec_followups (type, account, note, requested_by, run_at)
-           SELECT 'measure', $1, $2, $3, now() + make_interval(mins => $4)
+           SELECT 'measure', $1, $2, $3,
+                  LEAST(now(), COALESCE(($6::timestamp AT TIME ZONE 'Africa/Cairo'), now())) + make_interval(mins => $4)
             WHERE NOT EXISTS (SELECT 1 FROM exec_followups WHERE account = $1 AND note = $2
                                  AND created_at > now() - make_interval(mins => $5))`,
-          [accountNo, RETRY_102_MARK, "auto", RETRY_102_AFTER_MIN, RETRY_102_ONCE_MIN]).catch((e: any) =>
+          [accountNo, RETRY_102_MARK, "auto", rl.retry102Min ?? RETRY_102_AFTER_MIN, RETRY_102_ONCE_MIN, firstAt]).catch((e: any) =>
           console.warn("[case-138] جدولة «إعادة بعد 102 و 104» فشلت:", e?.message || e));
       }
     }

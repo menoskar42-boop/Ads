@@ -75,6 +75,11 @@ interface LineData {
   loopLastRawAt?: string | null;
   /** الخيار اللى اتاخد من History Check («2026-09-19 16:13:57(Realtime)» أو «2026-09-22») */
   histLabel?: string | null;
+  /** الرسالة البمبى اللى كانت ظاهرة فى ClearView وقت آخر قياس (DZS ≥10.38) */
+  pageMsg?: string | null;
+  /** آخر محاولة قياس ماكملتش (صفحة DZS ماوصلتش) — أحدث من آخر قياس */
+  measureFailAt?: string | null;
+  measureFailBy?: string | null;
   lastPoRaiseAt: string | null;
   raisedBy: string | null;
   lastPoStopAt: string | null;
@@ -198,7 +203,7 @@ const FULL_WIDTH_FIELDS = new Set<string>([
   "operator", "shelf", "slot", "Port", "IDU", "ODU",
   "Primary Block", "Cabinet In", "Sec Block", "Cabinet Out", "Fiber Block", "Fiber Out",
   // نص AXON طويل — ياخد الصف كله بدل ما يتزنق فى نص العرض
-  "حالة تحسين البروفايل",
+  "حالة تحسين البروفايل", "رسالة DZS وقت القياس", "آخر محاولة قياس",
 ]);
 
 export function PhoneLookupReport() {
@@ -331,6 +336,9 @@ export function PhoneLookupReport() {
   // السيرفر بيطبّق نفس القاعدة (PUT /api/line-accounts/:fullPhone).
   const canAddAccount = !!line && user?.role !== ROLES.SALES && user?.role !== ROLES.SALES_ADMIN &&
     ((user?.role !== ROLES.TECH && user?.role !== ROLES.MAINTENANCE_TECH) || !!line?.ownedByMe);
+  // تعديل أكونت موجود (المالك ٢٠٢٦-١١-٠٤): الفنى (وفنى الصيانة) على خطوطه، والسوبر أدمن على كل الخطوط
+  const canEditAccount = !!line?.accountNo && !line?.measurementsHidden && (user?.role === ROLES.SUPER_ADMIN ||
+    ((user?.role === ROLES.TECH || user?.role === ROLES.MAINTENANCE_TECH) && !!line?.ownedByMe));
   const [editingAccount, setEditingAccount] = useState(false);
   const [accountInput, setAccountInput] = useState("");
   const [savingAccount, setSavingAccount] = useState(false);
@@ -352,7 +360,7 @@ export function PhoneLookupReport() {
     } catch { alert("تعذّر حفظ رقم الأكونت"); }
     finally { setSavingAccount(false); }
   };
-  const addAccountControl: ReactNode = !canAddAccount ? null
+  const addAccountControl: ReactNode = !(canAddAccount || canEditAccount) ? null
     : editingAccount
       ? (
         <span className="inline-flex items-center gap-1">
@@ -367,7 +375,14 @@ export function PhoneLookupReport() {
           <button onClick={() => setEditingAccount(false)} className="text-[11px] text-gray-500 px-1">إلغاء</button>
         </span>
       )
-      : (
+      : line?.accountNo
+        ? (canEditAccount ? (
+          <button onClick={() => { setAccountInput(line?.accountNo || ""); setEditingAccount(true); }}
+            className="text-[11px] text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-50"
+            data-testid="button-edit-account">
+            تعديل
+          </button>) : null)
+        : (
         <button onClick={() => { setAccountInput(""); setEditingAccount(true); }}
           className="text-[11px] text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-50"
           data-testid="button-add-account">
@@ -864,7 +879,9 @@ export function PhoneLookupReport() {
   const accountCell: ReactNode = line?.measurementsHidden
     ? hiddenMeas
     : line?.accountNo
-    ? dash(line.accountNo)
+    ? (canEditAccount
+      ? <span className="inline-flex items-center gap-2">{editingAccount ? null : dash(line.accountNo)}{addAccountControl}</span>
+      : dash(line.accountNo))
     : line?.markedNoAccount
       ? (
         <span className="inline-flex flex-col items-start gap-0.5">
@@ -902,6 +919,19 @@ export function PhoneLookupReport() {
         ["الاسكور", meas(scoreBadge(line.score))],      ["رقم الفريم", dash(line.frame)],
         ["تاريخ آخر قياس", meas(withBy(fmtDate(line.lastMeasTime), line.measuredBy))], ["Port Type", dash(line.portType)],
         ["حالة تحسين البروفايل", meas(<PoStatusCell value={line.poStatus} />)],
+        // الرسالة البمبى فى ClearView وقت آخر قياس (زى «It is not possible to analyze the line…») — بتظهر لو فيه رسالة بس
+        ...(line.pageMsg
+          ? ([["رسالة DZS وقت القياس", meas(
+              <span dir="ltr" className="text-sm text-rose-800 bg-rose-50 border border-rose-200 rounded px-2 py-1 whitespace-pre-wrap break-words text-left"
+                data-testid="text-dzs-page-msg">{line.pageMsg.split(" | ").join("\n")}</span>)]] as [string, ReactNode][])
+          : []),
+        // محاولة قياس ماكملتش بعد آخر قياس: صفحة DZS ماوصلتش (المتصفح بيعرض «can't reach this page» والسكربت مابيشتغلش عليها)
+        ...(line.measureFailAt
+          ? ([["آخر محاولة قياس", meas(
+              <span className="text-sm text-rose-800 bg-rose-50 border border-rose-200 rounded px-2 py-1" data-testid="text-measure-fail">
+                آخر محاولة قياس ماكملتش — {fmtDate(line.measureFailAt)}: صفحة DZS ماوصلتش (المتصفح عرض «can&apos;t reach this page» أو الجلسة انتهت)، فالتاب اتقفل بعد المهلة من غير قياس{line.measureFailBy ? ` · ${line.measureFailBy}` : ""}
+              </span>)]] as [string, ReactNode][])
+          : []),
         // اتنين جنب بعض = سطر واحد، فالترتيب اللى تحت مابيتزحلقش.
         ["نوع القياس", meas(measureModeCell(line.measureMode, line.histLabel))],  ["المسافة (Loop Length)", meas(loopLengthCell(line))],
         ["آخر رفع سرعة", meas(withBy(fmtDate(line.lastPoRaiseAt), line.raisedBy))],  ["voice status", dash(line.voiceStatus)],
@@ -940,7 +970,7 @@ export function PhoneLookupReport() {
   const MOBILE_ORDER = [
     "اسم العميل", "عنوان العميل", "رقم الموبايل", "اسم الفنى", "السنترال", "رقم الكابينة", "رقم البكس",
     "DP Terminal", "كود الكابينة (MSAN)", "رقم الفريم", "رقم الأكونت", "السرعة الحالية", "أقصى سرعة",
-    "الاسكور", "تاريخ آخر قياس", "نوع القياس", "حالة تحسين البروفايل", "Loop Length", "آخر رفع سرعة", "آخر إيقاف PO", "تاريخ آخر شكوى", "إحداثيات البكس",
+    "الاسكور", "تاريخ آخر قياس", "نوع القياس", "حالة تحسين البروفايل", "رسالة DZS وقت القياس", "آخر محاولة قياس", "Loop Length", "آخر رفع سرعة", "آخر إيقاف PO", "تاريخ آخر شكوى", "إحداثيات البكس",
     "Port Type", "voice status", "data status", "Row", "Column", "operator",
     "حالة صيانة البكس", "هل البكس له تكت أرضية", "shelf", "slot", "Port", "IDU", "ODU",
     "Primary Block", "Cabinet In", "Sec Block", "Cabinet Out", "Fiber Block", "Fiber Out",
@@ -973,6 +1003,7 @@ export function PhoneLookupReport() {
       "كود الكابينة (MSAN)": line.msanCode ?? "",
       "الاسكور": line.score ?? "",
       "حالة تحسين البروفايل": line.poStatus ?? "",
+      "رسالة DZS وقت القياس": line.pageMsg ?? "",
       "رقم الفريم": line.frame ?? "",
       "تاريخ آخر قياس": fmtDate(line.lastMeasTime),
       "نوع القياس": measureModeText(line.measureMode, line.histLabel),
@@ -1011,10 +1042,10 @@ export function PhoneLookupReport() {
     if (!line) return;
     printTablePDF({
       title: `بيانات الخط ${line.fullPhone}`,
-      columns: ["السنترال", "الكابينة", "البكس", "حالة صيانة البكس", "تكت أرضية", "كود MSAN", "اسم الفنى", "الفريم", "الأكونت", "سرعة حالية", "أقصى سرعة", "الاسكور", "حالة PO", "آخر قياس", "نوع القياس", "Loop Length", "Port Type", "Row", "Column", "voice", "data", "operator", "shelf", "slot", "IDU", "ODU", "Primary Block", "Cabinet In", "Sec Block", "Cabinet Out", "DP Terminal", "Port", "LEN", "Fiber Block", "Fiber Out", "آخر رفع سرعة", "آخر إيقاف PO", "آخر شكوى"],
+      columns: ["السنترال", "الكابينة", "البكس", "حالة صيانة البكس", "تكت أرضية", "كود MSAN", "اسم الفنى", "الفريم", "الأكونت", "سرعة حالية", "أقصى سرعة", "الاسكور", "حالة PO", "رسالة DZS", "آخر قياس", "نوع القياس", "Loop Length", "Port Type", "Row", "Column", "voice", "data", "operator", "shelf", "slot", "IDU", "ODU", "Primary Block", "Cabinet In", "Sec Block", "Cabinet Out", "DP Terminal", "Port", "LEN", "Fiber Block", "Fiber Out", "آخر رفع سرعة", "آخر إيقاف PO", "آخر شكوى"],
       rows: [[
         line.central, line.cabinNumber ?? "-", line.boxNumber ?? "-", boxMaint?.maintenance_status_ar ?? "-", line.boxNumber ? (boxGround?.hasOpenTicket ? "نعم" : "لا") : "-", line.msanCode ?? "-", line.techName ?? "-", line.frame ?? "-", line.accountNo ?? "-",
-        line.currentSpeed ?? "-", line.maxSpeed ?? "-", line.score ?? "-", poStatusShort(line.poStatus) || "-", fmtDate(line.lastMeasTime),
+        line.currentSpeed ?? "-", line.maxSpeed ?? "-", line.score ?? "-", poStatusShort(line.poStatus) || "-", line.pageMsg ?? "-", fmtDate(line.lastMeasTime),
         measureModeText(line.measureMode, line.histLabel), loopLengthText(line),
         line.portType ?? "-", line.rowNo ?? "-", line.columnNo ?? "-", line.voiceStatus ?? "-", line.dataStatus ?? "-", line.operator ?? "-", line.shelf ?? "-", line.slot ?? "-",
         line.iduNo ?? "-", line.oduNo ?? "-", line.primaryBlockNo ?? "-", line.cabinetIn ?? "-", line.secBlockNo ?? "-",

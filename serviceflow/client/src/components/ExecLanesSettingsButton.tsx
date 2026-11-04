@@ -29,6 +29,14 @@ interface ExecLanes {
   measureStaleRange: { min: number; max: number };
   /** باتش ٩ الصبح التالت «تحديث المسافة» لنفس أرقام «بدون Real» (مقفول افتراضياً) */
   autoLoopBatch?: boolean;
+  /** Real بيشتغل جنب «إيقاف PO» و«بدون Real» فى نفس الوقت (مفتوح افتراضياً) */
+  realParallel?: boolean;
+  /** «إعادة بعد 102 و 104» التلقائية (مفتوحة افتراضياً) */
+  retry102?: boolean;
+  /** بعد كام دقيقة من القياس الأول */
+  retry102Min?: number;
+  retry102MinRange?: { min: number; max: number };
+  retry102MinDefault?: number;
   defaults: { noreal: number; stop: number; refreshMinutes: number; measureStaleDays: number };
   max: number | null;   // null = مفيش سقف
   /** الإيقاف بالليل (١٢ بالليل ← ٧ الصبح): التحديث التلقائى وجهاز التنفيذ */
@@ -55,6 +63,9 @@ export function ExecLanesSettingsButton() {
   const [night, setNight] = useState<NightPause>(NIGHT_PAUSE_DEFAULT);
   const [bridge, setBridge] = useState(false);
   const [autoLoop, setAutoLoop] = useState(false);
+  const [realParallel, setRealParallel] = useState(true);
+  const [retry102, setRetry102] = useState(true);
+  const [retryMin, setRetryMin] = useState("5");
   const [bridgeView, setBridgeView] = useState<"tabs" | "windows">("tabs");
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -90,6 +101,9 @@ export function ExecLanesSettingsButton() {
       setNight({ ...NIGHT_PAUSE_DEFAULT, ...(data.nightPause ?? {}) });
       setBridge(!!data.bridge);
       setAutoLoop(!!data.autoLoopBatch);
+      setRealParallel(data.realParallel !== false);
+      setRetry102(data.retry102 !== false);
+      setRetryMin(String(data.retry102Min ?? 5));
       setBridgeView(data.bridgeView === "windows" ? "windows" : "tabs");
     }
   }, [open, data, dataUpdatedAt, openedAt]);
@@ -100,6 +114,8 @@ export function ExecLanesSettingsButton() {
   const validRefresh = /^\d+$/.test(refresh) && +refresh >= rMin && +refresh <= rMax;
   const sMin = data?.measureStaleRange?.min ?? 0, sMax = data?.measureStaleRange?.max ?? 30;
   const validStale = /^\d+$/.test(staleDays) && +staleDays >= sMin && +staleDays <= sMax;
+  const qMin = data?.retry102MinRange?.min ?? 1, qMax = data?.retry102MinRange?.max ?? 60;
+  const validRetryMin = /^\d+$/.test(retryMin) && +retryMin >= qMin && +retryMin <= qMax;
   const TIME_OK = /^([01]\d|2[0-3]):[0-5]\d$/;
   const validNight = TIME_OK.test(night.start) && TIME_OK.test(night.end) && night.start !== night.end;
   const save = useMutation({
@@ -107,7 +123,7 @@ export function ExecLanesSettingsButton() {
       const r = await fetch(LANES_URL, {
         method: "PUT", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays, autoLoopBatch: autoLoop, nightPause: night, bridge, bridgeView }),
+        body: JSON.stringify({ noreal: +noreal, stop: +stop, refreshMinutes: +refresh, measureStaleDays: +staleDays, autoLoopBatch: autoLoop, realParallel, retry102, retry102Min: +retryMin, nightPause: night, bridge, bridgeView }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.message || `خطأ ${r.status}`);
@@ -203,6 +219,28 @@ export function ExecLanesSettingsButton() {
                   </span>
                 </label>
               </div>
+              <div className="space-y-2 pt-2 border-t">
+                <p className="text-sm font-medium">قياس Real</p>
+                <label className="flex items-start gap-2 text-sm cursor-pointer" data-testid="toggle-real-parallel">
+                  <input type="checkbox" className="mt-1 h-4 w-4" checked={realParallel} onChange={(e) => setRealParallel(e.target.checked)} />
+                  <span>
+                    Real يشتغل مع «إيقاف PO» و«بدون Real» فى نفس الوقت
+                    <span className="block text-xs text-muted-foreground">مفتوح افتراضياً (Real واحد بس فى المرة). لو قفلته، Real بيستنى الإيقاف و«بدون Real» يخلصوا وبياخد الموقع لوحده، واللى بعده بيستناه.</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm cursor-pointer" data-testid="toggle-retry-102">
+                  <input type="checkbox" className="mt-1 h-4 w-4" checked={retry102} onChange={(e) => setRetry102(e.target.checked)} />
+                  <span>
+                    «إعادة بعد 102 و 104» تلقائياً
+                    <span className="block text-xs text-muted-foreground">لما Real يطلع 102 أو 104، يتقاس Real تانى بعد المدة دى من القياس الأول لو محدش قاسه. مفتوحة افتراضياً — لو قفلتها، الإعادات اللى متجدولة كمان مش هتتنفّذ.</span>
+                  </span>
+                </label>
+                <div className="flex flex-wrap items-center gap-2 pr-6">
+                  <label htmlFor="retry-102-min" className="text-sm">بعد</label>
+                  {stepper("retry-102-min", retryMin, setRetryMin, qMin, qMax, 1, validRetryMin, "مدة إعادة 102 و 104")}
+                  <span className="text-xs text-muted-foreground">دقيقة من القياس الأول (من {qMin} لـ {qMax} — الافتراضى {data.retry102MinDefault ?? 5})</span>
+                </div>
+              </div>
               <div className="space-y-3 pt-2 border-t">
                 <p className="text-sm font-medium">فترة الإيقاف (توقيت القاهرة)</p>
                 <div className="flex flex-wrap items-center gap-2 text-sm" dir="rtl">
@@ -276,7 +314,7 @@ export function ExecLanesSettingsButton() {
           )}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>إلغاء</Button>
-            <Button disabled={!data || !valid(noreal) || !valid(stop) || !validRefresh || !validStale || !validNight || save.isPending} onClick={() => save.mutate()}>
+            <Button disabled={!data || !valid(noreal) || !valid(stop) || !validRefresh || !validStale || !validRetryMin || !validNight || save.isPending} onClick={() => save.mutate()}>
               {save.isPending && <Loader2 className="w-4 h-4 animate-spin ml-1" />} حفظ
             </Button>
           </DialogFooter>

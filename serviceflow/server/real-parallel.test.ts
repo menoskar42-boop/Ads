@@ -85,7 +85,7 @@ test("PostgreSQL claims: Real runs beside no-Real and PO stop, one Real at a tim
 test("executor: Real opens in the usual measure tab with its own script keys (lane 80); no-Real tabs are separate; no preempting each other", async () => {
   const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
   const chk = routes.slice(routes.indexOf('app.get("/api/exec-queue/job-check"'), routes.indexOf('app.get("/api/exec-queue/:id/preempt"'));
-  assert.match(chk, /AND NOT \(\(\$3::boolean OR \$4::boolean\) AND \(\$\{sharedGroup\("exec_jobs"\)\} OR \$\{isRealJob\("exec_jobs"\)\}\)\s+AND NOT \(\$4::boolean AND \$\{isRealJob\("exec_jobs"\)\}\)\)/);
+  assert.match(chk, /AND NOT \(\(\$3::boolean OR \$4::boolean\) AND \(\$\{sharedGroup\("exec_jobs"\)\} OR \(\$5::boolean AND \$\{isRealJob\("exec_jobs"\)\}\)\)\s+AND NOT \(\$4::boolean AND \$\{isRealJob\("exec_jobs"\)\}\)\)/);
   assert.match(routes, /AND NOT \$\{coRunnable\("e", "j2"\)\}\)\)/, "المُنقِذ مايرجّعش Real شغّال جنب بدون Real");
   const exe = readFileSync(new URL("../client/src/components/ExecutorButton.tsx", import.meta.url), "utf8");
   assert.match(exe, /if \(isReal\) lane = REAL_MEASURE_LANE;/);

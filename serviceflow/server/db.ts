@@ -1942,6 +1942,8 @@ export async function ensureSchema() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS line_loop_lengths_account_idx ON line_loop_lengths (account_no, last_raw_at)`);
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS hist_label text`);
+  // الرسالة البمبى اللى كانت ظاهرة فى ClearView وقت القياس (DZS 10.38.0) — نصها كامل
+  await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS page_msg text`);
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_raise_by text`);
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_stop_by text`);
   // نتيجة آخر إيقاف (المالك ٢٠٢٦-١٠-٢٧): stopped = كان In Nightly PO واتوقف · already = كان Not Started

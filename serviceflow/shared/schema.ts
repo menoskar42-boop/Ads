@@ -669,6 +669,8 @@ export const case138 = pgTable("case_138", {
   //   hist_label   = الخيار اللى اتاخد من History Check زى ما هو («2026-09-19 16:13:57(Realtime)»
   //                  أو «2026-09-22» من غير وقت) — منه بيبان إذا كان Realtime ولا لأ.
   histLabel: text("hist_label"),
+  // الرسالة البمبى فى ClearView وقت القياس («It is not possible to analyze the line…») — DZS 10.38.0
+  pageMsg: text("page_msg"),
 });
 
 export type Case138 = typeof case138.$inferSelect;

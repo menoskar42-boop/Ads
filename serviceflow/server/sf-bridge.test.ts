@@ -197,7 +197,7 @@ test("a long chunk that keeps moving keeps its marker alive (< 4 min apart) and 
 // التنفيذ وصفحته لو الباتش عاجل فقط… وحط فى الإعدادات زر يشغّل أو يوقف الـAPI ده».
 test("settings switch: off by default, super-admin key, lease/start refuse while off", () => {
   assert.match(routes, /const BRIDGE_ON_KEY = "exec_lanes_bridge";/, "بادئة exec_lanes_ = تعديله سوبر أدمن بس");
-  assert.match(routes, /bridge: false, bridgeView: "tabs" \};/, "مقفول افتراضياً — ميزة اختيارية");
+  assert.match(routes, /bridge: false, bridgeView: "tabs"[,}]/, "مقفول افتراضياً — ميزة اختيارية");
   assert.match(routes, /if \(r\.key === BRIDGE_ON_KEY\) out\.bridge = String\(r\.value\) === "1";/);
   assert.match(routes, /if \(!lanes\.bridge\) return res\.json\(\{ jobs: \[\], disabled: true \}\);/);
   assert.match(routes, /if \(!\(await readExecLanes\(pool\)\)\.bridge\) return res\.json\(\{ ok: false, disabled: true, drop: held \}\);/);
@@ -205,7 +205,7 @@ test("settings switch: off by default, super-admin key, lease/start refuse while
   assert.match(routes, /if \(body\.bridge === false\) \{\n\s+await pool\.query\(`UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`\);/);
   assert.match(routes, /bridgeSeenSec: bridgeSeen \?/);
   const ui = readFileSync(new URL("../client/src/components/ExecLanesSettingsButton.tsx", import.meta.url), "utf8");
-  assert.match(ui, /measureStaleDays: \+staleDays,( autoLoopBatch: autoLoop,)? nightPause: night, bridge, bridgeView \}/);
+  assert.match(ui, /measureStaleDays: \+staleDays,( autoLoopBatch: autoLoop,)?( realParallel, retry102, retry102Min: \+retryMin,)? nightPause: night, bridge, bridgeView \}/);
   assert.match(ui, /<Switch checked=\{bridge\} onCheckedChange=\{setBridge\}/);
 });
 

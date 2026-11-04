@@ -101,6 +101,8 @@ interface WithAccountReportProps {
   showC360?: boolean;
   /** فلتر اختيارى: عرض فقط الخطوط التى لم يتم قياسها من قبل (لا يوجد لها سجل فى شيت 138) */
   neverMeasured?: boolean;
+  /** فلتر اختيارى: الخطوط اللى مالهاش مسافة (Loop Length) — مفيش «تحديث مسافة» ولا مسافة فى قياس قديم (المالك ٢٠٢٦-١١-٠٤) */
+  noLoop?: boolean;
   /** القيمة الافتراضية لعدد أيام فلتر «أقدم من N يوم» (الفلتر نفسه يظل مطفياً حتى تفعيله) */
   defaultStaleDays?: string;
   title?: string;
@@ -110,13 +112,14 @@ interface WithAccountReportProps {
   initialBox?: string;
 }
 
-export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, neverMeasured, defaultStaleDays = "10", title, initialCentral = "", initialCabin = "", initialBox = "" }: WithAccountReportProps = {}) {
+export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, neverMeasured, noLoop, defaultStaleDays = "10", title, initialCentral = "", initialCabin = "", initialBox = "" }: WithAccountReportProps = {}) {
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
   // المصدر يعكس التقرير الفعلى (خطوط لها أكونت / ولم تُقس / أسكور>100) عشان يظهر صح فى معاملات التنفيذ
   useSpeedToolSource(
     scoreEq != null ? `خطوط اسكورها ${scoreEq}`
     : neverMeasured ? "خطوط لها أكونت ولم تُقس"
+    : noLoop ? "خطوط لها أكونت ومالهاش مسافة"
     : scoreGt != null ? "خطوط أسكورها أعلى من 100"
     : "خطوط لها أكونت");
   const [central, setCentral] = useState(initialCentral);
@@ -180,7 +183,7 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["/api/phone-lines/with-account", central, cabin, box, boxFrom, boxTo, page, scoreGt ?? "", scoreEq ?? "", neverMeasured ?? false, scoreMin, scoreMax, speedMin, speedMax, accountQ, staleOn, staleDays, complaintFilter, hasMobileOnly, excludeQueued],
+    queryKey: ["/api/phone-lines/with-account", central, cabin, box, boxFrom, boxTo, page, scoreGt ?? "", scoreEq ?? "", neverMeasured ?? false, noLoop ?? false, scoreMin, scoreMax, speedMin, speedMax, accountQ, staleOn, staleDays, complaintFilter, hasMobileOnly, excludeQueued],
     queryFn: async () => {
       // نفس باني البارامترات بتاع القياس/التصدير — مصدر واحد فمفيش فلتر يتنسى
       const params = filterParams({ page: String(page), limit: String(PAGE_SIZE) });
@@ -275,6 +278,7 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
     // اسكور مساوٍ بالظبط: السيرفر بيقارن بـ > و < بس، والاسكور عدد صحيح
     if (scoreEq != null) { params.set("scoreGt", String(scoreEq - 1)); params.set("scoreLt", String(scoreEq + 1)); }
     if (neverMeasured) params.set("neverMeasured", "1");
+    if (noLoop) params.set("noLoop", "1");
     if (scoreMin.trim()) params.set("scoreGt", scoreMin.trim());
     if (scoreMax.trim()) params.set("scoreLt", scoreMax.trim());
     if (speedMin.trim()) params.set("speedGt", speedMin.trim());
