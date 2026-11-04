@@ -127,7 +127,11 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
         for (const o of r.options) {
           const b = el("button", "font-size:40px;font-weight:900;min-width:76px", isAr ? o : `${o}${o.toLowerCase()}`);
           b.className = "choice";
-          b.addEventListener("click", () => (o === r.ch ? ok(b) : bad(b)));
+          b.addEventListener("click", () => {
+            if (o === r.ch) return ok(b);
+            Store.recordConfusion(isAr ? "arabic" : "english", r.ch, o);   // خريطة الأخطاء: اختار o بدل r.ch
+            bad(b);
+          });
           row.append(b);
         }
       } else {

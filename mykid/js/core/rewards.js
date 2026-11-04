@@ -5,6 +5,10 @@ import { Confetti } from "./confetti.js";
 import { Speech } from "./speech.js";
 import { createCharacter } from "../games/character.js";
 import { track } from "./analytics.js";
+import { newAchievements, masteryContext } from "../data/mastery.js";
+import { starredLetters } from "../data/letterRecall.js";
+import { WB_NUMBER_PAGE_IDS } from "../data/workbook.js";
+import { COLORS } from "../data/colors.js";
 
 // مجموعة العناصر القابلة للجمع (حيوانات أليفة، سيارات، أجنحة، قبعات...)
 export const COLLECTIBLES = [
@@ -72,6 +76,52 @@ export function grantRandomCollectible() {
   const item = locked[(Math.random() * locked.length) | 0];
   Store.addToCollection(item.id);
   return item;
+}
+
+/** حالة الطفل لحساب الإنجازات (js/data/mastery.js) */
+export function currentMasteryContext() {
+  return masteryContext({
+    arStarred: starredLetters("ar", Store.letterbookDone),
+    enStarred: starredLetters("en", Store.englishbookDone),
+    workbookDone: Store.workbookDone, numberPageIds: WB_NUMBER_PAGE_IDS,
+    mastery: Store.mastery, colorKeys: COLORS.map((c) => c.name),
+    grades: Store.letterGrades, writeStats: Store.writeStats, journeys: Store.journeys,
+  });
+}
+
+/** الإنجازات الجديدة (لو فيه): بتتسجّل، ومع كل إنجاز كنز — بالترتيب مش بالحظ (المالك ٢٠٢٦-١١-٠٤) */
+export function claimNewAchievements() {
+  const fresh = newAchievements(currentMasteryContext(), Store.achievements);
+  if (!fresh.length) return [];
+  Store.addAchievements(fresh.map((a) => a.id));
+  return fresh.map((a) => {
+    const item = COLLECTIBLES.find((c) => !Store.hasCollected(c.id)) || null;
+    if (item) Store.addToCollection(item.id);
+    return { ...a, item };
+  });
+}
+
+/** احتفال بإنجاز جديد: ميزو ماسك النجمة + كارت الإنجاز + الكنز اللى جه معاه */
+export function showAchievementPopup(a, onClose) {
+  Sfx.unlockReward();
+  Confetti.stars();
+  const overlay = document.createElement("div");
+  overlay.className = "cheer";
+  overlay.innerHTML = `
+    <div class="cheer-card ach-pop">
+      <img src="/assets/mizo/mizo-star.webp" alt="ميزو" width="480" height="720" class="ach-mizo" />
+      <div class="cheer-text">بقيت شاطر!</div>
+      <div class="ach-card"><span class="ach-emoji">${a.emoji}</span><span>${a.title}</span></div>
+      ${a.item ? `<p class="ach-gift">ومعاه كنز جديد: ${a.item.emoji} ${a.item.name}</p>` : ""}
+      <button class="candy-btn" id="achOk">رائع! 🎉</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  Speech.mizo(`برافو! ${a.title}`);
+  track("achievement", { id: a.id });
+  overlay.querySelector("#achOk").addEventListener("click", () => {
+    overlay.remove();
+    if (onClose) onClose();
+  });
 }
 
 /** نافذة احتفال عند ربح عنصر جديد */

@@ -64,6 +64,10 @@ import { renderVideos } from "./screens/videos.js";
 import { renderStory } from "./screens/story.js";
 import { renderProfile } from "./screens/profile.js";
 import { renderDailyPlan } from "./screens/dailyPlan.js";
+import { renderMasteryRoom } from "./screens/masteryRoom.js";
+import { breakMission } from "./data/healthyBreak.js";
+import { COLORS } from "./data/colors.js";
+import { starredLetters } from "./data/letterRecall.js";
 import { renderMizoSong } from "./screens/mizoSong.js";
 import { renderShareCard } from "./screens/shareCard.js";
 import { renderRuleLesson } from "./games/ruleLesson.js";
@@ -169,6 +173,7 @@ setOnCorrect(() => reactAssistant("proud", 1200));
 Router.register("story", renderStory);
 Router.register("profile", renderProfile);
 Router.register("dailyPlan", renderDailyPlan);
+Router.register("masteryRoom", renderMasteryRoom);
 Router.register("mizoSong", renderMizoSong);
 Router.register("shareCard", renderShareCard);
 Router.register("ruleLesson", renderRuleLesson);
@@ -227,7 +232,14 @@ function startApp() {
   appEl.classList.remove("hidden");
 
   // نبضة كل دقيقة لاحتساب وقت الاستخدام (للوحة ولي الأمر) — فقط والصفحة ظاهرة
-  setInterval(() => { if (!document.hidden) Store.addUsageMinutes(1); }, 60000);
+  // + فاصل حركة كل breakEvery دقيقة لعب (اقتراح كوديكس ٢٠٢٦-١١-٠٤ — js/data/healthyBreak.js)
+  let playedMin = 0, breaks = 0;
+  setInterval(() => {
+    if (document.hidden) return;
+    Store.addUsageMinutes(1);
+    const every = Store.breakEvery;
+    if (every > 0 && ++playedMin >= every && !document.querySelector(".cheer")) { playedMin = 0; showMoveBreak(breaks++); }
+  }, 60000);
 
   // رابط عميق: ?region=arabic يفتح المنطقة مباشرة (قادم من صفحات SEO)
   const wanted = new URLSearchParams(location.search).get("region");
@@ -237,6 +249,26 @@ function startApp() {
 }
 
 startBtn.addEventListener("click", startApp);
+
+// فاصل حركة: مهمة حقيقية بعيد عن الشاشة، مربوطة باللى الطفل بيتعلّمه (لون بالإنجليزى · حرف بيعرفه)
+function showMoveBreak(n) {
+  Speech.stop();
+  const known = COLORS.filter((c) => Store.getMastery("colors", c.name) >= 2);
+  const letters = starredLetters("ar", Store.letterbookDone);
+  const [text, say] = breakMission({ n, color: known.length ? known[n % known.length] : null, letter: letters.length ? letters[n % letters.length] : null });
+  const overlay = document.createElement("div");
+  overlay.className = "cheer";
+  overlay.innerHTML = `
+    <div class="cheer-card brk-card">
+      <img src="/assets/mizo/mizo-present.webp" alt="ميزو" width="480" height="720" style="width:110px;height:auto;margin:0 auto" />
+      <div class="cheer-text">فاصل حركة! 🏃</div>
+      <p style="font-size:19px;font-weight:800;color:var(--c-ink);margin:.2em 0 1em" data-testid="move-break">${text}</p>
+      <button class="candy-btn" id="brkOk">خلّصت! ✅</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  Speech.mizo(say);
+  overlay.querySelector("#brkOk").addEventListener("click", () => { Sfx.correct?.(); overlay.remove(); });
+}
 
 // رسالة تذكير لطيفة بانتهاء وقت اللعب (ليست قفلاً صارماً — تطبيق ويب)
 function showScreenTimeReminder() {

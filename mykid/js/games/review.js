@@ -95,6 +95,7 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title, f
           Sfx.wrong();
           b.classList.add("wrong");
           Store.recordReview(datasetKey, itemKey(target), false); // إتقان −
+          Store.recordConfusion(datasetKey, itemKey(target), itemKey(c)); // اختار ده بدل ده (خريطة الأخطاء)
           setTimeout(() => b.classList.remove("wrong"), 450);
         }
       });

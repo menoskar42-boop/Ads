@@ -14,6 +14,10 @@ import { LB_ORDER, nameOf as lbName } from "../data/letterbook.js";
 import { gameInfo, LB_ACT_INFO } from "../data/letterGrade.js";
 import { EB_PAGES } from "../data/englishbook.js";
 import { WB_PAGES } from "../data/workbook.js";
+import { weeklyReport } from "../data/weeklyReport.js";
+import { BREAK_OPTIONS } from "../data/healthyBreak.js";
+import { ACHIEVEMENTS } from "../data/mastery.js";
+import { currentMasteryContext } from "../core/rewards.js";
 
 export function renderParent() {
   const screen = document.createElement("div");
@@ -138,6 +142,7 @@ export function renderParent() {
   });
   wrap.appendChild(mBox);
 
+  wrap.appendChild(weeklyBox());
   wrap.appendChild(writingBox());
   wrap.appendChild(gradesBox());
 
@@ -225,6 +230,31 @@ export function renderParent() {
   stNote.textContent = "تذكير لطيف داخل التطبيق بعد المدّة (يُطبّق عند فتح التطبيق التالي).";
   stBox.appendChild(stNote);
   wrap.appendChild(stBox);
+
+  // فاصل حركة كل كام دقيقة (اقتراح كوديكس ٢٠٢٦-١١-٠٤ — js/data/healthyBreak.js)
+  const brBox = document.createElement("div");
+  brBox.style.cssText = stBox.style.cssText;
+  brBox.innerHTML = `<div style="font-weight:800;color:var(--c-ink);margin-bottom:10px">🏃 فاصل حركة</div>`;
+  const brRow = document.createElement("div");
+  brRow.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;justify-content:center";
+  for (const m of BREAK_OPTIONS) {
+    const b = document.createElement("button");
+    b.className = "video-cat" + (Store.breakEvery === m ? " active" : "");
+    b.textContent = m === 0 ? "بدون" : `كل ${m} دقيقة`;
+    b.addEventListener("click", () => {
+      Sfx.tap();
+      Store.setBreakEvery(m);
+      brRow.querySelectorAll(".video-cat").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+    });
+    brRow.appendChild(b);
+  }
+  brBox.appendChild(brRow);
+  const brNote = document.createElement("p");
+  brNote.style.cssText = "font-size:12px;color:#7a6ca8;margin:10px 0 0";
+  brNote.textContent = "ميزو بيطلب من الطفل حاجة يعملها بعيد عن الشاشة (يدوّر على لون بالإنجليزى، يرسم حرف فى الهوا، ينط…) وبعدين يكمّل. مش قفل.";
+  brBox.appendChild(brNote);
+  wrap.appendChild(brBox);
 
   // ===== الخصوصية والميكروفون =====
   const privBox = document.createElement("div");
@@ -371,6 +401,51 @@ function masteryBar(datasetKey, label) {
  * الدرجة ومستواها وعدد المرات، ولمسة بتفتح التفاصيل — نسبة كل كتابة، وغلطات كل لعبة ونشاط،
  * واللى الطفل عدّاه من غير ما يلعبه.
  */
+// «تقرير الأسبوع» (اقتراح كوديكس ٢٠٢٦-١١-٠٤): أتقن إيه · محتاج إيه · بيلخبط فى إيه · نشاط فى البيت — وقابل للطباعة
+function weeklyReportData() {
+  return weeklyReport({
+    grades: Store.letterGrades, confusions: Store.confusions, achievementsAt: Store.achievementsAt,
+    achievements: ACHIEVEMENTS, last7: Store.last7Days(), ctx: currentMasteryContext(),
+  });
+}
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const li = (arr, empty) => (arr.length ? arr.map((x) => `<li>${esc(x)}</li>`).join("") : `<li class="pw-none">${empty}</li>`);
+function weeklyBox() {
+  const r = weeklyReportData();
+  const box = document.createElement("div");
+  box.className = "pw-box wr-box";
+  box.innerHTML = `<div class="pw-title">📋 تقرير الأسبوع</div>
+    <p class="pw-sub">من ${r.from} لـ ${r.to} · لعب ${r.activeDays} من ٧ أيام · ${r.minutes} دقيقة. ده مش درجة — ده بيقولك تركّزوا على إيه.</p>
+    <div class="wr-cols">
+      <div><b>⭐ أتقن الأسبوع ده</b><ul>${li(r.mastered, "لسه — كمّلوا رحلة اليوم")}</ul></div>
+      <div><b>💪 بقى بيعرف</b><ul>${li(r.strengths, "لسه بيبدأ")}</ul></div>
+      <div><b>🎯 محتاج شوية تدريب</b><ul>${li(r.needs, "مفيش حاجة واضحة لسه")}</ul></div>
+    </div>
+    <p class="wr-act"><b>🏠 نشاط فى البيت:</b> ${esc(r.activity)}</p>
+    <button class="candy-btn" id="wrPrint" data-testid="weekly-print">🖨️ اطبع التقرير</button>`;
+  box.querySelector("#wrPrint").addEventListener("click", () => { Sfx.tap(); printWeekly(r); });
+  return box;
+}
+function printWeekly(r) {
+  const name = esc(Store.childName || "البطل الصغير");
+  const w = window.open("", "_blank");
+  if (!w) { alert("المتصفح منع نافذة الطباعة — اسمح بالنوافذ المنبثقة وجرّب تانى"); return; }
+  w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير الأسبوع — ${name}</title>
+    <style>body{font-family:"Baloo Bhaijaan 2",Tahoma,sans-serif;color:#2b2160;margin:24px;line-height:1.6}
+    h1{font-size:24px;margin:0 0 4px;color:#5b3fb5}.sub{color:#6d5aa8;margin:0 0 16px}
+    .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.col{border:2px solid #e4dcff;border-radius:12px;padding:10px 14px}
+    .col b{display:block;margin-bottom:4px}ul{margin:0;padding-inline-start:18px}.act{margin-top:16px;border:2px dashed #f2b631;border-radius:12px;padding:10px 14px;background:#fffaf0}
+    @media print{body{margin:10mm}}</style></head><body>
+    <h1>📋 تقرير الأسبوع — ${name}</h1>
+    <p class="sub">من ${r.from} لـ ${r.to} · لعب ${r.activeDays} من ٧ أيام · ${r.minutes} دقيقة</p>
+    <div class="cols"><div class="col"><b>⭐ أتقن الأسبوع ده</b><ul>${li(r.mastered, "لسه")}</ul></div>
+    <div class="col"><b>💪 بقى بيعرف</b><ul>${li(r.strengths, "لسه بيبدأ")}</ul></div>
+    <div class="col"><b>🎯 محتاج شوية تدريب</b><ul>${li(r.needs, "مفيش حاجة واضحة لسه")}</ul></div></div>
+    <p class="act"><b>🏠 نشاط فى البيت:</b> ${esc(r.activity)}</p>
+    <script>setTimeout(function(){window.print()},300)<\/script></body></html>`);
+  w.document.close();
+}
+
 function gradesBox() {
   const box = document.createElement("div");
   box.className = "pw-box lg-box";

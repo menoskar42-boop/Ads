@@ -4,6 +4,8 @@ import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { awardStars } from "../core/rewards.js";
+import { Store } from "../core/storage.js";
+import { confirmLangs } from "../data/healthyBreak.js";
 import { gameTopbar, shuffle, finishActivity, diffCount } from "./common.js";
 import { glyphMarkup, glyphEmoji } from "./glyph.js";
 
@@ -126,8 +128,11 @@ export function renderFindIt({ regionId, regionIndex, datasetKey, title, bg, ver
   const action = en ? "Find" : (verb || "اضغط على");
   let round = 0;
 
+  // إتقان العنصر (أول محاولة صح/غلط) — منه «أعرف ٦ ألوان بالإنجليزى» (js/data/mastery.js)
+  const mk = (it) => it.char ?? (it.value != null ? String(it.value) : it.name);
   function render() {
     const target = shuffle(items)[0];
+    let firstTry = true;
     const others = shuffle(items.filter((x) => x.emoji !== target.emoji)).slice(0, diffCount(3, 5));
     const pool = shuffle([target, ...others]);
     stage.innerHTML = "";
@@ -151,16 +156,23 @@ export function renderFindIt({ regionId, regionIndex, datasetKey, title, bg, ver
         if (c.emoji === target.emoji) {
           Sfx.correct();
           b.classList.add("correct");
+          if (firstTry) Store.recordReview(datasetKey, mk(target), true);
+          firstTry = false;
           awardStars(1);
           // الاسم باللغتين (اللى بيتسأل بيها الأول)
           const ar = { text: target.name, lang: "ar-EG" }, enName = target.en ? { text: target.en, lang: "en-US" } : null;
-          Speech.sequence(enName ? (en ? [enName, ar] : [ar, enName]) : [ar]);
+          // اللون اللى الطفل بقى عارفه كويس ⇒ الإنجليزى بس (استدعاء حقيقى — js/data/healthyBreak.js)
+          const order = confirmLangs({ en, mastery: Store.getMastery(datasetKey, mk(target)) });
+          Speech.sequence(enName ? order.map((l) => (l === "en" ? enName : ar)) : [ar]);
           round++;
           if (round >= 6) setTimeout(() => finishActivity({ regionId, regionIndex, stars: 7, onDone: back }), 700);
           else setTimeout(render, 800);
         } else {
           Sfx.wrong();
           b.classList.add("wrong");
+          if (firstTry) Store.recordReview(datasetKey, mk(target), false);
+          Store.recordConfusion(datasetKey, mk(target), mk(c));
+          firstTry = false;
           setTimeout(() => b.classList.remove("wrong"), 450);
         }
       });

@@ -25,6 +25,7 @@ export function renderHome() {
       <button class="icon-btn" id="funBtn" title="المرح والتحدّيات">🏆</button>
       <button class="icon-btn" id="rewardsBtn" title="كنوزي">🎁</button>
       <button class="icon-btn" id="dailyBtn" title="رحلة اليوم">🎯</button>
+      <button class="icon-btn" id="masteryBtn" title="أنا بقيت شاطر">🏆</button>
       <button class="icon-btn" id="songBtn" title="نشيد ميزو">🎶</button>
       <button class="icon-btn" id="colorBtn" title="تلوين">🎨</button>
       ${FEATURES.videos ? '<button class="icon-btn" id="videosBtn" title="أغاني وفيديو">🎵</button>' : ""}
@@ -178,6 +179,10 @@ export function renderHome() {
     screen.querySelector("#colorBtn").addEventListener("click", () => {
       Sfx.tap();
       Router.go("coloring", { title: "🎨 لوّن الصور" });
+    });
+    screen.querySelector("#masteryBtn").addEventListener("click", () => {
+      Sfx.tap();
+      Router.go("masteryRoom");
     });
     screen.querySelector("#dailyBtn").addEventListener("click", () => {
       Sfx.tap();

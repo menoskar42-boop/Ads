@@ -508,13 +508,73 @@ export const Store = {
   },
   markDailyStep(i) {
     const p = this.dailyPlan;
-    if (!p.done.includes(i)) { p.done.push(i); persist(); }
+    if (!p.done.includes(i)) { p.done.push(i); persist(); return true; }
+    return false;
+  },
+  // قصص رحلة اليوم (js/data/journeyStories.js): كام مهمة خلصت لكل قاعدة من الأول
+  get storyProgress() {
+    return state.storyProgress || (state.storyProgress = {});
+  },
+  bumpStory(key) {
+    const s = this.storyProgress;
+    s[key] = (s[key] || 0) + 1;
+    persist();
+    return s[key];
   },
   // يمنح مكافأة إكمال الرحلة مرّة واحدة؛ يعيد true إن لم تُمنح بعد
   markDailyBonus() {
     const p = this.dailyPlan;
     if (!p.bonus) { p.bonus = true; persist(); return true; }
     return false;
+  },
+  // «أنا بقيت شاطر فى…» (js/data/mastery.js): الإنجازات اللى اتكسبت
+  get achievements() {
+    return state.achievements || (state.achievements = []);
+  },
+  // يوم كل إنجاز (لتقرير الأسبوع)
+  get achievementsAt() {
+    return state.achievementsAt || (state.achievementsAt = {});
+  },
+  addAchievements(ids) {
+    const a = this.achievements;
+    let n = 0;
+    for (const id of ids) if (!a.includes(id)) { a.push(id); this.achievementsAt[id] = today(); n++; }
+    if (n) persist();
+    return n;
+  },
+  // فاصل حركة كل كام دقيقة لعب (js/data/healthyBreak.js) — ١٥ افتراضياً، ٠ = مقفول (ولى الأمر)
+  get breakEvery() {
+    return state.breakEvery == null ? 15 : state.breakEvery;
+  },
+  setBreakEvery(min) {
+    state.breakEvery = Math.max(0, Math.min(60, min | 0));
+    persist();
+  },
+  // خريطة الأخطاء (اقتراح كوديكس ٢٠٢٦-١١-٠٤): الطفل اختار إيه بدل إيه — «ds|المطلوب|اللى اختاره» ← { n, d }.
+  // منها «يلخبط بين ب وت» فى تقرير الأسبوع لولى الأمر (js/data/weeklyReport.js). بنحتفظ بآخر ١٥٠.
+  get confusions() {
+    return state.confusions || (state.confusions = {});
+  },
+  recordConfusion(ds, target, picked) {
+    if (!ds || target == null || picked == null || String(target) === String(picked)) return;
+    const c = this.confusions;
+    const k = `${ds}|${target}|${picked}`;
+    c[k] = { n: ((c[k] && c[k].n) || 0) + 1, d: today() };
+    const keys = Object.keys(c);
+    if (keys.length > 150) keys.sort((x, y) => (c[x].d < c[y].d ? -1 : 1)).slice(0, keys.length - 150).forEach((x) => delete c[x]);
+    persist();
+  },
+  // رحلات اليوم اللى خلصت (للخريطة — js/data/dailyJourney.js): العدد وآخر يوم. مرة واحدة فى اليوم.
+  get journeys() {
+    return (state.journeys && state.journeys.count) || 0;
+  },
+  addJourney() {
+    const t = today();
+    const j = state.journeys || (state.journeys = { count: 0, last: null });
+    if (j.last === t) return false;
+    j.count += 1; j.last = t;
+    persist();
+    return true;
   },
   // الخطوة الجارية حالياً (تُضبط عند إطلاقها من الرحلة لتُعلَّم عند إتمامها)
   get activeStep() {

@@ -9,9 +9,10 @@ import { track } from "../core/analytics.js";
 import {
   awardStars,
   updateStarCounter,
-  grantRandomCollectible,
-  showRewardPopup,
+  claimNewAchievements,
+  showAchievementPopup,
 } from "../core/rewards.js";
+import { STORIES, chapterDone } from "../data/journeyStories.js";
 
 /**
  * رفيق ميزو الصغير داخل اللعبة: يفرح عند النجاح ويتعاطف بلطف عند الخطأ.
@@ -241,8 +242,11 @@ export function finishActivity({ regionId, regionIndex, stars = 5, onDone }) {
     return e.onDone({ mistakes: Sfx.wrongs - e.base });
   }
   // إن أُطلق النشاط من "رحلة اليوم" نعلّم خطوته كمكتملة
+  // + قصة القاعدة بتتقدّم خطوة (قوس قزح · القطار · البيض) — ولو الفصل كمل احتفال بيه
+  let storyMsg = null;
   if (Store.activeStep != null) {
-    Store.markDailyStep(Store.activeStep);
+    const key = Store.activeStep;
+    if (Store.markDailyStep(key) && STORIES[key]) storyMsg = chapterDone(key, Store.bumpStory(key));
     Store.activeStep = null;
   }
   Store.addFriendship(1); // تنمو صداقة ميزو مع كل نشاط
@@ -255,8 +259,9 @@ export function finishActivity({ regionId, regionIndex, stars = 5, onDone }) {
   Store.markRegionDone(regionId);
   if (regionIndex != null) Store.unlockNext(regionIndex);
 
-  // مكافأة جديدة بنسبة جيّدة لإبقاء الحماس
-  const reward = Math.random() < 0.7 ? grantRandomCollectible() : null;
+  // المكافأة بقت بالإتقان مش بالحظ (اقتراح كوديكس — المالك ٢٠٢٦-١١-٠٤): إنجاز جديد اتفتح ⇒ احتفال وكنز معاه.
+  // قبل كده كنز عشوائى بعد ٧٠٪ من الأنشطة.
+  const fresh = claimNewAchievements();
 
   const done = () => {
     Speech.mizo("برافو! خلّصت المهمة يا بطل");
@@ -270,8 +275,10 @@ export function finishActivity({ regionId, regionIndex, stars = 5, onDone }) {
   };
 
   showCheer("🏆", pick(MIZO_CATCH), () => {
-    if (reward) showRewardPopup(reward, finish);
-    else finish();
+    // إنجاز ورا التانى لو اتفتح أكتر من واحد مرة واحدة
+    const story = () => (storyMsg ? showCheer("🎉", storyMsg, finish) : finish());
+    const next = (i) => (i < fresh.length ? showAchievementPopup(fresh[i], () => next(i + 1)) : story());
+    next(0);
   });
 }
 
