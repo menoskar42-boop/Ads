@@ -675,7 +675,8 @@ export function ExecutorButton() {
         // → نقفله ويتسجّل timeout (الطابور بيعيده مرة لوحده بعدين — requeueErroredJobs).
         const stallLimit = noReal ? NOREAL_STALL_MS : STALL_MS;
         let reopened = false;
-        const deadline = Date.now() + Math.min(accs.length * MEASURE_MAX_MS, MAX_TOTAL_MS);
+        // Real: ٧ دقايق للخط (EXEC_MEASURE_STALL_MS) — كانت ٣ فكان بيقطع Real وهو لسه شغّال ويعيده من الأول
+        const deadline = Date.now() + Math.min(accs.length * (noReal ? MEASURE_MAX_MS : Math.max(MEASURE_MAX_MS, STALL_MS)), MAX_TOTAL_MS);
         // ⚠️ «مفيش تقدّم» = مفيش **خط جديد اتقاس** من ٣ دقايق — مش ٣ دقايق من أول
         // الباتش. كانت بتتقاس من البداية، فأى باتش قياس أطول من ٣ دقايق (٤-٥ خطوط
         // بدون Real، كل خط لحد ٤٥ث استنى الشاشة تهدى) كان بيتقطع وهو شغّال،

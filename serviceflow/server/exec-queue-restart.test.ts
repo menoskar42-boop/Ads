@@ -99,11 +99,11 @@ class SiteClaimQueue {
 }
 
 test("measurement timeout survives reload and resumes only unfinished work", async () => {
-  assert.equal(EXEC_MEASURE_STALL_MS, 3 * 60 * 1000);
+  assert.equal(EXEC_MEASURE_STALL_MS, 7 * 60 * 1000);
   assert.equal(EXEC_BATCH_REFRESH_DELAY_MS, 60 * 1000);
   // المهلة اتنقلت من نص مكتوب فى الاستعلام لملف واحد مشترك (shared/exec-timeouts.ts)
   // بيقرا منه السيرفر وجهاز التنفيذ وشارة «عالق» — القيمة نفسها ما اتغيرتش.
-  assert.equal(rescueMinutes("measure"), 4);
+  assert.equal(rescueMinutes("measure"), 8);
   assert.match(routes, /const maxRunSql = rescueIntervalSql\("e\.type"\);/);
   assert.match(client, /const STALL_MS = EXEC_MEASURE_STALL_MS/);
   assert.match(client, /requestExecPreempt\(id\)/);

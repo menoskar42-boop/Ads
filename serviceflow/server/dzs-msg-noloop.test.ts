@@ -93,3 +93,18 @@ test("phone lookup: a measure attempt that timed out after the last measurement 
   assert.match(routes, /WHERE j\.status = 'done' AND j\.result = 'timeout' AND j\.type = 'measure'/);
   assert.match(lookup, /data-testid="text-measure-fail"/);
 });
+
+test("DZS 10.38.0: the measure mode sticks to the tab (a no-Real tab never turns into Real after a reload/login)", () => {
+  assert.match(us, /const TAB_MODE_KEY = "DZS_TAB_MODE";/);
+  assert.match(us, /if \(TAB_MODE && !_fromHash\) localStorage\.setItem\(MEASURE_MODE_KEY, TAB_MODE === "real" \? "" : TAB_MODE\);\s*const NOREAL = /);
+});
+
+test("executor: a Real line gets 7 minutes (was 3 — it closed the tab mid-measure and re-measured from scratch); server rescue 8; no preempt of Real", async () => {
+  const { EXEC_RUN_MINUTES, EXEC_RESCUE_MINUTES } = await import("../shared/exec-timeouts");
+  assert.equal(EXEC_RUN_MINUTES.measure, 7);
+  assert.ok(EXEC_RESCUE_MINUTES.measure > EXEC_RUN_MINUTES.measure);
+  const exe = read("../client/src/components/ExecutorButton.tsx");
+  assert.match(exe, /accs\.length \* \(noReal \? MEASURE_MAX_MS : Math\.max\(MEASURE_MAX_MS, STALL_MS\)\)/);
+  const routes = read("./routes.ts");
+  assert.match(routes, /if \(job\.type === "measure" && !String\(job\.note \|\| ""\)\.includes\(AUTO_MEASURE_NOREAL_MARK\)\) \{\s*const prog = await jobProgress[^;]+;\s*return res\.json\(\{ active, preempt: false,/);
+});

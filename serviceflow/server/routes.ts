@@ -5501,6 +5501,13 @@ export async function registerRoutes(
       const job = rows[0];
       if (!job) return res.json({ active: false, preempt: false, measured: 0, total: 0 });
       const active = job.status === "claimed";
+      // قياس Real شغّال مابيتقطعش خالص (المالك ٢٠٢٦-١١-٠٤: «فى وسط القياس بيقطع ويعيد الخطوات — يستنى لحد ما
+      // يخلص»): الخط واحد ودقيقتين، والمقاطعة كانت بتقفل التاب وAXON لسه بيعمل real-time للخط، فالـReal اللى بعده
+      // يلاقى «another real-time request is in progress» ويعيد، والخط الأول يرجع للطابور ويتقاس من الأول.
+      if (job.type === "measure" && !String(job.note || "").includes(AUTO_MEASURE_NOREAL_MARK)) {
+        const prog = await jobProgress(job.accounts, job.type, job.claimed_at, job.note);
+        return res.json({ active, preempt: false, measured: prog.done, total: prog.total });
+      }
       // المقاطعة **داخل نفس الدومين فقط**: المواقع المختلفة بتشتغل بالتوازى أصلاً فمفيش سبب
       // إن مهمة عاجلة على DZS توقف مهمة شغّالة على FCC. لكن تحديث ملفات FCC (أولوية 3) بيوقف
       // مراجعة البيان الفنى الجارية على FCC، وبعد ما يخلص المراجعة بتكمّل للمتبقى.

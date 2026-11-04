@@ -181,7 +181,7 @@ export function reloadWhenReachable(why: string): void {
 
 // ثوابت إنقاذ باتش القياس — مُصدّرة عشان اختبار التسلسل يقدر يحاكي الوقت
 // من غير ما ينتظر أربع دقائق فعلية.
-export const EXEC_MEASURE_STALL_MS = 3 * 60 * 1000;
+export const EXEC_MEASURE_STALL_MS = 7 * 60 * 1000;   // خط Real الواحد (٢٠٢٦-١١-٠٤ — كانت ٣ وكانت بتقطع Real وهو شغّال)
 export const EXEC_BATCH_REFRESH_DELAY_MS = 60 * 1000;
 export const EXEC_BATCH_REFRESH_KEY = "sf_exec_batch_refresh_deadlines";
 
