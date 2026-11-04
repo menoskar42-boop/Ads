@@ -46,7 +46,13 @@ interface SiteRow {
   claimedMins: number | null;
   running: number;
   waiting: number;
+  /** كل نوع شغّال لوحده ومين بينفّذه (٢٠٢٦-١١-٠٤) */
+  kinds?: { type: string; mode: "real" | "noreal" | "loop" | null; bridge: boolean; n: number; mins: number | null; batchId: string | null }[];
+  /** اللى الجسر حاجزه ولسه مستنى دوره عنده */
+  bridgeHeld?: { type: string; mode: string | null; n: number }[];
 }
+const kindLabel = (k: { type: string; mode?: string | null }) =>
+  k.type === "measure" ? (k.mode === "loop" ? "تحديث المسافة" : k.mode === "noreal" ? "قياس بدون Real" : "قياس Real") : typeLabel(k.type);
 
 // أسماء المواقع زى ما المستخدم بيعرفها
 const SITE_LABEL: Record<string, string> = {
@@ -385,7 +391,22 @@ export function QueueReorderPanel() {
                       {s.waiting > 0 && (
                         <span className="text-xs text-muted-foreground">مستنى وراه: <span className="text-foreground font-medium">{s.waiting} مهمة</span></span>
                       )}
-                      {s.note && <span className="text-xs text-muted-foreground">من تقرير: <span className="text-foreground">{s.note}</span></span>}
+                      {/* كل نوع شغّال ومين بينفّذه — بدل اسم واحد (كان بيكتب «إيقاف PO» والجسر بيقيس) */}
+                      {(s.kinds || []).length > 0 && (
+                        <span className="flex flex-wrap gap-1" data-testid="site-kinds">
+                          {(s.kinds || []).map((k, i) => (
+                            <span key={i} className="text-[11px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-800">
+                              {kindLabel(k)}{k.n > 1 ? ` ×${k.n}` : ""} · {k.bridge ? "الجسر" : "جهاز التنفيذ"}{k.mins != null ? ` · ${k.mins} د` : ""}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                      {(s.bridgeHeld || []).length > 0 && (
+                        <span className="text-[11px] text-muted-foreground">
+                          الجسر حاجز: {(s.bridgeHeld || []).map((h) => `${kindLabel(h)} ${h.n}`).join(" · ")}
+                        </span>
+                      )}
+                      {s.note && !(s.kinds || []).length && <span className="text-xs text-muted-foreground">من تقرير: <span className="text-foreground">{s.note}</span></span>}
                       {s.batchId && <span className="text-[11px] text-muted-foreground font-mono">باتش: {s.batchId}</span>}
                     </div>
                   </div>

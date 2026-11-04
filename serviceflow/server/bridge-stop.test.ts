@@ -60,6 +60,20 @@ test("bridge phase two: deferred PO stop goes to the bridge, finishes from line_
     const cookie = { cookie: login.headers.get("set-cookie")!.split(";")[0] };
     const bridge = { "x-bridge-token": (await post("/api/exec-queue/bridge/token", cookie)).token };
 
+    // جسر قديم (≤2.0.0، مابيقولش stops) مايخدش إيقاف — كان بيفتحه صفحة قياس ويقول خلص (المالك ٢٠٢٦-١١-٠٤)
+    const old = await post("/api/exec-queue/bridge/lease", bridge, { device: "PC-old" });
+    assert.deepEqual(old.jobs, [], "الجسر القديم مالوش إيقاف");
+    // الجسر: بيحجز الاتنين المؤجّلين ونوعهم «stop»
+    let lease = await post("/api/exec-queue/bridge/lease", bridge, { device: "PC-test", stops: true });
+    assert.deepEqual(lease.jobs.map((j: any) => [Number(j.id), j.type]).sort(), [[daily1, "stop"], [daily2, "stop"]].sort());
+    // نفس الجهاز لو رجع لنسخة قديمة ⇒ حجز الإيقاف بيتفكّ ومابياخدهوش
+    lease = await post("/api/exec-queue/bridge/lease", bridge, { device: "PC-test" });
+    assert.deepEqual(lease.jobs, []);
+    const held = (await pool.query(`SELECT count(*)::int AS n FROM exec_jobs WHERE id = ANY($1::bigint[]) AND bridge_device IS NOT NULL`, [[daily1, daily2]])).rows[0].n;
+    assert.equal(held, 0, "الحجز اتفكّ");
+    lease = await post("/api/exec-queue/bridge/lease", bridge, { device: "PC-test", stops: true });
+    assert.equal(lease.jobs.length, 2);
+
     // جهاز التنفيذ: العاجل بس — والإيقاف المؤجّل مايتسحبش (الجسر مفتوح)
     const claimed: number[] = [];
     for (let i = 0; i < 4; i++) {
@@ -72,9 +86,6 @@ test("bridge phase two: deferred PO stop goes to the bridge, finishes from line_
     assert.ok(!claimed.includes(daily1) && !claimed.includes(daily2), "المؤجّل مش لجهاز التنفيذ");
     for (const id of claimed) await post(`/api/exec-queue/${id}/done`, cookie, { result: "done" });
 
-    // الجسر: بيحجز الاتنين المؤجّلين ونوعهم «stop»
-    const lease = await post("/api/exec-queue/bridge/lease", bridge, { device: "PC-test" });
-    assert.deepEqual(lease.jobs.map((j: any) => [Number(j.id), j.type]).sort(), [[daily1, "stop"], [daily2, "stop"]].sort());
     const start = await post("/api/exec-queue/bridge/start", bridge, { device: "PC-test", ids: [daily1] });
     assert.equal(start.ok, true, JSON.stringify(start));
     const since = start.now;

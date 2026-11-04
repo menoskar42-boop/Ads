@@ -165,7 +165,7 @@ test("script wiring: pages, permissions, and the server rules it depends on", ()
   assert.match(src, /const keep = !queued && !opts\.sfNoQueue && method !== "GET"/);
   assert.match(src, /method: "POST", url: sfBase\(\) \+ path, sfNoQueue: true/);
   // السيرفر: الجسر ياخد «بدون Real» أولوية 0 من غير متابعة، وجهاز التنفيذ مايسحبش المحجوز
-  assert.match(routes, /const bridgeable = \(a: string\) => `\(\$\{a\}\.priority = 0 AND \(\n\s+\(\$\{a\}\.type = 'measure' AND \$\{isNoRealJob\(a\)\}/);
+  assert.match(routes, /const bridgeable = \(a: string, stopsOk = bridgeTakesStops\(\)\) => `\(\$\{a\}\.priority = 0 AND \(\n\s+\(\$\{a\}\.type = 'measure' AND \$\{isNoRealJob\(a\)\}/);
   assert.match(routes, /AND \(h\.bridge_lease_until IS NULL OR h\.bridge_lease_until < now\(\)\)\n(\s+--.*\n)?\s+AND NOT \$\{lanes\.bridge \? bridgeable\("h"\) : "FALSE"\}\n\s+AND COALESCE\(h\.site/);
   assert.match(routes, /AND \(bridge_lease_until IS NULL OR bridge_lease_until < now\(\)\)\n\s+AND NOT \$\{lanes\.bridge \? bridgeable\("exec_jobs"\) : "FALSE"\}\n\s+AND \$\{siteFreeFor\("exec_jobs", "\$3", lanes, "\$4::timestamptz"\)\}/);
   // ومابيبدأش لو Real/رفع سرعة مستنى قدّامه (اتلقطت على Postgres حقيقى)
@@ -594,7 +594,14 @@ test("2.0.0: when the server says the stop tabs are full, the bridge still opens
 test("2.0.0: a bridge stop page knows its line from sf_po (else it closed itself after a minute mid-stop)", () => {
   assert.match(src, /const acc = decodeURIComponent\(\(location\.hash\.match\(\/\[#&\]sf_\(\?:accounts\|po\)=\(\[\^&\]\+\)\/\)/);
   // والسيرفر: الإيقاف المؤجّل للجسر، و«خلص» من آخر إيقاف للرقم، والإعادة لو ماتسجّلش
-  assert.match(routes, /OR \(\$\{a\}\.type = 'stop'\n\s+AND POSITION\('\$\{RAISE_STOP_MARK\}'/);
+  assert.match(routes, /OR \(\$\{stopsOk \? "TRUE" : "FALSE"\} AND \$\{a\}\.type = 'stop'\n\s+AND POSITION\('\$\{RAISE_STOP_MARK\}'/);
   assert.match(routes, /OR \(e\.type = 'stop' AND EXISTS \(SELECT 1 FROM line_po_events p\n\s+WHERE p\.account_no = e\.accounts->>0 AND p\.last_stop_at >= d\.since\)\)/);
   assert.match(routes, /SELECT id, type, accounts, batch_id AS "batchId" FROM u/);
+});
+
+test("2.0.1: the lease says it can stop (an old bridge measured stop lines and reported them done)", () => {
+  assert.match(src, /@version\s+2\.0\.1/);
+  assert.match(src, /env\.live\("\/api\/exec-queue\/bridge\/lease", \{ max: BRIDGE\.LEASE_MAX, device: env\.device\(\), stops: true \}\)/);
+  assert.match(routes, /const stops = req\.body\?\.stops === true;/);
+  assert.match(routes, /AND \(\$4::boolean OR h\.type <> 'stop'\)/);
 });

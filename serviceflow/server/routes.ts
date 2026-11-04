@@ -2711,7 +2711,12 @@ export async function registerRoutes(
    *  تمبر منكى») إيقاف PO. إعادة الإيقاف (+إعادة) ينفع، لأن bridge/report بيعمل الإعادة اللى بعدها زى جهاز
    *  التنفيذ؛ لكن «+قياس» (قياس بعد الإيقاف) لأ — المتابعة دى بتتعمل من /done بس. Real ورفع السرعة بيفضلوا على
    *  جهاز التنفيذ: بياخدوا AXON لوحدهم (real-time واحد للجلسة). */
-  const bridgeable = (a: string) => `(${a}.priority = 0 AND (
+  let bridgeStopsAt = 0;
+  const BRIDGE_STOPS_FRESH_MS = 15 * 60 * 1000;
+  const bridgeTakesStops = () => Date.now() - bridgeStopsAt < BRIDGE_STOPS_FRESH_MS;
+  // الإيقاف بيبقى شغل الجسر بس لو فيه جسر بيعرف يوقف (sf-bridge ≥2.0.1 بيبعت stops: true) كلّم السيرفر من أقل من ربع
+  // ساعة — غير كده جهاز التنفيذ هو اللى بياخده (الجسر القديم كان بيقيس خطوط الإيقاف ويقول خلصت — المالك ٢٠٢٦-١١-٠٤).
+  const bridgeable = (a: string, stopsOk = bridgeTakesStops()) => `(${a}.priority = 0 AND (
     (${a}.type = 'measure' AND ${isNoRealJob(a)}
       AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
       AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
@@ -2719,7 +2724,7 @@ export async function registerRoutes(
       AND POSITION('${STOP_RETRY_MARK}' IN COALESCE(${a}.note, '')) = 0
       -- «تحديث المسافة» بيفتح شاشة DSL بس (sf_mode=loop) — الجسر مابيعرفهوش، فجهاز التنفيذ هو اللى بياخدها
       AND POSITION('${LOOP_MARK}' IN COALESCE(${a}.note, '')) = 0)
-    OR (${a}.type = 'stop'
+    OR (${stopsOk ? "TRUE" : "FALSE"} AND ${a}.type = 'stop'
       AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
       AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
       AND POSITION('${RECHECK_MARK}' IN COALESCE(${a}.note, '')) = 0)))`;
@@ -3322,10 +3327,22 @@ export async function registerRoutes(
       const lanes = await readExecLanes(pool);
       if (!lanes.bridge) return res.json({ jobs: [], disabled: true });
       if (await readBridgeStopped()) return res.json({ jobs: [], stop: true, lanes: lanes.noreal });
+      // المالك ٢٠٢٦-١١-٠٤: «ظاهر إنه خلص ٧٦ إيقاف و٠ قياس — والحقيقى اللى خلص قياس مش إيقاف». الجسر القديم (≤1.9.x)
+      // مايعرفش «إيقاف PO»: كان بياخد مهام الإيقاف ويفتحها صفحة قياس ويقول خلصت، فالخطوط مابتقفش. الإيقاف بيروح بس
+      // للجسر اللى بيقول إنه بيعرف يوقف (stops: true — sf-bridge ≥2.0.1)، والإيقاف اللى جسر قديم حاجزه بيتفكّ
+      // فيرجع لجهاز التنفيذ (start بيشيله من الحتّة بتاعته لأن الحجز اتفكّ).
+      const stops = req.body?.stops === true;
+      if (stops) bridgeStopsAt = Date.now();
+      if (!stops) {
+        await pool.query(
+          `UPDATE exec_jobs SET bridge_lease_until = NULL, bridge_device = NULL
+            WHERE type = 'stop' AND status = 'pending' AND bridge_device = $1`, [bridgeDevice(req)]);
+      }
       const { rows } = await pool.query(
         `WITH c AS (
            SELECT h.id FROM exec_jobs h
             WHERE h.status = 'pending' AND h.paused_at IS NULL AND ${bridgeable("h")}
+              AND ($4::boolean OR h.type <> 'stop')
               AND (h.bridge_lease_until IS NULL OR h.bridge_lease_until < now())
             ORDER BY CASE WHEN h.queue_order > 0 THEN h.queue_order ELSE 9223372036854775807 END, h.created_at, h.id
             LIMIT $1 FOR UPDATE SKIP LOCKED)
@@ -3337,7 +3354,7 @@ export async function registerRoutes(
          -- type: «measure» ⇒ صفحة قياس، «stop» ⇒ صفحة إيقاف PO
          SELECT id, type, accounts, batch_id AS "batchId" FROM u
           ORDER BY CASE WHEN queue_order > 0 THEN queue_order ELSE 9223372036854775807 END, created_at, id`,
-        [max, BRIDGE_LEASE_HOURS, bridgeDevice(req)]);
+        [max, BRIDGE_LEASE_HOURS, bridgeDevice(req), stops]);
       // lanes = عدد تابات «بدون Real» فى الإعدادات: الجسر بيفتح لحده، وstart بيعدّ تاباته مع تابات جهاز التنفيذ
       res.json({ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS, lanes: lanes.noreal, view: lanes.bridgeView });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -4001,6 +4018,34 @@ export async function registerRoutes(
          HAVING COUNT(*) FILTER (WHERE e.status='claimed') > 0
              OR COUNT(*) FILTER (WHERE e.status='pending' AND e.paused_at IS NULL) > 0
           ORDER BY COUNT(*) FILTER (WHERE e.status='claimed') DESC, site`);
+      // المالك ٢٠٢٦-١١-٠٤: «ظاهر إن اللى شغّال إيقاف لكن الجهاز بينفّذ قياس». الأعمدة فوق كل واحد MIN لوحده (النوع من
+      // مهمة والتقرير والباتش من مهمة تانية)، والجسر بيعلّم أول مهمة بس فى الحتّة اللى شغّال عليها ⇒ الكارت كان بيكتب نوع
+      // واحد. هنا كل نوع شغّال لوحده (قياس Real / بدون Real / تحديث المسافة / إيقاف / رفع) ومين اللى بينفّذه (جهاز
+      // التنفيذ ولا الجسر) وعدده، واللى الجسر حاجزه ولسه مابدأش.
+      const { rows: kinds } = await pool.query(
+        `SELECT COALESCE(site, '10.42.187.101') AS site, type,
+                CASE WHEN type = 'measure' AND POSITION('${LOOP_MARK}' IN COALESCE(note, '')) > 0 THEN 'loop'
+                     WHEN type = 'measure' AND POSITION('${AUTO_MEASURE_NOREAL_MARK}' IN COALESCE(note, '')) > 0 THEN 'noreal'
+                     WHEN type = 'measure' THEN 'real' END AS mode,
+                (COALESCE(executed_by, '') LIKE 'جسر%') AS bridge,
+                COUNT(*)::int AS n,
+                ROUND(EXTRACT(EPOCH FROM (now() - MIN(claimed_at))) / 60.0)::int AS mins,
+                MIN(batch_id) AS "batchId"
+           FROM exec_jobs WHERE status = 'claimed'
+          GROUP BY 1, 2, 3, 4 ORDER BY 1, MIN(claimed_at)`);
+      const { rows: held } = await pool.query(
+        `SELECT COALESCE(site, '10.42.187.101') AS site, type,
+                CASE WHEN type = 'measure' THEN 'noreal' END AS mode, COUNT(*)::int AS n
+           FROM exec_jobs
+          WHERE status = 'pending' AND bridge_lease_until > now()
+          GROUP BY 1, 2, 3`);
+      for (const r of rows as any[]) {
+        r.kinds = kinds.filter((k: any) => k.site === r.site);
+        r.bridgeHeld = held.filter((h: any) => h.site === r.site);
+        // النوع/الملاحظة/الباتش من نفس المهمة (الأقدم) — مش كل واحد من مهمة
+        const first = r.kinds[0];
+        if (first) { r.type = first.type; r.batchId = first.batchId; }
+      }
       res.json({ data: rows });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
