@@ -20,6 +20,10 @@ import { LB_LETTERS, LB_ORDER, LB_HARAKAT, LB_SHADOWS, LB_BUILD, nameOf as lbNam
 import { EB_PAGES, EB_WORDS, NUM_EN, ebSteps } from "../js/data/englishbook.js";
 import { funItems } from "../js/data/funGames.js";
 import { addGamePhrases } from "./tts-games.js";
+import { STORIES as JSTORIES } from "../js/data/journeyStories.js";
+import { ACHIEVEMENTS } from "../js/data/mastery.js";
+import { breakMission } from "../js/data/healthyBreak.js";
+import { COLORS } from "../js/data/colors.js";
 import { WB_AR, WB_COLORS, WB_NUMBERS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR, WB_LINES, colorPairOf } from "../js/data/workbook.js";
 
 const MZ = MIZO.toneInstructions; // توجيهات لهجة ميزو (لمطابقة مفاتيح الكاش)
@@ -289,6 +293,16 @@ Object.values(WP.FUN_SAY).forEach(addAr);
 [...Object.values(WP.PUZZLE_SAY)].flat().forEach(addAr);
 // اللى بيطلع من البيضة: كلمة الحرف بلغته (بطة / Apple) — واسم الحرف/الرقم نفسه
 for (const k of ["arabic", "english", "numbers"]) for (const it of funItems(k)) { add(it.say, it.lang.startsWith("en") ? EN : AR); if (it.word) add(it.word, it.lang.startsWith("en") ? EN : AR); }
+
+// ===== اقتراحات كوديكس (٢٠٢٦-١١-٠٤): رحلة اليوم · أوضة «بقيت شاطر» · فاصل الحركة · قصص القواعد =====
+for (const s of Object.values(JSTORIES)) { for (let left = 1; left <= s.goal; left++) addMizo(s.nudge(left)); addMizo(s.done); }
+["برافو! خلّصت رحلة النهارده ونوّرت حجر جديد على الخريطة!", "برافو! خلّصنا رحلة النهارده سوا", "دى مهام النهارده، اختار واحدة!",
+  "يلا نتعلّم ونملا الأوضة دى!"].forEach(addMizo);
+for (const a of ACHIEVEMENTS) addMizo(`برافو! ${a.title}`);
+for (let n = 1; n <= ACHIEVEMENTS.length; n++) addMizo(`إنت بقيت شاطر فى ${n} حاجات!`);
+for (let n = 0; n < 4; n++) addMizo(breakMission({ n })[1]);
+for (const c of COLORS) add(`Bring something ${c.en}!`, EN);
+for (const ch of LB_ORDER) addMizo(breakMission({ n: 4, letter: ch })[1]);
 
 // ===== الألعاب القديمة اللى بتركّب الجملة من البيانات (٢٠٢٦-١٠-١٦) — server/tts-games.js =====
 await addGamePhrases({ say: (t) => t && add(t, AR), mizo: (t) => t && addMizo(t) });

@@ -122,7 +122,9 @@ export function renderDailyPlan() {
     row.appendChild(card);
   });
   wrap.appendChild(stage);
-  setTimeout(() => Speech.mizo(newStone ? "برافو! خلّصت رحلة النهارده ونوّرت حجر جديد على الخريطة!" : msg), 250);
+  // اللى بيتقال جملة ثابتة (صوتها متسجّل — server/warm-tts.js): هدف القصة أو «خلّصنا»
+  setTimeout(() => Speech.mizo(newStone ? "برافو! خلّصت رحلة النهارده ونوّرت حجر جديد على الخريطة!"
+    : allDone ? "برافو! خلّصنا رحلة النهارده سوا" : story ? story.nudge : "دى مهام النهارده، اختار واحدة!"), 250);
   if (newStone) setTimeout(() => Confetti.stars(), 200);
 
   screen.appendChild(wrap);
