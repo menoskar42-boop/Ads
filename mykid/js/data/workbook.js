@@ -272,7 +272,7 @@ function starPts() {
 
 /** كل شكل: اسمه + خطّه للوحة الكتابة (وحدات ٠–١٠٠، خط واحد مقفول) + حاجات بشكله. */
 export const WB_SHAPES = {
-  circle: { ar: "دايرة", en: "circle", strokes: [arcPts(50, 50, 32, 32, -90, -450)], things: ["🍊", "🕐", "🍩"] },
+  circle: { ar: "دايرة", en: "circle", strokes: [arcPts(50, 50, 32, 32, -90, -450)], things: ["🍊", "🕐", "☀️", "🍩"] },   // ☀️: زى درس المدرسة (المالك ٢٠٢٦-١١-٠٤)
   oval: { ar: "بيضاوى", en: "oval", strokes: [arcPts(50, 50, 22, 36, -90, -450)], things: ["🥚", "🏉", "🎈"] },
   square: { ar: "مربع", en: "square", strokes: [[[26, 26], [74, 26], [74, 74], [26, 74], [26, 26]]], things: ["🎁", "🧇", "🔲"] },
   rectangle: { ar: "مستطيل", en: "rectangle", strokes: [[[16, 32], [84, 32], [84, 68], [16, 68], [16, 32]]], things: ["🚪", "🍫", "📱"] },
