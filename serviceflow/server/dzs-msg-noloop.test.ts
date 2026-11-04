@@ -65,6 +65,8 @@ test("API: page message saved and shown; no-loop filter", async (t) => {
     // A: مسافة من «تحديث المسافة» · B: N/A بس فى قياس قديم ⇒ مالهاش · C: مفيش خالص ⇒ مالهاش
     await pool.query(`INSERT INTO line_loop_lengths (full_phone, account_no, loop_length, loop_at, last_raw, last_raw_at) VALUES ($1, $2, '1200 m', now(), '1200 m', now())`, [fA, accA]);
     await pool.query(`INSERT INTO case_138 (phone_short, full_phone, account_no, score, source, loop_length) VALUES ($1, $2, $3, 40, 'dzs', 'N/A')`, [shortB, fB, accB]);
+    // وN/A من «تحديث المسافة» بأى شكل (المالك أكّد عليها)
+    await pool.query(`INSERT INTO line_loop_lengths (full_phone, account_no, loop_length, last_raw, last_raw_at) VALUES ($1, $2, 'n/a meters', 'N/A', now())`, [fB, accB]);
     await registerRoutes(httpServer, app);
     await new Promise<void>((r) => httpServer.listen(0, "127.0.0.1", () => r()));
     const base = `http://127.0.0.1:${(httpServer.address() as any).port}`;
@@ -90,7 +92,12 @@ test("API: page message saved and shown; no-loop filter", async (t) => {
 
 test("phone lookup: a measure attempt that timed out after the last measurement shows (the browser error page can't be read)", () => {
   const routes = read("./routes.ts");
-  assert.match(routes, /WHERE j\.status = 'done' AND j\.result = 'timeout' AND j\.type = 'measure'/);
+  assert.match(routes, /WHERE j\.status = 'done' AND j\.type = 'measure'[\s\S]{0,200}AND \(j\.result = 'timeout' OR \(j\.result = 'preempted' AND jsonb_array_length\(j\.accounts\) = 1\)\)/);
+  // الخانة نفسها: «اتعمل قياس ومارجعش نتيجة» + 102/104 من غير رسالة
+  assert.match(lookup, /اتعمل قياس ومارجعش نتيجة/);
+  assert.match(lookup, /القياس اتعمل بس الاسكور ماظهرش/);
+  const exe = read("../client/src/components/ExecutorButton.tsx");
+  assert.match(exe, /if \(!noReal && chk\.aliveCapable && !sawAlive && Date\.now\(\) - openedAt >= REAL_NO_PING_MS\) \{\s*if \(realReopened\) \{ closeWin\(\); return "timeout"; \}/);
   assert.match(lookup, /data-testid="text-measure-fail"/);
 });
 
@@ -112,7 +119,7 @@ test("executor: a Real line gets 7 minutes (was 3 — it closed the tab mid-meas
   assert.match(us, /if \(CURRENT_LINE_ID && !NOREAL && !LOOP && SF_AUTO_UPLOAD && SF_API_BASE\) \{/);
   const routes = read("./routes.ts");
   assert.match(routes, /AND NOT \(e\.type = 'measure' AND e\.accounts->>0 = ANY\(\$3::text\[\]\)\)/);
-  assert.match(routes, /if \(job\.type === "measure" && !String\(job\.note \|\| ""\)\.includes\(AUTO_MEASURE_NOREAL_MARK\)\) \{\s*const prog = await jobProgress[\s\S]*?return res\.json\(\{ active, preempt: false, measured: prog\.done, total: prog\.total, aliveSec \}\);/);
+  assert.match(routes, /if \(job\.type === "measure" && !String\(job\.note \|\| ""\)\.includes\(AUTO_MEASURE_NOREAL_MARK\)\) \{\s*const prog = await jobProgress[\s\S]*?return res\.json\(\{ active, preempt: false, measured: prog\.done, total: prog\.total, aliveSec, aliveCapable \}\);/);
 });
 
 test("API: measure-alive needs the token and makes job-check report aliveSec for a running Real job", async (t) => {

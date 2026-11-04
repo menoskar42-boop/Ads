@@ -2356,7 +2356,48 @@ export async function registerRoutes(
   // وكل متابعات الباتش ده بتتجمّع فى باتش واحد «<الباتش>-x». قبل كده كل إعادة إيقاف كانت باتش عاجل لوحده فبتعدّى قدّام
   // القياس (المالك ٢٠٢٦-١٠-٢٩: «الإيقاف بتتفتح باتشات عاجلة كتير… بالرغم إن الباتش مؤجّل»، زى «-r1» اللى بيفضل مؤجّل).
   // بتتنادى من نبضة جهاز التنفيذ (كل ~٢٠ث) — مفيش داعى لها من غير جهاز تنفيذ أصلاً.
+  // إصلاح لمرة واحدة (المالك ٢٠٢٦-١١-٠٤): إيقافات الجسر القديم اللى اتقالت «done» من غير ما يتسجّل إيقاف (كان بيقيس
+  // الخط بدل ما يوقّفه) ⇒ ترجع للطابور كمتابعة «+إعادة1». بس لو الخط ماتوقّفش من وقتها، ومفيش إيقاف ليه مستنى أو شغّال
+  // أو متابعة إيقاف لسه ماتنفّذتش. علامة فى app_settings بتمنع إنه يتكرر.
+  const REPAIR_BRIDGE_STOPS_KEY = "repair_bridge_false_stops_20261104";
+  let repairBridgeStopsDone = false;
+  const repairBridgeFalseStops = async () => {
+    if (repairBridgeStopsDone) return;
+    repairBridgeStopsDone = true;
+    try {
+      const { rows: flag } = await pool.query(
+        `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, '1', now()) ON CONFLICT (key) DO NOTHING RETURNING key`,
+        [REPAIR_BRIDGE_STOPS_KEY]);
+      if (!flag.length) return;   // اتعمل قبل كده
+      const { rowCount } = await pool.query(
+        `INSERT INTO exec_followups (type, account, note, requested_by, source_job_id, run_at)
+         SELECT DISTINCT ON (e.accounts->>0) 'stop', e.accounts->>0,
+                btrim(regexp_replace(COALESCE(e.note, ''), '[+]إعادة[0-9]*', '', 'g')) || ' ${STOP_RETRY_MARK}1',
+                e.requested_by, e.id, now()
+           FROM exec_jobs e
+          WHERE e.type = 'stop' AND e.status = 'done' AND COALESCE(e.result, '') = 'done'
+            AND COALESCE(e.executed_by, '') LIKE 'جسر%'
+            AND e.done_at >= '2026-11-03'::date
+            AND e.accounts->>0 IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM line_po_events p WHERE p.account_no = e.accounts->>0
+                              AND p.last_stop_at >= e.created_at)
+            AND NOT EXISTS (SELECT 1 FROM exec_jobs x WHERE x.type = 'stop' AND x.status IN ('pending', 'claimed')
+                              AND x.accounts->>0 = e.accounts->>0)
+            AND NOT EXISTS (SELECT 1 FROM exec_followups f WHERE f.type = 'stop' AND f.account = e.accounts->>0
+                              AND f.enqueued_at IS NULL)
+          ORDER BY e.accounts->>0, e.done_at DESC`);
+      // (INSERT INTO exec_followups بيغيّر نسخة الطابور لوحده ⇒ اللفة الجاية بتحوّلها مهام)
+      console.log(`[exec-followups] إيقافات الجسر القديم اللى اتقالت done من غير إيقاف: ${rowCount ?? 0} رجعت للطابور`);
+    } catch (e: any) {
+      repairBridgeStopsDone = false;
+      await pool.query(`DELETE FROM app_settings WHERE key = $1`, [REPAIR_BRIDGE_STOPS_KEY]).catch(() => {});
+      console.warn("[exec-followups] إصلاح إيقافات الجسر فشل:", e?.message || e);
+    }
+  };
+  // بعد ما السيرفر يقوم بـ٣ ثوانى (من غير ما يستنى نبضة جهاز التنفيذ)، والنبضة احتياطى لو فشل
+  setTimeout(() => { void repairBridgeFalseStops(); }, 3000).unref?.();
   const runExecFollowups = async () => {
+    await repairBridgeFalseStops();
     // المتابعات بتتضاف بـ INSERT INTO exec_followups (بيغيّر النسخة) — ومن غير كده بنستنى أقرب ميعاد
     if (followupsSeen === execQueueVersion && Date.now() < nextFollowupAt) return;
     followupsSeen = execQueueVersion;
@@ -2394,7 +2435,9 @@ export async function registerRoutes(
             const { rows: seen } = await tx.query(
               `SELECT 1 FROM case_138 WHERE account_no = $1 AND uploaded_at > $2 AND source = 'dzs'
                UNION ALL
+               -- قياس Real للخط فى الطابور (مستنى أو شغّال) ⇒ مفيش إعادة (المالك ٢٠٢٦-١١-٠٤). «بدون Real» مايغنيش عن Real
                SELECT 1 FROM exec_jobs WHERE type = 'measure' AND status IN ('pending', 'claimed') AND accounts @> $3::jsonb
+                 AND POSITION('${AUTO_MEASURE_NOREAL_MARK}' IN COALESCE(note, '')) = 0
                LIMIT 1`, [f.account, f.created_at, JSON.stringify([f.account])]);
             if (seen.length) { await tx.query(`UPDATE exec_followups SET enqueued_at = now() WHERE id = $1`, [f.id]); continue; }
             retry102Batch = retry102Batch || "r102" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -3540,7 +3583,7 @@ export async function registerRoutes(
           `UPDATE exec_jobs e SET status = 'done', done_at = COALESCE(d.at, now()), result = d.result, bridge_lease_until = NULL
              FROM unnest($1::int[], $2::text[], $3::timestamptz[]) AS d(id, result, at)
             WHERE e.id = d.id AND e.bridge_device IS NOT NULL AND e.status IN ('pending', 'claimed', 'stale')
-            RETURNING e.id, e.type, e.accounts, e.note, e.requested_by, e.claimed_at, e.result`,
+            RETURNING e.id, e.type, e.accounts, e.note, e.requested_by, e.claimed_at, e.created_at, e.result`,
           [done.map((d: any) => d.id), done.map((d: any) => d.result), done.map((d: any) => d.at)]);
         doneN = r.rowCount || 0;
         // إيقاف PO مع الجسر اتقفل من غير ما يتسجّل ⇒ إعادة بعد ١٠ دقايق (لحد ٣ مرات) — نفس قاعدة /done بتاعة جهاز
@@ -3551,8 +3594,10 @@ export async function registerRoutes(
           if (!acc) continue;
           const { rows: st } = await pool.query(
             `SELECT 1 FROM line_po_events WHERE account_no = $1 AND last_stop_at >= COALESCE($2::timestamptz, now() - interval '30 minutes') LIMIT 1`,
-            [acc, j.claimed_at]);
-          const rt = stopRetryFor({ type: j.type, note: j.note, result: j.result === "done" ? "done" : "timeout" }, st.length > 0);
+            [acc, j.created_at ?? j.claimed_at]);   // وقت الطلب: claimed_at بيتجدّد كل نص دقيقة مع progress
+          // الجسر قال «done» والإيقاف ماتسجّلش ⇒ ماخلصش فعلاً (الجسر القديم ≤2.0.0 كان بيقيس خطوط الإيقاف ويقول done —
+          // المالك ٢٠٢٦-١١-٠٤) ⇒ إعادة زى الـtimeout. لو اتسجّل stopRetryFor بترجّع null أصلاً.
+          const rt = stopRetryFor({ type: j.type, note: j.note, result: "timeout" }, st.length > 0);
           if (!rt) continue;
           await pool.query(
             `INSERT INTO exec_followups (type, account, note, requested_by, source_job_id, run_at)
@@ -5521,7 +5566,10 @@ export async function registerRoutes(
         const lastAlive = Math.max(0, ...accs.map((a) => measureAliveAt.get(a) || 0));
         const claimedMs = job.claimed_at ? new Date(job.claimed_at).getTime() : 0;
         const aliveSec = lastAlive && lastAlive >= claimedMs - 60000 ? Math.round((Date.now() - lastAlive) / 1000) : null;
-        return res.json({ active, preempt: false, measured: prog.done, total: prog.total, aliveSec });
+        // aliveCapable: سكربت القياس الجديد متركّب (بعت «لسه بقيس» فى آخر ساعة) ⇒ لو التاب دا مابعتش خالص فى أول
+        // دقيقة ونص يبقى الصفحة ماوصلتش («can't reach this page») — جهاز التنفيذ مايستناش ٧ دقايق
+        const aliveCapable = [...measureAliveAt.values()].some((t) => Date.now() - t < 60 * 60 * 1000);
+        return res.json({ active, preempt: false, measured: prog.done, total: prog.total, aliveSec, aliveCapable });
       }
       // المقاطعة **داخل نفس الدومين فقط**: المواقع المختلفة بتشتغل بالتوازى أصلاً فمفيش سبب
       // إن مهمة عاجلة على DZS توقف مهمة شغّالة على FCC. لكن تحديث ملفات FCC (أولوية 3) بيوقف
@@ -7730,11 +7778,11 @@ export async function registerRoutes(
       conds.push(`NOT EXISTS (SELECT 1 FROM case_138 c WHERE c.full_phone = la.full_phone)`);
     }
     // فلتر «مالهاش مسافة» (المالك ٢٠٢٦-١١-٠٤): نفس مصادر المسافة فى «بحث برقم التليفون» — «تحديث المسافة»
-    // (line_loop_lengths) أو أى قياس قديم فيه مسافة حقيقية. N/A أو «-» أو فاضى مش مسافة.
+    // (line_loop_lengths) أو أى قياس قديم. المسافة بتتحسب بس لو فيها رقم — N/A (بأى شكل: «N/A» · «n/a meters»)
+    // أو «-» أو فاضى = مالهاش مسافة، والمالك أكّد على N/A بالذات.
     if (noLoop === "1" || noLoop === "true") {
-      conds.push(`NOT EXISTS (SELECT 1 FROM line_loop_lengths ll WHERE ll.full_phone = la.full_phone AND NULLIF(btrim(ll.loop_length), '') IS NOT NULL)`);
-      conds.push(`NOT EXISTS (SELECT 1 FROM case_138 c WHERE c.full_phone = la.full_phone
-                                AND NULLIF(btrim(c.loop_length), '') IS NOT NULL AND btrim(c.loop_length) !~* '^(n/?a|-+)$')`);
+      conds.push(`NOT EXISTS (SELECT 1 FROM line_loop_lengths ll WHERE ll.full_phone = la.full_phone AND ll.loop_length ~ '[0-9]')`);
+      conds.push(`NOT EXISTS (SELECT 1 FROM case_138 c WHERE c.full_phone = la.full_phone AND c.loop_length ~ '[0-9]')`);
     }
     // فلتر الشكوى: الرقم له أى شكوى — على شاشة الـ OSS (ticket_dsl_current المفتوحة) أو
     // خارجها فى 430D (complaint_details المغلقة + remaining_complaints)، أو عطل «خارج الشاشة»
@@ -9377,7 +9425,9 @@ export async function registerRoutes(
         const { rows: mf } = await pool.query(
           `SELECT (j.done_at AT TIME ZONE 'Africa/Cairo') AS at, j.executed_by AS by
              FROM exec_jobs j
-            WHERE j.status = 'done' AND j.result = 'timeout' AND j.type = 'measure'
+            WHERE j.status = 'done' AND j.type = 'measure'
+              -- timeout، أو خط واحد اتقطع لأنه علق (جهاز التنفيذ بيرجّعه للطابور كمهمة جديدة) — المقاطعة لصالح طلب عاجل بقت للباتش الكبير بس
+              AND (j.result = 'timeout' OR (j.result = 'preempted' AND jsonb_array_length(j.accounts) = 1))
               AND j.done_at > now() - interval '7 days' AND j.accounts @> $1::jsonb
               AND j.done_at > COALESCE((SELECT max(c.uploaded_at) FROM case_138 c WHERE c.full_phone = $2), 'epoch'::timestamptz)
             ORDER BY j.done_at DESC LIMIT 1`, [JSON.stringify([String(line.accountNo)]), line.fullPhone]);
@@ -12355,7 +12405,11 @@ export async function registerRoutes(
            SELECT 'measure', $1, $2, $3,
                   LEAST(now(), COALESCE(($6::timestamp AT TIME ZONE 'Africa/Cairo'), now())) + make_interval(mins => $4)
             WHERE NOT EXISTS (SELECT 1 FROM exec_followups WHERE account = $1 AND note = $2
-                                 AND created_at > now() - make_interval(mins => $5))`,
+                                 AND created_at > now() - make_interval(mins => $5))
+              -- فيه قياس Real للخط مستنى فى الطابور أصلاً ⇒ مفيش إعادة (المالك ٢٠٢٦-١١-٠٤)
+              AND NOT EXISTS (SELECT 1 FROM exec_jobs WHERE type = 'measure' AND status = 'pending'
+                                 AND accounts @> jsonb_build_array($1::text)
+                                 AND POSITION('${AUTO_MEASURE_NOREAL_MARK}' IN COALESCE(note, '')) = 0)`,
           [accountNo, RETRY_102_MARK, "auto", rl.retry102Min ?? RETRY_102_AFTER_MIN, RETRY_102_ONCE_MIN, firstAt]).catch((e: any) =>
           console.warn("[case-138] جدولة «إعادة بعد 102 و 104» فشلت:", e?.message || e));
       }

@@ -46,7 +46,7 @@ test("the script sends it and the server stores it", () => {
   assert.match(script, /poStatus: rec\.poStatus,/);
   assert.match(routes, /const poStatus = \(it\.poStatus \?\? ""\)\.toString\(\)/);
   // «بدون Real» (٢٠٢٦-٠٩-٢٣) زوّد أعمدة بعد source: measure_mode · measured_at · loop_length · hist_label.
-  assert.match(routes, /account_no, measured_by, po_status, complain_time, source,\s+measure_mode, measured_at, loop_length, hist_label\)/);
+  assert.match(routes, /account_no, measured_by, po_status, complain_time, source,\s+measure_mode, measured_at, loop_length, hist_label(, page_msg)?\)/);
   assert.match(routes, /VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9, now\(\), 'dzs',/);
 });
 

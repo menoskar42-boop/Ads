@@ -489,7 +489,7 @@ export function ExecutorButton() {
     // ينفّذ **الجوب كله دفعة واحدة**: نبعت كل الأرقام للسكربت اللى بيلفّ عليها بنفسه (6/185…)
     // بدل ما نفتح صفحة لكل رقم. ننتظر لحد ما آخر رقم (السكربت بيمشى بالترتيب) يتأكد، أو سقف زمنى.
     // فحص المهمة الجارية: لسه شغّالة؟ فيه طلب عاجل يقطعها؟ اتقاس كام رقم؟
-    const jobCheck = async (jobId: number): Promise<{ active: boolean; preempt: boolean; measured: number; total: number; aliveSec?: number | null }> => {
+    const jobCheck = async (jobId: number): Promise<{ active: boolean; preempt: boolean; measured: number; total: number; aliveSec?: number | null; aliveCapable?: boolean }> => {
       try {
         const r = await fetch(`/api/exec-queue/job-check?jobId=${jobId}`, { credentials: "include" });
         return await r.json();
@@ -544,7 +544,8 @@ export function ExecutorButton() {
     // نعيد تشغيل جهاز التنفيذ بدل ما نترك المهمة معلّقة.
     const STALL_MS = EXEC_MEASURE_STALL_MS;
     const NOREAL_STALL_MS = 60 * 1000;
-    const REAL_ALIVE_LOST_MS = 3 * 60 * 1000;   // Real: الإشارة وقفت ٣ دقايق ⇒ الصفحة ماتت   // «بدون Real»: دقيقة لكل خط (ريفريش مرة، وبعدها قفل)
+    const REAL_ALIVE_LOST_MS = 3 * 60 * 1000;   // Real: الإشارة وقفت ٣ دقايق ⇒ الصفحة ماتت
+    const REAL_NO_PING_MS = 90 * 1000;          // Real: مفيش ولا إشارة من أول ما التاب اتفتح ⇒ الصفحة ماوصلتش   // «بدون Real»: دقيقة لكل خط (ريفريش مرة، وبعدها قفل)
 
     const refreshAfterMeasureTimeout = async (jobId: number, batchId?: string | null): Promise<"handled" | "failed"> => {
       return recoverTimedOutMeasure({
@@ -680,7 +681,7 @@ export function ExecutorButton() {
         // القياس (≥10.38.0) بيقول «لسه بقيس» (aliveSec). بنتصرّف بس لو الإشارة وقفت ٣ دقايق (الصفحة ماتت — «can't reach
         // this page»)، أو لو السكربت قديم ومابيبعتهاش: ٧ دقايق (EXEC_MEASURE_STALL_MS) من غير قياس.
         const deadline = Date.now() + (noReal ? Math.min(accs.length * MEASURE_MAX_MS, MAX_TOTAL_MS) : MAX_TOTAL_MS);
-        let sawAlive = false;
+        let sawAlive = false, openedAt = Date.now(), realReopened = false;
         // ⚠️ «مفيش تقدّم» = مفيش **خط جديد اتقاس** من ٣ دقايق — مش ٣ دقايق من أول
         // الباتش. كانت بتتقاس من البداية، فأى باتش قياس أطول من ٣ دقايق (٤-٥ خطوط
         // بدون Real، كل خط لحد ٤٥ث استنى الشاشة تهدى) كان بيتقطع وهو شغّال،
@@ -698,6 +699,27 @@ export function ExecutorButton() {
           if (chk.measured > lastMeasured) { lastMeasured = chk.measured; lastProgressAt = Date.now(); }
           // Real: إشارة «لسه بقيس» من السكربت = تقدّم
           if (!noReal && chk.aliveSec != null) { sawAlive = true; lastProgressAt = Math.max(lastProgressAt, Date.now() - chk.aliveSec * 1000); }
+          // Real والسكربت الجديد متركّب بس التاب ده مابعتش ولا إشارة فى دقيقة ونص ⇒ الصفحة ماوصلتش («can't reach this
+          // page» — المالك ٢٠٢٦-١١-٠٤: «قعد ٧ دقايق والصفحة اتقفلت»). نفتحها من الأول مرة، ولو تانى مفيش ⇒ timeout
+          // (بيظهر فى «بحث برقم التليفون» كمحاولة ماكملتش، والطابور بيعيده مرة لوحده).
+          if (!noReal && chk.aliveCapable && !sawAlive && Date.now() - openedAt >= REAL_NO_PING_MS) {
+            if (realReopened) { closeWin(); return "timeout"; }
+            realReopened = true;
+            console.warn(`[exec] Real: الصفحة مابعتتش «لسه بقيس» فى ${REAL_NO_PING_MS / 1000}ث — بفتحها من الأول`);
+            try {
+              if (win && !win.closed) {
+                win.location.href = "about:blank";
+                await sleep(500);
+                if (!win.closed) win.location.href = measureBatchUrl(accs, { fixRecent, noReal, loop, lane });
+              } else {
+                win = executeBatch("measure", accs, { fixRecent, noReal, loop, lane });
+                if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
+                lastMeasureWin.current.set(lane, win);
+              }
+            } catch {}
+            openedAt = Date.now(); lastProgressAt = Date.now();
+            continue;
+          }
           if (noReal && !reopened && Date.now() - lastProgressAt >= stallLimit) {
             reopened = true;
             console.warn(`[exec] «بدون Real» تاب ${lane} مفيش نتيجة من دقيقة — بفتحه من الأول`);

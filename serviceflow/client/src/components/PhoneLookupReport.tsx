@@ -203,7 +203,7 @@ const FULL_WIDTH_FIELDS = new Set<string>([
   "operator", "shelf", "slot", "Port", "IDU", "ODU",
   "Primary Block", "Cabinet In", "Sec Block", "Cabinet Out", "Fiber Block", "Fiber Out",
   // نص AXON طويل — ياخد الصف كله بدل ما يتزنق فى نص العرض
-  "حالة تحسين البروفايل", "رسالة DZS وقت القياس", "آخر محاولة قياس",
+  "حالة تحسين البروفايل", "رسالة DZS وقت القياس",
 ]);
 
 export function PhoneLookupReport() {
@@ -919,17 +919,26 @@ export function PhoneLookupReport() {
         ["الاسكور", meas(scoreBadge(line.score))],      ["رقم الفريم", dash(line.frame)],
         ["تاريخ آخر قياس", meas(withBy(fmtDate(line.lastMeasTime), line.measuredBy))], ["Port Type", dash(line.portType)],
         ["حالة تحسين البروفايل", meas(<PoStatusCell value={line.poStatus} />)],
-        // الرسالة البمبى فى ClearView وقت آخر قياس (زى «It is not possible to analyze the line…») — بتظهر لو فيه رسالة بس
-        ...(line.pageMsg
+        // «رسالة DZS وقت القياس» (المالك ٢٠٢٦-١١-٠٤: «المفروض يسجّل إن فيه قياس تم لكن موصلش نتيجة — فى نفس الخانة»):
+        // بتفضل ظاهرة لما القياس فيه مشكلة — محاولة بعد آخر قياس ماوصلتش (صفحة DZS ماوصلتش / «can't reach this page»
+        // والسكربت مابيشتغلش عليها) · أو الرسالة البمبى بنصها · أو 102/104 من غير رسالة. القياس السليم من غير رسالة ⇒ مفيش خانة.
+        ...(line.measureFailAt || line.pageMsg || (line.score != null && [101, 102, 104, 105].includes(Number(line.score)))
           ? ([["رسالة DZS وقت القياس", meas(
-              <span dir="ltr" className="text-sm text-rose-800 bg-rose-50 border border-rose-200 rounded px-2 py-1 whitespace-pre-wrap break-words text-left"
-                data-testid="text-dzs-page-msg">{line.pageMsg.split(" | ").join("\n")}</span>)]] as [string, ReactNode][])
-          : []),
-        // محاولة قياس ماكملتش بعد آخر قياس: صفحة DZS ماوصلتش (المتصفح بيعرض «can't reach this page» والسكربت مابيشتغلش عليها)
-        ...(line.measureFailAt
-          ? ([["آخر محاولة قياس", meas(
-              <span className="text-sm text-rose-800 bg-rose-50 border border-rose-200 rounded px-2 py-1" data-testid="text-measure-fail">
-                آخر محاولة قياس ماكملتش — {fmtDate(line.measureFailAt)}: صفحة DZS ماوصلتش (المتصفح عرض «can&apos;t reach this page» أو الجلسة انتهت)، فالتاب اتقفل بعد المهلة من غير قياس{line.measureFailBy ? ` · ${line.measureFailBy}` : ""}
+              <span className="flex flex-col items-end gap-1 text-sm" data-testid="text-dzs-page-msg">
+                {line.measureFailAt && (
+                  <span className="text-rose-800 bg-rose-50 border border-rose-200 rounded px-2 py-1" data-testid="text-measure-fail">
+                    اتعمل قياس ومارجعش نتيجة — {fmtDate(line.measureFailAt)}: صفحة DZS ماوصلتش (المتصفح عرض «can&apos;t reach this page» أو الجلسة انتهت){line.measureFailBy ? ` · ${line.measureFailBy}` : ""}
+                  </span>
+                )}
+                {line.pageMsg
+                  ? <span dir="ltr" className="text-rose-800 bg-rose-50 border border-rose-200 rounded px-2 py-1 whitespace-pre-wrap break-words text-left">
+                      {line.measureFailAt ? "آخر قياس: " : ""}{line.pageMsg.split(" | ").join("\n")}
+                    </span>
+                  : (line.score != null && [101, 102, 104, 105].includes(Number(line.score))) && (
+                    <span className="text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                      {line.measureFailAt ? "آخر قياس: " : ""}القياس اتعمل بس الاسكور ماظهرش ({line.score}) — ومفيش رسالة ظهرت فى DZS (أو السكربت أقدم من 10.38.0)
+                    </span>
+                  )}
               </span>)]] as [string, ReactNode][])
           : []),
         // اتنين جنب بعض = سطر واحد، فالترتيب اللى تحت مابيتزحلقش.
@@ -970,7 +979,7 @@ export function PhoneLookupReport() {
   const MOBILE_ORDER = [
     "اسم العميل", "عنوان العميل", "رقم الموبايل", "اسم الفنى", "السنترال", "رقم الكابينة", "رقم البكس",
     "DP Terminal", "كود الكابينة (MSAN)", "رقم الفريم", "رقم الأكونت", "السرعة الحالية", "أقصى سرعة",
-    "الاسكور", "تاريخ آخر قياس", "نوع القياس", "حالة تحسين البروفايل", "رسالة DZS وقت القياس", "آخر محاولة قياس", "Loop Length", "آخر رفع سرعة", "آخر إيقاف PO", "تاريخ آخر شكوى", "إحداثيات البكس",
+    "الاسكور", "تاريخ آخر قياس", "نوع القياس", "حالة تحسين البروفايل", "رسالة DZS وقت القياس", "Loop Length", "آخر رفع سرعة", "آخر إيقاف PO", "تاريخ آخر شكوى", "إحداثيات البكس",
     "Port Type", "voice status", "data status", "Row", "Column", "operator",
     "حالة صيانة البكس", "هل البكس له تكت أرضية", "shelf", "slot", "Port", "IDU", "ODU",
     "Primary Block", "Cabinet In", "Sec Block", "Cabinet Out", "Fiber Block", "Fiber Out",
@@ -1003,7 +1012,7 @@ export function PhoneLookupReport() {
       "كود الكابينة (MSAN)": line.msanCode ?? "",
       "الاسكور": line.score ?? "",
       "حالة تحسين البروفايل": line.poStatus ?? "",
-      "رسالة DZS وقت القياس": line.pageMsg ?? "",
+      "رسالة DZS وقت القياس": [line.measureFailAt ? `اتعمل قياس ومارجعش نتيجة — ${fmtDate(line.measureFailAt)}` : "", line.pageMsg ?? ""].filter(Boolean).join(" · "),
       "رقم الفريم": line.frame ?? "",
       "تاريخ آخر قياس": fmtDate(line.lastMeasTime),
       "نوع القياس": measureModeText(line.measureMode, line.histLabel),

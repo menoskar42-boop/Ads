@@ -21,6 +21,7 @@ test("settings: two toggles, both on by default", () => {
   assert.match(settings, /setRetry102\(data\.retry102 !== false\)/);
   assert.match(routes, /realParallel: true, retry102: true, retry102Min: RETRY_102_AFTER_MIN \};/);
   assert.match(settings, /data-testid=\{?"?retry-102-min|"retry-102-min"/);
+  assert.match(routes, /SELECT 1 FROM exec_jobs WHERE type = 'measure' AND status IN \('pending', 'claimed'\) AND accounts @> \$3::jsonb\s*AND POSITION\('\$\{AUTO_MEASURE_NOREAL_MARK\}' IN COALESCE\(note, ''\)\) = 0/);
   assert.match(routes, /if \(!retry102On\) \{ await tx\.query\(`UPDATE exec_followups SET enqueued_at = now\(\) WHERE id = \$1`/);
 });
 
@@ -103,6 +104,20 @@ test("API: Real beside stop/no-Real only while the toggle is on; 102/104 retry o
     const fu = (await pool.query(`SELECT EXTRACT(EPOCH FROM (run_at - created_at)) AS secs FROM exec_followups WHERE account = $1`, [acc102])).rows;
     assert.equal(fu.length, 1, "اتفتح ⇒ إعادة");
     assert.ok(Math.abs(Number(fu[0].secs) - 420) < 5, `بعد ٧ دقايق: ${fu[0].secs}`);
+
+    // فيه قياس Real للخط مستنى فى الطابور ⇒ مفيش إعادة؛ «بدون Real» مستنى مايمنعهاش (المالك ٢٠٢٦-١١-٠٤)
+    await pool.query(`DELETE FROM exec_followups WHERE account = $1`, [acc102]);
+    const q = (note: string) => pool.query(
+      `INSERT INTO exec_jobs (type, accounts, status, requested_by, batch_id, site, note) VALUES ('measure', $1::jsonb, 'pending', $2, $3, $4, $5) RETURNING id`,
+      [JSON.stringify([acc102]), user, batch, `${site}-q`, note]);
+    const noRealJob = (await q("خطوط لها أكونت — قياس بدون Real")).rows[0].id;
+    await meas();
+    assert.equal((await pool.query(`SELECT count(*)::int AS n FROM exec_followups WHERE account = $1`, [acc102])).rows[0].n, 1, "بدون Real مستنى ⇒ الإعادة تتعمل");
+    await pool.query(`DELETE FROM exec_followups WHERE account = $1`, [acc102]);
+    await pool.query(`DELETE FROM exec_jobs WHERE id = $1`, [noRealJob]);
+    await q("بحث برقم التليفون");
+    await meas();
+    assert.equal((await pool.query(`SELECT count(*)::int AS n FROM exec_followups WHERE account = $1`, [acc102])).rows[0].n, 0, "Real مستنى ⇒ مفيش إعادة");
   } finally {
     await cleanup().catch(() => {});
     await new Promise((r) => httpServer.close(() => r(null)));
