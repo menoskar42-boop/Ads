@@ -16,6 +16,9 @@ interface Job {
   id: number;
   type: string;
   account: string;
+  /** التليفون والأكونت بتوع الخط — واحد منهم هو مفتاح المهمة والتانى من line_accounts */
+  phone?: string | null;
+  accountNo?: string | null;
   accountsCount: number;
   status: string;
   result: string | null;
@@ -29,6 +32,9 @@ interface Job {
   doneAt: string | null;
   detail: any;
 }
+
+// الأكونت: لو المهمة مفتاحها تليفون ومالوش أكونت متسجّل ⇒ «—»؛ ولو مفيش تليفون كمان (زى Service Order ID) نعرض المفتاح نفسه
+const accountCell = (j: Job) => j.accountNo || (j.phone ? "—" : j.account || "—");
 
 const fmt = (d: string | null) => {
   if (!d) return "—";
@@ -130,7 +136,7 @@ function describe(j: Job): string {
 
 // «الجهاز الطالب» = الجهاز اللى اتبعت منه العملية (ده اللى الرقابة بتدوّر عليه).
 // «الجهاز المنفّذ» = جهاز التنفيذ اللى سحب المهمة — بيفضل واحد لكل الطابور.
-const COLS = ["#", "الرقم", "الحالة", "التفصيلى", "طلبها", "الجهاز الطالب", "الجهاز المنفّذ", "وقت السحب", "وقت الانتهاء"];
+const COLS = ["#", "الأكونت", "التليفون", "الحالة", "التفصيلى", "طلبها", "الجهاز الطالب", "الجهاز المنفّذ", "وقت السحب", "وقت الانتهاء"];
 
 export function ExecBatchDetails({ batchId, typeLabel, onClose }:
   { batchId: string; typeLabel: string; onClose: () => void }) {
@@ -150,7 +156,7 @@ export function ExecBatchDetails({ batchId, typeLabel, onClose }:
 
   const jobs = data?.data ?? [];
   const asRow = (j: Job, i: number) => [
-    i + 1, j.account || "—", statusLabel(j) + (j.retryRound ? " (إعادة تنفيذ)" : ""),
+    i + 1, accountCell(j), j.phone || "—", statusLabel(j) + (j.retryRound ? " (إعادة تنفيذ)" : ""),
     describe(j), j.requestedBy || "—", j.requestedFrom || "—", j.executedBy || "—",
     fmt(j.claimedAt), fmt(j.doneAt),
   ];
@@ -208,7 +214,8 @@ export function ExecBatchDetails({ batchId, typeLabel, onClose }:
                 {jobs.map((j, i) => (
                   <TableRow key={j.id}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                    <TableCell className="font-mono whitespace-nowrap">{j.account || "—"}</TableCell>
+                    <TableCell className="font-mono whitespace-nowrap">{accountCell(j)}</TableCell>
+                    <TableCell className="font-mono whitespace-nowrap" data-testid={`batch-phone-${j.id}`}>{j.phone || "—"}</TableCell>
                     <TableCell className="whitespace-nowrap text-sm">
                       <span className={
                         j.status === "done" && (!j.result || j.result === "done") ? "text-green-700 font-semibold"

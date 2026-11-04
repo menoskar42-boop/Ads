@@ -4369,6 +4369,28 @@ export async function registerRoutes(
            FROM line_accounts WHERE full_phone = ANY($1::text[])`, [c360Keys.map(full)])).rows,
         (r) => short(String(r.full_phone))) : new Map();
 
+      // التليفون جنب الأكونت (المالك ٢٠٢٦-١١-٠٤): القياس/الرفع/الإيقاف مفتاحهم الأكونت ⇒ نجيب تليفونه،
+      // وباقى الأنواع مفتاحها التليفون ⇒ نجيب أكونته — من line_accounts، واحتياطى من آخر قياس فى case_138.
+      const ACC_KEYED = new Set(["measure", "raise", "stop"]);
+      const byAcc = jobs.filter((j: any) => ACC_KEYED.has(j.type))
+        .flatMap((j: any) => (Array.isArray(j.accounts) ? j.accounts : [])).map((a: any) => String(a).trim()).filter(Boolean);
+      const byPhone = jobs.filter((j: any) => !ACC_KEYED.has(j.type) && (j.params?.mode !== "order"))
+        .flatMap((j: any) => (Array.isArray(j.accounts) ? j.accounts : [])).map((a: any) => String(a).trim())
+        .filter((a: string) => /^\d{6,12}$/.test(a.replace(/\D/g, "")));
+      const phoneOfAcc = new Map<string, string>();
+      if (byAcc.length) {
+        const { rows } = await pool.query(
+          `SELECT account_no, full_phone FROM (
+             SELECT account_no, full_phone, 0 AS pri, updated_at AS t FROM line_accounts WHERE account_no = ANY($1::text[])
+             UNION ALL
+             SELECT account_no, full_phone, 1, uploaded_at FROM case_138
+              WHERE account_no = ANY($1::text[]) AND full_phone IS NOT NULL AND full_phone <> ''
+           ) x ORDER BY pri DESC, t ASC NULLS FIRST`, [byAcc]);
+        for (const r of rows) phoneOfAcc.set(String(r.account_no), short(String(r.full_phone)));   // آخر واحد يكسب: line_accounts الأحدث
+      }
+      const accOfPhone = byPhone.length ? new Map<string, string>((await pool.query(
+        `SELECT full_phone, account_no FROM line_accounts WHERE full_phone = ANY($1::text[])`,
+        [byPhone.map(full)])).rows.map((r: any) => [short(String(r.full_phone)), String(r.account_no)])) : new Map<string, string>();
       const at = (d: any) => (d ? new Date(d).getTime() : 0);
       const data = jobs.map((j: any) => {
         const list: string[] = (Array.isArray(j.accounts) ? j.accounts : []).map((a: any) => String(a).trim());
@@ -4474,7 +4496,10 @@ export async function registerRoutes(
           } : { inThisJob: false };
         }
         const { claimedAtRaw, ...rest } = j;
-        return { ...rest, account: key, accountsCount: list.length, detail };
+        const accKeyed = ACC_KEYED.has(j.type);
+        const phone = accKeyed ? (phoneOfAcc.get(key) ?? null) : (p.mode === "order" ? null : (key ? short(key) : null));
+        const accountNo = accKeyed ? (key || null) : (phone ? (accOfPhone.get(phone) ?? null) : null);
+        return { ...rest, account: key, phone, accountNo, accountsCount: list.length, detail };
       });
       res.json({ data, batchId });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
