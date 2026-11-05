@@ -42,6 +42,12 @@
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
 
+        <!-- مفتاح خرايط جوجل للملاحة جوه التطبيق — بيتحط من سرّ GitHub (MAPS_API_KEY) وقت البناء،
+             ومقفول فى Google Cloud على اسم التطبيق وبصمة التوقيع. فاضى = الملاحة بتفتح تطبيق الخرائط. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -59,6 +65,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- الملاحة جوه Oscar Drive (Google Navigation SDK) -->
+        <activity
+            android:name=".NavActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode" />
 
         <service
             android:name=".DriveService"

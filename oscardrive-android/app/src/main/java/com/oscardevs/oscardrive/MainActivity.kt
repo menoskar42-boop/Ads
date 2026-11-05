@@ -116,6 +116,7 @@ class MainActivity : Activity() {
         root.addView(rail, LinearLayout.LayoutParams(ui.dp(104), Ui.MATCH))
         content = FrameLayout(this)
         root.addView(content, LinearLayout.LayoutParams(0, Ui.MATCH, 1f))
+        Ui.fitSystemBars(root)
         setContentView(root)
         buildRail()
         showTab(tab)
@@ -296,7 +297,8 @@ class MainActivity : Activity() {
 
     private fun navTab(): View {
         val page = ui.col(14)
-        page.addView(header("🧭 الملاحة", "بتفتح تطبيق الخرائط اللى على الشاشة (Google Maps أو غيره) — Oscar Drive بيفضل شغّال وراه وبينبّهك."))
+        page.addView(header("🧭 الملاحة", if (NavActivity.available(this)) "الملاحة جوه Oscar Drive: الخريطة وتعليمات الانعطاف والوقت الباقى بالصوت — والتنبيهات شغّالة."
+            else "بتفتح تطبيق الخرائط اللى على الشاشة (Google Maps أو غيره) — Oscar Drive بيفضل شغّال وراه وبينبّهك."))
         val r1 = ui.row()
         r1.addView(ui.button("🗺️ افتح الخريطة", "primary") { openMap() }, ui.lp(0, ui.dp(64), 1f, 4))
         r1.addView(ui.button("⛽ أقرب بنزينة", "neutral") { nearestFuel() }, ui.lp(0, ui.dp(64), 1f, 4))
@@ -493,6 +495,12 @@ class MainActivity : Activity() {
             DriveService.State.night = initialNight()
             build()
         })
+        if (BuildConfig.NAV_SDK_KEY) {
+            page.addView(optionRow("🧭 الملاحة", listOf(0 to "جوه Oscar Drive", 1 to "تطبيق الخرائط"), prefs.navMode) { prefs.navMode = it })
+            val used = prefs.navUsedThisMonth(NavActivity.month())
+            page.addView(ui.text("وجهات الملاحة جوه التطبيق الشهر ده من الشاشة دى: $used — أول ${NavActivity.FREE_PER_MONTH} فى الشهر مجانى من جوجل، " +
+                "وبعدها بيفتح تطبيق الخرائط لوحده.", 13f, ui.muted).apply { setPadding(ui.dp(6), 0, ui.dp(6), ui.dp(6)) })
+        }
         page.addView(toggle("🔊 تنبيه صوتى لما توصل حد السرعة", prefs.speedAlerts) { prefs.speedAlerts = it })
         page.addView(toggle("🛣️ نبّهنى قبل المطبات والحفر والرادار اللى سجّلتها", prefs.hazardAlerts) { prefs.hazardAlerts = it })
         page.addView(toggle("🅿️ احفظ مكان الركنة لوحده آخر كل رحلة", prefs.autoPark) { prefs.autoPark = it })
@@ -513,6 +521,9 @@ class MainActivity : Activity() {
         page.addView(ui.text("Oscar Drive — من OscarDevs (oscardevs.com). نسخة ${BuildConfig.VERSION_NAME}.\n" +
             "السرعة من الـGPS (Doppler) — قراءة استرشادية، وعدّاد العربية هو المرجع.\n" +
             "اتعمل عشان تبص عليه بسرعة: ماتستخدمش الشاشة وانت سايق أكتر من نظرة.", 14f, ui.muted))
+        page.addView(ui.button("🔒 سياسة الخصوصية", "neutral", 15f) {
+            view("https://oscardevs.com/oscar-drive/privacy") || toast("مفيش متصفح على الشاشة")
+        }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
         if (Build.VERSION.SDK_INT >= 23) {
             page.addView(ui.button("فتح إعدادات الـLocation", "neutral", 15f) {
                 try { startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) } catch (_: Exception) {}
@@ -621,10 +632,9 @@ class MainActivity : Activity() {
         view(uri) || toast("مفيش تطبيق خرائط على الشاشة")
     }
 
+    /** الملاحة: جوه Oscar Drive (لو متاحة) وإلا تطبيق الخرائط — NavActivity بيقرّر وبيرجع للخرائط لو حصلت مشكلة. */
     private fun navigateTo(lat: Double, lng: Double, label: String, walk: Boolean = false) {
-        val g = "google.navigation:q=$lat,$lng" + if (walk) "&mode=w" else ""
-        if (view(g)) return
-        view("geo:$lat,$lng?q=$lat,$lng(" + Uri.encode(label) + ")") || toast("مفيش تطبيق خرائط على الشاشة")
+        NavActivity.start(this, lat, lng, label, walk)
     }
 
     private fun goTo(place: String) {

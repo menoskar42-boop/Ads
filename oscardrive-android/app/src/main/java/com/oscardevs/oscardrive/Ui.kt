@@ -80,6 +80,19 @@ class Ui(private val ctx: Context, val night: Boolean) {
         LinearLayout.LayoutParams(w, h, weight).apply { setMargins(dp(marginDp), dp(marginDp), dp(marginDp), dp(marginDp)) }
 
     companion object {
+        /**
+         * من أندرويد ١٥ (targetSdk ٣٥+، شرط جوجل بلاى) التطبيق بيترسم تحت شريط الحالة والأزرار —
+         * فبنزق المحتوى بمقدارهم عشان مفيش زرار يستخبى تحتهم.
+         */
+        fun fitSystemBars(v: View) {
+            if (android.os.Build.VERSION.SDK_INT < 35) return
+            v.setOnApplyWindowInsetsListener { view, insets ->
+                val b = insets.getInsets(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
+                view.setPadding(b.left, b.top, b.right, b.bottom)
+                insets
+            }
+        }
+
         const val MATCH = LinearLayout.LayoutParams.MATCH_PARENT
         const val WRAP = LinearLayout.LayoutParams.WRAP_CONTENT
     }

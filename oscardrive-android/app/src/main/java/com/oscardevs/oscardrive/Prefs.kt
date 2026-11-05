@@ -53,6 +53,18 @@ class Prefs(context: Context) {
         get() = sp.getFloat("last_lng", 0f).toDouble()
         set(v) = sp.edit().putFloat("last_lng", v.toFloat()).apply()
 
+    /** ٠ = الملاحة جوه Oscar Drive لو متاحة · ١ = تطبيق الخرائط دايماً. */
+    var navMode: Int
+        get() = sp.getInt("nav_mode", 0)
+        set(v) = sp.edit().putInt("nav_mode", v).apply()
+
+    /** عدّاد وجهات الملاحة جوه التطبيق فى الشهر ده — جوجل بتحسب كل وجهة، وأول ١٠٠٠ فى الشهر مجانى. */
+    fun navUsedThisMonth(month: String): Int = if (sp.getString("nav_month", "") == month) sp.getInt("nav_count", 0) else 0
+    fun countNav(month: String) {
+        val n = navUsedThisMonth(month) + 1
+        sp.edit().putString("nav_month", month).putInt("nav_count", n).apply()
+    }
+
     companion object {
         const val LIMIT_MIN = 20
         const val LIMIT_MAX = 200

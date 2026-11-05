@@ -45,6 +45,14 @@ router.get('/our-work', (req, res) => {
 // بتتبني بنقول كده بدل صفحة خطأ GitHub. noindex: ده تحويل لملف، مش صفحة. الحارس: check-oscardrive.
 const OSCAR_DRIVE_APK_URL = process.env.OSCARDRIVE_APK_URL
   || 'https://github.com/menoskar42-boop/Ads/releases/download/oscardrive-latest/oscar-drive.apk';
+// سياسة خصوصية التطبيق — جوجل بلاى بيطلب لينك عام ليها (التطبيق بيطلب إذن المكان).
+// noindex ومن غير إعلانات ومش فى السايت‌ماب: صفحة قانونية لتطبيق، مش محتوى للبحث.
+router.get('/oscar-drive/privacy', (req, res) => {
+  res.locals.showAds = false;
+  res.set('X-Robots-Tag', 'noindex, follow');
+  res.render('legal/oscar_drive_privacy');
+});
+
 router.get('/apps/oscar-drive/download', async (req, res) => {
   res.set('X-Robots-Tag', 'noindex, nofollow');
   const ac = new AbortController();

@@ -59,7 +59,31 @@ for (const p of ['SEND_SMS', 'CAMERA', 'RECORD_AUDIO', 'READ_CONTACTS', 'SYSTEM_
 check('landscape UI', /android:screenOrientation="sensorLandscape"/.test(manifest), 'التطبيق معمول لشاشة التابلوه بالعرض.');
 
 const gradle = read('oscardrive-android/app/build.gradle.kts');
-check('no external libraries (works on car screens without Google services)', !/^\s*dependencies\s*\{/m.test(gradle),
-  'شاشات العربيات الصينى كتير منها مافيهاش خدمات جوجل — مفيش AndroidX/Play Services.');
+const deps = ((gradle.match(/^dependencies\s*\{([\s\S]*?)^\}/m) || [])[1] || '')
+  .split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('//'));
+const allowed = (l) => /^implementation\("com\.google\.android\.libraries\.navigation:navigation:[\d.]+"\)$/.test(l)
+  || /^coreLibraryDesugaring\("com\.android\.tools:desugar_jdk_libs_nio:[\d.]+"\)$/.test(l);
+check('the only library is Google\'s Navigation SDK (everything else works without Google services)',
+  deps.every(allowed), 'مكتبة جديدة: ' + deps.filter((l) => !allowed(l)).join(' | '));
+check('Google Play target API (36) and signing from secrets, never from the repo',
+  /targetSdk = 36/.test(gradle) && /System\.getenv\("ODRIVE_KEYSTORE_FILE"\)/.test(gradle) && !/storePassword = "/.test(gradle),
+  'جوجل بلاى بيطلب targetSdk 36 للتطبيقات الجديدة، والباسوردات تيجى من أسرار GitHub بس.');
+check('the Maps key comes from a secret', /System\.getenv\("MAPS_API_KEY"\)/.test(gradle) && !/AIza[0-9A-Za-z_-]{20,}/.test(gradle + read('oscardrive-android/app/src/main/AndroidManifest.xml')),
+  'مفتاح خرايط جوجل مايتكتبش فى الكود — سرّ MAPS_API_KEY.');
+check('the Play bundle (AAB) is not attached to the public release', !/files:[^\n]*\.aab/.test(wf),
+  'الـAAB بيترفع على جوجل بلاى — مكانه artifacts الـrun بس.');
+
+const nav = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/NavActivity.kt');
+check('in-app navigation falls back to the maps app and caps at the free 1000/month',
+  /fun fallback\(/.test(nav) && /FREE_PER_MONTH = 1000/.test(nav) && /navUsedThisMonth\(month\(\)\) >= FREE_PER_MONTH/.test(nav),
+  'أى مشكلة أو عدّى المجانى ⇒ تطبيق الخرائط (من غير فلوس).');
+
+const priv = (legal.match(/router\.get\('\/oscar-drive\/privacy'[\s\S]*?\n\}\);/) || [''])[0];
+check('the privacy policy page exists, noindex and without ads',
+  /res\.locals\.showAds = false/.test(priv) && /noindex/.test(priv) && /noindex/.test(read('src/views/legal/oscar_drive_privacy.ejs')),
+  'جوجل بلاى بيطلب لينك سياسة خصوصية — والصفحة دى مش محتوى للبحث ولا للإعلانات.');
+check('the privacy page is not in the sitemap', !/oscar-drive\/privacy/.test(sitemapSrc), 'noindex والسايت‌ماب مايجتمعوش.');
+check('the app links its privacy policy', /oscardevs\.com\/oscar-drive\/privacy/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/MainActivity.kt')),
+  'جوجل بلاى عايز السياسة جوه التطبيق كمان.');
 
 process.exit(failed ? 1 : 0);

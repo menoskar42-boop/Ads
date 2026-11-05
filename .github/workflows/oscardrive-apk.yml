@@ -46,9 +46,35 @@ jobs:
         working-directory: oscardrive-android/logic-test
         run: gradle test --no-daemon
 
+      # جوجل بلاى + التحديث فوق القديم محتاجين توقيع ثابت: لو أسرار مفتاح التوقيع موجودة بنبنى
+      # release (APK للموقع + AAB لجوجل بلاى)، ولو لأ debug زى الأول. المفتاح نفسه عمره ما بيتكتب
+      # فى الكود ولا فى الـlog — بيتفك من السرّ لملف مؤقت على الـrunner بس. (docs/OSCAR_DRIVE_PLAY_STORE.md)
+      - name: Signing key from secrets (optional)
+        env:
+          KS_B64: ${{ secrets.ODRIVE_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            echo "ODRIVE_KEYSTORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+            echo "Signed release build"
+          else
+            echo "No signing secret — debug build"
+          fi
+
       - name: Build
         working-directory: oscardrive-android
-        run: gradle assembleDebug --no-daemon
+        env:
+          ODRIVE_KEYSTORE_PASSWORD: ${{ secrets.ODRIVE_KEYSTORE_PASSWORD }}
+          ODRIVE_KEY_ALIAS: ${{ secrets.ODRIVE_KEY_ALIAS }}
+          ODRIVE_KEY_PASSWORD: ${{ secrets.ODRIVE_KEY_PASSWORD }}
+          # مفتاح خرايط جوجل (الملاحة جوه التطبيق) — فاضى = الملاحة بتفتح تطبيق الخرائط
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+        run: |
+          if [ -n "$ODRIVE_KEYSTORE_FILE" ]; then
+            gradle assembleRelease bundleRelease --no-daemon
+          else
+            gradle assembleDebug --no-daemon
+          fi
 
       - name: Name the file for the download link
         id: apk
@@ -56,6 +82,16 @@ jobs:
           SRC=$(find oscardrive-android/app/build/outputs/apk -name '*.apk' | head -1)
           cp "$SRC" oscar-drive.apk
           echo "sha256=$(sha256sum oscar-drive.apk | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          AAB=$(find oscardrive-android/app/build/outputs/bundle -name '*.aab' 2>/dev/null | head -1)
+          if [ -n "$AAB" ]; then cp "$AAB" oscar-drive.aab; fi
+
+      - name: Upload the Play bundle (AAB) to the run's artifacts
+        if: hashFiles('oscar-drive.aab') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: oscar-drive-play-aab
+          path: oscar-drive.aab
+          retention-days: 30
 
       - name: Upload the APK to the run's artifacts
         uses: actions/upload-artifact@v4
@@ -78,6 +114,7 @@ jobs:
             ذاكرة الطريق (مطبات/حفر/رادار بتنبيه قبلها)، الركن، الصيانة والبنزين، تذكير الاستراحة،
             وزرار طوارئ. من غير إنترنت ولا حساب — كله على الشاشة.
 
-            نسخة `debug`: كل نسخة جديدة بتتبني بمفتاح مختلف، فالتحديث محتاج تمسح القديمة الأول.
+            لو أسرار التوقيع لسه مااتحطتش فى GitHub، النسخة `debug` وكل نسخة جديدة بمفتاح مختلف
+            (التحديث محتاج تمسح القديمة). بعد التوقيع: التحديث بيتركّب فوق القديمة عادى.
 
             `SHA-256: ${{ steps.apk.outputs.sha256 }}`
