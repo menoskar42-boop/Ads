@@ -102,6 +102,52 @@ class Prefs(context: Context) {
         get() = sp.getString("sec_car_name", "") ?: ""
         set(v) = sp.edit().putString("sec_car_name", v).apply()
 
+    /* ── Oscar Voice + Personality ── */
+    /** لغة التعرّف على الكلام وردود أوسكار: ar-EG أو en-US (الأوامر بالعربى والإنجليزى بتتفهم الاتنين). */
+    var voiceLang: String
+        get() = sp.getString("v_lang", "ar-EG") ?: "ar-EG"
+        set(v) = sp.edit().putString("v_lang", v).apply()
+    /** «يا أوسكار»: استماع متكرر والتطبيق قدامك (مقفول افتراضياً — محتاج إذن الميكروفون). */
+    var voiceWake: Boolean
+        get() = sp.getBoolean("v_wake", false)
+        set(v) = sp.edit().putBoolean("v_wake", v).apply()
+    var voiceOffline: Boolean
+        get() = sp.getBoolean("v_offline", true)
+        set(v) = sp.edit().putBoolean("v_offline", v).apply()
+    var wakeNames: List<String>
+        get() = jsonList(sp.getString("v_wake_names", null)) ?: com.oscardevs.oscardrive.logic.VoiceCatalog.DEFAULT_WAKE
+        set(v) = sp.edit().putString("v_wake_names", org.json.JSONArray(v).toString()).apply()
+    /** صيغ السواق الزيادة: { commandId: [صيغة…] } */
+    fun customPhrases(): Map<String, List<String>> {
+        val o = try { org.json.JSONObject(sp.getString("v_custom", "{}") ?: "{}") } catch (_: Exception) { org.json.JSONObject() }
+        return o.keys().asSequence().associateWith { k -> jsonList(o.optJSONArray(k)?.toString()).orEmpty() }
+    }
+    fun setCustomPhrases(m: Map<String, List<String>>) {
+        val o = org.json.JSONObject(); for ((k, v) in m) if (v.isNotEmpty()) o.put(k, org.json.JSONArray(v))
+        sp.edit().putString("v_custom", o.toString()).apply()
+    }
+    var disabledCommands: Set<String>
+        get() = sp.getStringSet("v_off", emptySet()) ?: emptySet()
+        set(v) = sp.edit().putStringSet("v_off", v).apply()
+    /** أوسكار بيرد بصوته (الجمل المسجّلة). */
+    var oscarReplies: Boolean
+        get() = sp.getBoolean("o_replies", true)
+        set(v) = sp.edit().putBoolean("o_replies", v).apply()
+    /** male · female */
+    var oscarVoice: String
+        get() = sp.getString("o_voice", "male") ?: "male"
+        set(v) = sp.edit().putString("o_voice", v).apply()
+    fun voiceFiles(voice: String): org.json.JSONObject =
+        try { org.json.JSONObject(sp.getString("o_files_$voice", "{}") ?: "{}") } catch (_: Exception) { org.json.JSONObject() }
+    fun setVoiceFiles(voice: String, m: org.json.JSONObject) = sp.edit().putString("o_files_$voice", m.toString()).apply()
+    fun customLine(id: String, lang: String): String? = sp.getString("o_line_${lang}_$id", null)
+    fun setCustomLine(id: String, lang: String, text: String?) =
+        sp.edit().apply { if (text == null) remove("o_line_${lang}_$id") else putString("o_line_${lang}_$id", text) }.apply()
+
+    private fun jsonList(s: String?): List<String>? = try {
+        if (s == null) null else org.json.JSONArray(s).let { a -> (0 until a.length()).map { a.getString(it) } }
+    } catch (_: Exception) { null }
+
     companion object {
         const val LIMIT_MIN = 20
         const val LIMIT_MAX = 200

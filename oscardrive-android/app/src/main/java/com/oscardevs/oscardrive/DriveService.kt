@@ -75,6 +75,8 @@ class DriveService : Service() {
     private var gnssCb: Any? = null
     private var lastNotify = 0L
     private var lastNightCheck = 0L
+    private var gpsAnnounced = false
+    private var lostAnnounced = false
 
     private val gpsListener = object : LocationListener {
         override fun onLocationChanged(loc: Location) = onLocation(loc)
@@ -97,6 +99,8 @@ class DriveService : Service() {
             handleSpeed(speed.onTick(now))
             trip.onTick(now)?.let { tripEnded(it) }
             State.speedKmh = speed.speedKmh
+            // الـGPS وقع وإحنا ماشيين (نفق/جراج) — مرة واحدة لحد ما يرجع
+            if (gpsAnnounced && speed.speedKmh == null && trip.active && !lostAnnounced) { lostAnnounced = true; gpsAnnounced = false; Oscar.say("gps_lost") }
             val moving = (speed.speedKmh ?: 0f) >= TripLogic.MOVING_KMH
             wellness.everyMin = prefs.breakMin
             wellness.onTick(now, moving)?.let { min ->
@@ -123,6 +127,7 @@ class DriveService : Service() {
         lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         Speaker.init(this)
         Guard.init(this)
+        Oscar.init(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -140,6 +145,8 @@ class DriveService : Service() {
         updateNight(System.currentTimeMillis())
         startGps()
         Guard.onBoot()
+        // «صباح الخير، جاهز ننطلق؟» — من جمل أوسكار المسجّلة
+        Oscar.say(if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) in 4..14) "startup_morning" else "startup_evening")
         main.post(tick)
         return START_STICKY
     }
@@ -194,6 +201,7 @@ class DriveService : Service() {
         trip.onFix(now, loc.latitude, loc.longitude, kmh, acc, if (loc.hasBearing()) loc.bearing else null)
         State.speedKmh = kmh
         State.over = speed.inViolation
+        if (!gpsAnnounced && kmh != null) { gpsAnnounced = true; lostAnnounced = false; Oscar.say("gps_ready") }
         State.headingDeg = trip.headingDeg
         State.lat = loc.latitude; State.lng = loc.longitude
         State.accuracyM = acc

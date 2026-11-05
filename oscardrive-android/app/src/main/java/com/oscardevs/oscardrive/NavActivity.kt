@@ -92,7 +92,7 @@ class NavActivity : Activity() {
             } else fallback("مالقيتش طريق من هنا")
         }
         val a = Navigator.ArrivalListener {
-            Speaker.say("وصلت ${label.ifEmpty { "" }}".trim())
+            Oscar.init(this); Oscar.say("arrived")
             n.stopGuidance(); n.clearDestinations()
             finish()
         }

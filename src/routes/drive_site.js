@@ -77,6 +77,25 @@ function createDriveSite({ pool, push } = {}) {
     catch (e) { fail(res, 500, 'pair failed'); }
   });
 
+  // جملة من تأليف السواق بصوت أوسكار (تتولّد مرة واحدة وتتحفظ على الشاشة). محدودة: ٢٠ فى اليوم لكل عنوان، ١٢٠ حرف.
+  const voice = require('../drive/voice');
+  router.post('/api/car/voice', rateLimit({ name: 'od-voice', windowMs: 24 * 60 * 60000, max: 20 }), json, carAuth, async (req, res) => {
+    const text = String((req.body && req.body.text) || '').trim().slice(0, 120);
+    const v = req.body && req.body.voice === 'female' ? 'female' : 'male';
+    const lang = req.body && req.body.lang === 'en' ? 'en' : 'ar';
+    if (!text) return fail(res, 400, 'empty');
+    try {
+      const buf = await voice.tts(text, v, lang);
+      res.type('audio/mpeg').send(buf);
+    } catch (e) { fail(res, 503, 'voice unavailable'); }
+  });
+
+  // manifest صوت أوسكار (بيتحسب من الملفات الموجودة — لو السكربت ماتشغّلش لسه، الجمل من غير ملفات والتطبيق بيقول بصوت الشاشة)
+  router.get('/voice/:v/manifest.json', (req, res) => {
+    const v = req.params.v === 'female' ? 'female' : 'male';
+    res.set('Cache-Control', 'no-cache').json(voice.manifest(v));
+  });
+
   /* ───────── صفحة المالك ───────── */
 
   // تخمين الكود: ٦ أرقام × ١٠ دقايق × ١٠ محاولات فى ١٠ دقايق لكل عنوان.

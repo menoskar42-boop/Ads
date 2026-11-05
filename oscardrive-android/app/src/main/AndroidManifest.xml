@@ -14,17 +14,24 @@
          الإذن بيتطلب من شاشة «الحماية» بس، والفيديو بيفضل على الشاشة. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <!-- Oscar Voice: «يا أوسكار» — الاستماع المتكرر والتطبيق قدامك (اختيارى، بيتطلب من شاشة أوسكار بس).
+         الصوت بيروح لبرنامج التعرّف اللى على الشاشة، وOscar Drive بياخد النص بس — مابيسجّلش ولا بيبعت صوت. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- مفيش SEND_SMS: الطوارئ بتفتح برنامج الرسايل والسواق هو اللى بيدوس إرسال. -->
 
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <queries>
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />

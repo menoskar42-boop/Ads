@@ -133,10 +133,11 @@ object Guard {
         lastSyncTry = System.currentTimeMillis()
         io.execute {
             var more = false
-            try { more = syncOnce() } catch (e: Cloud.HttpError) {
+            val wasOffline = lastError != null
+            try { more = syncOnce(); if (wasOffline) netChange(false) } catch (e: Cloud.HttpError) {
                 lastError = "السيرفر رد ${e.code}"
                 if (e.code == 401) prefs.deviceToken = null   // الجهاز اتمسح من السيرفر — يتسجّل تانى
-            } catch (e: Exception) { lastError = "مفيش نت — البيانات محفوظة على الشاشة" }
+            } catch (e: Exception) { if (lastError == null) netChange(true); lastError = "مفيش نت — البيانات محفوظة على الشاشة" }
             syncing = false
             main.post { listener?.invoke() }
             if (more) main.postDelayed({ syncSoon() }, 2000)
@@ -189,6 +190,15 @@ object Guard {
                 main.post { done(code, null) }
             } catch (e: Exception) { main.post { done(null, "محتاج نت عشان كود الربط") } }
         }
+    }
+
+    private var lastNetSay = 0L
+    /** «النت قطع/رجع» بصوت أوسكار — مرة كل ١٠ دقايق بالكتير (الهوت سبوت بيقطع كتير). */
+    private fun netChange(lost: Boolean) {
+        val now = System.currentTimeMillis()
+        if (now - lastNetSay < 10 * 60_000) return
+        lastNetSay = now
+        main.post { Oscar.say(if (lost) "net_lost" else "net_back") }
     }
 
     fun pendingPoints(): Long = if (inited) db.trackCount() else 0

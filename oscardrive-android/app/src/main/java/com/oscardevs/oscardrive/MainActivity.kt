@@ -35,6 +35,10 @@ import com.oscardevs.oscardrive.logic.HazardType
 import com.oscardevs.oscardrive.logic.MaintStatus
 import com.oscardevs.oscardrive.logic.RoadMemory
 import com.oscardevs.oscardrive.logic.VoiceCommands
+import com.oscardevs.oscardrive.logic.VoiceCatalog
+import com.oscardevs.oscardrive.logic.VoiceEngine
+import com.oscardevs.oscardrive.logic.VoiceMatch
+import android.widget.HorizontalScrollView
 import com.oscardevs.oscardrive.logic.Wellness
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -87,13 +91,16 @@ class MainActivity : Activity() {
         DriveService.State.listener = { main.post { render() } }
         Guard.init(this)
         Guard.listener = { main.post { if (tab == "sec") refresh(); maybePinGate() } }
+        Oscar.init(this)
         render()
         maybePinGate()
+        startWakeIfOn()
     }
 
     override fun onPause() {
         DriveService.State.listener = null
         Guard.listener = null
+        wake?.stop()
         super.onPause()
     }
 
@@ -127,7 +134,7 @@ class MainActivity : Activity() {
     }
 
     private val tabs = listOf(
-        "drive" to "🚗\nالقيادة", "nav" to "🧭\nالملاحة", "park" to "🅿️\nالركن", "sec" to "🛡️\nالحماية",
+        "drive" to "🚗\nالقيادة", "nav" to "🧭\nالملاحة", "park" to "🅿️\nالركن", "sec" to "🛡️\nالحماية", "voice" to "🎙️\nOscar",
         "road" to "🛣️\nالطريق", "car" to "🔧\nالسيارة", "settings" to "⚙️\nالإعدادات",
     )
 
@@ -157,6 +164,7 @@ class MainActivity : Activity() {
             "car" -> scroll(carTab())
             "settings" -> scroll(settingsTab())
             "sec" -> scroll(securityTab())
+            "voice" -> scroll(voiceTab())
             else -> driveTab()
         }
         content.addView(v, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
@@ -737,17 +745,18 @@ class MainActivity : Activity() {
     private fun markHazard(t: HazardType) {
         val (lat, lng) = needHere() ?: return
         val s = DriveService.State
-        if (RoadMemory.duplicateOf(db.hazards(), t, lat, lng) != null) { say("${t.ar} متسجّل هنا قبل كده"); return }
+        if (RoadMemory.duplicateOf(db.hazards(), t, lat, lng) != null) { oscar("already_saved", "${t.ar} متسجّل هنا قبل كده"); return }
         val moving = (s.speedKmh ?: 0f) >= 10f
         db.addHazard(t, lat, lng, if (moving) s.headingDeg else null)
         DriveService.State.hazardsDirty = true
-        say(VoiceCommands.reply(Cmd.MarkHazard(t)))
+        oscar(when (t) { HazardType.BUMP -> "bump_saved"; HazardType.POTHOLE -> "pothole_saved"; HazardType.RADAR -> "radar_saved"; else -> "danger_saved" },
+            "اتسجّل ${t.ar}")
     }
 
     private fun parkHere() {
         val (lat, lng) = needHere() ?: return
         db.park(lat, lng)
-        say(VoiceCommands.reply(Cmd.Park))
+        oscar("parking_saved", "اتحفظ مكان الركنة")
     }
 
     private fun savePlace(name: String) {
@@ -809,38 +818,223 @@ class MainActivity : Activity() {
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
     } catch (_: Exception) { false }
 
-    /* ── الأوامر الصوتية: بتستخدم برنامج التعرّف على الكلام اللى على الشاشة (لو موجود) ── */
+    /* ═══════════════ 🎙️ Oscar Voice: أوامر ثابتة من غير AI ═══════════════ */
 
+    private var wake: WakeListener? = null
+    /** بعد «يا أوسكار» لوحدها: الجملة الجاية جوّه ٨ ثوانى = أمر من غير ما تنادى تانى. */
+    private var awaitingUntil = 0L
+
+    private fun engine() = VoiceEngine(prefs.customPhrases(), prefs.disabledCommands, prefs.wakeNames)
+
+    /** أوسكار يقول جملة الحدث + تظهر مكتوبة. */
+    private fun oscar(id: String, shown: String? = null, extra: String? = null) {
+        Oscar.say(id, extra)
+        (shown ?: Oscar.texts(id).firstOrNull())?.let { toast(listOfNotNull(it, extra).joinToString(" — ")) }
+    }
+
+    /** زرار 🎤: برنامج التعرّف بتاع الشاشة يسمع جملة واحدة (من غير إذن ميكروفون للتطبيق). */
     private fun listen() {
+        wake?.stop()
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-EG")
-            .putExtra(RecognizerIntent.EXTRA_PROMPT, "قول: سجّل مطب · ركنت هنا · وصّلنى للبيت · أقرب بنزينة")
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, prefs.voiceLang)
+            .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+            .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, prefs.voiceOffline)
+            .putExtra(RecognizerIntent.EXTRA_PROMPT, if (prefs.voiceLang.startsWith("en")) "Say: take me home · mark a bump · what's my speed"
+                else "قول: وصّلنى البيت · سجّل مطب · السرعة كام · فعّل الحماية")
         try { startActivityForResult(i, REQ_VOICE) }
         catch (_: ActivityNotFoundException) { toast("الشاشة مافيهاش برنامج تعرّف على الكلام — استخدم الأزرار") }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQ_VOICE || resultCode != RESULT_OK) return
-        val heard = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) ?: return
-        // أول نتيجة مفهومة من الاحتمالات اللى رجعت
-        val cmd = heard.map { VoiceCommands.parse(it) }.firstOrNull { it != Cmd.Unknown } ?: Cmd.Unknown
-        execute(cmd)
+        if (requestCode != REQ_VOICE) return
+        if (resultCode == RESULT_OK) handleHeard(data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty(), button = true)
+        startWakeIfOn()
     }
 
-    private fun execute(c: Cmd) {
-        when (c) {
-            is Cmd.MarkHazard -> { markHazard(c.type); if (tab == "road") refresh() }
-            Cmd.Park -> parkHere()
-            Cmd.FindCar -> db.parkings().firstOrNull()?.let { say(VoiceCommands.reply(c)); navigateTo(it.lat, it.lng, "العربية", walk = true) } ?: say("مفيش ركنة محفوظة")
-            Cmd.NearestFuel -> { say(VoiceCommands.reply(c)); nearestFuel() }
-            is Cmd.GoTo -> { say(VoiceCommands.reply(c)); goTo(c.place) }
-            Cmd.OpenMap -> openMap()
-            Cmd.Music -> music()
-            Cmd.Emergency -> emergency()
-            Cmd.Unknown -> say(VoiceCommands.reply(c))
+    /**
+     * الكلام اللى اتسمع (أكتر من احتمال من برنامج التعرّف). من الزرار: أى أمر. من الاستماع الدائم: لازم الاسم الأول
+     * («يا أوسكار …») أو جوّه ٨ ثوانى بعد ما ناديته — وغير كده بيتجاهل كلام العربية والراديو.
+     */
+    private fun handleHeard(heard: List<String>, button: Boolean) {
+        if (heard.isEmpty()) return
+        val e = engine()
+        val now = System.currentTimeMillis()
+        var called = button || now < awaitingUntil
+        var best: VoiceMatch? = null
+        for (h in heard) {
+            val rest = e.afterWake(h)
+            if (rest != null) {
+                called = true
+                if (rest.isEmpty()) continue
+                e.match(rest)?.let { best = best ?: it }
+            } else if (button || now < awaitingUntil) e.match(h)?.let { best = best ?: it }
         }
+        if (!called) return
+        val m = best
+        if (m == null) {
+            if (heard.any { e.afterWake(it) == "" }) { awaitingUntil = now + 8000; oscar("hello"); return }
+            awaitingUntil = 0; oscar("not_understood", "مافهمتش: «${heard.first()}»"); return
+        }
+        awaitingUntil = 0
+        runCommand(m.command.id, m.slot)
+    }
+
+    /** كل أمر مربوط بوظيفة ثابتة — نفس الأزرار بالظبط. */
+    private fun runCommand(id: String, slot: String?) {
+        val s = DriveService.State
+        when (id) {
+            "nav.open" -> { oscar("nav_start"); openMap() }
+            "nav.home", "nav.work" -> {
+                val name = if (id == "nav.home") "البيت" else "الشغل"
+                val p = db.places().firstOrNull { it.name == name }
+                if (p == null) oscar("need_home", "احفظ «$name» الأول من شاشة الملاحة") else { oscar("nav_start"); navigateTo(p.lat, p.lng, p.name) }
+            }
+            "nav.fuel" -> { oscar("fuel"); nearestFuel() }
+            "nav.goto" -> { oscar("nav_start", "رايحين: $slot"); goTo(slot ?: return) }
+            "car.find" -> db.parkings().firstOrNull()?.let { oscar("find_car"); navigateTo(it.lat, it.lng, "العربية", walk = true) } ?: oscar("no_parking")
+            "park.save" -> parkHere()
+            "road.bump" -> { markHazard(HazardType.BUMP); if (tab == "road") refresh() }
+            "road.pothole" -> { markHazard(HazardType.POTHOLE); if (tab == "road") refresh() }
+            "road.radar" -> { markHazard(HazardType.RADAR); if (tab == "road") refresh() }
+            "road.danger" -> { markHazard(HazardType.DANGER); if (tab == "road") refresh() }
+            "info.speed" -> s.speedKmh?.let { Oscar.sayText(if (Oscar.lang == "en") "${it.toInt()} kilometers per hour" else "سرعتنا ${it.toInt()} كيلو"); toast("${it.toInt()} كم/س") }
+                ?: Oscar.sayText(if (Oscar.lang == "en") "No GPS speed yet" else "لسه الـGPS ماحددش السرعة")
+            "info.trip" -> Oscar.sayText(if (s.tripActive) "مشينا %.1f كيلو فى ${s.tripMovingS / 60} دقيقة".format(Locale.US, s.tripKm) else "مفيش رحلة دلوقتى")
+            "info.limit" -> VoiceEngine.number(slot)?.takeIf { it in Prefs.LIMIT_MIN..Prefs.LIMIT_MAX }?.let {
+                prefs.limit = it; DriveService.State.limitKmh = it; Oscar.sayText("الحد بقى $it"); render()
+            } ?: Oscar.sayText("قول رقم الحد، مثلاً: خلّى الحد تمانين")
+            "sec.arm" -> if (!prefs.securityOn || !Guard.pinSet()) { oscar("security_setup"); showTab("sec") } else { Guard.setArmedFromCar(true); oscar("security_on"); if (tab == "sec") refresh() }
+            "sec.disarm" -> if (!prefs.armed) oscar("security_off") else { oscar("pin_needed"); askPin("اكتب الرقم السرى عشان تقفل الحماية") { Guard.setArmedFromCar(false); oscar("security_off"); refresh() } }
+            "sec.status" -> oscar(if (prefs.armed) "security_on" else "security_off")
+            "sec.record" -> { oscar("record_start"); if (DriveService.State.running) DriveService.send(this, DriveService.ACTION_RECORD, 20) else Guard.record(20, "manual") }
+            "media.music" -> { oscar("music"); music() }
+            "media.up", "media.down" -> {
+                val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+                am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC,
+                    if (id == "media.up") android.media.AudioManager.ADJUST_RAISE else android.media.AudioManager.ADJUST_LOWER, android.media.AudioManager.FLAG_SHOW_UI)
+            }
+            "screen.drive" -> showTab("drive")
+            "screen.settings" -> showTab("settings")
+            "screen.car" -> showTab("car")
+            "screen.road" -> showTab("road")
+            "screen.security" -> showTab("sec")
+            "screen.parking" -> showTab("park")
+            "sys.night", "sys.day" -> {
+                prefs.theme = if (id == "sys.night") 2 else 1
+                DriveService.State.night = initialNight(); build(); oscar(if (id == "sys.night") "night_on" else "day_on")
+            }
+            "emergency" -> { oscar("emergency"); emergency() }
+            "help" -> { oscar("help"); showTab("voice") }
+            "cancel" -> oscar("ok")
+        }
+    }
+
+    private fun startWakeIfOn() {
+        if (!prefs.voiceWake || checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return
+        val w = wake ?: WakeListener(this, { heard -> handleHeard(heard, button = false) }, { st -> wakeState = st; if (tab == "voice") refresh() }).also { wake = it }
+        w.start(prefs.voiceLang, prefs.voiceOffline)
+    }
+    private var wakeState = ""
+
+    /* ═══════════════ 🎙️ شاشة أوسكار: الأوامر · الاسم · الصوت ═══════════════ */
+
+    private fun voiceTab(): View {
+        val page = ui.col(14)
+        page.addView(header("🎙️ Oscar", "أوامر صوتية ثابتة بالعربى والإنجليزى — من غير ذكاء اصطناعى: الكلام بيتحوّل نص ببرنامج الشاشة، وكل أمر مربوط بوظيفة ثابتة. " +
+            "تقدر تزوّد صيغك أو تقفل أى أمر، وتغيّر اسم الاستدعاء."))
+        val r1 = ui.row()
+        r1.addView(ui.button("🎤 اتكلّم دلوقتى", "primary") { listen() }, ui.lp(0, ui.dp(60), 1f, 3))
+        page.addView(r1)
+
+        page.addView(optionRow("لغة الكلام وردود أوسكار", listOf(0 to "عربى", 1 to "English"), if (prefs.voiceLang.startsWith("en")) 1 else 0) {
+            prefs.voiceLang = if (it == 1) "en-US" else "ar-EG"; wake?.stop(); startWakeIfOn()
+        })
+        page.addView(toggle("📣 «يا أوسكار» — يسمع ويستنى اسمه طول ما التطبيق قدامك", prefs.voiceWake) { v ->
+            prefs.voiceWake = v
+            if (v) {
+                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
+                else startWakeIfOn()
+            } else wake?.stop()
+        })
+        if (prefs.voiceWake && wakeState.isNotEmpty()) page.addView(ui.text(wakeState, 14f, ui.accent).apply { setPadding(ui.dp(6), 0, ui.dp(6), ui.dp(6)) })
+        page.addView(toggle("📴 من غير نت قدر الإمكان (لو اللغة متنزّلة على الشاشة)", prefs.voiceOffline) { prefs.voiceOffline = it; wake?.stop(); startWakeIfOn() })
+
+        // اسم الاستدعاء
+        page.addView(section("اسم الاستدعاء"))
+        val names = ui.row()
+        for (n in prefs.wakeNames) names.addView(ui.button("$n ✕", "neutral", 14f) {
+            if (prefs.wakeNames.size <= 1) toast("لازم اسم واحد على الأقل") else { prefs.wakeNames = prefs.wakeNames - n; refresh() }
+        }, ui.lp(Ui.WRAP, ui.dp(48), 0f, 3))
+        names.addView(ui.button("＋ اسم", "primary", 14f) { askText("اسم الاستدعاء", "مثلاً: يا كابتن", "") { t -> if (t.isNotBlank()) { prefs.wakeNames = prefs.wakeNames + t.trim(); refresh() } } },
+            ui.lp(Ui.WRAP, ui.dp(48), 0f, 3))
+        page.addView(HorizontalScrollView(this).apply { addView(names) })
+
+        // جرّب جملة مكتوبة
+        val test = ui.card(12).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val tf = EditText(this).apply { hint = "جرّب جملة: يا أوسكار وصلنى البيت"; textSize = 16f; setTextColor(ui.ink); setHintTextColor(ui.muted) }
+        val res = ui.text("", 15f, ui.accent)
+        test.addView(tf, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        test.addView(ui.button("افهمها", "neutral", 14f) {
+            val e = engine(); val t = tf.text.toString(); val rest = e.afterWake(t)
+            val m = e.match(rest ?: t)
+            res.text = (if (rest != null) "✓ الاسم · " else "") + (m?.let { "⇒ ${it.command.title}" + (it.slot?.let { s -> " («$s»)" } ?: "") } ?: "⇒ مش مفهوم")
+        }, ui.lp(ui.dp(100), ui.dp(50), 0f, 2))
+        page.addView(test, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 4)); page.addView(res)
+
+        // صوت أوسكار
+        page.addView(section("🗣️ صوت أوسكار"))
+        page.addView(toggle("أوسكار يرد بصوته", prefs.oscarReplies) { prefs.oscarReplies = it })
+        page.addView(optionRow("الصوت", listOf(0 to "راجل", 1 to "ست"), if (prefs.oscarVoice == "female") 1 else 0) { prefs.oscarVoice = if (it == 1) "female" else "male" })
+        val dl = ui.row()
+        dl.addView(ui.button("⬇️ نزّل صوت أوسكار", "primary", 15f) { toast("بينزّل…"); Oscar.downloadPack { msg -> main.post { toast(msg); refresh() } } }, ui.lp(0, ui.dp(54), 1f, 3))
+        dl.addView(ui.button("▶ اسمعه", "neutral", 15f) { Oscar.say("hello") }, ui.lp(ui.dp(120), ui.dp(54), 0f, 3))
+        page.addView(dl)
+        if (Oscar.packStatus.isNotEmpty()) page.addView(ui.text(Oscar.packStatus, 14f, ui.muted))
+        page.addView(ui.text("الجمل اتعملت مرة واحدة بالذكاء الاصطناعى وبتتنزّل ملفات على الشاشة — وبعدها مفيش نت ولا AI. لو صوت جملة لسه مانزلش، أوسكار بيقولها بصوت الشاشة.", 13f, ui.muted))
+        for (eid in Oscar.ids()) {
+            val row = ui.card(8).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            val mine = prefs.customLine(eid, Oscar.lang)
+            row.addView(ui.text((mine ?: Oscar.texts(eid).joinToString(" · ")) + if (mine != null) "  ✏️" else "", 14f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            row.addView(ui.button("▶", "neutral", 14f) { Oscar.say(eid) }, ui.lp(ui.dp(52), ui.dp(44), 0f, 2))
+            row.addView(ui.button("✏️", "neutral", 14f) {
+                askText("جملتك للحدث ده (فاضى = الأصلية)", Oscar.texts(eid).firstOrNull() ?: "", mine ?: "") { t ->
+                    Oscar.setCustom(eid, t.trim()) { msg -> main.post { toast(msg); refresh() } }
+                }
+            }, ui.lp(ui.dp(52), ui.dp(44), 0f, 2))
+            page.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 2))
+        }
+
+        // مدير الأوامر
+        page.addView(section("📋 الأوامر (${VoiceCatalog.ALL.size})"))
+        val custom = prefs.customPhrases()
+        val off = prefs.disabledCommands
+        for (c in VoiceCatalog.ALL) {
+            val card = ui.card(10)
+            val head = ui.row()
+            head.addView(ui.text(c.title + if (c.confirm) "  🔒" else "", 17f, if (c.id in off) ui.muted else ui.ink, bold = true), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            head.addView(ui.button(if (c.id in off) "مقفول" else "شغّال", if (c.id in off) "neutral" else "good", 13f) {
+                prefs.disabledCommands = if (c.id in off) off - c.id else off + c.id; refresh()
+            }, ui.lp(ui.dp(90), ui.dp(44), 0f, 2))
+            head.addView(ui.button("＋ صيغة", "neutral", 13f) {
+                askText("صيغة جديدة لـ«${c.title}» (عربى أو English، * = مكان)", "مثلاً: ودّينى البيت", "") { t ->
+                    if (t.isNotBlank()) { val m = custom.toMutableMap(); m[c.id] = custom[c.id].orEmpty() + t.trim(); prefs.setCustomPhrases(m); refresh() }
+                }
+            }, ui.lp(ui.dp(90), ui.dp(44), 0f, 2))
+            card.addView(head)
+            card.addView(ui.text("عربى: " + c.ar.joinToString(" · ") + "\nEnglish: " + c.en.joinToString(" · "), 13f, ui.muted))
+            val mine = custom[c.id].orEmpty()
+            if (mine.isNotEmpty()) {
+                val r = ui.row()
+                for (ph in mine) r.addView(ui.button("$ph ✕", "neutral", 13f) {
+                    val m = custom.toMutableMap(); m[c.id] = mine - ph; prefs.setCustomPhrases(m); refresh()
+                }, ui.lp(Ui.WRAP, ui.dp(42), 0f, 2))
+                card.addView(HorizontalScrollView(this).apply { addView(r) })
+            }
+            page.addView(card, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
+        }
+        return page
     }
 
     /** «فحص الشاشة»: إيه اللى الشاشة دى فيها فعلاً — قبل ما نبنى مانع السرقة على تخمين. */
@@ -957,6 +1151,11 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_PERMS && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) startIfReady()
         else if (requestCode == REQ_PERMS) toast("Oscar Drive محتاج إذن المكان عشان يقيس السرعة")
+        if (requestCode == REQ_MIC) {
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startWakeIfOn()
+            else { prefs.voiceWake = false; toast("من غير الميكروفون استخدم زرار 🎤") }
+            refresh()
+        }
         if (requestCode == REQ_CAM) {
             if (Guard.cam.permitted()) { DriveService.send(this, DriveService.ACTION_REFRESH_FGS); toast("تمام — الكاميرا متاحة للتسجيل") }
             else toast("إذن الكاميرا اترفض")
@@ -968,5 +1167,6 @@ class MainActivity : Activity() {
         private const val REQ_PERMS = 1
         private const val REQ_VOICE = 5
         private const val REQ_CAM = 7
+        private const val REQ_MIC = 8
     }
 }

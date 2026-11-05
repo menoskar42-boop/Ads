@@ -54,7 +54,7 @@ check('the logic tests run before the build',
   'منطق الرحلة/ذاكرة الطريق/الاستراحة لازم يتختبر قبل ما APK يتنشر.');
 
 const manifest = read('oscardrive-android/app/src/main/AndroidManifest.xml').replace(/<!--[\s\S]*?-->/g, '');
-for (const p of ['SEND_SMS', 'RECORD_AUDIO', 'READ_CONTACTS', 'SYSTEM_ALERT_WINDOW', 'ACCESS_BACKGROUND_LOCATION']) {
+for (const p of ['SEND_SMS', 'READ_CONTACTS', 'SYSTEM_ALERT_WINDOW', 'ACCESS_BACKGROUND_LOCATION', 'FOREGROUND_SERVICE_MICROPHONE']) {
   check(`no ${p} permission`, !manifest.includes(`android.permission.${p}`), `${p} مش محتاجينه — إذن زيادة = شاشة تخوّف السواق.`);
 }
 check('landscape UI', /android:screenOrientation="sensorLandscape"/.test(manifest), 'التطبيق معمول لشاشة التابلوه بالعرض.');
@@ -124,5 +124,23 @@ check('privacy policy discloses tracking upload and camera', /drive\.oscardevs\.
   'التطبيق بقى بيبعت المكان (لو الحماية شغّالة) وبيسجّل كاميرا — السياسة لازم تقول كده.');
 check('security is opt-in on the screen', /get\(\) = sp\.getBoolean\("sec_on", false\)/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt')),
   'التتبّع للسيرفر لازم يبقى مقفول لحد ما السواق يشغّله.');
+
+// ── Oscar Voice + Personality ──
+const linesJson = JSON.parse(read('oscardrive-android/app/src/main/assets/oscar_lines.json'));
+const main = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/MainActivity.kt')
+  + read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/DriveService.kt')
+  + read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Guard.kt')
+  + read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/NavActivity.kt');
+const used = [...new Set([...main.matchAll(/oscar\("([a-z_]+)"|Oscar\.say\("([a-z_]+)"/g)].map((m) => m[1] || m[2]))];
+const missingLines = used.filter((id) => !linesJson.lines[id]);
+check('every Oscar line the app says exists in oscar_lines.json (AR + EN)',
+  missingLines.length === 0 && Object.values(linesJson.lines).every((v) => v.ar && v.ar.length && v.en && v.en.length),
+  'جملة ناقصة: ' + missingLines.join(', '));
+check('voice commands need no AI at runtime', !/openai|anthropic|gemini/i.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/logic/VoiceEngine.kt')
+  + read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/WakeListener.kt')), 'الأوامر قواعد ثابتة — مفيش نموذج ذكاء اصطناعى.');
+check('"Hey Oscar" listening is opt-in', /get\(\) = sp\.getBoolean\("v_wake", false\)/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt')),
+  'الاستماع الدائم لازم يبقى مقفول لحد ما السواق يشغّله.');
+check('privacy policy discloses the microphone', /الميكروفون بيتطلب بس لو شغّلت «يا أوسكار»/.test(privacy), 'إذن الميكروفون لازم يتقال فى السياسة.');
+check('custom voice lines are rate-limited', /od-voice', windowMs: 24 \* 60 \* 60000, max: 20/.test(site), 'كل جملة = نداء مدفوع للذكاء الاصطناعى.');
 
 process.exit(failed ? 1 : 0);

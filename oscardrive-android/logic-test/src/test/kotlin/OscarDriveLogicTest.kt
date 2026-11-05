@@ -227,3 +227,39 @@ class SecurityTest {
         assertEquals(Pin.hash("1234", "s"), Pin.hash("1234", "s")); assertNotEquals(Pin.hash("1234", "s"), Pin.hash("1235", "s"))
     }
 }
+
+class VoiceEngineTest {
+    private val e = VoiceEngine()
+    private fun id(t: String) = e.match(t)?.command?.id
+    @Test fun arabicAndEnglish() {
+        assertEquals("nav.home", id("وصّلنى البيت"))
+        assertEquals("nav.home", id("Take me home"))
+        assertEquals("road.bump", id("فيه مطب هنا"))
+        assertEquals("info.speed", id("أنا ماشى كام؟"))
+        assertEquals("info.speed", id("What's my speed"))
+        assertEquals("nav.fuel", id("وصلني لأقرب بنزينة"))
+        assertEquals("sec.arm", id("فعّل الحماية"))
+        assertEquals("sec.disarm", id("اقفل الحماية"))
+        assertNull(id("الجو حلو النهارده"))
+    }
+    @Test fun slots() {
+        val m = e.match("وصلني لمحطة مصر")!!
+        assertEquals("nav.goto", m.command.id); assertEquals("محطه مصر", m.slot)
+        assertEquals("nav.goto", e.match("navigate to cairo tower")!!.command.id)
+        assertEquals(120, VoiceEngine.number(e.match("خلي الحد مية وعشرين")!!.slot))
+        assertEquals(80, VoiceEngine.number(e.match("set limit to 80")!!.slot))
+    }
+    @Test fun wakeName() {
+        assertEquals("وصلني البيت", e.afterWake("يا أوسكار وصلني البيت"))
+        assertEquals("", e.afterWake("Hey Oscar"))
+        assertNull(e.afterWake("وصلني البيت"))
+        val custom = VoiceEngine(wakeNames = listOf("يا كابتن"))
+        assertEquals("السرعه كام", custom.afterWake("يا كابتن السرعة كام"))
+        assertNull(custom.afterWake("يا أوسكار السرعة كام"))
+    }
+    @Test fun customPhrasesAndDisabled() {
+        val c = VoiceEngine(custom = mapOf("park.save" to listOf("اركنها")), disabled = setOf("road.bump"))
+        assertEquals("park.save", c.match("اركنها")?.command?.id)
+        assertNull(c.match("سجل مطب"))
+    }
+}
