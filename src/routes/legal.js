@@ -38,6 +38,31 @@ router.get('/our-work', (req, res) => {
   res.render('legal/our_work');
 });
 
+// ── Oscar Drive: زرار تحميل الـAPK فى «من أعمالنا» (المالك ٢٠٢٦-١١-٠٥) ──────────────
+// الـAPK بيتبنى على GitHub (.github/workflows/oscardrive-apk.yml) وبيتنشر pre-release على تاج ثابت
+// `oscardrive-latest` — مش «latest» عشان مايكسرش لينك NeuroPilot. ده لينكنا الثابت قدّامه:
+// HEAD من غير ما نتبع التحويل (github.com بيرد 302 لو الملف موجود و404 لو لأ)، ولو النسخة لسه
+// بتتبني بنقول كده بدل صفحة خطأ GitHub. noindex: ده تحويل لملف، مش صفحة. الحارس: check-oscardrive.
+const OSCAR_DRIVE_APK_URL = process.env.OSCARDRIVE_APK_URL
+  || 'https://github.com/menoskar42-boop/Ads/releases/download/oscardrive-latest/oscar-drive.apk';
+router.get('/apps/oscar-drive/download', async (req, res) => {
+  res.set('X-Robots-Tag', 'noindex, nofollow');
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 4000);
+  try {
+    const r = await fetch(OSCAR_DRIVE_APK_URL, { method: 'HEAD', redirect: 'manual', signal: ac.signal });
+    if (r.ok || (r.status >= 300 && r.status < 400)) return res.redirect(302, OSCAR_DRIVE_APK_URL);
+    return res.status(503).set('Retry-After', '600').type('html').send('<!doctype html><meta charset="utf-8">'
+      + '<meta name="robots" content="noindex"><meta name="viewport" content="width=device-width,initial-scale=1">'
+      + '<title>Oscar Drive</title><p style="font:17px/1.9 system-ui;padding:2rem;direction:rtl">'
+      + 'نسخة Oscar Drive بتتجهّز دلوقتى — جرّب كمان كام دقيقة. <a href="/ar/our-work">رجوع لـ«من أعمالنا»</a></p>');
+  } catch (e) {
+    return res.redirect(302, OSCAR_DRIVE_APK_URL);   // GitHub بطىء — نوديه على الملف بدل ما نقفل الطريق
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
 // ── صفحات البيع من غير إعلانات (قرار المالك ٢٠٢٦-١٠-٠٦) ───────────────────────
 // الراوتر ده كله بيشغّل AdSense (فوق) — وصفحات البيع (القطاعات/الخدمات/الخليج/الأسنان/
 // الورش) جزء منه. مراجعة كوديكس: إعلان طرف تالت جنب «قدّم طلب» بيسحب الزائر لبرّه فى
