@@ -94,10 +94,11 @@ check('the setup prompt names every secret the build reads', usedSecrets.length 
   'سرّ فى الـworkflow مش فى البرومبت: ' + usedSecrets.filter((n) => !setup.includes(n)).join(', '));
 check('the setup prompt uses the app package and the real workflow',
   setup.includes('com.oscardevs.oscardrive') && setup.includes('actions/workflows/oscardrive-apk.yml')
-  && /alias|-name oscardrive/.test(setup) && /ODRIVE_KEY_ALIAS ← اكتب: oscardrive/.test(setup),
+  && /-name oscardrive/.test(read('scripts/oscar-drive-key.sh')) && /ODRIVE_KEY_ALIAS ← اكتب: oscardrive/.test(setup),
   'اسم الحزمة/الـworkflow/الـalias فى البرومبت لازم يطابق التطبيق.');
 check('the setup prompt never makes a second key and never prints secrets',
-  /\[ -e oscar-drive-key\/upload\.p12 \] && echo "STOP/.test(setup) && !/cat [^\n]*(PASSWORD|KEYSTORE_B64)/.test(setup),
+  /bash scripts\/oscar-drive-key\.sh/.test(setup) && /if \[ -e "\$DIR\/upload\.p12" \]; then\s*echo "STOP/.test(read('scripts/oscar-drive-key.sh'))
+  && !/cat [^\n]*(PASSWORD|KEYSTORE_B64)/.test(setup) && !/[\u0600-\u06FF]/.test(read('scripts/oscar-drive-key.sh')),
   'مفتاح جديد = التطبيق المتنزّل مايتحدّثش، والسرّ مايتطبعش.');
 check('the build signs a PKCS12 key (what openssl makes)', /storeType = "pkcs12"/.test(gradle), 'المفتاح من openssl نوعه PKCS12.');
 

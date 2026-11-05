@@ -6,7 +6,8 @@
 > **Trigger:** «ابعتلي برومبت تجهيز Oscar Drive». الصفحة: https://claude.ai/artifact/Kn1p7L2RctxPZZ282D6R8c
 
 ليه كده:
-- المفتاح بيتعمل بـ`openssl` (موجود فى ريبليت) مش `keytool` (محتاج جافا). اتجرّب: ملف PKCS12 اللى بيطلع
+- المفتاح بيتعمل بـ`scripts/oscar-drive-key.sh` (openssl، موجود فى ريبليت) مش `keytool` (محتاج جافا). الأمر الطويل
+  القديم كان فيه عربى ولما اتلزق فى Shell ريبليت اتكسر (٢٠٢٦-١١-٠٥) ⇒ سكربت وسطرين إنجليزى بس. اتجرّب: ملف PKCS12 اللى بيطلع
   بيتقرا عادى فى keytool وأداة التوقيع (و`storeType = "pkcs12"` فى `app/build.gradle.kts`).
 - الأمر بيرفض يعمل مفتاح تانى لو فيه واحد (مفتاح جديد = التطبيق المتنزّل مايتحدّثش).
 - الفولدر فيه `.gitignore` بـ`*` فمش ممكن يدخل git حتى لو حد عمل commit من ريبليت.
@@ -33,10 +34,13 @@
 المفتاح ده «بصمة» التطبيق: لو ضاع مش هنقدر نحدّث التطبيق تانى. عشان كده بنحفظ منه نسخة احتياطية فى أسرار ريبليت.
 
 1. افتح https://replit.com/@menoskar42/sf ← تاب Shell.
-2. الصق الأمر ده كما هو (سطر واحد) واضغط Enter:
-[ -e oscar-drive-key/upload.p12 ] && echo "STOP: فيه مفتاح قبل كده — ماتعملش واحد جديد" || ( mkdir -p oscar-drive-key && cd oscar-drive-key && echo '*' > .gitignore && PW=$(openssl rand -hex 24) && openssl req -x509 -newkey rsa:4096 -sha256 -days 10000 -nodes -keyout k.pem -out c.pem -subj "/CN=OscarDevs/O=OscarDevs/C=EG" 2>/dev/null && openssl pkcs12 -export -inkey k.pem -in c.pem -name oscardrive -out upload.p12 -passout pass:$PW && base64 -w0 upload.p12 > KEYSTORE_B64.txt && printf %s "$PW" > PASSWORD.txt && openssl x509 -in c.pem -noout -fingerprint -sha1 | sed 's/.*=//' > SHA1.txt && rm k.pem && echo "DONE: الملفات فى فولدر oscar-drive-key" )
+2. لو الـShell فيه علامة «>» معلّقة من محاولة قبل كده: اضغط Ctrl+C الأول.
+   وبعدين اكتب السطرين دول بالكيبورد (كل سطر لوحده واضغط Enter بعده — السطور إنجليزى بس):
+   git pull origin claude/build-oscardevs-ads-mvp-8krfN
+   bash scripts/oscar-drive-key.sh
    • لو طلع STOP: وقّف المهمة ١ كلها وبلّغ المالك (فيه مفتاح قبل كده ومش هنعمل غيره).
-   • لو طلع DONE: كمّل. (الفولدر فيه ‎.gitignore‎ بيمنعه من git.)
+   • لو طلع DONE: كمّل. (فولدر oscar-drive-key فيه ‎.gitignore‎ بيمنعه من git.)
+   • لو git pull طلب حاجة أو وقع: وقّف وبلّغ — ماتعملش أى أمر git تانى.
 3. من شجرة الملفات افتح oscar-drive-key/SHA1.txt واكتب البصمة فى ملاحظاتك (دى مش سرّ — هتحتاجها فى المهمة ٢).
 4. فى تاب تانى افتح https://github.com/menoskar42-boop/Ads/settings/secrets/actions/new وضيف ٤ أسرار (كل واحد New repository secret ← Name ← Secret ← Add secret):
    • ODRIVE_KEYSTORE_B64 ← افتح oscar-drive-key/KEYSTORE_B64.txt فى محرّر ريبليت، اضغط جوه النص Ctrl+A ثم Ctrl+C، والصقه Ctrl+V. (سطر واحد طويل ~٥٠٠٠ حرف — اتأكد إنه اتلصق كله.)
