@@ -907,7 +907,8 @@ export async function ensureSchema() {
   `);
 
   // ftth_orders — ملف Order (متعذرات OM). تاريخي + حالي + بداية السنة + أرشيف سنوي.
-  for (const t of ["ftth_orders", "ftth_orders_current", "ftth_orders_soy", "ftth_orders_archive"]) {
+  // om_target_112 = شيت «مستهدف 112» (المالك ٢٠٢٦-١١-٠٥): نفس أعمدة متعذرات OM + تتبّع وقت الفك.
+  for (const t of ["ftth_orders", "ftth_orders_current", "ftth_orders_soy", "ftth_orders_archive", "om_target_112"]) {
     const uniq = t === "ftth_orders" ? `,\n      CONSTRAINT ${t}_uniq UNIQUE (service_order_id)` : "";
     const archCol = t === "ftth_orders_archive" ? "archived_year integer," : "";
     await pool.query(`
@@ -942,6 +943,11 @@ export async function ensureSchema() {
     await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS service_name text`);
     await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS install_address text`);
   }
+  // مستهدف 112: آخر مرة المسلسل اتشاف فى المتعذرات الحالية، ووقت الفك التقريبى (أول رفعة OM
+  // اختفى فيها — ولو رجع واختفى تانى بيتسجّل الأحدث)، وهل كان مفكوك أصلاً وقت رفع الشيت.
+  await pool.query(`ALTER TABLE om_target_112 ADD COLUMN IF NOT EXISTS last_seen_at timestamptz`);
+  await pool.query(`ALTER TABLE om_target_112 ADD COLUMN IF NOT EXISTS gone_at timestamptz`);
+  await pool.query(`ALTER TABLE om_target_112 ADD COLUMN IF NOT EXISTS gone_before_upload boolean NOT NULL DEFAULT false`);
 
   // phone_ports — منافذ MSAN، مفتاحها رقم التليفون (upsert على كل رفعة)
   await pool.query(`

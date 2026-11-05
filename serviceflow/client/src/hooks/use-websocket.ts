@@ -13,6 +13,7 @@ const IMPORT_LABELS: Record<string, string> = {
   "/api/maintenance-orders/import":  "التركيبات والنقل الحالى",
   "/api/ftth-orders/import":         "متعذرات OM",
   "/api/ftth-orders/import-soy":     "متعذرات OM (بداية السنة)",
+  "/api/om-target-112/import":       "مستهدف 112 (متعذرات الغنايم)",
   "/api/ftth-subscribers/import":    "مشتركو FTTH",
   "/api/work-orders/import":         "أوامر الشغل",
   "/api/case-138/import":            "شيت 138 (القياسات)",

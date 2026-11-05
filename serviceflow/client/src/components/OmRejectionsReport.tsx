@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, FileSpreadsheet, Printer, UserPlus, Pencil, X, RotateCcw } from "lucide-react";
+import { Loader2, FileSpreadsheet, Printer, UserPlus, Pencil, X, RotateCcw, Upload } from "lucide-react";
 import { dispatchSpeedTool, openOpSite, OSS_REEXEC_AR } from "@/lib/exec-queue";
 import { LastUpdatedBadge } from "@/components/LastUpdatedBadge";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
@@ -55,7 +55,15 @@ interface Row {
   boxWorkingCount: number | null;
   boxAvgScore: number | null;
   boxMeasuredCount: number | null;
+  // مستهدف 112 بس: وقت الفك التقريبى (أول رفعة OM اختفى فيها — الأحدث لو اتكرر) وآخر ظهور
+  goneAt?: string | null;
+  lastSeenAt?: string | null;
+  goneBeforeUpload?: boolean | null;
 }
+
+// وقت الفك التقريبى: لو المسلسل كان مفكوك أصلاً وقت رفع الشيت، الوقت الحقيقى قبل كده.
+const goneLabel = (r: Row) =>
+  !r.goneAt ? "غير معروف" : r.goneBeforeUpload ? `قبل رفع الشيت (${r.goneAt})` : r.goneAt;
 
 // نص حالة رد الفنى على المتعذر (نفس مسمّيات قسم الطلبات)
 const RESP_LABEL: Record<string, string> = {
@@ -86,7 +94,7 @@ const fmtDt = (d: string | null) => {
 
 type YearFilter = "all" | "current" | "previous";
 
-export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy" | "resolved"; title: string }) {
+export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy" | "resolved" | "target112"; title: string }) {
   const [q, setQ] = useState("");
   // «المتعذرات الحالية» بتفتح على متعذرات العام الحالى (المعتاد فى المتابعة اليومية)،
   // والمستخدم يقدر يغيّرها لـ«الكل» أو «سنوات سابقة» عادى. باقى التابات (بداية السنة /
@@ -152,7 +160,43 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
 
   // المالك ٢٠٢٦-١٠-١٢: رد الفنى بيظهر كمان فى «متعذرات بداية السنة» و«متعذرات تم فكها» زى
   // الحالية — للعرض بس (الرد والإجراءات لسه على الحالية بس)، واللى مالوش رد بيبان «-».
-  const showResp = bucket === "current" || bucket === "soy" || bucket === "resolved";
+  const showResp = bucket === "current" || bucket === "soy" || bucket === "resolved" || bucket === "target112";
+
+  // ── مستهدف 112: رفع الشيت جوه التقرير (أدمن) — كل رفعة بتستبدل الجدول ──
+  const isT112 = bucket === "target112";
+  const canUploadT112 = isT112 && (user?.role === ROLES.ADMIN || user?.role === ROLES.SUPER_ADMIN);
+  const { data: t112 } = useQuery<{ total: number; gone: number; uploadedAt: string | null; uploadedBy: string | null }>({
+    queryKey: ["/api/om-target-112/summary"],
+    queryFn: async () => {
+      const r = await fetch("/api/om-target-112/summary", { credentials: "include" });
+      if (!r.ok) throw new Error("فشل");
+      return r.json();
+    },
+    enabled: isT112,
+  });
+  const [t112Uploading, setT112Uploading] = useState(false);
+  const uploadT112 = async (file: File) => {
+    if (t112?.total && !confirm(`الجدول الحالى فيه ${t112.total} مسلسل وهيتمسح ويتحط مكانه الملف الجديد. تكمل؟`)) return;
+    setT112Uploading(true);
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      const r = await fetch("/api/om-target-112/import", { method: "POST", body: fd, credentials: "include" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || "فشل الرفع");
+      qc.invalidateQueries({ queryKey: ["/api/ftth-orders"] });
+      qc.invalidateQueries({ queryKey: ["/api/om-target-112/summary"] });
+      qc.invalidateQueries({ queryKey: ["/api/upload-times"] });
+      toast({
+        title: `اتسجّل ${j.inserted} مسلسل من الغنايم`,
+        description: j.compared
+          ? `${j.gone} مش موجودين فى المتعذرات الحالية (اتفكوا) · ${j.present} لسه موجودين`
+          : "المتعذرات الحالية فاضية — المقارنة هتتعمل مع أول رفعة متعذرات OM",
+        duration: 6000,
+      });
+    } catch (e: any) {
+      toast({ title: e?.message || "فشل الرفع", variant: "destructive", duration: 6000 });
+    } finally { setT112Uploading(false); }
+  };
   const hasResp = (r: Row) => !!r.respRespondedAt || !!r.respExternalResponseAt || (r.respStatus || "pending") !== "pending";
   const renderRespStatusCell = (r: Row) => {
     if (bucket !== "current" && !hasResp(r)) return "-";
@@ -475,6 +519,12 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
   // الآخر (بيتقروا لما يحتاجهم). «إجراء» بيفضل آخر عمود لأنه أزرار مش بيانات.
   const cols: [string, (r: Row) => any][] = [
     ["المسلسل", (r) => r.serialNumber],
+    ...(isT112
+      ? ([
+          ["وقت الفك التقريبى", (r: Row) => goneLabel(r)],
+          ["آخر ظهور فى الحالى", (r: Row) => r.lastSeenAt ?? "-"],
+        ] as [string, (r: Row) => any][])
+      : []),
     ["اسم العميل", (r) => r.customerName],
     ["عنوان العميل", (r) => r.address],
     ["تاريخ الإنشاء", (r) => fmtDt(r.orderCreateTime)],
@@ -704,6 +754,15 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
           {isFetching && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           <span className="text-sm text-muted-foreground">إجمالي: <strong className="text-foreground">{displayRows.length}</strong> متعذر</span>
           <LastUpdatedBadge endpoint="/api/ftth-orders/import" label="آخر تحديث OSS" />
+          {canUploadT112 && (
+            <label className={`inline-flex items-center gap-1 text-sm border rounded-md px-3 py-1.5 cursor-pointer text-blue-700 border-blue-300 hover:bg-blue-50 ${t112Uploading ? "opacity-50 pointer-events-none" : ""}`}
+              title="رفع شيت المستهدف — بيستبدل الجدول الحالى بالكامل">
+              {t112Uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              رفع شيت المستهدف
+              <input type="file" accept=".xlsx,.xls,.xlsb,.csv" className="hidden" data-testid="input-om-target-112"
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadT112(f); }} />
+            </label>
+          )}
           <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={displayRows.length === 0} className="text-green-700 border-green-200 gap-1">
             <FileSpreadsheet className="w-4 h-4" /> Excel
           </Button>
@@ -711,6 +770,17 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
             <Printer className="w-4 h-4" /> PDF
           </Button>
         </div>
+        {isT112 && (
+          <div className="mt-3 text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+            {t112?.total
+              ? <>
+                  <span>اتفك <strong className="text-emerald-700">{t112.gone}</strong> من <strong className="text-foreground">{t112.total}</strong> مسلسل فى الشيت</span>
+                  <span>آخر رفع للشيت: {t112.uploadedAt}{t112.uploadedBy ? ` — ${t112.uploadedBy}` : ""}</span>
+                  <span>وقت الفك التقريبى = أول رفعة متعذرات OM المسلسل اختفى فيها.</span>
+                </>
+              : <span>لسه مارفعتش شيت المستهدف{canUploadT112 ? " — ارفعه من زرار «رفع شيت المستهدف»" : ""}.</span>}
+          </div>
+        )}
       </Card>
 
       <Card className="overflow-hidden shadow-sm border-0 bg-white">
@@ -731,7 +801,9 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
               {displayRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={cols.length + 1} className="text-center py-14 text-muted-foreground">
-                    {isFetching ? "جاري التحميل..." : "لا توجد بيانات — تأكد من رفع ملفات متعذرات OM (الحالى + بداية السنة)"}
+                    {isFetching ? "جاري التحميل..." : isT112
+                      ? (t112?.total ? "لسه مفيش مسلسل من الشيت اتفك" : "ارفع شيت المستهدف الأول")
+                      : "لا توجد بيانات — تأكد من رفع ملفات متعذرات OM (الحالى + بداية السنة)"}
                   </TableCell>
                 </TableRow>
               ) : (

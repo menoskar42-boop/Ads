@@ -517,9 +517,22 @@ const foIsGhanaimFv = (r: any[]) =>
   String(r[FO_SERVICE_NAME] ?? "").trim() === "FV Survey";
 
 // يحلّل ملف "Order" (متعذرات OM) ويُرجع صفوف القيم بترتيب FTTH_ORDER_COLS (deduped by service_order_id).
+// ورقة المتعذرات جوه الملف: «Order» لو موجودة (ملف OM)، وإلا أول ورقة عناوينها فيها «Service Order ID»
+// (شيت مستهدف 112 بياناته فى «Abnormal» وأول ورقة فيه «سنترالات»)، وإلا أول ورقة زى الأول.
+export function pickFtthOrderSheet(wb: any): any {
+  if (wb.Sheets["Order"]) return wb.Sheets["Order"];
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name];
+    if (!ws || !ws["!ref"]) continue;
+    const head = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", range: { s: { r: 0, c: 0 }, e: { r: 24, c: 250 } } }) as any[][];
+    if (head.some((r) => (r || []).some((c) => String(c ?? "").trim().toLowerCase() === "service order id"))) return ws;
+  }
+  return wb.Sheets[wb.SheetNames[0]];
+}
+
 function parseFtthOrderRows(buffer: Buffer): any[][] {
   const wb = XLSX.read(buffer, { type: "buffer", cellDates: false });
-  const ws = wb.Sheets["Order"] || wb.Sheets[wb.SheetNames[0]];
+  const ws = pickFtthOrderSheet(wb);
   const rows: any[][] = sheetRows(ws);
   const { find, findExact, dataRows, headerRowIdx } = smartSheet(rows, ["service order id", "service number"]);
   const origHeaders = (rows[headerRowIdx] || []).map((h) => String(h ?? "").trim());
@@ -645,6 +658,29 @@ async function dedupBySerial(table: string): Promise<number> {
        AND TRIM(a.service_order_id) = TRIM(b.service_order_id)`,
   );
   return (r1.rowCount ?? 0) + (r2.rowCount ?? 0);
+}
+
+// ─── مستهدف 112 (المالك ٢٠٢٦-١١-٠٥) ───
+// نفس هوية «متعذرات تم فكها»: المسلسل لو موجود، وإلا Customer + Service Order ID.
+const T112_IN_CURRENT = `EXISTS (SELECT 1 FROM ftth_orders_current c
+  WHERE CASE WHEN COALESCE(TRIM(t.serial_number),'') <> ''
+    THEN TRIM(c.serial_number) = TRIM(t.serial_number)
+    ELSE COALESCE(c.customer_order_id,'') = COALESCE(t.customer_order_id,'')
+     AND COALESCE(c.service_order_id,'')  = COALESCE(t.service_order_id,'') END)`;
+
+// بعد كل رفعة متعذرات حالية (أو رفع الشيت نفسه): الموجود ⇒ «آخر ظهور» = دلوقتى ويرجع مش مفكوك،
+// واللى اختفى ومالوش وقت فك ⇒ وقت الفك = دلوقتى. ولو رجع واختفى تانى بيتسجّل الوقت الأحدث.
+// لو المتعذرات الحالية فاضية (اتمسحت/ماترفعتش) مابنعملش حاجة — وإلا الـ112 كلهم يتحسبوا مفكوكين غلط.
+export async function syncTarget112(atUpload = false): Promise<{ present: number; gone: number } | null> {
+  const { rows } = await pool.query(`SELECT EXISTS (SELECT 1 FROM ftth_orders_current) AS has`);
+  if (!rows[0]?.has) return null;
+  const p = await pool.query(
+    `UPDATE om_target_112 t SET last_seen_at = now(), gone_at = NULL, gone_before_upload = false
+      WHERE ${T112_IN_CURRENT}`);
+  const g = await pool.query(
+    `UPDATE om_target_112 t SET gone_at = now(), gone_before_upload = $1
+      WHERE t.gone_at IS NULL AND NOT ${T112_IN_CURRENT}`, [atUpload]);
+  return { present: p.rowCount ?? 0, gone: g.rowCount ?? 0 };
 }
 
 const COMPLAINT_DETAILS_COLS = [
@@ -13698,6 +13734,7 @@ export async function registerRoutes(
       { key: "/api/complaint-details/import",   table: "complaint_details" },
       { key: "/api/ftth-orders/import",         table: "ftth_orders" },
       { key: "/api/ftth-orders/import-soy",     table: "ftth_orders_soy" },
+      { key: "/api/om-target-112/import",       table: "om_target_112" },
       { key: "/api/ftth-subscribers/import",    table: "ftth_subscribers" },
       { key: "/api/case-138/import",            table: "case_138" },
       { key: "/api/phone-ports/import",         table: "phone_ports" },
@@ -14449,11 +14486,51 @@ export async function registerRoutes(
       await dedupBySerial("ftth_orders_current");
       await dedupBySerial("ftth_orders_soy");
       const { rows: c } = await pool.query(`SELECT COUNT(*)::int AS n FROM ftth_orders_soy`);
+      // مستهدف 112: وقت الفك التقريبى = أول رفعة المسلسل اختفى فيها. فشلها مايوقعش رفعة OM.
+      const target112 = await syncTarget112().catch((e) => { console.warn("[om-target-112] sync:", e?.message); return null; });
 
-      res.json({ inserted: hist, hist, current, archivedYear, total: all.length, soyAdded, msanFilled, soyTotal: c[0].n });
+      res.json({ inserted: hist, hist, current, archivedYear, total: all.length, soyAdded, msanFilled, soyTotal: c[0].n, target112 });
     } catch (e: any) {
       res.status(500).json({ message: e.message || "خطأ في الاستيراد" });
     }
+  });
+
+  // POST /api/om-target-112/import — شيت «مستهدف 112» (أدمن): بيستبدل الجدول كله بمسلسلات غنايم
+  // (نفس شرط متعذرات OM: أكواد غنايم الأربعة + FV Survey)، من غير تكرار مسلسل. اللى مش موجود
+  // فى المتعذرات الحالية وقت الرفع بيتعلّم «اتفك قبل رفع الشيت».
+  app.post("/api/om-target-112/import", requireAuth, requireAdmin, upload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "لا يوجد ملف" });
+      const all = parseFtthOrderRows(req.file.buffer);
+      const seen = new Set<string>();
+      const rows = all.filter(foIsGhanaimFv).filter((r) => {
+        const id = foIdentity(r[FO_SERIAL], r[FO_CUSTOMER_ORDER], r[FO_SERVICE_ORDER]);
+        if (seen.has(id)) return false;
+        seen.add(id); return true;
+      });
+      // ملف غلط (مفيهوش ولا مسلسل غنايم) مايمسحش الجدول الموجود
+      if (!rows.length) return res.status(400).json({ message: `الملف مافيهوش مسلسلات تخص الغنايم (اتقرا ${all.length} صف) — الجدول الحالى زى ما هو` });
+      const inserted = await replaceTable("om_target_112", FTTH_ORDER_COLS, rows, (req.user as any).id);
+      const sync = await syncTarget112(true);
+      res.json({ ok: true, inserted, total: all.length, gone: sync?.gone ?? 0, present: sync?.present ?? 0, compared: !!sync });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || "خطأ في الاستيراد" });
+    }
+  });
+
+  // GET /api/om-target-112/summary — إجمالى المستهدف، اللى اتفك منه، ووقت آخر رفع للشيت.
+  app.get("/api/om-target-112/summary", requireAuth, async (_req, res) => {
+    const { rows } = await pool.query(
+      `WITH s AS (
+         SELECT COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE NOT ${T112_IN_CURRENT})::int AS gone,
+                MAX(t.uploaded_at) AS up, MAX(t.uploaded_by_id) AS uid
+           FROM om_target_112 t)
+       SELECT s.total, s.gone,
+              to_char(s.up AT TIME ZONE 'Africa/Cairo', 'YYYY/MM/DD HH24:MI') AS "uploadedAt",
+              COALESCE(u.full_name, u.username) AS "uploadedBy"
+         FROM s LEFT JOIN users u ON u.id = s.uid`);
+    res.json(rows[0] ?? { total: 0, gone: 0, uploadedAt: null, uploadedBy: null });
   });
 
   // POST /api/ftth-orders/import-soy — رفع يدوى لشيت بداية السنة (يتراكم: يضيف المسلسلات الجديدة فقط).
@@ -14491,6 +14568,7 @@ export async function registerRoutes(
     const table = bucket === "current" ? "ftth_orders_current"
                 : bucket === "archive" ? "ftth_orders_archive"
                 : (bucket === "soy" || bucket === "resolved") ? "ftth_orders_soy"
+                : bucket === "target112" ? "om_target_112"
                 : "ftth_orders";
     const params: any[] = [];
     const conds: string[] = [];
@@ -14507,9 +14585,9 @@ export async function registerRoutes(
       conds.push(`fo.fcc_exchange IN ('GHNAT','AMZAT','DRGAT','NGOAT')`);
       conds.push(`fo.service_name = 'FV Survey'`);
     }
-    if (bucket === "resolved") {
-      // تم فكها = موجود فى بداية الفترة وغير موجود فى الحالى. الهوية برقم المسلسل
-      // (إن وُجد) وإلا بمفتاح order ids للصفوف بدون مسلسل.
+    if (bucket === "resolved" || bucket === "target112") {
+      // تم فكها = موجود فى بداية الفترة (أو شيت مستهدف 112) وغير موجود فى الحالى. الهوية برقم
+      // المسلسل (إن وُجد) وإلا بمفتاح order ids للصفوف بدون مسلسل.
       conds.push(`NOT EXISTS (SELECT 1 FROM ftth_orders_current c
         WHERE CASE WHEN COALESCE(TRIM(fo.serial_number),'') <> ''
           THEN TRIM(c.serial_number) = TRIM(fo.serial_number)
@@ -14557,7 +14635,11 @@ export async function registerRoutes(
       conds.push(`(COALESCE(tn.tech_name, mto.tech_name) = $${params.length} OR (tn.tech_name IS NULL AND mto.tech_name IS NULL))`);
     }
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
-    const yearCol = bucket === "archive" ? `fo.archived_year AS "archivedYear",` : "";
+    const yearCol = bucket === "archive" ? `fo.archived_year AS "archivedYear",`
+      // مستهدف 112: وقت الفك التقريبى (بتوقيت القاهرة) وآخر ظهور فى المتعذرات الحالية
+      : bucket === "target112" ? `to_char(fo.gone_at AT TIME ZONE 'Africa/Cairo', 'YYYY/MM/DD HH24:MI') AS "goneAt",
+              to_char(fo.last_seen_at AT TIME ZONE 'Africa/Cairo', 'YYYY/MM/DD HH24:MI') AS "lastSeenAt",
+              fo.gone_before_upload AS "goneBeforeUpload",` : "";
     const { rows } = await pool.query(
       `SELECT fo.id, ${yearCol} fo.service_order_id AS "serviceOrderId", fo.customer_order_id AS "customerOrderId",
               fo.product, fo.service_number AS "serviceNumber", fo.serial_number AS "serialNumber",
@@ -14622,7 +14704,7 @@ export async function registerRoutes(
        ) wfm ON TRUE
        LEFT JOIN om_manual_mobiles omm ON omm.serial_number = fo.serial_number
        ${where}
-       ORDER BY fo.order_create_time DESC NULLS LAST
+       ORDER BY ${bucket === "target112" ? "fo.gone_at DESC NULLS LAST," : ""} fo.order_create_time DESC NULLS LAST
        LIMIT 5000`,
       params,
     );
@@ -14881,6 +14963,7 @@ export async function registerRoutes(
     const table = bucket === "current" ? "ftth_orders_current"
                 : bucket === "archive" ? "ftth_orders_archive"
                 : (bucket === "soy" || bucket === "resolved") ? "ftth_orders_soy"
+                : bucket === "target112" ? "om_target_112"
                 : "ftth_orders";
     const params: any[] = [];
     const conds: string[] = [`fo.msan_code IS NOT NULL`, `TRIM(fo.msan_code) <> ''`];
@@ -14888,7 +14971,7 @@ export async function registerRoutes(
       conds.push(`fo.fcc_exchange IN ('GHNAT','AMZAT','DRGAT','NGOAT')`);
       conds.push(`fo.service_name = 'FV Survey'`);
     }
-    if (bucket === "resolved") {
+    if (bucket === "resolved" || bucket === "target112") {
       conds.push(`NOT EXISTS (SELECT 1 FROM ftth_orders_current c
         WHERE CASE WHEN COALESCE(TRIM(fo.serial_number),'') <> ''
           THEN TRIM(c.serial_number) = TRIM(fo.serial_number)

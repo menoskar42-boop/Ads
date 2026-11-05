@@ -1185,6 +1185,14 @@ export const ftthOrders = pgTable("ftth_orders", ftthOrderCols(), (t) => ({
 }));
 export const ftthOrdersCurrent = pgTable("ftth_orders_current", ftthOrderCols());
 export const ftthOrdersSoy = pgTable("ftth_orders_soy", ftthOrderCols()); // بداية السنة (يُرفع يدوياً)
+// مستهدف 112 (المالك ٢٠٢٦-١١-٠٥): مسلسلات غنايم من شيت المستهدف — كل رفعة بتستبدل الجدول،
+// والتقرير = اللى مش موجود فى المتعذرات الحالية + وقت الفك التقريبى.
+export const omTarget112 = pgTable("om_target_112", {
+  ...ftthOrderCols(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  goneAt: timestamp("gone_at", { withTimezone: true }),
+  goneBeforeUpload: boolean("gone_before_upload").notNull().default(false),
+});
 export const ftthOrdersArchive = pgTable("ftth_orders_archive", {
   archivedYear: integer("archived_year"),
   ...ftthOrderCols(),
