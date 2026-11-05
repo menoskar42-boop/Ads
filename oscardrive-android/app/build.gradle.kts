@@ -34,6 +34,7 @@ android {
         if (keystorePath != null && file(keystorePath).exists()) {
             create("upload") {
                 storeFile = file(keystorePath)
+                storeType = "pkcs12"   // المفتاح بيتعمل بـopenssl (docs/OSCAR_DRIVE_SETUP_PROMPT.md)
                 storePassword = System.getenv("ODRIVE_KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("ODRIVE_KEY_ALIAS")
                 keyPassword = System.getenv("ODRIVE_KEY_PASSWORD")

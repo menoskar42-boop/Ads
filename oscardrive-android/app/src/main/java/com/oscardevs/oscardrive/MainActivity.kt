@@ -521,6 +521,8 @@ class MainActivity : Activity() {
         page.addView(ui.text("Oscar Drive — من OscarDevs (oscardevs.com). نسخة ${BuildConfig.VERSION_NAME}.\n" +
             "السرعة من الـGPS (Doppler) — قراءة استرشادية، وعدّاد العربية هو المرجع.\n" +
             "اتعمل عشان تبص عليه بسرعة: ماتستخدمش الشاشة وانت سايق أكتر من نظرة.", 14f, ui.muted))
+        page.addView(ui.button("🩺 فحص الشاشة (GPS · الكاميرا · الشريحة · خدمات جوجل)", "primary", 16f) { showDeviceCheck() },
+            ui.lp(Ui.MATCH, ui.dp(56), marginDp = 4))
         page.addView(ui.button("🔒 سياسة الخصوصية", "neutral", 15f) {
             view("https://oscardevs.com/oscar-drive/privacy") || toast("مفيش متصفح على الشاشة")
         }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
@@ -703,6 +705,22 @@ class MainActivity : Activity() {
             Cmd.Emergency -> emergency()
             Cmd.Unknown -> say(VoiceCommands.reply(c))
         }
+    }
+
+    /** «فحص الشاشة»: إيه اللى الشاشة دى فيها فعلاً — قبل ما نبنى مانع السرقة على تخمين. */
+    private fun showDeviceCheck() {
+        val rows = DeviceCheck.report(this)
+        val box = ui.col(14)
+        for (r in rows) {
+            val line = ui.row(4)
+            line.addView(ui.text(r.label, 15f, if (r.verdict) ui.accent else ui.muted, bold = r.verdict), LinearLayout.LayoutParams(ui.dp(170), Ui.WRAP))
+            line.addView(ui.text(r.value, 15f, ui.ink, bold = r.verdict), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            box.addView(line)
+        }
+        val sv = ScrollView(this).apply { addView(box); setBackgroundColor(ui.surface) }
+        AlertDialog.Builder(this).setTitle("🩺 فحص الشاشة").setView(sv)
+            .setPositiveButton("شارك التقرير") { _, _ -> share(DeviceCheck.asText(rows)) }
+            .setNegativeButton("قفل", null).show()
     }
 
     /* ═══════════════ حوارات صغيرة ═══════════════ */

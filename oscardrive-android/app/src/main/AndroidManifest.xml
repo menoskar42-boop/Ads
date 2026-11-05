@@ -6,6 +6,8 @@
     <!-- A-GPS: الشاشة بتجيب بيانات الأقمار من الإنترنت عشان الـGPS يلقط أسرع (sendExtraCommand) -->
     <uses-permission android:name="android.permission.ACCESS_LOCATION_EXTRA_COMMANDS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- «فحص الشاشة»: النت جاى منين (شريحة ولا واى فاى/هوت سبوت) -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
