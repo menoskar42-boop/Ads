@@ -6,8 +6,9 @@
  *   • زرار التحميل يختفى من «من أعمالنا» أو يلينك على GitHub مباشرة (لينكنا الثابت هو اللى بيتحكّم).
  *   • لينك التحميل يبقى مفهرس (noindex) أو يدخل السايت‌ماب — ده تحويل لملف مش صفحة.
  *   • الـrelease يبقى «latest» (لينك NeuroPilot /releases/latest/download/neuropilot.apk يقع فى صمت).
- *   • التطبيق ياخد إذن مش محتاجه: إرسال SMS (الطوارئ بتفتح الرسايل والسواق بيدوس إرسال) · الكاميرا
- *     (كاميرا الرجوع بتفضل للشاشة) · الميكروفون (التعرّف على الكلام برنامج الشاشة) — أو مكتبة خارجية.
+ *   • التطبيق ياخد إذن مش محتاجه: إرسال SMS (الطوارئ بتفتح الرسايل والسواق بيدوس إرسال) · الميكروفون
+ *     (التعرّف على الكلام برنامج الشاشة) — أو مكتبة خارجية. الكاميرا مسموحة لتسجيل «الحماية» بس (المالك ٢٠٢٦-١١-٠٥).
+ *   • drive.oscardevs.com (صفحة صاحب العربية + API الشاشة) يتفهرس أو يتحط فيه إعلانات.
  *
  * Usage: node scripts/check-oscardrive.js
  */
@@ -53,7 +54,7 @@ check('the logic tests run before the build',
   'منطق الرحلة/ذاكرة الطريق/الاستراحة لازم يتختبر قبل ما APK يتنشر.');
 
 const manifest = read('oscardrive-android/app/src/main/AndroidManifest.xml').replace(/<!--[\s\S]*?-->/g, '');
-for (const p of ['SEND_SMS', 'CAMERA', 'RECORD_AUDIO', 'READ_CONTACTS', 'SYSTEM_ALERT_WINDOW']) {
+for (const p of ['SEND_SMS', 'RECORD_AUDIO', 'READ_CONTACTS', 'SYSTEM_ALERT_WINDOW', 'ACCESS_BACKGROUND_LOCATION']) {
   check(`no ${p} permission`, !manifest.includes(`android.permission.${p}`), `${p} مش محتاجينه — إذن زيادة = شاشة تخوّف السواق.`);
 }
 check('landscape UI', /android:screenOrientation="sensorLandscape"/.test(manifest), 'التطبيق معمول لشاشة التابلوه بالعرض.');
@@ -99,5 +100,28 @@ check('the setup prompt never makes a second key and never prints secrets',
   /\[ -e oscar-drive-key\/upload\.p12 \] && echo "STOP/.test(setup) && !/cat [^\n]*(PASSWORD|KEYSTORE_B64)/.test(setup),
   'مفتاح جديد = التطبيق المتنزّل مايتحدّثش، والسرّ مايتطبعش.');
 check('the build signs a PKCS12 key (what openssl makes)', /storeType = "pkcs12"/.test(gradle), 'المفتاح من openssl نوعه PKCS12.');
+
+// ── Oscar Security: drive.oscardevs.com ──
+const site = read('src/routes/drive_site.js');
+check('drive site: every response is noindex with no ads',
+  /router\.use\(\(req, res, next\) => \{\s*res\.locals\.showAds = false;\s*res\.set\('X-Robots-Tag', 'noindex, nofollow'\);/.test(site),
+  'صفحة خاصة بصاحب العربية — مش محتوى للبحث ولا للإعلانات.');
+check('drive site ends in its own 404', /router\.use\(\(req, res\) => \{\s*res\.status\(404\)/.test(site), 'مسار مش موجود مايعدّيش لـOscarDevs.');
+const server = read('server.js');
+check('drive.oscardevs.com is host-routed before the OscarDevs pipeline',
+  /if \(!host\.startsWith\('drive\.'\)\) return next\(\);\s*return driveSite\.router\(req, res, next\);/.test(server)
+  && server.indexOf("startsWith('drive.')") < server.indexOf('app.use(i18nMiddleware);'),
+  'من غيره drive.oscardevs.com يبقى متجر اسمه drive.');
+check('"drive" is a reserved store name', /'drive'/.test(read('src/lib/reserved_slugs.js')), 'تاجر ياخد drive = صفحة الحماية تختفى.');
+check('the owner page is noindex', /<meta name="robots" content="noindex, nofollow">/.test(read('drive-web/index.html')), 'noindex فى الصفحة نفسها كمان.');
+check('device and owner tokens are stored hashed', /token_hash/.test(read('src/drive/schema.js')) && !/\btoken\s+TEXT/.test(read('src/drive/schema.js')),
+  'توكن الشاشة/الموبايل يتخزّن هاش بس — تسريب القاعدة مايدّيش دخول.');
+check('pairing is rate-limited and one-time', /od-pair/.test(site) && /SET pair_code = NULL, pair_expires = NULL WHERE pair_code = \$1 AND pair_expires > now\(\)/.test(read('src/drive/store.js')),
+  'كود ٦ أرقام من غير حد للمحاولات = أى حد يخمّنه.');
+const privacy = read('src/views/legal/oscar_drive_privacy.ejs');
+check('privacy policy discloses tracking upload and camera', /drive\.oscardevs\.com/.test(privacy) && /الكاميرا/.test(privacy),
+  'التطبيق بقى بيبعت المكان (لو الحماية شغّالة) وبيسجّل كاميرا — السياسة لازم تقول كده.');
+check('security is opt-in on the screen', /get\(\) = sp\.getBoolean\("sec_on", false\)/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt')),
+  'التتبّع للسيرفر لازم يبقى مقفول لحد ما السواق يشغّله.');
 
 process.exit(failed ? 1 : 0);

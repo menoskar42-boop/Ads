@@ -33,7 +33,7 @@ const RESERVED_SLUGS = new Set([
   // نطاقات محجوزة لتطبيقات مستضافة (البوّاب بيوجّهها قبل المتاجر)
   'ghanayem', 'ghanaymfaults', 'mybible', 'mybible2', 'deals',
   // تطبيقات OscarDevs اللى ليها نطاق فرعى خاص (server.js بيوجّهها بالـhost قبل المتاجر)
-  'speed', 'kakeibo', 'sokro', 'adhd', 'mykid', 'serviceflow',
+  'speed', 'drive', 'kakeibo', 'sokro', 'adhd', 'mykid', 'serviceflow',
 ]);
 
 /** هل الاسم ده محجوز؟ (بيقارن بحروف صغيرة ومن غير مسافات) */

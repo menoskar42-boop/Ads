@@ -16,7 +16,7 @@ import com.oscardevs.oscardrive.logic.TripLogic
  * قاعدة بيانات محلية (SQLite على الجهاز) — مفيش سحابة ولا حساب: الرحلات، ذاكرة الطريق، الأماكن،
  * الركنات، الصيانة، التفويلات، وسجل تجاوز السرعة.
  */
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 1) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 2) {
 
     data class Trip(val id: Long, val startMs: Long, val endMs: Long, val distanceM: Double, val movingS: Long, val maxKmh: Float) {
         val avgKmh: Float get() = if (movingS > 0) (distanceM / movingS * 3.6).toFloat() else 0f
@@ -33,6 +33,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         db.execSQL("CREATE TABLE maint(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, every_km INTEGER, every_days INTEGER, last_km INTEGER, last_ms INTEGER)")
         db.execSQL("CREATE TABLE fills(id INTEGER PRIMARY KEY AUTOINCREMENT, odo_km INTEGER, liters REAL, price REAL, full INTEGER, time_ms INTEGER)")
         db.execSQL("CREATE TABLE speeding(id INTEGER PRIMARY KEY AUTOINCREMENT, start_ms INTEGER, end_ms INTEGER, max_kmh REAL, limit_kmh INTEGER, duration_s INTEGER, lat REAL, lng REAL)")
+        createSecurity(db)
         val now = System.currentTimeMillis()
         for ((name, km, days) in CarCare.DEFAULTS) {
             db.insert("maint", null, ContentValues().apply {
@@ -41,7 +42,16 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         }
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) createSecurity(db)   // نسخة ١ مافيهاش الحماية — البيانات القديمة بتفضل زى ما هى
+    }
+
+    /** Oscar Security: طوابير بتستنى النت — أماكن · أحداث · تسجيلات الكاميرا. */
+    private fun createSecurity(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS trk(id INTEGER PRIMARY KEY AUTOINCREMENT, t INTEGER, lat REAL, lng REAL, s REAL, h REAL, a REAL)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS sec_ev(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT UNIQUE, t INTEGER, kind TEXT, lat REAL, lng REAL, detail TEXT, sent INTEGER DEFAULT 0)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS clips(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT UNIQUE, t INTEGER, path TEXT, sec INTEGER, bytes INTEGER, reason TEXT, synced INTEGER DEFAULT 0)")
+    }
 
     private inline fun <T> query(sql: String, args: Array<String> = emptyArray(), row: (Cursor) -> T): List<T> {
         val out = mutableListOf<T>()
@@ -127,6 +137,55 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         Speeding(it.getLong(0), it.getLong(1), it.getFloat(2), it.getInt(3), it.getInt(4), it.getDouble(5), it.getDouble(6))
     }
     fun clearSpeeding() { writableDatabase.delete("speeding", null, null) }
+
+    /* ── Oscar Security: الطوابير ── */
+    data class TrkRow(val id: Long, val t: Long, val lat: Double, val lng: Double, val s: Float?, val h: Float?, val a: Float?)
+    data class SecEv(val id: Long, val uuid: String, val t: Long, val kind: String, val lat: Double?, val lng: Double?, val detail: String)
+    data class Clip(val id: Long, val uuid: String, val t: Long, val path: String, val sec: Int, val bytes: Long, val reason: String, val synced: Boolean)
+
+    fun addTrack(t: Long, lat: Double, lng: Double, s: Float?, h: Float?, a: Float?) {
+        writableDatabase.insert("trk", null, ContentValues().apply {
+            put("t", t); put("lat", lat); put("lng", lng)
+            if (s != null) put("s", s.toDouble()) else putNull("s")
+            if (h != null) put("h", h.toDouble()) else putNull("h")
+            if (a != null) put("a", a.toDouble()) else putNull("a")
+        })
+        // سقف: أسبوعين من غير نت ماشية كل ١٠ ثوانى ≈ ١٢٠ ألف — بنحتفظ بآخر ١٥٠ ألف
+        if (System.nanoTime() % 200 == 0L) writableDatabase.execSQL("DELETE FROM trk WHERE id <= (SELECT MAX(id) FROM trk) - 150000")
+    }
+    fun pendingTrack(limit: Int): List<TrkRow> = query("SELECT id,t,lat,lng,s,h,a FROM trk ORDER BY id LIMIT $limit") {
+        TrkRow(it.getLong(0), it.getLong(1), it.getDouble(2), it.getDouble(3),
+            if (it.isNull(4)) null else it.getFloat(4), if (it.isNull(5)) null else it.getFloat(5), if (it.isNull(6)) null else it.getFloat(6))
+    }
+    fun trackCount(): Long = readableDatabase.rawQuery("SELECT COUNT(*) FROM trk", null).use { c -> if (c.moveToFirst()) c.getLong(0) else 0 }
+    fun dropTrackUpTo(id: Long) { writableDatabase.delete("trk", "id <= ?", arrayOf(id.toString())) }
+
+    fun addSecEvent(uuid: String, t: Long, kind: String, lat: Double?, lng: Double?, detail: String = "{}") {
+        writableDatabase.insert("sec_ev", null, ContentValues().apply {
+            put("uuid", uuid); put("t", t); put("kind", kind); put("detail", detail)
+            if (lat != null) put("lat", lat) else putNull("lat")
+            if (lng != null) put("lng", lng) else putNull("lng")
+        })
+    }
+    fun unsentSecEvents(): List<SecEv> = query("SELECT id,uuid,t,kind,lat,lng,detail FROM sec_ev WHERE sent=0 ORDER BY id LIMIT 200") {
+        SecEv(it.getLong(0), it.getString(1), it.getLong(2), it.getString(3), if (it.isNull(4)) null else it.getDouble(4), if (it.isNull(5)) null else it.getDouble(5), it.getString(6) ?: "{}")
+    }
+    fun recentSecEvents(limit: Int = 30): List<SecEv> = query("SELECT id,uuid,t,kind,lat,lng,detail FROM sec_ev ORDER BY t DESC LIMIT $limit") {
+        SecEv(it.getLong(0), it.getString(1), it.getLong(2), it.getString(3), if (it.isNull(4)) null else it.getDouble(4), if (it.isNull(5)) null else it.getDouble(5), it.getString(6) ?: "{}")
+    }
+    fun markSecSent(ids: List<Long>) { if (ids.isNotEmpty()) writableDatabase.execSQL("UPDATE sec_ev SET sent=1 WHERE id IN (${ids.joinToString(",")})") }
+
+    fun addClip(uuid: String, t: Long, path: String, sec: Int, bytes: Long, reason: String) {
+        writableDatabase.insert("clips", null, ContentValues().apply {
+            put("uuid", uuid); put("t", t); put("path", path); put("sec", sec); put("bytes", bytes); put("reason", reason)
+        })
+    }
+    fun clips(): List<Clip> = query("SELECT id,uuid,t,path,sec,bytes,reason,synced FROM clips ORDER BY t DESC") {
+        Clip(it.getLong(0), it.getString(1), it.getLong(2), it.getString(3), it.getInt(4), it.getLong(5), it.getString(6) ?: "", it.getInt(7) == 1)
+    }
+    fun unsyncedClips(): List<Clip> = clips().filter { !it.synced }
+    fun markClipsSynced(ids: List<Long>) { if (ids.isNotEmpty()) writableDatabase.execSQL("UPDATE clips SET synced=1 WHERE id IN (${ids.joinToString(",")})") }
+    fun deleteClip(id: Long) { writableDatabase.delete("clips", "id=?", arrayOf(id.toString())) }
 
     companion object {
         @Volatile private var inst: Db? = null

@@ -477,6 +477,18 @@ app.use((req, res, next) => {
   return speedSite(req, res, next);
 });
 
+// ===== Oscar Drive + Oscar Security (drive.oscardevs.com) — صفحة صاحب العربية + API الشاشة =====
+// نفس نمط speed: بالـhost قبل خط الموقع الرئيسى، و404 جوّه الراوتر نفسه. noindex ومن غير إعلانات
+// (scripts/check-oscardrive.js). التفاصيل: docs/OSCAR_SECURITY.md
+const drivePool = require('./src/drive/pool');
+const driveSite = require('./src/routes/drive_site').createDriveSite({ pool: drivePool, push: require('./src/drive/push') });
+app.use((req, res, next) => {
+  const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
+  const host = String(rawHost).split(':')[0].toLowerCase();
+  if (!host.startsWith('drive.')) return next();
+  return driveSite.router(req, res, next);
+});
+
 
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));
@@ -2067,6 +2079,7 @@ const { ensureInstallmentsSchema } = require('./src/installments/schema');
 const { ensureNutritionSchema } = require('./src/nutrition/schema');
 const { ensureSokroSchema } = require('./sokro/schema');
 const { ensureFleetSchema } = require('./src/fleet/schema');
+const { ensureDriveSchema } = require('./src/drive/schema');
 const { syncMedicinesSafe } = require('./src/pharmacy/medicine_sync');
 initDb()
   .then(() => ensurePharmacySchema())
@@ -2085,6 +2098,7 @@ initDb()
   .then(() => ensureNutritionSchema())
   .then(() => ensureSokroSchema())
   .then(() => ensureFleetSchema())
+  .then(() => ensureDriveSchema(drivePool).then(() => driveSite.startJobs()).catch((e) => console.error('[drive] schema:', e.message)))
   // Auto-import the full Egyptian medicines catalog once the tables exist.
   // Runs in the background, is staleness-gated (won't re-download if fresh),
   // and can never crash boot. A daily timer keeps a long-running instance

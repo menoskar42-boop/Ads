@@ -107,6 +107,7 @@ class DriveService : Service() {
             State.drivingMin = wellness.drivenMinutes(now)
             syncTrip()
             if (now - lastNightCheck > 60_000) { lastNightCheck = now; updateNight(now) }
+            Guard.tick()
             if (State.banner != null && now > State.bannerUntil) State.banner = null
             publish()
             main.postDelayed(this, 1000)
@@ -121,10 +122,13 @@ class DriveService : Service() {
         db = Db.get(this)
         lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         Speaker.init(this)
+        Guard.init(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) { stopSelf(); return START_NOT_STICKY }
+        if (intent?.action == ACTION_REFRESH_FGS && State.running) { startInForeground(); return START_STICKY }
+        if (intent?.action == ACTION_RECORD && State.running) { Guard.record(intent.getIntExtra("sec", 20), "manual"); return START_STICKY }
         if (State.running) { publish(); return START_STICKY }
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             stopSelf(); return START_NOT_STICKY
@@ -135,6 +139,7 @@ class DriveService : Service() {
         State.hazardsDirty = true
         updateNight(System.currentTimeMillis())
         startGps()
+        Guard.onBoot()
         main.post(tick)
         return START_STICKY
     }
@@ -194,6 +199,7 @@ class DriveService : Service() {
         State.accuracyM = acc
         if (acc != null && acc <= 50f) { prefs.lastLat = loc.latitude; prefs.lastLng = loc.longitude }
         checkHazards(now, kmh ?: 0f)
+        Guard.onLocation(loc, kmh ?: 0f)
         syncTrip()
         publish()
     }
@@ -280,7 +286,14 @@ class DriveService : Service() {
             .build()
     }
 
+    /** location دايماً، وcamera كمان لو إذن الكاميرا متاح (تسجيل تنبيه السرقة والتطبيق فى الخلفية). */
     private fun startInForeground() {
+        if (Build.VERSION.SDK_INT >= 30 && Guard.cam.permitted()) {
+            try {
+                startForeground(NOTIF_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
+                return
+            } catch (_: Exception) { /* بدأت من الخلفية (مع تشغيل العربية) — location بس */ }
+        }
         if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIF_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
         else startForeground(NOTIF_ID, notification())
     }
@@ -291,12 +304,18 @@ class DriveService : Service() {
 
     companion object {
         const val ACTION_STOP = "com.oscardevs.oscardrive.STOP"
+        const val ACTION_REFRESH_FGS = "com.oscardevs.oscardrive.REFRESH_FGS"
+        const val ACTION_RECORD = "com.oscardevs.oscardrive.RECORD"
         private const val CHANNEL = "drive"
         private const val NOTIF_ID = 17
 
         fun start(ctx: Context) {
             val i = Intent(ctx, DriveService::class.java)
             if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
+        }
+
+        fun send(ctx: Context, action: String, sec: Int = 0) {
+            try { ctx.startService(Intent(ctx, DriveService::class.java).setAction(action).putExtra("sec", sec)) } catch (_: Exception) {}
         }
 
         fun stop(ctx: Context) {

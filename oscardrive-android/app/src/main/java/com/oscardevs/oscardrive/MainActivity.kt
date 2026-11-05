@@ -85,11 +85,15 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         DriveService.State.listener = { main.post { render() } }
+        Guard.init(this)
+        Guard.listener = { main.post { if (tab == "sec") refresh(); maybePinGate() } }
         render()
+        maybePinGate()
     }
 
     override fun onPause() {
         DriveService.State.listener = null
+        Guard.listener = null
         super.onPause()
     }
 
@@ -123,7 +127,7 @@ class MainActivity : Activity() {
     }
 
     private val tabs = listOf(
-        "drive" to "🚗\nالقيادة", "nav" to "🧭\nالملاحة", "park" to "🅿️\nالركن",
+        "drive" to "🚗\nالقيادة", "nav" to "🧭\nالملاحة", "park" to "🅿️\nالركن", "sec" to "🛡️\nالحماية",
         "road" to "🛣️\nالطريق", "car" to "🔧\nالسيارة", "settings" to "⚙️\nالإعدادات",
     )
 
@@ -152,6 +156,7 @@ class MainActivity : Activity() {
             "road" -> scroll(roadTab())
             "car" -> scroll(carTab())
             "settings" -> scroll(settingsTab())
+            "sec" -> scroll(securityTab())
             else -> driveTab()
         }
         content.addView(v, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
@@ -481,6 +486,137 @@ class MainActivity : Activity() {
             page.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
         }
         return page
+    }
+
+    /* ═══════════════ 🛡️ الحماية (Oscar Security) ═══════════════ */
+
+    private var pinDialogOpen = false
+
+    /** وضع الحماية شغّال والعربية لسه دايرة ⇒ الشاشة بتطلب الرقم السرى. */
+    private fun maybePinGate() {
+        if (pinDialogOpen || !Guard.on || !Guard.logic.needsPin || !DriveService.State.running || !Guard.pinSet()) return
+        pinDialogOpen = true
+        val f = EditText(this).apply {
+            hint = "الرقم السرى"; textSize = 26f; gravity = Gravity.CENTER
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        }
+        val d = AlertDialog.Builder(this).setTitle("🛡️ وضع الحماية شغّال")
+            .setMessage("اكتب الرقم السرى. من غيره أى حركة بالعربية بتتسجّل وبتوصل لموبايل صاحبها.")
+            .setView(f).setPositiveButton("تأكيد", null).setNegativeButton("بعدين", null).setCancelable(false).create()
+        d.setOnShowListener {
+            d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                if (Guard.tryPin(f.text.toString())) { d.dismiss(); say("أهلاً بيك") } else { f.setText(""); toast("الرقم غلط") }
+            }
+        }
+        d.setOnDismissListener { pinDialogOpen = false }
+        d.show()
+    }
+
+    private fun securityTab(): View {
+        val page = ui.col(14)
+        page.addView(header("🛡️ الحماية والتتبّع", "الـGPS بيسجّل مكان العربية على الشاشة حتى من غير نت، وأول ما أى نت يتوصل بيتبعت لصفحة موبايلك " +
+            "(drive.oscardevs.com) ومعاه التنبيهات. الشاشة بتفصل مع إطفاء العربية، ولو حد فصلها التسجيل بيقف."))
+        page.addView(toggle("شغّل الحماية والتتبّع (مكان العربية بيتبعت لصفحتك على drive.oscardevs.com بس)", prefs.securityOn) { v ->
+            prefs.securityOn = v
+            if (v) { Guard.onBoot(); Guard.syncSoon() }
+        })
+        if (!prefs.securityOn) return page
+
+        // الحالة
+        val st = ui.card(16)
+        val armed = prefs.armed
+        st.addView(ui.text(if (armed) "Protected · محمية" else "مش محمية", 26f, if (armed) ui.good else ui.muted, bold = true))
+        st.addView(ui.text(if (armed) "مع كل تشغيل للعربية الشاشة بتطلب الرقم السرى، وأى حركة من غيره بتتسجّل وبتنبّهك." +
+            (if (Guard.logic.unlocked) " (التشغيلة دى اتفتحت بالرقم)" else "")
+            else "فعّلها لما تسيب العربية — أو من صفحة موبايلك.", 15f, ui.muted))
+        val r = ui.row()
+        if (!Guard.pinSet()) {
+            r.addView(ui.button("🔢 حدّد الرقم السرى الأول", "primary") { changePin() }, ui.lp(0, ui.dp(58), 1f, 3))
+        } else if (armed) {
+            r.addView(ui.button("🔓 اقفل الحماية", "neutral") { askPin("اكتب الرقم السرى عشان تقفل الحماية") { Guard.setArmedFromCar(false); refresh() } }, ui.lp(0, ui.dp(58), 1f, 3))
+        } else {
+            r.addView(ui.button("🛡️ فعّل الحماية", "good") { Guard.setArmedFromCar(true); say("وضع الحماية اتفعّل"); refresh() }, ui.lp(0, ui.dp(58), 1f, 3))
+        }
+        r.addView(ui.button("📱 ربط موبايل", "primary") { pairPhone() }, ui.lp(0, ui.dp(58), 1f, 3))
+        st.addView(r)
+        page.addView(st, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 4))
+
+        val sync = ui.card(12)
+        val last = prefs.lastSyncMs
+        sync.addView(ui.text("☁️ آخر إرسال: " + (if (last > 0) ago(last) else "لسه") + " · مستنى الإرسال: ${Guard.pendingPoints()} مكان", 15f, ui.ink))
+        Guard.lastError?.let { sync.addView(ui.text(it, 14f, ui.warn)) }
+        sync.addView(ui.button("ابعت دلوقتى", "neutral", 14f) { Guard.syncSoon(); toast("بيبعت…") }, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 2))
+        page.addView(sync, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 4))
+        if (Guard.pinSet()) page.addView(ui.button("🔢 غيّر الرقم السرى", "neutral", 15f) { changePin() }, ui.lp(Ui.MATCH, ui.dp(50), marginDp = 4))
+
+        // الكاميرا
+        page.addView(section("📹 كاميرا العربية"))
+        if (!Guard.cam.permitted()) {
+            page.addView(ui.text("عشان التسجيل وقت تنبيه السرقة لازم إذن الكاميرا. الفيديو بيفضل على الشاشة دى بس.", 15f, ui.muted))
+            page.addView(ui.button("اسمح بالكاميرا", "primary") { requestPermissions(arrayOf(Manifest.permission.CAMERA), REQ_CAM) }, ui.lp(Ui.MATCH, ui.dp(56), marginDp = 4))
+        } else {
+            if (Guard.cam.pickCamera() == null) page.addView(ui.text("⚠️ أندرويد مش شايف أى كاميرا على الشاشة دى — شوف «🩺 فحص الشاشة» فى الإعدادات.", 15f, ui.warn))
+            page.addView(toggle("سجّل ٣٠ ثانية لما يحصل تنبيه سرقة", prefs.recordOnAlarm) { prefs.recordOnAlarm = it })
+            page.addView(ui.button(if (Guard.cam.busy) "⏺ بيسجّل…" else "⏺ سجّل ٢٠ ثانية دلوقتى", "neutral") {
+                if (DriveService.State.running) DriveService.send(this, DriveService.ACTION_RECORD, 20)
+                else Guard.record(20, "manual") { err -> toast(err ?: "اتسجّل ✓") }
+                toast("بيسجّل ٢٠ ثانية…"); main.postDelayed({ refresh() }, 600)
+            }, ui.lp(Ui.MATCH, ui.dp(56), marginDp = 4))
+        }
+        val clips = Db.get(this).clips()
+        if (clips.isNotEmpty()) page.addView(section("التسجيلات (${clips.size})"))
+        for (c in clips.take(30)) {
+            val row = ui.card(10).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            val why = if (c.reason == "alarm") "🚨 تنبيه سرقة" else "يدوى"
+            row.addView(ui.text("${dateTime(c.t)} · ${c.sec} ث · %.1f ميجا\n$why".format(Locale.US, c.bytes / 1e6), 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            row.addView(ui.button("▶", "primary", 16f) { playClip(c.path) }, ui.lp(ui.dp(60), ui.dp(48), 0f, 2))
+            row.addView(ui.button("مسح", "neutral", 14f) { confirm("تمسح التسجيل ده؟") { java.io.File(c.path).delete(); Db.get(this).deleteClip(c.id); refresh() } }, ui.lp(ui.dp(76), ui.dp(48), 0f, 2))
+            page.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
+        }
+
+        // الأحداث
+        val evs = Db.get(this).recentSecEvents(15)
+        if (evs.isNotEmpty()) page.addView(section("آخر الأحداث"))
+        val names = mapOf("started_armed" to "⚠️ اشتغلت والحماية شغّالة", "armed_move" to "🚨 اتحركت من غير الرقم", "pin_ok" to "✅ الرقم صح",
+            "pin_wrong" to "⛔ رقم غلط ٣ مرات", "armed" to "🛡️ الحماية اتفعّلت", "disarmed" to "🔓 الحماية اتقفلت",
+            "clip" to "📹 تسجيل", "camera_error" to "📷 الكاميرا ماسجّلتش")
+        for (e in evs) page.addView(ui.text("${dateTime(e.t)} · ${names[e.kind] ?: e.kind}", 14f, ui.ink).apply { setPadding(ui.dp(6), ui.dp(3), ui.dp(6), ui.dp(3)) })
+        return page
+    }
+
+    private fun pairPhone() {
+        toast("بيجيب كود…")
+        Guard.pairCode { code, err ->
+            if (code == null) { toast(err ?: "مفيش نت"); return@pairCode }
+            val box = ui.col(18)
+            box.addView(ui.text(code.chunked(3).joinToString(" "), 44f, ui.ink, bold = true, gravity = Gravity.CENTER))
+            box.addView(ui.text("على موبايلك افتح drive.oscardevs.com واكتب الكود ده. صالح ١٠ دقايق ولمرة واحدة.\n" +
+                "على الآيفون: ضيف الصفحة للشاشة الرئيسية الأول (مشاركة ← Add to Home Screen) وافتحها من الأيقونة.", 15f, ui.muted, gravity = Gravity.CENTER))
+            box.setBackgroundColor(ui.surface)
+            AlertDialog.Builder(this).setTitle("📱 ربط موبايل").setView(box).setPositiveButton("تمام", null).show()
+        }
+    }
+
+    private fun changePin() {
+        val setNew = {
+            askText("الرقم السرى الجديد (٤–٦ أرقام)", "••••", "", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD) { p ->
+                if (Guard.setPin(p)) { toast("اتحفظ ✓"); refresh() } else toast("لازم ٤–٦ أرقام")
+            }
+        }
+        if (Guard.pinSet()) askPin("اكتب الرقم السرى الحالى") { setNew() } else setNew()
+    }
+
+    private fun askPin(msg: String, ok: () -> Unit) {
+        askText(msg, "••••", "", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD) { p ->
+            if (Guard.checkPin(p)) ok() else toast("الرقم غلط")
+        }
+    }
+
+    private fun playClip(path: String) {
+        val v = android.widget.VideoView(this)
+        v.setVideoPath(path)
+        v.setOnPreparedListener { it.isLooping = false; v.start() }
+        AlertDialog.Builder(this).setView(v).setPositiveButton("قفل", null).show()
     }
 
     /* ═══════════════ الإعدادات ═══════════════ */
@@ -821,10 +957,16 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_PERMS && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) startIfReady()
         else if (requestCode == REQ_PERMS) toast("Oscar Drive محتاج إذن المكان عشان يقيس السرعة")
+        if (requestCode == REQ_CAM) {
+            if (Guard.cam.permitted()) { DriveService.send(this, DriveService.ACTION_REFRESH_FGS); toast("تمام — الكاميرا متاحة للتسجيل") }
+            else toast("إذن الكاميرا اترفض")
+            refresh()
+        }
     }
 
     companion object {
         private const val REQ_PERMS = 1
         private const val REQ_VOICE = 5
+        private const val REQ_CAM = 7
     }
 }

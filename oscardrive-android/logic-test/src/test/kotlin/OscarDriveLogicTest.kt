@@ -172,3 +172,58 @@ class VoiceTest {
         assertEquals(Cmd.Unknown, VoiceCommands.parse("إزيك"))
     }
 }
+
+class SecurityTest {
+    @Test fun startArmedAndMoveWithoutPinAlarmsAfterGrace() {
+        val s = SecurityLogic(); var now = 1_000_000L
+        assertEquals(listOf(SecurityLogic.Kind.STARTED_ARMED), s.onBoot(now, true).map { it.kind })
+        assertTrue(s.needsPin)
+        // اتحركت على طول — جوّه المهلة مفيش تنبيه، وبعدها تنبيه واحد بس
+        var got = mutableListOf<SecurityLogic.Event>()
+        var firstAt = -1
+        repeat(60) { i -> val e = s.onFix(now, north(i * 10.0), LNG0, 36f, 5f); if (e.isNotEmpty() && firstAt < 0) firstAt = i; got += e; now += 1000 }
+        assertEquals(1, got.count { it.kind == SecurityLogic.Kind.ARMED_MOVE })
+        assertTrue(firstAt in 44..46, "alarm at second $firstAt")
+        got = mutableListOf(); repeat(60) { got += s.onFix(now, north(600 + it * 10.0), LNG0, 36f, 5f); now += 1000 }
+        assertTrue(got.isEmpty())
+    }
+    @Test fun pinInsideGraceMeansNoAlarm() {
+        val s = SecurityLogic(); var now = 0L
+        s.onBoot(now, true)
+        repeat(10) { s.onFix(now, north(it * 10.0), LNG0, 36f, 5f); now += 1000 }
+        assertEquals(listOf(SecurityLogic.Kind.PIN_OK), s.onPin(true).map { it.kind })
+        val got = mutableListOf<SecurityLogic.Event>()
+        repeat(120) { got += s.onFix(now, north(100 + it * 10.0), LNG0, 36f, 5f); now += 1000 }
+        assertTrue(got.isEmpty())
+    }
+    @Test fun wrongPinsAndDisarmedIsSilent() {
+        val s = SecurityLogic()
+        s.onBoot(0, true)
+        assertTrue(s.onPin(false).isEmpty()); assertTrue(s.onPin(false).isEmpty())
+        assertEquals(SecurityLogic.Kind.PIN_WRONG, s.onPin(false).single().kind)
+        val off = SecurityLogic(); off.onBoot(0, false)
+        assertFalse(off.needsPin)
+        var now = 0L; val got = mutableListOf<SecurityLogic.Event>()
+        repeat(120) { got += off.onFix(now, north(it * 10.0), LNG0, 36f, 5f); now += 1000 }
+        assertTrue(got.isEmpty())
+    }
+    @Test fun gpsJitterWhileParkedIsNotMovement() {
+        val s = SecurityLogic(); var now = 0L
+        s.onBoot(now, true)
+        val got = mutableListOf<SecurityLogic.Event>()
+        repeat(300) { got += s.onFix(now, north((it % 3) * 15.0), LNG0, 2f, 12f); now += 1000 }
+        assertTrue(got.isEmpty())
+    }
+    @Test fun remoteArmDuringSessionAsksPinAgain() {
+        val s = SecurityLogic(); s.onBoot(0, false)
+        assertTrue(s.setArmed(true, fromCar = false).isEmpty())
+        assertTrue(s.needsPin)
+        assertEquals(SecurityLogic.Kind.DISARMED, s.setArmed(false, fromCar = true).single().kind)
+    }
+    @Test fun trackPolicyAndPin() {
+        assertTrue(TrackPolicy.due(0, 10_000, 30f)); assertFalse(TrackPolicy.due(0, 10_000, 0f))
+        assertTrue(TrackPolicy.due(0, 60_000, 0f))
+        assertTrue(Pin.valid("1234")); assertFalse(Pin.valid("12a4")); assertFalse(Pin.valid("123"))
+        assertEquals(Pin.hash("1234", "s"), Pin.hash("1234", "s")); assertNotEquals(Pin.hash("1234", "s"), Pin.hash("1235", "s"))
+    }
+}

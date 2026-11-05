@@ -65,6 +65,43 @@ class Prefs(context: Context) {
         sp.edit().putString("nav_month", month).putInt("nav_count", n).apply()
     }
 
+    /* ── Oscar Security ── */
+    /** الحماية والتتبّع شغّالين؟ (اختيارى — من غيره مفيش أى مكان بيتبعت لأى حد) */
+    var securityOn: Boolean
+        get() = sp.getBoolean("sec_on", false)
+        set(v) = sp.edit().putBoolean("sec_on", v).apply()
+    var deviceToken: String?
+        get() = sp.getString("sec_token", null)
+        set(v) = sp.edit().putString("sec_token", v).apply()
+    var armed: Boolean
+        get() = sp.getBoolean("sec_armed", false)
+        set(v) = sp.edit().putBoolean("sec_armed", v).apply()
+    var armedVer: Int
+        get() = sp.getInt("sec_armed_ver", 0)
+        set(v) = sp.edit().putInt("sec_armed_ver", v).apply()
+    /** الشاشة غيّرت الحماية ولسه السيرفر ماعرفش. */
+    var armPending: Boolean
+        get() = sp.getBoolean("sec_arm_pending", false)
+        set(v) = sp.edit().putBoolean("sec_arm_pending", v).apply()
+    var pinHash: String?
+        get() = sp.getString("sec_pin", null)
+        set(v) = sp.edit().putString("sec_pin", v).apply()
+    val pinSalt: String
+        get() {
+            var s = sp.getString("sec_salt", null)
+            if (s == null) { s = java.util.UUID.randomUUID().toString(); sp.edit().putString("sec_salt", s).apply() }
+            return s
+        }
+    var recordOnAlarm: Boolean
+        get() = sp.getBoolean("sec_rec_alarm", true)
+        set(v) = sp.edit().putBoolean("sec_rec_alarm", v).apply()
+    var lastSyncMs: Long
+        get() = sp.getLong("sec_last_sync", 0L)
+        set(v) = sp.edit().putLong("sec_last_sync", v).apply()
+    var carName: String
+        get() = sp.getString("sec_car_name", "") ?: ""
+        set(v) = sp.edit().putString("sec_car_name", v).apply()
+
     companion object {
         const val LIMIT_MIN = 20
         const val LIMIT_MAX = 200
