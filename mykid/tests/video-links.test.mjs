@@ -125,8 +125,13 @@ const EXPECTED_ACTIVITY_VIDEO_IDS = {
   "fish:explore": ["1t2m7Keo6JU", "wb1DPUKCZcI"],
   "shapes:explore": ["ldTkRB6Xbp4"],
   "fruits:explore": ["NK25HK_0I48", "G7QpNappaz4"],
-  "weekdays:explore": ["DGxv3M2vog0"],
-  "family:explore": ["flyN1BahTR0"],
+  "weekdays:explore": ["DGxv3M2vog0", "whG2Cmojejs"],
+  "months:explore": ["am65jdDs2Pk"],
+  "family:explore": ["flyN1BahTR0", "4ALfbwkNb3g"],
+  "body:explore": ["MeUWxyS5hF8"],
+  "senses:explore": ["5Axm4E5qZqI"],
+  "transport:explore": ["jEROtSzDv6I"],
+  "words:explore": ["LqA91IiEZEE"],
   "words:readMatch": ["aTy_6f2NKsc"],
 };
 
@@ -280,7 +285,7 @@ test("number, letter, and activity mappings match their intended lessons without
   }
   assert.equal(getActivityLessonVideo("colors", "readMatch"), null, "Color videos must not be assigned to reading");
   assert.equal(getActivityLessonVideo("weekdays", "coloring"), null, "Weekday videos must not be assigned to coloring");
-  assert.equal(getActivityLessonVideo("words", "explore"), null, "Reading videos must not be assigned to explore");
+  assert.equal(getActivityLessonVideo("animals", "explore")?.videoId, "bJ3EWyZQyl0");
 
   assertUniqueValidVideoIds(mappedIds);
 });
@@ -567,8 +572,13 @@ test("activity videos appear only in their mapped activity and embed the mapped 
       ["fish", "explore", () => renderExplore({ datasetKey: "fish" })],
       ["shapes", "explore", () => renderExplore({ datasetKey: "shapes" })],
       ["fruits", "explore", () => renderExplore({ datasetKey: "fruits" })],
+      ["body", "explore", () => renderExplore({ datasetKey: "body" })],
+      ["senses", "explore", () => renderExplore({ datasetKey: "senses" })],
+      ["transport", "explore", () => renderExplore({ datasetKey: "transport" })],
       ["weekdays", "explore", () => renderExplore({ datasetKey: "weekdays" })],
+      ["months", "explore", () => renderExplore({ datasetKey: "months" })],
       ["family", "explore", () => renderExplore({ datasetKey: "family" })],
+      ["words", "explore", () => renderExplore({ datasetKey: "words" })],
       ["colors", "coloring", () => renderColoring({})],
       ["words", "readMatch", () => renderReadMatch({ datasetKey: "words" })],
       ["numbers", "explore", () => renderExplore({ datasetKey: "numbers" })],

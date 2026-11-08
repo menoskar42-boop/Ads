@@ -61,18 +61,58 @@ const ACTIVITY_VIDEOS = {
     ],
   },
   weekdays: {
+    explore: [
+      {
+        videoId: "DGxv3M2vog0",
+        title: "نطق أيام الأسبوع — مس إلهام",
+      },
+      {
+        videoId: "whG2Cmojejs",
+        title: "أبجد هوز · أغنية أيام الأسبوع",
+      },
+    ],
+  },
+  months: {
     explore: {
-      videoId: "DGxv3M2vog0",
-      title: "نطق أيام الأسبوع — مس إلهام",
+      videoId: "am65jdDs2Pk",
+      title: "أبجد هوز · أشهر السنة",
     },
   },
   family: {
+    explore: [
+      {
+        videoId: "flyN1BahTR0",
+        title: "معرفة أفراد العائلة بالبطاقات — مس إلهام",
+      },
+      {
+        videoId: "4ALfbwkNb3g",
+        title: "أبجد هوز · أفراد العائلة وكلمات أساسية",
+      },
+    ],
+  },
+  body: {
     explore: {
-      videoId: "flyN1BahTR0",
-      title: "معرفة أفراد العائلة بالبطاقات — مس إلهام",
+      videoId: "MeUWxyS5hF8",
+      title: "أبجد هوز · أجزاء الجسم والوجه",
+    },
+  },
+  senses: {
+    explore: {
+      videoId: "5Axm4E5qZqI",
+      title: "أبجد هوز · الحواس الخمس",
+    },
+  },
+  transport: {
+    explore: {
+      videoId: "jEROtSzDv6I",
+      title: "أبجد هوز · وسائل المواصلات",
     },
   },
   words: {
+    explore: {
+      videoId: "LqA91IiEZEE",
+      title: "أبجد هوز · الكلمات الأولى باللهجة المصرية",
+    },
     readMatch: {
       videoId: "aTy_6f2NKsc",
       title: "قراءة أول كلمة بدون حفظ — مس إلهام",
