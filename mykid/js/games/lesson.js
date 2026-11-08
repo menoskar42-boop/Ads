@@ -106,12 +106,12 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
   const lessonVideo = ds.glyphKind === "number" || datasetKey === "english" || datasetKey === "arabic"
     ? document.createElement("div")
     : null;
-  if (itemPicker) wrap.appendChild(itemPicker);
   if (lessonVideo) {
     lessonVideo.className = "lesson-video";
     lessonVideo.setAttribute("aria-label", ds.glyphKind === "number" ? "فيديو تعليمي للرقم الحالي" : "فيديو تعليمي للحرف الحالي");
-    wrap.appendChild(lessonVideo);
+    wrap.insertBefore(lessonVideo, wrap.querySelector(".lesson-controls"));
   }
+  if (itemPicker) wrap.appendChild(itemPicker);
 
   // ميزو: شخصية الطفل المعلّم الناطقة
   const mizo = createCharacter();
