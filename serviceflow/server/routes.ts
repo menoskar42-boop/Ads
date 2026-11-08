@@ -38,6 +38,7 @@ import * as wfmCustomerMobilesD1 from "./wfm-customer-mobiles-d1";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
 import { loopMeters, speedKbps, validLoopLength } from "./loop-length";
+import { wfmReportWorkerCode } from "./wfm-report-access";
 import { speedDropOf, weekDropJoinSql, WEEK_DROP_COLS, weekDropOf } from "./speed-drop";
 import { boxRangeCond } from "./box-range";
 import { normCab, normBox, expandBoxes, boxKey } from "@shared/cab-norm";
@@ -17411,14 +17412,21 @@ export async function registerRoutes(
   });
 
   // مولّد موحّد لتقارير أوامر الشغل (تركيبات / معاينات) — يستخدم queryWfmReport.
-  const wfmReportHandler = (typesLc: string[], regularized: boolean) =>
+  const wfmReportHandler = (
+    typesLc: string[],
+    regularized: boolean,
+    options: { techniciansSeeAll?: boolean } = {},
+  ) =>
     async (req: any, res: any) => {
       try {
         const { central = "", q = "" } = req.query as Record<string, string>;
-        // الفنى: أوامر كباينه بس. باقى الأدوار بتشوف الكل.
-        const workerCode = req.user?.role === ROLES.TECH
-          ? String(req.user.workerCode || "").trim() || "__none__"
-          : "";
+        // التركيبات تظل على كابينة الفني؛ المعاينات الحالية تعرض كل الصفوف للفنيين.
+        const workerCode = wfmReportWorkerCode(
+          req.user?.role,
+          req.user?.workerCode,
+          ROLES.TECH,
+          options.techniciansSeeAll,
+        );
         const rows = await queryWfmReport(typesLc, regularized, { central, q, workerCode });
         res.json(rows);
       } catch (e: any) {
@@ -17431,7 +17439,8 @@ export async function registerRoutes(
   app.get("/api/reports/regularized-installations", requireAuth, wfmReportHandler(INSTALL_TYPES_LC, true));
 
   // المعاينات (حالات معاينات wfm)
-  app.get("/api/reports/current-surveys", requireAuth, wfmReportHandler(SURVEY_TYPES_LC, false));
+  app.get("/api/reports/current-surveys", requireAuth,
+    wfmReportHandler(SURVEY_TYPES_LC, false, { techniciansSeeAll: true }));
   app.get("/api/reports/regularized-surveys", requireAuth, wfmReportHandler(SURVEY_TYPES_LC, true));
 
   // GET /api/reports/regularized-daily — الأرشيف اليومى للمنتظمات بتاريخ من/إلى.

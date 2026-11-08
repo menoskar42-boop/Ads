@@ -343,8 +343,8 @@ export default function Dashboard() {
   const DM_ALLOWED: ReportTab[] = ["no-account", "ground-network", "work-orders", "phone-lines", "lines-no-mobile", "local-store", "maint-cable"];
   const DM_ALLOWED_GROUPS = ["القياسات", "تركيبات و نقل و اوامر شغل", "الخطوط والبكسيات", "المخزن"];
   // الفني: 5 تقارير فقط (الأعطال الحالية + أداء الفنيين + إحصائيات الإزالة/التكرار + متوسط القياسات)
-  // «التركيبات والنقل الحالى» و«المعاينات الحالية» بيظهروا للفنى كمان — والسيرفر
-  // بيفلترهم على كباينه هو (worker_code) فكل واحد يشوف اللى يخصه بس.
+  // «التركيبات والنقل الحالى» بتظهر للفنى ومفلترة على كباينته؛
+  // «المعاينات الحالية» بتظهر له كل المعاينات، والسيرفر يطبق النطاق لكل تقرير.
   const TECH_ALLOWED: ReportTab[] = ["current-faults", "regularized-faults-range", "manual-current-faults", "manual-regularized-high-score", "tech-performance", "removal-stats", "repetition-stats", "repeated-within-month", "box-score-avg", "om-current", "with-account", "installations-by-tech", "shift-schedule", "current-installations", "current-surveys",
     // الكروت + الفاضى لكل نوع بورت + الخطوط المرفوعة — السيرفر بيفلترهم على كباينه هو (٢٠٢٦-٠٩-٣٠)
     "slot-cards", "cabinet-port-free", "removed-ports",
