@@ -26,6 +26,7 @@
 - [Demo session recovery](demo-session-recovery.md) — a real admin session can retain Demo read-only state; logout/login clears it, and admin login must clear it automatically.
 - [Nutrition goals and shopping state](nutrition-goals-shopping-state.md) — keep patient goal logs separate from goals and scope shopping marks to the plan version.
 - [Safari Kids lesson videos](safari-kids-video-placement.md) — match verified videos to lessons; Abgad Hawaz teaches Arabic letters and مدرسة زاد الحروف covers writing.
+- [Safari Kids PWA cache](safari-kids-pwa-cache.md) — bump the service-worker cache after static code changes so home-screen installs do not keep old assets.
 - [Service Flow database billing scope](serviceflow-database-billing-scope.md) — Service Flow is the only site the user identifies as using a Replit-hosted database; other sites use Supabase.
 - [Service Flow change constraints](serviceflow-change-constraints.md) — make incremental edits with `str_replace`, one feature at a time, and confirm between complex steps.
 - [Local D1 emulation](local-d1-emulation.md) — set SQLite foreign-key enforcement in each Wrangler local execute call; CLI invocations do not share the pragma state.
