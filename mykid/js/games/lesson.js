@@ -1,7 +1,7 @@
 // ===== المعلّم الافتراضي: درس تفاعلي لشرح الحرف/الرقم =====
 // شخصية ودودة تشرح، وسبّورة بخطّ أساس يُكتب عليها الحرف بالحركة،
 // مع نطق بصوتنا المخزَّن، وأزرار تشغيل/سابق/تالي + "اكتبه بنفسك".
-// يضيف مشغّل الفيديو المرتبط بكل رقم أو حرف إنجليزي عند توفر رابط موثّق.
+// يضيف مشغّل الفيديو المرتبط بكل حرف عربي/إنجليزي أو رقم عند توفر رابط موثّق.
 import { getDataset } from "../data/datasets.js";
 import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
@@ -12,6 +12,8 @@ import { Store } from "../core/storage.js";
 import { adaptDisplay, femAdapt } from "../data/mizo.js";
 import { getNumberLessonVideo } from "../data/numberLessonVideos.js";
 import { getEnglishLetterLessonVideo } from "../data/englishLetterLessonVideos.js";
+import { getArabicLetterLessonVideo } from "../data/arabicLetterLessonVideos.js";
+import { getArabicLetterWritingVideo } from "../data/arabicLetterWritingVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
 import { bothCases } from "../data/englishLetters.js";
 import { strokeAnimSvg } from "./strokeAnim.js";
@@ -101,7 +103,9 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
     });
     itemPicker.appendChild(grid);
   }
-  const lessonVideo = ds.glyphKind === "number" || datasetKey === "english" ? document.createElement("div") : null;
+  const lessonVideo = ds.glyphKind === "number" || datasetKey === "english" || datasetKey === "arabic"
+    ? document.createElement("div")
+    : null;
   if (itemPicker) wrap.appendChild(itemPicker);
   if (lessonVideo) {
     lessonVideo.className = "lesson-video";
@@ -192,13 +196,20 @@ export function renderLesson({ regionId, regionIndex, datasetKey, lang, title, s
     if (!lessonVideo) return;
     lessonVideo.replaceChildren();
 
-    const video = ds.glyphKind === "number"
-      ? getNumberLessonVideo(it.value)
+    const videos = ds.glyphKind === "number"
+      ? [getNumberLessonVideo(it.value)]
       : datasetKey === "english"
-        ? getEnglishLetterLessonVideo(glyphOf(it))
+        ? [getEnglishLetterLessonVideo(glyphOf(it))]
+        : datasetKey === "arabic"
+          ? [getArabicLetterLessonVideo(glyphOf(it)), getArabicLetterWritingVideo(glyphOf(it))]
+          : [];
+    videos.filter(Boolean).forEach((video, index) => {
+      const source = datasetKey === "arabic"
+        ? index === 0 ? "أبجد هوز" : "مدرسة زاد الحروف"
         : null;
-    if (!video) return;
-    lessonVideo.appendChild(createYouTubePlayer(video));
+      const titledVideo = source ? { ...video, title: `${source} · ${video.title}` } : video;
+      lessonVideo.appendChild(createYouTubePlayer(titledVideo));
+    });
   }
 
   function render() {

@@ -8,6 +8,8 @@ import { chromium } from "playwright-core";
 import { getActivityLessonVideo } from "../js/data/activityLessonVideos.js";
 import { ACTIVITIES } from "../js/data/activities.js";
 import { getEnglishLetterLessonVideo } from "../js/data/englishLetterLessonVideos.js";
+import { getArabicLetterLessonVideo } from "../js/data/arabicLetterLessonVideos.js";
+import { getArabicLetterWritingVideo } from "../js/data/arabicLetterWritingVideos.js";
 import { getNumberLessonVideo } from "../js/data/numberLessonVideos.js";
 import { getDataset } from "../js/data/datasets.js";
 
@@ -52,6 +54,68 @@ const EXPECTED_LETTER_IDS = {
   X: "wNeM7xZXqYM",
   Y: "rAwJrvmcY2o",
   Z: "u8VmrIe2PWc",
+};
+
+const EXPECTED_ARABIC_LETTER_IDS = {
+  "أ": "wi0BH6LiyRo",
+  "ب": "nKM1yo-7Abc",
+  "ت": "SbCoTT0bO5Q",
+  "ث": "DcvV-McdEG4",
+  "ج": "_fKC8sYdWD4",
+  "ح": "zW2myzQO0TY",
+  "خ": "UQbJq8UIWfE",
+  "د": "b9-ve3ZWjEQ",
+  "ذ": "pYEacceQed0",
+  "ر": "4kRZInbEcq8",
+  "ز": "4CRgJzkB8TI",
+  "س": "wiChkzkBzUM",
+  "ش": "IzALBAQvHt4",
+  "ص": "KRqhl-9FiUQ",
+  "ض": "FS-Ea_Uq6RE",
+  "ط": "bjsVDvmVVUA",
+  "ظ": "98_YXH1RjLo",
+  "ع": "4K6HJF-2wg8",
+  "غ": "N6pKoax5oPQ",
+  "ف": "acb0O7-tDyo",
+  "ق": "Zun1i013opM",
+  "ك": "jM4kcmNdtUI",
+  "ل": "ss8uW1UFpHw",
+  "م": "3tBOIkN3ZSo",
+  "ن": "jO6xvndk8EE",
+  "ه": "DNvXZBK00tg",
+  "و": "1ag78ymrmSA",
+  "ي": "ouYxNGf8frU",
+};
+
+const EXPECTED_ARABIC_WRITING_IDS = {
+  "أ": "DKihnmvn-YQ",
+  "ب": "NFVJSYyYhl8",
+  "ت": "OJQgshvXNh8",
+  "ث": "syxBBbxHE0k",
+  "ج": "Q3Qz3RpIk0g",
+  "ح": "htG2Cew-MN0",
+  "خ": "X60zWHPRlCI",
+  "د": "hKNiOzhJ1og",
+  "ذ": "nyvX-frwX9A",
+  "ر": "apYtS2arnvc",
+  "ز": "W9DGGDfg_X0",
+  "س": "UK0ZZBzuMZk",
+  "ش": "vlfgr7SqSfI",
+  "ص": "f5uwhk6COEA",
+  "ض": "QwkicCNfFzM",
+  "ط": "YapcfKJj3pg",
+  "ظ": "CMWYbeBMRMw",
+  "ع": "qq20RdN0XCs",
+  "غ": "tsM3EYBYRRQ",
+  "ف": "qtGfHwZ7TMc",
+  "ق": "ZIqIKGA4fk0",
+  "ك": "bkhrAmbUXYw",
+  "ل": "6y7dOBLqS1s",
+  "م": "xeF6Zvun84M",
+  "ن": "aWMR8QkYCyU",
+  "ه": "bAYqYO7wxX8",
+  "و": "gUp0ORkrxbs",
+  "ي": "uBuOkgOqO3w",
 };
 
 const EXPECTED_ACTIVITY_IDS = {
@@ -183,6 +247,18 @@ test("number, letter, and activity mappings match their intended lessons without
   assert.equal(getEnglishLetterLessonVideo("L"), null, "Religious L video must stay excluded");
   assert.equal(getEnglishLetterLessonVideo("?"), null, "Unknown letters must not inherit a video");
 
+  const arabicLetters = Object.keys(EXPECTED_ARABIC_LETTER_IDS);
+  for (const letter of arabicLetters) {
+    const expectedVideoId = EXPECTED_ARABIC_LETTER_IDS[letter];
+    const expectedWritingVideoId = EXPECTED_ARABIC_WRITING_IDS[letter];
+    assert.equal(getArabicLetterLessonVideo(letter)?.videoId, expectedVideoId, `Wrong video mapped to Arabic letter ${letter}`);
+    assert.equal(getArabicLetterWritingVideo(letter)?.videoId, expectedWritingVideoId, `Wrong writing video mapped to Arabic letter ${letter}`);
+    mappedIds.push([`Arabic letter ${letter}`, expectedVideoId]);
+    mappedIds.push([`Arabic letter writing ${letter}`, expectedWritingVideoId]);
+  }
+  assert.equal(getArabicLetterLessonVideo("?"), null, "Unknown Arabic letters must not inherit a video");
+  assert.equal(getArabicLetterWritingVideo("?"), null, "Unknown Arabic letters must not inherit a writing video");
+
   for (const [key, expectedVideoId] of Object.entries(EXPECTED_ACTIVITY_IDS)) {
     const [datasetKey, activityKey] = key.split(":");
     assert.equal(
@@ -283,7 +359,10 @@ test("lesson picker jumps directly to every number and letter", async () => {
       datasetKey: "arabic",
       includeZero: false,
       items: getDataset("arabic").items,
-      videoIds: [],
+      videoIds: Object.keys(EXPECTED_ARABIC_LETTER_IDS).map((letter) => [
+        EXPECTED_ARABIC_LETTER_IDS[letter],
+        EXPECTED_ARABIC_WRITING_IDS[letter],
+      ]),
     },
     {
       datasetKey: "english",
@@ -313,7 +392,7 @@ test("lesson picker jumps directly to every number and letter", async () => {
           glyph: screen.querySelector(".lesson-glyph")?.textContent || null,
           activeGlyph: screen.querySelector(".lesson-item-picker-button.is-active")?.textContent || null,
           pressedCount: [...screen.querySelectorAll(".lesson-item-picker-button[aria-pressed='true']")].length,
-          videoId: parseId(screen.querySelector(".lesson-video img")?.src),
+          videoIds: [...screen.querySelectorAll(".lesson-video img")].map((img) => parseId(img.src)),
         });
       }
       results.push({ datasetKey: item.datasetKey, buttonCount: buttons.length, selections });
@@ -335,7 +414,8 @@ test("lesson picker jumps directly to every number and letter", async () => {
     assert.deepEqual(actualCase.selections.map((item) => item.activeGlyph), expectedGlyphs, `${expectedCase.datasetKey} must highlight the selected item`);
     assert.ok(actualCase.selections.every((item) => item.pressedCount === 1), `${expectedCase.datasetKey} must have exactly one selected button`);
     if (expectedCase.videoIds.length) {
-      assert.deepEqual(actualCase.selections.map((item) => item.videoId), expectedCase.videoIds, `${expectedCase.datasetKey} must update its video with the selected item`);
+      const expectedVideoIds = expectedCase.videoIds.map((ids) => Array.isArray(ids) ? ids : (ids ? [ids] : []));
+      assert.deepEqual(actualCase.selections.map((item) => item.videoIds), expectedVideoIds, `${expectedCase.datasetKey} must update its videos with the selected item`);
     }
   }
 });
@@ -356,20 +436,22 @@ async function renderLessonSequence(datasetKey, includeZero = false, length = 26
     const results = [];
     for (let index = 0; index < length; index += 1) {
       const videoSlot = screen.querySelector(".lesson-video");
-      const card = videoSlot?.querySelector(".kid-youtube-card");
-      const thumbnail = card?.querySelector(".kid-youtube-preview img");
-      const preview = card?.querySelector(".kid-youtube-preview");
-      const thumbnailId = parseId(thumbnail?.src);
-
-      preview?.click();
-      const iframe = card?.querySelector("iframe");
+      const cards = [...(videoSlot?.querySelectorAll(".kid-youtube-card") || [])];
+      const thumbnailIds = cards.map((card) => parseId(card.querySelector(".kid-youtube-preview img")?.src));
+      cards.forEach((card) => card.querySelector(".kid-youtube-preview")?.click());
+      const iframeIds = cards.map((card) => parseId(card.querySelector("iframe")?.src));
+      const iframeHosts = cards.map((card) => {
+        const src = card.querySelector("iframe")?.src;
+        return src ? new URL(src).hostname : null;
+      });
       results.push({
         glyph: screen.querySelector(".lesson-glyph")?.textContent || null,
         bubble: screen.querySelector(".teacher-bubble")?.textContent || "",
-        cardCount: videoSlot?.querySelectorAll(".kid-youtube-card").length || 0,
-        thumbnailId,
-        iframeId: parseId(iframe?.src),
-        iframeHost: iframe ? new URL(iframe.src).hostname : null,
+        cardCount: cards.length,
+        thumbnailIds,
+        iframeIds,
+        iframeHosts,
+        videoTitles: cards.map((card) => card.querySelector(".kid-youtube-title")?.textContent || ""),
       });
 
       if (index < length - 1) {
@@ -390,24 +472,44 @@ function assertLessonSequence(results, expectedGlyphs, expectedIds, label) {
     `${label} lesson order changed`
   );
   assert.deepEqual(
-    results.map((result) => result.thumbnailId),
-    expectedIds,
+    results.map((result) => result.thumbnailIds),
+    expectedIds.map((ids) => Array.isArray(ids) ? ids : (ids ? [ids] : [])),
     `${label} thumbnail is attached to the wrong lesson index`
   );
   assert.deepEqual(
-    results.map((result) => result.iframeId),
-    expectedIds,
+    results.map((result) => result.iframeIds),
+    expectedIds.map((ids) => Array.isArray(ids) ? ids : (ids ? [ids] : [])),
     `${label} click must embed the exact video for the current lesson`
   );
   for (const result of results) {
-    assert.equal(result.cardCount, result.thumbnailId ? 1 : 0, `${label} lesson must show at most one video`);
-    if (result.iframeId) {
-      assert.equal(result.iframeHost, "www.youtube-nocookie.com", `${label} must use the privacy-enhanced YouTube embed`);
-    }
+    const expectedCount = result.thumbnailIds.length;
+    assert.equal(result.cardCount, expectedCount, `${label} lesson must show the expected number of videos`);
+    assert.ok(result.iframeIds.every((id) => !!id), `${label} click must embed every mapped video`);
+    assert.ok(result.iframeHosts.every((host) => host === "www.youtube-nocookie.com"), `${label} must use privacy-enhanced YouTube embeds`);
   }
 }
 
-test("Arabic and English number lessons plus English letters render matching videos", async () => {
+test("Arabic letters and Arabic/English number lessons plus English letters render matching videos", async () => {
+  const arabicLetters = Object.keys(EXPECTED_ARABIC_LETTER_IDS);
+  const arabicLetterResults = await renderLessonSequence("arabic", false, arabicLetters.length);
+  assertLessonSequence(
+    arabicLetterResults,
+    arabicLetters,
+    arabicLetters.map((letter) => [
+      EXPECTED_ARABIC_LETTER_IDS[letter],
+      EXPECTED_ARABIC_WRITING_IDS[letter],
+    ]),
+    "Arabic letters"
+  );
+  assert.ok(
+    arabicLetterResults.every((result) => result.videoTitles[0]?.startsWith("أبجد هوز · ")),
+    "The first Arabic video must be labeled as Abgad Hawaz"
+  );
+  assert.ok(
+    arabicLetterResults.every((result) => result.videoTitles[1]?.startsWith("مدرسة زاد الحروف · ")),
+    "The second Arabic video must be labeled as the writing channel"
+  );
+
   const arabicDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩", "١٠"];
   const numberResults = await renderLessonSequence("numbers", true, 11);
   assertLessonSequence(

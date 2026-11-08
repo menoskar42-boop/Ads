@@ -5,7 +5,8 @@ description: Product requirement for where children's alphabet and number videos
 
 Use useful, age-appropriate videos from the children's learning channel inside existing matching Safari Kids activities, played inline like MyBible videos. Do not add a new homepage section or alter existing navigation.
 Do not add videos containing religious content. If a video's story content is unclear, leave it out until verified.
+For Arabic alphabet lessons, the user selected Abgad Hawaz for letter-learning videos and مدرسة زاد الحروف (تعلم مع سراج) for writing videos. Display both sources for each matching letter. Use individual videos that match each letter; do not repeat one general alphabet video across unrelated letters.
 
-**Why:** The user wants to review the channel broadly and send direct video links one at a time for verification and placement in the matching existing lesson, and does not want religious content.
+**Why:** The user wants two videos in each Arabic letter lesson: one matching lesson from Abgad Hawaz and one matching writing lesson from مدرسة زاد الحروف.
 
-**How to apply:** For each supplied link, verify the channel and title, match the video to the item or activity being taught, and add it inline only when age-appropriate. Do not request a full batch or add homepage navigation.
+**How to apply:** Verify the channel and title, match each video to the item or activity being taught, and add it inline only when age-appropriate. Do not request a full batch or add homepage navigation.
