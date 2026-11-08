@@ -6,7 +6,7 @@ import { Sfx } from "../core/audio.js";
 import { awardStars } from "../core/rewards.js";
 import { gameTopbar, finishActivity } from "./common.js";
 import { glyphMarkup } from "./glyph.js";
-import { getActivityLessonVideo } from "../data/activityLessonVideos.js";
+import { getActivityLessonVideos } from "../data/activityLessonVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
 
 export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, sound, lang }) {
@@ -26,6 +26,16 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
   hint.style.cssText = "text-align:center;font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.18);font-size:clamp(15px,4.2vw,20px);margin:12px";
   hint.textContent = en ? "Tap each one to hear its name! 👆 · اضغط واسمع" : "اضغط على كل صديق ليتكلّم! 👆";
   screen.appendChild(hint);
+
+  const videos = getActivityLessonVideos(datasetKey, "explore");
+  if (videos.length) {
+    const videoWrap = document.createElement("div");
+    videoWrap.className = "explore-video-list";
+    videoWrap.setAttribute("aria-label", "فيديوهات تعليمية مرتبطة بالنشاط");
+    videoWrap.style.cssText = "width:calc(100% - 28px);max-width:720px;margin:12px auto 18px;display:flex;flex-direction:column;gap:14px";
+    videos.forEach((video) => videoWrap.appendChild(createYouTubePlayer(video)));
+    screen.appendChild(videoWrap);
+  }
 
   const grid = document.createElement("div");
   grid.className = "regions-grid";
@@ -54,14 +64,6 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
     grid.appendChild(card);
   });
   screen.appendChild(grid);
-
-  const video = getActivityLessonVideo(datasetKey, "explore");
-  if (video) {
-    const videoWrap = document.createElement("div");
-    videoWrap.style.cssText = "width:calc(100% - 28px);max-width:720px;margin:12px auto 18px";
-    videoWrap.appendChild(createYouTubePlayer(video));
-    screen.appendChild(videoWrap);
-  }
 
   const doneBtn = document.createElement("button");
   doneBtn.className = "candy-btn";

@@ -5,9 +5,9 @@ description: Product requirement for where children's alphabet and number videos
 
 Use useful, age-appropriate videos from the children's learning channel inside existing matching Safari Kids activities, played inline like MyBible videos. Do not add a new homepage section or alter existing navigation.
 Do not add videos containing religious content. If a video's story content is unclear, leave it out until verified.
-For Arabic alphabet lessons, the user selected Abgad Hawaz for letter-learning videos and مدرسة زاد الحروف (تعلم مع سراج) for writing videos. Display both sources for each matching letter. Use individual videos that match each letter; do not repeat one general alphabet video across unrelated letters.
-Keep the lesson videos before the long letter chooser so children can find them without scrolling past the full alphabet grid.
+For Arabic alphabet lessons, the user selected Abgad Hawaz for letter-learning videos and مدرسة زاد الحروف (تعلم مع سراج) for writing videos. Display both sources for each matching letter. The user also selected Abgad Hawaz as a source for other topics; match each video to an existing activity and do not add new home navigation.
+Keep lesson videos before long chooser/content grids so children can find them without scrolling past the full list.
 
-**Why:** The user could not find the videos when the long letter chooser pushed them below the visible lesson content.
+**Why:** The user wants relevant videos inside existing MyKid topics, including two source videos per Arabic letter, without creating repeated or unrelated sections.
 
-**How to apply:** Verify the channel and title, match each video to the item or activity being taught, and place it inline before long chooser grids. Do not request a full batch or add homepage navigation.
+**How to apply:** Verify the channel and title, match each video to the item or activity being taught, and place it inline before long chooser/content grids. Do not add homepage navigation or reuse one general video across unrelated topics.

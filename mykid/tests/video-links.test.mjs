@@ -5,7 +5,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
-import { getActivityLessonVideo } from "../js/data/activityLessonVideos.js";
+import { getActivityLessonVideo, getActivityLessonVideos } from "../js/data/activityLessonVideos.js";
 import { ACTIVITIES } from "../js/data/activities.js";
 import { getEnglishLetterLessonVideo } from "../js/data/englishLetterLessonVideos.js";
 import { getArabicLetterLessonVideo } from "../js/data/arabicLetterLessonVideos.js";
@@ -118,12 +118,16 @@ const EXPECTED_ARABIC_WRITING_IDS = {
   "ي": "uBuOkgOqO3w",
 };
 
-const EXPECTED_ACTIVITY_IDS = {
-  "colors:explore": "gn81A7aJVic",
-  "colors:coloring": "f7IErJrxwPA",
-  "weekdays:explore": "DGxv3M2vog0",
-  "family:explore": "flyN1BahTR0",
-  "words:readMatch": "aTy_6f2NKsc",
+const EXPECTED_ACTIVITY_VIDEO_IDS = {
+  "colors:explore": ["gn81A7aJVic", "YoOxfoJhQm4"],
+  "colors:coloring": ["f7IErJrxwPA"],
+  "animals:explore": ["bJ3EWyZQyl0", "Lud5hiIvcfw"],
+  "fish:explore": ["1t2m7Keo6JU", "wb1DPUKCZcI"],
+  "shapes:explore": ["ldTkRB6Xbp4"],
+  "fruits:explore": ["NK25HK_0I48", "G7QpNappaz4"],
+  "weekdays:explore": ["DGxv3M2vog0"],
+  "family:explore": ["flyN1BahTR0"],
+  "words:readMatch": ["aTy_6f2NKsc"],
 };
 
 const MYKID_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -259,14 +263,20 @@ test("number, letter, and activity mappings match their intended lessons without
   assert.equal(getArabicLetterLessonVideo("?"), null, "Unknown Arabic letters must not inherit a video");
   assert.equal(getArabicLetterWritingVideo("?"), null, "Unknown Arabic letters must not inherit a writing video");
 
-  for (const [key, expectedVideoId] of Object.entries(EXPECTED_ACTIVITY_IDS)) {
+  for (const [key, expectedVideoIds] of Object.entries(EXPECTED_ACTIVITY_VIDEO_IDS)) {
     const [datasetKey, activityKey] = key.split(":");
+    const videos = getActivityLessonVideos(datasetKey, activityKey);
     assert.equal(
       getActivityLessonVideo(datasetKey, activityKey)?.videoId,
-      expectedVideoId,
-      `Wrong video mapped to ${datasetKey}/${activityKey}`
+      expectedVideoIds[0],
+      `Wrong primary video mapped to ${datasetKey}/${activityKey}`
     );
-    mappedIds.push([`${datasetKey}/${activityKey}`, expectedVideoId]);
+    assert.deepEqual(
+      videos.map((video) => video.videoId),
+      expectedVideoIds,
+      `Wrong video list mapped to ${datasetKey}/${activityKey}`
+    );
+    expectedVideoIds.forEach((videoId, index) => mappedIds.push([`${datasetKey}/${activityKey} video ${index + 1}`, videoId]));
   }
   assert.equal(getActivityLessonVideo("colors", "readMatch"), null, "Color videos must not be assigned to reading");
   assert.equal(getActivityLessonVideo("weekdays", "coloring"), null, "Weekday videos must not be assigned to coloring");
@@ -553,6 +563,10 @@ test("activity videos appear only in their mapped activity and embed the mapped 
     ]);
     const cases = [
       ["colors", "explore", () => renderExplore({ datasetKey: "colors" })],
+      ["animals", "explore", () => renderExplore({ datasetKey: "animals" })],
+      ["fish", "explore", () => renderExplore({ datasetKey: "fish" })],
+      ["shapes", "explore", () => renderExplore({ datasetKey: "shapes" })],
+      ["fruits", "explore", () => renderExplore({ datasetKey: "fruits" })],
       ["weekdays", "explore", () => renderExplore({ datasetKey: "weekdays" })],
       ["family", "explore", () => renderExplore({ datasetKey: "family" })],
       ["colors", "coloring", () => renderColoring({})],
@@ -579,29 +593,38 @@ test("activity videos appear only in their mapped activity and embed the mapped 
           iframeHost: iframe ? new URL(iframe.src).hostname : null,
         };
       });
-      output.push({ datasetKey, activityKey, links });
+      const videoList = screen.querySelector(".explore-video-list");
+      const grid = screen.querySelector(".regions-grid");
+      output.push({
+        datasetKey,
+        activityKey,
+        links,
+        videosBeforeGrid: !!videoList && !!grid && videoList.parentElement === grid.parentElement &&
+          [...videoList.parentElement.children].indexOf(videoList) < [...grid.parentElement.children].indexOf(grid),
+      });
     }
     return output;
   });
 
   for (const result of results) {
     const key = `${result.datasetKey}:${result.activityKey}`;
-    const expectedId = EXPECTED_ACTIVITY_IDS[key] || null;
+    const expectedIds = EXPECTED_ACTIVITY_VIDEO_IDS[key] || [];
     assert.equal(
       result.links.length,
-      expectedId ? 1 : 0,
-      `${key} must show ${expectedId ? "exactly one matching video" : "no unrelated video"}`
+      expectedIds.length,
+      `${key} must show exactly its mapped videos`
     );
-    if (expectedId) {
-      assert.deepEqual(
-        result.links[0],
-        {
-          thumbnailId: expectedId,
-          iframeId: expectedId,
-          iframeHost: "www.youtube-nocookie.com",
-        },
-        `${key} must embed its own mapped video`
-      );
+    assert.deepEqual(
+      result.links,
+      expectedIds.map((videoId) => ({
+        thumbnailId: videoId,
+        iframeId: videoId,
+        iframeHost: "www.youtube-nocookie.com",
+      })),
+      `${key} must embed only its mapped videos`
+    );
+    if (result.activityKey === "explore" && expectedIds.length) {
+      assert.equal(result.videosBeforeGrid, true, `${key} videos must appear before the long content grid`);
     }
   }
 
