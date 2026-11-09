@@ -159,3 +159,10 @@ test("API: measure-alive needs the token and makes job-check report aliveSec for
     await new Promise<void>((r) => httpServer.close(() => r()));
   }
 });
+
+// المالك ٢٠٢٦-١١-٠٥: «شيل كلمه ان الاسكريبت اقدم 10.38»
+test("phone lookup: the missing-score note no longer mentions an old script version", () => {
+  const src = readFileSync(new URL("../client/src/components/PhoneLookupReport.tsx", import.meta.url), "utf8");
+  assert.match(src, /القياس اتعمل بس الاسكور ماظهرش/);
+  assert.doesNotMatch(src, /السكربت أقدم من 10\.38/);
+});

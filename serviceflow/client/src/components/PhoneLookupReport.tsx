@@ -936,7 +936,7 @@ export function PhoneLookupReport() {
                     </span>
                   : (line.score != null && [101, 102, 104, 105].includes(Number(line.score))) && (
                     <span className="text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                      {line.measureFailAt ? "آخر قياس: " : ""}القياس اتعمل بس الاسكور ماظهرش ({line.score}) — ومفيش رسالة ظهرت فى DZS (أو السكربت أقدم من 10.38.0)
+                      {line.measureFailAt ? "آخر قياس: " : ""}القياس اتعمل بس الاسكور ماظهرش ({line.score}) — ومفيش رسالة ظهرت فى DZS
                     </span>
                   )}
               </span>)]] as [string, ReactNode][])
