@@ -21,6 +21,7 @@
 const path = require('path');
 const Module = require('module');
 const ROOT = path.join(__dirname, '..');
+const { safeJson } = require(path.join(ROOT, 'src/lib/safe_json'));
 
 // ── The fixture, and the log of what the routes asked for ──────────────────
 const db = {
@@ -71,6 +72,9 @@ const kakeibo = require(path.join(ROOT, 'src/kakeibo/router'));
 const app = express();
 app.set('view engine', 'ejs');
 app.set('views', path.join(ROOT, 'src/views'));
+// Match the shared production middleware: profile.ejs embeds push settings
+// with jsonLd(), which the real server places in res.locals for every route.
+app.locals.jsonLd = safeJson;
 app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => { req.session = { kkbUserId: 1 }; next(); });
 app.use(kakeibo);

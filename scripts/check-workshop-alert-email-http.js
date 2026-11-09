@@ -232,6 +232,12 @@ class FixturePool {
     }
     if (/FROM workshop_reminder_runs/.test(sql)) return { rows: [] };
     if (/FROM workshop_reminder_health/.test(sql)) return { rows: [] };
+    if (/FROM workshop_team_invitations/.test(sql)) {
+      if (!/WHERE company_id=\$1/.test(sql)) {
+        throw new Error('workshop invitations query lost company scope');
+      }
+      return { rows: [] };
+    }
     throw new Error(`unexpected fixture query: ${sql.slice(0, 180)}`);
   }
 
