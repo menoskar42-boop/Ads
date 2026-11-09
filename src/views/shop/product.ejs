@@ -9,20 +9,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <% var __sep = ' — '; %>
   <% var __pTitle = pName + (((pName.length + __sep.length + displayCompanyName.length) <= 60) ? (__sep + displayCompanyName) : ''); %>
+  <% var __pDesc = pDesc.slice(0,150); %>
   <title><%= __pTitle %></title>
-  <meta name="description" content="<%= pDesc.slice(0,150) %>" />
+  <meta name="description" content="<%= __pDesc %>" />
   <% var productUrl = (typeof canonical !== 'undefined' && canonical) ? canonical : (siteOrigin + '/shop/' + company.slug + '/product/' + product.id); %>
   <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
   <%# Shared social/app metadata stack (canonical, og, twitter, favicons, GA) —
-      the product's own <title>, meta description and Product JSON-LD stay below. %>
+      keep the product's own title/description above and JSON-LD below. %>
   <%- include('../partials/seo_meta', {
     title: __pTitle,
-    description: pDesc.slice(0,160),
+    description: __pDesc,
     canonical: productUrl,
     ogType: 'product',
     ogImage: (product.image_url || ''),
     siteLogo: (company.logo_url || ''),
-    siteAppName: displayCompanyName
+    siteAppName: displayCompanyName,
+    siteManifest: canonicalCompanyUrl(company.slug) + '/manifest.webmanifest'
   }) %>
   <script type="application/ld+json">
   <%- jsonLd({
