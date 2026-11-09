@@ -116,8 +116,11 @@ async function ensureWorkshopSchema() {
         invited_by   INTEGER REFERENCES company_users(id) ON DELETE SET NULL,
         expires_at   TIMESTAMPTZ NOT NULL,
         accepted_at  TIMESTAMPTZ,
+        revoked_at   TIMESTAMPTZ,
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      ALTER TABLE workshop_team_invitations
+        ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
       CREATE INDEX IF NOT EXISTS idx_wsh_team_invites_lookup
         ON workshop_team_invitations (company_id, lower(email), expires_at)
         WHERE accepted_at IS NULL;

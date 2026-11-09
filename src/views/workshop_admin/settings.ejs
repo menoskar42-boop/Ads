@@ -7,6 +7,7 @@
 <% if (settingsError === 'invite_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">اكتب بريدًا صحيحًا واختر دورًا صالحًا.</div><% } %>
 <% if (settingsError === 'invite_existing') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">هذا البريد مرتبط بحساب موجود بالفعل.</div><% } %>
 <% if (settingsError === 'invite_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر إنشاء الدعوة الآن. حاول مرة أخرى.</div><% } %>
+<% if (settingsError === 'invite_link') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر عرض رابط الدعوة. أنشئ دعوة جديدة للبريد نفسه؛ ستُلغى الدعوة السابقة تلقائيًا.</div><% } %>
 <% if (settingsError === 'role_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ تغيير الدور.</div><% } %>
 <% if (settingsError === 'settings_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ إعدادات الورشة وسجل التغيير.</div><% } %>
 <% if (settingsError === 'alert_email_restore_invalid') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">عنوان البريد السابق غير صالح أو لم يعد متاحًا للاستعادة.</div><% } %>
@@ -54,8 +55,24 @@
       </form>
       <% if (inviteLink) { %>
         <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm">
-          <div class="font-bold text-emerald-800">تم إنشاء الدعوة. انسخ الرابط وأرسله للعضو — يظل صالحًا 7 أيام.</div>
+          <div class="font-bold text-emerald-800">تم إنشاء الدعوة. انسخ الرابط الآن وأرسله للعضو — يظل صالحًا 7 أيام ولن يظهر مرة أخرى.</div>
           <input readonly value="<%= inviteLink %>" dir="ltr" onclick="this.select()" class="w-full mt-2 border border-emerald-200 rounded-lg px-3 py-2 text-xs bg-white" aria-label="رابط الدعوة" />
+        </div>
+      <% } %>
+      <% if (typeof invitations !== 'undefined' && invitations.length) { %>
+        <div class="mt-4 border-t border-slate-100 pt-3">
+          <h3 class="font-bold text-sm mb-2">حالة الدعوات الأخيرة</h3>
+          <div class="divide-y divide-slate-100">
+            <% invitations.forEach(function(invitation) { %>
+              <div class="py-2 flex items-center justify-between gap-3 flex-wrap text-sm">
+                <div class="min-w-0">
+                  <div class="font-bold truncate" dir="ltr"><%= invitation.email %></div>
+                  <div class="text-xs text-slate-500"><%= roleLabels[invitation.role] || invitation.role %> · تنتهي <%= new Date(invitation.expires_at).toLocaleString('ar-EG', {timeZone:'Africa/Cairo', dateStyle:'medium', timeStyle:'short'}) %></div>
+                </div>
+                <span class="text-xs font-bold rounded-full px-3 py-1 <%= invitation.status === 'pending' ? 'bg-amber-50 text-amber-800' : invitation.status === 'accepted' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600' %>"><%= invitation.status === 'pending' ? 'معلقة' : invitation.status === 'accepted' ? 'مقبولة' : invitation.status === 'expired' ? 'منتهية' : 'ملغاة' %></span>
+              </div>
+            <% }) %>
+          </div>
         </div>
       <% } %>
     <div class="divide-y divide-slate-100 mt-4">

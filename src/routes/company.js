@@ -453,6 +453,8 @@ router.post('/deals-products/:id/delete', requireLogin, requireDeals, async (req
 
 /* ─── LOGIN ─────────────────────────────────────────────── */
 router.get('/workshop-invite/:token', async (req, res) => {
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Cache-Control', 'no-store');
   const token = String(req.params.token || '').slice(0, 200);
   let invite = null;
   if (token) {
@@ -461,7 +463,8 @@ router.get('/workshop-invite/:token', async (req, res) => {
         `SELECT i.email, i.role, i.expires_at, c.company_name
            FROM workshop_team_invitations i
            JOIN companies c ON c.id=i.company_id AND c.page_type='workshop' AND c.is_active=true
-          WHERE i.token_hash=$1 AND i.accepted_at IS NULL AND i.expires_at > now()`,
+          WHERE i.token_hash=$1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL
+            AND i.expires_at > now()`,
         [workshopInviteHash(token)]
       )).rows[0] || null;
     } catch (e) {
@@ -472,6 +475,8 @@ router.get('/workshop-invite/:token', async (req, res) => {
 });
 
 router.post('/workshop-invite/:token', async (req, res) => {
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Cache-Control', 'no-store');
   const token = String(req.params.token || '').slice(0, 200);
   const password = String(req.body && req.body.password || '');
   const confirm = String(req.body && req.body.password_confirm || '');
@@ -490,13 +495,18 @@ router.post('/workshop-invite/:token', async (req, res) => {
       `SELECT i.*, c.company_name, c.theme_color, c.slug
          FROM workshop_team_invitations i
          JOIN companies c ON c.id=i.company_id AND c.page_type='workshop' AND c.is_active=true
-        WHERE i.token_hash=$1 AND i.accepted_at IS NULL AND i.expires_at > now()
+        WHERE i.token_hash=$1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL
+          AND i.expires_at > now()
         FOR UPDATE OF i`,
       [workshopInviteHash(token)]
     )).rows[0];
     if (!invite) {
       await client.query('ROLLBACK');
       return renderError('رابط الدعوة غير صالح أو انتهت صلاحيته.');
+    }
+    if (!['manager', 'reception', 'technician'].includes(invite.role)) {
+      await client.query('ROLLBACK');
+      return renderError('الدور الموجود في الدعوة غير صالح.');
     }
     const existing = (await client.query(
       'SELECT id FROM company_users WHERE lower(email)=lower($1) LIMIT 1',

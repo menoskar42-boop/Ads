@@ -1080,7 +1080,7 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
   } else if (companyScopeMismatch) {
     logAlertEmailAccessDenied(req, 'company_scope_mismatch', true);
   }
-  const [messageRow, paymentRow, users, roleHistory, alertEmailHistory, reminderRuns, reminderHealth] = await Promise.all([
+  const [messageRow, paymentRow, users, roleHistory, alertEmailHistory, reminderRuns, reminderHealth, invitations] = await Promise.all([
     pool.query('SELECT * FROM workshop_message_settings WHERE company_id=$1', [req.company.id]),
     loadPaySettings(pool, req.company.id),
     pool.query(
@@ -1112,12 +1112,29 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
         WHERE company_id=$1`,
       [req.company.id]
     ),
+    pool.query(
+      `SELECT id, email, role, created_at, expires_at, accepted_at, revoked_at,
+              CASE
+                WHEN revoked_at IS NOT NULL THEN 'revoked'
+                WHEN accepted_at IS NOT NULL THEN 'accepted'
+                WHEN expires_at <= now() THEN 'expired'
+                ELSE 'pending'
+              END AS status
+         FROM workshop_team_invitations
+        WHERE company_id=$1
+        ORDER BY created_at DESC, id DESC LIMIT 20`,
+      [req.company.id]
+    ),
   ]);
   const payment = Object.assign({}, paymentRow || { gateway: 'none', cod_enabled: true });
   payment.gateway_secret_set = Boolean(payment.gateway_secret_enc || payment.gateway_secret);
   payment.gateway_hmac_set = Boolean(payment.gateway_hmac_enc || payment.gateway_hmac);
   delete payment.gateway_secret; delete payment.gateway_secret_enc;
   delete payment.gateway_hmac; delete payment.gateway_hmac_enc;
+  const inviteFlash = req.session && req.session.workshopInviteLink;
+  const inviteToken = inviteFlash && Number(inviteFlash.companyId) === Number(req.company.id)
+    ? String(inviteFlash.token || '').slice(0, 200) : '';
+  if (req.session) delete req.session.workshopInviteLink;
   res.render('workshop_admin/settings', {
     title: res.locals.t('wsh.set.title'), tab: 'settings',
     FLAGS, OPTIONAL_KEYS, saved: req.query.saved === '1',
@@ -1131,8 +1148,9 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
     alertEmailHistory,
     reminderRuns: reminderRuns.rows,
     reminderHealth: reminderHealth.rows[0] || null,
-    inviteLink: req.query.invite
-      ? `${publicOrigin(req)}/company/workshop-invite/${encodeURIComponent(String(req.query.invite).slice(0, 200))}`
+    invitations: invitations.rows,
+    inviteLink: inviteToken
+      ? `${publicOrigin(req)}/company/workshop-invite/${encodeURIComponent(inviteToken)}`
       : null,
     currentUserId: int(req.session.companyUserId),
     roleLabels: WORKSHOP_ROLE_LABELS,
@@ -1142,6 +1160,7 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
 });
 
 router.post('/settings/users/invite', requireWorkshopPermission('manage_settings'), async (req, res) => {
+  if (req.session) delete req.session.workshopInviteLink;
   const email = String(req.body && req.body.email || '').trim().toLowerCase();
   const role = normalizeWorkshopRole(req.body && req.body.role);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -1160,8 +1179,9 @@ router.post('/settings/users/invite', requireWorkshopPermission('manage_settings
     await client.query('BEGIN');
     await client.query(
       `UPDATE workshop_team_invitations
-          SET accepted_at=now()
-        WHERE company_id=$1 AND lower(email)=lower($2) AND accepted_at IS NULL`,
+          SET revoked_at=now()
+        WHERE company_id=$1 AND lower(email)=lower($2)
+          AND accepted_at IS NULL AND revoked_at IS NULL`,
       [req.company.id, email]
     );
     await client.query(
@@ -1171,7 +1191,14 @@ router.post('/settings/users/invite', requireWorkshopPermission('manage_settings
       [req.company.id, email, role, tokenHash, int(req.session.companyUserId)]
     );
     await client.query('COMMIT');
-    return res.redirect('/workshop/settings?saved=1&invite=' + encodeURIComponent(token));
+    req.session.workshopInviteLink = { companyId: req.company.id, token };
+    return req.session.save((saveError) => {
+      if (saveError) {
+        console.error('[workshop invite session] could not store one-time link');
+        return res.redirect('/workshop/settings?err=invite_link');
+      }
+      return res.redirect('/workshop/settings?saved=1');
+    });
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('[workshop invite create]', e.message);
