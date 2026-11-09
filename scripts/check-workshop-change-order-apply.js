@@ -39,6 +39,10 @@ ok('الأعمدة الجديدة فى السكيمة (applied_at + change_order
 
 async function pg() {
   if (!process.env.DATABASE_URL) { console.log('⏭️  مفيش DATABASE_URL — اتخطّى السيناريو على Postgres'); return; }
+  // This integration check can run before the app's startup migration chain.
+  // Bring the additive workshop schema up to date before creating its fixture,
+  // otherwise an older dev database reports a missing applied_at column.
+  await require('../src/workshop/schema').ensureWorkshopSchema();
   const { Pool } = require('pg');
   const { applyApprovedChangeOrder, reserveForChangeOrder, releaseChangeOrderReservations } = require('../src/workshop/change_orders');
   const J = require('../src/workshop/jobs');
