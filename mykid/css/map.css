@@ -111,6 +111,36 @@
   max-width: 760px;
   margin: 0 auto;
 }
+.region-card-wrap { position: relative; min-width: 0; }
+.region-card-wrap .region-card { width: 100%; height: 100%; }
+.region-sound-button {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  inset-inline-end: 8px;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 2px solid rgba(255,255,255,.9);
+  border-radius: 50%;
+  background: rgba(24, 35, 70, .82);
+  color: white;
+  font-size: 21px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+}
+.region-sound-button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.nature-sound-credits {
+  max-width: 760px;
+  margin: 0 auto 16px;
+  padding: 0 18px;
+  color: #25324a;
+  font-size: 13px;
+}
+.nature-sound-credits summary { cursor: pointer; font-weight: 800; }
+.nature-sound-credits ul { padding-inline-start: 24px; line-height: 1.8; }
+.nature-sound-credits a { color: #253c99; text-decoration: underline; }
 @media (min-width: 620px) {
   .regions-grid { grid-template-columns: repeat(3, 1fr); }
 }

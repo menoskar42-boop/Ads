@@ -9,17 +9,35 @@ import { glyphMarkup } from "./glyph.js";
 import { getActivityLessonVideos } from "../data/activityLessonVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
 
+const LICENSE_URLS = {
+  "CC BY 3.0": "https://creativecommons.org/licenses/by/3.0/",
+  "CC BY 4.0": "https://creativecommons.org/licenses/by/4.0/",
+  "CC BY-SA 3.0": "https://creativecommons.org/licenses/by-sa/3.0/",
+  "CC BY-SA 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+};
+
 export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, sound, lang }) {
   const en = lang === "en"; // الإنجليزى الأول (حديقة الألوان)
   const ds = getDataset(datasetKey);
   const items = ds.items;
   const seen = new Set();
+  let activeNatureSound = null;
+
+  const stopNatureSound = () => {
+    if (!activeNatureSound) return;
+    activeNatureSound.pause();
+    activeNatureSound.currentTime = 0;
+    activeNatureSound = null;
+  };
 
   const screen = document.createElement("div");
   screen.className = "region-screen";
   screen.style.background = bg || "linear-gradient(180deg,#bff0c9,#7fd99b)";
 
-  const back = () => Router.go("region", { id: regionId, index: regionIndex });
+  const back = () => {
+    stopNatureSound();
+    Router.go("region", { id: regionId, index: regionIndex });
+  };
   screen.appendChild(gameTopbar(title || "🔍 استكشف", back));
 
   const hint = document.createElement("p");
@@ -39,14 +57,19 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
 
   const grid = document.createElement("div");
   grid.className = "regions-grid";
+  const soundCredits = [];
   items.forEach((it, idx) => {
+    const itemWrap = document.createElement("div");
+    itemWrap.className = "region-card-wrap";
     const card = document.createElement("button");
     card.className = "region-card";
     card.style.cssText = `animation-delay:${idx * 0.03}s;background:linear-gradient(160deg,#9be15d,#00c46a)`;
+    card.type = "button";
     card.innerHTML = en && it.en
       ? `${glyphMarkup(it, "region-emoji")}<span class="region-name" dir="ltr">${it.en}</span><span class="region-name-en">${it.name}</span>`
       : `${glyphMarkup(it, "region-emoji")}<span class="region-name">${it.name}</span><span class="region-name-en">${it.en}</span>`;
     card.addEventListener("click", () => {
+      stopNatureSound();
       Sfx.pop();
       const seq = en ? [{ text: it.en, lang: "en-US" }, { text: it.name, lang: "ar-EG" }]
         : [{ text: it.name, lang: "ar-EG" }, { text: it.en, lang: "en-US" }];
@@ -61,15 +84,78 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
         awardStars(1);
       }
     });
-    grid.appendChild(card);
+    itemWrap.appendChild(card);
+
+    if (it.naturalSound?.url) {
+      const sound = it.naturalSound;
+      const soundButton = document.createElement("button");
+      soundButton.type = "button";
+      soundButton.className = "region-sound-button";
+      soundButton.dataset.soundId = it.id;
+      soundButton.textContent = "🔊";
+      soundButton.setAttribute("aria-label", `اسمع الصوت الطبيعي: ${it.name}`);
+      soundButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        stopNatureSound();
+        if (typeof Audio === "undefined") return;
+
+        Sfx.tap();
+        const audio = new Audio(sound.url);
+        activeNatureSound = audio;
+        const clearActive = () => {
+          if (activeNatureSound === audio) activeNatureSound = null;
+        };
+        audio.addEventListener("ended", clearActive, { once: true });
+        audio.addEventListener("error", clearActive, { once: true });
+        audio.play().catch(clearActive);
+      });
+      itemWrap.appendChild(soundButton);
+      soundCredits.push({ name: it.name, ...sound });
+    }
+    grid.appendChild(itemWrap);
   });
   screen.appendChild(grid);
+
+  if (soundCredits.length) {
+    const credits = document.createElement("details");
+    credits.className = "nature-sound-credits";
+    const summary = document.createElement("summary");
+    summary.textContent = "مصادر التسجيلات الصوتية";
+    credits.appendChild(summary);
+    const list = document.createElement("ul");
+    soundCredits.forEach((sound) => {
+      const item = document.createElement("li");
+      const source = document.createElement("a");
+      source.href = sound.sourceUrl;
+      source.target = "_blank";
+      source.rel = "noopener noreferrer";
+      source.textContent = `${sound.name} — ${sound.credit}`;
+      item.append(source, document.createTextNode(" · "));
+      const licenseUrl = LICENSE_URLS[sound.license];
+      if (licenseUrl) {
+        const license = document.createElement("a");
+        license.href = licenseUrl;
+        license.target = "_blank";
+        license.rel = "noopener noreferrer";
+        license.textContent = sound.license;
+        item.appendChild(license);
+      } else {
+        item.appendChild(document.createTextNode(sound.license));
+      }
+      list.appendChild(item);
+    });
+    credits.appendChild(list);
+    screen.appendChild(credits);
+  }
 
   const doneBtn = document.createElement("button");
   doneBtn.className = "candy-btn";
   doneBtn.style.cssText = "display:block;margin:10px auto 30px";
   doneBtn.textContent = "أنهيت ✅";
-  doneBtn.addEventListener("click", () => finishActivity({ regionId, regionIndex, stars: 5, onDone: back }));
+  doneBtn.addEventListener("click", () => {
+    stopNatureSound();
+    finishActivity({ regionId, regionIndex, stars: 5, onDone: back });
+  });
   screen.appendChild(doneBtn);
 
   return screen;

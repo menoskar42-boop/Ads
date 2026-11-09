@@ -670,3 +670,77 @@ test("activity videos appear only in their mapped activity and embed the mapped 
 
   assert.deepEqual(pageErrors, [], "Activity rendering must not produce uncaught browser errors");
 });
+
+test("birds and insects play distinct natural recordings only on request and keep name speech", async () => {
+  const result = await page.evaluate(async () => {
+    const [{ renderExplore }, { Speech }, { BIRDS }, { INSECTS }] = await Promise.all([
+      import("/js/games/explore.js"),
+      import("/js/core/speech.js"),
+      import("/js/data/birds.js"),
+      import("/js/data/insects.js"),
+    ]);
+    const originalSequence = Speech.sequence;
+    const originalAudio = window.Audio;
+    const speechCalls = [];
+    const audioInstances = [];
+
+    class MockAudio {
+      constructor(src) {
+        this.src = src;
+        this.currentTime = 0;
+        this.played = false;
+        this.paused = false;
+        this.listeners = {};
+        audioInstances.push(this);
+      }
+      addEventListener(name, callback) { this.listeners[name] = callback; }
+      play() { this.played = true; return Promise.resolve(); }
+      pause() { this.paused = true; }
+    }
+
+    Speech.sequence = (items) => speechCalls.push(items.map((item) => ({ text: item.text, lang: item.lang })));
+    window.Audio = MockAudio;
+    try {
+      const birds = renderExplore({ datasetKey: "birds" });
+      document.body.replaceChildren(birds);
+      const birdSounds = [...birds.querySelectorAll(".region-sound-button")];
+      const soundsBeforeClick = audioInstances.length;
+      birds.querySelector(".region-card").click();
+      const spoken = speechCalls[0];
+      birdSounds[0].click();
+      birdSounds[1].click();
+
+      const insects = renderExplore({ datasetKey: "insects" });
+      document.body.replaceChildren(insects);
+      const insectSounds = [...insects.querySelectorAll(".region-sound-button")];
+      insectSounds[0].click();
+
+      return {
+        soundsBeforeClick,
+        spoken,
+        birdIds: birdSounds.map((button) => button.dataset.soundId),
+        insectIds: insectSounds.map((button) => button.dataset.soundId),
+        allSoundUrls: [...BIRDS, ...INSECTS].flatMap((item) => item.naturalSound ? [item.naturalSound.url] : []),
+        birdUrls: audioInstances.slice(0, 2).map((audio) => audio.src),
+        insectUrl: audioInstances[2]?.src,
+        firstBirdStopped: audioInstances[0]?.paused && audioInstances[0]?.currentTime === 0,
+        playCounts: audioInstances.map((audio) => audio.played),
+        birdAttributions: birds.querySelectorAll(".nature-sound-credits li").length,
+        insectAttributions: insects.querySelectorAll(".nature-sound-credits li").length,
+      };
+    } finally {
+      Speech.sequence = originalSequence;
+      window.Audio = originalAudio;
+    }
+  });
+
+  assert.equal(result.soundsBeforeClick, 0, "natural recordings must not start when the activity opens");
+  assert.deepEqual(result.spoken, [{ text: "نسر", lang: "ar-EG" }, { text: "Eagle", lang: "en-US" }]);
+  assert.deepEqual(result.birdIds, ["eagle", "parrot", "owl", "penguin", "swan", "dove", "duck", "flamingo", "rooster", "peacock", "turkey", "chicken"]);
+  assert.deepEqual(result.insectIds, ["bee", "fly"], "only insects with suitable recordings receive sound buttons");
+  assert.equal(new Set(result.allSoundUrls).size, result.allSoundUrls.length, "each selected creature uses a distinct recording");
+  assert.equal(result.firstBirdStopped, true, "starting another recording stops the previous one");
+  assert.deepEqual(result.playCounts, [true, true, true]);
+  assert.equal(result.birdAttributions, result.birdIds.length);
+  assert.equal(result.insectAttributions, result.insectIds.length);
+});
