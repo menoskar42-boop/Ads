@@ -4,6 +4,8 @@ type WorkOrderSortFields = {
   workOrderId?: number | null;
 };
 
+export const WORK_ORDER_PDF_ROWS_PER_PAGE = 11;
+
 const technicianCollator = new Intl.Collator("ar", {
   sensitivity: "base",
   numeric: true,
@@ -30,4 +32,15 @@ export function sortWorkOrdersForPdf<T extends WorkOrderSortFields>(orders: T[])
 
     return Number(a.workOrderId ?? 0) - Number(b.workOrderId ?? 0);
   });
+}
+
+export function paginateWorkOrdersForPdf<T>(
+  orders: T[],
+  rowsPerPage = WORK_ORDER_PDF_ROWS_PER_PAGE,
+): T[][] {
+  const pages: T[][] = [];
+  for (let start = 0; start < orders.length; start += rowsPerPage) {
+    pages.push(orders.slice(start, start + rowsPerPage));
+  }
+  return pages;
 }

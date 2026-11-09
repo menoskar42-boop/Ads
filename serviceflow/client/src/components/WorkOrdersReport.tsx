@@ -18,7 +18,11 @@ import { TECHNICIAN_NAMES } from "@shared/technicians";
 import { useAuth } from "@/hooks/use-auth";
 import { dispatchSpeedTool, openOpSite, SITE_WIDE_KEY } from "@/lib/exec-queue";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
-import { sortWorkOrdersForPdf } from "@/lib/work-order-pdf-sort";
+import {
+  paginateWorkOrdersForPdf,
+  sortWorkOrdersForPdf,
+  WORK_ORDER_PDF_ROWS_PER_PAGE,
+} from "@/lib/work-order-pdf-sort";
 
 interface WorkOrder {
   id: number;
@@ -246,7 +250,6 @@ export function WorkOrdersReport({ category = "success", over24 = false, title, 
   };
 
   // ── PDF export — browser print, 11 rows per A4 landscape page ──
-  const ROWS_PER_PAGE = 11;
   const handleExportPDF = () => {
     // الطباعة تقفل تعديل كميات السلك (استكمال بيانات) — تُعلَّم كل الإدخالات كمطبوعة
     fetch("/api/cable-entries/mark-printed", { method: "POST", credentials: "include" })
@@ -262,13 +265,14 @@ export function WorkOrdersReport({ category = "success", over24 = false, title, 
     </tr>`;
 
     const pdfOrders = sortWorkOrdersForPdf(orders);
-    const totalPages = Math.max(1, Math.ceil(pdfOrders.length / ROWS_PER_PAGE));
+    const pdfPages = paginateWorkOrdersForPdf(pdfOrders);
+    const totalPages = Math.max(1, pdfPages.length);
     let pages = "";
     for (let p = 0; p < totalPages; p++) {
-      const chunk = pdfOrders.slice(p * ROWS_PER_PAGE, (p + 1) * ROWS_PER_PAGE);
+      const chunk = pdfPages[p] ?? [];
       const body = chunk.map((o, ci) => `
         <tr>
-          <td>${p * ROWS_PER_PAGE + ci + 1}</td>
+          <td>${p * WORK_ORDER_PDF_ROWS_PER_PAGE + ci + 1}</td>
           <td>${esc(o.centralName)}</td>
           <td>${esc(o.workOrderId)}</td>
           <td>${esc(o.phoneNumber)}</td>

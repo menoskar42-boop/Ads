@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { sortWorkOrdersForPdf } from "../client/src/lib/work-order-pdf-sort.ts";
+import {
+  paginateWorkOrdersForPdf,
+  sortWorkOrdersForPdf,
+  WORK_ORDER_PDF_ROWS_PER_PAGE,
+} from "../client/src/lib/work-order-pdf-sort.ts";
 
 test("PDF sorts technician names alphabetically and each technician by closing date", () => {
   const orders = [
@@ -26,4 +30,13 @@ test("PDF places missing technician names and invalid dates after known values",
     sortWorkOrdersForPdf(orders).map((row) => row.workOrderId),
     [1, 2, 3],
   );
+});
+
+test("each PDF page contains no more than 11 work orders", () => {
+  const orders = Array.from({ length: 25 }, (_, index) => index + 1);
+  const pages = paginateWorkOrdersForPdf(orders);
+
+  assert.equal(WORK_ORDER_PDF_ROWS_PER_PAGE, 11);
+  assert.deepEqual(pages.map((page) => page.length), [11, 11, 3]);
+  assert.deepEqual(pages.flat(), orders);
 });
