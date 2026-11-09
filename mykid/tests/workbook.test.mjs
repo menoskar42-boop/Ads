@@ -99,7 +99,28 @@ async function open(n, extra = {}) {
   await page.waitForSelector(".wbk-body");
 }
 
+test("number video is the optional first stage only on a matching number page", async () => {
+  errors.length = 0;
+  await open(4);
+  assert.equal(await kind(), "video");
+  assert.equal(await page.locator(".kid-youtube-title").textContent(), "أسهل وأبسط طريقة لكتابة Number (4) للأطفال — مس إلهام");
+  assert.equal(await page.locator(".kid-youtube-card iframe").count(), 0, "الفيديو لا يبدأ تلقائيًا");
+  await page.locator(".wbk-skip").click();
+  await nextStepFrom(0);
+  assert.equal(await kind(), "meet", "التخطي يفتح التمرين المعتاد");
+
+  await open("clock");
+  assert.notEqual(await kind(), "video");
+  assert.equal(await page.locator(".kid-youtube-card").count(), 0);
+  assert.deepEqual(errors, []);
+});
+
 const solve = {
+  async video() {
+    assert.equal(await page.locator(".kid-youtube-card").count(), 1, "فيديو الرقم ظاهر كخطوة اختيارية");
+    assert.equal(await page.locator(".kid-youtube-card iframe").count(), 0, "الفيديو لا يبدأ تلقائيًا");
+    await page.locator(".wbk-skip").click();
+  },
   async meet(n) {
     const balls = page.locator(".wbk-ball");
     assert.equal(await balls.count(), n, "عدد الدواير = الرقم");

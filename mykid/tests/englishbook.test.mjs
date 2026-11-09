@@ -220,7 +220,12 @@ async function playPage(pageId, opts = {}) {
     const k = await kind();
     seen.push(k === "game" ? await page.evaluate(() => document.querySelector(".lbk-game-title")?.textContent.trim().split(" ")[0]) : k);
     await shot(`${pageId}-${k}`);
-    if (k === "write") {
+    if (k === "video") {
+      assert.equal(await page.locator(".kid-youtube-card").count(), 1, "فيديو الحرف ظاهر كخطوة اختيارية");
+      assert.equal(await page.locator(".kid-youtube-card iframe").count(), 0, "الفيديو لا يبدأ تلقائيًا");
+      await page.locator(".wbk-skip").click();
+      await advanced(i);
+    } else if (k === "write") {
       if (await page.locator(".lbk-reps").count()) await writeReps(i);
       else { await writeOne(); await advanced(i); }
     } else if (k === "game") await gameStep(i);
@@ -251,8 +256,24 @@ test("vocab page (family): words, find, He/She sort", async () => {
   assert.deepEqual(errors, []);
 });
 
+test("letter video is the optional first step, while letters without links show none", async () => {
+  await open("u1-M");
+  assert.equal(await kind(), "video");
+  assert.equal(await page.locator(".kid-youtube-title").textContent(), "كتابة حرف M للأطفال — مس إلهام");
+  await page.locator(".wbk-skip").click();
+  await advanced(0);
+  assert.equal(await kind(), "letterMeet");
+
+  const letterWithoutVideo = EB_PAGES.find((pg) => pg.type === "letter" && pg.ch === "K");
+  assert.ok(letterWithoutVideo, "K page exists in the English book");
+  await open(letterWithoutVideo.id);
+  assert.notEqual(await kind(), "video");
+  assert.equal(await page.locator(".kid-youtube-card").count(), 0);
+  assert.deepEqual(errors, []);
+});
+
 test("letter page (M): castle games inside, capital and small 3+5 each, then the letter's grade", async () => {
-  assert.deepEqual(await playPage("u1-M"), ["letterMeet", "write", "🧩", "write", "firstSound", "🔦", "popLetter", "write", "🥚", "write",
+  assert.deepEqual(await playPage("u1-M"), ["video", "letterMeet", "write", "🧩", "write", "firstSound", "🔦", "popLetter", "write", "🥚", "write",
     "🔤", "find", "blankWrite", "spotMistake", "🎯", "runaway", "🔠", "write", "train", "write", "examSheet", "🧠"]);
   await page.waitForSelector(".lgc .lgc-total b");
   await shot("u1-M-grade");

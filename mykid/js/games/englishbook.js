@@ -31,6 +31,8 @@ import { connectOpts } from "./letterRecall.js";
 import { connectStepFor, starredLetters, RECALL_SAY } from "../data/letterRecall.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
+import { getEnglishLetterLessonVideo } from "../data/englishLetterLessonVideos.js";
+import { createYouTubePlayer } from "../core/youtube-player.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
 const UNIT_COLORS = ["#ec4899", "#f97316", "#8b5cf6", "#3b82f6", "#16a34a", "#eab308"];
@@ -169,6 +171,10 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
   function openPage(pg) {
     cur = pg;
     steps = ebSteps(pg, Math.random, only);
+    const lessonVideo = pg.type === "letter"
+      ? getEnglishLetterLessonVideo(pg.label || pg.ch)
+      : null;
+    if (!only && lessonVideo) steps.unshift({ kind: "video", video: lessonVideo });
     // «وصّل الحرف بالصورة»: الجولة من حروف النجمة دلوقتى — ولو مفيش حرف تانى عليه نجمة الخطوة بتتشال
     steps = steps.flatMap((x) => {
       // ألعاب «الحرف فى الكلمة»: الجولات بتتجهّز دلوقتى (حروف النجمة · مراجعة النهارده)
@@ -229,7 +235,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     const track = el("div", "wbk-track");
     // فى «حروفى بالنجمة» كل خانة عليها حرفها (Mm · Ss …) بدل 🎲
     steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : "") + (cur.type === "mix" ? " ebk-chip-letter" : ""),
-      cur.type === "mix" ? `${s.label}${s.label.toLowerCase()}` : isEbWrite(s) ? "✏️" : s.kind === "connect" ? "🔗" : s.kind === "blankWrite" ? "✍️" : BOOK_WORD_ICON[s.kind] || (s.kind === "game" ? gameInfo(s.game).icon : "🎲"))));
+      cur.type === "mix" ? `${s.label}${s.label.toLowerCase()}` : s.kind === "video" ? "▶️" : isEbWrite(s) ? "✏️" : s.kind === "connect" ? "🔗" : s.kind === "blankWrite" ? "✍️" : BOOK_WORD_ICON[s.kind] || (s.kind === "game" ? gameInfo(s.game).icon : "🎲"))));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;
@@ -374,6 +380,14 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
 
   // ===== الأنشطة =====
   const STEP = {
+    video(body, s) {
+      body.appendChild(prompt("فيديو الحرف اختياري. شاهده أو انتقل للتمرين التالي."));
+      const wrap = el("div", "book-lesson-video");
+      wrap.style.cssText = "width:100%;max-width:720px;margin:0 auto 16px";
+      wrap.appendChild(createYouTubePlayer(s.video));
+      body.appendChild(wrap);
+    },
+
     // Listen, find and repeat: المس كل صورة واسمع اسمها
     meetWords(body, s) {
       body.appendChild(prompt(EB_SAY.meetWords));

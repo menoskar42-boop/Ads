@@ -21,6 +21,8 @@ import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./commo
 import { renderLetterPuzzle, renderFlashlight, renderEggs } from "./funGames.js";
 import { renderSequence } from "./sequence.js";
 import { renderReview } from "./review.js";
+import { getNumberLessonVideo } from "../data/numberLessonVideos.js";
+import { createYouTubePlayer } from "../core/youtube-player.js";
 import { letterGrade, gameInfo } from "../data/letterGrade.js";
 import { showLetterGrade } from "./letterGradeCard.js";
 import { LB_DOTS_PASS } from "../data/letterbook.js";
@@ -193,6 +195,10 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     // الجمع: النواتج لحد أكبر رقم خلص (addMaxOf) — مفيش رقم لسه مااتعلّمش
     const pgFor = pg.type === "add" ? { ...pg, max: addMaxOf(Store.workbookDone) } : pg;
     steps = pageSteps(pgFor, Math.random, only); // only: تمارين بعينها (للاختبار)
+    const lessonVideo = pg.type === "number" || pg.type === "zero"
+      ? getNumberLessonVideo(pg.n)
+      : null;
+    if (!only && lessonVideo) steps.unshift({ kind: "video", video: lessonVideo });
     idx = 0;
     res = {
       writes: [], writeFails: 0, games: {}, acts: {}, skipped: [],
@@ -237,7 +243,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     const track = el("div", "wbk-track");
     steps.forEach((s, i) => {
       const chip = el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""),
-        isWriteStep(s) ? "✏️" : s.kind === "game" ? gameInfo(s.game, "num").icon : "🎲");
+        s.kind === "video" ? "▶️" : isWriteStep(s) ? "✏️" : s.kind === "game" ? gameInfo(s.game, "num").icon : "🎲");
       track.appendChild(chip);
     });
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
@@ -383,6 +389,14 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
 
   // ===== الخطوات =====
   const STEP = {
+    video(body, s) {
+      body.appendChild(prompt("فيديو الرقم اختياري. شاهده أو انتقل للتمرين التالي."));
+      const wrap = el("div", "book-lesson-video");
+      wrap.style.cssText = "width:100%;max-width:720px;margin:0 auto 16px";
+      wrap.appendChild(createYouTubePlayer(s.video));
+      body.appendChild(wrap);
+    },
+
     // ١) اعرف الرقم: الرقم كبير، والدواير فى الشريط — الطفل يلمسها ويعدّ
     meet(body, s) {
       body.appendChild(prompt(WB_SAY.meet(WB_AR[s.n])));
