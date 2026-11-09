@@ -17,7 +17,7 @@ import { fetchLiveMissingChapter, getBookIntro, getChapterTafsir, getVerseTafsir
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
 import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
-import { fetchSynaxariumDay, fetchTodaySynaxarium } from "./orthodox-service";
+import { synaxariumWithFallback, todaySynaxariumCairo } from "./orthodox-service";
 import { getStTaklaKatamerosDay, toDailyReadingsCompatibility } from "./katameros-service";
 import {
   getStTaklaSectionCatalogs,
@@ -85,10 +85,12 @@ export async function registerRoutes(
           message: 'الشهر واليوم القبطيان يجب أن يكونا أرقامًا صحيحة',
         });
       }
+      // المصدر الحى الأول، ولو وقع أو فاضى ⇒ عناوين اليوم من بياناتنا. و«النهارده» بتوقيت القاهرة.
       const data = hasMonth && hasDay
-        ? await fetchSynaxariumDay(month, day)
-        : await fetchTodaySynaxarium();
-      res.set('Cache-Control', 'public, max-age=21600');
+        ? await synaxariumWithFallback(month, day)
+        : await todaySynaxariumCairo();
+      // «النهارده» مايتخزّنش ٦ ساعات (كان بيفضل سنكسار امبارح بعد ١٢ بالليل)، والاحتياطى يتراجع بعد شوية
+      res.set('Cache-Control', !hasMonth || data.source === 'local' ? 'public, max-age=600' : 'public, max-age=21600');
       res.json(data);
     } catch (err) {
       console.error('[orthodox] Synaxarium route error:', err);

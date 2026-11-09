@@ -243,6 +243,11 @@ function specialCase(n: number, c: { year: number; month: number; day: number },
   return null;
 }
 
+/** عناوين سنكسار يوم قبطى (شهر ١–١٣، يوم) من بياناتنا — احتياطى لما المصدر الحى مايردّش. */
+export function localSynaxariumTitles(month: number, day: number): string[] {
+  return (load().synaxarium.get(`${month}-${day}`) ?? []).slice().sort((a, b) => a.order - b.order).map((s) => s.title);
+}
+
 // ── «قراءات يوم X» ─────────────────────────────────────────────────────────────────────
 export function getKatamerosPlan(date: string): KatPlan {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);

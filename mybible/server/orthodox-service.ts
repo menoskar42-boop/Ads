@@ -6,6 +6,9 @@
  * cached briefly on the server and every returned entry keeps its source URL.
  */
 
+import { cairoDay } from './cairo-day';
+import { COPTIC_MONTHS, getKatamerosPlan, localSynaxariumTitles } from './katameros-local';
+
 const SYNAXARIUM_INDEX_URL = 'https://www.copticchurch.net/synaxarium';
 const SYNAXARIUM_BASE_URL = 'https://www.copticchurch.net/synaxarium';
 const CACHE_TTL = 6 * 60 * 60 * 1000;
@@ -22,7 +25,7 @@ export interface TodaySynaxarium {
   copticDate: string;
   entries: SynaxariumEntry[];
   fetchedAt: number;
-  source: 'copticchurch.net';
+  source: 'copticchurch.net' | 'local';
   sourceUrl: string;
   month?: number;
   day?: number;
@@ -191,6 +194,37 @@ export async function fetchTodaySynaxarium(): Promise<TodaySynaxarium> {
   indexCache.value = value;
   indexCache.expiresAt = Date.now() + CACHE_TTL;
   return value;
+}
+
+/**
+ * سنكسار يوم قبطى: المصدر الحى (copticchurch.net) الأول، ولو وقع أو رجع فاضى ⇒ عناوين اليوم من بياناتنا
+ * (katameros — `local`). المالك ٢٠٢٦-١١-٠٨: «اليوم السبت ٧-١١ السنكسار فاضى ليه».
+ */
+export async function synaxariumWithFallback(month: number, day: number): Promise<TodaySynaxarium> {
+  try {
+    const live = await fetchSynaxariumDay(month, day);
+    if (live.entries.length) return live;
+  } catch { /* المصدر واقع — الاحتياطى تحت */ }
+  return localSynaxarium(month, day);
+}
+
+export function localSynaxarium(month: number, day: number): TodaySynaxarium {
+  const titles = localSynaxariumTitles(month, day);
+  return {
+    copticDate: `${day} ${COPTIC_MONTHS[month] ?? ''}`.trim(),
+    entries: titles.map((title, i) => ({ id: `${month}-${day}-local-${i + 1}`, title, description: '', url: '', anchor: '' })),
+    fetchedAt: Date.now(),
+    source: 'local',
+    sourceUrl: '',
+    month,
+    day,
+  };
+}
+
+/** سنكسار النهارده بتوقيت القاهرة (مش «النهارده» بتاع موقع المصدر — بيتأخر ساعات). */
+export async function todaySynaxariumCairo(now: number = Date.now()): Promise<TodaySynaxarium> {
+  const { coptic } = getKatamerosPlan(cairoDay(now));
+  return synaxariumWithFallback(coptic.month, coptic.day);
 }
 
 export function clearSynaxariumCache(): void {
