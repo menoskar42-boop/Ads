@@ -1,5 +1,5 @@
 // مشغّل يوتيوب داخل التطبيق: معاينة أولاً، ثم تضمين الفيديو بعد ضغط الطفل.
-export function createYouTubePlayer({ videoId, title = "فيديو تعليمي" }) {
+export function createYouTubePlayer({ videoId, title = "فيديو تعليمي" }, { onPlay } = {}) {
   const root = document.createElement("div");
   root.className = "kid-youtube-card";
 
@@ -27,8 +27,16 @@ export function createYouTubePlayer({ videoId, title = "فيديو تعليمي"
   play.setAttribute("aria-hidden", "true");
 
   preview.append(thumbnail, shade, play);
+  let iframe = null;
+  const stop = () => {
+    if (!iframe) return;
+    iframe = null;
+    frame.replaceChildren(preview);
+  };
+
   preview.addEventListener("click", () => {
-    const iframe = document.createElement("iframe");
+    onPlay?.(stop);
+    iframe = document.createElement("iframe");
     iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
     iframe.title = title;
     iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";

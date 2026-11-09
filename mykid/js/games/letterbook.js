@@ -349,7 +349,13 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       body.appendChild(prompt("فيديو الحرف اختياري. شاهد فيديو التعرّف وفيديو الكتابة أو انتقل للخطوة التالية."));
       const wrap = el("div", "book-lesson-video");
       wrap.style.cssText = "width:100%;max-width:720px;margin:0 auto 16px;display:flex;flex-direction:column;gap:14px";
-      s.videos.forEach((video) => wrap.appendChild(createYouTubePlayer(video)));
+      let stopActiveVideo = null;
+      s.videos.forEach((video) => wrap.appendChild(createYouTubePlayer(video, {
+        onPlay(stop) {
+          stopActiveVideo?.();
+          stopActiveVideo = stop;
+        },
+      })));
       body.appendChild(wrap);
     },
 

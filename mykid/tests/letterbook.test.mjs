@@ -283,7 +283,22 @@ test("Arabic letter page has an optional first step with both mapped videos", as
   assert.deepEqual(ids, ["nKM1yo-7Abc", "NFVJSYyYhl8"]);
   assert.match(await cards.nth(0).locator(".kid-youtube-title").textContent(), /^أبجد هوز/);
   assert.match(await cards.nth(1).locator(".kid-youtube-title").textContent(), /^مدرسة زاد الحروف/);
+  await cards.nth(0).locator(".kid-youtube-preview").click();
+  assert.equal(await cards.locator("iframe").count(), 1, "تشغيل فيديو التعرّف يفتح مشغّلاً واحدًا");
+  assert.match(await cards.nth(0).locator("iframe").getAttribute("src"), /nKM1yo-7Abc/);
+  assert.equal(await page.locator(".wbk-skip").count(), 1, "زر التخطي يظل متاحًا أثناء تشغيل الفيديو");
+
+  await cards.nth(1).locator(".kid-youtube-preview").click();
+  assert.equal(await cards.locator("iframe").count(), 1, "تشغيل فيديو الكتابة يوقف فيديو التعرّف");
+  assert.equal(await cards.nth(0).locator("iframe").count(), 0);
+  assert.equal(await cards.nth(0).locator(".kid-youtube-preview").count(), 1, "فيديو التعرّف يعود إلى زر تشغيل قابل لإعادة الاستخدام");
+  assert.match(await cards.nth(1).locator("iframe").getAttribute("src"), /NFVJSYyYhl8/);
+
+  await cards.nth(0).locator(".kid-youtube-preview").click();
+  assert.equal(await cards.locator("iframe").count(), 1, "التبديل مرة أخرى يوقف فيديو الكتابة");
+  assert.equal(await cards.nth(1).locator("iframe").count(), 0);
   await page.locator(".wbk-skip").click();
+  assert.equal(await page.locator(".kid-youtube-card iframe").count(), 0, "التخطي يخرج من الفيديو ويعرض الخطوة التالية");
   await advanced(0);
   assert.equal(await kind(), "meet");
 
