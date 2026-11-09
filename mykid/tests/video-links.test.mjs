@@ -131,6 +131,8 @@ const EXPECTED_ACTIVITY_VIDEO_IDS = {
   "body:explore": ["MeUWxyS5hF8"],
   "senses:explore": ["5Axm4E5qZqI"],
   "transport:explore": ["jEROtSzDv6I"],
+  "birds:explore": [],
+  "insects:explore": [],
   "words:explore": ["LqA91IiEZEE"],
   "words:readMatch": ["aTy_6f2NKsc"],
 };
@@ -575,6 +577,8 @@ test("activity videos appear only in their mapped activity and embed the mapped 
       ["body", "explore", () => renderExplore({ datasetKey: "body" })],
       ["senses", "explore", () => renderExplore({ datasetKey: "senses" })],
       ["transport", "explore", () => renderExplore({ datasetKey: "transport" })],
+      ["birds", "explore", () => renderExplore({ datasetKey: "birds" })],
+      ["insects", "explore", () => renderExplore({ datasetKey: "insects" })],
       ["weekdays", "explore", () => renderExplore({ datasetKey: "weekdays" })],
       ["months", "explore", () => renderExplore({ datasetKey: "months" })],
       ["family", "explore", () => renderExplore({ datasetKey: "family" })],
