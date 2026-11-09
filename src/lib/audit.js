@@ -407,7 +407,14 @@ async function latestSecurityAlert(pool) {
       ORDER BY alerted_at DESC
       LIMIT 1`
   );
-  return result.rows[0] || null;
+  const alert = result.rows[0] || null;
+  if (!alert) return null;
+  const knownStatuses = new Set(['sent', 'unavailable', 'error', 'pending']);
+  return {
+    ...alert,
+    // Missing or future status values must never look like a successful send.
+    alert_status: knownStatuses.has(alert.alert_status) ? alert.alert_status : 'unavailable',
+  };
 }
 
 module.exports = {
