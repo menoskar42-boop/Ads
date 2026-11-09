@@ -107,10 +107,15 @@ class Prefs(context: Context) {
     var voiceLang: String
         get() = sp.getString("v_lang", "ar-EG") ?: "ar-EG"
         set(v) = sp.edit().putString("v_lang", v).apply()
-    /** «يا أوسكار»: استماع متكرر والتطبيق قدامك (مقفول افتراضياً — محتاج إذن الميكروفون). */
+    /** «يا أوسكار»: استماع متكرر والتطبيق قدامك — **مفتوح افتراضياً** (المالك ٢٠٢٦-١١-٠٦: «خلى الافتراضى ان السماعه
+     *  مفتوحه و ممكن اقفلها لو عاوز»). إذن الميكروفون بيتطلب أول تشغيل، ولو اترفض بيتقفل. وعلامة «🎙️ سامعك» ظاهرة. */
     var voiceWake: Boolean
-        get() = sp.getBoolean("v_wake", false)
+        get() = sp.getBoolean("v_wake", true)
         set(v) = sp.edit().putBoolean("v_wake", v).apply()
+    /** اتطلب إذن الميكروفون مع أول تشغيل خلاص (عشان مانطلبوش كل مرة). */
+    var micAsked: Boolean
+        get() = sp.getBoolean("v_mic_asked", false)
+        set(v) = sp.edit().putBoolean("v_mic_asked", v).apply()
     var voiceOffline: Boolean
         get() = sp.getBoolean("v_offline", true)
         set(v) = sp.edit().putBoolean("v_offline", v).apply()

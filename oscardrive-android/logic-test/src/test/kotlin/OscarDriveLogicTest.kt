@@ -78,7 +78,34 @@ class RoadMemoryTest {
     @Test fun rangeGrowsWithSpeed() {
         val far = Hazard(2, HazardType.POTHOLE, north(300.0), LNG0, null)
         assertNull(RoadMemory.ahead(listOf(far), LAT0, LNG0, 0f, 40f, 0, emptyMap()))
-        assertNotNull(RoadMemory.ahead(listOf(far), LAT0, LNG0, 0f, 100f, 0, emptyMap()))  // ١٢ ث × ٢٧٫٨ = ٣٣٣ م
+        assertNotNull(RoadMemory.ahead(listOf(far), LAT0, LNG0, 0f, 100f, 0, emptyMap()))  // ٨ ث + فرملة ⇒ ~٤١٥ م
+    }
+    // المالك ٢٠٢٦-١١-٠٦: «تنبيه المطب يبقى قبله بمسافه كافيه طبقا لسرعتى»
+    @Test fun distanceBySpeed() {
+        assertEquals(150.0, RoadMemory.warnDistanceM(30f))
+        assertTrue(abs(RoadMemory.warnDistanceM(60f) - 202) < 5)
+        assertTrue(abs(RoadMemory.warnDistanceM(100f) - 415) < 5)
+        assertTrue(abs(RoadMemory.warnDistanceM(120f) - 545) < 5)
+        // كل ما تسرع المسافة بتزيد أسرع من الأول (١٢ ث ثابتة كانت ٤٠٠ م على ١٢٠)
+        assertTrue(RoadMemory.warnDistanceM(120f) > 120 / 3.6 * 12)
+    }
+    // «الرادار التنبيه الخاص بيه يجى قبله ب٣ كيلو» — وفى اتجاهك بس، ومرة تانية لما يقرب
+    @Test fun radarFrom3km() {
+        val radar = Hazard(4, HazardType.RADAR, north(2800.0), LNG0, 2f)
+        val r = RoadMemory.ahead(listOf(radar), LAT0, LNG0, 0f, 80f, 0, emptyMap())
+        assertNotNull(r)
+        val far = RoadMemory.warnKey(radar, r!!.second, 80f)
+        assertEquals(4L, far)
+        // الاتجاه التانى من الطريق ⇒ لأ
+        assertNull(RoadMemory.ahead(listOf(radar.copy(bearing = 182f)), LAT0, LNG0, 0f, 80f, 0, emptyMap()))
+        // أبعد من ٣ كم ⇒ لأ · مطب على ٢٨٠٠ م ⇒ لأ
+        assertNull(RoadMemory.ahead(listOf(radar.copy(lat = north(3200.0))), LAT0, LNG0, 0f, 80f, 0, emptyMap()))
+        assertNull(RoadMemory.ahead(listOf(radar.copy(type = HazardType.BUMP)), LAT0, LNG0, 0f, 80f, 0, emptyMap()))
+        // اتنبّه من بعيد ⇒ لما يقرب (٢٠٠ م) بيتنبّه تانى
+        val near = radar.copy(lat = north(200.0))
+        val r2 = RoadMemory.ahead(listOf(near), LAT0, LNG0, 0f, 80f, 60_000, mapOf(far to 0L))
+        assertNotNull(r2)
+        assertEquals(-4L, RoadMemory.warnKey(near, r2!!.second, 80f))
     }
     @Test fun radarKeepsItsDirection() {
         val radar = Hazard(3, HazardType.RADAR, north(100.0), LNG0, 180f)  // متسجّل وهو رايح جنوب
@@ -261,5 +288,21 @@ class VoiceEngineTest {
         val c = VoiceEngine(custom = mapOf("park.save" to listOf("اركنها")), disabled = setOf("road.bump"))
         assertEquals("park.save", c.match("اركنها")?.command?.id)
         assertNull(c.match("سجل مطب"))
+    }
+}
+
+// المالك ٢٠٢٦-١١-٠٦: الموقع GPS من غير نت، والنت يساعد بمكان تقريبى لحد ما الـGPS يلقط
+class ApproxLocationTest {
+    @Test fun networkOnlyWhenGpsIsMissing() {
+        // GPS لقط من ٥ ثوانى ⇒ موقع الشبكة مايتستخدمش
+        assertFalse(ApproxLocation.useNetwork(100_000, 95_000, 99_000))
+        // مفيش GPS من دقيقة وفيه موقع شبكة حديث ⇒ يتستخدم
+        assertTrue(ApproxLocation.useNetwork(100_000, 40_000, 90_000))
+        // من أول التشغيل (مفيش GPS خالص) وفيه شبكة ⇒ يتستخدم
+        assertTrue(ApproxLocation.useNetwork(100_000, 0, 99_000))
+        // موقع شبكة قديم أو مفيش ⇒ لأ
+        assertFalse(ApproxLocation.useNetwork(500_000, 0, 100_000))
+        assertFalse(ApproxLocation.useNetwork(100_000, 0, null))
+        assertEquals("📶 مكان تقريبى ±850 م", ApproxLocation.label(850f))
     }
 }

@@ -42,12 +42,21 @@ class NavActivity : Activity() {
     private var done = false
     private val main = Handler(Looper.getMainLooper())
     private var speedTv: TextView? = null
+    /** تنبيه الطريق/الاستراحة فوق الملاحة (المالك ٢٠٢٦-١١-٠٦: «التنبيهات تشتغل حتى لو فاتح الملاحه»). */
+    private var bannerTv: TextView? = null
 
     private val tick = object : Runnable {
         override fun run() {
             val s = DriveService.State
             speedTv?.text = (s.speedKmh?.toInt()?.toString() ?: "--") + "  ·  الحد ${s.limitKmh}"
             speedTv?.setTextColor(if (s.over) Color.parseColor("#FF5A4E") else Color.WHITE)
+            val b = s.banner
+            bannerTv?.let { tv ->
+                if (b != null && System.currentTimeMillis() <= s.bannerUntil) {
+                    tv.text = b; tv.visibility = android.view.View.VISIBLE
+                    (tv.background as? GradientDrawable)?.setColor(Color.parseColor(if (s.bannerKind == "break") "#F21F6F9F" else "#F2E0A100"))
+                } else tv.visibility = android.view.View.GONE
+            }
             main.postDelayed(this, 1000)
         }
     }
@@ -66,6 +75,13 @@ class NavActivity : Activity() {
         root.addView(nv, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         root.addView(overlay(), FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM or Gravity.START).apply { setMargins(dp(12), dp(12), dp(12), dp(84)) })
+        bannerTv = TextView(this).apply {
+            textSize = 24f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.parseColor("#111111")); gravity = Gravity.CENTER
+            setPadding(dp(22), dp(12), dp(22), dp(12)); visibility = android.view.View.GONE
+            background = GradientDrawable().apply { setColor(Color.parseColor("#F2E0A100")); cornerRadius = dp(18).toFloat() }
+        }
+        root.addView(bannerTv, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { setMargins(dp(12), dp(96), dp(12), 0) })
         Ui.fitSystemBars(root)
         setContentView(root)
         nv.onCreate(savedInstanceState)
@@ -137,8 +153,8 @@ class NavActivity : Activity() {
     }
 
     override fun onStart() { super.onStart(); navView?.onStart() }
-    override fun onResume() { super.onResume(); navView?.onResume(); main.post(tick) }
-    override fun onPause() { navView?.onPause(); main.removeCallbacks(tick); super.onPause() }
+    override fun onResume() { super.onResume(); DriveService.State.screens++; navView?.onResume(); main.post(tick) }
+    override fun onPause() { DriveService.State.screens--; navView?.onPause(); main.removeCallbacks(tick); super.onPause() }
     override fun onStop() { navView?.onStop(); super.onStop() }
     override fun onDestroy() {
         navigator?.let { n ->

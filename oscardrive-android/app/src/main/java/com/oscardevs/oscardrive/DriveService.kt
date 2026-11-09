@@ -21,6 +21,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import com.oscardevs.oscardrive.logic.Hazard
+import com.oscardevs.oscardrive.logic.ApproxLocation
 import com.oscardevs.oscardrive.logic.RoadMemory
 import com.oscardevs.oscardrive.logic.SunTimes
 import com.oscardevs.oscardrive.logic.TripLogic
@@ -46,6 +47,8 @@ class DriveService : Service() {
         @Volatile var lat: Double? = null
         @Volatile var lng: Double? = null
         @Volatile var accuracyM: Float? = null
+        /** المكان الحالى من الشبكة (تقريبى) مش من الـGPS — للعرض بس. */
+        @Volatile var approx = false
         @Volatile var satsUsed = 0
         @Volatile var tripActive = false
         @Volatile var tripKm = 0.0
@@ -58,6 +61,8 @@ class DriveService : Service() {
         @Volatile var banner: String? = null
         @Volatile var bannerKind = ""      // hazard · break · speed
         @Volatile var bannerUntil = 0L
+        /** كام شاشة من شاشات أوسكار قدّام السواق (القيادة · الملاحة). صفر ⇒ التنبيه المكتوب بيطلع إشعار فوق أى تطبيق. */
+        @Volatile var screens = 0
         var listener: (() -> Unit)? = null
         /** اتغيّرت ذاكرة الطريق (اتسجّل/اتمسح) — الخدمة تعيد قرايتها. */
         @Volatile var hazardsDirty = true
@@ -85,8 +90,12 @@ class DriveService : Service() {
         @Deprecated("Deprecated in Java")
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     }
+    private var lastGpsMs = 0L
+    @Volatile private var netLoc: Location? = null
+    @Volatile private var netMs: Long? = null
     private val netListener = object : LocationListener {
-        override fun onLocationChanged(loc: Location) {}
+        // بيتحفظ بس — بيتعرض لو الـGPS مش لاقط (ApproxLocation)، ومابيدخلش فى السرعة ولا الرحلة ولا الحماية
+        override fun onLocationChanged(loc: Location) { netLoc = loc; netMs = System.currentTimeMillis() }
         override fun onProviderEnabled(provider: String) {}
         override fun onProviderDisabled(provider: String) {}
         @Deprecated("Deprecated in Java")
@@ -99,6 +108,7 @@ class DriveService : Service() {
             handleSpeed(speed.onTick(now))
             trip.onTick(now)?.let { tripEnded(it) }
             State.speedKmh = speed.speedKmh
+            useApprox(now)
             // الـGPS وقع وإحنا ماشيين (نفق/جراج) — مرة واحدة لحد ما يرجع
             if (gpsAnnounced && speed.speedKmh == null && trip.active && !lostAnnounced) { lostAnnounced = true; gpsAnnounced = false; Oscar.say("gps_lost") }
             val moving = (speed.speedKmh ?: 0f) >= TripLogic.MOVING_KMH
@@ -191,8 +201,22 @@ class DriveService : Service() {
         }
     }
 
+    private fun useApprox(now: Long) {
+        val n = netLoc
+        if (n != null && ApproxLocation.useNetwork(now, lastGpsMs, netMs)) {
+            State.approx = true
+            State.lat = n.latitude; State.lng = n.longitude
+            State.accuracyM = if (n.hasAccuracy()) n.accuracy else null
+        } else if (State.approx) {
+            State.approx = false
+            if (now - lastGpsMs > ApproxLocation.GPS_STALE_MS) { State.lat = null; State.lng = null; State.accuracyM = null }
+        }
+    }
+
     private fun onLocation(loc: Location) {
         val now = System.currentTimeMillis()
+        lastGpsMs = now
+        State.approx = false
         val acc = if (loc.hasAccuracy()) loc.accuracy else null
         State.limitKmh = prefs.limit
         handleSpeed(speed.onFix(SpeedLogic.Fix(now, if (loc.hasSpeed()) loc.speed else null, loc.latitude, loc.longitude, acc,
@@ -233,7 +257,7 @@ class DriveService : Service() {
         val lat = State.lat ?: return
         val lng = State.lng ?: return
         val hit = RoadMemory.ahead(hazards, lat, lng, trip.headingDeg, kmh, now, warned) ?: return
-        warned[hit.first.id] = now
+        warned[RoadMemory.warnKey(hit.first, hit.second, kmh)] = now
         val msg = RoadMemory.warning(hit.first, hit.second)
         showBanner("${hit.first.type.emoji} $msg", "hazard", 8_000)
         Speaker.say(msg, beep = true)
@@ -266,6 +290,26 @@ class DriveService : Service() {
 
     private fun showBanner(text: String, kind: String, ms: Long) {
         State.banner = text; State.bannerKind = kind; State.bannerUntil = System.currentTimeMillis() + ms
+        // خرايط جوجل (أو أى تطبيق تانى) قدّامك ⇒ إشعار بيطلع فوقه ثوانى ويختفى — من غير إذن «الظهور فوق التطبيقات».
+        // الصوت نفسه شغّال من الخدمة فى كل الحالات، فالإشعار ساكت.
+        if (State.screens <= 0) alertHeadsUp(text, ms)
+    }
+
+    private fun alertHeadsUp(text: String, ms: Long) {
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(ALERT_CHANNEL) == null) {
+                nm.createNotificationChannel(NotificationChannel(ALERT_CHANNEL, "تنبيهات الطريق", NotificationManager.IMPORTANCE_HIGH).apply {
+                    setSound(null, null); enableVibration(false)
+                })
+            }
+            val open = PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, ALERT_CHANNEL).setTimeoutAfter(ms)
+                else @Suppress("DEPRECATION") Notification.Builder(this).setPriority(Notification.PRIORITY_HIGH)
+            nm.notify(ALERT_ID, b.setSmallIcon(R.drawable.ic_notify).setContentTitle("Oscar Drive").setContentText(text)
+                .setCategory(Notification.CATEGORY_NAVIGATION).setAutoCancel(true).setContentIntent(open).build())
+        } catch (_: Exception) {}
     }
 
     /* ───────── الإشعار + الشاشة ───────── */
@@ -316,6 +360,8 @@ class DriveService : Service() {
         const val ACTION_RECORD = "com.oscardevs.oscardrive.RECORD"
         private const val CHANNEL = "drive"
         private const val NOTIF_ID = 17
+        private const val ALERT_CHANNEL = "road_alerts"
+        private const val ALERT_ID = 18
 
         fun start(ctx: Context) {
             val i = Intent(ctx, DriveService::class.java)

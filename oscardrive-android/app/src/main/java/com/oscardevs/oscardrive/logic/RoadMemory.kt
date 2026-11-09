@@ -4,7 +4,9 @@ import kotlin.math.max
 
 /**
  * «ذاكرة الطريق»: السواق بيسجّل مطب/حفرة/رادار/مكان خطر بزرار أو بصوته، والتطبيق بيحفظ المكان
- * واتجاه العربية، والمرة الجاية بينبّهه قبل ما يوصل (حوالى ١٢ ثانية قدّام، وأقل حاجة ١٥٠ متر).
+ * واتجاه العربية، والمرة الجاية بينبّهه قبل ما يوصل — المسافة حسب السرعة (المالك ٢٠٢٦-١١-٠٦: «قبله بمسافة كافية
+ * طبقاً لسرعتى»): ٨ ثوانى قدّامك + مسافة فرملة هادية، وأقل حاجة ١٥٠ متر. والرادار من **٣ كيلو** («الرادار التنبيه
+ * الخاص بيه يجى قبله ب٣ كيلو») وبيتكرر تانى لما يقرب.
  *
  * ضد التنبيه الغلط:
  *   • لازم تكون ماشى (≥ ١٠ كم/س) والمكان **قدّامك** (فرق الاتجاه ≤ ٤٠°) — مش ورا ولا فى شارع جنبك.
@@ -35,14 +37,33 @@ data class Hazard(
 
 object RoadMemory {
     const val MIN_WARN_M = 150.0
-    const val LOOKAHEAD_S = 12.0
+    /** ثوانى «تاخد بالك» قبل ما تبدأ تفرمل. */
+    const val NOTICE_S = 8.0
+    /** فرملة هادية (م/ث²) — مش فرملة طوارئ. */
+    const val COMFORT_DECEL = 2.0
+    /** الرادار: تنبيه أول من ٣ كيلو، وتانى على مسافة المطب العادية. */
+    const val RADAR_WARN_M = 3000.0
+    /** بعيد (> ٥٠٠ م) الطريق بيلف ⇒ سماحية أكبر فى «قدّامك». */
+    const val FAR_M = 500.0
+    const val FAR_AHEAD_DEG = 60f
     const val MIN_SPEED_KMH = 10f
     const val AHEAD_DEG = 40f
     const val SAME_WAY_DEG = 60f
     const val WARN_AGAIN_MS = 5 * 60_000L
     const val DUPLICATE_M = 30.0
 
-    fun warnDistanceM(kmh: Float): Double = max(MIN_WARN_M, kmh / 3.6 * LOOKAHEAD_S)
+    /** ٦٠ كم ⇒ ~٢٠٠ م · ١٠٠ ⇒ ~٤١٥ م · ١٢٠ ⇒ ~٥٤٥ م. */
+    fun warnDistanceM(kmh: Float): Double {
+        val v = kmh / 3.6
+        return max(MIN_WARN_M, v * NOTICE_S + v * v / (2 * COMFORT_DECEL))
+    }
+
+    fun rangeM(type: HazardType, kmh: Float): Double =
+        if (type == HazardType.RADAR) max(RADAR_WARN_M, warnDistanceM(kmh)) else warnDistanceM(kmh)
+
+    /** مفتاح «اتنبّهت» — الرادار ليه مرحلتين (بعيد ⇒ id · قريب ⇒ -id) فبيتنبّه مرتين. */
+    fun warnKey(h: Hazard, distanceM: Double, kmh: Float): Long =
+        if (h.type == HazardType.RADAR && distanceM <= warnDistanceM(kmh)) -h.id else h.id
 
     /** أقرب حاجة قدّامك محتاجة تنبيه دلوقتى — أو null. `warned` = id ⇒ آخر مرة اتنبّهت عليه. */
     fun ahead(
@@ -50,15 +71,15 @@ object RoadMemory {
         nowMs: Long, warned: Map<Long, Long>,
     ): Pair<Hazard, Double>? {
         if (kmh < MIN_SPEED_KMH || headingDeg == null) return null
-        val range = warnDistanceM(kmh)
         var best: Pair<Hazard, Double>? = null
         for (h in hazards) {
             val d = Geo.distanceM(lat, lng, h.lat, h.lng)
-            if (d > range) continue
-            val last = warned[h.id]
+            if (d > rangeM(h.type, kmh)) continue
+            val last = warned[warnKey(h, d, kmh)]
             if (last != null && nowMs - last < WARN_AGAIN_MS) continue
             // قريب جداً: الاتجاه للنقطة بيبقى عشوائى — يكفى إن العربية ماشية ناحيته
-            if (d > 25 && Geo.angleDiff(Geo.bearingDeg(lat, lng, h.lat, h.lng), headingDeg) > AHEAD_DEG) continue
+            val tol = if (d > FAR_M) FAR_AHEAD_DEG else AHEAD_DEG
+            if (d > 25 && Geo.angleDiff(Geo.bearingDeg(lat, lng, h.lat, h.lng), headingDeg) > tol) continue
             if (h.type.directional && h.bearing != null && Geo.angleDiff(h.bearing, headingDeg) > SAME_WAY_DEG) continue
             if (best == null || d < best.second) best = h to d
         }

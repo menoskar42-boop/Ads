@@ -89,6 +89,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         DriveService.State.listener = { main.post { render() } }
+        DriveService.State.screens++
         Guard.init(this)
         Guard.listener = { main.post { if (tab == "sec") refresh(); maybePinGate() } }
         Oscar.init(this)
@@ -99,6 +100,7 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         DriveService.State.listener = null
+        DriveService.State.screens--
         Guard.listener = null
         wake?.stop()
         super.onPause()
@@ -277,6 +279,7 @@ class MainActivity : Activity() {
             val (t, col) = when {
                 !s.running -> "متوقف" to ui.muted
                 !s.gpsEnabled -> "الـGPS مقفول" to ui.bad
+                s.speedKmh == null && s.approx -> com.oscardevs.oscardrive.logic.ApproxLocation.label(s.accuracyM) to ui.warn
                 s.speedKmh == null -> "بيدوّر على GPS…" to ui.warn
                 else -> "GPS Connected" to ui.good
             }
@@ -301,8 +304,9 @@ class MainActivity : Activity() {
                 tv.background = ui.round(if (s.bannerKind == "break") ui.accent else ui.warn, 16)
             } else tv.visibility = View.GONE
         }
-        val acc = s.accuracyM?.let { " · دقة ${it.toInt()} م" } ?: ""
+        val acc = s.accuracyM?.let { " · دقة ${it.toInt()} م" + if (s.approx) " (تقريبى من النت)" else "" } ?: ""
         statusTv?.text = "GPS · ${s.satsUsed} أقمار$acc · ${clock(now)} · Driving Mode" +
+            (if (wake?.active == true) " · 🎙️ سامعك" else "") +
             if (!s.gpsEnabled) " — افتح الـLocation من إعدادات الشاشة" else ""
     }
 
@@ -1144,6 +1148,10 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             need += Manifest.permission.POST_NOTIFICATIONS
         }
+        // «يا أوسكار» مفتوح افتراضياً ⇒ إذن الميكروفون مع أول تشغيل (مرة واحدة — لو اترفض الاستماع بيتقفل)
+        if (prefs.voiceWake && !prefs.micAsked && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            need += Manifest.permission.RECORD_AUDIO; prefs.micAsked = true
+        }
         if (need.isNotEmpty()) requestPermissions(need.toTypedArray(), REQ_PERMS)
     }
 
@@ -1151,6 +1159,10 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_PERMS && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) startIfReady()
         else if (requestCode == REQ_PERMS) toast("Oscar Drive محتاج إذن المكان عشان يقيس السرعة")
+        if (requestCode == REQ_PERMS && Manifest.permission.RECORD_AUDIO in permissions) {
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startWakeIfOn()
+            else prefs.voiceWake = false
+        }
         if (requestCode == REQ_MIC) {
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startWakeIfOn()
             else { prefs.voiceWake = false; toast("من غير الميكروفون استخدم زرار 🎤") }

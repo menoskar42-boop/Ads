@@ -138,9 +138,15 @@ check('every Oscar line the app says exists in oscar_lines.json (AR + EN)',
   'جملة ناقصة: ' + missingLines.join(', '));
 check('voice commands need no AI at runtime', !/openai|anthropic|gemini/i.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/logic/VoiceEngine.kt')
   + read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/WakeListener.kt')), 'الأوامر قواعد ثابتة — مفيش نموذج ذكاء اصطناعى.');
-check('"Hey Oscar" listening is opt-in', /get\(\) = sp\.getBoolean\("v_wake", false\)/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt')),
-  'الاستماع الدائم لازم يبقى مقفول لحد ما السواق يشغّله.');
-check('privacy policy discloses the microphone', /الميكروفون بيتطلب بس لو شغّلت «يا أوسكار»/.test(privacy), 'إذن الميكروفون لازم يتقال فى السياسة.');
+// المالك ٢٠٢٦-١١-٠٦: «خلى الافتراضى ان السماعه مفتوحه و ممكن اقفلها» — مفتوح افتراضياً بشرط: إذن صريح، علامة ظاهرة، والسياسة بتقول كده
+{
+  const prefsKt = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt');
+  const mainKt = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/MainActivity.kt');
+  check('"Hey Oscar" is on by default, with a visible listening sign and a way off',
+    /get\(\) = sp\.getBoolean\("v_wake", true\)/.test(prefsKt) && /🎙️ سامعك/.test(mainKt) && /prefs\.voiceWake = false/.test(mainKt),
+    'الاستماع مفتوح افتراضياً لازم يبان إنه شغّال ويتقفل لو الإذن اترفض.');
+}
+check('privacy policy discloses the microphone', /الميكروفون بيتطلب مع أول تشغيل عشان «يا أوسكار»/.test(privacy) && /مابيسجّلش صوت ولا بيبعته/.test(privacy), 'إذن الميكروفون لازم يتقال فى السياسة.');
 // المالك ٢٠٢٦-١١-٠٩: صوت أوسكار جوّه الـAPK ويتركّب لوحده (من غير زرار ولا نت).
 {
   const gradle = read('oscardrive-android/app/build.gradle.kts');
