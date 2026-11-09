@@ -34,8 +34,14 @@ export function mountConnect(host, opts) {
   });
   right.forEach((it) => {
     const c = el("div", CARD);
-    // أكتر من صورة (عدد): بتترصّ فى سطور
-    const pics = el("span", `font-size:${it.small ? "clamp(18px,5vw,24px)" : "clamp(40px,11vw,52px)"};line-height:1.1;text-align:center;max-width:100%;word-break:break-all`, it.e);
+    // أكتر من صورة (عدد): بتترصّ فى سطور. صور العناصر المرسومة تستخدم ملفها، والباقى إيموجى.
+    const pics = it.img
+      ? el("img", "width:58px;height:58px;object-fit:contain", undefined)
+      : el("span", `font-size:${it.small ? "clamp(18px,5vw,24px)" : "clamp(40px,11vw,52px)"};line-height:1.1;text-align:center;max-width:100%;word-break:break-all`, it.e);
+    if (it.img) {
+      pics.src = `/assets/${it.img}`;
+      pics.alt = it.w || "";
+    }
     c.append(pics);
     if (it.w) c.append(el("small", "font-size:14px;font-weight:800;color:#555", it.w));
     c.dataset.right = it.key;

@@ -11,6 +11,16 @@ test("ل has the pictures from the owner's book page (لسان · ليمون · 
   for (const w of ["لسان", "ليمون", "لعبة", "لؤلؤ", "لبن", "لحم"]) assert.ok(ws.includes(w), w);
 });
 
+test("ر includes the pictured words and preserves separate man and leg illustrations", () => {
+  const pics = picturesFor("ar", "ر");
+  const words = pics.map((p) => bare(p.w));
+  for (const w of ["رسام", "رجل", "رمان", "رأس", "ريشة", "رمح", "رمل"]) assert.ok(words.includes(w), w);
+  assert.ok(pics.some((p) => p.w === "رمان" && p.img === "fruits/pomegranate.png"), "رمان يستخدم صورة الرمان الموجودة");
+  assert.ok(fs.existsSync(new URL("../assets/fruits/pomegranate.png", import.meta.url)), "ملف صورة الرمان موجود");
+  assert.ok(pics.some((p) => p.w === "رجل" && p.e === "👨"), "رجل بمعنى شخص");
+  assert.ok(pics.some((p) => p.w === "رجل" && p.e === "🦵"), "رِجل بمعنى عضو الجسم");
+});
+
 test("every picture really starts with its letter, and every letter has at least 2", () => {
   for (const lang of ["ar", "en"]) {
     const letters = pickableLetters(lang);

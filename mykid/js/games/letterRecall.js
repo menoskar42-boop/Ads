@@ -35,6 +35,14 @@ const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
 const el = (tag, css, text) => { const n = document.createElement(tag); if (css) n.style.cssText = css; if (text != null) n.textContent = text; return n; };
 const SAY_CSS = "text-align:center;font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.2);font-size:clamp(17px,4.8vw,24px);margin:10px 12px";
 
+function pictureVisual(pic, size) {
+  if (!pic.img) return el("span", `font-size:${size};line-height:1.1;text-align:center`, pic.e);
+  const img = el("img", `width:${size};height:${size};object-fit:contain;display:block`);
+  img.src = `/assets/${pic.img}`;
+  img.alt = pic.w;
+  return img;
+}
+
 export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang = "ar", title, bg, back: backTo }) {
   const S = RECALL_SAY[lang];
   const isNum = lang === "num"; // «وصّل الرقم بالصورة» — أرقام النجمة من «كراسة الأرقام»
@@ -100,7 +108,9 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
       const ask = r.kind === "letter" ? S.whichLetter(r.pic.w) : S.whichPicture(name);
       stage.append(el("p", SAY_CSS + ";opacity:.85;font-size:15px", `${i + 1} من ${rounds.length}`));
       if (r.kind === "letter") {
-        stage.append(el("div", "text-align:center;font-size:clamp(90px,26vw,150px);line-height:1;margin:4px", r.pic.e));
+        const visual = el("div", "display:flex;justify-content:center;align-items:center;min-height:clamp(100px,30vw,160px);margin:4px");
+        visual.append(pictureVisual(r.pic, "clamp(90px,26vw,150px)"));
+        stage.append(visual);
         // الإنجليزى: الكلمة مابتتكتبش (الحرف بس بالإنجليزى — المالك ٢٠٢٦-١٠-٢٦)
         if (isAr) stage.append(el("p", SAY_CSS + ";font-size:clamp(26px,7vw,36px)", r.pic.w));
       }
@@ -138,7 +148,7 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
         for (const o of r.options) {
           const b = el("button", "font-size:58px;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:96px");
           b.className = "choice choice-img";
-          b.append(el("span", "", o.pic.e));
+          b.append(pictureVisual(o.pic, "64px"));
           if (isAr) b.append(el("small", "font-size:15px;font-weight:800", o.pic.w));
           b.addEventListener("click", () => {
             if (isAr) Speech.say(o.pic.w, { lang: voice });
@@ -263,7 +273,7 @@ export function connectOpts(lang, round, onDone) {
     rtl: lang !== "en",
     left: round.letters.map((k) => ({ key: String(k), label: isNum ? String(k) : lang === "ar" ? k : `${k}${k.toLowerCase()}`, k })),
     // الإنجليزى: الصورة من غير الكلمة (الحرف بس بالإنجليزى)
-    right: round.pictures.map((p) => ({ key: String(p.ch), e: p.pic.e, w: lang === "ar" ? p.pic.w : "", small: isNum && p.pic.n > 1, p })),
+      right: round.pictures.map((p) => ({ key: String(p.ch), e: p.pic.e, img: p.pic.img, w: lang === "ar" ? p.pic.w : "", small: isNum && p.pic.n > 1, p })),
     onPickLeft: (it) => Speech.say(nameOf(it.k), { lang: voice }),
     onMatch: (it) => {
       awardStars(1);

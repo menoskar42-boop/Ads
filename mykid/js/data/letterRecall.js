@@ -41,11 +41,13 @@ const EN_PIC_SKIP = ["desk", "mud", "eraser", "classroom", "people", "yam", "tin
 export function picturesFor(lang, ch) {
   const out = [];
   const seen = new Set();
-  const add = (w, e) => {
+  const add = (w, e, img) => {
     const k = bare(w);
-    if (!e || e === "❓" || seen.has(k)) return;
-    seen.add(k);
-    out.push({ w: lang === "ar" ? k : w, e });
+    // «رَجُل» (شخص) و«رِجل» (عضو الجسم) نفس الكتابة من غير تشكيل، لكن لكل معنى صورة مختلفة.
+    const visualKey = lang === "ar" && k === "رجل" ? `${k}\u0000${img || e}` : k;
+    if (!e || e === "❓" || seen.has(visualKey)) return;
+    seen.add(visualKey);
+    out.push({ w: lang === "ar" ? k : w, e, ...(img ? { img } : {}) });
   };
   if (lang === "ar") {
     const lb = LB_LETTERS[ch];
@@ -55,7 +57,7 @@ export function picturesFor(lang, ch) {
       ...(AR_PIC_EXTRA[ch] || []),
       ...(base ? [{ w: base.word, e: base.emoji }] : []),
     ];
-    for (const p of pool) if (p && sameAr(bare(p.w)[0], ch)) add(p.w, p.e);
+    for (const p of pool) if (p && sameAr(bare(p.w)[0], ch)) add(p.w, p.e, p.img);
   } else {
     const pg = EB_PAGES.find((p) => p.type === "letter" && p.ch === ch);
     if (pg && pg.pos === "end") return []; // X: الصوت فى الآخر — «بيبدأ بإيه؟» مالهاش معنى
