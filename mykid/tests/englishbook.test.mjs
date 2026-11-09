@@ -300,7 +300,12 @@ test("X is the ending sound (six, box, fox) and Qu reads as Qu", async () => {
 test("story, sight word (spelled letter by letter) and review play through", async () => {
   assert.deepEqual(await playPage("u1-story"), ["opposites", "sentences", "pickSentence"]);
   assert.deepEqual(await playPage("u6-we"), ["sightMeet", "spell", "sentences", "findColor"]);
-  assert.deepEqual(await playPage("u6-review"), ["find", "matchLetter", "firstSound"]);
+  // المراجعة (المالك ٢٠٢٦-١١-٠٥/٠٧): حروف الوحدة بس (G · W) — صور الوحدة، وكل حرف نوعين تمارين، وكابيتال وصغير لوحده
+  const rev = await playPage("u6-review");
+  assert.equal(rev[0], "find");
+  assert.equal(rev.filter((k) => k === "write").length, 4, "G g W w");
+  assert.deepEqual(rev.slice(-2), ["matchLetter", "firstSound"]);
+  assert.equal(rev.length, 1 + 2 * 2 + 4 + 2, "find + 2 letters × 2 drills + 4 writes + match + firstSound");
   assert.deepEqual(errors, []);
 });
 
@@ -334,4 +339,22 @@ test("map: all 9 units of the book, next page pointed at, no horizontal overflow
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, id);
   }
   assert.deepEqual(errors, []);
+});
+
+// المالك ٢٠٢٦-١١-٠٧: «الreview ده المفروض يكون مختص بالحروف اللى فى الunit»
+test("unit review stays inside its unit: its letters, its words, 4 pictures per question", async () => {
+  const { ebSteps, EB_PAGES } = await import("../js/data/englishbook.js");
+  for (const pg of EB_PAGES.filter((p) => p.type === "review")) {
+    const unitIds = EB_PAGES.filter((p) => p.id.startsWith(pg.unit + "-"));
+    const unitWords = new Set([...pg.words, ...unitIds.flatMap((p) => p.words || []),
+      ...EB_PAGES.filter((p) => p.type === "letter" && pg.letters.includes(p.ch)).flatMap((p) => p.words || [])]);
+    const steps = ebSteps(pg, Math.random);
+    const find = steps.find((s) => s.kind === "find");
+    for (const r of find.rounds) {
+      assert.equal(r.options.length, 4, `${pg.id} 4 pictures`);
+      for (const o of r.options) assert.ok(unitWords.has(o), `${pg.id}: ${o} is not from the unit`);
+    }
+    const letters = new Set(steps.filter((s) => s.ch && s.kind !== "matchLetter").map((s) => s.ch.toUpperCase()));
+    for (const ch of letters) assert.ok(pg.letters.includes(ch), `${pg.id}: letter ${ch} is not from the unit`);
+  }
 });

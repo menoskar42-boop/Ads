@@ -101,3 +101,12 @@ test("الشبكة على قد شكل الحرف", () => {
   const g = gridSize(b);
   assert.ok(g.cols > g.rows && g.rows >= 5);
 });
+
+// المالك ٢٠٢٦-١١-٠٧: «خلى التمرين ده ميكونش الحرف مكتوب سيب الطفل هو اللى يجاوب»
+test("«Supply the missing letter» starts alone (empty box) and never falls back to tracing over the letter", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../js/games/blankWrite.js", import.meta.url), "utf8");
+  assert.match(src, /const level = fixed \|\| 3;/);
+  assert.doesNotMatch(src, /b\.easier\(\)|mount\(2\)/, "no switch back to the faint letter after mistakes");
+  assert.match(src, /فكّرنى بالحرف/, "the child can still ask to see the letter");
+});

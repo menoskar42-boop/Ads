@@ -378,13 +378,39 @@ const distinct = (rnd, pool, n, shown) => {
 };
 
 /** «اسمع وفين»: ميزو يقول كلمة والطفل يلمس صورتها من ٣ — جولة لكل كلمة. */
-function findRounds(words, rnd, pool = ALL_WORDS) {
-  return shuffled(rnd, words).map((w) => ({ target: w, options: shuffled(rnd, [w, ...distinct(rnd, pool, 2, words.concat(w))]) }));
+function findRounds(words, rnd, pool = ALL_WORDS, n = 2, hide = words) {
+  return shuffled(rnd, words).map((w) => ({ target: w, options: shuffled(rnd, [w, ...distinct(rnd, pool, n, hide.concat(w))]) }));
 }
 /** صور فيها الصوت وصور لأ (للمس اللى فيها الصوت). */
 function firstSound(pg, rnd, good) {
   const bad = distinct(rnd, ALL_WORDS.filter((w) => !hasSound(pg, w)), 3, good);
   return shuffled(rnd, [...good.map((w) => ({ w, good: true })), ...bad.map((w) => ({ w, good: false }))]);
+}
+/** كلمات الوحدة (صفحات الوحدة كلها: الكلمات + كلمات حروفها) — صور المراجعة منها بس. */
+function unitWordsOf(reviewPg) {
+  const pages = EB_PAGES.filter((p) => p.id.startsWith(reviewPg.unit + "-") || (p.type === "letter" && (reviewPg.letters || []).includes(p.ch)));
+  const all = [...(reviewPg.words || []), ...pages.flatMap((p) => p.words || [])];
+  return [...new Set(all)].filter((w) => EB_WORDS[w] && !ABSTRACT.includes(w));
+}
+/** تمارين مراجعة الوحدة: نفس تمارين صفحة الحرف (من غير الكتابة — ليها خطوة لوحدها). */
+export const EB_REVIEW_DRILLS = ["popLetter", "firstSound", "blankWrite", "spotMistake", "runaway", "train", "connect",
+  "flash", "eggs", "phonics", "catch", "puzzle"];
+/** كل حرف بياخد نوعين مختلفين، والأنواع بتتوزّع على الحروف من غير تكرار قد ما ينفع. */
+function reviewDrillsFor(letters, rnd) {
+  const plan = new Map();
+  let pool = [];
+  for (const ch of letters) {
+    const mine = [];
+    while (mine.length < 2) {
+      if (!pool.length) pool = shuffled(rnd, EB_REVIEW_DRILLS);
+      const k = pool.shift();
+      // X: الصوت فى آخر الكلمة — «بتبدأ بإيه؟» مالهاش معنى
+      if (k === "phonics" && letterPg(ch).pos === "end") continue;
+      if (!mine.includes(k)) mine.push(k);
+    }
+    plan.set(ch, mine);
+  }
+  return plan;
 }
 /** صفحة الحرف الصغيرة ({ch, pos}) — للمراجعة. */
 const letterPg = (ch) => EB_PAGES.find((p) => p.type === "letter" && p.ch === ch) || { ch };
@@ -499,7 +525,26 @@ export function ebSteps(pg, rnd = Math.random, only = null) {
       steps.push({ kind: "findColor", word: pg.word, cells });
     }
   } else if (pg.type === "review") {
-    if (want("find")) steps.push({ kind: "find", rounds: findRounds(pg.words, rnd).slice(0, 4) });
+    // المالك ٢٠٢٦-١١-٠٥/٠٧: «المراجعة فى الإنجليزى زى العربى» + «الreview ده المفروض يكون مختص بالحروف اللى فى
+    // الunit». الصور والحروف من الوحدة بس (الصور الغلط من كلمات الوحدة التانية — مش أرنب وقطر من وحدة تانية)، ٤ صور،
+    // وكل حرف فى الوحدة بياخد نوعين تمارين مختلفين من صفحته + يتكتب كابيتال وصغير لوحده.
+    const unitLetters = shuffled(rnd, (pg.letters || []).filter((ch) => letterPg(ch).type === "letter"));
+    const unitPool = unitWordsOf(pg);
+    if (want("find")) steps.push({ kind: "find", rounds: findRounds(pg.words, rnd, unitPool, 3, []).slice(0, 4) });
+    const drills = reviewDrillsFor(unitLetters, rnd);
+    const round = (r) => {
+      for (const ch of unitLetters) {
+        const k = (drills.get(ch) || [])[r];
+        if (k && (want(k) || want("drills"))) steps.push(...ebSteps(letterPg(ch), rnd, [k]).filter((x) => x.kind !== "write"));
+      }
+    };
+    round(0);
+    if (want("write")) {
+      for (const ch of unitLetters) {
+        steps.push({ kind: "write", glyph: ch, level: 3, reps: 1, noStart: true }, { kind: "write", glyph: ch.toLowerCase(), level: 3, reps: 1, noStart: true });
+      }
+    }
+    round(1);
     if (want("matchLetter")) {
       const pairs = pg.match ? pg.match.map(([ch, w]) => ({ ch, w })) : pg.letters.map((ch) => ({ ch: ch.toLowerCase(), w: pick(rnd, wordsStarting(ch), 1)[0] }));
       steps.push({ kind: "matchLetter", pairs: shuffled(rnd, pairs).slice(0, 4) });

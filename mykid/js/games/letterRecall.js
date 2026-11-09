@@ -123,6 +123,11 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
         Sfx.correct();
         buddy.win();
         awardStars(1);
+        // الإنجليزى: الكلمة بتظهر مكتوبة بعد الإجابة الصح (السؤال نفسه من غيرها — المالك ٢٠٢٦-١٠-٢٦)
+        if (!isAr && r.kind === "letter") {
+          const w = el("p", SAY_CSS + ";font-size:clamp(26px,7vw,36px);direction:ltr", r.pic.w);
+          stage.insertBefore(w, stage.children[2] || null);
+        }
         sayParts(S.starts(r.pic.w, name));
         i++;
         setTimeout(next, 1900);
@@ -191,7 +196,7 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
         onDone: ({ score, result }) => {
           if (score != null && score < SCORE_PASS) {
             fails++;
-            hint.textContent = `${score}٪ · ${fem(fixMsg(result && result.issue))}`;
+            hint.textContent = `${score}٪ · ${fem(fixMsg(result && result.issue, false, true))}`;
             // نسى شكل الحرف: نوريه ثانيتين وبعدين يكتبه تانى لوحده (والمرة التالتة بالصباع)
             setTimeout(() => {
               if (!wrap.isConnected) return;

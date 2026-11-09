@@ -87,7 +87,8 @@ async function drawShape({ scale = 1, dx = 0, dy = 0 } = {}) {
 }
 const level = () => page.locator(".bw-board").getAttribute("data-level");
 
-test("كراسة الحروف (ث): ثعلب ← كمثرى ← مثلث، ١ ثم ٢ ثم مربع فاضى زى الامتحان", async () => {
+// المالك ٢٠٢٦-١١-٠٧: «خلى التمرين ده ميكونش الحرف مكتوب سيب الطفل هو اللى يجاوب» ⇒ مربع فاضى من أول جولة
+test("كراسة الحروف (ث): ثعلب ← كمثرى ← مثلث، مربع فاضى زى الامتحان من أول جولة", async () => {
   await page.goto(base);
   await page.evaluate(async () => {
     localStorage.clear();
@@ -102,7 +103,8 @@ test("كراسة الحروف (ث): ثعلب ← كمثرى ← مثلث، ١ ث
   await page.waitForSelector(".bw-board");
   const seen = [];
   for (let r = 0; r < 3; r++) {
-    await page.waitForSelector(`.bw-board[data-level="${r + 1}"]`, { timeout: 8000 });
+    await page.waitForSelector(`.bw-board[data-level="3"]`, { timeout: 8000 });
+    await page.waitForFunction(() => /؟/.test(document.querySelector(".bw-board")?.previousElementSibling?.textContent || ""), null, { timeout: 8000 });
     seen.push([await page.locator(".bw-board").getAttribute("data-shape"), await level()]);
     assert.match(await word(), /؟/, "مكان الحرف فاضى");
     if (r === 2) {
@@ -120,14 +122,15 @@ test("كراسة الحروف (ث): ثعلب ← كمثرى ← مثلث، ١ ث
       await page.locator("[data-submit]").click();
     } else {
       await drawShape();
+      await page.locator("[data-submit]").click();
     }
     await page.waitForFunction(() => !/؟/.test(document.querySelector(".bw-board")?.previousElementSibling?.textContent || "؟"), null, { timeout: 6000 });
   }
-  assert.deepEqual(seen, [["ثـ", "1"], ["ـثـ", "2"], ["ـث", "3"]]);
+  assert.deepEqual(seen, [["ثـ", "3"], ["ـثـ", "3"], ["ـث", "3"]]);
   assert.deepEqual(errors, []);
 });
 
-test("كتاب الإنجليزى (M): الحرف الصغير مكانه فاضى (_ap) — ١ ٢ ٣ على لوحة الكتاب", async () => {
+test("كتاب الإنجليزى (M): الحرف الصغير مكانه فاضى (_ap) — ٣ جولات لوحده على لوحة الكتاب", async () => {
   await page.goto(base);
   await page.evaluate(async () => {
     localStorage.clear();
@@ -140,8 +143,8 @@ test("كتاب الإنجليزى (M): الحرف الصغير مكانه فاض
   const i = await nowChip();
   for (let r = 0; r < 3; r++) {
     await page.waitForSelector(".wb-box");
-    const txt = await page.evaluate(() => document.querySelector(".wbk-write")?.previousElementSibling?.textContent || "");
-    assert.match(txt, /\?/, "مكان الحرف فاضى");
+    // الجولة الجاية بتبدأ بعد ما الكلمة الكاملة تظهر شوية
+    await page.waitForFunction(() => /\?/.test(document.querySelector(".wbk-write")?.previousElementSibling?.textContent || ""), null, { timeout: 9000 });
     await page.waitForTimeout(1800);   // الصباع اللى بيوريه
     for (const st of strokesFor("m")) {
       const b = await page.locator(".wb-box").boundingBox();

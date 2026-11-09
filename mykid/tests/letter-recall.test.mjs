@@ -129,3 +129,14 @@ test("numbers: starred numbers from the workbook, picture has that many things",
     assert.equal(new Set(r.pictures.map((p) => [...p.pic.e][0])).size, r.pictures.length, "كل صورة حاجة مختلفة");
   }
 });
+
+// المالك ٢٠٢٦-١١-٠٥: «لما بيضغط على الحرف الصحيح خليه يقول الكلمه و يقول برفو»
+test("«صور الحروف»: the right answer says the word, then «برافو»", async () => {
+  const { RECALL_SAY, partsText } = await import("../js/data/letterRecall.js");
+  const en = RECALL_SAY.en.starts("ladybug", "L");
+  assert.equal(en[0].text, "ladybug");
+  assert.equal(en[0].lang, "en-US");
+  assert.match(partsText(en), /^ladybug برافو/);
+  const ar = partsText(RECALL_SAY.ar.starts("أرنب", "الألف"));
+  assert.match(ar, /^أرنب! برافو/);
+});

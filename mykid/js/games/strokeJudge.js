@@ -143,6 +143,15 @@ export function hintForResult(r, isDot) {
 export const SCORE_PASS = 70;
 /** خط مكتوب بالمقلوب (من آخره لأوله) بيخصم كده — الشكل صح بس الاتجاه لأ ⇒ مابيعدّيش. */
 export const REV_PENALTY = 35;
+// المالك ٢٠٢٦-١١-٠٥/٠٦: «حرف C بيتكتب كويس وهو بيقول قربنا» (٥٠–٦٠٪) و«p مكتوبة كويس ومش مقبولة» (٦١٪) — الطفل
+// بيكتب الحرف أعرض أو أطول من المرجع، والتوحيد بالمحور الطويل بس كان بيحسب الفرق ده غلط فى الشكل. دلوقتى الشكل
+// بيتقاس كمان بعد توحيد كل محور لوحده، وبناخد الأحسن — والفرق الكبير فى النسبة (أكتر من ASP_FREE) بيخصم شوية.
+/** المحور القصير مابيتمطّش لأكتر من الحد ده من الطويل (الخط المستقيم يفضل خط). */
+const ANISO_MIN = 0.35;
+/** نسبة عرض/طول مسموحة من غير خصم (أعرض أو أطول لحد كده = نفس الحرف). */
+const ASP_FREE = 1.35;
+/** خصم المسافة لكل وحدة log فوق المسموح. */
+const ASP_PEN = 0.2;
 
 function normalizeSets(sets) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -151,6 +160,26 @@ function normalizeSets(sets) {
   }
   const sc = Math.max(x1 - x0, y1 - y0, 1e-6), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
   return sets.map((s) => s.map(([x, y]) => [(x - cx) / sc, (y - cy) / sc]));
+}
+// نفس التوحيد بس كل محور لوحده (العرض لوحده والطول لوحده) — حرف مكتوب أعرض أو أطول من المرجع بيتقاس
+// بشكله مش بنسبته.
+function normalizeSetsAniso(sets) {
+  const b = bboxOf(sets), big = Math.max(b.w, b.h, 1e-6);
+  const sx = Math.max(b.w, big * ANISO_MIN), sy = Math.max(b.h, big * ANISO_MIN);
+  const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+  return sets.map((s) => s.map(([x, y]) => [(x - cx) / sx, (y - cy) / sy]));
+}
+function bboxOf(sets) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const s of sets) for (const [x, y] of s) {
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+}
+/** عرض/طول بعد حدّ المحور القصير (عشان الخط المستقيم مايبقاش نسبته ∞). */
+function aspectOf(sets) {
+  const b = bboxOf(sets), big = Math.max(b.w, b.h, 1e-6);
+  return Math.max(b.w, big * ANISO_MIN) / Math.max(b.h, big * ANISO_MIN);
 }
 function meanMin(A, B) {
   let sum = 0;
@@ -185,8 +214,24 @@ export function scoreDrawing(model, drawn) {
   const strokes = (drawn || []).filter((s) => s && s.length);
   if (!strokes.length) return { score: 0, shape: 0, reversed: 0, countDiff: model.length };
   const dens = (s) => (s.length === 1 ? s : densify(s, 1.5));
-  const nm = normalizeSets(model.map(dens));
-  const nd = normalizeSets(strokes.map(dens));
+  const md = model.map(dens), sd = strokes.map(dens);
+  const nm = normalizeSets(md), nd = normalizeSets(sd);
+  let { d, revPairs } = shapeDistance(nm, nd);
+  // نفس المقارنة بعد توحيد كل محور لوحده — للحرف المكتوب أعرض/أطول (والفرق الكبير فى النسبة بيخصم)
+  const an = shapeDistance(normalizeSetsAniso(md), normalizeSetsAniso(sd));
+  const aspPen = ASP_PEN * Math.max(0, Math.abs(Math.log(aspectOf(sd) / aspectOf(md))) - Math.log(ASP_FREE));
+  if (an.d + aspPen < d) { d = an.d + aspPen; revPairs = an.revPairs; }
+  // d≈٠.٠٣ لحرف مكتوب كويس بإيد طفل، و≈٠.٢ لشكل تانى خالص
+  const shape = Math.max(0, Math.min(100, Math.round(100 * (1 - (d - 0.035) / 0.17))));
+  const reversed = revPairs;
+  const countDiff = Math.abs(model.length - strokes.length);
+  const score = Math.max(0, Math.min(100, shape - REV_PENALTY * reversed - 10 * countDiff));
+  const issue = writingIssue(model, strokes, nm, nd, reversed, shape);
+  return { score, shape, reversed, countDiff, issue };
+}
+
+/** مسافة الشكل بين الحرف واللى اتكتب (الاتنين متوحّدين) + كام خط اتكتب بالمقلوب. */
+function shapeDistance(nm, nd) {
   const M = nm.flat(), D = nd.flat();
   const chamfer = (meanMin(D, M) + meanMin(M, D)) / 2;
   // بالترتيب: كل خط قصاد خطه (نفس العدد) نقطة بنقطة — بيفرّق 3 عن 8 وM عن N
@@ -202,7 +247,7 @@ export function scoreDrawing(model, drawn) {
         t += Math.hypot(a[k][0] - b[k][0], a[k][1] - b[k][1]);
         tr += Math.hypot(a[k][0] - b[31 - k][0], a[k][1] - b[31 - k][1]);
       }
-      // الخط صح بس بالمقلوب ⇒ الشكل بيتحسب، والاتجاه بيخصم تحت
+      // الخط صح بس بالمقلوب ⇒ الشكل بيتحسب، والاتجاه بيخصم
       if (tr < t * 0.6) { t = tr; revPairs++; }
       sum += (t / 32) * w; wsum += w;
     }
@@ -215,14 +260,7 @@ export function scoreDrawing(model, drawn) {
     for (let k = 0; k < 48; k++) t += Math.hypot(a[k][0] - b[k][0], a[k][1] - b[k][1]);
     ordered = Math.max(chamfer, t / 48);
   }
-  const d = 0.5 * chamfer + 0.5 * ordered;
-  // d≈٠.٠٣ لحرف مكتوب كويس بإيد طفل، و≈٠.٢ لشكل تانى خالص
-  const shape = Math.max(0, Math.min(100, Math.round(100 * (1 - (d - 0.035) / 0.17))));
-  const reversed = revPairs;
-  const countDiff = Math.abs(model.length - strokes.length);
-  const score = Math.max(0, Math.min(100, shape - REV_PENALTY * reversed - 10 * countDiff));
-  const issue = writingIssue(model, strokes, nm, nd, reversed, shape);
-  return { score, shape, reversed, countDiff, issue };
+  return { d: 0.5 * chamfer + 0.5 * ordered, revPairs };
 }
 
 // ===== ليه النسبة قليلة؟ (المالك ٢٠٢٦-١٠-١٤: «ميزو يوضّح للطفل سبب المشكلة بطريقة لطيفة») =====

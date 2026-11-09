@@ -46,7 +46,10 @@ export const ROUND_MSG = {
   fixStart: "حلو! ابدأ من النقطة الخضرا عشان الحرف يطلع مظبوط",
   fixTooWide: "قربت! بس الحرف ده أطول من كده شوية",
   fixTooTall: "قربت! بس الحرف ده أعرض من كده شوية",
-  fixShape: "قربنا! بص على الحرف الصغير اللى فوق، وتعالى نكتبه سوا",
+  // «الحرف الصغير اللى فوق» كانت بتتفهم «small letter» فى صفحة الحرف الكبير (المالك ٢٠٢٦-١١-٠٥) ⇒ «شكل الحرف»
+  fixShape: "قربنا! بص على شكل الحرف اللى فوق، وتعالى نكتبه سوا",
+  // «اكتب من الذاكرة»: مفيش حرف ظاهر فوق — الحرف بيظهر ثانيتين بعد الغلطة (المالك ٢٠٢٦-١١-٠٦)
+  fixShapeRecall: "قربنا! بص على الحرف وهو بيظهر، وبعدين اكتبه تانى",
   fixShapeDots: "قربنا! امشي على النقط بالراحة، وتعالى نكتبه سوا",
   // النقط بتتحسب بنسبة هى كمان (المالك ٢٠٢٦-١٠-١٤): مايروحش لوحده غير بعد ٣ مرات عالية ورا بعض
   dotsAgain1: "برافو! مرة كمان على النقط",
@@ -54,12 +57,12 @@ export const ROUND_MSG = {
   dotsLast: "هايل! آخر مرة على النقط، وبعدين لوحدك",
 };
 /** جملة ميزو لسبب النسبة القليلة (issue من scoreDrawing). */
-export const fixMsg = (issue, onDots = false) => ({
+export const fixMsg = (issue, onDots = false, recall = false) => ({
   tiny: ROUND_MSG.fixTiny, "missing-dots": ROUND_MSG.fixMissingDots, missing: ROUND_MSG.fixMissing,
   extra: ROUND_MSG.fixExtra, reversed: ROUND_MSG.fixReversed, "dot-below": ROUND_MSG.fixDotBelow,
   "dot-above": ROUND_MSG.fixDotAbove, "dot-belows": ROUND_MSG.fixDotsBelow, "dot-aboves": ROUND_MSG.fixDotsAbove, start: ROUND_MSG.fixStart, "too-wide": ROUND_MSG.fixTooWide,
   "too-tall": ROUND_MSG.fixTooTall,
-}[issue] || (onDots ? ROUND_MSG.fixShapeDots : ROUND_MSG.fixShape));
+}[issue] || (onDots ? ROUND_MSG.fixShapeDots : recall ? ROUND_MSG.fixShapeRecall : ROUND_MSG.fixShape));
 /** جملة كل حركة (a فتحة · u ضمة · i كسرة · o سكون). */
 export const harakaMsg = (h) => ({ a: ROUND_MSG.harakaA, u: ROUND_MSG.harakaU, i: ROUND_MSG.harakaI, o: ROUND_MSG.harakaO }[h]);
 /** «لوحده»: عدد المرات الصح **ورا بعض** (نسبة ≥ SCORE_PASS) قبل ما الحرف/الرقم يخلص. */

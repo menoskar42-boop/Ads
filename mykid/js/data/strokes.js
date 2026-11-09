@@ -290,10 +290,26 @@ const JEEM_ALTS = [
     bez([28, 56], [26, 80], [46, 90], [70, 82])),
 ];
 const jeemAlts = (strokes) => JEEM_ALTS.map((body) => [body, ...strokes.slice(1)]);
+// المالك ٢٠٢٦-١١-٠٥: «حرف C بيتكتب كويس وهو بيقول قربنا» (٦٠ · ٥٠ · ٥٤٪) — المرجع بيضاوى طويل وضيق، والطفل
+// بيكتبه مدوّر أو عريض وفوقه وتحته شبه مستقيمين. الاتنين C سليمة.
+const C_ALTS = [
+  [arc(52, 50, 32, 33, -40, -320)],
+  [cat(L([78, 26], [46, 18]), arc(46, 50, 30, 32, -90, -270), L([46, 82], [78, 76]))],
+];
+// المالك ٢٠٢٦-١١-٠٦: «p مكتوبة كويس ومش مقبولة» (٦١٪) — الطفل بيكتب البطن زى D لازقة فى العصاية (من فوق العصاية،
+// لليمين، وترجع للعصاية من تحت) بدل دايرة مقفولة. نفس الكلام فى b (البطن تحت).
+const dBowl = (top, bottom) => {
+  const cy = (top + bottom) / 2, ry = (bottom - top) / 2;
+  return cat(L([34, top + 2], [48, top]), arc(48, cy, 17, ry, -90, 90), L([48, bottom], [34, bottom - 1]));
+};
 const ALT = new Map([
   [AR["ح"], jeemAlts(AR["ح"])],
   [AR["ج"], jeemAlts(AR["ج"])],
   [AR["خ"], jeemAlts(AR["خ"])],
+  [EN.C, C_ALTS],
+  // والطفل كمان بيبدأ البطن من راس العصاية ويطلع بيها لفوق شوية (البطن أعلى من العصاية)
+  [EN_LOWER.p, [[EN_LOWER.p[0], dBowl(45, 79)], [L([34, 50], [34, 95]), dBowl(40, 76)]]],
+  [EN_LOWER.b, [[EN_LOWER.b[0], dBowl(46, 80)]]],
   [EN_LOWER.a, cBowlAlts(EN_LOWER.a)],
   [EN_LOWER.d, cBowlAlts(EN_LOWER.d)],
   [EN_LOWER.q, cBowlAlts(EN_LOWER.q)],

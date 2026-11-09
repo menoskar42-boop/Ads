@@ -21,7 +21,7 @@ import { penBoardOptions } from "./grip.js";
 import { judge } from "./traceJudge.js";
 import { judgeShapes } from "./blankJudge.js";
 import { starredLetters } from "../data/letterRecall.js";
-import { BW_SAY, BW_AR_LETTERS, BW_EN_LETTERS, arItems, arShapes, enItems, levelFor, nameOf, askFor } from "../data/blankWrite.js";
+import { BW_SAY, BW_AR_LETTERS, BW_EN_LETTERS, arItems, arShapes, enItems, nameOf, askFor } from "../data/blankWrite.js";
 import { joinsNext, letterTiles } from "../data/letterbook.js";
 import { reviewKey, nextReview, todayISO, dueKeys, resolveKey, RV_SAY } from "../data/writeReview.js";
 
@@ -221,7 +221,9 @@ export function mountBlankWrite(host, lang, ch, opts) {
   const round = () => {
     boardCleanup(); boardCleanup = () => {};
     const x = items[r];
-    const level = fixed || levelFor(r, items.length);
+    // المالك ٢٠٢٦-١١-٠٧: «خلى التمرين ده ميكونش الحرف مكتوب سيب الطفل هو اللى يجاوب» — من أول جولة «لوحدك»
+    // (مربع فاضى). الحرف بيظهر ثوانى بس لما يدوس «فكّرنى بالحرف» أو بعد غلطتين — ومابيرجعش للكتابة فوق الحرف.
+    const level = fixed || 3;
     area.replaceChildren();
     ask(askFor(flavor, lang, nameOf(x.ch || ch), x.pos));
     later(() => sayWord(x.w), 2600);
@@ -297,7 +299,7 @@ export function mountBlankWrite(host, lang, ch, opts) {
           fails++;
           hint(why === "shape" ? BW_SAY.wrongShape(x.pos) : why === "more" ? BW_SAY.more : BW_SAY.out);
           if (fails === 2) later(() => { b.reset(); Speech.ar(fem(BW_SAY.peek)); b.peek(2800); }, 2200);
-          if (fails >= 3) later(() => { b.easier(); tools.querySelector("[data-submit]").style.display = b.level === 3 ? "" : "none"; }, 2200);
+          if (fails >= 3) later(() => { b.reset(); Speech.ar(fem(BW_SAY.peek)); b.peek(3500); }, 2200);
         },
       });
       area.append(b.el);
@@ -334,7 +336,7 @@ export function mountBlankWrite(host, lang, ch, opts) {
               later(() => {
                 board.reset();
                 if (fails === 2) { Speech.ar(fem(BW_SAY.peek)); board.peek(2800); }
-                if (fails >= 3 && lv === 3) mount(2);
+                if (fails >= 3) { Speech.ar(fem(BW_SAY.peek)); board.peek(3500); }
               }, 2000);
               return;
             }
