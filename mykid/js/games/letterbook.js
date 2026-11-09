@@ -36,6 +36,9 @@ import { BOOK_WORD_KINDS, BOOK_WORD_ICON, prepBookWordStep, mountBookWordStep } 
 import { nameRound, LF_KINDS } from "../data/letterForms.js";
 const LF_ICON = { hands: "🤝", formComplete: "🧩", formListen: "🚂", formStamp: "🔖", nameHunt: "📛", blankWrite: "✍️" };
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
+import { getArabicLetterLessonVideo } from "../data/arabicLetterLessonVideos.js";
+import { getArabicLetterWritingVideo } from "../data/arabicLetterWritingVideos.js";
+import { createYouTubePlayer } from "../core/youtube-player.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
 const preLine = (id) => PREWRITING.find((p) => p.id === id);
@@ -159,6 +162,16 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     if (pg.type === "review") pg = { ...pg, letters: reviewLetters(pg, starred) };
     cur = pg;
     steps = letterbookSteps(pg, Math.random, only, starred); // only: أنشطة بعينها (للاختبار)
+    if (!only && pg.type === "letter") {
+      const videos = [
+        ["أبجد هوز", getArabicLetterLessonVideo(pg.ch)],
+        ["مدرسة زاد الحروف", getArabicLetterWritingVideo(pg.ch)],
+      ].filter(([, video]) => video).map(([source, video]) => ({
+        ...video,
+        title: `${source} · ${video.title}`,
+      }));
+      if (videos.length) steps.unshift({ kind: "video", videos });
+    }
     // «وصّل الحرف بالصورة»: الجولة من حروف النجمة دلوقتى — ولو مفيش حرف تانى عليه نجمة الخطوة بتتشال
     steps = steps.flatMap((x) => {
       // «دوّر على حروف اسمك»: بس لو الحرف فى اسم الطفل
@@ -195,7 +208,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     else title.innerHTML = `<b>〰️</b><span>التهيئة</span>`;
     const track = el("div", "wbk-track");
     steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : ""),
-      isLbWrite(s) || s.kind === "formTrace" ? "✏️" : s.kind === "connect" ? "🔗" : LF_ICON[s.kind] || BOOK_WORD_ICON[s.kind] || (s.kind === "game" ? (LB_GAME_INFO[s.game] || {}).icon || "🎲" : "🎲"))));
+      s.kind === "video" ? "▶️" : isLbWrite(s) || s.kind === "formTrace" ? "✏️" : s.kind === "connect" ? "🔗" : LF_ICON[s.kind] || BOOK_WORD_ICON[s.kind] || (s.kind === "game" ? (LB_GAME_INFO[s.game] || {}).icon || "🎲" : "🎲"))));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;
@@ -332,6 +345,14 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
 
   // ===== الخطوات =====
   const STEP = {
+    video(body, s) {
+      body.appendChild(prompt("فيديو الحرف اختياري. شاهد فيديو التعرّف وفيديو الكتابة أو انتقل للخطوة التالية."));
+      const wrap = el("div", "book-lesson-video");
+      wrap.style.cssText = "width:100%;max-width:720px;margin:0 auto 16px;display:flex;flex-direction:column;gap:14px";
+      s.videos.forEach((video) => wrap.appendChild(createYouTubePlayer(video)));
+      body.appendChild(wrap);
+    },
+
     // استمع وانطق: الحرف كبير بلون الصفحة، وتحته الحركات التلاتة — كل لمسة بتتنطق
     meet(body, s) {
       const name = nameOf(s.ch);

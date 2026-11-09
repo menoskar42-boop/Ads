@@ -11,6 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { strokesFor, PREWRITING } from "../js/data/strokes.js";
+import { LB_PAGES } from "../js/data/letterbook.js";
 import { densify } from "../js/games/strokeJudge.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -247,7 +248,12 @@ async function playPage(pageId, opts = {}) {
     const k = await kind();
     seen.push(k === "game" ? await page.evaluate(() => document.querySelector(".lbk-game-title")?.textContent.trim().split(" ")[0]) : k);
     await shot(`${pageId}-${k}`);
-    if (k === "write") await write(i);
+    if (k === "video") {
+      assert.equal(await page.locator(".kid-youtube-card").count(), 2, "فيديو التعرّف وفيديو الكتابة ظاهران");
+      assert.equal(await page.locator(".kid-youtube-card iframe").count(), 0, "الفيديوهات لا تبدأ تلقائيًا");
+      await page.locator(".wbk-skip").click();
+      await advanced(i);
+    } else if (k === "write") await write(i);
     else if (k === "harakaWrite") await harakaWrite(i);
     else if (k === "harakaQuiz") await harakaQuiz(i);
     else if (k === "game") await game(i);
@@ -265,9 +271,33 @@ async function playPage(pageId, opts = {}) {
   return seen;
 }
 
+test("Arabic letter page has an optional first step with both mapped videos", async () => {
+  errors.length = 0;
+  await open("Lب");
+  assert.equal(await kind(), "video");
+  const cards = page.locator(".kid-youtube-card");
+  assert.equal(await cards.count(), 2);
+  const ids = await cards.locator(".kid-youtube-fallback").evaluateAll((links) =>
+    links.map((link) => new URL(link.href).searchParams.get("v"))
+  );
+  assert.deepEqual(ids, ["nKM1yo-7Abc", "NFVJSYyYhl8"]);
+  assert.match(await cards.nth(0).locator(".kid-youtube-title").textContent(), /^أبجد هوز/);
+  assert.match(await cards.nth(1).locator(".kid-youtube-title").textContent(), /^مدرسة زاد الحروف/);
+  await page.locator(".wbk-skip").click();
+  await advanced(0);
+  assert.equal(await kind(), "meet");
+
+  const nonLetterPage = LB_PAGES.find((pg) => pg.type !== "letter");
+  assert.ok(nonLetterPage);
+  await open(nonLetterPage.id);
+  assert.notEqual(await kind(), "video");
+  assert.equal(await page.locator(".kid-youtube-card").count(), 0);
+  assert.deepEqual(errors, []);
+});
+
 test("letter page (ب): book activities + castle games in order, 3+5 writes, then the letter's grade", async () => {
   const seen = await playPage("Lب");
-  assert.deepEqual(seen, ["meet", "write", "🧩", "riddle", "pop", "🔦", "harakat", "write", "🥚",
+  assert.deepEqual(seen, ["video", "meet", "write", "🧩", "riddle", "pop", "🔦", "harakat", "write", "🥚",
     "starts", "🔤", "forms", "hands", "circle", "formComplete", "formListen", "runaway", "🎯", "missing", "blankWrite", "spotMistake", "formStamp", "🔠", "write",
     "formTrace", "train", "examSheet", "harakaWrite", "harakaWrite", "harakaWrite", "harakaWrite", "harakaQuiz", "🧠"]);
   // شهادة الحرف: درجة من ١٠٠ ونجوم، ومحفوظة بالتفاصيل لولى الأمر
