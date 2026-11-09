@@ -47,6 +47,37 @@ const listed = [...block.matchAll(/\{\s*loc:\s*(?:'([^']+)'|([A-Z_][A-Z0-9_]*))/
 });
 check('the sitemap has a static URL list', listed.length > 0, `${listed.length} رابط`);
 
+// Legal pages remain accessible for consent, but are not search acquisition
+// pages. Check them explicitly: they are normally absent from the render loop.
+for (const name of ['privacy', 'terms']) {
+  const loc = '/' + name;
+  const full = path.join(ROOT, 'src/views/legal', name + '.ejs');
+  const html = ejs.render(fs.readFileSync(full, 'utf8'), base(), { filename: full });
+  check(`${loc} stays noindex,follow`,
+    /<meta\s+name="robots"\s+content="noindex,follow"\s*\/?>/i.test(html));
+  check(`${loc} stays out of the sitemap`, !listed.includes(loc));
+  check(`${loc} has a public route`, legal.includes(`router.get('${loc}',`));
+}
+
+// Audit neighboring public templates too, not just the three formerly broken
+// links. /legal/* is a view directory, not a public route namespace.
+for (const dir of ['apply', 'legal']) {
+  const folder = path.join(ROOT, 'src/views', dir);
+  for (const name of fs.readdirSync(folder).filter((name) => name.endsWith('.ejs'))) {
+    const source = fs.readFileSync(path.join(folder, name), 'utf8');
+    check(`${dir}/${name} has no obsolete legal links`,
+      !/href\s*=\s*["']\/legal\//i.test(source));
+  }
+}
+const applySource = fs.readFileSync(path.join(ROOT, 'src/views/apply/form.ejs'), 'utf8');
+for (const name of ['terms', 'privacy']) {
+  check(`application consent links to /${name}`,
+    new RegExp(`name="${'accept_' + name}"[\\s\\S]*?<a\\s+href="/${name}"`).test(applySource));
+}
+const termsSource = fs.readFileSync(path.join(ROOT, 'src/views/legal/terms.ejs'), 'utf8');
+check('terms body links to /privacy',
+  /<main\b[\s\S]*?<a\s+href="\/privacy"/.test(termsSource));
+
 // Which template answers each path. Only paths with a fixed template are here;
 // anything data-driven is covered by check-page-types.js instead.
 const PAGE = {
