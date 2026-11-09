@@ -306,3 +306,54 @@ class ApproxLocationTest {
         assertEquals("📶 مكان تقريبى ±850 م", ApproxLocation.label(850f))
     }
 }
+
+// «Oscar Smart Voice Recognition» (المالك ٢٠٢٦-١١-٠٧): «سجل مطب» اتسمعت «سجلت مطلب»
+class SmartVoiceTest {
+    private val e = VoiceEngine()
+    @Test fun dictionaryFixesKnownMishearsWithoutAsking() {
+        val u = e.understand("سجلت مطلب")!!
+        assertEquals("road.bump", u.match.command.id); assertTrue(u.sure)
+        assertEquals("road.radar", e.understand("سجل ردار")!!.match.command.id)
+        assertEquals("nav.open", e.understand("افتح الملاحا")!!.match.command.id)
+        assertEquals("road.bump", e.understand("mark bum")!!.match.command.id)
+    }
+    @Test fun exactStaysExact() {
+        val u = e.understand("سجل مطب")!!
+        assertTrue(u.sure); assertEquals("road.bump", u.match.command.id)
+        assertNull(e.understand("الجو حلو النهارده"))
+    }
+    @Test fun closeButUnknownAsks() {
+        // «فعّل الحمايا» فى القاموس ⇒ متأكد · «فعل الحمايت» مش فى القاموس بس قريبة ⇒ يسأل
+        assertTrue(e.understand("فعل الحمايا")!!.sure)
+        val u = e.understand("فعل الحمايت")!!
+        assertEquals("sec.arm", u.match.command.id); assertFalse(u.sure)
+        assertEquals("الحمايه", u.learn["الحمايت"])
+        // كلمة بعيدة ⇒ مفيش أمر (مايخمّنش)
+        assertNull(e.understand("مطر"))
+    }
+    @Test fun placeNamesAndNumbersAreNotCorrected() {
+        // «المطلب» اسم مكان ⇒ يفضل زى ما هو حتى لو القاموس بيصحّح «مطلب»
+        val u = e.understand("وديتني مطعم المطلب")!!
+        assertEquals("nav.goto", u.match.command.id); assertTrue(u.sure)
+        assertEquals("مطعم المطلب", u.match.slot)
+        assertEquals(120, VoiceEngine.number(e.understand("خلي الحد مية وعشرين")!!.match.slot))
+    }
+    @Test fun learnsFromTheDriver() {
+        assertEquals("مزلقان" to "مطب", EgyptWords.correction(VoiceEngine.normalize("أنا قلت مطب مش مزلقان")))
+        assertEquals("bomb" to "bump", EgyptWords.correction("i said bump not bomb"))
+        assertNull(EgyptWords.correction("سجل مطب"))
+        val taught = VoiceEngine(learned = mapOf("مزلقان" to "مطب"))
+        val u = taught.understand("سجل مزلقان")!!
+        assertEquals("road.bump", u.match.command.id); assertTrue(u.sure)
+    }
+    @Test fun yesNo() {
+        assertEquals(true, EgyptWords.yesNo(VoiceEngine.normalize("أيوه")))
+        assertEquals(true, EgyptWords.yesNo("yes please"))
+        assertEquals(false, EgyptWords.yesNo(VoiceEngine.normalize("لأ")))
+        assertEquals(false, EgyptWords.yesNo("لا مش ده"))
+        assertNull(EgyptWords.yesNo("وصلني البيت"))
+    }
+    @Test fun mixedArabicEnglish() {
+        assertEquals("nav.open", e.understand("open الملاحه")?.match?.command?.id ?: e.understand("افتح navigation")?.match?.command?.id)
+    }
+}

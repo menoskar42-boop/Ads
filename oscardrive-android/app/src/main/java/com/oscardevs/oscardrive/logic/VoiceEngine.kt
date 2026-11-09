@@ -19,6 +19,12 @@ data class VoiceCommand(
 
 data class VoiceMatch(val command: VoiceCommand, val slot: String?, val phrase: String)
 
+/**
+ * نتيجة «الفهم الذكى» (المالك ٢٠٢٦-١١-٠٧): `sure` = اتفهم بالحرف أو بالقاموس ⇒ يتنفّذ على طول.
+ * مش `sure` ⇒ أوسكار يسأل «تقصد …؟». `learn` = كلمات اتسمعت ⇐ الكلمة الصح (تتحفظ لو قلت «أيوه»).
+ */
+data class Understood(val match: VoiceMatch, val sure: Boolean, val heard: String, val learn: Map<String, String> = emptyMap())
+
 object VoiceCatalog {
     val ALL: List<VoiceCommand> = listOf(
         VoiceCommand("nav.open", "افتح الملاحة", listOf("افتح الملاحه", "افتح الخريطه", "شغل الخريطه", "شغل الملاحه", "الخريطه"), listOf("open navigation", "open maps", "open the map", "start navigation")),
@@ -66,6 +72,8 @@ class VoiceEngine(
     /** أوامر مقفولة. */
     private val disabled: Set<String> = emptySet(),
     wakeNames: List<String> = VoiceCatalog.DEFAULT_WAKE,
+    /** كلمات السواق علّمها لأوسكار («قلت مطب مش مطلب») — بتتقدّم على القاموس. */
+    private val learned: Map<String, String> = emptyMap(),
 ) {
     private val wakes = wakeNames.map { normalize(it) }.filter { it.isNotBlank() }.sortedByDescending { it.length }
 
@@ -96,6 +104,74 @@ class VoiceEngine(
                     // صيغة ثابتة طابقت تغلب أى صيغة فيها * («وصلني لاقرب بنزينه» = بنزينة مش «وصلنى لمكان»)
                     val score = p.replace("*", "").length + if (p.contains("*")) 0 else 1000
                     if (best == null || score > bestScore) { best = VoiceMatch(c, slot, p); bestScore = score }
+                }
+            }
+        }
+        return best
+    }
+
+    /**
+     * زى `match` بس بيفهم الكلام حتى لو اتسمع غلط — بالترتيب:
+     *  ١) بالحرف ⇒ متأكد · ٢) بعد تصحيح الكلمات (اللى علّمته + قاموس مصرى) ⇒ متأكد ·
+     *  ٣) أقرب أمر (كل كلمة قريبة من كلمة الأمر) ⇒ **مش متأكد** ⇐ يسأل.
+     * الجزء الحر (اسم المكان · الرقم) بيرجع زى ما اتقال من غير تصحيح.
+     */
+    fun understand(text: String): Understood? {
+        val t = normalize(text)
+        if (t.isBlank()) return null
+        match(t)?.let { return Understood(it, true, t) }
+        val raw = t.split(' ')
+        val fixed = raw.map { w -> learned[w] ?: EgyptWords.FIX_N[w] ?: w }
+        if (fixed != raw) match(fixed.joinToString(" "))?.let { return Understood(keepRawSlot(it, raw), true, t) }
+        // عربى وإنجليزى مخلوطين ⇒ كلمات الأوامر الإنجليزى بالعربى (لو الجملة فيها عربى)
+        if (fixed.any { w -> w.any { it in '\u0600'..'\u06FF' } }) {
+            val mixed = fixed.map { EgyptWords.MIXED[it] ?: it }
+            if (mixed != fixed) match(mixed.joinToString(" "))?.let { return Understood(keepRawSlot(it, raw), true, t) }
+        }
+        val f = fuzzy(fixed) ?: return null
+        val learn = HashMap<String, String>()
+        for ((heard, want) in f.second) if (heard != want) learn[raw[fixed.indexOf(heard).coerceAtLeast(0)]] = want
+        return Understood(keepRawSlot(f.first, raw), false, t, learn)
+    }
+
+    /** الجزء الحر من الأمر ييجى من الكلام الأصلى مش المصحّح (عشان اسم مكان زى «المطلب» مايتغيّرش). */
+    private fun keepRawSlot(m: VoiceMatch, raw: List<String>): VoiceMatch {
+        val slot = m.slot ?: return m
+        if (!m.phrase.endsWith("*")) return m
+        val k = slot.split(' ').size
+        return if (k <= raw.size) m.copy(slot = raw.takeLast(k).joinToString(" ")) else m
+    }
+
+    /** أقرب أمر: كل كلمة فى صيغة الأمر قريبة (≥ ٠٫٥) والمتوسط ≥ ٠٫٧٥. بيرجّع الأمر + (الكلمة اللى اتسمعت ⇐ كلمة الأمر). */
+    private fun fuzzy(tokens: List<String>): Pair<VoiceMatch, List<Pair<String, String>>>? {
+        var best: Pair<VoiceMatch, List<Pair<String, String>>>? = null
+        var bestScore = 0.0
+        for (c in VoiceCatalog.ALL) {
+            if (c.id in disabled) continue
+            for (rawP in c.ar + c.en + custom[c.id].orEmpty()) {
+                val p = normalize(rawP.replace("*", " * ")).replace(" * ", "*").replace(" *", "*").replace("* ", "*").trim()
+                if (p.isBlank()) continue
+                val star = p.endsWith("*")
+                if (p.contains("*") && !star) continue
+                val pt = p.removeSuffix("*").trim().split(' ').filter { it.isNotEmpty() }
+                if (pt.isEmpty() || pt.joinToString("").length < 3) continue
+                // الصيغ اللى فيها مكان فاضى: لازم فى أول الكلام وبعدها كلام (الجزء الحر)
+                val starts = if (star) listOf(0) else (0..tokens.size - pt.size).toList()
+                for (i in starts) {
+                    if (i < 0 || i + pt.size > tokens.size) continue
+                    if (star && i + pt.size >= tokens.size) continue
+                    val window = tokens.subList(i, i + pt.size)
+                    val sims = window.indices.map { EgyptWords.similarity(window[it], pt[it]) }
+                    if (sims.any { it < 0.5 }) continue
+                    val score = sims.average()
+                    if (score < 0.75 || score >= 1.0 && !star) continue
+                    // الأطول (كلام أكتر اتطابق) بيكسب لو الدرجة قريبة
+                    val ranked = score + pt.size * 0.01
+                    if (ranked > bestScore) {
+                        val slot = if (star) tokens.drop(i + pt.size).joinToString(" ") else null
+                        best = VoiceMatch(c, slot, p) to window.indices.map { window[it] to pt[it] }
+                        bestScore = ranked
+                    }
                 }
             }
         }

@@ -135,6 +135,19 @@ class Prefs(context: Context) {
         val o = org.json.JSONObject(); for ((k, v) in m) if (v.isNotEmpty()) o.put(k, org.json.JSONArray(v))
         sp.edit().putString("v_custom", o.toString()).apply()
     }
+    /** كلمات السواق علّمها لأوسكار: { اللى اتسمع: الكلمة الصح } («قلت مطب مش مطلب» · أو «أيوه» على «تقصد …؟»). */
+    fun learnedWords(): Map<String, String> {
+        val o = try { org.json.JSONObject(sp.getString("v_learned", "{}") ?: "{}") } catch (_: Exception) { org.json.JSONObject() }
+        return o.keys().asSequence().associateWith { o.optString(it) }.filterValues { it.isNotBlank() }
+    }
+    fun addLearned(m: Map<String, String>) {
+        val o = org.json.JSONObject(learnedWords()); for ((k, v) in m) if (k.isNotBlank() && v.isNotBlank() && k != v) o.put(k, v)
+        sp.edit().putString("v_learned", o.toString()).apply()
+    }
+    fun removeLearned(k: String) {
+        val o = org.json.JSONObject(learnedWords()); o.remove(k)
+        sp.edit().putString("v_learned", o.toString()).apply()
+    }
     var disabledCommands: Set<String>
         get() = sp.getStringSet("v_off", emptySet()) ?: emptySet()
         set(v) = sp.edit().putStringSet("v_off", v).apply()

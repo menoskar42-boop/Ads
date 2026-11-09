@@ -28,6 +28,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.oscardevs.oscardrive.logic.CarCare
+import com.oscardevs.oscardrive.logic.EgyptWords
 import com.oscardevs.oscardrive.logic.Cmd
 import com.oscardevs.oscardrive.logic.Fuel
 import com.oscardevs.oscardrive.logic.Geo
@@ -38,6 +39,7 @@ import com.oscardevs.oscardrive.logic.VoiceCommands
 import com.oscardevs.oscardrive.logic.VoiceCatalog
 import com.oscardevs.oscardrive.logic.VoiceEngine
 import com.oscardevs.oscardrive.logic.VoiceMatch
+import com.oscardevs.oscardrive.logic.Understood
 import android.widget.HorizontalScrollView
 import com.oscardevs.oscardrive.logic.Wellness
 import java.text.SimpleDateFormat
@@ -828,7 +830,7 @@ class MainActivity : Activity() {
     /** بعد «يا أوسكار» لوحدها: الجملة الجاية جوّه ٨ ثوانى = أمر من غير ما تنادى تانى. */
     private var awaitingUntil = 0L
 
-    private fun engine() = VoiceEngine(prefs.customPhrases(), prefs.disabledCommands, prefs.wakeNames)
+    private fun engine() = VoiceEngine(prefs.customPhrases(), prefs.disabledCommands, prefs.wakeNames, prefs.learnedWords())
 
     /** أوسكار يقول جملة الحدث + تظهر مكتوبة. */
     private fun oscar(id: String, shown: String? = null, extra: String? = null) {
@@ -874,24 +876,73 @@ class MainActivity : Activity() {
         if (heard.isEmpty()) return
         val e = engine()
         val now = System.currentTimeMillis()
+        // ١) رد على «تقصد …؟» — «أيوه» ينفّذ ويتعلّم · «لأ» يلغى
+        val p = pending
+        if (p != null && now < pendingUntil) {
+            val ans = heard.firstNotNullOfOrNull { EgyptWords.yesNo(VoiceEngine.normalize(e.afterWake(it) ?: it)) }
+            if (ans != null) { if (ans) acceptGuess(p) else rejectGuess(); return }
+        }
+        pending = null
         var called = button || now < awaitingUntil
-        var best: VoiceMatch? = null
+        var best: Understood? = null
         for (h in heard) {
             val rest = e.afterWake(h)
-            if (rest != null) {
-                called = true
-                if (rest.isEmpty()) continue
-                e.match(rest)?.let { best = best ?: it }
-            } else if (button || now < awaitingUntil) e.match(h)?.let { best = best ?: it }
+            val text = when {
+                rest != null -> { called = true; rest }
+                button || now < awaitingUntil -> h
+                else -> null
+            }
+            if (text.isNullOrEmpty()) continue
+            // ٢) «أنا قلت مطب مش مطلب» ⇒ أوسكار يحفظ الكلمة
+            EgyptWords.correction(VoiceEngine.normalize(text))?.let { (wrong, right) ->
+                prefs.addLearned(mapOf(wrong to right)); awaitingUntil = 0
+                val msg = "تمام، هفتكر إن «$wrong» يعنى «$right»"
+                Oscar.sayText(msg); toast(msg); return
+            }
+            e.understand(text)?.let { u -> val b = best; if (b == null || (u.sure && !b.sure)) best = u }
         }
         if (!called) return
-        val m = best
-        if (m == null) {
+        val u = best
+        if (u == null) {
             if (heard.any { e.afterWake(it) == "" }) { awaitingUntil = now + 8000; oscar("hello"); return }
             awaitingUntil = 0; oscar("not_understood", "مافهمتش: «${heard.first()}»"); return
         }
+        if (!u.sure) { askGuess(u); return }
         awaitingUntil = 0
-        runCommand(m.command.id, m.slot)
+        runCommand(u.match.command.id, u.match.slot)
+    }
+
+    /* ── الفهم الذكى: لو مش متأكد بيسأل، ولو قلت «أيوه» بيتعلّم الكلمة ── */
+    private var pending: Understood? = null
+    private var pendingUntil = 0L
+    private var guessDialog: AlertDialog? = null
+
+    private fun askGuess(u: Understood) {
+        val now = System.currentTimeMillis()
+        pending = u; pendingUntil = now + 10_000; awaitingUntil = pendingUntil
+        val q = "تقصد «${u.match.command.title}»؟"
+        Oscar.sayText("$q قول أيوه أو لأ")
+        guessDialog?.dismiss()
+        guessDialog = AlertDialog.Builder(this).setTitle("🎙️ $q").setMessage("سمعت: «${u.heard}»")
+            .setPositiveButton("أيوه") { _, _ -> acceptGuess(u) }
+            .setNegativeButton("لأ") { _, _ -> rejectGuess() }
+            .setOnCancelListener { pending = null }
+            .show()
+        // زرار 🎤 من غير استماع دايم ⇒ يسمع الرد مرة كمان (بمحرّك أوسكار بس — برنامج الشاشة بيفتح شاشة جوجل)
+        if (wake?.active != true && useEars()) main.postDelayed({ if (pending === u) listen() }, 2500)
+    }
+
+    private fun acceptGuess(u: Understood) {
+        pending = null; awaitingUntil = 0
+        guessDialog?.dismiss(); guessDialog = null
+        if (u.learn.isNotEmpty()) prefs.addLearned(u.learn)   // المرة الجاية يتفهم على طول
+        runCommand(u.match.command.id, u.match.slot)
+    }
+
+    private fun rejectGuess() {
+        pending = null; awaitingUntil = 0
+        guessDialog?.dismiss(); guessDialog = null
+        oscar("ok", "تمام — قول الأمر تانى، أو قول مثلاً «أنا قلت مطب مش مطلب»")
     }
 
     /** كل أمر مربوط بوظيفة ثابتة — نفس الأزرار بالظبط. */
@@ -1008,6 +1059,17 @@ class MainActivity : Activity() {
             "محتاج رامات فاضية (العربى ~${OfflineEars.PACKS.getValue("ar").minRamMb} ميجا) — الفاضى دلوقتى ${OfflineEars.freeRamMb(this)} ميجا.", 13f, ui.muted)
             .apply { setPadding(ui.dp(6), 0, ui.dp(6), ui.dp(6)) })
         page.addView(earsBox)
+
+        // كلمات علّمتها لأوسكار (الفهم الذكى) — تقدر تمسح أى واحدة
+        val learned = prefs.learnedWords()
+        page.addView(ui.text("🧠 كلمات علّمتها لأوسكار" + if (learned.isEmpty()) " — لسه مفيش. لو فهمك غلط قول: «أنا قلت مطب مش مطلب»" else "", 15f, ui.ink, bold = true)
+            .apply { setPadding(ui.dp(6), ui.dp(10), ui.dp(6), ui.dp(4)) })
+        for ((heard, meant) in learned) {
+            val row = ui.row()
+            row.addView(ui.text("«$heard» ⇐ «$meant»", 15f), ui.lp(0, Ui.WRAP, 1f, 6))
+            row.addView(ui.button("🗑️", "ghost", 15f) { prefs.removeLearned(heard); refresh() }, ui.lp(ui.dp(64), ui.dp(50), 0f, 3))
+            page.addView(row)
+        }
 
         // اسم الاستدعاء
         page.addView(section("اسم الاستدعاء"))

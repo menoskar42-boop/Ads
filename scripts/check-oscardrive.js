@@ -158,6 +158,14 @@ check('voice commands need no AI at runtime', !/openai|anthropic|gemini/i.test(r
       && !/getOutputStream|doOutput|POST/.test(ears) && /alphacephei\.com/.test(privacy),
     'محرّك الصوت جوّه التطبيق لازم يفضل على الجهاز ومعلن عنه فى السياسة.');
 }
+// «الفهم الذكى» (المالك ٢٠٢٦-١١-٠٧): من غير AI، ولو مش متأكد بيسأل قبل ما ينفّذ، والكلمات اللى اتعلّمها بتتمسح
+{
+  const words = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/logic/EgyptWords.kt');
+  const mainKt = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/MainActivity.kt');
+  check('smart voice: fixed rules, asks before acting on a guess, learned words can be removed',
+    !/openai|anthropic|gemini|http/i.test(words) && /if \(!u\.sure\) \{ askGuess\(u\); return \}/.test(mainKt) && /prefs\.removeLearned/.test(mainKt),
+    'التخمين لازم يتأكد من السواق قبل التنفيذ.');
+}
 check('privacy policy discloses the microphone', /الميكروفون بيتطلب مع أول تشغيل عشان «يا أوسكار»/.test(privacy) && /مابيسجّلش صوت ولا بيبعته/.test(privacy), 'إذن الميكروفون لازم يتقال فى السياسة.');
 // المالك ٢٠٢٦-١١-٠٩: صوت أوسكار جوّه الـAPK ويتركّب لوحده (من غير زرار ولا نت).
 {
