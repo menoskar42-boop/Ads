@@ -14,9 +14,11 @@ const Module = require('module');
 const crypto = require('crypto');
 const express = require('express');
 const session = require('express-session');
+const bcrypt = require('bcryptjs');
 
 const ROOT = path.join(__dirname, '..');
 const audit = require(path.join(ROOT, 'src/lib/audit'));
+const adminPassword = 'fixture-admin-password';
 const fixture = {
   companies: [
     { id: 101, company_name: 'Alpha Workshop', page_type: 'workshop', is_active: true, theme_color: '#22425c' },
@@ -50,10 +52,48 @@ const fixture = {
       change_type: 'added', created_at: '2026-09-05T08:01:00.000Z',
     },
   ],
+  admins: [{
+    id: 7001,
+    email: 'security-admin@example.com',
+    password_hash: bcrypt.hashSync(adminPassword, 4),
+    lang: 'ar',
+  }],
 };
 
 const queries = [];
 const securityEvents = [];
+const securityReviewRows = [
+  {
+    company_id: 101, actor_kind: 'company_user', actor_id: 1001,
+    action: 'access_denied', meta: { reason: 'IN_SCOPE_EVENT' },
+    system: 'workshop', entity: 'workshop_alert_email_history',
+    created_at: '2026-09-04T08:00:00.000Z',
+  },
+  {
+    company_id: 202, actor_kind: 'company_user', actor_id: 2002,
+    action: 'access_denied', meta: { reason: 'OTHER_COMPANY_EVENT' },
+    system: 'workshop', entity: 'workshop_alert_email_history',
+    created_at: '2026-09-04T09:00:00.000Z',
+  },
+  {
+    company_id: 101, actor_kind: 'company_user', actor_id: 1001,
+    action: 'access_denied', meta: { reason: 'OTHER_SYSTEM_EVENT' },
+    system: 'clinic', entity: 'workshop_alert_email_history',
+    created_at: '2026-09-04T10:00:00.000Z',
+  },
+  {
+    company_id: 101, actor_kind: 'company_user', actor_id: 1001,
+    action: 'access_denied', meta: { reason: 'OTHER_ENTITY_EVENT' },
+    system: 'workshop', entity: 'workshop_settings',
+    created_at: '2026-09-04T11:00:00.000Z',
+  },
+  {
+    company_id: 101, actor_kind: 'company_user', actor_id: 1001,
+    action: 'settings_updated', meta: { reason: 'OTHER_ACTION_EVENT' },
+    system: 'workshop', entity: 'workshop_alert_email_history',
+    created_at: '2026-09-04T12:00:00.000Z',
+  },
+];
 const securityAlertState = new Map();
 const securityAlertClaims = [];
 const securityAlertStatusUpdates = [];
@@ -61,6 +101,36 @@ class FixturePool {
   async query(sql, args = []) {
     queries.push([sql.replace(/\s+/g, ' ').trim(), args]);
     if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(sql.trim())) return { rows: [] };
+    if (/SELECT \* FROM admins WHERE email = \$1/.test(sql)) {
+      return { rows: fixture.admins.filter((row) => row.email === args[0]) };
+    }
+    if (/SELECT COUNT\(\*\) FROM contact_messages WHERE is_read = false/.test(sql)
+        || /SELECT COUNT\(\*\) FROM signup_applications WHERE status = 'pending'/.test(sql)
+        || /SELECT COUNT\(\*\) FROM platform_testimonials WHERE status = 'pending'/.test(sql)) {
+      return { rows: [{ count: '0' }] };
+    }
+    if (/FROM medical_audit_log/.test(sql)) {
+      let rows = securityReviewRows.filter((row) =>
+        row.system === args[0] && row.entity === args[1] && row.action === args[2]);
+      if (/AND company_id=\$4/.test(sql)) {
+        rows = rows.filter((row) => row.company_id === Number(args[3]));
+      }
+      const fromMatch = sql.match(/created_at >= \$(\d+)::date/);
+      if (fromMatch) {
+        const from = args[Number(fromMatch[1]) - 1];
+        rows = rows.filter((row) => row.created_at.slice(0, 10) >= from);
+      }
+      const toMatch = sql.match(/created_at < \(\$(\d+)::date \+ INTERVAL '1 day'\)/);
+      if (toMatch) {
+        const to = args[Number(toMatch[1]) - 1];
+        rows = rows.filter((row) => row.created_at.slice(0, 10) <= to);
+      }
+      return { rows: rows.sort((a, b) => b.created_at.localeCompare(a.created_at)) };
+    }
+    if (/SELECT company_id, actor_kind, actor_id, rejection_count/.test(sql)
+        && /FROM workshop_security_alert_state/.test(sql)) {
+      return { rows: [] };
+    }
     if (/INSERT INTO medical_audit_log/.test(sql)) {
       securityEvents.push(args);
       return { rows: [] };
@@ -181,8 +251,10 @@ Module._load = function loadWithFixture(request, parent, isMain) {
   return realLoad.apply(this, arguments);
 };
 let workshopRouter;
+let adminRouter;
 try {
   workshopRouter = require(path.join(ROOT, 'src/routes/workshop_admin'));
+  adminRouter = require(path.join(ROOT, 'src/routes/admin'));
 } finally {
   Module._load = realLoad;
 }
@@ -201,6 +273,7 @@ app.use((req, res, next) => {
   res.locals.lang = 'ar';
   res.locals.dir = 'rtl';
   res.locals.t = (key) => key;
+  res.locals.showAds = false;
   next();
 });
 
@@ -221,6 +294,7 @@ app.get('/__test/demo', (req, res) => {
   return res.redirect('/workshop/settings');
 });
 app.use('/workshop', workshopRouter);
+app.use('/admin', adminRouter);
 
 let failed = 0;
 const check = (label, ok, extra) => {
@@ -296,8 +370,45 @@ class ConcurrentSecurityPool {
   const alpha = client(base);
   const bravo = client(base);
   const demo = client(base);
+  const platformAdmin = client(base);
 
   try {
+    const unauthenticatedAdminPage = await platformAdmin.request(
+      '/admin/security/workshop-alert-email?company_id=101&from=2026-09-01&to=2026-09-05'
+    );
+    check('سجل الأمن يطلب جلسة إدارة', unauthenticatedAdminPage.status === 302
+      && unauthenticatedAdminPage.headers.get('location') === '/admin/login');
+    const adminLogin = await platformAdmin.request('/admin/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email: fixture.admins[0].email, password: adminPassword }).toString(),
+    });
+    const filteredAdminPage = await platformAdmin.request(
+      '/admin/security/workshop-alert-email?company_id=101&from=2026-09-01&to=2026-09-05'
+    );
+    const filteredAdminHtml = await filteredAdminPage.text();
+    check('دخول الأدمن ينشئ جلسة HTTP مصادقًا عليها',
+      adminLogin.status === 302
+        && adminLogin.headers.get('location') === '/admin/dashboard'
+        && filteredAdminPage.status === 200);
+    check('صفحة مراجعة الأمن تعرض فلاتر الشركة والتاريخ المختارة',
+      /name="company_id"[^>]*value="101"/.test(filteredAdminHtml)
+        && /name="from"[^>]*value="2026-09-01"/.test(filteredAdminHtml)
+        && /name="to"[^>]*value="2026-09-05"/.test(filteredAdminHtml));
+    check('صفحة مراجعة الأمن تعرض أحداث الورشة المحددة فقط',
+      filteredAdminHtml.includes('IN_SCOPE_EVENT')
+        && !filteredAdminHtml.includes('OTHER_COMPANY_EVENT')
+        && !filteredAdminHtml.includes('OTHER_SYSTEM_EVENT')
+        && !filteredAdminHtml.includes('OTHER_ENTITY_EVENT')
+        && !filteredAdminHtml.includes('OTHER_ACTION_EVENT'));
+    const invalidAdminFilter = await platformAdmin.request(
+      '/admin/security/workshop-alert-email?company_id=101&from=2026-02-30'
+    );
+    const invalidAdminFilterHtml = await invalidAdminFilter.text();
+    check('الفلاتر غير الصالحة تعرض رسالة مفهومة دون خطأ 500',
+      invalidAdminFilter.status === 200
+        && invalidAdminFilterHtml.includes('الفلاتر غير صحيحة. اختر تاريخًا حقيقيًا'));
+
     const concurrentPool = new ConcurrentSecurityPool();
     const alerts = [];
     const concurrentRequest = {
