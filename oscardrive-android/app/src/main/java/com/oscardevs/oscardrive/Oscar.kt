@@ -30,6 +30,36 @@ object Oscar {
         app = ctx.applicationContext
         prefs = Prefs(app)
         lines = try { JSONObject(app.assets.open("oscar_lines.json").bufferedReader().use { it.readText() }).getJSONObject("lines") } catch (_: Exception) { JSONObject() }
+        ensureBundled()
+    }
+
+    /** الصوت اللى جوّه الـAPK (assets/voice/<صوت>) ⇒ فولدر الصوت، فى الخلفية. بيتنده مع الفتح ومع تغيير الصوت. */
+    fun ensureBundled() { if (::app.isInitialized) io.execute { installBundled(prefs.oscarVoice) } }
+
+    /** بيضيف الجمل اللى جوّه الـAPK على اللى متنزّل قبل كده (ومابيمسحش حاجة) — من غير نت. */
+    private fun installBundled(voice: String) {
+        try {
+            val man = JSONObject(app.assets.open("voice/$voice/manifest.json").bufferedReader().use { it.readText() }).getJSONObject("lines")
+            val dir = File(app.filesDir, "voice/$voice").also { it.mkdirs() }
+            val map = prefs.voiceFiles(voice); var added = 0
+            for (id in man.keys()) for (l in listOf("ar", "en")) {
+                val arr = man.getJSONObject(id).optJSONArray(l) ?: continue
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val f = o.optString("f", ""); val t = o.optString("t", "")
+                    if (f.isEmpty() || t.isEmpty()) continue
+                    val dst = File(dir, f)
+                    if (!dst.exists()) {
+                        val tmp = File(dir, "$f.part")
+                        app.assets.open("voice/$voice/$f").use { inp -> tmp.outputStream().use { inp.copyTo(it) } }
+                        tmp.renameTo(dst)
+                    }
+                    if (map.optString(t, "") != f) { map.put(t, f); added++ }
+                }
+            }
+            if (added > 0) prefs.setVoiceFiles(voice, map)
+            if (map.length() > 0 && packStatus.isEmpty()) packStatus = "صوت أوسكار جاهز ✓ ${map.length()} جملة (جوّه التطبيق)"
+        } catch (_: Exception) { /* نسخة من غير صوت جوّاها ⇒ زرار «نزّل صوت أوسكار» */ }
     }
 
     val lang: String get() = if (prefs.voiceLang.startsWith("en")) "en" else "ar"

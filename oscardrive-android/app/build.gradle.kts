@@ -59,6 +59,17 @@ android {
 
 kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
+// صوت أوسكار جوّه الـAPK (المالك ٢٠٢٦-١١-٠٩: «تبقى اوتوماتيك مع تنزيل البرنامج الاصلى»): ملفات
+// drive-web/voice (اللى scripts/oscar-voice.js بيعملها) بتتنسخ لـassets/voice وقت البناء، والتطبيق بينقلها
+// لفولدر الصوت أول ما يفتح — من غير نت ولا زرار. زرار «نزّل صوت أوسكار» فاضل للتحديثات بس.
+val voiceAssets = layout.buildDirectory.dir("generated/oscarVoiceAssets")
+val copyOscarVoice by tasks.registering(Copy::class) {
+    from(rootProject.file("../drive-web/voice")) { include("*/*.mp3", "*/manifest.json") }
+    into(voiceAssets.map { it.dir("voice") })
+}
+android.sourceSets.getByName("main").assets.srcDir(voiceAssets)
+tasks.named("preBuild") { dependsOn(copyOscarVoice) }
+
 dependencies {
     implementation("com.google.android.libraries.navigation:navigation:7.8.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")

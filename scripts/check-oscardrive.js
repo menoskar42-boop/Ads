@@ -141,6 +141,17 @@ check('voice commands need no AI at runtime', !/openai|anthropic|gemini/i.test(r
 check('"Hey Oscar" listening is opt-in', /get\(\) = sp\.getBoolean\("v_wake", false\)/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt')),
   'الاستماع الدائم لازم يبقى مقفول لحد ما السواق يشغّله.');
 check('privacy policy discloses the microphone', /الميكروفون بيتطلب بس لو شغّلت «يا أوسكار»/.test(privacy), 'إذن الميكروفون لازم يتقال فى السياسة.');
+// المالك ٢٠٢٦-١١-٠٩: صوت أوسكار جوّه الـAPK ويتركّب لوحده (من غير زرار ولا نت).
+{
+  const gradle = read('oscardrive-android/app/build.gradle.kts');
+  const oscar = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Oscar.kt');
+  const voiceOk = ['male', 'female'].every((v) => fs.existsSync(path.join(ROOT, 'drive-web/voice', v, 'manifest.json')));
+  check('Oscar voice is bundled in the APK and installed on first launch',
+    voiceOk && /from\(rootProject\.file\("\.\.\/drive-web\/voice"\)\)/.test(gradle) && /dependsOn\(copyOscarVoice\)/.test(gradle)
+      && /assets\.open\("voice\/\$voice\/manifest\.json"\)/.test(oscar) && /ensureBundled\(\)\n    \}/.test(oscar)
+      && /'drive-web\/voice\/\*\*'/.test(wf),
+    'ملفات drive-web/voice لازم تتبنى جوّه الـAPK وتتنقل أول ما التطبيق يفتح.');
+}
 check('custom voice lines are rate-limited', /od-voice', windowMs: 24 \* 60 \* 60000, max: 20/.test(site), 'كل جملة = نداء مدفوع للذكاء الاصطناعى.');
 
 process.exit(failed ? 1 : 0);

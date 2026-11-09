@@ -12,6 +12,7 @@ on:
     branches: [claude/build-oscardevs-ads-mvp-8krfN]
     paths:
       - 'oscardrive-android/**'
+      - 'drive-web/voice/**'   # صوت أوسكار بيتبنى جوّه الـAPK
       - '.github/workflows/oscardrive-apk.yml'
 
 jobs:

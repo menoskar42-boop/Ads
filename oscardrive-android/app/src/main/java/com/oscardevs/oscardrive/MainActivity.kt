@@ -986,7 +986,7 @@ class MainActivity : Activity() {
         // صوت أوسكار
         page.addView(section("🗣️ صوت أوسكار"))
         page.addView(toggle("أوسكار يرد بصوته", prefs.oscarReplies) { prefs.oscarReplies = it })
-        page.addView(optionRow("الصوت", listOf(0 to "راجل", 1 to "ست"), if (prefs.oscarVoice == "female") 1 else 0) { prefs.oscarVoice = if (it == 1) "female" else "male" })
+        page.addView(optionRow("الصوت", listOf(0 to "راجل", 1 to "ست"), if (prefs.oscarVoice == "female") 1 else 0) { prefs.oscarVoice = if (it == 1) "female" else "male"; Oscar.ensureBundled() })
         val dl = ui.row()
         dl.addView(ui.button("⬇️ نزّل صوت أوسكار", "primary", 15f) { toast("بينزّل…"); Oscar.downloadPack { msg -> main.post { toast(msg); refresh() } } }, ui.lp(0, ui.dp(54), 1f, 3))
         dl.addView(ui.button("▶ اسمعه", "neutral", 15f) { Oscar.say("hello") }, ui.lp(ui.dp(120), ui.dp(54), 0f, 3))
