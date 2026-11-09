@@ -507,6 +507,25 @@ function splitTextIntoPages(text: string, maxChars: number): string[] {
 const SLIDE_MAX_CHARS = 150;
 const SLIDE_MAX_CHARS_BILINGUAL = 120;
 
+/* قراءات اليوم (البولس · الكاثوليكون · الإبركسيس · المزمور · الإنجيل · السنكسار) بتيجى من السيرفر
+ * القراءة كلها فى شريحة واحدة — وشاشة العرض `overflow-hidden` فكان آخرها بيتقص (المالك ٢٠٢٦-١١-٠٧:
+ * «الكاثوليكون صح لكن مكمل نقط ناقصه»). هنا بتتقسم على حدود الآيات (كل آية سطر) لشرايح كل واحدة
+ * ≤ READING_SLIDE_MAX_CHARS. نفس الدالة فى شاشة التحكم والعرض عشان رقم الشريحة يفضل واحد فى الاتنين. */
+export const READING_SLIDE_MAX_CHARS = 280;
+export function readingSlidesFor(
+  readingType: string,
+  readingData: { title: string; slides: string[] } | null | undefined,
+): LiturgySlide[] {
+  if (!readingData?.slides?.length) return [];
+  const pages = readingData.slides.flatMap((text) => splitTextIntoPages(text, READING_SLIDE_MAX_CHARS));
+  return pages.map((text, i) => ({
+    id: `reading-${readingType}-${i}`,
+    title: readingData.title,
+    role: 'deacon' as const,
+    text,
+  }));
+}
+
 // تقسيم متوازٍ: العربي والقبطي معاً فقرةً بفقرة — يضمن عدم فقدان النص القبطي
 function splitParallelTexts(
   arabicText: string,

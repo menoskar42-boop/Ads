@@ -6,6 +6,7 @@ import {
   getSplitSlidesForSection,
   getPreludeSlidesForSection,
   getPostludeSlidesForSection,
+  readingSlidesFor,
   getReadingType,
   findEquivalentSection,
   getLiturgyLabel,
@@ -96,9 +97,7 @@ export default function LiturgyControl() {
       const prelude = getPreludeSlidesForSection(session.liturgyType, session.sectionKey, session.occasion, session.seasonalLitany);
       const postlude = getPostludeSlidesForSection(session.sectionKey, session.occasion);
       const readingData = _activeReadings[_readingType];
-      const readingSlides: LiturgySlide[] = readingData?.slides?.length
-        ? readingData.slides.map((text, i) => ({ id: `reading-${_readingType}-${i}`, title: readingData.title, role: 'deacon' as const, text }))
-        : [];
+      const readingSlides: LiturgySlide[] = readingSlidesFor(_readingType, readingData);
       if (readingSlides.length) {
         return [...prelude, ...readingSlides, ...postlude];
       }
@@ -358,12 +357,7 @@ export default function LiturgyControl() {
       if (readingData?.slides?.length) {
         const prelude = getPreludeSlidesForSection(session.liturgyType, sec.sectionKey, session.occasion, session.seasonalLitany);
         const postlude = getPostludeSlidesForSection(sec.sectionKey, session.occasion);
-        const readingSlides: LiturgySlide[] = readingData.slides.map((text, i) => ({
-          id: `reading-${readingType}-${i}`,
-          title: readingData.title,
-          role: 'deacon' as const,
-          text,
-        }));
+        const readingSlides: LiturgySlide[] = readingSlidesFor(readingType ?? '', readingData);
         slides = [...prelude, ...readingSlides, ...postlude];
       } else {
         slides = getSplitSlidesForSection(session.liturgyType, sec.sectionKey, session.occasion, session.seasonalLitany);
@@ -588,7 +582,7 @@ export default function LiturgyControl() {
                   </div>
                   <h3 className="text-sm text-gray-400 mb-2">{currentSlide.title}</h3>
                   <p className={`text-white text-sm font-serif whitespace-pre-line leading-relaxed ${
-                    _readingType === 'synaxar' ? 'break-words' : 'line-clamp-6'
+                    _readingType ? 'break-words' : 'line-clamp-6'
                   }`}>
                     {currentSlide.text}
                   </p>

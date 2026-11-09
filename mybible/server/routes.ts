@@ -19,6 +19,7 @@ import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-t
 import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
 import { synaxariumWithFallback, todaySynaxariumCairo } from "./orthodox-service";
 import { getStTaklaKatamerosDay, toDailyReadingsCompatibility } from "./katameros-service";
+import { cairoDay } from "./cairo-day";
 import {
   getStTaklaSectionCatalogs,
   getStTaklaSectionBrowse,
@@ -2379,13 +2380,8 @@ ${excludedStr}
   // The source is the same verified St-Takla Katameros page used by Orthodox.
   app.get('/api/daily-readings', async (_req, res) => {
     try {
-      const today = new Date();
-      const date = [
-        today.getFullYear(),
-        String(today.getMonth() + 1).padStart(2, '0'),
-        String(today.getDate()).padStart(2, '0'),
-      ].join('-');
-      const day = await getStTaklaKatamerosDay(date);
+      // اليوم بتوقيت القاهرة — السيرفر UTC، فقبل ٢ الصبح كان بيعرض قراءات امبارح.
+      const day = await getStTaklaKatamerosDay(cairoDay());
       res.json(toDailyReadingsCompatibility(day));
     } catch (err) {
       console.error('daily-readings error:', err);

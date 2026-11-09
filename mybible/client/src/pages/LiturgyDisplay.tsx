@@ -7,6 +7,7 @@ import {
   getSplitSlidesForSection,
   getPreludeSlidesForSection,
   getPostludeSlidesForSection,
+  readingSlidesFor,
   getRoleColor,
   getRoleLabel,
   getLiturgyLabel,
@@ -31,12 +32,7 @@ function buildSlides(
     const prelude = getPreludeSlidesForSection(data.liturgyType, data.sectionKey, data.occasion, data.seasonalLitany);
     const postlude = getPostludeSlidesForSection(data.sectionKey, data.occasion);
     const readingData = activeReadings[readingType];
-    const readingSlides = readingData?.slides?.length
-      ? readingData.slides.map((text, i) => ({
-          id: `reading-${readingType}-${i}`, title: readingData.title,
-          role: 'deacon' as import('@/lib/liturgy-map').LiturgySlide['role'], text,
-        }))
-      : [];
+    const readingSlides = readingSlidesFor(readingType, readingData);
     if (readingSlides.length) {
       return [...prelude, ...readingSlides, ...postlude];
     }
