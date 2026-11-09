@@ -18,6 +18,7 @@ import { TECHNICIAN_NAMES } from "@shared/technicians";
 import { useAuth } from "@/hooks/use-auth";
 import { dispatchSpeedTool, openOpSite, SITE_WIDE_KEY } from "@/lib/exec-queue";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
+import { sortWorkOrdersForPdf } from "@/lib/work-order-pdf-sort";
 
 interface WorkOrder {
   id: number;
@@ -260,10 +261,11 @@ export function WorkOrdersReport({ category = "success", over24 = false, title, 
       <th>نوع الخدمه</th><th>تاريخ الاغلاق</th><th>اسم الصنف</th><th>كميه السلك</th><th>اسم الفنى</th>
     </tr>`;
 
-    const totalPages = Math.max(1, Math.ceil(orders.length / ROWS_PER_PAGE));
+    const pdfOrders = sortWorkOrdersForPdf(orders);
+    const totalPages = Math.max(1, Math.ceil(pdfOrders.length / ROWS_PER_PAGE));
     let pages = "";
     for (let p = 0; p < totalPages; p++) {
-      const chunk = orders.slice(p * ROWS_PER_PAGE, (p + 1) * ROWS_PER_PAGE);
+      const chunk = pdfOrders.slice(p * ROWS_PER_PAGE, (p + 1) * ROWS_PER_PAGE);
       const body = chunk.map((o, ci) => `
         <tr>
           <td>${p * ROWS_PER_PAGE + ci + 1}</td>
