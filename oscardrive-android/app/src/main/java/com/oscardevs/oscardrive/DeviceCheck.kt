@@ -111,7 +111,15 @@ object DeviceCheck {
         fun ver(p: String): String? = try { pm.getPackageInfo(p, 0).versionName ?: "موجود" } catch (_: Exception) { null }
         add("خدمات جوجل", ver("com.google.android.gms")?.let { "موجودة ($it)" } ?: "مش موجودة")
         add("تطبيق خرايط جوجل", ver("com.google.android.apps.maps")?.let { "موجود" } ?: "مش موجود")
-        add("التعرّف على الكلام", if (SpeechRecognizer.isRecognitionAvailable(ctx)) "موجود" else "مش موجود")
+        // برامج التعرّف اللى على الشاشة بالاسم — CitiSound بيقول «موجود» وجوجل بيطلّع «ميزة البحث الصوتى غير متاحة»
+        val recog = try {
+            pm.queryIntentServices(android.content.Intent("android.speech.RecognitionService"), 0).map { it.serviceInfo.packageName }
+        } catch (_: Exception) { emptyList() }
+        add("التعرّف على الكلام", (if (SpeechRecognizer.isRecognitionAvailable(ctx)) "بيقول موجود" else "مش موجود") +
+            (if (recog.isNotEmpty()) " · ${recog.joinToString()}" else "") +
+            (if (ver("com.google.android.tts") != null) " · Speech Services موجودة" else " · Speech Services مش موجودة"))
+        add("أوسكار يسمع من غير نت", listOf("ar" to "عربى", "en" to "English").joinToString(" · ") { (l, t) ->
+            "$t ${if (OfflineEars.installed(ctx, l)) "متنزّل" else "مش متنزّل"}" } + " · رامات فاضية ${OfflineEars.freeRamMb(ctx)} ميجا")
         add("الصوت العربى", if (Speaker.available) "شغّال" else "مش جاهز")
 
         // الحكم — لمانع السرقة

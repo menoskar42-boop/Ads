@@ -839,6 +839,15 @@ class MainActivity : Activity() {
     /** زرار 🎤: برنامج التعرّف بتاع الشاشة يسمع جملة واحدة (من غير إذن ميكروفون للتطبيق). */
     private fun listen() {
         wake?.stop()
+        if (useEars()) {
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC); return
+            }
+            OfflineEars.start(this, OfflineEars.langOf(prefs.voiceLang), oneShot = true,
+                onText = { t -> handleHeard(listOf(t), button = true); startWakeIfOn() },
+                onState = { st -> if (st.isNotEmpty()) toast(st) })
+            return
+        }
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, prefs.voiceLang)
@@ -938,7 +947,14 @@ class MainActivity : Activity() {
     private fun startWakeIfOn() {
         if (!prefs.voiceWake || checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return
         val w = wake ?: WakeListener(this, { heard -> handleHeard(heard, button = false) }, { st -> wakeState = st; if (tab == "voice") refresh() }).also { wake = it }
-        w.start(prefs.voiceLang, prefs.voiceOffline)
+        w.start(prefs.voiceLang, prefs.voiceOffline, useEars())
+    }
+
+    /** نسمع بمحرّك أوسكار (من غير نت) ولا ببرنامج الشاشة؟ تلقائى ⇒ أوسكار لو متنزّل (برنامج شاشة CitiSound بيقول إنه موجود وبيفشل). */
+    private fun useEars(): Boolean = when (prefs.voiceEngine) {
+        1 -> false
+        2 -> true
+        else -> OfflineEars.installed(this, OfflineEars.langOf(prefs.voiceLang))
     }
     private var wakeState = ""
 
@@ -964,6 +980,34 @@ class MainActivity : Activity() {
         })
         if (prefs.voiceWake && wakeState.isNotEmpty()) page.addView(ui.text(wakeState, 14f, ui.accent).apply { setPadding(ui.dp(6), 0, ui.dp(6), ui.dp(6)) })
         page.addView(toggle("📴 من غير نت قدر الإمكان (لو اللغة متنزّلة على الشاشة)", prefs.voiceOffline) { prefs.voiceOffline = it; wake?.stop(); startWakeIfOn() })
+
+        // محرّك الكلام: برنامج الشاشة ولا محرّك أوسكار اللى من غير نت (شاشات زى CitiSound مافيهاش برنامج تعرّف شغّال)
+        page.addView(optionRow("محرّك الكلام", listOf(0 to "تلقائى", 1 to "برنامج الشاشة", 2 to "أوسكار من غير نت"), prefs.voiceEngine) {
+            prefs.voiceEngine = it; wake?.stop(); startWakeIfOn(); refresh()
+        })
+        val earsBox = ui.col(6)
+        for ((lang, title) in listOf("ar" to "عربى", "en" to "English")) {
+            val p = OfflineEars.PACKS.getValue(lang)
+            val have = OfflineEars.installed(this, lang)
+            val row = ui.row()
+            val label = when {
+                OfflineEars.downloading == lang -> "⏳ $title — ${OfflineEars.progress}"
+                have -> "✅ $title — متنزّل"
+                else -> "⬇️ نزّل $title (~${p.sizeMb} ميجا · مرة واحدة · محتاج نت)"
+            }
+            row.addView(ui.button(label, if (have) "ghost" else "primary", 15f) {
+                if (have || OfflineEars.downloading != null) return@button
+                toast("بينزّل… سيب الشاشة شغّالة وفيها نت")
+                OfflineEars.download(this, lang, { refresh() }) { _, msg -> toast(msg); refresh(); if (OfflineEars.installed(this, OfflineEars.langOf(prefs.voiceLang))) { wake?.stop(); startWakeIfOn() } }
+                refresh()
+            }, ui.lp(0, ui.dp(54), 1f, 3))
+            if (have) row.addView(ui.button("🗑️", "ghost", 15f) { OfflineEars.remove(this, lang); refresh() }, ui.lp(ui.dp(64), ui.dp(54), 0f, 3))
+            earsBox.addView(row)
+        }
+        earsBox.addView(ui.text("🎧 أوسكار يسمع من غير نت: الكلام بيتحوّل نص على الشاشة نفسها ومابيتسجّلش ولا بيتبعت. " +
+            "محتاج رامات فاضية (العربى ~${OfflineEars.PACKS.getValue("ar").minRamMb} ميجا) — الفاضى دلوقتى ${OfflineEars.freeRamMb(this)} ميجا.", 13f, ui.muted)
+            .apply { setPadding(ui.dp(6), 0, ui.dp(6), ui.dp(6)) })
+        page.addView(earsBox)
 
         // اسم الاستدعاء
         page.addView(section("اسم الاستدعاء"))

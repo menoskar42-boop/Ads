@@ -20,9 +20,21 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
     var active = false; private set
     private var errors = 0
 
-    fun start(lang: String, offline: Boolean) {
+    /** شغّال بمحرّك أوسكار اللى من غير نت (OfflineEars) مش ببرنامج الشاشة. */
+    private var ears = false
+
+    fun start(lang: String, offline: Boolean, useEars: Boolean = false) {
         if (active) return
-        if (!SpeechRecognizer.isRecognitionAvailable(ctx)) { onState("الشاشة مافيهاش برنامج تعرّف على الكلام"); return }
+        if (useEars) {
+            active = true; ears = true
+            OfflineEars.start(ctx, OfflineEars.langOf(lang), oneShot = false, onText = { onText(listOf(it)) }, onState = { st ->
+                if (!OfflineEars.listening) active = false
+                onState(st)
+            })
+            return
+        }
+        ears = false
+        if (!SpeechRecognizer.isRecognitionAvailable(ctx)) { onState("الشاشة مافيهاش برنامج تعرّف على الكلام — نزّل «أوسكار يسمع من غير نت» من شاشة 🎙️ Oscar"); return }
         this.lang = lang; this.offline = offline
         active = true; errors = 0
         sr = SpeechRecognizer.createSpeechRecognizer(ctx).also { it.setRecognitionListener(this) }
@@ -35,6 +47,7 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
 
     fun stop() {
         active = false
+        if (ears) { ears = false; OfflineEars.stop(); onState(""); return }
         h.removeCallbacksAndMessages(null)
         try { sr?.cancel(); sr?.destroy() } catch (_: Exception) {}
         sr = null

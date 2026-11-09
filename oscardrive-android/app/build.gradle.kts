@@ -28,6 +28,8 @@ android {
         versionName = "1.0.$runNumber"
         manifestPlaceholders["mapsApiKey"] = mapsKey
         buildConfigField("boolean", "NAV_SDK_KEY", if (mapsKey.isNotBlank()) "true" else "false")
+        // شاشات العربيات ARM — من غير x86 (Vosk مكتباته الأصلية بتكبّر الـAPK)
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     signingConfigs {
@@ -72,5 +74,8 @@ tasks.named("preBuild") { dependsOn(copyOscarVoice) }
 
 dependencies {
     implementation("com.google.android.libraries.navigation:navigation:7.8.0")
+    // «أوسكار يسمع من غير نت» (Vosk · Apache-2.0): الشاشات اللى مافيهاش برنامج تعرّف على الكلام شغّال (CitiSound). OfflineEars.kt
+    implementation("com.alphacephei:vosk-android:0.3.75")
+    implementation("net.java.dev.jna:jna:5.18.1@aar")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 }

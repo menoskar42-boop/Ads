@@ -116,6 +116,10 @@ class Prefs(context: Context) {
     var micAsked: Boolean
         get() = sp.getBoolean("v_mic_asked", false)
         set(v) = sp.edit().putBoolean("v_mic_asked", v).apply()
+    /** محرّك الكلام: 0 تلقائى (أوسكار من غير نت لو متنزّل، وإلا برنامج الشاشة) · 1 برنامج الشاشة · 2 أوسكار من غير نت. */
+    var voiceEngine: Int
+        get() = sp.getInt("v_engine", 0)
+        set(v) = sp.edit().putInt("v_engine", v).apply()
     var voiceOffline: Boolean
         get() = sp.getBoolean("v_offline", true)
         set(v) = sp.edit().putBoolean("v_offline", v).apply()

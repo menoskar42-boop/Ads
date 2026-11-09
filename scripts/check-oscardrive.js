@@ -63,8 +63,11 @@ const gradle = read('oscardrive-android/app/build.gradle.kts');
 const deps = ((gradle.match(/^dependencies\s*\{([\s\S]*?)^\}/m) || [])[1] || '')
   .split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('//'));
 const allowed = (l) => /^implementation\("com\.google\.android\.libraries\.navigation:navigation:[\d.]+"\)$/.test(l)
-  || /^coreLibraryDesugaring\("com\.android\.tools:desugar_jdk_libs_nio:[\d.]+"\)$/.test(l);
-check('the only library is Google\'s Navigation SDK (everything else works without Google services)',
+  || /^coreLibraryDesugaring\("com\.android\.tools:desugar_jdk_libs_nio:[\d.]+"\)$/.test(l)
+  // التعرّف على الكلام من غير نت (المالك ٢٠٢٦-١١-٠٩) — مفتوح المصدر، على الجهاز، من غير خدمات جوجل ولا AI سحابى
+  || /^implementation\("com\.alphacephei:vosk-android:[\d.]+"\)$/.test(l)
+  || /^implementation\("net\.java\.dev\.jna:jna:[\d.]+@aar"\)$/.test(l);
+check('only Google\'s Navigation SDK + the offline speech engine (everything else works without Google services)',
   deps.every(allowed), 'مكتبة جديدة: ' + deps.filter((l) => !allowed(l)).join(' | '));
 check('Google Play target API (36) and signing from secrets, never from the repo',
   /targetSdk = 36/.test(gradle) && /System\.getenv\("ODRIVE_KEYSTORE_FILE"\)/.test(gradle) && !/storePassword = "/.test(gradle),
@@ -145,6 +148,15 @@ check('voice commands need no AI at runtime', !/openai|anthropic|gemini/i.test(r
   check('"Hey Oscar" is on by default, with a visible listening sign and a way off',
     /get\(\) = sp\.getBoolean\("v_wake", true\)/.test(prefsKt) && /🎙️ سامعك/.test(mainKt) && /prefs\.voiceWake = false/.test(mainKt),
     'الاستماع مفتوح افتراضياً لازم يبان إنه شغّال ويتقفل لو الإذن اترفض.');
+}
+// «أوسكار يسمع من غير نت» (Vosk): النموذج من alphacephei بس، الصوت مابيتبعتش، وفيه فحص رامات قبل التشغيل، والسياسة بتقول كده
+{
+  const ears = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/OfflineEars.kt');
+  const urls = ears.match(/https?:\/\/[^"]+/g) || [];
+  check('offline speech: models only from alphacephei, RAM checked, nothing uploaded, disclosed',
+    urls.length > 0 && urls.every((u) => u.startsWith('https://alphacephei.com/vosk/models/')) && /freeRamMb\(app\)/.test(ears)
+      && !/getOutputStream|doOutput|POST/.test(ears) && /alphacephei\.com/.test(privacy),
+    'محرّك الصوت جوّه التطبيق لازم يفضل على الجهاز ومعلن عنه فى السياسة.');
 }
 check('privacy policy discloses the microphone', /الميكروفون بيتطلب مع أول تشغيل عشان «يا أوسكار»/.test(privacy) && /مابيسجّلش صوت ولا بيبعته/.test(privacy), 'إذن الميكروفون لازم يتقال فى السياسة.');
 // المالك ٢٠٢٦-١١-٠٩: صوت أوسكار جوّه الـAPK ويتركّب لوحده (من غير زرار ولا نت).
