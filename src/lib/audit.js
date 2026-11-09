@@ -39,6 +39,7 @@ const SECURITY_ALERT_MIN_WINDOW_MINUTES = 5;
 const SECURITY_ALERT_MAX_WINDOW_MINUTES = 1440;
 const SECURITY_ALERT_THRESHOLD = 5;
 const SECURITY_ALERT_WINDOW_MINUTES = 15;
+const SECURITY_REVIEW_PAGE_SIZE = 50;
 
 /** DDL — called from the app's schema bootstrap. */
 const SCHEMA = `
@@ -328,8 +329,36 @@ function normalizeSecurityFilters(opts = {}) {
     const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000;
     if (days < 0 || days > 366) throw new Error('invalid security date range');
   }
-  const limit = Math.min(500, Math.max(1, parseInt(opts.limit, 10) || 200));
-  return { companyId, from, to, limit };
+  const cursorAtRaw = String(opts.cursorAt == null ? '' : opts.cursorAt).trim();
+  const cursorIdRaw = String(opts.cursorId == null ? '' : opts.cursorId).trim();
+  const directionRaw = String(opts.direction == null ? '' : opts.direction).trim();
+  let cursorAt = null;
+  let cursorId = null;
+  let direction = null;
+  if (cursorAtRaw || cursorIdRaw) {
+    const cursorMatch = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?Z$/.exec(cursorAtRaw);
+    if (!cursorMatch || !cursorIdRaw || !/^[1-9]\d{0,18}$/.test(cursorIdRaw)
+        || cursorIdRaw.length === 19 && cursorIdRaw > '9223372036854775807') {
+      throw new Error('invalid security cursor');
+    }
+    const [, year, month, day, hour, minute, second] = cursorMatch;
+    const stamp = Date.UTC(Number(year), Number(month) - 1, Number(day));
+    const date = new Date(stamp);
+    if (date.getUTCFullYear() !== Number(year) || date.getUTCMonth() !== Number(month) - 1
+        || date.getUTCDate() !== Number(day) || Number(hour) > 23
+        || Number(minute) > 59 || Number(second) > 59) {
+      throw new Error('invalid security cursor');
+    }
+    if (directionRaw !== 'older' && directionRaw !== 'newer') {
+      throw new Error('invalid security cursor direction');
+    }
+    cursorAt = cursorAtRaw;
+    cursorId = cursorIdRaw;
+    direction = directionRaw;
+  } else if (directionRaw) {
+    throw new Error('invalid security cursor');
+  }
+  return { companyId, from, to, cursorAt, cursorId, direction };
 }
 
 async function recentSecurity(pool, opts = {}) {
@@ -345,15 +374,28 @@ async function recentSecurity(pool, opts = {}) {
   if (filters.to) {
     where += ` AND created_at < ($${params.push(filters.to)}::date + INTERVAL '1 day')`;
   }
+  if (filters.cursorAt) {
+    const operator = filters.direction === 'older' ? '<' : '>';
+    where += ` AND (created_at, id) ${operator} ($${params.push(filters.cursorAt)}::timestamptz, $${params.push(filters.cursorId)}::bigint)`;
+  }
+  const order = filters.direction === 'newer' ? 'ASC' : 'DESC';
   const result = await pool.query(
-    `SELECT company_id, actor_kind, actor_id, actor_label, action, meta, created_at
+    `SELECT id, company_id, actor_kind, actor_id, actor_label, action, meta, created_at,
+            to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at
        FROM ${TABLE}
       WHERE ${where}
-      ORDER BY created_at DESC, id DESC
-      LIMIT ${filters.limit}`,
+      ORDER BY created_at ${order}, id ${order}
+      LIMIT ${SECURITY_REVIEW_PAGE_SIZE + 1}`,
     params
   );
-  return result.rows;
+  const hasExtra = result.rows.length > SECURITY_REVIEW_PAGE_SIZE;
+  let rows = result.rows.slice(0, SECURITY_REVIEW_PAGE_SIZE);
+  if (filters.direction === 'newer') rows = rows.reverse();
+  return {
+    rows,
+    hasOlder: filters.direction === 'newer' ? Boolean(filters.cursorAt) : hasExtra,
+    hasNewer: filters.direction === 'newer' ? hasExtra : Boolean(filters.cursorAt),
+  };
 }
 
 async function latestSecurityAlert(pool) {
@@ -371,5 +413,6 @@ async function latestSecurityAlert(pool) {
 module.exports = {
   log, logSecurity, recent, recentSecurity, normalizeSecurityFilters,
   latestSecurityAlert, getSecurityAlertPolicy, normalizeSecurityPolicy,
-  SECURITY_ALERT_THRESHOLD, SECURITY_ALERT_WINDOW_MINUTES, SCHEMA, TABLE,
+  SECURITY_ALERT_THRESHOLD, SECURITY_ALERT_WINDOW_MINUTES,
+  SECURITY_REVIEW_PAGE_SIZE, SCHEMA, TABLE,
 };

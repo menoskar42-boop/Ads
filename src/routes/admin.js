@@ -236,20 +236,42 @@ router.get('/security/workshop-alert-email', requireAdmin, async (req, res) => {
     companyId: req.query.company_id,
     from: req.query.from,
     to: req.query.to,
+    cursorAt: req.query.cursor_at,
+    cursorId: req.query.cursor_id,
+    direction: req.query.direction,
   };
   let filters;
   let filterError = null;
   try {
-    filters = audit.normalizeSecurityFilters({ ...rawFilters, limit: 200 });
-    const [rows, latestAlert, policy] = await Promise.all([
+    filters = audit.normalizeSecurityFilters(rawFilters);
+    const [securityPage, latestAlert, policy] = await Promise.all([
       audit.recentSecurity(pool, filters),
       audit.latestSecurityAlert(pool),
       audit.getSecurityAlertPolicy(pool),
     ]);
+    const pageUrl = (row, direction) => {
+      const params = new URLSearchParams();
+      if (filters.companyId != null) params.set('company_id', String(filters.companyId));
+      if (filters.from) params.set('from', filters.from);
+      if (filters.to) params.set('to', filters.to);
+      params.set('cursor_at', row.cursor_created_at);
+      params.set('cursor_id', String(row.id));
+      params.set('direction', direction);
+      return `/admin/security/workshop-alert-email?${params.toString()}`;
+    };
+    const firstRow = securityPage.rows[0];
+    const lastRow = securityPage.rows[securityPage.rows.length - 1];
     return res.render('admin/workshop_alert_security', {
       session: adminSession(req),
       activePage: 'security',
-      rows,
+      rows: securityPage.rows,
+      pagination: {
+        pageSize: audit.SECURITY_REVIEW_PAGE_SIZE,
+        hasOlder: securityPage.hasOlder,
+        hasNewer: securityPage.hasNewer,
+        olderUrl: securityPage.hasOlder && lastRow ? pageUrl(lastRow, 'older') : null,
+        newerUrl: securityPage.hasNewer && firstRow ? pageUrl(firstRow, 'newer') : null,
+      },
       latestAlert,
       policy,
       filters,
@@ -266,6 +288,13 @@ router.get('/security/workshop-alert-email', requireAdmin, async (req, res) => {
       session: adminSession(req),
       activePage: 'security',
       rows: [],
+      pagination: {
+        pageSize: audit.SECURITY_REVIEW_PAGE_SIZE,
+        hasOlder: false,
+        hasNewer: false,
+        olderUrl: null,
+        newerUrl: null,
+      },
       latestAlert: null,
       policy: { threshold: 5, windowMinutes: 15 },
       filters: {

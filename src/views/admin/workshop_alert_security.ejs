@@ -13,7 +13,7 @@
       </p>
     </div>
     <span class="bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-3 py-1 text-xs font-bold">
-      <%= rows.length %> حدثًا
+      <%= rows.length %> حدثًا في الصفحة
     </span>
   </div>
 
@@ -89,6 +89,23 @@
       لا توجد محاولات مرفوضة مسجلة.
     </div>
   <% } else { %>
+    <div class="mt-5 flex items-center justify-between gap-3 flex-wrap text-sm">
+      <span class="text-gray-500">الترتيب: الأحدث أولًا · حتى <%= pagination.pageSize %> حدثًا في الصفحة</span>
+      <nav class="flex gap-2" aria-label="التنقل بين صفحات سجل الأمن">
+        <% if (pagination.hasNewer) { %>
+          <a href="<%= pagination.newerUrl %>" rel="prev"
+             class="border border-gray-200 text-gray-700 rounded-lg px-4 py-2 font-bold">الأحداث الأحدث</a>
+        <% } else { %>
+          <span class="border border-gray-100 text-gray-300 rounded-lg px-4 py-2 font-bold" aria-disabled="true">الأحداث الأحدث</span>
+        <% } %>
+        <% if (pagination.hasOlder) { %>
+          <a href="<%= pagination.olderUrl %>" rel="next"
+             class="brand-bg text-white rounded-lg px-4 py-2 font-bold">الأحداث الأقدم</a>
+        <% } else { %>
+          <span class="border border-gray-100 text-gray-300 rounded-lg px-4 py-2 font-bold" aria-disabled="true">الأحداث الأقدم</span>
+        <% } %>
+      </nav>
+    </div>
     <div class="overflow-x-auto mt-6">
       <table class="w-full text-sm">
         <thead class="bg-gray-50 text-gray-500 text-xs">
@@ -112,6 +129,14 @@
           <% }) %>
         </tbody>
       </table>
+    </div>
+    <div class="mt-4 flex justify-end gap-2" aria-label="التنقل بين صفحات سجل الأمن">
+      <% if (pagination.hasNewer) { %>
+        <a href="<%= pagination.newerUrl %>" rel="prev" class="border border-gray-200 text-gray-700 rounded-lg px-4 py-2 text-sm font-bold">الأحداث الأحدث</a>
+      <% } %>
+      <% if (pagination.hasOlder) { %>
+        <a href="<%= pagination.olderUrl %>" rel="next" class="brand-bg text-white rounded-lg px-4 py-2 text-sm font-bold">الأحداث الأقدم</a>
+      <% } %>
     </div>
   <% } %>
 </section>
