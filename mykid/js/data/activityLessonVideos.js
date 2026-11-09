@@ -64,29 +64,29 @@ const ACTIVITY_VIDEOS = {
     explore: [
       {
         videoId: "DGxv3M2vog0",
-        title: "نطق أيام الأسبوع — مس إلهام",
+        title: "مس إلهام · نطق أيام الأسبوع للمبتدئين",
       },
       {
         videoId: "whG2Cmojejs",
-        title: "أبجد هوز · أغنية أيام الأسبوع",
+        title: "أبجد هوز · أغنية أيام الأسبوع بالعربي",
       },
     ],
   },
   months: {
     explore: {
       videoId: "am65jdDs2Pk",
-      title: "أبجد هوز · أشهر السنة",
+      title: "أبجد هوز · أغنية تعليمية: أشهر السنة",
     },
   },
   family: {
     explore: [
       {
         videoId: "flyN1BahTR0",
-        title: "معرفة أفراد العائلة بالبطاقات — مس إلهام",
+        title: "مس إلهام · معرفة أفراد العائلة بالبطاقات",
       },
       {
         videoId: "4ALfbwkNb3g",
-        title: "أبجد هوز · أفراد العائلة وكلمات أساسية",
+        title: "أبجد هوز · نطق أفراد العيلة للأطفال",
       },
     ],
   },
@@ -123,7 +123,7 @@ const ACTIVITY_VIDEOS = {
   words: {
     explore: {
       videoId: "LqA91IiEZEE",
-      title: "أبجد هوز · الكلمات الأولى باللهجة المصرية",
+      title: "أبجد هوز · الكلمات الأولى للطفل بالعامية المصرية",
     },
     readMatch: {
       videoId: "aTy_6f2NKsc",

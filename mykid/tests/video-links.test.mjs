@@ -140,6 +140,19 @@ const EXPECTED_ACTIVITY_VIDEO_IDS = {
   "words:readMatch": ["aTy_6f2NKsc"],
 };
 
+const EXPECTED_ACTIVITY_VIDEO_TITLES = {
+  "weekdays:explore": [
+    "مس إلهام · نطق أيام الأسبوع للمبتدئين",
+    "أبجد هوز · أغنية أيام الأسبوع بالعربي",
+  ],
+  "months:explore": ["أبجد هوز · أغنية تعليمية: أشهر السنة"],
+  "family:explore": [
+    "مس إلهام · معرفة أفراد العائلة بالبطاقات",
+    "أبجد هوز · نطق أفراد العيلة للأطفال",
+  ],
+  "words:explore": ["أبجد هوز · الكلمات الأولى للطفل بالعامية المصرية"],
+};
+
 const MYKID_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HARNESS_HTML = "<!doctype html><html><head><meta charset=\"utf-8\"></head><body><canvas id=\"fx\"></canvas></body></html>";
 const MIME_TYPES = {
@@ -286,6 +299,13 @@ test("number, letter, and activity mappings match their intended lessons without
       expectedVideoIds,
       `Wrong video list mapped to ${datasetKey}/${activityKey}`
     );
+    if (EXPECTED_ACTIVITY_VIDEO_TITLES[key]) {
+      assert.deepEqual(
+        videos.map((video) => video.title),
+        EXPECTED_ACTIVITY_VIDEO_TITLES[key],
+        `Video titles and sources must match the verified content for ${datasetKey}/${activityKey}`
+      );
+    }
     expectedVideoIds.forEach((videoId, index) => mappedIds.push([`${datasetKey}/${activityKey} video ${index + 1}`, videoId]));
   }
   assert.equal(getActivityLessonVideo("colors", "readMatch"), null, "Color videos must not be assigned to reading");
