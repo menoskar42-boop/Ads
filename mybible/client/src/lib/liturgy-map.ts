@@ -556,6 +556,22 @@ function splitParallelTexts(
   return pages.length > 0 ? pages : [{ arabic: arabicText, coptic: copticText }];
 }
 
+// ── «صلاة قبل التناول» — شريحة واحدة بالصلاة كاملة وقت ما الشعب بيتناول (المالك ٢٠٢٦-١١-٠٨).
+// بتتحط آخر قسم التناول فى القداسات التلاتة، ومابتتقسمش (شاشة العرض بتصغّر الخط شوية عشانها).
+// النص نفس «صلاة قبل التناول» اللى فى liturgy-content.ts (b-c-3).
+export const COMMUNION_PRAYER_SLIDE_ID = 'communion-prayer';
+const COMMUNION_SECTION_KEYS = new Set(['basil-communion', 'greg-communion', 'cyril-communion']);
+export const COMMUNION_PRAYER_SLIDE: LiturgySlide = {
+  id: COMMUNION_PRAYER_SLIDE_ID,
+  role: 'people',
+  title: 'صلاة قبل التناول',
+  text: `أيها السيد الرب يسوع المسيح ابن الله الحيّ، الحمل الإلهي الذي يرفع خطية العالم، أنظر نحونا بعين رحمتك وتعطّف على ضعفنا.
+
+قبل يا رب تناولنا من جسدك ودمك لغفران الخطايا وحياة أبدية دائمة. وأهّلنا لأن نكون شركاء في جسدك ودمك الطاهرين.
+
+لا لدينونة ولا لإدانة بل لتقديس الجسد والنفس والروح، وكن لنا درعاً وسلاحاً وحصناً حصيناً ضد كل شر.`,
+};
+
 // ── نسخة مقسّمة من getSlidesForSection
 // كل شريحة طويلة تُقسَّم إلى شرائح منفصلة بنفس الدور والعنوان
 export function getSplitSlidesForSection(
@@ -623,7 +639,8 @@ export function getSplitSlidesForSection(
   const contentSlides = (seasonal.length > 0 && shouldReplaceContentWithSeasonal(sectionKey))
     ? []
     : result;
-  return [...occBefore, ...occPrelude, ...seasonal, ...prelude, ...contentSlides, ...occAfter];
+  const communion = COMMUNION_SECTION_KEYS.has(sectionKey) ? [COMMUNION_PRAYER_SLIDE] : [];
+  return [...occBefore, ...occPrelude, ...seasonal, ...prelude, ...contentSlides, ...communion, ...occAfter];
 }
 
 // ── شرائح ما قبل القراءة (تقديسات، مردات الشماس، إقحامات المناسبة قبل المحتوى)

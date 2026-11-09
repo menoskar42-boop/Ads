@@ -8,6 +8,7 @@ import {
   getPreludeSlidesForSection,
   getPostludeSlidesForSection,
   readingSlidesFor,
+  COMMUNION_PRAYER_SLIDE_ID,
   getRoleColor,
   getRoleLabel,
   getLiturgyLabel,
@@ -220,7 +221,10 @@ export default function LiturgyDisplay() {
           </div>
           <div
             className="text-white whitespace-pre-line"
-            style={{ fontSize: 'clamp(1.4rem, 3.8vw, 3.4rem)', lineHeight: 1.8 }}
+            style={currentSlide.id === COMMUNION_PRAYER_SLIDE_ID
+              // الصلاة كاملة فى شريحة واحدة ⇒ خط أصغر شوية عشان تبان كلها
+              ? { fontSize: 'clamp(1.1rem, 2.7vw, 2.5rem)', lineHeight: 1.7 }
+              : { fontSize: 'clamp(1.4rem, 3.8vw, 3.4rem)', lineHeight: 1.8 }}
           >
             {currentSlide.text}
           </div>

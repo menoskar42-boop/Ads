@@ -43,3 +43,18 @@ test("/api/daily-readings بياخد يوم القاهرة", () => {
   assert.ok(i > 0);
   assert.match(routes.slice(i, i + 600), /getStTaklaKatamerosDay\(cairoDay\(\)\)/);
 });
+
+// المالك ٢٠٢٦-١١-٠٨: «وقت ما الناس بتتناول … سلايد صلاه قبل التناول تكون سلايد واحده فيها كامل الصلاه»
+test("قسم التناول فى القداسات التلاتة آخره شريحة واحدة «صلاة قبل التناول» بالنص كامل", async () => {
+  const { getSplitSlidesForSection, COMMUNION_PRAYER_SLIDE } = await import("../client/src/lib/liturgy-map");
+  for (const [type, key] of [["basil", "basil-communion"], ["gregory", "greg-communion"], ["cyril", "cyril-communion"]] as const) {
+    const slides = getSplitSlidesForSection(type, key);
+    const hits = slides.filter((s) => s.title.startsWith("صلاة قبل التناول"));
+    assert.equal(hits.length, 1, `${key}: شريحة واحدة مش مقسومة`);
+    assert.equal(hits[0].text, COMMUNION_PRAYER_SLIDE.text);
+    assert.equal(slides[slides.length - 1].id, "communion-prayer", key);
+  }
+  assert.equal(getSplitSlidesForSection("basil", "basil-post-communion").some((s) => s.id === "communion-prayer"), false);
+  const content = read("../client/src/lib/liturgy-content.ts");
+  assert.ok(content.includes(COMMUNION_PRAYER_SLIDE.text), "نفس نص b-c-3");
+});
