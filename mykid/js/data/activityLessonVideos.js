@@ -108,6 +108,18 @@ const ACTIVITY_VIDEOS = {
       title: "أبجد هوز · وسائل المواصلات",
     },
   },
+  birds: {
+    explore: {
+      videoId: "IhnVsNo84vU",
+      title: "قناة أسرتنا · أنشودة الطيور",
+    },
+  },
+  insects: {
+    explore: {
+      videoId: "T1O-k06fY_c",
+      title: "تعلم مع نور · أسماء الحشرات باللغة العربية",
+    },
+  },
   words: {
     explore: {
       videoId: "LqA91IiEZEE",
