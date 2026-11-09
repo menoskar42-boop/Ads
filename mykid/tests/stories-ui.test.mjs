@@ -113,8 +113,9 @@ async function scribbleSubmit() {
 test("🏃 الحرف الهربان (ب): بيهرب ويتنطّط، ولما يتكتب بيرجع مكانه — والغلط فى المربع الفاضى بيتسجّل للمراجعة", async () => {
   await openScreen("/js/games/blankWrite.js", "renderBlankWrite", { lang: "ar", mode: "runaway" });
   await page.locator("button.choice", { hasText: /^ب/ }).first().click();
+  // المالك ٢٠٢٦-١١-٠٧: «خلى التمرين ده ميكونش الحرف مكتوب» ⇒ المربع فاضى من أول جولة، والطفل بيدوس «✓ خلصت»
   for (let r = 0; r < 3; r++) {
-    await page.waitForSelector(`.bw-board[data-level="${r + 1}"]`, { timeout: 8000 });
+    await page.waitForSelector(`.bw-board[data-level="3"]`, { timeout: 8000 });
     await page.waitForSelector(".bw-runner.bob", { timeout: 6000 });
     if (r === 2) {
       await scribbleSubmit();
@@ -122,10 +123,8 @@ test("🏃 الحرف الهربان (ب): بيهرب ويتنطّط، ولما 
       await drawShape({ scale: 0.7, dx: 30 });
       await page.locator("[data-submit]").click();
     } else {
-      await drawShape();
-      // الرسم الصناعى أحياناً مابيتقبلش فى الجهاز المشغول — الطفل بيمسح ويعيد، والاختبار كمان (مرة واحدة)
-      const back = await page.waitForFunction(() => !document.querySelector(".bw-runner"), null, { timeout: 4000 }).then(() => true, () => false);
-      if (!back) { await page.locator("button", { hasText: "🔁" }).click(); await drawShape(); }
+      await drawShape({ scale: 0.75, dx: -20 });
+      await page.locator("[data-submit]").click();
     }
     await page.waitForFunction(() => !document.querySelector(".bw-runner"), null, { timeout: 7000 });
     await waitFilled();
@@ -142,7 +141,8 @@ test("🚂 قطر الكلمة (ح): عربية فاضية، ولما الحرف
   await page.locator("button.choice", { hasText: /^ح/ }).first().click();
   await page.waitForSelector(".bw-train.wait");
   assert.equal(await page.locator(".bw-train span", { hasText: /^؟$/ }).count(), 1, "عربية واحدة فاضية");
-  await drawShape();
+  await drawShape({ scale: 0.75, dx: -20 });
+  await page.locator("[data-submit]").click();
   await page.waitForFunction(() => /translateX/.test(document.querySelector(".bw-train")?.style.transform || ""), null, { timeout: 7000 });
   assert.deepEqual(errors, []);
 });
