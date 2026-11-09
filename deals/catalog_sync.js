@@ -5,6 +5,8 @@ const { getConfig, getItemsByAsins, publicConfigStatus } = require('./amazon');
 
 const FRESHNESS_HOURS = 24;
 const LOCK_KEY = 'deals-amazon-creators-sync-v1';
+const FRESHNESS_WARNING_MAX_MS = 6 * 60 * 60 * 1000;
+const FRESHNESS_WARNING_MIN_MS = 30 * 60 * 1000;
 
 function freshnessWindowMs() {
   const configured = Number(process.env.DEALS_AMAZON_FRESHNESS_HOURS);
@@ -44,6 +46,44 @@ function syncStatusLabel(status) {
     stale: 'بيانات قديمة',
     skipped: 'تم التخطي',
   })[status] || 'غير معروف';
+}
+
+function freshnessWarningWindowMs() {
+  return Math.min(FRESHNESS_WARNING_MAX_MS, Math.max(FRESHNESS_WARNING_MIN_MS, freshnessWindowMs() / 4));
+}
+
+function buildSyncAlerts({ config, products, recentRuns, warningWindowHours }) {
+  const alerts = [];
+  const total = Number(products.amazon_total) || 0;
+  const expiring = Number(products.amazon_expiring) || 0;
+  const stale = Number(products.amazon_stale) || 0;
+
+  if (config.configured && total > 0 && (expiring > 0 || stale > 0)) {
+    alerts.push({
+      alertKey: 'amazon_data_freshness',
+      severity: stale > 0 ? 'critical' : 'warning',
+      message: stale > 0
+        ? `انتهت صلاحية بيانات ${stale} منتج من Amazon، وهناك ${expiring} منتج آخر يقترب من انتهاء الصلاحية.`
+        : `بيانات ${expiring} منتج من Amazon ستقترب من انتهاء الصلاحية خلال ${warningWindowHours} ساعة.`,
+      details: { amazonTotal: total, expiring, stale, warningWindowHours },
+    });
+  }
+
+  const checkedRuns = (recentRuns || []).filter((run) => !['running', 'skipped'].includes(run.status)).slice(0, 2);
+  const failedRuns = checkedRuns.filter((run) => Number(run.failure_count) > 0 || run.status === 'failed').length;
+  const latestFailureCount = checkedRuns.length ? Number(checkedRuns[0].failure_count) || 0 : 0;
+  if (config.configured && total > 0 && (failedRuns >= 2 || latestFailureCount >= 2)) {
+    alerts.push({
+      alertKey: 'amazon_repeated_failures',
+      severity: 'critical',
+      message: failedRuns >= 2
+        ? 'فشلت مزامنتان متتاليتان لمنتجات Amazon. راجع حالة المزامنة قبل انتهاء صلاحية البيانات.'
+        : `فشل تحديث ${latestFailureCount} من منتجات Amazon في آخر مزامنة.`,
+      details: { failedRuns, latestFailureCount },
+    });
+  }
+
+  return alerts;
 }
 
 function safeSyncError(error) {
@@ -198,32 +238,79 @@ async function syncAmazonCatalog({ db = pool, triggeredBy = 'scheduled', logger 
 }
 
 async function getSyncDashboard(db = pool) {
-  const [config, lastRun, products] = await Promise.all([
+  const warningWindowMs = freshnessWarningWindowMs();
+  const [config, runs, syncTimes, products] = await Promise.all([
     Promise.resolve(publicConfigStatus()),
     db.query(
       `SELECT * FROM deals_sync_runs
-        WHERE source='AMAZON_API' ORDER BY started_at DESC LIMIT 1`
+        WHERE source='AMAZON_API' ORDER BY started_at DESC LIMIT 10`
+    ),
+    db.query(
+      `SELECT
+         MAX(started_at) FILTER (WHERE status='success') AS last_success_at,
+         MAX(started_at) FILTER (WHERE failure_count > 0 OR status='failed') AS last_failure_at
+       FROM deals_sync_runs WHERE source='AMAZON_API'`
     ),
     db.query(
       `SELECT
          COUNT(*) FILTER (WHERE source='AMAZON_API')::int AS amazon_total,
          COUNT(*) FILTER (WHERE source='AMAZON_API' AND sync_status IN ('success','partial')
             AND data_fresh_until > now())::int AS amazon_fresh,
+         COUNT(*) FILTER (WHERE source='AMAZON_API' AND data_fresh_until > now()
+            AND data_fresh_until <= now() + ($1::double precision * interval '1 millisecond'))::int AS amazon_expiring,
+         COUNT(*) FILTER (WHERE source='AMAZON_API' AND
+            (data_fresh_until IS NULL OR data_fresh_until <= now())
+            AND sync_status <> 'not_configured')::int AS amazon_stale,
          COUNT(*) FILTER (WHERE source='AMAZON_API' AND sync_status='failed')::int AS amazon_failed,
          COUNT(*) FILTER (WHERE source='AMAZON_API' AND sync_status='not_configured')::int AS amazon_not_configured
-       FROM deals_catalog_products`
+       FROM deals_catalog_products`, [warningWindowMs]
     ),
   ]);
+  const lastRuns = runs.rows || [];
+  const latestTimes = syncTimes.rows[0] || {};
+  const alertList = buildSyncAlerts({
+    config,
+    products: products.rows[0] || {},
+    recentRuns: lastRuns,
+    warningWindowHours: Math.max(1, Math.round(warningWindowMs / (60 * 60 * 1000))),
+  });
+
+  for (const alert of alertList) {
+    await db.query(
+      `INSERT INTO deals_sync_alerts (alert_key, severity, message, details)
+       VALUES ($1,$2,$3,$4::jsonb)
+       ON CONFLICT (alert_key) DO UPDATE SET
+         first_seen_at = CASE WHEN deals_sync_alerts.is_active THEN deals_sync_alerts.first_seen_at ELSE now() END,
+         last_seen_at = now(), severity=EXCLUDED.severity, message=EXCLUDED.message,
+         details=EXCLUDED.details, is_active=true, resolved_at=NULL`,
+      [alert.alertKey, alert.severity, alert.message, JSON.stringify(alert.details)],
+    );
+  }
+  const activeKeys = alertList.map((alert) => alert.alertKey);
+  await db.query(
+    `UPDATE deals_sync_alerts SET is_active=false, resolved_at=now()
+      WHERE is_active=true AND NOT (alert_key = ANY($1::text[]))`,
+    [activeKeys],
+  );
+  const activeAlerts = await db.query(
+    `SELECT alert_key, severity, message, details, first_seen_at, last_seen_at
+       FROM deals_sync_alerts WHERE is_active=true ORDER BY severity DESC, first_seen_at ASC`
+  );
   return {
     config,
-    lastRun: lastRun.rows[0] || null,
-    products: products.rows[0] || { amazon_total: 0, amazon_fresh: 0, amazon_failed: 0, amazon_not_configured: 0 },
+    lastRun: lastRuns[0] || null,
+    lastSuccessAt: latestTimes.last_success_at || null,
+    lastFailureAt: latestTimes.last_failure_at || null,
+    alerts: activeAlerts.rows || [],
+    products: products.rows[0] || { amazon_total: 0, amazon_fresh: 0, amazon_expiring: 0, amazon_stale: 0, amazon_failed: 0, amazon_not_configured: 0 },
     freshnessHours: FRESHNESS_HOURS,
+    freshnessWarningHours: Math.max(1, Math.round(warningWindowMs / (60 * 60 * 1000))),
   };
 }
 
 module.exports = {
   decorateProduct,
+  buildSyncAlerts,
   getSyncDashboard,
   isFreshAmazonProduct,
   syncAmazonCatalog,

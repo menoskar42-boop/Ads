@@ -108,6 +108,19 @@ async function initDealsDb() {
     CREATE INDEX IF NOT EXISTS idx_deals_sync_runs_recent
       ON deals_sync_runs (source, started_at DESC);
 
+    CREATE TABLE IF NOT EXISTS deals_sync_alerts (
+      alert_key TEXT PRIMARY KEY,
+      severity TEXT NOT NULL CHECK (severity IN ('warning','critical')),
+      message TEXT NOT NULL,
+      details JSONB NOT NULL DEFAULT '{}'::jsonb,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      resolved_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS idx_deals_sync_alerts_active
+      ON deals_sync_alerts (is_active, last_seen_at DESC);
+
     CREATE TABLE IF NOT EXISTS deals_articles (
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,

@@ -5,6 +5,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const {
+  buildSyncAlerts,
   decorateProduct,
   isFreshAmazonProduct,
   syncStatusLabel,
@@ -85,6 +86,37 @@ check('old Amazon data cannot be displayed as current', () => {
   assert.equal(syncStatusLabel('failed'), 'فشل آخر تحديث');
 });
 
+check('dashboard warns before Amazon data expires and after repeated failures', () => {
+  const config = { configured: true };
+  const freshnessAlert = buildSyncAlerts({
+    config,
+    products: { amazon_total: 4, amazon_expiring: 2, amazon_stale: 0 },
+    recentRuns: [{ status: 'success', failure_count: 0 }],
+    warningWindowHours: 6,
+  });
+  assert.equal(freshnessAlert.length, 1);
+  assert.equal(freshnessAlert[0].alertKey, 'amazon_data_freshness');
+  assert.equal(freshnessAlert[0].severity, 'warning');
+
+  const failureAlert = buildSyncAlerts({
+    config,
+    products: { amazon_total: 4, amazon_expiring: 0, amazon_stale: 0 },
+    recentRuns: [{ status: 'failed', failure_count: 4 }, { status: 'partial', failure_count: 1 }],
+    warningWindowHours: 6,
+  });
+  assert.equal(failureAlert.length, 1);
+  assert.equal(failureAlert[0].alertKey, 'amazon_repeated_failures');
+  assert.equal(failureAlert[0].severity, 'critical');
+  assert.doesNotMatch(failureAlert[0].message, /secret|token|password/i);
+
+  assert.deepEqual(buildSyncAlerts({
+    config: { configured: false },
+    products: { amazon_total: 4, amazon_expiring: 4, amazon_stale: 4 },
+    recentRuns: [{ status: 'failed', failure_count: 4 }, { status: 'failed', failure_count: 4 }],
+    warningWindowHours: 6,
+  }), []);
+});
+
 check('API failures are classified without response bodies or credentials', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'deals', 'amazon.js'), 'utf8');
   assert.match(source, /response\.status === 429/);
@@ -94,10 +126,17 @@ check('API failures are classified without response bodies or credentials', () =
 
 check('sync implementation clears dynamic values after a failure', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'deals', 'catalog_sync.js'), 'utf8');
+  const db = fs.readFileSync(path.join(__dirname, '..', 'deals', 'db.js'), 'utf8');
+  const dashboard = fs.readFileSync(path.join(__dirname, '..', 'deals', 'views', 'admin', 'dashboard.ejs'), 'utf8');
   assert.match(source, /current_price=NULL/);
   assert.match(source, /availability=NULL/);
   assert.match(source, /data_fresh_until=NULL/);
   assert.match(source, /pg_try_advisory_lock/);
+  assert.match(source, /INSERT INTO deals_sync_alerts/);
+  assert.match(db, /CREATE TABLE IF NOT EXISTS deals_sync_alerts/);
+  assert.match(dashboard, /آخر مزامنة ناجحة/);
+  assert.match(dashboard, /آخر مزامنة فاشلة/);
+  assert.match(dashboard, /syncInfo\.alerts/);
 });
 
 check('product SEO fields have server-side length limits', () => {
