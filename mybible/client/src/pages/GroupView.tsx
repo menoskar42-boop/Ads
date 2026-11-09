@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Users, BookOpen, BarChart3, MessageCircle, Settings, Check, X, Copy, Loader2, LogOut, Shield, ShieldOff, Trophy, Award, Target, Share2, AlertTriangle, ArrowRight, Clock, Plus, Eye, Trash2, ChevronDown, ChevronUp, ScrollText, UserPlus, UserX, Link2, Zap, RotateCcw, Play, Search } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useTodayStr } from '@/hooks/useTodayStr';
 import { OT_BOOKS, NT_BOOKS, OT_FLAT, NT_FLAT, getAutoReadingForDate, todayStr, findFlatIndex, DEUTEROCANONICAL_BOOKS, DEUTERO_SOURCE_IDS, type AutoReadingConfig } from '@/lib/group-auto-reading';
 import { apocryphaBooks } from '@/lib/apocrypha-content';
 import { Card } from '@/components/ui/card';
@@ -1005,7 +1006,16 @@ function DailyReadingCard({ autoReading, autoConfig, stats, progress, challengeT
   memberKey: string;
   onReadComplete: () => void;
 }) {
-  const [selectedDate, setSelectedDate] = useState(todayStr());
+  // بعد ١٢ بالليل: لو العضو كان على قراءة «النهارده» بتنقل لوحدها لقراءة اليوم الجديد (useTodayStr)
+  const today = useTodayStr();
+  const [selectedDate, setSelectedDate] = useState(today);
+  const prevToday = useRef(today);
+  useEffect(() => {
+    if (prevToday.current === today) return;
+    const old = prevToday.current;
+    prevToday.current = today;
+    setSelectedDate((d) => (d === old ? today : d));
+  }, [today]);
   const [showCalendar, setShowCalendar] = useState(false);
   const [reading, setReading] = useState<{ book: string; chapter: number; schedule: {book: string; chapter: number}[]; assignmentId?: number | null } | null>(null);
 
@@ -1075,17 +1085,22 @@ function DailyReadingCard({ autoReading, autoConfig, stats, progress, challengeT
   // إصحاحات منتهية اليوم — مخزّنة في localStorage
   const [doneChs, setDoneChs] = useState<Set<string>>(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(`daily_done_${groupCode}_${todayStr()}`) || '[]') as string[];
+      const saved = JSON.parse(localStorage.getItem(`daily_done_${groupCode}_${today}`) || '[]') as string[];
       return new Set(saved);
     } catch { return new Set(); }
   });
+  // يوم جديد ⇒ علامات «خلصت» بتاعة اليوم الجديد (مش بتاعة امبارح)
+  useEffect(() => {
+    try { setDoneChs(new Set(JSON.parse(localStorage.getItem(`daily_done_${groupCode}_${today}`) || '[]') as string[])); }
+    catch { setDoneChs(new Set()); }
+  }, [groupCode, today]);
 
   const markChapterDone = (book: string, chapter: number) => {
     const chKey = `${book}_${chapter}`;
     setDoneChs(prev => {
       const next = new Set(prev);
       next.add(chKey);
-      try { localStorage.setItem(`daily_done_${groupCode}_${todayStr()}`, JSON.stringify([...next])); } catch {}
+      try { localStorage.setItem(`daily_done_${groupCode}_${today}`, JSON.stringify([...next])); } catch {}
       return next;
     });
   };
@@ -1094,7 +1109,7 @@ function DailyReadingCard({ autoReading, autoConfig, stats, progress, challengeT
     try { return getAutoReadingForDate(autoConfig, selectedDate); } catch { return autoReading; }
   }, [selectedDate, autoConfig, autoReading]);
 
-  const isToday = selectedDate === todayStr();
+  const isToday = selectedDate === today;
 
   // افتح إصحاحاً مع جدول كامل OT+NT لدعم التنقل المتتالي بين العهدين
   const openReading = (book: string, chapter: number) => {
@@ -1166,13 +1181,13 @@ function DailyReadingCard({ autoReading, autoConfig, stats, progress, challengeT
           <input
             type="date"
             value={selectedDate}
-            max={todayStr()}
+            max={today}
             onChange={e => { setSelectedDate(e.target.value); setShowCalendar(false); }}
             className="w-full text-sm rounded px-2 py-1 border bg-background"
           />
           {!isToday && (
             <Button variant="ghost" size="sm" className="w-full mt-1 text-xs h-7"
-              onClick={() => { setSelectedDate(todayStr()); setShowCalendar(false); }}>
+              onClick={() => { setSelectedDate(today); setShowCalendar(false); }}>
               العودة لليوم
             </Button>
           )}
@@ -1753,12 +1768,16 @@ export default function GroupView() {
     }
   };
 
-  // القراءة التلقائية لليوم (محسوبة من الإعداد)
+  // القراءة التلقائية لليوم (محسوبة من الإعداد) — وبتتغيّر لوحدها بعد ١٢ بالليل (useTodayStr)
+  const today = useTodayStr();
   const todayAutoReading = useMemo(() => {
     const arc = data?.group?.autoReadingConfig;
     if (!arc?.enabled) return null;
-    try { return getAutoReadingForDate(arc, todayStr()); } catch { return null; }
-  }, [data?.group?.autoReadingConfig]);
+    try { return getAutoReadingForDate(arc, today); } catch { return null; }
+  }, [data?.group?.autoReadingConfig, today]);
+  // يوم جديد ⇒ «قرأوا النهارده» وباقى بيانات الجروب تتجاب من جديد
+  const firstDay = useRef(today);
+  useEffect(() => { if (firstDay.current !== today) { firstDay.current = today; fetchGroup(); } }, [today, fetchGroup]);
 
   const saveAutoReading = async (enabled: boolean) => {
     setAutoSaving(true);

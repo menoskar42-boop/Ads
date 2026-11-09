@@ -1,4 +1,5 @@
 import { readDateFrom } from "./read-date";
+import { cairoDay } from "./cairo-day";
 import type { Express } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -902,7 +903,7 @@ export function registerGroupRoutes(app: Express) {
       if (!group) return null;
 
       const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
-      const today = new Date().toISOString().split('T')[0];
+      const today = cairoDay();
 
       // عداد "قرأوا اليوم" — يجمع من group_reading_logs (الأساس) و assignment_readings (احتياطي)
       const readTodayResult = await pool.query(
@@ -1074,7 +1075,7 @@ export function registerGroupRoutes(app: Express) {
         return res.status(400).json({ error: 'لا توجد إصحاحات للاحتساب' });
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = cairoDay();
       let credited = 0;
       for (const c of chapters) {
         if (!c?.book || !c?.chapter) continue;
@@ -2072,7 +2073,7 @@ export function registerGroupRoutes(app: Express) {
       const authorized = await isAdminByLeaderKey(group, leaderKey);
       if (!authorized) return res.status(403).json({ error: 'غير مسموح' });
 
-      const date = new Date().toISOString().split('T')[0];
+      const date = cairoDay();
       const [assignment] = await db.insert(groupAssignments).values({
         groupId: group.id,
         type,
