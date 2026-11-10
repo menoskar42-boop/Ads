@@ -125,6 +125,15 @@ check('pairing is rate-limited and one-time', /od-pair/.test(site) && /SET pair_
 const privacy = read('src/views/legal/oscar_drive_privacy.ejs');
 check('privacy policy discloses tracking upload and camera', /drive\.oscardevs\.com/.test(privacy) && /الكاميرا/.test(privacy),
   'التطبيق بقى بيبعت المكان (لو الحماية شغّالة) وبيسجّل كاميرا — السياسة لازم تقول كده.');
+// المرحلة ٤: ملخّص العربية (الركنات · العدّاد · الصيانة · البنزين) بيروح مع مزامنة الحماية بس، منضّف على السيرفر، ومعلن عنه
+{
+  const guard = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Guard.kt');
+  const store = read('src/drive/store.js');
+  check('car summary rides the opt-in security sync, is sanitized server-side, and is disclosed',
+    /CarReport\.json\(app\)/.test(guard) && /if \(!on \|\| syncing\) return/.test(guard) && /L\.cleanReport\(body\.report/.test(store)
+      && /ملخّص العربية عشان صفحة الموبايل/.test(privacy) && /car summary for the phone page/.test(privacy),
+    'أى بيانات زيادة بتتبعت لازم تبقى مع الحماية المفعّلة بس ومتنضّفة ومكتوبة فى السياسة.');
+}
 check('security is opt-in on the screen', /get\(\) = sp\.getBoolean\("sec_on", false\)/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt')),
   'التتبّع للسيرفر لازم يبقى مقفول لحد ما السواق يشغّله.');
 

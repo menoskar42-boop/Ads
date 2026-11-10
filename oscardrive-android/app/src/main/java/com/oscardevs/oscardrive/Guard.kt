@@ -31,6 +31,7 @@ object Guard {
     private var inited = false
     private var lastTrackMs = 0L
     private var lastSyncTry = 0L
+    @Volatile private var lastReport: String? = null
     @Volatile private var syncing = false
     /** وقت الـGPS ناقص ساعة الشاشة — ساعة شاشات العربيات ممكن تبقى غلط لحد ما النت ييجى. */
     @Volatile private var clockOffset = 0L
@@ -162,12 +163,16 @@ object Guard {
         body.put("clips", JSONArray().also { a ->
             for (c in clips) a.put(JSONObject().put("uuid", c.uuid).put("t", c.t).put("sec", c.sec).put("bytes", c.bytes).put("reason", c.reason))
         })
+        // ملخّص العربية لصفحة الموبايل — لما يتغيّر بس (مش مع كل دفعة)
+        val report = try { CarReport.json(app).toString() } catch (_: Exception) { null }
+        if (report != null && report != lastReport) body.put("report", JSONObject(report))
         val pending = prefs.armPending
         if (pending) body.put("arm", JSONObject().put("armed", prefs.armed).put("baseVer", prefs.armedVer))
         val r = Cloud.sync(token, body)
         pts.lastOrNull()?.let { db.dropTrackUpTo(it.id) }
         db.markSecSent(evs.map { it.id })
         db.markClipsSynced(clips.map { it.id })
+        if (report != null) lastReport = report
         val serverArmed = r.optBoolean("armed", prefs.armed)
         prefs.armedVer = r.optInt("armedVer", prefs.armedVer)
         prefs.armPending = false

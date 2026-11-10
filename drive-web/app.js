@@ -121,8 +121,102 @@
       li.innerHTML = `<span class="ico">📹</span><div><div>${c.seconds || '?'} ثانية · ${why}</div><div class="t">${when(c.at)}${c.bytes ? ' · ' + (c.bytes / 1e6).toFixed(1) + ' ميجا' : ''}</div></div>`;
       cl.appendChild(li);
     }
+    renderReport(s.report, s.reportAt);
     pushUi();
   }
+
+  /* ── المرحلة ٤: عربيتك فين + التقارير (ملخّص الشاشة) ── */
+  const fmt = (n, d = 0) => (n == null ? '—' : Number(n).toLocaleString('ar-EG', { maximumFractionDigits: d, minimumFractionDigits: 0 }));
+  const li = (main, sub, ico) => {
+    const el = document.createElement('li');
+    if (ico) { const i = document.createElement('span'); i.className = 'ico'; i.textContent = ico; el.appendChild(i); }
+    const box = document.createElement('div');
+    const a = document.createElement('div'); a.textContent = main; box.appendChild(a);
+    if (sub) { const b = document.createElement('div'); b.className = 't'; b.textContent = sub; box.appendChild(b); }
+    el.appendChild(box); return el;
+  };
+  const walkUrl = (p) => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=walking`;
+  const mapUrl = (p) => `https://maps.google.com/?q=${p.lat},${p.lng}`;
+  const distM = (a, b) => {
+    const R = 6371000, r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  };
+  let lastPark = null, repMonth = null;
+
+  function renderReport(r, at) {
+    $('parkCard').hidden = !(r && r.parking && r.parking.length);
+    $('repCard').hidden = !r;
+    if (!r) return;
+    const p = r.parking && r.parking[0];
+    if (p) {
+      lastPark = p;
+      $('parkWhen').textContent = `آخر مكان معروف — ${p.t ? ago(p.t) : ''}`;
+      const approx = p.acc == null || p.acc > 50;
+      const info = [];
+      info.push('ده آخر مكان الشاشة سجّلته قبل ما تطفى — مش تتبّع مباشر.');
+      if (approx) info.push(`المكان تقريبى${p.acc != null ? ` (±${fmt(p.acc)} م)` : ''}.`);
+      if (p.odo) info.push(`العدّاد وقتها ${fmt(p.odo)} كم.`);
+      if (p.note) info.push(`📝 ${p.note}`);
+      $('parkInfo').textContent = info.join(' ');
+      $('parkInfo').className = 'note' + (approx ? ' approx' : '');
+      $('walkBtn').href = walkUrl(p);
+      $('parkMap').href = mapUrl(p);
+      const pl = $('parkList'); pl.textContent = '';
+      for (const q of r.parking.slice(1)) {
+        const el = li(q.t ? when(q.t) : '', (q.acc == null || q.acc > 50 ? 'تقريبى · ' : '') + (q.note || ''), '🅿️');
+        const a = document.createElement('a'); a.className = 'btn'; a.textContent = '🗺️'; a.href = mapUrl(q); a.target = '_blank'; a.rel = 'noopener';
+        a.style.marginInlineStart = 'auto'; el.appendChild(a);
+        pl.appendChild(el);
+      }
+    }
+    // العدّاد
+    $('repOdo').textContent = r.odo ? `العدّاد ${fmt(r.odo)} كم (تابلوه + GPS تقريبى)${r.odoCalAt > 1 ? ` · آخر تصحيح ${when(r.odoCalAt)}` : ''}` : 'العدّاد لسه ماتكتبش على الشاشة.';
+    // الشهور
+    const months = r.months || [];
+    if (!repMonth || !months.some((m) => m.ym === repMonth)) repMonth = months[0] && months[0].ym;
+    const seg = $('repSeg'); seg.textContent = '';
+    for (const m of months) {
+      const b = document.createElement('button'); b.textContent = m.ym; b.className = m.ym === repMonth ? 'on' : '';
+      b.addEventListener('click', () => { repMonth = m.ym; renderReport(r, at); });
+      seg.appendChild(b);
+    }
+    const ml = $('repMonth'); ml.textContent = '';
+    const m = months.find((x) => x.ym === repMonth);
+    if (!m) ml.appendChild(li('لسه مفيش رحلات ولا تفويلات.', ''));
+    else {
+      ml.appendChild(li(`🚗 ${fmt(m.trips)} رحلة · ${fmt(m.km)} كم`, `${fmt(Math.round((m.min || 0) / 60))} ساعة سواقة تقريباً`));
+      ml.appendChild(li(`⛽ ${fmt(m.paid)} جنيه · ${fmt(m.liters, 1)} لتر`, `${fmt(m.fills)} تفويلة${m.km && m.paid ? ` · الكيلو ~${fmt(m.paid / m.km, 2)} جنيه (تقريبى)` : ''}`));
+      if (m.maint) ml.appendChild(li(`🛠️ ${fmt(m.maint)} صيانة اتسجّلت`, ''));
+    }
+    // البنزين
+    const f = r.fuel || {};
+    $('repFuel').textContent = [
+      f.rate != null ? `الاستهلاك ${fmt(f.rate, 1)} لتر/١٠٠ كم${f.real ? ' (من تفويلاتك لآخرها)' : ' (تقديرى — لسه مفيش تفويلتين لآخرها)'}` : '',
+      f.left != null ? `الفاضل ~${fmt(f.left)} لتر (تقدير مش حساس)` : '',
+      f.cpk != null ? `الكيلو بـ ${fmt(f.cpk, 2)} جنيه` : '',
+    ].filter(Boolean).join(' · ');
+    const fl = $('repFills'); fl.textContent = '';
+    for (const x of f.fills || []) {
+      fl.appendChild(li(`${fmt(x.liters, 1)} لتر${x.grade ? ' بنزين ' + x.grade : ''} · ${fmt(x.paid)} جنيه`, `${x.t ? when(x.t) : ''}${x.odo ? ' · عدّاد ' + fmt(x.odo) : ''}${x.full ? ' · لآخرها' : ' · جزئى'}`, '⛽'));
+    }
+    // الصيانة
+    const mt = $('repMaint'); mt.textContent = '';
+    const order = { due: 0, soon: 1, ok: 2 };
+    for (const x of (r.maint || []).slice().sort((a, b) => order[a.status] - order[b.status])) {
+      mt.appendChild(li(x.name, x.text || '', x.status === 'due' ? '⛔' : x.status === 'soon' ? '⏳' : '✅'));
+    }
+    $('repAt').textContent = at ? `آخر تحديث من الشاشة ${ago(at)}` : '';
+  }
+
+  $('distBtn').addEventListener('click', () => {
+    if (!lastPark || !navigator.geolocation) { $('parkDist').textContent = 'الموبايل مش بيدّى مكانه.'; return; }
+    $('parkDist').textContent = 'بيحدد مكانك…';
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const d = distM({ lat: pos.coords.latitude, lng: pos.coords.longitude }, lastPark);
+      $('parkDist').textContent = d < 1000 ? `بعيدة عنك حوالى ${fmt(d)} متر مشى (خط مستقيم)` : `بعيدة عنك حوالى ${fmt(d / 1000, 1)} كم (خط مستقيم)`;
+    }, () => { $('parkDist').textContent = 'إذن المكان اترفض — استخدم «ودّينى مشى».'; }, { enableHighAccuracy: true, timeout: 15000 });
+  });
 
   /* ── الخريطة ── */
   function ensureMap() {

@@ -69,6 +69,10 @@ async function ensureDriveSchema(pool) {
       bytes    BIGINT,
       reason   TEXT
     );
+    -- المرحلة ٤ (٢٠٢٦-١١-١٠): آخر ملخّص من الشاشة (الركنات · العدّاد · الصيانة · البنزين · الشهور) — صف واحد بيتكتب فوقه،
+    -- عشان صفحة الموبايل تعرض «عربيتك فين» والتقارير. مفيش تاريخ بيتجمّع هنا (التاريخ على الشاشة).
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS report JSONB;
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS report_at TIMESTAMPTZ;
     CREATE TABLE IF NOT EXISTS od_push_subs (
       endpoint  TEXT PRIMARY KEY,
       owner_id  INTEGER NOT NULL REFERENCES od_owners(id) ON DELETE CASCADE,

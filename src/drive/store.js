@@ -53,6 +53,9 @@ async function sync(pool, car, body, now = Date.now()) {
         `INSERT INTO od_clips (car_id, uuid, at, seconds, bytes, reason) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (uuid) DO NOTHING`,
         [car.id, c.uuid, c.at, c.seconds, c.bytes, c.reason]);
     }
+    // ملخّص العربية (الركنات · الصيانة · البنزين · الشهور) — بيتكتب فوق اللى قبله (صف واحد لكل عربية)
+    const report = L.cleanReport(body.report, now);
+    if (report) await client.query('UPDATE od_cars SET report = $2, report_at = now() WHERE id = $1', [car.id, JSON.stringify(report)]);
     // آخر مكان = أحدث نقطة وصلت (مش آخر نقطة فى الدفعة — الدفعات القديمة ممكن توصل متأخر)
     const latest = points.reduce((a, p) => (!a || p.at > a.at ? p : a), null);
     const { rows } = await client.query(
@@ -75,7 +78,7 @@ async function sync(pool, car, body, now = Date.now()) {
       if (r2.rows[0]) cur = r2.rows[0];
     }
     await client.query('COMMIT');
-    return { car: cur, fresh, counts: { points: points.length, events: events.length, clips: clips.length } };
+    return { car: cur, fresh, counts: { points: points.length, events: events.length, clips: clips.length, report: report ? 1 : 0 } };
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     throw e;
@@ -120,6 +123,7 @@ async function state(pool, carId, now = Date.now()) {
     online: L.isOnline(car, now), lastSeen: car.last_seen,
     last: car.last_fix_at ? { lat: car.last_lat, lng: car.last_lng, speed: car.last_speed, heading: car.last_heading, at: car.last_fix_at } : null,
     events: ev.rows, clips: cl.rows, appVersion: car.app_version,
+    report: car.report || null, reportAt: car.report_at || null,
   };
 }
 

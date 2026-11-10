@@ -38,6 +38,17 @@ describe('logic', () => {
     assert.equal(L.connectionLostDue({ last_seen: t(1), last_speed: 50 }, now), false);
     assert.equal(L.connectionLostDue({ last_seen: t(5), last_speed: 50, lost_alerted: true }, now), false);
   });
+  it('cleanReport keeps only known fields, in range', () => {
+    const r = L.cleanReport({ odo: 5e9, parking: [{ lat: 30, lng: 31, note: 'x'.repeat(500) }, { lat: 999, lng: 1 }],
+      months: [{ ym: '2026-11', km: 50 }, { ym: 'nope' }], maint: [{ name: 'زيت', status: 'evil' }], fuel: { fills: [{ grade: '99', liters: 9e9 }] }, x: 1 });
+    assert.equal(r.odo, null);
+    assert.equal(r.parking.length, 1); assert.equal(r.parking[0].note.length, 200);
+    assert.deepEqual(r.months.map((m) => m.ym), ['2026-11']);
+    assert.equal(r.maint[0].status, 'ok');
+    assert.equal(r.fuel.fills[0].grade, null); assert.equal(r.fuel.fills[0].liters, null);
+    assert.equal(r.x, undefined);
+    assert.equal(L.cleanReport(null), null); assert.equal(L.cleanReport([1]), null);
+  });
   it('downsample keeps ends', () => {
     const pts = Array.from({ length: 5000 }, (_, i) => i);
     const d = L.downsample(pts, 100);
@@ -118,6 +129,21 @@ describe('database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL not set' }
     st = (await call('GET', '/api/web/state', null, own)).json;
     assert.equal(st.armedBy, 'car');
     assert.equal(st.events[0].kind, 'armed_move');
+
+    // المرحلة ٤: ملخّص العربية (عربيتك فين + التقارير) بيوصل الموبايل منضّف — والجديد بيكتب فوق القديم
+    assert.equal(st.report, null);
+    const report = { odo: 90220, parking: [{ lat: 27.2, lng: 31.2, t: Date.now(), acc: 8, note: 'الدور التانى' }],
+      months: [{ ym: '2026-11', trips: 3, km: 50, paid: 500 }], maint: [{ name: 'زيت الموتور', status: 'soon', text: 'فاضل 300 كم' }],
+      fuel: { rate: 7, real: true, fills: [{ grade: '92', liters: 25, paid: 431, full: true }] }, injected: '<script>' };
+    r = await call('POST', '/api/car/sync', { report }, car);
+    assert.equal(r.json.saved.report, 1);
+    st = (await call('GET', '/api/web/state', null, own)).json;
+    assert.equal(st.report.odo, 90220);
+    assert.equal(st.report.parking[0].note, 'الدور التانى');
+    assert.equal(st.report.injected, undefined);
+    assert.ok(st.reportAt);
+    await call('POST', '/api/car/sync', { report: { ...report, odo: 90300 } }, car);
+    assert.equal((await call('GET', '/api/web/state', null, own)).json.report.odo, 90300);
   });
 
   it('connection lost is claimed once', async () => {

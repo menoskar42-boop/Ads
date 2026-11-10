@@ -41,7 +41,8 @@ h1 { margin:0; font-size:22px; font-weight:800; letter-spacing:.06em; }
 @media (max-width:420px) { .grid2 { grid-template-columns:1fr; } }
 button, .btn { font-family:var(--font); font-weight:800; font-size:16px; border:0; border-radius:14px; padding:12px 18px; cursor:pointer;
   background:var(--surface2); color:var(--ink); text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:48px; }
-button.primary { background:var(--accent); color:#fff; }
+button.primary, .btn.primary { background:var(--accent); color:#fff; }
+.approx { color:var(--warn, #b7791f); font-weight:700; }
 button.danger { background:var(--bad); color:#fff; }
 button.good { background:var(--good); color:#062016; }
 button:disabled { opacity:.5; cursor:default; }
@@ -110,6 +111,30 @@ input[type=text], input[inputmode] { font-family:var(--font); font-size:28px; le
       </div>
       <div id="map" role="img" aria-label="خريطة مكان العربية"></div>
       <p class="note" id="trackNote"></p>
+    </section>
+
+    <!-- المرحلة ٤: عربيتك فين (آخر ركنة) + التقارير — من ملخّص الشاشة -->
+    <section class="card" id="parkCard" hidden>
+      <div class="eyebrow">FIND MY CAR · عربيتك فين</div>
+      <div class="big" id="parkWhen"></div>
+      <p class="note" id="parkInfo"></p>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <a class="btn primary" id="walkBtn" target="_blank" rel="noopener">🚶 ودّينى للعربية مشى</a>
+        <a class="btn" id="parkMap" target="_blank" rel="noopener">🗺️ افتح فى خرايط جوجل</a>
+      </div>
+      <button id="distBtn" style="margin-top:8px">📍 بعيدة عنى قد إيه؟</button>
+      <p class="note" id="parkDist"></p>
+      <details style="margin-top:8px"><summary>الركنات اللى فاتت</summary><ul class="list" id="parkList"></ul></details>
+    </section>
+
+    <section class="card" id="repCard" hidden>
+      <div class="eyebrow">REPORTS · التقارير</div>
+      <p class="note" id="repOdo"></p>
+      <div class="row seg" id="repSeg" style="margin:8px 0"></div>
+      <ul class="list" id="repMonth"></ul>
+      <details style="margin-top:8px"><summary>⛽ البنزين</summary><p class="note" id="repFuel"></p><ul class="list" id="repFills"></ul></details>
+      <details style="margin-top:8px"><summary>🛠️ الصيانة</summary><ul class="list" id="repMaint"></ul></details>
+      <p class="note" id="repAt"></p>
     </section>
 
     <div class="grid2">

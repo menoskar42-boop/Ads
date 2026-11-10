@@ -112,8 +112,39 @@ function isOnline(car, now = Date.now()) {
   return !!(car && car.last_seen && now - new Date(car.last_seen).getTime() < ONLINE_MS);
 }
 
+/* ───────── ملخّص العربية (المرحلة ٤): الركنات · العدّاد · الصيانة · البنزين · الشهور ─────────
+ * الشاشة بتبعته مع المزامنة، وبيتحفظ كما هو بعد التنضيف ده بس (أرقام فى حدودها · نصوص مقصوصة · مفيش حاجة غير المعروفة). */
+const rnum = (v, lo, hi) => { const n = Number(v); return v !== null && v !== "" && Number.isFinite(n) && n >= lo && n <= hi ? n : null; };
+const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
+const arr = (v, max) => (Array.isArray(v) ? v.slice(0, max) : []);
+
+function cleanReport(r, now = Date.now()) {
+  if (!r || typeof r !== 'object' || Array.isArray(r)) return null;
+  const tMax = now + 864e5;
+  const parking = arr(r.parking, 10).map((p) => {
+    if (!p || rnum(p.lat, -90, 90) === null || rnum(p.lng, -180, 180) === null) return null;
+    return { lat: rnum(p.lat, -90, 90), lng: rnum(p.lng, -180, 180), t: rnum(p.t, 0, tMax), acc: rnum(p.acc, 0, 1e5), odo: rnum(p.odo, 0, 5e6), note: str(p.note, 200) };
+  }).filter(Boolean);
+  const months = arr(r.months, 12).map((m) => (m && /^\d{4}-\d{2}$/.test(m.ym) ? {
+    ym: m.ym, trips: rnum(m.trips, 0, 1e5), km: rnum(m.km, 0, 1e6), min: rnum(m.min, 0, 1e6),
+    paid: rnum(m.paid, 0, 1e8), liters: rnum(m.liters, 0, 1e6), fills: rnum(m.fills, 0, 1e4), maint: rnum(m.maint, 0, 1e4),
+  } : null)).filter(Boolean);
+  const maint = arr(r.maint, 40).map((x) => (x && str(x.name, 40) ? {
+    name: str(x.name, 40), status: ['ok', 'soon', 'due'].includes(x.status) ? x.status : 'ok', text: str(x.text, 80),
+  } : null)).filter(Boolean);
+  const f = r.fuel && typeof r.fuel === 'object' ? r.fuel : null;
+  const fuel = f ? {
+    rate: rnum(f.rate, 0, 100), real: f.real === true, left: rnum(f.left, 0, 500), cpk: rnum(f.cpk, 0, 1000),
+    fills: arr(f.fills, 10).map((x) => (x ? {
+      t: rnum(x.t, 0, tMax), grade: ['80', '92', '95'].includes(x.grade) ? x.grade : null,
+      liters: rnum(x.liters, 0, 500), paid: rnum(x.paid, 0, 1e6), full: x.full === true, odo: rnum(x.odo, 0, 5e6),
+    } : null)).filter(Boolean),
+  } : null;
+  return { odo: rnum(r.odo, 0, 5e6), odoCalAt: rnum(r.odoCalAt, 0, tMax), parking, maint, fuel, months };
+}
+
 module.exports = {
   ONLINE_MS, LOST_AFTER_MS, PAIR_TTL_MS, KEEP_DAYS, EVENT_KINDS,
   newToken, hashToken, newPairCode, cleanPoint, cleanEvent, cleanClip, downsample, applyCarArm, pushFor,
-  connectionLostDue, isOnline,
+  connectionLostDue, isOnline, cleanReport,
 };
