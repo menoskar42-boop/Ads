@@ -3,7 +3,6 @@
   'use strict';
   var app = document.getElementById('app');
   var page = document.body.dataset.page;
-  var KEY = 'fin_key';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function n2(x) { return x == null || !isFinite(x) ? '-' : Number(x).toFixed(2); }
@@ -13,13 +12,16 @@
     if (!ts) return '-';
     return new Date(ts).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
   }
-  function key() { try { return localStorage.getItem(KEY) || ''; } catch (_) { return ''; } }
-  function api(path, body, withKey) {
-    var o = { headers: {} };
+  // الدخول بكوكى (كلمة السر = FINANCE_INGEST_KEY). 401 ⇒ صفحة الدخول.
+  function api(path, body) {
+    var o = { headers: {}, credentials: 'same-origin' };
     if (body !== undefined) { o.method = 'POST'; o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
-    if (withKey) o.headers['X-API-Key'] = key();
-    return fetch(path, o).then(function (r) { return r.json().catch(function () { return { ok: false, error: 'HTTP ' + r.status }; }); });
+    return fetch(path, o).then(function (r) {
+      if (r.status === 401 && page !== 'login') { location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search); return new Promise(function () {}); }
+      return r.json().catch(function () { return { ok: false, error: 'HTTP ' + r.status }; });
+    });
   }
+  if ('serviceWorker' in navigator && page !== 'login') navigator.serviceWorker.register('/sw.js').catch(function () {});
   var FLAG = { short_history: 'تاريخ قصير', split_suspect: 'قفزة مشكوك فيها (تجزئة؟)', flat_data: 'بيانات ثابتة' };
   var SENT = { positive: ['إيجابى', 'good'], negative: ['سلبى', 'bad'], neutral: ['محايد', ''], unknown: ['ماتحللش', 'warn'] };
   var KIND = { STOP: ['وصل الوقف', 'bad'], IN_BUY_ZONE: ['جوّه منطقة الشراء', 'good'], TARGET1: ['وصل الهدف الأول', 'good'] };
@@ -90,15 +92,14 @@
   function bindReanalyze() {
     app.addEventListener('click', function (e) {
       var b = e.target.closest('[data-re]'); if (!b) return;
-      if (!key()) { alert('حط المفتاح الأول من صفحة الإعدادات'); return; }
       b.disabled = true; b.textContent = 'بيحلّل…';
-      api('/api/disclosures/' + b.dataset.re + '/reanalyze', {}, true).then(function (r) {
+      api('/api/disclosures/' + b.dataset.re + '/reanalyze', {}).then(function (r) {
         b.textContent = r.ok ? 'اتحلّل ✓ (حدّث الصفحة)' : (r.error || 'فشل'); b.disabled = false;
       });
     });
   }
   function stock() {
-    var sym = document.body.dataset.symbol;
+    var sym = document.body.dataset.id;
     api('/api/stock/' + encodeURIComponent(sym)).then(function (s) {
       if (!s.ok) { app.innerHTML = '<p>' + esc(s.error) + '</p>'; return; }
       var lv = s.levels || {}, r = s.row || {};
@@ -177,34 +178,64 @@
 
   /* ── الإعدادات ── */
   function settings() {
-    Promise.all([api('/api/watchlist?all=1'), api('/api/meta')]).then(function (x) {
-      var w = x[0], m = x[1];
+    Promise.all([api('/api/watchlist?all=1'), api('/api/settings')]).then(function (x) {
+      var w = x[0], m = x[1], st = m.settings || {};
+      var feed = m.feed ? ('آخر مرة ' + t(m.feed.at) + ': ' + m.feed.ok + ' سعر' + (m.feed.blocked ? ' · Yahoo رفض (' + m.feed.blocked + ')، سكربت Tampermonkey هو الاحتياطى' : '')) : 'لسه ماجابش أسعار (بيشتغل وقت السوق بس)';
       app.innerHTML = '<h1>الإعدادات</h1>' +
-        '<div class="card"><h2>المفتاح</h2><p class="muted">نفس قيمة FINANCE_INGEST_KEY فى أسرار السيرفر. بيتحفظ فى المتصفح ده بس، ومحتاجه عشان تعدّل القايمة أو تعيد التحليل.</p>' +
-        '<div class="row"><input id="k" type="password" autocomplete="off" value="' + esc(key()) + '"><button id="ks">احفظ</button></div>' +
-        (m.key_set ? '' : '<p class="banner">المفتاح مش متحط على السيرفر لسه.</p>') + '</div>' +
-        '<div class="card"><h2>قايمة المتابعة</h2><p class="muted">الملاحظة = اسم الشركة بالعربى زى ما بيظهر فى إفصاحات البورصة، عشان الإفصاح يتربط بالرمز.</p>' +
+        '<div class="card"><h2>الإشعارات على الموبايل</h2><p class="muted">افتح الموقع ده من الموبايل، وعلى الآيفون ضيفه للشاشة الرئيسية الأول (مشاركة ← Add to Home Screen)، وبعدين دوس الزرار.</p>' +
+        '<div class="row"><button id="pushOn">فعّل الإشعارات على الجهاز ده</button><button class="ghost" id="pushTest">جرّب إشعار</button><span id="pmsg" class="muted">' +
+        (m.push.enabled ? 'أجهزة مفعّلة: ' + m.push.devices : 'مفاتيح الإشعارات مش متحطة على السيرفر') + '</span></div>' +
+        '<label style="margin-top:8px"><span><input type="checkbox" id="notify"' + (st.notify ? ' checked' : '') + '> ابعتلى الترشيحات كإشعار</span></label></div>' +
+        '<div class="card"><h2>محفظة الديمو والترشيحات</h2><div class="row">' +
+        '<label>المبلغ الافتراضى للصفقة (جنيه)<input id="amt" type="number" min="1" step="1" value="' + esc(st.default_amount) + '"></label>' +
+        '<label>صلاحية الترشيح (دقيقة)<input id="valid" type="number" min="1" max="1440" value="' + esc(st.rec_valid_min) + '"></label>' +
+        '<label>أمر الشراء فى الديمو يفضل (يوم)<input id="days" type="number" min="1" max="30" value="' + esc(st.buy_order_days) + '"></label>' +
+        '<button id="saveSt">احفظ</button><span id="smsg" class="muted"></span></div>' +
+        '<p class="muted">المبلغ ده بيظهر جاهز فى صفحة الترشيح وإنت تغيّره قبل «نعم». زرار «نعم» فى الإشعار نفسه بيستخدمه زى ما هو.</p></div>' +
+        '<div class="card"><h2>الأسعار</h2><label><span><input type="checkbox" id="feed"' + (st.server_feed ? ' checked' : '') + '> السيرفر يجيب الأسعار من Yahoo Finance بنفسه</span></label>' +
+        '<p class="muted">' + esc(feed) + '</p><p class="muted">السوق من ' + esc(m.market.open) + ' لـ ' + esc(m.market.close) + ' بتوقيت القاهرة، الأحد للخميس. الأسعار كل ١٠ دقايق والشموع اليومية بعد ' + esc(m.market.dailyAfter) + '.</p></div>' +
+        '<div class="card"><h2>قايمة المتابعة</h2><p class="muted">اسم الشركة بالعربى زى ما بيظهر فى إفصاحات البورصة، عشان الإفصاح يتربط بالرمز.</p>' +
         '<div class="scroll"><table><thead><tr><th>الرمز</th><th>متابَع</th><th>اسم الشركة</th><th>درجة فودة</th></tr></thead><tbody>' +
         (w.items || []).map(function (i) {
           return '<tr data-s="' + esc(i.symbol) + '"><td><b>' + esc(i.symbol) + '</b></td><td><input type="checkbox" class="act"' + (i.is_active ? ' checked' : '') + '></td>' +
             '<td><input class="note" value="' + esc(i.note || '') + '"></td><td><input class="fouda" type="number" step="1" style="width:90px" value="' + (i.fouda_score == null ? '' : i.fouda_score) + '"></td></tr>';
         }).join('') + '</tbody></table></div>' +
         '<div class="row" style="margin-top:8px"><label>ضيف رموز (مسافة بينهم)<input id="add" placeholder="SWDY EAST"></label><button id="save">احفظ القايمة</button><span id="msg" class="muted"></span></div></div>' +
-        '<div class="card"><h2>سكربتات Tampermonkey</h2><p class="muted">بيشتغلوا بس وتاب الموقع مفتوح: سيب تاب Yahoo Finance وتاب أخبار البورصة مفتوحين وقت السوق.</p>' +
-        '<ul><li><a href="/userscripts/yahoo-feeder.user.js">yahoo-feeder.user.js</a>: الأسعار كل ١٠ دقايق + الشموع اليومية</li>' +
-        '<li><a href="/userscripts/egx-disclosures.user.js">egx-disclosures.user.js</a>: الإفصاحات من صفحة البحث فى أخبار البورصة</li></ul></div>' +
-        '<div class="card"><h2>السوق والتحليل</h2><p>السوق من ' + esc(m.market.open) + ' لـ ' + esc(m.market.close) + ' بتوقيت القاهرة، الأحد للخميس. الشموع اليومية بعد ' + esc(m.market.dailyAfter) + '.</p>' +
-        '<p>التحليل: ' + (m.ai ? esc(m.ai.provider) + ' · ' + esc(m.ai.model) : 'مقفول (مفيش مفتاح)') + ' · بحد ' + esc(m.market.dailyCap) + ' تحليل فى اليوم.</p></div>';
-      document.getElementById('ks').onclick = function () { try { localStorage.setItem(KEY, document.getElementById('k').value.trim()); } catch (_) {} document.getElementById('ks').textContent = 'اتحفظ ✓'; };
+        '<div class="card"><h2>الإفصاحات والتحليل</h2><p>التحليل: ' + (m.ai ? esc(m.ai.provider) + ' · ' + esc(m.ai.model) : 'مقفول (مفيش مفتاح)') + ' · للإفصاحات بس، مرة لكل إفصاح، وبحد ' + esc(m.market.dailyCap) + ' فى اليوم.</p>' +
+        '<ul><li><a href="/userscripts/egx-disclosures.user.js">egx-disclosures.user.js</a>: الإفصاحات من صفحة البحث فى أخبار البورصة (لازم التاب مفتوح)</li>' +
+        '<li><a href="/userscripts/yahoo-feeder.user.js">yahoo-feeder.user.js</a>: احتياطى للأسعار لو Yahoo رفض السيرفر</li></ul></div>' +
+        '<p><button class="ghost" id="logout">خروج</button></p>';
+      document.getElementById('saveSt').onclick = function () {
+        api('/api/settings', { default_amount: document.getElementById('amt').value, rec_valid_min: document.getElementById('valid').value, buy_order_days: document.getElementById('days').value })
+          .then(function (r) { document.getElementById('smsg').textContent = r.ok ? 'اتحفظ ✓' : (r.error || 'فشل'); });
+      };
+      document.getElementById('notify').onchange = function (e) { api('/api/settings', { notify: e.target.checked ? '1' : '0' }); };
+      document.getElementById('feed').onchange = function (e) { api('/api/settings', { server_feed: e.target.checked ? '1' : '0' }); };
+      document.getElementById('logout').onclick = function () { api('/api/logout', {}).then(function () { location.href = '/login'; }); };
+      document.getElementById('pushTest').onclick = function () { api('/api/push/test', {}).then(function (r) { document.getElementById('pmsg').textContent = r.ok ? 'اتبعت لـ ' + r.sent + ' جهاز' : r.error; }); };
+      document.getElementById('pushOn').onclick = function () {
+        var pm = document.getElementById('pmsg');
+        if (!m.push.key) { pm.textContent = 'مفاتيح الإشعارات مش متحطة على السيرفر'; return; }
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) { pm.textContent = 'المتصفح ده مابيدعمش الإشعارات (على الآيفون: ضيف الموقع للشاشة الرئيسية الأول)'; return; }
+        Notification.requestPermission().then(function (perm) {
+          if (perm !== 'granted') { pm.textContent = 'الإذن اترفض. فعّله من إعدادات المتصفح.'; return; }
+          return navigator.serviceWorker.register('/sw.js').then(function () { return navigator.serviceWorker.ready; }).then(function (reg) {
+            var k = m.push.key.replace(/-/g, '+').replace(/_/g, '/'); var raw = atob(k + '='.repeat((4 - k.length % 4) % 4));
+            var arr = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+            return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr });
+          }).then(function (sub) { return api('/api/push/subscribe', { subscription: sub.toJSON() }); })
+            .then(function (r) { pm.textContent = r && r.ok ? 'اتفعّلت ✓ دوس «جرّب إشعار»' : 'ماتفعّلتش'; });
+        }).catch(function (e) { pm.textContent = 'ماتفعّلتش: ' + e.message; });
+      };
       document.getElementById('save').onclick = function () {
         var addList = [], remove = [];
         document.querySelectorAll('tr[data-s]').forEach(function (tr) {
-          var s = tr.dataset.s;
-          if (tr.querySelector('.act').checked) addList.push({ symbol: s, note: tr.querySelector('.note').value.trim(), fouda_score: tr.querySelector('.fouda').value });
-          else remove.push(s);
+          var s2 = tr.dataset.s;
+          if (tr.querySelector('.act').checked) addList.push({ symbol: s2, note: tr.querySelector('.note').value.trim(), fouda_score: tr.querySelector('.fouda').value });
+          else remove.push(s2);
         });
-        document.getElementById('add').value.split(/[\s,]+/).filter(Boolean).forEach(function (s) { addList.push({ symbol: s }); });
-        api('/api/watchlist', { add: addList, remove: remove }, true).then(function (r) {
+        document.getElementById('add').value.split(/[\s,]+/).filter(Boolean).forEach(function (s2) { addList.push({ symbol: s2 }); });
+        api('/api/watchlist', { add: addList, remove: remove }).then(function (r) {
           document.getElementById('msg').textContent = r.ok ? 'اتحفظت ✓' : (r.error || 'فشل');
           if (r.ok) setTimeout(settings, 600);
         });
@@ -212,6 +243,91 @@
     });
   }
 
-  var pages = { dash: dash, stock: stock, news: news, alerts: alerts, ticket: ticket, settings: settings };
+  /* ── الدخول ── */
+  function login() {
+    app.innerHTML = '<h1>الدخول</h1><form class="card row" id="lf"><label>كلمة السر<input type="password" name="password" autocomplete="current-password" required></label>' +
+      '<button>دخول</button><span id="lmsg" class="muted"></span></form><p class="muted">كلمة السر = قيمة FINANCE_INGEST_KEY فى أسرار السيرفر.</p>';
+    document.getElementById('lf').addEventListener('submit', function (e) {
+      e.preventDefault();
+      api('/api/login', { password: new FormData(e.target).get('password') }).then(function (r) {
+        if (!r.ok) { document.getElementById('lmsg').textContent = r.error || 'فشل'; return; }
+        var next = new URLSearchParams(location.search).get('next') || '/recs';
+        location.href = /^\/[^/]/.test(next) ? next : '/recs';
+      });
+    });
+  }
+
+  /* ── الترشيحات ── */
+  var STATUS = { NEW: ['مستنى ردّك', 'warn'], APPROVED: ['وافقت', 'good'], REJECTED: ['رفضت', ''], EXPIRED: ['خلص وقته', ''] };
+  function sideLabel(r) { return r.side === 'BUY' ? '<span class="pill good">شراء</span>' : '<span class="pill bad">' + (r.kind === 'DANGER' ? 'خطر: بيع' : 'بيع') + '</span>'; }
+  function recs() {
+    api('/api/recs').then(function (s) {
+      app.innerHTML = '<h1>الترشيحات</h1><p class="muted">بتطلع بقواعد ثابتة (من غير ذكاء اصطناعى) وقت السوق. «نعم» بتسجّل الصفقة فى محفظة الديمو، والتنفيذ الحقيقى بإيدك من تطبيق Thndr.</p>' +
+        ((s.items || []).length ? '<div class="news">' + s.items.map(function (r) {
+          var stt = STATUS[r.status] || [r.status, ''];
+          return '<a class="card" style="display:block;text-decoration:none;color:inherit" href="/rec/' + esc(r.id) + '"><div class="row" style="justify-content:space-between"><b>' + sideLabel(r) + ' ' + esc(r.symbol) +
+            ' عند ' + n2(r.price) + '</b><span class="pill ' + stt[1] + '">' + stt[0] + '</span></div><div class="muted">' + esc(t(r.created_ts)) + ' · ' + esc((r.reasons || [])[0] || '') + '</div></a>';
+        }).join('') + '</div>' : '<p class="muted">لسه مفيش ترشيحات. بتطلع وقت السوق لما الشروط تتجمع.</p>');
+    });
+  }
+  function rec() {
+    var id = document.body.dataset.id;
+    api('/api/recs/' + id).then(function (s) {
+      if (!s.ok) { app.innerHTML = '<p>' + esc(s.error) + '</p>'; return; }
+      var r = s.rec, buy = r.side === 'BUY', open = r.status === 'NEW';
+      var stt = STATUS[r.status] || [r.status, ''];
+      var thndr = buy ? ('شراء ' + r.symbol + ' أمر محدد السعر ' + n2(r.price) + '\nالوقف ' + n2(r.stop_loss) + ' · الهدف ' + n2(r.target1)) : ('بيع ' + r.symbol + ' (' + (r.qty || '') + ' سهم فى الديمو)');
+      app.innerHTML = '<h1>' + sideLabel(r) + ' ' + esc(r.symbol) + ' <span class="pill ' + stt[1] + '">' + stt[0] + '</span></h1>' +
+        '<div class="grid">' + (buy ? [['سعر الدخول (أمر محدد)', r.price], ['الوقف', r.stop_loss], ['الهدف الأول', r.target1], ['الهدف التانى', r.target2]]
+          : [['السعر', r.price], ['الكمية فى الديمو', r.qty]]).map(function (k) { return '<div class="kv"><b>' + (k[0].indexOf('الكمية') === 0 ? esc(k[1]) : n2(k[1])) + '</b><span>' + k[0] + '</span></div>'; }).join('') + '</div>' +
+        '<h2>ليه؟</h2><div class="card"><ul>' + (r.reasons || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
+        (open ? '<div class="card"><form class="row" id="df">' + (buy ? '<label>المبلغ (جنيه)<input name="amount" type="number" min="1" step="1" value="' + esc(s.default_amount) + '"></label>' : '') +
+          '<button name="yes" value="1">نعم</button><button type="button" class="ghost" id="no">لا</button><span id="dmsg" class="muted"></span></form>' +
+          '<p class="muted">«نعم» بتسجّل الصفقة فى محفظة الديمو بالسعر ده، ولو السعر وصله بعد كده تتحسب اتنفّذت. صالح لحد ' + esc(t(r.expires_ts)) + '.</p></div>' : '') +
+        '<h2>لو عايز تنفّذها فى Thndr بإيدك</h2><pre class="ticket" id="tk">' + esc(thndr) + '</pre><button type="button" class="ghost" id="copy">انسخ</button>' +
+        '<p><a href="/stock/' + esc(r.symbol) + '">صفحة السهم</a> · <a href="/portfolio">محفظة الديمو</a></p>';
+      document.getElementById('copy').onclick = function () { navigator.clipboard.writeText(thndr).then(function () { document.getElementById('copy').textContent = 'اتنسخ ✓'; }); };
+      if (!open) return;
+      function send(yes) {
+        var f = document.getElementById('df'); var amt = f.amount ? Number(f.amount.value) : undefined;
+        api('/api/recs/' + id + '/decide', { yes: yes, amount: amt }).then(function (x) {
+          document.getElementById('dmsg').textContent = x.ok ? (yes ? 'اتسجّل فى محفظة الديمو ✓' : 'اترفض') : (x.error || 'فشل');
+          if (x.ok) setTimeout(rec, 900);
+        });
+      }
+      document.getElementById('df').addEventListener('submit', function (e) { e.preventDefault(); send(true); });
+      document.getElementById('no').onclick = function () { send(false); };
+    });
+  }
+
+  /* ── محفظة الديمو ── */
+  function portfolio() {
+    api('/api/sim').then(function (s) {
+      var pf = s.performance || {};
+      app.innerHTML = '<h1>محفظة الديمو</h1><p class="muted">لعبة بفلوس وهمية عشان نعرف الترشيحات بتكسب ولا لأ قبل أى فلوس حقيقية.</p>' +
+        '<div class="grid">' + [['قيمة المحفظة', n2(pf.value)], ['الكاش', n2(pf.cash)], ['محجوز لأوامر شراء', n2(s.reserved)], ['العائد', '<bdi dir="ltr">' + (pf.return_pct > 0 ? '+' : '') + n2(pf.return_pct) + '%</bdi>'],
+          ['الربح المحقّق', sg(pf.realized, true)], ['صفقات اتقفلت', pf.closed], ['نسبة الكسب', pf.win_rate == null ? '-' : '<bdi dir="ltr">' + pf.win_rate + '%</bdi>']]
+          .map(function (k) { return '<div class="kv"><b>' + k[1] + '</b><span>' + k[0] + '</span></div>'; }).join('') + '</div>' +
+        '<h2>الأسهم اللى معاك</h2><div class="scroll"><table><thead><tr><th>السهم</th><th>الكمية</th><th>متوسط الشراء</th><th>السعر الحالى</th><th>المكسب/الخسارة</th></tr></thead><tbody>' +
+        ((s.positions || []).length ? s.positions.map(function (p) {
+          var pl = p.price ? (p.price - p.avg_cost) * p.qty : null;
+          return '<tr><td><a href="/stock/' + esc(p.symbol) + '">' + esc(p.symbol) + '</a></td><td>' + p.qty + '</td><td>' + n2(p.avg_cost) + '</td><td>' + n2(p.price) + '</td><td>' + (pl == null ? '-' : sg(pl, true)) + '</td></tr>';
+        }).join('') : '<tr><td colspan="5" class="muted">مفيش.</td></tr>') + '</tbody></table></div>' +
+        '<h2>أوامر مستنية السعر</h2><div class="scroll"><table><thead><tr><th>السهم</th><th>النوع</th><th>السعر</th><th>الكمية</th><th>السبب</th><th></th></tr></thead><tbody>' +
+        ((s.orders || []).length ? s.orders.map(function (o) {
+          var kind = o.side === 'BUY' ? 'شراء محدد' : o.type === 'STOP' ? 'وقف خسارة' : o.type === 'MARKET' ? 'بيع بسعر السوق' : 'جنى أرباح';
+          return '<tr><td>' + esc(o.symbol) + '</td><td>' + kind + '</td><td>' + n2(o.price) + '</td><td>' + o.qty + '</td><td>' + esc(o.reason || '') + '</td><td><button class="ghost" data-cancel="' + o.id + '">إلغاء</button></td></tr>';
+        }).join('') : '<tr><td colspan="6" class="muted">مفيش.</td></tr>') + '</tbody></table></div>' +
+        '<h2>السجل</h2><div class="scroll"><table><thead><tr><th>الوقت</th><th>السهم</th><th>العملية</th><th>الكمية</th><th>السعر</th><th>المكسب/الخسارة</th></tr></thead><tbody>' +
+        ((s.trades || []).length ? s.trades.map(function (x) {
+          return '<tr><td>' + esc(t(x.ts)) + '</td><td>' + esc(x.symbol) + '</td><td>' + (x.side === 'BUY' ? 'شراء' : 'بيع') + (x.reason ? ' · ' + esc(x.reason) : '') + '</td><td>' + x.qty + '</td><td>' + n2(x.price) + '</td><td>' + (x.pnl == null ? '-' : sg(x.pnl, true)) + '</td></tr>';
+        }).join('') : '<tr><td colspan="6" class="muted">مفيش.</td></tr>') + '</tbody></table></div>' +
+        '<p style="margin-top:16px"><button class="ghost" id="reset">ابدأ من الأول بـ ١٠٠ ألف</button></p>';
+      app.querySelectorAll('[data-cancel]').forEach(function (b) { b.onclick = function () { api('/api/sim/orders/' + b.dataset.cancel + '/cancel', {}).then(portfolio); }; });
+      document.getElementById('reset').onclick = function () { if (confirm('تمسح محفظة الديمو كلها وتبدأ بـ ١٠٠ ألف؟')) api('/api/sim/reset', { cash: 100000 }).then(portfolio); };
+    });
+  }
+
+  var pages = { dash: dash, stock: stock, news: news, alerts: alerts, ticket: ticket, settings: settings, login: login, recs: recs, rec: rec, portfolio: portfolio };
   if (pages[page]) pages[page](); else app.innerHTML = '<h1>الصفحة مش موجودة</h1><p><a href="/">ارجع للوحة</a></p>';
 })();

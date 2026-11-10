@@ -96,3 +96,73 @@ test('analysis JSON validation with a fake model (retry once, then unknown)', as
   assert.equal(A.provider({ DEEPSEEK_API_KEY: 'k', OPENAI_API_KEY: 'o' }).name, 'deepseek');
   assert.equal(A.provider({ OPENAI_API_KEY: 'o' }).model, 'gpt-4o-mini');
 });
+
+// المرحلة ٢: الترشيحات بالقواعد + محفظة الديمو
+const S = require('../src/finance/signals');
+const Sim = require('../src/finance/sim');
+
+test('RSI and volume ratio', () => {
+  assert.equal(S.rsi14([1, 2, 3]), null);
+  assert.equal(S.rsi14(Array.from({ length: 30 }, (_, i) => 10 + i)), 100);           // طالع على طول
+  const zig = Array.from({ length: 40 }, (_, i) => 10 + (i % 2));
+  assert.ok(Math.abs(S.rsi14(zig) - 50) < 5);
+  const v = Array.from({ length: 21 }, (_, i) => ({ volume: i === 20 ? 3000 : 1000 }));
+  assert.equal(S.volumeRatio(v), 3);
+});
+
+test('buy signal only when everything lines up, with reasons', () => {
+  const lv = { reliable: true, buy_lo: 98, buy_hi: 102, sma20: 100, sma50: 95, stop_loss: 94, target1: 115, target2: 120, atr14: 4 };
+  const s = S.buySignal({ price: 100, levels: lv, rsi: 50, news: 1, volRatio: 2, fundamental: { profit_growth_pct: 30 } });
+  assert.equal(s.side, 'BUY'); assert.equal(s.price, 100); assert.equal(s.rr1, 2.5); assert.equal(s.strength, 4);
+  assert.ok(s.reasons.some((r) => r.includes('جوّه منطقة الشراء'))); assert.ok(s.reasons.some((r) => r.includes('صافى الربح زاد 30٪')));
+  assert.equal(S.buySignal({ price: 104, levels: lv, rsi: 50 }), null);                       // برّه المنطقة
+  assert.equal(S.buySignal({ price: 100, levels: Object.assign({}, lv, { sma20: 90 }), rsi: 50 }), null);   // اتجاه هابط
+  assert.equal(S.buySignal({ price: 100, levels: lv, rsi: 75 }), null);                       // متشبّع
+  assert.equal(S.buySignal({ price: 100, levels: lv, rsi: 50, news: -1 }), null);             // أخبار سلبية
+  assert.equal(S.buySignal({ price: 100, levels: Object.assign({}, lv, { target1: 105, target2: 106 }), rsi: 50 }), null);  // العائد قليل
+  const far = S.buySignal({ price: 100, levels: Object.assign({}, lv, { target1: 105, target2: 112 }), rsi: 50 });          // الهدف التانى بيدّى ٢
+  assert.equal(far.target1, 112); assert.equal(far.rr1, 2); assert.ok(far.reasons.some((r) => r.includes('٦٠ جلسة')));
+  assert.equal(S.buySignal({ price: 100, levels: lv, rsi: 50, holding: true }), null);
+  assert.equal(S.buySignal({ price: 100, levels: Object.assign({}, lv, { reliable: false }), rsi: 50 }), null);
+});
+
+test('sell signal: danger first, then trend, then take profit', () => {
+  const lv = { buy_lo: 98, buy_hi: 102, sma20: 100, sma50: 95, stop_loss: 94, target1: 115 };
+  const pos = { qty: 10, avg_cost: 100 };
+  const d = S.sellSignal({ price: 93, levels: lv, position: pos });
+  assert.equal(d.kind, 'DANGER'); assert.equal(d.qty, 10); assert.ok(d.reasons[0].includes('خسارة 7٪'));
+  assert.equal(S.sellSignal({ price: 100, levels: lv, position: pos, news: -2 }).kind, 'DANGER');
+  assert.equal(S.sellSignal({ price: 96, levels: Object.assign({}, lv, { sma20: 97, sma50: 99 }), position: pos }).kind, 'TREND');
+  assert.equal(S.sellSignal({ price: 116, levels: lv, position: pos }).kind, 'TAKE_PROFIT');
+  assert.equal(S.sellSignal({ price: 105, levels: lv, position: pos }), null);
+  assert.equal(S.sellSignal({ price: 93, levels: lv, position: null }), null);
+  assert.equal(S.qtyFor(1000, 13.3), 75);
+});
+
+test('demo portfolio: limit fills, exits cancel each other, P/L and win rate', () => {
+  const buy = { side: 'BUY', type: 'LIMIT', price: 10, qty: 100, status: 'OPEN' };
+  assert.equal(Sim.fillPrice(buy, 10.5), null);
+  assert.equal(Sim.fillPrice(buy, 9.9), 9.9);
+  let acc = { cash: 100000, start_cash: 100000 };
+  const f = Sim.applyFill(acc, null, buy, 9.9);
+  assert.equal(f.cash, 99010); assert.deepEqual(f.position, { qty: 100, avg_cost: 9.9 });
+  const ex = Sim.exitOrders('COMI', 100, 9, 12);
+  assert.equal(ex.length, 2); assert.equal(ex[0].oco, ex[1].oco);
+  const stop = Object.assign({ status: 'OPEN' }, ex[0]), tp = Object.assign({ status: 'OPEN' }, ex[1]);
+  assert.equal(Sim.fillPrice(stop, 9.5), null); assert.equal(Sim.fillPrice(tp, 12.2), 12.2);
+  const s = Sim.applyFill({ cash: f.cash }, f.position, tp, 12.2);
+  assert.equal(s.cash, 100230); assert.equal(s.position, null); assert.equal(s.trade.pnl, 230);
+  assert.equal(Sim.applyFill({ cash: 50 }, null, buy, 10).error, 'no_cash');
+  const p = Sim.performance({ cash: 100230, start_cash: 100000 }, [], {}, [s.trade, { side: 'SELL', pnl: -50 }]);
+  assert.equal(p.value, 100230); assert.equal(p.return_pct, 0.23); assert.equal(p.win_rate, 50); assert.equal(p.realized, 180);
+});
+
+test('Yahoo chart parsing: last non-empty 5m close, daily candles in Cairo date', () => {
+  const Y = require('../src/finance/yahoo');
+  const q = Y.parseQuote({ chart: { result: [{ meta: { regularMarketPrice: 9 }, timestamp: [1794560400, 1794560700], indicators: { quote: [{ close: [12.5, null] }] } }] } });
+  assert.deepEqual(q, { price: 12.5, quote_ts: new Date(1794560400 * 1000).toISOString() });
+  assert.equal(Y.parseQuote({ chart: { result: [{ meta: { regularMarketPrice: 9, regularMarketTime: 1 }, timestamp: [], indicators: { quote: [{}] } }] } }).price, 9);
+  assert.equal(Y.parseQuote({}), null);
+  const c = Y.parseCandles({ chart: { result: [{ timestamp: [1794556800], indicators: { quote: [{ open: [1], high: [2], low: [0.5], close: [1.5], volume: [100] }] } }] } });
+  assert.deepEqual(c, [{ trade_date: '2026-11-13', open: 1, high: 2, low: 0.5, close: 1.5, volume: 100 }]);
+});

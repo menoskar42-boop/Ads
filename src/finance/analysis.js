@@ -29,6 +29,9 @@ function validate(obj) {
   return {
     sentiment, impact_score: impact, event_type: EVENTS.includes(event) ? event : 'other',
     summary_ar: summary.replace(/[\u2013\u2014]/g, '-').slice(0, 400), key_facts: facts,
+    // التحليل المالى من نفس الطلب (من غير طلب زيادة): نسبة تغيّر صافى الربح لو الإفصاح نتايج أعمال
+    profit_growth_pct: Number.isFinite(Number(obj.profit_growth_pct)) && obj.profit_growth_pct !== null && obj.profit_growth_pct !== ''
+      ? Math.max(-1000, Math.min(1000, Math.round(Number(obj.profit_growth_pct)))) : null,
   };
 }
 
@@ -40,7 +43,8 @@ function parseJson(text) {
 const SYSTEM = 'أنت محلل أخبار للبورصة المصرية. اقرا الإفصاح وارجع JSON بس بالمفاتيح دى:\n' +
   '{"sentiment":"positive|negative|neutral","impact_score":عدد صحيح من -2 لـ 2,' +
   '"event_type":"dividend|earnings|board_decision|capital_increase|buyback|other",' +
-  '"summary_ar":"جملتين عربى بالكتير","key_facts":["حقيقة قصيرة", "..."]}\n' +
+  '"summary_ar":"جملتين عربى بالكتير","key_facts":["حقيقة قصيرة", "..."],' +
+  '"profit_growth_pct":نسبة تغيّر صافى الربح عن الفترة المقارنة كرقم أو null لو مش نتايج أعمال}\n' +
   'ماتخترعش أرقام مش موجودة فى النص. لو النص مش كفاية اختار neutral و0. ماتديش نصيحة شراء أو بيع.';
 
 /**

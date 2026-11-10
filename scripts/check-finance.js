@@ -14,6 +14,7 @@ const site = read('src/routes/finance_site.js');
 const app = read('finance-web/app.js');
 const server = read('server.js');
 const files = ['src/routes/finance_site.js', 'src/finance/levels.js', 'src/finance/store.js', 'src/finance/analysis.js',
+  'src/finance/signals.js', 'src/finance/sim.js', 'src/finance/trade.js', 'src/finance/yahoo.js', 'finance-web/sw.js',
   'finance-web/app.js', 'finance-web/style.css', 'finance-web/userscripts/yahoo-feeder.user.js', 'finance-web/userscripts/egx-disclosures.user.js',
   'docs/FINANCE_EGX.md'];
 const all = files.map((f) => [f, read(f)]);
@@ -28,17 +29,22 @@ check('not in sitemap or llms.txt',
 check('disclaimer on every page (Arabic and English)',
   /ليست نصيحة استثمار/.test(site) && /not investment advice/.test(site) && /\$\{DISCLAIMER_AR\}/.test(site) && /\$\{DISCLAIMER_EN\}/.test(site),
   'كل صفحة لازم تقول: تقديرات فنية فقط وليست نصيحة استثمار، والبيانات متأخرة.');
-check('no trade execution and no broker anywhere',
-  !all.some(([, s]) => /thndr|placeOrder|place_order|\/order|executeTrade|execute_trade/i.test(s.replace(/مفيش تنفيذ صفقات ولا أى ربط بشركة سمسرة/g, ''))),
-  'ممنوع أى زرار أو API بينفّذ صفقة أو يتكلم مع شركة سمسرة. التذكرة للعرض والنسخ بس.');
-check('every ingest/edit route needs the key',
+check('no real trade execution: «نعم» only writes the demo portfolio, nothing talks to a broker',
+  !all.some(([f, s]) => !f.endsWith('.md') && /https?:\/\/[^\s'"]*thndr|@(?:match|connect)\s+\S*thndr|placeOrder|executeTrade|execute_trade/i.test(s))
+    && !/INSERT INTO egx\.(?!sim_|recs|settings|push_subs|quotes|candles|levels|alerts|disclosures|watchlist)/.test(read('src/finance/trade.js'))
+    && /egx\.sim_orders/.test(read('src/finance/trade.js')),
+  'التنفيذ الحقيقى بإيد المالك من تطبيق Thndr. الموقع مابيكلّمش أى شركة سمسرة، و«نعم» بتكتب فى محفظة الديمو بس.');
+check('ingest needs the key; every page and owner API needs login; Yes/No needs login or the signed token',
   /post\('\/api\/ingest\/quotes', needKey/.test(site) && /post\('\/api\/ingest\/candles', needKey/.test(site)
-    && /post\('\/api\/ingest\/disclosures', needKey/.test(site) && /post\('\/api\/watchlist', needKey/.test(site)
-    && /reanalyze', needKey/.test(site) && /timingSafeEqual/.test(site),
-  'أى إدخال أو تعديل لازم X-API-Key = FINANCE_INGEST_KEY.');
-check('AI capped per day and in one swappable function',
-  /FINANCE_AI_DAILY_CAP \|\| 50/.test(site) && /async function analyzeDisclosure/.test(read('src/finance/analysis.js')),
-  'التحليل بحد ٥٠ فى اليوم، والمزوّد كله فى analysis.js.');
+    && /post\('\/api\/ingest\/disclosures', needKey/.test(site) && /post\('\/api\/watchlist', needOwner/.test(site)
+    && /get\('\/api\/state', needOwner/.test(site) && /get\('\/api\/sim', needOwner/.test(site) && /reanalyze', needOwner/.test(site)
+    && /if \(!isOwner\(req\) && !tokenOk\) return fail\(res, 401/.test(site) && /if \(!sessionOk\(req\)\) return res\.redirect\(302, '\/login/.test(site)
+    && /timingSafeEqual/.test(site) && /HttpOnly; SameSite=Lax/.test(site),
+  'الموقع شخصى: كل صفحة وكل API بالدخول، والإدخال بالمفتاح، و«نعم/لا» من الإشعار بتوكن موقّع.');
+check('AI only for disclosures (once each, capped per day); signals are rules (cost)',
+  /FINANCE_AI_DAILY_CAP \|\| 30/.test(site) && /async function analyzeDisclosure/.test(read('src/finance/analysis.js'))
+    && !/analysis|fetch\(/.test(read('src/finance/signals.js')) && !/analysis/.test(read('src/finance/trade.js')),
+  'طلب المالك: أقل اعتماد على الذكاء الاصطناعى. الترشيحات بقواعد، والتحليل للإفصاحات بس بحد ٣٠ فى اليوم.');
 check('mounted by host before body parsers, boot not blocked, slug reserved',
   server.indexOf("startsWith('finance.')") > 0 && server.indexOf("startsWith('finance.')") < server.indexOf('app.use(express.json(')
     && /financeSite\.start\(\)\.catch/.test(server) && /'finance'/.test(read('src/lib/reserved_slugs.js')),

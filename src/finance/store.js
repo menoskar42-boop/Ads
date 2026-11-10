@@ -42,6 +42,21 @@ async function ensureSchema(p) {
     CREATE TABLE IF NOT EXISTS egx.watchlist(symbol TEXT PRIMARY KEY, is_active BOOLEAN DEFAULT true, fouda_score NUMERIC, note TEXT);
     CREATE INDEX IF NOT EXISTS egx_quotes_sym_ts ON egx.quotes(symbol, fetched_ts DESC);
     CREATE INDEX IF NOT EXISTS egx_disc_sym ON egx.disclosures(symbol, published_date DESC);
+    ALTER TABLE egx.disclosures ADD COLUMN IF NOT EXISTS profit_growth_pct NUMERIC;
+    CREATE TABLE IF NOT EXISTS egx.settings(k TEXT PRIMARY KEY, v TEXT);
+    CREATE TABLE IF NOT EXISTS egx.recs(id TEXT PRIMARY KEY, symbol TEXT NOT NULL, side TEXT NOT NULL, kind TEXT, price NUMERIC, stop_loss NUMERIC,
+      target1 NUMERIC, target2 NUMERIC, qty INT, strength INT, reasons TEXT, status TEXT DEFAULT 'NEW', amount NUMERIC,
+      created_ts TIMESTAMPTZ DEFAULT now(), expires_ts TIMESTAMPTZ, decided_ts TIMESTAMPTZ, pushed INT DEFAULT 0);
+    CREATE INDEX IF NOT EXISTS egx_recs_sym ON egx.recs(symbol, created_ts DESC);
+    CREATE TABLE IF NOT EXISTS egx.sim_account(id INT PRIMARY KEY, cash NUMERIC NOT NULL, start_cash NUMERIC NOT NULL, created_ts TIMESTAMPTZ DEFAULT now());
+    CREATE TABLE IF NOT EXISTS egx.sim_orders(id SERIAL PRIMARY KEY, rec_id TEXT, symbol TEXT NOT NULL, side TEXT NOT NULL, type TEXT NOT NULL,
+      price NUMERIC, qty INT NOT NULL, oco TEXT, reason TEXT, stop_loss NUMERIC, target1 NUMERIC, status TEXT DEFAULT 'OPEN', created_ts TIMESTAMPTZ DEFAULT now(),
+      expires_ts TIMESTAMPTZ, filled_ts TIMESTAMPTZ, fill_price NUMERIC);
+    CREATE TABLE IF NOT EXISTS egx.sim_positions(symbol TEXT PRIMARY KEY, qty INT NOT NULL, avg_cost NUMERIC NOT NULL, opened_ts TIMESTAMPTZ DEFAULT now());
+    CREATE TABLE IF NOT EXISTS egx.sim_trades(id SERIAL PRIMARY KEY, symbol TEXT NOT NULL, side TEXT NOT NULL, qty INT NOT NULL, price NUMERIC NOT NULL,
+      pnl NUMERIC, reason TEXT, ts TIMESTAMPTZ DEFAULT now());
+    CREATE TABLE IF NOT EXISTS egx.push_subs(endpoint TEXT PRIMARY KEY, sub TEXT NOT NULL, created_ts TIMESTAMPTZ DEFAULT now());
+    INSERT INTO egx.sim_account(id, cash, start_cash) VALUES (1, 100000, 100000) ON CONFLICT DO NOTHING;
   `);
   const n = await p.query('SELECT count(*)::int AS n FROM egx.watchlist');
   if (n.rows[0].n === 0) {
@@ -188,8 +203,10 @@ async function analysesToday(p) {
 }
 
 async function saveAnalysis(p, id, a) {
-  await p.query(`UPDATE egx.disclosures SET sentiment=$2, impact_score=$3, event_type=$4, summary_ar=$5, key_facts=$6, analyzed_ts=now() WHERE id=$1`,
-    [id, a.sentiment, a.sentiment === 'unknown' ? null : a.impact_score, a.event_type || null, a.summary_ar || null, JSON.stringify(a.key_facts || [])]);
+  await p.query(`UPDATE egx.disclosures SET sentiment=$2, impact_score=$3, event_type=$4, summary_ar=$5, key_facts=$6, profit_growth_pct=$7,
+    analyzed_ts=now() WHERE id=$1`,
+  [id, a.sentiment, a.sentiment === 'unknown' ? null : a.impact_score, a.event_type || null, a.summary_ar || null, JSON.stringify(a.key_facts || []),
+    a.profit_growth_pct == null ? null : a.profit_growth_pct]);
 }
 
 const discOut = (r) => Object.assign({}, r, {
