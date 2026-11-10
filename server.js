@@ -285,6 +285,17 @@ app.use((req, res, next) => {
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
 
+// ===== EGX Swing (finance.oscardevs.com): لوحة أسهم البورصة المصرية للمالك =====
+// قبل الـbody parsers والجلسة: ليه parsers بحد أكبر (شموع ٩ شهور) ومالوش دعوة بجلسة الموقع ولا الإعلانات.
+// noindex ومن غير إعلانات (scripts/check-finance.js). مفيش تنفيذ صفقات. التفاصيل: docs/FINANCE_EGX.md
+const financeSite = require('./src/routes/finance_site').createFinanceSite();
+app.use((req, res, next) => {
+  const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
+  const host = String(rawHost).split(':')[0].toLowerCase();
+  if (!host.startsWith('finance.')) return next();
+  return financeSite.router(req, res, next);
+});
+
 // Cache-busting token for static assets — changes on every server start,
 // so a new deploy always serves fresh CSS/JS instead of a stale CDN copy.
 app.locals.assetVersion = Date.now();
@@ -2099,6 +2110,8 @@ initDb()
   .then(() => ensureSokroSchema())
   .then(() => ensureFleetSchema())
   .then(() => ensureDriveSchema(drivePool).then(() => driveSite.startJobs()).catch((e) => console.error('[drive] schema:', e.message)))
+  // من غير ما يوقّف الإقلاع: قاعدة Oracle لو بطيئة أو واقعة مابتأخرش باقى الموقع
+  .then(() => { financeSite.start().catch((e) => console.error('[finance] schema:', e.message)); })
   // Auto-import the full Egyptian medicines catalog once the tables exist.
   // Runs in the background, is staleness-gated (won't re-download if fresh),
   // and can never crash boot. A daily timer keeps a long-running instance

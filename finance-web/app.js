@@ -1,0 +1,217 @@
+// EGX Swing: كل الصفحات فى ملف واحد من غير مكتبات. الصفحة بتتحدد من data-page على body.
+(function () {
+  'use strict';
+  var app = document.getElementById('app');
+  var page = document.body.dataset.page;
+  var KEY = 'fin_key';
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function n2(x) { return x == null || !isFinite(x) ? '-' : Number(x).toFixed(2); }
+  // الأرقام اللى ليها إشارة (+2 · -1.00) بتتعرض شمال لليمين عشان الصفحة RTL ماتقلبهاش
+  function sg(x, fixed) { var v = fixed ? n2(x) : String(x); return '<bdi dir="ltr">' + (x > 0 ? '+' : '') + v + '</bdi>'; }
+  function t(ts) {
+    if (!ts) return '-';
+    return new Date(ts).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
+  }
+  function key() { try { return localStorage.getItem(KEY) || ''; } catch (_) { return ''; } }
+  function api(path, body, withKey) {
+    var o = { headers: {} };
+    if (body !== undefined) { o.method = 'POST'; o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
+    if (withKey) o.headers['X-API-Key'] = key();
+    return fetch(path, o).then(function (r) { return r.json().catch(function () { return { ok: false, error: 'HTTP ' + r.status }; }); });
+  }
+  var FLAG = { short_history: 'تاريخ قصير', split_suspect: 'قفزة مشكوك فيها (تجزئة؟)', flat_data: 'بيانات ثابتة' };
+  var SENT = { positive: ['إيجابى', 'good'], negative: ['سلبى', 'bad'], neutral: ['محايد', ''], unknown: ['ماتحللش', 'warn'] };
+  var KIND = { STOP: ['وصل الوقف', 'bad'], IN_BUY_ZONE: ['جوّه منطقة الشراء', 'good'], TARGET1: ['وصل الهدف الأول', 'good'] };
+  function flags(lv) { return (lv && lv.flags || []).map(function (f) { return '<span class="pill warn">' + esc(FLAG[f] || f) + '</span>'; }).join(' '); }
+  function breakdownText(r) { return (r.breakdown || []).map(function (p) { return p.label + ': ' + (p.points > 0 ? '+' : '') + p.points; }).join('\n'); }
+  function newsPill(r) {
+    if (!r.news_count) return '<span class="muted">-</span>';
+    var c = r.news > 0 ? 'good' : r.news < 0 ? 'bad' : '';
+    return '<span class="pill ' + c + '" title="' + r.news_count + ' إفصاح فى آخر ١٤ يوم">' + sg(r.news) + '</span>';
+  }
+
+  /* ── اللوحة ── */
+  function dash() {
+    app.innerHTML = '<h1>ترتيب الأسهم</h1><div id="warn"></div><div class="scroll"><table><thead><tr><th>#</th><th>السهم</th><th>السعر</th>' +
+      '<th>منطقة الشراء</th><th>الوقف</th><th>الهدف ١</th><th>الهدف ٢</th><th>الأخبار</th><th>الدرجة</th><th>الثقة</th></tr></thead><tbody id="rows">' +
+      '<tr><td colspan="10" class="muted">بيحمّل…</td></tr></tbody></table></div>' +
+      '<p class="muted">بيتحدّث لوحده كل ١٥ ثانية. الدرجة: مرّر الماوس عليها أو افتح السهم عشان تشوف أسبابها.</p>';
+    function load() {
+      api('/api/state').then(function (s) {
+        if (!s.ok) { document.getElementById('rows').innerHTML = '<tr><td colspan="10">' + esc(s.error) + '</td></tr>'; return; }
+        document.getElementById('clock').textContent = 'آخر سعر وصل: ' + t(s.last_quote_ts) + (s.market_open ? ' · السوق مفتوح' : ' · السوق مقفول');
+        document.getElementById('warn').innerHTML = s.stale ? '<div class="banner">مفيش أسعار وصلت من ٣٠ دقيقة والسوق مفتوح. اتأكد إن تاب Yahoo Finance مفتوح وسكربت Tampermonkey شغّال.</div>' : '';
+        if (!s.rows.length) { document.getElementById('rows').innerHTML = '<tr><td colspan="10" class="muted">قايمة المتابعة فاضية. ضيف أسهم من الإعدادات.</td></tr>'; return; }
+        document.getElementById('rows').innerHTML = s.rows.map(function (r, i) {
+          var lv = r.levels || {};
+          return '<tr class="' + (r.reliable ? '' : 'unreliable') + '"><td>' + (i + 1) + '</td><td><a href="/stock/' + esc(r.symbol) + '"><b>' + esc(r.symbol) + '</b></a>' +
+            (r.note ? ' <span class="muted">' + esc(r.note) + '</span>' : '') + '</td>' +
+            '<td>' + n2(r.price) + ' <span class="pill" title="' + (r.price_source === 'quote' ? 'سعر وقت ' + esc(t(r.quote_ts)) : 'آخر إقفال') + '">' +
+            (r.price_source === 'quote' ? 'متأخر · ' + esc(t(r.quote_ts)) : 'إقفال') + '</span></td>' +
+            '<td>' + n2(lv.buy_lo) + ' : ' + n2(lv.buy_hi) + '</td><td>' + n2(lv.stop_loss) + '</td><td>' + n2(lv.target1) + '</td><td>' + n2(lv.target2) + '</td>' +
+            '<td>' + newsPill(r) + '</td><td class="score" title="' + esc(breakdownText(r)) + '">' + sg(r.composite, true) + '</td>' +
+            '<td>' + (r.levels ? (r.reliable ? '<span class="pill good">موثوق</span>' : flags(lv)) : '<span class="pill warn">مفيش شموع</span>') + '</td></tr>';
+        }).join('');
+      }).catch(function () { document.getElementById('warn').innerHTML = '<div class="banner">مش قادر أوصل للسيرفر. هجرّب تانى.</div>'; });
+    }
+    load(); setInterval(load, 15000);
+  }
+
+  /* ── صفحة السهم ── */
+  function chart(cs, lv) {
+    if (!cs || cs.length < 2) return '<p class="muted">مفيش شموع كفاية للرسم.</p>';
+    var W = 760, H = 280, P = 36, R = 64;
+    var vals = cs.map(function (c) { return c.close_p; });
+    [lv.support, lv.resistance20, lv.resistance60, lv.stop_loss, lv.buy_lo, lv.buy_hi].forEach(function (v) { if (v != null) vals.push(v); });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals); if (hi === lo) hi = lo + 1;
+    function x(i) { return P + (W - P - R) * i / (cs.length - 1); }
+    function y(v) { return H - P - (H - 2 * P) * (v - lo) / (hi - lo); }
+    function line(v, cls, label) { return v == null ? '' : '<line class="' + cls + '" x1="' + P + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text x="' + (W - R + 4) + '" y="' + (y(v) + 4) + '">' + label + '</text>'; }
+    var pts = cs.map(function (c, i) { return x(i).toFixed(1) + ',' + y(c.close_p).toFixed(1); }).join(' ');
+    var zone = lv.buy_lo != null ? '<rect class="zone" x="' + P + '" width="' + (W - P - R) + '" y="' + y(lv.buy_hi) + '" height="' + Math.max(1, y(lv.buy_lo) - y(lv.buy_hi)) + '"/>' : '';
+    return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="سعر الإقفال مع الدعم والمقاومة ومنطقة الشراء" dir="ltr">' + zone +
+      line(lv.support, 'sup', 'S') + line(lv.resistance20, 'res', lv.resistance60 === lv.resistance20 ? 'R20=R60' : 'R20') +
+      (lv.resistance60 === lv.resistance20 ? '' : line(lv.resistance60, 'res', 'R60')) + line(lv.stop_loss, 'stop', 'SL') +
+      '<polyline class="price" points="' + pts + '"/><text x="' + P + '" y="' + (H - 8) + '">' + esc(cs[0].trade_date) + '</text>' +
+      '<text x="' + (W - R) + '" y="' + (H - 8) + '" text-anchor="end">' + esc(cs[cs.length - 1].trade_date) + '</text></svg>';
+  }
+  function discCard(d, withSym) {
+    var s = SENT[d.sentiment] || SENT.unknown;
+    return '<div class="card"><h3>' + esc(d.title) + '</h3><div class="muted">' + esc(d.published_date || '') + ' · ' + esc(d.company || '') +
+      (withSym && d.symbol ? ' · <a href="/stock/' + esc(d.symbol) + '">' + esc(d.symbol) + '</a>' : '') +
+      ' · <span class="pill ' + s[1] + '">' + s[0] + (d.impact_score != null ? ' ' + sg(d.impact_score) : '') + '</span>' +
+      (d.event_type ? ' <span class="pill">' + esc(d.event_type) + '</span>' : '') + '</div>' +
+      (d.summary_ar ? '<p>' + esc(d.summary_ar) + '</p>' : '') +
+      (d.key_facts && d.key_facts.length ? '<ul>' + d.key_facts.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>' : '') +
+      '<div class="row"><a href="' + esc(d.url) + '" target="_blank" rel="noopener">الإفصاح الأصلى على موقع البورصة</a>' +
+      '<button class="ghost" data-re="' + esc(d.id) + '">حلّله تانى</button></div></div>';
+  }
+  function bindReanalyze() {
+    app.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-re]'); if (!b) return;
+      if (!key()) { alert('حط المفتاح الأول من صفحة الإعدادات'); return; }
+      b.disabled = true; b.textContent = 'بيحلّل…';
+      api('/api/disclosures/' + b.dataset.re + '/reanalyze', {}, true).then(function (r) {
+        b.textContent = r.ok ? 'اتحلّل ✓ (حدّث الصفحة)' : (r.error || 'فشل'); b.disabled = false;
+      });
+    });
+  }
+  function stock() {
+    var sym = document.body.dataset.symbol;
+    api('/api/stock/' + encodeURIComponent(sym)).then(function (s) {
+      if (!s.ok) { app.innerHTML = '<p>' + esc(s.error) + '</p>'; return; }
+      var lv = s.levels || {}, r = s.row || {};
+      app.innerHTML = '<h1>' + esc(sym) + (r.note ? ' <span class="muted">' + esc(r.note) + '</span>' : '') + '</h1>' +
+        (s.levels ? '' : '<div class="banner">مفيش شموع يومية للسهم ده لسه. سكربت Yahoo بيبعتها مرة فى اليوم.</div>') +
+        (s.levels && !lv.reliable ? '<div class="banner">البيانات مش موثوقة: ' + flags(lv) + '. مفيش تنبيهات للسهم ده.</div>' : '') +
+        '<div class="grid">' + [['السعر', r.price], ['منطقة الشراء من', lv.buy_lo], ['منطقة الشراء لحد', lv.buy_hi], ['الوقف', lv.stop_loss],
+          ['الهدف ١', lv.target1], ['الهدف ٢', lv.target2], ['الدعم (٢٠)', lv.support], ['المتوسط ٢٠', lv.sma20], ['المتوسط ٥٠', lv.sma50], ['ATR ١٤', lv.atr14]]
+          .map(function (k) { return '<div class="kv"><b>' + n2(k[1]) + '</b><span>' + k[0] + '</span></div>'; }).join('') + '</div>' +
+        '<h2>الرسم (آخر ١٢٠ جلسة)</h2><div class="card">' + chart(s.candles, lv) + '<p class="muted">المنطقة الملوّنة = منطقة الشراء · S الدعم · R20 و R60 المقاومة · SL الوقف</p></div>' +
+        '<h2>الدرجة ' + sg(r.composite, true) + '</h2><div class="card"><ul>' + (r.breakdown || []).map(function (p) {
+          return '<li>' + esc(p.label) + ': <b>' + sg(p.points) + '</b></li>'; }).join('') + '</ul>' +
+        '<a href="/ticket?symbol=' + esc(sym) + '">اعمل تذكرة للسهم ده</a></div>' +
+        '<h2>الإفصاحات</h2><div class="news">' + (s.disclosures.length ? s.disclosures.map(function (d) { return discCard(d, false); }).join('') : '<p class="muted">مفيش.</p>') + '</div>';
+    });
+    bindReanalyze();
+  }
+
+  /* ── الإفصاحات ── */
+  function news() {
+    api('/api/disclosures').then(function (s) {
+      app.innerHTML = '<h1>الإفصاحات</h1>' + (s.ai ? '' : '<div class="banner">مفيش مفتاح ذكاء اصطناعى على السيرفر (DEEPSEEK_API_KEY أو OPENAI_API_KEY)، فالإفصاحات بتتحفظ من غير تحليل.</div>') +
+        '<div class="news">' + ((s.items || []).length ? s.items.map(function (d) { return discCard(d, true); }).join('') : '<p class="muted">لسه مفيش. افتح صفحة البحث فى أخبار البورصة وسكربت Tampermonkey هيبعتها.</p>') + '</div>';
+    });
+    bindReanalyze();
+  }
+
+  /* ── التنبيهات ── */
+  function alerts() {
+    var all = /all=1/.test(location.search);
+    api('/api/alerts' + (all ? '?all=1' : '')).then(function (s) {
+      app.innerHTML = '<h1>' + (all ? 'كل التنبيهات' : 'تنبيهات النهارده') + '</h1><p><a href="/alerts' + (all ? '' : '?all=1') + '">' + (all ? 'النهارده بس' : 'اعرض الكل') + '</a></p>' +
+        '<div class="scroll"><table><thead><tr><th>الوقت</th><th>السهم</th><th>التنبيه</th><th>السعر</th></tr></thead><tbody>' +
+        ((s.items || []).length ? s.items.map(function (a) { var k = KIND[a.kind] || [a.kind, ''];
+          return '<tr><td>' + esc(t(a.created_ts)) + '</td><td><a href="/stock/' + esc(a.symbol) + '">' + esc(a.symbol) + '</a></td><td><span class="pill ' + k[1] + '">' + k[0] + '</span></td><td>' + n2(a.price) + '</td></tr>';
+        }).join('') : '<tr><td colspan="4" class="muted">مفيش تنبيهات.</td></tr>') + '</tbody></table></div>';
+    });
+  }
+
+  /* ── التذكرة ── */
+  function ticket() {
+    var pre = new URLSearchParams(location.search).get('symbol') || '';
+    api('/api/state').then(function (s) {
+      var opts = (s.rows || []).filter(function (r) { return r.levels; }).map(function (r) {
+        return '<option value="' + esc(r.symbol) + '"' + (r.symbol === pre ? ' selected' : '') + '>' + esc(r.symbol) + (r.reliable ? '' : ' (غير موثوق)') + '</option>'; }).join('');
+      app.innerHTML = '<h1>تذكرة صفقة</h1><p class="muted">أرقام تكتبها إنت بنفسك فى تطبيق السمسرة. الموقع مابينفّذش أى أمر.</p>' +
+        '<form class="row card" id="f"><label>السهم<select name="symbol">' + opts + '</select></label>' +
+        '<label>رأس المال (جنيه)<input name="capital_egp" type="number" min="1" step="1" required value="' + esc(localStorage.getItem('fin_cap') || '') + '"></label>' +
+        '<label>المخاطرة ٪<input name="risk_pct" type="number" min="0.1" max="10" step="0.1" required value="' + esc(localStorage.getItem('fin_risk') || '1') + '"></label>' +
+        '<button>احسب</button></form><div id="out"></div>';
+      document.getElementById('f').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var fd = new FormData(e.target), b = { symbol: fd.get('symbol'), capital_egp: Number(fd.get('capital_egp')), risk_pct: Number(fd.get('risk_pct')) };
+        try { localStorage.setItem('fin_cap', b.capital_egp); localStorage.setItem('fin_risk', b.risk_pct); } catch (_) {}
+        api('/api/ticket', b).then(function (r) {
+          var out = document.getElementById('out');
+          if (!r.ok) { out.innerHTML = '<div class="banner">' + esc(r.error) + '</div>'; return; }
+          var k = r.ticket;
+          var text = 'السهم: ' + r.symbol + '\nالدخول (أعلى منطقة الشراء): ' + n2(k.entry) + '\nالوقف: ' + n2(k.stop_loss) +
+            '\nالهدف ١: ' + n2(k.target1) + (k.rr1 != null ? ' (العائد للمخاطرة ' + k.rr1 + ')' : '') +
+            '\nالهدف ٢: ' + n2(k.target2) + (k.rr2 != null ? ' (العائد للمخاطرة ' + k.rr2 + ')' : '') +
+            '\nالكمية: ' + k.quantity + ' سهم' + (k.capped_by_cash ? ' (محدودة برأس المال)' : '') +
+            '\nالتكلفة: ' + n2(k.cost) + ' جنيه\nالمخاطرة: ' + n2(k.risk_egp) + ' جنيه\n\nالأسباب:\n' +
+            (r.breakdown || []).map(function (p) { return '- ' + p.label + ': ' + (p.points > 0 ? '+' : '') + p.points; }).join('\n') +
+            (r.news.length ? '\n\nآخر الإفصاحات:\n' + r.news.map(function (n) { return '- ' + (n.date || '') + ' ' + n.title + (n.summary_ar ? ': ' + n.summary_ar : ''); }).join('\n') : '') +
+            '\n\nتقديرات فنية فقط وليست نصيحة استثمار. البيانات متأخرة.';
+          out.innerHTML = (r.reliable ? '' : '<div class="banner">بيانات السهم ده مش موثوقة: ' + flags({ flags: r.flags }) + '</div>') +
+            '<pre class="ticket" id="tk">' + esc(text) + '</pre><button type="button" id="copy">انسخ التذكرة</button>';
+          document.getElementById('copy').onclick = function () {
+            navigator.clipboard.writeText(text).then(function () { document.getElementById('copy').textContent = 'اتنسخت ✓'; });
+          };
+        });
+      });
+    });
+  }
+
+  /* ── الإعدادات ── */
+  function settings() {
+    Promise.all([api('/api/watchlist?all=1'), api('/api/meta')]).then(function (x) {
+      var w = x[0], m = x[1];
+      app.innerHTML = '<h1>الإعدادات</h1>' +
+        '<div class="card"><h2>المفتاح</h2><p class="muted">نفس قيمة FINANCE_INGEST_KEY فى أسرار السيرفر. بيتحفظ فى المتصفح ده بس، ومحتاجه عشان تعدّل القايمة أو تعيد التحليل.</p>' +
+        '<div class="row"><input id="k" type="password" autocomplete="off" value="' + esc(key()) + '"><button id="ks">احفظ</button></div>' +
+        (m.key_set ? '' : '<p class="banner">المفتاح مش متحط على السيرفر لسه.</p>') + '</div>' +
+        '<div class="card"><h2>قايمة المتابعة</h2><p class="muted">الملاحظة = اسم الشركة بالعربى زى ما بيظهر فى إفصاحات البورصة، عشان الإفصاح يتربط بالرمز.</p>' +
+        '<div class="scroll"><table><thead><tr><th>الرمز</th><th>متابَع</th><th>اسم الشركة</th><th>درجة فودة</th></tr></thead><tbody>' +
+        (w.items || []).map(function (i) {
+          return '<tr data-s="' + esc(i.symbol) + '"><td><b>' + esc(i.symbol) + '</b></td><td><input type="checkbox" class="act"' + (i.is_active ? ' checked' : '') + '></td>' +
+            '<td><input class="note" value="' + esc(i.note || '') + '"></td><td><input class="fouda" type="number" step="1" style="width:90px" value="' + (i.fouda_score == null ? '' : i.fouda_score) + '"></td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<div class="row" style="margin-top:8px"><label>ضيف رموز (مسافة بينهم)<input id="add" placeholder="SWDY EAST"></label><button id="save">احفظ القايمة</button><span id="msg" class="muted"></span></div></div>' +
+        '<div class="card"><h2>سكربتات Tampermonkey</h2><p class="muted">بيشتغلوا بس وتاب الموقع مفتوح: سيب تاب Yahoo Finance وتاب أخبار البورصة مفتوحين وقت السوق.</p>' +
+        '<ul><li><a href="/userscripts/yahoo-feeder.user.js">yahoo-feeder.user.js</a>: الأسعار كل ١٠ دقايق + الشموع اليومية</li>' +
+        '<li><a href="/userscripts/egx-disclosures.user.js">egx-disclosures.user.js</a>: الإفصاحات من صفحة البحث فى أخبار البورصة</li></ul></div>' +
+        '<div class="card"><h2>السوق والتحليل</h2><p>السوق من ' + esc(m.market.open) + ' لـ ' + esc(m.market.close) + ' بتوقيت القاهرة، الأحد للخميس. الشموع اليومية بعد ' + esc(m.market.dailyAfter) + '.</p>' +
+        '<p>التحليل: ' + (m.ai ? esc(m.ai.provider) + ' · ' + esc(m.ai.model) : 'مقفول (مفيش مفتاح)') + ' · بحد ' + esc(m.market.dailyCap) + ' تحليل فى اليوم.</p></div>';
+      document.getElementById('ks').onclick = function () { try { localStorage.setItem(KEY, document.getElementById('k').value.trim()); } catch (_) {} document.getElementById('ks').textContent = 'اتحفظ ✓'; };
+      document.getElementById('save').onclick = function () {
+        var addList = [], remove = [];
+        document.querySelectorAll('tr[data-s]').forEach(function (tr) {
+          var s = tr.dataset.s;
+          if (tr.querySelector('.act').checked) addList.push({ symbol: s, note: tr.querySelector('.note').value.trim(), fouda_score: tr.querySelector('.fouda').value });
+          else remove.push(s);
+        });
+        document.getElementById('add').value.split(/[\s,]+/).filter(Boolean).forEach(function (s) { addList.push({ symbol: s }); });
+        api('/api/watchlist', { add: addList, remove: remove }, true).then(function (r) {
+          document.getElementById('msg').textContent = r.ok ? 'اتحفظت ✓' : (r.error || 'فشل');
+          if (r.ok) setTimeout(settings, 600);
+        });
+      };
+    });
+  }
+
+  var pages = { dash: dash, stock: stock, news: news, alerts: alerts, ticket: ticket, settings: settings };
+  if (pages[page]) pages[page](); else app.innerHTML = '<h1>الصفحة مش موجودة</h1><p><a href="/">ارجع للوحة</a></p>';
+})();
