@@ -151,7 +151,7 @@ class MainActivity : Activity() {
 
     private val tabs = listOf(
         "drive" to "🚗\nالقيادة", "nav" to "🧭\nالملاحة", "park" to "🅿️\nالركن", "sec" to "🛡️\nالحماية", "voice" to "🎙️\nOscar",
-        "road" to "🛣️\nالطريق", "car" to "🔧\nالسيارة", "settings" to "⚙️\nالإعدادات",
+        "road" to "🛣️\nالطريق", "car" to "🔧\nالسيارة", "notes" to "📝\nمهامى", "settings" to "⚙️\nالإعدادات",
     )
 
     private fun buildRail() {
@@ -178,6 +178,7 @@ class MainActivity : Activity() {
             "park" -> scroll(parkTab())
             "road" -> scroll(roadTab())
             "car" -> scroll(carTab())
+            "notes" -> scroll(notesTab())
             "settings" -> scroll(settingsTab())
             "sec" -> scroll(securityTab())
             "voice" -> scroll(voiceTab())
@@ -1116,6 +1117,55 @@ class MainActivity : Activity() {
             "fuel.add" -> FuelVoice.parse(heard).let { a -> addFill(a?.grade, a?.amount, a?.liters, a?.full) }
             "fuel.left" -> sayInfo(fuelLeftText())
             "maint.next" -> sayInfo(nextMaintText())
+            // المرحلة ٥: التطبيقات · الصوت · الموسيقى · المؤقّت · التذكيرات · الطقس · الطريق · الرسايل · واتساب
+            "app.open" -> openAppByName(slot ?: "")
+            "app.close" -> { goHomeScreen(); sayInfo("رجعت للشاشة الرئيسية — أندرويد مابيسمحش لتطبيق يقفل تطبيق تانى بالقوة") }
+            "sys.home" -> goHomeScreen()
+            "media.mute", "media.unmute" -> {
+                val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+                am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC,
+                    if (id == "media.mute") android.media.AudioManager.ADJUST_MUTE else android.media.AudioManager.ADJUST_UNMUTE, android.media.AudioManager.FLAG_SHOW_UI)
+            }
+            "media.set" -> {
+                val n = com.oscardevs.oscardrive.logic.SpokenNumbers.first(slot ?: "")
+                if (n == null) sayInfo("قول مثلاً: خلّى الصوت ٥ (من ١٠)") else {
+                    val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+                    val max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                    val level = if (n <= 10) n * max / 10 else n * max / 100   // «٥» من ١٠ · «٥٠» من ١٠٠
+                    am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, level.coerceIn(0, max), android.media.AudioManager.FLAG_SHOW_UI)
+                }
+            }
+            "media.pause" -> mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PAUSE)
+            "media.play" -> mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PLAY)
+            "media.next" -> mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
+            "media.prev" -> mediaKey(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            "media.spotify" -> spotify(slot ?: "")
+            "yt.search" -> youtubeSearch(slot ?: "")
+            "timer.set" -> {
+                val m = com.oscardevs.oscardrive.logic.TimerVoice.minutes(slot ?: heard)
+                if (m == null) sayInfo("قول مثلاً: مؤقّت ١٠ دقايق") else {
+                    DriveService.State.timerEndMs = System.currentTimeMillis() + m * 60_000L
+                    sayInfo("تمام، مؤقّت $m دقيقة"); refresh()
+                }
+            }
+            "timer.stop" -> { DriveService.State.timerEndMs = 0; sayInfo("لغيت المؤقّت"); refresh() }
+            "sw.start" -> { if (DriveService.State.swStartMs == 0L) DriveService.State.swStartMs = System.currentTimeMillis(); sayInfo("ساعة الإيقاف شغّالة"); refresh() }
+            "sw.stop" -> {
+                val s = DriveService.State
+                if (s.swStartMs > 0) { s.swAccumMs += System.currentTimeMillis() - s.swStartMs; s.swStartMs = 0 }
+                sayInfo("وقفت على ${com.oscardevs.oscardrive.logic.TimerVoice.clock(s.swAccumMs)}"); refresh()
+            }
+            "note.remind", "note.add", "task.add" -> saveNote(heard)
+            "notes.read" -> sayInfo(notesText())
+            "weather" -> weather()
+            "road.info" -> sayInfo(roadAheadText())
+            "notif.read" -> {
+                val l = NotifyReader.last(3)
+                sayInfo(if (l.isEmpty()) (if (prefs.readNotifs) "مفيش رسايل جديدة" else "قراية الرسايل مقفولة — فعّلها من شاشة 📝 مهامى")
+                    else l.joinToString(" . ") { "من ${it.from}: ${it.text.take(100)}" })
+            }
+            "wa.send" -> whatsappByVoice(heard)
+            "time.now" -> sayInfo("الساعة ${clock(System.currentTimeMillis())}")
         }
     }
 
@@ -1360,6 +1410,246 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this).setTitle(titleText).setView(f)
             .setPositiveButton("تمام") { _, _ -> ok(f.text.toString()) }
             .setNegativeButton("إلغاء", null).show()
+    }
+
+    /* ═══════════════ 📝 مهامى: المؤقّت · ساعة الإيقاف · التذكيرات · المهام · الملاحظات · جهات واتساب · الرسايل ═══════════════ */
+
+    private fun notesTab(): View {
+        val page = ui.col(14)
+        page.addView(header("📝 مهامى", "بالصوت: «فكّرنى لما أوصل البيت أجيب الطلبات» · «مؤقّت ١٠ دقايق» · «ضيف مهمة …» · «ابعت لأحمد واتساب …». كله على الشاشة."))
+        val s = DriveService.State; val now = System.currentTimeMillis()
+
+        // المؤقّت + ساعة الإيقاف
+        val tr = ui.row()
+        val tLeft = s.timerEndMs - now
+        tr.addView(ui.text(if (s.timerEndMs > 0 && tLeft > 0) "⏰ فاضل ${com.oscardevs.oscardrive.logic.TimerVoice.clock(tLeft)}" else "⏰ المؤقّت", 17f, ui.ink, bold = true), ui.lp(0, Ui.WRAP, 1f, 4))
+        for (m in listOf(5, 10, 15, 30)) tr.addView(ui.button("$m د", "neutral", 15f) { s.timerEndMs = System.currentTimeMillis() + m * 60_000L; refresh() }, ui.lp(ui.dp(64), ui.dp(50), 0f, 2))
+        if (s.timerEndMs > 0) tr.addView(ui.button("الغى", "danger", 14f) { s.timerEndMs = 0; refresh() }, ui.lp(ui.dp(70), ui.dp(50), 0f, 2))
+        page.addView(tr)
+        val sw = ui.row()
+        val swMs = s.swAccumMs + if (s.swStartMs > 0) now - s.swStartMs else 0
+        sw.addView(ui.text("⏱ ساعة الإيقاف ${com.oscardevs.oscardrive.logic.TimerVoice.clock(swMs)}", 17f, ui.ink, bold = true), ui.lp(0, Ui.WRAP, 1f, 4))
+        sw.addView(ui.button(if (s.swStartMs > 0) "وقّف" else "ابدأ", "primary", 15f) {
+            if (s.swStartMs > 0) { s.swAccumMs += System.currentTimeMillis() - s.swStartMs; s.swStartMs = 0 } else s.swStartMs = System.currentTimeMillis(); refresh()
+        }, ui.lp(ui.dp(80), ui.dp(50), 0f, 2))
+        sw.addView(ui.button("صفّر", "neutral", 15f) { s.swStartMs = 0; s.swAccumMs = 0; refresh() }, ui.lp(ui.dp(70), ui.dp(50), 0f, 2))
+        page.addView(sw)
+
+        // التذكيرات
+        page.addView(section("🔔 التذكيرات"))
+        page.addView(ui.button("＋ تذكير", "primary", 15f) {
+            askText("فكّرنى بـ…", "مثلاً: فكرنى بعد ٢٠ دقيقة أكلم ماما · فكرنى لما أوصل الشغل أجيب الورق", "فكرنى ") { t -> saveNote(t) }
+        }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
+        val rem = db.notes("remind").take(20)
+        if (rem.isEmpty()) page.addView(ui.text("مفيش تذكيرات.", 14f, ui.muted))
+        for (n in rem) page.addView(noteRow(n, (n.place?.let { "📍 لما توصل $it" } ?: n.dueMs?.let { "🕒 ${dateTime(it)}" } ?: "") + if (n.done) " · اتقال" else ""))
+
+        // المهام
+        page.addView(section("✅ المهام"))
+        page.addView(ui.button("＋ مهمة", "neutral", 15f) { askText("مهمة جديدة", "مثلاً: أغيّر فلتر الهوا", "") { t -> if (t.isNotBlank()) { db.addNote("task", t); refresh() } } }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
+        for (n in db.notes("task").take(30)) page.addView(noteRow(n, if (n.done) "✔ اتعملت" else "", toggleDone = true))
+
+        // الملاحظات
+        page.addView(section("📝 الملاحظات"))
+        page.addView(ui.button("＋ ملاحظة", "neutral", 15f) { askText("ملاحظة", "", "") { t -> if (t.isNotBlank()) { db.addNote("note", t); refresh() } } }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
+        for (n in db.notes("note").take(30)) page.addView(noteRow(n, dateTime(n.createdMs)))
+
+        // جهات أوسكار (واتساب)
+        page.addView(section("👥 جهات أوسكار (لرسايل الواتساب)"))
+        page.addView(ui.text("الشاشة مش شايفة جهات موبايلك — اكتب الناس اللى بتبعتلهم كتير مرة واحدة. الرسالة بتتفتح فى واتساب مكتوبة وإنت تدوس إرسال.", 13f, ui.muted))
+        page.addView(ui.button("＋ جهة", "neutral", 15f) {
+            askText("الاسم (زى ما هتقوله)", "مثلاً: ماما", "") { n ->
+                askText("رقم الواتساب", "01xxxxxxxxx", "", InputType.TYPE_CLASS_PHONE) { ph ->
+                    if (n.isBlank() || com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(ph) == null) toast("الاسم أو الرقم مش مظبوط") else { db.addContact(n, ph); refresh() }
+                }
+            }
+        }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
+        for (c in db.contacts()) {
+            val r = ui.card(10).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            r.addView(ui.text("${c.name} — ${c.phone}", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            r.addView(ui.button("💬", "neutral", 15f) { askText("رسالة لـ ${c.name}", "", "") { t -> if (t.isNotBlank()) openWhatsApp(c.phone, t) } }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
+            r.addView(ui.button("🗑️", "neutral", 15f) { confirm("تمسح ${c.name}؟") { db.deleteContact(c.id); refresh() } }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
+            page.addView(r, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
+        }
+
+        // قراية الرسايل
+        page.addView(section("📨 قراية الرسايل بصوت أوسكار"))
+        page.addView(toggle("اقرا رسايل واتساب/تليجرام/الرسايل لما توصل (مقفولة افتراضياً)", prefs.readNotifs) { prefs.readNotifs = it })
+        val granted = try { android.provider.Settings.Secure.getString(contentResolver, "enabled_notification_listeners")?.contains(packageName) == true } catch (_: Exception) { false }
+        page.addView(ui.text(if (granted) "✅ إذن «الوصول للإشعارات» متاح" else "محتاج إذن «الوصول للإشعارات» من إعدادات الشاشة — الرسايل مابتتحفظش ولا بتتبعت لأى حد.", 13f, if (granted) ui.good else ui.muted))
+        if (!granted) page.addView(ui.button("افتح إذن الإشعارات", "neutral", 15f) {
+            try { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } catch (_: Exception) { toast("الشاشة مافيهاش الإعداد ده") }
+        }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
+        return page
+    }
+
+    private fun noteRow(n: Db.Note, sub: String, toggleDone: Boolean = false): View {
+        val r = ui.card(10).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        r.addView(ui.text(n.text + if (sub.isNotBlank()) "\n$sub" else "", 15f, if (n.done) ui.muted else ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        if (toggleDone) r.addView(ui.button(if (n.done) "↩︎" else "✔", if (n.done) "neutral" else "good", 15f) { db.setNoteDone(n.id, !n.done); refresh() }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
+        r.addView(ui.button("🗑️", "neutral", 15f) { db.deleteNote(n.id); refresh() }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
+        return r
+    }
+
+    /* ═══════════════ المرحلة ٥: التطبيقات · الموسيقى · المهام · الطقس · واتساب ═══════════════ */
+
+    private fun launcherApps(): List<com.oscardevs.oscardrive.logic.InstalledApp> = try {
+        packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+            .map { com.oscardevs.oscardrive.logic.InstalledApp(it.loadLabel(packageManager).toString(), it.activityInfo.packageName) }
+            .filter { it.pkg != packageName }.distinctBy { it.pkg }
+    } catch (_: Exception) { emptyList() }
+
+    private fun launch(pkg: String, label: String): Boolean {
+        val i = packageManager.getLaunchIntentForPackage(pkg) ?: return false
+        startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        val voiceNote = if (pkg == "com.openai.chatgpt" || pkg == "com.anthropic.claude") " — دوس زرار الصوت جوّاه (الفتح على المحادثة الصوتية على طول مش متاح رسمياً)" else ""
+        toast("فتحت $label$voiceNote")
+        return true
+    }
+
+    /** «افتح يوتيوب / سبوتيفاى / ChatGPT…» — بالاسم العربى أو الإنجليزى، ولو أكتر من واحد قريبين بيسأل. */
+    private fun openAppByName(name: String) {
+        if (name.isBlank()) { sayInfo("قول اسم التطبيق — مثلاً: افتح يوتيوب"); return }
+        val m = com.oscardevs.oscardrive.logic.AppNames.match(name, launcherApps())
+        val win = com.oscardevs.oscardrive.logic.AppNames.clearWinner(m)
+        when {
+            win != null -> launch(win.pkg, win.label)
+            m.isEmpty() -> sayInfo("مالقيتش تطبيق اسمه «$name» على الشاشة")
+            else -> {
+                val opts = m.take(4)
+                Oscar.sayText("قصدك أنهى واحد؟")
+                AlertDialog.Builder(this).setTitle("🔎 «$name» — أنهى واحد؟").setItems(opts.map { it.first.label }.toTypedArray()) { _, i ->
+                    launch(opts[i].first.pkg, opts[i].first.label)
+                }.setNegativeButton("ولا واحد", null).show()
+            }
+        }
+    }
+
+    private fun goHomeScreen() {
+        try { startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+    }
+
+    /** أزرار الميديا لأى تطبيق شغّال (سبوتيفاى · يوتيوب ميوزك · الراديو…). */
+    private fun mediaKey(code: Int) {
+        val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+        am.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, code))
+        am.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, code))
+    }
+
+    private fun spotify(q: String) {
+        val i = Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:" + Uri.encode(q))).setPackage("com.spotify.music").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try { startActivity(i); toast("بدوّر فى سبوتيفاى على «$q»") }
+        catch (_: Exception) { sayInfo("سبوتيفاى مش متسطّب على الشاشة") }
+    }
+
+    /** البحث جوّه تطبيق يوتيوب نفسه (من غير YouTube Data API — مفيش حصة ولا مفتاح). */
+    private fun youtubeSearch(q: String) {
+        if (q.isBlank()) { openAppByName("youtube"); return }
+        val app = Intent(Intent.ACTION_SEARCH).setPackage("com.google.android.youtube").putExtra("query", q).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try { startActivity(app); toast("بدوّر فى يوتيوب على «$q»") }
+        catch (_: Exception) { view("https://www.youtube.com/results?search_query=" + Uri.encode(q)) || toast("يوتيوب مش متاح") }
+    }
+
+    /** «فكرنى …» · «ضيف مهمة …» · «سجّل ملاحظة …». التذكير بمكان ⇐ إحداثيات المكان المحفوظ («البيت» · «الشغل» · أى اسم حفظته). */
+    private fun saveNote(heard: String) {
+        val a = com.oscardevs.oscardrive.logic.NoteVoice.parse(heard, System.currentTimeMillis())
+        if (a == null || a.text.isBlank()) { sayInfo("قول مثلاً: فكّرنى لما أوصل البيت أجيب الطلبات · فكّرنى بعد ١٠ دقايق …"); return }
+        when (a.kind) {
+            com.oscardevs.oscardrive.logic.NoteKind.TASK -> { db.addNote("task", a.text); sayInfo("ضفت مهمة: ${a.text}") }
+            com.oscardevs.oscardrive.logic.NoteKind.NOTE -> { db.addNote("note", a.text); sayInfo("سجّلت الملاحظة") }
+            com.oscardevs.oscardrive.logic.NoteKind.REMIND -> {
+                if (a.place != null) {
+                    val norm = VoiceCommands.normalize(a.place)
+                    val p = db.places().firstOrNull { VoiceCommands.normalize(it.name) == norm }
+                    if (p == null) { sayInfo("مش عارف «${a.place}» فين — احفظه الأول من شاشة الملاحة، وبعدين قول التذكير تانى"); return }
+                    db.addNote("remind", a.text, lat = p.lat, lng = p.lng, place = p.name)
+                    sayInfo("تمام، هفكّرك لما توصل ${p.name}: ${a.text}")
+                } else if (a.dueMs != null) {
+                    db.addNote("remind", a.text, dueMs = a.dueMs)
+                    sayInfo("تمام، هفكّرك ${dateTime(a.dueMs)}: ${a.text}")
+                }
+            }
+        }
+        refresh()
+    }
+
+    private fun notesText(): String {
+        val r = db.notes("remind", includeDone = false); val t = db.notes("task", includeDone = false)
+        if (r.isEmpty() && t.isEmpty()) return "مفيش مهام ولا تذكيرات"
+        val parts = mutableListOf<String>()
+        if (t.isNotEmpty()) parts += "المهام: " + t.take(5).joinToString("، ") { it.text }
+        if (r.isNotEmpty()) parts += "التذكيرات: " + r.take(5).joinToString("، ") { n -> n.text + (n.place?.let { " لما توصل $it" } ?: n.dueMs?.let { " ${dateTime(it)}" } ?: "") }
+        return parts.joinToString(" . ")
+    }
+
+    /** الطقس من Open-Meteo (مجانى من غير مفتاح) — المكان بيتقرّب لـ~١ كم قبل ما يتبعت. */
+    private fun weather() {
+        val (lat, lng) = here() ?: run { sayInfo("محتاج مكانك الأول (الـGPS)"); return }
+        toast("بجيب الطقس…")
+        Thread {
+            val msg = try {
+                val c = java.net.URL(com.oscardevs.oscardrive.logic.Weather.url(lat, lng)).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 10_000; c.readTimeout = 10_000
+                val j = org.json.JSONObject(c.inputStream.bufferedReader().use { it.readText() })
+                val cur = j.getJSONObject("current"); val d = j.optJSONObject("daily")
+                com.oscardevs.oscardrive.logic.Weather.say(com.oscardevs.oscardrive.logic.WeatherNow(
+                    cur.getDouble("temperature_2m"), cur.optInt("weather_code"), cur.optDouble("wind_speed_10m").takeIf { !it.isNaN() },
+                    d?.optJSONArray("temperature_2m_max")?.optDouble(0)?.takeIf { !it.isNaN() },
+                    d?.optJSONArray("temperature_2m_min")?.optDouble(0)?.takeIf { !it.isNaN() },
+                    d?.optJSONArray("precipitation_probability_max")?.optInt(0)))
+            } catch (_: Exception) { "مش قادر أجيب الطقس — محتاج نت" }
+            main.post { sayInfo(msg) }
+        }.start()
+    }
+
+    /** «إيه اللى قدامى»: السرعة والحد + أقرب حاجات مسجّلة فى اتجاهك (لحد ٥ كم) + الرحلة. */
+    private fun roadAheadText(): String {
+        val s = DriveService.State
+        val parts = mutableListOf<String>()
+        s.speedKmh?.let { parts += "ماشى ${it.toInt()} والحد ${prefs.limit}" }
+        val lat = s.lat; val lng = s.lng; val h = s.headingDeg
+        if (lat != null && lng != null && h != null) {
+            val ahead = db.hazards().map { it to Geo.distanceM(lat, lng, it.lat, it.lng) }
+                .filter { (hz, d) -> d <= 5000 && (d < 30 || Geo.angleDiff(Geo.bearingDeg(lat, lng, hz.lat, hz.lng), h) <= 50) }
+                .sortedBy { it.second }.take(3)
+            parts += if (ahead.isEmpty()) "مفيش مطبات ولا رادارات مسجّلة قدامك لحد ٥ كيلو"
+                else ahead.joinToString("، ") { (hz, d) -> "${hz.type.ar} ${Geo.sayDistance(d)}" }
+        } else parts += "مش عارف اتجاهك لسه — اتحرك شوية"
+        if (s.tripActive) parts += "مشيت ${"%.1f".format(Locale.US, s.tripKm)} كم"
+        return parts.joinToString(" . ")
+    }
+
+    /**
+     * «ابعت لأحمد واتساب أنا جاى» (قرار المالك ٢٠٢٦-١١-٠٩ بدل الفويس): الكلام بيتحوّل نص ⇐ أوسكار بيعرضه ⇐ بيفتح محادثة
+     * الرقم فى واتساب **والرسالة مكتوبة** وإنت تدوس «إرسال» بنفسك. الأرقام من «جهات أوسكار» (إنت بتكتبها).
+     */
+    private fun whatsappByVoice(heard: String) {
+        val a = com.oscardevs.oscardrive.logic.WaVoice.parse(heard)
+        if (a == null || a.text.isBlank()) { sayInfo("قول مثلاً: ابعت لأحمد واتساب أنا جاى فى الطريق"); return }
+        val c = com.oscardevs.oscardrive.logic.WaVoice.contact(a.name, db.contacts())
+        if (c == null) {
+            sayInfo("«${a.name}» مش فى جهات أوسكار — اكتب رقمه مرة")
+            askText("رقم «${a.name}» على واتساب", "01xxxxxxxxx", "", InputType.TYPE_CLASS_PHONE) { ph ->
+                if (com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(ph) == null) { toast("الرقم مش مظبوط"); return@askText }
+                db.addContact(a.name, ph); whatsappByVoice(heard)
+            }
+            return
+        }
+        Oscar.sayText("هبعت لـ ${c.name}: ${a.text}")
+        AlertDialog.Builder(this).setTitle("💬 واتساب لـ ${c.name}").setMessage("«${a.text}»\n\nهفتح واتساب والرسالة مكتوبة — إنت اللى بتدوس إرسال.")
+            .setPositiveButton("افتح واتساب") { _, _ -> openWhatsApp(c.phone, a.text) }
+            .setNeutralButton("عدّل") { _, _ -> askText("الرسالة", "", a.text) { t -> openWhatsApp(c.phone, t) } }
+            .setNegativeButton("إلغاء", null).show()
+    }
+
+    private fun openWhatsApp(phone: String, text: String) {
+        val num = com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(phone) ?: run { toast("الرقم مش مظبوط"); return }
+        val uri = Uri.parse("https://api.whatsapp.com/send?phone=$num&text=" + Uri.encode(text))
+        for (pkg in listOf("com.whatsapp", "com.whatsapp.w4b", null)) {
+            try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { if (pkg != null) setPackage(pkg) }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
+            catch (_: Exception) {}
+        }
+        sayInfo("واتساب مش متسطّب على الشاشة")
     }
 
     /** «خلّى العدّاد ٩٠ ألف» — المرجع الجديد بتاريخ النهارده، والـGPS بيكمّل عليه. */

@@ -134,6 +134,17 @@ check('privacy policy discloses tracking upload and camera', /drive\.oscardevs\.
       && /ملخّص العربية عشان صفحة الموبايل/.test(privacy) && /car summary for the phone page/.test(privacy),
     'أى بيانات زيادة بتتبعت لازم تبقى مع الحماية المفعّلة بس ومتنضّفة ومكتوبة فى السياسة.');
 }
+// المرحلة ٥: قراية الرسايل مقفولة افتراضياً ومابتتحفظش · واتساب مابيتبعتش لوحده · الطقس بمكان متقرّب · مفيش QUERY_ALL_PACKAGES · معلن عنه
+{
+  const prefsKt = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt');
+  const reader = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/NotifyReader.kt');
+  const assistant = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/logic/Assistant.kt');
+  check('assistant: message reading off by default and never stored; WhatsApp opens pre-filled (you press Send); weather location rounded; disclosed',
+    /"read_notifs", false/.test(prefsKt) && !/Db\.|getSharedPreferences|HttpURLConnection/.test(reader)
+      && !/QUERY_ALL_PACKAGES/.test(manifest) && /latitude=\$\{"%\.2f"/.test(assistant)
+      && /Open-Meteo/.test(privacy) && /الوصول للإشعارات/.test(privacy) && /بتدوس إرسال/.test(privacy),
+    'المساعد لازم يفضل محلى، والرسايل مابتتبعتش لوحدها، وكل ده مكتوب فى السياسة.');
+}
 check('security is opt-in on the screen', /get\(\) = sp\.getBoolean\("sec_on", false\)/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt')),
   'التتبّع للسيرفر لازم يبقى مقفول لحد ما السواق يشغّله.');
 

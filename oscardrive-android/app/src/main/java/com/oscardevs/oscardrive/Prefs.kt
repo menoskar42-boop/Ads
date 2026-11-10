@@ -99,6 +99,11 @@ class Prefs(context: Context) {
         get() = sp.getFloat("rate_est", 8f).toDouble()
         set(v) = sp.edit().putFloat("rate_est", v.toFloat()).apply()
 
+    /** قراية رسايل الواتساب/الرسايل بصوت أوسكار (مقفولة افتراضياً — محتاجة إذن «الوصول للإشعارات» كمان). */
+    var readNotifs: Boolean
+        get() = sp.getBoolean("read_notifs", false)
+        set(v) = sp.edit().putBoolean("read_notifs", v).apply()
+
     /* ── الضمان: مواعيد الوكيل بالكيلو (إنت بتكتبها) واللى اتعمل منها ── */
     var warrantyOn: Boolean
         get() = sp.getBoolean("warranty_on", false)

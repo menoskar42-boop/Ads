@@ -19,7 +19,7 @@ import com.oscardevs.oscardrive.logic.TripLogic
  * قاعدة بيانات محلية (SQLite على الجهاز) — مفيش سحابة ولا حساب: الرحلات، ذاكرة الطريق، الأماكن،
  * الركنات، الصيانة، التفويلات، وسجل تجاوز السرعة.
  */
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 3) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 4) {
 
     data class Trip(val id: Long, val startMs: Long, val endMs: Long, val distanceM: Double, val movingS: Long, val maxKmh: Float) {
         val avgKmh: Float get() = if (movingS > 0) (distanceM / movingS * 3.6).toFloat() else 0f
@@ -42,6 +42,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         db.execSQL("CREATE TABLE speeding(id INTEGER PRIMARY KEY AUTOINCREMENT, start_ms INTEGER, end_ms INTEGER, max_kmh REAL, limit_kmh INTEGER, duration_s INTEGER, lat REAL, lng REAL)")
         createSecurity(db)
         upgrade3(db, fresh = true)
+        upgrade4(db)
         val now = System.currentTimeMillis()
         for ((name, km, days) in CarCare.DEFAULTS) {
             db.insert("maint", null, ContentValues().apply {
@@ -53,7 +54,42 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createSecurity(db)   // نسخة ١ مافيهاش الحماية — البيانات القديمة بتفضل زى ما هى
         if (oldVersion < 3) upgrade3(db, fresh = false)
+        if (oldVersion < 4) upgrade4(db)
     }
+
+    /** نسخة ٤ (المرحلة ٥): التذكيرات والمهام والملاحظات · «جهات أوسكار» لرسايل الواتساب (إنت بتكتبها — مش جهات الموبايل). */
+    private fun upgrade4(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, text TEXT, due_ms INTEGER, lat REAL, lng REAL, place TEXT, done INTEGER DEFAULT 0, created_ms INTEGER)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS contacts(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, phone TEXT)")
+    }
+
+    /* ── التذكيرات · المهام · الملاحظات ── */
+    data class Note(val id: Long, val kind: String, val text: String, val dueMs: Long?, val lat: Double?, val lng: Double?, val place: String?, val done: Boolean, val createdMs: Long) {
+        fun reminder() = com.oscardevs.oscardrive.logic.Reminder(id, text, dueMs, lat, lng, place, done)
+    }
+    fun addNote(kind: String, text: String, dueMs: Long? = null, lat: Double? = null, lng: Double? = null, place: String? = null): Long =
+        writableDatabase.insert("notes", null, ContentValues().apply {
+            put("kind", kind); put("text", text.take(300)); put("created_ms", System.currentTimeMillis()); put("done", 0)
+            if (dueMs != null) put("due_ms", dueMs) else putNull("due_ms")
+            if (lat != null && lng != null) { put("lat", lat); put("lng", lng) } else { putNull("lat"); putNull("lng") }
+            if (place != null) put("place", place) else putNull("place")
+        })
+    fun notes(kind: String? = null, includeDone: Boolean = true): List<Note> =
+        query("SELECT id,kind,text,due_ms,lat,lng,place,done,created_ms FROM notes" +
+            (if (kind != null) " WHERE kind = ?" else "") + (if (!includeDone) (if (kind != null) " AND" else " WHERE") + " done = 0" else "") +
+            " ORDER BY done, COALESCE(due_ms, created_ms) DESC LIMIT 200", if (kind != null) arrayOf(kind) else emptyArray()) {
+            Note(it.getLong(0), it.getString(1) ?: "", it.getString(2) ?: "", if (it.isNull(3)) null else it.getLong(3),
+                if (it.isNull(4)) null else it.getDouble(4), if (it.isNull(5)) null else it.getDouble(5), it.getString(6), it.getInt(7) == 1, it.getLong(8))
+        }
+    fun setNoteDone(id: Long, done: Boolean = true) { writableDatabase.update("notes", ContentValues().apply { put("done", if (done) 1 else 0) }, "id=?", arrayOf(id.toString())) }
+    fun deleteNote(id: Long) { writableDatabase.delete("notes", "id=?", arrayOf(id.toString())) }
+
+    /* ── جهات أوسكار (لرسايل الواتساب) ── */
+    fun contacts(): List<com.oscardevs.oscardrive.logic.OscarContact> = query("SELECT id,name,phone FROM contacts ORDER BY name") {
+        com.oscardevs.oscardrive.logic.OscarContact(it.getLong(0), it.getString(1) ?: "", it.getString(2) ?: "")
+    }
+    fun addContact(name: String, phone: String) { writableDatabase.insert("contacts", null, ContentValues().apply { put("name", name.take(60)); put("phone", phone.take(30)) }) }
+    fun deleteContact(id: Long) { writableDatabase.delete("contacts", "id=?", arrayOf(id.toString())) }
 
     /**
      * نسخة ٣ (المرحلة ٤): الركنة بدقتها وعدّادها وملاحظة · التفويلة بنوع البنزين وسعر اللتر · سجل الصيانة ·

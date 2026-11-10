@@ -63,6 +63,10 @@ class DriveService : Service() {
         @Volatile var bannerUntil = 0L
         /** كام شاشة من شاشات أوسكار قدّام السواق (القيادة · الملاحة). صفر ⇒ التنبيه المكتوب بيطلع إشعار فوق أى تطبيق. */
         @Volatile var screens = 0
+        /** المؤقّت (المرحلة ٥): وقت ما يخلص (٠ = مفيش). وساعة الإيقاف: بدأت إمتى (٠ = واقفة) + اللى اتعدّ قبل كده. */
+        @Volatile var timerEndMs = 0L
+        @Volatile var swStartMs = 0L
+        @Volatile var swAccumMs = 0L
         var listener: (() -> Unit)? = null
         /** اتغيّرت ذاكرة الطريق (اتسجّل/اتمسح) — الخدمة تعيد قرايتها. */
         @Volatile var hazardsDirty = true
@@ -123,6 +127,12 @@ class DriveService : Service() {
             syncTrip()
             if (now - lastNightCheck > 60_000) { lastNightCheck = now; updateNight(now) }
             Guard.tick()
+            // المؤقّت + التذكيرات بالوقت (المرحلة ٥) — من نفس الخدمة، من غير خدمة ولا منبّه زيادة
+            if (State.timerEndMs in 1..now) {
+                State.timerEndMs = 0
+                showBanner("⏰ المؤقّت خلص", "break", 15_000); Speaker.say("المؤقّت خلص", beep = true)
+            }
+            if (now - lastRemCheck > 5_000) { lastRemCheck = now; checkReminders(now, null, null) }
             if (State.banner != null && now > State.bannerUntil) State.banner = null
             publish()
             main.postDelayed(this, 1000)
@@ -235,6 +245,8 @@ class DriveService : Service() {
         // آخر لقطة كويسة كل ١٠ ثوانى — لو الشاشة فصلت فجأة مع العربية، دى مكان الركنة المرة الجاية
         if (acc != null && acc <= 100f && now - lastFixSaved > 10_000) { lastFixSaved = now; prefs.saveLastFix(loc.latitude, loc.longitude, acc, now) }
         checkHazards(now, kmh ?: 0f)
+        // «فكرنى لما أوصل البيت»: كل ١٥ ثانية من الـGPS
+        if (now - lastPlaceCheck > 15_000) { lastPlaceCheck = now; checkReminders(now, loc.latitude, loc.longitude) }
         Guard.onLocation(loc, kmh ?: 0f)
         syncTrip()
         publish()
@@ -265,6 +277,21 @@ class DriveService : Service() {
         val msg = RoadMemory.warning(hit.first, hit.second)
         showBanner("${hit.first.type.emoji} $msg", "hazard", 8_000)
         Speaker.say(msg, beep = true)
+    }
+
+    private var lastRemCheck = 0L
+    private var lastPlaceCheck = 0L
+
+    private fun checkReminders(now: Long, lat: Double?, lng: Double?) {
+        val rs = try { db.notes("remind", includeDone = false).map { it.reminder() } } catch (_: Exception) { return }
+        if (rs.isEmpty()) return
+        val due = com.oscardevs.oscardrive.logic.Reminders.dueByTime(rs, now) +
+            if (lat != null && lng != null) com.oscardevs.oscardrive.logic.Reminders.dueByPlace(rs, lat, lng) else emptyList()
+        for (r in due.distinctBy { it.id }) {
+            db.setNoteDone(r.id)
+            showBanner("🔔 ${r.text}", "break", 20_000)
+            Speaker.say("فكّرتك: ${r.text}", beep = true)
+        }
     }
 
     private fun tripEnded(s: TripLogic.Summary) {

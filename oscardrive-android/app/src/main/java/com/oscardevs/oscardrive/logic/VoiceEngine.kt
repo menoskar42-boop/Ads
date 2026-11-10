@@ -63,6 +63,32 @@ object VoiceCatalog {
         VoiceCommand("screen.parking", "افتح الركن", listOf("افتح الركن", "شاشه الركن"), listOf("open parking")),
         VoiceCommand("sys.night", "الوضع الليلى", listOf("الوضع الليلي", "ليلي"), listOf("night mode", "dark mode")),
         VoiceCommand("sys.day", "الوضع النهارى", listOf("الوضع النهاري", "نهاري"), listOf("day mode", "light mode")),
+        // المرحلة ٥: التطبيقات · الصوت والموسيقى · سبوتيفاى/يوتيوب · المؤقّت · التذكيرات · الطقس · الطريق · الرسايل · واتساب
+        VoiceCommand("app.open", "افتح تطبيق", listOf("افتح *", "افتحلي *", "شغل تطبيق *"), listOf("open *", "launch *")),
+        VoiceCommand("app.close", "اقفل تطبيق", listOf("اقفل *", "سكر *"), listOf("close *")),
+        VoiceCommand("sys.home", "الشاشة الرئيسية", listOf("الشاشه الرئيسيه", "روح للشاشه الرئيسيه", "اطلع برا"), listOf("home screen", "go to home screen")),
+        VoiceCommand("media.mute", "اكتم الصوت", listOf("اكتم الصوت", "اقفل الصوت", "سكت الصوت", "اكتم"), listOf("mute", "mute sound")),
+        VoiceCommand("media.unmute", "رجّع الصوت", listOf("رجع الصوت", "افتح الصوت"), listOf("unmute")),
+        VoiceCommand("media.set", "خلّى الصوت", listOf("خلي الصوت *", "الصوت علي *"), listOf("set volume to *", "volume to *")),
+        VoiceCommand("media.pause", "وقّف الأغانى", listOf("وقف الاغاني", "وقف الموسيقي", "وقف الاغنيه"), listOf("pause", "pause music", "stop music")),
+        VoiceCommand("media.play", "كمّل الأغانى", listOf("كمل الاغاني", "كمل الاغنيه", "كمل الموسيقي"), listOf("resume", "resume music")),
+        VoiceCommand("media.next", "الأغنية اللى بعدها", listOf("اللي بعده", "الاغنيه الجايه", "التراك الجاي", "اللي بعدها"), listOf("next song", "next track", "skip song")),
+        VoiceCommand("media.prev", "الأغنية اللى قبلها", listOf("اللي قبله", "الاغنيه اللي فاتت", "اللي قبلها"), listOf("previous song", "previous track")),
+        VoiceCommand("media.spotify", "شغّل على سبوتيفاى", listOf("شغل * علي سبوتيفاي", "شغل * من سبوتيفاي", "شغللي * علي سبوتيفاي"), listOf("play * on spotify")),
+        VoiceCommand("yt.search", "دوّر فى يوتيوب", listOf("دور في يوتيوب علي *", "دور علي يوتيوب *", "دورلي في اليوتيوب علي *", "يوتيوب *"), listOf("search youtube for *", "youtube *")),
+        VoiceCommand("timer.set", "مؤقّت", listOf("موقت *", "تايمر *", "اعمل موقت *", "اعملي موقت *"), listOf("set a timer for *", "set timer for *", "timer *")),
+        VoiceCommand("timer.stop", "الغى المؤقّت", listOf("وقف الموقت", "الغي الموقت", "اقفل الموقت"), listOf("cancel timer", "stop timer", "cancel the timer")),
+        VoiceCommand("sw.start", "ساعة الإيقاف", listOf("ابدا ساعه الايقاف", "شغل ساعه الايقاف"), listOf("start stopwatch", "start the stopwatch")),
+        VoiceCommand("sw.stop", "وقّف ساعة الإيقاف", listOf("وقف ساعه الايقاف"), listOf("stop stopwatch", "stop the stopwatch")),
+        VoiceCommand("note.remind", "فكّرنى", listOf("فكرني *", "ذكرني *"), listOf("remind me *")),
+        VoiceCommand("note.add", "سجّل ملاحظة", listOf("سجل ملاحظه *", "اكتب ملاحظه *", "ملاحظه *"), listOf("take a note *", "note *")),
+        VoiceCommand("task.add", "ضيف مهمة", listOf("ضيف مهمه *", "مهمه جديده *"), listOf("add a task *", "add task *")),
+        VoiceCommand("notes.read", "اقرا المهام", listOf("اقرا المهام", "المهام", "ايه المهام", "اقرا الملاحظات", "التذكيرات"), listOf("read my tasks", "my tasks", "read my notes")),
+        VoiceCommand("weather", "الطقس", listOf("الجو ايه", "الطقس", "حاله الجو", "الجو عامل ايه", "الطقس النهارده"), listOf("weather", "what is the weather", "how is the weather")),
+        VoiceCommand("road.info", "إيه اللى قدامى", listOf("ايه اللي قدامي", "الطريق قدامي", "فيه ايه قدامي"), listOf("what is ahead", "what's ahead")),
+        VoiceCommand("notif.read", "اقرا الرسايل", listOf("اقرا الاشعارات", "اقرا الرسايل", "ايه الرسايل", "اقرا الرسائل"), listOf("read notifications", "read my messages")),
+        VoiceCommand("wa.send", "ابعت واتساب", listOf("ابعت *", "ابعتلي *", "ارسل *"), listOf("send whatsapp *", "send a whatsapp *", "send a message *", "send message *")),
+        VoiceCommand("time.now", "الساعة كام", listOf("الساعه كام", "الوقت كام"), listOf("what time is it")),
         VoiceCommand("emergency", "طوارئ", listOf("طوارئ", "نجده", "الحقوني", "استغاثه"), listOf("emergency", "help me", "sos"), confirm = true),
         VoiceCommand("help", "بتعرف تعمل إيه", listOf("بتعرف تعمل ايه", "تقدر تعمل ايه", "مساعده", "الاوامر"), listOf("what can you do", "help", "commands")),
         VoiceCommand("cancel", "خلاص", listOf("خلاص", "بس", "الغي", "ولا حاجه"), listOf("cancel", "stop", "never mind")),
@@ -126,15 +152,22 @@ class VoiceEngine(
     fun understand(text: String): Understood? {
         val t = normalize(text)
         if (t.isBlank()) return null
-        match(t)?.let { return Understood(it, true, t) }
+        val exact = match(t)
+        // صيغة ثابتة بالحرف ⇒ خلاص. صيغة عامة (افتح * · ابعت *) ⇒ نشوف الأول لو التصحيح بيدّى أمر ثابت أدق
+        // («افتح الملاحا» = افتح الملاحة مش تطبيق اسمه «الملاحا»).
+        if (exact != null && !exact.phrase.contains("*")) return Understood(exact, true, t)
         val raw = t.split(' ')
         val fixed = raw.map { w -> learned[w] ?: EgyptWords.FIX_N[w] ?: w }
-        if (fixed != raw) match(fixed.joinToString(" "))?.let { return Understood(keepRawSlot(it, raw), true, t) }
+        val variants = mutableListOf<List<String>>()
+        if (fixed != raw) variants += fixed
         // عربى وإنجليزى مخلوطين ⇒ كلمات الأوامر الإنجليزى بالعربى (لو الجملة فيها عربى)
         if (fixed.any { w -> w.any { it in '\u0600'..'\u06FF' } }) {
             val mixed = fixed.map { EgyptWords.MIXED[it] ?: it }
-            if (mixed != fixed) match(mixed.joinToString(" "))?.let { return Understood(keepRawSlot(it, raw), true, t) }
+            if (mixed != fixed) variants += mixed
         }
+        for (v in variants) match(v.joinToString(" "))?.let { if (!it.phrase.contains("*")) return Understood(keepRawSlot(it, raw), true, t) }
+        if (exact != null) return Understood(exact, true, t)
+        for (v in variants) match(v.joinToString(" "))?.let { return Understood(keepRawSlot(it, raw), true, t) }
         val f = fuzzy(fixed) ?: return null
         val learn = HashMap<String, String>()
         for ((heard, want) in f.second) if (heard != want) learn[raw[fixed.indexOf(heard).coerceAtLeast(0)]] = want

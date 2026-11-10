@@ -445,3 +445,68 @@ class CarBookTest {
         assertEquals(1, nov.maintDone); assertEquals(10.7, nov.costPerKm!!, 1e-9)
     }
 }
+
+// المرحلة ٥ (المالك ٢٠٢٦-١١-١٠): التطبيقات · التذكيرات · المؤقّت · واتساب · الطقس
+class AssistantTest {
+    private val apps = listOf(InstalledApp("YouTube", "com.google.android.youtube"), InstalledApp("YouTube Music", "com.google.android.apps.youtube.music"),
+        InstalledApp("Spotify", "com.spotify.music"), InstalledApp("ChatGPT", "com.openai.chatgpt"), InstalledApp("Claude", "com.anthropic.claude"),
+        InstalledApp("Maps", "com.google.android.apps.maps"), InstalledApp("WhatsApp", "com.whatsapp"), InstalledApp("راديو", "com.car.radio"))
+    @Test fun openAppsByArabicOrEnglishName() {
+        assertEquals("com.spotify.music", AppNames.clearWinner(AppNames.match("سبوتيفاي", apps))?.pkg)
+        assertEquals("com.openai.chatgpt", AppNames.clearWinner(AppNames.match("شات جي بي تي", apps))?.pkg)
+        assertEquals("com.anthropic.claude", AppNames.clearWinner(AppNames.match("كلود", apps))?.pkg)
+        assertEquals("com.google.android.apps.maps", AppNames.clearWinner(AppNames.match("خرايط جوجل", apps))?.pkg)
+        assertEquals("com.whatsapp", AppNames.clearWinner(AppNames.match("الواتس", apps))?.pkg)
+        assertEquals("com.car.radio", AppNames.clearWinner(AppNames.match("راديو", apps))?.pkg)
+        // «يوتيوب» = YouTube بالظبط أوضح من YouTube Music
+        assertEquals("com.google.android.youtube", AppNames.clearWinner(AppNames.match("يوتيوب", apps))?.pkg)
+        assertTrue(AppNames.match("نتفليكس", apps).isEmpty())
+    }
+    @Test fun minutesInWords() {
+        assertEquals(10, SpokenNumbers.minutes("١٠ دقايق")); assertEquals(5, SpokenNumbers.minutes("خمس دقايق"))
+        assertEquals(15, SpokenNumbers.minutes("ربع ساعه")); assertEquals(30, SpokenNumbers.minutes("نص ساعة"))
+        assertEquals(120, SpokenNumbers.minutes("ساعتين")); assertEquals(25, SpokenNumbers.minutes("خمسه وعشرين دقيقه"))
+        assertEquals(5, TimerVoice.minutes("set a timer for 5 minutes")); assertEquals("1:05", TimerVoice.clock(65_000))
+    }
+    @Test fun reminders() {
+        val tz = java.util.TimeZone.getTimeZone("Africa/Cairo")
+        val cal = java.util.Calendar.getInstance(tz).apply { set(2026, 10, 10, 14, 0, 0); set(java.util.Calendar.MILLISECOND, 0) }
+        val now = cal.timeInMillis
+        // مثال المواصفات: «فكرنى وأنا راجع البيت أجيب الطلبات»
+        assertEquals(NoteAction(NoteKind.REMIND, "أجيب الطلبات", place = "البيت"), NoteVoice.parse("فكرنى وأنا راجع البيت أجيب الطلبات", now, tz))
+        assertEquals("البيت", NoteVoice.parse("فكرني لما اوصل للبيت اتصل بماما", now, tz)!!.place)
+        assertEquals("الشغل", NoteVoice.parse("remind me when i get to work to call ahmed", now, tz)!!.place)
+        assertEquals(now + 10 * 60_000, NoteVoice.parse("فكرني بعد ١٠ دقايق اشرب مية", now, tz)!!.dueMs)
+        // «الساعه ٥» الساعة ٢ الضهر ⇒ ٥ العصر النهارده · «الساعه ٥ الصبح» ⇒ بكره
+        val five = NoteVoice.parse("فكرني الساعه 5 اكلم الدكتور", now, tz)!!
+        assertEquals(now + 3 * 3_600_000, five.dueMs); assertEquals("اكلم الدكتور", five.text)
+        assertEquals(now + 15 * 3_600_000, NoteVoice.parse("فكرني الساعه 5 الصبح امشي", now, tz)!!.dueMs)
+        assertEquals(now + 3 * 3_600_000 + 30 * 60_000, NoteVoice.parse("فكرني الساعه 5 ونص العصر اروح", now, tz)!!.dueMs)
+        assertEquals(NoteAction(NoteKind.TASK, "اغير الزيت"), NoteVoice.parse("ضيف مهمه اغير الزيت", now, tz))
+        assertEquals(NoteKind.NOTE, NoteVoice.parse("سجل ملاحظه الجراج بيقفل ١٢", now, tz)!!.kind)
+        assertNull(NoteVoice.parse("سجل مطب", now, tz))
+        val r = listOf(Reminder(1, "x", now - 1, null, null, null, false), Reminder(2, "y", null, LAT0, LNG0, "البيت", false))
+        assertEquals(listOf(1L), Reminders.dueByTime(r, now).map { it.id })
+        assertEquals(listOf(2L), Reminders.dueByPlace(r, north(200.0), LNG0).map { it.id })
+        assertTrue(Reminders.dueByPlace(r, north(400.0), LNG0).isEmpty())
+    }
+    @Test fun whatsappDictation() {
+        assertEquals(WaAction("احمد", "أنا جاى فى الطريق"), WaVoice.parse("ابعت لأحمد واتساب أنا جاى فى الطريق"))
+        assertEquals(WaAction("ماما", "هتأخر نص ساعه"), WaVoice.parse("ابعت واتساب لماما هتأخر نص ساعه"))
+        assertEquals("ahmed", WaVoice.parse("send whatsapp to ahmed saying i'm on my way")!!.name)
+        val people = listOf(OscarContact(1, "أحمد", "01012345678"), OscarContact(2, "ماما", "01198765432"), OscarContact(3, "شوشو ماي لوف", "01234567890"))
+        assertEquals(1L, WaVoice.contact("احمد", people)?.id)
+        assertEquals(3L, WaVoice.contact("شوشو", people)?.id)
+        assertNull(WaVoice.contact("كريم", people))
+        assertEquals("201012345678", EgyptPhone.forWhatsApp("0101 234 5678"))
+        assertEquals("201012345678", EgyptPhone.forWhatsApp("+20 101 234 5678"))
+        assertEquals("201012345678", EgyptPhone.forWhatsApp("٠١٠١٢٣٤٥٦٧٨"))
+        assertNull(EgyptPhone.forWhatsApp("123"))
+    }
+    @Test fun weather() {
+        assertEquals("دلوقتى 24 درجة وصحو، العظمى النهارده 29 والصغرى 18، احتمال مطر 40٪",
+            Weather.say(WeatherNow(23.6, 0, 10.0, 29.2, 17.8, 40)))
+        assertTrue(Weather.describe(45).contains("شبورة"))
+        assertTrue(Weather.url(30.04449, 31.23571).contains("latitude=30.04&longitude=31.24"))
+    }
+}
