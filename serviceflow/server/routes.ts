@@ -3002,6 +3002,58 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // === سكربتات Tampermonkey بتتحدّث لوحدها (المالك ٢٠٢٦-١١-١٠) — server/userscripts.ts ===
+  // السوبر أدمن يسطّب كل سكربت مرة من «رفع الملفات ← السكربتات»، وبعدها Tampermonkey يحدّث لوحده
+  // من /userscripts/<المفتاح>/<الملف>. الباب الافتراضى oscardevs.com/serviceflow (شغّال من شبكة الشركة).
+  const USERSCRIPTS_KEY = "userscripts_key";
+  const usBase = () => String(process.env.SF_USERSCRIPTS_BASE || "https://oscardevs.com/serviceflow");
+  async function userscriptsKey(rotate = false): Promise<string> {
+    if (!rotate) {
+      const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = $1`, [USERSCRIPTS_KEY]);
+      if (rows[0]?.value && /^[a-f0-9]{32}$/.test(rows[0].value)) return rows[0].value;
+    }
+    const k = randomBytes(16).toString("hex");
+    await pool.query(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, now()) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`,
+      [USERSCRIPTS_KEY, k]);
+    return k;
+  }
+  app.get("/userscripts/:key/:file", async (req, res) => {
+    try {
+      const { readScript, withUpdateUrls, metaOnly, linksFor, DEPRECATED } = await import("./userscripts");
+      const key = String(req.params.key || "");
+      const want = await userscriptsKey();
+      const a = createHash("sha256").update(key).digest(), b = createHash("sha256").update(want).digest();
+      if (!timingSafeEqual(a, b)) return res.status(404).type("text/plain").send("Not found");
+      const asked = String(req.params.file || "");
+      const meta = asked.endsWith(".meta.js");
+      const file = meta ? asked.replace(/\.meta\.js$/, ".user.js") : asked;
+      const src = DEPRECATED[file] ? null : readScript(file);
+      if (!src) return res.status(404).type("text/plain").send("Not found");
+      const links = linksFor(usBase(), want, file);
+      const out = withUpdateUrls(src, links.user, links.meta);
+      res.set("Cache-Control", "no-store").set("X-Robots-Tag", "noindex");
+      res.type("text/javascript; charset=utf-8").send(meta ? metaOnly(out) : out);
+    } catch (e: any) { res.status(500).type("text/plain").send(e.message); }
+  });
+  app.get("/api/userscripts", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      const { listScripts, readScript, readHeader, linksFor, DEPRECATED, PURPOSE } = await import("./userscripts");
+      const key = await userscriptsKey();
+      const scripts = listScripts().map((file) => {
+        const h = readHeader(readScript(file) || "") || { name: file, version: "", namespace: "" };
+        return { file, name: h.name, version: h.version, purpose: PURPOSE[file] || "", deprecated: DEPRECATED[file] || null,
+          installUrl: DEPRECATED[file] ? null : linksFor(usBase(), key, file).user };
+      });
+      res.set("Cache-Control", "no-store").json({ base: usBase(), scripts });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // لو لينك اتسرّب: مفتاح جديد ⇒ اللينكات القديمة بتقف، وتسطّب السكربتات تانى من الشاشة
+  app.post("/api/userscripts/rotate-key", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try { await userscriptsKey(true); res.json({ ok: true }); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // «أرقام العرض التقديمى» (السوبر أدمن، قراية بس) — server/presentation-stats.ts
   app.get("/api/admin/presentation-stats", requireAuth, requireSuperAdmin, async (req, res) => {
     const { presentationStats, renderPresentationStats, presentationStatsXlsx } = await import("./presentation-stats");

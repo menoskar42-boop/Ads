@@ -1,7 +1,9 @@
 // ==UserScript==
 // @name         EGX Swing: EGX disclosures
 // @namespace    https://finance.oscardevs.com
-// @version      1.1.0
+// @version      1.1.1
+// @updateURL    https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
+// @downloadURL  https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @description  يقرا جدول نتايج البحث فى أخبار البورصة المصرية ويبعت الإفصاحات الجديدة لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح صفحة البحث لو مش مفتوحة.
 // @match        https://www.egx.com.eg/ar/NewsSearch.aspx*
 // @match        https://finance.oscardevs.com/*

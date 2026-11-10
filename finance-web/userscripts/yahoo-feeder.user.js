@@ -1,7 +1,9 @@
 // ==UserScript==
 // @name         EGX Swing: Yahoo feeder
 // @namespace    https://finance.oscardevs.com
-// @version      1.0.0
+// @version      1.0.1
+// @updateURL    https://finance.oscardevs.com/userscripts/yahoo-feeder.user.js
+// @downloadURL  https://finance.oscardevs.com/userscripts/yahoo-feeder.user.js
 // @description  يقرا أسعار أسهم البورصة المصرية من Yahoo Finance (وتاب Yahoo مفتوح) ويبعتها لـ finance.oscardevs.com. مابينفّذش أى صفقة.
 // @match        https://finance.yahoo.com/*
 // @grant        GM_getValue

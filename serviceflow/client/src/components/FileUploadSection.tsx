@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { Upload, Loader2, Wrench, PhoneCall, FileSearch, Wifi, Gauge, Network, ClipboardList, Users, RefreshCw, BarChart3, Clock } from "lucide-react";
 import { ReviewSubscriberInfoButton } from "@/components/ReviewSubscriberInfoButton";
 import { ExecLanesSettingsButton } from "@/components/ExecLanesSettingsButton";
+import { UserscriptsButton } from "@/components/UserscriptsButton";
 import { runDailyUpdate as runDailyUpdateLib, runManualSiteUpdate,
   DAILY_OUTCOME_AR, DAILY_RUN_LOG_KEY, type DailyRunOutcome } from "@/lib/daily-update";
 import * as XLSX from "xlsx";
@@ -774,7 +775,12 @@ export function FileUploadSection({ onlyFccWfm = false }: { onlyFccWfm?: boolean
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-semibold text-muted-foreground">رفع الملفات</p>
           {/* عدد تابات «بدون Real» و«إيقاف PO» فى جهاز التنفيذ — سوبر أدمن بس */}
-          {isSuperAdmin && <ExecLanesSettingsButton />}
+          {isSuperAdmin && (
+            <div className="flex items-center gap-2">
+              <UserscriptsButton />
+              <ExecLanesSettingsButton />
+            </div>
+          )}
         </div>
         <UploadCard
           label="ملف wfm"
