@@ -202,7 +202,7 @@
         }).join('') + '</tbody></table></div>' +
         '<div class="row" style="margin-top:8px"><label>ضيف رموز (مسافة بينهم)<input id="add" placeholder="SWDY EAST"></label><button id="save">احفظ القايمة</button><span id="msg" class="muted"></span></div></div>' +
         '<div class="card"><h2>الإفصاحات والتحليل</h2><p>التحليل: ' + (m.ai ? esc(m.ai.provider) + ' · ' + esc(m.ai.model) : 'مقفول (مفيش مفتاح)') + ' · للإفصاحات بس، مرة لكل إفصاح، وبحد ' + esc(m.market.dailyCap) + ' فى اليوم.</p>' +
-        '<ul><li><a href="/userscripts/egx-disclosures.user.js">egx-disclosures.user.js</a>: الإفصاحات من صفحة البحث فى أخبار البورصة (لازم التاب مفتوح)</li>' +
+        '<ul><li><a href="/userscripts/egx-disclosures.user.js">egx-disclosures.user.js</a>: الإفصاحات من صفحة البحث فى أخبار البورصة، وبيفتحها لوحده فى تاب جنب موقعنا طول ما موقعنا مفتوح على الكمبيوتر</li>' +
         '<li><a href="/userscripts/yahoo-feeder.user.js">yahoo-feeder.user.js</a>: احتياطى للأسعار لو Yahoo رفض السيرفر</li></ul></div>' +
         '<p><button class="ghost" id="logout">خروج</button></p>';
       document.getElementById('saveSt').onclick = function () {

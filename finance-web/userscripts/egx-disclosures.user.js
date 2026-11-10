@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name         EGX Swing: EGX disclosures
 // @namespace    https://finance.oscardevs.com
-// @version      1.0.0
-// @description  يقرا جدول نتايج البحث فى أخبار البورصة المصرية (الصفحة اللى إنت فاتحها) ويبعت الإفصاحات الجديدة لـ finance.oscardevs.com.
+// @version      1.1.0
+// @description  يقرا جدول نتايج البحث فى أخبار البورصة المصرية ويبعت الإفصاحات الجديدة لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح صفحة البحث لو مش مفتوحة.
 // @match        https://www.egx.com.eg/ar/NewsSearch.aspx*
+// @match        https://finance.oscardevs.com/*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_xmlhttpRequest
 // @grant        GM_registerMenuCommand
+// @grant        GM_openInTab
 // @connect      finance.oscardevs.com
 // @connect      www.egx.com.eg
 // @connect      localhost
@@ -23,11 +25,35 @@
   GM_registerMenuCommand('Set server URL', function () { var v = prompt('Server URL', server()); if (v) GM_setValue('server', v.trim()); });
   GM_registerMenuCommand('Set API key', function () { var v = prompt('API key (FINANCE_INGEST_KEY)', apiKey()); if (v != null) GM_setValue('apiKey', v.trim()); });
 
+  var EGX_URL = 'https://www.egx.com.eg/ar/NewsSearch.aspx';
+  GM_registerMenuCommand('Set EGX search page URL', function () { var v = prompt('EGX search page URL', GM_getValue('egxUrl', EGX_URL)); if (v) GM_setValue('egxUrl', v.trim()); });
+
   var badge = document.createElement('div');
   badge.style.cssText = 'position:fixed;bottom:12px;left:12px;z-index:2147483647;background:#0b6e4f;color:#fff;font:12px/1.5 Tahoma,sans-serif;' +
     'padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.3);direction:rtl;max-width:340px';
   document.documentElement.appendChild(badge);
   function show(t, bad) { badge.style.background = bad ? '#b42318' : '#0b6e4f'; badge.textContent = 'EGX إفصاحات · ' + t; }
+
+  /*
+   * على موقعنا (finance.oscardevs.com): طول ما التاب مفتوح، كل دقيقة بنشوف صفحة البحث فى أخبار البورصة مفتوحة ولا لأ
+   * (صفحة البورصة بتكتب «أنا مفتوحة» كل دقيقة فى مخزن السكربت). لو مافيش نبض من ٣ دقايق ⇒ نفتحها فى تاب جنبه،
+   * ومرة واحدة كل ١٠ دقايق بالكتير عشان لو الصفحة مابتحمّلش مانفتحش تابات كتير.
+   */
+  if (location.hostname === 'finance.oscardevs.com') {
+    var keep = function () {
+      var now = Date.now(), beat = Number(GM_getValue('egxBeat', 0)), last = Number(GM_getValue('egxLastOpen', 0));
+      if (now - beat < 3 * 60000) { show('صفحة البحث فى أخبار البورصة مفتوحة ✓'); return; }
+      if (now - last < 10 * 60000) { show('مستنى صفحة أخبار البورصة تفتح…'); return; }
+      GM_setValue('egxLastOpen', now);
+      GM_openInTab(GM_getValue('egxUrl', EGX_URL), { active: false, insert: true, setParent: true });
+      show('فتحت صفحة البحث فى أخبار البورصة فى تاب جنب ده');
+    };
+    keep(); setInterval(keep, 60000);
+    return;
+  }
+  // صفحة البورصة: نبض كل دقيقة طول ما التاب مفتوح
+  GM_setValue('egxBeat', Date.now());
+  setInterval(function () { GM_setValue('egxBeat', Date.now()); }, 60000);
 
   function req(method, url, body, headers, raw) {
     return new Promise(function (resolve, reject) {
@@ -87,6 +113,8 @@
     if (!apiKey()) { show('حط المفتاح من قايمة Tampermonkey: Set API key', true); return; }
     var rows = parseRows();
     if (!rows.length) { show('مالقيتش جدول النتايج. افتح الصفحة بنفسك ودوّر، وبعدين السكربت هيكمّل', true); return false; }
+    // الصفحة دى فيها نتايج: لو اللينك فيه البحث نفسه (GET) نحفظه عشان موقعنا يفتح نفس البحث بعد كده
+    if (location.search) GM_setValue('egxUrl', location.href);
     var seen = JSON.parse(GM_getValue('seen', '[]'));
     var fresh = rows.filter(function (r) { return seen.indexOf(r.url) < 0; });
     // نص الإفصاح: للجديد بس، واحد واحد كل ٢ ثانية
@@ -102,14 +130,11 @@
     return true;
   }
 
+  // تحديث الصفحة: كل ١٠ دقايق وقت السوق، وكل ٣٠ دقيقة غير كده (الإفصاحات بتنزل بعد الإقفال كمان)
   function scheduleReload() {
     var c = cairo(), trading = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'].indexOf(c.wd) >= 0;
-    var open = hm('10:00'), close = hm('14:30');
-    if (trading && c.min >= open && c.min <= close) { setTimeout(function () { location.assign(location.href); }, 10 * 60000); return; }
-    // مرة كمان بعد الإقفال
-    if (trading && c.min > close && GM_getValue('afterClose', '') !== c.iso) {
-      GM_setValue('afterClose', c.iso); setTimeout(function () { location.assign(location.href); }, 60000);
-    }
+    var inMarket = trading && c.min >= hm('10:00') && c.min <= hm('14:30');
+    setTimeout(function () { location.assign(location.href); }, (inMarket ? 10 : 30) * 60000);
   }
 
   run().then(function (ok) { if (ok) scheduleReload(); }).catch(function (e) { show('خطأ: ' + e.message, true); console.warn('[EGX disclosures]', e); });
