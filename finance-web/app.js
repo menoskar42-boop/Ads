@@ -195,10 +195,12 @@
         '<div class="card"><h2>الأسعار</h2><label><span><input type="checkbox" id="feed"' + (st.server_feed ? ' checked' : '') + '> السيرفر يجيب الأسعار من Yahoo Finance بنفسه</span></label>' +
         '<p class="muted">' + esc(feed) + '</p><p class="muted">السوق من ' + esc(m.market.open) + ' لـ ' + esc(m.market.close) + ' بتوقيت القاهرة، الأحد للخميس. الأسعار كل ١٠ دقايق والشموع اليومية بعد ' + esc(m.market.dailyAfter) + '.</p></div>' +
         '<div class="card"><h2>قايمة المتابعة</h2><p class="muted">اسم الشركة بالعربى زى ما بيظهر فى إفصاحات البورصة، عشان الإفصاح يتربط بالرمز.</p>' +
-        '<div class="scroll"><table><thead><tr><th>الرمز</th><th>متابَع</th><th>اسم الشركة</th><th>درجة فودة</th></tr></thead><tbody>' +
+        '<div class="scroll"><table><thead><tr><th>الرمز</th><th>متابَع</th><th>الاسم العربى (للإفصاحات)</th><th>الاسم الإنجليزى</th><th>درجة فودة</th><th></th></tr></thead><tbody>' +
         (w.items || []).map(function (i) {
-          return '<tr data-s="' + esc(i.symbol) + '"><td><b>' + esc(i.symbol) + '</b></td><td><input type="checkbox" class="act"' + (i.is_active ? ' checked' : '') + '></td>' +
-            '<td><input class="note" value="' + esc(i.note || '') + '"></td><td><input class="fouda" type="number" step="1" style="width:90px" value="' + (i.fouda_score == null ? '' : i.fouda_score) + '"></td></tr>';
+          return '<tr data-s="' + esc(i.symbol) + '"><td><b>' + esc(i.symbol) + '</b></td><td><input type="checkbox" class="act"' + (i.is_active ? ' checked' : '') + ' aria-label="متابَع"></td>' +
+            '<td><input class="note" value="' + esc(i.note || '') + '"></td><td><input class="name" dir="ltr" value="' + esc(i.name || '') + '"></td>' +
+            '<td><input class="fouda" type="number" step="1" style="width:80px" value="' + (i.fouda_score == null ? '' : i.fouda_score) + '"></td>' +
+            '<td><button type="button" class="ghost" data-del="' + esc(i.symbol) + '">احذف</button></td></tr>';
         }).join('') + '</tbody></table></div>' +
         '<div class="row" style="margin-top:8px"><label>ضيف رموز (مسافة بينهم)<input id="add" placeholder="SWDY EAST"></label><button id="save">احفظ القايمة</button><span id="msg" class="muted"></span></div></div>' +
         '<div class="card"><h2>الإفصاحات والتحليل</h2><p>التحليل: ' + (m.ai ? esc(m.ai.provider) + ' · ' + esc(m.ai.model) : 'مقفول (مفيش مفتاح)') + ' · للإفصاحات بس، مرة لكل إفصاح، وبحد ' + esc(m.market.dailyCap) + ' فى اليوم.</p>' +
@@ -227,11 +229,17 @@
             .then(function (r) { pm.textContent = r && r.ok ? 'اتفعّلت ✓ دوس «جرّب إشعار»' : 'ماتفعّلتش'; });
         }).catch(function (e) { pm.textContent = 'ماتفعّلتش: ' + e.message; });
       };
+      app.querySelectorAll('[data-del]').forEach(function (b) {
+        b.onclick = function () {
+          if (!confirm('تحذف ' + b.dataset.del + ' من القايمة؟')) return;
+          api('/api/watchlist', { delete: [b.dataset.del] }).then(function (r) { if (r.ok) settings(); else document.getElementById('msg').textContent = r.error || 'فشل'; });
+        };
+      });
       document.getElementById('save').onclick = function () {
         var addList = [], remove = [];
         document.querySelectorAll('tr[data-s]').forEach(function (tr) {
           var s2 = tr.dataset.s;
-          if (tr.querySelector('.act').checked) addList.push({ symbol: s2, note: tr.querySelector('.note').value.trim(), fouda_score: tr.querySelector('.fouda').value });
+          if (tr.querySelector('.act').checked) addList.push({ symbol: s2, note: tr.querySelector('.note').value.trim(), name: tr.querySelector('.name').value.trim(), fouda_score: tr.querySelector('.fouda').value });
           else remove.push(s2);
         });
         document.getElementById('add').value.split(/[\s,]+/).filter(Boolean).forEach(function (s2) { addList.push({ symbol: s2 }); });

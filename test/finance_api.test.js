@@ -55,7 +55,22 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
 
     // قايمة المتابعة الافتراضية (٢٢ سهم) للسكربتات
     const wl = await (await fetch(base + '/api/watchlist')).json();
-    assert.equal(wl.symbols.length, 22); assert.ok(wl.symbols.includes('COMI')); assert.equal(wl.items, undefined);
+    assert.equal(wl.symbols.length, 23); assert.ok(wl.symbols.includes('ETEL')); assert.equal(wl.items, undefined);
+    const all = (await get('/api/watchlist?all=1')).items;
+    assert.equal(all[0].symbol, 'NAPR'); assert.equal(all[0].fouda_score, 76);                      // مترتّبة بدرجة فودة
+    assert.equal(all.find((i) => i.symbol === 'NIPH').note, 'النيل للأدوية');
+    assert.equal(all.find((i) => i.symbol === 'ETEL').name, 'Telecom Egypt');
+    // تعديل الاسم ودرجة فودة · مسح الدرجة · حذف · إضافة
+    let w1 = (await (await post('/api/watchlist', { add: [{ symbol: 'GTWL', name: 'Golden Textiles & Clothes Wool', note: 'الذهبية', fouda_score: 45 }, { symbol: 'CCAP', fouda_score: '' }],
+      delete: ['AMII'] }, KEY)).json()).items;
+    assert.equal(w1.find((i) => i.symbol === 'GTWL').fouda_score, 45); assert.equal(w1.find((i) => i.symbol === 'GTWL').note, 'الذهبية');
+    assert.equal(w1.find((i) => i.symbol === 'CCAP').fouda_score, null);
+    assert.equal(w1.find((i) => i.symbol === 'AMII'), undefined);
+    w1 = (await (await post('/api/watchlist', { add: [{ symbol: 'amii', name: 'Arabian Metal Industries' }] }, KEY)).json()).items;
+    assert.ok(w1.find((i) => i.symbol === 'AMII' && i.is_active));
+    // إعادة التشغيل مابترجّعش القايمة المبدئية فوق تعديلات المالك
+    await site.start();
+    assert.equal((await get('/api/watchlist?all=1')).items.find((i) => i.symbol === 'GTWL').fouda_score, 45);
 
     // شموع ⇒ مستويات
     const c = await (await post('/api/ingest/candles', [{ symbol: 'COMI.CA', rows: series(60, 100, 0.5) }, { symbol: 'TMGH', rows: series(30, 50, 0.1) }], KEY)).json();

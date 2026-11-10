@@ -6,11 +6,22 @@
 const { Pool } = require('pg');
 const L = require('./levels');
 
+// القايمة المبدئية (المالك ٢٠٢٦-١١-١٠): ٢٣ سهم بدرجة Fouda Score من دليل FoudaLens، والاسم الإنجليزى زى الموقع.
+// الاسم العربى (للربط بإفصاحات البورصة) للى متأكدين منه بس، والباقى فاضى لحد ما المالك يكتبه. كله بيتعدّل من الإعدادات.
+// [الرمز, الاسم الإنجليزى, الاسم العربى, Fouda Score]
 const DEFAULT_WATCHLIST = [
-  ['COMI', 'البنك التجاري الدولي'], ['TMGH', 'طلعت مصطفى'], ['NIPH', 'ابن سينا فارما'], ['ABUK', 'أبوقير للأسمدة'],
-  ['ZMID', ''], ['POUL', 'القاهرة للدواجن'], ['MPCO', 'المنصورة للدواجن'], ['CERA', ''], ['RUBX', 'روبكس'],
-  ['BTFH', 'بلتون'], ['DTPP', ''], ['GTWL', ''], ['CAED', ''], ['BIOC', ''], ['AMES', ''], ['CCAP', 'القلعة'],
-  ['ADRI', ''], ['NAPR', ''], ['CRST', ''], ['KORA', ''], ['AMII', ''], ['ORAS', 'أوراسكوم كونستراكشون'],
+  ['NAPR', 'National Printing Company', '', 76], ['POUL', 'Cairo Poultry', 'القاهرة للدواجن', 72],
+  ['CRST', 'Creast Mark Contracting', '', 70], ['ADRI', 'Arab for Real Estate Development & Investment', '', 65],
+  ['COMI', 'Commercial International Bank (CIB)', 'البنك التجاري الدولي', 63], ['ZMID', 'Zahraa El Maadi', 'زهراء المعادي', 63],
+  ['ORAS', 'Orascom Construction', 'أوراسكوم كونستراكشون', 59], ['ETEL', 'Telecom Egypt', 'المصرية للاتصالات', 58],
+  ['BIOC', 'GlaxoSmithKline Egypt', 'جلاكسو سميثكلاين', 57], ['MPCO', 'Mansoura Poultry', 'المنصورة للدواجن', 55],
+  ['AMES', 'Alexandria New Medical Center', '', 54], ['CAED', 'Cairo Educational Services', 'القاهرة للخدمات التعليمية', 54],
+  ['NIPH', 'El Nile Pharmaceuticals', 'النيل للأدوية', 53], ['TMGH', 'Talaat Moustafa Group', 'طلعت مصطفى', 52],
+  ['CERA', 'Arab Ceramic', 'العربية للخزف', 49], ['RUBX', 'Rubex International', 'روبكس', 48],
+  ['GTWL', 'Golden Textiles', '', 41], ['ABUK', 'Abu Qir Fertilizers', 'أبوقير للأسمدة', 40],
+  ['BTFH', 'Beltone Holding', 'بلتون', 39], ['KORA', 'Qora for Energy & Investment Projects', '', 39],
+  ['AMII', 'Arabian Metal Industries', '', 35], ['DTPP', 'Delta Printing & Packaging', 'دلتا للطباعة والتغليف', 34],
+  ['CCAP', 'Qalaa Holdings', 'القلعة', 20],
 ];
 
 function dbUrl(env) {
@@ -57,10 +68,17 @@ async function ensureSchema(p) {
       pnl NUMERIC, reason TEXT, ts TIMESTAMPTZ DEFAULT now());
     CREATE TABLE IF NOT EXISTS egx.push_subs(endpoint TEXT PRIMARY KEY, sub TEXT NOT NULL, created_ts TIMESTAMPTZ DEFAULT now());
     INSERT INTO egx.sim_account(id, cash, start_cash) VALUES (1, 100000, 100000) ON CONFLICT DO NOTHING;
+    ALTER TABLE egx.watchlist ADD COLUMN IF NOT EXISTS name TEXT;
   `);
-  const n = await p.query('SELECT count(*)::int AS n FROM egx.watchlist');
-  if (n.rows[0].n === 0) {
-    for (const [s, note] of DEFAULT_WATCHLIST) await p.query('INSERT INTO egx.watchlist(symbol, is_active, note) VALUES ($1, true, $2) ON CONFLICT DO NOTHING', [s, note]);
+  // القايمة المبدئية مرة واحدة بس (seed_v2): بتحط الـ٢٣ سهم ودرجاتهم، ومابتلمسش أى حاجة المالك عدّلها بعد كده
+  const done = await p.query("SELECT 1 FROM egx.settings WHERE k='seed_v2'");
+  if (!done.rowCount) {
+    for (const [s, name, note, fouda] of DEFAULT_WATCHLIST) {
+      await p.query(`INSERT INTO egx.watchlist(symbol, is_active, fouda_score, note, name) VALUES ($1, true, $2, $3, $4)
+        ON CONFLICT (symbol) DO UPDATE SET fouda_score=$2, name=$4, note=CASE WHEN COALESCE(egx.watchlist.note,'')='' OR egx.watchlist.symbol='NIPH' THEN $3 ELSE egx.watchlist.note END`,
+      [s, fouda, note, name]);
+    }
+    await p.query("INSERT INTO egx.settings(k, v) VALUES ('seed_v2', now()::text) ON CONFLICT DO NOTHING");
   }
 }
 
@@ -224,21 +242,29 @@ async function disclosures(p, opts) {
 
 /* ── قايمة المتابعة ── */
 async function watchlist(p, all) {
-  const r = await p.query(`SELECT symbol, is_active, fouda_score::float, note FROM egx.watchlist ${all ? '' : 'WHERE is_active'} ORDER BY symbol`);
+  const r = await p.query(`SELECT symbol, is_active, fouda_score::float, note, name FROM egx.watchlist ${all ? '' : 'WHERE is_active'}
+    ORDER BY fouda_score DESC NULLS LAST, symbol`);
   return r.rows;
 }
 
 async function updateWatchlist(p, body) {
   const add = (body && Array.isArray(body.add) ? body.add : []).map((x) => (typeof x === 'string' ? { symbol: x } : x));
   const remove = (body && Array.isArray(body.remove) ? body.remove : []).map(cleanSym).filter(Boolean);
+  const del = (body && Array.isArray(body.delete) ? body.delete : []).map(cleanSym).filter(Boolean);
   for (const a of add) {
     const s = cleanSym(a.symbol); if (!s) continue;
-    const f = a.fouda_score == null || a.fouda_score === '' ? null : num(a.fouda_score);
-    await p.query(`INSERT INTO egx.watchlist(symbol, is_active, fouda_score, note) VALUES ($1, true, $2, $3)
-      ON CONFLICT (symbol) DO UPDATE SET is_active=true, fouda_score=COALESCE($2, egx.watchlist.fouda_score), note=COALESCE($3, egx.watchlist.note)`,
-    [s, f, a.note == null ? null : String(a.note).slice(0, 120)]);
+    // fouda_score: رقم ⇒ يتحط · فاضى ('') ⇒ يتمسح · مش مبعوت ⇒ زى ما هو
+    const clearF = a.fouda_score === '' || a.fouda_score === null;
+    const f = clearF || a.fouda_score === undefined ? null : num(a.fouda_score);
+    await p.query(`INSERT INTO egx.watchlist(symbol, is_active, fouda_score, note, name) VALUES ($1, true, $2, $3, $4)
+      ON CONFLICT (symbol) DO UPDATE SET is_active=true,
+        fouda_score=CASE WHEN $5 THEN NULL ELSE COALESCE($2, egx.watchlist.fouda_score) END,
+        note=COALESCE($3, egx.watchlist.note), name=COALESCE($4, egx.watchlist.name)`,
+    [s, f, a.note == null ? null : String(a.note).slice(0, 120), a.name == null ? null : String(a.name).slice(0, 120), clearF]);
   }
   if (remove.length) await p.query('UPDATE egx.watchlist SET is_active=false WHERE symbol = ANY($1)', [remove]);
+  // حذف نهائى من القايمة (الشموع والإفصاحات القديمة بتفضل، ولو رجّعته بيرجع بتاريخه)
+  if (del.length) await p.query('DELETE FROM egx.watchlist WHERE symbol = ANY($1)', [del]);
   return watchlist(p, true);
 }
 
@@ -259,7 +285,7 @@ async function state(p, now) {
     const qq = q.find((x) => x.symbol === w.symbol);
     const mine = ds.filter((d) => d.symbol === w.symbol).map((d) => ({ published_date: d.published_date instanceof Date ? d.published_date.toISOString() : d.published_date, impact_score: d.impact_score }));
     return {
-      symbol: w.symbol, note: w.note, fouda_score: w.fouda_score,
+      symbol: w.symbol, note: w.note || w.name, name: w.name, fouda_score: w.fouda_score,
       price: qq ? qq.price : (l ? l.last_close : null), price_source: qq ? 'quote' : (l ? 'close' : null),
       quote_ts: qq ? (qq.quote_ts || qq.fetched_ts) : null, fetched_ts: qq ? qq.fetched_ts : null,
       levels: l, news: L.newsScore(mine, today), news_count: mine.length,
