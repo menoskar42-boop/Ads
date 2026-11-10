@@ -27,6 +27,15 @@
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <queries>
+        <!-- 🩺 فحص الشاشة: فيه تطبيق اتصال / جهات اتصال؟ (قبل «اتصل بأحمد») -->
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="vnd.android.cursor.dir/contact" />
+        </intent>
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>

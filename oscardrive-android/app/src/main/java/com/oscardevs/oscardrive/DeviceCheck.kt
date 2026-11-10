@@ -121,6 +121,15 @@ object DeviceCheck {
         add("أوسكار يسمع من غير نت", listOf("ar" to "عربى", "en" to "English").joinToString(" · ") { (l, t) ->
             "$t ${if (OfflineEars.installed(ctx, l)) "متنزّل" else "مش متنزّل"}" } + " · رامات فاضية ${OfflineEars.freeRamMb(ctx)} ميجا")
         add("الصوت العربى", if (Speaker.available) "شغّال" else "مش جاهز")
+        // «اتصل بأحمد» (لسه مش متعمول): فيه تطبيق اتصال بيستقبل رقم؟ وتطبيق جهات اتصال؟ — من غير إذن قراية الجهات
+        val dialers = try {
+            pm.queryIntentActivities(android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:123")), 0).map { it.activityInfo.packageName }.distinct()
+        } catch (_: Exception) { emptyList() }
+        add("تطبيق الاتصال", if (dialers.isEmpty()) "مفيش (المكالمات من برنامج البلوتوث بتاع الشاشة)" else dialers.joinToString())
+        val contactsApps = try {
+            pm.queryIntentActivities(android.content.Intent(android.content.Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI), 0).map { it.activityInfo.packageName }.distinct()
+        } catch (_: Exception) { emptyList() }
+        add("جهات الاتصال", if (contactsApps.isEmpty()) "مفيش تطبيق جهات" else contactsApps.joinToString())
 
         // الحكم — لمانع السرقة
         out += Row("🛡️ تتبّع العربية وانت مش فيها",
