@@ -191,7 +191,7 @@ async function simReset(p, cash) {
  *  • بيع محدد السعر: السعر ≥ سعرك · وقف خسارة: السعر ≤ الوقف. للسهم اللى معاك بس.
  * b: {symbol, side, type, price, qty?, amount?, stop_loss?, target?, days?}. days فاضى = لحد ما تلغيه.
  */
-async function placeOrder(p, b, now) {
+async function addSimOrder(p, b, now) {
   now = now || new Date();
   const sym = store.cleanSym(b && b.symbol);
   const side = String((b && b.side) || '').toUpperCase();
@@ -326,5 +326,5 @@ async function tick(p, opts) {
 
 function token(secret, id) { return crypto.createHmac('sha256', String(secret || '')).update('rec:' + id).digest('hex').slice(0, 32); }
 
-module.exports = { settings, setSettings, setMeta, recs, rec, createRec, decide, simRun, simState, simReset, cancelOrder, placeOrder, settle,
+module.exports = { settings, setSettings, setMeta, recs, rec, createRec, decide, simRun, simState, simReset, cancelOrder, addSimOrder, settle,
   saveSub, subs, dropSub, notification, evaluate, tick, token, recentRec };
