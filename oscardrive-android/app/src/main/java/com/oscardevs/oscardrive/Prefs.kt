@@ -41,10 +41,74 @@ class Prefs(context: Context) {
     var emergencyPhone: String
         get() = sp.getString("sos_phone", "") ?: ""
         set(v) = sp.edit().putString("sos_phone", v.trim()).apply()
-    /** عدّاد العربية بالكيلو (عشرى عشان الرحلات الصغيرة تتجمع). */
+    /**
+     * العدّاد (المرحلة ٤): آخر رقم من التابلوه + كيلومترات الـGPS بعده (`Odometer`). النسخ القديمة كان عندها رقم واحد
+     * («odo») ⇒ بيبقى هو المعايرة الأولى. الأرقام Double كاملة (مش Float) عشان ٩٠ ألف كيلو مايتقرّبوش.
+     */
+    var odo: com.oscardevs.oscardrive.logic.Odometer
+        get() {
+            if (!sp.contains("odo_cal")) {
+                val legacy = sp.getFloat("odo", 0f).toDouble()
+                return com.oscardevs.oscardrive.logic.Odometer(legacy, if (legacy > 0) 1L else 0L)
+            }
+            return com.oscardevs.oscardrive.logic.Odometer(dbl("odo_cal"), sp.getLong("odo_cal_at", 0), dbl("odo_gps_since"), dbl("odo_gps_total"))
+        }
+        set(o) = sp.edit().putLong("odo_cal", o.calibratedKm.toRawBits()).putLong("odo_cal_at", o.calibratedAtMs)
+            .putLong("odo_gps_since", o.gpsSinceCalKm.toRawBits()).putLong("odo_gps_total", o.gpsTotalKm.toRawBits())
+            .putFloat("odo", o.currentKm.toFloat()).apply()
+    private fun dbl(k: String): Double = Double.fromBits(sp.getLong(k, 0.0.toRawBits()))
+    /** عدّاد العربية دلوقتى. الكتابة = معايرة («خلّى العدّاد ٩٠ ألف») بتاريخ النهارده. */
     var odoKm: Double
-        get() = sp.getFloat("odo", 0f).toDouble()
-        set(v) = sp.edit().putFloat("odo", v.coerceAtLeast(0.0).toFloat()).apply()
+        get() = odo.currentKm
+        set(v) { odo = odo.calibrate(v.coerceAtLeast(0.0), System.currentTimeMillis()) }
+    fun addOdoGps(km: Double) { odo = odo.addGps(km) }
+
+    /** آخر لقطة GPS كويسة — لو الشاشة فصلت فجأة مع العربية، دى مكان الركنة (Parking.recover). */
+    fun saveLastFix(lat: Double, lng: Double, acc: Float?, t: Long) =
+        sp.edit().putLong("fix_lat", lat.toRawBits()).putLong("fix_lng", lng.toRawBits()).putFloat("fix_acc", acc ?: -1f).putLong("fix_t", t).apply()
+    fun lastFix(): com.oscardevs.oscardrive.logic.ParkSpot? {
+        val t = sp.getLong("fix_t", 0); if (t <= 0) return null
+        val acc = sp.getFloat("fix_acc", -1f)
+        return com.oscardevs.oscardrive.logic.ParkSpot(dbl("fix_lat"), dbl("fix_lng"), t, if (acc < 0) null else acc, odoKm.toInt().takeIf { it > 0 })
+    }
+
+    /* ── البنزين: أسعار ٨٠/٩٢/٩٥ بتاريخها (كل تغيير سعر بيتحفظ والقديم بيفضل للتفويلات القديمة) ── */
+    fun fuelPrices(): List<com.oscardevs.oscardrive.logic.PricePoint> {
+        val a = try { org.json.JSONArray(sp.getString("fuel_prices", "[]")) } catch (_: Exception) { org.json.JSONArray() }
+        return (0 until a.length()).mapNotNull { i ->
+            val o = a.optJSONObject(i) ?: return@mapNotNull null
+            val g = com.oscardevs.oscardrive.logic.Grade.of(o.optString("g")) ?: return@mapNotNull null
+            com.oscardevs.oscardrive.logic.PricePoint(g, o.optLong("t"), o.optDouble("p"))
+        }
+    }
+    fun addFuelPrice(g: com.oscardevs.oscardrive.logic.Grade, perLiter: Double, t: Long = System.currentTimeMillis()) {
+        val a = try { org.json.JSONArray(sp.getString("fuel_prices", "[]")) } catch (_: Exception) { org.json.JSONArray() }
+        a.put(org.json.JSONObject().put("g", g.key).put("t", t).put("p", perLiter))
+        sp.edit().putString("fuel_prices", a.toString()).apply()
+    }
+    /** نوع البنزين اللى بتحطه عادةً. */
+    var fuelGrade: String
+        get() = sp.getString("fuel_grade", "92") ?: "92"
+        set(v) = sp.edit().putString("fuel_grade", v).apply()
+    /** سعة التانك باللتر (٠ = لسه ماتكتبتش ⇒ مفيش تقدير للفاضل). */
+    var tankL: Double
+        get() = sp.getFloat("tank_l", 0f).toDouble()
+        set(v) = sp.edit().putFloat("tank_l", v.toFloat()).apply()
+    /** استهلاك مؤقت (لتر/١٠٠ كم) لحد ما يبقى فيه تفويلتين لآخرها — مكتوب دايماً إنه تقديرى. */
+    var provisionalRate: Double
+        get() = sp.getFloat("rate_est", 8f).toDouble()
+        set(v) = sp.edit().putFloat("rate_est", v.toFloat()).apply()
+
+    /* ── الضمان: مواعيد الوكيل بالكيلو (إنت بتكتبها) واللى اتعمل منها ── */
+    var warrantyOn: Boolean
+        get() = sp.getBoolean("warranty_on", false)
+        set(v) = sp.edit().putBoolean("warranty_on", v).apply()
+    var warrantyKm: List<Int>
+        get() = (jsonList(sp.getString("warranty_km", null)) ?: emptyList()).mapNotNull { it.toIntOrNull() }.sorted()
+        set(v) = sp.edit().putString("warranty_km", org.json.JSONArray(v.distinct().sorted().map { it.toString() }).toString()).apply()
+    var warrantyDone: Set<Int>
+        get() = (sp.getStringSet("warranty_done", emptySet()) ?: emptySet()).mapNotNull { it.toIntOrNull() }.toSet()
+        set(v) = sp.edit().putStringSet("warranty_done", v.map { it.toString() }.toSet()).apply()
     /** آخر مكان معروف — للوضع الليلى قبل ما الـGPS يلقط. */
     var lastLat: Double
         get() = sp.getFloat("last_lat", 0f).toDouble()

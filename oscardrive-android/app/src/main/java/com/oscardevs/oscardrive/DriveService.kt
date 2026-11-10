@@ -91,6 +91,7 @@ class DriveService : Service() {
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     }
     private var lastGpsMs = 0L
+    private var lastFixSaved = 0L
     @Volatile private var netLoc: Location? = null
     @Volatile private var netMs: Long? = null
     private val netListener = object : LocationListener {
@@ -153,6 +154,7 @@ class DriveService : Service() {
         State.limitKmh = prefs.limit
         State.hazardsDirty = true
         updateNight(System.currentTimeMillis())
+        recoverParking()
         startGps()
         Guard.onBoot()
         // «صباح الخير، جاهز ننطلق؟» — من جمل أوسكار المسجّلة
@@ -230,6 +232,8 @@ class DriveService : Service() {
         State.lat = loc.latitude; State.lng = loc.longitude
         State.accuracyM = acc
         if (acc != null && acc <= 50f) { prefs.lastLat = loc.latitude; prefs.lastLng = loc.longitude }
+        // آخر لقطة كويسة كل ١٠ ثوانى — لو الشاشة فصلت فجأة مع العربية، دى مكان الركنة المرة الجاية
+        if (acc != null && acc <= 100f && now - lastFixSaved > 10_000) { lastFixSaved = now; prefs.saveLastFix(loc.latitude, loc.longitude, acc, now) }
         checkHazards(now, kmh ?: 0f)
         Guard.onLocation(loc, kmh ?: 0f)
         syncTrip()
@@ -265,8 +269,19 @@ class DriveService : Service() {
 
     private fun tripEnded(s: TripLogic.Summary) {
         db.addTrip(s)
-        if (prefs.autoOdo) prefs.odoKm = prefs.odoKm + s.distanceM / 1000.0
-        if (prefs.autoPark) db.park(s.endLat, s.endLng)
+        if (prefs.autoOdo) prefs.addOdoGps(s.distanceM / 1000.0)
+        if (prefs.autoPark) db.park(s.endLat, s.endLng, State.accuracyM.takeIf { !State.approx }, prefs.odoKm.toInt())
+    }
+
+    /**
+     * الشاشة بتفصل مع العربية فجأة (من غير ما الرحلة تخلص) ⇒ أول ما تفتح تانى: آخر لقطة GPS قبل ما تفصل
+     * (لو أحدث من آخر ركنة وبعيدة عنها) تتحفظ ركنة بوقتها الحقيقى.
+     */
+    private fun recoverParking() {
+        if (!prefs.autoPark) return
+        val last = db.parkings().firstOrNull()?.spot()
+        val spot = com.oscardevs.oscardrive.logic.Parking.recover(prefs.lastFix(), last) ?: return
+        db.park(spot.lat, spot.lng, spot.accuracyM, spot.odoKm, spot.timeMs)
     }
 
     private fun syncTrip() {

@@ -32,6 +32,18 @@ import com.oscardevs.oscardrive.logic.EgyptWords
 import com.oscardevs.oscardrive.logic.Cmd
 import com.oscardevs.oscardrive.logic.Fuel
 import com.oscardevs.oscardrive.logic.Geo
+import com.oscardevs.oscardrive.logic.Odometer
+import com.oscardevs.oscardrive.logic.OdoVoice
+import com.oscardevs.oscardrive.logic.MaintVoice
+import com.oscardevs.oscardrive.logic.MaintVoiceAction
+import com.oscardevs.oscardrive.logic.FuelVoice
+import com.oscardevs.oscardrive.logic.FuelBook
+import com.oscardevs.oscardrive.logic.FuelPrices
+import com.oscardevs.oscardrive.logic.Grade
+import com.oscardevs.oscardrive.logic.Warranty
+import com.oscardevs.oscardrive.logic.Reports
+import com.oscardevs.oscardrive.logic.TripRec
+import com.oscardevs.oscardrive.logic.Parking
 import com.oscardevs.oscardrive.logic.HazardType
 import com.oscardevs.oscardrive.logic.MaintStatus
 import com.oscardevs.oscardrive.logic.RoadMemory
@@ -366,11 +378,17 @@ class MainActivity : Activity() {
             c.addView(ui.text("لسه مفيش ركنة محفوظة.", 18f, ui.ink, bold = true))
         } else {
             c.addView(ui.text("آخر ركنة: ${ago(last.timeMs)}", 20f, ui.ink, bold = true))
+            c.addView(ui.text(Parking.label(last.spot(), ago(last.timeMs)) +
+                (last.odoKm?.let { " · العدّاد ${Odometer.fmtKm(it.toDouble())}" } ?: ""), 14f, if (Parking.isApprox(last.spot())) ui.warn else ui.muted))
+            if (last.note.isNotBlank()) c.addView(ui.text("📝 ${last.note}", 15f, ui.ink))
             here()?.let { c.addView(ui.text("بعيدة عنك ${km(Geo.distanceM(it.first, it.second, last.lat, last.lng))}", 16f, ui.muted)) }
             val r = ui.row()
             r.addView(ui.button("🚶 وصّلنى للعربية", "primary") { navigateTo(last.lat, last.lng, "العربية", walk = true) }, ui.lp(0, ui.dp(60), 1f, 4))
             r.addView(ui.button("📤 ابعت مكانها", "neutral") { share("العربية راكنة هنا: ${Geo.mapsLink(last.lat, last.lng)}") }, ui.lp(0, ui.dp(60), 1f, 4))
             c.addView(r)
+            c.addView(ui.button(if (last.note.isBlank()) "📝 ملاحظة (الدور · رقم المكان…)" else "📝 عدّل الملاحظة", "neutral", 15f) {
+                askText("ملاحظة على الركنة", "مثلاً: الدور التانى تحت الأرض · عمود B4", last.note) { n -> db.setParkingNote(last.id, n); refresh() }
+            }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
         }
         page.addView(c, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 4))
         page.addView(ui.button("🅿️ ركنت هنا", "good", 20f) { parkHere(); refresh() }, ui.lp(Ui.MATCH, ui.dp(64), marginDp = 4))
@@ -383,10 +401,13 @@ class MainActivity : Activity() {
 
         if (list.size > 1) {
             page.addView(section("الركنات اللى فاتت"))
-            for (p in list.drop(1).take(10)) {
+            for (p in list.drop(1).take(15)) {
                 val r = ui.card(10).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-                r.addView(ui.text(dateTime(p.timeMs), 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
-                r.addView(ui.button("وصّلنى", "neutral", 14f) { navigateTo(p.lat, p.lng, "الركنة", walk = true) }, ui.lp(ui.dp(100), ui.dp(48), 0f, 2))
+                val extra = listOfNotNull(if (Parking.isApprox(p.spot())) "تقريبى" else null, p.note.takeIf { it.isNotBlank() }?.let { "📝 $it" }).joinToString(" · ")
+                r.addView(ui.text(dateTime(p.timeMs) + if (extra.isNotEmpty()) "\n$extra" else "", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+                r.addView(ui.button("🗺️", "neutral", 15f) { view("geo:${p.lat},${p.lng}?q=${p.lat},${p.lng}") || toast("مفيش تطبيق خرائط") }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
+                r.addView(ui.button("وصّلنى", "neutral", 14f) { navigateTo(p.lat, p.lng, "الركنة", walk = true) }, ui.lp(ui.dp(92), ui.dp(48), 0f, 2))
+                r.addView(ui.button("🗑️", "neutral", 15f) { confirm("تمسح الركنة دى؟") { db.deleteParking(p.id); refresh() } }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
                 page.addView(r, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
             }
         }
@@ -433,22 +454,23 @@ class MainActivity : Activity() {
 
     private fun carTab(): View {
         val page = ui.col(14)
-        page.addView(header("🔧 السيارة", "العدّاد بيزيد لوحده بكيلومترات الرحلات، والصيانة بتقولك إيه قرّب ميعاده."))
+        page.addView(header("🔧 السيارة", "العدّاد = آخر رقم كتبته من التابلوه + كيلومترات الـGPS بعده. الصيانة والبنزين بيتحسبوا عليه."))
         val odo = prefs.odoKm.toInt()
+        val o = prefs.odo
         val oc = ui.card(14).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        oc.addView(ui.text("العدّاد\n${if (odo > 0) "%,d كم".format(Locale.US, odo) else "اكتب رقم العدّاد"}", 20f, ui.ink, bold = true), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
-        oc.addView(ui.button("عدّل", "primary", 16f) {
-            askNumber("رقم العدّاد (كم)", if (odo > 0) odo.toString() else "") { v ->
-                val first = prefs.odoKm < 1
-                prefs.odoKm = v.toDouble()
-                if (first) db.maintStartAt(v)
-                refresh()
-            }
-        }, ui.lp(ui.dp(100), ui.dp(54), 0f, 2))
+        val oText = ui.col(0)
+        oText.addView(ui.text("العدّاد  ${if (odo > 0) Odometer.fmtKm(o.currentKm) + " كم" else "اكتب رقم العدّاد"}", 20f, ui.ink, bold = true))
+        oText.addView(ui.text(o.explain { SimpleDateFormat("d/M/yyyy", Locale.US).format(Date(it)) } +
+            if (o.gpsTotalKm > 0) "\nكل اللى الـGPS حسبه من الأول: ${Odometer.fmtKm(o.gpsTotalKm)} كم" else "", 13f, ui.muted))
+        oc.addView(oText, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        oc.addView(ui.button("صحّح من التابلوه", "primary", 15f) {
+            askNumber("رقم العدّاد من التابلوه (كم)", if (odo > 0) odo.toString() else "") { v -> setOdo(v) }
+        }, ui.lp(ui.dp(150), ui.dp(54), 0f, 2))
         page.addView(oc, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 4))
 
         // الصيانة
         page.addView(section("🛠️ الصيانة"))
+        page.addView(ui.text("المواعيد الافتراضية تقديرية — عدّلها (⚙️) حسب كتالوج عربيتك. بالصوت: «غيرت الزيت ٥٠٠٠ كيلو» · «غيرت الكاوتش الأمامى».", 13f, ui.muted))
         val now = System.currentTimeMillis()
         val items = db.maint().map { it to CarCare.status(it, odo, now) }.sortedBy { it.second.status.ordinal * -1 }
         for ((item, st) in items) {
@@ -459,24 +481,95 @@ class MainActivity : Activity() {
             row.addView(ui.chip(label, color))
             row.addView(ui.space(8, 1))
             row.addView(ui.text("${item.name}\n${CarCare.describe(st)}   ($every)", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
-            row.addView(ui.button("اتعمل", "good", 14f) { confirm("${item.name} اتعمل النهارده على عدّاد $odo؟") { db.maintDone(item.id, odo); refresh() } }, ui.lp(ui.dp(84), ui.dp(48), 0f, 2))
+            row.addView(ui.button("اتعمل", "good", 14f) {
+                if (odo <= 0) { toast("اكتب العدّاد الأول"); return@button }
+                confirm("${item.name} اتعمل النهارده على عدّاد ${Odometer.fmtKm(odo.toDouble())}؟") { db.maintDone(item.id, odo); refresh() }
+            }, ui.lp(ui.dp(84), ui.dp(48), 0f, 2))
             row.addView(ui.button("⚙️", "neutral", 15f) { editMaint(item.id, item.name, item.everyKm, item.everyDays) }, ui.lp(ui.dp(54), ui.dp(48), 0f, 2))
             page.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
         }
 
         // البنزين
         page.addView(section("⛽ البنزين"))
-        val fills = db.fills()
-        val cons = Fuel.consumption(fills)
-        val cpk = Fuel.costPerKm(fills)
-        page.addView(ui.text(if (cons != null) "الاستهلاك: %.1f لتر/١٠٠ كم · الكيلو بـ %.2f جنيه".format(Locale.US, cons, cpk ?: 0.0)
-            else "سجّل تفويلتين «لآخرها» وهحسبلك الاستهلاك (تقديرى).", 16f, ui.ink, bold = cons != null))
-        page.addView(ui.button("＋ سجّل تفويلة", "primary") { addFill() }, ui.lp(Ui.MATCH, ui.dp(56), marginDp = 4))
-        for (f in fills.take(8)) {
+        val fills = db.fillRecs()
+        val cons = FuelBook.consumption(fills)
+        val avg = FuelBook.averageConsumption(fills)
+        val cpk = FuelBook.costPerKm(fills)
+        page.addView(ui.text(if (cons != null) "الاستهلاك الحقيقى: %.1f لتر/١٠٠ كم (آخر فترة)%s · الكيلو بـ %.2f جنيه".format(Locale.US, cons,
+                avg?.let { " · المتوسط %.1f".format(Locale.US, it) } ?: "", cpk ?: 0.0)
+            else "الاستهلاك الحقيقى: لسه مش كفاية — سجّل تفويلتين «لآخرها» (بالفلوس أو باللتر). لحد ده بستخدم ${"%.1f".format(Locale.US, prefs.provisionalRate)} لتر/١٠٠ كم تقديرى.",
+            16f, ui.ink, bold = cons != null))
+        page.addView(ui.text(fuelLeftText(), 14f, ui.muted))
+        page.addView(ui.button("＋ سجّل تفويلة (بالفلوس أو باللتر)", "primary") { addFill() }, ui.lp(Ui.MATCH, ui.dp(56), marginDp = 4))
+        // الأسعار بتاريخها + التانك + الاستهلاك التقديرى
+        val prices = prefs.fuelPrices()
+        val pr = ui.row()
+        for (g in Grade.entries) {
+            val cur = FuelPrices.current(prices, g)
+            pr.addView(ui.button("${g.ar}\n${cur?.let { "%.2f ج/لتر".format(Locale.US, it) } ?: "حط السعر"}", "neutral", 14f) {
+                askText("سعر لتر ${g.ar} (جنيه) — التفويلات القديمة بتفضل بسعرها", "مثلاً 19.25", cur?.toString() ?: "", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL) { v ->
+                    v.toDoubleOrNull()?.takeIf { it > 0 }?.let { prefs.addFuelPrice(g, it); refresh() } ?: toast("رقم غلط")
+                }
+            }, ui.lp(0, ui.dp(64), 1f, 3))
+        }
+        page.addView(pr)
+        val tr = ui.row()
+        tr.addView(ui.button(if (prefs.tankL > 0) "التانك ${"%.0f".format(Locale.US, prefs.tankL)} لتر" else "سعة التانك؟", "neutral", 14f) {
+            askNumber("سعة التانك (لتر) — من كتالوج العربية", if (prefs.tankL > 0) prefs.tankL.toInt().toString() else "") { prefs.tankL = it.toDouble(); refresh() }
+        }, ui.lp(0, ui.dp(54), 1f, 3))
+        tr.addView(ui.button("استهلاك تقديرى ${"%.1f".format(Locale.US, prefs.provisionalRate)}", "neutral", 14f) {
+            askText("استهلاك تقديرى (لتر/١٠٠ كم) لحد ما يبان الحقيقى", "مثلاً 8", prefs.provisionalRate.toString(), InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL) { v ->
+                v.toDoubleOrNull()?.takeIf { it in 3.0..30.0 }?.let { prefs.provisionalRate = it; refresh() } ?: toast("بين ٣ و٣٠")
+            }
+        }, ui.lp(0, ui.dp(54), 1f, 3))
+        page.addView(tr)
+        for (f in fills.take(10)) {
             val row = ui.card(10).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            row.addView(ui.text("${dateTime(f.timeMs)} · عدّاد ${f.odoKm}\n${f.liters} لتر · ${f.price} جنيه${if (f.full) " · لآخرها" else ""}", 14f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
-            row.addView(ui.button("مسح", "neutral", 14f) { db.deleteFill(f.id); refresh() }, ui.lp(ui.dp(76), ui.dp(46), 0f, 2))
+            val g = f.grade?.ar ?: "بنزين"
+            row.addView(ui.text("${dateTime(f.timeMs)} · عدّاد ${Odometer.fmtKm(f.odoKm.toDouble())}\n${"%.1f".format(Locale.US, f.liters)} لتر $g · ${"%.0f".format(Locale.US, f.paid)} جنيه" +
+                (f.perLiter?.let { " (${"%.2f".format(Locale.US, it)}/لتر)" } ?: "") + if (f.full) " · لآخرها" else " · جزئى", 14f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            row.addView(ui.button("مسح", "neutral", 14f) { confirm("تمسح التفويلة دى؟") { db.deleteFill(f.id); refresh() } }, ui.lp(ui.dp(76), ui.dp(46), 0f, 2))
             page.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
+        }
+
+        // الضمان (اختيارى): مواعيد الوكيل اللى إنت بتكتبها
+        page.addView(section("🏷️ صيانة الضمان (الوكيل)"))
+        page.addView(toggle("العربية لسه فى الضمان", prefs.warrantyOn) { prefs.warrantyOn = it; if (it && prefs.warrantyKm.isEmpty()) prefs.warrantyKm = Warranty.EXAMPLE; refresh() })
+        if (prefs.warrantyOn) {
+            page.addView(ui.text("المواعيد دى أمثلة — كل شركة ليها جدول. عدّلها من كتيّب الضمان بتاعك.", 13f, ui.muted))
+            val done = prefs.warrantyDone
+            val wr = ui.row()
+            for (km in prefs.warrantyKm) {
+                val isDone = km in done
+                wr.addView(ui.button("${if (isDone) "✅" else "⏳"} ${Odometer.fmtKm(km.toDouble())}", if (isDone) "good" else "neutral", 13f) {
+                    prefs.warrantyDone = if (isDone) done - km else done + km; refresh()
+                }, ui.lp(0, ui.dp(50), 1f, 2))
+            }
+            page.addView(wr)
+            Warranty.next(prefs.warrantyKm, done, odo)?.let { (km, left) ->
+                page.addView(ui.text("الجاية: ${Odometer.fmtKm(km.toDouble())} كم — ${if (left <= 0) "وقتها دلوقتى" else "فاضل ${Odometer.fmtKm(left.toDouble())} كم"}", 15f, if (left <= 500) ui.warn else ui.ink, bold = true))
+            }
+            page.addView(ui.button("✏️ عدّل المواعيد (بالكيلو، مفصولة بفاصلة)", "neutral", 14f) {
+                askText("مواعيد الوكيل بالكيلو", "1000, 10000, 20000", prefs.warrantyKm.joinToString(", ")) { v ->
+                    prefs.warrantyKm = v.split(',', '،', ' ').mapNotNull { it.trim().toIntOrNull() }.filter { it > 0 }; refresh()
+                }
+            }, ui.lp(Ui.MATCH, ui.dp(50), marginDp = 4))
+        }
+
+        // تقرير الشهور
+        page.addView(section("📅 كل شهر"))
+        val ymFmt = SimpleDateFormat("yyyy-MM", Locale.US)
+        val months = Reports.monthly(db.trips(0, 2000).map { TripRec(it.startMs, it.distanceM / 1000, it.movingS) }, fills,
+            db.maintLog().map { it.doneMs }) { ymFmt.format(Date(it)) }.take(3)
+        if (months.isEmpty()) page.addView(ui.text("لسه مفيش رحلات ولا تفويلات.", 14f, ui.muted))
+        for (m in months) {
+            val c = ui.card(10)
+            c.addView(ui.text(m.ym, 16f, ui.ink, bold = true))
+            c.addView(ui.text("${m.trips} رحلة · ${"%.0f".format(Locale.US, m.km)} كم · ${duration(m.drivingMin * 60)} سواقة\n" +
+                "بنزين: ${"%.0f".format(Locale.US, m.fuelPaid)} جنيه · ${"%.0f".format(Locale.US, m.liters)} لتر (${m.fills} تفويلة)" +
+                (m.costPerKm?.let { " · الكيلو ~${"%.2f".format(Locale.US, it)} ج (تقريبى)" } ?: "") +
+                (if (m.maintDone > 0) " · صيانة ${m.maintDone}" else ""), 14f, ui.ink))
+            page.addView(c, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
         }
 
         // الرحلات
@@ -761,8 +854,11 @@ class MainActivity : Activity() {
 
     private fun parkHere() {
         val (lat, lng) = needHere() ?: return
-        db.park(lat, lng)
-        oscar("parking_saved", "اتحفظ مكان الركنة")
+        val s = DriveService.State
+        // الدقة: من الـGPS لو لاقط · من الشبكة لو تقريبى · ولو آخر مكان معروف بس ⇒ مش معروفة (بتتكتب «تقريبى»)
+        val acc = if (s.lat != null) s.accuracyM else null
+        db.park(lat, lng, acc, prefs.odoKm.toInt())
+        oscar("parking_saved", "اتحفظ مكان الركنة" + if (acc == null || acc > Parking.APPROX_M) " (تقريبى)" else "")
     }
 
     private fun savePlace(name: String) {
@@ -787,7 +883,26 @@ class MainActivity : Activity() {
 
     /** الملاحة: جوه Oscar Drive (لو متاحة) وإلا تطبيق الخرائط — NavActivity بيقرّر وبيرجع للخرائط لو حصلت مشكلة. */
     private fun navigateTo(lat: Double, lng: Double, label: String, walk: Boolean = false) {
+        if (!walk) tripFuelHint(lat, lng)
         NavActivity.start(this, lat, lng, label, walk)
+    }
+
+    /**
+     * قبل مشوار طويل (> ٣٠ كم): المسافة التقريبية والبنزين والتكلفة والفاضل، وهل تفوّل الأول — ومكتوب على أساس إيه.
+     * المسافة = خط مستقيم × ١٫٢٥ (تقريبى — الطريق الحقيقى بيبان فى الملاحة).
+     */
+    private fun tripFuelHint(lat: Double, lng: Double) {
+        val from = here() ?: return
+        val km = Geo.distanceM(from.first, from.second, lat, lng) / 1000 * 1.25
+        if (km < 30) return
+        val fills = db.fillRecs()
+        val real = FuelBook.consumption(fills)
+        val rem = FuelBook.remaining(fills, prefs.odoKm, prefs.tankL, prefs.provisionalRate)
+        val grade = Grade.of(prefs.fuelGrade) ?: Grade.G92
+        val plan = FuelBook.trip(km, real ?: prefs.provisionalRate, real == null, FuelPrices.current(prefs.fuelPrices(), grade), rem?.liters,
+            odoUsed = prefs.odoKm.takeIf { it > 0 })
+        Toast.makeText(this, "⛽ ${plan.text}", Toast.LENGTH_LONG).show()
+        if (plan.refuel) Oscar.sayText("المشوار محتاج حوالى ${"%.0f".format(Locale.US, plan.liters)} لتر، والفاضل أقل — فوّل قبل ما تمشى")
     }
 
     private fun goTo(place: String) {
@@ -909,7 +1024,7 @@ class MainActivity : Activity() {
         }
         if (!u.sure) { askGuess(u); return }
         awaitingUntil = 0
-        runCommand(u.match.command.id, u.match.slot)
+        runCommand(u.match.command.id, u.match.slot, u.heard)
     }
 
     /* ── الفهم الذكى: لو مش متأكد بيسأل، ولو قلت «أيوه» بيتعلّم الكلمة ── */
@@ -936,7 +1051,7 @@ class MainActivity : Activity() {
         pending = null; awaitingUntil = 0
         guessDialog?.dismiss(); guessDialog = null
         if (u.learn.isNotEmpty()) prefs.addLearned(u.learn)   // المرة الجاية يتفهم على طول
-        runCommand(u.match.command.id, u.match.slot)
+        runCommand(u.match.command.id, u.match.slot, u.heard)
     }
 
     private fun rejectGuess() {
@@ -946,7 +1061,7 @@ class MainActivity : Activity() {
     }
 
     /** كل أمر مربوط بوظيفة ثابتة — نفس الأزرار بالظبط. */
-    private fun runCommand(id: String, slot: String?) {
+    private fun runCommand(id: String, slot: String?, heard: String = "") {
         val s = DriveService.State
         when (id) {
             "nav.open" -> { oscar("nav_start"); openMap() }
@@ -992,6 +1107,15 @@ class MainActivity : Activity() {
             "emergency" -> { oscar("emergency"); emergency() }
             "help" -> { oscar("help"); showTab("voice") }
             "cancel" -> oscar("ok")
+            // المرحلة ٤: العدّاد · الصيانة · البنزين بالصوت
+            "car.odo" -> {
+                val v = OdoVoice.parse("عداد " + (slot ?: "")) ?: OdoVoice.parse(heard)
+                if (v == null) askNumber("رقم العدّاد من التابلوه (كم)", "") { setOdo(it) } else setOdo(v)
+            }
+            "car.maint" -> maintByVoice(MaintVoice.parse(heard))
+            "fuel.add" -> FuelVoice.parse(heard).let { a -> addFill(a?.grade, a?.amount, a?.liters, a?.full) }
+            "fuel.left" -> sayInfo(fuelLeftText())
+            "maint.next" -> sayInfo(nextMaintText())
         }
     }
 
@@ -1176,20 +1300,45 @@ class MainActivity : Activity() {
             }.setNegativeButton("إلغاء", null).show()
     }
 
-    private fun addFill() {
+    /**
+     * تفويلة (المرحلة ٤): النوع ٨٠/٩٢/٩٥ + «دفعت كام» **أو** «كام لتر» — لو كتبت المبلغ بس، اللترات = المبلغ ÷ سعر اللتر
+     * (من جدول الأسعار، والسعر بيتحفظ مع التفويلة). لآخرها ولا جزئى. ممكن ييجى مملى من الصوت («حطيت ٩٢ بـ٥٠٠»).
+     */
+    private fun addFill(grade0: Grade? = null, amount0: Double? = null, liters0: Double? = null, full0: Boolean? = null) {
         val box = ui.col(16)
+        var grade = grade0 ?: Grade.of(prefs.fuelGrade) ?: Grade.G92
+        val prices = prefs.fuelPrices()
+        val gradeRow = ui.row()
+        val priceTv = ui.text("", 14f, ui.muted)
+        val showPrice = { priceTv.text = FuelPrices.current(prices, grade)?.let { "سعر لتر ${grade.ar}: ${"%.2f".format(Locale.US, it)} جنيه" }
+            ?: "مفيش سعر لـ${grade.ar} — اكتب اللترات، أو حط السعر من شاشة السيارة" }
+        val gradeBtns = Grade.entries.map { g -> ui.button(g.key, if (g == grade) "primary" else "neutral", 16f) {} }
+        gradeBtns.forEachIndexed { k, b ->
+            b.setOnClickListener { grade = Grade.entries[k]; gradeBtns.forEachIndexed { m, x -> x.background = ui.round(if (m == k) ui.accent else ui.surface2, 14); x.setTextColor(if (m == k) Color.WHITE else ui.ink) }; showPrice() }
+            gradeRow.addView(b, ui.lp(0, ui.dp(50), 1f, 3))
+        }
+        showPrice()
         val odoIn = numberField("العدّاد دلوقتى (كم)", prefs.odoKm.toInt().takeIf { it > 0 }?.toString() ?: "")
-        val litIn = numberField("كام لتر", "", decimal = true)
-        val priceIn = numberField("دفعت كام (جنيه)", "", decimal = true)
-        val full = CheckBox(this).apply { text = "فوّلت لآخرها"; isChecked = true; textSize = 17f }
-        box.addView(odoIn); box.addView(litIn); box.addView(priceIn); box.addView(full)
+        val amountIn = numberField("دفعت كام (جنيه)", amount0?.let { "%.0f".format(Locale.US, it) } ?: "", decimal = true)
+        val litIn = numberField("كام لتر (لو عارف — غير كده بتتحسب من المبلغ)", liters0?.let { "%.1f".format(Locale.US, it) } ?: "", decimal = true)
+        val full = CheckBox(this).apply { text = "فوّلت لآخرها (التانك اتملا)"; isChecked = full0 ?: true; textSize = 17f }
+        box.addView(gradeRow); box.addView(priceTv); box.addView(odoIn); box.addView(amountIn); box.addView(litIn); box.addView(full)
         AlertDialog.Builder(this).setTitle("⛽ تفويلة").setView(box)
             .setPositiveButton("حفظ") { _, _ ->
                 val odo = odoIn.text.toString().toIntOrNull()
-                val lit = litIn.text.toString().toDoubleOrNull()
-                if (odo == null || lit == null || lit <= 0) { toast("لازم العدّاد واللترات"); return@setPositiveButton }
-                db.addFill(odo, lit, priceIn.text.toString().toDoubleOrNull() ?: 0.0, full.isChecked)
-                if (odo > prefs.odoKm) { val first = prefs.odoKm < 1; prefs.odoKm = odo.toDouble(); if (first) db.maintStartAt(odo) }
+                val amount = amountIn.text.toString().toDoubleOrNull()
+                val ppl = FuelPrices.at(prices, grade, System.currentTimeMillis())
+                var lit = litIn.text.toString().toDoubleOrNull()
+                if (lit == null && amount != null && ppl != null) lit = FuelBook.litersFor(amount, ppl)
+                if (odo == null || lit == null || lit <= 0) {
+                    toast(if (odo == null) "لازم العدّاد" else "اكتب اللترات، أو حط سعر ${grade.ar} من شاشة السيارة عشان أحسبها من المبلغ"); return@setPositiveButton
+                }
+                val paid = amount ?: (ppl?.let { it * lit } ?: 0.0)
+                db.addFill(odo, lit, paid, full.isChecked, grade, ppl ?: if (amount != null && lit > 0) amount / lit else null)
+                prefs.fuelGrade = grade.key
+                if (odo > prefs.odoKm) setOdo(odo)
+                sayInfo("اتسجّلت: ${"%.1f".format(Locale.US, lit)} لتر ${grade.ar}${if (paid > 0) " بـ${"%.0f".format(Locale.US, paid)} جنيه" else ""}" +
+                    if (amount != null && litIn.text.isNullOrBlank()) " (اللترات محسوبة من سعر اللتر)" else "")
                 refresh()
             }.setNegativeButton("إلغاء", null).show()
     }
@@ -1211,6 +1360,67 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this).setTitle(titleText).setView(f)
             .setPositiveButton("تمام") { _, _ -> ok(f.text.toString()) }
             .setNegativeButton("إلغاء", null).show()
+    }
+
+    /** «خلّى العدّاد ٩٠ ألف» — المرجع الجديد بتاريخ النهارده، والـGPS بيكمّل عليه. */
+    private fun setOdo(v: Int) {
+        val first = prefs.odoKm < 1
+        prefs.odoKm = v.toDouble()
+        if (first) db.maintStartAt(v)
+        sayInfo("تمام، العدّاد ${Odometer.fmtKm(v.toDouble())} كم — والـGPS هيكمّل عليه")
+        refresh()
+    }
+
+    private fun sayInfo(t: String) { Oscar.sayText(t); toast(t) }
+
+    /** «غيرت الزيت ٥٠٠٠ كيلو» · «غيرت الكاوتش الأمامى» · «غيرت الأربع فرد». */
+    private fun maintByVoice(a: MaintVoiceAction?) {
+        if (a == null) { sayInfo("قول مثلاً: غيرت الزيت ٥٠٠٠ كيلو، أو غيرت الكاوتش الأمامى"); return }
+        if (a.items.isEmpty()) {   // «غيرت الكاوتش» من غير ما يحدد — مانفترضش الأربعة
+            Oscar.sayText("الكاوتش الأمامى ولا الخلفى ولا الأربعة؟")
+            AlertDialog.Builder(this).setTitle("🛞 غيّرت أنهى كاوتش؟")
+                .setItems(arrayOf("الأمامى (فردتين)", "الخلفى (فردتين)", "الأربعة")) { _, i ->
+                    maintByVoice(MaintVoiceAction(when (i) { 0 -> listOf(MaintVoice.TIRES_FRONT); 1 -> listOf(MaintVoice.TIRES_REAR); else -> listOf(MaintVoice.TIRES_FRONT, MaintVoice.TIRES_REAR) }))
+                }.show()
+            return
+        }
+        val doIt = { odo: Int ->
+            for (name in a.items) {
+                val item = db.maintByName(name) ?: run {
+                    val d = CarCare.DEFAULTS.firstOrNull { it.first == name }
+                    db.maintAdd(name, d?.second ?: 0, d?.third ?: 0, odo); db.maintByName(name)
+                } ?: continue
+                db.maintDone(item.id, odo, a.everyKm)
+            }
+            val oil = db.maintByName(MaintVoice.OIL)
+            val next = if (MaintVoice.OIL in a.items && oil != null && oil.everyKm > 0) " — الزيت الجاى على ${Odometer.fmtKm((odo + oil.everyKm).toDouble())}" else ""
+            sayInfo("تمام، سجّلت ${a.items.joinToString(" و")} على عدّاد ${Odometer.fmtKm(odo.toDouble())}$next")
+            refresh()
+        }
+        val odo = prefs.odoKm.toInt()
+        if (odo > 0) doIt(odo) else askNumber("العدّاد كام دلوقتى؟ (من التابلوه)", "") { v -> setOdo(v); doIt(v) }
+    }
+
+    private fun fuelLeftText(): String {
+        val r = FuelBook.remaining(db.fillRecs(), prefs.odoKm, prefs.tankL, prefs.provisionalRate)
+        return when {
+            prefs.tankL <= 0 -> "اكتب سعة التانك الأول من شاشة السيارة عشان أقدر أقدّر الفاضل"
+            r == null -> "محتاج تفويلة لآخرها عشان أعرف أحسب الفاضل — سجّلها لما تفوّل"
+            else -> "الفاضل تقريباً ${"%.0f".format(Locale.US, r.liters)} لتر (تقدير — ${r.basis})"
+        }
+    }
+
+    private fun nextMaintText(): String {
+        val odo = prefs.odoKm.toInt(); val now = System.currentTimeMillis()
+        val oil = db.maintByName(MaintVoice.OIL)
+        val due = db.maint().map { it to CarCare.status(it, odo, now) }.filter { it.second.status != MaintStatus.OK }
+        val parts = mutableListOf<String>()
+        if (oil != null) parts += "الزيت: ${CarCare.describe(CarCare.status(oil, odo, now)).ifBlank { "مفيش ميعاد متحدد" }}"
+        if (due.isNotEmpty()) parts += "قرّب أو وقته: " + due.joinToString("، ") { it.first.name }
+        if (prefs.warrantyOn) Warranty.next(prefs.warrantyKm, prefs.warrantyDone, odo)?.let { (km, left) ->
+            parts += "صيانة الوكيل الجاية على ${Odometer.fmtKm(km.toDouble())} (${if (left <= 0) "وقتها" else "فاضل ${Odometer.fmtKm(left.toDouble())} كم"})"
+        }
+        return if (parts.isEmpty()) "مفيش صيانة قرّبت" else parts.joinToString(" · ")
     }
 
     private fun confirm(msg: String, yes: () -> Unit) {

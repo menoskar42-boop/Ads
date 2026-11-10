@@ -7,6 +7,9 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.oscardevs.oscardrive.logic.CarCare
 import com.oscardevs.oscardrive.logic.Fill
+import com.oscardevs.oscardrive.logic.FillRec
+import com.oscardevs.oscardrive.logic.Grade
+import com.oscardevs.oscardrive.logic.ParkSpot
 import com.oscardevs.oscardrive.logic.Hazard
 import com.oscardevs.oscardrive.logic.HazardType
 import com.oscardevs.oscardrive.logic.MaintItem
@@ -16,13 +19,17 @@ import com.oscardevs.oscardrive.logic.TripLogic
  * قاعدة بيانات محلية (SQLite على الجهاز) — مفيش سحابة ولا حساب: الرحلات، ذاكرة الطريق، الأماكن،
  * الركنات، الصيانة، التفويلات، وسجل تجاوز السرعة.
  */
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 2) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 3) {
 
     data class Trip(val id: Long, val startMs: Long, val endMs: Long, val distanceM: Double, val movingS: Long, val maxKmh: Float) {
         val avgKmh: Float get() = if (movingS > 0) (distanceM / movingS * 3.6).toFloat() else 0f
     }
     data class Place(val id: Long, val name: String, val lat: Double, val lng: Double)
-    data class Parking(val id: Long, val lat: Double, val lng: Double, val timeMs: Long)
+    data class Parking(val id: Long, val lat: Double, val lng: Double, val timeMs: Long,
+                       val accuracyM: Float? = null, val odoKm: Int? = null, val note: String = "") {
+        fun spot() = ParkSpot(lat, lng, timeMs, accuracyM, odoKm, note)
+    }
+    data class MaintLog(val itemId: Long, val name: String, val doneMs: Long, val odoKm: Int)
     data class Speeding(val id: Long, val startMs: Long, val maxKmh: Float, val limitKmh: Int, val durationS: Int, val lat: Double, val lng: Double)
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -34,6 +41,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         db.execSQL("CREATE TABLE fills(id INTEGER PRIMARY KEY AUTOINCREMENT, odo_km INTEGER, liters REAL, price REAL, full INTEGER, time_ms INTEGER)")
         db.execSQL("CREATE TABLE speeding(id INTEGER PRIMARY KEY AUTOINCREMENT, start_ms INTEGER, end_ms INTEGER, max_kmh REAL, limit_kmh INTEGER, duration_s INTEGER, lat REAL, lng REAL)")
         createSecurity(db)
+        upgrade3(db, fresh = true)
         val now = System.currentTimeMillis()
         for ((name, km, days) in CarCare.DEFAULTS) {
             db.insert("maint", null, ContentValues().apply {
@@ -44,6 +52,28 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createSecurity(db)   // نسخة ١ مافيهاش الحماية — البيانات القديمة بتفضل زى ما هى
+        if (oldVersion < 3) upgrade3(db, fresh = false)
+    }
+
+    /**
+     * نسخة ٣ (المرحلة ٤): الركنة بدقتها وعدّادها وملاحظة · التفويلة بنوع البنزين وسعر اللتر · سجل الصيانة ·
+     * الكاوتش أمامى وخلفى منفصلين (البند القديم «الكاوتش» بيبقى «أمامى» ويتعمل «خلفى» بنفس آخر تغيير — مايضيعش حاجة).
+     */
+    private fun upgrade3(db: SQLiteDatabase, fresh: Boolean) {
+        for (sql in listOf(
+            "ALTER TABLE parking ADD COLUMN acc REAL", "ALTER TABLE parking ADD COLUMN odo INTEGER", "ALTER TABLE parking ADD COLUMN note TEXT",
+            "ALTER TABLE fills ADD COLUMN grade TEXT", "ALTER TABLE fills ADD COLUMN ppl REAL",
+        )) try { db.execSQL(sql) } catch (_: Exception) { /* موجود */ }
+        db.execSQL("CREATE TABLE IF NOT EXISTS maint_log(id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER, name TEXT, done_ms INTEGER, odo INTEGER)")
+        if (fresh) return
+        db.rawQuery("SELECT id, every_km, every_days, last_km, last_ms FROM maint WHERE name = 'الكاوتش'", null).use { c ->
+            if (c.moveToFirst()) {
+                db.execSQL("UPDATE maint SET name = 'كاوتش أمامى' WHERE id = ?", arrayOf<Any>(c.getLong(0)))
+                db.insert("maint", null, ContentValues().apply {
+                    put("name", "كاوتش خلفى"); put("every_km", c.getInt(1)); put("every_days", c.getInt(2)); put("last_km", c.getInt(3)); put("last_ms", c.getLong(4))
+                })
+            }
+        }
     }
 
     /** Oscar Security: طوابير بتستنى النت — أماكن · أحداث · تسجيلات الكاميرا. */
@@ -94,18 +124,42 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
     fun deletePlace(id: Long) { writableDatabase.delete("places", "id=?", arrayOf(id.toString())) }
 
     /* ── الركن ── */
-    fun park(lat: Double, lng: Double) {
-        writableDatabase.insert("parking", null, ContentValues().apply { put("lat", lat); put("lng", lng); put("time_ms", System.currentTimeMillis()) })
-        writableDatabase.execSQL("DELETE FROM parking WHERE id NOT IN (SELECT id FROM parking ORDER BY time_ms DESC LIMIT 20)")
+    fun park(lat: Double, lng: Double, accuracyM: Float? = null, odoKm: Int? = null, timeMs: Long = System.currentTimeMillis(), note: String = "") {
+        writableDatabase.insert("parking", null, ContentValues().apply {
+            put("lat", lat); put("lng", lng); put("time_ms", timeMs); put("note", note)
+            if (accuracyM != null) put("acc", accuracyM.toDouble()) else putNull("acc")
+            if (odoKm != null && odoKm > 0) put("odo", odoKm) else putNull("odo")
+        })
+        writableDatabase.execSQL("DELETE FROM parking WHERE id NOT IN (SELECT id FROM parking ORDER BY time_ms DESC LIMIT 30)")
     }
-    fun parkings(): List<Parking> = query("SELECT id,lat,lng,time_ms FROM parking ORDER BY time_ms DESC") { Parking(it.getLong(0), it.getDouble(1), it.getDouble(2), it.getLong(3)) }
+    fun parkings(): List<Parking> = query("SELECT id,lat,lng,time_ms,acc,odo,note FROM parking ORDER BY time_ms DESC") {
+        Parking(it.getLong(0), it.getDouble(1), it.getDouble(2), it.getLong(3),
+            if (it.isNull(4)) null else it.getFloat(4), if (it.isNull(5)) null else it.getInt(5), it.getString(6) ?: "")
+    }
+    fun deleteParking(id: Long) { writableDatabase.delete("parking", "id=?", arrayOf(id.toString())) }
+    fun setParkingNote(id: Long, note: String) { writableDatabase.update("parking", ContentValues().apply { put("note", note.take(200)) }, "id=?", arrayOf(id.toString())) }
 
     /* ── الصيانة ── */
     fun maint(): List<MaintItem> = query("SELECT id,name,every_km,every_days,last_km,last_ms FROM maint ORDER BY id") {
         MaintItem(it.getLong(0), it.getString(1), it.getInt(2), it.getInt(3), it.getInt(4), it.getLong(5))
     }
-    fun maintDone(id: Long, odoKm: Int) {
-        writableDatabase.update("maint", ContentValues().apply { put("last_km", odoKm); put("last_ms", System.currentTimeMillis()) }, "id=?", arrayOf(id.toString()))
+    fun maintDone(id: Long, odoKm: Int, everyKm: Int? = null) {
+        val now = System.currentTimeMillis()
+        writableDatabase.update("maint", ContentValues().apply {
+            put("last_km", odoKm); put("last_ms", now); if (everyKm != null && everyKm > 0) put("every_km", everyKm)
+        }, "id=?", arrayOf(id.toString()))
+        val name = query("SELECT name FROM maint WHERE id = ?", arrayOf(id.toString())) { it.getString(0) }.firstOrNull() ?: ""
+        writableDatabase.insert("maint_log", null, ContentValues().apply { put("item_id", id); put("name", name); put("done_ms", now); put("odo", odoKm) })
+    }
+    fun maintByName(name: String): MaintItem? = maint().firstOrNull { it.name == name }
+    fun maintAdd(name: String, everyKm: Int, everyDays: Int, lastKm: Int) {
+        writableDatabase.insert("maint", null, ContentValues().apply {
+            put("name", name.take(40)); put("every_km", everyKm); put("every_days", everyDays); put("last_km", lastKm); put("last_ms", System.currentTimeMillis())
+        })
+    }
+    fun maintDelete(id: Long) { writableDatabase.delete("maint", "id=?", arrayOf(id.toString())) }
+    fun maintLog(limit: Int = 200): List<MaintLog> = query("SELECT item_id,name,done_ms,odo FROM maint_log ORDER BY done_ms DESC LIMIT $limit") {
+        MaintLog(it.getLong(0), it.getString(1) ?: "", it.getLong(2), it.getInt(3))
     }
     fun maintEdit(id: Long, everyKm: Int, everyDays: Int) {
         writableDatabase.update("maint", ContentValues().apply { put("every_km", everyKm); put("every_days", everyDays) }, "id=?", arrayOf(id.toString()))
@@ -116,10 +170,17 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
     }
 
     /* ── التفويلات ── */
-    fun addFill(odoKm: Int, liters: Double, price: Double, full: Boolean) {
+    /** `price` = اللى دفعته كله (جنيه) · `perLiter` = سعر اللتر وقتها (بيفضل للتفويلة دى حتى لو السعر اتغيّر). */
+    fun addFill(odoKm: Int, liters: Double, price: Double, full: Boolean, grade: Grade? = null, perLiter: Double? = null) {
         writableDatabase.insert("fills", null, ContentValues().apply {
             put("odo_km", odoKm); put("liters", liters); put("price", price); put("full", if (full) 1 else 0); put("time_ms", System.currentTimeMillis())
+            if (grade != null) put("grade", grade.key) else putNull("grade")
+            if (perLiter != null && perLiter > 0) put("ppl", perLiter) else putNull("ppl")
         })
+    }
+    fun fillRecs(): List<FillRec> = query("SELECT id,odo_km,liters,price,full,time_ms,grade,ppl FROM fills ORDER BY odo_km DESC") {
+        FillRec(it.getLong(0), it.getInt(1), it.getDouble(2), it.getDouble(3), it.getInt(4) == 1, it.getLong(5),
+            Grade.of(it.getString(6)), if (it.isNull(7)) null else it.getDouble(7))
     }
     fun fills(): List<Fill> = query("SELECT id,odo_km,liters,price,full,time_ms FROM fills ORDER BY odo_km DESC") {
         Fill(it.getLong(0), it.getInt(1), it.getDouble(2), it.getDouble(3), it.getInt(4) == 1, it.getLong(5))

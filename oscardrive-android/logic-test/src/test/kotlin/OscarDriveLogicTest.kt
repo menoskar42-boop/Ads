@@ -357,3 +357,91 @@ class SmartVoiceTest {
         assertEquals("nav.open", e.understand("open الملاحه")?.match?.command?.id ?: e.understand("افتح navigation")?.match?.command?.id)
     }
 }
+
+// المرحلة ٤ (المالك ٢٠٢٦-١١-١٠): العدّاد · الركن · الصيانة · البنزين · التقارير
+class CarBookTest {
+    private val day = 86_400_000L
+    @Test fun odometerCalibration() {
+        // «Oscar بيحسب ٩٨٬٩٠٠ والتابلوه ٩٠٬٠٠٠» ⇒ المرجع ٩٠٬٠٠٠ والـGPS بيكمّل عليه، والتاريخى مايتمسحش
+        var o = Odometer().calibrate(0.0, 1).addGps(98_900.0)
+        assertEquals(98_900.0, o.currentKm, 1e-9)
+        o = o.calibrate(90_000.0, 5 * day)
+        assertEquals(90_000.0, o.currentKm, 1e-9); assertEquals(98_900.0, o.gpsTotalKm, 1e-9)
+        o = o.addGps(220.0)
+        assertEquals(90_220.0, o.currentKm, 1e-9); assertEquals(5 * day, o.calibratedAtMs)
+        assertEquals(90_000, OdoVoice.parse("خلي العداد ٩٠ ألف"))
+        assertEquals(90_000, OdoVoice.parse("Set my odometer to 90,000 km"))
+        assertNull(OdoVoice.parse("خلي الحد ٩٠"))
+    }
+    @Test fun parkingRecoverAfterPowerCut() {
+        val park = ParkSpot(LAT0, LNG0, 1_000_000, 8f, 90_000)
+        // آخر لقطة بعد الركنة وبعيدة ⇒ دى الركنة الجديدة (الشاشة فصلت قبل ما الرحلة تخلص)
+        val fix = ParkSpot(north(500.0), LNG0, 2_000_000, 12f, 90_010)
+        assertEquals(fix, Parking.recover(fix, park))
+        // نفس المكان أو قديمة ⇒ لأ
+        assertNull(Parking.recover(fix.copy(lat = north(10.0)), park))
+        assertNull(Parking.recover(fix.copy(timeMs = 1_030_000), park))
+        assertTrue(Parking.isApprox(fix.copy(accuracyM = 300f)))
+        assertTrue(Parking.label(fix.copy(accuracyM = 300f), "من ساعة").contains("تقريبى ±300 م"))
+        assertTrue(Parking.label(fix, "من ساعة").startsWith("آخر مكان معروف"))
+    }
+    @Test fun maintenanceByVoice() {
+        assertEquals(MaintVoiceAction(listOf(MaintVoice.OIL), 5000), MaintVoice.parse("يا أوسكار غيرت الزيت ٥٠٠٠ كيلو"))
+        assertEquals(MaintVoiceAction(listOf(MaintVoice.OIL), 3000), MaintVoice.parse("غيرت زيت 3000 كيلو"))
+        assertEquals(listOf(MaintVoice.TIRES_FRONT, MaintVoice.TIRES_REAR), MaintVoice.parse("غيرت الأربع فرد")!!.items)
+        assertEquals(listOf(MaintVoice.TIRES_FRONT), MaintVoice.parse("غيرت الكاوتش الأمامي")!!.items)
+        assertEquals(listOf(MaintVoice.TIRES_REAR), MaintVoice.parse("غيرت الفردتين اللي ورا")!!.items)
+        // «غيرت الكاوتش» من غير ما يقول أمامى/خلفى ⇒ مايفترضش الأربعة (يسأل)
+        assertEquals(emptyList(), MaintVoice.parse("غيرت الكاوتش")!!.items)
+        assertEquals(listOf(MaintVoice.OIL_FILTER), MaintVoice.parse("غيرت فلتر الزيت")!!.items)
+        assertNull(MaintVoice.parse("سجل مطب"))
+        assertEquals(10000 to 1000, Warranty.next(listOf(1000, 10000, 20000), setOf(1000), 9000))
+    }
+    @Test fun fuelPricesAndVoice() {
+        val prices = listOf(PricePoint(Grade.G92, 0, 15.25), PricePoint(Grade.G92, 10 * day, 17.25), PricePoint(Grade.G95, 0, 19.0))
+        assertEquals(15.25, FuelPrices.at(prices, Grade.G92, 5 * day)!!, 1e-9)    // التفويلة القديمة بسعرها القديم
+        assertEquals(17.25, FuelPrices.at(prices, Grade.G92, 11 * day)!!, 1e-9)
+        assertEquals(17.25, FuelPrices.current(prices, Grade.G92)!!, 1e-9)
+        assertNull(FuelPrices.at(prices, Grade.G80, 11 * day))
+        assertEquals(500.0 / 17.25, FuelBook.litersFor(500.0, 17.25), 1e-9)
+        val a = FuelVoice.parse("يا أوسكار حطيت بنزين 92 بـ500 جنيه")!!
+        assertEquals(Grade.G92, a.grade); assertEquals(500.0, a.amount); assertNull(a.liters)
+        val b = FuelVoice.parse("I added 25 liters of gasoline 95")
+        assertEquals(Grade.G95, b!!.grade); assertEquals(25.0, b.liters)
+        assertEquals(true, FuelVoice.parse("فولت بنزين ٩٢ لآخرها")!!.full)
+        assertNull(FuelVoice.parse("سجل مطب"))
+    }
+    @Test fun consumptionRemainingAndTrip() {
+        val f = listOf(
+            FillRec(1, 10_000, 40.0, 600.0, true, 0, Grade.G92),
+            FillRec(2, 10_250, 15.0, 225.0, false, 1, Grade.G92),
+            FillRec(3, 10_500, 20.0, 300.0, true, 2, Grade.G92),
+        )
+        assertEquals(7.0, FuelBook.consumption(f)!!, 1e-9)       // ٣٥ لتر / ٥٠٠ كم
+        assertEquals(1.05, FuelBook.costPerKm(f)!!, 1e-9)
+        assertNull(FuelBook.consumption(f.take(2)))               // مفيش بيانات كفاية ⇒ مايألّفش رقم
+        // التانك ٤٥ لتر، مشيت ٢٠٠ كم من آخر فل على ٧ لتر/١٠٠ ⇒ ٤٥ − ١٤ = ٣١
+        val r = FuelBook.remaining(f, 10_700.0, 45.0, 8.0)!!
+        assertEquals(31.0, r.liters, 1e-9); assertFalse(r.rateIsEstimate)
+        // من غير تفويلتين فل ⇒ الاستهلاك التقديرى ومكتوب كده
+        val r2 = FuelBook.remaining(f.take(1), 10_100.0, 45.0, 10.0)!!
+        assertEquals(35.0, r2.liters, 1e-9); assertTrue(r2.rateIsEstimate); assertTrue(r2.basis.contains("تقديرى"))
+        assertNull(FuelBook.remaining(emptyList(), 10_000.0, 45.0, 8.0))
+        // مثال المواصفات: ٣٠٠ كم على ١٠ لتر/١٠٠ ⇒ ٣٠ لتر، والفاضل ١٥ ⇒ فوّل الأول
+        val t = FuelBook.trip(300.0, 10.0, false, 17.25, 15.0, odoUsed = 90_220.0)
+        assertEquals(30.0, t.liters, 1e-9); assertTrue(t.refuel); assertEquals(517.5, t.cost!!, 1e-9)
+        assertTrue(t.text.contains("90٬220"))
+        assertFalse(FuelBook.trip(50.0, 10.0, false, null, 40.0).refuel)
+    }
+    @Test fun monthlyReport() {
+        val ym = { ms: Long -> if (ms < 30 * day) "2026-10" else "2026-11" }
+        val trips = listOf(TripRec(1, 12.5, 1800), TripRec(31 * day, 40.0, 3600), TripRec(32 * day, 10.0, 600))
+        val fills = listOf(FillRec(1, 0, 20.0, 345.0, true, 31 * day, Grade.G92), FillRec(2, 0, 10.0, 190.0, false, 33 * day, Grade.G95))
+        val m = Reports.monthly(trips, fills, listOf(31 * day), ym)
+        assertEquals(listOf("2026-11", "2026-10"), m.map { it.ym })
+        val nov = m.first()
+        assertEquals(2, nov.trips); assertEquals(50.0, nov.km, 1e-9); assertEquals(70L, nov.drivingMin)
+        assertEquals(535.0, nov.fuelPaid, 1e-9); assertEquals(mapOf("92" to 345.0, "95" to 190.0), nov.byGrade)
+        assertEquals(1, nov.maintDone); assertEquals(10.7, nov.costPerKm!!, 1e-9)
+    }
+}
