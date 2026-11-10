@@ -560,3 +560,68 @@ class PlacesTest {
         assertTrue(FrequentPlaces.find(gym, emptyList(), listOf(north(1000.0) to LNG0), now).isEmpty())
     }
 }
+
+// المرحلة ٧ (المالك ٢٠٢٦-١١-١٠): سلوك القيادة + أوسكار مايقاطعش
+class DrivingTest {
+    @Test fun harshBrakeAndAccelFromGpsSpeed() {
+        val d = HarshDetector()
+        // ماشى ٨٠ ثابت ⇒ مفيش حاجة
+        for (i in 0..5) assertNull(d.onFix(i * 1000L, 80f, 5f))
+        // فرملة: ٨٠ ⇒ ٤٠ فى ٣ ثوانى = −٣٫٧ م/ث²
+        assertNull(d.onFix(6000, 70f, 5f)); assertNull(d.onFix(7000, 55f, 5f))
+        assertEquals(HarshType.BRAKE, d.onFix(8000, 40f, 5f))
+        // نفس الفرملة مابتتعدّش تانى
+        assertNull(d.onFix(9000, 30f, 5f)); assertNull(d.onFix(10000, 20f, 5f))
+        assertEquals(1, d.brakes)
+        // تسارع: ٢٠ ⇒ ٥٥ فى ٣ ثوانى = +٣٫٢ م/ث² (بعد ٦ ثوانى من آخر حدث)
+        for (t in listOf(14000L, 15000L)) d.onFix(t, 20f, 5f)
+        assertNull(d.onFix(16000, 32f, 5f))
+        assertEquals(HarshType.ACCEL, d.onFix(17000, 44f, 5f)); assertEquals(1, d.accels)   // ٢٠ ⇒ ٤٤ فى ثانيتين = +٣٫٣ م/ث²
+    }
+    @Test fun gpsNoiseIsIgnored() {
+        val d = HarshDetector()
+        d.onFix(0, 60f, 5f)
+        assertNull(d.onFix(1000, 20f, 5f))           // أقل من ثانيتين = مفيش مرجع ⇒ مابنحكمش من قراءتين ورا بعض
+        val n = HarshDetector()
+        n.onFix(0, 90f, 5f); n.onFix(1000, 90f, 5f)
+        assertNull(n.onFix(2000, 10f, 5f))           // −١١ م/ث² = قراءة غلط
+        val slow = HarshDetector()
+        slow.onFix(0, 15f, 5f); slow.onFix(1000, 15f, 5f)
+        assertNull(slow.onFix(3000, 0f, 5f))         // وقفة فى الزحمة من ١٥ كم/س مش فرملة خطر
+        val bad = HarshDetector()
+        bad.onFix(0, 80f, 60f); assertNull(bad.onFix(3000, 30f, 60f))   // دقة وحشة
+    }
+    @Test fun tripScore() {
+        assertEquals(100, DrivingScore.score(TripBehavior(12.0, 0, 0, 0, 0)))
+        assertEquals("رحلة هادية — كمّل كده", DrivingScore.tip(TripBehavior(12.0, 0, 0, 0, 0)))
+        // رحلة ٥ كم فيها فرملتين ⇒ ٨٨
+        assertEquals(88, DrivingScore.score(TripBehavior(5.0, 2, 0, 0, 0)))
+        // نفس الفرملتين فى ٤٠ كم ⇒ ٩٧
+        assertEquals(97, DrivingScore.score(TripBehavior(40.0, 2, 0, 0, 0)))
+        // تجاوزين ٩٠ ثانية فى ١٠ كم ⇒ ١٠٠ − ١٠ − ٦ = ٨٤ ، والنصيحة عن السرعة
+        val b = TripBehavior(10.0, 0, 1, 2, 90)
+        assertEquals(80, DrivingScore.score(b)); assertTrue(DrivingScore.tip(b).contains("الحد"))
+        assertEquals("خطر", DrivingScore.label(40))
+        assertTrue(DrivingScore.summary(b).startsWith("درجة الرحلة 80/100 (كويسة)"))
+    }
+    @Test fun monthlyAverageWeightedByKm() {
+        val ym = { ms: Long -> if (ms < 100) "2026-10" else "2026-11" }
+        val m = DrivingMonths.monthly(listOf(ScoredTrip(200, 50.0, 90, 1, 0, 0), ScoredTrip(300, 2.0, 40, 2, 1, 1), ScoredTrip(10, 5.0, 100, 0, 0, 0)), ym)
+        assertEquals("2026-11", m[0].ym); assertEquals(88, m[0].avgScore); assertEquals(3, m[0].brakes); assertEquals(40, m[0].worst)
+        assertEquals(100, m[1].avgScore)
+    }
+    @Test fun oscarDoesNotInterrupt() {
+        assertEquals(SpeechDecision.SPEAK, Etiquette.decide(SpeechKind.SAFETY, inCall = true))
+        assertEquals(SpeechDecision.SPEAK, Etiquette.decide(SpeechKind.ANSWER, inCall = true))
+        assertEquals(SpeechDecision.WAIT, Etiquette.decide(SpeechKind.INFO, inCall = true))
+        assertEquals(SpeechDecision.DROP, Etiquette.decide(SpeechKind.CHATTER, inCall = true))
+        assertEquals(SpeechDecision.DROP, Etiquette.decide(SpeechKind.MESSAGE, inCall = true))
+        assertEquals(SpeechDecision.SPEAK, Etiquette.decide(SpeechKind.CHATTER, inCall = false))
+        val long = "النهارده الجو مشمس ودرجة الحرارة ٢٤، العظمى ٢٩ والصغرى ١٨، واحتمال المطر ٤٠٪ — خلّى بالك من الشبورة الصبح بدرى على الطريق الصحراوى"
+        assertEquals("النهارده الجو مشمس ودرجة الحرارة ٢٤", Etiquette.brief(long, busy = true))
+        assertEquals(long, Etiquette.brief(long, busy = false))
+        assertEquals("الساعة ٥", Etiquette.brief("الساعة ٥", busy = true))
+        assertEquals("drive.score", VoiceEngine().understand("سواقتى عاملة إزاى")!!.match.command.id)
+        assertEquals("drive.score", VoiceEngine().understand("how is my driving")!!.match.command.id)
+    }
+}

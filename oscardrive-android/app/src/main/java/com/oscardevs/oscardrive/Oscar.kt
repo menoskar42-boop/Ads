@@ -73,8 +73,9 @@ object Oscar {
     private fun customFile(id: String): File = File(app.filesDir, "voice/custom/${prefs.oscarVoice}-$lang-$id.mp3")
 
     /** أوسكار يقول جملة الحدث (عشوائى من صيغها). extra = كلام متغيّر بعدها (رقم السرعة مثلاً) بصوت الشاشة. */
-    fun say(id: String, extra: String? = null) {
+    fun say(id: String, extra: String? = null, kind: com.oscardevs.oscardrive.logic.SpeechKind = com.oscardevs.oscardrive.logic.SpeechKind.ANSWER) {
         if (!::app.isInitialized) return
+        if (!Speaker.allowed(kind)) return   // وسط مكالمة: جمل الحالة والترحيب مابتتقالش (الأمان والردود بس)
         if (!prefs.oscarReplies) { if (extra != null) Speaker.say(extra); return }
         val custom = prefs.customLine(id, lang)
         val text = custom ?: texts(id).randomOrNull() ?: ""

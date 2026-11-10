@@ -9,6 +9,9 @@ import android.os.Build
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
+import com.oscardevs.oscardrive.logic.Etiquette
+import com.oscardevs.oscardrive.logic.SpeechDecision
+import com.oscardevs.oscardrive.logic.SpeechKind
 
 /** صوت التطبيق (عربى مصرى لو موجود): بيوطّى الأغانى وقت الكلام وبيرجّعها بعده. */
 object Speaker {
@@ -46,7 +49,32 @@ object Speaker {
 
     fun beep() { try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP2, 350) } catch (_: Exception) {} }
 
-    fun say(text: String, beep: Boolean = false) {
+    /** فيه مكالمة شغّالة (موبايل بالبلوتوث أو واتساب)؟ — من وضع الصوت، من غير أى إذن. */
+    fun inCall(): Boolean {
+        val m = am ?: return false
+        return m.mode == AudioManager.MODE_IN_CALL || m.mode == AudioManager.MODE_IN_COMMUNICATION
+    }
+
+    /** يتقال دلوقتى؟ (المرحلة ٧: أوسكار مايقاطعش) — الأمان والردود دايماً، الباقى حسب المكالمة. */
+    fun allowed(kind: SpeechKind): Boolean = Etiquette.decide(kind, inCall()) == SpeechDecision.SPEAK
+
+    private val waiting = ArrayList<Pair<Long, String>>()
+
+    /** اللى استنى المكالمة: يتقال مرة واحدة أول ما تخلص (لو لسه جديد). بيتنده من خدمة القيادة كل ثانية. */
+    fun flushWaiting() {
+        if (waiting.isEmpty() || inCall()) return
+        val now = System.currentTimeMillis()
+        val due = waiting.filter { now - it.first <= Etiquette.WAIT_MAX_MS }.map { it.second }.distinct()
+        waiting.clear()
+        if (due.isNotEmpty()) say(due.joinToString(". "), beep = true)
+    }
+
+    fun say(text: String, beep: Boolean = false, kind: SpeechKind = SpeechKind.ANSWER) {
+        when (Etiquette.decide(kind, inCall())) {
+            SpeechDecision.SPEAK -> {}
+            SpeechDecision.WAIT -> { waiting.add(System.currentTimeMillis() to text); while (waiting.size > 5) waiting.removeAt(0); return }
+            SpeechDecision.DROP -> return
+        }
         if (beep) beep()
         val t = tts
         if (t == null || !ready) { pending = text; return }

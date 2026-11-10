@@ -156,6 +156,18 @@ check('privacy policy discloses tracking upload and camera', /drive\.oscardevs\.
       && /Google Places API/.test(privacy) && /Places API/.test(privacy),
     'Places API عليه فلوس بعد الحصة المجانية: لازم يفضل مقفول افتراضياً وبحد شهرى وبأقل حقول، ومكتوب فى السياسة.');
 }
+{
+  const svc = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/DriveService.kt');
+  const spk = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Speaker.kt');
+  const drv = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/logic/Driving.kt');
+  check('driving behaviour: scored silently, shown after the trip; safety alerts always speak; other speech waits for calls; disclosed',
+    /harsh\.onFix\(now, kmh, acc\)/.test(svc) && !/Speaker\.say\([^)]*(harsh|HarshType|DrivingScore)/.test(svc)
+      && /Speaker\.say\(text, beep = true, kind = com\.oscardevs\.oscardrive\.logic\.SpeechKind\.SAFETY\)/.test(svc)
+      && /Speaker\.say\(msg, beep = true, kind = com\.oscardevs\.oscardrive\.logic\.SpeechKind\.SAFETY\)/.test(svc)
+      && /!inCall \|\| kind == SpeechKind\.SAFETY/.test(drv) && /fun flushWaiting/.test(spk) && /Speaker\.flushWaiting\(\)/.test(svc)
+      && /سلوك القيادة/.test(privacy) && /Driving behaviour/.test(privacy),
+    'الدرجة مابتتقالش وإنت سايق، وتنبيهات الأمان مابتستناش مكالمة، والباقى بيستنى — ومكتوب فى السياسة.');
+}
 check('security is opt-in on the screen', /get\(\) = sp\.getBoolean\("sec_on", false\)/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt')),
   'التتبّع للسيرفر لازم يبقى مقفول لحد ما السواق يشغّله.');
 

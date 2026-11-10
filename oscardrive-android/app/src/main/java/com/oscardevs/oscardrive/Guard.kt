@@ -203,7 +203,7 @@ object Guard {
         val now = System.currentTimeMillis()
         if (now - lastNetSay < 10 * 60_000) return
         lastNetSay = now
-        main.post { Oscar.say(if (lost) "net_lost" else "net_back") }
+        main.post { Oscar.say(if (lost) "net_lost" else "net_back", kind = com.oscardevs.oscardrive.logic.SpeechKind.CHATTER) }
     }
 
     fun pendingPoints(): Long = if (inited) db.trackCount() else 0

@@ -108,7 +108,7 @@ class NavActivity : Activity() {
             } else fallback("مالقيتش طريق من هنا")
         }
         val a = Navigator.ArrivalListener {
-            Oscar.init(this); Oscar.say("arrived")
+            Oscar.init(this); Oscar.say("arrived", kind = com.oscardevs.oscardrive.logic.SpeechKind.INFO)
             n.stopGuidance(); n.clearDestinations()
             finish()
         }
@@ -153,8 +153,8 @@ class NavActivity : Activity() {
     }
 
     override fun onStart() { super.onStart(); navView?.onStart() }
-    override fun onResume() { super.onResume(); DriveService.State.screens++; navView?.onResume(); main.post(tick) }
-    override fun onPause() { DriveService.State.screens--; navView?.onPause(); main.removeCallbacks(tick); super.onPause() }
+    override fun onResume() { super.onResume(); DriveService.State.screens++; DriveService.State.navActive = true; navView?.onResume(); main.post(tick) }
+    override fun onPause() { DriveService.State.screens--; DriveService.State.navActive = false; navView?.onPause(); main.removeCallbacks(tick); super.onPause() }
     override fun onStop() { navView?.onStop(); super.onStop() }
     override fun onDestroy() {
         navigator?.let { n ->

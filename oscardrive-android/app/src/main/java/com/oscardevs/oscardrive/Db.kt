@@ -19,9 +19,10 @@ import com.oscardevs.oscardrive.logic.TripLogic
  * قاعدة بيانات محلية (SQLite على الجهاز) — مفيش سحابة ولا حساب: الرحلات، ذاكرة الطريق، الأماكن،
  * الركنات، الصيانة، التفويلات، وسجل تجاوز السرعة.
  */
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 4) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 5) {
 
-    data class Trip(val id: Long, val startMs: Long, val endMs: Long, val distanceM: Double, val movingS: Long, val maxKmh: Float) {
+    data class Trip(val id: Long, val startMs: Long, val endMs: Long, val distanceM: Double, val movingS: Long, val maxKmh: Float,
+                    val score: Int? = null, val brakes: Int = 0, val accels: Int = 0, val speedingN: Int = 0, val speedingS: Int = 0) {
         val avgKmh: Float get() = if (movingS > 0) (distanceM / movingS * 3.6).toFloat() else 0f
     }
     data class Place(val id: Long, val name: String, val lat: Double, val lng: Double)
@@ -43,6 +44,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         createSecurity(db)
         upgrade3(db, fresh = true)
         upgrade4(db)
+        upgrade5(db)
         val now = System.currentTimeMillis()
         for ((name, km, days) in CarCare.DEFAULTS) {
             db.insert("maint", null, ContentValues().apply {
@@ -55,6 +57,13 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         if (oldVersion < 2) createSecurity(db)   // نسخة ١ مافيهاش الحماية — البيانات القديمة بتفضل زى ما هى
         if (oldVersion < 3) upgrade3(db, fresh = false)
         if (oldVersion < 4) upgrade4(db)
+        if (oldVersion < 5) upgrade5(db)
+    }
+
+    /** نسخة ٥ (المرحلة ٧): سلوك القيادة لكل رحلة — الرحلات القديمة بتفضل من غير درجة (NULL). */
+    private fun upgrade5(db: SQLiteDatabase) {
+        for (c in listOf("brakes INTEGER", "accels INTEGER", "speeding_n INTEGER", "speeding_s INTEGER", "score INTEGER"))
+            try { db.execSQL("ALTER TABLE trips ADD COLUMN $c") } catch (_: Exception) { /* موجود */ }
     }
 
     /** نسخة ٤ (المرحلة ٥): التذكيرات والمهام والملاحظات · «جهات أوسكار» لرسايل الواتساب (إنت بتكتبها — مش جهات الموبايل). */
@@ -126,16 +135,22 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
     }
 
     /* ── الرحلات ── */
-    fun addTrip(s: TripLogic.Summary) {
+    fun addTrip(s: TripLogic.Summary, b: com.oscardevs.oscardrive.logic.TripBehavior? = null, score: Int? = null) {
         writableDatabase.insert("trips", null, ContentValues().apply {
+            if (b != null && score != null) {
+                put("brakes", b.brakes); put("accels", b.accels); put("speeding_n", b.speedingN); put("speeding_s", b.speedingS); put("score", score)
+            }
             put("start_ms", s.startMs); put("end_ms", s.endMs); put("distance_m", s.distanceM); put("moving_s", s.movingS)
             put("max_kmh", s.maxKmh.toDouble()); put("start_lat", s.startLat); put("start_lng", s.startLng)
             put("end_lat", s.endLat); put("end_lng", s.endLng)
         })
     }
     fun trips(sinceMs: Long = 0, limit: Int = 500): List<Trip> =
-        query("SELECT id,start_ms,end_ms,distance_m,moving_s,max_kmh FROM trips WHERE start_ms >= ? ORDER BY start_ms DESC LIMIT $limit",
-            arrayOf(sinceMs.toString())) { Trip(it.getLong(0), it.getLong(1), it.getLong(2), it.getDouble(3), it.getLong(4), it.getFloat(5)) }
+        query("SELECT id,start_ms,end_ms,distance_m,moving_s,max_kmh,score,brakes,accels,speeding_n,speeding_s FROM trips WHERE start_ms >= ? ORDER BY start_ms DESC LIMIT $limit",
+            arrayOf(sinceMs.toString())) {
+            Trip(it.getLong(0), it.getLong(1), it.getLong(2), it.getDouble(3), it.getLong(4), it.getFloat(5),
+                if (it.isNull(6)) null else it.getInt(6), it.getInt(7), it.getInt(8), it.getInt(9), it.getInt(10))
+        }
 
     /** نهايات الرحلات (للأماكن المتكررة) — من الجدول الموجود، مفيش تسجيل زيادة. */
     fun tripEnds(sinceMs: Long): List<com.oscardevs.oscardrive.logic.Visit> =

@@ -50,6 +50,11 @@ import com.oscardevs.oscardrive.logic.Nearby
 import com.oscardevs.oscardrive.logic.NearbyKind
 import com.oscardevs.oscardrive.logic.NearbyResult
 import com.oscardevs.oscardrive.logic.FreeText
+import com.oscardevs.oscardrive.logic.DrivingScore
+import com.oscardevs.oscardrive.logic.DrivingMonths
+import com.oscardevs.oscardrive.logic.ScoredTrip
+import com.oscardevs.oscardrive.logic.TripBehavior
+import com.oscardevs.oscardrive.logic.Etiquette
 import com.oscardevs.oscardrive.logic.HazardType
 import com.oscardevs.oscardrive.logic.MaintStatus
 import com.oscardevs.oscardrive.logic.RoadMemory
@@ -608,6 +613,20 @@ class MainActivity : Activity() {
             page.addView(c, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
         }
 
+        // سلوك القيادة (المرحلة ٧)
+        page.addView(section("🎯 سلوك القيادة"))
+        page.addView(ui.text("تقديرى من سرعة الـGPS (مش حساس عربية): فرملة أو تسارع مفاجئ + تجاوز الحد. الدرجة بتظهر بعد ما الرحلة تخلص — " +
+            "مفيش كلام عنها وإنت سايق.", 13f, ui.muted))
+        val scored = db.trips(0, 2000).filter { it.score != null }
+        val dm = DrivingMonths.monthly(scored.map { ScoredTrip(it.startMs, it.distanceM / 1000, it.score!!, it.brakes, it.accels, it.speedingN) }) { ymFmt.format(Date(it)) }.take(3)
+        if (dm.isEmpty()) page.addView(ui.text("لسه مفيش رحلة متقيّمة.", 14f, ui.muted))
+        for (m in dm) {
+            val c = ui.card(10)
+            c.addView(ui.text("${m.ym} · ${m.avgScore}/100 (${DrivingScore.label(m.avgScore)})", 16f, ui.ink, bold = true))
+            c.addView(ui.text("${m.trips} رحلة · فرملة مفاجئة ${m.brakes} · تسارع ${m.accels} · تجاوز سرعة ${m.speedingN} · أحسن ${m.best} · أقل ${m.worst}", 14f, ui.ink))
+            page.addView(c, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
+        }
+
         // الرحلات
         page.addView(section("📊 رحلاتك"))
         val weekAgo = now - 7 * CarCare.DAY_MS
@@ -625,7 +644,8 @@ class MainActivity : Activity() {
         page.addView(stats)
         for (t in db.trips(0, 20)) {
             val row = ui.card(10)
-            row.addView(ui.text("${dateTime(t.startMs)} · %.1f كم · ${duration(t.movingS)} · متوسط ${t.avgKmh.toInt()} · أقصى ${t.maxKmh.toInt()}".format(Locale.US, t.distanceM / 1000), 14f, ui.ink))
+            row.addView(ui.text("${dateTime(t.startMs)} · %.1f كم · ${duration(t.movingS)} · متوسط ${t.avgKmh.toInt()} · أقصى ${t.maxKmh.toInt()}".format(Locale.US, t.distanceM / 1000) +
+                (t.score?.let { " · 🎯 $it" } ?: ""), 14f, ui.ink))
             page.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
         }
         return page
@@ -800,6 +820,7 @@ class MainActivity : Activity() {
         page.addView(toggle("🔊 تنبيه صوتى لما توصل حد السرعة", prefs.speedAlerts) { prefs.speedAlerts = it })
         page.addView(toggle("🛣️ نبّهنى قبل المطبات والحفر والرادار اللى سجّلتها", prefs.hazardAlerts) { prefs.hazardAlerts = it })
         page.addView(toggle("🅿️ احفظ مكان الركنة لوحده آخر كل رحلة", prefs.autoPark) { prefs.autoPark = it })
+        page.addView(toggle("🎯 درجة الرحلة تظهر بعد ما تخلص (مكتوبة)", prefs.tripScore) { prefs.tripScore = it })
         page.addView(toggle("🔢 زوّد كيلومترات الرحلات على العدّاد", prefs.autoOdo) { prefs.autoOdo = it })
         page.addView(toggle("🚗 يشتغل لوحده مع تشغيل العربية", prefs.autoStart) { prefs.autoStart = it })
 
@@ -994,7 +1015,7 @@ class MainActivity : Activity() {
         val month = NavActivity.month()
         val key = mapsKey()
         val from = here()
-        if (kind == null || from == null || key.isEmpty() || !Nearby.allowed(prefs.placesApiOn, prefs.placesUsedThisMonth(month), prefs.placesCap)) {
+        if (kind == null || from == null || key.isEmpty() || !online() || !Nearby.allowed(prefs.placesApiOn, prefs.placesUsedThisMonth(month), prefs.placesCap)) {
             sayInfo("بدوّر على أقرب ${kind?.ar ?: q} فى الخرايط"); mapsSearch(q); return
         }
         prefs.countPlaces(month)
@@ -1303,6 +1324,7 @@ class MainActivity : Activity() {
             "note.remind", "note.add", "task.add" -> saveNote(heard)
             "notes.read" -> sayInfo(notesText())
             "weather" -> weather()
+            "drive.score" -> sayInfo(drivingText())
             "road.info" -> sayInfo(roadAheadText())
             "notif.read" -> {
                 val l = NotifyReader.last(3)
@@ -1730,6 +1752,7 @@ class MainActivity : Activity() {
     /** الطقس من Open-Meteo (مجانى من غير مفتاح) — المكان بيتقرّب لـ~١ كم قبل ما يتبعت. */
     private fun weather() {
         val (lat, lng) = here() ?: run { sayInfo("محتاج مكانك الأول (الـGPS)"); return }
+        if (!online()) { sayInfo("مفيش نت دلوقتى — الطقس محتاج نت"); return }
         toast("بجيب الطقس…")
         Thread {
             val msg = try {
@@ -1806,7 +1829,29 @@ class MainActivity : Activity() {
         refresh()
     }
 
-    private fun sayInfo(t: String) { Oscar.sayText(t); toast(t) }
+    /** الرد: كامل مكتوب، وبالصوت أقصر وإنت ماشى أو فى ملاحة (المرحلة ٧). */
+    private fun sayInfo(t: String) {
+        val s = DriveService.State
+        Oscar.sayText(Etiquette.brief(t, busy = (s.speedKmh ?: 0f) >= Etiquette.MOVING_KMH || s.navActive)); toast(t)
+    }
+
+    /** فيه نت دلوقتى؟ (الطقس و«أقرب …» بـPlaces محتاجينه — من غيره بنقول على طول بدل ما نستنى). */
+    @Suppress("DEPRECATION")
+    private fun online(): Boolean = try {
+        val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        if (Build.VERSION.SDK_INT >= 23) cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        else cm.activeNetworkInfo?.isConnected == true
+    } catch (_: Exception) { true }
+
+    /** «سواقتى عاملة إزاى؟» — آخر رحلة + متوسط الشهر. */
+    private fun drivingText(): String {
+        val scored = db.trips(0, 300).filter { it.score != null }
+        val last = scored.firstOrNull() ?: return "لسه مفيش رحلة متقيّمة — الدرجة بتظهر بعد أول رحلة تخلص"
+        val ymFmt = SimpleDateFormat("yyyy-MM", Locale.US)
+        val month = DrivingMonths.monthly(scored.map { ScoredTrip(it.startMs, it.distanceM / 1000, it.score!!, it.brakes, it.accels, it.speedingN) }) { ymFmt.format(Date(it)) }.firstOrNull()
+        return "آخر رحلة ${last.score}/100 (${DrivingScore.label(last.score!!)})" + (month?.let { "، ومتوسط الشهر ${it.avgScore}" } ?: "") + ". " +
+            DrivingScore.tip(TripBehavior(last.distanceM / 1000, last.brakes, last.accels, last.speedingN, last.speedingS))
+    }
 
     /** «غيرت الزيت ٥٠٠٠ كيلو» · «غيرت الكاوتش الأمامى» · «غيرت الأربع فرد». */
     private fun maintByVoice(a: MaintVoiceAction?) {

@@ -94,6 +94,9 @@ object VoiceCatalog {
             "سمي المكان ده *", "احفظ المكان ده *", "سجل المكان ده باسم *"), listOf("save this place as *", "save this location as *", "save location as *", "save place as *")),
         VoiceCommand("nav.near", "أقرب …", listOf("اقرب *", "فين اقرب *", "عاوز اقرب *", "دورلي علي اقرب *", "وديني لاقرب *", "وصلني لاقرب *"),
             listOf("nearest *", "find the nearest *", "where is the nearest *", "take me to the nearest *")),
+        // المرحلة ٧: سلوك القيادة
+        VoiceCommand("drive.score", "سواقتى عاملة إزاى", listOf("سواقتي عامله ازاي", "درجه السواقه", "درجه الرحله", "تقييم السواقه", "انا سايق ازاي"),
+            listOf("how is my driving", "driving score", "trip score")),
         VoiceCommand("emergency", "طوارئ", listOf("طوارئ", "نجده", "الحقوني", "استغاثه"), listOf("emergency", "help me", "sos"), confirm = true),
         VoiceCommand("help", "بتعرف تعمل إيه", listOf("بتعرف تعمل ايه", "تقدر تعمل ايه", "مساعده", "الاوامر"), listOf("what can you do", "help", "commands")),
         VoiceCommand("cancel", "خلاص", listOf("خلاص", "بس", "الغي", "ولا حاجه"), listOf("cancel", "stop", "never mind")),

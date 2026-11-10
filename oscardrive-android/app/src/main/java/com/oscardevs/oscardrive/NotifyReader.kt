@@ -28,7 +28,7 @@ class NotifyReader : NotificationListenerService() {
         }
         if (!Prefs(this).readNotifs) return
         if (System.currentTimeMillis() < Oscar.speakingUntil) return
-        Speaker.say("رسالة من $title: ${text.take(120)}")
+        Speaker.say("رسالة من $title: ${text.take(120)}", kind = com.oscardevs.oscardrive.logic.SpeechKind.MESSAGE)
     }
 
     data class Msg(val key: String, val from: String, val text: String, val pkg: String, val t: Long)

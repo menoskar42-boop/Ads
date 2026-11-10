@@ -67,6 +67,8 @@ class DriveService : Service() {
         @Volatile var timerEndMs = 0L
         @Volatile var swStartMs = 0L
         @Volatile var swAccumMs = 0L
+        /** الملاحة جوه أوسكار قدّامك (المرحلة ٧: الردود أقصر). */
+        @Volatile var navActive = false
         var listener: (() -> Unit)? = null
         /** اتغيّرت ذاكرة الطريق (اتسجّل/اتمسح) — الخدمة تعيد قرايتها. */
         @Volatile var hazardsDirty = true
@@ -78,6 +80,11 @@ class DriveService : Service() {
     private val main = Handler(Looper.getMainLooper())
     private val speed = SpeedLogic()
     private val trip = TripLogic()
+    /** المرحلة ٧: فرملة/تسارع مفاجئ + تجاوزات الرحلة دى — بتتعدّ فى صمت والدرجة بعد ما الرحلة تخلص. */
+    private val harsh = com.oscardevs.oscardrive.logic.HarshDetector()
+    private var tripSpeedingN = 0
+    private var tripSpeedingS = 0
+    private var wasTripActive = false
     private val wellness = Wellness()
     private var hazards: List<Hazard> = emptyList()
     private val warned = HashMap<Long, Long>()
@@ -115,13 +122,13 @@ class DriveService : Service() {
             State.speedKmh = speed.speedKmh
             useApprox(now)
             // الـGPS وقع وإحنا ماشيين (نفق/جراج) — مرة واحدة لحد ما يرجع
-            if (gpsAnnounced && speed.speedKmh == null && trip.active && !lostAnnounced) { lostAnnounced = true; gpsAnnounced = false; Oscar.say("gps_lost") }
+            if (gpsAnnounced && speed.speedKmh == null && trip.active && !lostAnnounced) { lostAnnounced = true; gpsAnnounced = false; Oscar.say("gps_lost", kind = com.oscardevs.oscardrive.logic.SpeechKind.INFO) }
             val moving = (speed.speedKmh ?: 0f) >= TripLogic.MOVING_KMH
             wellness.everyMin = prefs.breakMin
             wellness.onTick(now, moving)?.let { min ->
                 val msg = Wellness.message(min)
                 showBanner("☕ $msg", "break", 20_000)
-                Speaker.say(msg, beep = true)
+                Speaker.say(msg, beep = true, kind = com.oscardevs.oscardrive.logic.SpeechKind.INFO)
             }
             State.drivingMin = wellness.drivenMinutes(now)
             syncTrip()
@@ -130,9 +137,10 @@ class DriveService : Service() {
             // المؤقّت + التذكيرات بالوقت (المرحلة ٥) — من نفس الخدمة، من غير خدمة ولا منبّه زيادة
             if (State.timerEndMs in 1..now) {
                 State.timerEndMs = 0
-                showBanner("⏰ المؤقّت خلص", "break", 15_000); Speaker.say("المؤقّت خلص", beep = true)
+                showBanner("⏰ المؤقّت خلص", "break", 15_000); Speaker.say("المؤقّت خلص", beep = true, kind = com.oscardevs.oscardrive.logic.SpeechKind.INFO)
             }
             if (now - lastRemCheck > 5_000) { lastRemCheck = now; checkReminders(now, null, null) }
+            Speaker.flushWaiting()   // اللى استنى المكالمة تخلص
             if (State.banner != null && now > State.bannerUntil) State.banner = null
             publish()
             main.postDelayed(this, 1000)
@@ -168,7 +176,8 @@ class DriveService : Service() {
         startGps()
         Guard.onBoot()
         // «صباح الخير، جاهز ننطلق؟» — من جمل أوسكار المسجّلة
-        Oscar.say(if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) in 4..14) "startup_morning" else "startup_evening")
+        Oscar.say(if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) in 4..14) "startup_morning" else "startup_evening",
+            kind = com.oscardevs.oscardrive.logic.SpeechKind.CHATTER)
         main.post(tick)
         return START_STICKY
     }
@@ -235,9 +244,12 @@ class DriveService : Service() {
             if (Build.VERSION.SDK_INT >= 26 && loc.hasSpeedAccuracy()) loc.speedAccuracyMetersPerSecond else null), State.limitKmh))
         val kmh = speed.speedKmh
         trip.onFix(now, loc.latitude, loc.longitude, kmh, acc, if (loc.hasBearing()) loc.bearing else null)
+        if (trip.active && !wasTripActive) { harsh.reset(); tripSpeedingN = 0; tripSpeedingS = 0 }
+        wasTripActive = trip.active
+        if (trip.active) harsh.onFix(now, kmh, acc)   // فى صمت — مفيش كلام عن السواقة وإنت سايق
         State.speedKmh = kmh
         State.over = speed.inViolation
-        if (!gpsAnnounced && kmh != null) { gpsAnnounced = true; lostAnnounced = false; Oscar.say("gps_ready") }
+        if (!gpsAnnounced && kmh != null) { gpsAnnounced = true; lostAnnounced = false; Oscar.say("gps_ready", kind = com.oscardevs.oscardrive.logic.SpeechKind.CHATTER) }
         State.headingDeg = trip.headingDeg
         State.lat = loc.latitude; State.lng = loc.longitude
         State.accuracyM = acc
@@ -258,11 +270,12 @@ class DriveService : Service() {
         for (e in events) when (e) {
             is SpeedLogic.Event.Alert -> if (prefs.speedAlerts) {
                 val text = if (e.first) "انتبه. السرعة ${e.speedKmh}. الحد ${e.limitKmh}" else "هدّى السرعة. ${e.speedKmh}"
-                Speaker.say(text, beep = true)
+                Speaker.say(text, beep = true, kind = com.oscardevs.oscardrive.logic.SpeechKind.SAFETY)
             }
             // «حارس الطريق»: كل تجاوز بيتسجّل (الوقت · أقصى سرعة · المدة · المكان)
             is SpeedLogic.Event.ViolationEnded -> e.v.let { v ->
                 db.addSpeeding(v.startedAtMs, v.endedAtMs, v.maxSpeedKmh, v.limitKmh, v.durationS, v.lat, v.lng)
+                if (trip.active) { tripSpeedingN++; tripSpeedingS += v.durationS }
             }
         }
     }
@@ -276,7 +289,7 @@ class DriveService : Service() {
         warned[RoadMemory.warnKey(hit.first, hit.second, kmh)] = now
         val msg = RoadMemory.warning(hit.first, hit.second)
         showBanner("${hit.first.type.emoji} $msg", "hazard", 8_000)
-        Speaker.say(msg, beep = true)
+        Speaker.say(msg, beep = true, kind = com.oscardevs.oscardrive.logic.SpeechKind.SAFETY)
     }
 
     private var lastRemCheck = 0L
@@ -290,12 +303,17 @@ class DriveService : Service() {
         for (r in due.distinctBy { it.id }) {
             db.setNoteDone(r.id)
             showBanner("🔔 ${r.text}", "break", 20_000)
-            Speaker.say("فكّرتك: ${r.text}", beep = true)
+            Speaker.say("فكّرتك: ${r.text}", beep = true, kind = com.oscardevs.oscardrive.logic.SpeechKind.INFO)
         }
     }
 
     private fun tripEnded(s: TripLogic.Summary) {
-        db.addTrip(s)
+        // المرحلة ٧: الدرجة بعد ما الرحلة تخلص (العربية واقفة ٣ دقايق) — مكتوبة بس، مش بالصوت
+        val b = com.oscardevs.oscardrive.logic.TripBehavior(s.distanceM / 1000.0, harsh.brakes, harsh.accels, tripSpeedingN, tripSpeedingS)
+        val g = com.oscardevs.oscardrive.logic.DrivingScore.grade(b)
+        db.addTrip(s, b, g.score)
+        harsh.reset(); tripSpeedingN = 0; tripSpeedingS = 0; wasTripActive = false
+        if (prefs.tripScore) showBanner("🎯 " + com.oscardevs.oscardrive.logic.DrivingScore.summary(b), "break", 25_000)
         if (prefs.autoOdo) prefs.addOdoGps(s.distanceM / 1000.0)
         if (prefs.autoPark) db.park(s.endLat, s.endLng, State.accuracyM.takeIf { !State.approx }, prefs.odoKm.toInt())
     }

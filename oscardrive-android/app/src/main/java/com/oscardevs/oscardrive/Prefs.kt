@@ -100,6 +100,11 @@ class Prefs(context: Context) {
         set(v) = sp.edit().putFloat("rate_est", v.toFloat()).apply()
 
     /** قراية رسايل الواتساب/الرسايل بصوت أوسكار (مقفولة افتراضياً — محتاجة إذن «الوصول للإشعارات» كمان). */
+    /** المرحلة ٧: درجة الرحلة تظهر مكتوبة بعد ما تخلص (مش بالصوت). */
+    var tripScore: Boolean
+        get() = sp.getBoolean("trip_score", true)
+        set(v) = sp.edit().putBoolean("trip_score", v).apply()
+
     /* ── المرحلة ٦: الأماكن ── */
     /** «أقرب …» يختار الأقرب أوتوماتيك بـPlaces API — **مقفول افتراضياً** (عليه فلوس بعد الحصة المجانية). */
     var placesApiOn: Boolean
