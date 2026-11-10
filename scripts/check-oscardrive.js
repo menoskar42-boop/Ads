@@ -145,6 +145,17 @@ check('privacy policy discloses tracking upload and camera', /drive\.oscardevs\.
       && /Open-Meteo/.test(privacy) && /الوصول للإشعارات/.test(privacy) && /بتدوس إرسال/.test(privacy),
     'المساعد لازم يفضل محلى، والرسايل مابتتبعتش لوحدها، وكل ده مكتوب فى السياسة.');
 }
+{
+  const prefsKt = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt');
+  const main = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/MainActivity.kt');
+  const places = read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/logic/Places.kt');
+  check('places: «nearest …» uses the free maps search unless Places API is turned on (off by default) and under the monthly cap; disclosed',
+    /"places_api", false/.test(prefsKt) && /Nearby\.allowed\(prefs\.placesApiOn, prefs\.placesUsedThisMonth\(month\), prefs\.placesCap\)/.test(main)
+      && /prefs\.countPlaces\(month\)/.test(main) && /fun allowed\(enabled: Boolean, usedThisMonth: Int, cap: Int\): Boolean = enabled && cap > 0 && usedThisMonth < cap/.test(places)
+      && /X-Goog-FieldMask", "places\.displayName,places\.location"/.test(main)
+      && /Google Places API/.test(privacy) && /Places API/.test(privacy),
+    'Places API عليه فلوس بعد الحصة المجانية: لازم يفضل مقفول افتراضياً وبحد شهرى وبأقل حقول، ومكتوب فى السياسة.');
+}
 check('security is opt-in on the screen', /get\(\) = sp\.getBoolean\("sec_on", false\)/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Prefs.kt')),
   'التتبّع للسيرفر لازم يبقى مقفول لحد ما السواق يشغّله.');
 

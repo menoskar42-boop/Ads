@@ -137,6 +137,12 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         query("SELECT id,start_ms,end_ms,distance_m,moving_s,max_kmh FROM trips WHERE start_ms >= ? ORDER BY start_ms DESC LIMIT $limit",
             arrayOf(sinceMs.toString())) { Trip(it.getLong(0), it.getLong(1), it.getLong(2), it.getDouble(3), it.getLong(4), it.getFloat(5)) }
 
+    /** نهايات الرحلات (للأماكن المتكررة) — من الجدول الموجود، مفيش تسجيل زيادة. */
+    fun tripEnds(sinceMs: Long): List<com.oscardevs.oscardrive.logic.Visit> =
+        query("SELECT end_lat,end_lng,end_ms FROM trips WHERE end_ms >= ? AND end_lat IS NOT NULL AND NOT (end_lat = 0 AND end_lng = 0)", arrayOf(sinceMs.toString())) {
+            com.oscardevs.oscardrive.logic.Visit(it.getDouble(0), it.getDouble(1), it.getLong(2))
+        }
+
     /* ── ذاكرة الطريق ── */
     fun addHazard(type: HazardType, lat: Double, lng: Double, bearing: Float?): Long =
         writableDatabase.insert("hazards", null, ContentValues().apply {

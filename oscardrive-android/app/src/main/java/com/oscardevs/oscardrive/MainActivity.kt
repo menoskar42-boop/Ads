@@ -44,6 +44,12 @@ import com.oscardevs.oscardrive.logic.Warranty
 import com.oscardevs.oscardrive.logic.Reports
 import com.oscardevs.oscardrive.logic.TripRec
 import com.oscardevs.oscardrive.logic.Parking
+import com.oscardevs.oscardrive.logic.PlaceNames
+import com.oscardevs.oscardrive.logic.FrequentPlaces
+import com.oscardevs.oscardrive.logic.Nearby
+import com.oscardevs.oscardrive.logic.NearbyKind
+import com.oscardevs.oscardrive.logic.NearbyResult
+import com.oscardevs.oscardrive.logic.FreeText
 import com.oscardevs.oscardrive.logic.HazardType
 import com.oscardevs.oscardrive.logic.MaintStatus
 import com.oscardevs.oscardrive.logic.RoadMemory
@@ -357,6 +363,35 @@ class MainActivity : Activity() {
             r.addView(ui.button("وصّلنى", "primary", 15f) { navigateTo(p.lat, p.lng, p.name) }, ui.lp(ui.dp(110), ui.dp(50), 0f, 3))
             r.addView(ui.button("مسح", "neutral", 15f) { confirm("تمسح «${p.name}»؟") { db.deletePlace(p.id); refresh() } }, ui.lp(ui.dp(80), ui.dp(50), 0f, 3))
             page.addView(r, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 4))
+        }
+
+        page.addView(section("🔎 أقرب…"))
+        page.addView(ui.text(if (prefs.placesApiOn) "بيختار الأقرب ويبدأ الملاحة على طول (Places API — ${prefs.placesUsedThisMonth(NavActivity.month())} من حدّك ${prefs.placesCap} الشهر ده)."
+            else "بيدوّر فى الخرايط حواليك وإنت تختار. أو قول «أقرب صيدلية».", 14f, ui.muted))
+        for (ids in listOf(listOf("pharmacy", "hospital", "atm", "church"), listOf("mosque", "restaurant", "mechanic", "tires"))) {
+            val r = ui.row()
+            for (id in ids) Nearby.KINDS.firstOrNull { it.id == id }?.let { k ->
+                r.addView(ui.button(k.ar, "neutral", 15f) { nearby(k.mapsQuery) }, ui.lp(0, ui.dp(54), 1f, 3))
+            }
+            page.addView(r)
+        }
+
+        val frequent = FrequentPlaces.find(db.tripEnds(System.currentTimeMillis() - FrequentPlaces.WINDOW_DAYS * 86_400_000L),
+            places.map { it.lat to it.lng }, prefs.dismissedSpots(), System.currentTimeMillis())
+        if (frequent.isNotEmpty()) {
+            page.addView(section("📍 أماكن بتقف فيها كتير"))
+            page.addView(ui.text("من آخر الرحلات (آخر ٤ أسابيع). سمّيه عشان تقول «ودّينى …»، أو «مش مهم» ومش هيظهر تانى.", 14f, ui.muted))
+            for (f in frequent) {
+                val c = ui.card(10)
+                c.addView(ui.text("وقفت هنا ${f.visits} مرات · غالباً ${FrequentPlaces.partOfDay(f.usualHour)} · آخر مرة ${ago(f.lastMs)}" +
+                    here()?.let { " · بعيد عنك ${km(Geo.distanceM(it.first, it.second, f.lat, f.lng))}" }.orEmpty(), 16f, ui.ink, bold = true))
+                val r = ui.row()
+                r.addView(ui.button("✏️ سمّيه", "primary", 15f) { askText("اسم المكان ده", "مثلاً: الجيم · بيت بابا", "") { savePlaceAt(it, f.lat, f.lng) } }, ui.lp(0, ui.dp(52), 1f, 3))
+                r.addView(ui.button("🗺️ شوفه", "neutral", 15f) { view("geo:${f.lat},${f.lng}?q=${f.lat},${f.lng}") || toast("مفيش تطبيق خرائط على الشاشة") }, ui.lp(0, ui.dp(52), 1f, 3))
+                r.addView(ui.button("مش مهم", "neutral", 15f) { prefs.dismissSpot(f.lat, f.lng); refresh() }, ui.lp(0, ui.dp(52), 1f, 3))
+                c.addView(r)
+                page.addView(c, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 4))
+            }
         }
 
         page.addView(section("🆘 الطوارئ"))
@@ -744,6 +779,23 @@ class MainActivity : Activity() {
             val used = prefs.navUsedThisMonth(NavActivity.month())
             page.addView(ui.text("وجهات الملاحة جوه التطبيق الشهر ده من الشاشة دى: $used — أول ${NavActivity.FREE_PER_MONTH} فى الشهر مجانى من جوجل، " +
                 "وبعدها بيفتح تطبيق الخرائط لوحده.", 13f, ui.muted).apply { setPadding(ui.dp(6), 0, ui.dp(6), ui.dp(6)) })
+            // «أقرب …» أوتوماتيك — مقفول افتراضياً: عليه حصة مجانية من جوجل وبعدها فلوس على حساب الفوترة بتاع الخرايط
+            page.addView(toggle("🔎 «أقرب …» يختار الأقرب ويبدأ الملاحة (Places API)", prefs.placesApiOn) { on ->
+                if (!on) prefs.placesApiOn = false
+                else confirm("ده بيبعت مكانك التقريبى لجوجل مع كل «أقرب …»، ومحتاج Places API (New) مفعّل على مفتاح الخرايط. " +
+                    "جوجل عندها حصة مجانية فى الشهر وبعدها بفلوس — فالتطبيق بيقف عند حدّك (${prefs.placesCap} فى الشهر) ويرجع لبحث الخرايط المجانى. تفتحه؟") {
+                    prefs.placesApiOn = true; refresh()
+                }
+            })
+            if (prefs.placesApiOn) {
+                page.addView(ui.text("طلبات Places الشهر ده: ${prefs.placesUsedThisMonth(NavActivity.month())} من ${prefs.placesCap}", 13f, ui.muted)
+                    .apply { setPadding(ui.dp(6), 0, ui.dp(6), 0) })
+                page.addView(ui.button("غيّر الحد الشهرى", "neutral", 15f) {
+                    askText("أقصى طلبات فى الشهر", "مثلاً: 100", prefs.placesCap.toString(), InputType.TYPE_CLASS_NUMBER) { v ->
+                        v.trim().toIntOrNull()?.let { prefs.placesCap = it }; refresh()
+                    }
+                }, ui.lp(Ui.MATCH, ui.dp(50), marginDp = 4))
+            }
         }
         page.addView(toggle("🔊 تنبيه صوتى لما توصل حد السرعة", prefs.speedAlerts) { prefs.speedAlerts = it })
         page.addView(toggle("🛣️ نبّهنى قبل المطبات والحفر والرادار اللى سجّلتها", prefs.hazardAlerts) { prefs.hazardAlerts = it })
@@ -862,11 +914,18 @@ class MainActivity : Activity() {
         oscar("parking_saved", "اتحفظ مكان الركنة" + if (acc == null || acc > Parking.APPROX_M) " (تقريبى)" else "")
     }
 
-    private fun savePlace(name: String) {
+    private fun savePlace(name: String, spoken: Boolean = false) {
         val (lat, lng) = needHere() ?: return
-        if (name.isBlank()) return
-        db.addPlace(name.trim(), lat, lng)
-        toast("اتحفظ «${name.trim()}»")
+        savePlaceAt(name, lat, lng, spoken)
+    }
+
+    private fun savePlaceAt(name: String, lat: Double, lng: Double, spoken: Boolean = false) {
+        val n = PlaceNames.tidy(name)
+        if (n.isEmpty()) return
+        val existed = db.places().any { it.name == n }
+        db.addPlace(n, lat, lng)
+        val msg = if (existed) "غيّرت مكان «$n» للمكان ده" else "حفظت المكان ده باسم «$n» — قول «ودّينى $n»"
+        if (spoken) sayInfo(msg) else toast(msg)
         refresh()
     }
 
@@ -906,11 +965,92 @@ class MainActivity : Activity() {
         if (plan.refuel) Oscar.sayText("المشوار محتاج حوالى ${"%.0f".format(Locale.US, plan.liters)} لتر، والفاضل أقل — فوّل قبل ما تمشى")
     }
 
+    /** «ودّينى الجيم»: الاسم المحفوظ (قريب مش حرفى) ⇐ ملاحة · «ودّينى لأقرب صيدلية» ⇐ «أقرب …» · غير كده بحث فى الخرايط. */
     private fun goTo(place: String) {
-        val norm = VoiceCommands.normalize(place)
-        val p = db.places().firstOrNull { VoiceCommands.normalize(it.name) == norm }
+        val places = db.places()
+        val name = PlaceNames.match(places.map { it.name }, place)
+        val p = places.firstOrNull { it.name == name }
         if (p != null) { navigateTo(p.lat, p.lng, p.name); return }
-        view("geo:0,0?q=" + Uri.encode(place)) || toast("مفيش تطبيق خرائط على الشاشة")
+        val k = PlaceNames.key(place)
+        if (k.startsWith("اقرب ") || k.startsWith("nearest ")) { nearby(k.substringAfter(' ')); return }
+        mapsSearch(PlaceNames.tidy(VoiceCommands.placeOf(place)).ifEmpty { place })
+    }
+
+    /** بحث فى تطبيق الخرايط حوالين مكانك — مجانى، وإنت تختار من النتايج. */
+    private fun mapsSearch(q: String) {
+        val p = here()
+        view((if (p != null) "geo:${p.first},${p.second}" else "geo:0,0") + "?q=" + Uri.encode(q)) || toast("مفيش تطبيق خرائط على الشاشة")
+    }
+
+    /**
+     * «أقرب صيدلية / ATM / كنيسة…». افتراضياً: بحث فى الخرايط (مجانى). لو إنت فاتح «اختار الأقرب أوتوماتيك» ولسه تحت حدّك
+     * الشهرى: طلب واحد لـPlaces API ⇐ الملاحة على الأقرب على طول. أى مشكلة ⇐ يرجع لبحث الخرايط.
+     */
+    private fun nearby(spoken: String) {
+        val kind = Nearby.kindOf(spoken)
+        val q = kind?.mapsQuery ?: spoken.trim()
+        if (q.isEmpty()) { sayInfo("قول مثلاً: أقرب صيدلية · أقرب ATM · أقرب كنيسة"); return }
+        if (kind?.id == "fuel") { oscar("fuel"); nearestFuel(); return }
+        val month = NavActivity.month()
+        val key = mapsKey()
+        val from = here()
+        if (kind == null || from == null || key.isEmpty() || !Nearby.allowed(prefs.placesApiOn, prefs.placesUsedThisMonth(month), prefs.placesCap)) {
+            sayInfo("بدوّر على أقرب ${kind?.ar ?: q} فى الخرايط"); mapsSearch(q); return
+        }
+        prefs.countPlaces(month)
+        toast("بدوّر على أقرب ${kind.ar}…")
+        Thread {
+            val res = try { placesNearby(key, kind, from.first, from.second) } catch (e: Exception) { null }
+            main.post {
+                val best = res?.let { Nearby.nearest(it, from.first, from.second) }
+                if (best == null) {
+                    sayInfo(if (res == null) "مش قادر أوصل لـ Places — هدوّر فى الخرايط" else "مالقيتش ${kind.ar} قريب — هدوّر فى الخرايط")
+                    mapsSearch(q)
+                } else {
+                    sayInfo("أقرب ${kind.ar}: ${best.name} — ${Geo.sayDistance(Geo.distanceM(from.first, from.second, best.lat, best.lng))}")
+                    navigateTo(best.lat, best.lng, best.name)
+                }
+            }
+        }.start()
+    }
+
+    /** مفتاح خرايط جوجل اللى اتحط وقت البناء (نفس مفتاح الملاحة). فاضى = مفيش. */
+    private fun mapsKey(): String = try {
+        packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA).metaData?.getString("com.google.android.geo.API_KEY").orEmpty()
+    } catch (_: Exception) { "" }
+
+    /** بصمة SHA-1 لتوقيع التطبيق — جوجل بتطلبها مع المفتاح المقفول على تطبيق أندرويد. */
+    @Suppress("DEPRECATION")
+    private fun certSha1(): String = try {
+        val sig = if (Build.VERSION.SDK_INT >= 28)
+            packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo?.apkContentsSigners?.firstOrNull()
+        else packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES).signatures?.firstOrNull()
+        sig?.let { java.security.MessageDigest.getInstance("SHA-1").digest(it.toByteArray()).joinToString("") { b -> "%02X".format(b) } }.orEmpty()
+    } catch (_: Exception) { "" }
+
+    /** Places API (New) — Nearby Search: الاسم والمكان بس، لحد ٥ نتايج فى ٥ كم، مترتّبين بالمسافة. */
+    private fun placesNearby(key: String, kind: NearbyKind, lat: Double, lng: Double): List<NearbyResult> {
+        val c = java.net.URL("https://places.googleapis.com/v1/places:searchNearby").openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 10_000; c.readTimeout = 10_000; c.requestMethod = "POST"; c.doOutput = true
+        c.setRequestProperty("Content-Type", "application/json")
+        c.setRequestProperty("X-Goog-Api-Key", key)
+        c.setRequestProperty("X-Goog-FieldMask", "places.displayName,places.location")
+        c.setRequestProperty("X-Android-Package", packageName)
+        certSha1().takeIf { it.isNotEmpty() }?.let { c.setRequestProperty("X-Android-Cert", it) }
+        val body = org.json.JSONObject()
+            .put("includedTypes", org.json.JSONArray().put(kind.placesType))
+            .put("maxResultCount", 5).put("rankPreference", "DISTANCE")
+            .put("languageCode", if (Oscar.lang == "en") "en" else "ar")
+            .put("locationRestriction", org.json.JSONObject().put("circle", org.json.JSONObject()
+                .put("center", org.json.JSONObject().put("latitude", lat).put("longitude", lng)).put("radius", Nearby.RADIUS_M.toDouble())))
+        c.outputStream.use { it.write(body.toString().toByteArray()) }
+        if (c.responseCode != 200) throw IllegalStateException("HTTP ${c.responseCode}")
+        val arr = org.json.JSONObject(c.inputStream.bufferedReader().use { it.readText() }).optJSONArray("places") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.getJSONObject(i); val loc = o.optJSONObject("location") ?: return@mapNotNull null
+            NearbyResult(o.optJSONObject("displayName")?.optString("text").orEmpty().ifEmpty { kind.ar },
+                loc.optDouble("latitude"), loc.optDouble("longitude"))
+        }
     }
 
     private fun music() {
@@ -1072,7 +1212,12 @@ class MainActivity : Activity() {
                 if (p == null) oscar("need_home", "احفظ «$name» الأول من شاشة الملاحة") else { oscar("nav_start"); navigateTo(p.lat, p.lng, p.name) }
             }
             "nav.fuel" -> { oscar("fuel"); nearestFuel() }
-            "nav.goto" -> { oscar("nav_start", "رايحين: $slot"); goTo(slot ?: return) }
+            "nav.goto" -> { val raw = FreeText.tail(heard, slot ?: return); oscar("nav_start", "رايحين: $raw"); goTo(raw) }
+            "nav.near" -> nearby(FreeText.tail(heard, slot ?: return))
+            "place.save" -> {
+                val name = PlaceNames.tidy(FreeText.tail(heard, slot ?: ""))
+                if (name.isEmpty()) askText("اسم المكان", "مثلاً: الجيم", "") { savePlace(it) } else savePlace(name, spoken = true)
+            }
             "car.find" -> db.parkings().firstOrNull()?.let { oscar("find_car"); navigateTo(it.lat, it.lng, "العربية", walk = true) } ?: oscar("no_parking")
             "park.save" -> parkHere()
             "road.bump" -> { markHazard(HazardType.BUMP); if (tab == "road") refresh() }

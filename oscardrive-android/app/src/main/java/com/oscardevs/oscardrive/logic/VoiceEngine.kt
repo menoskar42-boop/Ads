@@ -89,6 +89,11 @@ object VoiceCatalog {
         VoiceCommand("notif.read", "اقرا الرسايل", listOf("اقرا الاشعارات", "اقرا الرسايل", "ايه الرسايل", "اقرا الرسائل"), listOf("read notifications", "read my messages")),
         VoiceCommand("wa.send", "ابعت واتساب", listOf("ابعت *", "ابعتلي *", "ارسل *"), listOf("send whatsapp *", "send a whatsapp *", "send a message *", "send message *")),
         VoiceCommand("time.now", "الساعة كام", listOf("الساعه كام", "الوقت كام"), listOf("what time is it")),
+        // المرحلة ٦: الأماكن — «احفظ المكان ده باسم الجيم» · «أقرب صيدلية» (و«ودّينى الجيم» = nav.goto)
+        VoiceCommand("place.save", "احفظ المكان ده باسم", listOf("احفظ المكان ده باسم *", "احفظ المكان باسم *", "احفظ مكاني باسم *", "احفظ هنا باسم *",
+            "سمي المكان ده *", "احفظ المكان ده *", "سجل المكان ده باسم *"), listOf("save this place as *", "save this location as *", "save location as *", "save place as *")),
+        VoiceCommand("nav.near", "أقرب …", listOf("اقرب *", "فين اقرب *", "عاوز اقرب *", "دورلي علي اقرب *", "وديني لاقرب *", "وصلني لاقرب *"),
+            listOf("nearest *", "find the nearest *", "where is the nearest *", "take me to the nearest *")),
         VoiceCommand("emergency", "طوارئ", listOf("طوارئ", "نجده", "الحقوني", "استغاثه"), listOf("emergency", "help me", "sos"), confirm = true),
         VoiceCommand("help", "بتعرف تعمل إيه", listOf("بتعرف تعمل ايه", "تقدر تعمل ايه", "مساعده", "الاوامر"), listOf("what can you do", "help", "commands")),
         VoiceCommand("cancel", "خلاص", listOf("خلاص", "بس", "الغي", "ولا حاجه"), listOf("cancel", "stop", "never mind")),

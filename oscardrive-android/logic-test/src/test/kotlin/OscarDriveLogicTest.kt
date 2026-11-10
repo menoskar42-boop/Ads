@@ -510,3 +510,53 @@ class AssistantTest {
         assertTrue(Weather.url(30.04449, 31.23571).contains("latitude=30.04&longitude=31.24"))
     }
 }
+
+// المرحلة ٦ (المالك ٢٠٢٦-١١-١٠): الأماكن — حفظ بالصوت · الاسم القريب · الأماكن المتكررة · «أقرب …»
+class PlacesTest {
+    private val day = 86_400_000L
+    private val now = 1_800_000_000_000L
+    @Test fun savedNamesMatchLoosely() {
+        val saved = listOf("الجيم", "بيت بابا", "النادي", "شغل مراتي")
+        assertEquals("الجيم", PlaceNames.match(saved, "للجيم"))
+        assertEquals("الجيم", PlaceNames.match(saved, "جيم"))
+        assertEquals("بيت بابا", PlaceNames.match(saved, "لبيت بابا"))
+        assertEquals("النادي", PlaceNames.match(saved, "على النادى"))
+        assertEquals("بيت بابا", PlaceNames.match(saved, "بيت بابه"))   // التعرّف كتبها غلط
+        assertNull(PlaceNames.match(saved, "محطه مصر"))
+        assertEquals("الجيم", PlaceNames.tidy("باسم الجيم."))
+    }
+    @Test fun voiceSavesAndSearches() {
+        val e = VoiceEngine()
+        val s = e.understand("احفظ المكان ده باسم الجيم")!!
+        assertEquals("place.save", s.match.command.id); assertEquals("الجيم", s.match.slot)
+        assertEquals("place.save", e.understand("save this place as gym")!!.match.command.id)
+        val n = e.understand("اقرب صيدليه")!!
+        assertEquals("nav.near", n.match.command.id); assertEquals("pharmacy", Nearby.kindOf(n.match.slot!!)?.id)
+        assertEquals("nav.fuel", e.understand("اقرب بنزينه")!!.match.command.id)   // الثابت بيغلب
+        assertEquals("nav.goto", e.understand("وديني الجيم")!!.match.command.id)
+    }
+    @Test fun nearbyKinds() {
+        assertEquals("atm", Nearby.kindOf("فين اقرب ATM")?.id)
+        assertEquals("atm", Nearby.kindOf("مكنه فلوس")?.id)
+        assertEquals("church", Nearby.kindOf("كنيسة")?.id)
+        assertEquals("hospital", Nearby.kindOf("nearest hospital")?.id)
+        assertEquals("tires", Nearby.kindOf("بنشر")?.id)
+        assertNull(Nearby.kindOf("مشاكل"))          // «اكل» جوّه كلمة تانية مش مطعم
+        val r = listOf(NearbyResult("بعيدة", north(900.0), LNG0), NearbyResult("قريبة", north(200.0), LNG0))
+        assertEquals("قريبة", Nearby.nearest(r, LAT0, LNG0)?.name)
+        assertFalse(Nearby.allowed(false, 0, 100))   // مقفول افتراضياً
+        assertFalse(Nearby.allowed(true, 100, 100))  // الحد الشهرى
+        assertTrue(Nearby.allowed(true, 99, 100))
+    }
+    @Test fun frequentStopsFromTripEnds() {
+        val gym = (0 until 3).map { Visit(north(1000.0 + it * 20), LNG0, now - (it + 1) * day + 7 * 3_600_000L) }   // ٣ مرات فى أسبوع
+        val once = listOf(Visit(north(5000.0), LNG0, now - day), Visit(north(5010.0), LNG0, now - 10 * day))       // مرتين بس
+        val old = (0 until 4).map { Visit(north(9000.0), LNG0, now - (40 + it) * day) }                             // أقدم من ٤ أسابيع
+        val f = FrequentPlaces.find(gym + once + old, emptyList(), emptyList(), now)
+        assertEquals(1, f.size); assertEquals(3, f[0].visits); assertTrue(abs(f[0].lat - north(1020.0)) < 0.0002)
+        assertEquals(17, f[0].usualHour); assertEquals("العصر", FrequentPlaces.partOfDay(17))   // ٣ العصر UTC = ٥ القاهرة
+        // جنب مكان محفوظ أو اتقال عليه «مش مهم» ⇒ مايظهرش
+        assertTrue(FrequentPlaces.find(gym, listOf(north(1050.0) to LNG0), emptyList(), now).isEmpty())
+        assertTrue(FrequentPlaces.find(gym, emptyList(), listOf(north(1000.0) to LNG0), now).isEmpty())
+    }
+}

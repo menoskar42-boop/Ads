@@ -100,6 +100,28 @@ class Prefs(context: Context) {
         set(v) = sp.edit().putFloat("rate_est", v.toFloat()).apply()
 
     /** قراية رسايل الواتساب/الرسايل بصوت أوسكار (مقفولة افتراضياً — محتاجة إذن «الوصول للإشعارات» كمان). */
+    /* ── المرحلة ٦: الأماكن ── */
+    /** «أقرب …» يختار الأقرب أوتوماتيك بـPlaces API — **مقفول افتراضياً** (عليه فلوس بعد الحصة المجانية). */
+    var placesApiOn: Boolean
+        get() = sp.getBoolean("places_api", false)
+        set(v) = sp.edit().putBoolean("places_api", v).apply()
+    /** أقصى طلبات Places API فى الشهر (حدّك إنت) — بعده بيرجع لبحث الخرايط المجانى. */
+    var placesCap: Int
+        get() = sp.getInt("places_cap", com.oscardevs.oscardrive.logic.Nearby.DEFAULT_CAP)
+        set(v) = sp.edit().putInt("places_cap", v.coerceIn(0, com.oscardevs.oscardrive.logic.Nearby.MAX_CAP)).apply()
+    fun placesUsedThisMonth(month: String): Int = if (sp.getString("places_month", "") == month) sp.getInt("places_count", 0) else 0
+    fun countPlaces(month: String) {
+        sp.edit().putString("places_month", month).putInt("places_count", placesUsedThisMonth(month) + 1).apply()
+    }
+    /** أماكن متكررة قلت عليها «مش مهم» (lat,lng) — مابتظهرش تانى. آخر ٥٠. */
+    fun dismissedSpots(): List<Pair<Double, Double>> = (sp.getString("spots_off", "") ?: "").split(';').mapNotNull {
+        val a = it.split(','); if (a.size == 2) a[0].toDoubleOrNull()?.let { la -> a[1].toDoubleOrNull()?.let { lo -> la to lo } } else null
+    }
+    fun dismissSpot(lat: Double, lng: Double) {
+        val all = (dismissedSpots() + (lat to lng)).takeLast(50)
+        sp.edit().putString("spots_off", all.joinToString(";") { "%.5f,%.5f".format(java.util.Locale.US, it.first, it.second) }).apply()
+    }
+
     var readNotifs: Boolean
         get() = sp.getBoolean("read_notifs", false)
         set(v) = sp.edit().putBoolean("read_notifs", v).apply()
