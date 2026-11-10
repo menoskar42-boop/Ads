@@ -32,9 +32,22 @@ function applyFill(account, position, order, px) {
     const newQ = oldQ + qty;
     return { cash: r2(account.cash - cost), position: { qty: newQ, avg_cost: r2((oldQ * oldC + qty * px) / newQ) }, trade: { side: 'BUY', qty, price: px, pnl: null } };
   }
+  // البيع: الفلوس مابتدخلش الرصيد على طول، بتستنى التسوية (T+2) فى proceeds
   const pnl = r2((px - position.avg_cost) * qty);
   const left = position.qty - qty;
-  return { cash: r2(account.cash + qty * px), position: left > 0 ? { qty: left, avg_cost: position.avg_cost } : null, trade: { side: 'SELL', qty, price: px, pnl } };
+  return { cash: r2(account.cash), proceeds: r2(qty * px), position: left > 0 ? { qty: left, avg_cost: position.avg_cost } : null, trade: { side: 'SELL', qty, price: px, pnl } };
+}
+
+/** بعد n أيام تداول (الأحد للخميس، من غير الإجازات الرسمية). '2026-11-12' (خميس) + 2 = '2026-11-16' (اتنين). */
+function addTradingDays(iso, n) {
+  const d = new Date(String(iso).slice(0, 10) + 'T12:00:00Z');
+  let left = n;
+  while (left > 0) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const wd = d.getUTCDay();          // ٥ الجمعة · ٦ السبت
+    if (wd !== 5 && wd !== 6) left--;
+  }
+  return d.toISOString().slice(0, 10);
 }
 
 /** أوامر الخروج بعد الشراء (مجموعة واحدة: لو واحد اتنفّذ التانى يتلغى). */
@@ -46,17 +59,17 @@ function exitOrders(symbol, qty, stop, target) {
 }
 
 /** ملخّص الأداء: الرصيد · قيمة المحفظة · العائد · نسبة الصفقات الكسبانة. */
-function performance(account, positions, prices, trades) {
+function performance(account, positions, prices, trades, pending) {
   const holdings = positions.reduce((s, p) => s + p.qty * (prices[p.symbol] || p.avg_cost), 0);
-  const value = r2(account.cash + holdings);
+  const value = r2(account.cash + (pending || 0) + holdings);
   const closed = trades.filter((t) => t.side === 'SELL' && t.pnl != null);
   const wins = closed.filter((t) => t.pnl > 0).length;
   return {
-    cash: r2(account.cash), holdings: r2(holdings), value,
+    cash: r2(account.cash), pending: r2(pending || 0), holdings: r2(holdings), value,
     return_pct: account.start_cash > 0 ? r2((value / account.start_cash - 1) * 100) : 0,
     closed: closed.length, wins, win_rate: closed.length ? r2(wins / closed.length * 100) : null,
     realized: r2(closed.reduce((s, t) => s + t.pnl, 0)),
   };
 }
 
-module.exports = { fillPrice, applyFill, exitOrders, performance };
+module.exports = { fillPrice, applyFill, exitOrders, performance, addTradingDays };

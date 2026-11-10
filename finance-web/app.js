@@ -100,7 +100,8 @@
   }
   function stock() {
     var sym = document.body.dataset.id;
-    api('/api/stock/' + encodeURIComponent(sym)).then(function (s) {
+    Promise.all([api('/api/stock/' + encodeURIComponent(sym)), api('/api/sim')]).then(function (x) {
+      var s = x[0], sim = x[1];
       if (!s.ok) { app.innerHTML = '<p>' + esc(s.error) + '</p>'; return; }
       var lv = s.levels || {}, r = s.row || {};
       app.innerHTML = '<h1>' + esc(sym) + (r.note ? ' <span class="muted">' + esc(r.note) + '</span>' : '') + '</h1>' +
@@ -109,13 +110,67 @@
         '<div class="grid">' + [['السعر', r.price], ['منطقة الشراء من', lv.buy_lo], ['منطقة الشراء لحد', lv.buy_hi], ['الوقف', lv.stop_loss],
           ['الهدف ١', lv.target1], ['الهدف ٢', lv.target2], ['الدعم (٢٠)', lv.support], ['المتوسط ٢٠', lv.sma20], ['المتوسط ٥٠', lv.sma50], ['ATR ١٤', lv.atr14]]
           .map(function (k) { return '<div class="kv"><b>' + n2(k[1]) + '</b><span>' + k[0] + '</span></div>'; }).join('') + '</div>' +
+        orderCard(sym, r, lv, sim) +
         '<h2>الرسم (آخر ١٢٠ جلسة)</h2><div class="card">' + chart(s.candles, lv) + '<p class="muted">المنطقة الملوّنة = منطقة الشراء · S الدعم · R20 و R60 المقاومة · SL الوقف</p></div>' +
         '<h2>الدرجة ' + sg(r.composite, true) + '</h2><div class="card"><ul>' + (r.breakdown || []).map(function (p) {
           return '<li>' + esc(p.label) + ': <b>' + sg(p.points) + '</b></li>'; }).join('') + '</ul>' +
         '<a href="/ticket?symbol=' + esc(sym) + '">اعمل تذكرة للسهم ده</a></div>' +
         '<h2>الإفصاحات</h2><div class="news">' + (s.disclosures.length ? s.disclosures.map(function (d) { return discCard(d, false); }).join('') : '<p class="muted">مفيش.</p>') + '</div>';
+      bindOrderCard(sym, lv, r);
     });
     bindReanalyze();
+  }
+
+  /*
+   * أمر فى محفظة الديمو من صفحة السهم (فى أى وقت، حتى والسوق مقفول). بيتنفّذ وقت السوق بس لو السعر وصله أو عدّاه:
+   * الشراء لما السعر ينزل لسعرك أو تحته · البيع لما يطلع لسعرك أو فوقه · وقف الخسارة لما ينزل للوقف أو تحته.
+   */
+  var ORDER_KIND = function (o) { return o.side === 'BUY' ? 'شراء محدد' : o.type === 'STOP' ? 'وقف خسارة' : o.type === 'MARKET' ? 'بيع بسعر السوق' : 'بيع محدد'; };
+  function orderCard(sym, r, lv, sim) {
+    if (!sim || !sim.ok) return '';
+    var pos = (sim.positions || []).filter(function (p) { return p.symbol === sym; })[0];
+    var mine = (sim.orders || []).filter(function (o) { return o.symbol === sym; });
+    var px = r.price || lv.buy_hi || '';
+    var amt = (function () { try { return localStorage.getItem('fin_amt') || '1000'; } catch (_) { return '1000'; } })();
+    return '<h2>أمر فى محفظة الديمو</h2><div class="card">' +
+      (pos ? '<p>معاك <b>' + pos.qty + '</b> سهم بمتوسط ' + n2(pos.avg_cost) + '</p>' : '') +
+      (mine.length ? '<div class="scroll"><table><thead><tr><th>الأمر</th><th>السعر</th><th>الكمية</th><th>لحد</th><th></th></tr></thead><tbody>' + mine.map(function (o) {
+        return '<tr><td>' + ORDER_KIND(o) + (o.side === 'BUY' && (o.stop_loss || o.target1) ? ' <span class="muted">(وقف ' + n2(o.stop_loss) + ' · جنى ' + n2(o.target1) + ')</span>' : '') + '</td><td>' + n2(o.price) + '</td><td>' + o.qty +
+          '</td><td>' + (o.expires_ts ? esc(t(o.expires_ts)) : 'لحد ما ألغيه') + '</td><td><button type="button" class="ghost" data-cancel="' + o.id + '">إلغاء</button></td></tr>';
+      }).join('') + '</tbody></table></div>' : '') +
+      '<form id="of" class="row" style="margin-top:8px">' +
+      '<label>العملية<select name="side"><option value="BUY">شراء</option>' + (pos ? '<option value="SELL">بيع</option>' : '') + '</select></label>' +
+      '<label class="sell-only" hidden>النوع<select name="type"><option value="LIMIT">بيع لما يوصل السعر أو يعدّيه لفوق</option><option value="STOP">وقف خسارة لما ينزل للسعر أو تحته</option></select></label>' +
+      '<label>السعر<input name="price" type="number" step="0.01" min="0.01" required value="' + esc(px) + '"></label>' +
+      '<label class="buy-only">المبلغ (جنيه)<input name="amount" type="number" min="1" step="1" value="' + esc(amt) + '"></label>' +
+      '<label class="sell-only" hidden>الكمية<input name="qty" type="number" min="1" step="1" value="' + (pos ? pos.qty : '') + '"></label>' +
+      '<label class="buy-only">وقف الخسارة (اختيارى)<input name="stop_loss" type="number" step="0.01" min="0" value="' + (lv.stop_loss || '') + '"></label>' +
+      '<label class="buy-only">جنى الأرباح (اختيارى)<input name="target" type="number" step="0.01" min="0" value="' + (lv.target1 || '') + '"></label>' +
+      '<label>صالح<select name="days"><option value="">لحد ما ألغيه</option><option value="1">النهارده</option><option value="7">أسبوع</option><option value="30">شهر</option></select></label>' +
+      '<button>حط الأمر</button><span id="omsg" class="muted"></span></form>' +
+      '<p class="muted">المتاح للشراء: ' + n2(sim.available) + ' جنيه' + ((sim.pending || []).length ? ' · ومستنى تسوية ' + n2(sim.performance.pending) + ' جنيه' : '') + '. ' +
+      'الأمر بيتنفّذ وقت السوق بس (الأحد للخميس ١٠:٠٠ لـ ٢:٣٠) لو السعر وصله أو عدّاه، وبعد الشراء الوقف وجنى الأرباح بيتحطوا لوحدهم. فلوس البيع بتتاح بعد يومين تداول (T+2).</p></div>';
+  }
+  function bindOrderCard(sym, lv, r) {
+    var f = document.getElementById('of'); if (!f) return;
+    function mode() {
+      var sell = f.side.value === 'SELL';
+      f.querySelectorAll('.sell-only').forEach(function (el) { el.hidden = !sell; });
+      f.querySelectorAll('.buy-only').forEach(function (el) { el.hidden = sell; });
+    }
+    f.side.onchange = mode; mode();
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var sell = f.side.value === 'SELL';
+      var b = { symbol: sym, side: f.side.value, type: sell ? f.type.value : 'LIMIT', price: Number(f.price.value), days: f.days.value };
+      if (sell) b.qty = Number(f.qty.value);
+      else { b.amount = Number(f.amount.value); b.stop_loss = f.stop_loss.value; b.target = f.target.value; try { localStorage.setItem('fin_amt', f.amount.value); } catch (_) {} }
+      api('/api/sim/orders', b).then(function (x) {
+        document.getElementById('omsg').textContent = x.ok ? 'اتحط الأمر ✓ ' + (x.order.qty ? '(' + x.order.qty + ' سهم)' : '') : (x.error || 'فشل');
+        if (x.ok) setTimeout(stock, 900);
+      });
+    });
+    app.querySelectorAll('[data-cancel]').forEach(function (bt) { bt.onclick = function () { api('/api/sim/orders/' + bt.dataset.cancel + '/cancel', {}).then(stock); }; });
   }
 
   /* ── الإفصاحات ── */
@@ -313,7 +368,7 @@
     api('/api/sim').then(function (s) {
       var pf = s.performance || {};
       app.innerHTML = '<h1>محفظة الديمو</h1><p class="muted">لعبة بفلوس وهمية عشان نعرف الترشيحات بتكسب ولا لأ قبل أى فلوس حقيقية.</p>' +
-        '<div class="grid">' + [['قيمة المحفظة', n2(pf.value)], ['الكاش', n2(pf.cash)], ['محجوز لأوامر شراء', n2(s.reserved)], ['العائد', '<bdi dir="ltr">' + (pf.return_pct > 0 ? '+' : '') + n2(pf.return_pct) + '%</bdi>'],
+        '<div class="grid">' + [['قيمة المحفظة', n2(pf.value)], ['الكاش المتاح للشراء', n2(s.available)], ['محجوز لأوامر شراء', n2(s.reserved)], ['مستنى التسوية (T+2)', n2(pf.pending)], ['العائد', '<bdi dir="ltr">' + (pf.return_pct > 0 ? '+' : '') + n2(pf.return_pct) + '%</bdi>'],
           ['الربح المحقّق', sg(pf.realized, true)], ['صفقات اتقفلت', pf.closed], ['نسبة الكسب', pf.win_rate == null ? '-' : '<bdi dir="ltr">' + pf.win_rate + '%</bdi>']]
           .map(function (k) { return '<div class="kv"><b>' + k[1] + '</b><span>' + k[0] + '</span></div>'; }).join('') + '</div>' +
         '<h2>الأسهم اللى معاك</h2><div class="scroll"><table><thead><tr><th>السهم</th><th>الكمية</th><th>متوسط الشراء</th><th>السعر الحالى</th><th>المكسب/الخسارة</th></tr></thead><tbody>' +
@@ -321,9 +376,12 @@
           var pl = p.price ? (p.price - p.avg_cost) * p.qty : null;
           return '<tr><td><a href="/stock/' + esc(p.symbol) + '">' + esc(p.symbol) + '</a></td><td>' + p.qty + '</td><td>' + n2(p.avg_cost) + '</td><td>' + n2(p.price) + '</td><td>' + (pl == null ? '-' : sg(pl, true)) + '</td></tr>';
         }).join('') : '<tr><td colspan="5" class="muted">مفيش.</td></tr>') + '</tbody></table></div>' +
+        ((s.pending || []).length ? '<h2>فلوس بيع مستنية التسوية (T+2)</h2><div class="scroll"><table><thead><tr><th>السهم</th><th>المبلغ</th><th>بتتاح يوم</th></tr></thead><tbody>' +
+          s.pending.map(function (x) { return '<tr><td>' + esc(x.symbol || '') + '</td><td>' + n2(x.amount) + '</td><td>' + esc(x.available_date) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '') +
+        '<p class="muted">عشان تحط أمر: افتح السهم من <a href="/">اللوحة</a> وانزل لـ«أمر فى محفظة الديمو».</p>' +
         '<h2>أوامر مستنية السعر</h2><div class="scroll"><table><thead><tr><th>السهم</th><th>النوع</th><th>السعر</th><th>الكمية</th><th>السبب</th><th></th></tr></thead><tbody>' +
         ((s.orders || []).length ? s.orders.map(function (o) {
-          var kind = o.side === 'BUY' ? 'شراء محدد' : o.type === 'STOP' ? 'وقف خسارة' : o.type === 'MARKET' ? 'بيع بسعر السوق' : 'جنى أرباح';
+          var kind = ORDER_KIND(o);
           return '<tr><td>' + esc(o.symbol) + '</td><td>' + kind + '</td><td>' + n2(o.price) + '</td><td>' + o.qty + '</td><td>' + esc(o.reason || '') + '</td><td><button class="ghost" data-cancel="' + o.id + '">إلغاء</button></td></tr>';
         }).join('') : '<tr><td colspan="6" class="muted">مفيش.</td></tr>') + '</tbody></table></div>' +
         '<h2>السجل</h2><div class="scroll"><table><thead><tr><th>الوقت</th><th>السهم</th><th>العملية</th><th>الكمية</th><th>السعر</th><th>المكسب/الخسارة</th></tr></thead><tbody>' +

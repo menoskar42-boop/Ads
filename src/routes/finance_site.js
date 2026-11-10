@@ -277,6 +277,12 @@ function createFinanceSite(opts) {
   /* ── محفظة الديمو ── */
   router.get('/api/sim', needOwner, wrap(async (req, res) => { res.json(Object.assign({ ok: true }, await trade.simState(getPool()))); }));
   router.post('/api/sim/reset', needOwner, json, wrap(async (req, res) => { res.json(Object.assign({ ok: true }, await trade.simReset(getPool(), (req.body || {}).cash))); }));
+  router.post('/api/sim/orders', needOwner, json, wrap(async (req, res) => {
+    const r = await trade.placeOrder(getPool(), req.body || {});
+    if (!r.ok) return res.status(400).json(r);
+    res.json(r);
+    evaluateLater();
+  }));
   router.post('/api/sim/orders/:id/cancel', needOwner, wrap(async (req, res) => {
     res.json({ ok: await trade.cancelOrder(getPool(), Number(req.params.id) || 0) });
   }));

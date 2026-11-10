@@ -133,21 +133,58 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     const q8 = Math.floor(1000 / inZone);
     assert.equal(dec.ok, true); assert.deepEqual(dec.order, { side: 'BUY', price: inZone, qty: q8 });
     assert.equal((await post(`/api/recs/${rec.id}/decide`, { yes: true, token: trade.token(KEY, rec.id) })).status, 409);   // مرة واحدة بس
-    await site._waitEvaluate();
+    await site._waitEvaluate();   // (بتوقيت حقيقى ممكن السوق يبقى مقفول ⇒ مفيش تنفيذ) — التنفيذ بوقت السوق:
+    await trade.evaluate(pool, { now: new Date(now.getTime() + 11 * 60000), signals: false });
     // السعر الحالى = سعر الأمر ⇒ اتنفّذ وأمرين الخروج اتحطوا
     let sim = await get('/api/sim');
     assert.equal(sim.positions.length, 1); assert.equal(sim.positions[0].qty, q8); assert.equal(sim.account.cash, Math.round((100000 - q8 * inZone) * 100) / 100);
     assert.deepEqual(sim.orders.map((o) => o.type).sort(), ['LIMIT', 'STOP']);
     // السعر نزل تحت الوقف ⇒ بيع، والأمر التانى يتلغى، وترشيح «خطر» مايطلعش لأن السهم اتباع
-    await trade.evaluate(pool, { now: new Date(now.getTime() + 20 * 60000), signals: false });
     const below = lv2.stop_loss - 1;
-    await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price) VALUES ('COMI', now(), $1)", [below]);
+    await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price) VALUES ('COMI', $2, $1)", [below, new Date(now.getTime() + 29 * 60000)]);
     const ev = await trade.evaluate(pool, { now: new Date(now.getTime() + 30 * 60000) });
     const loss = Math.round((below - inZone) * q8 * 100) / 100;
     assert.equal(ev.fills.length, 1); assert.equal(ev.fills[0].side, 'SELL'); assert.equal(ev.fills[0].pnl, loss);
     sim = await get('/api/sim');
     assert.equal(sim.positions.length, 0); assert.equal(sim.orders.length, 0);
     assert.equal(sim.performance.closed, 1); assert.equal(sim.performance.win_rate, 0); assert.equal(sim.performance.value, Math.round((100000 + loss) * 100) / 100);
+    // T+2: فلوس البيع مستنية لحد الخميس ١٢ (البيع التلات ١٠)
+    assert.equal(sim.pending.length, 1); assert.equal(sim.pending[0].available_date, '2026-11-12');
+    assert.equal(sim.account.cash, Math.round((100000 - q8 * inZone) * 100) / 100);
+    await trade.settle(pool, new Date('2026-11-12T08:00:00Z'));
+    sim = await get('/api/sim');
+    assert.equal(sim.pending.length, 0); assert.equal(sim.account.cash, Math.round((100000 + loss) * 100) / 100);
+
+    // أمر يدوى بالليل (السوق مقفول): مابيتنفّذش على سعر قديم، وبيتنفّذ أول ما السوق يفتح والسعر يوصله
+    const night = new Date('2026-11-10T19:00:00Z');
+    const o1 = await (await post('/api/sim/orders', { symbol: 'COMI', side: 'BUY', price: 100, amount: 1000, stop_loss: 95, target: 110 }, KEY)).json();
+    assert.equal(o1.ok, true); assert.equal(o1.order.qty, 10);
+    assert.equal((await post('/api/sim/orders', { symbol: 'COMI', side: 'BUY', price: 100, amount: 1000, stop_loss: 101 }, KEY)).status, 400);
+    assert.equal((await post('/api/sim/orders', { symbol: 'NOPE', side: 'BUY', price: 1, amount: 10 }, KEY)).status, 400);
+    assert.equal((await post('/api/sim/orders', { symbol: 'COMI', side: 'SELL', type: 'LIMIT', price: 200 }, KEY)).status, 400);   // مش معاك
+    await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price) VALUES ('COMI', $1, 99)", [night]);
+    assert.equal((await trade.evaluate(pool, { now: night, signals: false })).fills.length, 0);           // السوق مقفول
+    const wed = new Date('2026-11-11T08:05:00Z');                                                          // الأربع ١٠:٠٥
+    await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price) VALUES ('COMI', $1, 101)", [wed]);
+    assert.equal((await trade.evaluate(pool, { now: wed, signals: false })).fills.length, 0);             // لسه فوق ١٠٠
+    const wed2 = new Date('2026-11-11T08:15:00Z');
+    await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price) VALUES ('COMI', $1, 99.5)", [wed2]);
+    const f1 = await trade.evaluate(pool, { now: wed2, signals: false });
+    assert.equal(f1.fills.length, 1); assert.equal(f1.fills[0].price, 99.5);                              // نزل تحت ١٠٠ ⇒ اتنفّذ
+    sim = await get('/api/sim');
+    assert.deepEqual(sim.orders.map((o) => o.type + ':' + o.price).sort(), ['LIMIT:110', 'STOP:95']);
+    // سعر قديم (أكتر من ٢٠ دقيقة) مايشغّلش الوقف
+    const late = new Date('2026-11-11T09:00:00Z');
+    assert.equal((await trade.evaluate(pool, { now: late, signals: false })).fills.length, 0);
+    // بيع يدوى بسعر أعلى: لما السعر يعدّيه لفوق
+    const o2 = await (await post('/api/sim/orders', { symbol: 'COMI', side: 'SELL', type: 'LIMIT', price: 105, days: 7 }, KEY)).json();
+    assert.equal(o2.ok, true); assert.equal(o2.order.qty, 10);
+    await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price) VALUES ('COMI', $1, 106)", [late]);
+    const f2 = await trade.evaluate(pool, { now: late, signals: false });
+    assert.equal(f2.fills.length, 1); assert.equal(f2.fills[0].side, 'SELL'); assert.equal(f2.fills[0].pnl, 65);
+    sim = await get('/api/sim');
+    assert.equal(sim.orders.length, 0);                                          // الوقف وجنى الأرباح اتلغوا لما السهم اتباع
+    assert.equal(sim.pending[0].available_date, '2026-11-15');                   // الأربع + يومين تداول = الأحد (الجمعة والسبت إجازة)
     // «لا» على ترشيح + الإعدادات + البداية من الأول
     const r2 = await trade.createRec(pool, 'TMGH', { side: 'BUY', price: 52, reasons: ['تجربة'] }, 30);
     assert.equal((await (await post(`/api/recs/${r2.id}/decide`, { yes: false }, KEY)).json()).status, 'REJECTED');

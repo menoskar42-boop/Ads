@@ -105,9 +105,20 @@ async function tx(p, fn) {
   finally { c.release(); }
 }
 
+/** التسوية T+2: فلوس البيع اللى ميعادها جه بتدخل الرصيد. */
+async function settle(p, now) {
+  const today = L.cairoParts(now || new Date()).iso;
+  await tx(p, async (c) => {
+    const r = await c.query('DELETE FROM egx.sim_pending WHERE available_date <= $1 RETURNING amount::float', [today]);
+    const sum = r.rows.reduce((s, x) => s + x.amount, 0);
+    if (sum) await c.query('UPDATE egx.sim_account SET cash = cash + $1 WHERE id=1', [Math.round(sum * 100) / 100]);
+  });
+}
+
 /** الأسعار وصلت ⇒ الأوامر اللى السعر وصلها تتنفّذ. prices {SYM: price}. بيرجّع التنفيذات. */
 async function simRun(p, prices, now) {
   now = now || new Date();
+  await settle(p, now);
   await p.query("UPDATE egx.sim_orders SET status='EXPIRED' WHERE status='OPEN' AND expires_ts IS NOT NULL AND expires_ts < $1", [now]);
   const open = (await p.query("SELECT id, symbol, side, type, price::float, qty, oco, reason, stop_loss::float, target1::float, status FROM egx.sim_orders WHERE status='OPEN' ORDER BY id")).rows;
   const done = [];
@@ -122,6 +133,10 @@ async function simRun(p, prices, now) {
       const f = Sim.applyFill(acc, pos, o, px);
       if (f.error) { await c.query("UPDATE egx.sim_orders SET status='CANCELLED', reason=reason || ' (' || $2 || ')' WHERE id=$1", [o.id, f.error]); return null; }
       await c.query('UPDATE egx.sim_account SET cash=$1 WHERE id=1', [f.cash]);
+      if (f.proceeds) {
+        await c.query('INSERT INTO egx.sim_pending(symbol, amount, available_date) VALUES ($1,$2,$3)',
+          [o.symbol, f.proceeds, Sim.addTradingDays(L.cairoParts(now).iso, 2)]);
+      }
       if (f.position) {
         await c.query(`INSERT INTO egx.sim_positions(symbol, qty, avg_cost) VALUES ($1,$2,$3) ON CONFLICT (symbol) DO UPDATE SET qty=$2, avg_cost=$3`, [o.symbol, f.position.qty, f.position.avg_cost]);
       } else await c.query('DELETE FROM egx.sim_positions WHERE symbol=$1', [o.symbol]);
@@ -145,7 +160,10 @@ async function simRun(p, prices, now) {
 async function simState(p) {
   const acc = await account(p);
   const positions = (await p.query('SELECT symbol, qty, avg_cost::float, opened_ts FROM egx.sim_positions ORDER BY symbol')).rows;
-  const orders = (await p.query("SELECT id, symbol, side, type, price::float, qty, reason, created_ts, expires_ts FROM egx.sim_orders WHERE status='OPEN' ORDER BY id DESC")).rows;
+  const orders = (await p.query(`SELECT id, symbol, side, type, price::float, qty, reason, stop_loss::float, target1::float, created_ts, expires_ts
+    FROM egx.sim_orders WHERE status='OPEN' ORDER BY id DESC`)).rows;
+  const pending = (await p.query(`SELECT symbol, amount::float, to_char(available_date,'YYYY-MM-DD') AS available_date FROM egx.sim_pending ORDER BY available_date, id`)).rows;
+  const pendingSum = pending.reduce((s, x) => s + x.amount, 0);
   const trades = (await p.query('SELECT symbol, side, qty, price::float, pnl::float, reason, ts FROM egx.sim_trades ORDER BY id DESC LIMIT 100')).rows;
   const syms = positions.map((x) => x.symbol);
   const prices = {};
@@ -154,16 +172,66 @@ async function simState(p) {
   }
   const reserved = orders.filter((o) => o.side === 'BUY').reduce((s, o) => s + o.price * o.qty, 0);
   return { account: acc, positions: positions.map((x) => Object.assign(x, { price: prices[x.symbol] || null })), orders, trades, reserved: L.r2(reserved),
-    performance: Sim.performance(acc, positions, prices, trades) };
+    pending, available: L.r2(acc.cash - reserved), performance: Sim.performance(acc, positions, prices, trades, pendingSum) };
 }
 
 async function simReset(p, cash) {
   const c = Number(cash) > 0 ? Math.round(Number(cash)) : 100000;
   await tx(p, async (k) => {
     await k.query('DELETE FROM egx.sim_orders'); await k.query('DELETE FROM egx.sim_positions'); await k.query('DELETE FROM egx.sim_trades');
+    await k.query('DELETE FROM egx.sim_pending');
     await k.query('UPDATE egx.sim_account SET cash=$1, start_cash=$1, created_ts=now() WHERE id=1', [c]);
   });
   return simState(p);
+}
+
+/**
+ * أمر يدوى فى محفظة الديمو (من صفحة السهم، فى أى وقت حتى والسوق مقفول). بيتنفّذ وقت السوق بس لو السعر وصله أو عدّاه:
+ *  • شراء محدد السعر: السعر ≤ سعرك · ومعاه وقف خسارة وجنى أرباح اختيارى (بيتحطوا أول ما الشراء يتنفّذ).
+ *  • بيع محدد السعر: السعر ≥ سعرك · وقف خسارة: السعر ≤ الوقف. للسهم اللى معاك بس.
+ * b: {symbol, side, type, price, qty?, amount?, stop_loss?, target?, days?}. days فاضى = لحد ما تلغيه.
+ */
+async function placeOrder(p, b, now) {
+  now = now || new Date();
+  const sym = store.cleanSym(b && b.symbol);
+  const side = String((b && b.side) || '').toUpperCase();
+  const type = String((b && b.type) || 'LIMIT').toUpperCase();
+  const price = Number(b && b.price);
+  if (!sym) return { ok: false, error: 'اختار سهم' };
+  if (!(price > 0)) return { ok: false, error: 'اكتب السعر' };
+  const days = Number(b.days) > 0 ? Math.min(365, Math.round(Number(b.days))) : null;
+  const expires = days ? new Date(now.getTime() + days * 86400000) : null;
+  const inWl = (await p.query('SELECT 1 FROM egx.watchlist WHERE symbol=$1', [sym])).rowCount > 0;
+  if (!inWl) return { ok: false, error: 'السهم ده مش فى قايمة المتابعة (ضيفه من الإعدادات الأول)' };
+  if (side === 'BUY') {
+    if (type !== 'LIMIT') return { ok: false, error: 'الشراء بسعر محدد بس' };
+    let qty = Math.floor(Number(b.qty) || 0);
+    if (!(qty > 0)) qty = S.qtyFor(b.amount, price);
+    if (!(qty > 0)) return { ok: false, error: 'المبلغ أقل من سعر سهم واحد' };
+    const stop = Number(b.stop_loss) > 0 ? Number(b.stop_loss) : null;
+    const target = Number(b.target) > 0 ? Number(b.target) : null;
+    if (stop && stop >= price) return { ok: false, error: 'وقف الخسارة لازم يبقى أقل من سعر الشراء' };
+    if (target && target <= price) return { ok: false, error: 'جنى الأرباح لازم يبقى أعلى من سعر الشراء' };
+    return tx(p, async (c) => {
+      const acc = (await c.query('SELECT cash::float FROM egx.sim_account WHERE id=1 FOR UPDATE')).rows[0];
+      const reserved = (await c.query("SELECT COALESCE(sum(price*qty),0)::float AS v FROM egx.sim_orders WHERE status='OPEN' AND side='BUY'")).rows[0].v;
+      if (qty * price > acc.cash - reserved + 1e-9) return { ok: false, error: `الرصيد المتاح ${L.r2(acc.cash - reserved)} جنيه مش كفاية (فلوس البيع بتتاح بعد يومين تداول)` };
+      const r = await c.query(`INSERT INTO egx.sim_orders(symbol, side, type, price, qty, reason, stop_loss, target1, expires_ts)
+        VALUES ($1,'BUY','LIMIT',$2,$3,'أمر يدوى',$4,$5,$6) RETURNING id`, [sym, price, qty, stop, target, expires]);
+      return { ok: true, id: r.rows[0].id, order: { side: 'BUY', type: 'LIMIT', price, qty, stop_loss: stop, target } };
+    });
+  }
+  if (side === 'SELL') {
+    if (type !== 'LIMIT' && type !== 'STOP') return { ok: false, error: 'نوع الأمر غلط' };
+    const pos = (await p.query('SELECT qty FROM egx.sim_positions WHERE symbol=$1', [sym])).rows[0];
+    if (!pos) return { ok: false, error: 'السهم ده مش معاك فى محفظة الديمو' };
+    let qty = Math.floor(Number(b.qty) || 0);
+    if (!(qty > 0) || qty > pos.qty) qty = pos.qty;
+    const r = await p.query(`INSERT INTO egx.sim_orders(symbol, side, type, price, qty, oco, reason, expires_ts) VALUES ($1,'SELL',$2,$3,$4,$1,$5,$6) RETURNING id`,
+      [sym, type, price, qty, type === 'STOP' ? 'وقف خسارة يدوى' : 'بيع يدوى', expires]);
+    return { ok: true, id: r.rows[0].id, order: { side: 'SELL', type, price, qty } };
+  }
+  return { ok: false, error: 'شراء ولا بيع؟' };
 }
 
 async function cancelOrder(p, id) {
@@ -196,7 +264,13 @@ async function evaluate(p, opts) {
   const now = opts.now || new Date();
   const st = await settings(p);
   const state = await store.state(p, now);
-  const prices = {}; for (const r of state.rows) if (r.price_source === 'quote') prices[r.symbol] = r.price;
+  // التنفيذ وقت السوق بس وبسعر جديد (آخر ٢٠ دقيقة): أمر اتحط بالليل مايتنفّذش على إقفال امبارح
+  const prices = {};
+  if (L.marketOpen(now, opts.open, opts.close)) {
+    for (const r of state.rows) {
+      if (r.price_source === 'quote' && r.fetched_ts && now - new Date(r.fetched_ts) <= 20 * 60000) prices[r.symbol] = r.price;
+    }
+  }
   const fills = await simRun(p, prices, now);
   const created = [];
   if (opts.signals !== false && L.marketOpen(now, opts.open, opts.close)) {
@@ -252,5 +326,5 @@ async function tick(p, opts) {
 
 function token(secret, id) { return crypto.createHmac('sha256', String(secret || '')).update('rec:' + id).digest('hex').slice(0, 32); }
 
-module.exports = { settings, setSettings, setMeta, recs, rec, createRec, decide, simRun, simState, simReset, cancelOrder,
+module.exports = { settings, setSettings, setMeta, recs, rec, createRec, decide, simRun, simState, simReset, cancelOrder, placeOrder, settle,
   saveSub, subs, dropSub, notification, evaluate, tick, token, recentRec };

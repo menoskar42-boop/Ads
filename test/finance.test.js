@@ -151,9 +151,13 @@ test('demo portfolio: limit fills, exits cancel each other, P/L and win rate', (
   const stop = Object.assign({ status: 'OPEN' }, ex[0]), tp = Object.assign({ status: 'OPEN' }, ex[1]);
   assert.equal(Sim.fillPrice(stop, 9.5), null); assert.equal(Sim.fillPrice(tp, 12.2), 12.2);
   const s = Sim.applyFill({ cash: f.cash }, f.position, tp, 12.2);
-  assert.equal(s.cash, 100230); assert.equal(s.position, null); assert.equal(s.trade.pnl, 230);
+  assert.equal(s.cash, 99010); assert.equal(s.proceeds, 1220); assert.equal(s.position, null); assert.equal(s.trade.pnl, 230);   // الفلوس T+2
   assert.equal(Sim.applyFill({ cash: 50 }, null, buy, 10).error, 'no_cash');
-  const p = Sim.performance({ cash: 100230, start_cash: 100000 }, [], {}, [s.trade, { side: 'SELL', pnl: -50 }]);
+  const p = Sim.performance({ cash: 99010, start_cash: 100000 }, [], {}, [s.trade, { side: 'SELL', pnl: -50 }], 1220);
+  // T+2: الأحد للخميس (الخميس + ٢ = الاتنين · الأحد + ٢ = التلات)
+  assert.equal(Sim.addTradingDays('2026-11-12', 2), '2026-11-16');
+  assert.equal(Sim.addTradingDays('2026-11-08', 2), '2026-11-10');
+  assert.equal(Sim.addTradingDays('2026-11-13', 2), '2026-11-16');   // بيع يوم جمعة (مش هيحصل) يتحسب من الأحد
   assert.equal(p.value, 100230); assert.equal(p.return_pct, 0.23); assert.equal(p.win_rate, 50); assert.equal(p.realized, 180);
 });
 

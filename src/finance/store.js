@@ -69,6 +69,8 @@ async function ensureSchema(p) {
     CREATE TABLE IF NOT EXISTS egx.push_subs(endpoint TEXT PRIMARY KEY, sub TEXT NOT NULL, created_ts TIMESTAMPTZ DEFAULT now());
     INSERT INTO egx.sim_account(id, cash, start_cash) VALUES (1, 100000, 100000) ON CONFLICT DO NOTHING;
     ALTER TABLE egx.watchlist ADD COLUMN IF NOT EXISTS name TEXT;
+    CREATE TABLE IF NOT EXISTS egx.sim_pending(id SERIAL PRIMARY KEY, symbol TEXT, amount NUMERIC NOT NULL, available_date DATE NOT NULL,
+      created_ts TIMESTAMPTZ DEFAULT now());
   `);
   // القايمة المبدئية مرة واحدة بس (seed_v2): بتحط الـ٢٣ سهم ودرجاتهم، ومابتلمسش أى حاجة المالك عدّلها بعد كده
   const done = await p.query("SELECT 1 FROM egx.settings WHERE k='seed_v2'");
