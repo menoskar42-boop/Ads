@@ -229,6 +229,10 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   (توكن Models: read بس) ⇒ أسرار `GEMINI_API_KEY` · `MISTRAL_API_KEY` · `OPENROUTER_API_KEY` · `GITHUB_MODELS_TOKEN`
   فى مشروع `sf`. `GROQ_API_KEY` موجود ومايتلمسش. مش مستخدمين فى الكود لحد ما المالك يقول هنستغلهم فى إيه.
   الصفحة: https://claude.ai/artifact/3YGLnHMhGRLdNATxSopHvZ. **Trigger:** «ابعتلي برومبت مفاتيح الـAI المجانية».
+- `docs/EGX_PRICES_PAGE_PROMPT.md` — **برومبت الإكستنشن: صفحة أسعار البورصة المصرية** (٢٠٢٦-١١-١١، قراية بس). أسعار Yahoo
+  اللحظية للبورصة المصرية واقفة من ٢٣ يوليو، فالخطة سكربت Tampermonkey يقرا الأسعار من egx.com.eg ويبعتها لـfinance
+  (`/api/ingest/quotes`) وYahoo احتياطى. الإكستنشن بيلاقى الصفحة ويوصف الطلب اللى بيجيب الأسعار، من غير كوكيز ولا توكنات.
+  الصفحة: https://claude.ai/artifact/Tkx3EALCFDpyTcVCMMqaqM. **Trigger:** «ابعتلي برومبت صفحة الأسعار».
 - `docs/ORACLE_DB_SETUP_PROMPT.md` — **برومبت الإكستنشن لقاعدة Service Flow على Oracle Cloud
   المجانى** (٢٠٢٦-١٠-٢٠). عدّاد `/api/admin/db-wake` أثبت إن قاعدة ريبليت صاحية طول ما الطابور
   شغّال (٦٫٣ من ٦٫٥ ساعة) = حوالى ٤٥ دولار فى الشهر. الحل: سيرفر Ampere A1 (Always Free: نواتين
