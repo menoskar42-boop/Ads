@@ -151,6 +151,14 @@ test("the stop is recorded with its outcome: stopped (was Nightly) or already (w
   assert.equal(withPoStopResult("2026/10/27 09:40", "already"), "2026/10/27 09:40 — لم يتم الإيقاف (كان Not Started)");
   assert.equal(withPoStopResult("—", "stopped"), "—", "من غير تاريخ مفيش نتيجة");
   assert.equal(withPoStopResult("2026/10/27 09:40", null), "2026/10/27 09:40", "سكربت قديم");
+  // Inactive Line (سكربت PO 0.9.26)
+  assert.equal(poStopResultOf("inactive"), "inactive");
+  assert.equal(withPoStopResult("2026/11/11 10:00", "inactive"), "2026/11/11 10:00 — لم يتم الإيقاف لأنه Inactive Line");
+  const { raiseWasInactive } = await import("../shared/po-stop");
+  assert.equal(raiseWasInactive("2026-11-11T10:00:00Z", null), true);
+  assert.equal(raiseWasInactive("2026-11-11T10:00:00Z", "2026-11-10T10:00:00Z"), true);
+  assert.equal(raiseWasInactive("2026-11-10T10:00:00Z", "2026-11-11T10:00:00Z"), false, "اترفع بعدها فعلاً");
+  assert.equal(raiseWasInactive(null, "2026-11-11T10:00:00Z"), false);
   const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
   assert.match(routes, /last_stop_result = \$3/);
   const n = (routes.match(/AS "lastPoStopAt"/g) || []).length;

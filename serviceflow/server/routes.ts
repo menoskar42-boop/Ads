@@ -27,7 +27,7 @@ import bcryptjs from "bcryptjs";
 import { sfRoleOf, cfmRoleOf, sitesForRole, UNIFIED_ROLE_ACCESS } from "@shared/roles-access";
 import { arNorm } from "@shared/ar-norm";
 import { rescueIntervalSql, EXEC_RESCUE_MINUTES } from "@shared/exec-timeouts";
-import { poStopResultOf } from "@shared/po-stop";
+import { poStopResultOf, raiseWasInactive, RAISE_INACTIVE_AR } from "@shared/po-stop";
 import { canonicalTechSql, matchTechnician, preferFullName, fullNameOf } from "@shared/technicians";
 import { phoneNormSql } from "./phone-norm";
 import { nameMatch, nameMatchTokens, nameTokens, buildFirstNameIndex, NAME_MATCH_THRESHOLD } from "@shared/name-match";
@@ -3790,7 +3790,7 @@ export async function registerRoutes(
       const acc = String(req.query.account || "").trim();
       const event = String(req.query.event || "").trim().toLowerCase();
       if (!acc || (event !== "raise" && event !== "stop")) return res.json({ at: null });
-      const col = event === "raise" ? "last_raise_at" : "last_stop_at";
+      const col = event === "raise" ? "GREATEST(last_raise_at, raise_inactive_at)" : "last_stop_at";
       const { rows } = await pool.query(`SELECT ${col} AS at FROM line_po_events WHERE account_no = $1`, [acc]);
       res.json({ at: rows[0]?.at || null });
     } catch { res.json({ at: null }); }
@@ -4469,7 +4469,7 @@ export async function registerRoutes(
       // رفع السرعة / الإيقاف
       const poAccs = [...keysOf("raise"), ...keysOf("stop")];
       const po = poAccs.length ? M<any>((await pool.query(
-        `SELECT account_no, last_raise_at, last_raise_by, last_stop_at, last_stop_by
+        `SELECT account_no, last_raise_at, last_raise_by, last_stop_at, last_stop_by, raise_inactive_at
            FROM line_po_events WHERE account_no = ANY($1::text[])`, [poAccs])).rows,
         (r) => String(r.account_no)) : new Map();
 
@@ -4593,10 +4593,12 @@ export async function registerRoutes(
         } else if (j.type === "raise" || j.type === "stop") {
           const e = po.get(key) as any;
           const isRaise = j.type === "raise";
-          const evAt = isRaise ? e?.last_raise_at : e?.last_stop_at;
+          const inactive = isRaise && raiseWasInactive(e?.raise_inactive_at, e?.last_raise_at);
+          const evAt = inactive ? e?.raise_inactive_at : isRaise ? e?.last_raise_at : e?.last_stop_at;
           detail = {
             doneInThisJob: !!(evAt && at(evAt) >= at(j.claimedAtRaw)),
             at: evAt ?? null, by: isRaise ? e?.last_raise_by : e?.last_stop_by,
+            ...(inactive ? { inactive: true, note: RAISE_INACTIVE_AR } : {}),
           };
         } else if (j.type === "portchange") {
           const r0 = pcr.get(short(key)) as any;
@@ -5573,7 +5575,8 @@ export async function registerRoutes(
       q = `SELECT COUNT(DISTINCT phone_number)::int AS n FROM line_subscriber_info
             WHERE ${sp("phone_number")} = ANY(SELECT ${sp("x")} FROM unnest($1::text[]) AS x) AND fetched_at >= $2`;
     } else {
-      const col = type === "stop" ? "last_stop_at" : "last_raise_at";
+      // رفع على خط Inactive (raise_inactive_at) بيتحسب اتنفّذ — مفيش داعى يتعاد
+      const col = type === "stop" ? "last_stop_at" : "GREATEST(last_raise_at, raise_inactive_at)";
       q = `SELECT COUNT(DISTINCT account_no)::int AS n FROM line_po_events WHERE account_no = ANY($1::text[]) AND ${col} >= $2`;
     }
     try {
@@ -5602,7 +5605,7 @@ export async function registerRoutes(
     } else if (type === "measure") {
       q = `SELECT DISTINCT account_no FROM case_138 WHERE account_no = ANY($1::text[]) AND uploaded_at >= $2 AND source = 'dzs'`;
     } else if (type === "raise" || type === "stop") {
-      const col = type === "stop" ? "last_stop_at" : "last_raise_at";
+      const col = type === "stop" ? "last_stop_at" : "GREATEST(last_raise_at, raise_inactive_at)";
       q = `SELECT DISTINCT account_no FROM line_po_events WHERE account_no = ANY($1::text[]) AND ${col} >= $2`;
     } else {
       // الأنواع اللى بتشتغل بأرقام تليفون (مراجعة/جلب أكونت/بورت/WFM): بنستخدم نفس مصادر
@@ -9206,6 +9209,7 @@ export async function registerRoutes(
               c.measured_by AS "measuredBy",
               c.page_msg AS "pageMsg",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt", pe.last_raise_by AS "raisedBy",
+              (pe.raise_inactive_at AT TIME ZONE 'Africa/Cairo') AS "raiseInactiveAt",
               (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_result AS "lastPoStopResult", pe.last_stop_by AS "stoppedBy",
               (cpl.complain_time AT TIME ZONE 'UTC') AS "lastComplaintAt",
               -- ownedByMe: خطوطى أنا ($4 = كودى) → أى خط فى كباينى.
@@ -12630,6 +12634,14 @@ export async function registerRoutes(
       const by = await execRequesterOf(acc, ev as "raise" | "stop");
       // الإيقاف: اتعمل فعلاً ولا الخط كان Not Started أصلاً (سكربت PO v0.9.11) — والقديم مابيبعتهاش (null)
       const result = ev === "stop" ? poStopResultOf(it?.result) : null;
+      // رفع على خط «Inactive Line» (سكربت PO 0.9.26): ماترفعش ⇒ وقت المحاولة بس، وآخر رفع فعلى يفضل زى ما هو
+      if (ev === "raise" && String(it?.result ?? "").trim().toLowerCase() === "inactive") {
+        await pool.query(
+          `INSERT INTO line_po_events (account_no, raise_inactive_at, last_raise_by, updated_at) VALUES ($1, now(), $2, now())
+           ON CONFLICT (account_no) DO UPDATE SET raise_inactive_at = now(), updated_at = now()`, [acc, by]);
+        saved++;
+        continue;
+      }
       await pool.query(
         ev === "stop"
           ? `INSERT INTO line_po_events (account_no, last_stop_at, last_stop_by, last_stop_result, updated_at)
@@ -12648,7 +12660,7 @@ export async function registerRoutes(
   // ── سجل خطوات سكربت PO (المالك ٢٠٢٦-١١-٠٣) ─────────────────────────────────────────────
   // السكربت (0.9.24+) بيبعت سطر لكل خط لما يخلص أو يتقطع: النتيجة + كل خطوة (الحالة اللى قراها، اللى عمله، الوقت).
   // بيتبعت من طابور السكربت (sf_eid) فمابيتسجّلش مرتين. السجل بيتمسح بعد ٣٠ يوم.
-  const PO_TRACE_OUTCOMES = new Set(["stopped", "already", "raise", "gave_up", "timeout", "not_found", "skipped", "interrupted", "no_result"]);
+  const PO_TRACE_OUTCOMES = new Set(["stopped", "already", "raise", "gave_up", "timeout", "not_found", "skipped", "interrupted", "no_result", "inactive"]);
   let poTracePruneAt = 0;
   app.options("/api/po-traces/ingest", (_req, res) => { setDzsCors(res); res.sendStatus(204); });
   app.post("/api/po-traces/ingest", async (req: any, res) => {

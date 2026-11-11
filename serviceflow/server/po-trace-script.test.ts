@@ -75,7 +75,7 @@ test("PO stop on a fake AXON page: stops a Nightly line despite old «Real-time 
     assert.equal(t.outcome, "stopped");
     assert.equal(t.mode, "stop");
     assert.equal(t.lane, "90");
-    assert.equal(t.version, "0.9.25");
+    assert.equal(t.version, "0.9.26");
     const text = t.steps.map((x: any) => `[${x.s}] ${x.m}`).join("\n");
     assert.match(text, /الصفحة اتحمّلت: صفحة Profile Optimization/);
     assert.match(text, /\[In Nightly PO\] .*اختار «Stop Nightly PO» \(select مخفى\)/);

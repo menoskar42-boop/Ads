@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
-import { withPoStopResult } from "@shared/po-stop";
+import { withPoStopResult, raiseWasInactive, RAISE_INACTIVE_AR } from "@shared/po-stop";
 import { useQuery } from "@tanstack/react-query";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { Card } from "@/components/ui/card";
@@ -81,6 +81,7 @@ interface LineData {
   measureFailAt?: string | null;
   measureFailBy?: string | null;
   lastPoRaiseAt: string | null;
+  raiseInactiveAt?: string | null;
   raisedBy: string | null;
   lastPoStopAt: string | null;
   lastPoStopResult?: string | null;
@@ -1252,6 +1253,11 @@ export function PhoneLookupReport() {
                     {awaitingOp === "raise" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gauge className="w-4 h-4" />}
                     {awaitingOp === "raise" ? "فى انتظار رفع السرعة… (اضغط للإلغاء)" : "رفع سرعة"}
                   </Button>
+                  {raiseWasInactive(line.raiseInactiveAt, line.lastPoRaiseAt) && (
+                    <span className="text-sm font-bold text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2" data-testid="raise-inactive">
+                      {RAISE_INACTIVE_AR} ({fmtDate(line.raiseInactiveAt ?? null)})
+                    </span>
+                  )}
                   <Button
                     variant="outline"
                     onClick={async () => {

@@ -1973,6 +1973,8 @@ export async function ensureSchema() {
   // نتيجة آخر إيقاف (المالك ٢٠٢٦-١٠-٢٧): stopped = كان In Nightly PO واتوقف · already = كان Not Started
   // فماكانش فيه حاجة توقّف. null = سكربت قديم (قبل v0.9.11) ماكانش بيبعتها.
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_stop_result text`);
+  // رفع السرعة اتطلب بس الخط «Inactive Line» فماترفعش (سكربت PO 0.9.26، المالك ٢٠٢٦-١١-١١)
+  await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS raise_inactive_at timestamptz`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS op_intents (
       account text NOT NULL,

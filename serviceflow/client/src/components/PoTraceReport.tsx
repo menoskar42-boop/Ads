@@ -24,6 +24,7 @@ const OUTCOMES: Record<string, { label: string; cls: string }> = {
   already:     { label: "كان Not Started",          cls: "bg-slate-100 text-slate-700" },
   raise:       { label: "رفع سرعة",                 cls: "bg-blue-100 text-blue-800" },
   gave_up:     { label: "فشل بعد ٣ محاولات",        cls: "bg-red-100 text-red-800" },
+  inactive:    { label: "Inactive Line (من غير رفع/إيقاف)", cls: "bg-slate-200 text-slate-800" },
   timeout:     { label: "المهلة خلصت",              cls: "bg-red-100 text-red-800" },
   interrupted: { label: "اتقطع (التاب اتقفل)",       cls: "bg-amber-100 text-amber-800" },
   not_found:   { label: "الرقم مش موجود",           cls: "bg-slate-100 text-slate-700" },
