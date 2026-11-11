@@ -26,6 +26,7 @@ export interface CableEntry {
   cableQuantity: string;
   createdById: number;
   createdByName: string;
+  techFullName?: string | null;   // الاسم الكامل (كود العامل) لإفادة الصرف
   createdAt: string;
   updatedAt: string;
   /** تاريخ الشغل اللى السلك اتسجّل بيه (للصيانة: اللى اتكتب فى الشاشة) — YYYY-MM-DD */
@@ -250,18 +251,18 @@ export function MaintCableSheet() {
   const [tech, setTech] = useState("all");
   const { data: entries = [], isFetching } = useCableEntries("");
   const maint = useMemo(() => entries.filter((e) => e.workOrderType === "صيانة"), [entries]);
-  const techNames = useMemo(() => Array.from(new Set(maint.map((e) => e.createdByName).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ar")), [maint]);
+  const techNames = useMemo(() => Array.from(new Set(maint.map((e) => e.techFullName || e.createdByName).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ar")), [maint]);
   const rows = useMemo(() => {
     const q = phoneQ.replace(/\D/g, "");
     return maint
       .filter((e) => { const d = entryDay(e); return (!from || d >= from) && (!to || d <= to); })
       .filter((e) => !q || `${e.phoneLocal || ""} ${e.phoneFull || ""}`.replace(/[^\d ]/g, "").includes(q))
-      .filter((e) => tech === "all" || e.createdByName === tech)
+      .filter((e) => tech === "all" || (e.techFullName || e.createdByName) === tech)
       .sort((a, b) => entryDay(b).localeCompare(entryDay(a)) || b.createdAt.localeCompare(a.createdAt));
   }, [maint, from, to, phoneQ, tech]);
   const cells = (e: CableEntry) => [
     e.phoneLocal || e.phoneFull, entryDay(e).replace(/-/g, "/"), ITEM_NAME,
-    `${e.cableQuantity} م`, e.createdByName || "", "", e.mobile || "",
+    `${e.cableQuantity} م`, e.techFullName || e.createdByName || "", "", e.mobile || "",
   ];
   const period = `${from || "البداية"} إلى ${to || "اليوم"}${tech !== "all" ? ` — الفنى ${tech}` : ""}`;
   const excel = () => {

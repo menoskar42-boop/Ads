@@ -11233,6 +11233,14 @@ export async function registerRoutes(
       `SELECT id, phone_local AS "phoneLocal", phone_full AS "phoneFull",
               work_order_type AS "workOrderType", cable_quantity AS "cableQuantity",
               created_by_id AS "createdById", created_by_name AS "createdByName",
+              -- اسم الفنى الكامل لإفادة صرف السلك (المالك ٢٠٢٦-١١-١١: «محمد عبد العزيز» مش «سامى»): من كود العامل
+              -- بتاع الحساب فى technician_names، وإلا اسم الفنى اللى اتخصم منه، وإلا الاسم الظاهر
+              COALESCE(
+                (SELECT NULLIF(btrim(tn.tech_name), '') FROM users u JOIN technician_names tn ON btrim(tn.worker_code) = btrim(u.worker_code)
+                  WHERE u.id = cable_entries.created_by_id AND btrim(COALESCE(u.worker_code, '')) <> '' LIMIT 1),
+                NULLIF(btrim(stock_tech_name), ''),
+                (SELECT NULLIF(btrim(u.full_name), '') FROM users u WHERE u.id = cable_entries.created_by_id),
+                created_by_name) AS "techFullName",
               created_at AS "createdAt", updated_at AS "updatedAt",
               stock_date::text AS "workDate",
               printed_at AS "printedAt", edit_unlocked_at AS "editUnlockedAt",
