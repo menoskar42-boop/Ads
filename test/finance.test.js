@@ -168,6 +168,17 @@ test('Yahoo chart parsing: last non-empty 5m close, daily candles in Cairo date'
   assert.deepEqual(q, { price: 12.5, quote_ts: new Date(1794560400 * 1000).toISOString() });
   assert.equal(Y.parseQuote({ chart: { result: [{ meta: { regularMarketPrice: 9, regularMarketTime: 1 }, timestamp: [], indicators: { quote: [{}] } }] } }).price, 9);
   assert.equal(Y.parseQuote({}), null);
+  // ٢٠٢٦-١١-١١: آخر شمعة ٥ دقايق من ٢٣ يوليو وregularMarketPrice النهارده ⇒ الأحدث يكسب
+  const jul = Date.parse('2026-07-23T20:00:00Z') / 1000, nov = Date.parse('2026-11-11T09:30:00Z') / 1000;
+  const fresh = Y.parseQuote({ chart: { result: [{ meta: { regularMarketPrice: 134.2, regularMarketTime: nov }, timestamp: [jul], indicators: { quote: [{ close: [32.77] }] } }] } });
+  assert.equal(fresh.price, 134.2);
+  const old = Y.parseQuote({ chart: { result: [{ meta: {}, timestamp: [jul], indicators: { quote: [{ close: [32.77] }] } }] } });
+  assert.equal(Y.isStale(old, new Date('2026-11-11T10:00:00Z')), true);
+  assert.equal(Y.isStale(fresh, new Date('2026-11-11T10:00:00Z')), false);
+  const S = require('../src/finance/store');
+  assert.equal(S.saneVsClose(32.77, { last_close: 134 }), false);
+  assert.equal(S.saneVsClose(150, { last_close: 134 }), true);
+  assert.equal(S.saneVsClose(32.77, null), true);
   const c = Y.parseCandles({ chart: { result: [{ timestamp: [1794556800], indicators: { quote: [{ open: [1], high: [2], low: [0.5], close: [1.5], volume: [100] }] } }] } });
   assert.deepEqual(c, [{ trade_date: '2026-11-13', open: 1, high: 2, low: 0.5, close: 1.5, volume: 100 }]);
 });

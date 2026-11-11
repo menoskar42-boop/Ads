@@ -183,7 +183,7 @@ function createFinanceSite(opts) {
 
   router.post('/api/ingest/quotes', needKey, json, wrap(async (req, res) => {
     const r = await store.ingestQuotes(getPool(), req.body);
-    res.json({ ok: true, saved: r.saved.length, alerts: r.alerts });
+    res.json({ ok: true, saved: r.saved.length, alerts: r.alerts, rejected: r.rejected });
     if (r.saved.length) evaluateLater();
   }));
   router.post('/api/ingest/candles', needKey, json, wrap(async (req, res) => {
@@ -336,6 +336,10 @@ function createFinanceSite(opts) {
     o = o || {};
     if (!store.dbUrl(env) && !opts.pool) { console.log('[finance] no database url, skipped'); return; }
     await store.ensureSchema(getPool());
+    // تنضيف أسعار غلط اتسجّلت قبل كده (Yahoo القديمة) وأى تنفيذ ديمو حصل عليها
+    const cq = await store.cleanBadQuotes(getPool()).catch((e) => { console.error('[finance] clean:', e.message); return {}; });
+    const rv = await trade.revertBadFills(getPool()).catch((e) => { console.error('[finance] revert:', e.message); return {}; });
+    if (cq.quotes || cq.alerts || rv.trades || rv.recs) console.log('[finance] cleaned bad prices', JSON.stringify({ cq, rv }));
     if (o.jobs === false || opts.jobs === false || timer) return;
     let busy = false;
     const run = () => {

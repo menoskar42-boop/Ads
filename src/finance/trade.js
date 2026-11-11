@@ -234,6 +234,49 @@ async function addSimOrder(p, b, now) {
   return { ok: false, error: 'شراء ولا بيع؟' };
 }
 
+/**
+ * رجوع عن تنفيذات الديمو اللى حصلت على سعر غلط (بعيد عن آخر إقفال بأكتر من ٢٥٪): الشراء ⇒ الفلوس ترجع والسهم يتشال
+ * والأمر يرجع مستنى وأوامر الخروج اللى اتحطت بعده تتمسح · البيع ⇒ السهم يرجع بسعر شراؤه والفلوس المستنية تتمسح والأمر يرجع.
+ * والترشيحات اللى لسه مستنية ردّك وسعرها غلط بتتشال. آمن يتكرر (مابيلاقيش حاجة تانى).
+ */
+async function revertBadFills(p) {
+  const bad = (await p.query(`SELECT t.id, t.symbol, t.side, t.qty, t.price::float, t.pnl::float, t.ts FROM egx.sim_trades t
+    JOIN egx.levels l ON l.symbol = t.symbol WHERE l.last_close > 0 AND abs(t.price / l.last_close - 1) > ${store.MAX_JUMP} ORDER BY t.id DESC`)).rows;
+  let n = 0;
+  for (const t of bad) {
+    await tx(p, async (c) => {
+      const o = (await c.query(`SELECT id FROM egx.sim_orders WHERE symbol=$1 AND side=$2 AND status='FILLED' AND fill_price=$3 ORDER BY id DESC LIMIT 1`,
+        [t.symbol, t.side, t.price])).rows[0];
+      if (o) await c.query(`UPDATE egx.sim_orders SET status='OPEN', filled_ts=NULL, fill_price=NULL WHERE id=$1`, [o.id]);
+      const pos = (await c.query('SELECT qty, avg_cost::float FROM egx.sim_positions WHERE symbol=$1', [t.symbol])).rows[0];
+      if (t.side === 'BUY') {
+        await c.query('UPDATE egx.sim_account SET cash = cash + $1 WHERE id=1', [Math.round(t.qty * t.price * 100) / 100]);
+        // أوامر الخروج اللى اتحطت بعد التنفيذ ده (الوقف والهدف)
+        const after = o ? o.id : 0;
+        if (pos && pos.qty > t.qty) {
+          await c.query('UPDATE egx.sim_positions SET qty = qty - $2 WHERE symbol=$1', [t.symbol, t.qty]);
+          await c.query(`UPDATE egx.sim_orders SET qty = $3 WHERE symbol=$1 AND side='SELL' AND status='OPEN' AND oco=$1 AND id > $2`, [t.symbol, after, pos.qty - t.qty]);
+        } else {
+          await c.query('DELETE FROM egx.sim_positions WHERE symbol=$1', [t.symbol]);
+          await c.query(`DELETE FROM egx.sim_orders WHERE symbol=$1 AND side='SELL' AND status='OPEN' AND oco=$1 AND id > $2`, [t.symbol, after]);
+        }
+      } else {
+        const avg = t.qty > 0 && t.pnl != null ? Math.round((t.price - t.pnl / t.qty) * 100) / 100 : t.price;
+        if (pos) await c.query('UPDATE egx.sim_positions SET qty = qty + $2 WHERE symbol=$1', [t.symbol, t.qty]);
+        else await c.query('INSERT INTO egx.sim_positions(symbol, qty, avg_cost) VALUES ($1,$2,$3)', [t.symbol, t.qty, avg]);
+        await c.query(`DELETE FROM egx.sim_pending WHERE id = (SELECT id FROM egx.sim_pending WHERE symbol=$1 AND amount=$2 ORDER BY id DESC LIMIT 1)`,
+          [t.symbol, Math.round(t.qty * t.price * 100) / 100]);
+        await c.query(`UPDATE egx.sim_orders SET status='OPEN' WHERE symbol=$1 AND side='SELL' AND status='CANCELLED' AND oco=$1`, [t.symbol]);
+      }
+      await c.query('DELETE FROM egx.sim_trades WHERE id=$1', [t.id]);
+    });
+    n++;
+  }
+  const r = await p.query(`DELETE FROM egx.recs r USING egx.levels l WHERE l.symbol = r.symbol AND r.status = 'NEW' AND l.last_close > 0
+    AND abs(r.price / l.last_close - 1) > ${store.MAX_JUMP}`);
+  return { trades: n, recs: r.rowCount };
+}
+
 async function cancelOrder(p, id) {
   const r = await p.query("UPDATE egx.sim_orders SET status='CANCELLED' WHERE id=$1 AND status='OPEN' RETURNING id", [id]);
   return r.rowCount > 0;
@@ -308,7 +351,7 @@ async function tick(p, opts) {
   let fed = false;
   if (st.server_feed === '1' && open && now - Number(st.last_feed_ms || 0) >= 10 * 60000 && now >= Number(st.feed_backoff_until || 0)) {
     await setMeta(p, 'last_feed_ms', now.getTime());
-    const r = await yahoo.fetchQuotes(wl, { fetch: opts.fetch, delayMs: opts.delayMs });
+    const r = await yahoo.fetchQuotes(wl, { fetch: opts.fetch, delayMs: opts.delayMs, now });
     if (r.quotes.length) { await store.ingestQuotes(p, r.quotes, now); fed = true; }
     await setMeta(p, 'last_feed', JSON.stringify({ at: now.toISOString(), ok: r.quotes.length, errors: r.errors.slice(0, 3), blocked: r.blocked }));
     if (r.blocked) await setMeta(p, 'feed_backoff_until', now.getTime() + 30 * 60000);
@@ -326,5 +369,5 @@ async function tick(p, opts) {
 
 function token(secret, id) { return crypto.createHmac('sha256', String(secret || '')).update('rec:' + id).digest('hex').slice(0, 32); }
 
-module.exports = { settings, setSettings, setMeta, recs, rec, createRec, decide, simRun, simState, simReset, cancelOrder, addSimOrder, settle,
+module.exports = { settings, setSettings, setMeta, recs, rec, createRec, decide, simRun, simState, simReset, cancelOrder, addSimOrder, settle, revertBadFills,
   saveSub, subs, dropSub, notification, evaluate, tick, token, recentRec };

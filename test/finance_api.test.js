@@ -183,6 +183,7 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     // بيع يدوى بسعر أعلى: لما السعر يعدّيه لفوق
     const o2 = await (await post('/api/sim/orders', { symbol: 'COMI', side: 'SELL', type: 'LIMIT', price: 105, days: 7 }, KEY)).json();
     assert.equal(o2.ok, true); assert.equal(o2.order.qty, 10);
+    await site._waitEvaluate();   // التقييم اللى بيطلع مع الأمر بالوقت الحقيقى (لو السوق فاتح دلوقتى) يخلص الأول
     await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price) VALUES ('COMI', $1, 106)", [late]);
     const f2 = await trade.evaluate(pool, { now: late, signals: false });
     assert.equal(f2.fills.length, 1); assert.equal(f2.fills[0].side, 'SELL'); assert.equal(f2.fills[0].pnl, 65);
@@ -196,6 +197,27 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     const set = await get('/api/settings');
     assert.equal(set.settings.default_amount, 2500); assert.equal(set.settings.notify, false); assert.equal(set.push.enabled, true);
     assert.equal((await (await post('/api/sim/reset', { cash: 100000 }, KEY)).json()).account.cash, 100000);
+
+    // ٢٠٢٦-١١-١١: سعر Yahoo القديم (٢٣ يوليو) أو البعيد عن آخر إقفال بيترفض
+    const lc = (await get('/api/stock/COMI')).levels.last_close;
+    const bad = await (await post('/api/ingest/quotes', [{ symbol: 'COMI', price: 32.77 }, { symbol: 'COMI', price: lc, quote_ts: '2026-07-23T20:00:00Z' }], KEY)).json();
+    assert.equal(bad.saved, 0); assert.deepEqual(bad.rejected.map((x) => x.why), ['far_from_close', 'stale']);
+    // تنفيذ ديمو حصل على سعر غلط (اتسجّل قبل الإصلاح) ⇒ بيرجع: الفلوس ترجع، والسهم يتشال، والأمر يرجع مستنى
+    await pool.query("DELETE FROM egx.quotes WHERE symbol='COMI'");   // أسعار الاختبار اللى فاتت (تواريخ قدّام) ماتنفّذش الأمر بالوقت الحقيقى
+    const o3 = await (await post('/api/sim/orders', { symbol: 'COMI', side: 'BUY', price: lc, amount: 1000, stop_loss: lc - 10, target: lc + 10 }, KEY)).json();
+    await site._waitEvaluate();
+    const t3 = new Date('2026-11-12T08:30:00Z');
+    await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price, quote_ts) VALUES ('COMI', $1, 32.77, '2026-07-23T20:00:00Z')", [t3]);
+    assert.equal((await trade.evaluate(pool, { now: t3, signals: false })).fills[0].price, 32.77);
+    assert.equal((await get('/api/sim')).positions.length, 1);
+    const store = require('../src/finance/store');
+    assert.deepEqual(await store.cleanBadQuotes(pool), { quotes: 1, alerts: 0 });
+    assert.deepEqual(await trade.revertBadFills(pool), { trades: 1, recs: 0 });
+    sim = await get('/api/sim');
+    assert.equal(sim.account.cash, 100000); assert.equal(sim.positions.length, 0); assert.equal(sim.trades.length, 0);
+    assert.deepEqual(sim.orders.map((o) => o.id), [o3.id]);
+    assert.deepEqual(await trade.revertBadFills(pool), { trades: 0, recs: 0 });     // آمن يتكرر
+    assert.equal((await post('/api/sim/reset', { cash: 100000 }, KEY)).status, 200);
 
     // الصفحات بالكوكى: noindex والتنبيه، ومن غير إعلانات
     for (const p of ['/', '/recs', '/rec/' + rec.id, '/portfolio', '/stock/COMI', '/news', '/alerts', '/ticket', '/settings', '/login']) {

@@ -160,15 +160,18 @@ async function levels(p, sym) {
 async function ingestQuotes(p, items, now) {
   now = now || new Date();
   const today = L.cairoParts(now).iso;
-  const saved = [], alerts = [];
+  const saved = [], alerts = [], rejected = [];
   for (const q of Array.isArray(items) ? items : []) {
     const sym = cleanSym(q && q.symbol); const price = num(q && q.price);
     if (!sym || !(price > 0)) continue;
     const qts = q.quote_ts && !Number.isNaN(Date.parse(q.quote_ts)) ? new Date(q.quote_ts) : (Number.isFinite(Number(q.quote_ts)) ? new Date(Number(q.quote_ts) * (Number(q.quote_ts) < 1e12 ? 1000 : 1)) : null);
+    // سعر قديم (أكتر من يومين) أو بعيد عن آخر إقفال بأكتر من ٢٥٪ (حد الحركة اليومى ٢٠٪) ⇒ مرفوض
+    if (qts && now - qts > 2 * 86400000) { rejected.push({ symbol: sym, why: 'stale', quote_ts: qts }); continue; }
+    const lv = await levels(p, sym);
+    if (!saneVsClose(price, lv)) { rejected.push({ symbol: sym, why: 'far_from_close', price }); continue; }
     await p.query('DELETE FROM egx.quotes WHERE symbol=$1 AND fetched_ts=$2', [sym, now]);
     await p.query('INSERT INTO egx.quotes(symbol, fetched_ts, price, quote_ts) VALUES ($1,$2,$3,$4)', [sym, now, price, qts]);
     saved.push(sym);
-    const lv = await levels(p, sym);
     for (const kind of L.alertKinds(price, lv)) {
       const r = await p.query('INSERT INTO egx.alerts(symbol, kind, trade_date, price) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING symbol', [sym, kind, today, price]);
       if (r.rowCount) alerts.push({ symbol: sym, kind, price });
@@ -176,7 +179,25 @@ async function ingestQuotes(p, items, now) {
   }
   // الأسعار القديمة: آخر ٣٠ يوم بس
   await p.query("DELETE FROM egx.quotes WHERE fetched_ts < now() - interval '30 days'");
-  return { saved, alerts };
+  return { saved, alerts, rejected };
+}
+
+/** السعر معقول جنب آخر إقفال؟ (±٢٥٪، حد الحركة فى البورصة المصرية ٢٠٪ فى اليوم) */
+const MAX_JUMP = 0.25;
+function saneVsClose(price, lv) {
+  return !lv || !(lv.last_close > 0) || Math.abs(price / lv.last_close - 1) <= MAX_JUMP;
+}
+
+/**
+ * تنضيف بيانات غلط (٢٠٢٦-١١-١١: أسعار Yahoo القديمة من يوليو اتسجّلت على إنها سعر النهارده): الأسعار القديمة أو البعيدة
+ * عن آخر إقفال، والتنبيهات اللى طلعت منها. بيتنده مع كل تشغيل، وآمن يتكرر.
+ */
+async function cleanBadQuotes(p) {
+  const q = await p.query(`DELETE FROM egx.quotes q WHERE (q.quote_ts IS NOT NULL AND q.quote_ts < q.fetched_ts - interval '2 days')
+    OR EXISTS (SELECT 1 FROM egx.levels l WHERE l.symbol = q.symbol AND l.last_close > 0 AND abs(q.price / l.last_close - 1) > ${MAX_JUMP})`);
+  const a = await p.query(`DELETE FROM egx.alerts a USING egx.levels l WHERE l.symbol = a.symbol AND l.last_close > 0
+    AND abs(a.price / l.last_close - 1) > ${MAX_JUMP}`);
+  return { quotes: q.rowCount, alerts: a.rowCount };
 }
 
 async function alertsList(p, day) {
@@ -301,7 +322,7 @@ async function state(p, now) {
 }
 
 module.exports = {
-  pool, dbUrl, ensureSchema, ingestCandles, candles, recomputeLevels, levels, ingestQuotes, alertsList,
+  pool, dbUrl, ensureSchema, ingestCandles, candles, recomputeLevels, levels, ingestQuotes, alertsList, cleanBadQuotes, saneVsClose, MAX_JUMP,
   ingestDisclosures, disclosure, disclosures, analysesToday, saveAnalysis, watchlist, updateWatchlist, state,
   matchSymbol, cleanSym, DEFAULT_WATCHLIST,
 };

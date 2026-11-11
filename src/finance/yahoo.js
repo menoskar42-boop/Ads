@@ -5,16 +5,28 @@
 const BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
-/** آخر سعر من رد الرسم (آخر إقفال ٥ دقايق مش فاضى، وإلا regularMarketPrice). */
+/**
+ * آخر سعر من رد الرسم: الأحدث بين آخر شمعة مش فاضية وregularMarketPrice.
+ * (٢٠٢٦-١١-١١: بيانات الـ٥ دقايق بتاعة Yahoo للبورصة المصرية واقفة من ٢٣ يوليو، فالأحدث هو اللى بيكسب،
+ * والقديم بيترفض فى fetchQuotes وingestQuotes.)
+ */
 function parseQuote(json) {
   const r = json && json.chart && json.chart.result && json.chart.result[0];
   if (!r) return null;
+  const cands = [];
   const ts = r.timestamp || [];
   const cl = (r.indicators && r.indicators.quote && r.indicators.quote[0] && r.indicators.quote[0].close) || [];
-  for (let k = ts.length - 1; k >= 0; k--) if (cl[k] != null) return { price: cl[k], quote_ts: new Date(ts[k] * 1000).toISOString() };
+  for (let k = ts.length - 1; k >= 0; k--) if (cl[k] != null) { cands.push({ price: cl[k], t: ts[k] }); break; }
   const m = r.meta || {};
-  return m.regularMarketPrice ? { price: m.regularMarketPrice, quote_ts: new Date((m.regularMarketTime || 0) * 1000).toISOString() } : null;
+  if (m.regularMarketPrice && m.regularMarketTime) cands.push({ price: m.regularMarketPrice, t: m.regularMarketTime });
+  if (!cands.length) return null;
+  const best = cands.sort((a, b) => b.t - a.t)[0];
+  return { price: best.price, quote_ts: new Date(best.t * 1000).toISOString() };
 }
+
+/** السعر قديم؟ (أكتر من يومين من ساعة الجلب) */
+const STALE_MS = 2 * 86400000;
+function isStale(q, now) { return !q || !q.quote_ts || (now || new Date()) - new Date(q.quote_ts) > STALE_MS; }
 
 /** الشموع اليومية: التاريخ بتوقيت القاهرة (UTC+2 أو +3 صيفاً، والجلسة الصبح فالتاريخ مابيتغيّرش). */
 function parseCandles(json) {
@@ -47,7 +59,12 @@ async function fetchQuotes(symbols, opts) {
   opts = opts || {};
   const quotes = [], errors = [];
   for (const s of symbols) {
-    try { const q = parseQuote(await getJson(s, '1d', '5m', opts.fetch)); if (q) quotes.push(Object.assign({ symbol: s }, q)); }
+    try {
+      // يومى (الشمعة بتاعة النهارده بتتحدّث وقت السوق) بدل الـ٥ دقايق اللى واقفة
+      const q = parseQuote(await getJson(s, '5d', '1d', opts.fetch));
+      if (q && isStale(q, opts.now)) errors.push(`${s}: سعر قديم من ${q.quote_ts.slice(0, 10)}`);
+      else if (q) quotes.push(Object.assign({ symbol: s }, q));
+    }
     catch (e) { errors.push(s + ': ' + e.message); if (e.status === 429 || e.status === 401 || e.status === 403) return { quotes, errors, blocked: e.status }; }
     if (opts.delayMs !== 0) await sleep(opts.delayMs || 1000);
   }
@@ -65,4 +82,4 @@ async function fetchCandles(symbols, opts) {
   return { batches, errors, blocked: null };
 }
 
-module.exports = { parseQuote, parseCandles, fetchQuotes, fetchCandles };
+module.exports = { parseQuote, parseCandles, fetchQuotes, fetchCandles, isStale, STALE_MS };
