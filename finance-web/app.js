@@ -243,6 +243,8 @@
   }
 
   /* ── الإعدادات ── */
+  // رسالة «اتحفظت ✓» بتفضل ظاهرة بعد ما الصفحة تتعاد (كانت بتختفى بعد ٠٫٦ ثانية)
+  var savedAt = 0;
   function settings() {
     Promise.all([api('/api/watchlist?all=1'), api('/api/settings')]).then(function (x) {
       var w = x[0], m = x[1], st = m.settings || {};
@@ -270,7 +272,7 @@
             '<td><input class="fouda" type="number" step="1" style="width:80px" value="' + (i.fouda_score == null ? '' : i.fouda_score) + '"></td>' +
             '<td><button type="button" class="ghost" data-del="' + esc(i.symbol) + '">احذف</button></td></tr>';
         }).join('') + '</tbody></table></div>' +
-        '<div class="row" style="margin-top:8px"><label>ضيف رموز (مسافة بينهم)<input id="add" placeholder="SWDY EAST"></label><button id="save">احفظ القايمة</button><span id="msg" class="muted"></span></div></div>' +
+        '<div class="row" style="margin-top:8px"><label>ضيف رموز (مسافة بينهم)<input id="add" placeholder="SWDY EAST"></label><button id="save">احفظ القايمة</button><span id="msg" class="muted">' + (Date.now() - savedAt < 15000 ? 'اتحفظت ✓' : '') + '</span></div></div>' +
         '<div class="card"><h2>الإفصاحات والتحليل</h2><p>التحليل: ' + (m.ai ? esc(m.ai.provider) + ' · ' + esc(m.ai.model) : 'مقفول (مفيش مفتاح)') + ' · للإفصاحات بس، مرة لكل إفصاح، وبحد ' + esc(m.market.dailyCap) + ' فى اليوم.</p>' +
         '<ul><li><a href="/userscripts/egx-disclosures.user.js">egx-disclosures.user.js</a>: الأسعار من جدول «جميع الأسهم» فى موقع البورصة كل دقيقتين وقت السوق (من تاب موقعنا نفسه فى الخلفية)، والإفصاحات من صفحة البحث فى الأخبار اللى بيفتحها لوحده فى تاب جنب موقعنا</li>' +
         '<li><a href="/userscripts/yahoo-feeder.user.js">yahoo-feeder.user.js</a>: احتياطى للأسعار لو Yahoo رفض السيرفر</li></ul></div>' +
@@ -313,7 +315,7 @@
         document.getElementById('add').value.split(/[\s,]+/).filter(Boolean).forEach(function (s2) { addList.push({ symbol: s2 }); });
         api('/api/watchlist', { add: addList, remove: remove }).then(function (r) {
           document.getElementById('msg').textContent = r.ok ? 'اتحفظت ✓' : (r.error || 'فشل');
-          if (r.ok) setTimeout(settings, 600);
+          if (r.ok) { savedAt = Date.now(); setTimeout(settings, 600); }
         });
       };
     });
