@@ -25,6 +25,7 @@ test('levels math: support, resistance, sma, atr, zone, stop, targets', () => {
   assert.equal(lv.atr14, 2);
   assert.equal(lv.buy_lo, 123.75); assert.equal(lv.buy_hi, 125.75);
   assert.equal(lv.stop_loss, 118);
+  assert.equal(lv.sell_lo, 129.5); assert.equal(lv.sell_hi, 131.5);   // الهدف الأول 130.5 ± نص ATR (2)
   assert.equal(lv.target1, 130.5); assert.equal(lv.target2, 130.5);
   assert.equal(lv.sma50, 117.25);
   assert.equal(lv.reliable, true); assert.deepEqual(lv.flags, []);

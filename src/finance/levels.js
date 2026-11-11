@@ -41,6 +41,8 @@ function computeLevels(candles) {
     buy_lo: r2(sma20 - 0.5 * atr14), buy_hi: r2(sma20 + 0.5 * atr14),
     stop_loss: r2(support - 0.5 * atr14),
     target1: r2(resistance20), target2: r2(resistance60),
+    // منطقة البيع (طلب المالك ٢٠٢٦-١١-١١): حوالين الهدف الأول بنفس عرض منطقة الشراء
+    sell_lo: r2(resistance20 - 0.5 * atr14), sell_hi: r2(resistance20 + 0.5 * atr14),
     reliable: flags.length === 0,
     flags,
   };

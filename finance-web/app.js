@@ -107,7 +107,7 @@
       app.innerHTML = '<h1>' + esc(sym) + (r.note ? ' <span class="muted">' + esc(r.note) + '</span>' : '') + '</h1>' +
         (s.levels ? '' : '<div class="banner">مفيش شموع يومية للسهم ده لسه. سكربت Yahoo بيبعتها مرة فى اليوم.</div>') +
         (s.levels && !lv.reliable ? '<div class="banner">البيانات مش موثوقة: ' + flags(lv) + '. مفيش تنبيهات للسهم ده.</div>' : '') +
-        '<div class="grid">' + [['السعر', r.price], ['منطقة الشراء من', lv.buy_lo], ['منطقة الشراء لحد', lv.buy_hi], ['الوقف', lv.stop_loss],
+        '<div class="grid">' + [['السعر', r.price], ['منطقة الشراء من', lv.buy_lo], ['منطقة الشراء لحد', lv.buy_hi], ['منطقة البيع من', lv.sell_lo], ['منطقة البيع لحد', lv.sell_hi], ['الوقف', lv.stop_loss],
           ['الهدف ١', lv.target1], ['الهدف ٢', lv.target2], ['الدعم (٢٠)', lv.support], ['المتوسط ٢٠', lv.sma20], ['المتوسط ٥٠', lv.sma50], ['ATR ١٤', lv.atr14]]
           .map(function (k) { return '<div class="kv"><b>' + n2(k[1]) + '</b><span>' + k[0] + '</span></div>'; }).join('') + '</div>' +
         orderCard(sym, r, lv, sim) +
@@ -130,7 +130,7 @@
     if (!sim || !sim.ok) return '';
     var pos = (sim.positions || []).filter(function (p) { return p.symbol === sym; })[0];
     var mine = (sim.orders || []).filter(function (o) { return o.symbol === sym; });
-    // سعر الشراء الافتراضى = أقل قيمة فى منطقة الشراء (طلب المالك ٢٠٢٦-١١-١١)، والبيع = السعر الحالى
+    // سعر الشراء الافتراضى = أقل قيمة فى منطقة الشراء (طلب المالك ٢٠٢٦-١١-١١)؛ لما يختار «بيع» بيبقى أعلى قيمة فى منطقة البيع
     var px = lv.buy_lo || r.price || '';
     var amt = (function () { try { return localStorage.getItem('fin_amt') || '1000'; } catch (_) { return '1000'; } })();
     return '<h2>أمر فى محفظة الديمو</h2><div class="card">' +
@@ -161,7 +161,8 @@
     }
     f.side.onchange = function () {
       mode();
-      var v = f.side.value === 'SELL' ? (r.price || '') : (lv.buy_lo || r.price || '');
+      // البيع: أعلى قيمة فى منطقة البيع · الشراء: أقل قيمة فى منطقة الشراء (طلب المالك ٢٠٢٦-١١-١١)
+      var v = f.side.value === 'SELL' ? (lv.sell_hi || r.price || '') : (lv.buy_lo || r.price || '');
       if (v) f.price.value = Number(v).toFixed(2);
     };
     mode();

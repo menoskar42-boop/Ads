@@ -145,6 +145,9 @@ function rowToLevels(r) {
     last_close: n('last_close'), sma20: n('sma20'), sma50: n('sma50'), support: n('support'), resistance20: n('resistance20'),
     resistance60: n('resistance60'), atr14: n('atr14'), buy_lo: n('buy_lo'), buy_hi: n('buy_hi'), stop_loss: n('stop_loss'),
     target1: n('target1'), target2: n('target2'), reliable: !!r.reliable, flags: r.flags ? String(r.flags).split(',').filter(Boolean) : [],
+    // منطقة البيع: الهدف الأول ± نص ATR (بتتحسب من المخزّن، مش عمود)
+    sell_lo: r.target1 == null || r.atr14 == null ? null : Math.round((Number(r.target1) - 0.5 * Number(r.atr14)) * 100) / 100,
+    sell_hi: r.target1 == null || r.atr14 == null ? null : Math.round((Number(r.target1) + 0.5 * Number(r.atr14)) * 100) / 100,
   };
 }
 
