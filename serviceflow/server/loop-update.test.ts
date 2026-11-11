@@ -18,7 +18,7 @@ const lookup = read("../client/src/components/PhoneLookupReport.tsx");
 const settings = read("../client/src/components/ExecLanesSettingsButton.tsx");
 
 test("measure script 10.37.0: no-Real saves straight from ClearView; loop mode opens the DSL screen only", () => {
-  assert.match(us, /@version {6}10\.3[7-9]\.0/);
+  assert.match(us, /@version {6}10\.(3[7-9]|40)\.0/);
   const start = us.indexOf("function startNoReal");
   const noReal = us.slice(start, us.indexOf("function goToDslTab", start));
   assert.doesNotMatch(noReal, /goToDslTab\(\)/, "«بدون Real» مابيروحش شاشة DSL");
