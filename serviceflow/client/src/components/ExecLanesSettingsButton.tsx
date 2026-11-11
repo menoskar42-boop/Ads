@@ -214,7 +214,7 @@ export function ExecLanesSettingsButton() {
                 <label className="flex items-start gap-2 text-sm pt-1 cursor-pointer" data-testid="toggle-auto-loop-batch">
                   <input type="checkbox" className="mt-1 h-4 w-4" checked={autoLoop} onChange={(e) => setAutoLoop(e.target.checked)} />
                   <span>
-                    باتش تالت «تحديث المسافة» الساعة ٩ الصبح
+                    باتش تالت «تحديث حالة الخط (ASSIA)» الساعة ٩ الصبح
                     <span className="block text-xs text-muted-foreground">بنفس أرقام باتش «بدون Real» — بيقرا المسافة بس من شاشة DSL. مقفول افتراضياً (قياس ٩ الصبح مابقاش بيقرا المسافة).</span>
                   </span>
                 </label>

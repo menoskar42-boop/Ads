@@ -542,7 +542,7 @@ export function PhoneLookupReport() {
   // بياخد تابات «بدون Real» (فقياس Real يشتغل جنبه). لو AXON رجّع N/A أو فاضى المسافة القديمة بتفضل وجنبها ملحوظة.
   const updateLoopLength = async () => {
     const acc = (line?.accountNo ?? "").toString().trim();
-    if (!acc) { alert("لا يوجد رقم أكونت لهذا الخط — لا يمكن تحديث المسافة"); return; }
+    if (!acc) { alert("لا يوجد رقم أكونت لهذا الخط — لا يمكن تحديث حالة الخط"); return; }
     if (await dispatchSpeedTool("measure", [acc], isSuper, { noReal: true, loop: true })) return;
     window.open(buildDZSUrl([acc]) + "&sf_mode=loop", "dzs_measure");
   };
@@ -1206,7 +1206,7 @@ export function PhoneLookupReport() {
                       onClick={measureNoReal}
                       disabled={awaitingOp === "measure"}
                       className="bg-white gap-2 text-amber-700 border-amber-300"
-                      title="قياس من غير real-time: بياخد أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) — من غير المسافة (ليها زرار «تحديث المسافة») — سوبر أدمن بس"
+                      title="قياس من غير real-time: بياخد أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) — من غير المسافة (ليها زرار «تحديث حالة الخط») — سوبر أدمن بس"
                     >
                       <History className="w-4 h-4" />
                       قياس بدون Real
@@ -1216,11 +1216,11 @@ export function PhoneLookupReport() {
                     variant="outline"
                     onClick={updateLoopLength}
                     className="bg-white gap-2 text-teal-700 border-teal-300"
-                    title="يقرا «Estimated Loop Length» من شاشة DSL بس (من غير قياس). لو رجع N/A أو فاضى المسافة القديمة بتفضل"
+                    title="تحديث حالة الخط (ASSIA): بيقرا شاشات DSL من البيانات المسجّلة (Line Summary كلها والبيانات التشغيلية والعدادات والتشخيص والتوصية وXELT) والمسافة، من غير Real ولا Perform XELT. لو المسافة رجعت N/A أو فاضية القديمة بتفضل"
                     data-testid="button-update-loop"
                   >
                     <Ruler className="w-4 h-4" />
-                    تحديث المسافة
+                    تحديث حالة الخط (ASSIA)
                   </Button>
                   <Button
                     variant="outline"

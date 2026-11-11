@@ -174,8 +174,8 @@ export function SpeedDropReport({ weekly = false }: { weekly?: boolean } = {}) {
             </Button>
             {isSuper && (
               <Button variant="outline" size="sm" onClick={() => handleMeasure(true, true)} className="text-teal-700 border-teal-300 gap-1"
-                title="تحديث المسافة (Estimated Loop Length) بس من شاشة DSL — من غير قياس. لو AXON رجّع N/A أو فاضى المسافة القديمة بتفضل — سوبر أدمن بس">
-                <Ruler className="w-4 h-4" /> تحديث المسافة
+                title="تحديث حالة الخط (ASSIA): بيقرا شاشات DSL من البيانات المسجّلة — Line Summary كلها والبيانات التشغيلية والعدادات والتشخيص والتوصية وXELT — والمسافة كمان، من غير Real ولا Perform XELT. لو AXON رجّع N/A أو فاضى المسافة القديمة بتفضل — سوبر أدمن بس">
+                <Ruler className="w-4 h-4" /> تحديث حالة الخط (ASSIA)
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => handleRaisePO("raise")} disabled={!rows.length} className="text-emerald-700 border-emerald-200 gap-1"

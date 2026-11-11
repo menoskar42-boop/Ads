@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DZS Expresse Continuous Flow v10.7 (Service-Flow 138 sheet + auto-upload)
-// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.38.0: لو Real خلص ومالقاش الاسكور، قبل ما يسجّل 102 بيضغط «Line details» تانى ويستنى ٣ ثوانى ويقرا تانى. والرسالة البمبى اللى بتظهر فوق فى ClearView (زى «It is not possible to analyze the line…») بتتبعت بنصها كامل مع القياس وبتظهر فى «بحث برقم التليفون». ووقت قياس Real بيتبعت كمان (عشان «إعادة بعد 102 و 104» تتحسب من وقت القياس الأول). وقياس Real بيقول للسيرفر «لسه بقيس» كل ٣٠ ثانية — فجهاز التنفيذ بيستنى لحد ما يخلص من غير مدة محددة، ومابيقفلش التاب غير لو الصفحة ماتت. ونوع القياس (Real / بدون Real / مسافة) بقى محفوظ فى التاب نفسه — التاب اللى اتعمله ريفريش أو دخول تانى بيفضل بنفس نوعه ومايتحوّلش Real. v10.37.0: «بدون Real» مابقاش بيفتح شاشة DSL ولا بيقرا المسافة — بيسجّل القياس على طول من ClearView (أسرع). والمسافة بقت مهمة لوحدها «تحديث المسافة» (sf_mode=loop): بيفتح شاشة DSL بس ويقرا «Estimated Loop Length» ويبعتها لـ /api/loop-length/ingest — ولو N/A أو فاضية المسافة القديمة بتفضل. v10.36.0: القياس (Real أو بدون Real) بقى يشتغل جنب «إيقاف PO» من غير ما يبوّظه: تاب القياس كان بيمسح علامة PO_ACTIVE العامة أول ما يتفتح، فتاب الإيقاف الأول لما يعمل ريفريش بعد Yes كان السكربت بتاعه يقف ومايسجّلش الإيقاف («+إعادة»). دلوقتى الإيقاف بيتعرف من علامة التاب نفسه بس (PO_TAB فى sessionStorage). وقياس Real من جهاز التنفيذ بتاب لوحده (sf_lane=80) بمفاتيح لوحده. v10.35.0: تسجيل الدخول رجع زى 10.31 بالظبط (كل نافذة بتسجّل دخول لوحدها على طول) — بطلب المالك؛ قفل الدخول الواحد (10.32–10.34) اتشال. v10.34.0: النافذة اللى مستنية دخول نافذة تانية بترجع فى نفس اللحظة اللى الدخول ينجح فيها (إشارة بين النوافذ) بدل ما تستنى. v10.33.0: النافذة اللى مستنية دخول نافذة تانية بترجع بعد ٥ ثوانى بالكتير (كانت ٢٠) — فبتكمّل بعد ثوانى من الدخول. v10.32.0: تسجيل دخول واحد فى المرة — لو الجلسة خلصت وفيه نوافذ كتير، أول نافذة بس بتسجّل دخول والباقى بيستنوا ٢٠ ثانية ويرجعوا بنفس الجلسة (كانوا كلهم بيسجّلوا دخول مع بعض فيلغوا جلسات بعض ويلفّوا على login-page?sessionExpired). v10.31.0: لو صفحة clearview فتحت بخانة البحث بس (من غير بيانات الخط)، السكربت بيضغط Search لوحده بعد ٨ ثوانى (ويعيدها مرتين) بدل ما يستنى دقيقتين ويسجّل 104. v10.30.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v10.29.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v10.27: مابيشتغلش فى تابات «إيقاف PO» التانية/التالتة (علامة PO_TAB فى sessionStorage). v10.26: عدد تابات «بدون Real» من السيرفر بس (NOREAL_LANES، أى sf_lane). رقم التاب بيتعرف من رقم الخط اللى فى رابط الصفحة (clearview/lineSummary?lineId=) — فى v10.25 كان من sessionStorage بس، فأى خطوة بتفتح فى تاب/نافذة جديدة كانت بتضيّع الرقم وتشتغل على خط التاب الأول (اللى اتسجّل خلاص) فالتاب التانى مايسجّلش. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
-// @version      10.38.0
+// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.39.0: حالة الثبات (Stability) بتتقرا من شاشة الاسكور وبتتبعت مع كل قياس. و«تحديث المسافة» بقى «تحديث حالة الخط (ASSIA)» (sf_mode=loop): بيلف على شاشات DSL للخط من البيانات المسجّلة من غير ما يضغط Real أو Perform XELT — Line Summary كلها · Operational Data · Performance Counters · Diagnostic Analysis · Service Recommendation · XELT · Attributes/Counters — ويبعتهم لـ /api/line-status/ingest، وبعدها المسافة لـ /api/loop-length/ingest زى الأول. v10.38.0: لو Real خلص ومالقاش الاسكور، قبل ما يسجّل 102 بيضغط «Line details» تانى ويستنى ٣ ثوانى ويقرا تانى. والرسالة البمبى اللى بتظهر فوق فى ClearView (زى «It is not possible to analyze the line…») بتتبعت بنصها كامل مع القياس وبتظهر فى «بحث برقم التليفون». ووقت قياس Real بيتبعت كمان (عشان «إعادة بعد 102 و 104» تتحسب من وقت القياس الأول). وقياس Real بيقول للسيرفر «لسه بقيس» كل ٣٠ ثانية — فجهاز التنفيذ بيستنى لحد ما يخلص من غير مدة محددة، ومابيقفلش التاب غير لو الصفحة ماتت. ونوع القياس (Real / بدون Real / مسافة) بقى محفوظ فى التاب نفسه — التاب اللى اتعمله ريفريش أو دخول تانى بيفضل بنفس نوعه ومايتحوّلش Real. v10.37.0: «بدون Real» مابقاش بيفتح شاشة DSL ولا بيقرا المسافة — بيسجّل القياس على طول من ClearView (أسرع). والمسافة بقت مهمة لوحدها «تحديث المسافة» (sf_mode=loop): بيفتح شاشة DSL بس ويقرا «Estimated Loop Length» ويبعتها لـ /api/loop-length/ingest — ولو N/A أو فاضية المسافة القديمة بتفضل. v10.36.0: القياس (Real أو بدون Real) بقى يشتغل جنب «إيقاف PO» من غير ما يبوّظه: تاب القياس كان بيمسح علامة PO_ACTIVE العامة أول ما يتفتح، فتاب الإيقاف الأول لما يعمل ريفريش بعد Yes كان السكربت بتاعه يقف ومايسجّلش الإيقاف («+إعادة»). دلوقتى الإيقاف بيتعرف من علامة التاب نفسه بس (PO_TAB فى sessionStorage). وقياس Real من جهاز التنفيذ بتاب لوحده (sf_lane=80) بمفاتيح لوحده. v10.35.0: تسجيل الدخول رجع زى 10.31 بالظبط (كل نافذة بتسجّل دخول لوحدها على طول) — بطلب المالك؛ قفل الدخول الواحد (10.32–10.34) اتشال. v10.34.0: النافذة اللى مستنية دخول نافذة تانية بترجع فى نفس اللحظة اللى الدخول ينجح فيها (إشارة بين النوافذ) بدل ما تستنى. v10.33.0: النافذة اللى مستنية دخول نافذة تانية بترجع بعد ٥ ثوانى بالكتير (كانت ٢٠) — فبتكمّل بعد ثوانى من الدخول. v10.32.0: تسجيل دخول واحد فى المرة — لو الجلسة خلصت وفيه نوافذ كتير، أول نافذة بس بتسجّل دخول والباقى بيستنوا ٢٠ ثانية ويرجعوا بنفس الجلسة (كانوا كلهم بيسجّلوا دخول مع بعض فيلغوا جلسات بعض ويلفّوا على login-page?sessionExpired). v10.31.0: لو صفحة clearview فتحت بخانة البحث بس (من غير بيانات الخط)، السكربت بيضغط Search لوحده بعد ٨ ثوانى (ويعيدها مرتين) بدل ما يستنى دقيقتين ويسجّل 104. v10.30.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v10.29.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v10.27: مابيشتغلش فى تابات «إيقاف PO» التانية/التالتة (علامة PO_TAB فى sessionStorage). v10.26: عدد تابات «بدون Real» من السيرفر بس (NOREAL_LANES، أى sf_lane). رقم التاب بيتعرف من رقم الخط اللى فى رابط الصفحة (clearview/lineSummary?lineId=) — فى v10.25 كان من sessionStorage بس، فأى خطوة بتفتح فى تاب/نافذة جديدة كانت بتضيّع الرقم وتشتغل على خط التاب الأول (اللى اتسجّل خلاص) فالتاب التانى مايسجّلش. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
+// @version      10.39.0
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
@@ -441,7 +441,7 @@
   if (NOREAL) console.log("🗓️ وضع «قياس بدون Real» — مفيش real-time؛ أحدث تاريخ من History Check (من غير المسافة — v10.37.0).");
   // v10.37.0: «تحديث المسافة» (sf_mode=loop) — شاشة DSL بس، مفيش ClearView ولا قياس
   const LOOP = localStorage.getItem(MEASURE_MODE_KEY) === "loop";
-  if (LOOP) console.log("📏 وضع «تحديث المسافة» — شاشة DSL بس (Estimated Loop Length).");
+  if (LOOP) console.log("🩺 وضع «تحديث حالة الخط (ASSIA)» — شاشات DSL من البيانات المسجّلة (من غير Real ولا XELT) + المسافة.");
   // القراءات اللى اتاخدت من clearview بتستنى هنا لحد ما Loop Length يتقرا من صفحة DSL
   // (صفحة جديدة = نسخة جديدة من السكربت، فلازم تتخزّن).
   const NOREAL_PENDING_KEY = "DZS_NOREAL_PENDING" + LANE_SUFFIX;
@@ -642,6 +642,15 @@
     return cleanOneLine(v).slice(0, 600);
   }
 
+  // v10.39.0: حالة الثبات من شاشة الاسكور (STABLE / UNSTABLE / VERY UNSTABLE …)
+  function findStability() {
+    let v = readRowValue("Stability");
+    if (!v) v = findValueCellByLabel("Stability") || findValueCellByLabel("Line Stability");
+    v = cleanOneLine(v);
+    const m = v.match(/very\s+unstable|unstable|stable/i);
+    return m ? m[0].replace(/\s+/g, " ").toUpperCase() : v.slice(0, 60);
+  }
+
   function captureEarly() {
     const c = findSynchRateDS(), m = findMaxAchievableDS(), s = findDispatchScore();
     if (!isBadReading(c)) earlyCur = c;
@@ -684,7 +693,7 @@
           // v10.23: السيرفر بيستخدم measuredAt كتاريخ القياس فى noreal بس
           measureMode: rec.measureMode, measuredAt: rec.measuredAt, loopLength: rec.loopLength,
           histLabel: rec.histLabel, histRealtime: rec.histRealtime,
-          pageMsg: rec.pageMsg || "", measuredAtReal: rec.realAt || "",
+          pageMsg: rec.pageMsg || "", measuredAtReal: rec.realAt || "", stability: rec.stability || "",
         }] }),
       }).then(r => r.json()).then(j => console.log("☁️ 138 updated:", rec.accountNo, j))
         .catch(e => console.warn("☁️ 138 update failed:", e));
@@ -710,6 +719,7 @@
       // v10.38.0: الرسالة البمبى زى ما هى، ووقت قياس Real (القاهرة)
       pageMsg: findPageMessage(),
       realAt: NOREAL ? "" : cairoNow(),
+      stability: (() => { try { return findStability(); } catch (e) { return ""; } })(),
     };
     results.push(rec);
     localStorage.setItem(RESULTS_KEY, JSON.stringify(results));
@@ -1280,14 +1290,217 @@
   if (NOREAL && location.href.includes("/expresse/lineSummary")) {
     if (finishNoRealOnLineSummary()) console.log("🗓️ «بدون Real»: فى شاشة DSL — بقرا Estimated Loop Length");
   }
-  /* ===== v10.37.0: «تحديث المسافة» — شاشة DSL بس ===== */
-  if (LOOP && location.href.includes("/expresse/lineSummary")) {
-    console.log("📏 «تحديث المسافة»: فى شاشة DSL — بقرا Estimated Loop Length");
-    finishLoopOnLineSummary();
-  } else if (LOOP && location.href.includes("/expresse/clearview")) {
-    // AXON ودّانا ClearView (أو تاب قديم) — مالناش شغل هنا، روح DSL على طول
-    processingComplete = true;
-    location.href = "/expresse/lineSummary?lineId=" + encodeURIComponent(CURRENT_LINE_ID);
+  /* ===== v10.39.0: «تحديث حالة الخط (ASSIA)» (sf_mode=loop) — المالك ٢٠٢٦-١١-١١ =====
+     بيلف على شاشات DSL للخط بالترتيب ويقرا البيانات المسجّلة زى ما هى ظاهرة — **من غير** Real Time Diagnostics
+     ولا Real-Time Data Collection ولا Perform XELT. كل صفحة بتتحفظ بلوحاتها (كل سطر بخاناته) وبالتاريخ اللى فيها
+     (Collection Date / History Check)، والرسومات (Highcharts) بتتلخّص يوم بيوم. الحالة بتعيش فى sessionStorage
+     (كل صفحة = نسخة جديدة من السكربت)، وفى الآخر: /api/line-status/ingest وبعده المسافة لـ /api/loop-length/ingest
+     زى «تحديث المسافة» بالظبط (جهاز التنفيذ بيعرف إن الخط خلص من المسافة). */
+  const LS_STATE_KEY = "DZS_LINESTATUS";
+  const LS_PAGES = [
+    { key: "summary", menu: ["Line Summary"], path: "/expresse/lineSummary", need: "Estimated Loop Length" },
+    { key: "operational", menu: ["Operational Data"], path: "/expresse/pe/operationalData", need: "Collection Date" },
+    { key: "counters", menu: ["Performance Counters"], path: "/expresse/pe/performanceCounters", chart: true, tick: true },
+    { key: "diagnostics", menu: ["Diagnostic Analysis", "Diagnostics Analysis"], path: "/expresse/pe/DiagnosticsAnalysis", need: "Stability" },
+    { key: "recommendation", menu: ["Service Recommendation"], path: null },
+    { key: "xelt", menu: ["XELT Analysis", "SELT Analysis"], path: "/expresse/selt" },
+    { key: "attributes", menu: ["Attributes/Counters"], path: "/expresse/historical/attributes", chart: true },
+  ];
+  const lsNorm = (t) => String(t == null ? "" : t).replace(/\s+/g, " ").trim();
+  function lsLoad() {
+    try {
+      const s = JSON.parse(sessionStorage.getItem(LS_STATE_KEY) || "null");
+      return s && s.line === String(CURRENT_LINE_ID) && Date.now() - (s.t0 || 0) < 20 * 60000 ? s : null;
+    } catch (e) { return null; }
+  }
+  function lsSave(s) { try { sessionStorage.setItem(LS_STATE_KEY, JSON.stringify(s)); } catch (e) {} }
+  function lsPfBusy() {
+    try { const q = window.PrimeFaces && window.PrimeFaces.ajax && window.PrimeFaces.ajax.Queue; return !!(q && typeof q.isEmpty === "function" && !q.isEmpty()); }
+    catch (e) { return false; }
+  }
+  /** لينك الصفحة من القايمة الجانبية (فيه href حقيقى) */
+  function lsMenuHref(pg) {
+    const els = [...document.querySelectorAll("a")].filter(a => pg.menu.includes(lsNorm(a.textContent)));
+    for (const a of els) { const h = a.getAttribute("href"); if (h && !/^(#|javascript)/i.test(h)) return new URL(h, location.href).href; }
+    return null;
+  }
+  function lsGo(st) {
+    const pg = LS_PAGES[st.step];
+    st.tries = st.tries || {}; st.tries[pg.key] = (st.tries[pg.key] || 0) + 1;
+    if (st.tries[pg.key] > 3) {   // ٣ مرات ومارحناش ⇒ نسجّلها ونكمّل
+      st.data[pg.key] = { ok: false, error: "ماقدرتش أفتح الصفحة" }; st.step++; lsSave(st); return lineStatusStep();
+    }
+    let href = lsMenuHref(pg);
+    if (!href && pg.path) href = location.origin + pg.path + "?lineId=" + encodeURIComponent(CURRENT_LINE_ID);
+    st.fromPath = location.pathname;
+    if (href) {
+      if (!/[?&]lineId=/.test(href)) href += (href.includes("?") ? "&" : "?") + "lineId=" + encodeURIComponent(CURRENT_LINE_ID);
+      st.expectPath = new URL(href).pathname.toLowerCase(); lsSave(st);
+      console.log("🩺 حالة الخط: رايح " + pg.key + " ← " + href);
+      location.href = href; return;
+    }
+    // من غير href: ندوس على العنصر نفسه (PrimeFaces ajax/redirect)
+    st.expectPath = null; lsSave(st);
+    const el = [...document.querySelectorAll("a, span, li")].find(e => pg.menu.includes(lsNorm(e.textContent)) && e.children.length <= 2);
+    if (el) { console.log("🩺 حالة الخط: بدوس " + pg.menu[0]); (el.closest("a") || el).click(); setTimeout(lineStatusStep, 20000); return; }
+    st.data[pg.key] = { ok: false, error: "مالقيتش الصفحة فى القايمة" }; st.step++; lsSave(st); lineStatusStep();
+  }
+  /** نستنى الشاشة تهدى: مفيش طلب شغّال، والنص ماتغيّرش ٢٫٥ث، واللابل المطلوب/الرسمة ظهرت (أقصى ٤٠ث) */
+  function lsSettle(pg) {
+    return new Promise((resolve) => {
+      const t0 = Date.now(); let last = document.body.innerText || "", lastCh = Date.now();
+      const iv = setInterval(() => {
+        const now = document.body.innerText || "";
+        if (now !== last) { last = now; lastCh = Date.now(); }
+        const w = Date.now() - t0;
+        const needOk = !pg.need || now.indexOf(pg.need) >= 0 || w > 20000;
+        const chartOk = !pg.chart || lsChartPoints() > 0 || w > 20000;
+        if ((!lsPfBusy() && Date.now() - lastCh >= 2500 && w >= 3000 && needOk && chartOk) || w > 40000) { clearInterval(iv); resolve(); }
+      }, 700);
+    });
+  }
+  function lsIcons(c) {
+    let ok = 0, bad = 0;
+    c.querySelectorAll("img, i, span, svg, em, div").forEach((e) => {
+      const cls = e.className && typeof e.className === "object" ? e.className.baseVal : e.className;
+      const s = (cls || "") + " " + (e.getAttribute("src") || "") + " " + (e.getAttribute("alt") || "") + " " + (e.getAttribute("title") || "");
+      if (/red|error|fail|danger|times|cross|alert|warn|bad/i.test(s)) bad++;
+      else if (/green|\bok\b|check|success|pass|good/i.test(s)) ok++;
+    });
+    return ok || bad ? "✓" + ok + " ✗" + bad : "";
+  }
+  function lsCellText(c) {
+    const lab = c.querySelector(".ui-selectonemenu-label");
+    if (lab) return lsNorm(lab.value || lab.textContent);
+    const cl = c.cloneNode(true);
+    cl.querySelectorAll("select, option, script, style, .ui-helper-hidden-accessible, .ui-helper-hidden, .ui-selectonemenu-panel").forEach(n => n.remove());
+    return lsNorm(cl.textContent);
+  }
+  /** كل اللوحات: العنوان + كل سطر بخاناته (الخانة الفاضية اللى فيها أيقونات = ✓/✗) + نص اللوحة */
+  function lsPanels() {
+    let panels = [...document.querySelectorAll(".ui-panel")];
+    const whole = !panels.length; if (whole) panels = [document.body];
+    return panels.map((p) => {
+      const title = whole ? "" : lsNorm((p.querySelector(".ui-panel-title") || {}).textContent || "");
+      const rows = [];
+      p.querySelectorAll("tr").forEach((tr) => {
+        if (!whole && tr.closest(".ui-panel") !== p) return;
+        const cells = [...tr.children].filter(c => c.tagName === "TD" || c.tagName === "TH");
+        if (!cells.length || cells.some(c => c.querySelector("table"))) return;   // سطر حاوية لجدول تانى
+        const t = cells.map(c => lsCellText(c) || lsIcons(c));
+        if (t.some(Boolean)) rows.push(t.map(x => x.slice(0, 300)));
+      });
+      const content = whole ? p : (p.querySelector(".ui-panel-content") || p);
+      const text = lsNorm(content.innerText || content.textContent).slice(0, rows.length ? 800 : 2500);
+      return { title, rows: rows.slice(0, 300), text };
+    }).filter(x => x.title || x.rows.length || x.text);
+  }
+  function lsChartPoints() {
+    try { const H = window.Highcharts; return H && H.charts ? H.charts.filter(Boolean).reduce((n, ch) => n + (ch.series || []).reduce((m, s) => m + ((s.yData || []).length), 0), 0) : 0; }
+    catch (e) { return 0; }
+  }
+  /** الرسومات يوم بيوم لكل سلسلة: مجموع/أكبر/أصغر/آخر قيمة وعدد النقط */
+  function lsCharts() {
+    const H = window.Highcharts; if (!H || !H.charts) return [];
+    const pad = (n) => String(n).padStart(2, "0"), r2 = (x) => (Number.isFinite(x) ? Math.round(x * 100) / 100 : null);
+    return H.charts.filter(Boolean).map((ch) => ({
+      title: lsNorm(ch.title && ch.title.textStr),
+      yTitle: lsNorm(ch.yAxis && ch.yAxis[0] && ch.yAxis[0].axisTitle && ch.yAxis[0].axisTitle.textStr),
+      series: (ch.series || []).map((sr) => {
+        const xs = sr.xData || [], ys = sr.yData || [], days = {}; let n = 0;
+        for (let i = 0; i < ys.length; i++) {
+          const y = Array.isArray(ys[i]) ? ys[i][ys[i].length - 1] : ys[i];
+          if (y == null || !Number.isFinite(Number(y))) continue;
+          n++;
+          const x = xs[i];
+          const k = x > 1e11 ? (() => { const d = new Date(x); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); })() : "#" + i;
+          const e = days[k] || (days[k] = { d: k, sum: 0, max: -Infinity, min: Infinity, last: null, n: 0 });
+          e.sum += Number(y); e.max = Math.max(e.max, Number(y)); e.min = Math.min(e.min, Number(y)); e.last = Number(y); e.n++;
+        }
+        return { name: lsNorm(sr.name), visible: sr.visible !== false, n,
+          days: Object.values(days).slice(-60).map(e => ({ d: e.d, sum: r2(e.sum), max: r2(e.max), min: r2(e.min), last: r2(e.last), n: e.n })) };
+      }),
+    }));
+  }
+  /** Performance Counters: نعلّم كل العدادات فى القايمة اللى فوق الرسمة (Retrain · Code Violations · Errored Seconds …) */
+  async function lsTickAllCounters() {
+    try {
+      const menus = [...document.querySelectorAll(".ui-selectcheckboxmenu")].filter(m => /performance counters/i.test(lsNorm(m.textContent)));
+      const m = menus[0]; if (!m) return false;
+      (m.querySelector(".ui-selectcheckboxmenu-trigger") || m).click();
+      await new Promise(r => setTimeout(r, 900));
+      const panel = [...document.querySelectorAll(".ui-selectcheckboxmenu-panel")].find(p => p.offsetParent !== null || p.style.display === "block");
+      if (!panel) return false;
+      const all = panel.querySelector(".ui-selectcheckboxmenu-header .ui-chkbox-box");
+      if (all && !all.classList.contains("ui-state-active")) { all.click(); await new Promise(r => setTimeout(r, 900)); }
+      else for (const b of panel.querySelectorAll(".ui-selectcheckboxmenu-items .ui-chkbox-box:not(.ui-state-active)")) { b.click(); await new Promise(r => setTimeout(r, 500)); }
+      (m.querySelector(".ui-selectcheckboxmenu-trigger") || m).click();   // قفل القايمة (بعض الصفحات بتبعت التغيير وقت القفل)
+      return true;
+    } catch (e) { console.warn("🩺 تعليم العدادات:", e); return false; }
+  }
+  async function lsCollect(pg) {
+    await lsSettle(pg);
+    let ticked = null;
+    if (pg.tick) { ticked = await lsTickAllCounters(); if (ticked) { await new Promise(r => setTimeout(r, 1500)); await lsSettle(pg); } }
+    const out = { url: location.pathname + location.search, at: new Date().toISOString(), ok: true, panels: lsPanels() };
+    if (pg.chart) out.charts = lsCharts();
+    if (pg.tick) out.ticked = ticked;
+    if (pg.key === "xelt") out.history = !/historical\s+[sx]elt\s+data\s+not\s+available/i.test(document.body.innerText || "");
+    return out;
+  }
+  function lsFinish(st) {
+    sessionStorage.removeItem(LS_STATE_KEY);
+    let loop = "";
+    try {
+      for (const p of (st.data.summary && st.data.summary.panels) || [])
+        for (const r of p.rows || []) if (/^estimated loop length$/i.test(r[0])) { loop = r.slice(1).find(Boolean) || ""; break; }
+    } catch (e) {}
+    const meta = getMeta(CURRENT_LINE_ID);
+    console.log("🩺 حالة الخط خلصت:", CURRENT_LINE_ID, Object.keys(st.data).map(k => k + (st.data[k].ok ? "✓" : "✗")).join(" "));
+    if (SF_AUTO_UPLOAD && SF_API_BASE) {
+      try {
+        sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/line-status/ingest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-DZS-Token": SF_INGEST_TOKEN },
+          body: JSON.stringify({ items: [{ accountNo: CURRENT_LINE_ID, phoneShort: meta.short, fullPhone: meta.full, version: "10.39.0", pages: st.data }] }),
+        }).then(r => r.json()).then(j => console.log("☁️ حالة الخط اتسجّلت:", CURRENT_LINE_ID, j))
+          .catch(e => console.warn("☁️ حالة الخط ماتسجّلتش (هتتبعت تانى):", e));
+      } catch (e) { console.warn("line-status post err", e); }
+    }
+    // وبعدها المسافة زى «تحديث المسافة» (جهاز التنفيذ بيعرف منها إن الخط خلص)
+    sendLoopLength(CURRENT_LINE_ID, String(loop).slice(0, 60));
+    maybeDownloadFinal();
+    if (iAmTheDownloader) { showFinalMessage(); return; }
+    stopHeartbeat();
+    openNextLine(closeThisTab);
+  }
+  let lsBusy = false;
+  async function lineStatusStep() {
+    if (lsBusy || !CURRENT_LINE_ID) return;
+    if (document.querySelector("#j_username")) return;   // صفحة الدخول: الدخول التلقائى يشتغل الأول
+    let st = lsLoad();
+    if (!st) { st = { line: String(CURRENT_LINE_ID), step: 0, data: {}, t0: Date.now() }; lsSave(st); }
+    if (st.step >= LS_PAGES.length) return lsFinish(st);
+    processingComplete = true;   // مفيش watchdog قياس هنا
+    const pg = LS_PAGES[st.step];
+    const path = location.pathname.toLowerCase();
+    const here = st.expectPath ? path === st.expectPath
+      : (pg.path ? path === pg.path.toLowerCase() : (st.fromPath && path !== String(st.fromPath).toLowerCase() && !LS_PAGES.some(x => x.path && x.path.toLowerCase() === path)));
+    if (!here) return lsGo(st);
+    lsBusy = true;
+    try { st.data[pg.key] = await lsCollect(pg); }
+    catch (e) { st.data[pg.key] = { ok: false, error: String(e && e.message || e).slice(0, 200) }; }
+    lsBusy = false;
+    st.step++; st.expectPath = null; lsSave(st);
+    if (st.step >= LS_PAGES.length) return lsFinish(st);
+    lsGo(st);
+  }
+  window.DZS_lineStatus = () => ({ state: lsLoad(), panels: lsPanels(), charts: lsCharts() });   // اختبار من الكونسول
+  /* ===== v10.39.0: «تحديث حالة الخط» بدل «تحديث المسافة» — أى صفحة DSL (ماعدا الدخول/الترحيب) بتكمّل الخطوة اللى عليها.
+     finishLoopOnLineSummary (المسافة بس، 10.37.0) فاضلة فى الكود للرجوع لو احتجناها. */
+  if (LOOP && CURRENT_LINE_ID && !/\/expresse\/(welcome|login)/i.test(location.pathname)) {
+    console.log("🩺 «تحديث حالة الخط (ASSIA)»: " + location.pathname);
+    setTimeout(lineStatusStep, 800);
   }
 
   /* ================== AUTO LOGIN ================== */

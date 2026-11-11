@@ -671,6 +671,8 @@ export const case138 = pgTable("case_138", {
   histLabel: text("hist_label"),
   // الرسالة البمبى فى ClearView وقت القياس («It is not possible to analyze the line…») — DZS 10.38.0
   pageMsg: text("page_msg"),
+  // حالة الثبات من نفس شاشة الاسكور (STABLE / UNSTABLE / VERY UNSTABLE …) — DZS 10.39.0
+  stability: text("stability"),
 });
 
 export type Case138 = typeof case138.$inferSelect;
@@ -1398,6 +1400,22 @@ export const lineLoopLengths = pgTable("line_loop_lengths", {
   lastRaw: text("last_raw"),
   lastRawAt: timestamp("last_raw_at", { withTimezone: true }),
   lastBy: text("last_by"),
+});
+
+// line_status_reports — «تحديث حالة الخط (ASSIA)» (المالك ٢٠٢٦-١١-١١): كل مرة السكربت بيقرا شاشات DSL للخط
+// (Line Summary كلها · Operational Data · Performance Counters · Diagnostic Analysis · Service Recommendation · XELT ·
+// Attributes/Counters) من البيانات المسجّلة من غير Real — صف لكل سحبة، والبيانات زى ما هى فى pages (كل صفحة بتاريخها).
+// xelt_history = false ⇒ XELT مالوش بيانات قديمة (محتاج «Perform XELT»).
+export const lineStatusReports = pgTable("line_status_reports", {
+  id: serial("id").primaryKey(),
+  fullPhone: text("full_phone"),
+  accountNo: text("account_no"),
+  pages: jsonb("pages"),
+  stability: text("stability"),
+  xeltHistory: boolean("xelt_history"),
+  scriptVersion: text("script_version"),
+  pulledBy: text("pulled_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // «Re-Execute» على OSS Abnormal WO (٢٠٢٦-١٠-٠٧) — الرقم الكامل أو Service Order ID + النتيجة

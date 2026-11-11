@@ -52,7 +52,7 @@ interface SiteRow {
   bridgeHeld?: { type: string; mode: string | null; n: number }[];
 }
 const kindLabel = (k: { type: string; mode?: string | null }) =>
-  k.type === "measure" ? (k.mode === "loop" ? "تحديث المسافة" : k.mode === "noreal" ? "قياس بدون Real" : "قياس Real") : typeLabel(k.type);
+  k.type === "measure" ? (k.mode === "loop" ? "تحديث حالة الخط" : k.mode === "noreal" ? "قياس بدون Real" : "قياس Real") : typeLabel(k.type);
 
 // أسماء المواقع زى ما المستخدم بيعرفها
 const SITE_LABEL: Record<string, string> = {

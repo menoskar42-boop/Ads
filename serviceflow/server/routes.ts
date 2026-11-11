@@ -38,6 +38,7 @@ import * as wfmCustomerMobilesD1 from "./wfm-customer-mobiles-d1";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
 import { loopMeters, speedKbps, validLoopLength } from "./loop-length";
+import { lineStatusFacts } from "./line-status";
 import { wfmReportWorkerCode } from "./wfm-report-access";
 import { speedDropOf, weekDropJoinSql, WEEK_DROP_COLS, weekDropOf } from "./speed-drop";
 import { boxRangeCond } from "./box-range";
@@ -12448,6 +12449,8 @@ export async function registerRoutes(
       // الخيار اللى اتاخد من History Check زى ما هو — منه بيبان «(Realtime)» لو مكتوب.
       // DZS 10.38.0: الرسالة البمبى فى ClearView بنصها (لحد ١٠٠٠ حرف)
       const pageMsg = (it.pageMsg ?? "").toString().replace(/\s+/g, " ").trim().slice(0, 1000) || null;
+      // DZS 10.39.0: حالة الثبات من نفس شاشة الاسكور («VERY UNSTABLE» …)
+      const stability = (it.stability ?? "").toString().replace(/\s+/g, " ").trim().slice(0, 60) || null;
       const histLabel = measureMode === "noreal"
         ? ((it.histLabel ?? "").toString().replace(/^\s*\d+\.\s*/, "").replace(/\s+/g, " ").trim().slice(0, 80) || null)
         : null;
@@ -12456,7 +12459,7 @@ export async function registerRoutes(
       await pool.query(
         `INSERT INTO case_138
            (phone_short, complain_no, score, current_speed, max_speed, full_phone, account_no, measured_by, po_status, complain_time, source,
-            measure_mode, measured_at, loop_length, hist_label, page_msg)
+            measure_mode, measured_at, loop_length, hist_label, page_msg, stability)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now(), 'dzs',
             $10,
             -- LEAST: لو ساعة AXON متقدّمة شوية، مانسجّلش قياس فى المستقبل.
@@ -12476,8 +12479,8 @@ export async function registerRoutes(
                   LIMIT 1
                )
              ),
-             $13, $14)`,
-        [...measurementValues, measureMode, measuredAt, loopLength, histLabel, pageMsg],
+             $13, $14, $15)`,
+        [...measurementValues, measureMode, measuredAt, loopLength, histLabel, pageMsg, stability],
       );
       syncCurrentDzsMeasurementSoon(measurementValues);
       inserted++;
@@ -12530,6 +12533,44 @@ export async function registerRoutes(
       for (const [k, v] of measureAliveAt) if (v < cut) measureAliveAt.delete(k);
     }
     res.json({ ok: true });
+  });
+
+  // ===== «تحديث حالة الخط (ASSIA)» (المالك ٢٠٢٦-١١-١١) — سكربت القياس 10.39.0 بـ sf_mode=loop =====
+  // body: { items: [{ accountNo, phoneShort?, fullPhone?, pages, version }] }. pages = كل شاشة زى ما اتقرت (لابل/قيمة،
+  // ومخلّص الرسومات يوم بيوم) بتاريخها. صف لكل سحبة (التاريخ بيتحفظ)، وبنمسح اللى أقدم من ١٨٠ يوم.
+  app.options("/api/line-status/ingest", (_req, res) => { setDzsCors(res); res.sendStatus(204); });
+  app.post("/api/line-status/ingest", async (req: any, res) => {
+    setDzsCors(res);
+    if (req.headers["x-dzs-token"] !== DZS_INGEST_TOKEN) return res.status(401).json({ message: "invalid token" });
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    let saved = 0;
+    try {
+      for (const it of items) {
+        const accountNo = String(it?.accountNo ?? "").trim() || null;
+        const phoneShort = String(it?.phoneShort ?? "").replace(/\D/g, "").replace(/^88/, "") || null;
+        let fullPhone = String(it?.fullPhone ?? "").replace(/\D/g, "") || (phoneShort ? "88" + phoneShort : null);
+        if (!fullPhone && accountNo) {
+          const { rows: la } = await pool.query(`SELECT full_phone FROM line_accounts WHERE account_no = $1 LIMIT 1`, [accountNo]);
+          fullPhone = la[0]?.full_phone ? String(la[0].full_phone).trim() : null;
+        }
+        if (!fullPhone && !accountNo) continue;
+        const pages = it?.pages && typeof it.pages === "object" ? it.pages : {};
+        const json = JSON.stringify(pages);
+        if (json.length > 400_000) { console.warn("[line-status] كبير قوى، اتشال:", accountNo, json.length); continue; }
+        const st = lineStatusFacts(pages);
+        const by = accountNo ? await execRequesterOf(accountNo, "measure") : null;
+        await pool.query(
+          `INSERT INTO line_status_reports (full_phone, account_no, pages, stability, xelt_history, script_version, pulled_by)
+           VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7)`,
+          [fullPhone, accountNo, json, st.stability, st.xeltHistory, String(it?.version ?? "").slice(0, 20) || null, by]);
+        saved++;
+      }
+      pool.query(`DELETE FROM line_status_reports WHERE created_at < now() - interval '180 days'`).catch(() => {});
+      res.json({ ok: true, saved });
+    } catch (e: any) {
+      console.error("[line-status] تسجيل حالة الخط فشل:", e?.message || e);
+      res.status(500).json({ message: e?.message || "تعذّر تسجيل حالة الخط" });
+    }
   });
 
   app.options("/api/loop-length/ingest", (_req, res) => { setDzsCors(res); res.sendStatus(204); });

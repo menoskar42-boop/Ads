@@ -1950,6 +1950,24 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS hist_label text`);
   // الرسالة البمبى اللى كانت ظاهرة فى ClearView وقت القياس (DZS 10.38.0) — نصها كامل
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS page_msg text`);
+  // حالة الثبات من شاشة الاسكور مع كل قياس (DZS 10.39.0)
+  await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS stability text`);
+  // «تحديث حالة الخط (ASSIA)» (المالك ٢٠٢٦-١١-١١): صف لكل سحبة، والشاشات زى ما هى فى pages
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS line_status_reports (
+      id serial PRIMARY KEY,
+      full_phone text,
+      account_no text,
+      pages jsonb,
+      stability text,
+      xelt_history boolean,
+      script_version text,
+      pulled_by text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS line_status_reports_phone_idx ON line_status_reports (full_phone, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS line_status_reports_account_idx ON line_status_reports (account_no, created_at DESC)`);
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_raise_by text`);
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_stop_by text`);
   // نتيجة آخر إيقاف (المالك ٢٠٢٦-١٠-٢٧): stopped = كان In Nightly PO واتوقف · already = كان Not Started
