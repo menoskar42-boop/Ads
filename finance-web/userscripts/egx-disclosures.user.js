@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EGX Swing: EGX disclosures
 // @namespace    https://finance.oscardevs.com
-// @version      1.5.0
+// @version      1.5.1
 // @updateURL    https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @downloadURL  https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @description  الأسعار من جدول «جميع الأسهم» فى موقع البورصة المصرية كل دقيقتين وقت السوق، والإفصاحات الجديدة من صفحة البحث فى الأخبار، ويبعتهم لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح الصفحتين لو مش مفتوحين.
@@ -275,18 +275,20 @@
     var taken = {}; items.forEach(function (x) { if (x.isin) taken[x.isin] = x.symbol; });
     var inTable = {}; rows.forEach(function (r) { inTable[r.isin] = 1; });
     var missing = items.filter(function (x) { return !x.isin; });
+    // ١.٥.١: الأسعار المعروفة تتبعت الأول، وبعدها البحث عن الأكواد الناقصة (سهم ماتداولش، زى ADRI، كان بيأخّر الكل دقيقة)
+    var send = async function () {
+      var at = new Date().toISOString();
+      var quotes = rows.filter(function (r) { return taken[r.isin]; }).map(function (r) { return { symbol: taken[r.isin], price: r.last, quote_ts: at }; });
+      if (!quotes.length) return '';
+      var res = await req('POST', server() + '/api/ingest/quotes?source=egx', quotes, K);
+      GM_setValue('pricesOk', Date.now());
+      return 'بعت ' + res.saved + ' سعر' + (res.rejected && res.rejected.length ? ' (اترفض ' + res.rejected.length + ')' : '') + ' · ';
+    };
+    var msg = (await send()) + rows.length + ' سهم فى الجدول';
     if (missing.length) {
       if (onLearn) onLearn(missing.length);
       var found = await learn(missing, rows, taken, 60000, getHtml);
-      if (found.length) await req('POST', server() + '/api/watchlist/isin', { items: found }, K);
-    }
-    var at = new Date().toISOString();
-    var quotes = rows.filter(function (r) { return taken[r.isin]; }).map(function (r) { return { symbol: taken[r.isin], price: r.last, quote_ts: at }; });
-    var msg = rows.length + ' سهم فى الجدول';
-    if (quotes.length) {
-      var res = await req('POST', server() + '/api/ingest/quotes?source=egx', quotes, K);
-      msg = 'بعت ' + res.saved + ' سعر' + (res.rejected && res.rejected.length ? ' (اترفض ' + res.rejected.length + ')' : '') + ' · ' + msg;
-      GM_setValue('pricesOk', Date.now());
+      if (found.length) { await req('POST', server() + '/api/watchlist/isin', { items: found }, K); await send(); }
     }
     // مالوش ISIN لسه · أو ليه بس ماتداولش النهارده (مش فى الجدول)
     var noIsin = items.filter(function (x) { return !Object.keys(taken).some(function (k) { return taken[k] === x.symbol; }); }).map(function (x) { return x.symbol; });
