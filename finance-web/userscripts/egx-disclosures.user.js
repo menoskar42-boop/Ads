@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EGX Swing: EGX disclosures
 // @namespace    https://finance.oscardevs.com
-// @version      1.4.0
+// @version      1.5.0
 // @updateURL    https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @downloadURL  https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @description  الأسعار من جدول «جميع الأسهم» فى موقع البورصة المصرية كل دقيقتين وقت السوق، والإفصاحات الجديدة من صفحة البحث فى الأخبار، ويبعتهم لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح الصفحتين لو مش مفتوحين.
@@ -200,14 +200,18 @@
    * الطريقة الأساسية (1.4.0): تاب موقعنا نفسه بيجيب الصفحة فى الخلفية (GM_xmlhttpRequest بكوكيز البورصة زى المتصفح بالظبط)،
    * ويبعت نفس الفورم اللى بيتبعت لما تدوس تبويب «جميع الأسهم» (ASP.NET postback)، ويقرا الجدول من الرد. من غير تاب زيادة.
    * ولو فشلت ٣ مرات ورا بعض ⇒ احتياطى: تاب prices.aspx بيتفتح وبيدوس «جميع الأسهم» بنفسه كل دقيقتين.
-   * الجدول مافيهوش الرمز (ETEL)، فيه رابط بالـ ISIN بس، فالرمز بنعرفه مرة واحدة من صفحة الشركة («كود رويترز ETEL.CA»)
-   * ونحفظه، ونقف لما نلاقى كل أسهم قايمة المتابعة. بنبعت أسهم القايمة بس.
+   * الجدول مافيهوش الرمز (ETEL)، فيه رابط بالـ ISIN بس. كود الـISIN لكل سهم فى القايمة بيتعرف مرة واحدة (بالاسم العربى، أو من
+   * صفحة الشركة «كود رويترز ETEL.CA») وبيتحفظ على السيرفر فى قايمة المتابعة (1.5.0)، فمابيدوّرش تانى. بنبعت أسهم القايمة بس.
    */
   function num(s) { var v = parseFloat(latin(s).replace(/[,\s]/g, '')); return Number.isFinite(v) ? v : null; }
   function reutersCode(html) {
     var t = String(html || '').replace(/<[^>]+>/g, ' ');
-    var m = t.match(/رويترز[\s\S]{0,300}?\b([A-Z][A-Z0-9]{1,7})\.CA\b/) || t.match(/Reuters[\s\S]{0,300}?\b([A-Z][A-Z0-9]{1,7})\.CA\b/i) || t.match(/\b([A-Z][A-Z0-9]{1,7})\.CA\b/);
-    return m ? m[1].toUpperCase() : '';
+    var m = t.match(/رويترز[\s\S]{0,300}?\b([A-Z][A-Z0-9]{1,7})\.CA\b/) || t.match(/Reuters[\s\S]{0,300}?\b([A-Z][A-Z0-9]{1,7})\.CA\b/i);
+    if (m) return m[1].toUpperCase();
+    // من غير لابل: نقبل الكود بس لو هو الوحيد فى الصفحة (عشان شريط أسعار فيه أكواد شركات تانية مايلخبطش)
+    var all = (t.match(/\b[A-Z][A-Z0-9]{1,7}\.CA\b/g) || []).map(function (x) { return x.slice(0, -3).toUpperCase(); });
+    var uniq = all.filter(function (x, k) { return all.indexOf(x) === k; });
+    return uniq.length === 1 ? uniq[0] : '';
   }
   var GRID_ID = 'ctl00_C_S_RadGrid2_ctl00';
   /** صفوف الجدول ⇒ [{isin, name, last}]. الأعمدة بالعنوان، ولو العناوين مش متطابقة مع الخلايا: آخر سعر = العمود الـ٨ */
@@ -225,35 +229,70 @@
     });
     return out;
   }
-  function loadMap() { try { return JSON.parse(GM_getValue('isinMap', '{}')); } catch (_) { return {}; } }
-  function symOf(map) { var o = {}; Object.keys(map).forEach(function (k) { if (map[k].s) o[map[k].s] = k; }); return o; }
-  /** الرمز من صفحة الشركة، واحدة كل ثانية ونص، ونقف لما كل أسهم القايمة تتعرف أو الوقت يخلص */
-  async function learn(map, rows, want, budgetMs, getHtml) {
-    var t0 = Date.now(), have = function () { var o = symOf(map); return want.every(function (s) { return o[s]; }); };
-    for (var i = 0; i < rows.length && !have() && Date.now() - t0 < budgetMs; i++) {
-      var e = map[rows[i].isin];
-      if (e && (e.s || Date.now() - e.t < 7 * 86400000)) continue;
-      try { map[rows[i].isin] = { s: reutersCode(await getHtml('https://www.egx.com.eg/ar/CompanyDetails.aspx?ISIN=' + rows[i].isin)), t: Date.now() }; GM_setValue('isinMap', JSON.stringify(map)); }
-      catch (_) { /* نجرّب الدورة الجاية */ }
-      await sleep(1200);
-    }
+  /** اسم عربى للمقارنة: من غير تشكيل، والألفات والياء والتاء المربوطة موحّدة، ومن غير اللى بين القوسين والمسافات والرموز */
+  function normAr(x) {
+    return String(x || '').replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+      .replace(/\([^)]*\)/g, ' ').replace(/شركه/g, ' ').replace(/[^ء-يa-z0-9]+/gi, '').toLowerCase();
   }
-  /** صفوف الجدول ⇒ سيرفرنا (أسهم القايمة بس). بيرجّع نص الحالة. */
+  /** الرمز المكتوب فى صفحة الشركة (كود رويترز)، محفوظ عندنا: اللى اتعرف مايتطلبش تانى، واللى مالقيناش فيه كود نجرّبه بعد يوم */
+  async function codeOf(isin, getHtml) {
+    var cache = {}; try { cache = JSON.parse(GM_getValue('isinMap', '{}')); } catch (_) { /* فاضى */ }
+    var e = cache[isin];
+    if (e && (e.s || Date.now() - e.t < 86400000)) return e.s;
+    var code = reutersCode(await getHtml('https://www.egx.com.eg/ar/CompanyDetails.aspx?ISIN=' + isin));
+    cache[isin] = { s: code, t: Date.now() }; GM_setValue('isinMap', JSON.stringify(cache));
+    await sleep(1200);
+    return code;
+  }
+  /**
+   * أسهم القايمة اللى لسه مالهاش ISIN: (١) بالاسم العربى (لو صف واحد بس فى الجدول اسمه مطابق، ونتأكد من كود رويترز فى صفحته)
+   * (٢) الباقى: صفحات الشركات واحدة واحدة لحد ما الوقت يخلص. بيرجّع [{symbol, isin}] الجديدة.
+   */
+  async function learn(missing, rows, taken, budgetMs, getHtml) {
+    var t0 = Date.now(), found = [], left = missing.slice();
+    var use = function (it, isin) { found.push({ symbol: it.symbol, isin: isin }); taken[isin] = it.symbol; left = left.filter(function (x) { return x !== it; }); };
+    for (var k = 0; k < missing.length && Date.now() - t0 < budgetMs; k++) {
+      var it = missing[k], n = normAr(it.note);
+      if (n.length < 4) continue;
+      var c = rows.filter(function (r) { var rn = normAr(r.name); return !taken[r.isin] && rn && (rn.indexOf(n) >= 0 || n.indexOf(rn) >= 0); });
+      if (c.length !== 1) continue;
+      try { var code = await codeOf(c[0].isin, getHtml); if (!code || code === it.symbol) use(it, c[0].isin); } catch (_) { /* الدورة الجاية */ }
+    }
+    for (var i = 0; i < rows.length && left.length && Date.now() - t0 < budgetMs; i++) {
+      if (taken[rows[i].isin]) continue;
+      try {
+        var cd = await codeOf(rows[i].isin, getHtml);
+        var hit = left.find(function (x) { return x.symbol === cd; });
+        if (hit) use(hit, rows[i].isin);
+      } catch (_) { /* الدورة الجاية */ }
+    }
+    return found;
+  }
+  /** صفوف الجدول ⇒ سيرفرنا (أسهم القايمة بس). كود الـISIN لكل سهم محفوظ على السيرفر، فالبحث بيحصل مرة واحدة بس. */
   async function sendRows(rows, getHtml, onLearn) {
-    var map = loadMap();
-    var want = ((await req('GET', server() + '/api/watchlist')).symbols || []);
-    if (want.some(function (s) { return !symOf(map)[s]; })) { if (onLearn) onLearn(); await learn(map, rows, want, 60000, getHtml); }
+    var K = { 'X-API-Key': apiKey() };
+    var items = ((await req('GET', server() + '/api/watchlist?all=1', null, K)).items || []).filter(function (x) { return x.is_active; });
+    var taken = {}; items.forEach(function (x) { if (x.isin) taken[x.isin] = x.symbol; });
+    var inTable = {}; rows.forEach(function (r) { inTable[r.isin] = 1; });
+    var missing = items.filter(function (x) { return !x.isin; });
+    if (missing.length) {
+      if (onLearn) onLearn(missing.length);
+      var found = await learn(missing, rows, taken, 60000, getHtml);
+      if (found.length) await req('POST', server() + '/api/watchlist/isin', { items: found }, K);
+    }
     var at = new Date().toISOString();
-    var quotes = rows.filter(function (r) { return map[r.isin] && want.indexOf(map[r.isin].s) >= 0; })
-      .map(function (r) { return { symbol: map[r.isin].s, price: r.last, quote_ts: at }; });
+    var quotes = rows.filter(function (r) { return taken[r.isin]; }).map(function (r) { return { symbol: taken[r.isin], price: r.last, quote_ts: at }; });
     var msg = rows.length + ' سهم فى الجدول';
     if (quotes.length) {
-      var res = await req('POST', server() + '/api/ingest/quotes?source=egx', quotes, { 'X-API-Key': apiKey() });
+      var res = await req('POST', server() + '/api/ingest/quotes?source=egx', quotes, K);
       msg = 'بعت ' + res.saved + ' سعر' + (res.rejected && res.rejected.length ? ' (اترفض ' + res.rejected.length + ')' : '') + ' · ' + msg;
       GM_setValue('pricesOk', Date.now());
     }
-    var o = symOf(map), missing = want.filter(function (s) { return !o[s]; });
-    return msg + (missing.length ? ' · مش لاقى: ' + missing.slice(0, 6).join(' ') + (missing.length > 6 ? '…' : '') : '') + ' · ' + new Date().toLocaleTimeString('ar-EG');
+    // مالوش ISIN لسه · أو ليه بس ماتداولش النهارده (مش فى الجدول)
+    var noIsin = items.filter(function (x) { return !Object.keys(taken).some(function (k) { return taken[k] === x.symbol; }); }).map(function (x) { return x.symbol; });
+    var notTraded = items.filter(function (x) { var k = Object.keys(taken).find(function (q) { return taken[q] === x.symbol; }); return k && !inTable[k]; }).map(function (x) { return x.symbol; });
+    var tail = function (label, a) { return a.length ? ' · ' + label + ': ' + a.slice(0, 6).join(' ') + (a.length > 6 ? '…' : '') : ''; };
+    return msg + tail('لسه بدوّر على', noIsin) + tail('ماتداولش النهارده', notTraded) + ' · ' + new Date().toLocaleTimeString('ar-EG');
   }
 
   /** الفورم زى ما المتصفح بيبعته: كل الحقول بقيمها، و__EVENTTARGET = تبويب «جميع الأسهم» */

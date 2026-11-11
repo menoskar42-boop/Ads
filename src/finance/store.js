@@ -70,6 +70,7 @@ async function ensureSchema(p) {
     INSERT INTO egx.sim_account(id, cash, start_cash) VALUES (1, 100000, 100000) ON CONFLICT DO NOTHING;
     ALTER TABLE egx.watchlist ADD COLUMN IF NOT EXISTS name TEXT;
     ALTER TABLE egx.quotes ADD COLUMN IF NOT EXISTS source TEXT;
+    ALTER TABLE egx.watchlist ADD COLUMN IF NOT EXISTS isin TEXT;
     CREATE TABLE IF NOT EXISTS egx.sim_pending(id SERIAL PRIMARY KEY, symbol TEXT, amount NUMERIC NOT NULL, available_date DATE NOT NULL,
       created_ts TIMESTAMPTZ DEFAULT now());
   `);
@@ -271,7 +272,7 @@ async function disclosures(p, opts) {
 
 /* ── قايمة المتابعة ── */
 async function watchlist(p, all) {
-  const r = await p.query(`SELECT symbol, is_active, fouda_score::float, note, name FROM egx.watchlist ${all ? '' : 'WHERE is_active'}
+  const r = await p.query(`SELECT symbol, is_active, fouda_score::float, note, name, isin FROM egx.watchlist ${all ? '' : 'WHERE is_active'}
     ORDER BY fouda_score DESC NULLS LAST, symbol`);
   return r.rows;
 }
@@ -285,16 +286,37 @@ async function updateWatchlist(p, body) {
     // fouda_score: رقم ⇒ يتحط · فاضى ('') ⇒ يتمسح · مش مبعوت ⇒ زى ما هو
     const clearF = a.fouda_score === '' || a.fouda_score === null;
     const f = clearF || a.fouda_score === undefined ? null : num(a.fouda_score);
-    await p.query(`INSERT INTO egx.watchlist(symbol, is_active, fouda_score, note, name) VALUES ($1, true, $2, $3, $4)
+    // isin: كود صحيح ⇒ يتحط · فاضى ('') ⇒ يتمسح (السكربت يدوّر عليه تانى) · مش مبعوت ⇒ زى ما هو
+    const isin = a.isin === undefined || a.isin === null ? undefined : (a.isin === '' ? '' : cleanIsin(a.isin));
+    await p.query(`INSERT INTO egx.watchlist(symbol, is_active, fouda_score, note, name, isin) VALUES ($1, true, $2, $3, $4, NULLIF($6, ''))
       ON CONFLICT (symbol) DO UPDATE SET is_active=true,
         fouda_score=CASE WHEN $5 THEN NULL ELSE COALESCE($2, egx.watchlist.fouda_score) END,
-        note=COALESCE($3, egx.watchlist.note), name=COALESCE($4, egx.watchlist.name)`,
-    [s, f, a.note == null ? null : String(a.note).slice(0, 120), a.name == null ? null : String(a.name).slice(0, 120), clearF]);
+        note=COALESCE($3, egx.watchlist.note), name=COALESCE($4, egx.watchlist.name),
+        isin=CASE WHEN $6 IS NULL THEN egx.watchlist.isin ELSE NULLIF($6, '') END`,
+    [s, f, a.note == null ? null : String(a.note).slice(0, 120), a.name == null ? null : String(a.name).slice(0, 120), clearF, isin === undefined ? null : isin]);
   }
   if (remove.length) await p.query('UPDATE egx.watchlist SET is_active=false WHERE symbol = ANY($1)', [remove]);
   // حذف نهائى من القايمة (الشموع والإفصاحات القديمة بتفضل، ولو رجّعته بيرجع بتاريخه)
   if (del.length) await p.query('DELETE FROM egx.watchlist WHERE symbol = ANY($1)', [del]);
   return watchlist(p, true);
+}
+
+const cleanIsin = (x) => { const v = String(x || '').trim().toUpperCase(); return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(v) ? v : ''; };
+
+/**
+ * كود الـISIN اللى السكربت عرفه من موقع البورصة (جدول الأسعار مافيهوش الرمز): بيتحفظ مرة واحدة ومايتغيّرش لوحده، والكود اللى
+ * المالك كتبه بإيده مابيتكتبش فوقه. وكود متربط بسهم تانى مابيتكررش.
+ */
+async function setIsins(p, items) {
+  const saved = [];
+  for (const it of Array.isArray(items) ? items : []) {
+    const s = cleanSym(it && it.symbol), isin = cleanIsin(it && it.isin);
+    if (!s || !isin) continue;
+    const r = await p.query(`UPDATE egx.watchlist SET isin=$2 WHERE symbol=$1 AND isin IS NULL
+      AND NOT EXISTS (SELECT 1 FROM egx.watchlist w WHERE w.isin=$2 AND w.symbol<>$1)`, [s, isin]);
+    if (r.rowCount) saved.push(s);
+  }
+  return saved;
 }
 
 /* ── الحالة للوحة ── */
@@ -325,7 +347,7 @@ async function state(p, now) {
 }
 
 module.exports = {
-  pool, dbUrl, ensureSchema, ingestCandles, candles, recomputeLevels, levels, ingestQuotes, alertsList, cleanBadQuotes, saneVsClose, MAX_JUMP,
+  pool, dbUrl, ensureSchema, ingestCandles, candles, recomputeLevels, levels, ingestQuotes, alertsList, cleanBadQuotes, saneVsClose, MAX_JUMP, setIsins,
   ingestDisclosures, disclosure, disclosures, analysesToday, saveAnalysis, watchlist, updateWatchlist, state,
   matchSymbol, cleanSym, DEFAULT_WATCHLIST,
 };

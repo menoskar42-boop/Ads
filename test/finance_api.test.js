@@ -221,6 +221,14 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     assert.equal(sim.account.cash, 100000); assert.equal(sim.positions.length, 0); assert.equal(sim.trades.length, 0);
     assert.deepEqual(sim.orders.map((o) => o.id), [o3.id]);
     assert.deepEqual(await trade.revertBadFills(pool), { trades: 0, recs: 0 });     // آمن يتكرر
+    // كود الـISIN بيتحفظ مرة واحدة: مابيتكتبش فوقه، ومابيتكررش لسهم تانى، والمالك يقدر يمسحه أو يكتبه بإيده
+    assert.equal((await post('/api/watchlist/isin', { items: [{ symbol: 'ETEL', isin: 'EGS48031C016' }] })).status, 401);
+    assert.deepEqual((await (await post('/api/watchlist/isin', { items: [{ symbol: 'ETEL', isin: 'egs48031c016' }, { symbol: 'COMI', isin: 'EGS48031C016' }, { symbol: 'TMGH', isin: 'bad' }] }, KEY)).json()).saved, ['ETEL']);
+    assert.deepEqual((await (await post('/api/watchlist/isin', { items: [{ symbol: 'ETEL', isin: 'EGS60121C018' }] }, KEY)).json()).saved, []);
+    let wl2 = (await get('/api/watchlist?all=1')).items;
+    assert.equal(wl2.find((i) => i.symbol === 'ETEL').isin, 'EGS48031C016'); assert.equal(wl2.find((i) => i.symbol === 'COMI').isin, null);
+    wl2 = (await (await post('/api/watchlist', { add: [{ symbol: 'ETEL', isin: '' }, { symbol: 'COMI', isin: 'EGS60121C018' }, { symbol: 'TMGH', note: 'طلعت' }] }, KEY)).json()).items;
+    assert.equal(wl2.find((i) => i.symbol === 'ETEL').isin, null); assert.equal(wl2.find((i) => i.symbol === 'COMI').isin, 'EGS60121C018');
     // أسعار موقع البورصة (السكربت) بتتعلّم 'egx'، وطول ما هى بتوصل Yahoo مابيتطلبش
     assert.equal((await (await post('/api/ingest/quotes?source=egx', [{ symbol: 'COMI', price: lc }], KEY)).json()).saved, 1);
     assert.equal((await pool.query("SELECT source FROM egx.quotes WHERE symbol='COMI' ORDER BY fetched_ts DESC LIMIT 1")).rows[0].source, 'egx');

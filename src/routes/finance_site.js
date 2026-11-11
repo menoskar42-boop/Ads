@@ -234,6 +234,10 @@ function createFinanceSite(opts) {
     res.json({ ok: true, symbols: items.filter((w) => w.is_active).map((w) => w.symbol), items: all ? items : undefined,
       market: { open: cfg.open, close: cfg.close, daily_after: cfg.dailyAfter, tz: 'Africa/Cairo', days: 'Sun-Thu' } });
   }));
+  // سكربت البورصة: كود الـISIN لكل سهم بيتحفظ هنا مرة واحدة (مش بيدوّر عليه كل مرة)
+  router.post('/api/watchlist/isin', needKey, json, wrap(async (req, res) => {
+    res.json({ ok: true, saved: await store.setIsins(getPool(), (req.body && req.body.items) || []) });
+  }));
   router.post('/api/watchlist', needOwner, json, wrap(async (req, res) => {
     res.json({ ok: true, items: await store.updateWatchlist(getPool(), req.body) });
   }));

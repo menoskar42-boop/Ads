@@ -58,9 +58,9 @@ check('userscripts only read open pages, no captcha bypass, back off on 429',
 check('EGX prices script: watchlist only, tagged egx, polite pace, Yahoo pauses while it feeds',
   (() => { const u = read('finance-web/userscripts/egx-disclosures.user.js'), t = read('src/finance/trade.js');
     return /@match        https:\/\/www\.egx\.com\.eg\/ar\/prices\.aspx\*/.test(u) && /ingest\/quotes\?source=egx/.test(u)
-      && /want\.indexOf\(map\[r\.isin\]\.s\) >= 0/.test(u) && /setTimeout\(loop, 2 \* 60000\)/.test(u) && /await sleep\(1200\)/.test(u)
+      && /rows\.filter\(function \(r\) \{ return taken\[r\.isin\]; \}\)/.test(u) && /\/api\/watchlist\/isin/.test(u) && /setTimeout\(loop, 2 \* 60000\)/.test(u) && /await sleep\(1200\)/.test(u)
       && /source='egx' AND fetched_ts > \$1/.test(t) && !/egxLive &&/.test(t.replace('!egxLive &&', '')); })(),
-  'سكربت الأسعار بيبعت أسهم القايمة بس كل دقيقتين (وصفحات الشركات واحدة كل ثانية ونص)، وYahoo بيقف طول ما أسعار البورصة بتوصل.');
+  'سكربت الأسعار بيبعت أسهم القايمة بس كل دقيقتين، وكود كل سهم بيتحفظ على السيرفر مرة واحدة (وصفحات الشركات واحدة كل ثانية ونص)، وYahoo بيقف طول ما أسعار البورصة بتوصل.');
 check('own schema (Service Flow tables untouched)',
   /CREATE SCHEMA IF NOT EXISTS egx/.test(read('src/finance/store.js')) && !/CREATE TABLE IF NOT EXISTS (?!egx\.)/.test(read('src/finance/store.js')),
   'كل جداول finance فى schema egx بس.');
