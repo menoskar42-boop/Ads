@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EGX Swing: EGX disclosures
 // @namespace    https://finance.oscardevs.com
-// @version      1.3.1
+// @version      1.4.0
 // @updateURL    https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @downloadURL  https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @description  الأسعار من جدول «جميع الأسهم» فى موقع البورصة المصرية كل دقيقتين وقت السوق، والإفصاحات الجديدة من صفحة البحث فى الأخبار، ويبعتهم لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح الصفحتين لو مش مفتوحين.
@@ -41,6 +41,7 @@
     'padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.3);direction:rtl;max-width:340px';
   document.documentElement.appendChild(badge);
   var IS_PRICES = /\/prices\.aspx$/i.test(location.pathname);
+  var IS_FIN = location.hostname === 'finance.oscardevs.com';
   function show(t, bad) { badge.style.background = bad ? '#b42318' : '#0b6e4f'; badge.textContent = (IS_PRICES ? 'EGX أسعار · ' : 'EGX · ') + t; }
 
   /*
@@ -48,7 +49,7 @@
    * (صفحة البورصة بتكتب «أنا مفتوحة» كل دقيقة فى مخزن السكربت). لو مافيش نبض من ٣ دقايق ⇒ نفتحها فى تاب جنبه،
    * ومرة واحدة كل ١٠ دقايق بالكتير عشان لو الصفحة مابتحمّلش مانفتحش تابات كتير.
    */
-  if (location.hostname === 'finance.oscardevs.com') {
+  function financePage() {
     // المفتاح لوحده: طول ما إنت عامل دخول فى موقعنا، السكربت بياخده من السيرفر (مفيش Set API key بإيدك)
     fetch('/api/script-key', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) { if (j && j.key && j.key !== apiKey()) GM_setValue('apiKey', j.key); }).catch(function () {});
@@ -61,12 +62,15 @@
       GM_openInTab(url, { active: false, insert: true, setParent: true });
       return 'فتحت ' + label + ' فى تاب جنب ده';
     };
+    var feedMsg = null, feedBad = false;
     var keep = function () {
       var msg = [ensure('egxBeat', 'egxLastOpen', GM_getValue('egxUrl', EGX_URL), 'صفحة الأخبار')];
-      // الأسعار وقت السوق بس
-      var needPrices = pricesTime() && Date.now() - Number(GM_getValue('pricesBeat', 0)) >= 3 * 60000;
-      if (pricesTime()) msg.unshift(ensure('pricesBeat', 'pricesLastOpen', PRICES_URL, 'صفحة الأسعار'));
-      show(msg.join(' · '));
+      // الأسعار وقت السوق بس: من الخلفية، وتاب صفحة الأسعار بس لو الخلفية فشلت ٣ مرات ورا بعض
+      var fallback = pricesTime() && Number(GM_getValue('feedFails', 0)) >= 3;
+      var needPrices = fallback && Date.now() - Number(GM_getValue('pricesBeat', 0)) >= 3 * 60000;
+      if (fallback) msg.unshift(ensure('pricesBeat', 'pricesLastOpen', PRICES_URL, 'صفحة الأسعار'));
+      if (feedMsg) msg.unshift(feedMsg);
+      show(msg.join(' · '), feedBad);
       // لو التاب ماظهرش (اتفتح فى شباك تانى أو اتقفل): زرار يفتحه قدامك
       if (needPrices) {
         var b = document.createElement('button');
@@ -77,10 +81,10 @@
       }
     };
     keep(); setInterval(keep, 60000);
-    return;
+    setTimeout(function () { pricesFeed(function (m, bad) { feedMsg = m; feedBad = !!bad; keep(); }); }, 3000);   // بعد ما المفتاح يوصل
   }
   // صفحة الأخبار: نبض كل دقيقة طول ما التاب مفتوح (صفحة الأسعار ليها نبض لوحدها)
-  if (!IS_PRICES) {
+  if (!IS_PRICES && !IS_FIN) {
     GM_setValue('egxBeat', Date.now());
     setInterval(function () { GM_setValue('egxBeat', Date.now()); }, 60000);
   }
@@ -88,8 +92,8 @@
   function req(method, url, body, headers, raw) {
     return new Promise(function (resolve, reject) {
       GM_xmlhttpRequest({
-        method: method, url: url, data: body ? JSON.stringify(body) : undefined, timeout: 30000,
-        headers: Object.assign(body ? { 'Content-Type': 'application/json' } : {}, headers || {}),
+        method: method, url: url, data: body == null ? undefined : (typeof body === 'string' ? body : JSON.stringify(body)), timeout: 60000,
+        headers: Object.assign(body != null && typeof body !== 'string' ? { 'Content-Type': 'application/json' } : {}, headers || {}),
         onload: function (r) { if (r.status >= 200 && r.status < 300) { if (raw) resolve(r.responseText); else { try { resolve(JSON.parse(r.responseText)); } catch (e) { reject(new Error('bad json')); } } } else reject(new Error('HTTP ' + r.status)); },
         onerror: function () { reject(new Error('network')); }, ontimeout: function () { reject(new Error('timeout')); },
       });
@@ -192,10 +196,12 @@
   }
 
   /*
-   * ── صفحة الأسعار (prices.aspx) ──
-   * الجدول بيظهر لما ندوس تبويب «جميع الأسهم» (postback جزئى بيستبدل الجدول)، والصفحة مابتحدّثش نفسها، فبندوسه تانى كل
-   * دقيقتين وقت السوق، ونعمل Reload كامل كل ٣٠ دقيقة. الجدول مافيهوش الرمز (ETEL)، فيه رابط بالـ ISIN بس، فالرمز بنعرفه
-   * مرة واحدة من صفحة الشركة («كود رويترز ETEL.CA») ونحفظه، ونقف لما نلاقى كل أسهم قايمة المتابعة. بنبعت أسهم القايمة بس.
+   * ── الأسعار من صفحة «بيانات التداول» (prices.aspx) ──
+   * الطريقة الأساسية (1.4.0): تاب موقعنا نفسه بيجيب الصفحة فى الخلفية (GM_xmlhttpRequest بكوكيز البورصة زى المتصفح بالظبط)،
+   * ويبعت نفس الفورم اللى بيتبعت لما تدوس تبويب «جميع الأسهم» (ASP.NET postback)، ويقرا الجدول من الرد. من غير تاب زيادة.
+   * ولو فشلت ٣ مرات ورا بعض ⇒ احتياطى: تاب prices.aspx بيتفتح وبيدوس «جميع الأسهم» بنفسه كل دقيقتين.
+   * الجدول مافيهوش الرمز (ETEL)، فيه رابط بالـ ISIN بس، فالرمز بنعرفه مرة واحدة من صفحة الشركة («كود رويترز ETEL.CA»)
+   * ونحفظه، ونقف لما نلاقى كل أسهم قايمة المتابعة. بنبعت أسهم القايمة بس.
    */
   function num(s) { var v = parseFloat(latin(s).replace(/[,\s]/g, '')); return Number.isFinite(v) ? v : null; }
   function reutersCode(html) {
@@ -203,6 +209,7 @@
     var m = t.match(/رويترز[\s\S]{0,300}?\b([A-Z][A-Z0-9]{1,7})\.CA\b/) || t.match(/Reuters[\s\S]{0,300}?\b([A-Z][A-Z0-9]{1,7})\.CA\b/i) || t.match(/\b([A-Z][A-Z0-9]{1,7})\.CA\b/);
     return m ? m[1].toUpperCase() : '';
   }
+  var GRID_ID = 'ctl00_C_S_RadGrid2_ctl00';
   /** صفوف الجدول ⇒ [{isin, name, last}]. الأعمدة بالعنوان، ولو العناوين مش متطابقة مع الخلايا: آخر سعر = العمود الـ٨ */
   function readGrid(g) {
     var heads = [];
@@ -218,12 +225,89 @@
     });
     return out;
   }
+  function loadMap() { try { return JSON.parse(GM_getValue('isinMap', '{}')); } catch (_) { return {}; } }
+  function symOf(map) { var o = {}; Object.keys(map).forEach(function (k) { if (map[k].s) o[map[k].s] = k; }); return o; }
+  /** الرمز من صفحة الشركة، واحدة كل ثانية ونص، ونقف لما كل أسهم القايمة تتعرف أو الوقت يخلص */
+  async function learn(map, rows, want, budgetMs, getHtml) {
+    var t0 = Date.now(), have = function () { var o = symOf(map); return want.every(function (s) { return o[s]; }); };
+    for (var i = 0; i < rows.length && !have() && Date.now() - t0 < budgetMs; i++) {
+      var e = map[rows[i].isin];
+      if (e && (e.s || Date.now() - e.t < 7 * 86400000)) continue;
+      try { map[rows[i].isin] = { s: reutersCode(await getHtml('https://www.egx.com.eg/ar/CompanyDetails.aspx?ISIN=' + rows[i].isin)), t: Date.now() }; GM_setValue('isinMap', JSON.stringify(map)); }
+      catch (_) { /* نجرّب الدورة الجاية */ }
+      await sleep(1200);
+    }
+  }
+  /** صفوف الجدول ⇒ سيرفرنا (أسهم القايمة بس). بيرجّع نص الحالة. */
+  async function sendRows(rows, getHtml, onLearn) {
+    var map = loadMap();
+    var want = ((await req('GET', server() + '/api/watchlist')).symbols || []);
+    if (want.some(function (s) { return !symOf(map)[s]; })) { if (onLearn) onLearn(); await learn(map, rows, want, 60000, getHtml); }
+    var at = new Date().toISOString();
+    var quotes = rows.filter(function (r) { return map[r.isin] && want.indexOf(map[r.isin].s) >= 0; })
+      .map(function (r) { return { symbol: map[r.isin].s, price: r.last, quote_ts: at }; });
+    var msg = rows.length + ' سهم فى الجدول';
+    if (quotes.length) {
+      var res = await req('POST', server() + '/api/ingest/quotes?source=egx', quotes, { 'X-API-Key': apiKey() });
+      msg = 'بعت ' + res.saved + ' سعر' + (res.rejected && res.rejected.length ? ' (اترفض ' + res.rejected.length + ')' : '') + ' · ' + msg;
+      GM_setValue('pricesOk', Date.now());
+    }
+    var o = symOf(map), missing = want.filter(function (s) { return !o[s]; });
+    return msg + (missing.length ? ' · مش لاقى: ' + missing.slice(0, 6).join(' ') + (missing.length > 6 ? '…' : '') : '') + ' · ' + new Date().toLocaleTimeString('ar-EG');
+  }
+
+  /** الفورم زى ما المتصفح بيبعته: كل الحقول بقيمها، و__EVENTTARGET = تبويب «جميع الأسهم» */
+  function postbackBody(doc) {
+    var form = doc.forms[0]; if (!form) return null;
+    var parts = [];
+    var add = function (k, v) { parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v == null ? '' : v)); };
+    Array.prototype.forEach.call(form.elements, function (el) {
+      if (!el.name || el.disabled) return;
+      var type = (el.type || '').toLowerCase();
+      if (['submit', 'button', 'image', 'file', 'reset'].indexOf(type) >= 0) return;
+      if ((type === 'checkbox' || type === 'radio') && !el.checked) return;
+      if (el.name === '__EVENTTARGET' || el.name === '__EVENTARGUMENT') return;
+      if (el.tagName === 'SELECT') { var o = el.options[el.selectedIndex]; add(el.name, o ? o.value : ''); return; }
+      add(el.name, el.value);
+    });
+    add('__EVENTTARGET', 'ctl00$C$S$lkMarket'); add('__EVENTARGUMENT', '');
+    return { action: new URL(form.getAttribute('action') || PRICES_URL, PRICES_URL).href, body: parts.join('&') };
+  }
+  /** الجدول كله من الخلفية: GET للصفحة ثم POST «جميع الأسهم» */
+  async function fetchGrid() {
+    var page = new DOMParser().parseFromString(await req('GET', PRICES_URL, null, null, true), 'text/html');
+    var pb = postbackBody(page); if (!pb) throw new Error('الفورم مش موجود فى صفحة الأسعار');
+    var html = await req('POST', pb.action, pb.body, { 'Content-Type': 'application/x-www-form-urlencoded', Referer: PRICES_URL }, true);
+    var g = new DOMParser().parseFromString(html, 'text/html').getElementById(GRID_ID);
+    if (!g || !g.tBodies[0] || g.tBodies[0].rows.length < 20) throw new Error('الجدول ماظهرش فى الرد');
+    return readGrid(g);
+  }
+  /** على تاب موقعنا: كل دقيقتين وقت السوق، وتاب واحد بس بيجيب لو فيه كذا تاب مفتوح */
+  function pricesFeed(report) {
+    var getHtml = function (u) { return req('GET', u, null, null, true); };
+    async function tick() {
+      if (!pricesTime() || !apiKey()) return report(null);
+      if (Date.now() - Number(GM_getValue('feedLock', 0)) < 100000) return;   // تاب تانى جاب من أقل من دقيقتين
+      GM_setValue('feedLock', Date.now());
+      try {
+        var rows = await fetchGrid();
+        var msg = await sendRows(rows, getHtml, function () { report('الأسعار: بتعرّف على رموز الأسهم من صفحات الشركات…'); });
+        GM_setValue('feedFails', 0); report('الأسعار: ' + msg);
+      } catch (e) {
+        var n = Number(GM_getValue('feedFails', 0)) + 1; GM_setValue('feedFails', n);
+        report('الأسعار: ماعرفتش أجيبها (' + e.message + ')' + (n >= 3 ? '، هفتح صفحة الأسعار فى تاب' : ''), true);
+        console.warn('[EGX prices]', e);
+      }
+    }
+    tick(); setInterval(tick, 2 * 60000);
+  }
+
+  /** الاحتياطى: تاب prices.aspx بيدوس «جميع الأسهم» كل دقيقتين (الصفحة مابتحدّثش نفسها) */
   function pricesPage() {
     var beat = function () { GM_setValue('pricesBeat', Date.now()); };
     beat(); setInterval(beat, 60000);
-    var map = JSON.parse(GM_getValue('isinMap', '{}'));   // isin ⇒ {s: 'ETEL' أو '' لو مالقيناش, t: وقت}
     var started = Date.now(), fails = 0;
-    var grid = function () { return document.getElementById('ctl00_C_S_RadGrid2_ctl00'); };
+    var grid = function () { return document.getElementById(GRID_ID); };
     var marketLink = function () { return document.getElementById('ctl00_C_S_lkMarket') || document.querySelector('a[href*="lkMarket"]'); };
     function waitGrid(old, ms) {
       return new Promise(function (resolve) {
@@ -236,18 +320,7 @@
         })();
       });
     }
-    async function learn(rows, want, budgetMs) {
-      var t0 = Date.now(), have = function () { return want.every(function (s) { return Object.keys(map).some(function (k) { return map[k].s === s; }); }); };
-      for (var i = 0; i < rows.length && !have() && Date.now() - t0 < budgetMs; i++) {
-        var e = map[rows[i].isin];
-        if (e && (e.s || Date.now() - e.t < 7 * 86400000)) continue;
-        try {
-          var r = await fetch('/ar/CompanyDetails.aspx?ISIN=' + rows[i].isin, { credentials: 'same-origin' });
-          if (r.ok) { map[rows[i].isin] = { s: reutersCode(await r.text()), t: Date.now() }; GM_setValue('isinMap', JSON.stringify(map)); }
-        } catch (_) { /* نجرّب الدورة الجاية */ }
-        await sleep(1200);
-      }
-    }
+    var getHtml = function (u) { return fetch(u, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }); };
     async function cycle() {
       if (!apiKey()) { show('افتح finance.oscardevs.com وانت عامل دخول (المفتاح بيتاخد لوحده)', true); return; }
       if (!pricesTime()) {
@@ -255,6 +328,8 @@
         if (cairo().min > hm('14:35')) window.close();   // التاب اللى السكربت فتحه بيتقفل بعد السوق
         return;
       }
+      // تاب موقعنا لسه جايب الأسعار من الخلفية ⇒ مفيش داعى ندوس هنا كمان
+      if (Date.now() - Number(GM_getValue('feedLock', 0)) < 100000 && Number(GM_getValue('feedFails', 0)) === 0) { show('تاب موقعنا بيجيب الأسعار ✓'); return; }
       var a = marketLink();
       if (!a) { show('مالقيتش تبويب «جميع الأسهم» فى الصفحة', true); fails++; return; }
       show('بدوس «جميع الأسهم»…');
@@ -262,20 +337,7 @@
       var g = await waitGrid(old, 60000);
       if (!g) { fails++; show('الجدول ماظهرش (' + fails + ')', true); return; }
       fails = 0;
-      var rows = readGrid(g);
-      var want = ((await req('GET', server() + '/api/watchlist')).symbols || []);
-      var known = function () { var o = {}; Object.keys(map).forEach(function (k) { if (map[k].s) o[map[k].s] = k; }); return o; };
-      if (want.some(function (s) { return !known()[s]; })) { show(rows.length + ' سهم فى الجدول · بتعرّف على رموز الأسهم من صفحات الشركات…'); await learn(rows, want, 60000); }
-      var at = new Date().toISOString();
-      var quotes = rows.filter(function (r) { return map[r.isin] && want.indexOf(map[r.isin].s) >= 0; })
-        .map(function (r) { return { symbol: map[r.isin].s, price: r.last, quote_ts: at }; });
-      var msg = rows.length + ' سهم فى الجدول';
-      if (quotes.length) {
-        var res = await req('POST', server() + '/api/ingest/quotes?source=egx', quotes, { 'X-API-Key': apiKey() });
-        msg = 'بعت ' + res.saved + ' سعر' + (res.rejected && res.rejected.length ? ' (اترفض ' + res.rejected.length + ')' : '') + ' · ' + msg;
-      }
-      var missing = want.filter(function (s) { return !known()[s]; });
-      show(msg + (missing.length ? ' · مش لاقى فى الجدول: ' + missing.slice(0, 6).join(' ') + (missing.length > 6 ? '…' : '') : '') + ' · ' + new Date().toLocaleTimeString('ar-EG'), false);
+      show(await sendRows(readGrid(g), getHtml, function () { show('بتعرّف على رموز الأسهم من صفحات الشركات…'); }));
     }
     async function loop() {
       try { await cycle(); } catch (e) { fails++; show('خطأ: ' + e.message, true); console.warn('[EGX prices]', e); }
@@ -286,6 +348,7 @@
     loop();
   }
 
+  if (IS_FIN) { financePage(); return; }
   if (IS_PRICES) { pricesPage(); return; }
   run().then(function (ok) { if (ok) scheduleReload(); }).catch(function (e) { show('خطأ: ' + e.message, true); console.warn('[EGX disclosures]', e); });
 })();
