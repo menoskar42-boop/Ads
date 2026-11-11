@@ -8,6 +8,7 @@ const S = require('./signals');
 const Sim = require('./sim');
 const store = require('./store');
 const yahoo = require('./yahoo');
+const egxPrices = require('./egx_prices');
 
 const DEFAULTS = { default_amount: '1000', notify: '1', server_feed: '1', rec_valid_min: '30', buy_order_days: '3' };
 
@@ -351,7 +352,26 @@ async function tick(p, opts) {
   const open = L.marketOpen(now, opts.open, opts.close);
   const wl = (await store.watchlist(p, false)).map((w) => w.symbol);
   let fed = false;
-  // أسعار موقع البورصة (السكربت) وصلت فى آخر ١٥ دقيقة ⇒ Yahoo مالوش لازمة (ومتأخر عنها)
+  // ٢٠٢٦-١١-١١: أسعار البورصة من السيرفر نفسه كل دقيقتين (prices.aspx ← «جميع الأسهم»)، من غير ما يحتاج تاب مفتوح.
+  // فى الاختبارات: بس لو اتبعت egxFetch (fetch لوحده = Yahoo بس).
+  const egxOn = !!opts.egxFetch || !opts.fetch;
+  if (st.server_feed === '1' && open && egxOn && now - Number(st.last_egx_ms || 0) >= 110000 && now >= Number(st.egx_backoff_until || 0)) {
+    await setMeta(p, 'last_egx_ms', now.getTime());
+    try {
+      const rows = await egxPrices.fetchGrid({ fetch: opts.egxFetch });
+      const items = await store.watchlist(p, false);
+      const qs = egxPrices.quotesFor(rows, items, now);
+      if (qs.length) { await store.ingestQuotes(p, qs, now, { source: 'egx' }); fed = true; }
+      await setMeta(p, 'last_egx_feed', JSON.stringify({ at: now.toISOString(), ok: qs.length, rows: rows.length,
+        no_isin: items.filter((w) => !w.isin).map((w) => w.symbol).slice(0, 10) }));
+    } catch (e) {
+      await setMeta(p, 'last_egx_feed', JSON.stringify({ at: now.toISOString(), ok: 0, error: String(e.message || e).slice(0, 160), status: e.status || null }));
+      // الموقع رفض السيرفر ⇒ نستنى نص ساعة (السكربت وYahoo شغّالين)
+      if (e.status === 401 || e.status === 403 || e.status === 429) await setMeta(p, 'egx_backoff_until', now.getTime() + 30 * 60000);
+      else if (!e.status) await setMeta(p, 'egx_backoff_until', now.getTime() + 10 * 60000);   // مش واصل خالص (شبكة/مهلة)
+    }
+  }
+  // أسعار موقع البورصة (السيرفر أو السكربت) وصلت فى آخر ١٥ دقيقة ⇒ Yahoo مالوش لازمة (ومتأخر عنها)
   const egxLive = open && (await p.query(`SELECT 1 FROM egx.quotes WHERE source='egx' AND fetched_ts > $1 LIMIT 1`, [new Date(now.getTime() - 15 * 60000)])).rows.length > 0;
   if (st.server_feed === '1' && open && !egxLive && now - Number(st.last_feed_ms || 0) >= 10 * 60000 && now >= Number(st.feed_backoff_until || 0)) {
     await setMeta(p, 'last_feed_ms', now.getTime());

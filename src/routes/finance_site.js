@@ -298,7 +298,7 @@ function createFinanceSite(opts) {
     const parse = (s) => { try { return JSON.parse(s || 'null'); } catch (_) { return null; } };
     res.json({ ok: true, settings: { default_amount: Number(st.default_amount), notify: st.notify === '1', server_feed: st.server_feed === '1',
       rec_valid_min: Number(st.rec_valid_min), buy_order_days: Number(st.buy_order_days) },
-    feed: parse(st.last_feed), daily: parse(st.last_daily_result), egx: (await getPool().query(`SELECT max(fetched_ts) AS at, count(DISTINCT symbol)::int AS n
+    feed: parse(st.last_feed), daily: parse(st.last_daily_result), egx_server: parse(st.last_egx_feed), egx: (await getPool().query(`SELECT max(fetched_ts) AS at, count(DISTINCT symbol)::int AS n
       FROM egx.quotes WHERE source='egx' AND fetched_ts = (SELECT max(fetched_ts) FROM egx.quotes WHERE source='egx')`)).rows[0], market: cfg, ai: p ? { provider: p.name, model: p.model } : null,
     push: { enabled: push.isEnabled(), key: push.isEnabled() ? push.publicKey() : null, devices: (await trade.subs(getPool())).length } });
   }));

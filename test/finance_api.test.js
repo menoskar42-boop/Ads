@@ -241,6 +241,24 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     assert.equal(yahooCalls, 0);
     await trade.tick(pool, { now: new Date(t4.getTime() + 20 * 60000), fetch: countYahoo, delayMs: 0 });   // السكربت وقف ⇒ Yahoo يرجع
     assert.ok(yahooCalls > 0);
+    // ٢٠٢٦-١١-١١: السيرفر بيجيب أسعار البورصة بنفسه (GET ثم POST «جميع الأسهم») وبيربطها بكود الـISIN المحفوظ (COMI)
+    const egxPosts = [];
+    const egxFake = async (url, init) => {
+      if (!init || !init.method) return { ok: true, status: 200, headers: new Headers({ 'set-cookie': 'ASP.NET_SessionId=abc; path=/' }),
+        text: async () => '<form action="./prices.aspx"><input type="hidden" name="__VIEWSTATE" value="VS" /></form>' };
+      egxPosts.push(init);
+      const rows = Array.from({ length: 25 }, (_, i) => `<tr><td></td><td><a href="CompanyDetails.aspx?ISIN=${i ? 'EGS0000000' + String(i).padStart(2, '0') : 'EGS60121C018'}">x</a></td><td></td><td></td><td></td><td></td><td></td><td>${i ? 9 : lc}</td></tr>`).join('');
+      return { ok: true, status: 200, headers: new Headers(), text: async () => `<table id="ctl00_C_S_RadGrid2_ctl00"><tbody>${rows}</tbody></table>` };
+    };
+    yahooCalls = 0;
+    await pool.query("DELETE FROM egx.settings WHERE k IN ('last_egx_ms','egx_backoff_until','last_feed_ms')");
+    const t5 = new Date('2026-11-15T08:30:00Z');   // الأحد ١٠:٣٠ القاهرة
+    await trade.tick(pool, { now: t5, egxFetch: egxFake, fetch: countYahoo, delayMs: 0 });
+    assert.equal(egxPosts.length, 1); assert.match(egxPosts[0].headers.Cookie, /ASP\.NET_SessionId=abc/); assert.match(egxPosts[0].body, /__EVENTTARGET=ctl00%24C%24S%24lkMarket/);
+    const eq = (await pool.query("SELECT price::float, source FROM egx.quotes WHERE symbol='COMI' AND fetched_ts=$1", [t5])).rows[0];
+    assert.deepEqual(eq, { price: lc, source: 'egx' });
+    assert.equal(yahooCalls, 0);                                                  // البورصة جت ⇒ Yahoo مالوش لازمة
+    assert.match((await get('/api/settings')).egx_server.ok + '', /^1$/);
     assert.equal((await post('/api/sim/reset', { cash: 100000 }, KEY)).status, 200);
 
     // الصفحات بالكوكى: noindex والتنبيه، ومن غير إعلانات

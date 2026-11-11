@@ -182,3 +182,26 @@ test('Yahoo chart parsing: last non-empty 5m close, daily candles in Cairo date'
   const c = Y.parseCandles({ chart: { result: [{ timestamp: [1794556800], indicators: { quote: [{ open: [1], high: [2], low: [0.5], close: [1.5], volume: [100] }] } }] } });
   assert.deepEqual(c, [{ trade_date: '2026-11-13', open: 1, high: 2, low: 0.5, close: 1.5, volume: 100 }]);
 });
+
+test('EGX prices from the server: postback form like the browser, grid parsed by ISIN, mapped to watchlist symbols', () => {
+  const E = require('../src/finance/egx_prices');
+  const page = '<html><body><form method="post" action="./prices.aspx" id="aspnetForm">' +
+    '<input type="hidden" name="__EVENTTARGET" id="__EVENTTARGET" value="" /><input type="hidden" name="__VIEWSTATE" value="a+b/c=&amp;d" />' +
+    '<input type="hidden" name="__EVENTVALIDATION" value="EV1" /><input type="submit" name="btn" value="بحث" /><input type="checkbox" name="cb" />' +
+    '<select name="ctl00$C$S$DropDownList2"><option value="1">x</option><option value="7" selected="selected">EGX100</option></select>' +
+    '<a id="ctl00_C_S_lkMarket" href="javascript:__doPostBack(&#39;ctl00$C$S$lkMarket&#39;,&#39;&#39;)">جميع الأسهم</a></form></body></html>';
+  const pb = E.postbackBody(page);
+  assert.equal(pb.action, 'https://www.egx.com.eg/ar/prices.aspx');
+  const q = new URLSearchParams(pb.body);
+  assert.equal(q.get('__VIEWSTATE'), 'a+b/c=&d'); assert.equal(q.get('__EVENTVALIDATION'), 'EV1');
+  assert.equal(q.get('ctl00$C$S$DropDownList2'), '7'); assert.equal(q.get('__EVENTTARGET'), 'ctl00$C$S$lkMarket');
+  assert.equal(q.get('btn'), null); assert.equal(q.get('cb'), null);
+  const heads = ['', 'اسم الشركة', 'القطاع', 'الإقفال السابق', 'سعر الفتح', 'سعر الاغلاق', 'نسبة التغير%', 'آخر سعر', 'اعلى سعر', 'اقل سعر', 'القيمة', 'الكمية', 'عدد العمليات', 'رأس المال'];
+  const row = (isin, name, last) => '<tr class="rgRow"><td><img src="x.png"></td><td><a href="CompanyDetails.aspx?ISIN=' + isin + '">' + name + '</a></td>' +
+    '<td>قطاع</td><td>1</td><td>1</td><td>1</td><td>0.1</td><td>' + last + '</td><td>1</td><td>1</td><td>3,913,804.04</td><td>1</td><td>1</td><td>1</td></tr>';
+  const grid = '<table id="ctl00_C_S_RadGrid2_ctl00" class="MasterTable_Default"><thead><tr>' + heads.map((h) => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>' +
+    row('EGS48031C016', 'المصرية للاتصالات', '135.840') + row('EGS60121C018', 'البنك التجاري الدولي -مصر (سى اى بى )', '1,130.40') + row('EGS00000X001', 'سهم تانى', '0') + '</tbody></table>';
+  assert.deepEqual(E.parseGrid('<div>' + grid + '</div>'), [{ isin: 'EGS48031C016', name: 'المصرية للاتصالات', last: 135.84 }, { isin: 'EGS60121C018', name: 'البنك التجاري الدولي -مصر (سى اى بى )', last: 1130.4 }]);
+  const at = new Date('2026-11-11T10:00:00Z');
+  assert.deepEqual(E.quotesFor(E.parseGrid(grid), [{ symbol: 'ETEL', isin: 'egs48031c016' }, { symbol: 'COMI', isin: null }], at), [{ symbol: 'ETEL', price: 135.84, quote_ts: at.toISOString() }]);
+});

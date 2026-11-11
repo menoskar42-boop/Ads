@@ -262,6 +262,7 @@
         '<p class="muted">المبلغ ده بيظهر جاهز فى صفحة الترشيح وإنت تغيّره قبل «نعم». زرار «نعم» فى الإشعار نفسه بيستخدمه زى ما هو.</p></div>' +
         '<div class="card"><h2>الأسعار</h2><label><span><input type="checkbox" id="feed"' + (st.server_feed ? ' checked' : '') + '> السيرفر يجيب الأسعار من Yahoo Finance بنفسه</span></label>' +
         '<p>' + (m.egx && m.egx.at ? 'آخر أسعار من موقع البورصة: ' + esc(t(m.egx.at)) + ' (' + m.egx.n + ' سهم). وطول ما هى بتوصل، Yahoo بيقف.' : 'لسه مفيش أسعار من موقع البورصة (سكربت egx-disclosures 1.3 وموقعنا مفتوح وقت السوق).') + '</p>' +
+        '<p class="muted">السيرفر من موقع البورصة: ' + (m.egx_server ? esc(t(m.egx_server.at)) + ': ' + (m.egx_server.error ? 'ماعرفش (' + esc(m.egx_server.error) + ')' : m.egx_server.ok + ' سعر من ' + m.egx_server.rows + ' سهم') : 'لسه ماجربش (بيشتغل وقت السوق كل دقيقتين)') + '</p>' +
         '<p class="muted">Yahoo: ' + esc(feed) + '</p><p class="muted">السوق من ' + esc(m.market.open) + ' لـ ' + esc(m.market.close) + ' بتوقيت القاهرة، الأحد للخميس. الأسعار كل ١٠ دقايق والشموع اليومية بعد ' + esc(m.market.dailyAfter) + '.</p></div>' +
         '<div class="card"><h2>قايمة المتابعة</h2><p class="muted">اسم الشركة بالعربى زى ما بيظهر فى إفصاحات البورصة، عشان الإفصاح يتربط بالرمز.</p>' +
         '<div class="scroll"><table><thead><tr><th>الرمز</th><th>متابَع</th><th>الاسم العربى (للإفصاحات)</th><th>الاسم الإنجليزى</th><th>ISIN (موقع البورصة)</th><th>درجة فودة</th><th></th></tr></thead><tbody>' +
