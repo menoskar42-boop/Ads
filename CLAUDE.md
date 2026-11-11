@@ -245,6 +245,9 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
 - `docs/EGX_ISIN_FILL_PROMPT.md` — **برومبت الإكستنشن: أكواد ISIN لأسهم قايمة المتابعة** (٢٠٢٦-١١-١١). جدول أسعار البورصة فيه
   الكود بس؛ الإكستنشن بيجيبه من `prices.aspx` ويتأكد بكود رويترز ويكتبه فى خانة «ISIN» فى إعدادات finance بس (`egx.watchlist.isin`).
   الصفحة: https://claude.ai/artifact/63RHbSSCEJydeNUsJSHWjn. **Trigger:** «ابعتلي برومبت أكواد الأسهم».
+- `docs/EGX_ARABIC_NAMES_PROMPT.md` — **برومبت الإكستنشن: الأسماء العربى لأسهم قايمة المتابعة** (٢٠٢٦-١١-١١). الاسم العربى
+  (`egx.watchlist.note`) بيربط إفصاحات البورصة بالسهم؛ الإكستنشن بيجيبه بالحرف من صفحة الشركة بالـISIN ويكتبه فى الخانة دى بس.
+  الصفحة: https://claude.ai/artifact/HsJ112XE8L5V1RcZmM4N51. **Trigger:** «ابعتلي برومبت الأسماء العربى».
 - `docs/ORACLE_DB_SETUP_PROMPT.md` — **برومبت الإكستنشن لقاعدة Service Flow على Oracle Cloud
   المجانى** (٢٠٢٦-١٠-٢٠). عدّاد `/api/admin/db-wake` أثبت إن قاعدة ريبليت صاحية طول ما الطابور
   شغّال (٦٫٣ من ٦٫٥ ساعة) = حوالى ٤٥ دولار فى الشهر. الحل: سيرفر Ampere A1 (Always Free: نواتين
