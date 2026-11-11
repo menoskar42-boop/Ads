@@ -12,6 +12,7 @@ import { LastUpdatedBadge } from "@/components/LastUpdatedBadge";
 import { format } from "date-fns";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
 import { WfmCancelButton } from "@/components/WfmCancelButton";
+import { WfmAcceptButton } from "@/components/WfmAcceptButton";
 
 interface Installation {
   centralName: string | null;
@@ -338,7 +339,11 @@ export function InstallationsReport({
                   <TableCell dir="ltr" className="text-left font-mono">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span>{o.phoneNumber || "-"}</span>
-                      {wfmCancel && <span dir="rtl"><WfmCancelButton phone={o.phoneNumber} isSerial={phoneLabel === "المسلسل"} defaultTech={o.techName} /></span>}
+                      {wfmCancel && <span dir="rtl" className="flex flex-col items-start gap-1">
+                        <WfmCancelButton phone={o.phoneNumber} isSerial={phoneLabel === "المسلسل"} defaultTech={o.techName} />
+                        {/* موافقة تغيير البورت تحت إلغاء الاسناد (المالك ٢٠٢٦-١١-١١) — بالتليفون بس، سوبر أدمن */}
+                        {phoneLabel !== "المسلسل" && <WfmAcceptButton phone={o.phoneNumber} />}
+                      </span>}
                     </div>
                   </TableCell>
                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(o.phoneNumber)] ?? o.mobile} phone={o.phoneNumber} /></TableCell>
