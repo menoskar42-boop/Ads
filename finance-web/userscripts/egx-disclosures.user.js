@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EGX Swing: EGX disclosures
 // @namespace    https://finance.oscardevs.com
-// @version      1.3.0
+// @version      1.3.1
 // @updateURL    https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @downloadURL  https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @description  الأسعار من جدول «جميع الأسهم» فى موقع البورصة المصرية كل دقيقتين وقت السوق، والإفصاحات الجديدة من صفحة البحث فى الأخبار، ويبعتهم لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح الصفحتين لو مش مفتوحين.
@@ -64,8 +64,17 @@
     var keep = function () {
       var msg = [ensure('egxBeat', 'egxLastOpen', GM_getValue('egxUrl', EGX_URL), 'صفحة الأخبار')];
       // الأسعار وقت السوق بس
+      var needPrices = pricesTime() && Date.now() - Number(GM_getValue('pricesBeat', 0)) >= 3 * 60000;
       if (pricesTime()) msg.unshift(ensure('pricesBeat', 'pricesLastOpen', PRICES_URL, 'صفحة الأسعار'));
       show(msg.join(' · '));
+      // لو التاب ماظهرش (اتفتح فى شباك تانى أو اتقفل): زرار يفتحه قدامك
+      if (needPrices) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.textContent = 'افتح صفحة الأسعار';
+        b.style.cssText = 'margin-inline-start:8px;font:inherit;background:#fff;color:#0b6e4f;border:0;border-radius:6px;padding:2px 8px;cursor:pointer';
+        b.onclick = function () { GM_setValue('pricesLastOpen', Date.now()); GM_openInTab(PRICES_URL, { active: true, insert: true, setParent: true }); };
+        badge.appendChild(b);
+      }
     };
     keep(); setInterval(keep, 60000);
     return;
