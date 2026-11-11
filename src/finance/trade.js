@@ -307,19 +307,21 @@ async function evaluate(p, opts) {
   const now = opts.now || new Date();
   const st = await settings(p);
   const state = await store.state(p, now);
-  // التنفيذ وقت السوق بس وبسعر جديد (آخر ٢٠ دقيقة): أمر اتحط بالليل مايتنفّذش على إقفال امبارح
+  // التنفيذ والترشيحات وقت السوق بس وبسعر جديد: وصل فى آخر ٢٠ دقيقة، وسعر النهارده نفسه (٢٠٢٦-١١-١١: Yahoo بيدّى إقفال
+  // امبارح بس، وده يتعرض «متأخر» فى اللوحة لكن مايتنفّذش عليه ولا يطلّع ترشيح)
   const prices = {};
+  const today = L.cairoParts(now).iso;
   if (L.marketOpen(now, opts.open, opts.close)) {
     for (const r of state.rows) {
-      if (r.price_source === 'quote' && r.fetched_ts && now - new Date(r.fetched_ts) <= 20 * 60000) prices[r.symbol] = r.price;
+      if (r.price_source === 'quote' && r.fetched_ts && now - new Date(r.fetched_ts) <= 20 * 60000
+        && (!r.quote_ts || L.cairoParts(new Date(r.quote_ts)).iso === today)) prices[r.symbol] = r.price;
     }
   }
   const fills = await simRun(p, prices, now);
   const created = [];
   if (opts.signals !== false && L.marketOpen(now, opts.open, opts.close)) {
-    const today = L.cairoParts(now).iso;
     for (const r of state.rows) {
-      if (r.price_source !== 'quote' || !r.levels) continue;
+      if (!(r.symbol in prices) || !r.levels) continue;
       const cs = await store.candles(p, r.symbol, 80);
       const pos = (await p.query('SELECT qty, avg_cost::float FROM egx.sim_positions WHERE symbol=$1', [r.symbol])).rows[0] || null;
       const pendingBuy = (await p.query("SELECT 1 FROM egx.sim_orders WHERE symbol=$1 AND side='BUY' AND status='OPEN'", [r.symbol])).rowCount > 0;

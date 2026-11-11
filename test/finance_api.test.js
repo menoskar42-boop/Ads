@@ -21,7 +21,7 @@ const yahooReply = (prices) => async (url) => {
   const sym = decodeURIComponent(url.split('/chart/')[1].split('?')[0]).replace('.CA', '');
   const p = prices[sym];
   if (p == null) return { ok: false, status: 404, json: async () => ({}) };
-  return { ok: true, status: 200, json: async () => ({ chart: { result: [{ meta: {}, timestamp: [1794560400], indicators: { quote: [{ close: [p] }] } }] } }) };
+  return { ok: true, status: 200, json: async () => ({ chart: { result: [{ meta: {}, timestamp: [Date.parse('2026-11-10T08:00:00Z') / 1000], indicators: { quote: [{ close: [p] }] } }] } }) };
 };
 
 test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش متحط' }, async () => {
@@ -207,7 +207,11 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     const o3 = await (await post('/api/sim/orders', { symbol: 'COMI', side: 'BUY', price: lc, amount: 1000, stop_loss: lc - 10, target: lc + 10 }, KEY)).json();
     await site._waitEvaluate();
     const t3 = new Date('2026-11-12T08:30:00Z');
-    await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price, quote_ts) VALUES ('COMI', $1, 32.77, '2026-07-23T20:00:00Z')", [t3]);
+    // إقفال امبارح (Yahoo) وصل دلوقتى: بيتعرض بس، مايتنفّذش عليه
+    await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price, quote_ts) VALUES ('COMI', $1, $2, '2026-11-11T08:00:00Z')", [new Date(t3.getTime() - 60000), lc - 1]);
+    assert.equal((await trade.evaluate(pool, { now: new Date(t3.getTime() - 60000), signals: false })).fills.length, 0);
+    await pool.query("DELETE FROM egx.quotes WHERE symbol='COMI'");
+    await pool.query("INSERT INTO egx.quotes(symbol, fetched_ts, price, quote_ts) VALUES ('COMI', $1, 32.77, NULL)", [t3]);   // تنفيذ اتعمل قبل الإصلاح
     assert.equal((await trade.evaluate(pool, { now: t3, signals: false })).fills[0].price, 32.77);
     assert.equal((await get('/api/sim')).positions.length, 1);
     const store = require('../src/finance/store');

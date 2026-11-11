@@ -8,6 +8,10 @@
   function n2(x) { return x == null || !isFinite(x) ? '-' : Number(x).toFixed(2); }
   // الأرقام اللى ليها إشارة (+2 · -1.00) بتتعرض شمال لليمين عشان الصفحة RTL ماتقلبهاش
   function sg(x, fixed) { var v = fixed ? n2(x) : String(x); return '<bdi dir="ltr">' + (x > 0 ? '+' : '') + v + '</bdi>'; }
+  // سعر النهارده ولا إقفال يوم قبل كده (بتوقيت القاهرة)
+  function cairoDay(ts) { return ts ? new Date(ts).toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }) : ''; }
+  function hhmm(ts) { return new Date(ts).toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo', hour: 'numeric', minute: '2-digit' }); }
+  function dayName(ts) { return new Date(ts).toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo', day: 'numeric', month: 'long' }); }
   function t(ts) {
     if (!ts) return '-';
     return new Date(ts).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
@@ -43,14 +47,14 @@
       api('/api/state').then(function (s) {
         if (!s.ok) { document.getElementById('rows').innerHTML = '<tr><td colspan="10">' + esc(s.error) + '</td></tr>'; return; }
         document.getElementById('clock').textContent = 'آخر سعر وصل: ' + t(s.last_quote_ts) + (s.market_open ? ' · السوق مفتوح' : ' · السوق مقفول');
-        document.getElementById('warn').innerHTML = s.stale ? '<div class="banner">مفيش أسعار وصلت من ٣٠ دقيقة والسوق مفتوح. اتأكد إن تاب Yahoo Finance مفتوح وسكربت Tampermonkey شغّال.</div>' : '';
+        document.getElementById('warn').innerHTML = s.stale ? '<div class="banner">مفيش أسعار وصلت من ٣٠ دقيقة والسوق مفتوح. اتأكد إن سكربت egx-disclosures شغّال فى Tampermonkey وإن تاب أسعار البورصة اتفتح جنب الموقع.</div>' : '';
         if (!s.rows.length) { document.getElementById('rows').innerHTML = '<tr><td colspan="10" class="muted">قايمة المتابعة فاضية. ضيف أسهم من الإعدادات.</td></tr>'; return; }
         document.getElementById('rows').innerHTML = s.rows.map(function (r, i) {
           var lv = r.levels || {};
           return '<tr class="' + (r.reliable ? '' : 'unreliable') + '"><td>' + (i + 1) + '</td><td><a href="/stock/' + esc(r.symbol) + '"><b>' + esc(r.symbol) + '</b></a>' +
             (r.note ? ' <span class="muted">' + esc(r.note) + '</span>' : '') + '</td>' +
             '<td>' + n2(r.price) + ' <span class="pill" title="' + (r.price_source === 'quote' ? 'سعر وقت ' + esc(t(r.quote_ts)) : 'آخر إقفال') + '">' +
-            (r.price_source === 'quote' ? 'متأخر · ' + esc(t(r.quote_ts)) : 'إقفال') + '</span></td>' +
+            (r.price_source !== 'quote' ? 'إقفال' : cairoDay(r.quote_ts) === cairoDay(new Date()) ? 'النهارده · ' + esc(hhmm(r.quote_ts)) : 'إقفال ' + esc(dayName(r.quote_ts))) + '</span></td>' +
             '<td>' + n2(lv.buy_lo) + ' : ' + n2(lv.buy_hi) + '</td><td>' + n2(lv.stop_loss) + '</td><td>' + n2(lv.target1) + '</td><td>' + n2(lv.target2) + '</td>' +
             '<td>' + newsPill(r) + '</td><td class="score" title="' + esc(breakdownText(r)) + '">' + sg(r.composite, true) + '</td>' +
             '<td>' + (r.levels ? (r.reliable ? '<span class="pill good">موثوق</span>' : flags(lv)) : '<span class="pill warn">مفيش شموع</span>') + '</td></tr>';
