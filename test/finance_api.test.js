@@ -52,6 +52,10 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     assert.equal(lr.status, 200);
     const cookie = lr.headers.get('set-cookie').split(';')[0];
     assert.equal((await fetch(base + '/api/state', { headers: { cookie } })).status, 200);
+    // سكربت الإفصاحات بياخد المفتاح بالكوكى بس
+    assert.equal((await fetch(base + '/api/script-key')).status, 401);
+    assert.equal((await fetch(base + '/api/script-key', { headers: { 'X-API-Key': KEY } })).status, 401);
+    assert.equal((await (await fetch(base + '/api/script-key', { headers: { cookie } })).json()).key, KEY);
 
     // قايمة المتابعة الافتراضية (٢٢ سهم) للسكربتات
     const wl = await (await fetch(base + '/api/watchlist')).json();

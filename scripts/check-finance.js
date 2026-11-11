@@ -52,7 +52,7 @@ check('mounted by host before body parsers, boot not blocked, slug reserved',
 check('userscripts only read open pages, no captcha bypass, back off on 429',
   /@match        https:\/\/finance\.yahoo\.com\/\*/.test(read('finance-web/userscripts/yahoo-feeder.user.js'))
     && /429/.test(read('finance-web/userscripts/yahoo-feeder.user.js'))
-    && /افتح الصفحة بنفسك/.test(read('finance-web/userscripts/egx-disclosures.user.js'))
+    && /دوّر بنفسك/.test(read('finance-web/userscripts/egx-disclosures.user.js')) && /عشان لو البحث رجّع فاضى/.test(read('finance-web/userscripts/egx-disclosures.user.js'))
     && !all.some(([, s]) => /captcha.*(solve|bypass)|2captcha|anticaptcha/i.test(s)),
   'السكربتات بتقرا الصفحة المفتوحة بس، ومفيش تخطّى لأى حماية.');
 check('own schema (Service Flow tables untouched)',

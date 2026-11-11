@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EGX Swing: EGX disclosures
 // @namespace    https://finance.oscardevs.com
-// @version      1.1.1
+// @version      1.2.0
 // @updateURL    https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @downloadURL  https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @description  يقرا جدول نتايج البحث فى أخبار البورصة المصرية ويبعت الإفصاحات الجديدة لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح صفحة البحث لو مش مفتوحة.
@@ -42,6 +42,9 @@
    * ومرة واحدة كل ١٠ دقايق بالكتير عشان لو الصفحة مابتحمّلش مانفتحش تابات كتير.
    */
   if (location.hostname === 'finance.oscardevs.com') {
+    // المفتاح لوحده: طول ما إنت عامل دخول فى موقعنا، السكربت بياخده من السيرفر (مفيش Set API key بإيدك)
+    fetch('/api/script-key', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (j && j.key && j.key !== apiKey()) GM_setValue('apiKey', j.key); }).catch(function () {});
     var keep = function () {
       var now = Date.now(), beat = Number(GM_getValue('egxBeat', 0)), last = Number(GM_getValue('egxLastOpen', 0));
       if (now - beat < 3 * 60000) { show('صفحة البحث فى أخبار البورصة مفتوحة ✓'); return; }
@@ -111,10 +114,34 @@
     } catch (e) { console.warn('[EGX disclosures] detail', e.message); return null; }
   }
 
+  /** زرار «بحث» بتاع الصفحة نفسها (الفورم فيه آخر يوم تلقائياً). */
+  function searchButton() {
+    var els = document.querySelectorAll('input[type=submit],input[type=button],button,a');
+    for (var i = 0; i < els.length; i++) {
+      var t = clean(els[i].value || els[i].textContent);
+      // اللينكات: زرار ASP.NET بس (__doPostBack)، مش لينكات القايمة
+      if (els[i].tagName === 'A' && !/__doPostBack|^javascript:/i.test(els[i].getAttribute('href') || '')) continue;
+      if (t === 'بحث' || t === 'ابحث' || t === 'Search') return els[i];
+    }
+    return null;
+  }
+
   async function run() {
-    if (!apiKey()) { show('حط المفتاح من قايمة Tampermonkey: Set API key', true); return; }
+    if (!apiKey()) { show('افتح finance.oscardevs.com وانت عامل دخول (المفتاح بيتاخد لوحده)، أو من قايمة Tampermonkey: Set API key', true); return; }
     var rows = parseRows();
-    if (!rows.length) { show('مالقيتش جدول النتايج. افتح الصفحة بنفسك ودوّر، وبعدين السكربت هيكمّل', true); return false; }
+    if (!rows.length) {
+      // مفيش نتايج ⇒ ندوس «بحث» بتاع الصفحة مرة (مش أكتر من مرة كل دقيقتين عشان لو البحث رجّع فاضى)
+      var btn = searchButton(), last = Number(sessionStorage.getItem('egx_auto_search') || 0);
+      if (btn && Date.now() - last > 2 * 60000) {
+        sessionStorage.setItem('egx_auto_search', String(Date.now()));
+        show('بدوس «بحث»…');
+        btn.click();
+        return false;
+      }
+      show('مالقيتش نتايج. دوّر بنفسك مرة، وبعدين السكربت هيكمّل', true);
+      setTimeout(function () { location.assign(location.href); }, 30 * 60000);
+      return false;
+    }
     // الصفحة دى فيها نتايج: لو اللينك فيه البحث نفسه (GET) نحفظه عشان موقعنا يفتح نفس البحث بعد كده
     if (location.search) GM_setValue('egxUrl', location.href);
     var seen = JSON.parse(GM_getValue('seen', '[]'));

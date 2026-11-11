@@ -298,6 +298,11 @@ function createFinanceSite(opts) {
     push: { enabled: push.isEnabled(), key: push.isEnabled() ? push.publicKey() : null, devices: (await trade.subs(getPool())).length } });
   }));
   router.post('/api/settings', needOwner, json, wrap(async (req, res) => { await trade.setSettings(getPool(), req.body || {}); res.json({ ok: true }); }));
+  // سكربت الإفصاحات بياخد المفتاح لوحده وهو شغّال فى موقعنا (بالكوكى بس، مش بالمفتاح نفسه)
+  router.get('/api/script-key', (req, res) => {
+    if (!sessionOk(req)) return fail(res, 401, 'سجّل دخول الأول');
+    res.json({ ok: true, key: secret() });
+  });
   router.post('/api/push/subscribe', needOwner, json, wrap(async (req, res) => {
     res.json({ ok: await trade.saveSub(getPool(), req.body && req.body.subscription) });
   }));
