@@ -422,7 +422,7 @@ test("one line per page in both views; the view comes from the settings (server)
 // المالك ٢٠٢٦-١٠-٢٩: «الصفحة بتفتح كده من غير أزرار… دوست Search يدوى فالبيانات ظهرت»
 test("DZS script presses Search when clearview opens with the search box only", () => {
   const dzs = readFileSync(new URL("../dzs-expresse-v10.user.js", import.meta.url), "utf8");
-  assert.match(dzs, /@version\s+10\.3[1-9]\.0/);
+  assert.match(dzs, /@version\s+10\.(3[1-9]|4[0-9])\.0/);
   assert.match(dzs, /const SEARCH_NUDGE_AT = \[14, 47, 80\];/);
   assert.match(dzs, /if \(SEARCH_NUDGE_AT\.indexOf\(ld\) >= 0\) nudgeSearch\(\);\n\s+if \(ld >= MAX_LD\)/, "قبل مهلة الـ104");
   assert.match(dzs, /\/\^\\s\*search\\s\*\$\/i\.test/, "Search بالظبط — مش Advanced Search");
@@ -453,7 +453,7 @@ test("the tab count follows the settings even while the bridge holds 100+ lines"
 test("login is back to the original: each DZS window and PO tab logs in by itself, no shared lock", () => {
   const dzs = readFileSync(new URL("../dzs-expresse-v10.user.js", import.meta.url), "utf8");
   const po = readFileSync(new URL("../dzs-profile-optimization.user.js", import.meta.url), "utf8");
-  assert.match(dzs, /@version\s+10\.3[5-9]\.\d/);
+  assert.match(dzs, /@version\s+10\.(3[5-9]|4[0-9])\.\d/);
   assert.match(po, /@version\s+0\.9\.(2[1-9]|[3-9]\d)/);
   for (const [name, src] of [["dzs", dzs], ["po", po]] as const) {
     assert.doesNotMatch(src.slice(src.indexOf("// ==/UserScript==")), /DZS_LOGIN_AT|DZS_LOGIN_OK|PO_LOGIN_PROBE/, name);
