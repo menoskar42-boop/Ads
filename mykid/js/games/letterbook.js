@@ -189,6 +189,9 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       expectedWrites: steps.filter(isLbWrite).reduce((n, x) => n + (x.kind === "harakaWrite" ? 2 : x.reps || 1), 0),
       expectedGames: steps.filter((x) => x.kind === "game").map((x) => x.game),
     };
+    // كان وصل لحد هنا فى الصفحة دى ⇒ نكمّل من نفس المرحلة بنفس الخطوات
+    const saved = resumeKey() && Store.pageResume(resumeKey());
+    if (saved) { steps = saved.steps; idx = saved.idx; if (saved.res) res = saved.res; }
     const i = Math.max(0, LB_PAGES.indexOf(pg));
     screen.style.setProperty("--wbk-c1", LETTER_COLORS[i % LETTER_COLORS.length]);
     screen.style.setProperty("--wbk-c2", LETTER_COLORS[(i + 3) % LETTER_COLORS.length]);
@@ -281,11 +284,14 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     return h;
   }
 
+  // المرحلة اللى وصلها جوّه الصفحة بتتحفظ — يطلع ويرجع يلاقى نفسه عندها (المالك ٢٠٢٦-١١-١١)
+  function resumeKey() { return cur && cur.id && cur.type !== "mix" && !only ? "ar:" + cur.id : null; }
   function nextStep() {
     cleanup();
     cleanup = () => {};
     idx++;
     if (idx >= steps.length) return finishPage();
+    if (resumeKey()) Store.savePageResume(resumeKey(), steps, idx, res);
     renderStep();
   }
   function stepDone(delay = 1000) {
@@ -302,6 +308,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     setTimeout(() => { if (cur) nextStep(); }, delay);
   }
   function finishPage() {
+    if (resumeKey()) Store.clearPageResume(resumeKey());
     Store.markLetterbookDone(cur.id);
     const end = () => finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
     // شهادة الحرف: الدرجة للطفل، والتفاصيل لولى الأمر فى الإعدادات

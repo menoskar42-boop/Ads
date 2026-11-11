@@ -205,6 +205,9 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
       expectedWrites: steps.filter((x) => x.kind === "write").reduce((n, x) => n + (x.reps || 1), 0),
       expectedGames: steps.filter((x) => x.kind === "game").map((x) => x.game),
     };
+    // كان وصل لحد هنا فى الصفحة دى ⇒ نكمّل من نفس المرحلة بنفس الخطوات
+    const saved = resumeKey() && Store.pageResume(resumeKey());
+    if (saved) { steps = saved.steps; idx = saved.idx; if (saved.res) res = saved.res; }
     const [c1, c2] = pg.type === "number" ? colorPairOf(pg.n) : pg.type === "shapes" ? WB_COLOR_PAIRS[(pg.pair + 2) % 4]
       : pg.type === "colors" ? WB_COLOR_PAIRS[pg.pair] : WB_COLOR_PAIRS[(WB_PAGES.indexOf(pg) + 1) % 4];
     screen.style.setProperty("--wbk-c1", col(c1).hex);
@@ -334,11 +337,14 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     return h;
   }
 
+  // المرحلة اللى وصلها جوّه الصفحة بتتحفظ — يطلع ويرجع يلاقى نفسه عندها (المالك ٢٠٢٦-١١-١١)
+  function resumeKey() { return cur && cur.id && cur.type !== "mix" && !only ? "num:" + cur.id : null; }
   function nextStep() {
     cleanup();
     cleanup = () => {};
     idx++;
     if (idx >= steps.length) return finishPage();
+    if (resumeKey()) Store.savePageResume(resumeKey(), steps, idx, res);
     renderStep();
   }
   function stepDone(delay = 900) {
@@ -356,6 +362,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
   }
 
   function finishPage() {
+    if (resumeKey()) Store.clearPageResume(resumeKey());
     Store.markWorkbookDone(cur.id);
     const end = () => finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
     if (cur.type !== "number" || !res) return end();

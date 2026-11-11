@@ -252,6 +252,32 @@ export const Store = {
     this.setWriteSetting("gripDate", today());
     return true;
   },
+  // ===== المرحلة اللى الطفل وصلها جوّه صفحة حرف/رقم (المالك ٢٠٢٦-١١-١١: «نطلع وندخل تانى نلاقى واقفين عند نفس
+  // المرحلة، ميبدأش من الأول») — الخطوات نفسها (اتولدت عشوائى) + رقم الخطوة + نتيجة الشهادة لحد دلوقتى.
+  // المفتاح «ar:…» · «en:…» · «num:…»، وبيتمسح لما الصفحة تخلص. أقدم من ١٤ يوم بيتشال.
+  pageResume(key) {
+    const all = state.pageResume || {};
+    const r = all[key];
+    if (!r || !Array.isArray(r.steps) || !(r.idx > 0) || r.idx >= r.steps.length) return null;
+    if (Date.now() - (r.at || 0) > 14 * 86400000) return null;
+    return r;
+  },
+  savePageResume(key, steps, idx, res) {
+    let snap;
+    try {
+      // الخطوات لازم ترجع زى ما هى من التخزين (مفيش دوال ولا Set/Map) — وإلا مانحفظش ونبدأ من الأول زى الأول
+      const bad = (k, v) => { if (typeof v === "function" || v instanceof Set || v instanceof Map) throw new Error("x"); return v; };
+      snap = JSON.parse(JSON.stringify({ steps, idx, res: res || null, at: Date.now() }, bad));
+    } catch (e) { return; }
+    const all = state.pageResume || (state.pageResume = {});
+    all[key] = snap;
+    const keys = Object.keys(all).sort((a, b) => (all[b].at || 0) - (all[a].at || 0));
+    keys.slice(30).forEach((k) => delete all[k]);
+    persist();
+  },
+  clearPageResume(key) {
+    if (state.pageResume && state.pageResume[key]) { delete state.pageResume[key]; persist(); }
+  },
   // «كراسة الأرقام»: الصفحات اللى خلصت (رقم ← عدد المرات) — نجمة على الرقم فى الاختيار
   get workbookDone() {
     return state.workbookDone || (state.workbookDone = {});

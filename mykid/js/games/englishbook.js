@@ -189,6 +189,9 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
       expectedWrites: steps.filter((x) => x.kind === "write").reduce((n, x) => n + (x.reps || 1), 0),
       expectedGames: steps.filter((x) => x.kind === "game").map((x) => x.game),
     };
+    // كان وصل لحد هنا فى الصفحة دى ⇒ نكمّل من نفس المرحلة بنفس الخطوات
+    const saved = resumeKey() && Store.pageResume(resumeKey());
+    if (saved) { steps = saved.steps; idx = saved.idx; if (saved.res) res = saved.res; }
     const i = Math.max(0, EB_PAGES.indexOf(pg));
     screen.style.setProperty("--wbk-c1", PAGE_COLORS[i % PAGE_COLORS.length]);
     screen.style.setProperty("--wbk-c2", PAGE_COLORS[(i + 3) % PAGE_COLORS.length]);
@@ -315,11 +318,14 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
   }
 
   let cheerN = 0;
+  // المرحلة اللى وصلها جوّه الصفحة بتتحفظ — يطلع ويرجع يلاقى نفسه عندها (المالك ٢٠٢٦-١١-١١)
+  function resumeKey() { return cur && cur.id && cur.type !== "mix" && !only ? "en:" + cur.id : null; }
   function nextStep() {
     cleanup();
     cleanup = () => {};
     idx++;
     if (idx >= steps.length) return finishPage();
+    if (resumeKey()) Store.savePageResume(resumeKey(), steps, idx, res);
     renderStep();
   }
   function stepDone(delay = 1300) {
@@ -338,6 +344,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     setTimeout(() => { if (cur) nextStep(); }, delay + 600);
   }
   function finishPage() {
+    if (resumeKey()) Store.clearPageResume(resumeKey());
     // «حروفى بالنجمة» مراجعة — مابتعلّمش صفحة فى الكتاب ومالهاش شهادة
     if (cur.type === "mix") { cur = null; return finishActivity({ regionId, regionIndex, stars: 5, onDone: toRegion }); }
     Store.markEnglishbookDone(cur.id);
