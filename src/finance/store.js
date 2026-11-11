@@ -69,6 +69,7 @@ async function ensureSchema(p) {
     CREATE TABLE IF NOT EXISTS egx.push_subs(endpoint TEXT PRIMARY KEY, sub TEXT NOT NULL, created_ts TIMESTAMPTZ DEFAULT now());
     INSERT INTO egx.sim_account(id, cash, start_cash) VALUES (1, 100000, 100000) ON CONFLICT DO NOTHING;
     ALTER TABLE egx.watchlist ADD COLUMN IF NOT EXISTS name TEXT;
+    ALTER TABLE egx.quotes ADD COLUMN IF NOT EXISTS source TEXT;
     CREATE TABLE IF NOT EXISTS egx.sim_pending(id SERIAL PRIMARY KEY, symbol TEXT, amount NUMERIC NOT NULL, available_date DATE NOT NULL,
       created_ts TIMESTAMPTZ DEFAULT now());
   `);
@@ -157,8 +158,10 @@ async function levels(p, sym) {
 }
 
 /* ── الأسعار والتنبيهات ── */
-async function ingestQuotes(p, items, now) {
+/** opts.source: 'egx' (سكربت موقع البورصة) · 'yahoo' (السيرفر أو سكربت Yahoo). */
+async function ingestQuotes(p, items, now, opts) {
   now = now || new Date();
+  const source = opts && ['egx', 'yahoo'].includes(opts.source) ? opts.source : null;
   const today = L.cairoParts(now).iso;
   const saved = [], alerts = [], rejected = [];
   for (const q of Array.isArray(items) ? items : []) {
@@ -170,7 +173,7 @@ async function ingestQuotes(p, items, now) {
     const lv = await levels(p, sym);
     if (!saneVsClose(price, lv)) { rejected.push({ symbol: sym, why: 'far_from_close', price }); continue; }
     await p.query('DELETE FROM egx.quotes WHERE symbol=$1 AND fetched_ts=$2', [sym, now]);
-    await p.query('INSERT INTO egx.quotes(symbol, fetched_ts, price, quote_ts) VALUES ($1,$2,$3,$4)', [sym, now, price, qts]);
+    await p.query('INSERT INTO egx.quotes(symbol, fetched_ts, price, quote_ts, source) VALUES ($1,$2,$3,$4,$5)', [sym, now, price, qts, source]);
     saved.push(sym);
     for (const kind of L.alertKinds(price, lv)) {
       const r = await p.query('INSERT INTO egx.alerts(symbol, kind, trade_date, price) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING symbol', [sym, kind, today, price]);

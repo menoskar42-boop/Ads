@@ -217,6 +217,18 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     assert.equal(sim.account.cash, 100000); assert.equal(sim.positions.length, 0); assert.equal(sim.trades.length, 0);
     assert.deepEqual(sim.orders.map((o) => o.id), [o3.id]);
     assert.deepEqual(await trade.revertBadFills(pool), { trades: 0, recs: 0 });     // آمن يتكرر
+    // أسعار موقع البورصة (السكربت) بتتعلّم 'egx'، وطول ما هى بتوصل Yahoo مابيتطلبش
+    assert.equal((await (await post('/api/ingest/quotes?source=egx', [{ symbol: 'COMI', price: lc }], KEY)).json()).saved, 1);
+    assert.equal((await pool.query("SELECT source FROM egx.quotes WHERE symbol='COMI' ORDER BY fetched_ts DESC LIMIT 1")).rows[0].source, 'egx');
+    const st2 = await get('/api/settings'); assert.equal(st2.egx.n, 1); assert.ok(st2.egx.at);
+    const t4 = new Date('2026-11-12T09:00:00Z');
+    await store.ingestQuotes(pool, [{ symbol: 'COMI', price: lc }], t4, { source: 'egx' });
+    let yahooCalls = 0; const countYahoo = async (u) => { yahooCalls++; return yahooReply({ COMI: lc })(u); };
+    await pool.query("DELETE FROM egx.settings WHERE k IN ('last_feed_ms','feed_backoff_until')");
+    await trade.tick(pool, { now: new Date(t4.getTime() + 5 * 60000), fetch: countYahoo, delayMs: 0 });
+    assert.equal(yahooCalls, 0);
+    await trade.tick(pool, { now: new Date(t4.getTime() + 20 * 60000), fetch: countYahoo, delayMs: 0 });   // السكربت وقف ⇒ Yahoo يرجع
+    assert.ok(yahooCalls > 0);
     assert.equal((await post('/api/sim/reset', { cash: 100000 }, KEY)).status, 200);
 
     // الصفحات بالكوكى: noindex والتنبيه، ومن غير إعلانات

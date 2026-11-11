@@ -349,10 +349,12 @@ async function tick(p, opts) {
   const open = L.marketOpen(now, opts.open, opts.close);
   const wl = (await store.watchlist(p, false)).map((w) => w.symbol);
   let fed = false;
-  if (st.server_feed === '1' && open && now - Number(st.last_feed_ms || 0) >= 10 * 60000 && now >= Number(st.feed_backoff_until || 0)) {
+  // أسعار موقع البورصة (السكربت) وصلت فى آخر ١٥ دقيقة ⇒ Yahoo مالوش لازمة (ومتأخر عنها)
+  const egxLive = open && (await p.query(`SELECT 1 FROM egx.quotes WHERE source='egx' AND fetched_ts > $1 LIMIT 1`, [new Date(now.getTime() - 15 * 60000)])).rows.length > 0;
+  if (st.server_feed === '1' && open && !egxLive && now - Number(st.last_feed_ms || 0) >= 10 * 60000 && now >= Number(st.feed_backoff_until || 0)) {
     await setMeta(p, 'last_feed_ms', now.getTime());
     const r = await yahoo.fetchQuotes(wl, { fetch: opts.fetch, delayMs: opts.delayMs, now });
-    if (r.quotes.length) { await store.ingestQuotes(p, r.quotes, now); fed = true; }
+    if (r.quotes.length) { await store.ingestQuotes(p, r.quotes, now, { source: 'yahoo' }); fed = true; }
     await setMeta(p, 'last_feed', JSON.stringify({ at: now.toISOString(), ok: r.quotes.length, errors: r.errors.slice(0, 3), blocked: r.blocked }));
     if (r.blocked) await setMeta(p, 'feed_backoff_until', now.getTime() + 30 * 60000);
   }

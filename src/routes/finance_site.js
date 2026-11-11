@@ -182,7 +182,7 @@ function createFinanceSite(opts) {
   }
 
   router.post('/api/ingest/quotes', needKey, json, wrap(async (req, res) => {
-    const r = await store.ingestQuotes(getPool(), req.body);
+    const r = await store.ingestQuotes(getPool(), req.body, null, { source: req.query.source === 'egx' ? 'egx' : 'yahoo' });
     res.json({ ok: true, saved: r.saved.length, alerts: r.alerts, rejected: r.rejected });
     if (r.saved.length) evaluateLater();
   }));
@@ -294,7 +294,8 @@ function createFinanceSite(opts) {
     const parse = (s) => { try { return JSON.parse(s || 'null'); } catch (_) { return null; } };
     res.json({ ok: true, settings: { default_amount: Number(st.default_amount), notify: st.notify === '1', server_feed: st.server_feed === '1',
       rec_valid_min: Number(st.rec_valid_min), buy_order_days: Number(st.buy_order_days) },
-    feed: parse(st.last_feed), daily: parse(st.last_daily_result), market: cfg, ai: p ? { provider: p.name, model: p.model } : null,
+    feed: parse(st.last_feed), daily: parse(st.last_daily_result), egx: (await getPool().query(`SELECT max(fetched_ts) AS at, count(DISTINCT symbol)::int AS n
+      FROM egx.quotes WHERE source='egx' AND fetched_ts = (SELECT max(fetched_ts) FROM egx.quotes WHERE source='egx')`)).rows[0], market: cfg, ai: p ? { provider: p.name, model: p.model } : null,
     push: { enabled: push.isEnabled(), key: push.isEnabled() ? push.publicKey() : null, devices: (await trade.subs(getPool())).length } });
   }));
   router.post('/api/settings', needOwner, json, wrap(async (req, res) => { await trade.setSettings(getPool(), req.body || {}); res.json({ ok: true }); }));
