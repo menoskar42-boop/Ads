@@ -355,7 +355,7 @@
     if (!w || !w.why) return '';
     var keys = Object.keys(w.why).filter(function (k) { return (w.why[k] || []).length; });
     if (!keys.length) return '';
-    return '<div class="card"><h2>ليه مفيش ترشيح شراء؟</h2><p class="muted">من آخر مراجعة ' + esc(t(w.at)) + '. الترشيح بيطلع لما الشروط كلها تتحقق: السعر جوّه منطقة الشراء، والاتجاه صاعد (المتوسط ٢٠ فوق ٥٠)، وRSI بين ٣٥ و٦٨، ومفيش أخبار سلبية، والعائد للمخاطرة ١٫٥ على الأقل.</p>' +
+    return '<div class="card"><h2>ليه مفيش ترشيح شراء؟</h2><p class="muted">على آخر سعر، ' + esc(t(w.at)) + (w.open ? '' : ' (السوق مقفول: الترشيح بيطلع وقت السوق بس)') + '. الترشيح بيطلع لما الشروط كلها تتحقق: السعر جوّه منطقة الشراء، والاتجاه صاعد (المتوسط ٢٠ فوق ٥٠)، وRSI بين ٣٥ و٦٨، ومفيش أخبار سلبية، والعائد للمخاطرة ١٫٥ على الأقل.</p>' +
       '<div class="scroll"><table><thead><tr><th>السهم</th><th>الناقص</th></tr></thead><tbody>' +
       keys.sort().map(function (k) { return '<tr><td><a href="/stock/' + esc(k) + '"><b>' + esc(k) + '</b></a></td><td>' + w.why[k].map(esc).join('<br>') + '</td></tr>'; }).join('') +
       '</tbody></table></div></div>';

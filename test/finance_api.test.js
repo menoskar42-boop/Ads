@@ -138,8 +138,8 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     assert.equal(dec.ok, true); assert.deepEqual(dec.order, { side: 'BUY', price: inZone, qty: q8 });
     assert.equal((await post(`/api/recs/${rec.id}/decide`, { yes: true, token: trade.token(KEY, rec.id) })).status, 409);   // مرة واحدة بس
     // «ليه مفيش ترشيح؟»: COMI اتعمله ترشيح من شوية (بعد «نعم» عشان القايمة بتقفل الترشيحات اللى وقتها فات) ⇒ ده السبب اللى بيظهر فى صفحة الترشيحات
-    await site._waitEvaluate(); await trade.evaluate(pool, { now: new Date(now.getTime() + 10 * 60000) });   // بوقت الاختبار (مش الوقت الحقيقى)
-    const whyNow = (await get('/api/recs')).why;
+    assert.ok((await get('/api/recs')).why.why.COMI);   // الصفحة بتحسبه لما تتفتح، وقت السوق وبعده
+    const whyNow = await trade.whyNow(pool, new Date(now.getTime() + 10 * 60000));
     assert.ok(whyNow && whyNow.at); assert.ok((whyNow.why.COMI || []).some((x) => x.includes('آخر ٣ أيام') || x.includes('أمر شراء مفتوح')));
     await site._waitEvaluate();   // (بتوقيت حقيقى ممكن السوق يبقى مقفول ⇒ مفيش تنفيذ) — التنفيذ بوقت السوق:
     await trade.evaluate(pool, { now: new Date(now.getTime() + 11 * 60000), signals: false });

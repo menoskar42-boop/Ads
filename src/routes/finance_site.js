@@ -261,8 +261,8 @@ function createFinanceSite(opts) {
 
   /* ── الترشيحات: نعم / لا ── */
   router.get('/api/recs', needOwner, wrap(async (req, res) => {
-    const st = await trade.settings(getPool());
-    let why = null; try { why = JSON.parse(st.last_eval_why || 'null'); } catch (_) { /* فاضى */ }
+    // «ليه مفيش ترشيح؟» بيتحسب دلوقتى على آخر سعر (وقت السوق وبعده)
+    let why = null; try { why = await trade.whyNow(getPool()); } catch (e) { console.error('[finance] why:', e.message); }
     res.json({ ok: true, items: await trade.recs(getPool(), 100), why });
   }));
   router.get('/api/recs/:id', needOwner, wrap(async (req, res) => {

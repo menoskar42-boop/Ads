@@ -304,6 +304,36 @@ function notification(r) {
 
 /* ── المحرّك ── */
 
+/** مدخلات شروط الشراء لسهم (نفس اللى evaluate بيستخدمه). */
+async function buyInputs(p, r, today) {
+  const cs = await store.candles(p, r.symbol, 80);
+  const pos = (await p.query('SELECT qty, avg_cost::float FROM egx.sim_positions WHERE symbol=$1', [r.symbol])).rows[0] || null;
+  const pendingBuy = (await p.query("SELECT 1 FROM egx.sim_orders WHERE symbol=$1 AND side='BUY' AND status='OPEN'", [r.symbol])).rowCount > 0;
+  const fund = (await p.query(`SELECT profit_growth_pct::float AS g FROM egx.disclosures WHERE symbol=$1 AND profit_growth_pct IS NOT NULL
+    AND published_date > ($2::date - 120) ORDER BY published_date DESC LIMIT 1`, [r.symbol, today])).rows[0];
+  const base = { price: r.price, levels: r.levels, rsi: S.rsi14(cs.map((c) => c.close_p)), volRatio: S.volumeRatio(cs), news: r.news,
+    fundamental: fund ? { profit_growth_pct: fund.g } : null };
+  return { base, pos, buyIn: Object.assign({}, base, { holding: !!pos || pendingBuy, recentRec: await recentRec(p, r.symbol, 'BUY', 3) }) };
+}
+
+/**
+ * «ليه مفيش ترشيح شراء؟» دلوقتى على آخر سعر (٢٠٢٦-١١-١١، المالك: «فين الجدول ده» بعد الإقفال): بيتحسب لما الصفحة
+ * تتفتح، وقت السوق وبعده. الترشيح نفسه بيطلع وقت السوق بس وبسعر النهارده (evaluate).
+ */
+async function whyNow(p, now) {
+  now = now || new Date();
+  const today = L.cairoParts(now).iso;
+  const state = await store.state(p, now);
+  const why = {};
+  for (const r of state.rows) {
+    if (!r.levels) { why[r.symbol] = ['مفيش شموع كفاية للمستويات']; continue; }
+    if (!(r.price > 0)) { why[r.symbol] = ['مفيش سعر']; continue; }
+    const out = S.buyBlockers((await buyInputs(p, r, today)).buyIn);
+    why[r.symbol] = out.length ? out : ['الشروط كلها متحققة: الترشيح بيطلع وقت السوق بسعر النهارده'];
+  }
+  return { at: now.toISOString(), why, open: L.marketOpen(now) };
+}
+
 /** بعد ما الأسعار توصل (من السيرفر أو السكربت): الديمو يتنفّذ + ترشيحات جديدة + إشعارات. */
 async function evaluate(p, opts) {
   opts = opts || {};
@@ -322,25 +352,16 @@ async function evaluate(p, opts) {
   }
   const fills = await simRun(p, prices, now);
   const created = [];
-  const why = {};   // ليه مفيش ترشيح لكل سهم (صفحة الترشيحات بتعرضه)
   if (opts.signals !== false && L.marketOpen(now, opts.open, opts.close)) {
     for (const r of state.rows) {
-      if (!(r.symbol in prices) || !r.levels) { why[r.symbol] = [!r.levels ? 'مفيش شموع كفاية للمستويات' : 'مفيش سعر من النهارده لسه']; continue; }
-      const cs = await store.candles(p, r.symbol, 80);
-      const pos = (await p.query('SELECT qty, avg_cost::float FROM egx.sim_positions WHERE symbol=$1', [r.symbol])).rows[0] || null;
-      const pendingBuy = (await p.query("SELECT 1 FROM egx.sim_orders WHERE symbol=$1 AND side='BUY' AND status='OPEN'", [r.symbol])).rowCount > 0;
-      const fund = (await p.query(`SELECT profit_growth_pct::float AS g FROM egx.disclosures WHERE symbol=$1 AND profit_growth_pct IS NOT NULL
-        AND published_date > ($2::date - 120) ORDER BY published_date DESC LIMIT 1`, [r.symbol, today])).rows[0];
-      const base = { price: r.price, levels: r.levels, rsi: S.rsi14(cs.map((c) => c.close_p)), volRatio: S.volumeRatio(cs), news: r.news,
-        fundamental: fund ? { profit_growth_pct: fund.g } : null };
+      if (!(r.symbol in prices) || !r.levels) continue;
+      const { base, pos, buyIn } = await buyInputs(p, r, today);
       let sig = pos ? S.sellSignal(Object.assign({}, base, { position: pos, recentRec: await recentRec(p, r.symbol, 'SELL', 1) })) : null;
-      const buyIn = Object.assign({}, base, { holding: !!pos || pendingBuy, recentRec: await recentRec(p, r.symbol, 'BUY', 3) });
       if (!sig) sig = S.buySignal(buyIn);
-      if (!sig) { why[r.symbol] = S.buyBlockers(buyIn); continue; }
+      if (!sig) continue;
       if (sig.side === 'BUY') sig.qty = S.qtyFor(st.default_amount, sig.price);
       created.push(await createRec(p, r.symbol, sig, st.rec_valid_min, now));
     }
-    await setMeta(p, 'last_eval_why', JSON.stringify({ at: now.toISOString(), why }), 20000);   // جدول «ليه مفيش ترشيح» كامل
   }
   if (created.length && st.notify === '1' && opts.notify) {
     for (const r of created) await opts.notify(r).catch((e) => console.error('[finance] push:', e.message));
@@ -400,4 +421,4 @@ async function tick(p, opts) {
 function token(secret, id) { return crypto.createHmac('sha256', String(secret || '')).update('rec:' + id).digest('hex').slice(0, 32); }
 
 module.exports = { settings, setSettings, setMeta, recs, rec, createRec, decide, simRun, simState, simReset, cancelOrder, addSimOrder, settle, revertBadFills,
-  saveSub, subs, dropSub, notification, evaluate, tick, token, recentRec };
+  saveSub, subs, dropSub, notification, evaluate, tick, token, recentRec, whyNow };
