@@ -242,6 +242,9 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   اللحظية للبورصة المصرية واقفة من ٢٣ يوليو، فالخطة سكربت Tampermonkey يقرا الأسعار من egx.com.eg ويبعتها لـfinance
   (`/api/ingest/quotes`) وYahoo احتياطى. الإكستنشن بيلاقى الصفحة ويوصف الطلب اللى بيجيب الأسعار، من غير كوكيز ولا توكنات.
   الصفحة: https://claude.ai/artifact/Tkx3EALCFDpyTcVCMMqaqM. **Trigger:** «ابعتلي برومبت صفحة الأسعار».
+- `docs/EGX_ISIN_FILL_PROMPT.md` — **برومبت الإكستنشن: أكواد ISIN لأسهم قايمة المتابعة** (٢٠٢٦-١١-١١). جدول أسعار البورصة فيه
+  الكود بس؛ الإكستنشن بيجيبه من `prices.aspx` ويتأكد بكود رويترز ويكتبه فى خانة «ISIN» فى إعدادات finance بس (`egx.watchlist.isin`).
+  الصفحة: https://claude.ai/artifact/63RHbSSCEJydeNUsJSHWjn. **Trigger:** «ابعتلي برومبت أكواد الأسهم».
 - `docs/ORACLE_DB_SETUP_PROMPT.md` — **برومبت الإكستنشن لقاعدة Service Flow على Oracle Cloud
   المجانى** (٢٠٢٦-١٠-٢٠). عدّاد `/api/admin/db-wake` أثبت إن قاعدة ريبليت صاحية طول ما الطابور
   شغّال (٦٫٣ من ٦٫٥ ساعة) = حوالى ٤٥ دولار فى الشهر. الحل: سيرفر Ampere A1 (Always Free: نواتين
