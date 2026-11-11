@@ -246,6 +246,10 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     await store.ingestQuotes(pool, [{ symbol: 'COMI', price: lc + 0.01 }], new Date(t4.getTime() + 30000), { source: 'egx' });
     await store.ingestQuotes(pool, [{ symbol: 'COMI', price: lc }], new Date(t4.getTime() + 45000), { source: 'egx' });
     assert.equal(await nq(), 3);
+    // بعد الإقفال Yahoo بيبعت سعر امبارح: مرفوض، والسعر يفضل سعر البورصة بتاع النهارده
+    const yOld = await store.ingestQuotes(pool, [{ symbol: 'COMI', price: lc + 0.5, quote_ts: new Date(t4.getTime() - 86400000).toISOString() }], new Date(t4.getTime() + 60000), { source: 'yahoo' });
+    assert.equal(yOld.saved.length, 0); assert.equal(yOld.rejected[0].why, 'older');
+    assert.equal((await store.state(pool, new Date(t4.getTime() + 60000))).rows.find((r) => r.symbol === 'COMI').price, lc);
     // كل قد إيه الأسعار تتجدد: من الإعدادات (١٥ لـ ٦٠٠) وبيوصل للسكربت مع القايمة
     assert.equal((await get('/api/watchlist?all=1')).price_every_sec, 60);
     await post('/api/settings', { price_every_sec: '5' }, KEY); assert.equal((await get('/api/watchlist?all=1')).price_every_sec, 60);

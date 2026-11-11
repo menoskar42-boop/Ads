@@ -171,6 +171,12 @@ async function ingestQuotes(p, items, now, opts) {
     const qts = q.quote_ts && !Number.isNaN(Date.parse(q.quote_ts)) ? new Date(q.quote_ts) : (Number.isFinite(Number(q.quote_ts)) ? new Date(Number(q.quote_ts) * (Number(q.quote_ts) < 1e12 ? 1000 : 1)) : null);
     // سعر قديم (أكتر من يومين) أو بعيد عن آخر إقفال بأكتر من ٢٥٪ (حد الحركة اليومى ٢٠٪) ⇒ مرفوض
     if (qts && now - qts > 2 * 86400000) { rejected.push({ symbol: sym, why: 'stale', quote_ts: qts }); continue; }
+    // ٢٠٢٦-١١-١١ (المالك: «الجلسة خلصت فجاب ١٠ نوفمبر تانى»): سعر أقدم من اللى عندنا (Yahoo بعد الإقفال لسه على امبارح
+    // وسعر البورصة من النهارده) ⇒ مرفوض، والسعر يثبت على آخر سعر لحد ما ييجى أحدث منه
+    if (qts) {
+      const last = (await p.query('SELECT max(COALESCE(quote_ts, fetched_ts)) AS t FROM egx.quotes WHERE symbol=$1', [sym])).rows[0].t;
+      if (last && qts < new Date(last)) { rejected.push({ symbol: sym, why: 'older', quote_ts: qts }); continue; }
+    }
     const lv = await levels(p, sym);
     if (!saneVsClose(price, lv)) { rejected.push({ symbol: sym, why: 'far_from_close', price }); continue; }
     // نفس السعر من نفس المصدر فى آخر ١٠ دقايق ⇒ بنحدّث وقت آخر سعر بدل صف جديد (التحديث كل ١٥ ثانية مايكبّرش الجدول)
@@ -333,8 +339,9 @@ async function state(p, now) {
   const syms = wl.map((w) => w.symbol);
   if (!syms.length) return { rows: [], last_quote_ts: null };
   const lv = (await p.query('SELECT * FROM egx.levels WHERE symbol = ANY($1)', [syms])).rows;
+  // آخر سعر = الأحدث فى وقت السعر نفسه (مش وقت الوصول): سعر امبارح اللى وصل متأخر مايغطّيش على سعر النهارده
   const q = (await p.query(`SELECT DISTINCT ON (symbol) symbol, price::float, quote_ts, fetched_ts FROM egx.quotes WHERE symbol = ANY($1)
-    ORDER BY symbol, fetched_ts DESC`, [syms])).rows;
+    ORDER BY symbol, COALESCE(quote_ts, fetched_ts) DESC, fetched_ts DESC`, [syms])).rows;
   const ds = (await p.query(`SELECT symbol, published_date, impact_score, sentiment FROM egx.disclosures WHERE symbol = ANY($1)
     AND published_date >= ($2::date - 14)`, [syms, today])).rows;
   const rows = wl.map((w) => {

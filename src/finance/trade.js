@@ -171,7 +171,7 @@ async function simState(p) {
   const syms = positions.map((x) => x.symbol);
   const prices = {};
   if (syms.length) {
-    for (const q of (await p.query(`SELECT DISTINCT ON (symbol) symbol, price::float FROM egx.quotes WHERE symbol = ANY($1) ORDER BY symbol, fetched_ts DESC`, [syms])).rows) prices[q.symbol] = q.price;
+    for (const q of (await p.query(`SELECT DISTINCT ON (symbol) symbol, price::float FROM egx.quotes WHERE symbol = ANY($1) ORDER BY symbol, COALESCE(quote_ts, fetched_ts) DESC, fetched_ts DESC`, [syms])).rows) prices[q.symbol] = q.price;
   }
   const reserved = orders.filter((o) => o.side === 'BUY').reduce((s, o) => s + o.price * o.qty, 0);
   return { account: acc, positions: positions.map((x) => Object.assign(x, { price: prices[x.symbol] || null })), orders, trades, reserved: L.r2(reserved),
