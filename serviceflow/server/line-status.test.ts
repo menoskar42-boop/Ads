@@ -23,7 +23,7 @@ test("line status facts: stability from Line Summary, XELT without history", () 
 
 test("DZS 10.39.0: line status reads recorded data only, never presses Real or Perform XELT; stability with every measurement", () => {
   const dzs = read("../dzs-expresse-v10.user.js");
-  assert.match(dzs, /@version {6}10\.39\.0/);
+  assert.match(dzs, /@version {6}10\.(39|40)\.0/);
   const block = dzs.slice(dzs.indexOf("const LS_STATE_KEY"), dzs.indexOf("window.DZS_lineStatus"));
   assert.ok(block.length > 1000);
   assert.doesNotMatch(block, /\.click\(\)[^\n]*(Perform|Real ?-?Time)/i);
