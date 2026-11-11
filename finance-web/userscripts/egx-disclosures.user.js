@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EGX Swing: EGX disclosures
 // @namespace    https://finance.oscardevs.com
-// @version      1.5.1
+// @version      1.5.2
 // @updateURL    https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @downloadURL  https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @description  الأسعار من جدول «جميع الأسهم» فى موقع البورصة المصرية كل دقيقتين وقت السوق، والإفصاحات الجديدة من صفحة البحث فى الأخبار، ويبعتهم لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح الصفحتين لو مش مفتوحين.
@@ -205,7 +205,8 @@
    */
   function num(s) { var v = parseFloat(latin(s).replace(/[,\s]/g, '')); return Number.isFinite(v) ? v : null; }
   function reutersCode(html) {
-    var t = String(html || '').replace(/<[^>]+>/g, ' ');
+    // ١.٥.٢: المسافات بتتلم الأول (بين «كود رويترز» والكود كان فيه سطور فاضية كتير فالكود ماكانش بيتلقى)
+    var t = String(html || '').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ');
     var m = t.match(/رويترز[\s\S]{0,300}?\b([A-Z][A-Z0-9]{1,7})\.CA\b/) || t.match(/Reuters[\s\S]{0,300}?\b([A-Z][A-Z0-9]{1,7})\.CA\b/i);
     if (m) return m[1].toUpperCase();
     // من غير لابل: نقبل الكود بس لو هو الوحيد فى الصفحة (عشان شريط أسعار فيه أكواد شركات تانية مايلخبطش)
@@ -236,11 +237,11 @@
   }
   /** الرمز المكتوب فى صفحة الشركة (كود رويترز)، محفوظ عندنا: اللى اتعرف مايتطلبش تانى، واللى مالقيناش فيه كود نجرّبه بعد يوم */
   async function codeOf(isin, getHtml) {
-    var cache = {}; try { cache = JSON.parse(GM_getValue('isinMap', '{}')); } catch (_) { /* فاضى */ }
+    var cache = {}; try { cache = JSON.parse(GM_getValue('isinCodes2', '{}')); } catch (_) { /* فاضى */ }
     var e = cache[isin];
     if (e && (e.s || Date.now() - e.t < 86400000)) return e.s;
     var code = reutersCode(await getHtml('https://www.egx.com.eg/ar/CompanyDetails.aspx?ISIN=' + isin));
-    cache[isin] = { s: code, t: Date.now() }; GM_setValue('isinMap', JSON.stringify(cache));
+    cache[isin] = { s: code, t: Date.now() }; GM_setValue('isinCodes2', JSON.stringify(cache));
     await sleep(1200);
     return code;
   }
