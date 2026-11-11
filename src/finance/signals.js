@@ -70,6 +70,32 @@ function buySignal(o) {
 }
 
 /**
+ * ليه مفيش ترشيح شراء للسهم ده؟ (٢٠٢٦-١١-١١، المالك: «ليه مفيش ترشيحات؟») نفس شروط buySignal بالترتيب، وكل شرط
+ * مش متحقق بيتكتب بالعربى. فاضية = الشروط كلها متحققة.
+ */
+function buyBlockers(o) {
+  const lv = o.levels; const price = o.price; const out = [];
+  if (!lv) return ['مفيش شموع كفاية للمستويات'];
+  if (!lv.reliable) out.push('البيانات مش موثوقة (' + (lv.flags || []).join('، ') + ')');
+  if (!(price > 0)) return out.concat(['مفيش سعر النهارده']);
+  if (o.holding) out.push('معاك السهم فى الديمو أو أمر شراء مفتوح');
+  if (o.recentRec) out.push('اتعمله ترشيح فى آخر ٣ أيام');
+  if (price < lv.buy_lo) out.push(`السعر ${fmt(price)} تحت منطقة الشراء (${fmt(lv.buy_lo)})`);
+  else if (price > lv.buy_hi) out.push(`السعر ${fmt(price)} فوق منطقة الشراء (${fmt(lv.buy_hi)})`);
+  if (!(lv.sma20 > lv.sma50)) out.push(`الاتجاه مش صاعد: المتوسط ٢٠ (${fmt(lv.sma20)}) مش فوق ٥٠ (${fmt(lv.sma50)})`);
+  if (o.rsi != null && o.rsi < 35) out.push(`RSI ${fmt(o.rsi)} أقل من ٣٥ (ضعف)`);
+  if (o.rsi != null && o.rsi > 68) out.push(`RSI ${fmt(o.rsi)} أعلى من ٦٨ (متشبّع شراء)`);
+  if ((o.news || 0) < 0) out.push('أخبار سلبية فى آخر ١٤ يوم');
+  const entry = Math.min(price, lv.buy_hi), risk = entry - lv.stop_loss;
+  if (!(risk > 0)) out.push('السعر تحت الوقف');
+  else {
+    const rr1 = (lv.target1 - entry) / risk, rr2 = lv.target2 != null ? (lv.target2 - entry) / risk : -1;
+    if (rr1 < 1.5 && rr2 < 1.5) out.push(`العائد للمخاطرة ${fmt(Math.max(rr1, rr2))} أقل من ١٫٥ (الوقف ${fmt(lv.stop_loss)} بعيد عن الهدف ${fmt(rr2 > rr1 ? lv.target2 : lv.target1)})`);
+  }
+  return out;
+}
+
+/**
  * ترشيح بيع (لسهم إنت ماسكه فى المحفظة): وصل الوقف (خطر) · أخبار سلبية قوية · كسر الاتجاه (السعر تحت المتوسط ٢٠
  * والمتوسط ٢٠ تحت ٥٠) · وصل الهدف الأول (جنى أرباح). الأخطر الأول.
  */
@@ -94,4 +120,4 @@ function qtyFor(amount, price) {
   return amount > 0 && price > 0 ? Math.floor(amount / price) : 0;
 }
 
-module.exports = { rsi14, volumeRatio, buySignal, sellSignal, qtyFor };
+module.exports = { rsi14, volumeRatio, buySignal, sellSignal, qtyFor, buyBlockers };

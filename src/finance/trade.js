@@ -10,7 +10,8 @@ const store = require('./store');
 const yahoo = require('./yahoo');
 const egxPrices = require('./egx_prices');
 
-const DEFAULTS = { default_amount: '1000', notify: '1', server_feed: '1', rec_valid_min: '30', buy_order_days: '3' };
+// price_every_sec: كل قد إيه أسعار البورصة بتتجدد (السكربت والسيرفر): ٦٠ افتراضى، من ١٥ لـ ٦٠٠ (المالك ٢٠٢٦-١١-١١)
+const DEFAULTS = { default_amount: '1000', notify: '1', server_feed: '1', rec_valid_min: '30', buy_order_days: '3', price_every_sec: '60' };
 
 async function settings(p) {
   const r = await p.query('SELECT k, v FROM egx.settings');
@@ -19,18 +20,19 @@ async function settings(p) {
   return out;
 }
 async function setSettings(p, obj) {
-  const allowed = ['default_amount', 'notify', 'server_feed', 'rec_valid_min', 'buy_order_days'];
+  const allowed = ['default_amount', 'notify', 'server_feed', 'rec_valid_min', 'buy_order_days', 'price_every_sec'];
   for (const k of allowed) {
     if (obj[k] === undefined) continue;
     let v = String(obj[k]).trim().slice(0, 40);
     if (k === 'default_amount') { const n = Number(v); if (!(n > 0 && n <= 10000000)) continue; v = String(Math.round(n)); }
     if (k === 'notify' || k === 'server_feed') v = v === '1' || v === 'true' ? '1' : '0';
     if (k === 'rec_valid_min' || k === 'buy_order_days') { const n = Math.round(Number(v)); if (!(n >= 1 && n <= 1440)) continue; v = String(n); }
+    if (k === 'price_every_sec') { const n = Math.round(Number(v)); if (!(n >= 15 && n <= 600)) continue; v = String(n); }
     await p.query('INSERT INTO egx.settings(k, v) VALUES ($1,$2) ON CONFLICT (k) DO UPDATE SET v=$2', [k, v]);
   }
   return settings(p);
 }
-async function setMeta(p, k, v) { await p.query('INSERT INTO egx.settings(k, v) VALUES ($1,$2) ON CONFLICT (k) DO UPDATE SET v=$2', [k, String(v).slice(0, 300)]); }
+async function setMeta(p, k, v, max) { await p.query('INSERT INTO egx.settings(k, v) VALUES ($1,$2) ON CONFLICT (k) DO UPDATE SET v=$2', [k, String(v).slice(0, max || 300)]); }
 
 /* ── الترشيحات ── */
 const recOut = (r) => r && Object.assign({}, r, {
@@ -320,9 +322,10 @@ async function evaluate(p, opts) {
   }
   const fills = await simRun(p, prices, now);
   const created = [];
+  const why = {};   // ليه مفيش ترشيح لكل سهم (صفحة الترشيحات بتعرضه)
   if (opts.signals !== false && L.marketOpen(now, opts.open, opts.close)) {
     for (const r of state.rows) {
-      if (!(r.symbol in prices) || !r.levels) continue;
+      if (!(r.symbol in prices) || !r.levels) { why[r.symbol] = [!r.levels ? 'مفيش شموع كفاية للمستويات' : 'مفيش سعر من النهارده لسه']; continue; }
       const cs = await store.candles(p, r.symbol, 80);
       const pos = (await p.query('SELECT qty, avg_cost::float FROM egx.sim_positions WHERE symbol=$1', [r.symbol])).rows[0] || null;
       const pendingBuy = (await p.query("SELECT 1 FROM egx.sim_orders WHERE symbol=$1 AND side='BUY' AND status='OPEN'", [r.symbol])).rowCount > 0;
@@ -331,11 +334,13 @@ async function evaluate(p, opts) {
       const base = { price: r.price, levels: r.levels, rsi: S.rsi14(cs.map((c) => c.close_p)), volRatio: S.volumeRatio(cs), news: r.news,
         fundamental: fund ? { profit_growth_pct: fund.g } : null };
       let sig = pos ? S.sellSignal(Object.assign({}, base, { position: pos, recentRec: await recentRec(p, r.symbol, 'SELL', 1) })) : null;
-      if (!sig) sig = S.buySignal(Object.assign({}, base, { holding: !!pos || pendingBuy, recentRec: await recentRec(p, r.symbol, 'BUY', 3) }));
-      if (!sig) continue;
+      const buyIn = Object.assign({}, base, { holding: !!pos || pendingBuy, recentRec: await recentRec(p, r.symbol, 'BUY', 3) });
+      if (!sig) sig = S.buySignal(buyIn);
+      if (!sig) { why[r.symbol] = S.buyBlockers(buyIn); continue; }
       if (sig.side === 'BUY') sig.qty = S.qtyFor(st.default_amount, sig.price);
       created.push(await createRec(p, r.symbol, sig, st.rec_valid_min, now));
     }
+    await setMeta(p, 'last_eval_why', JSON.stringify({ at: now.toISOString(), why }), 20000);   // جدول «ليه مفيش ترشيح» كامل
   }
   if (created.length && st.notify === '1' && opts.notify) {
     for (const r of created) await opts.notify(r).catch((e) => console.error('[finance] push:', e.message));
@@ -355,7 +360,8 @@ async function tick(p, opts) {
   // ٢٠٢٦-١١-١١: أسعار البورصة من السيرفر نفسه كل دقيقتين (prices.aspx ← «جميع الأسهم»)، من غير ما يحتاج تاب مفتوح.
   // فى الاختبارات: بس لو اتبعت egxFetch (fetch لوحده = Yahoo بس).
   const egxOn = !!opts.egxFetch || !opts.fetch;
-  if (st.server_feed === '1' && open && egxOn && now - Number(st.last_egx_ms || 0) >= 110000 && now >= Number(st.egx_backoff_until || 0)) {
+  const egxEvery = Math.max(55000, Number(st.price_every_sec || 60) * 1000 - 5000);   // الدورة كل دقيقة، فأقل من كده مايفرقش هنا
+  if (st.server_feed === '1' && open && egxOn && now - Number(st.last_egx_ms || 0) >= egxEvery && now >= Number(st.egx_backoff_until || 0)) {
     await setMeta(p, 'last_egx_ms', now.getTime());
     try {
       const rows = await egxPrices.fetchGrid({ fetch: opts.egxFetch });

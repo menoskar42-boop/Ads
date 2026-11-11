@@ -231,7 +231,8 @@ function createFinanceSite(opts) {
   router.get('/api/watchlist', wrap(async (req, res) => {
     const all = req.query.all === '1' && isOwner(req);
     const items = await store.watchlist(getPool(), all);
-    res.json({ ok: true, symbols: items.filter((w) => w.is_active).map((w) => w.symbol), items: all ? items : undefined,
+    const every = Number((await trade.settings(getPool())).price_every_sec) || 60;
+    res.json({ ok: true, symbols: items.filter((w) => w.is_active).map((w) => w.symbol), items: all ? items : undefined, price_every_sec: every,
       market: { open: cfg.open, close: cfg.close, daily_after: cfg.dailyAfter, tz: 'Africa/Cairo', days: 'Sun-Thu' } });
   }));
   // سكربت البورصة: كود الـISIN لكل سهم بيتحفظ هنا مرة واحدة (مش بيدوّر عليه كل مرة)
@@ -259,7 +260,11 @@ function createFinanceSite(opts) {
   }));
 
   /* ── الترشيحات: نعم / لا ── */
-  router.get('/api/recs', needOwner, wrap(async (req, res) => { res.json({ ok: true, items: await trade.recs(getPool(), 100) }); }));
+  router.get('/api/recs', needOwner, wrap(async (req, res) => {
+    const st = await trade.settings(getPool());
+    let why = null; try { why = JSON.parse(st.last_eval_why || 'null'); } catch (_) { /* فاضى */ }
+    res.json({ ok: true, items: await trade.recs(getPool(), 100), why });
+  }));
   router.get('/api/recs/:id', needOwner, wrap(async (req, res) => {
     const r = await trade.rec(getPool(), String(req.params.id).slice(0, 32));
     if (!r) return fail(res, 404, 'الترشيح مش موجود');
@@ -297,7 +302,7 @@ function createFinanceSite(opts) {
     const p = analysis.provider(env);
     const parse = (s) => { try { return JSON.parse(s || 'null'); } catch (_) { return null; } };
     res.json({ ok: true, settings: { default_amount: Number(st.default_amount), notify: st.notify === '1', server_feed: st.server_feed === '1',
-      rec_valid_min: Number(st.rec_valid_min), buy_order_days: Number(st.buy_order_days) },
+      rec_valid_min: Number(st.rec_valid_min), buy_order_days: Number(st.buy_order_days), price_every_sec: Number(st.price_every_sec) },
     feed: parse(st.last_feed), daily: parse(st.last_daily_result), egx_server: parse(st.last_egx_feed), egx: (await getPool().query(`SELECT max(fetched_ts) AS at, count(DISTINCT symbol)::int AS n
       FROM egx.quotes WHERE source='egx' AND fetched_ts = (SELECT max(fetched_ts) FROM egx.quotes WHERE source='egx')`)).rows[0], market: cfg, ai: p ? { provider: p.name, model: p.model } : null,
     push: { enabled: push.isEnabled(), key: push.isEnabled() ? push.publicKey() : null, devices: (await trade.subs(getPool())).length } });

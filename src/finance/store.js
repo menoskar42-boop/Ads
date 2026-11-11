@@ -173,8 +173,14 @@ async function ingestQuotes(p, items, now, opts) {
     if (qts && now - qts > 2 * 86400000) { rejected.push({ symbol: sym, why: 'stale', quote_ts: qts }); continue; }
     const lv = await levels(p, sym);
     if (!saneVsClose(price, lv)) { rejected.push({ symbol: sym, why: 'far_from_close', price }); continue; }
-    await p.query('DELETE FROM egx.quotes WHERE symbol=$1 AND fetched_ts=$2', [sym, now]);
-    await p.query('INSERT INTO egx.quotes(symbol, fetched_ts, price, quote_ts, source) VALUES ($1,$2,$3,$4,$5)', [sym, now, price, qts, source]);
+    // نفس السعر من نفس المصدر فى آخر ١٠ دقايق ⇒ بنحدّث وقت آخر سعر بدل صف جديد (التحديث كل ١٥ ثانية مايكبّرش الجدول)
+    const same = (await p.query(`UPDATE egx.quotes SET fetched_ts=$2, quote_ts=$4 WHERE ctid = (SELECT ctid FROM egx.quotes WHERE symbol=$1
+      ORDER BY fetched_ts DESC LIMIT 1) AND price=$3 AND source IS NOT DISTINCT FROM $5 AND fetched_ts > $2::timestamptz - interval '10 minutes' AND fetched_ts <= $2`,
+    [sym, now, price, qts, source])).rowCount;
+    if (!same) {
+      await p.query('DELETE FROM egx.quotes WHERE symbol=$1 AND fetched_ts=$2', [sym, now]);
+      await p.query('INSERT INTO egx.quotes(symbol, fetched_ts, price, quote_ts, source) VALUES ($1,$2,$3,$4,$5)', [sym, now, price, qts, source]);
+    }
     saved.push(sym);
     for (const kind of L.alertKinds(price, lv)) {
       const r = await p.query('INSERT INTO egx.alerts(symbol, kind, trade_date, price) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING symbol', [sym, kind, today, price]);

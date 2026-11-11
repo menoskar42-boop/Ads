@@ -137,6 +137,10 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     const q8 = Math.floor(1000 / inZone);
     assert.equal(dec.ok, true); assert.deepEqual(dec.order, { side: 'BUY', price: inZone, qty: q8 });
     assert.equal((await post(`/api/recs/${rec.id}/decide`, { yes: true, token: trade.token(KEY, rec.id) })).status, 409);   // مرة واحدة بس
+    // «ليه مفيش ترشيح؟»: COMI اتعمله ترشيح من شوية (بعد «نعم» عشان القايمة بتقفل الترشيحات اللى وقتها فات) ⇒ ده السبب اللى بيظهر فى صفحة الترشيحات
+    await site._waitEvaluate(); await trade.evaluate(pool, { now: new Date(now.getTime() + 10 * 60000) });   // بوقت الاختبار (مش الوقت الحقيقى)
+    const whyNow = (await get('/api/recs')).why;
+    assert.ok(whyNow && whyNow.at); assert.ok((whyNow.why.COMI || []).some((x) => x.includes('آخر ٣ أيام') || x.includes('أمر شراء مفتوح')));
     await site._waitEvaluate();   // (بتوقيت حقيقى ممكن السوق يبقى مقفول ⇒ مفيش تنفيذ) — التنفيذ بوقت السوق:
     await trade.evaluate(pool, { now: new Date(now.getTime() + 11 * 60000), signals: false });
     // السعر الحالى = سعر الأمر ⇒ اتنفّذ وأمرين الخروج اتحطوا
@@ -235,6 +239,17 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     const st2 = await get('/api/settings'); assert.equal(st2.egx.n, 1); assert.ok(st2.egx.at);
     const t4 = new Date('2026-11-12T09:00:00Z');
     await store.ingestQuotes(pool, [{ symbol: 'COMI', price: lc }], t4, { source: 'egx' });
+    // نفس السعر بعد ١٥ ثانية ⇒ نفس الصف بوقت جديد (مش صف جديد)، وسعر مختلف ⇒ صف جديد
+    const nq = async () => Number((await pool.query("SELECT count(*) FROM egx.quotes WHERE symbol='COMI' AND fetched_ts >= $1", [t4])).rows[0].count);
+    await store.ingestQuotes(pool, [{ symbol: 'COMI', price: lc }], new Date(t4.getTime() + 15000), { source: 'egx' });
+    assert.equal(await nq(), 1);
+    await store.ingestQuotes(pool, [{ symbol: 'COMI', price: lc + 0.01 }], new Date(t4.getTime() + 30000), { source: 'egx' });
+    await store.ingestQuotes(pool, [{ symbol: 'COMI', price: lc }], new Date(t4.getTime() + 45000), { source: 'egx' });
+    assert.equal(await nq(), 3);
+    // كل قد إيه الأسعار تتجدد: من الإعدادات (١٥ لـ ٦٠٠) وبيوصل للسكربت مع القايمة
+    assert.equal((await get('/api/watchlist?all=1')).price_every_sec, 60);
+    await post('/api/settings', { price_every_sec: '5' }, KEY); assert.equal((await get('/api/watchlist?all=1')).price_every_sec, 60);
+    await post('/api/settings', { price_every_sec: '15' }, KEY); assert.equal((await get('/api/watchlist?all=1')).price_every_sec, 15);
     let yahooCalls = 0; const countYahoo = async (u) => { yahooCalls++; return yahooReply({ COMI: lc })(u); };
     await pool.query("DELETE FROM egx.settings WHERE k IN ('last_feed_ms','feed_backoff_until')");
     await trade.tick(pool, { now: new Date(t4.getTime() + 5 * 60000), fetch: countYahoo, delayMs: 0 });

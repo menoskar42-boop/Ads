@@ -258,6 +258,7 @@
         '<label>المبلغ الافتراضى للصفقة (جنيه)<input id="amt" type="number" min="1" step="1" value="' + esc(st.default_amount) + '"></label>' +
         '<label>صلاحية الترشيح (دقيقة)<input id="valid" type="number" min="1" max="1440" value="' + esc(st.rec_valid_min) + '"></label>' +
         '<label>أمر الشراء فى الديمو يفضل (يوم)<input id="days" type="number" min="1" max="30" value="' + esc(st.buy_order_days) + '"></label>' +
+        '<label>أسعار البورصة تتجدد كل (ثانية)<input id="every" type="number" min="15" max="600" value="' + esc(st.price_every_sec || 60) + '"></label>' +
         '<button id="saveSt">احفظ</button><span id="smsg" class="muted"></span></div>' +
         '<p class="muted">المبلغ ده بيظهر جاهز فى صفحة الترشيح وإنت تغيّره قبل «نعم». زرار «نعم» فى الإشعار نفسه بيستخدمه زى ما هو.</p></div>' +
         '<div class="card"><h2>الأسعار</h2><label><span><input type="checkbox" id="feed"' + (st.server_feed ? ' checked' : '') + '> السيرفر يجيب الأسعار من Yahoo Finance بنفسه</span></label>' +
@@ -279,7 +280,7 @@
         '<li><a href="/userscripts/yahoo-feeder.user.js">yahoo-feeder.user.js</a>: احتياطى للأسعار لو Yahoo رفض السيرفر</li></ul></div>' +
         '<p><button class="ghost" id="logout">خروج</button></p>';
       document.getElementById('saveSt').onclick = function () {
-        api('/api/settings', { default_amount: document.getElementById('amt').value, rec_valid_min: document.getElementById('valid').value, buy_order_days: document.getElementById('days').value })
+        api('/api/settings', { default_amount: document.getElementById('amt').value, rec_valid_min: document.getElementById('valid').value, buy_order_days: document.getElementById('days').value, price_every_sec: document.getElementById('every').value })
           .then(function (r) { document.getElementById('smsg').textContent = r.ok ? 'اتحفظ ✓' : (r.error || 'فشل'); });
       };
       document.getElementById('notify').onchange = function (e) { api('/api/settings', { notify: e.target.checked ? '1' : '0' }); };
@@ -346,8 +347,18 @@
           var stt = STATUS[r.status] || [r.status, ''];
           return '<a class="card" style="display:block;text-decoration:none;color:inherit" href="/rec/' + esc(r.id) + '"><div class="row" style="justify-content:space-between"><b>' + sideLabel(r) + ' ' + esc(r.symbol) +
             ' عند ' + n2(r.price) + '</b><span class="pill ' + stt[1] + '">' + stt[0] + '</span></div><div class="muted">' + esc(t(r.created_ts)) + ' · ' + esc((r.reasons || [])[0] || '') + '</div></a>';
-        }).join('') + '</div>' : '<p class="muted">لسه مفيش ترشيحات. بتطلع وقت السوق لما الشروط تتجمع.</p>');
+        }).join('') + '</div>' : '<p class="muted">لسه مفيش ترشيحات. بتطلع وقت السوق لما الشروط تتجمع.</p>') + whyCard(s.why);
     });
+  }
+  // «ليه مفيش ترشيح؟» لكل سهم من آخر مراجعة وقت السوق (الشروط اللى ناقصة)
+  function whyCard(w) {
+    if (!w || !w.why) return '';
+    var keys = Object.keys(w.why).filter(function (k) { return (w.why[k] || []).length; });
+    if (!keys.length) return '';
+    return '<div class="card"><h2>ليه مفيش ترشيح شراء؟</h2><p class="muted">من آخر مراجعة ' + esc(t(w.at)) + '. الترشيح بيطلع لما الشروط كلها تتحقق: السعر جوّه منطقة الشراء، والاتجاه صاعد (المتوسط ٢٠ فوق ٥٠)، وRSI بين ٣٥ و٦٨، ومفيش أخبار سلبية، والعائد للمخاطرة ١٫٥ على الأقل.</p>' +
+      '<div class="scroll"><table><thead><tr><th>السهم</th><th>الناقص</th></tr></thead><tbody>' +
+      keys.sort().map(function (k) { return '<tr><td><a href="/stock/' + esc(k) + '"><b>' + esc(k) + '</b></a></td><td>' + w.why[k].map(esc).join('<br>') + '</td></tr>'; }).join('') +
+      '</tbody></table></div></div>';
   }
   function rec() {
     var id = document.body.dataset.id;

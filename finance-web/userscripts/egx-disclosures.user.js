@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EGX Swing: EGX disclosures
 // @namespace    https://finance.oscardevs.com
-// @version      1.5.2
+// @version      1.6.0
 // @updateURL    https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @downloadURL  https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @description  الأسعار من جدول «جميع الأسهم» فى موقع البورصة المصرية كل دقيقتين وقت السوق، والإفصاحات الجديدة من صفحة البحث فى الأخبار، ويبعتهم لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح الصفحتين لو مش مفتوحين.
@@ -272,7 +272,9 @@
   /** صفوف الجدول ⇒ سيرفرنا (أسهم القايمة بس). كود الـISIN لكل سهم محفوظ على السيرفر، فالبحث بيحصل مرة واحدة بس. */
   async function sendRows(rows, getHtml, onLearn) {
     var K = { 'X-API-Key': apiKey() };
-    var items = ((await req('GET', server() + '/api/watchlist?all=1', null, K)).items || []).filter(function (x) { return x.is_active; });
+    var wl = await req('GET', server() + '/api/watchlist?all=1', null, K);
+    if (wl.price_every_sec) GM_setValue('priceEvery', Number(wl.price_every_sec));   // من إعدادات الموقع
+    var items = (wl.items || []).filter(function (x) { return x.is_active; });
     var taken = {}; items.forEach(function (x) { if (x.isin) taken[x.isin] = x.symbol; });
     var inTable = {}; rows.forEach(function (r) { inTable[r.isin] = 1; });
     var missing = items.filter(function (x) { return !x.isin; });
@@ -324,12 +326,15 @@
     if (!g || !g.tBodies[0] || g.tBodies[0].rows.length < 20) throw new Error('الجدول ماظهرش فى الرد');
     return readGrid(g);
   }
-  /** على تاب موقعنا: كل دقيقتين وقت السوق، وتاب واحد بس بيجيب لو فيه كذا تاب مفتوح */
+  // ١.٦.٠: كل قد إيه الأسعار تتجدد (ثانية) من إعدادات الموقع، ٦٠ افتراضى ومن ١٥ لـ ٦٠٠
+  function everyMs() { var n = Number(GM_getValue('priceEvery', 60)); return Math.min(600, Math.max(15, n || 60)) * 1000; }
+  function lockMs() { return Math.max(10000, everyMs() - 5000); }
+  /** على تاب موقعنا: كل «كل قد إيه» وقت السوق، وتاب واحد بس بيجيب لو فيه كذا تاب مفتوح */
   function pricesFeed(report) {
     var getHtml = function (u) { return req('GET', u, null, null, true); };
     async function tick() {
       if (!pricesTime() || !apiKey()) return report(null);
-      if (Date.now() - Number(GM_getValue('feedLock', 0)) < 100000) return;   // تاب تانى جاب من أقل من دقيقتين
+      if (Date.now() - Number(GM_getValue('feedLock', 0)) < lockMs()) return;   // تاب تانى لسه جايب
       GM_setValue('feedLock', Date.now());
       try {
         var rows = await fetchGrid();
@@ -341,10 +346,10 @@
         console.warn('[EGX prices]', e);
       }
     }
-    tick(); setInterval(tick, 2 * 60000);
+    (function next() { tick().catch(function () {}).then(function () { setTimeout(next, pricesTime() ? everyMs() : 2 * 60000); }); })();
   }
 
-  /** الاحتياطى: تاب prices.aspx بيدوس «جميع الأسهم» كل دقيقتين (الصفحة مابتحدّثش نفسها) */
+  /** الاحتياطى: تاب prices.aspx بيدوس «جميع الأسهم»، وبعدها Reload كامل للصفحة كل «كل قد إيه» (المالك: الريفريش بيجيب الجديد) */
   function pricesPage() {
     var beat = function () { GM_setValue('pricesBeat', Date.now()); };
     beat(); setInterval(beat, 60000);
@@ -371,7 +376,7 @@
         return;
       }
       // تاب موقعنا لسه جايب الأسعار من الخلفية ⇒ مفيش داعى ندوس هنا كمان
-      if (Date.now() - Number(GM_getValue('feedLock', 0)) < 100000 && Number(GM_getValue('feedFails', 0)) === 0) { show('تاب موقعنا بيجيب الأسعار ✓'); return; }
+      if (Date.now() - Number(GM_getValue('feedLock', 0)) < lockMs() && Number(GM_getValue('feedFails', 0)) === 0) { show('تاب موقعنا بيجيب الأسعار ✓'); return; }
       var a = marketLink();
       if (!a) { show('مالقيتش تبويب «جميع الأسهم» فى الصفحة', true); fails++; return; }
       show('بدوس «جميع الأسهم»…');
@@ -383,8 +388,10 @@
     }
     async function loop() {
       try { await cycle(); } catch (e) { fails++; show('خطأ: ' + e.message, true); console.warn('[EGX prices]', e); }
-      // ٣ مرات ورا بعض الجدول ماظهرش، أو بقالنا ٣٠ دقيقة ⇒ Reload كامل
-      if (fails >= 3 || Date.now() - started > 30 * 60000) { location.assign(location.href.split('#')[0]); return; }
+      // وقت السوق ⇒ Reload كامل للصفحة كل «كل قد إيه» (١.٦.٠). برّه السوق أو من غير مفتاح ⇒ نبص تانى كل دقيقتين
+      var reload = function () { location.assign(location.href.split('#')[0]); };
+      if (fails >= 3 || Date.now() - started > 30 * 60000) return reload();
+      if (pricesTime() && apiKey()) { setTimeout(reload, everyMs()); return; }
       setTimeout(loop, 2 * 60000);
     }
     loop();

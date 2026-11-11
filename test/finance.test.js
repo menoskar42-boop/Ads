@@ -125,6 +125,13 @@ test('buy signal only when everything lines up, with reasons', () => {
   assert.equal(far.target1, 112); assert.equal(far.rr1, 2); assert.ok(far.reasons.some((r) => r.includes('٦٠ جلسة')));
   assert.equal(S.buySignal({ price: 100, levels: lv, rsi: 50, holding: true }), null);
   assert.equal(S.buySignal({ price: 100, levels: Object.assign({}, lv, { reliable: false }), rsi: 50 }), null);
+  // «ليه مفيش ترشيح؟» بنفس الشروط: فاضية لما الترشيح يطلع، وكل شرط ناقص بيتكتب
+  assert.deepEqual(S.buyBlockers({ price: 100, levels: lv, rsi: 50 }), []);
+  const lowRR = S.buyBlockers({ price: 100, levels: Object.assign({}, lv, { target1: 105, target2: 106 }), rsi: 50 });
+  assert.equal(lowRR.length, 1); assert.ok(lowRR[0].includes('العائد للمخاطرة 1.00'));
+  const many = S.buyBlockers({ price: 104, levels: Object.assign({}, lv, { sma20: 90 }), rsi: 75, news: -1, holding: true });
+  assert.ok(many.some((r) => r.includes('فوق منطقة الشراء'))); assert.ok(many.some((r) => r.includes('الاتجاه مش صاعد')));
+  assert.ok(many.some((r) => r.includes('متشبّع'))); assert.ok(many.some((r) => r.includes('أخبار سلبية'))); assert.ok(many.some((r) => r.includes('معاك السهم')));
 });
 
 test('sell signal: danger first, then trend, then take profit', () => {
