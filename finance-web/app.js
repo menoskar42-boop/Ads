@@ -130,7 +130,8 @@
     if (!sim || !sim.ok) return '';
     var pos = (sim.positions || []).filter(function (p) { return p.symbol === sym; })[0];
     var mine = (sim.orders || []).filter(function (o) { return o.symbol === sym; });
-    var px = r.price || lv.buy_hi || '';
+    // سعر الشراء الافتراضى = أقل قيمة فى منطقة الشراء (طلب المالك ٢٠٢٦-١١-١١)، والبيع = السعر الحالى
+    var px = lv.buy_lo || r.price || '';
     var amt = (function () { try { return localStorage.getItem('fin_amt') || '1000'; } catch (_) { return '1000'; } })();
     return '<h2>أمر فى محفظة الديمو</h2><div class="card">' +
       (pos ? '<p>معاك <b>' + pos.qty + '</b> سهم بمتوسط ' + n2(pos.avg_cost) + '</p>' : '') +
@@ -158,7 +159,12 @@
       f.querySelectorAll('.sell-only').forEach(function (el) { el.hidden = !sell; });
       f.querySelectorAll('.buy-only').forEach(function (el) { el.hidden = sell; });
     }
-    f.side.onchange = mode; mode();
+    f.side.onchange = function () {
+      mode();
+      var v = f.side.value === 'SELL' ? (r.price || '') : (lv.buy_lo || r.price || '');
+      if (v) f.price.value = Number(v).toFixed(2);
+    };
+    mode();
     f.addEventListener('submit', function (e) {
       e.preventDefault();
       var sell = f.side.value === 'SELL';
