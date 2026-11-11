@@ -1,4 +1,5 @@
 // مشغّل يوتيوب داخل التطبيق: معاينة أولاً، ثم تضمين الفيديو بعد ضغط الطفل.
+import { holdSpeechWhile } from "./speech.js";
 export function createYouTubePlayer({ videoId, title = "فيديو تعليمي" }, { onPlay } = {}) {
   const root = document.createElement("div");
   root.className = "kid-youtube-card";
@@ -35,6 +36,8 @@ export function createYouTubePlayer({ videoId, title = "فيديو تعليمي"
   };
 
   preview.addEventListener("click", () => {
+    // ميزو يسكت من أول ما الفيديو يشتغل، ويفضل ساكت لو وقف أو خلص، لحد ما الكارت يختفى
+    holdSpeechWhile(root);
     onPlay?.(stop);
     iframe = document.createElement("iframe");
     iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;

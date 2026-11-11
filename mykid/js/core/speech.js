@@ -59,6 +59,15 @@ function pickVoice(lang) {
   );
 }
 
+// ميزو ساكت طول ما فيديو الدرس اتشغّل وكارته على الشاشة — وهو شغّال، أو وقف، أو خلص (المالك ٢٠٢٦-١١-١١).
+// بيرجع يتكلم لوحده أول ما الكارت يختفى (الطفل عدّى للخطوة اللى بعدها أو خرج).
+let speechHold = null;
+export function holdSpeechWhile(el) { speechHold = el || null; Speech.stop(); }
+export function speechHeld() {
+  if (speechHold && !speechHold.isConnected) speechHold = null;
+  return !!speechHold;
+}
+
 export const Speech = {
   get available() {
     return enabled;
@@ -70,6 +79,7 @@ export const Speech = {
    * @param {object} opts  { lang:'ar-EG'|'en-US', rate, pitch, onend }
    */
   say(text, opts = {}) {
+    if (speechHeld()) { if (opts.onend) setTimeout(opts.onend, 300); return; }
     if (!text) {
       if (opts.onend) setTimeout(opts.onend, 300);
       return;
@@ -120,6 +130,7 @@ export const Speech = {
    * (نطق الحروف والقواعد يبقى عبر say/ar بالفصحى البسيطة كما هو.)
    */
   mizo(text, opts = {}) {
+    if (speechHeld()) { if (opts.onend) setTimeout(opts.onend, 300); return; }
     // صيغة جنس الطفل (افتراضي ولد) — الحروف/القواعد تبقى عبر say/ar بلا تغيير
     let t = text;
     try { if (Store.childGender === "girl") t = femAdapt(text); } catch (e) {}
@@ -150,7 +161,7 @@ export const Speech = {
 
   // النطق عبر متصفح الجهاز (Web Speech) — البديل الدائم
   _webSpeak(text, opts = {}) {
-    if (!enabled) {
+    if (!enabled || speechHeld()) {
       if (opts.onend) setTimeout(opts.onend, 300);
       return;
     }

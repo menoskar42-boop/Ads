@@ -67,3 +67,21 @@ test("leaving a number page and coming back resumes at the same step with the sa
   assert.equal(back.chips, before.chips, "نفس الخطوات (مش خطوات عشوائية جديدة)");
   assert.deepEqual(errors, []);
 });
+
+// المالك ٢٠٢٦-١١-١١: «صوت ميزو لازم يبقى صامت أثناء تشغيل الفيديو، ويفضل لما الفيديو يقف أو يخلص»
+test("Mizo is silent once the lesson video is played, and talks again after the video step", async () => {
+  await page.evaluate(() => { localStorage.clear(); document.getElementById("app").replaceChildren(); });
+  await page.goto(page.url());
+  await open();
+  await page.waitForSelector(".kid-youtube-preview");
+  const held = () => page.evaluate(async () => (await import("/js/core/speech.js")).speechHeld());
+  assert.equal(await held(), false, "قبل التشغيل ميزو بيتكلم عادى");
+  await page.click(".kid-youtube-preview");
+  assert.equal(await held(), true, "الفيديو اشتغل ⇒ ميزو ساكت");
+  // الفيديو وقف/خلص والكارت لسه ظاهر ⇒ لسه ساكت (ومحاولة كلام مابتعملش حاجة)
+  assert.equal(await page.evaluate(async () => { const m = await import("/js/core/speech.js"); m.Speech.ar("تجربة"); return m.speechHeld(); }), true);
+  await page.click(".wbk-skip");
+  await page.waitForFunction(() => !document.querySelector(".kid-youtube-card"));
+  assert.equal(await held(), false, "الخطوة اللى بعدها ⇒ ميزو بيتكلم تانى");
+  assert.deepEqual(errors, []);
+});
