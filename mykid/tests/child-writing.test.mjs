@@ -8,7 +8,7 @@ import { scoreDrawing, SCORE_PASS, densify } from "../js/games/strokeJudge.js";
 import { strokesFor, strokeModels } from "../js/data/strokes.js";
 import { fixMsg, ROUND_MSG } from "../js/data/writingPhrases.js";
 
-const best = (glyph, drawn) => Math.max(...strokeModels(strokesFor(glyph)).map((m) => scoreDrawing(m, drawn).score));
+const best = (glyph, drawn) => Math.max(...strokeModels(strokesFor(glyph), drawn.length).map((m) => scoreDrawing(m, drawn).score));
 
 const center = (S) => {
   const p = S.flat(), xs = p.map((q) => q[0]), ys = p.map((q) => q[1]);
@@ -85,4 +85,29 @@ test("Mizo's shape hint says «شكل الحرف» (not «الحرف الصغي�
   assert.equal(fixMsg("shape"), ROUND_MSG.fixShape);
   assert.equal(fixMsg("shape", false, true), ROUND_MSG.fixShapeRecall);
   assert.ok(!ROUND_MSG.fixShapeRecall.includes("فوق"), "«اكتب من الذاكرة» مفيش حرف فوق");
+});
+
+// المالك ٢٠٢٦-١١-١١: «ده رقم (٦) مكتوب كويس وعلى طول يقول قربنا … معملتش الأرقام بطريقة كتابة الأطفال»
+test("digits the way kids write them pass (the owner's real 6), and digits don't pass for each other", () => {
+  // صورة المالك: خط مايل مستقيم من فوق اليمين، وبعدين بطن طويلة بتقفل عند آخر الخط
+  const px = [[590, 1320], [560, 1350], [500, 1410], [455, 1450], [425, 1510], [400, 1590], [392, 1660], [410, 1720], [460, 1755],
+    [530, 1760], [590, 1730], [625, 1670], [630, 1590], [605, 1520], [555, 1470], [500, 1445], [455, 1440]];
+  const six = [px.map(([x, y]) => [(x - 110) / 7, (y - 1200) / 7])];
+  assert.ok(best("6", six) >= SCORE_PASS, `6 ${best("6", six)}`);
+  // طرق الأطفال: ٨ بدايرتين · ٩ بخطين · ٤ زاوية قايمة · ١ خط واحد · ٥ بالشرطة الأول أو خط واحد
+  const kid = {
+    8: [[[50, 15], [34, 32], [50, 49], [66, 32], [50, 15]], [[50, 49], [31, 67], [50, 85], [69, 67], [50, 49]]],
+    9: [[[68, 30], [50, 15], [32, 33], [50, 51], [68, 33]], [[68, 30], [67, 85]]],
+    4: [[[36, 15], [34, 60], [72, 60]], [[62, 30], [62, 85]]],
+    1: [[[50, 15], [50, 85]]],
+    5: [[[68, 15], [36, 15], [34, 46], [50, 42], [68, 52], [70, 70], [56, 84], [34, 80]]],
+  };
+  for (const [d, S] of Object.entries(kid)) assert.ok(best(d, S) >= SCORE_PASS, `${d} ${best(d, S)}`);
+  // ولا رقم بأى طريقة من طرقه بيعدّى مكان رقم تانى (٣ مكان ٥ و٠ مكان ٨ كانوا بيعدّوا بخط ناقص)
+  const D = [..."0123456789"], bad = [];
+  for (const want of D) for (const wrote of D) {
+    if (want === wrote) continue;
+    for (const m of strokeModels(strokesFor(wrote))) if (best(want, m) >= SCORE_PASS) bad.push(`${wrote} passed as ${want} (${best(want, m)})`);
+  }
+  assert.deepEqual(bad, []);
 });

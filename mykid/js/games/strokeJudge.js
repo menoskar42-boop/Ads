@@ -225,7 +225,9 @@ export function scoreDrawing(model, drawn) {
   const shape = Math.max(0, Math.min(100, Math.round(100 * (1 - (d - 0.035) / 0.17))));
   const reversed = revPairs;
   const countDiff = Math.abs(model.length - strokes.length);
-  const score = Math.max(0, Math.min(100, shape - REV_PENALTY * reversed - 10 * countDiff));
+  // خط ناقص بيخصم ١٠ (الأطفال ساعات بيوصلوا خطين فى خط)، إلا لو الخط ده هو اللى بيفرّق الرقم عن رقم تانى (model.missPen)
+  const per = strokes.length < model.length && model.missPen ? model.missPen : 10;
+  const score = Math.max(0, Math.min(100, shape - REV_PENALTY * reversed - per * countDiff));
   const issue = writingIssue(model, strokes, nm, nd, reversed, shape);
   return { score, shape, reversed, countDiff, issue };
 }

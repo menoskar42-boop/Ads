@@ -439,7 +439,7 @@ export function mountWriteBoard(host, opts) {
     if (!alive || finished || drawing || !drawn.length) return;
     finished = true;
     // أحسن نسبة بين الطرق الصح لكتابة الحرف (n الصغير: القوس من فوق العصاية أو خط واحد)
-    const r = strokeModels(strokes).map((m) => scoreDrawing(m, drawn)).reduce((a, b) => (b.score > a.score ? b : a));
+    const r = strokeModels(strokes, drawn.filter((s) => s && s.length).length).map((m) => scoreDrawing(m, drawn)).reduce((a, b) => (b.score > a.score ? b : a));
     paint();
     if (opts.onDone) opts.onDone({ fails: r.score >= SCORE_PASS ? 0 : 3, score: r.score, result: r });
   }
