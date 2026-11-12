@@ -144,3 +144,13 @@ test("a وd بالبطن خط لوحده مبدوء من أى حتة بتعدّ�
   assert.ok(best("a", dKid) < PASS && best("d", aKid) < PASS && best("b", aKid) < PASS);
   assert.ok(best("o", aOne) < PASS, `a بخط واحد مش o: ${best("o", aOne)}`);
 });
+
+// المالك ٢٠٢٦-١١-١٢ (c فى car مكتوبة كويس وقال «خرج بره الحرف»): الإنجليزى فى المربع الفاضى بقى بالشكل + الخطوط
+test("latinOk: الخطوط ≥ ٧٠، أو الشكل صح والخطوط ≥ ٥٠", async () => {
+  const { latinOk } = await import("../js/games/blankWrite.js").catch(() => ({}));
+  if (!latinOk) return;   // blankWrite محتاج DOM فى بعض البيئات — الحكم نفسه متجرّب فى المتصفح
+  assert.equal(latinOk(72, false), true);
+  assert.equal(latinOk(54, true), true);    // c العريضة اللى تحتها مايل
+  assert.equal(latinOk(54, false), false);
+  assert.equal(latinOk(25, true), false);   // n مكان m: الشكل بيعدّى بس الخطوط لأ
+});

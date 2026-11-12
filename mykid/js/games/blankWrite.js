@@ -25,6 +25,20 @@ import { BW_SAY, BW_AR_LETTERS, BW_EN_LETTERS, arItems, arShapes, enItems, nameO
 import { joinsNext, letterTiles } from "../data/letterbook.js";
 import { reviewKey, nextReview, todayISO, dueKeys, resolveKey, RV_SAY } from "../data/writeReview.js";
 
+/** أحسن نسبة لحرف من حكم الخطوط (كل الطرق المقبولة للحرف). */
+export function bestStrokeScore(letter, drawn) {
+  const s = strokesFor(letter);
+  if (!s || !drawn || !drawn.length) return 0;
+  return strokeModels(s, drawn.length).map((m) => scoreDrawing(m, drawn)).reduce((a, b) => (b.score > a.score ? b : a)).score;
+}
+/** حكم الحرف الإنجليزى فى المربع الفاضى (المالك ٢٠٢٦-١١-١٢: «عاوزه يوصل لمستوى كتابة الأطفال»): حكم الخطوط لوحده بيرفض
+ *  حروف مكتوبة كويس بإيد طفل (c عريضة وتحتها مايل كانت ٥٤ـ٦٧)، وحكم الشكل لوحده بيعدّى o وe على إنها c. فالاتنين مع بعض:
+ *  الخطوط ≥ ٧٠ (زى الكراسة)، أو الشكل صح والخطوط ≥ ٥٠. */
+export const LATIN_STROKE_MIN = 50;
+export function latinOk(strokeScore, shapeOk) {
+  return strokeScore >= SCORE_PASS || (shapeOk && strokeScore >= LATIN_STROKE_MIN);
+}
+
 /** الطفل كتب الحرف الكبير مكان الصغير؟ شكله أقرب للكبير بفرق واضح (للحروف اللى الكبير فيها شكل تانى بس). */
 export function wroteCapital(letter, drawn, lowScore) {
   const up = String(letter || "").toUpperCase();
@@ -146,6 +160,7 @@ export function maskBoard(shape, shapes, level, { onOk, onBad, onHint }, opt = {
   d.lineWidth = 22;
   d.strokeStyle = d.fillStyle = "#ff6fb5";
   let drawing = false, last = null, done = false, inked = false;
+  let strokes = [];   // نقط كل خط (للحكم بالخطوط فى الحروف الإنجليزى)
   const pos = (e) => { const r = draw.getBoundingClientRect(); return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) }; };
   const alpha = () => { const dd = d.getImageData(0, 0, W, H).data, a = new Uint8Array(W * H); for (let i = 0; i < a.length; i++) a[i] = dd[i * 4 + 3]; return a; };
   const win = () => { done = true; if (!opt.quiet) paint(1, "#bbf7d0"); onOk(); };
@@ -161,12 +176,14 @@ export function maskBoard(shape, shapes, level, { onOk, onBad, onHint }, opt = {
     try { draw.setPointerCapture(e.pointerId); } catch (_) { /* قديم */ }
     drawing = true; inked = true;
     last = pos(e);
+    strokes.push([[last.x, last.y]]);
     d.beginPath(); d.arc(last.x, last.y, d.lineWidth / 2, 0, Math.PI * 2); d.fill();
   };
   const move = (e) => {
     if (!drawing) return;
     e.preventDefault();
     const p = pos(e);
+    if (strokes.length) strokes[strokes.length - 1].push([p.x, p.y]);
     d.beginPath(); d.moveTo(last.x, last.y); d.lineTo(p.x, p.y); d.stroke();
     last = p;
   };
@@ -189,7 +206,14 @@ export function maskBoard(shape, shapes, level, { onOk, onBad, onHint }, opt = {
     /** الحكم بالشكل من غير ما اللوحة تقفل (ورقة الامتحان: الميس بتصحّح الكل مرة واحدة). */
     check() {
       if (!inked) return { ok: false, wrongShape: -1, empty: true };
-      return judgeShapes(alpha(), masks, 0, W, H);
+      const r = judgeShapes(alpha(), masks, 0, W, H);
+      // الإنجليزى: نفس حكم «كمّل الكلمة» (الشكل + الخطوط)
+      if (opt.latin) {
+        const drawn = strokes.filter((s) => s.length);
+        const ok = latinOk(bestStrokeScore(shape, drawn), !!(r.results && r.results[0] && r.results[0].ok));
+        return { ...r, ok, wrongShape: ok ? -1 : r.wrongShape };
+      }
+      return r;
     },
     /** صورة اللى الطفل كتبه (للكارت الصغير فى الورقة). */
     snapshot() { return draw.toDataURL("image/png"); },
@@ -199,13 +223,21 @@ export function maskBoard(shape, shapes, level, { onOk, onBad, onHint }, opt = {
       if (done || lv !== 3) return;
       if (!inked) return onHint(BW_SAY.more);
       const r = judgeShapes(alpha(), masks, 0, W, H);
+      if (opt.latin) {
+        // الإنجليزى: الشكل + الخطوط مع بعض (latinOk) — والحرف الكبير مكان الصغير ليه جملة لوحده
+        const drawn = strokes.filter((s) => s.length);
+        const sc = bestStrokeScore(shape, drawn);
+        if (latinOk(sc, !!(r.results && r.results[0] && r.results[0].ok))) return win();
+        if (wroteCapital(shape, drawn, sc)) return onBad("capital");
+        return onBad(r.empty ? "more" : "bad");
+      }
       if (r.ok) return win();
       onBad(r.wrongShape >= 0 ? "shape" : r.empty ? "more" : "bad");
     },
-    reset() { if (!done) { d.clearRect(0, 0, W, H); inked = false; } },
+    reset() { if (!done) { d.clearRect(0, 0, W, H); inked = false; strokes = []; } },
     peek(ms = 2500) { clearTimeout(peekTimer); paint(1); peekTimer = setTimeout(() => { if (!done) paint(lv); }, ms); },
     /** ارجع خطوة للمساعدة (بعد ٣ غلطات فى المربع الفاضى). */
-    easier() { if (done) return; lv = Math.max(1, lv - 1); box.dataset.level = String(lv); d.clearRect(0, 0, W, H); inked = false; paint(lv); },
+    easier() { if (done) return; lv = Math.max(1, lv - 1); box.dataset.level = String(lv); d.clearRect(0, 0, W, H); inked = false; strokes = []; paint(lv); },
     get level() { return lv; },
     destroy() { clearTimeout(peekTimer); },
   };
@@ -298,18 +330,19 @@ export function mountBlankWrite(host, lang, ch, opts) {
       finish();
     };
 
-    if (ar) {
-      const b = maskBoard(x.shape, arShapes(x.letter), level, {
+    // الإنجليزى فى المربع الفاضى (المستوى ٣) بقى على نفس لوحة العربى بحكم latinOk (المالك ٢٠٢٦-١١-١٢)
+    if (ar || level === 3) {
+      const b = maskBoard(ar ? x.shape : x.letter, ar ? arShapes(x.letter) : [x.letter, x.letter.toUpperCase()], level, {
         onOk: success,
         onHint: (t) => hint(t),
         onBad: (why) => {
           if (!fails) record(false);
           fails++;
-          hint(why === "shape" ? BW_SAY.wrongShape(x.pos) : why === "more" ? BW_SAY.more : BW_SAY.out);
+          hint(why === "capital" ? BW_SAY.capital : why === "shape" ? BW_SAY.wrongShape(x.pos) : why === "more" ? BW_SAY.more : BW_SAY.out);
           if (fails === 2) later(() => { b.reset(); Speech.ar(fem(BW_SAY.peek)); b.peek(2800); }, 2200);
           if (fails >= 3) later(() => { b.reset(); Speech.ar(fem(BW_SAY.peek)); b.peek(3500); }, 2200);
         },
-      });
+      }, { latin: !ar });
       area.append(b.el);
       const tools = el("div", "display:flex;gap:8px;justify-content:center;margin:6px 0 10px");
       const sub = btn("", "✓ خلصت", () => { Sfx.tap(); b.submit(); });
