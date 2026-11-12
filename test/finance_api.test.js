@@ -83,7 +83,7 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     assert.equal(st1.levels.buy_hi, 125.75); assert.equal(st1.levels.reliable, true); assert.equal(st1.candles.length, 60);
 
     // سعر جوّه منطقة الشراء ⇒ تنبيه مرة واحدة بس فى اليوم
-    const q1 = await (await post('/api/ingest/quotes', [{ symbol: 'COMI', price: 124.5, quote_ts: '2026-11-10T09:00:00Z' }, { symbol: 'TMGH', price: 52 }], KEY)).json();
+    const q1 = await (await post('/api/ingest/quotes', [{ symbol: 'COMI', price: 124.5, quote_ts: new Date(Date.now() - 3600000).toISOString() }, { symbol: 'TMGH', price: 52 }], KEY)).json();
     assert.equal(q1.saved, 2); assert.deepEqual(q1.alerts.map((a) => a.kind), ['IN_BUY_ZONE']);
     assert.equal((await (await post('/api/ingest/quotes', [{ symbol: 'COMI', price: 124.6 }], KEY)).json()).alerts.length, 0);
     assert.equal((await get('/api/alerts')).items.length, 1);
@@ -238,6 +238,8 @@ test('finance API end to end', { skip: !URL_ && 'FINANCE_TEST_DATABASE_URL مش 
     assert.equal((await pool.query("SELECT source FROM egx.quotes WHERE symbol='COMI' ORDER BY fetched_ts DESC LIMIT 1")).rows[0].source, 'egx');
     const st2 = await get('/api/settings'); assert.equal(st2.egx.n, 1); assert.ok(st2.egx.at);
     const t4 = new Date('2026-11-12T09:00:00Z');
+    // السعر اللى فوق اتسجّل بالوقت الحقيقى (بعد t4 من ١٢ نوفمبر وطالع) ⇒ يتشال عشان العدّ والترتيب يفضلوا ثابتين
+    await pool.query("DELETE FROM egx.quotes WHERE symbol='COMI' AND fetched_ts >= $1", [new Date(t4.getTime() - 3600000)]);
     await store.ingestQuotes(pool, [{ symbol: 'COMI', price: lc }], t4, { source: 'egx' });
     // نفس السعر بعد ١٥ ثانية ⇒ نفس الصف بوقت جديد (مش صف جديد)، وسعر مختلف ⇒ صف جديد
     const nq = async () => Number((await pool.query("SELECT count(*) FROM egx.quotes WHERE symbol='COMI' AND fetched_ts >= $1", [t4])).rows[0].count);

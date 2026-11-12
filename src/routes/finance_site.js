@@ -210,7 +210,8 @@ function createFinanceSite(opts) {
     const s = await store.state(getPool(), now);
     const open = L.marketOpen(now, cfg.open, cfg.close);
     const stale = open && (!s.last_quote_ts || now - new Date(s.last_quote_ts) > 30 * 60000);
-    res.json({ ok: true, now: now.toISOString(), market_open: open, stale, last_quote_ts: s.last_quote_ts, rows: s.rows });
+    const every = Number((await trade.settings(getPool())).price_every_sec) || 60;
+    res.json({ ok: true, now: now.toISOString(), market_open: open, stale, last_quote_ts: s.last_quote_ts, rows: s.rows, price_every_sec: every });
   }));
   router.get('/api/stock/:symbol', needOwner, wrap(async (req, res) => {
     const sym = store.cleanSym(req.params.symbol);
@@ -358,9 +359,14 @@ function createFinanceSite(opts) {
       trade.tick(getPool(), { open: cfg.open, close: cfg.close, dailyAfter: cfg.dailyAfter, notify })
         .catch((e) => console.error('[finance] tick:', e.message)).finally(() => { busy = false; });
     };
-    timer = setInterval(run, 60000);
+    // الدورة كل «أسعار البورصة تتجدد كل» من الإعدادات (١٥ ثانية على الأقل)، ولحد دقيقة بالكتير عشان الترشيحات
+    // والتنبيهات تفضل ماشية (المالك ٢٠٢٦-١١-١٢)
+    const nextIn = async () => {
+      try { return Math.min(60, Math.max(15, Number((await trade.settings(getPool())).price_every_sec) || 60)) * 1000; } catch { return 60000; }
+    };
+    const loop = async () => { run(); timer = setTimeout(loop, await nextIn()); timer.unref && timer.unref(); };
+    timer = setTimeout(loop, 20000);
     timer.unref && timer.unref();
-    setTimeout(run, 20000).unref();
   }
 
   return { router, start, analyzeLater, _waitAnalysis: () => analyzing, _waitEvaluate: () => evaluating };

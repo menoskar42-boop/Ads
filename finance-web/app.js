@@ -42,9 +42,11 @@
     app.innerHTML = '<h1>ترتيب الأسهم</h1><div id="warn"></div><div class="scroll"><table><thead><tr><th>#</th><th>السهم</th><th>السعر</th>' +
       '<th>منطقة الشراء</th><th>الوقف</th><th>الهدف ١</th><th>الهدف ٢</th><th>الأخبار</th><th>الدرجة</th><th>الثقة</th></tr></thead><tbody id="rows">' +
       '<tr><td colspan="10" class="muted">بيحمّل…</td></tr></tbody></table></div>' +
-      '<p class="muted">بيتحدّث لوحده كل ١٥ ثانية. الدرجة: مرّر الماوس عليها أو افتح السهم عشان تشوف أسبابها.</p>';
+      '<p class="muted"><span id="every-note">بيتحدّث لوحده حسب «أسعار البورصة تتجدد كل» فى الإعدادات</span>. الدرجة: مرّر الماوس عليها أو افتح السهم عشان تشوف أسبابها.</p>';
+    var everyMs = 60000;
     function load() {
-      api('/api/state').then(function (s) {
+      return api('/api/state').then(function (s) {
+        if (s && s.price_every_sec) everyMs = Math.min(600, Math.max(15, Number(s.price_every_sec))) * 1000;
         if (!s.ok) { document.getElementById('rows').innerHTML = '<tr><td colspan="10">' + esc(s.error) + '</td></tr>'; return; }
         document.getElementById('clock').textContent = 'آخر سعر وصل: ' + t(s.last_quote_ts) + (s.market_open ? ' · السوق مفتوح' : ' · السوق مقفول');
         document.getElementById('warn').innerHTML = s.stale ? '<div class="banner">مفيش أسعار وصلت من ٣٠ دقيقة والسوق مفتوح. اتأكد إن سكربت egx-disclosures شغّال فى Tampermonkey وإن تاب أسعار البورصة اتفتح جنب الموقع.</div>' : '';
@@ -61,7 +63,14 @@
         }).join('');
       }).catch(function () { document.getElementById('warn').innerHTML = '<div class="banner">مش قادر أوصل للسيرفر. هجرّب تانى.</div>'; });
     }
-    load(); setInterval(load, 15000);
+    // كل «أسعار البورصة تتجدد كل» من الإعدادات (المالك ٢٠٢٦-١١-١٢)، ١٥ ثانية على الأقل
+    function loop() {
+      load().then(function () {
+        var n = document.getElementById('every-note'); if (n) n.textContent = 'بيتحدّث لوحده كل ' + Math.round(everyMs / 1000) + ' ثانية (من الإعدادات)';
+        setTimeout(loop, everyMs);
+      });
+    }
+    loop();
   }
 
   /* ── صفحة السهم ── */
@@ -260,7 +269,8 @@
         '<label>أمر الشراء فى الديمو يفضل (يوم)<input id="days" type="number" min="1" max="30" value="' + esc(st.buy_order_days) + '"></label>' +
         '<label>أسعار البورصة تتجدد كل (ثانية)<input id="every" type="number" min="15" max="600" value="' + esc(st.price_every_sec || 60) + '"></label>' +
         '<button id="saveSt">احفظ</button><span id="smsg" class="muted"></span></div>' +
-        '<p class="muted">المبلغ ده بيظهر جاهز فى صفحة الترشيح وإنت تغيّره قبل «نعم». زرار «نعم» فى الإشعار نفسه بيستخدمه زى ما هو.</p></div>' +
+        '<p class="muted">المبلغ ده بيظهر جاهز فى صفحة الترشيح وإنت تغيّره قبل «نعم». زرار «نعم» فى الإشعار نفسه بيستخدمه زى ما هو.</p>' +
+        '<p class="muted">«أسعار البورصة تتجدد كل»: من ١٥ لـ ٦٠٠ ثانية، وبيمشى عليه تاب صفحة الأسعار (السكربت ١.٦ وأحدث) وسحب السيرفر وتحديث اللوحة. بعد الحفظ بيتطبّق فى الدورة اللى بعدها.</p></div>' +
         '<div class="card"><h2>الأسعار</h2><label><span><input type="checkbox" id="feed"' + (st.server_feed ? ' checked' : '') + '> السيرفر يجيب الأسعار من Yahoo Finance بنفسه</span></label>' +
         '<p>' + (m.egx && m.egx.at ? 'آخر أسعار من موقع البورصة: ' + esc(t(m.egx.at)) + ' (' + m.egx.n + ' سهم). وطول ما هى بتوصل، Yahoo بيقف.' : 'لسه مفيش أسعار من موقع البورصة (سكربت egx-disclosures 1.3 وموقعنا مفتوح وقت السوق).') + '</p>' +
         '<p class="muted">السيرفر من موقع البورصة: ' + (m.egx_server ? esc(t(m.egx_server.at)) + ': ' + (m.egx_server.error ? 'ماعرفش (' + esc(m.egx_server.error) + ')' : m.egx_server.ok + ' سعر من ' + m.egx_server.rows + ' سهم') : 'لسه ماجربش (بيشتغل وقت السوق كل دقيقتين)') + '</p>' +

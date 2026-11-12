@@ -381,7 +381,8 @@ async function tick(p, opts) {
   // ٢٠٢٦-١١-١١: أسعار البورصة من السيرفر نفسه كل دقيقتين (prices.aspx ← «جميع الأسهم»)، من غير ما يحتاج تاب مفتوح.
   // فى الاختبارات: بس لو اتبعت egxFetch (fetch لوحده = Yahoo بس).
   const egxOn = !!opts.egxFetch || !opts.fetch;
-  const egxEvery = Math.max(55000, Number(st.price_every_sec || 60) * 1000 - 5000);   // الدورة كل دقيقة، فأقل من كده مايفرقش هنا
+  // ٢٠٢٦-١١-١٢ (المالك: «مدة ريفريش الأسعار أنا بحددها فى الإعدادات»): الدورة نفسها بقت كل «كل قد إيه» (لحد دقيقة)
+  const egxEvery = Math.max(10000, Number(st.price_every_sec || 60) * 1000 - 3000);
   if (st.server_feed === '1' && open && egxOn && now - Number(st.last_egx_ms || 0) >= egxEvery && now >= Number(st.egx_backoff_until || 0)) {
     await setMeta(p, 'last_egx_ms', now.getTime());
     try {
