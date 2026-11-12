@@ -121,3 +121,9 @@ test("ports: no-MSAN rows archived after a full run, removed report paged, looku
   assert.match(ui, /— تم رفعه\{line\.portRemovedAt/);
   assert.match(rep, /&page=\$\{page\}&pageSize=\$\{PAGE\}/);
 });
+
+test("phone lines report: a number moved to the removed lines no longer shows there", () => {
+  const r = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const hits = r.match(/NOT EXISTS \(SELECT 1 FROM removed_phone_ports rx WHERE rx\.phone_number = k\.full_phone\s+AND NOT EXISTS \(SELECT 1 FROM phone_ports px WHERE px\.phone_number = k\.full_phone\)\)/g) || [];
+  assert.equal(hits.length, 2);   // بيان التليفونات + تقارير «بدون رقم موبايل» المشتقة منه
+});

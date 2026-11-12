@@ -6877,7 +6877,12 @@ export async function registerRoutes(
     // الترتيب ملوش أهمية: لو «من» أكبر من «إلى» نبدّلهم عشان المدى ميطلعش فاضى.
     if (pFrom && pTo && BigInt(pFrom) > BigInt(pTo)) { const t = pFrom; pFrom = pTo; pTo = t; }
 
-    const conds: string[] = [];
+    const conds: string[] = [
+      // اترفع من البورتات (موجود فى removed_phone_ports ومالوش بورت دلوقتى) ⇒ مكانه «الخطوط المرفوعة» بس، مش هنا
+      // (المالك ٢٠٢٦-١١-١٢: «لما بيتنقل للخطوط المرفوعة بيختفى من بيان خطوط التليفونات»)
+      `NOT EXISTS (SELECT 1 FROM removed_phone_ports rx WHERE rx.phone_number = k.full_phone
+                    AND NOT EXISTS (SELECT 1 FROM phone_ports px WHERE px.phone_number = k.full_phone))`,
+    ];
     const params: any[] = [];
     if (central) { params.push(central); conds.push(`pl.central = $${params.length}`); }
     if (cabin) { params.push(cabin); conds.push(`pl.cabin_number = $${params.length}`); }
@@ -7015,6 +7020,10 @@ export async function registerRoutes(
     if (pFrom && pTo && BigInt(pFrom) > BigInt(pTo)) { const t = pFrom; pFrom = pTo; pTo = t; }
 
     const conds: string[] = [
+      // اترفع من البورتات (موجود فى removed_phone_ports ومالوش بورت دلوقتى) ⇒ مكانه «الخطوط المرفوعة» بس، مش هنا
+      // (المالك ٢٠٢٦-١١-١٢: «لما بيتنقل للخطوط المرفوعة بيختفى من بيان خطوط التليفونات»)
+      `NOT EXISTS (SELECT 1 FROM removed_phone_ports rx WHERE rx.phone_number = k.full_phone
+                    AND NOT EXISTS (SELECT 1 FROM phone_ports px WHERE px.phone_number = k.full_phone))`,
       `NOT EXISTS (SELECT 1 FROM ${HAS_MOBILE_SET} hm WHERE hm.ph = ${sp("k.full_phone")})`,
       // بنفحص كمان بـ tel_no لأن الفرع القديم كان بيطابق بيه لو موجود (لو اختلف عن
       // الرقم القصير المشتقّ من full_phone بسبب بيانات غير متسقة).
