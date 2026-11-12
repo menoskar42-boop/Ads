@@ -233,6 +233,29 @@ export function scoreDrawing(model, drawn) {
 }
 
 /** مسافة الشكل بين الحرف واللى اتكتب (الاتنين متوحّدين) + كام خط اتكتب بالمقلوب. */
+/** الخط مقفول؟ (البداية والنهاية قريبين بالنسبة لحجمه) — النقط متوحّدة ومعاد تقسيمها. */
+function isClosed(p) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of p) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const size = Math.max(x1 - x0, y1 - y0);
+  const [s0, s1] = [p[0], p[p.length - 1]];
+  return size > 0 && Math.hypot(s0[0] - s1[0], s0[1] - s1[1]) < 0.3 * size;
+}
+/** أقل مجموع مسافات بين دايرتين بكل نقط البداية الممكنة وفى الاتجاهين (نفس عدد النقط). */
+function cyclicBest(a, b) {
+  const n = a.length;
+  let best = Infinity;
+  for (const dir of [1, -1]) for (let s = 0; s < n; s++) {
+    let t = 0;
+    for (let k = 0; k < n && t < best; k++) {
+      const j = dir === 1 ? (k + s) % n : (s - k + n) % n;
+      t += Math.hypot(a[k][0] - b[j][0], a[k][1] - b[j][1]);
+    }
+    if (t < best) best = t;
+  }
+  return best;
+}
+
 function shapeDistance(nm, nd) {
   const M = nm.flat(), D = nd.flat();
   const chamfer = (meanMin(D, M) + meanMin(M, D)) / 2;
@@ -248,6 +271,13 @@ function shapeDistance(nm, nd) {
       for (let k = 0; k < 32; k++) {
         t += Math.hypot(a[k][0] - b[k][0], a[k][1] - b[k][1]);
         tr += Math.hypot(a[k][0] - b[31 - k][0], a[k][1] - b[31 - k][1]);
+      }
+      // خط مقفول (بطن a/d/g/q، o): الطفل بيبدأ الدايرة من أى حتة — بنقارن من أحسن نقطة بداية وفى الاتجاهين
+      // (المالك ٢٠٢٦-١١-١٢: a مكتوبة كويس بالبطن لوحدها من فوق شمال وبعدين العصاية ⇒ كانت بتاخد ٠)
+      // (بس فى الحروف اللى أكتر من خط — o لوحدها خط واحد، وa بخط واحد كانت هتعدّى على إنها o)
+      if (nm.length > 1 && isClosed(a) && isClosed(b)) {
+        const loop = cyclicBest(a, b);
+        if (loop < Math.min(t, tr)) { t = loop; tr = Infinity; }
       }
       // الخط صح بس بالمقلوب ⇒ الشكل بيتحسب، والاتجاه بيخصم
       if (tr < t * 0.6) { t = tr; revPairs++; }

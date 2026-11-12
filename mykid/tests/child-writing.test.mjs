@@ -129,3 +129,18 @@ test("m الصغيرة بخط الأطفال (خط واحد من تحت أو م�
   assert.ok(best("m", capM) < PASS, `M كبيرة: ${best("m", capM)}`);
   if (wroteCapital) assert.equal(wroteCapital("m", capM, best("m", capM)), true);
 });
+
+// المالك ٢٠٢٦-١١-١٢ (كلمة arm): a بالبطن لوحدها مبدوءة من فوق شمال وبعدين العصاية كانت بتاخد ٠ — البطن المقفولة بتتقارن من أى نقطة بداية
+test("a وd بالبطن خط لوحده مبدوء من أى حتة بتعدّى، ومش بتعدّى على إنها حرف تانى", async () => {
+  const { strokesFor: sf, strokeModels: sm } = await import("../js/data/strokes.js");
+  const { scoreDrawing: sd, SCORE_PASS: PASS } = await import("../js/games/strokeJudge.js");
+  const line = (pts) => { const out = []; for (let i = 0; i < pts.length - 1; i++) { const [a, b] = [pts[i], pts[i + 1]]; const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 1.5)); for (let k = 0; k < n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); } out.push(pts[pts.length - 1]); return out; };
+  const best = (g, d) => sm(sf(g), d.length).map((m) => sd(m, d)).reduce((a, b) => (b.score > a.score ? b : a)).score;
+  const aKid = [line([[33, 30], [26, 40], [26, 62], [32, 78], [48, 82], [64, 80], [72, 68], [72, 40], [62, 26], [45, 22], [30, 28]]), line([[72, 40], [74, 65], [76, 82]])];
+  const dKid = [line([[33, 50], [26, 58], [26, 72], [34, 82], [50, 84], [64, 78], [68, 66], [66, 52], [56, 46], [42, 46], [32, 50]]), line([[68, 15], [68, 84]])];
+  const aOne = [line([[30, 35], [33, 28], [45, 22], [62, 24], [72, 34], [74, 60], [76, 82], [72, 72], [60, 80], [40, 82], [28, 72], [24, 50], [28, 35]])];
+  assert.ok(best("a", aKid) >= PASS, `a: ${best("a", aKid)}`);
+  assert.ok(best("d", dKid) >= PASS, `d: ${best("d", dKid)}`);
+  assert.ok(best("a", dKid) < PASS && best("d", aKid) < PASS && best("b", aKid) < PASS);
+  assert.ok(best("o", aOne) < PASS, `a بخط واحد مش o: ${best("o", aOne)}`);
+});
