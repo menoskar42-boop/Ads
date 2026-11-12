@@ -91,3 +91,15 @@ test("users: tech_full_name column, backfilled once, editable, first source in t
   assert.match(r, /COALESCE\(\s*--[^\n]*\n\s*\(SELECT NULLIF\(btrim\(u\.tech_full_name\), ''\) FROM users u WHERE u\.id = cable_entries\.created_by_id\)/);
   assert.match(ui, /\/full-name`, \{ method: "PATCH"/);
 });
+
+// المالك ٢٠٢٦-١١-١٢ (كان متأجّل للاتنين ١٦ نوفمبر وطلبه دلوقتى): PDF الإفادة = كل فنى فى ورقة لوحده جاهزة للتوقيع
+test("maintenance cable statement PDF: one sheet per technician with total and signature lines", () => {
+  const ui = readFileSync(new URL("../client/src/components/MaintCableSection.tsx", import.meta.url), "utf8");
+  const lib = readFileSync(new URL("../client/src/lib/print-pdf.ts", import.meta.url), "utf8");
+  assert.match(ui, /const byTech = new Map<string, CableEntry\[\]>\(\);/);
+  assert.match(ui, /title: `\$\{MAINT_SHEET_TITLE\} — \$\{dates\} — الفنى: \$\{n\}`/);
+  assert.match(ui, /"توقيع الفنى: \.+"/);
+  assert.match(ui, /rowsPerPage: 20, groups \}\);/);
+  assert.match(lib, /groups\?: \{ title: string; rows: Cell\[\]\[\]; footer\?: string\[\] \}\[\];/);
+  assert.match(lib, /for \(let p = 0; !opts\.groups && p < totalPages; p\+\+\)/);
+});

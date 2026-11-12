@@ -16,13 +16,32 @@ export function printTablePDF(opts: {
   rowsPerPage?: number;
   /** HTML جاهز (رسومات SVG مثلاً) بيتحط فوق الجدول فى أول صفحة. المتصل مسئول عن تنضيفه. */
   introHtml?: string;
+  /** مجموعات (مثلاً فنى فنى): كل مجموعة بتبدأ فى ورقة جديدة بعنوانها وترقيم صفحاتها، وتحت آخر صفحة منها
+   *  سطور نصية (إجمالى/توقيع). لو موجودة بتتجاهل rows. (إفادة صرف سلك الصيانة — المالك ٢٠٢٦-١١-١٢) */
+  groups?: { title: string; rows: Cell[][]; footer?: string[] }[];
 }): void {
   const { title, columns, rows, rowsPerPage = 12, introHtml = "" } = opts;
   const headRow = `<tr>${columns.map((c) => `<th>${esc(c)}</th>`).join("")}</tr>`;
   const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage));
 
   let pages = "";
-  for (let p = 0; p < totalPages; p++) {
+  for (const g of opts.groups || []) {
+    const gPages = Math.max(1, Math.ceil(g.rows.length / rowsPerPage));
+    for (let p = 0; p < gPages; p++) {
+      const body = g.rows.slice(p * rowsPerPage, (p + 1) * rowsPerPage)
+        .map((r) => `<tr>${r.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`).join("");
+      const foot = p === gPages - 1 && g.footer?.length
+        ? `<div class="gfoot">${g.footer.map((l) => `<div>${esc(l)}</div>`).join("")}</div>` : "";
+      pages += `
+      <section class="page">
+        <h2>${esc(g.title)}</h2>
+        <div class="pageno">صفحة ${p + 1} من ${gPages} — إجمالى: ${g.rows.length} سجل</div>
+        <table><thead>${headRow}</thead><tbody>${body}</tbody></table>
+        ${foot}
+      </section>`;
+    }
+  }
+  for (let p = 0; !opts.groups && p < totalPages; p++) {
     const chunk = rows.slice(p * rowsPerPage, (p + 1) * rowsPerPage);
     const body = chunk
       .map((r) => `<tr>${r.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`)
@@ -48,6 +67,8 @@ export function printTablePDF(opts: {
         border: 1px solid #15407f; font-weight: bold; font-size: 12px; }
       td { border: 1px solid #ccc; padding: 5px 4px; text-align: right; color: #111; }
       tbody tr:nth-child(even) { background: #eef2fb !important; }
+      .gfoot { margin-top: 18px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 10px 48px; }
+      .gfoot div { min-width: 240px; }
       .page { background: #fff; padding: 14px; margin: 12px auto; max-width: 1100px; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
       .toolbar { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #e2e8f0;
         padding: 10px 14px; display: flex; gap: 10px; align-items: center; z-index: 10; }

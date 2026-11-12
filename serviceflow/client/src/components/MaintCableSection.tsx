@@ -271,7 +271,27 @@ export function MaintCableSheet() {
     XLSX.utils.book_append_sheet(wb, ws, "صرف سلك الصيانة");
     XLSX.writeFile(wb, `maint-cable-sheet-${from || "all"}-${to || "now"}.xlsx`);
   };
-  const pdf = () => printTablePDF({ title: `${MAINT_SHEET_TITLE} — ${period}`, columns: MAINT_SHEET_COLS, rows: rows.map(cells), rowsPerPage: 22 });
+  // PDF: كل فنى فى ورقة لوحده جاهزة لتوقيعه (المالك ٢٠٢٦-١١-١٢) — صرفه كله فى الفترة + الإجمالى + خانة التوقيع.
+  // فلتر الفنى متحدّد ⇒ ورقته هو بس (الصفوف متفلترة أصلاً).
+  const pdf = () => {
+    const byTech = new Map<string, CableEntry[]>();
+    for (const e of rows) {
+      const n = e.techFullName || e.createdByName || "بدون اسم";
+      if (!byTech.has(n)) byTech.set(n, []);
+      byTech.get(n)!.push(e);
+    }
+    const dates = `${from || "البداية"} إلى ${to || "اليوم"}`;
+    const groups = Array.from(byTech.entries()).sort((a, b) => a[0].localeCompare(b[0], "ar")).map(([n, list]) => {
+      const meters = list.reduce((s, e) => s + (Number(e.cableQuantity) || 0), 0);
+      return {
+        title: `${MAINT_SHEET_TITLE} — ${dates} — الفنى: ${n}`,
+        rows: list.map(cells),
+        footer: [`إجمالى السلك المصروف: ${meters} متر (${list.length} صرف)`, `اسم الفنى: ${n}`,
+          "توقيع الفنى: ............................", "توقيع المشرف: ............................"],
+      };
+    });
+    printTablePDF({ title: `${MAINT_SHEET_TITLE} — ${period}`, columns: MAINT_SHEET_COLS, rows: rows.map(cells), rowsPerPage: 20, groups });
+  };
   const total = rows.reduce((s, e) => s + (Number(e.cableQuantity) || 0), 0);
   return (
     <Card className="overflow-hidden shadow-sm border-0 bg-white">
