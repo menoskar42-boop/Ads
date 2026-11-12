@@ -14,9 +14,9 @@ import { Store } from "../core/storage.js";
 import { awardStars } from "../core/rewards.js";
 import { gameTopbar, finishActivity, mizoBuddy } from "./common.js";
 import { femAdapt } from "../data/mizo.js";
-import { strokesFor } from "../data/strokes.js";
 import { mountWriteBoard } from "./writeBoard.js";
-import { SCORE_PASS } from "./strokeJudge.js";
+import { SCORE_PASS, scoreDrawing } from "./strokeJudge.js";
+import { strokesFor, strokeModels } from "../data/strokes.js";
 import { penBoardOptions } from "./grip.js";
 import { judge } from "./traceJudge.js";
 import { judgeShapes } from "./blankJudge.js";
@@ -24,6 +24,14 @@ import { starredLetters } from "../data/letterRecall.js";
 import { BW_SAY, BW_AR_LETTERS, BW_EN_LETTERS, arItems, arShapes, enItems, nameOf, askFor } from "../data/blankWrite.js";
 import { joinsNext, letterTiles } from "../data/letterbook.js";
 import { reviewKey, nextReview, todayISO, dueKeys, resolveKey, RV_SAY } from "../data/writeReview.js";
+
+/** الطفل كتب الحرف الكبير مكان الصغير؟ شكله أقرب للكبير بفرق واضح (للحروف اللى الكبير فيها شكل تانى بس). */
+export function wroteCapital(letter, drawn, lowScore) {
+  const up = String(letter || "").toUpperCase();
+  if (!drawn || !drawn.length || up === letter || !strokesFor(up)) return false;
+  const best = strokeModels(strokesFor(up), drawn.length).map((m) => scoreDrawing(m, drawn)).reduce((a, b) => (b.score > a.score ? b : a));
+  return best.score >= 50 && best.score >= (lowScore || 0) + 15;
+}
 
 let styled = false;
 /** حركات «الحرف الهربان» و«قطر الكلمة» (مرة واحدة فى الصفحة). */
@@ -328,11 +336,12 @@ export function mountBlankWrite(host, lang, ch, opts) {
           level: lv,
           ...(lv === 3 ? { free: true, noStart: true, hideModel: true } : {}),
           onHint: (t) => { hintEl.textContent = t; },
-          onDone: ({ score }) => {
+          onDone: ({ score, drawn }) => {
             if (score != null && score < SCORE_PASS) {
               if (!fails) record(false);
               fails++;
-              hint(BW_SAY.out);
+              // كتب الحرف الكبير مكان الصغير (المالك ٢٠٢٦-١١-١٢: map ⇒ كتب M) ⇒ نقوله كده بدل «خرج بره الحرف»
+              hint(lv === 3 && wroteCapital(x.letter, drawn, score) ? BW_SAY.capital : BW_SAY.out);
               later(() => {
                 board.reset();
                 if (fails === 2) { Speech.ar(fem(BW_SAY.peek)); board.peek(2800); }

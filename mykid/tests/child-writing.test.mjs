@@ -111,3 +111,21 @@ test("digits the way kids write them pass (the owner's real 6), and digits don't
   }
   assert.deepEqual(bad, []);
 });
+
+// المالك ٢٠٢٦-١١-١٢ («مراجعة اليوم»: كلمة map، كتب m صغيرة كويس بخط واحد وقال «خرج بره الحرف»)
+test("m الصغيرة بخط الأطفال (خط واحد من تحت أو من فوق، أو العصاية والبطنين) بتعدّى، والزجزاج والكبيرة لأ", async () => {
+  const { strokesFor: sf, strokeModels: sm } = await import("../js/data/strokes.js");
+  const { scoreDrawing: sd, SCORE_PASS: PASS } = await import("../js/games/strokeJudge.js");
+  const { wroteCapital } = await import("../js/games/blankWrite.js").catch(() => ({}));
+  const line = (pts) => { const out = []; for (let i = 0; i < pts.length - 1; i++) { const [a, b] = [pts[i], pts[i + 1]]; const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 1.5)); for (let k = 0; k < n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); } out.push(pts[pts.length - 1]); return out; };
+  const best = (g, d) => sm(sf(g), d.length).map((m) => sd(m, d)).reduce((a, b) => (b.score > a.score ? b : a)).score;
+  const fromBottom = [line([[20, 88], [18, 50], [22, 40], [34, 36], [44, 42], [48, 55], [50, 80], [50, 50], [56, 22], [66, 20], [74, 30], [78, 60], [84, 75]])];
+  const oneTop = [line([[26, 45], [26, 80], [26, 56], [31, 47], [38, 46], [45, 50], [48, 60], [48, 80], [48, 58], [54, 48], [62, 46], [70, 50], [74, 60], [74, 80]])];
+  const zig = [line([[20, 80], [35, 45], [50, 80], [65, 45], [80, 80]])];
+  const capM = [line([[22, 85], [20, 25], [24, 18], [34, 60], [50, 20], [52, 75], [60, 85]])];
+  assert.ok(best("m", fromBottom) >= PASS, `m من تحت: ${best("m", fromBottom)}`);
+  assert.ok(best("m", oneTop) >= PASS, `m خط واحد: ${best("m", oneTop)}`);
+  assert.ok(best("m", zig) < PASS, `زجزاج: ${best("m", zig)}`);
+  assert.ok(best("m", capM) < PASS, `M كبيرة: ${best("m", capM)}`);
+  if (wroteCapital) assert.equal(wroteCapital("m", capM, best("m", capM)), true);
+});

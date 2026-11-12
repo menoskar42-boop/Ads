@@ -441,7 +441,8 @@ export function mountWriteBoard(host, opts) {
     // أحسن نسبة بين الطرق الصح لكتابة الحرف (n الصغير: القوس من فوق العصاية أو خط واحد)
     const r = strokeModels(strokes, drawn.filter((s) => s && s.length).length).map((m) => scoreDrawing(m, drawn)).reduce((a, b) => (b.score > a.score ? b : a));
     paint();
-    if (opts.onDone) opts.onDone({ fails: r.score >= SCORE_PASS ? 0 : 3, score: r.score, result: r });
+    // drawn: اللى الطفل كتبه (blankWrite بيقارنه بالحرف الكبير عشان يقول «ده الحرف الكبير»)
+    if (opts.onDone) opts.onDone({ fails: r.score >= SCORE_PASS ? 0 : 3, score: r.score, result: r, drawn: drawn.filter((s) => s && s.length) });
   }
   function freeCancel(e) {
     if (drawing && e.pointerId === pid) { drawing = false; curPts = null; }

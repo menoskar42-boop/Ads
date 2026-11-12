@@ -134,6 +134,7 @@ export const BW_SAY = {
   },
   more: "كمّل الحرف كله",
   out: "شكلك خرج بره الحرف. امسح وجرّب تانى",
+  capital: "ده الحرف الكبير. هنا بنكتب الحرف الصغير",
   wrongShape: (pos) => `ده شكل تانى للحرف. هنا الحرف ${LF_POS[pos]}`,
   peek: "بص على الحرف كويس، وبعدين اكتبه",
   done: "برافو! الكلمة كملت",
@@ -157,7 +158,7 @@ export function askFor(flavor, lang, name, pos) {
 
 /** كل الجمل اللى ممكن تتقال (لتسجيل الصوت مرة واحدة). */
 export function bwPhrases() {
-  const out = new Set([BW_SAY.choose, BW_SAY.askEn, BW_SAY.more, BW_SAY.out, BW_SAY.peek, BW_SAY.done, ...Object.values(BW_SAY.level),
+  const out = new Set([BW_SAY.choose, BW_SAY.askEn, BW_SAY.more, BW_SAY.out, BW_SAY.capital, BW_SAY.peek, BW_SAY.done, ...Object.values(BW_SAY.level),
     BW_SAY.runEn, BW_SAY.runBack, BW_SAY.trainEn, BW_SAY.trainGo]);
   for (const ch of BW_AR_LETTERS) {
     const name = nameOf(ch);
