@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         EGX Swing: EGX disclosures
 // @namespace    https://finance.oscardevs.com
-// @version      1.6.0
+// @version      1.7.0
 // @updateURL    https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
 // @downloadURL  https://finance.oscardevs.com/userscripts/egx-disclosures.user.js
-// @description  الأسعار من جدول «جميع الأسهم» فى موقع البورصة المصرية كل دقيقتين وقت السوق، والإفصاحات الجديدة من صفحة البحث فى الأخبار، ويبعتهم لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح الصفحتين لو مش مفتوحين.
+// @description  1.7.0: وقت السوق صفحة الأسعار بتتفتح لوحدها مع صفحة الأخبار (ومن موقعنا) وبتجيب الأسعار على طول. الأسعار من جدول «جميع الأسهم» فى موقع البورصة المصرية وقت السوق، والإفصاحات الجديدة من صفحة البحث فى الأخبار، ويبعتهم لـ finance.oscardevs.com. وطول ما موقعنا مفتوح، بيفتح الصفحتين لو مش مفتوحين.
 // @match        https://www.egx.com.eg/ar/NewsSearch.aspx*
 // @match        https://www.egx.com.eg/ar/prices.aspx*
 // @match        https://www.egx.com.eg/en/prices.aspx*
@@ -42,6 +42,18 @@
   document.documentElement.appendChild(badge);
   var IS_PRICES = /\/prices\.aspx$/i.test(location.pathname);
   var IS_FIN = location.hostname === 'finance.oscardevs.com';
+  // ١.٧.٠: موقعنا بيقرا رقم النسخة من هنا، ولو السكربت قديم (أو مش متسطّب) بيظهر زرار «حدّث السكربت»
+  var VERSION = '1.7.0';
+  if (IS_FIN) document.documentElement.setAttribute('data-egx-script', VERSION);
+  /** تاب لازم يفضل مفتوح: نبض أقل من ٣ دقايق ⇒ تمام، وإلا نفتحه (مرة كل ١٠ دقايق بالكتير) */
+  function ensureTab(beatKey, openKey, url, label) {
+    var now = Date.now();
+    if (now - Number(GM_getValue(beatKey, 0)) < 3 * 60000) return label + ' مفتوحة ✓';
+    if (now - Number(GM_getValue(openKey, 0)) < 10 * 60000) return 'مستنى ' + label + ' تفتح…';
+    GM_setValue(openKey, now);
+    GM_openInTab(url, { active: false, insert: true, setParent: true });
+    return 'فتحت ' + label + ' فى تاب جنب ده';
+  }
   function show(t, bad) { badge.style.background = bad ? '#b42318' : '#0b6e4f'; badge.textContent = (IS_PRICES ? 'EGX أسعار · ' : 'EGX · ') + t; }
 
   /*
@@ -53,22 +65,15 @@
     // المفتاح لوحده: طول ما إنت عامل دخول فى موقعنا، السكربت بياخده من السيرفر (مفيش Set API key بإيدك)
     fetch('/api/script-key', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) { if (j && j.key && j.key !== apiKey()) GM_setValue('apiKey', j.key); }).catch(function () {});
-    /** تاب لازم يفضل مفتوح: نبض أقل من ٣ دقايق ⇒ تمام، وإلا نفتحه (مرة كل ١٠ دقايق بالكتير) */
-    var ensure = function (beatKey, openKey, url, label) {
-      var now = Date.now();
-      if (now - Number(GM_getValue(beatKey, 0)) < 3 * 60000) return label + ' مفتوحة ✓';
-      if (now - Number(GM_getValue(openKey, 0)) < 10 * 60000) return 'مستنى ' + label + ' تفتح…';
-      GM_setValue(openKey, now);
-      GM_openInTab(url, { active: false, insert: true, setParent: true });
-      return 'فتحت ' + label + ' فى تاب جنب ده';
-    };
+    var ensure = ensureTab;
     var feedMsg = null, feedBad = false;
     var keep = function () {
       var msg = [ensure('egxBeat', 'egxLastOpen', GM_getValue('egxUrl', EGX_URL), 'صفحة الأخبار')];
-      // الأسعار وقت السوق بس: من الخلفية، وتاب صفحة الأسعار بس لو الخلفية فشلت ٣ مرات ورا بعض
-      var fallback = pricesTime() && Number(GM_getValue('feedFails', 0)) >= 3;
-      var needPrices = fallback && Date.now() - Number(GM_getValue('pricesBeat', 0)) >= 3 * 60000;
-      if (fallback) msg.unshift(ensure('pricesBeat', 'pricesLastOpen', PRICES_URL, 'صفحة الأسعار'));
+      // ١.٧.٠ (المالك ٢٠٢٦-١١-١٢: «صفحة الأسعار المفروض تتفتح أوتوماتيك مع صفحة الأخبار والتحديث يبدأ على طول»):
+      // وقت السوق تاب صفحة الأسعار لازم يبقى مفتوح دايماً (مش احتياطى بس)، والخلفية بتشتغل بس لو التاب ده مش شغّال
+      var market = pricesTime();
+      var needPrices = market && Date.now() - Number(GM_getValue('pricesBeat', 0)) >= 3 * 60000;
+      if (market) msg.unshift(ensure('pricesBeat', 'pricesLastOpen', PRICES_URL, 'صفحة الأسعار'));
       if (feedMsg) msg.unshift(feedMsg);
       show(msg.join(' · '), feedBad);
       // لو التاب ماظهرش (اتفتح فى شباك تانى أو اتقفل): زرار يفتحه قدامك
@@ -87,6 +92,9 @@
   if (!IS_PRICES && !IS_FIN) {
     GM_setValue('egxBeat', Date.now());
     setInterval(function () { GM_setValue('egxBeat', Date.now()); }, 60000);
+    // ١.٧.٠: وقت السوق صفحة الأخبار بتفتح صفحة الأسعار جنبها لو مش مفتوحة (من غير ما موقعنا يبقى مفتوح)
+    var keepPrices = function () { if (pricesTime()) ensureTab('pricesBeat', 'pricesLastOpen', PRICES_URL, 'صفحة الأسعار'); };
+    setTimeout(keepPrices, 5000); setInterval(keepPrices, 60000);
   }
 
   function req(method, url, body, headers, raw) {
@@ -334,6 +342,11 @@
     var getHtml = function (u) { return req('GET', u, null, null, true); };
     async function tick() {
       if (!pricesTime() || !apiKey()) return report(null);
+      // ١.٧.٠: تاب صفحة الأسعار هو اللى بيجيب طول ما هو شغّال: الخلفية احتياطى بس لو التاب ده وقف
+      if (Date.now() - Number(GM_getValue('pricesBeat', 0)) < 3 * 60000) {
+        var ok = Number(GM_getValue('pricesOk', 0));
+        return report('الأسعار: من تاب صفحة الأسعار' + (ok ? ' · آخر إرسال ' + new Date(ok).toLocaleTimeString('ar-EG') : ''));
+      }
       if (Date.now() - Number(GM_getValue('feedLock', 0)) < lockMs()) return;   // تاب تانى لسه جايب
       GM_setValue('feedLock', Date.now());
       try {
@@ -349,7 +362,7 @@
     (function next() { tick().catch(function () {}).then(function () { setTimeout(next, pricesTime() ? everyMs() : 2 * 60000); }); })();
   }
 
-  /** الاحتياطى: تاب prices.aspx بيدوس «جميع الأسهم»، وبعدها Reload كامل للصفحة كل «كل قد إيه» (المالك: الريفريش بيجيب الجديد) */
+  /** ١.٧.٠ الأساسى وقت السوق (كان احتياطى): تاب prices.aspx بيدوس «جميع الأسهم»، وبعدها Reload كامل للصفحة كل «كل قد إيه» (المالك: الريفريش بيجيب الجديد) */
   function pricesPage() {
     var beat = function () { GM_setValue('pricesBeat', Date.now()); };
     beat(); setInterval(beat, 60000);
@@ -375,8 +388,7 @@
         if (cairo().min > hm('14:35')) window.close();   // التاب اللى السكربت فتحه بيتقفل بعد السوق
         return;
       }
-      // تاب موقعنا لسه جايب الأسعار من الخلفية ⇒ مفيش داعى ندوس هنا كمان
-      if (Date.now() - Number(GM_getValue('feedLock', 0)) < lockMs() && Number(GM_getValue('feedFails', 0)) === 0) { show('تاب موقعنا بيجيب الأسعار ✓'); return; }
+      // ١.٧.٠: التاب ده هو الأساسى وقت السوق، بيجيب على طول من غير ما يستنى تاب موقعنا
       var a = marketLink();
       if (!a) { show('مالقيتش تبويب «جميع الأسهم» فى الصفحة', true); fails++; return; }
       show('بدوس «جميع الأسهم»…');

@@ -421,6 +421,28 @@
     });
   }
 
+  /* ── سكربت البورصة قديم؟ (المالك ٢٠٢٦-١١-١٢: صفحة الأسعار ماتفتحتش لأن Edge كان لسه على نسخة قبل ١.٣) ──
+     السكربت (≥١.٧.٠) بيكتب رقم نسخته فى data-egx-script. على الكمبيوتر: لو مش موجود أو أقدم ⇒ زرار «حدّث السكربت»
+     بيفتح ملف السكربت وTampermonkey بيعرض «Update». ولازم يفضل نفس @version فى egx-disclosures.user.js (check-finance). */
+  var EGX_SCRIPT_VERSION = '1.7.0';
+  function verLess(a, b) {
+    var x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+    for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); }
+    return false;
+  }
+  function scriptCheck() {
+    if (page === 'login' || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) return;
+    var have = document.documentElement.getAttribute('data-egx-script');
+    if (have && !verLess(have, EGX_SCRIPT_VERSION)) return;
+    var div = document.createElement('div');
+    div.className = 'banner';
+    div.innerHTML = (have ? 'سكربت البورصة اللى عندك نسخة ' + esc(have) + ' وفيه أحدث (' + EGX_SCRIPT_VERSION + ').'
+      : 'سكربت البورصة (egx-disclosures) فى المتصفح ده قديم أو مش متسطّب، فصفحة الأسعار مش هتتفتح لوحدها.') +
+      ' <a href="/userscripts/egx-disclosures.user.js" target="_blank" rel="noopener"><b>حدّث السكربت</b></a> ودوس Update فى Tampermonkey، وبعدين اعمل ريفريش للصفحة دى.';
+    app.insertBefore(div, app.firstChild);
+  }
+  setTimeout(scriptCheck, 4000);
+
   var pages = { dash: dash, stock: stock, news: news, alerts: alerts, ticket: ticket, settings: settings, login: login, recs: recs, rec: rec, portfolio: portfolio };
   if (pages[page]) pages[page](); else app.innerHTML = '<h1>الصفحة مش موجودة</h1><p><a href="/">ارجع للوحة</a></p>';
 })();

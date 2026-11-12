@@ -61,6 +61,13 @@ check('EGX prices script: watchlist only, tagged egx, polite pace, Yahoo pauses 
       && /rows\.filter\(function \(r\) \{ return taken\[r\.isin\]; \}\)/.test(u) && /\/api\/watchlist\/isin/.test(u) && /Math\.max\(15, n \|\| 60\)/.test(u) && /n >= 15 && n <= 600/.test(t) && /await sleep\(1200\)/.test(u)
       && /source='egx' AND fetched_ts > \$1/.test(t) && !/egxLive &&/.test(t.replace('!egxLive &&', '')); })(),
   'سكربت الأسعار بيبعت أسهم القايمة بس كل «كل قد إيه» من الإعدادات (١٥ ثانية على الأقل)، وكود كل سهم بيتحفظ على السيرفر مرة واحدة (وصفحات الشركات واحدة كل ثانية ونص)، وYahoo بيقف طول ما أسعار البورصة بتوصل.');
+check('EGX prices tab opens by itself in market hours + site knows the latest script version',
+  (() => { const u = read('finance-web/userscripts/egx-disclosures.user.js'), a = read('finance-web/app.js');
+    const v = (u.match(/@version {6}(\S+)/) || [])[1];
+    return !!v && new RegExp("var VERSION = '" + v.replace(/\./g, '\\.') + "'").test(u) && new RegExp("var EGX_SCRIPT_VERSION = '" + v.replace(/\./g, '\\.') + "'").test(a)
+      && /if \(market\) msg\.unshift\(ensure\('pricesBeat'/.test(u) && /keepPrices = function \(\) \{ if \(pricesTime\(\)\) ensureTab\('pricesBeat'/.test(u)
+      && /data-egx-script/.test(a); })(),
+  'وقت السوق صفحة الأسعار بتتفتح لوحدها من موقعنا ومن صفحة الأخبار، ورقم نسخة السكربت فى app.js = @version (عشان زرار «حدّث السكربت»).');
 check('own schema (Service Flow tables untouched)',
   /CREATE SCHEMA IF NOT EXISTS egx/.test(read('src/finance/store.js')) && !/CREATE TABLE IF NOT EXISTS (?!egx\.)/.test(read('src/finance/store.js')),
   'كل جداول finance فى schema egx بس.');
