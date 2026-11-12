@@ -12,6 +12,7 @@ import { Loader2, UsersRound, UserPlus, KeyRound, Trash2, Pencil, Ban, CheckCirc
 interface UnifiedRoleOpt { key: string; labelAr: string; sf: string | null; cfm: string | null; maint?: string | null; }
 interface PortalUser {
   sfId: number | null; username: string; sfRole: string | null; workerCode: string | null;
+  techFullName?: string | null; codeName?: string | null;
   suspended: boolean; cfmId: string | null; cfmRole: string | null; cfmName: string | null; unifiedRole: string;
   passwordPlain: string | null; // للسوبر أدمن فقط — يظهر لو الباسورد اتعمل/اتغيّر بعد إضافة الميزة
   mobile: string | null; // رقم محمول الفنى — بيظهر فى رسالة SMS المتابعة للعميل
@@ -98,6 +99,13 @@ export function UnifiedUsersManager() {
 
   // كود العامل لحساب موجود (المالك ٢٠٢٦-١١-١٢: «فى إفادات سلك الصيانة لسه قاعد سامى») — الاسم الكامل فى إفادة الصرف
   // وفى التقارير بييجى من «أسماء الفنيين» بالكود ده، والشاشة دى ماكانش فيها تعديل للكود غير وقت إنشاء الحساب
+  // اسم الفنى الكامل (المالك ٢٠٢٦-١١-١٢) — بيظهر فى إفادة صرف سلك الصيانة
+  const updateFullName = useMutation({
+    mutationFn: ({ username, techFullName }: { username: string; techFullName: string }) =>
+      api(`/api/portal/users/${encodeURIComponent(username)}/full-name`, { method: "PATCH", body: JSON.stringify({ techFullName }) }),
+    onSuccess: invalidate,
+    onError: (e: any) => alert(e.message),
+  });
   const updateWorkerCode = useMutation({
     mutationFn: ({ sfId, workerCode }: { sfId: number; workerCode: string }) =>
       api(`/api/users/${sfId}/worker-code`, { method: "PUT", body: JSON.stringify({ workerCode }) }),
@@ -242,6 +250,17 @@ export function UnifiedUsersManager() {
                             onClick={() => { const c = prompt(`كود العامل لـ ${u.username} (من ملف «أسماء الفنيين» — فاضى = مسح):`, u.workerCode || ""); if (c !== null) updateWorkerCode.mutate({ sfId: u.sfId!, workerCode: c.trim() }); }}
                           >
                             🔢 {u.workerCode ? `كود العامل ${u.workerCode}` : "إضافة كود العامل"}
+                          </button>
+                        )}
+                        {u.sfId != null && (
+                          <button
+                            type="button"
+                            className="block mt-1 text-xs text-blue-700 hover:underline text-right"
+                            title="اسم الفنى الكامل — بيظهر فى إفادة صرف سلك الصيانة"
+                            data-testid={`button-user-full-name-${u.username}`}
+                            onClick={() => { const n = prompt(`الاسم الكامل لـ ${u.username} (فاضى = مسح):`, u.techFullName || u.codeName || ""); if (n !== null) updateFullName.mutate({ username: u.username, techFullName: n.trim() }); }}
+                          >
+                            👤 {u.techFullName ? `الاسم الكامل: ${u.techFullName}` : u.codeName ? `الاسم الكامل (من كود العامل): ${u.codeName}` : "إضافة الاسم الكامل"}
                           </button>
                         )}</td>
                       <td className="p-2">

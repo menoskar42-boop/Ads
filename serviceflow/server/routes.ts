@@ -5895,6 +5895,12 @@ export async function registerRoutes(
     try {
       const { rows } = await pool.query(`
         SELECT u.id AS "sfId", u.username, u.role AS "sfRole", u.worker_code AS "workerCode",
+               u.tech_full_name AS "techFullName",
+               -- اقتراح للاسم الكامل لو مش مكتوب: من «أسماء الفنيين» بكود العامل
+               (SELECT NULLIF(btrim(tn.tech_name), '') FROM technician_names tn
+                 WHERE btrim(COALESCE(u.worker_code, '')) <> ''
+                   AND ltrim(regexp_replace(btrim(tn.worker_code), '\\.0+$', ''), '0') = ltrim(regexp_replace(btrim(u.worker_code), '\\.0+$', ''), '0')
+                 LIMIT 1) AS "codeName",
                u.password_plain AS "passwordPlain", u.mobile, COALESCE(u.can_upload_files, false) AS "canUploadFiles",
                COALESCE(u.suspended, false) AS suspended, cu.id AS "cfmId", cu.role AS "cfmRole", cu.name AS "cfmName"
         FROM users u
@@ -5904,6 +5910,7 @@ export async function registerRoutes(
         ) cu ON true
         UNION ALL
         SELECT NULL AS "sfId", cu.username, NULL AS "sfRole", NULL AS "workerCode",
+               NULL AS "techFullName", NULL AS "codeName",
                NULL AS "passwordPlain", NULL AS mobile, false AS "canUploadFiles",
                COALESCE(cu.suspended, false) AS suspended, cu.id AS "cfmId", cu.role AS "cfmRole", cu.name AS "cfmName"
         FROM cfm_users cu
@@ -6006,6 +6013,18 @@ export async function registerRoutes(
       const r = await pool.query(`UPDATE users SET can_upload_files = $1 WHERE username = $2`, [allowed, uname]);
       if (!r.rowCount) return res.status(404).json({ message: "المستخدم مالوش حساب فى الطلبات" });
       res.json({ ok: true, canUploadFiles: allowed });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // اسم الفنى الكامل (المالك ٢٠٢٦-١١-١٢) — فاضى = يتمسح ويرجع الاسم يتجاب من كود العامل/الكوابل
+  app.patch("/api/portal/users/:username/full-name", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const uname = String(req.params.username || "").trim();
+      // فاضى = '' (مش NULL) عشان التسجيل التلقائى فى ensureSchema مايرجّعوش تانى
+      const name = String(req.body?.techFullName ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+      const r = await pool.query(`UPDATE users SET tech_full_name = $1 WHERE username = $2`, [name, uname]);
+      if (!r.rowCount) return res.status(404).json({ message: "المستخدم مالوش حساب فى الطلبات" });
+      res.json({ ok: true, techFullName: name });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -11323,6 +11342,8 @@ export async function registerRoutes(
               -- برنامج الكوابل (المالك ٢٠٢٦-١١-١٢: الكود موجود والاسم لسه «سامى» ⇒ الكود مش فى «أسماء الفنيين»، واسمه
               -- فى الكوابل «محمد عبد العزيز»)، وإلا اسم الفنى اللى اتخصم منه، وإلا الاسم الظاهر
               COALESCE(
+                -- ٢٠٢٦-١١-١٢: الاسم الكامل المكتوب فى بيانات المستخدم نفسه هو الأول
+                (SELECT NULLIF(btrim(u.tech_full_name), '') FROM users u WHERE u.id = cable_entries.created_by_id),
                 (SELECT NULLIF(btrim(tn.tech_name), '') FROM users u JOIN technician_names tn
                     ON ltrim(regexp_replace(btrim(tn.worker_code), '\\.0+$', ''), '0') = ltrim(regexp_replace(btrim(u.worker_code), '\\.0+$', ''), '0')
                   WHERE u.id = cable_entries.created_by_id AND btrim(COALESCE(u.worker_code, '')) <> '' LIMIT 1),

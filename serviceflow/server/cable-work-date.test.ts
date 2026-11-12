@@ -77,3 +77,17 @@ test("maintenance cable statement: worker code matched loosely, then the cables-
   assert.match(r, /ON ltrim\(regexp_replace\(btrim\(tn\.worker_code\), '\\\\\.0\+\$', ''\), '0'\) = ltrim\(regexp_replace\(btrim\(u\.worker_code\)/);
   assert.match(r, /\(SELECT NULLIF\(btrim\(c\.name\), ''\) FROM users u JOIN cfm_users c ON c\.id = u\.cfm_user_id OR c\.username = u\.username\s+WHERE u\.id = cable_entries\.created_by_id/);
 });
+
+// المالك ٢٠٢٦-١١-١٢: «خلّى اسم الفنى الكامل يبقى موجود مع بيانات المستخدمين … وسجّل الموجود حالياً مع إمكانية التعديل»
+test("users: tech_full_name column, backfilled once, editable, first source in the cable statement", () => {
+  const r = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const db = readFileSync(new URL("./db.ts", import.meta.url), "utf8");
+  const schema = readFileSync(new URL("../shared/schema.ts", import.meta.url), "utf8");
+  const ui = readFileSync(new URL("../client/src/components/UnifiedUsersManager.tsx", import.meta.url), "utf8");
+  assert.match(schema, /techFullName: text\("tech_full_name"\)/);
+  assert.match(db, /ALTER TABLE users ADD COLUMN IF NOT EXISTS tech_full_name text/);
+  assert.match(db, /UPDATE users u SET tech_full_name = x\.name[\s\S]*?FROM users u2 WHERE u2\.tech_full_name IS NULL/);
+  assert.match(r, /app\.patch\("\/api\/portal\/users\/:username\/full-name", requireAuth, requireSuperAdmin/);
+  assert.match(r, /COALESCE\(\s*--[^\n]*\n\s*\(SELECT NULLIF\(btrim\(u\.tech_full_name\), ''\) FROM users u WHERE u\.id = cable_entries\.created_by_id\)/);
+  assert.match(ui, /\/full-name`, \{ method: "PATCH"/);
+});

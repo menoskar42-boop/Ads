@@ -172,6 +172,8 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS worker_code text`);
   // 🆕 الاسم الظاهر (نفس «الاسم فى برنامج الكوابل») — يُستخدم أيضاً فى برنامج الصيانة عبر SSO
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name text`);
+  // 🆕 اسم الفنى الكامل (بيانات المستخدم) — أول مصدر لاسم الفنى فى إفادة صرف سلك الصيانة (المالك ٢٠٢٦-١١-١٢)
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tech_full_name text`);
   // 🆕 نسخة نصية من الباسورد (للسوبر أدمن) — تُملأ عند الإنشاء/التغيير فقط
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_plain text`);
   // 🆕 البوابة الموحّدة: ربط حساب الطلبات بحساب الكوابل المقابل (للى عنده حساب فى الموقعين)
@@ -2234,5 +2236,30 @@ export async function ensureSchema() {
     `);
   } catch (e) {
     console.error("[ensureSchema] CFM tables error:", (e as Error).message);
+  }
+
+  // اسم الفنى الكامل (المالك ٢٠٢٦-١١-١٢: «وانت سجّل الموجود حالياً مع إمكانية التعديل»): الحسابات اللى لسه
+  // tech_full_name بتاعها NULL بتاخد الاسم الموجود — من «أسماء الفنيين» بكود العامل، وإلا اسمه فى برنامج الكوابل،
+  // وإلا الاسم الظاهر — لو مختلف عن اسم الدخول (القصير). التعديل بعد كده من «إدارة المستخدمين»، والمسح بيتخزّن ''
+  // فمايتملاش تانى. NULL بس = لسه ماتسجّلش.
+  try {
+    const r = await pool.query(`
+      UPDATE users u SET tech_full_name = x.name
+        FROM (
+          SELECT u2.id, COALESCE(
+            (SELECT NULLIF(btrim(tn.tech_name), '') FROM technician_names tn
+              WHERE btrim(COALESCE(u2.worker_code, '')) <> ''
+                AND ltrim(regexp_replace(btrim(tn.worker_code), '\\.0+$', ''), '0') = ltrim(regexp_replace(btrim(u2.worker_code), '\\.0+$', ''), '0')
+              LIMIT 1),
+            (SELECT NULLIF(btrim(c.name), '') FROM cfm_users c
+              WHERE (c.id = u2.cfm_user_id OR c.username = u2.username) AND btrim(c.name) <> btrim(u2.username)
+              ORDER BY (c.id = u2.cfm_user_id) DESC LIMIT 1),
+            CASE WHEN btrim(COALESCE(u2.full_name, '')) NOT IN ('', btrim(u2.username)) THEN btrim(u2.full_name) END) AS name
+            FROM users u2 WHERE u2.tech_full_name IS NULL
+        ) x
+       WHERE u.id = x.id AND x.name IS NOT NULL`);
+    if (r.rowCount) console.log(`[ensureSchema] اسم الفنى الكامل اتسجّل لـ ${r.rowCount} حساب`);
+  } catch (e) {
+    console.error("[ensureSchema] tech_full_name backfill:", (e as Error).message);
   }
 }
