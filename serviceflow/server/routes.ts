@@ -38,6 +38,7 @@ import * as wfmCustomerMobilesD1 from "./wfm-customer-mobiles-d1";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
 import { loopMeters, speedKbps, validLoopLength } from "./loop-length";
+import { lineStatusAr } from "@shared/line-status-ar";
 import { lineStatusFacts } from "./line-status";
 import { wfmReportWorkerCode } from "./wfm-report-access";
 import { speedDropOf, weekDropJoinSql, WEEK_DROP_COLS, weekDropOf } from "./speed-drop";
@@ -12588,6 +12589,26 @@ export async function registerRoutes(
       console.error("[line-status] تسجيل حالة الخط فشل:", e?.message || e);
       res.status(500).json({ message: e?.message || "تعذّر تسجيل حالة الخط" });
     }
+  });
+
+  // آخر تقرير «حالة الخط» لخط (بالأكونت أو التليفون) + التوصيف بالعربى السهل للفنى (shared/line-status-ar.ts) — ASSIA المرحلة ٢.
+  // للكل ماعدا المبيعات (المالك: الفنى بيشوفه من بحث برقم التليفون ومن الأعطال الحالية).
+  app.get("/api/line-status/latest", requireAuth, async (req: any, res) => {
+    if (req.user?.role === ROLES.SALES || req.user?.role === ROLES.SALES_ADMIN) return res.status(403).json({ message: "مش متاح" });
+    const acc = String(req.query.account ?? "").trim();
+    const ph = String(req.query.phone ?? "").replace(/\D/g, "").replace(/^88/, "");
+    if (!acc && ph.length < 5) return res.status(400).json({ message: "ابعت رقم الأكونت أو التليفون" });
+    try {
+      const { rows } = await pool.query(
+        `SELECT id, full_phone AS "fullPhone", account_no AS "accountNo", pages, stability, xelt_history AS "xeltHistory",
+                script_version AS "scriptVersion", pulled_by AS "pulledBy", created_at AS "createdAt"
+           FROM line_status_reports
+          WHERE ($1 <> '' AND account_no = $1) OR ($2 <> '' AND full_phone = '88' || $2)
+          ORDER BY created_at DESC LIMIT 1`, [acc, ph]);
+      const r = rows[0];
+      if (!r) return res.json({ report: null });
+      res.json({ report: { ...r, pages: undefined }, ar: lineStatusAr(r.pages || {}) });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "تعذّر قراءة حالة الخط" }); }
   });
 
   app.options("/api/loop-length/ingest", (_req, res) => { setDzsCors(res); res.sendStatus(204); });

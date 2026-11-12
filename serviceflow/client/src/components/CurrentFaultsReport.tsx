@@ -27,6 +27,7 @@ import { format } from "date-fns";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
 import { useWfmMobileLast, FetchWfmMobilesButton, AltMobileButton, WfmMobileMiss, skipWfmMobileRetry } from "@/components/WfmMobileTools";
 import { useHorizontalKeyboardScroll } from "@/hooks/use-horizontal-keyboard-scroll";
+import { LineStatusButton } from "@/components/LineStatusButton";
 
 interface CurrentFault extends Measurement138 {
   ticketId: string | null;
@@ -821,6 +822,8 @@ export function CurrentFaultsReport() {
                               <Radar className="w-3.5 h-3.5" />
                             </button>
                           )}
+                          {/* حالة الخط (ASSIA) بالعربى + آخر مرة اتسحبت + تحديث — للكل ماعدا المبيعات (المالك ٢٠٢٦-١١-١١) */}
+                          <span dir="rtl"><LineStatusButton account={f.accountNo} phone={f.phoneShort} compact /></span>
                         </span>
                       ) : "-"}
                     </TableCell>

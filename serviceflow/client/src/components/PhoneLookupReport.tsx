@@ -22,6 +22,7 @@ import { Gauge, CheckCircle2, RotateCcw } from "lucide-react";
 import { maintStatusBadge, boxCoords, type MaintRow } from "@/components/MaintenanceComprehensiveReport";
 import { useNightPause, nightAwareInterval } from "@/lib/night-pause";
 import { OpLastResult } from "@/components/OpLastResult";
+import { LineStatusButton } from "@/components/LineStatusButton";
 
 // بوابة DZS expresse — تُفتح فى تاب جديد ويُمرَّر رقم الأكونت فى الـ hash ليقيسه
 // الـ Tampermonkey script (dzs-expresse-v10.user.js) ويرفع النتيجة لشيت 138.
@@ -1223,6 +1224,8 @@ export function PhoneLookupReport() {
                     <Ruler className="w-4 h-4" />
                     تحديث حالة الخط (ASSIA)
                   </Button>
+                  {/* آخر تقرير حالة الخط بالعربى + إمتى اتسحب + «تحديث دلوقتى» (نفس زرار التحديث) — ASSIA المرحلة ٢ */}
+                  <LineStatusButton account={line.accountNo} phone={line.telNo || phone} onRefresh={updateLoopLength} />
                   <Button
                     variant="outline"
                     onClick={async () => {
