@@ -1418,6 +1418,17 @@ export const lineStatusReports = pgTable("line_status_reports", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// line_status_auto — ASSIA المرحلة ٣ (المالك ٢٠٢٦-١١-١١): «حالة الخط» بتتسحب لوحدها لكل عطل حالى جديد **مرة واحدة
+// للشكوى** بعد رفع ملف الأعطال الحالية. صف لكل شكوى (ticket_id)، وxelt_queued_at لما XELT يطلع مالوش بيانات
+// قديمة فيتبعت «Perform XELT» عاجل (مرة واحدة برضه).
+export const lineStatusAuto = pgTable("line_status_auto", {
+  ticketId: text("ticket_id").primaryKey(),
+  accountNo: text("account_no"),
+  fullPhone: text("full_phone"),
+  queuedAt: timestamp("queued_at", { withTimezone: true }).notNull().defaultNow(),
+  xeltQueuedAt: timestamp("xelt_queued_at", { withTimezone: true }),
+});
+
 // «Re-Execute» على OSS Abnormal WO (٢٠٢٦-١٠-٠٧) — الرقم الكامل أو Service Order ID + النتيجة
 export const ossReexecs = pgTable("oss_reexecs", {
   id: serial("id").primaryKey(),

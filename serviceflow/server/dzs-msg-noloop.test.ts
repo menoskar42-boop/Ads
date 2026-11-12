@@ -17,7 +17,7 @@ const dash = read("../client/src/pages/dashboard.tsx");
 const scryptAsync = promisify(scrypt);
 
 test("DZS 10.38.0: re-click Line details and wait 3s before recording 102; send the pink message and Real time", () => {
-  assert.match(us, /@version {6}10\.(38|39|40)\.0/);   // 10.39.0 زوّدت «تحديث حالة الخط» وفضل ده زى ما هو
+  assert.match(us, /@version {6}10\.(38|39|40|41)\.0/);   // 10.39.0 زوّدت «تحديث حالة الخط» وفضل ده زى ما هو
   assert.ok(existsSync(new URL("../userscripts-rollback/dzs-expresse-v10-10.37.0.user.js", import.meta.url)));
   const fn = us.slice(us.indexOf("function readScoreThenClose"), us.indexOf("function handleSpecialAndClose"));
   assert.match(fn, /\(s0 === SCORE_NO_FIELD \|\| isBadReading\(s0\)\) && isBadReading\(earlyScore\)/);

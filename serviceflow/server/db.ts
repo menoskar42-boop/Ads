@@ -1968,6 +1968,17 @@ export async function ensureSchema() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS line_status_reports_phone_idx ON line_status_reports (full_phone, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS line_status_reports_account_idx ON line_status_reports (account_no, created_at DESC)`);
+  // ASSIA المرحلة ٣: «حالة الخط» التلقائية — مرة واحدة لكل شكوى عطل حالى جديدة (+ Perform XELT مرة واحدة)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS line_status_auto (
+      ticket_id text PRIMARY KEY,
+      account_no text,
+      full_phone text,
+      queued_at timestamptz NOT NULL DEFAULT now(),
+      xelt_queued_at timestamptz
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS line_status_auto_account_idx ON line_status_auto (account_no, queued_at DESC)`);
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_raise_by text`);
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_stop_by text`);
   // نتيجة آخر إيقاف (المالك ٢٠٢٦-١٠-٢٧): stopped = كان In Nightly PO واتوقف · already = كان Not Started

@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { useHorizontalKeyboardScroll } from "@/hooks/use-horizontal-keyboard-scroll";
 import { FileSpreadsheet, Printer } from "lucide-react";
+import { XELT_PERFORMED_AR } from "@shared/line-status-ar";
 
 // تفصيلى الباتش — للرقابة. بيوضّح لكل مهمة **الأثر الفعلى** فى قاعدة البيانات مش
 // بس «اكتملت/ألغيت»: القياس اتقاس بكام، البورت اتغيّر من إيه لإيه، الطلب على
@@ -61,6 +62,11 @@ function describe(j: Job): string {
   const d = j.detail || {};
   switch (j.type) {
     case "measure":
+      // «Perform XELT» (ASSIA المرحلة ٣): نتيجة الاختبار زى ما السكربت بعتها
+      if (d.xelt) {
+        if (!d.readInThisJob) return `XELT ماتعملش فى المهمة دى${d.at ? ` (آخر سحبة حالة خط: ${fmt(d.at)})` : ""}`;
+        return `Perform XELT: ${XELT_PERFORMED_AR[String(d.performed || "")] || d.performed || "اتسجّل"} · ${fmt(d.at)}`;
+      }
       // «تحديث المسافة»: قراية Estimated Loop Length بس (N/A أو فاضى مابيمسحش المسافة القديمة)
       if (d.loop) {
         if (!d.readInThisJob) return `المسافة ماتقريتش فى المهمة دى${d.at ? ` (آخر قراية: ${fmt(d.at)})` : ""}`;

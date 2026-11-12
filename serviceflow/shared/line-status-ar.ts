@@ -11,7 +11,7 @@ export interface LineStatusAr { headline: string; level: Level; items: SummaryIt
 
 type Row = string[];
 type Panel = { title?: string; rows?: Row[]; text?: string };
-type Page = { ok?: boolean; error?: string; panels?: Panel[]; history?: boolean | null };
+type Page = { ok?: boolean; error?: string; panels?: Panel[]; history?: boolean | null; performed?: string };
 type Pages = Record<string, Page | undefined>;
 
 export const PAGE_AR: Record<string, string> = {
@@ -22,6 +22,15 @@ export const PAGE_AR: Record<string, string> = {
   recommendation: "توصية الخدمة (Service Recommendation)",
   xelt: "اختبار الخط من غير مشترك (XELT)",
   attributes: "سجل القيم (Attributes/Counters)",
+};
+
+/** نتيجة «Perform XELT» اللى السكربت بعتها (DZS ≥10.41.0) */
+export const XELT_PERFORMED_AR: Record<string, string> = {
+  done: "اتعمل والنتيجة اتقرت",
+  had_history: "كان فيه بيانات قديمة خلاص (ماتضغطش)",
+  no_button: "مالقيناش زرار Perform XELT فى الشاشة",
+  timeout: "اتضغط بس النتيجة ماظهرتش فى ٨ دقايق",
+  error: "حصل خطأ وقت الاختبار",
 };
 
 /** القاموس: الكلمة بالإنجليزى (من غير حالة حروف) ⇒ عربى سهل. البحث بالجملة كلها الأول، وبعدين بأول كلمة مطابقة. */
@@ -133,7 +142,9 @@ export function lineStatusAr(pages: Pages): LineStatusAr {
   // ٧) XELT
   const x = pages.xelt;
   if (x) {
-    if (x.history === false) items.push({ label: "XELT", value: "مفيش بيانات قديمة للخط", note: "محتاج Perform XELT (بيتعمل لوحده فى المهام العاجلة)", level: "info" });
+    const perf = XELT_PERFORMED_AR[String(x.performed || "")];
+    if (perf) items.push({ label: "Perform XELT", value: perf, level: x.performed === "done" || x.performed === "had_history" ? "ok" : "warn" });
+    if (x.history === false) items.push({ label: "XELT", value: "مفيش بيانات قديمة للخط", note: "محتاج Perform XELT (بيتعمل لوحده للأعطال الجديدة)", level: "info" });
     else {
       const t = norm((x.panels || []).map((p) => p.text || "").join(" "));
       if (t) items.push({ label: "XELT", value: t.slice(0, 300), level: "info" });

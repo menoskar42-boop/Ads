@@ -18,7 +18,7 @@ const lookup = read("../client/src/components/PhoneLookupReport.tsx");
 const settings = read("../client/src/components/ExecLanesSettingsButton.tsx");
 
 test("measure script 10.37.0: no-Real saves straight from ClearView; loop mode opens the DSL screen only", () => {
-  assert.match(us, /@version {6}10\.(3[7-9]|40)\.0/);
+  assert.match(us, /@version {6}10\.(3[7-9]|4[01])\.0/);
   const start = us.indexOf("function startNoReal");
   const noReal = us.slice(start, us.indexOf("function goToDslTab", start));
   assert.doesNotMatch(noReal, /goToDslTab\(\)/, "«بدون Real» مابيروحش شاشة DSL");
@@ -29,7 +29,7 @@ test("measure script 10.37.0: no-Real saves straight from ClearView; loop mode o
   // وضع المسافة مابيكتبش فى شيت 138 خالص
   const loopFn = us.slice(us.indexOf("function sendLoopLength"), us.indexOf("window.DZS_test"));
   assert.doesNotMatch(loopFn, /case-138|saveResult\(/);
-  assert.match(us, /if \(LOOP\) return;   \/\/ «تحديث المسافة» مالوش قياس/);
+  assert.match(us, /if \(LOOP \|\| XELT\) return;   \/\/ «تحديث المسافة» وXELT مالهمش قياس/);
 });
 
 test("queue: loop jobs share the no-Real tabs (note carries both marks), Real runs beside them, the bridge skips them", () => {

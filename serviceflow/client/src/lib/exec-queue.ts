@@ -45,6 +45,8 @@ export const NOREAL_MARK = "بدون Real";
 // &sf_mode=loop فسكربت القياس (≥10.37.0) بيفتح شاشة DSL بس ويقرا «Estimated Loop Length».
 // لازم يفضل نفس نص LOOP_MARK فى server/exec-followups.ts.
 export const LOOP_MARK = "تحديث المسافة";
+// «Perform XELT» (ASSIA المرحلة ٣): لازم نفس نص XELT_MARK فى server/exec-followups.ts — جهاز التنفيذ بيحوّلها لـ&sf_mode=xelt
+export const XELT_MARK = "Perform XELT";
 
 const DZS_URL = "https://10.42.187.101:8080/expresse/";
 const FCC_URL = "https://fcc.te.eg/TroubleTicket/faces/security/pages/Login.jsf";
@@ -434,7 +436,7 @@ export function measureTabName(lane?: number): string {
   return lane && lane !== REAL_MEASURE_LANE ? `${DZS_MEASURE_TARGET}_${lane}` : DZS_MEASURE_TARGET;
 }
 
-export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; noReal?: boolean; loop?: boolean; lane?: number; afterStop?: boolean; keep?: boolean; params?: ExecJobParams | null }): Window | null {
+export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; noReal?: boolean; loop?: boolean; xelt?: boolean; lane?: number; afterStop?: boolean; keep?: boolean; params?: ExecJobParams | null }): Window | null {
   const accs = accounts.map((a) => String(a ?? "").trim()).filter(Boolean);
   if (!accs.length) return null;
   // العمليات الجديدة: c360 بياخد كل الأرقام مرة واحدة، والباقى رقم واحد لكل مهمة.
@@ -453,7 +455,7 @@ export function executeBatch(type: ExecJobType, accounts: (string | number)[], o
 }
 
 /** رابط DZS لباتش قياس — جهاز التنفيذ بيحتاجه لوحده عشان يعيد تحميل **نفس التاب** */
-export function measureBatchUrl(accs: string[], opts?: { fixRecent?: boolean; noReal?: boolean; loop?: boolean; lane?: number }): string {
+export function measureBatchUrl(accs: string[], opts?: { fixRecent?: boolean; noReal?: boolean; loop?: boolean; xelt?: boolean; lane?: number }): string {
   return `${DZS_URL}#sf_accounts=${encodeURIComponent(accs.join(","))}${measureHashFlags(opts)}`;
 }
 
@@ -467,7 +469,9 @@ export function noRealUrl(url: string, noReal?: boolean, loop?: boolean): string
 
 /** علامات القياس فى رابط DZS. «بدون Real» مالوش شاشة real-time أصلاً، فعلامة
  *  «A recent fix» (اللى بتختار حاجة فى شاشة الـreal-time) مالهاش معنى معاه. */
-export function measureHashFlags(opts?: { fixRecent?: boolean; noReal?: boolean; loop?: boolean; lane?: number }): string {
+export function measureHashFlags(opts?: { fixRecent?: boolean; noReal?: boolean; loop?: boolean; xelt?: boolean; lane?: number }): string {
+  // «Perform XELT»: شاشة XELT بس — تاب Real لوحده (ASSIA المرحلة ٣)
+  if (opts?.xelt) return "&sf_mode=xelt" + (opts.lane && opts.lane > 1 ? `&sf_lane=${opts.lane}` : "");
   // «تحديث المسافة»: شاشة DSL بس — بنفس تابات «بدون Real»
   if (opts?.loop) return "&sf_mode=loop" + (opts.lane && opts.lane > 1 ? `&sf_lane=${opts.lane}` : "");
   // التاب التانى لـ«بدون Real» (v10.25): السكربت بياخد رقمه ويحفظ حالته بلاحقة _L2.

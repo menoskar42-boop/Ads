@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { pool, currentPool, hasCurrentDatabase } from "./db";
 import { cleanWfmMobile } from "./wfm-mobile";
-import { followupFor, recheckFor, stopRetryFor, stopRetryCount, RECHECK_MARK, RAISE_STOP_MARK, STOP_MEASURE_MARK, STOP_RETRY_MARK, LOOP_MARK, RETRY_102_MARK, RETRY_102_AFTER_MIN, RETRY_102_ONCE_MIN, retry102For } from "./exec-followups";
+import { followupFor, recheckFor, stopRetryFor, stopRetryCount, RECHECK_MARK, RAISE_STOP_MARK, STOP_MEASURE_MARK, STOP_RETRY_MARK, LOOP_MARK, XELT_MARK, RETRY_102_MARK, RETRY_102_AFTER_MIN, RETRY_102_ONCE_MIN, retry102For } from "./exec-followups";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
@@ -4469,6 +4469,14 @@ export async function registerRoutes(
            FROM line_loop_lengths WHERE account_no = ANY($1::text[])
           ORDER BY account_no, last_raw_at DESC NULLS LAST`, [loopAccs])).rows, (r) => String(r.account_no)) : new Map();
 
+      // «Perform XELT»: آخر سحبة حالة خط لكل أكونت (ASSIA المرحلة ٣)
+      const xeltAccs = jobs.filter((j: any) => j.type === "measure" && isXeltNote(j.note))
+        .flatMap((j: any) => (Array.isArray(j.accounts) ? j.accounts : [])).map((a: any) => String(a).trim()).filter(Boolean);
+      const xelts = xeltAccs.length ? M<any>((await pool.query(
+        `SELECT DISTINCT ON (account_no) account_no, created_at, xelt_history, pages->'xelt'->>'performed' AS performed
+           FROM line_status_reports WHERE account_no = ANY($1::text[])
+          ORDER BY account_no, created_at DESC`, [xeltAccs])).rows, (r) => String(r.account_no)) : new Map();
+
       // رفع السرعة / الإيقاف
       const poAccs = [...keysOf("raise"), ...keysOf("stop")];
       const po = poAccs.length ? M<any>((await pool.query(
@@ -4578,7 +4586,11 @@ export async function registerRoutes(
         const key = list[0] || "";
         const p = j.params || {};
         let detail: any = null;
-        if (j.type === "measure" && String(j.note || "").includes(LOOP_MARK)) {
+        if (j.type === "measure" && isXeltNote(j.note)) {
+          const x0 = xelts.get(key) as any;
+          detail = { xelt: true, readInThisJob: !!(x0 && at(x0.created_at) >= at(j.claimedAtRaw)),
+                     performed: x0?.performed ?? null, xeltHistory: x0?.xelt_history ?? null, at: x0?.created_at ?? null };
+        } else if (j.type === "measure" && String(j.note || "").includes(LOOP_MARK)) {
           const l0 = loops.get(key) as any;
           detail = {
             loop: true, readInThisJob: !!(l0 && at(l0.last_raw_at) >= at(j.claimedAtRaw)),
@@ -4846,6 +4858,52 @@ export async function registerRoutes(
       return b;
     } catch (e: any) {
       console.error("[wfm-mobile-auto] failed:", e?.message || e);
+      return { count: 0, batchId: null as string | null };
+    }
+  };
+
+  /**
+   * ASSIA المرحلة ٣ (المالك ٢٠٢٦-١١-١١): بعد كل رفع لملف الأعطال الحالية، كل شكوى عطل DSL **جديدة** (أول مرة تظهر)
+   * خطها بيتسحب له «حالة الخط» لوحده — مرة واحدة للشكوى (line_status_auto بالـticket_id). بيتبعت كمهمة «بدون Real —
+   * تحديث المسافة» (نفس زرار «تحديث حالة الخط (ASSIA)»: الجسر أو تابات «بدون Real»)، ولو XELT طلع مالوش بيانات قديمة
+   * السيرفر بيبعت «Perform XELT» عاجل لوحده (فى /api/line-status/ingest). الخط اللى اتسحب له تقرير من أقل من ٦ ساعات
+   * أو قياسه فى الطابور دلوقتى بيتسجّل للشكوى من غير ما يتبعت تانى.
+   */
+  const autoLineStatusNewFaults = async (trigger: string) => {
+    try {
+      const { rows } = await pool.query(
+        `WITH cf AS (
+           SELECT DISTINCT ON (t.ticket_id) t.ticket_id, '88' || ${sp("t.phone_number")} AS full_phone
+             FROM ticket_dsl_current t
+            WHERE t.close_date IS NULL AND NULLIF(btrim(t.ticket_id), '') IS NOT NULL
+              AND (t.status_code ~ '^(160|173|122|73|72|60|81|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')
+              AND t.central_name IN ('الغنايم', 'الغنايم-العزايزة', 'الغنايم-دير الجنادله', 'الغنايم-نجع العمدة')
+            ORDER BY t.ticket_id, t.id DESC
+         ), acc AS (
+           SELECT cf.ticket_id, cf.full_phone,
+                  (SELECT la.account_no FROM line_accounts la WHERE la.full_phone = cf.full_phone
+                     AND NULLIF(btrim(la.account_no), '') IS NOT NULL ORDER BY la.updated_at DESC NULLS LAST LIMIT 1) AS account_no
+             FROM cf
+            WHERE NOT EXISTS (SELECT 1 FROM line_status_auto a WHERE a.ticket_id = cf.ticket_id)
+         )
+         INSERT INTO line_status_auto (ticket_id, account_no, full_phone)
+         SELECT ticket_id, btrim(account_no), full_phone FROM acc WHERE account_no IS NOT NULL
+         ON CONFLICT (ticket_id) DO NOTHING
+         RETURNING account_no`);
+      const fresh = [...new Set(rows.map((r: any) => String(r.account_no || "").trim()).filter(Boolean))];
+      if (!fresh.length) return { count: 0, batchId: null as string | null };
+      const { rows: skip } = await pool.query(
+        `SELECT x AS acc FROM unnest($1::text[]) AS x
+          WHERE EXISTS (SELECT 1 FROM line_status_reports r WHERE r.account_no = x AND r.created_at > now() - interval '6 hours')
+             OR NOT (${notQueuedSql("x", ["measure"])})`, [fresh]);
+      const skipSet = new Set(skip.map((r: any) => String(r.acc)));
+      const accs = fresh.filter((a) => !skipSet.has(a));
+      const b = await enqueueAutoBatch("measure", accs,
+        `حالة الخط للأعطال الجديدة (بعد تحديث الأعطال الحالية) — ${AUTO_MEASURE_NOREAL_MARK} — ${LOOP_MARK}`);
+      console.log(`[line-status-auto] (${trigger}): ${fresh.length} شكوى جديدة، ${b.count} خط اتبعت لحالة الخط`);
+      return b;
+    } catch (e: any) {
+      console.error("[line-status-auto] failed:", e?.message || e);
       return { count: 0, batchId: null as string | null };
     }
   };
@@ -5538,6 +5596,8 @@ export async function registerRoutes(
   //  - رفع/إيقاف: line_po_events.last_raise_at / last_stop_at بعد claimed_at.
   // note: «تحديث المسافة» مهمة measure فى الطابور، بس أثرها فى line_loop_lengths مش case_138
   const isLoopNote = (note: any) => String(note || "").includes(LOOP_MARK);
+  // «Perform XELT» (ASSIA المرحلة ٣): بيخلص لما سكربت القياس يرفع صفحة XELT (سحبة جديدة فى line_status_reports)
+  const isXeltNote = (note: any) => String(note || "").includes(XELT_MARK) && !String(note || "").includes(AUTO_MEASURE_NOREAL_MARK);
   const jobProgress = async (accountsRaw: any, type: string, claimedAt: any, note?: any): Promise<{ done: number; total: number }> => {
     let accs: string[] = [];
     try { accs = (Array.isArray(accountsRaw) ? accountsRaw : JSON.parse(accountsRaw || "[]")).map((a: any) => String(a).trim()).filter(Boolean); } catch { accs = []; }
@@ -5550,7 +5610,9 @@ export async function registerRoutes(
         return { done: Math.min(done, total), total };
       } catch { return { done: 0, total }; }
     }
-    if (type === "measure" && isLoopNote(note)) {
+    if (type === "measure" && isXeltNote(note)) {
+      q = `SELECT COUNT(DISTINCT account_no)::int AS n FROM line_status_reports WHERE account_no = ANY($1::text[]) AND created_at >= $2`;
+    } else if (type === "measure" && isLoopNote(note)) {
       q = `SELECT COUNT(DISTINCT account_no)::int AS n FROM line_loop_lengths WHERE account_no = ANY($1::text[]) AND last_raw_at >= $2`;
     } else if (type === "measure") {
       // ٢٠٢٦-١١-٠٣: من القاعدة الأساسية (قياسات DZS) — مش القاعدة الحالية اللى اتصالها واحد
@@ -5603,7 +5665,9 @@ export async function registerRoutes(
       } catch { return accs; }
     }
     let q: string;
-    if (type === "measure" && isLoopNote(note)) {
+    if (type === "measure" && isXeltNote(note)) {
+      q = `SELECT DISTINCT account_no FROM line_status_reports WHERE account_no = ANY($1::text[]) AND created_at >= $2`;
+    } else if (type === "measure" && isLoopNote(note)) {
       q = `SELECT DISTINCT account_no FROM line_loop_lengths WHERE account_no = ANY($1::text[]) AND last_raw_at >= $2`;
     } else if (type === "measure") {
       q = `SELECT DISTINCT account_no FROM case_138 WHERE account_no = ANY($1::text[]) AND uploaded_at >= $2 AND source = 'dzs'`;
@@ -11694,6 +11758,8 @@ export async function registerRoutes(
       res.json({ inserted: r.hist, ...r });
       // الأعطال الحالية اتحدّثت ⇒ اللى مالوش موبايل يدخل طابور «جلب الموبايل من WFM» (المالك ٢٠٢٦-١٠-١٢)
       void autoFetchCurrentFaultMobiles("fcc-import");
+      // ASSIA المرحلة ٣: الشكاوى الجديدة بتاخد «حالة الخط» لوحدها (مرة واحدة للشكوى)
+      void autoLineStatusNewFaults("fcc-import");
     } catch (e: any) {
       res.status(500).json({ message: e.message || "خطأ في الاستيراد" });
     }
@@ -12572,7 +12638,17 @@ export async function registerRoutes(
           fullPhone = la[0]?.full_phone ? String(la[0].full_phone).trim() : null;
         }
         if (!fullPhone && !accountNo) continue;
-        const pages = it?.pages && typeof it.pages === "object" ? it.pages : {};
+        let pages = it?.pages && typeof it.pages === "object" ? it.pages : {};
+        // «Perform XELT» (ASSIA المرحلة ٣ — DZS ≥10.41.0): السكربت بيبعت صفحة XELT بس بعد ما الاختبار يخلص ⇒ بتتدمج
+        // فى آخر تقرير للخط (باقى الصفحات زى ما هى) وتتسجّل سحبة جديدة بتاريخ دلوقتى.
+        if (it?.xeltOnly) {
+          const { rows: last } = await pool.query(
+            `SELECT pages FROM line_status_reports WHERE ($1::text IS NOT NULL AND account_no = $1) OR ($2::text IS NOT NULL AND full_phone = $2)
+              ORDER BY created_at DESC LIMIT 1`, [accountNo, fullPhone]);
+          const prev = last[0]?.pages && typeof last[0].pages === "object" ? last[0].pages : {};
+          const xp = pages.xelt && typeof pages.xelt === "object" ? { ...pages.xelt, performed: String(it?.xeltOutcome ?? "done").slice(0, 40) } : pages.xelt;
+          pages = { ...prev, xelt: xp };
+        }
         const json = JSON.stringify(pages);
         if (json.length > 400_000) { console.warn("[line-status] كبير قوى، اتشال:", accountNo, json.length); continue; }
         const st = lineStatusFacts(pages);
@@ -12582,6 +12658,22 @@ export async function registerRoutes(
            VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7)`,
           [fullPhone, accountNo, json, st.stability, st.xeltHistory, String(it?.version ?? "").slice(0, 20) || null, by]);
         saved++;
+        // عطل جديد (line_status_auto) وXELT بتاعه مالوش بيانات قديمة ⇒ «Perform XELT» عاجل، مرة واحدة للشكوى
+        if (!it?.xeltOnly && st.xeltHistory === false && accountNo) {
+          const { rows: due } = await pool.query(
+            `UPDATE line_status_auto SET xelt_queued_at = now()
+              WHERE ticket_id IN (SELECT ticket_id FROM line_status_auto WHERE account_no = $1 AND xelt_queued_at IS NULL
+                                    AND queued_at > now() - interval '7 days')
+              RETURNING ticket_id`, [accountNo]);
+          if (due.length) {
+            const batchId = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+            await pool.query(
+              `INSERT INTO exec_jobs (type, accounts, requested_by, note, priority, batch_id, site, requested_from)
+               VALUES ('measure', $1::jsonb, 'auto', $2, 2, $3, $4, 'تشغيل تلقائى')`,
+              [JSON.stringify([accountNo]), `${XELT_MARK} — عطل جديد XELT من غير بيانات قديمة`, batchId, SITE_OF_TYPE.measure || "10.42.187.101"]);
+            console.log(`[line-status-auto] Perform XELT عاجل للأكونت ${accountNo}`);
+          }
+        }
       }
       pool.query(`DELETE FROM line_status_reports WHERE created_at < now() - interval '180 days'`).catch(() => {});
       res.json({ ok: true, saved });

@@ -4,7 +4,7 @@ import { Server, Loader2, Trash2, RefreshCw, Moon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
 import { REAL_MEASURE_LANE } from "@/lib/exec-queue";
-import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, reloadWhenReachable, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, LOOP_MARK, QUEUE_LABEL, FCC_ORIGIN, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
+import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, reloadWhenReachable, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, LOOP_MARK, XELT_MARK, QUEUE_LABEL, FCC_ORIGIN, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
 import { rescueMinutes, EXEC_RUN_MINUTES } from "@shared/exec-timeouts";
 import { executorPausedNow, refreshPausedNow, saveNightPause, useNightPause, nightWindowStart, readNightPause } from "@/lib/night-pause";
 import { saveOpenView } from "@/lib/profile-optimization";
@@ -657,6 +657,8 @@ export function ExecutorButton() {
         const noReal = String(note || "").includes(NOREAL_MARK);
         // «تحديث المسافة»: بنفس تابات «بدون Real»، والسكربت بيقرا المسافة بس (sf_mode=loop)
         const loop = noReal && String(note || "").includes(LOOP_MARK);
+        // «Perform XELT» (ASSIA المرحلة ٣): تاب Real لوحده، والسكربت بيفتح شاشة XELT ويضغط Perform XELT (sf_mode=xelt)
+        const xelt = !noReal && String(note || "").includes(XELT_MARK);
         // تابات «بدون Real» بتبدأ متفرّقة: لو اتفتحوا فى نفس اللحظة كلهم بيسجّلوا دخول مع
         // بعض، وAXON ساعات بيبوّظ جلسة واحد ويحوّله على 10.60.213.2:8081/login-page?
         // sessionExpired=true (عنوان داخلى مايتوصلش — التاب يعلق). (المالك ٢٠٢٦-٠٩-٢٧)
@@ -666,7 +668,7 @@ export function ExecutorButton() {
           if (wait > 0) await sleep(wait);
           if (stopped) return "stopped";
         }
-        let win = executeBatch("measure", accs, { fixRecent, noReal, loop, lane }); // DZS يلفّ على كلهم فى run واحد
+        let win = executeBatch("measure", accs, { fixRecent: fixRecent && !xelt, noReal, loop, xelt, lane }); // DZS يلفّ على كلهم فى run واحد
         if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
         lastMeasureWin.current.set(lane, win);
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
