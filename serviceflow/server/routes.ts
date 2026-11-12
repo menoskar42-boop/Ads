@@ -9015,7 +9015,8 @@ export async function registerRoutes(
     const SPEED_EXCLUDED_MSAN = [
       "11-2-26-12", "11-2-26-13", "11-2-26-15", "11-2-26-16",
       "11-2-26-19", "11-2-26-20", "11-2-26-21", "11-2-26-24",
-      "11-2-26-26",   // كابينة نجع العمدة (كودها القديم كان 11-2-76-01)
+      "11-2-26-26",   // كابينة نجع العمدة
+      "11-2-76-01",   // نجع العمدة القديمة — لسه عليها خطوط وبقت بتتحدّث لوحدها (٢٠٢٦-١١-١٢)
     ];
     // إظهار الكباين المستثناة للسوبر أدمن فقط — الزر مخفى عن غيره فى الواجهة، وبنتحقق
     // هنا كمان عشان مايتعملش تحايل بالباراميتر مباشرةً.
@@ -12934,16 +12935,22 @@ export async function registerRoutes(
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-DZS-Token");
   };
   // قائمة أكواد الامسان المخزّنة فى الموقع (msan_code المميّزة فى phone_ports)
+  const PORTS_ALWAYS_CABINS = ["11-2-76-01"];   // نجع العمدة القديمة (الجديدة 11-2-26-26)
   app.options("/api/phone-ports/cabins", (_req, res) => { setPortsCors(res); res.sendStatus(204); });
   app.get("/api/phone-ports/cabins", async (req: any, res) => {
     setPortsCors(res);
     if (req.headers["x-dzs-token"] !== DZS_INGEST_TOKEN) {
       return res.status(401).json({ message: "invalid token" });
     }
+    // كباين بتدخل التحديث دايماً حتى لو مفيش ولا خط متسجّل عليها عندنا دلوقتى — نجع العمدة القديمة (المالك ٢٠٢٦-١١-١٢:
+    // «لو فيه خطوط على الكابينة دى تظهر فى التحديث اليومى ايضاً»)
     const { rows } = await pool.query(
       `SELECT DISTINCT btrim(msan_code) AS "msanCode" FROM phone_ports
         WHERE msan_code IS NOT NULL AND btrim(msan_code) <> ''
+       UNION
+       SELECT unnest($1::text[])
         ORDER BY 1`,
+      [PORTS_ALWAYS_CABINS],
     );
     res.json({ cabins: rows.map((r: any) => r.msanCode) });
   });

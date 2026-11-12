@@ -127,3 +127,13 @@ test("phone lines report: a number moved to the removed lines no longer shows th
   const hits = r.match(/NOT EXISTS \(SELECT 1 FROM removed_phone_ports rx WHERE rx\.phone_number = k\.full_phone\s+AND NOT EXISTS \(SELECT 1 FROM phone_ports px WHERE px\.phone_number = k\.full_phone\)\)/g) || [];
   assert.equal(hits.length, 2);   // بيان التليفونات + تقارير «بدون رقم موبايل» المشتقة منه
 });
+
+test("ports: old Nagaa El-Omda cabinet 11-2-76-01 stays its own cabinet and is always in the daily update", () => {
+  const r = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const db = readFileSync(new URL("./db.ts", import.meta.url), "utf8");
+  assert.match(r, /const PORTS_ALWAYS_CABINS = \["11-2-76-01"\];/);
+  assert.match(r, /UNION\s+SELECT unnest\(\$1::text\[\]\)\s+ORDER BY 1`,\s+\[PORTS_ALWAYS_CABINS\]/);
+  // التحويل التلقائى للكود القديم مابقاش بيلمس phone_ports
+  const loop = db.slice(db.indexOf("for (const [t, c] of ["), db.indexOf("] as const) {"));
+  assert.doesNotMatch(loop, /phone_ports/);
+});
