@@ -70,3 +70,10 @@ test("إفادة سلك الصيانة: الأحدث فوق، بحث برقم ا
   assert.match(s, /const autoFrom = summary\?\.store\?\.maint\?\.lastReceipt \|\| summary\?\.startDate \|\|/);
   assert.match(s, /const from = fromPick \?\? autoFrom;/);
 });
+
+// المالك ٢٠٢٦-١١-١٢: الكود موجود والاسم لسه «سامى» ⇒ الكود بيتقارن من غير «.0»/أصفار، وبعده اسم الفنى فى برنامج الكوابل
+test("maintenance cable statement: worker code matched loosely, then the cables-program name", () => {
+  const r = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  assert.match(r, /ON ltrim\(regexp_replace\(btrim\(tn\.worker_code\), '\\\\\.0\+\$', ''\), '0'\) = ltrim\(regexp_replace\(btrim\(u\.worker_code\)/);
+  assert.match(r, /\(SELECT NULLIF\(btrim\(c\.name\), ''\) FROM users u JOIN cfm_users c ON c\.id = u\.cfm_user_id OR c\.username = u\.username\s+WHERE u\.id = cable_entries\.created_by_id/);
+});

@@ -11319,10 +11319,15 @@ export async function registerRoutes(
               work_order_type AS "workOrderType", cable_quantity AS "cableQuantity",
               created_by_id AS "createdById", created_by_name AS "createdByName",
               -- اسم الفنى الكامل لإفادة صرف السلك (المالك ٢٠٢٦-١١-١١: «محمد عبد العزيز» مش «سامى»): من كود العامل
-              -- بتاع الحساب فى technician_names، وإلا اسم الفنى اللى اتخصم منه، وإلا الاسم الظاهر
+              -- بتاع الحساب فى technician_names (الكود بيتقارن من غير «.0» ولا أصفار فى الأول — ملف إكسيل)، وإلا اسمه فى
+              -- برنامج الكوابل (المالك ٢٠٢٦-١١-١٢: الكود موجود والاسم لسه «سامى» ⇒ الكود مش فى «أسماء الفنيين»، واسمه
+              -- فى الكوابل «محمد عبد العزيز»)، وإلا اسم الفنى اللى اتخصم منه، وإلا الاسم الظاهر
               COALESCE(
-                (SELECT NULLIF(btrim(tn.tech_name), '') FROM users u JOIN technician_names tn ON btrim(tn.worker_code) = btrim(u.worker_code)
+                (SELECT NULLIF(btrim(tn.tech_name), '') FROM users u JOIN technician_names tn
+                    ON ltrim(regexp_replace(btrim(tn.worker_code), '\\.0+$', ''), '0') = ltrim(regexp_replace(btrim(u.worker_code), '\\.0+$', ''), '0')
                   WHERE u.id = cable_entries.created_by_id AND btrim(COALESCE(u.worker_code, '')) <> '' LIMIT 1),
+                (SELECT NULLIF(btrim(c.name), '') FROM users u JOIN cfm_users c ON c.id = u.cfm_user_id OR c.username = u.username
+                  WHERE u.id = cable_entries.created_by_id ORDER BY (c.id = u.cfm_user_id) DESC LIMIT 1),
                 NULLIF(btrim(stock_tech_name), ''),
                 (SELECT NULLIF(btrim(u.full_name), '') FROM users u WHERE u.id = cable_entries.created_by_id),
                 created_by_name) AS "techFullName",
