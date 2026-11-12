@@ -12,7 +12,9 @@ test("الشاشة: خانة تاريخ، النهارده افتراضياً، 
   assert.match(s, /id="cable-work-day"\s+type="date"/);
   assert.match(s, /max=\{cairoToday\(\)\}/);
   assert.match(s, /cableQuantity, workDate: workDay,/);
-  assert.match(s, /&& validDay;/);
+  assert.match(s, /&& validDay && mobileOk;/);
+  // سلك الصيانة: المحمول إجبارى (المالك ٢٠٢٦-١١-١٢)
+  assert.match(s, /const mobileOk = workOrderType !== "صيانة" \|\| \/\^01\[0125\]\\d\{8\}\$\/\.test\(mobile\.trim\(\)\)/);
 });
 
 test("السيرفر: سلك الصيانة بيتسجّل بالتاريخ المختار، ومن غيره زى الأول", () => {
@@ -63,7 +65,8 @@ test("إفادة سلك الصيانة: الأحدث فوق، بحث برقم ا
   assert.match(s, /\.sort\(\(a, b\) => entryDay\(b\)\.localeCompare\(entryDay\(a\)\) \|\| b\.createdAt\.localeCompare\(a\.createdAt\)\)/, "الأحدث فوق");
   assert.match(s, /id="mcs-phone"/);
   assert.match(s, /id="mcs-tech"[\s\S]{0,300}<option value="all">كل الفنيين<\/option>/);
-  assert.match(s, /\.filter\(\(e\) => tech === "all" \|\| e\.createdByName === tech\)/);
+  // الفنى بالاسم الكامل (كود العامل) لو موجود (المالك ٢٠٢٦-١١-١١)
+  assert.match(s, /\.filter\(\(e\) => tech === "all" \|\| \(e\.techFullName \|\| e\.createdByName\) === tech\)/);
   assert.match(s, /const autoFrom = summary\?\.store\?\.maint\?\.lastReceipt \|\| summary\?\.startDate \|\|/);
   assert.match(s, /const from = fromPick \?\? autoFrom;/);
 });

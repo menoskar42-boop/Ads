@@ -11312,6 +11312,9 @@ export async function registerRoutes(
     // رقم المحمول (يظهر فى الواجهة عند اختيار «صيانة» فقط) — يُسجَّل فى مخزن أرقام المحمول للخطوط
     // (line_mobiles) فيظهر عند البحث برقم التليفون. ON CONFLICT بيحدّث الرقم القديم تلقائياً بأحدث رقم.
     const mobileVal = String(mobile ?? "").trim();
+    // سلك الصيانة: رقم المحمول إجبارى (المالك ٢٠٢٦-١١-١٢)
+    if (type === "صيانة" && !/^01[0125]\d{8}$/.test(mobileVal))
+      return res.status(400).json({ message: "رقم المحمول إجبارى مع سلك الصيانة (11 رقم يبدأ بـ 01)" });
     // تاريخ الشغل (YYYY-MM-DD بتوقيت القاهرة) — مايبقاش فى المستقبل
     const chosenWorkDay = String(req.body?.workDate ?? "").trim() || null;
     if (chosenWorkDay && (!/^\d{4}-\d{2}-\d{2}$/.test(chosenWorkDay) || Number.isNaN(Date.parse(chosenWorkDay))))

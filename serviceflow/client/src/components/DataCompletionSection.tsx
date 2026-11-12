@@ -113,7 +113,9 @@ export function DataCompletionSection() {
   };
 
   const validDay = /^\d{4}-\d{2}-\d{2}$/.test(workDay) && workDay <= cairoToday();
-  const canSubmit = phone.trim().length >= 5 && /^\d+(\.\d+)?$/.test(cableQuantity.trim()) && validDay;
+  // سلك الصيانة: رقم المحمول إجبارى (المالك ٢٠٢٦-١١-١٢) — موبايل مصرى 01xxxxxxxxx
+  const mobileOk = workOrderType !== "صيانة" || /^01[0125]\d{8}$/.test(mobile.trim());
+  const canSubmit = phone.trim().length >= 5 && /^\d+(\.\d+)?$/.test(cableQuantity.trim()) && validDay && mobileOk;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,7 +222,7 @@ export function DataCompletionSection() {
               فيظهر عند البحث برقم التليفون ويتحدّث لو الخط له رقم سابق. */}
           {workOrderType === "صيانة" && (
             <div className="w-full sm:w-44">
-              <Label className="text-xs text-muted-foreground block mb-1">رقم المحمول (اختيارى)</Label>
+              <Label className="text-xs text-red-700 block mb-1">رقم المحمول (إجبارى)</Label>
               <Input
                 inputMode="tel"
                 value={mobile}
@@ -228,7 +230,10 @@ export function DataCompletionSection() {
                 placeholder="01xxxxxxxxx"
                 dir="ltr"
                 className="text-sm text-left"
+                required
+                aria-invalid={!mobileOk}
               />
+              {!mobileOk && mobile.trim() !== "" && <p className="text-[11px] text-red-600 mt-1">رقم محمول غير صحيح (11 رقم يبدأ بـ 01)</p>}
             </div>
           )}
 
