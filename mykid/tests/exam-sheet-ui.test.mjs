@@ -9,6 +9,8 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
+import { strokesFor } from "../js/data/strokes.js";
+import { densify } from "../js/games/strokeJudge.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HTML = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
@@ -65,6 +67,18 @@ async function writeVisible({ latin = false } = {}) {
     await page.mouse.up();
   }
 }
+/** الطفل بيكتب الحرف الإنجليزى بخطوطه (زى الكراسة) فى المربع الفاضى — الحكم بقى بالخطوط + الشكل (latinOk). */
+async function writeLatin(board, letter) {
+  const r = await board.locator("canvas").last().boundingBox();
+  const k = r.width / 480, at = (p) => [r.x + (240 + (p[0] - 50) * 2.6) * k, r.y + (150 + (p[1] - 50) * 2.6) * k];
+  for (const st of strokesFor(letter)) {
+    const d = densify(st, 3);
+    await page.mouse.move(...at(d[0])); await page.mouse.down();
+    for (const p of d.slice(1)) await page.mouse.move(...at(p));
+    await page.mouse.up();
+    await page.waitForTimeout(120);
+  }
+}
 async function scribble() {
   const r = await page.locator(".bw-board:visible canvas").last().boundingBox();
   await page.mouse.move(r.x + 30, r.y + r.height / 2); await page.mouse.down();
@@ -111,7 +125,8 @@ test("ورقة إنجليزى: الحرف الصغير أول الكلمة — �
   for (let i = 0; i < 3; i++) {
     await cards().nth(i).click();
     await page.waitForSelector(".bw-board:visible");
-    await writeVisible({ latin: true });
+    const board = page.locator(".bw-board:visible");
+    await writeLatin(board, await board.getAttribute("data-shape"));
   }
   await page.getByRole("button", { name: /سلّم الورقة/ }).click();
   await page.waitForSelector(".ex-star", { timeout: 8000 });

@@ -86,6 +86,18 @@ async function drawShape({ scale = 1, dx = 0, dy = 0 } = {}) {
   }
 }
 const level = () => page.locator(".bw-board").getAttribute("data-level");
+/** الطفل بيكتب الحرف الإنجليزى بخطوطه (زى الكراسة) فى المربع الفاضى — الحكم بقى بالخطوط + الشكل (latinOk). */
+async function writeLatin(board, letter) {
+  const r = await board.locator("canvas").last().boundingBox();
+  const k = r.width / 480, at = (p) => [r.x + (240 + (p[0] - 50) * 2.6) * k, r.y + (150 + (p[1] - 50) * 2.6) * k];
+  for (const st of strokesFor(letter)) {
+    const d = densify(st, 3);
+    await page.mouse.move(...at(d[0])); await page.mouse.down();
+    for (const p of d.slice(1)) await page.mouse.move(...at(p));
+    await page.mouse.up();
+    await page.waitForTimeout(120);
+  }
+}
 
 // المالك ٢٠٢٦-١١-٠٧: «خلى التمرين ده ميكونش الحرف مكتوب سيب الطفل هو اللى يجاوب» ⇒ مربع فاضى من أول جولة
 test("كراسة الحروف (ث): ثعلب ← كمثرى ← مثلث، مربع فاضى زى الامتحان من أول جولة", async () => {
@@ -139,24 +151,18 @@ test("كتاب الإنجليزى (M): الحرف الصغير مكانه فاض
     const { renderEnglishbook } = await import("/js/games/englishbook.js");
     document.getElementById("app").replaceChildren(renderEnglishbook({ regionId: "english", regionIndex: 0, page: "u1-M", only: ["blankWrite"] }));
   });
-  await page.waitForSelector(".wb-box");
+  // المربع الفاضى فى الإنجليزى بقى على لوحة الشكل (bw-board) زى العربى + «✓ خلصت» (المالك ٢٠٢٦-١١-١٢)
+  await page.waitForSelector(".bw-board");
   const i = await nowChip();
   for (let r = 0; r < 3; r++) {
-    await page.waitForSelector(".wb-box");
+    await page.waitForSelector(`.bw-board[data-shape="m"][data-level="3"]`);
     // الجولة الجاية بتبدأ بعد ما الكلمة الكاملة تظهر شوية
-    await page.waitForFunction(() => /\?/.test(document.querySelector(".wbk-write")?.previousElementSibling?.textContent || ""), null, { timeout: 9000 });
-    await page.waitForTimeout(1800);   // الصباع اللى بيوريه
-    for (const st of strokesFor("m")) {
-      const b = await page.locator(".wb-box").boundingBox();
-      const d = densify(st, 3);
-      await page.mouse.move(b.x + (d[0][0] / 100) * b.width, b.y + (d[0][1] / 100) * b.height);
-      await page.mouse.down();
-      for (const p of d.slice(1)) await page.mouse.move(b.x + (p[0] / 100) * b.width, b.y + (p[1] / 100) * b.height);
-      await page.mouse.up();
-      await page.waitForTimeout(150);
-    }
+    await page.waitForFunction(() => /\?/.test(document.querySelector(".bw-board")?.previousElementSibling?.textContent || ""), null, { timeout: 9000 });
+    await writeLatin(page.locator(".bw-board"), "m");
+    await page.locator("[data-submit]").click();
+    await page.waitForFunction(() => !/\?/.test(document.querySelector(".bw-board")?.previousElementSibling?.textContent || "?"), null, { timeout: 6000 });
     await page.waitForTimeout(3300);
   }
-  await page.waitForFunction((i) => [...document.querySelectorAll(".wbk-chip")].findIndex((c) => c.classList.contains("now")) !== i || !document.querySelector(".wb-box"), i, { timeout: 9000 });
+  await page.waitForFunction((i) => [...document.querySelectorAll(".wbk-chip")].findIndex((c) => c.classList.contains("now")) !== i || !document.querySelector(".bw-board"), i, { timeout: 9000 });
   assert.deepEqual(errors, []);
 });
