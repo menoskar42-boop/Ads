@@ -4,7 +4,7 @@
 // لتجنّب التعارض مع users بتاع Service-Flow. باقى الجداول بأسماءها الأصلية.
 // ============================================================================
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, json, jsonb, doublePrecision, index, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, json, jsonb, doublePrecision, index, unique, serial, customType } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -282,3 +282,31 @@ export type WorkEntry = typeof workEntries.$inferSelect;
 export type UsedTaskEntry = typeof usedTaskEntries.$inferSelect;
 export type MeasurementEntry = typeof measurementEntries.$inferSelect;
 export type InventoryTransaction = typeof inventoryTransactions.$inferSelect;
+
+// ===== الخرائط (المالك ٢٠٢٦-١١-١٢) ===== //
+// خريطة الشبكة الثانوية: صورتها + جداول التفريغ (كابلات/وصلات/بكسيات/اسبير/علامات الوصل) فى data (CableMapData
+// فى shared/cfm-maps/types.ts). الصور فى جدول لوحدها عشان قايمة الخرايط ماتسحبش البايتات.
+const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
+
+export const cfmMaps = pgTable("cfm_maps", {
+  id: serial("id").primaryKey(),
+  mapKey: text("map_key").unique(),            // «ghanayem-6.7» — للخرايط اللى اتفرّغت فى الكود
+  central: text("central"),
+  cabinet: text("cabinet"),
+  title: text("title"),
+  data: jsonb("data").notNull(),
+  updatedBy: text("updated_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type CfmMap = typeof cfmMaps.$inferSelect;
+
+export const cfmMapImages = pgTable("cfm_map_images", {
+  id: serial("id").primaryKey(),
+  mapId: integer("map_id").notNull().references(() => cfmMaps.id, { onDelete: "cascade" }),
+  caption: text("caption"),
+  mime: text("mime").notNull(),
+  bytes: bytea("bytes").notNull(),
+  uploadedBy: text("uploaded_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

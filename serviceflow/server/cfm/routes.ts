@@ -18,6 +18,7 @@ import {
   createCfmD1ReferenceStorageFromEnv,
 } from "./d1-reference-storage";
 import { pool } from "../db";
+import { registerCfmMapRoutes } from "./maps";
 import { findOpenTicketCoveringCableBox } from "../box-fault-ticket";
 import { boxKey, expandBoxes } from "@shared/cab-norm";
 import {
@@ -210,6 +211,9 @@ function requireAdmin(req: express.Request, res: express.Response, next: express
 export function registerCfmRoutes(app: Express) {
   // (مسارات الاستيراد لمرة واحدة _import-from-live و_import-from-prod-db اتشالت —
   //  كانت أداة نقل بيانات الكوابل وقت الدمج، والنقل خلص والبيانات عايشة هنا.)
+
+  // «الخرائط» (المالك ٢٠٢٦-١١-١٢): خريطة الشبكة الثانوية + جداول التفريغ — server/cfm/maps.ts
+  registerCfmMapRoutes(app, requireAuth);
 
   // ===== AUTHENTICATION ROUTES ===== //
   

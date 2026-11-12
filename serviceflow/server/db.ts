@@ -2198,6 +2198,29 @@ export async function ensureSchema() {
     `);
     // إيقاف تنشيط حساب الكوابل (زى users.suspended فى الطلبات) — يمنع دخول الكوابل المباشر
     await pool.query(`ALTER TABLE cfm_users ADD COLUMN IF NOT EXISTS suspended boolean DEFAULT false`);
+    // الخرائط (المالك ٢٠٢٦-١١-١٢): خريطة الشبكة الثانوية + صورها (shared/cfm-schema.ts · server/cfm/maps.ts)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cfm_maps (
+        id serial PRIMARY KEY,
+        map_key text UNIQUE,
+        central text,
+        cabinet text,
+        title text,
+        data jsonb NOT NULL,
+        updated_by text,
+        created_at timestamp NOT NULL DEFAULT now(),
+        updated_at timestamp NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS cfm_map_images (
+        id serial PRIMARY KEY,
+        map_id integer NOT NULL REFERENCES cfm_maps(id) ON DELETE CASCADE,
+        caption text,
+        mime text NOT NULL,
+        bytes bytea NOT NULL,
+        uploaded_by text,
+        created_at timestamp NOT NULL DEFAULT now()
+      );
+    `);
   } catch (e) {
     console.error("[ensureSchema] CFM tables error:", (e as Error).message);
   }

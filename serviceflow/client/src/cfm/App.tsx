@@ -11,6 +11,7 @@ import TicketDetail from "@/cfm/pages/tickets/detail";
 import MasterData from "@/cfm/pages/master-data";
 import Inventory from "@/cfm/pages/inventory";
 import Reports from "@/cfm/pages/reports";
+import Maps from "@/cfm/pages/maps";
 import Login from "@/cfm/pages/login";
 import NotFound from "@/cfm/pages/not-found";
 import { useStore } from "@/cfm/lib/store";
@@ -88,6 +89,8 @@ function Router() {
         <Route path="/tickets/:id" component={TicketDetail} />
         <Route path="/inventory" component={Inventory} />
         <Route path="/reports" component={Reports} />
+        <Route path="/maps" component={Maps} />
+        <Route path="/maps/:id" component={Maps} />
         <Route path="/master-data" component={MasterData} />
         {/* /users اتشال — إدارة المستخدمين بقت مركزية فى Service-Flow نفسه. */}
         <Route path="/login" component={() => {

@@ -15,7 +15,8 @@ import {
   Package,
   FileText,
   Key,
-  Cable
+  Cable,
+  Map as MapIcon
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/cfm/components/ui/button";
@@ -110,6 +111,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         <NavItem href="/reports" icon={FileText} label={t.reports} />
+        {/* الخرائط (المالك ٢٠٢٦-١١-١٢): خريطة الشبكة الثانوية + جداولها — كل مستخدمى الكوابل */}
+        <NavItem href="/maps" icon={MapIcon} label={language === 'ar' ? 'الخرائط' : 'Maps'} />
 
         {/* «المستخدمين» اتشال من هنا — إدارة المستخدمين بقت مركزية فى Service-Flow نفسه. */}
         {user?.role === 'admin' && (
