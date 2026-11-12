@@ -2826,16 +2826,20 @@ export async function registerRoutes(
   let bridgeStopsAt = 0;
   const BRIDGE_STOPS_FRESH_MS = 15 * 60 * 1000;
   const bridgeTakesStops = () => Date.now() - bridgeStopsAt < BRIDGE_STOPS_FRESH_MS;
+  // ASSIA المرحلة ٣: «تحديث حالة الخط» (LOOP_MARK) بقى ينفع للجسر — بس لو فيه جسر بيعرفه (sf-bridge ≥2.1.0 بيبعت
+  // loops: true فبيفتحه sf_mode=loop) كلّم السيرفر من أقل من ربع ساعة. الجسر القديم كان هيقيسه «بدون Real».
+  let bridgeLoopsAt = 0;
+  const bridgeTakesLoops = () => Date.now() - bridgeLoopsAt < BRIDGE_STOPS_FRESH_MS;
   // الإيقاف بيبقى شغل الجسر بس لو فيه جسر بيعرف يوقف (sf-bridge ≥2.0.1 بيبعت stops: true) كلّم السيرفر من أقل من ربع
   // ساعة — غير كده جهاز التنفيذ هو اللى بياخده (الجسر القديم كان بيقيس خطوط الإيقاف ويقول خلصت — المالك ٢٠٢٦-١١-٠٤).
-  const bridgeable = (a: string, stopsOk = bridgeTakesStops()) => `(${a}.priority = 0 AND (
+  const bridgeable = (a: string, stopsOk = bridgeTakesStops(), loopsOk = bridgeTakesLoops()) => `(${a}.priority = 0 AND (
     (${a}.type = 'measure' AND ${isNoRealJob(a)}
       AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
       AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
       AND POSITION('${RECHECK_MARK}' IN COALESCE(${a}.note, '')) = 0
       AND POSITION('${STOP_RETRY_MARK}' IN COALESCE(${a}.note, '')) = 0
-      -- «تحديث المسافة» بيفتح شاشة DSL بس (sf_mode=loop) — الجسر مابيعرفهوش، فجهاز التنفيذ هو اللى بياخدها
-      AND POSITION('${LOOP_MARK}' IN COALESCE(${a}.note, '')) = 0)
+      -- «تحديث حالة الخط» بيفتح شاشات DSL بس (sf_mode=loop) — للجسر بس لو بيعرفه (≥2.1.0)، وإلا جهاز التنفيذ
+      AND (${loopsOk ? "TRUE" : "FALSE"} OR POSITION('${LOOP_MARK}' IN COALESCE(${a}.note, '')) = 0))
     OR (${stopsOk ? "TRUE" : "FALSE"} AND ${a}.type = 'stop'
       AND POSITION('${RAISE_STOP_MARK}' IN COALESCE(${a}.note, '')) = 0
       AND POSITION('${STOP_MEASURE_MARK}' IN COALESCE(${a}.note, '')) = 0
@@ -3517,23 +3521,34 @@ export async function registerRoutes(
           `UPDATE exec_jobs SET bridge_lease_until = NULL, bridge_device = NULL
             WHERE type = 'stop' AND status = 'pending' AND bridge_device = $1`, [bridgeDevice(req)]);
       }
+      // ASSIA المرحلة ٣: «تحديث حالة الخط» للجسر اللى بيقول loops: true بس (sf-bridge ≥2.1.0)
+      const loops = req.body?.loops === true;
+      if (loops) bridgeLoopsAt = Date.now();
+      else {
+        await pool.query(
+          `UPDATE exec_jobs SET bridge_lease_until = NULL, bridge_device = NULL
+            WHERE type = 'measure' AND status = 'pending' AND bridge_device = $1
+              AND POSITION('${LOOP_MARK}' IN COALESCE(note, '')) > 0`, [bridgeDevice(req)]);
+      }
       const { rows } = await pool.query(
         `WITH c AS (
            SELECT h.id FROM exec_jobs h
             WHERE h.status = 'pending' AND h.paused_at IS NULL AND ${bridgeable("h")}
               AND ($4::boolean OR h.type <> 'stop')
+              AND ($5::boolean OR POSITION('${LOOP_MARK}' IN COALESCE(h.note, '')) = 0)
               AND (h.bridge_lease_until IS NULL OR h.bridge_lease_until < now())
             ORDER BY CASE WHEN h.queue_order > 0 THEN h.queue_order ELSE 9223372036854775807 END, h.created_at, h.id
             LIMIT $1 FOR UPDATE SKIP LOCKED)
          , u AS (
          UPDATE exec_jobs e SET bridge_lease_until = now() + make_interval(hours => $2), bridge_device = $3
            FROM c WHERE e.id = c.id
-         RETURNING e.id, e.type, e.accounts, e.batch_id, e.queue_order, e.created_at)
+         RETURNING e.id, e.type, e.accounts, e.batch_id, e.queue_order, e.created_at, e.note)
          -- RETURNING مالوش ترتيب مضمون — والجسر بيقيس بترتيب الرد (اتلقطت على Postgres بعد «ترتيب الطابور»)
          -- type: «measure» ⇒ صفحة قياس، «stop» ⇒ صفحة إيقاف PO
-         SELECT id, type, accounts, batch_id AS "batchId" FROM u
+         -- loop: «تحديث حالة الخط» ⇒ الجسر بيفتحه sf_mode=loop
+         SELECT id, type, accounts, batch_id AS "batchId", (type = 'measure' AND POSITION('${LOOP_MARK}' IN COALESCE(note, '')) > 0) AS loop FROM u
           ORDER BY CASE WHEN queue_order > 0 THEN queue_order ELSE 9223372036854775807 END, created_at, id`,
-        [max, BRIDGE_LEASE_HOURS, bridgeDevice(req), stops]);
+        [max, BRIDGE_LEASE_HOURS, bridgeDevice(req), stops, loops]);
       // lanes = عدد تابات «بدون Real» فى الإعدادات: الجسر بيفتح لحده، وstart بيعدّ تاباته مع تابات جهاز التنفيذ
       res.json({ jobs: rows, leaseHours: BRIDGE_LEASE_HOURS, lanes: lanes.noreal, view: lanes.bridgeView });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -3639,8 +3654,11 @@ export async function registerRoutes(
         const { rows } = await pool.query(
           `SELECT e.id FROM exec_jobs e
              JOIN unnest($1::int[], $2::timestamptz[]) AS d(id, since) ON e.id = d.id
-            WHERE (e.type <> 'stop' AND EXISTS (SELECT 1 FROM case_138 c
+            WHERE (e.type <> 'stop' AND POSITION('${LOOP_MARK}' IN COALESCE(e.note, '')) = 0 AND EXISTS (SELECT 1 FROM case_138 c
                            WHERE c.account_no = e.accounts->>0 AND c.source = 'dzs' AND c.uploaded_at >= d.since))
+               -- «تحديث حالة الخط»: السكربت بيبعت المسافة فى الآخر ⇒ line_loop_lengths (زى jobProgress)
+               OR (e.type = 'measure' AND POSITION('${LOOP_MARK}' IN COALESCE(e.note, '')) > 0 AND EXISTS (SELECT 1 FROM line_loop_lengths l
+                           WHERE l.account_no = e.accounts->>0 AND l.last_raw_at >= d.since))
                -- إيقاف PO: سكربت PO بيسجّل «stopped» أو «already» ⇒ last_stop_at (زى ما جهاز التنفيذ بيعرف)
                OR (e.type = 'stop' AND EXISTS (SELECT 1 FROM line_po_events p
                            WHERE p.account_no = e.accounts->>0 AND p.last_stop_at >= d.since))`,

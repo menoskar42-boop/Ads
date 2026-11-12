@@ -38,7 +38,8 @@ test("queue: loop jobs share the no-Real tabs (note carries both marks), Real ru
   assert.match(queue, /if \(opts\?\.loop\) return "&sf_mode=loop" \+/);
   assert.match(executor, /const loop = noReal && String\(note \|\| ""\)\.includes\(LOOP_MARK\);/);
   assert.match(executor, /executeBatch\("measure", accs, \{ fixRecent, noReal, loop, lane \}\)/);
-  assert.match(routes, /AND POSITION\('\$\{LOOP_MARK\}' IN COALESCE\(\$\{a\}\.note, ''\)\) = 0\)/);
+  // ASSIA المرحلة ٣: الجسر ياخدها بس لو بيعرف sf_mode=loop (sf-bridge ≥2.1.0)
+  assert.match(routes, /AND \(\$\{loopsOk \? "TRUE" : "FALSE"\} OR POSITION\('\$\{LOOP_MARK\}' IN COALESCE\(\$\{a\}\.note, ''\)\) = 0\)\)/);
   assert.equal(read("./exec-followups.ts").match(/export const LOOP_MARK = "([^"]+)"/)?.[1], "تحديث المسافة");
 });
 
