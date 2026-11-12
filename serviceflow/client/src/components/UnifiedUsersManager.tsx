@@ -96,6 +96,15 @@ export function UnifiedUsersManager() {
     onError: (e: any) => alert(e.message),
   });
 
+  // كود العامل لحساب موجود (المالك ٢٠٢٦-١١-١٢: «فى إفادات سلك الصيانة لسه قاعد سامى») — الاسم الكامل فى إفادة الصرف
+  // وفى التقارير بييجى من «أسماء الفنيين» بالكود ده، والشاشة دى ماكانش فيها تعديل للكود غير وقت إنشاء الحساب
+  const updateWorkerCode = useMutation({
+    mutationFn: ({ sfId, workerCode }: { sfId: number; workerCode: string }) =>
+      api(`/api/users/${sfId}/worker-code`, { method: "PUT", body: JSON.stringify({ workerCode }) }),
+    onSuccess: invalidate,
+    onError: (e: any) => alert(e.message),
+  });
+
   const resetPassword = useMutation({
     mutationFn: ({ username, newPassword }: { username: string; newPassword: string }) =>
       api(`/api/portal/users/${encodeURIComponent(username)}/reset-password`, { method: "POST", body: JSON.stringify({ newPassword }) }),
@@ -222,6 +231,17 @@ export function UnifiedUsersManager() {
                             onClick={() => { const m = prompt(`رقم محمول ${u.username} (يظهر فى رسالة SMS للعميل — فاضى = مسح):`, u.mobile || ""); if (m !== null) updateMobile.mutate({ username: u.username, mobile: m.trim() }); }}
                           >
                             📱 {u.mobile || "إضافة محمول"}
+                          </button>
+                        )}
+                        {u.sfId != null && (
+                          <button
+                            type="button"
+                            className="block mt-1 text-xs text-blue-700 hover:underline"
+                            title="كود العامل — الاسم الكامل فى إفادة صرف السلك والتقارير بييجى من «أسماء الفنيين» بالكود ده"
+                            data-testid={`button-user-worker-code-${u.username}`}
+                            onClick={() => { const c = prompt(`كود العامل لـ ${u.username} (من ملف «أسماء الفنيين» — فاضى = مسح):`, u.workerCode || ""); if (c !== null) updateWorkerCode.mutate({ sfId: u.sfId!, workerCode: c.trim() }); }}
+                          >
+                            🔢 {u.workerCode ? `كود العامل ${u.workerCode}` : "إضافة كود العامل"}
                           </button>
                         )}</td>
                       <td className="p-2">
