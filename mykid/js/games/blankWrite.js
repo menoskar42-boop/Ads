@@ -35,8 +35,17 @@ export function bestStrokeScore(letter, drawn) {
  *  حروف مكتوبة كويس بإيد طفل (c عريضة وتحتها مايل كانت ٥٤ـ٦٧)، وحكم الشكل لوحده بيعدّى o وe على إنها c. فالاتنين مع بعض:
  *  الخطوط ≥ ٧٠ (زى الكراسة)، أو الشكل صح والخطوط ≥ ٥٠. */
 export const LATIN_STROKE_MIN = 50;
-export function latinOk(strokeScore, shapeOk) {
+export function latinOk(strokeScore, shapeOk, otherBest = 0) {
+  // حارس: الرسم حرف تانى واضح (u أو v مكان y، o مكان a) ⇒ مرفوض حتى لو الشكل قريب
+  if (otherBest >= 85 && otherBest >= strokeScore + 10) return false;
   return strokeScore >= SCORE_PASS || (shapeOk && strokeScore >= LATIN_STROKE_MIN);
+}
+const LOWER = "abcdefghijklmnopqrstuvwxyz".split("");
+/** أعلى نسبة للرسم كحرف صغير تانى غير الحرف المطلوب. */
+export function otherLetterBest(letter, drawn) {
+  let best = 0;
+  for (const g of LOWER) if (g !== letter) best = Math.max(best, bestStrokeScore(g, drawn));
+  return best;
 }
 
 /** الطفل كتب الحرف الكبير مكان الصغير؟ شكله أقرب للكبير بفرق واضح (للحروف اللى الكبير فيها شكل تانى بس). */
@@ -210,7 +219,7 @@ export function maskBoard(shape, shapes, level, { onOk, onBad, onHint }, opt = {
       // الإنجليزى: نفس حكم «كمّل الكلمة» (الشكل + الخطوط)
       if (opt.latin) {
         const drawn = strokes.filter((s) => s.length);
-        const ok = latinOk(bestStrokeScore(shape, drawn), !!(r.results && r.results[0] && r.results[0].ok));
+        const ok = latinOk(bestStrokeScore(shape, drawn), !!(r.results && r.results[0] && r.results[0].ok), otherLetterBest(shape, drawn));
         return { ...r, ok, wrongShape: ok ? -1 : r.wrongShape };
       }
       return r;
@@ -227,7 +236,7 @@ export function maskBoard(shape, shapes, level, { onOk, onBad, onHint }, opt = {
         // الإنجليزى: الشكل + الخطوط مع بعض (latinOk) — والحرف الكبير مكان الصغير ليه جملة لوحده
         const drawn = strokes.filter((s) => s.length);
         const sc = bestStrokeScore(shape, drawn);
-        if (latinOk(sc, !!(r.results && r.results[0] && r.results[0].ok))) return win();
+        if (latinOk(sc, !!(r.results && r.results[0] && r.results[0].ok), otherLetterBest(shape, drawn))) return win();
         if (wroteCapital(shape, drawn, sc)) return onBad("capital");
         return onBad(r.empty ? "more" : "bad");
       }
