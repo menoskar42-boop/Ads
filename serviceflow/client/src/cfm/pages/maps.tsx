@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useRoute, useLocation } from "wouter";
 import ExcelJS from "exceljs";
+import { withBase } from "@/lib/base-path";
 import { Card, CardContent, CardHeader, CardTitle } from "@/cfm/components/ui/card";
 import { Button } from "@/cfm/components/ui/button";
 import { Input } from "@/cfm/components/ui/input";
@@ -204,7 +205,8 @@ function MapView({ id }: { id: number }) {
         <CardContent className="flex flex-wrap gap-4">
           {m.images.length === 0 && <p className="text-muted-foreground text-sm">مفيش صور لسه.</p>}
           {m.images.map((img) => {
-            const src = `/api/cfm/maps/${id}/images/${img.id}`;
+            // withBase: تحت oscardevs.com/serviceflow/ الصورة لازم تتطلب بمسار الجذر (الـimg مابيعدّيش على لفّة fetch)
+            const src = withBase(`/api/cfm/maps/${id}/images/${img.id}`);
             return (
               <figure key={img.id} className="w-full sm:w-[48%] border rounded-lg overflow-hidden">
                 <a href={src} target="_blank" rel="noreferrer" title="افتح الصورة كاملة">
