@@ -30,12 +30,25 @@ const DZS_URL = "https://10.42.187.101:8080/expresse/";
 const buildDZSUrl = (accounts: string[]) =>
   `${DZS_URL}#sf_accounts=${encodeURIComponent(accounts.join(","))}`;
 
+// تاريخ الرفع من البورتات (القيمة جاية بتوقيت القاهرة من غير منطقة)
+const fmtRemovedAt = (d: string | null | undefined) => {
+  if (!d) return "";
+  const t = new Date(d);
+  if (isNaN(t.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${t.getUTCFullYear()}/${p(t.getUTCMonth() + 1)}/${p(t.getUTCDate())}`;
+};
+
 interface LineData {
   telNo: string;
   central: string;
   cabinNumber: string | null;
   boxNumber: string | null;
   frame: string | null;
+  // اترفع من البورتات: الفريم القديم + «تم رفعه» وتاريخه (المالك ٢٠٢٦-١١-١٢)
+  portRemoved?: boolean;
+  portRemovedAt?: string | null;
+  removedMsanCode?: string | null;
   msanCode: string | null;
   techName: string | null;
   iduNo: string | null;
@@ -918,7 +931,9 @@ export function PhoneLookupReport() {
         ["رقم الأكونت", accountCell],                   ["رقم البكس", dash(line.boxNumber)],
         ["السرعة الحالية", meas(dash(line.currentSpeed))], ["DP Terminal", dash(line.dpTerminal)],
         ["أقصى سرعة", meas(dash(line.maxSpeed))],       ["كود الكابينة (MSAN)", dash(line.msanCode)],
-        ["الاسكور", meas(scoreBadge(line.score))],      ["رقم الفريم", dash(line.frame)],
+        ["الاسكور", meas(scoreBadge(line.score))],      ["رقم الفريم", line.portRemoved
+          ? <span>{dash(line.frame)} <span className="text-red-700 font-semibold text-xs whitespace-nowrap">— تم رفعه{line.portRemovedAt ? ` ${fmtRemovedAt(line.portRemovedAt)}` : ""}{line.removedMsanCode ? ` (من ${line.removedMsanCode})` : ""}</span></span>
+          : dash(line.frame)],
         ["تاريخ آخر قياس", meas(withBy(fmtDate(line.lastMeasTime), line.measuredBy))], ["Port Type", dash(line.portType)],
         ["حالة تحسين البروفايل", meas(<PoStatusCell value={line.poStatus} />)],
         // «رسالة DZS وقت القياس» (المالك ٢٠٢٦-١١-٠٤: «المفروض يسجّل إن فيه قياس تم لكن موصلش نتيجة — فى نفس الخانة»):
@@ -1015,7 +1030,7 @@ export function PhoneLookupReport() {
       "الاسكور": line.score ?? "",
       "حالة تحسين البروفايل": line.poStatus ?? "",
       "رسالة DZS وقت القياس": [line.measureFailAt ? `اتعمل قياس ومارجعش نتيجة — ${fmtDate(line.measureFailAt)}` : "", line.pageMsg ?? ""].filter(Boolean).join(" · "),
-      "رقم الفريم": line.frame ?? "",
+      "رقم الفريم": (line.frame ?? "") + (line.portRemoved ? ` (تم رفعه ${fmtRemovedAt(line.portRemovedAt)})` : ""),
       "تاريخ آخر قياس": fmtDate(line.lastMeasTime),
       "نوع القياس": measureModeText(line.measureMode, line.histLabel),
       "Loop Length": loopLengthText(line),

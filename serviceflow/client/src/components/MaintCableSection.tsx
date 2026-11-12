@@ -286,8 +286,8 @@ export function MaintCableSheet() {
       return {
         title: `${MAINT_SHEET_TITLE} — ${dates} — الفنى: ${n}`,
         rows: list.map(cells),
-        footer: [`إجمالى السلك المصروف: ${meters} متر (${list.length} صرف)`, `اسم الفنى: ${n}`,
-          "توقيع الفنى: ............................", "توقيع المشرف: ............................"],
+        footer: [`إجمالى السلك المصروف: ${meters} متر (${list.length} صرف)`],
+        everyPage: [`اسم الفنى: ${n}`, "توقيع الفنى: ............................", "توقيع المشرف: ............................"],
       };
     });
     printTablePDF({ title: `${MAINT_SHEET_TITLE} — ${period}`, columns: MAINT_SHEET_COLS, rows: rows.map(cells), rowsPerPage: 20, groups });

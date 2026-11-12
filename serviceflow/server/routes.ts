@@ -9254,7 +9254,12 @@ export async function registerRoutes(
               COALESCE(corr.central, pl.central, cpl.central_name, si.central, wfmo.central_name) AS central,
               COALESCE(corr.cabin_number, pl.cabin_number, cpl.cabinet_no, si.cabin_number,
                        NULLIF(btrim(wfmo.exch_cabinet), '')) AS "cabinNumber",
-              COALESCE(corr.box_number, pl.box_number, si.box_number) AS "boxNumber", COALESCE(pp.frame, pl.port) AS frame,
+              COALESCE(corr.box_number, pl.box_number, si.box_number) AS "boxNumber",
+              -- اترفع من البورتات (removed_phone_ports) ⇒ الفريم القديم وجنبه «تم رفعه» وتاريخه (المالك ٢٠٢٦-١١-١٢)
+              COALESCE(pp.frame, rpp.frame, pl.port) AS frame,
+              (pp.phone_number IS NULL AND rpp.phone_number IS NOT NULL) AS "portRemoved",
+              (CASE WHEN pp.phone_number IS NULL THEN rpp.removed_at END AT TIME ZONE 'Africa/Cairo') AS "portRemovedAt",
+              CASE WHEN pp.phone_number IS NULL THEN rpp.msan_code END AS "removedMsanCode",
               -- مين صحّح البيان وإمتى — بيتسجّل دايماً مع كل تصحيح
               (corr.id IS NOT NULL) AS "dataCorrected",
               corr.submitted_by_name AS "correctedBy",
@@ -9395,6 +9400,9 @@ export async function registerRoutes(
        LEFT JOIN lines_no_account na ON na.full_phone = COALESCE(pl.full_phone, t.full)
        LEFT JOIN line_po_events pe ON pe.account_no = la.account_no
        LEFT JOIN phone_ports pp ON pp.phone_number IN (COALESCE(pl.full_phone, t.full), t.short, t.raw)
+       LEFT JOIN LATERAL (SELECT r.phone_number, r.frame, r.msan_code, r.removed_at FROM removed_phone_ports r
+                           WHERE r.phone_number IN (COALESCE(pl.full_phone, t.full), t.short, t.raw)
+                           ORDER BY r.removed_at DESC LIMIT 1) rpp ON true
        LEFT JOIN line_subscriber_info si ON si.phone_number IN (COALESCE(pl.full_phone, t.full), t.short, t.raw)
        -- أحدث «تصحيح بيان» للرقم (لو فيه) — بيغلب باقى المصادر فى العرض
        LEFT JOIN LATERAL (
@@ -13208,11 +13216,22 @@ export async function registerRoutes(
     }
     const cabins = Number(req.body?.cabins) || 0;
     const updated = Number(req.body?.updated) || 0;
+    // المالك ٢٠٢٦-١١-١٢ (2654440): صفوف من غير كود مسان (اتسجّلت من «تغيير البورت» أو شيت ناقص) عمرها ما بتتأرشف،
+    // لأن الأرشفة فى /ingest كابينة كابينة بكود المسان. بعد تشغيل كامل: أى صف لسه من غير كود مسان يبقى ماظهرش فى ولا
+    // كابينة (لو ظهر كان اتملى كوده) ⇒ بورته اتشال. مابنلمسش اللى اتحدّث فى آخر ٣ ساعات (اتسجّل وقت التشغيل نفسه).
+    let removedNoMsan = 0;
+    if (cabins > 0) {
+      try {
+        removedNoMsan = await archiveRemovedPorts(
+          `btrim(COALESCE(msan_code, '')) = '' AND uploaded_at < now() - interval '3 hours'`, [], "portal");
+        if (removedNoMsan) console.log(`[ports] اتأرشف ${removedNoMsan} رقم من غير كود مسان بعد التشغيل الكامل`);
+      } catch (e: any) { console.error("[ports] أرشفة اللى من غير كود مسان:", e?.message || e); }
+    }
     await pool.query(
       `INSERT INTO app_state (key, value, updated_at) VALUES ('ports_run_completed_at', now()::text, now())
        ON CONFLICT (key) DO UPDATE SET value = now()::text, updated_at = now()`,
     );
-    res.json({ ok: true, cabins, updated });
+    res.json({ ok: true, cabins, updated, removedNoMsan });
   });
 
   // ===== تشغيل تلقائى لتحديث البورتات عبر علامة على السيرفر =====
@@ -14573,6 +14592,11 @@ export async function registerRoutes(
   app.get("/api/phone-ports/removed", requireAuth, async (req: any, res) => {
     try {
       const { q = "" } = req.query as Record<string, string>;
+      // صفحات (المالك ٢٠٢٦-١١-١٢: «التقرير كل ما بدخل عليه بيهنج» — كان بيرجّع لحد ٢٠ ألف صف مرة واحدة والصفحة
+      // بترسمهم كلهم). all=1 للتصدير بس.
+      const all = String((req.query as any).all ?? "") === "1";
+      const pageSize = all ? 50000 : Math.min(500, Math.max(20, parseInt(String((req.query as any).pageSize ?? "200"), 10) || 200));
+      const page = all ? 1 : Math.max(1, parseInt(String((req.query as any).page ?? "1"), 10) || 1);
       const params: any[] = [];
       const conds: string[] = [];
       if (q.trim()) {
@@ -14596,9 +14620,10 @@ export async function registerRoutes(
                 removed_source AS "removedSource"
            FROM removed_phone_ports ${where}
           ORDER BY removed_at DESC, phone_number
-          LIMIT 20000`,
+          LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
         params);
-      res.json({ data: rows, total: rows.length });
+      const total = (await pool.query(`SELECT COUNT(*)::int AS c FROM removed_phone_ports ${where}`, params)).rows[0].c;
+      res.json({ data: rows, total, page, pageSize });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

@@ -18,7 +18,7 @@ export function printTablePDF(opts: {
   introHtml?: string;
   /** مجموعات (مثلاً فنى فنى): كل مجموعة بتبدأ فى ورقة جديدة بعنوانها وترقيم صفحاتها، وتحت آخر صفحة منها
    *  سطور نصية (إجمالى/توقيع). لو موجودة بتتجاهل rows. (إفادة صرف سلك الصيانة — المالك ٢٠٢٦-١١-١٢) */
-  groups?: { title: string; rows: Cell[][]; footer?: string[] }[];
+  groups?: { title: string; rows: Cell[][]; footer?: string[]; everyPage?: string[] }[];
 }): void {
   const { title, columns, rows, rowsPerPage = 12, introHtml = "" } = opts;
   const headRow = `<tr>${columns.map((c) => `<th>${esc(c)}</th>`).join("")}</tr>`;
@@ -30,8 +30,10 @@ export function printTablePDF(opts: {
     for (let p = 0; p < gPages; p++) {
       const body = g.rows.slice(p * rowsPerPage, (p + 1) * rowsPerPage)
         .map((r) => `<tr>${r.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`).join("");
-      const foot = p === gPages - 1 && g.footer?.length
-        ? `<div class="gfoot">${g.footer.map((l) => `<div>${esc(l)}</div>`).join("")}</div>` : "";
+      // footer = آخر صفحة بس (الإجمالى) · everyPage = كل صفحة (خانات التوقيع — المالك ٢٠٢٦-١١-١٢: «لو خطوطه فى صفحتين
+      // عاوز خانات التوقيعات تبقى فى الصفحتين»)
+      const lines = [...(p === gPages - 1 ? g.footer || [] : []), ...(g.everyPage || [])];
+      const foot = lines.length ? `<div class="gfoot">${lines.map((l) => `<div>${esc(l)}</div>`).join("")}</div>` : "";
       pages += `
       <section class="page">
         <h2>${esc(g.title)}</h2>

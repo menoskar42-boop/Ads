@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,18 +59,26 @@ const COLS: [string, (r: Row) => any][] = [
 
 export function RemovedPortsReport() {
   const [q, setQ] = useState("");
+  // صفحات ٢٠٠ صف (المالك ٢٠٢٦-١١-١٢: «كل ما بدخل عليه بيهنج» — كان بيرسم لحد ٢٠ ألف صف مرة واحدة)، والبحث
+  // بيتبعت بعد ما تبطّل كتابة بنص ثانية. التصدير بيجيب الكل من السيرفر.
+  const [qDeb, setQDeb] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE = 200;
+  useEffect(() => { const t = setTimeout(() => { setQDeb(q); setPage(1); }, 500); return () => clearTimeout(t); }, [q]);
+  const fetchRows = async (all: boolean) => {
+    const res = await fetch(`/api/phone-ports/removed?q=${encodeURIComponent(qDeb)}${all ? "&all=1" : `&page=${page}&pageSize=${PAGE}`}`, { credentials: "include" });
+    if (!res.ok) throw new Error("تعذّر التحميل");
+    return res.json() as Promise<{ data: Row[]; total: number }>;
+  };
 
   const { data, isLoading } = useQuery({
-    queryKey: ["/api/phone-ports/removed", q],
-    queryFn: async () => {
-      const res = await fetch(`/api/phone-ports/removed?q=${encodeURIComponent(q)}`, { credentials: "include" });
-      if (!res.ok) throw new Error("تعذّر التحميل");
-      return res.json() as Promise<{ data: Row[]; total: number }>;
-    },
+    queryKey: ["/api/phone-ports/removed", qDeb, page],
+    queryFn: () => fetchRows(false),
     refetchOnMount: "always",
   });
 
   const rows = data?.data ?? [];
+  const pages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE));
   const mobileLookup = useMobileLookup(rows.map((r) => r.phoneNumber));
   const columns = [
     ["رقم التليفون", (r: Row) => r.phoneNumber],
@@ -78,20 +86,22 @@ export function RemovedPortsReport() {
     ...COLS.slice(1),
   ] as [string, (r: Row) => any][];
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const allRows = (await fetchRows(true)).data;
     const ws = XLSX.utils.json_to_sheet(
-      rows.map((r) => Object.fromEntries(columns.map(([h, f]) => [h, f(r) ?? ""]))),
+      allRows.map((r) => Object.fromEntries(columns.map(([h, f]) => [h, f(r) ?? ""]))),
     );
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "الخطوط المرفوعة");
     XLSX.writeFile(wb, "الخطوط-المرفوعة.xlsx");
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
+    const allRows = (await fetchRows(true)).data;
     printTablePDF({
       title: "جدول الخطوط المرفوعة (اتشال بورتها من الشيت)",
       columns: columns.map(([h]) => h),
-      rows: rows.map((r) => columns.map(([, f]) => f(r) ?? "-")),
+      rows: allRows.map((r) => columns.map(([, f]) => f(r) ?? "-")),
     });
   };
 
@@ -158,6 +168,13 @@ export function RemovedPortsReport() {
               ))}
             </TableBody>
           </Table>
+        )}
+        {pages > 1 && (
+          <div className="flex items-center justify-center gap-3 p-3 text-sm">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>السابق</Button>
+            <span>صفحة {page.toLocaleString("ar-EG")} من {pages.toLocaleString("ar-EG")}</span>
+            <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>التالى</Button>
+          </div>
         )}
       </Card>
     </div>

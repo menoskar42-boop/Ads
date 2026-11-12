@@ -100,6 +100,24 @@ test("maintenance cable statement PDF: one sheet per technician with total and s
   assert.match(ui, /title: `\$\{MAINT_SHEET_TITLE\} — \$\{dates\} — الفنى: \$\{n\}`/);
   assert.match(ui, /"توقيع الفنى: \.+"/);
   assert.match(ui, /rowsPerPage: 20, groups \}\);/);
-  assert.match(lib, /groups\?: \{ title: string; rows: Cell\[\]\[\]; footer\?: string\[\] \}\[\];/);
+  assert.match(lib, /groups\?: \{ title: string; rows: Cell\[\]\[\]; footer\?: string\[\]; everyPage\?: string\[\] \}\[\];/);
+  // خانات التوقيع فى كل صفحة من صفحات الفنى (المالك ٢٠٢٦-١١-١٢)، والإجمالى فى آخر صفحة
+  assert.match(lib, /const lines = \[\.\.\.\(p === gPages - 1 \? g\.footer \|\| \[\] : \[\]\), \.\.\.\(g\.everyPage \|\| \[\]\)\];/);
+  assert.match(ui, /everyPage: \[`اسم الفنى: \$\{n\}`, "توقيع الفنى: \.+", "توقيع المشرف: \.+"\]/);
   assert.match(lib, /for \(let p = 0; !opts\.groups && p < totalPages; p\+\+\)/);
+});
+
+
+// المالك ٢٠٢٦-١١-١٢ (2654440 اتنقل لكابينة اتشالت من التحديث وفضل بفريمه): صفوف من غير كود مسان بتتأرشف بعد التشغيل
+// الكامل · تقرير الخطوط المرفوعة صفحات · بحث برقم التليفون بيبيّن «تم رفعه» وتاريخه جنب الفريم القديم
+test("ports: no-MSAN rows archived after a full run, removed report paged, lookup shows removed frame", () => {
+  const r = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const ui = readFileSync(new URL("../client/src/components/PhoneLookupReport.tsx", import.meta.url), "utf8");
+  const rep = readFileSync(new URL("../client/src/components/RemovedPortsReport.tsx", import.meta.url), "utf8");
+  assert.match(r, /removedNoMsan = await archiveRemovedPorts\(\s*`btrim\(COALESCE\(msan_code, ''\)\) = '' AND uploaded_at < now\(\) - interval '3 hours'`, \[\], "portal"\)/);
+  assert.match(r, /LIMIT \$\{pageSize\} OFFSET \$\{\(page - 1\) \* pageSize\}/);
+  assert.doesNotMatch(r, /FROM removed_phone_ports \$\{where\}\s+ORDER BY removed_at DESC, phone_number\s+LIMIT 20000/);
+  assert.match(r, /\(pp\.phone_number IS NULL AND rpp\.phone_number IS NOT NULL\) AS "portRemoved"/);
+  assert.match(ui, /— تم رفعه\{line\.portRemovedAt/);
+  assert.match(rep, /&page=\$\{page\}&pageSize=\$\{PAGE\}/);
 });
