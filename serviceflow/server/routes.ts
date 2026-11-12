@@ -2607,6 +2607,8 @@ export async function registerRoutes(
       if (!ALL_JOB_TYPES.includes(type)) return res.status(400).json({ message: "نوع غير صحيح" });
       if (type === "ossreexec" && req.user?.role !== ROLES.SUPER_ADMIN) return res.status(403).json({ message: "Re-Execute على OSS للسوبر أدمن بس" });
       if (type === "wfmmobile" && req.user?.role !== ROLES.SUPER_ADMIN) return res.status(403).json({ message: "جلب الموبايل من WFM للسوبر أدمن بس" });
+      // موافقة تغيير البورت (بحث برقم التليفون وتقرير التركيبات) للسوبر أدمن بس — المالك ٢٠٢٦-١١-١٢
+      if (type === "wfmaccept" && req.user?.role !== ROLES.SUPER_ADMIN) return res.status(403).json({ message: "موافقة تغيير البورت للسوبر أدمن بس" });
       const uniqAccs = [...new Set((Array.isArray(accounts) ? accounts : []).map((a: any) => String(a).trim()).filter(Boolean))];
       if (!uniqAccs.length) return res.status(400).json({ message: "لا توجد أرقام" });
       // منع تكرار تحديث نفس الملف: لو فيه مهمة تحديث بنفس النوع لسه فى الطابور (منتظرة أو
