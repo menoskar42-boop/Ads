@@ -6,6 +6,9 @@ node_modules
 private_uploads/
 backups/ads/
 
+# Generated exports are delivered separately and should not enter Git history.
+/generated-artifacts/
+
 # Safari Kids (mykid) runtime artifacts
 mykid/server/.tts-cache/
 mykid/.env

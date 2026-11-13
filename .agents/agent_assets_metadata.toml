@@ -60,3 +60,17 @@ mtime_ms = 1791357603942
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:63fe2d87-f64e-49fe-b075-5e7301003d5f/08ea49ac-66d1-4410-a3de-b4df261524f5/79ada839-87f3-4b98-8091-c784d10c3a8f"
 storage_version_token = "1791357786347456"
 content_type = "text/csv"
+
+[[outputs]]
+id = "EyE4ZEl__vxLWcIfiESpQ"
+uri = "file://generated-artifacts/oscardevs-promo-branded.mp4"
+type = "video"
+title = "OscarDevs Promotional Video"
+description = "Branded 30-second Arabic promotional video, 1280×720 MP4 with music."
+logical_id = "ef678416-4594-4577-bcd2-55b1f7a56755"
+content_hash = "sha256:b84a81e481e8cbcdd80691e3a059ddbee8fa0850b933c81090001ad7317217ec"
+size = 3339186
+mtime_ms = 1794606972610
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:63fe2d87-f64e-49fe-b075-5e7301003d5f/ef678416-4594-4577-bcd2-55b1f7a56755/e01b87c1-9789-4ceb-8f0d-5170516e3cb7"
+storage_version_token = "1794607029517372"
+content_type = "video/mp4"
