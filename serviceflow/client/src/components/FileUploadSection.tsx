@@ -753,8 +753,8 @@ export function FileUploadSection({ onlyFccWfm = false }: { onlyFccWfm?: boolean
             const today = cairoDay(new Date());
             const iso = uploadTimes["ports_run_complete"];
             const upIso = uploadTimes["/api/phone-ports/import"];
-            // «اتحدّثت» = اترفع النهارده بعد 7:45 (8 إلا ربع) — نفس شرط فتح البورتال
-            const PORTS_THRESHOLD_MIN = 7 * 60 + 45;
+            // «اتحدّثت» = اترفع النهارده بعد 9:00 — نفس شرط فتح البورتال (lib/daily-update.ts)
+            const PORTS_THRESHOLD_MIN = 9 * 60;
             const cairoMinOfDay = (d: string | number | Date) => {
               const s = new Date(d).toLocaleString("en-GB", { timeZone: "Africa/Cairo", hour12: false, hour: "2-digit", minute: "2-digit" });
               const [h, m] = s.split(":").map(Number);

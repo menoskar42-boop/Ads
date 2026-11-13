@@ -1,7 +1,7 @@
 // ============================================================================
 // client/src/lib/daily-update.ts
-// «حدّث التقارير اليومية»: يرسل FCC + WFM + OSS، وبورتال البورتات (بشرط تعدّى 7:45
-// وإن البورتات ماتحدّثتش بعد 7:45 النهارده) إلى طابور التنفيذ لمنع تعارض نفس الدومين.
+// «حدّث التقارير اليومية»: يرسل FCC + WFM + OSS، وبورتال البورتات (بشرط تعدّى 9:00
+// وإن البورتات ماتحدّثتش بعد 9:00 النهارده) إلى طابور التنفيذ لمنع تعارض نفس الدومين.
 // التشغيل اليدوى يحجز التاب داخل ضغطة الزر، ثم يوجّهه جهاز التنفيذ عند سحب المهمة.
 // ============================================================================
 import { dispatchSpeedTool, openOpSite, reserveOpWindow, SITE_WIDE_KEY, type ExecJobType } from "./exec-queue";
@@ -96,11 +96,11 @@ export function runDailyUpdate(
   // ابدأ تجهيز التصدير بعد حجز التابات داخل gesture الخاص بالزر.
   fetch("/api/fcc-export/arm", { method: "POST", credentials: "include" }).catch(() => {});
 
-  // بورتال منافذ MSAN: مرة واحدة يومياً بعد 7:45 (المصدر بيتحدّث حوالى 8 إلا ربع)
+  // بورتال منافذ MSAN: مرة واحدة يومياً بعد 9:00 الصبح (المالك ٢٠٢٦-١١-١٣: «٩ ص بدل ٨ ص»؛ كان 7:45)
   const today = cairoDay(new Date());
   const pt = uploadTimes || {};
   const queryLoaded = Object.keys(pt).length > 0;
-  const PORTS_THRESHOLD_MIN = 7 * 60 + 45; // 7:45
+  const PORTS_THRESHOLD_MIN = 9 * 60; // 9:00
   const updatedAfterThresholdToday = (iso?: string | null) =>
     !!iso && cairoDay(iso) === today && cairoMinOfDay(iso) >= PORTS_THRESHOLD_MIN;
   const portsDoneToday =
