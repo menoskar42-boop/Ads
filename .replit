@@ -55,6 +55,10 @@ externalPort = 4200
 localPort = 5503
 externalPort = 3003
 
+[[ports]]
+localPort = 25007
+externalPort = 5000
+
 # ⚠️ SF_BASE_PATH متكتوب صراحةً في أمر البناء **وأمر التشغيل** مش في
 # [userenv]: النصّين لازم يشوفوه، والبناء مش مضمون إنه بيشوف userenv.
 #   · البناء  → vite بيحط المسار في كل رابط ملف
