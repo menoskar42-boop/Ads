@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { rescueMinutes } from "@shared/exec-timeouts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ExecBatchDetails } from "@/components/ExecBatchDetails";
 import { Loader2, RefreshCw, ChevronUp, ChevronDown, Save, ListOrdered, Ban, Pause, Play, RotateCcw, AlertTriangle } from "lucide-react";
 import { refreshPausedNow } from "@/lib/night-pause";
 
@@ -93,6 +94,7 @@ export function QueueReorderPanel() {
   const [canceling, setCanceling] = useState<string | null>(null); // batchId اللى بيتلغى دلوقتى
   const [pausing, setPausing] = useState<string | null>(null); // batchId اللى بيتوقّف/يستأنف دلوقتى ("all" للكل)
   const [requeuing, setRequeuing] = useState<string | null>(null); // batchId اللى بيتعاد تشغيله
+  const [details, setDetails] = useState<{ batchId: string; type: string } | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   // ⚠️ عدّاد تعديلات الترتيب المحلّية. المشكلة اللى بيصلّحها: التحديث التلقائى
@@ -495,6 +497,11 @@ export function QueueReorderPanel() {
                 >
                   {canceling === b.batchId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
                 </button>
+                <button
+                  onClick={() => setDetails({ batchId: b.batchId, type: typeLabel(b.type) })}
+                  className="text-xs text-blue-700 hover:text-blue-900 underline whitespace-nowrap"
+                  title="عرض تفصيلى كل مهمة فى الباتش (الأثر الفعلى + الجهاز المنفّذ)"
+                >تفصيلى</button>
               </div>
             ))}
           </div>
@@ -565,11 +572,23 @@ export function QueueReorderPanel() {
               >
                 {canceling === b.batchId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
               </button>
+              <button
+                onClick={() => setDetails({ batchId: b.batchId, type: typeLabel(b.type) })}
+                className="text-xs text-blue-700 hover:text-blue-900 underline whitespace-nowrap"
+                title="عرض تفصيلى كل مهمة فى الباتش (الأثر الفعلى + الجهاز المنفّذ)"
+              >تفصيلى</button>
             </div>
           ))}
         </div>
       )}
     </Card>
+    {details && (
+      <ExecBatchDetails
+        batchId={details.batchId}
+        typeLabel={details.type}
+        onClose={() => setDetails(null)}
+      />
+    )}
     </div>
   );
 }
