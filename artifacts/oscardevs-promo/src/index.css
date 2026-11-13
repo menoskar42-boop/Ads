@@ -39,3 +39,15 @@
 .end-recede{border-radius:0}
 .s2-head{right:5%;width:32%}
 .s4-tags{left:52%;right:auto}
+ .s3-title{right:7%;top:31%;width:23%;font-size:5.8vmin;line-height:1.15}
+ .s3-support{right:7%;top:44%;font:600 2vmin 'Space Grotesk',sans-serif;letter-spacing:.04em}
+ .s3-browser{left:6%;right:auto;top:20%;width:67%;height:auto;filter:drop-shadow(0 2vmin 2.5vmin rgba(0,0,0,.35))}
+ .real-site-frame{width:100%;height:auto;padding:.6%;background:#edece7;border:1px solid rgba(255,255,255,.62);overflow:hidden;box-shadow:0 0 0 1px rgba(16,44,49,.3)}
+ .real-site-bar{height:4.2vmin;display:flex;align-items:center;gap:1.4%;padding:0 1.4%;color:#37434a;font:500 .95vmin 'Space Grotesk',sans-serif;background:#f0efeb}
+ .real-site-bar .window-dots{gap:.45vw}.real-site-bar .window-dots i{width:.48vmin;height:.48vmin;background:#87959b}
+ .real-site-bar>span:nth-child(2){margin:auto;background:#e3e2de;border-radius:2vmin;padding:.25vmin 10%;letter-spacing:.04em}
+ .real-site-bar b{font-size:.78vmin;font-weight:500;letter-spacing:.12em;color:#617078}
+ .real-site-image{display:block;width:100%;height:auto;object-fit:contain}
+ .s3-recompose{left:5.5%;right:auto;top:19%;width:68.2%;height:72%;border:1px solid #ef765e;pointer-events:none}
+ .official-logo{display:block;width:13vmin;height:13vmin;object-fit:contain;margin:0 auto 1.2vmin;border-radius:.8vmin}
+ .end-lockup h1{font-size:8vmin;letter-spacing:-.065em}

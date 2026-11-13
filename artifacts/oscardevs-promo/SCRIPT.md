@@ -2,8 +2,8 @@
 
 ## Director's treatment
 - Promise: A thoughtful digital idea can become a distinct online presence with OscarDevs.com.
-- Identity: No official logo, colors, or fonts supplied. Creative palette: deep ink, warm paper, signal coral, soft mint; IBM Plex Sans Arabic with Space Grotesk. Not official brand tokens.
-- Hero: A luminous coral cursor / code bracket that becomes a designed website window, then resolves into the plain OscarDevs wordmark.
+- Identity: Official OscarDevs logo and a real OscarDevs.com homepage screenshot are supplied and used unchanged. The existing deep-ink / warm-paper / signal-coral / soft-mint palette and IBM Plex Sans Arabic with Space Grotesk remain a creative film treatment, not verified official brand tokens.
+- Hero: A luminous cursor leads into the actual OscarDevs homepage, then the real logo resolves with the exact domain.
 - Motion: Kinetic Arabic type with masked reveals; dimensional UI-card assembly; object-led match cuts through a circular cursor aperture.
 - Arc: A quiet idea accelerates into a tangible web experience, then settles into a clear brand invitation.
 - Payoff: Scattered interface geometry collapses into one coral point and expands into a still typographic lockup.
@@ -15,10 +15,10 @@
 |---|---|---|---|
 | 0–4.5s | Idea seeking form; cursor snaps and type punches | Asymmetric dark editorial field | Cursor aperture fills frame |
 | 4.5–9.5s | Idea becomes structure; rails fold to browser | Warm paper blueprint, horizontal rails | Browser becomes viewport |
-| 9.5–15s | Tangible web experience assembles and reorders | Large site canvas and abstract editorial panel | Coral panel pushes through lens |
+| 9.5–15s | The real OscarDevs homepage fills the browser frame | Large, legible homepage screenshot, framed as a live site | Coral frame pushes through lens |
 | 15–20s | Detail and order converge | Split mint plates, center line | Coral line travels onward |
 | 20–25s | Multiple page views collapse into one | Deep ink, layered wide panels | Panels fold to point |
-| 25–30s | Brand and exact domain resolve | Spare centered paper end-card | Point becomes opening cursor |
+| 25–30s | Official logo and exact domain resolve | Spare centered paper end-card with supplied logo | Point becomes opening cursor |
 
 ### Shot 01 / 00.00–04.50s / 4.50s — «لكل فكرة…»
 Purpose: Open on the instant before an idea becomes visible; establish an assured Arabic voice.
@@ -40,15 +40,15 @@ Transition: Browser outline retains proportions and grows into next viewport; sc
 Assets/technique: Local vector rails, abstract code lines, CSS perspective transforms, IBM Plex Sans Arabic.
 Sound: Bed continues; measured onset at 9.50s anchors the cut.
 
-### Shot 03 / 09.50–15.00s / 5.50s — «تجربة تترك أثرًا»
-Purpose: Make the outcome tangible as a composed digital experience.
-Exact content: «تجربة تترك أثرًا» at 10.00s; «واضحة. متوازنة. لك.» at 12.40s; «oscardevs.com» as browser detail at 13.75s.
-Composition: Ink canvas; warm-paper website plane spans 70% width and 67% height, angled 3°. Abstract coral/mint editorial panel occupies half. Headline left safe zone; interface centre/right.
-Artistic idea: Page assembles like a printed editorial spread; image block and text column lock, then recompose into stronger hierarchy.
-Timed choreography: 0.00 browser outline lands; 0.25 coral masthead and image panel pop; 0.55 headline clips into top-left UI; 1.25 art panel unfolds from square to abstract architecture; 2.10 text column snaps into alignment; 2.85 modules exchange positions through split-fold; 3.45 supporting phrase resolves; 4.25 browser pushes to 1.45x, panel briefly blurs as it passes lens; 5.15 elements sweep out on same vector.
-Transition: Coral image-panel corner scales through camera and opens as next scene's divider; push-through plus type shear.
-Assets/technique: Abstract CSS/SVG art, no logos or implied customer website; UI art only.
-Sound: Measured beat at 15.00s anchors the next cut.
+### Shot 03 / 09.50–15.00s / 5.50s — «هذا موقعنا»
+Purpose: Make the film unmistakably OscarDevs by showing the viewer the real site, rather than a fabricated approximation.
+Exact content: «OSCARDEVS / THE REAL WEBSITE» scene label; «هذا موقعنا» at 9.75s; «oscardevs.com» at 12.70s. The supplied homepage screenshot itself contains the site's actual Arabic headline, calls to action, navigation, and visible branding.
+Composition: Deep-ink canvas. The actual 16:9 homepage screenshot sits unchanged inside a restrained browser frame occupying 67% of the canvas width, left of center. A separate Arabic identification line and exact domain occupy a clear right-side column. No recreation or color editing of the site.
+Artistic idea: The abstract mock site becomes a portal to the real homepage; the whole screenshot is revealed at once as a confident, legible proof of identity.
+Timed choreography: 0.00-0.25s: dark canvas receives the carried browser contour and scene label. 0.15-0.95s: real screenshot frame scales from 0.88 and settles with a slight angle resolving to level; the complete image remains visible without crop. 0.25-0.80s: «هذا موقعنا» reveals in the right column. 1.35-2.55s: a thin coral outline appears around the site frame, shifts once, then recedes without obscuring its content. 2.40-3.10s: domain resolves in the right column. 3.20-4.10s: the browser frame makes a short perspective recompose then returns to a steady, readable view. 4.15-5.50s: outer frame pushes toward lens and becomes the coral-edged aperture into Shot 04.
+Transition: The real page's 16:9 frame carries into the mint divider as a coral outline; scale-through and color-field change combine at 15.00s.
+Assets/technique: Supplied `attached_assets/oscardevs-homepage-brand-reference.png`, imported via `@assets/...`, rendered unaltered; CSS browser chrome and coral outline only. Screenshot is a visual reference, not evidence that its colors are official brand tokens.
+Sound: Existing instrumental; cut remains at the existing 15.00s boundary.
 
 ### Shot 04 / 15.00–20.00s / 5.00s — «الجمال في التفاصيل»
 Purpose: Communicate care and precision through visual order, not performance claims.
@@ -71,14 +71,14 @@ Assets/technique: CSS/Framer Motion page planes; abstract copy blocks, no functi
 Sound: Strong lift at the 20.00s measured beat; end-card begins on the 25.00s beat.
 
 ### Shot 06 / 25.00–30.00s / 5.00s — «OscarDevs.com»
-Purpose: Leave the exact brand/domain, cleanly readable.
-Exact content: Plain-text «OscarDevs.com» at 25.35s; Arabic line «نحو حضور رقمي أوضح» at 26.40s. Hold both through 28.65s. No button or fabricated logo mark.
-Composition: Warm paper field, centered dark ink name 11vmin; coral point between brand and Arabic line. Spare composition, no interface mockup.
-Artistic idea: Accumulated lines contract into one coral point; text resolves around it, reversing the opening's scatter into focus.
-Timed choreography: 0.00 point blooms and baseline traces; 0.35 name sharpens from slight blur and 0.92 scale; 1.40 Arabic line reveals from point; 2.05 linework gathers to point and disappears; 3.15 lockup shifts 1% upward and point pulses once; 3.85 background dims toward ink while point contracts to opener cursor position; 4.75 ink field nearly complete; 5.00 same coral cursor shape as opening re-established for clean loop, no blank tail.
-Transition: End frame matches Shot 01 opening coordinates and dark field; same cursor object for loop.
-Assets/technique: Plain-text name only; official logo unavailable. Abstract SVG cursor point, no invented endorsement or measurable claim.
-Sound: Music resolves without vocals; end-card enters on the measured 25.00s beat, last second prepares loop.
+Purpose: Close with the actual OscarDevs identity and domain, cleanly readable.
+Exact content: Supplied official logo, «OscarDevs.com» at 25.28s; Arabic line «نحو حضور رقمي أوضح» at 26.12s. Hold lockup through 28.70s; no CTA.
+Composition: Warm-paper field; supplied logo is centered above the domain, followed by a coral rule and Arabic line. Logo is shown using the original provided image without recoloring or redrawing. Spare end-card distinct from the image-led homepage shot.
+Artistic idea: A coral point becomes a real, dimensional brand mark; the logo and domain settle into a calm final signature.
+Timed choreography: 0.00s point blooms from the prior panel collapse; 0.08-0.70s official logo resolves from a small, slight-rotation reveal; 0.28-0.96s domain sharpens beneath it; 0.62-1.12s coral rule traces in; 1.12-1.57s Arabic line reveals; 2.05-3.15s point pulses once and the lockup lifts subtly into a clear hold. 3.72-4.87s the lockup fades as the background returns to ink and the point contracts toward the opening cursor position; 4.87-5.00s same coral cursor shape as Shot 01 is re-established for a clean loop without an empty tail.
+Transition: The point seeds the logo reveal; the outgoing mark contracts to match Shot 01's cursor position and dark field.
+Assets/technique: Supplied verified `attached_assets/oscardevs-logo.png`, imported through `@assets/...` and displayed unchanged; no fabricated logo components.
+Sound: Existing music resolves without vocals; end-card begins on the existing 25.00s beat.
 
 ## Audio spec
 - Runtime: 30 s (SCENE_DURATIONS total)
