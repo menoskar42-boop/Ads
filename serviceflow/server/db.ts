@@ -2047,6 +2047,38 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS box_working_key text`);
   await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS box_working_recorded_at timestamptz`);
 
+  // inspection_followup_items — عينات شهرية ثابتة لمهام الفحص، مع لقطة بيانات المصدر
+  // وردود مراجعة التركيبات. تبقى العينة نفسها بعد إعادة التحميل خلال الشهر.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS inspection_followup_items (
+      id serial PRIMARY KEY,
+      report_month text NOT NULL CHECK (report_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+      section text NOT NULL CHECK (section IN ('maintenance','om','installations')),
+      source_key text NOT NULL,
+      technician_name text,
+      source_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+      is_manual boolean NOT NULL DEFAULT false,
+      wire_distance_match text,
+      customer_wire_match text,
+      review_notes text,
+      reviewed_by text,
+      reviewed_at timestamptz,
+      created_by text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (report_month, section, source_key)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS inspection_followup_sections (
+      report_month text NOT NULL CHECK (report_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+      section text NOT NULL CHECK (section IN ('maintenance','om','installations')),
+      initialized_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (report_month, section)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS inspection_followup_month_section_idx
+    ON inspection_followup_items (report_month, section, id)`);
+
   // فهارس على الرقم المطبَّع — بتخلّى مطابقة الشكوى بالخط تستخدم index بدل seq scan
   // (من غيرها الـ LATERAL بتاع الشكاوى بيعلّق تقارير القياسات).
   // التعبير مضمَّن مش دالة مخصصة — عشان migration النشر بتاع Replit بيطبّق الفهرس على prod

@@ -116,7 +116,7 @@
       <div class="card-header">نتائج الفحص</div>
       <div class="card-body p-0">
         <table class="table mb-0">
-          <thead><tr><th>البند</th><th>النوع</th><th>الحالة</th><th>الإصلاح</th><th>ملاحظات</th><th>تفاصيل إضافية</th></tr></thead>
+          <thead><tr><th>البند</th><th>النوع</th><th>الحالة</th><th>الإصلاح</th><th>مراجعة الإصلاح</th><th>ملاحظات</th><th>تفاصيل إضافية</th></tr></thead>
           <tbody>
           <% checklist.forEach(ci => {
             const found = items.find(i => i.item_key === ci.key);
@@ -143,6 +143,18 @@
                 <% } else { %>
                   <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split"></i> قيد الصيانة</span>
                 <% } %>
+              <% } else { %>—<% } %>
+            </td>
+            <td>
+              <% if (task && task.status === 'pending_approval' && isBad && isDone && (user.role === 'admin' || user.role === 'inspector')) { %>
+              <form method="post" action="/inspector/tasks/<%= task.id %>/items/<%= encodeURIComponent(ci.key) %>/not-confirm"
+                    class="d-flex flex-column gap-1" onsubmit="return confirm('سيُعاد هذا البند للفني وتُسجل الملاحظة. متابعة؟');">
+                <input name="reason" class="form-control form-control-sm" required minlength="3"
+                       maxlength="1000" placeholder="سبب عدم التأكيد" aria-label="سبب عدم تأكيد <%= ci.label %>">
+                <button class="btn btn-outline-danger btn-sm text-nowrap">عدم تأكيد</button>
+              </form>
+              <% } else if (isBad && isDone && task && task.status === 'pending_approval') { %>
+                <span class="small text-muted">في انتظار التأكيد</span>
               <% } else { %>—<% } %>
             </td>
             <td class="text-muted small"><%= found && found.notes ? found.notes : '—' %></td>

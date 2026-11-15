@@ -654,6 +654,56 @@ router.post('/tasks/:taskId/reject', inspectorOrAdmin, adminOrOwner, async (req,
   res.redirect(`/inspector/${task.inspection_id}`);
 });
 
+// Reject one repaired checklist item from the monthly follow-up review, then
+// return the task to the same technician without clearing other repaired items.
+router.post('/tasks/:taskId/items/:itemKey/not-confirm', inspectorOrAdmin, async (req, res, next) => {
+  const taskId = Number(req.params.taskId);
+  const itemKey = String(req.params.itemKey || '').trim();
+  const reason = String(req.body.reason || '').trim().slice(0, 1000);
+  if (!Number.isInteger(taskId) || taskId <= 0 || !itemKey || reason.length < 3) {
+    req.session.flash = { type: 'danger', msg: 'اكتب ملاحظة واضحة لعدم التأكيد.' };
+    return res.redirect(req.get('referer') || '/inspector');
+  }
+  try {
+    const task = await db.get('SELECT * FROM maintenance_tasks WHERE id = ?', [taskId]);
+    if (!task || task.status !== 'pending_approval') {
+      req.session.flash = { type: 'danger', msg: 'هذا البند لم يعد في انتظار التأكيد.' };
+      return res.redirect(task ? `/inspector/${task.inspection_id}` : '/inspector');
+    }
+    const item = await db.get(
+      `SELECT ii.id FROM inspection_items ii
+        JOIN maintenance_item_status mis
+          ON mis.task_id = ? AND mis.item_key = ii.item_key AND mis.is_done = 1
+       WHERE ii.inspection_id = ? AND ii.item_key = ? AND ii.value IN ('bad','yes')
+       LIMIT 1`,
+      [taskId, task.inspection_id, itemKey],
+    );
+    if (!item) {
+      req.session.flash = { type: 'danger', msg: 'البند غير موجود أو لم يعلّم الفني أنه تم إصلاحه.' };
+      return res.redirect(`/inspector/${task.inspection_id}`);
+    }
+    await db.transaction(async (q) => {
+      await q('DELETE FROM maintenance_item_status WHERE task_id = ? AND item_key = ?', [taskId, itemKey]);
+      await q(
+        `UPDATE maintenance_tasks
+            SET status='in_progress', completed_at=NULL,
+                rejection_reason=$2
+          WHERE id=$1`,
+        [taskId, `البند ${itemKey}: ${reason}`],
+      );
+      await q(
+        `UPDATE boxes SET status='in_progress', updated_at=NOW()
+          WHERE id=(SELECT box_id FROM inspections WHERE id=$1)`,
+        [task.inspection_id],
+      );
+    });
+    req.session.flash = { type: 'success', msg: 'لم يتم تأكيد البند وأُعيدت المهمة للفني.' };
+    res.redirect(`/inspector/${task.inspection_id}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/tasks/:taskId/revert', adminOnly, async (req, res) => {
   if (isMaintenanceHierarchyProofEnabled()) {
     const details = await getMaintenanceTaskDetails(req.session.user, req.params.taskId);

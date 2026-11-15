@@ -1713,6 +1713,8 @@ async function maintenanceReportRows(req, filters) {
     WITH completed_work AS (
       SELECT
         mt.id          AS task_id,
+        mt.status      AS task_status,
+        i.id           AS inspection_id,
         b.id           AS box_id,
         b.number       AS box_number,
         c.id           AS cabinet_id,
@@ -1810,6 +1812,27 @@ router.get('/maintenance-report', staffOnly, async (req, res) => {
       if (r.phone_number)
         console.log(`[phone match] ${exchFull} | ${cab} | ${box} → ${r.phone_number}`);
     });
+    const monthParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit',
+    }).formatToParts(new Date());
+    const currentMonth = `${monthParts.find(p => p.type === 'year')?.value}-${monthParts.find(p => p.type === 'month')?.value}`;
+    const isSuperAdmin = req.session.user.sf_role === 'super_admin';
+    const addedRows = isSuperAdmin
+      ? await db.all(
+          `SELECT source_key FROM public.inspection_followup_items
+            WHERE report_month = ? AND section = 'maintenance'`,
+          [currentMonth],
+        )
+      : [];
+    const added = new Set(addedRows.map(row => String(row.source_key)));
+    rows.forEach(r => {
+      const dateParts = r.work_date ? new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit',
+      }).formatToParts(new Date(r.work_date)) : [];
+      const rowMonth = `${dateParts.find(p => p.type === 'year')?.value}-${dateParts.find(p => p.type === 'month')?.value}`;
+      r.followup_added = added.has(String(r.task_id));
+      r.followup_eligible = isSuperAdmin && r.task_status === 'pending_approval' && rowMonth === currentMonth;
+    });
     res.render('reports/maintenance_report', {
       title: 'تقرير الصيانة',
       rows, exchanges, cabinets, query: req.query,
@@ -1818,6 +1841,80 @@ router.get('/maintenance-report', staffOnly, async (req, res) => {
     console.error('/reports/maintenance-report error:', e.message);
     res.status(500).render('error', { title: 'خطأ', message: e.message });
   }
+});
+
+router.post('/maintenance-report/:taskId/followup', staffOnly, async (req, res) => {
+  const back = req.get('referer') || '/reports/maintenance-report';
+  if (req.session.user.sf_role !== 'super_admin') {
+    req.session.flash = { type: 'danger', msg: 'إضافة البوكسات للمتابعة متاحة للسوبر أدمن فقط.' };
+    return res.redirect(back);
+  }
+  const taskId = Number(req.params.taskId);
+  if (!Number.isSafeInteger(taskId) || taskId <= 0) {
+    req.session.flash = { type: 'danger', msg: 'رقم مهمة الصيانة غير صالح.' };
+    return res.redirect(back);
+  }
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit',
+    }).formatToParts(new Date());
+    const month = `${parts.find(p => p.type === 'year')?.value}-${parts.find(p => p.type === 'month')?.value}`;
+    const [year, monthNumber] = month.split('-').map(Number);
+    const lastDay = String(new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()).padStart(2, '0');
+    const rows = await maintenanceReportRows(req, { from: `${month}-01`, to: `${month}-${lastDay}` });
+    const row = rows.find(item => Number(item.task_id) === taskId);
+    if (!row || row.task_status !== 'pending_approval') {
+      req.session.flash = { type: 'danger', msg: 'يمكن إضافة البوكسات التي تنتظر تأكيد الشئون الخارجية فقط.' };
+      return res.redirect(back);
+    }
+    const checklist = await db.all(
+      `SELECT ii.item_key AS "itemKey", ii.value, ii.notes,
+              COALESCE(mis.is_done, 0) = 1 AS "isDone", mis.done_at AS "doneAt"
+         FROM inspection_items ii
+         LEFT JOIN maintenance_item_status mis
+           ON mis.task_id = ? AND mis.item_key = ii.item_key
+        WHERE ii.inspection_id = ? AND ii.value IN ('bad','yes')
+          AND ii.item_key NOT IN ('electricity_conflict','air_conflict','overlap','data_review')
+        ORDER BY ii.id`,
+      [taskId, row.inspection_id],
+    );
+    const { buildPhoneFirstMap } = require('./service_flow');
+    const phoneMap = await buildPhoneFirstMap().catch(() => new Map());
+    const exchange = String(row.exchange_name || '').trim().toLowerCase().replace(/\s*-\s*/g, '-');
+    const prefix = exchange.split('-')[0].trim();
+    const cabinet = String(row.cabinet_number || '').trim().toLowerCase().replace(/\s*-\s*/g, '-');
+    const box = String(row.box_number || '').trim();
+    const phoneNumber = phoneMap.get(`${exchange}__${cabinet}__${box}`)
+      || phoneMap.get(`${prefix}__${cabinet}__${box}`) || '';
+    const sourceData = {
+      taskId: row.task_id,
+      inspectionId: row.inspection_id,
+      boxId: row.box_id,
+      exchangeName: row.exchange_name,
+      cabinetNumber: row.cabinet_number,
+      boxNumber: row.box_number,
+      technicianName: row.tech_name,
+      workerCode: row.worker_code,
+      workDate: row.work_date,
+      phoneNumber,
+      checklist,
+    };
+    const inserted = await db.run(
+      `INSERT INTO public.inspection_followup_items
+        (report_month, section, source_key, technician_name, source_data, is_manual, created_by)
+       VALUES (?, 'maintenance', ?, ?, ?::jsonb, TRUE, ?)
+       ON CONFLICT (report_month, section, source_key) DO NOTHING`,
+      [month, String(taskId), row.tech_name || 'غير معروف', JSON.stringify(sourceData),
+       req.session.user.full_name || req.session.user.username || ''],
+    );
+    req.session.flash = inserted.rowCount
+      ? { type: 'success', msg: 'تمت إضافة البوكس إلى مهام مطلوب الفحص.' }
+      : { type: 'info', msg: 'البوكس موجود بالفعل في مهام مطلوب الفحص.' };
+  } catch (error) {
+    console.error('/reports/maintenance-report follow-up add failed:', error.message);
+    req.session.flash = { type: 'danger', msg: 'تعذر إضافة البوكس إلى المتابعة.' };
+  }
+  res.redirect(back);
 });
 
 router.get('/maintenance-report/export', staffOnly, async (req, res) => {

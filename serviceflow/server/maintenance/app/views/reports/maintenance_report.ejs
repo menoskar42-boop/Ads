@@ -120,6 +120,15 @@
               <a href="/boxes/<%= r.box_id %>?back=<%= encodeURIComponent('/reports/maintenance-report' + (Object.keys(query).length ? '?' + new URLSearchParams(query).toString() : '')) %>" class="btn btn-sm btn-outline-primary py-0 px-2">
                 <i class="bi bi-eye"></i>
               </a>
+              <% if (r.followup_added) { %>
+              <span class="badge bg-success ms-1">مضاف للمتابعة</span>
+              <% } else if (r.followup_eligible) { %>
+              <form method="post" action="/reports/maintenance-report/<%= r.task_id %>/followup" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-2 ms-1">
+                  <i class="bi bi-plus-circle"></i> إضافة للمتابعة
+                </button>
+              </form>
+              <% } %>
             </td>
           </tr>
           <% }) %>

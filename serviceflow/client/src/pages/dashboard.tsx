@@ -65,6 +65,7 @@ import { CabinetPortFreeReport } from "@/components/CabinetPortFreeReport";
 import { RemovedPortsReport } from "@/components/RemovedPortsReport";
 import { BoxFaultTicketsReport } from "@/components/BoxFaultTicketsReport";
 import { MaintenanceComprehensiveReport } from "@/components/MaintenanceComprehensiveReport";
+import { InspectionFollowupReport } from "@/components/InspectionFollowupReport";
 import { BoxOverlapReport } from "@/components/BoxOverlapReport";
 import { MaintenancePlanH2Report } from "@/components/MaintenancePlanH2Report";
 import { CabinetCapacityReport } from "@/components/CabinetCapacityReport";
@@ -101,7 +102,7 @@ import { installMeasureHider } from "@/lib/measure-hide";
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload" | "local-store";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-target112" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "tech-certificate" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-loop" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-target112" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "tech-certificate" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-loop" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces" | "inspection-followup";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -287,6 +288,13 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
     ],
   },
   {
+    label: "المتابعة",
+    icon: ClipboardList,
+    items: [
+      { id: "inspection-followup", label: "مهام مطلوب الفحص" },
+    ],
+  },
+  {
     // المالك ٢٠٢٦-١٠-٢٠: عرض إدارة سنترالات الغنايم لاجتماع رئيس القطاعات الجنوبية — للسوبر أدمن بس
     label: "العرض التقديمى",
     icon: Presentation,
@@ -345,12 +353,12 @@ export default function Dashboard() {
   // الفني: 5 تقارير فقط (الأعطال الحالية + أداء الفنيين + إحصائيات الإزالة/التكرار + متوسط القياسات)
   // «التركيبات والنقل الحالى» بتظهر للفنى ومفلترة على كباينته؛
   // «المعاينات الحالية» بتظهر له كل المعاينات، والسيرفر يطبق النطاق لكل تقرير.
-  const TECH_ALLOWED: ReportTab[] = ["current-faults", "regularized-faults-range", "manual-current-faults", "manual-regularized-high-score", "tech-performance", "removal-stats", "repetition-stats", "repeated-within-month", "box-score-avg", "om-current", "with-account", "installations-by-tech", "shift-schedule", "current-installations", "current-surveys",
+  const TECH_ALLOWED: ReportTab[] = ["current-faults", "regularized-faults-range", "manual-current-faults", "manual-regularized-high-score", "tech-performance", "removal-stats", "repetition-stats", "repeated-within-month", "box-score-avg", "om-current", "with-account", "installations-by-tech", "shift-schedule", "current-installations", "current-surveys", "inspection-followup",
     // الكروت + الفاضى لكل نوع بورت + الخطوط المرفوعة — السيرفر بيفلترهم على كباينه هو (٢٠٢٦-٠٩-٣٠)
     "slot-cards", "cabinet-port-free", "removed-ports",
     // «متعذرات تم توفير خطوط بها» — السيرفر بيفلترها على اللى يخص الفنى
     "om-box-freed"];
-  const TECH_ALLOWED_GROUPS = ["الأعطال", "القياسات", "متعذرات OM", "تركيبات و نقل و اوامر شغل", "المعاينات", "جدول الورديات", "الخطوط والبكسيات"];
+  const TECH_ALLOWED_GROUPS = ["الأعطال", "القياسات", "متعذرات OM", "تركيبات و نقل و اوامر شغل", "المعاينات", "جدول الورديات", "الخطوط والبكسيات", "المتابعة"];
   // الشئون الخارجية ومهندس الكوابل (external) ومدير السنترال (admin) — قرار المالك ٢٠٢٦-١٠-٠٤:
   // نفس تقارير الفنى بس لكامل السنترال (السيرفر مابيفلترش غير الفنى، فبياناتهم كاملة)،
   // وصلاحياتهم جوّه التقارير زى ما هى. السوبر أدمن (اللى بيتعرض كـadmin) بيشوف كل حاجة —
@@ -770,6 +778,7 @@ export default function Dashboard() {
               {reportTab === "box-tickets-backfill" && isSuperAdmin && <BoxFaultTicketsReport mode="backfill" />}
               {reportTab === "ports-suspend-free" && <PortsSuspendFreeReport />}
               {reportTab === "maintenance-comprehensive" && <MaintenanceComprehensiveReport />}
+              {reportTab === "inspection-followup" && <InspectionFollowupReport />}
               {reportTab === "box-full"          && <BoxFullRejectionsReport orders={orders || []} />}
               {reportTab === "box-broken"        && <BoxBrokenRejectionsReport orders={orders || []} />}
               {reportTab === "work-orders"       && <WorkOrdersReport />}

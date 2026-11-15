@@ -48,6 +48,7 @@ import { cardCapacityOf, cardFreeOf } from "@shared/card-capacity";
 import { boxAverageFromAggregate, boxAverageFromAggregates, isBoxBrokenReason } from "@shared/om-box-score";
 import { schedulersEnabled } from './schedulers-enabled';
 import { registerRepeatReviews } from "./repeat-reviews";
+import { registerInspectionFollowup } from "./inspection-followup";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
 import { registerCabinetAssignments, siteWorkerCode } from "./cabinet-assignments";
@@ -9518,6 +9519,20 @@ export async function registerRoutes(
 
   // «رد التكرار» — الخطوات والتقرير فى server/repeat-reviews.ts (قرار المالك ٢٠٢٦-١٠-٠٤)
   registerRepeatReviews(app, { pool, requireAuth, requireSuperAdmin, lookupPhoneLine, techMsanCodes, msanInCodesSql, areaTechSql });
+  registerInspectionFollowup(app, {
+    pool,
+    requireAuth,
+    installationsForMonth: async (month) => {
+      const rows = await queryWfmReport(INSTALL_TYPES_LC, false, {});
+      return rows.filter((row: any) => {
+        if (!row.creationDate) return false;
+        const parts = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Africa/Cairo", year: "numeric", month: "2-digit",
+        }).formatToParts(new Date(row.creationDate));
+        return `${parts.find((part) => part.type === "year")?.value}-${parts.find((part) => part.type === "month")?.value}` === month;
+      });
+    },
+  });
   registerUrgentNoAccount(app, { pool, requireAuth });
   registerCabinetReassign(app, { pool, requireAuth, requireAdmin });
   // «توزيع الكباين» — السوبر أدمن بس (المالك ٢٠٢٦-١١-٠١)

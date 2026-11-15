@@ -37,12 +37,15 @@ router.get('/', techOrAdmin, async (req, res) => {
 
     if (isMaintenanceHierarchyProofEnabled()) {
       const result = await getMaintenanceTasks(req.session.user, req.query);
+      const returnedTasks = result.tasks.filter((task) => task.status === 'in_progress' && task.rejection_reason);
+      const currentTasks = result.tasks.filter((task) => !(task.status === 'in_progress' && task.rejection_reason));
       const addTechnicianName = async (task) => {
         if (!task.technician_id) return { ...task, tech_name: '' };
         const user = await db.get('SELECT full_name FROM users WHERE id = ?', [task.technician_id]);
         return { ...task, tech_name: user?.full_name || '' };
       };
-      const tasks = await Promise.all(result.tasks.map(addTechnicianName));
+      const tasks = await Promise.all(currentTasks.map(addTechnicianName));
+      const returned = await Promise.all(returnedTasks.map(addTechnicianName));
       const archivedTasks = await Promise.all(result.archivedTasks.map(addTechnicianName));
       const exchanges = await getMaintenanceExchanges(req.session.user);
       const cabinets = exchange_id
@@ -51,6 +54,7 @@ router.get('/', techOrAdmin, async (req, res) => {
       return res.render('technician/list', {
         title: 'مهام الصيانة',
         tasks,
+        returnedTasks: returned,
         archivedTasks,
         query: req.query,
         exchanges,
@@ -96,7 +100,9 @@ router.get('/', techOrAdmin, async (req, res) => {
     if (review)      { sql += ` AND ${REVIEW_OPEN}`; }
     sql += " ORDER BY e.name, c.number, CASE WHEN b.number ~ '^[0-9]+$' THEN b.number::INTEGER ELSE 0 END, b.number";
 
-    const tasks = await db.all(sql, params);
+    const foundTasks = await db.all(sql, params);
+    const returnedTasks = foundTasks.filter((task) => task.status === 'in_progress' && task.rejection_reason);
+    const tasks = foundTasks.filter((task) => !(task.status === 'in_progress' && task.rejection_reason));
 
     // عدّاد الزر — بيتحسب مستقل عن الفلتر الحالى عشان الفنى يشوف العدد دايماً
     let reviewCount = 0;
@@ -122,7 +128,9 @@ router.get('/', techOrAdmin, async (req, res) => {
           ORDER BY mt.id DESC`);
     }
 
-    res.render('technician/list', { title: 'مهام الصيانة', tasks, archivedTasks, query: req.query, exchanges, cabinets, reviewCount });
+    res.render('technician/list', {
+      title: 'مهام الصيانة', tasks, returnedTasks, archivedTasks, query: req.query, exchanges, cabinets, reviewCount,
+    });
   } catch (e) {
     console.error('technician list error:', e.message);
     res.status(500).render('error', { title: 'خطأ', message: 'حدث خطأ أثناء تحميل المهام. حاول مرة أخرى.' });
