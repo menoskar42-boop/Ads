@@ -463,7 +463,89 @@ export function InspectionFollowupReport() {
                   </div>
                 )}
                 {isCurrent && !isLoading && !isError && rows.length > 0 && (
-                  <div className="overflow-x-auto">
+                  <>
+                  <div className="space-y-3 p-3 md:hidden" data-testid={`mobile-cards-${currentSection}`}>
+                    {rows.map((row, index) => {
+                      const data = row.sourceData || {};
+                      const customerName = fieldValue(data, ["customerName", "customer_name", "name"]);
+                      const mobile = fieldValue(data, ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
+                      const dialableMobile = currentSection === "installations" ? dialMobile(mobile) : "";
+                      const address = fieldValue(data, ["address", "customerAddress", "customer_address"]);
+                      const inspectionId = fieldValue(data, ["inspectionId", "inspection_id"]);
+                      const checklist = fieldValue(data, ["checklist"]);
+                      const draft = draftFor(row);
+                      const hasUnsaved = !!drafts[row.id];
+                      return (
+                        <article key={`mobile-${row.id}`} className="overflow-hidden rounded-xl border border-[#cfddd7] bg-[#fffefa] shadow-sm" data-testid={`card-followup-mobile-${row.id}`}>
+                          <div className="border-b border-[#e0e9e4] bg-[#f3f7f3] p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-[10px] font-semibold text-teal-800">سجل {index + 1} · {SECTION_META[currentSection].label}</div>
+                                <h4 className="mt-1 break-words text-sm font-bold text-slate-900">
+                                  {readOnly
+                                    ? currentSection === "maintenance" ? "نتيجة الفحص" : currentSection === "om" ? "ردود المتعذر" : "نتيجة مراجعة التركيب"
+                                    : displayValue(currentSection === "maintenance" ? (customerName ?? fieldValue(data, ["exchangeName"])) : customerName)}
+                                </h4>
+                                {!readOnly && currentSection === "maintenance" && <p className="mt-1 text-xs text-slate-600">{customerName != null && <>جهة الصرف: {displayValue(fieldValue(data, ["exchangeName"]))} · </>}كابينة <bdi dir="ltr">{displayValue(fieldValue(data, ["cabinetNumber"]))}</bdi> · بوكس <bdi dir="ltr">{displayValue(fieldValue(data, ["boxNumber"]))}</bdi></p>}
+                              </div>
+                              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${row.isComplete ? "bg-teal-100 text-teal-800" : "bg-amber-100 text-amber-800"}`}>{row.isComplete ? "مكتمل" : "بانتظار المراجعة"}</span>
+                            </div>
+                            {!readOnly && mobile != null && <div className="mt-2 flex flex-wrap items-center gap-2" dir="ltr">
+                              <span className="font-mono text-sm font-semibold text-teal-800">{displayValue(mobile)}</span>
+                              {dialableMobile && <a href={`tel:${dialableMobile}`} aria-label={`اتصال بالعميل: ${dialableMobile}`} data-testid={`link-customer-phone-mobile-${row.id}`} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800"><Phone className="h-4 w-4" /> اتصال</a>}
+                            </div>}
+                            {!readOnly && address != null && <p className="mt-2 break-words text-xs leading-5 text-slate-600">{displayValue(address)}</p>}
+                            {currentSection === "maintenance" && checklist != null && <p className="mt-2 line-clamp-2 text-xs text-amber-800">الفحص: {displayValue(checklist)}</p>}
+                          </div>
+                          <div className="space-y-2 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <span className="text-slate-600">الفني: <b className="text-slate-900">{row.technicianName || displayValue(fieldValue(data, ["technicianName", "techName"]))}</b></span>
+                              {row.isManual && <span className="text-teal-700">إضافة يدوية</span>}
+                            </div>
+                            {currentSection === "om" && <div className="rounded-lg bg-[#f4f7f4] p-2.5 text-xs leading-5 text-slate-700">
+                              <div>رد الفني: <b>{OM_STATUS_LABELS[String(fieldValue(data, ["respStatus"]) || "pending")] || displayValue(fieldValue(data, ["respStatus"]))}</b></div>
+                              {fieldValue(data, ["respTechName"]) && <div className="text-slate-500">القائم بالرد: {displayValue(data.respTechName)}</div>}
+                              {fieldValue(data, ["respRejectionReason"]) && <div className="text-rose-700">{displayValue(data.respRejectionReason)}</div>}
+                              {fieldValue(data, ["respExternalResponseAt"]) && <div className="text-amber-800">رد الخارجية: {data.respIsFeasibleExternal ? "يمكن التنفيذ" : "سبب تعذر آخر"} · {displayValue(data.respExternalName)}</div>}
+                              {fieldValue(data, ["respExternalRejectionReason"]) && <div className="text-amber-800">{displayValue(data.respExternalRejectionReason)}</div>}
+                            </div>}
+                            {currentSection === "installations" && (canEdit ? (
+                              <div className="space-y-2 rounded-lg border border-teal-100 bg-teal-50/50 p-2.5">
+                                <ReviewChoice id={`wire-distance-${row.id}-mobile`} label="مطابقة مسافة السلك لأمر الشغل" value={draft.wireDistanceMatch} disabled={saveResponse.isPending} onChange={(value) => setDrafts((current) => ({ ...current, [row.id]: { ...draft, wireDistanceMatch: value } }))} />
+                                <ReviewChoice id={`customer-wire-${row.id}-mobile`} label="مطابقة مد السلك للعميل" value={draft.customerWireMatch} disabled={saveResponse.isPending} onChange={(value) => setDrafts((current) => ({ ...current, [row.id]: { ...draft, customerWireMatch: value } }))} />
+                                <textarea value={draft.reviewNotes} onChange={(event) => setDrafts((current) => ({ ...current, [row.id]: { ...draft, reviewNotes: event.target.value } }))} placeholder="ملاحظات المراجعة" rows={2} className="min-h-10 w-full resize-y rounded-md border border-slate-300 bg-white px-2.5 py-2 text-xs outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100" data-testid={`textarea-review-notes-${row.id}-mobile`} />
+                                <div className="flex items-center justify-between gap-2">
+                                  {row.reviewedAt ? <span className="text-[10px] text-slate-500">{row.reviewedBy || "—"} · {formatDate(row.reviewedAt)}</span> : <span />}
+                                  <Button size="sm" disabled={!hasUnsaved || saveResponse.isPending} onClick={() => saveResponse.mutate({ id: row.id, draft })} className="min-h-10 gap-1.5 bg-teal-800 px-3 text-xs text-white hover:bg-teal-900" data-testid={`button-save-review-${row.id}-mobile`}>
+                                    {saveResponse.isPending && saveResponse.variables?.id === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} حفظ المراجعة
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : <div className="rounded-lg bg-[#f4f7f4] p-2.5 text-xs leading-5 text-slate-700">
+                              <div>مسافة السلك: <b>{displayValue(row.wireDistanceMatch)}</b></div><div>بيان العميل: <b>{displayValue(row.customerWireMatch)}</b></div>
+                              {row.reviewNotes && <div>ملاحظات: {row.reviewNotes}</div>}
+                            </div>)}
+                            {currentSection === "om" && canReplyExternal && fieldValue(data, ["respStatus"]) === "needs_external" && <div className="flex flex-wrap gap-2">
+                              <Button size="sm" variant="outline" disabled={omExternalResponse.isPending} className="min-h-10 border-teal-300 px-3 text-xs text-teal-800" onClick={() => omExternalResponse.mutate({ serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey), isFeasible: true })}>يمكن التنفيذ</Button>
+                              <Button size="sm" variant="outline" disabled={omExternalResponse.isPending} className="min-h-10 border-rose-300 px-3 text-xs text-rose-800" onClick={() => { const reason = window.prompt("سبب التعذر من الشئون الخارجية:"); if (reason?.trim()) omExternalResponse.mutate({ serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey), isFeasible: false, rejectionReason: reason.trim() }); }}>سبب تعذر آخر</Button>
+                            </div>}
+                            {!readOnly && <details className="rounded-lg border border-slate-200 bg-white">
+                              <summary className="cursor-pointer list-none px-3 py-3 text-xs font-semibold text-teal-800">تفاصيل أمر الشغل والتقرير <span className="float-left">＋</span></summary>
+                              <div className="grid grid-cols-1 gap-2 border-t border-slate-100 p-2.5">
+                                {Object.entries(data).map(([key, value]) => <div key={key} className="min-w-0 rounded-md bg-[#f6f8f6] px-2.5 py-2"><div className="text-[10px] text-slate-500">{valueLabel(key)}</div><div className="mt-0.5 break-words text-xs leading-5 text-slate-800">{displayValue(value)}</div></div>)}
+                                {currentSection === "installations" && <div className="rounded-md bg-[#f6f8f6] px-2.5 py-2 text-xs leading-5"><div>مسافة السلك: {displayValue(row.wireDistanceMatch)}</div><div>بيان العميل: {displayValue(row.customerWireMatch)}</div><div>ملاحظات المراجعة: {row.reviewNotes || "لا توجد ملاحظات"}</div></div>}
+                              </div>
+                            </details>}
+                            {!readOnly && <div className="flex flex-wrap gap-2">
+                              <Button variant="outline" size="sm" className="min-h-10 gap-1.5 border-slate-300 px-3" onClick={() => setSelectedRow(row)} data-testid={`button-details-${row.id}-mobile`}>تفاصيل كاملة <ArrowUpLeft className="h-3.5 w-3.5" /></Button>
+                              {currentSection === "maintenance" && inspectionId != null && <a href={`/maintenance/inspector/${encodeURIComponent(String(inspectionId))}`} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800" data-testid={`link-inspection-${row.id}-mobile`}>فتح المعاينة</a>}
+                            </div>}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                  <div className="hidden overflow-x-auto md:block">
                     <Table dir="rtl" className="min-w-[1050px] text-right text-xs">
                       <TableHeader className="bg-[#e8efeb]">
                         <TableRow>
@@ -652,6 +734,7 @@ export function InspectionFollowupReport() {
                       </TableBody>
                     </Table>
                   </div>
+                  </>
                 )}
               </Card>
               {responseData?.readOnly && isCurrent && (

@@ -441,7 +441,76 @@ export function RepeatedWithinMonthReport() {
 
       {/* Table */}
       <Card className="overflow-hidden shadow-sm border-0 bg-white">
-        <div className="overflow-x-auto">
+        <div className="space-y-3 bg-[#f1f6f2] p-3 md:hidden" data-testid="repeated-mobile-cards">
+          {rows.length === 0 ? (
+            <div className="rounded-xl border border-[#d5e1da] bg-[#fffefa] px-4 py-10 text-center text-sm text-muted-foreground">
+              {isFetching ? "جاري التحميل..." : isError ? "تعذر تحميل التقرير، حاول مرة أخرى" : "لا توجد أرقام مكررة خلال شهر في هذه الفترة"}
+            </div>
+          ) : rows.map((r, i) => {
+            const mobileCardId = `${r.phoneShort || "no-phone"}-${i}`;
+            const review = reviewMap.get(reviewKeyOf(r));
+            return (
+              <article key={`mobile-${mobileCardId}`} className="overflow-hidden rounded-xl border border-[#cadbd2] bg-[#fffefa] shadow-sm" data-testid={`card-repeated-mobile-${i}`}>
+                <div className="border-b border-[#dfe9e3] bg-[#edf4ef] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-semibold tracking-wide text-teal-800">{r.centralName || "سنترال غير محدد"}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2" dir="ltr">
+                        <span className="font-mono text-lg font-bold text-teal-900">{r.phoneShort || "-"}</span>
+                        {r.phoneShort && <button type="button" onClick={() => setDetailPhone(r.phoneShort!)} title="تفاصيل أكتر (الاسم والعنوان وبيانات الخط)" aria-label="تفاصيل الخط" data-testid={`button-line-details-${mobileCardId}`} className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-md border border-teal-200 bg-white text-teal-800"><Info className="h-4 w-4" /></button>}
+                      </div>
+                      {mobileLookup[phoneLookupKey(r.phoneShort)] && <div className="mt-1 text-xs text-slate-600" dir="ltr"><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneShort)]} phone={r.phoneShort} /></div>}
+                    </div>
+                    <div className="shrink-0 rounded-lg bg-teal-900 px-3 py-2 text-center text-white">
+                      <div className="text-lg font-bold leading-5">{r.repeatCount ?? "-"}</div>
+                      <div className="mt-0.5 text-[9px] text-teal-100">مرات التكرار</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-lg bg-white/80 px-2.5 py-2"><span className="text-slate-500">الفني</span><div className="mt-0.5 font-semibold text-slate-800">{r.techName || "غير محدد"}</div></div>
+                    <div className="rounded-lg bg-white/80 px-2.5 py-2"><span className="text-slate-500">آخر شكوى</span><div className="mt-0.5 font-mono font-semibold text-slate-800" dir="ltr">{r.lastComplainNo || "-"}</div></div>
+                  </div>
+                  {canSeeReview && <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-[#dce6df] bg-white px-2.5 py-2">
+                    <span className="text-xs text-slate-600">رد التكرار: <b className={review?.status === "done" ? "text-teal-800" : "text-amber-800"}>{reviewText(r)}</b></span>
+                    {r.phoneShort && /^\d{4}-\d{2}$/.test(reviewMonthOf(r)) && (!isTechUser || review) && <button type="button" onClick={() => setReviewOpen({ phone: r.phoneShort!, month: reviewMonthOf(r) })} title={`رد التكرار — ${reviewText(r)}`} data-testid={`button-repeat-review-${r.phoneShort}-${i}-mobile`} className={`min-h-10 rounded-md border px-3 text-xs font-bold ${!review ? "border-slate-300 bg-slate-50 text-slate-700" : review.status === "done" ? "border-green-300 bg-green-50 text-green-800" : "border-amber-300 bg-amber-50 text-amber-800"}`}>{isTechUser ? "عرض الرد" : !review ? "رد" : review.status === "done" ? "مكتمل" : "جارى"}</button>}
+                  </div>}
+                </div>
+                <div className="space-y-2 p-3">
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-md bg-[#f2f6f3] px-2.5 py-2">الكابينة <b>{r.cabinetNo || "-"}</b></span>
+                    <span className="rounded-md bg-[#f2f6f3] px-2.5 py-2">البوكس <b>{r.boxNo || "-"}</b></span>
+                    <span className="rounded-md bg-[#f2f6f3] px-2.5 py-2">DP <b>{r.dpTerminal || "-"}</b></span>
+                    <span className={`rounded-md px-2.5 py-2 ${r.contactedDuringPeriod ? "bg-teal-50 text-teal-800" : "bg-amber-50 text-amber-800"}`}>{r.contactedDuringPeriod ? "تم الاتصال خلال الفترة" : "لم يتم الاتصال خلال الفترة"}</span>
+                  </div>
+                  <details className="rounded-lg border border-slate-200 bg-white">
+                    <summary className="cursor-pointer list-none px-3 py-3 text-xs font-semibold text-teal-800">تفاصيل الشكاوى وبيانات الخط <span className="float-left">＋</span></summary>
+                    <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-2.5 text-xs">
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">الأكونت</span><div className="mt-1 break-all font-mono" dir="ltr">{r.accountNo || "-"}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">رقم فني</span><div className="mt-1">{r.workerCode || "-"}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">تاريخ آخر شكوى</span><div className="mt-1 font-mono" dir="ltr">{fmtDt(r.lastComplainTime)}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">سبب الإغلاق</span><div className="mt-1">{closeReason(r.lastCloseCode) || r.lastCloseCode || "-"}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">فني إغلاق آخر شكوى</span><div className="mt-1">{r.lastCloseBy || "-"}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">الشكوى السابقة</span><div className="mt-1 font-mono" dir="ltr">{r.prevComplainNo || "-"}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">تاريخ الشكوى السابقة</span><div className="mt-1 font-mono" dir="ltr">{fmtDt(r.prevComplainTime)}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">سبب إغلاق السابقة</span><div className="mt-1">{closeReason(r.prevCloseCode) || r.prevCloseCode || "-"}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">فني إغلاق السابقة</span><div className="mt-1">{r.prevCloseBy || "-"}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">آخر اسكور</span><div className="mt-1">{scoreBadge(r.lastMeasScore)}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">حالة PO</span><div className="mt-1"><PoStatusCell value={r.poStatus} /></div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">السرعة الحالية</span><div className="mt-1">{r.lineCurrentSpeed || "-"}</div></div>
+                      <div className="rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">أقصى سرعة</span><div className="mt-1">{r.lineMaxSpeed || "-"}</div></div>
+                      <div className="col-span-2 rounded-md bg-[#f6f8f6] p-2"><span className="text-slate-500">آخر قياس للخط</span><div className="mt-1 font-mono" dir="ltr">{fmtDt(r.lastMeasTime)}</div></div>
+                    </div>
+                  </details>
+                  <div className="flex flex-wrap gap-2">
+                    {showSpeedTools && r.accountNo && <Button type="button" variant="outline" size="sm" onClick={() => measureOne(r)} className="min-h-10 gap-1.5 border-teal-200 px-3 text-xs text-teal-800" data-testid={`button-measure-line-${mobileCardId}`}><Radar className="h-4 w-4" /> قياس الخط</Button>}
+                    {showSpeedTools && r.accountNo && <span className="inline-flex min-h-10 items-center rounded-md bg-[#f2f6f3] px-3 text-xs text-slate-600">حالة تحسين البروفايل: <span className="mr-1"><PoStatusCell value={r.poStatus} /></span></span>}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <Table className="text-right text-xs" dir="rtl">
             <TableHeader className="bg-blue-900">
               <TableRow>
