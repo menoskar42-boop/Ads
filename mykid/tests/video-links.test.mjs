@@ -671,6 +671,40 @@ test("activity videos appear only in their mapped activity and embed the mapped 
   assert.deepEqual(pageErrors, [], "Activity rendering must not produce uncaught browser errors");
 });
 
+test("explore videos stop each other and stopped previews can be replayed", async () => {
+  const result = await page.evaluate(async () => {
+    const { renderExplore } = await import("/js/games/explore.js");
+    const screen = renderExplore({ datasetKey: "animals" });
+    document.body.replaceChildren(screen);
+    const [first, second] = [...screen.querySelectorAll(".kid-youtube-card")];
+    const initiallyManual = !!first && !!second &&
+      !first.querySelector("iframe") && !second.querySelector("iframe");
+
+    first?.querySelector(".kid-youtube-preview")?.click();
+    const firstStarted = !!first?.querySelector("iframe") && !second?.querySelector("iframe");
+
+    second?.querySelector(".kid-youtube-preview")?.click();
+    const secondStoppedFirst = !first?.querySelector("iframe") &&
+      !!first?.querySelector(".kid-youtube-preview") &&
+      !!second?.querySelector("iframe");
+
+    first?.querySelector(".kid-youtube-preview")?.click();
+    const replayStoppedSecond = !!first?.querySelector("iframe") &&
+      !second?.querySelector("iframe") &&
+      !!second?.querySelector(".kid-youtube-preview");
+
+    return { initiallyManual, firstStarted, secondStoppedFirst, replayStoppedSecond };
+  });
+
+  assert.deepEqual(result, {
+    initiallyManual: true,
+    firstStarted: true,
+    secondStoppedFirst: true,
+    replayStoppedSecond: true,
+  }, "playing another explore video must stop the prior iframe and restore its preview");
+  assert.deepEqual(pageErrors, [], "Explore video switching must not produce browser errors");
+});
+
 test("birds and insects play distinct natural recordings only on request and keep name speech", async () => {
   const result = await page.evaluate(async () => {
     const [{ renderExplore }, { Speech }, { BIRDS }, { INSECTS }] = await Promise.all([

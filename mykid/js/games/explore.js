@@ -22,6 +22,7 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
   const items = ds.items;
   const seen = new Set();
   let activeNatureSound = null;
+  let stopActiveVideo = null;
 
   const stopNatureSound = () => {
     if (!activeNatureSound) return;
@@ -30,12 +31,18 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
     activeNatureSound = null;
   };
 
+  const stopExploreVideo = () => {
+    stopActiveVideo?.();
+    stopActiveVideo = null;
+  };
+
   const screen = document.createElement("div");
   screen.className = "region-screen";
   screen.style.background = bg || "linear-gradient(180deg,#bff0c9,#7fd99b)";
 
   const back = () => {
     stopNatureSound();
+    stopExploreVideo();
     Router.go("region", { id: regionId, index: regionIndex });
   };
   screen.appendChild(gameTopbar(title || "🔍 استكشف", back));
@@ -51,7 +58,12 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
     videoWrap.className = "explore-video-list";
     videoWrap.setAttribute("aria-label", "فيديوهات تعليمية مرتبطة بالنشاط");
     videoWrap.style.cssText = "width:calc(100% - 28px);max-width:720px;margin:12px auto 18px;display:flex;flex-direction:column;gap:14px";
-    videos.forEach((video) => videoWrap.appendChild(createYouTubePlayer(video)));
+    videos.forEach((video) => videoWrap.appendChild(createYouTubePlayer(video, {
+      onPlay: (stop) => {
+        stopExploreVideo();
+        stopActiveVideo = stop;
+      },
+    })));
     screen.appendChild(videoWrap);
   }
 
