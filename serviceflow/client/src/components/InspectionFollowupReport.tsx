@@ -749,6 +749,7 @@ export function InspectionFollowupReport() {
                                 <TableHead key={label} className="whitespace-nowrap text-right font-bold text-slate-700">{label}</TableHead>
                               ))}
                               <TableHead className="whitespace-nowrap text-right font-bold text-slate-700">اسم الفني</TableHead>
+                              <TableHead className="whitespace-nowrap text-right font-bold text-slate-700">الحالة</TableHead>
                               <TableHead className="min-w-[370px] text-right font-bold text-slate-700">مراجعة السلك</TableHead>
                             </>
                           ) : currentSection === "om" ? (
@@ -844,6 +845,11 @@ export function InspectionFollowupReport() {
                                   ))}
                                   <TableCell className="min-w-[140px] whitespace-normal font-medium text-slate-800" data-testid={`text-technician-name-row-${row.id}`}>
                                     {row.technicianName || displayValue(fieldValue(data, ["technicianName", "techName"]))}
+                                  </TableCell>
+                                  <TableCell className="min-w-[130px] whitespace-normal">
+                                    <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 font-semibold ${row.isComplete ? "bg-teal-100 text-teal-800" : "bg-amber-100 text-amber-800"}`}>
+                                      {row.isComplete ? <Check className="h-3 w-3" /> : null}{row.isComplete ? "مكتمل" : "بانتظار المراجعة"}
+                                    </span>
                                   </TableCell>
                                 </>
                               ) : (

@@ -331,7 +331,9 @@ test("installation rows show the seven requested customer and line fields on a p
   assert.match(componentSource, /INSTALLATION_SUMMARY_FIELDS\.map\(\(\[, label\]\)/);
   assert.match(componentSource, /INSTALLATION_SUMMARY_FIELDS\.map\(\(\[key\]\)/);
   assert.match(componentSource, /<TableHead[^>]*>اسم الفني<\/TableHead>/);
+  assert.match(componentSource, /<TableHead[^>]*>الحالة<\/TableHead>/);
   assert.match(componentSource, /<TableHead[^>]*>مراجعة السلك<\/TableHead>/);
+  assert.match(componentSource, /row\.isComplete \? "مكتمل" : "بانتظار المراجعة"/);
   assert.match(componentSource, /data-testid=\{`text-technician-name-row-\$\{row\.id\}`\}/);
   assert.match(markup, /break-words/);
 
