@@ -9,7 +9,11 @@ import { createElement } from "react";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { chromium } from "playwright-core";
-import { DetailPanel, ExternalExecutionLocation } from "../client/src/components/InspectionFollowupReport";
+import {
+  DetailPanel,
+  ExternalExecutionLocation,
+  InstallationSummary,
+} from "../client/src/components/InspectionFollowupReport";
 
 const scryptAsync = promisify(scrypt);
 const reportMonth = "2099-12";
@@ -267,6 +271,92 @@ test("feasible external replies show a compact execution location that fits a na
     assert.equal(layout.viewportWidth, 320);
     assert.ok(layout.pageWidth <= layout.viewportWidth, "the location summary should not add page-level horizontal scrolling");
     assert.ok(layout.rowFits && layout.summaryFits && layout.fieldsFit, "all location fields should wrap inside the narrow card");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("installation rows show the seven requested customer and line fields on a phone", async () => {
+  const data = {
+    lineCentralName: "سنترال الغنايم",
+    phoneNumber: "088-2657637",
+    customerName: "محمد أحمد عبدالعال",
+    address: "شارع المحطة بجوار مسجد النور - مركز الغنايم",
+    customerMobile: "01012345678",
+    lineCabinNumber: "كابينة ١٢-٣٤",
+    lineBoxNumber: "بوكس ١٢٣",
+  };
+  const previousReact = (globalThis as any).React;
+  (globalThis as any).React = React;
+  let markup: string;
+  try {
+    markup = renderToStaticMarkup(createElement(InstallationSummary, {
+      data,
+      rowId: 884,
+      view: "mobile",
+    }));
+  } finally {
+    if (previousReact === undefined) delete (globalThis as any).React;
+    else (globalThis as any).React = previousReact;
+  }
+
+  const expectedLabels = [
+    "اسم السنترال", "رقم التليفون الأرضي", "الاسم", "العنوان",
+    "رقم الموبايل", "رقم الكابينة", "رقم البكس",
+  ];
+  let lastPosition = -1;
+  for (const label of expectedLabels) {
+    const position = markup.indexOf(`${label}:`);
+    assert.ok(position > lastPosition, `${label} should appear in the requested order`);
+    lastPosition = position;
+  }
+  assert.match(markup, /href="tel:01012345678"/);
+  assert.match(componentSource, /<InstallationSummary data=\{data\} rowId=\{row\.id\} view="mobile" \/>/);
+  assert.match(componentSource, /<InstallationSummary data=\{data\} rowId=\{row\.id\} view="desktop" \/>/);
+  assert.match(componentSource, /currentSection === "installations" && <TableHead[^>]*>اسم الفني<\/TableHead>/);
+  assert.match(componentSource, /data-testid=\{`text-technician-name-row-\$\{row\.id\}`\}/);
+  assert.match(componentSource, /currentSection === "installations" \? "الحالة" : readOnly/);
+  assert.match(markup, /break-words/);
+
+  const browserPath = [
+    process.env.PLAYWRIGHT_EXECUTABLE_PATH,
+    "/opt/pw-browsers/chromium",
+    "/repl/tools/bin/chromium",
+  ].find((candidate) => candidate && existsSync(candidate));
+  const browser = await chromium.launch({
+    ...(browserPath ? { executablePath: browserPath } : {}),
+    headless: true,
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  });
+  try {
+    const page = await browser.newPage({ viewport: { width: 320, height: 720 } });
+    await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 100%; font-family: Arial, sans-serif; }
+      #mobile-row { width: calc(100vw - 24px); margin: 12px; }
+      [class~="space-y-1"] > :not([hidden]) ~ :not([hidden]) { margin-top: 4px; }
+      [class~="min-w-0"] { min-width: 0; }
+      [class~="break-words"] { overflow-wrap: anywhere; word-break: break-word; }
+      [data-testid^="installation-summary-"] { width: 100%; }
+    </style></head><body><div id="mobile-row">${markup}</div></body></html>`);
+    const layout = await page.evaluate(() => {
+      const summary = document.querySelector<HTMLElement>('[data-testid^="installation-summary-"]')!;
+      const fields = [...summary.querySelectorAll<HTMLElement>(":scope > div")];
+      return {
+        viewport: window.innerWidth,
+        pageWidth: document.documentElement.scrollWidth,
+        summaryFits: summary.scrollWidth <= summary.clientWidth,
+        fields: fields.map((field) => ({
+          label: field.textContent?.split(":")[0],
+          fits: field.scrollWidth <= field.clientWidth,
+        })),
+      };
+    });
+    assert.equal(layout.viewport, 320);
+    assert.ok(layout.pageWidth <= layout.viewport);
+    assert.ok(layout.summaryFits, "the installation summary should fit the mobile card");
+    assert.equal(layout.fields.length, expectedLabels.length);
+    for (const field of layout.fields) assert.ok(field.fits, `${field.label} should wrap rather than overflow`);
   } finally {
     await browser.close();
   }

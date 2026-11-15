@@ -272,6 +272,53 @@ const dialMobile = (value: unknown) => {
   return digits ? (digits.startsWith("0") ? digits : `0${digits}`) : "";
 };
 
+const INSTALLATION_SUMMARY_FIELDS = [
+  ["lineCentralName", "اسم السنترال"],
+  ["phoneNumber", "رقم التليفون الأرضي"],
+  ["customerName", "الاسم"],
+  ["address", "العنوان"],
+  ["customerMobile", "رقم الموبايل"],
+  ["lineCabinNumber", "رقم الكابينة"],
+  ["lineBoxNumber", "رقم البكس"],
+] as const;
+
+export function InstallationSummary({
+  data,
+  rowId,
+  view,
+}: {
+  data: SourceData;
+  rowId: number;
+  view: "mobile" | "desktop";
+}) {
+  return (
+    <div
+      className="space-y-1 text-[11px] leading-4"
+      data-testid={`installation-summary-${rowId}-${view}`}
+    >
+      {INSTALLATION_SUMMARY_FIELDS.map(([key, label]) => {
+        const value = fieldValue(data, [key]);
+        const dialable = key === "customerMobile" ? dialMobile(value) : "";
+        return (
+          <div key={key} className="min-w-0 break-words">
+            <span className="font-medium text-slate-500">{label}: </span>
+            {key === "phoneNumber" || key === "customerMobile"
+              ? <bdi dir="ltr" className="font-mono text-slate-800">{displayValue(value)}</bdi>
+              : <bdi dir="auto" className="text-slate-800">{displayValue(value)}</bdi>}
+            {dialable && (
+              <a
+                href={`tel:${dialable}`}
+                aria-label={`اتصال بالعميل: ${dialable}`}
+                className="ms-2 inline-flex min-h-8 items-center rounded border border-emerald-300 bg-emerald-50 px-2 text-[10px] font-semibold text-emerald-800"
+              >اتصال</a>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const valueLabel = (key: string) => VALUE_LABELS[key] ?? key.replace(/([a-z])([A-Z])/g, "$1 $2");
 const formatDate = (value: string | null) => {
   if (!value) return "—";
@@ -579,17 +626,18 @@ export function InspectionFollowupReport() {
                                 <h4 className="mt-1 break-words text-sm font-bold text-slate-900">
                                   {readOnly
                                     ? currentSection === "maintenance" ? "نتيجة الفحص" : currentSection === "om" ? "ردود المتعذر" : "نتيجة مراجعة التركيب"
-                                    : displayValue(currentSection === "maintenance" ? (customerName ?? fieldValue(data, ["exchangeName"])) : customerName)}
+                                    : currentSection === "installations" ? "بيانات التركيب" : displayValue(currentSection === "maintenance" ? (customerName ?? fieldValue(data, ["exchangeName"])) : customerName)}
                                 </h4>
+                                {currentSection === "installations" && <InstallationSummary data={data} rowId={row.id} view="mobile" />}
                                 {!readOnly && currentSection === "maintenance" && <p className="mt-1 text-xs text-slate-600">{customerName != null && <>جهة الصرف: {displayValue(fieldValue(data, ["exchangeName"]))} · </>}كابينة <bdi dir="ltr">{displayValue(fieldValue(data, ["cabinetNumber"]))}</bdi> · بوكس <bdi dir="ltr">{displayValue(fieldValue(data, ["boxNumber"]))}</bdi></p>}
                               </div>
                               <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${row.isComplete ? "bg-teal-100 text-teal-800" : "bg-amber-100 text-amber-800"}`}>{row.isComplete ? "مكتمل" : "بانتظار المراجعة"}</span>
                             </div>
-                            {!readOnly && mobile != null && <div className="mt-2 flex flex-wrap items-center gap-2" dir="ltr">
+                            {!readOnly && currentSection !== "installations" && mobile != null && <div className="mt-2 flex flex-wrap items-center gap-2" dir="ltr">
                               <span className="font-mono text-sm font-semibold text-teal-800">{displayValue(mobile)}</span>
                               {dialableMobile && <a href={`tel:${dialableMobile}`} aria-label={`اتصال بالعميل: ${dialableMobile}`} data-testid={`link-customer-phone-mobile-${row.id}`} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800"><Phone className="h-4 w-4" /> اتصال</a>}
                             </div>}
-                            {!readOnly && address != null && <p className="mt-2 break-words text-xs leading-5 text-slate-600">{displayValue(address)}</p>}
+                            {!readOnly && currentSection !== "installations" && address != null && <p className="mt-2 break-words text-xs leading-5 text-slate-600">{displayValue(address)}</p>}
                             {currentSection === "maintenance" && checklist != null && <p className="mt-2 line-clamp-2 text-xs text-amber-800">الفحص: {displayValue(checklist)}</p>}
                           </div>
                           <div className="space-y-2 p-3">
@@ -659,7 +707,8 @@ export function InspectionFollowupReport() {
                           <TableHead className="w-10 text-right font-bold text-slate-700">#</TableHead>
                           <TableHead className="text-right font-bold text-slate-700">{readOnly ? "نتيجة الفحص" : "المصدر / العميل"}</TableHead>
                           {!readOnly && <TableHead className="text-right font-bold text-slate-700">تفاصيل تشغيلية</TableHead>}
-                          <TableHead className="text-right font-bold text-slate-700">{readOnly ? "حالة النتيجة" : "الفني والحالة"}</TableHead>
+                          {currentSection === "installations" && <TableHead className="text-right font-bold text-slate-700">اسم الفني</TableHead>}
+                          <TableHead className="text-right font-bold text-slate-700">{currentSection === "installations" ? "الحالة" : readOnly ? "حالة النتيجة" : "الفني والحالة"}</TableHead>
                           {currentSection === "installations" && <TableHead className="min-w-[370px] text-right font-bold text-slate-700">{readOnly ? "نتيجة مراجعة السلك" : "مراجعة السلك"}</TableHead>}
                           {!readOnly && <TableHead className="text-right font-bold text-slate-700">فتح التفاصيل</TableHead>}
                         </TableRow>
@@ -674,7 +723,9 @@ export function InspectionFollowupReport() {
                             : ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
                           const dialableMobile = currentSection === "installations" ? dialMobile(mobile) : "";
                           const address = fieldValue(data, ["address", "customerAddress", "customer_address"]);
-                          const fields = contentFields(row);
+                          const installationSummaryKeys = new Set(["customerName", "customerMobile", "phoneNumber", "address"]);
+                          const fields = contentFields(row).filter((field) =>
+                            currentSection !== "installations" || !installationSummaryKeys.has(field.key));
                           const draft = draftFor(row);
                           const hasUnsaved = !!drafts[row.id];
                           const inspectionId = fieldValue(data, ["inspectionId", "inspection_id"]);
@@ -683,7 +734,9 @@ export function InspectionFollowupReport() {
                             <TableRow key={row.id} className="align-top hover:bg-[#f5f8f5]" data-testid={`row-followup-${row.id}`}>
                               <TableCell className="font-mono text-slate-400">{index + 1}</TableCell>
                               <TableCell className="max-w-[280px] whitespace-normal">
-                                {readOnly ? (
+                                {currentSection === "installations" ? (
+                                  <InstallationSummary data={data} rowId={row.id} view="desktop" />
+                                ) : readOnly ? (
                                   <div className="space-y-1 text-slate-700">
                                     {currentSection === "maintenance" && <div>{displayValue(fieldValue(data, ["checklist"]))}</div>}
                                     {currentSection === "om" && (
@@ -694,9 +747,6 @@ export function InspectionFollowupReport() {
                                         {fieldValue(data, ["respExternalResponseAt"]) && <div className="text-amber-800">رد الشئون الخارجية: {data.respIsFeasibleExternal ? "يمكن التنفيذ" : "سبب تعذر آخر"} · {displayValue(fieldValue(data, ["respExternalName"]))}</div>}
                                         {fieldValue(data, ["respExternalRejectionReason"]) && <div className="text-amber-800">{displayValue(data.respExternalRejectionReason)}</div>}
                                       </>
-                                    )}
-                                    {currentSection === "installations" && (
-                                      <div>مسافة السلك: {displayValue(row.wireDistanceMatch)} · مد السلك للعميل: {displayValue(row.customerWireMatch)}</div>
                                     )}
                                   </div>
                                 ) : currentSection === "maintenance" ? (
@@ -740,8 +790,13 @@ export function InspectionFollowupReport() {
                                   </div>
                                 )}
                               </TableCell>}
+                              {currentSection === "installations" && (
+                                <TableCell className="min-w-[130px] whitespace-normal font-medium text-slate-800" data-testid={`text-technician-name-row-${row.id}`}>
+                                  {row.technicianName || displayValue(fieldValue(data, ["technicianName", "techName"]))}
+                                </TableCell>
+                              )}
                               <TableCell className="whitespace-normal">
-                                <div className="font-medium text-slate-800">{row.technicianName || displayValue(fieldValue(data, ["technicianName", "techName"]))}</div>
+                                {currentSection !== "installations" && <div className="font-medium text-slate-800">{row.technicianName || displayValue(fieldValue(data, ["technicianName", "techName"]))}</div>}
                                 <span className={`mt-1 inline-flex items-center gap-1 rounded px-2 py-0.5 font-semibold ${row.isComplete ? "bg-teal-100 text-teal-800" : "bg-amber-100 text-amber-800"}`}>
                                   {row.isComplete ? <Check className="h-3 w-3" /> : null}{row.isComplete ? "مكتمل" : "بانتظار المراجعة"}
                                 </span>
