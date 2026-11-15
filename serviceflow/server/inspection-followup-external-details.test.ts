@@ -9,7 +9,7 @@ import { createElement } from "react";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { chromium } from "playwright-core";
-import { DetailPanel } from "../client/src/components/InspectionFollowupReport";
+import { DetailPanel, ExternalExecutionLocation } from "../client/src/components/InspectionFollowupReport";
 
 const scryptAsync = promisify(scrypt);
 const reportMonth = "2099-12";
@@ -188,6 +188,88 @@ test("external response details use Arabic labels in the report's full-details p
   }
   assert.match(componentSource, /Object\.entries\(row\.sourceData \|\| \{\}\)\.map/);
   assert.match(componentSource, /<div className="text-\[11px\] font-medium text-slate-500">\{valueLabel\(key\)\}<\/div>/);
+});
+
+test("feasible external replies show a compact execution location that fits a narrow phone", async () => {
+  const previousReact = (globalThis as any).React;
+  (globalThis as any).React = React;
+  let markup: string;
+  let rejectedMarkup: string;
+  try {
+    markup = renderToStaticMarkup(createElement(ExternalExecutionLocation, {
+      data: {
+        respIsFeasibleExternal: true,
+        respExternalCentralName: "سنترال الغنايم - الامتداد الشرقي",
+        respExternalCabinNumber: "كابينة ١٢-٣٤",
+        respExternalBoxNumber: "بوكس ١٢٣ - طرفية ٤٥",
+      },
+      rowId: 882,
+      view: "mobile",
+    }));
+    rejectedMarkup = renderToStaticMarkup(createElement(ExternalExecutionLocation, {
+      data: { respIsFeasibleExternal: false, respExternalBoxNumber: "بوكس ١٢٣" },
+      rowId: 883,
+      view: "mobile",
+    }));
+  } finally {
+    if (previousReact === undefined) delete (globalThis as any).React;
+    else (globalThis as any).React = previousReact;
+  }
+
+  assert.match(markup, /مكان التنفيذ:/);
+  assert.match(markup, /السنترال:.*سنترال الغنايم/);
+  assert.match(markup, /الكابينة:.*كابينة ١٢-٣٤/);
+  assert.match(markup, /البوكس:.*بوكس ١٢٣/);
+  assert.match(markup, /flex max-w-full flex-wrap/);
+  assert.equal(rejectedMarkup, "", "external rejection rows should not show an execution location");
+  assert.match(componentSource, /<ExternalExecutionLocation data=\{data\} rowId=\{row\.id\} view="mobile" \/>/);
+  assert.match(componentSource, /<ExternalExecutionLocation data=\{data\} rowId=\{row\.id\} view="desktop" \/>/);
+
+  const browserPath = [
+    process.env.PLAYWRIGHT_EXECUTABLE_PATH,
+    "/opt/pw-browsers/chromium",
+    "/repl/tools/bin/chromium",
+  ].find((candidate) => candidate && existsSync(candidate));
+  const browser = await chromium.launch({
+    ...(browserPath ? { executablePath: browserPath } : {}),
+    headless: true,
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  });
+  try {
+    const page = await browser.newPage({ viewport: { width: 320, height: 720 } });
+    await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 100%; font-family: Arial, sans-serif; }
+      #mobile-row { width: calc(100vw - 24px); margin: 12px; }
+      #mobile-row [class~="flex"] { display: flex; }
+      #mobile-row [class~="flex-wrap"] { flex-wrap: wrap; }
+      #mobile-row [class~="max-w-full"] { max-width: 100%; }
+      #mobile-row [class~="gap-x-2"] { column-gap: 8px; }
+      #mobile-row [class~="gap-y-0.5"] { row-gap: 2px; }
+      #mobile-row [class~="shrink-0"] { flex-shrink: 0; }
+      #mobile-row [class~="min-w-0"] { min-width: 0; }
+      #mobile-row [class~="break-words"] { overflow-wrap: anywhere; word-break: break-word; }
+      #mobile-row [data-testid^="external-execution-location-"] { width: 100%; padding: 8px; border: 1px solid #d1fae5; }
+    </style></head><body><div id="mobile-row">${markup}</div></body></html>`);
+    const layout = await page.evaluate(() => {
+      const row = document.querySelector<HTMLElement>("#mobile-row")!;
+      const summary = row.querySelector<HTMLElement>('[data-testid^="external-execution-location-"]')!;
+      const fields = [...summary.querySelectorAll<HTMLElement>("span")];
+      return {
+        viewportWidth: window.innerWidth,
+        pageWidth: document.documentElement.scrollWidth,
+        rowFits: row.scrollWidth <= row.clientWidth,
+        summaryFits: summary.scrollWidth <= summary.clientWidth,
+        fieldsFit: fields.every((field) => field.scrollWidth <= field.clientWidth),
+        wrapped: summary.scrollHeight > summary.clientHeight,
+      };
+    });
+    assert.equal(layout.viewportWidth, 320);
+    assert.ok(layout.pageWidth <= layout.viewportWidth, "the location summary should not add page-level horizontal scrolling");
+    assert.ok(layout.rowFits && layout.summaryFits && layout.fieldsFit, "all location fields should wrap inside the narrow card");
+  } finally {
+    await browser.close();
+  }
 });
 
 test("the full-details panel keeps Arabic external response fields readable on a phone", async () => {

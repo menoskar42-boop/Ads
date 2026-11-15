@@ -226,6 +226,39 @@ const displayValue = (value: unknown): string => {
   return String(value);
 };
 
+export function ExternalExecutionLocation({
+  data,
+  rowId,
+  view,
+}: {
+  data: SourceData;
+  rowId: number;
+  view: "mobile" | "desktop";
+}) {
+  if (data.respIsFeasibleExternal !== true) return null;
+  const fields = ([
+    ["السنترال", data.respExternalCentralName],
+    ["الكابينة", data.respExternalCabinNumber],
+    ["البوكس", data.respExternalBoxNumber],
+  ] as Array<[string, unknown]>).filter(([, value]) => value != null && String(value).trim() !== "");
+  if (fields.length === 0) return null;
+
+  return (
+    <div
+      dir="rtl"
+      data-testid={`external-execution-location-${rowId}-${view}`}
+      className="mt-1 flex max-w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-md border border-emerald-100 bg-emerald-50/70 px-2 py-1 text-[11px] leading-4 text-emerald-800"
+    >
+      <span className="shrink-0 font-semibold">مكان التنفيذ:</span>
+      {fields.map(([label, value]) => (
+        <span key={label} className="min-w-0 break-words">
+          {label}: <bdi dir="auto">{displayValue(value)}</bdi>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 const fieldValue = (data: SourceData, names: readonly string[]) => {
   for (const name of names) {
     const value = data[name];
@@ -569,6 +602,7 @@ export function InspectionFollowupReport() {
                               {fieldValue(data, ["respTechName"]) && <div className="text-slate-500">القائم بالرد: {displayValue(data.respTechName)}</div>}
                               {fieldValue(data, ["respRejectionReason"]) && <div className="text-rose-700">{displayValue(data.respRejectionReason)}</div>}
                               {fieldValue(data, ["respExternalResponseAt"]) && <div className="text-amber-800">رد الخارجية: {data.respIsFeasibleExternal ? "يمكن التنفيذ" : "سبب تعذر آخر"} · {displayValue(data.respExternalName)}</div>}
+                              <ExternalExecutionLocation data={data} rowId={row.id} view="mobile" />
                               {fieldValue(data, ["respExternalRejectionReason"]) && <div className="text-amber-800">{displayValue(data.respExternalRejectionReason)}</div>}
                             </div>}
                             {currentSection === "installations" && (canEdit ? (
@@ -717,6 +751,7 @@ export function InspectionFollowupReport() {
                                     {fieldValue(data, ["respTechName"]) && <div>القائم بالرد: {displayValue(data.respTechName)}</div>}
                                     {fieldValue(data, ["respRejectionReason"]) && <div className="text-rose-700">{displayValue(data.respRejectionReason)}</div>}
                                     {fieldValue(data, ["respExternalResponseAt"]) && <div>رد الخارجية: {data.respIsFeasibleExternal ? "يمكن التنفيذ" : "سبب تعذر آخر"} · {displayValue(data.respExternalName)}</div>}
+                                    <ExternalExecutionLocation data={data} rowId={row.id} view="desktop" />
                                     {fieldValue(data, ["respExternalRejectionReason"]) && <div className="text-amber-800">{displayValue(data.respExternalRejectionReason)}</div>}
                                   </div>
                                 )}
