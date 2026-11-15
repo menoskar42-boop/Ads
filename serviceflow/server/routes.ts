@@ -9522,15 +9522,54 @@ export async function registerRoutes(
   registerInspectionFollowup(app, {
     pool,
     requireAuth,
-    installationsForMonth: async (month) => {
-      const rows = await queryWfmReport(INSTALL_TYPES_LC, false, {});
-      return rows.filter((row: any) => {
-        if (!row.creationDate) return false;
-        const parts = new Intl.DateTimeFormat("en-CA", {
-          timeZone: "Africa/Cairo", year: "numeric", month: "2-digit",
-        }).formatToParts(new Date(row.creationDate));
-        return `${parts.find((part) => part.type === "year")?.value}-${parts.find((part) => part.type === "month")?.value}` === month;
-      });
+    workOrdersForMonth: async (month) => {
+      const [year, monthNumber] = month.split("-").map(Number);
+      const start = `${month}-01`;
+      const nextMonth = monthNumber === 12
+        ? `${year + 1}-01-01`
+        : `${year}-${String(monthNumber + 1).padStart(2, "0")}-01`;
+      const excludedTypes = NO_CABLE_WO_TYPES_LC.map((type) => `'${type.replace(/'/g, "''")}'`).join(", ");
+      const { rows } = await pool.query(
+        `SELECT w.id, w.central_name AS "centralName", w.work_order_id AS "workOrderId",
+                w.phone_number AS "phoneNumber", w.service_type AS "serviceType",
+                w.close_date AS "closeDate", w.creation_date AS "creationDate",
+                w.item_name AS "itemName", w.cable_quantity AS "cableQuantity",
+                COALESCE(NULLIF(btrim(ovr.tech_name), ''), w.tech_name) AS "techName",
+                w.worker_code AS "workerCode", w.msan_code AS "msanCode",
+                w.work_order_type_raw AS "workOrderType",
+                mob.mobile AS "customerMobile"
+           FROM work_orders w
+           LEFT JOIN work_order_tech_overrides ovr
+             ON ovr.central_name=w.central_name AND ovr.work_order_id=w.work_order_id
+           LEFT JOIN LATERAL (
+             SELECT x.mobile FROM (
+               SELECT lm.mobile, 0 AS priority FROM line_mobiles lm
+                WHERE ${phoneNormSql("lm.full_phone")}=${phoneNormSql("w.phone_number")}
+               UNION ALL
+               SELECT mo.mobile, 1 AS priority FROM maintenance_orders mo
+                WHERE ${phoneNormSql("mo.phone_number")}=${phoneNormSql("w.phone_number")}
+                  AND mo.mobile !~ '[A-Za-z=/]' AND mo.mobile ~ '[0-9]{5,}'
+               UNION ALL
+               SELECT wc.mobile, 1 AS priority FROM wfm_current wc
+                WHERE ${phoneNormSql("wc.phone_number")}=${phoneNormSql("w.phone_number")}
+                  AND wc.mobile !~ '[A-Za-z=/]' AND wc.mobile ~ '[0-9]{5,}'
+               UNION ALL
+               SELECT fo.customer_mobile, 2 AS priority FROM ftth_orders_current fo
+                WHERE ${phoneNormSql("fo.service_number")}=${phoneNormSql("w.phone_number")}
+                  AND fo.customer_mobile !~ '[A-Za-z=/]' AND fo.customer_mobile ~ '[0-9]{5,}'
+             ) x
+             WHERE NULLIF(btrim(x.mobile), '') IS NOT NULL
+             ORDER BY x.priority LIMIT 1
+           ) mob ON TRUE
+          WHERE (w.close_category IS NULL OR w.close_category='Success')
+            AND regexp_replace(coalesce(w.phone_number,''), '\\D', '', 'g') ~ '^88[0-9]{7}$'
+            AND lower(btrim(COALESCE(w.work_order_type_raw, ''))) <> ALL(ARRAY[${excludedTypes}])
+            AND (w.close_date AT TIME ZONE 'Africa/Cairo') >= $1::date
+            AND (w.close_date AT TIME ZONE 'Africa/Cairo') < $2::date
+          ORDER BY w.close_date`,
+        [start, nextMonth],
+      );
+      return rows;
     },
   });
   registerUrgentNoAccount(app, { pool, requireAuth });

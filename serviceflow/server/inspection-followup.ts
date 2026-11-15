@@ -7,7 +7,7 @@ type Section = "maintenance" | "om" | "installations";
 interface Deps {
   pool: Pool;
   requireAuth: (req: any, res: any, next: any) => void;
-  installationsForMonth: (month: string) => Promise<any[]>;
+  workOrdersForMonth: (month: string) => Promise<any[]>;
 }
 
 const validMonth = (v: unknown): v is string =>
@@ -38,7 +38,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
       : `${year}-${String(monthNumber + 1).padStart(2, "0")}-01`;
 
     if (section === "installations") {
-      const rows = await d.installationsForMonth(month);
+      const rows = await d.workOrdersForMonth(month);
       return rows.map((row) => ({
         ...row,
         technicianName: row.techName || "غير معروف",
@@ -170,7 +170,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
       );
       // OM والعينات التركيبية لها مراجعة نسخة مستقلة؛ الترقية تضيف النواقص
       // لكل فني وتحافظ على العناصر التي سبق فحصها.
-      const samplingVersion = section === "maintenance" ? 1 : 2;
+      const samplingVersion = section === "maintenance" ? 1 : section === "installations" ? 3 : 2;
       if (!initialized.rowCount || Number(initialized.rows[0]?.sampling_version || 1) < samplingVersion) {
         const sampledAlready = await client.query(
           `SELECT source_key AS "sourceKey", technician_name AS "technicianName"
@@ -179,10 +179,13 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
           [month, section],
         );
         const existingByTech = new Map<string, Set<string>>();
+        const existingKeys = new Set<string>();
         for (const item of sampledAlready.rows) {
           const techName = String(item.technicianName || "غير معروف");
           const keys = existingByTech.get(techName) ?? new Set<string>();
-          keys.add(String(item.sourceKey));
+          const sourceKey = String(item.sourceKey);
+          keys.add(sourceKey);
+          existingKeys.add(sourceKey);
           existingByTech.set(techName, keys);
         }
         const grouped = new Map<string, any[]>();
@@ -194,13 +197,15 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
         }
         const sample: any[] = [];
         for (const [techName, group] of grouped) {
-          const existingKeys = existingByTech.get(techName) ?? new Set<string>();
+          const technicianKeys = section === "installations"
+            ? existingKeys
+            : existingByTech.get(techName) ?? new Set<string>();
           const currentKeys = new Set(group.map((row) => String(row.sourceKey)));
-          const existingCount = [...existingKeys].filter((key) => currentKeys.has(key)).length;
+          const existingCount = [...technicianKeys].filter((key) => currentKeys.has(key)).length;
           const target = Math.min(group.length, Math.max(1, Math.ceil(group.length * ratio)));
           const needed = Math.max(0, target - existingCount);
           if (!needed) continue;
-          const candidates = group.filter((row) => !existingKeys.has(String(row.sourceKey)));
+          const candidates = group.filter((row) => !technicianKeys.has(String(row.sourceKey)));
           for (let i = candidates.length - 1; i > 0; i -= 1) {
             const j = Math.floor(Math.random() * (i + 1));
             [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
@@ -209,6 +214,17 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
             candidates.sort((a, b) => Number(Boolean(b.respRespondedAt)) - Number(Boolean(a.respRespondedAt)));
           }
           sample.push(...candidates.slice(0, needed));
+        }
+        if (section === "installations") {
+          for (const row of rows) {
+            if (!existingKeys.has(String(row.sourceKey))) continue;
+            await client.query(
+              `UPDATE inspection_followup_items
+                  SET technician_name=$4, source_data=$5::jsonb
+                WHERE report_month=$1 AND section=$2 AND source_key=$3 AND is_manual=false`,
+              [month, section, row.sourceKey, row.technicianName || row.techName || "غير معروف", JSON.stringify(row)],
+            );
+          }
         }
         for (const row of sample) {
           await client.query(
@@ -264,14 +280,15 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
     const month = String(req.query.month || cairoMonth(new Date()));
     if (!validMonth(month)) return res.status(400).json({ message: "الشهر غير صالح" });
     try {
+      const sourceRows = section === "installations" ? await loadSourceRows(section, month) : null;
       const ratio = section === "maintenance" ? 0.5 : section === "om" ? 0.5 : 0.1;
+      const targetVersion = section === "maintenance" ? 1 : section === "installations" ? 3 : 2;
       const cached = await d.pool.query(
         `SELECT sampling_version FROM inspection_followup_sections WHERE report_month=$1 AND section=$2`,
         [month, section],
       );
-      const targetVersion = section === "maintenance" ? 1 : 2;
       if (!cached.rowCount || Number(cached.rows[0]?.sampling_version || 1) < targetVersion) {
-        const rows = await loadSourceRows(section, month);
+        const rows = sourceRows ?? await loadSourceRows(section, month);
         await ensureSectionSamples(section, month, rows, section === "om" ? 0.5 : ratio);
       }
       const { rows: selected } = await d.pool.query(
@@ -286,6 +303,11 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
         [month, section],
       );
       let liveRows = selected;
+      if (section === "installations" && sourceRows) {
+        const currentKeys = new Set(sourceRows.map((row: any) => String(row.sourceKey)));
+        liveRows = selected.filter((item: any) => item.isManual || currentKeys.has(String(item.sourceKey)));
+        liveRows = liveRows.map((item: any) => ({ ...item, isComplete: Boolean(item.reviewedAt) }));
+      }
       if (section === "om" && selected.length) {
         const serials = selected.map((item: any) => String(item.sourceKey));
         const { rows: responses } = await d.pool.query(
@@ -339,7 +361,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
           },
           isComplete: taskMap.get(Number(item.sourceData?.taskId))?.status === "completed",
         }));
-      } else {
+      } else if (section !== "installations") {
         liveRows = selected.map((item: any) => ({ ...item, isComplete: Boolean(item.reviewedAt) }));
       }
       let visible = liveRows;
@@ -377,8 +399,8 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
       const answered = liveRows.filter((item: any) => item.isComplete).length;
       res.setHeader("Cache-Control", "no-store");
       res.json({
-        month, section, total: selected.length, answered,
-        completionPercent: selected.length ? Math.round(answered * 100 / selected.length) : 0,
+        month, section, total: liveRows.length, answered,
+        completionPercent: liveRows.length ? Math.round(answered * 100 / liveRows.length) : 0,
         rows: visible,
         readOnly: role === ROLES.TECH,
       });
