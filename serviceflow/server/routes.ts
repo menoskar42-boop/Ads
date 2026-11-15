@@ -9550,7 +9550,8 @@ export async function registerRoutes(
         `SELECT w.id, w.central_name AS "centralName", w.work_order_id AS "workOrderId",
                 w.phone_number AS "phoneNumber", w.service_type AS "serviceType",
                 w.close_date AS "closeDate", w.creation_date AS "creationDate",
-                w.item_name AS "itemName", w.cable_quantity AS "cableQuantity",
+                w.item_name AS "itemName",
+                COALESCE(${sheetCableSql()}, ce.cable_quantity) AS "cableQuantity",
                 COALESCE(NULLIF(btrim(ovr.tech_name), ''), w.tech_name) AS "techName",
                 w.worker_code AS "workerCode", w.msan_code AS "msanCode",
                 w.work_order_type_raw AS "workOrderType",
@@ -9581,6 +9582,15 @@ export async function registerRoutes(
            FROM work_orders w
            LEFT JOIN work_order_tech_overrides ovr
              ON ovr.central_name=w.central_name AND ovr.work_order_id=w.work_order_id
+           LEFT JOIN cable_entries ce
+             ON ce.phone_local = CASE
+                  WHEN regexp_replace(w.phone_number, '\\D', '', 'g') LIKE '88%'
+                       AND length(regexp_replace(w.phone_number, '\\D', '', 'g')) > 7
+                  THEN substring(regexp_replace(w.phone_number, '\\D', '', 'g') FROM 3)
+                  ELSE regexp_replace(w.phone_number, '\\D', '', 'g')
+                END
+            AND ce.work_order_type = CASE WHEN trim(w.service_type) = 'نقل' THEN 'نقل' ELSE 'تركيب' END
+            AND ${CE_LINK_COND}
            LEFT JOIN LATERAL (
              SELECT si.* FROM line_subscriber_info si
               WHERE ${phoneNormSql("si.phone_number")}=${phoneNormSql("w.phone_number")}

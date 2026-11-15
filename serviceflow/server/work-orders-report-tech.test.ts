@@ -11,6 +11,8 @@ import test from "node:test";
 const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 const report = readFileSync(
   new URL("../client/src/components/WorkOrdersReport.tsx", import.meta.url), "utf8");
+const followupReport = readFileSync(
+  new URL("../client/src/components/InspectionFollowupReport.tsx", import.meta.url), "utf8");
 
 const start = routes.indexOf('app.get("/api/work-orders"');
 assert.ok(start >= 0, "the work-orders endpoint must exist");
@@ -68,4 +70,17 @@ test("search covers every visible work-order field and can isolate missing closi
   assert.match(report, /const \[missingTechOnly, setMissingTechOnly\] = useState\(false\)/);
   assert.match(report, /hasClosingTechnician\(o\.techName\)/);
   assert.match(report, /بدون فني إغلاق/);
+});
+
+test("installation follow-up uses the same effective cable quantity as the work-orders report", () => {
+  const followupStart = routes.indexOf("registerInspectionFollowup(app, {");
+  const followupEnd = routes.indexOf("registerUrgentNoAccount(app", followupStart);
+  assert.ok(followupStart >= 0 && followupEnd > followupStart);
+  const followup = routes.slice(followupStart, followupEnd);
+
+  assert.match(followup, /COALESCE\(\$\{sheetCableSql\(\)\}, ce\.cable_quantity\) AS "cableQuantity"/);
+  assert.match(followup, /LEFT JOIN cable_entries ce[\s\S]*?AND \$\{CE_LINK_COND\}/);
+  assert.match(followup, /ce\.work_order_type = CASE WHEN trim\(w\.service_type\) = 'نقل' THEN 'نقل' ELSE 'تركيب' END/);
+  assert.match(followupReport, /cableQuantity: "كمية السلك"/);
+  assert.match(followupReport, /Object\.entries\(row\.sourceData \|\| \{\}\)\.map/);
 });
