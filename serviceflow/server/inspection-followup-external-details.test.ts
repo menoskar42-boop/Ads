@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { randomBytes, scrypt } from "node:crypto";
 import express from "express";
 import { createServer } from "node:http";
 import test from "node:test";
+import { createElement } from "react";
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { chromium } from "playwright-core";
+import { DetailPanel } from "../client/src/components/InspectionFollowupReport";
 
 const scryptAsync = promisify(scrypt);
 const reportMonth = "2099-12";
@@ -183,4 +188,104 @@ test("external response details use Arabic labels in the report's full-details p
   }
   assert.match(componentSource, /Object\.entries\(row\.sourceData \|\| \{\}\)\.map/);
   assert.match(componentSource, /<div className="text-\[11px\] font-medium text-slate-500">\{valueLabel\(key\)\}<\/div>/);
+});
+
+test("the full-details panel keeps Arabic external response fields readable on a phone", async () => {
+  const longNotes = "ملاحظات رد الخارجية تحتاج إلى تمديد كابل إضافي ومراجعة المسار قبل التنفيذ ".repeat(5);
+  const row = {
+    id: 881,
+    sourceKey: "OM-881",
+    technicianName: "فني اختبار",
+    sourceData: {
+      respIsFeasibleExternal: false,
+      respExternalName: "مسئول الشئون الخارجية",
+      respExternalRejectionReason: "تعذر التنفيذ بسبب بُعد البوكس عن مسار الخدمة",
+      respExternalCentralName: "سنترال الغنايم - قطاع الامتداد الشرقي",
+      respExternalCabinNumber: "كابينة ١٢-٣٤ ناحية الشارع الرئيسي",
+      respExternalBoxNumber: "بوكس ١٢٣ - طرفية ٤٥",
+      respExternalNearestBoxDistance: "٢٦ متر تقريبًا من موقع العميل",
+      respExternalAdditionalNotes: longNotes,
+      respExternalResponseAt: "2026-11-15T12:00:00.000Z",
+    },
+    isManual: false,
+    isComplete: true,
+    wireDistanceMatch: null,
+    customerWireMatch: null,
+    reviewNotes: null,
+    reviewedBy: null,
+    reviewedAt: null,
+  };
+  const previousReact = (globalThis as any).React;
+  (globalThis as any).React = React;
+  let markup: string;
+  try {
+    markup = renderToStaticMarkup(createElement(DetailPanel, { row, onClose: () => {} }));
+  } finally {
+    if (previousReact === undefined) delete (globalThis as any).React;
+    else (globalThis as any).React = previousReact;
+  }
+  assert.match(markup, /class="[^"]*grid gap-2 sm:grid-cols-2 lg:grid-cols-3/);
+  assert.match(markup, /class="[^"]*min-w-0[^"]*"/);
+  assert.match(markup, /class="[^"]*break-words[^"]*"/);
+
+  const browserPath = [
+    process.env.PLAYWRIGHT_EXECUTABLE_PATH,
+    "/opt/pw-browsers/chromium",
+    "/repl/tools/bin/chromium",
+  ].find((candidate) => candidate && existsSync(candidate));
+  const browser = await chromium.launch({
+    ...(browserPath ? { executablePath: browserPath } : {}),
+    headless: true,
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 100%; font-family: Arial, sans-serif; }
+      [class~="fixed"] { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 12px; }
+      [data-testid^="dialog-row-details-"] > section { width: 100%; max-width: 896px; max-height: 88vh; overflow: hidden; display: flex; flex-direction: column; }
+      [data-testid^="dialog-row-details-"] > section > div:last-child { max-height: calc(88vh - 92px); overflow-y: auto; padding: 16px; }
+      [class~="grid"] { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+      [class~="min-w-0"] { min-width: 0; }
+      [class~="break-words"] { overflow-wrap: anywhere; word-break: break-word; }
+      [data-testid^="detail-"] { min-width: 0; padding: 10px 12px; border: 1px solid #cbd5e1; }
+      [data-testid^="detail-"] > div:last-child { font-size: 14px; line-height: 20px; }
+      @media (min-width: 640px) { [class~="sm:grid-cols-2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    </style></head><body>${markup}</body></html>`);
+
+    const result = await page.evaluate(() => {
+      const dialog = document.querySelector<HTMLElement>('[data-testid="dialog-row-details-881"]')!;
+      const cards = [...dialog.querySelectorAll<HTMLElement>('[data-testid^="detail-"]')];
+      return {
+        viewport: window.innerWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        cards: cards.map((card) => {
+          const value = card.lastElementChild as HTMLElement;
+          const rect = card.getBoundingClientRect();
+          const valueStyle = getComputedStyle(value);
+          return {
+            label: card.firstElementChild?.textContent,
+            value: value.textContent,
+            insideViewport: rect.left >= 0 && rect.right <= window.innerWidth,
+            noTextOverflow: value.scrollWidth <= value.clientWidth,
+            wrapsLongText: value.scrollHeight > Number.parseFloat(valueStyle.lineHeight),
+          };
+        }),
+      };
+    });
+
+    assert.equal(result.viewport, 390);
+    assert.ok(result.documentWidth <= result.viewport, "the modal should not create horizontal page scrolling");
+    assert.equal(result.cards.length, Object.keys(row.sourceData).length);
+    for (const card of result.cards) {
+      assert.ok(card.insideViewport, `${card.label} card should fit within the phone viewport`);
+      assert.ok(card.noTextOverflow, `${card.label} value should wrap instead of clipping`);
+    }
+    const notes = result.cards.find((card) => card.label === "ملاحظات رد الشئون الخارجية");
+    assert.ok(notes?.wrapsLongText, "long Arabic notes should wrap into readable lines");
+    assert.ok(notes?.value?.includes("تمديد كابل إضافي"), "the full notes should remain in the rendered details");
+  } finally {
+    await browser.close();
+  }
 });

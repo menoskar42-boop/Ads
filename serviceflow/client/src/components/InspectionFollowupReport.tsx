@@ -252,7 +252,7 @@ const currentCairoMonth = () => {
   return `${parts.find((part) => part.type === "year")?.value}-${parts.find((part) => part.type === "month")?.value}`;
 };
 
-function DetailPanel({ row, onClose }: { row: FollowupRow; onClose: () => void }) {
+export function DetailPanel({ row, onClose }: { row: FollowupRow; onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 sm:p-6"
