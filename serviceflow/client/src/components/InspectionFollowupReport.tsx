@@ -153,6 +153,51 @@ const technicianResponseLabel = (data: SourceData) =>
     : data.respIsFeasible === false ? "لا يمكن التنفيذ"
       : "لم يرد الفني";
 
+const technicianResponseStatus = (data: SourceData) => {
+  const status = String(data.respStatus || (
+    data.respIsFeasible === true ? "feasible"
+      : data.respIsFeasible === false ? "not_feasible"
+        : "pending"
+  ));
+  const labels: Record<string, string> = {
+    pending: "قيد الانتظار",
+    feasible: "يمكن التنفيذ",
+    not_feasible: "لا يمكن التنفيذ",
+    needs_external: "يحتاج رد الشئون الخارجية",
+    external_feasible: "يمكن التنفيذ (شئون خارجية)",
+    external_not_feasible: "لا يمكن التنفيذ (شئون خارجية)",
+  };
+  const classes: Record<string, string> = {
+    pending: "bg-gray-100 text-gray-600",
+    feasible: "bg-green-100 text-green-700",
+    not_feasible: "bg-red-100 text-red-700",
+    needs_external: "bg-yellow-100 text-yellow-800",
+    external_feasible: "bg-teal-100 text-teal-700",
+    external_not_feasible: "bg-red-100 text-red-700",
+  };
+  const reason = status === "not_feasible" ? data.respRejectionReason
+    : status === "external_not_feasible" ? data.respExternalRejectionReason
+      : null;
+  return (
+    <span className="inline-flex max-w-[220px] flex-col items-start gap-0.5 whitespace-normal text-right">
+      <span className={`rounded px-2 py-0.5 font-semibold ${classes[status] || classes.pending}`}>
+        {labels[status] || status}
+      </span>
+      {reason != null && <span className="text-[11px] text-muted-foreground">{displayValue(reason)}</span>}
+      {Boolean(data.respCabinNumber || data.respBoxNumber) && (
+        <span className="text-[11px] text-muted-foreground">
+          {data.respCabinNumber ? <>كابينة <bdi dir="ltr">{displayValue(data.respCabinNumber)}</bdi></> : ""}
+          {data.respCabinNumber && data.respBoxNumber ? " — " : ""}
+          {data.respBoxNumber ? <>بكس <bdi dir="ltr">{displayValue(data.respBoxNumber)}</bdi></> : ""}
+        </span>
+      )}
+      {data.respNearestBoxDistance != null && <span className="text-[11px] text-muted-foreground">أقرب بكس: {displayValue(data.respNearestBoxDistance)}</span>}
+      {data.respTechName != null && <span className="text-[11px] text-muted-foreground">الفني: {displayValue(data.respTechName)}</span>}
+      {data.respExternalName != null && <span className="text-[11px] text-muted-foreground">خارجية: {displayValue(data.respExternalName)}</span>}
+    </span>
+  );
+};
+
 const externalResponseLabel = (data: SourceData) =>
   data.respIsFeasibleExternal === true ? "يمكن التنفيذ"
     : data.respIsFeasibleExternal === false ? "لا يمكن التنفيذ"
@@ -346,6 +391,13 @@ const formatDate = (value: string | null) => {
   if (!value) return "—";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("ar-EG");
+};
+const formatOmCreationDate = (value: unknown) => {
+  if (value == null || value === "") return "—";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "—";
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getUTCFullYear()}/${pad(date.getUTCMonth() + 1)}/${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
 };
 const currentCairoMonth = () => {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -755,7 +807,7 @@ export function InspectionFollowupReport() {
                           ) : currentSection === "om" ? (
                             <>
                               <TableHead className="w-10 text-right font-bold text-slate-700">#</TableHead>
-                              {OM_FOLLOWUP_FIELDS.map((field) => <TableHead key={field.label} className="whitespace-nowrap text-right font-bold text-slate-700">{field.label}</TableHead>)}
+                               {OM_FOLLOWUP_FIELDS.map((field) => <TableHead key={field.label} className={`${field.label === "عنوان العميل" ? "w-[440px] min-w-[440px] max-w-[440px] whitespace-normal" : "whitespace-nowrap"} text-right font-bold text-slate-700`}>{field.label}</TableHead>)}
                               <TableHead className="min-w-[180px] text-right font-bold text-slate-700">رد الشئون الخارجية</TableHead>
                               {canReplyExternal && <TableHead className="min-w-[280px] text-right font-bold text-slate-700">إجراء</TableHead>}
                             </>
@@ -802,7 +854,18 @@ export function InspectionFollowupReport() {
                                 <TableCell className="font-mono text-slate-400">{index + 1}</TableCell>
                                 {OM_FOLLOWUP_FIELDS.map((field) => {
                                   const value = field.value ? field.value(data, row) : fieldValue(data, field.keys || []);
-                                  return <TableCell key={field.label} className="max-w-[220px] whitespace-normal text-xs text-slate-700">{displayValue(value)}</TableCell>;
+                                  const isTechnicianResponse = field.label === "رد الفنى";
+                                  const isResponseReason = field.label === "سبب التعذر (الفنى)";
+                                  return (
+                                    <TableCell
+                                      key={field.label}
+                                      className={`whitespace-normal text-xs text-slate-700 ${field.label === "عنوان العميل" ? "w-[440px] min-w-[440px] max-w-[440px] break-words leading-5" : "max-w-[220px]"} ${isResponseReason ? "break-words leading-5" : ""}`}
+                                    >
+                                      {isTechnicianResponse ? technicianResponseStatus(data)
+                                        : field.label === "تاريخ الإنشاء" ? <span dir="ltr" className="whitespace-nowrap font-mono text-[11px]">{formatOmCreationDate(value)}</span>
+                                          : displayValue(value)}
+                                    </TableCell>
+                                  );
                                 })}
                                 <TableCell className="min-w-[180px] whitespace-normal" data-testid={`external-reply-${row.id}`}>
                                   {fieldValue(data, ["respExternalResponseAt"]) ? (

@@ -197,6 +197,14 @@ test("external response details use Arabic labels in the report's full-details p
 test("OM follow-up keeps technician and external replies separate with three row actions", () => {
   assert.match(componentSource, /<TableHead[^>]*>رد الشئون الخارجية<\/TableHead>/);
   assert.match(componentSource, /label: "رد الفنى"/);
+  assert.match(componentSource, /const formatOmCreationDate = \(value: unknown\)/);
+  assert.match(componentSource, /field\.label === "تاريخ الإنشاء" \? <span dir="ltr" className="whitespace-nowrap font-mono text-\[11px\]">\{formatOmCreationDate\(value\)\}<\/span>/);
+  assert.match(componentSource, /field\.label === "عنوان العميل" \? "w-\[440px\] min-w-\[440px\] max-w-\[440px\] whitespace-normal"/);
+  assert.match(componentSource, /field\.label === "عنوان العميل" \? "w-\[440px\] min-w-\[440px\] max-w-\[440px\] break-words leading-5"/);
+  assert.match(componentSource, /const technicianResponseStatus = \(data: SourceData\)/);
+  assert.match(componentSource, /inline-flex max-w-\[220px\] flex-col items-start gap-0\.5 whitespace-normal text-right/);
+  assert.match(componentSource, /isTechnicianResponse \? technicianResponseStatus\(data\)/);
+  assert.match(componentSource, /isResponseReason \? "break-words leading-5" : ""/);
   assert.match(componentSource, /button-confirm-tech-response-\$\{row\.id\}/);
   assert.match(componentSource, /triggerLabel="يمكن التنفيذ"/);
   assert.match(componentSource, /triggerLabel="لا يمكن التنفيذ"/);
