@@ -30,11 +30,12 @@ interface TechActionModalProps {
   /** استخدام بديل (متعذرات OM): نفس النموذج بالظبط لكن الحفظ بيتم من برّه */
   onSubmit?: (values: TechActionValues, done: () => void) => void;
   submitting?: boolean;
+  disabled?: boolean;
   /** نص/شكل زر الفتح — لو مش متبعت بيستخدم الأزرار الافتراضية */
   triggerLabel?: string;
 }
 
-export function TechActionModal({ order, action, onSubmit, submitting, triggerLabel }: TechActionModalProps) {
+export function TechActionModal({ order, action, onSubmit, submitting, disabled, triggerLabel }: TechActionModalProps) {
   const [open, setOpen] = useState(false);
   const { updateOrder, isUpdating: isUpdatingOrder } = useOrders();
   const isUpdating = onSubmit ? !!submitting : isUpdatingOrder;
@@ -163,6 +164,7 @@ export function TechActionModal({ order, action, onSubmit, submitting, triggerLa
         <Button 
           variant={isFeasible ? "default" : "destructive"} 
           size="sm"
+          disabled={disabled || isUpdating}
           className={isFeasible ? "bg-green-600 hover:bg-green-700" : ""}
         >
           {isFeasible ? (

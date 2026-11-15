@@ -194,6 +194,22 @@ test("external response details use Arabic labels in the report's full-details p
   assert.match(componentSource, /<div className="text-\[11px\] font-medium text-slate-500">\{valueLabel\(key\)\}<\/div>/);
 });
 
+test("OM follow-up keeps technician and external replies separate with three row actions", () => {
+  assert.match(componentSource, /<TableHead[^>]*>رد الشئون الخارجية<\/TableHead>/);
+  assert.match(componentSource, /label: "رد الفنى"/);
+  assert.match(componentSource, /button-confirm-tech-response-\$\{row\.id\}/);
+  assert.match(componentSource, /triggerLabel="يمكن التنفيذ"/);
+  assert.match(componentSource, /triggerLabel="لا يمكن التنفيذ"/);
+  assert.match(componentSource, /fetch\("\/api\/om-rejections\/external-response"/);
+
+  const confirmHandlerStart = componentSource.indexOf("const confirmTechnicianResponse");
+  const confirmHandlerEnd = componentSource.indexOf("const responseData", confirmHandlerStart);
+  const confirmHandler = componentSource.slice(confirmHandlerStart, confirmHandlerEnd);
+  assert.ok(confirmHandler.includes("omExternalResponse.mutate"));
+  assert.ok(confirmHandler.includes("isFeasible: data.respIsFeasible"));
+  assert.ok(componentSource.includes('data-testid={`external-reply-${row.id}`}'));
+});
+
 test("feasible external replies show a compact execution location that fits a narrow phone", async () => {
   const previousReact = (globalThis as any).React;
   (globalThis as any).React = React;
@@ -312,10 +328,11 @@ test("installation rows show the seven requested customer and line fields on a p
   }
   assert.match(markup, /href="tel:01012345678"/);
   assert.match(componentSource, /<InstallationSummary data=\{data\} rowId=\{row\.id\} view="mobile" \/>/);
-  assert.match(componentSource, /<InstallationSummary data=\{data\} rowId=\{row\.id\} view="desktop" \/>/);
-  assert.match(componentSource, /currentSection === "installations" && <TableHead[^>]*>اسم الفني<\/TableHead>/);
+  assert.match(componentSource, /INSTALLATION_SUMMARY_FIELDS\.map\(\(\[, label\]\)/);
+  assert.match(componentSource, /INSTALLATION_SUMMARY_FIELDS\.map\(\(\[key\]\)/);
+  assert.match(componentSource, /<TableHead[^>]*>اسم الفني<\/TableHead>/);
+  assert.match(componentSource, /<TableHead[^>]*>مراجعة السلك<\/TableHead>/);
   assert.match(componentSource, /data-testid=\{`text-technician-name-row-\$\{row\.id\}`\}/);
-  assert.match(componentSource, /currentSection === "installations" \? "الحالة" : readOnly/);
   assert.match(markup, /break-words/);
 
   const browserPath = [

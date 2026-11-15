@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import type { Pool } from "pg";
-import { ROLES } from "@shared/schema";
+import { REJECTION_REASONS, ROLES } from "@shared/schema";
+import { boxAverageFromAggregates, isBoxBrokenReason } from "@shared/om-box-score";
+import { boxKey, expandBoxes } from "@shared/cab-norm";
 
 type Section = "maintenance" | "om" | "installations";
 
@@ -8,6 +10,33 @@ interface Deps {
   pool: Pool;
   requireAuth: (req: any, res: any, next: any) => void;
   workOrdersForMonth: (month: string) => Promise<any[]>;
+}
+
+let boxScoreCache: { pool: Pool; at: number; map: Map<string, { sum: number; measured: number }> } | null = null;
+
+async function loadBoxScoreAggregates(pool: Pool) {
+  if (boxScoreCache?.pool === pool && Date.now() - boxScoreCache.at < 60_000) return boxScoreCache.map;
+  const { rows } = await pool.query(`
+    SELECT t.central, t.cabin_number, t.box_number,
+           COUNT(*) FILTER (WHERE t.score IS NOT NULL AND t.score BETWEEN 0 AND 100)::int AS measured,
+           COALESCE(SUM(t.score) FILTER (WHERE t.score IS NOT NULL AND t.score BETWEEN 0 AND 100), 0)::numeric AS sum_score
+      FROM (
+        SELECT pl.central, pl.cabin_number, pl.box_number, pl.full_phone,
+               (SELECT c.score FROM case_138 c WHERE c.full_phone = pl.full_phone ORDER BY c.id DESC LIMIT 1) AS score
+          FROM line_accounts la
+          JOIN phone_lines pl ON pl.full_phone = la.full_phone
+      ) t
+     GROUP BY t.central, t.cabin_number, t.box_number
+  `);
+  const map = new Map<string, { sum: number; measured: number }>();
+  for (const row of rows) {
+    map.set(boxKey(row.central, row.cabin_number, row.box_number), {
+      sum: Number(row.sum_score) || 0,
+      measured: Number(row.measured) || 0,
+    });
+  }
+  boxScoreCache = { pool, at: Date.now(), map };
+  return map;
 }
 
 const validMonth = (v: unknown): v is string =>
@@ -339,10 +368,44 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
                   external_box_number AS "respExternalBoxNumber",
                   external_nearest_box_distance AS "respExternalNearestBoxDistance",
                   external_additional_notes AS "respExternalAdditionalNotes",
-                  external_response_at AS "respExternalResponseAt"
-             FROM om_responses WHERE serial_number=ANY($1::text[])`,
+                   external_response_at AS "respExternalResponseAt",
+                   bx.c AS "boxWorkingCount"
+              FROM om_responses orp
+              LEFT JOIN LATERAL (
+                SELECT COUNT(*)::int AS c
+                  FROM phone_lines pl
+                 WHERE COALESCE(btrim(orp.box_number), '') <> ''
+                   AND btrim(pl.box_number) = btrim(orp.box_number)
+                   AND (COALESCE(btrim(orp.cabin_number), '') = '' OR btrim(pl.cabin_number) = btrim(orp.cabin_number))
+                   AND (COALESCE(btrim(orp.central_name), '') = '' OR btrim(pl.central) = btrim(orp.central_name))
+                   AND EXISTS (
+                     SELECT 1 FROM phone_ports pf
+                      WHERE pf.phone_number = pl.full_phone
+                        AND COALESCE(btrim(pf.frame::text), '') <> ''
+                   )
+              ) bx ON TRUE
+             WHERE orp.serial_number=ANY($1::text[])`,
           [serials],
         );
+        let scoreAgg: Map<string, { sum: number; measured: number }> | null = null;
+        try {
+          scoreAgg = await loadBoxScoreAggregates(d.pool);
+        } catch (error) {
+          console.warn("[inspection-followup] box score enrichment unavailable:", error);
+        }
+        for (const response of responses as any[]) {
+          const techBroken = response.respRejectionReason === REJECTION_REASONS.BOX_BROKEN;
+          const externalBroken = response.respExternalRejectionReason === REJECTION_REASONS.BOX_BROKEN;
+          response.boxAvgScore = null;
+          response.boxMeasuredCount = 0;
+          if (!isBoxBrokenReason(response.respRejectionReason, response.respExternalRejectionReason, REJECTION_REASONS.BOX_BROKEN)) continue;
+          const central = externalBroken && !techBroken ? response.respExternalCentralName : response.respCentralName;
+          const cabin = externalBroken && !techBroken ? response.respExternalCabinNumber : response.respCabinNumber;
+          const box = externalBroken && !techBroken ? response.respExternalBoxNumber : response.respBoxNumber;
+          const score = boxAverageFromAggregates(expandBoxes(box).map((boxNumber) => scoreAgg?.get(boxKey(central, cabin, boxNumber))));
+          response.boxAvgScore = score.avgScore;
+          response.boxMeasuredCount = score.measuredCount;
+        }
         const responseMap = new Map(responses.map((r: any) => [String(r.serial), r]));
         liveRows = selected.map((item: any) => {
           const response = responseMap.get(String(item.sourceKey));

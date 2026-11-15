@@ -148,14 +148,36 @@ const VALUE_LABELS: Record<string, string> = {
   customerWireDistance: "مسافة السلك حسب العميل",
 };
 
-const OM_STATUS_LABELS: Record<string, string> = {
-  pending: "بانتظار رد الفني",
-  feasible: "الفني أكد إمكانية التنفيذ",
-  not_feasible: "الفني أكد سبب التعذر",
-  needs_external: "بانتظار رد الشئون الخارجية",
-  external_feasible: "الشئون الخارجية أكدت إمكانية التنفيذ",
-  external_not_feasible: "الشئون الخارجية أكدت تعذر التنفيذ",
-};
+const technicianResponseLabel = (data: SourceData) =>
+  data.respIsFeasible === true ? "يمكن التنفيذ"
+    : data.respIsFeasible === false ? "لا يمكن التنفيذ"
+      : "لم يرد الفني";
+
+const externalResponseLabel = (data: SourceData) =>
+  data.respIsFeasibleExternal === true ? "يمكن التنفيذ"
+    : data.respIsFeasibleExternal === false ? "لا يمكن التنفيذ"
+      : "بانتظار الرد";
+
+const OM_FOLLOWUP_FIELDS: Array<{ label: string; keys?: string[]; value?: (data: SourceData, row: FollowupRow) => unknown }> = [
+  { label: "المسلسل", keys: ["serialNumber"] },
+  { label: "اسم العميل", keys: ["customerName"] },
+  { label: "عنوان العميل", keys: ["address"] },
+  { label: "تاريخ الإنشاء", keys: ["orderCreateTime"] },
+  { label: "Service Order ID", keys: ["serviceOrderId"] },
+  { label: "Customer Order ID", keys: ["customerOrderId"] },
+  { label: "اسم الفنى", value: (data, row) => row.technicianName || fieldValue(data, ["technicianName", "techName"]) },
+  { label: "كود MSAN", keys: ["msanCode"] },
+  { label: "FCC", keys: ["fccExchange"] },
+  { label: "سبب التعذر", keys: ["errorName"] },
+  { label: "متوسط Score البكس", keys: ["boxAvgScore"] },
+  { label: "الموبايل", keys: ["customerMobile"] },
+  { label: "رد الفنى", value: technicianResponseLabel },
+  { label: "سبب التعذر (الفنى)", keys: ["respRejectionReason"] },
+  { label: "السنترال", keys: ["respCentralName"] },
+  { label: "الكابينة", keys: ["respCabinNumber"] },
+  { label: "البكس", keys: ["respBoxNumber"] },
+  { label: "الشغال على البكس", keys: ["boxWorkingCount"] },
+];
 
 const PRIMARY_FIELDS = [
   ["serialNumber", "المسلسل"],
@@ -486,6 +508,22 @@ export function InspectionFollowupReport() {
     );
   };
 
+  const confirmTechnicianResponse = (data: SourceData, sourceKey: string) => {
+    if (data.respIsFeasible !== true && data.respIsFeasible !== false) return;
+    const rejectionReason = String(data.respRejectionReason ?? "").trim();
+    if (data.respIsFeasible === false && !rejectionReason) return;
+    omExternalResponse.mutate({
+      serialNumber: String(fieldValue(data, ["serialNumber"]) || sourceKey),
+      isFeasible: data.respIsFeasible,
+      rejectionReason: data.respIsFeasible ? undefined : rejectionReason,
+      centralName: data.respCentralName == null ? null : String(data.respCentralName),
+      cabinNumber: data.respCabinNumber == null ? null : String(data.respCabinNumber),
+      boxNumber: data.respBoxNumber == null ? null : String(data.respBoxNumber),
+      nearestBoxDistance: data.respNearestBoxDistance == null ? null : String(data.respNearestBoxDistance),
+      additionalNotes: data.respAdditionalNotes == null ? null : String(data.respAdditionalNotes),
+    });
+  };
+
   const responseData = followupQuery.data;
   const rows = responseData?.rows ?? [];
   const contentFields = (row: FollowupRow) => {
@@ -607,7 +645,11 @@ export function InspectionFollowupReport() {
                     {rows.map((row, index) => {
                       const data = row.sourceData || {};
                       const customerName = fieldValue(data, ["customerName", "customer_name", "name"]);
-                      const sameRejectionReason = String(fieldValue(data, ["respRejectionReason"]) || "").trim();
+                      const externalActionEnabled = fieldValue(data, ["respStatus"]) === "needs_external";
+                      const technicianHasReply = data.respIsFeasible === true ||
+                        (data.respIsFeasible === false && !!String(data.respRejectionReason ?? "").trim());
+                      const canConfirmTechnicianResponse = externalActionEnabled &&
+                        Boolean(fieldValue(data, ["respRespondedAt"])) && technicianHasReply;
                       const mobile = fieldValue(data, currentSection === "installations"
                         ? ["customerMobile", "mobile", "customer_phone"]
                         : ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
@@ -646,10 +688,10 @@ export function InspectionFollowupReport() {
                               {row.isManual && <span className="text-teal-700">إضافة يدوية</span>}
                             </div>
                             {currentSection === "om" && <div className="rounded-lg bg-[#f4f7f4] p-2.5 text-xs leading-5 text-slate-700">
-                              <div>رد الفني: <b>{OM_STATUS_LABELS[String(fieldValue(data, ["respStatus"]) || "pending")] || displayValue(fieldValue(data, ["respStatus"]))}</b></div>
+                              <div>رد الفني: <b>{technicianResponseLabel(data)}</b></div>
                               {fieldValue(data, ["respTechName"]) && <div className="text-slate-500">القائم بالرد: {displayValue(data.respTechName)}</div>}
                               {fieldValue(data, ["respRejectionReason"]) && <div className="text-rose-700">{displayValue(data.respRejectionReason)}</div>}
-                              {fieldValue(data, ["respExternalResponseAt"]) && <div className="text-amber-800">رد الخارجية: {data.respIsFeasibleExternal ? "يمكن التنفيذ" : "سبب تعذر آخر"} · {displayValue(data.respExternalName)}</div>}
+                              <div className="text-amber-800">رد الشئون الخارجية: <b>{externalResponseLabel(data)}</b>{fieldValue(data, ["respExternalName"]) && ` · ${displayValue(data.respExternalName)}`}</div>
                               <ExternalExecutionLocation data={data} rowId={row.id} view="mobile" />
                               {fieldValue(data, ["respExternalRejectionReason"]) && <div className="text-amber-800">{displayValue(data.respExternalRejectionReason)}</div>}
                             </div>}
@@ -669,21 +711,6 @@ export function InspectionFollowupReport() {
                               <div>مسافة السلك: <b>{displayValue(row.wireDistanceMatch)}</b></div><div>بيان العميل: <b>{displayValue(row.customerWireMatch)}</b></div>
                               {row.reviewNotes && <div>ملاحظات: {row.reviewNotes}</div>}
                             </div>)}
-                            {currentSection === "om" && canReplyExternal && fieldValue(data, ["respStatus"]) === "needs_external" && <div className="flex flex-wrap gap-2">
-                              <TechActionModal
-                                action="feasible"
-                                triggerLabel="يمكن التنفيذ"
-                                submitting={omExternalResponse.isPending}
-                                onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
-                              />
-                              {sameRejectionReason && <Button size="sm" variant="outline" disabled={omExternalResponse.isPending} className="min-h-10 border-amber-300 px-3 text-xs text-amber-900" data-testid={`button-confirm-same-reason-${row.id}-mobile`} onClick={() => omExternalResponse.mutate({ serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey), isFeasible: false, rejectionReason: sameRejectionReason })}>تأكيد نفس سبب التعذر</Button>}
-                              <TechActionModal
-                                action="not_feasible"
-                                triggerLabel="سبب تعذر آخر"
-                                submitting={omExternalResponse.isPending}
-                                onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
-                              />
-                            </div>}
                             {!readOnly && <details className="rounded-lg border border-slate-200 bg-white">
                               <summary className="cursor-pointer list-none px-3 py-3 text-xs font-semibold text-teal-800">تفاصيل أمر الشغل والتقرير <span className="float-left">＋</span></summary>
                               <div className="grid grid-cols-1 gap-2 border-t border-slate-100 p-2.5">
@@ -695,6 +722,17 @@ export function InspectionFollowupReport() {
                               <Button variant="outline" size="sm" className="min-h-10 gap-1.5 border-slate-300 px-3" onClick={() => setSelectedRow(row)} data-testid={`button-details-${row.id}-mobile`}>تفاصيل كاملة <ArrowUpLeft className="h-3.5 w-3.5" /></Button>
                               {currentSection === "maintenance" && inspectionId != null && <a href={`/maintenance/inspector/${encodeURIComponent(String(inspectionId))}?returnTo=inspection-followup`} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800" data-testid={`link-inspection-${row.id}-mobile`}>فتح المعاينة</a>}
                             </div>}
+                            {currentSection === "om" && canReplyExternal && <div className="flex flex-wrap gap-2" data-testid={`external-actions-${row.id}-mobile`}>
+                              <Button size="sm" variant="outline" disabled={!canConfirmTechnicianResponse || omExternalResponse.isPending}
+                                className="min-h-10 border-slate-300 px-3 text-xs" data-testid={`button-confirm-tech-response-${row.id}-mobile`}
+                                onClick={() => confirmTechnicianResponse(data, row.sourceKey)}>تأكيد</Button>
+                              <TechActionModal action="feasible" triggerLabel="يمكن التنفيذ"
+                                submitting={omExternalResponse.isPending} disabled={!externalActionEnabled}
+                                onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)} />
+                              <TechActionModal action="not_feasible" triggerLabel="لا يمكن التنفيذ"
+                                submitting={omExternalResponse.isPending} disabled={!externalActionEnabled}
+                                onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)} />
+                            </div>}
                           </div>
                         </article>
                       );
@@ -704,20 +742,42 @@ export function InspectionFollowupReport() {
                     <Table dir="rtl" className="min-w-[1050px] text-right text-xs">
                       <TableHeader className="bg-[#e8efeb]">
                         <TableRow>
-                          <TableHead className="w-10 text-right font-bold text-slate-700">#</TableHead>
-                          <TableHead className="text-right font-bold text-slate-700">{readOnly ? "نتيجة الفحص" : "المصدر / العميل"}</TableHead>
-                          {!readOnly && <TableHead className="text-right font-bold text-slate-700">تفاصيل تشغيلية</TableHead>}
-                          {currentSection === "installations" && <TableHead className="text-right font-bold text-slate-700">اسم الفني</TableHead>}
-                          <TableHead className="text-right font-bold text-slate-700">{currentSection === "installations" ? "الحالة" : readOnly ? "حالة النتيجة" : "الفني والحالة"}</TableHead>
-                          {currentSection === "installations" && <TableHead className="min-w-[370px] text-right font-bold text-slate-700">{readOnly ? "نتيجة مراجعة السلك" : "مراجعة السلك"}</TableHead>}
-                          {!readOnly && <TableHead className="text-right font-bold text-slate-700">فتح التفاصيل</TableHead>}
+                          {currentSection === "installations" ? (
+                            <>
+                              <TableHead className="w-10 text-right font-bold text-slate-700">#</TableHead>
+                              {INSTALLATION_SUMMARY_FIELDS.map(([, label]) => (
+                                <TableHead key={label} className="whitespace-nowrap text-right font-bold text-slate-700">{label}</TableHead>
+                              ))}
+                              <TableHead className="whitespace-nowrap text-right font-bold text-slate-700">اسم الفني</TableHead>
+                              <TableHead className="min-w-[370px] text-right font-bold text-slate-700">مراجعة السلك</TableHead>
+                            </>
+                          ) : currentSection === "om" ? (
+                            <>
+                              <TableHead className="w-10 text-right font-bold text-slate-700">#</TableHead>
+                              {OM_FOLLOWUP_FIELDS.map((field) => <TableHead key={field.label} className="whitespace-nowrap text-right font-bold text-slate-700">{field.label}</TableHead>)}
+                              <TableHead className="min-w-[180px] text-right font-bold text-slate-700">رد الشئون الخارجية</TableHead>
+                              {canReplyExternal && <TableHead className="min-w-[280px] text-right font-bold text-slate-700">إجراء</TableHead>}
+                            </>
+                          ) : (
+                            <>
+                              <TableHead className="w-10 text-right font-bold text-slate-700">#</TableHead>
+                              <TableHead className="text-right font-bold text-slate-700">{readOnly ? "نتيجة الفحص" : "المصدر / العميل"}</TableHead>
+                              {!readOnly && <TableHead className="text-right font-bold text-slate-700">تفاصيل تشغيلية</TableHead>}
+                              <TableHead className="text-right font-bold text-slate-700">{readOnly ? "حالة النتيجة" : "الفني والحالة"}</TableHead>
+                              {!readOnly && <TableHead className="text-right font-bold text-slate-700">فتح التفاصيل</TableHead>}
+                            </>
+                          )}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {rows.map((row, index) => {
                           const data = row.sourceData || {};
                           const customerName = fieldValue(data, ["customerName", "customer_name", "name"]);
-                          const sameRejectionReason = String(fieldValue(data, ["respRejectionReason"]) || "").trim();
+                          const externalActionEnabled = fieldValue(data, ["respStatus"]) === "needs_external";
+                          const technicianHasReply = data.respIsFeasible === true ||
+                            (data.respIsFeasible === false && !!String(data.respRejectionReason ?? "").trim());
+                          const canConfirmTechnicianResponse = externalActionEnabled &&
+                            Boolean(fieldValue(data, ["respRespondedAt"])) && technicianHasReply;
                           const mobile = fieldValue(data, currentSection === "installations"
                             ? ["customerMobile", "mobile", "customer_phone"]
                             : ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
@@ -730,121 +790,123 @@ export function InspectionFollowupReport() {
                           const hasUnsaved = !!drafts[row.id];
                           const inspectionId = fieldValue(data, ["inspectionId", "inspection_id"]);
                           const checklist = fieldValue(data, ["checklist"]);
+                          if (currentSection === "om") {
+                            const externalActionEnabled = fieldValue(data, ["respStatus"]) === "needs_external";
+                            const technicianHasReply = data.respIsFeasible === true ||
+                              (data.respIsFeasible === false && !!String(data.respRejectionReason ?? "").trim());
+                            const canConfirmTechnicianResponse = externalActionEnabled &&
+                              Boolean(fieldValue(data, ["respRespondedAt"])) && technicianHasReply;
+                            return (
+                              <TableRow key={row.id} className="align-top hover:bg-[#f5f8f5]" data-testid={`row-followup-${row.id}`}>
+                                <TableCell className="font-mono text-slate-400">{index + 1}</TableCell>
+                                {OM_FOLLOWUP_FIELDS.map((field) => {
+                                  const value = field.value ? field.value(data, row) : fieldValue(data, field.keys || []);
+                                  return <TableCell key={field.label} className="max-w-[220px] whitespace-normal text-xs text-slate-700">{displayValue(value)}</TableCell>;
+                                })}
+                                <TableCell className="min-w-[180px] whitespace-normal" data-testid={`external-reply-${row.id}`}>
+                                  {fieldValue(data, ["respExternalResponseAt"]) ? (
+                                    <div className="space-y-1 text-[11px] leading-4">
+                                      <div className={data.respIsFeasibleExternal ? "font-semibold text-teal-700" : "font-semibold text-rose-700"}>{externalResponseLabel(data)}</div>
+                                      {fieldValue(data, ["respExternalRejectionReason"]) && <div className="text-rose-700">{displayValue(data.respExternalRejectionReason)}</div>}
+                                      {fieldValue(data, ["respExternalName"]) && <div className="text-slate-500">{displayValue(data.respExternalName)}</div>}
+                                      <ExternalExecutionLocation data={data} rowId={row.id} view="desktop" />
+                                    </div>
+                                  ) : <span className="text-amber-700">بانتظار رد الشئون الخارجية</span>}
+                                </TableCell>
+                                {canReplyExternal && (
+                                  <TableCell className="min-w-[280px] whitespace-normal">
+                                    <div className="flex flex-wrap items-center gap-1.5" data-testid={`external-actions-${row.id}`}>
+                                      <Button size="sm" variant="outline" disabled={!canConfirmTechnicianResponse || omExternalResponse.isPending}
+                                        className="border-slate-300 text-xs" data-testid={`button-confirm-tech-response-${row.id}`}
+                                        onClick={() => confirmTechnicianResponse(data, row.sourceKey)}>تأكيد</Button>
+                                      <TechActionModal action="feasible" triggerLabel="يمكن التنفيذ"
+                                        submitting={omExternalResponse.isPending} disabled={!externalActionEnabled}
+                                        onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)} />
+                                      <TechActionModal action="not_feasible" triggerLabel="لا يمكن التنفيذ"
+                                        submitting={omExternalResponse.isPending} disabled={!externalActionEnabled}
+                                        onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)} />
+                                    </div>
+                                  </TableCell>
+                                )}
+                              </TableRow>
+                            );
+                          }
+                          const genericSection = currentSection as Section;
                           return (
                             <TableRow key={row.id} className="align-top hover:bg-[#f5f8f5]" data-testid={`row-followup-${row.id}`}>
                               <TableCell className="font-mono text-slate-400">{index + 1}</TableCell>
-                              <TableCell className="max-w-[280px] whitespace-normal">
-                                {currentSection === "installations" ? (
-                                  <InstallationSummary data={data} rowId={row.id} view="desktop" />
-                                ) : readOnly ? (
-                                  <div className="space-y-1 text-slate-700">
-                                    {currentSection === "maintenance" && <div>{displayValue(fieldValue(data, ["checklist"]))}</div>}
-                                    {currentSection === "om" && (
-                                      <>
-                                        <div>رد الفني: {OM_STATUS_LABELS[String(fieldValue(data, ["respStatus"]) || "pending")] || displayValue(data.respStatus)}</div>
-                                        {fieldValue(data, ["respTechName"]) && <div className="text-[11px] text-slate-500">القائم بالرد: {displayValue(data.respTechName)}</div>}
-                                        {fieldValue(data, ["respRejectionReason"]) && <div className="text-rose-700">{displayValue(data.respRejectionReason)}</div>}
-                                        {fieldValue(data, ["respExternalResponseAt"]) && <div className="text-amber-800">رد الشئون الخارجية: {data.respIsFeasibleExternal ? "يمكن التنفيذ" : "سبب تعذر آخر"} · {displayValue(fieldValue(data, ["respExternalName"]))}</div>}
-                                        {fieldValue(data, ["respExternalRejectionReason"]) && <div className="text-amber-800">{displayValue(data.respExternalRejectionReason)}</div>}
-                                      </>
-                                    )}
-                                  </div>
-                                ) : currentSection === "maintenance" ? (
-                                  <div className="space-y-1">
-                                    <div className="font-semibold text-slate-900">{displayValue(fieldValue(data, ["exchangeName"]))}</div>
-                                    <div className="text-slate-600">كابينة <bdi dir="ltr">{displayValue(fieldValue(data, ["cabinetNumber"]))}</bdi> · بوكس <bdi dir="ltr">{displayValue(fieldValue(data, ["boxNumber"]))}</bdi></div>
-                                    <div className="text-[11px] text-slate-500">تاريخ العمل: {displayValue(fieldValue(data, ["workDate"]))}</div>
-                                    {checklist != null && <div className="max-w-[260px] truncate text-[11px] text-amber-800" title={displayValue(checklist)}>الفحص: {displayValue(checklist)}</div>}
-                                  </div>
-                                ) : (
-                                  <div className="space-y-1.5">
-                                    <div className="font-semibold text-slate-900">{displayValue(customerName)}</div>
-                                    <div className="inline-flex items-center gap-2" dir="ltr">
-                                      <span className="font-mono text-[11px] text-teal-800">{displayValue(mobile)}</span>
-                                      {dialableMobile && (
-                                        <a href={`tel:${dialableMobile}`}
-                                          title={`اتصال بالعميل: ${dialableMobile}`}
-                                          aria-label={`اتصال بالعميل: ${dialableMobile}`}
-                                          className="md:hidden inline-flex items-center gap-1 rounded border border-emerald-300 px-1.5 py-0.5 text-[11px] text-emerald-700 hover:bg-emerald-50">
-                                          <Phone className="h-3 w-3" /> اتصال
-                                        </a>
-                                      )}
-                                    </div>
-                                    <div className="max-w-[270px] whitespace-normal break-words text-[11px] leading-4 text-slate-600">{displayValue(address)}</div>
-                                  </div>
-                                )}
-                              </TableCell>
-                              {!readOnly && <TableCell className="max-w-[360px] whitespace-normal">
-                                {currentSection === "maintenance" ? (
-                                  <div className="space-y-1 text-slate-600">
-                                    <div>المعاينة: <bdi dir="ltr" className="font-mono">{displayValue(fieldValue(data, ["inspectionId"]))}</bdi> · المهمة: <bdi dir="ltr" className="font-mono">{displayValue(fieldValue(data, ["taskId"]))}</bdi></div>
-                                    <div>جهة الصرف: {displayValue(fieldValue(data, ["exchangeName"]))}</div>
-                                  </div>
-                                ) : (
-                                  <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
-                                    {(currentSection === "installations" ? fields : fields.slice(0, 8)).map((field) => (
-                                      <div key={field.key} className="max-w-[210px] truncate" title={`${field.label}: ${displayValue(field.value)}`}>
-                                        <span className="text-slate-500">{field.label}: </span><span className="text-slate-800">{displayValue(field.value)}</span>
+                              {currentSection === "installations" ? (
+                                <>
+                                  {INSTALLATION_SUMMARY_FIELDS.map(([key]) => (
+                                    <TableCell key={key} className="min-w-[130px] whitespace-normal text-xs text-slate-700">
+                                      {displayValue(fieldValue(data, [key]))}
+                                    </TableCell>
+                                  ))}
+                                  <TableCell className="min-w-[140px] whitespace-normal font-medium text-slate-800" data-testid={`text-technician-name-row-${row.id}`}>
+                                    {row.technicianName || displayValue(fieldValue(data, ["technicianName", "techName"]))}
+                                  </TableCell>
+                                </>
+                              ) : (
+                                <>
+                                  <TableCell className="max-w-[280px] whitespace-normal">
+                                    {readOnly ? (
+                                      <div className="space-y-1 text-slate-700">
+                                        {currentSection === "maintenance" && <div>{displayValue(fieldValue(data, ["checklist"]))}</div>}
                                       </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </TableCell>}
-                              {currentSection === "installations" && (
-                                <TableCell className="min-w-[130px] whitespace-normal font-medium text-slate-800" data-testid={`text-technician-name-row-${row.id}`}>
-                                  {row.technicianName || displayValue(fieldValue(data, ["technicianName", "techName"]))}
-                                </TableCell>
+                                    ) : currentSection === "maintenance" ? (
+                                      <div className="space-y-1">
+                                        <div className="font-semibold text-slate-900">{displayValue(fieldValue(data, ["exchangeName"]))}</div>
+                                        <div className="text-slate-600">كابينة <bdi dir="ltr">{displayValue(fieldValue(data, ["cabinetNumber"]))}</bdi> · بوكس <bdi dir="ltr">{displayValue(fieldValue(data, ["boxNumber"]))}</bdi></div>
+                                        <div className="text-[11px] text-slate-500">تاريخ العمل: {displayValue(fieldValue(data, ["workDate"]))}</div>
+                                        {checklist != null && <div className="max-w-[260px] truncate text-[11px] text-amber-800" title={displayValue(checklist)}>الفحص: {displayValue(checklist)}</div>}
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-1.5">
+                                        <div className="font-semibold text-slate-900">{displayValue(customerName)}</div>
+                                        <div className="inline-flex items-center gap-2" dir="ltr">
+                                          <span className="font-mono text-[11px] text-teal-800">{displayValue(mobile)}</span>
+                                          {dialableMobile && <a href={`tel:${dialableMobile}`} title={`اتصال بالعميل: ${dialableMobile}`} aria-label={`اتصال بالعميل: ${dialableMobile}`} className="md:hidden inline-flex items-center gap-1 rounded border border-emerald-300 px-1.5 py-0.5 text-[11px] text-emerald-700 hover:bg-emerald-50"><Phone className="h-3 w-3" /> اتصال</a>}
+                                        </div>
+                                        <div className="max-w-[270px] whitespace-normal break-words text-[11px] leading-4 text-slate-600">{displayValue(address)}</div>
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                  {!readOnly && <TableCell className="max-w-[360px] whitespace-normal">
+                                    <div className="space-y-1 text-slate-600">
+                                      <div>المعاينة: <bdi dir="ltr" className="font-mono">{displayValue(fieldValue(data, ["inspectionId"]))}</bdi> · المهمة: <bdi dir="ltr" className="font-mono">{displayValue(fieldValue(data, ["taskId"]))}</bdi></div>
+                                      <div>جهة الصرف: {displayValue(fieldValue(data, ["exchangeName"]))}</div>
+                                    </div>
+                                  </TableCell>}
+                                </>
                               )}
-                              <TableCell className="whitespace-normal">
-                                {currentSection !== "installations" && <div className="font-medium text-slate-800">{row.technicianName || displayValue(fieldValue(data, ["technicianName", "techName"]))}</div>}
+                              {currentSection !== "installations" && <TableCell className="whitespace-normal">
+                                <div className="font-medium text-slate-800">{row.technicianName || displayValue(fieldValue(data, ["technicianName", "techName"]))}</div>
                                 <span className={`mt-1 inline-flex items-center gap-1 rounded px-2 py-0.5 font-semibold ${row.isComplete ? "bg-teal-100 text-teal-800" : "bg-amber-100 text-amber-800"}`}>
                                   {row.isComplete ? <Check className="h-3 w-3" /> : null}{row.isComplete ? "مكتمل" : "بانتظار المراجعة"}
                                 </span>
-                                {currentSection === "om" && (
+                                {genericSection === "om" && (
                                   <div className="mt-1 max-w-[180px] text-[10px] leading-4 text-slate-500">
-                                    <div>رد الفني: {OM_STATUS_LABELS[String(fieldValue(data, ["respStatus"]) || "pending")] || displayValue(fieldValue(data, ["respStatus"]))}</div>
+                                    <div>رد الفني: {technicianResponseLabel(data)}</div>
                                     {fieldValue(data, ["respTechName"]) && <div>القائم بالرد: {displayValue(data.respTechName)}</div>}
                                     {fieldValue(data, ["respRejectionReason"]) && <div className="text-rose-700">{displayValue(data.respRejectionReason)}</div>}
-                                    {fieldValue(data, ["respExternalResponseAt"]) && <div>رد الخارجية: {data.respIsFeasibleExternal ? "يمكن التنفيذ" : "سبب تعذر آخر"} · {displayValue(data.respExternalName)}</div>}
-                                    <ExternalExecutionLocation data={data} rowId={row.id} view="desktop" />
-                                    {fieldValue(data, ["respExternalRejectionReason"]) && <div className="text-amber-800">{displayValue(data.respExternalRejectionReason)}</div>}
-                                  </div>
-                                )}
-                                {currentSection === "om" && canReplyExternal && (
-                                  <div className="mt-2 flex flex-wrap gap-1">
-                                    {fieldValue(data, ["respStatus"]) === "needs_external" && (
-                                      <>
-                                        <TechActionModal
-                                          action="feasible"
-                                          triggerLabel="يمكن التنفيذ"
-                                          submitting={omExternalResponse.isPending}
-                                          onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
-                                        />
-                                        {sameRejectionReason && (
-                                          <Button
-                                            size="sm" variant="outline"
-                                            disabled={omExternalResponse.isPending}
-                                            className="h-7 border-amber-300 px-2 text-[10px] text-amber-900"
-                                            data-testid={`button-confirm-same-reason-${row.id}`}
-                                            onClick={() => omExternalResponse.mutate({
-                                              serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey),
-                                              isFeasible: false,
-                                              rejectionReason: sameRejectionReason,
-                                            })}
-                                          >تأكيد نفس سبب التعذر</Button>
-                                        )}
-                                        <TechActionModal
-                                          action="not_feasible"
-                                          triggerLabel="سبب تعذر آخر"
-                                          submitting={omExternalResponse.isPending}
-                                          onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
-                                        />
-                                      </>
-                                    )}
                                   </div>
                                 )}
                                 {row.isManual && <span className="mt-1 block text-[10px] text-teal-700">إضافة يدوية</span>}
-                              </TableCell>
+                              </TableCell>}
+                              {genericSection === "om" && (
+                                <TableCell className="min-w-[180px] whitespace-normal" data-testid={`external-reply-${row.id}`}>
+                                  {fieldValue(data, ["respExternalResponseAt"]) ? (
+                                    <div className="space-y-1 text-[11px] leading-4">
+                                      <div className={data.respIsFeasibleExternal ? "font-semibold text-teal-700" : "font-semibold text-rose-700"}>
+                                        {externalResponseLabel(data)}
+                                      </div>
+                                      {fieldValue(data, ["respExternalRejectionReason"]) && <div className="text-rose-700">{displayValue(data.respExternalRejectionReason)}</div>}
+                                      {fieldValue(data, ["respExternalName"]) && <div className="text-slate-500">{displayValue(data.respExternalName)}</div>}
+                                      <ExternalExecutionLocation data={data} rowId={row.id} view="desktop" />
+                                    </div>
+                                  ) : <span className="text-amber-700">بانتظار رد الشئون الخارجية</span>}
+                                </TableCell>
+                              )}
                               {currentSection === "installations" && (
                                 <TableCell className="min-w-[370px] whitespace-normal">
                                   {canEdit ? (
@@ -884,7 +946,7 @@ export function InspectionFollowupReport() {
                                   )}
                                 </TableCell>
                               )}
-                              {!readOnly && <TableCell className="whitespace-nowrap">
+                              {!readOnly && currentSection !== "installations" && <TableCell className="whitespace-nowrap">
                                 <div className="flex flex-col items-start gap-1.5">
                                   <Button variant="outline" size="sm" className="h-8 gap-1.5 border-slate-300" onClick={() => setSelectedRow(row)} data-testid={`button-details-${row.id}`}>
                                     تفاصيل كاملة <ArrowUpLeft className="h-3.5 w-3.5" />
@@ -898,9 +960,24 @@ export function InspectionFollowupReport() {
                                       فتح المعاينة
                                     </a>
                                   )}
-                                  {row.reviewedAt && currentSection !== "installations" && <span className="text-[10px] text-slate-500">مراجعة: {formatDate(row.reviewedAt)}</span>}
+                                  {row.reviewedAt && <span className="text-[10px] text-slate-500">مراجعة: {formatDate(row.reviewedAt)}</span>}
                                 </div>
                               </TableCell>}
+                              {genericSection === "om" && canReplyExternal && (
+                                <TableCell className="min-w-[280px] whitespace-normal">
+                                  <div className="flex flex-wrap items-center gap-1.5" data-testid={`external-actions-${row.id}`}>
+                                    <Button size="sm" variant="outline" disabled={!canConfirmTechnicianResponse || omExternalResponse.isPending}
+                                      className="border-slate-300 text-xs" data-testid={`button-confirm-tech-response-${row.id}`}
+                                      onClick={() => confirmTechnicianResponse(data, row.sourceKey)}>تأكيد</Button>
+                                    <TechActionModal action="feasible" triggerLabel="يمكن التنفيذ"
+                                      submitting={omExternalResponse.isPending} disabled={!externalActionEnabled}
+                                      onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)} />
+                                    <TechActionModal action="not_feasible" triggerLabel="لا يمكن التنفيذ"
+                                      submitting={omExternalResponse.isPending} disabled={!externalActionEnabled}
+                                      onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)} />
+                                  </div>
+                                </TableCell>
+                              )}
                             </TableRow>
                           );
                         })}
