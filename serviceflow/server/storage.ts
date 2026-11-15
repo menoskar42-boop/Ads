@@ -139,6 +139,16 @@ export class DatabaseStorage implements IStorage {
         techId: null,
         techName: null,
         techResponseAt: null,
+        externalId: null,
+        externalName: null,
+        externalResponseAt: null,
+        isFeasibleExternal: null,
+        externalRejectionReason: null,
+        externalCentralName: null,
+        externalCabinNumber: null,
+        externalBoxNumber: null,
+        externalNearestBoxDistance: null,
+        externalAdditionalNotes: null,
       })
       .where(eq(orders.id, id))
       .returning();
@@ -155,7 +165,19 @@ export class DatabaseStorage implements IStorage {
 
   async requestExternalReview(id: number): Promise<Order> {
     const [order] = await db.update(orders)
-      .set({ status: ORDER_STATUS.NEEDS_EXTERNAL })
+      .set({
+        status: ORDER_STATUS.NEEDS_EXTERNAL,
+        externalId: null,
+        externalName: null,
+        externalResponseAt: null,
+        isFeasibleExternal: null,
+        externalRejectionReason: null,
+        externalCentralName: null,
+        externalCabinNumber: null,
+        externalBoxNumber: null,
+        externalNearestBoxDistance: null,
+        externalAdditionalNotes: null,
+      })
       .where(eq(orders.id, id))
       .returning();
     return order;
