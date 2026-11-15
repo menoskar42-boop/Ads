@@ -2041,6 +2041,12 @@ export async function ensureSchema() {
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `);
+  // الشئون الخارجية تسجّل تفاصيل ردها منفصلة عن رد الفني، بنفس حقول نموذج الرد.
+  await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS external_central_name text`);
+  await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS external_cabin_number text`);
+  await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS external_box_number text`);
+  await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS external_nearest_box_distance text`);
+  await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS external_additional_notes text`);
   // «بوكس مليان»: الشغّال على البكس وقت الرد — بيتقارن بالشغّال دلوقتى فى
   // «متعذرات تم توفير خطوط بها» (قرار المالك ٢٠٢٦-٠٩-٣٠)
   await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS box_working_at_response integer`);

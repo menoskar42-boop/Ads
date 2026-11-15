@@ -6428,17 +6428,19 @@ export async function registerRoutes(
         const { rows } = await pool.query(
           `SELECT status, is_feasible, rejection_reason, central_name, cabin_number, box_number,
                   nearest_box_distance, additional_notes, tech_id, tech_name, tech_response_at,
-                  external_id, external_name, is_feasible_external, external_rejection_reason,
-                  external_response_at
+                   external_id, external_name, is_feasible_external, external_rejection_reason,
+                   external_central_name, external_cabin_number, external_box_number,
+                   external_nearest_box_distance, external_additional_notes, external_response_at
              FROM orders WHERE id = $1`, [orderId]);
         if (!rows.length) return;
         const o = rows[0];
         await pool.query(
           `INSERT INTO om_responses (serial_number, status, is_feasible, rejection_reason, central_name,
               cabin_number, box_number, nearest_box_distance, additional_notes, tech_id, tech_name,
-              responded_at, external_id, external_name, is_feasible_external, external_rejection_reason,
-              external_response_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, now())
+               responded_at, external_id, external_name, is_feasible_external, external_rejection_reason,
+               external_central_name, external_cabin_number, external_box_number,
+               external_nearest_box_distance, external_additional_notes, external_response_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22, now())
            ON CONFLICT (serial_number) DO UPDATE SET
              status = EXCLUDED.status, is_feasible = EXCLUDED.is_feasible,
              rejection_reason = EXCLUDED.rejection_reason,
@@ -6452,6 +6454,11 @@ export async function registerRoutes(
              external_id = EXCLUDED.external_id, external_name = EXCLUDED.external_name,
              is_feasible_external = EXCLUDED.is_feasible_external,
              external_rejection_reason = EXCLUDED.external_rejection_reason,
+             external_central_name = EXCLUDED.external_central_name,
+             external_cabin_number = EXCLUDED.external_cabin_number,
+             external_box_number = EXCLUDED.external_box_number,
+             external_nearest_box_distance = EXCLUDED.external_nearest_box_distance,
+             external_additional_notes = EXCLUDED.external_additional_notes,
              external_response_at = EXCLUDED.external_response_at,
              -- رد فنى جديد على الطلب المربوط = عدّ جديد لشغّال «بوكس مليان»
              box_working_key = CASE WHEN om_responses.responded_at IS DISTINCT FROM EXCLUDED.responded_at
@@ -6460,7 +6467,9 @@ export async function registerRoutes(
           [serial, o.status, o.is_feasible, o.rejection_reason, o.central_name, o.cabin_number,
            o.box_number, o.nearest_box_distance, o.additional_notes, o.tech_id, o.tech_name,
            o.tech_response_at, o.external_id, o.external_name, o.is_feasible_external,
-           o.external_rejection_reason, o.external_response_at]);
+            o.external_rejection_reason, o.external_central_name, o.external_cabin_number,
+            o.external_box_number, o.external_nearest_box_distance, o.external_additional_notes,
+            o.external_response_at]);
         await snapshotOmBoxFullWorking(serial).catch(() => {});
       } else {
         // متعذرات → طلبات
@@ -6468,7 +6477,8 @@ export async function registerRoutes(
           `SELECT status, is_feasible, rejection_reason, central_name, cabin_number, box_number,
                   nearest_box_distance, additional_notes, tech_id, tech_name, responded_at,
                   external_id, external_name, is_feasible_external, external_rejection_reason,
-                  external_response_at
+                  external_central_name, external_cabin_number, external_box_number,
+                  external_nearest_box_distance, external_additional_notes, external_response_at
              FROM om_responses WHERE serial_number = $1`, [serial]);
         if (rows.length) {
           const m = rows[0];
@@ -6480,19 +6490,26 @@ export async function registerRoutes(
                     nearest_box_distance = COALESCE($8, nearest_box_distance),
                     additional_notes = $9, tech_id = $10, tech_name = $11, tech_response_at = $12,
                     external_id = $13, external_name = $14, is_feasible_external = $15,
-                    external_rejection_reason = $16, external_response_at = $17
+                     external_rejection_reason = $16, external_central_name = $17,
+                     external_cabin_number = $18, external_box_number = $19,
+                     external_nearest_box_distance = $20, external_additional_notes = $21,
+                     external_response_at = $22
               WHERE id = $1`,
             [orderId, m.status, m.is_feasible, m.rejection_reason, m.central_name, m.cabin_number,
              m.box_number, m.nearest_box_distance, m.additional_notes, m.tech_id, m.tech_name,
              m.responded_at, m.external_id, m.external_name, m.is_feasible_external,
-             m.external_rejection_reason, m.external_response_at]);
+              m.external_rejection_reason, m.external_central_name, m.external_cabin_number,
+              m.external_box_number, m.external_nearest_box_distance, m.external_additional_notes,
+              m.external_response_at]);
         } else {
           // الرد اتلغى خالص من ناحية المتعذرات → الطلب يرجع «قيد الانتظار»
           await pool.query(
             `UPDATE orders SET status = $2, is_feasible = NULL, rejection_reason = NULL,
                     tech_id = NULL, tech_name = NULL, tech_response_at = NULL,
                     external_id = NULL, external_name = NULL, is_feasible_external = NULL,
-                    external_rejection_reason = NULL, external_response_at = NULL
+                     external_rejection_reason = NULL, external_response_at = NULL,
+                     external_central_name = NULL, external_cabin_number = NULL, external_box_number = NULL,
+                     external_nearest_box_distance = NULL, external_additional_notes = NULL
               WHERE id = $1`, [orderId, ORDER_STATUS.PENDING]);
         }
       }
@@ -9537,10 +9554,70 @@ export async function registerRoutes(
                 COALESCE(NULLIF(btrim(ovr.tech_name), ''), w.tech_name) AS "techName",
                 w.worker_code AS "workerCode", w.msan_code AS "msanCode",
                 w.work_order_type_raw AS "workOrderType",
-                mob.mobile AS "customerMobile"
+                COALESCE(NULLIF(btrim(si.sub_name), ''), NULLIF(btrim(wfm.customer_name), '')) AS "customerName",
+                COALESCE(NULLIF(btrim(si.sub_add), ''), NULLIF(btrim(wfm.address), '')) AS address,
+                mob.mobile AS "customerMobile",
+                COALESCE(corr.central, pl.central, si.central, wfm.central_name, w.central_name) AS "lineCentralName",
+                COALESCE(corr.cabin_number, pl.cabin_number, si.cabin_number,
+                         NULLIF(btrim(wfm.exch_cabinet), '')) AS "lineCabinNumber",
+                COALESCE(corr.box_number, pl.box_number, si.box_number) AS "lineBoxNumber",
+                COALESCE(pp.msan_code, w.msan_code) AS "lineMsanCode",
+                COALESCE(corr.dp_terminal, pl.dp_terminal, si.dp_terminal) AS "lineDpTerminal",
+                COALESCE(pp.port_number, pl.port, si.port_no) AS "linePort",
+                pl.len AS "lineLength",
+                COALESCE(pl.idu_no, si.idu_no) AS "lineIduNo",
+                COALESCE(pl.odu_no, si.odu_no) AS "lineOduNo",
+                COALESCE(pl.primary_block_no, si.primary_block) AS "linePrimaryBlock",
+                COALESCE(pl.cabinet_in, si.cabinet_in) AS "lineCabinetIn",
+                COALESCE(pl.sec_block_no, si.sec_block) AS "lineSecondaryBlock",
+                COALESCE(pl.cabinet_out, si.cabinet_out) AS "lineCabinetOut",
+                COALESCE(pl.fiber_block, si.fiber_block) AS "lineFiberBlock",
+                COALESCE(pl.fiber_out, si.fiber_out) AS "lineFiberOut",
+                si.line_type AS "lineType",
+                pp.frame AS "lineFrame", pp.port_type AS "linePortType",
+                pp.voice_status AS "lineVoiceStatus", pp.data_status AS "lineDataStatus",
+                pp.operator AS "lineOperator", pp.shelf AS "lineShelf", pp.slot AS "lineSlot",
+                pp.onu AS "lineOnu", pp.row_no AS "lineRow", pp.column_no AS "lineColumn"
            FROM work_orders w
            LEFT JOIN work_order_tech_overrides ovr
              ON ovr.central_name=w.central_name AND ovr.work_order_id=w.work_order_id
+           LEFT JOIN LATERAL (
+             SELECT si.* FROM line_subscriber_info si
+              WHERE ${phoneNormSql("si.phone_number")}=${phoneNormSql("w.phone_number")}
+              ORDER BY si.fetched_at DESC LIMIT 1
+           ) si ON TRUE
+           LEFT JOIN LATERAL (
+             SELECT pl.* FROM phone_lines pl
+              WHERE ${phoneNormSql("pl.tel_no")}=${phoneNormSql("w.phone_number")}
+                 OR ${phoneNormSql("pl.full_phone")}=${phoneNormSql("w.phone_number")}
+              ORDER BY pl.id DESC LIMIT 1
+           ) pl ON TRUE
+           LEFT JOIN LATERAL (
+             SELECT pp.* FROM phone_ports pp
+              WHERE ${phoneNormSql("pp.phone_number")}=${phoneNormSql("w.phone_number")}
+              ORDER BY pp.uploaded_at DESC LIMIT 1
+           ) pp ON TRUE
+           LEFT JOIN LATERAL (
+             SELECT corr.central, corr.cabin_number, corr.box_number, corr.dp_terminal
+               FROM line_data_corrections corr
+              WHERE ${phoneNormSql("corr.phone_full")}=${phoneNormSql("w.phone_number")}
+              ORDER BY corr.created_at DESC, corr.id DESC LIMIT 1
+           ) corr ON TRUE
+           LEFT JOIN LATERAL (
+             SELECT linked.customer_name, linked.address, linked.central_name, linked.exch_cabinet
+               FROM (
+                 SELECT wc.customer_name, wc.address, wc.central_name, wc.exch_cabinet,
+                        wc.creation_date, 0 AS priority
+                   FROM wfm_current wc
+                  WHERE ${phoneNormSql("wc.phone_number")}=${phoneNormSql("w.phone_number")}
+                 UNION ALL
+                 SELECT mo.customer_name, mo.address, mo.central_name, mo.exch_cabinet,
+                        mo.creation_date, 1 AS priority
+                   FROM maintenance_orders mo
+                  WHERE ${phoneNormSql("mo.phone_number")}=${phoneNormSql("w.phone_number")}
+               ) linked
+              ORDER BY linked.priority, linked.creation_date DESC NULLS LAST LIMIT 1
+           ) wfm ON TRUE
            LEFT JOIN LATERAL (
              SELECT x.mobile FROM (
                SELECT lm.mobile, 0 AS priority FROM line_mobiles lm
@@ -15217,6 +15294,8 @@ export async function registerRoutes(
            -- رد جديد من الفنى بيلغى أى رد شئون خارجية قديم (زى إعادة الطلب للفنى فى قسم الطلبات)
            external_id = NULL, external_name = NULL, is_feasible_external = NULL,
            external_rejection_reason = NULL, external_response_at = NULL,
+           external_central_name = NULL, external_cabin_number = NULL, external_box_number = NULL,
+           external_nearest_box_distance = NULL, external_additional_notes = NULL,
            -- رد جديد = عدّ جديد للشغّال على البكس «فى هذا الوقت»
            box_working_at_response = NULL, box_working_key = NULL, box_working_recorded_at = NULL,
            updated_at = now()
@@ -15271,7 +15350,9 @@ export async function registerRoutes(
          ON CONFLICT (serial_number) DO UPDATE SET
            status = $2,
            external_id = NULL, external_name = NULL, is_feasible_external = NULL,
-           external_rejection_reason = NULL, external_response_at = NULL, updated_at = now()
+           external_rejection_reason = NULL, external_response_at = NULL,
+           external_central_name = NULL, external_cabin_number = NULL, external_box_number = NULL,
+           external_nearest_box_distance = NULL, external_additional_notes = NULL, updated_at = now()
          RETURNING *`,
         [serialNumber, ORDER_STATUS.NEEDS_EXTERNAL],
       );
@@ -15287,6 +15368,10 @@ export async function registerRoutes(
       if (role !== ROLES.EXTERNAL && !hasAdminAccess(role)) {
         return res.status(403).json({ message: "غير مسموح" });
       }
+      const clean = (value: any) => {
+        const text = String(value ?? "").trim();
+        return text || null;
+      };
       const b = req.body || {};
       const serialNumber = String(b.serialNumber ?? "").trim();
       if (!serialNumber) return res.status(400).json({ message: "رقم المسلسل مطلوب" });
@@ -15305,10 +15390,14 @@ export async function registerRoutes(
       const { rows } = await pool.query(
         `UPDATE om_responses
             SET status = $2, is_feasible_external = $3, external_rejection_reason = $4,
-                external_id = $5, external_name = $6, external_response_at = now(), updated_at = now()
+                external_central_name = $5, external_cabin_number = $6, external_box_number = $7,
+                external_nearest_box_distance = $8, external_additional_notes = $9,
+                external_id = $10, external_name = $11, external_response_at = now(), updated_at = now()
           WHERE serial_number = $1
           RETURNING *`,
         [serialNumber, status, isFeasible, isFeasible ? null : reason,
+         clean(b.centralName), clean(b.cabinNumber), clean(b.boxNumber),
+         clean(b.nearestBoxDistance), clean(b.additionalNotes),
          req.user?.id ?? null, String(req.user?.username || "")],
       );
       if (!rows.length) return res.status(404).json({ message: "المتعذر ده مش محوَّل للشئون الخارجية" });

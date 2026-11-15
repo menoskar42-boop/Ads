@@ -72,6 +72,11 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
                 orp.external_name AS "respExternalName",
                 orp.is_feasible_external AS "respIsFeasibleExternal",
                 orp.external_rejection_reason AS "respExternalRejectionReason",
+                orp.external_central_name AS "respExternalCentralName",
+                orp.external_cabin_number AS "respExternalCabinNumber",
+                orp.external_box_number AS "respExternalBoxNumber",
+                orp.external_nearest_box_distance AS "respExternalNearestBoxDistance",
+                orp.external_additional_notes AS "respExternalAdditionalNotes",
                 orp.external_response_at AS "respExternalResponseAt"
            FROM ftth_orders_current fo
            LEFT JOIN om_responses orp ON orp.serial_number = fo.serial_number
@@ -144,14 +149,22 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
             WHERE ii.inspection_id = i.id AND ii.value IN ('bad','yes')
               AND ii.item_key NOT IN ('electricity_conflict','air_conflict','overlap','data_review')
          ) checklist ON TRUE
-        WHERE mt.status = 'pending_approval'
-          AND mt.technician_id IS NOT NULL
+        WHERE mt.technician_id IS NOT NULL
           AND EXISTS (
             SELECT 1 FROM maintenance.inspection_items ii
             JOIN maintenance.maintenance_item_status mis
               ON mis.task_id = mt.id AND mis.item_key = ii.item_key AND mis.is_done = 1
             WHERE ii.inspection_id = i.id AND ii.value IN ('bad','yes')
               AND ii.item_key NOT IN ('electricity_conflict','air_conflict','overlap','data_review')
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM maintenance.inspection_items ii
+            WHERE ii.inspection_id = i.id AND ii.value IN ('bad','yes')
+              AND ii.item_key NOT IN ('electricity_conflict','air_conflict','overlap','data_review')
+              AND NOT EXISTS (
+                SELECT 1 FROM maintenance.maintenance_item_status mis
+                WHERE mis.task_id = mt.id AND mis.item_key = ii.item_key AND mis.is_done = 1
+              )
           )
         ORDER BY work.work_date DESC, e.name, c.number, b.number`,
       [start, nextMonth],
@@ -168,9 +181,8 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
         `SELECT sampling_version FROM inspection_followup_sections WHERE report_month=$1 AND section=$2`,
         [month, section],
       );
-      // OM والعينات التركيبية لها مراجعة نسخة مستقلة؛ الترقية تضيف النواقص
-      // لكل فني وتحافظ على العناصر التي سبق فحصها.
-      const samplingVersion = section === "maintenance" ? 1 : section === "installations" ? 3 : 2;
+      // تحديث نسخة العينة يضيف العناصر الناقصة ويحافظ على السجلات السابقة.
+      const samplingVersion = section === "maintenance" ? 2 : section === "installations" ? 4 : 2;
       if (!initialized.rowCount || Number(initialized.rows[0]?.sampling_version || 1) < samplingVersion) {
         const sampledAlready = await client.query(
           `SELECT source_key AS "sourceKey", technician_name AS "technicianName"
@@ -191,15 +203,16 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
         const grouped = new Map<string, any[]>();
         for (const row of rows) {
           const techName = String(row.technicianName || row.techName || "غير معروف").trim() || "غير معروف";
-          const group = grouped.get(techName) ?? [];
+          const groupKey = section === "maintenance" ? "__all_maintenance__" : techName;
+          const group = grouped.get(groupKey) ?? [];
           group.push({ ...row, technicianName: techName });
-          grouped.set(techName, group);
+          grouped.set(groupKey, group);
         }
         const sample: any[] = [];
-        for (const [techName, group] of grouped) {
-          const technicianKeys = section === "installations"
+        for (const [groupKey, group] of grouped) {
+          const technicianKeys = section === "installations" || section === "maintenance"
             ? existingKeys
-            : existingByTech.get(techName) ?? new Set<string>();
+            : existingByTech.get(groupKey) ?? new Set<string>();
           const currentKeys = new Set(group.map((row) => String(row.sourceKey)));
           const existingCount = [...technicianKeys].filter((key) => currentKeys.has(key)).length;
           const target = Math.min(group.length, Math.max(1, Math.ceil(group.length * ratio)));
@@ -280,9 +293,11 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
     const month = String(req.query.month || cairoMonth(new Date()));
     if (!validMonth(month)) return res.status(400).json({ message: "الشهر غير صالح" });
     try {
-      const sourceRows = section === "installations" ? await loadSourceRows(section, month) : null;
+      const sourceRows = section === "installations" || section === "maintenance"
+        ? await loadSourceRows(section, month)
+        : null;
       const ratio = section === "maintenance" ? 0.5 : section === "om" ? 0.5 : 0.1;
-      const targetVersion = section === "maintenance" ? 1 : section === "installations" ? 3 : 2;
+      const targetVersion = section === "maintenance" ? 2 : section === "installations" ? 4 : 2;
       const cached = await d.pool.query(
         `SELECT sampling_version FROM inspection_followup_sections WHERE report_month=$1 AND section=$2`,
         [month, section],
@@ -303,10 +318,12 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
         [month, section],
       );
       let liveRows = selected;
-      if (section === "installations" && sourceRows) {
+      if ((section === "installations" || section === "maintenance") && sourceRows) {
         const currentKeys = new Set(sourceRows.map((row: any) => String(row.sourceKey)));
         liveRows = selected.filter((item: any) => item.isManual || currentKeys.has(String(item.sourceKey)));
-        liveRows = liveRows.map((item: any) => ({ ...item, isComplete: Boolean(item.reviewedAt) }));
+        if (section === "installations") {
+          liveRows = liveRows.map((item: any) => ({ ...item, isComplete: Boolean(item.reviewedAt) }));
+        }
       }
       if (section === "om" && selected.length) {
         const serials = selected.map((item: any) => String(item.sourceKey));
@@ -317,6 +334,11 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
                   external_name AS "respExternalName",
                   is_feasible_external AS "respIsFeasibleExternal",
                   external_rejection_reason AS "respExternalRejectionReason",
+                  external_central_name AS "respExternalCentralName",
+                  external_cabin_number AS "respExternalCabinNumber",
+                  external_box_number AS "respExternalBoxNumber",
+                  external_nearest_box_distance AS "respExternalNearestBoxDistance",
+                  external_additional_notes AS "respExternalAdditionalNotes",
                   external_response_at AS "respExternalResponseAt"
              FROM om_responses WHERE serial_number=ANY($1::text[])`,
           [serials],
@@ -331,8 +353,8 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
             isComplete: Boolean(sourceData?.respRespondedAt && sourceData?.respExternalResponseAt),
           };
         });
-      } else if (section === "maintenance" && selected.length) {
-        const taskIds = selected.map((item: any) => Number(item.sourceData?.taskId)).filter(Number.isInteger);
+      } else if (section === "maintenance" && liveRows.length) {
+        const taskIds = liveRows.map((item: any) => Number(item.sourceData?.taskId)).filter(Number.isInteger);
         const { rows: tasks } = await d.pool.query(
           `SELECT mt.id, mt.status,
                   COALESCE(checklist.items, '[]'::jsonb) AS checklist
@@ -353,7 +375,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
           [taskIds],
         );
         const taskMap = new Map(tasks.map((task: any) => [Number(task.id), task]));
-        liveRows = selected.map((item: any) => ({
+        liveRows = liveRows.map((item: any) => ({
           ...item,
           sourceData: {
             ...item.sourceData,
@@ -388,6 +410,11 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
               respTechName: source.respTechName,
               respExternalName: source.respExternalName,
               respExternalRejectionReason: source.respExternalRejectionReason,
+              respExternalCentralName: source.respExternalCentralName,
+              respExternalCabinNumber: source.respExternalCabinNumber,
+              respExternalBoxNumber: source.respExternalBoxNumber,
+              respExternalNearestBoxDistance: source.respExternalNearestBoxDistance,
+              respExternalAdditionalNotes: source.respExternalAdditionalNotes,
               respExternalResponseAt: source.respExternalResponseAt,
             };
           } else if (section === "maintenance") {
@@ -471,6 +498,11 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
                 orp.external_name AS "respExternalName",
                 orp.is_feasible_external AS "respIsFeasibleExternal",
                 orp.external_rejection_reason AS "respExternalRejectionReason",
+                orp.external_central_name AS "respExternalCentralName",
+                orp.external_cabin_number AS "respExternalCabinNumber",
+                orp.external_box_number AS "respExternalBoxNumber",
+                orp.external_nearest_box_distance AS "respExternalNearestBoxDistance",
+                orp.external_additional_notes AS "respExternalAdditionalNotes",
                 orp.external_response_at AS "respExternalResponseAt"
            FROM ftth_orders_current fo
            LEFT JOIN om_responses orp ON orp.serial_number=fo.serial_number

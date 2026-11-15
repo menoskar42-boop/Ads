@@ -83,6 +83,32 @@ const VALUE_LABELS: Record<string, string> = {
   phone: "رقم التليفون",
   address: "العنوان",
   customerAddress: "عنوان العميل",
+  lineCentralName: "سنترال الخط",
+  lineCabinNumber: "كابينة الخط",
+  lineBoxNumber: "بوكس الخط",
+  lineMsanCode: "كود MSAN",
+  lineDpTerminal: "طرفية DP",
+  linePort: "البورت",
+  lineLength: "طول الخط",
+  lineIduNo: "رقم IDU",
+  lineOduNo: "رقم ODU",
+  linePrimaryBlock: "البلوك الرئيسي",
+  lineCabinetIn: "دخول الكابينة",
+  lineSecondaryBlock: "البلوك الفرعي",
+  lineCabinetOut: "خروج الكابينة",
+  lineFiberBlock: "بلوك الفايبر",
+  lineFiberOut: "مخرج الفايبر",
+  lineType: "نوع الخط الفني",
+  lineFrame: "الفريم",
+  linePortType: "نوع البورت",
+  lineVoiceStatus: "حالة الصوت",
+  lineDataStatus: "حالة الداتا",
+  lineOperator: "المشغل",
+  lineShelf: "Shelf",
+  lineSlot: "Slot",
+  lineOnu: "ONU",
+  lineRow: "صف البورت",
+  lineColumn: "عمود البورت",
   serviceOrderId: "رقم أمر الخدمة",
   workOrderId: "رقم أمر الشغل",
   customerOrderId: "رقم طلب العميل",
@@ -102,6 +128,11 @@ const VALUE_LABELS: Record<string, string> = {
   externalResponseAt: "تاريخ رد الشئون الخارجية",
   respExternalName: "مسئول الشئون الخارجية",
   respExternalRejectionReason: "سبب رد الشئون الخارجية",
+  respExternalCentralName: "سنترال رد الشئون الخارجية",
+  respExternalCabinNumber: "كابينة رد الشئون الخارجية",
+  respExternalBoxNumber: "بوكس رد الشئون الخارجية",
+  respExternalNearestBoxDistance: "المسافة لأقرب بوكس في رد الخارجية",
+  respExternalAdditionalNotes: "ملاحظات رد الشئون الخارجية",
   respTechName: "الفني الذي رد",
   respStatus: "حالة الرد",
   respRejectionReason: "سبب رد الفني",
@@ -330,7 +361,16 @@ export function InspectionFollowupReport() {
   });
 
   const omExternalResponse = useMutation({
-    mutationFn: async (body: { serialNumber: string; isFeasible: boolean; rejectionReason?: string }) => {
+    mutationFn: async (body: {
+      serialNumber: string;
+      isFeasible: boolean;
+      rejectionReason?: string;
+      centralName?: string | null;
+      cabinNumber?: string | null;
+      boxNumber?: string | null;
+      nearestBoxDistance?: string | null;
+      additionalNotes?: string | null;
+    }) => {
       const response = await fetch("/api/om-rejections/external-response", {
         method: "POST",
         credentials: "include",
@@ -348,18 +388,18 @@ export function InspectionFollowupReport() {
     onError: (error: Error) => toast({ title: error.message, variant: "destructive" }),
   });
 
-  const submitExternalReason = (serialNumber: string, values: TechActionValues, done: () => void) => {
-    const rejectionReason = [
-      values.rejectionReason,
-      values.additionalNotes && `ملاحظات: ${values.additionalNotes}`,
-      values.centralName && `السنترال: ${values.centralName}`,
-      values.cabinNumber && `الكابينة: ${values.cabinNumber}`,
-      values.boxNumber && `البوكس: ${values.boxNumber}`,
-      values.nearestBoxDistance && `المسافة: ${values.nearestBoxDistance}`,
-    ].filter(Boolean).join(" — ");
-    if (!rejectionReason) return;
+  const submitExternalResponse = (serialNumber: string, values: TechActionValues, done: () => void) => {
     omExternalResponse.mutate(
-      { serialNumber, isFeasible: false, rejectionReason },
+      {
+        serialNumber,
+        isFeasible: values.isFeasible,
+        rejectionReason: values.rejectionReason ?? undefined,
+        centralName: values.centralName,
+        cabinNumber: values.cabinNumber,
+        boxNumber: values.boxNumber,
+        nearestBoxDistance: values.nearestBoxDistance,
+        additionalNotes: values.additionalNotes,
+      },
       { onSuccess: done },
     );
   };
@@ -486,7 +526,9 @@ export function InspectionFollowupReport() {
                       const data = row.sourceData || {};
                       const customerName = fieldValue(data, ["customerName", "customer_name", "name"]);
                       const sameRejectionReason = String(fieldValue(data, ["respRejectionReason"]) || "").trim();
-                      const mobile = fieldValue(data, ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
+                      const mobile = fieldValue(data, currentSection === "installations"
+                        ? ["customerMobile", "mobile", "customer_phone"]
+                        : ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
                       const dialableMobile = currentSection === "installations" ? dialMobile(mobile) : "";
                       const address = fieldValue(data, ["address", "customerAddress", "customer_address"]);
                       const inspectionId = fieldValue(data, ["inspectionId", "inspection_id"]);
@@ -544,13 +586,18 @@ export function InspectionFollowupReport() {
                               {row.reviewNotes && <div>ملاحظات: {row.reviewNotes}</div>}
                             </div>)}
                             {currentSection === "om" && canReplyExternal && fieldValue(data, ["respStatus"]) === "needs_external" && <div className="flex flex-wrap gap-2">
-                              <Button size="sm" variant="outline" disabled={omExternalResponse.isPending} className="min-h-10 border-teal-300 px-3 text-xs text-teal-800" onClick={() => omExternalResponse.mutate({ serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey), isFeasible: true })}>يمكن التنفيذ</Button>
+                              <TechActionModal
+                                action="feasible"
+                                triggerLabel="يمكن التنفيذ"
+                                submitting={omExternalResponse.isPending}
+                                onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
+                              />
                               {sameRejectionReason && <Button size="sm" variant="outline" disabled={omExternalResponse.isPending} className="min-h-10 border-amber-300 px-3 text-xs text-amber-900" data-testid={`button-confirm-same-reason-${row.id}-mobile`} onClick={() => omExternalResponse.mutate({ serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey), isFeasible: false, rejectionReason: sameRejectionReason })}>تأكيد نفس سبب التعذر</Button>}
                               <TechActionModal
                                 action="not_feasible"
                                 triggerLabel="سبب تعذر آخر"
                                 submitting={omExternalResponse.isPending}
-                                onSubmit={(values, done) => submitExternalReason(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
+                                onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
                               />
                             </div>}
                             {!readOnly && <details className="rounded-lg border border-slate-200 bg-white">
@@ -562,7 +609,7 @@ export function InspectionFollowupReport() {
                             </details>}
                             {!readOnly && <div className="flex flex-wrap gap-2">
                               <Button variant="outline" size="sm" className="min-h-10 gap-1.5 border-slate-300 px-3" onClick={() => setSelectedRow(row)} data-testid={`button-details-${row.id}-mobile`}>تفاصيل كاملة <ArrowUpLeft className="h-3.5 w-3.5" /></Button>
-                              {currentSection === "maintenance" && inspectionId != null && <a href={`/maintenance/inspector/${encodeURIComponent(String(inspectionId))}`} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800" data-testid={`link-inspection-${row.id}-mobile`}>فتح المعاينة</a>}
+                              {currentSection === "maintenance" && inspectionId != null && <a href={`/maintenance/inspector/${encodeURIComponent(String(inspectionId))}?returnTo=inspection-followup`} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800" data-testid={`link-inspection-${row.id}-mobile`}>فتح المعاينة</a>}
                             </div>}
                           </div>
                         </article>
@@ -586,7 +633,9 @@ export function InspectionFollowupReport() {
                           const data = row.sourceData || {};
                           const customerName = fieldValue(data, ["customerName", "customer_name", "name"]);
                           const sameRejectionReason = String(fieldValue(data, ["respRejectionReason"]) || "").trim();
-                          const mobile = fieldValue(data, ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
+                          const mobile = fieldValue(data, currentSection === "installations"
+                            ? ["customerMobile", "mobile", "customer_phone"]
+                            : ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
                           const dialableMobile = currentSection === "installations" ? dialMobile(mobile) : "";
                           const address = fieldValue(data, ["address", "customerAddress", "customer_address"]);
                           const fields = contentFields(row);
@@ -673,12 +722,12 @@ export function InspectionFollowupReport() {
                                   <div className="mt-2 flex flex-wrap gap-1">
                                     {fieldValue(data, ["respStatus"]) === "needs_external" && (
                                       <>
-                                        <Button
-                                          size="sm" variant="outline"
-                                          disabled={omExternalResponse.isPending}
-                                          className="h-7 border-teal-300 px-2 text-[10px] text-teal-800"
-                                          onClick={() => omExternalResponse.mutate({ serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey), isFeasible: true })}
-                                        >يمكن التنفيذ</Button>
+                                        <TechActionModal
+                                          action="feasible"
+                                          triggerLabel="يمكن التنفيذ"
+                                          submitting={omExternalResponse.isPending}
+                                          onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
+                                        />
                                         {sameRejectionReason && (
                                           <Button
                                             size="sm" variant="outline"
@@ -696,7 +745,7 @@ export function InspectionFollowupReport() {
                                           action="not_feasible"
                                           triggerLabel="سبب تعذر آخر"
                                           submitting={omExternalResponse.isPending}
-                                          onSubmit={(values, done) => submitExternalReason(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
+                                          onSubmit={(values, done) => submitExternalResponse(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
                                         />
                                       </>
                                     )}
@@ -750,7 +799,7 @@ export function InspectionFollowupReport() {
                                   </Button>
                                   {currentSection === "maintenance" && inspectionId != null && (
                                     <a
-                                      href={`/maintenance/inspector/${encodeURIComponent(String(inspectionId))}`}
+                                      href={`/maintenance/inspector/${encodeURIComponent(String(inspectionId))}?returnTo=inspection-followup`}
                                       className="inline-flex h-8 items-center gap-1.5 rounded-md border border-teal-200 bg-teal-50 px-2.5 text-xs font-semibold text-teal-800 hover:bg-teal-100"
                                       data-testid={`link-inspection-${row.id}`}
                                     >

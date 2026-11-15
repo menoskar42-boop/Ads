@@ -14,11 +14,12 @@
 </head>
 <body>
 <% if (typeof user !== "undefined" && user) { %>
+<% var backToFollowupReport = typeof returnToFollowup !== "undefined" && returnToFollowup; %>
 <nav class="navbar navbar-expand-md navbar-dark bg-primary">
   <div class="container-fluid">
     <a class="navbar-brand fw-bold" href="/"><i class="bi bi-box-seam me-1"></i> نظام صيانة البوكسات</a>
-    <a class="btn btn-light btn-sm fw-bold text-primary text-nowrap me-2" id="sfHomeLink" href="#" title="العودة إلى Service-Flow">
-      <i class="bi bi-box-arrow-in-right"></i> العودة إلى Service-Flow
+    <a class="btn btn-light btn-sm fw-bold text-primary text-nowrap me-2" id="sfHomeLink" href="#" data-return-to-followup="<%= backToFollowupReport ? 'true' : 'false' %>" title="<%= backToFollowupReport ? 'العودة إلى تقرير المتابعة' : 'العودة إلى Service-Flow' %>">
+      <i class="bi bi-box-arrow-in-right"></i> <%= backToFollowupReport ? 'العودة إلى تقرير المتابعة' : 'العودة إلى Service-Flow' %>
     </a>
     <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#nav" style="padding:.4rem .6rem">
       <span class="navbar-toggler-icon"></span>
@@ -70,7 +71,19 @@
   // نضبط رابط العودة على مسار Service-Flow المبني تحت نفس الدومين.
   (function () {
     var l = document.getElementById('sfHomeLink');
-    if (l) l.setAttribute('href', location.origin + '/serviceflow/');
+    if (!l) return;
+    l.setAttribute('href', location.origin + '/serviceflow/');
+    if (l.getAttribute('data-return-to-followup') === 'true') {
+      l.addEventListener('click', function (event) {
+        try {
+          var previous = new URL(document.referrer);
+          if (previous.origin === location.origin && previous.pathname.indexOf('/serviceflow/') === 0) {
+            event.preventDefault();
+            window.history.back();
+          }
+        } catch (_) {}
+      });
+    }
   })();
 </script>
 <% } %>

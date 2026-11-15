@@ -243,6 +243,7 @@ router.get('/:id', inspectorOrAdmin, async (req, res) => {
         itemStatusMap,
         task,
         prelimReady,
+        returnToFollowup: req.query.returnTo === 'inspection-followup',
       });
     }
     const inspection = await db.get(`SELECT i.*, b.number as box_number, b.id as box_id, b.status as box_status,
@@ -281,7 +282,7 @@ router.get('/:id', inspectorOrAdmin, async (req, res) => {
     const prelimReady = !!task && relevant.length > 0 &&
       relevant.every(it => itemStatusMap[it.item_key] && itemStatusMap[it.item_key].is_done);
 
-    res.render('inspector/detail', { title: `تفاصيل الفحص #${req.params.id}`, inspection, items, photos, afterPhotos, beforeVideos, afterVideos, checklist: CHECKLIST, itemStatusMap, task, prelimReady });
+    res.render('inspector/detail', { title: `تفاصيل الفحص #${req.params.id}`, inspection, items, photos, afterPhotos, beforeVideos, afterVideos, checklist: CHECKLIST, itemStatusMap, task, prelimReady, returnToFollowup: req.query.returnTo === 'inspection-followup' });
   } catch (e) {
     console.error('inspector detail error:', e.message);
     res.status(500).render('error', { title: 'خطأ', message: 'حدث خطأ أثناء تحميل تفاصيل الفحص. حاول مرة أخرى.' });
