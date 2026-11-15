@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { TechActionModal, type TechActionValues } from "@/components/TechActionModal";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -347,6 +348,22 @@ export function InspectionFollowupReport() {
     onError: (error: Error) => toast({ title: error.message, variant: "destructive" }),
   });
 
+  const submitExternalReason = (serialNumber: string, values: TechActionValues, done: () => void) => {
+    const rejectionReason = [
+      values.rejectionReason,
+      values.additionalNotes && `ملاحظات: ${values.additionalNotes}`,
+      values.centralName && `السنترال: ${values.centralName}`,
+      values.cabinNumber && `الكابينة: ${values.cabinNumber}`,
+      values.boxNumber && `البوكس: ${values.boxNumber}`,
+      values.nearestBoxDistance && `المسافة: ${values.nearestBoxDistance}`,
+    ].filter(Boolean).join(" — ");
+    if (!rejectionReason) return;
+    omExternalResponse.mutate(
+      { serialNumber, isFeasible: false, rejectionReason },
+      { onSuccess: done },
+    );
+  };
+
   const responseData = followupQuery.data;
   const rows = responseData?.rows ?? [];
   const contentFields = (row: FollowupRow) => {
@@ -468,6 +485,7 @@ export function InspectionFollowupReport() {
                     {rows.map((row, index) => {
                       const data = row.sourceData || {};
                       const customerName = fieldValue(data, ["customerName", "customer_name", "name"]);
+                      const sameRejectionReason = String(fieldValue(data, ["respRejectionReason"]) || "").trim();
                       const mobile = fieldValue(data, ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
                       const dialableMobile = currentSection === "installations" ? dialMobile(mobile) : "";
                       const address = fieldValue(data, ["address", "customerAddress", "customer_address"]);
@@ -527,7 +545,13 @@ export function InspectionFollowupReport() {
                             </div>)}
                             {currentSection === "om" && canReplyExternal && fieldValue(data, ["respStatus"]) === "needs_external" && <div className="flex flex-wrap gap-2">
                               <Button size="sm" variant="outline" disabled={omExternalResponse.isPending} className="min-h-10 border-teal-300 px-3 text-xs text-teal-800" onClick={() => omExternalResponse.mutate({ serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey), isFeasible: true })}>يمكن التنفيذ</Button>
-                              <Button size="sm" variant="outline" disabled={omExternalResponse.isPending} className="min-h-10 border-rose-300 px-3 text-xs text-rose-800" onClick={() => { const reason = window.prompt("سبب التعذر من الشئون الخارجية:"); if (reason?.trim()) omExternalResponse.mutate({ serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey), isFeasible: false, rejectionReason: reason.trim() }); }}>سبب تعذر آخر</Button>
+                              {sameRejectionReason && <Button size="sm" variant="outline" disabled={omExternalResponse.isPending} className="min-h-10 border-amber-300 px-3 text-xs text-amber-900" data-testid={`button-confirm-same-reason-${row.id}-mobile`} onClick={() => omExternalResponse.mutate({ serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey), isFeasible: false, rejectionReason: sameRejectionReason })}>تأكيد نفس سبب التعذر</Button>}
+                              <TechActionModal
+                                action="not_feasible"
+                                triggerLabel="سبب تعذر آخر"
+                                submitting={omExternalResponse.isPending}
+                                onSubmit={(values, done) => submitExternalReason(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
+                              />
                             </div>}
                             {!readOnly && <details className="rounded-lg border border-slate-200 bg-white">
                               <summary className="cursor-pointer list-none px-3 py-3 text-xs font-semibold text-teal-800">تفاصيل أمر الشغل والتقرير <span className="float-left">＋</span></summary>
@@ -561,6 +585,7 @@ export function InspectionFollowupReport() {
                         {rows.map((row, index) => {
                           const data = row.sourceData || {};
                           const customerName = fieldValue(data, ["customerName", "customer_name", "name"]);
+                          const sameRejectionReason = String(fieldValue(data, ["respRejectionReason"]) || "").trim();
                           const mobile = fieldValue(data, ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
                           const dialableMobile = currentSection === "installations" ? dialMobile(mobile) : "";
                           const address = fieldValue(data, ["address", "customerAddress", "customer_address"]);
@@ -654,18 +679,25 @@ export function InspectionFollowupReport() {
                                           className="h-7 border-teal-300 px-2 text-[10px] text-teal-800"
                                           onClick={() => omExternalResponse.mutate({ serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey), isFeasible: true })}
                                         >يمكن التنفيذ</Button>
-                                        <Button
-                                          size="sm" variant="outline"
-                                          disabled={omExternalResponse.isPending}
-                                          className="h-7 border-rose-300 px-2 text-[10px] text-rose-800"
-                                          onClick={() => {
-                                            const reason = window.prompt("سبب التعذر من الشئون الخارجية:");
-                                            if (reason?.trim()) omExternalResponse.mutate({
+                                        {sameRejectionReason && (
+                                          <Button
+                                            size="sm" variant="outline"
+                                            disabled={omExternalResponse.isPending}
+                                            className="h-7 border-amber-300 px-2 text-[10px] text-amber-900"
+                                            data-testid={`button-confirm-same-reason-${row.id}`}
+                                            onClick={() => omExternalResponse.mutate({
                                               serialNumber: String(fieldValue(data, ["serialNumber"]) || row.sourceKey),
-                                              isFeasible: false, rejectionReason: reason.trim(),
-                                            });
-                                          }}
-                                        >سبب تعذر آخر</Button>
+                                              isFeasible: false,
+                                              rejectionReason: sameRejectionReason,
+                                            })}
+                                          >تأكيد نفس سبب التعذر</Button>
+                                        )}
+                                        <TechActionModal
+                                          action="not_feasible"
+                                          triggerLabel="سبب تعذر آخر"
+                                          submitting={omExternalResponse.isPending}
+                                          onSubmit={(values, done) => submitExternalReason(String(fieldValue(data, ["serialNumber"]) || row.sourceKey), values, done)}
+                                        />
                                       </>
                                     )}
                                   </div>
