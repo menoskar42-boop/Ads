@@ -125,7 +125,11 @@ export function InspectionFollowupProgressReport() {
   const total = items.reduce((sum, item) => sum + item.total, 0);
   const answered = items.reduce((sum, item) => sum + item.answered, 0);
   const pending = Math.max(0, total - answered);
-  const percent = total ? Math.round((answered * 100) / total) : 0;
+  const progressPoints = items.reduce(
+    (sum, item) => sum + (item.total ? (item.answered / item.total) * 25 : 0),
+    0,
+  );
+  const progressLabel = progressPoints.toLocaleString("ar-EG", { maximumFractionDigits: 1 });
 
   return (
     <div className="space-y-4 text-slate-800" dir="rtl">
@@ -172,7 +176,7 @@ export function InspectionFollowupProgressReport() {
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold text-teal-100">إنجاز المتابعة الكلي</div>
-                <div className="mt-1 text-3xl font-bold">{percent}%</div>
+                <div className="mt-1 text-3xl font-bold">{progressLabel} <span className="text-base font-semibold text-teal-100">/ 100 نقطة</span></div>
                 <div className="mt-1 text-xs text-teal-100">
                   تم الرد على {answered.toLocaleString("ar-EG")} من {total.toLocaleString("ar-EG")} سجل
                 </div>
@@ -182,8 +186,8 @@ export function InspectionFollowupProgressReport() {
                 <div className="mt-1">الأقسام: <b>{items.length}</b></div>
               </div>
             </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-teal-950/50" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
-              <div className="h-full rounded-full bg-emerald-300 transition-all" style={{ width: `${percent}%` }} />
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-teal-950/50" role="progressbar" aria-valuenow={Math.min(100, progressPoints)} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-emerald-300 transition-all" style={{ width: `${Math.min(100, progressPoints)}%` }} />
             </div>
           </Card>
 
@@ -191,12 +195,16 @@ export function InspectionFollowupProgressReport() {
             {items.map((item) => {
               const remaining = Math.max(0, item.total - item.answered);
               const itemPercent = item.total ? Math.round((item.answered * 100) / item.total) : 0;
+              const itemPoints = item.total ? (item.answered / item.total) * 25 : 0;
               return (
                 <Card key={item.key} className="space-y-3 border-slate-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-bold text-slate-900">{item.label}</h3>
                     <span className="rounded-full bg-teal-50 px-2.5 py-1 text-sm font-bold text-teal-800">{itemPercent}%</span>
                   </div>
+                  <p className="text-xs font-semibold text-slate-600">
+                    مساهمة القسم: {itemPoints.toLocaleString("ar-EG", { maximumFractionDigits: 1 })} من 25 نقطة
+                  </p>
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="rounded-lg bg-slate-50 p-2">
                       <div className="text-lg font-bold text-slate-900">{item.total.toLocaleString("ar-EG")}</div>
