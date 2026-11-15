@@ -22,28 +22,6 @@ const cairoMonth = (date: Date) => {
   return `${year}-${month}`;
 };
 
-const randomSampleByTech = (rows: any[], ratio: number, prefer?: (row: any) => boolean) => {
-  const groups = new Map<string, any[]>();
-  for (const row of rows) {
-    const name = String(row.technicianName || row.techName || "غير معروف").trim() || "غير معروف";
-    const list = groups.get(name) ?? [];
-    list.push(row);
-    groups.set(name, list);
-  }
-  const chosen: any[] = [];
-  for (const [name, group] of groups) {
-    const shuffled = [...group];
-    for (let i = shuffled.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    if (prefer) shuffled.sort((a, b) => Number(prefer(b)) - Number(prefer(a)));
-    const count = Math.min(group.length, Math.max(1, Math.ceil(group.length * ratio)));
-    chosen.push(...shuffled.slice(0, count).map((row) => ({ ...row, technicianName: name })));
-  }
-  return chosen;
-};
-
 export function registerInspectionFollowup(app: Express, d: Deps) {
   const canView = (role: string) => [
     ROLES.TECH, ROLES.EXTERNAL, ROLES.ADMIN, ROLES.SUPER_ADMIN,
@@ -187,21 +165,51 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
       await client.query("BEGIN");
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`inspection-followup:${month}:${section}`]);
       const initialized = await client.query(
-        `SELECT 1 FROM inspection_followup_sections WHERE report_month=$1 AND section=$2`,
+        `SELECT sampling_version FROM inspection_followup_sections WHERE report_month=$1 AND section=$2`,
         [month, section],
       );
-      if (!initialized.rowCount) {
+      // OM والعينات التركيبية لها مراجعة نسخة مستقلة؛ الترقية تضيف النواقص
+      // لكل فني وتحافظ على العناصر التي سبق فحصها.
+      const samplingVersion = section === "maintenance" ? 1 : 2;
+      if (!initialized.rowCount || Number(initialized.rows[0]?.sampling_version || 1) < samplingVersion) {
         const sampledAlready = await client.query(
-          `SELECT 1 FROM inspection_followup_items
-            WHERE report_month=$1 AND section=$2 AND is_manual=false LIMIT 1`,
+          `SELECT source_key AS "sourceKey", technician_name AS "technicianName"
+             FROM inspection_followup_items
+            WHERE report_month=$1 AND section=$2 AND is_manual=false`,
           [month, section],
         );
-        if (!sampledAlready.rowCount) {
-        const sample = randomSampleByTech(
-          rows,
-          ratio,
-          section === "om" ? (row) => Boolean(row.respRespondedAt) : undefined,
-        );
+        const existingByTech = new Map<string, Set<string>>();
+        for (const item of sampledAlready.rows) {
+          const techName = String(item.technicianName || "غير معروف");
+          const keys = existingByTech.get(techName) ?? new Set<string>();
+          keys.add(String(item.sourceKey));
+          existingByTech.set(techName, keys);
+        }
+        const grouped = new Map<string, any[]>();
+        for (const row of rows) {
+          const techName = String(row.technicianName || row.techName || "غير معروف").trim() || "غير معروف";
+          const group = grouped.get(techName) ?? [];
+          group.push({ ...row, technicianName: techName });
+          grouped.set(techName, group);
+        }
+        const sample: any[] = [];
+        for (const [techName, group] of grouped) {
+          const existingKeys = existingByTech.get(techName) ?? new Set<string>();
+          const currentKeys = new Set(group.map((row) => String(row.sourceKey)));
+          const existingCount = [...existingKeys].filter((key) => currentKeys.has(key)).length;
+          const target = Math.min(group.length, Math.max(1, Math.ceil(group.length * ratio)));
+          const needed = Math.max(0, target - existingCount);
+          if (!needed) continue;
+          const candidates = group.filter((row) => !existingKeys.has(String(row.sourceKey)));
+          for (let i = candidates.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+          }
+          if (section === "om") {
+            candidates.sort((a, b) => Number(Boolean(b.respRespondedAt)) - Number(Boolean(a.respRespondedAt)));
+          }
+          sample.push(...candidates.slice(0, needed));
+        }
         for (const row of sample) {
           await client.query(
             `INSERT INTO inspection_followup_items
@@ -211,11 +219,30 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
             [month, section, row.sourceKey, row.technicianName || row.techName || "غير معروف", JSON.stringify(row)],
           );
         }
+        if (section === "om") {
+          const currentKeys = new Set(rows.map((row) => String(row.sourceKey)));
+          const assignedKeys = [...new Set([
+            ...sampledAlready.rows.map((item: any) => String(item.sourceKey)).filter((key: string) => currentKeys.has(key)),
+            ...sample.map((row) => String(row.sourceKey)),
+          ])];
+          if (assignedKeys.length) {
+            await client.query(
+              `INSERT INTO om_responses (serial_number,status,updated_at)
+               SELECT serial,'needs_external',now() FROM unnest($1::text[]) AS x(serial)
+               ON CONFLICT (serial_number) DO UPDATE
+                 SET status='needs_external', updated_at=now()
+               WHERE om_responses.status IN ('pending','feasible','not_feasible')
+                 AND om_responses.external_response_at IS NULL`,
+              [assignedKeys],
+            );
+          }
         }
         await client.query(
-          `INSERT INTO inspection_followup_sections (report_month,section)
-           VALUES ($1,$2) ON CONFLICT DO NOTHING`,
-          [month, section],
+          `INSERT INTO inspection_followup_sections (report_month,section,sampling_version)
+           VALUES ($1,$2,$3)
+           ON CONFLICT (report_month,section)
+           DO UPDATE SET sampling_version=EXCLUDED.sampling_version, initialized_at=now()`,
+          [month, section, samplingVersion],
         );
       }
       await client.query("COMMIT");
@@ -237,14 +264,15 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
     const month = String(req.query.month || cairoMonth(new Date()));
     if (!validMonth(month)) return res.status(400).json({ message: "الشهر غير صالح" });
     try {
-      const ratio = section === "maintenance" ? 0.5 : section === "om" ? 0.2 : 0.1;
+      const ratio = section === "maintenance" ? 0.5 : section === "om" ? 0.5 : 0.1;
       const cached = await d.pool.query(
-        `SELECT 1 FROM inspection_followup_sections WHERE report_month=$1 AND section=$2`,
+        `SELECT sampling_version FROM inspection_followup_sections WHERE report_month=$1 AND section=$2`,
         [month, section],
       );
-      if (!cached.rowCount) {
+      const targetVersion = section === "maintenance" ? 1 : 2;
+      if (!cached.rowCount || Number(cached.rows[0]?.sampling_version || 1) < targetVersion) {
         const rows = await loadSourceRows(section, month);
-        await ensureSectionSamples(section, month, rows, ratio);
+        await ensureSectionSamples(section, month, rows, section === "om" ? 0.5 : ratio);
       }
       const { rows: selected } = await d.pool.query(
         `SELECT id, report_month AS "reportMonth", section, source_key AS "sourceKey",

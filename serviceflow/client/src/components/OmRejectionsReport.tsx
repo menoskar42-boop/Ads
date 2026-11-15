@@ -158,6 +158,23 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
     } finally { setRespBusy(null); }
   };
 
+  const addOmToInspectionFollowup = async (serial: string, status: string) => {
+    setRespBusy(serial);
+    try {
+      await apiRequest("POST", "/api/inspection-followup/om-extra", { serialNumber: serial });
+      if (!["needs_external", "external_feasible", "external_not_feasible"].includes(status)) {
+        await apiRequest("POST", "/api/om-rejections/request-external", { serialNumber: serial });
+      }
+      qc.invalidateQueries({ queryKey: ["/api/ftth-orders"] });
+      qc.invalidateQueries({ queryKey: ["/api/inspection-followup"] });
+      toast({ title: "تمت إضافة المتعذر للمراجعة الخارجية" });
+    } catch (e: any) {
+      toast({ title: e?.message || "تعذرت إضافة المتعذر للمراجعة", variant: "destructive" });
+    } finally {
+      setRespBusy(null);
+    }
+  };
+
   // المالك ٢٠٢٦-١٠-١٢: رد الفنى بيظهر كمان فى «متعذرات بداية السنة» و«متعذرات تم فكها» زى
   // الحالية — للعرض بس (الرد والإجراءات لسه على الحالية بس)، واللى مالوش رد بيبان «-».
   const showResp = bucket === "current" || bucket === "soy" || bucket === "resolved" || bucket === "target112";
@@ -247,11 +264,11 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
             <TechActionModal action="not_feasible" onSubmit={submit} submitting={busy} />
           </>
         )}
-        {/* تحويل للشئون الخارجية للفحص — سوبر أدمن، بعد ما الفنى يقول «لا يمكن» */}
-        {isSuperAdmin && st === "not_feasible" && (
+        {/* السوبر أدمن يختار أي متعذر حالي لإضافته يدوياً إلى تقرير المتابعة */}
+        {bucket === "current" && isSuperAdmin && (
           <Button variant="outline" size="sm" disabled={busy}
             className="text-yellow-600 border-yellow-300 hover:bg-yellow-50"
-            onClick={() => postResp("/api/om-rejections/request-external", { serialNumber: serial }, "تم التحويل للشئون الخارجية")}>
+            onClick={() => addOmToInspectionFollowup(serial, st)}>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "تحويل للشئون الخارجية"}
           </Button>
         )}

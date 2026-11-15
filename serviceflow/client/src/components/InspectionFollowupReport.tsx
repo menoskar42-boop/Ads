@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
-import { AlertCircle, ArrowUpLeft, Check, ClipboardCheck, Loader2, Plus, RefreshCw, Wrench } from "lucide-react";
+import { AlertCircle, ArrowUpLeft, Check, ClipboardCheck, Loader2, Phone, RefreshCw, Wrench } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -48,8 +47,8 @@ const SECTION_META: Record<Section, { label: string; title: string; description:
     description: "مراجعة بيانات الصيانة وربط كل سجل بمعاينته الأصلية.",
   },
   om: {
-    label: "متعذرات OM",
-    title: "عوائق OM الحالية",
+    label: "عينة متعذرات",
+    title: "عينة متعذرات",
     description: "بيانات العميل وأمر الشغل وردود الفني والشئون الخارجية في سجل واحد.",
   },
   installations: {
@@ -91,6 +90,8 @@ const VALUE_LABELS: Record<string, string> = {
   status: "الحالة",
   stage: "المرحلة",
   priority: "الأولوية",
+  dpTerminal: "طرفية DP",
+  workerCode: "كود الفني",
   description: "الوصف",
   currentActivity: "النشاط الحالي",
   errorName: "سبب التعذر",
@@ -133,6 +134,16 @@ const PRIMARY_FIELDS = [
   ["workOrderId", "رقم أمر الشغل"],
   ["customerOrderId", "رقم طلب العميل"],
   ["workOrderType", "نوع أمر الشغل"],
+  ["stage", "مرحلة أمر الشغل"],
+  ["status", "حالة أمر الشغل"],
+  ["priority", "أولوية أمر الشغل"],
+  ["cabinetNo", "الكابينة"],
+  ["boxNo", "البكس"],
+  ["dpTerminal", "طرفية DP"],
+  ["workerCode", "كود الفني"],
+  ["creationDate", "تاريخ إنشاء أمر الشغل"],
+  ["description", "وصف أمر الشغل"],
+  ["referenceNo", "المرجع"],
   ["exchangeName", "السنترال / جهة الصرف"],
   ["centralName", "السنترال"],
   ["technicianName", "الفني"],
@@ -187,6 +198,11 @@ const fieldValue = (data: SourceData, names: readonly string[]) => {
     if (value != null && value !== "") return value;
   }
   return null;
+};
+
+const dialMobile = (value: unknown) => {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits ? (digits.startsWith("0") ? digits : `0${digits}`) : "";
 };
 
 const valueLabel = (key: string) => VALUE_LABELS[key] ?? key.replace(/([a-z])([A-Z])/g, "$1 $2");
@@ -268,11 +284,8 @@ export function InspectionFollowupReport() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Section | "repeated">("repeated");
   const [month, setMonth] = useState(currentCairoMonth);
-  const [serialNumber, setSerialNumber] = useState("");
   const [selectedRow, setSelectedRow] = useState<FollowupRow | null>(null);
   const [drafts, setDrafts] = useState<Record<number, ReviewDraft>>({});
-  const isSuperAdmin = user?.role === ROLES.SUPER_ADMIN;
-
   const section = activeTab === "repeated" ? null : activeTab;
   const sectionQueryKey = (target: Section, selectedMonth = month) => ["/api/inspection-followup", target, selectedMonth] as const;
   const followupQuery = useQuery<FollowupResponse>({
@@ -334,47 +347,6 @@ export function InspectionFollowupReport() {
     onError: (error: Error) => toast({ title: error.message, variant: "destructive" }),
   });
 
-  const requestOmExternal = useMutation({
-    mutationFn: async (serialNumber: string) => {
-      const response = await fetch("/api/om-rejections/request-external", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serialNumber }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.message || "تعذر تحويل المتعذر للشئون الخارجية");
-      return payload;
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: sectionQueryKey("om") });
-      toast({ title: "تم تحويل المتعذر للشئون الخارجية" });
-    },
-    onError: (error: Error) => toast({ title: error.message, variant: "destructive" }),
-  });
-
-  const addManual = useMutation({
-    mutationFn: async () => {
-      const response = await fetch("/api/inspection-followup/om-extra", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month, serialNumber: serialNumber.trim() }),
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.message || "تعذر إضافة المسلسل");
-      }
-      return response.json();
-    },
-    onSuccess: async () => {
-      setSerialNumber("");
-      await queryClient.invalidateQueries({ queryKey: sectionQueryKey("om") });
-      toast({ title: "تمت إضافة المسلسل للمتابعة" });
-    },
-    onError: (error: Error) => toast({ title: error.message || "تعذر إضافة المسلسل", variant: "destructive" }),
-  });
-
   const responseData = followupQuery.data;
   const rows = responseData?.rows ?? [];
   const contentFields = (row: FollowupRow) => {
@@ -423,7 +395,7 @@ export function InspectionFollowupReport() {
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-[#e9efeb] p-1 sm:grid-cols-4">
           <TabsTrigger value="repeated" className="min-h-10 text-xs sm:text-sm" data-testid="tab-repeated">الأعطال المكررة خلال الشهر</TabsTrigger>
           <TabsTrigger value="maintenance" className="min-h-10 text-xs sm:text-sm" data-testid="tab-maintenance">صيانة البوكسات</TabsTrigger>
-          <TabsTrigger value="om" className="min-h-10 text-xs sm:text-sm" data-testid="tab-om">عوائق OM الحالية</TabsTrigger>
+          <TabsTrigger value="om" className="min-h-10 text-xs sm:text-sm" data-testid="tab-om">عينة متعذرات</TabsTrigger>
           <TabsTrigger value="installations" className="min-h-10 text-xs sm:text-sm" data-testid="tab-installations">التركيبات الحالية</TabsTrigger>
         </TabsList>
 
@@ -464,30 +436,6 @@ export function InspectionFollowupReport() {
                   </div>
                 )}
               </div>
-
-              {currentSection === "om" && isSuperAdmin && (
-                <form
-                  className="flex flex-col gap-2 rounded-lg border border-teal-200 bg-[#f1f7f4] p-3 sm:flex-row sm:items-end"
-                  onSubmit={(event) => { event.preventDefault(); if (serialNumber.trim()) addManual.mutate(); }}
-                  data-testid="form-add-om-serial"
-                >
-                  <label className="flex flex-1 flex-col gap-1 text-xs font-semibold text-slate-600">
-                    إضافة مسلسل يدوي لهذا الشهر
-                    <Input
-                      value={serialNumber}
-                      onChange={(event) => setSerialNumber(event.target.value)}
-                      placeholder="أدخل رقم المسلسل"
-                      dir="ltr"
-                      className="bg-white"
-                      data-testid="input-om-extra-serial"
-                    />
-                  </label>
-                  <Button type="submit" disabled={!serialNumber.trim() || addManual.isPending} className="gap-2 bg-teal-800 text-white hover:bg-teal-900" data-testid="button-add-om-serial">
-                    {addManual.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    إضافة للمتابعة
-                  </Button>
-                </form>
-              )}
 
               <Card className="overflow-hidden border border-slate-200 bg-[#fffefa] shadow-sm">
                 {isError && (
@@ -532,6 +480,7 @@ export function InspectionFollowupReport() {
                           const data = row.sourceData || {};
                           const customerName = fieldValue(data, ["customerName", "customer_name", "name"]);
                           const mobile = fieldValue(data, ["customerMobile", "mobile", "phoneNumber", "phone", "customerPhone"]);
+                          const dialableMobile = currentSection === "installations" ? dialMobile(mobile) : "";
                           const address = fieldValue(data, ["address", "customerAddress", "customer_address"]);
                           const fields = contentFields(row);
                           const draft = draftFor(row);
@@ -568,7 +517,17 @@ export function InspectionFollowupReport() {
                                 ) : (
                                   <div className="space-y-1.5">
                                     <div className="font-semibold text-slate-900">{displayValue(customerName)}</div>
-                                    <div className="font-mono text-[11px] text-teal-800" dir="ltr">{displayValue(mobile)}</div>
+                                    <div className="inline-flex items-center gap-2" dir="ltr">
+                                      <span className="font-mono text-[11px] text-teal-800">{displayValue(mobile)}</span>
+                                      {dialableMobile && (
+                                        <a href={`tel:${dialableMobile}`}
+                                          title={`اتصال بالعميل: ${dialableMobile}`}
+                                          aria-label={`اتصال بالعميل: ${dialableMobile}`}
+                                          className="md:hidden inline-flex items-center gap-1 rounded border border-emerald-300 px-1.5 py-0.5 text-[11px] text-emerald-700 hover:bg-emerald-50">
+                                          <Phone className="h-3 w-3" /> اتصال
+                                        </a>
+                                      )}
+                                    </div>
                                     <div className="max-w-[270px] whitespace-normal break-words text-[11px] leading-4 text-slate-600">{displayValue(address)}</div>
                                   </div>
                                 )}
@@ -581,7 +540,7 @@ export function InspectionFollowupReport() {
                                   </div>
                                 ) : (
                                   <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
-                                    {fields.slice(0, 8).map((field) => (
+                                    {(currentSection === "installations" ? fields : fields.slice(0, 8)).map((field) => (
                                       <div key={field.key} className="max-w-[210px] truncate" title={`${field.label}: ${displayValue(field.value)}`}>
                                         <span className="text-slate-500">{field.label}: </span><span className="text-slate-800">{displayValue(field.value)}</span>
                                       </div>
@@ -626,14 +585,6 @@ export function InspectionFollowupReport() {
                                           }}
                                         >سبب تعذر آخر</Button>
                                       </>
-                                    )}
-                                    {isSuperAdmin && fieldValue(data, ["respStatus"]) === "not_feasible" && (
-                                      <Button
-                                        size="sm" variant="outline"
-                                        disabled={requestOmExternal.isPending}
-                                        className="h-7 border-amber-300 px-2 text-[10px] text-amber-800"
-                                        onClick={() => requestOmExternal.mutate(String(fieldValue(data, ["serialNumber"]) || row.sourceKey))}
-                                      >تحويل للشئون الخارجية</Button>
                                     )}
                                   </div>
                                 )}
@@ -684,13 +635,13 @@ export function InspectionFollowupReport() {
                                     تفاصيل كاملة <ArrowUpLeft className="h-3.5 w-3.5" />
                                   </Button>
                                   {currentSection === "maintenance" && inspectionId != null && (
-                                    <Link
+                                    <a
                                       href={`/maintenance/inspector/${encodeURIComponent(String(inspectionId))}`}
                                       className="inline-flex h-8 items-center gap-1.5 rounded-md border border-teal-200 bg-teal-50 px-2.5 text-xs font-semibold text-teal-800 hover:bg-teal-100"
                                       data-testid={`link-inspection-${row.id}`}
                                     >
                                       فتح المعاينة
-                                    </Link>
+                                    </a>
                                   )}
                                   {row.reviewedAt && currentSection !== "installations" && <span className="text-[10px] text-slate-500">مراجعة: {formatDate(row.reviewedAt)}</span>}
                                 </div>

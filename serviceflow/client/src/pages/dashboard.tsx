@@ -125,6 +125,14 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
     ],
   },
   {
+    label: "المتابعة",
+    icon: ClipboardList,
+    items: [
+      { id: "inspection-followup", label: "مهام مطلوب الفحص" },
+      { id: "installations-by-tech", label: "نسبة إنجاز التركيبات لكل فني" },
+    ],
+  },
+  {
     // مجموعة إنشاء الجداول — مخفية عن الفنيين وأدمن المبيعات وموظفى المبيعات (إدارة فقط)
     label: "إنشاء جداول",
     icon: FileText,
@@ -285,13 +293,6 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
     icon: ClipboardList,
     items: [
       { id: "inspection-reports", label: "تقارير التفتيش (سنترال + كابينة)" },
-    ],
-  },
-  {
-    label: "المتابعة",
-    icon: ClipboardList,
-    items: [
-      { id: "inspection-followup", label: "مهام مطلوب الفحص" },
     ],
   },
   {

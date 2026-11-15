@@ -2072,10 +2072,13 @@ export async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS inspection_followup_sections (
       report_month text NOT NULL CHECK (report_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
       section text NOT NULL CHECK (section IN ('maintenance','om','installations')),
+      sampling_version integer NOT NULL DEFAULT 1,
       initialized_at timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (report_month, section)
     )
   `);
+  await pool.query(`ALTER TABLE inspection_followup_sections
+    ADD COLUMN IF NOT EXISTS sampling_version integer NOT NULL DEFAULT 1`);
   await pool.query(`CREATE INDEX IF NOT EXISTS inspection_followup_month_section_idx
     ON inspection_followup_items (report_month, section, id)`);
 
