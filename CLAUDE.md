@@ -265,6 +265,10 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   (توكن Models: read بس) ⇒ أسرار `GEMINI_API_KEY` · `MISTRAL_API_KEY` · `OPENROUTER_API_KEY` · `GITHUB_MODELS_TOKEN`
   فى مشروع `sf`. `GROQ_API_KEY` موجود ومايتلمسش. مش مستخدمين فى الكود لحد ما المالك يقول هنستغلهم فى إيه.
   الصفحة: https://claude.ai/artifact/3YGLnHMhGRLdNATxSopHvZ. **Trigger:** «ابعتلي برومبت مفاتيح الـAI المجانية».
+- `docs/GA_TASK_ASSISTANT_PROMPT.md` — **برومبت الإكستنشن: Task Assistant فى Google Analytics** (٢٠٢٦-١١-١٦). Key events (OscarDevs:
+  `apply_submit` · `whatsapp_click` — الأطفال: `complete_activity` · `start_adventure`) · ربط Google Ads لو فيه حساب موجود بس ·
+  Google Signals لـOscarDevs بس (⛔ مش لموقع الأطفال). الصفحة: https://claude.ai/artifact/27E3BJP6xVXd9fRfZmr8dj.
+  **Trigger:** «ابعتلي برومبت Task Assistant».
 - `docs/EGX_PRICES_PAGE_PROMPT.md` — **برومبت الإكستنشن: صفحة أسعار البورصة المصرية** (٢٠٢٦-١١-١١، قراية بس). أسعار Yahoo
   اللحظية للبورصة المصرية واقفة من ٢٣ يوليو، فالخطة سكربت Tampermonkey يقرا الأسعار من egx.com.eg ويبعتها لـfinance
   (`/api/ingest/quotes`) وYahoo احتياطى. الإكستنشن بيلاقى الصفحة ويوصف الطلب اللى بيجيب الأسعار، من غير كوكيز ولا توكنات.
