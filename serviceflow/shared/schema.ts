@@ -1345,6 +1345,12 @@ export const omResponses = pgTable("om_responses", {
   isFeasibleExternal: boolean("is_feasible_external"),
   externalRejectionReason: text("external_rejection_reason"),
   externalResponseAt: timestamp("external_response_at", { withTimezone: true }),
+  // تفاصيل رد الشئون الخارجية منفصلة عن رد الفنى (تقرير «مهام مطلوب الفحص»)
+  externalCentralName: text("external_central_name"),
+  externalCabinNumber: text("external_cabin_number"),
+  externalBoxNumber: text("external_box_number"),
+  externalNearestBoxDistance: text("external_nearest_box_distance"),
+  externalAdditionalNotes: text("external_additional_notes"),
   // «بوكس مليان»: عدد الخطوط الشغّالة على البكس وقت الرد (+ البكس اللى اتعدّ عليه) —
   // لو العدد قلّ بعدها يبقى اتوفّرت خطوط والمتعذر يظهر فى «متعذرات تم توفير خطوط بها»
   boxWorkingAtResponse: integer("box_working_at_response"),
@@ -1354,6 +1360,32 @@ export const omResponses = pgTable("om_responses", {
 });
 
 export type OmResponse = typeof omResponses.$inferSelect;
+
+// inspection_followup_items / inspection_followup_sections — عينات «مهام مطلوب الفحص» الشهرية (تاب المتابعة).
+// نفس تعريف ensureSchema() فى server/db.ts (الـCHECK والـUNIQUE هناك).
+export const inspectionFollowupItems = pgTable("inspection_followup_items", {
+  id: serial("id").primaryKey(),
+  reportMonth: text("report_month").notNull(),
+  section: text("section").notNull(),
+  sourceKey: text("source_key").notNull(),
+  technicianName: text("technician_name"),
+  sourceData: jsonb("source_data").notNull().default({}),
+  isManual: boolean("is_manual").notNull().default(false),
+  wireDistanceMatch: text("wire_distance_match"),
+  customerWireMatch: text("customer_wire_match"),
+  reviewNotes: text("review_notes"),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ monthSectionKey: unique().on(t.reportMonth, t.section, t.sourceKey) }));
+
+export const inspectionFollowupSections = pgTable("inspection_followup_sections", {
+  reportMonth: text("report_month").notNull(),
+  section: text("section").notNull(),
+  samplingVersion: integer("sampling_version").notNull().default(1),
+  initializedAt: timestamp("initialized_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // wfm_task_cancels — سجل إلغاء إسناد المهام على WFM (مين طلبه وإمتى وعلى أى رقم)
 export const wfmTaskCancels = pgTable("wfm_task_cancels", {

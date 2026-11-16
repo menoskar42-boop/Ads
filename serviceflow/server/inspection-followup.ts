@@ -179,6 +179,10 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
               AND ii.item_key NOT IN ('electricity_conflict','air_conflict','overlap','data_review')
          ) checklist ON TRUE
         WHERE mt.technician_id IS NOT NULL
+          -- «فى انتظار تأكيد الشئون الخارجية» (أو اتختار فى عينة الشهر قبل كده واتأكد بعدها — يفضل ظاهر برده)
+          AND ((mt.prelim_confirmed_at IS NULL AND mt.status <> 'completed')
+               OR EXISTS (SELECT 1 FROM public.inspection_followup_items f
+                           WHERE f.section='maintenance' AND f.report_month=$3 AND f.source_key = mt.id::text))
           AND EXISTS (
             SELECT 1 FROM maintenance.inspection_items ii
             JOIN maintenance.maintenance_item_status mis
@@ -196,7 +200,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
               )
           )
         ORDER BY work.work_date DESC, e.name, c.number, b.number`,
-      [start, nextMonth],
+      [start, nextMonth, month],
     );
     return rows.map((row: any) => ({ ...row, sourceKey: String(row.taskId) }));
   };
@@ -212,7 +216,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
       );
       // تحديث نسخة العينة يضيف العناصر الناقصة ويحافظ على السجلات السابقة.
       const samplingVersion = section === "maintenance" ? 2 : section === "installations" ? 4 : 2;
-      if (section === "om" || !initialized.rowCount || Number(initialized.rows[0]?.sampling_version || 1) < samplingVersion) {
+      if (initialized.rowCount >= 0) {
         const sampledAlready = await client.query(
           `SELECT i.source_key AS "sourceKey", i.technician_name AS "technicianName",
                   i.is_manual AS "isManual", i.source_data AS "sourceData",
@@ -329,12 +333,10 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
           const assignedKeys = [...new Set(sample.map((row) => String(row.sourceKey)))];
           if (assignedKeys.length) {
             await client.query(
-              `INSERT INTO om_responses (serial_number,status,updated_at)
-               SELECT serial,'needs_external',now() FROM unnest($1::text[]) AS x(serial)
-               ON CONFLICT (serial_number) DO UPDATE
-                 SET status='needs_external', updated_at=now()
-               WHERE om_responses.status IN ('pending','feasible','not_feasible')
-                 AND om_responses.external_response_at IS NULL`,
+              `UPDATE om_responses SET status='needs_external', updated_at=now()
+               WHERE serial_number = ANY($1::text[])
+                 AND status IN ('feasible','not_feasible')
+                 AND external_response_at IS NULL`,
               [assignedKeys],
             );
           }
@@ -369,15 +371,17 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
       const sourceRows = section === "installations" || section === "maintenance" || section === "om"
         ? await loadSourceRows(section, month)
         : null;
+      // الصيانة ٥٠٪ · متعذرات OM ٥٠٪ (المالك ٢٠٢٦-١١-١٦: «المتعذرات خليها 50%») · التركيبات ١٠٪ (موزّعة على الفنيين)
       const ratio = section === "maintenance" ? 0.5 : section === "om" ? 0.5 : 0.1;
       const targetVersion = section === "maintenance" ? 2 : section === "installations" ? 4 : 2;
       const cached = await d.pool.query(
         `SELECT sampling_version FROM inspection_followup_sections WHERE report_month=$1 AND section=$2`,
         [month, section],
       );
-      if (section === "om" || !cached.rowCount || Number(cached.rows[0]?.sampling_version || 1) < targetVersion) {
+      // كل فتح بيكمّل العينة للنسبة المطلوبة (اللى اتعمل بعد أول فتح فى الشهر لازم يدخل) — العناصر المختارة قبل كده ثابتة
+      if (cached.rowCount >= 0 || targetVersion) {
         const rows = sourceRows ?? await loadSourceRows(section, month);
-        await ensureSectionSamples(section, month, rows, section === "om" ? 0.5 : ratio);
+        await ensureSectionSamples(section, month, rows, ratio);
       }
       const { rows: selected } = await d.pool.query(
         `SELECT id, report_month AS "reportMonth", section, source_key AS "sourceKey",
