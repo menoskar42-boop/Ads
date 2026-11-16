@@ -14733,10 +14733,33 @@ export async function registerRoutes(
                 b.repair_confirm_note AS "repairConfirmNote",
                 b.reopened_ticket_number AS "reopenedTicketNumber",
                 b.reopened_by AS "reopenedBy",
-                (b.reopened_at AT TIME ZONE 'Africa/Cairo') AS "reopenedAt"
+                (b.reopened_at AT TIME ZONE 'Africa/Cairo') AS "reopenedAt",
+                st.state AS "refState", (st.state_at AT TIME ZONE 'Africa/Cairo') AS "refStateAt"
            FROM box_fault_tickets b
            JOIN tickets t ON t.id = b.ticket_id
            LEFT JOIN fault_types ft ON ft.id = t.fault_type_id
+           -- حالة المرجع دلوقتى (المالك ٢٠٢٦-١١-١٣): متعذر OM ⇒ لسه فى المتعذرات الحالية ولا اتفك (نفس هوية
+           -- «متعذرات تم فكها» بالمسلسل)؛ طلب ⇒ أخد «يمكن التنفيذ» (من الفنى أو الشئون) ولا لأ.
+           LEFT JOIN LATERAL (
+             SELECT CASE
+                      WHEN b.ref_key LIKE 'متعذر %' THEN
+                        CASE WHEN NOT EXISTS (SELECT 1 FROM ftth_orders_current) THEN NULL
+                             WHEN EXISTS (SELECT 1 FROM ftth_orders_current c
+                                           WHERE TRIM(c.serial_number) = btrim(substr(b.ref_key, 7)))
+                               THEN 'لسه فى المتعذرات الحالية'
+                             ELSE 'تم فكه' END
+                      WHEN b.ref_key ~ '^طلب #[0-9]+$' THEN
+                        (SELECT CASE WHEN o.status IN ('feasible','external_feasible')
+                                       OR o.is_feasible IS TRUE OR o.is_feasible_external IS TRUE
+                                     THEN 'يمكن التنفيذ' ELSE 'لسه مااخدش يمكن التنفيذ' END
+                           FROM orders o WHERE o.id = substr(b.ref_key, 6)::int)
+                    END AS state,
+                    CASE WHEN b.ref_key ~ '^طلب #[0-9]+$' THEN
+                      (SELECT CASE WHEN o.is_feasible_external IS TRUE OR o.status = 'external_feasible' THEN o.external_response_at
+                                   WHEN o.status = 'feasible' OR o.is_feasible IS TRUE THEN o.tech_response_at END
+                         FROM orders o WHERE o.id = substr(b.ref_key, 6)::int)
+                    END AS state_at
+           ) st ON true
           WHERE ${conds.join(" AND ")}
           ORDER BY t.closed_at DESC NULLS LAST
           LIMIT 20000`, params);

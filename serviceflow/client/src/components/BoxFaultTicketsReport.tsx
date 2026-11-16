@@ -99,6 +99,8 @@ export function BoxFaultTicketsReport({ mode }: { mode: Mode }) {
     : [
         ["المصدر", (r) => r.source],
         ["المرجع", (r) => r.refKey],
+        // المالك ٢٠٢٦-١١-١٣: متعذر OM ⇒ لسه فى المتعذرات الحالية ولا تم فكه · طلب ⇒ أخد «يمكن التنفيذ» ولا لأ
+        ["حالة المرجع دلوقتى", (r) => r.refState ? (r.refStateAt ? `${r.refState} — ${fmtDt(r.refStateAt)}` : r.refState) : "-"],
         ["السنترال", (r) => r.central],
         ["الكابينة", (r) => r.cabinet],
         ["البكس", (r) => r.box],
@@ -264,6 +266,11 @@ export function BoxFaultTicketsReport({ mode }: { mode: Mode }) {
                             <span className="text-[11px] text-muted-foreground">اتفتحت: {r.reopenedTicketNumber}</span>
                           )}
                         </div>
+                      ) : h === "حالة المرجع دلوقتى" && r.refState ? (
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                          r.refState === "تم فكه" || r.refState === "يمكن التنفيذ" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>
+                          {f(r)}
+                        </span>
                       ) : h === "الحالة" && mode === "backfill" ? (
                         <span className={`px-2 py-0.5 rounded text-xs font-semibold ${ACTION_LABEL[r.action]?.cls ?? ""}`}>
                           {ACTION_LABEL[r.action]?.txt ?? r.action}
