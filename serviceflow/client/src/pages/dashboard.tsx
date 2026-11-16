@@ -314,6 +314,7 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
 
 export default function Dashboard() {
   const { user: authUser, logout, isLoading: authLoading } = useAuth();
+  const returnToFollowup = new URLSearchParams(window.location.search).get("returnTo") === "inspection-followup";
   // الأدمن الأعلى (super_admin) يرى واجهة الأدمن كاملة (وصول كامل) — نطبّعه لـ admin فى كل فحوص العرض،
   // ونحتفظ بـ isSuperAdmin للصلاحيات الإضافية (إدارة الأدمنز).
   const isSuperAdmin = authUser?.role === ROLES.SUPER_ADMIN;
@@ -326,11 +327,14 @@ export default function Dashboard() {
   const user = authUser && isSuperAdmin ? { ...authUser, role: ROLES.ADMIN } : authUser;
   const { orders, isLoading: ordersLoading } = useOrders();
   const [, setLocation] = useLocation();
-  const [adminTab, setAdminTab] = useState<AdminTab>("orders");
-  const [reportTab, setReportTab] = useState<ReportTab>(authUser?.role === ROLES.SALES_ADMIN ? "om-current" : "current-faults");
+  const [adminTab, setAdminTab] = useState<AdminTab>(returnToFollowup ? "reports" : "orders");
+  const [reportTab, setReportTab] = useState<ReportTab>(
+    returnToFollowup ? "inspection-followup" : authUser?.role === ROLES.SALES_ADMIN ? "om-current" : "current-faults",
+  );
   // مجموعات التقارير القابلة للطى — المجموعة التى تحوى التقرير النشط مفتوحة افتراضياً
   const [openGroups, setOpenGroups] = useState<string[]>(() => {
-    const g = REPORT_GROUPS.find((grp) => grp.items.some((it) => it.id === "current-faults"));
+    const initialReport = returnToFollowup ? "inspection-followup" : "current-faults";
+    const g = REPORT_GROUPS.find((grp) => grp.items.some((it) => it.id === initialReport));
     return g ? [g.label] : [];
   });
   // refs لكل مجموعة فى القائمة الجانبية — عشان لما نفتحها نعمل scroll تلقائى يظهر التقارير اللى جواها

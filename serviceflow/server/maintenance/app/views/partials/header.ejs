@@ -72,18 +72,8 @@
   (function () {
     var l = document.getElementById('sfHomeLink');
     if (!l) return;
-    l.setAttribute('href', location.origin + '/serviceflow/');
-    if (l.getAttribute('data-return-to-followup') === 'true') {
-      l.addEventListener('click', function (event) {
-        try {
-          var previous = new URL(document.referrer);
-          if (previous.origin === location.origin && previous.pathname.indexOf('/serviceflow/') === 0) {
-            event.preventDefault();
-            window.history.back();
-          }
-        } catch (_) {}
-      });
-    }
+    var returnToFollowup = l.getAttribute('data-return-to-followup') === 'true';
+    l.setAttribute('href', location.origin + '/serviceflow/' + (returnToFollowup ? '?returnTo=inspection-followup' : ''));
   })();
 </script>
 <% } %>
