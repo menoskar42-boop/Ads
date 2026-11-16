@@ -16,6 +16,7 @@ const store = require('../finance/store');
 const trade = require('../finance/trade');
 const L = require('../finance/levels');
 const analysis = require('../finance/analysis');
+const backtestJob = require('../finance/backtest_job');
 const { rateLimit } = require('../middleware/rateLimit');
 
 const WEB_DIR = path.join(__dirname, '..', '..', 'finance-web');
@@ -31,9 +32,10 @@ const PAGES = {
   '/alerts': { key: 'alerts', title: 'التنبيهات' },
   '/ticket': { key: 'ticket', title: 'تذكرة صفقة' },
   '/settings': { key: 'settings', title: 'الإعدادات' },
+  '/backtest': { key: 'backtest', title: 'اختبار النظام' },
 };
 const NAV = [['/', 'اللوحة'], ['/recs', 'الترشيحات'], ['/portfolio', 'محفظة الديمو'], ['/news', 'الإفصاحات'], ['/alerts', 'التنبيهات'],
-  ['/ticket', 'تذكرة'], ['/settings', 'الإعدادات']];
+  ['/ticket', 'تذكرة'], ['/backtest', 'اختبار النظام'], ['/settings', 'الإعدادات']];
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -298,6 +300,15 @@ function createFinanceSite(opts) {
   }));
 
   /* ── الإعدادات والإشعارات ── */
+  // اختبار النظام على البيانات التاريخية (بند ٦): بيشتغل فى الخلفية (Yahoo سهم سهم)، والصفحة بتسأل عن آخر نتيجة
+  router.post('/api/backtest', needOwner, json, wrap(async (req, res) => {
+    const id = await backtestJob.start(getPool(), req.body || {});
+    res.json({ ok: true, id });
+  }));
+  router.get('/api/backtest', needOwner, wrap(async (req, res) => {
+    res.json({ ok: true, run: await backtestJob.latest(getPool()), running: backtestJob.isRunning() });
+  }));
+
   router.get('/api/settings', needOwner, wrap(async (req, res) => {
     const st = await trade.settings(getPool());
     const p = analysis.provider(env);

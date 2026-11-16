@@ -57,3 +57,6 @@ pre.ticket { white-space: pre-wrap; background: var(--chip); padding: 12px; bord
 @media (max-width: 600px) { main { padding: 12px 16px; } th, td { padding: 6px 8px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 [hidden] { display: none !important; }
+
+/* الطباعة (PDF): الصفحة بس من غير الهيدر والأزرار */
+@media print { header.top, .disclaimer, button, select, #go { display: none !important; } .scroll { overflow: visible !important; } body { background: #fff; color: #000; } }

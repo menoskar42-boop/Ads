@@ -67,6 +67,8 @@ async function ensureSchema(p) {
     CREATE TABLE IF NOT EXISTS egx.sim_trades(id SERIAL PRIMARY KEY, symbol TEXT NOT NULL, side TEXT NOT NULL, qty INT NOT NULL, price NUMERIC NOT NULL,
       pnl NUMERIC, reason TEXT, ts TIMESTAMPTZ DEFAULT now());
     CREATE TABLE IF NOT EXISTS egx.push_subs(endpoint TEXT PRIMARY KEY, sub TEXT NOT NULL, created_ts TIMESTAMPTZ DEFAULT now());
+    CREATE TABLE IF NOT EXISTS egx.backtest_runs(id SERIAL PRIMARY KEY, created_ts TIMESTAMPTZ DEFAULT now(), finished_ts TIMESTAMPTZ,
+      status TEXT NOT NULL DEFAULT 'RUNNING', params JSONB, result JSONB, error TEXT);
     INSERT INTO egx.sim_account(id, cash, start_cash) VALUES (1, 100000, 100000) ON CONFLICT DO NOTHING;
     ALTER TABLE egx.watchlist ADD COLUMN IF NOT EXISTS name TEXT;
     ALTER TABLE egx.quotes ADD COLUMN IF NOT EXISTS source TEXT;

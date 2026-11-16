@@ -82,4 +82,15 @@ async function fetchCandles(symbols, opts) {
   return { batches, errors, blocked: null };
 }
 
-module.exports = { parseQuote, parseCandles, fetchQuotes, fetchCandles, isStale, STALE_MS };
+/** شموع مؤشر (EGX30 على Yahoo = ^CASE30) — من غير «.CA» */
+async function fetchIndexCandles(sym, range, fetchImpl) {
+  const f = fetchImpl || fetch;
+  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await f(`${BASE}${encodeURIComponent(sym)}?range=${range || '5y'}&interval=1d`, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: ctrl.signal });
+    if (!res.ok) { const e = new Error('yahoo HTTP ' + res.status); e.status = res.status; throw e; }
+    return parseCandles(await res.json());
+  } finally { clearTimeout(t); }
+}
+
+module.exports = { parseQuote, parseCandles, fetchQuotes, fetchCandles, fetchIndexCandles, isStale, STALE_MS };

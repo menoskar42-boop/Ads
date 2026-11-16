@@ -453,6 +453,62 @@
   }
   setTimeout(scriptCheck, 4000);
 
-  var pages = { dash: dash, stock: stock, news: news, alerts: alerts, ticket: ticket, settings: settings, login: login, recs: recs, rec: rec, portfolio: portfolio };
+  /* ── اختبار النظام على البيانات التاريخية (بند ٦، المالك ٢٠٢٦-١١-١٣) ── */
+  function backtest() {
+    var COLS = ['النظام', 'الصفقات', 'نسبة الكسب٪', 'متوسط المكسب٪', 'متوسط الخسارة٪', 'العائد الكلى بعد الضريبة٪', 'أكبر هبوط فى رأس المال٪', 'أكبر سلسلة خسائر', 'متوسط مدة الصفقة (جلسة)'];
+    var timer = null;
+    function rowOf(v) { var s = v.summary; return [v.label, s.trades, s.winRate, s.avgWinPct, s.avgLossPct, s.totalReturnPct, s.maxDrawdownPct, s.worstLosingStreak, s.avgDays]; }
+    function cell(x) { return x == null ? '-' : typeof x === 'number' ? n2(x) : esc(x); }
+    function csv(rows) { return '﻿' + rows.map(function (r) { return r.map(function (x) { var v = x == null ? '' : String(x); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }).join('\r\n'); }
+    function download(name, text) { var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); a.download = name; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000); }
+    function render(s) {
+      var run = s.run, res = run && run.result;
+      var head = '<h1>اختبار النظام على البيانات التاريخية</h1>' +
+        '<p class="muted">نفس شروط الترشيح يوم بيوم على شموع قديمة من غير ما يشوف المستقبل: الترشيح آخر اليوم، والدخول على فتح اليوم اللى بعده، ' +
+        'والخروج بالوقف أو الهدف (الوقف الأول لو الاتنين فى نفس اليوم)، بالعمولات والضريبة. الشروط الحية مابتتغيّرش من هنا.</p>' +
+        '<div class="row card"><label>المدة<select id="rng"><option value="5y">٥ سنين</option><option value="3y">٣ سنين</option></select></label>' +
+        '<button id="go"' + (s.running ? ' disabled' : '') + '>' + (s.running ? 'شغّال…' : 'شغّل الاختبار') + '</button>' +
+        (res ? ' <button id="xl" type="button">Excel</button> <button id="pdf" type="button" onclick="window.print()">PDF</button>' : '') + '</div>';
+      if (!run) { app.innerHTML = head + '<p class="muted">لسه مااتعملش اختبار.</p>'; return bind(); }
+      if (run.status === 'RUNNING') { app.innerHTML = head + '<p>بيجيب الأسعار من Yahoo سهم سهم ويحسب… (بياخد دقيقة أو اتنين)</p>'; return bind(true); }
+      if (run.status === 'ERROR') { app.innerHTML = head + '<p class="pill bad">فشل: ' + esc(run.error) + '</p>'; return bind(); }
+      var cur = res.variants[0], sm = cur.summary;
+      var html = head +
+        '<p class="muted">الفترة ' + esc(sm.from) + ' ← ' + esc(sm.to) + ' · ' + res.symbols.length + ' سهم · رأس المال ' + n2(res.assumptions.capital) +
+        ' · كل صفقة ' + n2(res.assumptions.perTrade) + ' · العمولة ' + res.assumptions.feePct + '٪ كل ناحية · الضريبة ' + res.assumptions.taxPct + '٪ من صافى ربح السنة</p>' +
+        '<div class="scroll"><table><thead><tr>' + COLS.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        res.variants.map(function (v) { return '<tr>' + rowOf(v).map(function (x, k) { return k === 0 ? '<td><b>' + esc(x) + '</b></td>' : '<td>' + cell(x) + '</td>'; }).join('') + '</tr>'; }).join('') +
+        '</tbody></table></div>' +
+        '<div class="card"><b>للمقارنة فى نفس الفترة:</b> الشراء والاحتفاظ بنفس الأسهم ' + (res.buyAndHold ? sg(res.buyAndHold.returnPct, true) + '٪' : '-') +
+        ' · مؤشر EGX30 ' + (res.egx30 ? sg(res.egx30.returnPct, true) + '٪' : '- (ماجاش)') + '</div>' +
+        '<p class="pill warn">' + esc(res.untested) + '</p>' + (res.notes || []).map(function (n) { return '<p class="muted">' + esc(n) + '</p>'; }).join('') +
+        '<h2>النظام الحالى: كل سنة لوحدها</h2><div class="scroll"><table><thead><tr><th>السنة</th><th>الصفقات</th><th>نسبة الكسب٪</th><th>الربح</th><th>الضريبة</th><th>الصافى</th><th>العائد٪</th></tr></thead><tbody>' +
+        cur.byYear.map(function (y) { return '<tr><td>' + esc(y.year) + '</td><td>' + y.trades + '</td><td>' + n2(y.winRate) + '</td><td>' + n2(y.pnl) + '</td><td>' + n2(y.tax) + '</td><td>' + n2(y.net) + '</td><td>' + sg(y.returnPct, true) + '</td></tr>'; }).join('') +
+        '</tbody></table></div>' +
+        '<h2>صفقات النظام الحالى (' + cur.trades.length + ')</h2><div class="scroll"><table><thead><tr><th>السهم</th><th>الدخول</th><th>سعر الدخول</th><th>الخروج</th><th>سعر الخروج</th><th>السبب</th><th>الجلسات</th><th>الربح٪</th></tr></thead><tbody>' +
+        cur.trades.slice(-300).reverse().map(function (t) { return '<tr><td>' + esc(t.symbol) + '</td><td>' + esc(t.entryDate) + '</td><td>' + n2(t.entry) + '</td><td>' + esc(t.exitDate) + '</td><td>' + n2(t.exit) + '</td><td>' + esc(t.why) + '</td><td>' + t.days + '</td><td>' + sg(t.pct, true) + '</td></tr>'; }).join('') +
+        '</tbody></table></div><p class="muted">تقديرات على بيانات قديمة — مش ضمان لنتايج قدّام، ومش نصيحة استثمار.</p>';
+      app.innerHTML = html;
+      bind();
+      var xl = document.getElementById('xl');
+      if (xl) xl.onclick = function () {
+        var rows = [COLS].concat(res.variants.map(rowOf), [[]], [['السنة', 'الصفقات', 'نسبة الكسب٪', 'الربح', 'الضريبة', 'الصافى', 'العائد٪']],
+          cur.byYear.map(function (y) { return [y.year, y.trades, y.winRate, y.pnl, y.tax, y.net, y.returnPct]; }), [[]],
+          [['السهم', 'الدخول', 'سعر الدخول', 'الخروج', 'سعر الخروج', 'السبب', 'الجلسات', 'الربح', 'الربح٪']],
+          cur.trades.map(function (t) { return [t.symbol, t.entryDate, t.entry, t.exitDate, t.exit, t.why, t.days, t.pnl, t.pct]; }));
+        download('egx-backtest-' + sm.to + '.csv', csv(rows));
+      };
+    }
+    function bind(poll) {
+      var go = document.getElementById('go');
+      if (go) go.onclick = function () { go.disabled = true; api('/api/backtest', { range: document.getElementById('rng').value }).then(load); };
+      clearTimeout(timer);
+      if (poll) timer = setTimeout(load, 5000);
+    }
+    function load() { api('/api/backtest').then(render); }
+    load();
+  }
+
+  var pages = { dash: dash, stock: stock, news: news, alerts: alerts, ticket: ticket, settings: settings, login: login, recs: recs, rec: rec, portfolio: portfolio, backtest: backtest };
   if (pages[page]) pages[page](); else app.innerHTML = '<h1>الصفحة مش موجودة</h1><p><a href="/">ارجع للوحة</a></p>';
 })();
