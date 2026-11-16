@@ -212,15 +212,19 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
       );
       // تحديث نسخة العينة يضيف العناصر الناقصة ويحافظ على السجلات السابقة.
       const samplingVersion = section === "maintenance" ? 2 : section === "installations" ? 4 : 2;
-      if (!initialized.rowCount || Number(initialized.rows[0]?.sampling_version || 1) < samplingVersion) {
+      if (section === "om" || !initialized.rowCount || Number(initialized.rows[0]?.sampling_version || 1) < samplingVersion) {
         const sampledAlready = await client.query(
-          `SELECT source_key AS "sourceKey", technician_name AS "technicianName"
-             FROM inspection_followup_items
-            WHERE report_month=$1 AND section=$2 AND is_manual=false`,
+          `SELECT i.source_key AS "sourceKey", i.technician_name AS "technicianName",
+                  i.is_manual AS "isManual", i.source_data AS "sourceData",
+                  r.responded_at AS "respondedAt", r.external_response_at AS "externalResponseAt"
+             FROM inspection_followup_items i
+             LEFT JOIN om_responses r ON r.serial_number=i.source_key
+            WHERE i.report_month=$1 AND i.section=$2 AND i.is_manual=false`,
           [month, section],
         );
         const existingByTech = new Map<string, Set<string>>();
         const existingKeys = new Set<string>();
+        const currentKeys = new Set(rows.map((row) => String(row.sourceKey)));
         for (const item of sampledAlready.rows) {
           const techName = String(item.technicianName || "غير معروف");
           const keys = existingByTech.get(techName) ?? new Set<string>();
@@ -228,6 +232,35 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
           keys.add(sourceKey);
           existingKeys.add(sourceKey);
           existingByTech.set(techName, keys);
+          if (section === "om") {
+            const freed = !currentKeys.has(sourceKey);
+            const checked = Boolean(item.respondedAt && item.externalResponseAt);
+            const previousData = item.sourceData && typeof item.sourceData === "object" ? item.sourceData : {};
+            const hadFreedMarker = Boolean((previousData as any).sampleFreed);
+            const hadRemovedMarker = Boolean((previousData as any).sampleRemoved);
+            if (freed && !checked && !hadRemovedMarker) {
+              await client.query(
+                `UPDATE inspection_followup_items
+                    SET source_data=(source_data - 'sampleFreed') || '{"sampleRemoved":true}'::jsonb
+                  WHERE report_month=$1 AND section='om' AND source_key=$2 AND is_manual=false`,
+                [month, sourceKey],
+              );
+            } else if (freed && checked && !hadFreedMarker) {
+              await client.query(
+                `UPDATE inspection_followup_items
+                    SET source_data=(source_data - 'sampleRemoved') || '{"sampleFreed":true}'::jsonb
+                  WHERE report_month=$1 AND section='om' AND source_key=$2 AND is_manual=false`,
+                [month, sourceKey],
+              );
+            } else if (!freed && (hadFreedMarker || hadRemovedMarker)) {
+              await client.query(
+                `UPDATE inspection_followup_items
+                    SET source_data=source_data - 'sampleFreed' - 'sampleRemoved'
+                  WHERE report_month=$1 AND section='om' AND source_key=$2 AND is_manual=false`,
+                [month, sourceKey],
+              );
+            }
+          }
         }
         const grouped = new Map<string, any[]>();
         for (const row of rows) {
@@ -257,6 +290,21 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
           }
           sample.push(...candidates.slice(0, needed));
         }
+        if (section === "om") {
+          const sampledCurrentCount = [...existingKeys].filter((key) => currentKeys.has(key)).length;
+          const targetTotal = Math.min(rows.length, Math.max(1, Math.ceil(rows.length * ratio)));
+          const missing = Math.max(0, targetTotal - sampledCurrentCount - sample.length);
+          if (missing) {
+            const alreadyPicked = new Set(sample.map((row) => String(row.sourceKey)));
+            const fallbackCandidates = rows.filter((row) =>
+              !existingKeys.has(String(row.sourceKey)) && !alreadyPicked.has(String(row.sourceKey)));
+            for (let i = fallbackCandidates.length - 1; i > 0; i -= 1) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [fallbackCandidates[i], fallbackCandidates[j]] = [fallbackCandidates[j], fallbackCandidates[i]];
+            }
+            sample.push(...fallbackCandidates.slice(0, missing));
+          }
+        }
         if (section === "installations") {
           for (const row of rows) {
             if (!existingKeys.has(String(row.sourceKey))) continue;
@@ -278,11 +326,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
           );
         }
         if (section === "om") {
-          const currentKeys = new Set(rows.map((row) => String(row.sourceKey)));
-          const assignedKeys = [...new Set([
-            ...sampledAlready.rows.map((item: any) => String(item.sourceKey)).filter((key: string) => currentKeys.has(key)),
-            ...sample.map((row) => String(row.sourceKey)),
-          ])];
+          const assignedKeys = [...new Set(sample.map((row) => String(row.sourceKey)))];
           if (assignedKeys.length) {
             await client.query(
               `INSERT INTO om_responses (serial_number,status,updated_at)
@@ -322,7 +366,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
     const month = String(req.query.month || cairoMonth(new Date()));
     if (!validMonth(month)) return res.status(400).json({ message: "الشهر غير صالح" });
     try {
-      const sourceRows = section === "installations" || section === "maintenance"
+      const sourceRows = section === "installations" || section === "maintenance" || section === "om"
         ? await loadSourceRows(section, month)
         : null;
       const ratio = section === "maintenance" ? 0.5 : section === "om" ? 0.5 : 0.1;
@@ -331,7 +375,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
         `SELECT sampling_version FROM inspection_followup_sections WHERE report_month=$1 AND section=$2`,
         [month, section],
       );
-      if (!cached.rowCount || Number(cached.rows[0]?.sampling_version || 1) < targetVersion) {
+      if (section === "om" || !cached.rowCount || Number(cached.rows[0]?.sampling_version || 1) < targetVersion) {
         const rows = sourceRows ?? await loadSourceRows(section, month);
         await ensureSectionSamples(section, month, rows, section === "om" ? 0.5 : ratio);
       }
@@ -342,7 +386,8 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
                 customer_wire_match AS "customerWireMatch", review_notes AS "reviewNotes",
                 reviewed_by AS "reviewedBy", reviewed_at AS "reviewedAt"
            FROM inspection_followup_items
-          WHERE report_month=$1 AND section=$2
+           WHERE report_month=$1 AND section=$2
+             AND (section <> 'om' OR source_data->>'sampleRemoved' IS DISTINCT FROM 'true')
           ORDER BY technician_name, id`,
         [month, section],
       );

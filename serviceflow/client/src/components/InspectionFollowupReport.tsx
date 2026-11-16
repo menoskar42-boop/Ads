@@ -716,7 +716,10 @@ export function InspectionFollowupReport() {
                           <div className="border-b border-[#e0e9e4] bg-[#f3f7f3] p-3">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="text-[10px] font-semibold text-teal-800">سجل {index + 1} · {SECTION_META[currentSection].label}</div>
+                                <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold text-teal-800">
+                                  <span>سجل {index + 1} · {SECTION_META[currentSection].label}</span>
+                                  {currentSection === "om" && data.sampleFreed === true && <span className="rounded bg-slate-200 px-2 py-0.5 text-slate-700">تم فكه</span>}
+                                </div>
                                 <h4 className="mt-1 break-words text-sm font-bold text-slate-900">
                                   {readOnly
                                     ? currentSection === "maintenance" ? "نتيجة الفحص" : currentSection === "om" ? "ردود المتعذر" : "نتيجة مراجعة التركيب"
@@ -856,12 +859,14 @@ export function InspectionFollowupReport() {
                                   const value = field.value ? field.value(data, row) : fieldValue(data, field.keys || []);
                                   const isTechnicianResponse = field.label === "رد الفنى";
                                   const isResponseReason = field.label === "سبب التعذر (الفنى)";
+                                  const sampleFreed = field.label === "المسلسل" && data.sampleFreed === true;
                                   return (
                                     <TableCell
                                       key={field.label}
                                       className={`whitespace-normal text-xs text-slate-700 ${field.label === "عنوان العميل" ? "w-[440px] min-w-[440px] max-w-[440px] break-words leading-5" : "max-w-[220px]"} ${isResponseReason ? "break-words leading-5" : ""}`}
                                     >
-                                      {isTechnicianResponse ? technicianResponseStatus(data)
+                                      {sampleFreed ? <div className="space-y-1"><div>{displayValue(value)}</div><span className="inline-flex rounded bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-700">تم فكه</span></div>
+                                        : isTechnicianResponse ? technicianResponseStatus(data)
                                         : field.label === "تاريخ الإنشاء" ? <span dir="ltr" className="whitespace-nowrap font-mono text-[11px]">{formatOmCreationDate(value)}</span>
                                           : displayValue(value)}
                                     </TableCell>

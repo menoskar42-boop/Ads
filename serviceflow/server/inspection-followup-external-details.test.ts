@@ -21,6 +21,10 @@ const componentSource = readFileSync(
   new URL("../client/src/components/InspectionFollowupReport.tsx", import.meta.url),
   "utf8",
 );
+const followupSource = readFileSync(
+  new URL("./inspection-followup.ts", import.meta.url),
+  "utf8",
+);
 
 test("the refreshed OM follow-up report includes saved external feasibility and rejection details", async (t) => {
   const dbUrl = process.env.DATABASE_URL;
@@ -216,6 +220,16 @@ test("OM follow-up keeps technician and external replies separate with three row
   assert.ok(confirmHandler.includes("omExternalResponse.mutate"));
   assert.ok(confirmHandler.includes("isFeasible: data.respIsFeasible"));
   assert.ok(componentSource.includes('data-testid={`external-reply-${row.id}`}'));
+});
+
+test("OM follow-up replaces removed unchecked samples and keeps checked freed samples", () => {
+  assert.match(followupSource, /section === "om" \|\| !initialized\.rowCount/);
+  assert.match(followupSource, /r\.responded_at AS "respondedAt", r\.external_response_at AS "externalResponseAt"/);
+  assert.match(followupSource, /const checked = Boolean\(item\.respondedAt && item\.externalResponseAt\)/);
+  assert.match(followupSource, /"sampleRemoved":true/);
+  assert.match(followupSource, /"sampleFreed":true/);
+  assert.match(followupSource, /source_data->>'sampleRemoved' IS DISTINCT FROM 'true'/);
+  assert.match(componentSource, /data\.sampleFreed === true[\s\S]*?تم فكه/);
 });
 
 test("feasible external replies show a compact execution location that fits a narrow phone", async () => {
