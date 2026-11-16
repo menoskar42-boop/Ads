@@ -14772,7 +14772,7 @@ export async function registerRoutes(
   // من الشيت. بياناتها الأخيرة محفوظة كاملة + إمتى اتشالت ومن أى رفعة.
   app.get("/api/phone-ports/removed", requireAuth, async (req: any, res) => {
     try {
-      const { q = "" } = req.query as Record<string, string>;
+      const { q = "", central = "", cabin = "", box = "", phoneFrom = "", phoneTo = "" } = req.query as Record<string, string>;
       // صفحات (المالك ٢٠٢٦-١١-١٢: «التقرير كل ما بدخل عليه بيهنج» — كان بيرجّع لحد ٢٠ ألف صف مرة واحدة والصفحة
       // بترسمهم كلهم). all=1 للتصدير بس.
       const all = String((req.query as any).all ?? "") === "1";
@@ -14783,27 +14783,61 @@ export async function registerRoutes(
       if (q.trim()) {
         params.push(arQ(q));
         const p = `$${params.length}`;
-        conds.push(`(${n("phone_number")} LIKE ${p} OR ${n("msan_code")} LIKE ${p} OR ${n("operator")} LIKE ${p})`);
+        conds.push(`(${n("rp.phone_number")} LIKE ${p} OR ${n("rp.msan_code")} LIKE ${p} OR ${n("rp.operator")} LIKE ${p}
+                  OR ${n("si2.sub_name")} LIKE ${p} OR ${n("si2.sub_add")} LIKE ${p} OR ${n("la.account_no")} LIKE ${p})`);
+      }
+      // نفس فلاتر «بيان أرقام التليفونات» (المالك ٢٠٢٦-١١-١٢): السنترال/الكابينة/البكس/من رقم لرقم
+      if (central) { params.push(central); conds.push(`pl.central = $${params.length}`); }
+      if (cabin) { params.push(cabin); conds.push(`pl.cabin_number = $${params.length}`); }
+      if (box) { params.push(box); conds.push(`pl.box_number = $${params.length}`); }
+      const digitsOnly = (v: string) => String(v || "").replace(/\D/g, "").replace(/^88/, "");
+      let pFrom = digitsOnly(phoneFrom), pTo = digitsOnly(phoneTo);
+      if (pFrom && pTo && BigInt(pFrom) > BigInt(pTo)) { const t = pFrom; pFrom = pTo; pTo = t; }
+      if (pFrom || pTo) {
+        const shortExpr = `regexp_replace(regexp_replace(rp.phone_number,'[^0-9]','','g'),'^0*88','')`;
+        const numExpr = `(CASE WHEN ${shortExpr} ~ '^[0-9]{1,18}$' THEN ${shortExpr}::bigint END)`;
+        if (pFrom) { params.push(pFrom); conds.push(`${numExpr} >= $${params.length}::bigint`); }
+        if (pTo) { params.push(pTo); conds.push(`${numExpr} <= $${params.length}::bigint`); }
       }
       // الفنى: خطوط كباينه هو بس
       const mine = await techMsanCodes(req.user);
       if (mine) {
         params.push(mine);
-        conds.push(msanInCodesSql("msan_code", `$${params.length}`));
+        conds.push(msanInCodesSql("rp.msan_code", `$${params.length}`));
       }
       const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+      // بأعمدة «بيان أرقام التليفونات» (المالك ٢٠٢٦-١١-١٢): البيانات الفنية والعميل والأكونت بالرقم، وجنبها بيانات الرفع
+      const from = `FROM removed_phone_ports rp
+        LEFT JOIN phone_lines pl ON pl.full_phone = rp.phone_number
+        LEFT JOIN line_subscriber_info si2 ON si2.phone_number = rp.phone_number
+        LEFT JOIN line_accounts la ON la.full_phone = rp.phone_number`;
       const { rows } = await pool.query(
-        `SELECT phone_number AS "phoneNumber", area_code AS "areaCode", msan_code AS "msanCode",
-                frame, shelf, slot, port_number AS "portNumber", port_type AS "portType",
-                voice_status AS "voiceStatus", data_status AS "dataStatus", operator, onu,
-                (last_uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastUploadedAt",
-                (removed_at AT TIME ZONE 'Africa/Cairo') AS "removedAt",
-                removed_source AS "removedSource"
-           FROM removed_phone_ports ${where}
-          ORDER BY removed_at DESC, phone_number
+        `SELECT rp.phone_number AS "phoneNumber", rp.area_code AS "areaCode", rp.msan_code AS "msanCode",
+                rp.frame, rp.shelf, rp.slot, rp.port_number AS "portNumber", rp.port_type AS "portType",
+                rp.voice_status AS "voiceStatus", rp.data_status AS "dataStatus", rp.operator, rp.onu,
+                (rp.last_uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastUploadedAt",
+                (rp.removed_at AT TIME ZONE 'Africa/Cairo') AS "removedAt",
+                rp.removed_source AS "removedSource",
+                COALESCE(pl.tel_no, regexp_replace(rp.phone_number, '^88', '')) AS "telNo",
+                pl.central, pl.cabin_number AS "cabinNumber", pl.box_number AS "boxNumber",
+                si2.sub_name AS "subName", si2.sub_add AS "subAdd",
+                COALESCE(NULLIF(btrim(c138.account_no), ''), NULLIF(btrim(la.account_no), '')) AS "accountNo",
+                pl.idu_no AS "iduNo", pl.odu_no AS "oduNo", pl.primary_block_no AS "primaryBlockNo",
+                pl.cabinet_in AS "cabinetIn", pl.sec_block_no AS "secBlockNo", pl.cabinet_out AS "cabinetOut",
+                pl.dp_terminal AS "dpTerminal", pl.port AS "linePort", pl.len,
+                pl.fiber_block AS "fiberBlock", pl.fiber_out AS "fiberOut",
+                (SELECT tn.tech_name FROM cabinet_technicians ct
+                   JOIN technician_names tn ON tn.worker_code = ct.worker_code
+                  WHERE ct.central_name = pl.central AND ct.cabin_number = pl.cabin_number
+                  LIMIT 1) AS "techName"
+           ${from}
+           LEFT JOIN LATERAL (SELECT c.account_no FROM case_138 c WHERE c.full_phone = rp.phone_number
+                               ORDER BY c.id DESC LIMIT 1) c138 ON true
+           ${where}
+          ORDER BY rp.removed_at DESC, rp.phone_number
           LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
         params);
-      const total = (await pool.query(`SELECT COUNT(*)::int AS c FROM removed_phone_ports ${where}`, params)).rows[0].c;
+      const total = (await pool.query(`SELECT COUNT(*)::int AS c ${from} ${where}`, params)).rows[0].c;
       res.json({ data: rows, total, page, pageSize });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

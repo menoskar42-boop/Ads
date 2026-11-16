@@ -29,6 +29,26 @@ interface Row {
   lastUploadedAt: string | null;
   removedAt: string | null;
   removedSource: string | null;
+  // أعمدة «بيان أرقام التليفونات» (المالك ٢٠٢٦-١١-١٢)
+  telNo: string | null;
+  central: string | null;
+  cabinNumber: string | null;
+  boxNumber: string | null;
+  subName: string | null;
+  subAdd: string | null;
+  accountNo: string | null;
+  iduNo: string | null;
+  oduNo: string | null;
+  primaryBlockNo: string | null;
+  cabinetIn: string | null;
+  secBlockNo: string | null;
+  cabinetOut: string | null;
+  dpTerminal: string | null;
+  linePort: string | null;
+  len: string | null;
+  fiberBlock: string | null;
+  fiberOut: string | null;
+  techName: string | null;
 }
 
 const fmtDt = (d: string | null) => {
@@ -41,6 +61,30 @@ const fmtDt = (d: string | null) => {
 const srcLabel = (s: string | null) =>
   s === "portal" ? "رفع تلقائى (البورتال)" : s === "sheet" ? "رفع الشيت يدوى" : "-";
 
+// نفس أعمدة «بيان أرقام التليفونات» (المالك ٢٠٢٦-١١-١٢)، وبعدها بيانات الرفع اللى كانت موجودة
+const LINE_COLS: [string, (r: Row) => any][] = [
+  ["رقم الأكونت", (r) => r.accountNo],
+  ["السنترال", (r) => r.central],
+  ["اسم العميل", (r) => r.subName],
+  ["العنوان", (r) => r.subAdd],
+  ["رقم الكابينه", (r) => r.cabinNumber],
+  ["رقم البكس", (r) => r.boxNumber],
+  ["رقم التليفون (قصير)", (r) => r.telNo],
+];
+const TECH_COLS: [string, (r: Row) => any][] = [
+  ["IDU", (r) => r.iduNo],
+  ["ODU", (r) => r.oduNo],
+  ["Primary Block", (r) => r.primaryBlockNo],
+  ["Cabinet In", (r) => r.cabinetIn],
+  ["Sec Block", (r) => r.secBlockNo],
+  ["Cabinet Out", (r) => r.cabinetOut],
+  ["DP Terminal", (r) => r.dpTerminal],
+  ["Port (البيانات الفنية)", (r) => r.linePort],
+  ["LEN", (r) => r.len],
+  ["Fiber Block", (r) => r.fiberBlock],
+  ["Fiber Out", (r) => r.fiberOut],
+  ["الفنى", (r) => r.techName],
+];
 const COLS: [string, (r: Row) => any][] = [
   ["رقم التليفون", (r) => r.phoneNumber],
   ["كود المسان", (r) => r.msanCode],
@@ -65,14 +109,19 @@ export function RemovedPortsReport() {
   const [page, setPage] = useState(1);
   const PAGE = 200;
   useEffect(() => { const t = setTimeout(() => { setQDeb(q); setPage(1); }, 500); return () => clearTimeout(t); }, [q]);
+  // نفس فلاتر «بيان أرقام التليفونات»: السنترال/الكابينة/البكس/من رقم لرقم (بتتطبّق بزرار «تطبيق»)
+  const EMPTY_F = { central: "", cabin: "", box: "", phoneFrom: "", phoneTo: "" };
+  const [fDraft, setFDraft] = useState(EMPTY_F);
+  const [f, setF] = useState(EMPTY_F);
+  const fQs = Object.entries(f).filter(([, v]) => v.trim()).map(([k, v]) => `&${k}=${encodeURIComponent(v.trim())}`).join("");
   const fetchRows = async (all: boolean) => {
-    const res = await fetch(`/api/phone-ports/removed?q=${encodeURIComponent(qDeb)}${all ? "&all=1" : `&page=${page}&pageSize=${PAGE}`}`, { credentials: "include" });
+    const res = await fetch(`/api/phone-ports/removed?q=${encodeURIComponent(qDeb)}${fQs}${all ? "&all=1" : `&page=${page}&pageSize=${PAGE}`}`, { credentials: "include" });
     if (!res.ok) throw new Error("تعذّر التحميل");
     return res.json() as Promise<{ data: Row[]; total: number }>;
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ["/api/phone-ports/removed", qDeb, page],
+    queryKey: ["/api/phone-ports/removed", qDeb, fQs, page],
     queryFn: () => fetchRows(false),
     refetchOnMount: "always",
   });
@@ -82,7 +131,9 @@ export function RemovedPortsReport() {
   const mobileLookup = useMobileLookup(rows.map((r) => r.phoneNumber));
   const columns = [
     ["رقم التليفون", (r: Row) => r.phoneNumber],
+    ...LINE_COLS,
     ["رقم الموبايل", (r: Row) => mobileLookup[phoneLookupKey(r.phoneNumber)] || ""],
+    ...TECH_COLS,
     ...COLS.slice(1),
   ] as [string, (r: Row) => any][];
 
@@ -133,6 +184,16 @@ export function RemovedPortsReport() {
                 </button>
               )}
             </div>
+            {([["central", "السنترال", "w-28"], ["cabin", "الكابينة", "w-20"], ["box", "البكس", "w-20"],
+               ["phoneFrom", "من رقم", "w-28"], ["phoneTo", "إلى رقم", "w-28"]] as const).map(([k, ph, w]) => (
+              <Input key={k} value={fDraft[k]} placeholder={ph} className={`h-9 ${w} text-sm`}
+                onChange={(e) => setFDraft((d) => ({ ...d, [k]: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === "Enter") { setF(fDraft); setPage(1); } }} />
+            ))}
+            <Button size="sm" variant="outline" onClick={() => { setF(fDraft); setPage(1); }}>تطبيق</Button>
+            {Object.values(f).some((v) => v.trim()) && (
+              <Button size="sm" variant="ghost" onClick={() => { setFDraft(EMPTY_F); setF(EMPTY_F); setPage(1); }}>مسح الفلاتر</Button>
+            )}
             <RefreshButton />
             <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-1 text-green-700 border-green-200">
               <FileSpreadsheet className="w-4 h-4" /> تصدير Excel
