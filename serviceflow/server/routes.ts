@@ -11344,6 +11344,7 @@ export async function registerRoutes(
       }
       const { rows } = await pool.query(
         `SELECT r.serial_number AS "serial", fo.service_number AS "serviceNumber",
+                fo.service_order_id AS "serviceOrderId",
                 fo.customer_name AS "customerName", fo.msan_code AS "msanCode",
                 r.central_name AS "central", r.cabin_number AS "cabinet", r.box_number AS "box",
                 r.box_working_at_response AS "recorded", cur.n AS "current",
@@ -11351,7 +11352,7 @@ export async function registerRoutes(
                 r.box_working_recorded_at AS "recordedAt",
                 r.tech_name AS "techName", r.responded_at AS "respondedAt", r.status
            FROM om_responses r
-           JOIN LATERAL (SELECT f.service_number, f.customer_name, f.msan_code
+           JOIN LATERAL (SELECT f.service_number, f.customer_name, f.msan_code, f.service_order_id
                            FROM ftth_orders_current f WHERE f.serial_number = r.serial_number
                           LIMIT 1) fo ON TRUE
            CROSS JOIN LATERAL (SELECT ${boxWorkingCountSql("r.central_name", "r.cabin_number", "r.box_number")} AS n) cur

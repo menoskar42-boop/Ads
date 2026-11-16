@@ -4,7 +4,11 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, PackageOpen, Search, FileSpreadsheet, Printer, RefreshCw } from "lucide-react";
+import { Loader2, PackageOpen, Search, FileSpreadsheet, Printer, RefreshCw, RotateCcw } from "lucide-react";
+import { dispatchSpeedTool, openOpSite, OSS_REEXEC_AR } from "@/lib/exec-queue";
+import { useAuth } from "@/hooks/use-auth";
+import { ROLES } from "@shared/schema";
+import { useNightPause, nightAwareInterval } from "@/lib/night-pause";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { format } from "date-fns";
@@ -15,6 +19,7 @@ import { format } from "date-fns";
 interface Row {
   serial: string;
   serviceNumber: string | null;
+  serviceOrderId: string | null;
   customerName: string | null;
   msanCode: string | null;
   central: string | null;
@@ -39,7 +44,7 @@ const fmtDt = (d: string | null) => {
   });
 };
 
-const COLS = ["#", "المسلسل", "رقم الخدمة", "العميل", "كود المسان", "السنترال", "الكابينة", "البكس",
+const COLS = ["#", "المسلسل", "رقم الخدمة", "Service Order ID", "العميل", "كود المسان", "السنترال", "الكابينة", "البكس",
   "الشغّال وقت الرد", "الشغّال دلوقتى", "اتوفّر", "الفنى", "تاريخ الرد"];
 
 export function OmBoxFreedReport() {
@@ -64,9 +69,58 @@ export function OmBoxFreedReport() {
   }, [data, search]);
 
   const exportRows = () => shown.map((r, i) => [
-    i + 1, r.serial, r.serviceNumber ?? "", r.customerName ?? "", r.msanCode ?? "", r.central ?? "",
+    i + 1, r.serial, r.serviceNumber ?? "", r.serviceOrderId ?? "", r.customerName ?? "", r.msanCode ?? "", r.central ?? "",
     r.cabinet ?? "", r.box ?? "", r.recorded, r.current, r.freed, r.techName ?? "", fmtDt(r.respondedAt),
   ]);
+
+  // «Re-Execute» زى تقرير متعذرات OM بالظبط (المالك ٢٠٢٦-١١-١٢) — سوبر أدمن بس، بنفس الـReason/Sub Reason،
+  // ونتيجة آخر Re-Execute تحت الزرار.
+  const { user } = useAuth();
+  const canReexec = user?.role === ROLES.SUPER_ADMIN;
+  const soKeys = useMemo(() => (canReexec
+    ? [...new Set(shown.map((r) => String(r.serviceOrderId || "").replace(/\D/g, "")).filter(Boolean))].slice(0, 500)
+    : []), [canReexec, shown]);
+  const { refreshPaused: nightPaused } = useNightPause();
+  const { data: reexecLast, refetch: refetchReexec } = useQuery<{ data: Record<string, { result: string; reportedAt: string }> }>({
+    queryKey: ["/api/oss-reexec/last", soKeys.join(",")],
+    queryFn: async () => {
+      const r = await fetch(`/api/oss-reexec/last?keys=${encodeURIComponent(soKeys.join(","))}`, { credentials: "include" });
+      return r.ok ? r.json() : { data: {} };
+    },
+    enabled: soKeys.length > 0,
+    refetchInterval: nightAwareInterval(30_000, nightPaused),
+  });
+  const [reexecBusy, setReexecBusy] = useState<string | null>(null);
+  const runOssReexec = async (r: Row) => {
+    const so = String(r.serviceOrderId || "").replace(/\D/g, "");
+    if (!so) return;
+    if (!confirm(`Re-Execute لـ Service Order ID ${so}${r.customerName ? ` (${r.customerName})` : ""} على OSS؟\nReason: ReExecuteParentReason02 — Sub Reason: ReExecuteSubReason03`)) return;
+    setReexecBusy(so);
+    try {
+      const params = { mode: "order" };
+      if (!(await dispatchSpeedTool("ossreexec", [so], canReexec, { params }))) openOpSite("ossreexec", so, params);
+      setTimeout(() => { void refetchReexec(); }, 5000);
+    } finally { setReexecBusy(null); }
+  };
+  const renderServiceOrderCell = (r: Row) => {
+    const so = String(r.serviceOrderId || "").replace(/\D/g, "");
+    if (!so) return r.serviceOrderId || "-";
+    if (!canReexec) return r.serviceOrderId;
+    const last = reexecLast?.data?.[so];
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <span>{r.serviceOrderId}</span>
+          <Button size="sm" variant="outline" disabled={reexecBusy === so} onClick={() => void runOssReexec(r)}
+            className="h-6 px-2 gap-1 text-[11px] text-indigo-700 border-indigo-300 hover:bg-indigo-50"
+            title="Re-Execute على OSS (Abnormal WO) بالـ Service Order ID — سوبر أدمن بس" data-testid={`button-freed-oss-reexec-${so}`}>
+            <RotateCcw className="w-3 h-3" /> Re-Execute
+          </Button>
+        </div>
+        {last && <span className="text-[10px] text-muted-foreground whitespace-normal max-w-[180px]">{OSS_REEXEC_AR[last.result] || last.result} · {String(last.reportedAt || "").replace("T", " ").slice(5, 16)}</span>}
+      </div>
+    );
+  };
 
   const title = showAll ? "متعذرات OM بوكس مليان — الشغّال وقت الرد ودلوقتى" : "متعذرات تم توفير خطوط بها";
   const handleExportExcel = () => {
@@ -144,6 +198,7 @@ export function OmBoxFreedReport() {
                 <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                 <TableCell dir="ltr" className="text-left whitespace-nowrap">{r.serial}</TableCell>
                 <TableCell dir="ltr" className="text-left">{r.serviceNumber || "-"}</TableCell>
+                <TableCell dir="ltr" className="text-left">{renderServiceOrderCell(r)}</TableCell>
                 <TableCell className="whitespace-nowrap">{r.customerName || "-"}</TableCell>
                 <TableCell dir="ltr" className="text-left whitespace-nowrap">{r.msanCode || "-"}</TableCell>
                 <TableCell className="whitespace-nowrap">{r.central || "-"}</TableCell>
