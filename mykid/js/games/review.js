@@ -24,7 +24,7 @@ function speakItem(it, lang) {
   else Speech.say(it.name, { lang: "ar-EG" });
 }
 
-export function renderReview({ regionId, regionIndex, datasetKey, lang, title, focus = null }) {
+export function renderReview({ regionId, regionIndex, datasetKey, lang, title, focus = null, letters = null, back: backTo = null }) {
   const ds = getDataset(datasetKey);
   const speakLang = lang || ds.lang;
   const items = ds.items;
@@ -33,12 +33,22 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title, f
   const seenKeys = Store.seenKeys(datasetKey);
   let pool = items.filter((it) => seenKeys.includes(itemKey(it)));
   if (pool.length < 4) pool = items.slice();
+  // «مراجعة» كتاب الإنجليزى (المالك ٢٠٢٦-١١-١٦): الجولات من الحروف اللى اختارها بس (افتراضى حروف النجمة)،
+  // والاختيارات الغلط فاضلة من كل الحروف عشان السؤال مايبقاش سهل
+  const picked = Array.isArray(letters) && letters.length ? letters.map(String) : null;
+  if (picked) {
+    const only = items.filter((it) => picked.includes(String(it.char ?? it.value)));
+    if (only.length) pool = only;
+  }
   const scored = pool
     .map((it) => ({ it, lvl: Store.getMastery(datasetKey, itemKey(it)) }))
     .sort((a, b) => a.lvl - b.lvl || Math.random() - 0.5);
   // الكتب (المالك ٢٠٢٦-١٠-١٧: «يراجع على الحرف نفسه»): ٤ جولات على حرف الصفحة، والاختيارات بتتغيّر
   const focusIt = focus != null ? items.find((it) => String(it.char ?? it.value) === String(focus)) : null;
-  const rounds = focusIt ? [focusIt, focusIt, focusIt, focusIt] : shuffle(scored.slice(0, ROUNDS).map((s) => s.it));
+  // حروف قليلة (حرف أو اتنين) ⇒ نكرّرهم لحد ٦ جولات بدل جولتين بس
+  const base = scored.map((s) => s.it);
+  const filled = picked ? Array.from({ length: ROUNDS }, (_, k) => base[k % base.length]) : base.slice(0, ROUNDS);
+  const rounds = focusIt ? [focusIt, focusIt, focusIt, focusIt] : shuffle(filled);
   let i = 0;
   // الإنجليزى: «اسمع واختار» بالحالة — small b أو capital B، والفخ هو نفس الحرف بالحالة التانية
   const caseMode = !!(items[0] && items[0].lower && items[0].lower !== items[0].char);
@@ -47,7 +57,7 @@ export function renderReview({ regionId, regionIndex, datasetKey, lang, title, f
   screen.className = "region-screen";
   screen.style.background = "linear-gradient(180deg,#c2f0ff,#7c9cff)";
 
-  const back = () => Router.go("region", { id: regionId, index: regionIndex });
+  const back = () => (backTo ? Router.go(backTo, { regionId, regionIndex }) : Router.go("region", { id: regionId, index: regionIndex }));
   screen.appendChild(gameTopbar(title || "🧠 المراجعة الذكية", back));
 
   const stage = document.createElement("div");

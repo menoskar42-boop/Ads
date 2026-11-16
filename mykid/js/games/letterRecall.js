@@ -30,6 +30,7 @@ function sayParts(parts) {
 }
 import { mountConnect } from "./connectBoard.js";
 import { WB_AR } from "../data/workbook.js";
+import { EB_PAGES } from "../data/englishbook.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
 const el = (tag, css, text) => { const n = document.createElement(tag); if (css) n.style.cssText = css; if (text != null) n.textContent = text; return n; };
@@ -257,8 +258,43 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
     next();
   }
 
+  // ── مراجعة (كتاب الإنجليزى، المالك ٢٠٢٦-١١-١٦) ─────────────────────────────
+  // نفس «المراجعة الذكية» بتاعة قلعة الحروف الإنجليزى، على حروف النجمة افتراضياً — أو حروف يختارها
+  function reviewChooser() {
+    clear();
+    const sel = new Set(starred);
+    const say = sel.size ? S.reviewPick : S.reviewPickEmpty;
+    stage.append(el("p", SAY_CSS, fem(say)));
+    const grid = el("div", "display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:min(94vw,620px);margin:0 auto 14px");
+    grid.dir = "ltr";
+    const go = el("button", "display:block;margin:6px auto 24px;font-size:22px", "");
+    go.className = "candy-btn";
+    const refresh = () => { go.textContent = `▶️ يلا نراجع (${sel.size})`; go.disabled = !sel.size; go.style.opacity = sel.size ? "1" : ".5"; };
+    const all = [...new Set(EB_PAGES.filter((p) => p.type === "letter").map((p) => p.ch))];
+    const order = [...starred.filter((c) => all.includes(c)), ...all.filter((c) => !starred.includes(c))];
+    for (const ch of order) {
+      const b = el("button", "min-width:64px;font-size:30px;font-weight:900;position:relative");
+      b.className = "choice";
+      b.textContent = `${ch}${ch.toLowerCase()}`;
+      if (starred.includes(ch)) b.append(el("span", "position:absolute;top:-8px;inset-inline-end:-6px;font-size:16px", "⭐"));
+      const paint = () => { b.style.outline = sel.has(ch) ? "4px solid #22c55e" : "none"; b.style.opacity = sel.has(ch) ? "1" : ".55"; };
+      b.addEventListener("click", () => { Sfx.tap(); if (sel.has(ch)) sel.delete(ch); else { sel.add(ch); Speech.say(ch, { lang: voice }); } paint(); refresh(); });
+      paint();
+      grid.append(b);
+    }
+    go.addEventListener("click", () => {
+      if (!sel.size) return;
+      Sfx.tap();
+      Router.go("review", { regionId, regionIndex, datasetKey: "english", lang: "en-US", title: "🧠 مراجعة حروفى", letters: [...sel], back: backTo || "englishbook" });
+    });
+    refresh();
+    stage.append(grid, go);
+    sayAr(say);
+  }
+
   setTimeout(() => {
-    if (mode === "write") { if (!starred.length) noStars(); else playWrite(); }
+    if (mode === "review") reviewChooser();
+    else if (mode === "write") { if (!starred.length) noStars(); else playWrite(); }
     else if (mode === "connect") playConnect();
     else chooser();
   }, 0);

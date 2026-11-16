@@ -218,6 +218,9 @@ export const RECALL_SAY = {
     peek: "بص على الحرف كويس… وبعدين اكتبه لوحدك",
     connect: "وصّل كل حرف بالصورة اللى بتبدأ بيه",
     needTwo: "لازم حرفين عليهم نجمة على الأقل عشان نوصّل. خلّص حرف كمان فى كتاب الإنجليزى وتعالى",
+    // «مراجعة حروفى» فى كتاب الإنجليزى (المالك ٢٠٢٦-١١-١٦)
+    reviewPick: "دى حروفك اللى عليها نجمة. دوس على أى حرف تشيله أو تزوّده، وبعدين يلا نراجع",
+    reviewPickEmpty: "اختار الحروف اللى عايز تراجعها، وبعدين يلا نراجع",
   },
   num: {
     connect: "وصّل كل رقم بالصورة اللى فيها نفس العدد",
@@ -237,6 +240,7 @@ export function recallPhrases() {
       for (const p of picturesFor(lang, ch)) { bag.add(p.w); put(S.whichLetter(p.w)); put(S.starts(p.w, name)); }
     }
     ar.add(S.choose); ar.add(S.noStars); ar.add(S.peek); ar.add(S.connect); ar.add(S.needTwo);
+    if (S.reviewPick) { ar.add(S.reviewPick); ar.add(S.reviewPickEmpty); }
   }
   for (const p of LB_PAGES.filter((x) => x.type === "letter")) ar.add(`اكتب حرف ${nameOf(p.ch)}`);
   for (const p of EB_PAGES.filter((x) => x.type === "letter")) { en.add(`Write capital ${p.ch}`); en.add(`Write small ${p.ch.toLowerCase()}`); }

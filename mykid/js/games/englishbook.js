@@ -139,6 +139,8 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
       button("candy-btn", "🖼️ صور الحروف", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "pics", lang: "en", back: "englishbook" }); }),
       button("candy-btn", "🧠 اكتب من الذاكرة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "write", lang: "en", back: "englishbook" }); }),
       button("candy-btn", "🔗 وصّل الحرف بالصورة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "connect", lang: "en", back: "englishbook" }); }),
+      // «مراجعة» (المالك ٢٠٢٦-١١-١٦): زى المراجعة الذكية فى قلعة الحروف الإنجليزى — حروف النجمة افتراضياً أو حروف يختارها
+      button("candy-btn", "🧠 مراجعة حروفى", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "review", lang: "en", back: "englishbook" }); }),
     );
     map.appendChild(recall);
     EB_UNITS.forEach((u, ui) => {
