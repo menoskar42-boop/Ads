@@ -91,7 +91,7 @@ function readAlong(p, text) {
   }, 250 + i * 420));
 }
 
-export function renderEnglishbook({ regionId, regionIndex, page: startPage, only = null, mix = null }) {
+export function renderEnglishbook({ regionId, regionIndex, page: startPage, only = null, mix = null, review = null }) {
   const screen = el("div", "region-screen wbk-screen lbk-screen ebk-screen");
   let cur = null;
   let steps = [];
@@ -234,7 +234,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     });
     if (cur.type === "letter") { const L = cur.label || cur.ch; title.innerHTML = `<b dir="ltr">${L}${L.toLowerCase()}</b><span dir="ltr">/${cur.sound}/</span>`; }
     else if (cur.type === "sight") title.innerHTML = `<b dir="ltr">⭐ ${cur.word}</b><span>Sight word</span>`;
-    else if (cur.type === "review") title.innerHTML = `<b>🏆</b><span dir="ltr">Review</span>`;
+    else if (cur.type === "review") title.innerHTML = `<b>🏆</b><span dir="ltr">${cur.picked ? cur.letters.map((c) => c + c.toLowerCase()).join(" ") : "Review"}</span>`;
     else if (cur.type === "mix") title.innerHTML = `<b>⭐</b><span dir="ltr">My stars</span>`;
     else title.innerHTML = `<b>${cur.type === "story" ? cur.icon || "📖" : cur.type === "cvc" ? "🔤" : "🗣️"}</b><span dir="ltr">${cur.title}</span>`;
     const track = el("div", "wbk-track");
@@ -321,7 +321,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
 
   let cheerN = 0;
   // المرحلة اللى وصلها جوّه الصفحة بتتحفظ — يطلع ويرجع يلاقى نفسه عندها (المالك ٢٠٢٦-١١-١١)
-  function resumeKey() { return cur && cur.id && cur.type !== "mix" && !only ? "en:" + cur.id : null; }
+  function resumeKey() { return cur && cur.id && cur.type !== "mix" && !cur.picked && !only ? "en:" + cur.id : null; }
   function nextStep() {
     cleanup();
     cleanup = () => {};
@@ -349,6 +349,8 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     if (resumeKey()) Store.clearPageResume(resumeKey());
     // «حروفى بالنجمة» مراجعة — مابتعلّمش صفحة فى الكتاب ومالهاش شهادة
     if (cur.type === "mix") { cur = null; return finishActivity({ regionId, regionIndex, stars: 5, onDone: toRegion }); }
+    // «🧠 مراجعة حروفى» (الحروف اللى الطفل اختارها) — مش صفحة فى الكتاب ⇒ مابتتعلّمش، والرجوع للكتاب
+    if (cur.picked) { cur = null; return finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser }); }
     Store.markEnglishbookDone(cur.id);
     const end = () => finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
     if (cur.type !== "letter" || !res) return end();
@@ -1060,6 +1062,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
   setTimeout(() => {
     const pg = startPage && EB_PAGES.find((x) => x.id === startPage);
     if (mix === "letterMeet") openMix();
+    else if (Array.isArray(review) && review.length) openPage({ id: "picked-review", type: "review", picked: true, letters: review });
     else if (pg) openPage(pg);
     else showChooser();
   }, 0);

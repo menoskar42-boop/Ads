@@ -44,19 +44,19 @@ after(async () => {
 
 const nowChip = () => page.evaluate(() => [...document.querySelectorAll(".wbk-chip")].findIndex((c) => c.classList.contains("now")));
 
-// «مراجعة حروفى» فى كتاب الإنجليزى (المالك ٢٠٢٦-١١-١٦): حروف النجمة متعلّمة لوحدها، والطفل يشيل/يزوّد،
-// والمراجعة نفسها (نفس «المراجعة الذكية») جولاتها من الحروف المختارة بس.
-test("English book review: starred letters preselected, toggling works, rounds use only the chosen letters", async () => {
+// «مراجعة حروفى» فى كتاب الإنجليزى (المالك ٢٠٢٦-١١-١٦): حروف النجمة متعلّمة لوحدها، والطفل يشيل/يزوّد، والمراجعة
+// بتفتح جوّه الكتاب بكل تمارين صفحات الحروف المختارة (زى 🏆 كراسة الحروف) — مش أسئلة «المراجعة الذكية» بس.
+test("English book review: starred letters preselected, toggling works, opens all drills of the chosen letters", async () => {
   await page.goto(base);
   await page.evaluate(async () => {
     localStorage.clear();
     const { Store } = await import("/js/core/storage.js");
     Store.englishbookDone["u1-A"] = 1;
     Store.englishbookDone["u1-M"] = 1;
-    // صفحة الاختبار مابتحمّلش app.js ⇒ نمسك Router.go ونرسم شاشة المراجعة بنفس الـparams
+    // صفحة الاختبار مابتحمّلش app.js ⇒ نمسك Router.go ونرسم الكتاب بنفس الـparams
     const { Router } = await import("/js/core/router.js");
-    const { renderReview } = await import("/js/games/review.js");
-    Router.go = (name, params) => { window.__go = { name, params }; if (name === "review") document.getElementById("app").replaceChildren(renderReview(params)); };
+    const { renderEnglishbook } = await import("/js/games/englishbook.js");
+    Router.go = (name, params) => { window.__go = { name, params }; if (name === "englishbook") document.getElementById("app").replaceChildren(renderEnglishbook(params)); };
     const { renderLetterRecall } = await import("/js/games/letterRecall.js");
     document.getElementById("app").replaceChildren(renderLetterRecall({ regionId: "english", regionIndex: 0, mode: "review", lang: "en", back: "englishbook" }));
   });
@@ -67,22 +67,20 @@ test("English book review: starred letters preselected, toggling works, rounds u
   // M off ⇒ واحد أقل
   await page.getByRole("button", { name: /^Mm/ }).click();
   assert.equal(await selectedCount(), initial - 1);
-  // A لوحده
+  // A لوحده + I
   const chosen = await page.evaluate(() => [...document.querySelectorAll(".choice")].filter((b) => b.style.opacity === "1").map((b) => b.textContent.replace("⭐", "")));
   for (const c of chosen) if (c !== "Aa") await page.getByRole("button", { name: new RegExp(`^${c}`) }).click();
-  assert.equal(await selectedCount(), 1);
+  await page.getByRole("button", { name: /^Ii/ }).click();
+  assert.equal(await selectedCount(), 2);
   await start.click();
   const go = await page.evaluate(() => window.__go);
-  assert.equal(go.name, "review");
-  assert.deepEqual(go.params.letters, ["A"]);
-  assert.equal(go.params.back, "englishbook");
-  await page.getByText("مراجعة حروفى").waitFor();
-  for (let r = 0; r < 3; r++) {
-    const opts = await page.evaluate(() => [...document.querySelectorAll(".choice-row button")].map((b) => b.textContent.trim()));
-    assert.ok(opts.includes("A") && opts.includes("a"), `round ${r}: ${opts}`);
-    const want = await page.evaluate(() => (/الصغير/.test(document.querySelector(".stage p")?.textContent || "") ? "a" : "A"));
-    await page.locator(".choice-row button", { hasText: new RegExp(`^${want}$`) }).first().click();
-    await page.waitForTimeout(1500);
-  }
+  assert.equal(go.name, "englishbook");
+  assert.deepEqual([...go.params.review].sort(), ["A", "I"]);
+  // رأس الصفحة فيه الحرفين، وشريط الخطوات طويل (كل التمارين + الكتابة)
+  await page.locator(".wbk-title").waitFor();
+  const title = await page.locator(".wbk-title").textContent();
+  assert.ok(title.includes("Aa") && title.includes("Ii"), title);
+  const chips = await page.locator(".wbk-chip").count();
+  assert.ok(chips >= 15, `steps: ${chips}`);
   assert.deepEqual(errors, []);
 });

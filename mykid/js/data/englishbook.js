@@ -412,6 +412,74 @@ function reviewDrillsFor(letters, rnd) {
   }
   return plan;
 }
+/** «🧠 مراجعة حروفى» (المالك ٢٠٢٦-١١-١٦: «يبقى فيها كل التمارين … لو اخترت حرف I و N يجيب كل الألعاب اللى فى
+ *  الحرفين دول زى مراجعة الحروف العربى»): الحروف اللى الطفل اختارها — كل حرف ٥ أنواع مختلفة على الأقل من تمارين
+ *  صفحته، والأنواع كلها بتتغطّى على الحروف المختارة (زى 🏆 كراسة الحروف). أكتر من ٨ حروف ⇒ ٨ منهم عشوائى. */
+export const EB_PICKED_PER_LETTER = 5;
+export const EB_PICKED_MAX_LETTERS = 8;
+/** الأنواع اللى تنفع للحرف: X (الصوت فى الآخر) مالوش «بتبدأ بإيه؟» ولا «وصّل». */
+const drillOk = (ch, k) => !(letterPg(ch).pos === "end" && (k === "phonics" || k === "connect"));
+export function pickedDrillPlan(letters, rnd = Math.random, per = EB_PICKED_PER_LETTER) {
+  const plan = new Map(letters.map((ch) => [ch, []]));
+  if (!letters.length) return plan;
+  const total = Math.max(EB_REVIEW_DRILLS.length, letters.length * per);
+  let pool = [];
+  for (let i = 0, guard = 0; i < total && guard < total * 30; guard++) {
+    if (!pool.length) pool = shuffled(rnd, EB_REVIEW_DRILLS);
+    const ch = letters[i % letters.length];
+    const mine = plan.get(ch);
+    const j = pool.findIndex((k) => !mine.includes(k) && drillOk(ch, k));
+    if (j < 0) { pool = []; if (mine.length >= EB_REVIEW_DRILLS.filter((k) => drillOk(ch, k)).length) i++; continue; }
+    mine.push(pool.splice(j, 1)[0]);
+    i++;
+  }
+  return plan;
+}
+function pickedReviewSteps(pg, rnd, want) {
+  const all = [...new Set(pg.letters || [])].filter((ch) => letterPg(ch).type === "letter");
+  const letters = shuffled(rnd, all).slice(0, EB_PICKED_MAX_LETTERS);
+  const steps = [];
+  // ١) اسمع وفين — من كلمات صفحات الحروف المختارة بس
+  const words = [...new Set(letters.flatMap((ch) => letterPg(ch).words || []))].filter((w) => EB_WORDS[w] && !ABSTRACT.includes(w));
+  if (words.length && want("find")) steps.push({ kind: "find", rounds: findRounds(shuffled(rnd, words).slice(0, 4), rnd, ALL_WORDS, 2, words) });
+  const plan = pickedDrillPlan(letters, rnd);
+  const rounds = Math.max(0, ...[...plan.values()].map((a) => a.length));
+  const round = (r) => {
+    for (const ch of letters) {
+      const k = plan.get(ch)[r];
+      if (k && (want(k) || want("drills"))) steps.push(...ebSteps(letterPg(ch), rnd, [k]).filter((x) => x.kind !== "write"));
+    }
+  };
+  const writeAll = (noStart) => {
+    if (!want("write")) return;
+    for (const ch of letters) {
+      steps.push({ kind: "write", glyph: ch, level: 3, reps: 1, ...(noStart ? { noStart } : {}) },
+        { kind: "write", glyph: ch.toLowerCase(), level: 3, reps: 1, ...(noStart ? { noStart } : {}) });
+    }
+  };
+  round(0);
+  writeAll(false);
+  round(1);
+  // ٢) وصّل الحرف الصغير بصورته (٤ حروف بالكتير)
+  const withPics = letters.filter((ch) => letterPg(ch).pos !== "end" && wordsStarting(ch).some((w) => !ABSTRACT.includes(w)));
+  if (withPics.length && want("matchLetter")) {
+    const pairs = shuffled(rnd, withPics).slice(0, 4).map((ch) => ({ ch: ch.toLowerCase(), w: pick(rnd, wordsStarting(ch).filter((w) => !ABSTRACT.includes(w)), 1)[0] }));
+    steps.push({ kind: "matchLetter", pairs });
+  }
+  round(2);
+  // ٣) المس الصور اللى بتبدأ بالصوت
+  const clear = (ch) => wordsStarting(ch).filter((w) => !ABSTRACT.includes(w));
+  const fs = letters.filter((ch) => letterPg(ch).pos !== "end" && clear(ch).length >= 2);
+  if (fs.length && want("firstSound")) {
+    const lp = letterPg(pick(rnd, fs, 1)[0]);
+    steps.push({ kind: "firstSound", ch: lp.ch, label: lp.label || lp.ch, pos: lp.pos || "start", items: firstSound(lp, rnd, pick(rnd, clear(lp.ch), 2)) });
+  }
+  round(3);
+  // ✏️ تانى من غير النقطة الخضرا (من الذاكرة)
+  writeAll(true);
+  for (let r = 4; r < rounds; r++) round(r);
+  return steps;
+}
 /** صفحة الحرف الصغيرة ({ch, pos}) — للمراجعة. */
 const letterPg = (ch) => EB_PAGES.find((p) => p.type === "letter" && p.ch === ch) || { ch };
 /** «Do you like …?» / «What do you want to be?»: سؤال رأى — أى اختيار صح وميزو يقول الجملة. */
@@ -524,6 +592,8 @@ export function ebSteps(pg, rnd = Math.random, only = null) {
       const cells = shuffled(rnd, [...Array(k).fill(pg.word), ...pick(rnd, pg.others, 4).concat(pg.others).slice(0, 4)]);
       steps.push({ kind: "findColor", word: pg.word, cells });
     }
+  } else if (pg.type === "review" && pg.picked) {
+    steps.push(...pickedReviewSteps(pg, rnd, want));
   } else if (pg.type === "review") {
     // المالك ٢٠٢٦-١١-٠٥/٠٧: «المراجعة فى الإنجليزى زى العربى» + «الreview ده المفروض يكون مختص بالحروف اللى فى
     // الunit». الصور والحروف من الوحدة بس (الصور الغلط من كلمات الوحدة التانية — مش أرنب وقطر من وحدة تانية)، ٤ صور،

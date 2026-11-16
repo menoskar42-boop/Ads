@@ -124,3 +124,23 @@ test("«حروفى بالنجمة»: letterMeet for starred letters only (alread
   assert.ok(EB_SAY.mixEmpty.length > 10);
   assert.match(femAdapt(EB_SAY.mixEmpty), /كمّلي/, "للبنت بصيغة المؤنّث");
 });
+
+// «🧠 مراجعة حروفى» (المالك ٢٠٢٦-١١-١٦): «لو اخترت حرف I و N يجيب كل الألعاب اللى فى الحرفين دول»
+test("picked review (I, N): every drill kind from the letter pages, each letter ≥5 kinds, only the chosen letters", async () => {
+  const { ebSteps, pickedDrillPlan, EB_REVIEW_DRILLS, EB_PICKED_PER_LETTER } = await import("../js/data/englishbook.js");
+  let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const plan = pickedDrillPlan(["I", "N"], rnd);
+  const kinds = new Set([...plan.values()].flat());
+  for (const k of EB_REVIEW_DRILLS) assert.ok(kinds.has(k), `missing ${k}`);
+  for (const [ch, ks] of plan) { assert.ok(ks.length >= EB_PICKED_PER_LETTER, ch); assert.equal(new Set(ks).size, ks.length); }
+  const steps = ebSteps({ id: "picked-review", type: "review", picked: true, letters: ["I", "N"] }, rnd);
+  const seen = new Set(steps.map((s) => s.game || s.kind));
+  for (const k of EB_REVIEW_DRILLS) assert.ok(seen.has(k), `no ${k} step`);
+  for (const s of steps) if (s.ch) assert.ok(["I", "N", "i", "n"].includes(s.ch), `letter ${s.ch}`);
+  const writes = steps.filter((s) => s.kind === "write").map((s) => s.glyph);
+  assert.deepEqual([...new Set(writes)].sort(), ["I", "N", "i", "n"]);
+  // X (الصوت فى الآخر): مفيش «بتبدأ بإيه؟» ولا «وصّل»
+  const x = ebSteps({ id: "picked-review", type: "review", picked: true, letters: ["X"] }, rnd);
+  assert.ok(x.length > 5);
+  assert.ok(!x.some((s) => s.game === "phonics" || s.kind === "connect"));
+});

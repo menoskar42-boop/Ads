@@ -285,7 +285,8 @@ export function renderLetterRecall({ regionId, regionIndex, mode = "pics", lang 
     go.addEventListener("click", () => {
       if (!sel.size) return;
       Sfx.tap();
-      Router.go("review", { regionId, regionIndex, datasetKey: "english", lang: "en-US", title: "🧠 مراجعة حروفى", letters: [...sel], back: backTo || "englishbook" });
+      // كل تمارين صفحات الحروف المختارة جوّه كتاب الإنجليزى (زى 🏆 كراسة الحروف) — مش أسئلة «المراجعة الذكية» بس
+      Router.go("englishbook", { regionId, regionIndex, review: [...sel] });
     });
     refresh();
     stage.append(grid, go);
