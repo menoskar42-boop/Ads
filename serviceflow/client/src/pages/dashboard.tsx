@@ -56,6 +56,7 @@ import { MaintCableSection } from "@/components/MaintCableSection";
 import { SpeedDropReport } from "@/components/SpeedDropReport";
 import { BoxFullReviewedReport } from "@/components/BoxFullReviewedReport";
 import { OmBoxFreedReport } from "@/components/OmBoxFreedReport";
+import { TerminalReviewsReport } from "@/components/TerminalReviewsReport";
 import { CfmTicketsReport } from "@/components/CfmTicketsReport";
 import { GroundNetworkFaultsTab } from "@/components/GroundNetworkFaultsTab";
 import { SlotCardsReport } from "@/components/SlotCardsReport";
@@ -102,7 +103,7 @@ import { installMeasureHider } from "@/lib/measure-hide";
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload" | "local-store";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-target112" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "tech-certificate" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "inspection-followup-progress" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-loop" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces" | "inspection-followup";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-target112" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "tech-certificate" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "inspection-followup-progress" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-loop" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces" | "inspection-followup" | "terminal-reviews";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -252,6 +253,7 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
       { id: "lines-no-mobile", label: "أرقام بدون رقم موبايل تحت الفحص" },
       { id: "lines-mobile-checked", label: "أرقام تم الفحص وتحتاج أرقام محمول" },
       { id: "box-summary",  label: "ملخص البكسيات" },
+      { id: "terminal-reviews", label: "مراجعة البكس ترمنال بترمنال" },
       { id: "port-change", label: "متابعة تغيير البورت" },
       { id: "subscriber-info", label: "اسم وعنوان العملاء (البورتات)" },
       { id: "ports-suspend-free", label: "بورتات ALL_SUSPEND / FREE" },
@@ -359,7 +361,7 @@ export default function Dashboard() {
 
   // مجموعات التقارير المعروضة حسب الدور
   // مسئول البيانات: تقريرين من القياسات + أوامر الشغل + «بيان التليفونات» + «أرقام بدون موبايل»
-  const DM_ALLOWED: ReportTab[] = ["no-account", "ground-network", "work-orders", "phone-lines", "lines-no-mobile", "local-store", "maint-cable"];
+  const DM_ALLOWED: ReportTab[] = ["no-account", "ground-network", "work-orders", "phone-lines", "lines-no-mobile", "local-store", "maint-cable", "terminal-reviews"];
   const DM_ALLOWED_GROUPS = ["القياسات", "تركيبات و نقل و اوامر شغل", "الخطوط والبكسيات", "المخزن"];
   // الفني: 5 تقارير فقط (الأعطال الحالية + أداء الفنيين + إحصائيات الإزالة/التكرار + متوسط القياسات)
   // «التركيبات والنقل الحالى» بتظهر للفنى ومفلترة على كباينته؛
@@ -367,6 +369,8 @@ export default function Dashboard() {
   const TECH_ALLOWED: ReportTab[] = ["current-faults", "regularized-faults-range", "manual-current-faults", "manual-regularized-high-score", "tech-performance", "removal-stats", "repetition-stats", "repeated-within-month", "box-score-avg", "om-current", "with-account", "inspection-followup-progress", "shift-schedule", "current-installations", "current-surveys", "inspection-followup",
     // الكروت + الفاضى لكل نوع بورت + الخطوط المرفوعة — السيرفر بيفلترهم على كباينه هو (٢٠٢٦-٠٩-٣٠)
     "slot-cards", "cabinet-port-free", "removed-ports",
+    // «مراجعة البكس ترمنال بترمنال» — الإحصائيات للكل، والتفصيلى لكباينه بس (السيرفر)
+    "terminal-reviews",
     // «متعذرات تم توفير خطوط بها» — السيرفر بيفلترها على اللى يخص الفنى
     "om-box-freed"];
   const TECH_ALLOWED_GROUPS = ["الأعطال", "القياسات", "متعذرات OM", "تركيبات و نقل و اوامر شغل", "المعاينات", "جدول الورديات", "الخطوط والبكسيات", "المتابعة"];
@@ -908,6 +912,7 @@ export default function Dashboard() {
               {reportTab === "left-speed-raised"    && <NeedsSpeedReport endpoint="/api/phone-lines/left-speed-raised" title="خرجت من «محتاجة رفع سرعة» بعد القياس — اترفعت سرعتها وماعادتش محتاجة" />}
               {reportTab === "box-full-reviewed"   && <BoxFullReviewedReport />}
               {reportTab === "om-box-freed"        && <OmBoxFreedReport />}
+              {reportTab === "terminal-reviews"    && <TerminalReviewsReport />}
               {reportTab === "needs-po-stop"          && <NeedsSpeedReport endpoint="/api/phone-lines/needs-po-stop" title="أرقام تحتاج إيقاف PO (لا تحتاج رفع سرعة + قِيست خلال 3 أيام)" />}
               {reportTab === "complaint-no-measure"   && <ComplaintNoMeasureReport />}
               {reportTab === "speed-drop"   && <SpeedDropReport />}
