@@ -1,0 +1,33 @@
+time_seconds,time_mm_ss,score_0_100,band_width_ratio,stripe_edge_evidence,frames_tracked,own_camera_jump_0_1_5s,camera_jump_dy_px,notes
+25.79,00:26,61.2,0.457,broad dark shadow line; paired horizontal edges; possible hump/paint band,6,yes,2.67,screening score only; 6 frames; camera jump threshold 2.50px
+97.84,01:38,81.3,0.522,broad dark shadow line; paired horizontal edges; possible hump/paint band; strong transverse edge,13,no,0.00,screening score only; 13 frames; camera jump threshold 2.50px
+164.85,02:45,58.0,0.279,paired horizontal edges; possible hump/paint band,8,no,0.00,screening score only; 8 frames; camera jump threshold 2.50px
+171.80,02:52,56.5,0.309,broad dark shadow line; paired horizontal edges; possible hump/paint band,8,no,0.00,screening score only; 8 frames; camera jump threshold 2.50px
+283.61,04:44,61.8,0.496,broad dark shadow line; strong transverse edge,6,no,0.00,screening score only; 6 frames; camera jump threshold 2.50px
+296.78,04:57,56.3,0.322,broad dark shadow line; paired horizontal edges; possible hump/paint band,7,no,0.00,screening score only; 7 frames; camera jump threshold 2.50px
+348.74,05:49,60.6,0.315,paired horizontal edges; possible hump/paint band,5,no,0.00,screening score only; 5 frames; camera jump threshold 2.50px
+354.04,05:54,67.3,0.319,paired horizontal edges; possible hump/paint band,13,no,0.00,screening score only; 13 frames; camera jump threshold 2.50px
+367.98,06:08,63.0,0.526,broad dark shadow line,5,no,0.00,screening score only; 5 frames; camera jump threshold 2.50px
+372.47,06:12,60.2,0.565,broad dark shadow line,5,no,0.00,screening score only; 5 frames; camera jump threshold 2.50px
+376.44,06:16,63.3,0.331,broad dark shadow line; paired horizontal edges; possible hump/paint band,12,no,0.00,screening score only; 12 frames; camera jump threshold 2.50px
+382.90,06:23,56.5,0.331,broad dark shadow line; paired horizontal edges; possible hump/paint band,7,no,0.00,screening score only; 7 frames; camera jump threshold 2.50px
+388.20,06:28,67.3,0.407,paired horizontal edges; possible hump/paint band,7,no,0.00,screening score only; 7 frames; camera jump threshold 2.50px
+396.77,06:37,65.9,0.373,broad dark shadow line; paired horizontal edges; possible hump/paint band; strong transverse edge,11,no,0.00,screening score only; 11 frames; camera jump threshold 3.55px
+401.68,06:42,65.7,0.354,paired horizontal edges; possible hump/paint band; strong transverse edge,7,yes,7.38,screening score only; 7 frames; camera jump threshold 2.50px
+431.86,07:12,69.7,0.449,broad dark shadow line; paired horizontal edges; possible hump/paint band; strong transverse edge,7,no,0.00,screening score only; 7 frames; camera jump threshold 2.50px
+450.61,07:31,61.3,0.501,broad dark shadow line; strong transverse edge,7,yes,-3.39,screening score only; 7 frames; camera jump threshold 3.10px
+468.14,07:48,58.1,0.381,broad dark shadow line; paired horizontal edges; possible hump/paint band,5,no,0.00,screening score only; 5 frames; camera jump threshold 2.50px
+479.48,07:59,50.9,0.237,paired horizontal edges; possible hump/paint band,5,no,0.00,screening score only; 5 frames; camera jump threshold 2.50px
+494.78,08:15,74.2,0.423,paired horizontal edges; possible hump/paint band,10,no,0.00,screening score only; 10 frames; camera jump threshold 2.50px
+527.84,08:48,51.6,0.269,broad dark shadow line; paired horizontal edges; possible hump/paint band,5,no,0.00,screening score only; 5 frames; camera jump threshold 2.50px
+533.95,08:54,60.9,0.331,broad dark shadow line; paired horizontal edges; possible hump/paint band; strong transverse edge,10,no,0.00,screening score only; 10 frames; camera jump threshold 2.50px
+546.12,09:06,59.4,0.369,broad dark shadow line; paired horizontal edges; possible hump/paint band; strong transverse edge,7,yes,-3.13,screening score only; 7 frames; camera jump threshold 2.50px
+551.55,09:12,54.0,0.244,paired horizontal edges; possible hump/paint band,6,no,0.00,screening score only; 6 frames; camera jump threshold 2.50px
+564.31,09:24,69.0,0.337,paired horizontal edges; possible hump/paint band; strong transverse edge,13,no,0.00,screening score only; 13 frames; camera jump threshold 2.50px
+577.20,09:37,78.1,0.418,paired horizontal edges; possible hump/paint band; strong transverse edge,13,no,0.00,screening score only; 13 frames; camera jump threshold 2.50px
+580.47,09:40,61.4,0.551,broad dark shadow line,5,no,0.00,screening score only; 5 frames; camera jump threshold 2.50px
+614.42,10:14,53.7,0.263,paired horizontal edges; possible hump/paint band,5,no,0.00,screening score only; 5 frames; camera jump threshold 2.50px
+631.71,10:32,56.2,0.296,paired horizontal edges; possible hump/paint band; strong transverse edge,5,yes,2.65,screening score only; 5 frames; camera jump threshold 2.50px
+634.77,10:35,53.8,0.272,broad dark shadow line; paired horizontal edges; possible hump/paint band,6,no,0.00,screening score only; 6 frames; camera jump threshold 2.50px
+650.35,10:50,61.3,0.343,paired horizontal edges; possible hump/paint band; strong transverse edge,5,no,0.00,screening score only; 5 frames; camera jump threshold 2.50px
+673.07,11:13,61.3,0.277,paired horizontal edges; possible hump/paint band,9,no,0.00,screening score only; 9 frames; camera jump threshold 2.50px
