@@ -7,7 +7,7 @@
  */
 
 import { cairoDay } from './cairo-day';
-import { COPTIC_MONTHS, getKatamerosPlan, localSynaxariumTitles } from './katameros-local';
+import { COPTIC_MONTHS, getKatamerosPlan, localSynaxariumEntries } from './katameros-local';
 
 const SYNAXARIUM_INDEX_URL = 'https://www.copticchurch.net/synaxarium';
 const SYNAXARIUM_BASE_URL = 'https://www.copticchurch.net/synaxarium';
@@ -197,22 +197,30 @@ export async function fetchTodaySynaxarium(): Promise<TodaySynaxarium> {
 }
 
 /**
- * سنكسار يوم قبطى: المصدر الحى (copticchurch.net) الأول، ولو وقع أو رجع فاضى ⇒ عناوين اليوم من بياناتنا
- * (katameros — `local`). المالك ٢٠٢٦-١١-٠٨: «اليوم السبت ٧-١١ السنكسار فاضى ليه».
+ * سنكسار يوم قبطى: **النص العربى الكامل من بياناتنا الأول** (katameros — `local`)، والمصدر الحى (copticchurch.net) احتياطى بس
+ * لو اليوم مش عندنا. المالك ٢٠٢٦-١١-١٦: السنكسار كان بيظهر إنجليزى فى شاشة القداس وصفحة السنكسار لأن المصدر الحى رجّع
+ * إنجليزى — «عاوز عربى… تبقى عندنا مش api من موقع تانى».
  */
 export async function synaxariumWithFallback(month: number, day: number): Promise<TodaySynaxarium> {
-  try {
-    const live = await fetchSynaxariumDay(month, day);
-    if (live.entries.length) return live;
-  } catch { /* المصدر واقع — الاحتياطى تحت */ }
-  return localSynaxarium(month, day);
+  const local = localSynaxarium(month, day);
+  if (local.entries.length) return local;
+  return fetchSynaxariumDay(month, day);
+}
+
+/** HTML قصة السنكسار ⇒ نص بفقرات (سطر فاضى بين كل فقرة). */
+function synaxHtmlToText(html: string): string {
+  return decodeHtmlEntities(
+    html.replace(/<\s*br\s*\/?>/gi, '\n').replace(/<\/\s*p\s*>/gi, '\n\n').replace(/<[^>]+>/g, ''),
+  ).replace(/[ \t]+/g, ' ').replace(/\n\s*\n\s*/g, '\n\n').trim();
 }
 
 export function localSynaxarium(month: number, day: number): TodaySynaxarium {
-  const titles = localSynaxariumTitles(month, day);
+  const entries = localSynaxariumEntries(month, day);
   return {
     copticDate: `${day} ${COPTIC_MONTHS[month] ?? ''}`.trim(),
-    entries: titles.map((title, i) => ({ id: `${month}-${day}-local-${i + 1}`, title, description: '', url: '', anchor: '' })),
+    entries: entries.map((e, i) => ({
+      id: `${month}-${day}-local-${i + 1}`, title: e.title, description: synaxHtmlToText(e.text), url: '', anchor: '',
+    })),
     fetchedAt: Date.now(),
     source: 'local',
     sourceUrl: '',

@@ -243,6 +243,22 @@ function specialCase(n: number, c: { year: number; month: number; day: number },
   return null;
 }
 
+/** نص السنكسار الكامل بالعربى من بياناتنا (synaxarium.ar.json — katameros-api، MIT). بيتحمّل أول مرة بس، ومنفصل عن load()
+ *  عشان خطة القراءات (/api) ماتشيلش النصوص الطويلة. المالك ٢٠٢٦-١١-١٦: «تبقى عندنا مش api من موقع تانى». */
+let synaxTexts: Map<string, { order: number; title: string; text: string }[]> | null = null;
+export function localSynaxariumEntries(month: number, day: number): { title: string; text: string }[] {
+  if (!synaxTexts) {
+    synaxTexts = new Map();
+    for (const s of JSON.parse(fs.readFileSync(path.join(KATAMEROS_DIR, "synaxarium.ar.json"), "utf8"))) {
+      const k = `${s.month}-${s.day}`;
+      if (!synaxTexts.has(k)) synaxTexts.set(k, []);
+      synaxTexts.get(k)!.push({ order: s.order, title: s.title, text: String(s.text ?? "") });
+    }
+  }
+  return (synaxTexts.get(`${month}-${day}`) ?? []).slice().sort((a, b) => a.order - b.order)
+    .map(({ title, text }) => ({ title, text }));
+}
+
 /** عناوين سنكسار يوم قبطى (شهر ١–١٣، يوم) من بياناتنا — احتياطى لما المصدر الحى مايردّش. */
 export function localSynaxariumTitles(month: number, day: number): string[] {
   return (load().synaxarium.get(`${month}-${day}`) ?? []).slice().sort((a, b) => a.order - b.order).map((s) => s.title);

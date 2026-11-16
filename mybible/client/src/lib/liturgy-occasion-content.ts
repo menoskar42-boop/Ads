@@ -44,7 +44,7 @@ export const occasionInserts: OccasionInsert[] = [
   // position: 'prelude' يستبدل أجيوس العادي (في SECTION_DEACON_PRELUDE) بنسخة البصخة
   {
     occasion: 'holy-week',
-    anchorSectionKey: 'basil-gospel',
+    anchorSectionKey: 'basil-gospel-litany',
     position: 'prelude',
     slides: [
       {
@@ -52,7 +52,8 @@ export const occasionInserts: OccasionInsert[] = [
         role: 'people',
         title: 'الثلاثة تقديسات — البصخة',
         text: 'قدّوسٌ اللهُ، قدّوسٌ القويّ،\nقدّوسٌ الحيُّ الذي لا يموت،\nيا مَن صُلبتَ عنّا ارحمنا.',
-        copticText: 'أجيوس أو ثيؤس، أجيوس إسخيروس،\nأجيوس أثاناتوس،\nأو إسطافروثيس ذي إيماس،\nإليئيسون إيماس.',
+        copticText: 'Ⲁ̀ⲅⲓⲟⲥ ⲟ̀ Ⲑⲉⲟⲥ: ⲁ̀ⲅⲓⲟⲥ Ⲓⲥⲭⲩⲣⲟⲥ: ⲁ̀ⲅⲓⲟⲥ Ⲁ̀ⲑⲁⲛⲁⲧⲟⲥ: ⲟ̀ ⲥ̀ⲧⲁⲩⲣⲱⲑⲓⲥ ⲑⲓ ⲇⲓⲏ̀ⲙⲁⲥ: ⲉ̀ⲗⲉⲏ̀ⲥⲟⲛ ⲏ̀ⲙⲁⲥ.',
+        copticArabicText: 'أجيوس أوثينوس أجيوس إس شيروس أجيوس أثاناطوس أو إسطفرو تيس ذي إيماس إليسون إيماس.',
       },
     ],
   },
