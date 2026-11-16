@@ -2,7 +2,7 @@
 // @name         Provisioning Portal → Service-Flow (تحديث البورتات + غيّر البورت MSAN)
 // @namespace    service-flow.provisioning
 // @description  سكربت واحد لموقع Provisioning Portal (WE) — فيه ثلاث تدفّقات مستقلة تماماً بماركرات مختلفة لمنع أى تعارض: (1) sf_ports = تحديث ملف البورتات (Get MSAN Data لكل أكواد الأمسان المخزّنة فى Service-Flow). (2) sf_msan = غيّر البورت (MSAN Replacement) لرقم واحد — يملأ Old/New Cabin Code ويحقن ملف CSV ويضغط Submit، ثم يراقب 30 ثانية للتأكد إنه مرجعش للّوجين، وبعدها (v1.9.0) بيفتح Search For My Requests ويتأكد إن فيه طلب جديد للرقم، ويبعت النتيجة لـ Service-Flow (اتعمل / مفيش طلب / الفورم ماتبعتش / فشل) فتظهر «آخر محاولة» جنب الزرار زى Re-Execute. (3) sf_pcheck = تحديث البورت (يدوى) — يفتح Search For My Requests مرة واحدة لرقم، يطابقه، ولو COMPLETED يجيب New Frame + New Msan ويحدّث بيان البورت فى Service-Flow. كل تدفّق فى نافذة باسم مستقل فالـ sessionStorage منفصل ومفيش تداخل. v1.8.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v1.7.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع.
-// @version      1.9.0
+// @version      1.10.0
 // @match        *://provisioningportal.te.eg/provisioningPortal/*
 // @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
@@ -724,6 +724,16 @@
     return null;
   }
 
+  // v1.10.0 (المالك ٢٠٢٦-١١-١٥): «بعد الضغط على submit نافذة منبثقة فيها علامة صح ومكتوب إن الطلب submitted
+  // successfully» — والطلب مابيظهرش فى Search For My Requests على طول. ⇒ النافذة دى نفسها = نجاح.
+  const MSAN_OK_RE = /submitted\s*success?fully|request\s+(has\s+been\s+)?submitted|تم\s*(إرسال|ارسال|تقديم)\s*الطلب/i;
+  function msanSuccessPopup() {
+    const boxes = document.querySelectorAll(".swal2-popup, .swal-modal, .modal.show, .modal-dialog, .modal-content, mat-dialog-container, [role='dialog'], [role='alertdialog'], .toast, .toast-container, .alert, .cdk-overlay-pane");
+    for (const b of boxes) if (visible(b) && MSAN_OK_RE.test(b.innerText || b.textContent || "")) return b;
+    return null;
+  }
+  function msanPopupText(box) { return String((box && (box.innerText || box.textContent)) || "").replace(/\s+/g, " ").trim().slice(0, 200); }
+
   let msanRunning = false;
   async function runMsan() {
     if (msanRunning) return; msanRunning = true;
@@ -747,7 +757,22 @@
         // بعد Submit: نراقب 30 ثانية — waitFor بيرجع فوراً أول ما تظهر صفحة اللوجين (bounce → إعادة)،
         // أو بعد الـ 30 ثانية كاملة لو مظهرتش (يبقى اتأكدنا إن الـ Submit نجح فعلاً → نقفل التاب).
         banner("⏳ اتعمل Submit — بنتأكد 30 ثانية إنه مرجعش للّوجين…", "#00695c");
-        const bounced = await waitFor(() => onLoginPage(), 30000);
+        // اللى قبل الـSubmit مش محسوب (لو فيه رسالة قديمة لسه ظاهرة)
+        const stalePopup = msanSuccessPopup();
+        const outcome = await waitFor(() => (onLoginPage() ? "login" : (msanSuccessPopup() && msanSuccessPopup() !== stalePopup ? "popup" : null)), 30000);
+        if (outcome === "popup") {
+          const msg = msanPopupText(msanSuccessPopup());
+          try { sessionStorage.removeItem(MSAN_BEFORE_KEY); } catch (e) {}
+          banner("✅ البورتال قال إن الطلب اتبعت (" + msg + ") — بيتقفل التاب. لمتابعة البورت الجديد اضغط «تحديث البورت» بعد شوية.", "#2e7d32");
+          logln("✅ نافذة النجاح ظهرت: " + msg);
+          await sfReportMsan(data.phone, "done", "البورتال أكّد: " + msg, {
+            popup: msg, old: data.old || "", new: data.new || "", pt: data.pt || "", sure: true,
+          });
+          await sleep(1500);
+          try { window.close(); } catch (e) {}
+          return;
+        }
+        const bounced = outcome === "login";
         if (!bounced) {
           logln("✅ اتأكدنا 30 ثانية إنه مرجعش للّوجين — بتأكد إن الطلب اتلقى…");
           const found = await msanVerifyAfter(data, beforeIds);

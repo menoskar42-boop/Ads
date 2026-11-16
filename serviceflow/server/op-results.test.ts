@@ -41,8 +41,23 @@ test("unassign runs inside the All-in-One script, which already reports every st
   assert.match(allInOne, /async function sfReportStop\(phone, why\) \{\s*const r = await sfReportCancel\(phone, why\);/);
 });
 
+// v1.10.0 (المالك ٢٠٢٦-١١-١٥): نافذة «submitted successfully» بعد Submit = نجاح (الطلب مابيظهرش فى Search For My
+// Requests على طول). الكاشف بيتشغّل على DOM وهمى: النافذة الظاهرة بس، ورسالة تانية مش محسوبة.
+test("port change script 1.10.0: the «submitted successfully» popup counts as done", () => {
+  const start = provUs.indexOf("const MSAN_OK_RE");
+  const code = provUs.slice(start, provUs.indexOf("let msanRunning", start));
+  const mk = (cls: string, text: string, shown = true) => ({ cls, innerText: text, textContent: text, getClientRects: () => (shown ? [1] : []) });
+  const run = (els: any[]) => new Function("document", "visible", code + "; return msanSuccessPopup();")(
+    { querySelectorAll: () => els }, (el: any) => el.getClientRects().length > 0);
+  assert.ok(run([mk("swal2-popup", "✔ Your request has been submitted successfuly")]));
+  assert.ok(run([mk("modal-content", "Request Submitted Successfully")]));
+  assert.equal(run([mk("modal-content", "Request Submitted Successfully", false)]), null);
+  assert.equal(run([mk("alert", "Invalid file format")]), null);
+  assert.match(provUs, /outcome === "popup"[\s\S]{0,600}sfReportMsan\(data\.phone, "done"/);
+});
+
 test("port change script 1.9.0: snapshot before Submit, verify a new request after, report the result", () => {
-  assert.match(provUs, /@version {6}1\.9\.0/);
+  assert.match(provUs, /@version {6}1\.10\.0/);
   assert.match(provUs, /const beforeIds = await msanSnapshotBefore\(data\);\s*const submitted = await fillAndSubmitMsan\(data\);/);
   assert.match(provUs, /const found = await msanVerifyAfter\(data, beforeIds\);/);
   for (const r of ["done", "not_found", "not_submitted", "failed"]) {
