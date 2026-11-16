@@ -269,6 +269,10 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   `apply_submit` · `whatsapp_click` — الأطفال: `complete_activity` · `start_adventure`) · ربط Google Ads لو فيه حساب موجود بس ·
   Google Signals لـOscarDevs بس (⛔ مش لموقع الأطفال). الصفحة: https://claude.ai/artifact/27E3BJP6xVXd9fRfZmr8dj.
   **Trigger:** «ابعتلي برومبت Task Assistant».
+- `docs/KAGGLE_SETUP_PROMPT.md` — **برومبت الإكستنشن: حساب Kaggle مجانى لتدريب موديل المطبات** (٢٠٢٦-١١-١٦). Sign in with Google ·
+  توثيق الموبايل (المالك يكتب الكود) · تأكيد الـGPU · رخصة `road_anomaly_ds` · مفتاح الـAPI ⇒ سرّين فى مشروع `sf`
+  (`KAGGLE_USERNAME` · `KAGGLE_KEY`) ومايتكتبش فى الشات. الصفحة: https://claude.ai/artifact/F2Ui7YQ4kBvgppR2px14FW.
+  **Trigger:** «ابعتلي برومبت حساب Kaggle».
 - `docs/EGX_PRICES_PAGE_PROMPT.md` — **برومبت الإكستنشن: صفحة أسعار البورصة المصرية** (٢٠٢٦-١١-١١، قراية بس). أسعار Yahoo
   اللحظية للبورصة المصرية واقفة من ٢٣ يوليو، فالخطة سكربت Tampermonkey يقرا الأسعار من egx.com.eg ويبعتها لـfinance
   (`/api/ingest/quotes`) وYahoo احتياطى. الإكستنشن بيلاقى الصفحة ويوصف الطلب اللى بيجيب الأسعار، من غير كوكيز ولا توكنات.
