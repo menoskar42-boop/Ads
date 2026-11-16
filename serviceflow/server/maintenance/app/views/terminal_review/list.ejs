@@ -1,0 +1,46 @@
+<%- include('../partials/header') %>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0 fw-bold"><i class="bi bi-grid-3x3 me-1"></i><%= title %></h5>
+  <span class="badge bg-info text-dark"><%= rows.length %> بوكس</span>
+</div>
+
+<p class="text-muted small">
+  البكسيات اللى <strong>اتعملها صيانة</strong> ولسه مااتعملهاش مراجعة بيانات. قدام كل ترمنال اختار حالته:
+  <strong>عليه حرارة</strong> · <strong>سلك بدون حرارة</strong> · <strong>لا يوجد سلك ولا حرارة</strong>،
+  وفى الآخر اضغط <strong>«تم الانتهاء من مراجعة البيانات»</strong>. مش محتاج تكتب أى رقم.
+</p>
+
+<% if (typeof error !== 'undefined' && error) { %>
+<div class="alert alert-warning small">تعذّر تحميل القائمة: <%= error %></div>
+<% } %>
+
+<% if (!rows.length) { %>
+<div class="text-center text-muted py-5">
+  <i class="bi bi-check2-circle fs-1 d-block mb-2 text-success opacity-75"></i>
+  مفيش بكسيات محتاجة مراجعة ترمنالات دلوقتى.
+</div>
+<% } else { %>
+<div class="list-group">
+  <% rows.forEach(r => { %>
+  <a href="/terminal-review/<%= r.task_id %>" class="list-group-item list-group-item-action py-3">
+    <div class="d-flex justify-content-between align-items-start gap-2">
+      <div class="flex-fill min-w-0">
+        <div class="fw-semibold mb-1">
+          <i class="bi bi-box2 text-primary me-1"></i>بوكس <bdi dir="ltr"><strong><%= r.box_number %></strong></bdi>
+        </div>
+        <div class="small text-muted text-truncate">
+          <i class="bi bi-building me-1"></i><%= r.exchange_name %>
+          &nbsp;·&nbsp; كابينة <bdi dir="ltr"><%= r.cabinet_number %></bdi>
+        </div>
+      </div>
+      <% if (r.draft_id) { %>
+        <span class="badge bg-warning text-dark flex-shrink-0">بدأت فيها</span>
+      <% } else { %>
+        <span class="badge bg-info text-dark flex-shrink-0">محتاج مراجعة</span>
+      <% } %>
+    </div>
+  </a>
+  <% }) %>
+</div>
+<% } %>
+<%- include('../partials/footer') %>

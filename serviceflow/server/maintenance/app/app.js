@@ -262,6 +262,8 @@ app.use("/technician", require("./routes/technician"));
 // «مراجعة بيانات البكس» — شاشة مستقلة عن مهام الصيانة، فنى إزالة الأعطال بيشوف
 // كباينه هو بس فيها. requireLogin بس هنا، والصلاحية بتتفلتر جوّه الراوتر بالكباين.
 app.use("/data-review", require("./routes/data_review"));
+// «مراجعة البكس ترمنال بترمنال» — فنى الصيانة بعد ما البكس يتصان (docs/SF_BOX_TERMINAL_REVIEW_PLAN.md)
+app.use("/terminal-review", require("./routes/terminal_review"));
 app.use("/reports/service-flow", require("./routes/service_flow"));
 app.use("/reports", require("./routes/reports"));
 app.use("/admin", require("./routes/admin"));
