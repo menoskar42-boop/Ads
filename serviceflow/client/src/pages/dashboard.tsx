@@ -335,10 +335,17 @@ export default function Dashboard() {
   const [openGroups, setOpenGroups] = useState<string[]>(() => {
     const initialReport = returnToFollowup ? "inspection-followup" : "current-faults";
     const g = REPORT_GROUPS.find((grp) => grp.items.some((it) => it.id === initialReport));
+    if (returnToFollowup) return ["المتابعة", "صيانة البوكسات"];
     return g ? [g.label] : [];
   });
   // refs لكل مجموعة فى القائمة الجانبية — عشان لما نفتحها نعمل scroll تلقائى يظهر التقارير اللى جواها
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  useEffect(() => {
+    if (!returnToFollowup) return;
+    requestAnimationFrame(() => {
+      groupRefs.current["صيانة البوكسات"]?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }, [returnToFollowup]);
   const toggleGroup = (label: string) =>
     setOpenGroups((prev) => {
       const willOpen = !prev.includes(label);

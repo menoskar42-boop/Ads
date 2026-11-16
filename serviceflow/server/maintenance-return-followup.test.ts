@@ -17,4 +17,6 @@ test("maintenance return link opens the Service Flow follow-up report directly",
   assert.match(dashboard, /new URLSearchParams\(window\.location\.search\)\.get\("returnTo"\) === "inspection-followup"/);
   assert.match(dashboard, /returnToFollowup \? "reports" : "orders"/);
   assert.match(dashboard, /returnToFollowup \? "inspection-followup"/);
+  assert.match(dashboard, /if \(returnToFollowup\) return \["المتابعة", "صيانة البوكسات"\]/);
+  assert.match(dashboard, /groupRefs\.current\["صيانة البوكسات"\].*scrollIntoView/);
 });
