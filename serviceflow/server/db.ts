@@ -1098,6 +1098,63 @@ export async function ensureSchema() {
     )
   `);
 
+  // مراجعة البكس ترمنال بترمنال من فنى الصيانة (docs/SF_BOX_TERMINAL_REVIEW_PLAN.md)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS box_capacity_choices (
+      id serial PRIMARY KEY,
+      central_name text NOT NULL,
+      cabin_number text NOT NULL,
+      box_number text NOT NULL,
+      capacity integer NOT NULL,
+      chosen_by text,
+      chosen_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (central_name, cabin_number, box_number)
+    );
+    CREATE TABLE IF NOT EXISTS box_terminal_reviews (
+      id serial PRIMARY KEY,
+      central_name text NOT NULL,
+      cabin_number text NOT NULL,
+      box_number text NOT NULL,
+      capacity integer NOT NULL,
+      maint_task_id integer,
+      status text NOT NULL DEFAULT 'draft',
+      reviewed_by text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      done_at timestamptz,
+      processed_at timestamptz,
+      tech_hot integer,
+      data_lines integer,
+      area_decision text,
+      area_decided_by text,
+      area_decided_at timestamptz,
+      super_decision text,
+      super_decided_by text,
+      super_decided_at timestamptz
+    );
+    CREATE INDEX IF NOT EXISTS box_terminal_reviews_box_idx ON box_terminal_reviews (central_name, cabin_number, box_number);
+    CREATE TABLE IF NOT EXISTS box_terminal_review_items (
+      id serial PRIMARY KEY,
+      review_id integer NOT NULL,
+      terminal integer NOT NULL,
+      state text NOT NULL,
+      UNIQUE (review_id, terminal)
+    );
+    CREATE TABLE IF NOT EXISTS box_terminal_review_moves (
+      id serial PRIMARY KEY,
+      review_id integer NOT NULL,
+      phone_full text NOT NULL,
+      from_terminal text,
+      to_terminal text NOT NULL,
+      correction_id integer,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  // تصحيح البيانات: الاقتراحات اللى جاية من مراجعة فنى الصيانة بتتعلّم (المصدر + الترمنال القديم)
+  await pool.query(`
+    ALTER TABLE line_data_corrections ADD COLUMN IF NOT EXISTS source text;
+    ALTER TABLE line_data_corrections ADD COLUMN IF NOT EXISTS from_terminal text;
+  `);
+
   // tech_coverage_grants — منح تغطية دائمة (grantee له حق التصرف فى خطوط covered)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS tech_coverage_grants (

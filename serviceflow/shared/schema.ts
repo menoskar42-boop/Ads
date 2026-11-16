@@ -250,6 +250,9 @@ export const lineDataCorrections = pgTable("line_data_corrections", {
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   resolvedById: integer("resolved_by_id").references(() => users.id),
   resolvedByName: text("resolved_by_name"),
+  // اقتراح جاى من «مراجعة البكس ترمنال بترمنال» (source = 'terminal_review') + الترمنال اللى كان عليه
+  source: text("source"),
+  fromTerminal: text("from_terminal"),
 });
 
 export type LineDataCorrection = typeof lineDataCorrections.$inferSelect;
@@ -1044,6 +1047,59 @@ export const dpInventory = pgTable("dp_inventory", {
   uploadedById: integer("uploaded_by_id").references(() => users.id),
 }, (t) => ({ uq: unique().on(t.central, t.cabinetNo, t.dpNo) }));
 export type DpInventory = typeof dpInventory.$inferSelect;
+
+// ── مراجعة البكس ترمنال بترمنال من فنى الصيانة (docs/SF_BOX_TERMINAL_REVIEW_PLAN.md، المالك ٢٠٢٦-١١-١٢) ──
+// box_capacity_choices — سعة البكس اللى فنى الصيانة اختارها (١٠/٢٠) لما مالوش سعة فى dp_inventory
+export const boxCapacityChoices = pgTable("box_capacity_choices", {
+  id: serial("id").primaryKey(),
+  centralName: text("central_name").notNull(),
+  cabinNumber: text("cabin_number").notNull(),
+  boxNumber: text("box_number").notNull(),
+  capacity: integer("capacity").notNull(),
+  chosenBy: text("chosen_by"),
+  chosenAt: timestamp("chosen_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ uq: unique().on(t.centralName, t.cabinNumber, t.boxNumber) }));
+
+// box_terminal_reviews — مراجعة واحدة لكل بكس اتصان (حالة كل ترمنال فى box_terminal_review_items)
+export const boxTerminalReviews = pgTable("box_terminal_reviews", {
+  id: serial("id").primaryKey(),
+  centralName: text("central_name").notNull(),
+  cabinNumber: text("cabin_number").notNull(),
+  boxNumber: text("box_number").notNull(),
+  capacity: integer("capacity").notNull(),
+  maintTaskId: integer("maint_task_id"),               // مهمة الصيانة على موقع الصيانة
+  status: text("status").notNull().default("draft"),   // draft | done | superseded
+  reviewedBy: text("reviewed_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  doneAt: timestamp("done_at", { withTimezone: true }),
+  processedAt: timestamp("processed_at", { withTimezone: true }), // السيستم عمل المقارنة والنقل
+  techHot: integer("tech_hot"),                        // عدد الترمنالات اللى عليها حرارة عند الفنى
+  dataLines: integer("data_lines"),                    // عدد خطوط البكس فى البيانات (ليها فريم) وقت المقارنة
+  areaDecision: text("area_decision"),                 // confirmed | cancelled (فنى المنطقة لفرق العدد)
+  areaDecidedBy: text("area_decided_by"),
+  areaDecidedAt: timestamp("area_decided_at", { withTimezone: true }),
+  superDecision: text("super_decision"),               // re_review | accept_area (لما فنى المنطقة يلغى)
+  superDecidedBy: text("super_decided_by"),
+  superDecidedAt: timestamp("super_decided_at", { withTimezone: true }),
+});
+
+export const boxTerminalReviewItems = pgTable("box_terminal_review_items", {
+  id: serial("id").primaryKey(),
+  reviewId: integer("review_id").notNull(),
+  terminal: integer("terminal").notNull(),
+  state: text("state").notNull(),                      // hot (عليه حرارة) | wire (سلك بدون حرارة) | none (لا سلك ولا حرارة)
+}, (t) => ({ uq: unique().on(t.reviewId, t.terminal) }));
+
+// سجل التعديلات اللى السيستم عملها وقت المراجعة: الخط اتنقل من أنهى ترمنال لأنهى، وإمتى
+export const boxTerminalReviewMoves = pgTable("box_terminal_review_moves", {
+  id: serial("id").primaryKey(),
+  reviewId: integer("review_id").notNull(),
+  phoneFull: text("phone_full").notNull(),
+  fromTerminal: text("from_terminal"),
+  toTerminal: text("to_terminal").notNull(),
+  correctionId: integer("correction_id"),              // line_data_corrections.id
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // tech_coverage_grants — منح تغطية دائمة: الفنى «القائم بالعمل» (grantee) له حق التصرف فى خطوط
 // زميله (covered) — قياس/رفع سرعة/إيقاف من بحث برقم التليفون + رؤيتها فى أعطاله — حتى لو الزميل «عمل».
