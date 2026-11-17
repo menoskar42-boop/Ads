@@ -150,8 +150,9 @@ test("جُمَل ميزو بتتأنّث للبنت (من غير «و» لازق
 });
 
 test("ترتيب الصفحات: خطوط ← ١ ← ألوان … ← ١٠ ← صفر، وبعد الأرقام كلها: الجمع ← الساعة ← مراجعة", () => {
-  assert.deepEqual(WB_PAGES.map((p) => p.id), ["lines", "1", "c0", "2", "c1", "g1", "3", "c2", "4", "c3", "g2",
-    "5", "seq", "6", "s0", "g3", "7", "s1", "8", "s2", "g4", "9", "s3", "10", "0", "g5", "add", "clock", "review"]);
+  // + «مراجعة الوحدة» (r1…r5) فى آخر كل وحدة (٢٠٢٦-١١-١٧) — الباقى بنفس الترتيب
+  assert.deepEqual(WB_PAGES.map((p) => p.id), ["lines", "1", "c0", "2", "c1", "g1", "r1", "3", "c2", "4", "c3", "g2", "r2",
+    "5", "seq", "6", "s0", "g3", "r3", "7", "s1", "8", "s2", "g4", "r4", "9", "s3", "10", "0", "g5", "r5", "add", "clock", "review"]);
   assert.equal(WB_UNITS.length, 6, "٦ وحدات زى الكتاب");
   assert.equal(new Set(WB_PAGES.map((p) => p.id)).size, WB_PAGES.length);
 });
@@ -329,4 +330,21 @@ test("addition opens with 1 and 2 and never goes past the starred numbers", () =
     const nums = s.kind === "parts" ? [s.n, ...s.options] : [s.answer];
     for (const v of nums) assert.ok(v <= 3);
   }
+});
+
+// «مراجعة الوحدة» و«⭐ اختبر أرقامى» (البند ٧، موافقة المالك ٢٠٢٦-١١-١٧): أرقام الوحدة بس، كل رقم لعبتين مختلفتين + يتكتب لوحده
+test("unit review: only the unit's numbers, two different plays per number, each written alone", async () => {
+  const { unitReviewPage, WB_STAR_REVIEW } = await import("../js/data/workbook.js");
+  for (const pg of WB_PAGES.filter((p) => p.type === "unitReview")) {
+    for (let seed = 1; seed <= 20; seed++) {
+      const steps = pageSteps(pg, seeded(seed * 7 + pg.nums[0]));
+      const writes = steps.filter((x) => isWriteStep(x));
+      assert.deepEqual(writes.map((x) => x.n).sort((a, b) => a - b), [...pg.nums].sort((a, b) => a - b), pg.id);
+      assert.ok(writes.every((x) => x.level === 3), "لوحده");
+      assert.equal(steps.length - writes.length, pg.nums.length * 2, `${pg.id}: لعبتين لكل رقم`);
+    }
+  }
+  const star = unitReviewPage([1, 3, 5, 0, 11], seeded(3));
+  assert.deepEqual(star.filter((x) => isWriteStep(x)).map((x) => x.n).sort((a, b) => a - b), [1, 3, 5], "الصفر وأكبر من ١٠ برّه");
+  assert.equal(WB_STAR_REVIEW.id, "RN");
 });

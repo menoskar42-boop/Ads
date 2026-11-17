@@ -15,6 +15,7 @@ import { strokesFor, PREWRITING } from "../data/strokes.js";
 import {
   WB_COLORS, WB_AR, WB_PAGES, WB_UNITS, WB_COLOR_PAIRS, WB_SHAPES, WB_SHAPE_PAIRS, WB_HOUR_AR,
   WB_LOCKED_IDS, pageSteps, colorPairOf, isWriteStep, afterNumbersOpen, addMaxOf, addOpen,
+  WB_STAR_REVIEW, WB_STAR_REVIEW_MAX,
 } from "../data/workbook.js";
 import { WB_SAY, SHOW_BELOW, fixMsg, writeIntro, ROUND_MSG } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
@@ -116,6 +117,7 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
     clock: { icon: "🕐", ar: "الساعة", en: "o'clock" },
     add: { icon: "➕", ar: "الجمع", en: "addition" },
     review: { icon: "🏆", ar: "مراجعة", en: "review" },
+    unitReview: { icon: "⭐", ar: "مراجعة الوحدة", en: "unit review" },
   };
   function pageCard(pg) {
     let icon, label;
@@ -1522,7 +1524,13 @@ export function renderWorkbook({ regionId, regionIndex, n: startN, only = null }
   }
 
   setTimeout(() => {
-    const pg = startN != null && WB_PAGES.find((x) => x.id === String(startN));
+    // «⭐ اختبر أرقامى» (٢٠٢٦-١١-١٧): مراجعة كل الأرقام اللى عليها نجمة (لحد ٦ عشوائى)، ولو مفيش لسه ⇒ ١ و٢
+    const starNums = () => {
+      const all = Array.from({ length: 10 }, (_, i) => i + 1).filter((n) => Store.workbookDone[String(n)]);
+      return (all.length ? all.sort(() => Math.random() - 0.5).slice(0, WB_STAR_REVIEW_MAX) : [1, 2]).sort((a, b) => a - b);
+    };
+    const pg = String(startN) === WB_STAR_REVIEW.id ? { ...WB_STAR_REVIEW, nums: starNums() }
+      : startN != null && WB_PAGES.find((x) => x.id === String(startN));
     if (pg) openPage(pg);
     else showChooser();
   }, 0);

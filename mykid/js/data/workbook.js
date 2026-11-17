@@ -339,14 +339,15 @@ const num = (n) => ({ id: String(n), type: "number", n });
 const colorsPg = (i) => ({ id: "c" + i, type: "colors", pair: i });
 const shapesPg = (i) => ({ id: "s" + i, type: "shapes", pair: i });
 const generalPg = (u, nums) => ({ id: "g" + u, type: "general", nums });
+const unitReviewPg = (u, nums) => ({ id: "r" + u, type: "unitReview", nums });
 
 /** وحدات الكتاب زى فهرسه بالظبط (Unit 1 … Unit 6). */
 export const WB_UNITS = [
-  { title: "الوحدة ١", pages: [{ id: "lines", type: "lines" }, num(1), colorsPg(0), num(2), colorsPg(1), generalPg(1, [1, 2])] },
-  { title: "الوحدة ٢", pages: [num(3), colorsPg(2), num(4), colorsPg(3), generalPg(2, [2, 3, 4])] },
-  { title: "الوحدة ٣", pages: [num(5), { id: "seq", type: "seq" }, num(6), shapesPg(0), generalPg(3, [4, 5, 6])] },
-  { title: "الوحدة ٤", pages: [num(7), shapesPg(1), num(8), shapesPg(2), generalPg(4, [6, 7, 8])] },
-  { title: "الوحدة ٥", pages: [num(9), shapesPg(3), num(10), { id: "0", type: "zero", n: 0 }, generalPg(5, [8, 9, 10])] },
+  { title: "الوحدة ١", pages: [{ id: "lines", type: "lines" }, num(1), colorsPg(0), num(2), colorsPg(1), generalPg(1, [1, 2]), unitReviewPg(1, [1, 2])] },
+  { title: "الوحدة ٢", pages: [num(3), colorsPg(2), num(4), colorsPg(3), generalPg(2, [2, 3, 4]), unitReviewPg(2, [3, 4])] },
+  { title: "الوحدة ٣", pages: [num(5), { id: "seq", type: "seq" }, num(6), shapesPg(0), generalPg(3, [4, 5, 6]), unitReviewPg(3, [5, 6])] },
+  { title: "الوحدة ٤", pages: [num(7), shapesPg(1), num(8), shapesPg(2), generalPg(4, [6, 7, 8]), unitReviewPg(4, [7, 8])] },
+  { title: "الوحدة ٥", pages: [num(9), shapesPg(3), num(10), { id: "0", type: "zero", n: 0 }, generalPg(5, [8, 9, 10]), unitReviewPg(5, [9, 10])] },
   // المالك ٢٠٢٦-١٠-١٢: «تعليم الساعه فى النهايه بعد تعليم الأرقام و كذلك جمع الارقام» — الوحدة دى
   // مقفولة لحد ما كل صفحات الأرقام (٠–١٠) تخلص.
   { title: "بعد الأرقام", afterNumbers: true, pages: [{ id: "add", type: "add" }, { id: "clock", type: "clock" }, { id: "review", type: "review" }] },
@@ -434,6 +435,7 @@ export function pageSteps(page, rnd = Math.random, only = null) {
   if (page.type === "zero") return zeroPage(rnd);
   if (page.type === "add") return addPage(rnd, page.max ?? 10);
   if (page.type === "review") return reviewPage(rnd);
+  if (page.type === "unitReview") return unitReviewPage(page.nums, rnd, only);
   return workbookPage(page.n, rnd, only);
 }
 
@@ -528,6 +530,37 @@ export function generalPage(nums, rnd = Math.random, only = null) {
     missingStep(rnd, mN, mode, 3),
     workbookPage(pickN(), rnd, [only && only.includes("colorBar") ? "colorBar" : pickOf(rnd, WB_LAST)]).at(-1),
   ];
+}
+
+// ===== مراجعة الوحدة (البند ٧ — خطة ١٣/١٤/١٨، موافقة المالك ٢٠٢٦-١١-١٧) =====
+// زى مراجعة كتاب الإنجليزى: أرقام الوحدة بس — كل رقم بنوعين لعب مختلفين (جولتين)، وفى الآخر كل رقم يتكتب لوحده.
+// نفس الصفحة بتشتغل لـ«⭐ اختبر أرقامى» على كل أرقام النجمة (WB_STAR_REVIEW).
+export const WB_UNIT_REVIEW_PLAYS = 2;
+export const WB_STAR_REVIEW = { id: "RN", type: "unitReview", nums: [], star: true };
+export const WB_STAR_REVIEW_MAX = 6;
+export function unitReviewPage(nums, rnd = Math.random, only = null) {
+  const ns = [...new Set((nums || []).filter((n) => n >= 1 && n <= 10))];
+  const want = (k) => !only || only.includes(k);
+  const per = new Map();
+  for (const n of ns) {
+    const got = [];
+    for (const k of shuffled(rnd, WB_PLAYS)) {
+      if (got.length >= WB_UNIT_REVIEW_PLAYS) break;
+      if (!want(k) || (k === "parts" && n < 2)) continue;
+      const st = workbookPage(n, rnd, [k]).find((x) => x.kind === k);
+      if (st) got.push(st);
+    }
+    per.set(n, got);
+  }
+  // الجولة الأولى لعب، وبعدين كل رقم: يتكتب لوحده ← لعبته التانية (الكتابة واللعب بالتناوب زى باقى الكراسة)
+  const steps = [];
+  const order = shuffled(rnd, ns);
+  for (const n of order) if (per.get(n)[0]) steps.push(per.get(n)[0]);
+  for (const n of order) {
+    if (want("write")) steps.push({ kind: "write", n, level: 3 });
+    for (const st of per.get(n).slice(1)) steps.push(st);
+  }
+  return steps;
 }
 
 // ===== الساعة (O'clock ص ٥٣–٥٤) =====
