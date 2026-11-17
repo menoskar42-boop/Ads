@@ -112,3 +112,7 @@ Admin ← اختار كل خاصية ← Data streams ← اكتب اسم الخ
 - whatsapp_click لسه Key event؟ (نعم/لأ)
 - أى رسالة أو تحذير ظهر
 ```
+
+**نتيجة البرومبت ٢ (٢٠٢٦-١١-١٧):** ✅ `whatsapp_click` بقى `link_url contains wa.me/201552406406` (ignore case) ولسه Key event.
+كلود راجع الكود: كل لينكات واتساب OscarDevs بالصيغة دى (`home.ejs` ×٢ · `legal/contact.ejs` من `company_facts.org.phone`)،
+ومفيش `api.whatsapp.com` ولا `wa.me/+` فى صفحات OscarDevs.
