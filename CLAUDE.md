@@ -277,6 +277,10 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   توثيق الموبايل (المالك يكتب الكود) · تأكيد الـGPU · رخصة `road_anomaly_ds` · مفتاح الـAPI ⇒ سرّين فى مشروع `sf`
   (`KAGGLE_USERNAME` · `KAGGLE_KEY`) ومايتكتبش فى الشات. الصفحة: https://claude.ai/artifact/F2Ui7YQ4kBvgppR2px14FW.
   **Trigger:** «ابعتلي برومبت حساب Kaggle».
+- `docs/KAGGLE_TRAIN_BUMPS.md` — **كود تدريب موديل المطبات على Kaggle (خلية واحدة، ٢٠٢٦-١١-١٧)**: YOLOX-Nano (Apache) على
+  `road_anomaly_ds`، الناتج pth + onnx + الدقة لكل نوع فى `/kaggle/working/oscar_bumps`. المصدر
+  `oscardrive-android/vision-test/train/kaggle_train_bumps.py`. الصفحة: https://claude.ai/artifact/JfH1sGR78amih17sWLLAHC.
+  **Trigger:** «ابعتلي كود تدريب المطبات».
 - `docs/EGX_PRICES_PAGE_PROMPT.md` — **برومبت الإكستنشن: صفحة أسعار البورصة المصرية** (٢٠٢٦-١١-١١، قراية بس). أسعار Yahoo
   اللحظية للبورصة المصرية واقفة من ٢٣ يوليو، فالخطة سكربت Tampermonkey يقرا الأسعار من egx.com.eg ويبعتها لـfinance
   (`/api/ingest/quotes`) وYahoo احتياطى. الإكستنشن بيلاقى الصفحة ويوصف الطلب اللى بيجيب الأسعار، من غير كوكيز ولا توكنات.
