@@ -592,6 +592,12 @@ export function ebSteps(pg, rnd = Math.random, only = null) {
       const cells = shuffled(rnd, [...Array(k).fill(pg.word), ...pick(rnd, pg.others, 4).concat(pg.others).slice(0, 4)]);
       steps.push({ kind: "findColor", word: pg.word, cells });
     }
+    // ✍️ اكتب الكلمة (البند ٢٥ — ورقة the من المالك ٢٠٢٦-١١-٠٨، موافقة ٢٠٢٦-١١-١٧): كل حرف على النقط، وبعدين لوحده
+    if (want("wordWrite")) {
+      const letters = [...pg.word];
+      letters.forEach((c, at) => steps.push({ kind: "write", glyph: c, level: 2, reps: 1, word: pg.word, at }));
+      letters.forEach((c, at) => steps.push({ kind: "write", glyph: c, level: 3, reps: 1, noStart: true, word: pg.word, at }));
+    }
   } else if (pg.type === "review" && pg.picked) {
     steps.push(...pickedReviewSteps(pg, rnd, want));
   } else if (pg.type === "review") {

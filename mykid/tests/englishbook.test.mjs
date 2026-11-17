@@ -299,7 +299,8 @@ test("X is the ending sound (six, box, fox) and Qu reads as Qu", async () => {
 
 test("story, sight word (spelled letter by letter) and review play through", async () => {
   assert.deepEqual(await playPage("u1-story"), ["opposites", "sentences", "pickSentence"]);
-  assert.deepEqual(await playPage("u6-we"), ["sightMeet", "spell", "sentences", "findColor"]);
+  // + «اكتب الكلمة» (٢٠٢٦-١١-١٧): w e على النقط وبعدين لوحده
+  assert.deepEqual(await playPage("u6-we"), ["sightMeet", "spell", "sentences", "findColor", "write", "write", "write", "write"]);
   // المراجعة (المالك ٢٠٢٦-١١-٠٥/٠٧): حروف الوحدة بس (G · W) — صور الوحدة، وكل حرف نوعين تمارين، وكابيتال وصغير لوحده
   const rev = await playPage("u6-review");
   assert.equal(rev[0], "find");

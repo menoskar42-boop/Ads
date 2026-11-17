@@ -690,6 +690,21 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     write(body, s) {
       const cap = s.glyph === s.glyph.toUpperCase();
       const intro = s.noStart ? ROUND_MSG.noDot : cap ? EB_SAY.writeCap(s.glyph) : EB_SAY.writeSmall(s.glyph);
+      // كتابة كلمة (the · I · can …): الكلمة فوق والحرف اللى عليه الدور ملوّن
+      if (s.word) {
+        const w = document.createElement("div");
+        w.className = "ebk-wordwrite";
+        w.dir = "ltr";
+        w.style.cssText = "text-align:center;font-size:clamp(34px,10vw,52px);font-weight:900;letter-spacing:.08em;margin:2px 0 6px;font-family:'Baloo Bhaijaan 2',sans-serif";
+        [...s.word].forEach((c, i) => {
+          const sp = document.createElement("span");
+          sp.textContent = c;
+          sp.style.color = i === s.at ? "#e11d74" : i < s.at ? "#16a34a" : "#9ca3af";
+          if (i === s.at) sp.style.textDecoration = "underline";
+          w.append(sp);
+        });
+        body.append(w);
+      }
       writeBoard(body, s.glyph, s.level, intro, () => stepDone(900), null, s.reps || 1, !!s.noStart);
     },
 
