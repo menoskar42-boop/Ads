@@ -65,23 +65,25 @@ Google» / «Continue with Google» واختار حساب جوجل menoskar42 (�
 - اترفعوا على فرع oscar-bumps-model؟ (نعم/لأ + رابط الـcommit)
 ```
 
-## البرومبت ٣ — التقرير على Google Drive (٢٠٢٦-١١-١٨)
+## البرومبت ٣ — التقرير على GitHub (٢٠٢٦-١١-١٨)
 
-الإكستنشن بعد نص ساعة يكتب الحالة وآخر ٨٠ سطر من الـLog (ومكان التعليق من py-spy لو نسخة ٣ وقفت) فى Google Doc اسمه
-«Oscar bumps Kaggle report» فى My Drive، وكلود بيقراه بكونيكتور درايف (`search_files` بالاسم). ممنوع Version جديدة أو Cancel.
-الصفحة: https://claude.ai/artifact/Aq7K2Gja5DsG8NBRsbM2KC — **Trigger:** «ابعتلي برومبت تقرير التدريب على درايف».
+الإكستنشن بعد نص ساعة يكتب الحالة وآخر ٨٠ سطر من الـLog (ومكان التعليق من py-spy لو نسخة ٣ وقفت) فى
+`oscardrive-android/vision-test/model/kaggle-report.md` على فرع `oscar-bumps-model` (GitHub أضمن من درايف — كلود بيقراه بـ`git fetch`).
+ممنوع Version جديدة أو Cancel.
+الصفحة: https://claude.ai/artifact/Aq7K2Gja5DsG8NBRsbM2KC — **Trigger:** «ابعتلي برومبت تقرير التدريب».
 
 ```
 اعمل ده كمهمة مجدولة (Scheduled task) تشتغل مرة واحدة بعد نص ساعة من دلوقتى. لو الجدولة مش متاحة: استنى نص ساعة ونفّذ، ولو
 مينفعش: نفّذ دلوقتى واكتب فى التقرير إنها اتنفّذت قبل ميعادها.
 
-المطلوب: تشوف حالة تدريب موديل المطبات على Kaggle، وتكتب التقرير فى ملف على Google Drive عشان كلود يقراه. المتصفح فيه حساب المالك.
-لو Kaggle أو Google طلب تسجيل دخول: «Sign in with Google» بحساب menoskar42 (بإذن المالك). ماتكتبش كلمة سر بنفسك، ولو طلب كود
+المطلوب: تشوف حالة تدريب موديل المطبات على Kaggle، وترفع التقرير ملف نصى على GitHub عشان كلود يقراه. المتصفح فيه حساب المالك.
+لو Kaggle أو GitHub طلب تسجيل دخول: «Sign in with Google» بحساب menoskar42 (بإذن المالك). ماتكتبش كلمة سر بنفسك، ولو طلب كود
 تحقق: وقّف واكتب كده فى التقرير.
 
 ⛔ خطوط حمرا:
 - ممنوع تشغّل Version جديدة، وممنوع Cancel لأى Version، وممنوع تعدّل الكود أو إعدادات النوتبوك أو تخلّيه Public.
-- على Google Drive: اعمل ملف جديد بس فى «My Drive» (من غير ما تشاركه مع حد)، وماتمسحش ولا تعدّل أى ملف تانى.
+- على GitHub: الفرع oscar-bumps-model بس. ممنوع أى فرع تانى (خصوصاً claude/build-oscardevs-ads-mvp-8krfN)، وممنوع تمسح أو
+  تعدّل أى ملف غير ملف التقرير.
 - ماتكتبش فى التقرير أى توكن أو كلمة سر أو مفتاح API.
 
 الخطوة ١ — الحالة:
@@ -97,18 +99,21 @@ Google» / «Continue with Google» واختار حساب جوجل menoskar42 (�
 الخطوة ٣ — Output (لو أحدث Version خلصت Complete):
 اكتب أسماء الملفات فى oscar_bumps وحجم كل واحد، وانسخ محتوى model.json بالحرف، وكل السطور اللى فيها AP من eval.txt أو من الـLog.
 
-الخطوة ٤ — التقرير على Google Drive:
-افتح https://docs.google.com/document/create (Google Doc جديد فى My Drive). سمّيه بالظبط:
-Oscar bumps Kaggle report
-والصق فيه (نص عادى):
-- الساعة اللى اتعمل فيها الفحص (بتوقيت القاهرة)
-- جدول الـVersions وحالتها ومدتها
-- آخر سطر epoch
-- آخر ٨٠ سطر من الـLog بالحرف
-- الـOutput (لو فيه)
-وتأكد إنه اتحفظ (Saved to Drive). لو فيه ملف قديم بنفس الاسم: سيبه، واعمل الجديد بنفس الاسم برضه.
+الخطوة ٤ — التقرير على GitHub:
+- افتح https://github.com/menoskar42-boop/Ads ← قايمة الفروع (فوق على الشمال) ← اكتب oscar-bumps-model:
+  لو موجود اختاره، ولو مش موجود اختار «Create branch: oscar-bumps-model from claude/build-oscardevs-ads-mvp-8krfN».
+- وانت على الفرع ده: Add file ← Create new file. اسم الملف بالظبط:
+  oscardrive-android/vision-test/model/kaggle-report.md
+  (لو الملف موجود من قبل: افتحه ودوس ✏️ Edit، وامسح القديم واكتب الجديد مكانه).
+- الصق فيه (نص عادى):
+  · الساعة اللى اتعمل فيها الفحص (بتوقيت القاهرة)
+  · جدول الـVersions وحالتها ومدتها
+  · آخر سطر epoch
+  · آخر ٨٠ سطر من الـLog بالحرف
+  · الـOutput (لو فيه)
+- Commit changes ← رسالة: «Kaggle bumps report» ← «Commit directly to the oscar-bumps-model branch» ← Commit.
 
 التقرير اللى تكتبهولى هنا (بالعربى، مختصر):
 | الخطوة | اتعملت؟ | ملاحظة |
-- لينك الـGoogle Doc
+- لينك الـcommit على GitHub
 ```
