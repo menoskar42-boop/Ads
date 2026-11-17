@@ -14,8 +14,8 @@ export const BOOK_IMG_EN = new Set([
   "nest", "night", "numbers",
   "insect", "in", "ink",
   "cloud", "cow", "cap",
-  // F (ص. ١٧) · D (ص. ١٩) · H (ص. ٢١)
-  "frog", "fork",
+  // F (ص. ١٧؛ fish من تمرين ص. ٢٠) · D (ص. ١٩) · H (ص. ٢١)
+  "frog", "fork", "fish",
   "desk", "dog", "dress",
   "honey", "heart", "helicopter",
   // O (تمرين ص. ٢٤) · R (ص. ٢٥)

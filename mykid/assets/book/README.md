@@ -1,24 +1,24 @@
 # صور كتاب الإنجليزى (Hello! Little Stars)
 
 **المصدر:** صور المالك لصفحات كتاب بنته، محفوظة فى `docs/book-photos/english/`.
-قُصّت الرسومات من مربع **Look and write** وحُفظت بصيغة WebP فى `en/<word>.webp`،
-وسُجّلت الكلمات فى `mykid/js/data/bookPics.js`.
+كل رسمة متقصوصة بالأداة `mykid/tools/book_crop.py` (خلفية شفافة · من غير الكلمة المكتوبة ولا الحروف الكبيرة ولا خطوط
+القلم) ومحفوظة WebP فى `en/<word>.webp`، والكلمات متسجّلة فى `mykid/js/data/bookPics.js`.
+الكلمة اللى مالهاش رسمة هنا بتفضل بالإيموجى (قرار المالك).
 
-| الحرف | ملف الصفحة | الكلمات المقصوصة |
+| الحرف | الصفحة اللى اتقصّت منها | الكلمات |
 |---|---|---|
-| M | `p01-M.jpg`، ص. ١ | man · mom · mud |
-| A | `p02-03-A.jpg`، ص. ٣ | apple · ant · axe |
-| S | `p04-05-S.jpg`، ص. ٥ (sun · star)؛ `p06-07-T.jpg`، ص. ٦ (تمرين sand) | sand · sun · star |
-| T | `p06-07-T.jpg`، ص. ٧ | turtle · toy · train |
-| P | `p08-09-P.jpg`، ص. ٩ | pants · pen · pan |
-| N | `p10-11-N.jpg`، ص. ١١ | numbers · night · nest |
-| I | `p12-13-I.jpg`، ص. ١٣ | in · ink · insect |
-| C | `p14-15-C.jpg`، ص. ١٥ | cow · cap · cloud |
-| F | `p16-17-F.jpg`، ص. ١٧ | frog · fork |
-| D | `p18-19-D.jpg`، ص. ١٩ | desk · dog · dress |
-| H | `p20-21-H.jpg`، ص. ٢١ | honey · heart · helicopter |
-| O | `p24-25-R.jpg`، ص. ٢٤ (تمرين) | ostrich · orange · octopus |
-| R | `p24-25-R.jpg`، ص. ٢٥ | robot · rabbit · rice |
+| M | `p01-M.jpg` | man · mom · mud |
+| A | `p02-03-A.jpg` | apple · ant · axe |
+| S | `p04-05-S.jpg` (sun · star) · `p06-07-T.jpg` تمرين ص. ٦ (sand) | sand · sun · star |
+| T | `p06-07-T.jpg` | turtle · toy · train |
+| P | `p08-09-P.jpg` | pants · pen · pan |
+| N | `p10-11-N.jpg` | numbers · night · nest |
+| I | `p12-13-I.jpg` | in · ink · insect |
+| C | `p14-15-C.jpg` | cow · cap · cloud |
+| F | `p16-17-F.jpg` (frog) · `p18-19-D.jpg` تمرين ص. ١٨ (fork) · `p20-21-H.jpg` تمرين ص. ٢٠ (fish) | frog · fork · fish |
+| D | `p18-19-D.jpg` | desk · dog · dress |
+| H | `p20-21-H.jpg` (helicopter · honey · heart) | honey · heart · helicopter |
+| O | `p24-25-R.jpg` تمرين ص. ٢٤ (orange · octopus · ostrich) | ostrich · orange · octopus |
+| R | `p24-25-R.jpg` | robot · rabbit · rice |
 
-كلمة `fan` غير موجودة فى صفحة F؛ تظل بإيموجى. لم تُقصّ صورة `fish`.
-أي كلمة أخرى فى التطبيق لا تظهر فى هذه القائمة تحتفظ بصورتها الحالية.
+`fan` مش فى الكتاب ⇒ إيموجى. الرسمة الفاتحة (الأرنب والنعامة) اتقصّت بحساسية خلفية أقل (الرقم الخامس فى الأداة).

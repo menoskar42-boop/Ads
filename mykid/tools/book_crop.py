@@ -4,7 +4,9 @@
 الاستخدام (من جذر المستودع):
     python3 mykid/tools/book_crop.py docs/book-photos/english/p01-M.jpg mom 380 220 530 420
 
-الأرقام = مربع الرسمة (x0 y0 x1 y1) بالبكسل فى ملف الـjpg نفسه (عرضه ١٦٠٠ أو ١٢٠٠ للصفحة الطولى).
+الأرقام = مربع الرسمة (x0 y0 x1 y1)، ورقم خامس اختيارى = حساسية الخلفية (افتراضى ٣٤؛ قلّله لـ١٤–٢٠ لو الرسمة
+فاتحة قريبة من لون الورق زى الأرنب والنعامة، عشان جسمها مايتشالش مع الخلفية).
+الأرقام بالبكسل فى ملف الـjpg نفسه (عرضه ١٦٠٠ أو ١٢٠٠ للصفحة الطولى).
 المربع يحوط الرسمة بس — من غير الكلمة المكتوبة تحتها ولا حروف كبيرة جنبها.
 الخطوات: قص بهامش ٦٪ ← تكبير ×٢ ← شيل خلفية الورق المتصلة بالحافة بس (الأبيض جوّه الرسمة يفضل) ← شيل النقط
 الصغيرة ← قص الفاضى ← ألوان أوضح ← أقصى ٣٢٠ بكسل ← WebP بخلفية شفافة. محتاج Pillow و numpy.
@@ -18,7 +20,7 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 OUT = "mykid/assets/book/en/"
 
 
-def crop_word(page_path, word, box, pad=0.06, out_dir=OUT):
+def crop_word(page_path, word, box, pad=0.06, out_dir=OUT, tol=34):
     im = Image.open(page_path).convert("RGB")
     x0, y0, x1, y1 = box
     w, h = x1 - x0, y1 - y0
@@ -28,7 +30,8 @@ def crop_word(page_path, word, box, pad=0.06, out_dir=OUT):
     a = np.asarray(im).astype(float)
     border = np.concatenate([a[:3].reshape(-1, 3), a[-3:].reshape(-1, 3), a[:, :3].reshape(-1, 3), a[:, -3:].reshape(-1, 3)])
     bg = np.median(border, axis=0)
-    near = Image.fromarray(((np.sqrt(((a - bg) ** 2).sum(-1)) < 34) * 255).astype(np.uint8), "L")
+    # .copy(): الصورة اللى طالعة من numpy بتشارك نفس الذاكرة، والـfloodfill مابيكتبش فيها من غيرها
+    near = Image.fromarray(((np.sqrt(((a - bg) ** 2).sum(-1)) < tol) * 255).astype(np.uint8), "L").copy()
     W, H = near.size
     for x in range(0, W, 3):
         for y in (0, H - 1):
@@ -82,4 +85,5 @@ def crop_word(page_path, word, box, pad=0.06, out_dir=OUT):
 
 if __name__ == "__main__":
     page, word, *nums = sys.argv[1:]
-    print(*crop_word(page, word, tuple(float(n) for n in nums)))
+    tol = float(nums.pop()) if len(nums) == 5 else 34
+    print(*crop_word(page, word, tuple(float(n) for n in nums[:4]), tol=tol))
