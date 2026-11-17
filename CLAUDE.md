@@ -281,6 +281,9 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   `road_anomaly_ds`، الناتج pth + onnx + الدقة لكل نوع فى `/kaggle/working/oscar_bumps`. المصدر
   `oscardrive-android/vision-test/train/kaggle_train_bumps.py`. الصفحة: https://claude.ai/artifact/JfH1sGR78amih17sWLLAHC.
   **Trigger:** «ابعتلي كود تدريب المطبات».
+- `docs/KAGGLE_TRAIN_CHECK_PROMPT.md` — **برومبت الإكستنشن: متابعة التدريب (مهمة مجدولة مرة واحدة)**: حالة الـVersion · الدقة لكل نوع ·
+  ولو خلص يرفع onnx + eval + model.json على فرع **`oscar-bumps-model`** لوحده (Kaggle مقفول من بيئة كلود). الصفحة:
+  https://claude.ai/artifact/9pAVuTkdEx5MbhViX9WVcz. **Trigger:** «ابعتلي برومبت متابعة تدريب المطبات».
 - `docs/EGX_PRICES_PAGE_PROMPT.md` — **برومبت الإكستنشن: صفحة أسعار البورصة المصرية** (٢٠٢٦-١١-١١، قراية بس). أسعار Yahoo
   اللحظية للبورصة المصرية واقفة من ٢٣ يوليو، فالخطة سكربت Tampermonkey يقرا الأسعار من egx.com.eg ويبعتها لـfinance
   (`/api/ingest/quotes`) وYahoo احتياطى. الإكستنشن بيلاقى الصفحة ويوصف الطلب اللى بيجيب الأسعار، من غير كوكيز ولا توكنات.
