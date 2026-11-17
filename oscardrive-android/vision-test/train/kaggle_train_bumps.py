@@ -2,12 +2,15 @@
 # الموديل: YOLOX-Nano (رخصة Apache-2.0 — مش Ultralytics/AGPL). الداتا: road_anomaly_ds (MIT) — Pothole · Speedbump · Crack.
 # قبل التشغيل: من اليمين «Add Input» ← دوّر على road-anomaly-ds ← Add. والإعدادات: GPU T4 x2 · Internet on.
 # الناتج فى /kaggle/working/oscar_bumps: الموديل (pth + onnx) + تقرير الدقة لكل نوع.
+# نسخة ٣ (٢٠٢٦-١١-١٨): نسخة ٢ علّقت ٥:٤٠ ساعة بعد أول سطر تدريب. دلوقتى: من غير عمّال تحميل جانبيين (data_num_workers=0 و
+# cv2 بخيط واحد — أشهر سبب لتعليق YOLOX) · ولو مفيش ولا سطر جديد ٢٠ دقيقة: بيطبع مكان التعليق (py-spy) ويوقف بدل ما يصرف ساعات GPU.
 # نسخة ٢ (٢٠٢٦-١١-١٧): أول تشغيل علّق ٣ ساعات من غير ولا سطر (التدريب على كارتين GPU مع بعض بيعلّق على Kaggle).
 # دلوقتى: كارت واحد · سطر تقدّم كل شوية فى الـLog · حد أقصى ١٠ ساعات ونص ⇒ بيوقف لوحده ويحفظ آخر نسخة قبل حد Kaggle (١٢ ساعة).
 import os, sys, glob, json, random, shutil, subprocess, time
 
 EPOCHS = int(os.environ.get("EPOCHS", "30"))   # ٣٠ لفة على كارت T4 واحد
 MAX_HOURS = 10.5                                # قبل حد Kaggle (١٢ ساعة) بوقت كفاية للتقييم والتصدير
+STALL_MIN = 20                                  # مفيش ولا سطر جديد ٢٠ دقيقة = معلّق
 T0 = time.time()
 IMG = 416                                       # نفس مقاس الموبايل
 OUT = "/kaggle/working/oscar_bumps"
@@ -20,6 +23,43 @@ ENV = dict(os.environ, PYTHONUNBUFFERED="1", NCCL_P2P_DISABLE="1", NCCL_IB_DISAB
 def log(msg):
     # stderr = اللى بيظهر فى تبويب Logs فى Kaggle وهو شغّال
     print(f"[{(time.time() - T0) / 60:6.1f} د] {msg}", file=sys.stderr, flush=True)
+
+def run_watched(cmd, cwd, timeout):
+    """بيشغّل التدريب ويطبع سطوره فى الـLog، ولو سكت STALL_MIN دقيقة: يطبع مكان التعليق (py-spy) ويوقفه.
+    بيرجّع "done" / "timeout" / "stalled" / "error"."""
+    import threading
+    log("$ " + cmd)
+    p = subprocess.Popen(cmd, shell=True, cwd=cwd, env=ENV, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, bufsize=1, start_new_session=True)
+    last = [time.time()]
+    def pump():
+        for line in p.stdout:
+            last[0] = time.time()
+            print(line.rstrip(), file=sys.stderr, flush=True)
+    threading.Thread(target=pump, daemon=True).start()
+    start, why = time.time(), None
+    while p.poll() is None:
+        for _ in range(30):            # بيصحى أول ما التدريب يخلص (مش بعد ٣٠ ثانية)
+            if p.poll() is not None:
+                break
+            time.sleep(1)
+        if p.poll() is not None:
+            break
+        if time.time() - start > timeout:
+            why = "timeout"
+        elif time.time() - last[0] > STALL_MIN * 60:
+            why = "stalled"
+        if why:
+            log(f"{'وصلنا للحد الأقصى للوقت' if why == 'timeout' else f'مفيش ولا سطر جديد {STALL_MIN} دقيقة — التدريب معلّق'} — بوقفه")
+            if why == "stalled":
+                subprocess.run("pip install -q py-spy >/dev/null 2>&1; for pid in $(pgrep -f '[t]ools/train.py'); do "
+                               "echo '--- py-spy' $pid; py-spy dump --pid $pid; done", shell=True, stdout=sys.stderr,
+                               stderr=subprocess.STDOUT)
+            import signal
+            try: os.killpg(p.pid, signal.SIGKILL)
+            except Exception: p.kill()
+            return why
+    return "done" if p.returncode == 0 else "error"
 
 def sh(cmd, cwd=None, timeout=None, ok=False):
     log("$ " + cmd)
@@ -139,6 +179,9 @@ def install_yolox():
 
 EXP = '''
 import os
+import cv2
+cv2.setNumThreads(0)          # cv2 بخيوط كتير + DataLoader = تعليق مشهور فى YOLOX
+cv2.ocl.setUseOpenCL(False)
 from yolox.exp import Exp as MyExp
 import torch.nn as nn
 
@@ -154,8 +197,8 @@ class Exp(MyExp):
         self.max_epoch = {ep}
         self.no_aug_epochs = 5
         self.eval_interval = 10
-        self.print_interval = 20
-        self.data_num_workers = 2
+        self.print_interval = 10
+        self.data_num_workers = 0     # من غير عمّال جانبيين — أبطأ شوية بس مابيعلّقش
         self.data_dir = "{data}"
         self.train_ann, self.val_ann = "instances_train2017.json", "instances_val2017.json"
         self.exp_name = "oscar_bumps"
@@ -186,20 +229,21 @@ def main():
     # كارت واحد بس: التدريب الموزّع على الكارتين هو اللى علّق أول مرة
     log(f"تدريب على كارت GPU واحد · {EPOCHS} لفة · YOLOX بيطبع سطر كل ٢٠ خطوة (epoch: x/{EPOCHS})")
     left = MAX_HOURS * 3600 - (time.time() - T0)
-    finished = sh(f"python -u tools/train.py -f {exp} -d 1 -b 16 --fp16 -c {weights}",
-                  cwd=f"{WORK}/YOLOX", timeout=max(600, left))
+    state = run_watched(f"python -u tools/train.py -f {exp} -d 1 -b 16 --fp16 -c {weights}",
+                        cwd=f"{WORK}/YOLOX", timeout=max(600, left))
+    finished = state == "done"
     ck = f"{WORK}/out/oscar_bumps"
     best = next((p for p in (f"{ck}/best_ckpt.pth", f"{ck}/latest_ckpt.pth") if os.path.exists(p)), None)
     if not best:
-        raise SystemExit("مفيش أى نسخة موديل اتحفظت — ابعت الـLog لكلود")
-    log(f"النسخة اللى هتتصدّر: {os.path.basename(best)} · التدريب {'خلص' if finished else 'اتوقف عند الحد الأقصى'}")
+        raise SystemExit(f"مفيش أى نسخة موديل اتحفظت ({state}) — ابعت آخر ٨٠ سطر من الـLog لكلود (فيهم مكان التعليق)")
+    log(f"النسخة اللى هتتصدّر: {os.path.basename(best)} · التدريب {'خلص' if finished else state}")
     shutil.copy(best, f"{OUT}/oscar_bumps_yolox_nano.pth")
     # تقرير الدقة على صور التقييم (AP لكل نوع)
     sh(f"python tools/eval.py -f {exp} -c {best} -b 16 -d 1 --conf 0.001 > {OUT}/eval.txt 2>&1 || true", cwd=f"{WORK}/YOLOX")
     # ONNX للموبايل (ncnn/onnxruntime بعدين)
     sh(f"python tools/export_onnx.py -f {exp} -c {best} --output-name {OUT}/oscar_bumps_yolox_nano.onnx --no-onnxsim || true",
        cwd=f"{WORK}/YOLOX")
-    json.dump({"classes": names, "input": IMG, "epochs": EPOCHS, "finished": finished,
+    json.dump({"classes": names, "input": IMG, "epochs": EPOCHS, "finished": finished, "state": state,
                "checkpoint": os.path.basename(best), "minutes": round((time.time() - t0) / 60)},
               open(f"{OUT}/model.json", "w"), ensure_ascii=False)
     log(open(f"{OUT}/eval.txt").read()[-3000:])
