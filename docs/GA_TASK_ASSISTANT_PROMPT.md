@@ -79,3 +79,36 @@ Admin ← اختار كل خاصية ← Data streams ← اكتب اسم الخ
   لينكات واتساب التاجر. فشرط `wa.me` لوحده بيعدّ ضغطات زباين التجار كـ«عميل لـOscarDevs». الصح: `link_url` فيه
   `wa.me/201552406406` (رقم OscarDevs فى `home.ejs`). و`/apply/success` بيوصله كمان الـbot (honeypot) والتقديم المكرر
   (`src/routes/apply.js`) — فرق صغير.
+
+## البرومبت ٢ — تصحيح شرط whatsapp_click (٢٠٢٦-١١-١٧)
+
+الصفحة: https://claude.ai/artifact/8GRd6kcZiXxnmQbdS6aimR — **Trigger:** «ابعتلي برومبت تعديل حدث واتساب».
+
+```
+المطلوب: تعديل شرط واحد فى حدث whatsapp_click فى خاصية OscarDevs على Google Analytics. المتصفح فيه حساب المالك. لو طلب تسجيل دخول:
+«Sign in with Google» بحساب menoskar42 (بإذن المالك). ماتكتبش كلمة سر بنفسك، ولو طلب كود تحقق: وقّف واطلب من المالك.
+
+السبب: صفحات التجار على oscardevs.com (متاجر، قاعات، عيادات، ورش…) بتستخدم نفس كود Analytics، وفيها زرار واتساب التاجر نفسه.
+الشرط الحالى (link_url فيه wa.me) بيعدّ ضغطات زباين التجار كأنهم عملاء لـOscarDevs. رقم واتساب OscarDevs هو 201552406406.
+
+⛔ خطوط حمرا:
+- الخاصية دى بس: OscarDevs — Measurement ID ‏G-TTW08KQ8WE. ماتفتحش خاصية موقع الأطفال ولا الكتاب المقدس.
+- عدّل حدث whatsapp_click بس. ماتلمسش apply_submit، ولا أى حدث تانى، ولا الـKey events، ولا Data streams، ولا Enhanced
+  measurement، ولا Google Signals، ولا Data retention، ولا الصلاحيات.
+- ماتمسحش الحدث، وماتعملش حدث جديد بنفس الاسم.
+
+الخطوات:
+١) Admin (الترس تحت على الشمال) ← تأكد إن الخاصية المختارة OscarDevs (G-TTW08KQ8WE) ← Data display ← Events ← زرار Create event
+   (فوق على اليمين). هتلاقى قايمة «Custom events» فيها whatsapp_click — افتحه.
+٢) صوّر الشروط الحالية واكتبها بالحرف فى التقرير (المتوقع: event_name equals click · link_url contains wa.me).
+٣) فى شرط link_url: خلّى القيمة wa.me/201552406406 بدل wa.me (نفس النوع «contains»). سيب شرط event_name = click زى ما هو،
+   وماتعلّمش «Copy parameters from the source event» لو كان مش متعلّم. ماتضيفش شروط تانية.
+٤) Save. ارجع افتح whatsapp_click تانى واتأكد إن الشرط اتحفظ wa.me/201552406406.
+٥) Admin ← Data display ← Key events: اتأكد إن whatsapp_click لسه موجود ومتعلّم Key event (ماتغيّرش حاجة فيه).
+
+التقرير (بالعربى):
+| الخطوة | اتعملت؟ | ملاحظة |
+- الشروط قبل التعديل وبعده (بالحرف)
+- whatsapp_click لسه Key event؟ (نعم/لأ)
+- أى رسالة أو تحذير ظهر
+```
