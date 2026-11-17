@@ -3496,24 +3496,9 @@ export async function registerRoutes(
       res.json({ ok: true, stopped: false });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  // إلغاء مفتاح الجسر (٢٠٢٦-١١-١٧): الجسر بيشتغل بمفتاح جهاز (مش جلسة دخول) — فلازم المالك يقدر يبطّله من غير ما
-  // يعمل مفتاح جديد. بيمسح المفتاح (أى طلب بيه بيرجع 401 فى خلال دقيقة: كاش readBridgeHash) ويرجّع الخطوط المحجوزة.
-  app.post("/api/exec-queue/bridge/revoke", requireAuth, requireSuperAdmin, async (req: any, res) => {
-    try {
-      await pool.query(`DELETE FROM app_settings WHERE key = $1`, [BRIDGE_TOKEN_KEY]);
-      bridgeHashCache = { v: null, at: Date.now() };
-      const { rowCount: back } = await pool.query(
-        `UPDATE exec_jobs SET status = 'pending', claimed_at = NULL, bridge_lease_until = NULL
-          WHERE status = 'claimed' AND bridge_lease_until IS NOT NULL`);
-      const { rowCount: freed } = await pool.query(
-        `UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`);
-      res.json({ ok: true, revoked: true, requeued: back ?? 0, released: freed ?? 0 });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
   app.get("/api/exec-queue/bridge/state", requireAuth, requireSuperAdmin, async (_req, res) => {
     try {
       res.json({ stopped: await readBridgeStopped(), enabled: !!(await readExecLanes(pool)).bridge,
-        hasToken: !!(await readBridgeHash()),
         seenSec: bridgeSeen ? Math.round((Date.now() - bridgeSeen.at) / 1000) : null, device: bridgeSeen?.device || null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
