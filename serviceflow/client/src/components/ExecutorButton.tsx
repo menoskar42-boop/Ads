@@ -877,7 +877,10 @@ export function ExecutorButton() {
         if (!r.ok) {
           const why = await r.text().catch(() => "");
           console.error("[exec] فشل سحب المهمة:", r.status, why.slice(0, 200));
-          setClaimError(`تعذّر سحب المهام من الطابور (خطأ ${r.status}) — التنفيذ متوقف`);
+          // 401 = الجلسة انتهت (مش عطل فى الطابور) — نقول كده صراحة، والريفريش هيودّى لصفحة الدخول
+          setClaimError(r.status === 401
+            ? "الجلسة انتهت — اعمل ريفريش وسجّل دخول، وجهاز التنفيذ هيرجع يشتغل لوحده"
+            : `تعذّر سحب المهام من الطابور (خطأ ${r.status}) — التنفيذ متوقف`);
           break;
         }
         setClaimError(null);
@@ -1083,7 +1086,7 @@ export function ExecutorButton() {
         {/* لو السحب فاشل الزر بيبقى أحمر ومكتوب عليه السبب — بدل ما التنفيذ يقف بصمت */}
         {active
           ? (popupBlocked ? "⚠️ المتصفح مانع فتح التابات — اسمح بالنوافذ المنبثقة"
-             : claimError ? "⚠️ التنفيذ متوقف — خطأ فى الطابور"
+             : claimError ? (claimError.startsWith("الجلسة انتهت") ? "⚠️ الجلسة انتهت — سجّل دخول" : "⚠️ التنفيذ متوقف — خطأ فى الطابور")
              : stale ? "⚠️ التاب كان متجمّد — جارى الاستئناف"
              : nightAsleep && !current ? `🌙 جهاز التنفيذ نايم لحد ${readNightPause().end}`
              : nightPaused && !current ? `🌙 بيخلّص الطابور قبل الإيقاف${pending ? ` (${pending})` : ""}`

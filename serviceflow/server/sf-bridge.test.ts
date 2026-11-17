@@ -485,7 +485,7 @@ test("a DZS tab drives the bridge only while a Google / Service-Flow tab was ali
 
 test("windows view: even the first line is a window opened by the page itself; blocked popups fall back to a tab", () => {
   assert.match(src, /if \(GET\("sfb_view", "tabs"\) === "windows"\) \{\n\s+let w = null;\n\s+try \{ w = window\.open\(url, "_blank", "width=1280,height=800,/);
-  assert.match(src, /if \(w\) \{ SET\("sfb_popup_blocked", 0\); return w; \}\n\s+SET\("sfb_popup_blocked", Date\.now\(\)\);[^\n]*\n\s+\}\n\s+try \{ return GM_openInTab\(url, \{ active: false, insert: true \}\);/, "ممنوعة ⇒ تاب، واللوحة بتقول");
+  assert.match(src, /if \(w\) \{ SET\("sfb_popup_blocked", 0\); OPENED_WINDOWS\.push\(\{ w, at: Date\.now\(\) \}\); return w; \}\n\s+SET\("sfb_popup_blocked", Date\.now\(\)\);[^\n]*\n\s+\}\n\s+try \{ return GM_openInTab\(url, \{ active: false, insert: true \}\);/, "ممنوعة ⇒ تاب، واللوحة بتقول");
 });
 
 // المالك ٢٠٢٦-١٠-٢٩: «اعمل الأزرار الجديدة افتح واقفل — يوقف الجسر ويوقف القياس… زرار الإعدادات غير كافى لأنه
@@ -609,7 +609,7 @@ test("2.0.1: the lease says it can stop (an old bridge measured stop lines and r
 
 // ASSIA المرحلة ٣ (2.1.0): «تحديث حالة الخط» المؤجّل للجسر اللى بيقول loops: true بس، ويتفتح sf_mode=loop
 test("2.1.0: deferred line-status (loop) jobs go to a bridge that says loops: true, opened with sf_mode=loop", () => {
-  assert.match(src, /@version\s+2\.1\.0/);
+  assert.match(src, /@version\s+2\.1\.[01]/);
   assert.match(src, /stops: true, loops: true \}/);
   assert.match(src, /type: j\.type === "stop" \? "stop" : j\.loop \? "loop" : "measure"/);
   assert.match(src, /type === "loop"\n[^\n]*\n\s+\? BRIDGE\.DZS_URL \+ "#sf_accounts=" \+ encodeURIComponent\(accs\.join\(","\)\) \+ "&sf_mode=loop&sf_lane="/);

@@ -70,6 +70,13 @@ const MemStore = MemoryStore(session);
 // جلسات دائمة فى Postgres (جدول sf_session المُنشأ فى ensureSchema). لو فشلت التهيئة
 // لأى سبب نرجع لـ MemoryStore عشان الدخول مايتعطّلش أبداً.
 let quietSessions: QuietSessionStore | null = null;
+/** عمر الجلسة: أسبوع افتراضى، و٣٠ يوم لو «فاكرنى» (جهاز التنفيذ مثلاً — المالك ٢٠٢٦-١١-١٧). */
+export const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+export const REMEMBER_MS = 30 * 24 * 60 * 60 * 1000;
+function rememberSession(req: any) {
+  if (req?.body?.remember === true && req.session?.cookie) req.session.cookie.maxAge = REMEMBER_MS;
+}
+
 function buildSessionStore() {
   try {
     const PgSession = connectPgSimple(session);
@@ -1966,7 +1973,10 @@ export async function registerRoutes(
       resave: false,
       saveUninitialized: false,
       rolling: true, // كل طلب (ومنه التحديث التلقائى كل نص ساعة) يمدّد عمر الجلسة
-      cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // أسبوع
+      // ٢٠٢٦-١١-١٧: الكوكى مش بتتقرا من الجافاسكربت (httpOnly) · بتتبعت مع الصفحات من نفس الموقع بس (lax) ·
+      // Secure لوحدها لما الطلب HTTPS ("auto" — مابيكسرش الدخول لو البوّاب مابيبعتش X-Forwarded-Proto).
+      // العمر أسبوع ويتجدّد مع كل طلب، و«فاكرنى» فى صفحة الدخول بيخلّيه ٣٠ يوم (REMEMBER_MS).
+      cookie: { maxAge: SESSION_MS, httpOnly: true, sameSite: "lax", secure: "auto" },
     })
   );
 
@@ -2178,6 +2188,7 @@ export async function registerRoutes(
 
   // === Auth Routes ===
   app.post(api.auth.login.path, passport.authenticate("local"), async (req, res) => {
+    rememberSession(req);
     await setupCfmSessionForSf(req);
     res.json(await userResponse(req.user));
   });
@@ -2198,6 +2209,7 @@ export async function registerRoutes(
       if (sfUser && !sfUser.suspended && await comparePassword(String(password), sfUser.password)) {
         await new Promise<void>((resolve, reject) =>
           (req as any).login(sfUser, (e: any) => (e ? reject(e) : resolve())));
+        rememberSession(req);
         // لو الدور بيفتح الكوابل + مربوط بحساب كوابل → جهّز جلسة الكوابل بهويته الأصلية
         const cfmRole = cfmRoleOf(sfUser.role);
         if (cfmRole && (sfUser as any).cfmUserId) {
@@ -3484,9 +3496,24 @@ export async function registerRoutes(
       res.json({ ok: true, stopped: false });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
+  // إلغاء مفتاح الجسر (٢٠٢٦-١١-١٧): الجسر بيشتغل بمفتاح جهاز (مش جلسة دخول) — فلازم المالك يقدر يبطّله من غير ما
+  // يعمل مفتاح جديد. بيمسح المفتاح (أى طلب بيه بيرجع 401 فى خلال دقيقة: كاش readBridgeHash) ويرجّع الخطوط المحجوزة.
+  app.post("/api/exec-queue/bridge/revoke", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      await pool.query(`DELETE FROM app_settings WHERE key = $1`, [BRIDGE_TOKEN_KEY]);
+      bridgeHashCache = { v: null, at: Date.now() };
+      const { rowCount: back } = await pool.query(
+        `UPDATE exec_jobs SET status = 'pending', claimed_at = NULL, bridge_lease_until = NULL
+          WHERE status = 'claimed' AND bridge_lease_until IS NOT NULL`);
+      const { rowCount: freed } = await pool.query(
+        `UPDATE exec_jobs SET bridge_lease_until = NULL WHERE status = 'pending' AND bridge_lease_until IS NOT NULL`);
+      res.json({ ok: true, revoked: true, requeued: back ?? 0, released: freed ?? 0 });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
   app.get("/api/exec-queue/bridge/state", requireAuth, requireSuperAdmin, async (_req, res) => {
     try {
       res.json({ stopped: await readBridgeStopped(), enabled: !!(await readExecLanes(pool)).bridge,
+        hasToken: !!(await readBridgeHash()),
         seenSec: bridgeSeen ? Math.round((Date.now() - bridgeSeen.at) / 1000) : null, device: bridgeSeen?.device || null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

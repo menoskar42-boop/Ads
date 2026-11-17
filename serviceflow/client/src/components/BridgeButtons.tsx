@@ -15,13 +15,13 @@ import { ROLES } from "@shared/schema";
 const STATE_URL = "/api/exec-queue/bridge/state";
 const EDGE_URL = "microsoft-edge:https://www.google.com.eg/";
 
-type BridgeState = { stopped: boolean; enabled: boolean; seenSec: number | null; device: string | null };
+type BridgeState = { stopped: boolean; enabled: boolean; seenSec: number | null; device: string | null; hasToken?: boolean };
 
 export function BridgeButtons() {
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [busy, setBusy] = useState<"" | "go" | "stop">("");
+  const [busy, setBusy] = useState<"" | "go" | "stop" | "revoke">("");
   const isSuper = user?.role === ROLES.SUPER_ADMIN;
   const { data } = useQuery<BridgeState>({
     queryKey: [STATE_URL],
@@ -67,6 +67,19 @@ export function BridgeButtons() {
     } finally { setBusy(""); }
   };
 
+  // الجسر بيدخل بمفتاح جهاز مش بجلسة — «إلغاء المفتاح» بيبطّله خالص لحد ما يتفعّل تانى من «تفعيل الجسر على الجهاز ده»
+  const revoke = async () => {
+    if (!confirm("تلغى مفتاح الجسر؟ أى جسر شغّال هيوقف فى خلال دقيقة وخطوطه ترجع للطابور، ومش هيشتغل تانى غير لما تفعّله من جديد من صفحة Service Flow على الجهاز.")) return;
+    setBusy("revoke");
+    try {
+      const j = await post("/api/exec-queue/bridge/revoke");
+      qc.invalidateQueries({ queryKey: [STATE_URL] });
+      toast({ title: "اتلغى مفتاح الجسر", description: `${j.requeued ?? 0} خط رجع للطابور.` });
+    } catch (e: any) {
+      toast({ title: "ماتلغاش", description: e.message, variant: "destructive" });
+    } finally { setBusy(""); }
+  };
+
   const stopped = !!data?.stopped;
   const alive = !stopped && data?.seenSec != null && data.seenSec < 90;
   const title = !data ? "جسر Tampermonkey"
@@ -87,6 +100,13 @@ export function BridgeButtons() {
         {busy === "stop" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
         {stopped ? "الجسر مقفول" : "اقفل الجسر"}
       </Button>
+      {data?.hasToken && (
+        <Button variant="ghost" size="sm" onClick={revoke} disabled={busy !== ""} title="إلغاء مفتاح الجسر — يبطّله خالص"
+          className="gap-1 text-xs h-8 sm:h-9 px-2 text-red-700">
+          {busy === "revoke" ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          إلغاء المفتاح
+        </Button>
+      )}
     </div>
   );
 }
