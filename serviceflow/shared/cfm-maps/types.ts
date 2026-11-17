@@ -175,6 +175,8 @@ export interface FaultLocation {
   /** المسافة أكبر من طول المسار */
   beyond: boolean;
   path: PathStop[];
+  /** بكس تانى العطل على مساره (سلكه معدّى على مكان العطل) وأقرب للعطل من البكس المقاس — القياس منه أدق (المالك ٢٠٢٦-١١-١٧) */
+  nearerBox: { box: string; distM: number; boxDistM: number } | null;
 }
 
 /**
@@ -201,11 +203,26 @@ export function locateFault(data: Pick<CableMapData, "segments">, box: string, m
       }
     }
   }
+  // أقرب بكس للعطل على نفس الكابل: بكس مساره من الكابينة معدّى على القطعة اللى فيها العطل (بين a وb)، فالعطل بين
+  // البكس ده والكابينة على سلكه، وبُعده عن العطل = مسافته من الكابينة − مكان العطل. بيتقال بس لو أقرب من البكس المقاس.
+  let nearerBox: FaultLocation["nearerBox"] = null;
+  if (between) {
+    let best = boxDistM - p;
+    for (const s of data.segments) {
+      if (!/^B/.test(s.to) || s.to === node) continue;
+      const q = pathToNode(data, s.to);
+      if (!q) continue;
+      const i = q.findIndex((x) => x.node === between!.b);
+      if (i < 1 || q[i - 1].node !== between.a) continue;
+      const dX = q[q.length - 1].dist;
+      if (dX - p < best - 1e-9) { best = dX - p; nearerBox = { box: s.to, distM: Math.round((dX - p) * 10) / 10, boxDistM: dX }; }
+    }
+  }
   return {
     box: node, boxDistM, measuredM, direction,
     fromCabinetM: beyond ? null : Math.round(p * 10) / 10,
     cabinetCloser: direction === "box" && !beyond && p < measuredM,
-    between, beyond, path,
+    between, beyond, path, nearerBox,
   };
 }
 
@@ -229,6 +246,9 @@ export function describeFault(f: FaultLocation): string[] {
   else out.push(`المسافة التقديرية للعطل من الكابينة ${m(f.fromCabinetM as number)} تقريباً.`);
   if (f.between) {
     out.push(`العطل متوقع بين ${nodeLabel(f.between.a)} و${nodeLabel(f.between.b)}: حوالى ${m(f.between.fromA)} من ${nodeLabel(f.between.a)} و${m(f.between.fromB)} من ${nodeLabel(f.between.b)}.`);
+  }
+  if (f.nearerBox) {
+    out.push(`فيه بكس أقرب للعطل على نفس الكابل: ${nodeLabel(f.nearerBox.box)} — المسافة التقديرية للعطل منه حوالى ${m(f.nearerBox.distM)} (القياس منه أدق).`);
   }
   return out;
 }

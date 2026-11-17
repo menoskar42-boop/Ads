@@ -66,3 +66,32 @@ test("the map screen and the ticket screen use the same fault wording", async ()
   assert.ok(lines.some((l) => l.includes("يمكن القياس من الكابينة لأنها أقرب") && l.includes("43 م")));
   assert.ok(lines.some((l) => l.includes("بين الكابينة ووصلة 10") && l.includes("43 م من الكابينة") && l.includes("105 م من وصلة 10")));
 });
+
+test("owner's screenshot (2026-11-17): box 11, 50 m from the box ⇒ 241 m; box 13 is on the same cable and nearer (27 m)", async () => {
+  const { describeFault } = await import("../shared/cfm-maps/types");
+  const f = locateFault(M, "11", 50, "box")!;
+  assert.equal(f.fromCabinetM, 241);
+  assert.deepEqual(f.between, { a: "J1", b: "J3", fromA: 31, fromB: 7 });
+  // بكس 13 مساره معدّى على القطعة J1→J3 (العطل على سلكه) وأقرب من بكس 11 (50 م)
+  assert.deepEqual(f.nearerBox, { box: "B13", distM: 27, boxDistM: 268 });
+  const q = pathToNode(M, "B13")!.map((x) => x.node);
+  assert.equal(q[q.indexOf("J3") - 1], "J1");
+  assert.ok(describeFault(f).some((l) => l.includes("فيه بكس أقرب للعطل على نفس الكابل: بكس 13") && l.includes("27 م")));
+});
+
+test("nearer box: only boxes whose path crosses the faulty piece, and only if nearer than the measured box", () => {
+  for (const [box, d, dir] of [["11", 50, "box"], ["23", 200, "box"], ["23", 200, "cabinet"], ["13", 5, "box"]] as const) {
+    const f = locateFault(M, box, d, dir)!;
+    if (!f.nearerBox) continue;
+    const p = f.fromCabinetM!;
+    const q = pathToNode(M, f.nearerBox.box)!;
+    const i = q.findIndex((x) => x.node === f.between!.b);
+    assert.ok(i > 0 && q[i - 1].node === f.between!.a, `${f.nearerBox.box} مش على القطعة اللى فيها العطل`);
+    assert.ok(f.nearerBox.distM < f.boxDistM - p);
+    assert.equal(f.nearerBox.distM, Math.round((f.nearerBox.boxDistM - p) * 10) / 10);
+  }
+  // العطل لازق فى البكس المقاس ⇒ مفيش أقرب
+  assert.equal(locateFault(M, "13", 1, "box")!.nearerBox, null);
+  // قياس أطول من المسار ⇒ مفيش مكان ولا بكس أقرب
+  assert.equal(locateFault(M, "23", 300, "box")!.nearerBox, null);
+});
