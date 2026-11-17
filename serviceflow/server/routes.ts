@@ -50,6 +50,7 @@ import { schedulersEnabled } from './schedulers-enabled';
 import { registerRepeatReviews } from "./repeat-reviews";
 import { registerInspectionFollowup } from "./inspection-followup";
 import { registerTerminalReview } from "./terminal-review";
+import { registerFaultTrend } from "./fault-trend";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
 import { registerCabinetAssignments, siteWorkerCode } from "./cabinet-assignments";
@@ -9539,6 +9540,7 @@ export async function registerRoutes(
   registerRepeatReviews(app, { pool, requireAuth, requireSuperAdmin, lookupPhoneLine, techMsanCodes, msanInCodesSql, areaTechSql });
   // «مراجعة البكس ترمنال بترمنال» (فنى الصيانة) — المقارنة والنقل والتقرير فى server/terminal-review.ts
   registerTerminalReview(app, { pool, requireAuth, applyLineCorrections });
+  registerFaultTrend(app, { pool, requireAuth });
   registerInspectionFollowup(app, {
     pool,
     requireAuth,
