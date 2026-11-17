@@ -2,20 +2,35 @@
 # الموديل: YOLOX-Nano (رخصة Apache-2.0 — مش Ultralytics/AGPL). الداتا: road_anomaly_ds (MIT) — Pothole · Speedbump · Crack.
 # قبل التشغيل: من اليمين «Add Input» ← دوّر على road-anomaly-ds ← Add. والإعدادات: GPU T4 x2 · Internet on.
 # الناتج فى /kaggle/working/oscar_bumps: الموديل (pth + onnx) + تقرير الدقة لكل نوع.
+# نسخة ٢ (٢٠٢٦-١١-١٧): أول تشغيل علّق ٣ ساعات من غير ولا سطر (التدريب على كارتين GPU مع بعض بيعلّق على Kaggle).
+# دلوقتى: كارت واحد · سطر تقدّم كل شوية فى الـLog · حد أقصى ١٠ ساعات ونص ⇒ بيوقف لوحده ويحفظ آخر نسخة قبل حد Kaggle (١٢ ساعة).
 import os, sys, glob, json, random, shutil, subprocess, time
 
-EPOCHS = int(os.environ.get("EPOCHS", "40"))   # ٤٠ لفة ≈ ساعة إلى ساعتين على T4 x2
+EPOCHS = int(os.environ.get("EPOCHS", "30"))   # ٣٠ لفة على كارت T4 واحد
+MAX_HOURS = 10.5                                # قبل حد Kaggle (١٢ ساعة) بوقت كفاية للتقييم والتصدير
+T0 = time.time()
 IMG = 416                                       # نفس مقاس الموبايل
 OUT = "/kaggle/working/oscar_bumps"
 WORK = "/kaggle/working/yolox_work"
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(WORK, exist_ok=True)
 
-def sh(cmd, cwd=None):
-    print("$", cmd, flush=True)
-    r = subprocess.run(cmd, shell=True, cwd=cwd)
-    if r.returncode != 0:
+ENV = dict(os.environ, PYTHONUNBUFFERED="1", NCCL_P2P_DISABLE="1", NCCL_IB_DISABLE="1")
+
+def log(msg):
+    # stderr = اللى بيظهر فى تبويب Logs فى Kaggle وهو شغّال
+    print(f"[{(time.time() - T0) / 60:6.1f} د] {msg}", file=sys.stderr, flush=True)
+
+def sh(cmd, cwd=None, timeout=None, ok=False):
+    log("$ " + cmd)
+    try:
+        r = subprocess.run(cmd, shell=True, cwd=cwd, env=ENV, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        log("وصلنا للحد الأقصى للوقت — وقفت التدريب، وهكمّل بآخر نسخة اتحفظت")
+        return False
+    if r.returncode != 0 and not ok:
         raise SystemExit(f"فشل الأمر: {cmd}")
+    return r.returncode == 0
 
 # ── ١) لقّى الداتا (YOLO TXT) ────────────────────────────────────────────────
 IMG_EXT = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
@@ -92,7 +107,7 @@ def prepare():
     names = class_names()
     pairs = [(p, label_for(p)) for p in find_dataset()]
     pairs = [(i, l) for i, l in pairs if l]
-    print(f"صور ليها مربعات: {len(pairs)} · الأنواع: {names}")
+    log(f"صور ليها مربعات: {len(pairs)} · الأنواع: {names}")
     by = {"train": [], "val": []}
     loose = []
     for p in pairs:
@@ -108,7 +123,7 @@ def prepare():
     os.makedirs(f"{data}/annotations", exist_ok=True)
     for s in ("train", "val"):
         n, a = to_coco(by[s], names, f"{data}/annotations/instances_{s}2017.json", f"{data}/{s}2017")
-        print(f"{s}: {n} صورة · {a} مربع")
+        log(f"{s}: {n} صورة · {a} مربع")
     return names, data
 
 # ── ٣) YOLOX (من غير onnx-simplifier اللى بيوقّع التثبيت) + أوزان Nano ────────
@@ -138,8 +153,9 @@ class Exp(MyExp):
         self.num_classes = {nc}
         self.max_epoch = {ep}
         self.no_aug_epochs = 5
-        self.eval_interval = 5
-        self.data_num_workers = 4
+        self.eval_interval = 10
+        self.print_interval = 20
+        self.data_num_workers = 2
         self.data_dir = "{data}"
         self.train_ann, self.val_ann = "instances_train2017.json", "instances_val2017.json"
         self.exp_name = "oscar_bumps"
@@ -167,21 +183,27 @@ def main():
     weights = install_yolox()
     exp = f"{WORK}/oscar_bumps_exp.py"
     open(exp, "w").write(EXP.format(img=IMG, nc=len(names), ep=EPOCHS, data=data, work=WORK))
-    import torch
-    gpus = max(1, torch.cuda.device_count())
-    print(f"GPU: {gpus} · لفات: {EPOCHS}")
-    sh(f"python tools/train.py -f {exp} -d {gpus} -b {16 * gpus} --fp16 -o -c {weights}", cwd=f"{WORK}/YOLOX")
-    best = glob.glob(f"{WORK}/out/oscar_bumps/best_ckpt.pth")[0]
+    # كارت واحد بس: التدريب الموزّع على الكارتين هو اللى علّق أول مرة
+    log(f"تدريب على كارت GPU واحد · {EPOCHS} لفة · YOLOX بيطبع سطر كل ٢٠ خطوة (epoch: x/{EPOCHS})")
+    left = MAX_HOURS * 3600 - (time.time() - T0)
+    finished = sh(f"python -u tools/train.py -f {exp} -d 1 -b 16 --fp16 -c {weights}",
+                  cwd=f"{WORK}/YOLOX", timeout=max(600, left))
+    ck = f"{WORK}/out/oscar_bumps"
+    best = next((p for p in (f"{ck}/best_ckpt.pth", f"{ck}/latest_ckpt.pth") if os.path.exists(p)), None)
+    if not best:
+        raise SystemExit("مفيش أى نسخة موديل اتحفظت — ابعت الـLog لكلود")
+    log(f"النسخة اللى هتتصدّر: {os.path.basename(best)} · التدريب {'خلص' if finished else 'اتوقف عند الحد الأقصى'}")
     shutil.copy(best, f"{OUT}/oscar_bumps_yolox_nano.pth")
     # تقرير الدقة على صور التقييم (AP لكل نوع)
     sh(f"python tools/eval.py -f {exp} -c {best} -b 16 -d 1 --conf 0.001 > {OUT}/eval.txt 2>&1 || true", cwd=f"{WORK}/YOLOX")
     # ONNX للموبايل (ncnn/onnxruntime بعدين)
     sh(f"python tools/export_onnx.py -f {exp} -c {best} --output-name {OUT}/oscar_bumps_yolox_nano.onnx --no-onnxsim || true",
        cwd=f"{WORK}/YOLOX")
-    json.dump({"classes": names, "input": IMG, "epochs": EPOCHS, "minutes": round((time.time() - t0) / 60)},
+    json.dump({"classes": names, "input": IMG, "epochs": EPOCHS, "finished": finished,
+               "checkpoint": os.path.basename(best), "minutes": round((time.time() - t0) / 60)},
               open(f"{OUT}/model.json", "w"), ensure_ascii=False)
-    print(open(f"{OUT}/eval.txt").read()[-3000:])
-    print("خلص ✓ — الملفات فى", OUT, os.listdir(OUT))
+    log(open(f"{OUT}/eval.txt").read()[-3000:])
+    log(f"خلص ✓ — الملفات فى {OUT}: {os.listdir(OUT)}")
 
 if __name__ == "__main__" and "--dry" not in sys.argv:
     main()
