@@ -36,3 +36,27 @@ export function wordPicHtml(w, emoji, cls = "lbk-emoji") {
     ? `<img class="${cls} book-pic" src="/assets/${img}" alt="" draggable="false">`
     : `<span class="${cls}">${emoji}</span>`;
 }
+
+/** يحط رسمة الكتاب جوّه عنصر بدل الإيموجى (لو الكلمة ليها رسمة) — بنفس حجم الخط (المالك ٢٠٢٦-١١-١٧:
+ *  «الالتزام إن الصور تبقى مماثلة لصور الكتاب، واللى مالوش صورة فى الكتاب يبقى زى ما هو»). */
+export function useBookPic(node, w) {
+  const img = bookImgEn(w);
+  if (!img || !node) return node;
+  node.textContent = "";
+  const im = document.createElement("img");
+  im.className = "book-pic";
+  im.src = `/assets/${img}`;
+  im.alt = "";
+  im.draggable = false;
+  node.append(im);
+  return node;
+}
+
+/** نفس الفكرة للبيانات (العوالم والحروف): أى عنصر كلمته الإنجليزى ليها رسمة فى الكتاب بياخدها كـimg. */
+export function applyBookPics(items, field = "en") {
+  for (const it of items || []) {
+    const img = it && typeof it[field] === "string" ? bookImgEn(it[field]) : null;
+    if (img) it.img = img;
+  }
+  return items;
+}

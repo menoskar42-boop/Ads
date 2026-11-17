@@ -7,6 +7,7 @@
 // ماحدّش بيتقفل: غلطتين فى المربع الفاضى ⇒ الحرف بيبان ثانيتين، والتالتة ⇒ اللوحة بترجع منقّطة.
 //
 // mountBlankWrite(host, lang, ch, {ask, hint, onDone}) — نفس شكل mountFormsGame (جوّه الكتاب وبرّه).
+import { useBookPic } from "../data/bookPics.js";
 import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
@@ -279,6 +280,7 @@ export function mountBlankWrite(host, lang, ch, opts) {
     const card = el("div", CARD + ";position:relative");
     const pic = btn("display:block;margin:2px auto;font-size:clamp(76px,22vw,120px);line-height:1.1;background:none;border:0;cursor:pointer", x.e, () => { Sfx.tap(); sayWord(x.w); });
     pic.setAttribute("aria-label", "اسمع الكلمة");
+    useBookPic(pic, x.w);
     const lineOf = (filled) => (flavor === "train" ? trainLine(x, lang, filled) : wordLine(x, lang, filled));
     let line = lineOf(flavor === "runaway");
     card.append(pic, line, el("p", "margin:2px 0;font-weight:800;color:#7c3aed;font-size:15px", `${r + 1} من ${items.length} · ${LEVEL_TAG[level]}`));

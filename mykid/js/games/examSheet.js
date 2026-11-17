@@ -4,6 +4,7 @@
 // بتصحّح كارت كارت بالأحمر: ✓، أو ✗ والحرف الصح جنبه. كله صح ⇒ نجمة الميس. «صحّح» ⇒ الكروت الغلط بس تتفتح تانى.
 // الحكم = blankJudge بالشكل (زى المستوى ٣ فى «كمّل الكلمة بإيدك»)، والإنجليزى لو كتب الحرف كابيتال: «اكتب الحرف الصغير».
 // «🖨️ اطبع ورقة» ⇒ معاينة للطباعة (نفس ستايل «ورقة كتابة للطباعة») لكل الحروف المختارة.
+import { useBookPic, bookImgEn } from "../data/bookPics.js";
 import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
@@ -82,7 +83,7 @@ export function mountExamPaper(host, lang, items, { heading, onPerfect }) {
   const cards = items.map((x, i) => {
     const card = el("button", "position:relative;background:#fff;border:3px solid #e0e7ff;border-radius:16px;padding:6px 2px 4px;cursor:pointer;min-width:0");
     card.type = "button";
-    const pic = el("div", "font-size:clamp(40px,12vw,58px);line-height:1.1", x.e);
+    const pic = useBookPic(el("div", "font-size:clamp(40px,12vw,58px);line-height:1.1", x.e), x.w);
     const slot = el("span", `display:inline-flex;align-items:center;justify-content:center;width:1.25em;height:1.35em;border-bottom:3px dashed #8b5cf6;color:#8b5cf6`, ar ? "؟" : "?");
     card.append(pic, wordRow(x, lang, slot));
     card.addEventListener("click", () => { Sfx.tap(); Speech.say(x.w, { lang: voice }); select(i); });
@@ -264,7 +265,7 @@ export function openExamPrint(lang, letters, mode) {
       `<div class="ws-meta"><span>${ar ? "الاسم" : "Name"}: ............................</span><span>${ar ? "التاريخ" : "Date"}: ........../........../..........</span></div></header>`;
     for (const r of rows) {
       html += `<div style="display:flex;gap:3mm;justify-content:center;margin-bottom:3mm">` + r.items.map((x) =>
-        `<div style="flex:1 1 0;max-width:42mm;border:1.5px solid #d4cdee;border-radius:3mm;padding:2mm;text-align:center"><div style="font-size:34px;line-height:1.2">${x.e}</div>${word(x)}</div>`).join("") + `</div>`;
+        `<div style="flex:1 1 0;max-width:42mm;border:1.5px solid #d4cdee;border-radius:3mm;padding:2mm;text-align:center"><div style="font-size:34px;line-height:1.2">${bookImgEn(x.w) ? `<img src="/assets/${bookImgEn(x.w)}" alt="" style="width:1.2em;height:1.2em;object-fit:contain">` : x.e}</div>${word(x)}</div>`).join("") + `</div>`;
     }
     page.innerHTML = html;
     overlay.append(page);

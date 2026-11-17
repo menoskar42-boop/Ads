@@ -2,6 +2,7 @@
 // ميزو بيقول: «يا خبر! أنا كتبت كلمة … وغلطت فى حرف. دوّر على الحرف الغلط وطلّعه». الكلمة حروف منفصلة (كل حرف
 // بشكله الموصول)، والطفل يلمس الحرف الغلط ⇒ بيطلع لفوق ويختفى ومكانه «؟» ⇒ يختار الصح من ٣ ⇒ بيرجع مكانه أخضر.
 // لمس حرف صح: «الحرف ده مكتوب صح. دوّر تانى» (من غير «غلط» للطفل — الغلطة غلطة ميزو).
+import { useBookPic } from "../data/bookPics.js";
 import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
@@ -43,6 +44,7 @@ export function mountSpotMistake(host, lang, rounds, { onDone }) {
     const card = el("div", "background:#fff;border-radius:22px;box-shadow:0 6px 0 rgba(0,0,0,.1);padding:10px 14px 14px;margin:6px auto;max-width:min(92vw,460px);text-align:center");
     const pic = btn("display:block;margin:2px auto;font-size:clamp(70px,20vw,110px);line-height:1.1;background:none;border:0;cursor:pointer", x.e, () => { Sfx.tap(); Speech.say(x.w, { lang: voice }); });
     pic.setAttribute("aria-label", "اسمع الكلمة");
+    useBookPic(pic, x.w);
     const row = el("div", "display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:6px 0;font-family:'Baloo Bhaijaan 2',sans-serif");
     row.dir = ar ? "rtl" : "ltr";
     const hint = el("p", SAY_CSS + ";color:#be123c;min-height:1.3em;font-size:clamp(15px,4.2vw,19px)");

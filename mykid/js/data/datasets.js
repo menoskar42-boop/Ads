@@ -1,4 +1,5 @@
 // ===== سجلّ مجموعات البيانات (لتمريرها للألعاب عبر مفتاح نصّي) =====
+import { applyBookPics } from "./bookPics.js";
 import { ARABIC_LETTERS } from "./arabicLetters.js";
 import { ENGLISH_LETTERS } from "./englishLetters.js";
 import { ANIMALS } from "./animals.js";
@@ -106,6 +107,13 @@ const DATASETS = {
   plants: { key: "plants", lang: "ar-EG", glyphKind: "emoji", items: PLANTS },
   dinosaurs: { key: "dinosaurs", lang: "ar-EG", glyphKind: "emoji", items: DINOSAURS },
 };
+
+// صور كتاب البنت (المالك ٢٠٢٦-١١-١٧): أى كلمة ليها رسمة فى الكتاب بتتعرض بيها فى كل العوالم — ماعدا الألوان (برتقالى = لون)
+for (const ds of Object.values(DATASETS)) {
+  if (!ds || ds.key === "colors" || !Array.isArray(ds.items)) continue;
+  applyBookPics(ds.items, "en");
+  applyBookPics(ds.items, "word");
+}
 
 export function getDataset(key) {
   return DATASETS[key];
