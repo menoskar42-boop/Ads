@@ -1,64 +1,24 @@
 # صور كتاب الإنجليزى (Hello! Little Stars)
 
-**المصدر:** صور المالك لصفحات كتاب بنته (٢٠٢٦-١١-١٦) — محفوظة فى `docs/book-photos/english/` (الصفحات ١–٢٧، متعدّلة الاتجاه).
-الرسومات متقصوصة منها فى `en/<الكلمة>.webp` بخلفية شفافة، ومتسجّلة فى `mykid/js/data/bookPics.js`.
+**المصدر:** صور المالك لصفحات كتاب بنته، محفوظة فى `docs/book-photos/english/`.
+قُصّت الرسومات من مربع **Look and write** وحُفظت بصيغة WebP فى `en/<word>.webp`،
+وسُجّلت الكلمات فى `mykid/js/data/bookPics.js`.
 
-| الحرف | الصفحة | الكلمات |
+| الحرف | ملف الصفحة | الكلمات المقصوصة |
 |---|---|---|
-| N | 11 (`p10-11-N`) | nest · night · numbers |
-| I | 13 و14 (`p12-13-I` · `p14-15-C`) | insect · ink · in |
-| C | 15 (`p14-15-C`) | cloud · cow · cap |
+| M | `p01-M.jpg`، ص. ١ | man · mom · mud |
+| A | `p02-03-A.jpg`، ص. ٣ | apple · ant · axe |
+| S | `p04-05-S.jpg`، ص. ٥ (sun · star)؛ `p06-07-T.jpg`، ص. ٦ (تمرين sand) | sand · sun · star |
+| T | `p06-07-T.jpg`، ص. ٧ | turtle · toy · train |
+| P | `p08-09-P.jpg`، ص. ٩ | pants · pen · pan |
+| N | `p10-11-N.jpg`، ص. ١١ | numbers · night · nest |
+| I | `p12-13-I.jpg`، ص. ١٣ | in · ink · insect |
+| C | `p14-15-C.jpg`، ص. ١٥ | cow · cap · cloud |
+| F | `p16-17-F.jpg`، ص. ١٧ | frog · fork |
+| D | `p18-19-D.jpg`، ص. ١٩ | desk · dog · dress |
+| H | `p20-21-H.jpg`، ص. ٢١ | honey · heart · helicopter |
+| O | `p24-25-R.jpg`، ص. ٢٤ (تمرين) | ostrich · orange · octopus |
+| R | `p24-25-R.jpg`، ص. ٢٥ | robot · rabbit · rice |
 
-الكلمات اللى عندنا ومش فى الكتاب صورها فاضلة إيموجى (قرار المالك).
-
----
-
-## بحث ريبليت أونلاين (قبل صور المالك)
-
-## Result
-
-The exact Egyptian KG English book titled **Hello! Little Stars** and its
-Phonics pages for N, I, and C could not be verified in the public results
-checked for this task. No page images were confirmed to belong to that book,
-so no picture crops or page screenshots were created. No replacement or
-generated pictures were used.
-
-## Search terms
-
-- `Hello Little Stars KG1 pdf Egypt`
-- `Hello! Little Stars kindergarten English book Egypt pdf`
-- `هالو ليتل ستارز كى جى`
-- `ministry of education Egypt KG English book`
-- `Hello! Little Stars KG Egypt book`
-- `Hello! Little Stars phonics book KG1`
-- `Hello! Little Stars N I C phonics pages`
-- `Hello! Little Stars in ink insect cow cap cloud`
-
-## URLs checked in search results
-
-- https://dmgpublisher.com/Books/Details/26 — **Little Stars Student Book A**,
-  listed as KG 1 by New Horizon. The title shown omits “Hello!”, so this was
-  not treated as the requested book; the N/I/C pages could not be confirmed.
-- https://elearnningcontent.blob.core.windows.net/elearnningcontent/2026/KG/KG1/Term1/StudentBook/English_KG1_Tr1.pdf —
-  Egypt Ministry of Education KG1 English textbook for 2025/2026, a different
-  title and not the requested book.
-- https://elearnningcontent.blob.core.windows.net/elearnningcontent/2026/KG/KG2/Term1/StudentBook/English_KG2_Tr1.pdf —
-  Egypt Ministry of Education KG2 English textbook for 2025/2026, also a
-  different title.
-- https://edu2-egypt.com/kg1-2 — KG textbook catalog/search result; it did not
-  identify the requested title or provide its Phonics pages.
-
-## Page and word results
-
-No N, I, or C Phonics page from **Hello! Little Stars** was located or
-verified. Consequently, no crop can be attributed to a source page.
-
-| Letter | Requested words | Found in verified page | Missing / unverified |
-| --- | --- | --- | --- |
-| N | numbers, night, nest | None | numbers, night, nest |
-| I | in, ink, insect | None | in, ink, insect |
-| C | cow, cap, cloud | None | cow, cap, cloud |
-
-To make exact book-matched crops, provide scans or photos of the book's N, I,
-and C Phonics pages. The existing app pictures should remain unchanged until
-those page illustrations can be checked.
+كلمة `fan` غير موجودة فى صفحة F؛ تظل بإيموجى. لم تُقصّ صورة `fish`.
+أي كلمة أخرى فى التطبيق لا تظهر فى هذه القائمة تحتفظ بصورتها الحالية.

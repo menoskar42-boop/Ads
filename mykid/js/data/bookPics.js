@@ -4,10 +4,23 @@
 
 /** كلمات كتاب الإنجليزى اللى ليها رسمة من الكتاب */
 export const BOOK_IMG_EN = new Set([
-  // N (صفحة ١١) · I (صفحة ١٣/١٤) · C (صفحة ١٥)
+  // M (ص. ١) · A (ص. ٣) · S (ص. ٥؛ sand من تمرين ص. ٦) · T (ص. ٧) · P (ص. ٩)
+  "man", "mom", "mud",
+  "apple", "ant", "axe",
+  "sand", "sun", "star",
+  "turtle", "toy", "train",
+  "pants", "pen", "pan",
+  // N (ص. ١١) · I (ص. ١٣) · C (ص. ١٥)
   "nest", "night", "numbers",
   "insect", "in", "ink",
   "cloud", "cow", "cap",
+  // F (ص. ١٧) · D (ص. ١٩) · H (ص. ٢١)
+  "frog", "fork",
+  "desk", "dog", "dress",
+  "honey", "heart", "helicopter",
+  // O (تمرين ص. ٢٤) · R (ص. ٢٥)
+  "ostrich", "orange", "octopus",
+  "robot", "rabbit", "rice",
 ]);
 
 /** مسار الرسمة (نسبةً لـ /assets/) أو null لو الكلمة مالهاش رسمة من الكتاب */
