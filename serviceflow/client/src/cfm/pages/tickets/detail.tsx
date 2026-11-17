@@ -16,6 +16,7 @@ import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/cfm/hooks/use-toast";
 import { TicketStatus, MeasurementDirection, WorksBy } from "@/cfm/lib/types";
 import { masterDataApi, usersApi, ticketsApi } from "@/cfm/lib/api";
+import { MeasurementMapHint } from "@/cfm/components/MapPhase2";
 import type { WorkType, TaskType, Contractor, User as UserType, Central, Cable as CableType, FaultType, Ticket, ExcavationWorker } from "@/cfm/lib/api";
 
 export default function TicketDetail() {
@@ -1082,6 +1083,8 @@ export default function TicketDetail() {
                      </div>
                   </CardHeader>
                   <CardContent className="pt-4">
+                     {/* المالك ٢٠٢٦-١١-١٦: مكان العطل من خريطة الشبكة الثانوية (لو الكابينة ليها خريطة) */}
+                     <MeasurementMapHint cabinet={ticket.cabinet} box={ticket.box} distance={m.distance} direction={m.direction} />
                      <div className="flex justify-between items-center mb-2">
                        <span className="font-bold text-primary text-sm flex items-center gap-2">
                          <User size={12} /> {m.performedBy}

@@ -98,3 +98,137 @@ export function distancesFromCabinet(data: Pick<CableMapData, "segments">): Reco
   }
   return out;
 }
+
+// ── المرحلة ٢ (المالك ٢٠٢٦-١١-١٦): كل كابل عليه إيه، ومكان العطل من القياس ─────────────────────────
+
+export interface PathStop { node: string; dist: number }
+
+/** المسار من الكابينة لمكان (الكابينة ← وصلات ← البكس) بالمسافة التراكمية. null لو مفيش مسار كامل. */
+export function pathToNode(data: Pick<CableMapData, "segments">, node: string): PathStop[] | null {
+  const parent: Record<string, MapSegment> = {};
+  for (const s of data.segments) if (!parent[s.to]) parent[s.to] = s;
+  const chain: MapSegment[] = [];
+  let cur = node;
+  const seen = new Set<string>();
+  while (cur !== "CAB") {
+    const s = parent[cur];
+    if (!s || seen.has(cur) || s.lengthM == null) return null;
+    seen.add(cur);
+    chain.unshift(s);
+    cur = s.from;
+  }
+  const out: PathStop[] = [{ node: "CAB", dist: 0 }];
+  for (const s of chain) out.push({ node: s.to, dist: out[out.length - 1].dist + (s.lengthM as number) });
+  return out;
+}
+
+export interface CableRoute {
+  /** أول قطعة طالعة من الكابينة */
+  first: MapSegment;
+  /** الوصلات على الكابل بالترتيب (بمسافتها من الكابينة) */
+  joints: PathStop[];
+  /** البكسيات على الكابل (بمسافتها والوصلة اللى طالع منها) */
+  boxes: (PathStop & { joint: string; block?: string; pairs?: string; nameAr?: string })[];
+  /** أبعد مسافة على الكابل */
+  lengthM: number;
+}
+
+/** «كل كابل إيه البكسيات اللى عليه وإيه الوصلات اللى عليه» — كابل = كل قطعة طالعة من الكابينة وكل اللى بعدها. */
+export function cableRoutes(data: Pick<CableMapData, "segments" | "boxes">): CableRoute[] {
+  const kids: Record<string, MapSegment[]> = {};
+  for (const s of data.segments) (kids[s.from] ||= []).push(s);
+  const boxInfo = new Map(data.boxes.map((b) => ["B" + b.box, b]));
+  return (kids.CAB || []).map((first) => {
+    const joints: PathStop[] = [];
+    const boxes: CableRoute["boxes"] = [];
+    let longest = 0;
+    const walk = (s: MapSegment, d: number, seen: Set<string>) => {
+      const here = d + (s.lengthM ?? 0);
+      longest = Math.max(longest, here);
+      if (seen.has(s.to)) return;
+      seen.add(s.to);
+      if (/^J/.test(s.to)) joints.push({ node: s.to, dist: here });
+      if (/^B/.test(s.to)) {
+        const b = boxInfo.get(s.to);
+        boxes.push({ node: s.to, dist: here, joint: s.from, block: b?.block, pairs: b?.pairs, nameAr: b?.nameAr });
+      }
+      for (const k of kids[s.to] || []) walk(k, here, seen);
+    };
+    walk(first, 0, new Set());
+    joints.sort((a, b) => a.dist - b.dist);
+    boxes.sort((a, b) => a.dist - b.dist);
+    return { first, joints, boxes, lengthM: longest };
+  });
+}
+
+export interface FaultLocation {
+  box: string;
+  boxDistM: number;            // مسافة البكس من الكابينة على الخريطة
+  measuredM: number;
+  direction: "box" | "cabinet";
+  /** مكان العطل من الكابينة على مسار البكس */
+  fromCabinetM: number | null;
+  /** القياس من البكس والكابينة أقرب للعطل ⇒ القياس من الكابينة أسهل */
+  cabinetCloser: boolean;
+  /** بين مكانين على المسار */
+  between: { a: string; b: string; fromA: number; fromB: number } | null;
+  /** المسافة أكبر من طول المسار */
+  beyond: boolean;
+  path: PathStop[];
+}
+
+/**
+ * مكان العطل من قياس على بكس (المالك ٢٠٢٦-١١-١٦): مثلاً بكس 23 على بُعد 243 م من الكابينة، والقياس 200 م **من البكس**
+ * ⇒ العطل على بُعد 43 م من الكابينة (والكابينة أقرب، فيتقاس منها)، وبين وصلة كذا وكذا بمسافة من كل واحدة.
+ * القياس **من الكابينة** ⇒ المسافة نفسها من الكابينة على مسار البكس.
+ */
+export function locateFault(data: Pick<CableMapData, "segments">, box: string, measuredM: number,
+  direction: "box" | "cabinet"): FaultLocation | null {
+  const node = /^B/.test(box) ? box : "B" + String(box).trim();
+  const path = pathToNode(data, node);
+  if (!path || !(measuredM >= 0)) return null;
+  const boxDistM = path[path.length - 1].dist;
+  const raw = direction === "box" ? boxDistM - measuredM : measuredM;
+  const beyond = raw < 0 || raw > boxDistM;
+  const p = Math.max(0, Math.min(boxDistM, raw));
+  let between: FaultLocation["between"] = null;
+  if (!beyond) {
+    for (let i = 1; i < path.length; i++) {
+      if (p <= path[i].dist) {
+        const a = path[i - 1], b = path[i];
+        between = { a: a.node, b: b.node, fromA: Math.round((p - a.dist) * 10) / 10, fromB: Math.round((b.dist - p) * 10) / 10 };
+        break;
+      }
+    }
+  }
+  return {
+    box: node, boxDistM, measuredM, direction,
+    fromCabinetM: beyond ? null : Math.round(p * 10) / 10,
+    cabinetCloser: direction === "box" && !beyond && p < measuredM,
+    between, beyond, path,
+  };
+}
+
+/** رقم الكابينة بشكل موحّد للمطابقة: «6.7» = «7-6» = «6/7» (الأرقام من غير ترتيب) */
+export const cabinetKey = (c: string | null | undefined): string =>
+  String(c ?? "").replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).split(/\D+/).filter(Boolean)
+    .map((x) => String(Number(x))).sort().join("-");
+
+/** نص النتيجة بالعربى (نفس صياغة المالك) — للشاشة والتكت */
+export function describeFault(f: FaultLocation): string[] {
+  const m = (x: number) => `${Math.round(x * 10) / 10} م`;
+  const out: string[] = [];
+  out.push(`${nodeLabel(f.box)} على بُعد ${m(f.boxDistM)} من الكابينة على الخريطة، والقياس ${m(f.measuredM)} ${f.direction === "box" ? "من البكس" : "من الكابينة"}.`);
+  if (f.beyond) {
+    out.push(f.direction === "box"
+      ? `القياس أطول من المسافة بين البكس والكابينة (${m(f.boxDistM)}) — العطل غالباً جوّه الكابينة أو القياس/الخريطة محتاجين مراجعة.`
+      : `القياس أطول من مسار البكس (${m(f.boxDistM)}) — العطل غالباً بعد البكس (السلك للعميل) أو القياس/الخريطة محتاجين مراجعة.`);
+    return out;
+  }
+  if (f.cabinetCloser) out.push(`يمكن القياس من الكابينة لأنها أقرب — المسافة التقديرية للعطل من الكابينة ${m(f.fromCabinetM as number)} تقريباً.`);
+  else out.push(`المسافة التقديرية للعطل من الكابينة ${m(f.fromCabinetM as number)} تقريباً.`);
+  if (f.between) {
+    out.push(`العطل متوقع بين ${nodeLabel(f.between.a)} و${nodeLabel(f.between.b)}: حوالى ${m(f.between.fromA)} من ${nodeLabel(f.between.a)} و${m(f.between.fromB)} من ${nodeLabel(f.between.b)}.`);
+  }
+  return out;
+}

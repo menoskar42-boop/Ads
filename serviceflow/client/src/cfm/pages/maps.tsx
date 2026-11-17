@@ -14,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/cfm/components/ui/ta
 import { useToast } from "@/cfm/hooks/use-toast";
 import { Map as MapIcon, Plus, Save, Trash2, Upload, FileSpreadsheet, ArrowRight, AlertTriangle, Image as ImageIcon } from "lucide-react";
 import type { CableMapData, MapSegment, MapBox, MapSpare, MapMarker } from "@shared/cfm-maps/types";
-import { distancesFromCabinet, nodeLabel } from "@shared/cfm-maps/types";
+import { distancesFromCabinet, nodeLabel, cableRoutes } from "@shared/cfm-maps/types";
+import { CableRoutesPanel, FaultLocatorPanel } from "@/cfm/components/MapPhase2";
 
 interface MapListItem { id: number; central: string; cabinet: string; title: string; boxes: number; segments: number; images: number; updatedAt: string; updatedBy: string | null }
 interface MapImage { id: number; caption: string | null; mime: string; size: number }
@@ -118,6 +119,11 @@ async function exportExcel(m: MapDetail, data: CableMapData) {
     data.segments.map((s) => [nodeLabel(s.from), nodeLabel(s.to), s.lengthM, s.pairs, s.gaugeMm, s.dead ?? "", s.cablePairs || "", s.marker || "", s.uncertain ? "يتراجع" : "", s.notes || ""]));
   add("البكسيات", ["البكس", "البلوك", "فرعات الخرج", "الوصلة", "الاسم", "Name", "الرمز", "المسافة من الكابينة م", "يتراجع", "ملاحظات"],
     data.boxes.map((b) => [b.box, b.block, b.pairs, nodeLabel(b.joint), b.nameAr || "", b.nameEn || "", b.symbol || "", d["B" + b.box] ?? "", b.uncertain ? "يتراجع" : "", b.notes || ""]));
+  add("كل كابل عليه إيه", ["الكابل", "النوع", "الرقم", "طالع من", "المسافة من الكابينة م", "البلوك", "فرعات الخرج", "المكان"],
+    cableRoutes(data).flatMap((r, i) => [
+      ...r.joints.map((j) => [`كابل ${i + 1}`, "وصلة", j.node.slice(1), "", j.dist, "", "", ""]),
+      ...r.boxes.map((b) => [`كابل ${i + 1}`, "بكس", b.node.slice(1), nodeLabel(b.joint), b.dist, b.block || "", b.pairs || "", b.nameAr || ""]),
+    ]));
   add("الاسبير", ["الوصلة", "العدد", "البلوك", "الأزواج", "الأزواج على الكابل", "ملاحظات"],
     data.spares.map((s) => [nodeLabel(s.joint), s.count, s.block, s.pairs, s.cablePairs || "", s.notes || ""]));
   add("علامات الوصل", ["العلامة", "من", "إلى", "ملاحظات"], data.markers.map((x) => [x.name, nodeLabel(x.from), nodeLabel(x.to), x.notes || ""]));
@@ -222,14 +228,18 @@ function MapView({ id }: { id: number }) {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="boxes">
+      <Tabs defaultValue="routes">
         <TabsList className="flex flex-wrap h-auto">
+          <TabsTrigger value="routes">كل كابل عليه إيه</TabsTrigger>
+          <TabsTrigger value="fault">مكان العطل</TabsTrigger>
           <TabsTrigger value="boxes">البكسيات ({data.boxes.length})</TabsTrigger>
           <TabsTrigger value="segments">الكابلات ({data.segments.length})</TabsTrigger>
           <TabsTrigger value="spares">الاسبير ({data.spares.length})</TabsTrigger>
           <TabsTrigger value="markers">علامات الوصل ({data.markers.length})</TabsTrigger>
           <TabsTrigger value="notes">ملاحظات</TabsTrigger>
         </TabsList>
+        <TabsContent value="routes"><CableRoutesPanel data={data} /></TabsContent>
+        <TabsContent value="fault"><FaultLocatorPanel data={data} /></TabsContent>
         <TabsContent value="boxes">
           <Card><CardContent className="pt-4 space-y-3">
             <p className="text-xs text-muted-foreground">المسافة من الكابينة = مجموع أطوال الكابلات على المسار لحد البكس. لو أى قطعة فى المسار عليها «يتراجع» المسافة تقريبية.</p>
