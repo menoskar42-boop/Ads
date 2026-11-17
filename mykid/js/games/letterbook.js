@@ -942,7 +942,8 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   }
 
   setTimeout(() => {
-    const pg = startPage && LB_PAGES.find((x) => x.id === startPage);
+    // «⭐ اختبر حروفى» (٢٠٢٦-١١-١٧) بيفتح مراجعة كل حروف النجمة على طول
+    const pg = startPage === LB_REVIEW_ALL.id ? LB_REVIEW_ALL : startPage && LB_PAGES.find((x) => x.id === startPage);
     if (pg) openPage(pg);
     else showChooser();
   }, 0);

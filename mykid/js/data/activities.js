@@ -24,7 +24,9 @@ export const ACTIVITIES = {
     { emoji: "🧠", title: "اكتب من الذاكرة", desc: "ميزو يقول الحرف وانت تكتبه لوحدك — للحروف اللى عليها نجمة", screen: "letterRecall", params: { mode: "write", lang: "ar" } },
     { emoji: "🔗", title: "وصّل الحرف بالصورة", desc: "اسحب خط من كل حرف للصورة اللى بتبدأ بيه", screen: "letterRecall", params: { mode: "connect", lang: "ar" } },
     // «أعرف الكلمة» (خطة ١٣/١٤/١٨، موافقة المالك ٢٠٢٦-١١-١٧): الطفل يعرف اسم الصورة مش بس حرفها الأول
-    { emoji: "💡", title: "أعرف الكلمة", desc: "اسمع الكلمة واختار صورتها، وشوف الصورة واختار اسمها، وركّب الكلمة", screen: "knowWord", params: { lang: "ar" } },
+    { emoji: "💡", title: "أعرف الكلمة", desc: "اسمع الكلمة واختار صورتها، وشوف الصورة واختار اسمها، وركّب الكلمة", screen: "knowWord", params: { lang: "ar" }, fresh: true },
+    // «⭐ اختبر حروفى» (٢٠٢٦-١١-١٧): مراجعة واحدة لكل حروف النجمة — نفس مراجعة الكراسة (كل حرف بتمارين مختلفة)
+    { emoji: "⭐", title: "اختبر حروفى", desc: "مراجعة واحدة لحروفك اللى عليها نجمة: كل حرف بتمارين مختلفة كل مرة", screen: "letterbook", params: { page: "Rall" }, fresh: true },
     // المالك ٢٠٢٦-١٠-٢٧: ستّ ألعاب لشكل الحرف فى أول ووسط وآخر الكلمة (وجوّه كراسة الحروف مع كل حرف)
     { emoji: "🤝", title: "الحرف بيمسك إيد صاحبه", desc: "المس الحرف يمسك إيد جيرانه فى الكلمة، وشوف شكله بيتغيّر", screen: "formsPlay", params: { mode: "hands" } },
     { emoji: "🧩", title: "كمّل الكلمة بالشكل الصح", desc: "الكلمة ناقصة حرف: اختار شكله الصح فى أول الكلمة أو وسطها أو آخرها", screen: "formsPlay", params: { mode: "formComplete" } },
@@ -179,7 +181,9 @@ export const ACTIVITIES = {
     { emoji: "🧠", title: "اكتب من الذاكرة", desc: "ميزو يقول الحرف وانت تكتبه لوحدك — للحروف اللى عليها نجمة", screen: "letterRecall", params: { mode: "write", lang: "en", title: "🧠 اكتب من الذاكرة" } },
     { emoji: "🔗", title: "وصّل الحرف بالصورة", desc: "اسحب خط من كل حرف للصورة اللى بتبدأ بيه", screen: "letterRecall", params: { mode: "connect", lang: "en", title: "🔗 وصّل الحرف بالصورة" } },
     // «أعرف الكلمة» (خطة ١٣/١٤/١٨، موافقة المالك ٢٠٢٦-١١-١٧): الطفل يعرف اسم الصورة مش بس حرفها الأول
-    { emoji: "💡", title: "أعرف الكلمة", desc: "Know the word: اسمع الكلمة واختار صورتها، وشوف الصورة واختار اسمها، وركّب الكلمة", screen: "knowWord", params: { lang: "en" } },
+    { emoji: "💡", title: "أعرف الكلمة", desc: "Know the word: اسمع الكلمة واختار صورتها، وشوف الصورة واختار اسمها، وركّب الكلمة", screen: "knowWord", params: { lang: "en" }, fresh: true },
+    { emoji: "⭐", title: "اختبر حروفى", desc: "مراجعة حروفك اللى عليها نجمة: اختار الحروف وكل حرف بكل تمارينه", screen: "letterRecall", params: { mode: "review", lang: "en", title: "⭐ اختبر حروفى" }, fresh: true },
+    { emoji: "🎤", title: "تحدّث مع ميزو", desc: "Talk with Mizo", screen: "talkMizo", params: { title: "🎤 تحدّث مع ميزو" }, fresh: true },
     { emoji: "📝", title: "كمّل الكلمة بإيدك", desc: "Supply the missing letter: اسمع الكلمة واكتب الحرف الناقص — زى الامتحان", screen: "blankWrite", params: { lang: "en" } },
     { emoji: "📄", title: "ورقة الامتحان", desc: "Supply the missing letter: ٣ صور زى ورقة المدرسة، والميس بتصحّح — وتتطبع كمان", screen: "examSheet", params: { lang: "en" } },
     { emoji: "🏃", title: "الحرف الهربان", desc: "الحرف هرب من الكلمة! اكتبه عشان يرجع مكانه", screen: "blankWrite", params: { lang: "en", mode: "runaway" } },
