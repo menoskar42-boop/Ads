@@ -49,7 +49,13 @@ export function renderPhonics({ regionId, regionIndex, datasetKey, lang, title, 
 
   function render() {
     const target = rounds[round];
-    pic.textContent = target.emoji || "❓";
+    // رسمة الكتاب لو موجودة (data/bookPics.js)، وإلا الإيموجى
+    if (target.img) {
+      pic.textContent = "";
+      const im = document.createElement("img");
+      im.className = "book-pic"; im.src = `/assets/${target.img}`; im.alt = ""; im.draggable = false;
+      pic.appendChild(im);
+    } else pic.textContent = target.emoji || "❓";
     word.textContent = target.word;
     row.innerHTML = "";
     // النطق: الكلمة ثم حرفها الأول

@@ -431,7 +431,8 @@ export function renderEggs({ regionId, regionIndex, kind = "arabic", focus = nul
     show.classList.add("on");
     if (!it.value) {
       const w = words && words.length ? words[r % words.length] : { word: it.word, emoji: hatchOf(it) };
-      show.innerHTML = `<span class="fg-baby">${w.emoji}</span><b class="fg-word" dir="auto">${w.word || ""}</b>`;
+      show.innerHTML = (w.img ? `<img class="fg-baby book-pic" src="/assets/${w.img}" alt="" draggable="false">` : `<span class="fg-baby">${w.emoji}</span>`)
+        + `<b class="fg-word" dir="auto">${w.word || ""}</b>`;
       Speech.sequence([{ text: fem(FUN_SAY.eggHatch), lang: "ar-EG" }, { text: w.word || it.say, lang: it.lang }], 150);
       return wait(2600);
     }

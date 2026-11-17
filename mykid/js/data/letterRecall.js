@@ -4,6 +4,7 @@
 // — للحروف اللى خدنا فيها نجمة». نفس اللعبتين للعربى والإنجليزى، فى القلعتين وجوّه الكتابين.
 //
 // ملف صافى (من غير DOM) — الشاشة فى games/letterRecall.js، والاختبار بيستورده مباشرة.
+import { bookImgEn } from "./bookPics.js";
 import { ARABIC_LETTERS } from "./arabicLetters.js";
 import { LB_LETTERS, LB_PAGES, nameOf } from "./letterbook.js";
 import { EB_PAGES, EB_WORDS, emojiOf, wordsStarting, starredLetterPages } from "./englishbook.js";
@@ -62,7 +63,8 @@ export function picturesFor(lang, ch) {
     const pg = EB_PAGES.find((p) => p.type === "letter" && p.ch === ch);
     if (pg && pg.pos === "end") return []; // X: الصوت فى الآخر — «بيبدأ بإيه؟» مالهاش معنى
     for (const w of [...(pg ? pg.words : []), ...wordsStarting(ch)]) {
-      if (w[0].toUpperCase() === ch && !EN_PIC_SKIP.includes(w) && !["eyes", "ears", "in", "up", "under", "quiet", "kick", "nap", "sit", "food", "drink", "numbers", "elbow", "tap", "zero", "six"].includes(w)) add(w, emojiOf(w));
+      // رسمة الكتاب بتوضّح الكلمة حتى لو مجرّدة («in» = البنت فى الكرتونة · «numbers»)
+      if (w[0].toUpperCase() === ch && !EN_PIC_SKIP.includes(w) && (bookImgEn(w) || !["eyes", "ears", "in", "up", "under", "quiet", "kick", "nap", "sit", "food", "drink", "numbers", "elbow", "tap", "zero", "six"].includes(w))) add(w, emojiOf(w), bookImgEn(w));
     }
   }
   return out;

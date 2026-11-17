@@ -1818,3 +1818,6 @@ img.pat-glyph { width: 1.1em; height: 1.1em; object-fit: contain; vertical-align
 .wr-cols .pw-none { color: #8a7cc0; list-style: none; margin-inline-start: -18px; }
 .wr-act { background: #fffaf0; border: 2px dashed #f2b631; border-radius: 12px; padding: 8px 12px; }
 .jr-story { font-size: clamp(10px, 2.8vw, 14px); line-height: 1.2; letter-spacing: -1px; direction: ltr; max-width: 100%; overflow-wrap: anywhere; text-align: center; }
+
+/* رسمة الكلمة من كتاب البنت (data/bookPics.js) — بنفس حجم الإيموجى اللى مكانها */
+img.book-pic { width: 1.25em; height: 1.25em; object-fit: contain; display: block; margin: 0 auto; pointer-events: none; user-select: none; }

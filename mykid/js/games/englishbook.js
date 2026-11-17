@@ -13,6 +13,7 @@ import { awardStars } from "../core/rewards.js";
 import { femAdapt } from "../data/mizo.js";
 import { strokesFor } from "../data/strokes.js";
 import { EB_UNITS, EB_PAGES, ebSteps, isEbWrite, EB_WORDS, emojiOf, NUM_EN, letterMeetMix } from "../data/englishbook.js";
+import { wordPicHtml, bookImgEn } from "../data/bookPics.js";
 import { EB_SAY, SHOW_BELOW, fixMsg, ROUND_MSG } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
 import { renderLetterPuzzle, renderFlashlight, renderEggs } from "./funGames.js";
@@ -64,7 +65,7 @@ function picCard(w, { word = true, ch = null, pos = "start", cls = "lbk-pic" } =
   b.type = "button";
   const at = pos === "end" ? w.slice(-1) : w[0];
   const label = ch && at.toUpperCase() === ch ? hlWord(w, pos) : w;
-  b.innerHTML = `<span class="lbk-emoji">${emojiOf(w)}</span>` + (word ? `<span class="ebk-word">${label}</span>` : "");
+  b.innerHTML = wordPicHtml(w, emojiOf(w)) + (word ? `<span class="ebk-word">${label}</span>` : "");
   b.setAttribute("aria-label", w);
   b.dataset.w = w;
   return b;
@@ -596,7 +597,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
         const c = el("button", "lbk-pic lbk-pic-big ebk-pic");
         c.type = "button";
         c.dataset.good = "1";
-        c.innerHTML = `<span class="lbk-emoji">${e}</span><span class="ebk-word">${w}</span>`;
+        c.innerHTML = wordPicHtml(w, e) + `<span class="ebk-word">${w}</span>`;
         c.addEventListener("click", () => {
           Sfx.pop();
           en(w);
@@ -696,7 +697,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     game(body, s) {
       const p = { regionId, regionIndex };
       const en = { ...p, datasetKey: "english", lang: "en-US" };
-      const words = (s.words || []).map((x) => ({ word: x.w, emoji: x.e }));
+      const words = (s.words || []).map((x) => ({ word: x.w, emoji: x.e, img: bookImgEn(x.w) }));
       const GAMES = {
         puzzle: () => renderLetterPuzzle({ ...p, kind: "english", focus: s.ch }),
         flash: () => renderFlashlight({ ...p, kind: "english", focus: s.ch }),
