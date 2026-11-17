@@ -17,21 +17,44 @@ export function latinDigitsForOutlook(value: string): string {
   return toWesternDigits(String(value ?? "")).replace(/[0-9][0-9/:.,\-]*/g, (m) => LRM + m);
 }
 
+// ⚠️ Word (Outlook) بيضغط الجدول على عرض الرسالة وبيكسر الكلمة حرف حرف فى عمود ضيق — وبيتجاهل
+// white-space:nowrap فى الـCSS (٢٠٢٦-١١-١٧: «الساعة» و«Cabinet» و«10 إلى 1» طلعوا حرف فى كل سطر).
+// الحل: عرض ثابت لكل عمود بالبكسل (attribute width + nowrap اللى Word بيقراهم) محسوب من المحتوى:
+// القيم ماتتكسرش خالص، والعنوان يلفّ بين الكلمات بس (أطول كلمة فيه بتدخل كاملة).
+const PX_PER_CHAR = 8;
+const CELL_PAD = 20;
+const visibleLen = (s: string) => [...s.replace(/[\u200E\u200F]/g, "")].length;
+
+/** عرض كل عمود بالبكسل: أطول قيمة كاملة، وأطول كلمة فى العنوان. */
+export function columnWidths(columns: string[], rows: (string | number | null | undefined)[][]): number[] {
+  return columns.map((c, i) => {
+    const headWord = Math.max(0, ...String(c ?? "").split(/\s+/).map(visibleLen));
+    const body = Math.max(0, ...rows.map((r) => visibleLen(latinDigitsForOutlook(r[i] == null ? "" : String(r[i])))));
+    return Math.max(44, Math.max(headWord, body) * PX_PER_CHAR + CELL_PAD);
+  });
+}
+
 export async function copyHtmlTable(
   columns: string[],
   rows: (string | number | null | undefined)[][],
 ): Promise<boolean> {
-  const cell = (v: any, head = false) => {
+  const widths = columnWidths(columns, rows);
+  const cell = (v: any, i: number, head = false) => {
     const raw = latinDigitsForOutlook(v == null ? "" : String(v));
     const hasArabic = /[؀-ۿ]/.test(raw);
     const inner = hasArabic ? raw : `<span dir="ltr" lang="en-US" style="unicode-bidi:embed">${raw}</span>`;
     const tag = head ? "th" : "td";
-    const st = `border:1px solid #000;padding:4px 8px;white-space:nowrap;${head ? "background:#f2f2f2;font-weight:bold;" : ""}`;
-    return `<${tag} dir="rtl" align="right" style="${st}">${inner}</${tag}>`;
+    const w = widths[i];
+    // العنوان يلفّ بين الكلمات بس · القيم سطر واحد (nowrap كـattribute عشان Word)
+    const wrap = head ? "white-space:normal;" : "white-space:nowrap;";
+    const st = `border:1px solid #000;padding:4px 8px;width:${w}px;min-width:${w}px;${wrap}${head ? "background:#f2f2f2;font-weight:bold;" : ""}`;
+    return `<${tag} dir="rtl" align="right" valign="middle" width="${w}"${head ? "" : " nowrap"} style="${st}">${inner}</${tag}>`;
   };
-  const head = `<tr dir="rtl">${columns.map((c) => cell(c, true)).join("")}</tr>`;
-  const body = rows.map((r) => `<tr dir="rtl">${r.map((c) => cell(c)).join("")}</tr>`).join("");
-  const html = `<table dir="rtl" border="1" style="direction:rtl;border-collapse:collapse;font-family:Arial;font-size:13px">${head}${body}</table>`;
+  const total = widths.reduce((a, b) => a + b, 0);
+  const cols = `<colgroup>${widths.map((w) => `<col width="${w}" style="width:${w}px">`).join("")}</colgroup>`;
+  const head = `<tr dir="rtl">${columns.map((c, i) => cell(c, i, true)).join("")}</tr>`;
+  const body = rows.map((r) => `<tr dir="rtl">${r.map((c, i) => cell(c, i)).join("")}</tr>`).join("");
+  const html = `<table dir="rtl" border="1" cellspacing="0" cellpadding="4" width="${total}" style="direction:rtl;border-collapse:collapse;font-family:Arial;font-size:13px;width:${total}px;table-layout:fixed">${cols}${head}${body}</table>`;
   const text = [columns, ...rows].map((r) => r.map((c) => latinDigitsForOutlook(c == null ? "" : String(c))).join("\t")).join("\n");
   try {
     await navigator.clipboard.write([new ClipboardItem({

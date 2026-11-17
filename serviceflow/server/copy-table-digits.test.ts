@@ -31,3 +31,15 @@ test("the HTML table, its plain text and the subject line all go through it", ()
   const report = readFileSync(new URL("../client/src/components/MajorFaultClosureReport.tsx", import.meta.url), "utf8");
   assert.match(report, /writeText\(latinDigitsForOutlook\(subject\)\)/);
 });
+
+// Outlook كان بيكسر «الساعة» و«Cabinet» حرف حرف فى عمود ضيق (٢٠٢٦-١١-١٧) ⇒ عرض ثابت لكل عمود من المحتوى.
+test("column widths fit the longest value whole and the longest header word", async () => {
+  const { columnWidths } = await import("../client/src/lib/copy-table");
+  const w = columnWidths(["Cabinet", "ميل مسئول مركز صيانة الشبكة بالمنطقة", "DP"], [[8, "maged.gadallah@te.eg", "1 إلى 10"]]);
+  assert.equal(w[0], 7 * 8 + 20);                  // «Cabinet» كاملة
+  assert.equal(w[1], 20 * 8 + 20);                 // الإيميل كامل فى سطر واحد (أطول من أى كلمة فى العنوان)
+  assert.ok(w[2] >= 8 * 8 + 20);                   // «1 إلى 10» مايتكسرش
+  const lib = readFileSync(new URL("../client/src/lib/copy-table.ts", import.meta.url), "utf8");
+  assert.match(lib, /width="\$\{w\}"\$\{head \? "" : " nowrap"\}/);
+  assert.match(lib, /table-layout:fixed/);
+});
