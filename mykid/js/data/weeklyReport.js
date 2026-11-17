@@ -49,7 +49,7 @@ export function homeActivity({ confusion, weak, colorsKnown }) {
  * last7 = Store.last7Days() · ctx = currentMasteryContext()
  */
 export function weeklyReport({ now = new Date(), grades = {}, confusions = {}, achievementsAt = {}, achievements = [],
-  last7 = [], ctx = {}, weakBelow = 75, excellentFrom = 90 }) {
+  last7 = [], ctx = {}, words = { known: [], weak: [] }, weakBelow = 75, excellentFrom = 90 }) {
   const from = iso(new Date(now - 6 * DAY));
   const weekAgo = now - 7 * DAY;
   const activeDays = last7.filter((d) => d.acts > 0 || d.min > 0).length;
@@ -69,6 +69,8 @@ export function weeklyReport({ now = new Date(), grades = {}, confusions = {}, a
   const needs = [
     ...weakLetters.slice(0, 3).map((ch) => `حرف ${ch} — محتاج تدريب كتابة`),
     ...conf.map((c) => c.text),
+    // «أعرف الكلمة»: الكلمات اللى لسه بيغلط فى اسمها
+    ...(words.weak && words.weak.length ? [`كلمات لسه بيلخبط فى اسمها: ${words.weak.slice(0, 6).join("، ")}`] : []),
   ];
   return {
     from, to: iso(now), activeDays, minutes,
@@ -76,6 +78,7 @@ export function weeklyReport({ now = new Date(), grades = {}, confusions = {}, a
       ctx.arStarred ? `بيعرف ${ctx.arStarred} حرف عربى` : null,
       ctx.enStarred ? `بيعرف ${ctx.enStarred} حرف إنجليزى` : null,
       ctx.colorsKnown ? `بيعرف ${ctx.colorsKnown} ألوان بالإنجليزى` : null,
+      words.known && words.known.length ? `عرف اسم ${words.known.length} كلمة: ${words.known.slice(0, 6).join("، ")}` : null,
     ].filter(Boolean),
     mastered, needs, confusions: conf,
     activity: homeActivity({ confusion: conf[0], weak: weakLetters[0], colorsKnown: ctx.colorsKnown || 0 }),

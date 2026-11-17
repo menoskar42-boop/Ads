@@ -1,4 +1,5 @@
 // ===== متابعة ولي الأمر: تقدّم الطفل في كل منطقة =====
+import { knowSummary } from "../data/knowWord.js";
 import { REGIONS } from "../data/regions.js";
 import { COLLECTIBLES } from "../core/rewards.js";
 import { getDataset } from "../data/datasets.js";
@@ -406,6 +407,7 @@ function weeklyReportData() {
   return weeklyReport({
     grades: Store.letterGrades, confusions: Store.confusions, achievementsAt: Store.achievementsAt,
     achievements: ACHIEVEMENTS, last7: Store.last7Days(), ctx: currentMasteryContext(),
+    words: knowSummary(Store.knowWords),
   });
 }
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

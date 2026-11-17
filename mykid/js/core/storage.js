@@ -315,6 +315,18 @@ export const Store = {
     this.writeReview[key] = value;
     persist();
   },
+  // «أعرف الكلمة» (٢٠٢٦-١١-١٧): "ar:سمكة" ← سجل الإجابات (data/knowWord.js)
+  get knowWords() {
+    return state.knowWords || (state.knowWords = {});
+  },
+  setKnowWord(key, rec) {
+    if (!key || !rec) return;
+    this.knowWords[key] = rec;
+    persist();
+  },
+  today() {
+    return today();
+  },
   recordLetterGrade(book, ch, grade) {
     const k = `${book}:${ch}`;
     const prev = this.letterGrades[k];
