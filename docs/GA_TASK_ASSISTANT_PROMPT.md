@@ -67,3 +67,15 @@ Admin ← اختار كل خاصية ← Data streams ← اكتب اسم الخ
 | الخاصية | Measurement ID | المهمة | اتعملت؟ | ملاحظة |
 وبعده سطر لكل حاجة وقفت فيها بسبب خط أحمر.
 ```
+
+## النتيجة (الإكستنشن، ٢٠٢٦-١١-١٧)
+
+- **OscarDevs `G-TTW08KQ8WE`:** `apply_submit` (page_view + `page_location` فيه `/apply/success`) و`whatsapp_click` (click + `link_url`
+  فيه `wa.me`) اتعملوا Key events · Outbound clicks كانت مفتوحة أصلاً · Google Signals اتفتح · مفيش حساب Google Ads (ماتعملش).
+- **موقع الأطفال `G-H8F2Z845NK`:** `complete_activity` و`start_adventure` بقوا Key events · Signals مقفول · مفيش ربط Ads.
+- **MyBible:** `G-DMRC5M7Z81` (Signals مقفول · Key events: group_join · plan_start · purchase · reading_log) · `G-R3VTW81D67` «Mybible friend»
+  (Signals مقفول · purchase بس) · خاصية `535592781` ماتفتحتش.
+- ⚠️ **مراجعة كلود:** صفحات التجار (`src/views/tenant_*.ejs` — ١٦ من ١٩) بتحمّل نفس `seo_meta.ejs` ⇒ نفس `G-TTW08KQ8WE`، وفيها
+  لينكات واتساب التاجر. فشرط `wa.me` لوحده بيعدّ ضغطات زباين التجار كـ«عميل لـOscarDevs». الصح: `link_url` فيه
+  `wa.me/201552406406` (رقم OscarDevs فى `home.ejs`). و`/apply/success` بيوصله كمان الـbot (honeypot) والتقديم المكرر
+  (`src/routes/apply.js`) — فرق صغير.
