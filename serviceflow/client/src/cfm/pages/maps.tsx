@@ -12,7 +12,7 @@ import { Input } from "@/cfm/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/cfm/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/cfm/components/ui/tabs";
 import { useToast } from "@/cfm/hooks/use-toast";
-import { Map as MapIcon, Plus, Save, Trash2, Upload, FileSpreadsheet, ArrowRight, AlertTriangle, Image as ImageIcon } from "lucide-react";
+import { Map as MapIcon, Plus, Save, Trash2, Upload, FileSpreadsheet, ArrowRight, AlertTriangle, Image as ImageIcon, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { CableMapData, MapSegment, MapBox, MapSpare, MapMarker } from "@shared/cfm-maps/types";
 import { distancesFromCabinet, nodeLabel, cableRoutes } from "@shared/cfm-maps/types";
 import { CableRoutesPanel, FaultLocatorPanel } from "@/cfm/components/MapPhase2";
@@ -136,12 +136,49 @@ async function exportExcel(m: MapDetail, data: CableMapData) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
+/** عرض صورة الخريطة كاملة جوّه الصفحة: زرار «رجوع» + تكبير/تصغير، وزرار الرجوع بتاع الموبايل (أو Esc) بيقفلها بدل ما يطلع من الموقع. */
+function ImageViewer({ src, caption, onClose }: { src: string; caption: string; onClose: () => void }) {
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    history.pushState({ sfImageViewer: true }, "");
+    const onPop = () => onClose();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") history.back(); };
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("keydown", onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const close = () => history.back(); // بيرجّع الخطوة اللى اتضافت ⇒ popstate ⇒ onClose
+  const btn = "inline-flex items-center gap-1 rounded-md bg-white/15 hover:bg-white/25 px-3 py-2 text-sm font-medium";
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col bg-black/95 text-white" dir="rtl" role="dialog" aria-modal="true" aria-label={caption}>
+      <div className="flex items-center gap-2 p-2 shrink-0" style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
+        <button type="button" className={btn} onClick={close} data-testid="button-map-image-close"><X className="w-5 h-5" />رجوع</button>
+        <span className="flex-1 truncate text-sm opacity-80">{caption}</span>
+        <button type="button" className={btn} onClick={() => setZoom((z) => Math.max(1, z - 1))} disabled={zoom === 1} aria-label="تصغير"><ZoomOut className="w-5 h-5" /></button>
+        <span className="text-sm tabular-nums w-8 text-center">×{zoom}</span>
+        <button type="button" className={btn} onClick={() => setZoom((z) => Math.min(4, z + 1))} disabled={zoom === 4} aria-label="تكبير"><ZoomIn className="w-5 h-5" /></button>
+      </div>
+      <div className="flex-1 overflow-auto" dir="ltr" onDoubleClick={() => setZoom((z) => (z === 1 ? 2 : 1))}>
+        <img src={src} alt={caption} draggable={false} className={zoom === 1 ? "w-full h-full object-contain" : "max-w-none"}
+          style={zoom === 1 ? undefined : { width: `${zoom * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function MapView({ id }: { id: number }) {
   const { toast } = useToast();
   const [m, setM] = useState<MapDetail | null>(null);
   const [data, setData] = useState<CableMapData | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [viewer, setViewer] = useState<{ src: string; caption: string } | null>(null);
   const load = () => api(`/api/cfm/maps/${id}`).then((x: MapDetail) => { setM(x); setData(x.data); setDirty(false); })
     .catch((e) => toast({ variant: "destructive", title: e.message }));
   useEffect(() => { void load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -173,6 +210,7 @@ function MapView({ id }: { id: number }) {
 
   return (
     <div className="space-y-6" dir="rtl">
+      {viewer && <ImageViewer src={viewer.src} caption={viewer.caption} onClose={() => setViewer(null)} />}
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex items-center gap-3">
           <Link href="/maps"><Button variant="ghost" size="sm" className="gap-1"><ArrowRight className="w-4 h-4" />كل الخرائط</Button></Link>
@@ -215,9 +253,10 @@ function MapView({ id }: { id: number }) {
             const src = withBase(`/api/cfm/maps/${id}/images/${img.id}`);
             return (
               <figure key={img.id} className="w-full sm:w-[48%] border rounded-lg overflow-hidden">
-                <a href={src} target="_blank" rel="noreferrer" title="افتح الصورة كاملة">
+                {/* بتتفتح جوّه الصفحة مش فى تاب جديد: على الموبايل (التطبيق المتثبّت) التاب الجديد مالوش زرار رجوع (المالك ٢٠٢٦-١١-١٧) */}
+                <button type="button" className="block w-full" title="افتح الصورة كاملة" onClick={() => setViewer({ src, caption: img.caption || "صورة الخريطة" })}>
                   <img src={src} alt={img.caption || "صورة الخريطة"} className="w-full max-h-[520px] object-contain bg-white" loading="lazy" />
-                </a>
+                </button>
                 <figcaption className="flex items-center justify-between gap-2 p-2 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1"><ImageIcon className="w-3 h-3" />{img.caption || "صورة"} — اضغط على الصورة تتفتح كاملة</span>
                   {edit && <Button size="sm" variant="ghost" className="h-6 text-red-600" onClick={() => void delImage(img.id)}>مسح</Button>}
