@@ -9,6 +9,8 @@
 | github.com/forrestchang/andrej-karpathy-skills | 2c60614 (2026-04-20) | karpathy-guidelines | MIT |
 | github.com/anthropics/skills | 2c5958e (2026-11-06) | mcp-builder · webapp-testing · frontend-design | Apache-2.0 (`LICENSE.txt` جوّه كل مهارة) |
 | github.com/morluto/rea (REA) | 3345019 (2026-11-10، بطلب المالك) | reverse-engineer-anything | MIT (`LICENSE.txt` جوّه المهارة) |
+| github.com/cth9191/animate | 7e5eb56 (2026-10-05، بطلب المالك ٢٠٢٦-١١-١٧) | animate | MIT (`LICENSE.txt` جوّه المهارة) |
+| github.com/NVIDIA/skillspector | a09091e (2026-11-16، بطلب المالك ٢٠٢٦-١١-١٧) | skill-inspector | Apache-2.0 (`LICENSE.txt` جوّه المهارة) |
 
 اتسابت: `using-superpowers` و`diagnosing-superpowers` (بيشتغلوا مع الـplugin والـhook)،
 وskill-creator/claude-api/docx/pdf/pptx/xlsx (موجودين أصلاً)، والباقى مالوش علاقة بشغلنا.
@@ -21,3 +23,15 @@
 المهارة تعليمات بس، ومش بتركّب حاجة ولا بتشغّل كود. أدوات REA نفسها (MCP + محرّكات زى Ghidra/JADX) **مش متركّبة**،
 وبتتركّب وقت ما نحتاجها بأمر واحد: `npx rea-agents setup` (أو من غير تسجيل: `npx rea-agents --help`).
 ⚠️ للاستخدام على تطبيقات وملفات إحنا من حقنا نحلّلها (تطبيقاتنا، أو تحليل مسموح بيه)، مش لكسر حماية أو ترخيص.
+
+### المهارات الخمسة (٢٠٢٦-١١-١٧، `docs/SKILLS_REVIEW_2026-11-17.md`)
+شرط المالك: «طالما مفيش خطورة أمنية ومفيش زيادة فى استهلاك التوكنز». المهارة بتتحمّل لما الشغل يحتاجها بس، ووصفها سطر واحد فى القايمة.
+- **animate** (فيديو قصير بالكود ← MP4): اتفحصت بـSkillSpector `--no-llm` + مراجعة بالإيد. الـ١٩ «HIGH» = الفاحص ماقراش ملفات
+  الـJS كاملة (analysis coverage)، مش سلوك. الباقى: محاذاة تعليقات، رموز رياضة، ffmpeg بقايمة arguments (من غير shell)،
+  وbase64 لصور وصوت محليين. **مفيش أى اتصال بالنت فى أدواتها**، ولا حروف مخفية. محتاجة Playwright + ffmpeg (موجودين فى بيئة كلود).
+- **skill-inspector**: بتشغّل `skillspector scan <المهارة> --no-llm` قبل تركيب أى مهارة جديدة. الأداة نفسها مش متركّبة:
+  `python3.13 -m venv /tmp/ss && /tmp/ss/bin/pip install git+https://github.com/NVIDIA/skillspector@a09091e`. ⛔ من غير `--llm`
+  (بيبعت محتوى المهارة لمزوّد برّه).
+- **اتسابوا:** ponytail (hooks بتضيف تعليمات وخريطة للمستودع مع كل جلسة ⇒ توكنز زيادة دايماً) · freellmapi (مش مهارة؛ بيبعت البرومبتات
+  لمزوّدين برّه) · Agent-Reach (بينسخ جلسة كروم وبيخزّن كوكيز الحسابات على الجهاز، فأى برنامج تانى يقدر يوصلها، مش كلود بس.
+  والوصول للحسابات «من خلال كلود بس» موجود أصلاً بالإكستنشن فى كروم بتاع المالك).
