@@ -84,3 +84,38 @@ test("English book review: starred letters preselected, toggling works, opens al
   assert.ok(chips >= 15, `steps: ${chips}`);
   assert.deepEqual(errors, []);
 });
+
+// نفس المراجعة فى قلعة الحروف العربى (المالك ٢٠٢٦-١١-١٧): «تحتاج فى العربى إنى أختار الحرف مش كل الحروف» —
+// حروف النجمة متعلّمة لوحدها، والطفل يشيل/يزوّد، والمراجعة بتفتح جوّه كراسة الحروف على الحروف المختارة بس.
+test("Arabic letter review: pick the letters, then the letterbook review runs on those letters only", async () => {
+  await page.goto(base);
+  await page.evaluate(async () => {
+    localStorage.clear();
+    const { Store } = await import("/js/core/storage.js");
+    Store.letterbookDone["Lب"] = 1;
+    Store.letterbookDone["Lف"] = 1;
+    const { Router } = await import("/js/core/router.js");
+    const { renderLetterbook } = await import("/js/games/letterbook.js");
+    Router.go = (name, params) => { window.__go = { name, params }; if (name === "letterbook") document.getElementById("app").replaceChildren(renderLetterbook(params)); };
+    const { renderLetterRecall } = await import("/js/games/letterRecall.js");
+    document.getElementById("app").replaceChildren(renderLetterRecall({ regionId: "arabic", regionIndex: 0, mode: "review", lang: "ar", title: "⭐ اختبر حروفى" }));
+  });
+  const start = page.getByRole("button", { name: /يلا نراجع/ });
+  await start.waitFor();
+  const selectedCount = () => start.textContent().then((t) => Number((t.match(/\((\d+)\)/) || [])[1]));
+  assert.equal(await selectedCount(), 2);
+  await page.getByRole("button", { name: /^ف/ }).click();
+  await page.getByRole("button", { name: /^ح/ }).click();
+  assert.equal(await selectedCount(), 2);
+  await start.click();
+  const go = await page.evaluate(() => window.__go);
+  assert.equal(go.name, "letterbook");
+  assert.deepEqual(go.params.review, ["ب", "ح"]);
+  await page.locator(".wbk-title").waitFor();
+  const title = await page.locator(".wbk-title").textContent();
+  assert.ok(title.includes("ب") && title.includes("ح") && !title.includes("ف"), title);
+  assert.ok(await page.locator(".wbk-chip").count() >= 8);
+  // ماتتعلّمش كأنها صفحة فى الكراسة
+  assert.equal(await page.evaluate(async () => (await import("/js/core/storage.js")).Store.letterbookDone["picked-review"]), undefined);
+  assert.deepEqual(errors, []);
+});

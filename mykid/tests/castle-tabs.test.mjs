@@ -60,9 +60,11 @@ test("Numbers City: all 26 sections stay in order in the first tab, plus a new t
 test("⭐ اختبر حروفى opens the existing star-letter reviews", async () => {
   const { readFileSync } = await import("node:fs");
   const ar = ACTIVITIES.arabic.find((a) => a.title === "اختبر حروفى");
-  assert.deepEqual([ar.screen, ar.params.page], ["letterbook", "Rall"]);
+  // العربى زى الإنجليزى (المالك ٢٠٢٦-١١-١٧): الطفل يختار الحروف، وبعدين مراجعة الكراسة على الحروف دى بس
+  assert.deepEqual([ar.screen, ar.params.mode, ar.params.lang], ["letterRecall", "review", "ar"]);
   const lb = readFileSync(new URL("../js/games/letterbook.js", import.meta.url), "utf8");
   assert.match(lb, /startPage === LB_REVIEW_ALL\.id \? LB_REVIEW_ALL/);
+  assert.match(lb, /id: "picked-review", type: "review", picked: true, letters: review/);
   const en = ACTIVITIES.english.find((a) => a.title === "اختبر حروفى");
   assert.deepEqual([en.screen, en.params.mode], ["letterRecall", "review"]);
 });

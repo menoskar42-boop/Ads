@@ -269,7 +269,7 @@ test("review letters = every starred letter (any unit), capped at 8 per sitting;
     }
   }
   const g = (await import("node:fs")).readFileSync(new URL("../js/games/letterbook.js", import.meta.url), "utf8");
-  assert.match(g, /if \(pg\.type === "review"\) pg = \{ \.\.\.pg, letters: reviewLetters\(pg, starred\) \};/);
+  assert.match(g, /if \(pg\.type === "review" && !pg\.picked\) pg = \{ \.\.\.pg, letters: reviewLetters\(pg, starred\) \};/);
   assert.match(g, /if \(starredNow\.length >= 2\) \{/);
   assert.match(g, /openPage\(LB_REVIEW_ALL\)/);
 });

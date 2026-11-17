@@ -73,7 +73,7 @@ function gapHtml(before, letter, after) {
   return `${l}<span class="lbk-gap">؟</span>${r}`;
 }
 
-export function renderLetterbook({ regionId, regionIndex, page: startPage, only = null }) {
+export function renderLetterbook({ regionId, regionIndex, page: startPage, only = null, review = null }) {
   const screen = el("div", "region-screen wbk-screen lbk-screen");
   let cur = null;
   let steps = [];
@@ -117,6 +117,8 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
       button("candy-btn", "🖼️ صور الحروف", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "pics", lang: "ar", back: "letterbook" }); }),
       button("candy-btn", "🧠 اكتب من الذاكرة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "write", lang: "ar", back: "letterbook" }); }),
       button("candy-btn", "🔗 وصّل الحرف بالصورة", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "connect", lang: "ar", back: "letterbook" }); }),
+      // «مراجعة حروفى» (المالك ٢٠٢٦-١١-١٧): زى قلعة الإنجليزى — حروف النجمة افتراضياً أو حروف يختارها الطفل
+      button("candy-btn", "🧠 مراجعة حروفى", () => { Sfx.tap(); Router.go("letterRecall", { regionId, regionIndex, mode: "review", lang: "ar", back: "letterbook" }); }),
     );
     map.appendChild(recall);
     // 🏆 مراجعة واحدة لكل حروف النجمة (المالك ٢٠٢٦-١١-٠٤) — بتظهر لما يبقى فيه حرفين عليهم نجمة
@@ -159,7 +161,8 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     // المراجعة (المالك ٢٠٢٦-١١-٠٤): «دايماً يجيب كل الحروف اللى عليها نجمة بصرف النظر مفتوحة منين» — وأى حرف عليه
     // نجمة = «اتعلمناها» (مش اللى قبل المراجعة فى الكراسة)
     const starred = starredLetters("ar", Store.letterbookDone);
-    if (pg.type === "review") pg = { ...pg, letters: reviewLetters(pg, starred) };
+    // الحروف اللى الطفل اختارها بنفسه (🧠 مراجعة حروفى) بتفضل زى ما هى
+    if (pg.type === "review" && !pg.picked) pg = { ...pg, letters: reviewLetters(pg, starred) };
     cur = pg;
     steps = letterbookSteps(pg, Math.random, only, starred); // only: أنشطة بعينها (للاختبار)
     if (!only && pg.type === "letter") {
@@ -285,7 +288,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   }
 
   // المرحلة اللى وصلها جوّه الصفحة بتتحفظ — يطلع ويرجع يلاقى نفسه عندها (المالك ٢٠٢٦-١١-١١)
-  function resumeKey() { return cur && cur.id && cur.type !== "mix" && !only ? "ar:" + cur.id : null; }
+  function resumeKey() { return cur && cur.id && cur.type !== "mix" && !cur.picked && !only ? "ar:" + cur.id : null; }
   function nextStep() {
     cleanup();
     cleanup = () => {};
@@ -309,6 +312,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
   }
   function finishPage() {
     if (resumeKey()) Store.clearPageResume(resumeKey());
+    if (cur.picked) { cur = null; return finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser }); }
     Store.markLetterbookDone(cur.id);
     const end = () => finishActivity({ regionId, regionIndex, stars: 5, onDone: showChooser });
     // شهادة الحرف: الدرجة للطفل، والتفاصيل لولى الأمر فى الإعدادات
@@ -945,6 +949,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     // «⭐ اختبر حروفى» (٢٠٢٦-١١-١٧) بيفتح مراجعة كل حروف النجمة على طول
     const pg = startPage === LB_REVIEW_ALL.id ? LB_REVIEW_ALL : startPage && LB_PAGES.find((x) => x.id === startPage);
     if (pg) openPage(pg);
+    else if (Array.isArray(review) && review.length) openPage({ id: "picked-review", type: "review", picked: true, letters: review });
     else showChooser();
   }, 0);
   return screen;
