@@ -471,6 +471,10 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
 - `docs/SERVICEFLOW_EXECUTOR_REFRESH_PROMPT.md` — **برومبت كلود كوورك: ريفريش تاب «جهاز التنفيذ» فى Edge** (٢٠٢٦-١١-١٧) لما يقف.
   ريفريش للتاب بس + ضغطة على مكان فاضى، والزرار الوحيد المسموح «جهاز التنفيذ» لو رجع مش مُفعَّل. الصفحة:
   https://claude.ai/artifact/DDYJZrJNt5PfHVZuo9WpCX. **Trigger:** «ابعتلي برومبت ريفريش جهاز التنفيذ».
+- `docs/SERVICEFLOW_DAILY_FILES_PROMPT.md` — **برومبت إضافة Claude فى Edge: «حدث الملفات اليومية»** (٢٠٢٦-١١-١٧): لينكات FCC · WFM
+  (`#sf_wfm_daily`) · OSS · 430D · البورتات (بعد ٩ ص) من `exec-queue.ts`، والإضافة بتحفظه اختصار فالمالك يقول «حدث الملفات اليومية» بس.
+  من غير كلمات سر ولا ضغط زراير جوّه مواقع الشركة. الصفحة: https://claude.ai/artifact/4hCYW2tuzUcJbQZvn6waBo.
+  **Trigger:** «ابعتلي برومبت حدث الملفات اليومية» / «ابعتلي لينكات التحديث اليومى».
 - `docs/SERVICEFLOW_COHOST.md` — **استضافة Service Flow جوّه أوسكار ديفز**
   (أداة تشغيل سنترال الغنايم — الشركة المصرية للاتصالات). نفس نمط mybible:
   عملية مستقلة على بورت داخلي + البوّاب بيوجّه `SERVICEFLOW_HOST` ليها،
