@@ -759,6 +759,22 @@ class CompanionTrackerTest {
         assertEquals("📡 GPS الشاشة بس", CompanionTracker.summary(emptyList(), true))
         assertEquals("📡 مفيش GPS", CompanionTracker.summary(emptyList(), false))
     }
+    // الخطوة ٣: الدمج من الموثوق بس، ومش متوسط أعمى
+    @Test fun fuseOnlyTrustedAndNotBlindly() {
+        fun st(lat: Double, acc: Float, trusted: Boolean = true) =
+            CompanionTracker.Status(1, "iPhone", if (trusted) 9 else 3, trusted, true, acc, 1, 5.0, lat, LNG0, 40f, 0f)
+        // مفيش موبايل موثوق ⇒ الشاشة
+        assertEquals("الشاشة", CompanionTracker.fuse(LAT0, LNG0, 8f, listOf(st(north(4.0), 4f, trusted = false)))!!.source)
+        // قريبين فى حدود الدقة ⇒ دمج، والدقة أحسن من الاتنين
+        val m = CompanionTracker.fuse(LAT0, LNG0, 8f, listOf(st(north(6.0), 4f)))!!
+        assertEquals("دمج", m.source); assertTrue(m.accM < 4f); assertTrue(m.lat > LAT0 && m.lat < north(6.0))
+        // مختلفين: الموبايل أدق بوضوح ⇒ الموبايل · مش أدق بوضوح ⇒ الشاشة
+        assertEquals("الموبايل", CompanionTracker.fuse(LAT0, LNG0, 30f, listOf(st(north(60.0), 5f)))!!.source)
+        assertEquals("الشاشة", CompanionTracker.fuse(LAT0, LNG0, 8f, listOf(st(north(60.0), 6f)))!!.source)
+        // الشاشة مالهاش GPS ⇒ الموبايل الموثوق · مفيش حاجة ⇒ null
+        assertEquals("الموبايل", CompanionTracker.fuse(null, null, null, listOf(st(north(6.0), 6f)))!!.source)
+        assertNull(CompanionTracker.fuse(null, null, null, emptyList()))
+    }
     @Test fun wrongDirectionOrSpeedDoesNotBuildTrust() {
         val t = CompanionTracker(); var st = emptyList<CompanionTracker.Status>()
         repeat(10) { st = t.update(listOf(fix(north(3.0), hd = 180f)), LAT0, LNG0, 5f, 40f, 0f) }

@@ -843,6 +843,7 @@ class MainActivity : Activity() {
         }, ui.lp(Ui.MATCH, ui.dp(50), marginDp = 4))
         page.addView(toggle("🔕 وضع عدم الإزعاج: مانبّهنيش على المطبات وانا ماشى أقل من ٧ كم/س", prefs.quietSlow) { prefs.quietSlow = it })
         page.addView(ui.button("🔊 جرّب صوت التنبيه", "neutral", 15f) { toast(Speaker.testLine()) }, ui.lp(Ui.MATCH, ui.dp(50), marginDp = 4))
+        page.addView(toggle("📡 استخدم GPS الموبايل الموثوق فى مكان العربية والتنبيهات (لما يكون معاك وصفحة drive مفتوحة عليه)", prefs.useCompanionGps) { prefs.useCompanionGps = it })
         page.addView(toggle("📸 صوّر المطبات والحفر اللى سجّلتها وانا جاى عليها (لتدريب الموديل)", prefs.autoShots) { prefs.autoShots = it })
         page.addView(toggle("☁️ احفظ المطبات والحفر على السيرفر (عشان ماتضيعش لو مسحت التطبيق)", prefs.cloudHazards) { on ->
             prefs.cloudHazards = on; if (on) HazardSync.syncSoon(this, pull = true); refresh()

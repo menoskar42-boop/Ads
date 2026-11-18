@@ -56,6 +56,8 @@ class DriveService : Service() {
         @Volatile var satsUsed = 0
         /** مصادر الـGPS (المرحلة ٢): «الشاشة بس» · «الشاشة + موبايل» … — عرض بس. */
         @Volatile var gpsSources = ""
+        /** التنبيهات شغّالة بمكان من: الشاشة · دمج · الموبايل. */
+        @Volatile var posSource = ""
         @Volatile var companions: List<com.oscardevs.oscardrive.logic.CompanionTracker.Status> = emptyList()
         @Volatile var tripActive = false
         @Volatile var tripKm = 0.0
@@ -159,7 +161,14 @@ class DriveService : Service() {
                 val st = compTracker.update(fixes, if (State.approx) null else State.lat, if (State.approx) null else State.lng,
                     State.accuracyM, State.speedKmh, State.headingDeg)
                 State.companions = st
-                State.gpsSources = com.oscardevs.oscardrive.logic.CompanionTracker.summary(st, State.lat != null && !State.approx)
+                State.gpsSources = com.oscardevs.oscardrive.logic.CompanionTracker.summary(st, State.lat != null && !State.approx) +
+                    (if (prefs.useCompanionGps && st.any { it.trusted } && State.posSource.isNotEmpty()) " · المكان من: ${State.posSource}" else "")
+                // GPS الشاشة واقف (نفق/الشاشة مالهاش إشارة) والموبايل موثوق ⇒ التنبيهات تكمّل بمكان الموبايل
+                val now2 = System.currentTimeMillis()
+                if (prefs.useCompanionGps && now2 - lastGpsMs > 5_000L) {
+                    val ph = st.filter { it.trusted }.minByOrNull { it.accM }
+                    if (ph != null) checkHazards(now2, ph.kmh ?: 0f, fromPhone = true)
+                }
             }
         }
     }
@@ -356,22 +365,37 @@ class DriveService : Service() {
         }
     }
 
-    private fun checkHazards(now: Long, kmh: Float) {
+    /** الخطوة ٣: المكان اللى التنبيهات شغّالة بيه (الشاشة · دمج · الموبايل الموثوق). */
+    private fun fusedNow(): com.oscardevs.oscardrive.logic.CompanionTracker.Companion.Fused? {
+        val gpsFresh = System.currentTimeMillis() - lastGpsMs < 5_000L && !State.approx
+        val carLat = if (gpsFresh) State.lat else null
+        val carLng = if (gpsFresh) State.lng else null
+        val st = if (prefs.useCompanionGps) State.companions else emptyList()
+        return com.oscardevs.oscardrive.logic.CompanionTracker.fuse(carLat, carLng, State.accuracyM, st)
+    }
+
+    private fun checkHazards(now: Long, kmh: Float, fromPhone: Boolean = false) {
         if (!prefs.hazardAlerts) return
         if (State.hazardsDirty) { hazards = db.hazards(); State.hazardsDirty = false }
-        val lat = State.lat ?: return
-        val lng = State.lng ?: return
-        // مطب قديم من غير اتجاه وعدّيت من فوقه ⇒ اتجاه الطريق بيتسجّل (ويترفع)
-        val learned = RoadMemory.learnBearing(hazards, lat, lng, trip.headingDeg, kmh, State.accuracyM)
-        val learnedAlt = RoadMemory.learnAltitude(hazards, lat, lng, kmh, State.accuracyM, State.altitudeM)
+        val f = fusedNow() ?: return
+        State.posSource = f.source
+        val lat = f.lat
+        val lng = f.lng
+        // اللى بيتعلّم (اتجاه/ارتفاع المطب) من GPS الشاشة بس — مش من الموبايل ولا الدمج
+        val sLat = if (fromPhone) null else State.lat
+        val sLng = if (fromPhone) null else State.lng
+        val learned = if (sLat == null || sLng == null) emptyList() else RoadMemory.learnBearing(hazards, sLat, sLng, trip.headingDeg, kmh, State.accuracyM)
+        val learnedAlt = if (sLat == null || sLng == null) emptyList() else RoadMemory.learnAltitude(hazards, sLat, sLng, kmh, State.accuracyM, State.altitudeM)
         if (learned.isNotEmpty() || learnedAlt.isNotEmpty()) {
             for ((id, b) in learned) db.setHazardBearing(id, b)
             for ((id, a) in learnedAlt) db.setHazardAltitude(id, a, State.accuracyM ?: RoadMemory.LEARN_ALT_ACC_M)
             hazards = db.hazards(); HazardSync.syncSoon(this)
         }
         val minKmh = if (prefs.quietSlow) RoadMemory.QUIET_SLOW_KMH else RoadMemory.STOPPED_KMH
-        val hit = RoadMemory.ahead(hazards, lat, lng, trip.headingDeg, kmh, now, warned,
-            minKmh = minKmh, minWarnM = prefs.bumpWarnM.toDouble(), altitudeM = State.altitudeM, vAccM = State.vAccM) ?: return
+        val heading = if (fromPhone) (f.headingDeg ?: trip.headingDeg) else trip.headingDeg
+        val hit = RoadMemory.ahead(hazards, lat, lng, heading, kmh, now, warned,
+            minKmh = minKmh, minWarnM = prefs.bumpWarnM.toDouble(),
+            altitudeM = if (fromPhone) null else State.altitudeM, vAccM = State.vAccM) ?: return
         warned[RoadMemory.warnKey(hit.first, hit.second, kmh)] = now
         val msg = RoadMemory.warning(hit.first, hit.second)
         showBanner("${hit.first.type.emoji} $msg", "hazard", 8_000)

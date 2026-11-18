@@ -14,7 +14,9 @@ data class CompanionFix(val id: Long, val label: String, val lat: Double, val ln
 
 class CompanionTracker {
     data class Status(val id: Long, val label: String, val score: Int, val trusted: Boolean, val fresh: Boolean,
-                      val accM: Float, val ageS: Int, val distM: Double?)
+                      val accM: Float, val ageS: Int, val distM: Double?,
+                      /** مكان الموبايل متقدّم للحظة دى + سرعته واتجاهه (للخطوة ٣: الدمج). */
+                      val lat: Double = 0.0, val lng: Double = 0.0, val kmh: Float? = null, val headingDeg: Float? = null)
 
     private val scores = HashMap<Long, Int>()
 
@@ -24,9 +26,9 @@ class CompanionTracker {
             var s = scores[f.id] ?: 0
             val fresh = f.ageMs <= FRESH_MS
             var dist: Double? = null
+            val (plat, plng) = project(f)
             if (!fresh) s -= 1
             else if (carLat != null && carLng != null) {
-                val (plat, plng) = project(f)
                 dist = Geo.distanceM(carLat, carLng, plat, plng)
                 val tol = (carAccM ?: 20f) + f.accM + NEAR_EXTRA_M
                 val moving = (carKmh ?: 0f) >= MOVING_KMH
@@ -40,7 +42,8 @@ class CompanionTracker {
             }
             s = s.coerceIn(0, MAX)
             scores[f.id] = s
-            out += Status(f.id, f.label, s, s >= TRUST && fresh, fresh, f.accM, (f.ageMs / 1000).toInt(), dist)
+            out += Status(f.id, f.label, s, s >= TRUST && fresh, fresh, f.accM, (f.ageMs / 1000).toInt(), dist,
+                plat, plng, f.speedMs?.let { it * 3.6f }, f.headingDeg)
         }
         scores.keys.retainAll(fixes.map { it.id }.toSet())
         return out
@@ -64,6 +67,29 @@ class CompanionTracker {
         const val HEADING_TOL_DEG = 30f
         const val MAX = 10
         const val TRUST = 7
+
+        /**
+         * الخطوة ٣ — مكان العربية من المصادر الموثوقة بس: GPS الشاشة هو الأساس. الموبايل الموثوق:
+         *  • الشاشة مالهاش GPS (أو قديم/تقريبى) ⇒ الموبايل الأدق لوحده.
+         *  • الاتنين كويسين وقريبين من بعض فى حدود دقتهم ⇒ متوسط بالأوزان (1/دقة²) — مش متوسط أعمى.
+         *  • مختلفين ⇒ الأدق لوحده بس لو أدق بوضوح (≤ نص دقة الشاشة)، وإلا الشاشة.
+         * الارتفاع (الكوبرى) من الشاشة بس.
+         */
+        data class Fused(val lat: Double, val lng: Double, val accM: Float, val source: String, val kmh: Float?, val headingDeg: Float?)
+        fun fuse(carLat: Double?, carLng: Double?, carAccM: Float?, st: List<Status>): Fused? {
+            val phone = st.filter { it.trusted }.minByOrNull { it.accM }
+            if (carLat == null || carLng == null) return phone?.let { Fused(it.lat, it.lng, it.accM, "الموبايل", it.kmh, it.headingDeg) }
+            val ca = carAccM ?: 20f
+            if (phone == null) return Fused(carLat, carLng, ca, "الشاشة", null, null)
+            val d = Geo.distanceM(carLat, carLng, phone.lat, phone.lng)
+            if (d <= ca + phone.accM) {
+                val wc = 1.0 / (ca * ca); val wp = 1.0 / (phone.accM * phone.accM); val w = wc + wp
+                val acc = (1.0 / kotlin.math.sqrt(w)).toFloat()
+                return Fused((carLat * wc + phone.lat * wp) / w, (carLng * wc + phone.lng * wp) / w, acc, "دمج", null, null)
+            }
+            return if (phone.accM <= ca / 2) Fused(phone.lat, phone.lng, phone.accM, "الموبايل", null, null)
+                   else Fused(carLat, carLng, ca, "الشاشة", null, null)
+        }
 
         /** سطر الحالة على الشاشة — الموبايل المتوصّل مايتعرضش كمصدر GPS غير لما يبقى موثوق. */
         fun summary(st: List<Status>, carHasGps: Boolean): String {

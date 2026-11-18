@@ -21,6 +21,10 @@ class Prefs(context: Context) {
     var cloudHazards: Boolean
         get() = sp.getBoolean("cloud_hazards", true)
         set(v) = sp.edit().putBoolean("cloud_hazards", v).apply()
+    /** المرحلة ٢ خطوة ٣: مكان العربية للتنبيهات يستخدم GPS الموبايل الموثوق كمان — مفتوح افتراضياً. */
+    var useCompanionGps: Boolean
+        get() = sp.getBoolean("use_companion_gps", true)
+        set(v) = sp.edit().putBoolean("use_companion_gps", v).apply()
     /** مسافة تنبيه المطبات/الحفر المتسجّلة (م) — ١٠٠ افتراضى (المالك ٢٠٢٦-١١-١٨). */
     var bumpWarnM: Int
         get() = sp.getInt("bump_warn_m", com.oscardevs.oscardrive.logic.RoadMemory.DEFAULT_BUMP_WARN_M)
