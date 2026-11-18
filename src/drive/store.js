@@ -110,6 +110,27 @@ async function pairOwner(pool, code) {
   return { token, carId: rows[0].id };
 }
 
+/** «الموبايل لوحده»: عربية افتراضية (solo) + توكن الموبايل ده — من غير كود ولا شاشة. */
+async function createSolo(pool) {
+  const { carId } = await registerCar(pool, 'web-solo');
+  await pool.query(`UPDATE od_cars SET solo = true, name = 'موبايلى' WHERE id = $1`, [carId]);
+  const token = L.newToken();
+  await pool.query('INSERT INTO od_owners (car_id, token_hash) VALUES ($1, $2)', [carId, L.hashToken(token)]);
+  return { token, carId };
+}
+
+/** الموبايل اللى كان لوحده ربط شاشة حقيقية ⇒ مطباته وصوره ورسايله للشاشة بتتنقل للعربية الحقيقية، والافتراضية بتتشال. */
+async function absorbSolo(pool, soloCarId, realCarId) {
+  if (!soloCarId || soloCarId === realCarId) return false;
+  const { rows } = await pool.query('SELECT solo FROM od_cars WHERE id = $1', [soloCarId]);
+  if (!rows[0] || !rows[0].solo) return false;
+  for (const t of ['od_hazards', 'od_shots', 'od_inbox']) {
+    await pool.query(`UPDATE ${t} SET car_id = $1 WHERE car_id = $2`, [realCarId, soloCarId]);
+  }
+  await pool.query('DELETE FROM od_cars WHERE id = $1 AND solo', [soloCarId]);   // التوكن القديم بيتشال معاها (cascade)
+  return true;
+}
+
 async function state(pool, carId, now = Date.now()) {
   const [c, ev, cl] = await Promise.all([
     pool.query('SELECT * FROM od_cars WHERE id = $1', [carId]),
@@ -119,7 +140,7 @@ async function state(pool, carId, now = Date.now()) {
   const car = c.rows[0];
   if (!car) return null;
   return {
-    name: car.name, armed: car.armed, armedAt: car.armed_at, armedBy: car.armed_by,
+    name: car.name, solo: !!car.solo, armed: car.armed, armedAt: car.armed_at, armedBy: car.armed_by,
     online: L.isOnline(car, now), lastSeen: car.last_seen,
     last: car.last_fix_at ? { lat: car.last_lat, lng: car.last_lng, speed: car.last_speed, heading: car.last_heading, at: car.last_fix_at } : null,
     events: ev.rows, clips: cl.rows, appVersion: car.app_version,
@@ -187,5 +208,5 @@ async function prune(pool) {
   await pool.query(`DELETE FROM od_events WHERE at < now() - interval '180 days'`);
 }
 
-module.exports = { registerCar, carByToken, ownerByToken, sync, newPairCode, pairOwner, state, track, setArmed, rename,
+module.exports = { createSolo, absorbSolo, registerCar, carByToken, ownerByToken, sync, newPairCode, pairOwner, state, track, setArmed, rename,
   saveSub, subsForCar, removeSub, logoutOwner, claimLostCars, prune };

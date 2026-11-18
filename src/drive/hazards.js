@@ -131,7 +131,8 @@ async function mergeInto(client, newCar, oldId) {
       [oldId, newCar.token_hash, newCar.app_version]);
     await client.query('DELETE FROM od_cars WHERE id = $1', [newCar.id]);
   }
-  await client.query('UPDATE od_cars SET relinked_at = now() WHERE id = $1', [oldId]);
+  // شاشة حقيقية اتربطت بعربية الموبايل اللى كان لوحده (QR) ⇒ بقت عربية عادية
+  await client.query('UPDATE od_cars SET relinked_at = now(), solo = false WHERE id = $1', [oldId]);
 }
 
 /*

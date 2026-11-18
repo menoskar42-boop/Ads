@@ -156,8 +156,17 @@ function createDriveSite({ pool, push } = {}) {
     try {
       const r = await store.pairOwner(pool, req.body && req.body.code);
       if (!r) return fail(res, 400, 'الكود غلط أو خلص وقته — اطلب كود جديد من شاشة العربية');
-      res.json({ ok: true, token: r.token });
+      // كان شغّال «لوحده» ⇒ مطباته وصوره ورسايله للشاشة بتتنقل للعربية دى
+      const prev = await store.ownerByToken(pool, bearer(req)).catch(() => null);
+      const moved = prev ? await store.absorbSolo(pool, prev.car_id, r.carId).catch(() => false) : false;
+      res.json({ ok: true, token: r.token, moved });
     } catch (e) { fail(res, 500, 'pair failed'); }
+  });
+
+  // «الموبايل لوحده»: الصفحة بتفتح على طول من غير ربط — بتاخد توكن لعربية افتراضية، والربط بشاشة اختيارى بعدين.
+  router.post('/api/web/solo', rateLimit({ name: 'od-solo', windowMs: 60 * 60000, max: 10 }), async (req, res) => {
+    try { res.json({ ok: true, token: (await store.createSolo(pool)).token }); }
+    catch (e) { fail(res, 500, 'solo failed'); }
   });
 
   async function ownerAuth(req, res, next) {

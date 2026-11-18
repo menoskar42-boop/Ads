@@ -49,8 +49,19 @@
     show();
   }
 
+  // «الموبايل لوحده» (المالك ٢٠٢٦-١١-١٨): من غير توكن ⇒ عربية افتراضية على طول (مفيش شاشة ربط)، والربط زرار اختيارى جوّه الصفحة.
+  let soloTry = 0;
+  async function startSolo() {
+    if (Date.now() - soloTry < 15000) return; soloTry = Date.now();
+    try {
+      const r = await fetch('/api/web/solo', { method: 'POST', cache: 'no-store' }).then((x) => x.json());
+      if (r && r.ok && r.token) { token = r.token; try { localStorage.setItem(KEY, token); } catch (e) {} show(); return; }
+    } catch (e) {}
+    $('pairView').hidden = false;   // مفيش نت خالص ⇒ زى الأول
+  }
   function show() {
-    $('pairView').hidden = !!token;
+    if (!token) { $('mainView').hidden = true; startSolo(); }
+    $('pairView').hidden = true;
     $('mainView').hidden = !token;
     const ios = /iphone|ipad/i.test(navigator.userAgent) && !(window.navigator.standalone || matchMedia('(display-mode: standalone)').matches);
     $('iosHint').hidden = !ios;
@@ -75,12 +86,27 @@
     $('pairBtn').disabled = false;
   });
 
+  // 🔗 «اربط شاشة العربية» من جوّه الصفحة (والتوكن الحالى بيتبعت عشان اللى اتسجّل من الموبايل يتنقل للعربية)
+  $('linkBtn').addEventListener('click', async () => {
+    const code = $('linkCode').value.replace(/\D/g, '');
+    $('linkErr').textContent = '';
+    if (code.length !== 6) { $('linkErr').textContent = 'الكود ٦ أرقام'; return; }
+    $('linkBtn').disabled = true;
+    try {
+      const j = await api('POST', '/api/web/pair', { code });
+      token = j.token; try { localStorage.setItem(KEY, token); } catch (e) {}
+      $('linkCode').value = ''; show(); loadRoad(); loadInbox();
+    } catch (e) { $('linkErr').textContent = e.message; }
+    $('linkBtn').disabled = false;
+  });
+
   /* ── الحالة ── */
   async function refresh() {
     try { state = await api('GET', '/api/web/state'); } catch (e) { if (e.message !== 'unpaired') { $('conn').textContent = 'مفيش نت'; $('conn').className = 'chip warn'; } return; }
     const s = state;
-    $('conn').textContent = s.online ? 'CONNECTED' : (s.lastSeen ? `آخر تواصل ${ago(s.lastSeen)}` : 'لسه ماتواصلتش');
-    $('conn').className = 'chip ' + (s.online ? 'good' : 'bad');
+    document.body.classList.toggle('solo', !!s.solo); $('linkCard').hidden = !s.solo;
+    $('conn').textContent = s.solo ? 'الموبايل لوحده' : s.online ? 'CONNECTED' : (s.lastSeen ? `آخر تواصل ${ago(s.lastSeen)}` : 'لسه ماتواصلتش');
+    $('conn').className = 'chip ' + (s.solo ? '' : s.online ? 'good' : 'bad');
     $('carName').textContent = s.name;
     if (s.last) {
       $('where').textContent = `آخر مكان ${ago(s.last.at)}`;

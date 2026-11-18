@@ -66,3 +66,41 @@ describe('inbox: database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL not
     assert.equal((await call('/api/web/inbox', null, 'bad', 'GET')).status, 401);
   });
 });
+
+describe('solo phone (no screen) → link later', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL not set' }, () => {
+  let pool, server, base;
+  before(async () => {
+    const { Pool } = require('pg');
+    pool = new Pool({ connectionString: URL_ });
+    await pool.query('DROP TABLE IF EXISTS od_inbox, od_hazards, od_shots, od_push_subs, od_clips, od_events, od_points, od_owners, od_cars CASCADE');
+    await require('../src/drive/schema').ensureDriveSchema(pool);
+    const app = require('express')();
+    app.use(require('../src/routes/drive_site').createDriveSite({ pool, push: null }).router);
+    server = app.listen(0); base = 'http://127.0.0.1:' + server.address().port;
+  });
+  after(async () => { server && server.close(); pool && (await pool.end()); });
+  const call = async (p, body, token, method = 'POST') => {
+    const r = await fetch(base + p, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) },
+      body: method === 'GET' ? undefined : JSON.stringify(body || {}) });
+    return { status: r.status, json: await r.json().catch(() => null) };
+  };
+  it('opens without a code, keeps its bumps and messages when a screen is linked', async () => {
+    const solo = (await call('/api/web/solo')).json.token;
+    let st = (await call('/api/web/state', null, solo, 'GET')).json;
+    assert.equal(st.solo, true);
+    const hz = { uuid: U(9), type: 'bump', lat: 27.1, lng: 31.1, t: Date.now() - 1000 };
+    assert.equal((await call('/api/web/hazards', { items: [hz] }, solo)).status, 200);
+    await call('/api/web/inbox', { uuid: U(8), kind: 'task', payload: { text: 'أغيّر الزيت' } }, solo);
+    const car = (await call('/api/car/register', { app: 't' })).json.token;
+    const code = (await call('/api/car/pair', {}, car)).json.code;
+    const linked = (await call('/api/web/pair', { code }, solo)).json;
+    assert.equal(linked.moved, true);
+    st = (await call('/api/web/state', null, linked.token, 'GET')).json;
+    assert.equal(st.solo, false);
+    assert.equal((await call('/api/car/hazards', { pull: true }, car)).json.items.length, 1);   // المطب وصل الشاشة
+    assert.equal((await call('/api/car/inbox', {}, car)).json.items[0].payload.text, 'أغيّر الزيت');
+    assert.equal((await call('/api/web/state', null, solo, 'GET')).status, 401);   // توكن الموبايل لوحده اتشال
+    const { rows } = await pool.query('SELECT count(*)::int AS n FROM od_cars WHERE solo');
+    assert.equal(rows[0].n, 0);
+  });
+});

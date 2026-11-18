@@ -128,6 +128,9 @@ async function ensureDriveSchema(pool) {
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS claim_expires TIMESTAMPTZ;
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS relinked_at TIMESTAMPTZ;
     CREATE UNIQUE INDEX IF NOT EXISTS od_cars_claim_code ON od_cars(claim_code) WHERE claim_code IS NOT NULL;
+    -- «الموبايل لوحده» (المالك ٢٠٢٦-١١-١٨: «المفروض أدخل على الصفحة عادى ولو عاوز أربط يبقى فيه زرار ربط»): عربية افتراضية للموبايل
+    -- من غير شاشة، عشان المطبات والصور ورسايل الشاشة يبقى ليها مكان. لما يربط شاشة حقيقية بياناتها بتتنقل لها والافتراضية بتتشال.
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS solo BOOLEAN NOT NULL DEFAULT false;
     CREATE TABLE IF NOT EXISTS od_inbox (
       id           BIGSERIAL PRIMARY KEY,
       car_id       INTEGER NOT NULL REFERENCES od_cars(id) ON DELETE CASCADE,
