@@ -801,3 +801,12 @@ class OsmNearbyTest {
         assertEquals(27.2, r[1].lat)
     }
 }
+
+// المالك ٢٠٢٦-١١-١٨: «أقوله دوّر على أقرب بنزينة يفتح على أقرب بنزينة ويضغط بدء مباشرة»
+class FuelVoiceTest {
+    @Test fun findNearestFuelPhrases() {
+        val e = VoiceEngine()
+        for (p in listOf("دور على اقرب بنزينه", "دوّر على أقرب بنزينة", "عاوز بنزين", "فين بنزينه"))
+            assertEquals("nav.fuel", e.understand(p)?.match?.command?.id, p)
+    }
+}

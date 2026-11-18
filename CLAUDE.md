@@ -450,6 +450,10 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   بيبعت لـ**`drive.oscardevs.com`** (صفحة PWA للمالك: المكان · خط السير · تفعيل الحماية · التنبيهات · بيانات التسجيلات).
   الرقم السرى مع كل تشغيل والحماية شغّالة، وتسجيل كاميرا وقت التنبيه. noindex ومن غير إعلانات، `drive` محجوز. التفاصيل
   والحدود: `docs/OSCAR_SECURITY.md`. الاختبار: `test/oscar_security.test.js`.
+- **Oscar Drive — التطبيق والويب مع بعض (قرار المالك ٢٠٢٦-١١-١٨):** «أى حاجة تعملها فى التطبيق اعملها فى تطبيق الويب ايضا» ⇒ أى ميزة
+  فى تطبيق الشاشة (`oscardrive-android/`) تتعمل كمان فى صفحة الموبايل `drive.oscardevs.com` (`drive-web/`) — نفس الحساب (`drive-web/road.js`
+  مطابق لـ`logic/RoadMemory.kt` و`OsmNearby.kt`، والاختبار `test/drive_road_js.test.js`)، على نفس السيرفر والقاعدة. الخطة والتقارير:
+  `docs/OSCAR_DRIVE_AUDIT_REPORT.md` · `docs/OSCAR_DRIVE_PHASES_2_3.md`.
 - `CT-OncoScan/` — **موقع الأشعة: موافقة المالك (٢٠٢٦-١١-١٦)** على TotalSegmentator (الوضع السريع على المعالج، سيرفر Oracle المجانى)
   **للاستخدام الشخصى كتجربة** قبل ما يبقى منتج للبيع؛ Kaggle/Colab المجانى للتجارب الأتقل؛ رخص الأجزاء تتراجع قبل أى بيع؛ مساعدة
   للبحث مش تشخيص. البند ١٣ فى `docs/PLAN_2026-11-16.md`.

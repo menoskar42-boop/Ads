@@ -223,6 +223,7 @@
     if (map || !window.L) return map;
     map = L.map('map', { zoomControl: true, attributionControl: true }).setView([27.18, 31.18], 12);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    setTimeout(() => drawHazards(), 0);   // المطبات المتسجّلة على نفس الخريطة
     return map;
   }
   function placeMarker(lat, lng) {
@@ -348,8 +349,17 @@
   function sayRoad(text) {
     try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ar-EG'; speechSynthesis.speak(u); } catch (e) {}
   }
+  let hzLayer = null;
   async function loadRoad() {
-    try { hz = (await api('GET', '/api/web/hazards')).items || []; renderRoad(); } catch (e) {}
+    try { hz = (await api('GET', '/api/web/hazards')).items || []; renderRoad(); drawHazards(); } catch (e) {}
+  }
+  /** المطبات/الحفر/الرادارات على خريطة الصفحة — زى الخريطة اللى جوه التطبيق. */
+  function drawHazards() {
+    if (!map || !window.L) return;
+    if (hzLayer) hzLayer.remove();
+    const col = { bump: '#f59e0b', pothole: '#dc2626', radar: '#2563eb', danger: '#eab308' };
+    hzLayer = L.layerGroup(hz.slice(0, 300).map((h) => L.circleMarker([h.lat, h.lng], { radius: 7, color: col[h.type] || '#eab308', fillOpacity: 0.85 })
+      .bindPopup((h.type === 'pothole' ? '🕳️ ' : '〰️ ') + (RD.TYPES[h.type] || RD.TYPES.danger)[0] + (h.test ? ' 🧪' : '')))).addTo(map);
   }
   function renderRoad() {
     const here = lastFix;
@@ -450,11 +460,35 @@
   }
   $('shotBtn').addEventListener('click', () => snapRoad('button'));
 
+  // ── «⛽ أقرب بنزينة» / «أوسكار دوّر على أقرب …» زى الشاشة: OpenStreetMap (مكان متقرّب ١ كم) ⇒ الأقرب ⇒ خرايط جوجل بتبدأ الملاحة على طول ──
+  async function nearbyWeb(kindId) {
+    const k = RD.NEAR.find((x) => x.id === kindId) || RD.NEAR[0];
+    const go = async (f) => {
+      $('voiceNote').textContent = 'بدوّر على أقرب ' + k.ar + '…';
+      try {
+        const r = await fetch(RD.OSM_URL, { method: 'POST', body: 'data=' + encodeURIComponent(RD.osmQuery(k.id, f.lat, f.lng)),
+          headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+        const best = RD.nearestOf(RD.osmParse(await r.json(), k.ar), f.lat, f.lng);
+        if (!best) { $('voiceNote').textContent = 'مالقيتش ' + k.ar + ' فى ٥ كم'; sayRoad('مالقيتش ' + k.ar + ' قريب'); return; }
+        const msg = 'أقرب ' + k.ar + ': ' + best.name + ' — ' + RD.sayDistance(best.d);
+        $('voiceNote').textContent = '🧭 ' + msg; sayRoad(msg);
+        if (map) { L.marker([best.lat, best.lng]).addTo(map).bindPopup('⛽ ' + best.name); }
+        setTimeout(() => { location.href = RD.navUrl(best.lat, best.lng); }, 1800);   // يخلّص الجملة وبعدين الملاحة تبدأ
+      } catch (e) { $('voiceNote').textContent = 'مش قادر أدوّر دلوقتى (النت؟)'; }
+    };
+    if (lastFix && Date.now() - lastFix.t < 30000) return go(lastFix);
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); },
+      () => { $('voiceNote').textContent = 'مش لاقى مكانك — اسمح بالموقع'; }, { enableHighAccuracy: true, timeout: 20000 });
+  }
+  $('fuelBtn').addEventListener('click', () => nearbyWeb('fuel'));
+
   // ── «🎙️ أوسكار سامعك»: التعرّف على الكلام من المتصفح (Chrome أندرويد · Safari آيفون) — استماع متواصل طول ما الصفحة مفتوحة ──
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec = null, listening = false;
   function runVoice(cmd, heard) {
-    if (cmd === 'bump' || cmd === 'pothole') markRoad(cmd);
+    if (cmd && cmd.startsWith('near:')) nearbyWeb(cmd.slice(5));
+    else if (cmd === 'bump' || cmd === 'pothole') markRoad(cmd);
     else if (cmd === 'shot') snapRoad('voice');
     else if (cmd === 'unknown') { $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; sayRoad('مافهمتش'); }
   }

@@ -44,3 +44,13 @@ test('phone voice: needs the name, understands bump / pothole / screenshot', () 
   assert.equal(R.parseVoice('سجل مطب هنا'), null);          // من غير الاسم ⇒ ولا حاجة
   assert.equal(R.parseVoice('أوسكار الجو عامل ايه'), 'unknown');
 });
+test('nearest on the web: same OSM filters and 1 km rounding as the screen, voice, direct-start navigation link', () => {
+  assert.equal(R.parseVoice('أوسكار دوّر على أقرب بنزينة'), 'near:fuel');
+  assert.equal(R.parseVoice('اسكار اقرب صيدلية'), 'near:pharmacy');
+  const q = R.osmQuery('fuel', 27.18234, 31.18678);
+  assert.ok(q.includes('nwr[amenity=fuel](around:5000,27.18,31.19);')); assert.ok(!q.includes('27.182'));
+  const list = R.osmParse({ elements: [{ lat: 27.1, lon: 31.1, tags: { name: 'Wataniya', 'name:ar': 'وطنية' } }, { center: { lat: 27.2, lon: 31.2 }, tags: { brand: 'Mobil' } }] }, 'بنزينة');
+  assert.deepEqual(list.map((x) => x.name), ['وطنية', 'Mobil']);
+  assert.equal(R.nearestOf(list, 27.19, 31.19).name, 'Mobil');
+  assert.ok(R.navUrl(27.2, 31.2).includes('dir_action=navigate'));
+});
