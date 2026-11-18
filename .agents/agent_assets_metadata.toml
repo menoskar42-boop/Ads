@@ -74,3 +74,59 @@ mtime_ms = 1794606972610
 storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:63fe2d87-f64e-49fe-b075-5e7301003d5f/ef678416-4594-4577-bcd2-55b1f7a56755/e01b87c1-9789-4ceb-8f0d-5170516e3cb7"
 storage_version_token = "1794607029517372"
 content_type = "video/mp4"
+
+[[outputs]]
+id = "3mMy24tY-U56gvecu6rbp"
+uri = "file://AI%20training%20pictures/road-bump-00-11-05.jpg"
+type = "image"
+title = "road-bump-00-11-05.jpg"
+description = "لقطة تدريب بدقة 1080×1920 من فيديو IMG_9425.MOV."
+logical_id = "b115fbfa-63f6-447d-9029-f309ccb032c0"
+content_hash = "sha256:daa060802d544d1e5874d97f56e99d3e5174fb437dbf25ef3a34456d77d4a7e2"
+size = 220403
+mtime_ms = 1794995277177
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:63fe2d87-f64e-49fe-b075-5e7301003d5f/b115fbfa-63f6-447d-9029-f309ccb032c0/34aa2cf7-d98a-45a7-bb75-f2d82e9d98fd"
+storage_version_token = "1794995368083532"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "1ykK5mBqokGfS-8nWg8jR"
+uri = "file://AI%20training%20pictures/road-bump-00-11-06.jpg"
+type = "image"
+title = "road-bump-00-11-06.jpg"
+description = "لقطة تدريب بدقة 1080×1920 من فيديو IMG_9425.MOV."
+logical_id = "c8c96198-ccd0-432f-80c9-9bd3610de72b"
+content_hash = "sha256:ad9accd59a6dd591d794696c04e6a9cdbd4d607dbd89ac6e6cdf1df66ff9f9ab"
+size = 248699
+mtime_ms = 1794995278306
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:63fe2d87-f64e-49fe-b075-5e7301003d5f/c8c96198-ccd0-432f-80c9-9bd3610de72b/71dad2be-fdcc-4015-ade9-b80c3323757f"
+storage_version_token = "1794995368974407"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "obWbq1QNMNNsIJmyU10sf"
+uri = "file://AI%20training%20pictures/road-bump-00-11-07.jpg"
+type = "image"
+title = "road-bump-00-11-07.jpg"
+description = "لقطة تدريب بدقة 1080×1920 من فيديو IMG_9425.MOV."
+logical_id = "b329fc7d-80ae-4570-912f-b73478265307"
+content_hash = "sha256:7f344f1133b4b5513beacd6415917ba3cbe7a53737acb09cfe064b77fe83146f"
+size = 246984
+mtime_ms = 1794995279425
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:63fe2d87-f64e-49fe-b075-5e7301003d5f/b329fc7d-80ae-4570-912f-b73478265307/0fed8a9c-056d-470a-a257-0ad87a026939"
+storage_version_token = "1794995369721503"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "mR6Ln9lP_lFGyyj2MHKOb"
+uri = "file://AI%20training%20pictures/road-bump-00-11-08.jpg"
+type = "image"
+title = "road-bump-00-11-08.jpg"
+description = "لقطة تدريب بدقة 1080×1920 من فيديو IMG_9425.MOV."
+logical_id = "85420234-a60b-4077-9932-3fe6e9164fdb"
+content_hash = "sha256:aa146e46d83501dcd1e0a9d638a494f692ecb17fcf5a16ddfd9b98b2fd95df02"
+size = 210654
+mtime_ms = 1794995280445
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:63fe2d87-f64e-49fe-b075-5e7301003d5f/85420234-a60b-4077-9932-3fe6e9164fdb/ba0d485b-4a16-4062-8079-26c685204fd5"
+storage_version_token = "1794995370428989"
+content_type = "image/jpeg"
