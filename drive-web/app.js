@@ -369,13 +369,30 @@
 
   // الشاشة ماتنامش طول ما الصفحة مفتوحة (المالك ٢٠٢٦-١١-١٨: «شاشه drive لازم متنامش طالما مفتوحه»). Wake Lock بيتلغى لوحده
   // لما الصفحة تختفى (تطبيق تانى / قفل الشاشة)، فبنطلبه تانى أول ما ترجع. أندرويد Chrome · آيفون Safari 16.4+.
-  let wakeLock = null;
-  async function keepAwake() {
-    if (document.hidden || !('wakeLock' in navigator) || (wakeLock && !wakeLock.released)) return;
-    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { /* البطارية واطية أو المتصفح رفض — نحاول مع أول لمسة */ }
+  // زى درس مار مرقس (mybible/client/src/hooks/useKeepScreenOn.ts): ولو Wake Lock مش موجود أو اترفض (آيفون قديم · توفير البطارية)
+  // ⇒ فيديو صغير صامت بيلف مخفى (keep-awake.mp4) — بيبدأ مع أول لمسة لأن المتصفح مابيشغّلش فيديو من غير تفاعل.
+  let wakeLock = null, awakeVideo = null;
+  const hasWakeLock = !!(navigator.wakeLock && navigator.wakeLock.request);
+  function startVideo() {
+    if (!awakeVideo) {
+      awakeVideo = document.createElement('video');
+      awakeVideo.setAttribute('playsinline', ''); awakeVideo.setAttribute('muted', ''); awakeVideo.setAttribute('aria-hidden', 'true');
+      awakeVideo.muted = true; awakeVideo.loop = true; awakeVideo.src = '/keep-awake.mp4';
+      awakeVideo.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0.01;pointer-events:none;bottom:0;left:0;z-index:-1';
+      document.body.appendChild(awakeVideo);
+    }
+    awakeVideo.play().catch(() => {});
   }
+  async function keepAwake() {
+    if (document.hidden) return;
+    if (!hasWakeLock) { if (awakeVideo) awakeVideo.play().catch(() => {}); return; }
+    if (wakeLock && !wakeLock.released) return;
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { startVideo(); }
+  }
+  const onTouch = () => { if (hasWakeLock) keepAwake(); else startVideo(); };
   keepAwake();
-  document.addEventListener('click', keepAwake, { passive: true });
+  document.addEventListener('touchstart', onTouch, { passive: true });
+  document.addEventListener('click', onTouch);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && token) refresh(); keepAwake(); });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   show();
