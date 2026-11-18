@@ -262,6 +262,12 @@ class VoiceEngineTest {
         assertEquals("nav.home", id("وصّلنى البيت"))
         assertEquals("nav.home", id("Take me home"))
         assertEquals("road.bump", id("فيه مطب هنا"))
+        // «اوسكار اسكرين شوت» (٢٠٢٦-١١-١٨) — و«صوّر المطب» مايتفهمش «سجّل مطب»
+        assertEquals("road.shot", id("اسكرين شوت"))
+        assertEquals("road.shot", id("Take a screenshot"))
+        assertEquals("road.shot", id("صوّر الطريق"))
+        assertEquals("road.shot", id("صوّر المطب"))
+        assertEquals("sec.record", id("صوّر ورا"))
         assertEquals("info.speed", id("أنا ماشى كام؟"))
         assertEquals("info.speed", id("What's my speed"))
         assertEquals("nav.fuel", id("وصلني لأقرب بنزينة"))
@@ -623,5 +629,29 @@ class DrivingTest {
         assertEquals("الساعة ٥", Etiquette.brief("الساعة ٥", busy = true))
         assertEquals("drive.score", VoiceEngine().understand("سواقتى عاملة إزاى")!!.match.command.id)
         assertEquals("drive.score", VoiceEngine().understand("how is my driving")!!.match.command.id)
+    }
+}
+
+class ShotPlanTest {
+    @Test fun snapsAt80_50_25_thenStops() {
+        val p = ShotPlan(7, 0)
+        val got = listOf(140.0, 100.0, 79.0, 70.0, 49.0, 30.0, 24.0, 10.0).map { p.onDistance(it, 1_000) }
+        assertEquals(listOf(false, false, true, false, true, false, true, false), got)
+        assertTrue(p.done)
+    }
+    @Test fun oneShotWhenGpsJumpsOverTwoMarks() {
+        val p = ShotPlan(1, 0)
+        assertTrue(p.onDistance(45.0, 1_000))     // ٨٠ و٥٠ فى قراية واحدة ⇒ صورة واحدة
+        assertFalse(p.onDistance(40.0, 2_000))
+        assertTrue(p.onDistance(20.0, 3_000))
+    }
+    @Test fun stopsAfterPassingOrTimeout() {
+        val a = ShotPlan(1, 0)
+        assertTrue(a.onDistance(60.0, 1_000))
+        assertTrue(a.onDistance(40.0, 2_000))
+        assertFalse(a.onDistance(65.0, 3_000)); assertTrue(a.done)   // عدّاه/لفّ ⇒ خلاص
+        val b = ShotPlan(1, 0)
+        assertFalse(b.onDistance(70.0, ShotPlan.MAX_MS + 1)); assertTrue(b.done)
+        assertTrue(ShotPlan.wants(HazardType.BUMP)); assertTrue(ShotPlan.wants(HazardType.POTHOLE)); assertFalse(ShotPlan.wants(HazardType.RADAR))
     }
 }

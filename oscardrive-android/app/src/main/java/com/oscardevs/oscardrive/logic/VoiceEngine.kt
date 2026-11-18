@@ -51,6 +51,9 @@ object VoiceCatalog {
         VoiceCommand("sec.arm", "فعّل الحماية", listOf("فعل الحمايه", "شغل الحمايه", "شغل الامن", "وضع الحمايه"), listOf("arm security", "enable security mode", "enable security", "security on")),
         VoiceCommand("sec.disarm", "اقفل الحماية", listOf("اقفل الحمايه", "الغي الحمايه", "وقف الحمايه"), listOf("disarm security", "disable security", "security off"), confirm = true),
         VoiceCommand("sec.status", "حالة العربية", listOf("حاله العربيه", "الحمايه شغاله", "حاله الحمايه"), listOf("security status", "car status")),
+        // «اوسكار اسكرين شوت» (المالك ٢٠٢٦-١١-١٨): صورة من الكاميرا للطريق — صور مطبات لتدريب الموديل (زرار «📸 صوّر الطريق» برضه)
+        VoiceCommand("road.shot", "صوّر الطريق", listOf("اسكرين شوت", "سكرين شوت", "سكرينشوت", "خد صوره", "صور الطريق", "صوره للطريق", "صور المطب"),
+            listOf("screenshot", "take a screenshot", "take a picture", "take a photo")),
         VoiceCommand("sec.record", "سجّل فيديو", listOf("سجل فيديو", "صور ورا", "شغل الكاميرا", "سجل كاميرا"), listOf("record video", "start recording", "record camera")),
         VoiceCommand("media.music", "شغّل الأغانى", listOf("شغل موسيقي", "شغل اغاني", "شغل الاغاني", "موسيقي", "اغاني"), listOf("play music", "music", "play songs")),
         VoiceCommand("media.up", "علّى الصوت", listOf("علي الصوت", "ارفع الصوت", "زود الصوت"), listOf("volume up", "louder", "turn it up")),

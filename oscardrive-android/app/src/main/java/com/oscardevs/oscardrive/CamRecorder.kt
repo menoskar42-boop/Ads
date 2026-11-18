@@ -8,6 +8,8 @@ import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
+import android.graphics.ImageFormat
+import android.media.ImageReader
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Handler
@@ -23,6 +25,8 @@ import java.io.File
  */
 class CamRecorder(private val ctx: Context) {
     @Volatile var busy = false; private set
+
+    companion object { const val WARMUP_FRAMES = 6 }
 
     fun permitted() = ctx.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
@@ -103,6 +107,78 @@ class CamRecorder(private val ctx: Context) {
                 override fun onError(cd: CameraDevice, error: Int) { device = cd; finish("الكاميرا مشغولة أو مش متاحة ($error)") }
             }, h)
         } catch (e: Exception) { finish("الكاميرا مش متاحة: ${e.message}") }
+    }
+
+    /**
+     * صورة واحدة JPEG (لحد ١٢٨٠×٧٢٠) — «📸 صوّر الطريق» وصور المطبات للتدريب (٢٠٢٦-١١-١٨).
+     * بنسيب الكاميرا تاخد ٦ إطارات الأول عشان الإضاءة تتظبط، وبناخد اللى بعدها. لو مشغولة بتسجيل فيديو أو مش متاحة: onDone بخطأ.
+     * بيرجع كمان زاوية حساس الكاميرا (للمراجعة — الصورة نفسها مابتتلفّش).
+     */
+    @SuppressLint("MissingPermission")
+    fun snap(onDone: (ByteArray?, Int, String?) -> Unit) {
+        if (busy) { onDone(null, 0, "الكاميرا بتسجّل فيديو دلوقتى"); return }
+        if (!permitted()) { onDone(null, 0, "إذن الكاميرا مش متاح"); return }
+        val id = pickCamera() ?: run { onDone(null, 0, "مفيش كاميرا ظاهرة لأندرويد"); return }
+        busy = true
+        val thread = HandlerThread("od-snap").apply { start() }
+        val h = Handler(thread.looper)
+        var device: CameraDevice? = null
+        var session: CameraCaptureSession? = null
+        var reader: ImageReader? = null
+        var finished = false
+        var orientation = 0
+        fun finish(bytes: ByteArray?, err: String?) {
+            if (finished) return
+            finished = true
+            try { session?.stopRepeating() } catch (_: Exception) {}
+            try { session?.close() } catch (_: Exception) {}
+            try { device?.close() } catch (_: Exception) {}
+            try { reader?.close() } catch (_: Exception) {}
+            thread.quitSafely()
+            busy = false
+            onDone(bytes, orientation, if (bytes == null) (err ?: "الصورة ماطلعتش") else null)
+        }
+        try {
+            val cm = ctx.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val ch = cm.getCameraCharacteristics(id)
+            orientation = ch.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
+            val sizes = ch.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)?.getOutputSizes(ImageFormat.JPEG)?.toList().orEmpty()
+            val size = sizes.filter { it.width <= 1280 && it.height <= 720 }.maxByOrNull { it.width * it.height }
+                ?: sizes.minByOrNull { it.width * it.height } ?: Size(640, 480)
+            val r = ImageReader.newInstance(size.width, size.height, ImageFormat.JPEG, 2)
+            reader = r
+            var frames = 0
+            r.setOnImageAvailableListener({ rd ->
+                val img = try { rd.acquireLatestImage() } catch (_: Exception) { null } ?: return@setOnImageAvailableListener
+                frames++
+                if (finished || frames < WARMUP_FRAMES) { img.close(); return@setOnImageAvailableListener }
+                val buf = img.planes[0].buffer
+                val bytes = ByteArray(buf.remaining()).also { buf.get(it) }
+                img.close()
+                finish(bytes, null)
+            }, h)
+            h.postDelayed({ finish(null, "الكاميرا ماردّتش") }, 8_000)
+            cm.openCamera(id, object : CameraDevice.StateCallback() {
+                override fun onOpened(cd: CameraDevice) {
+                    device = cd
+                    try {
+                        @Suppress("DEPRECATION")
+                        cd.createCaptureSession(listOf(r.surface), object : CameraCaptureSession.StateCallback() {
+                            override fun onConfigured(s: CameraCaptureSession) {
+                                session = s
+                                try {
+                                    val req = cd.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply { addTarget(r.surface) }
+                                    s.setRepeatingRequest(req.build(), null, h)
+                                } catch (e: Exception) { finish(null, "الكاميرا ماشتغلتش: ${e.message}") }
+                            }
+                            override fun onConfigureFailed(s: CameraCaptureSession) { finish(null, "الكاميرا رفضت الإعداد") }
+                        }, h)
+                    } catch (e: Exception) { finish(null, "الكاميرا ماشتغلتش: ${e.message}") }
+                }
+                override fun onDisconnected(cd: CameraDevice) { device = cd; finish(null, "الكاميرا اتفصلت (ممكن الشاشة فاتحاها مع المارشدير)") }
+                override fun onError(cd: CameraDevice, error: Int) { device = cd; finish(null, "الكاميرا مشغولة أو مش متاحة ($error)") }
+            }, h)
+        } catch (e: Exception) { finish(null, "الكاميرا مش متاحة: ${e.message}") }
     }
 
     /** بنحتفظ بآخر ٦٠٠ ميجا من التسجيلات. */

@@ -32,4 +32,6 @@ object Cloud {
     fun register(app: String): String = call("/api/car/register", null, JSONObject().put("app", app)).getString("token")
     fun sync(token: String, body: JSONObject): JSONObject = call("/api/car/sync", token, body)
     fun pairCode(token: String): String = call("/api/car/pair", token, null).getString("code")
+    /** صورة طريق لتدريب موديل المطبات (JPEG base64 + بيانات المكان). */
+    fun shot(token: String, body: JSONObject): JSONObject = call("/api/car/shot", token, body)
 }

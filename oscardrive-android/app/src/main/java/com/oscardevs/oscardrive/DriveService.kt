@@ -88,6 +88,9 @@ class DriveService : Service() {
     private val wellness = Wellness()
     private var hazards: List<Hazard> = emptyList()
     private val warned = HashMap<Long, Long>()
+    /** صور المطب اللى أوسكار نبّه عليه (٨٠/٥٠/٢٥ متر) — لتدريب موديل المطبات. */
+    private var shotPlan: com.oscardevs.oscardrive.logic.ShotPlan? = null
+    private var shotHazard: Hazard? = null
     private var gnssCb: Any? = null
     private var lastNotify = 0L
     private var lastNightCheck = 0L
@@ -257,6 +260,7 @@ class DriveService : Service() {
         // آخر لقطة كويسة كل ١٠ ثوانى — لو الشاشة فصلت فجأة مع العربية، دى مكان الركنة المرة الجاية
         if (acc != null && acc <= 100f && now - lastFixSaved > 10_000) { lastFixSaved = now; prefs.saveLastFix(loc.latitude, loc.longitude, acc, now) }
         checkHazards(now, kmh ?: 0f)
+        approachShots(now, loc.latitude, loc.longitude)
         // «فكرنى لما أوصل البيت»: كل ١٥ ثانية من الـGPS
         if (now - lastPlaceCheck > 15_000) { lastPlaceCheck = now; checkReminders(now, loc.latitude, loc.longitude) }
         Guard.onLocation(loc, kmh ?: 0f)
@@ -290,6 +294,22 @@ class DriveService : Service() {
         val msg = RoadMemory.warning(hit.first, hit.second)
         showBanner("${hit.first.type.emoji} $msg", "hazard", 8_000)
         Speaker.say(msg, beep = true, kind = com.oscardevs.oscardrive.logic.SpeechKind.SAFETY)
+        if (prefs.autoShots && com.oscardevs.oscardrive.logic.ShotPlan.wants(hit.first.type) && shotPlan == null) {
+            shotPlan = com.oscardevs.oscardrive.logic.ShotPlan(hit.first.id, now); shotHazard = hit.first
+        }
+    }
+
+    /** بعد تنبيه مطب/حفرة: صورة عند ٨٠ و٥٠ و٢٥ متر (المكان معروف = صورة متعلّمة للتدريب). */
+    private var lastShotUpload = 0L
+
+    private fun approachShots(now: Long, lat: Double, lng: Double) {
+        // الصور اللى اتصوّرت من غير نت: محاولة رفع كل ٥ دقايق
+        if (now - lastShotUpload > 5 * 60_000L) { lastShotUpload = now; Shots.uploadSoon(this) }
+        val p = shotPlan ?: return
+        val h = shotHazard ?: run { shotPlan = null; return }
+        val d = com.oscardevs.oscardrive.logic.Geo.distanceM(lat, lng, h.lat, h.lng)
+        if (p.onDistance(d, now)) Shots.take(this, "bump_approach", h, d)
+        if (p.done) { shotPlan = null; shotHazard = null }
     }
 
     private var lastRemCheck = 0L

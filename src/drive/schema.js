@@ -5,6 +5,7 @@
 //   od_points    — سجل الأماكن (٣٠ يوم). المفتاح (car_id, at) بيمنع التكرار لو الشاشة بعتت نفس الدفعة مرتين.
 //   od_events    — أحداث الحماية (اشتغلت · اتحركت · رقم غلط · تسجيل). uuid من الشاشة بيمنع التكرار.
 //   od_clips     — بيانات تسجيلات الكاميرا (الفيديو نفسه بيفضل على الشاشة).
+//   od_shots     — صور الطريق لتدريب موديل المطبات (الصورة نفسها BYTEA، ١٥٠٠ بالكتير لكل عربية).
 //   od_push_subs — إشعارات الموبايل (Web Push).
 'use strict';
 
@@ -73,6 +74,23 @@ async function ensureDriveSchema(pool) {
     -- عشان صفحة الموبايل تعرض «عربيتك فين» والتقارير. مفيش تاريخ بيتجمّع هنا (التاريخ على الشاشة).
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS report JSONB;
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS report_at TIMESTAMPTZ;
+    -- صور الطريق لتدريب موديل المطبات (٢٠٢٦-١١-١٨): «اوسكار اسكرين شوت» · زرار «📸 صوّر الطريق» · ولوحدها قبل المطب المتسجّل
+    -- (٨٠/٥٠/٢٥ متر). الصورة نفسها هنا (JPEG ≤ ٦٠٠ ك.ب) — بحد أقصى ١٥٠٠ لكل عربية، والقديم اللى اتنزّل بيتمسح الأول.
+    CREATE TABLE IF NOT EXISTS od_shots (
+      id          BIGSERIAL PRIMARY KEY,
+      car_id      INTEGER NOT NULL REFERENCES od_cars(id) ON DELETE CASCADE,
+      uuid        TEXT NOT NULL UNIQUE,
+      at          TIMESTAMPTZ NOT NULL,
+      reason      TEXT,
+      hazard_type TEXT,
+      distance_m  INTEGER,
+      meta        JSONB NOT NULL DEFAULT '{}'::jsonb,
+      bytes       INTEGER NOT NULL,
+      jpg         BYTEA NOT NULL,
+      exported_at TIMESTAMPTZ,
+      received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS od_shots_car_at ON od_shots(car_id, at DESC);
     CREATE TABLE IF NOT EXISTS od_push_subs (
       endpoint  TEXT PRIMARY KEY,
       owner_id  INTEGER NOT NULL REFERENCES od_owners(id) ON DELETE CASCADE,

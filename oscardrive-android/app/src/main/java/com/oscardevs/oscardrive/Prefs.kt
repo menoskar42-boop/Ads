@@ -20,6 +20,10 @@ class Prefs(context: Context) {
     var hazardAlerts: Boolean
         get() = sp.getBoolean("hazard_alerts", true)
         set(v) = sp.edit().putBoolean("hazard_alerts", v).apply()
+    /** صوّر المطبات والحفر اللى سجّلتها وانت جاى عليها (صور لتدريب موديل المطبات — ٢٠٢٦-١١-١٨). */
+    var autoShots: Boolean
+        get() = sp.getBoolean("auto_shots", true)
+        set(v) = sp.edit().putBoolean("auto_shots", v).apply()
     /** ٠ تلقائى (شروق/غروب) · ١ نهارى · ٢ ليلى */
     var theme: Int
         get() = sp.getInt("theme", 0)

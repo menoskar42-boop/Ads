@@ -55,7 +55,7 @@
     const ios = /iphone|ipad/i.test(navigator.userAgent) && !(window.navigator.standalone || matchMedia('(display-mode: standalone)').matches);
     $('iosHint').hidden = !ios;
     if (!token) { $('conn').textContent = 'مش مربوط'; $('conn').className = 'chip'; clearInterval(timer); return; }
-    refresh(); loadTrack();
+    refresh(); loadTrack(); loadShots();
     clearInterval(timer);
     timer = setInterval(() => { if (!document.hidden) { refresh(); } }, 15000);
   }
@@ -292,6 +292,42 @@
     const n = prompt('اسم العربية', state ? state.name : '');
     if (n && n.trim()) { try { await api('POST', '/api/web/rename', { name: n.trim() }); refresh(); } catch (e) { alert(e.message); } }
   });
+  /* ───────── صور الطريق (تدريب موديل المطبات) ───────── */
+  const REASON = { voice: '🎤', button: '📸', bump_approach: '〰️' };
+  async function blobOf(path) {
+    const r = await fetch(path, { cache: 'no-store', headers: { authorization: 'Bearer ' + token } });
+    if (!r.ok) { let m = 'خطأ ' + r.status; try { m = (await r.json()).error || m; } catch (e) {} throw new Error(m); }
+    return { blob: await r.blob(), headers: r.headers };
+  }
+  async function loadShots() {
+    try {
+      const j = await api('GET', '/api/web/shots');
+      const c = j.counts || {};
+      $('shotsInfo').textContent = `${c.total || 0} صورة · ${c.fresh || 0} جديدة · ${c.bumps || 0} قبل مطبات متسجّلة`;
+      const g = $('shotsGrid'); g.textContent = '';
+      for (const s of (j.shots || []).slice(0, 12)) {
+        const fig = document.createElement('figure');
+        fig.style.cssText = 'margin:0;font-size:11px;text-align:center;color:var(--muted)';
+        const img = document.createElement('img');
+        img.alt = 'صورة طريق'; img.style.cssText = 'width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:#0002';
+        fig.append(img, document.createTextNode(`${REASON[s.reason] || ''} ${s.distance_m != null ? s.distance_m + 'م · ' : ''}${ago(s.at)}`));
+        g.append(fig);
+        blobOf(`/api/web/shots/${s.id}/jpg`).then(({ blob }) => { img.src = URL.createObjectURL(blob); }).catch(() => {});
+      }
+    } catch (e) { /* مش مربوط أو مفيش نت */ }
+  }
+  $('shotsZipBtn').addEventListener('click', async () => {
+    $('shotsNote').textContent = 'بيجهّز الملف…';
+    try {
+      const { blob, headers } = await blobOf('/api/web/shots.zip');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `oscar-road-shots-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.append(a); a.click(); a.remove();
+      $('shotsNote').textContent = `اتنزّل ${headers.get('X-Shots') || ''} صورة` + (headers.get('X-More') === '1' ? ' — فيه صور تانية، دوس تانى' : '');
+      loadShots();
+    } catch (e) { $('shotsNote').textContent = e.message; }
+  });
+
   $('logoutBtn').addEventListener('click', async () => {
     if (!confirm('تفك ربط الموبايل ده من العربية؟')) return;
     try { await api('POST', '/api/web/logout'); } catch (e) {}

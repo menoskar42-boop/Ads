@@ -90,6 +90,16 @@ function createDriveSite({ pool, push } = {}) {
     } catch (e) { fail(res, 503, 'voice unavailable'); }
   });
 
+  // صور الطريق لتدريب موديل المطبات (٢٠٢٦-١١-١٨) — src/drive/shots.js
+  const shots = require('../drive/shots');
+  const shotJson = express.json({ limit: '1200kb' });
+  router.post('/api/car/shot', rateLimit({ name: 'od-shot', windowMs: 60 * 60000, max: 400 }), shotJson, carAuth, async (req, res) => {
+    const p = shots.parse(req.body);
+    if (p.error) return fail(res, p.error === 'too big' ? 413 : 400, p.error);
+    try { await shots.save(pool, req.car.id, p); res.json({ ok: true }); }
+    catch (e) { fail(res, 500, 'shot failed'); }
+  });
+
   // manifest صوت أوسكار (بيتحسب من الملفات الموجودة — لو السكربت ماتشغّلش لسه، الجمل من غير ملفات والتطبيق بيقول بصوت الشاشة)
   router.get('/voice/:v/manifest.json', (req, res) => {
     const v = req.params.v === 'female' ? 'female' : 'male';
@@ -145,6 +155,31 @@ function createDriveSite({ pool, push } = {}) {
   router.post('/api/web/push', json, ownerAuth, async (req, res) => {
     try { res.json({ ok: await store.saveSub(pool, req.owner.owner_id, req.body && req.body.subscription) }); }
     catch (e) { fail(res, 500, 'push failed'); }
+  });
+
+  router.get('/api/web/shots', ownerAuth, async (req, res) => {
+    try { res.set('Cache-Control', 'no-store'); res.json({ ok: true, ...(await shots.list(pool, req.owner.car_id)) }); }
+    catch (e) { fail(res, 500, 'shots failed'); }
+  });
+  router.get('/api/web/shots/:id/jpg', ownerAuth, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return fail(res, 400, 'bad id');
+    try {
+      const b = await shots.jpg(pool, req.owner.car_id, id);
+      if (!b) return fail(res, 404, 'not found');
+      res.set('Cache-Control', 'private, max-age=86400').type('image/jpeg').send(b);
+    } catch (e) { fail(res, 500, 'shot failed'); }
+  });
+  // zip بالصور الجديدة (?all=1 = كلها) — لحد ٢٠ ميجا، والباقى فى المرة الجاية
+  router.get('/api/web/shots.zip', ownerAuth, async (req, res) => {
+    try {
+      const z = await shots.exportZip(pool, req.owner.car_id, req.query.all === '1');
+      if (!z.count) return fail(res, 404, 'مفيش صور جديدة');
+      const name = `oscar-road-shots-${new Date().toISOString().slice(0, 10)}.zip`;
+      res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${name}"`, 'X-Shots': String(z.count),
+        'X-More': z.more ? '1' : '0', 'Cache-Control': 'no-store' });
+      res.send(z.buf);
+    } catch (e) { fail(res, 500, 'zip failed'); }
   });
 
   router.post('/api/web/logout', ownerAuth, async (req, res) => {

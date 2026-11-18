@@ -279,6 +279,8 @@ class MainActivity : Activity() {
             listOf("📷 رادار" to { markHazard(HazardType.RADAR) }, "⚠️ خطر" to { markHazard(HazardType.DANGER) }),
             listOf("🅿️ ركنت هنا" to { parkHere() }, "🎤 أمر صوتى" to { listen() }),
             listOf("🧭 الخريطة" to { openMap() }, "⛽ بنزينة" to { nearestFuel() }),
+            // «📸 صوّر الطريق» (٢٠٢٦-١١-١٨) — زى «اوسكار اسكرين شوت» لو الأوامر الصوتية مش شغّالة أو مش عايز تستخدمها
+            listOf("📸 صوّر الطريق" to { snapRoad("button") }),
         )
         for (p in pairs) {
             val r = ui.row()
@@ -819,6 +821,10 @@ class MainActivity : Activity() {
         }
         page.addView(toggle("🔊 تنبيه صوتى لما توصل حد السرعة", prefs.speedAlerts) { prefs.speedAlerts = it })
         page.addView(toggle("🛣️ نبّهنى قبل المطبات والحفر والرادار اللى سجّلتها", prefs.hazardAlerts) { prefs.hazardAlerts = it })
+        page.addView(toggle("📸 صوّر المطبات والحفر اللى سجّلتها وانا جاى عليها (لتدريب الموديل)", prefs.autoShots) { prefs.autoShots = it })
+        Shots.pending(this).takeIf { it > 0 }?.let { n ->
+            page.addView(ui.text("📸 $n صورة طريق مستنية نت عشان تترفع", 13f, ui.muted).apply { setPadding(ui.dp(6), 0, ui.dp(6), 0) })
+        }
         page.addView(toggle("🅿️ احفظ مكان الركنة لوحده آخر كل رحلة", prefs.autoPark) { prefs.autoPark = it })
         page.addView(toggle("🎯 درجة الرحلة تظهر بعد ما تخلص (مكتوبة)", prefs.tripScore) { prefs.tripScore = it })
         page.addView(toggle("🔢 زوّد كيلومترات الرحلات على العدّاد", prefs.autoOdo) { prefs.autoOdo = it })
@@ -924,6 +930,15 @@ class MainActivity : Activity() {
         DriveService.State.hazardsDirty = true
         oscar(when (t) { HazardType.BUMP -> "bump_saved"; HazardType.POTHOLE -> "pothole_saved"; HazardType.RADAR -> "radar_saved"; else -> "danger_saved" },
             "اتسجّل ${t.ar}")
+    }
+
+    /** صورة من الكاميرا للطريق — بتترفع لكلود يراجعها لتدريب موديل المطبات. */
+    private fun snapRoad(reason: String) {
+        if (!Guard.cam.permitted()) { toast("محتاج إذن الكاميرا — من «الحماية» دوس «اسمح بالكاميرا»"); return }
+        Shots.take(this, reason) { err ->
+            toast(err ?: "📸 اتصوّرت — هتترفع أول ما يبقى فيه نت")
+            if (reason == "voice") Speaker.say(if (err == null) "اتصوّرت" else "الكاميرا مش متاحة")
+        }
     }
 
     private fun parkHere() {
@@ -1241,6 +1256,7 @@ class MainActivity : Activity() {
             }
             "car.find" -> db.parkings().firstOrNull()?.let { oscar("find_car"); navigateTo(it.lat, it.lng, "العربية", walk = true) } ?: oscar("no_parking")
             "park.save" -> parkHere()
+            "road.shot" -> snapRoad("voice")
             "road.bump" -> { markHazard(HazardType.BUMP); if (tab == "road") refresh() }
             "road.pothole" -> { markHazard(HazardType.POTHOLE); if (tab == "road") refresh() }
             "road.radar" -> { markHazard(HazardType.RADAR); if (tab == "road") refresh() }
