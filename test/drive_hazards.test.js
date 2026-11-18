@@ -55,6 +55,7 @@ describe('hazards: database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL n
     await call('POST', '/api/car/hazards', { items: [item({ uuid: U2, type: 'pothole', deleted: true })] }, car);
     r = await call('POST', '/api/car/hazards', { pull: true }, car);
     assert.deepEqual(r.json.items.map((x) => x.uuid), [U1]);
+    assert.deepEqual(r.json.deleted, [U2]);   // الشاشة بتمسحه عندها كمان
     const { rows } = await pool.query('SELECT count(*)::int AS n FROM od_hazards');
     assert.equal(rows[0].n, 2);   // الممسوح لسه موجود (deleted_at)
     const other = (await call('POST', '/api/car/register', { app: '1.0' })).json.token;

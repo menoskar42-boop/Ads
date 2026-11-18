@@ -114,4 +114,11 @@ async function relink(pool, newCar, code) {
   } finally { client.release(); }
 }
 
-module.exports = { parseItems, save, list, newRelinkCode, relink, MAX_ITEMS };
+/** الـuuids الممسوحة (عشان الشاشة تمسحها عندها كمان — المزامنة فى الاتجاهين). */
+async function deletedUuids(pool, carId) {
+  const { rows } = await pool.query(
+    `SELECT uuid FROM od_hazards WHERE car_id = $1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 5000`, [carId]);
+  return rows.map((r) => r.uuid);
+}
+
+module.exports = { parseItems, save, list, deletedUuids, newRelinkCode, relink, MAX_ITEMS };

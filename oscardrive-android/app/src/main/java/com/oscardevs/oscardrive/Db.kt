@@ -212,6 +212,17 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         if (ids.isEmpty()) return
         writableDatabase.execSQL("UPDATE hazards SET synced = 1 WHERE id IN (${ids.joinToString(",")})")
     }
+    /** اتمسح على السيرفر (من شاشة تانية لنفس العربية) ⇒ علامة مسح هنا كمان. بيرجّع كام واحد اتمسح. */
+    fun markDeletedFromServer(uuids: List<String>): Int {
+        var n = 0
+        for (chunk in uuids.chunked(200)) {
+            val qs = chunk.joinToString(",") { "?" }
+            n += writableDatabase.compileStatement("UPDATE hazards SET deleted = 1, synced = 1 WHERE deleted = 0 AND synced = 1 AND uuid IN ($qs)").run {
+                chunk.forEachIndexed { i, u -> bindString(i + 1, u) }; executeUpdateDelete()
+            }
+        }
+        return n
+    }
     /** كل الـuuids اللى على الشاشة (حتى الممسوح) — عشان اللى نازل من السيرفر مايتكررش ولا الممسوح يرجع. */
     fun hazardUuids(): Set<String> = query("SELECT uuid FROM hazards WHERE uuid IS NOT NULL") { it.getString(0) }.toSet()
     fun pendingHazards(): Int = query("SELECT COUNT(*) FROM hazards WHERE synced = 0") { it.getInt(0) }.firstOrNull() ?: 0

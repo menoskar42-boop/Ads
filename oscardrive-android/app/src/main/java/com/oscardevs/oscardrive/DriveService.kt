@@ -183,6 +183,7 @@ class DriveService : Service() {
         recoverParking()
         startGps()
         HazardSync.syncSoon(this, pull = true)   // ذاكرة الطريق: يرفع اللى مااترفعش وينزّل الناقص (من غير نت = بعدين)
+        watchNetwork()
         Guard.onBoot()
         // «صباح الخير، جاهز ننطلق؟» — من جمل أوسكار المسجّلة
         Oscar.say(if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) in 4..14) "startup_morning" else "startup_evening",
@@ -191,7 +192,26 @@ class DriveService : Service() {
         return START_STICKY
     }
 
+    /** النت رجع (هوت سبوت/واى فاى) ⇒ مزامنة ذاكرة الطريق على طول بدل ما تستنى الـ١٠ دقايق. */
+    private var netCb: Any? = null
+    private fun watchNetwork() {
+        if (Build.VERSION.SDK_INT < 24 || netCb != null) return
+        try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val cb = object : android.net.ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) {
+                    main.postDelayed({ HazardSync.syncSoon(this@DriveService) }, 3000)   // نستنى الـDNS يجهز
+                }
+            }
+            cm.registerDefaultNetworkCallback(cb); netCb = cb
+        } catch (_: Exception) { /* مفيش — الـ١٠ دقايق كفاية */ }
+    }
+
     override fun onDestroy() {
+        if (Build.VERSION.SDK_INT >= 24) (netCb as? android.net.ConnectivityManager.NetworkCallback)?.let {
+            try { (getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager).unregisterNetworkCallback(it) } catch (_: Exception) {}
+        }
+        netCb = null
         State.running = false
         State.speedKmh = null
         State.over = false
