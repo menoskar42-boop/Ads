@@ -34,16 +34,37 @@ function parse(body) {
   };
 }
 
-async function save(pool, carId, p) {
+/*
+ * Cloudflare R2 (نفس كود صور الصيانة — serviceflow/server/maintenance/app/utils/r2.js، من غير مكتبات): لو الأسرار الأربعة موجودة
+ * الصورة بتتحفظ هناك (oscar-drive/shots/<عربية>/<uuid>.jpg) والقاعدة فيها البيانات بس. لو R2 مش متظبّط أو فشل ⇒ القاعدة زى الأول.
+ */
+let r2 = null;
+try { r2 = require('../../serviceflow/server/maintenance/app/utils/r2'); } catch (e) { r2 = null; }
+const r2On = () => !!(r2 && r2.isConfigured());
+
+async function save(pool, carId, p, store = r2On() ? r2 : null) {
+  let key = null;
+  if (store) {
+    const k = `oscar-drive/shots/${carId}/${p.uuid}.jpg`;
+    try { await store.putObject(k, p.buf, 'image/jpeg'); key = k; } catch (e) { key = null; }   // فشل ⇒ القاعدة
+  }
   await pool.query(
-    `INSERT INTO od_shots (car_id, uuid, at, reason, hazard_type, distance_m, meta, bytes, jpg)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (uuid) DO NOTHING`,
-    [carId, p.uuid, p.at, p.reason, p.hazardType, p.distanceM, p.meta, p.buf.length, p.buf]);
-  // الحد: اللى اتنزّل قبل كده يتمسح الأول، وبعدين الأقدم
-  await pool.query(
+    `INSERT INTO od_shots (car_id, uuid, at, reason, hazard_type, distance_m, meta, bytes, jpg, r2_key)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (uuid) DO NOTHING`,
+    [carId, p.uuid, p.at, p.reason, p.hazardType, p.distanceM, p.meta, p.buf.length, key ? null : p.buf, key]);
+  // الحد: اللى اتنزّل قبل كده يتمسح الأول، وبعدين الأقدم (ومعاه ملفه على R2)
+  const { rows } = await pool.query(
     `DELETE FROM od_shots WHERE id IN (
-       SELECT id FROM od_shots WHERE car_id = $1 ORDER BY (exported_at IS NULL), at DESC OFFSET $2)`,
+       SELECT id FROM od_shots WHERE car_id = $1 ORDER BY (exported_at IS NULL), at DESC OFFSET $2) RETURNING r2_key`,
     [carId, MAX_PER_CAR]);
+  for (const r of rows) if (r.r2_key && store) await store.deleteObject(r.r2_key).catch(() => {});
+}
+
+/** الصورة نفسها: من R2 لو اتحفظت هناك، وإلا من القاعدة. */
+async function bytesOf(row, store = r2) {
+  if (row.jpg) return row.jpg;
+  if (row.r2_key && store) { const o = await store.getObject(row.r2_key).catch(() => null); return o ? o.body : null; }
+  return null;
 }
 
 async function list(pool, carId) {
@@ -56,9 +77,9 @@ async function list(pool, carId) {
   return { shots: rows, counts: c };
 }
 
-async function jpg(pool, carId, id) {
-  const { rows } = await pool.query(`SELECT jpg FROM od_shots WHERE car_id = $1 AND id = $2`, [carId, id]);
-  return rows[0] ? rows[0].jpg : null;
+async function jpg(pool, carId, id, store = r2) {
+  const { rows } = await pool.query(`SELECT jpg, r2_key FROM od_shots WHERE car_id = $1 AND id = $2`, [carId, id]);
+  return rows[0] ? bytesOf(rows[0], store) : null;
 }
 
 /* ───────── zip (STORE — الـJPEG مضغوط أصلاً) ───────── */
@@ -91,14 +112,16 @@ function zip(files) {
 }
 
 /** الصور اللى لسه ماتنزّلتش (أو كلها) لحد ٢٠ ميجا — كل صورة جنبها json ببياناتها. بيعلّمهم «اتنزّلت». */
-async function exportZip(pool, carId, all) {
+async function exportZip(pool, carId, all, store = r2) {
   const { rows } = await pool.query(
-    `SELECT id, uuid, at, reason, hazard_type, distance_m, meta, jpg FROM od_shots
+    `SELECT id, uuid, at, reason, hazard_type, distance_m, meta, jpg, r2_key, bytes FROM od_shots
       WHERE car_id = $1 ${all ? '' : 'AND exported_at IS NULL'} ORDER BY at`, [carId]);
   const files = [], ids = [];
   let size = 0;
   for (const r of rows) {
-    if (size + r.jpg.length > ZIP_MAX_BYTES) break;
+    if (size + (r.bytes || 0) > ZIP_MAX_BYTES) break;
+    r.jpg = await bytesOf(r, store);
+    if (!r.jpg) continue;   // الملف مش موجود على R2 — نعدّيه
     const stamp = new Date(r.at).toISOString().replace(/[-:]/g, '').slice(0, 15);
     const base = `${stamp}_${r.reason}${r.hazard_type ? '_' + r.hazard_type : ''}${r.distance_m != null ? '_' + r.distance_m + 'm' : ''}_${r.uuid.slice(0, 8)}`;
     files.push({ name: `shots/${base}.jpg`, data: r.jpg });

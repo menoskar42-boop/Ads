@@ -92,6 +92,10 @@ async function ensureDriveSchema(pool) {
       received_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS od_shots_car_at ON od_shots(car_id, at DESC);
+    -- صور الطريق على Cloudflare R2 (المالك ٢٠٢٦-١١-١٨: «يحفظ فى cloudflare r2 علشان مساحه قاعده البيانات»): لو أسرار R2 موجودة الصورة
+    -- بتروح R2 (r2_key) والعمود jpg بيفضل فاضى؛ من غيرها زى الأول (BYTEA). القديم مابيتنقلش.
+    ALTER TABLE od_shots ALTER COLUMN jpg DROP NOT NULL;
+    ALTER TABLE od_shots ADD COLUMN IF NOT EXISTS r2_key TEXT;
     -- ذاكرة الطريق على السيرفر (المالك ٢٠٢٦-١١-١٨): المطبات/الحفر/الرادارات اللى السواق سجّلها كانت على الشاشة بس وبتضيع مع
     -- مسح التطبيق. uuid من الشاشة بيمنع التكرار، والمسح = deleted_at (مفيش DELETE). الشاشة الجديدة بتاخد نفس العربية بكود
     -- «ربط شاشة جديدة» من صفحة الموبايل (relink_code) وبتنزّل الذاكرة.

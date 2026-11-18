@@ -418,6 +418,62 @@
     navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); },
       () => { $('roadNote').textContent = 'مش لاقى مكانك — اسمح بالموقع وجرّب تانى'; }, { enableHighAccuracy: true, timeout: 20000 });
   }
+  // ── «📸 صوّر الطريق» من الموبايل: الكاميرا الخلفية ← JPEG ← /api/web/shot (R2) — نفس صور التدريب بتاعة الشاشة ──
+  let camStream = null;
+  async function snapRoad(reason) {
+    try {
+      if (!camStream) {
+        camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        $('camView').srcObject = camStream; $('camView').hidden = false; await $('camView').play();
+        await new Promise((r) => setTimeout(r, 700));   // الكاميرا تظبط الإضاءة
+      }
+      const v = $('camView'), w = v.videoWidth, h = v.videoHeight;
+      if (!w) throw new Error('الكاميرا لسه ماجهزتش');
+      const sc = Math.min(1, 1280 / Math.max(w, h)), cv = document.createElement('canvas');
+      cv.width = Math.round(w * sc); cv.height = Math.round(h * sc); cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
+      const jpg = cv.toDataURL('image/jpeg', 0.8).split(',')[1];
+      const f = lastFix || {};
+      await api('POST', '/api/web/shot', { jpg, meta: { uuid: uuid(), t: Date.now(), reason, app: 'phone', lat: f.lat, lng: f.lng, acc: f.acc,
+        kmh: f.kmh, heading: roadHeading } });
+      $('voiceNote').textContent = '📸 اتصوّرت واترفعت'; sayRoad('اتصوّرت');
+      loadShots();
+    } catch (e) {
+      $('voiceNote').textContent = '📸 ' + (e && e.name === 'NotAllowedError' ? 'اسمح بالكاميرا للموقع ده من إعدادات الموبايل' : (e.message || 'الكاميرا مش متاحة'));
+    }
+  }
+  $('shotBtn').addEventListener('click', () => snapRoad('button'));
+
+  // ── «🎙️ أوسكار سامعك»: التعرّف على الكلام من المتصفح (Chrome أندرويد · Safari آيفون) — استماع متواصل طول ما الصفحة مفتوحة ──
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, listening = false;
+  function runVoice(cmd, heard) {
+    if (cmd === 'bump' || cmd === 'pothole') markRoad(cmd);
+    else if (cmd === 'shot') snapRoad('voice');
+    else if (cmd === 'unknown') { $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; sayRoad('مافهمتش'); }
+  }
+  function startVoice() {
+    if (!SR) { $('voiceNote').textContent = 'المتصفح ده مابيدعمش التعرّف على الكلام — جرّب Chrome على أندرويد أو Safari على الآيفون'; return; }
+    rec = new SR(); rec.lang = 'ar-EG'; rec.continuous = true; rec.interimResults = false; rec.maxAlternatives = 3;
+    rec.onresult = (ev) => {
+      const r = ev.results[ev.results.length - 1]; if (!r || !r.isFinal) return;
+      const alts = Array.from(r).map((a) => a.transcript);
+      const cmd = alts.map((a) => RD.parseVoice(a)).find((c) => c && c !== 'unknown') || RD.parseVoice(alts[0]);
+      $('voiceNote').textContent = 'سمعت: «' + alts[0] + '»';
+      if (cmd) runVoice(cmd, alts[0]);
+    };
+    rec.onerror = (e) => { if (e.error === 'not-allowed') { listening = false; $('voiceNote').textContent = 'اسمح بالميكروفون للموقع ده'; voiceUi(); } };
+    rec.onend = () => { if (listening) setTimeout(() => { try { rec.start(); } catch (e) {} }, 300); };   // بيقف لوحده بعد سكوت ⇒ نرجّعه
+    listening = true; keepAwake();
+    try { rec.start(); } catch (e) {}
+    voiceUi();
+  }
+  function voiceUi() { $('voiceBtn').textContent = listening ? '⏹ وقّف السماع' : '🎙️ أوسكار سامعك'; $('voiceBtn').className = listening ? 'primary' : ''; }
+  $('voiceBtn').addEventListener('click', () => {
+    if (listening) { listening = false; try { rec.stop(); } catch (e) {} voiceUi(); return; }
+    sayRoad('سامعك');   // الآيفون مابيتكلمش غير بعد لمسة
+    startVoice();
+  });
+
   $('markBump').addEventListener('click', () => markRoad('bump'));
   $('markPothole').addEventListener('click', () => markRoad('pothole'));
   $('clearTestBtn').addEventListener('click', async () => {

@@ -61,6 +61,20 @@
     return 'بعد ' + (m / 1000).toFixed(1) + ' كيلو';
   }
   const warning = (h, d) => 'خلّى بالك، ' + (TYPES[h.type] || TYPES.danger)[0] + ' ' + sayDistance(d);
-  const api = { distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  /*
+   * أوامر الموبايل بالصوت (المالك ٢٠٢٦-١١-١٨): «أوسكار سجّل مطب هنا» · «أوسكار سجّل حفرة» · «أوسكار خد اسكرين شوت».
+   * لازم الاسم (زى الشاشة — عشان الكلام العادى ماينفّذش حاجة) بالأشكال اللى التعرّف بيكتبها. بيرجّع 'bump' · 'pothole' · 'shot' أو null.
+   */
+  const norm = (t) => String(t || '').toLowerCase().replace(/[\u064B-\u0652]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+  const WAKE = /(^|\s)(يا\s+)?(اوسكار|اسكار|وسكار|اوسكر|oscar)(\s|$)/;
+  function parseVoice(text) {
+    const t = norm(text);
+    if (!WAKE.test(t)) return null;
+    if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب)/.test(t)) return 'shot';
+    if (/(حفره|حفر|نقره|pothole)/.test(t)) return 'pothole';
+    if (/(مطب|مطلب|bump)/.test(t)) return 'bump';
+    return 'unknown';
+  }
+  const api = { parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

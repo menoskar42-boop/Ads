@@ -36,3 +36,11 @@ test('test mode (inside the flat): 20 m, no direction, again after 30 s', () => 
   assert.equal(R.ahead([t], LAT0, LNG0, null, 0, 10000, { t: 0 }, { test: true }), null);
   assert.ok(R.ahead([t], LAT0, LNG0, null, 0, 40000, { t: 0 }, { test: true }));
 });
+test('phone voice: needs the name, understands bump / pothole / screenshot', () => {
+  assert.equal(R.parseVoice('أوسكار سجّل مطب هنا'), 'bump');
+  assert.equal(R.parseVoice('يا اسكار سجل حفرة'), 'pothole');
+  assert.equal(R.parseVoice('اوسكار خد اسكرين شوت'), 'shot');
+  assert.equal(R.parseVoice('وسكار صور الطريق'), 'shot');
+  assert.equal(R.parseVoice('سجل مطب هنا'), null);          // من غير الاسم ⇒ ولا حاجة
+  assert.equal(R.parseVoice('أوسكار الجو عامل ايه'), 'unknown');
+});

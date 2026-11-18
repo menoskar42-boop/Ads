@@ -230,6 +230,14 @@ function createDriveSite({ pool, push } = {}) {
     } catch (e) { fail(res, 500, 'hazards failed'); }
   });
 
+  // «أوسكار خد اسكرين شوت» من الموبايل لوحده (المرحلة ٣): نفس صور الطريق (R2 لو متظبّط) — الشاشة مش لازم تكون مربوطة.
+  router.post('/api/web/shot', rateLimit({ name: 'od-web-shot', windowMs: 60 * 60000, max: 400 }), shotJson, ownerAuth, async (req, res) => {
+    const p = shots.parse(req.body);
+    if (p.error) return fail(res, p.error === 'too big' ? 413 : 400, p.error);
+    try { await shots.save(pool, req.owner.car_id, p); res.json({ ok: true }); }
+    catch (e) { fail(res, 500, 'shot failed'); }
+  });
+
   // «📡 شارك GPS مع العربية» (المرحلة ٢): آخر قراءة بس فى الذاكرة — src/drive/companions.js
   const comp = require('../drive/companions');
   router.post('/api/web/fix', rateLimit({ name: 'od-fix', windowMs: 60 * 60000, max: 4000 }), json, ownerAuth, (req, res) => {

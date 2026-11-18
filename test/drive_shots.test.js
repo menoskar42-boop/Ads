@@ -58,6 +58,26 @@ describe('shots: database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL not
     req.on('error', reject); if (data) req.write(data); req.end();
   });
 
+  it('R2: the photo goes to R2 (DB keeps only the metadata) and is read back for viewing and zip; R2 failure falls back to the DB', async () => {
+    const mem = new Map();
+    const store = { putObject: async (k, b) => { mem.set(k, Buffer.from(b)); return k; }, getObject: async (k) => (mem.has(k) ? { body: mem.get(k) } : null),
+      deleteObject: async (k) => { mem.delete(k); return true; } };
+    const { rows: [c] } = await pool.query(`INSERT INTO od_cars (token_hash) VALUES ('r2test') RETURNING id`);
+    const p = shots.parse({ meta: meta({ uuid: '7a2b8c1e-1111-4222-8333-944455556666' }), jpg: JPG.toString('base64') });
+    await shots.save(pool, c.id, p, store);
+    const { rows: [r] } = await pool.query(`SELECT jpg, r2_key FROM od_shots WHERE uuid = $1`, [p.uuid]);
+    assert.equal(r.jpg, null); assert.equal(r.r2_key, `oscar-drive/shots/${c.id}/${p.uuid}.jpg`);
+    const { rows: [row] } = await pool.query(`SELECT id FROM od_shots WHERE uuid = $1`, [p.uuid]);
+    assert.ok((await shots.jpg(pool, c.id, row.id, store)).equals(JPG));
+    const z = await shots.exportZip(pool, c.id, true, store);
+    assert.equal(z.count, 1);
+    const bad = { putObject: async () => { throw new Error('down'); } };
+    const p2 = shots.parse({ meta: meta({ uuid: '8a2b8c1e-1111-4222-8333-944455556666' }), jpg: JPG.toString('base64') });
+    await shots.save(pool, c.id, p2, bad);
+    const { rows: [r2] } = await pool.query(`SELECT jpg IS NOT NULL AS has, r2_key FROM od_shots WHERE uuid = $1`, [p2.uuid]);
+    assert.equal(r2.has, true); assert.equal(r2.r2_key, null);
+  });
+
   it('car uploads → owner lists, views and downloads a zip once', async () => {
     const car = (await call('POST', '/api/car/register', { app: '1.0.9' })).json.token;
     assert.equal((await call('POST', '/api/car/shot', { meta: meta(), jpg: JPG.toString('base64') }, 'wrong')).status, 401);
