@@ -50,6 +50,13 @@ export const archivePool = new Pool({
 });
 // اتصال فاضى اتقطع: pg بيرمى «error» على الـpool — من غير مستمع ده بيبقى uncaughtException
 archivePool.on("error", (err) => console.error("[db] idle client error:", err?.message || err));
+// (المالك ٢٠٢٦-١١-١٨) الموقع وقع فجأة والنسخة القديمة كانت فى نص transaction سحب الطابور: القاعدة فضلت فاكرة
+// الاتصال «idle in transaction» وماسكة قفل على exec_jobs، فـensureSchema فى النسخة الجديدة فضل مستنى ٨ دقايق
+// ونص وService Flow ماقامش لحد ما الاتصال اتقفل بإيد. دلوقتى أى transaction من اتصالاتنا تفضل فاضية دقيقتين
+// القاعدة نفسها بتقفلها وبتسيب القفل — حتى لو السيرفر اللى فتحها مات. (مفيش عندنا transaction بتستنى دقيقتين بين جملتين.)
+archivePool.on("connect", (client) => {
+  client.query("SET idle_in_transaction_session_timeout = '120s'").catch(() => { /* القاعدة رفضت — نكمّل من غيرها */ });
+});
 // «خلّى القاعدة تنام»: بنعرف إمتى القاعدة صاحية، وأى كتابة فى users بتمسح ذاكرة المستخدمين
 watchPool(archivePool);
 export const pool = archivePool;
