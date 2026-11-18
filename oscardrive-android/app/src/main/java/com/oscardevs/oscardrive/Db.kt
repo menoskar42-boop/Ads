@@ -349,7 +349,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         })
     }
     fun unsentSecEvents(): List<SecEv> = query("SELECT id,uuid,t,kind,lat,lng,detail FROM sec_ev WHERE sent=0 ORDER BY id LIMIT 200") {
-        SecEv(it.getLong(0), it.getString(1), it.getLong(2), it.getString(3), if (it.isNull(4)) null else it.getDouble(4), if (it.isNull(5)) null else it.getDouble(5), it.getString(6) ?: "{}")
+        SecEv(it.getLong(0), it.getString(1) ?: "", it.getLong(2), it.getString(3) ?: "", if (it.isNull(4)) null else it.getDouble(4), if (it.isNull(5)) null else it.getDouble(5), it.getString(6) ?: "{}")
     }
     fun recentSecEvents(limit: Int = 30): List<SecEv> = query("SELECT id,uuid,t,kind,lat,lng,detail FROM sec_ev ORDER BY t DESC LIMIT $limit") {
         SecEv(it.getLong(0), it.getString(1), it.getLong(2), it.getString(3), if (it.isNull(4)) null else it.getDouble(4), if (it.isNull(5)) null else it.getDouble(5), it.getString(6) ?: "{}")
@@ -362,7 +362,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         })
     }
     fun clips(): List<Clip> = query("SELECT id,uuid,t,path,sec,bytes,reason,synced FROM clips ORDER BY t DESC") {
-        Clip(it.getLong(0), it.getString(1), it.getLong(2), it.getString(3), it.getInt(4), it.getLong(5), it.getString(6) ?: "", it.getInt(7) == 1)
+        Clip(it.getLong(0), it.getString(1) ?: "", it.getLong(2), it.getString(3) ?: "", it.getInt(4), it.getLong(5), it.getString(6) ?: "", it.getInt(7) == 1)
     }
     fun unsyncedClips(): List<Clip> = clips().filter { !it.synced }
     fun markClipsSynced(ids: List<Long>) { if (ids.isNotEmpty()) writableDatabase.execSQL("UPDATE clips SET synced=1 WHERE id IN (${ids.joinToString(",")})") }

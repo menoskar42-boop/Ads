@@ -17,6 +17,29 @@ import java.util.Locale
 object CrashLog {
     @Volatile private var installed = false
     private fun file(ctx: Context) = File(ctx.applicationContext.filesDir, "last_crash.txt")
+    /** سجل دائم (مابيتمسحش لما الرسالة تتقفل) — آخر ~٣٠ ألف حرف — من «⚙️ الإعدادات ← 🩺 سجل أعطال التطبيق». */
+    private fun history(ctx: Context) = File(ctx.applicationContext.filesDir, "crash_history.txt")
+
+    private fun report(e: Throwable, where: String): String {
+        val sw = StringWriter(); e.printStackTrace(PrintWriter(sw))
+        val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+        return "Oscar Drive ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · $stamp\n" +
+            "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +
+            "$where\n\n" + sw.toString().take(12_000)
+    }
+
+    private fun remember(ctx: Context, text: String) {
+        try {
+            val h = history(ctx)
+            val old = if (h.exists()) h.readText() else ""
+            h.writeText((text + "\n\n════════════\n\n" + old).take(30_000))
+        } catch (_: Throwable) {}
+    }
+
+    /** خطأ اتمسك (الصفحة ماوقعتش) — بيتسجّل فى السجل وبيرجع نصّه عشان يتعرض مكان الصفحة. */
+    fun nonFatal(ctx: Context, where: String, e: Throwable): String = report(e, "non-fatal · $where").also { remember(ctx, it) }
+
+    fun historyText(ctx: Context): String? = try { history(ctx).takeIf { it.exists() }?.readText()?.takeIf { it.isNotBlank() } } catch (_: Throwable) { null }
 
     fun install(ctx: Context) {
         if (installed) return
@@ -25,11 +48,9 @@ object CrashLog {
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             try {
-                val sw = StringWriter(); e.printStackTrace(PrintWriter(sw))
-                val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-                file(app).writeText("Oscar Drive ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · $stamp\n" +
-                    "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +
-                    "thread: ${t.name}\n\n" + sw.toString().take(12_000))
+                val text = report(e, "thread: ${t.name}")
+                file(app).writeText(text)
+                remember(app, text)
             } catch (_: Throwable) { /* مانوقّعش التطبيق مرتين */ }
             prev?.uncaughtException(t, e)
         }

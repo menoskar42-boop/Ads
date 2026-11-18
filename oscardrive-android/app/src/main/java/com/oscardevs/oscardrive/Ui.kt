@@ -62,7 +62,13 @@ class Ui(private val ctx: Context, val night: Boolean) {
             }
             background = round(bgc, 16); setTextColor(fg)
             isClickable = true; isFocusable = true
-            setOnClickListener { onClick() }
+            // زرار بيرمى خطأ مايقفلش التطبيق — بيتسجّل فى «🧾 سجل أعطال التطبيق» (المالك ٢٠٢٦-١١-١٨)
+            setOnClickListener {
+                try { onClick() } catch (e: Throwable) {
+                    CrashLog.nonFatal(ctx, "button: $label", e)
+                    android.widget.Toast.makeText(ctx, "حصلت مشكلة — اتسجّلت فى «🧾 سجل أعطال التطبيق» فى الإعدادات", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
         }
 
     fun chip(label: CharSequence, color: Int): TextView = TextView(ctx).apply {

@@ -138,7 +138,8 @@ object Guard {
             try { more = syncOnce(); if (wasOffline) netChange(false) } catch (e: Cloud.HttpError) {
                 lastError = "السيرفر رد ${e.code}"
                 if (e.code == 401) prefs.deviceToken = null   // الجهاز اتمسح من السيرفر — يتسجّل تانى
-            } catch (e: Exception) { if (lastError == null) netChange(true); lastError = "مفيش نت — البيانات محفوظة على الشاشة" }
+            } catch (e: java.io.IOException) { if (lastError == null) netChange(true); lastError = "مفيش نت — البيانات محفوظة على الشاشة" }
+            catch (e: Throwable) { lastError = "خطأ فى الإرسال: ${e.javaClass.simpleName}"; CrashLog.nonFatal(app, "Guard.sync", e) }
             syncing = false
             main.post { listener?.invoke() }
             if (more) main.postDelayed({ syncSoon() }, 2000)
@@ -193,7 +194,9 @@ object Guard {
                 val token = prefs.deviceToken ?: Cloud.register(BuildConfig.VERSION_NAME).also { prefs.deviceToken = it }
                 val code = Cloud.pairCode(token)
                 main.post { done(code, null) }
-            } catch (e: Exception) { main.post { done(null, "محتاج نت عشان كود الربط") } }
+            } catch (e: Cloud.HttpError) { main.post { done(null, "السيرفر رد ${e.code} — جرّب تانى") } }
+            catch (e: java.io.IOException) { main.post { done(null, "محتاج نت عشان كود الربط") } }
+            catch (e: Throwable) { CrashLog.nonFatal(app, "Guard.pairCode", e); main.post { done(null, "حصل خطأ: ${e.javaClass.simpleName}") } }
         }
     }
 

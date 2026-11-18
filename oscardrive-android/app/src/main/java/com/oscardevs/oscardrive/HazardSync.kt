@@ -39,7 +39,7 @@ object HazardSync {
                 catch (e: Cloud.HttpError) {
                     lastError = "السيرفر رد ${e.code}"
                     if (e.code == 401) prefs.deviceToken = null   // الجهاز اتشال من السيرفر — يتسجّل تانى المرة الجاية
-                } catch (e: Exception) { lastError = "مفيش نت — المطبات محفوظة على الشاشة وهتترفع بعدين" }
+                } catch (e: Throwable) { lastError = "مفيش نت — المطبات محفوظة على الشاشة وهتترفع بعدين" }
             } while (again && lastError == null)
             running = false
             listener?.invoke()
@@ -109,7 +109,7 @@ object HazardSync {
                 val token = prefs.deviceToken ?: Cloud.register(BuildConfig.VERSION_NAME).also { prefs.deviceToken = it }
                 val r = Cloud.claim(token)
                 main.post { done(r.optString("url"), r.optString("code"), null) }
-            } catch (e: Exception) { main.post { done(null, null, "محتاج نت عشان الربط") } }
+            } catch (e: Throwable) { main.post { done(null, null, "محتاج نت عشان الربط") } }
         }
     }
 
@@ -120,7 +120,7 @@ object HazardSync {
         val main = android.os.Handler(android.os.Looper.getMainLooper())
         val token = prefs.deviceToken ?: return
         Thread {
-            val name = try { Cloud.claimStatus(token).let { if (it.optBoolean("linked")) it.optString("name", "عربيتك") else null } } catch (_: Exception) { null }
+            val name = try { Cloud.claimStatus(token).let { if (it.optBoolean("linked")) it.optString("name", "عربيتك") else null } } catch (_: Throwable) { null }
             main.post { done(name) }
             if (name != null) { name.takeIf { it.isNotBlank() }?.let { prefs.carName = it }; syncSoon(app, pull = true) }
         }.start()
@@ -139,7 +139,7 @@ object HazardSync {
                 main.post { done(r.optString("name"), null); syncSoon(app, pull = true) }
             } catch (e: Cloud.HttpError) {
                 main.post { done(null, if (e.code == 400) "الكود غلط أو خلص وقته — اطلب كود جديد من صفحة الموبايل" else "السيرفر رد ${e.code}") }
-            } catch (e: Exception) { main.post { done(null, "محتاج نت عشان الربط") } }
+            } catch (e: Throwable) { main.post { done(null, "محتاج نت عشان الربط") } }
         }
     }
 }

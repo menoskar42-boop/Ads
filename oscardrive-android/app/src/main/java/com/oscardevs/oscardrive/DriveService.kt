@@ -153,7 +153,7 @@ class DriveService : Service() {
                         o.optDouble("acc", 50.0).toFloat(), if (o.isNull("speed")) null else o.optDouble("speed").toFloat(),
                         if (o.isNull("heading")) null else o.optDouble("heading").toFloat(), o.optLong("ageMs"))
                 } }
-            } catch (_: Exception) { null }
+            } catch (_: Throwable) { null }
             main.post {
                 compBusy = false
                 if (fixes == null) return@post

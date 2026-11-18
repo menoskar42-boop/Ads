@@ -38,7 +38,7 @@ class CamRecorder(private val ctx: Context) {
         ids.firstOrNull { facing(it) == CameraCharacteristics.LENS_FACING_EXTERNAL }
             ?: ids.firstOrNull { facing(it) == CameraCharacteristics.LENS_FACING_BACK }
             ?: ids.firstOrNull()
-    } catch (_: Exception) { null }
+    } catch (_: Throwable) { null }   // بعض شاشات MTK كاميرتها بترمى Error مش Exception
 
     fun dir(): File = (ctx.getExternalFilesDir("clips") ?: File(ctx.filesDir, "clips")).also { it.mkdirs() }
 

@@ -48,7 +48,7 @@ object Shots {
                     File(d, "$id.json").writeText(meta.toString())
                     trim(d)
                     main.post { done?.invoke(null) }
-                } catch (e: Exception) { main.post { done?.invoke("ماقدرتش أحفظ الصورة") } }
+                } catch (e: Throwable) { main.post { done?.invoke("ماقدرتش أحفظ الصورة") } }
                 uploadSoon(app)
             }
         }
@@ -80,7 +80,7 @@ object Shots {
                     jpg.delete()
                     m.renameTo(File(d, m.name.removeSuffix(".json") + ".sent"))
                 }
-            } catch (_: Exception) { /* مفيش نت — هتترفع بعدين */ }
+            } catch (_: Throwable) { /* مفيش نت — هتترفع بعدين */ }
             uploading = false
         }
     }

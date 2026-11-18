@@ -107,6 +107,7 @@ class MainActivity : Activity() {
         Speaker.init(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         DriveService.State.night = initialNight()
+        Guard.init(this)
         build()
         askPermissions()
         if (prefs.autoStart || DriveService.State.running) startIfReady()
@@ -126,6 +127,14 @@ class MainActivity : Activity() {
     }
 
     /** لو التطبيق وقع المرة اللى فاتت: السبب بيظهر مرة واحدة بزرار «شارك» (CrashLog). */
+    /** سجل الأعطال الدائم — حتى لو الرسالة اتقفلت من غير «شارك». */
+    private fun showCrashHistory() {
+        val text = CrashLog.historyText(this) ?: run { toast("مفيش أعطال متسجّلة ✓"); return }
+        val tv = ui.text(text.take(6000), 12f, ui.ink).apply { setTextIsSelectable(true); setPadding(ui.dp(14), ui.dp(8), ui.dp(14), ui.dp(8)) }
+        AlertDialog.Builder(this).setTitle("🧾 سجل أعطال التطبيق").setView(ScrollView(this).apply { addView(tv) })
+            .setPositiveButton("شارك") { _, _ -> share(text) }.setNegativeButton("قفل", null).show()
+    }
+
     private fun showLastCrash() {
         val text = CrashLog.take(this) ?: return
         AlertDialog.Builder(this).setTitle("⚠️ التطبيق وقف المرة اللى فاتت")
@@ -195,7 +204,25 @@ class MainActivity : Activity() {
         content.removeAllViews()
         speedTv = null; limitTv = null; headArrow = null; headEn = null; headAr = null; tripKmTv = null
         tripInfoTv = null; gpsChip = null; clockTv = null; statusTv = null; bannerTv = null; startBtn = null; drivenTv = null
-        val v: View = when (key) {
+        // أى خطأ وقت بناء تاب (المالك ٢٠٢٦-١١-١٨: «أول ما دخلت على الحماية الرسالة ظهرت») مايقفلش التطبيق:
+        // الصفحة بتعرض السبب بزرار «شارك» وبيتسجّل فى «🩺 سجل أعطال التطبيق».
+        val v: View = try { tabView(key) } catch (e: Throwable) { tabError(key, e) }
+        content.addView(v, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
+        render()
+    }
+
+    private fun tabError(key: String, e: Throwable): View {
+        val text = CrashLog.nonFatal(this, "tab: $key", e)
+        val page = ui.col(14)
+        page.addView(header("⚠️ حصلت مشكلة فى الصفحة دى", "التطبيق ماوقفش. ابعت التقرير ده لـOscarDevs عشان نصلّحها."))
+        page.addView(ui.button("📤 شارك التقرير", "primary") { share(text) }, ui.lp(Ui.MATCH, ui.dp(58), marginDp = 4))
+        page.addView(ui.button("🔄 جرّب تانى", "neutral") { refresh() }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
+        page.addView(ui.text(text.take(2500), 12f, ui.muted).apply { setTextIsSelectable(true) })
+        return scroll(page)
+    }
+
+    private fun tabView(key: String): View {
+        return when (key) {
             "nav" -> scroll(navTab())
             "park" -> scroll(parkTab())
             "road" -> scroll(roadTab())
@@ -206,8 +233,6 @@ class MainActivity : Activity() {
             "voice" -> scroll(voiceTab())
             else -> driveTab()
         }
-        content.addView(v, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
-        render()
     }
 
     private fun refresh() = showTab(tab)
@@ -691,6 +716,7 @@ class MainActivity : Activity() {
     }
 
     private fun securityTab(): View {
+        Guard.init(this)   // Guard.cam لازم يكون جاهز حتى لو التاب اتبنى قبل onResume
         val page = ui.col(14)
         page.addView(header("🛡️ الحماية والتتبّع", "الـGPS بيسجّل مكان العربية على الشاشة حتى من غير نت، وأول ما أى نت يتوصل بيتبعت لصفحة موبايلك " +
             "(drive.oscardevs.com) ومعاه التنبيهات. الشاشة بتفصل مع إطفاء العربية، ولو حد فصلها التسجيل بيقف."))
@@ -891,6 +917,7 @@ class MainActivity : Activity() {
             "اتعمل عشان تبص عليه بسرعة: ماتستخدمش الشاشة وانت سايق أكتر من نظرة.", 14f, ui.muted))
         page.addView(ui.button("🩺 فحص الشاشة (GPS · الكاميرا · الشريحة · خدمات جوجل)", "primary", 16f) { showDeviceCheck() },
             ui.lp(Ui.MATCH, ui.dp(56), marginDp = 4))
+        page.addView(ui.button("🧾 سجل أعطال التطبيق", "neutral", 15f) { showCrashHistory() }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
         page.addView(ui.button("🔒 سياسة الخصوصية", "neutral", 15f) {
             view("https://oscardevs.com/oscar-drive/privacy") || toast("مفيش متصفح على الشاشة")
         }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))

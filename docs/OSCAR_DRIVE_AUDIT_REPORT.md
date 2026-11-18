@@ -113,3 +113,13 @@
 | ٢٠٢٦-١١-١٨ | البند ٥: فلتر الكوبرى بالارتفاع + التعلّم ببطء بس | `logic/RoadMemory.kt` (`otherLevel` · `learnAltitude` · Hazard فيه altitude/accuracy) · `Db.hazards`/`setHazardAltitude` · `DriveService` (`vAccM`) · `logic-test` | بناء GitHub (run 44354563856) | ✅ |
 | ٢٠٢٦-١١-١٨ | البند ٦: الكلام + C7 | `VoiceDiag.kt` (جديد) · `WakeListener.kt` · `Speaker.kt` · `MainActivity` (listen · handleHeard · voiceTab) · `logic/VoiceEngine.kt` (DEFAULT_WAKE) · `logic-test` | بناء GitHub (run 44356456129) | ✅ |
 | ٢٠٢٦-١١-١٨ | البند ٧: صوت التنبيه | `Speaker.kt` (`create`/`retry` · `safetyUntil` · `testLine`) · `MainActivity.settingsTab` | بناء GitHub ✅ | ✅ |
+
+### ٢٠٢٦-١١-١٨ — «أول ما دخلت على الحماية الرسالة ظهرت» (المالك)
+السبب الأكيد مش معروف من غير نص التقرير (الرسالة بتتمسح بعد ما تتقفل). اتعمل:
+- **سجل أعطال دائم** (`CrashLog.historyText` — ⚙️ الإعدادات ← «🧾 سجل أعطال التطبيق» بزرار «شارك»): مابيتمسحش لما الرسالة تتقفل.
+- **أى تاب بيرمى خطأ وهو بيتبنى مايقفلش التطبيق**: الصفحة بتعرض السبب بزرار «📤 شارك التقرير» و«🔄 جرّب تانى».
+- **أى زرار بيرمى خطأ** (`Ui.button`) ⇒ رسالة + تسجيل بدل الوقوع.
+- خيوط الخلفية (إرسال الحماية · كود الربط · مزامنة المطبات · الصور · موبايلات العربية) بتمسك `Throwable` مش `Exception` بس —
+  الـError فى thread خلفى كان بيقفل التطبيق كله. والكاميرا (`pickCamera`) كمان (بعض شاشات MTK بترمى Error).
+- `Guard.init` قبل بناء الشاشة (`Guard.cam` كان ممكن يتطلب قبل onResume) · صفوف التسجيلات والأحداث بقت null-safe.
+
