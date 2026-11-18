@@ -33,6 +33,9 @@ data class Hazard(
     val bearing: Float?,
     val note: String = "",
     val createdMs: Long = 0,
+    /** ارتفاع الـGPS ودقته الأفقية وقت التسجيل (null للقديم) — فلتر الكوبرى. */
+    val altitude: Double? = null,
+    val accuracy: Float? = null,
 )
 
 object RoadMemory {
@@ -83,6 +86,7 @@ object RoadMemory {
         hazards: List<Hazard>, lat: Double, lng: Double, headingDeg: Float?, kmh: Float,
         nowMs: Long, warned: Map<Long, Long>,
         minKmh: Float = MIN_SPEED_KMH, minWarnM: Double = MIN_WARN_M,
+        altitudeM: Double? = null, vAccM: Float? = null,
     ): Pair<Hazard, Double>? {
         if (kmh < minKmh) return null
         var best: Pair<Hazard, Double>? = null
@@ -104,6 +108,7 @@ object RoadMemory {
             if (h.type.directional && h.bearing != null && Geo.angleDiff(h.bearing, headingDeg) > SAME_WAY_DEG) continue
             // المطب/الحفرة بعرض الطريق: نفس الطريق فى الاتجاهين بينبّه، والطريق اللى بيقطعه (كوبرى فوقه/تحته · شارع جانبى) لأ
             if (!h.type.directional && h.bearing != null && !sameAxis(h.bearing, headingDeg)) continue
+            if (!h.type.directional && otherLevel(h, altitudeM, vAccM)) continue
             if (best == null || d < best.second) best = h to d
         }
         return best
@@ -116,14 +121,40 @@ object RoadMemory {
      */
     const val AXIS_DEG = 40f
     fun sameAxis(a: Float, b: Float): Boolean { val d = Geo.angleDiff(a, b); return d <= AXIS_DEG || d >= 180f - AXIS_DEG }
-    /** عدّيت من فوقه (≤ ١٥ م) وانت ماشى ≥ ١٠ كم/س واتجاهك معروف والـGPS كويس ⇒ ده اتجاه الطريق. */
+    /**
+     * عدّيت من فوقه (≤ ١٥ م) **ببطء** (٧–٢٥ كم/س — الناس بتهدّى عند المطب الحقيقى، وفوق الكوبرى لأ) واتجاهك معروف والـGPS كويس
+     * ⇒ ده اتجاه الطريق. شرط البطء عشان العربية اللى معدّية على كوبرى فوق المطب ماتعلّمهوش اتجاه الكوبرى.
+     */
     const val LEARN_M = 15.0
-    const val LEARN_KMH = 10f
+    const val LEARN_KMH = 7f
+    const val LEARN_MAX_KMH = 25f
     const val LEARN_ACC_M = 20f
     fun learnBearing(hazards: List<Hazard>, lat: Double, lng: Double, headingDeg: Float?, kmh: Float, accuracyM: Float?): List<Pair<Long, Float>> {
-        if (headingDeg == null || kmh < LEARN_KMH || (accuracyM != null && accuracyM > LEARN_ACC_M)) return emptyList()
+        if (headingDeg == null || kmh < LEARN_KMH || kmh > LEARN_MAX_KMH || (accuracyM != null && accuracyM > LEARN_ACC_M)) return emptyList()
         return hazards.filter { !it.type.directional && it.bearing == null && Geo.distanceM(lat, lng, it.lat, it.lng) <= LEARN_M }
             .map { it.id to headingDeg }
+    }
+
+    /**
+     * فلتر الكوبرى بالارتفاع (البند ٥ — المالك ٢٠٢٦-١١-١٨): الطريق الموازى فوق/تحت نفس المطب مابيتحلّش بالاتجاه. ارتفاع الـGPS
+     * غلطه الرأسى عادة ١٫٥× الأفقى، فالمطب بيتشال بس لو الفرق **أكبر من غلط القراءتين مع بعض + ٣ م** — يعنى الشك = بينبّه
+     * (تنبيه زيادة أحسن من مطب من غير تنبيه). القديم من غير ارتفاع: زى ما هو، وبياخد ارتفاع لما تعدّى عليه ببطء (learnAltitude).
+     */
+    const val ALT_MARGIN_M = 3.0
+    const val V_ACC_FACTOR = 1.5f
+    const val UNKNOWN_V_ACC_M = 15f
+    fun otherLevel(h: Hazard, altitudeM: Double?, vAccM: Float?): Boolean {
+        val a = h.altitude ?: return false
+        val now = altitudeM ?: return false
+        val storedErr = (h.accuracy ?: (UNKNOWN_V_ACC_M / V_ACC_FACTOR)) * V_ACC_FACTOR
+        val nowErr = vAccM ?: UNKNOWN_V_ACC_M
+        return kotlin.math.abs(now - a) - (storedErr + nowErr) > ALT_MARGIN_M
+    }
+    const val LEARN_ALT_ACC_M = 10f
+    fun learnAltitude(hazards: List<Hazard>, lat: Double, lng: Double, kmh: Float, accuracyM: Float?, altitudeM: Double?): List<Pair<Long, Double>> {
+        if (altitudeM == null || accuracyM == null || accuracyM > LEARN_ALT_ACC_M || kmh < LEARN_KMH || kmh > LEARN_MAX_KMH) return emptyList()
+        return hazards.filter { !it.type.directional && it.altitude == null && Geo.distanceM(lat, lng, it.lat, it.lng) <= LEARN_M }
+            .map { it.id to altitudeM }
     }
 
     /** نفس النوع مسجّل فى نفس المكان تقريباً ⇒ مانكرّرهوش. */

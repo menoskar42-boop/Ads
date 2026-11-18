@@ -148,11 +148,32 @@ class RoadMemoryTest {
         val old = Hazard(10, HazardType.BUMP, north(8.0), LNG0, null)
         val withDir = Hazard(11, HazardType.BUMP, north(5.0), LNG0, 30f)
         val radar = Hazard(12, HazardType.RADAR, north(5.0), LNG0, null)
-        assertEquals(listOf(10L to 3f), RoadMemory.learnBearing(listOf(old, withDir, radar), LAT0, LNG0, 3f, 35f, 6f))
-        assertTrue(RoadMemory.learnBearing(listOf(old), LAT0, LNG0, 3f, 6f, 6f).isEmpty())     // بطيء
-        assertTrue(RoadMemory.learnBearing(listOf(old), LAT0, LNG0, 3f, 35f, 40f).isEmpty())   // GPS وحش
-        assertTrue(RoadMemory.learnBearing(listOf(old), LAT0, LNG0, null, 35f, 6f).isEmpty())
-        assertTrue(RoadMemory.learnBearing(listOf(old.copy(lat = north(60.0))), LAT0, LNG0, 3f, 35f, 6f).isEmpty())   // بعيد
+        assertEquals(listOf(10L to 3f), RoadMemory.learnBearing(listOf(old, withDir, radar), LAT0, LNG0, 3f, 15f, 6f))
+        assertTrue(RoadMemory.learnBearing(listOf(old), LAT0, LNG0, 3f, 5f, 6f).isEmpty())     // واقف تقريباً
+        assertTrue(RoadMemory.learnBearing(listOf(old), LAT0, LNG0, 3f, 45f, 6f).isEmpty())    // سريع = غالباً كوبرى فوقه مش المطب نفسه
+        assertTrue(RoadMemory.learnBearing(listOf(old), LAT0, LNG0, 3f, 15f, 40f).isEmpty())   // GPS وحش
+        assertTrue(RoadMemory.learnBearing(listOf(old), LAT0, LNG0, null, 15f, 6f).isEmpty())
+        assertTrue(RoadMemory.learnBearing(listOf(old.copy(lat = north(60.0))), LAT0, LNG0, 3f, 15f, 6f).isEmpty())   // بعيد
+    }
+    // البند ٥: الكوبرى الموازى — الارتفاع بيشيل التنبيه بس لو الفرق أكبر من غلط القراءتين + ٣ م (الشك = بينبّه)
+    @Test fun bridgeAltitudeFilter() {
+        val s = RoadMemory.STOPPED_KMH
+        val under = Hazard(13, HazardType.BUMP, north(80.0), LNG0, 0f, altitude = 40.0, accuracy = 4f)   // متسجّل تحت الكوبرى
+        // فوق الكوبرى بـ١٥ م والقراءة دقيقة (٣ م) ⇒ ١٥ − (٦ + ٣) = ٦ > ٣ ⇒ لأ
+        assertNull(RoadMemory.ahead(listOf(under), LAT0, LNG0, 0f, 40f, 0, emptyMap(), minKmh = s, minWarnM = 100.0, altitudeM = 55.0, vAccM = 3f))
+        // نفس الطريق (فرق ٤ م) ⇒ آه · فرق ١٥ م بس القراءة وحشة (١٢ م) ⇒ آه (الشك = بينبّه)
+        assertNotNull(RoadMemory.ahead(listOf(under), LAT0, LNG0, 0f, 40f, 0, emptyMap(), minKmh = s, minWarnM = 100.0, altitudeM = 44.0, vAccM = 3f))
+        assertNotNull(RoadMemory.ahead(listOf(under), LAT0, LNG0, 0f, 40f, 0, emptyMap(), minKmh = s, minWarnM = 100.0, altitudeM = 55.0, vAccM = 12f))
+        // من غير ارتفاع (قديم أو الجهاز مابيقولش) ⇒ زى الأول
+        assertNotNull(RoadMemory.ahead(listOf(under.copy(altitude = null)), LAT0, LNG0, 0f, 40f, 0, emptyMap(), minKmh = s, minWarnM = 100.0, altitudeM = 55.0, vAccM = 3f))
+        assertNotNull(RoadMemory.ahead(listOf(under), LAT0, LNG0, 0f, 40f, 0, emptyMap(), minKmh = s, minWarnM = 100.0))
+        // الرادار مالوش دعوة
+        assertFalse(RoadMemory.otherLevel(under.copy(altitude = null), 90.0, 1f))
+        // القديم بياخد ارتفاع لما تعدّى عليه ببطء والـGPS كويس
+        val old = Hazard(14, HazardType.BUMP, north(5.0), LNG0, null)
+        assertEquals(listOf(14L to 41.5), RoadMemory.learnAltitude(listOf(old, under.copy(lat = north(5.0))), LAT0, LNG0, 15f, 6f, 41.5))
+        assertTrue(RoadMemory.learnAltitude(listOf(old), LAT0, LNG0, 15f, 15f, 41.5).isEmpty())   // دقة وحشة
+        assertTrue(RoadMemory.learnAltitude(listOf(old), LAT0, LNG0, 60f, 6f, 41.5).isEmpty())    // سريع
     }
     @Test fun noHeadingYet() {
         val s = RoadMemory.STOPPED_KMH

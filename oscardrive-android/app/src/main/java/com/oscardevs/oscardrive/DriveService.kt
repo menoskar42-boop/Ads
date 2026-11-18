@@ -49,6 +49,8 @@ class DriveService : Service() {
         @Volatile var accuracyM: Float? = null
         /** ارتفاع الـGPS (م) — بيتسجّل مع المطب (فلتر الكوبرى بعدين). */
         @Volatile var altitudeM: Double? = null
+        /** دقة الارتفاع (م) لو الجهاز بيقولها (API 26+). */
+        @Volatile var vAccM: Float? = null
         /** المكان الحالى من الشبكة (تقريبى) مش من الـGPS — للعرض بس. */
         @Volatile var approx = false
         @Volatile var satsUsed = 0
@@ -283,6 +285,7 @@ class DriveService : Service() {
         State.lat = loc.latitude; State.lng = loc.longitude
         State.accuracyM = acc
         State.altitudeM = if (loc.hasAltitude()) loc.altitude else null
+        State.vAccM = if (Build.VERSION.SDK_INT >= 26 && loc.hasVerticalAccuracy()) loc.verticalAccuracyMeters else null
         if (acc != null && acc <= 50f) { prefs.lastLat = loc.latitude; prefs.lastLng = loc.longitude }
         // آخر لقطة كويسة كل ١٠ ثوانى — لو الشاشة فصلت فجأة مع العربية، دى مكان الركنة المرة الجاية
         if (acc != null && acc <= 100f && now - lastFixSaved > 10_000) { lastFixSaved = now; prefs.saveLastFix(loc.latitude, loc.longitude, acc, now) }
@@ -318,13 +321,15 @@ class DriveService : Service() {
         val lng = State.lng ?: return
         // مطب قديم من غير اتجاه وعدّيت من فوقه ⇒ اتجاه الطريق بيتسجّل (ويترفع)
         val learned = RoadMemory.learnBearing(hazards, lat, lng, trip.headingDeg, kmh, State.accuracyM)
-        if (learned.isNotEmpty()) {
+        val learnedAlt = RoadMemory.learnAltitude(hazards, lat, lng, kmh, State.accuracyM, State.altitudeM)
+        if (learned.isNotEmpty() || learnedAlt.isNotEmpty()) {
             for ((id, b) in learned) db.setHazardBearing(id, b)
+            for ((id, a) in learnedAlt) db.setHazardAltitude(id, a, State.accuracyM ?: RoadMemory.LEARN_ALT_ACC_M)
             hazards = db.hazards(); HazardSync.syncSoon(this)
         }
         val minKmh = if (prefs.quietSlow) RoadMemory.QUIET_SLOW_KMH else RoadMemory.STOPPED_KMH
         val hit = RoadMemory.ahead(hazards, lat, lng, trip.headingDeg, kmh, now, warned,
-            minKmh = minKmh, minWarnM = prefs.bumpWarnM.toDouble()) ?: return
+            minKmh = minKmh, minWarnM = prefs.bumpWarnM.toDouble(), altitudeM = State.altitudeM, vAccM = State.vAccM) ?: return
         warned[RoadMemory.warnKey(hit.first, hit.second, kmh)] = now
         val msg = RoadMemory.warning(hit.first, hit.second)
         showBanner("${hit.first.type.emoji} $msg", "hazard", 8_000)

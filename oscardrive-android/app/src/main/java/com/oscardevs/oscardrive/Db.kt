@@ -185,9 +185,10 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
             if (altitude != null) put("altitude", altitude) else putNull("altitude")
             put("note", note); put("created_ms", createdMs); put("uuid", uuid); put("synced", if (synced) 1 else 0); put("deleted", 0)
         }, SQLiteDatabase.CONFLICT_IGNORE)
-    fun hazards(): List<Hazard> = query("SELECT id,type,lat,lng,bearing,note,created_ms FROM hazards WHERE deleted = 0 ORDER BY created_ms DESC") {
+    fun hazards(): List<Hazard> = query("SELECT id,type,lat,lng,bearing,note,created_ms,altitude,accuracy FROM hazards WHERE deleted = 0 ORDER BY created_ms DESC") {
         Hazard(it.getLong(0), HazardType.of(it.getString(1)), it.getDouble(2), it.getDouble(3),
-            if (it.isNull(4)) null else it.getFloat(4), it.getString(5) ?: "", it.getLong(6))
+            if (it.isNull(4)) null else it.getFloat(4), it.getString(5) ?: "", it.getLong(6),
+            if (it.isNull(7)) null else it.getDouble(7), if (it.isNull(8)) null else it.getFloat(8))
     }
     /** المسح علامة بس (بتترفع للسيرفر) — الصف بيفضل عشان المطب مايرجعش من السيرفر تانى. */
     fun deleteHazard(id: Long) {
@@ -197,6 +198,12 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
     /** اتجاه اتعرف لمطب قديم (عدّيت من فوقه) — بيترفع للسيرفر. مابيكتبش فوق اتجاه موجود. */
     fun setHazardBearing(id: Long, bearing: Float) {
         writableDatabase.execSQL("UPDATE hazards SET bearing = ?, synced = 0 WHERE id = ? AND bearing IS NULL", arrayOf<Any>(bearing.toDouble(), id))
+    }
+
+    /** ارتفاع اتعرف لمطب قديم (عدّيت عليه ببطء والـGPS كويس) — بيترفع. مابيكتبش فوق ارتفاع موجود. */
+    fun setHazardAltitude(id: Long, altitude: Double, accuracy: Float) {
+        writableDatabase.execSQL("UPDATE hazards SET altitude = ?, accuracy = COALESCE(accuracy, ?), synced = 0 WHERE id = ? AND altitude IS NULL",
+            arrayOf<Any>(altitude, accuracy.toDouble(), id))
     }
 
     /** للرفع (HazardSync): اللى لسه ماترفعش، ومعاه الممسوح. */
