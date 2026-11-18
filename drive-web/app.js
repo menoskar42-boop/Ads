@@ -142,7 +142,7 @@
     const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(h));
   };
-  let lastPark = null, repMonth = null, reportPlaces = [];
+  let lastPark = null, repMonth = null, reportPlaces = [], lastReport = null;
 
   function renderReport(r, at) {
     $('parkCard').hidden = !(r && r.parking && r.parking.length);
@@ -207,7 +207,7 @@
       mt.appendChild(li(x.name, x.text || '', x.status === 'due' ? '⛔' : x.status === 'soon' ? '⏳' : '✅'));
     }
     // 📍 الأماكن المحفوظة ⇒ «🧭 ودّينى» (نفس زرار الشاشة) · 🚗 آخر الرحلات
-    reportPlaces = r.places || [];
+    reportPlaces = r.places || []; lastReport = r;
     const pls = $('repPlaces'); pls.textContent = '';
     if (!reportPlaces.length) pls.appendChild(li('لسه مفيش أماكن محفوظة على الشاشة.', 'من الشاشة: الملاحة ← «⭐ احفظ المكان ده»، أو قول «أوسكار احفظ المكان ده باسم البيت».'));
     for (const q of reportPlaces) {
@@ -593,6 +593,13 @@
     else if (cmd === 'park') parkHere();
     else if (cmd === 'findpark') findPark();
     else if (cmd === 'sos') sos();
+    else if (cmd === 'fuelleft' || cmd === 'maint' || cmd === 'odo' || cmd === 'speed') {
+      const k = lastFix && lastFix.kmh != null && Date.now() - lastFix.t < 10000 ? Math.round(lastFix.kmh) : null;
+      const msg = cmd === 'fuelleft' ? RD.fuelSay(lastReport) : cmd === 'maint' ? RD.maintSay(lastReport)
+        : cmd === 'odo' ? (lastReport && lastReport.odo ? 'العدّاد حوالى ' + Math.round(lastReport.odo) + ' كيلو' : 'العدّاد لسه ماتكتبش على الشاشة')
+        : k != null ? 'سرعتنا ' + k + ' كيلو' : 'لسه الـGPS ماحددش السرعة — شغّل «🔔 نبّهنى»';
+      $('voiceNote').textContent = '🗣️ ' + msg; sayRoad(msg);
+    }
     else if (cmd && cmd.startsWith('goto:')) {
       const p = RD.findPlace(reportPlaces, cmd.slice(5));
       if (p) { sayRoad('حاضر، رايحين ' + p.name); window.open(RD.navUrl(p.lat, p.lng), '_blank', 'noopener'); }

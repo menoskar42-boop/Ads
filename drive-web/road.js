@@ -105,6 +105,11 @@
     const t = norm(text);
     if (!WAKE.test(t)) return null;
     if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب)/.test(t)) return 'shot';
+    // أسئلة بترد من ملخّص العربية (زى fuel.left · maint.next · info.speed على الشاشة) — قبل «أقرب بنزينة» عشان «فاضل كام بنزين»
+    if (/(فاضل|باقي|البنزين كام|how much fuel|fuel left)/.test(t) && /(بنزين|fuel)/.test(t)) return 'fuelleft';
+    if (/(الزيت|الصيانه|oil|service)/.test(t) && /(فاضل|الجايه|ميعاد|امتي|next|when)/.test(t)) return 'maint';
+    if (/(السرعه كام|ماشي كام|سرعتي|my speed)/.test(t)) return 'speed';
+    if (/(العداد|odometer)/.test(t)) return 'odo';
     if (/(طوارئ|نجده|الحقوني|استغاثه|sos|emergency)/.test(t)) return 'sos';   // زى الشاشة: بيتأكد قبل ما يجهّز الرسالة
     if (/(ركنت هنا|احفظ الركنه|سجل الركنه|احفظ مكان العربيه|i parked)/.test(t)) return 'park';
     if (/(العربيه فين|ركنت فين|وديني للعربيه|وديني للركنه|where.*car)/.test(t)) return 'findpark';
@@ -147,6 +152,22 @@
     return (ps.find((x) => x.n === norm(said).trim() || x.b === want) || ps.find((x) => x.b.startsWith(want) || want.startsWith(x.b))
       || ps.find((x) => x.b.includes(want) || want.includes(x.b)) || {}).p || null;
   }
-  const api = { findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  /** نفس جمل الشاشة، من الملخّص اللى الشاشة بعتته (مش لحظى — الصفحة بتقول آخر تحديث). */
+  function fuelSay(rep) {
+    const f = rep && rep.fuel;
+    if (!f) return 'لسه الشاشة مابعتتش بيانات البنزين';
+    if (f.left == null) return 'محتاج تفويلة لآخرها عشان أعرف أحسب الفاضل — سجّلها على الشاشة لما تفوّل';
+    return 'الفاضل تقريباً ' + Math.round(f.left) + ' لتر (تقدير من آخر تحديث للشاشة)';
+  }
+  function maintSay(rep) {
+    const m = (rep && rep.maint) || [];
+    const oil = m.find((x) => /زيت/.test(x.name));
+    const due = m.filter((x) => x.status !== 'ok');
+    const parts = [];
+    if (oil) parts.push('الزيت: ' + (oil.text || 'مفيش ميعاد متحدد'));
+    if (due.length) parts.push('قرّب أو وقته: ' + due.map((x) => x.name).join('، '));
+    return parts.length ? parts.join(' · ') : 'مفيش صيانة قرّبت';
+  }
+  const api = { fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

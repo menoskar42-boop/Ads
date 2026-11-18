@@ -93,3 +93,16 @@ test('«أوسكار ودّينى البيت» ⇒ the saved place', () => {
   assert.equal(R.findPlace(places, 'النادي').lat, 3);
   assert.equal(R.findPlace(places, 'المطار'), null);
 });
+test('questions answered from the car summary (fuel left · maintenance · speed · odometer)', () => {
+  assert.equal(R.parseVoice('أوسكار فاضل كام بنزين'), 'fuelleft');
+  assert.equal(R.parseVoice('أوسكار البنزين كام'), 'fuelleft');
+  assert.equal(R.parseVoice('أوسكار دور على أقرب بنزينة'), 'near:fuel');
+  assert.equal(R.parseVoice('أوسكار فاضل كام على الزيت'), 'maint');
+  assert.equal(R.parseVoice('أوسكار السرعة كام'), 'speed');
+  assert.equal(R.parseVoice('أوسكار العداد'), 'odo');
+  assert.equal(R.fuelSay({ fuel: { left: 23.6 } }), 'الفاضل تقريباً 24 لتر (تقدير من آخر تحديث للشاشة)');
+  assert.match(R.fuelSay({ fuel: { rate: 8 } }), /تفويلة لآخرها/);
+  assert.equal(R.maintSay({ maint: [{ name: 'زيت المحرك', status: 'soon', text: 'فاضل 400 كم' }, { name: 'فلتر هوا', status: 'ok' }] }),
+    'الزيت: فاضل 400 كم · قرّب أو وقته: زيت المحرك');
+  assert.equal(R.maintSay({ maint: [] }), 'مفيش صيانة قرّبت');
+});
