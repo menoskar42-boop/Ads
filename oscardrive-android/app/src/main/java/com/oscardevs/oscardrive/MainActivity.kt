@@ -101,6 +101,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashLog.install(this)
         prefs = Prefs(this)
         db = Db.get(this)
         Speaker.init(this)
@@ -121,6 +122,16 @@ class MainActivity : Activity() {
         render()
         maybePinGate()
         startWakeIfOn()
+        showLastCrash()
+    }
+
+    /** لو التطبيق وقع المرة اللى فاتت: السبب بيظهر مرة واحدة بزرار «شارك» (CrashLog). */
+    private fun showLastCrash() {
+        val text = CrashLog.take(this) ?: return
+        AlertDialog.Builder(this).setTitle("⚠️ التطبيق وقف المرة اللى فاتت")
+            .setMessage("ابعت التقرير ده لـOscarDevs عشان نصلّحه:\n\n" + text.take(1500))
+            .setPositiveButton("شارك التقرير") { _, _ -> share(text) }
+            .setNegativeButton("قفل", null).show()
     }
 
     override fun onPause() {

@@ -154,6 +154,7 @@ class DriveService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashLog.install(this)
         prefs = Prefs(this)
         db = Db.get(this)
         lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
