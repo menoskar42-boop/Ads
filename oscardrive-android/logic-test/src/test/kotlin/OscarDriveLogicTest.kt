@@ -781,3 +781,23 @@ class CompanionTrackerTest {
         assertFalse(st[0].trusted)
     }
 }
+
+// «أقرب بنزينة» جوه التطبيق من OpenStreetMap — المكان متقرّب لـ١ كم، والنتايج من العقد والمبانى
+class OsmNearbyTest {
+    @Test fun queryRoundsLocationAndUsesTheRightTags() {
+        val q = OsmNearby.query("fuel", 27.18234, 31.18678)!!
+        assertTrue(q.contains("nwr[amenity=fuel](around:5000,27.18,31.19);"))
+        assertFalse(q.contains("27.182"))
+        assertTrue(OsmNearby.query("atm", 27.0, 31.0)!!.contains("[amenity=bank][atm=yes]"))
+        assertNull(OsmNearby.query("unknown", 27.0, 31.0))
+    }
+    @Test fun parseNodesAndWaysAndArabicName() {
+        val json = """{"elements":[
+          {"type":"node","lat":27.1,"lon":31.1,"tags":{"name":"Wataniya","name:ar":"وطنية"}},
+          {"type":"way","center":{"lat":27.2,"lon":31.2},"tags":{"brand":"Mobil"}},
+          {"type":"node","lat":27.3,"lon":31.3}]}"""
+        val r = OsmNearby.parse(json, "بنزينة")
+        assertEquals(listOf("وطنية", "Mobil", "بنزينة"), r.map { it.name })
+        assertEquals(27.2, r[1].lat)
+    }
+}

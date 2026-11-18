@@ -1,7 +1,11 @@
 // اختبار منطق Oscar Drive (Kotlin صافى) على الكمبيوتر — من غير Android SDK:
 //   cd oscardrive-android/logic-test && gradle test
 plugins { kotlin("jvm") version "2.0.21" }
-dependencies { testImplementation(kotlin("test")) }
+dependencies {
+    testImplementation(kotlin("test"))
+    // org.json موجود جوه أندرويد؛ هنا (JVM) محتاجين نسخته عشان logic/OsmNearby.kt
+    implementation("org.json:json:20240303")
+}
 sourceSets {
     main {
         kotlin {

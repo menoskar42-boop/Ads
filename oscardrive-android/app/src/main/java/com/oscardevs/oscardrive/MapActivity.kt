@@ -82,6 +82,13 @@ class MapActivity : Activity() {
             }
             m.setOnCameraMoveStartedListener { reason -> if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) { follow = false; renderFollow() } }
             showHazards(m)
+            // «شوفه»: نقطة معيّنة (ركنة · تفويلة) ⇒ علامة عليها ومن غير متابعة
+            if (intent.hasExtra("lat")) {
+                val p = LatLng(intent.getDoubleExtra("lat", 0.0), intent.getDoubleExtra("lng", 0.0))
+                m.addMarker(MarkerOptions().position(p).title(intent.getStringExtra("label") ?: "📍"))?.showInfoWindow()
+                follow = false; renderFollow()
+                m.moveCamera(CameraUpdateFactory.newLatLngZoom(p, 17f)); return@getMapAsync
+            }
             val s = DriveService.State
             val start = if (s.lat != null && s.lng != null) LatLng(s.lat!!, s.lng!!) else Prefs(this).let { p -> LatLng(p.lastLat, p.lastLng) }
             m.moveCamera(CameraUpdateFactory.newLatLngZoom(start, if (start.latitude == 0.0) 5f else 16f))

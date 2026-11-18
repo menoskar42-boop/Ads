@@ -406,7 +406,7 @@ class MainActivity : Activity() {
                     here()?.let { " · بعيد عنك ${km(Geo.distanceM(it.first, it.second, f.lat, f.lng))}" }.orEmpty(), 16f, ui.ink, bold = true))
                 val r = ui.row()
                 r.addView(ui.button("✏️ سمّيه", "primary", 15f) { askText("اسم المكان ده", "مثلاً: الجيم · بيت بابا", "") { savePlaceAt(it, f.lat, f.lng) } }, ui.lp(0, ui.dp(52), 1f, 3))
-                r.addView(ui.button("🗺️ شوفه", "neutral", 15f) { view("geo:${f.lat},${f.lng}?q=${f.lat},${f.lng}") || toast("مفيش تطبيق خرائط على الشاشة") }, ui.lp(0, ui.dp(52), 1f, 3))
+                r.addView(ui.button("🗺️ شوفه", "neutral", 15f) { showPoint(f.lat, f.lng, "⛽") }, ui.lp(0, ui.dp(52), 1f, 3))
                 r.addView(ui.button("مش مهم", "neutral", 15f) { prefs.dismissSpot(f.lat, f.lng); refresh() }, ui.lp(0, ui.dp(52), 1f, 3))
                 c.addView(r)
                 page.addView(c, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 4))
@@ -460,7 +460,7 @@ class MainActivity : Activity() {
                 val r = ui.card(10).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
                 val extra = listOfNotNull(if (Parking.isApprox(p.spot())) "تقريبى" else null, p.note.takeIf { it.isNotBlank() }?.let { "📝 $it" }).joinToString(" · ")
                 r.addView(ui.text(dateTime(p.timeMs) + if (extra.isNotEmpty()) "\n$extra" else "", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
-                r.addView(ui.button("🗺️", "neutral", 15f) { view("geo:${p.lat},${p.lng}?q=${p.lat},${p.lng}") || toast("مفيش تطبيق خرائط") }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
+                r.addView(ui.button("🗺️", "neutral", 15f) { showPoint(p.lat, p.lng, "📍") }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
                 r.addView(ui.button("وصّلنى", "neutral", 14f) { navigateTo(p.lat, p.lng, "الركنة", walk = true) }, ui.lp(ui.dp(92), ui.dp(48), 0f, 2))
                 r.addView(ui.button("🗑️", "neutral", 15f) { confirm("تمسح الركنة دى؟") { db.deleteParking(p.id); refresh() } }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
                 page.addView(r, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
@@ -1053,15 +1053,58 @@ class MainActivity : Activity() {
         refresh()
     }
 
+    /** «شوفه» على الخريطة: جوه التطبيق لو الإعدادات بتقول كده، وإلا تطبيق الخرايط. */
+    private fun showPoint(lat: Double, lng: Double, label: String) {
+        if (inApp()) { try { startActivity(Intent(this, MapActivity::class.java).putExtra("lat", lat).putExtra("lng", lng).putExtra("label", label)); return } catch (_: Exception) {} }
+        view("geo:$lat,$lng?q=$lat,$lng") || toast("مفيش تطبيق خرائط على الشاشة")
+    }
+
     private fun openMap() {
         // الخريطة جوه التطبيق (المرحلة ٣) لو مفتاح الخرايط موجود، وإلا تطبيق الخرائط زى الأول
-        if (BuildConfig.NAV_SDK_KEY) { try { startActivity(Intent(this, MapActivity::class.java)); return } catch (_: Exception) {} }
+        if (inApp()) { try { startActivity(Intent(this, MapActivity::class.java)); return } catch (_: Exception) {} }
         val p = here()
         val uri = if (p != null) "geo:${p.first},${p.second}?z=16" else "geo:0,0?z=3"
         view(uri) || toast("مفيش تطبيق خرائط على الشاشة")
     }
 
+    /** الإعدادات بتقول «الملاحة جوه Oscar Drive» ومفتاح الخرايط موجود. */
+    private fun inApp(): Boolean = BuildConfig.NAV_SDK_KEY && prefs.navMode == 0
+
+    /**
+     * «أقرب …» جوه التطبيق من غير فلوس: OpenStreetMap (Overpass) ⇒ الأقرب ⇒ الملاحة جوه Oscar Drive. أى مشكلة ⇒ onFail (تطبيق الخرايط).
+     */
+    private fun nearbyOsm(kindId: String, ar: String, onFail: () -> Unit) {
+        val from = here()
+        val q = from?.let { com.oscardevs.oscardrive.logic.OsmNearby.query(kindId, it.first, it.second) }
+        if (from == null || q == null || !online()) { onFail(); return }
+        toast("بدوّر على أقرب $ar…")
+        Thread {
+            val res = try {
+                val c = java.net.URL(com.oscardevs.oscardrive.logic.OsmNearby.URL).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 10_000; c.readTimeout = 20_000; c.requestMethod = "POST"; c.doOutput = true
+                c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                c.setRequestProperty("User-Agent", "OscarDrive/" + BuildConfig.VERSION_NAME)
+                c.outputStream.use { it.write(("data=" + Uri.encode(q)).toByteArray()) }
+                if (c.responseCode != 200) null
+                else com.oscardevs.oscardrive.logic.OsmNearby.parse(c.inputStream.bufferedReader().use { it.readText() }, ar)
+            } catch (_: Exception) { null }
+            main.post {
+                val best = res?.let { Nearby.nearest(it, from.first, from.second) }
+                if (best == null) { sayInfo(if (res == null) "مش قادر أدوّر دلوقتى — هفتح الخرايط" else "مالقيتش $ar قريب — هفتح الخرايط"); onFail() }
+                else {
+                    sayInfo("أقرب $ar: ${best.name} — ${Geo.sayDistance(Geo.distanceM(from.first, from.second, best.lat, best.lng))}")
+                    navigateTo(best.lat, best.lng, best.name)
+                }
+            }
+        }.start()
+    }
+
     private fun nearestFuel() {
+        if (inApp() && !prefs.placesApiOn) { nearbyOsm("fuel", "بنزينة") { nearestFuelExternal() }; return }
+        nearestFuelExternal()
+    }
+
+    private fun nearestFuelExternal() {
         val p = here()
         val uri = if (p != null) "geo:${p.first},${p.second}?q=" + Uri.encode("gas station") else "geo:0,0?q=" + Uri.encode("gas station")
         view(uri) || toast("مفيش تطبيق خرائط على الشاشة")
@@ -1121,6 +1164,8 @@ class MainActivity : Activity() {
         val key = mapsKey()
         val from = here()
         if (kind == null || from == null || key.isEmpty() || !online() || !Nearby.allowed(prefs.placesApiOn, prefs.placesUsedThisMonth(month), prefs.placesCap)) {
+            // الملاحة جوه التطبيق ⇒ OpenStreetMap (مجانى) قبل ما نرجع لتطبيق الخرايط
+            if (kind != null && inApp()) { nearbyOsm(kind.id, kind.ar) { sayInfo("بدوّر على أقرب ${kind.ar} فى الخرايط"); mapsSearch(q) }; return }
             sayInfo("بدوّر على أقرب ${kind?.ar ?: q} فى الخرايط"); mapsSearch(q); return
         }
         prefs.countPlaces(month)
