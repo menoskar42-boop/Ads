@@ -14,7 +14,9 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RepeatedWithinMonthReport } from "@/components/RepeatedWithinMonthReport";
-import { ROLES } from "@shared/schema";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { REJECTION_REASONS, ROLES } from "@shared/schema";
+import { isBoxBrokenReason, matchesBoxScoreFilter } from "@shared/om-box-score";
 
 type Section = "maintenance" | "om" | "installations";
 type MatchValue = "matches" | "does_not_match" | "unknown";
@@ -42,6 +44,19 @@ type FollowupResponse = {
   readOnly: boolean;
 };
 type ReviewDraft = { wireDistanceMatch: MatchValue; customerWireMatch: MatchValue; reviewNotes: string };
+type OmFollowupFilters = {
+  q: string;
+  msan: string;
+  fcc: string;
+  tech: string;
+  response: string;
+  workingLt: string;
+  boxBrokenOnly: boolean;
+  boxScoreLt: string;
+  year: "all" | "current" | "previous";
+  dateFrom: string;
+  dateTo: string;
+};
 
 const SECTION_META: Record<Section, { label: string; title: string; description: string }> = {
   maintenance: {
@@ -476,6 +491,13 @@ export function InspectionFollowupReport() {
   const [month, setMonth] = useState(currentCairoMonth);
   const [selectedRow, setSelectedRow] = useState<FollowupRow | null>(null);
   const [drafts, setDrafts] = useState<Record<number, ReviewDraft>>({});
+  const [omFilters, setOmFilters] = useState<OmFollowupFilters>({
+    q: "", msan: "", fcc: "", tech: "", response: "", workingLt: "",
+    boxBrokenOnly: false, boxScoreLt: "", year: "current", dateFrom: "", dateTo: "",
+  });
+  function updateOmFilter<K extends keyof OmFollowupFilters>(key: K, value: OmFollowupFilters[K]) {
+    setOmFilters((current) => ({ ...current, [key]: value }));
+  }
   const section = activeTab === "repeated" ? null : activeTab;
   const sectionQueryKey = (target: Section, selectedMonth = month) => ["/api/inspection-followup", target, selectedMonth] as const;
   const followupQuery = useQuery<FollowupResponse>({
@@ -493,6 +515,70 @@ export function InspectionFollowupReport() {
   });
   const canReexec = activeTab === "om" && user?.role === ROLES.SUPER_ADMIN;
   const followupRows = followupQuery.data?.rows ?? [];
+  const isOmFilterAdmin = ([ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.EXTERNAL] as string[]).includes(user?.role ?? "");
+  const omMsanOptions = useMemo(() => [...new Set(followupRows
+    .map((row) => String(fieldValue(row.sourceData || {}, ["msanCode"]) ?? "").trim())
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar")), [followupRows]);
+  const omTechOptions = useMemo(() => [...new Set(followupRows
+    .map((row) => String(row.technicianName || fieldValue(row.sourceData || {}, ["technicianName", "techName"]) || "").trim())
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar")), [followupRows]);
+  const omDisplayRows = useMemo(() => {
+    const currentYear = new Date().getUTCFullYear();
+    const search = omFilters.q.trim().toLocaleLowerCase();
+    return followupRows.filter((row) => {
+      const data = row.sourceData || {};
+      const value = (keys: readonly string[]) => String(fieldValue(data, keys) ?? "").trim();
+      const searchable = [
+        value(["serviceOrderId"]), value(["serialNumber"]), value(["customerOrderId"]),
+        value(["customerName"]), value(["msanCode"]), value(["fccExchange"]),
+      ].join(" ").toLocaleLowerCase();
+      if (search && !searchable.includes(search)) return false;
+      if (omFilters.msan && value(["msanCode"]) !== omFilters.msan) return false;
+      if (omFilters.fcc && value(["fccExchange"]) !== omFilters.fcc) return false;
+      const technician = String(row.technicianName || fieldValue(data, ["technicianName", "techName"]) || "").trim();
+      if (isOmFilterAdmin && omFilters.tech && technician !== omFilters.tech) return false;
+
+      const rawOrderDate = value(["orderCreateTime"]);
+      const orderDate = rawOrderDate ? new Date(rawOrderDate) : null;
+      const validOrderDate = orderDate && !Number.isNaN(orderDate.getTime());
+      if (omFilters.year !== "all") {
+        if (!validOrderDate) {
+          if (omFilters.year === "current") return false;
+        } else {
+          const orderYear = orderDate.getUTCFullYear();
+          if (omFilters.year === "current" ? orderYear !== currentYear : orderYear >= currentYear) return false;
+        }
+      }
+      const orderDay = validOrderDate ? orderDate.toISOString().slice(0, 10) : "";
+      if (omFilters.dateFrom && (!orderDay || orderDay < omFilters.dateFrom)) return false;
+      if (omFilters.dateTo && (!orderDay || orderDay > omFilters.dateTo)) return false;
+
+      if (omFilters.response) {
+        const status = value(["respStatus"]) || "pending";
+        if (omFilters.response === "pending" && status !== "pending") return false;
+        if (omFilters.response === "feasible" && status !== "feasible" && status !== "external_feasible") return false;
+        if (omFilters.response !== "pending" && omFilters.response !== "feasible" &&
+            value(["respRejectionReason"]) !== omFilters.response &&
+            value(["respExternalRejectionReason"]) !== omFilters.response) return false;
+      }
+
+      if (omFilters.workingLt.trim()) {
+        const limit = Number.parseInt(omFilters.workingLt, 10);
+        const working = Number(value(["boxWorkingCount"]));
+        if (Number.isFinite(limit) && (!Number.isFinite(working) || !(working < limit))) return false;
+      }
+      const boxBroken = isBoxBrokenReason(
+        fieldValue(data, ["respRejectionReason"]),
+        fieldValue(data, ["respExternalRejectionReason"]),
+        REJECTION_REASONS.BOX_BROKEN,
+      );
+      const scoreValue = fieldValue(data, ["boxAvgScore"]);
+      const boxScore = scoreValue == null || scoreValue === "" ? null : Number(scoreValue);
+      if (!matchesBoxScoreFilter(boxBroken, Number.isFinite(boxScore) ? boxScore : null,
+        omFilters.boxBrokenOnly, omFilters.boxScoreLt)) return false;
+      return true;
+    });
+  }, [followupRows, isOmFilterAdmin, omFilters]);
   const reexecKeys = useMemo(() => (canReexec
     ? [...new Set(followupRows.map((row) => String(fieldValue(row.sourceData || {}, ["serviceOrderId"]) || "").replace(/\D/g, "")).filter(Boolean))].slice(0, 500)
     : []), [canReexec, followupRows]);
@@ -686,6 +772,7 @@ export function InspectionFollowupReport() {
           const isLoading = isCurrent && followupQuery.isLoading;
           const isError = isCurrent && followupQuery.isError;
           const readOnly = !!responseData?.readOnly;
+          const sectionRows = currentSection === "om" ? omDisplayRows : rows;
           const canEdit = currentSection === "installations" && !responseData?.readOnly && user?.role !== ROLES.TECH;
           const canReplyExternal = !readOnly &&
             ([ROLES.EXTERNAL, ROLES.ADMIN, ROLES.SUPER_ADMIN] as string[]).includes(user?.role ?? "");
@@ -714,6 +801,150 @@ export function InspectionFollowupReport() {
                 )}
               </div>
 
+              {currentSection === "om" && (
+                <Card className="space-y-3 border border-slate-200 bg-[#fffefa] p-3 shadow-sm" data-testid="om-followup-filters">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      value={omFilters.q}
+                      onChange={(event) => updateOmFilter("q", event.target.value)}
+                      placeholder="بحث بالمسلسل / Order ID / العميل / MSAN"
+                      className="w-full text-sm sm:w-56"
+                      data-testid="input-followup-om-search"
+                    />
+                    <div className="w-full sm:w-44">
+                      <SearchableCombobox
+                        options={omMsanOptions}
+                        value={omFilters.msan}
+                        onChange={(value) => updateOmFilter("msan", value)}
+                        placeholder="كود الكابينة (MSAN)"
+                        searchPlaceholder="ابحث بكود الكابينة..."
+                        emptyText="لا توجد أكواد في العينة"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <select
+                      value={omFilters.fcc}
+                      onChange={(event) => updateOmFilter("fcc", event.target.value)}
+                      className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                      title="فلتر حسب كود السنترال"
+                      data-testid="select-followup-om-fcc"
+                    >
+                      <option value="">كل السنترالات</option>
+                      <option value="GHNAT">GHNAT</option>
+                      <option value="AMZAT">AMZAT</option>
+                      <option value="DRGAT">DRGAT</option>
+                      <option value="NGOAT">NGOAT</option>
+                    </select>
+                    {isOmFilterAdmin && (
+                      <div className="w-full sm:w-44">
+                        <SearchableCombobox
+                          options={omTechOptions}
+                          value={omFilters.tech}
+                          onChange={(value) => updateOmFilter("tech", value)}
+                          placeholder="كل الفنيين"
+                          searchPlaceholder="ابحث باسم الفني..."
+                          emptyText="لا يوجد فنيون في العينة"
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                    )}
+                    <Button
+                      variant={omFilters.boxBrokenOnly ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => updateOmFilter("boxBrokenOnly", !omFilters.boxBrokenOnly)}
+                      className={omFilters.boxBrokenOnly ? "bg-orange-600 hover:bg-orange-700" : "border-orange-300 text-orange-700"}
+                      title="عرض الحالات التي سببها بوكس معطل فقط"
+                      data-testid="button-followup-om-box-broken"
+                    >
+                      بوكس معطل
+                    </Button>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={omFilters.boxScoreLt}
+                      onChange={(event) => updateOmFilter("boxScoreLt", event.target.value)}
+                      placeholder="متوسط Score أقل من أو يساوي..."
+                      className="w-full text-sm sm:w-52"
+                      title="يعرض حالات البوكس المعطل التي متوسط Score لها أقل من أو يساوي القيمة"
+                      data-testid="input-followup-om-box-score"
+                    />
+                    <select
+                      value={omFilters.response}
+                      onChange={(event) => updateOmFilter("response", event.target.value)}
+                      className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                      title="فلتر حسب رد الفني أو سبب التعذر"
+                      data-testid="select-followup-om-response"
+                    >
+                      <option value="">كل الحالات</option>
+                      <option value="pending">قيد الانتظار</option>
+                      <option value="feasible">يمكن التنفيذ</option>
+                      {Object.values(REJECTION_REASONS).map((reason) => (
+                        <option key={reason} value={reason}>{reason}</option>
+                      ))}
+                    </select>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={omFilters.workingLt}
+                      onChange={(event) => updateOmFilter("workingLt", event.target.value)}
+                      placeholder="الشغال أقل من..."
+                      className="w-full text-sm sm:w-36"
+                      title="يعرض المتعذرات التي يعمل على البوكس الخاص بها أقل من هذا العدد"
+                      data-testid="input-followup-om-working-lines"
+                    />
+                    <select
+                      value={omFilters.year}
+                      onChange={(event) => updateOmFilter("year", event.target.value as OmFollowupFilters["year"])}
+                      className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                      title="فلتر حسب سنة إنشاء الطلب"
+                      data-testid="select-followup-om-year"
+                    >
+                      <option value="all">كل السنوات</option>
+                      <option value="current">متعذرات العام</option>
+                      <option value="previous">متعذرات سنوات سابقة</option>
+                    </select>
+                    <label className="flex items-center gap-1 text-xs text-slate-600">
+                      من:
+                      <input
+                        type="date"
+                        value={omFilters.dateFrom}
+                        onChange={(event) => updateOmFilter("dateFrom", event.target.value)}
+                        className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                        data-testid="input-followup-om-date-from"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1 text-xs text-slate-600">
+                      إلى:
+                      <input
+                        type="date"
+                        value={omFilters.dateTo}
+                        onChange={(event) => updateOmFilter("dateTo", event.target.value)}
+                        className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                        data-testid="input-followup-om-date-to"
+                      />
+                    </label>
+                    {(omFilters.q || omFilters.msan || omFilters.fcc || omFilters.tech || omFilters.response ||
+                      omFilters.workingLt || omFilters.boxBrokenOnly || omFilters.boxScoreLt ||
+                      omFilters.year !== "current" || omFilters.dateFrom || omFilters.dateTo) && (
+                      <button
+                        onClick={() => setOmFilters({
+                          q: "", msan: "", fcc: "", tech: "", response: "", workingLt: "",
+                          boxBrokenOnly: false, boxScoreLt: "", year: "current", dateFrom: "", dateTo: "",
+                        })}
+                        className="text-xs text-red-600 underline hover:text-red-700"
+                        data-testid="button-followup-om-clear-filters"
+                      >
+                        مسح الفلاتر
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500" aria-live="polite" data-testid="text-followup-om-filtered-count">
+                    النتائج: <bdi dir="ltr">{omDisplayRows.length.toLocaleString("ar-EG")}</bdi> من{" "}
+                    <bdi dir="ltr">{followupRows.length.toLocaleString("ar-EG")}</bdi> سجل
+                  </div>
+                </Card>
+              )}
+
               <Card className="overflow-hidden border border-slate-200 bg-[#fffefa] shadow-sm">
                 {isError && (
                   <div className="flex flex-col items-center gap-3 px-4 py-12 text-center" role="alert" data-testid={`error-${currentSection}`}>
@@ -732,17 +963,19 @@ export function InspectionFollowupReport() {
                     {[0, 1, 2, 3].map((item) => <div key={item} className="h-12 animate-pulse rounded-md bg-slate-100" />)}
                   </div>
                 )}
-                {isCurrent && !isLoading && !isError && rows.length === 0 && (
+                {isCurrent && !isLoading && !isError && sectionRows.length === 0 && (
                   <div className="flex flex-col items-center px-4 py-14 text-center" data-testid={`empty-${currentSection}`}>
                     <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-500"><ClipboardCheck className="h-5 w-5" /></div>
-                    <p className="mt-3 font-semibold text-slate-800">لا توجد سجلات لهذا الشهر</p>
+                    <p className="mt-3 font-semibold text-slate-800">
+                      {currentSection === "om" && rows.length > 0 ? "لا توجد نتائج مطابقة للفلاتر" : "لا توجد سجلات لهذا الشهر"}
+                    </p>
                     <p className="mt-1 text-xs text-slate-500">الشهر المحدد: <bdi dir="ltr">{month}</bdi></p>
                   </div>
                 )}
-                {isCurrent && !isLoading && !isError && rows.length > 0 && (
+                {isCurrent && !isLoading && !isError && sectionRows.length > 0 && (
                   <>
                   <div className="space-y-3 p-3 md:hidden" data-testid={`mobile-cards-${currentSection}`}>
-                    {rows.map((row, index) => {
+                    {sectionRows.map((row, index) => {
                       const data = row.sourceData || {};
                       const customerName = fieldValue(data, ["customerName", "customer_name", "name"]);
                       const externalActionEnabled = fieldValue(data, ["respStatus"]) === "needs_external";
@@ -875,7 +1108,7 @@ export function InspectionFollowupReport() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {rows.map((row, index) => {
+                        {sectionRows.map((row, index) => {
                           const data = row.sourceData || {};
                           const customerName = fieldValue(data, ["customerName", "customer_name", "name"]);
                           const externalActionEnabled = fieldValue(data, ["respStatus"]) === "needs_external";

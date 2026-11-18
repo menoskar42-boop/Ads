@@ -8,6 +8,7 @@ description: User-stated editing and implementation constraints for the Service 
 - Add new features one at a time.
 - For files over 200 lines, insert code sections only; never replace the full file.
 - For multi-phase migrations, continue sequentially without requesting phase-by-phase confirmation; give one consolidated report after all safe implementation work is complete.
+- Send code changes through the GitHub branch so Replit can pull them; the owner handles publishing.
 
 **Why:** the user provided these as important constraints for Service Flow.
 
