@@ -71,7 +71,7 @@ externalPort = 5000
 # شايله = شاشة بيضا من غير رسالة خطأ. الحارس: check-serviceflow-path.
 [deployment]
 deploymentTarget = "vm"
-build = ["sh", "-c", "npm install --include=dev && (cd mybible && npm install --include=dev && npm run build) && (cd serviceflow && npm install --include=dev && SF_BASE_PATH=/serviceflow/ npm run build)"]
+build = ["sh", "-c", "set -e; echo '[build] START 1/5 root npm install'; npm install --include=dev; echo '[build] DONE 1/5 root npm install'; echo '[build] START 2/5 MyBible npm install'; (cd mybible && npm install --include=dev); echo '[build] DONE 2/5 MyBible npm install'; echo '[build] START 3/5 MyBible build'; (cd mybible && npm run build); echo '[build] DONE 3/5 MyBible build'; echo '[build] START 4/5 Service Flow npm install'; (cd serviceflow && npm install --include=dev); echo '[build] DONE 4/5 Service Flow npm install'; echo '[build] START 5/5 Service Flow build'; (cd serviceflow && SF_BASE_PATH=/serviceflow/ npm run build); echo '[build] DONE 5/5 Service Flow build'"]
 run = ["sh", "-c", "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=true SF_BASE_PATH=/serviceflow/ npm start"]
 ignorePorts = false
 
