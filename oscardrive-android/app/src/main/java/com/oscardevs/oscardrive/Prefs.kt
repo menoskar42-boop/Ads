@@ -17,6 +17,14 @@ class Prefs(context: Context) {
     var speedAlerts: Boolean
         get() = sp.getBoolean("speed_alerts", true)
         set(v) = sp.edit().putBoolean("speed_alerts", v).apply()
+    /** مسافة تنبيه المطبات/الحفر المتسجّلة (م) — ١٠٠ افتراضى (المالك ٢٠٢٦-١١-١٨). */
+    var bumpWarnM: Int
+        get() = sp.getInt("bump_warn_m", com.oscardevs.oscardrive.logic.RoadMemory.DEFAULT_BUMP_WARN_M)
+        set(v) = sp.edit().putInt("bump_warn_m", v.coerceIn(30, 1000)).apply()
+    /** وضع عدم الإزعاج: مفيش تنبيه مطبات تحت ٧ كم/س — مقفول افتراضياً (يعنى بينبّه حتى وانت ماشى ببطء). */
+    var quietSlow: Boolean
+        get() = sp.getBoolean("quiet_slow", false)
+        set(v) = sp.edit().putBoolean("quiet_slow", v).apply()
     var hazardAlerts: Boolean
         get() = sp.getBoolean("hazard_alerts", true)
         set(v) = sp.edit().putBoolean("hazard_alerts", v).apply()

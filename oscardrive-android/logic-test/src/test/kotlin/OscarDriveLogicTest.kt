@@ -113,6 +113,31 @@ class RoadMemoryTest {
         val radarN = radar.copy(bearing = 5f)
         assertNotNull(RoadMemory.ahead(listOf(radarN), LAT0, LNG0, 0f, 60f, 0, emptyMap()))
     }
+    // المالك ٢٠٢٦-١١-١٨: «وضع عدم الإزعاج» ⇒ مفيش تنبيه تحت ٧ كم/س · مقفول ⇒ بينبّه حتى وانت ماشى ببطء · المسافة ١٠٠ م افتراضى
+    @Test fun slowAndConfigurableDistance() {
+        val q = RoadMemory.QUIET_SLOW_KMH; val s = RoadMemory.STOPPED_KMH; val d100 = RoadMemory.DEFAULT_BUMP_WARN_M.toDouble()
+        val near = Hazard(5, HazardType.BUMP, north(60.0), LNG0, 0f)
+        // ٥ كم/س: عدم الإزعاج ⇒ لأ · من غيره ⇒ آه
+        assertNull(RoadMemory.ahead(listOf(near), LAT0, LNG0, 0f, 5f, 0, emptyMap(), minKmh = q, minWarnM = d100))
+        assertNotNull(RoadMemory.ahead(listOf(near), LAT0, LNG0, 0f, 5f, 0, emptyMap(), minKmh = s, minWarnM = d100))
+        // ٨ كم/س ⇒ آه فى الحالتين · واقف (١ كم/س) ⇒ لأ
+        assertNotNull(RoadMemory.ahead(listOf(near), LAT0, LNG0, 0f, 8f, 0, emptyMap(), minKmh = q, minWarnM = d100))
+        assertNull(RoadMemory.ahead(listOf(near), LAT0, LNG0, 0f, 1f, 0, emptyMap(), minKmh = s, minWarnM = d100))
+        // مطب على ١٢٠ م بسرعة ٣٠: مسافة ١٠٠ ⇒ لسه · ١٥٠ ⇒ آه
+        assertNull(RoadMemory.ahead(listOf(bump), LAT0, LNG0, 0f, 30f, 0, emptyMap(), minKmh = s, minWarnM = 100.0))
+        assertNotNull(RoadMemory.ahead(listOf(bump), LAT0, LNG0, 0f, 30f, 0, emptyMap(), minKmh = s, minWarnM = 150.0))
+        // السرعة العالية لسه بتبعّد التنبيه: ١٠٠ كم/س ⇒ ~٤١٥ م حتى لو الإعداد ١٠٠
+        assertTrue(abs(RoadMemory.rangeM(HazardType.BUMP, 100f, 100.0) - 415) < 5)
+        // الرادار مالوش دعوة بالإعداد (٣ كم)
+        assertEquals(3000.0, RoadMemory.rangeM(HazardType.RADAR, 60f, 50.0))
+    }
+    @Test fun noHeadingYet() {
+        val s = RoadMemory.STOPPED_KMH
+        // أول التشغيل ومفيش اتجاه: القريب جداً (≤ ٤٠ م) بس
+        assertNotNull(RoadMemory.ahead(listOf(Hazard(6, HazardType.BUMP, north(30.0), LNG0, null)), LAT0, LNG0, null, 6f, 0, emptyMap(), minKmh = s, minWarnM = 100.0))
+        assertNull(RoadMemory.ahead(listOf(Hazard(7, HazardType.BUMP, north(80.0), LNG0, null)), LAT0, LNG0, null, 6f, 0, emptyMap(), minKmh = s, minWarnM = 100.0))
+        assertNull(RoadMemory.ahead(listOf(Hazard(8, HazardType.RADAR, north(30.0), LNG0, 0f)), LAT0, LNG0, null, 6f, 0, emptyMap(), minKmh = s, minWarnM = 100.0))
+    }
     @Test fun duplicates() {
         assertNotNull(RoadMemory.duplicateOf(listOf(bump), HazardType.BUMP, north(110.0), LNG0))
         assertNull(RoadMemory.duplicateOf(listOf(bump), HazardType.POTHOLE, north(110.0), LNG0))

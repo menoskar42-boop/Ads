@@ -52,14 +52,27 @@ object RoadMemory {
     const val WARN_AGAIN_MS = 5 * 60_000L
     const val DUPLICATE_M = 30.0
 
-    /** ٦٠ كم ⇒ ~٢٠٠ م · ١٠٠ ⇒ ~٤١٥ م · ١٢٠ ⇒ ~٥٤٥ م. */
-    fun warnDistanceM(kmh: Float): Double {
+    /**
+     * مسافة التنبيه للمطبات والحفر والأماكن الخطر المتسجّلة (المالك ٢٠٢٦-١١-١٨): **١٠٠ م افتراضى** وتتغيّر من الإعدادات.
+     * دى «أقل مسافة» — لو سرعتك عالية التنبيه بييجى أبعد (٨ ثوانى + فرملة هادية). الرادار (٣ كم) والكاميرا مالهمش دعوة بيها.
+     */
+    const val DEFAULT_BUMP_WARN_M = 100
+    val BUMP_WARN_OPTIONS = listOf(50, 100, 150, 200, 250, 300)
+    /** «وضع عدم الإزعاج» (المالك ٢٠٢٦-١١-١٨): مفيش تنبيه مطبات تحت ٧ كم/س. مقفول ⇒ بينبّه حتى وانت ماشى ببطء. */
+    const val QUIET_SLOW_KMH = 7f
+    /** أقل من كده = واقف (الـGPS بيتهزّ وانت راكن) — عشان مايفضلش ينبّه كل ٥ دقايق والعربية راكنة جنب مطب. */
+    const val STOPPED_KMH = 2f
+    /** مفيش اتجاه معروف لسه (أول التشغيل): بينبّه على اللى قريب جداً بس. */
+    const val NO_HEADING_M = 40.0
+
+    /** ٦٠ كم ⇒ ~٢٠٠ م · ١٠٠ ⇒ ~٤١٥ م · ١٢٠ ⇒ ~٥٤٥ م. `minM` = مسافة التنبيه اللى فى الإعدادات. */
+    fun warnDistanceM(kmh: Float, minM: Double = MIN_WARN_M): Double {
         val v = kmh / 3.6
-        return max(MIN_WARN_M, v * NOTICE_S + v * v / (2 * COMFORT_DECEL))
+        return max(minM, v * NOTICE_S + v * v / (2 * COMFORT_DECEL))
     }
 
-    fun rangeM(type: HazardType, kmh: Float): Double =
-        if (type == HazardType.RADAR) max(RADAR_WARN_M, warnDistanceM(kmh)) else warnDistanceM(kmh)
+    fun rangeM(type: HazardType, kmh: Float, minM: Double = MIN_WARN_M): Double =
+        if (type == HazardType.RADAR) max(RADAR_WARN_M, warnDistanceM(kmh)) else warnDistanceM(kmh, minM)
 
     /** مفتاح «اتنبّهت» — الرادار ليه مرحلتين (بعيد ⇒ id · قريب ⇒ -id) فبيتنبّه مرتين. */
     fun warnKey(h: Hazard, distanceM: Double, kmh: Float): Long =
@@ -69,12 +82,20 @@ object RoadMemory {
     fun ahead(
         hazards: List<Hazard>, lat: Double, lng: Double, headingDeg: Float?, kmh: Float,
         nowMs: Long, warned: Map<Long, Long>,
+        minKmh: Float = MIN_SPEED_KMH, minWarnM: Double = MIN_WARN_M,
     ): Pair<Hazard, Double>? {
-        if (kmh < MIN_SPEED_KMH || headingDeg == null) return null
+        if (kmh < minKmh) return null
         var best: Pair<Hazard, Double>? = null
         for (h in hazards) {
             val d = Geo.distanceM(lat, lng, h.lat, h.lng)
-            if (d > rangeM(h.type, kmh)) continue
+            if (d > rangeM(h.type, kmh, minWarnM)) continue
+            if (headingDeg == null) {
+                // لسه مفيش اتجاه (أول التشغيل): القريب جداً بس، ومن غير الرادار (ليه اتجاه)
+                if (d > NO_HEADING_M || h.type.directional) continue
+                if (warned[warnKey(h, d, kmh)]?.let { nowMs - it < WARN_AGAIN_MS } == true) continue
+                if (best == null || d < best.second) best = h to d
+                continue
+            }
             val last = warned[warnKey(h, d, kmh)]
             if (last != null && nowMs - last < WARN_AGAIN_MS) continue
             // قريب جداً: الاتجاه للنقطة بيبقى عشوائى — يكفى إن العربية ماشية ناحيته

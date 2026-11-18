@@ -290,7 +290,9 @@ class DriveService : Service() {
         if (State.hazardsDirty) { hazards = db.hazards(); State.hazardsDirty = false }
         val lat = State.lat ?: return
         val lng = State.lng ?: return
-        val hit = RoadMemory.ahead(hazards, lat, lng, trip.headingDeg, kmh, now, warned) ?: return
+        val minKmh = if (prefs.quietSlow) RoadMemory.QUIET_SLOW_KMH else RoadMemory.STOPPED_KMH
+        val hit = RoadMemory.ahead(hazards, lat, lng, trip.headingDeg, kmh, now, warned,
+            minKmh = minKmh, minWarnM = prefs.bumpWarnM.toDouble()) ?: return
         warned[RoadMemory.warnKey(hit.first, hit.second, kmh)] = now
         val msg = RoadMemory.warning(hit.first, hit.second)
         showBanner("${hit.first.type.emoji} $msg", "hazard", 8_000)

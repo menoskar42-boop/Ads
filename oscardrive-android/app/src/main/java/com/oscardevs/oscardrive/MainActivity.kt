@@ -832,6 +832,14 @@ class MainActivity : Activity() {
         }
         page.addView(toggle("🔊 تنبيه صوتى لما توصل حد السرعة", prefs.speedAlerts) { prefs.speedAlerts = it })
         page.addView(toggle("🛣️ نبّهنى قبل المطبات والحفر والرادار اللى سجّلتها", prefs.hazardAlerts) { prefs.hazardAlerts = it })
+        val warnOpts = (RoadMemory.BUMP_WARN_OPTIONS + prefs.bumpWarnM).distinct().sorted()
+        page.addView(optionRow("📏 نبّهنى قبل المطب/الحفرة بـ (متر — وأبعد لو سرعتك عالية)", warnOpts.map { it to "$it" }, prefs.bumpWarnM) { prefs.bumpWarnM = it })
+        page.addView(ui.button("مسافة تانية…", "neutral", 15f) {
+            askText("مسافة التنبيه بالمتر", "مثلاً: 120", prefs.bumpWarnM.toString(), InputType.TYPE_CLASS_NUMBER) { v ->
+                v.trim().toIntOrNull()?.takeIf { it in 30..1000 }?.let { prefs.bumpWarnM = it } ?: toast("اكتب رقم من ٣٠ لـ١٠٠٠"); refresh()
+            }
+        }, ui.lp(Ui.MATCH, ui.dp(50), marginDp = 4))
+        page.addView(toggle("🔕 وضع عدم الإزعاج: مانبّهنيش على المطبات وانا ماشى أقل من ٧ كم/س", prefs.quietSlow) { prefs.quietSlow = it })
         page.addView(toggle("📸 صوّر المطبات والحفر اللى سجّلتها وانا جاى عليها (لتدريب الموديل)", prefs.autoShots) { prefs.autoShots = it })
         Shots.pending(this).takeIf { it > 0 }?.let { n ->
             page.addView(ui.text("📸 $n صورة طريق مستنية نت عشان تترفع", 13f, ui.muted).apply { setPadding(ui.dp(6), 0, ui.dp(6), 0) })
