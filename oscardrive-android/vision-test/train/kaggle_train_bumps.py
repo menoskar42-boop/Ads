@@ -2,6 +2,7 @@
 # الموديل: YOLOX-Nano (رخصة Apache-2.0 — مش Ultralytics/AGPL). الداتا: road_anomaly_ds (MIT) — Pothole · Speedbump · Crack.
 # قبل التشغيل: من اليمين «Add Input» ← دوّر على road-anomaly-ds ← Add. والإعدادات: GPU T4 x2 · Internet on.
 # الناتج فى /kaggle/working/oscar_bumps: الموديل (pth + onnx) + تقرير الدقة لكل نوع.
+# نسخة ٤ (٢٠٢٦-١١-١٨): Version 4 خلصت (AP 46.4 · AP50 80.3) بس التقييم والتصدير لـONNX وقعوا بسبب PyTorch 2.6 ⇒ اتصلّح.
 # نسخة ٣ (٢٠٢٦-١١-١٨): نسخة ٢ علّقت ٥:٤٠ ساعة بعد أول سطر تدريب. دلوقتى: من غير عمّال تحميل جانبيين (data_num_workers=0 و
 # cv2 بخيط واحد — أشهر سبب لتعليق YOLOX) · ولو مفيش ولا سطر جديد ٢٠ دقيقة: بيطبع مكان التعليق (py-spy) ويوقف بدل ما يصرف ساعات GPU.
 # نسخة ٢ (٢٠٢٦-١١-١٧): أول تشغيل علّق ٣ ساعات من غير ولا سطر (التدريب على كارتين GPU مع بعض بيعلّق على Kaggle).
@@ -18,7 +19,9 @@ WORK = "/kaggle/working/yolox_work"
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(WORK, exist_ok=True)
 
-ENV = dict(os.environ, PYTHONUNBUFFERED="1", NCCL_P2P_DISABLE="1", NCCL_IB_DISABLE="1")
+# TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD: PyTorch 2.6 بقى torch.load(weights_only=True) افتراضياً، وbest_ckpt.pth بتاع YOLOX فيه numpy scalar
+# ⇒ eval.py وexport_onnx.py وقعوا فى Version 4 (والملف من تدريبنا نفسه، فالتحميل الكامل آمن هنا).
+ENV = dict(os.environ, PYTHONUNBUFFERED="1", NCCL_P2P_DISABLE="1", NCCL_IB_DISABLE="1", TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD="1")
 
 def log(msg):
     # stderr = اللى بيظهر فى تبويب Logs فى Kaggle وهو شغّال

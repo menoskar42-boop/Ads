@@ -7,6 +7,8 @@
 - **نسخة ٢ (٢٠٢٦-١١-١٧):** التشغيل الأول علّق +٣ ساعات من غير أى سطر بعد «Cloning YOLOX» (التدريب الموزّع على T4 x2
   بيعلّق على Kaggle). دلوقتى: كارت واحد (`-d 1`) + `NCCL_P2P_DISABLE` · سطر بالدقايق فى Logs (stderr) + سطر YOLOX كل ٢٠ خطوة ·
   حد أقصى ١٠.٥ ساعة ⇒ يوقف ويصدّر `latest_ckpt` قبل حد Kaggle (١٢ ساعة).
+- **✅ Version 4 (نسخة ٣ من الكود، ٢٠٢٦-١١-١٨):** خلصت فى ٨٨ دقيقة — AP 46.4 · AP50 80.3 (Pothole 42.4 · Speedbump 52.4 · Crack 44.6)،
+  ٢.٦ مللى ثانية للصورة على T4. التقييم والـONNX وقعوا (PyTorch 2.6 ‏weights_only) ⇒ **نسخة ٤** بتضبط `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1`.
 - **نسخة ٣ (٢٠٢٦-١١-١٨):** Version 2 علّقت ٥:٤٠ ساعة بعد جدول الإعدادات (آخر سطر تحذير autocast من `yolo_head.py`، ومفيش ولا
   `epoch`). دلوقتى `data_num_workers=0` و`cv2.setNumThreads(0)` (أشهر سبب لتعليق YOLOX)، وحارس: مفيش سطر ٢٠ دقيقة ⇒ `py-spy dump`
   لمكان التعليق فى الـLog ثم إيقاف (بدل ما يحرق لحد ١٠.٥ ساعة). الحارس اتجرّب محلياً (stalled/done/error/timeout).

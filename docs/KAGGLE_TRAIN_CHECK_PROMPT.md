@@ -117,3 +117,35 @@ Google» / «Continue with Google» واختار حساب جوجل menoskar42 (�
 | الخطوة | اتعملت؟ | ملاحظة |
 - لينك الـcommit على GitHub
 ```
+
+## نتيجة Version 4 (٢٠٢٦-١١-١٨) + البرومبت ٤ — رفع ملف الموديل
+
+✅ التدريب خلص فى ٨٨ دقيقة (نسخة ٣ من الكود): AP 46.4 · AP50 80.3 · Pothole 42.4 · Speedbump 52.4 · Crack 44.6 · ٢.٦ مللى ثانية للصورة
+على T4. التقرير الكامل: `oscardrive-android/vision-test/model/kaggle-report.md` على فرع `oscar-bumps-model` (commit `818db89`).
+❌ eval.py وexport_onnx.py وقعوا (PyTorch 2.6 ‏`weights_only=True`) ⇒ مفيش ONNX. الكود اتصلّح (نسخة ٤: `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1`)،
+والأسرع: الإكستنشن يرفع الـpth وكلود يصدّر ONNX عنده (YOLOX + torch موجودين فى بيئته).
+الصفحة: https://claude.ai/artifact/2KvW1vyy5c2XupynB9qJEk — **Trigger:** «ابعتلي برومبت رفع موديل المطبات».
+
+```
+المطلوب: ترفع ملف موديل المطبات (oscar_bumps_yolox_nano.pth، حوالى ٧.٦ ميجا) من Kaggle على GitHub، عشان كلود يحوّله لـONNX عنده (التصدير
+وقع على Kaggle بسبب إصدار PyTorch). المتصفح فيه حساب المالك. لو طلب تسجيل دخول: «Sign in with Google» بحساب menoskar42 (بإذن المالك).
+ماتكتبش كلمة سر بنفسك، ولو طلب كود تحقق: وقّف واطلب من المالك.
+
+⛔ خطوط حمرا:
+- ممنوع تشغّل Version جديدة على Kaggle أو تعدّل النوتبوك.
+- على GitHub: الفرع oscar-bumps-model بس. ممنوع أى فرع تانى، وممنوع تمسح أو تعدّل أى ملف.
+- الهارد عند المالك شبه مليان: نزّل الملف ده بس، وامسحه من التنزيلات أول ما يترفع.
+
+الخطوات:
+١) افتح https://www.kaggle.com/code ← Your Work ← notebookd9512e2193 ← Version 4 ← تبويب Output ← فولدر oscar_bumps.
+   نزّل oscar_bumps_yolox_nano.pth بس (زرار التحميل جنب الملف). لو التحميل فشل بسبب المساحة: وقّف واكتب كده.
+٢) افتح https://github.com/menoskar42-boop/Ads/tree/oscar-bumps-model/oscardrive-android/vision-test/model
+   (لازم يكون مكتوب فوق إن الفرع oscar-bumps-model).
+٣) Add file ← Upload files ← اسحب الملف oscar_bumps_yolox_nano.pth (أو choose your files). استنى لحد ما يخلص رفع.
+٤) رسالة الـcommit: «Oscar Drive: bumps model weights (Version 4)» ← «Commit directly to the oscar-bumps-model branch» ← Commit changes.
+٥) اتأكد إن الملف ظاهر فى الفولدر وحجمه حوالى 7.58 MB، وبعدين امسح الملف من مجلد التنزيلات.
+
+التقرير (بالعربى):
+| الخطوة | اتعملت؟ | ملاحظة |
+- لينك الـcommit
+```
