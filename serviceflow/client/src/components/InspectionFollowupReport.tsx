@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowUpLeft, Check, ClipboardCheck, Loader2, Phone, RefreshCw, Wrench } from "lucide-react";
+import { AlertCircle, ArrowUpLeft, Check, ClipboardCheck, Loader2, Phone, RefreshCw, RotateCcw, Wrench } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { dispatchSpeedTool, openOpSite, OSS_REEXEC_AR } from "@/lib/exec-queue";
+import { useNightPause, nightAwareInterval } from "@/lib/night-pause";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -489,6 +491,52 @@ export function InspectionFollowupReport() {
       return response.json();
     },
   });
+  const canReexec = activeTab === "om" && user?.role === ROLES.SUPER_ADMIN;
+  const followupRows = followupQuery.data?.rows ?? [];
+  const reexecKeys = useMemo(() => (canReexec
+    ? [...new Set(followupRows.map((row) => String(fieldValue(row.sourceData || {}, ["serviceOrderId"]) || "").replace(/\D/g, "")).filter(Boolean))].slice(0, 500)
+    : []), [canReexec, followupRows]);
+  const { refreshPaused: nightPaused } = useNightPause();
+  const { data: reexecLast, refetch: refetchReexec } = useQuery<{ data: Record<string, { result: string; reportedAt: string }> }>({
+    queryKey: ["/api/oss-reexec/last", reexecKeys.join(",")],
+    queryFn: async () => {
+      const response = await fetch(`/api/oss-reexec/last?keys=${encodeURIComponent(reexecKeys.join(","))}`, { credentials: "include" });
+      return response.ok ? response.json() : { data: {} };
+    },
+    enabled: reexecKeys.length > 0,
+    refetchInterval: nightAwareInterval(30_000, nightPaused),
+  });
+  const [reexecBusy, setReexecBusy] = useState<string | null>(null);
+  const runOssReexec = async (row: FollowupRow) => {
+    const data = row.sourceData || {};
+    const serviceOrderId = String(fieldValue(data, ["serviceOrderId"]) || "").replace(/\D/g, "");
+    if (!serviceOrderId) return;
+    const customerName = fieldValue(data, ["customerName"]);
+    if (!confirm(`Re-Execute لـ Service Order ID ${serviceOrderId}${customerName ? ` (${customerName})` : ""} على OSS؟\nReason: ReExecuteParentReason02 — Sub Reason: ReExecuteSubReason03`)) return;
+    setReexecBusy(serviceOrderId);
+    try {
+      const params = { mode: "order" };
+      if (!(await dispatchSpeedTool("ossreexec", [serviceOrderId], canReexec, { params }))) openOpSite("ossreexec", serviceOrderId, params);
+      setTimeout(() => { void refetchReexec(); }, 5000);
+    } finally { setReexecBusy(null); }
+  };
+  const renderReexec = (row: FollowupRow, view: "mobile" | "desktop") => {
+    const data = row.sourceData || {};
+    const serviceOrderId = String(fieldValue(data, ["serviceOrderId"]) || "").replace(/\D/g, "");
+    if (!canReexec || !serviceOrderId) return null;
+    const last = reexecLast?.data?.[serviceOrderId];
+    return (
+      <div className="flex flex-col items-start gap-1" data-testid={`followup-oss-reexec-${view}-${row.id}`}>
+        <Button size="sm" variant="outline" disabled={reexecBusy === serviceOrderId} onClick={() => void runOssReexec(row)}
+          className="h-6 gap-1 px-2 text-[11px] text-indigo-700 border-indigo-300 hover:bg-indigo-50"
+          title="Re-Execute على OSS (Abnormal WO) بالـ Service Order ID — سوبر أدمن بس"
+          data-testid={`button-followup-oss-reexec-${serviceOrderId}-${view}`}>
+          <RotateCcw className="h-3 w-3" /> Re-Execute
+        </Button>
+        {last && <span className="max-w-[180px] whitespace-normal text-[10px] text-muted-foreground">{OSS_REEXEC_AR[last.result] || last.result} · {String(last.reportedAt || "").replace("T", " ").slice(5, 16)}</span>}
+      </div>
+    );
+  };
 
   const saveResponse = useMutation({
     mutationFn: async ({ id, draft }: { id: number; draft: ReviewDraft }) => {
@@ -742,6 +790,7 @@ export function InspectionFollowupReport() {
                               <span className="text-slate-600">الفني: <b className="text-slate-900">{row.technicianName || displayValue(fieldValue(data, ["technicianName", "techName"]))}</b></span>
                               {row.isManual && <span className="text-teal-700">إضافة يدوية</span>}
                             </div>
+                            {currentSection === "om" && renderReexec(row, "mobile")}
                             {currentSection === "om" && <div className="rounded-lg bg-[#f4f7f4] p-2.5 text-xs leading-5 text-slate-700">
                               <div>رد الفني: <b>{technicianResponseLabel(data)}</b></div>
                               {fieldValue(data, ["respTechName"]) && <div className="text-slate-500">القائم بالرد: {displayValue(data.respTechName)}</div>}
@@ -868,6 +917,7 @@ export function InspectionFollowupReport() {
                                       {sampleFreed ? <div className="space-y-1"><div>{displayValue(value)}</div><span className="inline-flex rounded bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-700">تم فكه</span></div>
                                         : isTechnicianResponse ? technicianResponseStatus(data)
                                         : field.label === "تاريخ الإنشاء" ? <span dir="ltr" className="whitespace-nowrap font-mono text-[11px]">{formatOmCreationDate(value)}</span>
+                                          : field.label === "Service Order ID" ? <div className="flex flex-col items-start gap-1"><span dir="ltr" className="font-mono">{displayValue(value)}</span>{renderReexec(row, "desktop")}</div>
                                           : displayValue(value)}
                                     </TableCell>
                                   );
