@@ -21,25 +21,47 @@ object Speaker {
     private var focus: AudioFocusRequest? = null
     private var am: AudioManager? = null
     private var pending: String? = null
+    private var appCtx: Context? = null
+    private var attempts = 0
+    private val h = android.os.Handler(android.os.Looper.getMainLooper())
+    /** حالة النطق للإعدادات و«جرّب صوت التنبيه» (C8). */
+    @Volatile var status: String = "بيجهّز…"; private set
+    /** جملة أمان (مطب/سرعة) لسه بتتقال لحد إمتى — مايقطعهاش غير إنها تخلص (C6). */
+    @Volatile private var safetyUntil = 0L
 
     fun init(ctx: Context) {
-        if (tts != null) return
+        if (appCtx != null) return
         val app = ctx.applicationContext
+        appCtx = app
         am = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         try { tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90) } catch (_: Exception) {}
-        tts = TextToSpeech(app) { status ->
+        create(app)
+    }
+
+    /** محرّك النطق ممكن مايشتغلش أول مرة (الشاشة لسه بتقوم) — كان بيفضل ساكت لحد ما التطبيق يتقفل. دلوقتى ٣ محاولات (C8). */
+    private fun retry(app: Context) {
+        try { tts?.shutdown() } catch (_: Exception) {}
+        tts = null; ready = false
+        if (attempts >= 3) { status = "محرّك النطق مش شغّال — التنبيه بالبيب بس. شوف إعدادات الشاشة ← تحويل النص لكلام"; return }
+        h.postDelayed({ create(app) }, 5000L * attempts)
+    }
+
+    private fun create(app: Context) {
+        attempts++
+        tts = TextToSpeech(app) { st ->
             val t = tts ?: return@TextToSpeech
-            if (status != TextToSpeech.SUCCESS) return@TextToSpeech
+            if (st != TextToSpeech.SUCCESS) { status = "محرّك النطق ماشتغلش (محاولة $attempts)"; retry(app); return@TextToSpeech }
             val r = t.setLanguage(Locale.forLanguageTag("ar-EG"))
             ready = (if (r < 0) t.setLanguage(Locale.forLanguageTag("ar")) else r) >= 0
+            status = if (ready) "جاهز ✓" else "مفيش صوت عربى فى محرّك النطق — نزّله من إعدادات الشاشة"
             t.setAudioAttributes(AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) {}
-                override fun onDone(id: String?) { speakingUntil = 0L; abandon() }
+                override fun onDone(id: String?) { done(id) }
                 @Deprecated("Deprecated in Java")
-                override fun onError(id: String?) { speakingUntil = 0L; abandon() }
+                override fun onError(id: String?) { done(id); status = "آخر جملة ماتقالتش (خطأ من محرّك النطق)" }
             })
             pending?.let { pending = null; say(it) }
         }
@@ -85,8 +107,30 @@ object Speaker {
         val t = tts
         if (t == null || !ready) { pending = text; return }
         request()
-        speakingUntil = System.currentTimeMillis() + 1500 + text.length * 90L
-        t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "od-" + System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        val est = 1500 + text.length * 90L
+        // تنبيه أمان شغّال ⇒ اللى بعده يستنى دوره (QUEUE_ADD) بدل ما يمسحه — قبل كده أى جملة كانت بتقطع «خلّى بالك، مطب» (C6)
+        val queue = safetyUntil > now
+        speakingUntil = if (queue) maxOf(speakingUntil, now) + est else now + est
+        if (kind == SpeechKind.SAFETY) safetyUntil = speakingUntil
+        val id = (if (kind == SpeechKind.SAFETY) "od-s-" else "od-") + now
+        if (t.speak(text, if (queue) TextToSpeech.QUEUE_ADD else TextToSpeech.QUEUE_FLUSH, null, id) != TextToSpeech.SUCCESS) {
+            status = "محرّك النطق رفض الجملة — بيعيد التشغيل"; if (!beep) beep(); appCtx?.let { attempts = 0; retry(it) }
+        }
+    }
+
+    private fun done(id: String?) {
+        val t = tts
+        if (t == null || !t.isSpeaking) { speakingUntil = 0L; safetyUntil = 0L; abandon() }
+        else if (id != null && id.startsWith("od-s-")) safetyUntil = 0L
+    }
+
+    /** «جرّب صوت التنبيه»: نفس طريق تنبيه المطب بالظبط + حالة النطق ومستوى الصوت. */
+    fun testLine(): String {
+        val m = am
+        val vol = if (m != null) "${m.getStreamVolume(AudioManager.STREAM_MUSIC)}/${m.getStreamMaxVolume(AudioManager.STREAM_MUSIC)}" else "؟"
+        say("خلّى بالك، مطب بعد 100 متر", beep = true, kind = SpeechKind.SAFETY)
+        return "النطق: $status · مستوى الصوت (الوسائط): $vol" + if (inCall()) " · الشاشة فاكرة إن فيه مكالمة" else ""
     }
 
     private fun request() {
