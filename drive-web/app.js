@@ -367,7 +367,16 @@
     forget();
   });
 
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && token) refresh(); });
+  // الشاشة ماتنامش طول ما الصفحة مفتوحة (المالك ٢٠٢٦-١١-١٨: «شاشه drive لازم متنامش طالما مفتوحه»). Wake Lock بيتلغى لوحده
+  // لما الصفحة تختفى (تطبيق تانى / قفل الشاشة)، فبنطلبه تانى أول ما ترجع. أندرويد Chrome · آيفون Safari 16.4+.
+  let wakeLock = null;
+  async function keepAwake() {
+    if (document.hidden || !('wakeLock' in navigator) || (wakeLock && !wakeLock.released)) return;
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { /* البطارية واطية أو المتصفح رفض — نحاول مع أول لمسة */ }
+  }
+  keepAwake();
+  document.addEventListener('click', keepAwake, { passive: true });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && token) refresh(); keepAwake(); });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   show();
 })();
