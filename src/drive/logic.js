@@ -140,7 +140,13 @@ function cleanReport(r, now = Date.now()) {
       liters: rnum(x.liters, 0, 500), paid: rnum(x.paid, 0, 1e6), full: x.full === true, odo: rnum(x.odo, 0, 5e6),
     } : null)).filter(Boolean),
   } : null;
-  return { odo: rnum(r.odo, 0, 5e6), odoCalAt: rnum(r.odoCalAt, 0, tMax), parking, maint, fuel, months };
+  // الأماكن المحفوظة (البيت · الشغل…) وآخر ٢٠ رحلة (من غير درجة السواقة — بتفضل على الشاشة) — قرار المالك ٢٠٢٦-١١-١٨: الويب زى الشاشة
+  const places = arr(r.places, 60).map((x) => (x && str(x.name, 60).trim() && rnum(x.lat, -90, 90) !== null && rnum(x.lng, -180, 180) !== null
+    ? { name: str(x.name, 60).trim(), lat: rnum(x.lat, -90, 90), lng: rnum(x.lng, -180, 180) } : null)).filter(Boolean);
+  const trips = arr(r.trips, 20).map((x) => (x && rnum(x.t, 0, tMax) ? {
+    t: rnum(x.t, 0, tMax), end: rnum(x.end, 0, tMax), km: rnum(x.km, 0, 1e4), min: rnum(x.min, 0, 1e4), max: rnum(x.max, 0, 400),
+  } : null)).filter(Boolean);
+  return { odo: rnum(r.odo, 0, 5e6), odoCalAt: rnum(r.odoCalAt, 0, tMax), parking, maint, fuel, months, places, trips };
 }
 
 module.exports = {

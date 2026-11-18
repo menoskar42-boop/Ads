@@ -108,7 +108,9 @@
     if (/(طوارئ|نجده|الحقوني|استغاثه|sos|emergency)/.test(t)) return 'sos';   // زى الشاشة: بيتأكد قبل ما يجهّز الرسالة
     if (/(ركنت هنا|احفظ الركنه|سجل الركنه|احفظ مكان العربيه|i parked)/.test(t)) return 'park';
     if (/(العربيه فين|ركنت فين|وديني للعربيه|وديني للركنه|where.*car)/.test(t)) return 'findpark';
-    for (const k of NEAR) if (k.re.test(t)) return 'near:' + k.id;   // «أوسكار دوّر على أقرب بنزينة» …
+    for (const k of NEAR) if (k.re.test(t)) return 'near:' + k.id;
+    const go = t.match(/(?:وديني|خدني|روح|take me to|navigate to)\s+(?:علي\s+|عل\s+|الي\s+|to\s+|لل|ل)?(.+)$/);
+    if (go && go[1].trim()) return 'goto:' + go[1].trim();   // «أوسكار ودّينى البيت» ⇒ من الأماكن المحفوظة   // «أوسكار دوّر على أقرب بنزينة» …
     if (/(سجل|علم|هنا|mark)/.test(t) && /(رادار|radar)/.test(t)) return 'radar';
     if (/(سجل|علم|هنا|mark)/.test(t) && /(خطر|خطير|danger)/.test(t)) return 'danger';
     if (/(حفره|حفر|نقره|pothole)/.test(t)) return 'pothole';
@@ -137,6 +139,14 @@
   const mapsLink = (lat, lng) => 'https://maps.google.com/?q=' + lat.toFixed(6) + ',' + lng.toFixed(6);
   const sosText = (lat, lng) => 'محتاج مساعدة. مكانى دلوقتى: ' + mapsLink(lat, lng);
   const walkUrl = (lat, lng) => 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng + '&travelmode=walking';
-  const api = { BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  /** «ودّينى X»: المكان المحفوظ اللى اسمه أقرب حاجة لـX (مطابق ⇐ بيبدأ بيه ⇐ جوّاه). */
+  function findPlace(places, said) {
+    const want = norm(said).replace(/^(ال)/, '').trim();
+    if (!want) return null;
+    const ps = (places || []).map((p) => ({ p, n: norm(p.name).trim(), b: norm(p.name).trim().replace(/^(ال)/, '') }));
+    return (ps.find((x) => x.n === norm(said).trim() || x.b === want) || ps.find((x) => x.b.startsWith(want) || want.startsWith(x.b))
+      || ps.find((x) => x.b.includes(want) || want.includes(x.b)) || {}).p || null;
+  }
+  const api = { findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

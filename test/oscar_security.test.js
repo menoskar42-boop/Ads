@@ -47,6 +47,10 @@ describe('logic', () => {
     assert.equal(r.maint[0].status, 'ok');
     assert.equal(r.fuel.fills[0].grade, null); assert.equal(r.fuel.fills[0].liters, null);
     assert.equal(r.x, undefined);
+    const p = L.cleanReport({ places: [{ name: ' البيت ', lat: 30, lng: 31 }, { name: '', lat: 1, lng: 1 }, { name: 'x', lat: 200, lng: 1 }],
+      trips: [{ t: 1.7e12, km: 12.5, min: 20, max: 999, score: 90 }, { km: 3 }] });
+    assert.deepEqual(p.places, [{ name: 'البيت', lat: 30, lng: 31 }]);
+    assert.equal(p.trips.length, 1); assert.equal(p.trips[0].max, null); assert.equal(p.trips[0].score, undefined);
     assert.equal(L.cleanReport(null), null); assert.equal(L.cleanReport([1]), null);
   });
   it('downsample keeps ends', () => {

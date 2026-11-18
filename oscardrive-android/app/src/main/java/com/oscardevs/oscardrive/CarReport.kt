@@ -52,6 +52,14 @@ object CarReport {
                     .put("paid", m.fuelPaid).put("liters", m.liters).put("fills", m.fills).put("maint", m.maintDone))
             }
         })
+        // الويب زى الشاشة (المالك ٢٠٢٦-١١-١٨): الأماكن المحفوظة ⇒ «🧭 ودّينى» من الموبايل، وآخر ٢٠ رحلة (من غير الدرجة)
+        o.put("places", JSONArray().apply {
+            for (p in db.places().take(60)) put(JSONObject().put("name", p.name).put("lat", p.lat).put("lng", p.lng))
+        })
+        o.put("trips", JSONArray().apply {
+            for (t in db.trips(0, 20)) put(JSONObject().put("t", t.startMs).put("end", t.endMs).put("km", t.distanceM / 1000)
+                .put("min", t.movingS / 60.0).put("max", t.maxKmh.toDouble()))
+        })
         return o
     }
 }

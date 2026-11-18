@@ -142,7 +142,7 @@
     const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(h));
   };
-  let lastPark = null, repMonth = null;
+  let lastPark = null, repMonth = null, reportPlaces = [];
 
   function renderReport(r, at) {
     $('parkCard').hidden = !(r && r.parking && r.parking.length);
@@ -205,6 +205,21 @@
     const order = { due: 0, soon: 1, ok: 2 };
     for (const x of (r.maint || []).slice().sort((a, b) => order[a.status] - order[b.status])) {
       mt.appendChild(li(x.name, x.text || '', x.status === 'due' ? '⛔' : x.status === 'soon' ? '⏳' : '✅'));
+    }
+    // 📍 الأماكن المحفوظة ⇒ «🧭 ودّينى» (نفس زرار الشاشة) · 🚗 آخر الرحلات
+    reportPlaces = r.places || [];
+    const pls = $('repPlaces'); pls.textContent = '';
+    if (!reportPlaces.length) pls.appendChild(li('لسه مفيش أماكن محفوظة على الشاشة.', 'من الشاشة: الملاحة ← «⭐ احفظ المكان ده»، أو قول «أوسكار احفظ المكان ده باسم البيت».'));
+    for (const q of reportPlaces) {
+      const el = li(q.name, '', '📍');
+      const a = document.createElement('a'); a.className = 'btn primary'; a.textContent = '🧭 ودّينى'; a.href = RD.navUrl(q.lat, q.lng);
+      a.target = '_blank'; a.rel = 'noopener'; a.style.marginInlineStart = 'auto'; el.appendChild(a);
+      pls.appendChild(el);
+    }
+    const tl = $('repTrips'); tl.textContent = '';
+    if (!(r.trips || []).length) tl.appendChild(li('لسه مفيش رحلات.', ''));
+    for (const t of r.trips || []) {
+      tl.appendChild(li(`${fmt(t.km, 1)} كم · ${fmt(t.min)} دقيقة`, `${when(t.t)}${t.max ? ' · أعلى سرعة ' + fmt(t.max) + ' كم/س' : ''}`, '🚗'));
     }
     $('repAt').textContent = at ? `آخر تحديث من الشاشة ${ago(at)}` : '';
   }
@@ -578,6 +593,11 @@
     else if (cmd === 'park') parkHere();
     else if (cmd === 'findpark') findPark();
     else if (cmd === 'sos') sos();
+    else if (cmd && cmd.startsWith('goto:')) {
+      const p = RD.findPlace(reportPlaces, cmd.slice(5));
+      if (p) { sayRoad('حاضر، رايحين ' + p.name); window.open(RD.navUrl(p.lat, p.lng), '_blank', 'noopener'); }
+      else { const w = cmd.slice(5); $('voiceNote').textContent = 'مفيش مكان محفوظ اسمه «' + w + '» — الأماكن بتتحفظ من الشاشة'; sayRoad('مش لاقى مكان اسمه ' + w); }
+    }
     else if (cmd === 'unknown') { $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; sayRoad('مافهمتش'); }
   }
   function startVoice() {

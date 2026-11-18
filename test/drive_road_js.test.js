@@ -82,3 +82,14 @@ test('emergency text, park/find-car/sos voice', () => {
   assert.equal(R.parseVoice('أوسكار الحقونى'), 'sos');
   assert.equal(R.parseVoice('ركنت هنا'), null);
 });
+test('«أوسكار ودّينى البيت» ⇒ the saved place', () => {
+  assert.equal(R.parseVoice('أوسكار ودينى البيت'), 'goto:البيت');
+  assert.equal(R.parseVoice('يا اوسكار خدنى للشغل'), 'goto:شغل');
+  assert.equal(R.parseVoice('أوسكار ودينى لأقرب بنزينة').startsWith('near:'), true);
+  const places = [{ name: 'البيت', lat: 1, lng: 1 }, { name: 'شغل بابا', lat: 2, lng: 2 }, { name: 'النادى', lat: 3, lng: 3 }];
+  assert.equal(R.findPlace(places, 'البيت').lat, 1);
+  assert.equal(R.findPlace(places, 'بيت').lat, 1);
+  assert.equal(R.findPlace(places, 'شغل').lat, 2);
+  assert.equal(R.findPlace(places, 'النادي').lat, 3);
+  assert.equal(R.findPlace(places, 'المطار'), null);
+});
