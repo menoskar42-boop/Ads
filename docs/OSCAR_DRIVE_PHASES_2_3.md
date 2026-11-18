@@ -140,4 +140,4 @@
 | التاريخ | الخطوة | الملفات | الاختبار | النتيجة |
 |---|---|---|---|---|
 | ٢٠٢٦-١١-١٨ | ١: «📡 شارك GPS مع العربية» فى صفحة الموبايل + `/api/web/fix` (آخر قراءة فى الذاكرة، دقيقتين) + `/api/car/companions` | `src/drive/companions.js` · `drive_site.js` · `drive-web/` | `drive_hazards` 5/5 | ✅ |
-| ٢٠٢٦-١١-١٨ | ٢: الشاشة بتسأل (٢ ث لو فيه موبايل، ١٥ ث لو لأ) + درجة الثقة + سطر «📡 مصادر الـGPS» — **عرض بس** | `logic/Companions.kt` · `DriveService.pollCompanions` · `Cloud.kt` · `MainActivity` · `logic-test` (٤ اختبارات) | بناء GitHub ⏳ | ⏳ |
+| ٢٠٢٦-١١-١٨ | ٢: الشاشة بتسأل (٢ ث لو فيه موبايل، ١٥ ث لو لأ) + درجة الثقة + سطر «📡 مصادر الـGPS» — **عرض بس** | `logic/Companions.kt` · `DriveService.pollCompanions` · `Cloud.kt` · `MainActivity` · `logic-test` (٤ اختبارات) | بناء GitHub (run 44365478032) | ✅ |
