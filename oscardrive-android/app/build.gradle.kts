@@ -77,5 +77,7 @@ dependencies {
     // «أوسكار يسمع من غير نت» (Vosk · Apache-2.0): الشاشات اللى مافيهاش برنامج تعرّف على الكلام شغّال (CitiSound). OfflineEars.kt
     implementation("com.alphacephei:vosk-android:0.3.75")
     implementation("net.java.dev.jna:jna:5.18.1@aar")
+    // QR «اربطها بـQR» (zxing core · Apache-2.0 · Java بس من غير native): الشاشة بتعرض الكود والموبايل يمسحه. HazardSync / MainActivity
+    implementation("com.google.zxing:core:3.5.3")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 }

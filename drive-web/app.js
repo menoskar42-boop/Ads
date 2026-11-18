@@ -328,6 +328,30 @@
     } catch (e) { $('shotsNote').textContent = e.message; }
   });
 
+  // الربط بـQR (٢٠٢٦-١١-١٨): الشاشة الجديدة بتعرض QR فيه drive.oscardevs.com/#claim=<٨ أرقام>، والموبايل المربوط بيأكّده.
+  async function claimScreen(code) {
+    $('claimNote').textContent = '…';
+    try {
+      const r = await api('POST', '/api/web/claim', { code });
+      $('claimNote').textContent = '✅ الشاشة اتربطت بـ«' + (r.name || 'عربيتك') + '» — المطبات بتنزل عليها دلوقتى';
+      $('claimCode').value = '';
+    } catch (e) { $('claimNote').textContent = e.message; }
+  }
+  $('claimBtn').addEventListener('click', () => {
+    const code = $('claimCode').value.replace(/\D/g, '');
+    if (code.length !== 8) { $('claimNote').textContent = 'رقم الشاشة ٨ أرقام'; return; }
+    claimScreen(code);
+  });
+  (function fromQr() {
+    const m = /claim=(\d{8})/.exec(location.hash || '');
+    if (!m) return;
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    if (!token) { $('claimHint').hidden = false; $('claimHintCode').textContent = m[1]; return; }
+    $('claimCode').value = m[1];
+    $('relinkCard').scrollIntoView({ behavior: 'smooth' });
+    if (confirm('تربط الشاشة الجديدة بعربيتك؟ المطبات اللى سجّلتها هتنزل عليها.')) claimScreen(m[1]);
+  })();
+
   // «ربط شاشة جديدة بنفس العربية» (٢٠٢٦-١١-١٨) — كود لمرة واحدة ١٠ دقايق، بيتكتب فى إعدادات الشاشة.
   $('relinkBtn').addEventListener('click', async () => {
     $('relinkNote').textContent = '…';

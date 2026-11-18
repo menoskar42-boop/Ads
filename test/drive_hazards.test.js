@@ -82,4 +82,22 @@ describe('hazards: database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL n
     assert.equal((await call('POST', '/api/car/hazards', { pull: true }, oldCar)).status, 401);
     assert.equal((await call('GET', '/api/web/state', null, owner)).status, 200);
   });
+
+  it('QR: the new screen shows a code, the paired phone confirms, the screen sees it is linked', async () => {
+    const oldCar = (await call('POST', '/api/car/register', { app: '1.0' })).json.token;
+    const U5 = '44444444-2222-4333-8444-555555555555';
+    await call('POST', '/api/car/hazards', { items: [item({ uuid: U5 })] }, oldCar);
+    const owner = (await call('POST', '/api/web/pair', { code: (await call('POST', '/api/car/pair', {}, oldCar)).json.code })).json.token;
+    const fresh = (await call('POST', '/api/car/register', { app: '1.2' })).json.token;
+    const c = (await call('POST', '/api/car/claim', {}, fresh)).json;
+    assert.match(c.code, /^\d{8}$/); assert.ok(c.url.endsWith('#claim=' + c.code));
+    assert.equal((await call('POST', '/api/car/claim-status', {}, fresh)).json.linked, false);
+    assert.equal((await call('POST', '/api/web/claim', { code: c.code })).status, 401);          // لازم موبايل مربوط
+    assert.equal((await call('POST', '/api/web/claim', { code: '12345678' }, owner)).status, 400);
+    assert.equal((await call('POST', '/api/web/claim', { code: c.code }, owner)).status, 200);
+    assert.equal((await call('POST', '/api/web/claim', { code: c.code }, owner)).status, 400);   // مرة واحدة
+    assert.equal((await call('POST', '/api/car/claim-status', {}, fresh)).json.linked, true);
+    assert.deepEqual((await call('POST', '/api/car/hazards', { pull: true }, fresh)).json.items.map((x) => x.uuid), [U5]);
+    assert.equal((await call('POST', '/api/car/hazards', { pull: true }, oldCar)).status, 401);
+  });
 });

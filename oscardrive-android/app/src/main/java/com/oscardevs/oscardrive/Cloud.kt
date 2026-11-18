@@ -38,4 +38,7 @@ object Cloud {
     fun hazards(token: String, body: JSONObject): JSONObject = call("/api/car/hazards", token, body)
     /** الشاشة دى تاخد نفس العربية بكود من صفحة الموبايل (بعد مسح التطبيق). */
     fun relink(token: String, code: String): JSONObject = call("/api/car/relink", token, JSONObject().put("code", code))
+    /** الربط بـQR: رقم ٨ أرقام + الرابط اللى بيتعرض QR، وسؤال «اتربطت؟». */
+    fun claim(token: String): JSONObject = call("/api/car/claim", token, null)
+    fun claimStatus(token: String): JSONObject = call("/api/car/claim-status", token, null)
 }

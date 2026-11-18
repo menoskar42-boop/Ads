@@ -122,6 +122,15 @@ function createDriveSite({ pool, push } = {}) {
     } catch (e) { fail(res, 500, 'relink failed'); }
   });
 
+  // الربط بـQR: الشاشة بتطلب رقم (بيتعرض QR) وبتسأل لحد ما الموبايل يأكّده.
+  router.post('/api/car/claim', rateLimit({ name: 'od-claim', windowMs: 10 * 60000, max: 10 }), json, carAuth, async (req, res) => {
+    try {
+      const code = await hz.newClaim(pool, req.car.id);
+      res.json({ ok: true, code, url: 'https://drive.oscardevs.com/#claim=' + code, minutes: 10 });
+    } catch (e) { fail(res, 500, 'claim failed'); }
+  });
+  router.post('/api/car/claim-status', json, carAuth, (req, res) => res.json({ ok: true, ...hz.claimStatus(req.car) }));
+
   // manifest صوت أوسكار (بيتحسب من الملفات الموجودة — لو السكربت ماتشغّلش لسه، الجمل من غير ملفات والتطبيق بيقول بصوت الشاشة)
   router.get('/voice/:v/manifest.json', (req, res) => {
     const v = req.params.v === 'female' ? 'female' : 'male';
@@ -208,6 +217,15 @@ function createDriveSite({ pool, push } = {}) {
   router.post('/api/web/relink', ownerAuth, async (req, res) => {
     try { res.json({ ok: true, code: await hz.newRelinkCode(pool, req.owner.car_id), minutes: 10 }); }
     catch (e) { fail(res, 500, 'relink failed'); }
+  });
+
+  // الموبايل مسح QR الشاشة الجديدة (أو كتب رقمها) ⇒ الشاشة بتبقى نفس العربية. التخمين: ٨ أرقام × ١٠ دقايق × ١٠ محاولات.
+  router.post('/api/web/claim', rateLimit({ name: 'od-claim-web', windowMs: 10 * 60000, max: 10 }), json, ownerAuth, async (req, res) => {
+    try {
+      const r = await hz.claim(pool, req.owner.car_id, req.body && req.body.code);
+      if (!r) return fail(res, 400, 'الرقم غلط أو خلص وقته — اعرض QR جديد على الشاشة');
+      res.json({ ok: true, name: r.name });
+    } catch (e) { fail(res, 500, 'claim failed'); }
   });
 
   router.post('/api/web/logout', ownerAuth, async (req, res) => {

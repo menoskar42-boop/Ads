@@ -99,6 +99,33 @@ object HazardSync {
         return changed
     }
 
+    /** الربط بـQR: بيطلب رقم من السيرفر. done(الرابط اللى يتعرض QR, الرقم, خطأ). */
+    fun claim(ctx: Context, done: (String?, String?, String?) -> Unit) {
+        val app = ctx.applicationContext
+        val prefs = Prefs(app)
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        io.execute {
+            try {
+                val token = prefs.deviceToken ?: Cloud.register(BuildConfig.VERSION_NAME).also { prefs.deviceToken = it }
+                val r = Cloud.claim(token)
+                main.post { done(r.optString("url"), r.optString("code"), null) }
+            } catch (e: Exception) { main.post { done(null, null, "محتاج نت عشان الربط") } }
+        }
+    }
+
+    /** الموبايل أكّد؟ done(اسم العربية) لو اتربطت، وإلا null. بيتنده كل ٣ ثوانى والـQR ظاهر. */
+    fun claimStatus(ctx: Context, done: (String?) -> Unit) {
+        val app = ctx.applicationContext
+        val prefs = Prefs(app)
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        val token = prefs.deviceToken ?: return
+        Thread {
+            val name = try { Cloud.claimStatus(token).let { if (it.optBoolean("linked")) it.optString("name", "عربيتك") else null } } catch (_: Exception) { null }
+            main.post { done(name) }
+            if (name != null) { name.takeIf { it.isNotBlank() }?.let { prefs.carName = it }; syncSoon(app, pull = true) }
+        }.start()
+    }
+
     /** الشاشة دى اتسطّبت من جديد: كود من صفحة الموبايل يربطها بنفس العربية، وبعدها الذاكرة بتنزل. done(اسم العربية, خطأ). */
     fun relink(ctx: Context, code: String, done: (String?, String?) -> Unit) {
         val app = ctx.applicationContext

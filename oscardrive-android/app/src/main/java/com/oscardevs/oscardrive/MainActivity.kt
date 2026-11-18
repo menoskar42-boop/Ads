@@ -853,6 +853,8 @@ class MainActivity : Activity() {
                 else -> "☁️ هتترفع أول ما يبقى فيه نت"
             }
             page.addView(ui.text(st, 13f, ui.muted).apply { setPadding(ui.dp(6), 0, ui.dp(6), 0) })
+            page.addView(ui.button("📱 الشاشة دى اتسطّبت من جديد؟ اربطها بعربيتك بـQR (امسحه بموبايلك)", "primary", 15f) { showClaimQr() },
+                ui.lp(Ui.MATCH, ui.dp(56), marginDp = 4))
             page.addView(ui.button("🔗 الشاشة دى اتسطّبت من جديد؟ اربطها بعربيتك (كود من صفحة الموبايل)", "neutral", 15f) {
                 askText("كود الربط", "٦ أرقام من صفحة الموبايل ← ربط شاشة جديدة", "", InputType.TYPE_CLASS_NUMBER) { v ->
                     toast("بيربط…")
@@ -972,6 +974,48 @@ class MainActivity : Activity() {
         oscar(when (t) { HazardType.BUMP -> "bump_saved"; HazardType.POTHOLE -> "pothole_saved"; HazardType.RADAR -> "radar_saved"; else -> "danger_saved" },
             "اتسجّل ${t.ar}")
     }
+
+    /**
+     * الربط بـQR (المالك ٢٠٢٦-١١-١٨): QR فيه رابط drive.oscardevs.com/#claim=<٨ أرقام> — يتمسح بكاميرا الموبايل المربوط بالعربية.
+     * الشاشة بتسأل كل ٣ ثوانى لحد ما الموبايل يأكّد (١٠ دقايق)، وبعدها المطبات بتنزل.
+     */
+    private fun showClaimQr() {
+        toast("بيجهّز الـQR…")
+        HazardSync.claim(this) { url, code, err ->
+            if (url == null || code == null) { toast(err ?: "ماقدرتش أجهّز الـQR"); return@claim }
+            val box = ui.col(12).apply { gravity = Gravity.CENTER_HORIZONTAL }
+            qrBitmap(url, ui.dp(260))?.let { bmp ->
+                box.addView(android.widget.ImageView(this).apply { setImageBitmap(bmp); setBackgroundColor(android.graphics.Color.WHITE); setPadding(ui.dp(10), ui.dp(10), ui.dp(10), ui.dp(10)) },
+                    LinearLayout.LayoutParams(ui.dp(280), ui.dp(280)))
+            }
+            box.addView(ui.text("امسحه بكاميرا الموبايل المربوط بعربيتك (صفحة drive.oscardevs.com).\nأو اكتب الرقم ده فى الصفحة ← «شاشة جديدة»:", 15f, ui.ink).apply { gravity = Gravity.CENTER })
+            box.addView(ui.text(code.chunked(4).joinToString(" "), 30f, ui.ink, bold = true).apply { gravity = Gravity.CENTER })
+            val status = ui.text("مستنى الموبايل… (الكود صالح ١٠ دقايق)", 14f, ui.muted).apply { gravity = Gravity.CENTER }
+            box.addView(status)
+            val dlg = AlertDialog.Builder(this).setTitle("📱 اربط الشاشة دى بعربيتك").setView(ScrollView(this).apply { addView(box) })
+                .setNegativeButton("قفل", null).show()
+            val started = System.currentTimeMillis()
+            fun poll() {
+                if (!dlg.isShowing) return
+                if (System.currentTimeMillis() - started > 10 * 60_000L) { status.text = "الكود خلص وقته — اقفل وافتح تانى"; return }
+                HazardSync.claimStatus(this) { name ->
+                    if (name != null) { dlg.dismiss(); toast("✅ اتربطت بـ«$name» — المطبات بتنزل دلوقتى"); refresh() }
+                    else main.postDelayed({ poll() }, 3000)
+                }
+            }
+            main.postDelayed({ poll() }, 3000)
+        }
+    }
+
+    private fun qrBitmap(text: String, size: Int): android.graphics.Bitmap? = try {
+        val m = com.google.zxing.qrcode.QRCodeWriter().encode(text, com.google.zxing.BarcodeFormat.QR_CODE, size, size,
+            mapOf(com.google.zxing.EncodeHintType.MARGIN to 1))
+        android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.RGB_565).also { b ->
+            val px = IntArray(size * size)
+            for (y in 0 until size) for (x in 0 until size) px[y * size + x] = if (m[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+            b.setPixels(px, 0, size, 0, 0, size, size)
+        }
+    } catch (_: Exception) { null }
 
     /** صورة من الكاميرا للطريق — بتترفع لكلود يراجعها لتدريب موديل المطبات. */
     private fun snapRoad(reason: String) {

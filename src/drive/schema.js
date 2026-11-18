@@ -114,6 +114,11 @@ async function ensureDriveSchema(pool) {
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS relink_code TEXT;
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS relink_expires TIMESTAMPTZ;
     CREATE UNIQUE INDEX IF NOT EXISTS od_cars_relink_code ON od_cars(relink_code) WHERE relink_code IS NOT NULL;
+    -- الربط بـQR (٢٠٢٦-١١-١٨): الشاشة بتعرض رقم ٨ أرقام فى QR والموبايل المربوط بيأكّده. relinked_at = الشاشة تعرف إنها اتربطت.
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS claim_code TEXT;
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS claim_expires TIMESTAMPTZ;
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS relinked_at TIMESTAMPTZ;
+    CREATE UNIQUE INDEX IF NOT EXISTS od_cars_claim_code ON od_cars(claim_code) WHERE claim_code IS NOT NULL;
     CREATE TABLE IF NOT EXISTS od_push_subs (
       endpoint  TEXT PRIMARY KEY,
       owner_id  INTEGER NOT NULL REFERENCES od_owners(id) ON DELETE CASCADE,

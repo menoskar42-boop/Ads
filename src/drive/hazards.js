@@ -86,32 +86,83 @@ async function newRelinkCode(pool, carId) {
  */
 async function relink(pool, newCar, code) {
   if (!/^\d{6}$/.test(String(code || ''))) return null;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+  return inTx(pool, async (client) => {
     const { rows } = await client.query(
       `UPDATE od_cars SET relink_code = NULL, relink_expires = NULL
         WHERE relink_code = $1 AND relink_expires > now() RETURNING id, name`, [String(code)]);
-    const old = rows[0];
-    if (!old) { await client.query('ROLLBACK'); return null; }
-    if (old.id !== newCar.id) {
-      for (const t of ['od_hazards', 'od_events', 'od_clips', 'od_shots', 'od_owners']) {
-        await client.query(`UPDATE ${t} SET car_id = $1 WHERE car_id = $2`, [old.id, newCar.id]);
-      }
-      await client.query(
-        `UPDATE od_points p SET car_id = $1 WHERE car_id = $2
-           AND NOT EXISTS (SELECT 1 FROM od_points q WHERE q.car_id = $1 AND q.at = p.at)`, [old.id, newCar.id]);
-      await client.query(`UPDATE od_cars SET token_hash = 'relinked-' || id WHERE id = $1`, [newCar.id]);
-      await client.query(`UPDATE od_cars SET token_hash = $2, app_version = $3, last_seen = now() WHERE id = $1`,
-        [old.id, newCar.token_hash, newCar.app_version]);
-      await client.query('DELETE FROM od_cars WHERE id = $1', [newCar.id]);
-    }
-    await client.query('COMMIT');
-    return { carId: old.id, name: old.name };
+    if (!rows[0]) return null;
+    await mergeInto(client, newCar, rows[0].id);
+    return { carId: rows[0].id, name: rows[0].name };
+  });
+}
+
+async function inTx(pool, fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const out = await fn(client);
+    await client.query(out ? 'COMMIT' : 'ROLLBACK');
+    return out;
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch {}
     throw e;
   } finally { client.release(); }
+}
+
+/** الشاشة الجديدة (newCar) بتبقى العربية القديمة (oldId): بياناتها بتتنقل، وتوكنها بيتحط على الصف القديم، وصفها الفاضى بيتشال. */
+async function mergeInto(client, newCar, oldId) {
+  if (oldId !== newCar.id) {
+    for (const t of ['od_hazards', 'od_events', 'od_clips', 'od_shots', 'od_owners']) {
+      await client.query(`UPDATE ${t} SET car_id = $1 WHERE car_id = $2`, [oldId, newCar.id]);
+    }
+    await client.query(
+      `UPDATE od_points p SET car_id = $1 WHERE car_id = $2
+         AND NOT EXISTS (SELECT 1 FROM od_points q WHERE q.car_id = $1 AND q.at = p.at)`, [oldId, newCar.id]);
+    await client.query(`UPDATE od_cars SET token_hash = 'relinked-' || id WHERE id = $1`, [newCar.id]);
+    await client.query(`UPDATE od_cars SET token_hash = $2, app_version = $3, last_seen = now() WHERE id = $1`,
+      [oldId, newCar.token_hash, newCar.app_version]);
+    await client.query('DELETE FROM od_cars WHERE id = $1', [newCar.id]);
+  }
+  await client.query('UPDATE od_cars SET relinked_at = now() WHERE id = $1', [oldId]);
+}
+
+/*
+ * الربط بـQR (المالك ٢٠٢٦-١١-١٨: «بدل الربط بالكود فقط خليها ايضا QR code اسهل»): كاميرات الشاشة ماتقدرش تمسح كود، فالعكس —
+ * الشاشة بتعرض QR فيه رقم ٨ أرقام (١٠ دقايق، مرة واحدة)، والموبايل المربوط بيمسحه ويأكّد ⇒ الشاشة بتبقى نفس العربية.
+ * الشاشة بتسأل كل كام ثانية (claimStatus) لحد ما تتربط. ولو الموبايل فتح الرابط فى متصفح مش مربوط (الآيفون: التطبيق المتثبّت
+ * ليه تخزين لوحده)، الصفحة بتقوله يكتب الرقم جوه التطبيق.
+ */
+const newClaimCode = () => String(require('crypto').randomInt(0, 100000000)).padStart(8, '0');
+
+async function newClaim(pool, carId) {
+  for (let i = 0; i < 5; i++) {
+    const code = newClaimCode();
+    try {
+      await pool.query(`UPDATE od_cars SET claim_code = $2, claim_expires = now() + interval '10 minutes' WHERE id = $1`, [carId, code]);
+      return code;
+    } catch (e) { if (e.code !== '23505') throw e; }
+  }
+  throw new Error('claim code collision');
+}
+
+/** الشاشة اتربطت؟ (الصف اللى توكنها عليه اتربط فى آخر ١٥ دقيقة ومفيش طلب ربط مستنى عليه) */
+function claimStatus(car) {
+  const fresh = car.relinked_at && Date.now() - new Date(car.relinked_at).getTime() < 15 * 60000;
+  return { linked: !!fresh && !car.claim_code, name: car.name };
+}
+
+/** الموبايل المربوط بعربية (ownerCarId) أكّد رقم الشاشة الجديدة. */
+async function claim(pool, ownerCarId, code) {
+  if (!/^\d{8}$/.test(String(code || ''))) return null;
+  return inTx(pool, async (client) => {
+    const { rows } = await client.query(
+      `UPDATE od_cars SET claim_code = NULL, claim_expires = NULL
+        WHERE claim_code = $1 AND claim_expires > now() RETURNING id, token_hash, app_version`, [String(code)]);
+    if (!rows[0]) return null;
+    await mergeInto(client, rows[0], ownerCarId);
+    const { rows: n } = await client.query('SELECT name FROM od_cars WHERE id = $1', [ownerCarId]);
+    return { carId: ownerCarId, name: n[0] && n[0].name };
+  });
 }
 
 /** الـuuids الممسوحة (عشان الشاشة تمسحها عندها كمان — المزامنة فى الاتجاهين). */
@@ -121,4 +172,4 @@ async function deletedUuids(pool, carId) {
   return rows.map((r) => r.uuid);
 }
 
-module.exports = { parseItems, save, list, deletedUuids, newRelinkCode, relink, MAX_ITEMS };
+module.exports = { parseItems, save, list, deletedUuids, newRelinkCode, relink, newClaim, claimStatus, claim, MAX_ITEMS };

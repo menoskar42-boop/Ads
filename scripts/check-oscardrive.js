@@ -66,8 +66,10 @@ const allowed = (l) => /^implementation\("com\.google\.android\.libraries\.navig
   || /^coreLibraryDesugaring\("com\.android\.tools:desugar_jdk_libs_nio:[\d.]+"\)$/.test(l)
   // التعرّف على الكلام من غير نت (المالك ٢٠٢٦-١١-٠٩) — مفتوح المصدر، على الجهاز، من غير خدمات جوجل ولا AI سحابى
   || /^implementation\("com\.alphacephei:vosk-android:[\d.]+"\)$/.test(l)
-  || /^implementation\("net\.java\.dev\.jna:jna:[\d.]+@aar"\)$/.test(l);
-check('only Google\'s Navigation SDK + the offline speech engine (everything else works without Google services)',
+  || /^implementation\("net\.java\.dev\.jna:jna:[\d.]+@aar"\)$/.test(l)
+  // QR «اربطها بـQR» (المالك ٢٠٢٦-١١-١٨) — رسم الـQR بس (zxing core: Java، من غير native ولا نت ولا خدمات جوجل)
+  || /^implementation\("com\.google\.zxing:core:[\d.]+"\)$/.test(l);
+check('only Google\'s Navigation SDK + the offline speech engine + QR drawing (everything else works without Google services)',
   deps.every(allowed), 'مكتبة جديدة: ' + deps.filter((l) => !allowed(l)).join(' | '));
 check('Google Play target API (36) and signing from secrets, never from the repo',
   /targetSdk = 36/.test(gradle) && /System\.getenv\("ODRIVE_KEYSTORE_FILE"\)/.test(gradle) && !/storePassword = "/.test(gradle),
