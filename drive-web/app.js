@@ -370,7 +370,7 @@
       const row = document.createElement('div');
       row.className = 'row'; row.style.cssText = 'justify-content:space-between;gap:8px;align-items:center';
       const name = (RD.TYPES[h.type] || RD.TYPES.danger)[0];
-      row.innerHTML = '<span>' + (h.type === 'pothole' ? '🕳️ ' : '〰️ ') + name + (h.test ? ' 🧪' : '') +
+      row.innerHTML = '<span>' + (EMOJI[h.type] || '⚠️ ') + name + (h.test ? ' 🧪' : '') +
         (d != null ? ' · ' + (d < 1000 ? Math.round(d) + ' م' : (d / 1000).toFixed(1) + ' كم') : '') + '</span>';
       const del = document.createElement('button'); del.textContent = 'مسح';
       del.addEventListener('click', async () => {
@@ -383,6 +383,33 @@
     $('clearTestBtn').hidden = tests === 0;
     $('clearTestBtn').textContent = '🧹 امسح كل مطبات التجربة (' + tests + ')';
   }
+  // إعدادات زى الشاشة (بتتفتكر على الموبايل ده): مسافة التنبيه · حد السرعة · عدم الإزعاج تحت ٧ كم/س
+  const SET_KEY = 'od_road_settings';
+  function loadSettings() {
+    try { const o = JSON.parse(localStorage.getItem(SET_KEY) || '{}');
+      if (o.warn) $('warnDist').value = String(o.warn); if (o.lim != null) $('speedLimSel').value = String(o.lim); $('quietSlow').checked = !!o.quiet; } catch (e) {}
+  }
+  function saveSettings() {
+    try { localStorage.setItem(SET_KEY, JSON.stringify({ warn: +$('warnDist').value, lim: +$('speedLimSel').value, quiet: $('quietSlow').checked })); } catch (e) {}
+  }
+  loadSettings();
+  ['warnDist', 'speedLimSel', 'quietSlow'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  const EMOJI = { bump: '〰️ ', pothole: '🕳️ ', radar: '📷 ', danger: '⚠️ ' };
+  // تنبيه السرعة زى الشاشة: بعد ٣ ثوانى فوق الحد، ويتكرر كل ٣٠ ثانية طول ما انت فوقه
+  let overSince = 0, lastSpeedSay = 0;
+  function speedCheck(kmh) {
+    const lim = +$('speedLimSel').value, now = Date.now();
+    $('speedBig').hidden = false; $('speedNum').textContent = kmh != null ? Math.round(kmh) : '–';
+    $('speedLim').textContent = lim ? 'الحد ' + lim : 'من غير حد';
+    const over = lim && kmh != null && kmh > lim;
+    $('speedNum').style.color = over ? '#dc2626' : '';
+    if (!over) { overSince = 0; return; }
+    if (!overSince) overSince = now;
+    if (now - overSince >= 3000 && now - lastSpeedSay >= 30000) {
+      sayRoad((lastSpeedSay && now - lastSpeedSay < 120000 ? 'هدّى السرعة. ' : 'انتبه. السرعة ' ) + Math.round(kmh) + (lastSpeedSay ? '' : '. الحد ' + lim));
+      beepRoad(); lastSpeedSay = now;
+    }
+  }
   function onRoadFix(p) {
     const c = p.coords, f = { lat: c.latitude, lng: c.longitude, acc: c.accuracy, t: p.timestamp, kmh: c.speed != null ? c.speed * 3.6 : null };
     if (c.heading != null && !isNaN(c.heading) && (c.speed || 0) > 1) roadHeading = c.heading;
@@ -393,14 +420,16 @@
     if (kmh == null && prevFix && prevFix !== f && f.t > prevFix.t) kmh = RD.distanceM(prevFix.lat, prevFix.lng, f.lat, f.lng) / ((f.t - prevFix.t) / 1000) * 3.6;
     const test = $('testMode').checked;
     const pool = test ? hz.filter((h) => h.test) : hz;
-    const hit = alertWatch !== null ? RD.ahead(pool, f.lat, f.lng, roadHeading, kmh || 0, Date.now(), warnedRoad, { test, minWarnM: 100 }) : null;
+    if (alertWatch !== null) speedCheck(kmh);
+    const hit = alertWatch !== null ? RD.ahead(pool, f.lat, f.lng, roadHeading, kmh || 0, Date.now(), warnedRoad,
+      { test, minWarnM: +$('warnDist').value || 100, minKmh: $('quietSlow').checked ? RD.C.QUIET_KMH : RD.C.STOPPED_KMH }) : null;
     const nearest = pool.length ? Math.min(...pool.map((h) => RD.distanceM(f.lat, f.lng, h.lat, h.lng))) : null;
     $('roadNote').textContent = 'مكانك: دقة ' + Math.round(f.acc) + ' م' + (kmh != null ? ' · ' + Math.round(kmh) + ' كم/س' : '') +
       (nearest != null ? ' · أقرب ' + (test ? 'مطب تجربة' : 'مطب') + ' ' + Math.round(nearest) + ' م' : '');
     if (hit) {
       warnedRoad[test ? hit.h.uuid : RD.warnKey(hit.h, hit.d, kmh || 0)] = Date.now();
       const msg = RD.warning(hit.h, hit.d);
-      $('roadAlert').textContent = (hit.h.type === 'pothole' ? '🕳️ ' : '〰️ ') + msg; $('roadAlert').hidden = false;
+      $('roadAlert').textContent = (EMOJI[hit.h.type] || '⚠️ ') + msg; $('roadAlert').hidden = false;
       clearTimeout(alertTimer); alertTimer = setTimeout(() => { $('roadAlert').hidden = true; }, 8000);
       beepRoad(); sayRoad(msg);
     }
@@ -488,7 +517,7 @@
   let rec = null, listening = false;
   function runVoice(cmd, heard) {
     if (cmd && cmd.startsWith('near:')) nearbyWeb(cmd.slice(5));
-    else if (cmd === 'bump' || cmd === 'pothole') markRoad(cmd);
+    else if (cmd === 'bump' || cmd === 'pothole' || cmd === 'radar' || cmd === 'danger') markRoad(cmd);
     else if (cmd === 'shot') snapRoad('voice');
     else if (cmd === 'unknown') { $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; sayRoad('مافهمتش'); }
   }
@@ -517,6 +546,8 @@
 
   $('markBump').addEventListener('click', () => markRoad('bump'));
   $('markPothole').addEventListener('click', () => markRoad('pothole'));
+  $('markRadar').addEventListener('click', () => markRoad('radar'));
+  $('markDanger').addEventListener('click', () => markRoad('danger'));
   $('clearTestBtn').addEventListener('click', async () => {
     if (!confirm('تمسح كل مطبات التجربة؟')) return;
     try { const r = await api('POST', '/api/web/hazards', { clearTest: true }); $('roadNote').textContent = 'اتمسح ' + r.cleared + ' مطب تجربة'; } catch (e) {}

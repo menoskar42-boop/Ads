@@ -106,6 +106,8 @@
     if (!WAKE.test(t)) return null;
     if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب)/.test(t)) return 'shot';
     for (const k of NEAR) if (k.re.test(t)) return 'near:' + k.id;   // «أوسكار دوّر على أقرب بنزينة» …
+    if (/(سجل|علم|هنا|mark)/.test(t) && /(رادار|radar)/.test(t)) return 'radar';
+    if (/(سجل|علم|هنا|mark)/.test(t) && /(خطر|خطير|danger)/.test(t)) return 'danger';
     if (/(حفره|حفر|نقره|pothole)/.test(t)) return 'pothole';
     if (/(مطب|مطلب|bump)/.test(t)) return 'bump';
     return 'unknown';

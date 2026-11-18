@@ -54,3 +54,8 @@ test('nearest on the web: same OSM filters and 1 km rounding as the screen, voic
   assert.equal(R.nearestOf(list, 27.19, 31.19).name, 'Mobil');
   assert.ok(R.navUrl(27.2, 31.2).includes('dir_action=navigate'));
 });
+test('phone voice: radar and danger spots like the screen', () => {
+  assert.equal(R.parseVoice('أوسكار سجّل رادار هنا'), 'radar');
+  assert.equal(R.parseVoice('اوسكار سجل مكان خطر'), 'danger');
+  assert.equal(R.parseVoice('اوسكار سجل مطب'), 'bump');
+});
