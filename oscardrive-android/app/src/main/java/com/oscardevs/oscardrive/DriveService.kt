@@ -54,6 +54,9 @@ class DriveService : Service() {
         /** المكان الحالى من الشبكة (تقريبى) مش من الـGPS — للعرض بس. */
         @Volatile var approx = false
         @Volatile var satsUsed = 0
+        /** مصادر الـGPS (المرحلة ٢): «الشاشة بس» · «الشاشة + موبايل» … — عرض بس. */
+        @Volatile var gpsSources = ""
+        @Volatile var companions: List<com.oscardevs.oscardrive.logic.CompanionTracker.Status> = emptyList()
         @Volatile var tripActive = false
         @Volatile var tripKm = 0.0
         @Volatile var tripMovingS = 0L
@@ -122,11 +125,50 @@ class DriveService : Service() {
     }
 
     private var lastHazardSync = System.currentTimeMillis()
+
+    /*
+     * الموبايلات اللى بتشارك GPS (المرحلة ٢): كل ٢ ث لو فيه موبايل شارك فى آخر دقيقة، وإلا كل ١٥ ث — والشاشة مش مربوطة بالسيرفر ⇒ مفيش طلبات.
+     * عرض بس (مؤشر مصادر الـGPS) — مكان العربية والتنبيهات فاضلين من GPS الشاشة لحد ما المالك يجرّب ويوافق.
+     */
+    private val compTracker = com.oscardevs.oscardrive.logic.CompanionTracker()
+    private val compIo = java.util.concurrent.Executors.newSingleThreadExecutor()
+    @Volatile private var compBusy = false
+    private var lastCompPoll = 0L
+    private var lastCompSeen = 0L
+    private fun pollCompanions(now: Long) {
+        val carGps = State.lat != null && !State.approx
+        val token = prefs.deviceToken
+        if (token == null || State.gpsSources.isEmpty()) State.gpsSources = com.oscardevs.oscardrive.logic.CompanionTracker.summary(State.companions, carGps)
+        if (token == null) return
+        val every = if (now - lastCompSeen < 60_000L) 2_000L else 15_000L
+        if (compBusy || now - lastCompPoll < every) return
+        lastCompPoll = now; compBusy = true
+        compIo.execute {
+            val fixes = try {
+                val a = Cloud.companions(token).optJSONArray("devices")
+                (0 until (a?.length() ?: 0)).mapNotNull { i -> a!!.optJSONObject(i)?.let { o ->
+                    com.oscardevs.oscardrive.logic.CompanionFix(o.optLong("id"), o.optString("label", "موبايل"), o.optDouble("lat"), o.optDouble("lng"),
+                        o.optDouble("acc", 50.0).toFloat(), if (o.isNull("speed")) null else o.optDouble("speed").toFloat(),
+                        if (o.isNull("heading")) null else o.optDouble("heading").toFloat(), o.optLong("ageMs"))
+                } }
+            } catch (_: Exception) { null }
+            main.post {
+                compBusy = false
+                if (fixes == null) return@post
+                if (fixes.isNotEmpty()) lastCompSeen = System.currentTimeMillis()
+                val st = compTracker.update(fixes, if (State.approx) null else State.lat, if (State.approx) null else State.lng,
+                    State.accuracyM, State.speedKmh, State.headingDeg)
+                State.companions = st
+                State.gpsSources = com.oscardevs.oscardrive.logic.CompanionTracker.summary(st, State.lat != null && !State.approx)
+            }
+        }
+    }
     private val tick = object : Runnable {
         override fun run() {
             val now = System.currentTimeMillis()
             handleSpeed(speed.onTick(now))
             if (now - lastHazardSync > 10 * 60_000L) { lastHazardSync = now; HazardSync.syncSoon(this@DriveService) }
+            pollCompanions(now)
             trip.onTick(now)?.let { tripEnded(it) }
             State.speedKmh = speed.speedKmh
             useApprox(now)

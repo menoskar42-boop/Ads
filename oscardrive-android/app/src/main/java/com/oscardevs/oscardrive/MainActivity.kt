@@ -345,6 +345,7 @@ class MainActivity : Activity() {
         }
         val acc = s.accuracyM?.let { " · دقة ${it.toInt()} م" + if (s.approx) " (تقريبى من النت)" else "" } ?: ""
         statusTv?.text = "GPS · ${s.satsUsed} أقمار$acc · ${clock(now)} · Driving Mode" +
+            (if (s.gpsSources.isNotEmpty()) "\n${s.gpsSources}" else "") +
             (if (wake?.active == true) " · 🎙️ سامعك" else "") +
             if (!s.gpsEnabled) " — افتح الـLocation من إعدادات الشاشة" else ""
     }

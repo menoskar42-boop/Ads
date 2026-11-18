@@ -728,3 +728,40 @@ class ShotPlanTest {
         assertTrue(ShotPlan.wants(HazardType.BUMP)); assertTrue(ShotPlan.wants(HazardType.POTHOLE)); assertFalse(ShotPlan.wants(HazardType.RADAR))
     }
 }
+
+// المرحلة ٢: الموبايل فى العربية ولا لأ — درجة ثقة مستمرة، والمتوصّل مايتعرضش كمصدر غير لما يبقى موثوق
+class CompanionTrackerTest {
+    private fun fix(lat: Double, sp: Float? = 11f, hd: Float? = 0f, age: Long = 1000) =
+        CompanionFix(1, "iPhone", lat, LNG0, 6f, sp, hd, age)
+    @Test fun trustedAfterAbout15sOfMatchingMovement() {
+        val t = CompanionTracker(); var st = emptyList<CompanionTracker.Status>()
+        repeat(6) { st = t.update(listOf(fix(north(3.0))), LAT0, LNG0, 5f, 40f, 0f) }
+        assertFalse(st[0].trusted)
+        assertEquals("📡 1 موبايل بيشارك — لسه بنتأكد إنه فى العربية", CompanionTracker.summary(st, true))
+        st = t.update(listOf(fix(north(3.0))), LAT0, LNG0, 5f, 40f, 0f)
+        assertTrue(st[0].trusted)
+        assertEquals("📡 الشاشة + 1 موبايل (أدق موبايل 6 م)", CompanionTracker.summary(st, true))
+    }
+    @Test fun phoneLeftAtHomeLosesTrustFast() {
+        val t = CompanionTracker(); var st = emptyList<CompanionTracker.Status>()
+        repeat(10) { st = t.update(listOf(fix(north(3.0))), LAT0, LNG0, 5f, 40f, 0f) }
+        assertTrue(st[0].trusted)
+        st = t.update(listOf(fix(north(500.0), sp = 0f)), LAT0, LNG0, 5f, 40f, 0f)   // العربية مشيت والموبايل فاضل مكانه
+        assertFalse(st[0].trusted)
+    }
+    @Test fun parkedProvesNothingAndStaleDecays() {
+        val t = CompanionTracker(); var st = emptyList<CompanionTracker.Status>()
+        repeat(20) { st = t.update(listOf(fix(north(3.0), sp = 0f)), LAT0, LNG0, 5f, 0f, 0f) }
+        assertEquals(0, st[0].score)                         // واقفين جنب بعض ⇒ مش دليل
+        st = t.update(listOf(fix(north(3.0), age = 30_000)), LAT0, LNG0, 5f, 40f, 0f)
+        assertFalse(st[0].fresh)
+        assertEquals("📡 موبايل متوصّل بس الـGPS بتاعه قديم", CompanionTracker.summary(st, true))
+        assertEquals("📡 GPS الشاشة بس", CompanionTracker.summary(emptyList(), true))
+        assertEquals("📡 مفيش GPS", CompanionTracker.summary(emptyList(), false))
+    }
+    @Test fun wrongDirectionOrSpeedDoesNotBuildTrust() {
+        val t = CompanionTracker(); var st = emptyList<CompanionTracker.Status>()
+        repeat(10) { st = t.update(listOf(fix(north(3.0), hd = 180f)), LAT0, LNG0, 5f, 40f, 0f) }
+        assertFalse(st[0].trusted)
+    }
+}

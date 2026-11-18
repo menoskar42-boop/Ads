@@ -122,6 +122,11 @@ function createDriveSite({ pool, push } = {}) {
     } catch (e) { fail(res, 500, 'relink failed'); }
   });
 
+  // الموبايلات اللى بتشارك GPS دلوقتى (الشاشة بتقرّر تثق فيهم ولا لأ).
+  router.post('/api/car/companions', json, carAuth, (req, res) => {
+    res.json({ ok: true, devices: require('../drive/companions').list(req.car.id) });
+  });
+
   // الربط بـQR: الشاشة بتطلب رقم (بيتعرض QR) وبتسأل لحد ما الموبايل يأكّده.
   router.post('/api/car/claim', rateLimit({ name: 'od-claim', windowMs: 10 * 60000, max: 10 }), json, carAuth, async (req, res) => {
     try {
@@ -211,6 +216,16 @@ function createDriveSite({ pool, push } = {}) {
         'X-More': z.more ? '1' : '0', 'Cache-Control': 'no-store' });
       res.send(z.buf);
     } catch (e) { fail(res, 500, 'zip failed'); }
+  });
+
+  // «📡 شارك GPS مع العربية» (المرحلة ٢): آخر قراءة بس فى الذاكرة — src/drive/companions.js
+  const comp = require('../drive/companions');
+  router.post('/api/web/fix', rateLimit({ name: 'od-fix', windowMs: 60 * 60000, max: 4000 }), json, ownerAuth, (req, res) => {
+    if (req.body && req.body.stop === true) { comp.stop(req.owner.car_id, req.owner.owner_id); return res.json({ ok: true }); }
+    const f = comp.parseFix(req.body);
+    if (!f) return fail(res, 400, 'bad fix');
+    comp.put(req.owner.car_id, req.owner.owner_id, f);
+    res.json({ ok: true });
   });
 
   // «ربط شاشة جديدة بنفس العربية» (بعد مسح التطبيق) — كود لمرة واحدة ١٠ دقايق.

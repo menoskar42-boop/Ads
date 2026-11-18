@@ -328,6 +328,47 @@
     } catch (e) { $('shotsNote').textContent = e.message; }
   });
 
+  // «📡 شارك GPS مع العربية» (المرحلة ٢): watchPosition طول ما الصفحة مفتوحة، وقراءة للسيرفر كل ٢ ث بالكتير. الاختيار بيتفتكر
+  // (فلو فتحت الصفحة تانى بيكمّل لوحده). الشاشة هى اللى بتقرّر تثق فيه (لازم يتحرك معاها).
+  const SHARE_KEY = 'od_share_gps';
+  let shareWatch = null, lastSent = 0, sentCount = 0;
+  const devLabel = /iphone|ipad/i.test(navigator.userAgent) ? 'iPhone' : (/android/i.test(navigator.userAgent) ? 'Android' : 'موبايل');
+  function shareUi(msg) {
+    $('shareBtn').textContent = shareWatch !== null ? '⏹ وقّف مشاركة GPS' : '📡 شارك GPS مع العربية';
+    $('shareBtn').className = shareWatch !== null ? 'primary' : '';
+    if (msg !== undefined) $('shareNote').textContent = msg;
+  }
+  function startShare() {
+    if (!navigator.geolocation) { shareUi('الموبايل/المتصفح ده مابيدّيش المكان.'); return; }
+    if (shareWatch !== null || !token) return;
+    try { localStorage.setItem(SHARE_KEY, '1'); } catch (e) {}
+    keepAwake();
+    shareWatch = navigator.geolocation.watchPosition(async (p) => {
+      const now = Date.now();
+      if (now - lastSent < 2000) return;
+      lastSent = now;
+      const c = p.coords;
+      try {
+        await api('POST', '/api/web/fix', { lat: c.latitude, lng: c.longitude, acc: c.accuracy, speed: c.speed, heading: c.heading, t: p.timestamp, label: devLabel });
+        sentCount++;
+        shareUi(`📡 بيشارك · دقة ${Math.round(c.accuracy)} م` + (c.speed != null ? ` · ${Math.round(c.speed * 3.6)} كم/س` : '') + ` · ${sentCount} قراءة`);
+      } catch (e) { shareUi('مش قادر يبعت دلوقتى (النت؟) — هيحاول تانى'); }
+    }, (err) => {
+      shareUi(err.code === 1 ? 'المتصفح رافض إذن الموقع — اسمحله من إعدادات الموبايل للموقع ده' : 'الموبايل مش لاقى مكانه لسه…');
+    }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+    shareUi('بيدوّر على المكان…');
+  }
+  function stopShare() {
+    if (shareWatch !== null) navigator.geolocation.clearWatch(shareWatch);
+    shareWatch = null;
+    try { localStorage.removeItem(SHARE_KEY); } catch (e) {}
+    api('POST', '/api/web/fix', { stop: true }).catch(() => {});
+    shareUi('المشاركة واقفة.');
+  }
+  $('shareBtn').addEventListener('click', () => { if (shareWatch !== null) stopShare(); else startShare(); });
+  // بعد ما باقى الصفحة تتجهّز (keepAwake متعرّف تحت)
+  setTimeout(() => { try { if (localStorage.getItem(SHARE_KEY) === '1' && token) startShare(); } catch (e) {} }, 0);
+
   // الربط بـQR (٢٠٢٦-١١-١٨): الشاشة الجديدة بتعرض QR فيه drive.oscardevs.com/#claim=<٨ أرقام>، والموبايل المربوط بيأكّده.
   async function claimScreen(code) {
     $('claimNote').textContent = '…';

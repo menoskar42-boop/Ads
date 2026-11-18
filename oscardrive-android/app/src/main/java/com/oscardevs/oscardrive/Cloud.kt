@@ -40,5 +40,7 @@ object Cloud {
     fun relink(token: String, code: String): JSONObject = call("/api/car/relink", token, JSONObject().put("code", code))
     /** الربط بـQR: رقم ٨ أرقام + الرابط اللى بيتعرض QR، وسؤال «اتربطت؟». */
     fun claim(token: String): JSONObject = call("/api/car/claim", token, null)
+    /** الموبايلات اللى بتشارك GPS دلوقتى (المرحلة ٢). */
+    fun companions(token: String): JSONObject = call("/api/car/companions", token, null)
     fun claimStatus(token: String): JSONObject = call("/api/car/claim-status", token, null)
 }

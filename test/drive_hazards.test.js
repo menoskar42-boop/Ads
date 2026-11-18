@@ -83,6 +83,20 @@ describe('hazards: database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL n
     assert.equal((await call('GET', '/api/web/state', null, owner)).status, 200);
   });
 
+  it('companion GPS: the paired phone shares its fix, the screen sees only fresh ones, stop removes it', async () => {
+    const car = (await call('POST', '/api/car/register', { app: '1.0' })).json.token;
+    const owner = (await call('POST', '/api/web/pair', { code: (await call('POST', '/api/car/pair', {}, car)).json.code })).json.token;
+    assert.equal((await call('POST', '/api/web/fix', { lat: 27.18, lng: 31.18, acc: 5 })).status, 401);
+    assert.equal((await call('POST', '/api/web/fix', { lat: 999, lng: 31.18, acc: 5 }, owner)).status, 400);
+    assert.equal((await call('POST', '/api/web/fix', { lat: 27.18, lng: 31.18, acc: 6, speed: 11, heading: 92, t: Date.now(), label: 'iPhone' }, owner)).status, 200);
+    const d = (await call('POST', '/api/car/companions', {}, car)).json.devices;
+    assert.equal(d.length, 1); assert.equal(d[0].label, 'iPhone'); assert.equal(d[0].heading, 92); assert.ok(d[0].ageMs < 5000);
+    const other = (await call('POST', '/api/car/register', { app: '1.0' })).json.token;
+    assert.equal((await call('POST', '/api/car/companions', {}, other)).json.devices.length, 0);   // عربية تانية ماتشوفش
+    await call('POST', '/api/web/fix', { stop: true }, owner);
+    assert.equal((await call('POST', '/api/car/companions', {}, car)).json.devices.length, 0);
+  });
+
   it('QR: the new screen shows a code, the paired phone confirms, the screen sees it is linked', async () => {
     const oldCar = (await call('POST', '/api/car/register', { app: '1.0' })).json.token;
     const U5 = '44444444-2222-4333-8444-555555555555';
