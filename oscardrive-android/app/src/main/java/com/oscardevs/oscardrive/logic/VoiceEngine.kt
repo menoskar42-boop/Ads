@@ -105,7 +105,8 @@ object VoiceCatalog {
         VoiceCommand("cancel", "خلاص", listOf("خلاص", "بس", "الغي", "ولا حاجه"), listOf("cancel", "stop", "never mind")),
     )
 
-    val DEFAULT_WAKE = listOf("يا اوسكار", "اوسكار", "hey oscar", "oscar", "ok oscar")
+    /** أشكال اسمه زى ما برنامج التعرّف بيكتبها فعلاً («اسكار» · «وسكار» · «اوسكر») — C9. */
+    val DEFAULT_WAKE = listOf("يا اوسكار", "اوسكار", "يا اسكار", "اسكار", "يا وسكار", "وسكار", "اوسكر", "hey oscar", "oscar", "ok oscar")
 
     fun byId(id: String) = ALL.firstOrNull { it.id == id }
 }

@@ -37,15 +37,21 @@ object Speaker {
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) {}
-                override fun onDone(id: String?) { abandon() }
+                override fun onDone(id: String?) { speakingUntil = 0L; abandon() }
                 @Deprecated("Deprecated in Java")
-                override fun onError(id: String?) { abandon() }
+                override fun onError(id: String?) { speakingUntil = 0L; abandon() }
             })
             pending?.let { pending = null; say(it) }
         }
     }
 
     val available: Boolean get() = ready
+
+    /**
+     * بيتكلم لحد إمتى (C7): «يا أوسكار» بيستنى ده كمان — قبل كده الاستماع كان بيبدأ وسط تنبيه المطب (اللى بيتقال هنا مش من أوسكار)،
+     * وعلى شاشات كتير بداية التعرّف بتكتم الصوت. تقدير من طول الجملة، وبيتصفّر أول ما النطق يخلص.
+     */
+    @Volatile var speakingUntil = 0L; private set
 
     fun beep() { try { tone?.startTone(ToneGenerator.TONE_PROP_BEEP2, 350) } catch (_: Exception) {} }
 
@@ -79,6 +85,7 @@ object Speaker {
         val t = tts
         if (t == null || !ready) { pending = text; return }
         request()
+        speakingUntil = System.currentTimeMillis() + 1500 + text.length * 90L
         t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "od-" + System.currentTimeMillis())
     }
 

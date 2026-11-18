@@ -1231,7 +1231,7 @@ class MainActivity : Activity() {
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, prefs.voiceLang)
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, prefs.voiceOffline)
+            .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, VoiceDiag.preferOffline(this, prefs.voiceOffline))
             .putExtra(RecognizerIntent.EXTRA_PROMPT, if (prefs.voiceLang.startsWith("en")) "Say: take me home · mark a bump · what's my speed"
                 else "قول: وصّلنى البيت · سجّل مطب · السرعة كام · فعّل الحماية")
         try { startActivityForResult(i, REQ_VOICE) }
@@ -1278,14 +1278,16 @@ class MainActivity : Activity() {
             }
             e.understand(text)?.let { u -> val b = best; if (b == null || (u.sure && !b.sure)) best = u }
         }
-        if (!called) return
+        if (!called) { VoiceDiag.add("اتجاهل — مفيش «يا أوسكار» فى «${heard.first()}»"); return }
         val u = best
         if (u == null) {
             if (heard.any { e.afterWake(it) == "" }) { awaitingUntil = now + 8000; oscar("hello"); return }
+            VoiceDiag.add("الفهم: مفيش أمر بيطابق «${heard.first()}»")
             awaitingUntil = 0; oscar("not_understood", "مافهمتش: «${heard.first()}»"); return
         }
         if (!u.sure) { askGuess(u); return }
         awaitingUntil = 0
+        VoiceDiag.add("الفهم: ${u.match.command.id}")
         runCommand(u.match.command.id, u.match.slot, u.heard)
     }
 
@@ -1460,6 +1462,11 @@ class MainActivity : Activity() {
         val r1 = ui.row()
         r1.addView(ui.button("🎤 اتكلّم دلوقتى", "primary") { listen() }, ui.lp(0, ui.dp(60), 1f, 3))
         page.addView(r1)
+        // تشخيص (البند ٦): التأخير و«مافهمتش» جايين من فين — الميكروفون ولا التعرّف ولا الفهم
+        val diag = VoiceDiag.recent()
+        page.addView(ui.text("🩺 آخر اللى سمعه (النت: ${if (VoiceDiag.online(this)) "موجود ⇒ التعرّف على السحابة" else "مفيش ⇒ من غير نت"}):\n" +
+            (if (diag.isEmpty()) "لسه مفيش — قول «يا أوسكار …» أو دوس 🎤" else diag.joinToString("\n")), 13f, ui.muted)
+            .apply { setPadding(ui.dp(6), 0, ui.dp(6), ui.dp(6)) })
 
         page.addView(optionRow("لغة الكلام وردود أوسكار", listOf(0 to "عربى", 1 to "English"), if (prefs.voiceLang.startsWith("en")) 1 else 0) {
             prefs.voiceLang = if (it == 1) "en-US" else "ar-EG"; wake?.stop(); startWakeIfOn()

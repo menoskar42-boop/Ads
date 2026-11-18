@@ -60,26 +60,45 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
             if (!active) return@postDelayed
             val wait = Oscar.speakingUntil - System.currentTimeMillis()
             if (wait > 0) { listen(wait + 300); return@postDelayed }
+            val wait2 = Speaker.speakingUntil - System.currentTimeMillis()   // تنبيه المطب بصوت الشاشة (C7)
+            if (wait2 > 0) { listen(wait2 + 300); return@postDelayed }
             val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-                .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, offline)
+                .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, VoiceDiag.preferOffline(ctx, offline))
                 .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
-            try { sr?.startListening(i) } catch (_: Exception) { listen(2000) }
+            startedMs = System.currentTimeMillis(); speechMs = 0L
+            try { sr?.startListening(i) } catch (_: Exception) { recreate(); listen(2000) }
         }, delayMs)
+    }
+
+    private var startedMs = 0L
+    private var speechMs = 0L
+
+    /** برنامج جوجل على الشاشات الضعيفة بيعلق فى «مشغول» لو اتنده تانى على نفس النسخة — الحل المعروف: نقفله ونعمل واحد جديد (P1). */
+    private fun recreate() {
+        try { sr?.cancel(); sr?.destroy() } catch (_: Exception) {}
+        sr = try { SpeechRecognizer.createSpeechRecognizer(ctx).also { it.setRecognitionListener(this) } } catch (_: Exception) { null }
     }
 
     override fun onResults(results: Bundle?) {
         errors = 0
         val l = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+        val now = System.currentTimeMillis()
+        val after = if (speechMs > 0) "${(now - speechMs) / 100 / 10.0} ث بعد ما بدأت تتكلم" else "${(now - startedMs) / 1000} ث"
+        VoiceDiag.add(if (l.isEmpty()) "رجع فاضى ($after)" else "سمع «${l.first()}» ($after)")
         if (l.isNotEmpty()) onText(l)
         listen(250)
     }
 
     override fun onError(error: Int) {
         if (!active) return
-        errors++
+        val silence = error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_NO_MATCH
+        // السكوت عادى فى الاستماع المتواصل — مابيتحسبش خطأ (كان بيوصّل العدّاد لـ٥ فيستنى ٤ ث بين كل محاولة ويضيّع كلامك)
+        if (!silence) { errors++; VoiceDiag.add("خطأ: ${VoiceDiag.errorName(error)}") }
+        else if (speechMs > 0) VoiceDiag.add(VoiceDiag.errorName(error))
+        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == SpeechRecognizer.ERROR_CLIENT) { recreate(); listen(800); return }
         when (error) {
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> { onState("محتاج إذن الميكروفون"); stop(); return }
             SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_SERVER ->
@@ -90,7 +109,7 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
     }
 
     override fun onReadyForSpeech(params: Bundle?) {}
-    override fun onBeginningOfSpeech() {}
+    override fun onBeginningOfSpeech() { speechMs = System.currentTimeMillis() }
     override fun onRmsChanged(rmsdB: Float) {}
     override fun onBufferReceived(buffer: ByteArray?) {}
     override fun onEndOfSpeech() {}

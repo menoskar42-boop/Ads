@@ -355,6 +355,10 @@ class VoiceEngineTest {
         assertEquals("وصلني البيت", e.afterWake("يا أوسكار وصلني البيت"))
         assertEquals("", e.afterWake("Hey Oscar"))
         assertNull(e.afterWake("وصلني البيت"))
+        // C9: الاسم زى ما برنامج التعرّف بيكتبه فعلاً
+        assertEquals("سجل مطب", e.afterWake("اسكار سجل مطب"))
+        assertEquals("سجل مطب", e.afterWake("يا وسكار سجل مطب"))
+        assertEquals("السرعه كام", e.afterWake("اوسكر السرعه كام"))
         val custom = VoiceEngine(wakeNames = listOf("يا كابتن"))
         assertEquals("السرعه كام", custom.afterWake("يا كابتن السرعة كام"))
         assertNull(custom.afterWake("يا أوسكار السرعة كام"))
