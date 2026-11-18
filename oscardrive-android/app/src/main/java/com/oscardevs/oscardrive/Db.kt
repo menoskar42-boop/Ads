@@ -194,6 +194,11 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         writableDatabase.update("hazards", ContentValues().apply { put("deleted", 1); put("synced", 0) }, "id=?", arrayOf(id.toString()))
     }
 
+    /** اتجاه اتعرف لمطب قديم (عدّيت من فوقه) — بيترفع للسيرفر. مابيكتبش فوق اتجاه موجود. */
+    fun setHazardBearing(id: Long, bearing: Float) {
+        writableDatabase.execSQL("UPDATE hazards SET bearing = ?, synced = 0 WHERE id = ? AND bearing IS NULL", arrayOf<Any>(bearing.toDouble(), id))
+    }
+
     /** للرفع (HazardSync): اللى لسه ماترفعش، ومعاه الممسوح. */
     data class HazardRow(val id: Long, val uuid: String, val type: String, val lat: Double, val lng: Double, val bearing: Float?,
                          val accuracy: Float?, val altitude: Double?, val note: String, val createdMs: Long, val deleted: Boolean)

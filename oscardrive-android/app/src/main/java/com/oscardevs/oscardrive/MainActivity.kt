@@ -485,7 +485,8 @@ class MainActivity : Activity() {
         for (h in sorted.take(60)) {
             val row = ui.card(10).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val dist = pos?.let { " · ${km(Geo.distanceM(it.first, it.second, h.lat, h.lng))}" } ?: ""
-            row.addView(ui.text("${h.type.emoji} ${h.type.ar}$dist\n${dateTime(h.createdMs)}", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            val dir = if (h.bearing == null) " · من غير اتجاه (هيتعرف لما تعدّى عليه)" else ""
+            row.addView(ui.text("${h.type.emoji} ${h.type.ar}$dist\n${dateTime(h.createdMs)}$dir", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
             row.addView(ui.button("🗺️", "neutral", 16f) { navigateTo(h.lat, h.lng, h.type.ar) }, ui.lp(ui.dp(60), ui.dp(48), 0f, 2))
             row.addView(ui.button("مسح", "neutral", 14f) { db.deleteHazard(h.id); DriveService.State.hazardsDirty = true; HazardSync.syncSoon(this); refresh() }, ui.lp(ui.dp(76), ui.dp(48), 0f, 2))
             page.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))

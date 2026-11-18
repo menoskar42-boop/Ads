@@ -131,6 +131,29 @@ class RoadMemoryTest {
         // الرادار مالوش دعوة بالإعداد (٣ كم)
         assertEquals(3000.0, RoadMemory.rangeM(HazardType.RADAR, 60f, 50.0))
     }
+    // المالك ٢٠٢٦-١١-١٨: المطب اللى تحت الكوبرى كان بينبّه وانت فوقه — الطريق اللى بيقطعه مابينبّهش، ونفس الطريق فى الاتجاهين بينبّه
+    @Test fun bumpOnTheSameRoadAxisOnly() {
+        val s = RoadMemory.STOPPED_KMH
+        val east = Hazard(9, HazardType.BUMP, north(80.0), LNG0, 90f)   // متسجّل والعربية رايحة شرق
+        // انت رايح شمال (طريق بيقطعه / كوبرى فوقه) ⇒ لأ
+        assertNull(RoadMemory.ahead(listOf(east), LAT0, LNG0, 0f, 40f, 0, emptyMap(), minKmh = s, minWarnM = 100.0))
+        // نفس الطريق: رايح شمال والمطب متسجّل شمال أو جنوب (الاتجاه العكسى) ⇒ آه
+        assertNotNull(RoadMemory.ahead(listOf(east.copy(bearing = 10f)), LAT0, LNG0, 0f, 40f, 0, emptyMap(), minKmh = s, minWarnM = 100.0))
+        assertNotNull(RoadMemory.ahead(listOf(east.copy(bearing = 185f)), LAT0, LNG0, 0f, 40f, 0, emptyMap(), minKmh = s, minWarnM = 100.0))
+        // قديم من غير اتجاه ⇒ زى الأول
+        assertNotNull(RoadMemory.ahead(listOf(east.copy(bearing = null)), LAT0, LNG0, 0f, 40f, 0, emptyMap(), minKmh = s, minWarnM = 100.0))
+        assertTrue(RoadMemory.sameAxis(350f, 20f)); assertTrue(RoadMemory.sameAxis(0f, 150f)); assertFalse(RoadMemory.sameAxis(0f, 60f))
+    }
+    @Test fun oldBumpLearnsItsDirectionWhenDrivenOver() {
+        val old = Hazard(10, HazardType.BUMP, north(8.0), LNG0, null)
+        val withDir = Hazard(11, HazardType.BUMP, north(5.0), LNG0, 30f)
+        val radar = Hazard(12, HazardType.RADAR, north(5.0), LNG0, null)
+        assertEquals(listOf(10L to 3f), RoadMemory.learnBearing(listOf(old, withDir, radar), LAT0, LNG0, 3f, 35f, 6f))
+        assertTrue(RoadMemory.learnBearing(listOf(old), LAT0, LNG0, 3f, 6f, 6f).isEmpty())     // بطيء
+        assertTrue(RoadMemory.learnBearing(listOf(old), LAT0, LNG0, 3f, 35f, 40f).isEmpty())   // GPS وحش
+        assertTrue(RoadMemory.learnBearing(listOf(old), LAT0, LNG0, null, 35f, 6f).isEmpty())
+        assertTrue(RoadMemory.learnBearing(listOf(old.copy(lat = north(60.0))), LAT0, LNG0, 3f, 35f, 6f).isEmpty())   // بعيد
+    }
     @Test fun noHeadingYet() {
         val s = RoadMemory.STOPPED_KMH
         // أول التشغيل ومفيش اتجاه: القريب جداً (≤ ٤٠ م) بس

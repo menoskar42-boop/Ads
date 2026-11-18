@@ -296,6 +296,12 @@ class DriveService : Service() {
         if (State.hazardsDirty) { hazards = db.hazards(); State.hazardsDirty = false }
         val lat = State.lat ?: return
         val lng = State.lng ?: return
+        // مطب قديم من غير اتجاه وعدّيت من فوقه ⇒ اتجاه الطريق بيتسجّل (ويترفع)
+        val learned = RoadMemory.learnBearing(hazards, lat, lng, trip.headingDeg, kmh, State.accuracyM)
+        if (learned.isNotEmpty()) {
+            for ((id, b) in learned) db.setHazardBearing(id, b)
+            hazards = db.hazards(); HazardSync.syncSoon(this)
+        }
         val minKmh = if (prefs.quietSlow) RoadMemory.QUIET_SLOW_KMH else RoadMemory.STOPPED_KMH
         val hit = RoadMemory.ahead(hazards, lat, lng, trip.headingDeg, kmh, now, warned,
             minKmh = minKmh, minWarnM = prefs.bumpWarnM.toDouble()) ?: return

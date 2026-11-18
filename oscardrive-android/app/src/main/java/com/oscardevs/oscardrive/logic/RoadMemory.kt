@@ -102,9 +102,28 @@ object RoadMemory {
             val tol = if (d > FAR_M) FAR_AHEAD_DEG else AHEAD_DEG
             if (d > 25 && Geo.angleDiff(Geo.bearingDeg(lat, lng, h.lat, h.lng), headingDeg) > tol) continue
             if (h.type.directional && h.bearing != null && Geo.angleDiff(h.bearing, headingDeg) > SAME_WAY_DEG) continue
+            // المطب/الحفرة بعرض الطريق: نفس الطريق فى الاتجاهين بينبّه، والطريق اللى بيقطعه (كوبرى فوقه/تحته · شارع جانبى) لأ
+            if (!h.type.directional && h.bearing != null && !sameAxis(h.bearing, headingDeg)) continue
             if (best == null || d < best.second) best = h to d
         }
         return best
+    }
+
+    /**
+     * الاتجاه (المالك ٢٠٢٦-١١-١٨ — المطب اللى تحت الكوبرى بينبّه وانت فوقه): المطب اللى ليه اتجاه تسجيل بينبّه لو انت ماشى
+     * **على نفس محور الطريق** — نفس الاتجاه أو العكسى (المطب بعرض الطريق) — فى حدود ٤٠°. القديم من غير اتجاه بيفضل زى ما هو،
+     * وبياخد اتجاه لوحده أول ما تعدّى من فوقه وانت ماشى (learnBearing) — مابنخترعش اتجاه.
+     */
+    const val AXIS_DEG = 40f
+    fun sameAxis(a: Float, b: Float): Boolean { val d = Geo.angleDiff(a, b); return d <= AXIS_DEG || d >= 180f - AXIS_DEG }
+    /** عدّيت من فوقه (≤ ١٥ م) وانت ماشى ≥ ١٠ كم/س واتجاهك معروف والـGPS كويس ⇒ ده اتجاه الطريق. */
+    const val LEARN_M = 15.0
+    const val LEARN_KMH = 10f
+    const val LEARN_ACC_M = 20f
+    fun learnBearing(hazards: List<Hazard>, lat: Double, lng: Double, headingDeg: Float?, kmh: Float, accuracyM: Float?): List<Pair<Long, Float>> {
+        if (headingDeg == null || kmh < LEARN_KMH || (accuracyM != null && accuracyM > LEARN_ACC_M)) return emptyList()
+        return hazards.filter { !it.type.directional && it.bearing == null && Geo.distanceM(lat, lng, it.lat, it.lng) <= LEARN_M }
+            .map { it.id to headingDeg }
     }
 
     /** نفس النوع مسجّل فى نفس المكان تقريباً ⇒ مانكرّرهوش. */
