@@ -42,5 +42,7 @@ object Cloud {
     fun claim(token: String): JSONObject = call("/api/car/claim", token, null)
     /** الموبايلات اللى بتشارك GPS دلوقتى (المرحلة ٢). */
     fun companions(token: String): JSONObject = call("/api/car/companions", token, null)
+    /** «📲 ابعت للشاشة»: تأكيد اللى اتستلم (ack) + اللى لسه. */
+    fun inbox(token: String, body: JSONObject): JSONObject = call("/api/car/inbox", token, body)
     fun claimStatus(token: String): JSONObject = call("/api/car/claim-status", token, null)
 }

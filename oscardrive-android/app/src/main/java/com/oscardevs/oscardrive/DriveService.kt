@@ -147,7 +147,9 @@ class DriveService : Service() {
         lastCompPoll = now; compBusy = true
         compIo.execute {
             val fixes = try {
-                val a = Cloud.companions(token).optJSONArray("devices")
+                val resp = Cloud.companions(token)
+                if (resp.optBoolean("inbox")) main.post { HazardSync.syncSoon(this@DriveService) }   // «📲 ابعت للشاشة»: فيه حاجة جديدة من الموبايل
+                val a = resp.optJSONArray("devices")
                 (0 until (a?.length() ?: 0)).mapNotNull { i -> a!!.optJSONObject(i)?.let { o ->
                     com.oscardevs.oscardrive.logic.CompanionFix(o.optLong("id"), o.optString("label", "موبايل"), o.optDouble("lat"), o.optDouble("lng"),
                         o.optDouble("acc", 50.0).toFloat(), if (o.isNull("speed")) null else o.optDouble("speed").toFloat(),

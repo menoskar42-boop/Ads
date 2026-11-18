@@ -810,3 +810,23 @@ class FuelVoiceTest {
             assertEquals("nav.fuel", e.understand(p)?.match?.command?.id, p)
     }
 }
+
+class InboxPlanTest {
+    private val now = 1_763_400_000_000L
+    private fun j(s: String) = org.json.JSONObject(s)
+    @Test fun placeTaskNoteFill() {
+        assertEquals(InboxStep.Place("البيت", 27.1, 31.2), InboxPlan.plan("place", j("""{"name":"باسم البيت","lat":27.1,"lng":31.2}"""), now))
+        assertEquals(InboxStep.Skip, InboxPlan.plan("place", j("""{"name":"البيت"}"""), now))
+        assertEquals(InboxStep.Note("task", "أغيّر الزيت"), InboxPlan.plan("task", j("""{"text":" أغيّر الزيت "}"""), now))
+        assertEquals(InboxStep.Fill(30.0, 600.0, true, "92", null), InboxPlan.plan("fill", j("""{"liters":30,"paid":600,"full":true,"grade":"92","odo":null}"""), now))
+        assertEquals(InboxStep.Fill(10.0, 0.0, false, null, 52000), InboxPlan.plan("fill", j("""{"liters":10,"grade":"99","odo":52000}"""), now))
+        assertEquals(InboxStep.Skip, InboxPlan.plan("hack", j("{}"), now))
+    }
+    @Test fun remindUsesTimeOrPlaceElseVoiceElseTask() {
+        assertEquals(InboxStep.Note("remind", "أكلم ماما", now + 60_000), InboxPlan.plan("remind", j("""{"text":"أكلم ماما","dueMs":${now + 60_000}}"""), now))
+        assertEquals(InboxStep.Note("remind", "الورق", null, "الشغل"), InboxPlan.plan("remind", j("""{"text":"الورق","place":"الشغل"}"""), now))
+        val v = InboxPlan.plan("remind", j("""{"text":"فكرنى بعد 20 دقيقة اكلم ماما"}"""), now) as InboxStep.Note
+        assertEquals("remind", v.kind); assertEquals(now + 20 * 60_000, v.dueMs)
+        assertEquals(InboxStep.Note("task", "اشترى عيش"), InboxPlan.plan("remind", j("""{"text":"اشترى عيش"}"""), now))
+    }
+}

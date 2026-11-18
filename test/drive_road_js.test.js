@@ -106,3 +106,11 @@ test('questions answered from the car summary (fuel left · maintenance · speed
     'الزيت: فاضل 400 كم · قرّب أو وقته: زيت المحرك');
   assert.equal(R.maintSay({ maint: [] }), 'مفيش صيانة قرّبت');
 });
+test('«📲 ابعت للشاشة» by voice keeps the original spelling', () => {
+  assert.equal(R.parseVoice('أوسكار احفظ المكان ده باسم بيت جدّتى'), 'inbox:place:بيت جدتى');
+  assert.equal(R.parseVoice('أوسكار ضيف مهمة أغيّر فلتر الهوا'), 'inbox:task:أغير فلتر الهوا');
+  assert.equal(R.parseVoice('أوسكار سجل ملاحظة الكاوتش محتاج نفخ'), 'inbox:note:الكاوتش محتاج نفخ');
+  assert.equal(R.parseVoice('أوسكار فكرنى بعد ٢٠ دقيقة أكلم ماما'), 'inbox:remind:فكرنى بعد ٢٠ دقيقة أكلم ماما');
+  assert.equal(R.parseVoice('أوسكار ركنت هنا'), 'park');
+  assert.equal(R.parseVoice('أوسكار سجل رادار هنا'), 'radar');
+});

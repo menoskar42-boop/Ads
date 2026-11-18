@@ -104,6 +104,14 @@
   function parseVoice(text) {
     const t = norm(text);
     if (!WAKE.test(t)) return null;
+    // «📲 ابعت للشاشة»: النص نفسه من الكلام الأصلى (من غير تشكيل) — norm بيغيّر الحروف بس مش العدد
+    const base = String(text || '').replace(/[\u064B-\u0652]/g, '').trim();
+    const tail = (m, g) => (norm(base).length === t.trim().length ? base : t.trim()).slice(t.trim().length - m[g].length).trim();
+    let m;
+    if ((m = t.trim().match(/(?:احفظ|سجل)\s+(?:المكان|مكاني)(?:\s+(?:ده|دا|هنا))?\s+(?:باسم|اسمه|بإسم)\s+(.+)$/))) return 'inbox:place:' + tail(m, 1);
+    if ((m = t.trim().match(/(?:ضيف|سجل|اكتب)\s+مهمه\s+(.+)$/))) return 'inbox:task:' + tail(m, 1);
+    if ((m = t.trim().match(/(?:سجل|اكتب|خد)\s+ملاحظه\s+(.+)$/))) return 'inbox:note:' + tail(m, 1);
+    if ((m = t.trim().match(/((?:فكرني|ذكرني|remind me)\s+.+)$/))) return 'inbox:remind:' + tail(m, 1);
     if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب)/.test(t)) return 'shot';
     // أسئلة بترد من ملخّص العربية (زى fuel.left · maint.next · info.speed على الشاشة) — قبل «أقرب بنزينة» عشان «فاضل كام بنزين»
     if (/(فاضل|باقي|البنزين كام|how much fuel|fuel left)/.test(t) && /(بنزين|fuel)/.test(t)) return 'fuelleft';

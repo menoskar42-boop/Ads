@@ -29,7 +29,7 @@ describe('hazards: database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL n
   before(async () => {
     const { Pool } = require('pg');
     pool = new Pool({ connectionString: URL_ });
-    await pool.query('DROP TABLE IF EXISTS od_hazards, od_shots, od_push_subs, od_clips, od_events, od_points, od_owners, od_cars CASCADE');
+    await pool.query('DROP TABLE IF EXISTS od_inbox, od_hazards, od_shots, od_push_subs, od_clips, od_events, od_points, od_owners, od_cars CASCADE');
     await require('../src/drive/schema').ensureDriveSchema(pool);
     const express = require('express');
     const app = express();

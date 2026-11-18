@@ -462,6 +462,48 @@
       location.href = 'https://wa.me/?text=' + encodeURIComponent(text);
     });
   }
+  // ── «📲 ابعت للشاشة»: مكان (من GPS الموبايل) · مهمة · تذكير · ملاحظة · تفويلة ⇒ /api/web/inbox ⇒ الشاشة بتسحب (src/drive/inbox.js) ──
+  let ibKind = 'place';
+  const IB_HINT = { place: 'اسم المكان — مثلاً: النادى', task: 'المهمة — مثلاً: أغيّر فلتر الهوا', remind: 'فكّرنى بإيه — أو «فكّرنى بعد ساعة أكلم ماما»',
+    note: 'الملاحظة', fill: 'ملاحظة (اختيارى)' };
+  function ibUi() {
+    for (const b of $('ibSeg').querySelectorAll('button')) b.className = b.dataset.k === ibKind ? 'on' : '';
+    $('ibText').placeholder = IB_HINT[ibKind]; $('ibText').hidden = ibKind === 'fill';
+    $('ibWhenBox').hidden = ibKind !== 'remind'; $('ibFill').hidden = ibKind !== 'fill';
+  }
+  $('ibSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { ibKind = b.dataset.k; ibUi(); } });
+  async function ibSend(kind, payload, spoken) {
+    try {
+      await api('POST', '/api/web/inbox', { uuid: uuid(), kind, payload });
+      const msg = 'اتبعت للشاشة — هيوصل أول ما يبقى معاها نت';
+      $('ibNote').textContent = '✅ ' + msg; if (spoken) sayRoad('اتبعت للشاشة');
+      $('ibText').value = ''; $('ibLiters').value = ''; $('ibPaid').value = ''; $('ibOdo').value = ''; $('ibWhen').value = '';
+      loadInbox();
+    } catch (e) { $('ibNote').textContent = 'مااتبعتش: ' + e.message; if (spoken) sayRoad('مااتبعتش'); }
+  }
+  function ibSubmit(kind, text, spoken) {
+    if (kind === 'place') {
+      if (!text) { $('ibNote').textContent = 'اكتب اسم المكان'; return; }
+      return withFix((f) => ibSend('place', { name: text, lat: f.lat, lng: f.lng, acc: f.acc }, spoken));
+    }
+    if (kind === 'fill') {
+      return ibSend('fill', { liters: +$('ibLiters').value, paid: +$('ibPaid').value || 0, grade: $('ibGrade').value || null,
+        full: $('ibFull').checked, odo: +$('ibOdo').value || null, t: Date.now() }, spoken);
+    }
+    if (!text) { $('ibNote').textContent = 'اكتب النص'; return; }
+    const p = { text };
+    if (kind === 'remind' && $('ibWhen').value) p.dueMs = new Date($('ibWhen').value).getTime();
+    return ibSend(kind, p, spoken);
+  }
+  $('ibSend').addEventListener('click', () => ibSubmit(ibKind, $('ibText').value.trim(), false));
+  async function loadInbox() {
+    try {
+      const r = await api('GET', '/api/web/inbox');
+      const ul = $('ibList'); ul.textContent = '';
+      for (const x of r.items || []) ul.appendChild(li(x.label, x.delivered_at ? '✓ وصلت الشاشة ' + ago(new Date(x.delivered_at).getTime()) : '⏳ مستنية الشاشة تتوصل بالنت', ''));
+    } catch (e) { /* مش مربوط */ }
+  }
+  ibUi(); loadInbox();
   $('parkPhone').addEventListener('click', parkHere);
   $('sosBtn').addEventListener('click', sos);
   parkUi();
@@ -599,6 +641,10 @@
         : cmd === 'odo' ? (lastReport && lastReport.odo ? 'العدّاد حوالى ' + Math.round(lastReport.odo) + ' كيلو' : 'العدّاد لسه ماتكتبش على الشاشة')
         : k != null ? 'سرعتنا ' + k + ' كيلو' : 'لسه الـGPS ماحددش السرعة — شغّل «🔔 نبّهنى»';
       $('voiceNote').textContent = '🗣️ ' + msg; sayRoad(msg);
+    }
+    else if (cmd && cmd.startsWith('inbox:')) {
+      const [, kind, ...rest] = cmd.split(':'); const text = rest.join(':').trim();
+      $('voiceNote').textContent = '📲 ' + text; ibSubmit(kind, text, true);
     }
     else if (cmd && cmd.startsWith('goto:')) {
       const p = RD.findPlace(reportPlaces, cmd.slice(5));

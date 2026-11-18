@@ -18,6 +18,10 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("speed_alerts", true)
         set(v) = sp.edit().putBoolean("speed_alerts", v).apply()
     /** ذاكرة الطريق على السيرفر عشان ماتضيعش مع مسح التطبيق (HazardSync) — مفتوح افتراضياً (المالك ٢٠٢٦-١١-١٨). */
+    /** «📲 ابعت للشاشة»: آخر uuids اتضافت (عشان التأكيد لو ماوصلش مايتكرّرش). */
+    var inboxSeen: String
+        get() = sp.getString("inbox_seen", "") ?: ""
+        set(v) = sp.edit().putString("inbox_seen", v).apply()
     var cloudHazards: Boolean
         get() = sp.getBoolean("cloud_hazards", true)
         set(v) = sp.edit().putBoolean("cloud_hazards", v).apply()

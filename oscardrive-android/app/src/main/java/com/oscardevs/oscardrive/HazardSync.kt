@@ -67,6 +67,17 @@ object HazardSync {
             rounds++
         }
         DriveService.State.hazardsDirty = true
+        // «📲 ابعت للشاشة»: اللى الموبايل بعته (مكان · مهمة · تذكير · تفويلة) — فشلها مايوقّفش مزامنة المطبات
+        try {
+            if (Inbox.pull(app, prefs, token) > 0) {
+                val what = Inbox.lastAdded.joinToString(" · ")
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    Speaker.say("وصل من الموبايل: " + Inbox.lastAdded.joinToString("، ") { it.drop(2).trim() }.take(120),
+                        kind = com.oscardevs.oscardrive.logic.SpeechKind.INFO)
+                    android.widget.Toast.makeText(app, "📲 من الموبايل: $what", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        } catch (e: Cloud.HttpError) { if (e.code == 401) throw e } catch (_: Throwable) { /* المرة الجاية */ }
     }
 
     private fun json(h: Db.HazardRow) = JSONObject().put("uuid", h.uuid).put("type", h.type).put("lat", h.lat).put("lng", h.lng)

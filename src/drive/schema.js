@@ -7,6 +7,7 @@
 //   od_clips     — بيانات تسجيلات الكاميرا (الفيديو نفسه بيفضل على الشاشة).
 //   od_shots     — صور الطريق لتدريب موديل المطبات (الصورة نفسها BYTEA، ١٥٠٠ بالكتير لكل عربية).
 //   od_hazards   — ذاكرة الطريق (المطبات/الحفر/الرادارات) عشان ماتضيعش مع مسح التطبيق. uuid بيمنع التكرار، والمسح deleted_at.
+//   od_inbox     — «📲 ابعت للشاشة» من الموبايل (مكان · مهمة/ملاحظة/تذكير · تفويلة) لحد ما الشاشة تستلم؛ النص بيتمسح بعد الاستلام.
 //   od_push_subs — إشعارات الموبايل (Web Push).
 'use strict';
 
@@ -127,6 +128,17 @@ async function ensureDriveSchema(pool) {
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS claim_expires TIMESTAMPTZ;
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS relinked_at TIMESTAMPTZ;
     CREATE UNIQUE INDEX IF NOT EXISTS od_cars_claim_code ON od_cars(claim_code) WHERE claim_code IS NOT NULL;
+    CREATE TABLE IF NOT EXISTS od_inbox (
+      id           BIGSERIAL PRIMARY KEY,
+      car_id       INTEGER NOT NULL REFERENCES od_cars(id) ON DELETE CASCADE,
+      uuid         TEXT NOT NULL UNIQUE,
+      kind         TEXT NOT NULL,
+      payload      JSONB NOT NULL DEFAULT '{}'::jsonb,
+      label        TEXT NOT NULL DEFAULT '',
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      delivered_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS od_inbox_car ON od_inbox(car_id, delivered_at);
     CREATE TABLE IF NOT EXISTS od_push_subs (
       endpoint  TEXT PRIMARY KEY,
       owner_id  INTEGER NOT NULL REFERENCES od_owners(id) ON DELETE CASCADE,

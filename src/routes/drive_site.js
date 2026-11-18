@@ -124,7 +124,13 @@ function createDriveSite({ pool, push } = {}) {
 
   // الموبايلات اللى بتشارك GPS دلوقتى (الشاشة بتقرّر تثق فيهم ولا لأ).
   router.post('/api/car/companions', json, carAuth, (req, res) => {
-    res.json({ ok: true, devices: require('../drive/companions').list(req.car.id) });
+    res.json({ ok: true, devices: require('../drive/companions').list(req.car.id), inbox: inbox.hasPending(req.car.id) });
+  });
+  // «📲 ابعت للشاشة»: الشاشة بتأكّد اللى استلمته وبتاخد الجديد — src/drive/inbox.js
+  const inbox = require('../drive/inbox');
+  router.post('/api/car/inbox', rateLimit({ name: 'od-inbox-car', windowMs: 60 * 60000, max: 600 }), json, carAuth, async (req, res) => {
+    try { res.json({ ok: true, items: await inbox.take(pool, req.car.id, req.body && req.body.ack) }); }
+    catch (e) { fail(res, 500, 'inbox failed'); }
   });
 
   // الربط بـQR: الشاشة بتطلب رقم (بيتعرض QR) وبتسأل لحد ما الموبايل يأكّده.
@@ -265,6 +271,20 @@ function createDriveSite({ pool, push } = {}) {
       if (!r) return fail(res, 400, 'الرقم غلط أو خلص وقته — اعرض QR جديد على الشاشة');
       res.json({ ok: true, name: r.name });
     } catch (e) { fail(res, 500, 'claim failed'); }
+  });
+
+  router.get('/api/web/inbox', ownerAuth, async (req, res) => {
+    try { res.set('Cache-Control', 'no-store'); res.json({ ok: true, items: await inbox.recent(pool, req.owner.car_id) }); }
+    catch (e) { fail(res, 500, 'inbox failed'); }
+  });
+  router.post('/api/web/inbox', rateLimit({ name: 'od-inbox-web', windowMs: 60 * 60000, max: 300 }), json, ownerAuth, async (req, res) => {
+    const it = inbox.parse(req.body);
+    if (it.error) return fail(res, 400, it.error);
+    try {
+      const r = await inbox.add(pool, req.owner.car_id, it);
+      if (r.error) return fail(res, 429, r.error);
+      res.json({ ok: true });
+    } catch (e) { fail(res, 500, 'inbox failed'); }
   });
 
   router.post('/api/web/logout', ownerAuth, async (req, res) => {
