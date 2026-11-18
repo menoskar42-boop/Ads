@@ -34,4 +34,8 @@ object Cloud {
     fun pairCode(token: String): String = call("/api/car/pair", token, null).getString("code")
     /** صورة طريق لتدريب موديل المطبات (JPEG base64 + بيانات المكان). */
     fun shot(token: String, body: JSONObject): JSONObject = call("/api/car/shot", token, body)
+    /** ذاكرة الطريق (رفع بالـuuid، و`pull` بيرجّع ذاكرة العربية كلها). */
+    fun hazards(token: String, body: JSONObject): JSONObject = call("/api/car/hazards", token, body)
+    /** الشاشة دى تاخد نفس العربية بكود من صفحة الموبايل (بعد مسح التطبيق). */
+    fun relink(token: String, code: String): JSONObject = call("/api/car/relink", token, JSONObject().put("code", code))
 }

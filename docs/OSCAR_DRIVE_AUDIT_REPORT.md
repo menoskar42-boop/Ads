@@ -87,7 +87,7 @@
 ## ٦) خطة التنفيذ (بعد الموافقة — بند بند)
 
 1. **الوقوع:** `CrashLog` ✅ اتعمل (`1fc13bf`). فاضل: أول تقرير وقوع من الشاشة.
-2. **حفظ المطبات (C1)** — سيرفر + شاشة + ربط الشاشة الجديدة.
+2. **حفظ المطبات (C1)** ✅ ٢٠٢٦-١١-١٨ — `od_hazards` + `/api/car/hazards` (رفع بالـuuid · `pull`) + `/api/car/relink` و`/api/web/relink` (كود ١٠ دقايق لمرة واحدة، بينقل التوكن وكل بيانات الشاشة الجديدة للعربية القديمة) · الشاشة: نسخة قاعدة ٦ (uuid · الدقة · الارتفاع · synced · deleted)، `HazardSync` (أول كل تشغيل + بعد أى تسجيل/مسح + كل ١٠ دقايق لو فيه مستنى)، ومستقل عن «الحماية». سياسة الخصوصية وData safety اتحدّثوا (مفتوح افتراضياً ويتقفل من الإعدادات).
 3. **تنبيه GPS (C2، C3، C5)** ✅ ٢٠٢٦-١١-١٨ — قرار المالك: المسافة **١٠٠ م افتراضى** (٥٠–٣٠٠ أو رقم تانى، وأبعد لو السرعة عالية)، و«🔕 وضع عدم الإزعاج» يمنع التنبيه تحت **٧ كم/س**؛ مقفول ⇒ بينبّه وانت ماشى ببطء (تحت ٢ كم/س = واقف). من غير اتجاه: القريب ≤ ٤٠ م بس.
 4. **الاتجاه (C4)** + تسجيل الدقة والارتفاع والوقت.
 5. **الكوبرى** — فلتر الارتفاع (من غير Roads API إلا بموافقة).
@@ -102,4 +102,5 @@
 | التاريخ | البند | الملفات | الاختبار | النتيجة |
 |---|---|---|---|---|
 | ٢٠٢٦-١١-١٨ | سجل الوقوع (قبل الطلب ده) | `CrashLog.kt` · `MainActivity.kt` · `DriveService.kt` | بناء GitHub | مستنى أول وقوع |
-| ٢٠٢٦-١١-١٨ | C2 + C3 + C5: التنبيه ببطء + عدم الإزعاج + مسافة التنبيه | `logic/RoadMemory.kt` · `Prefs.kt` · `DriveService.checkHazards` · `MainActivity.settingsTab` · `logic-test` (اختباران جداد) | GitHub Actions `gradle test` | ⏳ |
+| ٢٠٢٦-١١-١٨ | C2 + C3 + C5: التنبيه ببطء + عدم الإزعاج + مسافة التنبيه | `logic/RoadMemory.kt` · `Prefs.kt` · `DriveService.checkHazards` · `MainActivity.settingsTab` · `logic-test` (اختباران جداد) | GitHub Actions `gradle test` + البناء (run 44349385166) | ✅ |
+| ٢٠٢٦-١١-١٨ | C1: حفظ المطبات على السيرفر + ربط شاشة جديدة | `src/drive/hazards.js` · `src/drive/schema.js` · `src/routes/drive_site.js` · `drive-web/` · `HazardSync.kt` · `Db.kt` (v6) · `Cloud.kt` · `Prefs.kt` · `DriveService.kt` · `MainActivity.kt` · سياسة الخصوصية | `test/drive_hazards.test.js` 3/3 على Postgres · `drive_shots` 4/4 · `oscar_security` 10/10 · `check-oscardrive` ✅ · بناء GitHub ⏳ | ⏳ |

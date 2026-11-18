@@ -487,7 +487,7 @@ class MainActivity : Activity() {
             val dist = pos?.let { " · ${km(Geo.distanceM(it.first, it.second, h.lat, h.lng))}" } ?: ""
             row.addView(ui.text("${h.type.emoji} ${h.type.ar}$dist\n${dateTime(h.createdMs)}", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
             row.addView(ui.button("🗺️", "neutral", 16f) { navigateTo(h.lat, h.lng, h.type.ar) }, ui.lp(ui.dp(60), ui.dp(48), 0f, 2))
-            row.addView(ui.button("مسح", "neutral", 14f) { db.deleteHazard(h.id); DriveService.State.hazardsDirty = true; refresh() }, ui.lp(ui.dp(76), ui.dp(48), 0f, 2))
+            row.addView(ui.button("مسح", "neutral", 14f) { db.deleteHazard(h.id); DriveService.State.hazardsDirty = true; HazardSync.syncSoon(this); refresh() }, ui.lp(ui.dp(76), ui.dp(48), 0f, 2))
             page.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
         }
 
@@ -841,6 +841,26 @@ class MainActivity : Activity() {
         }, ui.lp(Ui.MATCH, ui.dp(50), marginDp = 4))
         page.addView(toggle("🔕 وضع عدم الإزعاج: مانبّهنيش على المطبات وانا ماشى أقل من ٧ كم/س", prefs.quietSlow) { prefs.quietSlow = it })
         page.addView(toggle("📸 صوّر المطبات والحفر اللى سجّلتها وانا جاى عليها (لتدريب الموديل)", prefs.autoShots) { prefs.autoShots = it })
+        page.addView(toggle("☁️ احفظ المطبات والحفر على السيرفر (عشان ماتضيعش لو مسحت التطبيق)", prefs.cloudHazards) { on ->
+            prefs.cloudHazards = on; if (on) HazardSync.syncSoon(this, pull = true); refresh()
+        })
+        if (prefs.cloudHazards) {
+            val pend = db.pendingHazards()
+            val st = when {
+                pend > 0 -> "☁️ $pend مستنية نت عشان تترفع" + (HazardSync.lastError?.let { " — $it" } ?: "")
+                HazardSync.lastOkMs > 0 -> "☁️ كل المطبات مترفوعة"
+                else -> "☁️ هتترفع أول ما يبقى فيه نت"
+            }
+            page.addView(ui.text(st, 13f, ui.muted).apply { setPadding(ui.dp(6), 0, ui.dp(6), 0) })
+            page.addView(ui.button("🔗 الشاشة دى اتسطّبت من جديد؟ اربطها بعربيتك (كود من صفحة الموبايل)", "neutral", 15f) {
+                askText("كود الربط", "٦ أرقام من صفحة الموبايل ← ربط شاشة جديدة", "", InputType.TYPE_CLASS_NUMBER) { v ->
+                    toast("بيربط…")
+                    HazardSync.relink(this, v) { name, err ->
+                        toast(err ?: "✅ اتربطت بـ«${name ?: "عربيتك"}» — المطبات بتنزل دلوقتى"); refresh()
+                    }
+                }
+            }, ui.lp(Ui.MATCH, ui.dp(56), marginDp = 4))
+        }
         Shots.pending(this).takeIf { it > 0 }?.let { n ->
             page.addView(ui.text("📸 $n صورة طريق مستنية نت عشان تترفع", 13f, ui.muted).apply { setPadding(ui.dp(6), 0, ui.dp(6), 0) })
         }
@@ -945,8 +965,9 @@ class MainActivity : Activity() {
         val s = DriveService.State
         if (RoadMemory.duplicateOf(db.hazards(), t, lat, lng) != null) { oscar("already_saved", "${t.ar} متسجّل هنا قبل كده"); return }
         val moving = (s.speedKmh ?: 0f) >= 10f
-        db.addHazard(t, lat, lng, if (moving) s.headingDeg else null)
+        db.addHazard(t, lat, lng, if (moving) s.headingDeg else null, s.accuracyM, s.altitudeM)
         DriveService.State.hazardsDirty = true
+        HazardSync.syncSoon(this)
         oscar(when (t) { HazardType.BUMP -> "bump_saved"; HazardType.POTHOLE -> "pothole_saved"; HazardType.RADAR -> "radar_saved"; else -> "danger_saved" },
             "اتسجّل ${t.ar}")
     }

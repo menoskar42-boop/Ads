@@ -62,7 +62,7 @@ describe('database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL not set' }
   before(async () => {
     const { Pool } = require('pg');
     pool = new Pool({ connectionString: URL_ });
-    await pool.query('DROP TABLE IF EXISTS od_shots, od_push_subs, od_clips, od_events, od_points, od_owners, od_cars CASCADE');
+    await pool.query('DROP TABLE IF EXISTS od_hazards, od_shots, od_push_subs, od_clips, od_events, od_points, od_owners, od_cars CASCADE');
     await require('../src/drive/schema').ensureDriveSchema(pool);
     await require('../src/drive/schema').ensureDriveSchema(pool);   // مرتين = ماتكسرش
     const push = { isEnabled: () => true, publicKey: () => 'k', send: async (sub, p) => { pushes.push(p); } };

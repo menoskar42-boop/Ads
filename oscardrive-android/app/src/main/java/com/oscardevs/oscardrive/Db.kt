@@ -19,7 +19,7 @@ import com.oscardevs.oscardrive.logic.TripLogic
  * قاعدة بيانات محلية (SQLite على الجهاز) — مفيش سحابة ولا حساب: الرحلات، ذاكرة الطريق، الأماكن،
  * الركنات، الصيانة، التفويلات، وسجل تجاوز السرعة.
  */
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 5) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 6) {
 
     data class Trip(val id: Long, val startMs: Long, val endMs: Long, val distanceM: Double, val movingS: Long, val maxKmh: Float,
                     val score: Int? = null, val brakes: Int = 0, val accels: Int = 0, val speedingN: Int = 0, val speedingS: Int = 0) {
@@ -45,6 +45,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         upgrade3(db, fresh = true)
         upgrade4(db)
         upgrade5(db)
+        upgrade6(db)
         val now = System.currentTimeMillis()
         for ((name, km, days) in CarCare.DEFAULTS) {
             db.insert("maint", null, ContentValues().apply {
@@ -58,6 +59,21 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         if (oldVersion < 3) upgrade3(db, fresh = false)
         if (oldVersion < 4) upgrade4(db)
         if (oldVersion < 5) upgrade5(db)
+        if (oldVersion < 6) upgrade6(db)
+    }
+
+    /**
+     * نسخة ٦ (المالك ٢٠٢٦-١١-١٨): ذاكرة الطريق بتترفع للسيرفر عشان ماتضيعش مع مسح التطبيق (HazardSync). كل مطب بياخد uuid
+     * (القديم بياخد واحد جديد — مفيش حاجة بتتمسح)، ودقة الـGPS والارتفاع وقت التسجيل، و«اترفع؟». والمسح بقى علامة (deleted)
+     * عشان يتبعت للسيرفر هو كمان.
+     */
+    private fun upgrade6(db: SQLiteDatabase) {
+        for (c in listOf("uuid TEXT", "accuracy REAL", "altitude REAL", "synced INTEGER NOT NULL DEFAULT 0", "deleted INTEGER NOT NULL DEFAULT 0"))
+            try { db.execSQL("ALTER TABLE hazards ADD COLUMN $c") } catch (_: Exception) { /* موجود */ }
+        db.rawQuery("SELECT id FROM hazards WHERE uuid IS NULL", null).use { c ->
+            while (c.moveToNext()) db.execSQL("UPDATE hazards SET uuid = ? WHERE id = ?", arrayOf<Any>(java.util.UUID.randomUUID().toString(), c.getLong(0)))
+        }
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS hazards_uuid ON hazards(uuid)")
     }
 
     /** نسخة ٥ (المرحلة ٧): سلوك القيادة لكل رحلة — الرحلات القديمة بتفضل من غير درجة (NULL). */
@@ -159,17 +175,41 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         }
 
     /* ── ذاكرة الطريق ── */
-    fun addHazard(type: HazardType, lat: Double, lng: Double, bearing: Float?): Long =
-        writableDatabase.insert("hazards", null, ContentValues().apply {
+    fun addHazard(type: HazardType, lat: Double, lng: Double, bearing: Float?, accuracy: Float? = null, altitude: Double? = null,
+                  uuid: String = java.util.UUID.randomUUID().toString(), createdMs: Long = System.currentTimeMillis(),
+                  note: String = "", synced: Boolean = false): Long =
+        writableDatabase.insertWithOnConflict("hazards", null, ContentValues().apply {
             put("type", type.key); put("lat", lat); put("lng", lng)
             if (bearing != null) put("bearing", bearing.toDouble()) else putNull("bearing")
-            put("note", ""); put("created_ms", System.currentTimeMillis())
-        })
-    fun hazards(): List<Hazard> = query("SELECT id,type,lat,lng,bearing,note,created_ms FROM hazards ORDER BY created_ms DESC") {
+            if (accuracy != null) put("accuracy", accuracy.toDouble()) else putNull("accuracy")
+            if (altitude != null) put("altitude", altitude) else putNull("altitude")
+            put("note", note); put("created_ms", createdMs); put("uuid", uuid); put("synced", if (synced) 1 else 0); put("deleted", 0)
+        }, SQLiteDatabase.CONFLICT_IGNORE)
+    fun hazards(): List<Hazard> = query("SELECT id,type,lat,lng,bearing,note,created_ms FROM hazards WHERE deleted = 0 ORDER BY created_ms DESC") {
         Hazard(it.getLong(0), HazardType.of(it.getString(1)), it.getDouble(2), it.getDouble(3),
             if (it.isNull(4)) null else it.getFloat(4), it.getString(5) ?: "", it.getLong(6))
     }
-    fun deleteHazard(id: Long) { writableDatabase.delete("hazards", "id=?", arrayOf(id.toString())) }
+    /** المسح علامة بس (بتترفع للسيرفر) — الصف بيفضل عشان المطب مايرجعش من السيرفر تانى. */
+    fun deleteHazard(id: Long) {
+        writableDatabase.update("hazards", ContentValues().apply { put("deleted", 1); put("synced", 0) }, "id=?", arrayOf(id.toString()))
+    }
+
+    /** للرفع (HazardSync): اللى لسه ماترفعش، ومعاه الممسوح. */
+    data class HazardRow(val id: Long, val uuid: String, val type: String, val lat: Double, val lng: Double, val bearing: Float?,
+                         val accuracy: Float?, val altitude: Double?, val note: String, val createdMs: Long, val deleted: Boolean)
+    fun unsyncedHazards(limit: Int): List<HazardRow> =
+        query("SELECT id,uuid,type,lat,lng,bearing,accuracy,altitude,note,created_ms,deleted FROM hazards WHERE synced = 0 AND uuid IS NOT NULL ORDER BY id LIMIT $limit") {
+            HazardRow(it.getLong(0), it.getString(1), it.getString(2) ?: "danger", it.getDouble(3), it.getDouble(4),
+                if (it.isNull(5)) null else it.getFloat(5), if (it.isNull(6)) null else it.getFloat(6),
+                if (it.isNull(7)) null else it.getDouble(7), it.getString(8) ?: "", it.getLong(9), it.getInt(10) == 1)
+        }
+    fun markHazardsSynced(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        writableDatabase.execSQL("UPDATE hazards SET synced = 1 WHERE id IN (${ids.joinToString(",")})")
+    }
+    /** كل الـuuids اللى على الشاشة (حتى الممسوح) — عشان اللى نازل من السيرفر مايتكررش ولا الممسوح يرجع. */
+    fun hazardUuids(): Set<String> = query("SELECT uuid FROM hazards WHERE uuid IS NOT NULL") { it.getString(0) }.toSet()
+    fun pendingHazards(): Int = query("SELECT COUNT(*) FROM hazards WHERE synced = 0") { it.getInt(0) }.firstOrNull() ?: 0
 
     /* ── الأماكن ── */
     fun addPlace(name: String, lat: Double, lng: Double) {

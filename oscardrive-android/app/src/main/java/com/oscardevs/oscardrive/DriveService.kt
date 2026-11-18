@@ -47,6 +47,8 @@ class DriveService : Service() {
         @Volatile var lat: Double? = null
         @Volatile var lng: Double? = null
         @Volatile var accuracyM: Float? = null
+        /** ارتفاع الـGPS (م) — بيتسجّل مع المطب (فلتر الكوبرى بعدين). */
+        @Volatile var altitudeM: Double? = null
         /** المكان الحالى من الشبكة (تقريبى) مش من الـGPS — للعرض بس. */
         @Volatile var approx = false
         @Volatile var satsUsed = 0
@@ -117,10 +119,12 @@ class DriveService : Service() {
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     }
 
+    private var lastHazardSync = System.currentTimeMillis()
     private val tick = object : Runnable {
         override fun run() {
             val now = System.currentTimeMillis()
             handleSpeed(speed.onTick(now))
+            if (now - lastHazardSync > 10 * 60_000L) { lastHazardSync = now; HazardSync.syncSoon(this@DriveService) }
             trip.onTick(now)?.let { tripEnded(it) }
             State.speedKmh = speed.speedKmh
             useApprox(now)
@@ -178,6 +182,7 @@ class DriveService : Service() {
         updateNight(System.currentTimeMillis())
         recoverParking()
         startGps()
+        HazardSync.syncSoon(this, pull = true)   // ذاكرة الطريق: يرفع اللى مااترفعش وينزّل الناقص (من غير نت = بعدين)
         Guard.onBoot()
         // «صباح الخير، جاهز ننطلق؟» — من جمل أوسكار المسجّلة
         Oscar.say(if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) in 4..14) "startup_morning" else "startup_evening",
@@ -257,6 +262,7 @@ class DriveService : Service() {
         State.headingDeg = trip.headingDeg
         State.lat = loc.latitude; State.lng = loc.longitude
         State.accuracyM = acc
+        State.altitudeM = if (loc.hasAltitude()) loc.altitude else null
         if (acc != null && acc <= 50f) { prefs.lastLat = loc.latitude; prefs.lastLng = loc.longitude }
         // آخر لقطة كويسة كل ١٠ ثوانى — لو الشاشة فصلت فجأة مع العربية، دى مكان الركنة المرة الجاية
         if (acc != null && acc <= 100f && now - lastFixSaved > 10_000) { lastFixSaved = now; prefs.saveLastFix(loc.latitude, loc.longitude, acc, now) }

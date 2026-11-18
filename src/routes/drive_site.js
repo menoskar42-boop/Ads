@@ -100,6 +100,25 @@ function createDriveSite({ pool, push } = {}) {
     catch (e) { fail(res, 500, 'shot failed'); }
   });
 
+  // ذاكرة الطريق (٢٠٢٦-١١-١٨) — src/drive/hazards.js: رفع بالـuuid (من غير تكرار)، و`pull` بيرجّع ذاكرة العربية كلها.
+  const hz = require('../drive/hazards');
+  router.post('/api/car/hazards', rateLimit({ name: 'od-hazards', windowMs: 60 * 60000, max: 240 }), json, carAuth, async (req, res) => {
+    try {
+      const saved = await hz.save(pool, req.car.id, hz.parseItems(req.body));
+      const out = { ok: true, saved };
+      if (req.body && req.body.pull === true) out.items = await hz.list(pool, req.car.id);
+      res.json(out);
+    } catch (e) { fail(res, 500, 'hazards failed'); }
+  });
+  // شاشة اتسطّبت من جديد بتكتب كود من صفحة الموبايل ⇒ تاخد نفس العربية. التخمين: ٦ أرقام × ١٠ دقايق × ١٠ محاولات.
+  router.post('/api/car/relink', rateLimit({ name: 'od-relink', windowMs: 10 * 60000, max: 10 }), json, carAuth, async (req, res) => {
+    try {
+      const r = await hz.relink(pool, req.car, req.body && req.body.code);
+      if (!r) return fail(res, 400, 'الكود غلط أو خلص وقته — اطلب كود جديد من صفحة الموبايل');
+      res.json({ ok: true, name: r.name });
+    } catch (e) { fail(res, 500, 'relink failed'); }
+  });
+
   // manifest صوت أوسكار (بيتحسب من الملفات الموجودة — لو السكربت ماتشغّلش لسه، الجمل من غير ملفات والتطبيق بيقول بصوت الشاشة)
   router.get('/voice/:v/manifest.json', (req, res) => {
     const v = req.params.v === 'female' ? 'female' : 'male';
@@ -180,6 +199,12 @@ function createDriveSite({ pool, push } = {}) {
         'X-More': z.more ? '1' : '0', 'Cache-Control': 'no-store' });
       res.send(z.buf);
     } catch (e) { fail(res, 500, 'zip failed'); }
+  });
+
+  // «ربط شاشة جديدة بنفس العربية» (بعد مسح التطبيق) — كود لمرة واحدة ١٠ دقايق.
+  router.post('/api/web/relink', ownerAuth, async (req, res) => {
+    try { res.json({ ok: true, code: await hz.newRelinkCode(pool, req.owner.car_id), minutes: 10 }); }
+    catch (e) { fail(res, 500, 'relink failed'); }
   });
 
   router.post('/api/web/logout', ownerAuth, async (req, res) => {

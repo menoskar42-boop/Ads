@@ -6,6 +6,7 @@
 //   od_events    — أحداث الحماية (اشتغلت · اتحركت · رقم غلط · تسجيل). uuid من الشاشة بيمنع التكرار.
 //   od_clips     — بيانات تسجيلات الكاميرا (الفيديو نفسه بيفضل على الشاشة).
 //   od_shots     — صور الطريق لتدريب موديل المطبات (الصورة نفسها BYTEA، ١٥٠٠ بالكتير لكل عربية).
+//   od_hazards   — ذاكرة الطريق (المطبات/الحفر/الرادارات) عشان ماتضيعش مع مسح التطبيق. uuid بيمنع التكرار، والمسح deleted_at.
 //   od_push_subs — إشعارات الموبايل (Web Push).
 'use strict';
 
@@ -91,6 +92,28 @@ async function ensureDriveSchema(pool) {
       received_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS od_shots_car_at ON od_shots(car_id, at DESC);
+    -- ذاكرة الطريق على السيرفر (المالك ٢٠٢٦-١١-١٨): المطبات/الحفر/الرادارات اللى السواق سجّلها كانت على الشاشة بس وبتضيع مع
+    -- مسح التطبيق. uuid من الشاشة بيمنع التكرار، والمسح = deleted_at (مفيش DELETE). الشاشة الجديدة بتاخد نفس العربية بكود
+    -- «ربط شاشة جديدة» من صفحة الموبايل (relink_code) وبتنزّل الذاكرة.
+    CREATE TABLE IF NOT EXISTS od_hazards (
+      id          BIGSERIAL PRIMARY KEY,
+      car_id      INTEGER NOT NULL REFERENCES od_cars(id) ON DELETE CASCADE,
+      uuid        TEXT NOT NULL UNIQUE,
+      type        TEXT NOT NULL,
+      lat         DOUBLE PRECISION NOT NULL,
+      lng         DOUBLE PRECISION NOT NULL,
+      bearing     REAL,
+      accuracy    REAL,
+      altitude    REAL,
+      note        TEXT NOT NULL DEFAULT '',
+      created_at  TIMESTAMPTZ NOT NULL,
+      deleted_at  TIMESTAMPTZ,
+      received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS od_hazards_car ON od_hazards(car_id);
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS relink_code TEXT;
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS relink_expires TIMESTAMPTZ;
+    CREATE UNIQUE INDEX IF NOT EXISTS od_cars_relink_code ON od_cars(relink_code) WHERE relink_code IS NOT NULL;
     CREATE TABLE IF NOT EXISTS od_push_subs (
       endpoint  TEXT PRIMARY KEY,
       owner_id  INTEGER NOT NULL REFERENCES od_owners(id) ON DELETE CASCADE,

@@ -17,6 +17,10 @@ class Prefs(context: Context) {
     var speedAlerts: Boolean
         get() = sp.getBoolean("speed_alerts", true)
         set(v) = sp.edit().putBoolean("speed_alerts", v).apply()
+    /** ذاكرة الطريق على السيرفر عشان ماتضيعش مع مسح التطبيق (HazardSync) — مفتوح افتراضياً (المالك ٢٠٢٦-١١-١٨). */
+    var cloudHazards: Boolean
+        get() = sp.getBoolean("cloud_hazards", true)
+        set(v) = sp.edit().putBoolean("cloud_hazards", v).apply()
     /** مسافة تنبيه المطبات/الحفر المتسجّلة (م) — ١٠٠ افتراضى (المالك ٢٠٢٦-١١-١٨). */
     var bumpWarnM: Int
         get() = sp.getInt("bump_warn_m", com.oscardevs.oscardrive.logic.RoadMemory.DEFAULT_BUMP_WARN_M)

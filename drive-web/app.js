@@ -328,6 +328,15 @@
     } catch (e) { $('shotsNote').textContent = e.message; }
   });
 
+  // «ربط شاشة جديدة بنفس العربية» (٢٠٢٦-١١-١٨) — كود لمرة واحدة ١٠ دقايق، بيتكتب فى إعدادات الشاشة.
+  $('relinkBtn').addEventListener('click', async () => {
+    $('relinkNote').textContent = '…';
+    try {
+      const r = await api('POST', '/api/web/relink');
+      $('relinkNote').textContent = r.code + ' (صالح ' + r.minutes + ' دقايق)';
+    } catch (e) { $('relinkNote').textContent = e.message; }
+  });
+
   $('logoutBtn').addEventListener('click', async () => {
     if (!confirm('تفك ربط الموبايل ده من العربية؟')) return;
     try { await api('POST', '/api/web/logout'); } catch (e) {}
