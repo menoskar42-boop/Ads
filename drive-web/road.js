@@ -105,6 +105,9 @@
     const t = norm(text);
     if (!WAKE.test(t)) return null;
     if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب)/.test(t)) return 'shot';
+    if (/(طوارئ|نجده|الحقوني|استغاثه|sos|emergency)/.test(t)) return 'sos';   // زى الشاشة: بيتأكد قبل ما يجهّز الرسالة
+    if (/(ركنت هنا|احفظ الركنه|سجل الركنه|احفظ مكان العربيه|i parked)/.test(t)) return 'park';
+    if (/(العربيه فين|ركنت فين|وديني للعربيه|وديني للركنه|where.*car)/.test(t)) return 'findpark';
     for (const k of NEAR) if (k.re.test(t)) return 'near:' + k.id;   // «أوسكار دوّر على أقرب بنزينة» …
     if (/(سجل|علم|هنا|mark)/.test(t) && /(رادار|radar)/.test(t)) return 'radar';
     if (/(سجل|علم|هنا|mark)/.test(t) && /(خطر|خطير|danger)/.test(t)) return 'danger';
@@ -112,6 +115,28 @@
     if (/(مطب|مطلب|bump)/.test(t)) return 'bump';
     return 'unknown';
   }
-  const api = { NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  /* ☕ تذكير الاستراحة — نفس logic/Wellness.kt: أول تذكير بعد المدة (٠ = مقفول)، وبعدين كل ١٥ دقيقة طول ما انت سايق،
+     ووقفة ١٠ دقايق = استراحة ⇒ العدّاد يبدأ من الأول. st = { since, lastMoving, lastReminder } بيتحفظ عند الصفحة. */
+  const BREAK = { RESET_MS: 10 * 60000, REPEAT_MS: 15 * 60000, OPTIONS: [0, 60, 90, 120, 180] };
+  function breakTick(st, nowMs, moving, everyMin) {
+    if (moving) { if (st.since == null) st.since = nowMs; st.lastMoving = nowMs; }
+    else if (st.since != null && nowMs - st.lastMoving >= BREAK.RESET_MS) { st.since = null; st.lastReminder = 0; }
+    if (st.since == null || !(everyMin > 0) || !moving) return null;
+    if (nowMs - st.since >= everyMin * 60000 && nowMs - (st.lastReminder || 0) >= BREAK.REPEAT_MS) {
+      st.lastReminder = nowMs; return Math.floor((nowMs - st.since) / 60000);
+    }
+    return null;
+  }
+  function breakMessage(min) {
+    const h = Math.floor(min / 60), m = min % 60;
+    const hs = h === 1 ? 'ساعة' : h === 2 ? 'ساعتين' : h + ' ساعات';
+    const t = h === 0 ? m + ' دقيقة' : m === 0 ? hs : hs + ' و' + m + ' دقيقة';
+    return 'بقالك ' + t + ' سايق. خد استراحة واشرب حاجة';
+  }
+  // 🆘 نفس نص الشاشة (MainActivity.emergency + Geo.mapsLink)
+  const mapsLink = (lat, lng) => 'https://maps.google.com/?q=' + lat.toFixed(6) + ',' + lng.toFixed(6);
+  const sosText = (lat, lng) => 'محتاج مساعدة. مكانى دلوقتى: ' + mapsLink(lat, lng);
+  const walkUrl = (lat, lng) => 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng + '&travelmode=walking';
+  const api = { BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -387,13 +387,69 @@
   const SET_KEY = 'od_road_settings';
   function loadSettings() {
     try { const o = JSON.parse(localStorage.getItem(SET_KEY) || '{}');
-      if (o.warn) $('warnDist').value = String(o.warn); if (o.lim != null) $('speedLimSel').value = String(o.lim); $('quietSlow').checked = !!o.quiet; } catch (e) {}
+      if (o.warn) $('warnDist').value = String(o.warn); if (o.lim != null) $('speedLimSel').value = String(o.lim); $('quietSlow').checked = !!o.quiet;
+      if (o.brk != null) $('breakSel').value = String(o.brk); $('sosName').value = o.sosName || ''; $('sosPhone').value = o.sosPhone || ''; } catch (e) {}
   }
   function saveSettings() {
-    try { localStorage.setItem(SET_KEY, JSON.stringify({ warn: +$('warnDist').value, lim: +$('speedLimSel').value, quiet: $('quietSlow').checked })); } catch (e) {}
+    try { localStorage.setItem(SET_KEY, JSON.stringify({ warn: +$('warnDist').value, lim: +$('speedLimSel').value, quiet: $('quietSlow').checked,
+      brk: +$('breakSel').value, sosName: $('sosName').value.trim(), sosPhone: $('sosPhone').value.trim() })); } catch (e) {}
   }
   loadSettings();
-  ['warnDist', 'speedLimSel', 'quietSlow'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  ['warnDist', 'speedLimSel', 'quietSlow', 'breakSel', 'sosName', 'sosPhone'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  // ☕ الاستراحة زى الشاشة (RD.breakTick = Wellness.kt) — ماشى = ١٠ كم/س فأكتر
+  const breakSt = {};
+  function breakCheck(kmh) {
+    const min = RD.breakTick(breakSt, Date.now(), (kmh || 0) >= 10, +$('breakSel').value);
+    if (min == null) return;
+    const msg = RD.breakMessage(min);
+    $('roadAlert').textContent = '☕ ' + msg; $('roadAlert').hidden = false;
+    clearTimeout(alertTimer); alertTimer = setTimeout(() => { $('roadAlert').hidden = true; }, 20000);
+    beepRoad(); sayRoad(msg);
+  }
+  // 🅿️ ركنة الموبايل (لو مستخدمه من غير الشاشة) — على الموبايل ده بس
+  const PARK_KEY = 'od_phone_park';
+  function phonePark() { try { return JSON.parse(localStorage.getItem(PARK_KEY) || 'null'); } catch (e) { return null; } }
+  function parkUi() {
+    const p = phonePark();
+    $('parkGo').hidden = !p;
+    if (p) { $('parkGo').href = RD.walkUrl(p.lat, p.lng);
+      $('parkPhoneNote').textContent = '🅿️ ركنت ' + new Date(p.t).toLocaleString('ar-EG', { weekday: 'long', hour: 'numeric', minute: '2-digit' }) +
+        (p.acc > 30 ? ' (تقريبى — دقة ' + Math.round(p.acc) + ' م)' : '') +
+        (lastFix ? ' · بعيدة عنك ' + Math.round(RD.distanceM(lastFix.lat, lastFix.lng, p.lat, p.lng)) + ' م' : ''); }
+  }
+  function withFix(go) {
+    if (lastFix && Date.now() - lastFix.t < 10000) return go(lastFix);
+    if (!navigator.geolocation) { $('roadNote').textContent = 'المتصفح ده مابيدّيش المكان.'; return; }
+    $('roadNote').textContent = 'بيجيب مكانك…';
+    navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); },
+      () => { $('roadNote').textContent = 'مش لاقى مكانك — اسمح بالموقع وجرّب تانى'; }, { enableHighAccuracy: true, timeout: 20000 });
+  }
+  function parkHere() {
+    withFix((f) => {
+      try { localStorage.setItem(PARK_KEY, JSON.stringify({ lat: f.lat, lng: f.lng, acc: f.acc, t: Date.now() })); } catch (e) {}
+      const msg = 'اتحفظ مكان الركنة' + (f.acc > 30 ? ' تقريبى' : '');
+      $('roadNote').textContent = '✅ ' + msg; sayRoad(msg); parkUi();
+    });
+  }
+  function findPark() {
+    const p = phonePark();
+    if (!p) { sayRoad('مفيش ركنة محفوظة على الموبايل ده'); $('roadNote').textContent = 'مفيش ركنة محفوظة — دوس «🅿️ ركنت هنا» لما تركن'; return; }
+    window.open(RD.walkUrl(p.lat, p.lng), '_blank', 'noopener');
+  }
+  // 🆘 زى الشاشة: بيتأكد الأول، ويجهّز رسالة بمكانك — وانت اللى بتدوس إرسال
+  function sos() {
+    const phone = $('sosPhone').value.trim(), who = $('sosName').value.trim() || phone;
+    if (!confirm(phone ? 'هجهّز رسالة بمكانك لـ ' + who + ' — وانت تدوس إرسال. تمام؟' : 'هفتح المشاركة بمكانك وانت تختار تبعته لمين. تمام؟')) return;
+    withFix(async (f) => {
+      const text = RD.sosText(f.lat, f.lng);
+      if (phone) { location.href = 'sms:' + phone.replace(/[^\d+]/g, '') + '?&body=' + encodeURIComponent(text); return; }
+      if (navigator.share) { try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+      location.href = 'https://wa.me/?text=' + encodeURIComponent(text);
+    });
+  }
+  $('parkPhone').addEventListener('click', parkHere);
+  $('sosBtn').addEventListener('click', sos);
+  parkUi();
   const EMOJI = { bump: '〰️ ', pothole: '🕳️ ', radar: '📷 ', danger: '⚠️ ' };
   // تنبيه السرعة زى الشاشة: بعد ٣ ثوانى فوق الحد، ويتكرر كل ٣٠ ثانية طول ما انت فوقه
   let overSince = 0, lastSpeedSay = 0;
@@ -420,7 +476,7 @@
     if (kmh == null && prevFix && prevFix !== f && f.t > prevFix.t) kmh = RD.distanceM(prevFix.lat, prevFix.lng, f.lat, f.lng) / ((f.t - prevFix.t) / 1000) * 3.6;
     const test = $('testMode').checked;
     const pool = test ? hz.filter((h) => h.test) : hz;
-    if (alertWatch !== null) speedCheck(kmh);
+    if (alertWatch !== null) { speedCheck(kmh); breakCheck(kmh); }
     const hit = alertWatch !== null ? RD.ahead(pool, f.lat, f.lng, roadHeading, kmh || 0, Date.now(), warnedRoad,
       { test, minWarnM: +$('warnDist').value || 100, minKmh: $('quietSlow').checked ? RD.C.QUIET_KMH : RD.C.STOPPED_KMH }) : null;
     const nearest = pool.length ? Math.min(...pool.map((h) => RD.distanceM(f.lat, f.lng, h.lat, h.lng))) : null;
@@ -519,6 +575,9 @@
     if (cmd && cmd.startsWith('near:')) nearbyWeb(cmd.slice(5));
     else if (cmd === 'bump' || cmd === 'pothole' || cmd === 'radar' || cmd === 'danger') markRoad(cmd);
     else if (cmd === 'shot') snapRoad('voice');
+    else if (cmd === 'park') parkHere();
+    else if (cmd === 'findpark') findPark();
+    else if (cmd === 'sos') sos();
     else if (cmd === 'unknown') { $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; sayRoad('مافهمتش'); }
   }
   function startVoice() {

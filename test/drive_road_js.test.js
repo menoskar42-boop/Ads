@@ -59,3 +59,26 @@ test('phone voice: radar and danger spots like the screen', () => {
   assert.equal(R.parseVoice('اوسكار سجل مكان خطر'), 'danger');
   assert.equal(R.parseVoice('اوسكار سجل مطب'), 'bump');
 });
+test('break reminder like Wellness.kt: after the set time, every 15 min, reset after a 10-minute stop', () => {
+  const st = {}, M = 60000;
+  assert.equal(R.breakTick(st, 0, true, 60), null);
+  assert.equal(R.breakTick(st, 59 * M, true, 60), null);
+  assert.equal(R.breakTick(st, 60 * M, true, 60), 60);
+  assert.equal(R.breakTick(st, 70 * M, true, 60), null);
+  assert.equal(R.breakTick(st, 75 * M, true, 60), 75);
+  assert.equal(R.breakTick(st, 80 * M, false, 60), null);
+  assert.equal(R.breakTick(st, 91 * M, false, 60), null);   // وقف ١١ دقيقة ⇒ استراحة
+  assert.equal(st.since, null);
+  assert.equal(R.breakTick({}, 999 * M, true, 0), null);    // مقفول
+  assert.equal(R.breakMessage(75), 'بقالك ساعة و15 دقيقة سايق. خد استراحة واشرب حاجة');
+  assert.equal(R.breakMessage(120), 'بقالك ساعتين سايق. خد استراحة واشرب حاجة');
+  assert.equal(R.breakMessage(45), 'بقالك 45 دقيقة سايق. خد استراحة واشرب حاجة');
+});
+test('emergency text, park/find-car/sos voice', () => {
+  assert.equal(R.sosText(30.1, 31.25), 'محتاج مساعدة. مكانى دلوقتى: https://maps.google.com/?q=30.100000,31.250000');
+  assert.equal(R.parseVoice('أوسكار ركنت هنا'), 'park');
+  assert.equal(R.parseVoice('يا أوسكار العربية فين'), 'findpark');
+  assert.equal(R.parseVoice('أوسكار طوارئ'), 'sos');
+  assert.equal(R.parseVoice('أوسكار الحقونى'), 'sos');
+  assert.equal(R.parseVoice('ركنت هنا'), null);
+});
