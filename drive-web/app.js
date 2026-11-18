@@ -328,6 +328,105 @@
     } catch (e) { $('shotsNote').textContent = e.message; }
   });
 
+  // ── الموبايل لوحده (المرحلة ٣ — ٢٠٢٦-١١-١٨): تسجيل/مسح مطبات + تنبيه بالصوت + وضع تجربة. الحساب فى road.js (نفس الشاشة). ──
+  const RD = window.OscarRoad;
+  const TEST_KEY = 'od_road_test';
+  let hz = [], warnedRoad = {}, alertWatch = null, lastFix = null, prevFix = null, roadHeading = null, alertTimer = null;
+  try { $('testMode').checked = localStorage.getItem(TEST_KEY) === '1'; } catch (e) {}
+  $('testMode').addEventListener('change', () => { try { localStorage.setItem(TEST_KEY, $('testMode').checked ? '1' : '0'); } catch (e) {} warnedRoad = {}; renderRoad(); });
+  const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16)));
+  function beepRoad() {
+    try { const a = new (window.AudioContext || window.webkitAudioContext)(); const o = a.createOscillator(); o.frequency.value = 880;
+      o.connect(a.destination); o.start(); setTimeout(() => { o.stop(); a.close(); }, 300); } catch (e) {}
+  }
+  function sayRoad(text) {
+    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ar-EG'; speechSynthesis.speak(u); } catch (e) {}
+  }
+  async function loadRoad() {
+    try { hz = (await api('GET', '/api/web/hazards')).items || []; renderRoad(); } catch (e) {}
+  }
+  function renderRoad() {
+    const here = lastFix;
+    const list = hz.map((h) => ({ h, d: here ? RD.distanceM(here.lat, here.lng, h.lat, h.lng) : null }))
+      .sort((a, b) => (a.d == null ? 1e12 : a.d) - (b.d == null ? 1e12 : b.d)).slice(0, 20);
+    $('roadList').innerHTML = '';
+    for (const { h, d } of list) {
+      const row = document.createElement('div');
+      row.className = 'row'; row.style.cssText = 'justify-content:space-between;gap:8px;align-items:center';
+      const name = (RD.TYPES[h.type] || RD.TYPES.danger)[0];
+      row.innerHTML = '<span>' + (h.type === 'pothole' ? '🕳️ ' : '〰️ ') + name + (h.test ? ' 🧪' : '') +
+        (d != null ? ' · ' + (d < 1000 ? Math.round(d) + ' م' : (d / 1000).toFixed(1) + ' كم') : '') + '</span>';
+      const del = document.createElement('button'); del.textContent = 'مسح';
+      del.addEventListener('click', async () => {
+        try { await api('POST', '/api/web/hazards', { items: [{ uuid: h.uuid, type: h.type, lat: h.lat, lng: h.lng, deleted: true }] }); } catch (e) {}
+        loadRoad();
+      });
+      row.append(del); $('roadList').append(row);
+    }
+    const tests = hz.filter((h) => h.test).length;
+    $('clearTestBtn').hidden = tests === 0;
+    $('clearTestBtn').textContent = '🧹 امسح كل مطبات التجربة (' + tests + ')';
+  }
+  function onRoadFix(p) {
+    const c = p.coords, f = { lat: c.latitude, lng: c.longitude, acc: c.accuracy, t: p.timestamp, kmh: c.speed != null ? c.speed * 3.6 : null };
+    if (c.heading != null && !isNaN(c.heading) && (c.speed || 0) > 1) roadHeading = c.heading;
+    else if (prevFix && RD.distanceM(prevFix.lat, prevFix.lng, f.lat, f.lng) >= 8) roadHeading = RD.bearingDeg(prevFix.lat, prevFix.lng, f.lat, f.lng);
+    if (!prevFix || RD.distanceM(prevFix.lat, prevFix.lng, f.lat, f.lng) >= 8) prevFix = f;
+    lastFix = f;
+    let kmh = f.kmh;
+    if (kmh == null && prevFix && prevFix !== f && f.t > prevFix.t) kmh = RD.distanceM(prevFix.lat, prevFix.lng, f.lat, f.lng) / ((f.t - prevFix.t) / 1000) * 3.6;
+    const test = $('testMode').checked;
+    const pool = test ? hz.filter((h) => h.test) : hz;
+    const hit = alertWatch !== null ? RD.ahead(pool, f.lat, f.lng, roadHeading, kmh || 0, Date.now(), warnedRoad, { test, minWarnM: 100 }) : null;
+    const nearest = pool.length ? Math.min(...pool.map((h) => RD.distanceM(f.lat, f.lng, h.lat, h.lng))) : null;
+    $('roadNote').textContent = 'مكانك: دقة ' + Math.round(f.acc) + ' م' + (kmh != null ? ' · ' + Math.round(kmh) + ' كم/س' : '') +
+      (nearest != null ? ' · أقرب ' + (test ? 'مطب تجربة' : 'مطب') + ' ' + Math.round(nearest) + ' م' : '');
+    if (hit) {
+      warnedRoad[test ? hit.h.uuid : RD.warnKey(hit.h, hit.d, kmh || 0)] = Date.now();
+      const msg = RD.warning(hit.h, hit.d);
+      $('roadAlert').textContent = (hit.h.type === 'pothole' ? '🕳️ ' : '〰️ ') + msg; $('roadAlert').hidden = false;
+      clearTimeout(alertTimer); alertTimer = setTimeout(() => { $('roadAlert').hidden = true; }, 8000);
+      beepRoad(); sayRoad(msg);
+    }
+    renderRoad();
+  }
+  $('alertBtn').addEventListener('click', () => {
+    if (alertWatch !== null) { navigator.geolocation.clearWatch(alertWatch); alertWatch = null; $('alertBtn').textContent = '🔔 نبّهنى بالمطبات'; $('alertBtn').className = ''; return; }
+    if (!navigator.geolocation) { $('roadNote').textContent = 'المتصفح ده مابيدّيش المكان.'; return; }
+    sayRoad('التنبيهات شغّالة');   // الآيفون مابيتكلمش غير بعد لمسة — دى اللمسة
+    keepAwake(); loadRoad();
+    alertWatch = navigator.geolocation.watchPosition(onRoadFix,
+      (err) => { $('roadNote').textContent = err.code === 1 ? 'اسمح للموقع ده بالمكان من إعدادات الموبايل' : 'بيدوّر على المكان…'; },
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+    $('alertBtn').textContent = '⏹ وقّف التنبيهات'; $('alertBtn').className = 'primary';
+  });
+  async function markRoad(type) {
+    const go = async (f) => {
+      const moving = (f.kmh || 0) >= 10;
+      const test = $('testMode').checked;
+      try {
+        await api('POST', '/api/web/hazards', { items: [{ uuid: uuid(), type, lat: f.lat, lng: f.lng, acc: f.acc, t: Date.now(),
+          bearing: moving && roadHeading != null ? roadHeading : null, test }] });
+        const msg = 'اتسجّل ' + RD.TYPES[type][0] + (test ? ' تجربة' : '');
+        $('roadNote').textContent = '✅ ' + msg + ' (دقة ' + Math.round(f.acc) + ' م)'; sayRoad(msg);
+      } catch (e) { $('roadNote').textContent = 'ماتسجّلش: ' + e.message; }
+      loadRoad();
+    };
+    if (lastFix && Date.now() - lastFix.t < 10000) return go(lastFix);
+    if (!navigator.geolocation) return;
+    $('roadNote').textContent = 'بيجيب مكانك…';
+    navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); },
+      () => { $('roadNote').textContent = 'مش لاقى مكانك — اسمح بالموقع وجرّب تانى'; }, { enableHighAccuracy: true, timeout: 20000 });
+  }
+  $('markBump').addEventListener('click', () => markRoad('bump'));
+  $('markPothole').addEventListener('click', () => markRoad('pothole'));
+  $('clearTestBtn').addEventListener('click', async () => {
+    if (!confirm('تمسح كل مطبات التجربة؟')) return;
+    try { const r = await api('POST', '/api/web/hazards', { clearTest: true }); $('roadNote').textContent = 'اتمسح ' + r.cleared + ' مطب تجربة'; } catch (e) {}
+    loadRoad();
+  });
+  setTimeout(() => { if (token) loadRoad(); }, 0);
+
   // «📡 شارك GPS مع العربية» (المرحلة ٢): watchPosition طول ما الصفحة مفتوحة، وقراءة للسيرفر كل ٢ ث بالكتير. الاختيار بيتفتكر
   // (فلو فتحت الصفحة تانى بيكمّل لوحده). الشاشة هى اللى بتقرّر تثق فيه (لازم يتحرك معاها).
   const SHARE_KEY = 'od_share_gps';

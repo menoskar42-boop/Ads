@@ -218,6 +218,18 @@ function createDriveSite({ pool, push } = {}) {
     } catch (e) { fail(res, 500, 'zip failed'); }
   });
 
+  // الموبايل لوحده (المرحلة ٣ — ٢٠٢٦-١١-١٨): يسجّل/يمسح مطبات على نفس ذاكرة العربية، ووضع تجربة مابينزلش على الشاشة.
+  router.get('/api/web/hazards', ownerAuth, async (req, res) => {
+    try { res.json({ ok: true, items: await hz.list(pool, req.owner.car_id, true) }); }
+    catch (e) { fail(res, 500, 'hazards failed'); }
+  });
+  router.post('/api/web/hazards', rateLimit({ name: 'od-web-hazards', windowMs: 60 * 60000, max: 600 }), json, ownerAuth, async (req, res) => {
+    try {
+      if (req.body && req.body.clearTest === true) return res.json({ ok: true, cleared: await hz.clearTest(pool, req.owner.car_id) });
+      res.json({ ok: true, saved: await hz.save(pool, req.owner.car_id, hz.parseItems(req.body)) });
+    } catch (e) { fail(res, 500, 'hazards failed'); }
+  });
+
   // «📡 شارك GPS مع العربية» (المرحلة ٢): آخر قراءة بس فى الذاكرة — src/drive/companions.js
   const comp = require('../drive/companions');
   router.post('/api/web/fix', rateLimit({ name: 'od-fix', windowMs: 60 * 60000, max: 4000 }), json, ownerAuth, (req, res) => {

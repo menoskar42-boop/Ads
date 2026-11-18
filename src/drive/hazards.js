@@ -33,6 +33,7 @@ function parseItems(body) {
       note: String(it.note || '').slice(0, 200),
       createdAt: new Date(t || Date.now()).toISOString(),
       deleted: it.deleted === true,
+      test: it.test === true,
     });
   }
   return out;
@@ -43,29 +44,36 @@ async function save(pool, carId, items) {
   let saved = 0;
   for (const h of items) {
     const { rowCount } = await pool.query(
-      `INSERT INTO od_hazards (car_id, uuid, type, lat, lng, bearing, accuracy, altitude, note, created_at, deleted_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, CASE WHEN $11 THEN now() END)
+      `INSERT INTO od_hazards (car_id, uuid, type, lat, lng, bearing, accuracy, altitude, note, created_at, deleted_at, test)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, CASE WHEN $11 THEN now() END, $12)
        ON CONFLICT (uuid) DO UPDATE SET
          deleted_at = CASE WHEN $11 THEN COALESCE(od_hazards.deleted_at, now()) ELSE od_hazards.deleted_at END,
          bearing = COALESCE(EXCLUDED.bearing, od_hazards.bearing),
          accuracy = COALESCE(EXCLUDED.accuracy, od_hazards.accuracy),
          altitude = COALESCE(EXCLUDED.altitude, od_hazards.altitude)
        WHERE od_hazards.car_id = EXCLUDED.car_id`,
-      [carId, h.uuid, h.type, h.lat, h.lng, h.bearing, h.accuracy, h.altitude, h.note, h.createdAt, h.deleted]);
+      [carId, h.uuid, h.type, h.lat, h.lng, h.bearing, h.accuracy, h.altitude, h.note, h.createdAt, h.deleted, h.test]);
     saved += rowCount;
   }
   return saved;
 }
 
-/** ذاكرة العربية كلها (من غير الممسوح) — للشاشة اللى اتسطّبت من جديد. */
-async function list(pool, carId) {
+/** ذاكرة العربية كلها (من غير الممسوح). الشاشة مابتشوفش مطبات التجربة (withTest للموبايل بس). */
+async function list(pool, carId, withTest = false) {
   const { rows } = await pool.query(
-    `SELECT uuid, type, lat, lng, bearing, accuracy, altitude, note, created_at FROM od_hazards
-      WHERE car_id = $1 AND deleted_at IS NULL ORDER BY created_at LIMIT 5000`, [carId]);
+    `SELECT uuid, type, lat, lng, bearing, accuracy, altitude, note, created_at, test FROM od_hazards
+      WHERE car_id = $1 AND deleted_at IS NULL AND ($2 OR NOT test) ORDER BY created_at LIMIT 5000`, [carId, !!withTest]);
   return rows.map((r) => ({
     uuid: r.uuid, type: r.type, lat: r.lat, lng: r.lng, bearing: r.bearing, acc: r.accuracy, alt: r.altitude,
-    note: r.note, t: new Date(r.created_at).getTime(),
+    note: r.note, t: new Date(r.created_at).getTime(), ...(withTest ? { test: r.test } : {}),
   }));
+}
+
+/** «امسح كل مطبات التجربة» (علامة مسح زى أى مطب). */
+async function clearTest(pool, carId) {
+  const { rowCount } = await pool.query(
+    'UPDATE od_hazards SET deleted_at = now() WHERE car_id = $1 AND test AND deleted_at IS NULL', [carId]);
+  return rowCount;
 }
 
 /** صفحة الموبايل: كود لمرة واحدة (١٠ دقايق) يربط شاشة جديدة بنفس العربية. */
@@ -172,4 +180,4 @@ async function deletedUuids(pool, carId) {
   return rows.map((r) => r.uuid);
 }
 
-module.exports = { parseItems, save, list, deletedUuids, newRelinkCode, relink, newClaim, claimStatus, claim, MAX_ITEMS };
+module.exports = { parseItems, save, list, clearTest, deletedUuids, newRelinkCode, relink, newClaim, claimStatus, claim, MAX_ITEMS };

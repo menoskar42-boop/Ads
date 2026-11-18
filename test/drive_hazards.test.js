@@ -83,6 +83,21 @@ describe('hazards: database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL n
     assert.equal((await call('GET', '/api/web/state', null, owner)).status, 200);
   });
 
+  it('phone alone: saves bumps to the same memory; test bumps never reach the screen and clear in one go', async () => {
+    const car = (await call('POST', '/api/car/register', { app: '1.0' })).json.token;
+    const owner = (await call('POST', '/api/web/pair', { code: (await call('POST', '/api/car/pair', {}, car)).json.code })).json.token;
+    const R = '55555555-2222-4333-8444-555555555555', T = '66666666-2222-4333-8444-555555555555';
+    assert.equal((await call('POST', '/api/web/hazards', { items: [item({ uuid: R })] })).status, 401);
+    assert.equal((await call('POST', '/api/web/hazards', { items: [item({ uuid: R }), item({ uuid: T, test: true })] }, owner)).json.saved, 2);
+    const mine = (await call('GET', '/api/web/hazards', null, owner)).json.items;
+    assert.equal(mine.length, 2); assert.equal(mine.find((x) => x.uuid === T).test, true);
+    assert.deepEqual((await call('POST', '/api/car/hazards', { pull: true }, car)).json.items.map((x) => x.uuid), [R]);   // الشاشة مابتشوفش التجربة
+    assert.equal((await call('POST', '/api/web/hazards', { clearTest: true }, owner)).json.cleared, 1);
+    assert.deepEqual((await call('GET', '/api/web/hazards', null, owner)).json.items.map((x) => x.uuid), [R]);
+    await call('POST', '/api/web/hazards', { items: [item({ uuid: R, deleted: true })] }, owner);
+    assert.deepEqual((await call('POST', '/api/car/hazards', { pull: true }, car)).json.deleted.includes(R), true);   // المسح بيوصل للشاشة
+  });
+
   it('companion GPS: the paired phone shares its fix, the screen sees only fresh ones, stop removes it', async () => {
     const car = (await call('POST', '/api/car/register', { app: '1.0' })).json.token;
     const owner = (await call('POST', '/api/web/pair', { code: (await call('POST', '/api/car/pair', {}, car)).json.code })).json.token;
