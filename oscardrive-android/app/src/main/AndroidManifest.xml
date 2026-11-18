@@ -98,6 +98,13 @@
             </intent-filter>
         </activity>
 
+        <!-- الخريطة جوه Oscar Drive (المرحلة ٣): مكانك + المطبات المتسجّلة — بدل ما «افتح الخريطة» يفتح تطبيق برّه -->
+        <activity
+            android:name=".MapActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode" />
+
         <!-- الملاحة جوه Oscar Drive (Google Navigation SDK) -->
         <activity
             android:name=".NavActivity"

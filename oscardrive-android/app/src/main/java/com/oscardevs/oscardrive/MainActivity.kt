@@ -1054,6 +1054,8 @@ class MainActivity : Activity() {
     }
 
     private fun openMap() {
+        // الخريطة جوه التطبيق (المرحلة ٣) لو مفتاح الخرايط موجود، وإلا تطبيق الخرائط زى الأول
+        if (BuildConfig.NAV_SDK_KEY) { try { startActivity(Intent(this, MapActivity::class.java)); return } catch (_: Exception) {} }
         val p = here()
         val uri = if (p != null) "geo:${p.first},${p.second}?z=16" else "geo:0,0?z=3"
         view(uri) || toast("مفيش تطبيق خرائط على الشاشة")
