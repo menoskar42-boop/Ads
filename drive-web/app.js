@@ -303,19 +303,25 @@
     try {
       const j = await api('GET', '/api/web/shots');
       const c = j.counts || {};
-      $('shotsInfo').textContent = `${c.total || 0} صورة · ${c.fresh || 0} جديدة · ${c.bumps || 0} قبل مطبات متسجّلة`;
+      $('shotsInfo').textContent = `${c.total || 0} صورة · ${c.fresh || 0} جديدة · ${c.bumps || 0} قبل مطبات متسجّلة` + (c.test ? ` · 🧪 ${c.test} صورة تجربة (لوحدها — مابتدخلش التدريب)` : '');
+      $('shotsClearTest').hidden = !c.test; $('shotsClearTest').textContent = `🧹 امسح صور التجربة (${c.test || 0})`;
       const g = $('shotsGrid'); g.textContent = '';
       for (const s of (j.shots || []).slice(0, 12)) {
         const fig = document.createElement('figure');
         fig.style.cssText = 'margin:0;font-size:11px;text-align:center;color:var(--muted)';
         const img = document.createElement('img');
         img.alt = 'صورة طريق'; img.style.cssText = 'width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:#0002';
-        fig.append(img, document.createTextNode(`${REASON[s.reason] || ''} ${s.distance_m != null ? s.distance_m + 'م · ' : ''}${ago(s.at)}`));
+        fig.append(img, document.createTextNode(`${s.test ? '🧪 ' : ''}${REASON[s.reason] || ''} ${s.distance_m != null ? s.distance_m + 'م · ' : ''}${ago(s.at)}`));
         g.append(fig);
         blobOf(`/api/web/shots/${s.id}/jpg`).then(({ blob }) => { img.src = URL.createObjectURL(blob); }).catch(() => {});
       }
     } catch (e) { /* مش مربوط أو مفيش نت */ }
   }
+  $('shotsClearTest').addEventListener('click', async () => {
+    if (!confirm('تمسح كل صور التجربة؟')) return;
+    try { const r = await api('POST', '/api/web/shots/clear-test'); $('shotsNote').textContent = `اتمسح ${r.cleared} صورة تجربة`; } catch (e) { $('shotsNote').textContent = e.message; }
+    loadShots();
+  });
   $('shotsZipBtn').addEventListener('click', async () => {
     $('shotsNote').textContent = 'بيجهّز الملف…';
     try {
@@ -433,9 +439,10 @@
       cv.width = Math.round(w * sc); cv.height = Math.round(h * sc); cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
       const jpg = cv.toDataURL('image/jpeg', 0.8).split(',')[1];
       const f = lastFix || {};
+      const test = $('testMode').checked;   // وضع تجربة ⇒ فولدر التجربة على R2، ومابتدخلش التدريب
       await api('POST', '/api/web/shot', { jpg, meta: { uuid: uuid(), t: Date.now(), reason, app: 'phone', lat: f.lat, lng: f.lng, acc: f.acc,
-        kmh: f.kmh, heading: roadHeading } });
-      $('voiceNote').textContent = '📸 اتصوّرت واترفعت'; sayRoad('اتصوّرت');
+        kmh: f.kmh, heading: roadHeading, test } });
+      $('voiceNote').textContent = test ? '📸 🧪 اتصوّرت (صورة تجربة)' : '📸 اتصوّرت واترفعت'; sayRoad('اتصوّرت');
       loadShots();
     } catch (e) {
       $('voiceNote').textContent = '📸 ' + (e && e.name === 'NotAllowedError' ? 'اسمح بالكاميرا للموقع ده من إعدادات الموبايل' : (e.message || 'الكاميرا مش متاحة'));

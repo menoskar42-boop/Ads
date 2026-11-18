@@ -71,6 +71,16 @@ describe('shots: database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL not
     assert.ok((await shots.jpg(pool, c.id, row.id, store)).equals(JPG));
     const z = await shots.exportZip(pool, c.id, true, store);
     assert.equal(z.count, 1);
+    // وضع تجربة: فولدر لوحده على R2، ومش فى العدّاد ولا الـzip العادى، وبيتمسح بزرار
+    const pt = shots.parse({ meta: meta({ uuid: '9a2b8c1e-1111-4222-8333-944455556666', test: true }), jpg: JPG.toString('base64') });
+    await shots.save(pool, c.id, pt, store);
+    assert.ok(mem.has(`oscar-drive/shots-test/${c.id}/${pt.uuid}.jpg`));
+    const l = await shots.list(pool, c.id);
+    assert.equal(l.counts.test, 1); assert.equal(l.counts.total, 1);
+    assert.equal((await shots.exportZip(pool, c.id, true, store)).count, 1);           // العادى من غير التجربة
+    assert.equal((await shots.exportZip(pool, c.id, true, store, true)).count, 1);     // التجربة لوحدها
+    assert.equal(await shots.clearTest(pool, c.id, store), 1);
+    assert.ok(!mem.has(`oscar-drive/shots-test/${c.id}/${pt.uuid}.jpg`));
     const bad = { putObject: async () => { throw new Error('down'); } };
     const p2 = shots.parse({ meta: meta({ uuid: '8a2b8c1e-1111-4222-8333-944455556666' }), jpg: JPG.toString('base64') });
     await shots.save(pool, c.id, p2, bad);

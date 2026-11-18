@@ -96,6 +96,8 @@ async function ensureDriveSchema(pool) {
     -- بتروح R2 (r2_key) والعمود jpg بيفضل فاضى؛ من غيرها زى الأول (BYTEA). القديم مابيتنقلش.
     ALTER TABLE od_shots ALTER COLUMN jpg DROP NOT NULL;
     ALTER TABLE od_shots ADD COLUMN IF NOT EXISTS r2_key TEXT;
+    -- «وضع تجربة» (المالك ٢٠٢٦-١١-١٨): صور التجربة فى فولدر لوحدها على R2 (shots-test) ومابتدخلش التدريب ولا الـzip العادى.
+    ALTER TABLE od_shots ADD COLUMN IF NOT EXISTS test BOOLEAN NOT NULL DEFAULT false;
     -- ذاكرة الطريق على السيرفر (المالك ٢٠٢٦-١١-١٨): المطبات/الحفر/الرادارات اللى السواق سجّلها كانت على الشاشة بس وبتضيع مع
     -- مسح التطبيق. uuid من الشاشة بيمنع التكرار، والمسح = deleted_at (مفيش DELETE). الشاشة الجديدة بتاخد نفس العربية بكود
     -- «ربط شاشة جديدة» من صفحة الموبايل (relink_code) وبتنزّل الذاكرة.

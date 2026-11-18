@@ -197,6 +197,10 @@ function createDriveSite({ pool, push } = {}) {
     try { res.set('Cache-Control', 'no-store'); res.json({ ok: true, ...(await shots.list(pool, req.owner.car_id)) }); }
     catch (e) { fail(res, 500, 'shots failed'); }
   });
+  router.post('/api/web/shots/clear-test', ownerAuth, async (req, res) => {
+    try { res.json({ ok: true, cleared: await shots.clearTest(pool, req.owner.car_id) }); }
+    catch (e) { fail(res, 500, 'clear failed'); }
+  });
   router.get('/api/web/shots/:id/jpg', ownerAuth, async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isInteger(id)) return fail(res, 400, 'bad id');
@@ -209,7 +213,7 @@ function createDriveSite({ pool, push } = {}) {
   // zip بالصور الجديدة (?all=1 = كلها) — لحد ٢٠ ميجا، والباقى فى المرة الجاية
   router.get('/api/web/shots.zip', ownerAuth, async (req, res) => {
     try {
-      const z = await shots.exportZip(pool, req.owner.car_id, req.query.all === '1');
+      const z = await shots.exportZip(pool, req.owner.car_id, req.query.all === '1', undefined, req.query.test === '1');
       if (!z.count) return fail(res, 404, 'مفيش صور جديدة');
       const name = `oscar-road-shots-${new Date().toISOString().slice(0, 10)}.zip`;
       res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${name}"`, 'X-Shots': String(z.count),

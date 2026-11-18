@@ -31,6 +31,7 @@ function parse(body) {
     reason: REASONS.has(meta.reason) ? meta.reason : 'button',
     hazardType: clean.hazard ? clean.hazard.type : null,
     distanceM: Number.isFinite(clean.distanceM) ? Math.round(clean.distanceM) : null,
+    test: meta.test === true,
   };
 }
 
@@ -45,13 +46,13 @@ const r2On = () => !!(r2 && r2.isConfigured());
 async function save(pool, carId, p, store = r2On() ? r2 : null) {
   let key = null;
   if (store) {
-    const k = `oscar-drive/shots/${carId}/${p.uuid}.jpg`;
+    const k = `oscar-drive/${p.test ? 'shots-test' : 'shots'}/${carId}/${p.uuid}.jpg`;   // التجربة فى فولدر لوحدها
     try { await store.putObject(k, p.buf, 'image/jpeg'); key = k; } catch (e) { key = null; }   // فشل ⇒ القاعدة
   }
   await pool.query(
-    `INSERT INTO od_shots (car_id, uuid, at, reason, hazard_type, distance_m, meta, bytes, jpg, r2_key)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (uuid) DO NOTHING`,
-    [carId, p.uuid, p.at, p.reason, p.hazardType, p.distanceM, p.meta, p.buf.length, key ? null : p.buf, key]);
+    `INSERT INTO od_shots (car_id, uuid, at, reason, hazard_type, distance_m, meta, bytes, jpg, r2_key, test)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (uuid) DO NOTHING`,
+    [carId, p.uuid, p.at, p.reason, p.hazardType, p.distanceM, p.meta, p.buf.length, key ? null : p.buf, key, !!p.test]);
   // الحد: اللى اتنزّل قبل كده يتمسح الأول، وبعدين الأقدم (ومعاه ملفه على R2)
   const { rows } = await pool.query(
     `DELETE FROM od_shots WHERE id IN (
@@ -69,11 +70,12 @@ async function bytesOf(row, store = r2) {
 
 async function list(pool, carId) {
   const { rows } = await pool.query(
-    `SELECT id, at, reason, hazard_type, distance_m, bytes, exported_at IS NOT NULL AS exported
+    `SELECT id, at, reason, hazard_type, distance_m, bytes, exported_at IS NOT NULL AS exported, test
        FROM od_shots WHERE car_id = $1 ORDER BY at DESC LIMIT 60`, [carId]);
   const { rows: [c] } = await pool.query(
-    `SELECT count(*)::int AS total, count(*) FILTER (WHERE exported_at IS NULL)::int AS fresh,
-            count(*) FILTER (WHERE reason = 'bump_approach')::int AS bumps FROM od_shots WHERE car_id = $1`, [carId]);
+    `SELECT count(*) FILTER (WHERE NOT test)::int AS total, count(*) FILTER (WHERE exported_at IS NULL AND NOT test)::int AS fresh,
+            count(*) FILTER (WHERE reason = 'bump_approach' AND NOT test)::int AS bumps,
+            count(*) FILTER (WHERE test)::int AS test FROM od_shots WHERE car_id = $1`, [carId]);
   return { shots: rows, counts: c };
 }
 
@@ -112,10 +114,10 @@ function zip(files) {
 }
 
 /** الصور اللى لسه ماتنزّلتش (أو كلها) لحد ٢٠ ميجا — كل صورة جنبها json ببياناتها. بيعلّمهم «اتنزّلت». */
-async function exportZip(pool, carId, all, store = r2) {
+async function exportZip(pool, carId, all, store = r2, test = false) {
   const { rows } = await pool.query(
     `SELECT id, uuid, at, reason, hazard_type, distance_m, meta, jpg, r2_key, bytes FROM od_shots
-      WHERE car_id = $1 ${all ? '' : 'AND exported_at IS NULL'} ORDER BY at`, [carId]);
+      WHERE car_id = $1 AND test = $2 ${all ? '' : 'AND exported_at IS NULL'} ORDER BY at`, [carId, !!test]);
   const files = [], ids = [];
   let size = 0;
   for (const r of rows) {
@@ -132,4 +134,11 @@ async function exportZip(pool, carId, all, store = r2) {
   return { buf: zip(files), count: ids.length, more: rows.length > ids.length };
 }
 
-module.exports = { parse, save, list, jpg, exportZip, zip, crc32, isJpeg, MAX_BYTES, MAX_PER_CAR };
+/** «🧹 امسح صور التجربة»: الصفوف وملفاتها على R2. */
+async function clearTest(pool, carId, store = r2) {
+  const { rows } = await pool.query('DELETE FROM od_shots WHERE car_id = $1 AND test RETURNING r2_key', [carId]);
+  for (const r of rows) if (r.r2_key && store) await store.deleteObject(r.r2_key).catch(() => {});
+  return rows.length;
+}
+
+module.exports = { parse, save, list, jpg, exportZip, clearTest, zip, crc32, isJpeg, MAX_BYTES, MAX_PER_CAR };
