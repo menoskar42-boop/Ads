@@ -81,7 +81,8 @@ function createDriveSite({ pool, push } = {}) {
   const voice = require('../drive/voice');
   router.post('/api/car/voice', rateLimit({ name: 'od-voice', windowMs: 24 * 60 * 60000, max: 20 }), json, carAuth, async (req, res) => {
     const text = String((req.body && req.body.text) || '').trim().slice(0, 120);
-    const v = req.body && req.body.voice === 'female' ? 'female' : 'male';
+    // جمل السواق بتتولّد بـOpenAI (ElevenLabs المجانى للجمل الثابتة بس) — نفس النوع (راجل/ست) لو الشاشة على صوت ElevenLabs
+    const v = /female$/.test(String((req.body && req.body.voice) || '')) ? 'female' : 'male';
     const lang = req.body && req.body.lang === 'en' ? 'en' : 'ar';
     if (!text) return fail(res, 400, 'empty');
     try {
@@ -144,7 +145,7 @@ function createDriveSite({ pool, push } = {}) {
 
   // manifest صوت أوسكار (بيتحسب من الملفات الموجودة — لو السكربت ماتشغّلش لسه، الجمل من غير ملفات والتطبيق بيقول بصوت الشاشة)
   router.get('/voice/:v/manifest.json', (req, res) => {
-    const v = req.params.v === 'female' ? 'female' : 'male';
+    const v = voice.ALL_VOICES.includes(req.params.v) ? req.params.v : 'male';
     res.set('Cache-Control', 'no-cache').json(voice.manifest(v));
   });
 

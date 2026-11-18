@@ -3,6 +3,8 @@
  * صوت أوسكار (Oscar Personality) — يتشغّل مرة واحدة فى Shell ريبليت (محتاج OPENAI_API_KEY):
  *   node scripts/oscar-voice.js          ⇒ يولّد الناقص بس (الموجود مابيتعادش = مفيش تكلفة)
  *   node scripts/oscar-voice.js --dry    ⇒ يعدّ الناقص والتكلفة التقريبية من غير ما يولّد
+ *   node scripts/oscar-voice.js --el     ⇒ أصوات ElevenLabs بس (el-male · el-female) — محتاج سرّ ELEVENLABS_API_KEY
+ *   (من غير --el: أصوات OpenAI بس زى الأول — الاتنين مابيمسحوش حاجة موجودة)
  * الجمل: oscardrive-android/app/src/main/assets/oscar_lines.json · الناتج: drive-web/voice/<male|female>/
  * وبعدها Republish (ريبليت بيعمل commit للملفات مع النشر زى أصوات ميزو).
  */
@@ -14,7 +16,8 @@ const V = require('../src/drive/voice');
 (async () => {
   const dry = process.argv.includes('--dry');
   let missing = 0, made = 0, failed = 0, chars = 0;
-  for (const voice of Object.keys(V.VOICES)) {
+  const el = process.argv.includes('--el');
+  for (const voice of el ? Object.keys(V.EL_VOICES) : Object.keys(V.VOICES)) {
     const dir = path.join(V.VOICE_DIR, voice);
     fs.mkdirSync(dir, { recursive: true });
     for (const [id, byLang] of Object.entries(V.lines())) {
@@ -38,7 +41,8 @@ const V = require('../src/drive/voice');
   }
   if (dry) {
     const secs = chars / 12;
-    console.log(`ناقص ${missing} جملة (≈ ${Math.ceil(secs / 60)} دقيقة صوت · ≈ $${((secs / 60) * 0.015).toFixed(2)})`);
+    console.log(el ? `ناقص ${missing} جملة · ${chars} حرف من رصيد ElevenLabs`
+      : `ناقص ${missing} جملة (≈ ${Math.ceil(secs / 60)} دقيقة صوت · ≈ $${((secs / 60) * 0.015).toFixed(2)})`);
   } else console.log(`اتعمل ${made} · فشل ${failed} · الـmanifest اتحدّث`);
   process.exit(failed ? 1 : 0);
 })();

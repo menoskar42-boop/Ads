@@ -223,6 +223,13 @@ check('privacy policy discloses the microphone', /الميكروفون بيتط�
       && /'drive-web\/voice\/\*\*'/.test(wf),
     'ملفات drive-web/voice لازم تتبنى جوّه الـAPK وتتنقل أول ما التطبيق يفتح.');
 }
+{
+  const vjs = read('src/drive/voice.js');
+  check('ElevenLabs voices are separate folders (old voices kept) and the key is a secret only',
+    /'el-male': 'FXJhBZJ1DJMO0U4ZPSur'/.test(vjs) && /'el-female': 'xPcC3nehhziQaOrIeAwv'/.test(vjs) && /process\.env\.ELEVENLABS_API_KEY/.test(vjs)
+      && ['male', 'female'].every((v) => fs.existsSync(path.join(ROOT, 'drive-web/voice', v, 'manifest.json'))),
+    'أصوات ElevenLabs فى el-male/el-female والقديمة مابتتمسحش لحد ما المالك يقرّر (٢٠٢٦-١١-١٨)، والمفتاح سرّ فى ريبليت بس.');
+}
 check('custom voice lines are rate-limited', /od-voice', windowMs: 24 \* 60 \* 60000, max: 20/.test(site), 'كل جملة = نداء مدفوع للذكاء الاصطناعى.');
 
 process.exit(failed ? 1 : 0);
