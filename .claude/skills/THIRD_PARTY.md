@@ -11,6 +11,7 @@
 | github.com/morluto/rea (REA) | 3345019 (2026-11-10، بطلب المالك) | reverse-engineer-anything | MIT (`LICENSE.txt` جوّه المهارة) |
 | github.com/cth9191/animate | 7e5eb56 (2026-10-05، بطلب المالك ٢٠٢٦-١١-١٧) | animate | MIT (`LICENSE.txt` جوّه المهارة) |
 | github.com/NVIDIA/skillspector | a09091e (2026-11-16، بطلب المالك ٢٠٢٦-١١-١٧) | skill-inspector | Apache-2.0 (`LICENSE.txt` جوّه المهارة) |
+| github.com/Jakeschincariol/replica-skill | 77c9436 (2026-10-03، بطلب المالك ٢٠٢٦-١١-١٨) | replica-recon · replica-architect · replica-design · replica-build · replica-backend · replica-test · replica-diff · replica-entrepreneur · replica-brand · replica-launch · replica-deploy | MIT (`LICENSE.txt` جوّه كل مهارة) |
 
 اتسابت: `using-superpowers` و`diagnosing-superpowers` (بيشتغلوا مع الـplugin والـhook)،
 وskill-creator/claude-api/docx/pdf/pptx/xlsx (موجودين أصلاً)، والباقى مالوش علاقة بشغلنا.
@@ -35,3 +36,12 @@
 - **اتسابوا:** ponytail (hooks بتضيف تعليمات وخريطة للمستودع مع كل جلسة ⇒ توكنز زيادة دايماً) · freellmapi (مش مهارة؛ بيبعت البرومبتات
   لمزوّدين برّه) · Agent-Reach (بينسخ جلسة كروم وبيخزّن كوكيز الحسابات على الجهاز، فأى برنامج تانى يقدر يوصلها، مش كلود بس.
   والوصول للحسابات «من خلال كلود بس» موجود أصلاً بالإكستنشن فى كروم بتاع المالك).
+
+### Replica (١١ مهارة لتقليد تطبيق وإعادة بنائه — ٢٠٢٦-١١-١٨، «هنحتاجها قريب»)
+مراجعة بالإيد قبل التركيب: السكربتات (`sweep.py` · `contrast.py` · `parity.py` · `imgdiff.py` · `reviews.py` · `listing.py`) بايثون
+standard library بس — مفيش نت ولا subprocess ولا قراية env/أسرار، وبتقرا/تكتب ملفات المشروع اللى بتتدّيلها بس. ملفات الـSKILL.md
+مافيهاش أوامر مخفية؛ وهى نفسها بتشترط: كود وأصول ونصوص جديدة (مش نسخ من التطبيق الأصلى) · المستخدم بيكتب كلمات السر والمفاتيح
+بنفسه · APIs رسمية بس · مفيش تخطّى تسجيل دخول لحساب مش بتاعه. اتنسخت المهارات بس (من غير `tests/` و`.claude-plugin/`).
+⚠️ فوقها قواعد `CLAUDE.md`: فرع واحد للرفع · ممنوع لمس الأسرار/الدومين/إعدادات النشر من غير المالك (فـ`replica-deploy` بيقف عند
+الخطوات دى ويسأل) · وشغل السيو/الجيو/أدسنس بيتراجع بشروطه قبل أى صفحة لاندنج من `replica-launch`.
+
