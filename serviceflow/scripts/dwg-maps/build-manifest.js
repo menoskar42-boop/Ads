@@ -22,13 +22,15 @@ function autoData(jsonPath, layerRe, central, cabinet, title, net) {
   }).sort((a, b) => parseInt(a.box) - parseInt(b.box));
   const segments = segs.map((g) => ({ from: g.from, to: g.to, lengthM: g.lengthM, pairs: g.pairs, gaugeMm: g.gaugeMm,
     ...(g.dead ? { dead: g.dead } : {}), ...(g.marker ? { marker: g.marker } : {}),
-    ...((perBox[g.to] || 0) > 1 || g.lengthM == null ? { uncertain: true } : {}) }));
+    ...((perBox[g.to] || 0) > 1 || g.lengthM == null ? { uncertain: true } : {}),
+    ...(g.nolabel ? { notes: 'الخط مرسوم فى الخريطة بس الطول مش مكتوب جنبه — اكتب الطول من الورقة والمسافات اللى بعده هتتحسب' } : {}) }));
   const nums = bx.map((b) => parseInt(b.box)).filter((n) => n > 0); const max = Math.max(0, ...nums); const missing = [];
   for (let i = 1; i <= max; i++) if (!nums.includes(i)) missing.push(i);
   const notes = [];
   if (missing.length) notes.push(`أرقام بكسيات مش ظاهرة فى الخريطة: ${missing.join('، ')}`);
   if (r && r.unusedLabels.length) notes.push(`كابلات مكتوب نصها فى الخريطة ومالقيناش خطها (تتضاف بإيد): ${r.unusedLabels.join(' · ')}`);
   if (r) { const off = boxes.filter((b) => !r.reached.has('B' + b.box)).map((b) => b.box); if (off.length) notes.push(`بكسيات مش متوصّلة بالكابينة فى التفريغ الآلى (ناقصها كابل فى النص): ${off.join('، ')}`); }
+  const nol = segs.filter((g) => g.nolabel); if (nol.length) notes.push(`كابلات مرسومة من غير طول مكتوب (البكسيات اللى بعدها مالهاش مسافة لحد ما الطول يتكتب): ${nol.map((g) => g.from + ' ← ' + g.to).join(' · ')}`);
   return { meta: { central, cabinet, title, notes: 'تفريغ آلى من ملف الأوتوكاد: الكابينة والبكسيات والكابلات (من ← إلى · الطول · الأزواج · القطر). اللى عليه «يتراجع» والملاحظات محتاجين مراجعة على الخريطة.' },
     segments, boxes, spares: [], markers: [], notes };
 }

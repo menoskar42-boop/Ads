@@ -174,3 +174,29 @@ test("2026-11-19: the AutoCAD import also traces the cables (both drawing styles
   assert.match(man, /GHANAYEM\)/); assert.match(man, /DERGNDLA\)/);
   assert.match(man, /مالقيناش خطها/, "النص اللى مالقيناش خطه بيتكتب فى الملاحظات");
 });
+
+test("تفريغ دير الجنادلة: قفزة التقاطع + كابل من غير طول + رمز البكس المتكرر", async () => {
+  const { createRequire } = await import("node:module");
+  const { extractNetwork, DERGNDLA } = createRequire(import.meta.url)("../scripts/dwg-maps/cables.cjs");
+  const P = (x: number, y: number) => ({ x, y });
+  const T = (layer: string, text: string, x: number, y: number, h = 0.35) => ({ type: "TEXT", layer, text, startPoint: P(x, y), textHeight: h, rotation: 0 });
+  const L = (layer: string, a: number[], b: number[]) => ({ type: "LINE", layer, startPoint: P(a[0], a[1]), endPoint: P(b[0], b[1]) });
+  const dot = (layer: string, x: number, y: number) => ({ type: "LWPOLYLINE", layer, vertices: [P(x - 0.1, y), P(x + 0.1, y)] });
+  const box = (blk: string, num: string, x: number, y: number) => [T("TEXT-BOX", blk, x + 1, y + 1), T("TEXT-BOX", "1-10", x + 1, y + 0.5), T("TEXT-BOX", num, x + 2.5, y + 0.5)];
+  const db = { entities: [
+    T("TEXT-CABINA", "1-1", 0, 0), T("TEXT-CABINA", "1", 1, 1), T("TEXT-CABINA", "", 0, 300),   // النص الفاضى مايكبّرش الكابينة
+    L("CA", [1, 0], [10, 0]), L("CA", [10.4, 0], [20, 0]),            // فراغ عند التقاطع (قفزة)
+    T("TEXT-LONG", '100/50"/0.4', 5, 0.1, 0.2),
+    dot("GONTA", 20, 0), T("TEXT-JONTA", "1", 20.3, 0.5, 0.2),
+    L("CA", [20, 0], [20, 10]), dot("BOX", 20, 10), dot("BOX", 20, 10), T("TEXT-LONG", '30/10"/0.4', 20.2, 5, 0.2), ...box("1", "7", 20, 10),
+    L("CA", [20, 0], [30, 0]), dot("BOX", 30, 0), ...box("1", "8", 30, 0),   // خط من غير طول مكتوب
+  ] };
+  const r = extractNetwork(db, DERGNDLA);
+  const seg = (to: string) => r.segs.find((s: any) => s.to === to);
+  assert.equal(r.boxes.length, 2, "الرمز المرسوم مرتين = بكس واحد");
+  assert.equal(seg("J01")?.from, "CAB"); assert.equal(seg("J01")?.lengthM, 100, "الكابل بيكمّل بعد فراغ التقاطع");
+  assert.equal(seg("B7")?.lengthM, 30);
+  assert.equal(seg("B8")?.lengthM, null); assert.equal(seg("B8")?.nolabel, true, "الخط اللى مالوش طول بيتسجّل وصلة من غير طول");
+  assert.ok(r.reached.has("B8"));
+  assert.deepEqual(distancesFromCabinet({ segments: r.segs }), { CAB: 0, J01: 100, B7: 130 });
+});
