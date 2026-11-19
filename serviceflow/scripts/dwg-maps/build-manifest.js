@@ -1,18 +1,36 @@
 const fs = require('fs');
 const { extractBoxes } = require('./boxes.cjs');
+const { extractNetwork, GHANAYEM, DERGNDLA } = require('./cables.cjs');
 const M = [];
 /** تفريغ آلى: الكابينة + البكسيات (رقم · البلوك · فرعات الخرج). المكرر والرقم «0» عليهم «يتراجع»، والأرقام الناقصة فى الملاحظات. */
-function autoData(jsonPath, layerRe, central, cabinet, title) {
-  const bx = extractBoxes(JSON.parse(fs.readFileSync(jsonPath, 'utf8')), layerRe);
+function autoData(jsonPath, layerRe, central, cabinet, title, net) {
+  const db = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  const bx = extractBoxes(db, layerRe);
+  // الكابلات (المالك ٢٠٢٦-١١-١٩: «اشتغل واعمل بيانات من الكهربى عادى»): تتبّع خطوط طبقة الكابلات بين الكابينة والوصلات والبكسيات
+  // + نص «طول/أزواج"/قطر» جنب كل خط. اتجرّب على 6.7: ٧٠ من ٧٢ كابل زى التفريغ بالإيد بالحرف، ومفيش كابل غلط.
+  const r = net ? extractNetwork(db, net) : null;
+  const segs = r ? r.segs : [];
+  const perBox = {}; segs.forEach((g) => [g.from, g.to].forEach((n) => { if (/^B/.test(n)) perBox[n] = (perBox[n] || 0) + 1; }));
   const seen = {}; bx.forEach((b) => (seen[b.box] = (seen[b.box] || 0) + 1));
-  const boxes = bx.map((b) => ({ box: b.box, block: b.block, pairs: b.pairs, joint: '',
-    ...(seen[b.box] > 1 || b.box === '0' ? { uncertain: true, notes: seen[b.box] > 1 ? 'الرقم ده متكرر فى الخريطة' : 'رقم 0 — يتراجع على الخريطة' } : {}) }))
-    .sort((a, b) => parseInt(a.box) - parseInt(b.box));
+  const boxes = bx.map((b) => {
+    const joint = segs.find((g) => g.to === 'B' + b.box)?.from || '';
+    const issues = [];
+    if (seen[b.box] > 1) issues.push('الرقم ده متكرر فى الخريطة');
+    if (b.box === '0') issues.push('رقم 0 — يتراجع على الخريطة');
+    if ((perBox['B' + b.box] || 0) > 1) issues.push('التفريغ الآلى لقى أكتر من كابل للبكس ده');
+    return { box: b.box, block: b.block, pairs: b.pairs, joint, ...(issues.length ? { uncertain: true, notes: issues.join(' · ') } : {}) };
+  }).sort((a, b) => parseInt(a.box) - parseInt(b.box));
+  const segments = segs.map((g) => ({ from: g.from, to: g.to, lengthM: g.lengthM, pairs: g.pairs, gaugeMm: g.gaugeMm,
+    ...(g.dead ? { dead: g.dead } : {}), ...(g.marker ? { marker: g.marker } : {}),
+    ...((perBox[g.to] || 0) > 1 || g.lengthM == null ? { uncertain: true } : {}) }));
   const nums = bx.map((b) => parseInt(b.box)).filter((n) => n > 0); const max = Math.max(0, ...nums); const missing = [];
   for (let i = 1; i <= max; i++) if (!nums.includes(i)) missing.push(i);
-  return { meta: { central, cabinet, title, notes: 'تفريغ آلى من ملف الأوتوكاد: الكابينة والبكسيات (البلوك وفرعات الخرج). الكابلات والوصلات لسه.' },
-    segments: [], boxes, spares: [], markers: [],
-    notes: missing.length ? [`أرقام بكسيات مش ظاهرة فى الخريطة: ${missing.join('، ')}`] : [] };
+  const notes = [];
+  if (missing.length) notes.push(`أرقام بكسيات مش ظاهرة فى الخريطة: ${missing.join('، ')}`);
+  if (r && r.unusedLabels.length) notes.push(`كابلات مكتوب نصها فى الخريطة ومالقيناش خطها (تتضاف بإيد): ${r.unusedLabels.join(' · ')}`);
+  if (r) { const off = boxes.filter((b) => !r.reached.has('B' + b.box)).map((b) => b.box); if (off.length) notes.push(`بكسيات مش متوصّلة بالكابينة فى التفريغ الآلى (ناقصها كابل فى النص): ${off.join('، ')}`); }
+  return { meta: { central, cabinet, title, notes: 'تفريغ آلى من ملف الأوتوكاد: الكابينة والبكسيات والكابلات (من ← إلى · الطول · الأزواج · القطر). اللى عليه «يتراجع» والملاحظات محتاجين مراجعة على الخريطة.' },
+    segments, boxes, spares: [], markers: [], notes };
 }
 // المالك ٢٠٢٦-١١-١٩: «الخريطة الكهربية لازم يبقى فيها كابينة وبكس — لا تعتمد بدون كابينة وبكسيات».
 // ⇒ الرسمة تتسجّل «الشبكة الثانوية» بس لو فيها رقم الكابينة + مربعات البكسيات (فرعات الخرج 31-40 …) + كابلات (46.0/50"/0.4).
@@ -37,13 +55,13 @@ for (const f of fs.readdirSync('json').filter((f) => /^scd\d\.\d\.json$/.test(f)
   const c = f.match(/scd(\d\.\d)/)[1];
   if (!isElectrical('json/' + f, c)) continue;
   M.push({ json: 'json/' + f, key: `ghanayem-${c}`, central: 'الغنايم', cabinet: c, title: 'ASSIUT-Elghanayem — Secondary Cable Diagram',
-    data: autoData('json/' + f, /P_DP_TXT/, 'الغنايم', c, 'ASSIUT-Elghanayem — Secondary Cable Diagram'),
+    data: autoData('json/' + f, /P_DP_TXT/, 'الغنايم', c, 'ASSIUT-Elghanayem — Secondary Cable Diagram', GHANAYEM),
     name: 'secondary-dwg.webp', caption: `الشبكة الثانوية — كابينة ${c} (من ملف الأوتوكاد Scd${c}.dwg)` });
 }
 // دير الجنادلة: الكهربى
 for (const c of ['1-1', '1-2', '2-1', '2-2', '3-1', '3-2'])
   if (isElectrical(`dje/${c}drgndel.json`, c)) M.push({ json: `dje/${c}drgndel.json`, key: `dergndla-${c.replace('-', '.')}`, central: 'دير الجنادلة', cabinet: c.replace('-', '.'),
-    data: autoData(`dje/${c}drgndel.json`, /TEXT-BOX/, 'دير الجنادلة', c.replace('-', '.'), `ELECTRIC SECONDARY DIAGRAM — دير الجنادلة ${c}`),
+    data: autoData(`dje/${c}drgndel.json`, /TEXT-BOX/, 'دير الجنادلة', c.replace('-', '.'), `ELECTRIC SECONDARY DIAGRAM — دير الجنادلة ${c}`, DERGNDLA),
     title: `ELECTRIC SECONDARY DIAGRAM — دير الجنادلة ${c}`, name: 'secondary-dwg.webp', caption: `الشبكة الثانوية — كابينة ${c} (من ملف الأوتوكاد ${c}DRGNDEL.dwg)` });
 for (const n of [1, 2, 3])
   M.push({ json: `dje/cable-${n}.json`, key: 'dergndla-primary', central: 'دير الجنادلة', cabinet: 'الشبكة الابتدائية (مرجع)', title: 'ELECTRIC PRIMARY DIAGRAM — دير الجنادلة',

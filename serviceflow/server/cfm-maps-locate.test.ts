@@ -162,3 +162,15 @@ test("2026-11-19: the import also carries the cabinet + boxes read from the Auto
   const b = (extractBoxes as any)(db, /P_DP_TXT/).map((x: any) => `${x.box}|${x.block}|${x.pairs}`).sort();
   assert.deepEqual(b, ["46|6|71-90", "47|6|91-100"]);
 });
+
+test("2026-11-19: the AutoCAD import also traces the cables (both drawing styles), oriented away from the cabinet", async () => {
+  const { createRequire } = await import("node:module");
+  const req = createRequire(import.meta.url);
+  const net = req("../scripts/dwg-maps/cables.cjs");
+  assert.equal(typeof net.extractNetwork, "function");
+  assert.ok(net.GHANAYEM && net.DERGNDLA, "إعداد خرايط الغنايم ودير الجنادلة");
+  const { readFileSync } = await import("node:fs");
+  const man = readFileSync(new URL("../scripts/dwg-maps/build-manifest.js", import.meta.url), "utf8");
+  assert.match(man, /GHANAYEM\)/); assert.match(man, /DERGNDLA\)/);
+  assert.match(man, /مالقيناش خطها/, "النص اللى مالقيناش خطه بيتكتب فى الملاحظات");
+});
