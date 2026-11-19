@@ -9,27 +9,39 @@ function toSvg(db, opts = {}) {
   const fonts = {}; (db.tables?.STYLE?.entries || []).forEach((s) => (fonts[s.name] = String(s.font || '').toLowerCase()));
   const layers = {}; (db.tables?.LAYER?.entries || []).forEach((l) => (layers[l.name] = l));
   const blocks = {}; (db.tables?.BLOCK_RECORD?.entries || []).forEach((b) => (blocks[b.name] = b));
-  const prim = []; // {k:'p', pts, closed, fill, c, w} | {k:'t', ...}
+  const prim = []; // {k:'p', pts, closed, fill, c, w, dash} | {k:'t', ...}
+  // نوع الخط (متصل · متقطّع · شرطة ونقطة): من الكيان نفسه، أو BYLAYER ⇒ نوع خط الطبقة. الطول فى وحدات الرسمة × LTSCALE × مقياس الكيان.
+  const ltypes = {}; (db.tables?.LTYPE?.entries || []).forEach((l) => (ltypes[String(l.name).toUpperCase()] = (l.pattern || []).map((p) => Number(p.elementLength) || 0)));
+  const LTS = Number(db.header?.LTSCALE) || 1;
+  const dashOf = (e, M, inhLt) => {
+    let lt = String(e.lineType || 'BYLAYER').toUpperCase();
+    if (lt === 'BYBLOCK') lt = inhLt || 'CONTINUOUS';
+    if (lt === 'BYLAYER') lt = String(layers[e.layer]?.lineType || 'CONTINUOUS').toUpperCase();
+    const pat = ltypes[lt]; if (!pat || pat.length < 2) return null;
+    const k = LTS * (Number(e.lineTypeScale) || 1) * Math.hypot(M[0], M[1]);
+    return pat.map((v) => Math.max(Math.abs(v) * k, 1e-6));
+  };
   const colorOf = (e, inh) => {
     const L = layers[e.layer]; if (L && (L.off || L.frozen || L.colorIndex < 0)) return null;
     let c = e.colorIndex; if (c === 0) c = inh ?? 7; if (c === 256 || c == null) c = L ? L.colorIndex : 7;
     return ACI[Math.abs(c)] || '#000';
   };
   const arcPts = (cx, cy, r, a0, a1) => { if (a1 < a0) a1 += 2*Math.PI; const n = Math.max(8, Math.ceil((a1-a0)/(Math.PI/24))); const p=[]; for (let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;p.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);} return p; };
-  const walk = (ents, M, depth, inhColor) => {
+  const walk = (ents, M, depth, inhColor, inhLt) => {
     if (depth > 6) return;
     for (const e of ents || []) {
       if (e.isVisible === false) continue;
       const c = colorOf(e, inhColor); if (!c) continue;
       const T = (pts) => pts.map(([x, y]) => ap(M, x, y));
-      if (e.type === 'LINE') prim.push({ k:'p', pts: T([[e.startPoint.x,e.startPoint.y],[e.endPoint.x,e.endPoint.y]]), c });
+      const dash = /^(LINE|LWPOLYLINE|POLYLINE2D|ARC|CIRCLE)$/.test(e.type) ? dashOf(e, M, inhLt) : null;
+      if (e.type === 'LINE') prim.push({ k:'p', pts: T([[e.startPoint.x,e.startPoint.y],[e.endPoint.x,e.endPoint.y]]), c, dash });
       else if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE2D') {
         const v = e.vertices || []; if (v.length < 2) continue; const closed = (e.flag & 1) === 1; const pts = [];
         for (let i = 0; i < v.length; i++) { const a = v[i], b = v[(i+1) % v.length]; pts.push([a.x,a.y]);
           if (a.bulge && (i < v.length-1 || closed)) { const th = 4*Math.atan(a.bulge), ch = Math.hypot(b.x-a.x,b.y-a.y); if (ch>0){ const r = ch/(2*Math.sin(Math.abs(th)/2)); const mx=(a.x+b.x)/2,my=(a.y+b.y)/2; const d=r*Math.cos(Math.abs(th)/2); const nx=-(b.y-a.y)/ch, ny=(b.x-a.x)/ch; const s=a.bulge>0?1:-1; const cx=mx+s*nx*d, cy=my+s*ny*d; let a0=Math.atan2(a.y-cy,a.x-cx), a1=Math.atan2(b.y-cy,b.x-cx); const seg=arcPts(cx,cy,r, s>0?a0:a1, s>0?a1:a0); if(s<0) seg.reverse(); pts.push(...seg.slice(1,-1)); } } }
-        prim.push({ k:'p', pts: T(pts), closed, c, w: e.constantWidth ? e.constantWidth * Math.hypot(M[0],M[1]) : 0 });
-      } else if (e.type === 'CIRCLE') prim.push({ k:'p', pts: T(arcPts(e.center.x,e.center.y,e.radius,0,2*Math.PI)), closed:true, c });
-      else if (e.type === 'ARC') prim.push({ k:'p', pts: T(arcPts(e.center.x,e.center.y,e.radius,e.startAngle,e.endAngle)), c });
+        prim.push({ k:'p', pts: T(pts), closed, c, dash, w: e.constantWidth ? e.constantWidth * Math.hypot(M[0],M[1]) : 0 });
+      } else if (e.type === 'CIRCLE') prim.push({ k:'p', pts: T(arcPts(e.center.x,e.center.y,e.radius,0,2*Math.PI)), closed:true, c, dash });
+      else if (e.type === 'ARC') prim.push({ k:'p', pts: T(arcPts(e.center.x,e.center.y,e.radius,e.startAngle,e.endAngle)), c, dash });
       else if (e.type === 'SOLID') { const q=[e.corner1,e.corner2,e.corner4||e.corner3,e.corner3].filter(Boolean).map(p=>[p.x,p.y]); prim.push({ k:'p', pts:T(q), closed:true, fill:true, c }); }
       else if (e.type === 'HATCH') { if (!e.solidFill) continue; for (const bp of e.boundaryPaths || []) { const v = bp.vertices || []; if (v.length > 2) prim.push({ k:'p', pts:T(v.map(p=>[p.x,p.y])), closed:true, fill:true, c }); } }
       else if (e.type === 'TEXT' || e.type === 'MTEXT' || e.type === 'ATTRIB') {
@@ -46,7 +58,7 @@ function toSvg(db, opts = {}) {
         const b = blocks[e.name]; if (!b || !b.entities || !b.entities.length) continue;
         const r = e.rotation || 0, base = b.basePoint || { x:0, y:0 };
         const L = mul(mul([1,0,0,1,e.insertionPoint.x,e.insertionPoint.y],[Math.cos(r),Math.sin(r),-Math.sin(r),Math.cos(r),0,0]), mul([e.xScale||1,0,0,e.yScale||1,0,0],[1,0,0,1,-base.x,-base.y]));
-        walk(b.entities, mul(M, L), depth+1, e.colorIndex === 256 ? undefined : e.colorIndex);
+        walk(b.entities, mul(M, L), depth+1, e.colorIndex === 256 ? undefined : e.colorIndex, String(e.lineType || '').toUpperCase() === 'BYLAYER' || !e.lineType ? String(layers[e.layer]?.lineType || '') : e.lineType);
         for (const a of e.attribs || []) walk([a], M, depth+1);
       }
     }
@@ -70,7 +82,8 @@ function toSvg(db, opts = {}) {
   const lines = [], fills = [], texts = [];
   for (const p of prim) {
     if (p.k === 'p') { const d = 'M' + p.pts.map(([x,y]) => `${+x.toFixed(4)} ${+(-y).toFixed(4)}`).join('L') + (p.closed ? 'Z' : '');
-      if (p.fill) fills.push(`<path d="${d}" fill="${p.c}"/>`); else lines.push(`<path d="${d}" stroke="${p.c}"${p.w > sw ? ` stroke-width="${p.w}"` : ''}/>`); }
+      if (p.fill) fills.push(`<path d="${d}" fill="${p.c}"/>`);
+      else lines.push(`<path d="${d}" stroke="${p.c}"${p.w > sw ? ` stroke-width="${p.w}"` : ''}${p.dash ? ` stroke-dasharray="${p.dash.map((v) => +Math.max(v, sw * 0.6).toFixed(5)).join(' ')}"` : ''}/>`); }
     else texts.push(`<text transform="translate(${p.x} ${-p.y}) rotate(${-p.rot*180/Math.PI}) scale(${p.xs} 1)" font-size="${p.h*(p.ar?1.25:1.15)}" fill="${p.c}" text-anchor="${p.anchor}" dominant-baseline="${p.vb}"${p.ar?' direction="rtl" unicode-bidi="plaintext"':''}>${esc(p.s)}</text>`);
   }
   const w = Math.round(W*px), h = Math.round(H*px);
