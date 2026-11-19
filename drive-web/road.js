@@ -101,7 +101,10 @@
     return best;
   }
   /** الملاحة تبدأ على طول فى خرايط جوجل على الموبايل (dir_action=navigate = زرار «ابدأ»). */
-  const navUrl = (lat, lng) => 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng + '&travelmode=driving&dir_action=navigate';
+  // from = مكانك الحقيقى (المالك ٢٠٢٦-١١-١٩: خرايط جوجل اللى بتفتح جوّه الصفحة ماخدتش مكان الموبايل فخمّنته من النت — من أكتوبر —
+  // وطلّعت أقرب بنزينة «على بُعد ٤٢٦ كم»). فبنبعت نقطة البداية فى الرابط نفسه.
+  const fromPart = (from) => (from && from.lat != null && from.lng != null ? '&origin=' + from.lat + ',' + from.lng : '');
+  const navUrl = (lat, lng, from) => 'https://www.google.com/maps/dir/?api=1' + fromPart(from) + '&destination=' + lat + ',' + lng + '&travelmode=driving&dir_action=navigate';
   const norm = (t) => String(t || '').toLowerCase().replace(/[\u064B-\u0652]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
   const WAKE = /(^|\s)(يا\s+)?(اوسكار|اسكار|وسكار|اوسكر|oscar)(\s|$)/;
   /** «أوسكار» لوحده (أو «يا أوسكار») ⇒ ينتبه ويستنى الأمر — زى الشاشة (MainActivity.handleHeard: ٨ ثوانى). */
@@ -161,7 +164,7 @@
   // 🆘 نفس نص الشاشة (MainActivity.emergency + Geo.mapsLink)
   const mapsLink = (lat, lng) => 'https://maps.google.com/?q=' + lat.toFixed(6) + ',' + lng.toFixed(6);
   const sosText = (lat, lng) => 'محتاج مساعدة. مكانى دلوقتى: ' + mapsLink(lat, lng);
-  const walkUrl = (lat, lng) => 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng + '&travelmode=walking';
+  const walkUrl = (lat, lng, from) => 'https://www.google.com/maps/dir/?api=1' + fromPart(from) + '&destination=' + lat + ',' + lng + '&travelmode=walking';
   /** «ودّينى X»: المكان المحفوظ اللى اسمه أقرب حاجة لـX (مطابق ⇐ بيبدأ بيه ⇐ جوّاه). */
   function findPlace(places, said) {
     const want = norm(said).replace(/^(ال)/, '').trim();

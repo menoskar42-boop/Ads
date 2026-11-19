@@ -153,3 +153,10 @@ test('اللى لسه متسجّل مايتقالش «قدامك مطب» دقي
   assert.equal(R.skipJustMarked([here, far], { lat: 30, lng: 31, at: 1000 }, 1000 + R.JUST_MARKED_MS + 1).length, 2);
   assert.equal(R.skipJustMarked([here, far], null, 5000).length, 2);
 });
+
+test('روابط الملاحة فيها نقطة البداية (مكانك) — خرايط جوجل فى الصفحة كانت بتخمّن المكان من النت', () => {
+  const R = require('../drive-web/road.js');
+  assert.match(R.navUrl(26.9, 31.3, { lat: 26.95, lng: 31.28 }), /origin=26\.95,31\.28&destination=26\.9,31\.3/);
+  assert.doesNotMatch(R.navUrl(26.9, 31.3), /origin=/);
+  assert.match(R.walkUrl(26.9, 31.3, { lat: 26.95, lng: 31.28 }), /origin=26\.95,31\.28/);
+});

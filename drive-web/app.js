@@ -239,7 +239,7 @@
     if (!reportPlaces.length) pls.appendChild(li('لسه مفيش أماكن محفوظة على الشاشة.', 'من الشاشة: الملاحة ← «⭐ احفظ المكان ده»، أو قول «أوسكار احفظ المكان ده باسم البيت».'));
     for (const q of reportPlaces) {
       const el = li(q.name, '', '📍');
-      const a = document.createElement('a'); a.className = 'btn primary'; a.textContent = '🧭 ودّينى'; a.href = RD.navUrl(q.lat, q.lng);
+      const a = document.createElement('a'); a.className = 'btn primary'; a.textContent = '🧭 ودّينى'; a.href = RD.navUrl(q.lat, q.lng, hereFix());
       a.target = '_blank'; a.rel = 'noopener'; a.style.marginInlineStart = 'auto'; el.appendChild(a);
       pls.appendChild(el);
     }
@@ -380,6 +380,8 @@
   // ── الموبايل لوحده (المرحلة ٣ — ٢٠٢٦-١١-١٨): تسجيل/مسح مطبات + تنبيه بالصوت + وضع تجربة. الحساب فى road.js (نفس الشاشة). ──
   const RD = window.OscarRoad;
   const TEST_KEY = 'od_road_test';
+  /** مكانك لو حديث (دقيقتين) — نقطة البداية فى روابط الملاحة. */
+  const hereFix = () => (lastFix && Date.now() - lastFix.t < 120000 ? lastFix : null);
   let hz = [], warnedRoad = {}, alertWatch = null, lastFix = null, prevFix = null, roadHeading = null, alertTimer = null;
   try { $('testMode').checked = localStorage.getItem(TEST_KEY) === '1'; } catch (e) {}
   $('testMode').addEventListener('change', () => { try { localStorage.setItem(TEST_KEY, $('testMode').checked ? '1' : '0'); } catch (e) {} warnedRoad = {}; renderRoad(); });
@@ -497,7 +499,7 @@
   function parkUi() {
     const p = phonePark();
     $('parkGo').hidden = !p;
-    if (p) { $('parkGo').href = RD.walkUrl(p.lat, p.lng);
+    if (p) { $('parkGo').href = RD.walkUrl(p.lat, p.lng, hereFix());
       $('parkPhoneNote').textContent = '🅿️ ركنت ' + new Date(p.t).toLocaleString('ar-EG', { weekday: 'long', hour: 'numeric', minute: '2-digit' }) +
         (p.acc > 30 ? ' (تقريبى — دقة ' + Math.round(p.acc) + ' م)' : '') +
         (lastFix ? ' · بعيدة عنك ' + Math.round(RD.distanceM(lastFix.lat, lastFix.lng, p.lat, p.lng)) + ' م' : ''); }
@@ -520,7 +522,7 @@
     const p = phonePark();
     if (!p) { oscar('no_parking', 'مفيش ركنة محفوظة على الموبايل ده'); $('roadNote').textContent = 'مفيش ركنة محفوظة — دوس «🅿️ ركنت هنا» لما تركن'; return; }
     oscar('find_car', 'هوديك لمكان العربية');
-    window.open(RD.walkUrl(p.lat, p.lng), '_blank', 'noopener');
+    window.open(RD.walkUrl(p.lat, p.lng, hereFix()), '_blank', 'noopener');
   }
   // 🆘 زى الشاشة: بيتأكد الأول، ويجهّز رسالة بمكانك — وانت اللى بتدوس إرسال
   function sos() {
@@ -773,7 +775,7 @@
       const best = RD.nearestOf([c.best], f0.lat, f0.lng);
       const msg = 'أقرب ' + k.ar + ': ' + best.name + ' — ' + RD.sayDistance(best.d);
       $('voiceNote').textContent = '🧭 ' + msg; sayRoad('رايحين ' + best.name);
-      location.href = RD.navUrl(best.lat, best.lng);
+      location.href = RD.navUrl(best.lat, best.lng, hereFix());
       return;
     }
     // الاحتياطى: بحث «أقرب X» فى خرايط جوجل حوالين المكان — عشان دايماً حاجة تفتح
@@ -792,7 +794,7 @@
         const msg = 'أقرب ' + k.ar + ': ' + best.name + ' — ' + RD.sayDistance(best.d);
         $('voiceNote').textContent = '🧭 ' + msg; sayRoad(msg);
         if (map) { L.marker([best.lat, best.lng]).addTo(map).bindPopup('⛽ ' + best.name); }
-        setTimeout(() => { location.href = RD.navUrl(best.lat, best.lng); }, 1800);   // يخلّص الجملة وبعدين الملاحة تبدأ
+        setTimeout(() => { location.href = RD.navUrl(best.lat, best.lng, hereFix()); }, 1800);   // يخلّص الجملة وبعدين الملاحة تبدأ
       } catch (e) { fallback(f, 'البحث السريع اتأخر'); }
     };
     if (lastFix && Date.now() - lastFix.t < 30000) return go(lastFix);
@@ -820,7 +822,7 @@
         const best = f ? RD.nearestOf(res, f.lat, f.lng) : res[0];
         if (!best) { $('voiceNote').textContent = 'مالقيتش «' + q + '»'; sayRoad('مالقيتش ' + q); return; }
         sayRoad('لقيت ' + best.name); $('voiceNote').textContent = '🧭 ' + best.name;
-        window.open(RD.navUrl(best.lat, best.lng), '_blank', 'noopener');
+        window.open(RD.navUrl(best.lat, best.lng, hereFix()), '_blank', 'noopener');
       } catch (e) { $('voiceNote').textContent = 'مش قادر أدوّر دلوقتى'; sayRoad('مش قادر أدوّر دلوقتى'); }
     };
     if (lastFix && Date.now() - lastFix.t < 60000) return go(lastFix);
@@ -847,7 +849,7 @@
     }
     else if (cmd && cmd.startsWith('goto:')) {
       const p = RD.findPlace(reportPlaces, cmd.slice(5));
-      if (p) { sayRoad('حاضر، رايحين ' + p.name); window.open(RD.navUrl(p.lat, p.lng), '_blank', 'noopener'); }
+      if (p) { sayRoad('حاضر، رايحين ' + p.name); window.open(RD.navUrl(p.lat, p.lng, hereFix()), '_blank', 'noopener'); }
       else searchPlace(cmd.slice(5));
     }
     else if (cmd === 'unknown') { $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; oscar('not_understood', 'مافهمتش'); }
