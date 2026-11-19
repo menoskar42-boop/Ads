@@ -9,6 +9,7 @@ import { rescueMinutes, EXEC_RUN_MINUTES } from "@shared/exec-timeouts";
 import { executorPausedNow, refreshPausedNow, saveNightPause, useNightPause, nightWindowStart, readNightPause } from "@/lib/night-pause";
 import { saveOpenView } from "@/lib/profile-optimization";
 import { browserFingerprint, EXEC_DEVICE_URL, type ExecDevice } from "@/lib/exec-device";
+import { sweepOrphanWindows, trackExecWindows } from "@/lib/exec-windows";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
 // المشكلة اللى بتوقف الطابور: Edge/Chrome بيعملوا للتاب اللى فى الخلفية
@@ -341,6 +342,10 @@ export function ExecutorButton() {
     const stopSilentKeepAlive = startSilentKeepAlive();
     const stopWakeLock = startWakeLock();
     const stopWebLock = holdWebLock();
+    // الصفحات المعلّقة (المالك ٢٠٢٦-١١-١٩): نوافذ جهاز التنفيذ اللى فضلت من قبل الريفريش/التاب القديم بتتقفل، وبعد كده
+    // بنفتكر أسماء النوافذ اللى بنفتحها عشان المرة الجاية (exec-windows.ts).
+    const stopTrackWindows = trackExecWindows();
+    window.setTimeout(() => { sweepOrphanWindows().then((n) => { if (n) console.info(`[جهاز التنفيذ] اتقفلت ${n} نافذة معلّقة من قبل الريفريش`); }).catch(() => {}); }, 1500);
 
     // عند تفعيل جهاز التنفيذ: أى مهمة «claimed» من جلسة سابقة اتقفل عليها الجهاز = يتيمة → علّمها stale
     // عشان متفضلش عالقة فى الطابور وتضخّم ترتيب المستخدمين. (بنعملها مرة عند بدء التفعيل قبل السحب.)
@@ -1080,6 +1085,7 @@ export function ExecutorButton() {
       stopSilentKeepAlive();
       stopWakeLock();
       stopWebLock();
+      stopTrackWindows();
       // امسح النبضة عند إيقاف التفعيل/مغادرة الصفحة عشان مايفضلش «مفعّل» بالغلط
       fetch("/api/exec-queue/offline", { method: "POST", credentials: "include" }).catch(() => {});
     };
