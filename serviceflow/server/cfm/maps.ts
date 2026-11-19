@@ -214,7 +214,8 @@ export function registerCfmMapRoutes(app: Express, requireAuth: Mw) {
         const segs = Array.isArray(cur?.data?.segments) ? cur.data.segments.length : 0;
         const curBoxes = Array.isArray(cur?.data?.boxes) ? cur.data.boxes.length : 0;
         const auto = ["صورة من ملف الأوتوكاد", "تفريغ آلى من ملف الأوتوكاد"].includes(String(cur?.updated_by || ""));
-        if (!segs && (auto || !curBoxes)) {
+        // التفريغ الآلى نفسه بيتحدّث لما نرفع نسخة أحسن منه — اللى اتعدّل بإيد (updated_by مش الاستيراد) مابيتلمسش
+        if (auto || (!segs && !curBoxes)) {
           const data = { ...incoming, meta: { ...(cur?.data?.meta || {}), ...incoming.meta } };
           await pool.query(`UPDATE cfm_maps SET data = $2, central = COALESCE(NULLIF($3, ''), central), cabinet = COALESCE(NULLIF($4, ''), cabinet),
                              updated_by = 'تفريغ آلى من ملف الأوتوكاد', updated_at = now() WHERE id = $1`,

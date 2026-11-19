@@ -153,7 +153,7 @@ test("2026-11-19: DWG map images go to R2 through a token-only import (the repo 
 test("2026-11-19: the import also carries the cabinet + boxes read from the AutoCAD text, only onto a map nobody transcribed", async () => {
   const { readFileSync } = await import("node:fs");
   const srv = readFileSync(new URL("./cfm/maps.ts", import.meta.url), "utf8");
-  assert.match(srv, /if \(!segs && \(auto \|\| !curBoxes\)\)/, "خريطة فيها كابلات اتفرّغت بإيد مابتتلمسش");
+  assert.match(srv, /if \(auto \|\| \(!segs && !curBoxes\)\)/, "خريطة اتعدّلت بإيد مابتتلمسش، والتفريغ الآلى بيتحدّث");
   const { createRequire } = await import("node:module");
   const { extractBoxes } = createRequire(import.meta.url)("../scripts/dwg-maps/boxes.cjs");
   // صندوق البكس: البلوك فوق الفرعات، ورقم البكس يمينها (نفس شكل خريطة 6.7)

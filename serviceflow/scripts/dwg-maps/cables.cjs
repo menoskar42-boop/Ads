@@ -43,7 +43,8 @@ function extractNetwork(db, cfg0) {
   const cab = ct.length ? { x0: Math.min(...ct.map((p) => p[0])) - cfg.cabPad, x1: Math.max(...ct.map((p) => p[0])) + cfg.cabPad, y0: Math.min(...ct.map((p) => p[1])) - cfg.cabPad * 2.5, y1: Math.max(...ct.map((p) => p[1])) + cfg.cabPad } : null;
   // ٢) قطع الكابلات
   const pieces = [];
-  for (const e of ents.filter((e) => cfg.cableLayer.test(e.layer) || (cfg.extraCableLines && e.type === 'LINE' && cfg.extraCableLines.test(e.layer)))) {
+  for (const e of ents.filter((e) => cfg.cableLayer.test(e.layer) || (cfg.extraCableLines && e.type === 'LINE' && cfg.extraCableLines.test(e.layer)
+    && (!cfg.extraLineType || cfg.extraLineType.test(String(e.lineType || 'BYLAYER')))))) {
     if (e.type === 'LINE') pieces.push([[e.startPoint.x, e.startPoint.y], [e.endPoint.x, e.endPoint.y]]);
     else if (e.type === 'LWPOLYLINE' && e.vertices?.length >= 2) pieces.push(e.vertices.map((v) => [v.x, v.y]));
     else if (e.type === 'ARC') { const a0 = e.startAngle, a1 = e.endAngle < a0 ? e.endAngle + 2 * Math.PI : e.endAngle; const pts = []; for (let i = 0; i <= 8; i++) { const a = a0 + (a1 - a0) * i / 8; pts.push([e.center.x + e.radius * Math.cos(a), e.center.y + e.radius * Math.sin(a)]); } pieces.push(pts); }
@@ -90,9 +91,12 @@ function extractNetwork(db, cfg0) {
     if (depth > 120) return null;
     const piece = cur.k === 0 ? pieces[cur.i] : [...pieces[cur.i]].reverse();
     const P = pts.concat(piece); const far = { i: cur.i, k: 1 - cur.k, p: piece[piece.length - 1] };
-    const n = nodeAt(far.p); if (n && n !== a) return { to: n, pts: P, used: [...visited, cur.i] };
+    const n = nodeAt(far.p);
+    const nx = linked(far).filter((o) => !visited.includes(o.i) && o.i !== cur.i);
+    // البكس آخر الكابل: لو الخط مكمّل بعد رمز البكس (كابل رئيسى معدّى جنبه) ⇒ ماتقفش عنده
+    if (n && n !== a && !(/^B/.test(n) && nx.length)) return { to: n, pts: P, used: [...visited, cur.i] };
     if (n === a && P.length > 2) return null;
-    const nx = linked(far).filter((o) => !visited.includes(o.i) && o.i !== cur.i); if (!nx.length) return null;
+    if (!nx.length) return null;
     const prev = piece[piece.length - 2] || piece[0], here = far.p; const dir = Math.atan2(here[1] - prev[1], here[0] - prev[0]);
     const sc = nx.map((o) => { const q = pieces[o.i]; const nxt = o.k === 0 ? q[1] : q[q.length - 2]; let ang = Math.abs(Math.atan2(nxt[1] - here[1], nxt[0] - here[0]) - dir); if (ang > Math.PI) ang = 2 * Math.PI - ang; return [ang, o]; })
       .sort((x, y) => x[0] - y[0]);
@@ -146,5 +150,5 @@ const GHANAYEM = { boxLayer: /P_DP_TXT/, jointText: /P-DBUR-TXT/, cableText: /P-
 const DERGNDLA = { boxLayer: /^TEXT-BOX$/, jointText: /^TEXT-JONTA$/, cableText: /^TEXT-LONG$/, cabText: /^TEXT-CABINA$/, cableLayer: /^CA$/, extraCableLines: /^0$/,
   isJointDot: (e) => e.layer === 'GONTA' && e.type === 'LWPOLYLINE',
   isBoxSym: (e) => e.layer === 'BOX' && e.type === 'LWPOLYLINE',
-  jointTextR: 1.0, boxSymR: 3.2, jointR: 0.2, boxR: 0.45, cabPad: 0.6, tol: 0.03, labelR: 0.8, markerR: 0, markerSame: 3.6 };
+  jointTextR: 1.0, boxSymR: 3.2, jointR: 1.3, boxR: 0.45, cabPad: 0.6, tol: 0.03, labelR: 0.8, markerR: 0, markerSame: 3.6 };
 module.exports = { extractNetwork, GHANAYEM, DERGNDLA };
