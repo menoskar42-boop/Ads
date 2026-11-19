@@ -609,7 +609,7 @@ test("2.0.1: the lease says it can stop (an old bridge measured stop lines and r
 
 // ASSIA المرحلة ٣ (2.1.0): «تحديث حالة الخط» المؤجّل للجسر اللى بيقول loops: true بس، ويتفتح sf_mode=loop
 test("2.1.0: deferred line-status (loop) jobs go to a bridge that says loops: true, opened with sf_mode=loop", () => {
-  assert.match(src, /@version\s+2\.1\.0/);
+  assert.match(src, /@version\s+2\.[1-9]\d*\.\d+/);
   assert.match(src, /stops: true, loops: true \}/);
   assert.match(src, /type: j\.type === "stop" \? "stop" : j\.loop \? "loop" : "measure"/);
   assert.match(src, /type === "loop"\n[^\n]*\n\s+\? BRIDGE\.DZS_URL \+ "#sf_accounts=" \+ encodeURIComponent\(accs\.join\(","\)\) \+ "&sf_mode=loop&sf_lane="/);
@@ -618,4 +618,46 @@ test("2.1.0: deferred line-status (loop) jobs go to a bridge that says loops: tr
   assert.match(routes, /AND \(\$5::boolean OR POSITION\('\$\{LOOP_MARK\}' IN COALESCE\(h\.note, ''\)\) = 0\)/);
   // التقدّم: المسافة اللى السكربت بيبعتها فى الآخر
   assert.match(routes, /POSITION\('\$\{LOOP_MARK\}' IN COALESCE\(e\.note, ''\)\) > 0 AND EXISTS \(SELECT 1 FROM line_loop_lengths l/);
+});
+
+test("2.2.0: a line whose page closed or never opened goes back right away (no 4-minute wait)", async () => {
+  const w = world({ realChunk: true });
+  await w.bridge.tick();
+  const first = chunkOf(w);
+  assert.ok(first, "اتفتح خط");
+  w.handles[0].closed = true;   // Edge قفل النافذة / الصفحة اتقفلت قبل ما الخط يخلص
+  w.tick(10_000); await w.bridge.tick();
+  const rep = w.reports.find((r) => (r.done || []).some((d: any) => d.id === first.ids[0]));
+  assert.ok(rep, "الخط اترجّع بعد ١٠ ثوانى مش ٤ دقايق");
+  assert.equal(rep.done.find((d: any) => d.id === first.ids[0]).result, "timeout");
+});
+
+test("2.2.0: no sign of life from the line's page for 75 s ⇒ timeout; a live page keeps its 4 minutes", async () => {
+  let leased = false;
+  const w = world({ realChunk: true, server: (path, body) => {
+    if (path.endsWith("/lease")) { const jobs = leased ? [] : Array.from({ length: 6 }, (_, i) => ({ id: 1 + i, accounts: ["a" + i] })); leased = true; return { status: 200, json: { jobs, lanes: 2 } }; }
+    if (path.endsWith("/start")) return { status: 200, json: { ok: true, marker: body.ids[0], drop: [] } };
+    return { status: 200, json: { ok: true } };
+  } });
+  w.store.set("sfb_alive_on", true);   // صفحات DZS بنسخة 2.2 بتقول «أنا شغّالة»
+  await w.bridge.tick();
+  const chunks = w.store.get("sfb_chunks");
+  assert.ok(chunks.length >= 2);
+  const [a, b] = chunks;
+  w.tick(20_000); w.store.set("sfb_alive_L" + a.lane, 1_000_000 + 20_000);   // صفحة a فتحت، صفحة b لأ
+  await w.bridge.tick();
+  w.tick(60_000); w.store.set("sfb_alive_L" + a.lane, 1_000_000 + 80_000);
+  await w.bridge.tick();
+  const doneIds = w.reports.flatMap((r) => (r.done || []).map((d: any) => d.id));
+  assert.ok(doneIds.includes(b.ids[0]), "صفحة b مابانلهاش نَفَس ٨٠ ثانية ⇒ رجعت");
+  assert.ok(!doneIds.includes(a.ids[0]), "صفحة a شغّالة ⇒ لسه فى مهلتها");
+});
+
+test("2.2.0: without sfb_alive_on (old DZS script) only the old 4-minute rule applies", async () => {
+  const w = world({ realChunk: true });
+  await w.bridge.tick();
+  const a = chunkOf(w);
+  w.tick(2 * 60 * 1000); await w.bridge.tick();
+  const doneIds = w.reports.flatMap((r) => (r.done || []).map((d: any) => d.id));
+  assert.ok(!doneIds.includes(a.ids[0]), "دقيقتين من غير نَفَس ومفيش إشارة 2.2 ⇒ مابيتقطعش");
 });
