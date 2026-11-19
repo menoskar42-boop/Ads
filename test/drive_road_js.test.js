@@ -131,3 +131,17 @@ test('«ودّينى X» unsaved place search matches OsmSearch.kt (rounded loca
     ['نادى الشمس', 'شارع الجمهورية']);
   assert.deepEqual(R.parseSearch('bad'), []);
 });
+
+test('«أوسكار» لوحده ⇒ ينتبه، والأمر اللى بعده يتفهم من غير الاسم (المالك ٢٠٢٦-١١-١٩)', () => {
+  const R = require('../drive-web/road.js');
+  assert.equal(R.wakeOnly('أوسكار'), true);
+  assert.equal(R.wakeOnly('يا اسكار'), true);
+  assert.equal(R.wakeOnly('أوسكار سجل مطب'), false);
+  assert.equal(R.wakeOnly('سجل مطب'), false);
+  assert.equal(R.parseVoice('سجل مطب هنا'), null);            // من غير ما ناديته ⇒ ولا حاجة
+  assert.equal(R.parseVoice('سجل مطب هنا', true), 'bump');    // جوّه الـ٨ ثوانى ⇒ ينفّذ
+  assert.equal(R.parseVoice('خد اسكرين شوت', true), 'shot');
+  assert.equal(R.parseVoice('ودينى البيت', true), 'goto:البيت');
+  assert.equal(R.parseVoice('', true), null);
+  assert.equal(R.WAKE_WINDOW_MS, 8000);
+});

@@ -111,6 +111,13 @@ class MainActivity : Activity() {
         build()
         askPermissions()
         if (prefs.autoStart || DriveService.State.running) startIfReady()
+        // «أوسكار» بيسمع كمان فى شاشة الخريطة/الملاحة ⇒ الكلام بيرجع هنا لنفس الفهم (ScreenEars)
+        ScreenEars.sink = { heard -> main.post { try { handleHeard(heard, button = false) } catch (t: Throwable) { CrashLog.nonFatal(this, "ScreenEars.sink", t) } } }
+    }
+
+    override fun onDestroy() {
+        if (ScreenEars.sink != null) ScreenEars.sink = null
+        super.onDestroy()
     }
 
     override fun onResume() {

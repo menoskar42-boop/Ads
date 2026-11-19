@@ -153,8 +153,10 @@ class NavActivity : Activity() {
     }
 
     override fun onStart() { super.onStart(); navView?.onStart() }
-    override fun onResume() { super.onResume(); DriveService.State.screens++; DriveService.State.navActive = true; navView?.onResume(); main.post(tick) }
-    override fun onPause() { DriveService.State.screens--; DriveService.State.navActive = false; navView?.onPause(); main.removeCallbacks(tick); super.onPause() }
+    override fun onResume() { super.onResume(); DriveService.State.screens++; DriveService.State.navActive = true; navView?.onResume(); main.post(tick); ears = ScreenEars.start(this) }
+    override fun onPause() { ScreenEars.stop(this, ears); ears = null; DriveService.State.screens--; DriveService.State.navActive = false; navView?.onPause(); main.removeCallbacks(tick); super.onPause() }
+    /** «أوسكار» بيسمع وانت فى الملاحة كمان (ScreenEars). */
+    private var ears: WakeListener? = null
     override fun onStop() { navView?.onStop(); super.onStop() }
     override fun onDestroy() {
         navigator?.let { n ->

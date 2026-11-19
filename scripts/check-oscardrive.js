@@ -230,6 +230,17 @@ check('privacy policy discloses the microphone', /الميكروفون بيتط�
       && ['male', 'female'].every((v) => fs.existsSync(path.join(ROOT, 'drive-web/voice', v, 'manifest.json'))),
     'أصوات ElevenLabs فى el-male/el-female والقديمة مابتتمسحش لحد ما المالك يقرّر (٢٠٢٦-١١-١٨)، والمفتاح سرّ فى ريبليت بس.');
 }
+{
+  const A = 'oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/';
+  const ears = read(A + 'ScreenEars.kt'), mapA = read(A + 'MapActivity.kt'), navA = read(A + 'NavActivity.kt'), mainA = read(A + 'MainActivity.kt');
+  const app = read('drive-web/app.js'), road = read('drive-web/road.js');
+  check('«أوسكار» always listening while the app is open (screen: main + map + nav · phone page: auto-start)',
+    /ScreenEars\.sink = \{/.test(mainA) && [mapA, navA].every((x) => /ears = ScreenEars\.start\(this\)/.test(x) && /ScreenEars\.stop\(this, ears\)/.test(x))
+      && /p\.voiceWake/.test(ears) && /get\(\) = sp\.getBoolean\("v_wake", true\)/.test(read(A + 'Prefs.kt'))
+      && /function autoVoice\(\)/.test(app) && /localStorage\.getItem\(VOICE_KEY\) !== '0'/.test(app) && /RD\.wakeOnly\(a\)/.test(app)
+      && /function wakeOnly\(/.test(road) && /WAKE_WINDOW_MS = 8000/.test(road),
+    'المالك ٢٠٢٦-١١-١٩: طول ما التطبيق مفتوح أوسكار بيسمع (والخريطة/الملاحة كمان)، و«أوسكار» لوحده ⇒ ينتبه ٨ ثوانى — على الشاشة والموبايل.');
+}
 check('custom voice lines are rate-limited', /od-voice', windowMs: 24 \* 60 \* 60000, max: 20/.test(site), 'كل جملة = نداء مدفوع للذكاء الاصطناعى.');
 
 process.exit(failed ? 1 : 0);

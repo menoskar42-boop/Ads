@@ -122,8 +122,10 @@ class MapActivity : Activity() {
     }
 
     override fun onStart() { super.onStart(); mapView?.onStart() }
-    override fun onResume() { super.onResume(); mapView?.onResume(); DriveService.State.screens++; main.post(tick) }
-    override fun onPause() { main.removeCallbacks(tick); DriveService.State.screens--; mapView?.onPause(); super.onPause() }
+    override fun onResume() { super.onResume(); mapView?.onResume(); DriveService.State.screens++; main.post(tick); ears = ScreenEars.start(this) }
+    override fun onPause() { ScreenEars.stop(this, ears); ears = null; main.removeCallbacks(tick); DriveService.State.screens--; mapView?.onPause(); super.onPause() }
+    /** «أوسكار» بيسمع وانت على الخريطة كمان (ScreenEars). */
+    private var ears: WakeListener? = null
     override fun onStop() { mapView?.onStop(); super.onStop() }
     override fun onDestroy() { mapView?.onDestroy(); super.onDestroy() }
     override fun onLowMemory() { super.onLowMemory(); mapView?.onLowMemory() }

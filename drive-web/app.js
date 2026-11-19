@@ -387,7 +387,10 @@
     try { const a = new (window.AudioContext || window.webkitAudioContext)(); const o = a.createOscillator(); o.frequency.value = 880;
       o.connect(a.destination); o.start(); setTimeout(() => { o.stop(); a.close(); }, 300); } catch (e) {}
   }
+  // آخر جملة قالها أوسكار — عشان الميكروفون المفتوح مايسمعش صوته هو ويعتبره أمر
+  let lastSaid = '', lastSaidAt = 0;
   function sayRoad(text) {
+    lastSaid = String(text || ''); lastSaidAt = Date.now();
     try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ar-EG'; speechSynthesis.speak(u); } catch (e) {}
   }
   let hzLayer = null;
@@ -713,8 +716,13 @@
   $('fuelBtn').addEventListener('click', () => nearbyWeb('fuel'));
 
   // ── «🎙️ أوسكار سامعك»: التعرّف على الكلام من المتصفح (Chrome أندرويد · Safari آيفون) — استماع متواصل طول ما الصفحة مفتوحة ──
+  // المالك ٢٠٢٦-١١-١٩: «طالما أنا فاتح التطبيق أوسكار على طول بيسمع، وأول ما أقوله أوسكار ينتبه وينفّذ» ⇒ السماع مفتوح افتراضياً
+  // (زى الشاشة: Prefs.voiceWake)، بيتفتكر لو قفلته، وبيرجع لوحده لما الصفحة ترجع قدامك. «أوسكار» لوحده ⇒ «أيوه» ويستنى ٨ ثوانى.
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let rec = null, listening = false;
+  const VOICE_KEY = 'od_voice_on';
+  const voiceWanted = () => { try { return localStorage.getItem(VOICE_KEY) !== '0'; } catch (e) { return true; } };
+  const plain = (s) => String(s || '').replace(/[\u064B-\u0652،,.؟?!]/g, '').replace(/[أإآ]/g, 'ا').replace(/\s+/g, ' ').trim();
+  let rec = null, listening = false, running = false, voiceDenied = false, awakeUntil = 0;
   // «ودّينى X» لمكان مش محفوظ ⇒ OpenStreetMap بالاسم حوالين مكانك ⇒ الأقرب ⇒ الملاحة (زى الشاشة)
   async function searchPlace(q) {
     $('voiceNote').textContent = '🔎 بدوّر على «' + q + '»…';
@@ -762,22 +770,47 @@
     rec.onresult = (ev) => {
       const r = ev.results[ev.results.length - 1]; if (!r || !r.isFinal) return;
       const alts = Array.from(r).map((a) => a.transcript);
-      const cmd = alts.map((a) => RD.parseVoice(a)).find((c) => c && c !== 'unknown') || RD.parseVoice(alts[0]);
+      const now = Date.now();
+      if (now - lastSaidAt < 6000 && plain(alts[0]) && plain(lastSaid).includes(plain(alts[0]))) return;   // صدى صوت أوسكار نفسه
       $('voiceNote').textContent = 'سمعت: «' + alts[0] + '»';
-      if (cmd) runVoice(cmd, alts[0]);
+      if (alts.some((a) => RD.wakeOnly(a))) {   // «أوسكار» لوحده ⇒ ينتبه ويستنى الأمر
+        awakeUntil = now + RD.WAKE_WINDOW_MS;
+        $('voiceNote').textContent = '🎙️ أيوه — قول الأمر'; sayRoad('أيوه'); return;
+      }
+      const awake = now < awakeUntil;
+      const cmd = alts.map((a) => RD.parseVoice(a, awake)).find((c) => c && c !== 'unknown') || RD.parseVoice(alts[0], awake);
+      if (cmd) { awakeUntil = 0; runVoice(cmd, alts[0]); }
     };
-    rec.onerror = (e) => { if (e.error === 'not-allowed') { listening = false; $('voiceNote').textContent = 'اسمح بالميكروفون للموقع ده'; voiceUi(); } };
-    rec.onend = () => { if (listening) setTimeout(() => { try { rec.start(); } catch (e) {} }, 300); };   // بيقف لوحده بعد سكوت ⇒ نرجّعه
+    rec.onstart = () => { running = true; };
+    rec.onerror = (e) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        listening = false; voiceDenied = true; $('voiceNote').textContent = 'اسمح بالميكروفون للموقع ده من إعدادات المتصفح'; voiceUi();
+      }
+    };
+    // بيقف لوحده بعد سكوت أو لما الصفحة تستخبى ⇒ نرجّعه (ولو مستخبية ⇒ لما ترجع قدامك — visibilitychange)
+    rec.onend = () => { running = false; if (listening && !document.hidden) setTimeout(() => { if (listening && !running) { try { rec.start(); } catch (e) {} } }, 300); };
     listening = true; keepAwake();
     try { rec.start(); } catch (e) {}
     voiceUi();
   }
-  function voiceUi() { $('voiceBtn').textContent = listening ? '⏹ وقّف السماع' : '🎙️ أوسكار سامعك'; $('voiceBtn').className = listening ? 'primary' : ''; }
-  $('voiceBtn').addEventListener('click', () => {
-    if (listening) { listening = false; try { rec.stop(); } catch (e) {} voiceUi(); return; }
-    sayRoad('سامعك');   // الآيفون مابيتكلمش غير بعد لمسة
+  function voiceUi() { $('voiceBtn').textContent = listening ? '🎙️ سامعك — اقفل' : '🎙️ شغّل «يا أوسكار»'; $('voiceBtn').className = listening ? 'primary' : ''; }
+  $('voiceBtn').addEventListener('click', (ev) => {
+    ev.stopPropagation();   // مايتعدّش «أول لمسة» اللى بتشغّل السماع تانى
+    if (listening) { listening = false; try { localStorage.setItem(VOICE_KEY, '0'); } catch (e) {} try { rec.stop(); } catch (e) {} voiceUi(); return; }
+    try { localStorage.setItem(VOICE_KEY, '1'); } catch (e) {}
+    voiceDenied = false; sayRoad('سامعك');   // الآيفون مابيتكلمش غير بعد لمسة
     startVoice();
   });
+  // تشغيل لوحده: أول ما الصفحة تفتح، ولما ترجع قدامك، ومع أول لمسة (بعض المتصفحات مابتفتحش الميكروفون من غير لمسة)
+  function autoVoice() {
+    if (!SR || voiceDenied || !voiceWanted() || document.hidden || !token) return;
+    if (!listening) { startVoice(); return; }
+    if (!running && rec) { try { rec.start(); } catch (e) {} }
+  }
+  setTimeout(autoVoice, 1200); setTimeout(autoVoice, 4000);   // التانية لو التوكن («الموبايل لوحده») لسه بيتجاب
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(autoVoice, 400); });
+  document.addEventListener('touchstart', () => { if (!running) autoVoice(); }, { passive: true });
+  document.addEventListener('click', () => { if (!running) autoVoice(); });
 
   $('markBump').addEventListener('click', () => markRoad('bump'));
   $('markPothole').addEventListener('click', () => markRoad('pothole'));
