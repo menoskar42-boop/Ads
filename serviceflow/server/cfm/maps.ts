@@ -9,6 +9,7 @@ import { join } from "path";
 import { pool } from "../db";
 import { GHANAYEM_6_7, GHANAYEM_6_7_KEY } from "@shared/cfm-maps/ghanayem-6-7";
 import type { CableMapData } from "@shared/cfm-maps/types";
+import { DWG_SEED_MAPS } from "./maps-seed-list";
 
 type Mw = (req: Request, res: Response, next: NextFunction) => void;
 export const MAP_EDITOR_ROLES = ["admin", "cable_engineer", "supervisor"];
@@ -34,8 +35,33 @@ export function cleanMapData(raw: any): CableMapData | null {
   return data;
 }
 
+async function seedDwgMaps(): Promise<void> {
+  const keys = DWG_SEED_MAPS.map((m) => m.key);
+  const have = new Set((await pool.query(`SELECT map_key FROM cfm_maps WHERE map_key = ANY($1)`, [keys])).rows.map((r: any) => r.map_key));
+  for (const m of DWG_SEED_MAPS) {
+    if (have.has(m.key)) continue;
+    const data: CableMapData = { meta: { central: m.central, cabinet: m.cabinet, title: m.title }, segments: [], boxes: [], spares: [], markers: [], notes: [] };
+    const ins = await pool.query(
+      `INSERT INTO cfm_maps (map_key, central, cabinet, title, data, updated_by)
+       VALUES ($1, $2, $3, $4, $5, 'صورة من ملف الأوتوكاد') ON CONFLICT (map_key) DO NOTHING RETURNING id`,
+      [m.key, m.central, m.cabinet, m.title, JSON.stringify(data)]);
+    const id = ins.rows[0]?.id;
+    if (!id) continue;
+    for (const img of m.images) {
+      try {
+        const bytes = await readFile(join(process.cwd(), "server/cfm/maps-seed", img.file));
+        await pool.query(`INSERT INTO cfm_map_images (map_id, caption, mime, bytes, uploaded_by) VALUES ($1, $2, 'image/webp', $3, 'ملفات الأوتوكاد')`,
+          [id, img.caption, bytes]);
+      } catch (e) {
+        console.warn(`[cfm maps] صورة ${img.file} ماتقرتش:`, (e as Error).message);
+      }
+    }
+  }
+}
+
 /** خريطة الغنايم 6.7 (اتفرّغت من صورة المالك) — بتتسجّل مرة واحدة بس، والتعديلات بعد كده فى القاعدة */
 export async function seedCfmMaps(): Promise<void> {
+  await seedDwgMaps();
   const ex = await pool.query(`SELECT id FROM cfm_maps WHERE map_key = $1`, [GHANAYEM_6_7_KEY]);
   if (ex.rowCount) return;
   const ins = await pool.query(

@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/cfm/components/ui/card";
 import { Input } from "@/cfm/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/cfm/components/ui/table";
 import type { CableMapData } from "@shared/cfm-maps/types";
-import { cableRoutes, locateFault, describeFault, nodeLabel, cabinetKey } from "@shared/cfm-maps/types";
+import { cableRoutes, locateFault, describeFault, nodeLabel, pickCabinetMap } from "@shared/cfm-maps/types";
 
 export function CableRoutesPanel({ data }: { data: CableMapData }) {
   const routes = useMemo(() => cableRoutes(data), [data]);
@@ -84,7 +84,7 @@ export function FaultLocatorPanel({ data }: { data: CableMapData }) {
 // ── فى التكت: جنب كل قياس، مكان العطل التقديرى لو الكابينة ليها خريطة ─────────────────────────────
 let mapsCache: Promise<{ id: number; cabinet: string }[]> | null = null;
 const mapDataCache = new Map<number, Promise<CableMapData | null>>();
-const loadMaps = (): Promise<{ id: number; cabinet: string }[]> => (mapsCache ||= fetch("/api/cfm/maps", { credentials: "include" })
+const loadMaps = (): Promise<{ id: number; cabinet: string; central?: string; segments?: number }[]> => (mapsCache ||= fetch("/api/cfm/maps", { credentials: "include" })
   .then((r) => (r.ok ? r.json() : { items: [] })).then((j) => j.items || []).catch(() => { mapsCache = null; return []; }));
 const loadMapData = (id: number) => {
   if (!mapDataCache.has(id)) {
@@ -94,16 +94,15 @@ const loadMapData = (id: number) => {
   return mapDataCache.get(id)!;
 };
 
-export function MeasurementMapHint({ cabinet, box, distance, direction }: {
-  cabinet: string; box: string; distance: number | null | undefined; direction: string | null | undefined;
+export function MeasurementMapHint({ cabinet, box, distance, direction, central }: {
+  cabinet: string; box: string; distance: number | null | undefined; direction: string | null | undefined; central?: string | null;
 }) {
   const [lines, setLines] = useState<string[] | null>(null);
   useEffect(() => {
     let alive = true;
     if (distance == null || !box || !cabinet) return;
     (async () => {
-      const key = cabinetKey(cabinet);
-      const m = (await loadMaps()).find((x: { id: number; cabinet: string }) => cabinetKey(x.cabinet) === key);
+      const m = pickCabinetMap(await loadMaps(), cabinet, central);
       if (!m) return;
       const data = await loadMapData(m.id);
       if (!data || !alive) return;
@@ -112,7 +111,7 @@ export function MeasurementMapHint({ cabinet, box, distance, direction }: {
       setLines(f ? describeFault(f) : [`البكس ${boxNo} مالوش مسار كامل فى خريطة الكابينة ${m.cabinet}.`]);
     })();
     return () => { alive = false; };
-  }, [cabinet, box, distance, direction]);
+  }, [cabinet, box, distance, direction, central]);
   if (!lines) return null;
   return (
     <div className="rounded bg-amber-50 border border-amber-200 p-2 mb-2 text-xs space-y-0.5" data-testid="measurement-map-hint">

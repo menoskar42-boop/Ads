@@ -214,7 +214,7 @@ function MapView({ id }: { id: number }) {
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex items-center gap-3">
           <Link href="/maps"><Button variant="ghost" size="sm" className="gap-1"><ArrowRight className="w-4 h-4" />كل الخرائط</Button></Link>
-          <h1 className="text-2xl font-bold">خريطة {meta.central} — كابينة {meta.cabinet}</h1>
+          <h1 className="text-2xl font-bold">خريطة {meta.central} — {/\d/.test(meta.cabinet || "") ? `كابينة ${meta.cabinet}` : meta.cabinet}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {uncertain > 0 && <span className="text-sm text-amber-700 font-semibold inline-flex items-center gap-1"><AlertTriangle className="w-4 h-4" />{uncertain} خانة محتاجة مراجعة</span>}
@@ -348,7 +348,7 @@ function MapList() {
         {items?.map((x) => (
           <Link key={x.id} href={`/maps/${x.id}`}>
             <Card className="cursor-pointer hover:border-primary transition-colors">
-              <CardHeader><CardTitle className="text-lg">{x.central} — كابينة {x.cabinet}</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">{x.central} — {/\d/.test(x.cabinet || "") ? `كابينة ${x.cabinet}` : x.cabinet}</CardTitle></CardHeader>
               <CardContent className="text-sm text-muted-foreground space-y-1">
                 <div>{x.boxes} بكس · {x.segments} كابل · {x.images} صورة</div>
                 <div className="text-xs">{x.title}</div>

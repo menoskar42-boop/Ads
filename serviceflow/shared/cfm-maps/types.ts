@@ -231,6 +231,27 @@ export const cabinetKey = (c: string | null | undefined): string =>
   String(c ?? "").replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).split(/\D+/).filter(Boolean)
     .map((x) => String(Number(x))).sort().join("-");
 
+/** «الجنادله» = «دير الجنادلة» = «الغنايم-دير الجنادله»: ة/ه · ى/ي · من غير «ال» والمسافات */
+const centralNorm = (s: string | null | undefined) =>
+  String(s ?? "").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[أإآ]/g, "ا").replace(/(^|\s|-)ال/g, "$1").replace(/[\s\-_]+/g, "");
+
+/**
+ * خريطة الكابينة دى (٢٠٢٦-١١-١٩): نفس رقم الكابينة **وفيها تفريغ** (خرايط الأوتوكاد اللى اتسجّلت صور بس مالهاش كابلات)،
+ * ولو أكتر من سنترال عنده نفس رقم الكابينة (الغنايم 1.1 ودير الجنادلة 1.1) ⇒ اللى اسم سنترالها جوّه اسم سنترال التكت.
+ */
+export function pickCabinetMap<T extends { cabinet: string; central?: string; segments?: number }>(maps: T[], cabinet: string, central?: string | null): T | undefined {
+  const key = cabinetKey(cabinet);
+  const same = maps.filter((x) => cabinetKey(x.cabinet) === key && Number(x.segments ?? 1) > 0);
+  if (same.length <= 1) return same[0];
+  if (!central) return undefined;
+  const c = centralNorm(central);
+  const hits = same.filter((x) => { const m = centralNorm(x.central); return !!m && (c.includes(m) || m.includes(c)); });
+  // «الغنايم-دير الجنادله» فيها الاسمين ⇒ الأطول (الأدق) يكسب، ولو اتساووا مانخمّنش
+  const len = (x: T) => centralNorm(x.central).length;
+  hits.sort((a, b) => len(b) - len(a));
+  return hits.length === 1 || (hits.length > 1 && len(hits[0]) > len(hits[1])) ? hits[0] : undefined;
+}
+
 /** نص النتيجة بالعربى (نفس صياغة المالك) — للشاشة والتكت */
 export function describeFault(f: FaultLocation): string[] {
   const m = (x: number) => `${Math.round(x * 10) / 10} م`;

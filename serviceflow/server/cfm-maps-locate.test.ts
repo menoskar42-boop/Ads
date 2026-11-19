@@ -58,7 +58,7 @@ test("the map screen and the ticket screen use the same fault wording", async ()
   const ph2 = readFileSync(new URL("../client/src/cfm/components/MapPhase2.tsx", import.meta.url), "utf8");
   assert.match(maps, /<TabsTrigger value="routes">كل كابل عليه إيه<\/TabsTrigger>/);
   assert.match(maps, /<TabsTrigger value="fault">مكان العطل<\/TabsTrigger>/);
-  assert.match(ticket, /<MeasurementMapHint cabinet=\{ticket\.cabinet\} box=\{ticket\.box\} distance=\{m\.distance\} direction=\{m\.direction\} \/>/);
+  assert.match(ticket, /<MeasurementMapHint cabinet=\{ticket\.cabinet\} box=\{ticket\.box\} distance=\{m\.distance\} direction=\{m\.direction\} central=\{central\?\.name\} \/>/);
   // «cable» فى برنامج الكوابل = «من البوكس»
   assert.match(ph2, /direction === "cable" \? "box" : "cabinet"/);
   const { describeFault } = await import("../shared/cfm-maps/types");
@@ -94,4 +94,32 @@ test("nearer box: only boxes whose path crosses the faulty piece, and only if ne
   assert.equal(locateFault(M, "13", 1, "box")!.nearerBox, null);
   // قياس أطول من المسار ⇒ مفيش مكان ولا بكس أقرب
   assert.equal(locateFault(M, "23", 300, "box")!.nearerBox, null);
+});
+
+test("2026-11-19: a ticket picks the map of its own exchange; image-only maps (no cables) are skipped", async () => {
+  const { pickCabinetMap } = await import("../shared/cfm-maps/types");
+  const maps = [
+    { id: 1, cabinet: "6.7", central: "الغنايم", segments: 72 },
+    { id: 2, cabinet: "1.1", central: "دير الجنادلة", segments: 0 },
+    { id: 3, cabinet: "1.1", central: "الغنايم", segments: 40 },
+    { id: 4, cabinet: "2.1", central: "دير الجنادلة", segments: 30 },
+    { id: 5, cabinet: "2.1", central: "الغنايم", segments: 25 },
+  ];
+  assert.equal(pickCabinetMap(maps, "7-6", "الغنايم")?.id, 1);
+  assert.equal(pickCabinetMap(maps, "6.7")?.id, 1, "خريطة واحدة بالرقم ده ⇒ هى من غير ما نبص للسنترال");
+  assert.equal(pickCabinetMap(maps, "1-1", "دير الجنادله")?.id, 3, "خريطة دير الجنادلة 1.1 صورة بس ⇒ مش بتتحسب");
+  assert.equal(pickCabinetMap(maps, "2-1", "الغنايم-دير الجنادله")?.id, 4, "اسم السنترال فى التكت فيه «دير الجنادله»");
+  assert.equal(pickCabinetMap(maps, "2-1", "الغنايم")?.id, 5);
+  assert.equal(pickCabinetMap(maps, "2-1"), undefined, "رقمين بنفس الكابينة ومفيش سنترال ⇒ مانخمّنش");
+});
+
+test("2026-11-19: every DWG map image in the seed list exists and is a WebP", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { DWG_SEED_MAPS } = await import("./cfm/maps-seed-list");
+  assert.ok(DWG_SEED_MAPS.length >= 7);
+  for (const m of DWG_SEED_MAPS) for (const img of m.images) {
+    const b = readFileSync(new URL("./cfm/maps-seed/" + img.file, import.meta.url));
+    assert.equal(b.subarray(8, 12).toString(), "WEBP", img.file);
+  }
+  assert.equal(new Set(DWG_SEED_MAPS.map((m) => m.key)).size, DWG_SEED_MAPS.length, "map_key مايتكررش");
 });
