@@ -105,6 +105,8 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
   const [techFilter, setTechFilter] = useState("");
   // فلتر رد الفنى: الكل | قيد الانتظار | يمكن التنفيذ | سبب تعذر محدد
   const [respFilter, setRespFilter] = useState("");
+  // فلتر مستقل لرد الشئون الخارجية بنفس خيارات فلتر رد الفني، لكنه يعتمد على رد الخارجية فقط.
+  const [externalRespFilter, setExternalRespFilter] = useState("");
   // فلتر «الشغال على البكس أقل من N» — بيظهر بس المتعذرات اللى البكس بتاعها عليه
   // أقل من العدد ده من الخطوط الشغّالة (الشغّال = الخط اللى ليه بورت).
   const [workingLt, setWorkingLt] = useState("");
@@ -408,15 +410,23 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
       // فلتر رد الفنى / سبب التعذر
       if (respFilter) {
         const st = r.respStatus || "pending";
-        if (respFilter === "pending") return st === "pending";
+        if (respFilter === "pending" && st !== "pending") return false;
         // «يمكن التنفيذ» تشمل رد الفنى ورد الشئون الخارجية
-        if (respFilter === "feasible") return st === "feasible" || st === "external_feasible";
+        if (respFilter === "feasible" && st !== "feasible" && st !== "external_feasible") return false;
         // غير كده: سبب تعذر محدد (من الفنى أو من الشئون الخارجية)
-        return r.respRejectionReason === respFilter || r.respExternalRejectionReason === respFilter;
+        if (respFilter !== "pending" && respFilter !== "feasible" &&
+            r.respRejectionReason !== respFilter && r.respExternalRejectionReason !== respFilter) return false;
       }
+      // pending هنا يعني أن المتعذر تحوّل للخارجية ولم يصل ردها بعد؛
+      // باقي الحالات تُطابق حقول رد الخارجية فقط، دون رد الفني.
+      if (externalRespFilter === "pending" && r.respStatus !== "needs_external") return false;
+      if (externalRespFilter === "feasible" &&
+          r.respIsFeasibleExternal !== true && r.respStatus !== "external_feasible") return false;
+      if (externalRespFilter && externalRespFilter !== "pending" && externalRespFilter !== "feasible" &&
+          r.respExternalRejectionReason !== externalRespFilter) return false;
       return true;
     });
-  }, [rows, yearFilter, respFilter, workingLt, boxBrokenOnly, boxScoreLt]);
+  }, [rows, yearFilter, respFilter, externalRespFilter, workingLt, boxBrokenOnly, boxScoreLt]);
 
   // «Re-Execute» على OSS Abnormal WO بالـ Service Order ID (المالك ٢٠٢٦-١٠-٠٧) — سوبر أدمن بس، فى
   // المتعذرات الحالية. بيعدّى على طابور التنفيذ؛ السكربت بيكتب الـ ID فى خانة «Service Order ID».
@@ -737,6 +747,21 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
             </select>
           )}
           {bucket === "current" && (
+            <select
+              value={externalRespFilter}
+              onChange={(e) => setExternalRespFilter(e.target.value)}
+              className="border rounded-md text-sm px-2 py-2 bg-white"
+              title="فلتر حسب حالة رد الشئون الخارجية فقط"
+            >
+              <option value="">حالة الشئون الخارجية</option>
+              <option value="pending">قيد الانتظار</option>
+              <option value="feasible">يمكن التنفيذ</option>
+              {Object.values(REJECTION_REASONS).map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          )}
+          {bucket === "current" && (
             <input
               type="number" min={0} value={workingLt}
               onChange={(e) => setWorkingLt(e.target.value)}
@@ -761,9 +786,9 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
           <label className="text-xs text-muted-foreground whitespace-nowrap">إلى:</label>
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
             className="border rounded-md text-sm px-2 py-1.5 bg-white" />
-          {(msanFilter || fccFilter || techFilter || respFilter || workingLt || boxBrokenOnly || boxScoreLt || dateFrom || dateTo) && (
+          {(msanFilter || fccFilter || techFilter || respFilter || externalRespFilter || workingLt || boxBrokenOnly || boxScoreLt || dateFrom || dateTo) && (
             <button
-              onClick={() => { setMsanFilter(""); setFccFilter(""); setTechFilter(""); setRespFilter(""); setWorkingLt(""); setBoxBrokenOnly(false); setBoxScoreLt(""); setDateFrom(""); setDateTo(""); }}
+              onClick={() => { setMsanFilter(""); setFccFilter(""); setTechFilter(""); setRespFilter(""); setExternalRespFilter(""); setWorkingLt(""); setBoxBrokenOnly(false); setBoxScoreLt(""); setDateFrom(""); setDateTo(""); }}
               className="text-xs text-red-500 hover:text-red-700 underline whitespace-nowrap"
             >مسح الفلاتر</button>
           )}
