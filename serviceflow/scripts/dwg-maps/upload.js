@@ -15,7 +15,7 @@ const done = new Set(fs.existsSync(doneFile) ? JSON.parse(fs.readFileSync(doneFi
     if (done.has(id)) continue;
     const file = path.join(outDir, m.json.replace(/\//g, '_').replace('.json', '.webp'));
     const body = JSON.stringify({ key: m.key, central: m.central, cabinet: m.cabinet, title: m.title, name: m.name, caption: m.caption,
-      mime: 'image/webp', base64: fs.readFileSync(file).toString('base64') });
+      mime: 'image/webp', base64: fs.readFileSync(file).toString('base64'), ...(m.data ? { data: m.data } : {}) });
     let last = '';
     for (let a = 0; a < 4; a++) {
       try {

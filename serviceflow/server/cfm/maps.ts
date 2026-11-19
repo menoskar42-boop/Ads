@@ -206,6 +206,21 @@ export function registerCfmMapRoutes(app: Express, requireAuth: Mw) {
            ON CONFLICT (map_key) DO UPDATE SET map_key = EXCLUDED.map_key RETURNING id`,
           [key, central || null, cabinet || null, title || null, JSON.stringify(data)])).rows[0].id;
       }
+      // ٢٠٢٦-١١-١٩ (المالك: «الخريطة الكهربية لازم يبقى فيها كابينة وبكس»): مع صورة الكهربى بييجى تفريغ الكابينة والبكسيات من
+      // نص ملف الأوتوكاد — بيتحط بس على خريطة مالهاش تفريغ بإيد (مفيش كابلات، واللى عدّلها آخر مرة الاستيراد نفسه أو مفيش بكسيات).
+      const incoming = b.data && typeof b.data === "object" ? cleanMapData(b.data) : null;
+      if (incoming && incoming.boxes.length) {
+        const cur = (await pool.query(`SELECT data, updated_by FROM cfm_maps WHERE id = $1`, [id])).rows[0];
+        const segs = Array.isArray(cur?.data?.segments) ? cur.data.segments.length : 0;
+        const curBoxes = Array.isArray(cur?.data?.boxes) ? cur.data.boxes.length : 0;
+        const auto = ["صورة من ملف الأوتوكاد", "تفريغ آلى من ملف الأوتوكاد"].includes(String(cur?.updated_by || ""));
+        if (!segs && (auto || !curBoxes)) {
+          const data = { ...incoming, meta: { ...(cur?.data?.meta || {}), ...incoming.meta } };
+          await pool.query(`UPDATE cfm_maps SET data = $2, central = COALESCE(NULLIF($3, ''), central), cabinet = COALESCE(NULLIF($4, ''), cabinet),
+                             updated_by = 'تفريغ آلى من ملف الأوتوكاد', updated_at = now() WHERE id = $1`,
+            [id, JSON.stringify(data), data.meta.central || "", data.meta.cabinet || ""]);
+        }
+      }
       const storageKey = `cfm-maps/${key}/${name}`;
       await c.putObject(storageKey, bytes, mime);
       const caption = String(b.caption || "").slice(0, 300) || null;

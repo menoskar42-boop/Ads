@@ -126,13 +126,14 @@ test("2026-11-19: every DWG map image in the seed list exists and is a WebP", as
   assert.equal(new Set(DWG_SEED_MAPS.map((m) => m.key)).size, DWG_SEED_MAPS.length, "map_key مايتكررش");
 });
 
-test("2026-11-19: the maps list has a central → cabinet → box search filter (like the with-account report)", async () => {
+test("2026-11-19: the maps list has a central → cabinet search filter (like the with-account report)", async () => {
   const { readFileSync } = await import("node:fs");
   const page = readFileSync(new URL("../client/src/cfm/pages/maps.tsx", import.meta.url), "utf8");
   const srv = readFileSync(new URL("./cfm/maps.ts", import.meta.url), "utf8");
   assert.match(page, /data-testid="maps-filter"/);
-  for (const p of ["كل السنترالات", "كل الكباين", "كل البكسيات"]) assert.ok(page.includes(p), p);
-  assert.match(srv, /AS "boxList"/, "قايمة البكسيات بتيجى مع كل خريطة عشان فلتر البكس");
+  // فلتر البكس اتشال بعد كده (commit 9e7b78b على حساب المالك) — السنترال والكابينة بس
+  for (const p of ["كل السنترالات", "كل الكباين"]) assert.ok(page.includes(p), p);
+  void srv;
 });
 
 test("2026-11-19: DWG map images go to R2 through a token-only import (the repo is public); 6.7 J22→B27 = 12 m", async () => {
@@ -147,4 +148,17 @@ test("2026-11-19: DWG map images go to R2 through a token-only import (the repo 
   assert.match(db, /ALTER TABLE cfm_map_images ALTER COLUMN bytes DROP NOT NULL/);
   const seg = M.segments.find((s) => s.from === "J22" && s.to === "B27");
   assert.equal(seg?.lengthM, 12);
+});
+
+test("2026-11-19: the import also carries the cabinet + boxes read from the AutoCAD text, only onto a map nobody transcribed", async () => {
+  const { readFileSync } = await import("node:fs");
+  const srv = readFileSync(new URL("./cfm/maps.ts", import.meta.url), "utf8");
+  assert.match(srv, /if \(!segs && \(auto \|\| !curBoxes\)\)/, "خريطة فيها كابلات اتفرّغت بإيد مابتتلمسش");
+  const { createRequire } = await import("node:module");
+  const { extractBoxes } = createRequire(import.meta.url)("../scripts/dwg-maps/boxes.cjs");
+  // صندوق البكس: البلوك فوق الفرعات، ورقم البكس يمينها (نفس شكل خريطة 6.7)
+  const t = (s: string, x: number, y: number, h: number) => ({ type: "TEXT", layer: "P_DP_TXT-S-A", text: s, startPoint: { x, y }, textHeight: h });
+  const db = { entities: [t("6", 7.04, 1.65, 0.35), t("71-90", 6.78, 1.22, 0.2), t("46", 7.91, 1.42, 0.35), t("6", 7.09, 4.07, 0.35), t("91-100", 6.80, 3.64, 0.2), t("47", 7.95, 3.84, 0.35)] };
+  const b = (extractBoxes as any)(db, /P_DP_TXT/).map((x: any) => `${x.box}|${x.block}|${x.pairs}`).sort();
+  assert.deepEqual(b, ["46|6|71-90", "47|6|91-100"]);
 });
