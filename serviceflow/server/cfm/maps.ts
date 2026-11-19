@@ -123,7 +123,8 @@ export function registerCfmMapRoutes(app: Express, requireAuth: Mw) {
                                      FROM cfm_maps WHERE id = $1`, [id])).rows[0];
       if (!m) return res.status(404).json({ error: "الخريطة مش موجودة" });
       const images = (await pool.query(`SELECT id, caption, mime, octet_length(bytes) AS size, created_at AS "createdAt"
-                                          FROM cfm_map_images WHERE map_id = $1 ORDER BY id`, [id])).rows;
+                                          FROM cfm_map_images WHERE map_id = $1
+                                          ORDER BY (COALESCE(caption, '') LIKE 'مرجع%') , id`, [id])).rows;   // الكهربى الأول، والمراجع (المساحى) بعده
       res.json({ ...m, images, canEdit: canEdit(req) });
     } catch (e) { res.status(500).json({ error: (e as Error).message }); }
   });

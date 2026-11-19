@@ -25,12 +25,15 @@ function extractNetwork(db, cfg0) {
     const a = e.type === 'LINE' ? [[e.startPoint.x, e.startPoint.y], [e.endPoint.x, e.endPoint.y]] : e.type === 'LWPOLYLINE' && e.vertices?.length >= 2 ? e.vertices.map((v) => [v.x, v.y]) : null;
     if (a) for (let i = 1; i < a.length; i++) segsAll.push([a[i - 1], a[i]]); }
   for (const p of cendsAll) for (const [a, b] of segsAll) { if (D(p, a) < 0.05 * k || D(p, b) < 0.05 * k) continue; if (segDist(p, a, b) < 0.03 * k) { hubPts.push(p); break; } }
-  for (const t of T.filter((t) => cfg.jointText.test(t.layer) && /^\d{1,2}$/.test(String(t.text).trim()))) {
-    const p = [t.startPoint.x, t.startPoint.y]; const near = (arr) => arr.map((q) => [q, D(p, q)]).sort((a, b) => a[1] - b[1])[0];
-    const d = near(dots); const h = near(hubPts);
-    const pick = d && d[1] < cfg.jointTextR ? d[0] : h && h[1] < cfg.jointTextR * 1.3 ? h[0] : null;
-    if (pick && !joints.some((j) => D(j.p, pick) < 0.05 * k)) joints.push({ id: 'J' + String(Number(t.text.trim())).padStart(2, '0'), num: String(Number(t.text.trim())), p: pick });
-  }
+  // رقم الوصلة ⇒ أقرب رمز وصلة فاضى (توزيع عام بالأقرب، عشان رقمين مايخدوش نفس النقطة)، وإلا أقرب نقطة التقاء خطوط
+  const jtexts = T.filter((t) => cfg.jointText.test(t.layer) && /^\d{1,2}['"]?$/.test(String(t.text).trim()));
+  const jc = []; jtexts.forEach((t, i) => dots.forEach((q, j) => { const d = D([t.startPoint.x, t.startPoint.y], q); if (d < cfg.jointTextR) jc.push([d, i, j]); }));
+  jc.sort((x, y) => x[0] - y[0]); const tUsed = new Set(), dUsed = new Set();
+  const addJ = (t, p) => { const num = String(Number(String(t.text).trim().replace(/['"]/g, ''))); const id = 'J' + num.padStart(2, '0') + (/['"]/.test(String(t.text)) ? "'" : '');
+    if (!joints.some((j) => j.id === id) && !joints.some((j) => D(j.p, p) < 0.05 * k)) joints.push({ id, num, p }); };
+  for (const [, i, j] of jc) { if (tUsed.has(i) || dUsed.has(j)) continue; tUsed.add(i); dUsed.add(j); addJ(jtexts[i], dots[j]); }
+  jtexts.forEach((t, i) => { if (tUsed.has(i)) return; const p = [t.startPoint.x, t.startPoint.y];
+    const h = hubPts.map((q) => [q, D(p, q)]).sort((x, y) => x[1] - y[1])[0]; if (h && h[1] < cfg.jointTextR * 1.3) addJ(t, h[0]); });
   const labels = extractBoxes(db, cfg.boxLayer);
   const syms = ents.filter((e) => cfg.isBoxSym(e)).map((e) => (e.type === 'CIRCLE' ? [e.center.x, e.center.y] : center(e)));
   const usedSym = new Set();
@@ -155,5 +158,5 @@ const GHANAYEM = { boxLayer: /P_DP_TXT/, jointText: /P-DBUR-TXT/, cableText: /P-
 const DERGNDLA = { boxLayer: /^TEXT-BOX$/, jointText: /^TEXT-JONTA$/, cableText: /^TEXT-LONG$/, cabText: /^TEXT-CABINA$/, cableLayer: /^CA$/, extraCableLines: /^0$/,
   isJointDot: (e) => e.layer === 'GONTA' && e.type === 'LWPOLYLINE',
   isBoxSym: (e) => e.layer === 'BOX' && e.type === 'LWPOLYLINE',
-  jointTextR: 1.0, boxSymR: 3.2, jointR: 1.3, boxR: 0.45, cabPad: 0.6, tol: 0.08, labelR: 0.8, markerR: 0.8, markerSame: 16, markerText: /^TEXT-JONTA$/ };
+  jointTextR: 1.7, boxSymR: 3.2, jointR: 1.3, boxR: 0.45, cabPad: 0.6, tol: 0.08, labelR: 0.8, markerR: 0.8, markerSame: 16, markerText: /^TEXT-JONTA$/ };
 module.exports = { extractNetwork, GHANAYEM, DERGNDLA };
