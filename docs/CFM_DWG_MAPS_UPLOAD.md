@@ -23,6 +23,9 @@
 6. ارسم كل json مرة: `json-to-webp.js <json> out/<json بالـ/ ⇒ _>.webp` (دفعات ٨). الإجمالى ~٤٧ ميجا.
 7. جرّب طلب واحد الأول: `node upload.js manifest.json out --only ghanayem-6.7` ⇒ لازم `ok`.
    ٤٠٤ = التوكن مش واصل أو مش مطابق للسرّ فى ريبليت (أو مافيش Republish) · ٥٠٣ = R2 مش متظبط فى ريبليت.
+   ⚠️ شغّله بـ`NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt` (من غيرهم `fetch failed`). ولو طلع
+   «مش رد الاستيراد» = الموقع بيرجّع صفحته (HTML 200) ⇒ النسخة المنشورة مافيهاش `ed0c63f`: لازم **pull ثم Republish** فى `sf`.
+   (٢٠٢٦-١١-١٩: ده اللى حصل — الـRepublish اتعمل من غير pull.)
 8. `node upload.js manifest.json out` (بيكمّل من `uploaded.json`). بعدها افتح `oscardevs.com/serviceflow/cfm/maps`
    (أو اسأل المالك) — ٥٥ خريطة، وفلتر السنترال/الكابينة/البكس.
 
