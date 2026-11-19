@@ -256,6 +256,17 @@ body.solo .carOnly { display:none !important; }
       <ul class="list" id="ibList"></ul>
     </section>
 
+    <section class="card" id="diagCard">
+      <div class="eyebrow">DIAGNOSTICS · فحص الموبايل والمقارنة</div>
+      <p class="note">بيعرف الموبايل ده يعمل إيه (الـGPS · الميكروفون · الصوت · الكاميرا · منع النوم) وبيقيس الـGPS ١٥ ثانية، وبيحطه جنب
+        «🩺 فحص الشاشة» (فى الشاشة: الإعدادات ← فحص الشاشة ← «📤 للمقارنة» والقيادة شغّالة) — عشان نعرف المشكلة من الجهاز ولا من التطبيق.</p>
+      <button id="diagBtn" class="primary" style="width:100%">🩺 افحص الموبايل ده</button>
+      <p class="note" id="diagNote"></p>
+      <div style="overflow-x:auto"><table id="diagTable" style="width:100%;border-collapse:collapse;font-size:14px"></table></div>
+      <details style="margin-top:8px" id="diagScreenBox" hidden><summary>تقرير الشاشة كامل</summary><ul class="list" id="diagScreen"></ul></details>
+      <details style="margin-top:8px" id="diagPhoneBox" hidden><summary>تقرير الموبايل ده كامل</summary><ul class="list" id="diagPhone"></ul></details>
+    </section>
+
     <section class="card" id="shareCard">
       <div class="eyebrow">PHONE GPS · GPS الموبايل</div>
       <p class="note">الموبايل على الحامل والصفحة دى مفتوحة؟ شارك مكانه مع الشاشة عشان تحسّن مكان العربية وتنبيه المطبات.

@@ -114,3 +114,11 @@ test('«📲 ابعت للشاشة» by voice keeps the original spelling', () =
   assert.equal(R.parseVoice('أوسكار ركنت هنا'), 'park');
   assert.equal(R.parseVoice('أوسكار سجل رادار هنا'), 'radar');
 });
+test('GPS stats match GpsStats.kt (comparison mode)', () => {
+  assert.equal(R.gpsStats([], 0).fixes, 0);
+  const fx = Array.from({ length: 60 }, (_, i) => ({ t: i * 1000, acc: i < 54 ? 5 : 50 }));
+  const s = R.gpsStats(fx, 59000);
+  assert.equal(s.fixes, 60); assert.ok(Math.abs(s.perSec - 60 / 59) < 0.01);
+  assert.equal(s.avgAcc, 9.5); assert.equal(s.p90Acc, 50);
+  assert.equal(R.gpsStats([...fx, { t: 200000, acc: null }], 200000).fixes, 1);
+});

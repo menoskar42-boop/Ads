@@ -530,6 +530,67 @@
     } catch (e) { /* مش مربوط */ }
   }
   ibUi(); loadInbox();
+
+  // ── «🩺 فحص الموبايل والمقارنة» (المرحلة ٣ بنود ٣ و٤): قدرات الموبايل + ١٥ ثانية GPS ⇒ /api/web/diag ⇒ جنب فحص الشاشة ──
+  async function phoneReport() {
+    const rows = [], add = (l, v) => rows.push({ l, v: String(v) });
+    const ua = navigator.userAgent;
+    add('الجهاز', (ua.match(/\(([^)]+)\)/) || [, ua])[1].slice(0, 120));
+    add('المتصفح', /CriOS|Chrome\/(\d+)/.test(ua) ? 'Chrome ' + (ua.match(/Chrome\/(\d+)/) || [, ''])[1] : /Safari/.test(ua) ? 'Safari' : 'غيره');
+    add('مثبّتة على الشاشة الرئيسية', matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'أيوه' : 'لأ (من المتصفح)');
+    if (navigator.deviceMemory) add('الذاكرة', '~' + navigator.deviceMemory + ' جيجا');
+    if (navigator.hardwareConcurrency) add('المعالج', navigator.hardwareConcurrency + ' أنوية');
+    add('الشاشة', screen.width + '×' + screen.height + ' · ×' + (window.devicePixelRatio || 1));
+    const c = navigator.connection; add('الإنترنت', navigator.onLine ? 'متوصّل' + (c && c.effectiveType ? ' (' + c.effectiveType + ')' : '') : 'مفيش');
+    add('التعرّف على الكلام', (window.SpeechRecognition || window.webkitSpeechRecognition) ? 'موجود' : 'مش موجود');
+    const voices = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+    add('الصوت العربى', voices.some((v) => /^ar/i.test(v.lang)) ? 'موجود (' + voices.filter((v) => /^ar/i.test(v.lang)).length + ')' : (window.speechSynthesis ? 'مفيش صوت عربى' : 'مش مدعوم'));
+    try { const d = await navigator.mediaDevices.enumerateDevices();
+      add('الكاميرات', d.filter((x) => x.kind === 'videoinput').length); add('الميكروفونات', d.filter((x) => x.kind === 'audioinput').length); } catch (e) { add('الكاميرات', 'مش معروف'); }
+    add('منع النوم', 'wakeLock' in navigator ? 'Wake Lock' : 'فيديو احتياطى');
+    add('الإشعارات', 'Notification' in window ? Notification.permission : 'مش مدعومة');
+    try { const p = await navigator.permissions.query({ name: 'geolocation' }); add('إذن المكان', p.state); } catch (e) {}
+    return rows;
+  }
+  function sampleGps(ms) {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve([]);
+      const fx = [];
+      const id = navigator.geolocation.watchPosition((p) => fx.push({ t: Date.now(), acc: p.coords.accuracy }), () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: ms });
+      setTimeout(() => { navigator.geolocation.clearWatch(id); resolve(fx); }, ms);
+    });
+  }
+  const f1 = (x, d = 1) => (x == null ? '–' : (+x).toFixed(d));
+  function renderDiag(r) {
+    const t = $('diagTable'); t.textContent = '';
+    const me = (r.phones || []).find((p) => p.me) || (r.phones || [])[0];
+    const head = document.createElement('tr');
+    for (const h of ['', '🚗 الشاشة', '📱 الموبايل ده']) { const th = document.createElement('th'); th.textContent = h; th.style.textAlign = 'start'; th.style.padding = '6px'; head.append(th); }
+    t.append(head);
+    const row = (label, a, b) => { const tr = document.createElement('tr'); for (const v of [label, a, b]) { const td = document.createElement('td'); td.textContent = v; td.style.padding = '6px'; td.style.borderTop = '1px solid var(--line)'; tr.append(td); } t.append(tr); };
+    const g = (d) => (d && d.gps) || {};
+    row('قراءات GPS فى الثانية', r.car ? f1(g(r.car).perSec, 2) : 'مااتبعتش', me ? f1(g(me).perSec, 2) : '–');
+    row('متوسط الدقة (م)', r.car ? f1(g(r.car).avgAcc) : '–', me ? f1(g(me).avgAcc) : '–');
+    row('أسوأ ١٠٪ (م)', r.car ? f1(g(r.car).p90Acc) : '–', me ? f1(g(me).p90Acc) : '–');
+    row('عدد القراءات', r.car ? (g(r.car).fixes ?? '–') : '–', me ? (g(me).fixes ?? '–') : '–');
+    row('آخر فحص', r.car ? when(r.car.at) : '–', me ? when(me.at) : '–');
+    const fill = (box, ul, d) => { $(box).hidden = !d; $(ul).textContent = ''; for (const x of (d && d.rows) || []) $(ul).appendChild(li(x.l, x.v, '')); };
+    fill('diagScreenBox', 'diagScreen', r.car); fill('diagPhoneBox', 'diagPhone', me);
+    if (r.car && !g(r.car).fixes) $('diagNote').textContent += ' · الشاشة بعتت من غير قراءات GPS — شغّل القيادة عليها وابعت تانى.';
+  }
+  async function loadDiag() { try { renderDiag(await api('GET', '/api/web/diag')); } catch (e) {} }
+  $('diagBtn').addEventListener('click', async () => {
+    $('diagBtn').disabled = true; $('diagNote').textContent = '📡 بيقيس الـGPS ١٥ ثانية — خلّى الموبايل فى مكان مفتوح…';
+    try {
+      const [rows, fx] = await Promise.all([phoneReport(), sampleGps(15000)]);
+      const gps = RD.gpsStats(fx, Date.now());
+      await api('POST', '/api/web/diag', { rows, gps, app: 'web' });
+      $('diagNote').textContent = '✅ اتفحص — ' + gps.fixes + ' قراءة GPS';
+      loadDiag();
+    } catch (e) { $('diagNote').textContent = 'ماتمّش: ' + e.message; }
+    $('diagBtn').disabled = false;
+  });
+  loadDiag();
   $('parkPhone').addEventListener('click', parkHere);
   $('sosBtn').addEventListener('click', sos);
   parkUi();

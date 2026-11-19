@@ -830,3 +830,18 @@ class InboxPlanTest {
         assertEquals(InboxStep.Note("task", "اشترى عيش"), InboxPlan.plan("remind", j("""{"text":"اشترى عيش"}"""), now))
     }
 }
+
+class GpsStatsTest {
+    @Test fun ratesAndAccuracyInTheLastMinute() {
+        val g = GpsStats()
+        assertEquals(0, g.summary(0).fixes)
+        for (i in 0 until 60) g.add(i * 1000L, if (i < 54) 5f else 50f)   // ٦٠ قراءة فى دقيقة، ٦ وحشين
+        val s = g.summary(59_000)
+        assertEquals(60, s.fixes)
+        assertTrue(abs(s.perSec - 60 / 59.0) < 0.01)
+        assertEquals(9.5, s.avgAccM!!, 0.001)
+        assertEquals(50.0, s.p90AccM!!, 0.001)
+        g.add(200_000, null)   // بعد دقايق: القديم بيتشال
+        assertEquals(1, g.summary(200_000).fixes); assertNull(g.summary(200_000).avgAccM)
+    }
+}

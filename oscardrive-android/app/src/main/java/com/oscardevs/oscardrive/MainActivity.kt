@@ -1692,7 +1692,25 @@ class MainActivity : Activity() {
         val sv = ScrollView(this).apply { addView(box); setBackgroundColor(ui.surface) }
         AlertDialog.Builder(this).setTitle("🩺 فحص الشاشة").setView(sv)
             .setPositiveButton("شارك التقرير") { _, _ -> share(DeviceCheck.asText(rows)) }
+            .setNeutralButton("📤 للمقارنة") { _, _ -> sendDiag(rows) }
             .setNegativeButton("قفل", null).show()
+    }
+
+    /** «وضع المقارنة» (المرحلة ٣): التقرير + جودة الـGPS فى آخر دقيقة ⇒ صفحة الموبايل بتعرضه جنب فحص الموبايل. */
+    private fun sendDiag(rows: List<DeviceCheck.Row>) {
+        val g = DriveService.State.gpsStats.summary(System.currentTimeMillis())
+        val body = org.json.JSONObject().put("app", BuildConfig.VERSION_NAME)
+            .put("rows", org.json.JSONArray().apply { for (r in rows) put(org.json.JSONObject().put("l", r.label).put("v", r.value)) })
+            .put("gps", org.json.JSONObject().put("fixes", g.fixes).put("perSec", g.perSec).apply {
+                g.avgAccM?.let { put("avgAcc", it) }; g.p90AccM?.let { put("p90Acc", it) } })
+        toast("بيبعت…")
+        Thread {
+            val msg = try {
+                val token = prefs.deviceToken ?: Cloud.register(BuildConfig.VERSION_NAME).also { prefs.deviceToken = it }
+                Cloud.diag(token, body); "اتبعت ✓ — افتح drive.oscardevs.com ← «🩺 فحص الموبايل والمقارنة»"
+            } catch (e: Throwable) { "مااتبعتش — محتاج نت" }
+            main.post { toast(msg) }
+        }.start()
     }
 
     /* ═══════════════ حوارات صغيرة ═══════════════ */

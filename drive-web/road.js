@@ -176,6 +176,15 @@
     if (due.length) parts.push('قرّب أو وقته: ' + due.map((x) => x.name).join('، '));
     return parts.length ? parts.join(' · ') : 'مفيش صيانة قرّبت';
   }
-  const api = { fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  /** «وضع المقارنة»: نفس logic/GpsStats.kt — قراءات آخر دقيقة: العدد · فى الثانية · متوسط الدقة · أسوأ ١٠٪. fixes = [{t, acc}] */
+  function gpsStats(fixes, nowMs, windowMs = 60000) {
+    const keep = (fixes || []).filter((f) => nowMs - f.t <= windowMs);
+    if (!keep.length) return { fixes: 0, perSec: 0, avgAcc: null, p90Acc: null };
+    const span = Math.max(1000, nowMs - keep[0].t);
+    const a = keep.map((f) => f.acc).filter((x) => x != null && Number.isFinite(x)).sort((x, y) => x - y);
+    return { fixes: keep.length, perSec: keep.length * 1000 / span, avgAcc: a.length ? a.reduce((s, x) => s + x, 0) / a.length : null,
+      p90Acc: a.length ? a[Math.min(a.length - 1, Math.floor(a.length * 0.9))] : null };
+  }
+  const api = { gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

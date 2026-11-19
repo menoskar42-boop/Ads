@@ -127,6 +127,13 @@ function createDriveSite({ pool, push } = {}) {
   router.post('/api/car/companions', json, carAuth, (req, res) => {
     res.json({ ok: true, devices: require('../drive/companions').list(req.car.id), inbox: inbox.hasPending(req.car.id) });
   });
+  // «🩺 فحص الشاشة» للمقارنة مع الموبايل — src/drive/diag.js
+  const diag = require('../drive/diag');
+  router.post('/api/car/diag', rateLimit({ name: 'od-diag-car', windowMs: 60 * 60000, max: 30 }), json, carAuth, async (req, res) => {
+    const d = diag.clean(req.body);
+    if (!d) return fail(res, 400, 'empty');
+    try { await diag.saveCar(pool, req.car.id, d); res.json({ ok: true }); } catch (e) { fail(res, 500, 'diag failed'); }
+  });
   // «📲 ابعت للشاشة»: الشاشة بتأكّد اللى استلمته وبتاخد الجديد — src/drive/inbox.js
   const inbox = require('../drive/inbox');
   router.post('/api/car/inbox', rateLimit({ name: 'od-inbox-car', windowMs: 60 * 60000, max: 600 }), json, carAuth, async (req, res) => {
@@ -283,6 +290,15 @@ function createDriveSite({ pool, push } = {}) {
     } catch (e) { fail(res, 500, 'claim failed'); }
   });
 
+  router.post('/api/web/diag', rateLimit({ name: 'od-diag-web', windowMs: 60 * 60000, max: 30 }), json, ownerAuth, async (req, res) => {
+    const d = diag.clean(req.body);
+    if (!d) return fail(res, 400, 'empty');
+    try { await diag.saveOwner(pool, req.owner.owner_id, d); res.json({ ok: true }); } catch (e) { fail(res, 500, 'diag failed'); }
+  });
+  router.get('/api/web/diag', ownerAuth, async (req, res) => {
+    try { res.set('Cache-Control', 'no-store'); res.json({ ok: true, ...(await diag.compare(pool, req.owner.car_id, req.owner.owner_id)) }); }
+    catch (e) { fail(res, 500, 'diag failed'); }
+  });
   router.get('/api/web/inbox', ownerAuth, async (req, res) => {
     try { res.set('Cache-Control', 'no-store'); res.json({ ok: true, items: await inbox.recent(pool, req.owner.car_id) }); }
     catch (e) { fail(res, 500, 'inbox failed'); }

@@ -131,6 +131,11 @@ async function ensureDriveSchema(pool) {
     -- «الموبايل لوحده» (المالك ٢٠٢٦-١١-١٨: «المفروض أدخل على الصفحة عادى ولو عاوز أربط يبقى فيه زرار ربط»): عربية افتراضية للموبايل
     -- من غير شاشة، عشان المطبات والصور ورسايل الشاشة يبقى ليها مكان. لما يربط شاشة حقيقية بياناتها بتتنقل لها والافتراضية بتتشال.
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS solo BOOLEAN NOT NULL DEFAULT false;
+    -- «🩺 فحص الجهاز» + «وضع المقارنة» (٢٠٢٦-١١-١٩): آخر تقرير فحص بس للشاشة ولكل موبايل (نوع الجهاز والقدرات وجودة الـGPS).
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS diag JSONB;
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS diag_at TIMESTAMPTZ;
+    ALTER TABLE od_owners ADD COLUMN IF NOT EXISTS diag JSONB;
+    ALTER TABLE od_owners ADD COLUMN IF NOT EXISTS diag_at TIMESTAMPTZ;
     CREATE TABLE IF NOT EXISTS od_inbox (
       id           BIGSERIAL PRIMARY KEY,
       car_id       INTEGER NOT NULL REFERENCES od_cars(id) ON DELETE CASCADE,

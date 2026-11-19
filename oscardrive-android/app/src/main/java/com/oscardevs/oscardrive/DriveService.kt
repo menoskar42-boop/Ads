@@ -38,6 +38,8 @@ class DriveService : Service() {
 
     /** الحالة اللى الشاشة بتعرضها. */
     object State {
+        /** «وضع المقارنة»: جودة الـGPS فى آخر دقيقة (قراءات/ث · متوسط الدقة) — بتتبعت مع «🩺 فحص الشاشة». */
+        val gpsStats = com.oscardevs.oscardrive.logic.GpsStats()
         @Volatile var running = false
         @Volatile var gpsEnabled = true
         @Volatile var speedKmh: Float? = null
@@ -323,6 +325,7 @@ class DriveService : Service() {
         lastGpsMs = now
         State.approx = false
         val acc = if (loc.hasAccuracy()) loc.accuracy else null
+        State.gpsStats.add(now, acc)
         State.limitKmh = prefs.limit
         handleSpeed(speed.onFix(SpeedLogic.Fix(now, if (loc.hasSpeed()) loc.speed else null, loc.latitude, loc.longitude, acc,
             if (Build.VERSION.SDK_INT >= 26 && loc.hasSpeedAccuracy()) loc.speedAccuracyMetersPerSecond else null), State.limitKmh))
