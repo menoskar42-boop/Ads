@@ -90,6 +90,9 @@ export function registerCfmMapRoutes(app: Express, requireAuth: Mw) {
         `SELECT m.id, m.map_key AS "mapKey", m.central, m.cabinet, m.title, m.updated_at AS "updatedAt", m.updated_by AS "updatedBy",
                 jsonb_array_length(COALESCE(m.data->'boxes', '[]'::jsonb)) AS boxes,
                 jsonb_array_length(COALESCE(m.data->'segments', '[]'::jsonb)) AS segments,
+                (SELECT COALESCE(jsonb_agg(DISTINCT b->>'box'), '[]'::jsonb) FROM jsonb_array_elements(
+                   CASE WHEN jsonb_typeof(m.data->'boxes') = 'array' THEN m.data->'boxes' ELSE '[]'::jsonb END) b
+                  WHERE COALESCE(b->>'box', '') <> '') AS "boxList",
                 (SELECT count(*)::int FROM cfm_map_images i WHERE i.map_id = m.id) AS images
            FROM cfm_maps m ORDER BY m.central, m.cabinet, m.id`);
       res.json({ items: rows });

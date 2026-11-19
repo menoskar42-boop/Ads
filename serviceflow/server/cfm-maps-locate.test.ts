@@ -123,3 +123,12 @@ test("2026-11-19: every DWG map image in the seed list exists and is a WebP", as
   }
   assert.equal(new Set(DWG_SEED_MAPS.map((m) => m.key)).size, DWG_SEED_MAPS.length, "map_key مايتكررش");
 });
+
+test("2026-11-19: the maps list has a central → cabinet → box search filter (like the with-account report)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../client/src/cfm/pages/maps.tsx", import.meta.url), "utf8");
+  const srv = readFileSync(new URL("./cfm/maps.ts", import.meta.url), "utf8");
+  assert.match(page, /data-testid="maps-filter"/);
+  for (const p of ["كل السنترالات", "كل الكباين", "كل البكسيات"]) assert.ok(page.includes(p), p);
+  assert.match(srv, /AS "boxList"/, "قايمة البكسيات بتيجى مع كل خريطة عشان فلتر البكس");
+});

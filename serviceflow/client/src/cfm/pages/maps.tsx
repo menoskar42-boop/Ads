@@ -16,8 +16,9 @@ import { Map as MapIcon, Plus, Save, Trash2, Upload, FileSpreadsheet, ArrowRight
 import type { CableMapData, MapSegment, MapBox, MapSpare, MapMarker } from "@shared/cfm-maps/types";
 import { distancesFromCabinet, nodeLabel, cableRoutes } from "@shared/cfm-maps/types";
 import { CableRoutesPanel, FaultLocatorPanel } from "@/cfm/components/MapPhase2";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 
-interface MapListItem { id: number; central: string; cabinet: string; title: string; boxes: number; segments: number; images: number; updatedAt: string; updatedBy: string | null }
+interface MapListItem { id: number; central: string; cabinet: string; title: string; boxes: number; segments: number; images: number; boxList?: string[]; updatedAt: string; updatedBy: string | null }
 interface MapImage { id: number; caption: string | null; mime: string; size: number }
 interface MapDetail { id: number; central: string; cabinet: string; title: string; data: CableMapData; images: MapImage[]; canEdit: boolean; updatedAt: string; updatedBy: string | null }
 
@@ -331,6 +332,16 @@ function MapList() {
   const [items, setItems] = useState<MapListItem[] | null>(null);
   const [central, setCentral] = useState("");
   const [cabinet, setCabinet] = useState("");
+  // فلتر البحث (المالك ٢٠٢٦-١١-١٩): سنترال ← كابينة ← بكس، زى فلتر «الخطوط اللى ليها رقم أكونت» فى Service Flow
+  const [fCentral, setFCentral] = useState("");
+  const [fCabinet, setFCabinet] = useState("");
+  const [fBox, setFBox] = useState("");
+  const uniq = (xs: string[]) => Array.from(new Set(xs.filter(Boolean))).sort((a, b) => a.localeCompare(b, "ar", { numeric: true }));
+  const centralOpts = useMemo(() => uniq((items || []).map((x) => x.central || "")), [items]);
+  const cabinetOpts = useMemo(() => uniq((items || []).filter((x) => x.central === fCentral).map((x) => x.cabinet || "")), [items, fCentral]);
+  const boxOpts = useMemo(() => uniq((items || []).filter((x) => x.central === fCentral && x.cabinet === fCabinet).flatMap((x) => x.boxList || [])), [items, fCentral, fCabinet]);
+  const shown = useMemo(() => (items || []).filter((x) =>
+    (!fCentral || x.central === fCentral) && (!fCabinet || x.cabinet === fCabinet) && (!fBox || (x.boxList || []).includes(fBox))), [items, fCentral, fCabinet, fBox]);
   useEffect(() => { api("/api/cfm/maps").then((j) => setItems(j.items)).catch((e) => toast({ variant: "destructive", title: e.message })); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const create = async () => {
     try { const j = await api("/api/cfm/maps", { method: "POST", body: JSON.stringify({ central, cabinet }) }); go(`/maps/${j.id}`); }
@@ -342,10 +353,28 @@ function MapList() {
         <h1 className="text-2xl font-bold flex items-center gap-2"><MapIcon className="w-6 h-6" />الخرائط</h1>
         <p className="text-sm text-muted-foreground mt-1">خرايط الشبكة الثانوية (من الكابينة للبكسيات): صورة الخريطة وجداول الكابلات والوصلات والبكسيات.</p>
       </div>
+      {!!items?.length && (
+        <div className="flex flex-wrap items-center gap-2" data-testid="maps-filter">
+          <SearchableCombobox options={centralOpts} value={fCentral}
+            onChange={(v) => { setFCentral(v); setFCabinet(""); setFBox(""); }}
+            placeholder="كل السنترالات" searchPlaceholder="ابحث في السنترالات..." className="w-full sm:w-44 text-sm" />
+          <SearchableCombobox options={cabinetOpts} value={fCabinet}
+            onChange={(v) => { setFCabinet(v); setFBox(""); }}
+            placeholder="كل الكباين" searchPlaceholder="ابحث في الكباين..." disabled={!fCentral} className="w-full sm:w-40 text-sm" />
+          <SearchableCombobox options={boxOpts} value={fBox} onChange={setFBox}
+            placeholder={fCabinet && !boxOpts.length ? "مفيش بكسيات متفرّغة" : "كل البكسيات"} searchPlaceholder="ابحث في البكسيات..."
+            disabled={!fCabinet || !boxOpts.length} className="w-full sm:w-36 text-sm" />
+          {(fCentral || fCabinet || fBox) && (
+            <Button variant="ghost" size="sm" className="gap-1" onClick={() => { setFCentral(""); setFCabinet(""); setFBox(""); }}><X className="w-4 h-4" />مسح الفلتر</Button>
+          )}
+          <span className="text-xs text-muted-foreground">{shown.length} من {items.length} خريطة</span>
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items === null && <p className="text-muted-foreground">جارٍ التحميل…</p>}
         {items?.length === 0 && <p className="text-muted-foreground">مفيش خرايط لسه.</p>}
-        {items?.map((x) => (
+        {!!items?.length && !shown.length && <p className="text-muted-foreground">مفيش خريطة بالفلتر ده.</p>}
+        {shown.map((x) => (
           <Link key={x.id} href={`/maps/${x.id}`}>
             <Card className="cursor-pointer hover:border-primary transition-colors">
               <CardHeader><CardTitle className="text-lg">{x.central} — {/\d/.test(x.cabinet || "") ? `كابينة ${x.cabinet}` : x.cabinet}</CardTitle></CardHeader>
