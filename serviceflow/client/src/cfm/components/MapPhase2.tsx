@@ -84,7 +84,7 @@ export function FaultLocatorPanel({ data }: { data: CableMapData }) {
 // ── فى التكت: جنب كل قياس، مكان العطل التقديرى لو الكابينة ليها خريطة ─────────────────────────────
 let mapsCache: Promise<{ id: number; cabinet: string }[]> | null = null;
 const mapDataCache = new Map<number, Promise<CableMapData | null>>();
-const loadMaps = (): Promise<{ id: number; cabinet: string; central?: string; segments?: number }[]> => (mapsCache ||= fetch("/api/cfm/maps", { credentials: "include" })
+const loadMaps = (): Promise<{ id: number; cabinet: string; central?: string; segments?: number; boxes?: number }[]> => (mapsCache ||= fetch("/api/cfm/maps", { credentials: "include" })
   .then((r) => (r.ok ? r.json() : { items: [] })).then((j) => j.items || []).catch(() => { mapsCache = null; return []; }));
 const loadMapData = (id: number) => {
   if (!mapDataCache.has(id)) {

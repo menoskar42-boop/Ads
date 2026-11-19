@@ -237,11 +237,13 @@ const centralNorm = (s: string | null | undefined) =>
 
 /**
  * خريطة الكابينة دى (٢٠٢٦-١١-١٩): نفس رقم الكابينة **وفيها تفريغ** (خرايط الأوتوكاد اللى اتسجّلت صور بس مالهاش كابلات)،
+ * **وفيها بكسيات** — المالك: «الخريطة الكهربية لازم يبقى فيها كابينة وبكس، لا تعتمد بدون كابينة وبكسيات».
  * ولو أكتر من سنترال عنده نفس رقم الكابينة (الغنايم 1.1 ودير الجنادلة 1.1) ⇒ اللى اسم سنترالها جوّه اسم سنترال التكت.
  */
-export function pickCabinetMap<T extends { cabinet: string; central?: string; segments?: number }>(maps: T[], cabinet: string, central?: string | null): T | undefined {
+export function pickCabinetMap<T extends { cabinet: string; central?: string; segments?: number; boxes?: number }>(maps: T[], cabinet: string, central?: string | null): T | undefined {
   const key = cabinetKey(cabinet);
-  const same = maps.filter((x) => cabinetKey(x.cabinet) === key && Number(x.segments ?? 1) > 0);
+  if (!key) return undefined;   // من غير رقم كابينة مفيش خريطة كهربية
+  const same = maps.filter((x) => cabinetKey(x.cabinet) === key && Number(x.segments ?? 1) > 0 && Number(x.boxes ?? 1) > 0);
   if (same.length <= 1) return same[0];
   if (!central) return undefined;
   const c = centralNorm(central);

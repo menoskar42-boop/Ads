@@ -111,6 +111,9 @@ test("2026-11-19: a ticket picks the map of its own exchange; image-only maps (n
   assert.equal(pickCabinetMap(maps, "2-1", "الغنايم-دير الجنادله")?.id, 4, "اسم السنترال فى التكت فيه «دير الجنادله»");
   assert.equal(pickCabinetMap(maps, "2-1", "الغنايم")?.id, 5);
   assert.equal(pickCabinetMap(maps, "2-1"), undefined, "رقمين بنفس الكابينة ومفيش سنترال ⇒ مانخمّنش");
+  // المالك: «لا تعتمد بدون كابينة وبكسيات»
+  assert.equal(pickCabinetMap([{ id: 9, cabinet: "4.4", central: "الغنايم", segments: 10, boxes: 0 }], "4.4", "الغنايم"), undefined, "مفيش بكسيات ⇒ مش كهربية");
+  assert.equal(pickCabinetMap([{ id: 9, cabinet: "الشبكة الابتدائية (مرجع)", segments: 5, boxes: 0 }], ""), undefined, "من غير رقم كابينة ⇒ لأ");
 });
 
 test("2026-11-19: every DWG map image in the seed list exists and is a WebP", async () => {

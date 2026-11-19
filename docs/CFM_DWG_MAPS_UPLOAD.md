@@ -18,7 +18,8 @@
 3. فك: الأجزاء فى `node -e` بـ`createExtractorFromFile({filepath: maps.part1.rar, targetPath})` ⇒ جوّاها
    `As Built Secondary Diagram.rar` و`dergndla.rar` ⇒ `unrar.js` لكل واحد.
 4. `dwg-to-json.mjs` ⇒ فولدرات: `json/` (الغنايم scd*.dwg بأسماء صغيرة) · `dj/` (دير الجنادلة: اللوحات) · `dje/` (`dergndla/ELEC`).
-5. `build-manifest.js` (من نفس الفولدر) ⇒ `manifest.json`: **172 رفعة · 162 رسمة · 55 خريطة**.
+5. `build-manifest.js` (من نفس الفولدر) ⇒ `manifest.json`: **172 رفعة · 162 رسمة · 55 خريطة**. ⛔ أى رسمة «كهربية» من غير
+   كابينة وبكسيات بتطلع تحذير وماتتسجّلش (قاعدة المالك «لا تعتمد بدون كابينة وبكسيات») — لو ظهر تحذير، بلّغ المالك.
 6. ارسم كل json مرة: `json-to-webp.js <json> out/<json بالـ/ ⇒ _>.webp` (دفعات ٨). الإجمالى ~٤٧ ميجا.
 7. جرّب طلب واحد الأول: `node upload.js manifest.json out --only ghanayem-6.7` ⇒ لازم `ok`.
    ٤٠٤ = التوكن مش واصل أو مش مطابق للسرّ فى ريبليت (أو مافيش Republish) · ٥٠٣ = R2 مش متظبط فى ريبليت.
