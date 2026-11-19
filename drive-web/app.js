@@ -390,7 +390,42 @@
   }
   // آخر جملة قالها أوسكار — عشان الميكروفون المفتوح مايسمعش صوته هو ويعتبره أمر
   let lastSaid = '', lastSaidAt = 0;
+  // ── صوت أوسكار المتسجّل (المالك ٢٠٢٦-١١-١٩: «الصوت فى الموبايل صوت المتصفح وليس الصوت المسجّل»): نفس ملفات الشاشة
+  // (drive-web/voice/<الصوت>/manifest.json — OpenAI راجل/ست، وElevenLabs «طبيعى»). زى الشاشة بالظبط: الجمل الثابتة
+  // (سجّلت المطب · أيوه · مافهمتش · حفظت مكان العربية…) بالصوت المتسجّل، والجمل اللى بتتغيّر (التنبيه بالمسافة · السرعة…) بصوت الجهاز.
+  const VOICE_PREF = 'od_voice_name';
+  const oscarVoice = () => { try { return localStorage.getItem(VOICE_PREF) || 'male'; } catch (e) { return 'male'; } };
+  let oscarLines = null, oscarLinesFor = '';
+  const oscarAudio = new Audio();
+  async function loadOscarLines() {
+    const v = oscarVoice();
+    if (oscarLines && oscarLinesFor === v) return oscarLines;
+    try { const r = await fetch('/voice/' + v + '/manifest.json', { cache: 'no-cache' }); oscarLines = (await r.json()).lines || {}; oscarLinesFor = v; }
+    catch (e) { oscarLines = {}; oscarLinesFor = v; }
+    return oscarLines;
+  }
+  // الآيفون مابيشغّلش صوت غير بعد لمسة — أول لمسة بتفتح عنصر الصوت ده، وبعد كده بيشتغل لوحده
+  let audioUnlocked = false;
+  const unlockAudio = () => {
+    if (audioUnlocked) return; audioUnlocked = true;
+    try { oscarAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='; oscarAudio.play().catch(() => {}); } catch (e) {}
+    loadOscarLines();
+  };
+  document.addEventListener('touchstart', unlockAudio, { passive: true });
+  document.addEventListener('click', unlockAudio);
+  /** جملة ثابتة بصوت أوسكار المتسجّل (نفس مفاتيح الشاشة: bump_saved · hello · not_understood …) — لو مش متاحة ⇒ صوت الجهاز. */
+  async function oscar(key, fallback) {
+    const lines = await loadOscarLines();
+    const opts = ((lines[key] || {}).ar || []).filter((x) => x && x.f);
+    if (!opts.length) { sayRoad(fallback); return; }
+    const pick = opts[Math.floor(Math.random() * opts.length)];
+    lastSaid = pick.t || fallback || ''; lastSaidAt = Date.now();
+    try { speechSynthesis.cancel(); } catch (e) {}
+    try { oscarAudio.src = '/voice/' + oscarVoice() + '/' + pick.f; await oscarAudio.play(); }
+    catch (e) { sayRoad(fallback || pick.t); }
+  }
   function sayRoad(text) {
+    try { oscarAudio.pause(); } catch (e) {}
     lastSaid = String(text || ''); lastSaidAt = Date.now();
     try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ar-EG'; speechSynthesis.speak(u); } catch (e) {}
   }
@@ -441,6 +476,11 @@
   }
   loadSettings();
   ['warnDist', 'speedLimSel', 'quietSlow', 'breakSel', 'sosName', 'sosPhone'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  try { $('voiceSel').value = oscarVoice(); } catch (e) {}
+  $('voiceSel').addEventListener('change', () => {
+    try { localStorage.setItem(VOICE_PREF, $('voiceSel').value); } catch (e) {}
+    oscarLines = null; unlockAudio(); oscar('hello', 'سامعك');   // يسمع الصوت الجديد على طول
+  });
   // ☕ الاستراحة زى الشاشة (RD.breakTick = Wellness.kt) — ماشى = ١٠ كم/س فأكتر
   const breakSt = {};
   function breakCheck(kmh) {
@@ -473,12 +513,13 @@
     withFix((f) => {
       try { localStorage.setItem(PARK_KEY, JSON.stringify({ lat: f.lat, lng: f.lng, acc: f.acc, t: Date.now() })); } catch (e) {}
       const msg = 'اتحفظ مكان الركنة' + (f.acc > 30 ? ' تقريبى' : '');
-      $('roadNote').textContent = '✅ ' + msg; sayRoad(msg); parkUi();
+      $('roadNote').textContent = '✅ ' + msg; oscar('parking_saved', msg); parkUi();
     });
   }
   function findPark() {
     const p = phonePark();
-    if (!p) { sayRoad('مفيش ركنة محفوظة على الموبايل ده'); $('roadNote').textContent = 'مفيش ركنة محفوظة — دوس «🅿️ ركنت هنا» لما تركن'; return; }
+    if (!p) { oscar('no_parking', 'مفيش ركنة محفوظة على الموبايل ده'); $('roadNote').textContent = 'مفيش ركنة محفوظة — دوس «🅿️ ركنت هنا» لما تركن'; return; }
+    oscar('find_car', 'هوديك لمكان العربية');
     window.open(RD.walkUrl(p.lat, p.lng), '_blank', 'noopener');
   }
   // 🆘 زى الشاشة: بيتأكد الأول، ويجهّز رسالة بمكانك — وانت اللى بتدوس إرسال
@@ -662,7 +703,8 @@
         await api('POST', '/api/web/hazards', { items: [{ uuid: uuid(), type, lat: f.lat, lng: f.lng, acc: f.acc, t: Date.now(),
           bearing: moving && roadHeading != null ? roadHeading : null, test }] });
         const msg = 'اتسجّل ' + RD.TYPES[type][0] + (test ? ' تجربة' : '');
-        $('roadNote').textContent = '✅ ' + msg + ' (دقة ' + Math.round(f.acc) + ' م)'; sayRoad(msg);
+        $('roadNote').textContent = '✅ ' + msg + ' (دقة ' + Math.round(f.acc) + ' م)';
+        if (test) sayRoad(msg); else oscar(type + '_saved', msg);   // bump_saved · pothole_saved · radar_saved · danger_saved زى الشاشة
       } catch (e) { $('roadNote').textContent = 'ماتسجّلش: ' + e.message; }
       loadRoad();
     };
@@ -808,7 +850,7 @@
       if (p) { sayRoad('حاضر، رايحين ' + p.name); window.open(RD.navUrl(p.lat, p.lng), '_blank', 'noopener'); }
       else searchPlace(cmd.slice(5));
     }
-    else if (cmd === 'unknown') { $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; sayRoad('مافهمتش'); }
+    else if (cmd === 'unknown') { $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; oscar('not_understood', 'مافهمتش'); }
   }
   function startVoice() {
     if (!SR) { $('voiceNote').textContent = 'المتصفح ده مابيدعمش التعرّف على الكلام — جرّب Chrome على أندرويد أو Safari على الآيفون'; return; }
@@ -821,7 +863,7 @@
       $('voiceNote').textContent = 'سمعت: «' + alts[0] + '»';
       if (alts.some((a) => RD.wakeOnly(a))) {   // «أوسكار» لوحده ⇒ ينتبه ويستنى الأمر
         awakeUntil = now + RD.WAKE_WINDOW_MS;
-        $('voiceNote').textContent = '🎙️ أيوه — قول الأمر'; sayRoad('أيوه'); return;
+        $('voiceNote').textContent = '🎙️ أيوه — قول الأمر'; oscar('hello', 'أيوه'); return;
       }
       const awake = now < awakeUntil;
       const cmd = alts.map((a) => RD.parseVoice(a, awake)).find((c) => c && c !== 'unknown') || RD.parseVoice(alts[0], awake);
@@ -844,7 +886,7 @@
     ev.stopPropagation();   // مايتعدّش «أول لمسة» اللى بتشغّل السماع تانى
     if (listening) { listening = false; try { localStorage.setItem(VOICE_KEY, '0'); } catch (e) {} try { rec.stop(); } catch (e) {} voiceUi(); return; }
     try { localStorage.setItem(VOICE_KEY, '1'); } catch (e) {}
-    voiceDenied = false; sayRoad('سامعك');   // الآيفون مابيتكلمش غير بعد لمسة
+    voiceDenied = false; unlockAudio(); oscar('hello', 'سامعك');   // الآيفون مابيتكلمش غير بعد لمسة
     startVoice();
   });
   // تشغيل لوحده: أول ما الصفحة تفتح، ولما ترجع قدامك، ومع أول لمسة (بعض المتصفحات مابتفتحش الميكروفون من غير لمسة)
