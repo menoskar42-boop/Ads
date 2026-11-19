@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Service-Flow — افتح الجسر (تنضيف تابات جوجل)
 // @namespace    serviceflow.bridge-launcher
-// @version      1.1.0
-// @description  v1.1.0: تابات Service Flow القديمة فى Edge بتقفل كمان مع تابات جوجل (المالك ٢٠٢٦-١١-١٩)، ويفضل بس جوجل الجديد وService Flow الجديد جنبه. v1.0.0: زرار «افتح الجسر» فى Service Flow بيقفل كل تابات جوجل القديمة فى Edge، وبيفتح جوجل وService Flow جنب بعض فى نفس النافذة. سكربت لوحده — الجسر نفسه (sf-bridge) مااتلمسش.
+// @version      1.1.1
+// @description  v1.1.1: Service Flow الجديد بيتفتح الأول، والتابات القديمة بتقفل بعد ٨ ثوانى — عشان «جهاز التنفيذ» يكمّل فى التاب الجديد من غير ما يقف. v1.1.0: تابات Service Flow القديمة فى Edge بتقفل كمان مع تابات جوجل (المالك ٢٠٢٦-١١-١٩)، ويفضل بس جوجل الجديد وService Flow الجديد جنبه. v1.0.0: زرار «افتح الجسر» فى Service Flow بيقفل كل تابات جوجل القديمة فى Edge، وبيفتح جوجل وService Flow جنب بعض فى نفس النافذة. سكربت لوحده — الجسر نفسه (sf-bridge) مااتلمسش.
 // @match        https://www.google.com/*
 // @match        https://www.google.com.eg/*
 // @match        https://oscardevs.com/serviceflow*
@@ -46,10 +46,13 @@
     const at = Date.now();
     born = at;
     try { sessionStorage.setItem("sf_tab_born", String(at)); } catch (e) {}
-    GM_setValue(KEY, at);
     let sf = "";
     try { sf = decodeURIComponent(m[2] || ""); } catch (e) {}
-    if (SF_OK.test(sf)) { try { GM_openInTab(sf, { active: false, insert: true, setParent: true }); } catch (e) {} }
+    const okSf = SF_OK.test(sf);
+    if (okSf) { try { GM_openInTab(sf, { active: false, insert: true, setParent: true }); } catch (e) {} }
+    // v1.1.1: Service Flow الجديد يفتح الأول وبعدين القديم يقفل — «جهاز التنفيذ» (مفعّل فى المتصفح كله) بيشتغل فى التاب الجديد
+    // قبل ما القديم يقفل، فمايبقاش فيه وقت مفيش فيه منفّذ. المهام اللى كانت شغّالة فى القديم السيرفر بيرجّعها للطابور بعد مهلتها.
+    setTimeout(() => GM_setValue(KEY, at), okSf ? 8000 : 0);
     try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
   } else {
     const at = Number(GM_getValue(KEY, 0)) || 0;
