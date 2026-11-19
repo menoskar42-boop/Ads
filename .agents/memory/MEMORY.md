@@ -30,7 +30,7 @@
 - [Safari Kids natural sounds](safari-kids-natural-sounds.md) — use distinct, species-matched public recordings, play only on user action, and show source/license attribution.
 - [Safari Kids PWA cache](safari-kids-pwa-cache.md) — bump the service-worker cache after static code changes so home-screen installs do not keep old assets.
 - [Service Flow database billing scope](serviceflow-database-billing-scope.md) — Service Flow is the only site the user identifies as using a Replit-hosted database; other sites use Supabase.
-- [Service Flow change constraints](serviceflow-change-constraints.md) — make incremental edits with `str_replace`, one feature at a time, and confirm between complex steps.
+- [Service Flow change constraints](serviceflow-change-constraints.md) — edit incrementally, and pull before/after code changes before pushing only those edits to the specified GitHub branch.
 - [Inspection follow-up source](inspection-followup-source.md) — installation samples come from Work Orders, not Current Installations.
 - [Inspection follow-up progress](inspection-followup-progress.md) — report overall responses by follow-up category, not installation percentages per technician.
 - [Local D1 emulation](local-d1-emulation.md) — set SQLite foreign-key enforcement in each Wrangler local execute call; CLI invocations do not share the pragma state.
