@@ -1,10 +1,13 @@
 // ==UserScript==
 // @name         Service-Flow — افتح الجسر (تنضيف تابات جوجل)
 // @namespace    serviceflow.bridge-launcher
-// @version      1.0.0
-// @description  v1.0.0: زرار «افتح الجسر» فى Service Flow بيقفل كل تابات جوجل القديمة فى Edge، وبيفتح جوجل وService Flow جنب بعض فى نفس النافذة. سكربت لوحده — الجسر نفسه (sf-bridge) مااتلمسش.
+// @version      1.1.0
+// @description  v1.1.0: تابات Service Flow القديمة فى Edge بتقفل كمان مع تابات جوجل (المالك ٢٠٢٦-١١-١٩)، ويفضل بس جوجل الجديد وService Flow الجديد جنبه. v1.0.0: زرار «افتح الجسر» فى Service Flow بيقفل كل تابات جوجل القديمة فى Edge، وبيفتح جوجل وService Flow جنب بعض فى نفس النافذة. سكربت لوحده — الجسر نفسه (sf-bridge) مااتلمسش.
 // @match        https://www.google.com/*
 // @match        https://www.google.com.eg/*
+// @match        https://oscardevs.com/serviceflow*
+// @match        https://serviceflow.oscardevs.com/serviceflow*
+// @match        https://sf-menoskar42.replit.app/serviceflow*
 // @run-at       document-start
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -23,7 +26,10 @@
        • التاب الجديد ده بيكتب «وقت التنضيف» فى تخزين Tampermonkey ⇒ كل تاب جوجل تانى اتفتح قبل الوقت ده بيقفل نفسه
          (على طول لو مفتوح، أو أول ما يصحى لو Edge كان منيّمه — كل تاب فاكر هو اتفتح إمتى فى sessionStorage).
        • وبعدين بيفتح Service Flow فى تاب جنبه فى نفس النافذة، وبيشيل العلامة من العنوان.
-     تاب جوجل تفتحه بإيدك بعد كده مابيتقفلش (اتفتح بعد وقت التنضيف). وتابات القياس (DZS) مالهاش دعوة — جوجل بس. */
+     v1.1.0 (المالك: «يقفل كل تابات جوجل القديمة وتاب Service Flow كمان»): تابات Service Flow القديمة فى Edge بتقفل بنفس الطريقة،
+     وتاب Service Flow اللى الزرار فتحه جديد (اتفتح بعد وقت التنضيف) فبيفضل. السكربت ده يتسطّب فى Edge بس — فى Chrome مالوش لازمة
+     (ومابيعملش حاجة هناك: العلامة بتظهر فى Edge بس).
+     تاب جوجل أو Service Flow تفتحه بإيدك بعد كده مابيتقفلش. وتابات القياس (DZS) مالهاش دعوة. */
 
   const KEY = "sf_reset_at";
   const SF_OK = /^https:\/\/(oscardevs\.com|serviceflow\.oscardevs\.com|sf-menoskar42\.replit\.app)\/serviceflow(\/|$)/;

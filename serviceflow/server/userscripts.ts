@@ -15,7 +15,7 @@ export const DEPRECATED: Record<string, string> = {
 /** وظيفة كل سكربت فى سطر (للشاشة). */
 export const PURPOSE: Record<string, string> = {
   "sf-bridge.user.js": "الجسر: قياس «بدون Real» من الطابور",
-  "sf-bridge-launcher.user.js": "افتح الجسر: يقفل تابات جوجل القديمة فى Edge ويفتح جوجل وService Flow فى نافذة واحدة",
+  "sf-bridge-launcher.user.js": "افتح الجسر (Edge بس): يقفل تابات جوجل وService Flow القديمة ويفتح جوجل وService Flow فى نافذة واحدة",
   "dzs-expresse-v10.user.js": "DZS: القياس وشيت 138",
   "dzs-profile-optimization.user.js": "AXON: رفع السرعة وإيقاف PO",
   "te-fcc-wfm-oss-subinfo.user.js": "FCC + WFM + OSS: التقارير اليومية واسم/عنوان العميل",

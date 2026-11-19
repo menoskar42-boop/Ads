@@ -2,8 +2,8 @@
 // اللى على نفس الجهاز أفتح بيه مايكروسوفت إيدج وممكن يقفله… اقفل يوقف الجسر ويوقف القياس».
 //   • «افتح الجسر»: بيشيل علامة القفل من السيرفر، وبيفتح Edge على جوجل (رابط microsoft-edge: اللى Windows عامله
 //     لـEdge — Chrome بيسأل أول مرة «Open Microsoft Edge?»). الجسر بيبدأ لوحده أول ما جوجل يفتح.
-//   • (المالك ٢٠٢٦-١١-١٩) ومعاه سكربت «افتح الجسر (تنضيف تابات جوجل)» — منفصل عن الجسر: بيقفل كل تابات جوجل القديمة
-//     فى Edge، وبيفتح جوجل وService Flow جنب بعض فى نفس النافذة. من غيره الزرار بيفتح جوجل بس زى الأول.
+//   • (المالك ٢٠٢٦-١١-١٩) ومعاه سكربت «افتح الجسر (تنضيف تابات جوجل)» — منفصل عن الجسر: بيقفل كل تابات جوجل وService Flow
+//     القديمة فى Edge، وبيفتح جوجل وService Flow جنب بعض فى نفس النافذة. من غيره الزرار بيفتح جوجل بس زى الأول.
 //   • «اقفل الجسر»: علامة قفل فى السيرفر + الخطوط اللى بتتقاس ترجع للطابور. الجسر بيعرف فى خلال ١٠ ثوانى:
 //     تابات القياس بتاعته وتاب جوجل بيقفلوا نفسهم. مش زى زرار الإعدادات — الشغل المؤجّل مابيروحش لجهاز التنفيذ.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -56,7 +56,7 @@ export function BridgeButtons() {
       await post("/api/exec-queue/bridge/go");
       qc.invalidateQueries({ queryKey: [STATE_URL] });
       window.location.assign(edgeUrl(window.location.origin, BASE));
-      toast({ title: "بيفتح Edge…", description: "تابات جوجل القديمة بتقفل، وجوجل وService Flow بيفتحوا فى نافذة واحدة (محتاج سكربت «افتح الجسر (تنضيف تابات جوجل)» من رفع الملفات ← السكربتات). لو Chrome سألك «Open Microsoft Edge?» علّم Always allow ودوس Open." });
+      toast({ title: "بيفتح Edge…", description: "تابات جوجل وService Flow القديمة فى Edge بتقفل، وجوجل وService Flow بيفتحوا فى نافذة واحدة (محتاج سكربت «افتح الجسر (تنضيف تابات جوجل)» من رفع الملفات ← السكربتات). لو Chrome سألك «Open Microsoft Edge?» علّم Always allow ودوس Open." });
     } catch (e: any) {
       toast({ title: "ماتفتحش", description: e.message, variant: "destructive" });
     } finally { setBusy(""); }
