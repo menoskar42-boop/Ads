@@ -2,6 +2,8 @@
 // اللى على نفس الجهاز أفتح بيه مايكروسوفت إيدج وممكن يقفله… اقفل يوقف الجسر ويوقف القياس».
 //   • «افتح الجسر»: بيشيل علامة القفل من السيرفر، وبيفتح Edge على جوجل (رابط microsoft-edge: اللى Windows عامله
 //     لـEdge — Chrome بيسأل أول مرة «Open Microsoft Edge?»). الجسر بيبدأ لوحده أول ما جوجل يفتح.
+//   • (المالك ٢٠٢٦-١١-١٩) ومعاه سكربت «افتح الجسر (تنضيف تابات جوجل)» — منفصل عن الجسر: بيقفل كل تابات جوجل القديمة
+//     فى Edge، وبيفتح جوجل وService Flow جنب بعض فى نفس النافذة. من غيره الزرار بيفتح جوجل بس زى الأول.
 //   • «اقفل الجسر»: علامة قفل فى السيرفر + الخطوط اللى بتتقاس ترجع للطابور. الجسر بيعرف فى خلال ١٠ ثوانى:
 //     تابات القياس بتاعته وتاب جوجل بيقفلوا نفسهم. مش زى زرار الإعدادات — الشغل المؤجّل مابيروحش لجهاز التنفيذ.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,9 +13,14 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { ROLES } from "@shared/schema";
+import { BASE } from "@/lib/base-path";
 
 const STATE_URL = "/api/exec-queue/bridge/state";
-const EDGE_URL = "microsoft-edge:https://www.google.com.eg/";
+/** جوجل فى Edge + علامة لسكربت «افتح الجسر (تنضيف تابات جوجل)»: يقفل تابات جوجل القديمة ويفتح Service Flow جنبه. */
+export function edgeUrl(origin: string, base: string, now = Date.now()): string {
+  const sf = origin.replace(/\/+$/, "") + (base || "/serviceflow");
+  return `microsoft-edge:https://www.google.com.eg/#sf_reset=${now}&sf=${encodeURIComponent(sf)}`;
+}
 
 type BridgeState = { stopped: boolean; enabled: boolean; seenSec: number | null; device: string | null };
 
@@ -48,8 +55,8 @@ export function BridgeButtons() {
     try {
       await post("/api/exec-queue/bridge/go");
       qc.invalidateQueries({ queryKey: [STATE_URL] });
-      window.location.assign(EDGE_URL);
-      toast({ title: "بيفتح Edge…", description: "لو Chrome سألك «Open Microsoft Edge?» علّم Always allow ودوس Open. الجسر بيبدأ أول ما جوجل يفتح." });
+      window.location.assign(edgeUrl(window.location.origin, BASE));
+      toast({ title: "بيفتح Edge…", description: "تابات جوجل القديمة بتقفل، وجوجل وService Flow بيفتحوا فى نافذة واحدة (محتاج سكربت «افتح الجسر (تنضيف تابات جوجل)» من رفع الملفات ← السكربتات). لو Chrome سألك «Open Microsoft Edge?» علّم Always allow ودوس Open." });
     } catch (e: any) {
       toast({ title: "ماتفتحش", description: e.message, variant: "destructive" });
     } finally { setBusy(""); }
