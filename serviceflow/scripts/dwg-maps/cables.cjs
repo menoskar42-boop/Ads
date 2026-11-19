@@ -51,6 +51,8 @@ function extractNetwork(db, cfg0) {
   }
   // ٢ب) الخط الرئيسى ساعات بيعدّى على كذا وصلة من غير ما يتقطع ⇒ نقطّعه عند كل وصلة بيعدّى عليها
   const splitAt = (pts) => {
+    // نقطة الوصلة ركن فى نص الخط (الفروع مرسومة خط واحد معدّى على الوصلة) ⇒ نقطّع عندها
+    for (let i = 1; i < pts.length - 1; i++) if (joints.some((j) => D(pts[i], j.p) < cfg.jointR)) return [...splitAt(pts.slice(0, i + 1)), ...splitAt(pts.slice(i))];
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1], b = pts[i];
       for (const j of joints) {
@@ -64,15 +66,17 @@ function extractNetwork(db, cfg0) {
   };
   const raw = pieces.splice(0); for (const p of raw) pieces.push(...splitAt(p));
   // ٢ج) علامات الوصل (A–A · B–B): نفس الحرف مكتوب مرتين = نفس الكابل متكمّل ⇒ كل ظهور عقدة مؤقتة، وبعدين بنوصّلهم
-  const marks = []; const mt = T.filter((t) => cfg.cableText.test(t.layer) && /^[A-Z]$/.test(String(t.text).trim()));
-  for (const t of mt) { const name = String(t.text).trim(); const p = [t.startPoint.x, t.startPoint.y];
-    const same = marks.filter((m) => m.name === name);
-    // الحرف بيتكتب مرتين على نفس الخط (أول الخط وآخره) ⇒ لو فيه ظهور قريب (≤ ٢٫٥) يبقى نفس العلامة
-    const close = same.find((m) => D(m.p, p) < cfg.markerSame); if (close) { close.extra.push(p); continue; }
-    marks.push({ name, p, extra: [], id: `M:${name}#${same.length + 1}` }); }
-  // مركز العلامة: نص الحرفين على جانبين الشَرطة، والكابل واقف على نص الشَرطة
-  for (const m of marks) { const all = [m.p, ...m.extra]; m.c = [all.reduce((a, q) => a + q[0], 0) / all.length + (all.length === 1 ? 0 : 0.1), all.reduce((a, q) => a + q[1], 0) / all.length + 0.2]; }
-  const markAt = (p) => { let best = null; for (const m of marks) { const d = D(p, m.c); if (d < cfg.markerR && (!best || d < best.d)) best = { id: m.id, d }; } return best && best.id; };
+  const marks = []; const mt = cfg.markerR ? T.filter((t) => (cfg.markerText || cfg.cableText).test(t.layer) && /^[A-Z]$/.test(String(t.text).trim())) : [];
+  // كل علامة = شَرطة عليها الحرف من الطرفين ⇒ الحرف مع أقرب توأمه (فى حدود markerSame) = علامة واحدة، والكابل واقف على الشَرطة
+  const letters = mt.map((t) => ({ name: String(t.text).trim(), p: [t.startPoint.x, t.startPoint.y], h: t.textHeight || 0.2, used: false }));
+  const lpairs = []; letters.forEach((x, i) => letters.forEach((y, j) => { if (j > i && x.name === y.name) lpairs.push([D(x.p, y.p), i, j]); }));
+  lpairs.sort((u, v) => u[0] - v[0]);
+  for (const [d, i, j] of lpairs) { if (letters[i].used || letters[j].used || d > cfg.markerSame) continue; letters[i].used = letters[j].used = true;
+    const name = letters[i].name; const n = marks.filter((m) => m.name === name).length;
+    // الحرف مكتوب فوق/جنب طرف الشَرطة ⇒ الشَرطة نفسها بين النقطتين بإزاحة نص ارتفاع الحرف
+    const h = letters[i].h * 0.5; marks.push({ name, a: [letters[i].p[0] + h, letters[i].p[1] + h], b: [letters[j].p[0] + h, letters[j].p[1] + h], id: `M:${name}#${n + 1}` }); }
+  for (const x of letters) if (!x.used) { const n = marks.filter((m) => m.name === x.name).length; marks.push({ name: x.name, a: x.p, b: x.p, id: `M:${x.name}#${n + 1}` }); }
+  const markAt = (p) => { let best = null; for (const m of marks) { const d = segDist(p, m.a, m.b); if (d < cfg.markerR && (!best || d < best.d)) best = { id: m.id, d }; } return best && best.id; };
   // ٣) نقطة نهاية ⇒ عقدة (وصلة · بكس · كابينة) أو نقطة عادية
   const nodeAt = (p) => {
     let best = null;
@@ -127,7 +131,8 @@ function extractNetwork(db, cfg0) {
     .map((t) => { const s = String(t.text).trim(); const r = t.rotation || 0; const w = s.length * (t.textHeight || 0.2) * 0.55 * (t.xScale || 1);
       return { s, p: [t.startPoint.x + Math.cos(r) * w / 2 - Math.sin(r) * (t.textHeight || 0.2) * 0.4, t.startPoint.y + Math.sin(r) * w / 2 + Math.cos(r) * (t.textHeight || 0.2) * 0.4] }; });
   const cand = []; paths.forEach((p, i) => lab.forEach((l, j) => cand.push([polyDist(l.p, p.pts), i, j])));
-  cand.sort((a, b) => a[0] - b[0]); const pu = new Set(), lu = new Set(); const segs = [];
+  // الكابلات العادية تاخد نصها الأول، وبعدين اللى معدّية على علامة وصل (مسارها طويل وممكن «يخطف» نص كابل جنبه)
+  cand.sort((a, b) => (paths[a[1]].marker ? 1 : 0) - (paths[b[1]].marker ? 1 : 0) || a[0] - b[0]); const pu = new Set(), lu = new Set(); const segs = [];
   for (const [d, i, j] of cand) { if (pu.has(i) || lu.has(j) || d > cfg.labelR) continue; pu.add(i); lu.add(j);
     const m = lab[j].s.match(/^(\d+(?:\.\d+)?)\/(\d+)"?\*?\/(\d?\.\d+)(?:\((\d+)"?\*?d\))?/i);
     const p = paths[i]; const [from, to] = p.from === 'CAB' || (/^J/.test(p.from) && /^B/.test(p.to)) ? [p.from, p.to] : /^B/.test(p.from) ? [p.to, p.from] : [p.from, p.to];
@@ -145,10 +150,10 @@ const GHANAYEM = { boxLayer: /P_DP_TXT/, jointText: /P-DBUR-TXT/, cableText: /P-
  
   isJointDot: (e) => e.layer === 'P_SYM' && e.type === 'LWPOLYLINE' && (e.constantWidth || 0) > 0.05 && (e.constantWidth || 0) < 0.2 && (e.vertices || []).length === 2,
   isBoxSym: (e) => e.layer === 'P_SYM' && ((e.type === 'LWPOLYLINE' && (e.constantWidth || 0) > 0.2) || e.type === 'CIRCLE'),
-  jointTextR: 1.0, boxSymR: 3.2, markerR: 0, markerSame: 3.6, jointR: 0.2, boxR: 0.45, cabPad: 0.6, tol: 0.03, labelR: 0.8 };
+  jointTextR: 1.0, boxSymR: 3.2, markerR: 0.4, markerSame: 3.6, jointR: 0.2, boxR: 0.45, cabPad: 0.6, tol: 0.03, labelR: 0.8 };
 // دير الجنادلة (R.C.C): كابلات على CA وكمان خطوط على طبقة 0 · الوصلات GONTA + TEXT-JONTA · البكس BOX + TEXT-BOX · النص TEXT-LONG
 const DERGNDLA = { boxLayer: /^TEXT-BOX$/, jointText: /^TEXT-JONTA$/, cableText: /^TEXT-LONG$/, cabText: /^TEXT-CABINA$/, cableLayer: /^CA$/, extraCableLines: /^0$/,
   isJointDot: (e) => e.layer === 'GONTA' && e.type === 'LWPOLYLINE',
   isBoxSym: (e) => e.layer === 'BOX' && e.type === 'LWPOLYLINE',
-  jointTextR: 1.0, boxSymR: 3.2, jointR: 1.3, boxR: 0.45, cabPad: 0.6, tol: 0.03, labelR: 0.8, markerR: 0, markerSame: 3.6 };
+  jointTextR: 1.0, boxSymR: 3.2, jointR: 1.3, boxR: 0.45, cabPad: 0.6, tol: 0.08, labelR: 0.8, markerR: 0.8, markerSame: 16, markerText: /^TEXT-JONTA$/ };
 module.exports = { extractNetwork, GHANAYEM, DERGNDLA };
