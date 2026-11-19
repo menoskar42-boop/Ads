@@ -78,6 +78,9 @@
     { id: 'tires', ar: 'بنشر', re: /(بنشر|كاوتش)/, f: ['[shop=tyres]', '[shop=car_repair]'] },
   ];
   const OSM_URL = 'https://overpass-api.de/api/interpreter';
+  /** بحث خرايط جوجل عن «أقرب X» حوالين المكان — الاحتياطى لو OpenStreetMap اتأخر/وقع أو مالقاش (المالك ٢٠٢٦-١١-١٩: «مفيش حاجة بتفتح»). */
+  const nearSearchUrl = (label, lat, lng) => 'https://www.google.com/maps/search/' + encodeURIComponent(label) +
+    (lat != null && lng != null ? '/@' + lat + ',' + lng + ',15z' : '');
   const round2 = (v) => Math.round(v * 100) / 100;
   function osmQuery(kindId, lat, lng) {
     const k = NEAR.find((x) => x.id === kindId); if (!k) return null;
@@ -214,6 +217,6 @@
     if (!mark || !mark.at || now - mark.at > JUST_MARKED_MS) return list;
     return list.filter((h) => distanceM(mark.lat, mark.lng, h.lat, h.lng) > JUST_MARKED_M);
   }
-  const api = { skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

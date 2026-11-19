@@ -640,6 +640,7 @@
     }
     renderRoad();
     dvFix(f, kmh, nearest);
+    if (alertWatch !== null) prefetchFuel(f);   // أقرب بنزينة جاهزة قبل ما تدوس
   }
   $('alertBtn').addEventListener('click', () => {
     if (alertWatch !== null) { navigator.geolocation.clearWatch(alertWatch); alertWatch = null; $('alertBtn').textContent = '🔔 نبّهنى بالمطبات'; $('alertBtn').className = ''; return; }
@@ -698,25 +699,65 @@
   $('shotBtn').addEventListener('click', () => snapRoad('button'));
 
   // ── «⛽ أقرب بنزينة» / «أوسكار دوّر على أقرب …» زى الشاشة: OpenStreetMap (مكان متقرّب ١ كم) ⇒ الأقرب ⇒ خرايط جوجل بتبدأ الملاحة على طول ──
+  // «⛽ أقرب بنزينة» بيتأخر (المالك ٢٠٢٦-١١-١٩: «بيتأخر… فتح داخل التطبيق بعد فترة»): وانت سايق («ابدأ»/التنبيهات شغّالة)
+  // أقرب بنزينة بتتجاب فى الخلفية وتتجدّد كل ١.٥ كم أو ١٠ دقايق — فالزرار بيفتح الملاحة على طول وهو لسه جوّه ضغطتك،
+  // والآيفون بيفتح تطبيق خرايط جوجل نفسه (مش جوّه الصفحة) لما الرابط بيتفتح فى نفس لحظة الضغطة.
+  const nearCache = {};   // kindId → { best, lat, lng, at }
+  let nearBusy = false;
+  async function osmNearest(k, f, ms) {
+    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const tm = setTimeout(() => { if (ctl) ctl.abort(); }, ms);
+    try {
+      const r = await fetch(RD.OSM_URL, { method: 'POST', body: 'data=' + encodeURIComponent(RD.osmQuery(k.id, f.lat, f.lng)),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' }, signal: ctl ? ctl.signal : undefined });
+      if (!r.ok) throw new Error('osm ' + r.status);
+      return RD.nearestOf(RD.osmParse(await r.json(), k.ar), f.lat, f.lng);
+    } finally { clearTimeout(tm); }
+  }
+  function prefetchFuel(f) {
+    if (nearBusy || !f || f.acc > 100) return;
+    const c = nearCache.fuel;
+    if (c && Date.now() - c.at < 10 * 60000 && RD.distanceM(c.lat, c.lng, f.lat, f.lng) < 1500) return;
+    nearBusy = true;
+    const k = RD.NEAR.find((x) => x.id === 'fuel');
+    osmNearest(k, f, 15000).then((best) => { nearCache.fuel = { best, lat: f.lat, lng: f.lng, at: Date.now() }; })
+      .catch(() => {}).finally(() => { nearBusy = false; });
+  }
   async function nearbyWeb(kindId) {
     const k = RD.NEAR.find((x) => x.id === kindId) || RD.NEAR[0];
+    // جاهزة من الخلفية وقريبة من مكانك ⇒ على طول (جوّه الضغطة)
+    const c = nearCache[k.id], f0 = lastFix;
+    if (c && c.best && f0 && Date.now() - c.at < 10 * 60000 && RD.distanceM(c.lat, c.lng, f0.lat, f0.lng) < 1500) {
+      const best = RD.nearestOf([c.best], f0.lat, f0.lng);
+      const msg = 'أقرب ' + k.ar + ': ' + best.name + ' — ' + RD.sayDistance(best.d);
+      $('voiceNote').textContent = '🧭 ' + msg; sayRoad('رايحين ' + best.name);
+      location.href = RD.navUrl(best.lat, best.lng);
+      return;
+    }
+    // الاحتياطى: بحث «أقرب X» فى خرايط جوجل حوالين المكان — عشان دايماً حاجة تفتح
+    const fallback = (f, why) => {
+      $('voiceNote').textContent = '🧭 ' + why + ' — بفتح خرايط جوجل على أقرب ' + k.ar;
+      sayRoad('بفتح الخرايط على أقرب ' + k.ar);
+      setTimeout(() => { location.href = RD.nearSearchUrl(k.ar, f && f.lat, f && f.lng); }, 1200);
+    };
     const go = async (f) => {
       $('voiceNote').textContent = 'بدوّر على أقرب ' + k.ar + '…';
       try {
-        const r = await fetch(RD.OSM_URL, { method: 'POST', body: 'data=' + encodeURIComponent(RD.osmQuery(k.id, f.lat, f.lng)),
-          headers: { 'content-type': 'application/x-www-form-urlencoded' } });
-        const best = RD.nearestOf(RD.osmParse(await r.json(), k.ar), f.lat, f.lng);
-        if (!best) { $('voiceNote').textContent = 'مالقيتش ' + k.ar + ' فى ٥ كم'; sayRoad('مالقيتش ' + k.ar + ' قريب'); return; }
+        // OpenStreetMap (Overpass) ساعات بيتأخر جداً أو بيرفض — ٥ ثوانى بالكتير وبعدين جوجل
+        const best = await osmNearest(k, f, 5000);
+        if (best && k.id === 'fuel') nearCache.fuel = { best, lat: f.lat, lng: f.lng, at: Date.now() };
+        if (!best) { fallback(f, 'مالقيتش ' + k.ar + ' فى ٥ كم على OpenStreetMap'); return; }
         const msg = 'أقرب ' + k.ar + ': ' + best.name + ' — ' + RD.sayDistance(best.d);
         $('voiceNote').textContent = '🧭 ' + msg; sayRoad(msg);
         if (map) { L.marker([best.lat, best.lng]).addTo(map).bindPopup('⛽ ' + best.name); }
         setTimeout(() => { location.href = RD.navUrl(best.lat, best.lng); }, 1800);   // يخلّص الجملة وبعدين الملاحة تبدأ
-      } catch (e) { $('voiceNote').textContent = 'مش قادر أدوّر دلوقتى (النت؟)'; }
+      } catch (e) { fallback(f, 'البحث السريع اتأخر'); }
     };
     if (lastFix && Date.now() - lastFix.t < 30000) return go(lastFix);
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) return fallback(null, 'مفيش مكان');
+    $('voiceNote').textContent = '📍 بيحدّد مكانك…';
     navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); },
-      () => { $('voiceNote').textContent = 'مش لاقى مكانك — اسمح بالموقع'; }, { enableHighAccuracy: true, timeout: 20000 });
+      () => fallback(null, 'مش لاقى مكانك'), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
   }
   $('fuelBtn').addEventListener('click', () => nearbyWeb('fuel'));
 
@@ -1011,7 +1052,7 @@
   // نتيجة الأوامر والصورة («📸 اتصوّرت» · «سمعت: …») بتظهر جنب الزراير — كانت تحت جوّه كارت المطبات بس
   new MutationObserver(() => {
     const t = $('voiceNote').textContent;
-    $('dvNote').textContent = t; $('topNote').textContent = t; $('topNote').hidden = !t || !/📸|اتصوّرت|الكاميرا/.test(t);
+    $('dvNote').textContent = t; $('topNote').textContent = t; $('topNote').hidden = !t || !/📸|اتصوّرت|الكاميرا|🧭|📍|أدوّر|بدوّر|مالقيتش/.test(t);
   }).observe($('voiceNote'), { childList: true, characterData: true, subtree: true });
   // التنبيه (مطب · سرعة · استراحة) بيظهر فوق زى الشاشة — نفس اللى فى «roadAlert»
   new MutationObserver(() => { $('dvAlert').textContent = $('roadAlert').textContent; $('dvAlert').hidden = $('roadAlert').hidden; })
