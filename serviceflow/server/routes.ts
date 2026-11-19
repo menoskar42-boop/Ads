@@ -15178,6 +15178,7 @@ export async function registerRoutes(
               (tn.tech_name IS NULL AND mto.tech_name IS NOT NULL) AS "techManual",
               -- رد الفنى على المتعذر (om_responses) — نفس دورة الطلبات
               COALESCE(orp.status, 'pending') AS "respStatus",
+              orp.is_feasible AS "respIsFeasible",
               orp.rejection_reason AS "respRejectionReason",
               orp.central_name AS "respCentralName", orp.cabin_number AS "respCabinNumber",
               orp.box_number AS "respBoxNumber", orp.nearest_box_distance AS "respNearestBoxDistance",

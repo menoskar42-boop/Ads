@@ -39,6 +39,7 @@ interface Row {
   address: string | null;
   // رد الفنى على المتعذر (om_responses) — نفس دورة الطلبات
   respStatus: string | null;
+  respIsFeasible: boolean | null;
   respRejectionReason: string | null;
   respCentralName: string | null;
   respCabinNumber: string | null;
@@ -107,6 +108,7 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
   const [respFilter, setRespFilter] = useState("");
   // فلتر مستقل لرد الشئون الخارجية بنفس خيارات فلتر رد الفني، لكنه يعتمد على رد الخارجية فقط.
   const [externalRespFilter, setExternalRespFilter] = useState("");
+  const [externalDiffOnly, setExternalDiffOnly] = useState(false);
   // فلتر «الشغال على البكس أقل من N» — بيظهر بس المتعذرات اللى البكس بتاعها عليه
   // أقل من العدد ده من الخطوط الشغّالة (الشغّال = الخط اللى ليه بورت).
   const [workingLt, setWorkingLt] = useState("");
@@ -424,9 +426,19 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
           r.respIsFeasibleExternal !== true && r.respStatus !== "external_feasible") return false;
       if (externalRespFilter && externalRespFilter !== "pending" && externalRespFilter !== "feasible" &&
           r.respExternalRejectionReason !== externalRespFilter) return false;
+      if (externalDiffOnly) {
+        // المقارنة تخص الصفوف التي لها ردّان فعليان؛ اختلاف قرار الإمكانية أو سبب الرفض
+        // عند كون الردّين «لا يمكن» يعتبر اختلافاً.
+        if (!r.respRespondedAt || !r.respExternalResponseAt ||
+            r.respIsFeasible == null || r.respIsFeasibleExternal == null) return false;
+        if (r.respIsFeasible === r.respIsFeasibleExternal &&
+            (r.respIsFeasible || (r.respRejectionReason || "").trim() === (r.respExternalRejectionReason || "").trim())) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [rows, yearFilter, respFilter, externalRespFilter, workingLt, boxBrokenOnly, boxScoreLt]);
+  }, [rows, yearFilter, respFilter, externalRespFilter, externalDiffOnly, workingLt, boxBrokenOnly, boxScoreLt]);
 
   // «Re-Execute» على OSS Abnormal WO بالـ Service Order ID (المالك ٢٠٢٦-١٠-٠٧) — سوبر أدمن بس، فى
   // المتعذرات الحالية. بيعدّى على طابور التنفيذ؛ السكربت بيكتب الـ ID فى خانة «Service Order ID».
@@ -762,6 +774,17 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
             </select>
           )}
           {bucket === "current" && (
+            <Button
+              variant={externalDiffOnly ? "default" : "outline"}
+              size="sm"
+              onClick={() => setExternalDiffOnly((value) => !value)}
+              className={externalDiffOnly ? "bg-violet-700 hover:bg-violet-800" : "text-violet-700 border-violet-300"}
+              title="يعرض السجلات التي لها ردّان ويختلف فيها قرار الإمكانية أو سبب الرفض"
+            >
+              رد الخارجية مختلف عن الفني
+            </Button>
+          )}
+          {bucket === "current" && (
             <input
               type="number" min={0} value={workingLt}
               onChange={(e) => setWorkingLt(e.target.value)}
@@ -786,9 +809,9 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
           <label className="text-xs text-muted-foreground whitespace-nowrap">إلى:</label>
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
             className="border rounded-md text-sm px-2 py-1.5 bg-white" />
-          {(msanFilter || fccFilter || techFilter || respFilter || externalRespFilter || workingLt || boxBrokenOnly || boxScoreLt || dateFrom || dateTo) && (
+          {(msanFilter || fccFilter || techFilter || respFilter || externalRespFilter || externalDiffOnly || workingLt || boxBrokenOnly || boxScoreLt || dateFrom || dateTo) && (
             <button
-              onClick={() => { setMsanFilter(""); setFccFilter(""); setTechFilter(""); setRespFilter(""); setExternalRespFilter(""); setWorkingLt(""); setBoxBrokenOnly(false); setBoxScoreLt(""); setDateFrom(""); setDateTo(""); }}
+              onClick={() => { setMsanFilter(""); setFccFilter(""); setTechFilter(""); setRespFilter(""); setExternalRespFilter(""); setExternalDiffOnly(false); setWorkingLt(""); setBoxBrokenOnly(false); setBoxScoreLt(""); setDateFrom(""); setDateTo(""); }}
               className="text-xs text-red-500 hover:text-red-700 underline whitespace-nowrap"
             >مسح الفلاتر</button>
           )}
