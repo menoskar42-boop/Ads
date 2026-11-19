@@ -5,14 +5,6 @@
  * كل واحدة بتتسجّل مرة واحدة بس (map_key)، فلو اتعدّلت أو اتمسحت من الشاشة مابترجعش.
  */
 export interface SeedMap { key: string; central: string; cabinet: string; title: string; images: { file: string; caption: string }[] }
-export const DWG_SEED_MAPS: SeedMap[] = [
-  ...["1-1", "1-2", "2-1", "2-2", "3-1", "3-2"].map((c) => ({
-    key: `dergndla-${c.replace("-", ".")}`, central: "دير الجنادلة", cabinet: c.replace("-", "."),
-    title: `ELECTRIC SECONDARY DIAGRAM — دير الجنادلة ${c}`,
-    images: [{ file: `dergndla/sec-${c}.webp`, caption: `الشبكة الثانوية — كابينة ${c} (من ملف الأوتوكاد ${c}DRGNDEL.dwg)` }],
-  })),
-  {
-    key: "dergndla-primary", central: "دير الجنادلة", cabinet: "الشبكة الابتدائية", title: "ELECTRIC PRIMARY DIAGRAM — دير الجنادلة",
-    images: [1, 2, 3].map((n) => ({ file: `dergndla/primary-${n}.webp`, caption: `الشبكة الابتدائية C NO:${n} (من ملف الأوتوكاد CABLE-${n}.dwg)` })),
-  },
-];
+// ٢٠٢٦-١١-١٩: المستودع عام ⇒ صور الخرايط بقت بتروح R2 عن طريق /api/cfm/maps/import (scripts/dwg-maps/upload.js)،
+// مش من ملفات فى المستودع. القايمة فاضية وفاضل الشكل بس لو احتجنا صورة صغيرة من الكود تانى.
+export const DWG_SEED_MAPS: SeedMap[] = [];

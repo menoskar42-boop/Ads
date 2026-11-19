@@ -2341,6 +2341,9 @@ export async function ensureSchema() {
         uploaded_by text,
         created_at timestamp NOT NULL DEFAULT now()
       );
+      -- ٢٠٢٦-١١-١٩: صور خرايط الأوتوكاد على R2 (المالك: «يتخزنوا فى r2») — البايتات فى القاعدة بتبقى فاضية
+      ALTER TABLE cfm_map_images ADD COLUMN IF NOT EXISTS storage_key text;
+      ALTER TABLE cfm_map_images ALTER COLUMN bytes DROP NOT NULL;
     `);
   } catch (e) {
     console.error("[ensureSchema] CFM tables error:", (e as Error).message);

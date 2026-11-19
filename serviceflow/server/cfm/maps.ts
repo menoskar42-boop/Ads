@@ -5,6 +5,8 @@
 // ============================================================================
 import type { Express, Request, Response, NextFunction } from "express";
 import { readFile } from "fs/promises";
+import { timingSafeEqual } from "crypto";
+import { r2Client } from "../presentation-maint-photos";
 import { join } from "path";
 import { pool } from "../db";
 import { GHANAYEM_6_7, GHANAYEM_6_7_KEY } from "@shared/cfm-maps/ghanayem-6-7";
@@ -59,11 +61,26 @@ async function seedDwgMaps(): Promise<void> {
   }
 }
 
+/**
+ * تصحيح الغنايم 6.7 (المالك ٢٠٢٦-١١-١٩ «ايوه صلح»): وصلة 22 ← بكس 27 = ١٢ م (ملف الأوتوكاد) مش ١٨ (القراية من الصورة).
+ * الخريطة فى القاعدة من ١٢ نوفمبر، فالتصحيح بيتعمل عليها مرة واحدة — لو حد عدّل الطول لرقم تانى مابنلمسوش.
+ */
+export async function patchGhanayem67(): Promise<boolean> {
+  const r = (await pool.query(`SELECT id, data FROM cfm_maps WHERE map_key = $1`, [GHANAYEM_6_7_KEY])).rows[0];
+  const segs: any[] = Array.isArray(r?.data?.segments) ? r.data.segments : [];
+  const s = segs.find((x) => x && x.from === "J22" && x.to === "B27" && Number(x.lengthM) === 18);
+  if (!r || !s) return false;
+  s.lengthM = 12;
+  s.notes = [s.notes, "١٢ م من ملف الأوتوكاد Scd6.7.dwg (الصورة كانت اتقرت ١٨) — المالك ٢٠٢٦-١١-١٩"].filter(Boolean).join(" · ");
+  await pool.query(`UPDATE cfm_maps SET data = $2, updated_by = 'تصحيح من ملف الأوتوكاد', updated_at = now() WHERE id = $1`, [r.id, JSON.stringify(r.data)]);
+  return true;
+}
+
 /** خريطة الغنايم 6.7 (اتفرّغت من صورة المالك) — بتتسجّل مرة واحدة بس، والتعديلات بعد كده فى القاعدة */
 export async function seedCfmMaps(): Promise<void> {
   await seedDwgMaps();
   const ex = await pool.query(`SELECT id FROM cfm_maps WHERE map_key = $1`, [GHANAYEM_6_7_KEY]);
-  if (ex.rowCount) return;
+  if (ex.rowCount) { await patchGhanayem67(); return; }
   const ins = await pool.query(
     `INSERT INTO cfm_maps (map_key, central, cabinet, title, data, updated_by)
      VALUES ($1, $2, $3, $4, $5, 'تفريغ أولى من الصورة') ON CONFLICT (map_key) DO NOTHING RETURNING id`,
@@ -113,12 +130,20 @@ export function registerCfmMapRoutes(app: Express, requireAuth: Mw) {
 
   app.get("/api/cfm/maps/:id/images/:imageId", requireAuth, async (req, res) => {
     try {
-      const r = (await pool.query(`SELECT mime, bytes FROM cfm_map_images WHERE id = $1 AND map_id = $2`,
+      const r = (await pool.query(`SELECT mime, bytes, storage_key FROM cfm_map_images WHERE id = $1 AND map_id = $2`,
         [Number(req.params.imageId), Number(req.params.id)])).rows[0];
       if (!r) return res.status(404).end();
+      let bytes: Buffer | null = r.bytes ? Buffer.from(r.bytes) : null;
+      if (!bytes && r.storage_key) {
+        const c = r2Client();
+        if (!c.isConfigured()) return res.status(503).json({ error: "تخزين R2 مش متظبط" });
+        const obj = await c.getObject(r.storage_key);
+        bytes = obj?.body?.length ? obj.body : null;
+      }
+      if (!bytes) return res.status(404).end();
       res.setHeader("Content-Type", r.mime);
       res.setHeader("Cache-Control", "private, max-age=86400");
-      res.end(r.bytes);
+      res.end(bytes);
     } catch { res.status(500).end(); }
   });
 
@@ -151,6 +176,46 @@ export function registerCfmMapRoutes(app: Express, requireAuth: Mw) {
     } catch (e) { res.status(500).json({ error: (e as Error).message }); }
   });
 
+  /**
+   * استيراد خرايط الأوتوكاد كصور على R2 (المالك ٢٠٢٦-١١-١٩: «صور برده بجوار الكهربى ويتخزنوا فى r2» · «خرايط الغنايم: خلص كله»).
+   * المستودع عام، فالصور مابتعدّيش على GitHub: كلود بيبعتها هنا مباشرة بتوكن (سرّ CFM_MAP_IMPORT_TOKEN فى ريبليت).
+   * من غير السرّ ده المسار مقفول (404). صورة واحدة لكل طلب؛ نفس الاسم (name) بيستبدل القديمة. الخريطة بتتعمل لو مش موجودة
+   * (map_key) — والتفريغ بتاعها مابيتلمسش.
+   */
+  app.post("/api/cfm/maps/import", async (req: any, res) => {
+    const want = String(process.env.CFM_MAP_IMPORT_TOKEN || "");
+    const got = String(req.get("x-cfm-import-token") || "");
+    if (want.length < 24 || got.length !== want.length || !timingSafeEqual(Buffer.from(got), Buffer.from(want))) return res.status(404).end();
+    const b = req.body || {};
+    const key = String(b.key || "").trim();
+    const name = String(b.name || "").trim();
+    if (!/^[a-z0-9][a-z0-9.\-]{1,80}$/i.test(key) || !/^[a-z0-9][a-z0-9.\-_]{1,80}$/i.test(name)) return res.status(400).json({ error: "key/name" });
+    const mime = String(b.mime || "image/webp");
+    if (!IMAGE_MIMES.has(mime)) return res.status(400).json({ error: "mime" });
+    const bytes = Buffer.from(String(b.base64 || ""), "base64");
+    if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) return res.status(400).json({ error: "size" });
+    const c = r2Client();
+    if (!c.isConfigured()) return res.status(503).json({ error: "تخزين R2 مش متظبط" });
+    try {
+      const central = String(b.central || "").slice(0, 100), cabinet = String(b.cabinet || "").slice(0, 50), title = String(b.title || "").slice(0, 300);
+      let id = (await pool.query(`SELECT id FROM cfm_maps WHERE map_key = $1`, [key])).rows[0]?.id;
+      if (!id) {
+        const data: CableMapData = { meta: { central, cabinet, title }, segments: [], boxes: [], spares: [], markers: [], notes: [] };
+        id = (await pool.query(
+          `INSERT INTO cfm_maps (map_key, central, cabinet, title, data, updated_by) VALUES ($1, $2, $3, $4, $5, 'صورة من ملف الأوتوكاد')
+           ON CONFLICT (map_key) DO UPDATE SET map_key = EXCLUDED.map_key RETURNING id`,
+          [key, central || null, cabinet || null, title || null, JSON.stringify(data)])).rows[0].id;
+      }
+      const storageKey = `cfm-maps/${key}/${name}`;
+      await c.putObject(storageKey, bytes, mime);
+      const caption = String(b.caption || "").slice(0, 300) || null;
+      await pool.query(`DELETE FROM cfm_map_images WHERE map_id = $1 AND (storage_key = $2 OR (storage_key IS NULL AND caption = $3))`, [id, storageKey, caption]);
+      const r = await pool.query(`INSERT INTO cfm_map_images (map_id, caption, mime, bytes, storage_key, uploaded_by) VALUES ($1, $2, $3, NULL, $4, 'ملفات الأوتوكاد') RETURNING id`,
+        [id, caption, mime, storageKey]);
+      res.json({ ok: true, mapId: id, imageId: r.rows[0].id, size: bytes.length });
+    } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  });
+
   // صورة للخريطة (أجزاء الخريطة اللى المالك بيصوّرها) — base64 فى JSON
   app.post("/api/cfm/maps/:id/images", requireAuth, async (req: any, res) => {
     if (!canEdit(req)) return res.status(403).json({ error: "للأدمن ومهندس الكوابل والمشرف بس" });
@@ -168,7 +233,9 @@ export function registerCfmMapRoutes(app: Express, requireAuth: Mw) {
   app.delete("/api/cfm/maps/:id/images/:imageId", requireAuth, async (req: any, res) => {
     if (!canEdit(req)) return res.status(403).json({ error: "للأدمن ومهندس الكوابل والمشرف بس" });
     try {
-      await pool.query(`DELETE FROM cfm_map_images WHERE id = $1 AND map_id = $2`, [Number(req.params.imageId), Number(req.params.id)]);
+      const gone = await pool.query(`DELETE FROM cfm_map_images WHERE id = $1 AND map_id = $2 RETURNING storage_key`, [Number(req.params.imageId), Number(req.params.id)]);
+      const sk = gone.rows[0]?.storage_key;
+      if (sk) { try { const c = r2Client(); if (c.isConfigured()) await c.deleteObject(sk); } catch {} }
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ error: (e as Error).message }); }
   });

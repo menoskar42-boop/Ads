@@ -17,7 +17,7 @@ const T = (name: string) => `${SCHEMA}.${name}`;
 // نفس طريقة routes.ts مع d1-hierarchy.js: CommonJS غير مبنْدَل جنب ملف الدخول (server/ فى dev، dist/ فى prod)
 const requireCjs = createRequire(typeof __filename !== "undefined" ? __filename : `${process.cwd()}/server/routes.ts`);
 let r2: any = null;
-function r2Client() {
+export function r2Client() {
   if (!r2) r2 = requireCjs("./maintenance/app/utils/r2.js");
   return r2;
 }

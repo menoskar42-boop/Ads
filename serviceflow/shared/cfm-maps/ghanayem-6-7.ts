@@ -239,10 +239,11 @@ export const GHANAYEM_6_7: CableMapData = {
     {
       "from": "J22",
       "to": "B27",
-      "lengthM": 18,
+      "lengthM": 12,
       "pairs": 10,
       "gaugeMm": 0.4,
-      "cablePairs": "11-20"
+      "cablePairs": "11-20",
+      "notes": "١٢ م من ملف الأوتوكاد Scd6.7.dwg (الصورة كانت اتقرت ١٨) — المالك ٢٠٢٦-١١-١٩"
     },
     {
       "from": "J22",

@@ -306,7 +306,8 @@ export const cfmMapImages = pgTable("cfm_map_images", {
   mapId: integer("map_id").notNull().references(() => cfmMaps.id, { onDelete: "cascade" }),
   caption: text("caption"),
   mime: text("mime").notNull(),
-  bytes: bytea("bytes").notNull(),
+  bytes: bytea("bytes"),                        // ٢٠٢٦-١١-١٩: فاضى لو الصورة على R2 (storage_key)
+  storageKey: text("storage_key"),              // «cfm-maps/<map_key>/<اسم>» على R2 — خرايط الأوتوكاد
   uploadedBy: text("uploaded_by"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

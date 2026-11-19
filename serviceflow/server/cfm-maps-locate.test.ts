@@ -116,7 +116,6 @@ test("2026-11-19: a ticket picks the map of its own exchange; image-only maps (n
 test("2026-11-19: every DWG map image in the seed list exists and is a WebP", async () => {
   const { readFileSync } = await import("node:fs");
   const { DWG_SEED_MAPS } = await import("./cfm/maps-seed-list");
-  assert.ok(DWG_SEED_MAPS.length >= 7);
   for (const m of DWG_SEED_MAPS) for (const img of m.images) {
     const b = readFileSync(new URL("./cfm/maps-seed/" + img.file, import.meta.url));
     assert.equal(b.subarray(8, 12).toString(), "WEBP", img.file);
@@ -131,4 +130,18 @@ test("2026-11-19: the maps list has a central → cabinet → box search filter 
   assert.match(page, /data-testid="maps-filter"/);
   for (const p of ["كل السنترالات", "كل الكباين", "كل البكسيات"]) assert.ok(page.includes(p), p);
   assert.match(srv, /AS "boxList"/, "قايمة البكسيات بتيجى مع كل خريطة عشان فلتر البكس");
+});
+
+test("2026-11-19: DWG map images go to R2 through a token-only import (the repo is public); 6.7 J22→B27 = 12 m", async () => {
+  const { readFileSync } = await import("node:fs");
+  const srv = readFileSync(new URL("./cfm/maps.ts", import.meta.url), "utf8");
+  const db = readFileSync(new URL("./db.ts", import.meta.url), "utf8");
+  assert.match(srv, /app\.post\("\/api\/cfm\/maps\/import"/);
+  assert.match(srv, /CFM_MAP_IMPORT_TOKEN/);
+  assert.match(srv, /want\.length < 24 \|\| got\.length !== want\.length \|\| !timingSafeEqual/, "من غير السرّ ⇒ ٤٠٤");
+  assert.match(srv, /storage_key/);
+  assert.match(db, /ALTER TABLE cfm_map_images ADD COLUMN IF NOT EXISTS storage_key text/);
+  assert.match(db, /ALTER TABLE cfm_map_images ALTER COLUMN bytes DROP NOT NULL/);
+  const seg = M.segments.find((s) => s.from === "J22" && s.to === "B27");
+  assert.equal(seg?.lengthM, 12);
 });
