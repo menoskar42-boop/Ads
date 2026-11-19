@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { DEUTEROCANONICAL_BOOKS } from '@/lib/group-auto-reading';
+import { DEUTEROCANONICAL_BOOKS, DEUTERO_SOURCE_IDS, isDeuteroChapter } from '@/lib/group-auto-reading';
 import { apocryphaBooks } from '@/lib/apocrypha-content';
 import { fetchBookIntro, fetchVerseTafsir, fetchChapterTafsir } from '@/lib/tafsir-csv-service';
 import { postReading } from '@/lib/reading-queue';
@@ -110,6 +110,13 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
   useEffect(() => {
     const loadVerses = async () => {
       try {
+        // دانيال ١٣–١٤ (تتمة، مش فى فاندايك) ⇒ النسخة المحفوظة من St-Takla
+        if (!isDeutero && isDeuteroChapter(currentBook, currentChapter) && DEUTERO_SOURCE_IDS[currentBook]) {
+          const d = await api.deuteroSource.getLocalChapter(DEUTERO_SOURCE_IDS[currentBook], currentChapter).catch(() => null);
+          setVerses((d?.verses || []).map(v => ({ id: `${currentBook}-${currentChapter}-${v.verse}`, verse: v.verse, text: v.text })));
+          setLoading(false);
+          return;
+        }
         if (isDeutero) {
           const ch = apocryphaBook?.chapters.find(c => c.chapter === currentChapter);
           setVerses((ch?.verses || []).map(v => ({ id: `${currentBook}-${currentChapter}-${v.verse}`, verse: v.verse, text: v.text })));

@@ -5,7 +5,7 @@ import { Users, BookOpen, BarChart3, MessageCircle, Settings, Check, X, Copy, Lo
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTodayStr } from '@/hooks/useTodayStr';
-import { OT_BOOKS, NT_BOOKS, OT_FLAT, NT_FLAT, getAutoReadingForDate, todayStr, findFlatIndex, DEUTEROCANONICAL_BOOKS, DEUTERO_SOURCE_IDS, type AutoReadingConfig } from '@/lib/group-auto-reading';
+import { OT_BOOKS, NT_BOOKS, OT_FLAT, NT_FLAT, getAutoReadingForDate, todayStr, findFlatIndex, DEUTERO_SOURCE_IDS, isDeuteroChapter, type AutoReadingConfig } from '@/lib/group-auto-reading';
 import { apocryphaBooks } from '@/lib/apocrypha-content';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -142,7 +142,8 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
 
   // الأسفار القانونية الثانية تُقرأ من مصدر St-Takla المباشر، لا من جدول الكتب
   // الأساسي. نحتفظ ببيانات apocryphaBook فقط لمعرفة عدد الإصحاحات عند التنقل.
-  const isDeutero = DEUTEROCANONICAL_BOOKS.has(currentBook);
+  // + دانيال ١٣–١٤ (تتمة) — نفس طريق الأسفار القانونية التانية
+  const isDeutero = isDeuteroChapter(currentBook, currentChapter);
   const apocryphaBook = isDeutero ? apocryphaBooks.find(b => b.name === currentBook) : undefined;
 
   // Build navigation schedule (cross-testament: {book,chapter}[])
@@ -1484,7 +1485,7 @@ export default function GroupView() {
         const dateStr = d.toISOString().slice(0, 10);
         const dayReading = getAutoReadingForDate(arc, dateStr);
         for (const ch of [...dayReading.ot, ...dayReading.nt]) {
-          if (DEUTEROCANONICAL_BOOKS.has(ch.book)) continue; // embedded locally
+          if (isDeuteroChapter(ch.book, ch.chapter)) continue; // embedded locally
           const book = (allBooks as any[]).find((b: any) => b.name === ch.book);
           if (book) urlsToCache.push(`/api/verses/book/${book.id}?chapter=${ch.chapter}`);
           const csvName = getCSVFileName(ch.book);

@@ -48,3 +48,22 @@ it("المزمور 151 (رقم 151 عندنا) من الملف الإضافى �
   // الأسفار السبعة زى ما هى
   assert.equal(localDeuteroChapter(67, 1).ok, true);
 });
+
+it("2026-11-19: Daniel 13-14 (Susanna, Bel) come from the saved St-Takla text and the group schedule has Daniel = 14", async () => {
+  const { localDeuteroChapter: real, _setLocalDeuteroFileForTest } = await import("./deutero-local");
+  const path = await import("node:path");
+  _setLocalDeuteroFileForTest(path.join(process.cwd(), "data", "deutero", "sttakla-1877.json"), path.join(process.cwd(), "data", "deutero", "sttakla-extra.json"));
+  const c13: any = real(132, 13), c14: any = real(132, 14);
+  assert.equal(c13.ok, true); assert.equal(c13.verses.length, 65);
+  assert.equal(c14.ok, true); assert.equal(c14.verses.length, 42);
+  const g = await import("../client/src/lib/group-auto-reading");
+  assert.ok(g.OT_BOOKS.some(([n, c]) => n === "دانيال" && c === 14));
+  assert.equal(g.isDeuteroChapter("دانيال", 13), true);
+  assert.equal(g.isDeuteroChapter("دانيال", 12), false);
+  assert.equal(g.DEUTERO_SOURCE_IDS["دانيال"], 132);
+  // جروب مار مرقس: ١٩ نوفمبر = دانيال ١٣ · ١٤ · هوشع ١ (المالك ٢٠٢٦-١١-١٩)
+  const day = g.getAutoReadingForDate({ enabled: true, baseDate: "2026-06-12", ntStartIndex: 128, otStartIndex: 528, ntChaptersPerDay: 1, otChaptersPerDay: 3 }, "2026-11-19");
+  assert.deepEqual(day.ot.map((c) => `${c.book} ${c.chapter}`), ["دانيال 13", "دانيال 14", "هوشع 1"]);
+  const push = (await import("node:fs")).readFileSync(path.join(process.cwd(), "server", "push-notifications.ts"), "utf8");
+  assert.match(push, /\["دانيال",14\]/, "الإشعارات على نفس الجدول");
+});
