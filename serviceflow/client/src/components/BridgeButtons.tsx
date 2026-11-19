@@ -16,10 +16,12 @@ import { ROLES } from "@shared/schema";
 import { BASE } from "@/lib/base-path";
 
 const STATE_URL = "/api/exec-queue/bridge/state";
-/** جوجل فى Edge + علامة لسكربت «افتح الجسر (تنضيف تابات جوجل)»: يقفل تابات جوجل القديمة ويفتح Service Flow جنبه. */
+/** Edge على صفحة «بيفتح الجسر» (بتستنى Tampermonkey يجهز ٤ ثوانى) وبعدين جوجل + علامة لسكربت «افتح الجسر (تنضيف تابات جوجل)»:
+ *  يقفل تابات جوجل وService Flow القديمة ويفتح Service Flow جنبه. (٢٠٢٦-١١-١٩: لما Edge بيفتح من الأول جوجل كان بيحمّل قبل الإضافات
+ *  فالجسر مابيشتغلش.) */
 export function edgeUrl(origin: string, base: string, now = Date.now()): string {
-  const sf = origin.replace(/\/+$/, "") + (base || "/serviceflow");
-  return `microsoft-edge:https://www.google.com.eg/#sf_reset=${now}&sf=${encodeURIComponent(sf)}`;
+  const root = origin.replace(/\/+$/, "") + (base || "/serviceflow");
+  return `microsoft-edge:${root}/edge-start?t=${now}&sf=${encodeURIComponent(root)}`;
 }
 
 type BridgeState = { stopped: boolean; enabled: boolean; seenSec: number | null; device: string | null };

@@ -3077,6 +3077,23 @@ export async function registerRoutes(
       [USERSCRIPTS_KEY, k]);
     return k;
   }
+  // «افتح الجسر» من Chrome (المالك ٢٠٢٦-١١-١٩): Edge لما بيفتح من الأول، أول صفحة بتحمّل قبل ما Tampermonkey يجهز ⇒ جوجل
+  // بيفتح والجسر مابيشتغلش. فالزرار بيفتح الصفحة الصغيرة دى الأول: بتستنى ٤ ثوانى (الإضافات تجهز) وبعدين تروح لجوجل بنفس
+  // العلامة اللى سكربت «افتح الجسر (تنضيف تابات جوجل)» بيقراها. مفيش تحويل لأى عنوان تانى: جوجل بس، وعنوان Service Flow متأكد منه.
+  app.get("/edge-start", (req, res) => {
+    const t = /^\d{10,15}$/.test(String(req.query.t || "")) ? String(req.query.t) : String(Date.now());
+    const sfRaw = String(req.query.sf || "");
+    const sf = /^https:\/\/(oscardevs\.com|serviceflow\.oscardevs\.com|sf-menoskar42\.replit\.app)\/serviceflow\/?$/.test(sfRaw) ? sfRaw : "";
+    const google = `https://www.google.com.eg/#sf_reset=${t}` + (sf ? `&sf=${encodeURIComponent(sf)}` : "");
+    const g = JSON.stringify(google).replace(/</g, "\\u003c");
+    res.set("Cache-Control", "no-store").set("X-Robots-Tag", "noindex").type("html").send(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>بيفتح الجسر…</title>
+<style>body{font-family:system-ui,Tahoma,sans-serif;background:#f8fafc;color:#0f172a;display:grid;place-items:center;min-height:100vh;margin:0}
+.c{text-align:center;padding:24px}a{color:#047857}</style></head><body><div class="c"><h1 style="font-size:22px">⏳ بيفتح جوجل والجسر…</h1>
+<p>ثوانى لحد ما Tampermonkey يجهز. <a id="go" href="#">افتح دلوقتى</a></p></div>
+<script>(function(){var u=${g};document.getElementById("go").href=u;setTimeout(function(){location.replace(u)},4000);})();</script></body></html>`);
+  });
+
   app.get("/userscripts/:key/:file", async (req, res) => {
     try {
       const { readScript, withUpdateUrls, metaOnly, linksFor, DEPRECATED } = await import("./userscripts");
