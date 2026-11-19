@@ -145,3 +145,11 @@ test('«أوسكار» لوحده ⇒ ينتبه، والأمر اللى بعد�
   assert.equal(R.parseVoice('', true), null);
   assert.equal(R.WAKE_WINDOW_MS, 8000);
 });
+
+test('اللى لسه متسجّل مايتقالش «قدامك مطب» دقيقتين (زى RoadMemory.skipJustMarked)', () => {
+  const R = require('../drive-web/road.js');
+  const here = { uuid: 'a', type: 'bump', lat: 30, lng: 31 }, far = { uuid: 'b', type: 'bump', lat: 30.002, lng: 31 };
+  assert.deepEqual(R.skipJustMarked([here, far], { lat: 30, lng: 31, at: 1000 }, 31000).map((h) => h.uuid), ['b']);
+  assert.equal(R.skipJustMarked([here, far], { lat: 30, lng: 31, at: 1000 }, 1000 + R.JUST_MARKED_MS + 1).length, 2);
+  assert.equal(R.skipJustMarked([here, far], null, 5000).length, 2);
+});

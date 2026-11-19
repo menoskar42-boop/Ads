@@ -623,7 +623,8 @@
     let kmh = f.kmh;
     if (kmh == null && prevFix && prevFix !== f && f.t > prevFix.t) kmh = RD.distanceM(prevFix.lat, prevFix.lng, f.lat, f.lng) / ((f.t - prevFix.t) / 1000) * 3.6;
     const test = $('testMode').checked;
-    const pool = test ? hz.filter((h) => h.test) : hz;
+    // اللى لسه متسجّل تحت الموبايل مايتقالش «قدامك مطب» (المالك ٢٠٢٦-١١-١٩) — RD.skipJustMarked زى الشاشة
+    const pool = RD.skipJustMarked(test ? hz.filter((h) => h.test) : hz, justMarked, Date.now());
     if (alertWatch !== null) { speedCheck(kmh); breakCheck(kmh); }
     const hit = alertWatch !== null ? RD.ahead(pool, f.lat, f.lng, roadHeading, kmh || 0, Date.now(), warnedRoad,
       { test, minWarnM: +$('warnDist').value || 100, minKmh: $('quietSlow').checked ? RD.C.QUIET_KMH : RD.C.STOPPED_KMH }) : null;
@@ -650,8 +651,10 @@
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
     $('alertBtn').textContent = '⏹ وقّف التنبيهات'; $('alertBtn').className = 'primary';
   });
+  let justMarked = null;   // آخر «سجّل مطب/حفرة/…» من الموبايل ده {lat,lng,at}
   async function markRoad(type) {
     const go = async (f) => {
+      justMarked = { lat: f.lat, lng: f.lng, at: Date.now() };
       const moving = (f.kmh || 0) >= 10;
       const test = $('testMode').checked;
       try {

@@ -41,6 +41,10 @@ class DriveService : Service() {
         /** «وضع المقارنة»: جودة الـGPS فى آخر دقيقة (قراءات/ث · متوسط الدقة) — بتتبعت مع «🩺 فحص الشاشة». */
         val gpsStats = com.oscardevs.oscardrive.logic.GpsStats()
         @Volatile var running = false
+        /** آخر «سجّل مطب/حفرة/…» من الشاشة — التنبيه بيسكت عن اللى حواليه دقيقتين (RoadMemory.skipJustMarked). */
+        @Volatile var markedLat: Double? = null
+        @Volatile var markedLng: Double? = null
+        @Volatile var markedAt = 0L
         @Volatile var gpsEnabled = true
         @Volatile var speedKmh: Float? = null
         @Volatile var limitKmh = 90
@@ -398,7 +402,9 @@ class DriveService : Service() {
         }
         val minKmh = if (prefs.quietSlow) RoadMemory.QUIET_SLOW_KMH else RoadMemory.STOPPED_KMH
         val heading = if (fromPhone) (f.headingDeg ?: trip.headingDeg) else trip.headingDeg
-        val hit = RoadMemory.ahead(hazards, lat, lng, heading, kmh, now, warned,
+        // اللى لسه متسجّل تحت العربية مايتقالش «قدامك مطب» (المالك ٢٠٢٦-١١-١٩)
+        val pool = RoadMemory.skipJustMarked(hazards, State.markedLat, State.markedLng, State.markedAt, now)
+        val hit = RoadMemory.ahead(pool, lat, lng, heading, kmh, now, warned,
             minKmh = minKmh, minWarnM = prefs.bumpWarnM.toDouble(),
             altitudeM = if (fromPhone) null else State.altitudeM, vAccM = State.vAccM) ?: return
         warned[RoadMemory.warnKey(hit.first, hit.second, kmh)] = now

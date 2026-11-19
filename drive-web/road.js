@@ -208,6 +208,12 @@
       return { name, lat, lng };
     }).filter(Boolean);
   }
-  const api = { wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  /** نفس RoadMemory.skipJustMarked: اللى حوالين آخر تسجيل (٦٠ م) مايتنبّهش دقيقتين — كان بيقول «قدامك مطب» على اللى لسه متسجّل. */
+  const JUST_MARKED_MS = 120000, JUST_MARKED_M = 60;
+  function skipJustMarked(list, mark, now) {
+    if (!mark || !mark.at || now - mark.at > JUST_MARKED_MS) return list;
+    return list.filter((h) => distanceM(mark.lat, mark.lng, h.lat, h.lng) > JUST_MARKED_M);
+  }
+  const api = { skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -157,6 +157,16 @@ object RoadMemory {
             .map { it.id to altitudeM }
     }
 
+    /**
+     * باج (المالك ٢٠٢٦-١١-١٩): «لما بسجّل مطب، قبل ما يقول اتسجّل مطب يقول على طول قدامك مطب» — المطب اللى لسه متسجّل
+     * (أو اللى كان متسجّل فى نفس المكان) بيبقى تحت العربية بالظبط فالتنبيه بيمسكه. فاللى حوالين آخر تسجيل (٦٠ م) بيتسكّت دقيقتين.
+     */
+    const val JUST_MARKED_MS = 120_000L
+    const val JUST_MARKED_M = 60.0
+    fun skipJustMarked(hazards: List<Hazard>, markLat: Double?, markLng: Double?, markAt: Long, now: Long): List<Hazard> =
+        if (markLat == null || markLng == null || markAt <= 0L || now - markAt > JUST_MARKED_MS) hazards
+        else hazards.filter { Geo.distanceM(markLat, markLng, it.lat, it.lng) > JUST_MARKED_M }
+
     /** نفس النوع مسجّل فى نفس المكان تقريباً ⇒ مانكرّرهوش. */
     fun duplicateOf(hazards: List<Hazard>, type: HazardType, lat: Double, lng: Double): Hazard? =
         hazards.firstOrNull { it.type == type && Geo.distanceM(lat, lng, it.lat, it.lng) <= DUPLICATE_M }

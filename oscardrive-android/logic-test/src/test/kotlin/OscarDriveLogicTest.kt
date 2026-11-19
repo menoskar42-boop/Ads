@@ -62,6 +62,16 @@ class TripTest {
 }
 
 class RoadMemoryTest {
+    @Test fun justMarkedHazardIsNotAnnounced() {
+        // المالك ٢٠٢٦-١١-١٩: بعد «سجّل مطب» مايقولش «قدامك مطب» على نفس المطب
+        val here = Hazard(1, HazardType.BUMP, LAT0, LNG0, null)
+        val far = Hazard(2, HazardType.BUMP, LAT0 + 0.002, LNG0, null)   // ~٢٢٠ م
+        val kept = RoadMemory.skipJustMarked(listOf(here, far), LAT0, LNG0, 1_000L, 1_000L + 30_000L)
+        assertEquals(listOf(2L), kept.map { it.id })
+        assertEquals(2, RoadMemory.skipJustMarked(listOf(here, far), LAT0, LNG0, 1_000L, 1_000L + RoadMemory.JUST_MARKED_MS + 1).size)
+        assertEquals(2, RoadMemory.skipJustMarked(listOf(here, far), null, null, 0L, 5_000L).size)
+    }
+
     private val bump = Hazard(1, HazardType.BUMP, north(120.0), LNG0, 0f)
     @Test fun warnsAheadOnly() {
         val r = RoadMemory.ahead(listOf(bump), LAT0, LNG0, 0f, 50f, 0, emptyMap())

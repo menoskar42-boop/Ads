@@ -1003,6 +1003,8 @@ class MainActivity : Activity() {
     private fun markHazard(t: HazardType) {
         val (lat, lng) = needHere() ?: return
         val s = DriveService.State
+        // التنبيه يسكت عن المكان ده دقيقتين — المطب الجديد (أو المتسجّل قبل كده هنا) تحت العربية بالظبط
+        s.markedLat = lat; s.markedLng = lng; s.markedAt = System.currentTimeMillis()
         if (RoadMemory.duplicateOf(db.hazards(), t, lat, lng) != null) { oscar("already_saved", "${t.ar} متسجّل هنا قبل كده"); return }
         val moving = (s.speedKmh ?: 0f) >= 10f
         db.addHazard(t, lat, lng, if (moving) s.headingDeg else null, s.accuracyM, s.altitudeM)
