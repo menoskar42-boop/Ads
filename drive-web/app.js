@@ -63,6 +63,7 @@
     if (!token) { $('mainView').hidden = true; startSolo(); }
     $('pairView').hidden = true;
     $('mainView').hidden = !token;
+    dvSync();
     const ios = /iphone|ipad/i.test(navigator.userAgent) && !(window.navigator.standalone || matchMedia('(display-mode: standalone)').matches);
     $('iosHint').hidden = !ios;
     if (!token) { $('conn').textContent = 'مش مربوط'; $('conn').className = 'chip'; clearInterval(timer); return; }
@@ -637,6 +638,7 @@
       beepRoad(); sayRoad(msg);
     }
     renderRoad();
+    dvFix(f, kmh, nearest);
   }
   $('alertBtn').addEventListener('click', () => {
     if (alertWatch !== null) { navigator.geolocation.clearWatch(alertWatch); alertWatch = null; $('alertBtn').textContent = '🔔 نبّهنى بالمطبات'; $('alertBtn').className = ''; return; }
@@ -931,5 +933,90 @@
   document.addEventListener('click', onTouch);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && token) refresh(); keepAwake(); });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+  // ── 🚗 شاشة القيادة (المالك ٢٠٢٦-١١-١٩: «عاوز شاشة رئيسية زى شاشة السيارة تخلينى أقدر أستخدم الموبايل فى إمكانيات البرنامج
+  // بدون شاشة أو الشاشة عطلانة أو السيارة ليس بها شاشة») — نفس ترتيب MainActivity.driveTab: الشريط العلوى (GPS · الساعة · ابدأ/وقف)
+  // · السرعة الكبيرة وعلامة الحد −/+ · الاتجاه · الرحلة · أزرار كبيرة. الأزرار بتدوس نفس أزرار الصفحة (مفيش منطق مكرّر).
+  // المالك: «متشيلش حاجة من الموجود — خلّى الشاشة الرئيسية تفتح بزر من الشاشة الحالية» ⇒ الصفحة زى ما هى، وشاشة القيادة
+  // بتفتح بـ«🚗 شاشة القيادة» فوق وبتقفل بـ«✕ رجوع للصفحة». وبتلفّ مع الموبايل (طولى/عرضى) — CSS ‎@media (orientation).
+  let dvOpen = false;
+  let dvTrip = { m: 0, since: 0, last: null };
+  function dvSync() {
+    const on = !!token && dvOpen;
+    $('driveView').hidden = !on; $('dvBackBar').hidden = on || !token;
+    document.body.classList.toggle('dv-on', on);
+    dvUi();
+  }
+  const dvClose = () => { dvOpen = false; dvSync(); window.scrollTo(0, 0); };
+  $('dvFull').addEventListener('click', dvClose);
+  $('dvClose').addEventListener('click', dvClose);
+  $('dvBack').addEventListener('click', () => { dvOpen = true; dvSync(); keepAwake(); });
+  $('topShot').addEventListener('click', (ev) => { ev.stopPropagation(); $('shotBtn').click(); });
+  const DV_PROXY = { dvBump: 'markBump', dvPothole: 'markPothole', dvRadar: 'markRadar', dvDanger: 'markDanger', dvPark: 'parkPhone',
+    dvFuel: 'fuelBtn', dvShot: 'shotBtn', dvSos: 'sosBtn', dvMic: 'voiceBtn' };
+  for (const [a, b] of Object.entries(DV_PROXY)) $(a).addEventListener('click', (ev) => { ev.stopPropagation(); $(b).click(); setTimeout(dvUi, 50); });
+  $('dvMap').addEventListener('click', () => {
+    const f = lastFix;
+    window.open(f ? 'https://www.google.com/maps/search/?api=1&query=' + f.lat + ',' + f.lng : 'https://www.google.com/maps', '_blank', 'noopener');
+  });
+  // «ابدأ» = «🔔 نبّهنى بالمطبات» (الـGPS + تنبيه المطبات والسرعة والاستراحة) + عدّاد الرحلة من الأول
+  $('dvStart').addEventListener('click', () => {
+    $('alertBtn').click();
+    if (alertWatch !== null) dvTrip = { m: 0, since: Date.now(), last: null };
+    dvUi();
+  });
+  function dvLimit(step) {
+    const s = $('speedLimSel'), i = Math.max(0, Math.min(s.options.length - 1, s.selectedIndex + step));
+    if (i !== s.selectedIndex) { s.selectedIndex = i; s.dispatchEvent(new Event('change')); }
+    dvUi();
+  }
+  $('dvLimMinus').addEventListener('click', () => dvLimit(-1));
+  $('dvLimPlus').addEventListener('click', () => dvLimit(+1));
+  const DV_EN = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'], DV_AR = ['شمال', 'شمال شرق', 'شرق', 'جنوب شرق', 'جنوب', 'جنوب غرب', 'غرب', 'شمال غرب'];
+  let dvKmh = null, dvNearM = null;
+  function dvFix(f, kmh, nearest) {
+    dvKmh = kmh; dvNearM = nearest;
+    if (alertWatch !== null && f.acc <= 30) {   // الرحلة: نقط دقيقة بس، ومن غير قفزات الـGPS
+      const l = dvTrip.last;
+      if (l) { const d = RD.distanceM(l.lat, l.lng, f.lat, f.lng); if (d >= 5 && d < 500) { dvTrip.m += d; dvTrip.last = f; } else if (d >= 500) dvTrip.last = f; }
+      else dvTrip.last = f;
+    }
+    dvUi();
+  }
+  function dvUi() {
+    if ($('driveView').hidden) return;
+    const on = alertWatch !== null, now = Date.now();
+    $('dvStart').textContent = on ? 'وقف' : 'ابدأ'; $('dvStart').className = on ? 'danger' : 'good';
+    const f = lastFix, fresh = !!(f && now - f.t < 10000);
+    $('dvGps').textContent = fresh ? 'GPS ' + Math.round(f.acc) + ' م' : (on ? 'GPS…' : 'GPS');
+    $('dvGps').className = 'chip ' + (fresh ? (f.acc <= 25 ? 'good' : 'bad') : '');
+    const lim = +$('speedLimSel').value, k = fresh && dvKmh != null ? Math.round(dvKmh) : null;
+    $('dvSpeed').textContent = k != null ? String(k) : (fresh ? '0' : '--');   // واقف والـGPS شغّال ⇒ 0 (زى الشاشة)
+    $('dvSpeed').classList.toggle('over', !!(lim && k != null && k > lim));
+    $('dvLimit').textContent = lim ? String(lim) : '–';
+    if (roadHeading != null) {
+      const i = Math.round(((roadHeading % 360) + 360) % 360 / 45) % 8;
+      $('dvArrow').textContent = '↑'; $('dvArrow').style.transform = 'rotate(' + Math.round(roadHeading) + 'deg)';
+      $('dvHeadEn').textContent = DV_EN[i]; $('dvHeadAr').textContent = DV_AR[i];
+    }
+    $('dvTripKm').textContent = (dvTrip.m / 1000).toFixed(1) + ' km';
+    $('dvTripInfo').textContent = on && dvTrip.since ? 'من ' + Math.max(0, Math.round((now - dvTrip.since) / 60000)) + ' دقيقة' : (on ? '' : 'دوس «ابدأ»');
+    $('dvNear').textContent = on && dvNearM != null ? 'أقرب مطب ' + (dvNearM >= 1000 ? (dvNearM / 1000).toFixed(1) + ' كم' : Math.round(dvNearM) + ' م') : '';
+    $('dvMic').className = $('voiceBtn').className.includes('primary') ? 'primary' : '';
+    $('dvMic').textContent = $('voiceBtn').className.includes('primary') ? '🎙️ سامعك' : '🎙️ أوسكار';
+  }
+  // نتيجة الأوامر والصورة («📸 اتصوّرت» · «سمعت: …») بتظهر جنب الزراير — كانت تحت جوّه كارت المطبات بس
+  new MutationObserver(() => {
+    const t = $('voiceNote').textContent;
+    $('dvNote').textContent = t; $('topNote').textContent = t; $('topNote').hidden = !t || !/📸|اتصوّرت|الكاميرا/.test(t);
+  }).observe($('voiceNote'), { childList: true, characterData: true, subtree: true });
+  // التنبيه (مطب · سرعة · استراحة) بيظهر فوق زى الشاشة — نفس اللى فى «roadAlert»
+  new MutationObserver(() => { $('dvAlert').textContent = $('roadAlert').textContent; $('dvAlert').hidden = $('roadAlert').hidden; })
+    .observe($('roadAlert'), { attributes: true, childList: true, characterData: true, subtree: true });
+  setInterval(() => {
+    $('dvClock').textContent = new Date().toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' });
+    dvUi();
+  }, 1000);
+  $('dvClock').textContent = new Date().toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' });
   show();
 })();

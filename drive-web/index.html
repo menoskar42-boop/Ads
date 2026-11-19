@@ -47,6 +47,40 @@ button.danger { background:var(--bad); color:#fff; }
 button.good { background:var(--good); color:#062016; }
 button:disabled { opacity:.5; cursor:default; }
 button:focus-visible, .btn:focus-visible, input:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+/* 🚗 شاشة القيادة — زى الشاشة الرئيسية لتطبيق العربية (MainActivity.driveTab) */
+#driveView { position:fixed; inset:0; z-index:40; background:var(--bg); display:flex; flex-direction:column; gap:8px;
+  padding:max(10px, env(safe-area-inset-top)) 12px max(10px, env(safe-area-inset-bottom)); overflow-y:auto; }
+#driveView[hidden] { display:none; }
+body.dv-on { overflow:hidden; }
+.dv-top { display:flex; align-items:center; gap:8px; }
+.dv-brand { font-size:17px; letter-spacing:.08em; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.dv-clock { font-weight:800; font-size:18px; font-variant-numeric:tabular-nums; }
+#dvStart { min-width:84px; }
+.dv-alert { font-size:22px; font-weight:800; text-align:center; padding:12px; border-radius:12px; background:#b45309; color:#fff; }
+.dv-body { flex:1; display:grid; gap:10px; grid-template-columns:1fr; grid-template-areas:"center" "side" "actions"; align-content:start; }
+.dv-center { grid-area:center; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4px 0; }
+.dv-side { grid-area:side; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.dv-actions { grid-area:actions; display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+.dv-actions button { min-height:58px; font-size:15px; padding:6px; }
+.dv-card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:10px; text-align:center; display:flex; flex-direction:column; justify-content:center; }
+.dv-lbl { color:var(--muted); font-size:13px; }
+.dv-speed { font-size:min(30vw, 24vh); font-weight:900; line-height:1; font-variant-numeric:tabular-nums; }
+.dv-speed.over { color:var(--bad); }
+.dv-mid { font-size:26px; font-variant-numeric:tabular-nums; }
+.dv-head { font-size:26px; font-weight:800; }
+#dvArrow { display:inline-block; color:var(--accent); transition:transform .4s; }
+.dv-lim { display:flex; align-items:center; gap:12px; margin-top:8px; }
+.dv-lim button { width:52px; height:52px; min-height:52px; font-size:24px; padding:0; }
+.dv-sign { width:64px; height:64px; border-radius:50%; background:#fff; color:#000; border:6px solid #E53935; display:grid; place-items:center;
+  font-size:22px; font-weight:800; box-sizing:border-box; font-variant-numeric:tabular-nums; }
+@media (orientation: landscape) and (min-width: 600px) {
+  #dvFull { display:none; }   /* العرضى: ✕ فوق بس عشان الشاشة تكفى */
+  .dv-body { grid-template-columns:1fr 1.4fr 1.2fr; grid-template-areas:"side center actions"; align-content:stretch; }
+  .dv-side { grid-template-columns:1fr; }
+  .dv-actions { grid-template-columns:repeat(2, 1fr); }
+  .dv-speed { font-size:min(20vw, 34vh); }
+}
+@media (prefers-reduced-motion: reduce) { #dvArrow { transition:none; } }
 #map { height:320px; border-radius:14px; overflow:hidden; background:var(--surface2); }
 .seg button { padding:8px 12px; min-height:40px; font-size:14px; }
 .seg button.on { background:var(--accent); color:#fff; }
@@ -91,6 +125,48 @@ body.solo .carOnly { display:none !important; }
 
   <!-- اللوحة -->
   <div id="mainView" hidden style="display:grid;gap:14px">
+    <!-- 🚗 شاشة القيادة (المالك ٢٠٢٦-١١-١٩): الشاشة الرئيسية للموبايل زى شاشة العربية — لو مفيش شاشة أو عطلانة أو العربية مالهاش شاشة -->
+    <div id="driveView" hidden>
+      <div class="dv-top">
+        <b class="dv-brand">OSCAR DRIVE</b>
+        <span id="dvGps" class="chip">GPS</span>
+        <span id="dvClock" class="dv-clock"></span>
+        <button id="dvStart" class="good">ابدأ</button>
+        <button id="dvClose" aria-label="رجوع للصفحة" title="رجوع للصفحة" style="min-width:48px;padding:0 10px">✕</button>
+      </div>
+      <div id="dvAlert" class="dv-alert" hidden></div>
+      <div class="dv-body">
+        <section class="dv-center" aria-label="السرعة">
+          <div id="dvSpeed" class="dv-speed" dir="ltr">--</div>
+          <div class="dv-lbl">km/h · كم/س</div>
+          <div class="dv-lim">
+            <button id="dvLimMinus" aria-label="قلّل حد السرعة">−</button>
+            <span id="dvLimit" class="dv-sign" title="حد السرعة">–</span>
+            <button id="dvLimPlus" aria-label="زوّد حد السرعة">+</button>
+          </div>
+          <div id="dvNear" class="dv-lbl" style="margin-top:6px"></div>
+        </section>
+        <section class="dv-side">
+          <div class="dv-card"><div class="dv-lbl">اتجاه الحركة</div>
+            <div class="dv-head"><span id="dvArrow">•</span> <span id="dvHeadEn">--</span></div><div id="dvHeadAr" class="dv-lbl"></div></div>
+          <div class="dv-card"><div class="dv-lbl">📍 الرحلة الحالية</div><b id="dvTripKm" class="dv-mid" dir="ltr">0.0 km</b><div id="dvTripInfo" class="dv-lbl"></div></div>
+        </section>
+        <section class="dv-actions">
+          <button id="dvBump">〰️ مطب هنا</button><button id="dvPothole">🕳️ حفرة</button><button id="dvRadar">📷 رادار</button>
+          <button id="dvDanger">⚠️ خطر</button><button id="dvPark">🅿️ ركنت هنا</button><button id="dvMic">🎙️ أوسكار</button>
+          <button id="dvMap">🗺️ الخريطة</button><button id="dvFuel">⛽ بنزينة</button><button id="dvShot">📸 صوّر الطريق</button>
+          <button id="dvSos" style="background:#b91c1c;color:#fff">🆘 ابعت مكانى</button>
+        </section>
+      </div>
+      <div id="dvNote" class="dv-lbl" style="text-align:center;min-height:18px"></div>
+      <button id="dvFull">✕ رجوع للصفحة — المطبات · الصور · الإعدادات</button>
+    </div>
+    <!-- فوق الصفحة: «🚗 شاشة القيادة» بتفتح الشاشة الرئيسية (مفيش حاجة اتشالت من الصفحة) و«📸 صوّر الطريق» زى زرار شاشة العربية -->
+    <div id="dvBackBar" class="row" hidden style="gap:8px">
+      <button id="dvBack" class="primary" style="flex:1.4">🚗 شاشة القيادة</button>
+      <button id="topShot" style="flex:1">📸 صوّر الطريق</button>
+    </div>
+    <p class="note" id="topNote" hidden style="margin:-6px 4px 0"></p>
     <section class="card" id="linkCard" hidden>
       <div class="eyebrow">LINK SCREEN · اربط شاشة العربية (اختيارى)</div>
       <p class="note">الصفحة شغّالة لوحدها: المطبات والتنبيهات والسرعة والصور من الموبايل. لو عندك شاشة Oscar Drive فى العربية: افتح فيها
