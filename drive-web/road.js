@@ -185,6 +185,22 @@
     return { fixes: keep.length, perSec: keep.length * 1000 / span, avgAcc: a.length ? a.reduce((s, x) => s + x, 0) / a.length : null,
       p90Acc: a.length ? a[Math.min(a.length - 1, Math.floor(a.length * 0.9))] : null };
   }
-  const api = { gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  /** «ودّينى X» لمكان مش محفوظ: نفس logic/OsmSearch.kt — Nominatim (مجانى، طلب لكل أمر)، المكان متقرّب ~١ كم. */
+  const SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
+  function searchUrl(q, lat, lng) {
+    const r2 = (v) => Math.round(v * 100) / 100;
+    const box = lat != null && lng != null
+      ? '&viewbox=' + [r2(lng) - 0.5, r2(lat) + 0.5, r2(lng) + 0.5, r2(lat) - 0.5].map((v) => v.toFixed(2)).join(',') : '';
+    return SEARCH_URL + '?format=jsonv2&limit=8&countrycodes=eg&accept-language=ar&q=' + encodeURIComponent(String(q).trim()) + box;
+  }
+  function parseSearch(arr) {
+    return (Array.isArray(arr) ? arr : []).map((o) => {
+      const lat = parseFloat(o && o.lat), lng = parseFloat(o && o.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      const name = (o.name || String(o.display_name || '').split(',')[0] || '').trim() || 'المكان';
+      return { name, lat, lng };
+    }).filter(Boolean);
+  }
+  const api = { searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -715,6 +715,22 @@
   // ── «🎙️ أوسكار سامعك»: التعرّف على الكلام من المتصفح (Chrome أندرويد · Safari آيفون) — استماع متواصل طول ما الصفحة مفتوحة ──
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec = null, listening = false;
+  // «ودّينى X» لمكان مش محفوظ ⇒ OpenStreetMap بالاسم حوالين مكانك ⇒ الأقرب ⇒ الملاحة (زى الشاشة)
+  async function searchPlace(q) {
+    $('voiceNote').textContent = '🔎 بدوّر على «' + q + '»…';
+    const go = async (f) => {
+      try {
+        const res = RD.parseSearch(await (await fetch(RD.searchUrl(q, f && f.lat, f && f.lng), { cache: 'no-store' })).json());
+        const best = f ? RD.nearestOf(res, f.lat, f.lng) : res[0];
+        if (!best) { $('voiceNote').textContent = 'مالقيتش «' + q + '»'; sayRoad('مالقيتش ' + q); return; }
+        sayRoad('لقيت ' + best.name); $('voiceNote').textContent = '🧭 ' + best.name;
+        window.open(RD.navUrl(best.lat, best.lng), '_blank', 'noopener');
+      } catch (e) { $('voiceNote').textContent = 'مش قادر أدوّر دلوقتى'; sayRoad('مش قادر أدوّر دلوقتى'); }
+    };
+    if (lastFix && Date.now() - lastFix.t < 60000) return go(lastFix);
+    if (!navigator.geolocation) return go(null);
+    navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); }, () => go(null), { enableHighAccuracy: true, timeout: 10000 });
+  }
   function runVoice(cmd, heard) {
     if (cmd && cmd.startsWith('near:')) nearbyWeb(cmd.slice(5));
     else if (cmd === 'bump' || cmd === 'pothole' || cmd === 'radar' || cmd === 'danger') markRoad(cmd);
@@ -736,7 +752,7 @@
     else if (cmd && cmd.startsWith('goto:')) {
       const p = RD.findPlace(reportPlaces, cmd.slice(5));
       if (p) { sayRoad('حاضر، رايحين ' + p.name); window.open(RD.navUrl(p.lat, p.lng), '_blank', 'noopener'); }
-      else { const w = cmd.slice(5); $('voiceNote').textContent = 'مفيش مكان محفوظ اسمه «' + w + '» — الأماكن بتتحفظ من الشاشة'; sayRoad('مش لاقى مكان اسمه ' + w); }
+      else searchPlace(cmd.slice(5));
     }
     else if (cmd === 'unknown') { $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; sayRoad('مافهمتش'); }
   }

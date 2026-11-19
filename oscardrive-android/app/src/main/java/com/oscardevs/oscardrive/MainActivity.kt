@@ -1169,7 +1169,32 @@ class MainActivity : Activity() {
         if (p != null) { navigateTo(p.lat, p.lng, p.name); return }
         val k = PlaceNames.key(place)
         if (k.startsWith("اقرب ") || k.startsWith("nearest ")) { nearby(k.substringAfter(' ')); return }
-        mapsSearch(PlaceNames.tidy(VoiceCommands.placeOf(place)).ifEmpty { place })
+        val q = PlaceNames.tidy(VoiceCommands.placeOf(place)).ifEmpty { place }
+        if (inApp()) { searchOsm(q) { mapsSearch(q) }; return }   // الملاحة جوه التطبيق ⇒ بحث OpenStreetMap بالاسم الأول
+        mapsSearch(q)
+    }
+
+    /** «ودّينى X» لمكان مش محفوظ: OpenStreetMap (Nominatim) ⇒ الأقرب لمكانك ⇒ الملاحة جوه التطبيق. مفيش ⇒ onFail (تطبيق الخرايط). */
+    private fun searchOsm(q: String, onFail: () -> Unit) {
+        if (!online()) { onFail(); return }
+        val from = here()
+        toast("بدوّر على «$q»…")
+        Thread {
+            val res = try {
+                val c = java.net.URL(com.oscardevs.oscardrive.logic.OsmSearch.url(q, from?.first, from?.second)).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 10_000; c.readTimeout = 15_000
+                c.setRequestProperty("User-Agent", "OscarDrive/" + BuildConfig.VERSION_NAME + " (oscardevs.com)")
+                if (c.responseCode != 200) null else com.oscardevs.oscardrive.logic.OsmSearch.parse(c.inputStream.bufferedReader().use { it.readText() })
+            } catch (_: Exception) { null }
+            main.post {
+                val best = res?.let { r -> if (from != null) Nearby.nearest(r, from.first, from.second) else r.firstOrNull() }
+                if (best == null) { sayInfo(if (res == null) "مش قادر أدوّر دلوقتى — هفتح الخرايط" else "مالقيتش «$q» — هفتح الخرايط"); onFail() }
+                else {
+                    sayInfo("لقيت ${best.name}" + (from?.let { " — ${Geo.sayDistance(Geo.distanceM(it.first, it.second, best.lat, best.lng))}" } ?: ""))
+                    navigateTo(best.lat, best.lng, best.name)
+                }
+            }
+        }.start()
     }
 
     /** بحث فى تطبيق الخرايط حوالين مكانك — مجانى، وإنت تختار من النتايج. */

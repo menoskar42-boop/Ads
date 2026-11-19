@@ -845,3 +845,16 @@ class GpsStatsTest {
         assertEquals(1, g.summary(200_000).fixes); assertNull(g.summary(200_000).avgAccM)
     }
 }
+
+class OsmSearchTest {
+    @Test fun urlRoundsLocationAndParsesResults() {
+        val u = OsmSearch.url("نادى الشمس", 27.18234, 31.18678)
+        assertTrue(u.startsWith("https://nominatim.openstreetmap.org/search?format=jsonv2"))
+        assertTrue(u.contains("countrycodes=eg")); assertTrue(u.contains("viewbox=30.69,27.68,31.69,26.68"))
+        assertFalse(u.contains("27.182")); assertFalse(OsmSearch.url("x", null, null).contains("viewbox"))
+        val r = OsmSearch.parse("""[{"lat":"27.2","lon":"31.2","name":"نادى الشمس","display_name":"نادى الشمس, أسيوط"},
+            {"lat":"27.3","lon":"31.3","name":"","display_name":"شارع الجمهورية, أسيوط"},{"lat":"x","lon":"1"}]""")
+        assertEquals(listOf("نادى الشمس", "شارع الجمهورية"), r.map { it.name })
+        assertTrue(OsmSearch.parse("not json").isEmpty())
+    }
+}

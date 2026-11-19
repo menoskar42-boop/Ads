@@ -122,3 +122,12 @@ test('GPS stats match GpsStats.kt (comparison mode)', () => {
   assert.equal(s.avgAcc, 9.5); assert.equal(s.p90Acc, 50);
   assert.equal(R.gpsStats([...fx, { t: 200000, acc: null }], 200000).fixes, 1);
 });
+test('«ودّينى X» unsaved place search matches OsmSearch.kt (rounded location)', () => {
+  const u = R.searchUrl('نادى الشمس', 27.18234, 31.18678);
+  assert.ok(u.startsWith('https://nominatim.openstreetmap.org/search?format=jsonv2'));
+  assert.ok(u.includes('countrycodes=eg') && u.includes('viewbox=30.69,27.68,31.69,26.68') && !u.includes('27.182'));
+  assert.ok(!R.searchUrl('x').includes('viewbox'));
+  assert.deepEqual(R.parseSearch([{ lat: '27.2', lon: '31.2', name: 'نادى الشمس' }, { lat: '27.3', lon: '31.3', name: '', display_name: 'شارع الجمهورية, أسيوط' }, { lat: 'x' }]).map((x) => x.name),
+    ['نادى الشمس', 'شارع الجمهورية']);
+  assert.deepEqual(R.parseSearch('bad'), []);
+});
