@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Settings, Loader2, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ExecDeviceSection } from "@/components/ExecDeviceSection";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
@@ -192,6 +193,7 @@ export function ExecLanesSettingsButton() {
             <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" /></div>
           ) : (
             <div className="space-y-4">
+              <ExecDeviceSection />
               {row("قياس بدون Real", "بيقرا History — مش real-time.", noreal, setNoreal, data.defaults.noreal, "lanes-noreal")}
               {row("إيقاف PO", "Stop Nightly PO. لو حصلت مشاكل جلسة على AXON رجّعه 1.", stop, setStop, data.defaults.stop, "lanes-stop")}
               <div className="space-y-1 pt-2 border-t">

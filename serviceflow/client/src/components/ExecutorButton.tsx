@@ -8,6 +8,7 @@ import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, reloadWhenRe
 import { rescueMinutes, EXEC_RUN_MINUTES } from "@shared/exec-timeouts";
 import { executorPausedNow, refreshPausedNow, saveNightPause, useNightPause, nightWindowStart, readNightPause } from "@/lib/night-pause";
 import { saveOpenView } from "@/lib/profile-optimization";
+import { browserFingerprint, EXEC_DEVICE_URL, type ExecDevice } from "@/lib/exec-device";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
 // المشكلة اللى بتوقف الطابور: Edge/Chrome بيعملوا للتاب اللى فى الخلفية
@@ -171,6 +172,26 @@ export function ExecutorButton() {
   const { executorPaused: nightPaused } = useNightPause();
   // خلّص اللى كان فى الطابور قبل بداية الفترة ونام لحد آخرها
   const [nightAsleep, setNightAsleep] = useState(false);
+  // «جهاز التنفيذ المسجّل» (المالك ٢٠٢٦-١١-١٩): المتصفح ده لو بصمته هى المسجّلة و«يشتغل لوحده» مفتوح فى الإعدادات ⇒
+  // جهاز التنفيذ بيتفعّل لوحده أول ما Service Flow يفتح، من غير زرار. القفل بالزرار بيفضل لحد ما الصفحة تتفتح تانى،
+  // والإلغاء الدائم من «إعدادات التنفيذ ← جهاز التنفيذ المسجّل».
+  useEffect(() => {
+    if (active || user?.role !== ROLES.SUPER_ADMIN) return;
+    let off = false;
+    (async () => {
+      try {
+        const r = await fetch(EXEC_DEVICE_URL, { credentials: "include" });
+        if (!r.ok) return;
+        const d: ExecDevice = await r.json();
+        if (off || !d.fp || !d.autoStart || (await browserFingerprint()) !== d.fp || off) return;
+        try { localStorage.setItem("sf_exec_active", "1"); } catch {}
+        setActive(true);
+      } catch {}
+    })();
+    return () => { off = true; };
+    // مرة واحدة لما الصفحة تفتح (والمستخدم يتعرف)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
   // آخر مرة المتصفح نيّم التاب (Sleeping tabs فى Edge / تجميد Chrome) — بتتحفظ فى localStorage
   // لأن النوم الطويل (>١٠ دقايق) بيعمل ريفريش فالحالة كانت بتضيع والمالك مايعرفش إنه نام.
   const [lastSleep, setLastSleep] = useState<{ min: number; at: number } | null>(() => {

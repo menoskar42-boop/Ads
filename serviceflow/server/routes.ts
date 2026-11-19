@@ -2915,6 +2915,54 @@ export async function registerRoutes(
                            AND ${queueRank("x")} < ${queueRank(e)}))
   )`;
 
+  // ── «جهاز التنفيذ المسجّل» (المالك ٢٠٢٦-١١-١٩: «جهاز التنفيذ اللى أنا سجّلت بصمته الافتراضى إنه يبقى شغّال على طول من غير
+  // زر، أول ما المتصفح ده يفتح على Service Flow يشتغل جهاز التنفيذ، إلا لو أنا لغيت ده من الإعدادات»).
+  // البصمة بتتحسب فى المتصفح (exec-device.ts) — نفسها على أى عنوان لـService Flow وحتى لو التخزين اتمسح. هنا بتتحفظ بس.
+  const EXEC_DEVICE_KEYS = { fp: "exec_device_fp", label: "exec_device_label", auto: "exec_device_autostart" } as const;
+  const readExecDevice = async () => {
+    const { rows } = await pool.query(
+      `SELECT key, value, (updated_at AT TIME ZONE 'Africa/Cairo') AS at, updated_by AS by FROM app_settings WHERE key = ANY($1::text[])`,
+      [Object.values(EXEC_DEVICE_KEYS)]);
+    const m = new Map(rows.map((r: any) => [r.key, r]));
+    const fpRow: any = m.get(EXEC_DEVICE_KEYS.fp);
+    return {
+      fp: (fpRow?.value || null) as string | null,
+      label: ((m.get(EXEC_DEVICE_KEYS.label) as any)?.value || null) as string | null,
+      registeredAt: fpRow?.value ? fpRow.at : null, registeredBy: fpRow?.value ? fpRow.by : null,
+      autoStart: ((m.get(EXEC_DEVICE_KEYS.auto) as any)?.value ?? "1") !== "0",   // الافتراضى: شغّال لوحده
+    };
+  };
+  const putExecSetting = (key: string, value: string | null, by: string) => pool.query(
+    `INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)
+     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now(), updated_by = $3`, [key, value, by]);
+  app.get("/api/exec-queue/device", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try { res.json(await readExecDevice()); } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // تسجيل المتصفح ده (بصمته) كجهاز التنفيذ — جهاز واحد بس، والتسجيل الجديد بيشيل القديم
+  app.post("/api/exec-queue/device", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const fp = String(req.body?.fp || "");
+      if (!/^[a-f0-9]{16,64}$/.test(fp)) return res.status(400).json({ message: "بصمة المتصفح مش سليمة" });
+      const label = String(req.body?.label || "").slice(0, 120);
+      const by = (req.user?.fullName || req.user?.username || "").toString();
+      await putExecSetting(EXEC_DEVICE_KEYS.fp, fp, by);
+      await putExecSetting(EXEC_DEVICE_KEYS.label, label, by);
+      res.json(await readExecDevice());
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // تشغيل لوحده (مفتوح/مقفول) أو إلغاء التسجيل
+  app.put("/api/exec-queue/device", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const by = (req.user?.fullName || req.user?.username || "").toString();
+      if (req.body?.autoStart != null) {
+        if (typeof req.body.autoStart !== "boolean") return res.status(400).json({ message: "«يشتغل لوحده» لازم يكون مفتوح أو مقفول" });
+        await putExecSetting(EXEC_DEVICE_KEYS.auto, req.body.autoStart ? "1" : "0", by);
+      }
+      if (req.body?.unregister === true) await putExecSetting(EXEC_DEVICE_KEYS.fp, null, by);
+      res.json(await readExecDevice());
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // عدد التابات: القراية لأى مستخدم مسجّل، والتعديل سوبر أدمن بس.
   app.get("/api/exec-queue/lanes", requireAuth, async (_req, res) => {
     try {
