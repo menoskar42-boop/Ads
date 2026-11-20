@@ -23,13 +23,13 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
-[workflows.workflow.metadata]
-outputType = "webview"
-
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "SF_BASE_PATH=/serviceflow/ MYBIBLE_DATABASE_TARGET=ads-supabase MYBIBLE_SESSION_SECRET_SHA256=db416deb92e6797b1bb1a87b99456df44714f51880f9f7c9c38b0dc63d50743d MYBIBLE_VAPID_PUBLIC_KEY_SHA256=2f267592ee69f6eded91d68225704bd57ec916c13974c3a123f69a08a742ba8b DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=false npm run dev"
+args = "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=false npm run dev"
 waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [[ports]]
 localPort = 5000
@@ -40,40 +40,13 @@ localPort = 5001
 externalPort = 3001
 
 [[ports]]
-localPort = 5003
-externalPort = 3002
-
-[[ports]]
 localPort = 5011
 externalPort = 3000
 
-[[ports]]
-localPort = 5056
-externalPort = 4200
-
-[[ports]]
-localPort = 5503
-externalPort = 3003
-
-[[ports]]
-localPort = 24678
-externalPort = 5173
-
-[[ports]]
-localPort = 25007
-externalPort = 5000
-
-# ⚠️ SF_BASE_PATH متكتوب صراحةً في أمر البناء **وأمر التشغيل** مش في
-# [userenv]: النصّين لازم يشوفوه، والبناء مش مضمون إنه بيشوف userenv.
-#   · البناء  → vite بيحط المسار في كل رابط ملف
-#   · التشغيل → البوّاب بيشيل المسار قبل ما يمرّر الطلب
-# لو واحد شافه والتاني لأ، الصفحة بتفتح وتطلب ملفاتها من مكان البوّاب مش
-# شايله = شاشة بيضا من غير رسالة خطأ. الحارس: check-serviceflow-path.
 [deployment]
 deploymentTarget = "vm"
-build = ["sh", "-c", "set -e; echo '[build] START 1/5 root npm install'; npm install --include=dev; echo '[build] DONE 1/5 root npm install'; echo '[build] START 2/5 MyBible npm install'; (cd mybible && npm install --include=dev); echo '[build] DONE 2/5 MyBible npm install'; echo '[build] START 3/5 MyBible build'; (cd mybible && npm run build); echo '[build] DONE 3/5 MyBible build'; echo '[build] START 4/5 Service Flow npm install'; (cd serviceflow && npm install --include=dev); echo '[build] DONE 4/5 Service Flow npm install'; echo '[build] START 5/5 Service Flow build'; (cd serviceflow && SF_BASE_PATH=/serviceflow/ npm run build); echo '[build] DONE 5/5 Service Flow build'"]
-run = ["sh", "-c", "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=true SF_BASE_PATH=/serviceflow/ npm start"]
-ignorePorts = false
+build = ["sh", "-c", "npm install --include=dev && (cd mybible && npm install --include=dev && npm run build) && (cd serviceflow && npm install --include=dev && npm run build)"]
+run = ["sh", "-c", "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=true npm start"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
@@ -86,23 +59,17 @@ MYBIBLE_MAINTENANCE_MODE = "false"
 MYBIBLE_SESSION_SECRET_SHA256 = "db416deb92e6797b1bb1a87b99456df44714f51880f9f7c9c38b0dc63d50743d"
 MYBIBLE_VAPID_PUBLIC_KEY_SHA256 = "2f267592ee69f6eded91d68225704bd57ec916c13974c3a123f69a08a742ba8b"
 MYBIBLE_DATABASE_TARGET = "ads-supabase"
-SERVICEFLOW_DATABASE_TARGET = "archive"
-ADS_BACKUP_ENABLED = "false"
-# ⛔ **الميزانية موزّعة على كل العمليات التي قد تستخدم Session Pooler.**
+# ⛔ **رجعت "5" — وريبليت كان على حق.**
 #
-# الإنتاج كان يستهلك 8 للتطبيق الرئيسي + 5 لـMyBible + 2 لـService Flow
-# = 15 بالضبط، فكان أي اتصال عابر أثناء الإقلاع أو الزحام يسبب:
+# رفعتها لـ12 ورفعت بتاعة أوسكار ديفز لـ20، واللوج رد عليّ:
 #   error: (EMAXCONNSESSION) max clients reached in session mode
+# وده pooler سوبابيز نفسه بيرفض الاتصالات — mybible بقى مش قادر يوصل
+# للقاعدة أصلاً. سقف session mode أقل بكتير من الستين اللي افترضتها،
+# و8+5=13 اللي ريبليت حطّها كانت مظبوطة على السقف ده مش رقم عشوائي.
 #
-# نترك هامشًا حقيقيًا: 4 للتطبيق الرئيسي + 4 لـMyBible + 1 لـService Flow
-# = 9، مع إبقاء مساحة لاتصالات الجلسات والإقلاع والنسخ الاحتياطي.
-MYBIBLE_PG_POOL_MAX = "4"
-PG_POOL_MAX = "4"
-SERVICEFLOW_CURRENT_PG_POOL_MAX = "1"
-
-[userenv.shared]
-ADS_BACKUP_ENABLED = "false"
-SERVICEFLOW_DATABASE_TARGET = "archive"
-PG_POOL_MAX = "4"
-SERVICEFLOW_CURRENT_PG_POOL_MAX = "1"
-
+# الزحمة بتتحل بتقليل الاستعلامات (تجميع الطلبات في group-cache.ts)
+# مش بزيادة الاتصالات — الاتصالات مورد مقفول من برّه.
+MYBIBLE_PG_POOL_MAX = "5"
+# ⛔ **رجعت "8"** لنفس السبب اللي فوق: 20+12 كسرت سقف session mode في
+# سوبابيز وmybible اترفضت اتصالاته. 8+5=13 هو اللي بيشتغل.
+PG_POOL_MAX = "8"
