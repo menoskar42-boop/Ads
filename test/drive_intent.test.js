@@ -20,6 +20,18 @@ test('common Egyptian speech-recognition errors resolve locally without Groq', a
   assert.deepEqual(Intent.localIntent('Okay Oscar اتصل ل Mother Mobile'), {
     cmd: 'call', arg: 'Mother Mobile', how: null, latin: 'Mother Mobile',
   });
+  const motherMobileForms = [
+    'Hey Oscar call Mother Mobile',
+    'يا أوسكار اتصل ب ماذر موبايل',
+    'يا أوسكار اتصل ب Mother موبايل',
+    'Hey Oscar call ماذر Mobile',
+    'Hey Oscar call Mother موبايل',
+  ];
+  for (const phrase of motherMobileForms) {
+    assert.deepEqual(Intent.localIntent(phrase), {
+      cmd: 'call', arg: 'Mother Mobile', how: null, latin: 'Mother Mobile',
+    }, phrase);
+  }
   assert.deepEqual(Intent.localIntent('يا اوس كلم مازر موبايل واتساب'), {
     cmd: 'call', arg: 'Mother Mobile', how: 'wa', latin: 'Mother Mobile',
   });

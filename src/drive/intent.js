@@ -37,11 +37,17 @@ function normalizeLocal(text) {
 }
 
 const LOCAL_WAKE = /(?:^|\s)(?:يا\s+(?:اوسكار|اوس|اذكر|اسكار|وسكار|اوسكر|اوزكار|اوز|اسكر|سكار)|(?:يا\s+)?(?:اوسكار|اسكار|وسكار|اوسكر|اوزكار|oscar)|(?:hey|ok|okay)\s+oscar)(?=\s|$)|^(?:اذكر|اوس|اوز|اسكر|سكار)(?=\s|$)/;
-const MOTHER_MOBILE = new Set([
-  'mother mobile', 'mother mobil', 'mother mob',
-  'ماذر موبايل', 'ماذر موبيل', 'ماذر موبيال', 'مذر موبايل', 'مذر موبيل',
-  'مازر موبايل', 'مازر موبيل', 'مادر موبايل', 'مادر موبيل',
+const MOTHER_WORDS = new Set([
+  'mother', 'mather', 'madar', 'mader', 'madhar', 'ماذر', 'مذر', 'مازر', 'مادر', 'موذر',
 ].map(normalizeLocal));
+const MOBILE_WORDS = new Set([
+  'mobile', 'mobil', 'mob', 'mobi', 'موبايل', 'موبيل', 'موبيال',
+].map(normalizeLocal));
+
+function isMotherMobile(name) {
+  const words = normalizeLocal(name).split(' ');
+  return words.length === 2 && MOTHER_WORDS.has(words[0]) && MOBILE_WORDS.has(words[1]);
+}
 
 /** تصحيحات آمنة للأخطاء المتكررة؛ لا تُقبل من غير نداء واضح لأوسكار. */
 function localIntent(text) {
@@ -60,7 +66,7 @@ function localIntent(text) {
     how = 'wa';
     contact = contact.replace(/\s+(?:على\s+)?(?:الواتساب|واتساب|الواتس|واتس|whatsapp)$/, '').trim();
   }
-  if (!MOTHER_MOBILE.has(normalizeLocal(contact))) return null;
+  if (!isMotherMobile(contact)) return null;
   return { cmd: 'call', arg: 'Mother Mobile', how, latin: 'Mother Mobile' };
 }
 

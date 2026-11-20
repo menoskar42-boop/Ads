@@ -263,11 +263,12 @@
    * t = نص متنضّف (clean). بيرجّع { name, how: 'tel' | 'wa' | null } أو null.
    */
   const CALL_SHORTCUT = 'Oscar Call', WA_SHORTCUT = 'Oscar WhatsApp';
-  const MOTHER_MOBILE_ALIASES = new Set([
-    'mother mobile', 'mother mobil', 'mother mob',
-    'ماذر موبايل', 'ماذر موبيل', 'ماذر موبيال', 'مذر موبايل', 'مذر موبيل',
-    'مازر موبايل', 'مازر موبيل', 'مادر موبايل', 'مادر موبيل',
-  ].map(clean));
+  const MOTHER_WORDS = new Set(['mother', 'mather', 'madar', 'mader', 'madhar', 'ماذر', 'مذر', 'مازر', 'مادر', 'موذر'].map(clean));
+  const MOBILE_WORDS = new Set(['mobile', 'mobil', 'mob', 'mobi', 'موبايل', 'موبيل', 'موبيال'].map(clean));
+  function isMotherMobile(name) {
+    const words = clean(name).split(' ');
+    return words.length === 2 && MOTHER_WORDS.has(words[0]) && MOBILE_WORDS.has(words[1]);
+  }
   function parseCall(t) {
     const m = String(t || '').match(/(?:^|\s)(اتصل|اتصلي|كلم|كلملي|رن|رنلي|call)\s+(.+)$/);
     if (!m) return null;
@@ -277,7 +278,7 @@
     if (/^اتصل/.test(m[1])) name = name.replace(/^(?:ب|ل|علي|على|ع|to)\s*/, '');   // ASR قد يكتب «اتصل ل Mother Mobile»
     else name = name.replace(/^(?:علي|على|ع|to)\s+/, '');   // «كلّم باسم» يفضل «باسم»
     name = name.trim();
-    if (MOTHER_MOBILE_ALIASES.has(clean(name))) name = 'Mother Mobile';
+    if (isMotherMobile(name)) name = 'Mother Mobile';
     return name ? { name, how } : null;
   }
   /** رد على «تليفون ولا واتساب؟» / «تأكّد؟» — 'tel' · 'wa' · 'yes' · 'no' · null. */

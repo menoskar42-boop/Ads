@@ -137,6 +137,13 @@ test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping',
   assert.equal(R.parseVoice('يا اذكر اتصل ل Mother Mobile'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('أذكر اتصل ل Mother Mobile'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('يا اوس اتصل ب Mother mobil'), 'call::Mother Mobile');
+  for (const phrase of [
+    'Hey Oscar call Mother Mobile',
+    'يا أوسكار اتصل ب ماذر موبايل',
+    'يا أوسكار اتصل ب Mother موبايل',
+    'Hey Oscar call ماذر Mobile',
+    'Hey Oscar call Mother موبايل',
+  ]) assert.equal(R.parseVoice(phrase), 'call::Mother Mobile', phrase);
   assert.equal(R.parseVoice('يا اوس سجل مطعمنا'), 'bump');
   assert.equal(R.parseVoice('اذكر سجل مطعمنا'), 'bump');
   assert.equal(R.parseVoice('يا اوزكار سجل مطب هنا'), 'bump');
