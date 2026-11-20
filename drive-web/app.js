@@ -639,7 +639,9 @@
       (digits && contact.tels.some((phone) => ctPhoneKey(phone).includes(digits))));
     $('contactDirectoryEmpty').hidden = matches.length > 0;
     if (!matches.length) {
-      $('contactDirectoryEmpty').textContent = active.length ? 'لا توجد جهات اتصال مطابقة.' : 'مفيش جهات محفوظة؛ أضف أو استورد جهات الاتصال من الإعدادات.';
+      $('contactDirectoryEmpty').textContent = active.length
+        ? 'لا توجد جهات اتصال مطابقة.'
+        : 'مفيش جهات محفوظة؛ استورد ملف .vcf أو اضغط «أضف يدويًا» فوق.';
     }
     for (const contact of matches) {
       const row = document.createElement('div');
@@ -724,6 +726,10 @@
     catch (e) { $('voiceNote').textContent = 'ماقدرتش أفتح جهات الاتصال: ' + (e.message || e); }
   });
   $('ctVcfImport').addEventListener('click', () => $('ctVcfFile').click());
+  $('ctManualToggle').addEventListener('click', () => {
+    $('ctManualForm').hidden = !$('ctManualForm').hidden;
+    if (!$('ctManualForm').hidden) $('ctName').focus();
+  });
   $('ctVcfFile').addEventListener('change', async (event) => {
     const input = event.currentTarget, file = input.files && input.files[0], note = $('ctImportNote');
     input.value = '';
@@ -765,7 +771,7 @@
     const hits = RD.matchContacts(ctLoad(), name);
     const opts = $('callOpts'); opts.textContent = '';
     $('callTelBtn').hidden = true; $('callWaBtn').hidden = true; $('callBox').hidden = false;
-    if (!hits.length) { $('callQ').textContent = '📞 مش لاقى «' + name + '» — ضيفه من الإعدادات («📞 الاتصال بالصوت»)'; oscar('contact_not_found', 'مش لاقى جهة الاتصال دى'); return; }
+    if (!hits.length) { $('callQ').textContent = '📞 مش لاقى «' + name + '» — افتح «جهات الاتصال» لإضافته أو استيراده.'; oscar('contact_not_found', 'مش لاقى جهة الاتصال دى'); return; }
     if (hits.length > 1) {   // أكتر من حد ⇒ تختار — مانتصلش بحد غلط
       $('callQ').textContent = '📞 «' + name + '» — مين فيهم؟';
       for (const c of hits.slice(0, 6)) { const b = document.createElement('button'); b.textContent = c.name; b.addEventListener('click', () => callLocal(c.name, how)); opts.append(b); }

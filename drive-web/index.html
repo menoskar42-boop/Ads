@@ -312,6 +312,18 @@ body.solo .carOnly { display:none !important; }
         <p class="note" id="callQ" style="width:100%;margin:0"></p>
         <div id="contactDirectory" hidden>
           <input id="contactSearch" class="plain" type="search" placeholder="ابحث بالاسم أو الرقم" aria-label="ابحث في جهات الاتصال" style="width:100%;margin:6px 0">
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button id="ctPick" type="button" style="flex:1">📇 اختار من جهات الاتصال</button>
+            <button id="ctVcfImport" type="button" style="flex:1">📥 استورد ملف .vcf</button>
+            <button id="ctManualToggle" type="button" style="flex:1">➕ أضف يدويًا</button>
+            <input id="ctVcfFile" type="file" accept=".vcf,text/vcard,text/x-vcard" hidden>
+          </div>
+          <div id="ctManualForm" class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px" hidden>
+            <input id="ctName" class="plain" placeholder="اسم جهة الاتصال" style="flex:1;min-width:120px">
+            <input id="ctTel" class="plain" type="tel" inputmode="tel" placeholder="رقم الهاتف" style="flex:1;min-width:120px;direction:ltr">
+            <button id="ctAdd" type="button">حفظ جهة الاتصال</button>
+          </div>
+          <p class="note" id="ctImportNote" role="status" aria-live="polite">على الآيفون اختار ملف vCard من «الملفات». تظل الأسماء والأرقام على هذا الجهاز حتى توافق على المزامنة.</p>
           <div id="contactDirectoryList" role="list"></div>
           <p id="contactDirectoryEmpty" class="note" hidden>لا توجد جهات اتصال مطابقة.</p>
         </div>
@@ -343,14 +355,6 @@ body.solo .carOnly { display:none !important; }
         <p class="note">على Safari تقدر تستورد ملف vCard؛ الملف نفسه لا يُرفع. الأسماء والأرقام تفضل محلية حتى توافق على المزامنة. عند تفعيلها تُحفظ الجهات على خادم أوسكار وتظهر للأجهزة المرتبطة بالسيارة نفسها فقط. اختصار «Oscar Call» يظل بديلًا على الآيفون. <a href="https://claude.ai/artifact/RnS3AgBbLusdkh9o7wF4Kf" target="_blank" rel="noopener">خطوات إعداد الاختصار</a>.</p>
         <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="callWa"> 🟢 واتساب ضمن اختيارات الاتصال (محتاج اختصار «Oscar WhatsApp»)</label>
         <button id="callTestBtn" style="width:100%;margin-top:6px">جرّب الاتصال باسم تكتبه</button>
-        <p class="note" style="margin-top:8px"><b>الأندرويد:</b> اختار جهات اتصال أو استورد vCard. لا تُرفع جهات الهاتف كاملة تلقائيًا.</p>
-        <div class="row" style="gap:6px;flex-wrap:wrap"><button id="ctPick" style="flex:1">📇 ضيف من جهات الاتصال</button>
-          <input id="ctName" class="plain" placeholder="الاسم" style="flex:1"><input id="ctTel" class="plain" type="tel" placeholder="01xxxxxxxxx" style="flex:1;direction:ltr">
-          <button id="ctAdd">ضيف</button>
-          <button id="ctVcfImport" type="button" style="flex:1">📥 استورد جهات الاتصال (.vcf)</button>
-          <input id="ctVcfFile" type="file" accept=".vcf,text/vcard,text/x-vcard" hidden>
-        </div>
-        <p class="note" id="ctImportNote" role="status" aria-live="polite">اختار ملف vCard من «الملفات»؛ الاستيراد يتم على الجهاز أولًا.</p>
         <p class="note" id="ctSpellingPrivacyNote" role="note" style="margin:8px 0;padding:8px;border-inline-start:3px solid #14b8a6;background:var(--surface2);border-radius:8px;color:var(--ink)">
           <b>خصوصية اقتراح التهجئة:</b> قد يُرسل الاسم العربي وحده لاقتراح كتابته باللاتينية؛ لا يُرسل رقم الهاتف أو ملف vCard، ولا تُرفع قائمة الأسماء لهذا الاقتراح.
         </p>
