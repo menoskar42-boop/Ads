@@ -11,6 +11,7 @@ import {
   renderHomePage,
   renderSitemap,
   renderRobots,
+  renderLlmsTxt,
 } from "./seoRender.js";
 import { GUIDES } from "./guidesContent.js";
 import { renderGuidePage, renderGuidesIndex } from "./guidesRender.js";
@@ -45,6 +46,9 @@ app.get("/sitemap.xml", (_req, res) => {
 });
 app.get("/robots.txt", (_req, res) => {
   res.type("text/plain").send(renderRobots());
+});
+app.get("/llms.txt", (_req, res) => {
+  res.set("Content-Type", "text/plain; charset=utf-8").send(renderLlmsTxt());
 });
 
 // ===== بيان الأصول للعمل دون اتصال (PWA) — يتحدّث ذاتياً مع نموّ الملفات =====

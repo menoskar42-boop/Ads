@@ -359,3 +359,35 @@ export function renderSitemap() {
 export function renderRobots() {
   return `User-agent: *\nAllow: /\n\nSitemap: ${SITE.url}/sitemap.xml\n`;
 }
+
+// ===== ملخص نصّي للزواحف والمساعدات الذكية =====
+export function renderLlmsTxt() {
+  const titles = new Map([
+    [`${SITE.url}/`, "الصفحة الرئيسية — عالم الاستكشاف السحري"],
+    [`${SITE.url}/explore`, "استكشف أقسام التعلّم"],
+    [`${SITE.url}/guides`, "أدلة الآباء"],
+    [`${SITE.url}/about`, "حول التطبيق"],
+    [`${SITE.url}/privacy`, "سياسة الخصوصية"],
+    [`${SITE.url}/contact`, "تواصل معنا"],
+    ...SECTIONS.map((section) => [`${SITE.url}/${section.slug}`, section.h1]),
+    ...GUIDES.map((guide) => [`${SITE.url}/guides/${guide.slug}`, guide.h1]),
+  ]);
+  const sitemapUrls = Array.from(
+    renderSitemap().matchAll(/<loc>([^<]+)<\/loc>/g),
+    (match) => match[1]
+  );
+  const pageLines = sitemapUrls.map((url) => {
+    const title = titles.get(url);
+    if (!title) throw new Error(`Missing llms.txt title for sitemap URL: ${url}`);
+    return `- ${title}: ${url}`;
+  });
+
+  return `# ${SITE.name}
+
+> تطبيق ويب تعليمي تفاعلي للأطفال من ٣ إلى ٦ سنوات، يقدّم تعلّم الحروف والأرقام والحيوانات والألوان والأشكال عبر أنشطة وألعاب.
+
+## الصفحات العامة القابلة للفهرسة
+
+${pageLines.join("\n")}
+`;
+}

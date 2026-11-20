@@ -10,8 +10,20 @@ const esc = (s) =>
     .replace(/"/g, "&quot;");
 
 // قالب صفحة موحّد (يعيد استخدام أنماط seo.css)
-function page({ slug, title, description, h1, emoji, bodyHtml, type = "website" }) {
+function page({
+  slug,
+  title,
+  description,
+  h1,
+  emoji,
+  bodyHtml,
+  type = "website",
+  structuredData,
+}) {
   const url = `${SITE.url}/${slug}`;
+  const structuredDataTag = structuredData
+    ? `<script type="application/ld+json">${JSON.stringify(structuredData).replace(/</g, "\\u003c")}</script>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -33,7 +45,7 @@ function page({ slug, title, description, h1, emoji, bodyHtml, type = "website" 
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="${SITE.url}/og.png" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>${emoji}</text></svg>" />
-<link rel="stylesheet" href="/css/seo.css" />
+<link rel="stylesheet" href="/css/seo.css" />${structuredDataTag ? `\n${structuredDataTag}` : ""}
 </head>
 <body>
 <header class="seo-header">
@@ -87,6 +99,15 @@ export function renderAboutPage() {
     description:
       "تعرّف على عالم الاستكشاف السحري، تطبيق تعليمي تفاعلي للأطفال من ٣ إلى ٦ سنوات لتعليم الحروف والأرقام والحيوانات والألوان والأشكال بأسلوب اللعب والمكافآت.",
     bodyHtml: body,
+    structuredData: {
+      "@context": "https://schema.org",
+      "@type": "AboutPage",
+      name: "حول عالم الاستكشاف السحري",
+      url: `${SITE.url}/about`,
+      description:
+        "تعرّف على عالم الاستكشاف السحري، تطبيق تعليمي تفاعلي للأطفال من ٣ إلى ٦ سنوات لتعليم الحروف والأرقام والحيوانات والألوان والأشكال بأسلوب اللعب والمكافآت.",
+      inLanguage: "ar",
+    },
   });
 }
 
@@ -155,7 +176,16 @@ export function renderContactPage() {
     h1: "تواصل معنا",
     title: "تواصل معنا — عالم الاستكشاف السحري | الدعم والخصوصية",
     description:
-      "تواصل مع فريق عالم الاستكشاف السحري للدعم والاستفسارات حول التطبيق التعليمي للأطفال والخصوصية والشراكات.",
+      "تواصل مع فريق عالم الاستكشاف السحري للدعم والاستفسارات عن التطبيق التعليمي والخصوصية والشراكات. تجد هنا بريدًا عامًا وبريدًا مخصصًا لخصوصية الأطفال، ونرحّب بك.",
     bodyHtml: body,
+    structuredData: {
+      "@context": "https://schema.org",
+      "@type": "ContactPage",
+      name: "تواصل معنا",
+      url: `${SITE.url}/contact`,
+      description:
+        "تواصل مع فريق عالم الاستكشاف السحري للدعم والاستفسارات عن التطبيق التعليمي والخصوصية والشراكات. تجد هنا بريدًا عامًا وبريدًا مخصصًا لخصوصية الأطفال، ونرحّب بك.",
+      inLanguage: "ar",
+    },
   });
 }
