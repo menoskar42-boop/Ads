@@ -9,6 +9,7 @@ import { getActivityLessonVideo, getActivityLessonVideos } from "../js/data/acti
 import { ACTIVITIES } from "../js/data/activities.js";
 import { getEnglishLetterLessonVideo } from "../js/data/englishLetterLessonVideos.js";
 import { getArabicLetterLessonVideo } from "../js/data/arabicLetterLessonVideos.js";
+import { getArabicLetterReemVideo } from "../js/data/arabicLetterReemVideos.js";
 import { getArabicLetterWritingVideo } from "../js/data/arabicLetterWritingVideos.js";
 import { getNumberLessonVideo } from "../js/data/numberLessonVideos.js";
 import { getDataset } from "../js/data/datasets.js";
@@ -116,6 +117,12 @@ const EXPECTED_ARABIC_WRITING_IDS = {
   "ه": "bAYqYO7wxX8",
   "و": "gUp0ORkrxbs",
   "ي": "uBuOkgOqO3w",
+};
+
+const EXPECTED_ARABIC_REEM_IDS = {
+  "أ": "W-S495O34NY",
+  "ت": "RhPkqMYWD_w",
+  "ج": "qsg97XxLnQU",
 };
 
 const EXPECTED_ACTIVITY_VIDEO_IDS = {
@@ -278,12 +285,16 @@ test("number, letter, and activity mappings match their intended lessons without
   for (const letter of arabicLetters) {
     const expectedVideoId = EXPECTED_ARABIC_LETTER_IDS[letter];
     const expectedWritingVideoId = EXPECTED_ARABIC_WRITING_IDS[letter];
+    const expectedReemVideoId = EXPECTED_ARABIC_REEM_IDS[letter] || null;
     assert.equal(getArabicLetterLessonVideo(letter)?.videoId, expectedVideoId, `Wrong video mapped to Arabic letter ${letter}`);
+    assert.equal(getArabicLetterReemVideo(letter)?.videoId || null, expectedReemVideoId, `Wrong Miss Reem video mapped to Arabic letter ${letter}`);
     assert.equal(getArabicLetterWritingVideo(letter)?.videoId, expectedWritingVideoId, `Wrong writing video mapped to Arabic letter ${letter}`);
     mappedIds.push([`Arabic letter ${letter}`, expectedVideoId]);
+    if (expectedReemVideoId) mappedIds.push([`Arabic letter Miss Reem ${letter}`, expectedReemVideoId]);
     mappedIds.push([`Arabic letter writing ${letter}`, expectedWritingVideoId]);
   }
   assert.equal(getArabicLetterLessonVideo("?"), null, "Unknown Arabic letters must not inherit a video");
+  assert.equal(getArabicLetterReemVideo("?"), null, "Unknown Arabic letters must not inherit a Miss Reem video");
   assert.equal(getArabicLetterWritingVideo("?"), null, "Unknown Arabic letters must not inherit a writing video");
 
   for (const [key, expectedVideoIds] of Object.entries(EXPECTED_ACTIVITY_VIDEO_IDS)) {

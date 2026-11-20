@@ -37,6 +37,7 @@ import { nameRound, LF_KINDS } from "../data/letterForms.js";
 const LF_ICON = { hands: "🤝", formComplete: "🧩", formListen: "🚂", formStamp: "🔖", nameHunt: "📛", blankWrite: "✍️" };
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
 import { getArabicLetterLessonVideo } from "../data/arabicLetterLessonVideos.js";
+import { getArabicLetterReemVideo } from "../data/arabicLetterReemVideos.js";
 import { getArabicLetterWritingVideo } from "../data/arabicLetterWritingVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
 
@@ -168,6 +169,7 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
     if (!only && pg.type === "letter") {
       const videos = [
         ["أبجد هوز", getArabicLetterLessonVideo(pg.ch)],
+        ["ميس ريم", getArabicLetterReemVideo(pg.ch)],
         ["مدرسة زاد الحروف", getArabicLetterWritingVideo(pg.ch)],
       ].filter(([, video]) => video).map(([source, video]) => ({
         ...video,

@@ -310,6 +310,26 @@ test("Arabic letter page has an optional first step with both mapped videos", as
   assert.deepEqual(errors, []);
 });
 
+test("Miss Reem videos appear only inside their matching Arabic letter pages", async () => {
+  for (const [letter, reemId, lessonId, writingId] of [
+    ["أ", "W-S495O34NY", "wi0BH6LiyRo", "DKihnmvn-YQ"],
+    ["ت", "RhPkqMYWD_w", "SbCoTT0bO5Q", "OJQgshvXNh8"],
+    ["ج", "qsg97XxLnQU", "_fKC8sYdWD4", "Q3Qz3RpIk0g"],
+  ]) {
+    await open(`L${letter}`);
+    assert.equal(await kind(), "video", `حرف ${letter} يبدأ بخطوة الفيديو الاختيارية`);
+    const cards = page.locator(".kid-youtube-card");
+    assert.equal(await cards.count(), 3, `حرف ${letter} يعرض فيديوهات الحرف والكتابة`);
+    const ids = await cards.locator(".kid-youtube-fallback").evaluateAll((links) =>
+      links.map((link) => new URL(link.href).searchParams.get("v"))
+    );
+    assert.deepEqual(ids, [lessonId, reemId, writingId]);
+    assert.match(await cards.nth(1).locator(".kid-youtube-title").textContent(), /^ميس ريم · /);
+    assert.equal(await cards.locator("iframe").count(), 0, "الفيديوهات لا تبدأ تلقائيًا");
+  }
+  assert.deepEqual(errors, []);
+});
+
 test("letter page (ب): book activities + castle games in order, 3+5 writes, then the letter's grade", async () => {
   const seen = await playPage("Lب");
   assert.deepEqual(seen, ["video", "meet", "write", "🧩", "riddle", "pop", "🔦", "harakat", "write", "🥚",
