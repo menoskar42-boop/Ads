@@ -640,12 +640,13 @@
     $('callTelBtn').hidden = how === 'wa'; $('callWaBtn').hidden = how === 'tel';
     $('callTelBtn').textContent = how === 'tel' ? '📞 اتصل' : '📞 تليفون'; $('callWaBtn').textContent = how === 'wa' ? '🟢 اتصل واتساب' : '🟢 واتساب';
     sayRoad(how ? 'هتصل ب' + name + (how === 'wa' ? ' واتساب' : '') + '. تأكد؟' : name + '. تليفون ولا واتساب؟');
-    // من غير قائمة محلية فقط: الاسم الإنجليزى المتعرف عليه بالعربى قد يحتاج اقتراح هجاء لاتينى.
+    // من غير قائمة محلية فقط: نرسل الاسم العربي وحده لاقتراح هجائه اللاتيني، بلا أرقام.
     $('callOpts').textContent = '';
-    if (/[\u0600-\u06FF]/.test(name) && !ctLoad().length) {
+    const nameRequest = RD.contactNameRequest(name, ctLoad());
+    if (nameRequest) {
       const asked = callPending;
-      api('POST', '/api/web/intent', { text: 'اتصل ب' + name }).then((r) => {
-        const latin = r && r.cmd === 'call' && r.latin;
+      api('POST', nameRequest.path, nameRequest.body).then((r) => {
+        const latin = r && r.latin;
         if (!latin || callPending !== asked) return;
         const b = document.createElement('button'); b.textContent = '📞 ' + latin + (how === 'wa' ? ' (واتساب)' : '');
         b.addEventListener('click', () => { if (callPending) { callPending.name = latin; callGo(how === 'wa' ? 'wa' : 'tel'); } });

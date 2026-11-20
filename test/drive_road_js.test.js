@@ -111,6 +111,15 @@ test('Android calls (prompt 7 step 2): local contacts match Arabic names, ask wh
   assert.equal(R.telByPrefix(l[0].tels, 'اتصل'), null);
   assert.equal(R.waNumber('010 1234 5678'), '201012345678'); assert.equal(R.waNumber('+201012345678'), '201012345678');
 });
+test('Arabic contact spelling fallback sends only the name when no local contacts exist', () => {
+  const request = R.contactNameRequest('ماذر موبايل', []);
+  assert.deepEqual(request, { path: '/api/web/contact-name', body: { name: 'ماذر موبايل' } });
+  assert.deepEqual(Object.keys(request.body), ['name']);
+  assert.equal(R.contactNameRequest('ماذر موبايل', [{ name: 'أحمد', tels: ['01012345678'] }]), null);
+  assert.equal(R.contactNameRequest('ماذر موبايل 01012345678', []), null);
+  assert.equal(R.contactNameRequest('ماذر موبايل ٠١٠١٢٣٤٥٦٧٨', []), null);
+  assert.equal(R.contactNameRequest('Mother Mobile', []), null);
+});
 test('remind at a place (prompt 8): the place name is read so an unsaved place can be set first', () => {
   assert.equal(R.remindPlace('فكرني لما أروح البيت أجيب الطلبات'), 'البيت');
   assert.equal(R.remindPlace('فكرني لما أوصل الشغل أخلص التقرير'), 'الشغل');

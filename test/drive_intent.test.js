@@ -50,3 +50,23 @@ test('common Egyptian speech-recognition errors resolve locally without Groq', a
   assert.equal(Intent.localIntent('يا اوس ممكن نتكلم عن مطعمنا'), null);
   assert.equal(calls.length, 0);
 });
+
+test('contact spelling suggestion sends only the Arabic name to Groq and rejects phone-like input', async () => {
+  const calls = [];
+  const fetch = async (...args) => {
+    calls.push(args);
+    return {
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ latin: 'Mother Mobile' }) } }] }),
+    };
+  };
+  assert.equal(await Intent.suggestLatinName('ماذر موبايل', { key: 'test-only', fetch }), 'Mother Mobile');
+  assert.equal(calls.length, 1);
+  const payload = JSON.parse(calls[0][1].body);
+  assert.equal(payload.messages[1].content, 'ماذر موبايل');
+  assert.ok(!JSON.stringify(payload).includes('01012345678'));
+  assert.equal(await Intent.suggestLatinName('ماذر موبايل 01012345678', { key: 'test-only', fetch }), null);
+  assert.equal(await Intent.suggestLatinName('ماذر موبايل ٠١٠١٢٣٤٥٦٧٨', { key: 'test-only', fetch }), null);
+  assert.equal(await Intent.suggestLatinName('ماذر موبايل', { key: '', fetch }), null);
+  assert.equal(calls.length, 1);
+});

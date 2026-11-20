@@ -27,6 +27,9 @@ English spelling ("Mother mobile"), else latin = null.
 Reply with JSON only: {"cmd": string, "arg": string|null, "how": "wa"|null, "latin": string|null}`;
 
 const clean = (v, n) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, n) : null);
+const NAME_SYSTEM = `You convert an Arabic-script transcription of a person's contact name into its likely Latin spelling.
+Return JSON only: {"latin": "Name in Latin letters"}.
+Do not add a phone number, command, explanation, or other personal information. If the spelling is unclear, return {"latin": null}.`;
 
 function normalizeLocal(text) {
   return String(text || '').toLowerCase().normalize('NFKC')
@@ -94,6 +97,33 @@ async function understand(text, opts = {}) {
   } catch (e) { return null; } finally { clearTimeout(tm); }
 }
 
+/** Suggest only the Latin spelling of one Arabic-script contact name; never accepts or sends phone data. */
+async function suggestLatinName(name, opts = {}) {
+  const t = String(name || '').normalize('NFKC').trim();
+  if (!t || t.length > 60 || !/[\u0600-\u06FF]/.test(t) || Array.from(t.matchAll(/\p{N}/gu)).length >= 7) return null;
+  const k = opts.key !== undefined ? opts.key : key();
+  if (!k) return null;
+  const doFetch = opts.fetch || fetch;
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), opts.timeoutMs || 6000);
+  try {
+    const r = await doFetch(GROQ_URL, {
+      method: 'POST', signal: ctl.signal,
+      headers: { authorization: 'Bearer ' + k, 'content-type': 'application/json' },
+      body: JSON.stringify({ model: MODEL, temperature: 0, max_tokens: 40, response_format: { type: 'json_object' },
+        messages: [{ role: 'system', content: NAME_SYSTEM }, { role: 'user', content: t }] }),
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    let parsed;
+    try { parsed = JSON.parse(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content); }
+    catch (e) { return null; }
+    const latin = clean(parsed && parsed.latin, 60);
+    if (!latin || !/^[A-Za-z][A-Za-z .'-]*$/.test(latin)) return null;
+    return latin;
+  } catch (e) { return null; } finally { clearTimeout(tm); }
+}
+
 /** رد الموديل ⇒ أمر سليم من القايمة بس (أى حاجة تانية = null). */
 function parse(content) {
   let o;
@@ -105,4 +135,4 @@ function parse(content) {
   return out;
 }
 
-module.exports = { understand, parse, localIntent, CMDS, NEAR, available: () => !!key() };
+module.exports = { understand, suggestLatinName, parse, localIntent, CMDS, NEAR, available: () => !!key() };

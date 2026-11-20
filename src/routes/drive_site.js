@@ -272,6 +272,15 @@ function createDriveSite({ pool, push } = {}) {
     catch (e) { fail(res, 500, 'intent failed'); }
   };
   router.post('/api/web/intent', rateLimit({ name: 'od-web-intent', windowMs: 24 * 60 * 60000, max: 300 }), json, ownerAuth, intentRoute);
+  const contactNameRoute = async (req, res) => {
+    const body = req.body || {};
+    if (Object.keys(body).some((key) => key !== 'name')) return fail(res, 400, 'invalid contact name request');
+    const name = String(body.name || '').trim();
+    if (!name || name.length > 60) return fail(res, 400, 'invalid contact name');
+    try { res.json({ ok: true, ai: intent.available(), latin: await intent.suggestLatinName(name) }); }
+    catch (e) { fail(res, 500, 'contact name suggestion failed'); }
+  };
+  router.post('/api/web/contact-name', rateLimit({ name: 'od-web-contact-name', windowMs: 24 * 60 * 60000, max: 300 }), json, ownerAuth, contactNameRoute);
   // «أقرب …» من صفحة الموبايل بداتا جوجل (src/drive/places.js) — من غير GOOGLE_PLACES_KEY ⇒ { places:false }
   const places = require('../drive/places');
   router.get('/api/web/nearest', rateLimit({ name: 'od-web-nearest', windowMs: 24 * 60 * 60000, max: 200 }), ownerAuth, async (req, res) => {
