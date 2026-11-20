@@ -295,5 +295,11 @@ check('custom voice lines are rate-limited', /od-voice', windowMs: 24 \* 60 \* 6
   check('Android call contacts live in this phone only (localStorage) — never sent to the server or the screen',
     /localStorage\.setItem\(CT_KEY/.test(ct) && !/api\(|fetch\(|inbox/.test(ct), 'قرار المالك ٢٠٢٦-١١-٢٠: جهات الاتصال مابتتخزّنش لا فى الشاشة ولا عندنا.');
 }
+{
+  const srv = read('server.js');
+  check('drive.oscardevs.com bodies skip the site-wide 100 KB JSON parser (road photos are up to 1.2 MB)',
+    /if \(h\.startsWith\('drive\.'\)\) return next\(\);\s*\n\s*return globalJson\(req, res, next\);/.test(srv),
+    'المالك ٢٠٢٦-١١-٢٠: «صوّر الطريق» كان بيطلّع «خطأ فى الاتصال» — الحد العام كان بيرفض الصورة قبل راوتر Oscar Drive، والشاشة كانت بتمسحها.');
+}
 
 process.exit(failed ? 1 : 0);

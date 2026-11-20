@@ -132,6 +132,22 @@ test('phone voice: «call X» goes to the iPhone shortcut by name — phone or W
   assert.equal(R.shortcutUrl('محمود يعقوب', 'tel'), 'shortcuts://run-shortcut?name=Oscar%20Call&input=text&text=' + encodeURIComponent('محمود يعقوب'));
   assert.ok(R.shortcutUrl('احمد', 'wa').includes('name=Oscar%20WhatsApp'));
 });
+test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping', () => {
+  assert.equal(R.parseVoice('يا أذكر اتصل ب ماذر موبايل'), 'call::ماذر موبايل');
+  assert.equal(R.parseVoice('يا اوس سجل مطعمنا'), 'bump');
+  assert.equal(R.parseVoice('يا جماعة الجو حلو'), null);                 // مش نداء ⇒ ولا حاجة
+  assert.ok(R.maybeOscar('يا اوز سجل حاجة')); assert.ok(!R.maybeOscar('يا جماعة'));
+  assert.ok(R.maybeOscar('سجل حاجة', true));                              // لسه منادينه
+  assert.equal(R.aiToCmd({ cmd: 'bump' }), 'bump');
+  assert.equal(R.aiToCmd({ cmd: 'fuel' }), 'near:fuel');
+  assert.equal(R.aiToCmd({ cmd: 'near', arg: 'pharmacy' }), 'near:pharmacy');
+  assert.equal(R.aiToCmd({ cmd: 'near', arg: 'zoo' }), null);
+  assert.equal(R.aiToCmd({ cmd: 'call', arg: 'ماذر موبايل', how: 'wa' }), 'call:wa:ماذر موبايل');
+  assert.equal(R.aiToCmd({ cmd: null }), null);
+  const I = require('../src/drive/intent');
+  assert.deepEqual(I.parse('{"cmd":"pothole1"}'), { cmd: 'pothole1', arg: null, how: null, latin: null });
+  assert.equal(I.parse('{"cmd":"rm -rf"}'), null); assert.equal(I.parse('not json'), null); assert.equal(I.parse('{"cmd":"call"}'), null);
+});
 test('nearest on the web: same OSM filters and 1 km rounding as the screen, voice, direct-start navigation link', () => {
   assert.equal(R.parseVoice('أوسكار دوّر على أقرب بنزينة'), 'near:fuel');
   assert.equal(R.parseVoice('اسكار اقرب صيدلية'), 'near:pharmacy');

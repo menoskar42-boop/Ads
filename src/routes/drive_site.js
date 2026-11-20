@@ -263,6 +263,23 @@ function createDriveSite({ pool, push } = {}) {
     } catch (e) { fail(res, 500, 'hazards failed'); }
   });
 
+  // «أوسكار مش فاهم» ⇒ ذكاء اصطناعى (المالك ٢٠٢٦-١١-٢٠) — src/drive/intent.js. النص بس، ٣٠٠ مرة فى اليوم بالكتير.
+  const intent = require('../drive/intent');
+  const intentRoute = async (req, res) => {
+    const text = String((req.body && req.body.text) || '').slice(0, 200);
+    if (!text.trim()) return fail(res, 400, 'no text');
+    try { res.json({ ok: true, ai: intent.available(), ...((await intent.understand(text)) || { cmd: null }) }); }
+    catch (e) { fail(res, 500, 'intent failed'); }
+  };
+  router.post('/api/web/intent', rateLimit({ name: 'od-web-intent', windowMs: 24 * 60 * 60000, max: 300 }), json, ownerAuth, intentRoute);
+  // «أقرب …» من صفحة الموبايل بداتا جوجل (src/drive/places.js) — من غير GOOGLE_PLACES_KEY ⇒ { places:false }
+  const places = require('../drive/places');
+  router.get('/api/web/nearest', rateLimit({ name: 'od-web-nearest', windowMs: 24 * 60 * 60000, max: 200 }), ownerAuth, async (req, res) => {
+    try { res.set('Cache-Control', 'no-store'); res.json({ ok: true, ...(await places.nearest(String(req.query.kind || ''), Number(req.query.lat), Number(req.query.lng))) }); }
+    catch (e) { fail(res, 500, 'nearest failed'); }
+  });
+  router.post('/api/car/intent', rateLimit({ name: 'od-car-intent', windowMs: 24 * 60 * 60000, max: 300 }), json, carAuth, intentRoute);
+
   // «أوسكار خد اسكرين شوت» من الموبايل لوحده (المرحلة ٣): نفس صور الطريق (R2 لو متظبّط) — الشاشة مش لازم تكون مربوطة.
   router.post('/api/web/shot', rateLimit({ name: 'od-web-shot', windowMs: 60 * 60000, max: 400 }), shotJson, ownerAuth, async (req, res) => {
     const p = shots.parse(req.body);

@@ -302,7 +302,14 @@ app.locals.assetVersion = Date.now();
 
 app.use(compression());
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = Buffer.from(buf); } }));
+// Oscar Drive (drive.oscardevs.com) بيقرا الـJSON بنفسه بحدود أكبر (صور الطريق ١.٢ ميجا · الباقى ١ ميجا) — الحد الافتراضى هنا
+// (١٠٠ كيلو) كان بيرفض أى صورة طريق قبل ما توصل لراوتره ⇒ «خطأ فى الاتصال» على الموبايل، والشاشة كانت بتعتبرها «صورة بايظة» وتمسحها.
+const globalJson = express.json({ verify: (req, _res, buf) => { req.rawBody = Buffer.from(buf); } });
+app.use((req, res, next) => {
+  const h = String(req.headers['x-tenant-host'] || req.hostname || req.headers.host || '').split(':')[0].toLowerCase();
+  if (h.startsWith('drive.')) return next();
+  return globalJson(req, res, next);
+});
 app.use(cookieParser());
 
 // NeuroPilot daily-push external trigger — mounted BEFORE tenant routing so it

@@ -1059,3 +1059,25 @@ class CoordsTest {
         assertNull(Coords.parse("27.1", ""))
     }
 }
+
+/** المالك ٢٠٢٦-١١-٢٠: «يا أذكر …» · «سجل مطعمنا» · ورد الذكاء الاصطناعى ⇒ أمر. */
+class MisheardTest {
+    @Test fun misheardWakeAndBump() {
+        val e = VoiceEngine()
+        assertEquals("سجل مطب هنا", e.afterWake("يا أذكر سجل مطب هنا"))
+        assertEquals("سجل مطعمنا", e.afterWake("يا اوس سجل مطعمنا"))
+        assertEquals("road.bump", e.understand("سجل مطعمنا")!!.match.command.id)
+    }
+    @Test fun aiReplyMapsToCatalog() {
+        assertEquals("road.pothole1" to null, AiIntent.toCommand("pothole1", null))
+        assertEquals("nav.near" to "صيدلية", AiIntent.toCommand("near", "pharmacy"))
+        assertNull(AiIntent.toCommand("near", "zoo"))
+        assertEquals("nav.goto" to "البيت", AiIntent.toCommand("goto", "البيت"))
+        assertNull(AiIntent.toCommand("goto", "null"))
+        assertNull(AiIntent.toCommand("call", "محمود"))
+        assertNull(AiIntent.toCommand("rm", null))
+        for ((_, id) in listOf("bump" to "road.bump", "fuel_list" to "nav.fuel.list", "placecall" to "place.call"))
+            assertNotNull(VoiceCatalog.byId(id))
+    }
+}
+

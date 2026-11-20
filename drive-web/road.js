@@ -110,7 +110,7 @@
   const fromPart = (from) => (from && from.lat != null && from.lng != null ? '&origin=' + from.lat + ',' + from.lng : '');
   const navUrl = (lat, lng, from) => 'https://www.google.com/maps/dir/?api=1' + fromPart(from) + '&destination=' + lat + ',' + lng + '&travelmode=driving&dir_action=navigate';
   const norm = (t) => String(t || '').toLowerCase().replace(/[\u064B-\u0652]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
-  const WAKE = /(^|\s)(يا\s+)?(اوسكار|اسكار|وسكار|اوسكر|oscar)(\s|$)/;
+  const WAKE = /(^|\s)(?:يا\s+(?:اذكر|اوس|اسكر|اوسكور)|(?:يا\s+)?(?:اوسكار|اسكار|وسكار|اوسكر|oscar))(\s|$)/;
   // تنضيف أقوى للمطابقة بس (زى VoiceEngine.normalize): ی/ک فارسى · علامات · «مطبببب» ⇒ «مطب» · مسافات
   const clean = (t) => norm(t).replace(/[\u0640\u0670]/g, '').replace(/ک/g, 'ك').replace(/ی/g, 'ي').replace(/ھ/g, 'ه')
     .replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/(\p{L})\1{2,}/gu, '$1').replace(/\s+/g, ' ').trim();
@@ -125,7 +125,7 @@
   const WAKE_WINDOW_MS = 8000;
   function wakeOnly(text) {
     const t = clean(text);
-    return WAKE.test(t) && t.replace(/(^|\s)(يا\s+)?(اوسكار|اسكار|وسكار|اوسكر|oscar)(?=\s|$)/g, ' ').trim() === '';
+    return WAKE.test(t) && t.replace(/(^|\s)(?:يا\s+(?:اذكر|اوس|اسكر|اوسكور)|(?:يا\s+)?(?:اوسكار|اسكار|وسكار|اوسكر|oscar))(?=\s|$)/g, ' ').trim() === '';
   }
   /** awake = لسه نادينا عليه (جوّه ٨ ثوانى) ⇒ الجملة بتتفهم من غير الاسم. */
   function parseVoice(text, awake) {
@@ -143,7 +143,7 @@
     // البرومبت ٦: «اتصل بالمكان ده» = آخر مكان لقيناه · «هات محطات البنزين» = قايمة (قبل «اتصل بـ…» و«أقرب …»)
     if (/(اتصل بالمكان|كلم المكان|اتصل بيهم|رقم المكان|call this place|call them)/.test(t)) return 'placecall';
     if (/(محطات البنزين|البنزينات|show gas stations|list gas stations)/.test(t)) return 'list:fuel';
-    const call = parseCall(t.replace(/(^|\s)(يا\s+)?(اوسكار|اسكار|وسكار|اوسكر|oscar)(?=\s|$)/g, ' ').trim());
+    const call = parseCall(t.replace(/(^|\s)(?:يا\s+(?:اذكر|اوس|اسكر|اوسكور)|(?:يا\s+)?(?:اوسكار|اسكار|وسكار|اوسكر|oscar))(?=\s|$)/g, ' ').trim());
     if (call) return 'call:' + (call.how || '') + ':' + call.name;
     if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب|صورلي الطريق|صور الشارع|صوره للشارع|صور قدامي|خد لقطه)/.test(t)) return 'shot';
     // أسئلة بترد من ملخّص العربية (زى fuel.left · maint.next · info.speed على الشاشة) — قبل «أقرب بنزينة» عشان «فاضل كام بنزين»
@@ -161,7 +161,7 @@
     if (/(سجل|علم|هنا|mark)/.test(t) && /(خطر|خطير|danger)/.test(t)) return 'danger';
     const one = /(اتجاه واحد|one way)/.test(t);   // «سجّل مطب اتجاه واحد» (البرومبت ٥) — من غيرها = اتجاهين زى الأول
     if (/(حفره|حفر|نقره|جوره|pothole)/.test(t)) return one ? 'pothole1' : 'pothole';
-    if (/(مطب|مطلب|مضب|ماطب|bump)/.test(t)) return one ? 'bump1' : 'bump';
+    if (/(مطب|مطلب|مضب|ماطب|مطعمنا|bump)/.test(t)) return one ? 'bump1' : 'bump';   // «مطعمنا» = «مطب هنا» متسمعة غلط
     return 'unknown';
   }
   /* ☕ تذكير الاستراحة — نفس logic/Wellness.kt: أول تذكير بعد المدة (٠ = مقفول)، وبعدين كل ١٥ دقيقة طول ما انت سايق،
@@ -336,6 +336,28 @@
     const m = clean(text).match(/(?:لما|اول ما)\s+(?:اروح|اوصل|ارجع|اكون في|اكون)\s+(?:علي\s+|ل)?(\S+)/);
     return m ? m[1] : null;
   }
-  const api = { remindPlace, matchContacts, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  /**
+   * الكلام شكله نداء لأوسكار بس القواعد مافهمتهوش («يا اوس …» · «يا أذكر …») ⇒ يستاهل يتبعت للذكاء الاصطناعى (/api/web/intent).
+   * أول كلمة «يا» والتانية قريبة من «اوسكار» (أو بتبدأ بـ«او/اس»)، أو احنا لسه منادينه (awake).
+   */
+  function maybeOscar(text, awake) {
+    const w = clean(text).split(' ');
+    if (awake && w.length && w[0]) return true;
+    if (w[0] !== 'يا' || !w[1]) return false;
+    return /^(او|اس|وس|اذ)/.test(w[1]) || lev(w[1], 'اوسكار') <= 3;
+  }
+  /** رد /api/web/intent ⇒ نفس أوامر parseVoice (أو null). */
+  function aiToCmd(r) {
+    if (!r || !r.cmd) return null;
+    const simple = { bump: 'bump', bump1: 'bump1', pothole: 'pothole', pothole1: 'pothole1', radar: 'radar', danger: 'danger', shot: 'shot',
+      park: 'park', findpark: 'findpark', fuel: 'near:fuel', fuel_list: 'list:fuel', placecall: 'placecall', fuelleft: 'fuelleft',
+      maint: 'maint', speed: 'speed', odo: 'odo' };
+    if (simple[r.cmd]) return simple[r.cmd];
+    if (r.cmd === 'near' && NEAR.some((k) => k.id === r.arg)) return 'near:' + r.arg;
+    if (r.cmd === 'goto' && r.arg) return 'goto:' + r.arg;
+    if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
+    return null;
+  }
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

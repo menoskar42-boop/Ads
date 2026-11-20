@@ -332,7 +332,7 @@ class MainActivity : Activity() {
             listOf("🅿️ ركنت هنا" to { parkHere() }, "🎤 أمر صوتى" to { listen() }),
             listOf("🧭 الخريطة" to { openMap() }, "⛽ بنزينة" to { nearestFuel() }),
             // «📸 صوّر الطريق» (٢٠٢٦-١١-١٨) — زى «اوسكار اسكرين شوت» لو الأوامر الصوتية مش شغّالة أو مش عايز تستخدمها
-            listOf("📸 صوّر الطريق" to { snapRoad("button") }),
+            listOf("📸 صوّر الطريق" to { snapRoad("button") }, "📞 اتصال" to { openDialer() }),
         )
         for (p in pairs) {
             val r = ui.row()
@@ -1305,6 +1305,15 @@ class MainActivity : Activity() {
         catch (_: Exception) { toast("الشاشة مافيهاش برنامج اتصال — الرقم: ${p.phone}") }
     }
 
+    /**
+     * «📞 اتصال» فى شاشة القيادة (المالك ٢٠٢٦-١١-٢٠): برنامج الاتصال بتاع الشاشة (جهات الاتصال بتاعته من موبايلك بالبلوتوث) —
+     * جهات الاتصال مابتتخزّنش فى Oscar Drive. مفيش برنامج اتصال ⇒ بنقول كده.
+     */
+    private fun openDialer() {
+        try { startActivity(Intent(Intent.ACTION_DIAL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        catch (_: Exception) { toast("الشاشة مافيهاش برنامج اتصال — اتصل من الموبايل («أوسكار اتصل بـ…» فى صفحة الموبايل)") }
+    }
+
     /** «هات محطات البنزين»: قايمة بالأقرب (الاسم · المسافة · الرقم) — دوس على واحدة للملاحة، أو 📞. */
     private fun showNearbyList(ar: String, list: List<com.oscardevs.oscardrive.logic.NearbyResult>, from: Pair<Double, Double>) {
         val sorted = list.sortedBy { Geo.distanceM(from.first, from.second, it.lat, it.lng) }.take(8)
@@ -1325,8 +1334,12 @@ class MainActivity : Activity() {
     private fun nearestFuel() {
         // الأقرب على طول والملاحة تبدأ (جوّه التطبيق أو تطبيق الخرايط حسب الإعدادات) — قبل كده مع «تطبيق الخرائط» كان بيفتح بحث وتختار انت (البرومبت ٦)
         if (!prefs.placesApiOn) { nearbyOsm("fuel", "بنزينة") { nearestFuelExternal() }; return }
-        nearestFuelExternal()
+        // Places API شغّال (الإعدادات) ⇒ نفس بيانات جوجل اللى بتطلّع الأقرب صح — OpenStreetMap ناقصه محطات فى أسيوط (المالك ٢٠٢٦-١١-٢٠)
+        placesFuel = true; nearby("اقرب بنزينه")
     }
+
+    /** «أقرب بنزينة» بـPlaces API (مرة واحدة — عشان nearby مايرجعش لـnearestFuel تانى). */
+    private var placesFuel = false
 
     private fun nearestFuelExternal() {
         val p = here()
@@ -1408,7 +1421,8 @@ class MainActivity : Activity() {
         val kind = Nearby.kindOf(spoken)
         val q = kind?.mapsQuery ?: spoken.trim()
         if (q.isEmpty()) { sayInfo("قول مثلاً: أقرب صيدلية · أقرب ATM · أقرب كنيسة"); return }
-        if (kind?.id == "fuel") { oscar("fuel"); nearestFuel(); return }
+        if (kind?.id == "fuel" && !placesFuel) { oscar("fuel"); nearestFuel(); return }
+        placesFuel = false
         val month = NavActivity.month()
         val key = mapsKey()
         val from = here()
@@ -1603,8 +1617,8 @@ class MainActivity : Activity() {
         val u = best
         if (u == null) {
             if (heard.any { e.afterWake(it) == "" }) { awaitingUntil = now + 8000; oscar("hello"); return }
-            VoiceDiag.add("الفهم: مفيش أمر بيطابق «${heard.first()}»")
-            awaitingUntil = 0; oscar("not_understood", "مافهمتش: «${heard.first()}»"); return
+            VoiceDiag.add("الفهم: مفيش أمر بيطابق «${heard.first()}» — بسأل الذكاء الاصطناعى")
+            awaitingUntil = 0; aiUnderstand(heard.firstNotNullOfOrNull { e.afterWake(it) } ?: heard.first()); return
         }
         if (!u.sure) { askGuess(u); return }
         awaitingUntil = 0
@@ -1669,6 +1683,27 @@ class MainActivity : Activity() {
         db.addNote("remind", text, lat = lat, lng = lng, place = place)
         oscar("remind_saved", "📍 $place: $text")
         refresh()
+    }
+
+    /** القواعد مافهمتش ⇒ الذكاء الاصطناعى (النص بس) ⇒ «تقصد …؟» زى أى فهم مش متأكد. مفيش نت/مافهمش ⇒ «مافهمتش» زى الأول. */
+    private fun aiUnderstand(said: String) {
+        if (said.isBlank() || !online()) { oscar("not_understood", "مافهمتش: «$said»"); return }
+        toast("🤖 بفكّر فى «$said»…")
+        Thread {
+            val r = try {
+                val tok = prefs.deviceToken ?: Cloud.register(BuildConfig.VERSION_NAME).also { prefs.deviceToken = it }
+                Cloud.intent(tok, said)
+            } catch (_: Throwable) { null }
+            main.post {
+                val cmdName = r?.optString("cmd")
+                if (cmdName == "call") { sayInfo("الاتصال من صفحة الموبايل: قول «أوسكار اتصل بـ…» هناك"); return@post }
+                val got = com.oscardevs.oscardrive.logic.AiIntent.toCommand(cmdName, r?.optString("arg"))
+                val cmd = got?.let { VoiceCatalog.byId(it.first) }
+                if (got == null || cmd == null) { VoiceDiag.add("🤖 مافهمش «$said»"); oscar("not_understood", "مافهمتش: «$said»"); return@post }
+                VoiceDiag.add("🤖 فهم: ${cmd.id}")
+                askGuess(Understood(VoiceMatch(cmd, got.second, "ai"), false, got.second ?: said))
+            }
+        }.start()
     }
 
     /* ── الفهم الذكى: لو مش متأكد بيسأل، ولو قلت «أيوه» بيتعلّم الكلمة ── */

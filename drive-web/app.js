@@ -575,6 +575,18 @@
     $('callTelBtn').hidden = how === 'wa'; $('callWaBtn').hidden = how === 'tel';
     $('callTelBtn').textContent = how === 'tel' ? '📞 اتصل' : '📞 تليفون'; $('callWaBtn').textContent = how === 'wa' ? '🟢 اتصل واتساب' : '🟢 واتساب';
     sayRoad(how ? 'هتصل ب' + name + (how === 'wa' ? ' واتساب' : '') + '. تأكد؟' : name + '. تليفون ولا واتساب؟');
+    // الاسم متسجّل بالإنجليزى والتعرّف كتبه عربى («ماذر موبايل» = «Mother mobile») ⇒ الذكاء الاصطناعى يجيب الهجاء الإنجليزى كاختيار تانى
+    $('callOpts').textContent = '';
+    if (/[\u0600-\u06FF]/.test(name)) {
+      const asked = callPending;
+      api('POST', '/api/web/intent', { text: 'اتصل ب' + name }).then((r) => {
+        const latin = r && r.cmd === 'call' && r.latin;
+        if (!latin || callPending !== asked) return;
+        const b = document.createElement('button'); b.textContent = '📞 ' + latin + (how === 'wa' ? ' (واتساب)' : '');
+        b.addEventListener('click', () => { if (callPending) { callPending.name = latin; callGo(how === 'wa' ? 'wa' : 'tel'); } });
+        $('callOpts').append(b);
+      }).catch(() => {});
+    }
   }
   function callDone() { callPending = null; $('callBox').hidden = true; $('callOpts').textContent = ''; }
   function callGo(how) {
@@ -607,6 +619,15 @@
   $('callWaBtn').addEventListener('click', () => callGo('wa'));
   $('callNoBtn').addEventListener('click', () => { callDone(); $('voiceNote').textContent = '📞 اتلغى'; });
   $('callTestBtn').addEventListener('click', () => { const n = prompt('اسم من جهات الاتصال'); if (n && n.trim()) callAsk(n.trim(), null); });
+  // «📞 اتصال» فى شاشة القيادة (المالك ٢٠٢٦-١١-٢٠): الأندرويد ⇒ قايمة جهات الاتصال اللى على الموبايل ده · الآيفون/مفيش قايمة ⇒ اكتب الاسم
+  $('dvCall').addEventListener('click', () => {
+    const list = isIOS ? [] : ctLoad();
+    if (!list.length) { const n = prompt('تتصل بمين؟ (أو قول: أوسكار اتصل بـ…)'); if (n && n.trim()) callAsk(n.trim(), null); return; }
+    const opts = $('callOpts'); opts.textContent = '';
+    $('callTelBtn').hidden = true; $('callWaBtn').hidden = true; $('callBox').hidden = false;
+    $('callQ').textContent = '📞 تتصل بمين؟';
+    for (const c of list.slice(0, 12)) { const b = document.createElement('button'); b.textContent = c.name; b.addEventListener('click', () => callLocal(c.name, null)); opts.append(b); }
+  });
   try { $('voiceSel').value = oscarVoice(); } catch (e) {}
   $('voiceSel').addEventListener('change', () => {
     try { localStorage.setItem(VOICE_PREF, $('voiceSel').value); } catch (e) {}
@@ -987,7 +1008,9 @@
     if (c && Date.now() - c.at < 10 * 60000 && RD.distanceM(c.lat, c.lng, f.lat, f.lng) < 1500) return;
     nearBusy = true;
     const k = RD.NEAR.find((x) => x.id === 'fuel');
-    osmNearest(k, f, 15000).then((best) => { nearCache.fuel = { best, lat: f.lat, lng: f.lng, at: Date.now() }; })
+    // داتا جوجل من السيرفر لو متاحة (OpenStreetMap ناقصه محطات) — من غيرها ماتتخزّنش أقرب غلط (البحث بيفتح خرايط جوجل)
+    api('GET', '/api/web/nearest?kind=fuel&lat=' + f.lat + '&lng=' + f.lng)
+      .then((g) => { if (g && g.places && g.results && g.results.length) nearCache.fuel = { best: RD.nearestOf(g.results, f.lat, f.lng), lat: f.lat, lng: f.lng, at: Date.now() }; })
       .catch(() => {}).finally(() => { nearBusy = false; });
   }
   async function nearbyWeb(kindId) {
@@ -1010,6 +1033,19 @@
     const go = async (f) => {
       $('voiceNote').textContent = 'بدوّر على أقرب ' + k.ar + '…';
       try {
+        // ١) داتا جوجل من السيرفر (Places — المالك ٢٠٢٦-١١-٢٠: OpenStreetMap ناقصه محطات) · من غير مفتاح على السيرفر:
+        //    البنزينة ⇒ بحث خرايط جوجل على طول (بيطلّع الأقرب صح) · الباقى ⇒ OpenStreetMap زى الأول
+        let g = null;
+        try { g = await api('GET', '/api/web/nearest?kind=' + encodeURIComponent(k.id) + '&lat=' + f.lat + '&lng=' + f.lng); } catch (e) {}
+        if (g && g.places && g.results && g.results.length) {
+          const b = RD.nearestOf(g.results, f.lat, f.lng); lastPlace = b;
+          const m = 'أقرب ' + k.ar + ': ' + b.name + ' — ' + RD.sayDistance(b.d);
+          $('voiceNote').textContent = '🧭 ' + m + (b.phone ? ' · 📞 ' + b.phone : ''); sayRoad(m);
+          if (k.id === 'fuel') nearCache.fuel = { best: b, lat: f.lat, lng: f.lng, at: Date.now() };
+          setTimeout(() => { location.href = RD.navUrl(b.lat, b.lng, hereFix()); }, 1800);
+          return;
+        }
+        if (k.id === 'fuel' && !(g && g.places)) { fallback(f, 'بفتح خرايط جوجل'); return; }
         // OpenStreetMap (Overpass) ساعات بيتأخر جداً أو بيرفض — ٥ ثوانى بالكتير وبعدين جوجل
         const best = await osmNearest(k, f, 8000);   // النطاق بيكبر لوحده (لحد ٤ طلبات)
         if (best && k.id === 'fuel') nearCache.fuel = { best, lat: f.lat, lng: f.lng, at: Date.now() };
@@ -1053,6 +1089,14 @@
     if (lastFix && Date.now() - lastFix.t < 60000) return go(lastFix);
     if (!navigator.geolocation) return go(null);
     navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); }, () => go(null), { enableHighAccuracy: true, timeout: 10000 });
+  }
+  async function aiVoice(heard) {
+    $('voiceNote').textContent = '🤖 بفكّر فى «' + heard + '»…';
+    let c = null;
+    try { c = RD.aiToCmd(await api('POST', '/api/web/intent', { text: heard })); } catch (e) {}
+    if (!c) { RD.provTake(voiceProv, 'unknown', Date.now()); $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; oscar('not_understood', 'مافهمتش'); return; }
+    $('voiceNote').textContent = '🤖 فهمت: ' + c.replace(/^\w+:/, '').replace(/:/g, ' ');
+    runVoice(c, heard);
   }
   function runVoice(cmd, heard) {
     const pre = RD.provTake(voiceProv, cmd, Date.now());   // التصوير الفورى: أمر طريق ⇒ بياناته · غير كده ⇒ بتتشال
@@ -1112,6 +1156,8 @@
       const awake = now < awakeUntil;
       const cmd = alts.map((a) => RD.parseVoice(a, awake)).find((c) => c && c !== 'unknown') || RD.parseVoice(alts[0], awake);
       if (cmd && !RD.repeatOk(voiceRepeat, cmd, now)) { RD.provTake(voiceProv, 'unknown', now); return; }   // نفس الأمر اتسمع تانى ⇒ مرة واحدة
+      // القواعد مافهمتش بس الكلام شكله نداء لأوسكار («يا اوس سجل مطعمنا») ⇒ الذكاء الاصطناعى (المالك ٢٠٢٦-١١-٢٠)، ولو مافهمش برضه بيقول كده
+      if ((!cmd || cmd === 'unknown') && (cmd === 'unknown' || RD.maybeOscar(alts[0], awake))) { awakeUntil = 0; aiVoice(alts[0]); return; }
       if (cmd) { awakeUntil = 0; runVoice(cmd, alts[0]); }
     };
     rec.onstart = () => { running = true; };
