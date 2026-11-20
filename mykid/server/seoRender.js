@@ -377,8 +377,8 @@ export function renderLlmsTxt() {
     (match) => match[1]
   );
   const pageLines = sitemapUrls.map((url) => {
-    const title = titles.get(url);
-    if (!title) throw new Error(`Missing llms.txt title for sitemap URL: ${url}`);
+    // صفحة جديدة فى السايت‌ماب من غير عنوان هنا ⇒ الرابط لوحده (مش 500 للملف كله)
+    const title = titles.get(url) || url;
     return `- ${title}: ${url}`;
   });
 
