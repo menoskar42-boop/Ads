@@ -591,6 +591,20 @@
     } catch (e) { note.textContent = 'ماقدرتش أقرأ ملف vCard: ' + (e.message || e); }
   });
   $('ctAdd').addEventListener('click', () => { ctAddOne($('ctName').value, [$('ctTel').value]); $('ctName').value = ''; $('ctTel').value = ''; });
+  $('ctClearAll').addEventListener('click', () => {
+    const count = ctLoad().length, note = $('ctImportNote');
+    if (!count) { note.textContent = 'قائمة جهات الاتصال المحلية فارغة.'; return; }
+    if (!window.confirm(`هتمسح كل جهات الاتصال (${count}) من المتصفح ده فقط. لن تُمسح إعدادات أوسكار، ولا يمكن التراجع عن المسح. متأكد؟`)) {
+      note.textContent = 'لم يتم مسح جهات الاتصال.';
+      return;
+    }
+    try {
+      localStorage.removeItem(CT_KEY);
+      callDone();
+      ctRender();
+      note.textContent = `تم مسح ${count} جهة اتصال من المتصفح ده فقط؛ إعدادات أوسكار لم تتغير.`;
+    } catch (e) { note.textContent = 'ماقدرتش أمسح جهات الاتصال من المتصفح.'; }
+  });
   ctRender();
   const d3 = (t) => String(t).replace(/[^\d]/g, '').replace(/^(00)?20(?=1)/, '0').slice(0, 3);
   function callLocal(name, how) {
