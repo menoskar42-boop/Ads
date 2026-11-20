@@ -17,6 +17,8 @@
     <!-- Oscar Voice: «يا أوسكار» — الاستماع المتكرر والتطبيق قدامك (اختيارى، بيتطلب من شاشة أوسكار بس).
          الصوت بيروح لبرنامج التعرّف اللى على الشاشة، وOscar Drive بياخد النص بس — مابيسجّلش ولا بيبعت صوت. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- زرار «⬅️ Oscar» فوق تطبيق الخرايط الخارجى بس (قرار المالك ٢٠٢٦-١١-٢٠) — اختيارى، والمالك بيسمح بيه من الإعدادات -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- مفيش SEND_SMS: الطوارئ بتفتح برنامج الرسايل والسواق هو اللى بيدوس إرسال. -->

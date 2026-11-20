@@ -196,7 +196,7 @@ class NavActivity : Activity() {
                 "geo:$lat,$lng?q=$lat,$lng(" + Uri.encode(label) + ")",
             )
             for (u in tries) {
-                try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return true }
+                try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); BackBubble.show(ctx); return true }
                 catch (_: Exception) {}
             }
             return false

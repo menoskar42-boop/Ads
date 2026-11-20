@@ -269,5 +269,16 @@ check('custom voice lines are rate-limited', /od-voice', windowMs: 24 \* 60 \* 6
       && /rec\.interimResults = true/.test(app) && /RD\.provBegin\(voiceProv/.test(app) && /RD\.provTake\(voiceProv, cmd/.test(app) && /RD\.repeatOk\(voiceRepeat/.test(app),
     'على ٦٠ كم/س ثانيتين = ٣٣ متر: المطب كان بيتسجّل بعد مكانه. والنتيجة المكرّرة من برنامج التعرّف كانت بتسجّل مرتين.');
 }
+{
+  // قرار المالك ٢٠٢٦-١١-٢٠: الخريطة الخارجية ⇒ زرار «⬅️ Oscar» عائم فوقها (صلاحية «الظهور فوق التطبيقات» للحالة دى بس)
+  const A = 'oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/';
+  const bb = read(A + 'BackBubble.kt'), mainA = read(A + 'MainActivity.kt'), nav = read(A + 'NavActivity.kt'), mapA = read(A + 'MapActivity.kt');
+  const man = read('oscardrive-android/app/src/main/AndroidManifest.xml');
+  check('external maps get a floating «⬅️ Oscar» back button (overlay permission, optional), hidden when you come back',
+    /android\.permission\.SYSTEM_ALERT_WINDOW/.test(man) && /Settings\.canDrawOverlays/.test(bb) && /TYPE_APPLICATION_OVERLAY/.test(bb)
+      && /Prefs\(app\)\.backBubble/.test(bb) && /BackBubble\.show\(this\)/.test(mainA) && /BackBubble\.hide\(this\)/.test(mainA)
+      && /BackBubble\.show\(ctx\)/.test(nav) && /BackBubble\.show\(this\)/.test(mapA),
+    'الرجوع من جوجل مابس لـOscar Drive كان صعب. الصلاحية اختيارية ومن غيرها كله زى الأول.');
+}
 
 process.exit(failed ? 1 : 0);

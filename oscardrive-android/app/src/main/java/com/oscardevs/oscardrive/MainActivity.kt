@@ -122,11 +122,13 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         if (ScreenEars.sink != null) ScreenEars.sink = null
         ScreenEars.partialSink = null
+        BackBubble.hide(this)
         super.onDestroy()
     }
 
     override fun onResume() {
         super.onResume()
+        BackBubble.hide(this)   // رجعت من الخرايط الخارجية
         DriveService.State.listener = { main.post { render() } }
         DriveService.State.screens++
         Guard.init(this)
@@ -847,6 +849,18 @@ class MainActivity : Activity() {
             DriveService.State.night = initialNight()
             build()
         })
+        // زرار الرجوع فوق تطبيق الخرايط الخارجى (قرار المالك ٢٠٢٦-١١-٢٠)
+        val bubbleOk = BackBubble.permitted(this)
+        page.addView(toggle("🔙 زرار «⬅️ Oscar» فوق تطبيق الخرايط" + if (prefs.backBubble && !bubbleOk) " (محتاج صلاحية)" else "", prefs.backBubble && bubbleOk) { on ->
+            prefs.backBubble = on
+            if (on && !BackBubble.permitted(this)) {
+                toast("اسمح لـOscar Drive بـ«الظهور فوق التطبيقات» وارجع")
+                try { startActivity(BackBubble.permissionIntent(this)) } catch (_: Exception) { toast("افتح إعدادات الشاشة ← التطبيقات ← Oscar Drive ← الظهور فوق التطبيقات") }
+            }
+            refresh()
+        })
+        page.addView(ui.text("لما الخريطة أو الملاحة تفتح فى جوجل مابس بيظهر زرار صغير يرجّعك هنا بضغطة (وتقدر تسحبه لأى مكان). الخريطة جوّه التطبيق فيها «رجوع» من غير صلاحية.",
+            13f, ui.muted).apply { setPadding(ui.dp(6), 0, ui.dp(6), ui.dp(6)) })
         if (BuildConfig.NAV_SDK_KEY) {
             page.addView(optionRow("🧭 الملاحة", listOf(0 to "جوه Oscar Drive", 1 to "تطبيق الخرائط"), prefs.navMode) { prefs.navMode = it })
             val used = prefs.navUsedThisMonth(NavActivity.month())
@@ -1412,7 +1426,9 @@ class MainActivity : Activity() {
     }
 
     private fun view(uri: String): Boolean = try {
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        if (uri.startsWith("geo:") || uri.startsWith("google.navigation:")) BackBubble.show(this)   // «⬅️ Oscar» فوق الخرايط
+        true
     } catch (_: Exception) { false }
 
     /* ═══════════════ 🎙️ Oscar Voice: أوامر ثابتة من غير AI ═══════════════ */

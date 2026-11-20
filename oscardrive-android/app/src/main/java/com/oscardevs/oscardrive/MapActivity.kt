@@ -117,7 +117,7 @@ class MapActivity : Activity() {
     private fun fallback() {
         val s = DriveService.State
         val uri = if (s.lat != null && s.lng != null) "geo:${s.lat},${s.lng}?z=16" else "geo:0,0?z=3"
-        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri))) } catch (_: Exception) {}
+        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri))); BackBubble.show(this) } catch (_: Exception) {}
         finish()
     }
 

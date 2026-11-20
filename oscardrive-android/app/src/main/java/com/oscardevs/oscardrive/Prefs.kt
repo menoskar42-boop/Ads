@@ -177,6 +177,10 @@ class Prefs(context: Context) {
         get() = sp.getFloat("last_lng", 0f).toDouble()
         set(v) = sp.edit().putFloat("last_lng", v.toFloat()).apply()
 
+    /** زرار «⬅️ Oscar» العائم فوق تطبيق الخرايط الخارجى (BackBubble) — شغّال لو صلاحية «الظهور فوق التطبيقات» موجودة. */
+    var backBubble: Boolean
+        get() = sp.getBoolean("back_bubble", true)
+        set(v) = sp.edit().putBoolean("back_bubble", v).apply()
     /** ٠ = الملاحة جوه Oscar Drive لو متاحة · ١ = تطبيق الخرائط دايماً. */
     var navMode: Int
         get() = sp.getInt("nav_mode", 0)
