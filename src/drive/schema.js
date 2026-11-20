@@ -31,8 +31,12 @@ async function ensureDriveSchema(pool) {
       last_fix_at    TIMESTAMPTZ,
       lost_alerted   BOOLEAN NOT NULL DEFAULT false,
       app_version    TEXT,
+      contacts       JSONB NOT NULL DEFAULT '[]'::jsonb,
+      contacts_sync_enabled BOOLEAN NOT NULL DEFAULT false,
       created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS contacts JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS contacts_sync_enabled BOOLEAN NOT NULL DEFAULT false;
     CREATE UNIQUE INDEX IF NOT EXISTS od_cars_pair_code ON od_cars(pair_code) WHERE pair_code IS NOT NULL;
     CREATE TABLE IF NOT EXISTS od_owners (
       id          SERIAL PRIMARY KEY,

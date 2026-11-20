@@ -2,6 +2,7 @@
 'use strict';
 
 const L = require('./logic');
+const Contacts = require('./contacts');
 
 async function registerCar(pool, appVersion) {
   const token = L.newToken();
@@ -122,13 +123,65 @@ async function createSolo(pool) {
 /** الموبايل اللى كان لوحده ربط شاشة حقيقية ⇒ مطباته وصوره ورسايله للشاشة بتتنقل للعربية الحقيقية، والافتراضية بتتشال. */
 async function absorbSolo(pool, soloCarId, realCarId) {
   if (!soloCarId || soloCarId === realCarId) return false;
-  const { rows } = await pool.query('SELECT solo FROM od_cars WHERE id = $1', [soloCarId]);
+  const { rows } = await pool.query('SELECT solo, contacts, contacts_sync_enabled FROM od_cars WHERE id = $1', [soloCarId]);
   if (!rows[0] || !rows[0].solo) return false;
+  if (rows[0].contacts_sync_enabled) {
+    const target = await pool.query('SELECT contacts, contacts_sync_enabled FROM od_cars WHERE id = $1', [realCarId]);
+    if (target.rows[0]) {
+      const merged = Contacts.mergeContacts(target.rows[0].contacts || [], rows[0].contacts || []);
+      await pool.query(
+        'UPDATE od_cars SET contacts = $2::jsonb, contacts_sync_enabled = true WHERE id = $1',
+        [realCarId, JSON.stringify(merged.items)]);
+    }
+  }
   for (const t of ['od_hazards', 'od_shots', 'od_inbox']) {
     await pool.query(`UPDATE ${t} SET car_id = $1 WHERE car_id = $2`, [realCarId, soloCarId]);
   }
   await pool.query('DELETE FROM od_cars WHERE id = $1 AND solo', [soloCarId]);   // التوكن القديم بيتشال معاها (cascade)
   return true;
+}
+
+async function syncContacts(pool, carId, body = {}) {
+  const allowedKeys = new Set(['enable', 'disable', 'items']);
+  if (!body || typeof body !== 'object' || Array.isArray(body) ||
+      Object.keys(body).some((key) => !allowedKeys.has(key)) ||
+      (body.enable === true && body.disable === true)) {
+    throw new Contacts.ContactInputError('invalid contacts request');
+  }
+  const incoming = body.items === undefined ? [] : Contacts.cleanContacts(body.items);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT contacts, contacts_sync_enabled FROM od_cars WHERE id = $1 FOR UPDATE', [carId]);
+    if (!rows[0]) throw new Error('car not found');
+    const current = rows[0];
+
+    if (body.disable === true) {
+      await client.query(
+        "UPDATE od_cars SET contacts_sync_enabled = false, contacts = '[]'::jsonb WHERE id = $1", [carId]);
+      await client.query('COMMIT');
+      return { enabled: false, items: [], idMap: {} };
+    }
+
+    const enabled = current.contacts_sync_enabled === true || body.enable === true;
+    if (!enabled) {
+      await client.query('COMMIT');
+      return { enabled: false, items: [], idMap: {} };
+    }
+
+    const merged = Contacts.mergeContacts(current.contacts || [], incoming);
+    await client.query(
+      'UPDATE od_cars SET contacts = $2::jsonb, contacts_sync_enabled = true WHERE id = $1',
+      [carId, JSON.stringify(merged.items)]);
+    await client.query('COMMIT');
+    return { enabled: true, ...merged };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function state(pool, carId, now = Date.now()) {
@@ -208,5 +261,5 @@ async function prune(pool) {
   await pool.query(`DELETE FROM od_events WHERE at < now() - interval '180 days'`);
 }
 
-module.exports = { createSolo, absorbSolo, registerCar, carByToken, ownerByToken, sync, newPairCode, pairOwner, state, track, setArmed, rename,
+module.exports = { createSolo, absorbSolo, registerCar, carByToken, ownerByToken, sync, syncContacts, newPairCode, pairOwner, state, track, setArmed, rename,
   saveSub, subsForCar, removeSub, logoutOwner, claimLostCars, prune };

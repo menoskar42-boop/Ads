@@ -38,6 +38,8 @@ object Cloud {
     fun intent(token: String, text: String): JSONObject = call("/api/car/intent", token, JSONObject().put("text", text.take(200)))
     /** ذاكرة الطريق (رفع بالـuuid، و`pull` بيرجّع ذاكرة العربية كلها). */
     fun hazards(token: String, body: JSONObject): JSONObject = call("/api/car/hazards", token, body)
+    /** جهات الاتصال التي وافق المالك على مزامنتها بين صفحة الموبايل والشاشة المرتبطة. */
+    fun contacts(token: String, body: JSONObject): JSONObject = call("/api/car/contacts", token, body)
     /** الشاشة دى تاخد نفس العربية بكود من صفحة الموبايل (بعد مسح التطبيق). */
     fun relink(token: String, code: String): JSONObject = call("/api/car/relink", token, JSONObject().put("code", code))
     /** الربط بـQR: رقم ٨ أرقام + الرابط اللى بيتعرض QR، وسؤال «اتربطت؟». */

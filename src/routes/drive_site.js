@@ -20,6 +20,7 @@ const WEB_DIR = path.join(__dirname, '..', '..', 'drive-web');
 function createDriveSite({ pool, push } = {}) {
   const router = express.Router();
   const json = express.json({ limit: '1mb' });
+  const contactsJson = express.json({ limit: '512kb' });
 
   router.use((req, res, next) => {
     res.locals.showAds = false;
@@ -113,6 +114,12 @@ function createDriveSite({ pool, push } = {}) {
       }
       res.json(out);
     } catch (e) { fail(res, 500, 'hazards failed'); }
+  });
+  router.post('/api/car/contacts', rateLimit({ name: 'od-car-contacts', windowMs: 60 * 60000, max: 120 }), contactsJson, carAuth, async (req, res) => {
+    try {
+      const result = await store.syncContacts(pool, req.car.id, req.body || {});
+      res.set('Cache-Control', 'no-store').json({ ok: true, ...result });
+    } catch (e) { fail(res, e.status || 500, e.status ? e.message : 'contacts sync failed'); }
   });
   // شاشة اتسطّبت من جديد بتكتب كود من صفحة الموبايل ⇒ تاخد نفس العربية. التخمين: ٦ أرقام × ١٠ دقايق × ١٠ محاولات.
   router.post('/api/car/relink', rateLimit({ name: 'od-relink', windowMs: 10 * 60000, max: 10 }), json, carAuth, async (req, res) => {
@@ -261,6 +268,12 @@ function createDriveSite({ pool, push } = {}) {
       if (req.body && req.body.clearTest === true) return res.json({ ok: true, cleared: await hz.clearTest(pool, req.owner.car_id) });
       res.json({ ok: true, saved: await hz.save(pool, req.owner.car_id, hz.parseItems(req.body)) });
     } catch (e) { fail(res, 500, 'hazards failed'); }
+  });
+  router.post('/api/web/contacts', rateLimit({ name: 'od-web-contacts', windowMs: 60 * 60000, max: 120 }), contactsJson, ownerAuth, async (req, res) => {
+    try {
+      const result = await store.syncContacts(pool, req.owner.car_id, req.body || {});
+      res.set('Cache-Control', 'no-store').json({ ok: true, ...result });
+    } catch (e) { fail(res, e.status || 500, e.status ? e.message : 'contacts sync failed'); }
   });
 
   // «أوسكار مش فاهم» ⇒ ذكاء اصطناعى (المالك ٢٠٢٦-١١-٢٠) — src/drive/intent.js. النص بس، ٣٠٠ مرة فى اليوم بالكتير.

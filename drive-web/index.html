@@ -96,6 +96,10 @@ body.dv-on { overflow:hidden; }
 /* سؤال الاتصال بيبان فوق شاشة القيادة كمان */
 body.dv-on #callBox:not([hidden]) { position:fixed; left:12px; right:12px; bottom:12px; z-index:60; background:var(--surface); border:1px solid var(--line);
   border-radius:14px; padding:12px; box-shadow:0 8px 30px #0008; }
+#contactDirectory { width:100%; }
+#contactDirectoryList { display:grid; gap:6px; max-height:min(48vh, 360px); overflow-y:auto; padding:2px; }
+.contact-directory-row { display:flex; align-items:center; gap:8px; width:100%; padding:8px; border-radius:10px; background:var(--surface2); }
+.contact-directory-row .contact-directory-info { flex:1; min-width:0; overflow-wrap:anywhere; }
 @media (prefers-reduced-motion: reduce) { #dvArrow { transition:none; } }
 #map { height:320px; border-radius:14px; overflow:hidden; background:var(--surface2); }
 .seg button { padding:8px 12px; min-height:40px; font-size:14px; }
@@ -306,6 +310,11 @@ body.solo .carOnly { display:none !important; }
       <video id="camView" playsinline muted hidden style="width:100%;border-radius:10px;margin-top:8px"></video>
       <div id="callBox" class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap" hidden>
         <p class="note" id="callQ" style="width:100%;margin:0"></p>
+        <div id="contactDirectory" hidden>
+          <input id="contactSearch" class="plain" type="search" placeholder="ابحث بالاسم أو الرقم" aria-label="ابحث في جهات الاتصال" style="width:100%;margin:6px 0">
+          <div id="contactDirectoryList" role="list"></div>
+          <p id="contactDirectoryEmpty" class="note" hidden>لا توجد جهات اتصال مطابقة.</p>
+        </div>
         <button id="callTelBtn" class="primary" style="flex:1">📞 تليفون</button>
         <button id="callWaBtn" style="flex:1;background:#15803d;color:#fff">🟢 واتساب</button>
         <button id="callNoBtn" style="flex:1">إلغاء</button>
@@ -331,20 +340,28 @@ body.solo .carOnly { display:none !important; }
         <p class="note">الزرار بيجهّز رسالة فيها مكانك للرقم ده — وانت اللى بتدوس إرسال. من غير رقم ⇒ بيفتح المشاركة وتختار.</p>
       </details>
       <details class="note"><summary>📞 الاتصال الصوتي وجهات الاتصال</summary>
-        <p class="note">على Safari تقدر تستورد ملف جهات اتصال vCard (.vcf)؛ الأسماء والأرقام تفضل محفوظة في المتصفح على الموبايل ده فقط ومابتتبعتش للسيرفر. لو ما استوردتش جهة الاتصال، اختصار «Oscar Call» يقدر يدوّر عليها في الآيفون. <a href="https://claude.ai/artifact/RnS3AgBbLusdkh9o7wF4Kf" target="_blank" rel="noopener">خطوات إعداد الاختصار</a>.</p>
+        <p class="note">على Safari تقدر تستورد ملف vCard؛ الملف نفسه لا يُرفع. الأسماء والأرقام تفضل محلية حتى توافق على المزامنة. عند تفعيلها تُحفظ الجهات على خادم أوسكار وتظهر للأجهزة المرتبطة بالسيارة نفسها فقط. اختصار «Oscar Call» يظل بديلًا على الآيفون. <a href="https://claude.ai/artifact/RnS3AgBbLusdkh9o7wF4Kf" target="_blank" rel="noopener">خطوات إعداد الاختصار</a>.</p>
         <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="callWa"> 🟢 واتساب ضمن اختيارات الاتصال (محتاج اختصار «Oscar WhatsApp»)</label>
         <button id="callTestBtn" style="width:100%;margin-top:6px">جرّب الاتصال باسم تكتبه</button>
-        <p class="note" style="margin-top:8px"><b>الأندرويد:</b> اختار من جهات الاتصال أو استورد vCard. كل البيانات تفضل على الجهاز ده فقط.</p>
+        <p class="note" style="margin-top:8px"><b>الأندرويد:</b> اختار جهات اتصال أو استورد vCard. لا تُرفع جهات الهاتف كاملة تلقائيًا.</p>
         <div class="row" style="gap:6px;flex-wrap:wrap"><button id="ctPick" style="flex:1">📇 ضيف من جهات الاتصال</button>
           <input id="ctName" class="plain" placeholder="الاسم" style="flex:1"><input id="ctTel" class="plain" type="tel" placeholder="01xxxxxxxxx" style="flex:1;direction:ltr">
           <button id="ctAdd">ضيف</button>
           <button id="ctVcfImport" type="button" style="flex:1">📥 استورد جهات الاتصال (.vcf)</button>
           <input id="ctVcfFile" type="file" accept=".vcf,text/vcard,text/x-vcard" hidden>
         </div>
-        <p class="note" id="ctImportNote" role="status" aria-live="polite">اختار ملف vCard من «الملفات»؛ الاستيراد يتم داخل المتصفح فقط.</p>
+        <p class="note" id="ctImportNote" role="status" aria-live="polite">اختار ملف vCard من «الملفات»؛ الاستيراد يتم على الجهاز أولًا.</p>
+        <p class="note" id="ctSpellingPrivacyNote" role="note" style="margin:8px 0;padding:8px;border-inline-start:3px solid #14b8a6;background:var(--surface2);border-radius:8px;color:var(--ink)">
+          <b>خصوصية اقتراح التهجئة:</b> قد يُرسل الاسم العربي وحده لاقتراح كتابته باللاتينية؛ لا يُرسل رقم الهاتف أو ملف vCard، ولا تُرفع قائمة الأسماء لهذا الاقتراح.
+        </p>
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <button id="ctSyncNow" type="button" style="flex:1">🔄 زامن مع شاشة العربية</button>
+          <button id="ctSyncDisable" type="button" style="flex:1" hidden>إيقاف المزامنة ومسح نسخة الخادم</button>
+        </div>
+        <p class="note" id="ctSyncStatus" role="status" aria-live="polite">المزامنة غير مفعّلة؛ جهات الاتصال تبقى على هذا الجهاز.</p>
         <ul class="list" id="ctList"></ul>
-        <button id="ctClearAll" type="button" style="width:100%;margin-top:6px;border-color:#b42318;color:#b42318">امسح كل جهات الاتصال من المتصفح ده</button>
-        <p class="note">استخدم المسح قبل تسليم نفس المتصفح لمستخدم آخر. سيمسح قائمة الأسماء والأرقام المحلية فقط، ولن يمسح إعدادات أوسكار.</p>
+        <button id="ctClearAll" type="button" style="width:100%;margin-top:6px;border-color:#b42318;color:#b42318">امسح كل جهات الاتصال</button>
+        <p class="note">عند تفعيل المزامنة، حذف جهة أو مسح القائمة يزيلها من الأجهزة المرتبطة بعد المزامنة. إيقاف المزامنة يمسح نسخة الخادم ويُبقي النسخ المحلية.</p>
       </details>
       <p class="note" id="roadNote"></p>
       <div id="roadList" style="display:grid;gap:6px"></div>

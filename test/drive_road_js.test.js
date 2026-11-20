@@ -120,6 +120,32 @@ test('Arabic contact spelling fallback sends only the name when no local contact
   assert.equal(R.contactNameRequest('ماذر موبايل ٠١٠١٢٣٤٥٦٧٨', []), null);
   assert.equal(R.contactNameRequest('Mother Mobile', []), null);
 });
+test('Arabic spelling suggestions are memoized per page session by normalized name', async () => {
+  const getSpelling = R.createContactSpellingCache();
+  let requests = 0;
+  const loadMother = async () => { requests++; return { latin: 'Mother Mobile' }; };
+  const first = getSpelling('ماذر موبايل', loadMother);
+  const duplicate = getSpelling('  ماذر   موبايل  ', loadMother);
+  assert.equal(duplicate, first); // حتى الطلب الجاري لا يُرسل مرتين
+  assert.equal(await first, 'Mother Mobile');
+  assert.equal(await duplicate, 'Mother Mobile');
+  assert.equal(requests, 1);
+
+  assert.equal(await getSpelling('مادر موبايل', async () => {
+    requests++;
+    return { latin: 'Mother Mobyle' };
+  }), 'Mother Mobyle');
+  assert.equal(requests, 2); // الاسم المختلف له طلب مستقل
+
+  const fail = async () => { requests++; throw new Error('offline'); };
+  assert.equal(await getSpelling('اسم آخر', fail), '');
+  assert.equal(await getSpelling('اسم آخر', fail), '');
+  assert.equal(requests, 3); // لا يعاد الطلب الفاشل في الجلسة نفسها
+
+  const nextPage = R.createContactSpellingCache();
+  assert.equal(await nextPage('ماذر موبايل', loadMother), 'Mother Mobile');
+  assert.equal(requests, 4); // ذاكرة صفحة جديدة مستقلة
+});
 test('remind at a place (prompt 8): the place name is read so an unsaved place can be set first', () => {
   assert.equal(R.remindPlace('فكرني لما أروح البيت أجيب الطلبات'), 'البيت');
   assert.equal(R.remindPlace('فكرني لما أوصل الشغل أخلص التقرير'), 'الشغل');

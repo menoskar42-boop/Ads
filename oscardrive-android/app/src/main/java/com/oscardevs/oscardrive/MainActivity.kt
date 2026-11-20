@@ -135,6 +135,7 @@ class MainActivity : Activity() {
         Guard.listener = { main.post { if (tab == "sec") refresh(); maybePinGate() } }
         Oscar.init(this)
         render()
+        ContactSync.syncSoon(this)
         maybePinGate()
         startWakeIfOn()
         showLastCrash()
@@ -1305,13 +1306,119 @@ class MainActivity : Activity() {
         catch (_: Exception) { toast("الشاشة مافيهاش برنامج اتصال — الرقم: ${p.phone}") }
     }
 
-    /**
-     * «📞 اتصال» فى شاشة القيادة (المالك ٢٠٢٦-١١-٢٠): برنامج الاتصال بتاع الشاشة (جهات الاتصال بتاعته من موبايلك بالبلوتوث) —
-     * جهات الاتصال مابتتخزّنش فى Oscar Drive. مفيش برنامج اتصال ⇒ بنقول كده.
-     */
-    private fun openDialer() {
-        try { startActivity(Intent(Intent.ACTION_DIAL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-        catch (_: Exception) { toast("الشاشة مافيهاش برنامج اتصال — اتصل من الموبايل («أوسكار اتصل بـ…» فى صفحة الموبايل)") }
+    /** دليل جهات أوسكار المحلي/المتزامن؛ كل زر يفتح برنامج الاتصال للمراجعة قبل إجراء المكالمة. */
+    private fun openDialer() = showContactDirectory()
+
+    private fun showContactDirectory() {
+        val db = Db.get(this)
+        val box = ui.col(8)
+        val search = EditText(this).apply {
+            hint = "ابحث بالاسم أو الرقم"
+            inputType = InputType.TYPE_CLASS_TEXT
+            singleLine = true
+        }
+        val status = ui.text("جهات الاتصال محفوظة على الشاشة؛ المزامنة اختيارية.", 13f, ui.muted)
+        val syncEnabled = booleanArrayOf(false)
+        lateinit var syncButton: TextView
+        lateinit var disableButton: TextView
+        lateinit var renderContacts: () -> Unit
+        syncButton = ui.button("🔄 مزامنة مع موقع الموبايل", "neutral", 14f) {
+            if (!syncEnabled[0]) {
+                AlertDialog.Builder(this)
+                    .setTitle("مزامنة جهات الاتصال")
+                    .setMessage("سيتم رفع الأسماء والأرقام التي أضفتها داخل Oscar Drive إلى خادم أوسكار، لتظهر للأجهزة المرتبطة بالسيارة نفسها فقط. لن تُرفع جهات الهاتف كاملة، ولن تُرسل الأرقام إلى الذكاء الاصطناعي. توافق؟")
+                    .setNegativeButton("إلغاء", null)
+                    .setPositiveButton("موافق") { _, _ ->
+                        ContactSync.sync(this, enable = true, force = true) { result ->
+                            if (result.ok) syncEnabled[0] = result.enabled
+                            status.text = result.message
+                            syncButton.text = if (syncEnabled[0]) "🔄 حدّث جهات الاتصال" else "🔄 فعّل المزامنة"
+                            disableButton.visibility = if (syncEnabled[0]) View.VISIBLE else View.GONE
+                            renderContacts()
+                        }
+                    }.show()
+            } else {
+                ContactSync.sync(this, force = true) { result ->
+                    if (result.ok) syncEnabled[0] = result.enabled
+                    status.text = result.message
+                    renderContacts()
+                }
+            }
+        }
+        disableButton = ui.button("إيقاف المزامنة ومسح نسخة الخادم", "neutral", 13f) {
+            AlertDialog.Builder(this)
+                .setMessage("سيتم مسح نسخة الخادم وإيقاف المزامنة لكل أجهزة السيارة المرتبطة. ستظل النسخة المحلية على الشاشة. متأكد؟")
+                .setNegativeButton("إلغاء", null)
+                .setPositiveButton("إيقاف ومسح") { _, _ ->
+                    ContactSync.sync(this, disable = true, force = true) { result ->
+                        if (result.ok) syncEnabled[0] = false
+                        status.text = result.message
+                        syncButton.text = if (syncEnabled[0]) "🔄 حدّث جهات الاتصال" else "🔄 فعّل المزامنة"
+                        disableButton.visibility = if (syncEnabled[0]) View.VISIBLE else View.GONE
+                    }
+                }.show()
+        }.apply { visibility = View.GONE }
+        val list = ui.col(4)
+        val scroll = ScrollView(this).apply { addView(list) }
+        box.addView(search, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 3))
+        box.addView(status)
+        box.addView(syncButton, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 2))
+        box.addView(disableButton, ui.lp(Ui.MATCH, ui.dp(44), marginDp = 2))
+        box.addView(scroll, ui.lp(Ui.MATCH, ui.dp(360), marginDp = 3))
+        fun normalizedDigits(value: String): String {
+            val ar = "٠١٢٣٤٥٦٧٨٩"
+            return value.map { ch -> val i = ar.indexOf(ch); if (i >= 0) ('0' + i) else ch }
+                .filter { it.isDigit() || it == '+' }.joinToString("")
+        }
+        renderContacts = {
+            list.removeAllViews()
+            val query = search.text.toString().trim()
+            val digits = normalizedDigits(query)
+            val collator = java.text.Collator.getInstance(java.util.Locale("ar"))
+            val contacts = db.contactDirectory().filter { contact ->
+                query.isBlank() ||
+                    contact.name.contains(query, ignoreCase = true) ||
+                    (digits.isNotBlank() && contact.tels.any { normalizedDigits(it).contains(digits) })
+            }.sortedWith { a, b -> collator.compare(a.name, b.name) }
+            if (contacts.isEmpty()) {
+                list.addView(ui.text(
+                    if (db.contactDirectory().isEmpty()) "لا توجد جهات محفوظة. أضفها من الإعدادات أو زامنها من الموقع."
+                    else "لا توجد نتائج مطابقة.",
+                    14f, ui.muted, gravity = Gravity.CENTER,
+                ), ui.lp(Ui.MATCH, ui.dp(70)))
+            }
+            for (contact in contacts) {
+                val row = ui.card(8).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                row.addView(ui.text("${contact.name}\n${contact.tels.joinToString(" · ")}", 14f, ui.ink),
+                    LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+                row.addView(ui.button("📞 اتصال", "good", 13f) {
+                    val dial = { phone: String ->
+                        try {
+                            startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", phone, null)))
+                        } catch (_: Exception) { toast("مفيش تطبيق اتصال متاح على الشاشة.") }
+                    }
+                    if (contact.tels.size == 1) dial(contact.tels.first())
+                    else AlertDialog.Builder(this).setTitle("اختار رقم ${contact.name}")
+                        .setItems(contact.tels.toTypedArray()) { _, which -> dial(contact.tels[which]) }.show()
+                }, ui.lp(ui.dp(104), ui.dp(48), 0f, 2))
+                list.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
+            }
+        }
+        search.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { renderContacts() }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
+        val dialog = AlertDialog.Builder(this).setTitle("📇 جهات الاتصال").setView(box).setNegativeButton("قفل", null).create()
+        dialog.show()
+        renderContacts()
+        ContactSync.sync(this, force = true) { result ->
+            if (result.ok) syncEnabled[0] = result.enabled
+            status.text = result.message
+            syncButton.text = if (syncEnabled[0]) "🔄 حدّث جهات الاتصال" else "🔄 فعّل المزامنة"
+            disableButton.visibility = if (syncEnabled[0]) View.VISIBLE else View.GONE
+            renderContacts()
+        }
     }
 
     /** «هات محطات البنزين»: قايمة بالأقرب (الاسم · المسافة · الرقم) — دوس على واحدة للملاحة، أو 📞. */
@@ -2178,11 +2285,12 @@ class MainActivity : Activity() {
 
         // جهات أوسكار (واتساب)
         page.addView(section("👥 جهات أوسكار (لرسايل الواتساب)"))
-        page.addView(ui.text("الشاشة مش شايفة جهات موبايلك — اكتب الناس اللى بتبعتلهم كتير مرة واحدة. الرسالة بتتفتح فى واتساب مكتوبة وإنت تدوس إرسال.", 13f, ui.muted))
+        page.addView(ui.text("أضف جهات محددة يدويًا؛ دفتر الموبايل كله لا يُرفع تلقائيًا. المزامنة اختيارية للأجهزة المرتبطة بالسيارة نفسها، والأرقام لا تُرسل للذكاء الاصطناعي.", 13f, ui.muted))
+        page.addView(ui.button("📇 افتح دفتر الاتصال", "neutral", 15f) { showContactDirectory() }, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 3))
         page.addView(ui.button("＋ جهة", "neutral", 15f) {
             askText("الاسم (زى ما هتقوله)", "مثلاً: ماما", "") { n ->
                 askText("رقم الواتساب", "01xxxxxxxxx", "", InputType.TYPE_CLASS_PHONE) { ph ->
-                    if (n.isBlank() || com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(ph) == null) toast("الاسم أو الرقم مش مظبوط") else { db.addContact(n, ph); refresh() }
+                    if (n.isBlank() || com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(ph) == null) toast("الاسم أو الرقم مش مظبوط") else { db.addContact(n, ph); ContactSync.syncSoon(this, force = true); refresh() }
                 }
             }
         }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
@@ -2190,7 +2298,17 @@ class MainActivity : Activity() {
             val r = ui.card(10).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             r.addView(ui.text("${c.name} — ${c.phone}", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
             r.addView(ui.button("💬", "neutral", 15f) { askText("رسالة لـ ${c.name}", "", "") { t -> if (t.isNotBlank()) openWhatsApp(c.phone, t) } }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
-            r.addView(ui.button("🗑️", "neutral", 15f) { confirm("تمسح ${c.name}؟") { db.deleteContact(c.id); refresh() } }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
+            r.addView(ui.button("✏️", "neutral", 14f) {
+                askText("اسم جهة الاتصال", "", c.name) { name ->
+                    askText("الأرقام مفصولة بفاصلة", "01xxxxxxxxx, 02xxxxxxx", db.contactTels(c.id).joinToString(", "), InputType.TYPE_CLASS_TEXT) { raw ->
+                        val tels = raw.split(',', '،', ';', '؛').map { it.trim() }.filter { it.isNotBlank() }
+                        if (name.isBlank() || tels.isEmpty() || tels.any { com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(it) == null }) {
+                            toast("راجع الاسم والأرقام")
+                        } else { db.updateContact(c.id, name, tels); ContactSync.syncSoon(this, force = true); refresh() }
+                    }
+                }
+            }, ui.lp(ui.dp(52), ui.dp(48), 0f, 2))
+            r.addView(ui.button("🗑️", "neutral", 15f) { confirm("تمسح ${c.name}؟") { db.deleteContact(c.id); ContactSync.syncSoon(this, force = true); refresh() } }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
             page.addView(r, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
         }
 
@@ -2354,7 +2472,7 @@ class MainActivity : Activity() {
             sayInfo("«${a.name}» مش فى جهات أوسكار — اكتب رقمه مرة")
             askText("رقم «${a.name}» على واتساب", "01xxxxxxxxx", "", InputType.TYPE_CLASS_PHONE) { ph ->
                 if (com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(ph) == null) { toast("الرقم مش مظبوط"); return@askText }
-                db.addContact(a.name, ph); whatsappByVoice(heard)
+                db.addContact(a.name, ph); ContactSync.syncSoon(this, force = true); whatsappByVoice(heard)
             }
             return
         }

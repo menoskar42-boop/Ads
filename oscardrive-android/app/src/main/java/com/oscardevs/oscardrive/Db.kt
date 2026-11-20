@@ -19,7 +19,7 @@ import com.oscardevs.oscardrive.logic.TripLogic
  * قاعدة بيانات محلية (SQLite على الجهاز) — مفيش سحابة ولا حساب: الرحلات، ذاكرة الطريق، الأماكن،
  * الركنات، الصيانة، التفويلات، وسجل تجاوز السرعة.
  */
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 7) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 8) {
 
     data class Trip(val id: Long, val startMs: Long, val endMs: Long, val distanceM: Double, val movingS: Long, val maxKmh: Float,
                     val score: Int? = null, val brakes: Int = 0, val accels: Int = 0, val speedingN: Int = 0, val speedingS: Int = 0) {
@@ -47,6 +47,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         upgrade5(db)
         upgrade6(db)
         upgrade7(db)
+        upgrade8(db)
         val now = System.currentTimeMillis()
         for ((name, km, days) in CarCare.DEFAULTS) {
             db.insert("maint", null, ContentValues().apply {
@@ -62,11 +63,37 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         if (oldVersion < 5) upgrade5(db)
         if (oldVersion < 6) upgrade6(db)
         if (oldVersion < 7) upgrade7(db)
+        if (oldVersion < 8) upgrade8(db)
     }
 
     /** نسخة ٧ (البرومبت ٥ — ٢٠٢٦-١١-٢٠): «مطب اتجاه واحد». كل المطبات القديمة بتفضل ٠ = اتجاهين — مفيش صف بيتغيّر ولا بيتمسح. */
     private fun upgrade7(db: SQLiteDatabase) {
         try { db.execSQL("ALTER TABLE hazards ADD COLUMN oneway INTEGER NOT NULL DEFAULT 0") } catch (_: Exception) { /* موجود */ }
+    }
+
+    /** نسخة ٨: معرّف ثابت وأرقام متعددة وحذف قابل للمزامنة لجهات الاتصال. */
+    private fun upgrade8(db: SQLiteDatabase) {
+        for (column in listOf(
+            "sync_uuid TEXT",
+            "phones_json TEXT",
+            "updated_ms INTEGER NOT NULL DEFAULT 0",
+            "deleted INTEGER NOT NULL DEFAULT 0",
+        )) try { db.execSQL("ALTER TABLE contacts ADD COLUMN $column") } catch (_: Exception) { /* موجود */ }
+        val contacts = mutableListOf<Triple<Long, String?, Pair<String?, String?>>>()
+        db.rawQuery("SELECT id,phone,sync_uuid,phones_json FROM contacts", null).use { c ->
+            while (c.moveToNext()) {
+                contacts.add(Triple(c.getLong(0), c.getString(1), c.getString(2) to c.getString(3)))
+            }
+        }
+        for ((id, phone, values) in contacts) {
+            val uuid = values.first ?: java.util.UUID.randomUUID().toString()
+            val phones = values.second ?: org.json.JSONArray().put(phone ?: "").toString()
+            db.execSQL(
+                "UPDATE contacts SET sync_uuid=?, phones_json=COALESCE(phones_json,?), updated_ms=CASE WHEN updated_ms=0 THEN ? ELSE updated_ms END WHERE id=?",
+                arrayOf(uuid, phones, System.currentTimeMillis(), id),
+            )
+        }
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS contacts_sync_uuid ON contacts(sync_uuid) WHERE sync_uuid IS NOT NULL")
     }
 
     /**
@@ -117,11 +144,114 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
     fun deleteNote(id: Long) { writableDatabase.delete("notes", "id=?", arrayOf(id.toString())) }
 
     /* ── جهات أوسكار (لرسايل الواتساب) ── */
-    fun contacts(): List<com.oscardevs.oscardrive.logic.OscarContact> = query("SELECT id,name,phone FROM contacts ORDER BY name") {
+    data class SyncContact(val id: String, val name: String, val tels: List<String>, val updatedMs: Long, val deleted: Boolean)
+
+    private fun parseContactPhones(json: String?, fallback: String): List<String> {
+        val out = mutableListOf<String>()
+        try {
+            val array = org.json.JSONArray(json ?: "[]")
+            for (i in 0 until array.length()) array.optString(i).trim().takeIf { it.isNotEmpty() }?.let(out::add)
+        } catch (_: Exception) {}
+        if (out.isEmpty() && fallback.isNotBlank()) out.add(fallback)
+        return out.distinct().take(8)
+    }
+
+    private fun contactNameKey(value: String): String = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFKC)
+        .trim().lowercase(java.util.Locale.ROOT).replace(Regex("\\s+"), " ")
+
+    private fun contactPhoneKey(value: String): String = value.map { c ->
+        val arabic = "٠١٢٣٤٥٦٧٨٩".indexOf(c)
+        if (arabic >= 0) ('0' + arabic) else c
+    }.filter { it.isDigit() || it == '+' }.joinToString("").let { if (it.startsWith("00")) "+${it.drop(2)}" else it }
+
+    fun contacts(): List<com.oscardevs.oscardrive.logic.OscarContact> =
+        query("SELECT id,name,phone FROM contacts WHERE deleted=0 ORDER BY name COLLATE NOCASE") {
         com.oscardevs.oscardrive.logic.OscarContact(it.getLong(0), it.getString(1) ?: "", it.getString(2) ?: "")
     }
-    fun addContact(name: String, phone: String) { writableDatabase.insert("contacts", null, ContentValues().apply { put("name", name.take(60)); put("phone", phone.take(30)) }) }
-    fun deleteContact(id: Long) { writableDatabase.delete("contacts", "id=?", arrayOf(id.toString())) }
+    fun contactDirectory(): List<SyncContact> = query("SELECT sync_uuid,name,phone,phones_json,updated_ms,deleted FROM contacts WHERE deleted=0") {
+        SyncContact(it.getString(0) ?: "", it.getString(1) ?: "", parseContactPhones(it.getString(3), it.getString(2) ?: ""),
+            it.getLong(4), false)
+    }
+    fun contactTels(localId: Long): List<String> =
+        query("SELECT phone,phones_json FROM contacts WHERE id=?", arrayOf(localId.toString())) {
+            parseContactPhones(it.getString(1), it.getString(0) ?: "")
+        }.firstOrNull().orEmpty()
+    fun contactsForSync(): List<SyncContact> = query("SELECT sync_uuid,name,phone,phones_json,updated_ms,deleted FROM contacts ORDER BY id") {
+        SyncContact(it.getString(0) ?: "", it.getString(1) ?: "", parseContactPhones(it.getString(3), it.getString(2) ?: ""),
+            it.getLong(4), it.getInt(5) == 1)
+    }
+    fun addContact(name: String, phone: String) {
+        val cleanName = name.trim().take(60)
+        val cleanPhone = phone.trim().take(30)
+        if (cleanName.isBlank() || contactPhoneKey(cleanPhone).length < 3) return
+        val now = System.currentTimeMillis()
+        writableDatabase.insert("contacts", null, ContentValues().apply {
+            put("name", cleanName); put("phone", cleanPhone); put("phones_json", org.json.JSONArray().put(cleanPhone).toString())
+            put("sync_uuid", java.util.UUID.randomUUID().toString()); put("updated_ms", now); put("deleted", 0)
+        })
+    }
+    fun updateContact(id: Long, name: String, tels: List<String>) {
+        val cleanName = name.trim().take(60)
+        val cleanTels = tels.map { it.trim().take(30) }.filter { contactPhoneKey(it).length >= 3 }.distinct().take(8)
+        if (cleanName.isBlank() || cleanTels.isEmpty()) return
+        writableDatabase.update("contacts", ContentValues().apply {
+            put("name", cleanName); put("phone", cleanTels.first())
+            put("phones_json", org.json.JSONArray().apply { cleanTels.forEach { put(it) } }.toString())
+            put("updated_ms", System.currentTimeMillis()); put("deleted", 0)
+        }, "id=?", arrayOf(id.toString()))
+    }
+    fun deleteContact(id: Long) {
+        writableDatabase.update("contacts", ContentValues().apply {
+            put("deleted", 1); put("updated_ms", System.currentTimeMillis())
+        }, "id=?", arrayOf(id.toString()))
+    }
+
+    /** يطبّق النسخة التي دمجها السيرفر؛ يبقى دفتر الجهاز قابلًا للعمل دون إنترنت. */
+    fun mergeContactSync(remote: List<SyncContact>, idMap: Map<String, String>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for ((from, to) in idMap) {
+                if (from == to) continue
+                val sourceId = query("SELECT id FROM contacts WHERE sync_uuid=?", arrayOf(from)) { it.getLong(0) }.firstOrNull() ?: continue
+                val targetId = query("SELECT id FROM contacts WHERE sync_uuid=?", arrayOf(to)) { it.getLong(0) }.firstOrNull()
+                if (targetId != null && targetId != sourceId) {
+                    db.update("contacts", ContentValues().apply { put("deleted", 1); put("updated_ms", System.currentTimeMillis()) },
+                        "id=?", arrayOf(sourceId.toString()))
+                } else {
+                    db.update("contacts", ContentValues().apply { put("sync_uuid", to) }, "id=?", arrayOf(sourceId.toString()))
+                }
+            }
+            for (item in remote) {
+                val json = org.json.JSONArray().apply { item.tels.forEach { put(it) } }.toString()
+                val primary = item.tels.firstOrNull().orEmpty()
+                val existingId = query("SELECT id FROM contacts WHERE sync_uuid=?", arrayOf(item.id)) { it.getLong(0) }.firstOrNull()
+                if (existingId != null) {
+                    db.update("contacts", ContentValues().apply {
+                        put("name", item.name); put("phone", primary); put("phones_json", json)
+                        put("updated_ms", item.updatedMs); put("deleted", if (item.deleted) 1 else 0)
+                    }, "id=?", arrayOf(existingId.toString()))
+                    continue
+                }
+                val incomingKey = "${contactNameKey(item.name)}|${contactPhoneKey(primary)}"
+                val duplicateId = if (item.deleted) null else contactDirectory().firstOrNull {
+                    "${contactNameKey(it.name)}|${contactPhoneKey(it.tels.firstOrNull().orEmpty())}" == incomingKey
+                }?.let { row -> query("SELECT id FROM contacts WHERE sync_uuid=?", arrayOf(row.id)) { it.getLong(0) }.firstOrNull() }
+                if (duplicateId != null) {
+                    db.update("contacts", ContentValues().apply {
+                        put("sync_uuid", item.id); put("name", item.name); put("phone", primary); put("phones_json", json)
+                        put("updated_ms", item.updatedMs)
+                    }, "id=?", arrayOf(duplicateId.toString()))
+                } else if (!item.deleted) {
+                    db.insert("contacts", null, ContentValues().apply {
+                        put("sync_uuid", item.id); put("name", item.name); put("phone", primary); put("phones_json", json)
+                        put("updated_ms", item.updatedMs); put("deleted", 0)
+                    })
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
 
     /**
      * نسخة ٣ (المرحلة ٤): الركنة بدقتها وعدّادها وملاحظة · التفويلة بنوع البنزين وسعر اللتر · سجل الصيانة ·

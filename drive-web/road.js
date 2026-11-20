@@ -325,6 +325,20 @@
       || !/[\u0600-\u06FF]/.test(cleanName) || Array.from(cleanName.matchAll(/\p{N}/gu)).length >= 7) return null;
     return { path: '/api/web/contact-name', body: { name: cleanName } };
   }
+  /** نتيجة هجاء مؤقتة في ذاكرة الصفحة فقط؛ حتى الطلبات الفاشلة لا تتكرر خلال الجلسة. */
+  function createContactSpellingCache() {
+    const requests = new Map();
+    return function getContactSpelling(name, load) {
+      const key = String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+      if (!key || typeof load !== 'function') return Promise.resolve('');
+      if (!requests.has(key)) {
+        requests.set(key, Promise.resolve().then(load).then((result) =>
+          typeof (result && result.latin) === 'string' ? result.latin.trim() : ''
+        ).catch(() => ''));
+      }
+      return requests.get(key);
+    };
+  }
   /** يقرأ أسماء وأرقام vCard داخل المتصفح فقط؛ لا يرسل الملف أو محتواه لأي API. */
   function parseVCardContacts(source) {
     const input = String(source || '').replace(/^\uFEFF/, '').replace(/=\r?\n/g, '').replace(/\r\n?/g, '\n');
@@ -429,6 +443,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, contactNameRequest, parseVCardContacts, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, contactNameRequest, createContactSpellingCache, parseVCardContacts, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);
