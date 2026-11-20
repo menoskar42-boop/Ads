@@ -18,12 +18,14 @@ function autoData(jsonPath, layerRe, central, cabinet, title, net) {
     if (seen[b.box] > 1) issues.push('الرقم ده متكرر فى الخريطة');
     if (b.box === '0') issues.push('رقم 0 — يتراجع على الخريطة');
     if ((perBox['B' + b.box] || 0) > 1) issues.push('التفريغ الآلى لقى أكتر من كابل للبكس ده');
+    if (r && r.boxes.some((x) => x.id === 'B' + b.box && x.noSym)) issues.push('رمز البكس مش مرسوم فى الخريطة — مكانه آخر الكابل اللى جنب رقمه');
     return { box: b.box, block: b.block, pairs: b.pairs, joint, ...(issues.length ? { uncertain: true, notes: issues.join(' · ') } : {}) };
   }).sort((a, b) => parseInt(a.box) - parseInt(b.box));
   const segments = segs.map((g) => ({ from: g.from, to: g.to, lengthM: g.lengthM, pairs: g.pairs, gaugeMm: g.gaugeMm,
     ...(g.dead ? { dead: g.dead } : {}), ...(g.marker ? { marker: g.marker } : {}),
     ...((perBox[g.to] || 0) > 1 || g.lengthM == null ? { uncertain: true } : {}),
     ...(g.nolabel ? { notes: 'الخط مرسوم فى الخريطة بس الطول مش مكتوب جنبه — اكتب الطول من الورقة والمسافات اللى بعده هتتحسب' } : {}),
+    ...(g.noLine ? { uncertain: true, notes: 'الخط مش مرسوم بين الوصلة والبكس — اتوصّل بالنص المكتوب بينهم، يتراجع' } : {}),
     ...(g.cabGuess ? { uncertain: true, notes: 'الخط فى الرسم واقف قبل الكابينة بشوية — اتوصّل بالكابينة، يتراجع' } : {}),
     ...(g.markerSum ? { uncertain: true, notes: `الكابل معدّى على علامة الوصل ${g.marker} ومكتوب عليه طولين (${g.label}) — اتجمعوا، يتراجع على الخريطة` } : {}) }));
   const nums = bx.map((b) => parseInt(b.box)).filter((n) => n > 0); const max = Math.max(0, ...nums); const missing = [];

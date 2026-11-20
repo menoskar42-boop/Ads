@@ -200,3 +200,14 @@ test("تفريغ دير الجنادلة: قفزة التقاطع + كابل م�
   assert.ok(r.reached.has("B8"));
   assert.deepEqual(distancesFromCabinet({ segments: r.segs }), { CAB: 0, J01: 100, B7: 130 });
 });
+
+test("نص الكابل بصيغه المختلفة: طول/أزواج\"/قطر · '' بدل \" · أزواج/قطر/طولm", async () => {
+  const { createRequire } = await import("node:module");
+  const { parseLabel } = createRequire(import.meta.url)("../scripts/dwg-maps/cables.cjs");
+  const pick = (s: string) => { const m = parseLabel(s); return m && [Number(m[1]), Number(m[2]), Number(m[3]), m[4] ? Number(m[4]) : null]; };
+  assert.deepEqual(pick('121.0/150"/0.4(20"d)'), [121, 150, 0.4, 20]);
+  assert.deepEqual(pick("49.0/100''/0.4"), [49, 100, 0.4, null]);
+  assert.deepEqual(pick("10.0/0.4/6m"), [6, 10, 0.4, null], "أزواج/قطر/طول — الطول هو الأخير");
+  assert.deepEqual(pick("30.0/0.4/74M"), [74, 30, 0.4, null]);
+  assert.equal(parseLabel("10\"SP"), null);
+});
