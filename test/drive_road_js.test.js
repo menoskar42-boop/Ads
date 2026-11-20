@@ -111,6 +111,12 @@ test('Android calls (prompt 7 step 2): local contacts match Arabic names, ask wh
   assert.equal(R.telByPrefix(l[0].tels, 'اتصل'), null);
   assert.equal(R.waNumber('010 1234 5678'), '201012345678'); assert.equal(R.waNumber('+201012345678'), '201012345678');
 });
+test('remind at a place (prompt 8): the place name is read so an unsaved place can be set first', () => {
+  assert.equal(R.remindPlace('فكرني لما أروح البيت أجيب الطلبات'), 'البيت');
+  assert.equal(R.remindPlace('فكرني لما أوصل الشغل أخلص التقرير'), 'الشغل');
+  assert.equal(R.remindPlace('فكرني لما اروح المستشفي استلم التحاليل'), 'المستشفي');
+  assert.equal(R.remindPlace('فكرني بعد ساعة'), null);
+});
 test('phone voice: «call X» goes to the iPhone shortcut by name — phone or WhatsApp, contacts never leave the phone', () => {
   assert.equal(R.parseVoice('أوسكار اتصل بمحمود يعقوب'), 'call::محمود يعقوب');
   assert.equal(R.parseVoice('اوسكار كلم أحمد واتساب'), 'call:wa:احمد');

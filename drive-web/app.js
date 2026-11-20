@@ -695,7 +695,34 @@
     if (!text) { $('ibNote').textContent = 'اكتب النص'; return; }
     const p = { text };
     if (kind === 'remind' && $('ibWhen').value) p.dueMs = new Date($('ibWhen').value).getTime();
+    // البرومبت ٨: «لما أوصل الشغل» والشغل مش محفوظ ⇒ تحدده (مكانى · الخريطة · إحداثيات · إلغاء) وبعدين التذكير
+    const where = kind === 'remind' && !p.dueMs ? RD.remindPlace(text) : null;
+    if (where && !RD.findPlace(reportPlaces, where)) return askPlaceWeb(where, () => ibSend(kind, p, spoken));
     return ibSend(kind, p, spoken);
+  }
+  function askPlaceWeb(name, then) {
+    const box = $('ibNote'); box.textContent = '📍 موقع «' + name + '» مش محفوظ — تحب تحدده؟ ';
+    sayRoad('موقع ' + name + ' مش محفوظ، تحب تحدده؟');
+    const save = async (lat, lng) => { await ibSend('place', { name, lat, lng }, false); reportPlaces = (reportPlaces || []).concat([{ name, lat, lng }]); then(); };
+    const btn = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.style.margin = '4px'; b.addEventListener('click', fn); box.append(b); return b; };
+    btn('📍 مكانى دلوقتى', () => withFix((f) => save(f.lat, f.lng)));
+    if (map && window.L) btn('🗺️ حدّده على الخريطة', () => {
+      box.textContent = '🗺️ دوس على مكان «' + name + '» فى الخريطة';
+      try { $('map').scrollIntoView({ behavior: 'smooth' }); } catch (e) {}
+      map.once('click', (ev) => save(ev.latlng.lat, ev.latlng.lng));
+    });
+    btn('⌨️ إحداثيات', () => {
+      box.textContent = '';
+      const la = document.createElement('input'), lo = document.createElement('input');
+      la.placeholder = 'Latitude'; lo.placeholder = 'Longitude'; la.className = lo.className = 'plain'; la.style.direction = lo.style.direction = 'ltr';
+      box.append(la, lo);
+      btn('احفظ', () => {
+        const lat = parseFloat(la.value), lng = parseFloat(lo.value);
+        if (!(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) || (lat === 0 && lng === 0)) { la.style.borderColor = lo.style.borderColor = '#dc2626'; return; }
+        save(lat, lng);
+      });
+    });
+    btn('إلغاء', () => { box.textContent = 'اتلغى'; });
   }
   $('ibSend').addEventListener('click', () => ibSubmit(ibKind, $('ibText').value.trim(), false));
   async function loadInbox() {

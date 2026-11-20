@@ -1539,6 +1539,12 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_PICK) {   // «حدّده على الخريطة» (البرومبت ٨)
+            val f = pickFor; pickFor = null
+            if (resultCode == RESULT_OK && f != null && data != null) saveRemindPlace(f.first, f.second, data.getDoubleExtra("lat", 0.0), data.getDoubleExtra("lng", 0.0))
+            else if (f != null) oscar("ok", "تمام — التذكير اتلغى")
+            return
+        }
         if (requestCode != REQ_VOICE) return
         if (resultCode == RESULT_OK) handleHeard(data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty(), button = true)
         startWakeIfOn()
@@ -1552,6 +1558,17 @@ class MainActivity : Activity() {
         if (heard.isEmpty()) return
         val e = engine()
         val now = System.currentTimeMillis()
+        // ٠) رد على «موقع X مش محفوظ، تحب تحدده؟» (البرومبت ٨): «الخريطة» · «مكانى/هنا» · «إلغاء»
+        val up = unknownAsk
+        if (up != null && now < unknownAskUntil) {
+            val t = " " + VoiceEngine.normalize(e.afterWake(heard.first()) ?: heard.first()) + " "
+            when {
+                t.contains("خريطه") -> { unknownDlg?.dismiss(); pickOnMap(up.first, up.second); return }
+                t.contains(" مكاني ") || t.contains(" هنا ") -> { unknownDlg?.dismiss(); hereForRemind(up.first, up.second); return }
+                t.contains("احداثيات") -> { unknownDlg?.dismiss(); askCoords(up.first, up.second); return }
+                Regex(" (الغي|الغاء|لا|خلاص|بلاش) ").containsMatchIn(t) -> { unknownDlg?.dismiss(); unknownAsk = null; oscar("ok", "تمام — التذكير اتلغى"); return }
+            }
+        }
         // ١) رد على «تقصد …؟» — «أيوه» ينفّذ ويتعلّم · «لأ» يلغى
         val p = pending
         if (p != null && now < pendingUntil) {
@@ -1596,6 +1613,60 @@ class MainActivity : Activity() {
 
     /** نفس الأمر لو اتسمع مرتين ورا بعض (٤ ثوانى) بيتنفّذ مرة واحدة. */
     private val repeatGuard = RepeatGuard()
+
+    /* ── التذكير بمكان مش محفوظ (البرومبت ٨ — ٢٠٢٦-١١-٢٠): «فكّرنى لما أوصل الشغل أخلص التقرير» والشغل مش محفوظ ── */
+    private var unknownAsk: Pair<String, String>? = null   // (اسم المكان، نص التذكير)
+    private var unknownAskUntil = 0L
+    private var unknownDlg: AlertDialog? = null
+    private var pickFor: Pair<String, String>? = null
+
+    private fun askUnknownPlace(place: String, text: String) {
+        unknownAsk = place to text; unknownAskUntil = System.currentTimeMillis() + 20_000; awaitingUntil = unknownAskUntil
+        Oscar.sayText("موقع $place مش محفوظ، تحب تحدده؟ قول الخريطة، أو مكانى، أو إلغاء")
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        if (BuildConfig.NAV_SDK_KEY) items += "🗺️ حدّده على الخريطة" to { pickOnMap(place, text) }
+        items += "📍 مكانى دلوقتى" to { hereForRemind(place, text) }
+        items += "⌨️ اكتب الإحداثيات" to { askCoords(place, text) }
+        items += "إلغاء" to { unknownAsk = null; oscar("ok", "تمام — التذكير اتلغى") }
+        unknownDlg?.dismiss()
+        unknownDlg = AlertDialog.Builder(this).setTitle("📍 موقع «$place» مش محفوظ — تحب تحدده؟").setMessage("التذكير: $text")
+            .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
+            .setOnCancelListener { unknownAsk = null }.show()
+    }
+
+    private fun pickOnMap(place: String, text: String) {
+        unknownAsk = null; pickFor = place to text
+        try { startActivityForResult(Intent(this, MapActivity::class.java).putExtra("pick", true).putExtra("label", place), REQ_PICK) }
+        catch (_: Exception) { pickFor = null; askCoords(place, text) }
+    }
+
+    private fun hereForRemind(place: String, text: String) {
+        unknownAsk = null
+        val p = here() ?: run { toast("مكانك مش معروف دلوقتى — جرّب الخريطة أو الإحداثيات"); askUnknownPlace(place, text); return }
+        saveRemindPlace(place, text, p.first, p.second)
+    }
+
+    /** خانتين Latitude وLongitude (أو «27.18, 31.18» فى الأولى) — بالتحقق. */
+    private fun askCoords(place: String, text: String) {
+        unknownAsk = null
+        val box = ui.col(6)
+        val la = EditText(this).apply { hint = "Latitude — مثلاً 27.1809"; inputType = InputType.TYPE_CLASS_TEXT; textDirection = View.TEXT_DIRECTION_LTR }
+        val lo = EditText(this).apply { hint = "Longitude — مثلاً 31.1837"; inputType = InputType.TYPE_CLASS_TEXT; textDirection = View.TEXT_DIRECTION_LTR }
+        box.addView(la); box.addView(lo)
+        AlertDialog.Builder(this).setTitle("📍 إحداثيات «$place»").setView(box)
+            .setPositiveButton("احفظ") { _, _ ->
+                val c = com.oscardevs.oscardrive.logic.Coords.parse(la.text.toString(), lo.text.toString())
+                if (c == null) { toast("الإحداثيات مش صحيحة — Latitude من -٩٠ لـ٩٠ وLongitude من -١٨٠ لـ١٨٠"); askCoords(place, text) }
+                else saveRemindPlace(place, text, c.first, c.second)
+            }.setNegativeButton("إلغاء") { _, _ -> oscar("ok", "تمام — التذكير اتلغى") }.show()
+    }
+
+    private fun saveRemindPlace(place: String, text: String, lat: Double, lng: Double) {
+        db.addPlace(place, lat, lng)
+        db.addNote("remind", text, lat = lat, lng = lng, place = place)
+        sayInfo("حفظت «$place» وهفكّرك لما توصل: $text")
+        refresh()
+    }
 
     /* ── الفهم الذكى: لو مش متأكد بيسأل، ولو قلت «أيوه» بيتعلّم الكلمة ── */
     private var pending: Understood? = null
@@ -2174,7 +2245,7 @@ class MainActivity : Activity() {
                 if (a.place != null) {
                     val norm = VoiceCommands.normalize(a.place)
                     val p = db.places().firstOrNull { VoiceCommands.normalize(it.name) == norm }
-                    if (p == null) { sayInfo("مش عارف «${a.place}» فين — احفظه الأول من شاشة الملاحة، وبعدين قول التذكير تانى"); return }
+                    if (p == null) { askUnknownPlace(a.place, a.text); return }   // البرومبت ٨: خريطة · مكانى · إحداثيات · إلغاء
                     db.addNote("remind", a.text, lat = p.lat, lng = p.lng, place = p.name)
                     sayInfo("تمام، هفكّرك لما توصل ${p.name}: ${a.text}")
                 } else if (a.dueMs != null) {
@@ -2420,6 +2491,7 @@ class MainActivity : Activity() {
     companion object {
         private const val REQ_PERMS = 1
         private const val REQ_VOICE = 5
+        private const val REQ_PICK = 6
         private const val REQ_CAM = 7
         private const val REQ_MIC = 8
     }

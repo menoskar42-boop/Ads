@@ -1045,3 +1045,17 @@ class NearbyPhoneTest {
         assertEquals("nav.fuel", e.understand("اقرب بنزينة")!!.match.command.id)
     }
 }
+
+/** البرومبت ٨: إحداثيات مكتوبة بإيدك للتذكير بمكان مش محفوظ. */
+class CoordsTest {
+    @Test fun parsesAndValidates() {
+        assertEquals(27.1809 to 31.1837, Coords.parse("27.1809", "31.1837"))
+        assertEquals(27.1809 to 31.1837, Coords.parse("27.1809, 31.1837", ""))
+        assertEquals(27.5 to 31.25, Coords.parse("٢٧٫٥", "٣١٫٢٥"))
+        assertNull(Coords.parse("95", "31"))
+        assertNull(Coords.parse("27", "190"))
+        assertNull(Coords.parse("0", "0"))
+        assertNull(Coords.parse("abc", "31"))
+        assertNull(Coords.parse("27.1", ""))
+    }
+}

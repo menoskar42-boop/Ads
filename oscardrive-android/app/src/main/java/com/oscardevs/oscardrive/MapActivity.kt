@@ -3,6 +3,7 @@ package com.oscardevs.oscardrive
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.widget.Toast
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -33,6 +34,8 @@ class MapActivity : Activity() {
     private var follow = true
     private var info: TextView? = null
     private var followBtn: TextView? = null
+    /** المكان اللى اتداس عليه فى وضع «حدّد المكان» (البرومبت ٨). */
+    private var picked: LatLng? = null
     private val main = Handler(Looper.getMainLooper())
     private lateinit var ui: Ui
 
@@ -69,6 +72,15 @@ class MapActivity : Activity() {
         val tv = ui.text("", 15f, ui.ink).apply { setPadding(ui.dp(8), 0, ui.dp(8), 0) }
         info = tv
         bar.addView(tv, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f))
+        // «حدّد المكان على الخريطة» (البرومبت ٨): دوس على المكان ⇒ دبوس ⇒ «✅ احفظ هنا» ⇒ الإحداثيات بترجع للتذكير
+        val pick = intent.getBooleanExtra("pick", false)
+        if (pick) {
+            bar.addView(ui.button("✅ احفظ هنا", "primary", 16f) {
+                val p = picked
+                if (p == null) Toast.makeText(this, "دوس على المكان فى الخريطة الأول", Toast.LENGTH_SHORT).show()
+                else { setResult(RESULT_OK, Intent().putExtra("lat", p.latitude).putExtra("lng", p.longitude)); finish() }
+            }, ui.lp(0, ui.dp(56), 1f, 3))
+        }
         root.addView(bar, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT))
         setContentView(root)
         mv.getMapAsync { m ->
@@ -82,6 +94,15 @@ class MapActivity : Activity() {
             }
             m.setOnCameraMoveStartedListener { reason -> if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) { follow = false; renderFollow() } }
             showHazards(m)
+            if (pick) {
+                var pin: com.google.android.gms.maps.model.Marker? = null
+                m.setOnMapClickListener { ll ->
+                    picked = ll; pin?.remove()
+                    pin = m.addMarker(MarkerOptions().position(ll).title("📍 ${intent.getStringExtra("label") ?: "المكان"}"))
+                    pin?.showInfoWindow(); follow = false; renderFollow()
+                }
+                Toast.makeText(this, "دوس على مكان «${intent.getStringExtra("label") ?: ""}» فى الخريطة", Toast.LENGTH_LONG).show()
+            }
             // «شوفه»: نقطة معيّنة (ركنة · تفويلة) ⇒ علامة عليها ومن غير متابعة
             if (intent.hasExtra("lat")) {
                 val p = LatLng(intent.getDoubleExtra("lat", 0.0), intent.getDoubleExtra("lng", 0.0))
@@ -110,7 +131,9 @@ class MapActivity : Activity() {
                 HazardType.RADAR -> BitmapDescriptorFactory.HUE_AZURE
                 HazardType.DANGER -> BitmapDescriptorFactory.HUE_YELLOW
             }
-            m.addMarker(MarkerOptions().position(LatLng(h.lat, h.lng)).title("${h.type.emoji} ${h.type.ar}").icon(BitmapDescriptorFactory.defaultMarker(hue)))
+            // البرومبت ٩: الاتجاه بيبان على العلامة (اتجاه واحد ➡️ بزاوية التسجيل · اتجاهين ⇄)
+            val dir = if (h.type == HazardType.BUMP || h.type == HazardType.POTHOLE) (if (h.oneway && h.bearing != null) " ➡️ اتجاه واحد (${h.bearing.toInt()}°)" else " ⇄ اتجاهين") else ""
+            m.addMarker(MarkerOptions().position(LatLng(h.lat, h.lng)).title("${h.type.emoji} ${h.type.ar}$dir").icon(BitmapDescriptorFactory.defaultMarker(hue)))
         }
     }
 
