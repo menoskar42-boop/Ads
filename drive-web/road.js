@@ -136,6 +136,8 @@
     if ((m = t.trim().match(/(?:سجل|اكتب|خد)\s+ملاحظه\s+(.+)$/))) return 'inbox:note:' + tail(m, 1);
     if ((m = t.trim().match(/((?:فكرني|ذكرني|remind me)\s+.+)$/))) return 'inbox:remind:' + tail(m, 1);
     t = clean(t);   // بعد ما النص الحر اتاخد زى ما اتقال
+    const call = parseCall(t.replace(/(^|\s)(يا\s+)?(اوسكار|اسكار|وسكار|اوسكر|oscar)(?=\s|$)/g, ' ').trim());
+    if (call) return 'call:' + (call.how || '') + ':' + call.name;
     if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب|صورلي الطريق|صور الشارع|صوره للشارع|صور قدامي|خد لقطه)/.test(t)) return 'shot';
     // أسئلة بترد من ملخّص العربية (زى fuel.left · maint.next · info.speed على الشاشة) — قبل «أقرب بنزينة» عشان «فاضل كام بنزين»
     if (/(فاضل|باقي|البنزين كام|how much fuel|fuel left)/.test(t) && /(بنزين|fuel)/.test(t)) return 'fuelleft';
@@ -236,6 +238,34 @@
    * المكان والاتجاه (والإطار لو الكاميرا مفتوحة) بيتاخدوا ساعتها. الجملة كاملة أكّدت ⇒ بيتحفظوا · أمر تانى/مافهمش/عدّى ١٥ ثانية ⇒ بيتشالوا.
    * st = {} بيتحفظ عند الصفحة.
    */
+  /*
+   * 📞 الاتصال بالصوت (المالك ٢٠٢٦-١١-٢٠): «اتصل بمحمود يعقوب» · «كلّم أحمد واتساب» · «call Ahmed». الصفحة مابتعرفش جهات الاتصال
+   * (ولا الشاشة ولا السيرفر) — الاسم بيروح لاختصار الآيفون «Oscar Call» (أو «Oscar WhatsApp») وهو اللى بيدوّر فى جهات الاتصال ويتصل.
+   * t = نص متنضّف (clean). بيرجّع { name, how: 'tel' | 'wa' | null } أو null.
+   */
+  const CALL_SHORTCUT = 'Oscar Call', WA_SHORTCUT = 'Oscar WhatsApp';
+  function parseCall(t) {
+    const m = String(t || '').match(/(?:^|\s)(اتصل|اتصلي|كلم|كلملي|رن|رنلي|call)\s+(.+)$/);
+    if (!m) return null;
+    let name = m[2].trim(), how = null;
+    const w = name.match(/^(.*?)\s*(?:(?:علي|ع|في|on|via|by)\s+)?(?:الواتساب|واتساب|الواتس|واتس|whatsapp)$/);
+    if (w) { how = 'wa'; name = w[1].trim(); }
+    name = name.replace(/^(?:علي|ع|to)\s+/, '');
+    if (/^اتصل/.test(m[1])) name = name.replace(/^ب\s*/, '');   // «اتصل بمحمود» — «كلّم باسم» يفضل «باسم»
+    name = name.trim();
+    return name ? { name, how } : null;
+  }
+  /** رد على «تليفون ولا واتساب؟» / «تأكّد؟» — 'tel' · 'wa' · 'yes' · 'no' · null. */
+  function callAnswer(text) {
+    const t = ' ' + clean(text) + ' ';
+    if (/ (لا|لاء|الغي|الغاء|بلاش|خلاص|no|cancel) /.test(t)) return 'no';
+    if (/(واتساب|واتس|whatsapp)/.test(t)) return 'wa';
+    if (/(تليفون|موبايل|عادي|رقم|phone)/.test(t)) return 'tel';
+    if (/ (ايوه|ايوا|اه|تمام|اتصل|اكيد|يلا|yes|ok|okay) /.test(t)) return 'yes';
+    return null;
+  }
+  const shortcutUrl = (name, how) => 'shortcuts://run-shortcut?name=' + encodeURIComponent(how === 'wa' ? WA_SHORTCUT : CALL_SHORTCUT)
+    + '&input=text&text=' + encodeURIComponent(name);
   const ROAD_CMDS = ['bump', 'pothole', 'shot'];
   const PROV_TTL_MS = 15000;
   function provBegin(st, cmd, data, nowMs) {
@@ -251,6 +281,6 @@
     if (!it || !ROAD_CMDS.includes(cmd) || nowMs - it.t < 0 || nowMs - it.t >= PROV_TTL_MS) return null;
     st.doneAt = nowMs; return it;
   }
-  const api = { provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

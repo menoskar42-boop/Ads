@@ -482,14 +482,52 @@
   function loadSettings() {
     try { const o = JSON.parse(localStorage.getItem(SET_KEY) || '{}');
       if (o.warn) $('warnDist').value = String(o.warn); if (o.lim != null) $('speedLimSel').value = String(o.lim); $('quietSlow').checked = !!o.quiet;
-      if (o.brk != null) $('breakSel').value = String(o.brk); $('sosName').value = o.sosName || ''; $('sosPhone').value = o.sosPhone || ''; } catch (e) {}
+      if (o.brk != null) $('breakSel').value = String(o.brk); $('sosName').value = o.sosName || ''; $('sosPhone').value = o.sosPhone || '';
+      $('callWa').checked = !!o.callWa; } catch (e) {}
   }
   function saveSettings() {
     try { localStorage.setItem(SET_KEY, JSON.stringify({ warn: +$('warnDist').value, lim: +$('speedLimSel').value, quiet: $('quietSlow').checked,
-      brk: +$('breakSel').value, sosName: $('sosName').value.trim(), sosPhone: $('sosPhone').value.trim() })); } catch (e) {}
+      brk: +$('breakSel').value, sosName: $('sosName').value.trim(), sosPhone: $('sosPhone').value.trim(), callWa: $('callWa').checked })); } catch (e) {}
   }
   loadSettings();
-  ['warnDist', 'speedLimSel', 'quietSlow', 'breakSel', 'sosName', 'sosPhone'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  ['warnDist', 'speedLimSel', 'quietSlow', 'breakSel', 'sosName', 'sosPhone', 'callWa'].forEach((id) => $(id).addEventListener('change', saveSettings));
+
+  /* ── 📞 الاتصال بالصوت (المالك ٢٠٢٦-١١-٢٠): الصفحة مابتشوفش جهات الاتصال — اختصار الآيفون بيدوّر ويتصل. تأكيد قبل أى مكالمة ── */
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let callPending = null;   // { name, how, at }
+  function callAsk(name, how) {
+    if (!isIOS) { $('voiceNote').textContent = '📞 الاتصال بالصوت على الآيفون بس دلوقتى — الأندرويد جاى (قايمة جهات اتصال على الموبايل ده)'; sayRoad('الاتصال على الآيفون بس دلوقتى'); return; }
+    if (how === 'wa' && !$('callWa').checked) how = 'tel';
+    if (!how && !$('callWa').checked) how = 'tel';
+    callPending = { name, how, at: Date.now() };
+    $('callBox').hidden = false;
+    $('callQ').textContent = how ? '📞 هتصل بـ«' + name + '»' + (how === 'wa' ? ' واتساب' : '') + ' — تأكّد؟' : '📞 «' + name + '»: تليفون ولا واتساب؟';
+    $('callTelBtn').hidden = how === 'wa'; $('callWaBtn').hidden = how === 'tel';
+    $('callTelBtn').textContent = how === 'tel' ? '📞 اتصل' : '📞 تليفون'; $('callWaBtn').textContent = how === 'wa' ? '🟢 اتصل واتساب' : '🟢 واتساب';
+    sayRoad(how ? 'هتصل ب' + name + (how === 'wa' ? ' واتساب' : '') + '. تأكد؟' : name + '. تليفون ولا واتساب؟');
+  }
+  function callDone() { callPending = null; $('callBox').hidden = true; }
+  function callGo(how) {
+    const p = callPending; if (!p) return;
+    callDone();
+    $('voiceNote').textContent = '📞 بيفتح اختصار «' + (how === 'wa' ? RD.WA_SHORTCUT : RD.CALL_SHORTCUT) + '» — ' + p.name;
+    location.href = RD.shortcutUrl(p.name, how);   // الآيفون بيدوّر فى جهات الاتصال ويتصل (وبيسأل لو فيه أكتر من رقم)
+  }
+  /** رد صوتى على سؤال الاتصال (جوّه ٢٠ ثانية). true = اتعامل معاه. */
+  function callVoiceAnswer(text) {
+    if (!callPending || Date.now() - callPending.at > 20000) return false;
+    const a = RD.callAnswer(text);
+    if (!a) return false;
+    if (a === 'no') { callDone(); $('voiceNote').textContent = '📞 اتلغى'; sayRoad('تمام، اتلغى'); return true; }
+    const how = a === 'yes' ? callPending.how : a;
+    if (!how) { sayRoad('تليفون ولا واتساب؟'); return true; }
+    callGo(how === 'wa' && $('callWa').checked ? 'wa' : 'tel');
+    return true;
+  }
+  $('callTelBtn').addEventListener('click', () => callGo('tel'));
+  $('callWaBtn').addEventListener('click', () => callGo('wa'));
+  $('callNoBtn').addEventListener('click', () => { callDone(); $('voiceNote').textContent = '📞 اتلغى'; });
+  $('callTestBtn').addEventListener('click', () => { const n = prompt('اسم من جهات الاتصال'); if (n && n.trim()) callAsk(n.trim(), null); });
   try { $('voiceSel').value = oscarVoice(); } catch (e) {}
   $('voiceSel').addEventListener('change', () => {
     try { localStorage.setItem(VOICE_PREF, $('voiceSel').value); } catch (e) {}
@@ -870,6 +908,7 @@
     if (cmd && cmd.startsWith('near:')) nearbyWeb(cmd.slice(5));
     else if (cmd === 'bump' || cmd === 'pothole') { markRoad(cmd, pre); if (pre && pre.jpg) snapRoad('voice', pre, cmd); }
     else if (cmd === 'radar' || cmd === 'danger') markRoad(cmd);
+    else if (cmd && cmd.startsWith('call:')) { const [, how, ...rest] = cmd.split(':'); callAsk(rest.join(':').trim(), how || null); }
     else if (cmd === 'shot') snapRoad('voice', pre);
     else if (cmd === 'park') parkHere();
     else if (cmd === 'findpark') findPark();
@@ -911,6 +950,7 @@
       const now = Date.now();
       if (now - lastSaidAt < 6000 && plain(alts[0]) && plain(lastSaid).includes(plain(alts[0]))) return;   // صدى صوت أوسكار نفسه
       $('voiceNote').textContent = 'سمعت: «' + alts[0] + '»';
+      if (alts.some((a) => callVoiceAnswer(a))) return;   // رد على «تليفون ولا واتساب؟» / «تأكّد؟»
       if (alts.some((a) => RD.wakeOnly(a))) {   // «أوسكار» لوحده ⇒ ينتبه ويستنى الأمر
         awakeUntil = now + RD.WAKE_WINDOW_MS;
         $('voiceNote').textContent = '🎙️ أيوه — قول الأمر'; oscar('hello', 'أيوه'); return;

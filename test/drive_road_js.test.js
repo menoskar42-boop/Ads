@@ -79,6 +79,21 @@ test('phone voice: immediate provisional capture for road commands (like Provisi
   assert.ok(R.provBegin(st, 'pothole', { fix }, 2500 + R.REPEAT_MS));
   assert.equal(R.provTake(st, 'pothole', 2500 + R.REPEAT_MS + R.PROV_TTL_MS), null);   // محدّش أكّد فى الوقت
 });
+test('phone voice: «call X» goes to the iPhone shortcut by name — phone or WhatsApp, contacts never leave the phone', () => {
+  assert.equal(R.parseVoice('أوسكار اتصل بمحمود يعقوب'), 'call::محمود يعقوب');
+  assert.equal(R.parseVoice('اوسكار كلم أحمد واتساب'), 'call:wa:احمد');
+  assert.equal(R.parseVoice('اوسكار اتصل بمراتي على الواتس'), 'call:wa:مراتي');
+  assert.equal(R.parseVoice('oscar call Ahmed'), 'call::ahmed');
+  assert.equal(R.parseVoice('اوسكار رن على محمود'), 'call::محمود');
+  assert.equal(R.parseVoice('اوسكار كلم باسم'), 'call::باسم');             // «كلّم» مابيشيلش الباء
+  assert.equal(R.parseVoice('اتصل بمحمود'), null);                          // من غير الاسم ⇒ ولا حاجة
+  assert.equal(R.parseVoice('اوسكار سجل مطب'), 'bump');                     // الأوامر التانية زى ما هى
+  assert.equal(R.callAnswer('واتساب'), 'wa'); assert.equal(R.callAnswer('تليفون'), 'tel');
+  assert.equal(R.callAnswer('أيوه'), 'yes'); assert.equal(R.callAnswer('لأ'), 'no'); assert.equal(R.callAnswer('إلغاء'), 'no');
+  assert.equal(R.callAnswer('الجو حلو'), null);
+  assert.equal(R.shortcutUrl('محمود يعقوب', 'tel'), 'shortcuts://run-shortcut?name=Oscar%20Call&input=text&text=' + encodeURIComponent('محمود يعقوب'));
+  assert.ok(R.shortcutUrl('احمد', 'wa').includes('name=Oscar%20WhatsApp'));
+});
 test('nearest on the web: same OSM filters and 1 km rounding as the screen, voice, direct-start navigation link', () => {
   assert.equal(R.parseVoice('أوسكار دوّر على أقرب بنزينة'), 'near:fuel');
   assert.equal(R.parseVoice('اسكار اقرب صيدلية'), 'near:pharmacy');

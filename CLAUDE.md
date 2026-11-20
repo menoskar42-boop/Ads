@@ -454,6 +454,9 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   فى تطبيق الشاشة (`oscardrive-android/`) تتعمل كمان فى صفحة الموبايل `drive.oscardevs.com` (`drive-web/`) — نفس الحساب (`drive-web/road.js`
   مطابق لـ`logic/RoadMemory.kt` و`OsmNearby.kt`، والاختبار `test/drive_road_js.test.js`)، على نفس السيرفر والقاعدة. الخطة والتقارير:
   `docs/OSCAR_DRIVE_AUDIT_REPORT.md` · `docs/OSCAR_DRIVE_PHASES_2_3.md`.
+- `docs/OSCAR_CALL_SHORTCUT.md` — **الاتصال بالصوت من صفحة Oscar Drive على الآيفون (٢٠٢٦-١١-٢٠)**: جهات الاتصال مابتتبعتش للشاشة ولا للسيرفر —
+  الصفحة بتبعت الاسم بس لاختصار «Oscar Call» (أو «Oscar WhatsApp») على الآيفون، وهو اللى بيدوّر ويتصل، وفيه تأكيد قبل أى مكالمة. الصفحة:
+  https://claude.ai/artifact/RnS3AgBbLusdkh9o7wF4Kf. **Trigger:** «ابعتلي خطوات اختصار Oscar Call». الأندرويد = الخطوة الجاية (قايمة على الموبايل نفسه).
 - `CT-OncoScan/` — **موقع الأشعة: موافقة المالك (٢٠٢٦-١١-١٦)** على TotalSegmentator (الوضع السريع على المعالج، سيرفر Oracle المجانى)
   **للاستخدام الشخصى كتجربة** قبل ما يبقى منتج للبيع؛ Kaggle/Colab المجانى للتجارب الأتقل؛ رخص الأجزاء تتراجع قبل أى بيع؛ مساعدة
   للبحث مش تشخيص. البند ١٣ فى `docs/PLAN_2026-11-16.md`.

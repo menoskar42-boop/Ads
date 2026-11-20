@@ -280,5 +280,13 @@ check('custom voice lines are rate-limited', /od-voice', windowMs: 24 \* 60 \* 6
       && /BackBubble\.show\(ctx\)/.test(nav) && /BackBubble\.show\(this\)/.test(mapA),
     'الرجوع من جوجل مابس لـOscar Drive كان صعب. الصلاحية اختيارية ومن غيرها كله زى الأول.');
 }
+{
+  // المالك ٢٠٢٦-١١-٢٠: الاتصال من الموبايل نفسه — جهات الاتصال مابتتبعتش للشاشة ولا للسيرفر، والتأكيد قبل أى مكالمة
+  const app = read('drive-web/app.js'), road = read('drive-web/road.js');
+  check('phone voice calls go to the iPhone shortcut by name only, with a confirm step and an optional WhatsApp choice',
+    /function parseCall\(/.test(road) && /shortcuts:\/\/run-shortcut\?name=/.test(road) && /function callAsk\(/.test(app) && /function callVoiceAnswer\(/.test(app)
+      && /\$\('callBox'\)\.hidden = false/.test(app) && !/contacts|ContactsManager|navigator\.contacts/i.test(app.slice(app.indexOf('function callAsk'), app.indexOf("$('callTestBtn')"))),
+    'Safari مابيقراش جهات الاتصال، والمالك عايزها تفضل على الموبايل — الاختصار هو اللى بيدوّر ويتصل.');
+}
 
 process.exit(failed ? 1 : 0);
