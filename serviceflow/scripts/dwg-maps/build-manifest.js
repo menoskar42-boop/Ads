@@ -8,7 +8,7 @@ function autoData(jsonPath, layerRe, central, cabinet, title, net) {
   const bx = extractBoxes(db, layerRe);
   // الكابلات (المالك ٢٠٢٦-١١-١٩: «اشتغل واعمل بيانات من الكهربى عادى»): تتبّع خطوط طبقة الكابلات بين الكابينة والوصلات والبكسيات
   // + نص «طول/أزواج"/قطر» جنب كل خط. اتجرّب على 6.7: ٧٠ من ٧٢ كابل زى التفريغ بالإيد بالحرف، ومفيش كابل غلط.
-  const r = net ? extractNetwork(db, net) : null;
+  const r = net ? extractNetwork(db, { ...net, cabName: cabinet }) : null;   // اسم الكابينة: لو فيه رسمة كابينة تانية متنسخة فى الملف
   const segs = r ? r.segs : [];
   const perBox = {}; segs.forEach((g) => [g.from, g.to].forEach((n) => { if (/^B/.test(n)) perBox[n] = (perBox[n] || 0) + 1; }));
   const seen = {}; bx.forEach((b) => (seen[b.box] = (seen[b.box] || 0) + 1));
@@ -24,6 +24,7 @@ function autoData(jsonPath, layerRe, central, cabinet, title, net) {
     ...(g.dead ? { dead: g.dead } : {}), ...(g.marker ? { marker: g.marker } : {}),
     ...((perBox[g.to] || 0) > 1 || g.lengthM == null ? { uncertain: true } : {}),
     ...(g.nolabel ? { notes: 'الخط مرسوم فى الخريطة بس الطول مش مكتوب جنبه — اكتب الطول من الورقة والمسافات اللى بعده هتتحسب' } : {}),
+    ...(g.cabGuess ? { uncertain: true, notes: 'الخط فى الرسم واقف قبل الكابينة بشوية — اتوصّل بالكابينة، يتراجع' } : {}),
     ...(g.markerSum ? { uncertain: true, notes: `الكابل معدّى على علامة الوصل ${g.marker} ومكتوب عليه طولين (${g.label}) — اتجمعوا، يتراجع على الخريطة` } : {}) }));
   const nums = bx.map((b) => parseInt(b.box)).filter((n) => n > 0); const max = Math.max(0, ...nums); const missing = [];
   for (let i = 1; i <= max; i++) if (!nums.includes(i)) missing.push(i);
@@ -31,6 +32,8 @@ function autoData(jsonPath, layerRe, central, cabinet, title, net) {
   if (missing.length) notes.push(`أرقام بكسيات مش ظاهرة فى الخريطة: ${missing.join('، ')}`);
   if (r && r.unusedLabels.length) notes.push(`كابلات مكتوب نصها فى الخريطة ومالقيناش خطها (تتضاف بإيد): ${r.unusedLabels.join(' · ')}`);
   if (r) { const off = boxes.filter((b) => !r.reached.has('B' + b.box)).map((b) => b.box); if (off.length) notes.push(`بكسيات مش متوصّلة بالكابينة فى التفريغ الآلى (ناقصها كابل فى النص): ${off.join('، ')}`); }
+  if (r) { const an = r.joints.filter((j) => j.anon).map((j) => j.id); if (an.length) notes.push(`وصلات مرسومة من غير رقم فى الخريطة (اتسمّت مؤقتاً): ${an.join(' · ')}`); }
+  const cg = segs.filter((g) => g.cabGuess); if (cg.length) notes.push(`كابلات خطها واقف قبل الكابينة فى الرسم (اتوصّلت بالكابينة — تتراجع): ${cg.map((g) => g.from + ' ← ' + g.to).join(' · ')}`);
   const nol = segs.filter((g) => g.nolabel); if (nol.length) notes.push(`كابلات مرسومة من غير طول مكتوب (البكسيات اللى بعدها مالهاش مسافة لحد ما الطول يتكتب): ${nol.map((g) => g.from + ' ← ' + g.to).join(' · ')}`);
   return { meta: { central, cabinet, title, notes: 'تفريغ آلى من ملف الأوتوكاد: الكابينة والبكسيات والكابلات (من ← إلى · الطول · الأزواج · القطر). اللى عليه «يتراجع» والملاحظات محتاجين مراجعة على الخريطة.' },
     segments, boxes, spares: [], markers: [], notes };
