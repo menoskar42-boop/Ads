@@ -35,3 +35,4 @@
 - [Inspection follow-up progress](inspection-followup-progress.md) — report overall responses by follow-up category, not installation percentages per technician.
 - [Local D1 emulation](local-d1-emulation.md) — set SQLite foreign-key enforcement in each Wrangler local execute call; CLI invocations do not share the pragma state.
 - [CFM D1 migration boundary](cfm-d1-migration-boundaries.md) — keep sessions/queues in PostgreSQL and files in R2; ticket writes stay PostgreSQL until partial-failure recovery is tested.
+- [Read CLAUDE.md before edits](claude-pre-edit.md) — before changing project files, read the root CLAUDE.md first.
