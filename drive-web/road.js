@@ -110,10 +110,20 @@
   const fromPart = (from) => (from && from.lat != null && from.lng != null ? '&origin=' + from.lat + ',' + from.lng : '');
   const navUrl = (lat, lng, from) => 'https://www.google.com/maps/dir/?api=1' + fromPart(from) + '&destination=' + lat + ',' + lng + '&travelmode=driving&dir_action=navigate';
   const norm = (t) => String(t || '').toLowerCase().replace(/[\u064B-\u0652]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
-  const WAKE = /(^|\s)(?:يا\s+(?:اذكر|اوس|اسكر|اوسكور)|(?:يا\s+)?(?:اوسكار|اسكار|وسكار|اوسكر|oscar))(\s|$)/;
   // تنضيف أقوى للمطابقة بس (زى VoiceEngine.normalize): ی/ک فارسى · علامات · «مطبببب» ⇒ «مطب» · مسافات
   const clean = (t) => norm(t).replace(/[\u0640\u0670]/g, '').replace(/ک/g, 'ك').replace(/ی/g, 'ي').replace(/ھ/g, 'ه')
     .replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/(\p{L})\1{2,}/gu, '$1').replace(/\s+/g, ' ').trim();
+  // كل صيغ النداء المتوقعة من التفريغ العربي/الإنجليزي. «اذكر/اوس/اسكر» بلا «يا» مسموحة كبداية للجملة فقط.
+  const WAKE_ALIASES = [
+    'يا اوسكار', 'اوسكار', 'يا اسكار', 'اسكار', 'يا وسكار', 'وسكار', 'يا اوسكر', 'اوسكر',
+    'يا اوزكار', 'اوزكار', 'يا اوز', 'يا اوس', 'يا اذكر', 'يا اسكر', 'يا سكار', 'سكار',
+    'hey oscar', 'ok oscar', 'okay oscar', 'oscar',
+  ].map(clean).sort((a, b) => b.length - a.length);
+  const WAKE_BARE = ['اذكر', 'اوس', 'اوز', 'اسكر'].map(clean);
+  const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const WAKE_SOURCE = '(?:' + WAKE_ALIASES.map(escapeRegExp).join('|') + ')';
+  const WAKE = new RegExp('(^|\\s)' + WAKE_SOURCE + '(?=\\s|$)|^(?:' + WAKE_BARE.map(escapeRegExp).join('|') + ')(?=\\s|$)');
+  const WAKE_GLOBAL = new RegExp(WAKE.source, 'g');
   /** نفس الأمر لو اتسمع مرتين ورا بعض (٤ ثوانى) بيتنفّذ مرة واحدة — زى logic/RepeatGuard.kt. st = {} بيتحفظ عند الصفحة. */
   const REPEAT_MS = 4000;
   function repeatOk(st, cmd, nowMs) {
@@ -125,7 +135,7 @@
   const WAKE_WINDOW_MS = 8000;
   function wakeOnly(text) {
     const t = clean(text);
-    return WAKE.test(t) && t.replace(/(^|\s)(?:يا\s+(?:اذكر|اوس|اسكر|اوسكور)|(?:يا\s+)?(?:اوسكار|اسكار|وسكار|اوسكر|oscar))(?=\s|$)/g, ' ').trim() === '';
+    return WAKE.test(t) && t.replace(WAKE_GLOBAL, ' ').trim() === '';
   }
   /** awake = لسه نادينا عليه (جوّه ٨ ثوانى) ⇒ الجملة بتتفهم من غير الاسم. */
   function parseVoice(text, awake) {
@@ -143,7 +153,7 @@
     // البرومبت ٦: «اتصل بالمكان ده» = آخر مكان لقيناه · «هات محطات البنزين» = قايمة (قبل «اتصل بـ…» و«أقرب …»)
     if (/(اتصل بالمكان|كلم المكان|اتصل بيهم|رقم المكان|call this place|call them)/.test(t)) return 'placecall';
     if (/(محطات البنزين|البنزينات|show gas stations|list gas stations)/.test(t)) return 'list:fuel';
-    const call = parseCall(t.replace(/(^|\s)(?:يا\s+(?:اذكر|اوس|اسكر|اوسكور)|(?:يا\s+)?(?:اوسكار|اسكار|وسكار|اوسكر|oscar))(?=\s|$)/g, ' ').trim());
+    const call = parseCall(t.replace(WAKE_GLOBAL, ' ').trim());
     if (call) return 'call:' + (call.how || '') + ':' + call.name;
     if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب|صورلي الطريق|صور الشارع|صوره للشارع|صور قدامي|خد لقطه)/.test(t)) return 'shot';
     // أسئلة بترد من ملخّص العربية (زى fuel.left · maint.next · info.speed على الشاشة) — قبل «أقرب بنزينة» عشان «فاضل كام بنزين»
@@ -350,6 +360,7 @@
   function maybeOscar(text, awake) {
     const w = clean(text).split(' ');
     if (awake && w.length && w[0]) return true;
+    if (WAKE.test(w.join(' '))) return true;
     if (w[0] !== 'يا' || !w[1]) return false;
     return /^(او|اس|وس|اذ)/.test(w[1]) || lev(w[1], 'اوسكار') <= 3;
   }

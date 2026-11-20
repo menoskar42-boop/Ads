@@ -13,7 +13,7 @@ const NEAR = ['fuel', 'pharmacy', 'hospital', 'atm', 'bank', 'church', 'mosque',
   'police', 'parking', 'hotel'];
 
 const SYSTEM = `You understand voice commands for "Oscar", a driving assistant in Egypt. The text comes from speech recognition and often has
-mistakes (Egyptian Arabic or English, sometimes mixed; the wake word "يا أوسكار" may be misheard as "يا اوس", "يا أذكر", "يا اسكار").
+mistakes (Egyptian Arabic or English, sometimes mixed; the wake word may appear as "يا أوسكار", "أوسكار", "يا اوس", "يا أذكر", "أذكر", "يا اسكار", "يا وسكار", "يا اوزكار", "hey oscar", or "okay oscar").
 Pick exactly ONE command:
 bump = record a speed bump here (مطب) · bump1 = one-way speed bump (مطب اتجاه واحد) · pothole = pothole (حفرة/جورة/نقرة) ·
 pothole1 = one-way pothole · radar = speed camera · danger = dangerous spot · shot = take a road photo (صوّر الطريق/اسكرين شوت) ·
@@ -36,7 +36,7 @@ function normalizeLocal(text) {
     .replace(/(\p{L})\1{2,}/gu, '$1').replace(/\s+/g, ' ').trim();
 }
 
-const LOCAL_WAKE = /(?:^|\s)(?:يا\s+(?:اوسكار|اوس|اذكر|اسكار|وسكار|اوسكر|اسكر)|(?:يا\s+)?(?:اوسكار|اسكار|وسكار|اوسكر|oscar))(?=\s|$)/;
+const LOCAL_WAKE = /(?:^|\s)(?:يا\s+(?:اوسكار|اوس|اذكر|اسكار|وسكار|اوسكر|اوزكار|اوز|اسكر|سكار)|(?:يا\s+)?(?:اوسكار|اسكار|وسكار|اوسكر|اوزكار|oscar)|(?:hey|ok|okay)\s+oscar)(?=\s|$)|^(?:اذكر|اوس|اوز|اسكر|سكار)(?=\s|$)/;
 const MOTHER_MOBILE = new Set([
   'mother mobile', 'mother mobil', 'mother mob',
   'ماذر موبايل', 'ماذر موبيل', 'ماذر موبيال', 'مذر موبايل', 'مذر موبيل',
