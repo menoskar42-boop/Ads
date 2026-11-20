@@ -777,6 +777,10 @@
     row('أسوأ ١٠٪ (م)', r.car ? f1(g(r.car).p90Acc) : '–', me ? f1(g(me).p90Acc) : '–');
     row('عدد القراءات', r.car ? (g(r.car).fixes ?? '–') : '–', me ? (g(me).fixes ?? '–') : '–');
     row('آخر فحص', r.car ? when(r.car.at) : '–', me ? when(me.at) : '–');
+    // البرومبت ١٠: نفس الوظيفة جنب بعض من تقريرين الجهازين (لو السطر مش موجود فى تقرير جهاز ⇒ «–» مش «شغّال»)
+    const pick = (d, re) => { const x = ((d && d.rows) || []).find((y) => re.test(y.l)); return x ? x.v : '–'; };
+    for (const [label, re] of [['🎙️ التعرّف على الكلام', /التعرّف|الكلام|Speech/i], ['🗣️ النطق', /النطق|TTS/i], ['🎤 الميكروفون', /ميكروفون|mic/i],
+      ['📷 الكاميرا', /كاميرا|camera/i], ['🗺️ الخرايط', /خرا[يئ]ط|maps/i], ['📶 النت', /^النت|الإنترنت|network/i]]) row(label, pick(r.car, re), pick(me, re));
     const fill = (box, ul, d) => { $(box).hidden = !d; $(ul).textContent = ''; for (const x of (d && d.rows) || []) $(ul).appendChild(li(x.l, x.v, '')); };
     fill('diagScreenBox', 'diagScreen', r.car); fill('diagPhoneBox', 'diagPhone', me);
     if (r.car && !g(r.car).fixes) $('diagNote').textContent += ' · الشاشة بعتت من غير قراءات GPS — شغّل القيادة عليها وابعت تانى.';
