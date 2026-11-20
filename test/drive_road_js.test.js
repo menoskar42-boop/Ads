@@ -132,6 +132,26 @@ test('phone voice: «call X» goes to the iPhone shortcut by name — phone or W
   assert.equal(R.shortcutUrl('محمود يعقوب', 'tel'), 'shortcuts://run-shortcut?name=Oscar%20Call&input=text&text=' + encodeURIComponent('محمود يعقوب'));
   assert.ok(R.shortcutUrl('احمد', 'wa').includes('name=Oscar%20WhatsApp'));
 });
+test('vCard parsing keeps contacts on-device and reads common vCard formats', () => {
+  const vcards = [
+    'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Mother \r\n Mobile\r\nitem1.TEL;TYPE=CELL:tel:+20 10 1234\r\nTEL;TYPE=HOME:010-1234\r\nEND:VCARD',
+    'BEGIN:VCARD\r\nVERSION:3.0\r\nFN;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:=D9=85=D8=A7=D8=B0=D8=B1 =D9=85=D9=88=D8=A8=D8=A7=D9=8A=D9=84\r\nTEL;TYPE=CELL:٠١٠١٢٣٤٥٦٧٨\r\nEND:VCARD',
+    'BEGIN:VCARD\r\nVERSION:3.0\r\nN:Doe;Jane;Marie;Dr;Jr\r\nTEL;TYPE=CELL:+12025550123\r\nEND:VCARD',
+    'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:No phone\r\nEND:VCARD',
+  ].join('\r\n');
+  assert.deepEqual(R.parseVCardContacts(vcards), {
+    contacts: [
+      { name: 'Mother Mobile', tels: ['+20101234', '0101234'] },
+      { name: 'ماذر موبايل', tels: ['01012345678'] },
+      { name: 'Dr Jane Marie Doe Jr', tels: ['+12025550123'] },
+    ],
+    truncated: false,
+  });
+  const large = Array.from({ length: 501 }, (_, i) => `BEGIN:VCARD\nFN:Contact ${i}\nTEL:01012345678\nEND:VCARD`).join('\n');
+  const limited = R.parseVCardContacts(large);
+  assert.equal(limited.contacts.length, 500);
+  assert.equal(limited.truncated, true);
+});
 test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping', () => {
   assert.equal(R.parseVoice('يا أذكر اتصل ب ماذر موبايل'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('يا اذكر اتصل ل Mother Mobile'), 'call::Mother Mobile');

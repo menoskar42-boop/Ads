@@ -513,13 +513,16 @@
   loadSettings();
   ['warnDist', 'speedLimSel', 'quietSlow', 'breakSel', 'sosName', 'sosPhone', 'callWa'].forEach((id) => $(id).addEventListener('change', saveSettings));
 
-  /* ── 📞 الاتصال بالصوت (المالك ٢٠٢٦-١١-٢٠): الصفحة مابتشوفش جهات الاتصال — اختصار الآيفون بيدوّر ويتصل. تأكيد قبل أى مكالمة ── */
+  /* ── 📞 الاتصال بالصوت: جهات الاتصال المستوردة تفضل محلية، والاختصار احتياطي للآيفون ── */
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let callPending = null;   // { name, how, at }
-  /* الأندرويد: جهات اتصال على الموبايل ده بس (البرومبت ٧ — الخطوة ٢) */
+  /* جهات الاتصال على الجهاز ده بس؛ Safari يضيفها من ملف vCard محلي. */
   const CT_KEY = 'od_contacts';
-  const ctLoad = () => { try { return JSON.parse(localStorage.getItem(CT_KEY) || '[]'); } catch (e) { return []; } };
-  const ctSave = (l) => { try { localStorage.setItem(CT_KEY, JSON.stringify(l.slice(0, 500))); } catch (e) {} ctRender(); };
+  const ctLoad = () => { try { const l = JSON.parse(localStorage.getItem(CT_KEY) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
+  const ctSave = (l) => {
+    try { localStorage.setItem(CT_KEY, JSON.stringify(l.slice(0, 500))); ctRender(); return true; }
+    catch (e) { ctRender(); return false; }
+  };
   function ctAddOne(name, tels) {
     name = String(name || '').trim(); tels = (tels || []).map((t) => String(t).trim()).filter(Boolean);
     if (!name || !tels.length) return;
@@ -536,10 +539,56 @@
       li.append(x); ul.append(li);
     }
   }
+  const ctNameKey = (name) => String(name || '').normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g, ' ');
+  function ctImportMany(imported) {
+    const list = ctLoad();
+    let added = 0, merged = 0, skipped = 0;
+    for (const contact of imported) {
+      const name = String(contact.name || '').trim();
+      const tels = Array.from(new Set((contact.tels || []).map((tel) => String(tel).trim()).filter(Boolean)));
+      if (!name || !tels.length) { skipped++; continue; }
+      const existing = list.find((entry) => ctNameKey(entry.name) === ctNameKey(name));
+      if (existing) {
+        const oldTels = Array.isArray(existing.tels) ? existing.tels : [];
+        existing.tels = Array.from(new Set(oldTels.concat(tels)));
+        if (existing.tels.length > oldTels.length) merged++;
+      } else if (list.length < 500) { list.push({ name, tels }); added++; }
+      else skipped++;
+    }
+    return { added, merged, skipped, saved: ctSave(list) };
+  }
+  function readLocalTextFile(file) {
+    if (file && typeof file.text === 'function') return file.text();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('تعذرت قراءة الملف'));
+      reader.readAsText(file, 'UTF-8');
+    });
+  }
   $('ctPick').hidden = !(navigator.contacts && navigator.contacts.select);   // Chrome أندرويد بس — بتختار انت مين
   $('ctPick').addEventListener('click', async () => {
     try { for (const c of await navigator.contacts.select(['name', 'tel'], { multiple: true })) ctAddOne((c.name || [])[0], c.tel || []); }
     catch (e) { $('voiceNote').textContent = 'ماقدرتش أفتح جهات الاتصال: ' + (e.message || e); }
+  });
+  $('ctVcfImport').addEventListener('click', () => $('ctVcfFile').click());
+  $('ctVcfFile').addEventListener('change', async (event) => {
+    const input = event.currentTarget, file = input.files && input.files[0], note = $('ctImportNote');
+    input.value = '';
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { note.textContent = 'الملف أكبر من 5 ميجابايت؛ اختار ملف vCard أصغر.'; return; }
+    if (!/\.vcf$/i.test(file.name || '') && !/vcard/i.test(file.type || '')) { note.textContent = 'اختار ملف vCard امتداده .vcf.'; return; }
+    note.textContent = 'جارٍ قراءة الملف داخل المتصفح…';
+    try {
+      const parsed = RD.parseVCardContacts(await readLocalTextFile(file));
+      const contacts = parsed.contacts;
+      if (!contacts.length) { note.textContent = 'ما لقيتش أسماء وأرقام صالحة في الملف.'; return; }
+      const result = ctImportMany(contacts);
+      if (!result.saved) { note.textContent = 'المتصفح لم يستطع حفظ القائمة؛ قد تكون مساحة التخزين ممتلئة.'; return; }
+      note.textContent = `تمت قراءة ${contacts.length} جهة: أضيف ${result.added} ودمجت أرقام ${result.merged} جهات. الحفظ محلي على Safari ده فقط.`
+        + (result.skipped ? ` تم تجاهل ${result.skipped}.` : '')
+        + (parsed.truncated ? ' تم استيراد أول 500 جهة فقط.' : '');
+    } catch (e) { note.textContent = 'ماقدرتش أقرأ ملف vCard: ' + (e.message || e); }
   });
   $('ctAdd').addEventListener('click', () => { ctAddOne($('ctName').value, [$('ctTel').value]); $('ctName').value = ''; $('ctTel').value = ''; });
   ctRender();
@@ -569,15 +618,17 @@
     if (!isIOS) { callLocal(name, how); return; }
     if (how === 'wa' && !$('callWa').checked) how = 'tel';
     if (!how && !$('callWa').checked) how = 'tel';
+    // لو جهة الاتصال مستوردة في Safari، اعرض أرقامها محليًا بدل إرسال الاسم للسيرفر أو فتح الاختصار.
+    if (RD.matchContacts(ctLoad(), name).length) { callLocal(name, how); return; }
     callPending = { name, how, at: Date.now() };
     $('callBox').hidden = false;
     $('callQ').textContent = how ? '📞 هتصل بـ«' + name + '»' + (how === 'wa' ? ' واتساب' : '') + ' — تأكّد؟' : '📞 «' + name + '»: تليفون ولا واتساب؟';
     $('callTelBtn').hidden = how === 'wa'; $('callWaBtn').hidden = how === 'tel';
     $('callTelBtn').textContent = how === 'tel' ? '📞 اتصل' : '📞 تليفون'; $('callWaBtn').textContent = how === 'wa' ? '🟢 اتصل واتساب' : '🟢 واتساب';
     sayRoad(how ? 'هتصل ب' + name + (how === 'wa' ? ' واتساب' : '') + '. تأكد؟' : name + '. تليفون ولا واتساب؟');
-    // الاسم متسجّل بالإنجليزى والتعرّف كتبه عربى («ماذر موبايل» = «Mother mobile») ⇒ الذكاء الاصطناعى يجيب الهجاء الإنجليزى كاختيار تانى
+    // من غير قائمة محلية فقط: الاسم الإنجليزى المتعرف عليه بالعربى قد يحتاج اقتراح هجاء لاتينى.
     $('callOpts').textContent = '';
-    if (/[\u0600-\u06FF]/.test(name)) {
+    if (/[\u0600-\u06FF]/.test(name) && !ctLoad().length) {
       const asked = callPending;
       api('POST', '/api/web/intent', { text: 'اتصل ب' + name }).then((r) => {
         const latin = r && r.cmd === 'call' && r.latin;
@@ -619,9 +670,9 @@
   $('callWaBtn').addEventListener('click', () => callGo('wa'));
   $('callNoBtn').addEventListener('click', () => { callDone(); $('voiceNote').textContent = '📞 اتلغى'; });
   $('callTestBtn').addEventListener('click', () => { const n = prompt('اسم من جهات الاتصال'); if (n && n.trim()) callAsk(n.trim(), null); });
-  // «📞 اتصال» فى شاشة القيادة (المالك ٢٠٢٦-١١-٢٠): الأندرويد ⇒ قايمة جهات الاتصال اللى على الموبايل ده · الآيفون/مفيش قايمة ⇒ اكتب الاسم
+  // «📞 اتصال» فى شاشة القيادة: لو فيه قايمة محلية اعرضها على أى متصفح؛ غير كده اطلب الاسم.
   $('dvCall').addEventListener('click', () => {
-    const list = isIOS ? [] : ctLoad();
+    const list = ctLoad();
     if (!list.length) { const n = prompt('تتصل بمين؟ (أو قول: أوسكار اتصل بـ…)'); if (n && n.trim()) callAsk(n.trim(), null); return; }
     const opts = $('callOpts'); opts.textContent = '';
     $('callTelBtn').hidden = true; $('callWaBtn').hidden = true; $('callBox').hidden = false;

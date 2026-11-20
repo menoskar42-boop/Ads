@@ -330,14 +330,18 @@ body.solo .carOnly { display:none !important; }
         <input id="sosPhone" class="plain" type="tel" inputmode="tel" placeholder="01xxxxxxxxx" style="flex:1;direction:ltr"></div>
         <p class="note">الزرار بيجهّز رسالة فيها مكانك للرقم ده — وانت اللى بتدوس إرسال. من غير رقم ⇒ بيفتح المشاركة وتختار.</p>
       </details>
-      <details class="note"><summary>📞 الاتصال بالصوت (الآيفون)</summary>
-        <p class="note">قول «أوسكار اتصل بمحمود» أو «كلّم أحمد واتساب». جهات الاتصال مابتتبعتش لا للشاشة ولا لينا — اختصار «Oscar Call» على الآيفون هو اللى بيدوّر فيها ويتصل (ولو الشخص عنده أكتر من رقم الآيفون بيسألك). محتاج تعمل الاختصار مرة واحدة: <a href="https://claude.ai/artifact/RnS3AgBbLusdkh9o7wF4Kf" target="_blank" rel="noopener">الخطوات</a>.</p>
+      <details class="note"><summary>📞 الاتصال الصوتي وجهات الاتصال</summary>
+        <p class="note">على Safari تقدر تستورد ملف جهات اتصال vCard (.vcf)؛ الأسماء والأرقام تفضل محفوظة في المتصفح على الموبايل ده فقط ومابتتبعتش للسيرفر. لو ما استوردتش جهة الاتصال، اختصار «Oscar Call» يقدر يدوّر عليها في الآيفون. <a href="https://claude.ai/artifact/RnS3AgBbLusdkh9o7wF4Kf" target="_blank" rel="noopener">خطوات إعداد الاختصار</a>.</p>
         <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="callWa"> 🟢 واتساب ضمن اختيارات الاتصال (محتاج اختصار «Oscar WhatsApp»)</label>
-        <button id="callTestBtn" style="width:100%;margin-top:6px">جرّب الاتصال (يفتح الاختصار باسم تكتبه)</button>
-        <p class="note" style="margin-top:8px"><b>الأندرويد:</b> الأسماء والأرقام بتتحفظ على الموبايل ده بس (مابتتبعتش للشاشة ولا لينا).</p>
+        <button id="callTestBtn" style="width:100%;margin-top:6px">جرّب الاتصال باسم تكتبه</button>
+        <p class="note" style="margin-top:8px"><b>الأندرويد:</b> اختار من جهات الاتصال أو استورد vCard. كل البيانات تفضل على الجهاز ده فقط.</p>
         <div class="row" style="gap:6px;flex-wrap:wrap"><button id="ctPick" style="flex:1">📇 ضيف من جهات الاتصال</button>
           <input id="ctName" class="plain" placeholder="الاسم" style="flex:1"><input id="ctTel" class="plain" type="tel" placeholder="01xxxxxxxxx" style="flex:1;direction:ltr">
-          <button id="ctAdd">ضيف</button></div>
+          <button id="ctAdd">ضيف</button>
+          <button id="ctVcfImport" type="button" style="flex:1">📥 استورد جهات الاتصال (.vcf)</button>
+          <input id="ctVcfFile" type="file" accept=".vcf,text/vcard,text/x-vcard" hidden>
+        </div>
+        <p class="note" id="ctImportNote" role="status" aria-live="polite">اختار ملف vCard من «الملفات»؛ الاستيراد يتم داخل المتصفح فقط.</p>
         <ul class="list" id="ctList"></ul>
       </details>
       <p class="note" id="roadNote"></p>

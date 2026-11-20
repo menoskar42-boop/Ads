@@ -318,6 +318,51 @@
     const top = scored[0].s;
     return scored.filter((x) => top - x.s < 0.05).map((x) => x.c);   // أكتر من واحد قريبين ⇒ نسأل
   }
+  /** يقرأ أسماء وأرقام vCard داخل المتصفح فقط؛ لا يرسل الملف أو محتواه لأي API. */
+  function parseVCardContacts(source) {
+    const input = String(source || '').replace(/^\uFEFF/, '').replace(/=\r?\n/g, '').replace(/\r\n?/g, '\n');
+    const lines = [];
+    for (const line of input.split('\n')) {
+      if (/^[ \t]/.test(line) && lines.length) lines[lines.length - 1] += line.slice(1);
+      else lines.push(line);
+    }
+    const unescapeValue = (value, header) => {
+      let out = value;
+      if (/ENCODING=(?:QUOTED-PRINTABLE|QP)(?:;|$)/i.test(header)) {
+        try { out = decodeURIComponent(out.replace(/=([0-9a-f]{2})/gi, '%$1')); } catch (e) {}
+      }
+      return out.replace(/\\[nN]/g, ' ').replace(/\\([,;\\])/g, '$1');
+    };
+    const contacts = [];
+    let card = null;
+    const finishCard = () => {
+      if (!card) return;
+      const name = (card.name || card.fallbackName || '').replace(/\s+/g, ' ').trim();
+      const tels = Array.from(new Set(card.tels));
+      if (name && tels.length) contacts.push({ name, tels });
+      card = null;
+    };
+    for (const line of lines) {
+      if (/^BEGIN:VCARD(?:;|$)/i.test(line)) { finishCard(); card = { name: '', fallbackName: '', tels: [] }; continue; }
+      if (/^END:VCARD/i.test(line)) { finishCard(); if (contacts.length > 500) break; continue; }
+      if (!card) continue;
+      const colon = line.indexOf(':');
+      if (colon < 0) continue;
+      const header = line.slice(0, colon), field = (header.split(';')[0].split('.').pop() || '').toUpperCase();
+      const value = unescapeValue(line.slice(colon + 1), header);
+      if (field === 'FN' && !card.name) card.name = value.replace(/\s+/g, ' ').trim();
+      else if (field === 'N' && !card.fallbackName) {
+        const parts = value.split(';').map((part) => part.trim());
+        card.fallbackName = [parts[3], parts[1], parts[2], parts[0], parts[4]].filter(Boolean).join(' ');
+      } else if (field === 'TEL') {
+        const phone = value.replace(/^tel:/i, '').split(';')[0]
+          .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/[^\d+]/g, '');
+        if (phone.replace(/\D/g, '').length >= 5) card.tels.push(phone);
+      }
+    }
+    finishCard();
+    return { contacts: contacts.slice(0, 500), truncated: contacts.length > 500 };
+  }
   /** رقم مصرى ⇒ شكل واتساب (من غير +): «01012345678» ⇐ «201012345678». */
   function waNumber(raw) {
     let d = String(raw || '').replace(/[٠-٩]/g, (c) => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[^\d]/g, '');
@@ -377,6 +422,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, parseVCardContacts, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);
