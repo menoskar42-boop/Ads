@@ -30,6 +30,8 @@ import android.widget.Toast
 import com.oscardevs.oscardrive.logic.CarCare
 import com.oscardevs.oscardrive.logic.EgyptWords
 import com.oscardevs.oscardrive.logic.RepeatGuard
+import com.oscardevs.oscardrive.logic.ProvisionalCapture
+import com.oscardevs.oscardrive.logic.RoadVoice
 import com.oscardevs.oscardrive.logic.Cmd
 import com.oscardevs.oscardrive.logic.Fuel
 import com.oscardevs.oscardrive.logic.Geo
@@ -114,10 +116,12 @@ class MainActivity : Activity() {
         if (prefs.autoStart || DriveService.State.running) startIfReady()
         // «أوسكار» بيسمع كمان فى شاشة الخريطة/الملاحة ⇒ الكلام بيرجع هنا لنفس الفهم (ScreenEars)
         ScreenEars.sink = { heard -> main.post { try { handleHeard(heard, button = false) } catch (t: Throwable) { CrashLog.nonFatal(this, "ScreenEars.sink", t) } } }
+        ScreenEars.partialSink = { part -> main.post { try { handlePartial(part, button = false) } catch (t: Throwable) { CrashLog.nonFatal(this, "ScreenEars.partial", t) } } }
     }
 
     override fun onDestroy() {
         if (ScreenEars.sink != null) ScreenEars.sink = null
+        ScreenEars.partialSink = null
         super.onDestroy()
     }
 
@@ -1003,14 +1007,17 @@ class MainActivity : Activity() {
         null
     }
 
-    private fun markHazard(t: HazardType) {
-        val (lat, lng) = needHere() ?: return
+    private fun markHazard(t: HazardType, at: ProvisionalCapture.Fix? = null) {
+        // at = المكان لحظة ما الأمر اتقال (التصوير الفورى) — لو الـGPS ماكانش لاقط ساعتها ⇒ زى الأول
+        val f = at?.takeIf { it.hasPlace }
+        val (lat, lng) = (if (f != null) f.lat!! to f.lng!! else null) ?: needHere() ?: return
         val s = DriveService.State
         // التنبيه يسكت عن المكان ده دقيقتين — المطب الجديد (أو المتسجّل قبل كده هنا) تحت العربية بالظبط
         s.markedLat = lat; s.markedLng = lng; s.markedAt = System.currentTimeMillis()
         if (RoadMemory.duplicateOf(db.hazards(), t, lat, lng) != null) { oscar("already_saved", "${t.ar} متسجّل هنا قبل كده"); return }
-        val moving = (s.speedKmh ?: 0f) >= 10f
-        db.addHazard(t, lat, lng, if (moving) s.headingDeg else null, s.accuracyM, s.altitudeM)
+        val moving = ((if (f != null) f.speedKmh else s.speedKmh) ?: 0f) >= 10f
+        db.addHazard(t, lat, lng, if (moving) (if (f != null) f.headingDeg else s.headingDeg) else null,
+            if (f != null) f.accuracyM else s.accuracyM, if (f != null) f.altitudeM else s.altitudeM)
         DriveService.State.hazardsDirty = true
         HazardSync.syncSoon(this)
         oscar(when (t) { HazardType.BUMP -> "bump_saved"; HazardType.POTHOLE -> "pothole_saved"; HazardType.RADAR -> "radar_saved"; else -> "danger_saved" },
@@ -1065,6 +1072,59 @@ class MainActivity : Activity() {
         Shots.take(this, reason) { err ->
             toast(err ?: "📸 اتصوّرت — هتترفع أول ما يبقى فيه نت")
             if (reason == "voice") Speaker.say(if (err == null) "اتصوّرت" else "الكاميرا مش متاحة")
+        }
+    }
+
+    /* ── التصوير الفورى لأوامر الطريق (المالك ٢٠٢٦-١١-٢٠ — logic/ProvisionalCapture) ── */
+    private val prov = ProvisionalCapture()
+
+    /** كلام لسه بيتقال (نتايج جزئية): لو شكله أمر طريق ⇒ المكان والصورة على طول (التأكيد بييجى مع الجملة كاملة). */
+    private fun handlePartial(heard: List<String>, button: Boolean) {
+        if (prov.current != null && prov.current?.finished == false) return
+        val now = System.currentTimeMillis()
+        val e = engine()
+        for (h in heard) {
+            val text = e.afterWake(h) ?: h.takeIf { button || now < awaitingUntil } ?: continue
+            val id = e.understand(text)?.match?.command?.id
+            if (RoadVoice.isRoad(id)) { provisionalStart(id!!); return }
+        }
+    }
+
+    /** أمر طريق محتمل ⇒ المكان والاتجاه دلوقتى + صورة من كاميرا الطريق، قبل ما الأمر يتأكّد. */
+    private fun provisionalStart(id: String) {
+        val s = DriveService.State
+        val now = System.currentTimeMillis()
+        val item = prov.begin(id, ProvisionalCapture.Fix(now, s.lat, s.lng, s.headingDeg, s.speedKmh, s.accuracyM, s.altitudeM)) ?: return
+        VoiceDiag.add("تصوير فورى: $id")
+        main.postDelayed({ prov.sweep(System.currentTimeMillis()) }, ProvisionalCapture.TTL_MS + 500)
+        Guard.init(applicationContext)
+        if (!Guard.cam.permitted()) { prov.cameraDone(item, null, 0, "محتاج إذن الكاميرا — من «الحماية» دوس «اسمح بالكاميرا»"); return }
+        Guard.cam.snap { bytes, orientation, err -> main.post { prov.cameraDone(item, bytes, orientation, err); provisionalFinish(item) } }
+    }
+
+    /** الأمر اتأكّد ⇒ المطب بيتسجّل فى المكان اللى اتقال فيه، والصورة بتتحفظ أول ما تجهز. false = مفيش بيانات فورية ⇒ الطريقة العادية. */
+    private fun provisionalConfirm(id: String): Boolean {
+        val item = prov.confirm(id, System.currentTimeMillis()) ?: return false
+        VoiceDiag.add("تصوير فورى اتأكّد: $id")
+        hazardOf(id)?.let { markHazard(it, item.fix); if (tab == "road") refresh() }
+        provisionalFinish(item)
+        return true
+    }
+
+    private fun hazardOf(id: String?) = when (id) { "road.bump" -> HazardType.BUMP; "road.pothole" -> HazardType.POTHOLE; else -> null }
+
+    private fun provisionalFinish(item: ProvisionalCapture.Item) {
+        if (!prov.finishIfReady(item, System.currentTimeMillis())) return
+        val hazard = hazardOf(item.confirmed)
+        val jpg = item.jpg
+        if (jpg == null) {   // المطب اتسجّل خلاص — الصورة بس اللى ماتاخدتش
+            if (hazard == null) { toast(item.camError ?: "الكاميرا مش متاحة"); Speaker.say("الكاميرا مش متاحة") }
+            return
+        }
+        val f = item.fix
+        val hz = hazard?.let { org.json.JSONObject().put("type", it.key).put("lat", f.lat ?: 0.0).put("lng", f.lng ?: 0.0) }
+        Shots.save(this, "voice", jpg, item.orientation, f, hz) { err ->
+            if (hazard == null) { toast(err ?: "📸 اتصوّرت — هتترفع أول ما يبقى فيه نت"); Speaker.say(if (err == null) "اتصوّرت" else "الكاميرا مش متاحة") }
         }
     }
 
@@ -1378,7 +1438,8 @@ class MainActivity : Activity() {
             }
             OfflineEars.start(this, OfflineEars.langOf(prefs.voiceLang), oneShot = true,
                 onText = { t -> handleHeard(listOf(t), button = true); startWakeIfOn() },
-                onState = { st -> if (st.isNotEmpty()) toast(st) })
+                onState = { st -> if (st.isNotEmpty()) toast(st) },
+                onPartial = { part -> handlePartial(listOf(part), button = true) })
             return
         }
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
@@ -1432,6 +1493,8 @@ class MainActivity : Activity() {
             }
             e.understand(text)?.let { u -> val b = best; if (b == null || (u.sure && !b.sure)) best = u }
         }
+        // التصوير الفورى: الجملة كاملة طلعت مش أمر طريق (أمر تانى · «خلاص» · مافهمش) ⇒ اللى اتصوّر يتشال
+        if (!RoadVoice.isRoad(best?.match?.command?.id)) prov.discard()
         if (!called) { VoiceDiag.add("اتجاهل — مفيش «يا أوسكار» فى «${heard.first()}»"); return }
         val u = best
         if (u == null) {
@@ -1441,8 +1504,9 @@ class MainActivity : Activity() {
         }
         if (!u.sure) { askGuess(u); return }
         awaitingUntil = 0
-        if (!repeatGuard.allow(u.match.command.id, u.match.slot, now)) { VoiceDiag.add("اتكرّر — نفس الأمر لسه متنفّذ: ${u.match.command.id}"); return }
+        if (!repeatGuard.allow(u.match.command.id, u.match.slot, now)) { prov.discard(); VoiceDiag.add("اتكرّر — نفس الأمر لسه متنفّذ: ${u.match.command.id}"); return }
         VoiceDiag.add("الفهم: ${u.match.command.id}")
+        if (RoadVoice.isRoad(u.match.command.id)) provisionalStart(u.match.command.id)   // لو النتايج الجزئية مالحقتش
         runCommand(u.match.command.id, u.match.slot, u.heard)
     }
 
@@ -1457,13 +1521,14 @@ class MainActivity : Activity() {
     private fun askGuess(u: Understood) {
         val now = System.currentTimeMillis()
         pending = u; pendingUntil = now + 10_000; awaitingUntil = pendingUntil
+        if (RoadVoice.isRoad(u.match.command.id)) provisionalStart(u.match.command.id)   // نصوّر واحنا بنسأل
         val q = "تقصد «${u.match.command.title}»؟"
         Oscar.sayText("$q قول أيوه أو لأ")
         guessDialog?.dismiss()
         guessDialog = AlertDialog.Builder(this).setTitle("🎙️ $q").setMessage("سمعت: «${u.heard}»")
             .setPositiveButton("أيوه") { _, _ -> acceptGuess(u) }
             .setNegativeButton("لأ") { _, _ -> rejectGuess() }
-            .setOnCancelListener { pending = null }
+            .setOnCancelListener { pending = null; prov.discard() }
             .show()
         // زرار 🎤 من غير استماع دايم ⇒ يسمع الرد مرة كمان (بمحرّك أوسكار بس — برنامج الشاشة بيفتح شاشة جوجل)
         if (wake?.active != true && useEars()) main.postDelayed({ if (pending === u) listen() }, 2500)
@@ -1477,7 +1542,7 @@ class MainActivity : Activity() {
     }
 
     private fun rejectGuess() {
-        pending = null; awaitingUntil = 0
+        pending = null; awaitingUntil = 0; prov.discard()
         guessDialog?.dismiss(); guessDialog = null
         oscar("ok", "تمام — قول الأمر تانى، أو قول مثلاً «أنا قلت مطب مش مطلب»")
     }
@@ -1501,9 +1566,9 @@ class MainActivity : Activity() {
             }
             "car.find" -> db.parkings().firstOrNull()?.let { oscar("find_car"); navigateTo(it.lat, it.lng, "العربية", walk = true) } ?: oscar("no_parking")
             "park.save" -> parkHere()
-            "road.shot" -> snapRoad("voice")
-            "road.bump" -> { markHazard(HazardType.BUMP); if (tab == "road") refresh() }
-            "road.pothole" -> { markHazard(HazardType.POTHOLE); if (tab == "road") refresh() }
+            "road.shot" -> if (!provisionalConfirm(id)) snapRoad("voice")
+            "road.bump" -> if (!provisionalConfirm(id)) { markHazard(HazardType.BUMP); if (tab == "road") refresh() }
+            "road.pothole" -> if (!provisionalConfirm(id)) { markHazard(HazardType.POTHOLE); if (tab == "road") refresh() }
             "road.radar" -> { markHazard(HazardType.RADAR); if (tab == "road") refresh() }
             "road.danger" -> { markHazard(HazardType.DANGER); if (tab == "road") refresh() }
             "info.speed" -> s.speedKmh?.let { Oscar.sayText(if (Oscar.lang == "en") "${it.toInt()} kilometers per hour" else "سرعتنا ${it.toInt()} كيلو"); toast("${it.toInt()} كم/س") }
@@ -1599,7 +1664,8 @@ class MainActivity : Activity() {
 
     private fun startWakeIfOn() {
         if (!prefs.voiceWake || checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return
-        val w = wake ?: WakeListener(this, { heard -> handleHeard(heard, button = false) }, { st -> wakeState = st; if (tab == "voice") refresh() }).also { wake = it }
+        val w = wake ?: WakeListener(this, { heard -> handleHeard(heard, button = false) }, { st -> wakeState = st; if (tab == "voice") refresh() },
+            { part -> handlePartial(part, button = false) }).also { wake = it }
         w.start(prefs.voiceLang, prefs.voiceOffline, useEars())
     }
 

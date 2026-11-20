@@ -58,6 +58,27 @@ test('phone voice: Egyptian wording, punctuation, stretched letters, repeated re
   assert.ok(R.repeatOk(st, 'pothole', 7000));
   assert.ok(R.repeatOk(st, 'unknown', 7100) && R.repeatOk(st, 'unknown', 7200));
 });
+test('phone voice: immediate provisional capture for road commands (like ProvisionalCapture.kt)', () => {
+  const fix = { lat: 30, lng: 31, acc: 5, kmh: 60, t: 1000 };
+  for (const c of ['bump', 'pothole', 'shot']) {
+    const st = {};
+    assert.ok(R.provBegin(st, c, { fix, heading: 90, jpg: 'AAA' }, 1000));
+    const it = R.provTake(st, c, 2000);
+    assert.equal(it.fix.lat, 30); assert.equal(it.jpg, 'AAA'); assert.equal(it.t, 1000);
+    assert.equal(R.provTake(st, c, 2100), null);                     // مرة واحدة بس
+  }
+  const st = {};
+  for (const c of ['radar', 'park', 'near:fuel', 'unknown', null]) assert.equal(R.provBegin(st, c, { fix }, 1000), false);   // أوامر تانية ⇒ مفيش تصوير
+  assert.ok(R.provBegin(st, 'bump', { fix }, 1000));
+  assert.equal(R.provBegin(st, 'bump', { fix }, 1300), false);      // نفس الكلام فى النتايج الجزئية
+  assert.equal(R.provTake(st, 'unknown', 1500), null);              // مافهمش / إلغاء ⇒ اتشال
+  assert.equal(R.provTake(st, 'bump', 1600), null);
+  assert.ok(R.provBegin(st, 'shot', { fix: null, jpg: null }, 2000)); // الـGPS والكاميرا مش متاحين ⇒ بيرجع والطريقة العادية تكمّل
+  const it = R.provTake(st, 'shot', 2500); assert.equal(it.fix, null); assert.equal(it.jpg, null);
+  assert.equal(R.provBegin(st, 'shot', { fix }, 3000), false);      // اتسمع تانى بعد الحفظ على طول
+  assert.ok(R.provBegin(st, 'pothole', { fix }, 2500 + R.REPEAT_MS));
+  assert.equal(R.provTake(st, 'pothole', 2500 + R.REPEAT_MS + R.PROV_TTL_MS), null);   // محدّش أكّد فى الوقت
+});
 test('nearest on the web: same OSM filters and 1 km rounding as the screen, voice, direct-start navigation link', () => {
   assert.equal(R.parseVoice('أوسكار دوّر على أقرب بنزينة'), 'near:fuel');
   assert.equal(R.parseVoice('اسكار اقرب صيدلية'), 'near:pharmacy');

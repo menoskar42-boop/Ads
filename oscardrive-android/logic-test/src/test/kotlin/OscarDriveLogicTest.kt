@@ -916,3 +916,88 @@ class VoiceMatchingTest {
         assertTrue(g.allow("media.up", null, 7_000)); assertTrue(g.allow("media.up", null, 7_100))
     }
 }
+
+/** التصوير الفورى لأوامر الطريق (المالك ٢٠٢٦-١١-٢٠). */
+class ProvisionalCaptureTest {
+    private fun fix(t: Long, lat: Double? = 30.0) = ProvisionalCapture.Fix(t, lat, lat?.let { 31.0 }, 90f, 60f, 5f, 50.0)
+    private val jpg = byteArrayOf(1, 2, 3)
+
+    @Test fun eachRoadCommandIsCapturedAndSaved() {
+        for (id in listOf("road.shot", "road.bump", "road.pothole")) {
+            val p = ProvisionalCapture()
+            val it = p.begin(id, fix(1_000))!!
+            p.cameraDone(it, jpg, 90, null)
+            assertSame(it, p.confirm(id, 2_000))
+            assertTrue(p.finishIfReady(it, 2_000))
+            assertContentEquals(jpg, it.jpg); assertEquals(30.0, it.fix.lat)
+            assertFalse(p.finishIfReady(it, 2_100))   // مرة واحدة بس
+        }
+    }
+
+    @Test fun confirmBeforeCameraWaitsForTheFrame() {
+        val p = ProvisionalCapture()
+        val it = p.begin("road.shot", fix(1_000))!!
+        assertSame(it, p.confirm("road.shot", 1_500))
+        assertFalse(p.finishIfReady(it, 1_500))
+        p.cameraDone(it, jpg, 0, null)
+        assertTrue(p.finishIfReady(it, 2_500))
+    }
+
+    @Test fun cancelledOrOtherCommandOrUnclearIsDiscarded() {
+        val p = ProvisionalCapture()
+        val a = p.begin("road.bump", fix(1_000))!!
+        p.cameraDone(a, jpg, 0, null)
+        p.discard()                                         // «لأ» / «خلاص» / مافهمش
+        assertNull(a.jpg); assertNull(p.current)
+        assertNull(p.confirm("road.bump", 1_500))           // مفيش بيانات ⇒ الطريقة العادية
+        val b = p.begin("road.bump", fix(2_000))!!
+        assertNull(p.confirm("nav.home", 2_500))            // أمر تانى ⇒ تتشال
+        assertTrue(b.finished); assertNull(p.current)
+        val c = p.begin("road.shot", fix(3_000))!!
+        p.sweep(3_000 + ProvisionalCapture.TTL_MS)          // محدّش أكّد
+        assertTrue(c.finished); assertNull(p.confirm("road.shot", 3_000 + ProvisionalCapture.TTL_MS))
+    }
+
+    @Test fun repeatedRecognitionDoesNotCaptureTwice() {
+        val p = ProvisionalCapture()
+        val a = p.begin("road.bump", fix(1_000))!!
+        assertNull(p.begin("road.bump", fix(1_300)))       // نفس الكلام فى النتايج الجزئية
+        p.cameraDone(a, jpg, 0, null); p.confirm("road.bump", 1_800); assertTrue(p.finishIfReady(a, 1_800))
+        assertNull(p.begin("road.bump", fix(3_000)))       // اتسمع تانى بعد الحفظ على طول
+        assertNotNull(p.begin("road.bump", fix(1_800 + ProvisionalCapture.COOLDOWN_MS)))   // مطب جديد
+    }
+
+    @Test fun unrelatedCommandsNeverCapture() {
+        val p = ProvisionalCapture()
+        for (id in listOf("sec.record", "nav.home", "media.music", "cancel")) assertNull(p.begin(id, fix(1_000)))
+        assertNull(p.current)
+    }
+
+    @Test fun cameraFailureAndGpsFailure() {
+        val p = ProvisionalCapture()
+        val a = p.begin("road.shot", fix(1_000))!!
+        p.cameraDone(a, null, 0, "الكاميرا ماردّتش")
+        p.confirm("road.shot", 1_200)
+        assertTrue(p.finishIfReady(a, 1_200)); assertNull(a.jpg); assertEquals("الكاميرا ماردّتش", a.camError)
+        val b = p.begin("road.bump", fix(9_000, lat = null))!!
+        assertFalse(b.fix.hasPlace)                         // الـGPS مش لاقط ⇒ الطريقة العادية للمكان
+        assertSame(b, p.confirm("road.bump", 9_100))
+    }
+
+    @Test fun lateFrameAfterDiscardIsDropped() {
+        val p = ProvisionalCapture()
+        val a = p.begin("road.shot", fix(1_000))!!
+        p.discard()
+        p.cameraDone(a, jpg, 0, null)
+        assertNull(a.jpg)
+    }
+
+    @Test fun confirmedCaptureSurvivesAnotherResult() {
+        val p = ProvisionalCapture()
+        val a = p.begin("road.shot", fix(1_000))!!
+        p.confirm("road.shot", 1_100)
+        p.discard()                                         // جملة تانية اتسمعت والصورة لسه بتتاخد
+        p.cameraDone(a, jpg, 0, null)
+        assertTrue(p.finishIfReady(a, 1_900)); assertContentEquals(jpg, a.jpg)
+    }
+}

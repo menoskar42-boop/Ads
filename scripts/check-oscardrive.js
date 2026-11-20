@@ -259,5 +259,15 @@ check('custom voice lines are rate-limited', /od-voice', windowMs: 24 \* 60 \* 6
     /getVideoTracks\(\)\.some\(\(t\) => t\.readyState === 'live'\)/.test(app) && /v\.readyState < 2/.test(app),
     'الآيفون بيقفل الكاميرا فى الخلفية والـstream بيفضل «ended» ⇒ كل صورة بعدها كانت بتفشل.');
 }
+{
+  // المالك ٢٠٢٦-١١-٢٠: «سجّل مطب» / «صوّر الطريق» ⇒ المكان والصورة ساعة ما اتقال (مش بعد ما الجملة تتفهم)، والأمر المتكرر مرة واحدة
+  const A = 'oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/';
+  const mainA = read(A + 'MainActivity.kt'), wl = read(A + 'WakeListener.kt'), app = read('drive-web/app.js');
+  check('voice road events: immediate provisional capture (partial results) + one run per repeated command — screen and phone',
+    /EXTRA_PARTIAL_RESULTS/.test(wl) && /onPartial\?\.invoke\(l\)/.test(wl) && /"road\.shot" -> if \(!provisionalConfirm\(id\)\) snapRoad/.test(mainA)
+      && /"road\.bump" -> if \(!provisionalConfirm\(id\)\)/.test(mainA) && /repeatGuard\.allow\(/.test(mainA) && /prov\.discard\(\)/.test(mainA)
+      && /rec\.interimResults = true/.test(app) && /RD\.provBegin\(voiceProv/.test(app) && /RD\.provTake\(voiceProv, cmd/.test(app) && /RD\.repeatOk\(voiceRepeat/.test(app),
+    'على ٦٠ كم/س ثانيتين = ٣٣ متر: المطب كان بيتسجّل بعد مكانه. والنتيجة المكرّرة من برنامج التعرّف كانت بتسجّل مرتين.');
+}
 
 process.exit(failed ? 1 : 0);

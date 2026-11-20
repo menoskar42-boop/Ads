@@ -231,6 +231,26 @@
     if (!mark || !mark.at || now - mark.at > JUST_MARKED_MS) return list;
     return list.filter((h) => distanceM(mark.lat, mark.lng, h.lat, h.lng) > JUST_MARKED_M);
   }
-  const api = { repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  /*
+   * التصوير الفورى لأوامر الطريق — زى logic/ProvisionalCapture.kt: أول ما الكلام (النتايج الجزئية) شكله «سجّل مطب/حفرة» أو «صوّر الطريق»
+   * المكان والاتجاه (والإطار لو الكاميرا مفتوحة) بيتاخدوا ساعتها. الجملة كاملة أكّدت ⇒ بيتحفظوا · أمر تانى/مافهمش/عدّى ١٥ ثانية ⇒ بيتشالوا.
+   * st = {} بيتحفظ عند الصفحة.
+   */
+  const ROAD_CMDS = ['bump', 'pothole', 'shot'];
+  const PROV_TTL_MS = 15000;
+  function provBegin(st, cmd, data, nowMs) {
+    if (!ROAD_CMDS.includes(cmd)) return false;
+    if (st.item && nowMs - st.item.t >= 0 && nowMs - st.item.t < PROV_TTL_MS) return false;   // نفس الكلام اتسمع تانى
+    if (st.doneAt != null && nowMs - st.doneAt >= 0 && nowMs - st.doneAt < REPEAT_MS) return false;   // لسه حافظين واحد
+    st.item = Object.assign({}, data, { cmd, t: nowMs });
+    return true;
+  }
+  /** الجملة كاملة: أمر طريق ⇒ البيانات الفورية (أو null ⇒ الطريقة العادية) · غير كده ⇒ بتتشال. */
+  function provTake(st, cmd, nowMs) {
+    const it = st.item; st.item = null;
+    if (!it || !ROAD_CMDS.includes(cmd) || nowMs - it.t < 0 || nowMs - it.t >= PROV_TTL_MS) return null;
+    st.doneAt = nowMs; return it;
+  }
+  const api = { provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Base64
 import com.oscardevs.oscardrive.logic.Hazard
+import com.oscardevs.oscardrive.logic.ProvisionalCapture
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
@@ -32,25 +33,35 @@ object Shots {
         val t = System.currentTimeMillis()
         Guard.cam.snap { bytes, orientation, err ->
             if (bytes == null) { main.post { done?.invoke(err) }; return@snap }
-            io.execute {
-                try {
-                    val id = UUID.randomUUID().toString()
-                    val d = dir(app)
-                    File(d, "$id.jpg").writeBytes(bytes)
-                    val meta = JSONObject().put("uuid", id).put("t", t).put("reason", reason).put("orientation", orientation)
-                        .put("app", BuildConfig.VERSION_NAME)
-                    s.lat?.let { meta.put("lat", it) }; s.lng?.let { meta.put("lng", it) }
-                    s.speedKmh?.let { meta.put("kmh", it.toDouble()) }; s.headingDeg?.let { meta.put("heading", it.toDouble()) }
-                    s.accuracyM?.let { meta.put("acc", it.toDouble()) }
-                    if (hazard != null) meta.put("hazard", JSONObject().put("id", hazard.id).put("type", hazard.type.key)
-                        .put("lat", hazard.lat).put("lng", hazard.lng))
-                    if (distanceM != null) meta.put("distanceM", Math.round(distanceM).toInt())
-                    File(d, "$id.json").writeText(meta.toString())
-                    trim(d)
-                    main.post { done?.invoke(null) }
-                } catch (e: Throwable) { main.post { done?.invoke("ماقدرتش أحفظ الصورة") } }
-                uploadSoon(app)
-            }
+            val fix = ProvisionalCapture.Fix(t, s.lat, s.lng, s.headingDeg, s.speedKmh, s.accuracyM, s.altitudeM)
+            save(app, reason, bytes, orientation, fix, hazard?.let { JSONObject().put("id", it.id).put("type", it.type.key).put("lat", it.lat).put("lng", it.lng) },
+                distanceM, done)
+        }
+    }
+
+    /**
+     * صورة متصوّرة خلاص (التصوير الفورى لأوامر الصوت — ProvisionalCapture) ⇒ نفس الحفظ والرفع. `fix` = المكان لحظة ما اتقال الأمر.
+     */
+    fun save(ctx: Context, reason: String, bytes: ByteArray, orientation: Int, fix: ProvisionalCapture.Fix, hazard: JSONObject? = null,
+             distanceM: Double? = null, done: ((String?) -> Unit)? = null) {
+        val app = ctx.applicationContext
+        io.execute {
+            try {
+                val id = UUID.randomUUID().toString()
+                val d = dir(app)
+                File(d, "$id.jpg").writeBytes(bytes)
+                val meta = JSONObject().put("uuid", id).put("t", fix.atMs).put("reason", reason).put("orientation", orientation)
+                    .put("app", BuildConfig.VERSION_NAME)
+                fix.lat?.let { meta.put("lat", it) }; fix.lng?.let { meta.put("lng", it) }
+                fix.speedKmh?.let { meta.put("kmh", it.toDouble()) }; fix.headingDeg?.let { meta.put("heading", it.toDouble()) }
+                fix.accuracyM?.let { meta.put("acc", it.toDouble()) }
+                if (hazard != null) meta.put("hazard", hazard)
+                if (distanceM != null) meta.put("distanceM", Math.round(distanceM).toInt())
+                File(d, "$id.json").writeText(meta.toString())
+                trim(d)
+                main.post { done?.invoke(null) }
+            } catch (e: Throwable) { main.post { done?.invoke("ماقدرتش أحفظ الصورة") } }
+            uploadSoon(app)
         }
     }
 

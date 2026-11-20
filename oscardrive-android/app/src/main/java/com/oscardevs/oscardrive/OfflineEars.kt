@@ -116,7 +116,8 @@ object OfflineEars {
      * يبدأ يسمع. `oneShot` = زرار 🎤 (أول جملة وبس) · غير كده = «يا أوسكار» (كل جملة لحد ما يتقفل).
      * النتايج بتيجى على الـmain thread. الكلام اللى بيتقال وأوسكار بيتكلّم بيتشال (عشان مايسمعش نفسه).
      */
-    fun start(ctx: Context, lang: String, oneShot: Boolean, onText: (String) -> Unit, onState: (String) -> Unit) {
+    fun start(ctx: Context, lang: String, oneShot: Boolean, onText: (String) -> Unit, onState: (String) -> Unit,
+              onPartial: ((String) -> Unit)? = null) {
         if (!installed(ctx, lang)) { onState("صوت أوسكار من غير نت لسه مانزلش — نزّله من شاشة 🎙️ Oscar"); return }
         stop()
         listening = true
@@ -144,7 +145,11 @@ object OfflineEars {
                             onText(text)
                         }
                         override fun onFinalResult(hypothesis: String?) {}
-                        override fun onPartialResult(hypothesis: String?) {}
+                        override fun onPartialResult(hypothesis: String?) {
+                            if (onPartial == null || System.currentTimeMillis() < Oscar.speakingUntil) return
+                            val p = try { JSONObject(hypothesis ?: "{}").optString("partial", "") } catch (_: Exception) { "" }
+                            if (p.isNotBlank()) onPartial(p)
+                        }
                         override fun onError(e: Exception?) { stop(); onState("الميكروفون مش متاح (${e?.message ?: "خطأ"})") }
                         override fun onTimeout() { if (oneShot) stop() }
                     })

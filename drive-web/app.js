@@ -696,20 +696,21 @@
     $('alertBtn').textContent = '⏹ وقّف التنبيهات'; $('alertBtn').className = 'primary';
   });
   let justMarked = null;   // آخر «سجّل مطب/حفرة/…» من الموبايل ده {lat,lng,at}
-  async function markRoad(type) {
-    const go = async (f) => {
+  async function markRoad(type, pre) {
+    const go = async (f, hd = roadHeading) => {
       justMarked = { lat: f.lat, lng: f.lng, at: Date.now() };
       const moving = (f.kmh || 0) >= 10;
       const test = $('testMode').checked;
       try {
         await api('POST', '/api/web/hazards', { items: [{ uuid: uuid(), type, lat: f.lat, lng: f.lng, acc: f.acc, t: Date.now(),
-          bearing: moving && roadHeading != null ? roadHeading : null, test }] });
+          bearing: moving && hd != null ? hd : null, test }] });
         const msg = 'اتسجّل ' + RD.TYPES[type][0] + (test ? ' تجربة' : '');
         $('roadNote').textContent = '✅ ' + msg + ' (دقة ' + Math.round(f.acc) + ' م)';
         if (test) sayRoad(msg); else oscar(type + '_saved', msg);   // bump_saved · pothole_saved · radar_saved · danger_saved زى الشاشة
       } catch (e) { $('roadNote').textContent = 'ماتسجّلش: ' + e.message; }
       loadRoad();
     };
+    if (pre && pre.fix) return go(pre.fix, pre.heading);   // التصوير الفورى: المكان لحظة ما الأمر اتقال
     if (lastFix && Date.now() - lastFix.t < 10000) return go(lastFix);
     if (!navigator.geolocation) return;
     $('roadNote').textContent = 'بيجيب مكانك…';
@@ -718,8 +719,19 @@
   }
   // ── «📸 صوّر الطريق» من الموبايل: الكاميرا الخلفية ← JPEG ← /api/web/shot (R2) — نفس صور التدريب بتاعة الشاشة ──
   let camStream = null;
-  async function snapRoad(reason) {
+  /** إطار من الكاميرا لو مفتوحة دلوقتى (من غير ما نفتحها) — للتصوير الفورى. */
+  function grabFrame() {
+    const v = $('camView');
+    if (!camStream || !camStream.getVideoTracks().some((t) => t.readyState === 'live') || !v.videoWidth || v.readyState < 2) return null;
+    const sc = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight)), cv = document.createElement('canvas');
+    cv.width = Math.round(v.videoWidth * sc); cv.height = Math.round(v.videoHeight * sc); cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
+    return cv.toDataURL('image/jpeg', 0.8).split(',')[1];
+  }
+  // pre = التصوير الفورى ({ jpg, fix, heading, t }) · hz = نوع المطب لو الصورة تبع «سجّل مطب/حفرة»
+  async function snapRoad(reason, pre, hz) {
     try {
+      let jpg, f, hd = roadHeading, at = Date.now();
+      if (pre && pre.jpg) { jpg = pre.jpg; f = pre.fix || {}; hd = pre.heading; at = pre.t; } else {
       // الآيفون بيقفل الكاميرا لما الصفحة تروح الخلفية أو الشاشة تقفل، والـstream بيفضل موجود بس «ended» ⇒ كل صورة بعدها
       // كانت بتفشل («لسه ماجهزتش»). لو الكاميرا وقفت ⇒ نفتحها تانى (المالك ٢٠٢٦-١١-٢٠)
       const live = camStream && camStream.getVideoTracks().some((t) => t.readyState === 'live');
@@ -738,11 +750,13 @@
       if (!w) throw new Error('الكاميرا ماطلّعتش صورة — جرّب تانى');
       const sc = Math.min(1, 1280 / Math.max(w, h)), cv = document.createElement('canvas');
       cv.width = Math.round(w * sc); cv.height = Math.round(h * sc); cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
-      const jpg = cv.toDataURL('image/jpeg', 0.8).split(',')[1];
-      const f = lastFix || {};
+      jpg = cv.toDataURL('image/jpeg', 0.8).split(',')[1];
+      f = lastFix || {};
+      }
       const test = $('testMode').checked;   // وضع تجربة ⇒ فولدر التجربة على R2، ومابتدخلش التدريب
-      await api('POST', '/api/web/shot', { jpg, meta: { uuid: uuid(), t: Date.now(), reason, app: 'phone', lat: f.lat, lng: f.lng, acc: f.acc,
-        kmh: f.kmh, heading: roadHeading, test } });
+      await api('POST', '/api/web/shot', { jpg, meta: { uuid: uuid(), t: at, reason, app: 'phone', lat: f.lat, lng: f.lng, acc: f.acc,
+        kmh: f.kmh, heading: hd, test, hazard: hz ? { type: hz, lat: f.lat, lng: f.lng } : undefined } });
+      if (hz) { loadShots(); return; }   // المطب نفسه اتقال تسجيله — الصورة إضافة
       $('voiceNote').textContent = test ? '📸 🧪 اتصوّرت (صورة تجربة)' : '📸 اتصوّرت واترفعت'; sayRoad('اتصوّرت');
       loadShots();
     } catch (e) {
@@ -822,7 +836,7 @@
   const voiceWanted = () => { try { return localStorage.getItem(VOICE_KEY) !== '0'; } catch (e) { return true; } };
   const plain = (s) => String(s || '').replace(/[\u064B-\u0652،,.؟?!]/g, '').replace(/[أإآ]/g, 'ا').replace(/\s+/g, ' ').trim();
   let rec = null, listening = false, running = false, voiceDenied = false, awakeUntil = 0;
-  const voiceRepeat = {};
+  const voiceRepeat = {}, voiceProv = {};
   // «ودّينى X» لمكان مش محفوظ ⇒ OpenStreetMap بالاسم حوالين مكانك ⇒ الأقرب ⇒ الملاحة (زى الشاشة)
   async function searchPlace(q) {
     $('voiceNote').textContent = '🔎 بدوّر على «' + q + '»…';
@@ -840,9 +854,11 @@
     navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); }, () => go(null), { enableHighAccuracy: true, timeout: 10000 });
   }
   function runVoice(cmd, heard) {
+    const pre = RD.provTake(voiceProv, cmd, Date.now());   // التصوير الفورى: أمر طريق ⇒ بياناته · غير كده ⇒ بتتشال
     if (cmd && cmd.startsWith('near:')) nearbyWeb(cmd.slice(5));
-    else if (cmd === 'bump' || cmd === 'pothole' || cmd === 'radar' || cmd === 'danger') markRoad(cmd);
-    else if (cmd === 'shot') snapRoad('voice');
+    else if (cmd === 'bump' || cmd === 'pothole') { markRoad(cmd, pre); if (pre && pre.jpg) snapRoad('voice', pre, cmd); }
+    else if (cmd === 'radar' || cmd === 'danger') markRoad(cmd);
+    else if (cmd === 'shot') snapRoad('voice', pre);
     else if (cmd === 'park') parkHere();
     else if (cmd === 'findpark') findPark();
     else if (cmd === 'sos') sos();
@@ -866,9 +882,19 @@
   }
   function startVoice() {
     if (!SR) { $('voiceNote').textContent = 'المتصفح ده مابيدعمش التعرّف على الكلام — جرّب Chrome على أندرويد أو Safari على الآيفون'; return; }
-    rec = new SR(); rec.lang = 'ar-EG'; rec.continuous = true; rec.interimResults = false; rec.maxAlternatives = 3;
+    rec = new SR(); rec.lang = 'ar-EG'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
     rec.onresult = (ev) => {
-      const r = ev.results[ev.results.length - 1]; if (!r || !r.isFinal) return;
+      const r = ev.results[ev.results.length - 1]; if (!r) return;
+      if (!r.isFinal) {   // لسه بيتكلم: لو شكله «سجّل مطب/حفرة» أو «صوّر الطريق» ⇒ المكان والإطار دلوقتى
+        const now = Date.now();
+        if (now - lastSaidAt < 6000) return;
+        const c = RD.parseVoice(r[0].transcript, now < awakeUntil);
+        if (RD.ROAD_CMDS.includes(c)) {
+          const fx = lastFix && now - lastFix.t < 10000 ? Object.assign({}, lastFix) : null;
+          RD.provBegin(voiceProv, c, { fix: fx, heading: roadHeading, jpg: grabFrame() }, now);
+        }
+        return;
+      }
       const alts = Array.from(r).map((a) => a.transcript);
       const now = Date.now();
       if (now - lastSaidAt < 6000 && plain(alts[0]) && plain(lastSaid).includes(plain(alts[0]))) return;   // صدى صوت أوسكار نفسه
@@ -879,7 +905,7 @@
       }
       const awake = now < awakeUntil;
       const cmd = alts.map((a) => RD.parseVoice(a, awake)).find((c) => c && c !== 'unknown') || RD.parseVoice(alts[0], awake);
-      if (cmd && !RD.repeatOk(voiceRepeat, cmd, now)) return;   // نفس الأمر اتسمع تانى ⇒ مرة واحدة
+      if (cmd && !RD.repeatOk(voiceRepeat, cmd, now)) { RD.provTake(voiceProv, 'unknown', now); return; }   // نفس الأمر اتسمع تانى ⇒ مرة واحدة
       if (cmd) { awakeUntil = 0; runVoice(cmd, alts[0]); }
     };
     rec.onstart = () => { running = true; };

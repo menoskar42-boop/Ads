@@ -14,6 +14,8 @@ import android.content.pm.PackageManager
 object ScreenEars {
     /** بتتحط من الشاشة الرئيسية (عايشة ورا الخريطة/الملاحة) وبتتشال لما تتقفل. */
     @Volatile var sink: ((List<String>) -> Unit)? = null
+    /** النتايج الجزئية (التصوير الفورى لأوامر الطريق). */
+    @Volatile var partialSink: ((List<String>) -> Unit)? = null
 
     /** محرّك أوسكار اللى من غير نت ولا برنامج الشاشة — نفس قاعدة MainActivity.useEars. */
     fun useEars(ctx: Context, p: Prefs): Boolean = when (p.voiceEngine) {
@@ -26,7 +28,7 @@ object ScreenEars {
     fun start(a: Activity): WakeListener? = try {
         val p = Prefs(a)
         if (!p.voiceWake || sink == null || a.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) null
-        else WakeListener(a, { heard -> sink?.invoke(heard) }, { }).also { it.start(p.voiceLang, p.voiceOffline, useEars(a, p)) }
+        else WakeListener(a, { heard -> sink?.invoke(heard) }, { }, { part -> partialSink?.invoke(part) }).also { it.start(p.voiceLang, p.voiceOffline, useEars(a, p)) }
     } catch (t: Throwable) { CrashLog.nonFatal(a, "ScreenEars.start", t); null }
 
     fun stop(a: Activity, w: WakeListener?) {

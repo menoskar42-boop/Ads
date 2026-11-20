@@ -14,7 +14,9 @@ import android.speech.SpeechRecognizer
  * بيسمع جملة، يبعتها، ويرجع يسمع. شغّال بس والتطبيق قدامك على الشاشة، وبيسكت وأوسكار بيتكلّم
  * (عشان مايسمعش نفسه). بعض الشاشات بتعمل «بيب» مع كل مرة، وبيحتاج نت لو مفيش حزمة لغة على الجهاز.
  */
-class WakeListener(private val ctx: Context, private val onText: (List<String>) -> Unit, private val onState: (String) -> Unit) : RecognitionListener {
+class WakeListener(private val ctx: Context, private val onText: (List<String>) -> Unit, private val onState: (String) -> Unit,
+                   /** النتايج الجزئية وانت لسه بتتكلم — للتصوير الفورى لأوامر الطريق (ProvisionalCapture). */
+                   private val onPartial: ((List<String>) -> Unit)? = null) : RecognitionListener {
     private val h = Handler(Looper.getMainLooper())
     private var sr: SpeechRecognizer? = null
     var active = false; private set
@@ -30,7 +32,7 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
             OfflineEars.start(ctx, OfflineEars.langOf(lang), oneShot = false, onText = { onText(listOf(it)) }, onState = { st ->
                 if (!OfflineEars.listening) active = false
                 onState(st)
-            })
+            }, onPartial = onPartial?.let { f -> { p: String -> f(listOf(p)) } })
             return
         }
         ears = false
@@ -68,6 +70,7 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
                 .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, VoiceDiag.preferOffline(ctx, offline))
                 .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
+                .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, onPartial != null)
             startedMs = System.currentTimeMillis(); speechMs = 0L
             try { sr?.startListening(i) } catch (_: Exception) { recreate(); listen(2000) }
         }, delayMs)
@@ -113,6 +116,9 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
     override fun onRmsChanged(rmsdB: Float) {}
     override fun onBufferReceived(buffer: ByteArray?) {}
     override fun onEndOfSpeech() {}
-    override fun onPartialResults(partialResults: Bundle?) {}
+    override fun onPartialResults(partialResults: Bundle?) {
+        val l = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty().filter { it.isNotBlank() }
+        if (l.isNotEmpty() && System.currentTimeMillis() >= Oscar.speakingUntil) onPartial?.invoke(l)
+    }
     override fun onEvent(eventType: Int, params: Bundle?) {}
 }
