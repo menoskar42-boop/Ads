@@ -878,6 +878,8 @@ class MainActivity : Activity() {
         page.addView(ui.button("🔊 جرّب صوت التنبيه", "neutral", 15f) { toast(Speaker.testLine()) }, ui.lp(Ui.MATCH, ui.dp(50), marginDp = 4))
         page.addView(toggle("📡 استخدم GPS الموبايل الموثوق فى مكان العربية والتنبيهات (لما يكون معاك وصفحة drive مفتوحة عليه)", prefs.useCompanionGps) { prefs.useCompanionGps = it })
         page.addView(toggle("📸 صوّر المطبات والحفر اللى سجّلتها وانا جاى عليها (لتدريب الموديل)", prefs.autoShots) { prefs.autoShots = it })
+        page.addView(ui.button("🎥 اختار كاميرا الطريق (بالصورة)" + if (prefs.roadCam.isNotEmpty()) " — #${prefs.roadCam}" else " — تلقائى", "neutral", 15f) { chooseRoadCam() },
+            ui.lp(Ui.MATCH, ui.dp(50), marginDp = 4))
         page.addView(toggle("☁️ احفظ المطبات والحفر على السيرفر (عشان ماتضيعش لو مسحت التطبيق)", prefs.cloudHazards) { on ->
             prefs.cloudHazards = on; if (on) HazardSync.syncSoon(this, pull = true); refresh()
         })
@@ -1063,6 +1065,46 @@ class MainActivity : Activity() {
             toast(err ?: "📸 اتصوّرت — هتترفع أول ما يبقى فيه نت")
             if (reason == "voice") Speaker.say(if (err == null) "اتصوّرت" else "الكاميرا مش متاحة")
         }
+    }
+
+    /**
+     * «🎥 اختار كاميرا الطريق» (المالك ٢٠٢٦-١١-٢٠: الصورة ساعات بتطلع لقطة من التطبيق نفسه) — الشاشة فيها ٦–٧ كاميرات «خلفية»
+     * وبعضها وهمى بينقل الشاشة. بناخد صورة من كل كاميرا ورا بعض (YUV من الكاميرا نفسها)، والمالك يدوس على اللى فيها الطريق.
+     */
+    private fun chooseRoadCam() {
+        if (!Guard.cam.permitted()) { toast("محتاج إذن الكاميرا — من «الحماية» دوس «اسمح بالكاميرا»"); return }
+        val ids = Guard.cam.cameraIds()
+        if (ids.isEmpty()) { toast("أندرويد مش شايف أى كاميرا على الشاشة دى"); return }
+        val box = ui.col(8)
+        box.addView(ui.text("دوس على الصورة اللى فيها الطريق. اللى بتظهر فيها شاشة التطبيق أو سودا دى مش كاميرا الطريق.", 14f, ui.muted))
+        var dlg: AlertDialog? = null
+        val rows = ids.map { id ->
+            val img = android.widget.ImageView(this).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.BLACK) }
+            val label = ui.text("كاميرا #$id" + (if (prefs.roadCam == id) " ✅ (المختارة)" else "") + " — بتصوّر…", 15f, ui.ink, bold = true)
+            val row = ui.col(4).apply {
+                addView(img, LinearLayout.LayoutParams(Ui.MATCH, ui.dp(150)))
+                addView(label)
+                setOnClickListener { prefs.roadCam = id; toast("✅ كاميرا الطريق = #$id"); dlg?.dismiss(); refresh() }
+            }
+            box.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 4))
+            Triple(id, img, label)
+        }
+        dlg = AlertDialog.Builder(this).setTitle("🎥 اختار كاميرا الطريق").setView(ScrollView(this).apply { addView(box) })
+            .setNeutralButton("تلقائى") { _, _ -> prefs.roadCam = ""; toast("كاميرا الطريق: تلقائى"); refresh() }
+            .setNegativeButton("قفل", null).show()
+        fun next(i: Int) {
+            if (i >= rows.size || dlg?.isShowing != true) return
+            val (id, img, label) = rows[i]
+            Guard.cam.snap(id) { bytes, _, err ->
+                main.post {
+                    val bmp = bytes?.let { b -> android.graphics.BitmapFactory.decodeByteArray(b, 0, b.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }) }
+                    if (bmp != null) img.setImageBitmap(bmp)
+                    label.text = "كاميرا #$id" + (if (prefs.roadCam == id) " ✅ (المختارة)" else "") + if (bmp == null) " — ${err ?: "مفيش صورة"}" else ""
+                    next(i + 1)
+                }
+            }
+        }
+        next(0)
     }
 
     private fun parkHere() {

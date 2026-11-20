@@ -242,5 +242,22 @@ check('privacy policy discloses the microphone', /الميكروفون بيتط�
     'المالك ٢٠٢٦-١١-١٩: طول ما التطبيق مفتوح أوسكار بيسمع (والخريطة/الملاحة كمان)، و«أوسكار» لوحده ⇒ ينتبه ٨ ثوانى — على الشاشة والموبايل.');
 }
 check('custom voice lines are rate-limited', /od-voice', windowMs: 24 \* 60 \* 60000, max: 20/.test(site), 'كل جملة = نداء مدفوع للذكاء الاصطناعى.');
+{
+  // المالك ٢٠٢٦-١١-٢٠: «📸 صوّر الطريق» ساعات بتطلع لقطة من التطبيق نفسه، وساعات مابتطلعش صورة خالص
+  const A = 'oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/';
+  const cam = read(A + 'CamRecorder.kt'), mainA = read(A + 'MainActivity.kt'), app = read('drive-web/app.js');
+  const snapSrc = cam.slice(cam.indexOf('fun snap('), cam.indexOf('private fun trim'));
+  check('road photo = a YUV frame from the camera itself, never a JPEG stream or a screen capture',
+    /ImageFormat\.YUV_420_888, 2\)/.test(snapSrc) && !/ImageFormat\.JPEG/.test(snapSrc) && /YuvJpeg\.encode\(img, 80\)/.test(snapSrc)
+      && /YuvJpeg\.isDark\(img\)/.test(snapSrc) && !/PixelCopy|drawToBitmap|getDrawingCache|MediaProjection/.test(cam + read(A + 'Shots.kt')),
+    'كاميرات الشاشة كتير مابتبعتش JPEG ورا بعض (كانت بتستنى ٨ ثوانى وتفشل)، والإطار الأسود مايتاخدش.');
+  check('the road camera is chosen by its picture (some «back» cameras mirror the screen)',
+    /Prefs\(ctx\)\.roadCam\.takeIf \{ it\.isNotEmpty\(\) && it in ids \}/.test(cam) && /private fun chooseRoadCam\(\)/.test(mainA)
+      && /Guard\.cam\.snap\(id\)/.test(mainA) && /chooseRoadCam\(\) \}/.test(mainA),
+    'الشاشة فيها ٦–٧ كاميرات «خلفية» وبعضها بينقل الشاشة نفسها ⇒ الصورة كانت بتطلع لقطة من التطبيق.');
+  check('phone page: a camera stopped in the background is reopened and the shot waits for a real frame',
+    /getVideoTracks\(\)\.some\(\(t\) => t\.readyState === 'live'\)/.test(app) && /v\.readyState < 2/.test(app),
+    'الآيفون بيقفل الكاميرا فى الخلفية والـstream بيفضل «ended» ⇒ كل صورة بعدها كانت بتفشل.');
+}
 
 process.exit(failed ? 1 : 0);

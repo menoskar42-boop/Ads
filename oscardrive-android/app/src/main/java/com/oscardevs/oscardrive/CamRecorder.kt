@@ -30,12 +30,18 @@ class CamRecorder(private val ctx: Context) {
 
     fun permitted() = ctx.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
-    /** كاميرا خارجية (USB) الأول، وبعدين الخلفية، وبعدين أى كاميرا. */
+    /** كل الكاميرات اللى أندرويد شايفها (لاختيار كاميرا الطريق بالصورة). */
+    fun cameraIds(): List<String> = try {
+        (ctx.getSystemService(Context.CAMERA_SERVICE) as CameraManager).cameraIdList.toList()
+    } catch (_: Throwable) { emptyList() }
+
+    /** الكاميرا اللى اتختارت بالصورة الأول (لو لسه موجودة)، وبعدين خارجية (USB)، وبعدين الخلفية، وبعدين أى كاميرا. */
     fun pickCamera(): String? = try {
         val cm = ctx.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val ids = cm.cameraIdList.toList()
         fun facing(id: String) = cm.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING)
-        ids.firstOrNull { facing(it) == CameraCharacteristics.LENS_FACING_EXTERNAL }
+        Prefs(ctx).roadCam.takeIf { it.isNotEmpty() && it in ids }
+            ?: ids.firstOrNull { facing(it) == CameraCharacteristics.LENS_FACING_EXTERNAL }
             ?: ids.firstOrNull { facing(it) == CameraCharacteristics.LENS_FACING_BACK }
             ?: ids.firstOrNull()
     } catch (_: Throwable) { null }   // بعض شاشات MTK كاميرتها بترمى Error مش Exception
@@ -113,12 +119,15 @@ class CamRecorder(private val ctx: Context) {
      * صورة واحدة JPEG (لحد ١٢٨٠×٧٢٠) — «📸 صوّر الطريق» وصور المطبات للتدريب (٢٠٢٦-١١-١٨).
      * بنسيب الكاميرا تاخد ٦ إطارات الأول عشان الإضاءة تتظبط، وبناخد اللى بعدها. لو مشغولة بتسجيل فيديو أو مش متاحة: onDone بخطأ.
      * بيرجع كمان زاوية حساس الكاميرا (للمراجعة — الصورة نفسها مابتتلفّش).
+     * (٢٠٢٦-١١-٢٠) الإطار بيتاخد YUV من الكاميرا نفسها ويتحوّل JPEG عندنا: كاميرات الشاشة كتير مابتعرفش تبعت JPEG ورا بعض
+     * (كانت بتستنى ٨ ثوانى وتقول «ماردّتش»)، وYUV مدعوم فى كل كاميرا. والإطار الأسود (الكاميرا من غير إشارة) مابيتاخدش.
+     * `cameraId` = كاميرا معيّنة (اختيار كاميرا الطريق بالصورة) — غير كده pickCamera.
      */
     @SuppressLint("MissingPermission")
-    fun snap(onDone: (ByteArray?, Int, String?) -> Unit) {
+    fun snap(cameraId: String? = null, onDone: (ByteArray?, Int, String?) -> Unit) {
         if (busy) { onDone(null, 0, "الكاميرا بتسجّل فيديو دلوقتى"); return }
         if (!permitted()) { onDone(null, 0, "إذن الكاميرا مش متاح"); return }
-        val id = pickCamera() ?: run { onDone(null, 0, "مفيش كاميرا ظاهرة لأندرويد"); return }
+        val id = cameraId ?: pickCamera() ?: run { onDone(null, 0, "مفيش كاميرا ظاهرة لأندرويد"); return }
         busy = true
         val thread = HandlerThread("od-snap").apply { start() }
         val h = Handler(thread.looper)
@@ -142,22 +151,23 @@ class CamRecorder(private val ctx: Context) {
             val cm = ctx.getSystemService(Context.CAMERA_SERVICE) as CameraManager
             val ch = cm.getCameraCharacteristics(id)
             orientation = ch.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
-            val sizes = ch.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)?.getOutputSizes(ImageFormat.JPEG)?.toList().orEmpty()
+            val sizes = ch.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)?.getOutputSizes(ImageFormat.YUV_420_888)?.toList().orEmpty()
             val size = sizes.filter { it.width <= 1280 && it.height <= 720 }.maxByOrNull { it.width * it.height }
                 ?: sizes.minByOrNull { it.width * it.height } ?: Size(640, 480)
-            val r = ImageReader.newInstance(size.width, size.height, ImageFormat.JPEG, 2)
+            val r = ImageReader.newInstance(size.width, size.height, ImageFormat.YUV_420_888, 2)
             reader = r
             var frames = 0
+            var dark = 0
             r.setOnImageAvailableListener({ rd ->
                 val img = try { rd.acquireLatestImage() } catch (_: Exception) { null } ?: return@setOnImageAvailableListener
                 frames++
                 if (finished || frames < WARMUP_FRAMES) { img.close(); return@setOnImageAvailableListener }
-                val buf = img.planes[0].buffer
-                val bytes = ByteArray(buf.remaining()).also { buf.get(it) }
+                val jpg = try { if (YuvJpeg.isDark(img)) { dark++; null } else YuvJpeg.encode(img, 80) } catch (_: Exception) { null }
                 img.close()
-                finish(bytes, null)
+                if (jpg != null) finish(jpg, null)
+                else if (dark >= 40) finish(null, "الكاميرا دى مفيهاش صورة (سودا) — اختار كاميرا الطريق من الإعدادات")
             }, h)
-            h.postDelayed({ finish(null, "الكاميرا ماردّتش") }, 8_000)
+            h.postDelayed({ finish(null, if (dark > 0) "الكاميرا دى مفيهاش صورة (سودا) — اختار كاميرا الطريق من الإعدادات" else "الكاميرا ماردّتش") }, 8_000)
             cm.openCamera(id, object : CameraDevice.StateCallback() {
                 override fun onOpened(cd: CameraDevice) {
                     device = cd

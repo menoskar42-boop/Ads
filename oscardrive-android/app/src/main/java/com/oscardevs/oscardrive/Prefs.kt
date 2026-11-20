@@ -44,6 +44,10 @@ class Prefs(context: Context) {
     var autoShots: Boolean
         get() = sp.getBoolean("auto_shots", true)
         set(v) = sp.edit().putBoolean("auto_shots", v).apply()
+    /** كاميرا الطريق اللى المالك اختارها بالصورة (٢٠٢٦-١١-٢٠) — "" = تلقائى. الشاشة فيها كاميرات «خلفية» وهمية بتنقل الشاشة نفسها. */
+    var roadCam: String
+        get() = sp.getString("road_cam", "") ?: ""
+        set(v) = sp.edit().putString("road_cam", v).apply()
     /** ٠ تلقائى (شروق/غروب) · ١ نهارى · ٢ ليلى */
     var theme: Int
         get() = sp.getInt("theme", 0)

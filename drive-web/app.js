@@ -720,13 +720,22 @@
   let camStream = null;
   async function snapRoad(reason) {
     try {
-      if (!camStream) {
+      // الآيفون بيقفل الكاميرا لما الصفحة تروح الخلفية أو الشاشة تقفل، والـstream بيفضل موجود بس «ended» ⇒ كل صورة بعدها
+      // كانت بتفشل («لسه ماجهزتش»). لو الكاميرا وقفت ⇒ نفتحها تانى (المالك ٢٠٢٦-١١-٢٠)
+      const live = camStream && camStream.getVideoTracks().some((t) => t.readyState === 'live');
+      if (!live) {
+        if (camStream) camStream.getTracks().forEach((t) => t.stop());
         camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
-        $('camView').srcObject = camStream; $('camView').hidden = false; await $('camView').play();
-        await new Promise((r) => setTimeout(r, 700));   // الكاميرا تظبط الإضاءة
+        $('camView').srcObject = camStream; $('camView').hidden = false;
       }
-      const v = $('camView'), w = v.videoWidth, h = v.videoHeight;
-      if (!w) throw new Error('الكاميرا لسه ماجهزتش');
+      const v = $('camView');
+      if (v.paused) await v.play().catch(() => {});
+      // نستنى إطار حقيقى من الكاميرا (مش وقت ثابت) — والإضاءة تتظبط أول ما تفتح
+      const t0 = Date.now();
+      while ((!v.videoWidth || v.readyState < 2) && Date.now() - t0 < 4000) await new Promise((r) => setTimeout(r, 100));
+      if (!live) await new Promise((r) => setTimeout(r, 700));
+      const w = v.videoWidth, h = v.videoHeight;
+      if (!w) throw new Error('الكاميرا ماطلّعتش صورة — جرّب تانى');
       const sc = Math.min(1, 1280 / Math.max(w, h)), cv = document.createElement('canvas');
       cv.width = Math.round(w * sc); cv.height = Math.round(h * sc); cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
       const jpg = cv.toDataURL('image/jpeg', 0.8).split(',')[1];
