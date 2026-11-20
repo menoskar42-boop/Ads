@@ -40,7 +40,7 @@ object VoiceCatalog {
         VoiceCommand("fuel.add", "سجّل تفويلة", listOf("حطيت *", "فولت *", "فولت", "حطيت بنزين"), listOf("i added *", "added *", "filled *", "i filled up")),
         VoiceCommand("fuel.left", "فاضل كام بنزين", listOf("فاضل كام بنزين", "البنزين فاضل كام", "فاضل بنزين قد ايه", "البنزين كام"), listOf("how much fuel", "fuel left", "how much gas is left")),
         VoiceCommand("maint.next", "فاضل كام على الزيت", listOf("فاضل كام علي الزيت", "فاضل كام علي تغيير الزيت", "الصيانه الجايه", "ميعاد الزيت"), listOf("when is my oil change", "next service", "next oil change")),
-        VoiceCommand("park.save", "احفظ مكان الركنة", listOf("ركنت هنا", "احفظ مكان العربيه", "احفظ الركنه", "سجل الركنه"), listOf("save parking", "i parked here", "save my parking")),
+        VoiceCommand("park.save", "احفظ مكان الركنة", listOf("ركنت هنا", "احفظ مكان العربيه", "احفظ الركنه", "سجل الركنه", "انا ركنت", "ركنا هنا", "ركنت العربيه"), listOf("save parking", "i parked here", "save my parking")),
         VoiceCommand("road.bump", "سجّل مطب", listOf("سجل مطب", "فيه مطب", "مطب هنا", "مطب"), listOf("mark bump", "speed bump", "mark a speed bump", "bump here")),
         VoiceCommand("road.pothole", "سجّل حفرة", listOf("سجل حفره", "فيه حفره", "حفره هنا", "حفره"), listOf("mark pothole", "pothole here", "pothole")),
         VoiceCommand("road.radar", "سجّل رادار", listOf("سجل رادار", "فيه رادار", "رادار هنا", "رادار"), listOf("mark radar", "speed camera", "radar here")),
@@ -52,7 +52,8 @@ object VoiceCatalog {
         VoiceCommand("sec.disarm", "اقفل الحماية", listOf("اقفل الحمايه", "الغي الحمايه", "وقف الحمايه"), listOf("disarm security", "disable security", "security off"), confirm = true),
         VoiceCommand("sec.status", "حالة العربية", listOf("حاله العربيه", "الحمايه شغاله", "حاله الحمايه"), listOf("security status", "car status")),
         // «اوسكار اسكرين شوت» (المالك ٢٠٢٦-١١-١٨): صورة من الكاميرا للطريق — صور مطبات لتدريب الموديل (زرار «📸 صوّر الطريق» برضه)
-        VoiceCommand("road.shot", "صوّر الطريق", listOf("اسكرين شوت", "سكرين شوت", "سكرينشوت", "خد صوره", "صور الطريق", "صوره للطريق", "صور المطب"),
+        VoiceCommand("road.shot", "صوّر الطريق", listOf("اسكرين شوت", "سكرين شوت", "سكرينشوت", "خد صوره", "صور الطريق", "صوره للطريق", "صور المطب",
+            "صورلي الطريق", "صور الشارع", "صوره للشارع", "صور قدامي", "خد لقطه"),
             listOf("screenshot", "take a screenshot", "take a picture", "take a photo")),
         VoiceCommand("sec.record", "سجّل فيديو", listOf("سجل فيديو", "صور ورا", "شغل الكاميرا", "سجل كاميرا"), listOf("record video", "start recording", "record camera")),
         VoiceCommand("media.music", "شغّل الأغانى", listOf("شغل موسيقي", "شغل اغاني", "شغل الاغاني", "موسيقي", "اغاني"), listOf("play music", "music", "play songs")),
@@ -102,7 +103,7 @@ object VoiceCatalog {
             listOf("how is my driving", "driving score", "trip score")),
         VoiceCommand("emergency", "طوارئ", listOf("طوارئ", "نجده", "الحقوني", "استغاثه"), listOf("emergency", "help me", "sos"), confirm = true),
         VoiceCommand("help", "بتعرف تعمل إيه", listOf("بتعرف تعمل ايه", "تقدر تعمل ايه", "مساعده", "الاوامر"), listOf("what can you do", "help", "commands")),
-        VoiceCommand("cancel", "خلاص", listOf("خلاص", "بس", "الغي", "ولا حاجه"), listOf("cancel", "stop", "never mind")),
+        VoiceCommand("cancel", "خلاص", listOf("خلاص", "بس", "الغي", "ولا حاجه", "لا خلاص", "سيبك", "انسي", "الغيها", "متسجلش"), listOf("cancel", "stop", "never mind")),
     )
 
     /** أشكال اسمه زى ما برنامج التعرّف بيكتبها فعلاً («اسكار» · «وسكار» · «اوسكر») — C9. */
@@ -258,13 +259,16 @@ class VoiceEngine(
         private val TASHKEEL = Regex("[\\u064B-\\u0652\\u0640\\u0670]")
         private val PUNCT = Regex("[^\\p{L}\\p{N}\\s*]")
         private val AR_DIGITS = "٠١٢٣٤٥٦٧٨٩"
+        private val STRETCH = Regex("(\\p{L})\\1{2,}")
 
         fun normalize(s: String): String {
             var t = s.lowercase().replace(TASHKEEL, "")
             t = t.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا').replace('ٱ', 'ا')
                 .replace('ة', 'ه').replace('ى', 'ي').replace('ؤ', 'و').replace('ئ', 'ي')
+                .replace('ک', 'ك').replace('ی', 'ي').replace('ھ', 'ه')   // حروف فارسى بتطلع من بعض الكيبوردات/برامج التعرّف
             t = t.map { c -> val i = AR_DIGITS.indexOf(c); if (i >= 0) ('0' + i) else c }.joinToString("")
             t = t.replace("what's", "what is").replace(PUNCT, " ")
+            t = t.replace(STRETCH, "$1")   // «مطبببب» · «سجلللل» (٣ حروف ورا بعض مفيش فى العربى) = حرف واحد
             return t.replace(Regex("\\s+"), " ").trim()
         }
 

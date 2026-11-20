@@ -29,6 +29,7 @@ import android.widget.TextView
 import android.widget.Toast
 import com.oscardevs.oscardrive.logic.CarCare
 import com.oscardevs.oscardrive.logic.EgyptWords
+import com.oscardevs.oscardrive.logic.RepeatGuard
 import com.oscardevs.oscardrive.logic.Cmd
 import com.oscardevs.oscardrive.logic.Fuel
 import com.oscardevs.oscardrive.logic.Geo
@@ -1440,9 +1441,13 @@ class MainActivity : Activity() {
         }
         if (!u.sure) { askGuess(u); return }
         awaitingUntil = 0
+        if (!repeatGuard.allow(u.match.command.id, u.match.slot, now)) { VoiceDiag.add("اتكرّر — نفس الأمر لسه متنفّذ: ${u.match.command.id}"); return }
         VoiceDiag.add("الفهم: ${u.match.command.id}")
         runCommand(u.match.command.id, u.match.slot, u.heard)
     }
+
+    /** نفس الأمر لو اتسمع مرتين ورا بعض (٤ ثوانى) بيتنفّذ مرة واحدة. */
+    private val repeatGuard = RepeatGuard()
 
     /* ── الفهم الذكى: لو مش متأكد بيسأل، ولو قلت «أيوه» بيتعلّم الكلمة ── */
     private var pending: Understood? = null

@@ -107,16 +107,26 @@
   const navUrl = (lat, lng, from) => 'https://www.google.com/maps/dir/?api=1' + fromPart(from) + '&destination=' + lat + ',' + lng + '&travelmode=driving&dir_action=navigate';
   const norm = (t) => String(t || '').toLowerCase().replace(/[\u064B-\u0652]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
   const WAKE = /(^|\s)(يا\s+)?(اوسكار|اسكار|وسكار|اوسكر|oscar)(\s|$)/;
+  // تنضيف أقوى للمطابقة بس (زى VoiceEngine.normalize): ی/ک فارسى · علامات · «مطبببب» ⇒ «مطب» · مسافات
+  const clean = (t) => norm(t).replace(/[\u0640\u0670]/g, '').replace(/ک/g, 'ك').replace(/ی/g, 'ي').replace(/ھ/g, 'ه')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/(\p{L})\1{2,}/gu, '$1').replace(/\s+/g, ' ').trim();
+  /** نفس الأمر لو اتسمع مرتين ورا بعض (٤ ثوانى) بيتنفّذ مرة واحدة — زى logic/RepeatGuard.kt. st = {} بيتحفظ عند الصفحة. */
+  const REPEAT_MS = 4000;
+  function repeatOk(st, cmd, nowMs) {
+    if (!cmd || cmd === 'unknown') return true;
+    if (cmd === st.cmd && nowMs - st.at >= 0 && nowMs - st.at < REPEAT_MS) return false;
+    st.cmd = cmd; st.at = nowMs; return true;
+  }
   /** «أوسكار» لوحده (أو «يا أوسكار») ⇒ ينتبه ويستنى الأمر — زى الشاشة (MainActivity.handleHeard: ٨ ثوانى). */
   const WAKE_WINDOW_MS = 8000;
   function wakeOnly(text) {
-    const t = norm(text).trim();
+    const t = clean(text);
     return WAKE.test(t) && t.replace(/(^|\s)(يا\s+)?(اوسكار|اسكار|وسكار|اوسكر|oscar)(?=\s|$)/g, ' ').trim() === '';
   }
   /** awake = لسه نادينا عليه (جوّه ٨ ثوانى) ⇒ الجملة بتتفهم من غير الاسم. */
   function parseVoice(text, awake) {
     let t = norm(text);
-    if (!WAKE.test(t)) { if (!awake || !t.trim()) return null; text = 'اوسكار ' + text; t = norm(text); }
+    if (!WAKE.test(clean(t))) { if (!awake || !t.trim()) return null; text = 'اوسكار ' + text; t = norm(text); }
     // «📲 ابعت للشاشة»: النص نفسه من الكلام الأصلى (من غير تشكيل) — norm بيغيّر الحروف بس مش العدد
     const base = String(text || '').replace(/[\u064B-\u0652]/g, '').trim();
     const tail = (m, g) => (norm(base).length === t.trim().length ? base : t.trim()).slice(t.trim().length - m[g].length).trim();
@@ -125,22 +135,23 @@
     if ((m = t.trim().match(/(?:ضيف|سجل|اكتب)\s+مهمه\s+(.+)$/))) return 'inbox:task:' + tail(m, 1);
     if ((m = t.trim().match(/(?:سجل|اكتب|خد)\s+ملاحظه\s+(.+)$/))) return 'inbox:note:' + tail(m, 1);
     if ((m = t.trim().match(/((?:فكرني|ذكرني|remind me)\s+.+)$/))) return 'inbox:remind:' + tail(m, 1);
-    if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب)/.test(t)) return 'shot';
+    t = clean(t);   // بعد ما النص الحر اتاخد زى ما اتقال
+    if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب|صورلي الطريق|صور الشارع|صوره للشارع|صور قدامي|خد لقطه)/.test(t)) return 'shot';
     // أسئلة بترد من ملخّص العربية (زى fuel.left · maint.next · info.speed على الشاشة) — قبل «أقرب بنزينة» عشان «فاضل كام بنزين»
     if (/(فاضل|باقي|البنزين كام|how much fuel|fuel left)/.test(t) && /(بنزين|fuel)/.test(t)) return 'fuelleft';
     if (/(الزيت|الصيانه|oil|service)/.test(t) && /(فاضل|الجايه|ميعاد|امتي|next|when)/.test(t)) return 'maint';
     if (/(السرعه كام|ماشي كام|سرعتي|my speed)/.test(t)) return 'speed';
     if (/(العداد|odometer)/.test(t)) return 'odo';
     if (/(طوارئ|نجده|الحقوني|استغاثه|sos|emergency)/.test(t)) return 'sos';   // زى الشاشة: بيتأكد قبل ما يجهّز الرسالة
-    if (/(ركنت هنا|احفظ الركنه|سجل الركنه|احفظ مكان العربيه|i parked)/.test(t)) return 'park';
+    if (/(ركنت هنا|احفظ الركنه|سجل الركنه|احفظ مكان العربيه|انا ركنت|ركنا هنا|i parked)/.test(t) && !/فين/.test(t)) return 'park';
     if (/(العربيه فين|ركنت فين|وديني للعربيه|وديني للركنه|where.*car)/.test(t)) return 'findpark';
     for (const k of NEAR) if (k.re.test(t)) return 'near:' + k.id;
     const go = t.match(/(?:وديني|خدني|روح|take me to|navigate to)\s+(?:علي\s+|عل\s+|الي\s+|to\s+|لل|ل)?(.+)$/);
     if (go && go[1].trim()) return 'goto:' + go[1].trim();   // «أوسكار ودّينى البيت» ⇒ من الأماكن المحفوظة   // «أوسكار دوّر على أقرب بنزينة» …
     if (/(سجل|علم|هنا|mark)/.test(t) && /(رادار|radar)/.test(t)) return 'radar';
     if (/(سجل|علم|هنا|mark)/.test(t) && /(خطر|خطير|danger)/.test(t)) return 'danger';
-    if (/(حفره|حفر|نقره|pothole)/.test(t)) return 'pothole';
-    if (/(مطب|مطلب|bump)/.test(t)) return 'bump';
+    if (/(حفره|حفر|نقره|جوره|pothole)/.test(t)) return 'pothole';
+    if (/(مطب|مطلب|مضب|ماطب|bump)/.test(t)) return 'bump';
     return 'unknown';
   }
   /* ☕ تذكير الاستراحة — نفس logic/Wellness.kt: أول تذكير بعد المدة (٠ = مقفول)، وبعدين كل ١٥ دقيقة طول ما انت سايق،
@@ -220,6 +231,6 @@
     if (!mark || !mark.at || now - mark.at > JUST_MARKED_MS) return list;
     return list.filter((h) => distanceM(mark.lat, mark.lng, h.lat, h.lng) > JUST_MARKED_M);
   }
-  const api = { nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

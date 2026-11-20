@@ -868,3 +868,51 @@ class OsmSearchTest {
         assertTrue(OsmSearch.parse("not json").isEmpty())
     }
 }
+
+/** تحسين فهم الأوامر بالمصرى (المالك ٢٠٢٦-١١-٢٠: «سجل مطب» ساعات محتاجة تتقال كذا مرة). */
+class VoiceMatchingTest {
+    private val e = VoiceEngine()
+    private fun id(s: String) = e.understand(s)?.let { it.match.command.id to it.sure }
+
+    @Test fun diacriticsPunctuationAndStretch() {
+        assertEquals("road.bump" to true, id("سَجِّلْ مَطَبّ!!"))
+        assertEquals("road.bump" to true, id("  سجل،   مطبببب  "))
+        assertEquals("سجل مطب", e.afterWake("یا اوسکار سجل مطب"))   // ی/ک فارسى
+    }
+
+    @Test fun egyptianRequestForms() {
+        assertEquals("nav.open" to true, id("ممكن تشغل الملاحه"))
+        assertEquals("road.shot" to true, id("عايزك تصور الطريق"))
+        assertEquals("road.pothole" to true, id("سجل جوره"))
+        assertEquals("road.bump" to true, id("سجللي مطب"))
+        assertEquals("road.shot" to true, id("صورلي الطريق"))
+        assertEquals("park.save" to true, id("انا ركنت"))
+        assertEquals("car.find" to true, id("ركنت فين"))
+        assertEquals("cancel" to true, id("لا خلاص"))
+        assertEquals("cancel" to true, id("سيبك"))
+    }
+
+    @Test fun similarCommandsStaySeparate() {
+        assertEquals("road.shot", id("صور المطب")?.first)
+        assertEquals("road.pothole", id("سجل حفره")?.first)
+        assertEquals("road.bump", id("سجل مطب")?.first)
+        assertEquals("sec.record", id("سجل فيديو")?.first)
+    }
+
+    @Test fun unclearSpeechIsNotExecuted() {
+        assertNull(e.understand("كلام مالوش علاقه خالص"))
+        assertNull(e.understand(""))
+        val r = e.understand("سجل مطر")
+        assertTrue(r == null || !r.sure || r.match.command.id != "road.bump")
+    }
+
+    @Test fun repeatedRecognitionRunsOnce() {
+        val g = RepeatGuard()
+        assertTrue(g.allow("road.bump", null, 1_000))
+        assertFalse(g.allow("road.bump", null, 2_500))      // نفس النتيجة اتسمعت تانى
+        assertTrue(g.allow("road.bump", null, 6_000))       // مطب تانى بعد شوية
+        assertTrue(g.allow("nav.goto", "البيت", 6_100))
+        assertTrue(g.allow("nav.goto", "الشغل", 6_200))     // تفاصيل مختلفة = أمر مختلف
+        assertTrue(g.allow("media.up", null, 7_000)); assertTrue(g.allow("media.up", null, 7_100))
+    }
+}

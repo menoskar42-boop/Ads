@@ -822,6 +822,7 @@
   const voiceWanted = () => { try { return localStorage.getItem(VOICE_KEY) !== '0'; } catch (e) { return true; } };
   const plain = (s) => String(s || '').replace(/[\u064B-\u0652،,.؟?!]/g, '').replace(/[أإآ]/g, 'ا').replace(/\s+/g, ' ').trim();
   let rec = null, listening = false, running = false, voiceDenied = false, awakeUntil = 0;
+  const voiceRepeat = {};
   // «ودّينى X» لمكان مش محفوظ ⇒ OpenStreetMap بالاسم حوالين مكانك ⇒ الأقرب ⇒ الملاحة (زى الشاشة)
   async function searchPlace(q) {
     $('voiceNote').textContent = '🔎 بدوّر على «' + q + '»…';
@@ -878,6 +879,7 @@
       }
       const awake = now < awakeUntil;
       const cmd = alts.map((a) => RD.parseVoice(a, awake)).find((c) => c && c !== 'unknown') || RD.parseVoice(alts[0], awake);
+      if (cmd && !RD.repeatOk(voiceRepeat, cmd, now)) return;   // نفس الأمر اتسمع تانى ⇒ مرة واحدة
       if (cmd) { awakeUntil = 0; runVoice(cmd, alts[0]); }
     };
     rec.onstart = () => { running = true; };

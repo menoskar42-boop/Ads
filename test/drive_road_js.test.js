@@ -44,6 +44,20 @@ test('phone voice: needs the name, understands bump / pothole / screenshot', () 
   assert.equal(R.parseVoice('سجل مطب هنا'), null);          // من غير الاسم ⇒ ولا حاجة
   assert.equal(R.parseVoice('أوسكار الجو عامل ايه'), 'unknown');
 });
+test('phone voice: Egyptian wording, punctuation, stretched letters, repeated results (like VoiceEngine)', () => {
+  assert.equal(R.parseVoice('یا اوسکار، سجّل مطبببب!'), 'bump');
+  assert.equal(R.parseVoice('اوسكار سجل جورة'), 'pothole');
+  assert.equal(R.parseVoice('اوسكار عايزك تصور الطريق'), 'shot');
+  assert.equal(R.parseVoice('اوسكار صورلي الطريق'), 'shot');
+  assert.equal(R.parseVoice('اوسكار انا ركنت'), 'park');
+  assert.equal(R.parseVoice('اوسكار انا ركنت فين'), 'findpark');
+  const st = {};
+  assert.ok(R.repeatOk(st, 'bump', 1000));
+  assert.equal(R.repeatOk(st, 'bump', 2500), false);    // نفس النتيجة اتسمعت تانى
+  assert.ok(R.repeatOk(st, 'pothole', 2600));
+  assert.ok(R.repeatOk(st, 'pothole', 7000));
+  assert.ok(R.repeatOk(st, 'unknown', 7100) && R.repeatOk(st, 'unknown', 7200));
+});
 test('nearest on the web: same OSM filters and 1 km rounding as the screen, voice, direct-start navigation link', () => {
   assert.equal(R.parseVoice('أوسكار دوّر على أقرب بنزينة'), 'near:fuel');
   assert.equal(R.parseVoice('اسكار اقرب صيدلية'), 'near:pharmacy');
