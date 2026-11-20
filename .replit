@@ -73,3 +73,11 @@ MYBIBLE_PG_POOL_MAX = "5"
 # ⛔ **رجعت "8"** لنفس السبب اللي فوق: 20+12 كسرت سقف session mode في
 # سوبابيز وmybible اترفضت اتصالاته. 8+5=13 هو اللي بيشتغل.
 PG_POOL_MAX = "8"
+
+# مسار الجذر بتاع Service Flow. بيتقرا في مكانين لازم يتطابقوا:
+#   · وقت البناء  → serviceflow/vite.config.ts (كل الملفات بتتطلب من تحته)
+#   · وقت التشغيل → src/lib/host_gateway.js (البوّاب بيشيله قبل ما يمرّر)
+# ليه أصلاً: كل نطاق فرعي على oscardevs.com بيعدّي على Cloudflare Worker
+# وبياكل من كوتته المشتركة مع متاجر العملاء. الأبكس مستثنى من الـWorker،
+# فـ oscardevs.com/serviceflow بيكلّف صفر. الحارس: check-serviceflow-path.
+SF_BASE_PATH = "/serviceflow/"
