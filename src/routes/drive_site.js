@@ -273,6 +273,7 @@ function createDriveSite({ pool, push } = {}) {
   };
   router.post('/api/web/intent', rateLimit({ name: 'od-web-intent', windowMs: 24 * 60 * 60000, max: 300 }), json, ownerAuth, intentRoute);
   const contactNameRoute = async (req, res) => {
+    res.set('Cache-Control', 'no-store');
     const body = req.body || {};
     if (Object.keys(body).some((key) => key !== 'name')) return fail(res, 400, 'invalid contact name request');
     const name = String(body.name || '').trim();
