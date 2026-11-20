@@ -224,6 +224,12 @@ function createDriveSite({ pool, push } = {}) {
     try { res.json({ ok: true, cleared: await shots.clearTest(pool, req.owner.car_id) }); }
     catch (e) { fail(res, 500, 'clear failed'); }
   });
+  router.post('/api/web/shots/:id/delete', ownerAuth, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return fail(res, 400, 'bad id');
+    try { res.json({ ok: true, deleted: await shots.remove(pool, req.owner.car_id, id) }); }
+    catch (e) { fail(res, 500, 'delete failed'); }
+  });
   router.get('/api/web/shots/:id/jpg', ownerAuth, async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isInteger(id)) return fail(res, 400, 'bad id');

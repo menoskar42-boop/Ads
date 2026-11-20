@@ -349,17 +349,29 @@
       $('shotsInfo').textContent = `${c.total || 0} صورة · ${c.fresh || 0} جديدة · ${c.bumps || 0} قبل مطبات متسجّلة` + (c.test ? ` · 🧪 ${c.test} صورة تجربة (لوحدها — مابتدخلش التدريب)` : '');
       $('shotsClearTest').hidden = !c.test; $('shotsClearTest').textContent = `🧹 امسح صور التجربة (${c.test || 0})`;
       const g = $('shotsGrid'); g.textContent = '';
-      for (const s of (j.shots || []).slice(0, 12)) {
+      const all = j.shots || [];
+      $('shotsMore').hidden = all.length <= shotsShown;
+      for (const s of all.slice(0, shotsShown)) {
         const fig = document.createElement('figure');
         fig.style.cssText = 'margin:0;font-size:11px;text-align:center;color:var(--muted)';
         const img = document.createElement('img');
         img.alt = 'صورة طريق'; img.style.cssText = 'width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:#0002';
         fig.append(img, document.createTextNode(`${s.test ? '🧪 ' : ''}${REASON[s.reason] || ''} ${s.distance_m != null ? s.distance_m + 'م · ' : ''}${ago(s.at)}`));
+        // المالك بيراجع الصور ويمسح اللى مش عايزها قبل التدريب
+        const del = document.createElement('button'); del.textContent = 'مسح'; del.style.cssText = 'display:block;margin:2px auto 0;font-size:11px;padding:2px 8px';
+        del.addEventListener('click', async () => {
+          if (!confirm('تمسح الصورة دى؟ مش هتدخل التدريب ومش هترجع.')) return;
+          try { await api('POST', `/api/web/shots/${s.id}/delete`); } catch (e) { $('shotsNote').textContent = e.message; }
+          loadShots();
+        });
+        fig.append(del);
         g.append(fig);
         blobOf(`/api/web/shots/${s.id}/jpg`).then(({ blob }) => { img.src = URL.createObjectURL(blob); }).catch(() => {});
       }
     } catch (e) { /* مش مربوط أو مفيش نت */ }
   }
+  let shotsShown = 12;
+  $('shotsMore').addEventListener('click', () => { shotsShown += 24; loadShots(); });
   $('shotsClearTest').addEventListener('click', async () => {
     if (!confirm('تمسح كل صور التجربة؟')) return;
     try { const r = await api('POST', '/api/web/shots/clear-test'); $('shotsNote').textContent = `اتمسح ${r.cleared} صورة تجربة`; } catch (e) { $('shotsNote').textContent = e.message; }

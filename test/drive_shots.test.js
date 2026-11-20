@@ -81,6 +81,11 @@ describe('shots: database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL not
     assert.equal((await shots.exportZip(pool, c.id, true, store, true)).count, 1);     // التجربة لوحدها
     assert.equal(await shots.clearTest(pool, c.id, store), 1);
     assert.ok(!mem.has(`oscar-drive/shots-test/${c.id}/${pt.uuid}.jpg`));
+    // المالك بيمسح صورة صورة (من R2 ومن القاعدة) — ومايقدرش يمسح صورة عربية تانية
+    assert.equal(await shots.remove(pool, c.id + 999, row.id, store), 0);
+    assert.equal(await shots.remove(pool, c.id, row.id, store), 1);
+    assert.ok(!mem.has(`oscar-drive/shots/${c.id}/${p.uuid}.jpg`));
+    assert.equal(await shots.remove(pool, c.id, row.id, store), 0);
     const bad = { putObject: async () => { throw new Error('down'); } };
     const p2 = shots.parse({ meta: meta({ uuid: '8a2b8c1e-1111-4222-8333-944455556666' }), jpg: JPG.toString('base64') });
     await shots.save(pool, c.id, p2, bad);

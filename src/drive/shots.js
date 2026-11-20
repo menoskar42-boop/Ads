@@ -141,4 +141,11 @@ async function clearTest(pool, carId, store = r2) {
   return rows.length;
 }
 
-module.exports = { parse, save, list, jpg, exportZip, clearTest, zip, crc32, isJpeg, MAX_BYTES, MAX_PER_CAR };
+/** المالك بيراجع صور التدريب ويمسح اللى مش عايزها — صورة صورة (٢٠٢٦-١١-٢٠). بيرجّع ١ لو اتمسحت. */
+async function remove(pool, carId, id, store = r2) {
+  const { rows } = await pool.query('DELETE FROM od_shots WHERE car_id = $1 AND id = $2 RETURNING r2_key', [carId, id]);
+  for (const r of rows) if (r.r2_key && store) await store.deleteObject(r.r2_key).catch(() => {});
+  return rows.length;
+}
+
+module.exports = { parse, save, list, jpg, exportZip, clearTest, remove, zip, crc32, isJpeg, MAX_BYTES, MAX_PER_CAR };
