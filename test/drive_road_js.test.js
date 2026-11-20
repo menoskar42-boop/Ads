@@ -135,13 +135,19 @@ test('phone voice: «call X» goes to the iPhone shortcut by name — phone or W
 test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping', () => {
   assert.equal(R.parseVoice('يا أذكر اتصل ب ماذر موبايل'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('يا اذكر اتصل ل Mother Mobile'), 'call::Mother Mobile');
+  assert.equal(R.parseVoice('أذكر اتصل ل Mother Mobile'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('يا اوس اتصل ب Mother mobil'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('يا اوس سجل مطعمنا'), 'bump');
+  assert.equal(R.parseVoice('اذكر سجل مطعمنا'), 'bump');
+  assert.equal(R.parseVoice('يا اوزكار سجل مطب هنا'), 'bump');
+  assert.equal(R.parseVoice('يا سكار سجل مطب هنا'), 'bump');
   assert.equal(R.parseVoice('يا اوس سجل مطعمنا هنا'), 'bump');
   assert.equal(R.parseVoice('يا اوس سجل المطعم بتاعنا'), 'unknown');
   assert.equal(R.parseVoice('سجل مطعمنا'), null);                    // الاسم وحده من غير نداء لا ينفّذ
+  assert.equal(R.parseVoice('انا اذكر الجو حلو'), null);              // لا نعدّ «أذكر» داخل جملة عادية نداءً
   assert.equal(R.parseVoice('يا جماعة الجو حلو'), null);                 // مش نداء ⇒ ولا حاجة
   assert.ok(R.maybeOscar('يا اوز سجل حاجة')); assert.ok(!R.maybeOscar('يا جماعة'));
+  assert.ok(R.maybeOscar('اذكر سجل حاجة'));
   assert.ok(R.maybeOscar('سجل حاجة', true));                              // لسه منادينه
   assert.equal(R.aiToCmd({ cmd: 'bump' }), 'bump');
   assert.equal(R.aiToCmd({ cmd: 'fuel' }), 'near:fuel');
@@ -243,9 +249,10 @@ test('«ودّينى X» unsaved place search matches OsmSearch.kt (rounded loca
 
 test('«أوسكار» لوحده ⇒ ينتبه، والأمر اللى بعده يتفهم من غير الاسم (المالك ٢٠٢٦-١١-١٩)', () => {
   const R = require('../drive-web/road.js');
-  assert.equal(R.wakeOnly('أوسكار'), true);
-  assert.equal(R.wakeOnly('يا اسكار'), true);
+  for (const wake of ['أوسكار', 'يا اسكار', 'يا أذكر', 'أذكر', 'يا اوس', 'اوس', 'يا اسكر', 'اسكر',
+    'يا وسكار', 'يا اوزكار', 'يا سكار', 'Hey Oscar', 'Okay Oscar']) assert.equal(R.wakeOnly(wake), true, wake);
   assert.equal(R.wakeOnly('أوسكار سجل مطب'), false);
+  assert.equal(R.wakeOnly('اذكر سجل مطب'), false);
   assert.equal(R.wakeOnly('سجل مطب'), false);
   assert.equal(R.parseVoice('سجل مطب هنا'), null);            // من غير ما ناديته ⇒ ولا حاجة
   assert.equal(R.parseVoice('سجل مطب هنا', true), 'bump');    // جوّه الـ٨ ثوانى ⇒ ينفّذ

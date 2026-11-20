@@ -404,6 +404,9 @@ class VoiceEngineTest {
         assertEquals("سجل مطعمنا", misheardBump)
         assertEquals("road.bump", e.understand(misheardBump!!)?.match?.command?.id)
         assertTrue(e.understand(misheardBump)?.sure == true)
+        for (wake in listOf("يا أذكر", "أذكر", "يا اوس", "اوس", "يا اسكر", "يا اوزكار", "يا سكار", "Hey Oscar", "Okay Oscar")) {
+            assertEquals("سجل مطب", e.afterWake("$wake سجل مطب"), wake)
+        }
         val custom = VoiceEngine(wakeNames = listOf("يا كابتن"))
         assertEquals("السرعه كام", custom.afterWake("يا كابتن السرعة كام"))
         assertNull(custom.afterWake("يا أوسكار السرعة كام"))
