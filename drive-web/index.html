@@ -101,7 +101,7 @@ body.dv-on #callBox:not([hidden]) { position:fixed; left:12px; right:12px; botto
 .contact-directory-row { display:flex; align-items:center; gap:8px; width:100%; padding:8px; border-radius:10px; background:var(--surface2); }
 .contact-directory-row .contact-directory-info { flex:1; min-width:0; overflow-wrap:anywhere; }
 @media (prefers-reduced-motion: reduce) { #dvArrow { transition:none; } }
-#map { height:320px; border-radius:14px; overflow:hidden; background:var(--surface2); }
+#map { position:relative; z-index:0; isolation:isolate; height:320px; border-radius:14px; overflow:hidden; background:var(--surface2); }
 .seg button { padding:8px 12px; min-height:40px; font-size:14px; }
 .seg button.on { background:var(--accent); color:#fff; }
 ul.list { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
