@@ -23,7 +23,8 @@ function autoData(jsonPath, layerRe, central, cabinet, title, net) {
   const segments = segs.map((g) => ({ from: g.from, to: g.to, lengthM: g.lengthM, pairs: g.pairs, gaugeMm: g.gaugeMm,
     ...(g.dead ? { dead: g.dead } : {}), ...(g.marker ? { marker: g.marker } : {}),
     ...((perBox[g.to] || 0) > 1 || g.lengthM == null ? { uncertain: true } : {}),
-    ...(g.nolabel ? { notes: 'الخط مرسوم فى الخريطة بس الطول مش مكتوب جنبه — اكتب الطول من الورقة والمسافات اللى بعده هتتحسب' } : {}) }));
+    ...(g.nolabel ? { notes: 'الخط مرسوم فى الخريطة بس الطول مش مكتوب جنبه — اكتب الطول من الورقة والمسافات اللى بعده هتتحسب' } : {}),
+    ...(g.markerSum ? { uncertain: true, notes: `الكابل معدّى على علامة الوصل ${g.marker} ومكتوب عليه طولين (${g.label}) — اتجمعوا، يتراجع على الخريطة` } : {}) }));
   const nums = bx.map((b) => parseInt(b.box)).filter((n) => n > 0); const max = Math.max(0, ...nums); const missing = [];
   for (let i = 1; i <= max; i++) if (!nums.includes(i)) missing.push(i);
   const notes = [];

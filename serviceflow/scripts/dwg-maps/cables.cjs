@@ -21,7 +21,7 @@ function extractNetwork(db, cfg0) {
   // كل المسافات مظبوطة على خرايط الغنايم (نص رقم البكس ٠٫٣٥) ⇒ بتتكبّر/تصغر حسب حجم النص فى الملف ده
   const hs = ents.filter((e) => e.type === 'TEXT' && cfg0.boxLayer.test(e.layer) && /^\d{1,3}$/.test(String(e.text).trim())).map((e) => e.textHeight || 0).filter(Boolean).sort((a, b) => a - b);
   const k = hs.length ? hs[Math.floor(hs.length * 0.75)] / 0.35 : 1;
-  const cfg = { ...cfg0 }; for (const n of ['gapR', 'jointCore', 'jointTextR', 'boxSymR', 'jointR', 'boxR', 'cabPad', 'tol', 'labelR', 'markerR', 'markerSame']) cfg[n] = (cfg0[n] || 0) * k;
+  const cfg = { ...cfg0 }; for (const n of ['deadBoxR', 'deadJointR', 'snapR', 'cabNear', 'gapR', 'jointCore', 'jointTextR', 'boxSymR', 'jointR', 'boxR', 'cabPad', 'tol', 'labelR', 'markerR', 'markerSame']) cfg[n] = (cfg0[n] || 0) * k;
   // ١) العُقد
   const joints = []; const boxes = []; const T = ents.filter((e) => e.type === 'TEXT');
   const dots = ents.filter((e) => cfg.isJointDot(e)).map(center);
@@ -43,9 +43,11 @@ function extractNetwork(db, cfg0) {
   const jtexts = T.filter((t) => cfg.jointText.test(t.layer) && /^\d{1,2}['"]?$/.test(String(t.text).trim()) && !isCH(t));
   const jc = []; jtexts.forEach((t, i) => dots.forEach((q, j) => { const d = D([t.startPoint.x, t.startPoint.y], q); if (d < cfg.jointTextR) jc.push([d, i, j]); }));
   jc.sort((x, y) => x[0] - y[0]); const tUsed = new Set(), dUsed = new Set();
+  // الأرقام المرسومة مرتين فوق نفس النقطة ⇒ رمز واحد (dots اتكرر) — والتوزيع الأمثل لو مفعّل
+  const jorder = cfg.labelMatching ? bestMatch(jtexts.length, dots.length, jc.map(([d, i, j]) => [i, j, d])).map(([i, j]) => [0, i, j]) : jc;
   const addJ = (t, p) => { const num = String(Number(String(t.text).trim().replace(/['"]/g, ''))); const id = 'J' + num.padStart(2, '0') + (/['"]/.test(String(t.text)) ? "'" : '');
     if (!joints.some((j) => j.id === id) && !joints.some((j) => D(j.p, p) < 0.05 * k)) joints.push({ id, num, p }); };
-  for (const [, i, j] of jc) { if (tUsed.has(i) || dUsed.has(j)) continue; tUsed.add(i); dUsed.add(j); addJ(jtexts[i], dots[j]); }
+  for (const [, i, j] of jorder) { if (tUsed.has(i) || dUsed.has(j) || dots.some((q, m) => dUsed.has(m) && D(q, dots[j]) < 0.05 * k)) continue; tUsed.add(i); dUsed.add(j); addJ(jtexts[i], dots[j]); }
   jtexts.forEach((t, i) => { if (tUsed.has(i)) return; const p = [t.startPoint.x, t.startPoint.y];
     const h = hubPts.map((q) => [q, D(p, q)]).sort((x, y) => x[1] - y[1])[0]; if (h && h[1] < cfg.jointTextR * 1.3) addJ(t, h[0]); });
   const labels = extractBoxes(db, cfg.boxLayer);
@@ -131,6 +133,10 @@ function extractNetwork(db, cfg0) {
     // الحرف مكتوب فوق/جنب طرف الشَرطة ⇒ الشَرطة نفسها بين النقطتين بإزاحة نص ارتفاع الحرف
     const h = letters[i].h * 0.5; marks.push({ name, a: [letters[i].p[0] + h, letters[i].p[1] + h], b: [letters[j].p[0] + h, letters[j].p[1] + h], id: `M:${name}#${n + 1}` }); }
   for (const x of letters) if (!x.used) { const n = marks.filter((m) => m.name === x.name).length; marks.push({ name: x.name, a: x.p, b: x.p, id: `M:${x.name}#${n + 1}` }); }
+  // الشَرطة مرسومة فعلاً كخط بين الحرفين ⇒ هى العلامة (مش خط كابل)، ومكانها أدق من مكان الحرفين
+  if (cfg.markerBar) for (const m of marks) { if (D(m.a, m.b) < 0.3 * k) continue; const L = D(m.a, m.b);
+    const bi = pieces.findIndex((q) => q.length === 2 && Math.abs(D(q[0], q[1]) - L) < 0.4 * L && ((D(q[0], m.a) < cfg.markerR * 3 && D(q[1], m.b) < cfg.markerR * 3) || (D(q[0], m.b) < cfg.markerR * 3 && D(q[1], m.a) < cfg.markerR * 3)));
+    if (bi >= 0) { [m.a, m.b] = [pieces[bi][0], pieces[bi][1]]; pieces.splice(bi, 1); } }
   const markAt = (p) => { let best = null; for (const m of marks) { const d = segDist(p, m.a, m.b); if (d < cfg.markerR && (!best || d < best.d)) best = { id: m.id, d }; } return best && best.id; };
   // ٣) نقطة نهاية ⇒ عقدة (وصلة · بكس · كابينة) أو نقطة عادية
   const nodeAt = (p) => {
@@ -142,6 +148,8 @@ function extractNetwork(db, cfg0) {
     if (!best && cab && p[0] >= cab.x0 && p[0] <= cab.x1 && p[1] >= cab.y0 && p[1] <= cab.y1) best = { id: 'CAB', d: 0 };
     return best ? best.id : null;
   };
+  // طرف كابل مقطوع (مش متوصّل بحاجة) جنب الكابينة ⇒ خارج من الكابينة (الرسام ساعات بيوقف الخط قبل رسمة الكابينة بشوية)
+  const nearCab = (p) => cfg.cabNear && cab && p[0] >= cab.x0 - cfg.cabNear && p[0] <= cab.x1 + cfg.cabNear && p[1] >= cab.y0 - cfg.cabNear && p[1] <= cab.y1 + cfg.cabNear;
   const ends = []; pieces.forEach((pts, i) => { ends.push({ i, k: 0, p: pts[0] }); ends.push({ i, k: 1, p: pts[pts.length - 1] }); });
   const linked = (e) => ends.filter((o) => o.i !== e.i && D(o.p, e.p) < cfg.tol);
   // ٤) تتبّع: من كل طرف عند عقدة، امشى فى القطع المتوصّلة لحد عقدة تانية. عند التفرّع (تقاطع أو خط متكرر أو حتة زيادة)
@@ -151,8 +159,8 @@ function extractNetwork(db, cfg0) {
     if (depth > 120) return null;
     const piece = cur.k === 0 ? pieces[cur.i] : [...pieces[cur.i]].reverse();
     const P = pts.concat(piece); const far = { i: cur.i, k: 1 - cur.k, p: piece[piece.length - 1] };
-    const n = nodeAt(far.p);
     const nx = linked(far).filter((o) => !visited.includes(o.i) && o.i !== cur.i);
+    const n = nodeAt(far.p) || (!nx.length && !linked(far).length && nearCab(far.p) ? 'CAB' : null);
     // البكس آخر الكابل: لو الخط مكمّل بعد رمز البكس (كابل رئيسى معدّى جنبه) ⇒ ماتقفش عنده
     const prev = piece[piece.length - 2] || piece[0], here = far.p; const dir = Math.atan2(here[1] - prev[1], here[0] - prev[0]);
     const sc = nx.map((o) => { const q = pieces[o.i]; const nxt = o.k === 0 ? q[1] : q[q.length - 2]; let ang = Math.abs(Math.atan2(nxt[1] - here[1], nxt[0] - here[0]) - dir); if (ang > Math.PI) ang = 2 * Math.PI - ang; return [ang, o]; })
@@ -168,7 +176,16 @@ function extractNetwork(db, cfg0) {
         const ang = Math.abs(Math.atan2(o.p[1] - here[1], o.p[0] - here[0]) - dir); const a1 = ang > Math.PI ? 2 * Math.PI - ang : ang; if (a1 > 0.08) continue;
         const q = pieces[o.i]; const nxt = o.k === 0 ? q[1] : q[q.length - 2]; let a2 = Math.abs(Math.atan2(nxt[1] - o.p[1], nxt[0] - o.p[0]) - dir); if (a2 > Math.PI) a2 = 2 * Math.PI - a2; if (a2 > 0.08) continue;
         if (!best || d < best.d) best = { o, d }; }
-      if (best) return walk(best.o, a, [...visited, cur.i], P, depth + 1);
+      if (best) { const nb = nodeAt(best.o.p); if (nb && nb !== a) return { to: nb, pts: [...P, best.o.p], used: [...visited, cur.i] };   // بعد الفراغ وصلة/بكس ⇒ الكابل واقف عندها
+        if (!nb) return walk(best.o, a, [...visited, cur.i], P, depth + 1); }
+    }
+    if (!nx.length && !n && (cfg.deadJointR || cfg.deadBoxR || cfg.snapR)) {
+      // طرف مقطوع: الرسام وقف الخط قبل الوصلة بشوية، أو قبل طرف خط تانى مقطوع برضه ⇒ نكمّل للأقرب
+      const jn = [...(cfg.deadJointR ? joints.map((j) => [D(j.p, here), j]).filter((x) => x[0] < cfg.deadJointR) : []),
+        ...(cfg.deadBoxR ? boxes.map((b) => [D(b.p, here), b]).filter((x) => x[0] < cfg.deadBoxR) : [])].sort((x, y) => x[0] - y[0])[0];
+      const fr = cfg.snapR && ends.filter((o) => o.i !== cur.i && !visited.includes(o.i) && !linked(o).length && D(o.p, here) < cfg.snapR && !nodeAt(o.p)).sort((x, y) => D(x.p, here) - D(y.p, here))[0];
+      if (fr && (!jn || D(fr.p, here) < jn[0])) return walk(fr, a, [...visited, cur.i], P, depth + 1);
+      if (jn && jn[1].id !== a) return { to: jn[1].id, pts: [...P, jn[1].p], used: [...visited, cur.i] };
     }
     if (!nx.length) return null;
     const tries = nx.length === 1 ? sc : sc.filter((x) => x[0] <= Math.PI / 2 + 0.01);
@@ -179,27 +196,41 @@ function extractNetwork(db, cfg0) {
   const nodeD = (p) => { const n = nodeAt(p); if (!n) return Infinity; const j = joints.find((x) => x.id === n) || boxes.find((x) => x.id === n); return j ? D(p, j.p) : 0; };
   const usedPiece = new Set();
   for (const st of cfg.onePiecePerCable ? ends.map((e) => [nodeD(e.p), e]).sort((x, y) => x[0] - y[0]).map((x) => x[1]) : ends) {
-    const a = nodeAt(st.p);
+    const a = nodeAt(st.p) || (!linked(st).length && nearCab(st.p) ? 'CAB' : null);
     if (a && cfg.jointCore && /^J/.test(a) && linked(st).length && !holes.some((h) => h.j.id === a && inHole(st.p)) && D(st.p, joints.find((j) => j.id === a).p) > cfg.jointCore) continue;
     if (!a || seen.has(st.i + ':' + st.k) || (cfg.onePiecePerCable && usedPiece.has(st.i))) continue;
     const r = walk(st, a, [], [], 0);
     seen.add(st.i + ':' + st.k);
     if (r && !(cfg.onePiecePerCable && r.used.some((i) => usedPiece.has(i)))) { r.used.forEach((i) => { seen.add(i + ':0'); seen.add(i + ':1'); usedPiece.add(i); }); paths.push({ from: a, to: r.to, pts: r.pts }); }
   }
+  const rawPaths = cfg.debug ? paths.map((p) => ({ ...p })) : null;
   // ٤ب) دمج المسارات عند العلامات: X ← M:A#1  و  M:A#2 → Y  ⇒  X → Y (marker A)
   const isM = (n) => /^M:/.test(n);
-  for (const name of [...new Set(marks.map((m) => m.name))]) {
-    const occ = marks.filter((m) => m.name === name); if (occ.length !== 2) continue;
-    const p1 = paths.filter((p) => p.from === occ[0].id || p.to === occ[0].id), p2 = paths.filter((p) => p.from === occ[1].id || p.to === occ[1].id);
-    if (p1.length !== 1 || p2.length !== 1 || p1[0] === p2[0]) continue;
+  // نفس الحرف مستخدم أكتر من مرتين (A–A هنا و A–A هناك) ⇒ كل علامتين أقرب لبعض = زوج واحد
+  const mpairs = []; for (const name of [...new Set(marks.map((m) => m.name))]) { const occ = marks.filter((m) => m.name === name);
+    if (occ.length === 2) { mpairs.push(occ); continue; } if (!cfg.markerMulti || occ.length < 4 || occ.length % 2) continue;
+    const mid = (m) => [(m.a[0] + m.b[0]) / 2, (m.a[1] + m.b[1]) / 2]; const cand = [];
+    occ.forEach((x, i) => occ.forEach((y, j) => { if (j > i) cand.push([D(mid(x), mid(y)), x, y]); })); cand.sort((u, v) => u[0] - v[0]); const used = new Set();
+    for (const [, x, y] of cand) { if (used.has(x) || used.has(y)) continue; used.add(x); used.add(y); mpairs.push([x, y]); } }
+  for (const occ of mpairs) {
+    let p1 = paths.filter((p) => p.from === occ[0].id || p.to === occ[0].id), p2 = paths.filter((p) => p.from === occ[1].id || p.to === occ[1].id);
+    // أكتر من مسار واقف على نفس العلامة (خط فرع معدّى الوصلة لحد الشَرطة) ⇒ الأطول هو الكابل
+    const plen = (p) => p.pts.reduce((a, q, i) => a + (i ? D(q, p.pts[i - 1]) : 0), 0);
     const other = (p, id) => (p.from === id ? p.to : p.from);
-    const x = other(p1[0], occ[0].id), y = other(p2[0], occ[1].id); if (isM(x) || isM(y)) continue;
-    paths.splice(paths.indexOf(p1[0]), 1); paths.splice(paths.indexOf(p2[0]), 1);
-    paths.push({ from: x, to: y, pts: [...p1[0].pts, ...p2[0].pts], marker: name });
+    // نفس العلامة شايلة كذا كابل (شَرطة واحدة عدّى عليها كابلين) ⇒ كل كابل مع اللى فى نفس ترتيبه على الشَرطة التانية
+    const endAt = (p, m) => (p.from === m.id ? p.pts[0] : p.pts[p.pts.length - 1]);
+    const along = (p, m) => { const q = endAt(p, m); return Math.abs(m.b[0] - m.a[0]) > Math.abs(m.b[1] - m.a[1]) ? q[0] : q[1]; };
+    let pairsM;
+    if (cfg.markerMulti && p1.length > 1 && p1.length === p2.length) pairsM = (() => { const a1 = [...p1].sort((u, v) => along(u, occ[0]) - along(v, occ[0])), a2 = [...p2].sort((u, v) => along(u, occ[1]) - along(v, occ[1])); return a1.map((u, i) => [u, a2[i]]); })();
+    else { if (cfg.markerMulti) { if (p1.length > 1) p1 = [p1.sort((a, b) => plen(b) - plen(a))[0]]; if (p2.length > 1) p2 = [p2.sort((a, b) => plen(b) - plen(a))[0]]; }
+      if (p1.length !== 1 || p2.length !== 1 || p1[0] === p2[0]) continue; pairsM = [[p1[0], p2[0]]]; }
+    for (const [q1, q2] of pairsM) { const x = other(q1, occ[0].id), y = other(q2, occ[1].id); if (isM(x) || isM(y) || q1 === q2) continue;
+      paths.splice(paths.indexOf(q1), 1); paths.splice(paths.indexOf(q2), 1);
+      paths.push({ from: x, to: y, pts: [...q1.pts, ...q2.pts], marker: occ[0].name, halves: [q1.pts, q2.pts] }); }
   }
   for (let i = paths.length - 1; i >= 0; i--) if (isM(paths[i].from) || isM(paths[i].to)) paths.splice(i, 1);
   // ٥) نص الكابل لكل مسار: أقرب نص «طول/أزواج"/قطر» من الخط (كل نص لمسار واحد)
-  const lab = T.filter((t) => cfg.cableText.test(t.layer) && /^\d+(\.\d+)?\/\d+/.test(String(t.text).trim()))
+  const lab = T.filter((t) => cfg.cableText.test(t.layer) && /^\d+(\.\d+)?\/\d+/.test(String(t.text).trim()) && !/^0+(\.0+)?\/0+\D/.test(String(t.text).trim()))   // «00.0/00» = نموذج فى مفتاح الخريطة
     .map((t) => { const s = String(t.text).trim(); const r = t.rotation || 0; const w = s.length * (t.textHeight || 0.2) * 0.55 * (t.xScale || 1);
       const h4 = (t.textHeight || 0.2) * 0.4; const q = (f) => [t.startPoint.x + Math.cos(r) * w * f - Math.sin(r) * h4, t.startPoint.y + Math.sin(r) * w * f + Math.cos(r) * h4];
       return { s, p: q(0.5), line: [0, 0.25, 0.5, 0.75, 1].map(q) }; });
@@ -220,8 +251,15 @@ function extractNetwork(db, cfg0) {
   for (const [d, i, j] of order) { if (pu.has(i) || lu.has(j) || d > cfg.labelR) continue; pu.add(i); lu.add(j);
     const m = lab[j].s.match(/^(\d+(?:\.\d+)?)\/(\d+)"?\*?\/(\d?\.\d+)(?:\((\d+)"?\*?d\))?/i);
     const p = paths[i]; const [from, to] = p.from === 'CAB' || (/^J/.test(p.from) && /^B/.test(p.to)) ? [p.from, p.to] : /^B/.test(p.from) ? [p.to, p.from] : [p.from, p.to];
-    segs.push({ from, to, ...(p.marker ? { marker: p.marker } : {}), lengthM: m ? Number(m[1]) : null, pairs: m ? Number(m[2]) : null, gaugeMm: m ? Number(m[3]) : null, ...(m && m[4] ? { dead: Number(m[4]) } : {}), label: lab[j].s, d });
+    segs.push({ from, to, ...(p.marker ? { marker: p.marker } : {}), lengthM: m ? Number(m[1]) : null, pairs: m ? Number(m[2]) : null, gaugeMm: m ? Number(m[3]) : null, ...(m && m[4] ? { dead: Number(m[4]) } : {}), label: lab[j].s, d, _p: i });
   }
+  // ٥أ) كابل معدّى على علامة وصل وكل نص منه مكتوب عليه طول (حتة قبل العلامة وحتة بعدها) ⇒ الطول = مجموعهم
+  if (cfg.markerSum) for (const g of segs) { const p = paths[g._p]; if (!p.halves) continue;
+    const near = (pts) => lab.map((l, j) => [labDist(l, pts), j]).filter(([d, j]) => d <= cfg.labelR && !lu.has(j)).sort((x, y) => x[0] - y[0])[0];
+    const h = p.halves.map((pts) => polyDist(lab.find((l) => l.s === g.label).p, pts)); const other = p.halves[h[0] <= h[1] ? 1 : 0];
+    const n2 = near(other); if (!n2) continue; const m2 = lab[n2[1]].s.match(/^(\d+(?:\.\d+)?)\//); if (!m2 || g.lengthM == null) continue;
+    lu.add(n2[1]); g.lengthM = Math.round((g.lengthM + Number(m2[1])) * 10) / 10; g.label += ' + ' + lab[n2[1]].s; g.markerSum = true; }
+  for (const g of segs) delete g._p;
   // ٥ب) خط متوصّل بين عقدتين ومفيش جنبه نص (الرسام ماكتبش الطول) ⇒ يتسجّل وصلة من غير طول عشان الشبكة تفضل متوصّلة،
   //     والطول يتكتب بإيد مرة واحدة من شاشة الخرائط. إلا لو العقدتين متوصّلين بكابل مكتوب، أو البكس واخد كابله
   if (cfg.keepUnlabeled) { const has = (a, b) => segs.some((g) => (g.from === a && g.to === b) || (g.from === b && g.to === a));
@@ -235,13 +273,14 @@ function extractNetwork(db, cfg0) {
   while (q.length) { const n = q.shift(); for (const i of adj[n] || []) { if (fixed.has(i)) continue; const s = segs[i]; if (s.to === n) { s.to = s.from; s.from = n; } fixed.add(i); if (!seenN.has(s.to)) { seenN.add(s.to); q.push(s.to); } } }
   const reached = new Set(seenN);
   const unl = paths.filter((_, i) => !pu.has(i)).map((p) => p.from + '-' + p.to);
+  if (cfg.debug) cfg.debug.internals = { pieces, ends, nodeAt, linked, lab, lu, holes, k, marks, rawPaths };
   return { paths, joints, boxes, cab, segs, reached, unlabeledPaths: unl, unusedLabels: lab.filter((_, j) => !lu.has(j)).map((l) => l.s), boxLabels: labels.length, syms: syms.length };
 }
 const GHANAYEM = { boxLayer: /P_DP_TXT/, jointText: /P-DBUR-TXT/, cableText: /P-DBUR-TXT/, cabText: /P_CAB_TXT/, cableLayer: /^P-DBUR-CBL$/, extraCableLines: /^P-J-TXT$/,   // ساعات الكابل مرسوم على طبقة الأزواج بالغلط (6.7: وصلة 05 ← بكس 10)
  
   isJointDot: (e) => e.layer === 'P_SYM' && e.type === 'LWPOLYLINE' && (e.constantWidth || 0) > 0.05 && (e.constantWidth || 0) < 0.2 && (e.vertices || []).length === 2,
   isBoxSym: (e) => e.layer === 'P_SYM' && ((e.type === 'LWPOLYLINE' && (e.constantWidth || 0) > 0.2) || e.type === 'CIRCLE'),
-  jointTextR: 1.0, boxSymR: 3.2, markerR: 0.4, gapR: 1.0, labelMatching: true, keepUnlabeled: true, markerSame: 3.6, jointR: 0.2, boxR: 0.45, cabPad: 0.6, tol: 0.03, labelR: 0.8 };
+  jointTextR: 1.3, boxSymR: 3.2, markerR: 0.4, markerText: /^(P-DBUR-TXT|P_DP_TXT-S-A|0)$/, gapR: 1.0, deadJointR: 1.3, snapR: 1.0, deadBoxR: 1.2, cabNear: 3, labelMatching: true, keepUnlabeled: true, markerSame: 6, markerMulti: true, markerSum: true, markerBar: true, jointR: 0.2, boxR: 0.45, cabPad: 0.6, tol: 0.03, labelR: 0.8 };
 // دير الجنادلة (R.C.C): كابلات على CA وكمان خطوط على طبقة 0 · الوصلات GONTA + TEXT-JONTA · البكس BOX + TEXT-BOX · النص TEXT-LONG
 const DERGNDLA = { boxLayer: /^TEXT-BOX$/, jointText: /^TEXT-JONTA$/, cableText: /^TEXT-LONG$/, cabText: /^TEXT-CABINA$/, cableLayer: /^CA$/, extraCableLines: /^0$/,
   isJointDot: (e) => e.layer === 'GONTA' && e.type === 'LWPOLYLINE',
