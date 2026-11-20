@@ -272,6 +272,48 @@
     if (/ (ايوه|ايوا|اه|تمام|اتصل|اكيد|يلا|yes|ok|okay) /.test(t)) return 'yes';
     return null;
   }
+  /*
+   * الأندرويد (البرومبت ٧ — الخطوة ٢): جهات اتصال محفوظة على الموبايل ده بس (localStorage) — مابتتبعتش للشاشة ولا للسيرفر.
+   * list = [{ name, tels: ['010…'] }]. المطابقة: الاسم بالظبط ⇐ بيبدأ بيه ⇐ جوّاه ⇐ قريب (حرف أو اتنين غلط).
+   */
+  function lev(a, b) {
+    if (a === b) return 0; if (!a.length) return b.length; if (!b.length) return a.length;
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      for (let j = 1; j <= b.length; j++) cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  function matchContacts(list, said) {
+    const want = clean(said).replace(/^ب(?=\S{3})/, '');
+    if (!want) return [];
+    const scored = (list || []).map((c) => {
+      const n = clean(c.name);
+      const words = n.split(' ');
+      const s = n === want ? 1 : n.startsWith(want) || want.startsWith(n) ? 0.92 : n.includes(want) ? 0.85
+        : Math.max(1 - lev(n, want) / Math.max(n.length, want.length), ...words.map((w) => 1 - lev(w, want) / Math.max(w.length, want.length)));
+      return { c, s };
+    }).filter((x) => x.s >= 0.75).sort((a, b) => b.s - a.s);
+    if (!scored.length) return [];
+    const top = scored[0].s;
+    return scored.filter((x) => top - x.s < 0.05).map((x) => x.c);   // أكتر من واحد قريبين ⇒ نسأل
+  }
+  /** رقم مصرى ⇒ شكل واتساب (من غير +): «01012345678» ⇐ «201012345678». */
+  function waNumber(raw) {
+    let d = String(raw || '').replace(/[٠-٩]/g, (c) => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[^\d]/g, '');
+    if (d.startsWith('00')) d = d.slice(2);
+    if (d.startsWith('01') && d.length === 11) d = '2' + d;
+    return d;
+  }
+  /** «اتصل برقم ٠١٥» ⇒ الرقم اللى بيبدأ بيها (أو null). */
+  function telByPrefix(tels, said) {
+    const digits = String(said || '').replace(/[٠-٩]/g, (c) => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[^\d]/g, '');
+    if (digits.length < 3) return null;
+    const hits = (tels || []).filter((t) => t.replace(/[^\d]/g, '').replace(/^(00)?20(?=1)/, '0').startsWith(digits));
+    return hits.length === 1 ? hits[0] : null;
+  }
   const shortcutUrl = (name, how) => 'shortcuts://run-shortcut?name=' + encodeURIComponent(how === 'wa' ? WA_SHORTCUT : CALL_SHORTCUT)
     + '&input=text&text=' + encodeURIComponent(name);
   const ROAD_CMDS = ['bump', 'pothole', 'shot', 'bump1', 'pothole1'];
@@ -289,6 +331,6 @@
     if (!it || !ROAD_CMDS.includes(cmd) || nowMs - it.t < 0 || nowMs - it.t >= PROV_TTL_MS) return null;
     st.doneAt = nowMs; return it;
   }
-  const api = { RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { matchContacts, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

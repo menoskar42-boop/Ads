@@ -99,6 +99,18 @@ test('nearest (prompt 6): the radius grows 2→5→10→25 km, the place phone i
   assert.equal(R.parseVoice('اوسكار هات محطات البنزين'), 'list:fuel');
   assert.equal(R.parseVoice('أوسكار دوّر على أقرب بنزينة'), 'near:fuel');       // الأقرب على طول زى ما هو
 });
+test('Android calls (prompt 7 step 2): local contacts match Arabic names, ask when two match, pick a number by its first digits, WhatsApp number', () => {
+  const l = [{ name: 'محمود يعقوب', tels: ['01012345678', '01598765432'] }, { name: 'محمود قصطة الغنايم', tels: ['01211112222'] }, { name: 'أحمد', tels: ['01000000000'] }];
+  assert.deepEqual(R.matchContacts(l, 'محمود يعقوب').map((c) => c.name), ['محمود يعقوب']);
+  assert.equal(R.matchContacts(l, 'محمود').length, 2);                 // اتنين ⇒ نسأل مين
+  assert.deepEqual(R.matchContacts(l, 'احمد').map((c) => c.name), ['أحمد']);   // أ = ا
+  assert.deepEqual(R.matchContacts(l, 'محمود يعقوب').length, 1);
+  assert.equal(R.matchContacts(l, 'سامح').length, 0);
+  assert.equal(R.telByPrefix(l[0].tels, 'اتصل برقم ٠١٥'), '01598765432');
+  assert.equal(R.telByPrefix(l[0].tels, 'اتصل برقم 010'), '01012345678');
+  assert.equal(R.telByPrefix(l[0].tels, 'اتصل'), null);
+  assert.equal(R.waNumber('010 1234 5678'), '201012345678'); assert.equal(R.waNumber('+201012345678'), '201012345678');
+});
 test('phone voice: «call X» goes to the iPhone shortcut by name — phone or WhatsApp, contacts never leave the phone', () => {
   assert.equal(R.parseVoice('أوسكار اتصل بمحمود يعقوب'), 'call::محمود يعقوب');
   assert.equal(R.parseVoice('اوسكار كلم أحمد واتساب'), 'call:wa:احمد');

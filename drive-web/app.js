@@ -516,8 +516,57 @@
   /* ── 📞 الاتصال بالصوت (المالك ٢٠٢٦-١١-٢٠): الصفحة مابتشوفش جهات الاتصال — اختصار الآيفون بيدوّر ويتصل. تأكيد قبل أى مكالمة ── */
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let callPending = null;   // { name, how, at }
+  /* الأندرويد: جهات اتصال على الموبايل ده بس (البرومبت ٧ — الخطوة ٢) */
+  const CT_KEY = 'od_contacts';
+  const ctLoad = () => { try { return JSON.parse(localStorage.getItem(CT_KEY) || '[]'); } catch (e) { return []; } };
+  const ctSave = (l) => { try { localStorage.setItem(CT_KEY, JSON.stringify(l.slice(0, 500))); } catch (e) {} ctRender(); };
+  function ctAddOne(name, tels) {
+    name = String(name || '').trim(); tels = (tels || []).map((t) => String(t).trim()).filter(Boolean);
+    if (!name || !tels.length) return;
+    const l = ctLoad(), i = l.findIndex((c) => c.name === name);
+    if (i >= 0) l[i].tels = Array.from(new Set(l[i].tels.concat(tels))); else l.push({ name, tels });
+    ctSave(l);
+  }
+  function ctRender() {
+    const ul = $('ctList'); ul.textContent = '';
+    for (const c of ctLoad()) {
+      const li = document.createElement('li'); li.textContent = c.name + ' · ' + c.tels.join(' · ') + ' ';
+      const x = document.createElement('button'); x.textContent = 'مسح';
+      x.addEventListener('click', () => ctSave(ctLoad().filter((y) => y.name !== c.name)));
+      li.append(x); ul.append(li);
+    }
+  }
+  $('ctPick').hidden = !(navigator.contacts && navigator.contacts.select);   // Chrome أندرويد بس — بتختار انت مين
+  $('ctPick').addEventListener('click', async () => {
+    try { for (const c of await navigator.contacts.select(['name', 'tel'], { multiple: true })) ctAddOne((c.name || [])[0], c.tel || []); }
+    catch (e) { $('voiceNote').textContent = 'ماقدرتش أفتح جهات الاتصال: ' + (e.message || e); }
+  });
+  $('ctAdd').addEventListener('click', () => { ctAddOne($('ctName').value, [$('ctTel').value]); $('ctName').value = ''; $('ctTel').value = ''; });
+  ctRender();
+  const d3 = (t) => String(t).replace(/[^\d]/g, '').replace(/^(00)?20(?=1)/, '0').slice(0, 3);
+  function callLocal(name, how) {
+    const hits = RD.matchContacts(ctLoad(), name);
+    const opts = $('callOpts'); opts.textContent = '';
+    $('callTelBtn').hidden = true; $('callWaBtn').hidden = true; $('callBox').hidden = false;
+    if (!hits.length) { $('callQ').textContent = '📞 مش لاقى «' + name + '» — ضيفه من الإعدادات («📞 الاتصال بالصوت»)'; sayRoad('مش لاقى جهة الاتصال دى'); return; }
+    if (hits.length > 1) {   // أكتر من حد ⇒ تختار — مانتصلش بحد غلط
+      $('callQ').textContent = '📞 «' + name + '» — مين فيهم؟';
+      for (const c of hits.slice(0, 6)) { const b = document.createElement('button'); b.textContent = c.name; b.addEventListener('click', () => callLocal(c.name, how)); opts.append(b); }
+      sayRoad('لقيت ' + hits.length + '. مين فيهم؟'); return;
+    }
+    const c = hits[0], wa = $('callWa').checked && how !== 'tel';
+    callPending = { name: c.name, how, at: Date.now(), local: c };
+    const link = (href, text, bg) => { const a = document.createElement('a'); a.href = href; a.textContent = text;
+      a.style.cssText = 'padding:8px 12px;border-radius:10px;text-decoration:none;color:#fff;background:' + bg; return a; };
+    if (how !== 'wa') for (const t of c.tels) opts.append(link('tel:' + t.replace(/[^\d+]/g, ''), '📞 ' + t, '#1565c0'));
+    if (wa) opts.append(link('https://wa.me/' + RD.waNumber(c.tels[0]), '🟢 واتساب', '#15803d'));
+    $('callQ').textContent = '📞 ' + c.name + ' — دوس على اللى عايزه (الموبايل بيسأل قبل ما يتصل)';
+    const say = c.tels.length > 1 ? c.name + ' عنده ' + c.tels.length + ' أرقام: ' + c.tels.map(d3).join(' و ') + (wa ? ' وواتساب' : '') + '. أطلب إيه؟'
+      : 'هتصل ب' + c.name + (how === 'wa' ? ' واتساب' : '') + '. دوس اتصل';
+    sayRoad(say);
+  }
   function callAsk(name, how) {
-    if (!isIOS) { $('voiceNote').textContent = '📞 الاتصال بالصوت على الآيفون بس دلوقتى — الأندرويد جاى (قايمة جهات اتصال على الموبايل ده)'; sayRoad('الاتصال على الآيفون بس دلوقتى'); return; }
+    if (!isIOS) { callLocal(name, how); return; }
     if (how === 'wa' && !$('callWa').checked) how = 'tel';
     if (!how && !$('callWa').checked) how = 'tel';
     callPending = { name, how, at: Date.now() };
@@ -527,7 +576,7 @@
     $('callTelBtn').textContent = how === 'tel' ? '📞 اتصل' : '📞 تليفون'; $('callWaBtn').textContent = how === 'wa' ? '🟢 اتصل واتساب' : '🟢 واتساب';
     sayRoad(how ? 'هتصل ب' + name + (how === 'wa' ? ' واتساب' : '') + '. تأكد؟' : name + '. تليفون ولا واتساب؟');
   }
-  function callDone() { callPending = null; $('callBox').hidden = true; }
+  function callDone() { callPending = null; $('callBox').hidden = true; $('callOpts').textContent = ''; }
   function callGo(how) {
     const p = callPending; if (!p) return;
     callDone();
@@ -537,6 +586,15 @@
   /** رد صوتى على سؤال الاتصال (جوّه ٢٠ ثانية). true = اتعامل معاه. */
   function callVoiceAnswer(text) {
     if (!callPending || Date.now() - callPending.at > 20000) return false;
+    if (callPending.local) {   // الأندرويد: «اتصل برقم ٠١٥» / «واتساب» ⇒ نفتح على طول (والموبايل بيسأل)
+      const t = RD.telByPrefix(callPending.local.tels, text);
+      if (t) { const c = callPending.local; callDone(); location.href = 'tel:' + t.replace(/[^\d+]/g, ''); $('voiceNote').textContent = '📞 ' + c.name + ' — ' + t; return true; }
+      const a0 = RD.callAnswer(text);
+      if (a0 === 'no') { callDone(); $('voiceNote').textContent = '📞 اتلغى'; sayRoad('تمام، اتلغى'); return true; }
+      if (a0 === 'wa' && $('callWa').checked) { const c = callPending.local; callDone(); location.href = 'https://wa.me/' + RD.waNumber(c.tels[0]); return true; }
+      if (a0 === 'yes' && callPending.local.tels.length === 1) { const c = callPending.local; callDone(); location.href = 'tel:' + c.tels[0].replace(/[^\d+]/g, ''); return true; }
+      return false;
+    }
     const a = RD.callAnswer(text);
     if (!a) return false;
     if (a === 'no') { callDone(); $('voiceNote').textContent = '📞 اتلغى'; sayRoad('تمام، اتلغى'); return true; }

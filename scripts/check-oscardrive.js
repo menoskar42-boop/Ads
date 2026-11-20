@@ -289,5 +289,11 @@ check('custom voice lines are rate-limited', /od-voice', windowMs: 24 \* 60 \* 6
       && /\$\('callBox'\)\.hidden = false/.test(app) && !/contacts|ContactsManager|navigator\.contacts/i.test(app.slice(app.indexOf('function callAsk'), app.indexOf("$('callTestBtn')"))),
     'Safari مابيقراش جهات الاتصال، والمالك عايزها تفضل على الموبايل — الاختصار هو اللى بيدوّر ويتصل.');
 }
+{
+  const app = read('drive-web/app.js');
+  const ct = app.slice(app.indexOf("const CT_KEY"), app.indexOf('function callAsk('));
+  check('Android call contacts live in this phone only (localStorage) — never sent to the server or the screen',
+    /localStorage\.setItem\(CT_KEY/.test(ct) && !/api\(|fetch\(|inbox/.test(ct), 'قرار المالك ٢٠٢٦-١١-٢٠: جهات الاتصال مابتتخزّنش لا فى الشاشة ولا عندنا.');
+}
 
 process.exit(failed ? 1 : 0);
