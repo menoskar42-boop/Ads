@@ -46,7 +46,9 @@ object VoiceCatalog {
         VoiceCommand("fuel.left", "فاضل كام بنزين", listOf("فاضل كام بنزين", "البنزين فاضل كام", "فاضل بنزين قد ايه", "البنزين كام"), listOf("how much fuel", "fuel left", "how much gas is left")),
         VoiceCommand("maint.next", "فاضل كام على الزيت", listOf("فاضل كام علي الزيت", "فاضل كام علي تغيير الزيت", "الصيانه الجايه", "ميعاد الزيت"), listOf("when is my oil change", "next service", "next oil change")),
         VoiceCommand("park.save", "احفظ مكان الركنة", listOf("ركنت هنا", "احفظ مكان العربيه", "احفظ الركنه", "سجل الركنه", "انا ركنت", "ركنا هنا", "ركنت العربيه"), listOf("save parking", "i parked here", "save my parking")),
-        VoiceCommand("road.bump", "سجّل مطب", listOf("سجل مطب", "فيه مطب", "مطب هنا", "مطب"), listOf("mark bump", "speed bump", "mark a speed bump", "bump here")),
+        // «سجّل مطب هنا» اتسمعت «يا اوس سجل مطعمنا»؛ النداء مطلوب من MainActivity قبل تنفيذ الأمر.
+        VoiceCommand("road.bump", "سجّل مطب", listOf("سجل مطب", "فيه مطب", "مطب هنا", "مطب", "سجل مطعمنا", "سجل مطعمنا هنا"),
+            listOf("mark bump", "speed bump", "mark a speed bump", "bump here")),
         VoiceCommand("road.pothole", "سجّل حفرة", listOf("سجل حفره", "فيه حفره", "حفره هنا", "حفره"), listOf("mark pothole", "pothole here", "pothole")),
         // «مطب اتجاه واحد» (البرومبت ٥): الصيغة الأطول بتكسب «مطب» — و«سجّل مطب» لوحدها = اتجاهين زى الأول
         VoiceCommand("road.bump1", "سجّل مطب اتجاه واحد", listOf("سجل مطب اتجاه واحد", "مطب اتجاه واحد", "مطب في اتجاه واحد", "سجل مطب في اتجاه واحد"),

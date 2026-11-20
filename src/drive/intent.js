@@ -1,6 +1,5 @@
-// «أوسكار مش فاهم» ⇒ ذكاء اصطناعى (المالك ٢٠٢٦-١١-٢٠: «لازم ذكاء اصطناعى لما الكلام يبقى غير مطابق لأى أمر»).
-// برنامج التعرّف بيكتب الكلام غلط («يا اوس سجل مطعمنا» = «يا أوسكار سجّل مطب هنا»)، والقواعد الثابتة مش هتغطّى كل غلطة.
-// لما القواعد ماتفهمش: النص بس (من غير مكان ولا أى بيانات تانية) بيروح لـGroq (نفس مفتاح GROQ_API_KEY المستخدم فى الموقع)
+// «أوسكار مش فاهم» ⇒ ذكاء اصطناعى عند الحاجة (المالك ٢٠٢٦-١١-٢٠). تصحيحات ASR المحلية المحددة تُجرّب أولاً لتقليل Groq.
+// لو لا parser ولا التصحيحات المحلية فهموا نداء أوسكار: النص بس (من غير مكان ولا بيانات تانية) بيروح لـGroq
 // ويرجع أمر واحد من قايمة ثابتة. الأمر بيتنفّذ بنفس الطريق العادى (والاتصال/الطوارئ بتأكيد زى ما هو). مفيش مفتاح ⇒ null.
 'use strict';
 
@@ -29,11 +28,50 @@ Reply with JSON only: {"cmd": string, "arg": string|null, "how": "wa"|null, "lat
 
 const clean = (v, n) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, n) : null);
 
+function normalizeLocal(text) {
+  return String(text || '').toLowerCase().normalize('NFKC')
+    .replace(/[\u064B-\u0652\u0640\u0670]/g, '')
+    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/(\p{L})\1{2,}/gu, '$1').replace(/\s+/g, ' ').trim();
+}
+
+const LOCAL_WAKE = /(?:^|\s)(?:يا\s+(?:اوسكار|اوس|اذكر|اسكار|وسكار|اوسكر|اسكر)|(?:يا\s+)?(?:اوسكار|اسكار|وسكار|اوسكر|oscar))(?=\s|$)/;
+const MOTHER_MOBILE = new Set([
+  'mother mobile', 'mother mobil', 'mother mob',
+  'ماذر موبايل', 'ماذر موبيل', 'ماذر موبيال', 'مذر موبايل', 'مذر موبيل',
+  'مازر موبايل', 'مازر موبيل', 'مادر موبايل', 'مادر موبيل',
+].map(normalizeLocal));
+
+/** تصحيحات آمنة للأخطاء المتكررة؛ لا تُقبل من غير نداء واضح لأوسكار. */
+function localIntent(text) {
+  const normalized = normalizeLocal(text);
+  if (!normalized || !LOCAL_WAKE.test(normalized)) return null;
+  const body = normalized.replace(LOCAL_WAKE, ' ').replace(/\s+/g, ' ').trim();
+  if (/^(?:سجل|سجلي|علم|mark)(?:\s+(?:لي|هنا))?\s+(?:مطب(?:\s+هنا)?|مطعمنا(?:\s+هنا)?|مطعم\s+هنا|bump(?:\s+here)?)$/.test(body)) {
+    return { cmd: 'bump', arg: null, how: null, latin: null };
+  }
+
+  const call = body.match(/^(?:اتصل|اتصلي|كلم|كلملي|رن|رنلي|call)\s+(.+)$/);
+  if (!call) return null;
+  let contact = call[1].replace(/^(?:ب|ل|على|علي|to)\s*/, '').trim();
+  let how = null;
+  if (/(?:^|\s)(?:الواتساب|واتساب|الواتس|واتس|whatsapp)$/.test(contact)) {
+    how = 'wa';
+    contact = contact.replace(/\s+(?:على\s+)?(?:الواتساب|واتساب|الواتس|واتس|whatsapp)$/, '').trim();
+  }
+  if (!MOTHER_MOBILE.has(normalizeLocal(contact))) return null;
+  return { cmd: 'call', arg: 'Mother Mobile', how, latin: 'Mother Mobile' };
+}
+
 /** النص ⇒ { cmd, arg, how, latin } أو null (مفيش مفتاح / غلط / مش أمر). */
 async function understand(text, opts = {}) {
   const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  const local = localIntent(t);
+  if (local) return local;
+  if (!t) return null;
   const k = opts.key !== undefined ? opts.key : key();
-  if (!t || !k) return null;
+  if (!k) return null;
   const doFetch = opts.fetch || fetch;
   const ctl = new AbortController();
   const tm = setTimeout(() => ctl.abort(), opts.timeoutMs || 6000);
@@ -61,4 +99,4 @@ function parse(content) {
   return out;
 }
 
-module.exports = { understand, parse, CMDS, NEAR, available: () => !!key() };
+module.exports = { understand, parse, localIntent, CMDS, NEAR, available: () => !!key() };

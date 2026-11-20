@@ -161,7 +161,8 @@
     if (/(سجل|علم|هنا|mark)/.test(t) && /(خطر|خطير|danger)/.test(t)) return 'danger';
     const one = /(اتجاه واحد|one way)/.test(t);   // «سجّل مطب اتجاه واحد» (البرومبت ٥) — من غيرها = اتجاهين زى الأول
     if (/(حفره|حفر|نقره|جوره|pothole)/.test(t)) return one ? 'pothole1' : 'pothole';
-    if (/(مطب|مطلب|مضب|ماطب|مطعمنا|bump)/.test(t)) return one ? 'bump1' : 'bump';   // «مطعمنا» = «مطب هنا» متسمعة غلط
+    if (/(سجل|علم|mark)/.test(t) && /(^|\s)مطعمنا(\s|$)/.test(t)) return one ? 'bump1' : 'bump';   // تصحيح ضيق لـ«سجّل مطب هنا» المتسمعة «سجّل مطعمنا»
+    if (/(مطب|مطلب|مضب|ماطب|bump)/.test(t)) return one ? 'bump1' : 'bump';
     return 'unknown';
   }
   /* ☕ تذكير الاستراحة — نفس logic/Wellness.kt: أول تذكير بعد المدة (٠ = مقفول)، وبعدين كل ١٥ دقيقة طول ما انت سايق،
@@ -252,15 +253,21 @@
    * t = نص متنضّف (clean). بيرجّع { name, how: 'tel' | 'wa' | null } أو null.
    */
   const CALL_SHORTCUT = 'Oscar Call', WA_SHORTCUT = 'Oscar WhatsApp';
+  const MOTHER_MOBILE_ALIASES = new Set([
+    'mother mobile', 'mother mobil', 'mother mob',
+    'ماذر موبايل', 'ماذر موبيل', 'ماذر موبيال', 'مذر موبايل', 'مذر موبيل',
+    'مازر موبايل', 'مازر موبيل', 'مادر موبايل', 'مادر موبيل',
+  ].map(clean));
   function parseCall(t) {
     const m = String(t || '').match(/(?:^|\s)(اتصل|اتصلي|كلم|كلملي|رن|رنلي|call)\s+(.+)$/);
     if (!m) return null;
     let name = m[2].trim(), how = null;
     const w = name.match(/^(.*?)\s*(?:(?:علي|ع|في|on|via|by)\s+)?(?:الواتساب|واتساب|الواتس|واتس|whatsapp)$/);
     if (w) { how = 'wa'; name = w[1].trim(); }
-    name = name.replace(/^(?:علي|ع|to)\s+/, '');
-    if (/^اتصل/.test(m[1])) name = name.replace(/^ب\s*/, '');   // «اتصل بمحمود» — «كلّم باسم» يفضل «باسم»
+    if (/^اتصل/.test(m[1])) name = name.replace(/^(?:ب|ل|علي|على|ع|to)\s*/, '');   // ASR قد يكتب «اتصل ل Mother Mobile»
+    else name = name.replace(/^(?:علي|على|ع|to)\s+/, '');   // «كلّم باسم» يفضل «باسم»
     name = name.trim();
+    if (MOTHER_MOBILE_ALIASES.has(clean(name))) name = 'Mother Mobile';
     return name ? { name, how } : null;
   }
   /** رد على «تليفون ولا واتساب؟» / «تأكّد؟» — 'tel' · 'wa' · 'yes' · 'no' · null. */
@@ -337,7 +344,7 @@
     return m ? m[1] : null;
   }
   /**
-   * الكلام شكله نداء لأوسكار بس القواعد مافهمتهوش («يا اوس …» · «يا أذكر …») ⇒ يستاهل يتبعت للذكاء الاصطناعى (/api/web/intent).
+   * الكلام شكله نداء لأوسكار لكن parser والتصحيحات المحلية لم يفهموه ⇒ يستاهل يتبعت للذكاء الاصطناعى (/api/web/intent).
    * أول كلمة «يا» والتانية قريبة من «اوسكار» (أو بتبدأ بـ«او/اس»)، أو احنا لسه منادينه (awake).
    */
   function maybeOscar(text, awake) {

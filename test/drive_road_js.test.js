@@ -133,8 +133,13 @@ test('phone voice: «call X» goes to the iPhone shortcut by name — phone or W
   assert.ok(R.shortcutUrl('احمد', 'wa').includes('name=Oscar%20WhatsApp'));
 });
 test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping', () => {
-  assert.equal(R.parseVoice('يا أذكر اتصل ب ماذر موبايل'), 'call::ماذر موبايل');
+  assert.equal(R.parseVoice('يا أذكر اتصل ب ماذر موبايل'), 'call::Mother Mobile');
+  assert.equal(R.parseVoice('يا اذكر اتصل ل Mother Mobile'), 'call::Mother Mobile');
+  assert.equal(R.parseVoice('يا اوس اتصل ب Mother mobil'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('يا اوس سجل مطعمنا'), 'bump');
+  assert.equal(R.parseVoice('يا اوس سجل مطعمنا هنا'), 'bump');
+  assert.equal(R.parseVoice('يا اوس سجل المطعم بتاعنا'), 'unknown');
+  assert.equal(R.parseVoice('سجل مطعمنا'), null);                    // الاسم وحده من غير نداء لا ينفّذ
   assert.equal(R.parseVoice('يا جماعة الجو حلو'), null);                 // مش نداء ⇒ ولا حاجة
   assert.ok(R.maybeOscar('يا اوز سجل حاجة')); assert.ok(!R.maybeOscar('يا جماعة'));
   assert.ok(R.maybeOscar('سجل حاجة', true));                              // لسه منادينه

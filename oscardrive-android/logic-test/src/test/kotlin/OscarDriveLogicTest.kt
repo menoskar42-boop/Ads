@@ -399,6 +399,11 @@ class VoiceEngineTest {
         assertEquals("سجل مطب", e.afterWake("اسكار سجل مطب"))
         assertEquals("سجل مطب", e.afterWake("يا وسكار سجل مطب"))
         assertEquals("السرعه كام", e.afterWake("اوسكر السرعه كام"))
+        // تصحيح ASR «سجّل مطب هنا» → «يا اوس سجل مطعمنا» لازم يفضل محليًا.
+        val misheardBump = e.afterWake("يا اوس سجل مطعمنا")
+        assertEquals("سجل مطعمنا", misheardBump)
+        assertEquals("road.bump", e.understand(misheardBump!!)?.match?.command?.id)
+        assertTrue(e.understand(misheardBump)?.sure == true)
         val custom = VoiceEngine(wakeNames = listOf("يا كابتن"))
         assertEquals("السرعه كام", custom.afterWake("يا كابتن السرعة كام"))
         assertNull(custom.afterWake("يا أوسكار السرعة كام"))
