@@ -120,6 +120,8 @@ async function ensureDriveSchema(pool) {
     CREATE INDEX IF NOT EXISTS od_hazards_car ON od_hazards(car_id);
     -- «وضع تجربة» من صفحة الموبايل (٢٠٢٦-١١-١٨): مطبات وهمية للتجربة — مابتنزلش على شاشة العربية، وبتتمسح بزرار واحد.
     ALTER TABLE od_hazards ADD COLUMN IF NOT EXISTS test BOOLEAN NOT NULL DEFAULT false;
+    -- مطب «اتجاه واحد» (البرومبت ٥ — ٢٠٢٦-١١-٢٠): كل اللى قبله (المعتمد والتجربة) بيفضل «اتجاهين» زى ما كان بيتنبّه — مفيش صف بيتغيّر.
+    ALTER TABLE od_hazards ADD COLUMN IF NOT EXISTS oneway BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS relink_code TEXT;
     ALTER TABLE od_cars ADD COLUMN IF NOT EXISTS relink_expires TIMESTAMPTZ;
     CREATE UNIQUE INDEX IF NOT EXISTS od_cars_relink_code ON od_cars(relink_code) WHERE relink_code IS NOT NULL;

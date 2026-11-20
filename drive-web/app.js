@@ -475,7 +475,18 @@
       row.className = 'row'; row.style.cssText = 'justify-content:space-between;gap:8px;align-items:center';
       const name = (RD.TYPES[h.type] || RD.TYPES.danger)[0];
       row.innerHTML = '<span>' + (EMOJI[h.type] || '⚠️ ') + name + (h.test ? ' 🧪' : '') +
-        (d != null ? ' · ' + (d < 1000 ? Math.round(d) + ' م' : (d / 1000).toFixed(1) + ' كم') : '') + '</span>';
+        (d != null ? ' · ' + (d < 1000 ? Math.round(d) + ' م' : (d / 1000).toFixed(1) + ' كم') : '') +
+        (h.type === 'bump' || h.type === 'pothole' ? (h.oneway ? ' · ➡️ اتجاه واحد' : ' · ⇄ اتجاهين') : '') + '</span>';
+      if (h.type === 'bump' || h.type === 'pothole') {   // تعديل الاتجاه من غير ما يتسجّل تانى (الإحداثيات زى ما هى)
+        const dir = document.createElement('button'); dir.textContent = h.oneway ? '⇄' : '➡️';
+        dir.title = h.oneway ? 'خليه اتجاهين' : 'خليه اتجاه واحد';
+        dir.addEventListener('click', async () => {
+          if (!h.oneway && h.bearing == null) { $('roadNote').textContent = 'مفيش اتجاه متسجّل للمطب ده لسه — هيتعرف لما الشاشة تعدّى عليه'; return; }
+          try { await api('POST', '/api/web/hazards', { items: [{ uuid: h.uuid, type: h.type, lat: h.lat, lng: h.lng, oneway: !h.oneway }] }); } catch (e) {}
+          loadRoad();
+        });
+        row.append(dir);
+      }
       const del = document.createElement('button'); del.textContent = 'مسح';
       del.addEventListener('click', async () => {
         try { await api('POST', '/api/web/hazards', { items: [{ uuid: h.uuid, type: h.type, lat: h.lat, lng: h.lng, deleted: true }] }); } catch (e) {}
@@ -756,15 +767,17 @@
     $('alertBtn').textContent = '⏹ وقّف التنبيهات'; $('alertBtn').className = 'primary';
   });
   let justMarked = null;   // آخر «سجّل مطب/حفرة/…» من الموبايل ده {lat,lng,at}
-  async function markRoad(type, pre) {
+  async function markRoad(type, pre, oneway) {
     const go = async (f, hd = roadHeading) => {
+      const one = !!oneway && hd != null;   // «اتجاه واحد» محتاج اتجاه — من غيره بيتسجّل اتجاهين وبنقول كده
       justMarked = { lat: f.lat, lng: f.lng, at: Date.now() };
       const moving = (f.kmh || 0) >= 10;
       const test = $('testMode').checked;
       try {
         await api('POST', '/api/web/hazards', { items: [{ uuid: uuid(), type, lat: f.lat, lng: f.lng, acc: f.acc, t: Date.now(),
-          bearing: moving && hd != null ? hd : null, test }] });
-        const msg = 'اتسجّل ' + RD.TYPES[type][0] + (test ? ' تجربة' : '');
+          bearing: (moving || one) && hd != null ? hd : null, test, oneway: one }] });
+        const msg = 'اتسجّل ' + RD.TYPES[type][0] + (one ? ' اتجاه واحد' : '') + (test ? ' تجربة' : '');
+        if (oneway && !one) $('roadNote').textContent = 'اتجاهك مش معروف لسه — اتسجّل اتجاهين، وتقدر تغيّره من القايمة';
         $('roadNote').textContent = '✅ ' + msg + ' (دقة ' + Math.round(f.acc) + ' م)';
         if (test) sayRoad(msg); else oscar(type + '_saved', msg);   // bump_saved · pothole_saved · radar_saved · danger_saved زى الشاشة
       } catch (e) { $('roadNote').textContent = 'ماتسجّلش: ' + e.message; }
@@ -917,6 +930,7 @@
     const pre = RD.provTake(voiceProv, cmd, Date.now());   // التصوير الفورى: أمر طريق ⇒ بياناته · غير كده ⇒ بتتشال
     if (cmd && cmd.startsWith('near:')) nearbyWeb(cmd.slice(5));
     else if (cmd === 'bump' || cmd === 'pothole') { markRoad(cmd, pre); if (pre && pre.jpg) snapRoad('voice', pre, cmd); }
+    else if (cmd === 'bump1' || cmd === 'pothole1') { const ty = cmd.slice(0, -1); markRoad(ty, pre, true); if (pre && pre.jpg) snapRoad('voice', pre, ty); }
     else if (cmd === 'radar' || cmd === 'danger') markRoad(cmd);
     else if (cmd && cmd.startsWith('call:')) { const [, how, ...rest] = cmd.split(':'); callAsk(rest.join(':').trim(), how || null); }
     else if (cmd === 'shot') snapRoad('voice', pre);
@@ -1002,6 +1016,7 @@
   document.addEventListener('click', () => { if (!running) autoVoice(); });
 
   $('markBump').addEventListener('click', () => markRoad('bump'));
+  $('markBump1').addEventListener('click', () => markRoad('bump', null, true));
   $('markPothole').addEventListener('click', () => markRoad('pothole'));
   $('markRadar').addEventListener('click', () => markRoad('radar'));
   $('markDanger').addEventListener('click', () => markRoad('danger'));

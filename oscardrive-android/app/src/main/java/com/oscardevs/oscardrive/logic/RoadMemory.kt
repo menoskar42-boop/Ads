@@ -36,6 +36,8 @@ data class Hazard(
     /** ارتفاع الـGPS ودقته الأفقية وقت التسجيل (null للقديم) — فلتر الكوبرى. */
     val altitude: Double? = null,
     val accuracy: Float? = null,
+    /** «مطب اتجاه واحد» (البرومبت ٥): بينبّه اللى ماشى فى نفس اتجاه التسجيل بس. false (الافتراضى وكل القديم) = الاتجاهين على نفس الطريق. */
+    val oneway: Boolean = false,
 )
 
 object RoadMemory {
@@ -60,7 +62,7 @@ object RoadMemory {
      * دى «أقل مسافة» — لو سرعتك عالية التنبيه بييجى أبعد (٨ ثوانى + فرملة هادية). الرادار (٣ كم) والكاميرا مالهمش دعوة بيها.
      */
     const val DEFAULT_BUMP_WARN_M = 100
-    val BUMP_WARN_OPTIONS = listOf(50, 100, 150, 200, 250, 300)
+    val BUMP_WARN_OPTIONS = listOf(30, 40, 50, 100, 150, 200, 250, 300)   // ٣٠ و٤٠ (البرومبت ٥ — ٢٠٢٦-١١-٢٠)، والافتراضى ١٠٠ زى ما هو
     /** «وضع عدم الإزعاج» (المالك ٢٠٢٦-١١-١٨): مفيش تنبيه مطبات تحت ٧ كم/س. مقفول ⇒ بينبّه حتى وانت ماشى ببطء. */
     const val QUIET_SLOW_KMH = 7f
     /** أقل من كده = واقف (الـGPS بيتهزّ وانت راكن) — عشان مايفضلش ينبّه كل ٥ دقايق والعربية راكنة جنب مطب. */
@@ -105,7 +107,7 @@ object RoadMemory {
             // قريب جداً: الاتجاه للنقطة بيبقى عشوائى — يكفى إن العربية ماشية ناحيته
             val tol = if (d > FAR_M) FAR_AHEAD_DEG else AHEAD_DEG
             if (d > 25 && Geo.angleDiff(Geo.bearingDeg(lat, lng, h.lat, h.lng), headingDeg) > tol) continue
-            if (h.type.directional && h.bearing != null && Geo.angleDiff(h.bearing, headingDeg) > SAME_WAY_DEG) continue
+            if ((h.type.directional || h.oneway) && h.bearing != null && Geo.angleDiff(h.bearing, headingDeg) > SAME_WAY_DEG) continue
             // المطب/الحفرة بعرض الطريق: نفس الطريق فى الاتجاهين بينبّه، والطريق اللى بيقطعه (كوبرى فوقه/تحته · شارع جانبى) لأ
             if (!h.type.directional && h.bearing != null && !sameAxis(h.bearing, headingDeg)) continue
             if (!h.type.directional && otherLevel(h, altitudeM, vAccM)) continue
@@ -120,6 +122,37 @@ object RoadMemory {
      * وبياخد اتجاه لوحده أول ما تعدّى من فوقه وانت ماشى (learnBearing) — مابنخترعش اتجاه.
      */
     const val AXIS_DEG = 40f
+
+    /** «ليه مانبّهتش؟» (البرومبت ٥ — ٢٠٢٦-١١-٢٠): المطبات القريبة دى بيتسجّل سببها لو التنبيه ماطلعش. */
+    const val DIAG_M = 60.0
+
+    /**
+     * السبب اللى بيخلّى [ahead] يسيب المطب ده — نفس الشروط بالظبط وبنفس الترتيب — أو null لو كان هينبّه عليه.
+     * عشان نعرف السبب الحقيقى من سواقة واحدة بدل ما نخمّن (مطب على ٢٠ م ومافيش تنبيه).
+     */
+    fun whyNot(h: Hazard, lat: Double, lng: Double, headingDeg: Float?, kmh: Float, nowMs: Long, warned: Map<Long, Long>,
+               minKmh: Float, minWarnM: Double, altitudeM: Double?, vAccM: Float?, justMarked: Boolean): String? {
+        if (justMarked) return "لسه متسجّل هنا (التنبيه ساكت دقيقتين)"
+        if (kmh < minKmh) return "السرعة ${kmh.toInt()} أقل من ${minKmh.toInt()} كم/س"
+        val d = Geo.distanceM(lat, lng, h.lat, h.lng)
+        if (d > rangeM(h.type, kmh, minWarnM)) return "أبعد من مسافة التنبيه"
+        val last = warned[warnKey(h, d, kmh)]
+        if (last != null && nowMs - last < WARN_AGAIN_MS) return "اتنبّهت عليه من ${(nowMs - last) / 1000} ث (مرة كل ٥ دقايق)"
+        if (headingDeg == null) {
+            if (d > NO_HEADING_M) return "اتجاهك مش معروف لسه (من غير اتجاه بينبّه على ${NO_HEADING_M.toInt()} م بس)"
+            if (h.type.directional) return "اتجاهك مش معروف (الرادار محتاج اتجاه)"
+            return null
+        }
+        val tol = if (d > FAR_M) FAR_AHEAD_DEG else AHEAD_DEG
+        val toIt = Geo.angleDiff(Geo.bearingDeg(lat, lng, h.lat, h.lng), headingDeg)
+        if (d > 25 && toIt > tol) return "مش قدّامك (على جنب ${toIt.toInt()}°)"
+        if ((h.type.directional || h.oneway) && h.bearing != null && Geo.angleDiff(h.bearing, headingDeg) > SAME_WAY_DEG)
+            return "اتجاه واحد وانت ماشى عكسه"
+        if (!h.type.directional && h.bearing != null && !sameAxis(h.bearing, headingDeg))
+            return "اتجاه المطب المتسجّل ${h.bearing.toInt()}° واتجاهك ${headingDeg.toInt()}° (طريق بيقطعه؟ — لو غلط امسحه وسجّله تانى)"
+        if (!h.type.directional && otherLevel(h, altitudeM, vAccM)) return "الارتفاع مختلف (كوبرى فوق/تحت؟)"
+        return null
+    }
     fun sameAxis(a: Float, b: Float): Boolean { val d = Geo.angleDiff(a, b); return d <= AXIS_DEG || d >= 180f - AXIS_DEG }
     /**
      * عدّيت من فوقه (≤ ١٥ م) **ببطء** (٧–٢٥ كم/س — الناس بتهدّى عند المطب الحقيقى، وفوق الكوبرى لأ) واتجاهك معروف والـGPS كويس
@@ -172,4 +205,11 @@ object RoadMemory {
         hazards.firstOrNull { it.type == type && Geo.distanceM(lat, lng, it.lat, it.lng) <= DUPLICATE_M }
 
     fun warning(h: Hazard, distanceM: Double): String = "خلّى بالك، ${h.type.ar} ${Geo.sayDistance(distanceM)}"
+}
+
+/** آخر أسباب «مانبّهتش» (البرومبت ٥) — بتتعرض فى شاشة «الطريق». فى الذاكرة بس. */
+object NoAlertLog {
+    private val lines = ArrayDeque<String>()
+    @Synchronized fun add(line: String) { lines.addFirst(line); while (lines.size > 30) lines.removeLast() }
+    @Synchronized fun all(): List<String> = lines.toList()
 }

@@ -43,6 +43,11 @@ object VoiceCatalog {
         VoiceCommand("park.save", "احفظ مكان الركنة", listOf("ركنت هنا", "احفظ مكان العربيه", "احفظ الركنه", "سجل الركنه", "انا ركنت", "ركنا هنا", "ركنت العربيه"), listOf("save parking", "i parked here", "save my parking")),
         VoiceCommand("road.bump", "سجّل مطب", listOf("سجل مطب", "فيه مطب", "مطب هنا", "مطب"), listOf("mark bump", "speed bump", "mark a speed bump", "bump here")),
         VoiceCommand("road.pothole", "سجّل حفرة", listOf("سجل حفره", "فيه حفره", "حفره هنا", "حفره"), listOf("mark pothole", "pothole here", "pothole")),
+        // «مطب اتجاه واحد» (البرومبت ٥): الصيغة الأطول بتكسب «مطب» — و«سجّل مطب» لوحدها = اتجاهين زى الأول
+        VoiceCommand("road.bump1", "سجّل مطب اتجاه واحد", listOf("سجل مطب اتجاه واحد", "مطب اتجاه واحد", "مطب في اتجاه واحد", "سجل مطب في اتجاه واحد"),
+            listOf("mark a one way bump", "one way bump")),
+        VoiceCommand("road.pothole1", "سجّل حفرة اتجاه واحد", listOf("سجل حفره اتجاه واحد", "حفره اتجاه واحد", "حفره في اتجاه واحد"),
+            listOf("mark a one way pothole", "one way pothole")),
         VoiceCommand("road.radar", "سجّل رادار", listOf("سجل رادار", "فيه رادار", "رادار هنا", "رادار"), listOf("mark radar", "speed camera", "radar here")),
         VoiceCommand("road.danger", "سجّل مكان خطر", listOf("مكان خطر", "سجل خطر", "خطر هنا"), listOf("danger here", "mark danger")),
         VoiceCommand("info.speed", "السرعة كام", listOf("السرعه كام", "ماشي كام", "انا ماشي كام", "سرعتي كام", "اعرض السرعه"), listOf("what's my speed", "what is my speed", "how fast am i going", "show my speed", "my speed")),

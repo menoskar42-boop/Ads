@@ -79,6 +79,17 @@ test('phone voice: immediate provisional capture for road commands (like Provisi
   assert.ok(R.provBegin(st, 'pothole', { fix }, 2500 + R.REPEAT_MS));
   assert.equal(R.provTake(st, 'pothole', 2500 + R.REPEAT_MS + R.PROV_TTL_MS), null);   // محدّش أكّد فى الوقت
 });
+test('one-way bump (prompt 5): warns the same direction only — two-way (old) warns both ways on the same road', () => {
+  const one = { ...bump, oneway: true };
+  assert.ok(R.ahead([one], LAT0, LNG0, 0, 50, 0, {}));                                  // نفس الاتجاه
+  const ahead2 = { ...bump, lat: LAT0 - (north(120) - LAT0) };                          // جاى من الناحية التانية
+  assert.ok(R.ahead([ahead2], LAT0, LNG0, 180, 50, 0, {}));                              // اتجاهين: العكس بينبّه
+  assert.equal(R.ahead([{ ...ahead2, oneway: true }], LAT0, LNG0, 180, 50, 0, {}), null); // اتجاه واحد: العكس لأ
+  assert.ok(R.ahead([{ ...ahead2, oneway: true, bearing: null }], LAT0, LNG0, 180, 50, 0, {}));   // من غير اتجاه ⇒ زى اتجاهين
+  assert.equal(R.parseVoice('اوسكار سجل مطب اتجاه واحد'), 'bump1');
+  assert.equal(R.parseVoice('اوسكار سجل حفرة اتجاه واحد'), 'pothole1');
+  assert.equal(R.parseVoice('اوسكار سجل مطب'), 'bump');
+});
 test('phone voice: «call X» goes to the iPhone shortcut by name — phone or WhatsApp, contacts never leave the phone', () => {
   assert.equal(R.parseVoice('أوسكار اتصل بمحمود يعقوب'), 'call::محمود يعقوب');
   assert.equal(R.parseVoice('اوسكار كلم أحمد واتساب'), 'call:wa:احمد');

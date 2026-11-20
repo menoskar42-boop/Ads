@@ -73,6 +73,36 @@ class RoadMemoryTest {
     }
 
     private val bump = Hazard(1, HazardType.BUMP, north(120.0), LNG0, 0f)
+
+    /** البرومبت ٥ (٢٠٢٦-١١-٢٠): اتجاه واحد · ٣٠/٤٠ م · «ليه مانبّهتش؟» */
+    @Test fun oneWayBumpWarnsSameDirectionOnly() {
+        val behind = Hazard(5, HazardType.BUMP, LAT0 - (north(120.0) - LAT0), LNG0, 0f)
+        assertNotNull(RoadMemory.ahead(listOf(behind), LAT0, LNG0, 180f, 50f, 0, emptyMap()))                     // اتجاهين (القديم)
+        assertNull(RoadMemory.ahead(listOf(behind.copy(oneway = true)), LAT0, LNG0, 180f, 50f, 0, emptyMap()))     // اتجاه واحد: العكس لأ
+        assertNotNull(RoadMemory.ahead(listOf(bump.copy(oneway = true)), LAT0, LNG0, 0f, 50f, 0, emptyMap()))     // نفس الاتجاه
+        assertNotNull(RoadMemory.ahead(listOf(behind.copy(oneway = true, bearing = null)), LAT0, LNG0, 180f, 50f, 0, emptyMap()))
+        assertTrue(30 in RoadMemory.BUMP_WARN_OPTIONS && 40 in RoadMemory.BUMP_WARN_OPTIONS && 50 in RoadMemory.BUMP_WARN_OPTIONS)
+        assertEquals(100, RoadMemory.DEFAULT_BUMP_WARN_M)
+        assertEquals("road.bump1", VoiceEngine().understand("سجل مطب اتجاه واحد")!!.match.command.id)
+        assertEquals("road.pothole1", VoiceEngine().understand("سجل حفرة اتجاه واحد")!!.match.command.id)
+        assertEquals("road.bump", VoiceEngine().understand("سجل مطب هنا")!!.match.command.id)
+    }
+
+    @Test fun whyNotExplainsEveryMissedBump() {
+        val near = Hazard(7, HazardType.BUMP, north(20.0), LNG0, 0f)
+        fun why(h: Hazard, heading: Float? = 0f, kmh: Float = 30f, warned: Map<Long, Long> = emptyMap(), alt: Double? = null, just: Boolean = false) =
+            RoadMemory.whyNot(h, LAT0, LNG0, heading, kmh, 100_000, warned, RoadMemory.QUIET_SLOW_KMH, 100.0, alt, 5f, just)
+        assertNull(why(near))                                                       // كان هينبّه
+        assertNotNull(RoadMemory.ahead(listOf(near), LAT0, LNG0, 0f, 30f, 100_000, emptyMap(), RoadMemory.QUIET_SLOW_KMH, 100.0))
+        assertTrue(why(near, kmh = 4f)!!.contains("السرعة"))
+        assertTrue(why(near, just = true)!!.contains("لسه متسجّل"))
+        assertTrue(why(near, warned = mapOf(7L to 90_000L))!!.contains("اتنبّهت"))
+        assertTrue(why(near.copy(bearing = 90f))!!.contains("اتجاه المطب المتسجّل"))   // اتجاه اتعلّم غلط
+        assertTrue(why(near.copy(oneway = true), heading = 180f).let { it != null })
+        assertTrue(why(near.copy(altitude = 100.0, accuracy = 3f), alt = 160.0)!!.contains("الارتفاع"))
+        assertNull(why(near, heading = null))                                     // ≤ ٤٠ م من غير اتجاه بينبّه
+    }
+
     @Test fun warnsAheadOnly() {
         val r = RoadMemory.ahead(listOf(bump), LAT0, LNG0, 0f, 50f, 0, emptyMap())
         assertNotNull(r); assertTrue(abs(r!!.second - 120) < 2)

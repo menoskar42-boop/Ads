@@ -34,6 +34,8 @@ function parseItems(body) {
       createdAt: new Date(t || Date.now()).toISOString(),
       deleted: it.deleted === true,
       test: it.test === true,
+      // «اتجاه واحد»: null = الشاشة القديمة مابعتتهوش ⇒ مايتغيّرش اللى على السيرفر
+      oneway: it.oneway === true ? true : it.oneway === false ? false : null,
     });
   }
   return out;
@@ -44,15 +46,16 @@ async function save(pool, carId, items) {
   let saved = 0;
   for (const h of items) {
     const { rowCount } = await pool.query(
-      `INSERT INTO od_hazards (car_id, uuid, type, lat, lng, bearing, accuracy, altitude, note, created_at, deleted_at, test)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, CASE WHEN $11 THEN now() END, $12)
+      `INSERT INTO od_hazards (car_id, uuid, type, lat, lng, bearing, accuracy, altitude, note, created_at, deleted_at, test, oneway)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, CASE WHEN $11 THEN now() END, $12, COALESCE($13::boolean, false))
        ON CONFLICT (uuid) DO UPDATE SET
+         oneway = COALESCE($13::boolean, od_hazards.oneway),
          deleted_at = CASE WHEN $11 THEN COALESCE(od_hazards.deleted_at, now()) ELSE od_hazards.deleted_at END,
          bearing = COALESCE(EXCLUDED.bearing, od_hazards.bearing),
          accuracy = COALESCE(EXCLUDED.accuracy, od_hazards.accuracy),
          altitude = COALESCE(EXCLUDED.altitude, od_hazards.altitude)
        WHERE od_hazards.car_id = EXCLUDED.car_id`,
-      [carId, h.uuid, h.type, h.lat, h.lng, h.bearing, h.accuracy, h.altitude, h.note, h.createdAt, h.deleted, h.test]);
+      [carId, h.uuid, h.type, h.lat, h.lng, h.bearing, h.accuracy, h.altitude, h.note, h.createdAt, h.deleted, h.test, h.oneway]);
     saved += rowCount;
   }
   return saved;
@@ -61,11 +64,11 @@ async function save(pool, carId, items) {
 /** ذاكرة العربية كلها (من غير الممسوح). الشاشة مابتشوفش مطبات التجربة (withTest للموبايل بس). */
 async function list(pool, carId, withTest = false) {
   const { rows } = await pool.query(
-    `SELECT uuid, type, lat, lng, bearing, accuracy, altitude, note, created_at, test FROM od_hazards
+    `SELECT uuid, type, lat, lng, bearing, accuracy, altitude, note, created_at, test, oneway FROM od_hazards
       WHERE car_id = $1 AND deleted_at IS NULL AND ($2 OR NOT test) ORDER BY created_at LIMIT 5000`, [carId, !!withTest]);
   return rows.map((r) => ({
     uuid: r.uuid, type: r.type, lat: r.lat, lng: r.lng, bearing: r.bearing, acc: r.accuracy, alt: r.altitude,
-    note: r.note, t: new Date(r.created_at).getTime(), ...(withTest ? { test: r.test } : {}),
+    note: r.note, t: new Date(r.created_at).getTime(), oneway: !!r.oneway, ...(withTest ? { test: r.test } : {}),
   }));
 }
 

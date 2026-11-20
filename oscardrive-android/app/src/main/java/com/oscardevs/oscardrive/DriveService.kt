@@ -103,6 +103,9 @@ class DriveService : Service() {
     private val wellness = Wellness()
     private var hazards: List<Hazard> = emptyList()
     private val warned = HashMap<Long, Long>()
+    /** «ليه مانبّهتش؟»: آخر مرة السبب اتسجّل لكل مطب. */
+    private val whyLogged = HashMap<Long, Long>()
+    private fun clockOf(ms: Long): String = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(ms))
     /** صور المطب اللى أوسكار نبّه عليه (٨٠/٥٠/٢٥ متر) — لتدريب موديل المطبات. */
     private var shotPlan: com.oscardevs.oscardrive.logic.ShotPlan? = null
     private var shotHazard: Hazard? = null
@@ -404,9 +407,20 @@ class DriveService : Service() {
         val heading = if (fromPhone) (f.headingDeg ?: trip.headingDeg) else trip.headingDeg
         // اللى لسه متسجّل تحت العربية مايتقالش «قدامك مطب» (المالك ٢٠٢٦-١١-١٩)
         val pool = RoadMemory.skipJustMarked(hazards, State.markedLat, State.markedLng, State.markedAt, now)
+        val altNow = if (fromPhone) null else State.altitudeM
         val hit = RoadMemory.ahead(pool, lat, lng, heading, kmh, now, warned,
             minKmh = minKmh, minWarnM = prefs.bumpWarnM.toDouble(),
-            altitudeM = if (fromPhone) null else State.altitudeM, vAccM = State.vAccM) ?: return
+            altitudeM = altNow, vAccM = State.vAccM)
+        // «ليه مانبّهتش؟» (البرومبت ٥): المطب القريب (≤ ٦٠ م) اللى مااتنبّهش ⇒ السبب فى السجل (مرة فى الدقيقة لكل مطب)
+        for (h in hazards) {
+            if (h.id == hit?.first?.id || com.oscardevs.oscardrive.logic.Geo.distanceM(lat, lng, h.lat, h.lng) > RoadMemory.DIAG_M) continue
+            if (now - (whyLogged[h.id] ?: 0L) < 60_000L) continue
+            val why = RoadMemory.whyNot(h, lat, lng, heading, kmh, now, warned, minKmh, prefs.bumpWarnM.toDouble(), altNow, State.vAccM,
+                justMarked = h !in pool) ?: continue
+            whyLogged[h.id] = now
+            com.oscardevs.oscardrive.logic.NoAlertLog.add("${clockOf(now)} ${h.type.emoji} ${h.type.ar} على ${com.oscardevs.oscardrive.logic.Geo.distanceM(lat, lng, h.lat, h.lng).toInt()} م: $why")
+        }
+        hit ?: return
         warned[RoadMemory.warnKey(hit.first, hit.second, kmh)] = now
         val msg = RoadMemory.warning(hit.first, hit.second)
         showBanner("${hit.first.type.emoji} $msg", "hazard", 8_000)

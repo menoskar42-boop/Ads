@@ -81,7 +81,7 @@ object HazardSync {
     }
 
     private fun json(h: Db.HazardRow) = JSONObject().put("uuid", h.uuid).put("type", h.type).put("lat", h.lat).put("lng", h.lng)
-        .put("t", h.createdMs).put("note", h.note).put("deleted", h.deleted).apply {
+        .put("t", h.createdMs).put("note", h.note).put("deleted", h.deleted).put("oneway", h.oneway).apply {
             h.bearing?.let { put("bearing", it.toDouble()) }; h.accuracy?.let { put("acc", it.toDouble()) }; h.altitude?.let { put("alt", it) }
         }
 
@@ -99,12 +99,15 @@ object HazardSync {
         val have = db.hazardUuids()
         for (i in 0 until items.length()) {
             val o = items.optJSONObject(i) ?: continue
-            val uuid = o.optString("uuid"); if (uuid.isBlank() || uuid in have) continue
+            val uuid = o.optString("uuid"); if (uuid.isBlank()) continue
+            // موجود: «اتجاه واحد ⇄ اتجاهين» اتعدّل من صفحة الموبايل ⇒ يتحدّث (لو مفيش تعديل هنا لسه ماترفعش)
+            if (uuid in have) { if (o.has("oneway") && db.setHazardOnewayFromServer(uuid, o.optBoolean("oneway"))) changed = true; continue }
             db.addHazard(HazardType.of(o.optString("type")), o.optDouble("lat"), o.optDouble("lng"),
                 if (o.isNull("bearing") || !o.has("bearing")) null else o.optDouble("bearing").toFloat(),
                 if (o.isNull("acc") || !o.has("acc")) null else o.optDouble("acc").toFloat(),
                 if (o.isNull("alt") || !o.has("alt")) null else o.optDouble("alt"),
-                uuid = uuid, createdMs = o.optLong("t", System.currentTimeMillis()), note = o.optString("note", ""), synced = true)
+                uuid = uuid, createdMs = o.optLong("t", System.currentTimeMillis()), note = o.optString("note", ""), synced = true,
+                oneway = o.optBoolean("oneway", false))
             changed = true
         }
         return changed

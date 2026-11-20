@@ -48,7 +48,8 @@
       } else {
         const tol = d > C.FAR_M ? C.FAR_DEG : C.AHEAD_DEG;
         if (d > 25 && angleDiff(bearingDeg(lat, lng, h.lat, h.lng), heading) > tol) continue;
-        if (directional && h.bearing != null && angleDiff(h.bearing, heading) > C.SAME_WAY_DEG) continue;
+        // «مطب اتجاه واحد» (البرومبت ٥) زى RoadMemory.ahead: نفس اتجاه التسجيل بس
+        if ((directional || h.oneway) && h.bearing != null && angleDiff(h.bearing, heading) > C.SAME_WAY_DEG) continue;
         if (!directional && h.bearing != null && !sameAxis(h.bearing, heading)) continue;
       }
       if (!best || d < best.d) best = { h, d };
@@ -152,8 +153,9 @@
     if (go && go[1].trim()) return 'goto:' + go[1].trim();   // «أوسكار ودّينى البيت» ⇒ من الأماكن المحفوظة   // «أوسكار دوّر على أقرب بنزينة» …
     if (/(سجل|علم|هنا|mark)/.test(t) && /(رادار|radar)/.test(t)) return 'radar';
     if (/(سجل|علم|هنا|mark)/.test(t) && /(خطر|خطير|danger)/.test(t)) return 'danger';
-    if (/(حفره|حفر|نقره|جوره|pothole)/.test(t)) return 'pothole';
-    if (/(مطب|مطلب|مضب|ماطب|bump)/.test(t)) return 'bump';
+    const one = /(اتجاه واحد|one way)/.test(t);   // «سجّل مطب اتجاه واحد» (البرومبت ٥) — من غيرها = اتجاهين زى الأول
+    if (/(حفره|حفر|نقره|جوره|pothole)/.test(t)) return one ? 'pothole1' : 'pothole';
+    if (/(مطب|مطلب|مضب|ماطب|bump)/.test(t)) return one ? 'bump1' : 'bump';
     return 'unknown';
   }
   /* ☕ تذكير الاستراحة — نفس logic/Wellness.kt: أول تذكير بعد المدة (٠ = مقفول)، وبعدين كل ١٥ دقيقة طول ما انت سايق،
@@ -266,7 +268,7 @@
   }
   const shortcutUrl = (name, how) => 'shortcuts://run-shortcut?name=' + encodeURIComponent(how === 'wa' ? WA_SHORTCUT : CALL_SHORTCUT)
     + '&input=text&text=' + encodeURIComponent(name);
-  const ROAD_CMDS = ['bump', 'pothole', 'shot'];
+  const ROAD_CMDS = ['bump', 'pothole', 'shot', 'bump1', 'pothole1'];
   const PROV_TTL_MS = 15000;
   function provBegin(st, cmd, data, nowMs) {
     if (!ROAD_CMDS.includes(cmd)) return false;

@@ -325,7 +325,9 @@ class MainActivity : Activity() {
         // شمال: أزرار سريعة كبيرة
         val actions = ui.col()
         val pairs = listOf(
-            listOf("〰️ مطب هنا" to { markHazard(HazardType.BUMP) }, "🕳️ حفرة" to { markHazard(HazardType.POTHOLE) }),
+            // البرومبت ٥: زرارين للمطب من غير قايمة — «اتجاهين» (زى الأول) و«اتجاه واحد» (اللى ماشى عكسك مايتنبّهش)
+            listOf("〰️ مطب اتجاهين" to { markHazard(HazardType.BUMP) }, "➡️ مطب اتجاه واحد" to { markHazard(HazardType.BUMP, oneway = true) },
+                "🕳️ حفرة" to { markHazard(HazardType.POTHOLE) }),
             listOf("📷 رادار" to { markHazard(HazardType.RADAR) }, "⚠️ خطر" to { markHazard(HazardType.DANGER) }),
             listOf("🅿️ ركنت هنا" to { parkHere() }, "🎤 أمر صوتى" to { listen() }),
             listOf("🧭 الخريطة" to { openMap() }, "⛽ بنزينة" to { nearestFuel() }),
@@ -516,6 +518,16 @@ class MainActivity : Activity() {
         val r = ui.row()
         for (t in HazardType.entries) r.addView(ui.button("${t.emoji} ${t.ar}", "neutral", 15f) { markHazard(t); refresh() }, ui.lp(0, ui.dp(58), 1f, 3))
         page.addView(r)
+        val r1 = ui.row()
+        r1.addView(ui.button("➡️ مطب اتجاه واحد", "neutral", 15f) { markHazard(HazardType.BUMP, oneway = true); refresh() }, ui.lp(0, ui.dp(58), 1f, 3))
+        r1.addView(ui.button("➡️ حفرة اتجاه واحد", "neutral", 15f) { markHazard(HazardType.POTHOLE, oneway = true); refresh() }, ui.lp(0, ui.dp(58), 1f, 3))
+        page.addView(r1)
+        // «ليه مانبّهتش؟» (البرومبت ٥): السبب لكل مطب قريب (≤ ٦٠ م) مااتنبّهش — من السواقة دى
+        val why = com.oscardevs.oscardrive.logic.NoAlertLog.all()
+        if (why.isNotEmpty()) {
+            page.addView(section("🔎 ليه مانبّهتش (آخر ${why.size})"))
+            page.addView(ui.text(why.take(15).joinToString("\n"), 13f, ui.muted))
+        }
 
         val hz = db.hazards()
         page.addView(section("المسجّل (${hz.size})"))
@@ -525,9 +537,18 @@ class MainActivity : Activity() {
         for (h in sorted.take(60)) {
             val row = ui.card(10).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val dist = pos?.let { " · ${km(Geo.distanceM(it.first, it.second, h.lat, h.lng))}" } ?: ""
-            val dir = if (h.bearing == null) " · من غير اتجاه (هيتعرف لما تعدّى عليه)" else ""
+            val dir = (if (h.bearing == null) " · من غير اتجاه (هيتعرف لما تعدّى عليه)" else "") +
+                if (h.type == HazardType.BUMP || h.type == HazardType.POTHOLE) (if (h.oneway) " · ➡️ اتجاه واحد" else " · ⇄ اتجاهين") else ""
             row.addView(ui.text("${h.type.emoji} ${h.type.ar}$dist\n${dateTime(h.createdMs)}$dir", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
             row.addView(ui.button("🗺️", "neutral", 16f) { navigateTo(h.lat, h.lng, h.type.ar) }, ui.lp(ui.dp(60), ui.dp(48), 0f, 2))
+            if (h.type == HazardType.BUMP || h.type == HazardType.POTHOLE) {
+                // تعديل الاتجاه من غير ما تسجّله تانى — الإحداثيات زى ما هى
+                row.addView(ui.button(if (h.oneway) "⇄" else "➡️", "neutral", 16f) {
+                    if (!db.setHazardOneway(h.id, !h.oneway)) toast("مفيش اتجاه متسجّل للمطب ده لسه — هيتعرف لما تعدّى عليه وانت ماشى، وبعدها تقدر تخليه اتجاه واحد")
+                    else { DriveService.State.hazardsDirty = true; HazardSync.syncSoon(this); toast(if (h.oneway) "بقى اتجاهين" else "بقى اتجاه واحد") }
+                    refresh()
+                }, ui.lp(ui.dp(60), ui.dp(48), 0f, 2))
+            }
             row.addView(ui.button("مسح", "neutral", 14f) { db.deleteHazard(h.id); DriveService.State.hazardsDirty = true; HazardSync.syncSoon(this); refresh() }, ui.lp(ui.dp(76), ui.dp(48), 0f, 2))
             page.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
         }
@@ -1021,7 +1042,7 @@ class MainActivity : Activity() {
         null
     }
 
-    private fun markHazard(t: HazardType, at: ProvisionalCapture.Fix? = null) {
+    private fun markHazard(t: HazardType, at: ProvisionalCapture.Fix? = null, oneway: Boolean = false) {
         // at = المكان لحظة ما الأمر اتقال (التصوير الفورى) — لو الـGPS ماكانش لاقط ساعتها ⇒ زى الأول
         val f = at?.takeIf { it.hasPlace }
         val (lat, lng) = (if (f != null) f.lat!! to f.lng!! else null) ?: needHere() ?: return
@@ -1030,8 +1051,12 @@ class MainActivity : Activity() {
         s.markedLat = lat; s.markedLng = lng; s.markedAt = System.currentTimeMillis()
         if (RoadMemory.duplicateOf(db.hazards(), t, lat, lng) != null) { oscar("already_saved", "${t.ar} متسجّل هنا قبل كده"); return }
         val moving = ((if (f != null) f.speedKmh else s.speedKmh) ?: 0f) >= 10f
-        db.addHazard(t, lat, lng, if (moving) (if (f != null) f.headingDeg else s.headingDeg) else null,
-            if (f != null) f.accuracyM else s.accuracyM, if (f != null) f.altitudeM else s.altitudeM)
+        val headNow = if (f != null) f.headingDeg else s.headingDeg
+        // «اتجاه واحد» محتاج اتجاه العربية حتى لو بطيئة (آخر اتجاه معروف) — من غيره بيتسجّل اتجاهين وبنقول كده
+        val one = oneway && headNow != null
+        db.addHazard(t, lat, lng, if (moving || one) headNow else null,
+            if (f != null) f.accuracyM else s.accuracyM, if (f != null) f.altitudeM else s.altitudeM, oneway = one)
+        if (oneway && !one) toast("اتجاهك مش معروف لسه — اتسجّل اتجاهين، وتقدر تغيّره من «الطريق» بعد ما تتحرك")
         DriveService.State.hazardsDirty = true
         HazardSync.syncSoon(this)
         oscar(when (t) { HazardType.BUMP -> "bump_saved"; HazardType.POTHOLE -> "pothole_saved"; HazardType.RADAR -> "radar_saved"; else -> "danger_saved" },
@@ -1120,12 +1145,12 @@ class MainActivity : Activity() {
     private fun provisionalConfirm(id: String): Boolean {
         val item = prov.confirm(id, System.currentTimeMillis()) ?: return false
         VoiceDiag.add("تصوير فورى اتأكّد: $id")
-        hazardOf(id)?.let { markHazard(it, item.fix); if (tab == "road") refresh() }
+        hazardOf(id)?.let { markHazard(it, item.fix, oneway = id.endsWith("1")); if (tab == "road") refresh() }
         provisionalFinish(item)
         return true
     }
 
-    private fun hazardOf(id: String?) = when (id) { "road.bump" -> HazardType.BUMP; "road.pothole" -> HazardType.POTHOLE; else -> null }
+    private fun hazardOf(id: String?) = when (id) { "road.bump", "road.bump1" -> HazardType.BUMP; "road.pothole", "road.pothole1" -> HazardType.POTHOLE; else -> null }
 
     private fun provisionalFinish(item: ProvisionalCapture.Item) {
         if (!prov.finishIfReady(item, System.currentTimeMillis())) return
@@ -1585,6 +1610,8 @@ class MainActivity : Activity() {
             "road.shot" -> if (!provisionalConfirm(id)) snapRoad("voice")
             "road.bump" -> if (!provisionalConfirm(id)) { markHazard(HazardType.BUMP); if (tab == "road") refresh() }
             "road.pothole" -> if (!provisionalConfirm(id)) { markHazard(HazardType.POTHOLE); if (tab == "road") refresh() }
+            "road.bump1" -> if (!provisionalConfirm(id)) { markHazard(HazardType.BUMP, oneway = true); if (tab == "road") refresh() }
+            "road.pothole1" -> if (!provisionalConfirm(id)) { markHazard(HazardType.POTHOLE, oneway = true); if (tab == "road") refresh() }
             "road.radar" -> { markHazard(HazardType.RADAR); if (tab == "road") refresh() }
             "road.danger" -> { markHazard(HazardType.DANGER); if (tab == "road") refresh() }
             "info.speed" -> s.speedKmh?.let { Oscar.sayText(if (Oscar.lang == "en") "${it.toInt()} kilometers per hour" else "سرعتنا ${it.toInt()} كيلو"); toast("${it.toInt()} كم/س") }

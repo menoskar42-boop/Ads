@@ -2,7 +2,7 @@ package com.oscardevs.oscardrive.logic
 
 /** أوامر الطريق اللى بتسجّل لحظة (الصورة والمكان لازم يتاخدوا ساعة ما اتقالت). */
 object RoadVoice {
-    val IDS = setOf("road.shot", "road.bump", "road.pothole")
+    val IDS = setOf("road.shot", "road.bump", "road.pothole", "road.bump1", "road.pothole1")
     fun isRoad(id: String?) = id != null && id in IDS
 }
 

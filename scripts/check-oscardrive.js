@@ -54,7 +54,8 @@ check('the logic tests run before the build',
   'منطق الرحلة/ذاكرة الطريق/الاستراحة لازم يتختبر قبل ما APK يتنشر.');
 
 const manifest = read('oscardrive-android/app/src/main/AndroidManifest.xml').replace(/<!--[\s\S]*?-->/g, '');
-for (const p of ['SEND_SMS', 'READ_CONTACTS', 'SYSTEM_ALERT_WINDOW', 'ACCESS_BACKGROUND_LOCATION', 'FOREGROUND_SERVICE_MICROPHONE']) {
+// SYSTEM_ALERT_WINDOW اتشال من هنا بموافقة المالك (٢٠٢٦-١١-٢٠): زرار «⬅️ Oscar» فوق الخرايط الخارجية بس، واختيارى — شوف الفحص بتاعه تحت
+for (const p of ['SEND_SMS', 'READ_CONTACTS', 'ACCESS_BACKGROUND_LOCATION', 'FOREGROUND_SERVICE_MICROPHONE']) {
   check(`no ${p} permission`, !manifest.includes(`android.permission.${p}`), `${p} مش محتاجينه — إذن زيادة = شاشة تخوّف السواق.`);
 }
 check('landscape UI', /android:screenOrientation="sensorLandscape"/.test(manifest), 'التطبيق معمول لشاشة التابلوه بالعرض.');

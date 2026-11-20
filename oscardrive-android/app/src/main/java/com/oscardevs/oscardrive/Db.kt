@@ -19,7 +19,7 @@ import com.oscardevs.oscardrive.logic.TripLogic
  * قاعدة بيانات محلية (SQLite على الجهاز) — مفيش سحابة ولا حساب: الرحلات، ذاكرة الطريق، الأماكن،
  * الركنات، الصيانة، التفويلات، وسجل تجاوز السرعة.
  */
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 6) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 7) {
 
     data class Trip(val id: Long, val startMs: Long, val endMs: Long, val distanceM: Double, val movingS: Long, val maxKmh: Float,
                     val score: Int? = null, val brakes: Int = 0, val accels: Int = 0, val speedingN: Int = 0, val speedingS: Int = 0) {
@@ -46,6 +46,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         upgrade4(db)
         upgrade5(db)
         upgrade6(db)
+        upgrade7(db)
         val now = System.currentTimeMillis()
         for ((name, km, days) in CarCare.DEFAULTS) {
             db.insert("maint", null, ContentValues().apply {
@@ -60,6 +61,12 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         if (oldVersion < 4) upgrade4(db)
         if (oldVersion < 5) upgrade5(db)
         if (oldVersion < 6) upgrade6(db)
+        if (oldVersion < 7) upgrade7(db)
+    }
+
+    /** نسخة ٧ (البرومبت ٥ — ٢٠٢٦-١١-٢٠): «مطب اتجاه واحد». كل المطبات القديمة بتفضل ٠ = اتجاهين — مفيش صف بيتغيّر ولا بيتمسح. */
+    private fun upgrade7(db: SQLiteDatabase) {
+        try { db.execSQL("ALTER TABLE hazards ADD COLUMN oneway INTEGER NOT NULL DEFAULT 0") } catch (_: Exception) { /* موجود */ }
     }
 
     /**
@@ -177,19 +184,34 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
     /* ── ذاكرة الطريق ── */
     fun addHazard(type: HazardType, lat: Double, lng: Double, bearing: Float?, accuracy: Float? = null, altitude: Double? = null,
                   uuid: String = java.util.UUID.randomUUID().toString(), createdMs: Long = System.currentTimeMillis(),
-                  note: String = "", synced: Boolean = false): Long =
+                  note: String = "", synced: Boolean = false, oneway: Boolean = false): Long =
         writableDatabase.insertWithOnConflict("hazards", null, ContentValues().apply {
             put("type", type.key); put("lat", lat); put("lng", lng)
             if (bearing != null) put("bearing", bearing.toDouble()) else putNull("bearing")
             if (accuracy != null) put("accuracy", accuracy.toDouble()) else putNull("accuracy")
             if (altitude != null) put("altitude", altitude) else putNull("altitude")
             put("note", note); put("created_ms", createdMs); put("uuid", uuid); put("synced", if (synced) 1 else 0); put("deleted", 0)
+            put("oneway", if (oneway) 1 else 0)
         }, SQLiteDatabase.CONFLICT_IGNORE)
-    fun hazards(): List<Hazard> = query("SELECT id,type,lat,lng,bearing,note,created_ms,altitude,accuracy FROM hazards WHERE deleted = 0 ORDER BY created_ms DESC") {
+    fun hazards(): List<Hazard> = query("SELECT id,type,lat,lng,bearing,note,created_ms,altitude,accuracy,oneway FROM hazards WHERE deleted = 0 ORDER BY created_ms DESC") {
         Hazard(it.getLong(0), HazardType.of(it.getString(1)), it.getDouble(2), it.getDouble(3),
             if (it.isNull(4)) null else it.getFloat(4), it.getString(5) ?: "", it.getLong(6),
-            if (it.isNull(7)) null else it.getDouble(7), if (it.isNull(8)) null else it.getFloat(8))
+            if (it.isNull(7)) null else it.getDouble(7), if (it.isNull(8)) null else it.getFloat(8), it.getInt(9) == 1)
     }
+
+    /** تعديل «اتجاه واحد ⇄ اتجاهين» بعد التسجيل (البرومبت ٥) — الإحداثيات زى ما هى، وبيترفع. اتجاه واحد من غير اتجاه متسجّل = false. */
+    fun setHazardOneway(id: Long, oneway: Boolean): Boolean {
+        val n = writableDatabase.compileStatement("UPDATE hazards SET oneway = ?, synced = 0 WHERE id = ? AND (? = 0 OR bearing IS NOT NULL)").run {
+            bindLong(1, if (oneway) 1 else 0); bindLong(2, id); bindLong(3, if (oneway) 1 else 0); executeUpdateDelete()
+        }
+        return n > 0
+    }
+
+    /** اللى اتعدّل على السيرفر (من صفحة الموبايل) — بيتحدّث هنا لو مافيش تعديل محلى لسه ماترفعش. */
+    fun setHazardOnewayFromServer(uuid: String, oneway: Boolean): Boolean =
+        writableDatabase.compileStatement("UPDATE hazards SET oneway = ? WHERE uuid = ? AND synced = 1 AND oneway <> ?").run {
+            bindLong(1, if (oneway) 1 else 0); bindString(2, uuid); bindLong(3, if (oneway) 1 else 0); executeUpdateDelete()
+        } > 0
     /** المسح علامة بس (بتترفع للسيرفر) — الصف بيفضل عشان المطب مايرجعش من السيرفر تانى. */
     fun deleteHazard(id: Long) {
         writableDatabase.update("hazards", ContentValues().apply { put("deleted", 1); put("synced", 0) }, "id=?", arrayOf(id.toString()))
@@ -208,12 +230,13 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
 
     /** للرفع (HazardSync): اللى لسه ماترفعش، ومعاه الممسوح. */
     data class HazardRow(val id: Long, val uuid: String, val type: String, val lat: Double, val lng: Double, val bearing: Float?,
-                         val accuracy: Float?, val altitude: Double?, val note: String, val createdMs: Long, val deleted: Boolean)
+                         val accuracy: Float?, val altitude: Double?, val note: String, val createdMs: Long, val deleted: Boolean,
+                         val oneway: Boolean = false)
     fun unsyncedHazards(limit: Int): List<HazardRow> =
-        query("SELECT id,uuid,type,lat,lng,bearing,accuracy,altitude,note,created_ms,deleted FROM hazards WHERE synced = 0 AND uuid IS NOT NULL ORDER BY id LIMIT $limit") {
+        query("SELECT id,uuid,type,lat,lng,bearing,accuracy,altitude,note,created_ms,deleted,oneway FROM hazards WHERE synced = 0 AND uuid IS NOT NULL ORDER BY id LIMIT $limit") {
             HazardRow(it.getLong(0), it.getString(1), it.getString(2) ?: "danger", it.getDouble(3), it.getDouble(4),
                 if (it.isNull(5)) null else it.getFloat(5), if (it.isNull(6)) null else it.getFloat(6),
-                if (it.isNull(7)) null else it.getDouble(7), it.getString(8) ?: "", it.getLong(9), it.getInt(10) == 1)
+                if (it.isNull(7)) null else it.getDouble(7), it.getString(8) ?: "", it.getLong(9), it.getInt(10) == 1, it.getInt(11) == 1)
         }
     fun markHazardsSynced(ids: List<Long>) {
         if (ids.isEmpty()) return

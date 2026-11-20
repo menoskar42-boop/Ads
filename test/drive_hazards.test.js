@@ -63,6 +63,22 @@ describe('hazards: database + http', { skip: !URL_ && 'DRIVE_TEST_DATABASE_URL n
     assert.equal((await call('POST', '/api/car/hazards', { pull: true }, car)).json.items.length, 1);
   });
 
+  it('one-way bumps (prompt 5): old rows stay two-way, the flag syncs both ways, an old screen without the field never resets it', async () => {
+    const car = (await call('POST', '/api/car/register', { app: '1.0' })).json.token;
+    const U = '6a2b8c1e-1111-4222-8333-944455556666';
+    await call('POST', '/api/car/hazards', { items: [item({ uuid: U })] }, car);
+    let r = await call('POST', '/api/car/hazards', { pull: true }, car);
+    assert.equal(r.json.items.find((x) => x.uuid === U).oneway, false);   // القديم = اتجاهين
+    await call('POST', '/api/car/hazards', { items: [item({ uuid: U, oneway: true })] }, car);
+    r = await call('POST', '/api/car/hazards', { pull: true }, car);
+    assert.equal(r.json.items.find((x) => x.uuid === U).oneway, true);
+    await call('POST', '/api/car/hazards', { items: [item({ uuid: U })] }, car);   // شاشة قديمة مابتبعتش oneway
+    r = await call('POST', '/api/car/hazards', { pull: true }, car);
+    assert.equal(r.json.items.find((x) => x.uuid === U).oneway, true);
+    const { rows: [h] } = await pool.query('SELECT lat, lng FROM od_hazards WHERE uuid = $1', [U]);
+    assert.ok(h.lat != null && h.lng != null);   // الإحداثيات زى ما هى
+  });
+
   it('a reinstalled screen relinks to the same car and gets its road memory back', async () => {
     const oldCar = (await call('POST', '/api/car/register', { app: '1.0' })).json.token;
     const U3 = '22222222-2222-4333-8444-555555555555', U4 = '33333333-2222-4333-8444-555555555555';
