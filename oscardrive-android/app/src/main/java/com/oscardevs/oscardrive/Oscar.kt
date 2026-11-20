@@ -79,7 +79,7 @@ object Oscar {
         if (!prefs.oscarReplies) { if (extra != null) Speaker.say(extra); return }
         val custom = prefs.customLine(id, lang)
         val text = custom ?: texts(id).randomOrNull() ?: ""
-        val file = if (custom != null) customFile(id).takeIf { it.exists() } else fileFor(text)
+        val file = if (prefs.ttsOnly) null else if (custom != null) customFile(id).takeIf { it.exists() } else fileFor(text)
         speakingUntil = System.currentTimeMillis() + 2500 + (text.length + (extra?.length ?: 0)) * 80L
         if (file != null && file.exists()) play(file) { if (extra != null) Speaker.say(extra) }
         else Speaker.say(listOf(text, extra).filter { !it.isNullOrBlank() }.joinToString(". "))

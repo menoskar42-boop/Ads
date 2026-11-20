@@ -283,6 +283,10 @@ class Prefs(context: Context) {
     var oscarReplies: Boolean
         get() = sp.getBoolean("o_replies", true)
         set(v) = sp.edit().putBoolean("o_replies", v).apply()
+    /** «صوت واحد لكل الكلام» (البرومبت ٤ — ٢٠٢٦-١١-٢٠): الجمل الثابتة كمان بصوت الشاشة بدل الملفات المتسجّلة، فمفيش صوتين مختلفين. */
+    var ttsOnly: Boolean
+        get() = sp.getBoolean("tts_only", false)
+        set(v) = sp.edit().putBoolean("tts_only", v).apply()
     /** male · female */
     var oscarVoice: String
         get() = sp.getString("o_voice", "male") ?: "male"

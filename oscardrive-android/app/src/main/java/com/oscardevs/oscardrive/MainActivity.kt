@@ -1785,6 +1785,8 @@ class MainActivity : Activity() {
         // صوت أوسكار
         page.addView(section("🗣️ صوت أوسكار"))
         page.addView(toggle("أوسكار يرد بصوته", prefs.oscarReplies) { prefs.oscarReplies = it })
+        // الجمل الثابتة بملفات متسجّلة والمتغيّرة بصوت الشاشة ⇒ صوتين. ده بيخلّى كله بصوت الشاشة (البرومبت ٤)
+        page.addView(toggle("🔊 صوت واحد لكل الكلام (صوت الشاشة)", prefs.ttsOnly) { prefs.ttsOnly = it })
         // ElevenLabs (٢٠٢٦-١١-١٨): أصوات مصرية طبيعية فى فولدرات لوحدها (el-male · el-female) — القديمة بتفضل لحد ما المالك يقرّر
         val el = prefs.oscarVoice.startsWith("el-")
         val female = prefs.oscarVoice.endsWith("female")

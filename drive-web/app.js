@@ -429,6 +429,7 @@
   document.addEventListener('click', unlockAudio);
   /** جملة ثابتة بصوت أوسكار المتسجّل (نفس مفاتيح الشاشة: bump_saved · hello · not_understood …) — لو مش متاحة ⇒ صوت الجهاز. */
   async function oscar(key, fallback) {
+    if (oscarVoice() === 'tts') { sayRoad(fallback); return; }   // «صوت الموبايل لكل الكلام» — صوت واحد بدل ملفات + صوت الموبايل
     const lines = await loadOscarLines();
     const opts = ((lines[key] || {}).ar || []).filter((x) => x && x.f);
     if (!opts.length) { sayRoad(fallback); return; }
@@ -441,7 +442,16 @@
   function sayRoad(text) {
     try { oscarAudio.pause(); } catch (e) {}
     lastSaid = String(text || ''); lastSaidAt = Date.now();
-    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ar-EG'; speechSynthesis.speak(u); } catch (e) {}
+    // البرومبت ٤: الكلام ساعات مابيطلعش — (١) من غير صوت عربى المتصفح بيقرا بصوت إنجليزى (سكوت أو كلام غلط) ⇒ نختار صوت عربى لو موجود ·
+    // (٢) speak() على طول بعد cancel() بيتبلع فى Chrome/Safari ⇒ مهلة صغيرة · (٣) Chrome بيقف «paused» بعد ما الصفحة ترجع ⇒ resume()
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text); u.lang = 'ar-EG';
+      const vs = speechSynthesis.getVoices() || [];
+      const v = vs.find((x) => /^ar[-_]EG/i.test(x.lang)) || vs.find((x) => /^ar/i.test(x.lang));
+      if (v) u.voice = v;
+      setTimeout(() => { try { speechSynthesis.resume(); speechSynthesis.speak(u); } catch (e) {} }, 60);
+    } catch (e) {}
   }
   let hzLayer = null;
   async function loadRoad() {
