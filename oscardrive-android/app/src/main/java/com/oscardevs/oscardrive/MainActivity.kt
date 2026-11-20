@@ -1056,11 +1056,14 @@ class MainActivity : Activity() {
         val one = oneway && headNow != null
         db.addHazard(t, lat, lng, if (moving || one) headNow else null,
             if (f != null) f.accuracyM else s.accuracyM, if (f != null) f.altitudeM else s.altitudeM, oneway = one)
-        if (oneway && !one) toast("اتجاهك مش معروف لسه — اتسجّل اتجاهين، وتقدر تغيّره من «الطريق» بعد ما تتحرك")
         DriveService.State.hazardsDirty = true
         HazardSync.syncSoon(this)
-        oscar(when (t) { HazardType.BUMP -> "bump_saved"; HazardType.POTHOLE -> "pothole_saved"; HazardType.RADAR -> "radar_saved"; else -> "danger_saved" },
-            "اتسجّل ${t.ar}")
+        // الجمل الجديدة ليها أصوات (oscar_lines.json): «اتجاه واحد» · «اتجاهك مش معروف — اتسجّل اتجاهين»
+        if (oneway && !one) oscar("oneway_no_heading", "اتجاهك مش معروف لسه — اتسجّل اتجاهين، وتقدر تغيّره من «الطريق» بعد ما تتحرك")
+        else oscar(when {
+            one && t == HazardType.BUMP -> "bump1_saved"; one && t == HazardType.POTHOLE -> "pothole1_saved"
+            t == HazardType.BUMP -> "bump_saved"; t == HazardType.POTHOLE -> "pothole_saved"; t == HazardType.RADAR -> "radar_saved"; else -> "danger_saved"
+        }, "اتسجّل ${t.ar}" + if (one) " (اتجاه واحد)" else "")
     }
 
     /**
@@ -1110,7 +1113,7 @@ class MainActivity : Activity() {
         if (!Guard.cam.permitted()) { toast("محتاج إذن الكاميرا — من «الحماية» دوس «اسمح بالكاميرا»"); return }
         Shots.take(this, reason) { err ->
             toast(err ?: "📸 اتصوّرت — هتترفع أول ما يبقى فيه نت")
-            if (reason == "voice") Speaker.say(if (err == null) "اتصوّرت" else "الكاميرا مش متاحة")
+            if (reason == "voice") Oscar.say(if (err == null) "shot_taken" else "camera_unavailable")
         }
     }
 
@@ -1157,13 +1160,13 @@ class MainActivity : Activity() {
         val hazard = hazardOf(item.confirmed)
         val jpg = item.jpg
         if (jpg == null) {   // المطب اتسجّل خلاص — الصورة بس اللى ماتاخدتش
-            if (hazard == null) { toast(item.camError ?: "الكاميرا مش متاحة"); Speaker.say("الكاميرا مش متاحة") }
+            if (hazard == null) { toast(item.camError ?: "الكاميرا مش متاحة"); Oscar.say("camera_unavailable") }
             return
         }
         val f = item.fix
         val hz = hazard?.let { org.json.JSONObject().put("type", it.key).put("lat", f.lat ?: 0.0).put("lng", f.lng ?: 0.0) }
         Shots.save(this, "voice", jpg, item.orientation, f, hz) { err ->
-            if (hazard == null) { toast(err ?: "📸 اتصوّرت — هتترفع أول ما يبقى فيه نت"); Speaker.say(if (err == null) "اتصوّرت" else "الكاميرا مش متاحة") }
+            if (hazard == null) { toast(err ?: "📸 اتصوّرت — هتترفع أول ما يبقى فيه نت"); Oscar.say(if (err == null) "shot_taken" else "camera_unavailable") }
         }
     }
 
@@ -1296,8 +1299,8 @@ class MainActivity : Activity() {
     private fun callPlace(p: com.oscardevs.oscardrive.logic.NearbyResult? = lastPlace) {
         if (p == null) { sayInfo("قول الأول «أقرب بنزينة» أو «أقرب صيدلية» وبعدين «اتصل بالمكان ده»"); return }
         val phone = p.phone?.filter { it.isDigit() || it == '+' }
-        if (phone.isNullOrEmpty()) { sayInfo("المكان ده مفيش رقم تليفون مسجل له"); return }
-        sayInfo("بفتح الاتصال بـ${p.name} — دوس اتصال")
+        if (phone.isNullOrEmpty()) { oscar("no_phone", "📞 ${p.name}: مفيش رقم تليفون مسجل له"); return }
+        oscar("call_place", "📞 ${p.name} — دوس اتصال")
         try { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         catch (_: Exception) { toast("الشاشة مافيهاش برنامج اتصال — الرقم: ${p.phone}") }
     }
@@ -1305,7 +1308,7 @@ class MainActivity : Activity() {
     /** «هات محطات البنزين»: قايمة بالأقرب (الاسم · المسافة · الرقم) — دوس على واحدة للملاحة، أو 📞. */
     private fun showNearbyList(ar: String, list: List<com.oscardevs.oscardrive.logic.NearbyResult>, from: Pair<Double, Double>) {
         val sorted = list.sortedBy { Geo.distanceM(from.first, from.second, it.lat, it.lng) }.take(8)
-        sayInfo("لقيت ${sorted.size} — اختار من الشاشة")
+        oscar("fuel_list", "لقيت ${sorted.size} — اختار من الشاشة")
         val box = ui.col(6)
         var dlg: AlertDialog? = null
         for (p in sorted) {
@@ -1542,7 +1545,7 @@ class MainActivity : Activity() {
         if (requestCode == REQ_PICK) {   // «حدّده على الخريطة» (البرومبت ٨)
             val f = pickFor; pickFor = null
             if (resultCode == RESULT_OK && f != null && data != null) saveRemindPlace(f.first, f.second, data.getDoubleExtra("lat", 0.0), data.getDoubleExtra("lng", 0.0))
-            else if (f != null) oscar("ok", "تمام — التذكير اتلغى")
+            else if (f != null) oscar("remind_cancel")
             return
         }
         if (requestCode != REQ_VOICE) return
@@ -1566,7 +1569,7 @@ class MainActivity : Activity() {
                 t.contains("خريطه") -> { unknownDlg?.dismiss(); pickOnMap(up.first, up.second); return }
                 t.contains(" مكاني ") || t.contains(" هنا ") -> { unknownDlg?.dismiss(); hereForRemind(up.first, up.second); return }
                 t.contains("احداثيات") -> { unknownDlg?.dismiss(); askCoords(up.first, up.second); return }
-                Regex(" (الغي|الغاء|لا|خلاص|بلاش) ").containsMatchIn(t) -> { unknownDlg?.dismiss(); unknownAsk = null; oscar("ok", "تمام — التذكير اتلغى"); return }
+                Regex(" (الغي|الغاء|لا|خلاص|بلاش) ").containsMatchIn(t) -> { unknownDlg?.dismiss(); unknownAsk = null; oscar("remind_cancel"); return }
             }
         }
         // ١) رد على «تقصد …؟» — «أيوه» ينفّذ ويتعلّم · «لأ» يلغى
@@ -1622,12 +1625,12 @@ class MainActivity : Activity() {
 
     private fun askUnknownPlace(place: String, text: String) {
         unknownAsk = place to text; unknownAskUntil = System.currentTimeMillis() + 20_000; awaitingUntil = unknownAskUntil
-        Oscar.sayText("موقع $place مش محفوظ، تحب تحدده؟ قول الخريطة، أو مكانى، أو إلغاء")
+        Oscar.say("place_unknown")   // «المكان ده مش محفوظ، تحب تحدده؟» — والاسم مكتوب فى العنوان
         val items = ArrayList<Pair<String, () -> Unit>>()
         if (BuildConfig.NAV_SDK_KEY) items += "🗺️ حدّده على الخريطة" to { pickOnMap(place, text) }
         items += "📍 مكانى دلوقتى" to { hereForRemind(place, text) }
         items += "⌨️ اكتب الإحداثيات" to { askCoords(place, text) }
-        items += "إلغاء" to { unknownAsk = null; oscar("ok", "تمام — التذكير اتلغى") }
+        items += "إلغاء" to { unknownAsk = null; oscar("remind_cancel") }
         unknownDlg?.dismiss()
         unknownDlg = AlertDialog.Builder(this).setTitle("📍 موقع «$place» مش محفوظ — تحب تحدده؟").setMessage("التذكير: $text")
             .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
@@ -1658,13 +1661,13 @@ class MainActivity : Activity() {
                 val c = com.oscardevs.oscardrive.logic.Coords.parse(la.text.toString(), lo.text.toString())
                 if (c == null) { toast("الإحداثيات مش صحيحة — Latitude من -٩٠ لـ٩٠ وLongitude من -١٨٠ لـ١٨٠"); askCoords(place, text) }
                 else saveRemindPlace(place, text, c.first, c.second)
-            }.setNegativeButton("إلغاء") { _, _ -> oscar("ok", "تمام — التذكير اتلغى") }.show()
+            }.setNegativeButton("إلغاء") { _, _ -> oscar("remind_cancel") }.show()
     }
 
     private fun saveRemindPlace(place: String, text: String, lat: Double, lng: Double) {
         db.addPlace(place, lat, lng)
         db.addNote("remind", text, lat = lat, lng = lng, place = place)
-        sayInfo("حفظت «$place» وهفكّرك لما توصل: $text")
+        oscar("remind_saved", "📍 $place: $text")
         refresh()
     }
 

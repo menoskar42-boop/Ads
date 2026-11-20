@@ -33,6 +33,21 @@
     "net_lost":         { "ar": ["النت قطع، هحفظ كل حاجة على الشاشة"], "en": ["Internet lost, I'll keep everything on the screen"] },
     "net_back":         { "ar": ["النت رجع، ببعت البيانات"], "en": ["Internet is back, syncing now"] },
     "emergency":        { "ar": ["أكّد على الشاشة عشان أبعت مكانك"], "en": ["Confirm on the screen to send your location"] },
-    "help":             { "ar": ["قول مثلاً: وصّلنى البيت، سجّل مطب، السرعة كام، فعّل الحماية. وكل الأوامر فى شاشة أوسكار"], "en": ["Try: take me home, mark a bump, what's my speed, arm security. All commands are on the Oscar screen"] }
+    "help":             { "ar": ["قول مثلاً: وصّلنى البيت، سجّل مطب، السرعة كام، فعّل الحماية. وكل الأوامر فى شاشة أوسكار"], "en": ["Try: take me home, mark a bump, what's my speed, arm security. All commands are on the Oscar screen"] },
+    "bump1_saved":      { "ar": ["سجّلت المطب، اتجاه واحد"], "en": ["One-way speed bump saved"] },
+    "pothole1_saved":   { "ar": ["سجّلت الحفرة، اتجاه واحد"], "en": ["One-way pothole saved"] },
+    "oneway_no_heading":{ "ar": ["اتجاهك مش معروف لسه، فسجّلته اتجاهين"], "en": ["Your direction isn't known yet, so I saved it as two-way"] },
+    "shot_taken":       { "ar": ["اتصوّرت"], "en": ["Photo taken"] },
+    "camera_unavailable":{ "ar": ["الكاميرا مش متاحة"], "en": ["The camera isn't available"] },
+    "no_phone":         { "ar": ["المكان ده مفيش رقم تليفون مسجل له"], "en": ["This place has no phone number listed"] },
+    "call_place":       { "ar": ["بفتح الاتصال، دوس اتصال"], "en": ["Opening the dialer, tap call"] },
+    "fuel_list":        { "ar": ["دى البنزينات اللى حواليك، اختار من الشاشة"], "en": ["Here are the gas stations near you, pick one on the screen"] },
+    "place_unknown":    { "ar": ["المكان ده مش محفوظ، تحب تحدده؟ قول الخريطة، أو مكانى، أو إلغاء"], "en": ["That place isn't saved. Want to set it? Say map, here, or cancel"] },
+    "remind_saved":     { "ar": ["تمام، حفظت المكان وهفكّرك لما توصل"], "en": ["Done, I saved the place and I'll remind you when you arrive"] },
+    "remind_cancel":    { "ar": ["تمام، التذكير اتلغى"], "en": ["Okay, the reminder is cancelled"] },
+    "call_how":         { "ar": ["تليفون ولا واتساب؟"], "en": ["Phone or WhatsApp?"] },
+    "call_which":       { "ar": ["لقيت أكتر من واحد، مين فيهم؟"], "en": ["I found more than one, which one?"] },
+    "contact_not_found":{ "ar": ["مش لاقى جهة الاتصال دى"], "en": ["I can't find that contact"] },
+    "call_cancel":      { "ar": ["تمام، الاتصال اتلغى"], "en": ["Okay, the call is cancelled"] }
   }
 }

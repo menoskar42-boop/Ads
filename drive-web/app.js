@@ -548,11 +548,11 @@
     const hits = RD.matchContacts(ctLoad(), name);
     const opts = $('callOpts'); opts.textContent = '';
     $('callTelBtn').hidden = true; $('callWaBtn').hidden = true; $('callBox').hidden = false;
-    if (!hits.length) { $('callQ').textContent = '📞 مش لاقى «' + name + '» — ضيفه من الإعدادات («📞 الاتصال بالصوت»)'; sayRoad('مش لاقى جهة الاتصال دى'); return; }
+    if (!hits.length) { $('callQ').textContent = '📞 مش لاقى «' + name + '» — ضيفه من الإعدادات («📞 الاتصال بالصوت»)'; oscar('contact_not_found', 'مش لاقى جهة الاتصال دى'); return; }
     if (hits.length > 1) {   // أكتر من حد ⇒ تختار — مانتصلش بحد غلط
       $('callQ').textContent = '📞 «' + name + '» — مين فيهم؟';
       for (const c of hits.slice(0, 6)) { const b = document.createElement('button'); b.textContent = c.name; b.addEventListener('click', () => callLocal(c.name, how)); opts.append(b); }
-      sayRoad('لقيت ' + hits.length + '. مين فيهم؟'); return;
+      oscar('call_which', 'لقيت أكتر من واحد، مين فيهم؟'); return;
     }
     const c = hits[0], wa = $('callWa').checked && how !== 'tel';
     callPending = { name: c.name, how, at: Date.now(), local: c };
@@ -590,14 +590,14 @@
       const t = RD.telByPrefix(callPending.local.tels, text);
       if (t) { const c = callPending.local; callDone(); location.href = 'tel:' + t.replace(/[^\d+]/g, ''); $('voiceNote').textContent = '📞 ' + c.name + ' — ' + t; return true; }
       const a0 = RD.callAnswer(text);
-      if (a0 === 'no') { callDone(); $('voiceNote').textContent = '📞 اتلغى'; sayRoad('تمام، اتلغى'); return true; }
+      if (a0 === 'no') { callDone(); $('voiceNote').textContent = '📞 اتلغى'; oscar('call_cancel', 'تمام، الاتصال اتلغى'); return true; }
       if (a0 === 'wa' && $('callWa').checked) { const c = callPending.local; callDone(); location.href = 'https://wa.me/' + RD.waNumber(c.tels[0]); return true; }
       if (a0 === 'yes' && callPending.local.tels.length === 1) { const c = callPending.local; callDone(); location.href = 'tel:' + c.tels[0].replace(/[^\d+]/g, ''); return true; }
       return false;
     }
     const a = RD.callAnswer(text);
     if (!a) return false;
-    if (a === 'no') { callDone(); $('voiceNote').textContent = '📞 اتلغى'; sayRoad('تمام، اتلغى'); return true; }
+    if (a === 'no') { callDone(); $('voiceNote').textContent = '📞 اتلغى'; oscar('call_cancel', 'تمام، الاتصال اتلغى'); return true; }
     const how = a === 'yes' ? callPending.how : a;
     if (!how) { sayRoad('تليفون ولا واتساب؟'); return true; }
     callGo(how === 'wa' && $('callWa').checked ? 'wa' : 'tel');
@@ -702,7 +702,7 @@
   }
   function askPlaceWeb(name, then) {
     const box = $('ibNote'); box.textContent = '📍 موقع «' + name + '» مش محفوظ — تحب تحدده؟ ';
-    sayRoad('موقع ' + name + ' مش محفوظ، تحب تحدده؟');
+    oscar('place_unknown', 'المكان ده مش محفوظ، تحب تحدده؟');
     const save = async (lat, lng) => { await ibSend('place', { name, lat, lng }, false); reportPlaces = (reportPlaces || []).concat([{ name, lat, lng }]); then(); };
     const btn = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.style.margin = '4px'; b.addEventListener('click', fn); box.append(b); return b; };
     btn('📍 مكانى دلوقتى', () => withFix((f) => save(f.lat, f.lng)));
@@ -868,7 +868,7 @@
         const msg = 'اتسجّل ' + RD.TYPES[type][0] + (one ? ' اتجاه واحد' : '') + (test ? ' تجربة' : '');
         if (oneway && !one) $('roadNote').textContent = 'اتجاهك مش معروف لسه — اتسجّل اتجاهين، وتقدر تغيّره من القايمة';
         $('roadNote').textContent = '✅ ' + msg + ' (دقة ' + Math.round(f.acc) + ' م)';
-        if (test) sayRoad(msg); else oscar(type + '_saved', msg);   // bump_saved · pothole_saved · radar_saved · danger_saved زى الشاشة
+        if (test) sayRoad(msg); else oscar(type + (one ? '1' : '') + '_saved', msg);   // bump1_saved · pothole1_saved = اتجاه واحد   // bump_saved · pothole_saved · radar_saved · danger_saved زى الشاشة
       } catch (e) { $('roadNote').textContent = 'ماتسجّلش: ' + e.message; }
       loadRoad();
     };
@@ -919,7 +919,7 @@
       await api('POST', '/api/web/shot', { jpg, meta: { uuid: uuid(), t: at, reason, app: 'phone', lat: f.lat, lng: f.lng, acc: f.acc,
         kmh: f.kmh, heading: hd, test, hazard: hz ? { type: hz, lat: f.lat, lng: f.lng } : undefined } });
       if (hz) { loadShots(); return; }   // المطب نفسه اتقال تسجيله — الصورة إضافة
-      $('voiceNote').textContent = test ? '📸 🧪 اتصوّرت (صورة تجربة)' : '📸 اتصوّرت واترفعت'; sayRoad('اتصوّرت');
+      $('voiceNote').textContent = test ? '📸 🧪 اتصوّرت (صورة تجربة)' : '📸 اتصوّرت واترفعت'; oscar('shot_taken', 'اتصوّرت');
       loadShots();
     } catch (e) {
       $('voiceNote').textContent = '📸 ' + (e && e.name === 'NotAllowedError' ? 'اسمح بالكاميرا للموقع ده من إعدادات الموبايل' : (e.message || 'الكاميرا مش متاحة'));
@@ -958,9 +958,9 @@
   function callPlaceWeb() {
     const p = lastPlace;
     if (!p) { $('voiceNote').textContent = 'قول الأول «أقرب بنزينة» أو «أقرب صيدلية»'; sayRoad('قول الأول أقرب بنزينة'); return; }
-    if (!p.phone) { $('voiceNote').textContent = '📞 ' + p.name + ': مفيش رقم تليفون مسجل له'; sayRoad('المكان ده مفيش رقم تليفون مسجل له'); return; }
+    if (!p.phone) { $('voiceNote').textContent = '📞 ' + p.name + ': مفيش رقم تليفون مسجل له'; oscar('no_phone', 'المكان ده مفيش رقم تليفون مسجل له'); return; }
     $('voiceNote').textContent = '📞 ' + p.name + ' — ' + p.phone + ' '; $('voiceNote').append(telBtn(p));   // الموبايل نفسه بيسأل «اتصال؟»
-    sayRoad('دوس اتصل');
+    oscar('call_place', 'دوس اتصل');
   }
   async function listNearWeb(kindId) {
     const k = RD.NEAR.find((x) => x.id === kindId) || RD.NEAR[0];
@@ -977,7 +977,7 @@
           row.append(go); if (p.phone) row.append(telBtn(p));
           box.append(row);
         }
-        sayRoad('لقيت ' + list.length + '. اختار من الشاشة');
+        oscar('fuel_list', 'لقيت ' + list.length + '. اختار من الشاشة');
       } catch (e) { $('voiceNote').textContent = 'البحث اتأخر — جرّب تانى'; }
     });
   }
