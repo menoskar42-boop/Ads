@@ -1251,34 +1251,77 @@ class MainActivity : Activity() {
     /**
      * «أقرب …» جوه التطبيق من غير فلوس: OpenStreetMap (Overpass) ⇒ الأقرب ⇒ الملاحة جوه Oscar Drive. أى مشكلة ⇒ onFail (تطبيق الخرايط).
      */
-    private fun nearbyOsm(kindId: String, ar: String, onFail: () -> Unit) {
+    private fun nearbyOsm(kindId: String, ar: String, list: Boolean = false, onFail: () -> Unit) {
         val from = here()
-        val q = from?.let { com.oscardevs.oscardrive.logic.OsmNearby.query(kindId, it.first, it.second) }
-        if (from == null || q == null || !online()) { onFail(); return }
+        if (from == null || com.oscardevs.oscardrive.logic.OsmNearby.filters(kindId) == null || !online()) { onFail(); return }
         toast("بدوّر على أقرب $ar…")
         Thread {
-            val res = try {
-                val c = java.net.URL(com.oscardevs.oscardrive.logic.OsmNearby.URL).openConnection() as java.net.HttpURLConnection
-                c.connectTimeout = 10_000; c.readTimeout = 20_000; c.requestMethod = "POST"; c.doOutput = true
-                c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-                c.setRequestProperty("User-Agent", "OscarDrive/" + BuildConfig.VERSION_NAME)
-                c.outputStream.use { it.write(("data=" + Uri.encode(q)).toByteArray()) }
-                if (c.responseCode != 200) null
-                else com.oscardevs.oscardrive.logic.OsmNearby.parse(c.inputStream.bufferedReader().use { it.readText() }, ar)
-            } catch (_: Exception) { null }
+            // النطاق بيكبر لوحده ٢ ⇒ ٥ ⇒ ١٠ ⇒ ٢٥ كم — أول نطاق فيه نتيجة (البرومبت ٦)
+            var res: List<com.oscardevs.oscardrive.logic.NearbyResult>? = null
+            for (r in com.oscardevs.oscardrive.logic.OsmNearby.RADII_M) {
+                val q = com.oscardevs.oscardrive.logic.OsmNearby.query(kindId, from.first, from.second, r) ?: break
+                val page = osmFetch(q, ar) ?: break   // مفيش نت/السيرفر رافض ⇒ مانكمّلش
+                res = page
+                if (page.isNotEmpty()) break
+            }
             main.post {
-                val best = res?.let { Nearby.nearest(it, from.first, from.second) }
-                if (best == null) { sayInfo(if (res == null) "مش قادر أدوّر دلوقتى — هفتح الخرايط" else "مالقيتش $ar قريب — هفتح الخرايط"); onFail() }
+                val got = res
+                val best = got?.let { Nearby.nearest(it, from.first, from.second) }
+                if (best == null) { sayInfo(if (got == null) "مش قادر أدوّر دلوقتى — هفتح الخرايط" else "مالقيتش $ar فى ٢٥ كم — هفتح الخرايط"); onFail() }
+                else if (list) showNearbyList(ar, got, from)
                 else {
-                    sayInfo("أقرب $ar: ${best.name} — ${Geo.sayDistance(Geo.distanceM(from.first, from.second, best.lat, best.lng))}")
+                    lastPlace = best
+                    sayInfo("أقرب $ar: ${best.name} — ${Geo.sayDistance(Geo.distanceM(from.first, from.second, best.lat, best.lng))}" +
+                        if (best.phone != null) " — ولو عايز تكلّمهم قول «اتصل بالمكان ده»" else "")
                     navigateTo(best.lat, best.lng, best.name)
                 }
             }
         }.start()
     }
 
+    private fun osmFetch(q: String, ar: String): List<com.oscardevs.oscardrive.logic.NearbyResult>? = try {
+        val c = java.net.URL(com.oscardevs.oscardrive.logic.OsmNearby.URL).openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 10_000; c.readTimeout = 20_000; c.requestMethod = "POST"; c.doOutput = true
+        c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+        c.setRequestProperty("User-Agent", "OscarDrive/" + BuildConfig.VERSION_NAME)
+        c.outputStream.use { it.write(("data=" + Uri.encode(q)).toByteArray()) }
+        if (c.responseCode != 200) null
+        else com.oscardevs.oscardrive.logic.OsmNearby.parse(c.inputStream.bufferedReader().use { it.readText() }, ar)
+    } catch (_: Exception) { null }
+
+    /** آخر مكان لقيته بـ«أقرب …» — لـ«اتصل بالمكان ده» (البرومبت ٦). */
+    private var lastPlace: com.oscardevs.oscardrive.logic.NearbyResult? = null
+
+    /** «اتصل بالمكان ده»: برنامج الاتصال بالرقم (على الشاشة = موبايلك بالبلوتوث) — وانت تدوس اتصال. من غير رقم ⇒ بنقول كده ومابنتصلش. */
+    private fun callPlace(p: com.oscardevs.oscardrive.logic.NearbyResult? = lastPlace) {
+        if (p == null) { sayInfo("قول الأول «أقرب بنزينة» أو «أقرب صيدلية» وبعدين «اتصل بالمكان ده»"); return }
+        val phone = p.phone?.filter { it.isDigit() || it == '+' }
+        if (phone.isNullOrEmpty()) { sayInfo("المكان ده مفيش رقم تليفون مسجل له"); return }
+        sayInfo("بفتح الاتصال بـ${p.name} — دوس اتصال")
+        try { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        catch (_: Exception) { toast("الشاشة مافيهاش برنامج اتصال — الرقم: ${p.phone}") }
+    }
+
+    /** «هات محطات البنزين»: قايمة بالأقرب (الاسم · المسافة · الرقم) — دوس على واحدة للملاحة، أو 📞. */
+    private fun showNearbyList(ar: String, list: List<com.oscardevs.oscardrive.logic.NearbyResult>, from: Pair<Double, Double>) {
+        val sorted = list.sortedBy { Geo.distanceM(from.first, from.second, it.lat, it.lng) }.take(8)
+        sayInfo("لقيت ${sorted.size} — اختار من الشاشة")
+        val box = ui.col(6)
+        var dlg: AlertDialog? = null
+        for (p in sorted) {
+            val row = ui.card(8).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            row.addView(ui.text("${p.name}\n${km(Geo.distanceM(from.first, from.second, p.lat, p.lng))}" + (p.phone?.let { " · 📞 $it" } ?: ""), 15f, ui.ink),
+                LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            row.addView(ui.button("🧭", "neutral", 16f) { lastPlace = p; dlg?.dismiss(); navigateTo(p.lat, p.lng, p.name) }, ui.lp(ui.dp(60), ui.dp(48), 0f, 2))
+            if (p.phone != null) row.addView(ui.button("📞", "neutral", 16f) { lastPlace = p; dlg?.dismiss(); callPlace(p) }, ui.lp(ui.dp(60), ui.dp(48), 0f, 2))
+            box.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
+        }
+        dlg = AlertDialog.Builder(this).setTitle("⛽ $ar حواليك").setView(ScrollView(this).apply { addView(box) }).setNegativeButton("قفل", null).show()
+    }
+
     private fun nearestFuel() {
-        if (inApp() && !prefs.placesApiOn) { nearbyOsm("fuel", "بنزينة") { nearestFuelExternal() }; return }
+        // الأقرب على طول والملاحة تبدأ (جوّه التطبيق أو تطبيق الخرايط حسب الإعدادات) — قبل كده مع «تطبيق الخرائط» كان بيفتح بحث وتختار انت (البرومبت ٦)
+        if (!prefs.placesApiOn) { nearbyOsm("fuel", "بنزينة") { nearestFuelExternal() }; return }
         nearestFuelExternal()
     }
 
@@ -1368,7 +1411,7 @@ class MainActivity : Activity() {
         val from = here()
         if (kind == null || from == null || key.isEmpty() || !online() || !Nearby.allowed(prefs.placesApiOn, prefs.placesUsedThisMonth(month), prefs.placesCap)) {
             // الملاحة جوه التطبيق ⇒ OpenStreetMap (مجانى) قبل ما نرجع لتطبيق الخرايط
-            if (kind != null && inApp()) { nearbyOsm(kind.id, kind.ar) { sayInfo("بدوّر على أقرب ${kind.ar} فى الخرايط"); mapsSearch(q) }; return }
+            if (kind != null) { nearbyOsm(kind.id, kind.ar) { sayInfo("بدوّر على أقرب ${kind.ar} فى الخرايط"); mapsSearch(q) }; return }
             sayInfo("بدوّر على أقرب ${kind?.ar ?: q} فى الخرايط"); mapsSearch(q); return
         }
         prefs.countPlaces(month)
@@ -1599,6 +1642,8 @@ class MainActivity : Activity() {
                 if (p == null) oscar("need_home", "احفظ «$name» الأول من شاشة الملاحة") else { oscar("nav_start"); navigateTo(p.lat, p.lng, p.name) }
             }
             "nav.fuel" -> { oscar("fuel"); nearestFuel() }
+            "nav.fuel.list" -> nearbyOsm("fuel", "بنزينة", list = true) { nearestFuelExternal() }
+            "place.call" -> callPlace()
             "nav.goto" -> { val raw = FreeText.tail(heard, slot ?: return); oscar("nav_start", "رايحين: $raw"); goTo(raw) }
             "nav.near" -> nearby(FreeText.tail(heard, slot ?: return))
             "place.save" -> {

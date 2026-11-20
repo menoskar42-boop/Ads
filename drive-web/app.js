@@ -844,15 +844,53 @@
   // والآيفون بيفتح تطبيق خرايط جوجل نفسه (مش جوّه الصفحة) لما الرابط بيتفتح فى نفس لحظة الضغطة.
   const nearCache = {};   // kindId → { best, lat, lng, at }
   let nearBusy = false;
-  async function osmNearest(k, f, ms) {
+  /** النطاق بيكبر لوحده ٢ ⇒ ٥ ⇒ ١٠ ⇒ ٢٥ كم (البرومبت ٦) جوّه نفس المهلة — all = كل نتايج أول نطاق (للقايمة). */
+  async function osmNearest(k, f, ms, all) {
     const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const tm = setTimeout(() => { if (ctl) ctl.abort(); }, ms);
     try {
-      const r = await fetch(RD.OSM_URL, { method: 'POST', body: 'data=' + encodeURIComponent(RD.osmQuery(k.id, f.lat, f.lng)),
-        headers: { 'content-type': 'application/x-www-form-urlencoded' }, signal: ctl ? ctl.signal : undefined });
-      if (!r.ok) throw new Error('osm ' + r.status);
-      return RD.nearestOf(RD.osmParse(await r.json(), k.ar), f.lat, f.lng);
+      for (const rad of RD.RADII_M) {
+        const r = await fetch(RD.OSM_URL, { method: 'POST', body: 'data=' + encodeURIComponent(RD.osmQuery(k.id, f.lat, f.lng, rad)),
+          headers: { 'content-type': 'application/x-www-form-urlencoded' }, signal: ctl ? ctl.signal : undefined });
+        if (!r.ok) throw new Error('osm ' + r.status);
+        const list = RD.osmParse(await r.json(), k.ar);
+        if (list.length) return all ? list : RD.nearestOf(list, f.lat, f.lng);
+      }
+      return all ? [] : null;
     } finally { clearTimeout(tm); }
+  }
+  /* ── البرومبت ٦: «اتصل بالمكان ده» (آخر مكان لقيناه) · «هات محطات البنزين» (قايمة) ── */
+  let lastPlace = null;
+  function telBtn(p) {
+    const a = document.createElement('a'); a.href = 'tel:' + String(p.phone).replace(/[^\d+]/g, ''); a.textContent = '📞 اتصل بـ' + p.name;
+    a.className = 'btn'; a.style.cssText = 'display:inline-block;margin:6px 0;padding:8px 14px;border-radius:10px;background:#15803d;color:#fff;text-decoration:none';
+    return a;
+  }
+  function callPlaceWeb() {
+    const p = lastPlace;
+    if (!p) { $('voiceNote').textContent = 'قول الأول «أقرب بنزينة» أو «أقرب صيدلية»'; sayRoad('قول الأول أقرب بنزينة'); return; }
+    if (!p.phone) { $('voiceNote').textContent = '📞 ' + p.name + ': مفيش رقم تليفون مسجل له'; sayRoad('المكان ده مفيش رقم تليفون مسجل له'); return; }
+    $('voiceNote').textContent = '📞 ' + p.name + ' — ' + p.phone + ' '; $('voiceNote').append(telBtn(p));   // الموبايل نفسه بيسأل «اتصال؟»
+    sayRoad('دوس اتصل');
+  }
+  async function listNearWeb(kindId) {
+    const k = RD.NEAR.find((x) => x.id === kindId) || RD.NEAR[0];
+    withFix(async (f) => {
+      $('voiceNote').textContent = 'بدوّر على ' + k.ar + '…';
+      try {
+        const list = (await osmNearest(k, f, 9000, true)).map((p) => ({ ...p, d: RD.distanceM(f.lat, f.lng, p.lat, p.lng) })).sort((a, b) => a.d - b.d).slice(0, 8);
+        if (!list.length) { $('voiceNote').textContent = 'مالقيتش ' + k.ar + ' فى ٢٥ كم'; sayRoad('مالقيتش'); return; }
+        const box = $('voiceNote'); box.textContent = '⛽ ' + k.ar + ' حواليك:';
+        for (const p of list) {
+          const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px';
+          const go = document.createElement('a'); go.href = RD.navUrl(p.lat, p.lng, hereFix()); go.textContent = '🧭 ' + p.name + ' — ' + RD.sayDistance(p.d);
+          go.addEventListener('click', () => { lastPlace = p; });
+          row.append(go); if (p.phone) row.append(telBtn(p));
+          box.append(row);
+        }
+        sayRoad('لقيت ' + list.length + '. اختار من الشاشة');
+      } catch (e) { $('voiceNote').textContent = 'البحث اتأخر — جرّب تانى'; }
+    });
   }
   function prefetchFuel(f) {
     if (nearBusy || !f || f.acc > 100) return;
@@ -868,7 +906,7 @@
     // جاهزة من الخلفية وقريبة من مكانك ⇒ على طول (جوّه الضغطة)
     const c = nearCache[k.id], f0 = lastFix;
     if (c && c.best && f0 && Date.now() - c.at < 10 * 60000 && RD.distanceM(c.lat, c.lng, f0.lat, f0.lng) < 1500) {
-      const best = RD.nearestOf([c.best], f0.lat, f0.lng);
+      const best = RD.nearestOf([c.best], f0.lat, f0.lng); lastPlace = best;
       const msg = 'أقرب ' + k.ar + ': ' + best.name + ' — ' + RD.sayDistance(best.d);
       $('voiceNote').textContent = '🧭 ' + msg; sayRoad('رايحين ' + best.name);
       location.href = RD.navUrl(best.lat, best.lng, hereFix());
@@ -884,11 +922,12 @@
       $('voiceNote').textContent = 'بدوّر على أقرب ' + k.ar + '…';
       try {
         // OpenStreetMap (Overpass) ساعات بيتأخر جداً أو بيرفض — ٥ ثوانى بالكتير وبعدين جوجل
-        const best = await osmNearest(k, f, 5000);
+        const best = await osmNearest(k, f, 8000);   // النطاق بيكبر لوحده (لحد ٤ طلبات)
         if (best && k.id === 'fuel') nearCache.fuel = { best, lat: f.lat, lng: f.lng, at: Date.now() };
-        if (!best) { fallback(f, 'مالقيتش ' + k.ar + ' فى ٥ كم على OpenStreetMap'); return; }
+        if (!best) { fallback(f, 'مالقيتش ' + k.ar + ' فى ٢٥ كم على OpenStreetMap'); return; }
+        lastPlace = best;
         const msg = 'أقرب ' + k.ar + ': ' + best.name + ' — ' + RD.sayDistance(best.d);
-        $('voiceNote').textContent = '🧭 ' + msg; sayRoad(msg);
+        $('voiceNote').textContent = '🧭 ' + msg + (best.phone ? ' · 📞 ' + best.phone : ''); sayRoad(msg);
         if (map) { L.marker([best.lat, best.lng]).addTo(map).bindPopup('⛽ ' + best.name); }
         setTimeout(() => { location.href = RD.navUrl(best.lat, best.lng, hereFix()); }, 1800);   // يخلّص الجملة وبعدين الملاحة تبدأ
       } catch (e) { fallback(f, 'البحث السريع اتأخر'); }
@@ -929,6 +968,8 @@
   function runVoice(cmd, heard) {
     const pre = RD.provTake(voiceProv, cmd, Date.now());   // التصوير الفورى: أمر طريق ⇒ بياناته · غير كده ⇒ بتتشال
     if (cmd && cmd.startsWith('near:')) nearbyWeb(cmd.slice(5));
+    else if (cmd === 'placecall') callPlaceWeb();
+    else if (cmd && cmd.startsWith('list:')) listNearWeb(cmd.slice(5));
     else if (cmd === 'bump' || cmd === 'pothole') { markRoad(cmd, pre); if (pre && pre.jpg) snapRoad('voice', pre, cmd); }
     else if (cmd === 'bump1' || cmd === 'pothole1') { const ty = cmd.slice(0, -1); markRoad(ty, pre, true); if (pre && pre.jpg) snapRoad('voice', pre, ty); }
     else if (cmd === 'radar' || cmd === 'danger') markRoad(cmd);

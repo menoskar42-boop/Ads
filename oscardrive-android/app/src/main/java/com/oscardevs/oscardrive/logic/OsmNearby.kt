@@ -11,6 +11,11 @@ import kotlin.math.roundToInt
  */
 object OsmNearby {
     const val RADIUS_M = 5000
+    /**
+     * النطاق بيكبر لوحده (البرومبت ٦ — ٢٠٢٦-١١-٢٠): ٢ ⇒ ٥ ⇒ ١٠ ⇒ ٢٥ كم، وأول نطاق فيه نتيجة هو اللى بيتاخد. كده الأقرب دايماً من
+     * القريب (Overpass بيرجّع ٤٠ نتيجة من غير ترتيب، فنطاق كبير من الأول ممكن يفوّت الأقرب) ومفيش نتايج ٤٠٠ كم.
+     */
+    val RADII_M = listOf(2000, 5000, 10000, 25000)
     const val URL = "https://overpass-api.de/api/interpreter"
 
     /** نوع «أقرب …» ⇒ فلتر OpenStreetMap. */
@@ -37,10 +42,10 @@ object OsmNearby {
     /** المكان متقرّب (٠٫٠١° ≈ ١ كم) — مابنبعتش مكانك بالظبط لسيرفر برّه. */
     fun round(v: Double): Double = (v * 100).roundToInt() / 100.0
 
-    fun query(kindId: String, lat: Double, lng: Double): String? {
+    fun query(kindId: String, lat: Double, lng: Double, radiusM: Int = RADIUS_M): String? {
         val f = filters(kindId) ?: return null
         val a = round(lat); val o = round(lng)
-        val parts = f.joinToString("") { "nwr$it(around:$RADIUS_M,$a,$o);" }
+        val parts = f.joinToString("") { "nwr$it(around:$radiusM,$a,$o);" }
         return "[out:json][timeout:15];($parts);out center 40;"
     }
 
@@ -56,7 +61,9 @@ object OsmNearby {
             if (lat.isNaN() || lng.isNaN()) continue
             val t = e.optJSONObject("tags")
             val name = listOf("name:ar", "name", "brand", "operator").firstNotNullOfOrNull { k -> t?.optString(k)?.takeIf { it.isNotBlank() } } ?: fallbackName
-            out += NearbyResult(name, lat, lng)
+            val phone = listOf("phone", "contact:phone", "contact:mobile", "mobile").firstNotNullOfOrNull { k -> t?.optString(k)?.takeIf { it.isNotBlank() } }
+                ?.split(';')?.first()?.trim()   // أكتر من رقم مفصولين بـ; ⇒ الأول
+            out += NearbyResult(name, lat, lng, phone)
         }
         return out
     }

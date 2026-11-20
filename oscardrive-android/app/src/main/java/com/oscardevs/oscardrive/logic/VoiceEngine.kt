@@ -31,6 +31,11 @@ object VoiceCatalog {
         VoiceCommand("nav.home", "روح البيت", listOf("روح البيت", "وديني البيت", "وصلني البيت", "وصلني للبيت", "روحني"), listOf("go home", "take me home", "navigate home")),
         VoiceCommand("nav.work", "روح الشغل", listOf("روح الشغل", "وديني الشغل", "وصلني الشغل", "وصلني للشغل"), listOf("go to work", "take me to work")),
         VoiceCommand("nav.fuel", "أقرب بنزينة", listOf("اقرب بنزينه", "فين بنزينه", "عاوز بنزين", "محطه بنزين", "بنزينه"), listOf("nearest gas station", "find gas", "gas station", "i need fuel")),
+        // البرومبت ٦: «هات محطات البنزين» = قايمة (مش الأقرب على طول) · «اتصل بالمكان ده» = رقم آخر مكان لقيته
+        VoiceCommand("nav.fuel.list", "محطات البنزين", listOf("هات محطات البنزين", "محطات البنزين", "البنزينات اللي حواليا", "وريني البنزينات"),
+            listOf("show gas stations", "list gas stations")),
+        VoiceCommand("place.call", "اتصل بالمكان ده", listOf("اتصل بالمكان ده", "اتصل بالمكان", "كلم المكان ده", "اتصل بيهم", "رقم المكان ده"),
+            listOf("call this place", "call them")),
         VoiceCommand("nav.goto", "وصّلنى لمكان", listOf("وصلني ل*", "وصلني *", "وديني *", "خدني *", "روح *"), listOf("navigate to *", "take me to *", "go to *", "drive to *")),
         VoiceCommand("car.find", "العربية فين", listOf("العربيه فين", "فين العربيه", "مكان العربيه", "ركنت فين", "عربيتي فين", "وصلني للعربيه", "وديني للعربيه"),
             listOf("where is my car", "find my car", "where did i park", "take me to my car")),

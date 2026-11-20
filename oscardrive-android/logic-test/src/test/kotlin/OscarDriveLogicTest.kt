@@ -1031,3 +1031,17 @@ class ProvisionalCaptureTest {
         assertTrue(p.finishIfReady(a, 1_900)); assertContentEquals(jpg, a.jpg)
     }
 }
+
+/** البرومبت ٦ (٢٠٢٦-١١-٢٠): النطاق بيكبر · رقم المكان · «اتصل بالمكان ده» · «هات محطات البنزين». */
+class NearbyPhoneTest {
+    @Test fun radiusGrowsAndPhoneIsRead() {
+        assertEquals(listOf(2000, 5000, 10000, 25000), OsmNearby.RADII_M)
+        assertTrue(OsmNearby.query("fuel", 27.18, 31.18, 2000)!!.contains("around:2000,"))
+        val l = OsmNearby.parse("""{"elements":[{"lat":27.1,"lon":31.1,"tags":{"name":"وطنية","contact:phone":"088 123;010"}},{"lat":27.2,"lon":31.2,"tags":{"name":"موبيل"}}]}""", "بنزينة")
+        assertEquals("088 123", l[0].phone); assertNull(l[1].phone)
+        val e = VoiceEngine()
+        assertEquals("place.call", e.understand("اتصل بالمكان ده")!!.match.command.id)
+        assertEquals("nav.fuel.list", e.understand("هات محطات البنزين")!!.match.command.id)
+        assertEquals("nav.fuel", e.understand("اقرب بنزينة")!!.match.command.id)
+    }
+}

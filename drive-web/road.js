@@ -83,17 +83,20 @@
   const nearSearchUrl = (label, lat, lng) => 'https://www.google.com/maps/search/' + encodeURIComponent(label) +
     (lat != null && lng != null ? '/@' + lat + ',' + lng + ',15z' : '');
   const round2 = (v) => Math.round(v * 100) / 100;
-  function osmQuery(kindId, lat, lng) {
+  /** النطاق بيكبر لوحده (البرومبت ٦) زى OsmNearby.RADII_M: أول نطاق فيه نتيجة. */
+  const RADII_M = [2000, 5000, 10000, 25000];
+  function osmQuery(kindId, lat, lng, radiusM) {
     const k = NEAR.find((x) => x.id === kindId); if (!k) return null;
-    const a = round2(lat), o = round2(lng);
-    return '[out:json][timeout:15];(' + k.f.map((f) => 'nwr' + f + '(around:5000,' + a + ',' + o + ');').join('') + ');out center 40;';
+    const a = round2(lat), o = round2(lng), r = radiusM || 5000;
+    return '[out:json][timeout:15];(' + k.f.map((f) => 'nwr' + f + '(around:' + r + ',' + a + ',' + o + ');').join('') + ');out center 40;';
   }
   function osmParse(json, fallbackName) {
     const els = (json && json.elements) || [];
     return els.map((e) => {
       const lat = e.lat != null ? e.lat : e.center && e.center.lat, lng = e.lon != null ? e.lon : e.center && e.center.lon;
       const t = e.tags || {};
-      return lat == null || lng == null ? null : { name: t['name:ar'] || t.name || t.brand || t.operator || fallbackName, lat, lng };
+      const phone = String(t.phone || t['contact:phone'] || t['contact:mobile'] || t.mobile || '').split(';')[0].trim() || null;   // البرومبت ٦
+      return lat == null || lng == null ? null : { name: t['name:ar'] || t.name || t.brand || t.operator || fallbackName, lat, lng, phone };
     }).filter(Boolean);
   }
   function nearestOf(list, lat, lng) {
@@ -137,6 +140,9 @@
     if ((m = t.trim().match(/(?:سجل|اكتب|خد)\s+ملاحظه\s+(.+)$/))) return 'inbox:note:' + tail(m, 1);
     if ((m = t.trim().match(/((?:فكرني|ذكرني|remind me)\s+.+)$/))) return 'inbox:remind:' + tail(m, 1);
     t = clean(t);   // بعد ما النص الحر اتاخد زى ما اتقال
+    // البرومبت ٦: «اتصل بالمكان ده» = آخر مكان لقيناه · «هات محطات البنزين» = قايمة (قبل «اتصل بـ…» و«أقرب …»)
+    if (/(اتصل بالمكان|كلم المكان|اتصل بيهم|رقم المكان|call this place|call them)/.test(t)) return 'placecall';
+    if (/(محطات البنزين|البنزينات|show gas stations|list gas stations)/.test(t)) return 'list:fuel';
     const call = parseCall(t.replace(/(^|\s)(يا\s+)?(اوسكار|اسكار|وسكار|اوسكر|oscar)(?=\s|$)/g, ' ').trim());
     if (call) return 'call:' + (call.how || '') + ':' + call.name;
     if (/(اسكرين|سكرين|screenshot|خد صوره|صور الطريق|صوره للطريق|صور المطب|صورلي الطريق|صور الشارع|صوره للشارع|صور قدامي|خد لقطه)/.test(t)) return 'shot';
@@ -283,6 +289,6 @@
     if (!it || !ROAD_CMDS.includes(cmd) || nowMs - it.t < 0 || nowMs - it.t >= PROV_TTL_MS) return null;
     st.doneAt = nowMs; return it;
   }
-  const api = { parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

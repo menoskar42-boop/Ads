@@ -99,7 +99,8 @@ object FrequentPlaces {
 /** نوع مكان: الكلمات اللى بتتقال · اللى بيتكتب فى بحث الخرايط · نوع Places API. */
 data class NearbyKind(val id: String, val ar: String, val words: List<String>, val mapsQuery: String, val placesType: String)
 
-data class NearbyResult(val name: String, val lat: Double, val lng: Double)
+/** phone = رقم المكان لو مكتوب على OpenStreetMap (البرومبت ٦) — null = مفيش رقم مسجّل. */
+data class NearbyResult(val name: String, val lat: Double, val lng: Double, val phone: String? = null)
 
 object Nearby {
     val KINDS = listOf(

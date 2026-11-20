@@ -90,6 +90,15 @@ test('one-way bump (prompt 5): warns the same direction only — two-way (old) w
   assert.equal(R.parseVoice('اوسكار سجل حفرة اتجاه واحد'), 'pothole1');
   assert.equal(R.parseVoice('اوسكار سجل مطب'), 'bump');
 });
+test('nearest (prompt 6): the radius grows 2→5→10→25 km, the place phone is read from OSM, «call this place» and «list stations» are understood', () => {
+  assert.deepEqual(R.RADII_M, [2000, 5000, 10000, 25000]);
+  assert.ok(R.osmQuery('fuel', 27.18, 31.18, 2000).includes('around:2000,'));
+  const l = R.osmParse({ elements: [{ lat: 27.1, lon: 31.1, tags: { name: 'وطنية', phone: '+20 88 1234567;0100' } }, { lat: 27.2, lon: 31.2, tags: { name: 'موبيل' } }] }, 'بنزينة');
+  assert.equal(l[0].phone, '+20 88 1234567'); assert.equal(l[1].phone, null);
+  assert.equal(R.parseVoice('اوسكار اتصل بالمكان ده'), 'placecall');           // مش جهة اتصال اسمها «المكان ده»
+  assert.equal(R.parseVoice('اوسكار هات محطات البنزين'), 'list:fuel');
+  assert.equal(R.parseVoice('أوسكار دوّر على أقرب بنزينة'), 'near:fuel');       // الأقرب على طول زى ما هو
+});
 test('phone voice: «call X» goes to the iPhone shortcut by name — phone or WhatsApp, contacts never leave the phone', () => {
   assert.equal(R.parseVoice('أوسكار اتصل بمحمود يعقوب'), 'call::محمود يعقوب');
   assert.equal(R.parseVoice('اوسكار كلم أحمد واتساب'), 'call:wa:احمد');
