@@ -569,11 +569,14 @@
   };
   function ctAddOne(name, tels) {
     name = String(name || '').trim(); tels = (tels || []).map((t) => String(t).trim()).filter(Boolean);
-    if (!name || !tels.length) return;
+    if (!name || !tels.length) return false;
     const l = ctAll(), i = l.findIndex((c) => !c.deleted && ctNameKey(c.name) === ctNameKey(name));
     if (i >= 0) { l[i].tels = Array.from(new Set(l[i].tels.concat(tels))).slice(0, 8); l[i].updatedMs = Date.now(); }
     else if (l.filter((c) => !c.deleted).length < 500 && l.length < 1000) l.push({ id: makeContactId(), name, tels: Array.from(new Set(tels)).slice(0, 8), updatedMs: Date.now(), deleted: false });
-    ctSave(l);
+    else return false;
+    const saved = ctSave(l);
+    if (!$('contactDirectory').hidden) renderContactDirectory($('contactSearch').value);
+    return saved;
   }
   function ctRender() {
     const ul = $('ctList'); ul.textContent = '';
@@ -748,7 +751,27 @@
         + (parsed.truncated ? ' تم استيراد أول 500 جهة فقط.' : '');
     } catch (e) { note.textContent = 'ماقدرتش أقرأ ملف vCard: ' + (e.message || e); }
   });
-  $('ctAdd').addEventListener('click', () => { ctAddOne($('ctName').value, [$('ctTel').value]); $('ctName').value = ''; $('ctTel').value = ''; });
+  $('ctAdd').addEventListener('click', () => {
+    const name = $('ctName').value.trim();
+    const tels = RD.parseContactPhoneInput($('ctTel').value);
+    const note = $('ctImportNote');
+    if (!name || !tels.length || tels.length > 8 || tels.some((phone) => ctPhoneKey(phone).replace(/\D/g, '').length < 3)) {
+      note.textContent = 'راجع الاسم والأرقام؛ اكتب من رقم إلى 8 أرقام صحيحة وافصل بينها بفواصل.';
+      return;
+    }
+    const existing = ctLoad().find((contact) => ctNameKey(contact.name) === ctNameKey(name));
+    if (existing && new Set(existing.tels.concat(tels)).size > 8) {
+      note.textContent = 'لا يمكن حفظ أكثر من 8 أرقام لجهة الاتصال الواحدة.';
+      return;
+    }
+    if (!ctAddOne(name, tels)) {
+      note.textContent = 'ماقدرتش أحفظ جهة الاتصال؛ مساحة التخزين قد تكون ممتلئة أو وصلت للحد الأقصى.';
+      return;
+    }
+    $('ctName').value = '';
+    $('ctTel').value = '';
+    note.textContent = `تم حفظ جهة الاتصال ومعها ${tels.length} ${tels.length === 1 ? 'رقم' : 'أرقام'} على هذا الجهاز.`;
+  });
   $('ctClearAll').addEventListener('click', () => {
     const count = ctLoad().length, note = $('ctImportNote');
     if (!count) { note.textContent = 'قائمة جهات الاتصال المحلية فارغة.'; return; }

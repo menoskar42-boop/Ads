@@ -180,13 +180,16 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         SyncContact(it.getString(0) ?: "", it.getString(1) ?: "", parseContactPhones(it.getString(3), it.getString(2) ?: ""),
             it.getLong(4), it.getInt(5) == 1)
     }
-    fun addContact(name: String, phone: String) {
+    fun addContact(name: String, phone: String) = addContact(name, listOf(phone))
+    fun addContact(name: String, phones: List<String>) {
         val cleanName = name.trim().take(60)
-        val cleanPhone = phone.trim().take(30)
-        if (cleanName.isBlank() || contactPhoneKey(cleanPhone).length < 3) return
+        val cleanTels = phones.map { it.trim().take(30) }.filter { contactPhoneKey(it).length >= 3 }.distinct().take(8)
+        if (cleanName.isBlank() || cleanTels.isEmpty()) return
+        val primaryPhone = cleanTels.first()
         val now = System.currentTimeMillis()
         writableDatabase.insert("contacts", null, ContentValues().apply {
-            put("name", cleanName); put("phone", cleanPhone); put("phones_json", org.json.JSONArray().put(cleanPhone).toString())
+            put("name", cleanName); put("phone", primaryPhone)
+            put("phones_json", org.json.JSONArray().apply { cleanTels.forEach { put(it) } }.toString())
             put("sync_uuid", java.util.UUID.randomUUID().toString()); put("updated_ms", now); put("deleted", 0)
         })
     }

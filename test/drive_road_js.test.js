@@ -36,6 +36,12 @@ test('test mode (inside the flat): 20 m, no direction, again after 30 s', () => 
   assert.equal(R.ahead([t], LAT0, LNG0, null, 0, 10000, { t: 0 }, { test: true }), null);
   assert.ok(R.ahead([t], LAT0, LNG0, null, 0, 40000, { t: 0 }, { test: true }));
 });
+test('manual contact phone input accepts multiple numbers with Arabic and English separators', () => {
+  assert.deepEqual(
+    R.parseContactPhoneInput('01012345678، 01198765432; 01012345678\n02 1234567'),
+    ['01012345678', '01198765432', '02 1234567'],
+  );
+});
 test('phone voice: needs the name, understands bump / pothole / screenshot', () => {
   assert.equal(R.parseVoice('أوسكار سجّل مطب هنا'), 'bump');
   assert.equal(R.parseVoice('يا اسكار سجل حفرة'), 'pothole');

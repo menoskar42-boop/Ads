@@ -320,7 +320,7 @@ body.solo .carOnly { display:none !important; }
           </div>
           <div id="ctManualForm" class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px" hidden>
             <input id="ctName" class="plain" placeholder="اسم جهة الاتصال" style="flex:1;min-width:120px">
-            <input id="ctTel" class="plain" type="tel" inputmode="tel" placeholder="رقم الهاتف" style="flex:1;min-width:120px;direction:ltr">
+            <input id="ctTel" class="plain" type="text" inputmode="text" maxlength="300" autocomplete="off" aria-label="أرقام الهاتف، افصل بينها بفواصل" placeholder="مثال: 01012345678، 01198765432" style="flex:1;min-width:180px;direction:ltr">
             <button id="ctAdd" type="button">حفظ جهة الاتصال</button>
           </div>
           <p class="note" id="ctImportNote" role="status" aria-live="polite">على الآيفون اختار ملف vCard من «الملفات». تظل الأسماء والأرقام على هذا الجهاز حتى توافق على المزامنة.</p>

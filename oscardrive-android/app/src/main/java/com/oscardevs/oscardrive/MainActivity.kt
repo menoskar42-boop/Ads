@@ -2289,14 +2289,16 @@ class MainActivity : Activity() {
         page.addView(ui.button("📇 افتح دفتر الاتصال", "neutral", 15f) { showContactDirectory() }, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 3))
         page.addView(ui.button("＋ جهة", "neutral", 15f) {
             askText("الاسم (زى ما هتقوله)", "مثلاً: ماما", "") { n ->
-                askText("رقم الواتساب", "01xxxxxxxxx", "", InputType.TYPE_CLASS_PHONE) { ph ->
-                    if (n.isBlank() || com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(ph) == null) toast("الاسم أو الرقم مش مظبوط") else { db.addContact(n, ph); ContactSync.syncSoon(this, force = true); refresh() }
+                askText("أرقام الواتساب مفصولة بفواصل", "01xxxxxxxxx, 011xxxxxxxx", "", InputType.TYPE_CLASS_TEXT) { raw ->
+                    val tels = raw.split(',', '،', ';', '؛', '\n').map { it.trim() }.filter { it.isNotBlank() }.distinct()
+                    if (n.isBlank() || tels.isEmpty() || tels.size > 8 || tels.any { com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(it) == null }) toast("راجع الاسم والأرقام؛ الحد الأقصى 8 أرقام.")
+                    else { db.addContact(n, tels); ContactSync.syncSoon(this, force = true); refresh() }
                 }
             }
         }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
         for (c in db.contacts()) {
             val r = ui.card(10).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            r.addView(ui.text("${c.name} — ${c.phone}", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            r.addView(ui.text("${c.name} — ${db.contactTels(c.id).joinToString(" · ")}", 15f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
             r.addView(ui.button("💬", "neutral", 15f) { askText("رسالة لـ ${c.name}", "", "") { t -> if (t.isNotBlank()) openWhatsApp(c.phone, t) } }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
             r.addView(ui.button("✏️", "neutral", 14f) {
                 askText("اسم جهة الاتصال", "", c.name) { name ->
