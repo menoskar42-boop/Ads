@@ -838,7 +838,13 @@
       }).catch(() => {});
     }
   }
-  function callDone() { callPending = null; $('callBox').hidden = true; $('callOpts').textContent = ''; $('contactDirectory').hidden = true; }
+  function callDone() {
+    callPending = null;
+    $('callBox').hidden = true;
+    $('callOpts').textContent = '';
+    $('contactDirectory').hidden = true;
+    document.body.classList.remove('contacts-on');
+  }
   function callGo(how) {
     const p = callPending; if (!p) return;
     callDone();
@@ -876,11 +882,14 @@
     $('callTelBtn').hidden = true; $('callWaBtn').hidden = true; $('callNoBtn').hidden = true;
     $('callOpts').textContent = '';
     $('contactDirectory').hidden = false;
+    document.body.classList.add('contacts-on');
     $('contactSearch').value = '';
     renderContactDirectory();
     syncContacts().catch(() => {});
     $('contactSearch').focus();
   }
+  $('contactsHomeBtn').addEventListener('click', showContactDirectory);
+  $('ctClose').addEventListener('click', callDone);
   $('dvCall').addEventListener('click', showContactDirectory);
   try { $('voiceSel').value = oscarVoice(); } catch (e) {}
   $('voiceSel').addEventListener('change', () => {
