@@ -21,6 +21,7 @@ export const api = {
       input: z.object({
         username: z.string(),
         password: z.string(),
+        remember: z.boolean().optional(),
       }),
       responses: {
         200: z.custom<typeof users.$inferSelect>(),

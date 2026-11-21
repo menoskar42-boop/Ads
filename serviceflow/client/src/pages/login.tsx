@@ -11,6 +11,11 @@ import { ROLES } from "@shared/schema";
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  // «فاكرنى» (٢٠٢٦-١١-١٧): الجلسة ٣٠ يوم بدل أسبوع — لجهاز التنفيذ مثلاً، عشان الريفريش وقفل التاب مايطلبوش دخول
+  const [remember, setRemember] = useState(false);
+  // جهاز التنفيذ كان شغّال على المتصفح ده والجلسة انتهت ⇒ نقول كده بدل ما يقف من غير رسالة.
+  // بعد الدخول بيرجع يشتغل لوحده (العلامة sf_exec_active لسه فى localStorage).
+  const executorWasOn = (() => { try { return localStorage.getItem("sf_exec_active") === "1"; } catch { return false; } })();
   const { login, isLoggingIn, user } = useAuth();
   const [, setLocation] = useLocation();
 
@@ -26,7 +31,7 @@ export default function Login() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login({ username, password });
+    login({ username, password, remember });
   };
 
   return (
@@ -47,6 +52,11 @@ export default function Login() {
               <CardDescription>أدخل بيانات الحساب الخاص بك</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-right">
+              {executorWasOn && (
+                <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                  ⚠️ جهاز التنفيذ كان شغّال على المتصفح ده والجلسة انتهت — سجّل دخول وهيرجع يشتغل لوحده.
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="username">اسم المستخدم</Label>
                 <Input
@@ -71,6 +81,10 @@ export default function Login() {
                   required
                 />
               </div>
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4" />
+                فاكرنى على الجهاز ده (٣٠ يوم)
+              </label>
             </CardContent>
             <CardFooter>
               <Button type="submit" className="w-full h-11 text-base" disabled={isLoggingIn}>

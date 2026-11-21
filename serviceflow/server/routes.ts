@@ -70,6 +70,13 @@ const MemStore = MemoryStore(session);
 // جلسات دائمة فى Postgres (جدول sf_session المُنشأ فى ensureSchema). لو فشلت التهيئة
 // لأى سبب نرجع لـ MemoryStore عشان الدخول مايتعطّلش أبداً.
 let quietSessions: QuietSessionStore | null = null;
+/** عمر الجلسة: أسبوع افتراضى، و٣٠ يوم لو «فاكرنى» (جهاز التنفيذ مثلاً — المالك ٢٠٢٦-١١-١٧). */
+export const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+export const REMEMBER_MS = 30 * 24 * 60 * 60 * 1000;
+function rememberSession(req: any) {
+  if (req?.body?.remember === true && req.session?.cookie) req.session.cookie.maxAge = REMEMBER_MS;
+}
+
 function buildSessionStore() {
   try {
     const PgSession = connectPgSimple(session);
@@ -1966,7 +1973,10 @@ export async function registerRoutes(
       resave: false,
       saveUninitialized: false,
       rolling: true, // كل طلب (ومنه التحديث التلقائى كل نص ساعة) يمدّد عمر الجلسة
-      cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // أسبوع
+      // ٢٠٢٦-١١-١٧: الكوكى مش بتتقرا من الجافاسكربت (httpOnly) · بتتبعت مع الصفحات من نفس الموقع بس (lax) ·
+      // Secure لوحدها لما الطلب HTTPS ("auto" — مابيكسرش الدخول لو البوّاب مابيبعتش X-Forwarded-Proto).
+      // العمر أسبوع ويتجدّد مع كل طلب، و«فاكرنى» فى صفحة الدخول بيخلّيه ٣٠ يوم (REMEMBER_MS).
+      cookie: { maxAge: SESSION_MS, httpOnly: true, sameSite: "lax", secure: "auto" },
     })
   );
 
@@ -2178,6 +2188,7 @@ export async function registerRoutes(
 
   // === Auth Routes ===
   app.post(api.auth.login.path, passport.authenticate("local"), async (req, res) => {
+    rememberSession(req);
     await setupCfmSessionForSf(req);
     res.json(await userResponse(req.user));
   });
@@ -2198,6 +2209,7 @@ export async function registerRoutes(
       if (sfUser && !sfUser.suspended && await comparePassword(String(password), sfUser.password)) {
         await new Promise<void>((resolve, reject) =>
           (req as any).login(sfUser, (e: any) => (e ? reject(e) : resolve())));
+        rememberSession(req);
         // لو الدور بيفتح الكوابل + مربوط بحساب كوابل → جهّز جلسة الكوابل بهويته الأصلية
         const cfmRole = cfmRoleOf(sfUser.role);
         if (cfmRole && (sfUser as any).cfmUserId) {
