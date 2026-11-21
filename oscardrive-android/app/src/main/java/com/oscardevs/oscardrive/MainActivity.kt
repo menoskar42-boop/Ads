@@ -1319,9 +1319,18 @@ class MainActivity : Activity() {
         }
         val status = ui.text("جهات الاتصال محفوظة على الشاشة؛ المزامنة اختيارية.", 13f, ui.muted)
         val syncEnabled = booleanArrayOf(false)
+        var visibleCount = 200
+        var cachedContacts: List<Db.SyncContact>? = null
+        val collator = java.text.Collator.getInstance(java.util.Locale("ar"))
         lateinit var syncButton: TextView
         lateinit var disableButton: TextView
         lateinit var renderContacts: () -> Unit
+        val moreButton = ui.button("عرض جهات إضافية", "neutral", 13f) {
+            visibleCount += 200
+            renderContacts()
+        }.apply { visibility = View.GONE }
+        fun allContacts(): List<Db.SyncContact> =
+            cachedContacts ?: db.contactDirectory().sortedWith { a, b -> collator.compare(a.name, b.name) }.also { cachedContacts = it }
         syncButton = ui.button("🔄 مزامنة مع موقع الموبايل", "neutral", 14f) {
             if (!syncEnabled[0]) {
                 AlertDialog.Builder(this)
@@ -1334,6 +1343,8 @@ class MainActivity : Activity() {
                             status.text = result.message
                             syncButton.text = if (syncEnabled[0]) "🔄 حدّث جهات الاتصال" else "🔄 فعّل المزامنة"
                             disableButton.visibility = if (syncEnabled[0]) View.VISIBLE else View.GONE
+                            cachedContacts = null
+                            visibleCount = 200
                             renderContacts()
                         }
                     }.show()
@@ -1341,6 +1352,8 @@ class MainActivity : Activity() {
                 ContactSync.sync(this, force = true) { result ->
                     if (result.ok) syncEnabled[0] = result.enabled
                     status.text = result.message
+                    cachedContacts = null
+                    visibleCount = 200
                     renderContacts()
                 }
             }
@@ -1365,6 +1378,7 @@ class MainActivity : Activity() {
         box.addView(syncButton, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 2))
         box.addView(disableButton, ui.lp(Ui.MATCH, ui.dp(44), marginDp = 2))
         box.addView(scroll, ui.lp(Ui.MATCH, ui.dp(360), marginDp = 3))
+        box.addView(moreButton, ui.lp(Ui.MATCH, ui.dp(44), marginDp = 2))
         fun normalizedDigits(value: String): String {
             val ar = "٠١٢٣٤٥٦٧٨٩"
             return value.map { ch -> val i = ar.indexOf(ch); if (i >= 0) ('0' + i) else ch }
@@ -1374,20 +1388,20 @@ class MainActivity : Activity() {
             list.removeAllViews()
             val query = search.text.toString().trim()
             val digits = normalizedDigits(query)
-            val collator = java.text.Collator.getInstance(java.util.Locale("ar"))
-            val contacts = db.contactDirectory().filter { contact ->
+            val all = allContacts()
+            val contacts = all.filter { contact ->
                 query.isBlank() ||
                     contact.name.contains(query, ignoreCase = true) ||
                     (digits.isNotBlank() && contact.tels.any { normalizedDigits(it).contains(digits) })
-            }.sortedWith { a, b -> collator.compare(a.name, b.name) }
+            }
             if (contacts.isEmpty()) {
                 list.addView(ui.text(
-                    if (db.contactDirectory().isEmpty()) "لا توجد جهات محفوظة. أضفها من الإعدادات أو زامنها من الموقع."
+                    if (all.isEmpty()) "لا توجد جهات محفوظة. أضفها من الإعدادات أو زامنها من الموقع."
                     else "لا توجد نتائج مطابقة.",
                     14f, ui.muted, gravity = Gravity.CENTER,
                 ), ui.lp(Ui.MATCH, ui.dp(70)))
             }
-            for (contact in contacts) {
+            for (contact in contacts.take(visibleCount)) {
                 val row = ui.card(8).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
                 row.addView(ui.text("${contact.name}\n${contact.tels.joinToString(" · ")}", 14f, ui.ink),
                     LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
@@ -1403,10 +1417,15 @@ class MainActivity : Activity() {
                 }, ui.lp(ui.dp(104), ui.dp(48), 0f, 2))
                 list.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
             }
+            moreButton.visibility = if (contacts.size > visibleCount) View.VISIBLE else View.GONE
+            moreButton.text = "عرض ${minOf(200, contacts.size - visibleCount)} جهة إضافية (${contacts.size - visibleCount} متبقية)"
         }
         search.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { renderContacts() }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                visibleCount = 200
+                renderContacts()
+            }
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
         val dialog = AlertDialog.Builder(this).setTitle("📇 جهات الاتصال").setView(box).setNegativeButton("قفل", null).create()
@@ -1417,6 +1436,8 @@ class MainActivity : Activity() {
             status.text = result.message
             syncButton.text = if (syncEnabled[0]) "🔄 حدّث جهات الاتصال" else "🔄 فعّل المزامنة"
             disableButton.visibility = if (syncEnabled[0]) View.VISIBLE else View.GONE
+            cachedContacts = null
+            visibleCount = 200
             renderContacts()
         }
     }

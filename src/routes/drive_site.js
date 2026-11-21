@@ -20,7 +20,7 @@ const WEB_DIR = path.join(__dirname, '..', '..', 'drive-web');
 function createDriveSite({ pool, push } = {}) {
   const router = express.Router();
   const json = express.json({ limit: '1mb' });
-  const contactsJson = express.json({ limit: '512kb' });
+  const contactsJson = express.json({ limit: '32mb' });
 
   router.use((req, res, next) => {
     res.locals.showAds = false;

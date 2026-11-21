@@ -523,6 +523,10 @@
   let callPending = null;   // { name, how, at }
   const getContactSpelling = RD.createContactSpellingCache();
   const CT_KEY = 'od_contacts';
+  const CT_MAX_CONTACTS = RD.MAX_CONTACTS;
+  const CT_MAX_RECORDS = CT_MAX_CONTACTS * 2;
+  const CT_RENDER_PAGE = 200;
+  let ctListVisible = CT_RENDER_PAGE, ctDirectoryVisible = CT_RENDER_PAGE;
   let ctSyncEnabled = false, ctSyncBusy = false, ctSyncAt = 0, ctSyncTimer = null;
   const makeContactId = () => window.crypto && typeof window.crypto.randomUUID === 'function'
     ? window.crypto.randomUUID()
@@ -534,7 +538,7 @@
     try { raw = JSON.parse(localStorage.getItem(CT_KEY) || '[]'); } catch (e) {}
     if (!Array.isArray(raw)) raw = [];
     const now = Date.now();
-    const list = raw.slice(0, 1000).map((c) => {
+    const list = raw.slice(0, CT_MAX_RECORDS).map((c) => {
       const name = String(c && c.name || '').trim().slice(0, 60);
       const tels = Array.from(new Set((Array.isArray(c && c.tels) ? c.tels : []).map((t) => String(t || '').trim().slice(0, 30))
         .filter((t) => ctPhoneKey(t).length >= 3))).slice(0, 8);
@@ -555,7 +559,8 @@
   const ctIdentity = (c) => `${ctNameKey(c.name)}|${ctPhoneKey((c.tels || [])[0])}`;
   const ctSort = (list) => list.slice().sort((a, b) => new Intl.Collator('ar', { sensitivity: 'base', numeric: true }).compare(a.name, b.name));
   function ctWriteLocal(list, schedule = true) {
-    const safe = Array.isArray(list) ? list.slice(0, 1000) : [];
+    const safe = Array.isArray(list) ? list.slice(0, CT_MAX_RECORDS) : [];
+    ctListVisible = CT_RENDER_PAGE;
     try { localStorage.setItem(CT_KEY, JSON.stringify(safe)); ctRender(); }
     catch (e) { ctRender(); return false; }
     if (schedule) {
@@ -572,7 +577,7 @@
     if (!name || !tels.length) return false;
     const l = ctAll(), i = l.findIndex((c) => !c.deleted && ctNameKey(c.name) === ctNameKey(name));
     if (i >= 0) { l[i].tels = Array.from(new Set(l[i].tels.concat(tels))).slice(0, 8); l[i].updatedMs = Date.now(); }
-    else if (l.filter((c) => !c.deleted).length < 500 && l.length < 1000) l.push({ id: makeContactId(), name, tels: Array.from(new Set(tels)).slice(0, 8), updatedMs: Date.now(), deleted: false });
+    else if (l.filter((c) => !c.deleted).length < CT_MAX_CONTACTS && l.length < CT_MAX_RECORDS) l.push({ id: makeContactId(), name, tels: Array.from(new Set(tels)).slice(0, 8), updatedMs: Date.now(), deleted: false });
     else return false;
     const saved = ctSave(l);
     if (!$('contactDirectory').hidden) renderContactDirectory($('contactSearch').value);
@@ -580,7 +585,8 @@
   }
   function ctRender() {
     const ul = $('ctList'); ul.textContent = '';
-    for (const c of ctSort(ctLoad())) {
+    const contacts = ctSort(ctLoad());
+    for (const c of contacts.slice(0, ctListVisible)) {
       const li = document.createElement('li'); li.textContent = c.name + ' · ' + c.tels.join(' · ') + ' ';
       const edit = document.createElement('button'); edit.textContent = 'تعديل';
       edit.addEventListener('click', () => {
@@ -604,21 +610,34 @@
       x.addEventListener('click', () => ctDelete(c.id));
       li.append(edit, x); ul.append(li);
     }
+    const more = $('ctListMore');
+    more.hidden = contacts.length <= ctListVisible;
+    more.textContent = `عرض ${Math.min(CT_RENDER_PAGE, contacts.length - ctListVisible)} جهة إضافية (${contacts.length - ctListVisible} متبقية)`;
   }
   function ctImportMany(imported) {
     const list = ctAll();
     let added = 0, merged = 0, skipped = 0;
+    const byName = new Map();
+    let activeCount = 0;
+    for (const entry of list) {
+      if (entry.deleted) continue;
+      activeCount++;
+      const key = ctNameKey(entry.name);
+      if (!byName.has(key)) byName.set(key, entry);
+    }
     for (const contact of imported) {
       const name = String(contact.name || '').trim();
       const tels = Array.from(new Set((contact.tels || []).map((tel) => String(tel).trim()).filter(Boolean)));
       if (!name || !tels.length) { skipped++; continue; }
-      const existing = list.find((entry) => !entry.deleted && ctNameKey(entry.name) === ctNameKey(name));
+      const key = ctNameKey(name);
+      const existing = byName.get(key);
       if (existing) {
         const oldTels = Array.isArray(existing.tels) ? existing.tels : [];
-        existing.tels = Array.from(new Set(oldTels.concat(tels)));
+        existing.tels = Array.from(new Set(oldTels.concat(tels))).slice(0, 8);
         if (existing.tels.length > oldTels.length) { existing.updatedMs = Date.now(); merged++; }
-      } else if (list.filter((entry) => !entry.deleted).length < 500 && list.length < 1000) {
-        list.push({ id: makeContactId(), name, tels: tels.slice(0, 8), updatedMs: Date.now(), deleted: false }); added++;
+      } else if (activeCount < CT_MAX_CONTACTS && list.length < CT_MAX_RECORDS) {
+        const entry = { id: makeContactId(), name, tels: tels.slice(0, 8), updatedMs: Date.now(), deleted: false };
+        list.push(entry); byName.set(key, entry); added++; activeCount++;
       }
       else skipped++;
     }
@@ -631,7 +650,8 @@
     contact.updatedMs = Date.now();
     ctSave(list);
   }
-  function renderContactDirectory(query = '') {
+  function renderContactDirectory(query = '', reset = true) {
+    if (reset) ctDirectoryVisible = CT_RENDER_PAGE;
     const list = $('contactDirectoryList');
     list.textContent = '';
     const text = ctNameKey(query);
@@ -646,7 +666,7 @@
         ? 'لا توجد جهات اتصال مطابقة.'
         : 'مفيش جهات محفوظة؛ استورد ملف .vcf أو اضغط «أضف يدويًا» فوق.';
     }
-    for (const contact of matches) {
+    for (const contact of matches.slice(0, ctDirectoryVisible)) {
       const row = document.createElement('div');
       row.className = 'contact-directory-row';
       row.setAttribute('role', 'listitem');
@@ -662,7 +682,15 @@
       row.append(info, button);
       list.append(row);
     }
+    const more = $('contactDirectoryMore');
+    more.hidden = matches.length <= ctDirectoryVisible;
+    more.textContent = `عرض ${Math.min(CT_RENDER_PAGE, matches.length - ctDirectoryVisible)} جهة إضافية (${matches.length - ctDirectoryVisible} متبقية)`;
   }
+  $('ctListMore').addEventListener('click', () => { ctListVisible += CT_RENDER_PAGE; ctRender(); });
+  $('contactDirectoryMore').addEventListener('click', () => {
+    ctDirectoryVisible += CT_RENDER_PAGE;
+    renderContactDirectory($('contactSearch').value, false);
+  });
   async function syncContacts(enable = false, disable = false) {
     if (!token || ctSyncBusy) return null;
     ctSyncBusy = true;
@@ -737,7 +765,7 @@
     const input = event.currentTarget, file = input.files && input.files[0], note = $('ctImportNote');
     input.value = '';
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { note.textContent = 'الملف أكبر من 5 ميجابايت؛ اختار ملف vCard أصغر.'; return; }
+    if (file.size > 16 * 1024 * 1024) { note.textContent = 'الملف أكبر من 16 ميجابايت؛ اختار ملف vCard أصغر.'; return; }
     if (!/\.vcf$/i.test(file.name || '') && !/vcard/i.test(file.type || '')) { note.textContent = 'اختار ملف vCard امتداده .vcf.'; return; }
     note.textContent = 'جارٍ قراءة الملف داخل المتصفح…';
     try {
@@ -746,9 +774,10 @@
       if (!contacts.length) { note.textContent = 'ما لقيتش أسماء وأرقام صالحة في الملف.'; return; }
       const result = ctImportMany(contacts);
       if (!result.saved) { note.textContent = 'المتصفح لم يستطع حفظ القائمة؛ قد تكون مساحة التخزين ممتلئة.'; return; }
+      if (!$('contactDirectory').hidden) renderContactDirectory($('contactSearch').value);
       note.textContent = `تمت قراءة ${contacts.length} جهة: أضيف ${result.added} ودمجت أرقام ${result.merged} جهات. الحفظ محلي أولًا${ctSyncEnabled ? ' ثم تُرسل المزامنة إلى الشاشة المرتبطة.' : ' ولم تُرسل أي بيانات للسيرفر.'}`
         + (result.skipped ? ` تم تجاهل ${result.skipped}.` : '')
-        + (parsed.truncated ? ' تم استيراد أول 500 جهة فقط.' : '');
+        + (parsed.truncated ? ` تم استيراد أول ${CT_MAX_CONTACTS.toLocaleString('ar-EG')} جهة فقط.` : '');
     } catch (e) { note.textContent = 'ماقدرتش أقرأ ملف vCard: ' + (e.message || e); }
   });
   $('ctAdd').addEventListener('click', () => {

@@ -335,6 +335,7 @@ body.solo .carOnly { display:none !important; }
           </div>
           <p class="note" id="ctImportNote" role="status" aria-live="polite">على الآيفون اختار ملف vCard من «الملفات». تظل الأسماء والأرقام على هذا الجهاز حتى توافق على المزامنة.</p>
           <div id="contactDirectoryList" role="list"></div>
+          <button id="contactDirectoryMore" type="button" style="width:100%;margin-top:6px" hidden>عرض جهات إضافية</button>
           <p id="contactDirectoryEmpty" class="note" hidden>لا توجد جهات اتصال مطابقة.</p>
         </div>
         <button id="callTelBtn" class="primary" style="flex:1">📞 تليفون</button>
@@ -374,6 +375,7 @@ body.solo .carOnly { display:none !important; }
         </div>
         <p class="note" id="ctSyncStatus" role="status" aria-live="polite">المزامنة غير مفعّلة؛ جهات الاتصال تبقى على هذا الجهاز.</p>
         <ul class="list" id="ctList"></ul>
+        <button id="ctListMore" type="button" style="width:100%;margin-top:6px" hidden>عرض جهات إضافية</button>
         <button id="ctClearAll" type="button" style="width:100%;margin-top:6px;border-color:#b42318;color:#b42318">امسح كل جهات الاتصال</button>
         <p class="note">عند تفعيل المزامنة، حذف جهة أو مسح القائمة يزيلها من الأجهزة المرتبطة بعد المزامنة. إيقاف المزامنة يمسح نسخة الخادم ويُبقي النسخ المحلية.</p>
       </details>

@@ -188,9 +188,9 @@ test('vCard parsing keeps contacts on-device and reads common vCard formats', ()
     ],
     truncated: false,
   });
-  const large = Array.from({ length: 501 }, (_, i) => `BEGIN:VCARD\nFN:Contact ${i}\nTEL:01012345678\nEND:VCARD`).join('\n');
+  const large = Array.from({ length: 20001 }, (_, i) => `BEGIN:VCARD\nFN:Contact ${i}\nTEL:01012345678\nEND:VCARD`).join('\n');
   const limited = R.parseVCardContacts(large);
-  assert.equal(limited.contacts.length, 500);
+  assert.equal(limited.contacts.length, 20000);
   assert.equal(limited.truncated, true);
 });
 test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping', () => {

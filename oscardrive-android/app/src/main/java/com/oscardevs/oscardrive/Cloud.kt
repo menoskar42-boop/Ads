@@ -13,10 +13,10 @@ object Cloud {
 
     class HttpError(val code: Int) : Exception("HTTP $code")
 
-    private fun call(path: String, token: String?, body: JSONObject?): JSONObject {
+    private fun call(path: String, token: String?, body: JSONObject?, readTimeoutMs: Int = 20_000): JSONObject {
         val c = URL(BASE + path).openConnection() as HttpURLConnection
         try {
-            c.connectTimeout = 10_000; c.readTimeout = 20_000
+            c.connectTimeout = 10_000; c.readTimeout = readTimeoutMs
             c.requestMethod = "POST"
             c.setRequestProperty("Content-Type", "application/json")
             if (token != null) c.setRequestProperty("Authorization", "Bearer $token")
@@ -39,7 +39,7 @@ object Cloud {
     /** ذاكرة الطريق (رفع بالـuuid، و`pull` بيرجّع ذاكرة العربية كلها). */
     fun hazards(token: String, body: JSONObject): JSONObject = call("/api/car/hazards", token, body)
     /** جهات الاتصال التي وافق المالك على مزامنتها بين صفحة الموبايل والشاشة المرتبطة. */
-    fun contacts(token: String, body: JSONObject): JSONObject = call("/api/car/contacts", token, body)
+    fun contacts(token: String, body: JSONObject): JSONObject = call("/api/car/contacts", token, body, readTimeoutMs = 60_000)
     /** الشاشة دى تاخد نفس العربية بكود من صفحة الموبايل (بعد مسح التطبيق). */
     fun relink(token: String, code: String): JSONObject = call("/api/car/relink", token, JSONObject().put("code", code))
     /** الربط بـQR: رقم ٨ أرقام + الرابط اللى بيتعرض QR، وسؤال «اتربطت؟». */

@@ -17,7 +17,22 @@ test('contact validation accepts only bounded names and phone numbers', () => {
   assert.throws(() => Contacts.cleanContact({ ...contact(idA), name: '  ' }), { status: 400 });
   assert.throws(() => Contacts.cleanContact({ ...contact(idA), tels: [] }), { status: 400 });
   assert.throws(() => Contacts.cleanContact({ ...contact('not-an-id') }), { status: 400 });
-  assert.throws(() => Contacts.cleanContacts(Array(1001).fill(contact(idA))), { status: 400 });
+  assert.equal(Contacts.cleanContacts(Array(20000).fill(contact(idA))).length, 20000);
+  assert.throws(() => Contacts.cleanContacts(Array(40001).fill(contact(idA))), { status: 400 });
+});
+
+test('contact sync accepts up to 20,000 active contacts and caps older tombstones', () => {
+  assert.equal(Contacts.MAX_CONTACTS, 20000);
+  assert.equal(Contacts.MAX_CONTACT_RECORDS, 40000);
+  const items = Array.from({ length: Contacts.MAX_CONTACTS }, (_, index) => contact(
+    `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    { name: `Contact ${index + 1}` },
+  ));
+  assert.equal(Contacts.mergeContacts([], items).items.length, 20000);
+  assert.throws(
+    () => Contacts.mergeContacts([], [...items, contact('00000000-0000-4000-8000-000000020001', { name: 'Overflow' })]),
+    { status: 400 },
+  );
 });
 
 test('sync merges duplicate imports and maps them to one stable contact id', () => {

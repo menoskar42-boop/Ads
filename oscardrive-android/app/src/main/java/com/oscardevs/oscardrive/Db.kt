@@ -214,42 +214,91 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         val db = writableDatabase
         db.beginTransaction()
         try {
+            val bySyncId = mutableMapOf<String, Long>()
+            val syncIdByLocalId = mutableMapOf<Long, String>()
+            val byIdentity = mutableMapOf<String, Long>()
+            val identityByLocalId = mutableMapOf<Long, String>()
+            query("SELECT id,sync_uuid,name,phone,phones_json,deleted FROM contacts") { c ->
+                val localId = c.getLong(0)
+                val syncId = c.getString(1)
+                val name = c.getString(2) ?: ""
+                val tels = parseContactPhones(c.getString(4), c.getString(3) ?: "")
+                val deleted = c.getInt(5) == 1
+                if (!syncId.isNullOrBlank()) {
+                    bySyncId[syncId] = localId
+                    syncIdByLocalId[localId] = syncId
+                }
+                if (!deleted && tels.isNotEmpty()) {
+                    val key = "${contactNameKey(name)}|${contactPhoneKey(tels.first())}"
+                    if (key != "|" && !byIdentity.containsKey(key)) {
+                        byIdentity[key] = localId
+                        identityByLocalId[localId] = key
+                    }
+                }
+                localId
+            }
             for ((from, to) in idMap) {
                 if (from == to) continue
-                val sourceId = query("SELECT id FROM contacts WHERE sync_uuid=?", arrayOf(from)) { it.getLong(0) }.firstOrNull() ?: continue
-                val targetId = query("SELECT id FROM contacts WHERE sync_uuid=?", arrayOf(to)) { it.getLong(0) }.firstOrNull()
+                val sourceId = bySyncId[from] ?: continue
+                val targetId = bySyncId[to]
                 if (targetId != null && targetId != sourceId) {
                     db.update("contacts", ContentValues().apply { put("deleted", 1); put("updated_ms", System.currentTimeMillis()) },
                         "id=?", arrayOf(sourceId.toString()))
+                    identityByLocalId.remove(sourceId)?.let { key ->
+                        if (byIdentity[key] == sourceId) byIdentity.remove(key)
+                    }
                 } else {
                     db.update("contacts", ContentValues().apply { put("sync_uuid", to) }, "id=?", arrayOf(sourceId.toString()))
+                    bySyncId.remove(from)
+                    bySyncId[to] = sourceId
+                    syncIdByLocalId[sourceId] = to
                 }
             }
             for (item in remote) {
                 val json = org.json.JSONArray().apply { item.tels.forEach { put(it) } }.toString()
                 val primary = item.tels.firstOrNull().orEmpty()
-                val existingId = query("SELECT id FROM contacts WHERE sync_uuid=?", arrayOf(item.id)) { it.getLong(0) }.firstOrNull()
+                val existingId = bySyncId[item.id]
                 if (existingId != null) {
+                    identityByLocalId.remove(existingId)?.let { key ->
+                        if (byIdentity[key] == existingId) byIdentity.remove(key)
+                    }
                     db.update("contacts", ContentValues().apply {
                         put("name", item.name); put("phone", primary); put("phones_json", json)
                         put("updated_ms", item.updatedMs); put("deleted", if (item.deleted) 1 else 0)
                     }, "id=?", arrayOf(existingId.toString()))
+                    if (!item.deleted && primary.isNotBlank()) {
+                        val key = "${contactNameKey(item.name)}|${contactPhoneKey(primary)}"
+                        if (key != "|" && !byIdentity.containsKey(key)) {
+                            byIdentity[key] = existingId
+                            identityByLocalId[existingId] = key
+                        }
+                    }
                     continue
                 }
                 val incomingKey = "${contactNameKey(item.name)}|${contactPhoneKey(primary)}"
-                val duplicateId = if (item.deleted) null else contactDirectory().firstOrNull {
-                    "${contactNameKey(it.name)}|${contactPhoneKey(it.tels.firstOrNull().orEmpty())}" == incomingKey
-                }?.let { row -> query("SELECT id FROM contacts WHERE sync_uuid=?", arrayOf(row.id)) { it.getLong(0) }.firstOrNull() }
+                val duplicateId = if (item.deleted) null else byIdentity[incomingKey]
                 if (duplicateId != null) {
                     db.update("contacts", ContentValues().apply {
                         put("sync_uuid", item.id); put("name", item.name); put("phone", primary); put("phones_json", json)
                         put("updated_ms", item.updatedMs)
                     }, "id=?", arrayOf(duplicateId.toString()))
+                    syncIdByLocalId.remove(duplicateId)?.let { bySyncId.remove(it) }
+                    bySyncId[item.id] = duplicateId
+                    syncIdByLocalId[duplicateId] = item.id
+                    identityByLocalId[duplicateId] = incomingKey
                 } else if (!item.deleted) {
-                    db.insert("contacts", null, ContentValues().apply {
+                    val newId = db.insert("contacts", null, ContentValues().apply {
                         put("sync_uuid", item.id); put("name", item.name); put("phone", primary); put("phones_json", json)
                         put("updated_ms", item.updatedMs); put("deleted", 0)
                     })
+                    if (newId >= 0) {
+                        bySyncId[item.id] = newId
+                        syncIdByLocalId[newId] = item.id
+                        if (primary.isNotBlank() && incomingKey != "|") {
+                            byIdentity[incomingKey] = newId
+                            identityByLocalId[newId] = incomingKey
+                        }
+                    }
                 }
             }
             db.setTransactionSuccessful()

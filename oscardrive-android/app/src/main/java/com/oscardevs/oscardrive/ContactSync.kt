@@ -12,6 +12,7 @@ import java.util.concurrent.Executors
  * عند إيقافها، تظل قاعدة الشاشة المحلية كما هي ولا تُرسل أي جهة.
  */
 object ContactSync {
+    private const val MAX_CONTACT_RECORDS = 40_000
     data class Result(val ok: Boolean, val enabled: Boolean, val message: String)
 
     private val io = Executors.newSingleThreadExecutor()
@@ -52,7 +53,7 @@ object ContactSync {
                 val authToken = token ?: throw IllegalStateException("missing device token")
                 fun localItems(): JSONArray {
                     val items = JSONArray()
-                    for (contact in Db.get(app).contactsForSync().take(1000)) {
+                    for (contact in Db.get(app).contactsForSync().take(MAX_CONTACT_RECORDS)) {
                         items.put(JSONObject()
                             .put("id", contact.id)
                             .put("name", contact.name)

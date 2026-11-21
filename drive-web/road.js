@@ -343,6 +343,7 @@
   function parseContactPhoneInput(value) {
     return Array.from(new Set(String(value || '').split(/[,،;؛\n]+/).map((phone) => phone.trim()).filter(Boolean)));
   }
+  const MAX_CONTACTS = 20000;
   /** يقرأ أسماء وأرقام vCard داخل المتصفح فقط؛ لا يرسل الملف أو محتواه لأي API. */
   function parseVCardContacts(source) {
     const input = String(source || '').replace(/^\uFEFF/, '').replace(/=\r?\n/g, '').replace(/\r\n?/g, '\n');
@@ -369,7 +370,7 @@
     };
     for (const line of lines) {
       if (/^BEGIN:VCARD(?:;|$)/i.test(line)) { finishCard(); card = { name: '', fallbackName: '', tels: [] }; continue; }
-      if (/^END:VCARD/i.test(line)) { finishCard(); if (contacts.length > 500) break; continue; }
+      if (/^END:VCARD/i.test(line)) { finishCard(); if (contacts.length > MAX_CONTACTS) break; continue; }
       if (!card) continue;
       const colon = line.indexOf(':');
       if (colon < 0) continue;
@@ -386,7 +387,7 @@
       }
     }
     finishCard();
-    return { contacts: contacts.slice(0, 500), truncated: contacts.length > 500 };
+    return { contacts: contacts.slice(0, MAX_CONTACTS), truncated: contacts.length > MAX_CONTACTS };
   }
   /** رقم مصرى ⇒ شكل واتساب (من غير +): «01012345678» ⇐ «201012345678». */
   function waNumber(raw) {
@@ -447,6 +448,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);
