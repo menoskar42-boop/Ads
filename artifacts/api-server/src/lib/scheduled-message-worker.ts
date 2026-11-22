@@ -130,7 +130,7 @@ async function processOneDueMessage(pool: DbPool): Promise<boolean> {
 }
 
 export async function startScheduledMessageWorker(): Promise<void> {
-  if (!process.env.DATABASE_URL) {
+  if (!process.env.ADS_DATABASE_URL) {
     logger.warn("Scheduled message worker is idle because database storage is not configured");
     return;
   }

@@ -1,14 +1,15 @@
 import { defineConfig } from "drizzle-kit";
 import path from "path";
+import { messengerDatabaseConnectionString } from "./src/messenger-connection";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL, ensure the database is provisioned");
+if (!process.env.ADS_DATABASE_URL) {
+  throw new Error("ADS_DATABASE_URL is required for Oscar Messaging migrations");
 }
 
 export default defineConfig({
   schema: path.join(__dirname, "./src/schema/index.ts"),
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: messengerDatabaseConnectionString(process.env.ADS_DATABASE_URL),
   },
 });

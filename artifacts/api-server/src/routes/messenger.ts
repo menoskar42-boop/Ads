@@ -22,7 +22,7 @@ import {
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
 async function loadPool() {
-  if (!process.env.DATABASE_URL) return null;
+  if (!process.env.ADS_DATABASE_URL) return null;
   const db = await import("@workspace/db");
   return db.pool;
 }
