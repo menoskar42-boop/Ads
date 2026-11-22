@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -21,6 +22,7 @@ import {
   getMessengerProfile,
   searchMessengerPeople,
   startMessengerConversation,
+  useLookupMessengerPeopleByPhone,
 } from "@workspace/api-client-react";
 import { queryKeys } from "../lib/api";
 import { readableError, safeReturnPath } from "../lib/format";
@@ -28,6 +30,13 @@ import { colors } from "../lib/theme";
 
 function param(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+function looksLikePhoneInput(value: string): boolean {
+  const ascii = value.replace(/[٠-٩۰-۹]/g, (digit) =>
+    String.fromCharCode(digit.charCodeAt(0) >= 0x06f0 ? 48 + digit.charCodeAt(0) - 0x06f0 : 48 + digit.charCodeAt(0) - 0x0660),
+  ).trim();
+  return /^(?:\+|00|0)/.test(ascii) && ascii.replace(/\D/g, "").length >= 8;
 }
 
 export default function NewMessageScreen() {
@@ -159,6 +168,10 @@ export default function NewMessageScreen() {
     enabled: !!requestedQuery,
     retry: false,
   });
+  const phoneLookup = useLookupMessengerPeopleByPhone();
+  const currentPhoneSearch =
+    !requestedQuery &&
+    phoneLookup.variables?.data.phoneNumber === searchText.trim();
   const start = useMutation({
     mutationFn: (input: { username: string }) => startMessengerConversation(input),
     onSuccess: async ({ conversation }) => {
@@ -233,21 +246,42 @@ export default function NewMessageScreen() {
 
   const beginSearch = () => {
     const query = searchText.trim();
+    if (looksLikePhoneInput(query)) {
+      setNotice(
+        profile.data?.profile?.phoneLookupReady
+          ? "للبحث بالرقم استخدم زر «ابحث برقم الهاتف»."
+          : "البحث برقم الهاتف غير متاح حتى اكتمال إعداداته.",
+      );
+      return;
+    }
     if (query.length < 3) {
       setNotice("اكتب ثلاثة أحرف على الأقل.");
       return;
     }
     setNotice("");
+    phoneLookup.reset();
     setRequestedQuery(query);
+  };
+
+  const beginPhoneSearch = () => {
+    const phoneNumber = searchText.trim();
+    if (!phoneNumber) {
+      setNotice("اكتب رقم الهاتف أولًا.");
+      return;
+    }
+    setNotice("");
+    setRequestedQuery("");
+    phoneLookup.mutate({ data: { phoneNumber } });
   };
 
   return (
     <Screen>
-      <AppHeader title="محادثة جديدة" onBack={() => router.back()} />
-      <View style={styles.content}>
+      <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
+        <AppHeader title="محادثة جديدة" onBack={() => router.back()} />
+        <View style={styles.content}>
         <View style={styles.intro}>
           <Text style={styles.heading}>مع من تريد أن تتحدث؟</Text>
-          <Text style={styles.copy}>ابحث باسم العرض أو اسم المستخدم داخل Oscar Messaging.</Text>
+          <Text style={styles.copy}>ابحث بالاسم أو اسم المستخدم، أو أدخل رقمًا للبحث اليدوي.</Text>
         </View>
       {!!draft && (
           <Notice>
@@ -259,35 +293,60 @@ export default function NewMessageScreen() {
         <Notice>
           <Text style={styles.noticeTitle}>بيانات الاتصال تبقى خاصة</Text>
           <Text style={styles.copy}>
-            البحث يرسل الاسم الذي كتبته فقط للعثور على حساب. لا نرسل رقم الهاتف أو ملف جهات الاتصال.
+            البحث بالاسم يرسل النص المكتوب فقط. بالهاتف نرسل رقمًا واحدًا بعد ضغط الزر؛ لا نرفع دفتر العناوين ولا نعرض الأرقام. تظهر الحسابات التي فعّلت العثور عليها فقط.
           </Text>
         </Notice>
-        <Field label="اسم الشخص أو اسم المستخدم">
+        <Field label="الاسم أو اسم المستخدم أو رقم الهاتف">
           <TextField
             value={searchText}
             onChangeText={(value) => {
               setSearchText(value);
               setRequestedQuery("");
+              phoneLookup.reset();
               setNotice("");
             }}
-            placeholder="مثال: محمود يعقوب أو mahmoud_y"
+            placeholder="مثال: محمود يعقوب أو 01012345678"
             autoCapitalize="none"
             autoCorrect={false}
             onSubmitEditing={beginSearch}
             returnKeyType="search"
           />
         </Field>
-        {!!notice && <ErrorText>{notice}</ErrorText>}
         <PrimaryButton
           title="ابحث عن الحساب"
           onPress={beginSearch}
           busy={people.isFetching}
           disabled={searchText.trim().length < 3}
         />
-        {people.isFetching ? (
+        {profile.data?.profile?.phoneLookupReady ? (
+          <PrimaryButton
+            title="ابحث برقم الهاتف"
+            onPress={beginPhoneSearch}
+            busy={phoneLookup.isPending}
+            disabled={!searchText.trim()}
+            secondary
+          />
+        ) : (
+          <Notice>
+            <Text style={styles.copy}>
+              {profile.data?.profile?.phoneDiscoveryAvailable
+                ? "البحث برقم الهاتف متوقف حتى يجهّز مسؤول المشروع مفتاح الحماية."
+                : "البحث برقم الهاتف سيظهر بعد تطبيق تحديث قاعدة البيانات وتهيئة مفتاح الحماية."}
+            </Text>
+          </Notice>
+        )}
+        {!!notice && <ErrorText>{notice}</ErrorText>}
+        {(phoneLookup.isPending && currentPhoneSearch) || people.isFetching ? (
           <View style={styles.loading}><ActivityIndicator color={colors.blue} /></View>
+        ) : phoneLookup.isError && currentPhoneSearch ? (
+          <Notice><Text style={styles.copy}>{readableError(phoneLookup.error, "تعذر البحث بهذا الرقم الآن.")}</Text></Notice>
         ) : people.isError ? (
           <Notice><Text style={styles.copy}>{readableError(people.error, "تعذر البحث الآن.")}</Text></Notice>
+        ) : phoneLookup.isSuccess && currentPhoneSearch && !phoneLookup.data?.people?.length ? (
+          <Notice>
+            <Text style={styles.noticeTitle}>لم نجد حسابًا متاحًا بهذا الرقم</Text>
+            <Text style={styles.copy}>قد لا يكون الرقم مسجلًا، أو قد يكون صاحبه قد أوقف العثور عليه بالهاتف.</Text>
+          </Notice>
         ) : requestedQuery && !people.data?.people?.length ? (
           <Notice>
             <Text style={styles.noticeTitle}>لم نجد حسابًا مطابقًا</Text>
@@ -295,9 +354,14 @@ export default function NewMessageScreen() {
           </Notice>
         ) : (
           <FlatList
-            data={people.data?.people ?? []}
+            data={
+              (currentPhoneSearch ? phoneLookup.data?.people : undefined) ??
+              people.data?.people ??
+              []
+            }
             keyExtractor={(person) => person.userId}
             contentContainerStyle={styles.results}
+            keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => (
               <View style={styles.person}>
@@ -318,7 +382,8 @@ export default function NewMessageScreen() {
             )}
           />
         )}
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
@@ -328,6 +393,7 @@ function LoadingScreen() {
 }
 
 const styles = StyleSheet.create({
+  keyboard: { flex: 1 },
   content: { flex: 1, padding: 18, gap: 14, maxWidth: 600, width: "100%", alignSelf: "center" },
   intro: { gap: 5, paddingVertical: 5 },
   heading: { color: colors.text, fontSize: 24, fontWeight: "800", textAlign: "right" },

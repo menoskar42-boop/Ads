@@ -25,7 +25,11 @@ export const GetMessengerProfileResponse = zod.object({
   "userId": zod.string(),
   "username": zod.string(),
   "displayName": zod.string(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "hasPhoneNumber": zod.boolean(),
+  "phoneDiscoverable": zod.boolean(),
+  "phoneDiscoveryAvailable": zod.boolean(),
+  "phoneLookupReady": zod.boolean()
 }),zod.null()])
 })
 
@@ -50,7 +54,37 @@ export const UpdateMessengerProfileResponse = zod.object({
   "userId": zod.string(),
   "username": zod.string(),
   "displayName": zod.string(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "hasPhoneNumber": zod.boolean(),
+  "phoneDiscoverable": zod.boolean(),
+  "phoneDiscoveryAvailable": zod.boolean(),
+  "phoneLookupReady": zod.boolean()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Update the signed-in user's private phone discovery settings
+ */
+export const updateMessengerProfilePhoneBodyPhoneNumberOneMax = 40;
+
+
+
+export const UpdateMessengerProfilePhoneBody = zod.object({
+  "phoneNumber": zod.union([zod.string().min(1).max(updateMessengerProfilePhoneBodyPhoneNumberOneMax),zod.null()]).optional(),
+  "discoverable": zod.boolean()
+})
+
+export const UpdateMessengerProfilePhoneResponse = zod.object({
+  "profile": zod.union([zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "hasPhoneNumber": zod.boolean(),
+  "phoneDiscoverable": zod.boolean(),
+  "phoneDiscoveryAvailable": zod.boolean(),
+  "phoneLookupReady": zod.boolean()
 }),zod.null()])
 })
 
@@ -88,6 +122,30 @@ export const SearchMessengerPeopleResponse = zod.object({
   "username": zod.string(),
   "displayName": zod.string()
 })).max(searchMessengerPeopleResponsePeopleMax)
+})
+
+
+/**
+ * @summary Find profiles that opted in to exact phone-number discovery
+ */
+export const lookupMessengerPeopleByPhoneBodyPhoneNumberMax = 40;
+
+
+
+export const LookupMessengerPeopleByPhoneBody = zod.object({
+  "phoneNumber": zod.string().min(1).max(lookupMessengerPeopleByPhoneBodyPhoneNumberMax)
+})
+
+export const lookupMessengerPeopleByPhoneResponsePeopleMax = 20;
+
+
+
+export const LookupMessengerPeopleByPhoneResponse = zod.object({
+  "people": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string()
+})).max(lookupMessengerPeopleByPhoneResponsePeopleMax)
 })
 
 

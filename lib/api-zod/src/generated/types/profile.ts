@@ -11,4 +11,8 @@ export interface Profile {
   username: string;
   displayName: string;
   createdAt: Date;
+  hasPhoneNumber: boolean;
+  phoneDiscoverable: boolean;
+  phoneDiscoveryAvailable: boolean;
+  phoneLookupReady: boolean;
 }

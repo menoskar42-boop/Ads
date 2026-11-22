@@ -71,6 +71,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messenger/profile/phone:
+    put:
+      operationId: updateMessengerProfilePhone
+      tags: [messenger]
+      summary: Update the signed-in user's private phone discovery settings
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneDiscoveryInput"
+      responses:
+        "200":
+          description: Updated private profile settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Profile setup is not complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Phone discovery migration and HMAC key configuration are required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /messenger/voice-messages/capability:
     get:
       operationId: getMessengerVoiceMessageCapability
@@ -126,6 +162,42 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /messenger/people/lookup-by-phone:
+    post:
+      operationId: lookupMessengerPeopleByPhone
+      tags: [messenger]
+      summary: Find profiles that opted in to exact phone-number discovery
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneLookupInput"
+      responses:
+        "200":
+          description: Matching public profiles; phone numbers are never returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeopleSearchResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Phone-search rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Phone discovery migration and HMAC key configuration are required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /messenger/conversations:
     get:
       operationId: listMessengerConversations
@@ -1569,7 +1641,15 @@ components:
           type: string
     Profile:
       type: object
-      required: [userId, username, displayName, createdAt]
+      required:
+        - userId
+        - username
+        - displayName
+        - createdAt
+        - hasPhoneNumber
+        - phoneDiscoverable
+        - phoneDiscoveryAvailable
+        - phoneLookupReady
       properties:
         userId:
           type: string
@@ -1580,6 +1660,14 @@ components:
         createdAt:
           type: string
           format: date-time
+        hasPhoneNumber:
+          type: boolean
+        phoneDiscoverable:
+          type: boolean
+        phoneDiscoveryAvailable:
+          type: boolean
+        phoneLookupReady:
+          type: boolean
     ProfileResponse:
       type: object
       required: [profile]
@@ -1600,6 +1688,35 @@ components:
           type: string
           minLength: 1
           maxLength: 60
+    PhoneDiscoveryInput:
+      type: object
+      required: [discoverable]
+      properties:
+        phoneNumber:
+          anyOf:
+            - type: string
+              minLength: 1
+              maxLength: 40
+            - type: "null"
+        discoverable:
+          type: boolean
+    PhoneLookupInput:
+      type: object
+      required: [phoneNumber]
+      properties:
+        phoneNumber:
+          type: string
+          minLength: 1
+          maxLength: 40
+    PeopleSearchResponse:
+      type: object
+      required: [people]
+      properties:
+        people:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/Person"
     Person:
       type: object
       required: [userId, username, displayName]

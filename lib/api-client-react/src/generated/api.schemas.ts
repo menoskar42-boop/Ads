@@ -18,6 +18,10 @@ export interface Profile {
   username: string;
   displayName: string;
   createdAt: string;
+  hasPhoneNumber: boolean;
+  phoneDiscoverable: boolean;
+  phoneDiscoveryAvailable: boolean;
+  phoneLookupReady: boolean;
 }
 
 export interface ProfileResponse {
@@ -37,10 +41,28 @@ export interface ProfileInput {
   displayName: string;
 }
 
+export interface PhoneDiscoveryInput {
+  phoneNumber?: string | null;
+  discoverable: boolean;
+}
+
+export interface PhoneLookupInput {
+  /**
+     * @minLength 1
+     * @maxLength 40
+     */
+  phoneNumber: string;
+}
+
 export interface Person {
   userId: string;
   username: string;
   displayName: string;
+}
+
+export interface PeopleSearchResponse {
+  /** @maxItems 20 */
+  people: Person[];
 }
 
 export type MessageMessageType = typeof MessageMessageType[keyof typeof MessageMessageType];

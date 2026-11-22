@@ -9,6 +9,15 @@ import {
   voiceObjectKey,
 } from "../lib/r2";
 import { parseMessageCursor } from "../lib/message-pagination";
+import {
+  consumePeopleSearchQuota,
+  hashPhoneForLookup,
+  hasPhoneLookupKey,
+  normalizePhoneE164,
+  phoneProfileFlags,
+  PHONE_LOOKUP_SQL,
+  publicPhoneMatch,
+} from "../lib/phone-discovery";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -28,6 +37,10 @@ const voiceSchemaCache = new WeakMap<
   { checkedAt: number; ready: boolean }
 >();
 const messageToolsSchemaCache = new WeakMap<
+  object,
+  { checkedAt: number; ready: boolean }
+>();
+const phoneDiscoverySchemaCache = new WeakMap<
   object,
   { checkedAt: number; ready: boolean }
 >();
@@ -107,6 +120,27 @@ async function hasMessageToolsSchema(pool: NonNullable<DbPool>): Promise<boolean
     return ready;
   } catch {
     messageToolsSchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
+    return false;
+  }
+}
+
+async function hasPhoneDiscoverySchema(pool: NonNullable<DbPool>): Promise<boolean> {
+  const cached = phoneDiscoverySchemaCache.get(pool);
+  if (cached && Date.now() - cached.checkedAt < 15_000) return cached.ready;
+  try {
+    const result = await pool.query(
+      `SELECT count(*)::int AS column_count
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'messenger_profiles'
+         AND column_name = ANY($1::text[])`,
+      [["phone_lookup_hash", "phone_discoverable"]],
+    );
+    const ready = Number(result.rows[0]?.column_count) === 2;
+    phoneDiscoverySchemaCache.set(pool, { checkedAt: Date.now(), ready });
+    return ready;
+  } catch {
+    phoneDiscoverySchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
     return false;
   }
 }
@@ -235,8 +269,12 @@ function publicConversation(
 }
 
 async function userProfile(pool: NonNullable<DbPool>, userId: string) {
+  const phoneSchemaAvailable = await hasPhoneDiscoverySchema(pool);
   const result = await pool.query(
-    `SELECT user_id, username, display_name, created_at
+    `SELECT user_id, username, display_name, created_at,
+            ${phoneSchemaAvailable
+              ? "phone_lookup_hash, phone_discoverable"
+              : "NULL::text AS phone_lookup_hash, false::boolean AS phone_discoverable"}
      FROM messenger_profiles WHERE user_id = $1`,
     [userId],
   );
@@ -247,6 +285,7 @@ async function userProfile(pool: NonNullable<DbPool>, userId: string) {
     username: row.username,
     displayName: row.display_name,
     createdAt: new Date(row.created_at).toISOString(),
+    ...phoneProfileFlags(row, phoneSchemaAvailable, hasPhoneLookupKey()),
   };
 }
 
@@ -255,6 +294,91 @@ router.get("/messenger/profile", requireAuth, async (_req, res, next) => {
     const pool = getPoolOrUnavailable(await loadPool(), res);
     if (!pool) return;
     res.json({ profile: await userProfile(pool, getUserId(res)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/messenger/profile/phone", requireAuth, async (req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool) return;
+    if (!(await hasPhoneDiscoverySchema(pool))) {
+      res.status(503).json({ error: "Phone discovery database migration is required" });
+      return;
+    }
+    if (typeof req.body?.discoverable !== "boolean") {
+      res.status(400).json({ error: "Check the phone discovery setting" });
+      return;
+    }
+
+    const userId = getUserId(res);
+    const phoneNumberProvided = Object.hasOwn(req.body ?? {}, "phoneNumber");
+    let phoneLookupHash: string | null = null;
+    if (phoneNumberProvided && req.body.phoneNumber !== null) {
+      if (typeof req.body.phoneNumber !== "string") {
+        res.status(400).json({ error: "Enter a valid phone number" });
+        return;
+      }
+      const phoneE164 = normalizePhoneE164(req.body.phoneNumber);
+      if (!phoneE164) {
+        res.status(400).json({ error: "Enter a valid phone number with its country code" });
+        return;
+      }
+      phoneLookupHash = hashPhoneForLookup(phoneE164);
+      if (!phoneLookupHash) {
+        res.status(503).json({ error: "Phone discovery configuration is required" });
+        return;
+      }
+    }
+
+    if (req.body.discoverable && phoneNumberProvided && !phoneLookupHash) {
+      res.status(400).json({ error: "Add a phone number before enabling discovery" });
+      return;
+    }
+    if (req.body.discoverable && !phoneNumberProvided) {
+      if (!hasPhoneLookupKey()) {
+        res.status(503).json({ error: "Phone discovery lookup key is required" });
+        return;
+      }
+      const currentPhone = await pool.query(
+        `SELECT phone_lookup_hash IS NOT NULL AS has_phone
+         FROM messenger_profiles WHERE user_id = $1`,
+        [userId],
+      );
+      if (!currentPhone.rows[0]) {
+        res.status(404).json({ error: "Complete profile setup first" });
+        return;
+      }
+      if (!currentPhone.rows[0].has_phone) {
+        res.status(400).json({ error: "Add a phone number before enabling discovery" });
+        return;
+      }
+    }
+
+    const result = phoneNumberProvided
+      ? await pool.query(
+          `UPDATE messenger_profiles
+           SET phone_lookup_hash = $1,
+               phone_discoverable = ($2 AND $1 IS NOT NULL),
+               updated_at = now()
+           WHERE user_id = $3
+           RETURNING user_id`,
+          [phoneLookupHash, req.body.discoverable, userId],
+        )
+      : await pool.query(
+          `UPDATE messenger_profiles
+           SET phone_discoverable = ($1 AND phone_lookup_hash IS NOT NULL),
+               updated_at = now()
+           WHERE user_id = $2
+           RETURNING user_id`,
+          [req.body.discoverable, userId],
+        );
+    if (!result.rows[0]) {
+      res.status(404).json({ error: "Complete profile setup first" });
+      return;
+    }
+    res.json({ profile: await userProfile(pool, userId) });
   } catch (error) {
     next(error);
   }
@@ -326,15 +450,9 @@ router.get("/messenger/people", requireAuth, async (req, res, next) => {
     const pool = getPoolOrUnavailable(await loadPool(), res);
     if (!pool) return;
     const userId = getUserId(res);
-    const now = Date.now();
-    const window = searchWindows.get(userId);
-    if (!window || now >= window.resetAt) {
-      searchWindows.set(userId, { count: 1, resetAt: now + 60_000 });
-    } else if (window.count >= 20) {
+    if (!consumePeopleSearchQuota(searchWindows, userId, Date.now())) {
       res.status(429).json({ error: "Please wait before searching again" });
       return;
-    } else {
-      window.count += 1;
     }
 
     const query = String(req.query.query ?? "").trim().slice(0, 60);
@@ -356,6 +474,38 @@ router.get("/messenger/people", requireAuth, async (req, res, next) => {
       ],
     );
     res.json({ people: result.rows.map(publicPerson) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/messenger/people/lookup-by-phone", requireAuth, async (req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool) return;
+    const userId = getUserId(res);
+    if (!consumePeopleSearchQuota(searchWindows, userId, Date.now())) {
+      res.status(429).json({ error: "Please wait before searching again" });
+      return;
+    }
+    if (!(await hasPhoneDiscoverySchema(pool)) || !hasPhoneLookupKey()) {
+      res.status(503).json({ error: "Phone discovery configuration is required" });
+      return;
+    }
+    const rawPhoneNumber =
+      typeof req.body?.phoneNumber === "string" ? req.body.phoneNumber.trim() : "";
+    const phoneE164 = normalizePhoneE164(rawPhoneNumber);
+    if (!phoneE164) {
+      res.status(400).json({ error: "Enter a valid phone number with its country code" });
+      return;
+    }
+    const phoneLookupHash = hashPhoneForLookup(phoneE164);
+    if (!phoneLookupHash) {
+      res.status(503).json({ error: "Phone discovery configuration is required" });
+      return;
+    }
+    const result = await pool.query(PHONE_LOOKUP_SQL, [userId, phoneLookupHash]);
+    res.json({ people: result.rows.map(publicPhoneMatch) });
   } catch (error) {
     next(error);
   }

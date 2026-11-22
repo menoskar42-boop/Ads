@@ -54,6 +54,9 @@ import type {
   ListMessengerMessagesParams,
   MarkMessengerConversationRead200,
   MessengerFeaturesCapability,
+  PeopleSearchResponse,
+  PhoneDiscoveryInput,
+  PhoneLookupInput,
   ProfileInput,
   ProfileResponse,
   ScheduledMessageInput,
@@ -402,6 +405,94 @@ export const useUpdateMessengerProfile = <TError = ErrorType<BadRequestResponse 
       return useMutation(getUpdateMessengerProfileMutationOptions(options), queryClient);
     }
 
+export const getUpdateMessengerProfilePhoneUrl = () => {
+
+
+
+
+  return `/api/messenger/profile/phone`
+}
+
+/**
+ * @summary Update the signed-in user's private phone discovery settings
+ */
+export const updateMessengerProfilePhone = async (phoneDiscoveryInput: PhoneDiscoveryInput, options?: Parameters<typeof customFetch>[1]): Promise<ProfileResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ProfileResponse>(getUpdateMessengerProfilePhoneUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(phoneDiscoveryInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateMessengerProfilePhoneMutationKey = () => ['updateMessengerProfilePhone'] as const;
+
+export const getUpdateMessengerProfilePhoneMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerProfilePhone>>, TError,UpdateMessengerProfilePhoneMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMessengerProfilePhone>>, TError,UpdateMessengerProfilePhoneMutationVariables, TContext> => {
+
+const mutationKey = getUpdateMessengerProfilePhoneMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMessengerProfilePhone>>, UpdateMessengerProfilePhoneMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMessengerProfilePhone(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMessengerProfilePhoneMutationResult = NonNullable<Awaited<ReturnType<typeof updateMessengerProfilePhone>>>
+    export type UpdateMessengerProfilePhoneMutationBody = BodyType<PhoneDiscoveryInput>
+    export type UpdateMessengerProfilePhoneMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type UpdateMessengerProfilePhoneMutationVariables = {data: BodyType<PhoneDiscoveryInput>}
+
+    /**
+ * @summary Update the signed-in user's private phone discovery settings
+ */
+export const useUpdateMessengerProfilePhone = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerProfilePhone>>, TError,UpdateMessengerProfilePhoneMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateMessengerProfilePhone>>,
+        TError,
+        UpdateMessengerProfilePhoneMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateMessengerProfilePhoneMutationOptions(options), queryClient);
+    }
+
 export const getGetMessengerVoiceMessageCapabilityUrl = () => {
 
 
@@ -610,6 +701,94 @@ export function useSearchMessengerPeople<TData = Awaited<ReturnType<typeof searc
 
 
 
+
+export const getLookupMessengerPeopleByPhoneUrl = () => {
+
+
+
+
+  return `/api/messenger/people/lookup-by-phone`
+}
+
+/**
+ * @summary Find profiles that opted in to exact phone-number discovery
+ */
+export const lookupMessengerPeopleByPhone = async (phoneLookupInput: PhoneLookupInput, options?: Parameters<typeof customFetch>[1]): Promise<PeopleSearchResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PeopleSearchResponse>(getLookupMessengerPeopleByPhoneUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(phoneLookupInput)
+  }
+);}
+
+
+
+
+
+export const getLookupMessengerPeopleByPhoneMutationKey = () => ['lookupMessengerPeopleByPhone'] as const;
+
+export const getLookupMessengerPeopleByPhoneMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupMessengerPeopleByPhone>>, TError,LookupMessengerPeopleByPhoneMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lookupMessengerPeopleByPhone>>, TError,LookupMessengerPeopleByPhoneMutationVariables, TContext> => {
+
+const mutationKey = getLookupMessengerPeopleByPhoneMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupMessengerPeopleByPhone>>, LookupMessengerPeopleByPhoneMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  lookupMessengerPeopleByPhone(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LookupMessengerPeopleByPhoneMutationResult = NonNullable<Awaited<ReturnType<typeof lookupMessengerPeopleByPhone>>>
+    export type LookupMessengerPeopleByPhoneMutationBody = BodyType<PhoneLookupInput>
+    export type LookupMessengerPeopleByPhoneMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type LookupMessengerPeopleByPhoneMutationVariables = {data: BodyType<PhoneLookupInput>}
+
+    /**
+ * @summary Find profiles that opted in to exact phone-number discovery
+ */
+export const useLookupMessengerPeopleByPhone = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupMessengerPeopleByPhone>>, TError,LookupMessengerPeopleByPhoneMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof lookupMessengerPeopleByPhone>>,
+        TError,
+        LookupMessengerPeopleByPhoneMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLookupMessengerPeopleByPhoneMutationOptions(options), queryClient);
+    }
 
 export const getListMessengerConversationsUrl = (params?: ListMessengerConversationsParams,) => {
   const normalizedParams = new URLSearchParams();

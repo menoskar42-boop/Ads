@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   index,
   integer,
   pgTable,
@@ -7,6 +8,7 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const messengerProfiles = pgTable(
   "messenger_profiles",
@@ -15,10 +17,25 @@ export const messengerProfiles = pgTable(
     username: text("username").notNull(),
     usernameLower: text("username_lower").notNull(),
     displayName: text("display_name").notNull(),
+    phoneLookupHash: text("phone_lookup_hash"),
+    phoneDiscoverable: boolean("phone_discoverable").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [unique("messenger_profiles_username_lower_key").on(table.usernameLower)],
+  (table) => [
+    unique("messenger_profiles_username_lower_key").on(table.usernameLower),
+    check(
+      "messenger_profiles_phone_lookup_hash_check",
+      sql`${table.phoneLookupHash} IS NULL OR ${table.phoneLookupHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      "messenger_profiles_phone_discoverable_check",
+      sql`NOT ${table.phoneDiscoverable} OR ${table.phoneLookupHash} IS NOT NULL`,
+    ),
+    index("messenger_profiles_phone_discoverable_idx")
+      .on(table.phoneLookupHash)
+      .where(sql`${table.phoneDiscoverable} = true AND ${table.phoneLookupHash} IS NOT NULL`),
+  ],
 );
 
 export const messengerConversations = pgTable(
