@@ -333,7 +333,7 @@ class MainActivity : Activity() {
             listOf("🅿️ ركنت هنا" to { parkHere() }, "🎤 أمر صوتى" to { listen() }),
             listOf("🧭 الخريطة" to { openMap() }, "⛽ بنزينة" to { nearestFuel() }),
             // «📸 صوّر الطريق» (٢٠٢٦-١١-١٨) — زى «اوسكار اسكرين شوت» لو الأوامر الصوتية مش شغّالة أو مش عايز تستخدمها
-            listOf("📸 صوّر الطريق" to { snapRoad("button") }, "📞 اتصال" to { openDialer() }),
+            listOf("📸 صوّر الطريق" to { snapRoad("button") }, "📇 جهات الاتصال" to { openDialer() }),
         )
         for (p in pairs) {
             val r = ui.row()
@@ -1317,7 +1317,7 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT
             singleLine = true
         }
-        val status = ui.text("جهات الاتصال محفوظة على الشاشة؛ المزامنة اختيارية.", 13f, ui.muted)
+        val status = ui.text("دفتر المكالمات منفصل عن جهات أوسكار المستخدمة لواتساب. المزامنة اختيارية.", 13f, ui.muted)
         val syncEnabled = booleanArrayOf(false)
         var visibleCount = 200
         var cachedContacts: List<Db.SyncContact>? = null
@@ -1325,19 +1325,40 @@ class MainActivity : Activity() {
         lateinit var syncButton: TextView
         lateinit var disableButton: TextView
         lateinit var renderContacts: () -> Unit
+        fun normalizedDigits(value: String): String {
+            val ar = "٠١٢٣٤٥٦٧٨٩"
+            return value.map { ch -> val i = ar.indexOf(ch); if (i >= 0) ('0' + i) else ch }
+                .filter { it.isDigit() || it == '+' }.joinToString("")
+        }
         val moreButton = ui.button("عرض جهات إضافية", "neutral", 13f) {
             visibleCount += 200
             renderContacts()
         }.apply { visibility = View.GONE }
+        val addButton = ui.button("＋ أضف جهة إلى دفتر المكالمات", "neutral", 14f) {
+            askText("اسم جهة الاتصال", "مثلاً: Mother Mobile", "") { name ->
+                askText("أرقام الاتصال مفصولة بفواصل", "01012345678, 01198765432", "", InputType.TYPE_CLASS_TEXT) { raw ->
+                    val tels = raw.split(',', '،', ';', '؛', '\n').map { it.trim() }.filter { it.isNotBlank() }.distinct().take(8)
+                    if (name.isBlank() || tels.isEmpty() || tels.any { phone -> normalizedDigits(phone).count { it.isDigit() } < 3 }) {
+                        toast("راجع الاسم والأرقام؛ اكتب رقمًا صحيحًا واحدًا على الأقل.")
+                    } else {
+                        db.addDirectoryContact(name, tels)
+                        ContactSync.syncSoon(this, force = true)
+                        cachedContacts = null
+                        visibleCount = 200
+                        renderContacts()
+                    }
+                }
+            }
+        }
         fun allContacts(): List<Db.SyncContact> =
             cachedContacts ?: db.contactDirectory().sortedWith { a, b -> collator.compare(a.name, b.name) }.also { cachedContacts = it }
         syncButton = ui.button("🔄 مزامنة مع موقع الموبايل", "neutral", 14f) {
             if (!syncEnabled[0]) {
                 AlertDialog.Builder(this)
                     .setTitle("مزامنة جهات الاتصال")
-                    .setMessage("سيتم رفع الأسماء والأرقام التي أضفتها داخل Oscar Drive إلى خادم أوسكار، لتظهر للأجهزة المرتبطة بالسيارة نفسها فقط. لن تُرفع جهات الهاتف كاملة، ولن تُرسل الأرقام إلى الذكاء الاصطناعي. توافق؟")
-                    .setNegativeButton("إلغاء", null)
-                    .setPositiveButton("موافق") { _, _ ->
+                    .setMessage("سيُحفظ على خادم أوسكار الاسم والأرقام الظاهرة في دفتر المكالمات، ومنها نسخة محلية من جهات أوسكار القديمة على الشاشة. ستظهر للأجهزة المرتبطة بالسيارة نفسها فقط. لن تُرفع جهات الهاتف كاملة، ولن تتغير قائمة واتساب أو تُرسل الأرقام إلى الذكاء الاصطناعي.")
+                    .setNegativeButton("أفضل إبقاءها محلية", null)
+                    .setPositiveButton("أوافق وأفعّل المزامنة") { _, _ ->
                         ContactSync.sync(this, enable = true, force = true) { result ->
                             if (result.ok) syncEnabled[0] = result.enabled
                             status.text = result.message
@@ -1375,15 +1396,11 @@ class MainActivity : Activity() {
         val scroll = ScrollView(this).apply { addView(list) }
         box.addView(search, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 3))
         box.addView(status)
+        box.addView(addButton, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 2))
         box.addView(syncButton, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 2))
         box.addView(disableButton, ui.lp(Ui.MATCH, ui.dp(44), marginDp = 2))
         box.addView(scroll, ui.lp(Ui.MATCH, ui.dp(360), marginDp = 3))
         box.addView(moreButton, ui.lp(Ui.MATCH, ui.dp(44), marginDp = 2))
-        fun normalizedDigits(value: String): String {
-            val ar = "٠١٢٣٤٥٦٧٨٩"
-            return value.map { ch -> val i = ar.indexOf(ch); if (i >= 0) ('0' + i) else ch }
-                .filter { it.isDigit() || it == '+' }.joinToString("")
-        }
         renderContacts = {
             list.removeAllViews()
             val query = search.text.toString().trim()
@@ -1396,7 +1413,7 @@ class MainActivity : Activity() {
             }
             if (contacts.isEmpty()) {
                 list.addView(ui.text(
-                    if (all.isEmpty()) "لا توجد جهات محفوظة. أضفها من الإعدادات أو زامنها من الموقع."
+                    if (all.isEmpty()) "لا توجد جهات محفوظة. أضف جهة من الزر أعلاه أو زامنها بعد الموافقة."
                     else "لا توجد نتائج مطابقة.",
                     14f, ui.muted, gravity = Gravity.CENTER,
                 ), ui.lp(Ui.MATCH, ui.dp(70)))
@@ -1415,6 +1432,29 @@ class MainActivity : Activity() {
                     else AlertDialog.Builder(this).setTitle("اختار رقم ${contact.name}")
                         .setItems(contact.tels.toTypedArray()) { _, which -> dial(contact.tels[which]) }.show()
                 }, ui.lp(ui.dp(104), ui.dp(48), 0f, 2))
+                row.addView(ui.button("✏️", "neutral", 13f) {
+                    askText("اسم جهة الاتصال", "الاسم", contact.name) { name ->
+                        askText("أرقام الاتصال مفصولة بفواصل", "01012345678, 01198765432", contact.tels.joinToString(", "), InputType.TYPE_CLASS_TEXT) { raw ->
+                            val tels = raw.split(',', '،', ';', '؛', '\n').map { it.trim() }.filter { it.isNotBlank() }.distinct().take(8)
+                            if (name.isBlank() || tels.isEmpty() || tels.any { phone -> normalizedDigits(phone).count { it.isDigit() } < 3 }) {
+                                toast("راجع الاسم والأرقام.")
+                            } else {
+                                db.updateDirectoryContact(contact.id, name, tels)
+                                ContactSync.syncSoon(this, force = true)
+                                cachedContacts = null
+                                renderContacts()
+                            }
+                        }
+                    }
+                }, ui.lp(ui.dp(48), ui.dp(48), 0f, 2))
+                row.addView(ui.button("🗑️", "neutral", 13f) {
+                    confirm("تمسح ${contact.name} من دفتر المكالمات؟") {
+                        db.deleteDirectoryContact(contact.id)
+                        ContactSync.syncSoon(this, force = true)
+                        cachedContacts = null
+                        renderContacts()
+                    }
+                }, ui.lp(ui.dp(48), ui.dp(48), 0f, 2))
                 list.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
             }
             moreButton.visibility = if (contacts.size > visibleCount) View.VISIBLE else View.GONE
@@ -2306,14 +2346,14 @@ class MainActivity : Activity() {
 
         // جهات أوسكار (واتساب)
         page.addView(section("👥 جهات أوسكار (لرسايل الواتساب)"))
-        page.addView(ui.text("أضف جهات محددة يدويًا؛ دفتر الموبايل كله لا يُرفع تلقائيًا. المزامنة اختيارية للأجهزة المرتبطة بالسيارة نفسها، والأرقام لا تُرسل للذكاء الاصطناعي.", 13f, ui.muted))
-        page.addView(ui.button("📇 افتح دفتر الاتصال", "neutral", 15f) { showContactDirectory() }, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 3))
+        page.addView(ui.text("هذه القائمة لرسائل واتساب فقط، وتظل محلية. دفتر المكالمات المنفصل لا يغيّرها ولا يستخدم جهاته في واتساب.", 13f, ui.muted))
+        page.addView(ui.button("📇 افتح دفتر المكالمات والمزامنة", "neutral", 15f) { showContactDirectory() }, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 3))
         page.addView(ui.button("＋ جهة", "neutral", 15f) {
             askText("الاسم (زى ما هتقوله)", "مثلاً: ماما", "") { n ->
                 askText("أرقام الواتساب مفصولة بفواصل", "01xxxxxxxxx, 011xxxxxxxx", "", InputType.TYPE_CLASS_TEXT) { raw ->
                     val tels = raw.split(',', '،', ';', '؛', '\n').map { it.trim() }.filter { it.isNotBlank() }.distinct()
                     if (n.isBlank() || tels.isEmpty() || tels.size > 8 || tels.any { com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(it) == null }) toast("راجع الاسم والأرقام؛ الحد الأقصى 8 أرقام.")
-                    else { db.addContact(n, tels); ContactSync.syncSoon(this, force = true); refresh() }
+                    else { db.addContact(n, tels); refresh() }
                 }
             }
         }, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 4))
@@ -2327,11 +2367,11 @@ class MainActivity : Activity() {
                         val tels = raw.split(',', '،', ';', '؛').map { it.trim() }.filter { it.isNotBlank() }
                         if (name.isBlank() || tels.isEmpty() || tels.any { com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(it) == null }) {
                             toast("راجع الاسم والأرقام")
-                        } else { db.updateContact(c.id, name, tels); ContactSync.syncSoon(this, force = true); refresh() }
+                        } else { db.updateContact(c.id, name, tels); refresh() }
                     }
                 }
             }, ui.lp(ui.dp(52), ui.dp(48), 0f, 2))
-            r.addView(ui.button("🗑️", "neutral", 15f) { confirm("تمسح ${c.name}؟") { db.deleteContact(c.id); ContactSync.syncSoon(this, force = true); refresh() } }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
+            r.addView(ui.button("🗑️", "neutral", 15f) { confirm("تمسح ${c.name}؟") { db.deleteContact(c.id); refresh() } }, ui.lp(ui.dp(56), ui.dp(48), 0f, 2))
             page.addView(r, ui.lp(Ui.MATCH, Ui.WRAP, marginDp = 3))
         }
 
@@ -2495,7 +2535,7 @@ class MainActivity : Activity() {
             sayInfo("«${a.name}» مش فى جهات أوسكار — اكتب رقمه مرة")
             askText("رقم «${a.name}» على واتساب", "01xxxxxxxxx", "", InputType.TYPE_CLASS_PHONE) { ph ->
                 if (com.oscardevs.oscardrive.logic.EgyptPhone.forWhatsApp(ph) == null) { toast("الرقم مش مظبوط"); return@askText }
-                db.addContact(a.name, ph); ContactSync.syncSoon(this, force = true); whatsappByVoice(heard)
+                db.addContact(a.name, ph); whatsappByVoice(heard)
             }
             return
         }

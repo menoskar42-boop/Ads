@@ -322,7 +322,7 @@
     return null;
   }
   /*
-   * الأندرويد (البرومبت ٧ — الخطوة ٢): جهات اتصال محفوظة على الموبايل ده بس (localStorage) — مابتتبعتش للشاشة ولا للسيرفر.
+   * جهات دفتر المكالمات، وقد تكون محلية أو متزامنة بموافقة المستخدم.
    * list = [{ name, tels: ['010…'] }]. المطابقة: الاسم بالظبط ⇐ بيبدأ بيه ⇐ جوّاه ⇐ قريب (حرف أو اتنين غلط).
    */
   function lev(a, b) {
@@ -348,6 +348,10 @@
     if (!scored.length) return [];
     const top = scored[0].s;
     return scored.filter((x) => top - x.s < 0.05).map((x) => x.c);   // أكتر من واحد قريبين ⇒ نسأل
+  }
+  /** جهات المزامنة الواردة من جهاز آخر للاتصال فقط؛ لا تُستخدم كجهات واتساب. */
+  function whatsappContacts(contacts) {
+    return (Array.isArray(contacts) ? contacts : []).filter((contact) => contact && contact.whatsapp !== false);
   }
   /** اقتراح هجاء لاتيني: لا يرسل شيئًا لو فيه قائمة محلية أو رقم هاتف محتمل. */
   function contactNameRequest(name, contacts) {
@@ -479,6 +483,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

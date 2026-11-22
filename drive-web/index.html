@@ -376,7 +376,16 @@ body.solo .carOnly { display:none !important; }
           <button id="ctSyncNow" type="button" style="flex:1">🔄 زامن مع شاشة العربية</button>
           <button id="ctSyncDisable" type="button" style="flex:1" hidden>إيقاف المزامنة ومسح نسخة الخادم</button>
         </div>
+        <div id="ctConsentPanel" hidden role="group" aria-labelledby="ctConsentTitle" style="margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface2)">
+          <b id="ctConsentTitle">قبل تفعيل المزامنة</b>
+          <p class="note">سيُحفظ على خادم أوسكار الاسم وأرقام الجهات التي أضفتها أو استوردتها داخل Oscar Drive، وستظهر للأجهزة المرتبطة بالسيارة نفسها فقط. لن يُرفع دفتر الهاتف كاملًا، ولن تُستخدم الجهات القادمة من المزامنة في واتساب أو الذكاء الاصطناعي.</p>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button id="ctConsentAccept" type="button" class="primary" style="flex:1">أوافق وأفعّل المزامنة</button>
+            <button id="ctConsentKeepLocal" type="button" style="flex:1">أفضل إبقاءها محلية</button>
+          </div>
+        </div>
         <p class="note" id="ctSyncStatus" role="status" aria-live="polite">المزامنة غير مفعّلة؛ جهات الاتصال تبقى على هذا الجهاز.</p>
+        <p class="note">جهات الاتصال الواردة من جهاز آخر تبقى لدليل المكالمات فقط، ولا تدخل قائمة جهات أوسكار المستخدمة لواتساب.</p>
         <ul class="list" id="ctList"></ul>
         <button id="ctListMore" type="button" style="width:100%;margin-top:6px" hidden>عرض جهات إضافية</button>
         <button id="ctClearAll" type="button" style="width:100%;margin-top:6px;border-color:#b42318;color:#b42318">امسح كل جهات الاتصال</button>

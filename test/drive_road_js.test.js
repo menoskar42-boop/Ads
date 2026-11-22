@@ -42,6 +42,13 @@ test('manual contact phone input accepts multiple numbers with Arabic and Englis
     ['01012345678', '01198765432', '02 1234567'],
   );
 });
+test('contacts received from another device stay out of WhatsApp matching', () => {
+  const contacts = [
+    { name: 'ماما', tels: ['01012345678'] },
+    { name: 'Mother Mobile', tels: ['01112345678'], whatsapp: false },
+  ];
+  assert.deepEqual(R.whatsappContacts(contacts), [contacts[0]]);
+});
 test('phone voice: needs the name, understands bump / pothole / screenshot', () => {
   assert.equal(R.parseVoice('أوسكار سجّل مطب هنا'), 'bump');
   assert.equal(R.parseVoice('يا اسكار سجل حفرة'), 'pothole');

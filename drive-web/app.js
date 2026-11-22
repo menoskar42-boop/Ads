@@ -565,6 +565,8 @@
         name, tels,
         updatedMs: Number.isFinite(+((c && c.updatedMs))) && +c.updatedMs > 0 ? +c.updatedMs : now,
         deleted: !!(c && c.deleted),
+        // Keep legacy local WhatsApp contacts working; contacts received from another device are directory-only.
+        whatsapp: !(c && c.whatsapp === false),
       };
     }).filter((c) => c.name && c.tels.length);
     try { if (JSON.stringify(raw) !== JSON.stringify(list)) localStorage.setItem(CT_KEY, JSON.stringify(list)); } catch (e) {}
@@ -595,7 +597,7 @@
     if (!name || !tels.length) return false;
     const l = ctAll(), i = l.findIndex((c) => !c.deleted && ctNameKey(c.name) === ctNameKey(name));
     if (i >= 0) { l[i].tels = Array.from(new Set(l[i].tels.concat(tels))).slice(0, 8); l[i].updatedMs = Date.now(); }
-    else if (l.filter((c) => !c.deleted).length < CT_MAX_CONTACTS && l.length < CT_MAX_RECORDS) l.push({ id: makeContactId(), name, tels: Array.from(new Set(tels)).slice(0, 8), updatedMs: Date.now(), deleted: false });
+    else if (l.filter((c) => !c.deleted).length < CT_MAX_CONTACTS && l.length < CT_MAX_RECORDS) l.push({ id: makeContactId(), name, tels: Array.from(new Set(tels)).slice(0, 8), updatedMs: Date.now(), deleted: false, whatsapp: false });
     else return false;
     const saved = ctSave(l);
     if (!$('contactDirectory').hidden) renderContactDirectory($('contactSearch').value);
@@ -654,7 +656,7 @@
         existing.tels = Array.from(new Set(oldTels.concat(tels))).slice(0, 8);
         if (existing.tels.length > oldTels.length) { existing.updatedMs = Date.now(); merged++; }
       } else if (activeCount < CT_MAX_CONTACTS && list.length < CT_MAX_RECORDS) {
-        const entry = { id: makeContactId(), name, tels: tels.slice(0, 8), updatedMs: Date.now(), deleted: false };
+        const entry = { id: makeContactId(), name, tels: tels.slice(0, 8), updatedMs: Date.now(), deleted: false, whatsapp: false };
         list.push(entry); byName.set(key, entry); added++; activeCount++;
       }
       else skipped++;
@@ -722,25 +724,31 @@
     ctSyncBusy = true;
     try {
       let result;
+      const localItems = ctAll();
       if (disable) {
         result = await api('POST', '/api/web/contacts', { disable: true });
       } else if (enable) {
         // Sending local names/numbers is only allowed after the explicit confirmation above.
-        result = await api('POST', '/api/web/contacts', { enable: true, items: ctAll() });
+        result = await api('POST', '/api/web/contacts', { enable: true, items: localItems });
       } else {
         // Check consent without sending even one local contact; upload only after server confirms sync is enabled.
         const status = await api('POST', '/api/web/contacts', { items: [] });
         result = status.enabled
-          ? await api('POST', '/api/web/contacts', { items: ctAll() })
+          ? await api('POST', '/api/web/contacts', { items: localItems })
           : status;
       }
       ctSyncEnabled = !!result.enabled;
       ctSyncAt = Date.now();
-      if (ctSyncEnabled && Array.isArray(result.items)) ctWriteLocal(result.items, false);
+      if (ctSyncEnabled && Array.isArray(result.items)) {
+        const idMap = result.idMap || {};
+        const whatsappIds = new Set(localItems.filter((item) => item.whatsapp !== false)
+          .map((item) => idMap[item.id] || item.id));
+        ctWriteLocal(result.items.map((item) => ({ ...item, whatsapp: whatsappIds.has(item.id) })), false);
+      }
       $('ctSyncDisable').hidden = !ctSyncEnabled;
       $('ctSyncNow').textContent = ctSyncEnabled ? '🔄 حدّث جهات الاتصال مع الشاشة' : '🔄 زامن مع شاشة العربية';
       $('ctSyncStatus').textContent = ctSyncEnabled
-        ? `المزامنة مفعّلة؛ ${ctLoad().length} جهة مرتبطة بأجهزة السيارة.`
+        ? `المزامنة مفعّلة؛ ${ctLoad().length} جهة في دليل المكالمات للأجهزة المرتبطة.`
         : 'المزامنة غير مفعّلة؛ لم تُرسل الأسماء أو الأرقام.';
       if (!$('contactDirectory').hidden) renderContactDirectory($('contactSearch').value);
       return result;
@@ -756,12 +764,19 @@
   }
   $('ctSyncNow').addEventListener('click', async () => {
     if (!ctSyncEnabled) {
-      const approved = window.confirm('المزامنة سترسل الأسماء والأرقام التي أضفتها أو استوردتها داخل Oscar Drive إلى خادم أوسكار، وتتيحها للأجهزة المرتبطة بالسيارة نفسها فقط. لن تُرفع جهات الهاتف كاملة. توافق؟');
-      if (!approved) return;
-      await syncContacts(true);
+      $('ctConsentPanel').hidden = false;
+      $('ctConsentAccept').focus();
     } else {
       await syncContacts();
     }
+  });
+  $('ctConsentAccept').addEventListener('click', async () => {
+    $('ctConsentPanel').hidden = true;
+    await syncContacts(true);
+  });
+  $('ctConsentKeepLocal').addEventListener('click', () => {
+    $('ctConsentPanel').hidden = true;
+    $('ctSyncStatus').textContent = 'اخترت إبقاء جهات الاتصال محلية؛ لم تُرسل الأسماء أو الأرقام.';
   });
   $('ctSyncDisable').addEventListener('click', async () => {
     if (!window.confirm('سيتم إيقاف المزامنة ومسح نسخة جهات الاتصال من خادم أوسكار لكل الأجهزة المرتبطة. ستظل النسخ المحلية على الأجهزة. متأكد؟')) return;
@@ -846,7 +861,8 @@
   function callLocal(name, how) {
     $('contactDirectory').hidden = true;
     $('callNoBtn').hidden = false;
-    const hits = RD.matchContacts(ctLoad(), name);
+    const available = ctLoad();
+    const hits = RD.matchContacts(how === 'wa' ? RD.whatsappContacts(available) : available, name);
     const opts = $('callOpts'); opts.textContent = '';
     $('callTelBtn').hidden = true; $('callWaBtn').hidden = true; $('callBox').hidden = false;
     if (!hits.length) { $('callQ').textContent = '📞 مش لاقى «' + name + '» — افتح «جهات الاتصال» لإضافته أو استيراده.'; oscar('contact_not_found', 'مش لاقى جهة الاتصال دى'); return; }
@@ -855,7 +871,7 @@
       for (const c of hits.slice(0, 6)) { const b = document.createElement('button'); b.textContent = c.name; b.addEventListener('click', () => callLocal(c.name, how)); opts.append(b); }
       oscar('call_which', 'لقيت أكتر من واحد، مين فيهم؟'); return;
     }
-    const c = hits[0], wa = $('callWa').checked && how !== 'tel';
+    const c = hits[0], wa = $('callWa').checked && how !== 'tel' && c.whatsapp !== false;
     callPending = { name: c.name, how, at: Date.now(), local: c };
     const link = (href, text, bg) => { const a = document.createElement('a'); a.href = href; a.textContent = text;
       a.style.cssText = 'padding:8px 12px;border-radius:10px;text-decoration:none;color:#fff;background:' + bg; return a; };
@@ -873,7 +889,8 @@
     if (how === 'wa' && !$('callWa').checked) how = 'tel';
     if (!how && !$('callWa').checked) how = 'tel';
     // لو جهة الاتصال مستوردة في Safari، اعرض أرقامها محليًا بدل إرسال الاسم للسيرفر أو فتح الاختصار.
-    if (RD.matchContacts(ctLoad(), name).length) { callLocal(name, how); return; }
+    const contactChoices = how === 'wa' ? RD.whatsappContacts(ctLoad()) : ctLoad();
+    if (RD.matchContacts(contactChoices, name).length) { callLocal(name, how); return; }
     callPending = { name, how, at: Date.now() };
     $('callBox').hidden = false;
     $('callQ').textContent = how ? '📞 هتصل بـ«' + name + '»' + (how === 'wa' ? ' واتساب' : '') + ' — تأكّد؟' : '📞 «' + name + '»: تليفون ولا واتساب؟';
@@ -882,7 +899,7 @@
     sayRoad(how ? 'هتصل ب' + name + (how === 'wa' ? ' واتساب' : '') + '. تأكد؟' : name + '. تليفون ولا واتساب؟');
     // طلب اقتراح الهجاء يرسل الاسم العربي وحده فقط؛ لا يُرسل رقم هاتف أو ملف/قائمة جهات اتصال.
     $('callOpts').textContent = '';
-    const nameRequest = RD.contactNameRequest(name, ctLoad());
+    const nameRequest = RD.contactNameRequest(name, contactChoices);
     if (nameRequest) {
       const asked = callPending;
       getContactSpelling(name, () => api('POST', nameRequest.path, nameRequest.body)).then((latin) => {
