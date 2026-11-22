@@ -94,6 +94,10 @@ export const SearchMessengerPeopleResponse = zod.object({
 /**
  * @summary List conversations for the signed-in user
  */
+export const ListMessengerConversationsQueryParams = zod.object({
+  "includeArchived": zod.coerce.boolean().optional()
+})
+
 export const listMessengerConversationsResponseConversationsItemUnreadCountMin = 0;
 
 
@@ -108,7 +112,10 @@ export const ListMessengerConversationsResponse = zod.object({
 }),
   "lastMessage": zod.union([zod.string(),zod.null()]),
   "unreadCount": zod.int().min(listMessengerConversationsResponseConversationsItemUnreadCountMin),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "isPinned": zod.boolean(),
+  "isMuted": zod.boolean(),
+  "isArchived": zod.boolean()
 }))
 })
 
@@ -139,7 +146,223 @@ export const StartMessengerConversationResponse = zod.object({
 }),
   "lastMessage": zod.union([zod.string(),zod.null()]),
   "unreadCount": zod.int().min(startMessengerConversationResponseConversationUnreadCountMin),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "isPinned": zod.boolean(),
+  "isMuted": zod.boolean(),
+  "isArchived": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Check whether private media and message tools are configured
+ */
+export const GetMessengerFeaturesCapabilityResponse = zod.object({
+  "enabled": zod.boolean(),
+  "mediaEnabled": zod.boolean(),
+  "maxMediaBytes": zod.literal(8388608),
+  "allowedContentTypes": zod.array(zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain'])),
+  "reason": zod.union([zod.enum(['database_update_required', 'storage_not_configured']),zod.null()])
+})
+
+
+/**
+ * @summary Search messages in the signed-in user's conversations
+ */
+export const searchMessengerMessagesQueryQueryMin = 2;
+export const searchMessengerMessagesQueryQueryMax = 80;
+
+
+
+export const SearchMessengerMessagesQueryParams = zod.object({
+  "query": zod.coerce.string().min(searchMessengerMessagesQueryQueryMin).max(searchMessengerMessagesQueryQueryMax)
+})
+
+export const searchMessengerMessagesResponseResultsMax = 40;
+
+
+
+export const SearchMessengerMessagesResponse = zod.object({
+  "results": zod.array(zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "senderId": zod.string(),
+  "peerName": zod.string(),
+  "body": zod.string(),
+  "messageType": zod.enum(['text', 'audio', 'media']),
+  "createdAt": zod.coerce.date()
+})).max(searchMessengerMessagesResponseResultsMax)
+})
+
+
+/**
+ * @summary Pin, mute, or archive one conversation for the signed-in user
+ */
+export const UpdateMessengerConversationSettingsParams = zod.object({
+  "conversationId": zod.coerce.string()
+})
+
+export const UpdateMessengerConversationSettingsBody = zod.object({
+  "isPinned": zod.boolean().optional(),
+  "isMuted": zod.boolean().optional(),
+  "isArchived": zod.boolean().optional()
+})
+
+export const UpdateMessengerConversationSettingsResponse = zod.object({
+  "settings": zod.object({
+  "isPinned": zod.boolean(),
+  "isMuted": zod.boolean(),
+  "isArchived": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Add or remove a simple reaction on a conversation message
+ */
+export const ToggleMessengerMessageReactionParams = zod.object({
+  "conversationId": zod.coerce.string(),
+  "messageId": zod.coerce.string()
+})
+
+export const ToggleMessengerMessageReactionBody = zod.object({
+  "emoji": zod.enum(['👍', '❤️', '😂', '😮', '🙏'])
+})
+
+
+
+
+export const ToggleMessengerMessageReactionResponse = zod.object({
+  "reactions": zod.array(zod.object({
+  "emoji": zod.enum(['👍', '❤️', '😂', '😮', '🙏']),
+  "count": zod.int().min(1),
+  "reactedByMe": zod.boolean()
+}))
+})
+
+
+/**
+ * Upload limit is 8 MiB per file; media bytes are stored outside the database.
+ * @summary Upload one small private image, video, or document
+ */
+export const UploadMessengerMediaParams = zod.object({
+  "conversationId": zod.coerce.string()
+})
+
+export const uploadMessengerMediaHeaderXClientMessageIdMin = 8;
+export const uploadMessengerMediaHeaderXClientMessageIdMax = 80;
+
+export const uploadMessengerMediaHeaderXOriginalFilenameMax = 180;
+
+
+
+export const UploadMessengerMediaHeader = zod.object({
+  "X-Client-Message-Id": zod.string().min(uploadMessengerMediaHeaderXClientMessageIdMin).max(uploadMessengerMediaHeaderXClientMessageIdMax),
+  "X-Original-Filename": zod.string().max(uploadMessengerMediaHeaderXOriginalFilenameMax)
+})
+
+export const uploadMessengerMediaResponseMessageAudioDurationMsOneMax = 120000;
+
+export const uploadMessengerMediaResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
+
+
+
+
+export const UploadMessengerMediaResponse = zod.object({
+  "message": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "senderId": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
+  "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "messageType": zod.enum(['text', 'audio', 'media']),
+  "audioDurationMs": zod.union([zod.int().min(1).max(uploadMessengerMediaResponseMessageAudioDurationMsOneMax),zod.null()]),
+  "audioUrl": zod.union([zod.string(),zod.null()]),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(uploadMessengerMediaResponseMessageMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]),
+  "replyToMessageId": zod.union([zod.string(),zod.null()]),
+  "replyPreview": zod.union([zod.object({
+  "id": zod.string(),
+  "body": zod.string(),
+  "messageType": zod.enum(['text', 'audio', 'media'])
+}),zod.null()]),
+  "forwarded": zod.boolean(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.enum(['👍', '❤️', '😂', '😮', '🙏']),
+  "count": zod.int().min(1),
+  "reactedByMe": zod.boolean()
+}))
+})
+})
+
+
+/**
+ * @summary Open an attachment for a member of its conversation
+ */
+export const GetMessengerMediaParams = zod.object({
+  "conversationId": zod.coerce.string(),
+  "messageId": zod.coerce.string()
+})
+
+export const GetMessengerMediaResponse = zod.string()
+
+
+/**
+ * @summary Forward a message to a destination conversation
+ */
+export const ForwardMessengerMessageParams = zod.object({
+  "messageId": zod.coerce.string()
+})
+
+export const ForwardMessengerMessageBody = zod.object({
+  "targetConversationId": zod.string()
+})
+
+export const forwardMessengerMessageResponseMessageAudioDurationMsOneMax = 120000;
+
+export const forwardMessengerMessageResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
+
+
+
+
+export const ForwardMessengerMessageResponse = zod.object({
+  "message": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "senderId": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
+  "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "messageType": zod.enum(['text', 'audio', 'media']),
+  "audioDurationMs": zod.union([zod.int().min(1).max(forwardMessengerMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
+  "audioUrl": zod.union([zod.string(),zod.null()]),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(forwardMessengerMessageResponseMessageMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]),
+  "replyToMessageId": zod.union([zod.string(),zod.null()]),
+  "replyPreview": zod.union([zod.object({
+  "id": zod.string(),
+  "body": zod.string(),
+  "messageType": zod.enum(['text', 'audio', 'media'])
+}),zod.null()]),
+  "forwarded": zod.boolean(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.enum(['👍', '❤️', '😂', '😮', '🙏']),
+  "count": zod.int().min(1),
+  "reactedByMe": zod.boolean()
+}))
 })
 })
 
@@ -167,6 +390,9 @@ export const ListMessengerMessagesQueryParams = zod.object({
 
 export const listMessengerMessagesResponseMessagesItemAudioDurationMsOneMax = 120000;
 
+export const listMessengerMessagesResponseMessagesItemMediaAttachmentOneSizeBytesMax = 8388608;
+
+
 
 
 export const ListMessengerMessagesResponse = zod.object({
@@ -178,9 +404,28 @@ export const ListMessengerMessagesResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
-  "messageType": zod.enum(['text', 'audio']),
+  "messageType": zod.enum(['text', 'audio', 'media']),
   "audioDurationMs": zod.union([zod.int().min(1).max(listMessengerMessagesResponseMessagesItemAudioDurationMsOneMax),zod.null()]),
-  "audioUrl": zod.union([zod.string(),zod.null()])
+  "audioUrl": zod.union([zod.string(),zod.null()]),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(listMessengerMessagesResponseMessagesItemMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]),
+  "replyToMessageId": zod.union([zod.string(),zod.null()]),
+  "replyPreview": zod.union([zod.object({
+  "id": zod.string(),
+  "body": zod.string(),
+  "messageType": zod.enum(['text', 'audio', 'media'])
+}),zod.null()]),
+  "forwarded": zod.boolean(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.enum(['👍', '❤️', '😂', '😮', '🙏']),
+  "count": zod.int().min(1),
+  "reactedByMe": zod.boolean()
+}))
 }))
 })
 
@@ -211,6 +456,9 @@ export const SendMessengerMessageBody = zod.object({
 
 export const sendMessengerMessageResponseMessageAudioDurationMsOneMax = 120000;
 
+export const sendMessengerMessageResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
+
+
 
 
 export const SendMessengerMessageResponse = zod.object({
@@ -222,9 +470,28 @@ export const SendMessengerMessageResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
-  "messageType": zod.enum(['text', 'audio']),
+  "messageType": zod.enum(['text', 'audio', 'media']),
   "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
-  "audioUrl": zod.union([zod.string(),zod.null()])
+  "audioUrl": zod.union([zod.string(),zod.null()]),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(sendMessengerMessageResponseMessageMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]),
+  "replyToMessageId": zod.union([zod.string(),zod.null()]),
+  "replyPreview": zod.union([zod.object({
+  "id": zod.string(),
+  "body": zod.string(),
+  "messageType": zod.enum(['text', 'audio', 'media'])
+}),zod.null()]),
+  "forwarded": zod.boolean(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.enum(['👍', '❤️', '😂', '😮', '🙏']),
+  "count": zod.int().min(1),
+  "reactedByMe": zod.boolean()
+}))
 })
 })
 
@@ -260,6 +527,9 @@ export const SendMessengerVoiceMessageHeader = zod.object({
 
 export const sendMessengerVoiceMessageResponseMessageAudioDurationMsOneMax = 120000;
 
+export const sendMessengerVoiceMessageResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
+
+
 
 
 export const SendMessengerVoiceMessageResponse = zod.object({
@@ -271,9 +541,28 @@ export const SendMessengerVoiceMessageResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
-  "messageType": zod.enum(['text', 'audio']),
+  "messageType": zod.enum(['text', 'audio', 'media']),
   "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerVoiceMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
-  "audioUrl": zod.union([zod.string(),zod.null()])
+  "audioUrl": zod.union([zod.string(),zod.null()]),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(sendMessengerVoiceMessageResponseMessageMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]),
+  "replyToMessageId": zod.union([zod.string(),zod.null()]),
+  "replyPreview": zod.union([zod.object({
+  "id": zod.string(),
+  "body": zod.string(),
+  "messageType": zod.enum(['text', 'audio', 'media'])
+}),zod.null()]),
+  "forwarded": zod.boolean(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.enum(['👍', '❤️', '😂', '😮', '🙏']),
+  "count": zod.int().min(1),
+  "reactedByMe": zod.boolean()
+}))
 })
 })
 

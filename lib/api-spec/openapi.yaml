@@ -133,6 +133,12 @@ paths:
       summary: List conversations for the signed-in user
       security:
         - BearerAuth: []
+      parameters:
+        - name: includeArchived
+          in: query
+          required: false
+          schema:
+            type: boolean
       responses:
         "200":
           description: The user's conversations
@@ -183,6 +189,350 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           description: Messenger profile not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /messenger/features/capability:
+    get:
+      operationId: getMessengerFeaturesCapability
+      tags: [messenger]
+      summary: Check whether private media and message tools are configured
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Feature availability and safe attachment limits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerFeaturesCapability"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /messenger/search:
+    get:
+      operationId: searchMessengerMessages
+      tags: [messenger]
+      summary: Search messages in the signed-in user's conversations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 80
+      responses:
+        "200":
+          description: Matching messages from the user's private conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    maxItems: 40
+                    items:
+                      $ref: "#/components/schemas/MessageSearchResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /messenger/conversations/{conversationId}/settings:
+    patch:
+      operationId: updateMessengerConversationSettings
+      tags: [messenger]
+      summary: Pin, mute, or archive one conversation for the signed-in user
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationSettingsInput"
+      responses:
+        "200":
+          description: Updated private conversation settings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [settings]
+                properties:
+                  settings:
+                    $ref: "#/components/schemas/ConversationSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Message tools migration is not applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /messenger/conversations/{conversationId}/messages/{messageId}/reactions:
+    post:
+      operationId: toggleMessengerMessageReaction
+      tags: [messenger]
+      summary: Add or remove a simple reaction on a conversation message
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [emoji]
+              properties:
+                emoji:
+                  type: string
+                  enum: ["👍", "❤️", "😂", "😮", "🙏"]
+      responses:
+        "200":
+          description: Current reaction counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reactions]
+                properties:
+                  reactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MessageReaction"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation or message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /messenger/conversations/{conversationId}/media:
+    post:
+      operationId: uploadMessengerMedia
+      tags: [messenger]
+      summary: Upload one small private image, video, or document
+      description: Upload limit is 8 MiB per file; media bytes are stored outside the database.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Client-Message-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+        - name: X-Original-Filename
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 180
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+          video/mp4:
+            schema:
+              type: string
+              format: binary
+          video/webm:
+            schema:
+              type: string
+              format: binary
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          text/plain:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Private attachment stored and message created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: File is larger than 8 MiB
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Storage or database migration is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /messenger/conversations/{conversationId}/messages/{messageId}/media:
+    get:
+      operationId: getMessengerMedia
+      tags: [messenger]
+      summary: Open an attachment for a member of its conversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Private attachment bytes
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/webm:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation or attachment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /messenger/messages/{messageId}/forward:
+    post:
+      operationId: forwardMessengerMessage
+      tags: [messenger]
+      summary: Forward a message to a destination conversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetConversationId]
+              properties:
+                targetConversationId:
+                  type: string
+      responses:
+        "201":
+          description: Forwarded message created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Source or destination is not available to the user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Message tools or storage is not configured
           content:
             application/json:
               schema:
@@ -261,6 +611,10 @@ paths:
                   type: string
                   minLength: 8
                   maxLength: 80
+                  replyToMessageId:
+                    type: string
+                    minLength: 8
+                    maxLength: 80
       responses:
         "200":
           description: Previously saved message returned after a retry
@@ -686,6 +1040,11 @@ components:
         - messageType
         - audioDurationMs
         - audioUrl
+        - mediaAttachment
+        - replyToMessageId
+        - replyPreview
+        - forwarded
+        - reactions
       properties:
         id:
           type: string
@@ -710,7 +1069,7 @@ components:
             - type: "null"
         messageType:
           type: string
-          enum: [text, audio]
+          enum: [text, audio, media]
         audioDurationMs:
           anyOf:
             - type: integer
@@ -722,6 +1081,127 @@ components:
             - type: string
               format: uri-reference
             - type: "null"
+        mediaAttachment:
+          anyOf:
+            - $ref: "#/components/schemas/MediaAttachment"
+            - type: "null"
+        replyToMessageId:
+          anyOf:
+            - type: string
+            - type: "null"
+        replyPreview:
+          anyOf:
+            - $ref: "#/components/schemas/ReplyPreview"
+            - type: "null"
+        forwarded:
+          type: boolean
+        reactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageReaction"
+    MediaAttachment:
+      type: object
+      required: [filename, contentType, kind, sizeBytes, url]
+      properties:
+        filename:
+          type: string
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, video/mp4, video/webm, application/pdf, text/plain]
+        kind:
+          type: string
+          enum: [image, video, file]
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 8388608
+        url:
+          type: string
+          format: uri-reference
+    ReplyPreview:
+      type: object
+      required: [id, body, messageType]
+      properties:
+        id:
+          type: string
+        body:
+          type: string
+        messageType:
+          type: string
+          enum: [text, audio, media]
+    MessageReaction:
+      type: object
+      required: [emoji, count, reactedByMe]
+      properties:
+        emoji:
+          type: string
+          enum: ["👍", "❤️", "😂", "😮", "🙏"]
+        count:
+          type: integer
+          minimum: 1
+        reactedByMe:
+          type: boolean
+    MessageSearchResult:
+      type: object
+      required: [id, conversationId, senderId, peerName, body, messageType, createdAt]
+      properties:
+        id:
+          type: string
+        conversationId:
+          type: string
+        senderId:
+          type: string
+        peerName:
+          type: string
+        body:
+          type: string
+        messageType:
+          type: string
+          enum: [text, audio, media]
+        createdAt:
+          type: string
+          format: date-time
+    MessengerFeaturesCapability:
+      type: object
+      required: [enabled, mediaEnabled, maxMediaBytes, allowedContentTypes, reason]
+      properties:
+        enabled:
+          type: boolean
+        mediaEnabled:
+          type: boolean
+        maxMediaBytes:
+          type: integer
+          enum: [8388608]
+        allowedContentTypes:
+          type: array
+          items:
+            type: string
+            enum: [image/jpeg, image/png, image/webp, video/mp4, video/webm, application/pdf, text/plain]
+        reason:
+          anyOf:
+            - type: string
+              enum: [database_update_required, storage_not_configured]
+            - type: "null"
+    ConversationSettings:
+      type: object
+      required: [isPinned, isMuted, isArchived]
+      properties:
+        isPinned:
+          type: boolean
+        isMuted:
+          type: boolean
+        isArchived:
+          type: boolean
+    ConversationSettingsInput:
+      type: object
+      minProperties: 1
+      properties:
+        isPinned:
+          type: boolean
+        isMuted:
+          type: boolean
+        isArchived:
+          type: boolean
     VoiceMessageCapability:
       type: object
       required: [enabled, maxDurationMs, maxBytes, reason]
@@ -830,7 +1310,7 @@ components:
           format: date-time
     Conversation:
       type: object
-      required: [id, peer, lastMessage, unreadCount, updatedAt]
+      required: [id, peer, lastMessage, unreadCount, updatedAt, isPinned, isMuted, isArchived]
       properties:
         id:
           type: string
@@ -846,3 +1326,9 @@ components:
         updatedAt:
           type: string
           format: date-time
+        isPinned:
+          type: boolean
+        isMuted:
+          type: boolean
+        isArchived:
+          type: boolean

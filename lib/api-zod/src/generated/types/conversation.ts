@@ -14,4 +14,7 @@ export interface Conversation {
   /** @minimum 0 */
   unreadCount: number;
   updatedAt: Date;
+  isPinned: boolean;
+  isMuted: boolean;
+  isArchived: boolean;
 }

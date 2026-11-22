@@ -26,6 +26,10 @@ const voiceSchemaCache = new WeakMap<
   object,
   { checkedAt: number; ready: boolean }
 >();
+const messageToolsSchemaCache = new WeakMap<
+  object,
+  { checkedAt: number; ready: boolean }
+>();
 
 const requireAuth: RequestHandler = (req, res, next) => {
   const userId = getAuth(req).userId;
@@ -76,6 +80,36 @@ async function hasVoiceMetadataSchema(pool: NonNullable<DbPool>): Promise<boolea
   }
 }
 
+async function hasMessageToolsSchema(pool: NonNullable<DbPool>): Promise<boolean> {
+  const cached = messageToolsSchemaCache.get(pool);
+  if (cached && Date.now() - cached.checkedAt < 15_000) return cached.ready;
+  try {
+    const result = await pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'messenger_messages'
+            AND column_name IN ('reply_to_message_id', 'forwarded_from_message_id')) AS columns_ready,
+         (SELECT count(*)::int FROM information_schema.tables
+          WHERE table_schema = current_schema()
+            AND table_name = ANY($1::text[])) AS tables_ready`,
+      [[
+        "messenger_message_media",
+        "messenger_message_reactions",
+        "messenger_conversation_settings",
+      ]],
+    );
+    const ready =
+      Number(result.rows[0]?.columns_ready) === 2 &&
+      Number(result.rows[0]?.tables_ready) === 3;
+    messageToolsSchemaCache.set(pool, { checkedAt: Date.now(), ready });
+    return ready;
+  } catch {
+    messageToolsSchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
+    return false;
+  }
+}
+
 function voiceCapability(enabled: boolean, reason: string | null) {
   return {
     enabled,
@@ -107,8 +141,22 @@ function publicMessage(row: {
   read_at: Date | string | null;
   message_type?: string;
   audio_duration_ms?: number | string | null;
+  audio_content_type?: string | null;
+  forwarded_from_message_id?: string | null;
+  reply_to_message_id?: string | null;
+  reply_preview_id?: string | null;
+  reply_preview_body?: string | null;
+  reply_preview_type?: string | null;
+  media_filename?: string | null;
+  media_content_type?: string | null;
+  media_kind?: string | null;
+  media_size_bytes?: number | string | null;
+  reactions?: Array<{ emoji: string; count: number; reactedByMe: boolean }> | null;
 }) {
-  const messageType = row.message_type === "audio" ? "audio" : "text";
+  const messageType =
+    row.message_type === "audio" || row.message_type === "media"
+      ? row.message_type
+      : "text";
   return {
     id: row.id,
     conversationId: row.conversation_id,
@@ -128,6 +176,30 @@ function publicMessage(row: {
       messageType === "audio"
         ? `/api/messenger/conversations/${encodeURIComponent(row.conversation_id)}/messages/${encodeURIComponent(row.id)}/audio`
         : null,
+    mediaAttachment:
+      messageType === "media" && row.media_filename && row.media_content_type
+        ? {
+            filename: row.media_filename,
+            contentType: row.media_content_type,
+            kind: row.media_kind ?? "file",
+            sizeBytes: Number(row.media_size_bytes ?? 0),
+            url: `/api/messenger/conversations/${encodeURIComponent(row.conversation_id)}/messages/${encodeURIComponent(row.id)}/media`,
+          }
+        : null,
+    replyToMessageId: row.reply_to_message_id ?? null,
+    replyPreview:
+      row.reply_preview_id && row.reply_preview_body != null
+        ? {
+            id: row.reply_preview_id,
+            body: row.reply_preview_body,
+            messageType:
+              row.reply_preview_type === "audio" || row.reply_preview_type === "media"
+                ? row.reply_preview_type
+                : "text",
+          }
+        : null,
+    forwarded: Boolean(row.forwarded_from_message_id),
+    reactions: Array.isArray(row.reactions) ? row.reactions : [],
   };
 }
 
@@ -140,6 +212,9 @@ function publicConversation(
     last_message: string | null;
     unread_count: string | number;
     updated_at: Date | string;
+    is_pinned?: boolean;
+    is_muted?: boolean;
+    is_archived?: boolean;
   },
 ) {
   return {
@@ -152,6 +227,9 @@ function publicConversation(
     lastMessage: row.last_message,
     unreadCount: Number(row.unread_count),
     updatedAt: new Date(row.updated_at).toISOString(),
+    isPinned: Boolean(row.is_pinned),
+    isMuted: Boolean(row.is_muted),
+    isArchived: Boolean(row.is_archived),
   };
 }
 
@@ -302,18 +380,52 @@ const conversationSelect = `
     SELECT count(*)::int AS count FROM messenger_messages
     WHERE conversation_id = c.id AND sender_id <> $1 AND read_at IS NULL
   ) unread ON true
-  WHERE c.user_a = $1 OR c.user_b = $1
+  WHERE (c.user_a = $1 OR c.user_b = $1)
 `;
 
 router.get("/messenger/conversations", requireAuth, async (_req, res, next) => {
   try {
     const pool = getPoolOrUnavailable(await loadPool(), res);
     if (!pool) return;
+    const userId = getUserId(res);
+    const toolsReady = await hasMessageToolsSchema(pool);
+    const includeArchived = String(_req.query.includeArchived ?? "") === "true";
     const result = await pool.query(
-      `${conversationSelect} ORDER BY updated_at DESC`,
-      [getUserId(res)],
+      `${conversationSelect}
+       ${toolsReady
+         ? `AND ${includeArchived ? "EXISTS" : "NOT EXISTS"} (
+              SELECT 1 FROM messenger_conversation_settings settings
+              WHERE settings.conversation_id = c.id
+                AND settings.user_id = $1 AND settings.is_archived = true
+            )`
+         : ""}
+       ORDER BY updated_at DESC`,
+      [userId],
     );
-    res.json({ conversations: result.rows.map(publicConversation) });
+    const conversations = result.rows.map(publicConversation);
+    if (toolsReady && conversations.length) {
+      const settings = await pool.query(
+        `SELECT conversation_id, is_pinned, is_muted, is_archived
+         FROM messenger_conversation_settings
+         WHERE user_id = $1 AND conversation_id = ANY($2::text[])`,
+        [userId, conversations.map((item) => item.id)],
+      );
+      const byId = new Map(settings.rows.map((row) => [row.conversation_id, row]));
+      for (const conversation of conversations) {
+        const row = byId.get(conversation.id);
+        if (row) {
+          conversation.isPinned = Boolean(row.is_pinned);
+          conversation.isMuted = Boolean(row.is_muted);
+          conversation.isArchived = Boolean(row.is_archived);
+        }
+      }
+      conversations.sort(
+        (a, b) =>
+          Number(b.isPinned) - Number(a.isPinned) ||
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+    }
+    res.json({ conversations });
   } catch (error) {
     next(error);
   }
@@ -411,19 +523,61 @@ router.get(
         Math.max(1, Number.parseInt(String(req.query.limit ?? "50"), 10) || 50),
       );
       const audioColumns = (await hasVoiceMetadataSchema(pool))
-        ? "message_type, audio_duration_ms"
+        ? "m.message_type, m.audio_duration_ms"
         : "'text'::text AS message_type, NULL::integer AS audio_duration_ms";
+      const toolsReady = await hasMessageToolsSchema(pool);
+      const toolsColumns = toolsReady
+        ? `, m.reply_to_message_id,
+             m.forwarded_from_message_id,
+             media.original_filename AS media_filename,
+             media.content_type AS media_content_type,
+             media.kind AS media_kind,
+             media.size_bytes AS media_size_bytes,
+             reply.id AS reply_preview_id,
+             reply.body AS reply_preview_body,
+             reply.message_type AS reply_preview_type,
+             COALESCE((
+               SELECT json_agg(json_build_object(
+                 'emoji', grouped.emoji,
+                 'count', grouped.count,
+                 'reactedByMe', grouped.reacted_by_me
+               ) ORDER BY grouped.emoji)
+               FROM (
+                 SELECT emoji, count(*)::int AS count,
+                        bool_or(user_id = $3) AS reacted_by_me
+                 FROM messenger_message_reactions
+                 WHERE message_id = m.id
+                 GROUP BY emoji
+               ) grouped
+             ), '[]'::json) AS reactions`
+        : `, NULL::text AS reply_to_message_id,
+             NULL::text AS forwarded_from_message_id,
+             NULL::text AS media_filename,
+             NULL::text AS media_content_type,
+             NULL::text AS media_kind,
+             NULL::integer AS media_size_bytes,
+             NULL::text AS reply_preview_id,
+             NULL::text AS reply_preview_body,
+             NULL::text AS reply_preview_type,
+             '[]'::json AS reactions`;
+      const toolsJoins = toolsReady
+        ? `LEFT JOIN messenger_message_media media ON media.message_id = m.id
+           LEFT JOIN messenger_messages reply
+             ON reply.id = m.reply_to_message_id
+            AND reply.conversation_id = m.conversation_id`
+        : "";
       const result = await pool.query(
         `WITH recent AS (
-           SELECT id, conversation_id, sender_id, body, created_at, delivered_at,
-                  read_at, ${audioColumns}
-           FROM messenger_messages
-           WHERE conversation_id = $1
-           ORDER BY created_at DESC
+           SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at,
+                  m.delivered_at, m.read_at, ${audioColumns} ${toolsColumns}
+           FROM messenger_messages m
+           ${toolsJoins}
+           WHERE m.conversation_id = $1
+           ORDER BY m.created_at DESC
            LIMIT $2
          )
          SELECT * FROM recent ORDER BY created_at ASC`,
-        [conversationId, limit],
+        [conversationId, limit, userId],
       );
       await pool.query(
         `UPDATE messenger_messages SET delivered_at = COALESCE(delivered_at, now())
@@ -453,23 +607,54 @@ router.post(
       }
       const body = String(req.body?.body ?? "").trim();
       const clientMessageId = String(req.body?.clientMessageId ?? "");
+      const replyToMessageId =
+        typeof req.body?.replyToMessageId === "string"
+          ? req.body.replyToMessageId.trim()
+          : "";
       if (!body || body.length > 4000 || clientMessageId.length < 8 || clientMessageId.length > 80) {
         res.status(400).json({ error: "Check the message and try again" });
         return;
       }
+      const toolsReady = await hasMessageToolsSchema(pool);
+      if (replyToMessageId && !toolsReady) {
+        res.status(503).json({ error: "Message tools database update is required" });
+        return;
+      }
+      if (replyToMessageId) {
+        const replyTarget = await pool.query(
+          `SELECT id FROM messenger_messages
+           WHERE id = $1 AND conversation_id = $2`,
+          [replyToMessageId, conversationId],
+        );
+        if (!replyTarget.rows[0]) {
+          res.status(404).json({ error: "Reply message not found" });
+          return;
+        }
+      }
       const id = randomUUID();
       const inserted = await pool.query(
-        `INSERT INTO messenger_messages
-           (id, conversation_id, sender_id, client_message_id, body)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
-         RETURNING id, conversation_id, sender_id, body, created_at, delivered_at, read_at`,
-        [id, conversationId, userId, clientMessageId, body],
+        toolsReady
+          ? `INSERT INTO messenger_messages
+               (id, conversation_id, sender_id, client_message_id, body, reply_to_message_id)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
+             RETURNING id, conversation_id, sender_id, body, created_at,
+                       delivered_at, read_at, message_type, reply_to_message_id,
+                       forwarded_from_message_id`
+          : `INSERT INTO messenger_messages
+               (id, conversation_id, sender_id, client_message_id, body)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
+             RETURNING id, conversation_id, sender_id, body, created_at, delivered_at, read_at`,
+        toolsReady
+          ? [id, conversationId, userId, clientMessageId, body, replyToMessageId || null]
+          : [id, conversationId, userId, clientMessageId, body],
       );
       let row = inserted.rows[0];
       if (!row) {
         const duplicate = await pool.query(
-          `SELECT id, conversation_id, sender_id, body, created_at, delivered_at, read_at
+          `SELECT id, conversation_id, sender_id, body, created_at, delivered_at, read_at,
+                  ${toolsReady ? "message_type, reply_to_message_id, forwarded_from_message_id" : "'text'::text AS message_type"}
            FROM messenger_messages
            WHERE conversation_id = $1 AND sender_id = $2 AND client_message_id = $3`,
           [conversationId, userId, clientMessageId],

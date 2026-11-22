@@ -12,4 +12,5 @@ export type MessageMessageType = typeof MessageMessageType[keyof typeof MessageM
 export const MessageMessageType = {
   text: 'text',
   audio: 'audio',
+  media: 'media',
 } as const;

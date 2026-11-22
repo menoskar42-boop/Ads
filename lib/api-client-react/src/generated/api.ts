@@ -28,18 +28,25 @@ import type {
   BadRequestResponse,
   CancelScheduledMessageResponse,
   ConflictResponse,
+  ConversationSettingsInput,
   ErrorResponse,
+  ForwardMessengerMessage201,
+  ForwardMessengerMessageBody,
   HealthStatus,
   ListMessengerConversations200,
+  ListMessengerConversationsParams,
   ListMessengerMessages200,
   ListMessengerMessagesParams,
   MarkMessengerConversationRead200,
+  MessengerFeaturesCapability,
   ProfileInput,
   ProfileResponse,
   ScheduledMessageInput,
   ScheduledMessageResponse,
   ScheduledMessageUpdate,
   ScheduledMessagesResponse,
+  SearchMessengerMessages200,
+  SearchMessengerMessagesParams,
   SearchMessengerPeople200,
   SearchMessengerPeopleParams,
   SendMessengerMessage200,
@@ -50,7 +57,11 @@ import type {
   SendMessengerVoiceMessageParams,
   StartMessengerConversation200,
   StartMessengerConversationBody,
+  ToggleMessengerMessageReaction200,
+  ToggleMessengerMessageReactionBody,
   UnauthorizedResponse,
+  UpdateMessengerConversationSettings200,
+  UploadMessengerMedia201,
   VoiceMessageCapability
 } from './api.schemas';
 
@@ -581,20 +592,27 @@ export function useSearchMessengerPeople<TData = Awaited<ReturnType<typeof searc
 
 
 
-export const getListMessengerConversationsUrl = () => {
+export const getListMessengerConversationsUrl = (params?: ListMessengerConversationsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/messenger/conversations`
+  return stringifiedParams.length > 0 ? `/api/messenger/conversations?${stringifiedParams}` : `/api/messenger/conversations`
 }
 
 /**
  * @summary List conversations for the signed-in user
  */
-export const listMessengerConversations = async ( options?: Parameters<typeof customFetch>[1]): Promise<ListMessengerConversations200> => {
+export const listMessengerConversations = async (params?: ListMessengerConversationsParams, options?: Parameters<typeof customFetch>[1]): Promise<ListMessengerConversations200> => {
 
-  return customFetch<ListMessengerConversations200>(getListMessengerConversationsUrl(),
+  return customFetch<ListMessengerConversations200>(getListMessengerConversationsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -607,23 +625,23 @@ export const listMessengerConversations = async ( options?: Parameters<typeof cu
 
 
 
-export const getListMessengerConversationsQueryKey = () => {
+export const getListMessengerConversationsQueryKey = (params?: ListMessengerConversationsParams,) => {
     return [
-    `/api/messenger/conversations`
+    `/api/messenger/conversations`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListMessengerConversationsQueryOptions = <TData = Awaited<ReturnType<typeof listMessengerConversations>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerConversations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getListMessengerConversationsQueryOptions = <TData = Awaited<ReturnType<typeof listMessengerConversations>>, TError = ErrorType<UnauthorizedResponse>>(params?: ListMessengerConversationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerConversations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListMessengerConversationsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListMessengerConversationsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMessengerConversations>>> = ({ signal }) => listMessengerConversations({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMessengerConversations>>> = ({ signal }) => listMessengerConversations(params, { signal, ...requestOptions });
 
 
 
@@ -637,7 +655,7 @@ export type ListMessengerConversationsQueryError = ErrorType<UnauthorizedRespons
 
 
 export function useListMessengerConversations<TData = Awaited<ReturnType<typeof listMessengerConversations>>, TError = ErrorType<UnauthorizedResponse>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerConversations>>, TError, TData>> & Pick<
+ params: undefined |  ListMessengerConversationsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerConversations>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMessengerConversations>>,
           TError,
@@ -647,7 +665,7 @@ export function useListMessengerConversations<TData = Awaited<ReturnType<typeof 
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListMessengerConversations<TData = Awaited<ReturnType<typeof listMessengerConversations>>, TError = ErrorType<UnauthorizedResponse>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerConversations>>, TError, TData>> & Pick<
+ params?: ListMessengerConversationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerConversations>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMessengerConversations>>,
           TError,
@@ -657,7 +675,7 @@ export function useListMessengerConversations<TData = Awaited<ReturnType<typeof 
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListMessengerConversations<TData = Awaited<ReturnType<typeof listMessengerConversations>>, TError = ErrorType<UnauthorizedResponse>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerConversations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ params?: ListMessengerConversationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerConversations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -665,11 +683,11 @@ export function useListMessengerConversations<TData = Awaited<ReturnType<typeof 
  */
 
 export function useListMessengerConversations<TData = Awaited<ReturnType<typeof listMessengerConversations>>, TError = ErrorType<UnauthorizedResponse>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerConversations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ params?: ListMessengerConversationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerConversations>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getListMessengerConversationsQueryOptions(options)
+  const queryOptions = getListMessengerConversationsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -768,6 +786,683 @@ export const useStartMessengerConversation = <TError = ErrorType<BadRequestRespo
         TContext
       > => {
       return useMutation(getStartMessengerConversationMutationOptions(options), queryClient);
+    }
+
+export const getGetMessengerFeaturesCapabilityUrl = () => {
+
+
+
+
+  return `/api/messenger/features/capability`
+}
+
+/**
+ * @summary Check whether private media and message tools are configured
+ */
+export const getMessengerFeaturesCapability = async ( options?: Parameters<typeof customFetch>[1]): Promise<MessengerFeaturesCapability> => {
+
+  return customFetch<MessengerFeaturesCapability>(getGetMessengerFeaturesCapabilityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerFeaturesCapabilityQueryKey = () => {
+    return [
+    `/api/messenger/features/capability`
+    ] as const;
+    }
+
+
+export const getGetMessengerFeaturesCapabilityQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerFeaturesCapabilityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerFeaturesCapability>>> = ({ signal }) => getMessengerFeaturesCapability({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerFeaturesCapabilityQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerFeaturesCapability>>>
+export type GetMessengerFeaturesCapabilityQueryError = ErrorType<UnauthorizedResponse>
+
+
+export function useGetMessengerFeaturesCapability<TData = Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerFeaturesCapability>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerFeaturesCapability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerFeaturesCapability<TData = Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerFeaturesCapability>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerFeaturesCapability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerFeaturesCapability<TData = Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Check whether private media and message tools are configured
+ */
+
+export function useGetMessengerFeaturesCapability<TData = Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerFeaturesCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerFeaturesCapabilityQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSearchMessengerMessagesUrl = (params: SearchMessengerMessagesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/messenger/search?${stringifiedParams}` : `/api/messenger/search`
+}
+
+/**
+ * @summary Search messages in the signed-in user's conversations
+ */
+export const searchMessengerMessages = async (params: SearchMessengerMessagesParams, options?: Parameters<typeof customFetch>[1]): Promise<SearchMessengerMessages200> => {
+
+  return customFetch<SearchMessengerMessages200>(getSearchMessengerMessagesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchMessengerMessagesQueryKey = (params?: SearchMessengerMessagesParams,) => {
+    return [
+    `/api/messenger/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchMessengerMessagesQueryOptions = <TData = Awaited<ReturnType<typeof searchMessengerMessages>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(params: SearchMessengerMessagesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchMessengerMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchMessengerMessagesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchMessengerMessages>>> = ({ signal }) => searchMessengerMessages(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchMessengerMessages>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type SearchMessengerMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof searchMessengerMessages>>>
+export type SearchMessengerMessagesQueryError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+
+
+export function useSearchMessengerMessages<TData = Awaited<ReturnType<typeof searchMessengerMessages>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(
+ params: SearchMessengerMessagesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchMessengerMessages>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchMessengerMessages>>,
+          TError,
+          Awaited<ReturnType<typeof searchMessengerMessages>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSearchMessengerMessages<TData = Awaited<ReturnType<typeof searchMessengerMessages>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(
+ params: SearchMessengerMessagesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchMessengerMessages>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchMessengerMessages>>,
+          TError,
+          Awaited<ReturnType<typeof searchMessengerMessages>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSearchMessengerMessages<TData = Awaited<ReturnType<typeof searchMessengerMessages>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(
+ params: SearchMessengerMessagesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchMessengerMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Search messages in the signed-in user's conversations
+ */
+
+export function useSearchMessengerMessages<TData = Awaited<ReturnType<typeof searchMessengerMessages>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(
+ params: SearchMessengerMessagesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchMessengerMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getSearchMessengerMessagesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateMessengerConversationSettingsUrl = (conversationId: string,) => {
+
+
+
+
+  return `/api/messenger/conversations/${conversationId}/settings`
+}
+
+/**
+ * @summary Pin, mute, or archive one conversation for the signed-in user
+ */
+export const updateMessengerConversationSettings = async (conversationId: string,
+    conversationSettingsInput: ConversationSettingsInput, options?: Parameters<typeof customFetch>[1]): Promise<UpdateMessengerConversationSettings200> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<UpdateMessengerConversationSettings200>(getUpdateMessengerConversationSettingsUrl(conversationId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(conversationSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateMessengerConversationSettingsMutationKey = () => ['updateMessengerConversationSettings'] as const;
+
+export const getUpdateMessengerConversationSettingsMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerConversationSettings>>, TError,UpdateMessengerConversationSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMessengerConversationSettings>>, TError,UpdateMessengerConversationSettingsMutationVariables, TContext> => {
+
+const mutationKey = getUpdateMessengerConversationSettingsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMessengerConversationSettings>>, UpdateMessengerConversationSettingsMutationVariables> = (props) => {
+          const {conversationId,data} = props ?? {};
+
+          return  updateMessengerConversationSettings(conversationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMessengerConversationSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateMessengerConversationSettings>>>
+    export type UpdateMessengerConversationSettingsMutationBody = BodyType<ConversationSettingsInput>
+    export type UpdateMessengerConversationSettingsMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type UpdateMessengerConversationSettingsMutationVariables = {conversationId: string;data: BodyType<ConversationSettingsInput>}
+
+    /**
+ * @summary Pin, mute, or archive one conversation for the signed-in user
+ */
+export const useUpdateMessengerConversationSettings = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerConversationSettings>>, TError,UpdateMessengerConversationSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateMessengerConversationSettings>>,
+        TError,
+        UpdateMessengerConversationSettingsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateMessengerConversationSettingsMutationOptions(options), queryClient);
+    }
+
+export const getToggleMessengerMessageReactionUrl = (conversationId: string,
+    messageId: string,) => {
+
+
+
+
+  return `/api/messenger/conversations/${conversationId}/messages/${messageId}/reactions`
+}
+
+/**
+ * @summary Add or remove a simple reaction on a conversation message
+ */
+export const toggleMessengerMessageReaction = async (conversationId: string,
+    messageId: string,
+    toggleMessengerMessageReactionBody: ToggleMessengerMessageReactionBody, options?: Parameters<typeof customFetch>[1]): Promise<ToggleMessengerMessageReaction200> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ToggleMessengerMessageReaction200>(getToggleMessengerMessageReactionUrl(conversationId,messageId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(toggleMessengerMessageReactionBody)
+  }
+);}
+
+
+
+
+
+export const getToggleMessengerMessageReactionMutationKey = () => ['toggleMessengerMessageReaction'] as const;
+
+export const getToggleMessengerMessageReactionMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof toggleMessengerMessageReaction>>, TError,ToggleMessengerMessageReactionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof toggleMessengerMessageReaction>>, TError,ToggleMessengerMessageReactionMutationVariables, TContext> => {
+
+const mutationKey = getToggleMessengerMessageReactionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof toggleMessengerMessageReaction>>, ToggleMessengerMessageReactionMutationVariables> = (props) => {
+          const {conversationId,messageId,data} = props ?? {};
+
+          return  toggleMessengerMessageReaction(conversationId,messageId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ToggleMessengerMessageReactionMutationResult = NonNullable<Awaited<ReturnType<typeof toggleMessengerMessageReaction>>>
+    export type ToggleMessengerMessageReactionMutationBody = BodyType<ToggleMessengerMessageReactionBody>
+    export type ToggleMessengerMessageReactionMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type ToggleMessengerMessageReactionMutationVariables = {conversationId: string;messageId: string;data: BodyType<ToggleMessengerMessageReactionBody>}
+
+    /**
+ * @summary Add or remove a simple reaction on a conversation message
+ */
+export const useToggleMessengerMessageReaction = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof toggleMessengerMessageReaction>>, TError,ToggleMessengerMessageReactionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof toggleMessengerMessageReaction>>,
+        TError,
+        ToggleMessengerMessageReactionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getToggleMessengerMessageReactionMutationOptions(options), queryClient);
+    }
+
+export const getUploadMessengerMediaUrl = (conversationId: string,) => {
+
+
+
+
+  return `/api/messenger/conversations/${conversationId}/media`
+}
+
+/**
+ * Upload limit is 8 MiB per file; media bytes are stored outside the database.
+ * @summary Upload one small private image, video, or document
+ */
+export const uploadMessengerMedia = async (conversationId: string,
+    uploadMessengerMediaBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<UploadMessengerMedia201> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<UploadMessengerMedia201>(getUploadMessengerMediaUrl(conversationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'image/jpeg', ...getHeaders(options?.headers) },
+    body: uploadMessengerMediaBody
+  }
+);}
+
+
+
+
+
+export const getUploadMessengerMediaMutationKey = () => ['uploadMessengerMedia'] as const;
+
+export const getUploadMessengerMediaMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMessengerMedia>>, TError,UploadMessengerMediaMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadMessengerMedia>>, TError,UploadMessengerMediaMutationVariables, TContext> => {
+
+const mutationKey = getUploadMessengerMediaMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadMessengerMedia>>, UploadMessengerMediaMutationVariables> = (props) => {
+          const {conversationId,data} = props ?? {};
+
+          return  uploadMessengerMedia(conversationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadMessengerMediaMutationResult = NonNullable<Awaited<ReturnType<typeof uploadMessengerMedia>>>
+    export type UploadMessengerMediaMutationBody = BodyType<Blob>
+    export type UploadMessengerMediaMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type UploadMessengerMediaMutationVariables = {conversationId: string;data: BodyType<Blob>}
+
+    /**
+ * @summary Upload one small private image, video, or document
+ */
+export const useUploadMessengerMedia = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMessengerMedia>>, TError,UploadMessengerMediaMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof uploadMessengerMedia>>,
+        TError,
+        UploadMessengerMediaMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUploadMessengerMediaMutationOptions(options), queryClient);
+    }
+
+export const getGetMessengerMediaUrl = (conversationId: string,
+    messageId: string,) => {
+
+
+
+
+  return `/api/messenger/conversations/${conversationId}/messages/${messageId}/media`
+}
+
+/**
+ * @summary Open an attachment for a member of its conversation
+ */
+export const getMessengerMedia = async (conversationId: string,
+    messageId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetMessengerMediaUrl(conversationId,messageId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerMediaQueryKey = (conversationId: string,
+    messageId: string,) => {
+    return [
+    `/api/messenger/conversations/${conversationId}/messages/${messageId}/media`
+    ] as const;
+    }
+
+
+export const getGetMessengerMediaQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerMedia>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(conversationId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerMedia>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerMediaQueryKey(conversationId,messageId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerMedia>>> = ({ signal }) => getMessengerMedia(conversationId,messageId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: conversationId !== null && conversationId !== undefined && messageId !== null && messageId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerMedia>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerMediaQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerMedia>>>
+export type GetMessengerMediaQueryError = ErrorType<UnauthorizedResponse | ErrorResponse>
+
+
+export function useGetMessengerMedia<TData = Awaited<ReturnType<typeof getMessengerMedia>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ conversationId: string,
+    messageId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerMedia>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerMedia>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerMedia>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerMedia<TData = Awaited<ReturnType<typeof getMessengerMedia>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ conversationId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerMedia>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerMedia>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerMedia>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerMedia<TData = Awaited<ReturnType<typeof getMessengerMedia>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ conversationId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerMedia>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Open an attachment for a member of its conversation
+ */
+
+export function useGetMessengerMedia<TData = Awaited<ReturnType<typeof getMessengerMedia>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ conversationId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerMedia>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerMediaQueryOptions(conversationId,messageId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getForwardMessengerMessageUrl = (messageId: string,) => {
+
+
+
+
+  return `/api/messenger/messages/${messageId}/forward`
+}
+
+/**
+ * @summary Forward a message to a destination conversation
+ */
+export const forwardMessengerMessage = async (messageId: string,
+    forwardMessengerMessageBody: ForwardMessengerMessageBody, options?: Parameters<typeof customFetch>[1]): Promise<ForwardMessengerMessage201> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ForwardMessengerMessage201>(getForwardMessengerMessageUrl(messageId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(forwardMessengerMessageBody)
+  }
+);}
+
+
+
+
+
+export const getForwardMessengerMessageMutationKey = () => ['forwardMessengerMessage'] as const;
+
+export const getForwardMessengerMessageMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forwardMessengerMessage>>, TError,ForwardMessengerMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof forwardMessengerMessage>>, TError,ForwardMessengerMessageMutationVariables, TContext> => {
+
+const mutationKey = getForwardMessengerMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof forwardMessengerMessage>>, ForwardMessengerMessageMutationVariables> = (props) => {
+          const {messageId,data} = props ?? {};
+
+          return  forwardMessengerMessage(messageId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ForwardMessengerMessageMutationResult = NonNullable<Awaited<ReturnType<typeof forwardMessengerMessage>>>
+    export type ForwardMessengerMessageMutationBody = BodyType<ForwardMessengerMessageBody>
+    export type ForwardMessengerMessageMutationError = ErrorType<UnauthorizedResponse | ErrorResponse>
+    export type ForwardMessengerMessageMutationVariables = {messageId: string;data: BodyType<ForwardMessengerMessageBody>}
+
+    /**
+ * @summary Forward a message to a destination conversation
+ */
+export const useForwardMessengerMessage = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forwardMessengerMessage>>, TError,ForwardMessengerMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof forwardMessengerMessage>>,
+        TError,
+        ForwardMessengerMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getForwardMessengerMessageMutationOptions(options), queryClient);
     }
 
 export const getListMessengerMessagesUrl = (conversationId: string,

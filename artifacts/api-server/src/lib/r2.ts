@@ -70,6 +70,7 @@ async function requestObject(
   key: string,
   body: Buffer | null = null,
   contentType?: string,
+  requestSignal?: AbortSignal,
 ): Promise<Response> {
   const credentials = config();
   if (!credentials) throw new Error("R2 storage is not configured");
@@ -117,6 +118,9 @@ async function requestObject(
   if (contentType) headers["content-type"] = contentType;
 
   const controller = new AbortController();
+  const abortRequest = () => controller.abort(requestSignal?.reason);
+  if (requestSignal?.aborted) abortRequest();
+  else requestSignal?.addEventListener("abort", abortRequest, { once: true });
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     return await fetch(url, {
@@ -127,15 +131,17 @@ async function requestObject(
     });
   } finally {
     clearTimeout(timeout);
+    requestSignal?.removeEventListener("abort", abortRequest);
   }
 }
 
 export async function putR2Object(
   key: string,
   body: Buffer,
-  contentType: "audio/mp4" | "audio/webm",
+  contentType: string,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const response = await requestObject("PUT", key, body, contentType);
+  const response = await requestObject("PUT", key, body, contentType, signal);
   if (!response.ok) {
     throw new Error(`R2 object upload failed (${response.status})`);
   }

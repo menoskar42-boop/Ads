@@ -2,12 +2,15 @@ import { useAuth } from "@clerk/expo";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
 import { fetch as expoFetch } from "expo/fetch";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import {
   setAudioModeAsync,
   useAudioPlayer,
   useAudioPlayerStatus,
 } from "expo-audio";
-import { File } from "expo-file-system";
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -15,9 +18,12 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import * as SecureStore from "expo-secure-store";
@@ -31,11 +37,14 @@ import { ScheduleMessageModal } from "../../components/ScheduleMessageModal";
 import { ErrorText, Notice, Screen } from "../../components/Screen";
 import {
   getMessengerVoiceMessageCapability,
+  getMessengerFeaturesCapability,
   getMessengerProfile,
   listMessengerConversations,
   listMessengerMessages,
   markMessengerConversationRead,
   sendMessengerMessage,
+  forwardMessengerMessage,
+  toggleMessengerMessageReaction,
 } from "@workspace/api-client-react";
 import type { Message } from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../../lib/api";
@@ -46,6 +55,24 @@ import { VoiceMessageModal } from "../../components/VoiceMessageModal";
 function first(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
+
+type PickedAttachment = {
+  uri: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  webFile?: Blob;
+};
+
+const MEDIA_CONTENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "video/mp4",
+  "video/webm",
+  "application/pdf",
+  "text/plain",
+]);
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -74,8 +101,17 @@ export default function ChatScreen() {
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [activeAudioId, setActiveAudioId] = useState("");
   const [audioLoadingId, setAudioLoadingId] = useState("");
+  const [mediaLoadingId, setMediaLoadingId] = useState("");
+  const [selectedAttachment, setSelectedAttachment] = useState<PickedAttachment | null>(null);
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+  const [forwardDestinationId, setForwardDestinationId] = useState("");
+  const [forwardBusy, setForwardBusy] = useState(false);
   const seeded = useRef(false);
   const secureDraftRestoreStarted = useRef("");
+  const mediaAbortController = useRef<AbortController | null>(null);
+  const mediaRequestIds = useRef<Map<string, string>>(new Map());
 
   const profile = useQuery({
     queryKey: queryKeys.profile,
@@ -90,9 +126,16 @@ export default function ChatScreen() {
     staleTime: 60_000,
     retry: false,
   });
+  const featureCapability = useQuery({
+    queryKey: ["messenger", "features-capability"],
+    queryFn: getMessengerFeaturesCapability,
+    enabled: isLoaded && !!isSignedIn,
+    staleTime: 60_000,
+    retry: false,
+  });
   const conversations = useQuery({
     queryKey: queryKeys.conversations,
-    queryFn: listMessengerConversations,
+    queryFn: () => listMessengerConversations(),
     enabled: isLoaded && !!isSignedIn,
     refetchInterval: 15_000,
     refetchIntervalInBackground: false,
@@ -119,14 +162,18 @@ export default function ChatScreen() {
     },
   });
   const send = useMutation({
-    mutationFn: (body: string) =>
+    mutationFn: (input: { body: string; replyToMessageId?: string }) =>
       sendMessengerMessage(conversationId, {
-        body,
+        body: input.body,
         clientMessageId: Crypto.randomUUID(),
+        ...(input.replyToMessageId
+          ? { replyToMessageId: input.replyToMessageId }
+          : {}),
       }),
     onSuccess: async () => {
       setDraft("");
       setDraftFromOscar(false);
+      setReplyTo(null);
       setErrorText("");
       await queryClient.invalidateQueries({ queryKey: queryKeys.messages(conversationId) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
@@ -241,6 +288,247 @@ export default function ChatScreen() {
       );
     } finally {
       setVoiceBusy(false);
+    }
+  };
+
+  const chooseMedia = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images", "videos"],
+        allowsEditing: false,
+        quality: 1,
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const contentType = normalizeClientContentType(
+        asset.mimeType || "",
+        asset.fileName || "",
+        asset.type === "video" ? "video/mp4" : "image/jpeg",
+      );
+      if (!MEDIA_CONTENT_TYPES.has(contentType)) {
+        setErrorText("نوع الصورة أو الفيديو غير مدعوم. استخدم JPEG أو PNG أو WebP أو MP4 أو WebM.");
+        return;
+      }
+      const filename = asset.fileName || `مرفق-${Date.now()}.${extensionFor(contentType)}`;
+      let sizeBytes = asset.fileSize ?? 0;
+      if (!sizeBytes && Platform.OS !== "web") {
+        sizeBytes = new File(asset.uri).size;
+      }
+      setSelectedAttachment({
+        uri: asset.uri,
+        filename,
+        contentType,
+        sizeBytes,
+        webFile: asset.file,
+      });
+      setErrorText("");
+    } catch (error) {
+      setErrorText(readableError(error, "تعذر اختيار الصورة أو الفيديو."));
+    }
+  };
+
+  const chooseFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "application/pdf",
+          "text/plain",
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "video/mp4",
+          "video/webm",
+        ],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const contentType = normalizeClientContentType(
+        asset.mimeType || "",
+        asset.name,
+        "",
+      );
+      if (!MEDIA_CONTENT_TYPES.has(contentType)) {
+        setErrorText("نوع الملف غير مدعوم. المسموح صور وفيديوهات PDF أو TXT.");
+        return;
+      }
+      setSelectedAttachment({
+        uri: asset.uri,
+        filename: asset.name,
+        contentType,
+        sizeBytes: asset.size ?? (Platform.OS === "web" ? asset.file?.size ?? 0 : new File(asset.uri).size),
+        webFile: asset.file,
+      });
+      setErrorText("");
+    } catch (error) {
+      setErrorText(readableError(error, "تعذر اختيار الملف."));
+    }
+  };
+
+  const cancelMediaUpload = () => {
+    mediaAbortController.current?.abort();
+  };
+
+  const uploadAttachment = async () => {
+    const attachment = selectedAttachment;
+    if (!attachment) return;
+    const capability = featureCapability.data;
+    if (!capability?.mediaEnabled) {
+      throw new Error(
+        capability?.reason === "database_update_required"
+          ? "مشاركة الملفات تحتاج تطبيق تحديث قاعدة البيانات أولاً."
+          : "التخزين الخاص للمرفقات غير مهيأ حالياً.",
+      );
+    }
+    if (!MEDIA_CONTENT_TYPES.has(attachment.contentType)) {
+      throw new Error("نوع الملف غير مدعوم.");
+    }
+    let file: Blob;
+    if (Platform.OS === "web" && attachment.webFile) {
+      file = attachment.webFile;
+    } else {
+      file = new File(attachment.uri);
+    }
+    const actualSize = file.size || attachment.sizeBytes;
+    if (!actualSize || actualSize > capability.maxMediaBytes) {
+      throw new Error("حجم الملف يجب ألا يتجاوز 8 ميجابايت.");
+    }
+    let clientMessageId = mediaRequestIds.current.get(attachment.uri);
+    if (!clientMessageId) {
+      clientMessageId = Crypto.randomUUID();
+      mediaRequestIds.current.set(attachment.uri, clientMessageId);
+    }
+    const token = await getToken();
+    if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
+    const controller = new AbortController();
+    mediaAbortController.current = controller;
+    setMediaBusy(true);
+    try {
+      const response = await expoFetch(
+        apiUrl(`/api/messenger/conversations/${encodeURIComponent(conversationId)}/media`),
+        {
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": attachment.contentType,
+            "X-Client-Message-Id": clientMessageId,
+            "X-Original-Filename": encodeURIComponent(attachment.filename),
+          },
+          body: file,
+        },
+      );
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || "تعذر رفع الملف. تحقق من الاتصال وحاول مرة أخرى.");
+      }
+      await response.json();
+      mediaRequestIds.current.delete(attachment.uri);
+      setSelectedAttachment(null);
+      setErrorText("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages(conversationId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
+      ]);
+    } catch (error) {
+      if (controller.signal.aborted) {
+        setErrorText("أُلغي رفع الملف قبل اكتماله. لم تُحذف الرسالة النصية المكتوبة.");
+      } else {
+        setErrorText(readableError(error, "تعذر رفع الملف. تحقق من الاتصال وحاول مرة أخرى."));
+      }
+      throw error;
+    } finally {
+      if (mediaAbortController.current === controller) mediaAbortController.current = null;
+      setMediaBusy(false);
+    }
+  };
+
+  const openMedia = async (message: Message) => {
+    const attachment = message.mediaAttachment;
+    if (!attachment) return;
+    setMediaLoadingId(message.id);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
+      const response = await expoFetch(apiUrl(attachment.url), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || "تعذر فتح المرفق.");
+      }
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (Platform.OS === "web") {
+        const blobUrl = URL.createObjectURL(
+          new Blob([bytes], { type: attachment.contentType }),
+        );
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = safeFilename(attachment.filename);
+        link.rel = "noopener";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      } else {
+        const localFile = new File(
+          Paths.cache,
+          `${Crypto.randomUUID()}-${safeFilename(attachment.filename)}`,
+        );
+        await localFile.write(bytes);
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(localFile.uri, {
+            mimeType: attachment.contentType,
+            dialogTitle: attachment.filename,
+          });
+        } else {
+          await File.preview(localFile, { mimeType: attachment.contentType });
+        }
+      }
+    } catch (error) {
+      setErrorText(readableError(error, "تعذر فتح المرفق أو تنزيله."));
+    } finally {
+      setMediaLoadingId("");
+    }
+  };
+
+  const reactToMessage = async (message: Message) => {
+    try {
+      await toggleMessengerMessageReaction(
+        conversationId,
+        message.id,
+        { emoji: "👍" },
+      );
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.messages(conversationId),
+      });
+      setErrorText("");
+    } catch (error) {
+      setErrorText(readableError(error, "تعذر تسجيل التفاعل."));
+    }
+  };
+
+  const sendForward = async () => {
+    if (!forwardingMessage || !forwardDestinationId) return;
+    setForwardBusy(true);
+    try {
+      await forwardMessengerMessage(forwardingMessage.id, {
+        targetConversationId: forwardDestinationId,
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.messages(forwardDestinationId),
+        }),
+      ]);
+      setForwardingMessage(null);
+      setForwardDestinationId("");
+      setErrorText("");
+    } catch (error) {
+      setErrorText(readableError(error, "تعذر إعادة توجيه الرسالة."));
+    } finally {
+      setForwardBusy(false);
     }
   };
 
@@ -374,6 +662,30 @@ export default function ChatScreen() {
                 }
                 audioPlaying={activeAudioId === item.id && audioStatus.playing}
                 audioLoading={audioLoadingId === item.id}
+                mediaLoading={mediaLoadingId === item.id}
+                onOpenMedia={
+                  item.messageType === "media"
+                    ? () => void openMedia(item)
+                    : undefined
+                }
+                onReply={
+                  featureCapability.data?.enabled
+                    ? () => setReplyTo(item)
+                    : undefined
+                }
+                onReact={
+                  featureCapability.data?.enabled
+                    ? () => void reactToMessage(item)
+                    : undefined
+                }
+                onForward={
+                  featureCapability.data?.enabled
+                    ? () => {
+                        setForwardDestinationId("");
+                        setForwardingMessage(item);
+                      }
+                    : undefined
+                }
               />
             )}
             contentContainerStyle={[
@@ -415,25 +727,73 @@ export default function ChatScreen() {
             }}
             onSend={() => {
               const body = draft.trim();
-              if (!body || send.isPending) return;
+              if (send.isPending || mediaBusy) return;
+              const sendText = () => {
+                if (!body) return;
+                const input = {
+                  body,
+                  ...(replyTo ? { replyToMessageId: replyTo.id } : {}),
+                };
+                send.mutate(input);
+              };
+              if (selectedAttachment) {
+                void uploadAttachment()
+                  .then(() => {
+                    if (body) sendText();
+                  })
+                  .catch(() => undefined);
+                return;
+              }
+              if (!body) return;
               if (draftFromOscar) {
                 Alert.alert(
                   `إرسال الرسالة إلى ${displayedName}؟`,
                   body,
                   [
                     { text: "مراجعة", style: "cancel" },
-                    { text: "إرسال", onPress: () => send.mutate(body) },
+                    { text: "إرسال", onPress: sendText },
                   ],
                 );
                 return;
               }
-              send.mutate(body);
+              sendText();
             }}
             onSchedule={() => setScheduleVisible(true)}
+            onPickMedia={() => void chooseMedia()}
+            onPickFile={() => void chooseFile()}
             busy={send.isPending}
             onVoicePress={() => setVoiceVisible(true)}
             voiceEnabled={!!voiceCapability.data?.enabled}
             voiceBusy={voiceBusy}
+            mediaEnabled={!!featureCapability.data?.mediaEnabled}
+            mediaBusy={mediaBusy}
+            mediaName={selectedAttachment?.filename}
+            mediaInfo={
+              selectedAttachment
+                ? `${selectedAttachment.contentType} · ${formatBytes(selectedAttachment.sizeBytes)}${selectedAttachment.sizeBytes > (featureCapability.data?.maxMediaBytes ?? 8 * 1024 * 1024) ? " · أكبر من الحد المسموح" : ""}`
+                : undefined
+            }
+            mediaError={
+              featureCapability.isError
+                ? "تعذر التحقق من إعداد المرفقات."
+                : featureCapability.data?.reason === "database_update_required"
+                  ? "المرفقات والردود والتفاعلات تحتاج تطبيق تحديث قاعدة البيانات."
+                  : featureCapability.data?.reason === "storage_not_configured"
+                    ? "رفع المرفقات متوقف حتى يكتمل إعداد التخزين الخاص."
+                    : undefined
+            }
+            replyText={
+              replyTo
+                ? replyTo.messageType === "audio"
+                  ? "رسالة صوتية"
+                  : replyTo.messageType === "media"
+                    ? replyTo.mediaAttachment?.filename ?? "مرفق"
+                    : replyTo.body
+                : undefined
+            }
+            onClearReply={() => setReplyTo(null)}
+            onClearMedia={() => setSelectedAttachment(null)}
+            onCancelMediaUpload={cancelMediaUpload}
             voiceHint={
               voiceCapability.isError
                 ? "تعذر التحقق من إعداد الرسائل الصوتية."
@@ -467,12 +827,140 @@ export default function ChatScreen() {
         }}
         onSend={sendVoiceMessage}
       />
+      <Modal
+        visible={!!forwardingMessage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setForwardingMessage(null);
+          setForwardDestinationId("");
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.forwardModal}>
+            <Text style={styles.forwardTitle}>إعادة توجيه الرسالة</Text>
+            <Text style={styles.forwardHint}>
+              اختر المحادثة المستلمة. لن تُرسل الرسالة حتى تؤكد الوجهة.
+            </Text>
+            <FlatList
+              data={(conversations.data?.conversations ?? []).filter(
+                (conversation) => !conversation.isArchived,
+              )}
+              keyExtractor={(item) => item.id}
+              style={styles.forwardList}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <Text style={styles.forwardHint}>لا توجد محادثات أخرى متاحة.</Text>
+              }
+              renderItem={({ item }) => (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: item.id === forwardDestinationId }}
+                  onPress={() => setForwardDestinationId(item.id)}
+                  style={[
+                    styles.forwardDestination,
+                    item.id === forwardDestinationId && styles.forwardDestinationSelected,
+                  ]}
+                >
+                  <Text style={styles.forwardDestinationName}>
+                    {item.peer.displayName || item.peer.username}
+                  </Text>
+                  <Text style={styles.forwardDestinationState}>
+                    {item.id === forwardDestinationId ? "الوجهة المحددة" : "اختيار"}
+                  </Text>
+                </Pressable>
+              )}
+            />
+            {!!forwardDestinationId && (
+              <Text style={styles.confirmDestination}>
+                الوجهة:{" "}
+                {conversations.data?.conversations.find(
+                  (item) => item.id === forwardDestinationId,
+                )?.peer.displayName ?? "المحادثة المحددة"}
+              </Text>
+            )}
+            <View style={styles.forwardButtons}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setForwardingMessage(null);
+                  setForwardDestinationId("");
+                }}
+                style={styles.forwardCancel}
+              >
+                <Text style={styles.forwardCancelText}>إلغاء</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={!forwardDestinationId || forwardBusy}
+                onPress={() => void sendForward()}
+                style={[
+                  styles.forwardConfirm,
+                  (!forwardDestinationId || forwardBusy) && styles.forwardDisabled,
+                ]}
+              >
+                <Text style={styles.forwardConfirmText}>
+                  {forwardBusy ? "جارٍ الإرسال…" : "تأكيد الإرسال"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
 
 function LoadingScreen() {
   return <Screen><View style={styles.loading}><ActivityIndicator color={colors.blue} /></View></Screen>;
+}
+
+function normalizeClientContentType(
+  contentType: string,
+  filename: string,
+  fallback: string,
+): string {
+  const normalized = contentType.split(";")[0]?.trim().toLowerCase();
+  if (normalized && MEDIA_CONTENT_TYPES.has(normalized)) return normalized;
+  const extension = filename.split(".").pop()?.toLowerCase();
+  const byExtension: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    mp4: "video/mp4",
+    webm: "video/webm",
+    pdf: "application/pdf",
+    txt: "text/plain",
+  };
+  return byExtension[extension ?? ""] ?? fallback;
+}
+
+function extensionFor(contentType: string): string {
+  const extensions: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "application/pdf": "pdf",
+    "text/plain": "txt",
+  };
+  return extensions[contentType] ?? "bin";
+}
+
+function safeFilename(filename: string): string {
+  return filename
+    .split(/[\\/]/)
+    .pop()
+    ?.replace(/[^\p{L}\p{N}._-]/gu, "_")
+    .slice(0, 100) || "attachment";
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const styles = StyleSheet.create({
@@ -494,4 +982,20 @@ const styles = StyleSheet.create({
   composerArea: { backgroundColor: colors.background },
   draftHint: { paddingHorizontal: 16, paddingTop: 8 },
   draftHintText: { color: colors.amber, fontSize: 12, textAlign: "right" },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.64)", justifyContent: "center", padding: 20 },
+  forwardModal: { width: "100%", maxWidth: 420, maxHeight: "80%", alignSelf: "center", borderRadius: 22, padding: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: 10 },
+  forwardTitle: { color: colors.text, fontSize: 18, fontWeight: "800", textAlign: "right" },
+  forwardHint: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: "right" },
+  forwardList: { maxHeight: 260 },
+  forwardDestination: { borderRadius: 13, backgroundColor: colors.surfaceRaised, padding: 12, marginTop: 7, borderWidth: 1, borderColor: colors.border, gap: 3 },
+  forwardDestinationSelected: { borderColor: colors.blue, backgroundColor: "#142C45" },
+  forwardDestinationName: { color: colors.text, fontWeight: "700", textAlign: "right" },
+  forwardDestinationState: { color: colors.muted, fontSize: 10, textAlign: "right" },
+  confirmDestination: { color: colors.blue, fontSize: 12, fontWeight: "700", textAlign: "right" },
+  forwardButtons: { flexDirection: "row-reverse", gap: 9, marginTop: 4 },
+  forwardCancel: { flex: 1, minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: colors.surfaceRaised },
+  forwardCancelText: { color: colors.text, fontWeight: "700" },
+  forwardConfirm: { flex: 1.5, minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: colors.blue },
+  forwardConfirmText: { color: "#06121D", fontWeight: "800" },
+  forwardDisabled: { opacity: 0.45 },
 });

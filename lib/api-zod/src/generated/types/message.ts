@@ -5,7 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MediaAttachment } from './mediaAttachment';
 import type { MessageMessageType } from './messageMessageType';
+import type { MessageReaction } from './messageReaction';
+import type { ReplyPreview } from './replyPreview';
 
 export interface Message {
   id: string;
@@ -18,4 +21,9 @@ export interface Message {
   messageType: MessageMessageType;
   audioDurationMs: number | null;
   audioUrl: string | null;
+  mediaAttachment: MediaAttachment | null;
+  replyToMessageId: string | null;
+  replyPreview: ReplyPreview | null;
+  forwarded: boolean;
+  reactions: MessageReaction[];
 }

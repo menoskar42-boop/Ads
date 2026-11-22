@@ -49,7 +49,75 @@ export type MessageMessageType = typeof MessageMessageType[keyof typeof MessageM
 export const MessageMessageType = {
   text: 'text',
   audio: 'audio',
+  media: 'media',
 } as const;
+
+export type MediaAttachmentContentType = typeof MediaAttachmentContentType[keyof typeof MediaAttachmentContentType];
+
+
+export const MediaAttachmentContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+  'video/mp4': 'video/mp4',
+  'video/webm': 'video/webm',
+  'application/pdf': 'application/pdf',
+  'text/plain': 'text/plain',
+} as const;
+
+export type MediaAttachmentKind = typeof MediaAttachmentKind[keyof typeof MediaAttachmentKind];
+
+
+export const MediaAttachmentKind = {
+  image: 'image',
+  video: 'video',
+  file: 'file',
+} as const;
+
+export interface MediaAttachment {
+  filename: string;
+  contentType: MediaAttachmentContentType;
+  kind: MediaAttachmentKind;
+  /**
+     * @minimum 1
+     * @maximum 8388608
+     */
+  sizeBytes: number;
+  url: string;
+}
+
+export type ReplyPreviewMessageType = typeof ReplyPreviewMessageType[keyof typeof ReplyPreviewMessageType];
+
+
+export const ReplyPreviewMessageType = {
+  text: 'text',
+  audio: 'audio',
+  media: 'media',
+} as const;
+
+export interface ReplyPreview {
+  id: string;
+  body: string;
+  messageType: ReplyPreviewMessageType;
+}
+
+export type MessageReactionEmoji = typeof MessageReactionEmoji[keyof typeof MessageReactionEmoji];
+
+
+export const MessageReactionEmoji = {
+  '👍': '👍',
+  '❤️': '❤️',
+  '😂': '😂',
+  '😮': '😮',
+  '🙏': '🙏',
+} as const;
+
+export interface MessageReaction {
+  emoji: MessageReactionEmoji;
+  /** @minimum 1 */
+  count: number;
+  reactedByMe: boolean;
+}
 
 export interface Message {
   id: string;
@@ -62,6 +130,78 @@ export interface Message {
   messageType: MessageMessageType;
   audioDurationMs: number | null;
   audioUrl: string | null;
+  mediaAttachment: MediaAttachment | null;
+  replyToMessageId: string | null;
+  replyPreview: ReplyPreview | null;
+  forwarded: boolean;
+  reactions: MessageReaction[];
+}
+
+export type MessageSearchResultMessageType = typeof MessageSearchResultMessageType[keyof typeof MessageSearchResultMessageType];
+
+
+export const MessageSearchResultMessageType = {
+  text: 'text',
+  audio: 'audio',
+  media: 'media',
+} as const;
+
+export interface MessageSearchResult {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  peerName: string;
+  body: string;
+  messageType: MessageSearchResultMessageType;
+  createdAt: string;
+}
+
+export type MessengerFeaturesCapabilityMaxMediaBytes = typeof MessengerFeaturesCapabilityMaxMediaBytes[keyof typeof MessengerFeaturesCapabilityMaxMediaBytes];
+
+
+export const MessengerFeaturesCapabilityMaxMediaBytes = {
+  NUMBER_8388608: 8388608,
+} as const;
+
+export type MessengerFeaturesCapabilityAllowedContentTypesItem = typeof MessengerFeaturesCapabilityAllowedContentTypesItem[keyof typeof MessengerFeaturesCapabilityAllowedContentTypesItem];
+
+
+export const MessengerFeaturesCapabilityAllowedContentTypesItem = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+  'video/mp4': 'video/mp4',
+  'video/webm': 'video/webm',
+  'application/pdf': 'application/pdf',
+  'text/plain': 'text/plain',
+} as const;
+
+export type MessengerFeaturesCapabilityReason = typeof MessengerFeaturesCapabilityReason[keyof typeof MessengerFeaturesCapabilityReason] | null;
+
+
+export const MessengerFeaturesCapabilityReason = {
+  database_update_required: 'database_update_required',
+  storage_not_configured: 'storage_not_configured',
+} as const;
+
+export interface MessengerFeaturesCapability {
+  enabled: boolean;
+  mediaEnabled: boolean;
+  maxMediaBytes: MessengerFeaturesCapabilityMaxMediaBytes;
+  allowedContentTypes: MessengerFeaturesCapabilityAllowedContentTypesItem[];
+  reason: MessengerFeaturesCapabilityReason;
+}
+
+export interface ConversationSettings {
+  isPinned: boolean;
+  isMuted: boolean;
+  isArchived: boolean;
+}
+
+export interface ConversationSettingsInput {
+  isPinned?: boolean;
+  isMuted?: boolean;
+  isArchived?: boolean;
 }
 
 export type VoiceMessageCapabilityMaxDurationMs = typeof VoiceMessageCapabilityMaxDurationMs[keyof typeof VoiceMessageCapabilityMaxDurationMs];
@@ -158,6 +298,9 @@ export interface Conversation {
   /** @minimum 0 */
   unreadCount: number;
   updatedAt: string;
+  isPinned: boolean;
+  isMuted: boolean;
+  isArchived: boolean;
 }
 
 /**
@@ -188,6 +331,10 @@ export type SearchMessengerPeople200 = {
   people: Person[];
 };
 
+export type ListMessengerConversationsParams = {
+includeArchived?: boolean;
+};
+
 export type ListMessengerConversations200 = {
   conversations: Conversation[];
 };
@@ -202,6 +349,54 @@ export type StartMessengerConversationBody = {
 
 export type StartMessengerConversation200 = {
   conversation: Conversation;
+};
+
+export type SearchMessengerMessagesParams = {
+/**
+ * @minLength 2
+ * @maxLength 80
+ */
+query: string;
+};
+
+export type SearchMessengerMessages200 = {
+  /** @maxItems 40 */
+  results: MessageSearchResult[];
+};
+
+export type UpdateMessengerConversationSettings200 = {
+  settings: ConversationSettings;
+};
+
+export type ToggleMessengerMessageReactionBodyEmoji = typeof ToggleMessengerMessageReactionBodyEmoji[keyof typeof ToggleMessengerMessageReactionBodyEmoji];
+
+
+export const ToggleMessengerMessageReactionBodyEmoji = {
+  '👍': '👍',
+  '❤️': '❤️',
+  '😂': '😂',
+  '😮': '😮',
+  '🙏': '🙏',
+} as const;
+
+export type ToggleMessengerMessageReactionBody = {
+  emoji: ToggleMessengerMessageReactionBodyEmoji;
+};
+
+export type ToggleMessengerMessageReaction200 = {
+  reactions: MessageReaction[];
+};
+
+export type UploadMessengerMedia201 = {
+  message: Message;
+};
+
+export type ForwardMessengerMessageBody = {
+  targetConversationId: string;
+};
+
+export type ForwardMessengerMessage201 = {
+  message: Message;
 };
 
 export type ListMessengerMessagesParams = {

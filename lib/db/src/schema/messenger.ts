@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   pgTable,
@@ -56,6 +57,8 @@ export const messengerMessages = pgTable(
     audioDurationMs: integer("audio_duration_ms"),
     audioContentType: text("audio_content_type"),
     audioSizeBytes: integer("audio_size_bytes"),
+    replyToMessageId: text("reply_to_message_id"),
+    forwardedFromMessageId: text("forwarded_from_message_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     readAt: timestamp("read_at", { withTimezone: true }),
@@ -74,6 +77,67 @@ export const messengerMessages = pgTable(
     index("messenger_messages_conversation_unread_idx").on(
       table.conversationId,
       table.readAt,
+    ),
+  ],
+);
+
+export const messengerMessageMedia = pgTable(
+  "messenger_message_media",
+  {
+    messageId: text("message_id")
+      .primaryKey()
+      .references(() => messengerMessages.id, { onDelete: "cascade" }),
+    objectKey: text("object_key").notNull().unique(),
+    originalFilename: text("original_filename").notNull(),
+    contentType: text("content_type").notNull(),
+    kind: text("kind").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("messenger_message_media_kind_idx").on(table.kind, table.createdAt)],
+);
+
+export const messengerMessageReactions = pgTable(
+  "messenger_message_reactions",
+  {
+    messageId: text("message_id")
+      .notNull()
+      .references(() => messengerMessages.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => messengerProfiles.userId, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("messenger_message_reactions_pkey").on(table.messageId, table.userId),
+    index("messenger_message_reactions_message_idx").on(table.messageId),
+  ],
+);
+
+export const messengerConversationSettings = pgTable(
+  "messenger_conversation_settings",
+  {
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => messengerConversations.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => messengerProfiles.userId, { onDelete: "cascade" }),
+    isPinned: boolean("is_pinned").notNull().default(false),
+    isMuted: boolean("is_muted").notNull().default(false),
+    isArchived: boolean("is_archived").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("messenger_conversation_settings_pkey").on(
+      table.conversationId,
+      table.userId,
+    ),
+    index("messenger_conversation_settings_user_idx").on(
+      table.userId,
+      table.isArchived,
+      table.isPinned,
     ),
   ],
 );
