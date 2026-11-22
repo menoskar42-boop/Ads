@@ -16,10 +16,10 @@ import com.oscardevs.oscardrive.logic.MaintItem
 import com.oscardevs.oscardrive.logic.TripLogic
 
 /**
- * قاعدة بيانات محلية (SQLite على الجهاز) — مفيش سحابة ولا حساب: الرحلات، ذاكرة الطريق، الأماكن،
- * الركنات، الصيانة، التفويلات، وسجل تجاوز السرعة.
+ * قاعدة بيانات محلية (SQLite على الجهاز) — الرحلات وبيانات السيارة تظل محلية؛ مزامنة دفتر المكالمات اختيارية،
+ * و«جهات أوسكار» الخاصة بواتساب تظل منفصلة ومحلية.
  */
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 8) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.db", null, 9) {
 
     data class Trip(val id: Long, val startMs: Long, val endMs: Long, val distanceM: Double, val movingS: Long, val maxKmh: Float,
                     val score: Int? = null, val brakes: Int = 0, val accels: Int = 0, val speedingN: Int = 0, val speedingS: Int = 0) {
@@ -48,6 +48,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         upgrade6(db)
         upgrade7(db)
         upgrade8(db)
+        upgrade9(db)
         val now = System.currentTimeMillis()
         for ((name, km, days) in CarCare.DEFAULTS) {
             db.insert("maint", null, ContentValues().apply {
@@ -64,6 +65,30 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         if (oldVersion < 6) upgrade6(db)
         if (oldVersion < 7) upgrade7(db)
         if (oldVersion < 8) upgrade8(db)
+        if (oldVersion < 9) upgrade9(db)
+    }
+
+    /** نسخة ٩: دفتر مكالمات منفصل عن «جهات أوسكار» الخاصة بواتساب. */
+    private fun upgrade9(db: SQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS drive_contacts(
+                sync_uuid TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                phones_json TEXT NOT NULL DEFAULT '[]',
+                updated_ms INTEGER NOT NULL DEFAULT 0,
+                deleted INTEGER NOT NULL DEFAULT 0
+            )
+        """.trimIndent())
+        // انسخ الموجود مرة واحدة حتى يظل الدفتر ظاهرًا بعد التحديث، مع إبقاء قائمة واتساب الأصلية مستقلة.
+        db.execSQL(
+            """INSERT OR IGNORE INTO drive_contacts(sync_uuid,name,phone,phones_json,updated_ms,deleted)
+               SELECT sync_uuid,name,phone,COALESCE(phones_json,'[]'),
+                      CASE WHEN updated_ms > 0 THEN updated_ms ELSE ? END,deleted
+               FROM contacts
+               WHERE sync_uuid IS NOT NULL AND name IS NOT NULL AND phone IS NOT NULL""",
+            arrayOf(System.currentTimeMillis()),
+        )
     }
 
     /** نسخة ٧ (البرومبت ٥ — ٢٠٢٦-١١-٢٠): «مطب اتجاه واحد». كل المطبات القديمة بتفضل ٠ = اتجاهين — مفيش صف بيتغيّر ولا بيتمسح. */
@@ -168,7 +193,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         query("SELECT id,name,phone FROM contacts WHERE deleted=0 ORDER BY name COLLATE NOCASE") {
         com.oscardevs.oscardrive.logic.OscarContact(it.getLong(0), it.getString(1) ?: "", it.getString(2) ?: "")
     }
-    fun contactDirectory(): List<SyncContact> = query("SELECT sync_uuid,name,phone,phones_json,updated_ms,deleted FROM contacts WHERE deleted=0") {
+    fun contactDirectory(): List<SyncContact> = query("SELECT sync_uuid,name,phone,phones_json,updated_ms,deleted FROM drive_contacts WHERE deleted=0") {
         SyncContact(it.getString(0) ?: "", it.getString(1) ?: "", parseContactPhones(it.getString(3), it.getString(2) ?: ""),
             it.getLong(4), false)
     }
@@ -176,9 +201,36 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         query("SELECT phone,phones_json FROM contacts WHERE id=?", arrayOf(localId.toString())) {
             parseContactPhones(it.getString(1), it.getString(0) ?: "")
         }.firstOrNull().orEmpty()
-    fun contactsForSync(): List<SyncContact> = query("SELECT sync_uuid,name,phone,phones_json,updated_ms,deleted FROM contacts ORDER BY id") {
+    fun contactsForSync(): List<SyncContact> = query("SELECT sync_uuid,name,phone,phones_json,updated_ms,deleted FROM drive_contacts ORDER BY name COLLATE NOCASE") {
         SyncContact(it.getString(0) ?: "", it.getString(1) ?: "", parseContactPhones(it.getString(3), it.getString(2) ?: ""),
             it.getLong(4), it.getInt(5) == 1)
+    }
+    fun addDirectoryContact(name: String, phones: List<String>) {
+        val cleanName = name.trim().take(60)
+        val cleanTels = phones.map { it.trim().take(30) }.filter { contactPhoneKey(it).length >= 3 }.distinct().take(8)
+        if (cleanName.isBlank() || cleanTels.isEmpty()) return
+        val now = System.currentTimeMillis()
+        writableDatabase.insert("drive_contacts", null, ContentValues().apply {
+            put("sync_uuid", java.util.UUID.randomUUID().toString())
+            put("name", cleanName); put("phone", cleanTels.first())
+            put("phones_json", org.json.JSONArray().apply { cleanTels.forEach { put(it) } }.toString())
+            put("updated_ms", now); put("deleted", 0)
+        })
+    }
+    fun updateDirectoryContact(id: String, name: String, phones: List<String>) {
+        val cleanName = name.trim().take(60)
+        val cleanTels = phones.map { it.trim().take(30) }.filter { contactPhoneKey(it).length >= 3 }.distinct().take(8)
+        if (cleanName.isBlank() || cleanTels.isEmpty()) return
+        writableDatabase.update("drive_contacts", ContentValues().apply {
+            put("name", cleanName); put("phone", cleanTels.first())
+            put("phones_json", org.json.JSONArray().apply { cleanTels.forEach { put(it) } }.toString())
+            put("updated_ms", System.currentTimeMillis()); put("deleted", 0)
+        }, "sync_uuid=?", arrayOf(id))
+    }
+    fun deleteDirectoryContact(id: String) {
+        writableDatabase.update("drive_contacts", ContentValues().apply {
+            put("deleted", 1); put("updated_ms", System.currentTimeMillis())
+        }, "sync_uuid=?", arrayOf(id))
     }
     fun addContact(name: String, phone: String) = addContact(name, listOf(phone))
     fun addContact(name: String, phones: List<String>) {
@@ -214,44 +266,42 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
         val db = writableDatabase
         db.beginTransaction()
         try {
-            val bySyncId = mutableMapOf<String, Long>()
-            val syncIdByLocalId = mutableMapOf<Long, String>()
-            val byIdentity = mutableMapOf<String, Long>()
-            val identityByLocalId = mutableMapOf<Long, String>()
-            query("SELECT id,sync_uuid,name,phone,phones_json,deleted FROM contacts") { c ->
-                val localId = c.getLong(0)
-                val syncId = c.getString(1)
-                val name = c.getString(2) ?: ""
-                val tels = parseContactPhones(c.getString(4), c.getString(3) ?: "")
-                val deleted = c.getInt(5) == 1
-                if (!syncId.isNullOrBlank()) {
-                    bySyncId[syncId] = localId
-                    syncIdByLocalId[localId] = syncId
-                }
+            val bySyncId = mutableMapOf<String, String>()
+            val byIdentity = mutableMapOf<String, String>()
+            val identityById = mutableMapOf<String, String>()
+            query("SELECT sync_uuid,name,phone,phones_json,deleted FROM drive_contacts") { c ->
+                val syncId = c.getString(0) ?: ""
+                val name = c.getString(1) ?: ""
+                val tels = parseContactPhones(c.getString(3), c.getString(2) ?: "")
+                val deleted = c.getInt(4) == 1
+                if (syncId.isNotBlank()) bySyncId[syncId] = syncId
                 if (!deleted && tels.isNotEmpty()) {
                     val key = "${contactNameKey(name)}|${contactPhoneKey(tels.first())}"
                     if (key != "|" && !byIdentity.containsKey(key)) {
-                        byIdentity[key] = localId
-                        identityByLocalId[localId] = key
+                        byIdentity[key] = syncId
+                        identityById[syncId] = key
                     }
                 }
-                localId
+                syncId
             }
             for ((from, to) in idMap) {
                 if (from == to) continue
                 val sourceId = bySyncId[from] ?: continue
                 val targetId = bySyncId[to]
                 if (targetId != null && targetId != sourceId) {
-                    db.update("contacts", ContentValues().apply { put("deleted", 1); put("updated_ms", System.currentTimeMillis()) },
-                        "id=?", arrayOf(sourceId.toString()))
-                    identityByLocalId.remove(sourceId)?.let { key ->
+                    db.update("drive_contacts", ContentValues().apply { put("deleted", 1); put("updated_ms", System.currentTimeMillis()) },
+                        "sync_uuid=?", arrayOf(sourceId))
+                    identityById.remove(sourceId)?.let { key ->
                         if (byIdentity[key] == sourceId) byIdentity.remove(key)
                     }
                 } else {
-                    db.update("contacts", ContentValues().apply { put("sync_uuid", to) }, "id=?", arrayOf(sourceId.toString()))
+                    db.update("drive_contacts", ContentValues().apply { put("sync_uuid", to) }, "sync_uuid=?", arrayOf(sourceId))
                     bySyncId.remove(from)
-                    bySyncId[to] = sourceId
-                    syncIdByLocalId[sourceId] = to
+                    bySyncId[to] = to
+                    identityById.remove(sourceId)?.let { key ->
+                        if (byIdentity[key] == sourceId) byIdentity[key] = to
+                        identityById[to] = key
+                    }
                 }
             }
             for (item in remote) {
@@ -259,18 +309,18 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
                 val primary = item.tels.firstOrNull().orEmpty()
                 val existingId = bySyncId[item.id]
                 if (existingId != null) {
-                    identityByLocalId.remove(existingId)?.let { key ->
+                    identityById.remove(existingId)?.let { key ->
                         if (byIdentity[key] == existingId) byIdentity.remove(key)
                     }
-                    db.update("contacts", ContentValues().apply {
+                    db.update("drive_contacts", ContentValues().apply {
                         put("name", item.name); put("phone", primary); put("phones_json", json)
                         put("updated_ms", item.updatedMs); put("deleted", if (item.deleted) 1 else 0)
-                    }, "id=?", arrayOf(existingId.toString()))
+                    }, "sync_uuid=?", arrayOf(existingId))
                     if (!item.deleted && primary.isNotBlank()) {
                         val key = "${contactNameKey(item.name)}|${contactPhoneKey(primary)}"
                         if (key != "|" && !byIdentity.containsKey(key)) {
                             byIdentity[key] = existingId
-                            identityByLocalId[existingId] = key
+                            identityById[existingId] = key
                         }
                     }
                     continue
@@ -278,25 +328,27 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
                 val incomingKey = "${contactNameKey(item.name)}|${contactPhoneKey(primary)}"
                 val duplicateId = if (item.deleted) null else byIdentity[incomingKey]
                 if (duplicateId != null) {
-                    db.update("contacts", ContentValues().apply {
+                    identityById.remove(duplicateId)?.let { key ->
+                        if (byIdentity[key] == duplicateId) byIdentity.remove(key)
+                    }
+                    db.update("drive_contacts", ContentValues().apply {
                         put("sync_uuid", item.id); put("name", item.name); put("phone", primary); put("phones_json", json)
-                        put("updated_ms", item.updatedMs)
-                    }, "id=?", arrayOf(duplicateId.toString()))
-                    syncIdByLocalId.remove(duplicateId)?.let { bySyncId.remove(it) }
-                    bySyncId[item.id] = duplicateId
-                    syncIdByLocalId[duplicateId] = item.id
-                    identityByLocalId[duplicateId] = incomingKey
+                        put("updated_ms", item.updatedMs); put("deleted", 0)
+                    }, "sync_uuid=?", arrayOf(duplicateId))
+                    bySyncId.remove(duplicateId)
+                    bySyncId[item.id] = item.id
+                    identityById[item.id] = incomingKey
+                    byIdentity[incomingKey] = item.id
                 } else if (!item.deleted) {
-                    val newId = db.insert("contacts", null, ContentValues().apply {
+                    val newId = db.insert("drive_contacts", null, ContentValues().apply {
                         put("sync_uuid", item.id); put("name", item.name); put("phone", primary); put("phones_json", json)
                         put("updated_ms", item.updatedMs); put("deleted", 0)
                     })
                     if (newId >= 0) {
-                        bySyncId[item.id] = newId
-                        syncIdByLocalId[newId] = item.id
+                        bySyncId[item.id] = item.id
                         if (primary.isNotBlank() && incomingKey != "|") {
-                            byIdentity[incomingKey] = newId
-                            identityByLocalId[newId] = incomingKey
+                            byIdentity[incomingKey] = item.id
+                            identityById[item.id] = incomingKey
                         }
                     }
                 }

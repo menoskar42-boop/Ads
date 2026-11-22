@@ -42,6 +42,13 @@ test('manual contact phone input accepts multiple numbers with Arabic and Englis
     ['01012345678', '01198765432', '02 1234567'],
   );
 });
+test('contacts received from another device stay out of WhatsApp matching', () => {
+  const contacts = [
+    { name: 'ماما', tels: ['01012345678'] },
+    { name: 'Mother Mobile', tels: ['01112345678'], whatsapp: false },
+  ];
+  assert.deepEqual(R.whatsappContacts(contacts), [contacts[0]]);
+});
 test('phone voice: needs the name, understands bump / pothole / screenshot', () => {
   assert.equal(R.parseVoice('أوسكار سجّل مطب هنا'), 'bump');
   assert.equal(R.parseVoice('يا اسكار سجل حفرة'), 'pothole');
@@ -226,6 +233,29 @@ test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping',
   const I = require('../src/drive/intent');
   assert.deepEqual(I.parse('{"cmd":"pothole1"}'), { cmd: 'pothole1', arg: null, how: null, latin: null });
   assert.equal(I.parse('{"cmd":"rm -rf"}'), null); assert.equal(I.parse('not json'), null); assert.equal(I.parse('{"cmd":"call"}'), null);
+});
+test('Oscar Drive opens a private Oscar Messaging draft without sending it or sharing contact numbers', () => {
+  assert.deepEqual(R.parseMessageVoice('يا أوسكار ابعت رسالة إلى محمود يعقوب بتقول أنا وصلت'), {
+    recipient: 'محمود يعقوب',
+    body: 'أنا وصلت',
+  });
+  assert.deepEqual(R.parseMessageVoice('يا اذكر ابعت رساله ل Mother mobile تقول I am here'), {
+    recipient: 'Mother mobile',
+    body: 'I am here',
+  });
+  assert.deepEqual(R.parseMessageVoice('send a message to Ahmed saying I will call you', true), {
+    recipient: 'Ahmed',
+    body: 'I will call you',
+  }, 'awake mode accepts the command after the wake word was heard separately');
+  assert.equal(R.parseMessageVoice('ابعت رسالة لمحمود بتقول أنا وصلت'), null, 'no wake word means no action');
+  assert.equal(R.parseMessageVoice('يا أوسكار ابعت رسالة إلى أحمد'), null, 'incomplete commands do not open a draft');
+  const url = new URL(R.messengerDraftUrl('https://oscardevs.com', 'draft-123'));
+  assert.equal(url.pathname, '/oscar-messenger/compose');
+  assert.deepEqual(Array.from(url.searchParams.keys()), ['draftKey']);
+  assert.equal(url.searchParams.get('draftKey'), 'draft-123');
+  assert.equal(url.searchParams.has('phone'), false);
+  assert.equal(url.searchParams.has('draft'), false);
+  assert.equal(url.searchParams.has('recipientName'), false);
 });
 test('nearest on the web: same OSM filters and 1 km rounding as the screen, voice, direct-start navigation link', () => {
   assert.equal(R.parseVoice('أوسكار دوّر على أقرب بنزينة'), 'near:fuel');

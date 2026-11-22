@@ -66,6 +66,7 @@
         <package android:name="com.whatsapp.w4b" />
         <package android:name="com.spotify.music" />
         <package android:name="com.google.android.youtube" />
+        <package android:name="com.oscardevs.oscarmessaging" />
     </queries>
 
     <application

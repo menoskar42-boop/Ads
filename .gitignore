@@ -16,6 +16,10 @@ out-tsc
 
 # dependencies
 node_modules
+.env
+*.log
+/artifacts/*/dist/
+/lib/*/dist/
 
 # IDEs and editors
 /.idea
@@ -53,3 +57,13 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Generated and runtime data
+private_uploads/
+backups/ads/
+/generated-artifacts/
+mykid/server/.tts-cache/
+mykid/.env
+serviceflow/node_modules
+serviceflow/dist
+serviceflow/server/public

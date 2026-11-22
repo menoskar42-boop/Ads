@@ -23,7 +23,13 @@ data class VoiceMatch(val command: VoiceCommand, val slot: String?, val phrase: 
  * نتيجة «الفهم الذكى» (المالك ٢٠٢٦-١١-٠٧): `sure` = اتفهم بالحرف أو بالقاموس ⇒ يتنفّذ على طول.
  * مش `sure` ⇒ أوسكار يسأل «تقصد …؟». `learn` = كلمات اتسمعت ⇐ الكلمة الصح (تتحفظ لو قلت «أيوه»).
  */
-data class Understood(val match: VoiceMatch, val sure: Boolean, val heard: String, val learn: Map<String, String> = emptyMap())
+data class Understood(
+    val match: VoiceMatch,
+    val sure: Boolean,
+    val heard: String,
+    val learn: Map<String, String> = emptyMap(),
+    val rawHeard: String = heard,
+)
 
 object VoiceCatalog {
     val ALL: List<VoiceCommand> = listOf(
@@ -103,6 +109,24 @@ object VoiceCatalog {
         VoiceCommand("weather", "الطقس", listOf("الجو ايه", "الطقس", "حاله الجو", "الجو عامل ايه", "الطقس النهارده"), listOf("weather", "what is the weather", "how is the weather")),
         VoiceCommand("road.info", "إيه اللى قدامى", listOf("ايه اللي قدامي", "الطريق قدامي", "فيه ايه قدامي"), listOf("what is ahead", "what's ahead")),
         VoiceCommand("notif.read", "اقرا الرسايل", listOf("اقرا الاشعارات", "اقرا الرسايل", "ايه الرسايل", "اقرا الرسائل"), listOf("read notifications", "read my messages")),
+        VoiceCommand(
+            "messenger.send",
+            "ابعت رسالة على Oscar Messaging",
+            listOf(
+                "ابعت رسالة", "ابعت رسالة *", "ابعتلي رسالة", "ابعتلي رسالة *",
+                "ابعث رسالة", "ابعث رسالة *", "ابعثلي رسالة", "ابعثلي رسالة *",
+                "ارسل رسالة", "ارسل رسالة *", "ارسلي رسالة", "ارسلي رسالة *",
+                "ابعت مسج", "ابعت مسج *", "ابعت message", "ابعت message *",
+                "send رسالة", "send رسالة *",
+                "رسالة إلى *", "رساله الى *", "رسالة ل*", "رساله ل*",
+                "مسج إلى *", "مسج الى *", "مسج ل*",
+            ),
+            listOf(
+                "send a message", "send a message *", "send message", "send message *",
+                "send a text", "send a text *", "send text", "send text *",
+                "message to *", "text to *",
+            ),
+        ),
         VoiceCommand("wa.send", "ابعت واتساب", listOf("ابعت *", "ابعتلي *", "ارسل *"), listOf("send whatsapp *", "send a whatsapp *", "send a message *", "send message *")),
         VoiceCommand("time.now", "الساعة كام", listOf("الساعه كام", "الوقت كام"), listOf("what time is it")),
         // المرحلة ٦: الأماكن — «احفظ المكان ده باسم الجيم» · «أقرب صيدلية» (و«ودّينى الجيم» = nav.goto)

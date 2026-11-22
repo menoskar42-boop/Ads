@@ -53,6 +53,64 @@ export interface Message {
   readAt: string | null;
 }
 
+export type ScheduledMessageStatus = typeof ScheduledMessageStatus[keyof typeof ScheduledMessageStatus];
+
+
+export const ScheduledMessageStatus = {
+  pending: 'pending',
+  sent: 'sent',
+  failed: 'failed',
+  cancelled: 'cancelled',
+} as const;
+
+export interface ScheduledMessage {
+  id: string;
+  conversationId: string;
+  peerName: string;
+  body: string;
+  scheduledAt: string;
+  status: ScheduledMessageStatus;
+  createdAt: string;
+  sentAt: string | null;
+  failureMessage: string | null;
+}
+
+export interface ScheduledMessagesResponse {
+  scheduledMessages: ScheduledMessage[];
+}
+
+export interface ScheduledMessageResponse {
+  scheduledMessage: ScheduledMessage;
+}
+
+export interface CancelScheduledMessageResponse {
+  ok: boolean;
+  scheduledMessage: ScheduledMessage;
+}
+
+export interface ScheduledMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+  scheduledAt: string;
+  /**
+     * @minLength 8
+     * @maxLength 80
+     */
+  clientScheduleId: string;
+}
+
+export interface ScheduledMessageUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+  scheduledAt: string;
+}
+
 export interface Conversation {
   id: string;
   peer: Person;
@@ -71,6 +129,11 @@ export type UnauthorizedResponse = ErrorResponse;
  * Invalid request
  */
 export type BadRequestResponse = ErrorResponse;
+
+/**
+ * The scheduled message can no longer be changed
+ */
+export type ConflictResponse = ErrorResponse;
 
 export type SearchMessengerPeopleParams = {
 /**

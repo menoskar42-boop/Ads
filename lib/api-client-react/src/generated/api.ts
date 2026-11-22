@@ -26,6 +26,8 @@ import type {
 
 import type {
   BadRequestResponse,
+  CancelScheduledMessageResponse,
+  ConflictResponse,
   ErrorResponse,
   HealthStatus,
   ListMessengerConversations200,
@@ -34,6 +36,10 @@ import type {
   MarkMessengerConversationRead200,
   ProfileInput,
   ProfileResponse,
+  ScheduledMessageInput,
+  ScheduledMessageResponse,
+  ScheduledMessageUpdate,
+  ScheduledMessagesResponse,
   SearchMessengerPeople200,
   SearchMessengerPeopleParams,
   SendMessengerMessage200,
@@ -862,6 +868,359 @@ export const useSendMessengerMessage = <TError = ErrorType<BadRequestResponse | 
         TContext
       > => {
       return useMutation(getSendMessengerMessageMutationOptions(options), queryClient);
+    }
+
+export const getListMessengerScheduledMessagesUrl = () => {
+
+
+
+
+  return `/api/messenger/scheduled-messages`
+}
+
+/**
+ * @summary List scheduled messages created by the signed-in user
+ */
+export const listMessengerScheduledMessages = async ( options?: Parameters<typeof customFetch>[1]): Promise<ScheduledMessagesResponse> => {
+
+  return customFetch<ScheduledMessagesResponse>(getListMessengerScheduledMessagesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMessengerScheduledMessagesQueryKey = () => {
+    return [
+    `/api/messenger/scheduled-messages`
+    ] as const;
+    }
+
+
+export const getListMessengerScheduledMessagesQueryOptions = <TData = Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMessengerScheduledMessagesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMessengerScheduledMessages>>> = ({ signal }) => listMessengerScheduledMessages({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMessengerScheduledMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof listMessengerScheduledMessages>>>
+export type ListMessengerScheduledMessagesQueryError = ErrorType<UnauthorizedResponse>
+
+
+export function useListMessengerScheduledMessages<TData = Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError = ErrorType<UnauthorizedResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMessengerScheduledMessages>>,
+          TError,
+          Awaited<ReturnType<typeof listMessengerScheduledMessages>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMessengerScheduledMessages<TData = Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMessengerScheduledMessages>>,
+          TError,
+          Awaited<ReturnType<typeof listMessengerScheduledMessages>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMessengerScheduledMessages<TData = Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List scheduled messages created by the signed-in user
+ */
+
+export function useListMessengerScheduledMessages<TData = Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerScheduledMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMessengerScheduledMessagesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMessengerScheduledMessageUrl = (conversationId: string,) => {
+
+
+
+
+  return `/api/messenger/conversations/${conversationId}/scheduled-messages`
+}
+
+/**
+ * @summary Schedule a text message for one conversation
+ */
+export const createMessengerScheduledMessage = async (conversationId: string,
+    scheduledMessageInput: ScheduledMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<ScheduledMessageResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ScheduledMessageResponse>(getCreateMessengerScheduledMessageUrl(conversationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(scheduledMessageInput)
+  }
+);}
+
+
+
+
+
+export const getCreateMessengerScheduledMessageMutationKey = () => ['createMessengerScheduledMessage'] as const;
+
+export const getCreateMessengerScheduledMessageMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMessengerScheduledMessage>>, TError,CreateMessengerScheduledMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMessengerScheduledMessage>>, TError,CreateMessengerScheduledMessageMutationVariables, TContext> => {
+
+const mutationKey = getCreateMessengerScheduledMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMessengerScheduledMessage>>, CreateMessengerScheduledMessageMutationVariables> = (props) => {
+          const {conversationId,data} = props ?? {};
+
+          return  createMessengerScheduledMessage(conversationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMessengerScheduledMessageMutationResult = NonNullable<Awaited<ReturnType<typeof createMessengerScheduledMessage>>>
+    export type CreateMessengerScheduledMessageMutationBody = BodyType<ScheduledMessageInput>
+    export type CreateMessengerScheduledMessageMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>
+    export type CreateMessengerScheduledMessageMutationVariables = {conversationId: string;data: BodyType<ScheduledMessageInput>}
+
+    /**
+ * @summary Schedule a text message for one conversation
+ */
+export const useCreateMessengerScheduledMessage = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMessengerScheduledMessage>>, TError,CreateMessengerScheduledMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createMessengerScheduledMessage>>,
+        TError,
+        CreateMessengerScheduledMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateMessengerScheduledMessageMutationOptions(options), queryClient);
+    }
+
+export const getUpdateMessengerScheduledMessageUrl = (scheduledMessageId: string,) => {
+
+
+
+
+  return `/api/messenger/scheduled-messages/${scheduledMessageId}`
+}
+
+/**
+ * @summary Edit a scheduled message before it is sent
+ */
+export const updateMessengerScheduledMessage = async (scheduledMessageId: string,
+    scheduledMessageUpdate: ScheduledMessageUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ScheduledMessageResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ScheduledMessageResponse>(getUpdateMessengerScheduledMessageUrl(scheduledMessageId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(scheduledMessageUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateMessengerScheduledMessageMutationKey = () => ['updateMessengerScheduledMessage'] as const;
+
+export const getUpdateMessengerScheduledMessageMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerScheduledMessage>>, TError,UpdateMessengerScheduledMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMessengerScheduledMessage>>, TError,UpdateMessengerScheduledMessageMutationVariables, TContext> => {
+
+const mutationKey = getUpdateMessengerScheduledMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMessengerScheduledMessage>>, UpdateMessengerScheduledMessageMutationVariables> = (props) => {
+          const {scheduledMessageId,data} = props ?? {};
+
+          return  updateMessengerScheduledMessage(scheduledMessageId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMessengerScheduledMessageMutationResult = NonNullable<Awaited<ReturnType<typeof updateMessengerScheduledMessage>>>
+    export type UpdateMessengerScheduledMessageMutationBody = BodyType<ScheduledMessageUpdate>
+    export type UpdateMessengerScheduledMessageMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>
+    export type UpdateMessengerScheduledMessageMutationVariables = {scheduledMessageId: string;data: BodyType<ScheduledMessageUpdate>}
+
+    /**
+ * @summary Edit a scheduled message before it is sent
+ */
+export const useUpdateMessengerScheduledMessage = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerScheduledMessage>>, TError,UpdateMessengerScheduledMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateMessengerScheduledMessage>>,
+        TError,
+        UpdateMessengerScheduledMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateMessengerScheduledMessageMutationOptions(options), queryClient);
+    }
+
+export const getCancelMessengerScheduledMessageUrl = (scheduledMessageId: string,) => {
+
+
+
+
+  return `/api/messenger/scheduled-messages/${scheduledMessageId}`
+}
+
+/**
+ * @summary Cancel a scheduled message before it is sent
+ */
+export const cancelMessengerScheduledMessage = async (scheduledMessageId: string, options?: Parameters<typeof customFetch>[1]): Promise<CancelScheduledMessageResponse> => {
+
+  return customFetch<CancelScheduledMessageResponse>(getCancelMessengerScheduledMessageUrl(scheduledMessageId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelMessengerScheduledMessageMutationKey = () => ['cancelMessengerScheduledMessage'] as const;
+
+export const getCancelMessengerScheduledMessageMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelMessengerScheduledMessage>>, TError,CancelMessengerScheduledMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelMessengerScheduledMessage>>, TError,CancelMessengerScheduledMessageMutationVariables, TContext> => {
+
+const mutationKey = getCancelMessengerScheduledMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelMessengerScheduledMessage>>, CancelMessengerScheduledMessageMutationVariables> = (props) => {
+          const {scheduledMessageId} = props ?? {};
+
+          return  cancelMessengerScheduledMessage(scheduledMessageId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelMessengerScheduledMessageMutationResult = NonNullable<Awaited<ReturnType<typeof cancelMessengerScheduledMessage>>>
+
+    export type CancelMessengerScheduledMessageMutationError = ErrorType<UnauthorizedResponse | ErrorResponse | ConflictResponse>
+    export type CancelMessengerScheduledMessageMutationVariables = {scheduledMessageId: string}
+
+    /**
+ * @summary Cancel a scheduled message before it is sent
+ */
+export const useCancelMessengerScheduledMessage = <TError = ErrorType<UnauthorizedResponse | ErrorResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelMessengerScheduledMessage>>, TError,CancelMessengerScheduledMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cancelMessengerScheduledMessage>>,
+        TError,
+        CancelMessengerScheduledMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelMessengerScheduledMessageMutationOptions(options), queryClient);
     }
 
 export const getMarkMessengerConversationReadUrl = (conversationId: string,) => {

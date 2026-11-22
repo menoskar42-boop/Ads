@@ -276,6 +276,139 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messenger/scheduled-messages:
+    get:
+      operationId: listMessengerScheduledMessages
+      tags: [messenger]
+      summary: List scheduled messages created by the signed-in user
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Scheduled messages and their latest statuses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledMessagesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /messenger/conversations/{conversationId}/scheduled-messages:
+    post:
+      operationId: createMessengerScheduledMessage
+      tags: [messenger]
+      summary: Schedule a text message for one conversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduledMessageInput"
+      responses:
+        "200":
+          description: Previously saved schedule returned after a retry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledMessageResponse"
+        "201":
+          description: Message scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledMessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /messenger/scheduled-messages/{scheduledMessageId}:
+    patch:
+      operationId: updateMessengerScheduledMessage
+      tags: [messenger]
+      summary: Edit a scheduled message before it is sent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: scheduledMessageId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduledMessageUpdate"
+      responses:
+        "200":
+          description: Updated scheduled message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledMessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Scheduled message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: cancelMessengerScheduledMessage
+      tags: [messenger]
+      summary: Cancel a scheduled message before it is sent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: scheduledMessageId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+      responses:
+        "200":
+          description: Scheduled message cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancelScheduledMessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Scheduled message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /messenger/conversations/{conversationId}/read:
     post:
       operationId: markMessengerConversationRead
@@ -324,6 +457,12 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
     BadRequest:
       description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: The scheduled message can no longer be changed
       content:
         application/json:
           schema:
@@ -410,6 +549,95 @@ components:
             - type: string
               format: date-time
             - type: "null"
+    ScheduledMessageStatus:
+      type: string
+      enum: [pending, sent, failed, cancelled]
+    ScheduledMessage:
+      type: object
+      required:
+        - id
+        - conversationId
+        - peerName
+        - body
+        - scheduledAt
+        - status
+        - createdAt
+        - sentAt
+        - failureMessage
+      properties:
+        id:
+          type: string
+        conversationId:
+          type: string
+        peerName:
+          type: string
+        body:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/ScheduledMessageStatus"
+        createdAt:
+          type: string
+          format: date-time
+        sentAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        failureMessage:
+          anyOf:
+            - type: string
+            - type: "null"
+    ScheduledMessagesResponse:
+      type: object
+      required: [scheduledMessages]
+      properties:
+        scheduledMessages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScheduledMessage"
+    ScheduledMessageResponse:
+      type: object
+      required: [scheduledMessage]
+      properties:
+        scheduledMessage:
+          $ref: "#/components/schemas/ScheduledMessage"
+    CancelScheduledMessageResponse:
+      type: object
+      required: [ok, scheduledMessage]
+      properties:
+        ok:
+          type: boolean
+        scheduledMessage:
+          $ref: "#/components/schemas/ScheduledMessage"
+    ScheduledMessageInput:
+      type: object
+      required: [body, scheduledAt, clientScheduleId]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        scheduledAt:
+          type: string
+          format: date-time
+        clientScheduleId:
+          type: string
+          minLength: 8
+          maxLength: 80
+    ScheduledMessageUpdate:
+      type: object
+      required: [body, scheduledAt]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        scheduledAt:
+          type: string
+          format: date-time
     Conversation:
       type: object
       required: [id, peer, lastMessage, unreadCount, updatedAt]
@@ -428,4 +656,3 @@ components:
         updatedAt:
           type: string
           format: date-time
-

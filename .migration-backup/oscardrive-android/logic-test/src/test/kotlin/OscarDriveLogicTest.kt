@@ -418,6 +418,79 @@ class VoiceEngineTest {
     }
 }
 
+class MessengerVoiceTest {
+    private val engine = VoiceEngine()
+
+    @Test fun messageIntentIsMatchedLocallyBeforeTheGenericWhatsAppCommand() {
+        for (phrase in listOf(
+            "يا أوسكار ابعت رسالة إلى محمود يعقوب بتقول أنا وصلت",
+            "Hey Oscar send a message to Ahmed saying I am here",
+            "يا اذكر send رسالة to Mother Mobile saying I am here",
+            "يا أوسكار رسالة إلى محمود بتقول أنا وصلت",
+        )) {
+            val command = engine.afterWake(phrase)?.let(engine::understand)
+            assertEquals("messenger.send", command?.match?.command?.id, phrase)
+            assertTrue(command?.sure == true, phrase)
+        }
+    }
+
+    @Test fun parsesArabicEnglishAndMixedNamesAndBodiesWithoutChangingTheirText() {
+        assertEquals(
+            MessengerMessageRequest("محمود يعقوب", "أنا وصلت،"),
+            MessengerVoice.parse("يا أوسكار ابعت رسالة إلى محمود يعقوب بتقول أنا وصلت،"),
+        )
+        assertEquals(
+            MessengerMessageRequest("Mother Mobile", "I am here!"),
+            MessengerVoice.parse("يا أذكر ابعت رسالة لـ Mother Mobile تقول I am here!"),
+        )
+        assertEquals(
+            MessengerMessageRequest("Ahmed", "هكلمك بعدين"),
+            MessengerVoice.parse("Hey Oscar send a message to Ahmed saying هكلمك بعدين"),
+        )
+        assertEquals(
+            MessengerMessageRequest("Mother Mobile", "I am here"),
+            MessengerVoice.parse("يا اذكر send رسالة to Mother Mobile saying I am here"),
+        )
+        assertEquals(
+            MessengerMessageRequest("محمود", "أنا وصلت"),
+            MessengerVoice.parse("يا أوسكار رسالة إلى محمود بتقول أنا وصلت"),
+        )
+    }
+
+    @Test fun acceptsACommandAfterTheWakeWordWasHeardSeparately() {
+        assertEquals(
+            MessengerMessageRequest("محمود", "I am ready"),
+            MessengerVoice.parse(
+                "send message to محمود saying I am ready",
+                wakeAlreadyConfirmed = true,
+            ),
+        )
+        assertEquals(
+            MessengerMessageRequest("Oscar", "Hello"),
+            MessengerVoice.parse(
+                "send a message to Oscar saying Hello",
+                wakeAlreadyConfirmed = true,
+            ),
+        )
+    }
+
+    @Test fun incompleteOrUnconfirmedMessageCommandsNeverCreateADraft() {
+        val incomplete = "يا أوسكار ابعت رسالة إلى أحمد"
+        val localCommand = engine.afterWake(incomplete)?.let(engine::understand)
+        assertEquals("messenger.send", localCommand?.match?.command?.id)
+        assertTrue(localCommand?.sure == true)
+        assertNull(MessengerVoice.parse(incomplete))
+        assertNull(MessengerVoice.parse("ابعت رسالة إلى أحمد بتقول أنا وصلت"))
+        assertNull(MessengerVoice.parse("يا أوسكار ابعت رسالة إلى أحمد"))
+        assertNull(MessengerVoice.parse("ابعت رسالة إلى أحمد بتقول أنا وصلت"))
+        assertNull(
+            MessengerVoice.parse(
+                "يا أوسكار ابعت رسالة إلى أحمد بتقول ${"س".repeat(2001)}",
+            ),
+        )
+    }
+}
+
 // المالك ٢٠٢٦-١١-٠٦: الموقع GPS من غير نت، والنت يساعد بمكان تقريبى لحد ما الـGPS يلقط
 class ApproxLocationTest {
     @Test fun networkOnlyWhenGpsIsMissing() {

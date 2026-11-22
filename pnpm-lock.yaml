@@ -5701,7 +5701,7 @@ snapshots:
 
   '@babel/helper-optimise-call-expression@7.29.7':
     dependencies:
-      '@babel/types': 7.29.15
+      '@babel/types': 7.29.8
 
   '@babel/helper-plugin-utils@7.29.7': {}
 
@@ -5710,7 +5710,7 @@ snapshots:
       '@babel/core': 7.29.7
       '@babel/helper-annotate-as-pure': 7.29.7
       '@babel/helper-wrap-function': 7.29.15
-      '@babel/traverse': 7.29.15
+      '@babel/traverse': 7.29.10
     transitivePeerDependencies:
       - supports-color
 
@@ -7731,7 +7731,7 @@ snapshots:
   '@react-native/codegen@0.88.1(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
-      '@babel/parser': 7.29.15
+      '@babel/parser': 7.29.9
       flow-parser: 0.327.0
       invariant: 2.2.4
       nullthrows: 1.1.1
@@ -9737,9 +9737,9 @@ snapshots:
   metro-transform-plugins@0.87.3:
     dependencies:
       '@babel/core': 7.29.7
-      '@babel/generator': 7.29.15
+      '@babel/generator': 7.29.8
       '@babel/template': 7.29.7
-      '@babel/traverse': 7.29.15
+      '@babel/traverse': 7.29.10
       flow-enums-runtime: 0.0.6
       nullthrows: 1.1.1
     transitivePeerDependencies:
@@ -9768,9 +9768,9 @@ snapshots:
   metro-transform-worker@0.87.3:
     dependencies:
       '@babel/core': 7.29.7
-      '@babel/generator': 7.29.15
-      '@babel/parser': 7.29.15
-      '@babel/types': 7.29.15
+      '@babel/generator': 7.29.8
+      '@babel/parser': 7.29.9
+      '@babel/types': 7.29.8
       '@jridgewell/sourcemap-codec': 1.6.0
       flow-enums-runtime: 0.0.6
       metro: 0.87.3
@@ -9834,11 +9834,11 @@ snapshots:
     dependencies:
       '@babel/code-frame': 7.29.7
       '@babel/core': 7.29.7
-      '@babel/generator': 7.29.15
-      '@babel/parser': 7.29.15
+      '@babel/generator': 7.29.8
+      '@babel/parser': 7.29.9
       '@babel/template': 7.29.7
-      '@babel/traverse': 7.29.15
-      '@babel/types': 7.29.15
+      '@babel/traverse': 7.29.10
+      '@babel/types': 7.29.8
       accepts: 2.0.0
       connect: 3.7.0
       debug: 4.4.3

@@ -105,6 +105,8 @@ body.contacts-on #callBox:not([hidden]) { position:fixed; inset:max(10px, env(sa
 #contactDirectoryList { display:grid; gap:6px; max-height:min(48vh, 360px); overflow-y:auto; padding:2px; }
 .contact-directory-row { display:flex; align-items:center; gap:8px; width:100%; padding:8px; border-radius:10px; background:var(--surface2); }
 .contact-directory-row .contact-directory-info { flex:1; min-width:0; overflow-wrap:anywhere; }
+.contact-directory-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.contact-directory-actions button { min-height:40px; padding:6px 10px; }
 @media (prefers-reduced-motion: reduce) { #dvArrow { transition:none; } }
 #map { position:relative; z-index:0; isolation:isolate; height:320px; border-radius:14px; overflow:hidden; background:var(--surface2); }
 .seg button { padding:8px 12px; min-height:40px; font-size:14px; }
@@ -334,6 +336,7 @@ body.solo .carOnly { display:none !important; }
             <button id="ctAdd" type="button">حفظ جهة الاتصال</button>
           </div>
           <p class="note" id="ctImportNote" role="status" aria-live="polite">على الآيفون اختار ملف vCard من «الملفات». تظل الأسماء والأرقام على هذا الجهاز حتى توافق على المزامنة.</p>
+          <p class="note">زر الرسالة يرسل اسم جهة الاتصال فقط إلى شاشة البحث في Oscar Messaging؛ لا يرسل الرقم أو دفتر الهاتف. المسودة لا تُرسل إلا بعد تأكيدك داخل المحادثة.</p>
           <div id="contactDirectoryList" role="list"></div>
           <button id="contactDirectoryMore" type="button" style="width:100%;margin-top:6px" hidden>عرض جهات إضافية</button>
           <p id="contactDirectoryEmpty" class="note" hidden>لا توجد جهات اتصال مطابقة.</p>
@@ -373,7 +376,16 @@ body.solo .carOnly { display:none !important; }
           <button id="ctSyncNow" type="button" style="flex:1">🔄 زامن مع شاشة العربية</button>
           <button id="ctSyncDisable" type="button" style="flex:1" hidden>إيقاف المزامنة ومسح نسخة الخادم</button>
         </div>
+        <div id="ctConsentPanel" hidden role="group" aria-labelledby="ctConsentTitle" style="margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface2)">
+          <b id="ctConsentTitle">قبل تفعيل المزامنة</b>
+          <p class="note">سيُحفظ على خادم أوسكار الاسم وأرقام الجهات التي أضفتها أو استوردتها داخل Oscar Drive، وستظهر للأجهزة المرتبطة بالسيارة نفسها فقط. لن يُرفع دفتر الهاتف كاملًا، ولن تُستخدم الجهات القادمة من المزامنة في واتساب أو الذكاء الاصطناعي.</p>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button id="ctConsentAccept" type="button" class="primary" style="flex:1">أوافق وأفعّل المزامنة</button>
+            <button id="ctConsentKeepLocal" type="button" style="flex:1">أفضل إبقاءها محلية</button>
+          </div>
+        </div>
         <p class="note" id="ctSyncStatus" role="status" aria-live="polite">المزامنة غير مفعّلة؛ جهات الاتصال تبقى على هذا الجهاز.</p>
+        <p class="note">جهات الاتصال الواردة من جهاز آخر تبقى لدليل المكالمات فقط، ولا تدخل قائمة جهات أوسكار المستخدمة لواتساب.</p>
         <ul class="list" id="ctList"></ul>
         <button id="ctListMore" type="button" style="width:100%;margin-top:6px" hidden>عرض جهات إضافية</button>
         <button id="ctClearAll" type="button" style="width:100%;margin-top:6px;border-color:#b42318;color:#b42318">امسح كل جهات الاتصال</button>
