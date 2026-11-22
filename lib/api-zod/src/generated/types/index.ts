@@ -7,6 +7,8 @@
  */
 
 export * from './badRequestResponse';
+export * from './cancelScheduledMessageResponse';
+export * from './conflictResponse';
 export * from './conversation';
 export * from './errorResponse';
 export * from './healthStatus';
@@ -19,6 +21,12 @@ export * from './person';
 export * from './profile';
 export * from './profileInput';
 export * from './profileResponse';
+export * from './scheduledMessage';
+export * from './scheduledMessageInput';
+export * from './scheduledMessageResponse';
+export * from './scheduledMessagesResponse';
+export * from './scheduledMessageStatus';
+export * from './scheduledMessageUpdate';
 export * from './searchMessengerPeople200';
 export * from './searchMessengerPeopleParams';
 export * from './sendMessengerMessage200';

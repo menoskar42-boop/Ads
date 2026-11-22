@@ -53,6 +53,7 @@ function AppRoutes() {
         <Stack.Screen name="new-message" />
         <Stack.Screen name="compose" />
         <Stack.Screen name="chat/[conversationId]" />
+        <Stack.Screen name="scheduled" />
         <Stack.Screen name="settings" />
       </Stack>
     </>

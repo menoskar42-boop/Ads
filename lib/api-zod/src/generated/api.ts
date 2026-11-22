@@ -205,6 +205,128 @@ export const SendMessengerMessageResponse = zod.object({
 
 
 /**
+ * @summary List scheduled messages created by the signed-in user
+ */
+export const ListMessengerScheduledMessagesResponse = zod.object({
+  "scheduledMessages": zod.array(zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "peerName": zod.string(),
+  "body": zod.string(),
+  "scheduledAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'sent', 'failed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.union([zod.coerce.date(),zod.null()]),
+  "failureMessage": zod.union([zod.string(),zod.null()])
+}))
+})
+
+
+/**
+ * @summary Schedule a text message for one conversation
+ */
+export const createMessengerScheduledMessagePathConversationIdMin = 8;
+export const createMessengerScheduledMessagePathConversationIdMax = 80;
+
+
+
+export const CreateMessengerScheduledMessageParams = zod.object({
+  "conversationId": zod.coerce.string().min(createMessengerScheduledMessagePathConversationIdMin).max(createMessengerScheduledMessagePathConversationIdMax)
+})
+
+export const createMessengerScheduledMessageBodyBodyMax = 4000;
+
+export const createMessengerScheduledMessageBodyClientScheduleIdMin = 8;
+export const createMessengerScheduledMessageBodyClientScheduleIdMax = 80;
+
+
+
+export const CreateMessengerScheduledMessageBody = zod.object({
+  "body": zod.string().min(1).max(createMessengerScheduledMessageBodyBodyMax),
+  "scheduledAt": zod.coerce.date(),
+  "clientScheduleId": zod.string().min(createMessengerScheduledMessageBodyClientScheduleIdMin).max(createMessengerScheduledMessageBodyClientScheduleIdMax)
+})
+
+export const CreateMessengerScheduledMessageResponse = zod.object({
+  "scheduledMessage": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "peerName": zod.string(),
+  "body": zod.string(),
+  "scheduledAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'sent', 'failed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.union([zod.coerce.date(),zod.null()]),
+  "failureMessage": zod.union([zod.string(),zod.null()])
+})
+})
+
+
+/**
+ * @summary Edit a scheduled message before it is sent
+ */
+export const updateMessengerScheduledMessagePathScheduledMessageIdMin = 8;
+export const updateMessengerScheduledMessagePathScheduledMessageIdMax = 80;
+
+
+
+export const UpdateMessengerScheduledMessageParams = zod.object({
+  "scheduledMessageId": zod.coerce.string().min(updateMessengerScheduledMessagePathScheduledMessageIdMin).max(updateMessengerScheduledMessagePathScheduledMessageIdMax)
+})
+
+export const updateMessengerScheduledMessageBodyBodyMax = 4000;
+
+
+
+export const UpdateMessengerScheduledMessageBody = zod.object({
+  "body": zod.string().min(1).max(updateMessengerScheduledMessageBodyBodyMax),
+  "scheduledAt": zod.coerce.date()
+})
+
+export const UpdateMessengerScheduledMessageResponse = zod.object({
+  "scheduledMessage": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "peerName": zod.string(),
+  "body": zod.string(),
+  "scheduledAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'sent', 'failed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.union([zod.coerce.date(),zod.null()]),
+  "failureMessage": zod.union([zod.string(),zod.null()])
+})
+})
+
+
+/**
+ * @summary Cancel a scheduled message before it is sent
+ */
+export const cancelMessengerScheduledMessagePathScheduledMessageIdMin = 8;
+export const cancelMessengerScheduledMessagePathScheduledMessageIdMax = 80;
+
+
+
+export const CancelMessengerScheduledMessageParams = zod.object({
+  "scheduledMessageId": zod.coerce.string().min(cancelMessengerScheduledMessagePathScheduledMessageIdMin).max(cancelMessengerScheduledMessagePathScheduledMessageIdMax)
+})
+
+export const CancelMessengerScheduledMessageResponse = zod.object({
+  "ok": zod.boolean(),
+  "scheduledMessage": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "peerName": zod.string(),
+  "body": zod.string(),
+  "scheduledAt": zod.coerce.date(),
+  "status": zod.enum(['pending', 'sent', 'failed', 'cancelled']),
+  "createdAt": zod.coerce.date(),
+  "sentAt": zod.union([zod.coerce.date(),zod.null()]),
+  "failureMessage": zod.union([zod.string(),zod.null()])
+})
+})
+
+
+/**
  * @summary Mark messages from the other member as read
  */
 export const markMessengerConversationReadPathConversationIdMin = 8;

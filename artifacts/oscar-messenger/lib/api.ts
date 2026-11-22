@@ -14,4 +14,5 @@ export const queryKeys = {
   messages: (conversationId: string) =>
     ["messenger", "messages", conversationId] as const,
   people: (query: string) => ["messenger", "people", query] as const,
+  scheduled: ["messenger", "scheduled-messages"] as const,
 };

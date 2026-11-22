@@ -18,6 +18,7 @@ import { AppHeader } from "../../components/AppHeader";
 import { Avatar } from "../../components/Avatar";
 import { MessageBubble } from "../../components/MessageBubble";
 import { MessageComposer } from "../../components/MessageComposer";
+import { ScheduleMessageModal } from "../../components/ScheduleMessageModal";
 import { ErrorText, Notice, Screen } from "../../components/Screen";
 import {
   getMessengerProfile,
@@ -50,6 +51,7 @@ export default function ChatScreen() {
   const readForMessage = useRef("");
   const [draft, setDraft] = useState("");
   const [errorText, setErrorText] = useState("");
+  const [scheduleVisible, setScheduleVisible] = useState(false);
   const seeded = useRef(false);
 
   const profile = useQuery({
@@ -205,10 +207,22 @@ export default function ChatScreen() {
               const body = draft.trim();
               if (body) send.mutate(body);
             }}
+            onSchedule={() => setScheduleVisible(true)}
             busy={send.isPending}
           />
         </View>
       </ControllerKeyboardAvoidingView>
+      <ScheduleMessageModal
+        visible={scheduleVisible}
+        conversationId={conversationId}
+        peerName={displayedName}
+        initialBody={draft}
+        onClose={() => setScheduleVisible(false)}
+        onSaved={() => {
+          setScheduleVisible(false);
+          setDraft("");
+        }}
+      />
     </Screen>
   );
 }

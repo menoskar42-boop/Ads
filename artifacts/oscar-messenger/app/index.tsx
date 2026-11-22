@@ -2,6 +2,7 @@ import { useAuth } from "@clerk/expo";
 import { useQuery } from "@tanstack/react-query";
 import { Redirect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   FlatList,
@@ -14,7 +15,11 @@ import {
 import { AppHeader } from "../components/AppHeader";
 import { Avatar } from "../components/Avatar";
 import { Notice, PrimaryButton, Screen } from "../components/Screen";
-import { getMessengerProfile, listMessengerConversations } from "@workspace/api-client-react";
+import {
+  getMessengerProfile,
+  listMessengerConversations,
+  listMessengerScheduledMessages,
+} from "@workspace/api-client-react";
 import { queryKeys } from "../lib/api";
 import { readableError, shortTime } from "../lib/format";
 import { colors } from "../lib/theme";
@@ -40,9 +45,16 @@ export default function InboxScreen() {
     refetchInterval: 10_000,
     refetchIntervalInBackground: false,
   });
+  const scheduled = useQuery({
+    queryKey: queryKeys.scheduled,
+    queryFn: listMessengerScheduledMessages,
+    enabled: isLoaded && !!isSignedIn,
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: false,
+  });
   const refresh = useCallback(async () => {
-    await Promise.all([profile.refetch(), conversations.refetch()]);
-  }, [profile, conversations]);
+      await Promise.all([profile.refetch(), conversations.refetch(), scheduled.refetch()]);
+  }, [profile, conversations, scheduled]);
   useEffect(() => {
     const rows = conversations.data?.conversations;
     if (!rows) return;
@@ -102,6 +114,25 @@ export default function InboxScreen() {
             <Text style={styles.newButtonText}>＋</Text>
           </Pressable>
         </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/scheduled")}
+          style={({ pressed }) => [styles.scheduledShortcut, pressed && styles.pressed]}
+        >
+          <View style={styles.scheduledIcon}>
+            <Ionicons name="calendar-outline" size={20} color={colors.blue} />
+          </View>
+          <View style={styles.scheduledCopy}>
+            <Text style={styles.scheduledTitle}>الرسائل المجدولة</Text>
+            <Text style={styles.scheduledSub}>
+              {scheduled.data
+                ? `${scheduled.data.scheduledMessages.filter((item) => item.status === "pending").length} رسالة تنتظر موعدها`
+                : "راجع المواعيد وحالة الإرسال"}
+            </Text>
+          </View>
+          <Ionicons name="chevron-back" size={18} color={colors.muted} />
+        </Pressable>
 
         {newMessageNotice && (
           <Pressable
@@ -224,6 +255,11 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.muted, fontSize: 13, textAlign: "right" },
   heading: { color: colors.text, fontSize: 25, fontWeight: "800", textAlign: "right" },
   searchBand: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 20, padding: 15, flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 24 },
+  scheduledShortcut: { flexDirection: "row", alignItems: "center", gap: 11, minHeight: 68, paddingHorizontal: 13, marginTop: -12, marginBottom: 20, borderRadius: 17, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  scheduledIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: colors.surfaceRaised },
+  scheduledCopy: { flex: 1, alignItems: "flex-end", gap: 4 },
+  scheduledTitle: { color: colors.text, fontSize: 14, fontWeight: "800", textAlign: "right" },
+  scheduledSub: { color: colors.muted, fontSize: 11, textAlign: "right" },
   newMessageNotice: { minHeight: 48, marginTop: -12, marginBottom: 18, borderRadius: 15, borderWidth: 1, borderColor: "#315C87", backgroundColor: "#172B42", flexDirection: "row", alignItems: "center", paddingHorizontal: 13, gap: 10 },
   noticeDot: { height: 8, width: 8, borderRadius: 4, backgroundColor: colors.blue },
   newMessageText: { flex: 1, color: colors.text, textAlign: "right", fontSize: 13, fontWeight: "700" },

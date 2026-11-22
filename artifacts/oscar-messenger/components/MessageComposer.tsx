@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { TextField } from "./TextField";
 import { colors } from "../lib/theme";
@@ -6,11 +7,13 @@ export function MessageComposer({
   value,
   onChangeText,
   onSend,
+  onSchedule,
   busy,
 }: {
   value: string;
   onChangeText: (value: string) => void;
   onSend: () => void;
+  onSchedule: () => void;
   busy: boolean;
 }) {
   return (
@@ -27,6 +30,20 @@ export function MessageComposer({
           accessibilityLabel="نص الرسالة"
           style={styles.input}
         />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="جدولة الرسالة"
+          onPress={onSchedule}
+          disabled={busy || !value.trim()}
+          hitSlop={6}
+          style={({ pressed }) => [
+            styles.schedule,
+            (!value.trim() || busy) && styles.sendDisabled,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Ionicons name="time-outline" size={23} color={colors.blue} />
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="إرسال الرسالة"
@@ -50,6 +67,7 @@ const styles = StyleSheet.create({
   wrap: { paddingTop: 9, paddingHorizontal: 12, paddingBottom: 8, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background },
   composer: { flexDirection: "row", alignItems: "flex-end", gap: 9 },
   input: { flex: 1, maxHeight: 130, minHeight: 47, paddingTop: 12, paddingBottom: 10, borderRadius: 18 },
+  schedule: { width: 34, height: 46, alignItems: "center", justifyContent: "center" },
   send: { width: 46, height: 46, borderRadius: 16, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center" },
   sendDisabled: { opacity: 0.4 },
   sendText: { color: "#06111F", fontSize: 20, fontWeight: "900", marginLeft: -2 },
