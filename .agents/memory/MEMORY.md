@@ -1,0 +1,1 @@
+- [Read CLAUDE.md before edits](claude-before-edits.md) — Read the project's CLAUDE.md before changing code.
