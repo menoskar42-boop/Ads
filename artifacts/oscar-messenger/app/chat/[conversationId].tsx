@@ -48,6 +48,10 @@ import {
 } from "@workspace/api-client-react";
 import type { Message } from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../../lib/api";
+import {
+  getStableClientMessageId,
+  type PendingClientMessageId,
+} from "../../lib/client-message-id";
 import { readableError } from "../../lib/format";
 import { colors } from "../../lib/theme";
 import { VoiceMessageModal } from "../../components/VoiceMessageModal";
@@ -89,6 +93,14 @@ export default function ChatScreen() {
   const { getToken, isLoaded, isSignedIn, userId } = useAuth();
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList>(null);
+  const pendingTextMessageId = useRef<PendingClientMessageId>(null);
+  const olderLoadLock = useRef(false);
+  const [olderHistory, setOlderHistory] = useState<{
+    conversationId: string;
+    messages: Message[];
+    hasMore: boolean | null;
+    loading: boolean;
+  }>({ conversationId, messages: [], hasMore: null, loading: false });
   const voiceRequestIds = useRef<Map<string, string>>(new Map());
   const audioPlayer = useAudioPlayer(null, { updateInterval: 250 });
   const audioStatus = useAudioPlayerStatus(audioPlayer);
@@ -142,7 +154,7 @@ export default function ChatScreen() {
   });
   const messages = useQuery({
     queryKey: queryKeys.messages(conversationId),
-    queryFn: () => listMessengerMessages(conversationId, { limit: 80 }),
+    queryFn: () => listMessengerMessages(conversationId, { limit: 81 }),
     enabled: !!conversationId && isLoaded && !!isSignedIn,
     refetchInterval: 5_000,
     refetchIntervalInBackground: false,
@@ -153,6 +165,48 @@ export default function ChatScreen() {
       conversations.data?.conversations.find((item) => item.id === conversationId)?.peer,
     [conversations.data, conversationId],
   );
+  const latestMessages = messages.data?.messages ?? [];
+  const currentOlderHistory =
+    olderHistory.conversationId === conversationId
+      ? olderHistory
+      : { conversationId, messages: [], hasMore: null, loading: false };
+  const canLoadOlderMessages =
+    currentOlderHistory.hasMore ?? latestMessages.length === 81;
+  const loadOlderMessages = async () => {
+    const oldest = currentOlderHistory.messages[0] ?? latestMessages[0];
+    if (!oldest || !canLoadOlderMessages || olderLoadLock.current) return;
+    const requestedConversationId = conversationId;
+    olderLoadLock.current = true;
+    setOlderHistory({
+      ...currentOlderHistory,
+      loading: true,
+    });
+    try {
+      const page = await listMessengerMessages(requestedConversationId, {
+        limit: 81,
+        beforeMessageId: oldest.id,
+      });
+      setOlderHistory((current) => {
+        const existing =
+          current.conversationId === requestedConversationId ? current.messages : [];
+        return {
+          conversationId: requestedConversationId,
+          messages: [...page.messages, ...existing],
+          hasMore: page.messages.length === 81,
+          loading: false,
+        };
+      });
+    } catch (error) {
+      setErrorText(readableError(error, "تعذر تحميل الرسائل الأقدم."));
+      setOlderHistory((current) =>
+        current.conversationId === requestedConversationId
+          ? { ...current, loading: false }
+          : current,
+      );
+    } finally {
+      olderLoadLock.current = false;
+    }
+  };
   const displayedName = peer?.displayName || peerNameParam || "محادثة";
   const markRead = useMutation({
     mutationFn: () => markMessengerConversationRead(conversationId),
@@ -162,15 +216,22 @@ export default function ChatScreen() {
     },
   });
   const send = useMutation({
-    mutationFn: (input: { body: string; replyToMessageId?: string }) =>
+    mutationFn: (input: {
+      body: string;
+      clientMessageId: string;
+      replyToMessageId?: string;
+    }) =>
       sendMessengerMessage(conversationId, {
         body: input.body,
-        clientMessageId: Crypto.randomUUID(),
+        clientMessageId: input.clientMessageId,
         ...(input.replyToMessageId
           ? { replyToMessageId: input.replyToMessageId }
           : {}),
       }),
-    onSuccess: async () => {
+    onSuccess: async (_result, input) => {
+      if (pendingTextMessageId.current?.id === input.clientMessageId) {
+        pendingTextMessageId.current = null;
+      }
       setDraft("");
       setDraftFromOscar(false);
       setReplyTo(null);
@@ -616,8 +677,10 @@ export default function ChatScreen() {
   if (!isSignedIn) return <Redirect href="/sign-in" />;
   if (profile.data?.profile === null) return <Redirect href="/profile-setup" />;
 
-  const messageList = messages.data?.messages ?? [];
-  const ordered = [...messageList].reverse();
+  const messageList = [...currentOlderHistory.messages, ...latestMessages];
+  const ordered = [
+    ...new Map(messageList.map((message) => [message.id, message])).values(),
+  ].reverse();
 
   return (
     <Screen>
@@ -705,6 +768,23 @@ export default function ChatScreen() {
                 <Text style={styles.firstCopy}>الرسائل بين الحسابين فقط.</Text>
               </View>
             }
+            ListFooterComponent={
+              canLoadOlderMessages ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="تحميل رسائل أقدم"
+                  disabled={currentOlderHistory.loading}
+                  onPress={() => void loadOlderMessages()}
+                  style={styles.loadOlderButton}
+                >
+                  {currentOlderHistory.loading ? (
+                    <ActivityIndicator color={colors.blue} />
+                  ) : (
+                    <Text style={styles.loadOlderText}>تحميل رسائل أقدم</Text>
+                  )}
+                </Pressable>
+              ) : undefined
+            }
           />
         )}
         <View style={styles.composerArea}>
@@ -730,8 +810,20 @@ export default function ChatScreen() {
               if (send.isPending || mediaBusy) return;
               const sendText = () => {
                 if (!body) return;
+                const key = JSON.stringify([
+                  conversationId,
+                  body,
+                  replyTo?.id ?? null,
+                ]);
+                const pending = getStableClientMessageId(
+                  pendingTextMessageId.current,
+                  key,
+                  () => Crypto.randomUUID(),
+                );
+                pendingTextMessageId.current = pending;
                 const input = {
                   body,
+                  clientMessageId: pending.id,
                   ...(replyTo ? { replyToMessageId: replyTo.id } : {}),
                 };
                 send.mutate(input);
@@ -972,6 +1064,8 @@ const styles = StyleSheet.create({
   chat: { flex: 1 },
   messages: { paddingTop: 12, paddingBottom: 16, flexGrow: 1, justifyContent: "flex-end" },
   messagesEmpty: { justifyContent: "center" },
+  loadOlderButton: { alignSelf: "center", minHeight: 38, justifyContent: "center", paddingHorizontal: 16 },
+  loadOlderText: { color: colors.blue, fontSize: 13, fontWeight: "700" },
   firstMessage: { alignItems: "center", gap: 10, padding: 24 },
   firstTitle: { color: colors.text, fontSize: 16, fontWeight: "800", textAlign: "center" },
   firstCopy: { color: colors.muted, fontSize: 13, textAlign: "center" },

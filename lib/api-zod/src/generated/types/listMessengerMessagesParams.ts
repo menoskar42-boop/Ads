@@ -12,4 +12,9 @@ export type ListMessengerMessagesParams = {
  * @maximum 100
  */
 limit?: number;
+/**
+ * @minLength 1
+ * @maxLength 80
+ */
+beforeMessageId?: string;
 };

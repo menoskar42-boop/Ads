@@ -43,6 +43,7 @@ export * from './healthStatus';
 export * from './leaveMessengerGroup200';
 export * from './listMessengerConversations200';
 export * from './listMessengerConversationsParams';
+export * from './listMessengerGroupMessagesParams';
 export * from './listMessengerMessages200';
 export * from './listMessengerMessagesParams';
 export * from './markMessengerConversationRead200';

@@ -17,4 +17,9 @@ export type SendMessengerMessageBody = {
      * @maxLength 80
      */
   clientMessageId: string;
+  /**
+     * @minLength 8
+     * @maxLength 80
+     */
+  replyToMessageId?: string;
 };

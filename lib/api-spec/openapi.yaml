@@ -603,9 +603,24 @@ paths:
             type: string
             minLength: 8
             maxLength: 80
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 80
+        - name: beforeMessageId
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
       responses:
         "200":
-          description: Recent messages visible to group members
+          description: Messages visible to group members, oldest first within the page
           content:
             application/json:
               schema:
@@ -1120,10 +1135,17 @@ paths:
             type: integer
             minimum: 1
             maximum: 100
-            default: 50
+            default: 80
+        - name: beforeMessageId
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
       responses:
         "200":
-          description: Recent messages, oldest first
+          description: Messages before the optional cursor, oldest first within the page
           content:
             application/json:
               schema:
@@ -1172,10 +1194,10 @@ paths:
                   type: string
                   minLength: 8
                   maxLength: 80
-                  replyToMessageId:
-                    type: string
-                    minLength: 8
-                    maxLength: 80
+                replyToMessageId:
+                  type: string
+                  minLength: 8
+                  maxLength: 80
       responses:
         "200":
           description: Previously saved message returned after a retry

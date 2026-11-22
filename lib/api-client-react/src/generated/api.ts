@@ -49,6 +49,7 @@ import type {
   LeaveMessengerGroup200,
   ListMessengerConversations200,
   ListMessengerConversationsParams,
+  ListMessengerGroupMessagesParams,
   ListMessengerMessages200,
   ListMessengerMessagesParams,
   MarkMessengerConversationRead200,
@@ -1806,20 +1807,29 @@ export const useUpdateMessengerGroupMute = <TError = ErrorType<BadRequestRespons
       return useMutation(getUpdateMessengerGroupMuteMutationOptions(options), queryClient);
     }
 
-export const getListMessengerGroupMessagesUrl = (groupId: string,) => {
+export const getListMessengerGroupMessagesUrl = (groupId: string,
+    params?: ListMessengerGroupMessagesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/messenger/groups/${groupId}/messages`
+  return stringifiedParams.length > 0 ? `/api/messenger/groups/${groupId}/messages?${stringifiedParams}` : `/api/messenger/groups/${groupId}/messages`
 }
 
 /**
  * @summary List recent group messages for a current member
  */
-export const listMessengerGroupMessages = async (groupId: string, options?: Parameters<typeof customFetch>[1]): Promise<GroupMessagesResponse> => {
+export const listMessengerGroupMessages = async (groupId: string,
+    params?: ListMessengerGroupMessagesParams, options?: Parameters<typeof customFetch>[1]): Promise<GroupMessagesResponse> => {
 
-  return customFetch<GroupMessagesResponse>(getListMessengerGroupMessagesUrl(groupId),
+  return customFetch<GroupMessagesResponse>(getListMessengerGroupMessagesUrl(groupId,params),
   {
     ...options,
     method: 'GET'
@@ -1832,23 +1842,25 @@ export const listMessengerGroupMessages = async (groupId: string, options?: Para
 
 
 
-export const getListMessengerGroupMessagesQueryKey = (groupId: string,) => {
+export const getListMessengerGroupMessagesQueryKey = (groupId: string,
+    params?: ListMessengerGroupMessagesParams,) => {
     return [
-    `/api/messenger/groups/${groupId}/messages`
+    `/api/messenger/groups/${groupId}/messages`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListMessengerGroupMessagesQueryOptions = <TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getListMessengerGroupMessagesQueryOptions = <TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(groupId: string,
+    params?: ListMessengerGroupMessagesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListMessengerGroupMessagesQueryKey(groupId);
+  const queryKey =  queryOptions?.queryKey ?? getListMessengerGroupMessagesQueryKey(groupId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMessengerGroupMessages>>> = ({ signal }) => listMessengerGroupMessages(groupId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMessengerGroupMessages>>> = ({ signal }) => listMessengerGroupMessages(groupId,params, { signal, ...requestOptions });
 
 
 
@@ -1862,7 +1874,8 @@ export type ListMessengerGroupMessagesQueryError = ErrorType<UnauthorizedRespons
 
 
 export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
- groupId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>> & Pick<
+ groupId: string,
+    params: undefined |  ListMessengerGroupMessagesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMessengerGroupMessages>>,
           TError,
@@ -1872,7 +1885,8 @@ export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof 
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
- groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>> & Pick<
+ groupId: string,
+    params?: ListMessengerGroupMessagesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMessengerGroupMessages>>,
           TError,
@@ -1882,7 +1896,8 @@ export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof 
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
- groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ groupId: string,
+    params?: ListMessengerGroupMessagesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -1890,11 +1905,12 @@ export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof 
  */
 
 export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
- groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ groupId: string,
+    params?: ListMessengerGroupMessagesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getListMessengerGroupMessagesQueryOptions(groupId,options)
+  const queryOptions = getListMessengerGroupMessagesQueryOptions(groupId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

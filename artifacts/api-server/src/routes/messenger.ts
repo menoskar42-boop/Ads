@@ -8,6 +8,7 @@ import {
   putR2Object,
   voiceObjectKey,
 } from "../lib/r2";
+import { parseMessageCursor } from "../lib/message-pagination";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -518,10 +519,27 @@ router.get(
         res.status(404).json({ error: "Conversation not found" });
         return;
       }
+      const parsedCursor = parseMessageCursor(req.query.beforeMessageId);
+      if (!parsedCursor.valid) {
+        res.status(400).json({ error: "Message cursor is invalid" });
+        return;
+      }
       const limit = Math.min(
         100,
-        Math.max(1, Number.parseInt(String(req.query.limit ?? "50"), 10) || 50),
+        Math.max(1, Number.parseInt(String(req.query.limit ?? "80"), 10) || 80),
       );
+      const beforeMessageId = parsedCursor.cursor?.id ?? null;
+      if (beforeMessageId) {
+        const cursorExists = await pool.query(
+          `SELECT 1 FROM messenger_messages
+           WHERE id = $1 AND conversation_id = $2`,
+          [beforeMessageId, conversationId],
+        );
+        if (!cursorExists.rows[0]) {
+          res.status(400).json({ error: "Message cursor is invalid" });
+          return;
+        }
+      }
       const audioColumns = (await hasVoiceMetadataSchema(pool))
         ? "m.message_type, m.audio_duration_ms"
         : "'text'::text AS message_type, NULL::integer AS audio_duration_ms";
@@ -544,7 +562,7 @@ router.get(
                ) ORDER BY grouped.emoji)
                FROM (
                  SELECT emoji, count(*)::int AS count,
-                        bool_or(user_id = $3) AS reacted_by_me
+                         bool_or(user_id = $4) AS reacted_by_me
                  FROM messenger_message_reactions
                  WHERE message_id = m.id
                  GROUP BY emoji
@@ -573,11 +591,17 @@ router.get(
            FROM messenger_messages m
            ${toolsJoins}
            WHERE m.conversation_id = $1
-           ORDER BY m.created_at DESC
+              AND ($3::text IS NULL OR EXISTS (
+                SELECT 1 FROM messenger_messages cursor
+                WHERE cursor.id = $3 AND cursor.conversation_id = m.conversation_id
+                  AND (m.created_at < cursor.created_at
+                       OR (m.created_at = cursor.created_at AND m.id < cursor.id))
+              ))
+            ORDER BY m.created_at DESC, m.id DESC
            LIMIT $2
          )
-         SELECT * FROM recent ORDER BY created_at ASC`,
-        [conversationId, limit, userId],
+          SELECT * FROM recent ORDER BY created_at ASC, id ASC`,
+        [conversationId, limit, beforeMessageId, userId],
       );
       await pool.query(
         `UPDATE messenger_messages SET delivered_at = COALESCE(delivered_at, now())

@@ -596,6 +596,19 @@ export type UpdateMessengerGroupMuteBody = {
   isMuted: boolean;
 };
 
+export type ListMessengerGroupMessagesParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * @minLength 1
+ * @maxLength 80
+ */
+beforeMessageId?: string;
+};
+
 export type DeleteMessengerStatus200 = {
   ok: boolean;
 };
@@ -654,6 +667,11 @@ export type ListMessengerMessagesParams = {
  * @maximum 100
  */
 limit?: number;
+/**
+ * @minLength 1
+ * @maxLength 80
+ */
+beforeMessageId?: string;
 };
 
 export type ListMessengerMessages200 = {
@@ -671,6 +689,11 @@ export type SendMessengerMessageBody = {
      * @maxLength 80
      */
   clientMessageId: string;
+  /**
+     * @minLength 8
+     * @maxLength 80
+     */
+  replyToMessageId?: string;
 };
 
 export type SendMessengerMessage200 = {

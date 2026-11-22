@@ -6,12 +6,13 @@ import {
   useListMessengerGroupMessages,
   useReportMessengerContent,
   useSendMessengerGroupMessage,
+  listMessengerGroupMessages,
   type GroupMessage,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -27,6 +28,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { AppHeader } from "../../../components/AppHeader";
 import { Notice, Screen } from "../../../components/Screen";
 import { queryKeys } from "../../../lib/api";
+import {
+  getStableClientMessageId,
+  type PendingClientMessageId,
+} from "../../../lib/client-message-id";
 import { readableError, shortTime } from "../../../lib/format";
 import { colors } from "../../../lib/theme";
 
@@ -42,6 +47,14 @@ export default function GroupChatScreen() {
   const groupId = firstParam(useLocalSearchParams<{ groupId?: string }>().groupId);
   const [body, setBody] = useState("");
   const [notice, setNotice] = useState("");
+  const pendingMessageId = useRef<PendingClientMessageId>(null);
+  const olderLoadLock = useRef(false);
+  const [olderHistory, setOlderHistory] = useState<{
+    groupId: string;
+    messages: GroupMessage[];
+    hasMore: boolean | null;
+    loading: boolean;
+  }>({ groupId, messages: [], hasMore: null, loading: false });
 
   const capability = useGetMessengerGroupsCapability({
     query: { enabled: isLoaded && !!isSignedIn, retry: false },
@@ -56,17 +69,25 @@ export default function GroupChatScreen() {
       retry: false,
     },
   });
-  const messages = useListMessengerGroupMessages(groupId, {
-    query: {
-      enabled: isLoaded && !!isSignedIn && capability.data?.enabled === true && !!groupId,
-      refetchInterval: 5_000,
-      refetchIntervalInBackground: false,
-      retry: false,
+  const messages = useListMessengerGroupMessages(
+    groupId,
+    { limit: 81 },
+    {
+      query: {
+        queryKey: queryKeys.groupMessages(groupId),
+        enabled: isLoaded && !!isSignedIn && capability.data?.enabled === true && !!groupId,
+        refetchInterval: 5_000,
+        refetchIntervalInBackground: false,
+        retry: false,
+      },
     },
-  });
+  );
   const send = useSendMessengerGroupMessage({
     mutation: {
-      onSuccess: async () => {
+      onSuccess: async (_result, variables) => {
+        if (pendingMessageId.current?.id === variables.data.clientMessageId) {
+          pendingMessageId.current = null;
+        }
         setBody("");
         setNotice("");
         await Promise.all([
@@ -84,6 +105,45 @@ export default function GroupChatScreen() {
       onError: (error) => setNotice(readableError(error, "تعذر إرسال البلاغ.")),
     },
   });
+  const latestMessages = messages.data?.messages ?? [];
+  const currentOlderHistory =
+    olderHistory.groupId === groupId
+      ? olderHistory
+      : { groupId, messages: [], hasMore: null, loading: false };
+  const canLoadOlderMessages =
+    currentOlderHistory.hasMore ?? latestMessages.length === 81;
+  const loadOlderMessages = async () => {
+    const oldest = currentOlderHistory.messages[0] ?? latestMessages[0];
+    if (!oldest || !canLoadOlderMessages || olderLoadLock.current) return;
+    const requestedGroupId = groupId;
+    olderLoadLock.current = true;
+    setOlderHistory({ ...currentOlderHistory, loading: true });
+    try {
+      const page = await listMessengerGroupMessages(requestedGroupId, {
+        limit: 81,
+        beforeMessageId: oldest.id,
+      });
+      setOlderHistory((current) => {
+        const existing =
+          current.groupId === requestedGroupId ? current.messages : [];
+        return {
+          groupId: requestedGroupId,
+          messages: [...page.messages, ...existing],
+          hasMore: page.messages.length === 81,
+          loading: false,
+        };
+      });
+    } catch (error) {
+      setNotice(readableError(error, "تعذر تحميل الرسائل الأقدم."));
+      setOlderHistory((current) =>
+        current.groupId === requestedGroupId
+          ? { ...current, loading: false }
+          : current,
+      );
+    } finally {
+      olderLoadLock.current = false;
+    }
+  };
 
   if (!isLoaded) return <Loading />;
   if (!isSignedIn) return <Redirect href="/sign-in" />;
@@ -93,9 +153,16 @@ export default function GroupChatScreen() {
     const clean = body.trim();
     if (!clean || !groupId) return;
     setNotice("");
+    const key = JSON.stringify([groupId, clean]);
+    const pending = getStableClientMessageId(
+      pendingMessageId.current,
+      key,
+      () => Crypto.randomUUID(),
+    );
+    pendingMessageId.current = pending;
     send.mutate({
       groupId,
-      data: { body: clean, clientMessageId: Crypto.randomUUID() },
+      data: { body: clean, clientMessageId: pending.id },
     });
   };
   const sendReport = (messageId: string) => {
@@ -132,7 +199,10 @@ export default function GroupChatScreen() {
     );
   }
 
-  const messageList = [...(messages.data?.messages ?? [])].reverse();
+  const messageList = [
+    ...currentOlderHistory.messages,
+    ...latestMessages,
+  ].reverse();
 
   return (
     <Screen>
@@ -166,6 +236,23 @@ export default function GroupChatScreen() {
                 <Ionicons name="chatbubble-ellipses-outline" size={35} color={colors.blue} />
                 <Text style={styles.copy}>ابدأوا أول محادثة في المجموعة.</Text>
               </View>
+            }
+            ListFooterComponent={
+              canLoadOlderMessages ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="تحميل رسائل أقدم"
+                  disabled={currentOlderHistory.loading}
+                  onPress={() => void loadOlderMessages()}
+                  style={styles.loadOlderButton}
+                >
+                  {currentOlderHistory.loading ? (
+                    <ActivityIndicator color={colors.blue} />
+                  ) : (
+                    <Text style={styles.loadOlderText}>تحميل رسائل أقدم</Text>
+                  )}
+                </Pressable>
+              ) : undefined
             }
           />
         )}
@@ -243,6 +330,8 @@ function Loading() {
 
 const styles = StyleSheet.create({
   keyboard: { flex: 1 },
+  loadOlderButton: { alignSelf: "center", minHeight: 38, justifyContent: "center", paddingHorizontal: 16 },
+  loadOlderText: { color: colors.blue, fontSize: 13, fontWeight: "700" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 22 },
   messages: { padding: 14, gap: 10 },
   emptyMessages: { flexGrow: 1, justifyContent: "center" },

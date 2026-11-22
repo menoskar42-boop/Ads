@@ -8,6 +8,7 @@ import {
   normalizeStatusAudience,
   normalizeStatusBody,
 } from "../lib/messenger-groups-policy";
+import { parseMessageCursor } from "../lib/message-pagination";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -596,6 +597,30 @@ router.get("/messenger/groups/:groupId/messages", requireAuth, async (req, res, 
     if (!pool || !(await requireGroupsSchema(pool, res))) return;
     const groupId = String(req.params.groupId);
     const userId = userIdFrom(res);
+    const parsedCursor = parseMessageCursor(req.query.beforeMessageId);
+    if (!parsedCursor.valid) {
+      res.status(400).json({ error: "مؤشر الرسائل غير صالح." });
+      return;
+    }
+    const beforeMessageId = parsedCursor.cursor?.id ?? null;
+    if (beforeMessageId) {
+      const cursorExists = await pool.query(
+        `SELECT 1
+         FROM messenger_group_messages message
+         JOIN messenger_group_members member
+           ON member.group_id = message.group_id AND member.user_id = $3
+         WHERE message.group_id = $1 AND message.id = $2`,
+        [groupId, beforeMessageId, userId],
+      );
+      if (!cursorExists.rows[0]) {
+        res.status(400).json({ error: "مؤشر الرسائل غير صالح." });
+        return;
+      }
+    }
+    const limit = Math.min(
+      MAX_GROUP_MESSAGES,
+      Math.max(1, Number.parseInt(String(req.query.limit ?? "80"), 10) || 80),
+    );
     const result = await pool.query(
       `SELECT messages.id, messages.group_id, messages.sender_id,
               profiles.display_name AS sender_name, messages.body, messages.created_at
@@ -603,16 +628,23 @@ router.get("/messenger/groups/:groupId/messages", requireAuth, async (req, res, 
          SELECT id, group_id, sender_id, body, created_at
          FROM messenger_group_messages
          WHERE group_id = $1
+            AND ($4::text IS NULL OR EXISTS (
+              SELECT 1 FROM messenger_group_messages cursor
+              WHERE cursor.id = $4 AND cursor.group_id = $1
+                AND (messenger_group_messages.created_at < cursor.created_at
+                     OR (messenger_group_messages.created_at = cursor.created_at
+                         AND messenger_group_messages.id < cursor.id))
+            ))
            AND EXISTS (
              SELECT 1 FROM messenger_group_members
              WHERE group_id = $1 AND user_id = $2
            )
-         ORDER BY created_at DESC, id DESC
-         LIMIT $3
+          ORDER BY created_at DESC, id DESC
+          LIMIT $3
        ) messages
        JOIN messenger_profiles profiles ON profiles.user_id = messages.sender_id
        ORDER BY messages.created_at, messages.id`,
-      [groupId, userId, MAX_GROUP_MESSAGES],
+      [groupId, userId, limit, beforeMessageId],
     );
     if (!result.rows.length && !(await memberRole(pool, groupId, userId))) {
       res.status(404).json({ error: "المجموعة غير موجودة أو لم تعد عضوًا فيها." });

@@ -541,6 +541,18 @@ export const ListMessengerGroupMessagesParams = zod.object({
   "groupId": zod.coerce.string().min(listMessengerGroupMessagesPathGroupIdMin).max(listMessengerGroupMessagesPathGroupIdMax)
 })
 
+export const listMessengerGroupMessagesQueryLimitDefault = 80;
+export const listMessengerGroupMessagesQueryLimitMax = 100;
+
+export const listMessengerGroupMessagesQueryBeforeMessageIdMax = 80;
+
+
+
+export const ListMessengerGroupMessagesQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(listMessengerGroupMessagesQueryLimitMax).default(listMessengerGroupMessagesQueryLimitDefault),
+  "beforeMessageId": zod.coerce.string().min(1).max(listMessengerGroupMessagesQueryBeforeMessageIdMax).optional()
+})
+
 export const listMessengerGroupMessagesResponseMessagesMax = 100;
 
 
@@ -903,13 +915,16 @@ export const ListMessengerMessagesParams = zod.object({
   "conversationId": zod.coerce.string().min(listMessengerMessagesPathConversationIdMin).max(listMessengerMessagesPathConversationIdMax)
 })
 
-export const listMessengerMessagesQueryLimitDefault = 50;
+export const listMessengerMessagesQueryLimitDefault = 80;
 export const listMessengerMessagesQueryLimitMax = 100;
+
+export const listMessengerMessagesQueryBeforeMessageIdMax = 80;
 
 
 
 export const ListMessengerMessagesQueryParams = zod.object({
-  "limit": zod.coerce.number().int().min(1).max(listMessengerMessagesQueryLimitMax).default(listMessengerMessagesQueryLimitDefault)
+  "limit": zod.coerce.number().int().min(1).max(listMessengerMessagesQueryLimitMax).default(listMessengerMessagesQueryLimitDefault),
+  "beforeMessageId": zod.coerce.string().min(1).max(listMessengerMessagesQueryBeforeMessageIdMax).optional()
 })
 
 export const listMessengerMessagesResponseMessagesItemAudioDurationMsOneMax = 120000;
@@ -971,11 +986,15 @@ export const sendMessengerMessageBodyBodyMax = 4000;
 export const sendMessengerMessageBodyClientMessageIdMin = 8;
 export const sendMessengerMessageBodyClientMessageIdMax = 80;
 
+export const sendMessengerMessageBodyReplyToMessageIdMin = 8;
+export const sendMessengerMessageBodyReplyToMessageIdMax = 80;
+
 
 
 export const SendMessengerMessageBody = zod.object({
   "body": zod.string().min(1).max(sendMessengerMessageBodyBodyMax),
-  "clientMessageId": zod.string().min(sendMessengerMessageBodyClientMessageIdMin).max(sendMessengerMessageBodyClientMessageIdMax)
+  "clientMessageId": zod.string().min(sendMessengerMessageBodyClientMessageIdMin).max(sendMessengerMessageBodyClientMessageIdMax),
+  "replyToMessageId": zod.string().min(sendMessengerMessageBodyReplyToMessageIdMin).max(sendMessengerMessageBodyReplyToMessageIdMax).optional()
 })
 
 export const sendMessengerMessageResponseMessageAudioDurationMsOneMax = 120000;
