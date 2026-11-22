@@ -55,6 +55,11 @@ function AppRoutes() {
         <Stack.Screen name="chat/[conversationId]" />
         <Stack.Screen name="scheduled" />
         <Stack.Screen name="settings" />
+        <Stack.Screen name="groups/index" />
+        <Stack.Screen name="groups/new" />
+        <Stack.Screen name="groups/[groupId]" />
+        <Stack.Screen name="groups/[groupId]/settings" />
+        <Stack.Screen name="statuses" />
       </Stack>
     </>
   );

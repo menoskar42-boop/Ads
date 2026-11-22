@@ -179,6 +179,25 @@ export default function InboxScreen() {
           <Ionicons name="chevron-back" size={18} color={colors.muted} />
         </Pressable>
 
+        <View style={styles.communityShortcuts}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/statuses")}
+            style={({ pressed }) => [styles.communityShortcut, pressed && styles.pressed]}
+          >
+            <Ionicons name="radio-outline" size={19} color={colors.blue} />
+            <Text style={styles.communityShortcutText}>الحالات الخاصة</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/groups")}
+            style={({ pressed }) => [styles.communityShortcut, pressed && styles.pressed]}
+          >
+            <Ionicons name="people-outline" size={19} color={colors.blue} />
+            <Text style={styles.communityShortcutText}>المجموعات</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.messageSearch}>
           <Ionicons name="search-outline" size={19} color={colors.muted} />
           <TextInput
@@ -485,6 +504,9 @@ const styles = StyleSheet.create({
   scheduledCopy: { flex: 1, alignItems: "flex-end", gap: 4 },
   scheduledTitle: { color: colors.text, fontSize: 14, fontWeight: "800", textAlign: "right" },
   scheduledSub: { color: colors.muted, fontSize: 11, textAlign: "right" },
+  communityShortcuts: { flexDirection: "row", gap: 10, marginTop: -12, marginBottom: 18 },
+  communityShortcut: { flex: 1, minHeight: 50, flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  communityShortcutText: { color: colors.text, fontSize: 13, fontWeight: "800" },
   messageSearch: { minHeight: 48, flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingHorizontal: 13, marginBottom: 12, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   messageSearchInput: { flex: 1, minHeight: 46, color: colors.text, fontSize: 14 },
   searchResults: { maxHeight: 250, marginBottom: 13, padding: 8, borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: 6 },

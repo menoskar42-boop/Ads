@@ -167,6 +167,530 @@ export const GetMessengerFeaturesCapabilityResponse = zod.object({
 
 
 /**
+ * @summary Check whether groups and private statuses are enabled
+ */
+export const GetMessengerGroupsCapabilityResponse = zod.object({
+  "enabled": zod.boolean(),
+  "reason": zod.union([zod.enum(['database_update_required']),zod.null()]),
+  "maxMembers": zod.literal(50),
+  "statusLifetimeHours": zod.literal(24)
+})
+
+
+/**
+ * @summary List groups the signed-in user belongs to
+ */
+export const listMessengerGroupsResponseGroupsItemMemberCountMax = 50;
+
+
+
+export const ListMessengerGroupsResponse = zod.object({
+  "groups": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "memberCount": zod.int().min(1).max(listMessengerGroupsResponseGroupsItemMemberCountMax),
+  "lastMessage": zod.string(),
+  "updatedAt": zod.coerce.date(),
+  "isMuted": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Create a private group and add its first members
+ */
+export const createMessengerGroupBodyNameMax = 60;
+
+export const createMessengerGroupBodyMemberUserIdsItemMax = 255;
+
+export const createMessengerGroupBodyMemberUserIdsMax = 49;
+
+
+
+export const CreateMessengerGroupBody = zod.object({
+  "name": zod.string().min(1).max(createMessengerGroupBodyNameMax),
+  "memberUserIds": zod.array(zod.string().min(1).max(createMessengerGroupBodyMemberUserIdsItemMax)).min(1).max(createMessengerGroupBodyMemberUserIdsMax).optional()
+})
+
+export const createMessengerGroupResponseGroupOneMemberCountMax = 50;
+
+export const createMessengerGroupResponseGroupTwoMembersMax = 50;
+
+
+
+export const CreateMessengerGroupResponse = zod.object({
+  "group": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "memberCount": zod.int().min(1).max(createMessengerGroupResponseGroupOneMemberCountMax),
+  "lastMessage": zod.string(),
+  "updatedAt": zod.coerce.date(),
+  "isMuted": zod.boolean()
+}).and(zod.object({
+  "ownerId": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "joinedAt": zod.coerce.date()
+})).max(createMessengerGroupResponseGroupTwoMembersMax)
+}))
+})
+
+
+/**
+ * @summary Get group details only as a current member
+ */
+export const getMessengerGroupPathGroupIdMin = 8;
+export const getMessengerGroupPathGroupIdMax = 80;
+
+
+
+export const GetMessengerGroupParams = zod.object({
+  "groupId": zod.coerce.string().min(getMessengerGroupPathGroupIdMin).max(getMessengerGroupPathGroupIdMax)
+})
+
+export const getMessengerGroupResponseGroupOneMemberCountMax = 50;
+
+export const getMessengerGroupResponseGroupTwoMembersMax = 50;
+
+
+
+export const GetMessengerGroupResponse = zod.object({
+  "group": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "memberCount": zod.int().min(1).max(getMessengerGroupResponseGroupOneMemberCountMax),
+  "lastMessage": zod.string(),
+  "updatedAt": zod.coerce.date(),
+  "isMuted": zod.boolean()
+}).and(zod.object({
+  "ownerId": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "joinedAt": zod.coerce.date()
+})).max(getMessengerGroupResponseGroupTwoMembersMax)
+}))
+})
+
+
+/**
+ * @summary Rename a group as an owner or admin
+ */
+export const updateMessengerGroupPathGroupIdMin = 8;
+export const updateMessengerGroupPathGroupIdMax = 80;
+
+
+
+export const UpdateMessengerGroupParams = zod.object({
+  "groupId": zod.coerce.string().min(updateMessengerGroupPathGroupIdMin).max(updateMessengerGroupPathGroupIdMax)
+})
+
+export const updateMessengerGroupBodyNameMax = 60;
+
+
+
+export const UpdateMessengerGroupBody = zod.object({
+  "name": zod.string().min(1).max(updateMessengerGroupBodyNameMax)
+})
+
+export const updateMessengerGroupResponseGroupOneMemberCountMax = 50;
+
+export const updateMessengerGroupResponseGroupTwoMembersMax = 50;
+
+
+
+export const UpdateMessengerGroupResponse = zod.object({
+  "group": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "memberCount": zod.int().min(1).max(updateMessengerGroupResponseGroupOneMemberCountMax),
+  "lastMessage": zod.string(),
+  "updatedAt": zod.coerce.date(),
+  "isMuted": zod.boolean()
+}).and(zod.object({
+  "ownerId": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "joinedAt": zod.coerce.date()
+})).max(updateMessengerGroupResponseGroupTwoMembersMax)
+}))
+})
+
+
+/**
+ * @summary Add an account to a group as an owner or admin
+ */
+export const addMessengerGroupMemberPathGroupIdMin = 8;
+export const addMessengerGroupMemberPathGroupIdMax = 80;
+
+
+
+export const AddMessengerGroupMemberParams = zod.object({
+  "groupId": zod.coerce.string().min(addMessengerGroupMemberPathGroupIdMin).max(addMessengerGroupMemberPathGroupIdMax)
+})
+
+export const addMessengerGroupMemberBodyUserIdMax = 255;
+
+
+
+export const AddMessengerGroupMemberBody = zod.object({
+  "userId": zod.string().min(1).max(addMessengerGroupMemberBodyUserIdMax)
+})
+
+export const addMessengerGroupMemberResponseGroupOneMemberCountMax = 50;
+
+export const addMessengerGroupMemberResponseGroupTwoMembersMax = 50;
+
+
+
+export const AddMessengerGroupMemberResponse = zod.object({
+  "group": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "memberCount": zod.int().min(1).max(addMessengerGroupMemberResponseGroupOneMemberCountMax),
+  "lastMessage": zod.string(),
+  "updatedAt": zod.coerce.date(),
+  "isMuted": zod.boolean()
+}).and(zod.object({
+  "ownerId": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "joinedAt": zod.coerce.date()
+})).max(addMessengerGroupMemberResponseGroupTwoMembersMax)
+}))
+})
+
+
+/**
+ * @summary Remove a member according to group roles
+ */
+export const removeMessengerGroupMemberPathGroupIdMin = 8;
+export const removeMessengerGroupMemberPathGroupIdMax = 80;
+
+export const removeMessengerGroupMemberPathUserIdMax = 255;
+
+
+
+export const RemoveMessengerGroupMemberParams = zod.object({
+  "groupId": zod.coerce.string().min(removeMessengerGroupMemberPathGroupIdMin).max(removeMessengerGroupMemberPathGroupIdMax),
+  "userId": zod.coerce.string().min(1).max(removeMessengerGroupMemberPathUserIdMax)
+})
+
+export const removeMessengerGroupMemberResponseGroupOneMemberCountMax = 50;
+
+export const removeMessengerGroupMemberResponseGroupTwoMembersMax = 50;
+
+
+
+export const RemoveMessengerGroupMemberResponse = zod.object({
+  "group": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "memberCount": zod.int().min(1).max(removeMessengerGroupMemberResponseGroupOneMemberCountMax),
+  "lastMessage": zod.string(),
+  "updatedAt": zod.coerce.date(),
+  "isMuted": zod.boolean()
+}).and(zod.object({
+  "ownerId": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "joinedAt": zod.coerce.date()
+})).max(removeMessengerGroupMemberResponseGroupTwoMembersMax)
+}))
+})
+
+
+/**
+ * @summary Promote or demote a member as the group owner
+ */
+export const setMessengerGroupMemberRolePathGroupIdMin = 8;
+export const setMessengerGroupMemberRolePathGroupIdMax = 80;
+
+export const setMessengerGroupMemberRolePathUserIdMax = 255;
+
+
+
+export const SetMessengerGroupMemberRoleParams = zod.object({
+  "groupId": zod.coerce.string().min(setMessengerGroupMemberRolePathGroupIdMin).max(setMessengerGroupMemberRolePathGroupIdMax),
+  "userId": zod.coerce.string().min(1).max(setMessengerGroupMemberRolePathUserIdMax)
+})
+
+export const SetMessengerGroupMemberRoleBody = zod.object({
+  "role": zod.enum(['admin', 'member'])
+})
+
+export const setMessengerGroupMemberRoleResponseGroupOneMemberCountMax = 50;
+
+export const setMessengerGroupMemberRoleResponseGroupTwoMembersMax = 50;
+
+
+
+export const SetMessengerGroupMemberRoleResponse = zod.object({
+  "group": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "memberCount": zod.int().min(1).max(setMessengerGroupMemberRoleResponseGroupOneMemberCountMax),
+  "lastMessage": zod.string(),
+  "updatedAt": zod.coerce.date(),
+  "isMuted": zod.boolean()
+}).and(zod.object({
+  "ownerId": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "joinedAt": zod.coerce.date()
+})).max(setMessengerGroupMemberRoleResponseGroupTwoMembersMax)
+}))
+})
+
+
+/**
+ * @summary Leave a group and transfer ownership when needed
+ */
+export const leaveMessengerGroupPathGroupIdMin = 8;
+export const leaveMessengerGroupPathGroupIdMax = 80;
+
+
+
+export const LeaveMessengerGroupParams = zod.object({
+  "groupId": zod.coerce.string().min(leaveMessengerGroupPathGroupIdMin).max(leaveMessengerGroupPathGroupIdMax)
+})
+
+export const LeaveMessengerGroupResponse = zod.object({
+  "ok": zod.boolean(),
+  "groupDeleted": zod.boolean()
+})
+
+
+/**
+ * @summary Mute or unmute a group for the signed-in user
+ */
+export const updateMessengerGroupMutePathGroupIdMin = 8;
+export const updateMessengerGroupMutePathGroupIdMax = 80;
+
+
+
+export const UpdateMessengerGroupMuteParams = zod.object({
+  "groupId": zod.coerce.string().min(updateMessengerGroupMutePathGroupIdMin).max(updateMessengerGroupMutePathGroupIdMax)
+})
+
+export const UpdateMessengerGroupMuteBody = zod.object({
+  "isMuted": zod.boolean()
+})
+
+export const updateMessengerGroupMuteResponseGroupOneMemberCountMax = 50;
+
+export const updateMessengerGroupMuteResponseGroupTwoMembersMax = 50;
+
+
+
+export const UpdateMessengerGroupMuteResponse = zod.object({
+  "group": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "memberCount": zod.int().min(1).max(updateMessengerGroupMuteResponseGroupOneMemberCountMax),
+  "lastMessage": zod.string(),
+  "updatedAt": zod.coerce.date(),
+  "isMuted": zod.boolean()
+}).and(zod.object({
+  "ownerId": zod.string(),
+  "members": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "role": zod.enum(['owner', 'admin', 'member']),
+  "joinedAt": zod.coerce.date()
+})).max(updateMessengerGroupMuteResponseGroupTwoMembersMax)
+}))
+})
+
+
+/**
+ * @summary List recent group messages for a current member
+ */
+export const listMessengerGroupMessagesPathGroupIdMin = 8;
+export const listMessengerGroupMessagesPathGroupIdMax = 80;
+
+
+
+export const ListMessengerGroupMessagesParams = zod.object({
+  "groupId": zod.coerce.string().min(listMessengerGroupMessagesPathGroupIdMin).max(listMessengerGroupMessagesPathGroupIdMax)
+})
+
+export const listMessengerGroupMessagesResponseMessagesMax = 100;
+
+
+
+export const ListMessengerGroupMessagesResponse = zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.string(),
+  "groupId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date()
+})).max(listMessengerGroupMessagesResponseMessagesMax)
+})
+
+
+/**
+ * @summary Send a text message to a group
+ */
+export const sendMessengerGroupMessagePathGroupIdMin = 8;
+export const sendMessengerGroupMessagePathGroupIdMax = 80;
+
+
+
+export const SendMessengerGroupMessageParams = zod.object({
+  "groupId": zod.coerce.string().min(sendMessengerGroupMessagePathGroupIdMin).max(sendMessengerGroupMessagePathGroupIdMax)
+})
+
+export const sendMessengerGroupMessageBodyBodyMax = 4000;
+
+export const sendMessengerGroupMessageBodyClientMessageIdMin = 8;
+export const sendMessengerGroupMessageBodyClientMessageIdMax = 80;
+
+
+
+export const SendMessengerGroupMessageBody = zod.object({
+  "body": zod.string().min(1).max(sendMessengerGroupMessageBodyBodyMax),
+  "clientMessageId": zod.string().min(sendMessengerGroupMessageBodyClientMessageIdMin).max(sendMessengerGroupMessageBodyClientMessageIdMax)
+})
+
+export const SendMessengerGroupMessageResponse = zod.object({
+  "message": zod.object({
+  "id": zod.string(),
+  "groupId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary List unexpired statuses addressed to the signed-in user
+ */
+export const listMessengerStatusesResponseStatusesItemBodyMax = 500;
+
+export const listMessengerStatusesResponseStatusesMax = 100;
+
+
+
+export const ListMessengerStatusesResponse = zod.object({
+  "statuses": zod.array(zod.object({
+  "id": zod.string(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "body": zod.string().max(listMessengerStatusesResponseStatusesItemBodyMax),
+  "audienceMode": zod.enum(['contacts', 'selected']),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "isMine": zod.boolean()
+})).max(listMessengerStatusesResponseStatusesMax)
+})
+
+
+/**
+ * @summary Publish a private status for contacts or selected contacts
+ */
+export const createMessengerStatusBodyBodyMax = 500;
+
+export const createMessengerStatusBodyAudienceUserIdsItemMax = 255;
+
+export const createMessengerStatusBodyAudienceUserIdsMax = 100;
+
+
+
+export const CreateMessengerStatusBody = zod.object({
+  "body": zod.string().min(1).max(createMessengerStatusBodyBodyMax),
+  "audienceMode": zod.enum(['contacts', 'selected']),
+  "audienceUserIds": zod.array(zod.string().min(1).max(createMessengerStatusBodyAudienceUserIdsItemMax)).min(1).max(createMessengerStatusBodyAudienceUserIdsMax).optional()
+})
+
+export const createMessengerStatusResponseStatusBodyMax = 500;
+
+
+
+export const CreateMessengerStatusResponse = zod.object({
+  "status": zod.object({
+  "id": zod.string(),
+  "authorId": zod.string(),
+  "authorName": zod.string(),
+  "body": zod.string().max(createMessengerStatusResponseStatusBodyMax),
+  "audienceMode": zod.enum(['contacts', 'selected']),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "isMine": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Delete a status created by the signed-in user
+ */
+export const deleteMessengerStatusPathStatusIdMin = 8;
+export const deleteMessengerStatusPathStatusIdMax = 80;
+
+
+
+export const DeleteMessengerStatusParams = zod.object({
+  "statusId": zod.coerce.string().min(deleteMessengerStatusPathStatusIdMin).max(deleteMessengerStatusPathStatusIdMax)
+})
+
+export const DeleteMessengerStatusResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Report visible group or status content as unwanted
+ */
+export const reportMessengerContentBodyTargetIdMax = 80;
+
+export const reportMessengerContentBodyReasonMin = 5;
+export const reportMessengerContentBodyReasonMax = 500;
+
+
+
+export const ReportMessengerContentBody = zod.object({
+  "targetType": zod.enum(['group_message', 'status']),
+  "targetId": zod.string().min(1).max(reportMessengerContentBodyTargetIdMax),
+  "reason": zod.string().min(reportMessengerContentBodyReasonMin).max(reportMessengerContentBodyReasonMax)
+})
+
+export const ReportMessengerContentResponse = zod.object({
+  "ok": zod.boolean(),
+  "alreadyReported": zod.boolean()
+})
+
+
+/**
  * @summary Search messages in the signed-in user's conversations
  */
 export const searchMessengerMessagesQueryQueryMin = 2;

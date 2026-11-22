@@ -22,4 +22,10 @@ export const queryKeys = {
   people: (query: string) => ["messenger", "people", query] as const,
   scheduled: ["messenger", "scheduled-messages"] as const,
   voiceCapability: ["messenger", "voice-message-capability"] as const,
+  groupCapability: ["messenger", "groups-capability"] as const,
+  groups: ["messenger", "groups"] as const,
+  group: (groupId: string) => ["messenger", "group", groupId] as const,
+  groupMessages: (groupId: string) =>
+    ["messenger", "group-messages", groupId] as const,
+  statuses: ["messenger", "statuses"] as const,
 };

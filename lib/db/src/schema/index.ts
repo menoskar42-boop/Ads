@@ -18,4 +18,5 @@
 //   export type Post = typeof postsTable.$inferSelect;
 
 export * from "./messenger";
+export * from "./messenger-groups";
 export * from "./messenger-scheduled-messages";

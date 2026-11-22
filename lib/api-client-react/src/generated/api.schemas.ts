@@ -303,6 +303,222 @@ export interface Conversation {
   isArchived: boolean;
 }
 
+export type GroupsCapabilityReason = typeof GroupsCapabilityReason[keyof typeof GroupsCapabilityReason] | null;
+
+
+export const GroupsCapabilityReason = {
+  database_update_required: 'database_update_required',
+} as const;
+
+export type GroupsCapabilityMaxMembers = typeof GroupsCapabilityMaxMembers[keyof typeof GroupsCapabilityMaxMembers];
+
+
+export const GroupsCapabilityMaxMembers = {
+  NUMBER_50: 50,
+} as const;
+
+export type GroupsCapabilityStatusLifetimeHours = typeof GroupsCapabilityStatusLifetimeHours[keyof typeof GroupsCapabilityStatusLifetimeHours];
+
+
+export const GroupsCapabilityStatusLifetimeHours = {
+  NUMBER_24: 24,
+} as const;
+
+export interface GroupsCapability {
+  enabled: boolean;
+  reason: GroupsCapabilityReason;
+  maxMembers: GroupsCapabilityMaxMembers;
+  statusLifetimeHours: GroupsCapabilityStatusLifetimeHours;
+}
+
+export type GroupMemberRole = typeof GroupMemberRole[keyof typeof GroupMemberRole];
+
+
+export const GroupMemberRole = {
+  owner: 'owner',
+  admin: 'admin',
+  member: 'member',
+} as const;
+
+export interface GroupMember {
+  userId: string;
+  username: string;
+  displayName: string;
+  role: GroupMemberRole;
+  joinedAt: string;
+}
+
+export type GroupSummaryRole = typeof GroupSummaryRole[keyof typeof GroupSummaryRole];
+
+
+export const GroupSummaryRole = {
+  owner: 'owner',
+  admin: 'admin',
+  member: 'member',
+} as const;
+
+export interface GroupSummary {
+  id: string;
+  name: string;
+  role: GroupSummaryRole;
+  /**
+     * @minimum 1
+     * @maximum 50
+     */
+  memberCount: number;
+  lastMessage: string;
+  updatedAt: string;
+  isMuted: boolean;
+}
+
+export type Group = GroupSummary & {
+  ownerId: string;
+  /** @maxItems 50 */
+  members: GroupMember[];
+};
+
+export interface GroupsResponse {
+  groups: GroupSummary[];
+}
+
+export interface GroupResponse {
+  group: Group;
+}
+
+export interface CreateGroupInput {
+  /**
+     * @minLength 1
+     * @maxLength 60
+     */
+  name: string;
+  /**
+     * @minItems 1
+     * @maxItems 49
+     * @items.minLength 1
+     * @items.maxLength 255
+     */
+  memberUserIds?: string[];
+}
+
+export interface GroupUpdateInput {
+  /**
+     * @minLength 1
+     * @maxLength 60
+     */
+  name: string;
+}
+
+export interface GroupMessage {
+  id: string;
+  groupId: string;
+  senderId: string;
+  senderName: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface GroupMessagesResponse {
+  /** @maxItems 100 */
+  messages: GroupMessage[];
+}
+
+export interface GroupMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+  /**
+     * @minLength 8
+     * @maxLength 80
+     */
+  clientMessageId: string;
+}
+
+export interface GroupMessageResponse {
+  message: GroupMessage;
+}
+
+export type StatusAudienceMode = typeof StatusAudienceMode[keyof typeof StatusAudienceMode];
+
+
+export const StatusAudienceMode = {
+  contacts: 'contacts',
+  selected: 'selected',
+} as const;
+
+export interface Status {
+  id: string;
+  authorId: string;
+  authorName: string;
+  /** @maxLength 500 */
+  body: string;
+  audienceMode: StatusAudienceMode;
+  createdAt: string;
+  expiresAt: string;
+  isMine: boolean;
+}
+
+export interface StatusesResponse {
+  /** @maxItems 100 */
+  statuses: Status[];
+}
+
+export type CreateStatusInputAudienceMode = typeof CreateStatusInputAudienceMode[keyof typeof CreateStatusInputAudienceMode];
+
+
+export const CreateStatusInputAudienceMode = {
+  contacts: 'contacts',
+  selected: 'selected',
+} as const;
+
+export interface CreateStatusInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  body: string;
+  audienceMode: CreateStatusInputAudienceMode;
+  /**
+     * @minItems 1
+     * @maxItems 100
+     * @items.minLength 1
+     * @items.maxLength 255
+     */
+  audienceUserIds?: string[];
+}
+
+export interface StatusResponse {
+  status: Status;
+}
+
+export type ContentReportInputTargetType = typeof ContentReportInputTargetType[keyof typeof ContentReportInputTargetType];
+
+
+export const ContentReportInputTargetType = {
+  group_message: 'group_message',
+  status: 'status',
+} as const;
+
+export interface ContentReportInput {
+  targetType: ContentReportInputTargetType;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  targetId: string;
+  /**
+     * @minLength 5
+     * @maxLength 500
+     */
+  reason: string;
+}
+
+export interface ContentReportResponse {
+  ok: boolean;
+  alreadyReported: boolean;
+}
+
 /**
  * Authentication required
  */
@@ -349,6 +565,39 @@ export type StartMessengerConversationBody = {
 
 export type StartMessengerConversation200 = {
   conversation: Conversation;
+};
+
+export type AddMessengerGroupMemberBody = {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  userId: string;
+};
+
+export type SetMessengerGroupMemberRoleBodyRole = typeof SetMessengerGroupMemberRoleBodyRole[keyof typeof SetMessengerGroupMemberRoleBodyRole];
+
+
+export const SetMessengerGroupMemberRoleBodyRole = {
+  admin: 'admin',
+  member: 'member',
+} as const;
+
+export type SetMessengerGroupMemberRoleBody = {
+  role: SetMessengerGroupMemberRoleBodyRole;
+};
+
+export type LeaveMessengerGroup200 = {
+  ok: boolean;
+  groupDeleted: boolean;
+};
+
+export type UpdateMessengerGroupMuteBody = {
+  isMuted: boolean;
+};
+
+export type DeleteMessengerStatus200 = {
+  ok: boolean;
 };
 
 export type SearchMessengerMessagesParams = {

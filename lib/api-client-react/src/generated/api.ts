@@ -25,14 +25,28 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AddMessengerGroupMemberBody,
   BadRequestResponse,
   CancelScheduledMessageResponse,
   ConflictResponse,
+  ContentReportInput,
+  ContentReportResponse,
   ConversationSettingsInput,
+  CreateGroupInput,
+  CreateStatusInput,
+  DeleteMessengerStatus200,
   ErrorResponse,
   ForwardMessengerMessage201,
   ForwardMessengerMessageBody,
+  GroupMessageInput,
+  GroupMessageResponse,
+  GroupMessagesResponse,
+  GroupResponse,
+  GroupUpdateInput,
+  GroupsCapability,
+  GroupsResponse,
   HealthStatus,
+  LeaveMessengerGroup200,
   ListMessengerConversations200,
   ListMessengerConversationsParams,
   ListMessengerMessages200,
@@ -55,12 +69,16 @@ import type {
   SendMessengerVoiceMessage200,
   SendMessengerVoiceMessage201,
   SendMessengerVoiceMessageParams,
+  SetMessengerGroupMemberRoleBody,
   StartMessengerConversation200,
   StartMessengerConversationBody,
+  StatusResponse,
+  StatusesResponse,
   ToggleMessengerMessageReaction200,
   ToggleMessengerMessageReactionBody,
   UnauthorizedResponse,
   UpdateMessengerConversationSettings200,
+  UpdateMessengerGroupMuteBody,
   UploadMessengerMedia201,
   VoiceMessageCapability
 } from './api.schemas';
@@ -888,6 +906,1446 @@ export function useGetMessengerFeaturesCapability<TData = Awaited<ReturnType<typ
 
 
 
+
+export const getGetMessengerGroupsCapabilityUrl = () => {
+
+
+
+
+  return `/api/messenger/groups/capability`
+}
+
+/**
+ * @summary Check whether groups and private statuses are enabled
+ */
+export const getMessengerGroupsCapability = async ( options?: Parameters<typeof customFetch>[1]): Promise<GroupsCapability> => {
+
+  return customFetch<GroupsCapability>(getGetMessengerGroupsCapabilityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerGroupsCapabilityQueryKey = () => {
+    return [
+    `/api/messenger/groups/capability`
+    ] as const;
+    }
+
+
+export const getGetMessengerGroupsCapabilityQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerGroupsCapabilityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerGroupsCapability>>> = ({ signal }) => getMessengerGroupsCapability({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerGroupsCapabilityQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerGroupsCapability>>>
+export type GetMessengerGroupsCapabilityQueryError = ErrorType<UnauthorizedResponse>
+
+
+export function useGetMessengerGroupsCapability<TData = Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerGroupsCapability>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerGroupsCapability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerGroupsCapability<TData = Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerGroupsCapability>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerGroupsCapability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerGroupsCapability<TData = Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Check whether groups and private statuses are enabled
+ */
+
+export function useGetMessengerGroupsCapability<TData = Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupsCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerGroupsCapabilityQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListMessengerGroupsUrl = () => {
+
+
+
+
+  return `/api/messenger/groups`
+}
+
+/**
+ * @summary List groups the signed-in user belongs to
+ */
+export const listMessengerGroups = async ( options?: Parameters<typeof customFetch>[1]): Promise<GroupsResponse> => {
+
+  return customFetch<GroupsResponse>(getListMessengerGroupsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMessengerGroupsQueryKey = () => {
+    return [
+    `/api/messenger/groups`
+    ] as const;
+    }
+
+
+export const getListMessengerGroupsQueryOptions = <TData = Awaited<ReturnType<typeof listMessengerGroups>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroups>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMessengerGroupsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMessengerGroups>>> = ({ signal }) => listMessengerGroups({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroups>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMessengerGroupsQueryResult = NonNullable<Awaited<ReturnType<typeof listMessengerGroups>>>
+export type ListMessengerGroupsQueryError = ErrorType<UnauthorizedResponse | ErrorResponse>
+
+
+export function useListMessengerGroups<TData = Awaited<ReturnType<typeof listMessengerGroups>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroups>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMessengerGroups>>,
+          TError,
+          Awaited<ReturnType<typeof listMessengerGroups>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMessengerGroups<TData = Awaited<ReturnType<typeof listMessengerGroups>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroups>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMessengerGroups>>,
+          TError,
+          Awaited<ReturnType<typeof listMessengerGroups>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMessengerGroups<TData = Awaited<ReturnType<typeof listMessengerGroups>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroups>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List groups the signed-in user belongs to
+ */
+
+export function useListMessengerGroups<TData = Awaited<ReturnType<typeof listMessengerGroups>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroups>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMessengerGroupsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMessengerGroupUrl = () => {
+
+
+
+
+  return `/api/messenger/groups`
+}
+
+/**
+ * @summary Create a private group and add its first members
+ */
+export const createMessengerGroup = async (createGroupInput: CreateGroupInput, options?: Parameters<typeof customFetch>[1]): Promise<GroupResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GroupResponse>(getCreateMessengerGroupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createGroupInput)
+  }
+);}
+
+
+
+
+
+export const getCreateMessengerGroupMutationKey = () => ['createMessengerGroup'] as const;
+
+export const getCreateMessengerGroupMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMessengerGroup>>, TError,CreateMessengerGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMessengerGroup>>, TError,CreateMessengerGroupMutationVariables, TContext> => {
+
+const mutationKey = getCreateMessengerGroupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMessengerGroup>>, CreateMessengerGroupMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMessengerGroup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMessengerGroupMutationResult = NonNullable<Awaited<ReturnType<typeof createMessengerGroup>>>
+    export type CreateMessengerGroupMutationBody = BodyType<CreateGroupInput>
+    export type CreateMessengerGroupMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type CreateMessengerGroupMutationVariables = {data: BodyType<CreateGroupInput>}
+
+    /**
+ * @summary Create a private group and add its first members
+ */
+export const useCreateMessengerGroup = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMessengerGroup>>, TError,CreateMessengerGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createMessengerGroup>>,
+        TError,
+        CreateMessengerGroupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateMessengerGroupMutationOptions(options), queryClient);
+    }
+
+export const getGetMessengerGroupUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}`
+}
+
+/**
+ * @summary Get group details only as a current member
+ */
+export const getMessengerGroup = async (groupId: string, options?: Parameters<typeof customFetch>[1]): Promise<GroupResponse> => {
+
+  return customFetch<GroupResponse>(getGetMessengerGroupUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerGroupQueryKey = (groupId: string,) => {
+    return [
+    `/api/messenger/groups/${groupId}`
+    ] as const;
+    }
+
+
+export const getGetMessengerGroupQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerGroup>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroup>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerGroupQueryKey(groupId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerGroup>>> = ({ signal }) => getMessengerGroup(groupId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: groupId !== null && groupId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroup>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerGroupQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerGroup>>>
+export type GetMessengerGroupQueryError = ErrorType<UnauthorizedResponse | ErrorResponse>
+
+
+export function useGetMessengerGroup<TData = Awaited<ReturnType<typeof getMessengerGroup>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ groupId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroup>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerGroup>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerGroup>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerGroup<TData = Awaited<ReturnType<typeof getMessengerGroup>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroup>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerGroup>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerGroup>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerGroup<TData = Awaited<ReturnType<typeof getMessengerGroup>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroup>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get group details only as a current member
+ */
+
+export function useGetMessengerGroup<TData = Awaited<ReturnType<typeof getMessengerGroup>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroup>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerGroupQueryOptions(groupId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateMessengerGroupUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}`
+}
+
+/**
+ * @summary Rename a group as an owner or admin
+ */
+export const updateMessengerGroup = async (groupId: string,
+    groupUpdateInput: GroupUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<GroupResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GroupResponse>(getUpdateMessengerGroupUrl(groupId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(groupUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateMessengerGroupMutationKey = () => ['updateMessengerGroup'] as const;
+
+export const getUpdateMessengerGroupMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerGroup>>, TError,UpdateMessengerGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMessengerGroup>>, TError,UpdateMessengerGroupMutationVariables, TContext> => {
+
+const mutationKey = getUpdateMessengerGroupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMessengerGroup>>, UpdateMessengerGroupMutationVariables> = (props) => {
+          const {groupId,data} = props ?? {};
+
+          return  updateMessengerGroup(groupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMessengerGroupMutationResult = NonNullable<Awaited<ReturnType<typeof updateMessengerGroup>>>
+    export type UpdateMessengerGroupMutationBody = BodyType<GroupUpdateInput>
+    export type UpdateMessengerGroupMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type UpdateMessengerGroupMutationVariables = {groupId: string;data: BodyType<GroupUpdateInput>}
+
+    /**
+ * @summary Rename a group as an owner or admin
+ */
+export const useUpdateMessengerGroup = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerGroup>>, TError,UpdateMessengerGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateMessengerGroup>>,
+        TError,
+        UpdateMessengerGroupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateMessengerGroupMutationOptions(options), queryClient);
+    }
+
+export const getAddMessengerGroupMemberUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}/members`
+}
+
+/**
+ * @summary Add an account to a group as an owner or admin
+ */
+export const addMessengerGroupMember = async (groupId: string,
+    addMessengerGroupMemberBody: AddMessengerGroupMemberBody, options?: Parameters<typeof customFetch>[1]): Promise<GroupResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GroupResponse>(getAddMessengerGroupMemberUrl(groupId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(addMessengerGroupMemberBody)
+  }
+);}
+
+
+
+
+
+export const getAddMessengerGroupMemberMutationKey = () => ['addMessengerGroupMember'] as const;
+
+export const getAddMessengerGroupMemberMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addMessengerGroupMember>>, TError,AddMessengerGroupMemberMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addMessengerGroupMember>>, TError,AddMessengerGroupMemberMutationVariables, TContext> => {
+
+const mutationKey = getAddMessengerGroupMemberMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addMessengerGroupMember>>, AddMessengerGroupMemberMutationVariables> = (props) => {
+          const {groupId,data} = props ?? {};
+
+          return  addMessengerGroupMember(groupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddMessengerGroupMemberMutationResult = NonNullable<Awaited<ReturnType<typeof addMessengerGroupMember>>>
+    export type AddMessengerGroupMemberMutationBody = BodyType<AddMessengerGroupMemberBody>
+    export type AddMessengerGroupMemberMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type AddMessengerGroupMemberMutationVariables = {groupId: string;data: BodyType<AddMessengerGroupMemberBody>}
+
+    /**
+ * @summary Add an account to a group as an owner or admin
+ */
+export const useAddMessengerGroupMember = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addMessengerGroupMember>>, TError,AddMessengerGroupMemberMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addMessengerGroupMember>>,
+        TError,
+        AddMessengerGroupMemberMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddMessengerGroupMemberMutationOptions(options), queryClient);
+    }
+
+export const getRemoveMessengerGroupMemberUrl = (groupId: string,
+    userId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}/members/${userId}`
+}
+
+/**
+ * @summary Remove a member according to group roles
+ */
+export const removeMessengerGroupMember = async (groupId: string,
+    userId: string, options?: Parameters<typeof customFetch>[1]): Promise<GroupResponse> => {
+
+  return customFetch<GroupResponse>(getRemoveMessengerGroupMemberUrl(groupId,userId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveMessengerGroupMemberMutationKey = () => ['removeMessengerGroupMember'] as const;
+
+export const getRemoveMessengerGroupMemberMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeMessengerGroupMember>>, TError,RemoveMessengerGroupMemberMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeMessengerGroupMember>>, TError,RemoveMessengerGroupMemberMutationVariables, TContext> => {
+
+const mutationKey = getRemoveMessengerGroupMemberMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeMessengerGroupMember>>, RemoveMessengerGroupMemberMutationVariables> = (props) => {
+          const {groupId,userId} = props ?? {};
+
+          return  removeMessengerGroupMember(groupId,userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveMessengerGroupMemberMutationResult = NonNullable<Awaited<ReturnType<typeof removeMessengerGroupMember>>>
+
+    export type RemoveMessengerGroupMemberMutationError = ErrorType<UnauthorizedResponse | ErrorResponse>
+    export type RemoveMessengerGroupMemberMutationVariables = {groupId: string;userId: string}
+
+    /**
+ * @summary Remove a member according to group roles
+ */
+export const useRemoveMessengerGroupMember = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeMessengerGroupMember>>, TError,RemoveMessengerGroupMemberMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof removeMessengerGroupMember>>,
+        TError,
+        RemoveMessengerGroupMemberMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRemoveMessengerGroupMemberMutationOptions(options), queryClient);
+    }
+
+export const getSetMessengerGroupMemberRoleUrl = (groupId: string,
+    userId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}/members/${userId}/role`
+}
+
+/**
+ * @summary Promote or demote a member as the group owner
+ */
+export const setMessengerGroupMemberRole = async (groupId: string,
+    userId: string,
+    setMessengerGroupMemberRoleBody: SetMessengerGroupMemberRoleBody, options?: Parameters<typeof customFetch>[1]): Promise<GroupResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GroupResponse>(getSetMessengerGroupMemberRoleUrl(groupId,userId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setMessengerGroupMemberRoleBody)
+  }
+);}
+
+
+
+
+
+export const getSetMessengerGroupMemberRoleMutationKey = () => ['setMessengerGroupMemberRole'] as const;
+
+export const getSetMessengerGroupMemberRoleMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMessengerGroupMemberRole>>, TError,SetMessengerGroupMemberRoleMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setMessengerGroupMemberRole>>, TError,SetMessengerGroupMemberRoleMutationVariables, TContext> => {
+
+const mutationKey = getSetMessengerGroupMemberRoleMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setMessengerGroupMemberRole>>, SetMessengerGroupMemberRoleMutationVariables> = (props) => {
+          const {groupId,userId,data} = props ?? {};
+
+          return  setMessengerGroupMemberRole(groupId,userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetMessengerGroupMemberRoleMutationResult = NonNullable<Awaited<ReturnType<typeof setMessengerGroupMemberRole>>>
+    export type SetMessengerGroupMemberRoleMutationBody = BodyType<SetMessengerGroupMemberRoleBody>
+    export type SetMessengerGroupMemberRoleMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type SetMessengerGroupMemberRoleMutationVariables = {groupId: string;userId: string;data: BodyType<SetMessengerGroupMemberRoleBody>}
+
+    /**
+ * @summary Promote or demote a member as the group owner
+ */
+export const useSetMessengerGroupMemberRole = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMessengerGroupMemberRole>>, TError,SetMessengerGroupMemberRoleMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setMessengerGroupMemberRole>>,
+        TError,
+        SetMessengerGroupMemberRoleMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetMessengerGroupMemberRoleMutationOptions(options), queryClient);
+    }
+
+export const getLeaveMessengerGroupUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}/leave`
+}
+
+/**
+ * @summary Leave a group and transfer ownership when needed
+ */
+export const leaveMessengerGroup = async (groupId: string, options?: Parameters<typeof customFetch>[1]): Promise<LeaveMessengerGroup200> => {
+
+  return customFetch<LeaveMessengerGroup200>(getLeaveMessengerGroupUrl(groupId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLeaveMessengerGroupMutationKey = () => ['leaveMessengerGroup'] as const;
+
+export const getLeaveMessengerGroupMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveMessengerGroup>>, TError,LeaveMessengerGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof leaveMessengerGroup>>, TError,LeaveMessengerGroupMutationVariables, TContext> => {
+
+const mutationKey = getLeaveMessengerGroupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof leaveMessengerGroup>>, LeaveMessengerGroupMutationVariables> = (props) => {
+          const {groupId} = props ?? {};
+
+          return  leaveMessengerGroup(groupId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LeaveMessengerGroupMutationResult = NonNullable<Awaited<ReturnType<typeof leaveMessengerGroup>>>
+
+    export type LeaveMessengerGroupMutationError = ErrorType<UnauthorizedResponse | ErrorResponse>
+    export type LeaveMessengerGroupMutationVariables = {groupId: string}
+
+    /**
+ * @summary Leave a group and transfer ownership when needed
+ */
+export const useLeaveMessengerGroup = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveMessengerGroup>>, TError,LeaveMessengerGroupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof leaveMessengerGroup>>,
+        TError,
+        LeaveMessengerGroupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLeaveMessengerGroupMutationOptions(options), queryClient);
+    }
+
+export const getUpdateMessengerGroupMuteUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}/mute`
+}
+
+/**
+ * @summary Mute or unmute a group for the signed-in user
+ */
+export const updateMessengerGroupMute = async (groupId: string,
+    updateMessengerGroupMuteBody: UpdateMessengerGroupMuteBody, options?: Parameters<typeof customFetch>[1]): Promise<GroupResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GroupResponse>(getUpdateMessengerGroupMuteUrl(groupId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateMessengerGroupMuteBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateMessengerGroupMuteMutationKey = () => ['updateMessengerGroupMute'] as const;
+
+export const getUpdateMessengerGroupMuteMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerGroupMute>>, TError,UpdateMessengerGroupMuteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMessengerGroupMute>>, TError,UpdateMessengerGroupMuteMutationVariables, TContext> => {
+
+const mutationKey = getUpdateMessengerGroupMuteMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMessengerGroupMute>>, UpdateMessengerGroupMuteMutationVariables> = (props) => {
+          const {groupId,data} = props ?? {};
+
+          return  updateMessengerGroupMute(groupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMessengerGroupMuteMutationResult = NonNullable<Awaited<ReturnType<typeof updateMessengerGroupMute>>>
+    export type UpdateMessengerGroupMuteMutationBody = BodyType<UpdateMessengerGroupMuteBody>
+    export type UpdateMessengerGroupMuteMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type UpdateMessengerGroupMuteMutationVariables = {groupId: string;data: BodyType<UpdateMessengerGroupMuteBody>}
+
+    /**
+ * @summary Mute or unmute a group for the signed-in user
+ */
+export const useUpdateMessengerGroupMute = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerGroupMute>>, TError,UpdateMessengerGroupMuteMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateMessengerGroupMute>>,
+        TError,
+        UpdateMessengerGroupMuteMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateMessengerGroupMuteMutationOptions(options), queryClient);
+    }
+
+export const getListMessengerGroupMessagesUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}/messages`
+}
+
+/**
+ * @summary List recent group messages for a current member
+ */
+export const listMessengerGroupMessages = async (groupId: string, options?: Parameters<typeof customFetch>[1]): Promise<GroupMessagesResponse> => {
+
+  return customFetch<GroupMessagesResponse>(getListMessengerGroupMessagesUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMessengerGroupMessagesQueryKey = (groupId: string,) => {
+    return [
+    `/api/messenger/groups/${groupId}/messages`
+    ] as const;
+    }
+
+
+export const getListMessengerGroupMessagesQueryOptions = <TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMessengerGroupMessagesQueryKey(groupId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMessengerGroupMessages>>> = ({ signal }) => listMessengerGroupMessages(groupId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: groupId !== null && groupId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMessengerGroupMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof listMessengerGroupMessages>>>
+export type ListMessengerGroupMessagesQueryError = ErrorType<UnauthorizedResponse | ErrorResponse>
+
+
+export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ groupId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMessengerGroupMessages>>,
+          TError,
+          Awaited<ReturnType<typeof listMessengerGroupMessages>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMessengerGroupMessages>>,
+          TError,
+          Awaited<ReturnType<typeof listMessengerGroupMessages>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List recent group messages for a current member
+ */
+
+export function useListMessengerGroupMessages<TData = Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ groupId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerGroupMessages>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMessengerGroupMessagesQueryOptions(groupId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendMessengerGroupMessageUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}/messages`
+}
+
+/**
+ * @summary Send a text message to a group
+ */
+export const sendMessengerGroupMessage = async (groupId: string,
+    groupMessageInput: GroupMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<GroupMessageResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GroupMessageResponse>(getSendMessengerGroupMessageUrl(groupId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(groupMessageInput)
+  }
+);}
+
+
+
+
+
+export const getSendMessengerGroupMessageMutationKey = () => ['sendMessengerGroupMessage'] as const;
+
+export const getSendMessengerGroupMessageMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerGroupMessage>>, TError,SendMessengerGroupMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendMessengerGroupMessage>>, TError,SendMessengerGroupMessageMutationVariables, TContext> => {
+
+const mutationKey = getSendMessengerGroupMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendMessengerGroupMessage>>, SendMessengerGroupMessageMutationVariables> = (props) => {
+          const {groupId,data} = props ?? {};
+
+          return  sendMessengerGroupMessage(groupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendMessengerGroupMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendMessengerGroupMessage>>>
+    export type SendMessengerGroupMessageMutationBody = BodyType<GroupMessageInput>
+    export type SendMessengerGroupMessageMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type SendMessengerGroupMessageMutationVariables = {groupId: string;data: BodyType<GroupMessageInput>}
+
+    /**
+ * @summary Send a text message to a group
+ */
+export const useSendMessengerGroupMessage = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerGroupMessage>>, TError,SendMessengerGroupMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendMessengerGroupMessage>>,
+        TError,
+        SendMessengerGroupMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendMessengerGroupMessageMutationOptions(options), queryClient);
+    }
+
+export const getListMessengerStatusesUrl = () => {
+
+
+
+
+  return `/api/messenger/statuses`
+}
+
+/**
+ * @summary List unexpired statuses addressed to the signed-in user
+ */
+export const listMessengerStatuses = async ( options?: Parameters<typeof customFetch>[1]): Promise<StatusesResponse> => {
+
+  return customFetch<StatusesResponse>(getListMessengerStatusesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMessengerStatusesQueryKey = () => {
+    return [
+    `/api/messenger/statuses`
+    ] as const;
+    }
+
+
+export const getListMessengerStatusesQueryOptions = <TData = Awaited<ReturnType<typeof listMessengerStatuses>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerStatuses>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMessengerStatusesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMessengerStatuses>>> = ({ signal }) => listMessengerStatuses({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMessengerStatuses>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMessengerStatusesQueryResult = NonNullable<Awaited<ReturnType<typeof listMessengerStatuses>>>
+export type ListMessengerStatusesQueryError = ErrorType<UnauthorizedResponse>
+
+
+export function useListMessengerStatuses<TData = Awaited<ReturnType<typeof listMessengerStatuses>>, TError = ErrorType<UnauthorizedResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerStatuses>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMessengerStatuses>>,
+          TError,
+          Awaited<ReturnType<typeof listMessengerStatuses>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMessengerStatuses<TData = Awaited<ReturnType<typeof listMessengerStatuses>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerStatuses>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMessengerStatuses>>,
+          TError,
+          Awaited<ReturnType<typeof listMessengerStatuses>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMessengerStatuses<TData = Awaited<ReturnType<typeof listMessengerStatuses>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerStatuses>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List unexpired statuses addressed to the signed-in user
+ */
+
+export function useListMessengerStatuses<TData = Awaited<ReturnType<typeof listMessengerStatuses>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMessengerStatuses>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMessengerStatusesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMessengerStatusUrl = () => {
+
+
+
+
+  return `/api/messenger/statuses`
+}
+
+/**
+ * @summary Publish a private status for contacts or selected contacts
+ */
+export const createMessengerStatus = async (createStatusInput: CreateStatusInput, options?: Parameters<typeof customFetch>[1]): Promise<StatusResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<StatusResponse>(getCreateMessengerStatusUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createStatusInput)
+  }
+);}
+
+
+
+
+
+export const getCreateMessengerStatusMutationKey = () => ['createMessengerStatus'] as const;
+
+export const getCreateMessengerStatusMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMessengerStatus>>, TError,CreateMessengerStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMessengerStatus>>, TError,CreateMessengerStatusMutationVariables, TContext> => {
+
+const mutationKey = getCreateMessengerStatusMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMessengerStatus>>, CreateMessengerStatusMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMessengerStatus(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMessengerStatusMutationResult = NonNullable<Awaited<ReturnType<typeof createMessengerStatus>>>
+    export type CreateMessengerStatusMutationBody = BodyType<CreateStatusInput>
+    export type CreateMessengerStatusMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+    export type CreateMessengerStatusMutationVariables = {data: BodyType<CreateStatusInput>}
+
+    /**
+ * @summary Publish a private status for contacts or selected contacts
+ */
+export const useCreateMessengerStatus = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMessengerStatus>>, TError,CreateMessengerStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createMessengerStatus>>,
+        TError,
+        CreateMessengerStatusMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateMessengerStatusMutationOptions(options), queryClient);
+    }
+
+export const getDeleteMessengerStatusUrl = (statusId: string,) => {
+
+
+
+
+  return `/api/messenger/statuses/${statusId}`
+}
+
+/**
+ * @summary Delete a status created by the signed-in user
+ */
+export const deleteMessengerStatus = async (statusId: string, options?: Parameters<typeof customFetch>[1]): Promise<DeleteMessengerStatus200> => {
+
+  return customFetch<DeleteMessengerStatus200>(getDeleteMessengerStatusUrl(statusId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMessengerStatusMutationKey = () => ['deleteMessengerStatus'] as const;
+
+export const getDeleteMessengerStatusMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMessengerStatus>>, TError,DeleteMessengerStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMessengerStatus>>, TError,DeleteMessengerStatusMutationVariables, TContext> => {
+
+const mutationKey = getDeleteMessengerStatusMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMessengerStatus>>, DeleteMessengerStatusMutationVariables> = (props) => {
+          const {statusId} = props ?? {};
+
+          return  deleteMessengerStatus(statusId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMessengerStatusMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMessengerStatus>>>
+
+    export type DeleteMessengerStatusMutationError = ErrorType<UnauthorizedResponse | ErrorResponse>
+    export type DeleteMessengerStatusMutationVariables = {statusId: string}
+
+    /**
+ * @summary Delete a status created by the signed-in user
+ */
+export const useDeleteMessengerStatus = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMessengerStatus>>, TError,DeleteMessengerStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMessengerStatus>>,
+        TError,
+        DeleteMessengerStatusMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteMessengerStatusMutationOptions(options), queryClient);
+    }
+
+export const getReportMessengerContentUrl = () => {
+
+
+
+
+  return `/api/messenger/reports`
+}
+
+/**
+ * @summary Report visible group or status content as unwanted
+ */
+export const reportMessengerContent = async (contentReportInput: ContentReportInput, options?: Parameters<typeof customFetch>[1]): Promise<ContentReportResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ContentReportResponse>(getReportMessengerContentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(contentReportInput)
+  }
+);}
+
+
+
+
+
+export const getReportMessengerContentMutationKey = () => ['reportMessengerContent'] as const;
+
+export const getReportMessengerContentMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportMessengerContent>>, TError,ReportMessengerContentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportMessengerContent>>, TError,ReportMessengerContentMutationVariables, TContext> => {
+
+const mutationKey = getReportMessengerContentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportMessengerContent>>, ReportMessengerContentMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  reportMessengerContent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportMessengerContentMutationResult = NonNullable<Awaited<ReturnType<typeof reportMessengerContent>>>
+    export type ReportMessengerContentMutationBody = BodyType<ContentReportInput>
+    export type ReportMessengerContentMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type ReportMessengerContentMutationVariables = {data: BodyType<ContentReportInput>}
+
+    /**
+ * @summary Report visible group or status content as unwanted
+ */
+export const useReportMessengerContent = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportMessengerContent>>, TError,ReportMessengerContentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reportMessengerContent>>,
+        TError,
+        ReportMessengerContentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReportMessengerContentMutationOptions(options), queryClient);
+    }
 
 export const getSearchMessengerMessagesUrl = (params: SearchMessengerMessagesParams,) => {
   const normalizedParams = new URLSearchParams();
