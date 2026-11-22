@@ -1,0 +1,72 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+TASK: READ-ONLY DATABASE COST INVESTIGATION
+
+Project: Service Flow
+
+The previous audit identified repeated calls to
+expireOrphanedExecJobs from these endpoints:
+- GET /api/exec-queue/job-check
+- GET /api/exec-queue/batch-progress
+- POST /api/exec-queue/claim
+- GET /api/exec-queue/pending
+
+OBJECTIVE:
+Determine whether repeated cleanup operations could be
+reduced without affecting execution queue correctness.
+
+STRICT RULES:
+- Do not modify any files.
+- Do not access or query the production database.
+- Do not change polling intervals or scheduling.
+- Do not disable cleanup operations.
+- Do not run benchmarks or load tests.
+- Do not install dependencies.
+- Inspect existing source code and available logs only.
+
+INVESTIGATION:
+
+1. Locate expireOrphanedExecJobs and identify every SQL
+   statement it executes.
+
+2. For each statement, report:
+   - Tables accessed
+   - Filtering conditions
+   - Whether existing indexes support the conditions
+   - Whether it reads or updates many rows
+   - Any evidence of repeated unnecessary work
+
+3. Determine whether the cleanup function is idempotent
+   and whether its repeated execution is necessary for
+   correctness.
+
+4. Investigate whether cleanup can be safely triggered
+   less frequently or through an existing lifecycle event,
+   but do not implement any changes.
+
+5. Identify other repeated SQL work performed by the
+   four endpoints before their main operations.
+
+6. Explain what evidence would be required to estimate
+   actual database compute savings.
+
+7. Separately state whether this investigation provides
+   any evidence about the unexplained October 16 billing
+   spike. Do not assume a causal relationship.
+
+FINAL OUTPUT:
+- Relevant source files and functions
+- SQL operations performed
+- Potential optimization opportunities
+- Correctness and concurrency risks
+- Evidence needed to estimate savings
+- A recommendation for the smallest safe optimization
+
+This task is strictly read-only.

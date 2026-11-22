@@ -1,0 +1,54 @@
+#225 - Oscar Messenger للمراسلة النصية
+What & Why
+Build Phase 1 of the new Oscar Messenger as a separate Expo mobile app: private accounts, contact lookup, one-to-one text conversations, message history, and basic notifications. The current Oscar Drive service has device/owner pairing, contacts, push notifications, GPS/security, and Arabic/English voice-command components that may be reused where appropriate; it does not currently provide a shared Messenger account or chat system.
+
+Done looks like
+A separate Oscar Messenger mobile app starts, signs users in, and keeps each account’s data isolated.
+Users can find or invite a contact without uploading the whole address book; ambiguous matches are clear.
+Two accounts can exchange one-to-one text messages and view conversation history, timestamps, and delivery/read status where supported.
+New-message notifications work with a documented, low-cost provider choice; do not add a paid provider without explaining the alternatives and cost first.
+Existing Oscar Drive remains intact and can be verified alongside the new app.
+Message contents and phone contact lists are not unnecessarily logged or uploaded.
+Out of scope
+Voice notes, image/video/file sharing, internet calling, live location, and the later Oscar Drive/Oscar Security phases; these will be proposed one phase at a time after review.
+AI models or paid AI APIs for predefined voice commands.
+Production database changes, Secrets changes, or publishing without separate owner approval.
+Claiming end-to-end encryption unless it is actually implemented and verified.
+Steps
+Read the artifacts and Expo guidance and the project’s CLAUDE.md; follow the established branch and pull/push rules before source changes.
+Create the standalone Expo mobile artifact and reuse Oscar’s existing brand assets, colors, and typography where available.
+Design account authentication and a minimal private contact-discovery flow. Avoid bulk contact uploads; explain any unavoidable data sent to the service before implementation.
+Implement account-scoped one-to-one conversations, text sending/receiving, history, and delivery/read status where technically supported, with server-side authorization and validation.
+Add basic message notifications using the lowest-cost reliable option; if external credentials, provider setup, or recurring cost is required, stop and ask the owner before configuring it.
+Add database schema code and test it only against an isolated development/test database. Do not run db:push, drizzle-kit, or mutate a production database; request approval before any production schema application.
+Test account isolation, contact privacy, message delivery, and the main flow; run the existing app and the new mobile artifact and visually verify both before presenting the app.
+Call presentArtifact({ artifactId }) to show the completed mobile app.
+Call markTaskComplete({ task_ref: "<your assigned task ref>" }) as the final callback in CodeExecution.
+Relevant files
+.replit
+package.json
+server.js
+src/routes/drive_site.js
+src/drive/schema.js
+src/drive/store.js
+src/drive/contacts.js
+src/drive/push.js
+docs/OSCAR_SECURITY.md
+oscardrive-android/app/src/main/AndroidManifest.xml
+oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/logic/VoiceEngine.kt
+oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/NotifyReader.kt
+Note to the code reviewer
+Do NOT reject this task for:
+
+Not using generated API hooks when the needed endpoints do not exist; adding endpoints or using direct fetch is acceptable.
+Mobile-native navigation and interactions differing from the web app.
+No production database rollout, Secrets configuration, or paid provider setup; those require separate owner approval.
+Later phases being out of scope for this MVP.
+DO flag:
+
+Any cross-account access to contacts, conversations, or messages.
+Uploading the entire contact book without an explicit need and clear consent.
+Breaking the existing Oscar Drive application or using off-brand assets when existing Oscar assets are available.
+The project has already been migrated to PNPM_WORKSPACE. Do not run the migration again.
+
+Dependencies

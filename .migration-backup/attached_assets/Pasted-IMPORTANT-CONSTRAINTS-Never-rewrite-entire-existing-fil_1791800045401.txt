@@ -1,0 +1,35 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+Service Flow cost investigation, read-only only.
+
+My primary objective is to reduce actual monthly Replit costs without downtime, data loss, or unexpected Cloudflare charges.
+
+The previous audit could not access the deployed VM filesystem, production database, or account billing details.
+
+Perform the following investigation using only available, authorized, read-only access:
+
+1. Identify all available Replit billing and usage information for this deployment.
+2. Separate VM compute charges, database charges, storage charges, and other usage charges whenever the available data permits.
+3. Determine whether local inspector videos have any identifiable direct storage cost or whether their main impact is on VM disk capacity and persistence.
+4. Identify the actual database connection and database size used by the running Service Flow application, if safely measurable.
+5. Explain the discrepancy between the previously reported approximately 1.26 GB database size and the latest 554.5 MiB measurement. Do not assume they refer to the same database.
+6. Determine whether any available historical metrics can establish actual database growth.
+7. Report what information is inaccessible and exactly what account-owner action would be required to obtain it.
+
+STRICT RULES:
+- Do not change production code, data, configuration, or deployment settings.
+- Do not migrate, delete, archive, or rewrite files.
+- Do not add dependencies, monitoring infrastructure, or background jobs.
+- Do not invent billing amounts or savings estimates.
+- Minimize AI usage and execution costs.
+
+Return a concise report separating verified facts from unknowns.
+
+Stop after the report. Do not implement changes.

@@ -1,0 +1,497 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+# PHASE 0 UPDATE ONLY
+# AMAZON EGYPT + CREATORS API ELIGIBILITY VERIFICATION
+
+We have completed the initial Phase 0 research.
+
+I want you to UPDATE and CORRECT the Phase 0 findings based on the CURRENT official Amazon Creators API documentation.
+
+Do NOT start Phase 1.
+
+Do NOT write production code.
+
+Do NOT create the Amazon integration.
+
+Do NOT create the Product Browser.
+
+Do NOT modify the website.
+
+Do NOT modify the database.
+
+This task is research and verification only.
+
+---
+
+# IMPORTANT NEW INFORMATION TO VERIFY
+
+Current official Amazon Creators API documentation appears to explicitly list:
+
+Amazon Egypt
+
+Marketplace:
+
+www.amazon.eg
+
+Currency:
+
+EGP
+
+and Amazon Egypt appears to have Creators API marketplace support.
+
+Therefore, do NOT continue reporting:
+
+"Does Creators API support Amazon.eg?"
+
+as simply UNKNOWN.
+
+Instead, verify this directly against the CURRENT official Amazon documentation.
+
+---
+
+# 1. VERIFY AMAZON EGYPT CREATORS API SUPPORT
+
+Use the current official Amazon Creators API documentation and verify:
+
+- Amazon Egypt is a supported marketplace.
+- Marketplace domain is www.amazon.eg.
+- Currency is EGP.
+- Amazon Egypt search indexes are available.
+- SearchItems can be used for Amazon Egypt.
+- GetItems can be used for Amazon Egypt.
+- GetVariations can be used for Amazon Egypt, if supported.
+- GetBrowseNodes can be used for Amazon Egypt, if supported.
+
+For each item classify:
+
+CONFIRMED
+
+NOT SUPPORTED
+
+UNKNOWN
+
+Provide the official Amazon source URL.
+
+---
+
+# 2. VERIFY THE ACTUAL API CAPABILITIES
+
+Verify from the CURRENT Creators API documentation whether the following are supported:
+
+- Product search
+- ASIN lookup
+- Product title
+- Product URL
+- Main product image
+- Additional images
+- Brand
+- Features
+- Product description
+- Category
+- Price
+- Currency
+- Availability
+- Offers
+- Rating
+- Review count
+- Customer reviews
+
+IMPORTANT:
+
+Do not assume that because a resource exists globally it is automatically available for Amazon Egypt.
+
+Where possible, verify Amazon Egypt specifically.
+
+Create this table:
+
+| Capability | Amazon.eg | Status | Official Source |
+|---|---|---|---|
+| SearchItems | | | |
+| GetItems | | | |
+| GetVariations | | | |
+| GetBrowseNodes | | | |
+| Product Title | | | |
+| ASIN | | | |
+| Product URL | | | |
+| Images | | | |
+| Brand | | | |
+| Features | | | |
+| Description | | | |
+| Price | | | |
+| Currency | | | |
+| Availability | | | |
+| Offers | | | |
+| Rating | | | |
+| Review Count | | | |
+| Customer Reviews | | | |
+
+---
+
+# 3. MOST IMPORTANT QUESTION:
+# IS OUR ACCOUNT ELIGIBLE?
+
+The biggest remaining unknown is NOT whether Amazon.eg exists in Creators API.
+
+The biggest question is:
+
+Can OUR Amazon Associates Egypt account currently access Creators API?
+
+Verify the CURRENT official requirements.
+
+Determine:
+
+1. Does the Associates account need to be approved first?
+2. Does the account need qualifying sales?
+3. How many qualifying sales?
+4. During what period?
+5. Are those sales required for Associates account approval?
+6. Are those sales separately required for Creators API access?
+7. Is API access automatic after eligibility?
+8. Is API access manually approved?
+9. Where does the user register for Creators API?
+10. Where are the Credentials created?
+11. What happens if the account is still under review?
+12. Can an account under review access Creators API?
+13. Can an account without completed payment/tax information access Creators API?
+14. Does completing tax information affect API eligibility?
+15. Does completing payment information affect API eligibility?
+
+IMPORTANT:
+
+Separate these clearly:
+
+Associates approval requirements
+
+from:
+
+Creators API eligibility requirements
+
+Do NOT combine them.
+
+---
+
+# 4. VERIFY THE OFFICIAL ONBOARDING FLOW
+
+Find the CURRENT official Amazon documentation describing:
+
+Associates account
+→
+Creators API
+→
+Registration
+→
+Application
+→
+Credentials
+→
+API request
+
+Document the exact process.
+
+If Amazon says:
+
+Tools → Creators API
+
+verify that this is still the current interface.
+
+Do not assume the interface is unchanged.
+
+---
+
+# 5. VERIFY API CREDENTIALS
+
+Determine:
+
+- What credentials are required?
+- Where are they generated?
+- Is there an Application ID?
+- Is there a Client ID?
+- Is there a Client Secret?
+- Is there an API key?
+- Is there a Secret key?
+- Are credentials marketplace-specific?
+- Can one set of credentials access Amazon.eg?
+- Are credentials available immediately after registration?
+- Are credentials only visible after approval?
+
+Do NOT ask the user to provide credentials.
+
+Do NOT store credentials.
+
+Do NOT print credentials.
+
+Only explain where the user would obtain them.
+
+---
+
+# 6. VERIFY AMAZON EGYPT SEARCH
+
+We eventually want:
+
+Admin Dashboard
+→
+Amazon Egypt
+→
+Search Products
+→
+Search results
+→
+View Product
+→
+Add to Deals
+
+Verify whether this is technically possible using the CURRENT Creators API.
+
+Do NOT build it.
+
+Only verify it.
+
+---
+
+# 7. VERIFY PRICE CAPABILITIES
+
+Specifically verify Amazon.eg:
+
+- Is price returned?
+- Is price returned in EGP?
+- Can current price be displayed?
+- Can offer price be displayed?
+- Can price be stored?
+- Can price be cached?
+- How frequently must price data be refreshed?
+- Can an ADMIN-ONLY interface sort search results by price?
+- Is public price comparison restricted?
+
+Separate:
+
+TECHNICAL CAPABILITY
+
+from:
+
+POLICY PERMISSION
+
+Do not make assumptions.
+
+---
+
+# 8. VERIFY IMAGE CAPABILITIES
+
+Verify Amazon.eg:
+
+- Main image
+- Additional images
+- Image URLs
+- Image resolution
+- Image display
+- Image storage
+- Image caching
+- Image resizing
+
+Again separate:
+
+TECHNICAL CAPABILITY
+
+from:
+
+POLICY PERMISSION
+
+---
+
+# 9. VERIFY AFFILIATE LINK GENERATION
+
+Determine the CURRENT recommended method for creating Amazon Egypt affiliate links through Creators API.
+
+Verify:
+
+- Associate Tag
+- Tracking ID
+- Special Links
+- Product URL
+- Affiliate URL generation
+- Whether the API can return an affiliate URL
+- Whether the application must construct the URL
+
+---
+
+# 10. VERIFY THE 3 QUALIFYING SALES RULE
+
+This needs especially careful verification.
+
+Find the CURRENT official Amazon Associates documentation for:
+
+3 qualifying purchases within 180 days.
+
+Determine whether this requirement applies to:
+
+A. Associates account review
+
+B. Creators API access
+
+C. Both
+
+D. Neither
+
+Do not assume.
+
+If Amazon documentation uses different requirements for Associates and Creators API, explain the difference clearly.
+
+---
+
+# 11. VERIFY OUR CURRENT ACCOUNT STATUS
+
+Based on the information already provided:
+
+The account is currently:
+
+Associates Egypt:
+UNDER REVIEW
+
+Payment information:
+INCOMPLETE
+
+Tax information:
+INCOMPLETE
+
+Creators API:
+NOT VERIFIED
+
+Credentials:
+NOT VERIFIED
+
+Do not change this status unless there is official evidence.
+
+---
+
+# 12. WHAT WE NEED FROM THE USER
+
+At the end, give a short checklist:
+
+What the user should do now inside Amazon Associates Egypt.
+
+For example, if officially supported:
+
+1. Complete required account information.
+2. Wait for Associates approval if required.
+3. Check Tools → Creators API.
+4. Check whether registration is available.
+5. Do not send API credentials to Replit or ChatGPT.
+6. If a Creators API page appears, send a screenshot with secrets hidden.
+
+Only include steps that are supported by official documentation.
+
+---
+
+# 13. OFFICIAL AMAZON SOURCES ONLY
+
+Use current official Amazon sources.
+
+Prioritize:
+
+- Amazon Creators API documentation
+- Amazon Egypt Creators API documentation
+- Amazon Associates Egypt
+- Amazon Associates Operating Agreement
+- Amazon Associates Program Policies
+- Amazon Associates Help
+- Amazon Creators API onboarding documentation
+
+Do not rely on:
+
+- Reddit
+- YouTube
+- affiliate blogs
+- old PA-API tutorials
+- random websites
+
+If a third-party source contradicts Amazon, ignore the third-party source.
+
+---
+
+# 14. CORRECT THE PREVIOUS PHASE 0
+
+The previous Phase 0 said:
+
+"Amazon.eg API support = UNKNOWN / NEEDS VERIFICATION"
+
+If current official Amazon documentation confirms Amazon.eg support, change this to:
+
+CONFIRMED
+
+But keep the following as separate questions:
+
+"Is OUR account currently eligible?"
+
+"Do OUR credentials exist?"
+
+"Can OUR account make successful API requests?"
+
+These may still be:
+
+UNKNOWN / NEEDS VERIFICATION
+
+---
+
+# 15. FINAL REPORT
+
+Return an updated Phase 0 report containing:
+
+## A. Amazon.eg Creators API Support
+
+## B. Current API capabilities
+
+## C. Amazon.eg product data
+
+## D. Price capabilities and policy
+
+## E. Image capabilities and policy
+
+## F. Affiliate link requirements
+
+## G. Associates approval requirements
+
+## H. Creators API eligibility requirements
+
+## I. API credential process
+
+## J. Current status of our account
+
+## K. Exact next steps for the user
+
+## L. Remaining unknowns
+
+For every important conclusion, provide:
+
+- Official Amazon URL
+- Documentation title
+- Relevant section
+- Whether it is CURRENT or LEGACY
+
+---
+
+# 16. ABSOLUTE STOP
+
+After producing the updated Phase 0 report:
+
+STOP.
+
+Do NOT:
+
+- Start Phase 1
+- Write code
+- Create database tables
+- Create API services
+- Create Admin Browser
+- Add Amazon integration
+- Install packages
+- Modify the existing website
+
+Wait for explicit approval.
+
+END OF TASK.

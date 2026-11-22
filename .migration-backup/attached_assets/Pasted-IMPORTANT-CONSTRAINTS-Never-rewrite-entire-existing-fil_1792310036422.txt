@@ -1,0 +1,148 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+PROJECT: Service Flow
+
+OBJECTIVE:
+Migrate the entire Service Flow application from its
+current PostgreSQL database to Cloudflare D1 for
+relational data and Cloudflare R2 for files.
+
+The final objective is for the live application to use
+D1 as its sole relational database and R2 for the
+appropriate files.
+
+The existing PostgreSQL database must NOT be deleted,
+dropped, cleared, or modified as part of this migration.
+It must remain available as a potential rollback source.
+
+COST IS THE PRIMARY CONCERN.
+Avoid unnecessary paid services, duplicate infrastructure,
+large rewrites, and unnecessary Replit agent work.
+
+IMPORTANT:
+Do not immediately switch production to D1.
+First inspect the existing application and prepare a
+migration plan. Proceed step by step and report results
+after each phase.
+
+PHASE 1: READ-ONLY DISCOVERY
+
+Inspect the existing Service Flow source code and identify:
+
+1. The actual production database configuration and
+   every code path that reads from or writes to PostgreSQL.
+
+2. All tables, relationships, indexes, constraints,
+   sequences, triggers, functions, and scheduled jobs
+   required by the application.
+
+3. PostgreSQL-specific SQL and features that are
+   incompatible with Cloudflare D1/SQLite.
+
+4. All database transactions, locking behavior,
+   concurrency assumptions, connection-pool usage,
+   background jobs, imports, exports, and reporting
+   operations that could break after migration.
+
+5. How the application currently uses Cloudflare R2.
+   Reuse the existing bucket and objects wherever possible.
+   Do not duplicate or re-upload existing files unnecessarily.
+
+6. The actual current database size and table sizes,
+   using authorized, read-only inspection only.
+   Do not assume historical size estimates are current.
+
+7. Whether the complete production dataset fits within
+   the selected D1 plan and its database-size limits.
+
+8. Estimate D1 rows read/written per day if measurable.
+   Do not invent usage figures if production metrics
+   are unavailable.
+
+Do not execute production data migrations in this phase.
+Do not modify application files or database contents.
+
+PHASE 2: MIGRATION PLAN
+
+Prepare a concise, concrete plan covering:
+
+- D1 schema creation.
+- Data migration and validation.
+- PostgreSQL-to-SQLite query compatibility.
+- R2 file and metadata compatibility.
+- Authentication and authorization.
+- Background jobs and scheduled operations.
+- Data integrity and concurrency.
+- Production cutover.
+- Rollback procedures.
+- Expected Cloudflare costs and quota risks.
+
+Identify any blockers that make a safe migration
+impossible without additional work.
+
+Do not start implementation until the Phase 1 findings
+and migration plan have been reported.
+
+PHASE 3: IMPLEMENTATION, AFTER APPROVAL
+
+Implement the migration in small, independently testable
+steps. Use D1 migrations and preserve existing data.
+
+Do not rewrite entire existing files.
+Use targeted str_replace edits.
+
+Create and test D1 separately before switching production.
+Validate record counts, relationships, representative
+records, and critical workflows.
+
+Do not allow normal application traffic to read from D1
+while writing to PostgreSQL, or vice versa, without an
+explicitly designed and tested synchronization strategy.
+
+PHASE 4: PRODUCTION CUTOVER
+
+Before cutover:
+
+- Verify the D1 dataset is complete and validated.
+- Ensure all required application features are compatible.
+- Plan a controlled final data synchronization.
+- Prevent conflicting writes during the final synchronization.
+- Record the original production configuration securely.
+- Define a practical rollback procedure.
+
+Then switch the application to D1 as its sole relational
+database and R2 for the appropriate files.
+
+The running application must not silently fall back to
+PostgreSQL. Database failures must be visible and logged.
+
+Keep the old PostgreSQL database untouched and available.
+Do not delete its credentials or database resource.
+
+Explain how data created after cutover would be preserved
+if we need to roll back.
+
+PHASE 5: MONITORING THROUGH OCTOBER 31, 2026
+
+Report:
+
+- D1 storage and usage.
+- Rows read and written, when measurable.
+- R2 storage and operation usage.
+- Cloudflare charges and applicable quotas.
+- Application errors and failed database operations.
+- Results of critical workflow tests.
+
+Do not claim a cost is zero unless it is supported by
+the actual plan and usage data.
+
+For now, complete PHASE 1 only.
+Report findings and wait for approval before making
+any code changes or migrating production data.

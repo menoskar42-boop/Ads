@@ -1,0 +1,45 @@
+إنت جوّه مشروع ريبليت «sf». المطلوب مراجعة كود بس: دوّر على كل حاجة ممكن تخلّى قاعدة بيانات Service Flow تصحى (تنفّذ أى استعلام) من غير ما بنى آدم يدوس على حاجة. قاعدة Service Flow بتصحى مع أول استعلام وبتنام بعد ٥ دقايق من غير استعلامات، وإحنا بندفع على كل ساعة هى صاحية فيها — فأى حاجة بتسأل القاعدة كل أقل من ٥ دقايق بتمنعها تنام خالص.
+
+⛔ خطوط حمرا:
+1) قراية كود بس. ممنوع تعدّل أى ملف، ولا تعمل commit، ولا تشغّل التطبيق، ولا Republish، ولا Restart.
+2) ممنوع تكلّم أى قاعدة بيانات، وممنوع تقرا قيم الـSecrets.
+3) لو حاجة مش واضحة من الكود، اكتب «مش متأكد» ومتخمّنش.
+
+الكود فين:
+- serviceflow/server/ (السيرفر — routes.ts كبير، دوّر فيه بالبحث)
+- serviceflow/client/src/ (الواجهة)
+- serviceflow/*.user.js (سكربتات Tampermonkey اللى بتشتغل فى متصفح الشغل)
+- src/ و server.js (أوسكار ديفز — هو اللى بيشغّل Service Flow جوّاه ويوجّه له الطلبات: src/lib/host_gateway.js)
+- .replit (إعدادات النشر)
+
+━━━━━━━━━━━━━━━━━━━━
+اللى لقيناه خلاص (متعيدهوش — دوّر على غيره، ولو لقيت فيه غلط فى كلامنا قوله):
+1) جهاز التنفيذ (client/src/components/ExecutorButton.tsx): claim كل ١٠ث، pending كل ١٠ث و١٥ث، status كل ١٥ث، heartbeat كل ٤٥ث. والـheartbeat فى السيرفر بيعمل INSERT + DELETE فى app_state + runExecFollowups + snapshotOmBoxFullWorking (UPDATE تقيل على om_responses) كل مرة.
+2) الجلسات: connect-pg-simple (جدول sf_session) مع rolling: true ⇒ كل طلب = قراية الجلسة + تحديثها، وdeserializeUser بيقرا المستخدم من القاعدة كل طلب، وتنضيف الجلسات كل ساعة (pruneSessionInterval).
+3) DailyAutoRefresh.tsx: تحديث التقارير اليومية كل N دقيقة (الإعداد دلوقتى ٢٠).
+4) refetchInterval فى React Query: الإشعارات ٦٠ث، LastUpdatedBadge ٦٠ث، FileUploadSection ٦٠ث، OmRejectionsReport ٣٠ث، PhoneLookupReport ٣٠ث، ExecBatchDetails ٥ث، use-auth ١٥ دقيقة.
+5) setInterval فى: ExecBatchesReport، CfmTicketsReport، ExecQueueWatcher، QueueReorderPanel، ManualRegularizedHighScoreReport.
+6) مؤقّتات السيرفر اللى ورا SF_SCHEDULERS (لقطة كل ١٥ دقيقة، subinfo كل ساعة، tick كل ٥ دقايق، ربط الكابلات كل ٣٠ دقيقة) — بتشتغل بس فى العملية اللى المهام المجدولة مفتوحة فيها.
+7) cabinet-reassign.ts: كان كل دقيقة واتصلّح (مؤقّت واحد على ميعاد أقرب نقل).
+8) /api/health فى server/index.ts بيعمل SELECT 1.
+واتأكدنا إن النبضات اللى فى dzs-expresse-v10.user.js (كل ٢ث) وte-fcc-wfm-oss-subinfo.user.js (كل ٤ث) localStorage بس ومابتكلّمش السيرفر.
+
+━━━━━━━━━━━━━━━━━━━━
+دوّر على الجديد فى الحاجات دى بالذات:
+أ) أى setInterval / setTimeout بيعيد نفسه / cron / مكتبة جدولة فى السيرفر، حتى لو مش ورا SF_SCHEDULERS. ومين بيشغّله.
+ب) أى middleware بيشتغل مع كل طلب وبيكلّم القاعدة (لوج، عدّاد، rate limit، تسجيل آخر ظهور، صلاحيات…).
+ج) WebSocket (/ws): بيكلّم القاعدة عند الاتصال؟ فيه ping/interval؟ والواجهة بتعيد الاتصال كل قد إيه لو اتقطع؟
+د) React Query: refetchOnWindowFocus / refetchOnReconnect / refetchIntervalInBackground — الافتراضى إيه فى client/src/lib/queryClient.ts، وأنهى شاشات بتغيّره؟ وأى useEffect بيعمل fetch على visibilitychange أو focus.
+هـ) Service worker أو PWA أو background sync فى الواجهة.
+و) سكربتات Tampermonkey (serviceflow/*.user.js): أى GM_xmlhttpRequest أو fetch لسيرفر Service Flow (oscardevs.com/serviceflow أو replit.app) — كل قد إيه، ومن غير ما حد يدوس؟
+ز) أوسكار ديفز (src/، server.js، src/lib/host_gateway.js): بيكلّم Service Flow أو /api/health بتاعه بشكل دورى؟ وفيه أى عملية تانية (mybible، deals، …) بتستخدم نفس رابط قاعدة Service Flow؟
+ح) .replit وإعدادات النشر: فيه health check على مسار بيكلّم القاعدة؟ وهل السيرفر بيعمل شغل تقيل على القاعدة كل ما يقوم (ensureSchema، syncCurrentCase138Snapshot، seedUsers…)؟ وهل فيه حاجة ممكن تخلّيه يعيد التشغيل كتير؟
+ط) pg Pool: keepAlive أو idle connections أو LISTEN/NOTIFY ممكن يمنعوا القاعدة تنام؟
+ى) أى حاجة تانية شايفها إنت.
+
+━━━━━━━━━━━━━━━━━━━━
+شكل الرد:
+١) جدول لكل حاجة جديدة: الملف:السطر · بيشتغل إزاى (مؤقّت/مع كل طلب/لما التاب مفتوح/لما جهاز التنفيذ شغّال/لما المهام المجدولة مفتوحة) · كل قد إيه · بيعمل إيه فى القاعدة (قراية/كتابة، تقيل ولا خفيف) · بيشتغل بالليل لو محدش فاتح؟ (أيوه/لأ/مش متأكد).
+٢) لو لقيت غلط فى قايمة «اللى لقيناه» — قول فين.
+٣) أهم ٥ حاجات ممكن تصحّى القاعدة بالليل (١١ م – ٧ ص) لما محدش شغّال، مرتّبة من الأخطر.
+٤) اقتراح تصليح لكل واحدة فى سطر (من غير ما تنفّذ حاجة).

@@ -1,0 +1,73 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+PROJECT: Service Flow
+
+I approve Phase 2 of the local CFM authentication proof.
+
+Proceed with the next phase: DESIGN the internal Express-to-D1
+Worker bridge for future use.
+
+This phase is design and local testing only.
+Do not connect the production application to D1 yet.
+
+OBJECTIVES:
+- Preserve existing Express authentication and authorization.
+- Keep existing PostgreSQL routes and behavior unchanged.
+- Allow a future, explicitly selected data group to use D1.
+- Keep execution queues and user sessions in PostgreSQL.
+- Continue using R2 for appropriate files.
+- Minimize total cost and unnecessary infrastructure.
+
+TASKS:
+
+1. Review the existing Phase 1 and Phase 2 proof-of-concept files.
+
+2. Design the internal request protocol between Express and
+   the Worker, including:
+   - authenticated user context,
+   - request authentication and integrity,
+   - expiration and replay considerations,
+   - secret storage and rotation,
+   - error handling and timeouts,
+   - logging without exposing secrets.
+
+3. Decide how the Worker will be reached in production.
+   Compare a private/internal binding where supported with
+   an authenticated HTTPS endpoint.
+   Do not assume the current Express host can access a
+   private Worker binding without verification.
+
+4. Define a minimal typed interface for D1 operations.
+   Do not expose a generic SQL execution endpoint to clients.
+
+5. Document how the existing CFM route could eventually
+   use this bridge without changing its response format
+   or authorization semantics.
+
+6. Identify how to disable the bridge and return to the
+   existing PostgreSQL route if problems occur.
+
+7. Extend local tests for expired sessions, invalid
+   authentication, timeout behavior, and failure handling
+   wherever feasible.
+
+STRICT RULES:
+- Do not modify live application routes.
+- Do not change production configuration.
+- Do not access or migrate production data.
+- Do not create Cloudflare resources or incur charges.
+- Do not implement database writes.
+- Do not modify PostgreSQL or R2.
+- Do not claim production readiness based on local tests.
+
+Deliver a design document, local test results, unresolved
+decisions, and the smallest next step.
+
+Stop after this phase and wait for review.

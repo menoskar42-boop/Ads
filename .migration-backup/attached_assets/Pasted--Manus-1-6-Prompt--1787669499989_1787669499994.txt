@@ -1,0 +1,990 @@
+تمام. بما إنك عايز **تستغل فترة Manus 1.6 المجانية لأقصى درجة**، أنا هخلي كل Prompt مستقل، بحيث تنسخه لمانوس وتسيبه ينفذ المهمة، وكل واحد معمول بحيث يطلع لك **أصل حقيقي قابل للاستخدام أو مصدر دخل**، مش مجرد كلام نظري.
+
+هقسمهم إلى 10 مهام، وأرشح تبدأ بالترتيب ده.
+
+---
+
+# 1. ماكينة اكتشاف العملاء المحتملين لـ OscarDevs
+
+**الهدف:** Manus يعمل لك Lead Generation حقيقي، ويبحث عن شركات عندها احتياج واضح لخدمات البرمجة والمواقع والأنظمة.
+
+```text
+أريد منك تنفيذ مشروع بحث وتجهيز قاعدة بيانات عملاء محتملين حقيقيين لخدمات شركة تطوير برمجيات ومواقع وأنظمة SaaS.
+
+الهدف النهائي:
+إنشاء قاعدة بيانات Leads عالية الجودة يمكن استخدامها فعلياً للحصول على عملاء مدفوعين، وليس مجرد قائمة بأسماء شركات.
+
+الأسواق المستهدفة بالترتيب:
+1. السعودية
+2. الإمارات
+3. مصر
+4. قطر
+5. الكويت
+6. البحرين
+7. عمان
+
+الخدمات التي نبيعها:
+- Website Development
+- Web Applications
+- Custom Business Systems
+- CRM Systems
+- Inventory Management Systems
+- Booking Systems
+- Restaurant Systems
+- Clinic Management Systems
+- SaaS Development
+- Business Automation
+- AI-powered business tools
+- Custom dashboards
+- Internal management systems
+
+أريد منك البحث عن شركات حقيقية لديها مؤشرات واضحة على أنها قد تحتاج إحدى هذه الخدمات.
+
+لا أريد Leads عشوائية.
+
+ابحث عن الشركات التي لديها واحد أو أكثر من المؤشرات التالية:
+- موقع قديم
+- موقع غير متجاوب مع الهاتف
+- تجربة مستخدم ضعيفة
+- لا يوجد نظام حجز إلكتروني
+- تعتمد على WhatsApp بشكل مبالغ فيه
+- لا يوجد CRM واضح
+- لا يوجد نظام إلكتروني لإدارة العملاء
+- لا يوجد نظام حجز أو متابعة
+- لديها عمليات يدوية يمكن أتمتتها
+- لديها أكثر من فرع
+- لديها عدد كبير من العملاء
+- لديها متجر أو خدمة إلكترونية ضعيفة
+- لديها صفحات اجتماعية نشطة ولكن موقع ضعيف
+- أعلنت عن توسع أو افتتاح فروع
+- تبحث عن موظفين في IT أو Digital Transformation
+- لديها مشكلة واضحة يمكن حلها بتطبيق أو نظام مخصص
+
+الفئات المستهدفة:
+- العيادات
+- مراكز الأشعة
+- مراكز الأسنان
+- المطاعم
+- شركات العقارات
+- شركات المقاولات
+- مراكز التدريب
+- المدارس
+- شركات الخدمات
+- شركات الشحن
+- شركات السيارات
+- شركات التجارة
+- المتاجر
+- شركات السياحة
+- الفنادق
+- مكاتب المحاماة
+- مكاتب المحاسبة
+- شركات التوزيع
+- الشركات التي لديها عدة فروع
+
+لكل Lead اجمع قدر الإمكان:
+- Company Name
+- Country
+- City
+- Industry
+- Website
+- Website URL
+- Contact email إذا كان منشوراً بشكل عام
+- Phone إذا كان منشوراً بشكل عام
+- Social media
+- LinkedIn
+- Company size إذا أمكن
+- Number of branches إذا أمكن
+- Decision maker إذا كان متاحاً بشكل عام
+- Decision maker role
+- Current technology أو ملاحظات تقنية
+- المشكلة التي اكتشفتها
+- الخدمة التي يمكن بيعها للشركة
+- Estimated project value
+- Lead quality score من 100
+- Reason for score
+
+مهم جداً:
+لا تخترع أي بيانات.
+إذا لم تجد معلومة، اكتب Unknown.
+لا تستخدم بيانات شخصية غير منشورة بشكل عام.
+لا تجمع بيانات حساسة.
+
+بعد جمع البيانات:
+1. نظف البيانات من التكرارات.
+2. احذف الشركات غير المناسبة.
+3. رتب العملاء حسب احتمالية الشراء.
+4. قسمهم إلى:
+   A = High Priority
+   B = Medium Priority
+   C = Low Priority
+
+ثم أنشئ لكل Lead:
+- Recommended service
+- Specific pain point
+- Suggested opening message
+- Suggested sales angle
+
+أريد في النهاية:
+1. قاعدة بيانات منظمة.
+2. Top 100 High Priority Leads.
+3. أفضل 20 Lead يمكن التواصل معهم فوراً.
+4. تحليل لأكثر القطاعات التي ظهر فيها طلب.
+5. تحليل للدول الأفضل.
+6. متوسط قيمة الصفقة المتوقعة.
+7. استراتيجية تواصل مقترحة.
+
+إذا كانت لديك إمكانية إنشاء ملف CSV أو Excel، أنشئه.
+
+لا تتوقف عند أول نتائج.
+قم ببحث فعلي متعدد المصادر وتحقق من المعلومات قبل إدخالها.
+```
+
+---
+
+# 2. تحليل المنافسين واكتشاف الثغرات
+
+**الهدف:** تعرف OscarDevs ممكن تنافس إزاي، وإيه الخدمات اللي السوق مستعد يدفع فيها.
+
+```text
+أريد منك إجراء دراسة Competitive Intelligence احترافية لشركة تطوير برمجيات وخدمات رقمية تستهدف مصر والخليج.
+
+الهدف:
+اكتشاف أفضل فرص يمكن لشركة صغيرة أو متوسطة استغلالها لمنافسة شركات البرمجيات والوكالات الرقمية الحالية.
+
+حلل المنافسين في:
+- مصر
+- السعودية
+- الإمارات
+- قطر
+- الكويت
+
+وابحث أيضاً عن عدد محدود من المنافسين العالميين الناجحين للحصول على Benchmark.
+
+ابحث عن شركات تقدم:
+- Web Development
+- Software Development
+- SaaS
+- CRM
+- ERP
+- Business Automation
+- AI Development
+- Mobile Apps
+- Custom Systems
+
+أريد تحليل ما لا يقل عن 50 منافساً مناسباً إذا كانت البيانات متاحة.
+
+لكل منافس:
+- Company
+- Country
+- Website
+- Main services
+- Target customers
+- Pricing إذا كانت معلنة
+- Packages
+- Positioning
+- Unique selling proposition
+- Website quality
+- SEO presence
+- Social media presence
+- Content strategy
+- Lead generation strategy
+- Strengths
+- Weaknesses
+- Customer segment
+- Technology positioning
+
+حلل المواقع وصفحات الخدمات وليس مجرد البحث عن أسماء الشركات.
+
+ابحث عن:
+- الخدمات الأكثر انتشاراً
+- الخدمات الأقل منافسة
+- الخدمات الأعلى سعراً
+- الخدمات التي يمكن تقديمها كمنتج SaaS
+- الخدمات التي يمكن تحويلها إلى Productized Service
+- القطاعات التي لديها طلب واضح
+- الثغرات التي لا يتم استغلالها جيداً
+
+ثم قم ببناء:
+Competitive Matrix
+
+وقارن:
+Price
+Quality
+Features
+Speed
+Trust
+Portfolio
+SEO
+AI
+Automation
+Support
+Localization
+Arabic UX
+
+بعد ذلك أريد منك تحديد:
+1. 10 فرص يمكن لـ OscarDevs استغلالها.
+2. 10 خدمات يجب تجنبها بسبب المنافسة العالية.
+3. 10 خدمات يمكن بيعها بأسلوب Productized Service.
+4. 5 خدمات يمكن تحويلها إلى اشتراك شهري.
+5. أفضل 5 قطاعات لاستهدافها.
+6. أفضل 3 دول.
+7. أفضل Positioning مقترح للشركة.
+8. اقتراح أسعار مبدئية.
+
+لا تخترع الأسعار أو البيانات.
+إذا لم توجد أسعار معلنة، وضح أنها غير متاحة واستنتج فقط من بيانات السوق التي وجدتها، مع توضيح أنها تقديرية.
+
+في النهاية أنشئ:
+- Executive Summary
+- Competitor Matrix
+- Market Opportunities
+- Recommended Strategy
+- 90-day Action Plan
+```
+
+---
+
+# 3. ماكينة SEO لمدة سنة
+
+**الهدف:** تستغل Manus في إنتاج أصل محتوى ضخم يخدم موقعك لفترة طويلة.
+
+```text
+أريد منك بناء استراتيجية SEO كاملة لمدة 12 شهراً لشركة برمجيات وخدمات تطوير مواقع وأنظمة.
+
+الأسواق:
+Egypt
+Saudi Arabia
+UAE
+Qatar
+Kuwait
+
+اللغات:
+Arabic
+English
+
+الأهداف:
+1. زيادة Organic Traffic.
+2. الحصول على Leads.
+3. استهداف كلمات ذات نية شراء عالية.
+4. بناء Authority.
+5. الحصول على عملاء لخدمات تطوير الأنظمة والمواقع والـ SaaS.
+
+أريد منك إجراء Keyword Research حقيقي.
+
+قسم الكلمات إلى:
+- Commercial
+- Transactional
+- Informational
+- Local
+- Problem-based
+- Comparison
+- High-intent
+
+لكل Keyword إن أمكن:
+- Keyword
+- Language
+- Country
+- Search intent
+- Estimated search volume إذا توفر
+- Competition
+- Keyword difficulty إذا توفر
+- CPC إذا توفر
+- Business value
+- Recommended page type
+
+ثم أنشئ:
+Topic Cluster Architecture
+
+المحاور الرئيسية:
+- Website Development
+- Custom Software
+- SaaS
+- CRM
+- Business Automation
+- AI
+- Inventory Systems
+- Clinic Systems
+- Restaurant Systems
+- Booking Systems
+- Business Dashboards
+
+أنشئ خطة محتوى لمدة 12 شهراً.
+
+أريد:
+- Pillar pages
+- Supporting articles
+- Landing pages
+- Comparison pages
+- Case-study topics
+- FAQ topics
+
+ثم حدد أول 30 صفحة يجب تنفيذها حسب الأولوية.
+
+لكل صفحة:
+- Title
+- Primary keyword
+- Secondary keywords
+- Search intent
+- Target audience
+- Suggested URL
+- H1
+- H2 structure
+- Internal links
+- CTA
+- Conversion objective
+
+بعد ذلك اكتب أول 10 مقالات كاملة جاهزة للنشر.
+
+المقالات يجب أن تكون:
+- Original
+- Useful
+- Human-readable
+- SEO optimized
+- Not keyword stuffing
+- تحتوي على أمثلة عملية
+- تحتوي على CTA مناسب
+
+لا تنشئ محتوى عاماً أو سطحياً.
+
+ركز على المحتوى الذي يمكن أن يؤدي إلى عميل وليس مجرد Traffic.
+
+إذا أمكن، أنشئ الملفات في Markdown منظمة حسب المقال.
+
+في النهاية قدم:
+- 12-month SEO roadmap
+- Keyword map
+- Content calendar
+- Priority pages
+- First 10 articles
+- Internal linking strategy
+- Conversion strategy
+```
+
+---
+
+# 4. بناء مكتبة Demo Systems قابلة للبيع
+
+دي مهمة مهمة جداً ليك لأنك أصلاً عندك اتجاه الـ Demo Systems.
+
+```text
+أريد منك إجراء بحث سوق لتحديد أفضل أنظمة Business Software يمكن بناء Demo Versions منها وعرضها للعملاء المحتملين.
+
+الهدف:
+إنشاء Portfolio من Demo Systems يمكن استخدامها:
+1. لجذب العملاء.
+2. لإقناع العميل.
+3. لتقليل وقت البيع.
+4. لإعادة استخدام نفس النظام كأساس لمشاريع مدفوعة.
+
+ابحث عن الأنظمة الأكثر طلباً في:
+Egypt
+Saudi Arabia
+UAE
+
+القطاعات:
+- Clinics
+- Dental Clinics
+- Radiology Centers
+- Restaurants
+- Retail
+- Inventory
+- Real Estate
+- Schools
+- Training Centers
+- Car Dealers
+- Service Companies
+- Booking businesses
+
+أريد منك تحليل السوق وتحديد أفضل 10 أفكار Demo Systems.
+
+لكل فكرة:
+- System name
+- Target customer
+- Problem solved
+- Core features
+- Optional features
+- Estimated selling price
+- Subscription possibility
+- Competition
+- Demand evidence
+- Development difficulty
+- Reusability
+- Profit potential
+
+ثم رتبهم باستخدام Score من 100.
+
+اختر أفضل 5 فقط.
+
+لكل نظام من الخمسة:
+أنشئ:
+- Product concept
+- User roles
+- Main screens
+- Core workflows
+- Database entities
+- Core features
+- Dashboard requirements
+- Arabic/English requirements
+- RTL requirements
+- Demo data
+- Sales pitch
+- Pricing strategy
+
+لا أريد Features ضخمة غير ضرورية.
+
+ركز على MVP قوي يمكن تحويله لاحقاً إلى منتج حقيقي.
+
+ثم حدد أي نظام يجب بناؤه أولاً ولماذا.
+
+وفي النهاية:
+أنشئ خطة Portfolio من 5 Demo Systems يمكن تقديمها للعملاء خلال فترة قصيرة.
+```
+
+---
+
+# 5. اكتشاف SaaS قابل للربح
+
+ده من أهم البرومبتات.
+
+```text
+أريد منك إجراء Deep Market Research لاكتشاف فكرة Micro-SaaS أو Vertical SaaS يمكن لشركة صغيرة تطويرها وتحقيق إيرادات منها.
+
+لا أريد أفكار AI عامة مثل:
+AI chatbot
+AI writer
+AI image generator
+
+أريد مشكلة Business حقيقية يدفع أصحاب الشركات أموالاً لحلها.
+
+ركز على:
+Egypt
+Saudi Arabia
+UAE
+ثم الأسواق العالمية إذا كانت الفكرة قابلة للتوسع.
+
+ابحث عن المشاكل الحقيقية من:
+- Reddit
+- Quora
+- Product reviews
+- SaaS reviews
+- Forums
+- Public discussions
+- Google search results
+- Competitor websites
+- Product Hunt
+- G2
+- Capterra
+- App reviews
+- Business communities
+
+ابحث عن:
+- Complaints
+- Manual workflows
+- Expensive software
+- Bad UX
+- Missing features
+- Industry-specific problems
+- Repetitive tasks
+- Spreadsheet dependency
+- WhatsApp dependency
+- Paper-based processes
+
+لا تعتمد على فكرة واحدة.
+
+اكتشف على الأقل 20 مشكلة محتملة.
+
+لكل مشكلة:
+- Problem
+- Target customer
+- Evidence of demand
+- Current solution
+- Existing competitors
+- Pricing
+- Customer pain
+- Frequency of problem
+- Willingness to pay
+- Difficulty
+- Market size indicators
+- MVP complexity
+
+ثم اعمل Scoring Model من 100 بناءً على:
+Demand
+Competition
+Willingness to pay
+Ease of development
+Recurring revenue
+Market size
+Distribution
+Retention
+Expansion potential
+
+اختر أفضل 5.
+
+ثم اعمل Deep Dive على أفضل فكرة.
+
+أريد:
+- Product name
+- Target customer
+- Problem
+- Solution
+- MVP
+- Pricing
+- Customer acquisition
+- Competitive advantage
+- Technical architecture
+- Database concept
+- Main screens
+- Onboarding
+- Billing model
+- Retention strategy
+- Expansion strategy
+- 90-day roadmap
+
+وأريد منك أن تكون صريحاً جداً.
+
+إذا وجدت أن أي فكرة غير جيدة، ارفضها ولا تحاول تجميلها.
+
+الهدف ليس إنتاج فكرة جميلة.
+
+الهدف اكتشاف Business يمكن أن يحقق Revenue حقيقي.
+```
+
+---
+
+# 6. البحث عن شركات لديها فرصة شراء الآن
+
+ده مختلف عن الـ Lead Generation الأول، لأنه يركز على **الـ Buying Signals**.
+
+```text
+أريد منك بناء Sales Intelligence Research System.
+
+الهدف:
+اكتشاف شركات في مصر والسعودية والإمارات لديها Buying Signals تشير إلى أنها قد تحتاج الآن إلى Software Development أو Website Development أو Automation أو AI.
+
+لا أريد مجرد شركات.
+
+أريد شركات لديها سبب يجعلها مرشحة للشراء الآن.
+
+ابحث عن إشارات مثل:
+- Expansion
+- New branches
+- New website
+- Hiring
+- Digital transformation
+- New product
+- New location
+- Funding
+- Growth
+- Customer complaints
+- Poor website
+- Manual processes
+- New regulations
+- New services
+- E-commerce expansion
+- Booking expansion
+- CRM requirements
+
+لكل شركة:
+- Company
+- Country
+- Industry
+- Website
+- Signal
+- Source
+- Date of signal إذا متاح
+- Why this indicates a potential need
+- Recommended service
+- Estimated deal size
+- Priority score
+
+أريد ترتيب الشركات حسب:
+Urgency
+Budget potential
+Need
+Ease of contact
+Fit
+
+أريد Top 100 opportunities.
+
+ثم اختر أفضل 20.
+
+لكل واحدة:
+اكتب:
+- Why contact them now
+- What to sell
+- What problem to mention
+- Suggested opening message
+- Suggested offer
+- Suggested CTA
+
+لا تستخدم أي بيانات شخصية غير متاحة علناً.
+
+لا تخترع أي Buying Signal.
+
+كل Signal يجب أن يكون مدعوماً بمصدر قابل للتحقق.
+```
+
+---
+
+# 7. بناء أصل رقمي يباع أكثر من مرة
+
+```text
+أريد منك اكتشاف Digital Products يمكن لشركة Software Development صغيرة إنتاجها مرة واحدة ثم بيعها مرات كثيرة.
+
+ابحث عن المنتجات الرقمية ذات الطلب الحقيقي.
+
+أمثلة للفئات التي يمكنك بحثها:
+- SaaS templates
+- Admin dashboards
+- CRM templates
+- Business templates
+- UI kits
+- Website templates
+- React components
+- WordPress solutions
+- Excel automation tools
+- Business calculators
+- AI tools
+- Notion templates
+- Documentation systems
+- Industry-specific software templates
+- Ready-made business systems
+
+لا تفترض أن هذه الأفكار مربحة.
+
+ابحث عن الأدلة.
+
+حلل:
+- Demand
+- Competition
+- Existing prices
+- Reviews
+- Complaints
+- Number of competitors
+- Search demand
+- Difficulty
+- Production cost
+- Selling price
+- Recurring revenue potential
+
+اكتشف 20 منتجاً.
+
+اعمل Score لكل منتج.
+
+اختر أفضل 5.
+
+ثم اختر منتجاً واحداً فقط كأفضل فرصة.
+
+أنشئ له:
+- Product concept
+- Target customer
+- Features
+- Pricing
+- Sales channels
+- Landing page structure
+- Marketing strategy
+- Production plan
+- Launch plan
+- Upsell opportunities
+- Subscription opportunities
+
+الهدف:
+منتج يمكن إنتاجه مرة ثم بيعه لأكثر من عميل بدون تطوير مخصص لكل عميل.
+```
+
+---
+
+# 8. بناء Business يعمل بأقل تدخل مني
+
+وده اللي كنت أقصده بفكرة "شركة شبه ذاتية التشغيل".
+
+```text
+أريد منك تصميم Business Model يمكن تشغيله بواسطة شخص واحد مع استخدام AI والأتمتة لتقليل العمل اليدوي إلى الحد الأدنى.
+
+لا أريد Business يحتاج فريقاً كبيراً.
+
+أريد نموذجاً:
+- Low overhead
+- Recurring revenue
+- High automation
+- Simple operations
+- Scalable
+- Can start as MVP
+- Can be operated remotely
+
+ابحث أولاً عن 10 نماذج Business مناسبة.
+
+لكل نموذج:
+- Business model
+- Target customer
+- Problem
+- Revenue
+- Acquisition channel
+- Automation opportunities
+- Human work required
+- Startup cost
+- Competition
+- Scalability
+- Risk
+
+رتبهم.
+
+اختر أفضل نموذج.
+
+ثم صمم الشركة كاملة:
+
+1. Product
+2. Customer
+3. Pricing
+4. Sales funnel
+5. Marketing
+6. Lead generation
+7. Onboarding
+8. Delivery
+9. Customer support
+10. Billing
+11. Retention
+12. Upsell
+13. Automation
+
+حدد بالضبط:
+ما الذي يمكن أن يقوم به AI؟
+ما الذي يحتاج إنسان؟
+ما الذي يمكن أتمتته؟
+ما الذي يجب ألا تتم أتمتته؟
+
+أنشئ Operating Workflow من أول دخول العميل حتى الدفع والتجديد.
+
+ثم اعمل Financial Model مبدئي:
+- Monthly recurring revenue scenarios
+- Costs
+- Gross margin
+- Break-even
+- Customer acquisition assumptions
+
+لا تستخدم أرقاماً مختلقة على أنها حقائق.
+استخدم افتراضات واضحة عند الحاجة.
+
+الهدف:
+الوصول إلى نموذج Business واقعي يمكن لشخص واحد تشغيله.
+```
+
+---
+
+# 9. خطة نمو OscarDevs لمدة 12 شهر
+
+ده البرومبت اللي يخلي Manus يتصرف كأنه **Strategy Team**.
+
+```text
+أريد منك بناء Growth Strategy كاملة لمدة 12 شهراً لشركة Software Development وDigital Solutions.
+
+الشركة تقدم:
+- Websites
+- Web Applications
+- Custom Business Systems
+- SaaS
+- Automation
+- AI solutions
+- CRM
+- Inventory systems
+- Booking systems
+
+الأسواق الأساسية:
+Egypt
+Saudi Arabia
+UAE
+
+أريد منك أولاً تقييم Business Model الحالي من المعلومات المتاحة على الموقع والـ online presence.
+
+لا تفترض معلومات غير موجودة.
+
+حلل:
+- Positioning
+- Services
+- Pricing
+- Website
+- Portfolio
+- Trust
+- SEO
+- Content
+- Social media
+- Lead generation
+- Conversion
+- Sales funnel
+- Competitive positioning
+
+حدد:
+- Strengths
+- Weaknesses
+- Opportunities
+- Threats
+
+ثم صمم Strategy لمدة سنة.
+
+قسمها إلى:
+Month 1
+Month 2
+...
+Month 12
+
+لكل شهر:
+- Main objective
+- Tasks
+- Deliverables
+- Marketing activities
+- Sales activities
+- Product activities
+- SEO activities
+- KPIs
+
+أريد أيضاً:
+- Lead generation strategy
+- Content strategy
+- SEO strategy
+- Outreach strategy
+- Referral strategy
+- Partnership strategy
+- Demo strategy
+- Pricing strategy
+- Productized services
+- SaaS strategy
+
+حدد الخدمات التي يجب التركيز عليها والخدمات التي يجب تقليل التركيز عليها.
+
+أنشئ Sales Funnel:
+Traffic
+Lead
+Qualification
+Discovery
+Proposal
+Close
+Delivery
+Upsell
+Retention
+
+ضع KPIs لكل مرحلة.
+
+في النهاية:
+أنشئ خطة تنفيذ أسبوعية لأول 90 يوماً.
+
+أريد خطة عملية وليست نصائح عامة.
+```
+
+---
+
+# 10. البحث عن مشكلة حقيقية الناس مستعدة تدفع لحلها
+
+وده أنا شايفه **أذكى استغلال لـ Manus** لو عايز تستخدم قوة البحث عنده.
+
+```text
+أريد منك القيام بدراسة Problem Discovery واسعة جداً بهدف اكتشاف مشكلة حقيقية يمكن تحويلها إلى Business مربح.
+
+لا تبدأ بفكرة Product.
+
+ابدأ بالمشاكل.
+
+ابحث عن شكاوى ومشاكل حقيقية لدى أصحاب الأعمال والموظفين والمستهلكين.
+
+ركز على:
+Egypt
+Saudi Arabia
+UAE
+
+وابحث أيضاً في السوق العالمي عن المشاكل القابلة للتوطين.
+
+استخدم مصادر عامة موثوقة ومجتمعات ومراجعات ومنتديات ومواقع منتجات.
+
+ابحث تحديداً عن عبارات ومعاني مثل:
+- I hate...
+- There must be a better way...
+- I currently use Excel...
+- We do this manually...
+- This takes hours...
+- This is expensive...
+- This doesn't integrate...
+- No software does...
+- We need...
+- Looking for a tool...
+- Alternative to...
+- Too complicated...
+- Too expensive...
+
+اجمع 50 مشكلة حقيقية على الأقل إذا كانت البيانات تسمح.
+
+لكل مشكلة:
+- Exact problem
+- Who experiences it
+- Frequency
+- Current workaround
+- Current software
+- Cost of current solution
+- Pain level
+- Willingness to pay
+- Market size indicators
+- Competition
+- Potential solution
+- Potential pricing
+
+ثم رتب المشاكل حسب:
+Pain
+Frequency
+Money
+Urgency
+Competition
+Ease of reaching customers
+Ease of building solution
+Recurring revenue potential
+
+اختر أفضل 10.
+
+ثم قم ببحث عميق في أفضل 3.
+
+وأخيراً اختر مشكلة واحدة فقط.
+
+أريد منك أن تقول لي:
+
+"لو كنت سأبدأ Business واحد فقط بناءً على هذا البحث، سأختار هذه المشكلة."
+
+ثم اشرح:
+- Why
+- Customer
+- Problem
+- Current alternatives
+- Solution
+- MVP
+- Pricing
+- Acquisition
+- Competitive advantage
+- Risks
+- 90-day validation plan
+
+مهم جداً:
+إذا لم تجد مشكلة تستحق بناء Business حولها، قل ذلك بوضوح.
+
+لا تحاول إجبار البحث على إنتاج فكرة.
+```
+
+---
+
+## 🔥 وترتيبي ليك شخصياً
+
+لو عندك فترة محدودة جداً من Manus المجاني، **ما تبدأش بالعشرة كلهم مرة واحدة**.
+
+أنا هعملهم بالترتيب ده:
+
+| الأولوية | المهمة                   | الهدف                       |
+| -------- | ------------------------ | --------------------------- |
+| 🥇 1     | Problem Discovery        | اكتشاف مشكلة تستحق فلوس     |
+| 🥈 2     | SaaS Research            | تحويل المشكلة إلى منتج      |
+| 🥉 3     | Buying Signals           | عملاء محتملين جاهزين للشراء |
+| 4        | Lead Generation          | بناء قاعدة عملاء كبيرة      |
+| 5        | Digital Product          | أصل يباع أكثر من مرة        |
+| 6        | Demo Systems             | Portfolio يبيع              |
+| 7        | Competitive Intelligence | معرفة السوق والمنافسين      |
+| 8        | SEO                      | أصل طويل الأجل              |
+| 9        | Autonomous Business      | نموذج تشغيل قليل التدخل     |
+| 10       | OscarDevs Growth         | الخطة الشاملة               |
+
+**والأهم:** ما تخليش Manus يعمل العشرة بالتوازي لو ده هيستهلك الـ Credits أو يخلي النتائج سطحية. ابدأ بـ **Problem Discovery**، وبعد ما يطلع لك النتائج، استخدم النتائج نفسها كمدخل للـ **SaaS Research**، وبعدها نستخدم النتيجة النهائية في **Buying Signals + Lead Generation**.
+
+كده بدل ما Manus يعمل لك 10 تقارير منفصلة، نخليه يبني **سلسلة واحدة ممكن تنتهي بمنتج وعملاء ودخل**.

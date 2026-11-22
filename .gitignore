@@ -1,19 +1,55 @@
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# compiled output
+dist
+tmp
+out-tsc
+*.tsbuildinfo
+.expo
+.expo-shared
+.next
+.turbo
+.svelte-kit
+.nuxt
+.output
+.vercel
+
+# dependencies
 node_modules
-.env
-*.log
 
-# Kakeibo receipts and anything else deliberately outside the web root.
-private_uploads/
-backups/ads/
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
 
-# Generated exports are delivered separately and should not enter Git history.
-/generated-artifacts/
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 
-# Safari Kids (mykid) runtime artifacts
-mykid/server/.tts-cache/
-mykid/.env
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
 
-# التطبيق المستضاف Service Flow — المولَّد مش في جيت
-serviceflow/node_modules
-serviceflow/dist
-serviceflow/server/public
+# System Files
+.DS_Store
+Thumbs.db
+
+.cursor/rules/nx-rules.mdc
+.github/instructions/nx.instructions.md
+
+# Replit
+.cache/
+.local/

@@ -1,0 +1,43 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+TASK: COMPLETE SERVICE FLOW MEDIA RECONCILIATION
+
+The latest audit confirmed 2,007 objects in the serviceflow-maintenance R2 bucket, totaling approximately 483 MB.
+
+However, the production database and deployed filesystem were not accessible for full reconciliation.
+
+My objective is to verify that every production photo and video is safely stored in R2 before migrating or deleting any legacy files.
+
+Perform a read-only investigation.
+
+1. Determine the safest authorized way to access the actual production Service Flow database and its media records.
+2. Determine how to inspect the deployed VM's existing media files without exposing them publicly.
+3. Verify the actual production R2 bucket configuration without exposing credentials.
+4. Prepare a reconciliation report that matches production photo and video records to actual R2 objects.
+5. Identify photos still stored as PostgreSQL payloads.
+6. Identify videos still stored locally.
+7. Identify database references to missing R2 objects.
+8. Check whether the existing migration scripts can safely resume after interruption.
+9. Do not assume the workspace database or filesystem matches production.
+10. Do not download entire media files unnecessarily. Prefer object metadata and checksums where available.
+
+STRICT SAFETY RULES:
+- Do not upload, delete, overwrite, migrate, or modify files.
+- Do not modify database records or schemas.
+- Do not change production settings or deploy code.
+- Do not expose credentials or connection strings.
+- Do not run migration scripts with --apply.
+- Do not create new infrastructure, dependencies, or monitoring services.
+
+If production access is unavailable, explain the exact minimum account-owner action required to obtain the missing information.
+
+Return a report separating verified production facts from workspace-only findings.
+
+STOP after the report and wait for approval.

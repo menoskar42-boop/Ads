@@ -1,0 +1,146 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+CONTINUE THE SERVICE FLOW MIGRATION NOW.
+
+Continue from the exact current repository state and the
+latest completed implementation.
+
+Do not repeat completed work.
+Do not produce another planning-only report.
+Do not ask me to approve each migration phase.
+Continue implementing, testing, fixing failures, and moving
+to the next migration group without stopping between phases.
+
+PRIMARY OBJECTIVE:
+Reduce PostgreSQL dependency and recurring costs by migrating
+suitable Service Flow relational data to Cloudflare D1.
+
+Slower performance is acceptable when it reduces costs.
+
+CURRENT PROGRESS:
+- Local CFM authentication and reference-data operations.
+- D1 adapter for tech_coverage_grants.
+- Local CFM ticket list/detail reads.
+- PostgreSQL-to-D1 synthetic export/import tooling.
+- Existing local regression tests and migration documentation.
+
+Reuse the existing implementation and tests.
+
+PHASE 1: COMPLETE CFM TICKET OPERATIONS
+
+Continue implementing the actual storage operations for:
+- Ticket creation.
+- Ticket updates and status transitions.
+- Repairs and reopening.
+- Ticket measurements and child records.
+- Inventory mutations and box_fault_tickets linkage.
+- Cross-links between Service Flow and CFM.
+- Ticket-list enrichment that still depends on PostgreSQL.
+
+Trace the actual application consumers and implement the
+required typed D1 operations.
+
+Do not leave these features as test-only Worker operations.
+
+PHASE 2: RESOLVE CROSS-DATABASE CONSISTENCY
+
+For operations that currently touch both PostgreSQL and D1:
+- Establish authoritative data ownership.
+- Prevent duplicate records and repeated side effects.
+- Implement idempotent retries and recoverable failures.
+- Test interrupted operations and reconciliation.
+- Never assume atomic transactions across the databases.
+
+Keep any operation on PostgreSQL if moving it would cause
+unacceptable data-integrity risks, but continue migrating
+other independent operations.
+
+Do not let one blocked operation stop the entire project.
+
+PHASE 3: CONTINUE THROUGH THE REMAINING MIGRATION GROUPS
+
+Use the existing table-by-table migration plan.
+
+After completing each suitable group:
+1. Implement its schema and typed storage operations.
+2. Update its application consumers.
+3. Extend the import utility.
+4. Test reads, writes, relationships, constraints and failures.
+5. Run relevant regression tests.
+6. Fix failures and continue to the next group.
+
+Do not stop after CFM.
+Continue until all feasible local migration work is complete
+and every remaining PostgreSQL dependency is identified.
+
+PHASE 4: DATA MIGRATION TOOLING
+
+Extend the existing importer to cover all selected tables.
+
+Use synthetic or local export data only.
+
+Validate identifiers, row counts, foreign keys, uniqueness,
+type conversions, repeatable imports, and interrupted imports.
+
+Do not access or export production data.
+
+PHASE 5: FINAL VALIDATION
+
+Run the complete relevant local test suite, TypeScript checks,
+and git diff --check.
+
+Verify that the existing production PostgreSQL configuration
+and application routing remain unchanged.
+
+Clearly distinguish implemented functionality from functionality
+that remains PostgreSQL-dependent.
+
+NON-NEGOTIABLE SAFETY RULES:
+- Do not delete, overwrite, or modify production PostgreSQL data.
+- Do not migrate real production data.
+- Do not deploy Workers or create production D1 resources.
+- Do not upgrade Cloudflare plans or incur new charges.
+- Do not redirect production traffic.
+- Keep sessions, execution queues, locks and retries in
+  PostgreSQL temporarily.
+- Keep media files in R2.
+- Preserve the existing PostgreSQL implementation for rollback.
+- Do not enable a partial D1 migration in production.
+
+CONTINUOUS EXECUTION:
+Do not stop after an individual phase or ask me whether to
+continue.
+
+Continue until all implementation possible without production
+access, paid resources, or destructive actions is completed.
+
+If a genuine technical blocker occurs, work around it where
+safe and continue with independent tasks.
+
+If a blocker cannot be bypassed safely, document that specific
+blocker and continue with the remaining work.
+
+Do not restart completed phases unnecessarily.
+
+FINAL REPORT:
+Provide one consolidated report only after completing all
+possible local implementation work.
+
+Include:
+- All working migration groups and operations.
+- Files changed.
+- Tests and validation results.
+- Remaining PostgreSQL dependencies.
+- Exact blockers to production migration.
+- Whether the implementation is ready for a controlled
+  production migration.
+
+START NOW. CONTINUE FROM THE CURRENT STATE.
+DO NOT STOP TO ASK FOR PHASE-BY-PHASE APPROVAL.

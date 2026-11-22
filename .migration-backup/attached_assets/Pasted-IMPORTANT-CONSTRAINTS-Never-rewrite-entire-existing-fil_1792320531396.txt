@@ -1,0 +1,88 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+PROJECT: Service Flow
+PHASE: Expand CFM D1 Migration Beyond Centrals
+
+The user approves continuing with implementation.
+
+The priority is to make practical migration progress, not
+produce another planning-only report.
+
+Existing local tests passed 21/21.
+
+OBJECTIVE:
+Expand the working local D1 implementation to cover the
+related CFM reference data, including cables, fault types,
+and other required reference tables.
+
+Then implement a reusable PostgreSQL-export-to-D1 import
+utility and integrate the D1 storage adapter with the real
+application storage interface in a way that can be tested
+locally.
+
+PRODUCTION SAFETY:
+- Keep PostgreSQL as the production default.
+- Do not delete, overwrite, or modify the existing PostgreSQL
+  database.
+- Do not migrate production data or query production.
+- Do not deploy a Worker or create paid Cloudflare resources.
+- Do not redirect production traffic.
+- Keep queues, sessions, locks, and retries in PostgreSQL.
+- Keep files and media in R2.
+- Do not move ticket workflows or box_fault_tickets writes
+  until partial-failure recovery is implemented and tested.
+
+IMPLEMENTATION TASKS:
+
+1. Inspect the existing Phase 2 local implementation and
+   reuse it. Do not duplicate completed functionality.
+
+2. Extend the local D1 schema and Worker operations to cover
+   the required reference tables and relationships, including
+   cables and their dependency on centrals.
+
+3. Implement real typed storage adapter functions that match
+   the application's existing storage contract. Do not leave
+   the adapter only inside test code.
+
+4. Implement a reusable import utility that accepts a local
+   PostgreSQL export or synthetic export fixtures and imports
+   data into D1 with deterministic type conversion, stable
+   identifiers, foreign-key ordering, and validation.
+
+5. Test create, read, update, delete, foreign-key integrity,
+   duplicate handling, and import consistency for the newly
+   supported tables.
+
+6. Preserve existing CFM authentication and authorization
+   semantics. Do not weaken security to make the tests pass.
+
+7. Run the existing relevant test suites and all new local
+   tests. Run git diff --check.
+
+8. If one operation depends on the unresolved
+   cross-database ticket workflow, keep that operation on
+   PostgreSQL and continue with the remaining safe operations.
+   Do not block the entire migration.
+
+9. Report only after implementation:
+   - Working functions and tables.
+   - Files changed.
+   - Test results.
+   - Remaining PostgreSQL dependencies.
+   - The exact next implementation step.
+
+Do not stop merely because the work requires multiple files.
+Continue through the implementation and local validation.
+
+Do not deploy, migrate production data, create paid resources,
+or change production database selection.
+
+STOP after the local implementation and tests are complete.

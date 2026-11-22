@@ -1,0 +1,74 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+Continue implementing the existing PostgreSQL-to-D1 migration plan from the exact current repository state.
+
+Do not stop after writing a plan, audit, or progress report. Make actual code changes, run the relevant tests, fix failures, and continue to the next eligible task automatically without asking me for approval between local implementation steps.
+
+CURRENT STATUS:
+- Local D1 proof exists for CFM and selected maintenance operations.
+- Photo/video metadata has a local D1 schema and optional local-proof paths.
+- Actual media files remain in R2.
+- PostgreSQL remains the production source of truth.
+- The local D1 proof mode must remain rejected in production.
+- Recent reported checks passed: 27/27 tests, npm run check, syntax checks, and git diff --check.
+
+NEXT TASKS:
+
+1. Inspect the current code and migration documents before changing anything. Verify which features are genuinely implemented versus documented only. Do not assume the previous report proves complete integration.
+
+2. Continue with the remaining eligible maintenance features:
+   - boxes
+   - inspections
+   - tasks
+   - phone lines
+   - associated lists, details, reports, filters, and exports
+   - deletion, restoration, and error recovery
+
+3. Audit data_review, reporting, bulk export, and every remaining PostgreSQL consumer of the tables already targeted for D1. Implement compatible D1 paths where safe, using typed and restricted operations rather than generic SQL execution.
+
+4. Preserve authentication, authorization, validation, pagination, filtering, sorting, relationships, and existing API response shapes. Do not bypass permission checks.
+
+5. Handle cross-database consistency explicitly. Do not claim PostgreSQL and D1 share transactions. For operations spanning PostgreSQL, D1, and R2, implement safe ordering, idempotency, compensation, and recovery where appropriate. Never silently swallow a failed write.
+
+6. Update import/export and rollback tooling. Preserve primary keys and relationships, make imports repeatable, validate row counts and references, and document any feature that cannot safely migrate yet.
+
+7. Keep sessions, users, execution queues, queue state, locks, retries, and any mixed-use app_state/app_settings data in PostgreSQL until their consumers and dependencies have been fully audited. Do not migrate them merely to increase the migrated-table count.
+
+8. After each logical implementation unit:
+   - run its focused tests
+   - run relevant migration regression tests
+   - run npm run check and git diff --check when appropriate
+   - fix regressions before continuing
+   - record exact changed files and test results
+
+9. Continue automatically through all remaining safe LOCAL implementation work. Do not stop merely to ask permission between tasks. If an operation cannot be completed because of a genuine blocker, explain the exact blocker and continue with other independent eligible tasks.
+
+STRICT SAFETY:
+- No production database writes, exports, imports, or cutover.
+- No production configuration changes.
+- No deployment or publishing.
+- No creation of paid Cloudflare resources.
+- No modification or deletion of existing R2 objects.
+- Do not change the default production database target.
+- Keep PostgreSQL intact as the rollback path.
+- Use synthetic data for local tests.
+- Do not claim real R2 uploads were tested unless they actually were.
+
+FINAL REPORT:
+Only after exhausting the remaining safe local tasks, report:
+- features actually integrated versus proof-only
+- remaining PostgreSQL dependencies
+- changed files
+- tests run and exact results
+- import and rollback readiness
+- unresolved risks and blockers
+- explicit confirmation that production was not changed and no paid resources were created
+
+Start now by inspecting the current implementation and immediately proceed with the next concrete code change. Do not respond with another plan alone.

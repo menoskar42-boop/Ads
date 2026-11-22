@@ -1,0 +1,70 @@
+إنت جوّه مشروع ريبليت «sf» (اسمه كان Ads). المطلوب قراية بس: أرقام عن قاعدة بيانات Service Flow عشان نعرف إيه اللى بيخلّى «Production database compute» يتحسب. مفيش أى تعديل خالص.
+
+⛔ خطوط حمرا (إلزامية):
+1) ممنوع أى تعديل: لا كود، لا Secrets، لا Deployments، لا Republish، لا Restart، لا إيقاف أى نشر، لا تغيير أى إعداد فى القاعدة أو فى ريبليت.
+2) SQL: SELECT و SHOW بس. ممنوع INSERT / UPDATE / DELETE / ALTER / CREATE / DROP / TRUNCATE / VACUUM / REINDEX / ANALYZE / CREATE EXTENSION. وممنوع COUNT(*) على أى جدول.
+3) ممنوع تكتب أى كلمة سر أو رابط اتصال كامل فى الرد. من أى رابط اطبع اسم الهوست واسم القاعدة بس (بالأمر اللى تحت).
+4) ممنوع تنسخ أى رقم تليفون أو اسم عميل أو اسم فنى فى الرد.
+5) لو حاجة مش متاحة أو مش ظاهرة، اكتب «مش متاح» ومتخمّنش.
+6) متشغّلش أوامر أكتر من المكتوب — كل استعلام بيصحّى القاعدة وبيتحسب.
+
+━━━━━━━━━━━━━━━━━━━━
+الجزء أ — صفحة Usage (من الواجهة)
+1) افتح Settings ← Usage، الفترة «Current period»، و«All workspaces».
+2) اكتب كل سطر تحت «Storage» بالأرقام زى ما هو (الاسم · الكمية · السعر · المبلغ).
+3) لو فيه طريقة تفصل الاستخدام بالمشروع (Repl) أو بالقاعدة: اكتب ساعات «Production database compute» لكل مشروع/قاعدة.
+4) لو فيه رسم أو تفصيل يومى: اكتب ساعات الـcompute لكل يوم من ٣٠ سبتمبر لحد النهارده. أهم حاجة الفرق قبل وبعد ١٢ أكتوبر.
+
+━━━━━━━━━━━━━━━━━━━━
+الجزء ب — المشاريع والنشر
+1) اكتب كل مشروع ريبليت عنده Deployment شغّال: اسم المشروع · نوع النشر (Autoscale / Reserved VM / Scheduled / Static) · الحالة · تاريخ آخر نشر.
+2) فيه نشر قديم لـService Flow فى مشروع تانى غير sf لسه شغّال؟ لو أيوه: اسم المشروع، نوع النشر، والرابط.
+3) فى مشروع sf: افتح أداة Database. فيه قاعدة Production؟ حجمها كام؟ وهل الصفحة فيها إعداد زى «auto-suspend / idle timeout / compute size»؟ اكتب قيمته زى ما هى (من غير ما تغيّره).
+4) لو المشروع القديم (لو موجود) فيه قاعدة Production: نفس الأسئلة.
+
+━━━━━━━━━━━━━━━━━━━━
+الجزء ج — مين بيكلّم أنهى قاعدة (هوستات بس)
+شغّل فى Shell مشروع sf الأمر ده بالحرف:
+
+node -e 'for (const k of ["DATABASE_URL","SERVICEFLOW_DATABASE_URL","SERVICEFLOW_CURRENT_DATABASE_URL","ADS_DATABASE_URL","MAINTENANCE_DATABASE_URL"]) { const v = process.env[k]; let h = "غير موجود"; try { if (v) { const u = new URL(v); h = u.hostname + " / db=" + u.pathname.slice(1); } } catch (e) { h = "مش رابط"; } console.log(k + " → " + h); }'
+
+وبعده:
+echo "SF_SCHEDULERS=$SF_SCHEDULERS"
+
+⚠️ الـShell بيشوف Secrets الـworkspace. افتح كمان Deployments ← Settings/Secrets بتاعة النشر وقارن أسماء الهوستات بس للمفاتيح نفسها (هل النشر بيكلّم نفس الهوست ولا هوست تانى؟). ونفس الكلام للمشروع القديم لو موجود.
+وقولّى صراحة: هوست SERVICEFLOW_DATABASE_URL ده قاعدة ريبليت (Production database بتاعة أنهى مشروع؟) ولا Neon/Supabase برّه ريبليت؟
+
+━━━━━━━━━━━━━━━━━━━━
+الجزء د — قاعدة Service Flow نفسها (قراية بس)
+لو psql موجود، شغّل ده بالحرف:
+
+psql "$SERVICEFLOW_DATABASE_URL" -X -A -F ' | ' <<'SQL'
+SELECT now() AT TIME ZONE 'Africa/Cairo' AS cairo_now, pg_postmaster_start_time() AT TIME ZONE 'Africa/Cairo' AS compute_started;
+SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size;
+SELECT application_name, client_addr, state, count(*) AS n FROM pg_stat_activity WHERE datname = current_database() GROUP BY 1, 2, 3 ORDER BY n DESC;
+SELECT xact_commit, xact_rollback, tup_returned, tup_fetched, stats_reset FROM pg_stat_database WHERE datname = current_database();
+SELECT relname, reltuples::bigint AS rows_estimate, pg_size_pretty(pg_total_relation_size(oid)) AS size FROM pg_class WHERE relname IN ('sf_session', 'notifications', 'exec_jobs', 'app_state') ORDER BY relname;
+SELECT extname FROM pg_extension ORDER BY 1;
+SQL
+
+لو pg_stat_statements ظاهر فى آخر سطر (الإكستنشنز)، شغّل كمان:
+
+psql "$SERVICEFLOW_DATABASE_URL" -X -A -F ' | ' -c "SELECT calls, round(total_exec_time) AS total_ms, left(regexp_replace(regexp_replace(query, '\s+', ' ', 'g'), '[0-9]{6,}', '…', 'g'), 140) AS q FROM pg_stat_statements ORDER BY calls DESC LIMIT 25;"
+
+وبعد ١٠ دقايق بالظبط، أعد سطر pg_stat_database لوحده واكتب الوقتين والفرق فى xact_commit (ده عدد العمليات فى ١٠ دقايق). اعمل ده فى وقت شغل (الضهر مثلاً) واكتب الساعة.
+
+لو psql مش موجود: اكتب «psql مش موجود» ومتحاولش تثبّت حاجة.
+
+━━━━━━━━━━━━━━━━━━━━
+الجزء هـ — مين بيصحّى القاعدة بالليل (Logs النشر)
+1) Deployments ← Logs لمشروع sf: اختار ساعة ليلية امبارح (مثلاً ٢:٠٠–٣:٠٠ الفجر بتوقيت القاهرة). اكتب: فيه طلبات أصلاً؟ كام سطر تقريباً؟ وإيه أكتر ١٠ مسارات (المسار بس من غير ? وأى حاجة بعدها) تحت /serviceflow أو /api؟
+2) نفس الكلام لساعة شغل (١١:٠٠–١٢:٠٠ الضهر).
+3) دوّر فى الـLogs على أى سطر فيه «[session]» أو «[schedulers]» أو «[cabinet-reassign]» أو «[subinfo-auto]» واكتب نصه (من غير أرقام تليفونات).
+4) لو المشروع القديم شغّال: نفس الخطوات ١ و٣ عليه.
+
+━━━━━━━━━━━━━━━━━━━━
+شكل الرد
+- نفس ترتيب الأجزاء (أ، ب، ج، د، هـ)، والأرقام زى ما هى من غير تقريب.
+- كل وقت بتوقيت القاهرة.
+- مفيش أى سر ولا رابط كامل ولا رقم تليفون.
+- فى الآخر سطرين: «القاعدة اللى بتتحسب فى الفاتورة هى: …» و«قاعدة Service Flow موجودة على: …».

@@ -1,0 +1,17 @@
+
+#11 - Plan
+Issues where indexed OscarDevs marketing and blog pages still emit conflicting metadata or conflicting business-identity signals.
+
+SEO issues to fix:
+
+[Medium] Indexed blog and marketing pages still emit conflicting head metadata Several indexed OscarDevs pages still publish different titles, descriptions, or Open Graph values from more than one source. That means search engines, social bots, and AI tools can show different snippets for the same URL, which hurts click-through rate and makes the brand look inconsistent.
+The remaining drift is concentrated in public pages that are still in scope for this scan. In src/views/blog/article.ejs, the template manually emits og:title, og:description, and og:type before also including seo_meta, so the page head contains two competing Open Graph sets. In src/views/blog/index.ejs, the standalone <meta name="description"> text does not match the description passed into seo_meta. In src/views/legal/contact.ejs, the plain <title> and description differ from the values sent to seo_meta, and in src/views/legal/faq.ejs the plain <title> string still differs from the shared metadata title.
+
+Different parsers choose different tags when duplicates exist: search engines often read the plain <title>, while social crawlers may take the first or last Open Graph value they encounter. Fix this by defining one pageTitle and one pageDescription variable per template, reusing those exact values for <title>, <meta name="description">, and the seo_meta include, and removing the manual Open Graph tags from src/views/blog/article.ejs so the shared partial is the only source of truth. Files: src/views/blog/article.ejs, src/views/blog/index.ejs, src/views/legal/contact.ejs, src/views/legal/faq.ejs
+
+[Medium] The contact page publishes conflicting business contact details The public contact page shows one email address and WhatsApp number to users, but the page's structured data and shared site metadata describe a different contact identity. That can cause search engines, AI systems, and rich-preview parsers to learn the wrong business contact details for OscarDevs.
+In src/views/legal/contact.ejs, the visible contact cards point users to hello@oscardevs.com and https://wa.me/201000000000. But the same template's ContactPage JSON-LD declares contact@oscardevs.com and +201552406406, and the shared Organization graph in src/views/partials/seo_meta.ejs repeats that machine-readable email and phone. This leaves the page with conflicting human-visible and machine-readable identity signals on one of the site's primary trust pages.
+
+Fix this by choosing one canonical support email and one canonical phone/WhatsApp number, then using those same values everywhere: the visible contact cards in src/views/legal/contact.ejs, the ContactPage JSON-LD on that page, and the Organization / ContactPoint data in src/views/partials/seo_meta.ejs. A single shared source for contact constants is the safest way to stop the drift from returning. Files: src/views/legal/contact.ejs, src/views/partials/seo_meta.ejs
+
+N.B. Strongly presume the user wants this task to focus on improving the SEO of the application — metadata, crawlability, indexing, content quality, and structured data — not on introducing new flows or features. Only add new functionality if the issue genuinely cannot be addressed any other way.

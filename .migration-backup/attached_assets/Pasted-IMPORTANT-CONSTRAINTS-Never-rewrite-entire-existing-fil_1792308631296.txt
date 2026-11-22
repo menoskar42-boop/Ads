@@ -1,0 +1,79 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+TASK: SERVICE FLOW COST OPTIMIZATION, D1 FEASIBILITY
+
+This is a READ-ONLY follow-up audit.
+Do not modify existing files, install dependencies, create
+Cloudflare resources, access production data, or perform migrations.
+
+GOAL:
+Determine whether Cloudflare D1 can provide a materially
+cheaper replacement for the current PostgreSQL production
+database under Service Flow's real workload.
+
+Focus on cost, not performance.
+
+1. Identify the 10 most frequently executed database queries
+from existing source code and available logs.
+
+2. For each query, report:
+- Source file and function
+- Tables accessed
+- Whether it performs a full table scan
+- Whether existing indexes appear sufficient
+- Whether it uses PostgreSQL-specific syntax
+- Estimated rows examined, only if supported by existing metrics
+- Whether an equivalent D1 query is feasible
+
+Do not invent query frequencies or row counts.
+
+3. Investigate the daily FCC and WFM imports:
+- Identify tables written during each import.
+- Determine which tables are truncated and reloaded.
+- Identify repeated updates and unnecessary writes.
+- Estimate the number of affected rows only when evidence exists.
+- Do not run the imports.
+
+4. Investigate the scheduled job registerCabinetReassign:
+- Find its exact schedule and implementation.
+- Identify its database operations.
+- Determine whether it can cause unnecessary recurring activity.
+- Do not disable or change it.
+
+5. Determine the minimum metrics needed to estimate D1 costs:
+- Daily rows read
+- Daily rows written
+- Monthly database size
+- Query execution patterns
+
+Explain how these metrics can be obtained safely without
+creating paid resources or repeatedly querying production.
+
+6. Produce a cost comparison between:
+A. Current PostgreSQL with targeted optimizations
+B. Cloudflare D1 Free
+C. Cloudflare D1 with Workers Paid
+
+Use official pricing only when verifiable.
+Separate measured data from assumptions.
+
+7. Recommend the single lowest-risk next step that could
+reduce monthly cost without breaking Service Flow.
+
+FINAL OUTPUT:
+- Top 10 queries and optimization opportunities
+- FCC/WFM write workload findings
+- Scheduled job findings
+- D1 compatibility risks
+- Cost comparison
+- Missing metrics
+- Final recommendation
+
+Do not make any code changes.

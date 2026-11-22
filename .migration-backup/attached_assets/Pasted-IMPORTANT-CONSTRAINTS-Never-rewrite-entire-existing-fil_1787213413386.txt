@@ -1,0 +1,642 @@
+IMPORTANT CONSTRAINTS:
+
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+# START PHASE 0 ONLY
+# AMAZON EGYPT CREATORS API AND COMPLIANCE DISCOVERY
+
+You have already received the complete project idea, architecture, MVP scope, and all planned implementation phases.
+
+Do NOT start Phase 1.
+
+Do NOT start building the website yet.
+
+Do NOT create the Amazon product catalog yet.
+
+Do NOT implement Amazon product search yet.
+
+Do NOT implement the Amazon API integration yet.
+
+Your ONLY task right now is to complete:
+
+PHASE 0: COMPLIANCE DISCOVERY
+
+The purpose of this phase is to verify that the Amazon Egypt integration can actually be implemented correctly before we write production code for it.
+
+---
+
+# 1. CURRENT PROJECT CONTEXT
+
+The project is:
+
+Deals
+
+Production domain:
+
+deals.oscardevs.com
+
+Business model:
+
+Affiliate product discovery platform.
+
+The website will:
+
+- Publish original product reviews
+- Publish buying guides
+- Publish comparisons
+- Curate selected products
+- Send users to Amazon Egypt through affiliate links
+
+The website is NOT an e-commerce store.
+
+There will be:
+
+- No checkout
+- No payment processing
+- No shipping
+- No order management
+- No Amazon order management
+- No customer returns management
+
+Amazon handles the actual purchase.
+
+Initial marketplace:
+
+Amazon Egypt / Amazon.eg
+
+Future marketplaces are out of scope for this phase.
+
+---
+
+# 2. CRITICAL API REQUIREMENT
+
+Before writing any Amazon integration code, verify the CURRENT official Amazon API situation.
+
+Amazon has deprecated PA-API 5 and is transitioning to Creators API.
+
+Therefore:
+
+DO NOT build the project on deprecated PA-API 5 as the final implementation.
+
+Determine what the CURRENT official Amazon API is for the intended Amazon Egypt affiliate workflow.
+
+---
+
+# 3. VERIFY AMAZON EGYPT SUPPORT
+
+Determine from official Amazon sources whether the current Creators API supports Amazon Egypt.
+
+Specifically verify:
+
+- Amazon.eg marketplace support
+- Amazon Associates Egypt support
+- Creators API availability
+- API authentication requirements
+- API access requirements
+- Whether an Amazon Associates Egypt account is sufficient
+- Whether additional approval is required
+- Whether API credentials can be obtained from the Egyptian Associates account
+- Whether the API can search Amazon Egypt products
+- Whether the API can retrieve individual Amazon Egypt products
+
+Do NOT assume that support exists simply because Amazon Egypt exists.
+
+If something cannot be confirmed:
+
+Mark it clearly as:
+
+UNKNOWN / NEEDS VERIFICATION
+
+Do not guess.
+
+---
+
+# 4. VERIFY PRODUCT SEARCH
+
+Determine whether the current official API allows product discovery/search for Amazon Egypt.
+
+Verify whether the admin system can eventually support:
+
+- Keyword search
+- Category/search-index browsing
+- Product lookup
+- Pagination
+- Relevance sorting
+- Price sorting if supported
+
+Do not implement these features yet.
+
+We are only verifying whether they are technically and contractually possible.
+
+---
+
+# 5. VERIFY PRODUCT DATA
+
+Determine which product fields are officially available for Amazon Egypt through the current API.
+
+Specifically investigate:
+
+- Product title
+- ASIN / product identifier
+- Product URL
+- Main product image
+- Additional product images
+- Brand
+- Features
+- Product description
+- Category
+- Price
+- Currency
+- Availability
+- Rating
+- Review count
+- Customer reviews
+
+For every field, classify it as:
+
+SUPPORTED
+
+NOT SUPPORTED
+
+UNKNOWN / NEEDS VERIFICATION
+
+Do not assume that a field available in PA-API is automatically available in Creators API.
+
+---
+
+# 6. VERIFY ADMIN PRODUCT BROWSER REQUIREMENTS
+
+The planned Admin workflow is:
+
+Admin
+↓
+Amazon Egypt
+↓
+Browse/Search
+↓
+Product results
+↓
+Image + title + price where permitted
+↓
+View Details
+↓
+Add to Website
+↓
+Draft Product
+↓
+Editorial Review
+↓
+Publish
+
+Verify whether the official API can support this workflow.
+
+In particular, verify whether the Admin can eventually:
+
+- See product images
+- See product titles
+- See current prices
+- Open product details
+- Retrieve additional product information
+- Identify products by ASIN
+- Create a local product record
+
+Do not build this workflow yet.
+
+---
+
+# 7. PRICE RULES
+
+This is extremely important.
+
+Determine the CURRENT official Amazon rules for displaying product prices obtained through the official API.
+
+Verify:
+
+- Whether price can be displayed on Deals
+- Whether price must be retrieved from the API
+- Whether price can be stored
+- How long price data may be stored
+- Whether price data must be refreshed
+- Whether cached prices are permitted
+- Whether currency must be displayed
+- Whether there are special requirements for Amazon.eg
+- Whether sorting products by current price inside an ADMIN-ONLY tool is permitted
+- Whether public price comparison is restricted
+
+IMPORTANT:
+
+We are NOT building a public price comparison website.
+
+The requested price sorting is only for the private Admin product-selection interface.
+
+Determine whether this internal use is permitted.
+
+If uncertain, mark it:
+
+UNKNOWN / NEEDS VERIFICATION
+
+---
+
+# 8. IMAGE RULES
+
+Determine the CURRENT official Amazon rules for using product images.
+
+Verify:
+
+- Whether images from the API can be displayed on Deals
+- Whether images can be stored
+- Whether image URLs expire
+- Whether images must be refreshed
+- Whether images can be cached
+- Whether images can be resized
+- Whether images can be downloaded locally
+- Whether images must continue to come directly from Amazon
+
+Do not implement image storage before this is verified.
+
+---
+
+# 9. PRODUCT DESCRIPTION AND FEATURES
+
+Determine whether we can use:
+
+- Product description
+- Bullet points
+- Features
+- Product specifications
+
+If allowed, determine whether they can be:
+
+- Displayed directly
+- Stored
+- Modified
+- Translated
+- Summarized
+
+IMPORTANT:
+
+Deals will have original editorial content.
+
+We do NOT want to simply copy Amazon product descriptions.
+
+Verify the boundaries between:
+
+Amazon-sourced data
+
+and
+
+Deals editorial content.
+
+---
+
+# 10. REVIEWS AND RATINGS
+
+Determine the CURRENT rules for:
+
+- Customer reviews
+- Star ratings
+- Review counts
+- Aggregate ratings
+
+Verify whether these can be displayed through the current API.
+
+If they require special API access or licensing:
+
+Document it.
+
+If uncertain:
+
+Mark as UNKNOWN / NEEDS VERIFICATION.
+
+For the MVP, assume we will NOT display customer reviews or ratings unless officially confirmed.
+
+---
+
+# 11. AFFILIATE LINKS
+
+Verify the CURRENT official requirements for Amazon Egypt affiliate links.
+
+Determine:
+
+- Required Associate Tag
+- Required tracking information
+- Special Link requirements
+- Whether direct Amazon product links are allowed
+- Whether redirects are allowed
+- Whether URL shorteners are allowed
+- Whether link cloaking is prohibited
+- Whether users must click before being redirected
+- Any required disclosure
+
+The final website must use proper Amazon affiliate links.
+
+Do not implement link generation yet.
+
+---
+
+# 12. AFFILIATE DISCLOSURE
+
+Verify the current official Amazon Associates disclosure requirement.
+
+Determine:
+
+- Required wording
+- Where it should appear
+- Whether Arabic translation can be used
+- Whether the official English wording must also appear
+
+Document the safest implementation for the MVP.
+
+---
+
+# 13. ASSOCIATES ACCOUNT REQUIREMENTS
+
+Determine what is required before API access becomes available.
+
+Verify:
+
+- Associates account status
+- Minimum requirements
+- Application requirements
+- API eligibility
+- Whether sales are required
+- Whether a qualifying purchase requirement exists
+- Whether API access is immediate or requires approval
+- Whether API credentials are separate from Associates login credentials
+
+Do not invent numbers, deadlines, or requirements.
+
+Use official Amazon documentation where possible.
+
+---
+
+# 14. AMAZON EGYPT SPECIFIC REQUIREMENTS
+
+Separate general Amazon Associates rules from Amazon Egypt-specific rules.
+
+Create two sections:
+
+### General Amazon Associates Rules
+
+### Amazon Egypt Specific Rules
+
+If Amazon Egypt-specific information cannot be confirmed:
+
+Clearly state:
+
+UNKNOWN / NEEDS VERIFICATION
+
+---
+
+# 15. CURRENT ACCOUNT STATUS
+
+The owner is currently creating an Amazon Associates Egypt account.
+
+Do NOT assume API access has already been granted.
+
+The final report should clearly distinguish:
+
+- Associates account created
+- Associates application approved
+- API access available
+- API credentials available
+- API successfully tested
+
+These are different states.
+
+---
+
+# 16. NO CODE IN PHASE 0
+
+Do NOT:
+
+- Create Amazon API services
+- Create API endpoints
+- Create database tables
+- Create product import code
+- Create product search UI
+- Create Admin Amazon browser
+- Create product synchronization
+- Create caching
+- Create background jobs
+- Create queues
+- Create Redis
+- Create AI integrations
+
+Phase 0 is discovery and verification only.
+
+If you need to inspect the existing codebase to understand the current architecture, you may inspect it.
+
+Do not modify production code unless absolutely necessary for a tiny verification artifact.
+
+Prefer ZERO code changes.
+
+---
+
+# 17. OFFICIAL SOURCES
+
+Prioritize official Amazon sources.
+
+Use:
+
+- Amazon Associates Central
+- Amazon Associates Operating Agreement
+- Amazon Associates Program Policies
+- Amazon Creators API documentation
+- Amazon API access documentation
+- Amazon Egypt Associates documentation
+
+Do NOT rely on random blogs as the authority for Amazon policy.
+
+If a third-party source is useful for context, clearly label it as secondary.
+
+---
+
+# 18. IMPORTANT: DO NOT GUESS
+
+For every major requirement, use one of:
+
+CONFIRMED
+
+NOT SUPPORTED
+
+UNKNOWN / NEEDS VERIFICATION
+
+Do not convert assumptions into facts.
+
+Especially do not assume:
+
+- Creators API supports Amazon.eg
+- Prices are available
+- Images can be stored
+- Reviews are available
+- Product descriptions can be copied
+- API access is automatic
+- Price sorting is permitted
+- Caching is permitted
+
+unless verified.
+
+---
+
+# 19. PHASE 0 DELIVERABLE
+
+Create a clear Phase 0 discovery report.
+
+The report should contain:
+
+## A. API Status
+
+- Current official API
+- PA-API 5 status
+- Creators API status
+
+## B. Amazon Egypt Support
+
+- Marketplace support
+- Search support
+- Product lookup support
+- Authentication
+- API access
+
+## C. Product Fields
+
+Create a table:
+
+| Field | Status | Notes |
+|---|---|---|
+| Title | | |
+| ASIN | | |
+| Product URL | | |
+| Main Image | | |
+| Additional Images | | |
+| Brand | | |
+| Features | | |
+| Description | | |
+| Price | | |
+| Currency | | |
+| Availability | | |
+| Rating | | |
+| Review Count | | |
+| Reviews | | |
+
+Use:
+
+SUPPORTED
+
+NOT SUPPORTED
+
+UNKNOWN / NEEDS VERIFICATION
+
+## D. Price Policy
+
+Explain:
+
+- Public price display
+- Admin-only price sorting
+- Storage
+- Refresh
+- Cache
+- Historical prices
+- Price tracking
+
+## E. Image Policy
+
+Explain:
+
+- Display
+- Storage
+- Caching
+- Refresh
+- Resizing
+
+## F. Affiliate Link Requirements
+
+Explain:
+
+- Associate Tag
+- Special Links
+- Tracking
+- Redirect rules
+- Disclosure
+
+## G. Account/API Requirements
+
+Explain:
+
+- Associates account
+- API eligibility
+- API credentials
+- Approval requirements
+
+## H. Amazon Egypt Specific Findings
+
+Separate verified Egyptian-market findings from general Amazon rules.
+
+## I. Unknowns
+
+List every important issue that could not be verified.
+
+## J. Recommended Architecture Impact
+
+Explain whether the planned architecture can proceed unchanged.
+
+If changes are required, describe the MINIMUM changes.
+
+Do not implement those changes yet.
+
+---
+
+# 20. DEFINITION OF DONE
+
+Phase 0 is complete only when:
+
+1. Current Amazon API is identified.
+2. PA-API deprecation is accounted for.
+3. Amazon Egypt support has been investigated.
+4. Creators API access requirements are documented.
+5. Product search capabilities are documented.
+6. Product detail capabilities are documented.
+7. Image rules are documented.
+8. Price rules are documented.
+9. Review/rating rules are documented.
+10. Affiliate-link rules are documented.
+11. Disclosure requirements are documented.
+12. Unknowns are explicitly listed.
+13. Official Amazon sources are provided.
+14. No unnecessary code was written.
+15. No production Amazon integration was implemented.
+
+---
+
+# 21. STOP AFTER PHASE 0
+
+This is extremely important.
+
+After completing the Phase 0 report:
+
+STOP.
+
+Do NOT start Phase 1.
+
+Do NOT start Foundation.
+
+Do NOT create the Amazon integration.
+
+Do NOT create the product catalog.
+
+Do NOT create the Admin Amazon Browser.
+
+Wait for my approval.
+
+The next step will only begin after I explicitly tell you:
+
+"Start Phase 1."
+
+END OF PHASE 0.

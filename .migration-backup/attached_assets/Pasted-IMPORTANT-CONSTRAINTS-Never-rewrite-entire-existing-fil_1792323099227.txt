@@ -1,0 +1,288 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+# MISSION: COMPLETE THE SERVICE FLOW DATABASE MIGRATION
+
+You are authorized to continue implementing the migration
+from PostgreSQL to Cloudflare D1 continuously, across all
+suitable parts of the Service Flow application.
+
+Do not stop after completing an individual phase.
+Do not ask me to approve each phase.
+Do not finish by proposing the next phase.
+Proceed directly to the next implementation phase until
+the entire migration scope has been implemented and tested,
+or a genuine external blocker prevents further progress.
+
+The primary objective is to reduce recurring database costs
+and ultimately eliminate the PostgreSQL dependency wherever
+technically feasible.
+
+Cost is more important than performance. Slower responses
+are acceptable if they reduce recurring costs without
+breaking application correctness.
+
+Reuse all existing migration plans, code, adapters, schemas,
+import utilities, and successful tests. Do not repeat completed
+discovery work or create redundant infrastructure.
+
+==================================================
+1. MIGRATION SCOPE
+==================================================
+
+Inspect the existing table-by-table migration plan and
+continue migrating all suitable relational data to D1.
+
+The scope includes, as applicable:
+
+- All CFM tables and associated operations.
+- CFM user management and account linking.
+- Centrals, cables, fault types, work types, task types,
+  contractors, excavation workers, and other reference data.
+- CFM tickets, ticket measurements, repairs, reopening,
+  and associated records.
+- box_fault_tickets and inventory linkage.
+- Remaining suitable Service Flow application tables.
+- Runtime-created tables and maintenance-related relational
+  metadata, where appropriate.
+- Reports, imports, exports, and other consumers of migrated
+  data.
+- Every remaining PostgreSQL dependency identified in the
+  existing migration plan.
+
+Keep media objects in Cloudflare R2.
+
+Keep execution queues, queue claims, locks, retries, and
+user sessions in PostgreSQL temporarily unless a complete,
+tested replacement is implemented.
+
+Do not assume every PostgreSQL feature has a direct D1
+equivalent. Replace PostgreSQL-specific queries and behavior
+where necessary.
+
+==================================================
+2. EXECUTE CONTINUOUSLY
+==================================================
+
+Work through the migration in dependency order.
+
+For every migration group:
+
+1. Implement its D1 schema and constraints.
+2. Implement the typed storage operations.
+3. Update all relevant application consumers.
+4. Update SQL that relies on PostgreSQL-specific behavior.
+5. Extend the export/import utility.
+6. Add migration validation and integrity checks.
+7. Test reads, writes, relationships, errors, and retries.
+8. Run relevant existing regression tests.
+9. Fix failures and rerun affected tests.
+10. Immediately continue to the next suitable group.
+
+Do not stop after writing a plan, interface, schema, or
+isolated demonstration.
+
+A group is not complete merely because its SQL executes.
+Its application-facing operations and data dependencies
+must also be addressed and tested.
+
+Avoid implementing a partial feature that appears complete
+but silently leaves its real application consumers on
+PostgreSQL.
+
+Do not repeatedly ask me whether to proceed to the next group.
+
+==================================================
+3. HANDLE CROSS-DATABASE OPERATIONS
+==================================================
+
+Do not assume D1 and PostgreSQL share transactions.
+
+For workflows that currently update both databases:
+
+- Establish an authoritative owner for each record.
+- Avoid two independently writable copies of the same record.
+- Implement idempotent writes and retries where required.
+- Prevent duplicate tickets and duplicate inventory links.
+- Ensure interrupted workflows can be recovered.
+- Preserve existing business rules and authorization.
+- Test partial failures and recovery.
+- Document any unavoidable consistency limitations.
+
+Prefer a complete and safe implementation.
+
+If an operation genuinely cannot be migrated safely yet,
+keep that specific operation on PostgreSQL and continue
+migrating independent operations and groups.
+
+Do not let one difficult operation block the entire project.
+
+==================================================
+4. BUILD THE MIGRATION TOOLING
+==================================================
+
+Extend the existing PostgreSQL-export-to-D1 utility to
+support all tables selected for migration.
+
+It must support:
+
+- Stable identifiers.
+- Deterministic data-type conversion.
+- Correct foreign-key import ordering.
+- UUIDs, dates, timestamps, booleans, and JSON.
+- Unique constraints and indexes.
+- Repeatable imports where feasible.
+- Row counts and integrity validation.
+- Detection of missing, duplicated, or mismatched records.
+- Clear failure reporting.
+- Safe resumption after interrupted imports.
+
+Use synthetic data and local test databases during this phase.
+
+Do not read, export, or modify production data.
+
+==================================================
+5. COMPLETE LOCAL APPLICATION INTEGRATION
+==================================================
+
+Integrate the D1 implementation with the actual application
+storage interfaces and consumers.
+
+Do not leave the implementation exclusively inside test
+fixtures or standalone Worker demonstrations.
+
+Preserve existing authentication, authorization, API response
+formats, business rules, and error behavior.
+
+Use explicit configuration to keep PostgreSQL as the
+production default until a separately approved cutover.
+
+Do not introduce generic SQL execution endpoints.
+
+Keep the existing PostgreSQL implementation available as
+a rollback path.
+
+==================================================
+6. CONTINUE UNTIL THE FULL LOCAL MIGRATION IS COMPLETE
+==================================================
+
+After completing CFM, continue automatically through the
+remaining suitable migration groups in the existing plan.
+
+Do not stop to request approval between groups.
+
+Continue until:
+
+- Every suitable table group has a D1 schema.
+- Its required storage operations are implemented.
+- Application consumers are updated for local testing.
+- Migration tooling supports the selected tables.
+- Relevant local tests and regression tests pass.
+- Remaining PostgreSQL dependencies are explicitly isolated.
+- A complete inventory shows what still prevents eliminating
+  PostgreSQL entirely.
+
+Do not claim that PostgreSQL can be removed if queues,
+sessions, or any other necessary functionality still depends
+on it.
+
+If time or execution limits interrupt the work, preserve
+the current progress and continue from the last verified
+checkpoint without repeating completed phases.
+
+==================================================
+7. COST AND RESOURCE RESTRICTIONS
+==================================================
+
+Do not create paid resources or incur new recurring costs.
+
+Do not upgrade Cloudflare plans.
+
+Do not deploy production Workers.
+
+Do not create production D1 databases or bindings.
+
+Do not migrate real production data.
+
+Do not modify production secrets, database URLs, or routing.
+
+Do not delete, overwrite, or alter the existing production
+PostgreSQL database.
+
+Do not modify existing R2 objects unnecessarily.
+
+If a task requires a paid resource, production credentials,
+production data access, or a potentially destructive action,
+record that exact blocker and continue with all work that
+does not require it.
+
+Do not invent cost estimates unsupported by available data.
+
+==================================================
+8. VALIDATION AND REGRESSION SAFETY
+==================================================
+
+After each meaningful implementation group:
+
+- Run its local tests.
+- Run affected regression tests.
+- Check foreign keys and data integrity.
+- Verify authentication and authorization.
+- Run npm run check when appropriate.
+- Run git diff --check.
+- Fix failures before proceeding.
+
+At the end, run the complete relevant local test suite.
+
+Do not weaken tests or remove existing safeguards merely
+to make the migration pass.
+
+Do not change production behavior during local migration work.
+
+==================================================
+9. FINAL REPORT: ONLY AFTER CONTINUOUS EXECUTION
+==================================================
+
+Do not send me another proposal for what to do next.
+
+After exhausting the work possible without production access
+or paid resources, provide one consolidated report containing:
+
+1. All migration groups implemented.
+2. All tables supported by D1.
+3. Application routes and storage operations integrated.
+4. Import/export tooling completed.
+5. Tests passed and failed.
+6. Remaining PostgreSQL dependencies and why they remain.
+7. Any unfinished implementation and exact blockers.
+8. Expected production migration sequence.
+9. The exact actions requiring my approval.
+10. Whether the implementation is ready for controlled
+    production migration.
+
+Clearly distinguish:
+- Fully implemented and locally tested.
+- Partially implemented.
+- Not implemented.
+- Requires production access or paid resources.
+
+Do not claim production migration has occurred.
+
+FINAL INSTRUCTION:
+Start implementation now.
+
+Proceed continuously through all migration groups.
+Do not stop after the CFM group.
+Do not ask for phase-by-phase approval.
+Do not substitute documentation for implementation.
+Do not deploy or alter production.
+
+Stop only after completing all work possible within these
+constraints, or when a genuine technical or external blocker
+prevents further progress.

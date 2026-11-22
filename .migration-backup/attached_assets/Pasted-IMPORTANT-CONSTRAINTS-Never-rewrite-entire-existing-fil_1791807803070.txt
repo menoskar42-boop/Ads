@@ -1,0 +1,41 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+SERVICE FLOW DATABASE COST REDUCTION
+
+My requirement is to use ONE production database only.
+
+I do not want a separate archive database or additional database backups. My priority is minimizing recurring costs while keeping the published Service Flow application operational.
+
+STEP 1: AUDIT
+- Identify the exact database currently used by the published Service Flow deployment.
+- Determine what SERVICEFLOW_DATABASE_TARGET=archive actually selects.
+- Identify whether the archive target is a separate database or simply a configuration label.
+- Identify all database targets currently configured for Service Flow.
+- Verify which target contains the current production data.
+- Do not expose credentials or connection strings.
+
+STEP 2: PROPOSE THE MINIMUM CHANGE
+If a separate archive database exists and is not required:
+- Propose using the existing published production database as the only Service Flow database.
+- Remove unnecessary archive-target selection and related configuration only if safe.
+- Do not migrate or delete data without my explicit approval.
+- Do not create a new database or introduce additional services.
+- Do not create new backups or scheduled backup jobs.
+- Do not modify the main application's database configuration.
+
+STEP 3: COST VERIFICATION
+- Explain which database charges would actually be eliminated by removing the separate archive database.
+- Do not assume that the $6.58 production database compute charge will disappear.
+- Distinguish database compute costs from storage costs.
+
+IMPORTANT:
+Do not change code, database connections, production settings, or data yet.
+
+Return the findings and the smallest safe implementation plan. Wait for my approval before making changes.

@@ -1,0 +1,112 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+PROJECT: Service Flow
+
+DECISION:
+We will migrate suitable relational data to Cloudflare D1
+and continue using Cloudflare R2 for images and files.
+
+Temporarily retain the existing PostgreSQL database for:
+1. Execution queues, claims, locks, retries, and related
+   operational state.
+2. User sessions and session-related behavior.
+
+The existing PostgreSQL database must remain intact and
+available for rollback.
+
+COST IS THE PRIMARY PRIORITY.
+The application may tolerate slower performance if total
+operating cost is reduced.
+
+PHASE 1: TABLE-BY-TABLE MIGRATION DESIGN
+
+Using the existing code and the documents in serviceflow/d1,
+prepare a table-by-table migration plan.
+
+For every table, classify it as:
+A. Candidate for D1 migration.
+B. Must remain in PostgreSQL temporarily.
+C. Must remain until its dependencies are resolved.
+D. Uncertain and requiring further inspection.
+
+For every table, document:
+- Source schema and table name.
+- Primary key and important constraints.
+- Foreign-key dependencies.
+- Routes and services that read or write it.
+- Whether its queries join tables in other databases.
+- Whether its writes participate in PostgreSQL transactions.
+- Whether it is accessed by queue processing or sessions.
+- Estimated migration complexity.
+- Required compatibility changes.
+
+Pay special attention to:
+- phone_lines, phone_ports, and line_accounts.
+- Complaints and complaint details.
+- FCC/WFM data and imports.
+- CFM and reporting queries.
+- Maintenance tables and metadata.
+- exec_jobs and exec_followups.
+- Session storage and authentication.
+- Cabinet reassignment and scheduled jobs.
+
+PHASE 2: PROPOSE THE LOWEST-RISK ARCHITECTURE
+
+Describe how the existing Node/Express application would
+access both PostgreSQL and D1.
+
+Evaluate a Cloudflare Worker API boundary for D1.
+Identify the minimum endpoints needed for the first
+independent data group.
+
+Do not assume cross-database JOINs or atomic transactions
+between D1 and PostgreSQL are available.
+
+Identify any shared queries or transactions that prevent
+a safe split.
+
+PHASE 3: COST AND VALIDATION PLAN
+
+Estimate Cloudflare costs using current plan limits, clearly
+separating measured facts from assumptions.
+
+Include:
+- D1 database storage and query quotas.
+- R2 storage and operation usage.
+- Any Workers costs.
+- Existing PostgreSQL costs that will remain.
+- The process for measuring daily costs through
+  October 31, 2026.
+
+PHASE 4: FIRST IMPLEMENTATION CANDIDATE
+
+Recommend one small, independent group of tables to migrate
+first, based on the actual source code and dependencies.
+
+Define tests for:
+- Data completeness.
+- Read and write correctness.
+- Application behavior.
+- Failure handling.
+- Rollback.
+- Cost measurement.
+
+STRICT RULES FOR THIS TASK:
+- Do not modify application code.
+- Do not change production configuration.
+- Do not move production data.
+- Do not create Cloudflare resources or incur charges.
+- Do not delete or modify the existing PostgreSQL database.
+- Do not change the production database target.
+- Do not expose secrets.
+
+Return the table classification, architecture, cost risks,
+and recommended first migration group.
+Stop and wait for approval.
