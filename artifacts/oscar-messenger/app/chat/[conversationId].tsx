@@ -4,6 +4,7 @@ import * as Crypto from "expo-crypto";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
   FlatList,
   Keyboard,
@@ -12,6 +13,7 @@ import {
   Text,
   View,
 } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import { useFocusEffect } from "expo-router";
 import { KeyboardAvoidingView as ControllerKeyboardAvoidingView } from "react-native-keyboard-controller";
 import { AppHeader } from "../../components/AppHeader";
@@ -41,18 +43,22 @@ export default function ChatScreen() {
     conversationId: string;
     peerName?: string;
     draft?: string;
+    draftKey?: string;
   }>();
   const conversationId = first(params.conversationId);
   const peerNameParam = first(params.peerName);
   const initialDraft = first(params.draft);
+  const draftKey = first(params.draftKey);
   const { isLoaded, isSignedIn, userId } = useAuth();
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList>(null);
   const readForMessage = useRef("");
   const [draft, setDraft] = useState("");
+  const [draftFromOscar, setDraftFromOscar] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [scheduleVisible, setScheduleVisible] = useState(false);
   const seeded = useRef(false);
+  const secureDraftRestoreStarted = useRef("");
 
   const profile = useQuery({
     queryKey: queryKeys.profile,
@@ -96,6 +102,7 @@ export default function ChatScreen() {
       }),
     onSuccess: async () => {
       setDraft("");
+      setDraftFromOscar(false);
       setErrorText("");
       await queryClient.invalidateQueries({ queryKey: queryKeys.messages(conversationId) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
@@ -107,9 +114,61 @@ export default function ChatScreen() {
   useEffect(() => {
     if (initialDraft && !seeded.current) {
       setDraft(initialDraft);
+      setDraftFromOscar(true);
       seeded.current = true;
     }
   }, [initialDraft]);
+
+  useEffect(() => {
+    if (
+      Platform.OS === "web" ||
+      !draftKey ||
+      !isLoaded ||
+      !isSignedIn ||
+      !userId ||
+      !profile.data?.profile ||
+      secureDraftRestoreStarted.current === draftKey
+    ) return;
+    secureDraftRestoreStarted.current = draftKey;
+    let active = true;
+    const storageKey = `oscar_messenger_chat_draft_${draftKey}`;
+    void (async () => {
+      try {
+        const saved = await SecureStore.getItemAsync(storageKey);
+        await SecureStore.deleteItemAsync(storageKey).catch(() => undefined);
+        if (!active) return;
+        if (!saved) {
+          setErrorText("انتهت صلاحية مسودة أوسكار درايف أو لم تعد موجودة.");
+          return;
+        }
+        const value = JSON.parse(saved) as {
+          body?: unknown;
+          createdAt?: unknown;
+          ownerUserId?: unknown;
+        };
+        const age = Date.now() - Number(value.createdAt);
+        if (
+          !Number.isFinite(age) ||
+          age < 0 ||
+          age > 30 * 60_000 ||
+          (typeof value.ownerUserId === "string" && value.ownerUserId !== userId)
+        ) {
+          setErrorText("تعذر استعادة المسودة لهذا الحساب. أعد الأمر من Oscar Drive.");
+          return;
+        }
+        const body = typeof value.body === "string" ? value.body.slice(0, 2000) : "";
+        if (!body) {
+          setErrorText("المسودة فارغة. أعد الأمر من Oscar Drive.");
+          return;
+        }
+        setDraft(body);
+        setDraftFromOscar(true);
+      } catch {
+        if (active) setErrorText("تعذر استعادة المسودة الآمنة. أعد الأمر من Oscar Drive.");
+      }
+    })();
+    return () => { active = false; };
+  }, [draftKey, isLoaded, isSignedIn, userId, profile.data?.profile]);
 
   useFocusEffect(
     useCallback(() => {
@@ -196,6 +255,11 @@ export default function ChatScreen() {
               <Text style={styles.draftHintText}>مسودة أوسكار درايف: راجع النص قبل الإرسال.</Text>
             </View>
           )}
+          {draftFromOscar && !initialDraft && (
+            <View style={styles.draftHint}>
+              <Text style={styles.draftHintText}>مسودة من أوسكار درايف — راجع اسم الحساب والنص قبل الإرسال.</Text>
+            </View>
+          )}
           {!!errorText && <ErrorText>{errorText}</ErrorText>}
           <MessageComposer
             value={draft}
@@ -205,7 +269,19 @@ export default function ChatScreen() {
             }}
             onSend={() => {
               const body = draft.trim();
-              if (body) send.mutate(body);
+              if (!body || send.isPending) return;
+              if (draftFromOscar) {
+                Alert.alert(
+                  `إرسال الرسالة إلى ${displayedName}؟`,
+                  body,
+                  [
+                    { text: "مراجعة", style: "cancel" },
+                    { text: "إرسال", onPress: () => send.mutate(body) },
+                  ],
+                );
+                return;
+              }
+              send.mutate(body);
             }}
             onSchedule={() => setScheduleVisible(true)}
             busy={send.isPending}
@@ -221,6 +297,7 @@ export default function ChatScreen() {
         onSaved={() => {
           setScheduleVisible(false);
           setDraft("");
+          setDraftFromOscar(false);
         }}
       />
     </Screen>

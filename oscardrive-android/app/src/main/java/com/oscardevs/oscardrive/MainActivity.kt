@@ -66,6 +66,8 @@ import com.oscardevs.oscardrive.logic.VoiceCatalog
 import com.oscardevs.oscardrive.logic.VoiceEngine
 import com.oscardevs.oscardrive.logic.VoiceMatch
 import com.oscardevs.oscardrive.logic.Understood
+import com.oscardevs.oscardrive.logic.MessengerVoice
+import com.oscardevs.oscardrive.logic.MessengerMessageRequest
 import android.widget.HorizontalScrollView
 import com.oscardevs.oscardrive.logic.Wellness
 import java.text.SimpleDateFormat
@@ -1777,7 +1779,10 @@ class MainActivity : Activity() {
                 val msg = "تمام، هفتكر إن «$wrong» يعنى «$right»"
                 Oscar.sayText(msg); toast(msg); return
             }
-            e.understand(text)?.let { u -> val b = best; if (b == null || (u.sure && !b.sure)) best = u }
+            e.understand(text)?.copy(rawHeard = h)?.let { u ->
+                val b = best
+                if (b == null || (u.sure && !b.sure)) best = u
+            }
         }
         // التصوير الفورى: الجملة كاملة طلعت مش أمر طريق (أمر تانى · «خلاص» · مافهمش) ⇒ اللى اتصوّر يتشال
         if (!RoadVoice.isRoad(best?.match?.command?.id)) prov.discard()
@@ -1793,7 +1798,7 @@ class MainActivity : Activity() {
         if (!repeatGuard.allow(u.match.command.id, u.match.slot, now)) { prov.discard(); VoiceDiag.add("اتكرّر — نفس الأمر لسه متنفّذ: ${u.match.command.id}"); return }
         VoiceDiag.add("الفهم: ${u.match.command.id}")
         if (RoadVoice.isRoad(u.match.command.id)) provisionalStart(u.match.command.id)   // لو النتايج الجزئية مالحقتش
-        runCommand(u.match.command.id, u.match.slot, u.heard)
+        runCommand(u.match.command.id, u.match.slot, u.heard, u.rawHeard)
     }
 
     /** نفس الأمر لو اتسمع مرتين ورا بعض (٤ ثوانى) بيتنفّذ مرة واحدة. */
@@ -1899,7 +1904,7 @@ class MainActivity : Activity() {
         pending = null; awaitingUntil = 0
         guessDialog?.dismiss(); guessDialog = null
         if (u.learn.isNotEmpty()) prefs.addLearned(u.learn)   // المرة الجاية يتفهم على طول
-        runCommand(u.match.command.id, u.match.slot, u.heard)
+        runCommand(u.match.command.id, u.match.slot, u.heard, u.rawHeard)
     }
 
     private fun rejectGuess() {
@@ -1909,7 +1914,7 @@ class MainActivity : Activity() {
     }
 
     /** كل أمر مربوط بوظيفة ثابتة — نفس الأزرار بالظبط. */
-    private fun runCommand(id: String, slot: String?, heard: String = "") {
+    private fun runCommand(id: String, slot: String?, heard: String = "", rawHeard: String = heard) {
         val s = DriveService.State
         when (id) {
             "nav.open" -> { oscar("nav_start"); openMap() }
@@ -2023,7 +2028,39 @@ class MainActivity : Activity() {
                     else l.joinToString(" . ") { "من ${it.from}: ${it.text.take(100)}" })
             }
             "wa.send" -> whatsappByVoice(heard)
+            "messenger.send" -> {
+                val request = MessengerVoice.parse(rawHeard, prefs.wakeNames, wakeAlreadyConfirmed = true)
+                if (request == null) {
+                    val hint = "قول: يا أوسكار ابعت رسالة إلى اسم الحساب بتقول نص الرسالة"
+                    Oscar.sayText(hint)
+                    toast(hint)
+                } else {
+                    openMessengerDraft(request)
+                }
+            }
             "time.now" -> sayInfo("الساعة ${clock(System.currentTimeMillis())}")
+        }
+    }
+
+    private fun openMessengerDraft(request: MessengerMessageRequest) {
+        val link = Uri.Builder()
+            .scheme("oscar-messenger")
+            .authority("new-message")
+            .appendQueryParameter("recipientName", request.recipient)
+            .appendQueryParameter("draft", request.body)
+            .build()
+        val intent = Intent(Intent.ACTION_VIEW, link)
+            .setPackage("com.oscardevs.oscarmessaging")
+        try {
+            startActivity(intent)
+            Oscar.sayText("المسودة جاهزة. اختار الحساب وراجع الرسالة واضغط إرسال.")
+            toast("اتفتحت مسودة Oscar Messaging — راجعها واضغط إرسال")
+        } catch (_: ActivityNotFoundException) {
+            Oscar.sayText("تطبيق Oscar Messaging مش متثبت على الشاشة")
+            toast("Oscar Messaging غير مثبت على الشاشة")
+        } catch (_: Exception) {
+            Oscar.sayText("تعذر فتح Oscar Messaging")
+            toast("تعذر فتح Oscar Messaging")
         }
     }
 
