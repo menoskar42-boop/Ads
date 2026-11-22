@@ -5,7 +5,7 @@ export const TRANSPORT = [
   { name: "حافلة", en: "Bus", emoji: "🚌", sound: "الحافلة تنقل الناس" },
   { name: "قطار", en: "Train", emoji: "🚆", sound: "القطار يقول تشك تشك" },
   { name: "طائرة", en: "Airplane", emoji: "✈️", img: "transport/airplane.png", sound: "الطائرة تطير في السماء" },
-  { name: "سفينة", en: "Ship", emoji: "🚢", img: "transport/ship.png", sound: "السفينة تبحر في الماء" },
+  { name: "باخرة", en: "Ship", emoji: "🚢", img: "transport/ship.png", sound: "الباخرة تبحر في الماء" },
   { name: "قارب", en: "Boat", emoji: "⛵", img: "transport/boat.png", sound: "القارب يطفو على الماء" },
   { name: "دراجة", en: "Bicycle", emoji: "🚲", img: "transport/bicycle.png", sound: "الدراجة لها عجلتان" },
   { name: "دراجة نارية", en: "Motorcycle", emoji: "🏍️", img: "transport/motorcycle.png", sound: "الدراجة النارية سريعة" },
