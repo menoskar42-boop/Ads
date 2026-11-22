@@ -1,6 +1,8 @@
 node_modules
 .env
 *.log
+/artifacts/*/dist/
+/lib/*/dist/
 
 # Kakeibo receipts and anything else deliberately outside the web root.
 private_uploads/

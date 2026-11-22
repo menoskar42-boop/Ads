@@ -1,0 +1,18 @@
+minimumReleaseAge: 1440
+
+minimumReleaseAgeExclude:
+  - '@replit/*'
+
+packages:
+  - artifacts/api-server
+  - artifacts/oscar-messenger
+  - lib/api-client-react
+  - lib/api-spec
+  - lib/api-zod
+  - lib/db
+
+catalog:
+  '@tanstack/react-query': ^5.90.21
+  '@types/node': ^25.3.3
+  drizzle-orm: ^0.45.2
+  zod: ^4.6.6

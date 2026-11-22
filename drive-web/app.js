@@ -528,6 +528,24 @@
   const CT_RENDER_PAGE = 200;
   let ctListVisible = CT_RENDER_PAGE, ctDirectoryVisible = CT_RENDER_PAGE;
   let ctSyncEnabled = false, ctSyncBusy = false, ctSyncAt = 0, ctSyncTimer = null;
+  function openMessengerDraft(recipientName, body) {
+    const draftKey = makeContactId();
+    let url = RD.messengerDraftUrl(location.origin, draftKey);
+    try {
+      sessionStorage.setItem('oscar_messenger_draft_' + draftKey, JSON.stringify({
+        recipientName: String(recipientName || '').slice(0, 80),
+        body: String(body || '').slice(0, 2000),
+        createdAt: Date.now(),
+      }));
+    } catch (e) {
+      url = RD.messengerDraftUrl(location.origin, '');
+      window.alert('المتصفح لم يسمح بحفظ المسودة المؤقتة. افتح محادثة جديدة واكتب الاسم والرسالة يدويًا.');
+    }
+    $('voiceNote').textContent = body
+      ? '💬 فتحت Oscar Messaging بمسودة — راجع الاسم والنص واضغط إرسال بنفسك.'
+      : '💬 فتحت Oscar Messaging للبحث عن حساب بهذا الاسم.';
+    location.href = url;
+  }
   const makeContactId = () => window.crypto && typeof window.crypto.randomUUID === 'function'
     ? window.crypto.randomUUID()
     : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -673,13 +691,21 @@
       const info = document.createElement('span');
       info.className = 'contact-directory-info';
       info.textContent = `${contact.name} · ${contact.tels.join(' · ')}`;
-      const button = document.createElement('button');
-      button.className = 'primary';
-      button.type = 'button';
-      button.textContent = '📞 اتصال';
-      button.setAttribute('aria-label', `اتصل بـ${contact.name}`);
-      button.addEventListener('click', () => callLocal(contact.name, 'tel'));
-      row.append(info, button);
+      const actions = document.createElement('div');
+      actions.className = 'contact-directory-actions';
+      const callButton = document.createElement('button');
+      callButton.className = 'primary';
+      callButton.type = 'button';
+      callButton.textContent = '📞 اتصال';
+      callButton.setAttribute('aria-label', `اتصل بـ${contact.name}`);
+      callButton.addEventListener('click', () => callLocal(contact.name, 'tel'));
+      const messageButton = document.createElement('button');
+      messageButton.type = 'button';
+      messageButton.textContent = '💬 رسالة';
+      messageButton.setAttribute('aria-label', `افتح Oscar Messaging للبحث عن ${contact.name}`);
+      messageButton.addEventListener('click', () => openMessengerDraft(contact.name, ''));
+      actions.append(callButton, messageButton);
+      row.append(info, actions);
       list.append(row);
     }
     const more = $('contactDirectoryMore');
@@ -1446,6 +1472,12 @@
         $('voiceNote').textContent = '🎙️ أيوه — قول الأمر'; oscar('hello', 'أيوه'); return;
       }
       const awake = now < awakeUntil;
+      const message = alts.map((a) => RD.parseMessageVoice(a, awake)).find(Boolean);
+      if (message) {
+        awakeUntil = 0;
+        openMessengerDraft(message.recipient, message.body);
+        return;
+      }
       const cmd = alts.map((a) => RD.parseVoice(a, awake)).find((c) => c && c !== 'unknown') || RD.parseVoice(alts[0], awake);
       if (cmd && !RD.repeatOk(voiceRepeat, cmd, now)) { RD.provTake(voiceProv, 'unknown', now); return; }   // نفس الأمر اتسمع تانى ⇒ مرة واحدة
       // القواعد مافهمتش بس الكلام شكله نداء لأوسكار («يا اوس سجل مطعمنا») ⇒ الذكاء الاصطناعى (المالك ٢٠٢٦-١١-٢٠)، ولو مافهمش برضه بيقول كده
