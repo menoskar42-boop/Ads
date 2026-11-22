@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Oscar Messaging",
+    "slug": "oscar-messenger",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "oscar-messenger",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A101B",
+    "ios": {
+      "bundleIdentifier": "com.oscardevs.oscarmessaging",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.oscardevs.oscarmessaging",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0A101B"
+      }
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

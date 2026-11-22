@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/oscar-messenger/"
+title = "Oscar Messaging"
+description = "A private Arabic-English messaging app with account-isolated one-to-one conversations and a confirmed handoff from Oscar Drive."
+version = "1.0.0"
+id = "artifacts/oscar-messenger"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/oscar-messenger/" ]
+localPort = 18937
+
+[services.development]
+run = "pnpm --filter @workspace/oscar-messenger run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/oscar-messenger", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/oscar-messenger", "run", "serve" ]
+
+[services.env]
+PORT = "18937"
+BASE_PATH = "/oscar-messenger/"
