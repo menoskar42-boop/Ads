@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MessageMessageType } from './messageMessageType';
 
 export interface Message {
   id: string;
@@ -14,4 +15,7 @@ export interface Message {
   createdAt: Date;
   deliveredAt: Date | null;
   readAt: Date | null;
+  messageType: MessageMessageType;
+  audioDurationMs: number | null;
+  audioUrl: string | null;
 }

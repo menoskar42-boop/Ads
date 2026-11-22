@@ -71,6 +71,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messenger/voice-messages/capability:
+    get:
+      operationId: getMessengerVoiceMessageCapability
+      tags: [messenger]
+      summary: Check whether voice messages are configured
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Voice-message availability and upload limits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoiceMessageCapability"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /messenger/people:
     get:
       operationId: searchMessengerPeople
@@ -272,6 +288,139 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /messenger/conversations/{conversationId}/audio-messages:
+    post:
+      operationId: sendMessengerVoiceMessage
+      tags: [messenger]
+      summary: Upload a short voice message to a conversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+        - name: X-Client-Message-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+        - name: durationMs
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 120000
+      requestBody:
+        required: true
+        content:
+          audio/mp4:
+            schema:
+              type: string
+              format: binary
+          audio/webm:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Previously saved voice message returned after a retry
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    $ref: "#/components/schemas/Message"
+        "201":
+          description: Voice message saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          description: Voice message exceeds the upload limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Voice storage or database metadata is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /messenger/conversations/{conversationId}/messages/{messageId}/audio:
+    get:
+      operationId: getMessengerVoiceMessageAudio
+      tags: [messenger]
+      summary: Stream a voice message to a conversation member
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+      responses:
+        "200":
+          description: Private voice file
+          content:
+            audio/mp4:
+              schema:
+                type: string
+                format: binary
+            audio/webm:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation or voice message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Voice storage or database metadata is not configured
           content:
             application/json:
               schema:
@@ -526,7 +675,17 @@ components:
           type: string
     Message:
       type: object
-      required: [id, conversationId, senderId, body, createdAt, deliveredAt, readAt]
+      required:
+        - id
+        - conversationId
+        - senderId
+        - body
+        - createdAt
+        - deliveredAt
+        - readAt
+        - messageType
+        - audioDurationMs
+        - audioUrl
       properties:
         id:
           type: string
@@ -548,6 +707,37 @@ components:
           anyOf:
             - type: string
               format: date-time
+            - type: "null"
+        messageType:
+          type: string
+          enum: [text, audio]
+        audioDurationMs:
+          anyOf:
+            - type: integer
+              minimum: 1
+              maximum: 120000
+            - type: "null"
+        audioUrl:
+          anyOf:
+            - type: string
+              format: uri-reference
+            - type: "null"
+    VoiceMessageCapability:
+      type: object
+      required: [enabled, maxDurationMs, maxBytes, reason]
+      properties:
+        enabled:
+          type: boolean
+        maxDurationMs:
+          type: integer
+          enum: [120000]
+        maxBytes:
+          type: integer
+          enum: [4194304]
+        reason:
+          anyOf:
+            - type: string
+              enum: [storage_not_configured, database_update_required]
             - type: "null"
     ScheduledMessageStatus:
       type: string

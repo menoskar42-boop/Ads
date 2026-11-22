@@ -1,6 +1,13 @@
 import { useAuth } from "@clerk/expo";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
+import { fetch as expoFetch } from "expo/fetch";
+import {
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+} from "expo-audio";
+import { File } from "expo-file-system";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -23,15 +30,18 @@ import { MessageComposer } from "../../components/MessageComposer";
 import { ScheduleMessageModal } from "../../components/ScheduleMessageModal";
 import { ErrorText, Notice, Screen } from "../../components/Screen";
 import {
+  getMessengerVoiceMessageCapability,
   getMessengerProfile,
   listMessengerConversations,
   listMessengerMessages,
   markMessengerConversationRead,
   sendMessengerMessage,
 } from "@workspace/api-client-react";
-import { queryKeys } from "../../lib/api";
+import type { Message } from "@workspace/api-client-react";
+import { apiUrl, queryKeys } from "../../lib/api";
 import { readableError } from "../../lib/format";
 import { colors } from "../../lib/theme";
+import { VoiceMessageModal } from "../../components/VoiceMessageModal";
 
 function first(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -49,14 +59,21 @@ export default function ChatScreen() {
   const peerNameParam = first(params.peerName);
   const initialDraft = first(params.draft);
   const draftKey = first(params.draftKey);
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { getToken, isLoaded, isSignedIn, userId } = useAuth();
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList>(null);
+  const voiceRequestIds = useRef<Map<string, string>>(new Map());
+  const audioPlayer = useAudioPlayer(null, { updateInterval: 250 });
+  const audioStatus = useAudioPlayerStatus(audioPlayer);
   const readForMessage = useRef("");
   const [draft, setDraft] = useState("");
   const [draftFromOscar, setDraftFromOscar] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [scheduleVisible, setScheduleVisible] = useState(false);
+  const [voiceVisible, setVoiceVisible] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [activeAudioId, setActiveAudioId] = useState("");
+  const [audioLoadingId, setAudioLoadingId] = useState("");
   const seeded = useRef(false);
   const secureDraftRestoreStarted = useRef("");
 
@@ -64,6 +81,13 @@ export default function ChatScreen() {
     queryKey: queryKeys.profile,
     queryFn: getMessengerProfile,
     enabled: isLoaded && !!isSignedIn,
+    retry: false,
+  });
+  const voiceCapability = useQuery({
+    queryKey: queryKeys.voiceCapability,
+    queryFn: getMessengerVoiceMessageCapability,
+    enabled: isLoaded && !!isSignedIn,
+    staleTime: 60_000,
     retry: false,
   });
   const conversations = useQuery({
@@ -110,6 +134,115 @@ export default function ChatScreen() {
     },
     onError: (error) => setErrorText(readableError(error, "تعذر إرسال الرسالة. أعد المحاولة.")),
   });
+  const playVoiceMessage = async (message: Message) => {
+    if (!message.audioUrl) {
+      setErrorText("ملف الرسالة الصوتية غير متاح.");
+      return;
+    }
+    if (activeAudioId === message.id) {
+      if (audioStatus.playing) {
+        audioPlayer.pause();
+        return;
+      }
+      if (
+        audioStatus.duration > 0 &&
+        audioStatus.currentTime >= audioStatus.duration
+      ) {
+        audioPlayer.seekTo(0);
+      }
+      audioPlayer.play();
+      return;
+    }
+
+    setAudioLoadingId(message.id);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
+      audioPlayer.pause();
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        interruptionMode: "doNotMix",
+        allowsRecording: false,
+      });
+      audioPlayer.replace({
+        uri: apiUrl(message.audioUrl),
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setActiveAudioId(message.id);
+      audioPlayer.play();
+      setErrorText("");
+    } catch (error) {
+      setErrorText(readableError(error, "تعذر تشغيل الرسالة الصوتية."));
+    } finally {
+      setAudioLoadingId("");
+    }
+  };
+
+  const sendVoiceMessage = async (
+    uri: string,
+    durationMs: number,
+    contentType: "audio/mp4" | "audio/webm",
+  ) => {
+    const capability = voiceCapability.data;
+    if (!capability?.enabled) {
+      throw new Error("الرسائل الصوتية غير متاحة حتى يكتمل إعداد التخزين.");
+    }
+    const file =
+      Platform.OS === "web"
+        ? await expoFetch(uri).then((response) => {
+            if (!response.ok) throw new Error("تعذر قراءة التسجيل من الجهاز.");
+            return response.blob();
+          })
+        : new File(uri);
+    if (!file.size || file.size > capability.maxBytes) {
+      throw new Error("حجم التسجيل أكبر من الحد المسموح. سجّل رسالة أقصر.");
+    }
+    let clientMessageId = voiceRequestIds.current.get(uri);
+    if (!clientMessageId) {
+      clientMessageId = Crypto.randomUUID();
+      voiceRequestIds.current.set(uri, clientMessageId);
+    }
+
+    setVoiceBusy(true);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
+      const response = await expoFetch(
+        apiUrl(
+          `/api/messenger/conversations/${encodeURIComponent(conversationId)}/audio-messages?durationMs=${durationMs}`,
+        ),
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": contentType,
+            "X-Client-Message-Id": clientMessageId,
+          },
+          body: file,
+        },
+      );
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(payload?.error || "تعذر رفع التسجيل. حاول مرة أخرى.");
+      }
+      await response.json();
+      voiceRequestIds.current.delete(uri);
+      setErrorText("");
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.messages(conversationId),
+        }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
+      ]);
+      requestAnimationFrame(() =>
+        listRef.current?.scrollToOffset({ offset: 0, animated: true }),
+      );
+    } finally {
+      setVoiceBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (initialDraft && !seeded.current) {
@@ -173,8 +306,11 @@ export default function ChatScreen() {
   useFocusEffect(
     useCallback(() => {
       void markRead.mutateAsync().catch(() => undefined);
-      return () => Keyboard.dismiss();
-    }, [conversationId]),
+      return () => {
+        Keyboard.dismiss();
+        audioPlayer.pause();
+      };
+    }, [audioPlayer, conversationId]),
   );
 
   useEffect(() => {
@@ -228,7 +364,17 @@ export default function ChatScreen() {
             inverted
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <MessageBubble message={item} mine={item.senderId === userId} />
+              <MessageBubble
+                message={item}
+                mine={item.senderId === userId}
+                onPlayAudio={
+                  item.messageType === "audio"
+                    ? () => void playVoiceMessage(item)
+                    : undefined
+                }
+                audioPlaying={activeAudioId === item.id && audioStatus.playing}
+                audioLoading={audioLoadingId === item.id}
+              />
             )}
             contentContainerStyle={[
               styles.messages,
@@ -285,6 +431,18 @@ export default function ChatScreen() {
             }}
             onSchedule={() => setScheduleVisible(true)}
             busy={send.isPending}
+            onVoicePress={() => setVoiceVisible(true)}
+            voiceEnabled={!!voiceCapability.data?.enabled}
+            voiceBusy={voiceBusy}
+            voiceHint={
+              voiceCapability.isError
+                ? "تعذر التحقق من إعداد الرسائل الصوتية."
+                : voiceCapability.data?.reason === "database_update_required"
+                  ? "فعّل الرسائل الصوتية بعد تحديث قاعدة بيانات التطبيق."
+                  : voiceCapability.data?.reason === "storage_not_configured"
+                    ? "الرسائل الصوتية متوقفة حتى يكتمل إعداد التخزين الخاص."
+                    : undefined
+            }
           />
         </View>
       </ControllerKeyboardAvoidingView>
@@ -299,6 +457,15 @@ export default function ChatScreen() {
           setDraft("");
           setDraftFromOscar(false);
         }}
+      />
+      <VoiceMessageModal
+        visible={voiceVisible}
+        busy={voiceBusy}
+        onClose={() => {
+          voiceRequestIds.current.clear();
+          setVoiceVisible(false);
+        }}
+        onSend={sendVoiceMessage}
       />
     </Screen>
   );

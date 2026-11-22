@@ -43,6 +43,14 @@ export interface Person {
   displayName: string;
 }
 
+export type MessageMessageType = typeof MessageMessageType[keyof typeof MessageMessageType];
+
+
+export const MessageMessageType = {
+  text: 'text',
+  audio: 'audio',
+} as const;
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -51,6 +59,38 @@ export interface Message {
   createdAt: string;
   deliveredAt: string | null;
   readAt: string | null;
+  messageType: MessageMessageType;
+  audioDurationMs: number | null;
+  audioUrl: string | null;
+}
+
+export type VoiceMessageCapabilityMaxDurationMs = typeof VoiceMessageCapabilityMaxDurationMs[keyof typeof VoiceMessageCapabilityMaxDurationMs];
+
+
+export const VoiceMessageCapabilityMaxDurationMs = {
+  NUMBER_120000: 120000,
+} as const;
+
+export type VoiceMessageCapabilityMaxBytes = typeof VoiceMessageCapabilityMaxBytes[keyof typeof VoiceMessageCapabilityMaxBytes];
+
+
+export const VoiceMessageCapabilityMaxBytes = {
+  NUMBER_4194304: 4194304,
+} as const;
+
+export type VoiceMessageCapabilityReason = typeof VoiceMessageCapabilityReason[keyof typeof VoiceMessageCapabilityReason] | null;
+
+
+export const VoiceMessageCapabilityReason = {
+  storage_not_configured: 'storage_not_configured',
+  database_update_required: 'database_update_required',
+} as const;
+
+export interface VoiceMessageCapability {
+  enabled: boolean;
+  maxDurationMs: VoiceMessageCapabilityMaxDurationMs;
+  maxBytes: VoiceMessageCapabilityMaxBytes;
+  reason: VoiceMessageCapabilityReason;
 }
 
 export type ScheduledMessageStatus = typeof ScheduledMessageStatus[keyof typeof ScheduledMessageStatus];
@@ -194,6 +234,22 @@ export type SendMessengerMessage200 = {
 };
 
 export type SendMessengerMessage201 = {
+  message: Message;
+};
+
+export type SendMessengerVoiceMessageParams = {
+/**
+ * @minimum 1
+ * @maximum 120000
+ */
+durationMs: number;
+};
+
+export type SendMessengerVoiceMessage200 = {
+  message: Message;
+};
+
+export type SendMessengerVoiceMessage201 = {
   message: Message;
 };
 

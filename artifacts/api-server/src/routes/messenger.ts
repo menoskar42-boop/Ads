@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { getAuth } from "@clerk/express";
-import { Router, type IRouter, type RequestHandler } from "express";
+import express, { Router, type IRouter, type RequestHandler } from "express";
+import {
+  deleteR2Object,
+  getR2Object,
+  isR2Configured,
+  putR2Object,
+  voiceObjectKey,
+} from "../lib/r2";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -12,6 +19,13 @@ async function loadPool() {
 
 const router: IRouter = Router();
 const searchWindows = new Map<string, { count: number; resetAt: number }>();
+const MAX_VOICE_DURATION_MS = 120_000;
+const MAX_VOICE_BYTES = 4 * 1024 * 1024;
+const AUDIO_CONTENT_TYPES = new Set(["audio/mp4", "audio/webm"]);
+const voiceSchemaCache = new WeakMap<
+  object,
+  { checkedAt: number; ready: boolean }
+>();
 
 const requireAuth: RequestHandler = (req, res, next) => {
   const userId = getAuth(req).userId;
@@ -35,6 +49,42 @@ function getPoolOrUnavailable(pool: DbPool, res: Parameters<RequestHandler>[1]) 
   return pool;
 }
 
+async function hasVoiceMetadataSchema(pool: NonNullable<DbPool>): Promise<boolean> {
+  const cached = voiceSchemaCache.get(pool);
+  if (cached && Date.now() - cached.checkedAt < 15_000) return cached.ready;
+
+  try {
+    const result = await pool.query(
+      `SELECT count(*)::int AS column_count
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'messenger_messages'
+         AND column_name = ANY($1::text[])`,
+      [[
+        "message_type",
+        "audio_duration_ms",
+        "audio_content_type",
+        "audio_size_bytes",
+      ]],
+    );
+    const ready = Number(result.rows[0]?.column_count) === 4;
+    voiceSchemaCache.set(pool, { checkedAt: Date.now(), ready });
+    return ready;
+  } catch {
+    voiceSchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
+    return false;
+  }
+}
+
+function voiceCapability(enabled: boolean, reason: string | null) {
+  return {
+    enabled,
+    maxDurationMs: MAX_VOICE_DURATION_MS,
+    maxBytes: MAX_VOICE_BYTES,
+    reason,
+  };
+}
+
 function publicPerson(row: {
   user_id: string;
   username: string;
@@ -55,7 +105,10 @@ function publicMessage(row: {
   created_at: Date | string;
   delivered_at: Date | string | null;
   read_at: Date | string | null;
+  message_type?: string;
+  audio_duration_ms?: number | string | null;
 }) {
+  const messageType = row.message_type === "audio" ? "audio" : "text";
   return {
     id: row.id,
     conversationId: row.conversation_id,
@@ -66,6 +119,15 @@ function publicMessage(row: {
       ? new Date(row.delivered_at).toISOString()
       : null,
     readAt: row.read_at ? new Date(row.read_at).toISOString() : null,
+    messageType,
+    audioDurationMs:
+      messageType === "audio" && row.audio_duration_ms != null
+        ? Number(row.audio_duration_ms)
+        : null,
+    audioUrl:
+      messageType === "audio"
+        ? `/api/messenger/conversations/${encodeURIComponent(row.conversation_id)}/messages/${encodeURIComponent(row.id)}/audio`
+        : null,
   };
 }
 
@@ -158,6 +220,27 @@ router.put("/messenger/profile", requireAuth, async (req, res, next) => {
     next(error);
   }
 });
+
+router.get(
+  "/messenger/voice-messages/capability",
+  requireAuth,
+  async (_req, res, next) => {
+    try {
+      const pool = await loadPool();
+      if (!isR2Configured()) {
+        res.json(voiceCapability(false, "storage_not_configured"));
+        return;
+      }
+      if (!pool || !(await hasVoiceMetadataSchema(pool))) {
+        res.json(voiceCapability(false, "database_update_required"));
+        return;
+      }
+      res.json(voiceCapability(true, null));
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 router.get("/messenger/people", requireAuth, async (req, res, next) => {
   try {
@@ -327,9 +410,13 @@ router.get(
         100,
         Math.max(1, Number.parseInt(String(req.query.limit ?? "50"), 10) || 50),
       );
+      const audioColumns = (await hasVoiceMetadataSchema(pool))
+        ? "message_type, audio_duration_ms"
+        : "'text'::text AS message_type, NULL::integer AS audio_duration_ms";
       const result = await pool.query(
         `WITH recent AS (
-           SELECT id, conversation_id, sender_id, body, created_at, delivered_at, read_at
+           SELECT id, conversation_id, sender_id, body, created_at, delivered_at,
+                  read_at, ${audioColumns}
            FROM messenger_messages
            WHERE conversation_id = $1
            ORDER BY created_at DESC
@@ -399,6 +486,198 @@ router.post(
         return;
       }
       res.status(inserted.rows[0] ? 201 : 200).json({ message: publicMessage(row) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  "/messenger/conversations/:conversationId/audio-messages",
+  requireAuth,
+  express.raw({
+    type: ["audio/mp4", "audio/webm"],
+    limit: MAX_VOICE_BYTES,
+  }),
+  async (req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      const conversationId = String(req.params.conversationId);
+      const userId = getUserId(res);
+      const conversation = await conversationForUser(pool, conversationId, userId);
+      if (!conversation) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      if (!isR2Configured()) {
+        res.status(503).json({ error: "Voice storage is not configured" });
+        return;
+      }
+      if (!(await hasVoiceMetadataSchema(pool))) {
+        res.status(503).json({ error: "Voice message database update is required" });
+        return;
+      }
+
+      const clientMessageId = String(
+        req.header("x-client-message-id") ?? "",
+      ).trim();
+      const durationMs = Number.parseInt(String(req.query.durationMs ?? ""), 10);
+      const contentType = String(req.header("content-type") ?? "")
+        .split(";", 1)[0]
+        .trim()
+        .toLowerCase();
+      const body = Buffer.isBuffer(req.body) ? req.body : null;
+
+      if (
+        clientMessageId.length < 8 ||
+        clientMessageId.length > 80 ||
+        !/^[A-Za-z0-9_-]+$/.test(clientMessageId) ||
+        !Number.isInteger(durationMs) ||
+        durationMs < 1 ||
+        durationMs > MAX_VOICE_DURATION_MS ||
+        !AUDIO_CONTENT_TYPES.has(contentType) ||
+        !body ||
+        body.length < 1 ||
+        body.length > MAX_VOICE_BYTES
+      ) {
+        res.status(400).json({ error: "Check the voice message and try again" });
+        return;
+      }
+
+      const duplicate = await pool.query(
+        `SELECT id, conversation_id, sender_id, body, created_at,
+                delivered_at, read_at, message_type, audio_duration_ms
+         FROM messenger_messages
+         WHERE conversation_id = $1 AND sender_id = $2 AND client_message_id = $3`,
+        [conversationId, userId, clientMessageId],
+      );
+      if (duplicate.rows[0]) {
+        const row = duplicate.rows[0];
+        if (row.message_type !== "audio") {
+          res.status(409).json({ error: "This message ID was already used" });
+          return;
+        }
+        await pool.query(
+          `UPDATE messenger_conversations SET updated_at = now() WHERE id = $1`,
+          [conversationId],
+        );
+        res.status(200).json({ message: publicMessage(row) });
+        return;
+      }
+
+      const id = randomUUID();
+      const objectKey = voiceObjectKey(conversationId, id, contentType as "audio/mp4" | "audio/webm");
+      try {
+        await putR2Object(objectKey, body, contentType as "audio/mp4" | "audio/webm");
+      } catch (error) {
+        await deleteR2Object(objectKey).catch(() => undefined);
+        throw error;
+      }
+
+      let row;
+      try {
+        const inserted = await pool.query(
+          `INSERT INTO messenger_messages
+             (id, conversation_id, sender_id, client_message_id, body,
+              attachment_count, message_type, audio_duration_ms,
+              audio_content_type, audio_size_bytes)
+           VALUES ($1, $2, $3, $4, 'رسالة صوتية', 1, 'audio', $5, $6, $7)
+           ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
+           RETURNING id, conversation_id, sender_id, body, created_at,
+                     delivered_at, read_at, message_type, audio_duration_ms`,
+          [id, conversationId, userId, clientMessageId, durationMs, contentType, body.length],
+        );
+        row = inserted.rows[0];
+        if (!row) {
+          await deleteR2Object(objectKey).catch(() => undefined);
+          const concurrentDuplicate = await pool.query(
+            `SELECT id, conversation_id, sender_id, body, created_at,
+                    delivered_at, read_at, message_type, audio_duration_ms
+             FROM messenger_messages
+             WHERE conversation_id = $1 AND sender_id = $2 AND client_message_id = $3`,
+            [conversationId, userId, clientMessageId],
+          );
+          const existing = concurrentDuplicate.rows[0];
+          if (existing?.message_type === "audio") {
+            await pool.query(
+              `UPDATE messenger_conversations SET updated_at = now() WHERE id = $1`,
+              [conversationId],
+            );
+            res.status(200).json({ message: publicMessage(existing) });
+            return;
+          }
+          res.status(409).json({ error: "This message was already sent" });
+          return;
+        }
+      } catch (error) {
+        await deleteR2Object(objectKey).catch(() => undefined);
+        throw error;
+      }
+
+      await pool.query(
+        `UPDATE messenger_conversations SET updated_at = now() WHERE id = $1`,
+        [conversationId],
+      );
+      res.status(201).json({ message: publicMessage(row) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  "/messenger/conversations/:conversationId/messages/:messageId/audio",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      const conversationId = String(req.params.conversationId);
+      const messageId = String(req.params.messageId);
+      const userId = getUserId(res);
+      const conversation = await conversationForUser(pool, conversationId, userId);
+      if (!conversation) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      if (!isR2Configured()) {
+        res.status(503).json({ error: "Voice storage is not configured" });
+        return;
+      }
+      if (!(await hasVoiceMetadataSchema(pool))) {
+        res.status(503).json({ error: "Voice message database update is required" });
+        return;
+      }
+
+      const result = await pool.query(
+        `SELECT id, conversation_id, message_type, audio_content_type
+         FROM messenger_messages
+         WHERE id = $1 AND conversation_id = $2`,
+        [messageId, conversationId],
+      );
+      const row = result.rows[0];
+      if (!row || row.message_type !== "audio" || !AUDIO_CONTENT_TYPES.has(row.audio_content_type)) {
+        res.status(404).json({ error: "Voice message not found" });
+        return;
+      }
+
+      const contentType = row.audio_content_type as "audio/mp4" | "audio/webm";
+      const objectKey = voiceObjectKey(conversationId, messageId, contentType);
+      const audio = await getR2Object(objectKey);
+      if (!audio) {
+        res.status(404).json({ error: "Voice message file not found" });
+        return;
+      }
+      res
+        .status(200)
+        .set({
+          "Content-Type": contentType,
+          "Content-Length": String(audio.length),
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        })
+        .send(audio);
     } catch (error) {
       next(error);
     }

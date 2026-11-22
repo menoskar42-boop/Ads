@@ -56,6 +56,17 @@ export const UpdateMessengerProfileResponse = zod.object({
 
 
 /**
+ * @summary Check whether voice messages are configured
+ */
+export const GetMessengerVoiceMessageCapabilityResponse = zod.object({
+  "enabled": zod.boolean(),
+  "maxDurationMs": zod.literal(120000),
+  "maxBytes": zod.literal(4194304),
+  "reason": zod.union([zod.enum(['storage_not_configured', 'database_update_required']),zod.null()])
+})
+
+
+/**
  * @summary Search public Messenger usernames and display names
  */
 export const searchMessengerPeopleQueryQueryMin = 3;
@@ -154,6 +165,10 @@ export const ListMessengerMessagesQueryParams = zod.object({
   "limit": zod.coerce.number().int().min(1).max(listMessengerMessagesQueryLimitMax).default(listMessengerMessagesQueryLimitDefault)
 })
 
+export const listMessengerMessagesResponseMessagesItemAudioDurationMsOneMax = 120000;
+
+
+
 export const ListMessengerMessagesResponse = zod.object({
   "messages": zod.array(zod.object({
   "id": zod.string(),
@@ -162,7 +177,10 @@ export const ListMessengerMessagesResponse = zod.object({
   "body": zod.string(),
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
-  "readAt": zod.union([zod.coerce.date(),zod.null()])
+  "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "messageType": zod.enum(['text', 'audio']),
+  "audioDurationMs": zod.union([zod.int().min(1).max(listMessengerMessagesResponseMessagesItemAudioDurationMsOneMax),zod.null()]),
+  "audioUrl": zod.union([zod.string(),zod.null()])
 }))
 })
 
@@ -191,6 +209,10 @@ export const SendMessengerMessageBody = zod.object({
   "clientMessageId": zod.string().min(sendMessengerMessageBodyClientMessageIdMin).max(sendMessengerMessageBodyClientMessageIdMax)
 })
 
+export const sendMessengerMessageResponseMessageAudioDurationMsOneMax = 120000;
+
+
+
 export const SendMessengerMessageResponse = zod.object({
   "message": zod.object({
   "id": zod.string(),
@@ -199,9 +221,80 @@ export const SendMessengerMessageResponse = zod.object({
   "body": zod.string(),
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
-  "readAt": zod.union([zod.coerce.date(),zod.null()])
+  "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "messageType": zod.enum(['text', 'audio']),
+  "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
+  "audioUrl": zod.union([zod.string(),zod.null()])
 })
 })
+
+
+/**
+ * @summary Upload a short voice message to a conversation
+ */
+export const sendMessengerVoiceMessagePathConversationIdMin = 8;
+export const sendMessengerVoiceMessagePathConversationIdMax = 80;
+
+
+
+export const SendMessengerVoiceMessageParams = zod.object({
+  "conversationId": zod.coerce.string().min(sendMessengerVoiceMessagePathConversationIdMin).max(sendMessengerVoiceMessagePathConversationIdMax)
+})
+
+export const sendMessengerVoiceMessageQueryDurationMsMax = 120000;
+
+
+
+export const SendMessengerVoiceMessageQueryParams = zod.object({
+  "durationMs": zod.coerce.number().int().min(1).max(sendMessengerVoiceMessageQueryDurationMsMax)
+})
+
+export const sendMessengerVoiceMessageHeaderXClientMessageIdMin = 8;
+export const sendMessengerVoiceMessageHeaderXClientMessageIdMax = 80;
+
+
+
+export const SendMessengerVoiceMessageHeader = zod.object({
+  "X-Client-Message-Id": zod.string().min(sendMessengerVoiceMessageHeaderXClientMessageIdMin).max(sendMessengerVoiceMessageHeaderXClientMessageIdMax)
+})
+
+export const sendMessengerVoiceMessageResponseMessageAudioDurationMsOneMax = 120000;
+
+
+
+export const SendMessengerVoiceMessageResponse = zod.object({
+  "message": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "senderId": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
+  "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "messageType": zod.enum(['text', 'audio']),
+  "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerVoiceMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
+  "audioUrl": zod.union([zod.string(),zod.null()])
+})
+})
+
+
+/**
+ * @summary Stream a voice message to a conversation member
+ */
+export const getMessengerVoiceMessageAudioPathConversationIdMin = 8;
+export const getMessengerVoiceMessageAudioPathConversationIdMax = 80;
+
+export const getMessengerVoiceMessageAudioPathMessageIdMin = 8;
+export const getMessengerVoiceMessageAudioPathMessageIdMax = 80;
+
+
+
+export const GetMessengerVoiceMessageAudioParams = zod.object({
+  "conversationId": zod.coerce.string().min(getMessengerVoiceMessageAudioPathConversationIdMin).max(getMessengerVoiceMessageAudioPathConversationIdMax),
+  "messageId": zod.coerce.string().min(getMessengerVoiceMessageAudioPathMessageIdMin).max(getMessengerVoiceMessageAudioPathMessageIdMax)
+})
+
+export const GetMessengerVoiceMessageAudioResponse = zod.unknown()
 
 
 /**

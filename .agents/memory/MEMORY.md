@@ -1,1 +1,2 @@
 - [Read CLAUDE.md before edits](claude-before-edits.md) — Read the project's CLAUDE.md before changing code.
+- [Pull before and after code changes](git-branch-workflow.md) — Work on the requested branch, read CLAUDE.md, pull again after edits, then push.

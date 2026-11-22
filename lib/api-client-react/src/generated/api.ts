@@ -45,9 +45,13 @@ import type {
   SendMessengerMessage200,
   SendMessengerMessage201,
   SendMessengerMessageBody,
+  SendMessengerVoiceMessage200,
+  SendMessengerVoiceMessage201,
+  SendMessengerVoiceMessageParams,
   StartMessengerConversation200,
   StartMessengerConversationBody,
-  UnauthorizedResponse
+  UnauthorizedResponse,
+  VoiceMessageCapability
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -367,6 +371,107 @@ export const useUpdateMessengerProfile = <TError = ErrorType<BadRequestResponse 
       > => {
       return useMutation(getUpdateMessengerProfileMutationOptions(options), queryClient);
     }
+
+export const getGetMessengerVoiceMessageCapabilityUrl = () => {
+
+
+
+
+  return `/api/messenger/voice-messages/capability`
+}
+
+/**
+ * @summary Check whether voice messages are configured
+ */
+export const getMessengerVoiceMessageCapability = async ( options?: Parameters<typeof customFetch>[1]): Promise<VoiceMessageCapability> => {
+
+  return customFetch<VoiceMessageCapability>(getGetMessengerVoiceMessageCapabilityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerVoiceMessageCapabilityQueryKey = () => {
+    return [
+    `/api/messenger/voice-messages/capability`
+    ] as const;
+    }
+
+
+export const getGetMessengerVoiceMessageCapabilityQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerVoiceMessageCapabilityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>> = ({ signal }) => getMessengerVoiceMessageCapability({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerVoiceMessageCapabilityQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>>
+export type GetMessengerVoiceMessageCapabilityQueryError = ErrorType<UnauthorizedResponse>
+
+
+export function useGetMessengerVoiceMessageCapability<TData = Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerVoiceMessageCapability<TData = Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerVoiceMessageCapability<TData = Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Check whether voice messages are configured
+ */
+
+export function useGetMessengerVoiceMessageCapability<TData = Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerVoiceMessageCapabilityQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getSearchMessengerPeopleUrl = (params: SearchMessengerPeopleParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -869,6 +974,213 @@ export const useSendMessengerMessage = <TError = ErrorType<BadRequestResponse | 
       > => {
       return useMutation(getSendMessengerMessageMutationOptions(options), queryClient);
     }
+
+export const getSendMessengerVoiceMessageUrl = (conversationId: string,
+    params: SendMessengerVoiceMessageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/messenger/conversations/${conversationId}/audio-messages?${stringifiedParams}` : `/api/messenger/conversations/${conversationId}/audio-messages`
+}
+
+/**
+ * @summary Upload a short voice message to a conversation
+ */
+export const sendMessengerVoiceMessage = async (conversationId: string,
+    sendMessengerVoiceMessageBody: Blob,
+    params: SendMessengerVoiceMessageParams, options?: Parameters<typeof customFetch>[1]): Promise<SendMessengerVoiceMessage200 | SendMessengerVoiceMessage201> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SendMessengerVoiceMessage200 | SendMessengerVoiceMessage201>(getSendMessengerVoiceMessageUrl(conversationId,params),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'audio/mp4', ...getHeaders(options?.headers) },
+    body: sendMessengerVoiceMessageBody
+  }
+);}
+
+
+
+
+
+export const getSendMessengerVoiceMessageMutationKey = () => ['sendMessengerVoiceMessage'] as const;
+
+export const getSendMessengerVoiceMessageMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerVoiceMessage>>, TError,SendMessengerVoiceMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendMessengerVoiceMessage>>, TError,SendMessengerVoiceMessageMutationVariables, TContext> => {
+
+const mutationKey = getSendMessengerVoiceMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendMessengerVoiceMessage>>, SendMessengerVoiceMessageMutationVariables> = (props) => {
+          const {conversationId,data,params} = props ?? {};
+
+          return  sendMessengerVoiceMessage(conversationId,data,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendMessengerVoiceMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendMessengerVoiceMessage>>>
+    export type SendMessengerVoiceMessageMutationBody = BodyType<Blob>
+    export type SendMessengerVoiceMessageMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>
+    export type SendMessengerVoiceMessageMutationVariables = {conversationId: string;data: BodyType<Blob>;params: SendMessengerVoiceMessageParams}
+
+    /**
+ * @summary Upload a short voice message to a conversation
+ */
+export const useSendMessengerVoiceMessage = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerVoiceMessage>>, TError,SendMessengerVoiceMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendMessengerVoiceMessage>>,
+        TError,
+        SendMessengerVoiceMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendMessengerVoiceMessageMutationOptions(options), queryClient);
+    }
+
+export const getGetMessengerVoiceMessageAudioUrl = (conversationId: string,
+    messageId: string,) => {
+
+
+
+
+  return `/api/messenger/conversations/${conversationId}/messages/${messageId}/audio`
+}
+
+/**
+ * @summary Stream a voice message to a conversation member
+ */
+export const getMessengerVoiceMessageAudio = async (conversationId: string,
+    messageId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetMessengerVoiceMessageAudioUrl(conversationId,messageId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerVoiceMessageAudioQueryKey = (conversationId: string,
+    messageId: string,) => {
+    return [
+    `/api/messenger/conversations/${conversationId}/messages/${messageId}/audio`
+    ] as const;
+    }
+
+
+export const getGetMessengerVoiceMessageAudioQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(conversationId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerVoiceMessageAudioQueryKey(conversationId,messageId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>> = ({ signal }) => getMessengerVoiceMessageAudio(conversationId,messageId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: conversationId !== null && conversationId !== undefined && messageId !== null && messageId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerVoiceMessageAudioQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>>
+export type GetMessengerVoiceMessageAudioQueryError = ErrorType<UnauthorizedResponse | ErrorResponse>
+
+
+export function useGetMessengerVoiceMessageAudio<TData = Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ conversationId: string,
+    messageId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerVoiceMessageAudio<TData = Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ conversationId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerVoiceMessageAudio<TData = Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ conversationId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Stream a voice message to a conversation member
+ */
+
+export function useGetMessengerVoiceMessageAudio<TData = Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ conversationId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerVoiceMessageAudio>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerVoiceMessageAudioQueryOptions(conversationId,messageId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListMessengerScheduledMessagesUrl = () => {
 
