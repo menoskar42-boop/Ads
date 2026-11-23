@@ -18,13 +18,19 @@ const overrideSql = (w = "w") =>
      WHERE co.central_name = ${w}.central_name AND co.work_order_id = ${w}.work_order_id LIMIT 1)`;
 const numericSql = (e: string) => `(CASE WHEN btrim(COALESCE(${e}, '')) ~ '^[0-9]+(\\.[0-9]+)?$' THEN btrim(${e})::numeric END)`;
 
+/** الكمية من عمود الشيت الصحيح، مع الرجوع للصف الخام للأوامر المستوردة قبل إصلاح اختيار العمود. */
+export const sheetRawCableSql = (w = "w") => `COALESCE(
+  NULLIF(btrim(COALESCE(${w}.cable_quantity, '')), ''),
+  NULLIF(btrim(COALESCE(${w}.raw_data->>'Consumed Cables', '')), '')
+)`;
+
 /**
  * الكمية الفعلية من أمر الشغل (نص زى عمود cable_quantity، أو NULL = «لسه من غير كمية»):
  * تعديل السوبر أدمن ← (من ٣-١١: الشيت لو مش ٥٠) ← (قبل ٣-١١: الشيت زى ما كان).
  */
 export const sheetCableSql = (w = "w") => `COALESCE(${overrideSql(w)},
-  CASE WHEN ${sheetRulesSql(w)} AND ${numericSql(`${w}.cable_quantity`)} = ${SHEET_CABLE_PLACEHOLDER} THEN NULL
-       ELSE NULLIF(btrim(COALESCE(${w}.cable_quantity, '')), '') END)`;
+  CASE WHEN ${sheetRulesSql(w)} AND ${numericSql(sheetRawCableSql(w))} = ${SHEET_CABLE_PLACEHOLDER} THEN NULL
+       ELSE ${sheetRawCableSql(w)} END)`;
 
 /**
  * للمراجعة (المالك ٢٠٢٦-١١-٢٣: «50م او اكثر يظهر للمراجعه او التعديل» · «الخمسين بالظبط تظهر للتأكيد او التعديل»):
@@ -33,8 +39,8 @@ export const sheetCableSql = (w = "w") => `COALESCE(${overrideSql(w)},
  * ce = alias إدخال السلك فى نفس الاستعلام (اختيارى): الـ٥٠ اللى الفنى دخّل كميتها بالطريقة القديمة ماترجعش تظهر.
  */
 export const sheetReviewSql = (w = "w", ce?: string) => `(${sheetRulesSql(w)} AND ${overrideSql(w)} IS NULL
-  AND ${numericSql(`${w}.cable_quantity`)} >= ${SHEET_CABLE_PLACEHOLDER}${ce ? `
-  AND (${numericSql(`${w}.cable_quantity`)} > ${SHEET_CABLE_PLACEHOLDER} OR ${ce}.cable_quantity IS NULL)` : ""})`;
+  AND ${numericSql(sheetRawCableSql(w))} >= ${SHEET_CABLE_PLACEHOLDER}${ce ? `
+  AND (${numericSql(sheetRawCableSql(w))} > ${SHEET_CABLE_PLACEHOLDER} OR ${ce}.cable_quantity IS NULL)` : ""})`;
 
 /** نفس sheetReviewSql لأمر واحد (للاختبار) */
 export function sheetNeedsReview(o: { closeDay: string; sheet: string | null; override?: string | null }): boolean {

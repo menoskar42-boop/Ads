@@ -54,7 +54,7 @@ import { registerFaultTrend } from "./fault-trend";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
 import { registerCabinetAssignments, siteWorkerCode } from "./cabinet-assignments";
-import { sheetCableSql, syncSheetCableEntries, sheetRulesSql, sheetReviewSql } from "./wo-sheet-cable";
+import { sheetCableSql, sheetRawCableSql, syncSheetCableEntries, sheetRulesSql, sheetReviewSql } from "./wo-sheet-cable";
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
 import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
@@ -10501,6 +10501,19 @@ export async function registerRoutes(
       const header = rows[hdrIdx].map((h: any) => String(h ?? "").trim().toLowerCase());
       const findCol = (...keywords: string[]) =>
         header.findIndex((h) => h !== "" && keywords.some((k) => h.includes(k.toLowerCase())));
+      const findColPref = (...keywords: string[]) => {
+        for (const k of keywords) {
+          const kk = k.toLowerCase();
+          const exact = header.findIndex((h) => h === kk);
+          if (exact >= 0) return exact;
+        }
+        for (const k of keywords) {
+          const kk = k.toLowerCase();
+          const i = header.findIndex((h) => h !== "" && h.includes(kk));
+          if (i >= 0) return i;
+        }
+        return -1;
+      };
 
       const iCentral   = findCol("سنترال", "central");
       const iOrg       = findCol("organization", "كود السنترال", "المنظمه");
@@ -10511,7 +10524,7 @@ export async function registerRoutes(
       const iDate      = findCol("close date", "تاريخ الاغلاق", "تاريخ الإغلاق", "الاغلاق");
       const iCreation  = findCol("creation date", "تاريخ الانشاء", "تاريخ الإنشاء", "initiate date");
       const iItem      = findCol("اسم الصنف", "الصنف", "item name");
-      const iCable     = findCol("consumed cables", "كميه السلك", "كمية السلك", "السلك", "cable");
+      const iCable     = findColPref("consumed cables", "كميه السلك", "كمية السلك", "السلك", "cable");
       const iCloseReason = findCol("close reason", "سبب الاغلاق", "سبب الإغلاق");
       const iTech      = findCol("tech name", "اسم الفنى", "اسم الفني", "الفنى");
       // كود العامل: المطابقة بيه أدق بكتير من مطابقة الاسم (الاسم بيتكتب بصيغ مختلفة
@@ -10952,7 +10965,7 @@ export async function registerRoutes(
                 (${claimOnlySql} AND COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NOT NULL) AS "claimOnly",
                 -- فنى الإغلاق مش من الخمسة والسلك ٥٠ ⇒ الطريقة القديمة (إدخال + «يتخصم من رصيد…») مش تأكيد
                 (${reviewSql} AND NOT ${claimOnlySql} AND ${isKnown}) AS "reviewOnly",
-                NULLIF(btrim(COALESCE(w.cable_quantity, '')), '') AS "sheetRaw",   -- رقم الشيت زى ما هو (حتى الـ٥٠) للتأكيد
+                ${sheetRawCableSql()} AS "sheetRaw",   -- رقم الشيت زى ما هو (حتى الـ٥٠) للتأكيد
                 ${areaTech} AS "areaTechName",   -- بيتعرض بالاسم الكامل من الواجهة
                 (lm.central IS NOT NULL AND lm.cabin IS NOT NULL) AS "hasLineData",
                 -- البيان الفنى بيتراجع **بس** لما اسم الفنى مش واحد من الخمسة — لأنه

@@ -6,7 +6,7 @@ import { randomBytes, scrypt } from "node:crypto";
 import express from "express";
 import { createServer } from "node:http";
 import test from "node:test";
-import { sheetCableFor, sheetNeedsReview } from "./wo-sheet-cable";
+import { sheetCableFor, sheetNeedsReview, sheetCableSql, sheetRawCableSql, sheetReviewSql } from "./wo-sheet-cable";
 
 const scryptAsync = promisify(scrypt);
 
@@ -27,6 +27,14 @@ test("50 m or more shows for review (owner 2026-11-23), the quantity still count
   assert.equal(sheetNeedsReview({ closeDay: "2026-11-05", sheet: "30" }), false, "أقل من ٥٠ مايظهرش");
   assert.equal(sheetNeedsReview({ closeDay: "2026-11-05", sheet: "80", override: "80" }), false, "السوبر أدمن أكّدها");
   assert.equal(sheetNeedsReview({ closeDay: "2026-11-02", sheet: "80" }), false, "قبل ٣-١١ زى الأول");
+});
+
+test("sheet quantity SQL falls back to the raw WFM Consumed Cables value", () => {
+  assert.match(sheetRawCableSql(), /Consumed Cables/);
+  assert.match(sheetCableSql(), /Consumed Cables/);
+  const reviewSql = sheetReviewSql("w", "ce");
+  assert.match(reviewSql, /Consumed Cables/);
+  assert.equal(reviewSql.match(/Consumed Cables/g)?.length, 4, "حساب المراجعة وفحص إدخال السلك يقرآن قيمة الشيت نفسها");
 });
 
 test("sheet cable on Postgres: entries, the no-cable list, claim, and super-admin edits", async (t) => {
