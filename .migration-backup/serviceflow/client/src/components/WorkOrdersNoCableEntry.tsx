@@ -40,7 +40,7 @@ interface Row {
   techKey: string | null;           // الفنى المعتمد (للمنطق) — العرض بيفضل بالاسم الكامل
   sheetCable?: string | null;       // كمية السلك من شيت WFM (Consumed Cables) — من ٣-١١ الـ٥٠ = فاضى
   claimOnly?: boolean;              // من ٣-١١: فنى الإغلاق مش من الخمسة ⇒ الفنى يسجّل إنه بتاعه، والسلك زى ما هو
-  reviewOnly?: boolean;             // من ٣-١١: الشيت أكتر من ٥٠ م ⇒ للمراجعة — السوبر أدمن يأكّد أو يعدّل، والكمية محسوبة زى ما هى
+  reviewOnly?: boolean;             // من ٣-١١: الشيت أكتر من ٥٠ م ⇒ الفنى يأكّد أو يعدّل (والسوبر أدمن)، والكمية محسوبة لحد ما يراجعها
 }
 
 // أول يوم فى الشهر الحالى → النهاردة (بتوقيت القاهرة)، بصيغة yyyy-MM-dd
@@ -206,7 +206,7 @@ export function WorkOrdersNoCableEntry() {
     } finally { setSaving(null); }
   };
 
-  // ٥٠ م أو أكتر من الشيت (المالك ٢٠٢٦-١١-٢٣): السوبر أدمن يأكّد الكمية (نفس الرقم) أو يعدّلها ⇒ تختفى من هنا
+  // ٥٠ م أو أكتر من الشيت (المالك ٢٠٢٦-١١-٢٣): الفنى (أو السوبر أدمن) يأكّد الكمية (نفس الرقم) أو يعدّلها ⇒ تختفى من هنا
   const confirmCable = async (r: Row) => {
     const v = String(qty[r.id] ?? r.sheetCable ?? "").trim();
     if (!validQty(v)) return;
@@ -465,7 +465,7 @@ export function WorkOrdersNoCableEntry() {
                     ) : r.reviewOnly ? (
                       <div className="flex flex-col gap-1 text-xs">
                         <span>السلك من الشيت: <b dir="ltr">{r.sheetCable ?? "-"}</b> متر — ٥٠ أو أكتر، للمراجعة</span>
-                        {user?.role === ROLES.SUPER_ADMIN ? (
+                        {user?.role === ROLES.TECH || user?.role === ROLES.SUPER_ADMIN ? (
                           <div className="flex items-center gap-1">
                             <Input
                               inputMode="decimal"
@@ -484,7 +484,7 @@ export function WorkOrdersNoCableEntry() {
                             </Button>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">مستنى مراجعة السوبر أدمن (الكمية محسوبة)</span>
+                          <span className="text-muted-foreground">مستنى الفنى يأكّد الكمية أو يعدّلها (محسوبة لحد ما يراجعها)</span>
                         )}
                       </div>
                     ) : (
