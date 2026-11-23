@@ -1,6 +1,6 @@
 import { useAuth } from "@clerk/expo";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { AppHeader } from "../components/AppHeader";
 import { Avatar } from "../components/Avatar";
+import { InviteActions } from "../components/InviteActions";
 import { Notice, PrimaryButton, Screen } from "../components/Screen";
 import {
   getMessengerProfile,
@@ -23,18 +24,26 @@ import {
   listMessengerConversations,
   listMessengerScheduledMessages,
   searchMessengerMessages,
+  startMessengerConversation,
   updateMessengerConversationSettings,
 } from "@workspace/api-client-react";
 import type { Conversation } from "@workspace/api-client-react";
 import { queryKeys } from "../lib/api";
 import { readableError, shortTime } from "../lib/format";
+import { parseInviteParam } from "../lib/invite";
+import { clearPendingInvite, readPendingInvite, savePendingInvite } from "../lib/invite-storage";
 import { colors } from "../lib/theme";
 
 export default function InboxScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ invite?: string | string[] }>();
+  const incomingInvite = parseInviteParam(params.invite);
   const queryClient = useQueryClient();
   const { isLoaded, isSignedIn } = useAuth();
   const previousUnread = useRef<Map<string, number> | null>(null);
+  const inviteAttempted = useRef<string | null>(null);
+  const [inviteSaved, setInviteSaved] = useState(!incomingInvite);
+  const [pendingInvite, setPendingInvite] = useState<string | null>(null);
   const [newMessageNotice, setNewMessageNotice] = useState<{
     conversationId: string;
     peerName: string;
@@ -87,6 +96,33 @@ export default function InboxScreen() {
     onError: (error) =>
       setActionError(readableError(error, "تعذر تحديث إعدادات المحادثة.")),
   });
+  const openInviteConversation = useMutation({
+    mutationFn: (username: string) => startMessengerConversation({ username }),
+    onSuccess: async ({ conversation }) => {
+      await clearPendingInvite();
+      setPendingInvite(null);
+      setActionError("");
+      router.replace({
+        pathname: "/chat/[conversationId]",
+        params: {
+          conversationId: conversation.id,
+          peerName: conversation.peer.displayName,
+        },
+      });
+    },
+    onError: async (error) => {
+      const status =
+        typeof error === "object" && error !== null && "status" in error
+          ? Number(error.status)
+          : 0;
+      if (status === 400 || status === 404) {
+        await clearPendingInvite();
+        setPendingInvite(null);
+        return;
+      }
+      setActionError("تعذّر فتح محادثة الدعوة. حدّث الصفحة لإعادة المحاولة.");
+    },
+  });
   const scheduled = useQuery({
     queryKey: queryKeys.scheduled,
     queryFn: listMessengerScheduledMessages,
@@ -94,6 +130,46 @@ export default function InboxScreen() {
     refetchInterval: 20_000,
     refetchIntervalInBackground: false,
   });
+  useEffect(() => {
+    if (!incomingInvite) {
+      setInviteSaved(true);
+      return;
+    }
+    let active = true;
+    setInviteSaved(false);
+    void savePendingInvite(incomingInvite).finally(() => {
+      if (active) {
+        setPendingInvite(incomingInvite);
+        setInviteSaved(true);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [incomingInvite]);
+  useEffect(() => {
+    if (!inviteSaved || !isLoaded || !isSignedIn || !profile.data?.profile) return;
+    let active = true;
+    void readPendingInvite().then((username) => {
+      if (active && username) setPendingInvite(username);
+    });
+    return () => {
+      active = false;
+    };
+  }, [inviteSaved, isLoaded, isSignedIn, profile.data?.profile?.userId]);
+  useEffect(() => {
+    if (
+      !pendingInvite ||
+      !isLoaded ||
+      !isSignedIn ||
+      !profile.data?.profile ||
+      inviteAttempted.current === pendingInvite
+    ) {
+      return;
+    }
+    inviteAttempted.current = pendingInvite;
+    openInviteConversation.mutate(pendingInvite);
+  }, [pendingInvite, isLoaded, isSignedIn, profile.data?.profile?.userId]);
   const waiting = profile.isPending || conversations.isPending;
   const apiWaiting = isLoaded && !!isSignedIn && waiting;
   const refresh = useCallback(async () => {
@@ -130,11 +206,18 @@ export default function InboxScreen() {
   if (!isLoaded) {
     return <LoadingScreen />;
   }
+  if (!inviteSaved) return <LoadingScreen />;
   if (!isSignedIn) {
-    return <Redirect href="/sign-in" />;
+    const returnTo = incomingInvite
+      ? `/?invite=${encodeURIComponent(incomingInvite)}`
+      : "/";
+    return <Redirect href={{ pathname: "/sign-in", params: { returnTo } }} />;
   }
   if (profile.isSuccess && !profile.data.profile) {
-    return <Redirect href="/profile-setup" />;
+    const returnTo = incomingInvite
+      ? `/?invite=${encodeURIComponent(incomingInvite)}`
+      : "/";
+    return <Redirect href={{ pathname: "/profile-setup", params: { returnTo } }} />;
   }
 
   const error = profile.error ?? conversations.error;
@@ -155,6 +238,9 @@ export default function InboxScreen() {
           </View>
           <Avatar name={profile.data?.profile?.displayName || "أوسكار"} size={54} />
         </View>
+        {profile.data?.profile?.username && (
+          <InviteActions username={profile.data.profile.username} />
+        )}
 
         <View style={styles.searchBand}>
           <View style={styles.searchCopy}>

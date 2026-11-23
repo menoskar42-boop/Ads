@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { AppHeader } from "../components/AppHeader";
 import { Avatar } from "../components/Avatar";
+import { InviteActions } from "../components/InviteActions";
 import { ErrorText, Field, Notice, PrimaryButton, Screen } from "../components/Screen";
 import { TextField } from "../components/TextField";
 import {
@@ -283,6 +284,9 @@ export default function NewMessageScreen() {
           <Text style={styles.heading}>مع من تريد أن تتحدث؟</Text>
           <Text style={styles.copy}>ابحث بالاسم أو اسم المستخدم، أو أدخل رقمًا للبحث اليدوي.</Text>
         </View>
+        {profile.data?.profile?.username && (
+          <InviteActions username={profile.data.profile.username} />
+        )}
       {!!draft && (
           <Notice>
             <Text style={styles.noticeTitle}>مسودة من أوسكار درايف</Text>

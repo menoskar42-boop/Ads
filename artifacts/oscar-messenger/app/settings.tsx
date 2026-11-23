@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { AppHeader } from "../components/AppHeader";
 import { Avatar } from "../components/Avatar";
+import { InviteActions } from "../components/InviteActions";
 import { KeyboardAwareScrollViewCompat } from "../components/KeyboardAwareScrollViewCompat";
 import { Field, Notice, PrimaryButton, Screen } from "../components/Screen";
 import { TextField } from "../components/TextField";
@@ -58,6 +59,7 @@ export default function SettingsScreen() {
           <Text style={styles.username}>@{current?.username || "—"}</Text>
         </View>
       </View>
+      {current?.username && <InviteActions username={current.username} />}
       <Notice>
         <Text style={styles.noticeTitle}>الخصوصية وحماية الرسائل</Text>
         <Text style={styles.copy}>

@@ -26,5 +26,7 @@ export function readableError(error: unknown, fallback = "حصلت مشكلة، 
 
 export function safeReturnPath(value: unknown): string {
   const path = typeof value === "string" ? value : "";
-  return /^\/(?:compose(?:\?[^#]*)?|new-message)$/.test(path) ? path : "/";
+  if (/^\/(?:compose(?:\?[^#]*)?|new-message)$/.test(path)) return path;
+  const invite = path.match(/^\/\?invite=([a-z0-9_]{3,30})$/i);
+  return invite ? `/?invite=${invite[1].toLowerCase()}` : "/";
 }
