@@ -398,6 +398,13 @@ test('wake aliases match whole words and short aliases stay restricted', () => {
   assert.equal(R.parseMessageVoice('بقولك اذكر ابعت رسالة إلى محمود بتقول أنا وصلت'), null);
 });
 
+test('partial wake transcripts are recognized without requiring a complete phrase', () => {
+  for (const transcript of ['يا اوسكار', 'يا اوسكار سجل', 'اسكو']) {
+    assert.equal(R.hasWake(transcript), true, transcript);
+  }
+  assert.equal(R.hasWake('السكر'), false);
+});
+
 test('اللى لسه متسجّل مايتقالش «قدامك مطب» دقيقتين (زى RoadMemory.skipJustMarked)', () => {
   const R = require('../drive-web/road.js');
   const here = { uuid: 'a', type: 'bump', lat: 30, lng: 31 }, far = { uuid: 'b', type: 'bump', lat: 30.002, lng: 31 };

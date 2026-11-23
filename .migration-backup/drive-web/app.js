@@ -1508,6 +1508,7 @@
       const r = ev.results[ev.results.length - 1]; if (!r) return;
       if (!r.isFinal) {   // لسه بيتكلم: لو شكله «سجّل مطب/حفرة» أو «صوّر الطريق» ⇒ المكان والإطار دلوقتى
         const now = Date.now();
+        if (Array.from(r).some((a) => RD.hasWake(a.transcript))) awakeUntil = Math.max(awakeUntil, now + RD.WAKE_WINDOW_MS);
         if (now - lastSaidAt < 6000) return;
         const c = RD.parseVoice(r[0].transcript, now < awakeUntil);
         if (RD.ROAD_CMDS.includes(c)) {

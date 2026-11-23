@@ -378,6 +378,15 @@ class WakeNameSettingsTest {
     }
 }
 
+class WakeWindowTest {
+    @Test fun partialWakeAllowsCommandsForEightSecondsOnly() {
+        val partialWakeUntil = 18_000L
+        assertTrue(calledNow(button = false, now = 17_999L, awaitingUntil = 0L, partialWakeUntil = partialWakeUntil))
+        assertFalse(calledNow(button = false, now = 18_000L, awaitingUntil = 0L, partialWakeUntil = partialWakeUntil))
+        assertTrue(calledNow(button = true, now = 18_000L, awaitingUntil = 0L, partialWakeUntil = 0L))
+    }
+}
+
 class VoiceEngineTest {
     private val e = VoiceEngine()
     private fun id(t: String) = e.match(t)?.command?.id

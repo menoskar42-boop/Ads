@@ -65,6 +65,7 @@ import com.oscardevs.oscardrive.logic.VoiceCommands
 import com.oscardevs.oscardrive.logic.VoiceCatalog
 import com.oscardevs.oscardrive.logic.VoiceEngine
 import com.oscardevs.oscardrive.logic.VoiceMatch
+import com.oscardevs.oscardrive.logic.calledNow
 import com.oscardevs.oscardrive.logic.Understood
 import com.oscardevs.oscardrive.logic.MessengerVoice
 import com.oscardevs.oscardrive.logic.MessengerMessageRequest
@@ -1125,9 +1126,16 @@ class MainActivity : Activity() {
 
     /** كلام لسه بيتقال (نتايج جزئية): لو شكله أمر طريق ⇒ المكان والصورة على طول (التأكيد بييجى مع الجملة كاملة). */
     private fun handlePartial(heard: List<String>, button: Boolean) {
-        if (prov.current != null && prov.current?.finished == false) return
         val now = System.currentTimeMillis()
         val e = engine()
+        if (heard.any { e.afterWake(it) != null }) {
+            partialWakeUntil = now + 8000
+            if (now - partialWakeDiagAt >= 8000) {
+                VoiceDiag.add("نداء فى النتيجة الجزئية")
+                partialWakeDiagAt = now
+            }
+        }
+        if (prov.current != null && prov.current?.finished == false) return
         for (h in heard) {
             val text = e.afterWake(h) ?: h.takeIf { button || now < awaitingUntil } ?: continue
             val id = e.understand(text)?.match?.command?.id
@@ -1691,6 +1699,8 @@ class MainActivity : Activity() {
     private var wake: WakeListener? = null
     /** بعد «يا أوسكار» لوحدها: الجملة الجاية جوّه ٨ ثوانى = أمر من غير ما تنادى تانى. */
     private var awaitingUntil = 0L
+    private var partialWakeUntil = 0L
+    private var partialWakeDiagAt = 0L
 
     private fun engine() = VoiceEngine(prefs.customPhrases(), prefs.disabledCommands, prefs.wakeNames, prefs.learnedWords())
 
@@ -1745,6 +1755,8 @@ class MainActivity : Activity() {
         if (heard.isEmpty()) return
         val e = engine()
         val now = System.currentTimeMillis()
+        val partialWakeWasUsed = now < partialWakeUntil
+        try {
         // ٠) رد على «موقع X مش محفوظ، تحب تحدده؟» (البرومبت ٨): «الخريطة» · «مكانى/هنا» · «إلغاء»
         val up = unknownAsk
         if (up != null && now < unknownAskUntil) {
@@ -1763,7 +1775,7 @@ class MainActivity : Activity() {
             if (ans != null) { if (ans) acceptGuess(p) else rejectGuess(); return }
         }
         pending = null
-        var called = button || now < awaitingUntil
+        var called = calledNow(button, now, awaitingUntil, partialWakeUntil)
         var best: Understood? = null
         for (h in heard) {
             val rest = e.afterWake(h)
@@ -1799,6 +1811,9 @@ class MainActivity : Activity() {
         VoiceDiag.add("الفهم: ${u.match.command.id}")
         if (RoadVoice.isRoad(u.match.command.id)) provisionalStart(u.match.command.id)   // لو النتايج الجزئية مالحقتش
         runCommand(u.match.command.id, u.match.slot, u.heard, u.rawHeard)
+        } finally {
+            if (partialWakeWasUsed) partialWakeUntil = 0L
+        }
     }
 
     /** نفس الأمر لو اتسمع مرتين ورا بعض (٤ ثوانى) بيتنفّذ مرة واحدة. */
