@@ -9,6 +9,10 @@ if (!process.env.ADS_DATABASE_URL) {
 export default defineConfig({
   schema: path.join(__dirname, "./src/schema/index.ts"),
   dialect: "postgresql",
+  // ⛔ ADS_DATABASE_URL هى قاعدة OscarDevs الحية (أكتر من ٣٢٠ جدول فى public). من غير الفلتر ده drizzle-kit push بيعتبر
+  // كل جدول مش فى schema الماسنجر «زيادة» ويقترح يمسحه. الفلتر بيقصره على جداول messenger_ بس.
+  schemaFilter: ["public"],
+  tablesFilter: ["messenger_*"],
   dbCredentials: {
     url: messengerDatabaseConnectionString(process.env.ADS_DATABASE_URL),
   },

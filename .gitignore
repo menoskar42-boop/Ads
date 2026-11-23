@@ -67,3 +67,14 @@ mykid/.env
 serviceflow/node_modules
 serviceflow/dist
 serviceflow/server/public
+
+# المشروع القديم اتنقل لـ.migration-backup/ — الأنماط اللى فوق فيها «/» فى النص فبتتقاس من الجذر بس، فلازم تتكرر هنا.
+/.migration-backup/backups/ads/
+/.migration-backup/generated-artifacts/
+/.migration-backup/mykid/server/.tts-cache/
+/.migration-backup/mykid/.env
+/.migration-backup/serviceflow/node_modules
+/.migration-backup/serviceflow/dist
+/.migration-backup/serviceflow/server/public
+# صور وملفات المالك اللى اترفعت لريبليت (فيها لقطات شاشة ممكن يبقى فيها بيانات عملاء) — المستودع عام. بتفضل على ريبليت بس.
+/.migration-backup/attached_assets/
