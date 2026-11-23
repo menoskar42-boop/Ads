@@ -542,7 +542,16 @@
   const SET_KEY = 'od_road_settings';
   function loadSettings() {
     try { const o = JSON.parse(localStorage.getItem(SET_KEY) || '{}');
-      if (o.warn) $('warnDist').value = String(o.warn); if (o.lim != null) $('speedLimSel').value = String(o.lim); $('quietSlow').checked = !!o.quiet;
+      if (o.warn) $('warnDist').value = String(o.warn);
+      if (o.lim != null) {
+        const s = $('speedLimSel'), lim = String(o.lim);
+        if (!Array.from(s.options).some((option) => option.value === lim) && Number.isFinite(Number(lim))) {
+          const option = document.createElement('option');
+          option.value = lim; option.textContent = lim; s.append(option);
+        }
+        s.value = lim;
+      }
+      $('quietSlow').checked = !!o.quiet;
       if (o.brk != null) $('breakSel').value = String(o.brk); $('sosName').value = o.sosName || ''; $('sosPhone').value = o.sosPhone || '';
       $('callWa').checked = !!o.callWa; } catch (e) {}
   }
@@ -550,6 +559,15 @@
     try { localStorage.setItem(SET_KEY, JSON.stringify({ warn: +$('warnDist').value, lim: +$('speedLimSel').value, quiet: $('quietSlow').checked,
       brk: +$('breakSel').value, sosName: $('sosName').value.trim(), sosPhone: $('sosPhone').value.trim(), callWa: $('callWa').checked })); } catch (e) {}
   }
+  function fillSpeedLimitOptions() {
+    const s = $('speedLimSel');
+    for (let v = 20; v <= 200; v += 5) {
+      const option = document.createElement('option');
+      option.value = String(v); option.textContent = String(v); option.selected = v === 90;
+      s.append(option);
+    }
+  }
+  fillSpeedLimitOptions();
   loadSettings();
   ['warnDist', 'speedLimSel', 'quietSlow', 'breakSel', 'sosName', 'sosPhone', 'callWa'].forEach((id) => $(id).addEventListener('change', saveSettings));
 
@@ -1723,8 +1741,18 @@
     dvUi();
   });
   function dvLimit(step) {
-    const s = $('speedLimSel'), i = Math.max(0, Math.min(s.options.length - 1, s.selectedIndex + step));
-    if (i !== s.selectedIndex) { s.selectedIndex = i; s.dispatchEvent(new Event('change')); }
+    const s = $('speedLimSel');
+    let v = +s.value;
+    if (v === 0) {
+      if (step > 0) v = 60;
+      else { dvUi(); return; }
+    } else v = Math.max(20, Math.min(200, v + 5 * step));
+    if (!Array.from(s.options).some((option) => option.value === String(v))) {
+      const option = document.createElement('option');
+      option.value = String(v); option.textContent = String(v); s.append(option);
+    }
+    s.value = String(v);
+    s.dispatchEvent(new Event('change'));
     dvUi();
   }
   $('dvLimMinus').addEventListener('click', () => dvLimit(-1));
