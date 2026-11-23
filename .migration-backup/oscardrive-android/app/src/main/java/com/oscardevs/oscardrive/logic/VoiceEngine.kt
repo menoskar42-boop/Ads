@@ -149,6 +149,10 @@ object VoiceCatalog {
     val WAKE_RESTRICTED = listOf(
         "اوس", "اوز", "اسكر", "اذكر", "اسك", "ازكر",
     )
+    val WAKE_NEVER = listOf(
+        "سكر", "السكر", "سكره", "سكري", "عسكر", "عسكري", "عسكريه", "اسكندر", "اسكندريه",
+        "سكرتير", "سكرتيره", "سكوتر", "اسكان", "سكان", "مسكر", "مسكره", "اسكت", "اسكتي",
+    )
 
     /** قائمة توافق لاسماء الاستدعاء المحفوظة؛ قواعد المطابقة الفعلية في VoiceEngine.afterWake. */
     val DEFAULT_WAKE = ((WAKE_DISTINCT + WAKE_RESTRICTED).flatMap { alias -> listOf("يا $alias", alias) } +
@@ -220,10 +224,31 @@ class VoiceEngine(
     private val activeRestrictedWakes = VoiceCatalog.WAKE_RESTRICTED.map(::normalize).filter { alias ->
         alias in wakes || wakePrefixes.any { "$it $alias" in wakes }
     }
+    private val neverWakeAliases = VoiceCatalog.WAKE_NEVER.map(::normalize).toSet()
     private val customWakes = wakes.filterNot { it in standardWakePhrases }.sortedByDescending { it.length }
+    var lastWakeFuzzyAlias: String? = null
+        private set
+
+    private fun levenshteinDistance(a: String, b: String): Int {
+        var previous = IntArray(b.length + 1) { it }
+        for (i in 1..a.length) {
+            val current = IntArray(b.length + 1)
+            current[0] = i
+            for (j in 1..b.length) {
+                current[j] = minOf(
+                    current[j - 1] + 1,
+                    previous[j] + 1,
+                    previous[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1,
+                )
+            }
+            previous = current
+        }
+        return previous[b.length]
+    }
 
     /** النص بعد الاستدعاء — أو null لو مفيش اسم استدعاء فى الكلام. */
     fun afterWake(text: String): String? {
+        lastWakeFuzzyAlias = null
         val t = normalize(text)
         data class Hit(val start: Int, val end: Int)
         val hits = mutableListOf<Hit>()
@@ -244,8 +269,22 @@ class VoiceEngine(
             if (alias in wakes || "يا $alias" in wakes) add("يا $alias")
         }
         customWakes.forEach(::add)
-        val hit = hits.minWithOrNull(compareBy<Hit> { it.start }.thenByDescending { it.end }) ?: return null
-        return t.substring(hit.end).trim()
+        val hit = hits.minWithOrNull(compareBy<Hit> { it.start }.thenByDescending { it.end })
+        if (hit != null) return t.substring(hit.end).trim()
+
+        val words = t.split(' ').filter { it.isNotBlank() }
+        if (words.isEmpty()) return null
+        val candidateIndex = if (words.first() in wakePrefixes) 1 else 0
+        val candidate = words.getOrNull(candidateIndex) ?: return null
+        if (candidate.length < 4 || candidate.startsWith("ال") || candidate in neverWakeAliases) return null
+        val alias = activeDistinctWakes.firstOrNull { wake ->
+            wake.length >= 5 && ' ' !in wake && levenshteinDistance(candidate, wake) <= 1
+        } ?: return null
+        val rest = words.drop(candidateIndex + 1).joinToString(" ")
+        if (candidate == "اسكور" && rest.isEmpty()) return null
+        if (rest.isNotEmpty() && match(rest) == null) return null
+        lastWakeFuzzyAlias = alias
+        return rest
     }
 
     fun match(text: String): VoiceMatch? {

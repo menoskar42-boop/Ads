@@ -371,6 +371,36 @@ test('Android and web wake alias groups stay in sync after normalization', () =>
   };
   assert.deepEqual(kotlinList('WAKE_DISTINCT'), R.WAKE_DISTINCT);
   assert.deepEqual(kotlinList('WAKE_RESTRICTED'), R.WAKE_RESTRICTED);
+  assert.deepEqual(kotlinList('WAKE_NEVER'), R.WAKE_NEVER);
+});
+
+test('fuzzy wake is conservative, only at the start, and requires a recognized command', () => {
+  const positives = [
+    ['اوسكاز سجل مطب', 'bump'],
+    ['يا اوسكال فين العربية', 'findpark'],
+    ['يا اوزكال سجل حفرة', 'pothole'],
+    ['اسقاز مطب', 'bump'],
+  ];
+  for (const [phrase, command] of positives) {
+    assert.equal(R.hasWake(phrase), true, phrase);
+    assert.equal(R.parseVoice(phrase), command, phrase);
+  }
+  assert.equal(R.hasWake('اوسكاد'), true);
+  assert.equal(R.wakeOnly('اوسكاد'), true);
+  assert.equal(R.hasWake('اسكور'), false);
+  assert.equal(R.parseVoice('اسكور'), null);
+  assert.equal(R.hasWake('اسكور سجل'), false);
+  assert.equal(R.hasWake('اسكور سجل مطب'), true);
+  assert.equal(R.parseVoice('اسكور سجل مطب'), 'bump');
+  assert.equal(R.hasWake('اسكور الماتش كام'), false);
+  assert.equal(R.parseVoice('اسكور الماتش كام'), null);
+  for (const phrase of [
+    'السكر عالي', 'سكري', 'عسكري قدام', 'اسكندريه كام كيلو', 'سكرتير',
+    'فيه اوسكاز', 'اسكت', 'يا عسكري مطب',
+  ]) {
+    assert.equal(R.hasWake(phrase), false, phrase);
+    assert.equal(R.parseVoice(phrase), null, phrase);
+  }
 });
 
 test('wake aliases match whole words and short aliases stay restricted', () => {

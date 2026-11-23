@@ -1779,6 +1779,7 @@ class MainActivity : Activity() {
         var best: Understood? = null
         for (h in heard) {
             val rest = e.afterWake(h)
+            e.lastWakeFuzzyAlias?.let { VoiceDiag.add("نداء تقريبى: $it") }
             val text = when {
                 rest != null -> { called = true; rest }
                 button || now < awaitingUntil -> h

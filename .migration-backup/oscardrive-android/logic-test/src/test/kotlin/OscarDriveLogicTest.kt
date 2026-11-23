@@ -454,6 +454,27 @@ class VoiceEngineTest {
         )) assertNull(e.afterWake(phrase), phrase)
         assertEquals("اوسكار", VoiceEngine.normalize("اوس\u0640كار"))
     }
+    @Test fun fuzzyWakeIsStartOnlyAndRequiresARecognizedCommand() {
+        val cases = listOf(
+            "اوسكاز سجل مطب" to "سجل مطب",
+            "يا اوسكال فين العربية" to "فين العربيه",
+            "اوسكاد" to "",
+            "يا اوزكال سجل حفرة" to "سجل حفره",
+            "اسقاز مطب" to "مطب",
+        )
+        for ((phrase, rest) in cases) {
+            assertEquals(rest, e.afterWake(phrase), phrase)
+            assertTrue(e.lastWakeFuzzyAlias != null, phrase)
+        }
+        for (phrase in listOf(
+            "اسكور", "اسكور سجل", "اسكور الماتش كام", "السكر عالي", "سكري",
+            "عسكري قدام", "اسكندريه كام كيلو", "سكرتير", "فيه اوسكاز", "اسكت", "يا عسكري مطب",
+        )) {
+            assertNull(e.afterWake(phrase), phrase)
+            assertNull(e.lastWakeFuzzyAlias, phrase)
+        }
+        assertEquals("سجل مطب", e.afterWake("اسكور سجل مطب"))
+    }
     @Test fun customPhrasesAndDisabled() {
         val c = VoiceEngine(custom = mapOf("park.save" to listOf("اركنها")), disabled = setOf("road.bump"))
         assertEquals("park.save", c.match("اركنها")?.command?.id)
