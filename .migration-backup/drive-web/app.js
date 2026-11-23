@@ -1280,15 +1280,20 @@
         if (oneway && !one) { $('roadNote').textContent = 'اتجاهك مش معروف لسه — اتسجّل اتجاهين، وتقدر تغيّره من القايمة'; $('voiceNote').textContent = $('roadNote').textContent; }
         $('roadNote').textContent = '✅ ' + msg + ' (دقة ' + Math.round(f.acc) + ' م)'; $('voiceNote').textContent = $('roadNote').textContent;
         if (test) sayRoad(msg); else oscar(type + (one ? '1' : '') + '_saved', msg);   // bump1_saved · pothole1_saved = اتجاه واحد   // bump_saved · pothole_saved · radar_saved · danger_saved زى الشاشة
-      } catch (e) { $('roadNote').textContent = 'ماتسجّلش: ' + e.message; $('voiceNote').textContent = $('roadNote').textContent; }
+      } catch (e) { $('roadNote').textContent = 'ماتسجّلش: ' + e.message; $('voiceNote').textContent = $('roadNote').textContent; sayRoad('المطب ماتسجّلش، جرّب تانى'); }
       loadRoad();
     };
     if (pre && pre.fix) return go(pre.fix, pre.heading);   // التصوير الفورى: المكان لحظة ما الأمر اتقال
     if (lastFix && Date.now() - lastFix.t < 10000) return go(lastFix);
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      $('roadNote').textContent = 'المتصفح ده مابيدّيش المكان.'; $('voiceNote').textContent = $('roadNote').textContent;
+      sayRoad('المتصفح ده مابيدّيش المكان');
+      return;
+    }
     $('roadNote').textContent = 'بيجيب مكانك…'; $('voiceNote').textContent = $('roadNote').textContent;
+    sayRoad('ثانية، بجيب مكانك');
     navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); },
-      () => { $('roadNote').textContent = 'مش لاقى مكانك — اسمح بالموقع وجرّب تانى'; $('voiceNote').textContent = $('roadNote').textContent; }, { enableHighAccuracy: true, timeout: 20000 });
+      () => { $('roadNote').textContent = 'مش لاقى مكانك — اسمح بالموقع وجرّب تانى'; $('voiceNote').textContent = $('roadNote').textContent; sayRoad('مش لاقى مكانك، المطب ماتسجّلش'); }, { enableHighAccuracy: true, timeout: 20000 });
   }
   // ── «📸 صوّر الطريق» من الموبايل: الكاميرا الخلفية ← JPEG ← /api/web/shot (R2) — نفس صور التدريب بتاعة الشاشة ──
   let camStream = null;
