@@ -27,18 +27,20 @@ export const sheetCableSql = (w = "w") => `COALESCE(${overrideSql(w)},
        ELSE NULLIF(btrim(COALESCE(${w}.cable_quantity, '')), '') END)`;
 
 /**
- * للمراجعة (المالك ٢٠٢٦-١١-٢٣: «50م او اكثر يظهر للمراجعه او التعديل»): من ٣-١١، الشيت أكتر من ٥٠ ومحدش راجعه لسه
- * ⇒ يظهر فى «بدون كمية سلك». الكمية بتفضل محسوبة زى ما هى، والفنى (أو السوبر أدمن) يأكّد/يعدّل = PUT /api/work-orders/:id/cable.
- * (الـ٥٠ بالظبط مش هنا: بتتعامل «من غير كمية» والفنى بيدخّلها.)
+ * للمراجعة (المالك ٢٠٢٦-١١-٢٣: «50م او اكثر يظهر للمراجعه او التعديل» · «الخمسين بالظبط تظهر للتأكيد او التعديل»):
+ * من ٣-١١، الشيت ٥٠ أو أكتر ومحدش راجعه لسه ⇒ يظهر فى «بدون كمية سلك»، والفنى (أو السوبر أدمن) يأكّد/يعدّل
+ * = PUT /api/work-orders/:id/cable. أكتر من ٥٠ محسوبة لحد ما يراجعها؛ الـ٥٠ بالظبط مش محسوبة لحد ما تتأكّد (sheetCableSql).
+ * ce = alias إدخال السلك فى نفس الاستعلام (اختيارى): الـ٥٠ اللى الفنى دخّل كميتها بالطريقة القديمة ماترجعش تظهر.
  */
-export const sheetReviewSql = (w = "w") => `(${sheetRulesSql(w)} AND ${overrideSql(w)} IS NULL
-  AND ${numericSql(`${w}.cable_quantity`)} > ${SHEET_CABLE_PLACEHOLDER})`;
+export const sheetReviewSql = (w = "w", ce?: string) => `(${sheetRulesSql(w)} AND ${overrideSql(w)} IS NULL
+  AND ${numericSql(`${w}.cable_quantity`)} >= ${SHEET_CABLE_PLACEHOLDER}${ce ? `
+  AND (${numericSql(`${w}.cable_quantity`)} > ${SHEET_CABLE_PLACEHOLDER} OR ${ce}.cable_quantity IS NULL)` : ""})`;
 
 /** نفس sheetReviewSql لأمر واحد (للاختبار) */
 export function sheetNeedsReview(o: { closeDay: string; sheet: string | null; override?: string | null }): boolean {
   if (String(o.override ?? "").trim()) return false;
   const s = String(o.sheet ?? "").trim();
-  return o.closeDay >= SHEET_CABLE_FROM && /^[0-9]+(\.[0-9]+)?$/.test(s) && Number(s) > SHEET_CABLE_PLACEHOLDER;
+  return o.closeDay >= SHEET_CABLE_FROM && /^[0-9]+(\.[0-9]+)?$/.test(s) && Number(s) >= SHEET_CABLE_PLACEHOLDER;
 }
 
 /** الكمية بالقاعدة الجديدة لأمر واحد (للاختبار وللتطبيق) */

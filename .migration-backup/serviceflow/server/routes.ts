@@ -10885,7 +10885,7 @@ export async function registerRoutes(
       // السلك مكتوب فى الشيت — بيسجّل اسمه بس، والسلك المكتوب مايتغيّرش (wo-sheet-cable.ts)
       const claimOnlySql = `(${sheetRulesSql()} AND NOT ${isKnown} AND ovr.tech_name IS NULL AND ${sheetCableSql()} IS NOT NULL)`;
       // ٥٠ م أو أكتر من الشيت (المالك ٢٠٢٦-١١-٢٣) ⇒ يظهر للمراجعة لحد ما السوبر أدمن يأكّده/يعدّله — والكمية محسوبة زى ما هى
-      const reviewSql = sheetReviewSql();
+      const reviewSql = sheetReviewSql("w", "ce");
       conds.push(`(COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NULL OR ${claimOnlySql} OR ${reviewSql})`);
       // فنى المنطقة من **البيانات الفنية للرقم** — نفس منطق «بحث برقم التليفون»
       // (بيان الخط ← كابينة ← فنى الكابينة، مع تغطية الوردية).
@@ -10950,7 +10950,9 @@ export async function registerRoutes(
                 ${isKnown} AS "techKnown",
                 ${sheetCableSql()} AS "sheetCable",
                 (${claimOnlySql} AND COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NOT NULL) AS "claimOnly",
-                (${reviewSql} AND NOT ${claimOnlySql}) AS "reviewOnly",
+                -- فنى الإغلاق مش من الخمسة والسلك ٥٠ ⇒ الطريقة القديمة (إدخال + «يتخصم من رصيد…») مش تأكيد
+                (${reviewSql} AND NOT ${claimOnlySql} AND ${isKnown}) AS "reviewOnly",
+                NULLIF(btrim(COALESCE(w.cable_quantity, '')), '') AS "sheetRaw",   -- رقم الشيت زى ما هو (حتى الـ٥٠) للتأكيد
                 ${areaTech} AS "areaTechName",   -- بيتعرض بالاسم الكامل من الواجهة
                 (lm.central IS NOT NULL AND lm.cabin IS NOT NULL) AS "hasLineData",
                 -- البيان الفنى بيتراجع **بس** لما اسم الفنى مش واحد من الخمسة — لأنه

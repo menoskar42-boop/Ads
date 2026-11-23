@@ -22,7 +22,8 @@ test("the rule for one work order", () => {
 test("50 m or more shows for review (owner 2026-11-23), the quantity still counts", () => {
   assert.equal(sheetNeedsReview({ closeDay: "2026-11-05", sheet: "80" }), true, "أكتر من ٥٠ = مراجعة");
   assert.equal(sheetCableFor({ closeDay: "2026-11-05", sheet: "80" }), "80", "والكمية بتفضل محسوبة");
-  assert.equal(sheetNeedsReview({ closeDay: "2026-11-05", sheet: "50" }), false, "الـ٥٠ بالظبط = من غير كمية، مش مراجعة");
+  assert.equal(sheetNeedsReview({ closeDay: "2026-11-05", sheet: "50" }), true, "الـ٥٠ بالظبط للتأكيد أو التعديل كمان");
+  assert.equal(sheetCableFor({ closeDay: "2026-11-05", sheet: "50" }), null, "بس مش محسوبة لحد ما تتأكّد");
   assert.equal(sheetNeedsReview({ closeDay: "2026-11-05", sheet: "30" }), false, "أقل من ٥٠ مايظهرش");
   assert.equal(sheetNeedsReview({ closeDay: "2026-11-05", sheet: "80", override: "80" }), false, "السوبر أدمن أكّدها");
   assert.equal(sheetNeedsReview({ closeDay: "2026-11-02", sheet: "80" }), false, "قبل ٣-١١ زى الأول");

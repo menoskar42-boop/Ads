@@ -40,6 +40,7 @@ interface Row {
   techKey: string | null;           // الفنى المعتمد (للمنطق) — العرض بيفضل بالاسم الكامل
   sheetCable?: string | null;       // كمية السلك من شيت WFM (Consumed Cables) — من ٣-١١ الـ٥٠ = فاضى
   claimOnly?: boolean;              // من ٣-١١: فنى الإغلاق مش من الخمسة ⇒ الفنى يسجّل إنه بتاعه، والسلك زى ما هو
+  sheetRaw?: string | null;         // رقم الشيت زى ما هو (حتى الـ٥٠) — اللى بيتأكّد أو يتعدّل
   reviewOnly?: boolean;             // من ٣-١١: الشيت أكتر من ٥٠ م ⇒ الفنى يأكّد أو يعدّل (والسوبر أدمن)، والكمية محسوبة لحد ما يراجعها
 }
 
@@ -208,7 +209,7 @@ export function WorkOrdersNoCableEntry() {
 
   // ٥٠ م أو أكتر من الشيت (المالك ٢٠٢٦-١١-٢٣): الفنى (أو السوبر أدمن) يأكّد الكمية (نفس الرقم) أو يعدّلها ⇒ تختفى من هنا
   const confirmCable = async (r: Row) => {
-    const v = String(qty[r.id] ?? r.sheetCable ?? "").trim();
+    const v = String(qty[r.id] ?? r.sheetRaw ?? r.sheetCable ?? "").trim();
     if (!validQty(v)) return;
     setSaving(r.id);
     try {
@@ -464,18 +465,18 @@ export function WorkOrdersNoCableEntry() {
                       </div>
                     ) : r.reviewOnly ? (
                       <div className="flex flex-col gap-1 text-xs">
-                        <span>السلك من الشيت: <b dir="ltr">{r.sheetCable ?? "-"}</b> متر — ٥٠ أو أكتر، للمراجعة</span>
+                        <span>السلك من الشيت: <b dir="ltr">{r.sheetRaw ?? r.sheetCable ?? "-"}</b> متر — ٥٠ أو أكتر، أكّده أو عدّله</span>
                         {user?.role === ROLES.TECH || user?.role === ROLES.SUPER_ADMIN ? (
                           <div className="flex items-center gap-1">
                             <Input
                               inputMode="decimal"
-                              value={qty[r.id] ?? r.sheetCable ?? ""}
+                              value={qty[r.id] ?? r.sheetRaw ?? r.sheetCable ?? ""}
                               onChange={(e) => setRowQty(r.id, e.target.value)}
                               dir="ltr"
                               className="h-8 w-24 text-sm text-left"
                               disabled={busy}
                             />
-                            <Button size="sm" variant="outline" disabled={busy || !validQty(String(qty[r.id] ?? r.sheetCable ?? ""))}
+                            <Button size="sm" variant="outline" disabled={busy || !validQty(String(qty[r.id] ?? r.sheetRaw ?? r.sheetCable ?? ""))}
                               onClick={() => void confirmCable(r)}
                               className="h-8 gap-1 text-primary border-primary/30"
                               title="أكّد الكمية زى ما هى أو عدّلها — بعدها أمر الشغل يختفى من هنا">
