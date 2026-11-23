@@ -18,6 +18,7 @@ import {
   sanitizeMessengerFilename,
 } from "../lib/messenger-media-policy";
 import { canForwardMessageType } from "../lib/messenger-location";
+import { notifyConversationMessage } from "../lib/messenger-web-push";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -497,6 +498,12 @@ router.post(
           );
           await client.query("COMMIT");
           objectKey = "";
+          void notifyConversationMessage(pool, {
+            conversationId,
+            senderId: userId,
+            messageType: "media",
+            body: "",
+          });
           res.status(201).json({
             message: publicMediaMessage({
               ...inserted.rows[0],
@@ -728,6 +735,14 @@ router.post(
           [targetConversationId],
         );
         await client.query("COMMIT");
+        if (inserted.rows[0]) {
+          void notifyConversationMessage(pool, {
+            conversationId: targetConversationId,
+            senderId: userId,
+            messageType: source.message_type,
+            body: source.body,
+          });
+        }
         res.status(201).json({
           message: publicMediaMessage({
             ...inserted.rows[0],

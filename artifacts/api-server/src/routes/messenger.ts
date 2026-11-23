@@ -11,6 +11,10 @@ import {
 import { parseMessageCursor } from "../lib/message-pagination";
 import { parseMessengerLocationInput } from "../lib/messenger-location";
 import {
+  hasMessengerPushSchema,
+  notifyConversationMessage,
+} from "../lib/messenger-web-push";
+import {
   consumePeopleSearchQuota,
   hashPhoneForLookup,
   hasPhoneLookupKey,
@@ -325,11 +329,13 @@ function publicConversation(
 
 async function userProfile(pool: NonNullable<DbPool>, userId: string) {
   const phoneSchemaAvailable = await hasPhoneDiscoverySchema(pool);
+  const pushSchemaAvailable = await hasMessengerPushSchema(pool);
   const result = await pool.query(
     `SELECT user_id, username, display_name, created_at,
             ${phoneSchemaAvailable
               ? "phone_lookup_hash, phone_discoverable"
-              : "NULL::text AS phone_lookup_hash, false::boolean AS phone_discoverable"}
+              : "NULL::text AS phone_lookup_hash, false::boolean AS phone_discoverable"},
+            ${pushSchemaAvailable ? "push_show_preview" : "false::boolean AS push_show_preview"}
      FROM messenger_profiles WHERE user_id = $1`,
     [userId],
   );
@@ -340,6 +346,7 @@ async function userProfile(pool: NonNullable<DbPool>, userId: string) {
     username: row.username,
     displayName: row.display_name,
     createdAt: new Date(row.created_at).toISOString(),
+    pushShowPreview: Boolean(row.push_show_preview),
     ...phoneProfileFlags(row, phoneSchemaAvailable, hasPhoneLookupKey()),
   };
 }
@@ -923,6 +930,14 @@ router.post(
         res.status(500).json({ error: "Could not save the message" });
         return;
       }
+      if (inserted.rows[0]) {
+        void notifyConversationMessage(pool, {
+          conversationId,
+          senderId: userId,
+          messageType: "text",
+          body,
+        });
+      }
       res.status(inserted.rows[0] ? 201 : 200).json({ message: publicMessage(row) });
     } catch (error) {
       next(error);
@@ -1001,6 +1016,14 @@ router.post(
       if (!row) {
         res.status(500).json({ error: "Could not save the location" });
         return;
+      }
+      if (inserted.rows[0]) {
+        void notifyConversationMessage(pool, {
+          conversationId,
+          senderId: userId,
+          messageType: "location",
+          body: "",
+        });
       }
       res.status(inserted.rows[0] ? 201 : 200).json({ message: publicMessage(row) });
     } catch (error) {
@@ -1136,6 +1159,12 @@ router.post(
         `UPDATE messenger_conversations SET updated_at = now() WHERE id = $1`,
         [conversationId],
       );
+      void notifyConversationMessage(pool, {
+        conversationId,
+        senderId: userId,
+        messageType: "audio",
+        body: "",
+      });
       res.status(201).json({ message: publicMessage(row) });
     } catch (error) {
       next(error);

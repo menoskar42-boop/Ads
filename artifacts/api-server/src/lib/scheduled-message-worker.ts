@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { logger } from "./logger";
+import { notifyConversationMessage } from "./messenger-web-push";
 import {
   databaseCode,
   isPermanentMessageError,
@@ -97,6 +98,14 @@ async function processOneDueMessage(pool: DbPool): Promise<boolean> {
     );
     await connection.query("COMMIT");
     transactionOpen = false;
+    if (inserted.rows[0]) {
+      void notifyConversationMessage(pool, {
+        conversationId: scheduled.conversation_id,
+        senderId: scheduled.sender_id,
+        messageType: "text",
+        body: scheduled.body,
+      });
+    }
     logger.info({ scheduledMessageId: scheduled.id }, "Scheduled message sent");
     return true;
   } catch (error) {

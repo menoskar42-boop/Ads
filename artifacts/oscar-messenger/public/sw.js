@@ -1,4 +1,4 @@
-const CACHE_NAME = "oscar-messenger-shell-v1";
+const CACHE_NAME = "oscar-messenger-shell-v2";
 const APP_BASE = "/oscar-messenger/";
 const APP_SHELL = `${APP_BASE}`;
 const STATIC_ASSET = /\.(?:css|js|png|jpe?g|svg|webp|woff2?|ttf|otf|webmanifest)$/i;
@@ -65,6 +65,58 @@ self.addEventListener("fetch", (event) => {
         await cache.put(request, response.clone());
       }
       return response;
+    }),
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data?.json() ?? {};
+  } catch {
+    payload = {};
+  }
+  const title = typeof payload.title === "string" ? payload.title : "Oscar Messaging";
+  const body = typeof payload.body === "string" ? payload.body : "رسالة جديدة";
+  const url =
+    typeof payload.url === "string" && payload.url.startsWith(APP_BASE)
+      ? payload.url
+      : APP_BASE;
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      tag: typeof payload.tag === "string" ? payload.tag : undefined,
+      icon: `${APP_BASE}icons/icon-192.png`,
+      data: { url },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const requestedUrl =
+    typeof event.notification.data?.url === "string"
+      ? event.notification.data.url
+      : APP_BASE;
+  const target = new URL(requestedUrl, self.location.origin);
+  if (target.origin !== self.location.origin || !target.pathname.startsWith(APP_BASE)) {
+    target.href = new URL(APP_BASE, self.location.origin).href;
+  }
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windows) => {
+      for (const client of windows) {
+        if (!client.url.startsWith(self.location.origin + APP_BASE)) continue;
+        try {
+          await client.navigate(target.href);
+          await client.focus();
+          return;
+        } catch {
+          // Fall back to opening a new app window if an existing one cannot navigate.
+        }
+      }
+      await self.clients.openWindow(target.href);
     }),
   );
 });

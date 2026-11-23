@@ -9,6 +9,7 @@ import {
   normalizeStatusBody,
 } from "../lib/messenger-groups-policy";
 import { parseMessageCursor } from "../lib/message-pagination";
+import { notifyGroupMessage } from "../lib/messenger-web-push";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -721,6 +722,13 @@ router.post("/messenger/groups/:groupId/messages", requireAuth, async (req, res,
         ...row,
         sender_name: sender.rows[0]?.display_name ?? "",
       });
+      if (result.rows.length) {
+        void notifyGroupMessage(pool, {
+          groupId,
+          senderId: userId,
+          body,
+        });
+      }
       res.status(result.rows.length ? 201 : 200).json({ message });
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);

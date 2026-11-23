@@ -20,6 +20,7 @@ export const messengerProfiles = pgTable(
     displayName: text("display_name").notNull(),
     phoneLookupHash: text("phone_lookup_hash"),
     phoneDiscoverable: boolean("phone_discoverable").notNull().default(false),
+    pushShowPreview: boolean("push_show_preview").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -37,6 +38,20 @@ export const messengerProfiles = pgTable(
       .on(table.phoneLookupHash)
       .where(sql`${table.phoneDiscoverable} = true AND ${table.phoneLookupHash} IS NOT NULL`),
   ],
+);
+
+export const messengerPushSubscriptions = pgTable(
+  "messenger_push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  },
+  (table) => [index("messenger_push_subscriptions_user_idx").on(table.userId)],
 );
 
 export const messengerConversations = pgTable(
