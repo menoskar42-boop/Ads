@@ -5,7 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ErrorResponseField } from './errorResponseField';
 
 export interface ErrorResponse {
   error: string;
+  field?: ErrorResponseField;
 }

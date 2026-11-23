@@ -21,6 +21,7 @@ export * from './createStatusInput';
 export * from './createStatusInputAudienceMode';
 export * from './deleteMessengerStatus200';
 export * from './errorResponse';
+export * from './errorResponseField';
 export * from './forwardMessengerMessage201';
 export * from './forwardMessengerMessageBody';
 export * from './group';

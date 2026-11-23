@@ -8,7 +8,7 @@ import {
 import { Field, PrimaryButton } from "./Screen";
 import { TextField } from "./TextField";
 import { queryKeys } from "../lib/api";
-import { readableError } from "../lib/format";
+import { apiErrorDetails, readableError } from "../lib/format";
 import { setPhoneSetupSkipped } from "../lib/phone-setup-storage";
 import { colors } from "../lib/theme";
 
@@ -30,12 +30,14 @@ export function PhoneNumberForm({
     mode === "setup" ? true : profile.phoneDiscoverable,
   );
   const [feedback, setFeedback] = useState("");
+  const [fieldError, setFieldError] = useState("");
   const update = useUpdateMessengerProfilePhone({
     mutation: {
       onSuccess: async (data) => {
         const saved = data.profile;
         if (!saved) return;
         await queryClient.setQueryData(queryKeys.profile, data);
+        setFieldError("");
         const savedHasPhone = saved.hasPhone ?? saved.hasPhoneNumber;
         setHasPhone(savedHasPhone);
         setDiscoverable(saved.phoneDiscoverable);
@@ -52,13 +54,21 @@ export function PhoneNumberForm({
         }
         if (mode === "setup" && savedHasPhone) onSaved?.();
       },
-      onError: (error) =>
-        setFeedback(readableError(error, "تعذر حفظ إعدادات رقم الهاتف.")),
+      onError: (error) => {
+        const details = apiErrorDetails(error);
+        if (details?.status === 409 && details.field === "phoneNumber" && details.message) {
+          setFieldError(details.message);
+          setFeedback("");
+          return;
+        }
+        setFeedback(readableError(error, "تعذر حفظ إعدادات رقم الهاتف."));
+      },
     },
   });
 
   const saveNumber = () => {
     setFeedback("");
+    setFieldError("");
     update.mutate({
       data: { phoneNumber: phoneNumber.trim(), discoverable },
     });
@@ -72,6 +82,7 @@ export function PhoneNumberForm({
           onChangeText={(value) => {
             setPhoneNumber(value);
             setFeedback("");
+            setFieldError("");
           }}
           placeholder={hasPhone ? "اكتب رقمًا جديدًا لتغييره" : "مثال: 01012345678 أو +20…"}
           keyboardType="phone-pad"
@@ -79,6 +90,7 @@ export function PhoneNumberForm({
           maxLength={40}
           style={{ textAlign: "left", writingDirection: "ltr" }}
         />
+        {!!fieldError && <Text style={styles.error}>{fieldError}</Text>}
       </Field>
       {hasPhone && mode === "settings" && (
         <Text style={styles.copy}>
@@ -121,6 +133,7 @@ export function PhoneNumberForm({
           disabled={update.isPending}
           onPress={() => {
             setFeedback("");
+            setFieldError("");
             update.mutate({ data: { phoneNumber: null, discoverable: false } });
           }}
           style={({ pressed }) => [styles.removePhone, pressed && styles.pressed]}
@@ -136,6 +149,7 @@ export function PhoneNumberForm({
 const styles = StyleSheet.create({
   form: { gap: 12 },
   copy: { color: colors.muted, fontSize: 14, lineHeight: 23, textAlign: "right" },
+  error: { color: colors.red, fontSize: 14, lineHeight: 22, textAlign: "right" },
   switchRow: {
     flexDirection: "row",
     alignItems: "center",

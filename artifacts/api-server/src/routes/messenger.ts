@@ -23,6 +23,12 @@ import {
   PHONE_LOOKUP_SQL,
   publicPhoneMatch,
 } from "../lib/phone-discovery";
+import {
+  displayNameKey,
+  DISPLAY_NAME_TAKEN_AR,
+  PHONE_TAKEN_AR,
+  USERNAME_TAKEN_AR,
+} from "../lib/messenger-names";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -46,6 +52,10 @@ const messageToolsSchemaCache = new WeakMap<
   { checkedAt: number; ready: boolean }
 >();
 const phoneDiscoverySchemaCache = new WeakMap<
+  object,
+  { checkedAt: number; ready: boolean }
+>();
+const displayNameKeySchemaCache = new WeakMap<
   object,
   { checkedAt: number; ready: boolean }
 >();
@@ -74,6 +84,24 @@ function getPoolOrUnavailable(pool: DbPool, res: Parameters<RequestHandler>[1]) 
     return null;
   }
   return pool;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23505"
+  );
+}
+
+function uniqueConstraint(error: unknown): string {
+  return typeof error === "object" &&
+    error !== null &&
+    "constraint" in error &&
+    typeof error.constraint === "string"
+    ? error.constraint
+    : "";
 }
 
 async function hasVoiceMetadataSchema(pool: NonNullable<DbPool>): Promise<boolean> {
@@ -150,6 +178,26 @@ async function hasPhoneDiscoverySchema(pool: NonNullable<DbPool>): Promise<boole
     return ready;
   } catch {
     phoneDiscoverySchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
+    return false;
+  }
+}
+
+async function hasDisplayNameKeySchema(pool: NonNullable<DbPool>): Promise<boolean> {
+  const cached = displayNameKeySchemaCache.get(pool);
+  if (cached && Date.now() - cached.checkedAt < 15_000) return cached.ready;
+  try {
+    const result = await pool.query(
+      `SELECT count(*)::int AS column_count
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'messenger_profiles'
+         AND column_name = 'display_name_key'`,
+    );
+    const ready = Number(result.rows[0]?.column_count) === 1;
+    displayNameKeySchemaCache.set(pool, { checkedAt: Date.now(), ready });
+    return ready;
+  } catch {
+    displayNameKeySchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
     return false;
   }
 }
@@ -392,6 +440,16 @@ router.put("/messenger/profile/phone", requireAuth, async (req, res, next) => {
         res.status(503).json({ error: "Phone discovery configuration is required" });
         return;
       }
+      const duplicatePhone = await pool.query(
+        `SELECT 1 FROM messenger_profiles
+         WHERE phone_lookup_hash = $1 AND user_id <> $2
+         LIMIT 1`,
+        [phoneLookupHash, userId],
+      );
+      if (duplicatePhone.rows[0]) {
+        res.status(409).json({ error: PHONE_TAKEN_AR, field: "phoneNumber" });
+        return;
+      }
     }
 
     if (req.body.discoverable && phoneNumberProvided && !phoneLookupHash) {
@@ -418,24 +476,33 @@ router.put("/messenger/profile/phone", requireAuth, async (req, res, next) => {
       }
     }
 
-    const result = phoneNumberProvided
-      ? await pool.query(
-          `UPDATE messenger_profiles
-           SET phone_lookup_hash = $1,
-               phone_discoverable = ($2 AND $1 IS NOT NULL),
-               updated_at = now()
-           WHERE user_id = $3
-           RETURNING user_id`,
-          [phoneLookupHash, req.body.discoverable, userId],
-        )
-      : await pool.query(
-          `UPDATE messenger_profiles
-           SET phone_discoverable = ($1 AND phone_lookup_hash IS NOT NULL),
-               updated_at = now()
-           WHERE user_id = $2
-           RETURNING user_id`,
-          [req.body.discoverable, userId],
-        );
+    let result;
+    try {
+      result = phoneNumberProvided
+        ? await pool.query(
+            `UPDATE messenger_profiles
+             SET phone_lookup_hash = $1,
+                 phone_discoverable = ($2 AND $1 IS NOT NULL),
+                 updated_at = now()
+             WHERE user_id = $3
+             RETURNING user_id`,
+            [phoneLookupHash, req.body.discoverable, userId],
+          )
+        : await pool.query(
+            `UPDATE messenger_profiles
+             SET phone_discoverable = ($1 AND phone_lookup_hash IS NOT NULL),
+                 updated_at = now()
+             WHERE user_id = $2
+             RETURNING user_id`,
+            [req.body.discoverable, userId],
+          );
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        res.status(409).json({ error: PHONE_TAKEN_AR, field: "phoneNumber" });
+        return;
+      }
+      throw error;
+    }
     if (!result.rows[0]) {
       res.status(404).json({ error: "Complete profile setup first" });
       return;
@@ -456,26 +523,66 @@ router.put("/messenger/profile", requireAuth, async (req, res, next) => {
       res.status(400).json({ error: "Check the username and display name" });
       return;
     }
+    const normalizedDisplayName = displayNameKey(displayName);
+    if (!normalizedDisplayName) {
+      res.status(400).json({
+        error: "اكتب اسم عرض يحتوي على حروف أو أرقام",
+        field: "displayName",
+      });
+      return;
+    }
     const userId = getUserId(res);
-    try {
-      await pool.query(
-        `INSERT INTO messenger_profiles (user_id, username, username_lower, display_name)
-         VALUES ($1, $2, $2, $3)
-         ON CONFLICT (user_id) DO UPDATE SET
-           username = EXCLUDED.username,
-           username_lower = EXCLUDED.username_lower,
-           display_name = EXCLUDED.display_name,
-           updated_at = now()`,
-        [userId, username, displayName],
+    const displayNameKeyAvailable = await hasDisplayNameKeySchema(pool);
+    if (displayNameKeyAvailable) {
+      const duplicateDisplayName = await pool.query(
+        `SELECT 1 FROM messenger_profiles
+         WHERE display_name_key = $1 AND user_id <> $2
+         LIMIT 1`,
+        [normalizedDisplayName, userId],
       );
+      if (duplicateDisplayName.rows[0]) {
+        res.status(409).json({ error: DISPLAY_NAME_TAKEN_AR, field: "displayName" });
+        return;
+      }
+    }
+    try {
+      if (displayNameKeyAvailable) {
+        await pool.query(
+          `INSERT INTO messenger_profiles
+             (user_id, username, username_lower, display_name, display_name_key)
+           VALUES ($1, $2, $2, $3, $4)
+           ON CONFLICT (user_id) DO UPDATE SET
+             username = EXCLUDED.username,
+             username_lower = EXCLUDED.username_lower,
+             display_name = EXCLUDED.display_name,
+             display_name_key = EXCLUDED.display_name_key,
+             updated_at = now()`,
+          [userId, username, displayName, normalizedDisplayName],
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO messenger_profiles (user_id, username, username_lower, display_name)
+           VALUES ($1, $2, $2, $3)
+           ON CONFLICT (user_id) DO UPDATE SET
+             username = EXCLUDED.username,
+             username_lower = EXCLUDED.username_lower,
+             display_name = EXCLUDED.display_name,
+             updated_at = now()`,
+          [userId, username, displayName],
+        );
+      }
     } catch (error: unknown) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "23505"
-      ) {
-        res.status(409).json({ error: "That username is already in use" });
+      if (isUniqueViolation(error)) {
+        const constraint = uniqueConstraint(error);
+        if (constraint === "messenger_profiles_display_name_key_uniq") {
+          res.status(409).json({ error: DISPLAY_NAME_TAKEN_AR, field: "displayName" });
+          return;
+        }
+        if (constraint === "messenger_profiles_username_lower_key") {
+          res.status(409).json({ error: USERNAME_TAKEN_AR, field: "username" });
+          return;
+        }
+        res.status(409).json({ error: USERNAME_TAKEN_AR, field: "username" });
         return;
       }
       throw error;

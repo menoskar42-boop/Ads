@@ -9,8 +9,18 @@ export interface HealthStatus {
   status: string;
 }
 
+export type ErrorResponseField = typeof ErrorResponseField[keyof typeof ErrorResponseField];
+
+
+export const ErrorResponseField = {
+  username: 'username',
+  displayName: 'displayName',
+  phoneNumber: 'phoneNumber',
+} as const;
+
 export interface ErrorResponse {
   error: string;
+  field?: ErrorResponseField;
 }
 
 export interface Profile {

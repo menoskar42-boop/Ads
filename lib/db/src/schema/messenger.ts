@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -18,6 +19,7 @@ export const messengerProfiles = pgTable(
     username: text("username").notNull(),
     usernameLower: text("username_lower").notNull(),
     displayName: text("display_name").notNull(),
+    displayNameKey: text("display_name_key"),
     phoneLookupHash: text("phone_lookup_hash"),
     phoneDiscoverable: boolean("phone_discoverable").notNull().default(false),
     pushShowPreview: boolean("push_show_preview").notNull().default(false),
@@ -26,6 +28,12 @@ export const messengerProfiles = pgTable(
   },
   (table) => [
     unique("messenger_profiles_username_lower_key").on(table.usernameLower),
+    uniqueIndex("messenger_profiles_display_name_key_uniq")
+      .on(table.displayNameKey)
+      .where(sql`${table.displayNameKey} IS NOT NULL`),
+    uniqueIndex("messenger_profiles_phone_lookup_hash_uniq")
+      .on(table.phoneLookupHash)
+      .where(sql`${table.phoneLookupHash} IS NOT NULL`),
     check(
       "messenger_profiles_phone_lookup_hash_check",
       sql`${table.phoneLookupHash} IS NULL OR ${table.phoneLookupHash} ~ '^[a-f0-9]{64}$'`,

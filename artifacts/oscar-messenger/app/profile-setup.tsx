@@ -8,7 +8,7 @@ import { Field, Notice, PrimaryButton, Screen } from "../components/Screen";
 import { TextField } from "../components/TextField";
 import { getMessengerProfile, updateMessengerProfile } from "@workspace/api-client-react";
 import { queryKeys } from "../lib/api";
-import { readableError } from "../lib/format";
+import { apiErrorDetails, readableError } from "../lib/format";
 import { safeReturnPath } from "../lib/format";
 import { colors } from "../lib/theme";
 
@@ -28,6 +28,7 @@ export default function ProfileSetupScreen() {
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState(user?.fullName || "");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({ username: "", displayName: "" });
   const update = useMutation({
     mutationFn: (input: { username: string; displayName: string }) =>
       updateMessengerProfile(input),
@@ -35,7 +36,20 @@ export default function ProfileSetupScreen() {
       await queryClient.setQueryData(queryKeys.profile, data);
       router.replace(returnTo as Href);
     },
-    onError: (cause) => setError(readableError(cause, "تعذر حفظ الملف الشخصي.")),
+    onError: (cause) => {
+      const details = apiErrorDetails(cause);
+      if (details?.status === 409 && details.message && details.field === "username") {
+        setFieldErrors({ username: details.message, displayName: "" });
+        setError("");
+        return;
+      }
+      if (details?.status === 409 && details.message && details.field === "displayName") {
+        setFieldErrors({ username: "", displayName: details.message });
+        setError("");
+        return;
+      }
+      setError(readableError(cause, "تعذر حفظ الملف الشخصي."));
+    },
   });
 
   if (!isLoaded) {
@@ -66,16 +80,27 @@ export default function ProfileSetupScreen() {
       <Field label="اسم العرض">
         <TextField
           value={displayName}
-          onChangeText={setDisplayName}
+          onChangeText={(value) => {
+            setDisplayName(value);
+            setFieldErrors((current) => ({ ...current, displayName: "" }));
+            setError("");
+          }}
           placeholder="الاسم الذي يعرفك به الآخرون"
           maxLength={60}
           autoCapitalize="words"
         />
+        {!!fieldErrors.displayName && (
+          <Text style={styles.error}>{fieldErrors.displayName}</Text>
+        )}
       </Field>
       <Field label="اسم المستخدم">
         <TextField
           value={username}
-          onChangeText={(value) => setUsername(value.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase())}
+          onChangeText={(value) => {
+            setUsername(value.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase());
+            setFieldErrors((current) => ({ ...current, username: "" }));
+            setError("");
+          }}
           placeholder="مثال: mahmoud_y"
           maxLength={30}
           autoCapitalize="none"
@@ -83,6 +108,7 @@ export default function ProfileSetupScreen() {
           style={{ textAlign: "left", writingDirection: "ltr" }}
         />
         <Text style={styles.hint}>من ٣ إلى ٣٠ حرفًا إنجليزيًا أو رقمًا أو علامة _</Text>
+        {!!fieldErrors.username && <Text style={styles.error}>{fieldErrors.username}</Text>}
       </Field>
       {(!!error || !!profile.error) && (
         <Text style={styles.error}>{error || readableError(profile.error, "تعذر تحميل الملف الشخصي.")}</Text>
@@ -94,6 +120,7 @@ export default function ProfileSetupScreen() {
         title="حفظ ومتابعة"
         onPress={() => {
           setError("");
+          setFieldErrors({ username: "", displayName: "" });
           update.mutate({ username: normalizedUsername, displayName: displayName.trim() });
         }}
         busy={update.isPending}

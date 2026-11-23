@@ -13,11 +13,30 @@ export function initials(value: string): string {
   return parts.slice(0, 2).map((part) => part[0]).join("") || "أ";
 }
 
+export function apiErrorDetails(
+  error: unknown,
+): { status: number; message?: string; field?: string } | null {
+  if (typeof error !== "object" || error === null || !("status" in error)) return null;
+  const record = error as Record<string, unknown>;
+  const status = Number(record.status);
+  if (!Number.isFinite(status)) return null;
+  const data =
+    typeof record.data === "object" && record.data !== null
+      ? (record.data as Record<string, unknown>)
+      : null;
+  return {
+    status,
+    ...(typeof data?.error === "string" ? { message: data.error } : {}),
+    ...(typeof data?.field === "string" ? { field: data.field } : {}),
+  };
+}
+
 export function readableError(error: unknown, fallback = "حصلت مشكلة، حاول مرة أخرى"): string {
-  if (typeof error === "object" && error !== null && "status" in error) {
-    const status = Number(error.status);
+  const details = apiErrorDetails(error);
+  if (details) {
+    const { status } = details;
     if (status === 401) return "انتهت الجلسة. سجّل الدخول مرة أخرى.";
-    if (status === 409) return "اسم المستخدم مستخدم بالفعل.";
+    if (status === 409) return details.message || "اسم المستخدم مستخدم بالفعل.";
     if (status === 429) return "انتظر قليلًا ثم حاول البحث مرة أخرى.";
     if (status === 503) return "التخزين لم يُجهّز بعد. أعد المحاولة بعد تهيئة التطبيق.";
   }

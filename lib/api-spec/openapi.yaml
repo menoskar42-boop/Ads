@@ -66,7 +66,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "409":
-          description: Username is already in use
+          description: Username or normalized display name is already in use
           content:
             application/json:
               schema:
@@ -95,6 +95,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Phone number is already registered to another account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Profile setup is not complete
           content:
@@ -1715,6 +1721,9 @@ components:
       properties:
         error:
           type: string
+        field:
+          type: string
+          enum: [username, displayName, phoneNumber]
     Profile:
       type: object
       required:
