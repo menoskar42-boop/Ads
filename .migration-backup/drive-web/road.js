@@ -113,16 +113,18 @@
   // تنضيف أقوى للمطابقة بس (زى VoiceEngine.normalize): ی/ک فارسى · علامات · «مطبببب» ⇒ «مطب» · مسافات
   const clean = (t) => norm(t).replace(/[\u0640\u0670]/g, '').replace(/ک/g, 'ك').replace(/ی/g, 'ي').replace(/ھ/g, 'ه')
     .replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/(\p{L})\1{2,}/gu, '$1').replace(/\s+/g, ' ').trim();
-  // كل صيغ النداء المتوقعة من التفريغ العربي/الإنجليزي. «اذكر/اوس/اسكر» بلا «يا» مسموحة كبداية للجملة فقط.
-  const WAKE_ALIASES = [
-    'يا اوسكار', 'اوسكار', 'يا اسكار', 'اسكار', 'يا وسكار', 'وسكار', 'يا اوسكر', 'اوسكر',
-    'يا اوزكار', 'اوزكار', 'يا اوز', 'يا اوس', 'يا اذكر', 'يا اسكر', 'يا سكار', 'سكار',
-    'hey oscar', 'ok oscar', 'okay oscar', 'oscar',
-  ].map(clean).sort((a, b) => b.length - a.length);
-  const WAKE_BARE = ['اذكر', 'اوس', 'اوز', 'اسكر'].map(clean);
+  const WAKE_DISTINCT = [
+    'اوسكار', 'اسكار', 'وسكار', 'اوسكر', 'اوزكار', 'سكار', 'اوسكو', 'اسكو', 'اوسك', 'اوسكا',
+    'اسكا', 'اوزكر', 'اوسقار', 'اسقار', 'عوسكار', 'اوشكار', 'oscar', 'oskar', 'oscars', 'os car',
+  ].map(clean);
+  const WAKE_RESTRICTED = ['اوس', 'اوز', 'اسكر', 'اذكر', 'اسك', 'ازكر'].map(clean);
+  const WAKE_PREFIX_SOURCE = '(?:يا|هاي|hey|ok|okay)';
   const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const WAKE_SOURCE = '(?:' + WAKE_ALIASES.map(escapeRegExp).join('|') + ')';
-  const WAKE = new RegExp('(^|\\s)' + WAKE_SOURCE + '(?=\\s|$)|^(?:' + WAKE_BARE.map(escapeRegExp).join('|') + ')(?=\\s|$)');
+  const WAKE_DISTINCT_SOURCE = WAKE_DISTINCT.slice().sort((a, b) => b.length - a.length).map(escapeRegExp).join('|');
+  const WAKE_RESTRICTED_SOURCE = WAKE_RESTRICTED.map(escapeRegExp).join('|');
+  const WAKE_SOURCE = '(?:' + WAKE_DISTINCT_SOURCE + ')';
+  const WAKE = new RegExp('(?:^|\\s)(?:' + WAKE_PREFIX_SOURCE + '\\s+)?' + WAKE_SOURCE + '(?=\\s|$)|' +
+    '^(?:' + WAKE_RESTRICTED_SOURCE + ')(?=\\s|$)|(?:^|\\s)يا\\s+(?:' + WAKE_RESTRICTED_SOURCE + ')(?=\\s|$)');
   const WAKE_GLOBAL = new RegExp(WAKE.source, 'g');
   /** نفس الأمر لو اتسمع مرتين ورا بعض (٤ ثوانى) بيتنفّذ مرة واحدة — زى logic/RepeatGuard.kt. st = {} بيتحفظ عند الصفحة. */
   const REPEAT_MS = 4000;
@@ -133,14 +135,15 @@
   }
   /** «أوسكار» لوحده (أو «يا أوسكار») ⇒ ينتبه ويستنى الأمر — زى الشاشة (MainActivity.handleHeard: ٨ ثوانى). */
   const WAKE_WINDOW_MS = 8000;
+  const hasWake = (text) => WAKE.test(clean(text));
   function wakeOnly(text) {
     const t = clean(text);
-    return WAKE.test(t) && t.replace(WAKE_GLOBAL, ' ').trim() === '';
+    return hasWake(t) && t.replace(WAKE_GLOBAL, ' ').trim() === '';
   }
   /** awake = لسه نادينا عليه (جوّه ٨ ثوانى) ⇒ الجملة بتتفهم من غير الاسم. */
   function parseVoice(text, awake) {
     let t = norm(text);
-    if (!WAKE.test(clean(t))) { if (!awake || !t.trim()) return null; text = 'اوسكار ' + text; t = norm(text); }
+    if (!hasWake(t)) { if (!awake || !t.trim()) return null; text = 'اوسكار ' + text; t = norm(text); }
     // «📲 ابعت للشاشة»: النص نفسه من الكلام الأصلى (من غير تشكيل) — norm بيغيّر الحروف بس مش العدد
     const base = String(text || '').replace(/[\u064B-\u0652]/g, '').trim();
     const tail = (m, g) => (norm(base).length === t.trim().length ? base : t.trim()).slice(t.trim().length - m[g].length).trim();
@@ -182,15 +185,12 @@
   function parseMessageVoice(text, awake) {
     const raw = String(text || '').trim();
     const cleaned = clean(raw);
-    const wake = WAKE_ALIASES.find((alias) => cleaned === alias || cleaned.startsWith(alias + ' '));
+    const wake = WAKE.exec(cleaned);
     let command = raw;
     if (wake) {
-      command = raw.split(/\s+/).slice(wake.split(' ').length).join(' ');
-    } else {
-      const bare = WAKE_BARE.find((alias) => cleaned === alias || cleaned.startsWith(alias + ' '));
-      if (bare) command = raw.split(/\s+/).slice(bare.split(' ').length).join(' ');
-      else if (!awake) return null;
-    }
+      const consumedWords = cleaned.slice(0, wake.index + wake[0].length).trim().split(/\s+/).filter(Boolean).length;
+      command = raw.split(/\s+/).slice(consumedWords).join(' ');
+    } else if (!awake) return null;
     command = command.replace(/^[\s،,:;.!؟?!]+/, '').trim();
     const match = command.match(
       /^(?:ابعت|ابعث|ابعتلي|ابعثلي|ارسل|ارسلي|send)\s+(?:(?:لي|لنا|a)\s+)?(?:رساله|رسالة|message)\s+(?:إلى|الى|ل|لـ|to)\s+(.+?)\s+(?:بتقول|تقول|قول|نصها|محتواها|saying|that says|says)\s+([\s\S]+)$/iu,
@@ -467,7 +467,7 @@
   function maybeOscar(text, awake) {
     const w = clean(text).split(' ');
     if (awake && w.length && w[0]) return true;
-    if (WAKE.test(w.join(' '))) return true;
+    if (hasWake(w.join(' '))) return true;
     if (w[0] !== 'يا' || !w[1]) return false;
     return /^(او|اس|وس|اذ)/.test(w[1]) || lev(w[1], 'اوسكار') <= 3;
   }
@@ -483,6 +483,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

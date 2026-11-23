@@ -142,15 +142,63 @@ object VoiceCatalog {
         VoiceCommand("cancel", "خلاص", listOf("خلاص", "بس", "الغي", "ولا حاجه", "لا خلاص", "سيبك", "انسي", "الغيها", "متسجلش"), listOf("cancel", "stop", "never mind")),
     )
 
-    /** أشكال اسمه زى ما برنامج التعرّف بيكتبها فعلاً («اسكار» · «وسكار» · «اوسكر») — C9. */
-    val DEFAULT_WAKE = listOf(
-        "يا اوسكار", "اوسكار", "يا اسكار", "اسكار", "يا وسكار", "وسكار", "يا اوسكر", "اوسكر",
-        "يا اوزكار", "اوزكار", "يا اوز", "اوز", "يا اوس", "اوس",
-        "يا اذكر", "اذكر", "يا اسكر", "اسكر", "يا سكار", "سكار",
-        "hey oscar", "oscar", "ok oscar", "okay oscar",
-    )   // بدائل نداء أوسكار كما قد تظهر في التفريغ العربي أو الإنجليزي
+    val WAKE_DISTINCT = listOf(
+        "اوسكار", "اسكار", "وسكار", "اوسكر", "اوزكار", "سكار", "اوسكو", "اسكو", "اوسك", "اوسكا",
+        "اسكا", "اوزكر", "اوسقار", "اسقار", "عوسكار", "اوشكار", "oscar", "oskar", "oscars", "os car",
+    )
+    val WAKE_RESTRICTED = listOf(
+        "اوس", "اوز", "اسكر", "اذكر", "اسك", "ازكر",
+    )
+
+    /** قائمة توافق لاسماء الاستدعاء المحفوظة؛ قواعد المطابقة الفعلية في VoiceEngine.afterWake. */
+    val DEFAULT_WAKE = ((WAKE_DISTINCT + WAKE_RESTRICTED).flatMap { alias -> listOf("يا $alias", alias) } +
+        listOf("hey oscar", "ok oscar", "okay oscar")).distinct()
 
     fun byId(id: String) = ALL.firstOrNull { it.id == id }
+}
+
+data class WakeNameChanges(val added: List<String>, val removed: List<String>)
+
+/** حساب تغييرات أسماء الاستدعاء بشكل مستقل عن Android ليسهل اختبار ترحيل التفضيلات. */
+object WakeNameSettings {
+    private fun key(name: String) = VoiceEngine.normalize(name)
+
+    fun migrate(defaults: List<String>, saved: List<String>): WakeNameChanges {
+        val defaultKeys = defaults.map(::key).toSet()
+        val added = saved.filter { key(it).isNotBlank() && key(it) !in defaultKeys }.distinctBy(::key)
+        return WakeNameChanges(added, emptyList())
+    }
+
+    fun effective(defaults: List<String>, added: List<String>, removed: List<String>): List<String> {
+        val removedKeys = removed.map(::key).toSet()
+        val seen = mutableSetOf<String>()
+        return (defaults + added).filter { name ->
+            val normalized = key(name)
+            normalized.isNotBlank() && normalized !in removedKeys && seen.add(normalized)
+        }
+    }
+
+    fun add(defaults: List<String>, added: List<String>, removed: List<String>, name: String): WakeNameChanges {
+        val normalized = key(name)
+        if (normalized.isBlank()) return WakeNameChanges(added, removed)
+        val defaultKeys = defaults.map(::key).toSet()
+        if (normalized in defaultKeys) {
+            return WakeNameChanges(added.filterNot { key(it) == normalized }, removed.filterNot { key(it) == normalized })
+        }
+        val nextAdded = if (added.any { key(it) == normalized }) added else added + name.trim()
+        return WakeNameChanges(nextAdded, removed.filterNot { key(it) == normalized })
+    }
+
+    fun remove(defaults: List<String>, added: List<String>, removed: List<String>, name: String): WakeNameChanges {
+        val normalized = key(name)
+        if (normalized.isBlank()) return WakeNameChanges(added, removed)
+        if (defaults.any { key(it) == normalized }) {
+            val defaultName = defaults.first { key(it) == normalized }
+            val nextRemoved = if (removed.any { key(it) == normalized }) removed else removed + defaultName
+            return WakeNameChanges(added.filterNot { key(it) == normalized }, nextRemoved)
+        }
+        return WakeNameChanges(added.filterNot { key(it) == normalized }, removed.filterNot { key(it) == normalized })
+    }
 }
 
 class VoiceEngine(
@@ -162,16 +210,42 @@ class VoiceEngine(
     /** كلمات السواق علّمها لأوسكار («قلت مطب مش مطلب») — بتتقدّم على القاموس. */
     private val learned: Map<String, String> = emptyMap(),
 ) {
-    private val wakes = wakeNames.map { normalize(it) }.filter { it.isNotBlank() }.sortedByDescending { it.length }
+    private val wakes = wakeNames.map { normalize(it) }.filter { it.isNotBlank() }.distinct()
+    private val wakePrefixes = listOf("يا", "هاي", "hey", "ok", "okay")
+    private val standardWakePhrases = (VoiceCatalog.WAKE_DISTINCT + VoiceCatalog.WAKE_RESTRICTED)
+        .flatMap { alias -> listOf(alias) + wakePrefixes.map { "$it $alias" } }.toSet()
+    private val activeDistinctWakes = VoiceCatalog.WAKE_DISTINCT.map(::normalize).filter { alias ->
+        alias in wakes || wakePrefixes.any { "$it $alias" in wakes }
+    }
+    private val activeRestrictedWakes = VoiceCatalog.WAKE_RESTRICTED.map(::normalize).filter { alias ->
+        alias in wakes || wakePrefixes.any { "$it $alias" in wakes }
+    }
+    private val customWakes = wakes.filterNot { it in standardWakePhrases }.sortedByDescending { it.length }
 
     /** النص بعد الاستدعاء — أو null لو مفيش اسم استدعاء فى الكلام. */
     fun afterWake(text: String): String? {
         val t = normalize(text)
-        for (w in wakes) {
-            val i = indexOfWords(t, w)
-            if (i >= 0) return t.substring(i + w.length).trim()
+        data class Hit(val start: Int, val end: Int)
+        val hits = mutableListOf<Hit>()
+        fun add(phrase: String) {
+            val i = indexOfWords(t, phrase)
+            if (i >= 0) hits += Hit(i, i + phrase.length)
         }
-        return null
+        for (alias in activeDistinctWakes) {
+            if (alias in wakes) {
+                add(alias)
+                wakePrefixes.forEach { add("$it $alias") }
+            } else {
+                wakePrefixes.filter { "$it $alias" in wakes }.forEach { add("$it $alias") }
+            }
+        }
+        for (alias in activeRestrictedWakes) {
+            if (alias in wakes && (t == alias || t.startsWith("$alias "))) hits += Hit(0, alias.length)
+            if (alias in wakes || "يا $alias" in wakes) add("يا $alias")
+        }
+        customWakes.forEach(::add)
+        val hit = hits.minWithOrNull(compareBy<Hit> { it.start }.thenByDescending { it.end }) ?: return null
+        return t.substring(hit.end).trim()
     }
 
     fun match(text: String): VoiceMatch? {

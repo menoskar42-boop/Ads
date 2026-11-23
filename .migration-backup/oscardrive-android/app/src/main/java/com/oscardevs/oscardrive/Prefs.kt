@@ -251,9 +251,46 @@ class Prefs(context: Context) {
     var voiceOffline: Boolean
         get() = sp.getBoolean("v_offline", true)
         set(v) = sp.edit().putBoolean("v_offline", v).apply()
-    var wakeNames: List<String>
-        get() = jsonList(sp.getString("v_wake_names", null)) ?: com.oscardevs.oscardrive.logic.VoiceCatalog.DEFAULT_WAKE
-        set(v) = sp.edit().putString("v_wake_names", org.json.JSONArray(v).toString()).apply()
+    val wakeNames: List<String>
+        get() {
+            val changes = wakeNameChanges()
+            return com.oscardevs.oscardrive.logic.WakeNameSettings.effective(
+                com.oscardevs.oscardrive.logic.VoiceCatalog.DEFAULT_WAKE, changes.added, changes.removed
+            )
+        }
+    fun addWake(name: String) {
+        val changes = wakeNameChanges()
+        saveWakeNameChanges(com.oscardevs.oscardrive.logic.WakeNameSettings.add(
+            com.oscardevs.oscardrive.logic.VoiceCatalog.DEFAULT_WAKE, changes.added, changes.removed, name
+        ))
+    }
+    fun removeWake(name: String) {
+        val changes = wakeNameChanges()
+        saveWakeNameChanges(com.oscardevs.oscardrive.logic.WakeNameSettings.remove(
+            com.oscardevs.oscardrive.logic.VoiceCatalog.DEFAULT_WAKE, changes.added, changes.removed, name
+        ))
+    }
+    private fun wakeNameChanges(): com.oscardevs.oscardrive.logic.WakeNameChanges {
+        if (!sp.contains("v_wake_added") && sp.contains("v_wake_names")) {
+            val migrated = com.oscardevs.oscardrive.logic.WakeNameSettings.migrate(
+                com.oscardevs.oscardrive.logic.VoiceCatalog.DEFAULT_WAKE,
+                jsonList(sp.getString("v_wake_names", null)).orEmpty()
+            )
+            saveWakeNameChanges(migrated)
+            return migrated
+        }
+        return com.oscardevs.oscardrive.logic.WakeNameChanges(
+            jsonList(sp.getString("v_wake_added", "[]")).orEmpty(),
+            jsonList(sp.getString("v_wake_removed", "[]")).orEmpty()
+        )
+    }
+    private fun saveWakeNameChanges(changes: com.oscardevs.oscardrive.logic.WakeNameChanges) {
+        sp.edit()
+            .putString("v_wake_added", org.json.JSONArray(changes.added).toString())
+            .putString("v_wake_removed", org.json.JSONArray(changes.removed).toString())
+            .remove("v_wake_names")
+            .apply()
+    }
     /** صيغ السواق الزيادة: { commandId: [صيغة…] } */
     fun customPhrases(): Map<String, List<String>> {
         val o = try { org.json.JSONObject(sp.getString("v_custom", "{}") ?: "{}") } catch (_: Exception) { org.json.JSONObject() }

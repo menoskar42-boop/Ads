@@ -2150,9 +2150,9 @@ class MainActivity : Activity() {
         page.addView(section("اسم الاستدعاء"))
         val names = ui.row()
         for (n in prefs.wakeNames) names.addView(ui.button("$n ✕", "neutral", 14f) {
-            if (prefs.wakeNames.size <= 1) toast("لازم اسم واحد على الأقل") else { prefs.wakeNames = prefs.wakeNames - n; refresh() }
+            if (prefs.wakeNames.size <= 1) toast("لازم اسم واحد على الأقل") else { prefs.removeWake(n); refresh() }
         }, ui.lp(Ui.WRAP, ui.dp(48), 0f, 3))
-        names.addView(ui.button("＋ اسم", "primary", 14f) { askText("اسم الاستدعاء", "مثلاً: يا كابتن", "") { t -> if (t.isNotBlank()) { prefs.wakeNames = prefs.wakeNames + t.trim(); refresh() } } },
+        names.addView(ui.button("＋ اسم", "primary", 14f) { askText("اسم الاستدعاء", "مثلاً: يا كابتن", "") { t -> if (t.isNotBlank()) { prefs.addWake(t.trim()); refresh() } } },
             ui.lp(Ui.WRAP, ui.dp(48), 0f, 3))
         page.addView(HorizontalScrollView(this).apply { addView(names) })
 

@@ -2,6 +2,8 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const R = require('../drive-web/road.js');
 const LAT0 = 30.0, LNG0 = 31.0, north = (m) => LAT0 + m / 111195.0;
 const bump = { uuid: 'b1', type: 'bump', lat: north(120), lng: LNG0, bearing: 0 };
@@ -358,6 +360,42 @@ test('«أوسكار» لوحده ⇒ ينتبه، والأمر اللى بعد�
   assert.equal(R.parseVoice('ودينى البيت', true), 'goto:البيت');
   assert.equal(R.parseVoice('', true), null);
   assert.equal(R.WAKE_WINDOW_MS, 8000);
+});
+
+test('Android and web wake alias groups stay in sync after normalization', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/logic/VoiceEngine.kt'), 'utf8');
+  const kotlinList = (name) => {
+    const match = source.match(new RegExp(`val\\s+${name}\\s*=\\s*listOf\\(([\\s\\S]*?)\\n\\s*\\)`, 'm'));
+    assert.ok(match, `missing Kotlin list ${name}`);
+    return [...match[1].matchAll(/"([^"]*)"/g)].map((entry) => R.clean(entry[1]));
+  };
+  assert.deepEqual(kotlinList('WAKE_DISTINCT'), R.WAKE_DISTINCT);
+  assert.deepEqual(kotlinList('WAKE_RESTRICTED'), R.WAKE_RESTRICTED);
+});
+
+test('wake aliases match whole words and short aliases stay restricted', () => {
+  const positives = [
+    'يا أوسكار سجل مطب', 'اوسكار سجل مطب', 'يا اسكار مطب هنا', 'يا اسكو سجل حفرة',
+    'اوسك فين العربية', 'يا أذكر اتصل بمحمود', 'Oscar call Ahmed', 'يا اوس سجل مطب هنا', 'اسكو مطب',
+    'هاي oskar سجل مطب', 'okay oscars سجل مطب', 'بقولك يا اوس سجل مطب', 'اوس سجل مطب',
+  ];
+  for (const phrase of positives) assert.equal(R.hasWake(phrase), true, phrase);
+  for (const phrase of [
+    'فيه عسكرى قدام', 'اسكندرية كام كيلو', 'السكر عالى',
+    'بقولك اذكر رقم التليفون', 'انا اسك عليه', 'عسكر', 'سكره', 'اسكندر', 'اسكندريه', 'سكوتر',
+  ]) {
+    assert.equal(R.hasWake(phrase), false, phrase);
+    assert.equal(R.parseVoice(phrase), null, phrase);
+  }
+  assert.equal(R.parseVoice('يا أوسكار سجل مطب'), 'bump');
+  assert.equal(R.parseVoice('اوسكار سجل مطب'), 'bump');
+  assert.equal(R.parseVoice('اوس سجل مطب'), 'bump');
+  assert.equal(R.parseVoice('يا اسكو سجل حفرة'), 'pothole');
+  assert.equal(R.parseVoice('يا أذكر اتصل بمحمود')?.startsWith('call:'), true);
+  assert.equal(R.parseVoice('Oscar call Ahmed')?.startsWith('call:'), true);
+  assert.deepEqual(R.parseMessageVoice('يا أذكر ابعت رسالة إلى محمود يعقوب بتقول أنا وصلت'),
+    { recipient: 'محمود يعقوب', body: 'أنا وصلت' });
+  assert.equal(R.parseMessageVoice('بقولك اذكر ابعت رسالة إلى محمود بتقول أنا وصلت'), null);
 });
 
 test('اللى لسه متسجّل مايتقالش «قدامك مطب» دقيقتين (زى RoadMemory.skipJustMarked)', () => {

@@ -364,6 +364,20 @@ class SecurityTest {
     }
 }
 
+class WakeNameSettingsTest {
+    @Test fun legacyCustomNameKeepsNewDefaults() {
+        val changes = WakeNameSettings.migrate(VoiceCatalog.DEFAULT_WAKE, listOf("يا كابتن"))
+        val effective = WakeNameSettings.effective(VoiceCatalog.DEFAULT_WAKE, changes.added, changes.removed)
+        assertTrue("يا كابتن" in effective)
+        assertTrue("يا اوسكار" in effective)
+        assertTrue("يا اوس" in effective)
+        assertTrue(changes.removed.isEmpty())
+        val removedDefault = WakeNameSettings.remove(VoiceCatalog.DEFAULT_WAKE, changes.added, changes.removed, "يا اوس")
+        assertTrue("يا اوس" in removedDefault.removed)
+        assertTrue("يا كابتن" in WakeNameSettings.effective(VoiceCatalog.DEFAULT_WAKE, removedDefault.added, removedDefault.removed))
+    }
+}
+
 class VoiceEngineTest {
     private val e = VoiceEngine()
     private fun id(t: String) = e.match(t)?.command?.id
@@ -410,6 +424,26 @@ class VoiceEngineTest {
         val custom = VoiceEngine(wakeNames = listOf("يا كابتن"))
         assertEquals("السرعه كام", custom.afterWake("يا كابتن السرعة كام"))
         assertNull(custom.afterWake("يا أوسكار السرعة كام"))
+    }
+    @Test fun wakeAliasesAndRestrictedShortForms() {
+        val cases = listOf(
+            "يا أوسكار سجل مطب" to "سجل مطب",
+            "اوسكار سجل مطب" to "سجل مطب",
+            "اوس سجل مطب" to "سجل مطب",
+            "يا اسكار مطب هنا" to "مطب هنا",
+            "يا اسكو سجل حفرة" to "سجل حفره",
+            "اوسك فين العربية" to "فين العربيه",
+            "يا أذكر اتصل بمحمود" to "اتصل بمحمود",
+            "Oscar call Ahmed" to "call ahmed",
+            "يا اوس سجل مطب هنا" to "سجل مطب هنا",
+            "اسكو مطب" to "مطب",
+        )
+        for ((phrase, command) in cases) assertEquals(command, e.afterWake(phrase), phrase)
+        for (phrase in listOf(
+            "فيه عسكرى قدام", "اسكندرية كام كيلو", "السكر عالى",
+            "بقولك اذكر رقم التليفون", "انا اسك عليه", "عسكر", "سكره", "اسكندر", "اسكندريه", "سكوتر",
+        )) assertNull(e.afterWake(phrase), phrase)
+        assertEquals("اوسكار", VoiceEngine.normalize("اوس\u0640كار"))
     }
     @Test fun customPhrasesAndDisabled() {
         val c = VoiceEngine(custom = mapOf("park.save" to listOf("اركنها")), disabled = setOf("road.bump"))
