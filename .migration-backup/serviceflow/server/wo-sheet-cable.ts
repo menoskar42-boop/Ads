@@ -26,6 +26,21 @@ export const sheetCableSql = (w = "w") => `COALESCE(${overrideSql(w)},
   CASE WHEN ${sheetRulesSql(w)} AND ${numericSql(`${w}.cable_quantity`)} = ${SHEET_CABLE_PLACEHOLDER} THEN NULL
        ELSE NULLIF(btrim(COALESCE(${w}.cable_quantity, '')), '') END)`;
 
+/**
+ * للمراجعة (المالك ٢٠٢٦-١١-٢٣: «50م او اكثر يظهر للمراجعه او التعديل»): من ٣-١١، الشيت أكتر من ٥٠ والسوبر أدمن لسه
+ * ماأكّدهاش ⇒ يظهر فى «بدون كمية سلك». الكمية بتفضل محسوبة زى ما هى، والتأكيد/التعديل = PUT /api/work-orders/:id/cable.
+ * (الـ٥٠ بالظبط مش هنا: بتتعامل «من غير كمية» والفنى بيدخّلها.)
+ */
+export const sheetReviewSql = (w = "w") => `(${sheetRulesSql(w)} AND ${overrideSql(w)} IS NULL
+  AND ${numericSql(`${w}.cable_quantity`)} > ${SHEET_CABLE_PLACEHOLDER})`;
+
+/** نفس sheetReviewSql لأمر واحد (للاختبار) */
+export function sheetNeedsReview(o: { closeDay: string; sheet: string | null; override?: string | null }): boolean {
+  if (String(o.override ?? "").trim()) return false;
+  const s = String(o.sheet ?? "").trim();
+  return o.closeDay >= SHEET_CABLE_FROM && /^[0-9]+(\.[0-9]+)?$/.test(s) && Number(s) > SHEET_CABLE_PLACEHOLDER;
+}
+
 /** الكمية بالقاعدة الجديدة لأمر واحد (للاختبار وللتطبيق) */
 export function sheetCableFor(o: { closeDay: string; sheet: string | null; override?: string | null }): string | null {
   const ov = String(o.override ?? "").trim();

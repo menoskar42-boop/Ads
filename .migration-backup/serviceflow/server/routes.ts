@@ -54,7 +54,7 @@ import { registerFaultTrend } from "./fault-trend";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
 import { registerCabinetAssignments, siteWorkerCode } from "./cabinet-assignments";
-import { sheetCableSql, syncSheetCableEntries, sheetRulesSql } from "./wo-sheet-cable";
+import { sheetCableSql, syncSheetCableEntries, sheetRulesSql, sheetReviewSql } from "./wo-sheet-cable";
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
 import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
@@ -10884,7 +10884,9 @@ export async function registerRoutes(
       // «سجّل إنه بتاعك» (المالك ٢٠٢٦-١١-٠٢): من ٣-١١ وفنى الإغلاق مش من الخمسة ومحدش سجّله ⇒ يظهر للفنى حتى لو
       // السلك مكتوب فى الشيت — بيسجّل اسمه بس، والسلك المكتوب مايتغيّرش (wo-sheet-cable.ts)
       const claimOnlySql = `(${sheetRulesSql()} AND NOT ${isKnown} AND ovr.tech_name IS NULL AND ${sheetCableSql()} IS NOT NULL)`;
-      conds.push(`(COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NULL OR ${claimOnlySql})`);
+      // ٥٠ م أو أكتر من الشيت (المالك ٢٠٢٦-١١-٢٣) ⇒ يظهر للمراجعة لحد ما السوبر أدمن يأكّده/يعدّله — والكمية محسوبة زى ما هى
+      const reviewSql = sheetReviewSql();
+      conds.push(`(COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NULL OR ${claimOnlySql} OR ${reviewSql})`);
       // فنى المنطقة من **البيانات الفنية للرقم** — نفس منطق «بحث برقم التليفون»
       // (بيان الخط ← كابينة ← فنى الكابينة، مع تغطية الوردية).
       const areaTech = areaTechSql("lm.central", "lm.cabin", "w.close_date", "lm.short");
@@ -10948,6 +10950,7 @@ export async function registerRoutes(
                 ${isKnown} AS "techKnown",
                 ${sheetCableSql()} AS "sheetCable",
                 (${claimOnlySql} AND COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NOT NULL) AS "claimOnly",
+                (${reviewSql} AND NOT ${claimOnlySql}) AS "reviewOnly",
                 ${areaTech} AS "areaTechName",   -- بيتعرض بالاسم الكامل من الواجهة
                 (lm.central IS NOT NULL AND lm.cabin IS NOT NULL) AS "hasLineData",
                 -- البيان الفنى بيتراجع **بس** لما اسم الفنى مش واحد من الخمسة — لأنه
