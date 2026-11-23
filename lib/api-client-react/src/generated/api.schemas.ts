@@ -72,6 +72,7 @@ export const MessageMessageType = {
   text: 'text',
   audio: 'audio',
   media: 'media',
+  location: 'location',
 } as const;
 
 export type MediaAttachmentContentType = typeof MediaAttachmentContentType[keyof typeof MediaAttachmentContentType];
@@ -115,6 +116,7 @@ export const ReplyPreviewMessageType = {
   text: 'text',
   audio: 'audio',
   media: 'media',
+  location: 'location',
 } as const;
 
 export interface ReplyPreview {
@@ -152,6 +154,10 @@ export interface Message {
   messageType: MessageMessageType;
   audioDurationMs: number | null;
   audioUrl: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
+  locationAccuracyM: number | null;
+  locationCapturedAt: string | null;
   mediaAttachment: MediaAttachment | null;
   replyToMessageId: string | null;
   replyPreview: ReplyPreview | null;
@@ -166,6 +172,7 @@ export const MessageSearchResultMessageType = {
   text: 'text',
   audio: 'audio',
   media: 'media',
+  location: 'location',
 } as const;
 
 export interface MessageSearchResult {
@@ -224,6 +231,39 @@ export interface ConversationSettingsInput {
   isPinned?: boolean;
   isMuted?: boolean;
   isArchived?: boolean;
+}
+
+export interface MessengerLocationInput {
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  lat: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  lng: number;
+  accuracyM: number | null;
+  capturedAt: string;
+  /**
+     * @minLength 8
+     * @maxLength 80
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  clientMessageId: string;
+}
+
+export type MessengerLocationCapabilityReason = typeof MessengerLocationCapabilityReason[keyof typeof MessengerLocationCapabilityReason] | null;
+
+
+export const MessengerLocationCapabilityReason = {
+  database_update_required: 'database_update_required',
+} as const;
+
+export interface MessengerLocationCapability {
+  enabled: boolean;
+  reason: MessengerLocationCapabilityReason;
 }
 
 export type VoiceMessageCapabilityMaxDurationMs = typeof VoiceMessageCapabilityMaxDurationMs[keyof typeof VoiceMessageCapabilityMaxDurationMs];
@@ -723,6 +763,14 @@ export type SendMessengerMessage200 = {
 };
 
 export type SendMessengerMessage201 = {
+  message: Message;
+};
+
+export type SendMessengerLocation200 = {
+  message: Message;
+};
+
+export type SendMessengerLocation201 = {
   message: Message;
 };
 

@@ -1,5 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import type { Message } from "@workspace/api-client-react";
 import { shortTime } from "../lib/format";
 import { colors } from "../lib/theme";
@@ -110,6 +118,9 @@ export function MessageBubble({
         ) : (
           <Text style={styles.body}>{message.body}</Text>
         )}
+        {message.messageType === "location" && (
+          <LocationDetails message={message} />
+        )}
         <View style={styles.meta}>
           <Text style={styles.time}>{shortTime(message.createdAt)}</Text>
           {mine && (
@@ -169,6 +180,50 @@ export function MessageBubble({
   );
 }
 
+function LocationDetails({ message }: { message: Message }) {
+  const lat = message.locationLat;
+  const lng = message.locationLng;
+  const capturedAt = message.locationCapturedAt;
+  if (lat == null || lng == null || !capturedAt) return null;
+
+  const capturedAtMs = Date.parse(capturedAt);
+  if (!Number.isFinite(capturedAtMs)) return null;
+  const capturedTime = new Date(capturedAtMs).toLocaleTimeString("ar-EG", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const isOld = Date.now() - capturedAtMs > 30 * 60 * 1000;
+  const mapUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+  return (
+    <View style={styles.locationDetails}>
+      <Text style={styles.locationMeta}>اتسجّل الساعة {capturedTime}</Text>
+      {message.locationAccuracyM != null && (
+        <Text style={styles.locationMeta}>
+          دقة الموقع: ±{message.locationAccuracyM} م
+        </Text>
+      )}
+      {isOld && <Text style={styles.locationOld}>موقع قديم</Text>}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="افتح فى الخرايط"
+        testID={`message-location-open-${message.id}`}
+        onPress={() => {
+          void Linking.openURL(mapUrl).catch(() => {
+            Alert.alert(
+              "تعذر فتح الخرائط / Could not open Maps",
+              "حاول مرة أخرى. / Please try again.",
+            );
+          });
+        }}
+        style={styles.locationMapButton}
+      >
+        <Text style={styles.locationMapText}>افتح فى الخرايط</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   row: { width: "100%", paddingHorizontal: 12, marginVertical: 3 },
   mineRow: { alignItems: "flex-start" },
@@ -184,6 +239,11 @@ const styles = StyleSheet.create({
   attachmentCopy: { flex: 1, alignItems: "flex-end", gap: 5 },
   attachmentName: { color: colors.text, fontSize: 13, fontWeight: "700", textAlign: "right" },
   attachmentInfo: { color: colors.muted, fontSize: 10, textAlign: "right" },
+  locationDetails: { alignItems: "flex-end", gap: 5, minWidth: 180, paddingTop: 2 },
+  locationMeta: { color: colors.muted, fontSize: 11, textAlign: "right" },
+  locationOld: { color: colors.amber, fontSize: 11, fontWeight: "800", textAlign: "right" },
+  locationMapButton: { paddingVertical: 5 },
+  locationMapText: { color: colors.blue, fontSize: 12, fontWeight: "800", textAlign: "right" },
   audio: { flexDirection: "row-reverse", alignItems: "center", gap: 11, minWidth: 150, paddingVertical: 3 },
   audioCopy: { flex: 1, alignItems: "flex-end", gap: 2 },
   audioTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },

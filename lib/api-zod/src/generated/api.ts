@@ -101,6 +101,15 @@ export const GetMessengerVoiceMessageCapabilityResponse = zod.object({
 
 
 /**
+ * @summary Check whether one-time location sharing is configured
+ */
+export const GetMessengerLocationCapabilityResponse = zod.object({
+  "enabled": zod.boolean(),
+  "reason": zod.union([zod.enum(['database_update_required']),zod.null()])
+})
+
+
+/**
  * @summary Search public Messenger usernames and display names
  */
 export const searchMessengerPeopleQueryQueryMin = 3;
@@ -783,7 +792,7 @@ export const SearchMessengerMessagesResponse = zod.object({
   "senderId": zod.string(),
   "peerName": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media']),
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "createdAt": zod.coerce.date()
 })).max(searchMessengerMessagesResponseResultsMax)
 })
@@ -857,6 +866,15 @@ export const UploadMessengerMediaHeader = zod.object({
 
 export const uploadMessengerMediaResponseMessageAudioDurationMsOneMax = 120000;
 
+export const uploadMessengerMediaResponseMessageLocationLatOneMin = -90;
+export const uploadMessengerMediaResponseMessageLocationLatOneMax = 90;
+
+export const uploadMessengerMediaResponseMessageLocationLngOneMin = -180;
+export const uploadMessengerMediaResponseMessageLocationLngOneMax = 180;
+
+export const uploadMessengerMediaResponseMessageLocationAccuracyMOneMin = 0;
+export const uploadMessengerMediaResponseMessageLocationAccuracyMOneMax = 100000;
+
 export const uploadMessengerMediaResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
 
 
@@ -871,9 +889,13 @@ export const UploadMessengerMediaResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
-  "messageType": zod.enum(['text', 'audio', 'media']),
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(uploadMessengerMediaResponseMessageAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
+  "locationLat": zod.union([zod.number().min(uploadMessengerMediaResponseMessageLocationLatOneMin).max(uploadMessengerMediaResponseMessageLocationLatOneMax),zod.null()]),
+  "locationLng": zod.union([zod.number().min(uploadMessengerMediaResponseMessageLocationLngOneMin).max(uploadMessengerMediaResponseMessageLocationLngOneMax),zod.null()]),
+  "locationAccuracyM": zod.union([zod.int().min(uploadMessengerMediaResponseMessageLocationAccuracyMOneMin).max(uploadMessengerMediaResponseMessageLocationAccuracyMOneMax),zod.null()]),
+  "locationCapturedAt": zod.union([zod.coerce.date(),zod.null()]),
   "mediaAttachment": zod.union([zod.object({
   "filename": zod.string(),
   "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
@@ -885,7 +907,7 @@ export const UploadMessengerMediaResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({
@@ -921,6 +943,15 @@ export const ForwardMessengerMessageBody = zod.object({
 
 export const forwardMessengerMessageResponseMessageAudioDurationMsOneMax = 120000;
 
+export const forwardMessengerMessageResponseMessageLocationLatOneMin = -90;
+export const forwardMessengerMessageResponseMessageLocationLatOneMax = 90;
+
+export const forwardMessengerMessageResponseMessageLocationLngOneMin = -180;
+export const forwardMessengerMessageResponseMessageLocationLngOneMax = 180;
+
+export const forwardMessengerMessageResponseMessageLocationAccuracyMOneMin = 0;
+export const forwardMessengerMessageResponseMessageLocationAccuracyMOneMax = 100000;
+
 export const forwardMessengerMessageResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
 
 
@@ -935,9 +966,13 @@ export const ForwardMessengerMessageResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
-  "messageType": zod.enum(['text', 'audio', 'media']),
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(forwardMessengerMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
+  "locationLat": zod.union([zod.number().min(forwardMessengerMessageResponseMessageLocationLatOneMin).max(forwardMessengerMessageResponseMessageLocationLatOneMax),zod.null()]),
+  "locationLng": zod.union([zod.number().min(forwardMessengerMessageResponseMessageLocationLngOneMin).max(forwardMessengerMessageResponseMessageLocationLngOneMax),zod.null()]),
+  "locationAccuracyM": zod.union([zod.int().min(forwardMessengerMessageResponseMessageLocationAccuracyMOneMin).max(forwardMessengerMessageResponseMessageLocationAccuracyMOneMax),zod.null()]),
+  "locationCapturedAt": zod.union([zod.coerce.date(),zod.null()]),
   "mediaAttachment": zod.union([zod.object({
   "filename": zod.string(),
   "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
@@ -949,7 +984,7 @@ export const ForwardMessengerMessageResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({
@@ -987,6 +1022,15 @@ export const ListMessengerMessagesQueryParams = zod.object({
 
 export const listMessengerMessagesResponseMessagesItemAudioDurationMsOneMax = 120000;
 
+export const listMessengerMessagesResponseMessagesItemLocationLatOneMin = -90;
+export const listMessengerMessagesResponseMessagesItemLocationLatOneMax = 90;
+
+export const listMessengerMessagesResponseMessagesItemLocationLngOneMin = -180;
+export const listMessengerMessagesResponseMessagesItemLocationLngOneMax = 180;
+
+export const listMessengerMessagesResponseMessagesItemLocationAccuracyMOneMin = 0;
+export const listMessengerMessagesResponseMessagesItemLocationAccuracyMOneMax = 100000;
+
 export const listMessengerMessagesResponseMessagesItemMediaAttachmentOneSizeBytesMax = 8388608;
 
 
@@ -1001,9 +1045,13 @@ export const ListMessengerMessagesResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
-  "messageType": zod.enum(['text', 'audio', 'media']),
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(listMessengerMessagesResponseMessagesItemAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
+  "locationLat": zod.union([zod.number().min(listMessengerMessagesResponseMessagesItemLocationLatOneMin).max(listMessengerMessagesResponseMessagesItemLocationLatOneMax),zod.null()]),
+  "locationLng": zod.union([zod.number().min(listMessengerMessagesResponseMessagesItemLocationLngOneMin).max(listMessengerMessagesResponseMessagesItemLocationLngOneMax),zod.null()]),
+  "locationAccuracyM": zod.union([zod.int().min(listMessengerMessagesResponseMessagesItemLocationAccuracyMOneMin).max(listMessengerMessagesResponseMessagesItemLocationAccuracyMOneMax),zod.null()]),
+  "locationCapturedAt": zod.union([zod.coerce.date(),zod.null()]),
   "mediaAttachment": zod.union([zod.object({
   "filename": zod.string(),
   "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
@@ -1015,7 +1063,7 @@ export const ListMessengerMessagesResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({
@@ -1057,6 +1105,15 @@ export const SendMessengerMessageBody = zod.object({
 
 export const sendMessengerMessageResponseMessageAudioDurationMsOneMax = 120000;
 
+export const sendMessengerMessageResponseMessageLocationLatOneMin = -90;
+export const sendMessengerMessageResponseMessageLocationLatOneMax = 90;
+
+export const sendMessengerMessageResponseMessageLocationLngOneMin = -180;
+export const sendMessengerMessageResponseMessageLocationLngOneMax = 180;
+
+export const sendMessengerMessageResponseMessageLocationAccuracyMOneMin = 0;
+export const sendMessengerMessageResponseMessageLocationAccuracyMOneMax = 100000;
+
 export const sendMessengerMessageResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
 
 
@@ -1071,9 +1128,13 @@ export const SendMessengerMessageResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
-  "messageType": zod.enum(['text', 'audio', 'media']),
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
+  "locationLat": zod.union([zod.number().min(sendMessengerMessageResponseMessageLocationLatOneMin).max(sendMessengerMessageResponseMessageLocationLatOneMax),zod.null()]),
+  "locationLng": zod.union([zod.number().min(sendMessengerMessageResponseMessageLocationLngOneMin).max(sendMessengerMessageResponseMessageLocationLngOneMax),zod.null()]),
+  "locationAccuracyM": zod.union([zod.int().min(sendMessengerMessageResponseMessageLocationAccuracyMOneMin).max(sendMessengerMessageResponseMessageLocationAccuracyMOneMax),zod.null()]),
+  "locationCapturedAt": zod.union([zod.coerce.date(),zod.null()]),
   "mediaAttachment": zod.union([zod.object({
   "filename": zod.string(),
   "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
@@ -1085,7 +1146,98 @@ export const SendMessengerMessageResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
+}),zod.null()]),
+  "forwarded": zod.boolean(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.enum(['👍', '❤️', '😂', '😮', '🙏']),
+  "count": zod.int().min(1),
+  "reactedByMe": zod.boolean()
+}))
+})
+})
+
+
+/**
+ * @summary Send a captured one-time location to a conversation member
+ */
+export const sendMessengerLocationPathConversationIdMin = 8;
+export const sendMessengerLocationPathConversationIdMax = 80;
+
+
+
+export const SendMessengerLocationParams = zod.object({
+  "conversationId": zod.coerce.string().min(sendMessengerLocationPathConversationIdMin).max(sendMessengerLocationPathConversationIdMax)
+})
+
+export const sendMessengerLocationBodyLatMin = -90;
+export const sendMessengerLocationBodyLatMax = 90;
+
+export const sendMessengerLocationBodyLngMin = -180;
+export const sendMessengerLocationBodyLngMax = 180;
+
+export const sendMessengerLocationBodyAccuracyMOneMin = 0;
+export const sendMessengerLocationBodyAccuracyMOneMax = 100000;
+
+export const sendMessengerLocationBodyClientMessageIdMin = 8;
+export const sendMessengerLocationBodyClientMessageIdMax = 80;
+
+
+export const sendMessengerLocationBodyClientMessageIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const SendMessengerLocationBody = zod.object({
+  "lat": zod.number().min(sendMessengerLocationBodyLatMin).max(sendMessengerLocationBodyLatMax),
+  "lng": zod.number().min(sendMessengerLocationBodyLngMin).max(sendMessengerLocationBodyLngMax),
+  "accuracyM": zod.union([zod.int().min(sendMessengerLocationBodyAccuracyMOneMin).max(sendMessengerLocationBodyAccuracyMOneMax),zod.null()]),
+  "capturedAt": zod.coerce.date(),
+  "clientMessageId": zod.string().min(sendMessengerLocationBodyClientMessageIdMin).max(sendMessengerLocationBodyClientMessageIdMax).regex(sendMessengerLocationBodyClientMessageIdRegExp)
+})
+
+export const sendMessengerLocationResponseMessageAudioDurationMsOneMax = 120000;
+
+export const sendMessengerLocationResponseMessageLocationLatOneMin = -90;
+export const sendMessengerLocationResponseMessageLocationLatOneMax = 90;
+
+export const sendMessengerLocationResponseMessageLocationLngOneMin = -180;
+export const sendMessengerLocationResponseMessageLocationLngOneMax = 180;
+
+export const sendMessengerLocationResponseMessageLocationAccuracyMOneMin = 0;
+export const sendMessengerLocationResponseMessageLocationAccuracyMOneMax = 100000;
+
+export const sendMessengerLocationResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
+
+
+
+
+export const SendMessengerLocationResponse = zod.object({
+  "message": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "senderId": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
+  "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
+  "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerLocationResponseMessageAudioDurationMsOneMax),zod.null()]),
+  "audioUrl": zod.union([zod.string(),zod.null()]),
+  "locationLat": zod.union([zod.number().min(sendMessengerLocationResponseMessageLocationLatOneMin).max(sendMessengerLocationResponseMessageLocationLatOneMax),zod.null()]),
+  "locationLng": zod.union([zod.number().min(sendMessengerLocationResponseMessageLocationLngOneMin).max(sendMessengerLocationResponseMessageLocationLngOneMax),zod.null()]),
+  "locationAccuracyM": zod.union([zod.int().min(sendMessengerLocationResponseMessageLocationAccuracyMOneMin).max(sendMessengerLocationResponseMessageLocationAccuracyMOneMax),zod.null()]),
+  "locationCapturedAt": zod.union([zod.coerce.date(),zod.null()]),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(sendMessengerLocationResponseMessageMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]),
+  "replyToMessageId": zod.union([zod.string(),zod.null()]),
+  "replyPreview": zod.union([zod.object({
+  "id": zod.string(),
+  "body": zod.string(),
+  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({
@@ -1128,6 +1280,15 @@ export const SendMessengerVoiceMessageHeader = zod.object({
 
 export const sendMessengerVoiceMessageResponseMessageAudioDurationMsOneMax = 120000;
 
+export const sendMessengerVoiceMessageResponseMessageLocationLatOneMin = -90;
+export const sendMessengerVoiceMessageResponseMessageLocationLatOneMax = 90;
+
+export const sendMessengerVoiceMessageResponseMessageLocationLngOneMin = -180;
+export const sendMessengerVoiceMessageResponseMessageLocationLngOneMax = 180;
+
+export const sendMessengerVoiceMessageResponseMessageLocationAccuracyMOneMin = 0;
+export const sendMessengerVoiceMessageResponseMessageLocationAccuracyMOneMax = 100000;
+
 export const sendMessengerVoiceMessageResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
 
 
@@ -1142,9 +1303,13 @@ export const SendMessengerVoiceMessageResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
-  "messageType": zod.enum(['text', 'audio', 'media']),
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerVoiceMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
+  "locationLat": zod.union([zod.number().min(sendMessengerVoiceMessageResponseMessageLocationLatOneMin).max(sendMessengerVoiceMessageResponseMessageLocationLatOneMax),zod.null()]),
+  "locationLng": zod.union([zod.number().min(sendMessengerVoiceMessageResponseMessageLocationLngOneMin).max(sendMessengerVoiceMessageResponseMessageLocationLngOneMax),zod.null()]),
+  "locationAccuracyM": zod.union([zod.int().min(sendMessengerVoiceMessageResponseMessageLocationAccuracyMOneMin).max(sendMessengerVoiceMessageResponseMessageLocationAccuracyMOneMax),zod.null()]),
+  "locationCapturedAt": zod.union([zod.coerce.date(),zod.null()]),
   "mediaAttachment": zod.union([zod.object({
   "filename": zod.string(),
   "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
@@ -1156,7 +1321,7 @@ export const SendMessengerVoiceMessageResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({

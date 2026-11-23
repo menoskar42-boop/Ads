@@ -123,6 +123,22 @@ paths:
                 $ref: "#/components/schemas/VoiceMessageCapability"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /messenger/location/capability:
+    get:
+      operationId: getMessengerLocationCapability
+      tags: [messenger]
+      summary: Check whether one-time location sharing is configured
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: One-time location-sharing availability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerLocationCapability"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /messenger/people:
     get:
       operationId: searchMessengerPeople
@@ -1301,6 +1317,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messenger/conversations/{conversationId}/location:
+    post:
+      operationId: sendMessengerLocation
+      tags: [messenger]
+      summary: Send a captured one-time location to a conversation member
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessengerLocationInput"
+      responses:
+        "200":
+          description: Previously saved location returned after a retry
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    $ref: "#/components/schemas/Message"
+        "201":
+          description: Location saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          description: Location message database update is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /messenger/conversations/{conversationId}/audio-messages:
     post:
       operationId: sendMessengerVoiceMessage
@@ -1740,6 +1816,10 @@ components:
         - messageType
         - audioDurationMs
         - audioUrl
+        - locationLat
+        - locationLng
+        - locationAccuracyM
+        - locationCapturedAt
         - mediaAttachment
         - replyToMessageId
         - replyPreview
@@ -1769,7 +1849,7 @@ components:
             - type: "null"
         messageType:
           type: string
-          enum: [text, audio, media]
+          enum: [text, audio, media, location]
         audioDurationMs:
           anyOf:
             - type: integer
@@ -1780,6 +1860,29 @@ components:
           anyOf:
             - type: string
               format: uri-reference
+            - type: "null"
+        locationLat:
+          anyOf:
+            - type: number
+              minimum: -90
+              maximum: 90
+            - type: "null"
+        locationLng:
+          anyOf:
+            - type: number
+              minimum: -180
+              maximum: 180
+            - type: "null"
+        locationAccuracyM:
+          anyOf:
+            - type: integer
+              minimum: 0
+              maximum: 100000
+            - type: "null"
+        locationCapturedAt:
+          anyOf:
+            - type: string
+              format: date-time
             - type: "null"
         mediaAttachment:
           anyOf:
@@ -1828,7 +1931,7 @@ components:
           type: string
         messageType:
           type: string
-          enum: [text, audio, media]
+          enum: [text, audio, media, location]
     MessageReaction:
       type: object
       required: [emoji, count, reactedByMe]
@@ -1857,7 +1960,7 @@ components:
           type: string
         messageType:
           type: string
-          enum: [text, audio, media]
+          enum: [text, audio, media, location]
         createdAt:
           type: string
           format: date-time
@@ -1902,6 +2005,43 @@ components:
           type: boolean
         isArchived:
           type: boolean
+    MessengerLocationInput:
+      type: object
+      required: [lat, lng, accuracyM, capturedAt, clientMessageId]
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        accuracyM:
+          anyOf:
+            - type: integer
+              minimum: 0
+              maximum: 100000
+            - type: "null"
+        capturedAt:
+          type: string
+          format: date-time
+        clientMessageId:
+          type: string
+          minLength: 8
+          maxLength: 80
+          pattern: "^[A-Za-z0-9_-]+$"
+    MessengerLocationCapability:
+      type: object
+      required: [enabled, reason]
+      properties:
+        enabled:
+          type: boolean
+        reason:
+          anyOf:
+            - type: string
+              enum: [database_update_required]
+            - type: "null"
     VoiceMessageCapability:
       type: object
       required: [enabled, maxDurationMs, maxBytes, reason]

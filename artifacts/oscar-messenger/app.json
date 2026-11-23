@@ -28,6 +28,12 @@
       "expo-secure-store",
       "expo-web-browser",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "يشارك Oscar Messaging موقعك الحالي مرة واحدة فقط بعد ضغطك على زر إرسال الموقع."
+        }
+      ],
+      [
         "expo-audio",
         {
           "microphonePermission": "يستخدم Oscar Messaging الميكروفون لتسجيل رسالة صوتية بعد ضغطك على زر التسجيل.",

@@ -11,9 +11,12 @@ export function MessageComposer({
   onPickMedia,
   onPickFile,
   onVoicePress,
+  onSendLocation,
   busy,
   voiceEnabled,
   voiceBusy,
+  locationEnabled,
+  locationBusy,
   voiceHint,
   mediaEnabled,
   mediaBusy,
@@ -32,9 +35,12 @@ export function MessageComposer({
   onPickMedia: () => void;
   onPickFile: () => void;
   onVoicePress: () => void;
+  onSendLocation: () => void;
   busy: boolean;
   voiceEnabled: boolean;
   voiceBusy: boolean;
+  locationEnabled: boolean;
+  locationBusy: boolean;
   voiceHint?: string;
   mediaEnabled: boolean;
   mediaBusy: boolean;
@@ -156,6 +162,27 @@ export function MessageComposer({
             color={voiceEnabled ? colors.blue : colors.muted}
           />
         </Pressable>
+        {locationEnabled && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="📍 Send my location / أرسل موقعي"
+            testID="message-send-location"
+            onPress={onSendLocation}
+            disabled={busy || voiceBusy || mediaBusy || locationBusy}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.action,
+              (busy || voiceBusy || mediaBusy || locationBusy) && styles.sendDisabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={locationBusy ? "hourglass-outline" : "location-outline"}
+              size={21}
+              color={locationBusy ? colors.muted : colors.blue}
+            />
+          </Pressable>
+        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="جدولة الرسالة"

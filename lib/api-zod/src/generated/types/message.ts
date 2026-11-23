@@ -21,6 +21,10 @@ export interface Message {
   messageType: MessageMessageType;
   audioDurationMs: number | null;
   audioUrl: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
+  locationAccuracyM: number | null;
+  locationCapturedAt: Date | null;
   mediaAttachment: MediaAttachment | null;
   replyToMessageId: string | null;
   replyPreview: ReplyPreview | null;

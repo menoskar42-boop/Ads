@@ -4,6 +4,7 @@ import * as Crypto from "expo-crypto";
 import { fetch as expoFetch } from "expo/fetch";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import {
   setAudioModeAsync,
   useAudioPlayer,
@@ -18,6 +19,7 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -37,6 +39,7 @@ import { ScheduleMessageModal } from "../../components/ScheduleMessageModal";
 import { ErrorText, Notice, Screen } from "../../components/Screen";
 import {
   getMessengerVoiceMessageCapability,
+  getMessengerLocationCapability,
   getMessengerFeaturesCapability,
   getMessengerProfile,
   listMessengerConversations,
@@ -45,8 +48,9 @@ import {
   sendMessengerMessage,
   forwardMessengerMessage,
   toggleMessengerMessageReaction,
+  sendMessengerLocation,
 } from "@workspace/api-client-react";
-import type { Message } from "@workspace/api-client-react";
+import type { Message, MessengerLocationInput } from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../../lib/api";
 import {
   getStableClientMessageId,
@@ -58,6 +62,16 @@ import { VoiceMessageModal } from "../../components/VoiceMessageModal";
 
 function first(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<T>((_resolve, reject) => {
+    timeout = setTimeout(() => reject(new Error("Location request timed out")), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
 }
 
 type PickedAttachment = {
@@ -111,6 +125,7 @@ export default function ChatScreen() {
   const [scheduleVisible, setScheduleVisible] = useState(false);
   const [voiceVisible, setVoiceVisible] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
   const [activeAudioId, setActiveAudioId] = useState("");
   const [audioLoadingId, setAudioLoadingId] = useState("");
   const [mediaLoadingId, setMediaLoadingId] = useState("");
@@ -134,6 +149,13 @@ export default function ChatScreen() {
   const voiceCapability = useQuery({
     queryKey: queryKeys.voiceCapability,
     queryFn: getMessengerVoiceMessageCapability,
+    enabled: isLoaded && !!isSignedIn,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const locationCapability = useQuery({
+    queryKey: queryKeys.locationCapability,
+    queryFn: getMessengerLocationCapability,
     enabled: isLoaded && !!isSignedIn,
     staleTime: 60_000,
     retry: false,
@@ -241,6 +263,19 @@ export default function ChatScreen() {
       requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: 0, animated: true }));
     },
     onError: (error) => setErrorText(readableError(error, "تعذر إرسال الرسالة. أعد المحاولة.")),
+  });
+  const locationSend = useMutation({
+    mutationFn: (input: MessengerLocationInput) =>
+      sendMessengerLocation(conversationId, input),
+    onSuccess: async () => {
+      setErrorText("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages(conversationId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
+      ]);
+    },
+    onError: (error) =>
+      setErrorText(readableError(error, "تعذر إرسال الموقع / Could not send location.")),
   });
   const playVoiceMessage = async (message: Message) => {
     if (!message.audioUrl) {
@@ -350,6 +385,113 @@ export default function ChatScreen() {
     } finally {
       setVoiceBusy(false);
     }
+  };
+
+  const sendCurrentLocation = async () => {
+    if (locationBusy || locationSend.isPending) return;
+    setLocationBusy(true);
+    let capturedLocation: Omit<
+      MessengerLocationInput,
+      "clientMessageId"
+    > | null = null;
+
+    try {
+      let latitude: number;
+      let longitude: number;
+      let accuracy: number | null;
+      let timestamp: number;
+      if (Platform.OS === "web") {
+        if (!navigator.geolocation) {
+          throw new Error("Location is not available in this browser");
+        }
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false,
+            maximumAge: 0,
+            timeout: 15_000,
+          });
+        });
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
+        accuracy = position.coords.accuracy;
+        timestamp = position.timestamp;
+      } else {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert(
+            "إذن الموقع مطلوب / Location permission required",
+            "لم يتم إرسال أي موقع. اسمح بالوصول للموقع ثم حاول مرة أخرى. / No location was sent. Allow location access and try again.",
+            !permission.canAskAgain
+              ? [
+                  { text: "إلغاء / Cancel", style: "cancel" },
+                  {
+                    text: "الإعدادات / Settings",
+                    onPress: () => void Linking.openSettings(),
+                  },
+                ]
+              : [{ text: "إغلاق / Close", style: "cancel" }],
+          );
+          return;
+        }
+        const position = await withTimeout(
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          }),
+          15_000,
+        );
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
+        accuracy = position.coords.accuracy;
+        timestamp = position.timestamp;
+      }
+
+      if (
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude) ||
+        !Number.isFinite(timestamp)
+      ) {
+        throw new Error("Invalid location result");
+      }
+      const roundedAccuracy =
+        accuracy != null && Number.isFinite(accuracy) ? Math.round(accuracy) : null;
+      capturedLocation = {
+        lat: latitude,
+        lng: longitude,
+        accuracyM:
+          roundedAccuracy != null && roundedAccuracy >= 0 && roundedAccuracy <= 100_000
+            ? roundedAccuracy
+            : null,
+        capturedAt: new Date(timestamp).toISOString(),
+      };
+    } catch {
+      Alert.alert(
+        "تعذر تحديد الموقع / Could not get location",
+        "لم يتم إرسال أي موقع. تحقق من إعدادات الموقع والاتصال ثم حاول مرة أخرى. / No location was sent. Check location settings and connection, then try again.",
+        [{ text: "إغلاق / Close", style: "cancel" }],
+      );
+      return;
+    } finally {
+      setLocationBusy(false);
+    }
+
+    if (!capturedLocation) return;
+    const confirmSend = () => {
+      locationSend.mutate({
+        ...capturedLocation!,
+        clientMessageId: Crypto.randomUUID(),
+      });
+    };
+    const title = `إرسال موقعك الحالي إلى ${displayedName}؟ / Send your current location to ${displayedName}?`;
+    const message =
+      "ستُرسل مشاركة موقع واحدة فقط، وليس تتبعًا مباشرًا. / This sends one location only, not live tracking.";
+    if (Platform.OS === "web") {
+      if (globalThis.confirm(`${title}\n\n${message}`)) confirmSend();
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: "إلغاء / Cancel", style: "cancel" },
+      { text: "إرسال / Send", onPress: confirmSend },
+    ]);
   };
 
   const chooseMedia = async () => {
@@ -742,7 +884,7 @@ export default function ChatScreen() {
                     : undefined
                 }
                 onForward={
-                  featureCapability.data?.enabled
+                  featureCapability.data?.enabled && item.messageType !== "location"
                     ? () => {
                         setForwardDestinationId("");
                         setForwardingMessage(item);
@@ -857,6 +999,9 @@ export default function ChatScreen() {
             onVoicePress={() => setVoiceVisible(true)}
             voiceEnabled={!!voiceCapability.data?.enabled}
             voiceBusy={voiceBusy}
+            onSendLocation={() => void sendCurrentLocation()}
+            locationEnabled={locationCapability.data?.enabled === true}
+            locationBusy={locationBusy || locationSend.isPending}
             mediaEnabled={!!featureCapability.data?.mediaEnabled}
             mediaBusy={mediaBusy}
             mediaName={selectedAttachment?.filename}

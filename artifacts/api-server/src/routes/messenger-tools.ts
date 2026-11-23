@@ -17,6 +17,7 @@ import {
   normalizeMessengerMediaType,
   sanitizeMessengerFilename,
 } from "../lib/messenger-media-policy";
+import { canForwardMessageType } from "../lib/messenger-location";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -615,6 +616,10 @@ router.post(
       const source = sourceResult.rows[0];
       if (!source) {
         res.status(404).json({ error: "Message not found" });
+        return;
+      }
+      if (!canForwardMessageType(source.message_type)) {
+        res.status(400).json({ error: "Location messages cannot be forwarded" });
         return;
       }
       const target = await requireConversation(pool, targetConversationId, userId);

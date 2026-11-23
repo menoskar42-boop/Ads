@@ -9,6 +9,7 @@ import {
   voiceObjectKey,
 } from "../lib/r2";
 import { parseMessageCursor } from "../lib/message-pagination";
+import { parseMessengerLocationInput } from "../lib/messenger-location";
 import {
   consumePeopleSearchQuota,
   hashPhoneForLookup,
@@ -41,6 +42,10 @@ const messageToolsSchemaCache = new WeakMap<
   { checkedAt: number; ready: boolean }
 >();
 const phoneDiscoverySchemaCache = new WeakMap<
+  object,
+  { checkedAt: number; ready: boolean }
+>();
+const locationSchemaCache = new WeakMap<
   object,
   { checkedAt: number; ready: boolean }
 >();
@@ -145,6 +150,32 @@ async function hasPhoneDiscoverySchema(pool: NonNullable<DbPool>): Promise<boole
   }
 }
 
+async function hasLocationSchema(pool: NonNullable<DbPool>): Promise<boolean> {
+  const cached = locationSchemaCache.get(pool);
+  if (cached && Date.now() - cached.checkedAt < 15_000) return cached.ready;
+  try {
+    const result = await pool.query(
+      `SELECT count(*)::int AS column_count
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'messenger_messages'
+         AND column_name = ANY($1::text[])`,
+      [[
+        "location_lat",
+        "location_lng",
+        "location_accuracy_m",
+        "location_captured_at",
+      ]],
+    );
+    const ready = Number(result.rows[0]?.column_count) === 4;
+    locationSchemaCache.set(pool, { checkedAt: Date.now(), ready });
+    return ready;
+  } catch {
+    locationSchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
+    return false;
+  }
+}
+
 function voiceCapability(enabled: boolean, reason: string | null) {
   return {
     enabled,
@@ -177,6 +208,10 @@ function publicMessage(row: {
   message_type?: string;
   audio_duration_ms?: number | string | null;
   audio_content_type?: string | null;
+  location_lat?: number | string | null;
+  location_lng?: number | string | null;
+  location_accuracy_m?: number | string | null;
+  location_captured_at?: Date | string | null;
   forwarded_from_message_id?: string | null;
   reply_to_message_id?: string | null;
   reply_preview_id?: string | null;
@@ -189,7 +224,9 @@ function publicMessage(row: {
   reactions?: Array<{ emoji: string; count: number; reactedByMe: boolean }> | null;
 }) {
   const messageType =
-    row.message_type === "audio" || row.message_type === "media"
+    row.message_type === "audio" ||
+    row.message_type === "media" ||
+    row.message_type === "location"
       ? row.message_type
       : "text";
   return {
@@ -211,6 +248,22 @@ function publicMessage(row: {
       messageType === "audio"
         ? `/api/messenger/conversations/${encodeURIComponent(row.conversation_id)}/messages/${encodeURIComponent(row.id)}/audio`
         : null,
+    locationLat:
+      messageType === "location" && row.location_lat != null
+        ? Number(row.location_lat)
+        : null,
+    locationLng:
+      messageType === "location" && row.location_lng != null
+        ? Number(row.location_lng)
+        : null,
+    locationAccuracyM:
+      messageType === "location" && row.location_accuracy_m != null
+        ? Number(row.location_accuracy_m)
+        : null,
+    locationCapturedAt:
+      messageType === "location" && row.location_captured_at
+        ? new Date(row.location_captured_at).toISOString()
+        : null,
     mediaAttachment:
       messageType === "media" && row.media_filename && row.media_content_type
         ? {
@@ -228,7 +281,9 @@ function publicMessage(row: {
             id: row.reply_preview_id,
             body: row.reply_preview_body,
             messageType:
-              row.reply_preview_type === "audio" || row.reply_preview_type === "media"
+              row.reply_preview_type === "audio" ||
+              row.reply_preview_type === "media" ||
+              row.reply_preview_type === "location"
                 ? row.reply_preview_type
                 : "text",
           }
@@ -439,6 +494,23 @@ router.get(
         return;
       }
       res.json(voiceCapability(true, null));
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  "/messenger/location/capability",
+  requireAuth,
+  async (_req, res, next) => {
+    try {
+      const pool = await loadPool();
+      const enabled = !!pool && await hasLocationSchema(pool);
+      res.json({
+        enabled,
+        reason: enabled ? null : "database_update_required",
+      });
     } catch (error) {
       next(error);
     }
@@ -693,6 +765,13 @@ router.get(
       const audioColumns = (await hasVoiceMetadataSchema(pool))
         ? "m.message_type, m.audio_duration_ms"
         : "'text'::text AS message_type, NULL::integer AS audio_duration_ms";
+      const locationColumns = (await hasLocationSchema(pool))
+        ? `, m.location_lat, m.location_lng,
+             m.location_accuracy_m, m.location_captured_at`
+        : `, NULL::double precision AS location_lat,
+             NULL::double precision AS location_lng,
+             NULL::integer AS location_accuracy_m,
+             NULL::timestamptz AS location_captured_at`;
       const toolsReady = await hasMessageToolsSchema(pool);
       const toolsColumns = toolsReady
         ? `, m.reply_to_message_id,
@@ -737,7 +816,7 @@ router.get(
       const result = await pool.query(
         `WITH recent AS (
            SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at,
-                  m.delivered_at, m.read_at, ${audioColumns} ${toolsColumns}
+                   m.delivered_at, m.read_at, ${audioColumns} ${locationColumns} ${toolsColumns}
            FROM messenger_messages m
            ${toolsJoins}
            WHERE m.conversation_id = $1
@@ -842,6 +921,85 @@ router.post(
       }
       if (!row) {
         res.status(500).json({ error: "Could not save the message" });
+        return;
+      }
+      res.status(inserted.rows[0] ? 201 : 200).json({ message: publicMessage(row) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  "/messenger/conversations/:conversationId/location",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      const conversationId = String(req.params.conversationId);
+      const userId = getUserId(res);
+      const conversation = await conversationForUser(pool, conversationId, userId);
+      if (!conversation) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      if (!(await hasLocationSchema(pool))) {
+        res.status(503).json({ error: "Location message database update is required" });
+        return;
+      }
+
+      const parsed = parseMessengerLocationInput(req.body);
+      if (!parsed.valid) {
+        res.status(400).json({ error: "Check the location and try again" });
+        return;
+      }
+      const { lat, lng, accuracyM, capturedAt, clientMessageId } = parsed.value;
+      const id = randomUUID();
+      const inserted = await pool.query(
+        `INSERT INTO messenger_messages
+           (id, conversation_id, sender_id, client_message_id, body,
+            message_type, attachment_count, location_lat, location_lng,
+            location_accuracy_m, location_captured_at)
+         VALUES ($1, $2, $3, $4, '📍 الموقع', 'location', 0, $5, $6, $7, $8)
+         ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
+         RETURNING id, conversation_id, sender_id, body, created_at,
+                   delivered_at, read_at, message_type, location_lat, location_lng,
+                   location_accuracy_m, location_captured_at`,
+        [
+          id,
+          conversationId,
+          userId,
+          clientMessageId,
+          lat,
+          lng,
+          accuracyM,
+          capturedAt,
+        ],
+      );
+      let row = inserted.rows[0];
+      if (!row) {
+        const duplicate = await pool.query(
+          `SELECT id, conversation_id, sender_id, body, created_at, delivered_at,
+                  read_at, message_type, location_lat, location_lng,
+                  location_accuracy_m, location_captured_at
+           FROM messenger_messages
+           WHERE conversation_id = $1 AND sender_id = $2 AND client_message_id = $3`,
+          [conversationId, userId, clientMessageId],
+        );
+        row = duplicate.rows[0];
+        if (row?.message_type !== "location") {
+          res.status(409).json({ error: "This message ID was already used" });
+          return;
+        }
+      } else {
+        await pool.query(
+          `UPDATE messenger_conversations SET updated_at = now() WHERE id = $1`,
+          [conversationId],
+        );
+      }
+      if (!row) {
+        res.status(500).json({ error: "Could not save the location" });
         return;
       }
       res.status(inserted.rows[0] ? 201 : 200).json({ message: publicMessage(row) });

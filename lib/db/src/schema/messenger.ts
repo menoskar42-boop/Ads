@@ -1,6 +1,7 @@
 import {
   boolean,
   check,
+  doublePrecision,
   index,
   integer,
   pgTable,
@@ -74,6 +75,10 @@ export const messengerMessages = pgTable(
     audioDurationMs: integer("audio_duration_ms"),
     audioContentType: text("audio_content_type"),
     audioSizeBytes: integer("audio_size_bytes"),
+    locationLat: doublePrecision("location_lat"),
+    locationLng: doublePrecision("location_lng"),
+    locationAccuracyM: integer("location_accuracy_m"),
+    locationCapturedAt: timestamp("location_captured_at", { withTimezone: true }),
     replyToMessageId: text("reply_to_message_id"),
     forwardedFromMessageId: text("forwarded_from_message_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

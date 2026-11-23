@@ -54,6 +54,8 @@ import type {
   ListMessengerMessagesParams,
   MarkMessengerConversationRead200,
   MessengerFeaturesCapability,
+  MessengerLocationCapability,
+  MessengerLocationInput,
   PeopleSearchResponse,
   PhoneDiscoveryInput,
   PhoneLookupInput,
@@ -67,6 +69,8 @@ import type {
   SearchMessengerMessagesParams,
   SearchMessengerPeople200,
   SearchMessengerPeopleParams,
+  SendMessengerLocation200,
+  SendMessengerLocation201,
   SendMessengerMessage200,
   SendMessengerMessage201,
   SendMessengerMessageBody,
@@ -582,6 +586,107 @@ export function useGetMessengerVoiceMessageCapability<TData = Awaited<ReturnType
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMessengerVoiceMessageCapabilityQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMessengerLocationCapabilityUrl = () => {
+
+
+
+
+  return `/api/messenger/location/capability`
+}
+
+/**
+ * @summary Check whether one-time location sharing is configured
+ */
+export const getMessengerLocationCapability = async ( options?: Parameters<typeof customFetch>[1]): Promise<MessengerLocationCapability> => {
+
+  return customFetch<MessengerLocationCapability>(getGetMessengerLocationCapabilityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerLocationCapabilityQueryKey = () => {
+    return [
+    `/api/messenger/location/capability`
+    ] as const;
+    }
+
+
+export const getGetMessengerLocationCapabilityQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerLocationCapabilityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerLocationCapability>>> = ({ signal }) => getMessengerLocationCapability({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerLocationCapabilityQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerLocationCapability>>>
+export type GetMessengerLocationCapabilityQueryError = ErrorType<UnauthorizedResponse>
+
+
+export function useGetMessengerLocationCapability<TData = Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerLocationCapability>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerLocationCapability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerLocationCapability<TData = Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerLocationCapability>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerLocationCapability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerLocationCapability<TData = Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Check whether one-time location sharing is configured
+ */
+
+export function useGetMessengerLocationCapability<TData = Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerLocationCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerLocationCapabilityQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -3321,6 +3426,95 @@ export const useSendMessengerMessage = <TError = ErrorType<BadRequestResponse | 
         TContext
       > => {
       return useMutation(getSendMessengerMessageMutationOptions(options), queryClient);
+    }
+
+export const getSendMessengerLocationUrl = (conversationId: string,) => {
+
+
+
+
+  return `/api/messenger/conversations/${conversationId}/location`
+}
+
+/**
+ * @summary Send a captured one-time location to a conversation member
+ */
+export const sendMessengerLocation = async (conversationId: string,
+    messengerLocationInput: MessengerLocationInput, options?: Parameters<typeof customFetch>[1]): Promise<SendMessengerLocation200 | SendMessengerLocation201> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SendMessengerLocation200 | SendMessengerLocation201>(getSendMessengerLocationUrl(conversationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(messengerLocationInput)
+  }
+);}
+
+
+
+
+
+export const getSendMessengerLocationMutationKey = () => ['sendMessengerLocation'] as const;
+
+export const getSendMessengerLocationMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerLocation>>, TError,SendMessengerLocationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendMessengerLocation>>, TError,SendMessengerLocationMutationVariables, TContext> => {
+
+const mutationKey = getSendMessengerLocationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendMessengerLocation>>, SendMessengerLocationMutationVariables> = (props) => {
+          const {conversationId,data} = props ?? {};
+
+          return  sendMessengerLocation(conversationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendMessengerLocationMutationResult = NonNullable<Awaited<ReturnType<typeof sendMessengerLocation>>>
+    export type SendMessengerLocationMutationBody = BodyType<MessengerLocationInput>
+    export type SendMessengerLocationMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>
+    export type SendMessengerLocationMutationVariables = {conversationId: string;data: BodyType<MessengerLocationInput>}
+
+    /**
+ * @summary Send a captured one-time location to a conversation member
+ */
+export const useSendMessengerLocation = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerLocation>>, TError,SendMessengerLocationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendMessengerLocation>>,
+        TError,
+        SendMessengerLocationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendMessengerLocationMutationOptions(options), queryClient);
     }
 
 export const getSendMessengerVoiceMessageUrl = (conversationId: string,

@@ -13,4 +13,5 @@ export const MessageSearchResultMessageType = {
   text: 'text',
   audio: 'audio',
   media: 'media',
+  location: 'location',
 } as const;
