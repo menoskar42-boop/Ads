@@ -1722,6 +1722,7 @@ components:
         - username
         - displayName
         - createdAt
+        - hasPhone
         - hasPhoneNumber
         - phoneDiscoverable
         - phoneDiscoveryAvailable
@@ -1736,6 +1737,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        hasPhone:
+          type: boolean
         hasPhoneNumber:
           type: boolean
         phoneDiscoverable:

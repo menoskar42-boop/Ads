@@ -1,5 +1,5 @@
 import { useAuth, useClerk } from "@clerk/expo";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -15,15 +15,12 @@ import { AppHeader } from "../components/AppHeader";
 import { Avatar } from "../components/Avatar";
 import { InviteActions } from "../components/InviteActions";
 import { KeyboardAwareScrollViewCompat } from "../components/KeyboardAwareScrollViewCompat";
-import { Field, Notice, PrimaryButton, Screen } from "../components/Screen";
-import { TextField } from "../components/TextField";
-import {
-  getMessengerProfile,
-  useUpdateMessengerProfilePhone,
-  type Profile,
-} from "@workspace/api-client-react";
+import { PhoneNumberForm } from "../components/PhoneNumberForm";
+import { Notice, PrimaryButton, Screen } from "../components/Screen";
+import { getMessengerProfile, type Profile } from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../lib/api";
 import { readableError } from "../lib/format";
+import { isPhoneSetupSkipped } from "../lib/phone-setup-storage";
 import { colors } from "../lib/theme";
 
 export default function SettingsScreen() {
@@ -60,6 +57,14 @@ export default function SettingsScreen() {
         </View>
       </View>
       {current?.username && <InviteActions username={current.username} />}
+      {current && (
+        <PhoneSetupSkippedNotice
+          profile={current}
+          onAdd={() =>
+            router.push({ pathname: "/phone-setup", params: { returnTo: "/" } })
+          }
+        />
+      )}
       <Notice>
         <Text style={styles.noticeTitle}>الخصوصية وحماية الرسائل</Text>
         <Text style={styles.copy}>
@@ -98,26 +103,6 @@ export default function SettingsScreen() {
 }
 
 function PhoneDiscoverySettings({ profile }: { profile: Profile }) {
-  const queryClient = useQueryClient();
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [hasPhoneNumber, setHasPhoneNumber] = useState(profile.hasPhoneNumber);
-  const [discoverable, setDiscoverable] = useState(profile.phoneDiscoverable);
-  const [feedback, setFeedback] = useState("");
-  const update = useUpdateMessengerProfilePhone({
-    mutation: {
-      onSuccess: async (data) => {
-        const saved = data.profile;
-        if (!saved) return;
-        await queryClient.setQueryData(queryKeys.profile, data);
-        setHasPhoneNumber(saved.hasPhoneNumber);
-        setDiscoverable(saved.phoneDiscoverable);
-        setPhoneNumber("");
-        setFeedback("تم حفظ إعدادات رقم الهاتف.");
-      },
-      onError: (error) => setFeedback(readableError(error, "تعذر حفظ إعدادات رقم الهاتف.")),
-    },
-  });
-
   if (!profile.phoneDiscoveryAvailable) {
     return (
       <Notice>
@@ -144,70 +129,50 @@ function PhoneDiscoverySettings({ profile }: { profile: Profile }) {
           </Text>
         </Notice>
       )}
-      <Field label={hasPhoneNumber ? "تغيير رقم الهاتف" : "رقم الهاتف (اختياري)"}>
-        <TextField
-          value={phoneNumber}
-          onChangeText={(value) => {
-            setPhoneNumber(value);
-            setFeedback("");
-          }}
-          placeholder={hasPhoneNumber ? "اكتب رقمًا جديدًا لتغييره" : "مثال: 01012345678 أو +20…"}
-          keyboardType="phone-pad"
-          autoComplete="tel"
-          maxLength={40}
-          style={{ textAlign: "left", writingDirection: "ltr" }}
-        />
-      </Field>
-      {hasPhoneNumber && (
-        <Text style={styles.copy}>
-          يوجد رقم محفوظ، لكن التطبيق لا يعرضه. اكتب رقمًا جديدًا فقط إذا أردت تغييره.
-        </Text>
-      )}
-      <PrimaryButton
-        title={hasPhoneNumber ? "حفظ الرقم الجديد" : "حفظ الرقم"}
-        onPress={() => {
-          setFeedback("");
-          update.mutate({
-            data: { phoneNumber: phoneNumber.trim(), discoverable },
-          });
-        }}
-        busy={update.isPending}
-        disabled={!phoneNumber.trim() || !profile.phoneLookupReady}
-      />
-      <View style={styles.switchRow}>
-        <View style={styles.switchCopy}>
-          <Text style={styles.switchTitle}>السماح بالعثور عليّ برقم الهاتف</Text>
-          <Text style={styles.copy}>يعمل فقط عند تفعيلك لهذا الخيار.</Text>
-        </View>
-        <Switch
-          value={discoverable}
-          disabled={
-            !hasPhoneNumber ||
-            update.isPending ||
-            (!profile.phoneLookupReady && !discoverable)
-          }
-          onValueChange={(value) => {
-            setFeedback("");
-            update.mutate({ data: { discoverable: value } });
-          }}
-          accessibilityLabel="السماح بالعثور على الحساب برقم الهاتف"
-          trackColor={{ false: colors.border, true: colors.blue }}
-        />
+      <PhoneNumberForm profile={profile} />
+    </View>
+  );
+}
+
+function PhoneSetupSkippedNotice({
+  profile,
+  onAdd,
+}: {
+  profile: Profile;
+  onAdd: () => void;
+}) {
+  const hasPhone = profile.hasPhone ?? profile.hasPhoneNumber;
+  const [skipped, setSkipped] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (hasPhone) {
+      setSkipped(false);
+      return () => {
+        active = false;
+      };
+    }
+    void isPhoneSetupSkipped(profile.userId).then((value) => {
+      if (active) setSkipped(value);
+    });
+    return () => {
+      active = false;
+    };
+  }, [hasPhone, profile.userId]);
+
+  if (hasPhone || !skipped) return null;
+  return (
+    <View style={styles.phoneSkippedRow}>
+      <View style={styles.phoneSkippedBadge}>
+        <Text style={styles.phoneSkippedText}>من غير رقم — تجربة</Text>
       </View>
-      {hasPhoneNumber && (
-        <Pressable
-          accessibilityRole="button"
-          disabled={update.isPending}
-          onPress={() => {
-            setFeedback("");
-            update.mutate({ data: { phoneNumber: null, discoverable: false } });
-          }}
-          style={({ pressed }) => [styles.removePhone, pressed && styles.pressed]}
-        >
-          <Text style={styles.removePhoneText}>حذف الرقم المحفوظ</Text>
-        </Pressable>
-      )}
-      {!!feedback && <Text style={styles.copy}>{feedback}</Text>}
+      <Pressable
+        accessibilityRole="button"
+        onPress={onAdd}
+        style={({ pressed }) => [styles.addPhoneButton, pressed && styles.pressed]}
+      >
+        <Text style={styles.addPhoneText}>أضف رقمك</Text>
+      </Pressable>
     </View>
   );
 }
@@ -463,8 +428,11 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: "row", alignItems: "center", gap: 12, justifyContent: "space-between", paddingVertical: 4 },
   switchCopy: { flex: 1, gap: 4 },
   switchTitle: { color: colors.text, fontSize: 14, fontWeight: "700", textAlign: "right" },
-  removePhone: { minHeight: 46, alignItems: "center", justifyContent: "center", borderRadius: 14, borderWidth: 1, borderColor: colors.red, paddingHorizontal: 14 },
-  removePhoneText: { color: colors.red, fontSize: 14, fontWeight: "800" },
+  phoneSkippedRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
+  phoneSkippedBadge: { borderWidth: 1, borderColor: colors.amber, backgroundColor: colors.surfaceRaised, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  phoneSkippedText: { color: colors.amber, fontWeight: "700", fontSize: 13 },
+  addPhoneButton: { minHeight: 40, justifyContent: "center", paddingHorizontal: 12 },
+  addPhoneText: { color: colors.blue, fontWeight: "800", fontSize: 14 },
   signOut: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#341D28", borderWidth: 1, borderColor: "#59303D" },
   signOutText: { color: "#FF968E", fontWeight: "800", fontSize: 15 },
   error: { color: colors.red, textAlign: "right", fontSize: 13 },

@@ -73,17 +73,23 @@ test("phone search results contain only public profile fields", () => {
   });
 });
 
-test("profile API exposes only phone presence and consent state, not the stored hash", () => {
+test("GET profile exposes a boolean phone-presence flag, never the number or hash", () => {
+  const storedHash = "a".repeat(64);
   const flags = phoneProfileFlags({
-    phone_lookup_hash: "a".repeat(64),
+    phone_lookup_hash: storedHash,
     phone_discoverable: true,
   }, true, false);
   assert.deepEqual(flags, {
+    hasPhone: true,
     hasPhoneNumber: true,
     phoneDiscoverable: true,
     phoneDiscoveryAvailable: true,
     phoneLookupReady: false,
   });
+  assert.equal(typeof flags.hasPhone, "boolean");
+  assert.equal(JSON.stringify(flags).includes(storedHash), false);
   assert.equal("phone_lookup_hash" in flags, false);
+  assert.equal("phoneLookupHash" in flags, false);
   assert.equal("phoneNumber" in flags, false);
+  assert.equal(phoneProfileFlags({}, true, true).hasPhone, false);
 });

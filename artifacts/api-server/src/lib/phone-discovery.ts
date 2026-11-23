@@ -90,6 +90,7 @@ export function phoneProfileFlags(
   lookupReady: boolean,
 ) {
   return {
+    hasPhone: Boolean(row.phone_lookup_hash),
     hasPhoneNumber: Boolean(row.phone_lookup_hash),
     phoneDiscoverable: Boolean(row.phone_discoverable),
     phoneDiscoveryAvailable: schemaReady,

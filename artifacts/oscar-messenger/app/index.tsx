@@ -29,21 +29,34 @@ import {
 } from "@workspace/api-client-react";
 import type { Conversation } from "@workspace/api-client-react";
 import { queryKeys } from "../lib/api";
-import { readableError, shortTime } from "../lib/format";
+import { readableError, safeReturnPath, shortTime } from "../lib/format";
 import { parseInviteParam } from "../lib/invite";
 import { clearPendingInvite, readPendingInvite, savePendingInvite } from "../lib/invite-storage";
+import { phoneOnboardingDestination } from "../lib/phone-onboarding";
+import { isPhoneSetupSkipped } from "../lib/phone-setup-storage";
 import { colors } from "../lib/theme";
 
 export default function InboxScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ invite?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    invite?: string | string[];
+    returnTo?: string | string[];
+  }>();
   const incomingInvite = parseInviteParam(params.invite);
+  const returnTo = incomingInvite
+    ? `/?invite=${encodeURIComponent(incomingInvite)}`
+    : safeReturnPath(params.returnTo);
   const queryClient = useQueryClient();
   const { isLoaded, isSignedIn } = useAuth();
   const previousUnread = useRef<Map<string, number> | null>(null);
   const inviteAttempted = useRef<string | null>(null);
   const [inviteSaved, setInviteSaved] = useState(!incomingInvite);
   const [pendingInvite, setPendingInvite] = useState<string | null>(null);
+  const [phoneSkip, setPhoneSkip] = useState<{
+    userId: string;
+    loaded: boolean;
+    skipped: boolean;
+  }>({ userId: "", loaded: false, skipped: false });
   const [newMessageNotice, setNewMessageNotice] = useState<{
     conversationId: string;
     peerName: string;
@@ -80,6 +93,25 @@ export default function InboxScreen() {
     staleTime: 15_000,
     retry: false,
   });
+  const profileUserId = profile.data?.profile?.userId ?? "";
+  const profileHasPhone =
+    profile.data?.profile?.hasPhone ??
+    profile.data?.profile?.hasPhoneNumber ??
+    false;
+  useEffect(() => {
+    if (!profileUserId) {
+      setPhoneSkip({ userId: "", loaded: true, skipped: false });
+      return;
+    }
+    let active = true;
+    setPhoneSkip({ userId: profileUserId, loaded: false, skipped: false });
+    void isPhoneSetupSkipped(profileUserId).then((skipped) => {
+      if (active) setPhoneSkip({ userId: profileUserId, loaded: true, skipped });
+    });
+    return () => {
+      active = false;
+    };
+  }, [profileUserId]);
   const updateSettings = useMutation({
     mutationFn: ({
       conversation,
@@ -208,16 +240,25 @@ export default function InboxScreen() {
   }
   if (!inviteSaved) return <LoadingScreen />;
   if (!isSignedIn) {
-    const returnTo = incomingInvite
-      ? `/?invite=${encodeURIComponent(incomingInvite)}`
-      : "/";
     return <Redirect href={{ pathname: "/sign-in", params: { returnTo } }} />;
   }
-  if (profile.isSuccess && !profile.data.profile) {
-    const returnTo = incomingInvite
-      ? `/?invite=${encodeURIComponent(incomingInvite)}`
-      : "/";
-    return <Redirect href={{ pathname: "/profile-setup", params: { returnTo } }} />;
+  if (profile.isSuccess) {
+    const skipped =
+      phoneSkip.userId === profileUserId && phoneSkip.skipped;
+    const destination = phoneOnboardingDestination(
+      Boolean(profile.data.profile),
+      profileHasPhone,
+      skipped,
+    );
+    if (destination === "profile-setup") {
+      return <Redirect href={{ pathname: "/profile-setup", params: { returnTo } }} />;
+    }
+    if (destination === "phone-setup") {
+      if (phoneSkip.userId !== profileUserId || !phoneSkip.loaded) {
+        return <LoadingScreen />;
+      }
+      return <Redirect href={{ pathname: "/phone-setup", params: { returnTo } }} />;
+    }
   }
 
   const error = profile.error ?? conversations.error;

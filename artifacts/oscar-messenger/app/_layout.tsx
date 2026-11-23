@@ -92,6 +92,7 @@ function AppRoutes() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="profile-setup" />
+        <Stack.Screen name="phone-setup" />
         <Stack.Screen name="new-message" />
         <Stack.Screen name="compose" />
         <Stack.Screen name="chat/[conversationId]" />
