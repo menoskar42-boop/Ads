@@ -1259,18 +1259,18 @@
         await api('POST', '/api/web/hazards', { items: [{ uuid: uuid(), type, lat: f.lat, lng: f.lng, acc: f.acc, t: Date.now(),
           bearing: (moving || one) && hd != null ? hd : null, test, oneway: one }] });
         const msg = 'اتسجّل ' + RD.TYPES[type][0] + (one ? ' اتجاه واحد' : '') + (test ? ' تجربة' : '');
-        if (oneway && !one) $('roadNote').textContent = 'اتجاهك مش معروف لسه — اتسجّل اتجاهين، وتقدر تغيّره من القايمة';
-        $('roadNote').textContent = '✅ ' + msg + ' (دقة ' + Math.round(f.acc) + ' م)';
+        if (oneway && !one) { $('roadNote').textContent = 'اتجاهك مش معروف لسه — اتسجّل اتجاهين، وتقدر تغيّره من القايمة'; $('voiceNote').textContent = $('roadNote').textContent; }
+        $('roadNote').textContent = '✅ ' + msg + ' (دقة ' + Math.round(f.acc) + ' م)'; $('voiceNote').textContent = $('roadNote').textContent;
         if (test) sayRoad(msg); else oscar(type + (one ? '1' : '') + '_saved', msg);   // bump1_saved · pothole1_saved = اتجاه واحد   // bump_saved · pothole_saved · radar_saved · danger_saved زى الشاشة
-      } catch (e) { $('roadNote').textContent = 'ماتسجّلش: ' + e.message; }
+      } catch (e) { $('roadNote').textContent = 'ماتسجّلش: ' + e.message; $('voiceNote').textContent = $('roadNote').textContent; }
       loadRoad();
     };
     if (pre && pre.fix) return go(pre.fix, pre.heading);   // التصوير الفورى: المكان لحظة ما الأمر اتقال
     if (lastFix && Date.now() - lastFix.t < 10000) return go(lastFix);
     if (!navigator.geolocation) return;
-    $('roadNote').textContent = 'بيجيب مكانك…';
+    $('roadNote').textContent = 'بيجيب مكانك…'; $('voiceNote').textContent = $('roadNote').textContent;
     navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); },
-      () => { $('roadNote').textContent = 'مش لاقى مكانك — اسمح بالموقع وجرّب تانى'; }, { enableHighAccuracy: true, timeout: 20000 });
+      () => { $('roadNote').textContent = 'مش لاقى مكانك — اسمح بالموقع وجرّب تانى'; $('voiceNote').textContent = $('roadNote').textContent; }, { enableHighAccuracy: true, timeout: 20000 });
   }
   // ── «📸 صوّر الطريق» من الموبايل: الكاميرا الخلفية ← JPEG ← /api/web/shot (R2) — نفس صور التدريب بتاعة الشاشة ──
   let camStream = null;
