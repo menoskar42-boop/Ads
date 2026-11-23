@@ -9,6 +9,7 @@ import { Brand } from "../../components/Brand";
 import { ErrorText, Field, Notice, PrimaryButton, Screen } from "../../components/Screen";
 import { TextField } from "../../components/TextField";
 import { readableError, safeReturnPath } from "../../lib/format";
+import { ssoRedirectUrl } from "../../lib/sso-redirect";
 import { colors } from "../../lib/theme";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -83,9 +84,15 @@ export default function SignInScreen() {
   const signInWithGoogle = async () => {
     setMessage("");
     try {
+      const nativeRedirectUrl = AuthSession.makeRedirectUri({ scheme: "oscar-messenger" });
+      const redirectUrl = ssoRedirectUrl(
+        Platform.OS,
+        Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : "",
+        nativeRedirectUrl,
+      );
       const { createdSessionId, setActive } = await startSSOFlow({
         strategy: "oauth_google",
-        redirectUrl: AuthSession.makeRedirectUri({ scheme: "oscar-messenger" }),
+        redirectUrl,
       });
       if (createdSessionId && setActive) {
         await setActive({
