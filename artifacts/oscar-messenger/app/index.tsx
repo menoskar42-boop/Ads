@@ -43,6 +43,7 @@ export default function InboxScreen() {
   const [includeArchived, setIncludeArchived] = useState(false);
   const [settingsConversation, setSettingsConversation] = useState<Conversation | null>(null);
   const [actionError, setActionError] = useState("");
+  const [apiLoadingTimedOut, setApiLoadingTimedOut] = useState(false);
   const profile = useQuery({
     queryKey: queryKeys.profile,
     queryFn: getMessengerProfile,
@@ -93,9 +94,19 @@ export default function InboxScreen() {
     refetchInterval: 20_000,
     refetchIntervalInBackground: false,
   });
+  const waiting = profile.isPending || conversations.isPending;
+  const apiWaiting = isLoaded && !!isSignedIn && waiting;
   const refresh = useCallback(async () => {
     await Promise.all([profile.refetch(), conversations.refetch(), scheduled.refetch()]);
   }, [profile, conversations, scheduled]);
+  useEffect(() => {
+    if (!apiWaiting) {
+      setApiLoadingTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setApiLoadingTimedOut(true), 15_000);
+    return () => clearTimeout(timer);
+  }, [apiWaiting]);
   useEffect(() => {
     const rows = conversations.data?.conversations;
     if (!rows) return;
@@ -126,7 +137,6 @@ export default function InboxScreen() {
     return <Redirect href="/profile-setup" />;
   }
 
-  const waiting = profile.isPending || conversations.isPending;
   const error = profile.error ?? conversations.error;
 
   return (
@@ -307,7 +317,13 @@ export default function InboxScreen() {
           </Text>
         )}
 
-        {waiting ? (
+        {waiting && apiLoadingTimedOut ? (
+          <Notice>
+            <Text style={styles.emptyTitle}>
+              تعذّر تحميل تسجيل الدخول — حدّث الصفحة
+            </Text>
+          </Notice>
+        ) : waiting ? (
           <View style={styles.loading}><ActivityIndicator color={colors.blue} /></View>
         ) : error ? (
           <Notice>

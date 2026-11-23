@@ -3,8 +3,8 @@ import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -25,11 +25,24 @@ const queryClient = new QueryClient({
 });
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
-const proxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
+const configuredProxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || "";
+const proxyUrl =
+  Platform.OS === "web" &&
+  typeof window !== "undefined" &&
+  configuredProxyUrl
+    ? (() => {
+        const configured = new URL(configuredProxyUrl, window.location.origin);
+        return `${window.location.origin}${configured.pathname}${configured.search}`;
+      })()
+    : configuredProxyUrl || undefined;
 
 function AuthTokenBridge() {
   const { getToken } = useAuth();
   useEffect(() => {
+    if (Platform.OS === "web") {
+      setAuthTokenGetter(null);
+      return;
+    }
     setAuthTokenGetter(() => getToken());
     return () => setAuthTokenGetter(null);
   }, [getToken]);
@@ -37,6 +50,35 @@ function AuthTokenBridge() {
 }
 
 function AppRoutes() {
+  const { isLoaded } = useAuth();
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (isLoaded) {
+      setLoadingTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setLoadingTimedOut(true), 15_000);
+    return () => clearTimeout(timer);
+  }, [isLoaded]);
+
+  if (!isLoaded) {
+    return (
+      <View style={styles.startupLoading}>
+        {loadingTimedOut ? (
+          <Text style={styles.startupError}>
+            تعذّر تحميل تسجيل الدخول — حدّث الصفحة
+          </Text>
+        ) : (
+          <>
+            <ActivityIndicator color={colors.blue} />
+            <Text style={styles.startupCopy}>جارٍ تحميل تسجيل الدخول…</Text>
+          </>
+        )}
+      </View>
+    );
+  }
+
   return (
     <>
       <AuthTokenBridge />
@@ -121,6 +163,23 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  startupLoading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+    paddingHorizontal: 28,
+    gap: 14,
+    writingDirection: "rtl",
+  },
+  startupCopy: { color: colors.muted, fontSize: 15 },
+  startupError: {
+    color: colors.text,
+    fontSize: 16,
+    lineHeight: 25,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   missing: {
     flex: 1,
     alignItems: "center",

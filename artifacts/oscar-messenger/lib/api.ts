@@ -2,9 +2,11 @@ import {
   setAuthTokenGetter,
   setBaseUrl,
 } from "@workspace/api-client-react";
+import { Platform } from "react-native";
 
 const domain = process.env.EXPO_PUBLIC_DOMAIN?.trim();
-const apiOrigin = domain ? `https://${domain}` : "";
+const apiOrigin =
+  Platform.OS === "web" ? "" : domain ? `https://${domain}` : "";
 setBaseUrl(apiOrigin || null);
 
 export { setAuthTokenGetter };
