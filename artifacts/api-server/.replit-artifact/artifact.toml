@@ -1,13 +1,13 @@
 kind = "api"
-previewPath = "/api" # TODO - should be excluded from preview in the first place
-title = "API Server"
+previewPath = "/"
+title = "OscarDevs Core + API"
 version = "1.0.0"
 id = "3B4_FFSkEVBkAeYMFRJ2e"
 
 [[services]]
 localPort = 8080
 name = "API Server"
-paths = ["/api"]
+paths = ["/api/messenger", "/api/__clerk", "/api/healthz"]
 
 [services.development]
 run = "pnpm --filter @workspace/api-server run dev"
@@ -21,7 +21,6 @@ args = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
 NODE_ENV = "production"
 
 [services.production.run]
-# we don't run through pnpm to make startup faster in production
 args = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 
 [services.production.run.env]
@@ -30,3 +29,29 @@ NODE_ENV = "production"
 
 [services.production.health.startup]
 path = "/api/healthz"
+
+[[services]]
+localPort = 5000
+name = "OscarDevs Legacy Gateway"
+paths = ["/"]
+
+[services.development]
+run = "cd /home/runner/workspace/.migration-backup && npm install --include=dev --package-lock=false && env -u ADS_DATABASE_URL -u DATABASE_URL -u PGDATABASE -u PGHOST -u PGPORT -u PGUSER -u PGPASSWORD -u SERVICEFLOW_UPSTREAM -u SERVICEFLOW_HOST -u SERVICEFLOW_DATABASE_URL -u SERVICEFLOW_ORACLE_DATABASE_URL -u SERVICEFLOW_CURRENT_DATABASE_URL -u SERVICEFLOW_DATABASE_TARGET -u SERVICEFLOW_USE_ORACLE -u SERVICEFLOW_SCHEDULERS -u MYBIBLE_UPSTREAM -u MYBIBLE_DATABASE_URL -u MYBIBLE_DATABASE_TARGET NODE_ENV=development npm run dev"
+
+[services.production]
+
+[services.production.build]
+args = ["sh", "-c", "cd .migration-backup && npm install --include=dev && (cd mybible && npm install --include=dev && npm run build) && (cd serviceflow && npm install --include=dev && npm run build)"]
+
+[services.production.build.env]
+NODE_ENV = "production"
+SF_BASE_PATH = "/serviceflow/"
+
+[services.production.run]
+args = ["sh", "-c", "cd .migration-backup && DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=true npm start"]
+
+[services.production.run.env]
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/"
