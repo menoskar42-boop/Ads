@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -82,6 +82,19 @@ function MissingAuthConfiguration() {
 export default function RootLayout() {
   useEffect(() => {
     void SplashScreen.hideAsync();
+  }, []);
+
+  useEffect(() => {
+    if (
+      Platform.OS !== "web" ||
+      typeof navigator === "undefined" ||
+      !("serviceWorker" in navigator)
+    ) return;
+    void navigator.serviceWorker
+      .register("/oscar-messenger/sw.js", { scope: "/oscar-messenger/" })
+      .catch(() => {
+        console.warn("Oscar Messaging PWA service worker registration failed.");
+      });
   }, []);
 
   if (!publishableKey) return <MissingAuthConfiguration />;

@@ -1,0 +1,23 @@
+{
+  "name": "Oscar Messaging",
+  "short_name": "Oscar Chat",
+  "start_url": "/oscar-messenger/",
+  "scope": "/oscar-messenger/",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "ar",
+  "theme_color": "#0A101B",
+  "background_color": "#0A101B",
+  "icons": [
+    {
+      "src": "/oscar-messenger/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/oscar-messenger/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

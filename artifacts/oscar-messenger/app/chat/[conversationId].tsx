@@ -1055,6 +1055,7 @@ export default function ChatScreen() {
           setDraftFromOscar(false);
         }}
       />
+      {Platform.OS !== "web" && (
       <VoiceMessageModal
         visible={voiceVisible}
         busy={voiceBusy}
@@ -1064,6 +1065,7 @@ export default function ChatScreen() {
         }}
         onSend={sendVoiceMessage}
       />
+      )}
       <Modal
         visible={!!forwardingMessage}
         transparent

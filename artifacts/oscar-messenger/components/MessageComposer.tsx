@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform } from "react-native";
 import { TextField } from "./TextField";
 import { colors } from "../lib/theme";
 
@@ -141,6 +142,7 @@ export function MessageComposer({
         >
           <Ionicons name="document-attach-outline" size={21} color={mediaEnabled ? colors.blue : colors.muted} />
         </Pressable>
+        {Platform.OS !== "web" && (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -162,6 +164,7 @@ export function MessageComposer({
             color={voiceEnabled ? colors.blue : colors.muted}
           />
         </Pressable>
+        )}
         {locationEnabled && (
           <Pressable
             accessibilityRole="button"
@@ -213,6 +216,11 @@ export function MessageComposer({
       </View>
       {!voiceEnabled && !!voiceHint && (
         <Text style={styles.voiceHint}>{voiceHint}</Text>
+      )}
+      {Platform.OS === "web" && (
+        <Text style={styles.voiceHint}>
+          تسجيل الصوت متاح في تطبيق الهاتف؛ ومشاركة الموقع تحتاج إذن المتصفح. يمكن اختيار الصور والملفات من المتصفح.
+        </Text>
       )}
       <Text style={styles.limit}>{value.length}/4000</Text>
     </View>
