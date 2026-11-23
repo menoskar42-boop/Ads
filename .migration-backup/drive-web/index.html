@@ -107,6 +107,16 @@ body.contacts-on #callBox:not([hidden]) { position:fixed; inset:max(10px, env(sa
 .contact-directory-row .contact-directory-info { flex:1; min-width:0; overflow-wrap:anywhere; }
 .contact-directory-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 .contact-directory-actions button { min-height:40px; padding:6px 10px; }
+body.shots-on::before { content:""; position:fixed; inset:0; z-index:65; background:#000b; }
+body.shots-on { overflow:hidden; }
+body.shots-on #shotsModal:not([hidden]) { position:fixed; inset:max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  z-index:70; display:block; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; max-width:calc(100vw - 20px);
+  background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:12px; box-shadow:0 8px 30px #0008; }
+.shots-summary { justify-content:space-between; gap:8px; min-width:0; }
+.shots-summary strong { min-width:0; }
+.shots-summary button, .shots-modal-head button { min-height:40px; padding:6px 12px; }
+.shots-modal-head { justify-content:space-between; gap:8px; margin-bottom:8px; }
+#shotsModal #shotsGrid { width:100%; min-width:0; }
 @media (prefers-reduced-motion: reduce) { #dvArrow { transition:none; } }
 #map { position:relative; z-index:0; isolation:isolate; height:320px; border-radius:14px; overflow:hidden; background:var(--surface2); }
 .seg button { padding:8px 12px; min-height:40px; font-size:14px; }
@@ -280,13 +290,24 @@ body.solo .carOnly { display:none !important; }
     </div>
 
     <section class="card" id="shotsCard">
-      <div class="eyebrow">ROAD SHOTS · صور الطريق</div>
-      <p class="note" id="shotsInfo">صور «اوسكار اسكرين شوت» وزرار «📸 صوّر الطريق» وصور المطبات اللى سجّلتها — لتدريب موديل المطبات.</p>
-      <div id="shotsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;margin:8px 0"></div>
-      <button id="shotsMore" hidden>اعرض صور أكتر</button>
-      <button id="shotsZipBtn" style="width:100%">⬇️ نزّل الصور الجديدة (zip)</button>
-      <button id="shotsClearTest" hidden style="width:100%;margin-top:6px">🧹 امسح صور التجربة</button>
-      <p class="note" id="shotsNote"></p>
+      <div class="row shots-summary">
+        <strong>📸 صور الطريق</strong>
+        <span id="shotsCount" class="chip">…</span>
+        <button id="shotsOpenBtn" type="button">افتح</button>
+      </div>
+      <div id="shotsModal" hidden>
+        <div class="row shots-modal-head">
+          <strong>📸 صور الطريق</strong>
+          <button id="shotsClose" type="button" aria-label="إغلاق صور الطريق">إغلاق ✕</button>
+        </div>
+        <div class="eyebrow">ROAD SHOTS · صور الطريق</div>
+        <p class="note" id="shotsInfo">صور «اوسكار اسكرين شوت» وزرار «📸 صوّر الطريق» وصور المطبات اللى سجّلتها — لتدريب موديل المطبات.</p>
+        <div id="shotsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;margin:8px 0"></div>
+        <button id="shotsMore" hidden>اعرض صور أكتر</button>
+        <button id="shotsZipBtn" style="width:100%">⬇️ نزّل الصور الجديدة (zip)</button>
+        <button id="shotsClearTest" hidden style="width:100%;margin-top:6px">🧹 امسح صور التجربة</button>
+        <p class="note" id="shotsNote"></p>
+      </div>
     </section>
 
     <section class="card" id="roadCard">

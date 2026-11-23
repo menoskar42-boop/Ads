@@ -355,6 +355,8 @@
       $('shotsClearTest').hidden = !c.test; $('shotsClearTest').textContent = `🧹 امسح صور التجربة (${c.test || 0})`;
       const g = $('shotsGrid'); g.textContent = '';
       const all = j.shots || [];
+      const total = Number.isFinite(Number(c.total)) ? Number(c.total) : all.length;
+      $('shotsCount').textContent = total ? `${total} صورة` : 'مفيش صور لسه';
       $('shotsMore').hidden = all.length <= shotsShown;
       for (const s of all.slice(0, shotsShown)) {
         const fig = document.createElement('figure');
@@ -376,6 +378,21 @@
     } catch (e) { /* مش مربوط أو مفيش نت */ }
   }
   let shotsShown = 12;
+  function openShots() {
+    if (document.body.classList.contains('contacts-on')) callDone();
+    $('shotsModal').hidden = false;
+    document.body.classList.add('shots-on');
+    loadShots();
+  }
+  function closeShots() {
+    $('shotsModal').hidden = true;
+    document.body.classList.remove('shots-on');
+  }
+  $('shotsOpenBtn').addEventListener('click', openShots);
+  $('shotsClose').addEventListener('click', closeShots);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('shots-on')) closeShots();
+  });
   $('shotsMore').addEventListener('click', () => { shotsShown += 24; loadShots(); });
   $('shotsClearTest').addEventListener('click', async () => {
     if (!confirm('تمسح كل صور التجربة؟')) return;
@@ -948,6 +965,7 @@
   $('callNoBtn').addEventListener('click', () => { callDone(); $('voiceNote').textContent = '📞 اتلغى'; });
   $('callTestBtn').addEventListener('click', () => { const n = prompt('اسم من جهات الاتصال'); if (n && n.trim()) callAsk(n.trim(), null); });
   function showContactDirectory() {
+    if (document.body.classList.contains('shots-on')) closeShots();
     callDone();
     $('callBox').hidden = false;
     $('callQ').textContent = '📇 جهات الاتصال — ابحث بالاسم أو الرقم واضغط اتصال';
