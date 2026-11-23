@@ -54,7 +54,7 @@ import { registerFaultTrend } from "./fault-trend";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
 import { registerCabinetAssignments, siteWorkerCode } from "./cabinet-assignments";
-import { sheetCableSql, syncSheetCableEntries, sheetRulesSql } from "./wo-sheet-cable";
+import { sheetCableSql, syncSheetCableEntries, sheetRulesSql, sheetReviewSql } from "./wo-sheet-cable";
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
 import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
@@ -10884,7 +10884,9 @@ export async function registerRoutes(
       // «سجّل إنه بتاعك» (المالك ٢٠٢٦-١١-٠٢): من ٣-١١ وفنى الإغلاق مش من الخمسة ومحدش سجّله ⇒ يظهر للفنى حتى لو
       // السلك مكتوب فى الشيت — بيسجّل اسمه بس، والسلك المكتوب مايتغيّرش (wo-sheet-cable.ts)
       const claimOnlySql = `(${sheetRulesSql()} AND NOT ${isKnown} AND ovr.tech_name IS NULL AND ${sheetCableSql()} IS NOT NULL)`;
-      conds.push(`(COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NULL OR ${claimOnlySql})`);
+      // ٥٠ م أو أكتر من الشيت (المالك ٢٠٢٦-١١-٢٣) ⇒ يظهر للمراجعة لحد ما السوبر أدمن يأكّده/يعدّله — والكمية محسوبة زى ما هى
+      const reviewSql = sheetReviewSql("w", "ce");
+      conds.push(`(COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NULL OR ${claimOnlySql} OR ${reviewSql})`);
       // فنى المنطقة من **البيانات الفنية للرقم** — نفس منطق «بحث برقم التليفون»
       // (بيان الخط ← كابينة ← فنى الكابينة، مع تغطية الوردية).
       const areaTech = areaTechSql("lm.central", "lm.cabin", "w.close_date", "lm.short");
@@ -10948,6 +10950,9 @@ export async function registerRoutes(
                 ${isKnown} AS "techKnown",
                 ${sheetCableSql()} AS "sheetCable",
                 (${claimOnlySql} AND COALESCE(${sheetCableSql()}, ce.cable_quantity) IS NOT NULL) AS "claimOnly",
+                -- فنى الإغلاق مش من الخمسة والسلك ٥٠ ⇒ الطريقة القديمة (إدخال + «يتخصم من رصيد…») مش تأكيد
+                (${reviewSql} AND NOT ${claimOnlySql} AND ${isKnown}) AS "reviewOnly",
+                NULLIF(btrim(COALESCE(w.cable_quantity, '')), '') AS "sheetRaw",   -- رقم الشيت زى ما هو (حتى الـ٥٠) للتأكيد
                 ${areaTech} AS "areaTechName",   -- بيتعرض بالاسم الكامل من الواجهة
                 (lm.central IS NOT NULL AND lm.cabin IS NOT NULL) AS "hasLineData",
                 -- البيان الفنى بيتراجع **بس** لما اسم الفنى مش واحد من الخمسة — لأنه
@@ -11207,12 +11212,26 @@ export async function registerRoutes(
   });
 
   // PUT /api/work-orders/:id/cable — السوبر أدمن بس يعدّل كمية السلك على أمر شغل (بتغلب الشيت — wo-sheet-cable.ts)
-  app.put("/api/work-orders/:id/cable", requireAuth, requireSuperAdmin, async (req: any, res) => {
+  // والفنى (المالك ٢٠٢٦-١١-٢٣): أمر شغله اللى الشيت كاتب فيه أكتر من ٥٠ م ولسه محدش راجعه ⇒ يأكّد الكمية أو يعدّلها مرة.
+  app.put("/api/work-orders/:id/cable", requireAuth, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id, 10);
       const qty = String(req.body?.cableQuantity ?? "").trim();
       if (!id) return res.status(400).json({ message: "أمر شغل غير صالح" });
       if (!/^\d+(\.\d+)?$/.test(qty)) return res.status(400).json({ message: "كمية السلك لازم تكون رقم" });
+      if (req.user?.role !== ROLES.SUPER_ADMIN) {
+        if (req.user?.role !== ROLES.TECH) return res.status(403).json({ message: "تعديل كمية السلك للسوبر أدمن أو فنى أمر الشغل" });
+        const me = (await coverageCodes(req.user)).techName || "";
+        const byCode = `(SELECT tn.tech_name FROM technician_names tn WHERE btrim(tn.worker_code) = btrim(COALESCE(w.worker_code, ''))
+                           AND btrim(COALESCE(w.worker_code, '')) <> '' LIMIT 1)`;
+        const known = `COALESCE(${canonicalTechSql(byCode)}, ${canonicalTechSql(`COALESCE(NULLIF(btrim(ovr.tech_name), ''), btrim(w.tech_name))`)})`;
+        const { rows: mine } = await pool.query(
+          `SELECT 1 FROM work_orders w
+             LEFT JOIN work_order_tech_overrides ovr ON ovr.central_name = w.central_name AND ovr.work_order_id = w.work_order_id
+            WHERE w.id = $1 AND ${sheetReviewSql()} AND ${known} IS NOT NULL AND ${known} = ${canonicalTechSql("$2")}`,
+          [id, me]);
+        if (!mine.length) return res.status(403).json({ message: "أمر الشغل ده مش بتاعك أو اتراجع قبل كده" });
+      }
       const { rows } = await pool.query(`SELECT central_name, work_order_id FROM work_orders WHERE id = $1`, [id]);
       if (!rows.length) return res.status(404).json({ message: "أمر الشغل غير موجود" });
       await pool.query(
