@@ -113,6 +113,86 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messenger/contacts/{peerUserId}/nickname:
+    put:
+      operationId: setMessengerContactNickname
+      tags: [messenger]
+      summary: Set or clear a private nickname for another user
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: peerUserId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactNicknameInput"
+      responses:
+        "200":
+          description: The private nickname value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactNicknameResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: The requested profile does not exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Contact nickname migration is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /messenger/contacts/resolve:
+    get:
+      operationId: resolveMessengerContact
+      tags: [messenger]
+      summary: Resolve a spoken name to the signed-in user's contacts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
+      responses:
+        "200":
+          description: The highest-priority matching contact tier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactResolveResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Search rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Contact nickname migration is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /messenger/voice-messages/capability:
     get:
       operationId: getMessengerVoiceMessageCapability
@@ -1788,6 +1868,37 @@ components:
             - type: "null"
         discoverable:
           type: boolean
+    ContactNicknameInput:
+      type: object
+      required: [nickname]
+      properties:
+        nickname:
+          anyOf:
+            - type: string
+              maxLength: 60
+            - type: "null"
+    ContactNicknameResponse:
+      type: object
+      required: [nickname]
+      properties:
+        nickname:
+          anyOf:
+            - type: string
+            - type: "null"
+    ContactResolveResponse:
+      type: object
+      required: [status, matches]
+      properties:
+        status:
+          type: string
+          enum: [one, ambiguous, none]
+        matchedBy:
+          type: string
+          enum: [nickname, username, displayName]
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Person"
     PhoneLookupInput:
       type: object
       required: [phoneNumber]
@@ -1807,7 +1918,7 @@ components:
             $ref: "#/components/schemas/Person"
     Person:
       type: object
-      required: [userId, username, displayName]
+      required: [userId, username, displayName, nickname]
       properties:
         userId:
           type: string
@@ -1815,6 +1926,10 @@ components:
           type: string
         displayName:
           type: string
+        nickname:
+          anyOf:
+            - type: string
+            - type: "null"
     Message:
       type: object
       required:

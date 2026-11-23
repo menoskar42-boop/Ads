@@ -29,6 +29,9 @@ import type {
   BadRequestResponse,
   CancelScheduledMessageResponse,
   ConflictResponse,
+  ContactNicknameInput,
+  ContactNicknameResponse,
+  ContactResolveResponse,
   ContentReportInput,
   ContentReportResponse,
   ConversationSettingsInput,
@@ -61,6 +64,7 @@ import type {
   PhoneLookupInput,
   ProfileInput,
   ProfileResponse,
+  ResolveMessengerContactParams,
   ScheduledMessageInput,
   ScheduledMessageResponse,
   ScheduledMessageUpdate,
@@ -496,6 +500,203 @@ export const useUpdateMessengerProfilePhone = <TError = ErrorType<BadRequestResp
       > => {
       return useMutation(getUpdateMessengerProfilePhoneMutationOptions(options), queryClient);
     }
+
+export const getSetMessengerContactNicknameUrl = (peerUserId: string,) => {
+
+
+
+
+  return `/api/messenger/contacts/${peerUserId}/nickname`
+}
+
+/**
+ * @summary Set or clear a private nickname for another user
+ */
+export const setMessengerContactNickname = async (peerUserId: string,
+    contactNicknameInput: ContactNicknameInput, options?: Parameters<typeof customFetch>[1]): Promise<ContactNicknameResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ContactNicknameResponse>(getSetMessengerContactNicknameUrl(peerUserId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(contactNicknameInput)
+  }
+);}
+
+
+
+
+
+export const getSetMessengerContactNicknameMutationKey = () => ['setMessengerContactNickname'] as const;
+
+export const getSetMessengerContactNicknameMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMessengerContactNickname>>, TError,SetMessengerContactNicknameMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setMessengerContactNickname>>, TError,SetMessengerContactNicknameMutationVariables, TContext> => {
+
+const mutationKey = getSetMessengerContactNicknameMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setMessengerContactNickname>>, SetMessengerContactNicknameMutationVariables> = (props) => {
+          const {peerUserId,data} = props ?? {};
+
+          return  setMessengerContactNickname(peerUserId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetMessengerContactNicknameMutationResult = NonNullable<Awaited<ReturnType<typeof setMessengerContactNickname>>>
+    export type SetMessengerContactNicknameMutationBody = BodyType<ContactNicknameInput>
+    export type SetMessengerContactNicknameMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type SetMessengerContactNicknameMutationVariables = {peerUserId: string;data: BodyType<ContactNicknameInput>}
+
+    /**
+ * @summary Set or clear a private nickname for another user
+ */
+export const useSetMessengerContactNickname = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMessengerContactNickname>>, TError,SetMessengerContactNicknameMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setMessengerContactNickname>>,
+        TError,
+        SetMessengerContactNicknameMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetMessengerContactNicknameMutationOptions(options), queryClient);
+    }
+
+export const getResolveMessengerContactUrl = (params: ResolveMessengerContactParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/messenger/contacts/resolve?${stringifiedParams}` : `/api/messenger/contacts/resolve`
+}
+
+/**
+ * @summary Resolve a spoken name to the signed-in user's contacts
+ */
+export const resolveMessengerContact = async (params: ResolveMessengerContactParams, options?: Parameters<typeof customFetch>[1]): Promise<ContactResolveResponse> => {
+
+  return customFetch<ContactResolveResponse>(getResolveMessengerContactUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getResolveMessengerContactQueryKey = (params?: ResolveMessengerContactParams,) => {
+    return [
+    `/api/messenger/contacts/resolve`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getResolveMessengerContactQueryOptions = <TData = Awaited<ReturnType<typeof resolveMessengerContact>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>>(params: ResolveMessengerContactParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof resolveMessengerContact>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getResolveMessengerContactQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof resolveMessengerContact>>> = ({ signal }) => resolveMessengerContact(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof resolveMessengerContact>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ResolveMessengerContactQueryResult = NonNullable<Awaited<ReturnType<typeof resolveMessengerContact>>>
+export type ResolveMessengerContactQueryError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+
+
+export function useResolveMessengerContact<TData = Awaited<ReturnType<typeof resolveMessengerContact>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>>(
+ params: ResolveMessengerContactParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof resolveMessengerContact>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof resolveMessengerContact>>,
+          TError,
+          Awaited<ReturnType<typeof resolveMessengerContact>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useResolveMessengerContact<TData = Awaited<ReturnType<typeof resolveMessengerContact>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>>(
+ params: ResolveMessengerContactParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof resolveMessengerContact>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof resolveMessengerContact>>,
+          TError,
+          Awaited<ReturnType<typeof resolveMessengerContact>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useResolveMessengerContact<TData = Awaited<ReturnType<typeof resolveMessengerContact>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>>(
+ params: ResolveMessengerContactParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof resolveMessengerContact>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Resolve a spoken name to the signed-in user's contacts
+ */
+
+export function useResolveMessengerContact<TData = Awaited<ReturnType<typeof resolveMessengerContact>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>>(
+ params: ResolveMessengerContactParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof resolveMessengerContact>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getResolveMessengerContactQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMessengerVoiceMessageCapabilityUrl = () => {
 

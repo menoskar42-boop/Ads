@@ -10,4 +10,5 @@ export interface Person {
   userId: string;
   username: string;
   displayName: string;
+  nickname: string | null;
 }

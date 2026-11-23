@@ -5,6 +5,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -60,6 +61,40 @@ export const messengerPushSubscriptions = pgTable(
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
   },
   (table) => [index("messenger_push_subscriptions_user_idx").on(table.userId)],
+);
+
+export const messengerContactNicknames = pgTable(
+  "messenger_contact_nicknames",
+  {
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => messengerProfiles.userId, { onDelete: "cascade" }),
+    peerUserId: text("peer_user_id")
+      .notNull()
+      .references(() => messengerProfiles.userId, { onDelete: "cascade" }),
+    nickname: text("nickname").notNull(),
+    nicknameKey: text("nickname_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "messenger_contact_nicknames_pkey",
+      columns: [table.ownerUserId, table.peerUserId],
+    }),
+    check(
+      "messenger_contact_nicknames_nickname_check",
+      sql`char_length(btrim(${table.nickname})) BETWEEN 1 AND 60`,
+    ),
+    check(
+      "messenger_contact_nicknames_owner_peer_check",
+      sql`${table.ownerUserId} <> ${table.peerUserId}`,
+    ),
+    index("messenger_contact_nicknames_owner_key_idx").on(
+      table.ownerUserId,
+      table.nicknameKey,
+    ),
+  ],
 );
 
 export const messengerConversations = pgTable(

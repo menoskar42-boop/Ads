@@ -24,6 +24,7 @@ import {
   searchMessengerPeople,
   startMessengerConversation,
   useLookupMessengerPeopleByPhone,
+  useResolveMessengerContact,
 } from "@workspace/api-client-react";
 import { queryKeys } from "../lib/api";
 import { readableError, safeReturnPath } from "../lib/format";
@@ -52,6 +53,7 @@ export default function NewMessageScreen() {
   const draftKey = param(searchParams.draftKey);
   const { isLoaded, isSignedIn, userId } = useAuth();
   const [recipientName, setRecipientName] = useState(incomingName);
+  const [driveRecipientName, setDriveRecipientName] = useState(incomingName);
   const [draft, setDraft] = useState(incomingBody);
   const [searchText, setSearchText] = useState(incomingName);
   const [requestedQuery, setRequestedQuery] = useState("");
@@ -106,6 +108,7 @@ export default function NewMessageScreen() {
       const name = typeof value.recipientName === "string" ? value.recipientName.slice(0, 80) : "";
       const body = typeof value.body === "string" ? value.body.slice(0, 2000) : "";
       setRecipientName(name);
+      setDriveRecipientName(name);
       setDraft(body);
       setSearchText(name);
       router.replace("/compose");
@@ -154,6 +157,7 @@ export default function NewMessageScreen() {
         const name = typeof value.recipientName === "string" ? value.recipientName.slice(0, 80) : "";
         const body = typeof value.body === "string" ? value.body.slice(0, 2000) : "";
         setRecipientName(name);
+        setDriveRecipientName(name);
         setDraft(body);
         setSearchText(name);
       } catch {
@@ -169,6 +173,41 @@ export default function NewMessageScreen() {
     enabled: !!requestedQuery,
     retry: false,
   });
+  const contactResolution = useResolveMessengerContact(
+    { name: driveRecipientName || "_" },
+    {
+      query: {
+        enabled:
+          !!driveRecipientName &&
+          isLoaded &&
+          !!isSignedIn &&
+          !!profile.data?.profile,
+        retry: false,
+      },
+    },
+  );
+  useEffect(() => {
+    if (!driveRecipientName || driveRecipientName.trim().length < 3) return;
+    if (
+      contactResolution.isError ||
+      (contactResolution.isSuccess && contactResolution.data.status === "none")
+    ) {
+      setRequestedQuery((current) => current || driveRecipientName.trim().slice(0, 60));
+    }
+  }, [
+    contactResolution.data?.status,
+    contactResolution.isError,
+    contactResolution.isSuccess,
+    driveRecipientName,
+  ]);
+  const resolvedOne =
+    driveRecipientName && contactResolution.data?.status === "one"
+      ? contactResolution.data.matches[0]
+      : undefined;
+  const resolvedAmbiguous =
+    driveRecipientName && contactResolution.data?.status === "ambiguous"
+      ? contactResolution.data.matches
+      : undefined;
   const phoneLookup = useLookupMessengerPeopleByPhone();
   const currentPhoneSearch =
     !requestedQuery &&
@@ -198,7 +237,7 @@ export default function NewMessageScreen() {
         pathname: "/chat/[conversationId]",
         params: {
           conversationId: conversation.id,
-          peerName: conversation.peer.displayName,
+            peerName: conversation.peer.nickname || conversation.peer.displayName,
           ...draftParams,
         },
       });
@@ -305,6 +344,7 @@ export default function NewMessageScreen() {
             value={searchText}
             onChangeText={(value) => {
               setSearchText(value);
+              setDriveRecipientName("");
               setRequestedQuery("");
               phoneLookup.reset();
               setNotice("");
@@ -340,7 +380,42 @@ export default function NewMessageScreen() {
           </Notice>
         )}
         {!!notice && <ErrorText>{notice}</ErrorText>}
-        {(phoneLookup.isPending && currentPhoneSearch) || people.isFetching ? (
+        {driveRecipientName && contactResolution.isPending ? (
+          <View style={styles.loading}><ActivityIndicator color={colors.blue} /></View>
+        ) : resolvedOne ? (
+          <View style={styles.resolvedPerson}>
+            <Text style={styles.resolvedHeading}>وجدنا الشخص بالاسم المنطوق</Text>
+            <PersonResult
+              person={resolvedOne}
+              highlighted
+              actionLabel="افتح المحادثة"
+              busy={start.isPending}
+              onSelect={() => start.mutate({ username: resolvedOne.username })}
+            />
+          </View>
+        ) : resolvedAmbiguous ? (
+          <>
+            <Notice>
+              <Text style={styles.noticeTitle}>
+                فيه أكتر من حد بالاسم ده — اختار مين
+              </Text>
+            </Notice>
+            <FlatList
+              data={resolvedAmbiguous}
+              keyExtractor={(person) => person.userId}
+              contentContainerStyle={styles.results}
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <PersonResult
+                  person={item}
+                  busy={start.isPending}
+                  onSelect={() => start.mutate({ username: item.username })}
+                />
+              )}
+            />
+          </>
+        ) : (phoneLookup.isPending && currentPhoneSearch) || people.isFetching ? (
           <View style={styles.loading}><ActivityIndicator color={colors.blue} /></View>
         ) : phoneLookup.isError && currentPhoneSearch ? (
           <Notice><Text style={styles.copy}>{readableError(phoneLookup.error, "تعذر البحث بهذا الرقم الآن.")}</Text></Notice>
@@ -368,27 +443,61 @@ export default function NewMessageScreen() {
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => (
-              <View style={styles.person}>
-                <Avatar name={item.displayName} />
-                <View style={styles.personCopy}>
-                  <Text style={styles.personName}>{item.displayName}</Text>
-                  <Text style={styles.username}>@{item.username}</Text>
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={start.isPending}
-                  onPress={() => start.mutate({ username: item.username })}
-                  style={({ pressed }) => [styles.select, pressed && styles.pressed]}
-                >
-                  <Text style={styles.selectText}>اختيار</Text>
-                </Pressable>
-              </View>
+              <PersonResult
+                person={item}
+                busy={start.isPending}
+                onSelect={() => start.mutate({ username: item.username })}
+              />
             )}
           />
         )}
         </View>
       </KeyboardAvoidingView>
     </Screen>
+  );
+}
+
+function PersonResult({
+  person,
+  busy = false,
+  highlighted = false,
+  actionLabel = "اختيار",
+  onSelect,
+}: {
+  person: {
+    userId: string;
+    username: string;
+    displayName: string;
+    nickname: string | null;
+  };
+  busy?: boolean;
+  highlighted?: boolean;
+  actionLabel?: string;
+  onSelect: () => void;
+}) {
+  return (
+    <View style={[styles.person, highlighted && styles.personHighlighted]}>
+      <Avatar name={person.nickname || person.displayName} />
+      <View style={styles.personCopy}>
+        <Text style={styles.personName}>
+          {person.nickname || person.displayName}
+        </Text>
+        <Text style={styles.username}>
+          {person.nickname
+            ? `${person.displayName} · @${person.username}`
+            : `@${person.username}`}
+        </Text>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        testID={`select-person-${person.userId}`}
+        disabled={busy}
+        onPress={onSelect}
+        style={({ pressed }) => [styles.select, pressed && styles.pressed]}
+      >
+        <Text style={styles.selectText}>{actionLabel}</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -406,6 +515,9 @@ const styles = StyleSheet.create({
   draft: { color: colors.text, fontSize: 14, lineHeight: 22, textAlign: "right", marginBottom: 7 },
   results: { gap: 8, paddingBottom: 16 },
   person: { minHeight: 74, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 11, flexDirection: "row", alignItems: "center", gap: 11 },
+  personHighlighted: { borderColor: colors.blue, backgroundColor: colors.surfaceRaised },
+  resolvedPerson: { borderWidth: 1, borderColor: colors.blue, borderRadius: 17, padding: 10, gap: 8, backgroundColor: colors.surface },
+  resolvedHeading: { color: colors.blue, fontSize: 13, fontWeight: "800", textAlign: "right" },
   personCopy: { flex: 1, alignItems: "flex-end", gap: 5 },
   personName: { color: colors.text, fontSize: 15, fontWeight: "800", textAlign: "right" },
   username: { color: colors.muted, fontSize: 13, textAlign: "right" },

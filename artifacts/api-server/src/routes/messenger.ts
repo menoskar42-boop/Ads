@@ -29,6 +29,12 @@ import {
   PHONE_TAKEN_AR,
   USERNAME_TAKEN_AR,
 } from "../lib/messenger-names";
+import {
+  buildContactResolveSql,
+  contactResolveParams,
+  ownedContactNicknameJoin,
+  resolveContactMatches,
+} from "../lib/contact-nicknames";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -56,6 +62,10 @@ const phoneDiscoverySchemaCache = new WeakMap<
   { checkedAt: number; ready: boolean }
 >();
 const displayNameKeySchemaCache = new WeakMap<
+  object,
+  { checkedAt: number; ready: boolean }
+>();
+const contactNicknameSchemaCache = new WeakMap<
   object,
   { checkedAt: number; ready: boolean }
 >();
@@ -202,6 +212,25 @@ async function hasDisplayNameKeySchema(pool: NonNullable<DbPool>): Promise<boole
   }
 }
 
+async function hasContactNicknameSchema(pool: NonNullable<DbPool>): Promise<boolean> {
+  const cached = contactNicknameSchemaCache.get(pool);
+  if (cached && Date.now() - cached.checkedAt < 15_000) return cached.ready;
+  try {
+    const result = await pool.query(
+      `SELECT count(*)::int AS table_count
+       FROM information_schema.tables
+       WHERE table_schema = current_schema()
+         AND table_name = 'messenger_contact_nicknames'`,
+    );
+    const ready = Number(result.rows[0]?.table_count) === 1;
+    contactNicknameSchemaCache.set(pool, { checkedAt: Date.now(), ready });
+    return ready;
+  } catch {
+    contactNicknameSchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
+    return false;
+  }
+}
+
 async function hasLocationSchema(pool: NonNullable<DbPool>): Promise<boolean> {
   const cached = locationSchemaCache.get(pool);
   if (cached && Date.now() - cached.checkedAt < 15_000) return cached.ready;
@@ -241,11 +270,13 @@ function publicPerson(row: {
   user_id: string;
   username: string;
   display_name: string;
+  nickname?: string | null;
 }) {
   return {
     userId: row.user_id,
     username: row.username,
     displayName: row.display_name,
+    nickname: row.nickname ?? null,
   };
 }
 
@@ -351,6 +382,7 @@ function publicConversation(
     peer_id: string;
     username: string;
     display_name: string;
+    nickname?: string | null;
     last_message: string | null;
     unread_count: string | number;
     updated_at: Date | string;
@@ -365,6 +397,7 @@ function publicConversation(
       userId: row.peer_id,
       username: row.username,
       displayName: row.display_name,
+      nickname: row.nickname ?? null,
     },
     lastMessage: row.last_message,
     unreadCount: Number(row.unread_count),
@@ -631,6 +664,107 @@ router.get(
   },
 );
 
+router.put("/messenger/contacts/:peerUserId/nickname", requireAuth, async (req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool) return;
+    if (!(await hasContactNicknameSchema(pool))) {
+      res.status(503).json({ error: "Contact nickname database migration is required" });
+      return;
+    }
+
+    const ownerUserId = getUserId(res);
+    const peerUserId = String(req.params.peerUserId ?? "");
+    if (peerUserId === ownerUserId) {
+      res.status(400).json({ error: "You cannot set a nickname for yourself" });
+      return;
+    }
+    const peer = await pool.query(
+      `SELECT 1 FROM messenger_profiles WHERE user_id = $1`,
+      [peerUserId],
+    );
+    if (!peer.rows[0]) {
+      res.status(404).json({ error: "Messenger profile not found" });
+      return;
+    }
+
+    const requestedNickname = req.body?.nickname;
+    if (requestedNickname !== null && typeof requestedNickname !== "string") {
+      res.status(400).json({ error: "Enter a nickname or null to clear it" });
+      return;
+    }
+    const nickname =
+      typeof requestedNickname === "string" ? requestedNickname.trim() : null;
+    if (nickname && Array.from(nickname).length > 60) {
+      res.status(400).json({ error: "Nickname must be 60 characters or fewer" });
+      return;
+    }
+    const nicknameKey = nickname ? displayNameKey(nickname) : "";
+    if (nickname && !nicknameKey) {
+      res.status(400).json({ error: "Enter a nickname containing visible characters" });
+      return;
+    }
+    if (!nickname) {
+      await pool.query(
+        `DELETE FROM messenger_contact_nicknames
+         WHERE owner_user_id = $1 AND peer_user_id = $2`,
+        [ownerUserId, peerUserId],
+      );
+      res.json({ nickname: null });
+      return;
+    }
+
+    await pool.query(
+      `INSERT INTO messenger_contact_nicknames
+         (owner_user_id, peer_user_id, nickname, nickname_key)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (owner_user_id, peer_user_id) DO UPDATE SET
+         nickname = EXCLUDED.nickname,
+         nickname_key = EXCLUDED.nickname_key,
+         updated_at = now()`,
+      [ownerUserId, peerUserId, nickname, nicknameKey],
+    );
+    res.json({ nickname });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/messenger/contacts/resolve", requireAuth, async (req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool) return;
+    if (!(await hasContactNicknameSchema(pool))) {
+      res.status(503).json({ error: "Contact nickname database migration is required" });
+      return;
+    }
+    const userId = getUserId(res);
+    if (!consumePeopleSearchQuota(searchWindows, userId, Date.now())) {
+      res.status(429).json({ error: "Please wait before searching again" });
+      return;
+    }
+    const name = typeof req.query.name === "string" ? req.query.name.trim() : "";
+    if (!name || Array.from(name).length > 80) {
+      res.status(400).json({ error: "Enter a name of 1 to 80 characters" });
+      return;
+    }
+    const displayNameKeyAvailable = await hasDisplayNameKeySchema(pool);
+    const result = await pool.query(
+      buildContactResolveSql(displayNameKeyAvailable),
+      contactResolveParams(userId, name),
+    );
+    const candidates = result.rows.map((row) => ({
+      userId: String(row.user_id),
+      username: String(row.username),
+      displayName: String(row.display_name),
+      nickname: typeof row.nickname === "string" ? row.nickname : null,
+    }));
+    res.json(resolveContactMatches(candidates, name));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/messenger/people", requireAuth, async (req, res, next) => {
   try {
     const pool = getPoolOrUnavailable(await loadPool(), res);
@@ -646,12 +780,15 @@ router.get("/messenger/people", requireAuth, async (req, res, next) => {
       res.status(400).json({ error: "Enter at least three characters" });
       return;
     }
+    const nicknamesReady = await hasContactNicknameSchema(pool);
     const result = await pool.query(
-      `SELECT user_id, username, display_name
-       FROM messenger_profiles
-       WHERE user_id <> $1
-         AND (username_lower LIKE $2 ESCAPE '\\' OR display_name ILIKE $3)
-       ORDER BY username_lower
+      `SELECT peer.user_id, peer.username, peer.display_name,
+              ${nicknamesReady ? "n.nickname" : "NULL::text AS nickname"}
+       FROM messenger_profiles peer
+       ${nicknamesReady ? ownedContactNicknameJoin("peer") : ""}
+       WHERE peer.user_id <> $1
+         AND (peer.username_lower LIKE $2 ESCAPE '\\' OR peer.display_name ILIKE $3)
+       ORDER BY peer.username_lower
        LIMIT 20`,
       [
         userId,
@@ -690,24 +827,45 @@ router.post("/messenger/people/lookup-by-phone", requireAuth, async (req, res, n
       res.status(503).json({ error: "Phone discovery configuration is required" });
       return;
     }
-    const result = await pool.query(PHONE_LOOKUP_SQL, [userId, phoneLookupHash]);
-    res.json({ people: result.rows.map(publicPhoneMatch) });
+    const nicknamesReady = await hasContactNicknameSchema(pool);
+    const result = await pool.query(
+      nicknamesReady
+        ? `SELECT peer.user_id, peer.username, peer.display_name, n.nickname
+           FROM messenger_profiles peer
+           ${ownedContactNicknameJoin("peer")}
+           WHERE peer.user_id <> $1
+             AND peer.phone_lookup_hash = $2
+             AND peer.phone_discoverable = true
+           ORDER BY peer.username_lower
+           LIMIT 20`
+        : PHONE_LOOKUP_SQL,
+      [userId, phoneLookupHash],
+    );
+    res.json({
+      people: result.rows.map((row) => ({
+        ...publicPhoneMatch(row),
+        nickname: typeof row.nickname === "string" ? row.nickname : null,
+      })),
+    });
   } catch (error) {
     next(error);
   }
 });
 
-const conversationSelect = `
+function conversationSelect(contactNicknamesReady: boolean) {
+  return `
   SELECT c.id,
          peer.user_id AS peer_id,
          peer.username,
          peer.display_name,
+         ${contactNicknamesReady ? "n.nickname" : "NULL::text AS nickname"},
          latest.body AS last_message,
          unread.count AS unread_count,
          COALESCE(latest.created_at, c.updated_at, c.created_at) AS updated_at
   FROM messenger_conversations c
   JOIN messenger_profiles peer
     ON peer.user_id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
+  ${contactNicknamesReady ? ownedContactNicknameJoin("peer") : ""}
   LEFT JOIN LATERAL (
     SELECT body, created_at FROM messenger_messages
     WHERE conversation_id = c.id
@@ -719,6 +877,7 @@ const conversationSelect = `
   ) unread ON true
   WHERE (c.user_a = $1 OR c.user_b = $1)
 `;
+}
 
 router.get("/messenger/conversations", requireAuth, async (_req, res, next) => {
   try {
@@ -726,9 +885,10 @@ router.get("/messenger/conversations", requireAuth, async (_req, res, next) => {
     if (!pool) return;
     const userId = getUserId(res);
     const toolsReady = await hasMessageToolsSchema(pool);
+    const contactNicknamesReady = await hasContactNicknameSchema(pool);
     const includeArchived = String(_req.query.includeArchived ?? "") === "true";
     const result = await pool.query(
-      `${conversationSelect}
+      `${conversationSelect(contactNicknamesReady)}
        ${toolsReady
          ? `AND ${includeArchived ? "EXISTS" : "NOT EXISTS"} (
               SELECT 1 FROM messenger_conversation_settings settings
@@ -794,16 +954,19 @@ router.post("/messenger/conversations", requireAuth, async (req, res, next) => {
        ON CONFLICT (user_a, user_b) DO NOTHING`,
       [randomUUID(), userA, userB],
     );
+    const contactNicknamesReady = await hasContactNicknameSchema(pool);
     const result = await pool.query(
       `SELECT c.id,
               peer.user_id AS peer_id,
               peer.username,
               peer.display_name,
+              ${contactNicknamesReady ? "n.nickname" : "NULL::text AS nickname"},
               latest.body AS last_message,
               unread.count AS unread_count,
               COALESCE(latest.created_at, c.updated_at, c.created_at) AS updated_at
        FROM messenger_conversations c
        JOIN messenger_profiles peer ON peer.user_id = $1
+       ${contactNicknamesReady ? ownedContactNicknameJoin("peer", "$4") : ""}
        LEFT JOIN LATERAL (
          SELECT body, created_at FROM messenger_messages
          WHERE conversation_id = c.id

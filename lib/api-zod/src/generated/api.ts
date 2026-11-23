@@ -93,6 +93,49 @@ export const UpdateMessengerProfilePhoneResponse = zod.object({
 
 
 /**
+ * @summary Set or clear a private nickname for another user
+ */
+export const SetMessengerContactNicknameParams = zod.object({
+  "peerUserId": zod.coerce.string()
+})
+
+export const setMessengerContactNicknameBodyNicknameOneMax = 60;
+
+
+
+export const SetMessengerContactNicknameBody = zod.object({
+  "nickname": zod.union([zod.string().max(setMessengerContactNicknameBodyNicknameOneMax),zod.null()])
+})
+
+export const SetMessengerContactNicknameResponse = zod.object({
+  "nickname": zod.union([zod.string(),zod.null()])
+})
+
+
+/**
+ * @summary Resolve a spoken name to the signed-in user's contacts
+ */
+export const resolveMessengerContactQueryNameMax = 80;
+
+
+
+export const ResolveMessengerContactQueryParams = zod.object({
+  "name": zod.coerce.string().min(1).max(resolveMessengerContactQueryNameMax)
+})
+
+export const ResolveMessengerContactResponse = zod.object({
+  "status": zod.enum(['one', 'ambiguous', 'none']),
+  "matchedBy": zod.enum(['nickname', 'username', 'displayName']).optional(),
+  "matches": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "nickname": zod.union([zod.string(),zod.null()])
+}))
+})
+
+
+/**
  * @summary Check whether voice messages are configured
  */
 export const GetMessengerVoiceMessageCapabilityResponse = zod.object({
@@ -132,7 +175,8 @@ export const SearchMessengerPeopleResponse = zod.object({
   "people": zod.array(zod.object({
   "userId": zod.string(),
   "username": zod.string(),
-  "displayName": zod.string()
+  "displayName": zod.string(),
+  "nickname": zod.union([zod.string(),zod.null()])
 })).max(searchMessengerPeopleResponsePeopleMax)
 })
 
@@ -156,7 +200,8 @@ export const LookupMessengerPeopleByPhoneResponse = zod.object({
   "people": zod.array(zod.object({
   "userId": zod.string(),
   "username": zod.string(),
-  "displayName": zod.string()
+  "displayName": zod.string(),
+  "nickname": zod.union([zod.string(),zod.null()])
 })).max(lookupMessengerPeopleByPhoneResponsePeopleMax)
 })
 
@@ -178,7 +223,8 @@ export const ListMessengerConversationsResponse = zod.object({
   "peer": zod.object({
   "userId": zod.string(),
   "username": zod.string(),
-  "displayName": zod.string()
+  "displayName": zod.string(),
+  "nickname": zod.union([zod.string(),zod.null()])
 }),
   "lastMessage": zod.union([zod.string(),zod.null()]),
   "unreadCount": zod.int().min(listMessengerConversationsResponseConversationsItemUnreadCountMin),
@@ -212,7 +258,8 @@ export const StartMessengerConversationResponse = zod.object({
   "peer": zod.object({
   "userId": zod.string(),
   "username": zod.string(),
-  "displayName": zod.string()
+  "displayName": zod.string(),
+  "nickname": zod.union([zod.string(),zod.null()])
 }),
   "lastMessage": zod.union([zod.string(),zod.null()]),
   "unreadCount": zod.int().min(startMessengerConversationResponseConversationUnreadCountMin),

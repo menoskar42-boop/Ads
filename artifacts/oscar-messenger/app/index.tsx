@@ -464,27 +464,33 @@ export default function InboxScreen() {
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <View style={styles.conversation}>
-                <Avatar name={item.peer.displayName} />
+                <Avatar name={item.peer.nickname || item.peer.displayName} />
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`فتح محادثة ${item.peer.displayName}`}
+                  accessibilityLabel={`فتح محادثة ${item.peer.nickname || item.peer.displayName}`}
                   onPress={() =>
                     router.push({
                       pathname: "/chat/[conversationId]",
-                      params: { conversationId: item.id, peerName: item.peer.displayName },
+                      params: {
+                        conversationId: item.id,
+                        peerName: item.peer.nickname || item.peer.displayName,
+                      },
                     })
                   }
                   style={({ pressed }) => [styles.conversationText, pressed && styles.pressed]}
                 >
                   <View style={styles.nameLine}>
                     <Text numberOfLines={1} style={styles.peerName}>
-                      {item.isPinned ? "📌 " : ""}{item.isMuted ? "🔕 " : ""}{item.peer.displayName}
+                      {item.isPinned ? "📌 " : ""}{item.isMuted ? "🔕 " : ""}
+                      {item.peer.nickname || item.peer.displayName}
                     </Text>
                     <Text style={styles.time}>{shortTime(item.updatedAt)}</Text>
                   </View>
                   <View style={styles.previewLine}>
                     <Text numberOfLines={1} style={styles.preview}>
-                      {item.lastMessage || `@${item.peer.username}`}
+                      {item.peer.nickname
+                        ? `${item.peer.displayName} · @${item.peer.username}`
+                        : item.lastMessage || `@${item.peer.username}`}
                     </Text>
                     {item.unreadCount > 0 && (
                       <View style={styles.unreadBadge}>
@@ -495,7 +501,7 @@ export default function InboxScreen() {
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`إعدادات محادثة ${item.peer.displayName}`}
+                  accessibilityLabel={`إعدادات محادثة ${item.peer.nickname || item.peer.displayName}`}
                   disabled={!features.data?.enabled}
                   onPress={() => setSettingsConversation(item)}
                   style={({ pressed }) => [
@@ -547,7 +553,7 @@ export default function InboxScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.settingsModal}>
             <Text style={styles.settingsTitle}>
-              {settingsConversation?.peer.displayName || "إعدادات المحادثة"}
+              {settingsConversation?.peer.nickname || settingsConversation?.peer.displayName || "إعدادات المحادثة"}
             </Text>
             <Text style={styles.settingsHint}>
               تُطبّق هذه الخيارات على حسابك فقط.

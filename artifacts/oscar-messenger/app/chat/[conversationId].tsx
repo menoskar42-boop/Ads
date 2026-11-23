@@ -49,6 +49,7 @@ import {
   forwardMessengerMessage,
   toggleMessengerMessageReaction,
   sendMessengerLocation,
+  useSetMessengerContactNickname,
 } from "@workspace/api-client-react";
 import type { Message, MessengerLocationInput } from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../../lib/api";
@@ -135,6 +136,9 @@ export default function ChatScreen() {
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [forwardDestinationId, setForwardDestinationId] = useState("");
   const [forwardBusy, setForwardBusy] = useState(false);
+  const [nicknameModalVisible, setNicknameModalVisible] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState("");
+  const [nicknameError, setNicknameError] = useState("");
   const seeded = useRef(false);
   const secureDraftRestoreStarted = useRef("");
   const mediaAbortController = useRef<AbortController | null>(null);
@@ -229,7 +233,21 @@ export default function ChatScreen() {
       olderLoadLock.current = false;
     }
   };
-  const displayedName = peer?.displayName || peerNameParam || "محادثة";
+  const displayedName = peer?.nickname || peer?.displayName || peerNameParam || "محادثة";
+  const peerSubtitle = peer?.nickname
+    ? `${peer.displayName} · @${peer.username}`
+    : `@${peer?.username || "محادثة خاصة"}`;
+  const updateNickname = useSetMessengerContactNickname({
+    mutation: {
+      onSuccess: async () => {
+        setNicknameError("");
+        setNicknameModalVisible(false);
+        await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+      },
+      onError: (error) =>
+        setNicknameError(readableError(error, "تعذر حفظ الاسم الخاص.")),
+    },
+  });
   const markRead = useMutation({
     mutationFn: () => markMessengerConversationRead(conversationId),
     onSuccess: async () => {
@@ -828,10 +846,28 @@ export default function ChatScreen() {
     <Screen>
       <View style={styles.header}>
         <AppHeader title="" onBack={() => router.back()} />
-        <View style={styles.peer}>
+        <View style={styles.peer} pointerEvents="box-none">
+          {peer && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="اسم خاص بيك"
+              testID="contact-nickname-open"
+              onPress={() => {
+                setNicknameDraft(peer.nickname || "");
+                setNicknameError("");
+                setNicknameModalVisible(true);
+              }}
+              style={({ pressed }) => [
+                styles.nicknameMenuButton,
+                pressed && styles.forwardDisabled,
+              ]}
+            >
+              <Text style={styles.nicknameMenuText}>اسم خاص بيك</Text>
+            </Pressable>
+          )}
           <View style={styles.peerCopy}>
             <Text style={styles.peerName} numberOfLines={1}>{displayedName}</Text>
-            <Text style={styles.peerStatus}>@{peer?.username || "محادثة خاصة"}</Text>
+            <Text style={styles.peerStatus}>{peerSubtitle}</Text>
           </View>
           <Avatar name={displayedName} size={42} />
         </View>
@@ -1102,8 +1138,13 @@ export default function ChatScreen() {
                   ]}
                 >
                   <Text style={styles.forwardDestinationName}>
-                    {item.peer.displayName || item.peer.username}
+                    {item.peer.nickname || item.peer.displayName || item.peer.username}
                   </Text>
+                  {item.peer.nickname && (
+                    <Text style={styles.forwardDestinationState}>
+                      {item.peer.displayName} · @{item.peer.username}
+                    </Text>
+                  )}
                   <Text style={styles.forwardDestinationState}>
                     {item.id === forwardDestinationId ? "الوجهة المحددة" : "اختيار"}
                   </Text>
@@ -1115,7 +1156,11 @@ export default function ChatScreen() {
                 الوجهة:{" "}
                 {conversations.data?.conversations.find(
                   (item) => item.id === forwardDestinationId,
-                )?.peer.displayName ?? "المحادثة المحددة"}
+                )?.peer.nickname ??
+                  conversations.data?.conversations.find(
+                    (item) => item.id === forwardDestinationId,
+                  )?.peer.displayName ??
+                  "المحادثة المحددة"}
               </Text>
             )}
             <View style={styles.forwardButtons}>
@@ -1140,6 +1185,81 @@ export default function ChatScreen() {
               >
                 <Text style={styles.forwardConfirmText}>
                   {forwardBusy ? "جارٍ الإرسال…" : "تأكيد الإرسال"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={nicknameModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNicknameModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.nicknameModal}>
+            <Text style={styles.forwardTitle}>اسم خاص بيك</Text>
+            <Text style={styles.forwardHint}>الاسم ده بيظهر ليك انت بس</Text>
+            <TextInput
+              testID="contact-nickname-input"
+              value={nicknameDraft}
+              onChangeText={(value) => {
+                setNicknameDraft(value);
+                setNicknameError("");
+              }}
+              placeholder="مثال: أحمد الشغل"
+              placeholderTextColor={colors.muted}
+              maxLength={60}
+              autoFocus
+              style={styles.nicknameInput}
+              returnKeyType="done"
+            />
+            {!!nicknameError && <Text style={styles.errorCopy}>{nicknameError}</Text>}
+            <View style={styles.forwardButtons}>
+              <Pressable
+                accessibilityRole="button"
+                testID="contact-nickname-cancel"
+                onPress={() => setNicknameModalVisible(false)}
+                disabled={updateNickname.isPending}
+                style={styles.forwardCancel}
+              >
+                <Text style={styles.forwardCancelText}>إلغاء</Text>
+              </Pressable>
+              {peer?.nickname && (
+                <Pressable
+                  accessibilityRole="button"
+                  testID="contact-nickname-clear"
+                  onPress={() =>
+                    updateNickname.mutate({
+                      peerUserId: peer.userId,
+                      data: { nickname: null },
+                    })
+                  }
+                  disabled={updateNickname.isPending}
+                  style={styles.forwardCancel}
+                >
+                  <Text style={styles.forwardCancelText}>حذف</Text>
+                </Pressable>
+              )}
+              <Pressable
+                accessibilityRole="button"
+                testID="contact-nickname-save"
+                onPress={() => {
+                  if (!peer) return;
+                  updateNickname.mutate({
+                    peerUserId: peer.userId,
+                    data: { nickname: nicknameDraft.trim() || null },
+                  });
+                }}
+                disabled={!peer || updateNickname.isPending}
+                style={[
+                  styles.forwardConfirm,
+                  (!peer || updateNickname.isPending) && styles.forwardDisabled,
+                ]}
+              >
+                <Text style={styles.forwardConfirmText}>
+                  {updateNickname.isPending ? "جارٍ الحفظ…" : "حفظ"}
                 </Text>
               </Pressable>
             </View>
@@ -1204,10 +1324,12 @@ function formatBytes(bytes: number): string {
 
 const styles = StyleSheet.create({
   header: { backgroundColor: colors.background, zIndex: 1 },
-  peer: { height: 56, position: "absolute", top: 1, left: 64, right: 12, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, pointerEvents: "none" },
+  peer: { height: 56, position: "absolute", top: 1, left: 64, right: 12, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
   peerCopy: { flex: 1, alignItems: "flex-end", gap: 2 },
   peerName: { color: colors.text, fontWeight: "800", fontSize: 16, textAlign: "right" },
   peerStatus: { color: colors.muted, fontSize: 11, textAlign: "right" },
+  nicknameMenuButton: { minHeight: 34, justifyContent: "center", borderRadius: 10, paddingHorizontal: 9, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
+  nicknameMenuText: { color: colors.blue, fontSize: 11, fontWeight: "700" },
   chat: { flex: 1 },
   messages: { paddingTop: 12, paddingBottom: 16, flexGrow: 1, justifyContent: "flex-end" },
   messagesEmpty: { justifyContent: "center" },
@@ -1225,6 +1347,8 @@ const styles = StyleSheet.create({
   draftHintText: { color: colors.amber, fontSize: 12, textAlign: "right" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.64)", justifyContent: "center", padding: 20 },
   forwardModal: { width: "100%", maxWidth: 420, maxHeight: "80%", alignSelf: "center", borderRadius: 22, padding: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: 10 },
+  nicknameModal: { width: "100%", maxWidth: 420, alignSelf: "center", borderRadius: 22, padding: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: 12 },
+  nicknameInput: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, color: colors.text, paddingHorizontal: 14, fontSize: 16, textAlign: "right", writingDirection: "rtl" },
   forwardTitle: { color: colors.text, fontSize: 18, fontWeight: "800", textAlign: "right" },
   forwardHint: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: "right" },
   forwardList: { maxHeight: 260 },

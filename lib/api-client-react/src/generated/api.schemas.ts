@@ -57,18 +57,51 @@ export interface PhoneDiscoveryInput {
   discoverable: boolean;
 }
 
+export interface ContactNicknameInput {
+  nickname: string | null;
+}
+
+export interface ContactNicknameResponse {
+  nickname: string | null;
+}
+
+export type ContactResolveResponseStatus = typeof ContactResolveResponseStatus[keyof typeof ContactResolveResponseStatus];
+
+
+export const ContactResolveResponseStatus = {
+  one: 'one',
+  ambiguous: 'ambiguous',
+  none: 'none',
+} as const;
+
+export type ContactResolveResponseMatchedBy = typeof ContactResolveResponseMatchedBy[keyof typeof ContactResolveResponseMatchedBy];
+
+
+export const ContactResolveResponseMatchedBy = {
+  nickname: 'nickname',
+  username: 'username',
+  displayName: 'displayName',
+} as const;
+
+export interface Person {
+  userId: string;
+  username: string;
+  displayName: string;
+  nickname: string | null;
+}
+
+export interface ContactResolveResponse {
+  status: ContactResolveResponseStatus;
+  matchedBy?: ContactResolveResponseMatchedBy;
+  matches: Person[];
+}
+
 export interface PhoneLookupInput {
   /**
      * @minLength 1
      * @maxLength 40
      */
   phoneNumber: string;
-}
-
-export interface Person {
-  userId: string;
-  username: string;
-  displayName: string;
 }
 
 export interface PeopleSearchResponse {
@@ -606,6 +639,14 @@ export type BadRequestResponse = ErrorResponse;
  * The scheduled message can no longer be changed
  */
 export type ConflictResponse = ErrorResponse;
+
+export type ResolveMessengerContactParams = {
+/**
+ * @minLength 1
+ * @maxLength 80
+ */
+name: string;
+};
 
 export type SearchMessengerPeopleParams = {
 /**
