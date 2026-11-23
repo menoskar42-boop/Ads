@@ -112,11 +112,19 @@ body.shots-on { overflow:hidden; }
 body.shots-on #shotsModal:not([hidden]) { position:fixed; inset:max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
   z-index:70; display:block; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; max-width:calc(100vw - 20px);
   background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:12px; box-shadow:0 8px 30px #0008; }
+body.road-on::before { content:""; position:fixed; inset:0; z-index:65; background:#000b; }
+body.road-on { overflow:hidden; }
+body.road-on #roadModal:not([hidden]) { position:fixed; inset:max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  z-index:70; display:block; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; max-width:calc(100vw - 20px);
+  background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:12px; box-shadow:0 8px 30px #0008; }
 .shots-summary { justify-content:space-between; gap:8px; min-width:0; }
 .shots-summary strong { min-width:0; }
 .shots-summary button, .shots-modal-head button { min-height:40px; padding:6px 12px; }
 .shots-modal-head { justify-content:space-between; gap:8px; margin-bottom:8px; }
 #shotsModal #shotsGrid { width:100%; min-width:0; }
+#roadModal #roadList { width:100%; min-width:0; }
+#roadModal #roadList .row { min-width:0; flex-wrap:wrap; }
+#roadModal #roadList .row > span { min-width:0; flex:1; overflow-wrap:anywhere; }
 @media (prefers-reduced-motion: reduce) { #dvArrow { transition:none; } }
 #map { position:relative; z-index:0; isolation:isolate; height:320px; border-radius:14px; overflow:hidden; background:var(--surface2); }
 .seg button { padding:8px 12px; min-height:40px; font-size:14px; }
@@ -375,6 +383,11 @@ body.solo .carOnly { display:none !important; }
         <button id="markRadar" style="flex:1">📷 رادار</button>
         <button id="markDanger" style="flex:1">⚠️ خطر</button>
       </div>
+      <div class="row shots-summary road-summary">
+        <strong>〰️ المطبات المسجّلة</strong>
+        <span id="roadCount" class="chip">…</span>
+        <button id="roadOpenBtn" type="button">افتح</button>
+      </div>
       <div class="row" style="gap:8px;margin-top:8px">
         <button id="parkPhone" style="flex:1">🅿️ ركنت هنا</button>
         <a class="btn" id="parkGo" target="_blank" rel="noopener" hidden style="flex:1;text-align:center">🚶 ودّينى للركنة</a>
@@ -412,9 +425,15 @@ body.solo .carOnly { display:none !important; }
         <button id="ctClearAll" type="button" style="width:100%;margin-top:6px;border-color:#b42318;color:#b42318">امسح كل جهات الاتصال</button>
         <p class="note">عند تفعيل المزامنة، حذف جهة أو مسح القائمة يزيلها من الأجهزة المرتبطة بعد المزامنة. إيقاف المزامنة يمسح نسخة الخادم ويُبقي النسخ المحلية.</p>
       </details>
-      <p class="note" id="roadNote"></p>
-      <div id="roadList" style="display:grid;gap:6px"></div>
-      <button id="clearTestBtn" style="width:100%;margin-top:8px">🧹 امسح كل مطبات التجربة</button>
+      <div id="roadModal" hidden>
+        <div class="row shots-modal-head">
+          <strong>〰️ المطبات المسجّلة</strong>
+          <button id="roadClose" type="button" aria-label="إغلاق المطبات المسجّلة">إغلاق ✕</button>
+        </div>
+        <p class="note" id="roadNote"></p>
+        <div id="roadList" style="display:grid;gap:6px"></div>
+        <button id="clearTestBtn" style="width:100%;margin-top:8px">🧹 امسح كل مطبات التجربة</button>
+      </div>
     </section>
 
     <section class="card" id="inboxCard">

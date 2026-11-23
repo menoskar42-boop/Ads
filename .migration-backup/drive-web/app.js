@@ -379,6 +379,7 @@
   }
   let shotsShown = 12;
   function openShots() {
+    if (document.body.classList.contains('road-on')) closeRoad();
     if (document.body.classList.contains('contacts-on')) callDone();
     $('shotsModal').hidden = false;
     document.body.classList.add('shots-on');
@@ -491,6 +492,7 @@
     const here = lastFix;
     const list = hz.map((h) => ({ h, d: here ? RD.distanceM(here.lat, here.lng, h.lat, h.lng) : null }))
       .sort((a, b) => (a.d == null ? 1e12 : a.d) - (b.d == null ? 1e12 : b.d)).slice(0, 20);
+    $('roadCount').textContent = list.length ? `${list.length} مطبات` : 'مفيش لسه';
     $('roadList').innerHTML = '';
     for (const { h, d } of list) {
       const row = document.createElement('div');
@@ -520,6 +522,22 @@
     $('clearTestBtn').hidden = tests === 0;
     $('clearTestBtn').textContent = '🧹 امسح كل مطبات التجربة (' + tests + ')';
   }
+  function openRoad() {
+    if (document.body.classList.contains('contacts-on')) callDone();
+    if (document.body.classList.contains('shots-on')) closeShots();
+    $('roadModal').hidden = false;
+    document.body.classList.add('road-on');
+    renderRoad();
+  }
+  function closeRoad() {
+    $('roadModal').hidden = true;
+    document.body.classList.remove('road-on');
+  }
+  $('roadOpenBtn').addEventListener('click', openRoad);
+  $('roadClose').addEventListener('click', closeRoad);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('road-on')) closeRoad();
+  });
   // إعدادات زى الشاشة (بتتفتكر على الموبايل ده): مسافة التنبيه · حد السرعة · عدم الإزعاج تحت ٧ كم/س
   const SET_KEY = 'od_road_settings';
   function loadSettings() {
@@ -965,6 +983,7 @@
   $('callNoBtn').addEventListener('click', () => { callDone(); $('voiceNote').textContent = '📞 اتلغى'; });
   $('callTestBtn').addEventListener('click', () => { const n = prompt('اسم من جهات الاتصال'); if (n && n.trim()) callAsk(n.trim(), null); });
   function showContactDirectory() {
+    if (document.body.classList.contains('road-on')) closeRoad();
     if (document.body.classList.contains('shots-on')) closeShots();
     callDone();
     $('callBox').hidden = false;
