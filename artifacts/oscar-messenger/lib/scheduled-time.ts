@@ -42,10 +42,7 @@ export function localTimeZoneName(): string {
 }
 
 export function earliestValidMinute(now = new Date()): Date {
-  const minute = 60_000;
-  let candidate = Math.ceil((now.getTime() + minute) / minute) * minute;
-  if (candidate - now.getTime() < 61_000) candidate += minute;
-  return new Date(candidate);
+  return new Date(Math.ceil((now.getTime() + 120_000) / 60_000) * 60_000);
 }
 
 export function formatLocalDateTime(value: string): string {

@@ -34,18 +34,18 @@ test("parses a second IANA device timezone", () =>
     assert.equal(value.toISOString(), "2027-06-15T13:25:00.000Z");
   }));
 
-test("suggests a whole minute 61 to 120 seconds ahead as a retry-safe minimum", () => {
+test("suggests a whole minute at least 120 seconds ahead as a retry-safe minimum", () => {
   const cases = [
     ["2027-05-01T12:00:00.000Z", 120_000],
-    ["2027-05-01T12:00:30.000Z", 90_000],
-    ["2027-05-01T12:00:59.000Z", 61_000],
+    ["2027-05-01T12:00:30.000Z", 150_000],
+    ["2027-05-01T12:00:59.000Z", 121_000],
   ];
   for (const [input, expectedDelta] of cases) {
     const now = new Date(input);
     const earliest = earliestValidMinute(now);
     assert.equal(earliest.getTime() - now.getTime(), expectedDelta);
-    assert.ok(earliest.getTime() - now.getTime() >= 61_000);
-    assert.ok(earliest.getTime() - now.getTime() <= 120_000);
+    assert.ok(earliest.getTime() - now.getTime() >= 120_000);
+    assert.ok(earliest.getTime() - now.getTime() < 180_000);
   }
 });
 
