@@ -338,14 +338,14 @@ const _afterVideos  = (typeof afterVideos  !== 'undefined') ? afterVideos  : [];
         <div id="before-upload-queue" class="mb-1"></div>
         <% if (beforePhotos.length) { %>
         <div class="photo-grid">
-          <% beforePhotos.forEach(p => { %><a href="/uploads/<%= p.filename %>" target="_blank"><img src="/uploads/<%= p.filename %>" class="photo-thumb" alt="صورة"></a><% }) %>
+          <% beforePhotos.forEach(p => { %><div class="photo-item"><a href="/uploads/<%= p.filename %>" target="_blank"><img src="/uploads/<%= p.filename %>" class="photo-thumb" alt="صورة"></a><% if (user && (user.role === 'technician' || user.sf_role === 'super_admin')) { %><button type="button" class="btn btn-outline-danger btn-sm mt-1 del-photo-btn" data-pid="<%= p.id %>"><i class="bi bi-trash"></i> حذف</button><% } %></div><% }) %>
         </div>
         <% } %>
         <% if (_beforeVideos.length) { %>
         <% if (beforePhotos.length) { %><hr class="my-2"><% } %>
         <div class="small fw-semibold text-primary mb-2"><i class="bi bi-camera-video me-1"></i>فيديوهات</div>
         <% _beforeVideos.forEach(v => { %>
-        <div class="mb-2"><video controls preload="metadata" style="max-width:100%;max-height:250px;border-radius:4px"><source src="/uploads/<%= v.filename %>" type="video/mp4"></video></div>
+        <div class="mb-2"><video controls preload="metadata" style="max-width:100%;max-height:250px;border-radius:4px"><source src="/uploads/<%= v.filename %>" type="video/mp4"></video><br><% if (user && (user.role === 'technician' || user.sf_role === 'super_admin')) { %><button type="button" class="btn btn-outline-danger btn-sm mt-1 del-photo-btn" data-pid="<%= v.id %>"><i class="bi bi-trash"></i> حذف</button><% } %></div>
         <% }) %>
         <% } %>
         <% if (!beforePhotos.length && !_beforeVideos.length) { %><p class="text-muted mb-0">لا توجد صور أو فيديوهات.</p><% } %>
@@ -373,14 +373,14 @@ const _afterVideos  = (typeof afterVideos  !== 'undefined') ? afterVideos  : [];
         <div id="after-upload-queue2" class="mb-1"></div>
         <% if (afterPhotos.length) { %>
         <div class="photo-grid">
-          <% afterPhotos.forEach(p => { %><a href="/uploads/<%= p.filename %>" target="_blank"><img src="/uploads/<%= p.filename %>" class="photo-thumb" alt="صورة"></a><% }) %>
+          <% afterPhotos.forEach(p => { %><div class="photo-item"><a href="/uploads/<%= p.filename %>" target="_blank"><img src="/uploads/<%= p.filename %>" class="photo-thumb" alt="صورة"></a><% if (user && (user.role === 'technician' || user.sf_role === 'super_admin')) { %><button type="button" class="btn btn-outline-danger btn-sm mt-1 del-photo-btn" data-pid="<%= p.id %>"><i class="bi bi-trash"></i> حذف</button><% } %></div><% }) %>
         </div>
         <% } %>
         <% if (_afterVideos.length) { %>
         <% if (afterPhotos.length) { %><hr class="my-2"><% } %>
         <div class="small fw-semibold text-primary mb-2"><i class="bi bi-camera-video me-1"></i>فيديوهات</div>
         <% _afterVideos.forEach(v => { %>
-        <div class="mb-2"><video controls preload="metadata" style="max-width:100%;max-height:250px;border-radius:4px"><source src="/uploads/<%= v.filename %>" type="video/mp4"></video></div>
+        <div class="mb-2"><video controls preload="metadata" style="max-width:100%;max-height:250px;border-radius:4px"><source src="/uploads/<%= v.filename %>" type="video/mp4"></video><br><% if (user && (user.role === 'technician' || user.sf_role === 'super_admin')) { %><button type="button" class="btn btn-outline-danger btn-sm mt-1 del-photo-btn" data-pid="<%= v.id %>"><i class="bi bi-trash"></i> حذف</button><% } %></div>
         <% }) %>
         <% } %>
         <% if (!afterPhotos.length && !_afterVideos.length) { %><p class="text-muted mb-0">لا توجد صور أو فيديوهات بعد الصيانة.</p><% } %>
@@ -454,4 +454,27 @@ const _afterVideos  = (typeof afterVideos  !== 'undefined') ? afterVideos  : [];
 })();
 </script>
 <% } %>
+<script>
+(function(){
+  document.querySelectorAll('.del-photo-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      if (!confirm('حذف الصورة دى نهائياً؟ مش هتترجع.')) return;
+      var self = this, pid = this.dataset.pid;
+      self.disabled = true;
+      self.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+      fetch('/boxes/photos/' + pid + '/delete', { method: 'POST', headers: { 'Accept': 'application/json' } })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d && d.ok) { location.reload(); return; }
+          alert((d && d.msg) || 'فشل الحذف.');
+          self.disabled = false; self.innerHTML = '<i class="bi bi-trash"></i> حذف';
+        })
+        .catch(function(){
+          alert('فشل الاتصال بالسيرفر.');
+          self.disabled = false; self.innerHTML = '<i class="bi bi-trash"></i> حذف';
+        });
+    });
+  });
+})();
+</script>
 <%- include('../partials/footer') %>

@@ -9,7 +9,6 @@ const {
   createMaintenanceBox,
   createMaintenanceCabinet,
   createMaintenanceExchange,
-  deleteMaintenancePhoto,
   deleteMaintenanceCabinet,
   deleteMaintenanceExchange,
   getMaintenanceBoxes,
@@ -454,32 +453,32 @@ router.post('/:id/location', requireRole('admin', 'inspector'), async (req, res)
   }
 });
 
-/* حذف صورة واحدة — **للسوبر أدمن بس** (قرار المالك ٢٠٢٦-٠٩-٢٢).
+/* حذف صورة واحدة — للسوبر أدمن، وفني الصيانة لصور «قبل/بعد الصيانة».
  *
  * السوبر أدمن بتاع Service-Flow بيدخل الصيانة بدور «admin» عادى (SF_ROLE_TO_MAINT
- * فى app.js)، فمينفعش نفرّق بـuser.role — الأدمن العادى والسوبر أدمن شكلهم
- * واحد هناك. التفرقة بـsf_role (الدور الأصلى اللى بيتحفظ فى الجلسة وقت الدخول).
+ * فى app.js)، لذلك يظل تمييزه عبر sf_role؛ الفني يُعرَف عبر user.role.
  *
  * الترتيب مقصود: الصف يتمسح من القاعدة **الأول**، وبعدها الملف. العكس لو فشل فى
  * النص كان هيسيب صف بيشاور على ملف اتمسح = صورة مكسورة فى الصفحة. */
 router.post('/photos/:photoId/delete', requireLogin, async (req, res) => {
   const u = req.session.user || {};
-  if (String(u.sf_role || '') !== 'super_admin') {
-    return res.status(403).json({ ok: false, msg: 'حذف الصور للسوبر أدمن بس.' });
-  }
   if (isMaintenanceHierarchyProofEnabled()) {
     return res.status(409).json({
       ok: false,
       msg: 'حذف الصور متوقف في وضع إثبات D1 حتى تتم مراجعة تنظيف الملفات في R2.',
     });
   }
-  const photo = isMaintenanceHierarchyProofEnabled()
-    ? await deleteMaintenancePhoto(req.session.user, req.params.photoId)
-    : await db.get('SELECT id, box_id, filename, storage_key, photo_type FROM photos WHERE id = ?', [req.params.photoId]);
+  const photo = await db.get('SELECT id, box_id, filename, storage_key, photo_type, media_type FROM photos WHERE id = ?', [req.params.photoId]);
   if (!photo) return res.status(404).json({ ok: false, msg: 'الصورة غير موجودة.' });
-  if (!isMaintenanceHierarchyProofEnabled()) await db.run('DELETE FROM photos WHERE id = ?', [photo.id]);
+  const isSuperAdmin = String(u.sf_role || '') === 'super_admin';
+  const isMaintenanceTechnician = String(u.role || '') === 'technician'
+    && ['before', 'after'].includes(String(photo.photo_type || ''));
+  if (!isSuperAdmin && !isMaintenanceTechnician) {
+    return res.status(403).json({ ok: false, msg: 'حذف الصور دى للسوبر أدمن بس.' });
+  }
+  await db.run('DELETE FROM photos WHERE id = ?', [photo.id]);
   await removeMediaFiles([photo], path.join(DATA_DIR, 'uploads'));
-  console.log(`[maintenance] 🗑️ صورة اتمسحت: #${photo.id} ${photo.filename} (بوكس ${photo.box_id}، ${photo.photo_type}) — بواسطة ${u.full_name || u.username || u.id}`);
+  console.log(`[maintenance] 🗑️ صورة اتمسحت: #${photo.id} ${photo.filename} (بوكس ${photo.box_id}، ${photo.photo_type}) — بواسطة ${u.full_name || u.username || u.id} (${u.role || u.sf_role || 'unknown'})`);
   res.json({ ok: true });
 });
 
