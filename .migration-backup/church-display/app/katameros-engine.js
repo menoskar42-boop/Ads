@@ -7,6 +7,17 @@
 
   const MONTHS = ["", "توت", "بابه", "هاتور", "كيهك", "طوبة", "أمشير", "برمهات", "برموده", "بشنس", "بؤونة", "أبيب", "مسرى", "النسيء"];
   const ORDINALS = ["", "الأول", "الثانى", "الثالث", "الرابع", "الخامس"];
+  const NUMBERED_BOOK_NAMES = new Map([
+    [9, "صموئيل الأول"], [10, "صموئيل الثاني"],
+    [11, "الملوك الأول"], [12, "الملوك الثاني"],
+    [13, "أخبار الأيام الأول"], [14, "أخبار الأيام الثاني"],
+    [46, "كورنثوس الأولى"], [47, "كورنثوس الثانية"],
+    [52, "تسالونيكي الأولى"], [53, "تسالونيكي الثانية"],
+    [54, "تيموثاوس الأولى"], [55, "تيموثاوس الثانية"],
+    [60, "بطرس الأولى"], [61, "بطرس الثانية"],
+    [62, "يوحنا الأولى"], [63, "يوحنا الثانية"], [64, "يوحنا الثالثة"],
+    [70, "المكابيين الأول"],
+  ]);
   const SECTION_TITLES = {
     vespers: "العشية", matins: "باكر", liturgy: "القداس",
     "hour-1": "الساعة الأولى", "hour-3": "الساعة الثالثة", "hour-6": "الساعة السادسة",
@@ -436,9 +447,11 @@
   }
   const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
   const toArabicDigits = (value) => String(value).replace(/\d/g, (digit) => AR_DIGITS[Number(digit)]);
+  const displayBookName = (book) => NUMBERED_BOOK_NAMES.get(book.id) ||
+    String(book.ar).replace(/^سفر\s+/, "").replace(/^[1-3]\s+/, "");
   async function readingText(reference) {
     const bible = await loadBible();
-    const names = new Map(data().books.map((book) => [book.id, String(book.ar).replace(/^سفر\s+/, "").replace(/^1\s+/, "")]));
+    const names = new Map(data().books.map((book) => [book.id, displayBookName(book)]));
     const passages = [];
     for (const part of referenceParts(reference)) {
       const chapterMap = bible.chapters.get(`${part.bookId}.${part.chapter}`);
@@ -518,7 +531,7 @@
     return referenceLabels(reference).join("؛ ");
   }
   function referenceLabels(reference) {
-    const names = new Map(data().books.map((book) => [book.id, String(book.ar).replace(/^سفر\s+/, "").replace(/^1\s+/, "")]));
+    const names = new Map(data().books.map((book) => [book.id, displayBookName(book)]));
     return referenceParts(reference).map((part) => {
       const spec = part.spec;
       const range = "list" in spec
