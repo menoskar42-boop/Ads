@@ -342,6 +342,142 @@
   });
   /* ───────── صور الطريق (تدريب موديل المطبات) ───────── */
   const REASON = { voice: '🎤', button: '📸', bump_approach: '〰️' };
+  const SHOT_LABELS = [
+    ['bump', 'مطب'], ['pothole', 'حفرة'], ['background', 'خلفية (مفيش حاجة)'],
+    ['sign', 'علامة'], ['signal', 'إشارة'], ['other', 'تانى'],
+  ];
+  const pendingShotBoxes = new Map();
+  function boxesForShot(s) {
+    if (pendingShotBoxes.has(s.id)) return pendingShotBoxes.get(s.id);
+    let boxes = s.review_boxes;
+    if (typeof boxes === 'string') { try { boxes = JSON.parse(boxes); } catch (e) { boxes = []; } }
+    return Array.isArray(boxes) ? boxes : [];
+  }
+  function shotReviewStatus(status) {
+    return ({ pending: '⏳ pending', approved: '✅ approved', rejected: '❌ rejected' })[status] || '⏳ pending';
+  }
+  async function openShotBoxEditor(s, imagePromise, labelSelect, boxButton) {
+    const image = await imagePromise;
+    if (!image || !image.naturalWidth || !image.naturalHeight) {
+      $('shotsNote').textContent = 'الصورة مش جاهزة للرسم';
+      return;
+    }
+    let boxes = boxesForShot(s).map((box) => ({ ...box }));
+    let start = null, draft = null;
+    const overlay = document.createElement('div');
+    overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:120;background:#101828;color:#fff;display:flex;flex-direction:column;gap:8px;padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));box-sizing:border-box;overflow:auto;overscroll-behavior:contain';
+    const toolbar = document.createElement('div');
+    toolbar.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex:0 0 auto';
+    const title = document.createElement('strong'); title.textContent = '✏️ مربعات الصورة';
+    const classSelect = document.createElement('select');
+    SHOT_LABELS.forEach(([value, text]) => { const option = document.createElement('option'); option.value = value; option.textContent = text; classSelect.append(option); });
+    classSelect.value = labelSelect.value;
+    const signalState = document.createElement('select');
+    [['red', 'أحمر'], ['amber', 'كهرمانى'], ['green', 'أخضر'], ['off', 'مطفى'], ['unknown', 'غير معروف']]
+      .forEach(([value, text]) => { const option = document.createElement('option'); option.value = value; option.textContent = text; signalState.append(option); });
+    signalState.value = 'unknown';
+    signalState.hidden = classSelect.value !== 'signal';
+    classSelect.addEventListener('change', () => {
+      labelSelect.value = classSelect.value;
+      signalState.hidden = classSelect.value !== 'signal';
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    canvas.style.cssText = 'display:block;max-width:100%;max-height:calc(100dvh - 175px);width:auto;height:auto;touch-action:none;background:#000;border-radius:8px';
+    const stage = document.createElement('div');
+    stage.style.cssText = 'flex:1 1 auto;min-height:0;display:grid;place-items:center;overflow:auto;background:#000;border-radius:8px';
+    stage.append(canvas);
+    const buttons = document.createElement('div');
+    buttons.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:center;flex:0 0 auto';
+    const done = document.createElement('button'); done.type = 'button'; done.textContent = 'تم';
+    const clear = document.createElement('button'); clear.type = 'button'; clear.textContent = 'امسح المربعات';
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'إلغاء';
+    buttons.append(done, clear, cancel); toolbar.append(title, classSelect, signalState);
+    overlay.append(toolbar, stage, buttons); document.body.append(overlay);
+    const ctx = canvas.getContext('2d');
+    const paint = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const drawBox = (box, color) => {
+        const x = box.x * canvas.width, y = box.y * canvas.height;
+        const w = box.w * canvas.width, h = box.h * canvas.height;
+        ctx.strokeStyle = color; ctx.lineWidth = Math.max(2, canvas.width / 500);
+        ctx.strokeRect(x, y, w, h);
+        ctx.fillStyle = color; ctx.font = `${Math.max(14, canvas.width / 45)}px sans-serif`;
+        ctx.fillText(box.cls, x + 3, Math.max(16, y - 4));
+      };
+      boxes.forEach((box) => drawBox(box, '#00e5ff'));
+      if (draft) drawBox(draft, '#ffcc00');
+    };
+    const point = (event) => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.min(canvas.width, (event.clientX - rect.left) * canvas.width / rect.width)),
+        y: Math.max(0, Math.min(canvas.height, (event.clientY - rect.top) * canvas.height / rect.height)),
+      };
+    };
+    canvas.addEventListener('pointerdown', (event) => {
+      event.preventDefault(); start = point(event); draft = null;
+      try { canvas.setPointerCapture(event.pointerId); } catch (e) {}
+    });
+    canvas.addEventListener('pointermove', (event) => {
+      if (!start) return;
+      const end = point(event);
+      draft = { x: Math.min(start.x, end.x) / canvas.width, y: Math.min(start.y, end.y) / canvas.height,
+        w: Math.abs(end.x - start.x) / canvas.width, h: Math.abs(end.y - start.y) / canvas.height,
+        cls: classSelect.value };
+      paint();
+    });
+    canvas.addEventListener('pointerup', (event) => {
+      if (!start) return;
+      const end = point(event);
+      const box = { x: Math.min(start.x, end.x) / canvas.width, y: Math.min(start.y, end.y) / canvas.height,
+        w: Math.abs(end.x - start.x) / canvas.width, h: Math.abs(end.y - start.y) / canvas.height, cls: classSelect.value };
+      if (box.w > 0.01 && box.h > 0.01) {
+        if (box.cls === 'signal') box.state = signalState.value;
+        boxes.push(box);
+      }
+      start = null; draft = null; paint();
+    });
+    clear.addEventListener('click', () => { boxes = []; draft = null; paint(); });
+    done.addEventListener('click', () => {
+      pendingShotBoxes.set(s.id, boxes);
+      labelSelect.value = classSelect.value;
+      boxButton.textContent = `✏️ مربع (${boxes.length})`;
+      overlay.remove();
+    });
+    cancel.addEventListener('click', () => overlay.remove());
+    paint();
+  }
+  function shotReviewRow(s, imagePromise) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:4px;min-width:0';
+    const status = document.createElement('span'); status.className = 'chip'; status.textContent = shotReviewStatus(s.review_status);
+    const label = document.createElement('select');
+    SHOT_LABELS.forEach(([value, text]) => { const option = document.createElement('option'); option.value = value; option.textContent = text; label.append(option); });
+    label.value = SHOT_LABELS.some(([value]) => value === s.review_label) ? s.review_label : 'bump';
+    const actions = document.createElement('div'); actions.style.cssText = 'display:flex;gap:3px;flex-wrap:wrap;justify-content:center';
+    const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = `✏️ مربع (${boxesForShot(s).length})`;
+    edit.addEventListener('click', () => { void openShotBoxEditor(s, imagePromise, label, edit); });
+    const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = '✅ اعتمد';
+    const reject = document.createElement('button'); reject.type = 'button'; reject.textContent = '❌ ارفض';
+    const sendReview = async (statusValue) => {
+      try {
+        await api('POST', `/api/web/shots/${s.id}/review`, {
+          status: statusValue, label: label.value || null, boxes: boxesForShot(s),
+        });
+        pendingShotBoxes.delete(s.id);
+        $('shotsNote').textContent = statusValue === 'approved' ? '✅ الصورة اتعمدت' : '❌ الصورة اترفضت';
+        await loadShots();
+      } catch (e) { $('shotsNote').textContent = e.message; }
+    };
+    approve.addEventListener('click', () => { void sendReview('approved'); });
+    reject.addEventListener('click', () => { void sendReview('rejected'); });
+    actions.append(edit, approve, reject);
+    row.append(status, label, actions);
+    return row;
+  }
   async function blobOf(path) {
     const r = await fetch(path, { cache: 'no-store', headers: { authorization: 'Bearer ' + token } });
     if (!r.ok) { let m = 'خطأ ' + r.status; try { m = (await r.json()).error || m; } catch (e) {} throw new Error(m); }
@@ -351,7 +487,7 @@
     try {
       const j = await api('GET', '/api/web/shots');
       const c = j.counts || {};
-      $('shotsInfo').textContent = `${c.total || 0} صورة · ${c.fresh || 0} جديدة · ${c.bumps || 0} قبل مطبات متسجّلة` + (c.test ? ` · 🧪 ${c.test} صورة تجربة (لوحدها — مابتدخلش التدريب)` : '');
+      $('shotsInfo').textContent = `${c.total || 0} صورة · ${c.fresh || 0} جديدة · ${c.bumps || 0} قبل مطبات متسجّلة · ✅ ${c.approved || 0} معتمدة · ⏳ ${c.pending || 0} للمراجعة` + (c.test ? ` · 🧪 ${c.test} صورة تجربة (لوحدها — مابتدخلش التدريب)` : '');
       $('shotsClearTest').hidden = !c.test; $('shotsClearTest').textContent = `🧹 امسح صور التجربة (${c.test || 0})`;
       const g = $('shotsGrid'); g.textContent = '';
       const all = j.shots || [];
@@ -360,9 +496,12 @@
       $('shotsMore').hidden = all.length <= shotsShown;
       for (const s of all.slice(0, shotsShown)) {
         const fig = document.createElement('figure');
-        fig.style.cssText = 'margin:0;font-size:11px;text-align:center;color:var(--muted)';
+        fig.style.cssText = 'margin:0;font-size:11px;text-align:center;color:var(--muted);min-width:0;overflow-wrap:anywhere';
         const img = document.createElement('img');
         img.alt = 'صورة طريق'; img.style.cssText = 'width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:#0002';
+        const imagePromise = blobOf(`/api/web/shots/${s.id}/jpg`).then(({ blob }) => {
+          img.src = URL.createObjectURL(blob); return img;
+        }).catch(() => null);
         fig.append(img, document.createTextNode(`${s.test ? '🧪 ' : ''}${REASON[s.reason] || ''} ${s.distance_m != null ? s.distance_m + 'م · ' : ''}${ago(s.at)}`));
         // المالك بيراجع الصور ويمسح اللى مش عايزها قبل التدريب
         const del = document.createElement('button'); del.textContent = 'مسح'; del.style.cssText = 'display:block;margin:2px auto 0;font-size:11px;padding:2px 8px';
@@ -372,8 +511,8 @@
           loadShots();
         });
         fig.append(del);
+        if (!s.test) fig.append(shotReviewRow(s, imagePromise));
         g.append(fig);
-        blobOf(`/api/web/shots/${s.id}/jpg`).then(({ blob }) => { img.src = URL.createObjectURL(blob); }).catch(() => {});
       }
     } catch (e) { /* مش مربوط أو مفيش نت */ }
   }
@@ -409,6 +548,16 @@
       document.body.append(a); a.click(); a.remove();
       $('shotsNote').textContent = `اتنزّل ${headers.get('X-Shots') || ''} صورة` + (headers.get('X-More') === '1' ? ' — فيه صور تانية، دوس تانى' : '');
       loadShots();
+    } catch (e) { $('shotsNote').textContent = e.message; }
+  });
+  $('shotsCocoBtn').addEventListener('click', async () => {
+    $('shotsNote').textContent = 'بيجهّز صور التدريب المعتمدة…';
+    try {
+      const { blob, headers } = await blobOf('/api/web/shots.coco.zip');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `oscar-approved-coco-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.append(a); a.click(); a.remove();
+      $('shotsNote').textContent = `اتنزّل ${headers.get('X-Shots') || ''} صورة معتمدة`;
     } catch (e) { $('shotsNote').textContent = e.message; }
   });
 

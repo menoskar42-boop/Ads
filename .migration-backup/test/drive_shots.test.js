@@ -8,8 +8,23 @@ const zlib = require('zlib');
 const shots = require('../src/drive/shots');
 
 const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(2000, 7), Buffer.from([0xff, 0xd9])]);
+const TINY_JPG = Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x07, 0x08, 0x00, 0x02, 0x00, 0x03, 0xff, 0xd9]);
 const meta = (extra = {}) => ({ uuid: '3f2b8c1e-1111-4222-8333-944455556666', t: Date.now() - 1000, reason: 'bump_approach', lat: 27.18, lng: 31.18,
   kmh: 42, hazard: { id: 5, type: 'bump', lat: 27.181, lng: 31.18 }, distanceM: 49.6, ...extra });
+
+function unzipStored(buf) {
+  const files = new Map();
+  let offset = 0;
+  while (offset + 30 <= buf.length && buf.readUInt32LE(offset) === 0x04034b50) {
+    const size = buf.readUInt32LE(offset + 18);
+    const nameLength = buf.readUInt16LE(offset + 26), extraLength = buf.readUInt16LE(offset + 28);
+    const nameStart = offset + 30, dataStart = nameStart + nameLength + extraLength;
+    const name = buf.toString('utf8', nameStart, nameStart + nameLength);
+    files.set(name, buf.subarray(dataStart, dataStart + size));
+    offset = dataStart + size;
+  }
+  return files;
+}
 
 describe('shots: validation + zip', () => {
   it('accepts a jpeg with clean metadata', () => {
@@ -47,6 +62,61 @@ describe('shots: validation + zip', () => {
     assert.equal(z.readUInt16LE(z.length - 12), 2);
     assert.equal(shots.crc32(Buffer.from('123456789')), 0xcbf43926);
     assert.ok(zlib);
+  });
+});
+
+describe('shots: review + COCO export', () => {
+  it('validates review status, labels, approval boxes, normalized bounds, and signal state', () => {
+    assert.deepEqual(shots.parseReview({ status: 'approved', label: 'background', boxes: [] }),
+      { status: 'approved', label: 'background', boxes: [] });
+    assert.equal(shots.parseReview({ status: 'approved', label: 'bump', boxes: [] }).error !== undefined, true);
+    assert.equal(shots.parseReview({ status: 'approved', label: 'bump', boxes: [{ x: 0, y: 0, w: 0.2, h: 0.2, cls: 'bump' }] }).error, undefined);
+    assert.equal(shots.parseReview({ status: 'approved', label: 'bump', boxes: [{ x: 0.9, y: 0.2, w: 0.2, h: 0.2, cls: 'bump' }] }).error !== undefined, true);
+    assert.equal(shots.parseReview({ status: 'pending', boxes: [{ x: 0, y: 0, w: 0.2, h: 0.2, cls: 'signal', state: 'blue' }] }).error !== undefined, true);
+  });
+
+  it('reads JPEG dimensions from SOF0/SOF2', () => {
+    assert.deepEqual(shots.jpegSize(TINY_JPG), { width: 3, height: 2 });
+    assert.equal(shots.jpegSize(Buffer.from('not jpeg')), null);
+  });
+
+  it('exports approved non-test photos as COCO with pixel boxes and no GPS coordinates', async () => {
+    const uuid = '5f2b8c1e-1111-4222-8333-944455556666';
+    const approved = {
+      id: 10, uuid, at: new Date('2026-11-24T10:00:00Z'), reason: 'bump_approach', hazard_type: 'bump',
+      distance_m: 50, bytes: TINY_JPG.length, jpg: null, r2_key: 'approved.jpg', test: false, review_status: 'approved',
+      review_boxes: [{ x: 0.1, y: 0.2, w: 0.5, h: 0.4, cls: 'bump' }],
+      meta: { lat: 27.1, lng: 31.2, heading: 90, kmh: 40, acc: 5, markM: 50, onsetM: 150,
+        hazard: { type: 'bump', oneway: true, lat: 27.1, lng: 31.2 } },
+    };
+    const rows = [
+      approved,
+      { ...approved, id: 11, uuid: '6f2b8c1e-1111-4222-8333-944455556666', review_status: 'rejected' },
+      { ...approved, id: 12, uuid: '7f2b8c1e-1111-4222-8333-944455556666', test: true },
+    ];
+    const pool = { async query(sql) {
+      assert.match(sql, /review_status = 'approved'/);
+      assert.match(sql, /AND NOT test/);
+      return { rows: rows.filter((row) => row.review_status === 'approved' && !row.test) };
+    } };
+    const store = { async getObject(key) { return key === 'approved.jpg' ? { body: TINY_JPG } : null; } };
+    const result = await shots.exportCoco(pool, 4, store);
+    assert.equal(result.count, 1);
+    assert.equal(result.more, false);
+    const files = unzipStored(result.buf);
+    assert.ok(files.has(`images/${uuid}.jpg`));
+    const coco = JSON.parse(files.get('annotations.json').toString('utf8'));
+    assert.equal(coco.images.length, 1);
+    assert.equal(coco.images[0].width, 3); assert.equal(coco.images[0].height, 2);
+    assert.equal(coco.annotations.length, 1);
+    const bbox = coco.annotations[0].bbox;
+    assert.ok(Math.abs(bbox[0] - 0.3) < 1e-9); assert.ok(Math.abs(bbox[1] - 0.4) < 1e-9);
+    assert.ok(Math.abs(bbox[2] - 1.5) < 1e-9); assert.ok(Math.abs(bbox[3] - 0.8) < 1e-9);
+    assert.ok(Math.abs(coco.annotations[0].area - 1.2) < 1e-9);
+    assert.equal(coco.annotations[0].category_id, 1);
+    const allKeys = (value) => value && typeof value === 'object'
+      ? Object.entries(value).flatMap(([key, child]) => [key, ...allKeys(child)]) : [];
+    assert.equal(allKeys(coco).some((key) => key === 'lat' || key === 'lng'), false);
   });
 });
 

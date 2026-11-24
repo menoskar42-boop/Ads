@@ -227,6 +227,26 @@ function createDriveSite({ pool, push } = {}) {
     try { res.set('Cache-Control', 'no-store'); res.json({ ok: true, ...(await shots.list(pool, req.owner.car_id)) }); }
     catch (e) { fail(res, 500, 'shots failed'); }
   });
+  router.get('/api/web/shots.coco.zip', ownerAuth, async (req, res) => {
+    try {
+      const z = await shots.exportCoco(pool, req.owner.car_id);
+      if (!z.count) return fail(res, 404, 'مفيش صور متراجعة لسه');
+      const name = `oscar-approved-coco-${new Date().toISOString().slice(0, 10)}.zip`;
+      res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${name}"`, 'X-Shots': String(z.count),
+        'X-More': z.more ? '1' : '0', 'Cache-Control': 'no-store' });
+      res.send(z.buf);
+    } catch (e) { fail(res, 500, 'COCO export failed'); }
+  });
+  router.post('/api/web/shots/:id/review', json, ownerAuth, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return fail(res, 400, 'bad id');
+    const parsed = shots.parseReview(req.body);
+    if (parsed.error) return fail(res, 400, parsed.error);
+    try {
+      if (!await shots.review(pool, req.owner.car_id, id, parsed)) return fail(res, 404, 'shot not found');
+      res.json({ ok: true });
+    } catch (e) { fail(res, 500, 'review failed'); }
+  });
   router.post('/api/web/shots/clear-test', ownerAuth, async (req, res) => {
     try { res.json({ ok: true, cleared: await shots.clearTest(pool, req.owner.car_id) }); }
     catch (e) { fail(res, 500, 'clear failed'); }

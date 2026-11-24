@@ -6,6 +6,10 @@ const MAX_BYTES = 600 * 1024;
 const MAX_PER_CAR = 1500;
 const ZIP_MAX_BYTES = 20 * 1024 * 1024;   // GitHub بيقبل لحد ٢٥ ميجا للملف من المتصفح
 const REASONS = new Set(['voice', 'button', 'bump_approach']);
+const LABELS = ['bump', 'pothole', 'background', 'sign', 'signal', 'other'];
+const REVIEW_STATUSES = new Set(['pending', 'approved', 'rejected']);
+const SIGNAL_STATES = new Set(['red', 'amber', 'green', 'off', 'unknown']);
+const ARROWS = new Set(['none', 'left', 'right', 'straight']);
 
 function isJpeg(buf) { return Buffer.isBuffer(buf) && buf.length > 4 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff; }
 
@@ -46,6 +50,45 @@ function parse(body) {
   };
 }
 
+function parseReview(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return { error: 'بيانات المراجعة غير صحيحة' };
+  if (Object.keys(body).some((key) => !['status', 'label', 'boxes'].includes(key))) return { error: 'حقول مراجعة غير معروفة' };
+  if (!REVIEW_STATUSES.has(body.status)) return { error: 'حالة المراجعة غير صحيحة' };
+  const label = body.label == null ? null : body.label;
+  if (label !== null && !LABELS.includes(label)) return { error: 'نوع الصورة غير صحيح' };
+  const inputBoxes = body.boxes == null ? [] : body.boxes;
+  if (!Array.isArray(inputBoxes) || inputBoxes.length > 20) return { error: 'عدد المربعات غير صحيح' };
+  const boxes = [];
+  for (const box of inputBoxes) {
+    if (!box || typeof box !== 'object' || Array.isArray(box) ||
+        Object.keys(box).some((key) => !['x', 'y', 'w', 'h', 'cls', 'state', 'arrow'].includes(key))) {
+      return { error: 'بيانات المربع غير صحيحة' };
+    }
+    const { x, y, w, h, cls } = box;
+    if (![x, y, w, h].every((n) => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1) ||
+        w <= 0.01 || h <= 0.01 || x + w > 1.0001 || y + h > 1.0001 || !LABELS.includes(cls)) {
+      return { error: 'إحداثيات أو نوع المربع غير صحيحة' };
+    }
+    const clean = { x, y, w, h, cls };
+    if (box.state !== undefined) {
+      if (cls !== 'signal' || !SIGNAL_STATES.has(box.state)) return { error: 'لون الإشارة غير صحيح' };
+      clean.state = box.state;
+    }
+    if (box.arrow !== undefined) {
+      if (!ARROWS.has(box.arrow)) return { error: 'اتجاه السهم غير صحيح' };
+      clean.arrow = box.arrow;
+    }
+    boxes.push(clean);
+  }
+  if (body.status === 'approved') {
+    if (!label) return { error: 'اختار نوع الصورة قبل اعتمادها' };
+    if (['bump', 'pothole', 'sign', 'signal'].includes(label) && boxes.length === 0) {
+      return { error: 'ارسم مربعاً واحداً على الأقل قبل اعتماد الصورة' };
+    }
+  }
+  return { status: body.status, label, boxes };
+}
+
 /*
  * Cloudflare R2 (نفس كود صور الصيانة — serviceflow/server/maintenance/app/utils/r2.js، من غير مكتبات): لو الأسرار الأربعة موجودة
  * الصورة بتتحفظ هناك (oscar-drive/shots/<عربية>/<uuid>.jpg) والقاعدة فيها البيانات بس. لو R2 مش متظبّط أو فشل ⇒ القاعدة زى الأول.
@@ -70,6 +113,10 @@ async function save(pool, carId, p, store = r2On() ? r2 : null) {
        SELECT id FROM od_shots WHERE car_id = $1 ORDER BY (exported_at IS NULL), at DESC OFFSET $2) RETURNING r2_key`,
     [carId, MAX_PER_CAR]);
   for (const r of rows) if (r.r2_key && store) await store.deleteObject(r.r2_key).catch(() => {});
+  const { rows: expired } = await pool.query(
+    `DELETE FROM od_shots WHERE car_id = $1 AND review_status = 'pending' AND NOT test
+       AND at < now() - interval '90 days' RETURNING r2_key`, [carId]);
+  for (const r of expired) if (r.r2_key && store) await store.deleteObject(r.r2_key).catch(() => {});
 }
 
 /** الصورة نفسها: من R2 لو اتحفظت هناك، وإلا من القاعدة. */
@@ -81,13 +128,24 @@ async function bytesOf(row, store = r2) {
 
 async function list(pool, carId) {
   const { rows } = await pool.query(
-    `SELECT id, at, reason, hazard_type, distance_m, bytes, exported_at IS NOT NULL AS exported, test
+    `SELECT id, at, reason, hazard_type, distance_m, bytes, exported_at IS NOT NULL AS exported, test,
+            review_status, review_label, review_boxes
        FROM od_shots WHERE car_id = $1 ORDER BY at DESC LIMIT 60`, [carId]);
   const { rows: [c] } = await pool.query(
     `SELECT count(*) FILTER (WHERE NOT test)::int AS total, count(*) FILTER (WHERE exported_at IS NULL AND NOT test)::int AS fresh,
             count(*) FILTER (WHERE reason = 'bump_approach' AND NOT test)::int AS bumps,
+            count(*) FILTER (WHERE review_status = 'approved' AND NOT test)::int AS approved,
+            count(*) FILTER (WHERE review_status = 'pending' AND NOT test)::int AS pending,
             count(*) FILTER (WHERE test)::int AS test FROM od_shots WHERE car_id = $1`, [carId]);
   return { shots: rows, counts: c };
+}
+
+async function review(pool, carId, id, r) {
+  const { rows } = await pool.query(
+    `UPDATE od_shots SET review_status = $3, review_label = $4, review_boxes = $5, reviewed_at = now()
+      WHERE car_id = $1 AND id = $2 AND NOT test RETURNING id`,
+    [carId, id, r.status, r.label, JSON.stringify(r.boxes)]);
+  return !!rows[0];
 }
 
 async function jpg(pool, carId, id, store = r2) {
@@ -124,6 +182,29 @@ function zip(files) {
   return Buffer.concat([...parts, cd, end]);
 }
 
+function jpegSize(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return null;
+  let i = 2;
+  while (i < buf.length) {
+    if (buf[i] !== 0xff) { i++; continue; }
+    while (i < buf.length && buf[i] === 0xff) i++;
+    if (i >= buf.length) return null;
+    const marker = buf[i++];
+    if (marker === 0xd9 || marker === 0xda) return null;
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (i + 1 >= buf.length) return null;
+    const length = buf.readUInt16BE(i);
+    if (length < 2 || i + length > buf.length) return null;
+    if (marker === 0xc0 || marker === 0xc2) {
+      if (length < 7) return null;
+      const height = buf.readUInt16BE(i + 3), width = buf.readUInt16BE(i + 5);
+      return width > 0 && height > 0 ? { width, height } : null;
+    }
+    i += length;
+  }
+  return null;
+}
+
 /** الصور اللى لسه ماتنزّلتش (أو كلها) لحد ٢٠ ميجا — كل صورة جنبها json ببياناتها. بيعلّمهم «اتنزّلت». */
 async function exportZip(pool, carId, all, store = r2, test = false) {
   const { rows } = await pool.query(
@@ -145,6 +226,63 @@ async function exportZip(pool, carId, all, store = r2, test = false) {
   return { buf: zip(files), count: ids.length, more: rows.length > ids.length };
 }
 
+/** COCO للصور المعتمدة فقط، بدون إحداثيات GPS — الصور ممكن تتشارك للمراجعة خارجياً. */
+async function exportCoco(pool, carId, store = r2) {
+  const { rows } = await pool.query(
+    `SELECT id, uuid, at, reason, hazard_type, distance_m, meta, jpg, r2_key, bytes,
+            review_status, review_label, review_boxes
+       FROM od_shots WHERE car_id = $1 AND review_status = 'approved' AND NOT test ORDER BY at`, [carId]);
+  const approved = rows.filter((row) => row.review_status === 'approved' && !row.test);
+  const files = [], images = [], annotations = [];
+  let size = 0, annotationId = 1;
+  for (const row of approved) {
+    if (size + (row.bytes || 0) > ZIP_MAX_BYTES) break;
+    const jpg = await bytesOf(row, store);
+    if (!jpg) continue;
+    const meta = row.meta && typeof row.meta === 'object' ? row.meta : {};
+    const detectedSize = jpegSize(jpg);
+    const width = detectedSize ? detectedSize.width : Number(meta.camera && meta.camera.w);
+    const height = detectedSize ? detectedSize.height : Number(meta.camera && meta.camera.h);
+    if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) continue;
+    const imageId = Number(row.id);
+    const fileName = `images/${row.uuid}.jpg`;
+    images.push({
+      id: imageId, file_name: fileName, width, height, at: row.at, reason: row.reason,
+      distance_m: row.distance_m, markM: Number.isFinite(meta.markM) ? meta.markM : null,
+      onsetM: Number.isFinite(meta.onsetM) ? meta.onsetM : null,
+      hazard: { type: meta.hazard && meta.hazard.type || row.hazard_type || null, oneway: !!(meta.hazard && meta.hazard.oneway) },
+      heading: Number.isFinite(meta.heading) ? meta.heading : null,
+      kmh: Number.isFinite(meta.kmh) ? meta.kmh : null,
+      acc: Number.isFinite(meta.acc) ? meta.acc : null,
+    });
+    files.push({ name: fileName, data: jpg });
+    let boxes = row.review_boxes;
+    if (typeof boxes === 'string') { try { boxes = JSON.parse(boxes); } catch (e) { boxes = []; } }
+    if (!Array.isArray(boxes)) boxes = [];
+    for (const box of boxes) {
+      const categoryId = LABELS.indexOf(box.cls) + 1;
+      if (categoryId < 1) continue;
+      const bbox = [box.x * width, box.y * height, box.w * width, box.h * height];
+      const annotation = {
+        id: annotationId++, image_id: imageId, category_id: categoryId, bbox,
+        area: bbox[2] * bbox[3], iscrowd: 0,
+      };
+      const attributes = {};
+      if (box.state !== undefined) attributes.state = box.state;
+      if (box.arrow !== undefined) attributes.arrow = box.arrow;
+      if (Object.keys(attributes).length) annotation.attributes = attributes;
+      annotations.push(annotation);
+    }
+    size += jpg.length;
+  }
+  const coco = {
+    info: { description: 'Oscar Drive approved road photos (human-reviewed)', date_created: new Date().toISOString() },
+    images, annotations, categories: LABELS.map((name, index) => ({ id: index + 1, name, supercategory: 'road' })),
+  };
+  files.push({ name: 'annotations.json', data: Buffer.from(JSON.stringify(coco)) });
+  return { buf: zip(files), count: images.length, more: rows.length > images.length };
+}
+
 /** «🧹 امسح صور التجربة»: الصفوف وملفاتها على R2. */
 async function clearTest(pool, carId, store = r2) {
   const { rows } = await pool.query('DELETE FROM od_shots WHERE car_id = $1 AND test RETURNING r2_key', [carId]);
@@ -159,4 +297,4 @@ async function remove(pool, carId, id, store = r2) {
   return rows.length;
 }
 
-module.exports = { parse, save, list, jpg, exportZip, clearTest, remove, zip, crc32, isJpeg, MAX_BYTES, MAX_PER_CAR };
+module.exports = { parse, parseReview, save, list, review, jpg, exportZip, exportCoco, jpegSize, LABELS, clearTest, remove, zip, crc32, isJpeg, MAX_BYTES, MAX_PER_CAR };
