@@ -85,6 +85,7 @@ test("the shared control app defaults to the same-origin online library and expo
   ]);
 
   assert.match(control, /ONLINE_TRIAL[\s\S]*out\/library\.js/);
+  assert.match(control, /library-path\.online-trial\.v1/);
   assert.match(control, /libraryUrl\.origin === window\.location\.origin/);
   assert.match(control, /onlineTrialNotice[\s\S]*!ONLINE_TRIAL/);
   assert.match(index, /تجربة أونلاين — الشرايح محوّلة بـLibreOffice/);

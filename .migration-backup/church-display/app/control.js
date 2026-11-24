@@ -2,9 +2,11 @@
   "use strict";
   const L = window.ChurchDisplayLib;
   const $ = (id) => document.getElementById(id);
-  const PATH_KEY = "church-display.library-path.v1";
   const SERVICE_KEY = "church-display.today-service.v1";
   const ONLINE_TRIAL = /^\/liturgy-slides(?:\/|$)/.test(window.location.pathname);
+  const PATH_KEY = ONLINE_TRIAL
+    ? "church-display.library-path.online-trial.v1"
+    : "church-display.library-path.v1";
   const DEFAULT_LIBRARY_PATH = ONLINE_TRIAL ? "out/library.js" : "../out/library.js";
   let library = { generatedAt: "", decks: [] };
   let libraryScript = null;
