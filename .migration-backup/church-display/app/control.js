@@ -12,6 +12,8 @@
   let displayWindow = null;
   let serviceItems = [];
   let showHidden = false;
+  let generatedDecks = [];
+  let activeRange = null;
 
   function safeGet(key) {
     try { return window.localStorage.getItem(key); } catch (_) { return null; }
@@ -54,7 +56,9 @@
         safeSet(PATH_KEY, path);
         renderTree();
         renderSearch();
+        renderService();
         setStatus(`اتحمّلت ${library.decks.length} عروض`);
+        window.dispatchEvent(new CustomEvent("church-library-loaded"));
       } catch (error) {
         library = { generatedAt: "", decks: [] };
         renderTree();
@@ -138,22 +142,29 @@
     }
   }
 
-  function slidesFor(deck) {
-    return L.visibleSlides(deck, showHidden);
+  function allDecks() {
+    return library.decks.concat(generatedDecks);
   }
 
-  function selectDeck(deck, preferredNumber) {
+  function slidesFor(deck, range) {
+    let slides = L.visibleSlides(deck, showHidden);
+    if (range) slides = slides.filter((slide) => Number(slide.n) >= range.start && Number(slide.n) <= range.end);
+    return slides;
+  }
+
+  function selectDeck(deck, preferredNumber, range) {
     selectedDeck = deck;
-    const slides = slidesFor(deck);
+    activeRange = range && Number.isFinite(range.start) && Number.isFinite(range.end) ? range : null;
+    const slides = slidesFor(deck, activeRange);
     selectedSlide = preferredNumber
-      ? L.slideByNumber(deck, preferredNumber, showHidden)
+      ? slides.find((slide) => Number(slide.n) === Number(preferredNumber)) || slides.find((slide) => Number(slide.n) > Number(preferredNumber)) || slides[slides.length - 1] || null
       : slides[0] || null;
     renderSelection();
     sendState("slide");
   }
 
   function renderSelection() {
-    const slides = selectedDeck ? slidesFor(selectedDeck) : [];
+    const slides = selectedDeck ? slidesFor(selectedDeck, activeRange) : [];
     const index = selectedSlide
       ? slides.findIndex((slide) => Number(slide.n) === Number(selectedSlide.n))
       : -1;
@@ -175,13 +186,22 @@
       button.className = "thumb";
       button.setAttribute("aria-label", `افتح الشريحة ${slide.n}`);
       const image = document.createElement("img");
-      image.loading = "lazy";
-      image.decoding = "async";
-      image.alt = "";
-      image.src = localAssetUrl(selectedDeck, slide);
+      if (slide.generated) {
+        image.remove();
+        const text = document.createElement("span");
+        text.className = "thumb-text";
+        text.textContent = String(slide.text || "").slice(0, 100);
+        button.appendChild(text);
+      } else {
+        image.loading = "lazy";
+        image.decoding = "async";
+        image.alt = "";
+        image.src = localAssetUrl(selectedDeck, slide);
+        button.appendChild(image);
+      }
       const number = document.createElement("span");
       number.textContent = slide.n;
-      button.append(image, number);
+      button.append(number);
       button.addEventListener("click", () => {
         selectedSlide = slide;
         renderSelection();
@@ -193,7 +213,10 @@
 
   function changeSlide(delta) {
     if (!selectedDeck || !selectedSlide) return;
-    selectedSlide = L.navigateVisible(selectedDeck, selectedSlide.n, delta, showHidden);
+    const slides = slidesFor(selectedDeck, activeRange);
+    let index = slides.findIndex((slide) => Number(slide.n) === Number(selectedSlide.n));
+    index = Math.max(0, Math.min(slides.length - 1, index + delta));
+    selectedSlide = slides[index] || null;
     renderSelection();
     sendState("slide");
   }
@@ -208,21 +231,23 @@
       slideNumber: selectedSlide ? selectedSlide.n : null,
       showHidden,
       assetBase,
+      range: activeRange,
     }, "*");
   }
 
   function renderService() {
     const host = $("serviceList");
     host.replaceChildren();
-    serviceItems.forEach((source, index) => {
-      const deck = library.decks.find((item) => item.source === source);
+    serviceItems.forEach((storedItem, index) => {
+      const serviceItem = typeof storedItem === "string" ? { source: storedItem } : storedItem;
+      const deck = allDecks().find((item) => item.source === serviceItem.source);
       if (!deck) return;
       const row = document.createElement("li");
       const actions = document.createElement("div");
       actions.className = "service-item";
       const open = document.createElement("button");
-      open.textContent = titleFor(deck);
-      open.addEventListener("click", () => selectDeck(deck));
+      open.textContent = `${serviceItem.label || titleFor(deck)}${serviceItem.start && serviceItem.end ? ` — ${serviceItem.start}–${serviceItem.end}` : ""}${deck.generated ? " — من بياناتنا" : ""}`;
+      open.addEventListener("click", () => selectDeck(deck, serviceItem.start, serviceItem.start && serviceItem.end ? { start: Number(serviceItem.start), end: Number(serviceItem.end) } : null));
       const up = document.createElement("button");
       up.className = "mini";
       up.textContent = "↑";
@@ -260,6 +285,45 @@
     renderService();
   }
 
+  function addServiceItem(item) {
+    if (!item || typeof item.source !== "string") return false;
+    const duplicate = serviceItems.some((value) => {
+      const current = typeof value === "string" ? { source: value } : value;
+      return current.source === item.source && Number(current.start || 0) === Number(item.start || 0) &&
+        Number(current.end || 0) === Number(item.end || 0);
+    });
+    if (duplicate) return false;
+    serviceItems.push(item);
+    persistService();
+    return true;
+  }
+
+  function openGeneratedDeck(deck) {
+    if (!deck || !deck.generated || !deck.slides.length) return;
+    registerGeneratedDeck(deck);
+    addServiceItem({
+      source: deck.source,
+      start: 1,
+      end: deck.slides.length,
+      label: deck.title,
+      generated: true,
+      reading: deck.reading,
+      generatedDate: deck.generatedDate,
+    });
+    selectDeck(deck, 1, { start: 1, end: deck.slides.length });
+  }
+
+  function registerGeneratedDeck(deck) {
+    if (!deck || !deck.generated) return;
+    if (!generatedDecks.some((item) => item.source === deck.source)) generatedDecks.push(deck);
+    renderService();
+  }
+
+  function setServiceItems(items) {
+    serviceItems = Array.isArray(items) ? items : [];
+    persistService();
+  }
+
   function moveService(index, delta) {
     const destination = index + delta;
     if (destination < 0 || destination >= serviceItems.length) return;
@@ -269,7 +333,10 @@
 
   function jumpToNumber() {
     if (!selectedDeck) return;
-    selectedSlide = L.slideByNumber(selectedDeck, $("slideNumber").value, showHidden);
+    const target = Number($("slideNumber").value);
+    const slides = slidesFor(selectedDeck, activeRange);
+    selectedSlide = slides.find((slide) => Number(slide.n) === target) ||
+      slides.find((slide) => Number(slide.n) > target) || slides[slides.length - 1] || null;
     renderSelection();
     sendState("slide");
   }
@@ -293,7 +360,8 @@
   $("showHidden").addEventListener("change", (event) => {
     showHidden = event.target.checked;
     if (selectedDeck && selectedSlide && selectedSlide.hidden && !showHidden) {
-      selectedSlide = L.slideByNumber(selectedDeck, selectedSlide.n, false);
+      const slides = slidesFor(selectedDeck, activeRange);
+      selectedSlide = slides.find((slide) => Number(slide.n) > Number(selectedSlide.n)) || slides[slides.length - 1] || null;
     }
     renderSelection();
     sendState("slide");
@@ -301,9 +369,12 @@
   $("blackScreen").addEventListener("click", () => sendState("black"));
   $("whiteScreen").addEventListener("click", () => sendState("white"));
   $("addToService").addEventListener("click", () => {
-    if (!selectedDeck || serviceItems.includes(selectedDeck.source)) return;
-    serviceItems.push(selectedDeck.source);
-    persistService();
+    if (!selectedDeck) return;
+    addServiceItem({
+      source: selectedDeck.source,
+      ...(activeRange ? { start: activeRange.start, end: activeRange.end } : {}),
+      label: titleFor(selectedDeck),
+    });
   });
   window.addEventListener("message", (event) => {
     if (!displayWindow || event.source !== displayWindow || !event.data) return;
@@ -328,7 +399,18 @@
   });
 
   const storedService = safeJsonGet(SERVICE_KEY, []);
-  serviceItems = Array.isArray(storedService) ? storedService.filter((item) => typeof item === "string") : [];
+  serviceItems = Array.isArray(storedService)
+    ? storedService.filter((item) => typeof item === "string" || item && typeof item.source === "string")
+    : [];
   renderService();
   loadLibraryScript($("libraryPath").value);
+  window.ChurchControl = {
+    getLibrary: () => library,
+    getServiceItems: () => serviceItems.slice(),
+    setServiceItems,
+    addServiceItem,
+    selectDeck,
+    openGeneratedDeck,
+    registerGeneratedDeck,
+  };
 })();

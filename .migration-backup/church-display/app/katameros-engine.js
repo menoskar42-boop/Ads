@@ -304,7 +304,7 @@
         plan.title ? "عيد" : fasts.length ? "صوم" : "يوم عادي";
     const raw = String(plan.rawTune || "");
     let tune = raw;
-    if (/lenten|abstinence/i.test(raw) || season.includes("الصوم") || fasts.includes("صوم نينوى")) tune = "لحن صيامي";
+    if (/lenten|abstinence/i.test(raw) || fasts.length > 0) tune = "لحن صيامي";
     else if (/festal|joyous/i.test(raw) || isPentecostSeason || /Easter|Nayrouz|Cross|Christmas|Theophany/i.test(plan.source)) tune = "لحن فرايحي";
     else if (!tune) tune = "اللحن السنوي";
     return { dayType, season: season || "السنوي", tune, rawTune: raw || null, fasts, copticLabel: copticDateLabel(coptic) };
@@ -391,10 +391,25 @@
   }
   let biblePromise = null;
   let bibleIndex = null;
+  let bibleScriptPromise = null;
+  function loadBibleDataScript() {
+    if (root.CHURCH_BIBLE_GZIP_BASE64) return Promise.resolve();
+    if (bibleScriptPromise) return bibleScriptPromise;
+    if (!root.document) return Promise.reject(new Error("ملف نص الكتاب غير محمّل."));
+    bibleScriptPromise = new Promise((resolve, reject) => {
+      const script = root.document.createElement("script");
+      script.src = new URL("./data/bible-data.js", root.document.baseURI).href;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("تعذر تحميل ملف نص الكتاب المحلي."));
+      root.document.head.appendChild(script);
+    });
+    return bibleScriptPromise;
+  }
   async function loadBible() {
     if (bibleIndex) return bibleIndex;
     if (!biblePromise) {
       biblePromise = (async () => {
+        await loadBibleDataScript();
         const encoded = root.CHURCH_BIBLE_GZIP_BASE64;
         if (!encoded) throw new Error("نص الكتاب المحلي غير محمّل.");
         const binary = typeof atob === "function" ? atob(encoded) : Buffer.from(encoded, "base64").toString("binary");
@@ -417,7 +432,7 @@
         return bibleIndex;
       })();
     }
-    try { return await biblePromise; } catch (error) { biblePromise = null; throw error; }
+    try { return await biblePromise; } catch (error) { biblePromise = null; bibleScriptPromise = null; throw error; }
   }
   const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
   const toArabicDigits = (value) => String(value).replace(/\d/g, (digit) => AR_DIGITS[Number(digit)]);
@@ -478,11 +493,11 @@
     if (reading.type !== "synaxarium" && content.passages.some((passage) => passage.pending)) {
       throw new Error("المرجع فيه جزء غير متاح أو محتاج مراجعة فى بيانات الكتاب؛ لن نعرض نصاً ناقصاً.");
     }
-    const body = content.passages.flatMap((passage) =>
-      passage.verses.map((verse) => `${verse.verse ? toArabicDigits(verse.verse) + " " : ""}${verse.text}`),
-    ).join("\n");
-    if (!body.trim()) return null;
-    const pages = splitTextIntoPages(body, 280);
+    const passageTexts = content.passages.map((passage) =>
+      passage.verses.map((verse) => `${verse.verse ? toArabicDigits(verse.verse) + " " : ""}${verse.text}`).join("\n"),
+    );
+    if (!passageTexts.some((text) => text.trim())) return null;
+    const pages = passageTexts.flatMap((text) => splitTextIntoPages(text, 280));
     const title = reading.title || reading.type;
     const slides = [
       { n: 1, file: null, hidden: false, generated: true, text: `${title}\n${content.passages.map((passage) => passage.label).join("\n")}` },
@@ -494,13 +509,13 @@
       source: `__generated__/${date}/${reading.id}`,
       generated: true,
       readingId: reading.id,
+      reading: { ...reading },
+      generatedDate: date,
       slides,
     };
   }
   function formatReference(reference) {
-    return String(reference || "").replace(/(\d+)\.(\d+):/g, (_, book, chapter) =>
-      `${data().books.find((item) => item.id === Number(book))?.ar || book} ${toArabicDigits(chapter)}:`,
-    ).replace(/\d/g, (digit) => AR_DIGITS[Number(digit)]).replace(/\*/g, "");
+    return referenceLabels(reference).join("؛ ");
   }
   function referenceLabels(reference) {
     const names = new Map(data().books.map((book) => [book.id, String(book.ar).replace(/^سفر\s+/, "").replace(/^1\s+/, "")]));

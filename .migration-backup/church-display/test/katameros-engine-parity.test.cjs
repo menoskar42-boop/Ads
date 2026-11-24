@@ -46,10 +46,12 @@ test("plain-JS calendar matches MyBible Katameros for nine known days", () => {
 test("day metadata identifies the requested seasons and weekly fasts", () => {
   const metadata = (date) => engine.getDayMetadata(engine.planForDate(date));
   assert.ok(metadata("2027-02-22").fasts.includes("صوم نينوى"));
+  assert.equal(metadata("2027-02-22").dayType, "صوم نينوى");
   assert.ok(metadata("2026-11-25").fasts.includes("صوم الميلاد"));
   assert.ok(metadata("2027-06-22").fasts.includes("صوم الرسل"));
   assert.equal(metadata("2027-06-20").season, "الخماسين المقدسة");
   assert.ok(metadata("2026-11-18").fasts.includes("صوم الأربعاء"));
+  assert.equal(metadata("2026-11-18").tune, "لحن صيامي");
   assert.equal(metadata("2027-04-30").dayType, "أسبوع البصخة");
   assert.equal(metadata("2026-09-11").season, "السنوي");
 });

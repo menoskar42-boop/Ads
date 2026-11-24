@@ -81,7 +81,7 @@ test("library loading validates the generated file and retains its deck index", 
   const source = fs.readFileSync(path.join(sampleRoot, "library.js"), "utf8");
   vm.runInNewContext(source, { window });
   const loaded = lib.loadLibrary(window.CHURCH_LIBRARY);
-  assert.equal(loaded.decks.length, 1);
+  assert.equal(loaded.decks.length, 2);
   assert.equal(loaded.decks[0].slides.length, 5);
   assert.throws(() => lib.loadLibrary({ decks: "invalid" }), /ملف المكتبة غير صالح/);
   assert.equal(
@@ -97,7 +97,7 @@ test("manual sample images exist and app code stays local-only", () => {
     assert.ok(fs.statSync(file).size > 100);
   }
   const appDir = path.resolve(__dirname, "../app");
-  for (const file of ["control.js", "display.js"]) {
+  for (const file of ["control.js", "display.js", "today.js", "katameros-engine.js", "reading-matcher.js"]) {
     const source = fs.readFileSync(path.join(appDir, file), "utf8");
     assert.doesNotMatch(source, /\bfetch\s*\(|XMLHttpRequest|https?:\/\//);
   }

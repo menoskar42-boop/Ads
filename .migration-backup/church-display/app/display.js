@@ -1,6 +1,7 @@
 (function () {
   "use strict";
   const imageElement = document.getElementById("slideImage");
+  const generatedText = document.getElementById("generatedText");
   const blankScreen = document.getElementById("blankScreen");
   let deck = null;
   let slides = [];
@@ -12,7 +13,7 @@
 
   function visibleSlides() {
     return (Array.isArray(deck && deck.slides) ? deck.slides : [])
-      .filter((slide) => showHidden || !slide.hidden);
+      .filter((slide) => !slide.error && (showHidden || !slide.hidden));
   }
   function assetUrl(slide) {
     const source = String(deck.source || "").replace(/\\/g, "/");
@@ -60,12 +61,14 @@
   function render() {
     if (mode === "black") {
       imageElement.hidden = true;
+      generatedText.hidden = true;
       blankScreen.hidden = true;
       document.body.style.background = "#000";
       return;
     }
     if (mode === "white") {
       imageElement.hidden = true;
+      generatedText.hidden = true;
       blankScreen.hidden = false;
       return;
     }
@@ -75,9 +78,19 @@
     if (index < 0) {
       clearImageCache();
       imageElement.hidden = true;
+      generatedText.hidden = true;
       return;
     }
     releaseOutsideWindow(index);
+    if (slides[index].generated) {
+      clearImageCache();
+      imageElement.removeAttribute("src");
+      imageElement.hidden = true;
+      generatedText.textContent = String(slides[index].text || "");
+      generatedText.hidden = false;
+      return;
+    }
+    generatedText.hidden = true;
     imageElement.hidden = false;
     const existing = imageCache.get(index);
     if (existing && existing.complete && existing.naturalWidth > 0) {
@@ -101,6 +114,7 @@
       clearImageCache();
       imageElement.removeAttribute("src");
       imageElement.hidden = true;
+      generatedText.hidden = true;
       blankScreen.hidden = true;
       return;
     }

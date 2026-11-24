@@ -18,6 +18,46 @@
     </div>
   </header>
 
+  <section id="todayPanel" class="panel today-panel">
+    <div class="selected-heading">
+      <div>
+        <p class="eyebrow">القراءات المحلية</p>
+        <h2>النهارده إيه؟</h2>
+      </div>
+      <div class="today-date-actions">
+        <label for="todayDate">التاريخ</label>
+        <input id="todayDate" type="date">
+        <button id="tomorrowVespers">بكرة — للعشية</button>
+        <button id="chooseTodayDate">اختار تاريخ</button>
+      </div>
+    </div>
+    <div class="today-summary">
+      <strong id="gregorianDate">—</strong>
+      <span id="copticDate">—</span>
+      <span id="dayType">—</span>
+      <span id="daySeason">—</span>
+      <span id="dayTune">—</span>
+      <span id="fastNames">—</span>
+    </div>
+    <p id="todayError" class="error-text" hidden></p>
+    <div id="readingReferences" class="today-readings"></div>
+    <section class="today-service-suggestions">
+      <div class="selected-heading">
+        <div>
+          <h3>اقتراح خدمة النهارده</h3>
+          <p class="muted">اقتراحات من عناوين العروض فقط؛ راجع الترتيب وعدّله قبل الاعتماد.</p>
+        </div>
+        <button id="confirmServiceSuggestions" class="primary">اعتمد الترتيب المقترح</button>
+      </div>
+      <div id="serviceSuggestions" class="service-suggestions"></div>
+    </section>
+    <div class="today-map-actions">
+      <button id="exportReadingMap">تصدير خريطة القراءات</button>
+      <label class="file-button">استيراد خريطة القراءات<input id="importReadingMap" type="file" accept="application/json"></label>
+      <span id="readingMapStatus" class="muted" aria-live="polite"></span>
+    </div>
+  </section>
+
   <main class="control-layout">
     <aside class="sidebar panel">
       <section>
@@ -89,7 +129,12 @@
       </section>
     </section>
   </main>
+  <script src="./data/katameros-data.js"></script>
+  <script src="./katameros-engine.js"></script>
+  <script src="./reading-matcher.js"></script>
+  <script src="../service-rules.js"></script>
   <script src="./lib.js"></script>
   <script src="./control.js"></script>
+  <script src="./today.js"></script>
 </body>
 </html>
