@@ -15,6 +15,41 @@
     const x = Math.cos(rad(a1)) * Math.sin(rad(a2)) - Math.sin(rad(a1)) * Math.cos(rad(a2)) * Math.cos(rad(o2 - o1));
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
   }
+  function captureMarks(onsetM) {
+    // Owner #18: the onset shot, then every 50 m bucket below it, plus the near marks 100/75/50/25.
+    // Drop marks closer than 20 m below the onset; merge marks closer than 15 m to each other (keep the larger).
+    const o = Math.round(onsetM);
+    const set = new Set([o]);
+    for (let m = Math.floor((o - 1) / 50) * 50; m >= 50; m -= 50) set.add(m);
+    [100, 75, 50, 25].forEach((m) => { if (m < o) set.add(m); });
+    const out = [];
+    [...set].sort((a, b) => b - a).forEach((m) => {
+      if (m !== o && o - m < 20) return;
+      if (out.length && out[out.length - 1] - m < 15) return;
+      out.push(m);
+    });
+    return out;
+  }
+  function capturePlan(onsetM, startMs) {
+    const marks = captureMarks(onsetM);
+    let next = 0, minD = Infinity, done = false;
+    return {
+      marks,
+      get done() { return done; },
+      onDistance(d, nowMs, accM) {
+        if (done) return null;
+        if (nowMs - startMs > 180000) { done = true; return null; }
+        if (d < minD) minD = d;
+        else if (d - minD > 20) { done = true; return null; }
+        if (next >= marks.length || d > marks[next]) return null;
+        let mark = marks[next];
+        while (next < marks.length && d <= marks[next]) { mark = marks[next]; next++; }
+        if (next >= marks.length) done = true;
+        if (accM != null && accM > 25) return null;   // poor GPS: skip, never shoot late
+        return mark;
+      },
+    };
+  }
   const angleDiff = (a, b) => { const d = Math.abs(((a - b) % 360 + 360) % 360); return d > 180 ? 360 - d : d; };
   const C = { MIN_WARN_M: 150, NOTICE_S: 8, DECEL: 2, RADAR_M: 3000, FAR_M: 500, FAR_DEG: 60, AHEAD_DEG: 40, SAME_WAY_DEG: 60,
     AXIS_DEG: 40, AGAIN_MS: 5 * 60000, NO_HEADING_M: 40, STOPPED_KMH: 2, QUIET_KMH: 7, TEST_M: 20, TEST_AGAIN_MS: 30000 };
@@ -516,6 +551,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);
