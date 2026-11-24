@@ -23,7 +23,7 @@ test("web startup uses same-origin API and Clerk proxy with a timeout fallback",
 
   assert.match(apiSource, /Platform\.OS === "web"\s*\?\s*""/);
   assert.match(layoutSource, /window\.location\.origin/);
-  assert.match(layoutSource, /setAuthTokenGetter\(null\)/);
+  assert.match(layoutSource, /setAuthTokenGetter\(\(options\) => getToken\(options\)\)/);
   assert.match(layoutSource, /setTimeout\(\(\) => setLoadingTimedOut\(true\), 15_000\)/);
   assert.match(layoutSource, /تعذّر تحميل تسجيل الدخول — حدّث الصفحة/);
   assert.match(exportSource, /EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY:\s*[\s\S]*process\.env\.CLERK_PUBLISHABLE_KEY/);

@@ -12,3 +12,16 @@ test("profile conflict errors preserve the server's Arabic message and field", (
   });
   assert.equal(readableError(error, "fallback"), message);
 });
+
+test("only a final 401 is shown as an expired session", () => {
+  assert.equal(
+    readableError({ status: 401, data: null }, "fallback"),
+    "انتهت الجلسة. سجّل الدخول مرة أخرى.",
+  );
+  assert.match(readableError({ status: 503 }, "fallback"), /مؤقتًا/);
+  assert.match(readableError(new TypeError("Failed to fetch"), "fallback"), /مؤقتًا/);
+  assert.match(
+    readableError(Object.assign(new Error("timeout"), { name: "AbortError" }), "fallback"),
+    /مؤقتًا/,
+  );
+});

@@ -36,9 +36,21 @@ export function readableError(error: unknown, fallback = "حصلت مشكلة، 
   if (details) {
     const { status } = details;
     if (status === 401) return "انتهت الجلسة. سجّل الدخول مرة أخرى.";
+    if (status === 408 || status >= 500) {
+      return "الخدمة غير متاحة مؤقتًا. حاول مرة أخرى بعد قليل.";
+    }
     if (status === 409) return details.message || "اسم المستخدم مستخدم بالفعل.";
     if (status === 429) return "انتظر قليلًا ثم حاول البحث مرة أخرى.";
     if (status === 503) return "التخزين لم يُجهّز بعد. أعد المحاولة بعد تهيئة التطبيق.";
+  }
+  if (
+    error instanceof TypeError ||
+    (typeof error === "object" &&
+      error !== null &&
+      "name" in error &&
+      (error as { name?: unknown }).name === "AbortError")
+  ) {
+    return "الاتصال غير متاح مؤقتًا. تحقق من الإنترنت وحاول مرة أخرى.";
   }
   return fallback;
 }

@@ -39,11 +39,7 @@ const proxyUrl =
 function AuthTokenBridge() {
   const { getToken } = useAuth();
   useEffect(() => {
-    if (Platform.OS === "web") {
-      setAuthTokenGetter(null);
-      return;
-    }
-    setAuthTokenGetter(() => getToken());
+    setAuthTokenGetter((options) => getToken(options));
     return () => setAuthTokenGetter(null);
   }, [getToken]);
   return null;
