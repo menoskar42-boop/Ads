@@ -1743,7 +1743,7 @@
   $('dvClose').addEventListener('click', dvClose);
   $('dvBack').addEventListener('click', () => { dvOpen = true; dvSync(); keepAwake(); });
   $('topShot').addEventListener('click', (ev) => { ev.stopPropagation(); $('shotBtn').click(); });
-  const DV_PROXY = { dvBump: 'markBump', dvPothole: 'markPothole', dvRadar: 'markRadar', dvDanger: 'markDanger', dvPark: 'parkPhone',
+  const DV_PROXY = { dvBump: 'markBump', dvBump1: 'markBump1', dvPothole: 'markPothole', dvRadar: 'markRadar', dvDanger: 'markDanger', dvPark: 'parkPhone',
     dvFuel: 'fuelBtn', dvShot: 'shotBtn', dvSos: 'sosBtn', dvMic: 'voiceBtn' };
   for (const [a, b] of Object.entries(DV_PROXY)) $(a).addEventListener('click', (ev) => { ev.stopPropagation(); $(b).click(); setTimeout(dvUi, 50); });
   $('dvMap').addEventListener('click', () => {

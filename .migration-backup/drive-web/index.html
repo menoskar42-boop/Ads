@@ -85,7 +85,7 @@ body.dv-on { overflow:hidden; }
   .dv-side { grid-template-rows:1fr 1fr; min-height:0; }
   .dv-card { padding:6px; min-height:0; overflow:hidden; }
   .dv-actions { grid-template-columns:repeat(3, 1fr); grid-auto-rows:1fr; min-height:0; gap:6px; }
-  .dv-actions button { min-height:0; height:100%; font-size:clamp(11px, 3.4vh, 16px); padding:2px 4px; line-height:1.15; }
+  .dv-actions button { min-height:56px; height:100%; font-size:clamp(11px, 3.4vh, 16px); padding:2px 4px; line-height:1.15; }
   .dv-head, .dv-mid { font-size:clamp(16px, 6vh, 26px); }
   .dv-lim { margin-top:4px; gap:8px; }
   .dv-lim button { width:min(52px, 12vh); height:min(52px, 12vh); min-height:0; font-size:clamp(16px, 5vh, 24px); }
@@ -197,7 +197,7 @@ body.solo .carOnly { display:none !important; }
           <div class="dv-card"><div class="dv-lbl">📍 الرحلة الحالية</div><b id="dvTripKm" class="dv-mid" dir="ltr">0.0 km</b><div id="dvTripInfo" class="dv-lbl"></div></div>
         </section>
         <section class="dv-actions">
-          <button id="dvBump">〰️ مطب هنا</button><button id="dvPothole">🕳️ حفرة</button><button id="dvRadar">📷 رادار</button>
+          <button id="dvBump">〰️ مطب اتجاهين</button><button id="dvBump1">➡️ مطب اتجاه واحد</button><button id="dvPothole">🕳️ حفرة</button><button id="dvRadar">📷 رادار</button>
           <button id="dvDanger">⚠️ خطر</button><button id="dvPark">🅿️ ركنت هنا</button><button id="dvMic">🎙️ أوسكار</button>
           <button id="dvMap">🗺️ الخريطة</button><button id="dvFuel">⛽ بنزينة</button><button id="dvShot">📸 صوّر الطريق</button>
           <button id="dvCall">📞 اتصال</button>
@@ -375,7 +375,7 @@ body.solo .carOnly { display:none !important; }
         <button id="callNoBtn" style="flex:1">إلغاء</button>
         <div id="callOpts" style="width:100%;display:flex;gap:6px;flex-wrap:wrap"></div>
       </div>
-      <p class="note" id="voiceNote">🎙️ أوسكار بيسمع طول ما الصفحة قدامك — قول «أوسكار» ويرد «أيوه» وبعدين الأمر، أو قولهم مع بعض: «أوسكار سجّل مطب هنا» · «أوسكار سجّل حفرة» · «أوسكار خد اسكرين شوت» · «أوسكار دوّر على أقرب بنزينة» · «أوسكار ركنت هنا» · «أوسكار العربية فين» · «أوسكار ودّينى البيت» · «أوسكار فاضل كام بنزين» · «أوسكار فاضل كام على الزيت» · «أوسكار طوارئ»</p>
+      <p class="note" id="voiceNote">🎙️ أوسكار بيسمع طول ما الصفحة قدامك — قول «أوسكار» ويرد «أيوه» وبعدين الأمر، أو قولهم مع بعض: «أوسكار سجّل مطب هنا» · «أوسكار سجّل مطب اتجاه واحد» · «أوسكار سجّل حفرة» · «أوسكار خد اسكرين شوت» · «أوسكار دوّر على أقرب بنزينة» · «أوسكار ركنت هنا» · «أوسكار العربية فين» · «أوسكار ودّينى البيت» · «أوسكار فاضل كام بنزين» · «أوسكار فاضل كام على الزيت» · «أوسكار طوارئ»</p>
       <div class="row" style="gap:8px;margin-top:8px">
         <button id="markBump" class="primary" style="flex:1">〰️ مطب اتجاهين</button>
         <button id="markBump1" class="primary" style="flex:1">➡️ مطب اتجاه واحد</button>
