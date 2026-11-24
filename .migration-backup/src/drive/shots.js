@@ -32,6 +32,17 @@ function parse(body) {
     if (typeof meta.hazard.id === 'string') clean.hazard.id = meta.hazard.id.slice(0, 40);
     if (typeof meta.hazard.oneway === 'boolean') clean.hazard.oneway = meta.hazard.oneway;
   }
+  if (meta.target && typeof meta.target === 'object') {
+    clean.target = {};
+    if (typeof meta.target.id === 'string') clean.target.id = meta.target.id.slice(0, 40);
+    if (typeof meta.target.type === 'string') clean.target.type = meta.target.type.slice(0, 10);
+    if (typeof meta.target.category === 'string') clean.target.category = meta.target.category.slice(0, 20);
+    if (typeof meta.target.heads === 'number' && Number.isFinite(meta.target.heads)) clean.target.heads = meta.target.heads;
+  }
+  if (typeof meta.pairOf === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(meta.pairOf)) {
+    clean.pairOf = meta.pairOf.toLowerCase();
+  }
+  if (meta.pairIndex === 0 || meta.pairIndex === 1) clean.pairIndex = meta.pairIndex;
   clean.app = String(meta.app || '').slice(0, 30);
   if (typeof meta.source === 'string') clean.source = meta.source.slice(0, 10);
   if (meta.camera && typeof meta.camera === 'object') {

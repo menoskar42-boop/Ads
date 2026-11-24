@@ -21,6 +21,26 @@ describe('hazards: validation', () => {
     assert.deepEqual(hz.parseItems({}), []);
     assert.equal(hz.parseItems({ items: Array.from({ length: 900 }, () => item()) }).length, hz.MAX_ITEMS);
   });
+  it('requires a bearing for sign/signal targets and forces one-way', () => {
+    assert.deepEqual(hz.parseItems({ items: [item({ type: 'sign', bearing: null })] }), []);
+    const [signal] = hz.parseItems({ items: [item({ type: 'signal', note: 'heads:3', oneway: false })] });
+    assert.equal(signal.oneway, true);
+    assert.equal(signal.note, 'heads:3');
+  });
+  it('the car list SQL excludes capture-only sign/signal targets', async () => {
+    const fixtures = [
+      { uuid: U1, type: 'bump', lat: 27, lng: 31, created_at: new Date(), oneway: false },
+      { uuid: U2, type: 'sign', lat: 27, lng: 31, created_at: new Date(), oneway: true },
+      { uuid: '11111111-2222-4333-8444-777777777777', type: 'signal', lat: 27, lng: 31, created_at: new Date(), oneway: true },
+    ];
+    const pool = { async query(sql, values) {
+      assert.match(sql, /type NOT IN \('sign', 'signal'\)/);
+      assert.equal(values[2], true);
+      return { rows: fixtures.filter((row) => !values[2] || !['sign', 'signal'].includes(row.type)) };
+    } };
+    const list = await hz.list(pool, 1, false, true);
+    assert.deepEqual(list.map((row) => row.type), ['bump']);
+  });
 });
 
 const URL_ = process.env.DRIVE_TEST_DATABASE_URL;

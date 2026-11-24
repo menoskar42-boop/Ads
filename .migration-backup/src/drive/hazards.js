@@ -7,7 +7,7 @@
 
 const L = require('./logic');
 
-const TYPES = new Set(['bump', 'pothole', 'radar', 'danger']);
+const TYPES = new Set(['bump', 'pothole', 'radar', 'danger', 'sign', 'signal']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_ITEMS = 500;
 
@@ -26,16 +26,18 @@ function parseItems(body) {
     const lat = num(it.lat, -90, 90);
     const lng = num(it.lng, -180, 180);
     if (!TYPES.has(type) || lat === null || lng === null) continue;
+    const bearing = num(it.bearing, 0, 360);
+    if ((type === 'sign' || type === 'signal') && bearing === null) continue;
     const t = num(it.t, 1500000000000, 4102444800000);
     out.push({
       uuid: String(it.uuid).toLowerCase(), type, lat, lng,
-      bearing: num(it.bearing, 0, 360), accuracy: num(it.acc, 0, 10000), altitude: num(it.alt, -1000, 10000),
+      bearing, accuracy: num(it.acc, 0, 10000), altitude: num(it.alt, -1000, 10000),
       note: String(it.note || '').slice(0, 200),
       createdAt: new Date(t || Date.now()).toISOString(),
       deleted: it.deleted === true,
       test: it.test === true,
       // «اتجاه واحد»: null = الشاشة القديمة مابعتتهوش ⇒ مايتغيّرش اللى على السيرفر
-      oneway: it.oneway === true ? true : it.oneway === false ? false : null,
+      oneway: type === 'sign' || type === 'signal' ? true : it.oneway === true ? true : it.oneway === false ? false : null,
     });
   }
   return out;
@@ -62,10 +64,11 @@ async function save(pool, carId, items) {
 }
 
 /** ذاكرة العربية كلها (من غير الممسوح). الشاشة مابتشوفش مطبات التجربة (withTest للموبايل بس). */
-async function list(pool, carId, withTest = false) {
+async function list(pool, carId, withTest = false, forCar = false) {
   const { rows } = await pool.query(
     `SELECT uuid, type, lat, lng, bearing, accuracy, altitude, note, created_at, test, oneway FROM od_hazards
-      WHERE car_id = $1 AND deleted_at IS NULL AND ($2 OR NOT test) ORDER BY created_at LIMIT 5000`, [carId, !!withTest]);
+      WHERE car_id = $1 AND deleted_at IS NULL AND ($2 OR NOT test)
+        AND (NOT $3 OR type NOT IN ('sign', 'signal')) ORDER BY created_at LIMIT 5000`, [carId, !!withTest, !!forCar]);
   return rows.map((r) => ({
     uuid: r.uuid, type: r.type, lat: r.lat, lng: r.lng, bearing: r.bearing, acc: r.accuracy, alt: r.altitude,
     note: r.note, t: new Date(r.created_at).getTime(), oneway: !!r.oneway, ...(withTest ? { test: r.test } : {}),

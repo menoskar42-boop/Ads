@@ -18,6 +18,7 @@ import { BoxBrokenRejectionsReport } from "@/components/BoxBrokenRejectionsRepor
 import { WorkOrdersReport } from "@/components/WorkOrdersReport";
 import { OtherWorkOrdersReport } from "@/components/OtherWorkOrdersReport";
 import { InspectionFollowupProgressReport } from "@/components/InspectionFollowupProgressReport";
+import { InstallationsByTechReport } from "@/components/InstallationsByTechReport";
 import { WorkOrdersNoCableReport } from "@/components/WorkOrdersNoCableReport";
 import { CurrentFaultsReport } from "@/components/CurrentFaultsReport";
 import { WithAccountReport } from "@/components/WithAccountReport";
@@ -104,7 +105,7 @@ import { installMeasureHider } from "@/lib/measure-hide";
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload" | "local-store";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-target112" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "tech-certificate" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "inspection-followup-progress" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-loop" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces" | "inspection-followup" | "terminal-reviews" | "fault-trend";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-target112" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "tech-certificate" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "inspection-followup-progress" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-loop" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces" | "inspection-followup" | "terminal-reviews" | "fault-trend" | "installations-by-tech";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -234,6 +235,7 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
       { id: "work-orders-fail", label: "أوامر الشغل الفاشلة (Fail)" },
       { id: "work-orders-no-cable", label: "أوامر شغل بدون كمية سلك" },
       { id: "other-work-orders", label: "أوامر شغل أخرى (بدون سلك)" },
+      { id: "installations-by-tech", label: "نسبة التركيبات لكل فنى" },
     ],
   },
   {
@@ -369,6 +371,7 @@ export default function Dashboard() {
   // «التركيبات والنقل الحالى» بتظهر للفنى ومفلترة على كباينته؛
   // «المعاينات الحالية» بتظهر له كل المعاينات، والسيرفر يطبق النطاق لكل تقرير.
   const TECH_ALLOWED: ReportTab[] = ["current-faults", "regularized-faults-range", "manual-current-faults", "manual-regularized-high-score", "tech-performance", "removal-stats", "repetition-stats", "repeated-within-month", "box-score-avg", "om-current", "with-account", "inspection-followup-progress", "shift-schedule", "current-installations", "current-surveys", "inspection-followup",
+    "installations-by-tech",
     // الكروت + الفاضى لكل نوع بورت + الخطوط المرفوعة — السيرفر بيفلترهم على كباينه هو (٢٠٢٦-٠٩-٣٠)
     "slot-cards", "cabinet-port-free", "removed-ports",
     // «مراجعة البكس ترمنال بترمنال» — الإحصائيات للكل، والتفصيلى لكباينه بس (السيرفر)
@@ -803,6 +806,7 @@ export default function Dashboard() {
               {reportTab === "other-work-orders" && <OtherWorkOrdersReport />}
               {reportTab === "work-orders-no-cable" && <WorkOrdersNoCableReport />}
               {reportTab === "inspection-followup-progress" && <InspectionFollowupProgressReport />}
+              {reportTab === "installations-by-tech" && <InstallationsByTechReport />}
               {reportTab === "box-overlap"       && <BoxOverlapReport />}
               {reportTab === "maintenance-plan-h2" && <MaintenancePlanH2Report />}
               {reportTab === "cabinet-capacity"  && <CabinetCapacityReport />}

@@ -54,6 +54,18 @@ describe('shots: validation + zip', () => {
     assert.equal(p.meta.camera.label.length, 60); assert.equal(p.meta.camera.w, 1280); assert.equal(p.meta.camera.h, 720);
     assert.equal(p.meta.ua.length, 120);
   });
+  it('keeps sign/signal target and paired-frame metadata', () => {
+    const first = '11111111-2222-4333-8444-555555555555';
+    const p = shots.parse({ meta: meta({
+      hazard: { id: 'target-id', type: 'signal', lat: 27.181, lng: 31.18, oneway: true },
+      target: { id: 'target-id', type: 'signal', category: 'heads', heads: 3 },
+      pairOf: first, pairIndex: 1,
+    }), jpg: JPG.toString('base64') });
+    assert.equal(p.error, undefined);
+    assert.deepEqual(p.meta.target, { id: 'target-id', type: 'signal', category: 'heads', heads: 3 });
+    assert.equal(p.meta.pairOf, first);
+    assert.equal(p.meta.pairIndex, 1);
+  });
   it('zip is a valid STORE archive (crc + sizes) — local headers parse back', () => {
     const z = shots.zip([{ name: 'shots/a.jpg', data: JPG }, { name: 'shots/a.json', data: Buffer.from('{"x":1}') }]);
     assert.equal(z.readUInt32LE(0), 0x04034b50);

@@ -31,7 +31,7 @@ test('armed approach plans use the pure capture plan and only accepted hazard ty
 });
 
 test('automatic voice reply is controlled only by the voice checkbox', () => {
-  assert.match(app, /if \(\$\('autoShotsSay'\)\.checked\) oscar\('shot_auto', 'لقط صورة'\)/);
+  assert.match(app, /if \(announce && \$\('autoShotsSay'\)\.checked\) oscar\('shot_auto', 'لقط صورة'\)/);
 });
 
 test('the ready chip is only shown after all readiness checks pass', () => {
