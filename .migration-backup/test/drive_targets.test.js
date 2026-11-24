@@ -6,6 +6,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const R = require('../drive-web/road.js');
 const LAT0 = 30, LNG0 = 31, north = (m) => LAT0 + m / 111195, east = (m) => LNG0 + m / 96486;
+const appSource = fs.readFileSync(path.join(__dirname, '../drive-web/app.js'), 'utf8');
+const htmlSource = fs.readFileSync(path.join(__dirname, '../drive-web/index.html'), 'utf8');
+const routeSource = fs.readFileSync(path.join(__dirname, '../src/routes/drive_site.js'), 'utf8');
 
 test('driver warnings never include sign or signal targets', () => {
   const targets = [
@@ -45,4 +48,21 @@ test('sign catalogue is valid, provisional, and has unique class IDs', () => {
   const ids = catalogue.classes.map((item) => item.id);
   assert.ok(ids.length >= 1 && ids.every((id) => typeof id === 'string' && id.length > 0));
   assert.equal(new Set(ids).size, ids.length);
+});
+
+test('phone registration, filtered car sync, and paired signal capture are wired', () => {
+  assert.match(routeSource, /hz\.list\(pool, req\.car\.id, false, true\)/);
+  assert.match(htmlSource, /id="markSignal"/);
+  assert.match(htmlSource, /id="markSign"/);
+  assert.match(htmlSource, /id="signCat"/);
+  assert.match(htmlSource, /id="signalHeads"/);
+  assert.match(appSource, /async function markTarget\(type\)/);
+  assert.match(appSource, /!lastFix \|\| !\(\(lastFix\.kmh \|\| 0\) < 5\)/);
+  assert.match(appSource, /if \(roadHeading == null\)/);
+  assert.match(appSource, /fetch\('\/sign-catalogue\.json'/);
+  assert.match(appSource, /RD\.captureAhead\(\(pool \|\| \[\]\)\.filter\(\(h\) => h\.type === 'sign' \|\| h\.type === 'signal'\)/);
+  assert.match(appSource, /pairOf: shotUuid, pairIndex: 1/);
+  assert.match(appSource, /setTimeout\(\(\) => \{/);
+  assert.match(appSource, /const secondJpg = grabFrame\(\)/);
+  assert.match(appSource, /\}, 1000\)/);
 });
