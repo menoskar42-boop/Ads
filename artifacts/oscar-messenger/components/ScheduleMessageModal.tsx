@@ -1,7 +1,14 @@
 import * as Crypto from "expo-crypto";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  createElement,
+  type ChangeEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Modal,
   Platform,
@@ -20,6 +27,7 @@ import {
 } from "@workspace/api-client-react";
 import { ErrorText, Field, Notice, PrimaryButton } from "./Screen";
 import { TextField } from "./TextField";
+import { ScheduleDateTimePicker, type SchedulePickerMode } from "./ScheduleDateTimePicker";
 import { queryKeys } from "../lib/api";
 import {
   formatLocalDateInput,
@@ -27,7 +35,8 @@ import {
   formatLocalTimeInput,
   earliestValidMinute,
   localTimeZoneName,
-  parseLocalDateTime,
+  parseLocalDateTimeDetailed,
+  tomorrowKeepingTime,
 } from "../lib/scheduled-time";
 import { readableError } from "../lib/format";
 import { colors } from "../lib/theme";
@@ -56,6 +65,7 @@ export function ScheduleMessageModal({
   const [timeValue, setTimeValue] = useState("");
   const [errorText, setErrorText] = useState("");
   const [earliestSuggestion, setEarliestSuggestion] = useState<Date | null>(null);
+  const [pickerMode, setPickerMode] = useState<SchedulePickerMode | null>(null);
   const clientScheduleId = useRef(Crypto.randomUUID());
 
   useEffect(() => {
@@ -68,13 +78,19 @@ export function ScheduleMessageModal({
     setTimeValue(formatLocalTimeInput(initialTime));
     setErrorText("");
     setEarliestSuggestion(null);
+    setPickerMode(null);
     if (!existing) clientScheduleId.current = Crypto.randomUUID();
   }, [visible, existing?.id, existing?.scheduledAt, initialBody]);
 
-  const scheduledDate = useMemo(
-    () => parseLocalDateTime(dateValue, timeValue),
+  const parsedSchedule = useMemo(
+    () => parseLocalDateTimeDetailed(dateValue, timeValue),
     [dateValue, timeValue],
   );
+  const scheduledDate = parsedSchedule.value;
+  const webDateTimePickerAvailable =
+    Platform.OS === "web" && supportsWebDateTimeInputs();
+  const nativeDateTimePickerAvailable =
+    Platform.OS === "ios" || Platform.OS === "android";
   const save = useMutation({
     mutationFn: (input: { body: string; scheduledAt: string }) =>
       existing
@@ -102,6 +118,7 @@ export function ScheduleMessageModal({
     setTimeValue(formatLocalTimeInput(value));
     setErrorText("");
     setEarliestSuggestion(null);
+    setPickerMode(null);
   };
 
   const chooseTomorrow = () => {
@@ -112,6 +129,16 @@ export function ScheduleMessageModal({
     setTimeValue(formatLocalTimeInput(value));
     setErrorText("");
     setEarliestSuggestion(null);
+    setPickerMode(null);
+  };
+
+  const chooseTomorrowKeepingTime = () => {
+    const tomorrow = tomorrowKeepingTime(timeValue);
+    setDateValue(tomorrow.dateValue);
+    setTimeValue(tomorrow.timeValue);
+    setErrorText("");
+    setEarliestSuggestion(null);
+    setPickerMode(null);
   };
 
   const submit = () => {
@@ -121,7 +148,11 @@ export function ScheduleMessageModal({
       return;
     }
     if (!scheduledDate) {
-      setErrorText("اختر موعدًا صحيحًا بعد دقيقة على الأقل من الآن.");
+      setErrorText(
+        parsedSchedule.error === "time"
+          ? "الوقت غير صحيح أو غير موجود بسبب تغيير التوقيت الصيفي. اكتب الوقت مثل 6:46."
+          : "التاريخ غير صحيح. اختر يومًا موجودًا بصيغة سنة-شهر-يوم.",
+      );
       setEarliestSuggestion(null);
       return;
     }
@@ -195,6 +226,11 @@ export function ScheduleMessageModal({
               </Field>
 
               <View style={styles.quickChoices}>
+                <QuickChoice
+                  title="غدًا"
+                  onPress={chooseTomorrowKeepingTime}
+                  testID="schedule-tomorrow-keep-time"
+                />
                 <QuickChoice title="بعد ١٠ دقائق" onPress={() => chooseRelativeTime(10)} />
                 <QuickChoice title="بعد ساعة" onPress={() => chooseRelativeTime(60)} />
                 <QuickChoice title="غدًا ٩ صباحًا" onPress={chooseTomorrow} />
@@ -203,6 +239,131 @@ export function ScheduleMessageModal({
               <View style={styles.dateRow}>
                 <View style={styles.dateField}>
                   <Field label="التاريخ">
+                    {webDateTimePickerAvailable ? (
+                      createElement("input", {
+                        type: "date",
+                        value: dateValue,
+                        "aria-label": "تاريخ الإرسال",
+                        "data-testid": "schedule-date-input",
+                        onChange: (event: ChangeEvent<HTMLInputElement>) => {
+                          setDateValue(event.currentTarget.value);
+                          setErrorText("");
+                          setEarliestSuggestion(null);
+                        },
+                        style: webInputStyle,
+                      })
+                    ) : Platform.OS === "web" ||
+                      !nativeDateTimePickerAvailable ? (
+                      <TextField
+                        value={dateValue}
+                        onChangeText={(value) => {
+                          setDateValue(value);
+                          setErrorText("");
+                          setEarliestSuggestion(null);
+                        }}
+                        placeholder="2026-11-5"
+                        keyboardType="numbers-and-punctuation"
+                        autoCorrect={false}
+                        textAlign="left"
+                        style={styles.timeInput}
+                        accessibilityLabel="تاريخ الإرسال"
+                      />
+                    ) : (
+                      <PickerFieldButton
+                        label="اختار التاريخ"
+                        value={dateValue}
+                        onPress={() => setPickerMode("date")}
+                        testID="schedule-date-picker"
+                      />
+                    )}
+                  </Field>
+                </View>
+                <View style={styles.timeField}>
+                  <Field label="الوقت">
+                    {webDateTimePickerAvailable ? (
+                      createElement("input", {
+                        type: "time",
+                        value: timeValue,
+                        "aria-label": "وقت الإرسال",
+                        "data-testid": "schedule-time-input",
+                        onChange: (event: ChangeEvent<HTMLInputElement>) => {
+                          setTimeValue(event.currentTarget.value);
+                          setErrorText("");
+                          setEarliestSuggestion(null);
+                        },
+                        style: webInputStyle,
+                      })
+                    ) : Platform.OS === "web" ||
+                      !nativeDateTimePickerAvailable ? (
+                      <TextField
+                        value={timeValue}
+                        onChangeText={(value) => {
+                          setTimeValue(value);
+                          setErrorText("");
+                          setEarliestSuggestion(null);
+                        }}
+                        placeholder="6:46"
+                        keyboardType="numbers-and-punctuation"
+                        autoCorrect={false}
+                        textAlign="left"
+                        style={styles.timeInput}
+                        accessibilityLabel="وقت الإرسال"
+                      />
+                    ) : (
+                      <PickerFieldButton
+                        label="اختار الوقت"
+                        value={timeValue}
+                        onPress={() => setPickerMode("time")}
+                        testID="schedule-time-picker"
+                      />
+                    )}
+                  </Field>
+                </View>
+              </View>
+              {Platform.OS !== "web" && pickerMode && (
+                <View style={styles.nativePickerWrap}>
+                  <ScheduleDateTimePicker
+                    mode={pickerMode}
+                    value={scheduledDate ?? new Date()}
+                    onChange={(event, selectedDate) => {
+                      if (event.type === "set" && selectedDate) {
+                        if (pickerMode === "date") {
+                          setDateValue(formatLocalDateInput(selectedDate));
+                        } else {
+                          setTimeValue(formatLocalTimeInput(selectedDate));
+                        }
+                        setErrorText("");
+                        setEarliestSuggestion(null);
+                      }
+                      if (Platform.OS === "android" || event.type !== "set") {
+                        setPickerMode(null);
+                      }
+                    }}
+                  />
+                  {Platform.OS === "ios" && (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setPickerMode(null)}
+                      style={styles.pickerDone}
+                    >
+                      <Text style={styles.pickerDoneText}>تم</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
+              {!webDateTimePickerAvailable && Platform.OS === "web" && (
+                <Text style={styles.timezone}>
+                  اختيار التاريخ والوقت غير مدعوم في هذا المتصفح؛ استخدم الإدخال اليدوي.
+                </Text>
+              )}
+              {!nativeDateTimePickerAvailable && Platform.OS !== "web" && (
+                <Text style={styles.timezone}>
+                  استخدم إدخال التاريخ والوقت اليدوي إذا تعذر فتح أداة الاختيار.
+                </Text>
+              )}
+              {!nativeDateTimePickerAvailable && Platform.OS !== "web" && (
+                <View style={styles.manualFallback}>
+                  <Field label="التاريخ يدويًا">
                     <TextField
                       value={dateValue}
                       onChangeText={(value) => {
@@ -210,17 +371,15 @@ export function ScheduleMessageModal({
                         setErrorText("");
                         setEarliestSuggestion(null);
                       }}
-                      placeholder="YYYY-MM-DD"
+                      placeholder="2026-11-5"
                       keyboardType="numbers-and-punctuation"
                       autoCorrect={false}
                       textAlign="left"
                       style={styles.timeInput}
-                      accessibilityLabel="تاريخ الإرسال"
+                      accessibilityLabel="تاريخ الإرسال يدويًا"
                     />
                   </Field>
-                </View>
-                <View style={styles.timeField}>
-                  <Field label="الوقت">
+                  <Field label="الوقت يدويًا">
                     <TextField
                       value={timeValue}
                       onChangeText={(value) => {
@@ -228,16 +387,16 @@ export function ScheduleMessageModal({
                         setErrorText("");
                         setEarliestSuggestion(null);
                       }}
-                      placeholder="HH:MM"
+                      placeholder="6:46"
                       keyboardType="numbers-and-punctuation"
                       autoCorrect={false}
                       textAlign="left"
                       style={styles.timeInput}
-                      accessibilityLabel="وقت الإرسال"
+                      accessibilityLabel="وقت الإرسال يدويًا"
                     />
                   </Field>
                 </View>
-              </View>
+              )}
               <Text style={styles.timezone}>التوقيت المحلي لهذا الجهاز: {localTimeZoneName()}</Text>
 
               <Notice>
@@ -264,6 +423,7 @@ export function ScheduleMessageModal({
                     setTimeValue(formatLocalTimeInput(earliestSuggestion));
                     setErrorText("");
                     setEarliestSuggestion(null);
+                    setPickerMode(null);
                   }}
                   style={styles.earliestButton}
                 >
@@ -286,17 +446,73 @@ export function ScheduleMessageModal({
   );
 }
 
-function QuickChoice({ title, onPress }: { title: string; onPress: () => void }) {
+function QuickChoice({
+  title,
+  onPress,
+  testID,
+}: {
+  title: string;
+  onPress: () => void;
+  testID?: string;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
+      testID={testID}
       style={({ pressed }) => [styles.quickChoice, pressed && styles.pressed]}
     >
       <Text style={styles.quickChoiceText}>{title}</Text>
     </Pressable>
   );
 }
+
+function PickerFieldButton({
+  label,
+  value,
+  onPress,
+  testID,
+}: {
+  label: string;
+  value: string;
+  onPress: () => void;
+  testID: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      testID={testID}
+      style={({ pressed }) => [styles.pickerButton, pressed && styles.pressed]}
+    >
+      <Text style={styles.pickerLabel}>{label}</Text>
+      <Text style={styles.pickerValue}>{value || "—"}</Text>
+    </Pressable>
+  );
+}
+
+function supportsWebDateTimeInputs(): boolean {
+  if (typeof document === "undefined") return false;
+  const dateInput = document.createElement("input");
+  const timeInput = document.createElement("input");
+  dateInput.type = "date";
+  timeInput.type = "time";
+  return dateInput.type === "date" && timeInput.type === "time";
+}
+
+const webInputStyle = {
+  boxSizing: "border-box",
+  width: "100%",
+  minHeight: "48px",
+  padding: "12px 14px",
+  color: colors.text,
+  backgroundColor: colors.surfaceRaised,
+  border: `1px solid ${colors.border}`,
+  borderRadius: "12px",
+  fontSize: "16px",
+  fontFamily: "inherit",
+  textAlign: "left",
+} as const;
 
 const styles = StyleSheet.create({
   backdrop: {
@@ -329,9 +545,10 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.muted, fontSize: 13, textAlign: "right" },
   iconButton: { minWidth: 36, minHeight: 36, alignItems: "center", justifyContent: "center" },
   form: { gap: 14, paddingTop: 16, paddingBottom: 12 },
-  quickChoices: { flexDirection: "row", justifyContent: "space-between", gap: 7 },
+  quickChoices: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   quickChoice: {
-    flex: 1,
+    flexBasis: "48%",
+    flexGrow: 1,
     minHeight: 40,
     justifyContent: "center",
     alignItems: "center",
@@ -346,6 +563,13 @@ const styles = StyleSheet.create({
   dateField: { flex: 1 },
   timeField: { width: 110 },
   timeInput: { textAlign: "left", writingDirection: "ltr" },
+  pickerButton: { minHeight: 48, justifyContent: "center", gap: 3, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceRaised },
+  pickerLabel: { color: colors.muted, fontSize: 10, textAlign: "right" },
+  pickerValue: { color: colors.text, fontSize: 14, fontWeight: "700", textAlign: "left", writingDirection: "ltr" },
+  nativePickerWrap: { alignItems: "center", gap: 6 },
+  pickerDone: { minWidth: 80, minHeight: 38, justifyContent: "center", alignItems: "center", borderRadius: 10, backgroundColor: colors.surfaceRaised },
+  pickerDoneText: { color: colors.blue, fontWeight: "800" },
+  manualFallback: { gap: 12 },
   timezone: { color: colors.muted, fontSize: 11, textAlign: "right", marginTop: -7 },
   earliestButton: { minHeight: 40, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.blue, paddingHorizontal: 12 },
   earliestButtonText: { color: colors.blue, fontSize: 13, fontWeight: "700" },
