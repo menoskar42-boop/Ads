@@ -30,8 +30,8 @@
     });
     return out;
   }
-  function capturePlan(onsetM, startMs) {
-    const marks = captureMarks(onsetM);
+  function capturePlan(onsetM, startMs, marksOverride) {
+    const marks = Array.isArray(marksOverride) ? marksOverride.slice() : captureMarks(onsetM);
     let next = 0, minD = Infinity, done = false;
     return {
       marks,
@@ -53,7 +53,9 @@
   const angleDiff = (a, b) => { const d = Math.abs(((a - b) % 360 + 360) % 360); return d > 180 ? 360 - d : d; };
   const C = { MIN_WARN_M: 150, NOTICE_S: 8, DECEL: 2, RADAR_M: 3000, FAR_M: 500, FAR_DEG: 60, AHEAD_DEG: 40, SAME_WAY_DEG: 60,
     AXIS_DEG: 40, AGAIN_MS: 5 * 60000, NO_HEADING_M: 40, STOPPED_KMH: 2, QUIET_KMH: 7, TEST_M: 20, TEST_AGAIN_MS: 30000 };
-  const TYPES = { bump: ['مطب', false], pothole: ['حفرة', false], radar: ['رادار', true], danger: ['مكان خطر', false] };
+  const SIGN_MARKS = [150, 100, 60, 30], SIGNAL_MARKS = [150, 100, 50, 25], SIGNAL_PAIR_MARKS = [50, 25];
+  const TYPES = { bump: ['مطب', false], pothole: ['حفرة', false], radar: ['رادار', true], danger: ['مكان خطر', false],
+    sign: ['علامة مرور', true], signal: ['إشارة مرور', true] };
   function warnDistanceM(kmh, minM) { const v = kmh / 3.6; return Math.max(minM == null ? C.MIN_WARN_M : minM, v * C.NOTICE_S + v * v / (2 * C.DECEL)); }
   function rangeM(type, kmh, minM) { return type === 'radar' ? Math.max(C.RADAR_M, warnDistanceM(kmh)) : warnDistanceM(kmh, minM); }
   function warnKey(h, d, kmh) { return h.type === 'radar' && d <= warnDistanceM(kmh) ? '-' + h.uuid : h.uuid; }
@@ -64,6 +66,7 @@
     if (o.test) {
       let best = null;
       for (const h of hazards) {
+        if (h.type === 'sign' || h.type === 'signal') continue;
         const d = distanceM(lat, lng, h.lat, h.lng);
         if (d > C.TEST_M) continue;
         const last = warned[h.uuid]; if (last != null && now - last < C.TEST_AGAIN_MS) continue;
@@ -74,6 +77,7 @@
     if (kmh < (o.minKmh == null ? C.STOPPED_KMH : o.minKmh)) return null;
     let best = null;
     for (const h of hazards) {
+      if (h.type === 'sign' || h.type === 'signal') continue;
       const d = distanceM(lat, lng, h.lat, h.lng);
       if (d > rangeM(h.type, kmh, o.minWarnM)) continue;
       const directional = (TYPES[h.type] || TYPES.danger)[1];
@@ -87,6 +91,19 @@
         if ((directional || h.oneway) && h.bearing != null && angleDiff(h.bearing, heading) > C.SAME_WAY_DEG) continue;
         if (!directional && h.bearing != null && !sameAxis(h.bearing, heading)) continue;
       }
+      if (!best || d < best.d) best = { h, d };
+    }
+    return best;
+  }
+  /** targets for automatic capture only; signs and signals never generate driver warnings. */
+  function captureAhead(targets, lat, lng, heading) {
+    if (heading == null) return null;
+    let best = null;
+    for (const h of targets || []) {
+      if ((h.type !== 'sign' && h.type !== 'signal') || h.bearing == null) continue;
+      const d = distanceM(lat, lng, h.lat, h.lng);
+      if (d > 160 || angleDiff(h.bearing, heading) > C.SAME_WAY_DEG) continue;
+      if (d > 25 && angleDiff(bearingDeg(lat, lng, h.lat, h.lng), heading) > C.AHEAD_DEG) continue;
       if (!best || d < best.d) best = { h, d };
     }
     return best;
@@ -551,6 +568,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

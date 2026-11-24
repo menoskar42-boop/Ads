@@ -641,6 +641,26 @@
     } catch (e) {}
   }
   let hzLayer = null;
+  let signCatalogue = { classes: [] };
+  async function loadSignCatalogue() {
+    const select = $('signCat');
+    try {
+      const response = await fetch('/sign-catalogue.json', { cache: 'no-cache' });
+      if (!response.ok) throw new Error('catalogue ' + response.status);
+      const catalogue = await response.json();
+      signCatalogue = catalogue && Array.isArray(catalogue.classes) ? catalogue : { classes: [] };
+      select.textContent = '';
+      const unknown = document.createElement('option'); unknown.value = 'sign_other'; unknown.textContent = 'مش عارف'; select.append(unknown);
+      for (const entry of signCatalogue.classes) {
+        if (!entry || typeof entry.id !== 'string' || entry.id === 'sign_other' || typeof entry.ar !== 'string') continue;
+        const option = document.createElement('option'); option.value = entry.id; option.textContent = entry.ar + ' (مؤقت)'; select.append(option);
+      }
+      renderRoad();
+    } catch (e) {
+      // يفضل اختيار «مش عارف» متاح لو الملف المؤقت مش موجود.
+    }
+  }
+  void loadSignCatalogue();
   async function loadRoad() {
     try { hz = (await api('GET', '/api/web/hazards')).items || []; renderRoad(); drawHazards(); } catch (e) {}
   }
@@ -649,8 +669,24 @@
     if (!map || !window.L) return;
     if (hzLayer) hzLayer.remove();
     const col = { bump: '#f59e0b', pothole: '#dc2626', radar: '#2563eb', danger: '#eab308' };
-    hzLayer = L.layerGroup(hz.slice(0, 300).map((h) => L.circleMarker([h.lat, h.lng], { radius: 7, color: col[h.type] || '#eab308', fillOpacity: 0.85 })
-      .bindPopup((h.type === 'pothole' ? '🕳️ ' : '〰️ ') + (RD.TYPES[h.type] || RD.TYPES.danger)[0] + (h.test ? ' 🧪' : '')))).addTo(map);
+    hzLayer = L.layerGroup(hz.slice(0, 300).map((h) => {
+      const title = h.type === 'sign' ? '🪧 ' + roadHazardName(h) : h.type === 'signal' ? '🚦 ' + roadHazardName(h) :
+        (h.type === 'pothole' ? '🕳️ ' : '〰️ ') + (RD.TYPES[h.type] || RD.TYPES.danger)[0];
+      const marker = h.type === 'sign' || h.type === 'signal'
+        ? L.marker([h.lat, h.lng], { icon: L.divIcon({ className: 'od-road-target', html: `<span style="font-size:24px;line-height:28px">${h.type === 'signal' ? '🚦' : '🪧'}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
+        : L.circleMarker([h.lat, h.lng], { radius: 7, color: col[h.type] || '#eab308', fillOpacity: 0.85 });
+      return marker.bindPopup(title + (h.test ? ' 🧪' : ''));
+    })).addTo(map);
+  }
+  function roadHazardName(h) {
+    const note = String(h.note || '');
+    if (h.type === 'sign') {
+      const id = note.startsWith('cat:') ? note.slice(4) : 'sign_other';
+      const item = signCatalogue.classes.find((entry) => entry && entry.id === id);
+      return item ? item.ar + ' (مؤقت)' : 'علامة مرور';
+    }
+    const heads = note.match(/^heads:(\d+)$/);
+    return 'إشارة مرور' + (heads ? ` · ${heads[1]} لمبة` : '');
   }
   function renderRoad() {
     const here = lastFix;
@@ -661,10 +697,12 @@
     for (const { h, d } of list) {
       const row = document.createElement('div');
       row.className = 'row'; row.style.cssText = 'justify-content:space-between;gap:8px;align-items:center';
-      const name = (RD.TYPES[h.type] || RD.TYPES.danger)[0];
-      row.innerHTML = '<span>' + (EMOJI[h.type] || '⚠️ ') + name + (h.test ? ' 🧪' : '') +
+      const name = h.type === 'sign' || h.type === 'signal' ? roadHazardName(h) : (RD.TYPES[h.type] || RD.TYPES.danger)[0];
+      const label = document.createElement('span');
+      label.textContent = (EMOJI[h.type] || '⚠️ ') + name + (h.test ? ' 🧪' : '') +
         (d != null ? ' · ' + (d < 1000 ? Math.round(d) + ' م' : (d / 1000).toFixed(1) + ' كم') : '') +
-        (h.type === 'bump' || h.type === 'pothole' ? (h.oneway ? ' · ➡️ اتجاه واحد' : ' · ⇄ اتجاهين') : '') + '</span>';
+        (h.type === 'bump' || h.type === 'pothole' ? (h.oneway ? ' · ➡️ اتجاه واحد' : ' · ⇄ اتجاهين') : '');
+      row.append(label);
       if (h.type === 'bump' || h.type === 'pothole') {   // تعديل الاتجاه من غير ما يتسجّل تانى (الإحداثيات زى ما هى)
         const dir = document.createElement('button'); dir.textContent = h.oneway ? '⇄' : '➡️';
         dir.title = h.oneway ? 'خليه اتجاهين' : 'خليه اتجاه واحد';
@@ -1386,7 +1424,7 @@
   $('parkPhone').addEventListener('click', parkHere);
   $('sosBtn').addEventListener('click', sos);
   parkUi();
-  const EMOJI = { bump: '〰️ ', pothole: '🕳️ ', radar: '📷 ', danger: '⚠️ ' };
+  const EMOJI = { bump: '〰️ ', pothole: '🕳️ ', radar: '📷 ', danger: '⚠️ ', sign: '🪧 ', signal: '🚦 ' };
   // تنبيه السرعة زى الشاشة: بعد ٣ ثوانى فوق الحد، ويتكرر كل ٣٠ ثانية طول ما انت فوقه
   let overSince = 0, lastSpeedSay = 0;
   function speedCheck(kmh) {
@@ -1417,7 +1455,7 @@
     if (alertWatch !== null) { speedCheck(kmh); breakCheck(kmh); }
     const hit = alertWatch !== null ? RD.ahead(pool, f.lat, f.lng, roadHeading, kmh || 0, Date.now(), warnedRoad,
       { test, minWarnM: +$('warnDist').value || 100, minKmh: $('quietSlow').checked ? RD.C.QUIET_KMH : RD.C.STOPPED_KMH }) : null;
-    captureOnFix(f, hit);
+    captureOnFix(f, hit, pool);
     const nearest = pool.length ? Math.min(...pool.map((h) => RD.distanceM(f.lat, f.lng, h.lat, h.lng))) : null;
     $('roadNote').textContent = 'مكانك: دقة ' + Math.round(f.acc) + ' م' + (kmh != null ? ' · ' + Math.round(kmh) + ' كم/س' : '') +
       (nearest != null ? ' · أقرب ' + (test ? 'مطب تجربة' : 'مطب') + ' ' + Math.round(nearest) + ' م' : '');
@@ -1470,6 +1508,28 @@
     sayRoad('ثانية، بجيب مكانك');
     navigator.geolocation.getCurrentPosition((p) => { onRoadFix(p); go(lastFix); },
       () => { $('roadNote').textContent = 'مش لاقى مكانك — اسمح بالموقع وجرّب تانى'; $('voiceNote').textContent = $('roadNote').textContent; sayRoad('مش لاقى مكانك، المطب ماتسجّلش'); }, { enableHighAccuracy: true, timeout: 20000 });
+  }
+  async function markTarget(type) {
+    if (!lastFix || !((lastFix.kmh || 0) < 5)) {
+      $('roadNote').textContent = 'اقف الأول عشان تسجّل';
+      return;
+    }
+    if (roadHeading == null) {
+      $('roadNote').textContent = 'امشى شوية فى اتجاه العلامة الأول عشان أعرف اتجاهها';
+      return;
+    }
+    const heads = Math.max(1, Math.min(6, Math.round(Number($('signalHeads').value) || 1)));
+    const note = type === 'signal' ? 'heads:' + heads : 'cat:' + ($('signCat').value || 'sign_other');
+    try {
+      await api('POST', '/api/web/hazards', { items: [{
+        uuid: uuid(), type, lat: lastFix.lat, lng: lastFix.lng, acc: lastFix.acc, t: Date.now(),
+        bearing: roadHeading, oneway: true, test: $('testMode').checked, note,
+      }] });
+      const msg = 'اتسجّلت ' + (type === 'signal' ? 'الإشارة' : 'العلامة');
+      $('roadNote').textContent = '✅ ' + msg;
+      sayRoad(msg);
+      loadRoad();
+    } catch (e) { $('roadNote').textContent = 'ماعرفتش أسجّل الهدف: ' + e.message; }
   }
   // ── «📸 صوّر الطريق» من الموبايل: الكاميرا الخلفية ← JPEG ← /api/web/shot (R2) — نفس صور التدريب بتاعة الشاشة ──
   let camStream = null;
@@ -1575,13 +1635,37 @@
     }
   }
   $('capArm').addEventListener('click', () => { void armCapture(); });
-  function captureOnFix(f, hit) {
+  async function queueAutoShot(meta, jpg, key, announce) {
+    try {
+      try { await OscarShotQueue.add({ uuid: meta.uuid, jpg, meta, addedAt: Date.now() }); }
+      catch (queueError) { await api('POST', '/api/web/shot', { jpg, meta }); }
+      capturedToday.add(key); saveCapturedToday();
+      if (announce && $('autoShotsSay').checked) oscar('shot_auto', 'لقط صورة');
+      void updateShotQueueInfo();
+      void flushShotQueue();
+      return true;
+    } catch (e) {
+      $('voiceNote').textContent = '📸 لم تترفع الصورة: ' + (e && e.message ? e.message : 'حاول تانى');
+      return false;
+    }
+  }
+  function captureOnFix(f, hit, pool) {
     refreshCaptureDay();
     if (hit && captureArmed && (hit.h.type === 'bump' || hit.h.type === 'pothole')) {
       const hazard = hit.h, direction = Math.round((roadHeading || 0) / 45);
       const key = hazard.uuid + '|' + direction;
       if (!activePlans.has(hazard.uuid) && !capturedToday.has(key) && !captureInFlight.has(key)) {
         activePlans.set(hazard.uuid, { hazard, key, plan: RD.capturePlan(hit.d, Date.now()) });
+      }
+    }
+    if (captureArmed) {
+      const t = RD.captureAhead((pool || []).filter((h) => h.type === 'sign' || h.type === 'signal'), f.lat, f.lng, roadHeading);
+      if (t && !activePlans.has(t.h.uuid)) {
+        const direction = Math.round((roadHeading || 0) / 45), key = t.h.uuid + '|' + direction;
+        if (!capturedToday.has(key) && !captureInFlight.has(key)) {
+          const marks = t.h.type === 'signal' ? RD.SIGNAL_MARKS : RD.SIGN_MARKS;
+          activePlans.set(t.h.uuid, { hazard: t.h, key, plan: RD.capturePlan(t.d, Date.now(), marks) });
+        }
       }
     }
     for (const [uuid_, entry] of activePlans) {
@@ -1597,28 +1681,50 @@
         continue;
       }
       const video = $('camView'), test = $('testMode').checked;
+      const shotUuid = uuid();
       const meta = {
-        uuid: uuid(), t: Date.now(), reason: 'bump_approach', app: 'phone', source: 'phone',
+        uuid: shotUuid, t: Date.now(), reason: 'bump_approach', app: 'phone', source: 'phone',
         lat: f.lat, lng: f.lng, acc: f.acc, kmh: f.kmh, heading: roadHeading,
         distanceM: Math.round(d), markM: mark, onsetM: entry.plan.marks[0],
         hazard: { id: h.uuid, type: h.type, lat: h.lat, lng: h.lng, oneway: !!h.oneway },
         camera: { label: track.label, w: video.videoWidth, h: video.videoHeight },
         ua: navigator.userAgent.slice(0, 120), test,
       };
+      if (h.type === 'sign' || h.type === 'signal') {
+        const note = String(h.note || '');
+        const signCategory = note.startsWith('cat:') ? note.slice(4) : null;
+        const signalHeads = note.match(/^heads:(\d+)$/);
+        meta.target = { id: String(h.uuid).slice(0, 40), type: h.type, category: signCategory || (signalHeads ? 'heads' : '') };
+        if (signalHeads) meta.target.heads = Number(signalHeads[1]);
+      }
+      const pairShot = h.type === 'signal' && RD.SIGNAL_PAIR_MARKS.includes(mark);
+      if (pairShot) meta.pairIndex = 0;
       captureInFlight.add(entry.key);
       void (async () => {
         try {
-          try {
-            await OscarShotQueue.add({ uuid: meta.uuid, jpg, meta, addedAt: Date.now() });
-          } catch (queueError) {
-            await api('POST', '/api/web/shot', { jpg, meta });
+          const firstSaved = await queueAutoShot(meta, jpg, entry.key, true);
+          if (firstSaved && pairShot) {
+            setTimeout(() => {
+              if (!captureArmed) return;
+              const secondJpg = grabFrame();
+              const secondTrack = camStream && camStream.getVideoTracks().find((item) => item.readyState === 'live');
+              if (!secondJpg || !secondTrack || !captureArmed) {
+                captureArmed = false;
+                $('capStatus').textContent = '⏸️ موقوف: الكاميرا مقفولة'; $('capStatus').title = $('capStatus').textContent;
+                return;
+              }
+              const secondFix = lastFix || f;
+              const secondDistance = RD.distanceM(secondFix.lat, secondFix.lng, h.lat, h.lng);
+              const secondVideo = $('camView');
+              const secondMeta = {
+                ...meta, uuid: uuid(), t: Date.now(), lat: secondFix.lat, lng: secondFix.lng,
+                acc: secondFix.acc, kmh: secondFix.kmh, heading: roadHeading, distanceM: Math.round(secondDistance),
+                pairOf: shotUuid, pairIndex: 1,
+                camera: { label: secondTrack.label, w: secondVideo.videoWidth, h: secondVideo.videoHeight },
+              };
+              void queueAutoShot(secondMeta, secondJpg, entry.key, false);
+            }, 1000);
           }
-          capturedToday.add(entry.key); saveCapturedToday();
-          if ($('autoShotsSay').checked) oscar('shot_auto', 'لقط صورة');
-          void updateShotQueueInfo();
-          void flushShotQueue();
-        } catch (e) {
-          $('voiceNote').textContent = '📸 لم تترفع الصورة: ' + (e && e.message ? e.message : 'حاول تانى');
         } finally {
           captureInFlight.delete(entry.key); updateCaptureStatus();
         }
@@ -1969,6 +2075,8 @@
   $('markPothole').addEventListener('click', () => markRoad('pothole'));
   $('markRadar').addEventListener('click', () => markRoad('radar'));
   $('markDanger').addEventListener('click', () => markRoad('danger'));
+  $('markSignal').addEventListener('click', () => markTarget('signal'));
+  $('markSign').addEventListener('click', () => markTarget('sign'));
   $('clearTestBtn').addEventListener('click', async () => {
     if (!confirm('تمسح كل مطبات التجربة؟')) return;
     try { const r = await api('POST', '/api/web/hazards', { clearTest: true }); $('roadNote').textContent = 'اتمسح ' + r.cleared + ' مطب تجربة'; } catch (e) {}

@@ -109,7 +109,7 @@ function createDriveSite({ pool, push } = {}) {
       const saved = await hz.save(pool, req.car.id, hz.parseItems(req.body));
       const out = { ok: true, saved };
       if (req.body && req.body.pull === true) {
-        out.items = await hz.list(pool, req.car.id);
+        out.items = await hz.list(pool, req.car.id, false, true);
         out.deleted = await hz.deletedUuids(pool, req.car.id);
       }
       res.json(out);
