@@ -10,3 +10,14 @@ export function cleanWfmMobile(raw: unknown): string | null {
   if (d.length < 7 || d.length > 15) return null;
   return d;
 }
+
+const comparableMobile = (value: string | null | undefined) => String(value ?? "").replace(/\D/g, "").replace(/^0+/, "");
+
+export function decideMobileUpdate(current: string | null, incoming: string): {
+  action: "insert" | "same" | "replace";
+  old: string | null;
+} {
+  if (!current?.trim()) return { action: "insert", old: null };
+  if (comparableMobile(current) === comparableMobile(incoming)) return { action: "same", old: null };
+  return { action: "replace", old: current };
+}

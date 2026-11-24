@@ -329,12 +329,17 @@ export function CurrentFaultsReport() {
     .filter((f) => (monthRepeatOnly ? f.monthRepeat === true : true))
     .filter((f) => (returnedOnly ? dispStatus(f.statusCode) === "DSL-173" : true));
   const mobileLookup = useMobileLookup(displayed.map((f) => f.phoneShort));
-  // «جلب الموبايل من WFM» (المالك ٢٠٢٦-١٠-١١): الخطوط المعروضة اللى مالهاش موبايل
+  // «جلب الموبايل من WFM»: كل الخطوط المعروضة، مع تهدئة آخر محاولة والنتائج السلبية.
   const wfmMobileLast = useWfmMobileLast(displayed.map((f) => f.phoneShort), isSuper);
-  const noMobilePhones = Array.from(new Set(displayed
-    .filter((f) => f.phoneShort && !(mobileLookup[phoneLookupKey(f.phoneShort)] ?? f.mobile))
-    .map((f) => phoneLookupKey(f.phoneShort))));
-  const wfmMobileTargets = noMobilePhones.filter((p) => !skipWfmMobileRetry(wfmMobileLast[p]));
+  const displayedPhones = Array.from(new Set(displayed.map((f) => phoneLookupKey(f.phoneShort)).filter(Boolean)));
+  const recentlyFetched = (phone: string) => {
+    const reportedAt = wfmMobileLast[phone]?.reportedAt;
+    const at = reportedAt ? new Date(reportedAt).getTime() : 0;
+    return !!at && Date.now() - at < 3 * 60 * 60 * 1000;
+  };
+  const wfmMobileTargets = displayedPhones.filter((phone) =>
+    !skipWfmMobileRetry(wfmMobileLast[phone]) && !recentlyFetched(phone));
+  const wfmMobileRetry = displayedPhones.filter((phone) => !wfmMobileTargets.includes(phone));
 
   // تقسيم الإجمالى: عدد أعطال الداتا وعدد أعطال الصوت (من displayed بعد الفلاتر)
   const dataCount  = displayed.filter(isDataFault).length;
@@ -605,7 +610,7 @@ export function CurrentFaultsReport() {
           المتبقيات: <strong>{displayed.filter((f) => f.faultClass === "المتبقيات").length}</strong>
         </span>
         {isSuper && (
-          <FetchWfmMobilesButton phones={wfmMobileTargets} retry={noMobilePhones.filter((p) => !wfmMobileTargets.includes(p))} />
+          <FetchWfmMobilesButton phones={wfmMobileTargets} retry={wfmMobileRetry} />
         )}
         {showSpeedTools && (<>
         <Button
@@ -768,7 +773,16 @@ export function CurrentFaultsReport() {
                       ) : (
                         <span className="inline-flex items-center gap-1">
                           <MobileValue mobile={mobile} phone={f.phoneShort} />
-                          {isSuper && <AltMobileButton alt={wfmMobileLast[phoneLookupKey(f.phoneShort)]?.altMobile} mobile={mobile} />}
+                          {isSuper && <AltMobileButton
+                            alts={[
+                              ...(wfmMobileLast[phoneLookupKey(f.phoneShort)]?.altMobile
+                                ? [{ number: wfmMobileLast[phoneLookupKey(f.phoneShort)]!.altMobile!, label: "تليفون بديل (WFM)" }]
+                                : []),
+                              ...(wfmMobileLast[phoneLookupKey(f.phoneShort)]?.oldMobiles || [])
+                                .map((number) => ({ number, label: "الموبايل القديم" })),
+                            ]}
+                            mobile={mobile}
+                          />}
                           {isSuper && f.phoneShort && (
                             <button
                               type="button"

@@ -1200,6 +1200,17 @@ export async function ensureSchema() {
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS line_mobile_history (
+      id serial PRIMARY KEY,
+      full_phone text NOT NULL,
+      mobile text NOT NULL,
+      source text,
+      replaced_by text,
+      replaced_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS line_mobile_history_phone_replaced_idx ON line_mobile_history (full_phone, replaced_at DESC)`);
 
   // om_order_matches — تطابق مؤكَّد بين طلب فى «قسم الطلبات» ومتعذر فى «المتعذرات
   // الحالية» (نفس العميل). السوبر أدمن هو اللى بيأكّده من تقرير الربط.
@@ -1340,6 +1351,13 @@ export async function ensureSchema() {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS wfm_customer_mobiles_phone_idx ON wfm_customer_mobiles (phone_number)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS wfm_mobile_auto (
+      ticket_id text PRIMARY KEY,
+      phone_short text NOT NULL,
+      queued_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
   // المالك ٢٠٢٦-١٠-١٢: رقم من WFM مش بيبدأ بصفر (زى 1900000000) مش موبايل — يتشال لو اتسجّل قبل القاعدة
   await pool.query(`DELETE FROM line_mobiles WHERE updated_by_name = 'WFM (Cust. Mobile)' AND mobile !~ '^0'`);
 

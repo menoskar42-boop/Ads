@@ -964,6 +964,17 @@ export const lineMobiles = pgTable("line_mobiles", {
 });
 export type LineMobile = typeof lineMobiles.$inferSelect;
 
+export const lineMobileHistory = pgTable("line_mobile_history", {
+  id: serial("id").primaryKey(),
+  fullPhone: text("full_phone").notNull(),
+  mobile: text("mobile").notNull(),
+  source: text("source"),
+  replacedBy: text("replaced_by"),
+  replacedAt: timestamp("replaced_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  phoneReplacedIdx: index("line_mobile_history_phone_replaced_idx").on(table.fullPhone, table.replacedAt.desc()),
+}));
+
 // الأرقام اللى اتفحصت وطلعت فعلاً مالهاش رقم محمول — بتتشال من تقرير «أرقام بدون رقم
 // موبايل تحت الفحص» وبتروح لتقرير «أرقام تم الفحص وتحتاج أرقام محمول».
 export const lineMobileChecked = pgTable("line_mobile_checked", {
@@ -1546,6 +1557,12 @@ export const wfmCustomerMobiles = pgTable("wfm_customer_mobiles", {
   reportedAt: timestamp("reported_at", { withTimezone: true }).defaultNow().notNull(),
 });
 export type WfmCustomerMobile = typeof wfmCustomerMobiles.$inferSelect;
+
+export const wfmMobileAuto = pgTable("wfm_mobile_auto", {
+  ticketId: text("ticket_id").primaryKey(),
+  phoneShort: text("phone_short").notNull(),
+  queuedAt: timestamp("queued_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // WebSocket Events
 export const WS_EVENTS = {

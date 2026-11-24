@@ -15,6 +15,7 @@ export interface WfmMobileLast {
   result: string;
   mobile: string | null;
   altMobile: string | null;
+  oldMobiles?: string[];
   message: string | null;
   reportedAt: string | null;
 }
@@ -76,10 +77,10 @@ export function FetchWfmMobilesButton({ phones, retry = [] }: { phones: string[]
     if (busy || (!n && !retry.length)) return;
     let send = phones;
     if (n) {
-      const extra = retry.length ? `\n(${retry.length} رقم اتجرّبوا خلال آخر يوم وWFM مارجّعش موبايل — مش هيتكرّروا. تقدر تجرّب أى واحد منهم بزرار «جلب تانى» جنبه)` : "";
-      if (!confirm(`جلب رقم الموبايل من WFM لـ ${n} خط مالوش موبايل؟${extra}\n\nكل رقم: Work Order ← Service Id ← Cust. Mobile على جهاز التنفيذ.`)) return;
+      const extra = retry.length ? `\n(${retry.length} خط مستثنى مؤقتاً بسبب محاولة حديثة أو نتيجة سلبية — تقدر تعيد جلب أى واحد منهم من زر «جلب تانى» بجانبه)` : "";
+      if (!confirm(`جلب رقم الموبايل من WFM لـ ${n} خط؟${extra}\n\nكل رقم: Work Order ← Service Id ← Cust. Mobile على جهاز التنفيذ.`)) return;
     } else {
-      if (!confirm(`الـ${retry.length} رقم دول اتجرّبوا خلال آخر يوم وWFM مارجّعش موبايل (مش موجود فى أوامر الشغل أو مفيش موبايل).\n\nأجرّبهم تانى دلوقتى؟`)) return;
+      if (!confirm(`الـ${retry.length} خط دول مستثنيين مؤقتاً بسبب محاولة خلال آخر 3 ساعات أو نتيجة سلبية خلال آخر يوم.\n\nأعيد جلبهم دلوقتى؟`)) return;
       send = retry;
     }
     setBusy(true);
@@ -89,11 +90,11 @@ export function FetchWfmMobilesButton({ phones, retry = [] }: { phones: string[]
     <Button
       variant="outline" size="sm" onClick={run} disabled={(!n && !retry.length) || busy}
       className="gap-1 text-indigo-700 border-indigo-200"
-      title="الخطوط المعروضة اللى مالهاش رقم موبايل — يجيب «رقم الموبايل» و«تليفون بديل» من WFM (Cust. Mobile)"
+      title="كل الخطوط المعروضة — لو الرقم اتغيّر بيتسجّل الجديد والقديم يفضل فى زرار بديل"
       data-testid="button-fetch-wfm-mobiles"
     >
       {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}
-      جلب الموبايل من WFM ({n || (retry.length ? `${retry.length} تانى` : 0)})
+      جلب الموبايل من WFM ({n})
     </Button>
   );
 }
@@ -101,29 +102,45 @@ export function FetchWfmMobilesButton({ phones, retry = [] }: { phones: string[]
 const sameNumber = (a: string | null | undefined, b: string | null | undefined) =>
   !!a && !!b && dialMobile(a).replace(/^0+/, "") === dialMobile(b).replace(/^0+/, "");
 
-/** زرار «بديل»: التليفون البديل من WFM — مش فى خانة الموبايل، بيبان لما تضغط. */
-export function AltMobileButton({ alt, mobile }: { alt: string | null | undefined; mobile: string | null | undefined }) {
+/** زرار «بديل»: أرقام WFM القديمة والحالية السابقة — لا تظهر إلا عند الطلب. */
+export function AltMobileButton({ alts, mobile }: {
+  alts: Array<{ number: string; label: string }>;
+  mobile: string | null | undefined;
+}) {
   const [open, setOpen] = useState(false);
-  if (!alt || sameNumber(alt, mobile)) return null;
-  const dial = dialMobile(alt);
+  const choices: Array<{ number: string; label: string }> = [];
+  for (const alt of alts) {
+    const number = String(alt.number || "").trim();
+    if (!number || sameNumber(number, mobile) || choices.some((item) => sameNumber(item.number, number))) continue;
+    choices.push({ number, label: alt.label });
+  }
+  if (!choices.length) return null;
   return (
     <span className="inline-flex items-center gap-1">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="text-[11px] text-indigo-700 border border-indigo-200 rounded px-1.5 py-0.5 hover:bg-indigo-50"
-        title="تليفون بديل (من WFM — Cust. Mobile)"
+        title="تليفونات بديلة وسابقة"
         aria-expanded={open}
         data-testid="button-alt-mobile"
       >
         بديل
       </button>
       {open && (
-        <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5" dir="ltr">
-          <span className="font-mono text-xs">{alt}</span>
-          <a href={`tel:${dial}`} className="text-emerald-600" title={`اتصال بالتليفون البديل: ${dial}`} aria-label={`اتصال بالتليفون البديل: ${dial}`}>
-            <Phone className="h-3.5 w-3.5" />
-          </a>
+        <span className="inline-flex flex-col items-start gap-1 rounded bg-indigo-50 px-1.5 py-1">
+          {choices.map(({ number, label }, index) => {
+            const dial = dialMobile(number);
+            return (
+              <span key={`${dial}-${index}`} className="inline-flex items-center gap-1" dir="ltr">
+                <span className="text-[10px] text-indigo-800" dir="rtl">{label}</span>
+                <span className="font-mono text-xs">{number}</span>
+                <a href={`tel:${dial}`} className="text-emerald-600" title={`اتصال: ${dial}`} aria-label={`اتصال: ${dial}`}>
+                  <Phone className="h-3.5 w-3.5" />
+                </a>
+              </span>
+            );
+          })}
         </span>
       )}
     </span>
@@ -135,7 +152,7 @@ export function AltMobileButton({ alt, mobile }: { alt: string | null | undefine
 export function WfmMobileMiss({ last, phone }: { last: WfmMobileLast | undefined; phone?: string }) {
   const [busy, setBusy] = useState(false);
   const qc = useQueryClient();
-  if (!last || last.result === "done") return null;
+  if (!last || !last.result || last.result === "done") return null;
   const retry = async () => {
     if (!phone || busy) return;
     setBusy(true);

@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, FileSpreadsheet, FileText, AlertTriangle, Wrench, X, Eye, User, Phone } from "lucide-react";
+import { Loader2, RefreshCw, FileSpreadsheet, FileText, AlertTriangle, Wrench, X, Eye, User, Phone, Ruler } from "lucide-react";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { WEEK_DROP_TITLE, weekDropLabel, type WeekDrop } from "@shared/week-drop";
@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { ROLES } from "@shared/schema";
 import { CLOSE_CODE_REASONS } from "@/lib/close-codes";
-import { dispatchSpeedTool } from "@/lib/exec-queue";
+import { dispatchSpeedTool, measureBatchUrl, measureTabName } from "@/lib/exec-queue";
 import { arNorm } from "@shared/ar-norm";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
 
@@ -159,6 +159,12 @@ export function ManualCurrentFaultsReport() {
   ];
 
   const shown = onlyMine ? rows.filter(isMine) : rows;
+  const handleMeasureDZS = async () => {
+    const accounts = [...new Set(shown.map((row) => String(row.accountNo || "").trim()).filter(Boolean))];
+    if (!accounts.length) { alert("لا توجد أرقام أكونت فى الأعطال المعروضة"); return; }
+    if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal: true, loop: true })) return;
+    window.open(measureBatchUrl(accounts, { noReal: true, loop: true }), measureTabName());
+  };
 
   const handleExportExcel = () => {
     const ws = XLSX.utils.aoa_to_sheet([COLUMNS, ...shown.map(toRow)]);
@@ -180,6 +186,12 @@ export function ManualCurrentFaultsReport() {
           <Button onClick={() => setOnlyMine((v) => !v)} size="sm" variant={onlyMine ? "default" : "outline"} className={`gap-1 ${onlyMine ? "bg-blue-600 hover:bg-blue-700" : "text-blue-700 border-blue-200"}`} title="عرض أعطالى فقط">
             <User className="w-4 h-4" /> {onlyMine ? "الكل" : "أعطالى"}
           </Button>
+          {isSuper && (
+            <Button onClick={handleMeasureDZS} variant="outline" size="sm" className="gap-1 text-teal-700 border-teal-300"
+              title="تحديث حالة الخط (ASSIA) للأعطال المعروضة — بدون Real وتحديث المسافة">
+              <Ruler className="w-4 h-4" /> تحديث حالة الخط (ASSIA)
+            </Button>
+          )}
           <Button onClick={handleExportExcel} variant="outline" size="sm" className="gap-1 text-green-700 border-green-200" disabled={!shown.length}><FileSpreadsheet className="w-4 h-4" /> تصدير Excel</Button>
           <Button onClick={handleExportPDF} variant="outline" size="sm" className="gap-1 text-red-700 border-red-200" disabled={!shown.length}><FileText className="w-4 h-4" /> تصدير PDF</Button>
         </div>

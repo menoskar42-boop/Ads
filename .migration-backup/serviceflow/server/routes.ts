@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { pool, currentPool, hasCurrentDatabase } from "./db";
-import { cleanWfmMobile } from "./wfm-mobile";
+import { cleanWfmMobile, decideMobileUpdate } from "./wfm-mobile";
 import { followupFor, recheckFor, stopRetryFor, stopRetryCount, RECHECK_MARK, RAISE_STOP_MARK, STOP_MEASURE_MARK, STOP_RETRY_MARK, LOOP_MARK, XELT_MARK, RETRY_102_MARK, RETRY_102_AFTER_MIN, RETRY_102_ONCE_MIN, retry102For } from "./exec-followups";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
@@ -4089,12 +4089,69 @@ export async function registerRoutes(
           [phone, mobile, alt, workOrderId, result, message, requestedBy])).rows[0]?.id;
       let saved = false;
       if (mobile) {
-        // مابنكتبش فوق موبايل متسجّل (إدخال يدوى أو جلب قديم) — الزرار أصلاً للخطوط اللى مالهاش
-        const ins = await pool.query(
-          `INSERT INTO line_mobiles (full_phone, mobile, updated_by_name, updated_at)
-           VALUES ($1, $2, $3, now()) ON CONFLICT (full_phone) DO NOTHING`,
-          ["88" + phone, mobile, "WFM (Cust. Mobile)"]);
-        saved = (ins.rowCount ?? 0) > 0;
+        const fullPhone = "88" + phone;
+        const client = await pool.connect();
+        try {
+          await client.query("BEGIN");
+          const { rows: currentRows } = await client.query(
+            `SELECT mobile, updated_by_name FROM line_mobiles WHERE full_phone = $1 FOR UPDATE`, [fullPhone]);
+          const current = currentRows[0];
+          if (current) {
+            const decision = decideMobileUpdate(String(current.mobile ?? ""), mobile);
+            if (decision.action === "replace") {
+              await client.query(
+                `INSERT INTO line_mobile_history (full_phone, mobile, source, replaced_by, replaced_at)
+                 VALUES ($1, $2, $3, $4, now())`,
+                [fullPhone, decision.old, current.updated_by_name || null, "WFM (Cust. Mobile)"]);
+              await client.query(
+                `UPDATE line_mobiles SET mobile = $2, updated_by_name = $3, updated_at = now()
+                  WHERE full_phone = $1`, [fullPhone, mobile, "WFM (Cust. Mobile)"]);
+              saved = true;
+            } else if (decision.action === "insert") {
+              await client.query(
+                `UPDATE line_mobiles SET mobile = $2, updated_by_name = $3, updated_at = now()
+                  WHERE full_phone = $1`, [fullPhone, mobile, "WFM (Cust. Mobile)"]);
+              saved = true;
+            }
+          } else {
+            // نفس أولوية العرض الحالية: أوامر الصيانة، ثم WFM الحالي، ثم FTTH.
+            const { rows: priorRows } = await client.query(
+              `SELECT x.mobile FROM (
+                 SELECT mo.mobile, 1 AS priority FROM maintenance_orders mo
+                  WHERE ${sp("mo.phone_number")} = $1
+                    AND mo.mobile !~ '[A-Za-z=/]' AND mo.mobile ~ '[0-9]{5,}'
+                 UNION ALL
+                 SELECT wc.mobile, 2 AS priority FROM wfm_current wc
+                  WHERE ${sp("wc.phone_number")} = $1
+                    AND wc.mobile !~ '[A-Za-z=/]' AND wc.mobile ~ '[0-9]{5,}'
+                 UNION ALL
+                 SELECT fo.customer_mobile AS mobile, 3 AS priority FROM ftth_orders_current fo
+                  WHERE ${sp("fo.service_number")} = $1
+                    AND fo.customer_mobile !~ '[A-Za-z=/]' AND fo.customer_mobile ~ '[0-9]{5,}'
+               ) x
+               WHERE NULLIF(btrim(x.mobile), '') IS NOT NULL
+                 AND x.mobile !~ '[A-Za-z=/]' AND x.mobile ~ '[0-9]{5,}'
+               ORDER BY x.priority LIMIT 1`, [phone]);
+            const prior = priorRows[0]?.mobile ? String(priorRows[0].mobile) : null;
+            if (prior && decideMobileUpdate(prior, mobile).action === "replace") {
+              await client.query(
+                `INSERT INTO line_mobile_history (full_phone, mobile, source, replaced_by, replaced_at)
+                 VALUES ($1, $2, $3, $4, now())`,
+                [fullPhone, prior, "مصدر سابق", "WFM (Cust. Mobile)"]);
+            }
+            const ins = await client.query(
+              `INSERT INTO line_mobiles (full_phone, mobile, updated_by_name, updated_at)
+               VALUES ($1, $2, $3, now()) ON CONFLICT (full_phone) DO NOTHING RETURNING full_phone`,
+              [fullPhone, mobile, "WFM (Cust. Mobile)"]);
+            saved = (ins.rowCount ?? 0) > 0;
+          }
+          await client.query("COMMIT");
+        } catch (e) {
+          await client.query("ROLLBACK").catch(() => {});
+          throw e;
+        } finally {
+          client.release();
+        }
         broadcast({ type: WS_EVENTS.DATA_IMPORT, payload: { key: "/api/wfm-mobile/ingest" } });
       }
       res.json({ ok: true, id: insertedId, result, saved });
@@ -4102,17 +4159,47 @@ export async function registerRoutes(
   });
   // آخر نتيجة جلب لكل رقم (+ التليفون البديل) — للأعطال الحالية (سوبر أدمن)
   app.post("/api/wfm-mobile/last", requireAuth, requireSuperAdmin, async (req: any, res) => {
-    const phones = Array.from(new Set((Array.isArray(req.body?.phones) ? req.body.phones : [])
+    const phones: string[] = Array.from(new Set<string>((Array.isArray(req.body?.phones) ? req.body.phones : [])
       .map((p: unknown) => String(p ?? "").replace(/\D/g, "").replace(/^0+/, "").replace(/^88(?=\d{7})/, ""))
       .filter(Boolean))).slice(0, 5000);
     if (!phones.length) return res.json({ data: {} });
     try {
+      const fullPhones = phones.map((phone: string) => "88" + phone);
+      const { rows: historyRows } = await pool.query(
+        `WITH history AS (
+           SELECT full_phone, mobile, replaced_at,
+                  regexp_replace(regexp_replace(mobile, '[^0-9]', '', 'g'), '^0+', '') AS mobile_key
+             FROM line_mobile_history WHERE full_phone = ANY($1::text[])
+         ), unique_mobiles AS (
+           SELECT DISTINCT ON (full_phone, mobile_key) full_phone, mobile, replaced_at
+             FROM history ORDER BY full_phone, mobile_key, replaced_at DESC
+         ), ranked AS (
+           SELECT full_phone, mobile,
+                  row_number() OVER (PARTITION BY full_phone ORDER BY replaced_at DESC) AS rn
+             FROM unique_mobiles
+         )
+         SELECT full_phone, mobile FROM ranked WHERE rn <= 5 ORDER BY full_phone, rn`,
+        [fullPhones]);
+      const phoneByFull = new Map<string, string>(fullPhones.map((full: string, i: number) => [full, phones[i]]));
+      const oldByPhone = new Map<string, string[]>();
+      for (const row of historyRows) {
+        const phone = phoneByFull.get(String(row.full_phone));
+        if (!phone) continue;
+        const list = oldByPhone.get(phone) || [];
+        list.push(String(row.mobile));
+        oldByPhone.set(phone, list);
+      }
+      const withHistoryOnly = Object.fromEntries([...oldByPhone].map(([phone, oldMobiles]) => [
+        phone, { phone, result: "", mobile: null, altMobile: null, message: null, reportedAt: null, oldMobiles },
+      ]));
       if (wfmCustomerMobilesD1.isEnabled()) {
         const rows = await wfmCustomerMobilesD1.latest(phones);
-        res.json({ data: Object.fromEntries(rows.map((row: any) => [row.phone_number, {
+        const data = { ...withHistoryOnly, ...Object.fromEntries(rows.map((row: any) => [row.phone_number, {
           phone: row.phone_number, result: row.result, mobile: row.mobile,
           altMobile: row.alt_mobile, message: row.message, reportedAt: row.reported_at,
-        }])) });
+          oldMobiles: oldByPhone.get(row.phone_number) || [],
+        }])) };
+        res.json({ data });
       } else {
         const { rows } = await pool.query(
           `SELECT DISTINCT ON (phone_number) phone_number AS phone, result, mobile, alt_mobile AS "altMobile",
@@ -4125,7 +4212,10 @@ export async function registerRoutes(
              FROM wfm_customer_mobiles WHERE phone_number = ANY($1::text[]) AND result = 'done'
             ORDER BY phone_number, reported_at DESC`, [phones]);
         const altOf = new Map(alts.map((r: any) => [r.phone, r.altMobile]));
-        res.json({ data: Object.fromEntries(rows.map((r: any) => [r.phone, { ...r, altMobile: altOf.get(r.phone) ?? null }])) });
+        const data = { ...withHistoryOnly, ...Object.fromEntries(rows.map((r: any) => [r.phone, {
+          ...r, altMobile: altOf.get(r.phone) ?? null, oldMobiles: oldByPhone.get(r.phone) || [],
+        }])) };
+        res.json({ data });
       }
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -4901,36 +4991,49 @@ export async function registerRoutes(
   };
 
   /**
-   * «جلب الموبايل من WFM» أوتوماتيك (المالك ٢٠٢٦-١٠-١٢): بعد كل تحديث للأعطال الحالية (ملف FCC)،
-   * خطوط الأعطال الحالية اللى مالهاش موبايل فى أى مصدر بتدخل الطابور باتش واحد وتاخد دورها.
-   * مابيدخلش: اللى ليه جلب فى الطابور دلوقتى، واللى WFM قال عليه «مفيش موبايل/مش موجود» من أقل
-   * من يوم، وأى محاولة من أقل من ٣ ساعات (عشان التحديث كل نص ساعة مايكرّرش نفس الأرقام).
+   * «جلب الموبايل من WFM» أوتوماتيك: الشكوى المفتوحة الجديدة تأخذ محاولة واحدة،
+   * والخط المفتوح بلا موبايل يظل مؤهلاً لإعادة المحاولة بعد قواعد التهدئة المعتادة.
    */
   const autoFetchCurrentFaultMobiles = async (trigger: string) => {
     try {
       const useD1WfmMobile = wfmCustomerMobilesD1.isEnabled();
       const { rows } = await pool.query(
         `WITH cf AS (
-           SELECT DISTINCT ${sp("t.phone_number")} AS short
+            SELECT DISTINCT ON (t.ticket_id) t.ticket_id, ${sp("t.phone_number")} AS short
              FROM ticket_dsl_current t
-            WHERE t.close_date IS NULL
+             WHERE t.close_date IS NULL AND NULLIF(btrim(t.ticket_id), '') IS NOT NULL
               AND (t.status_code ~ '^(160|173|122|73|72|60|81|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')
               AND t.central_name IN ('الغنايم', 'الغنايم-العزايزة', 'الغنايم-دير الجنادله', 'الغنايم-نجع العمدة')
-         )
-         SELECT cf.short FROM cf
-          WHERE cf.short ~ '^[0-9]{7}$'
-            AND NOT EXISTS (SELECT 1 FROM line_mobiles lm WHERE lm.full_phone = '88' || cf.short AND NULLIF(btrim(lm.mobile), '') IS NOT NULL)
-            AND NOT EXISTS (SELECT 1 FROM maintenance_orders mo WHERE mo.phone_number IN (cf.short, '88' || cf.short)
-                              AND mo.mobile !~ '[A-Za-z=/]' AND mo.mobile ~ '[0-9]{5,}')
-            AND NOT EXISTS (SELECT 1 FROM wfm_current wc WHERE ${sp("wc.phone_number")} = cf.short
-                              AND wc.mobile !~ '[A-Za-z=/]' AND wc.mobile ~ '[0-9]{5,}')
-            AND NOT EXISTS (SELECT 1 FROM ftth_orders_current fo WHERE fo.service_number IN (cf.short, '88' || cf.short)
-                              AND fo.customer_mobile !~ '[A-Za-z=/]' AND fo.customer_mobile ~ '[0-9]{5,}')
-             ${useD1WfmMobile ? "" : `AND NOT EXISTS (SELECT 1 FROM wfm_customer_mobiles w WHERE w.phone_number = cf.short
+             ORDER BY t.ticket_id, t.id DESC
+          ), new_tickets AS (
+            INSERT INTO wfm_mobile_auto (ticket_id, phone_short)
+            SELECT ticket_id, short FROM cf
+             WHERE short ~ '^[0-9]{7}$'
+            ON CONFLICT (ticket_id) DO NOTHING
+            RETURNING phone_short
+          ), no_mobile AS (
+            SELECT DISTINCT cf.short
+              FROM cf
+             WHERE cf.short ~ '^[0-9]{7}$'
+               AND NOT EXISTS (SELECT 1 FROM line_mobiles lm WHERE lm.full_phone = '88' || cf.short AND NULLIF(btrim(lm.mobile), '') IS NOT NULL)
+               AND NOT EXISTS (SELECT 1 FROM maintenance_orders mo WHERE mo.phone_number IN (cf.short, '88' || cf.short)
+                                 AND mo.mobile !~ '[A-Za-z=/]' AND mo.mobile ~ '[0-9]{5,}')
+               AND NOT EXISTS (SELECT 1 FROM wfm_current wc WHERE ${sp("wc.phone_number")} = cf.short
+                                 AND wc.mobile !~ '[A-Za-z=/]' AND wc.mobile ~ '[0-9]{5,}')
+               AND NOT EXISTS (SELECT 1 FROM ftth_orders_current fo WHERE fo.service_number IN (cf.short, '88' || cf.short)
+                                 AND fo.customer_mobile !~ '[A-Za-z=/]' AND fo.customer_mobile ~ '[0-9]{5,}')
+          ), candidates AS (
+            SELECT phone_short AS short FROM new_tickets
+            UNION
+            SELECT short FROM no_mobile
+          )
+          SELECT DISTINCT c.short FROM candidates c
+           WHERE c.short ~ '^[0-9]{7}$'
+             ${useD1WfmMobile ? "" : `AND NOT EXISTS (SELECT 1 FROM wfm_customer_mobiles w WHERE w.phone_number = c.short
                                AND (w.reported_at > now() - interval '3 hours'
                                     OR (w.result IN ('no_mobile', 'not_found') AND w.reported_at > now() - interval '24 hours')))`}
-            AND ${notQueuedSql("cf.short", ["wfmmobile"])}
-          ORDER BY 1`);
+             AND ${notQueuedSql("c.short", ["wfmmobile"])}
+           ORDER BY c.short`);
       let phones = rows.map((r: any) => String(r.short)).filter(Boolean);
       if (useD1WfmMobile && phones.length) {
         const suppressions = await wfmCustomerMobilesD1.recentSuppression(phones);
@@ -4939,7 +5042,7 @@ export async function registerRoutes(
           .map((row: any) => row.phone_number));
         phones = phones.filter((phone: string) => !suppressed.has(phone));
       }
-      const b = await enqueueAutoBatch("wfmmobile", phones, "جلب الموبايل من WFM — أعطال حالية بدون موبايل (بعد تحديث الأعطال الحالية)");
+      const b = await enqueueAutoBatch("wfmmobile", phones, "جلب الموبايل من WFM — كل الأعطال الحالية (شكوى جديدة أو بدون موبايل)");
       if (b.count) console.log(`[wfm-mobile-auto] (${trigger}): ${b.count} رقم اتضافوا للطابور`);
       return b;
     } catch (e: any) {
@@ -4964,14 +5067,32 @@ export async function registerRoutes(
             WHERE t.close_date IS NULL AND NULLIF(btrim(t.ticket_id), '') IS NOT NULL
               AND (t.status_code ~ '^(160|173|122|73|72|60|81|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')
               AND t.central_name IN ('الغنايم', 'الغنايم-العزايزة', 'الغنايم-دير الجنادله', 'الغنايم-نجع العمدة')
-            ORDER BY t.ticket_id, t.id DESC
-         ), acc AS (
-           SELECT cf.ticket_id, cf.full_phone,
-                  (SELECT la.account_no FROM line_accounts la WHERE la.full_phone = cf.full_phone
-                     AND NULLIF(btrim(la.account_no), '') IS NOT NULL ORDER BY la.updated_at DESC NULLS LAST LIMIT 1) AS account_no
-             FROM cf
-            WHERE NOT EXISTS (SELECT 1 FROM line_status_auto a WHERE a.ticket_id = cf.ticket_id)
-         )
+             ORDER BY t.ticket_id, t.id DESC
+          ), manual AS (
+            SELECT 'MF-' || mf.id::text AS ticket_id,
+                   p.full_phone,
+                   COALESCE(NULLIF(btrim(mf.account_no), ''),
+                     (SELECT la.account_no FROM line_accounts la WHERE la.full_phone = p.full_phone
+                        AND NULLIF(btrim(la.account_no), '') IS NOT NULL
+                        ORDER BY la.updated_at DESC NULLS LAST LIMIT 1)) AS account_no
+              FROM manual_faults mf
+              CROSS JOIN LATERAL (
+                SELECT NULLIF('88' || COALESCE(NULLIF(${sp("mf.phone_short")}, ''), NULLIF(${sp("mf.full_phone")}, '')), '88') AS full_phone
+              ) p
+             WHERE mf.status = 'open' AND p.full_phone IS NOT NULL
+          ), faults AS (
+            SELECT cf.ticket_id, cf.full_phone,
+                   (SELECT la.account_no FROM line_accounts la WHERE la.full_phone = cf.full_phone
+                      AND NULLIF(btrim(la.account_no), '') IS NOT NULL ORDER BY la.updated_at DESC NULLS LAST LIMIT 1) AS account_no
+              FROM cf
+            UNION ALL
+            SELECT ticket_id, full_phone, account_no FROM manual
+          ), acc AS (
+            SELECT f.ticket_id, f.full_phone, f.account_no
+              FROM faults f
+             WHERE NULLIF(btrim(f.account_no), '') IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM line_status_auto a WHERE a.ticket_id = f.ticket_id)
+          )
          INSERT INTO line_status_auto (ticket_id, account_no, full_phone)
          SELECT ticket_id, btrim(account_no), full_phone FROM acc WHERE account_no IS NOT NULL
          ON CONFLICT (ticket_id) DO NOTHING
@@ -16138,6 +16259,7 @@ export async function registerRoutes(
       `INSERT INTO manual_faults (full_phone, phone_short, account_no, central, cabin_number, box_number, msan_code, tech_name, status, flagged_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'open',$9)`,
       [fullPhone || null, phoneShort || null, b.accountNo || null, b.central || null, b.cabinNumber || null, b.boxNumber || null, b.msanCode || null, b.techName || null, String(req.user.username || "")]);
+    void autoLineStatusNewFaults("manual-flag");
     res.json({ ok: true });
   });
 
