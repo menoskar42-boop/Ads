@@ -22,10 +22,21 @@ function parse(body) {
   const at = Number.isFinite(t) && t > 1.6e12 && t < Date.now() + 86400000 ? new Date(t) : new Date();
   const clean = {};
   for (const k of ['lat', 'lng', 'kmh', 'heading', 'acc', 'distanceM', 'orientation']) if (Number.isFinite(Number(meta[k]))) clean[k] = Number(meta[k]);
+  for (const k of ['markM', 'onsetM']) if (typeof meta[k] === 'number' && Number.isFinite(meta[k])) clean[k] = meta[k];
   if (meta.hazard && typeof meta.hazard === 'object') {
     clean.hazard = { type: String(meta.hazard.type || '').slice(0, 20), lat: Number(meta.hazard.lat) || null, lng: Number(meta.hazard.lng) || null };
+    if (typeof meta.hazard.id === 'string') clean.hazard.id = meta.hazard.id.slice(0, 40);
+    if (typeof meta.hazard.oneway === 'boolean') clean.hazard.oneway = meta.hazard.oneway;
   }
   clean.app = String(meta.app || '').slice(0, 30);
+  if (typeof meta.source === 'string') clean.source = meta.source.slice(0, 10);
+  if (meta.camera && typeof meta.camera === 'object') {
+    const camera = {};
+    if (typeof meta.camera.label === 'string') camera.label = meta.camera.label.slice(0, 60);
+    for (const k of ['w', 'h']) if (typeof meta.camera[k] === 'number' && Number.isFinite(meta.camera[k])) camera[k] = meta.camera[k];
+    clean.camera = camera;
+  }
+  if (typeof meta.ua === 'string') clean.ua = meta.ua.slice(0, 120);
   return {
     buf, meta: clean, uuid: meta.uuid.toLowerCase(), at,
     reason: REASONS.has(meta.reason) ? meta.reason : 'button',

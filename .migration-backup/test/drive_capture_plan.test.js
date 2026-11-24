@@ -12,7 +12,7 @@ test('capture marks include the onset, 50 m buckets, and near marks with gaps', 
 
 test('capture plan fires at the onset distance', () => {
   const plan = R.capturePlan(150, 1000);
-  assert.equal(plan.onDistance(150, 1000, 5), 150);
+  assert.equal(plan.onDistance(149, 1000, 5), 150);
 });
 
 test('GPS jitter fires the 100 m mark only once', () => {

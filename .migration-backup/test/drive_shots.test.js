@@ -25,6 +25,20 @@ describe('shots: validation + zip', () => {
     assert.equal(shots.parse({ meta: meta({ uuid: '../x' }), jpg: JPG.toString('base64') }).error, 'bad meta');
     assert.equal(shots.parse({ meta: meta({ reason: 'hack' }), jpg: JPG.toString('base64') }).reason, 'button');
   });
+  it('keeps whitelisted automatic bump capture metadata within its limits', () => {
+    const p = shots.parse({ meta: meta({
+      markM: 50, onsetM: 150, source: 'phone-extra',
+      hazard: { id: 'hazard-123', type: 'bump', lat: 27.181, lng: 31.18, oneway: true },
+      camera: { label: 'rear camera '.repeat(8), w: 1280, h: 720 }, ua: 'x'.repeat(140),
+    }), jpg: JPG.toString('base64') });
+    assert.equal(p.error, undefined);
+    assert.equal(p.reason, 'bump_approach');
+    assert.equal(p.meta.markM, 50); assert.equal(p.meta.onsetM, 150);
+    assert.equal(p.meta.source, 'phone-extr');
+    assert.equal(p.meta.hazard.id, 'hazard-123'); assert.equal(p.meta.hazard.oneway, true);
+    assert.equal(p.meta.camera.label.length, 60); assert.equal(p.meta.camera.w, 1280); assert.equal(p.meta.camera.h, 720);
+    assert.equal(p.meta.ua.length, 120);
+  });
   it('zip is a valid STORE archive (crc + sizes) — local headers parse back', () => {
     const z = shots.zip([{ name: 'shots/a.jpg', data: JPG }, { name: 'shots/a.json', data: Buffer.from('{"x":1}') }]);
     assert.equal(z.readUInt32LE(0), 0x04034b50);

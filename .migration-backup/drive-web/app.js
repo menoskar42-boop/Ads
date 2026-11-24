@@ -552,11 +552,14 @@
         s.value = lim;
       }
       $('quietSlow').checked = !!o.quiet;
+      $('autoShots').checked = !!o.autoShots;
+      $('autoShotsSay').checked = o.autoShotsSay !== false;
       if (o.brk != null) $('breakSel').value = String(o.brk); $('sosName').value = o.sosName || ''; $('sosPhone').value = o.sosPhone || '';
       $('callWa').checked = !!o.callWa; } catch (e) {}
   }
   function saveSettings() {
     try { localStorage.setItem(SET_KEY, JSON.stringify({ warn: +$('warnDist').value, lim: +$('speedLimSel').value, quiet: $('quietSlow').checked,
+      autoShots: $('autoShots').checked, autoShotsSay: $('autoShotsSay').checked,
       brk: +$('breakSel').value, sosName: $('sosName').value.trim(), sosPhone: $('sosPhone').value.trim(), callWa: $('callWa').checked })); } catch (e) {}
   }
   function fillSpeedLimitOptions() {
@@ -569,7 +572,8 @@
   }
   fillSpeedLimitOptions();
   loadSettings();
-  ['warnDist', 'speedLimSel', 'quietSlow', 'breakSel', 'sosName', 'sosPhone', 'callWa'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  ['warnDist', 'speedLimSel', 'quietSlow', 'autoShotsSay', 'breakSel', 'sosName', 'sosPhone', 'callWa'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  $('autoShots').addEventListener('change', () => { saveSettings(); syncAutoShotControls(); });
 
   /* ── 📞 جهات الاتصال: محلية افتراضياً، ومزامنتها اختيارية للأجهزة المرتبطة بنفس السيارة ── */
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1237,6 +1241,7 @@
     else if (prevFix && RD.distanceM(prevFix.lat, prevFix.lng, f.lat, f.lng) >= 8) roadHeading = RD.bearingDeg(prevFix.lat, prevFix.lng, f.lat, f.lng);
     if (!prevFix || RD.distanceM(prevFix.lat, prevFix.lng, f.lat, f.lng) >= 8) prevFix = f;
     lastFix = f;
+    updateCaptureStatus();
     let kmh = f.kmh;
     if (kmh == null && prevFix && prevFix !== f && f.t > prevFix.t) kmh = RD.distanceM(prevFix.lat, prevFix.lng, f.lat, f.lng) / ((f.t - prevFix.t) / 1000) * 3.6;
     const test = $('testMode').checked;
@@ -1245,6 +1250,7 @@
     if (alertWatch !== null) { speedCheck(kmh); breakCheck(kmh); }
     const hit = alertWatch !== null ? RD.ahead(pool, f.lat, f.lng, roadHeading, kmh || 0, Date.now(), warnedRoad,
       { test, minWarnM: +$('warnDist').value || 100, minKmh: $('quietSlow').checked ? RD.C.QUIET_KMH : RD.C.STOPPED_KMH }) : null;
+    captureOnFix(f, hit);
     const nearest = pool.length ? Math.min(...pool.map((h) => RD.distanceM(f.lat, f.lng, h.lat, h.lng))) : null;
     $('roadNote').textContent = 'مكانك: دقة ' + Math.round(f.acc) + ' م' + (kmh != null ? ' · ' + Math.round(kmh) + ' كم/س' : '') +
       (nearest != null ? ' · أقرب ' + (test ? 'مطب تجربة' : 'مطب') + ' ' + Math.round(nearest) + ' م' : '');
@@ -1308,6 +1314,145 @@
     cv.width = Math.round(v.videoWidth * sc); cv.height = Math.round(v.videoHeight * sc); cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
     return cv.toDataURL('image/jpeg', 0.8).split(',')[1];
   }
+  const AUTO_SHOT_DAY_KEY = 'od_auto_shots_today';
+  const activePlans = new Map();
+  const captureInFlight = new Set();
+  let captureRequested = false, captureArmed = false;
+  const localCaptureDay = () => {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  };
+  let captureDay = localCaptureDay();
+  let capturedToday = (() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(AUTO_SHOT_DAY_KEY) || 'null');
+      return saved && saved.day === captureDay && Array.isArray(saved.keys) ? new Set(saved.keys.filter((k) => typeof k === 'string')) : new Set();
+    } catch (e) { return new Set(); }
+  })();
+  function saveCapturedToday() {
+    try { sessionStorage.setItem(AUTO_SHOT_DAY_KEY, JSON.stringify({ day: captureDay, keys: [...capturedToday] })); } catch (e) {}
+  }
+  function refreshCaptureDay() {
+    const today = localCaptureDay();
+    if (today === captureDay) return;
+    captureDay = today; capturedToday = new Set(); saveCapturedToday();
+  }
+  function capturePauseReason() {
+    const v = $('camView');
+    const liveTrack = camStream && camStream.getVideoTracks().some((track) => track.readyState === 'live');
+    if (!liveTrack || !v.videoWidth || v.readyState < 2) return 'الكاميرا مقفولة';
+    if (document.hidden) return 'الصفحة مش ظاهرة';
+    if (!lastFix || Date.now() - lastFix.t >= 10000) return 'مفيش GPS';
+    if (!((wakeLock && !wakeLock.released) || (awakeVideo && !awakeVideo.paused))) return 'الشاشة ممكن تنام';
+    return null;
+  }
+  function updateCaptureStatus() {
+    const controls = $('capControls'), status = $('capStatus');
+    const enabled = $('autoShots').checked;
+    controls.hidden = !enabled;
+    document.body.classList.toggle('auto-shots-on', enabled);
+    if (!enabled) { captureRequested = false; captureArmed = false; return false; }
+    const reason = captureRequested ? capturePauseReason() : 'الكاميرا مقفولة';
+    const ready = captureRequested && !reason;
+    captureArmed = ready;
+    status.textContent = ready ? '📸 جاهز' : '⏸️ موقوف: ' + reason;
+    status.title = status.textContent;
+    return ready;
+  }
+  function syncAutoShotControls() {
+    if (!$('autoShots').checked) {
+      captureRequested = false; captureArmed = false; activePlans.clear();
+      if (camStream) {
+        camStream.getTracks().forEach((track) => track.stop());
+        camStream = null;
+        const v = $('camView'); v.pause(); v.srcObject = null; v.hidden = true;
+      }
+    }
+    updateCaptureStatus();
+  }
+  async function armCapture() {
+    if (!$('autoShots').checked) return;
+    captureRequested = false; captureArmed = false;
+    if (lastFix && lastFix.kmh > 5) {
+      $('capStatus').textContent = '⏸️ اقف الأول'; $('capStatus').title = $('capStatus').textContent;
+      return;
+    }
+    captureRequested = true;
+    keepAwake();
+    try {
+      const live = camStream && camStream.getVideoTracks().some((track) => track.readyState === 'live');
+      if (!live) {
+        if (camStream) camStream.getTracks().forEach((track) => track.stop());
+        camStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
+        });
+        $('camView').srcObject = camStream;
+      }
+      const video = $('camView');
+      if (video.srcObject !== camStream) video.srcObject = camStream;
+      video.hidden = false;
+      if (video.paused) await video.play().catch(() => {});
+      const frameDeadline = Date.now() + 4000;
+      while ((!video.videoWidth || video.readyState < 2) && Date.now() < frameDeadline) await new Promise((resolve) => setTimeout(resolve, 100));
+      if (!camStream.getVideoTracks().some((track) => track.readyState === 'live') || !video.videoWidth || video.readyState < 2) {
+        throw new Error('camera frame unavailable');
+      }
+      await keepAwake();
+      updateCaptureStatus();
+    } catch (e) {
+      captureRequested = false; captureArmed = false;
+      if (camStream) camStream.getTracks().forEach((track) => track.stop());
+      camStream = null;
+      const video = $('camView'); video.pause(); video.srcObject = null; video.hidden = true;
+      $('capStatus').textContent = '⏸️ موقوف: الكاميرا مقفولة'; $('capStatus').title = $('capStatus').textContent;
+    }
+  }
+  $('capArm').addEventListener('click', () => { void armCapture(); });
+  function captureOnFix(f, hit) {
+    refreshCaptureDay();
+    if (hit && captureArmed && (hit.h.type === 'bump' || hit.h.type === 'pothole')) {
+      const hazard = hit.h, direction = Math.round((roadHeading || 0) / 45);
+      const key = hazard.uuid + '|' + direction;
+      if (!activePlans.has(hazard.uuid) && !capturedToday.has(key) && !captureInFlight.has(key)) {
+        activePlans.set(hazard.uuid, { hazard, key, plan: RD.capturePlan(hit.d, Date.now()) });
+      }
+    }
+    for (const [uuid_, entry] of activePlans) {
+      const h = entry.hazard, d = RD.distanceM(f.lat, f.lng, h.lat, h.lng);
+      const mark = entry.plan.onDistance(d, Date.now(), f.acc);
+      if (entry.plan.done) activePlans.delete(uuid_);
+      if (mark == null || !captureArmed) continue;
+      const jpg = grabFrame();
+      const track = camStream && camStream.getVideoTracks().find((item) => item.readyState === 'live');
+      if (!jpg || !track) {
+        captureArmed = false;
+        $('capStatus').textContent = '⏸️ موقوف: الكاميرا مقفولة'; $('capStatus').title = $('capStatus').textContent;
+        continue;
+      }
+      const video = $('camView'), test = $('testMode').checked;
+      const meta = {
+        uuid: uuid(), t: Date.now(), reason: 'bump_approach', app: 'phone', source: 'phone',
+        lat: f.lat, lng: f.lng, acc: f.acc, kmh: f.kmh, heading: roadHeading,
+        distanceM: Math.round(d), markM: mark, onsetM: entry.plan.marks[0],
+        hazard: { id: h.uuid, type: h.type, lat: h.lat, lng: h.lng, oneway: !!h.oneway },
+        camera: { label: track.label, w: video.videoWidth, h: video.videoHeight },
+        ua: navigator.userAgent.slice(0, 120), test,
+      };
+      captureInFlight.add(entry.key);
+      void (async () => {
+        try {
+          await api('POST', '/api/web/shot', { jpg, meta });
+          capturedToday.add(entry.key); saveCapturedToday(); loadShots();
+          if ($('autoShotsSay').checked) oscar('shot_auto', 'لقط صورة');
+        } catch (e) {
+          $('voiceNote').textContent = '📸 لم تترفع الصورة: ' + (e && e.message ? e.message : 'حاول تانى');
+        } finally {
+          captureInFlight.delete(entry.key); updateCaptureStatus();
+        }
+      })();
+    }
+  }
+  syncAutoShotControls();
   // pre = التصوير الفورى ({ jpg, fix, heading, t }) · hz = نوع المطب لو الصورة تبع «سجّل مطب/حفرة»
   async function snapRoad(reason, pre, hz) {
     try {
@@ -1719,7 +1864,11 @@
   keepAwake();
   document.addEventListener('touchstart', onTouch, { passive: true });
   document.addEventListener('click', onTouch);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && token) refresh(); keepAwake(); });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && token) refresh();
+    if (document.hidden) updateCaptureStatus();
+    else keepAwake().then(updateCaptureStatus);
+  });
   document.addEventListener('pageshow', keepAwake);
   window.addEventListener('focus', keepAwake);
   setInterval(() => { if (!document.hidden) keepAwake(); }, 20000);
@@ -1736,6 +1885,8 @@
     const on = !!token && dvOpen;
     $('driveView').hidden = !on; $('dvBackBar').hidden = on || !token;
     document.body.classList.toggle('dv-on', on);
+    const capControls = $('capControls'), capAnchor = on ? $('dvGps') : $('alertBtn');
+    if (capControls && capAnchor && capControls.previousElementSibling !== capAnchor) capAnchor.after(capControls);
     dvUi();
   }
   const dvClose = () => { dvOpen = false; dvSync(); window.scrollTo(0, 0); };
