@@ -376,8 +376,11 @@ export async function customFetch<T = unknown>(
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
-  const retryInput = isRequest(input) ? input.clone() : null;
   const canRetry = isReplayableBody(init.body);
+  const retryInput =
+    authTokenGetter && !hasExplicitAuthorization && canRetry && isRequest(input)
+      ? input.clone()
+      : null;
 
   let response = await fetch(input, { ...init, method, headers });
   if (

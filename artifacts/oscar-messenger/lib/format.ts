@@ -43,12 +43,16 @@ export function readableError(error: unknown, fallback = "حصلت مشكلة، 
     if (status === 429) return "انتظر قليلًا ثم حاول البحث مرة أخرى.";
     if (status === 503) return "التخزين لم يُجهّز بعد. أعد المحاولة بعد تهيئة التطبيق.";
   }
+  const errorName =
+    typeof error === "object" && error !== null && "name" in error
+      ? String((error as { name?: unknown }).name || "")
+      : "";
+  const errorMessage = error instanceof Error ? error.message : "";
   if (
     error instanceof TypeError ||
-    (typeof error === "object" &&
-      error !== null &&
-      "name" in error &&
-      (error as { name?: unknown }).name === "AbortError")
+    errorName === "AbortError" ||
+    errorName === "NetworkError" ||
+    /network|fetch|timeout|timed out/i.test(errorMessage)
   ) {
     return "الاتصال غير متاح مؤقتًا. تحقق من الإنترنت وحاول مرة أخرى.";
   }

@@ -24,4 +24,5 @@ test("only a final 401 is shown as an expired session", () => {
     readableError(Object.assign(new Error("timeout"), { name: "AbortError" }), "fallback"),
     /مؤقتًا/,
   );
+  assert.match(readableError(new Error("Network request failed"), "fallback"), /مؤقتًا/);
 });
