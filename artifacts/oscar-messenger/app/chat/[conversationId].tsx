@@ -61,7 +61,11 @@ import { readableError } from "../../lib/format";
 import { colors } from "../../lib/theme";
 import { VoiceMessageModal } from "../../components/VoiceMessageModal";
 import { WebVoiceMessageModal } from "../../components/WebVoiceMessageModal";
-import { chooseWebAudioMimeType } from "../../lib/web-voice";
+import {
+  chooseWebAudioMimeType,
+  webAudioPlaybackError,
+  webAudioPlaybackRequestOptions,
+} from "../../lib/web-voice";
 
 function first(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -347,15 +351,14 @@ export default function ChatScreen() {
       setAudioLoadingId(message.id);
       try {
         const token = await getToken();
-        if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
         const response = await expoFetch(apiUrl(message.audioUrl), {
-          headers: { Authorization: `Bearer ${token}` },
+          ...webAudioPlaybackRequestOptions(token),
         });
         if (!response.ok) {
           const payload = (await response.json().catch(() => null)) as
             | { error?: string }
             | null;
-          throw new Error(payload?.error || "تعذر فتح الرسالة الصوتية.");
+          throw new Error(webAudioPlaybackError(response.status, payload?.error));
         }
         const blob = await response.blob();
         if (!blob.size) throw new Error("ملف الرسالة الصوتية فارغ.");

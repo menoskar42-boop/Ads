@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import {
   baseMessengerAudioContentType,
   chooseWebAudioMimeType,
+  webAudioPlaybackError,
+  webAudioPlaybackRequestOptions,
 } from "../lib/web-voice.ts";
 
 const repoRoot = path.resolve(
@@ -77,4 +79,26 @@ test("web recording reuses the authenticated audio upload and bubble playback pa
   assert.match(chat, /audioPlayer\.replace\(\{\s*uri: apiUrl\(message\.audioUrl\),\s*headers: \{ Authorization: `Bearer \$\{token\}` \}/);
   assert.match(chat, /audioPlayer\.play\(\)/);
   assert.match(bubble, /testID=\{`voice-message-play-\$\{message\.id\}`\}/);
+});
+
+test("web playback falls back to cookie credentials when no Clerk token is available", () => {
+  const cookieRequest = webAudioPlaybackRequestOptions(null);
+  assert.equal(cookieRequest.credentials, "include");
+  assert.equal("Authorization" in (cookieRequest.headers ?? {}), false);
+
+  const bearerRequest = webAudioPlaybackRequestOptions("fresh-token");
+  assert.equal(bearerRequest.credentials, "include");
+  assert.equal(bearerRequest.headers?.Authorization, "Bearer fresh-token");
+  assert.equal(
+    webAudioPlaybackError(401),
+    "انتهت جلسة الدخول. سجّل الدخول مرة أخرى.",
+  );
+  assert.equal(
+    webAudioPlaybackError(503, "الخدمة غير متاحة مؤقتاً"),
+    "الخدمة غير متاحة مؤقتاً",
+  );
+  assert.equal(
+    webAudioPlaybackError(403),
+    "تعذر فتح الرسالة الصوتية.",
+  );
 });

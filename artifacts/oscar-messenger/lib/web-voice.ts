@@ -30,3 +30,18 @@ export function baseMessengerAudioContentType(
     ? baseType
     : null;
 }
+
+export function webAudioPlaybackRequestOptions(token: string | null) {
+  return {
+    credentials: "include" as const,
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+  };
+}
+
+export function webAudioPlaybackError(
+  status: number,
+  serverMessage?: string,
+): string {
+  if (status === 401) return "انتهت جلسة الدخول. سجّل الدخول مرة أخرى.";
+  return serverMessage || "تعذر فتح الرسالة الصوتية.";
+}

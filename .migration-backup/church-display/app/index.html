@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>عرض القداس — التحكم</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="control-page">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">عرض محلي بدون إنترنت</p>
+      <h1>التحكم في شاشة القداس</h1>
+    </div>
+    <div class="top-actions">
+      <button id="openDisplay" class="primary">افتح شاشة العرض</button>
+      <span id="displayStatus" class="status">شاشة العرض لم تُفتح</span>
+    </div>
+  </header>
+
+  <main class="control-layout">
+    <aside class="sidebar panel">
+      <section>
+        <h2>ملف المكتبة</h2>
+        <label for="libraryPath">مسار library.js على هذا الجهاز</label>
+        <div class="inline-form">
+          <input id="libraryPath" type="text" value="../out/library.js" dir="ltr" autocomplete="off">
+          <button id="loadLibrary">تحميل</button>
+        </div>
+        <p class="muted">المسار محلي فقط. لا تُدخل رابط إنترنت.</p>
+      </section>
+
+      <section>
+        <h2>بحث عربي</h2>
+        <label for="searchInput">اسم العرض أو نص الشريحة</label>
+        <input id="searchInput" type="search" placeholder="اكتب كلمة للبحث…" autocomplete="off">
+        <div id="searchResults" class="search-results" aria-live="polite"></div>
+      </section>
+
+      <section>
+        <h2>مكتبة العروض</h2>
+        <div id="libraryTree" class="library-tree" aria-live="polite">
+          <p class="muted">حمّل ملف المكتبة لعرض المجلدات.</p>
+        </div>
+      </section>
+    </aside>
+
+    <section class="main-column">
+      <section class="panel selected-panel">
+        <div class="selected-heading">
+          <div>
+            <p class="eyebrow">العرض الحالي</p>
+            <h2 id="deckTitle">لم يتم اختيار عرض</h2>
+          </div>
+          <label class="toggle">
+            <input id="showHidden" type="checkbox">
+            <span>اعرض الشرايح المخفية</span>
+          </label>
+        </div>
+        <div class="slide-controls">
+          <button id="prevSlide" aria-label="الشريحة السابقة">السابق</button>
+          <button id="nextSlide" class="primary" aria-label="الشريحة التالية">التالي</button>
+          <label for="slideNumber">رقم الشريحة</label>
+          <input id="slideNumber" type="number" min="1" step="1" value="1">
+          <span id="slideCount" class="count-chip">— / —</span>
+          <button id="blackScreen">B — أسود</button>
+          <button id="whiteScreen">W — أبيض</button>
+        </div>
+        <p id="slideText" class="slide-text muted">اختر عرضاً من المكتبة.</p>
+        <div id="thumbnails" class="thumbnails" aria-label="معاينات الشرائح"></div>
+      </section>
+
+      <section class="panel service-panel">
+        <div class="selected-heading">
+          <div>
+            <p class="eyebrow">قائمة محلية محفوظة</p>
+            <h2>خدمة النهارده</h2>
+          </div>
+          <button id="addToService">أضف العرض الحالي</button>
+        </div>
+        <p class="muted">رتّبها كما تُستخدم في الكنيسة، مثلاً: عشية ← باكر ← قداس ← توزيع.</p>
+        <ol id="serviceList" class="service-list"></ol>
+      </section>
+
+      <section class="help panel">
+        <h2>التشغيل</h2>
+        <p>اسحب نافذة العرض إلى البروجكتور واضغط F11. الأسهم وPageUp/PageDown والمسافة للتنقل؛ أدخل رقم الشريحة ثم Enter.</p>
+        <p>B شاشة سوداء، وW شاشة بيضاء بعلامة صليب بسيطة. الملفات والصور تظل على هذا الجهاز فقط.</p>
+      </section>
+    </section>
+  </main>
+  <script src="./lib.js"></script>
+  <script src="./control.js"></script>
+</body>
+</html>
