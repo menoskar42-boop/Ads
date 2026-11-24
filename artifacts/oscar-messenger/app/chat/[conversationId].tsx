@@ -845,7 +845,13 @@ export default function ChatScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <AppHeader title="" onBack={() => router.back()} />
+        <AppHeader
+          title=""
+          onBack={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace("/");
+          }}
+        />
         <View style={styles.peer} pointerEvents="box-none">
           {peer && (
             <Pressable
