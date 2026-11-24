@@ -184,6 +184,7 @@ export default function ChatScreen() {
     enabled: !!conversationId && isLoaded && !!isSignedIn,
     refetchInterval: 5_000,
     refetchIntervalInBackground: false,
+    refetchOnReconnect: true,
     retry: false,
   });
   const peer = useMemo(

@@ -1109,11 +1109,16 @@ router.get(
           SELECT * FROM recent ORDER BY created_at ASC, id ASC`,
         [conversationId, limit, beforeMessageId, userId],
       );
-      await pool.query(
-        `UPDATE messenger_messages SET delivered_at = COALESCE(delivered_at, now())
-         WHERE conversation_id = $1 AND sender_id <> $2`,
-        [conversationId, userId],
-      );
+      const fetchedMessageIds = result.rows
+        .map((message) => message.id)
+        .filter((id): id is string => typeof id === "string");
+      if (fetchedMessageIds.length > 0) {
+        await pool.query(
+          `UPDATE messenger_messages SET delivered_at = COALESCE(delivered_at, now())
+           WHERE id = ANY($1::text[]) AND conversation_id = $2 AND sender_id <> $3`,
+          [fetchedMessageIds, conversationId, userId],
+        );
+      }
       res.json({ messages: result.rows.map(publicMessage) });
     } catch (error) {
       next(error);

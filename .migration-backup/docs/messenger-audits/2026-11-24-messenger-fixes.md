@@ -33,3 +33,12 @@
 - **الملفات:** `artifacts/oscar-messenger/app/_layout.tsx`؛ `lib/api-client-react/src/custom-fetch.ts`؛ `artifacts/oscar-messenger/lib/format.ts`؛ اختبارات `tests/auth-refresh.test.mjs` و`tests/profile-errors.test.mjs` و`tests/production-loading.test.mjs`.
 - **التحقق:** اختبار إعادة المحاولة مرة واحدة مع token حديث، 401 متكرر بلا حلقة، وعدم إعادة 5xx/أخطاء الشبكة؛ typecheck واختبارات Messenger.
 - **القيود:** لم يُختبر انتهاء جلسة فعلي ضد Clerk في متصفح أو هاتف؛ تأكيد الإرسال عبر `getToken({ skipCache: true })` مبني على توقيع Clerk المثبت محليًا.
+
+## 4) علامة الإرسال والتسليم
+
+- **المؤكد من الكود قبل الإصلاح:** نص الرسالة لا يُعرض كمرسل بتفاؤل؛ الواجهة تعرضه من نتيجة `/messages`، والخادم يحفظه قبل رد 201/200. `clientMessageId` مع قيد `(conversation_id, sender_id, client_message_id)` يمنع إنشاء نسخة ثانية عند إعادة المحاولة. المستلم يجلب كل 5 ثوانٍ، والمرسل يرى ✓✓ من `deliveredAt` بعد تحديث استعلام الرسائل.
+- **الخلل المؤكد:** GET كان يحدّث `delivered_at` لكل رسائل الطرف الآخر في المحادثة بعد أي جلب، حتى لو كانت الرسالة خارج الصفحة المحدودة أو خلف مؤشر الصفحات. لم يكن هذا دليلًا صالحًا على وصول تلك الرسالة للمستلم.
+- **التغيير:** الخادم يؤكد فقط معرّفات الرسائل التي أعادها طلب الجلب الحالي، وبعد نجاح استعلامها. الواجهة تصرّح بإعادة الجلب عند عودة الاتصال، وتحتفظ بالتحديث الدوري. لم يتغير مسار التنبيه، ولا يكتب التنبيه `delivered_at`.
+- **الملفات:** `artifacts/api-server/src/routes/messenger.ts`؛ `artifacts/oscar-messenger/app/chat/[conversationId].tsx`؛ اختبار `artifacts/api-server/tests/messenger-delivery.test.mjs`.
+- **التحقق:** اختبارات المصدر تتحقق من الحفظ قبل الرد، وإعادة المحاولة بنفس client ID، وقصر تأكيد التسليم على IDs المسترجعة، وتحديث المرسل كل 5 ثوانٍ وعند reconnect؛ اختبارات Messenger وAPI server وtypecheck.
+- **القيود:** لا يمكن تحديد سبب علامة رسالة الأم بعينها دون سجلات أو اختبار حي بحسابين/جهازين. لم يُختبر تسليم فعلي بين جهازين أو أثناء تبديل الشبكة.
