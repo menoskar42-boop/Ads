@@ -4,7 +4,7 @@
 
 ## الخلاصة
 
-- الرابط العام فتح فعلاً: https://drive.google.com/drive/folders/1zT9dGPTv1FpyZA8mWws_OBFf8xG3WQDi . الاسم المُعاد **قداس سنوي**؛ الاسم الأب «الخولاجي» وارد من المالك ولم نفحص الأب.
+- الرابط العام فتح فعلاً (اللينك اتشال من التقرير بطلب المالك ٢٠٢٦-١١-٢٤). الاسم المُعاد **قداس سنوي**؛ الاسم الأب «الخولاجي» وارد من المالك ولم نفحص الأب.
 - التكامل الحالي قدر يسرد الشجرة بالكامل: **94 مجلدًا شاملاً الجذر، 638 ملفًا، 731 عنصرًا تحت المجلدات**، بدون أخطاء أو incompleteSearch. لم تُطلب صلاحيات جديدة.
 - خلاف التوقع السابق، فيه مجلدات فعلية للصوم الكبير ونينوى والبصخة وملفات بداخلها. ده إثبات وجود، **مش إثبات اكتمال كل الصلوات أو الأيام**.
 - تطبيق الويب الحالي بيولد شرائح نصية من بياناته؛ مش مشغل PowerPoint، ومش مستورد لنفس ملفات الكنيسة. ملف واحد في Drive ممكن يحتوي عشرات الشرائح، أو صور، أو انتقالات وحركات؛ مش شريحة واحدة.
@@ -108,7 +108,7 @@
 ### المساحة والعينة وطريقة القياس
 
 - قبل التنزيل: `df -h /tmp` أظهر **3.8G** متاحة؛ وبالبايت **4,028,657,664**، أعلى من شرط 2 GB، وحتى من 2 GiB. `/tmp` هنا tmpfs محدود بحوالي 4 GiB؛ مساحة قرص المستودع الأكبر مش هي مساحة الفحص المؤقتة دي.
-- العينة من الجذر: [قداس جديد (الجمعة والاربعاء).pptx](https://drive.google.com/file/d/1aME2Zl4HXe9eMC3JOJfOhrNQDde92eOd/view). الحجم الفعلي نزل مطابق لبيانات Drive: **114,534,213 بايت = 114.53 MB عشري = 109.23 MiB**.
+- العينة من الجذر: قداس جديد (الجمعة والاربعاء).pptx. الحجم الفعلي نزل مطابق لبيانات Drive: **114,534,213 بايت = 114.53 MB عشري = 109.23 MiB**.
 - التنزيل اتكتب كتيار إلى ملف مؤقت، من غير تحميل الحزمة كلها كـArrayBuffer. اتنفّذ `unzip -l`، واتقرت فهارس ZIP وملفات XML بـPython القياسي. عدد الملفات داخل الحزمة **3,538**؛ مجموع أطوال ZIP غير المضغوطة **125,536,912 بايت**، مش استهلاك RAM مقاس.
 - اتعدت الأسماء المطابقة لـ`ppt/slides/slideN.xml` فقط، من غير الـlayouts والـnotes: **965 شريحة**. العدد مطابق لـ`p:sldIdLst` في `ppt/presentation.xml`. أبعاد الصفحة **12192000×6858000 EMU = 16:9**.
 - **238 شريحة مخفية** حسب خاصية `show="0"`، وهي ضمن الـ965؛ لا يصح حذفها أو إعادة ترتيبها في أي تحويل مستقبلي من غير مراجعة الكنيسة.
@@ -171,7 +171,7 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### ملف التسبحة الكبير — لم يُقَس
 
-الاسم: **تسبحة-ليلة-الأحد السنوية.pptx**؛ [ملف Drive](https://drive.google.com/file/d/1biLyXLDikJ4zkVnp2m0FmlrMgMIW0rn8/view). حجمه من حصر Drive السابق **928,954,483 بايت**، مش قياس تنزيل جديد.
+الاسم: **تسبحة-ليلة-الأحد السنوية.pptx**؛ ملف Drive. حجمه من حصر Drive السابق **928,954,483 بايت**، مش قياس تنزيل جديد.
 
 بعد فحص العينة، اتراجع شرط الملف الثاني: `df -h /tmp` أظهر **3.7G**؛ المتاح بالبايت **3,879,161,856**، أقل من **4,000,000,000 بايت (4 GB)** وكمان أقل من 4 GiB. **لم يتم تنزيله أو فحص ZIP بتاعه**. بالتالي لا توجد أرقام مقاسة لعدد شرائحه أو أنواع وسائطه أو أكبر 10 ملفات فيه، ولا نضرب نتائج العينة في نسبة الحجم ونقدمها كقياس.
 
@@ -220,8 +220,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي
 
-[افتح المجلد](https://drive.google.com/drive/folders/1zT9dGPTv1FpyZA8mWws_OBFf8xG3WQDi)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |~$القداس السنوى قابل للتعديل.pptx|.pptx|165|
@@ -250,8 +248,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/01 عيد النيروز إلى 16 توت
 
-[افتح المجلد](https://drive.google.com/drive/folders/1m4mfjBxJpVVlql7mUD7i7kTyVfBBgvuT)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |04- توزيع النيروز.pptx|.pptx|283507|
@@ -270,8 +266,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |Picture 4.jpg|.jpg|190046|
 
 ### قداس سنوي/التوزيع
-
-[افتح المجلد](https://drive.google.com/drive/folders/1nDRSATU_6yRlaHwRqG_3IiZZCrtvBSTc)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -298,8 +292,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |مديح-يارب-ارحم-صنعة-يديك.pptx|.pptx|1159243|
 
 ### قداس سنوي/السنكسار
-
-[افتح المجلد](https://drive.google.com/drive/folders/1A6xnDFtKhHGkPzyjJvGGV5_0N4C_DMJK)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -342,8 +334,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/القرائات
 
-[افتح المجلد](https://drive.google.com/drive/folders/1rBnKiIfNzoK5RsPQjk1FU8ZHIFzV63Et)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |القطمارس السنوي الدوار للأيام|مجلد|—|
@@ -351,8 +341,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |صلوات قبل التناول.ppt|.ppt|104448|
 
 ### قداس سنوي/صلوات القسمة
-
-[افتح المجلد](https://drive.google.com/drive/folders/130ECSbCDzvDLmS7wv06iMYgK3dXG2_9Y)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -419,8 +407,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/01 عيد النيروز إلى 16 توت/صور عيد النيروز
 
-[افتح المجلد](https://drive.google.com/drive/folders/1Uwx7jAtUpUiY4mk3J3XQ3oQ11UWsUvLB)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |FB_IMG_1565052784692.jpg|.jpg|123723|
@@ -431,16 +417,12 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/01 عيد النيروز إلى 16 توت/قراءات شهر توت
 
-[افتح المجلد](https://drive.google.com/drive/folders/1Ayg7VfEukrAopcWCBfrzUuwS_iCXNdgr)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |__MACOSX|مجلد|—|
 |1.توت|مجلد|—|
 
 ### قداس سنوي/السنكسار/00االسنكسار
-
-[افتح المجلد](https://drive.google.com/drive/folders/1B6ES9IIcz1r9NS25Zmssn47XTYzw0xFm)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -450,8 +432,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |شهرى طوبه و أمشير|مجلد|—|
 
 ### قداس سنوي/السنكسار/01 عيد النيروز إلى 16 توت
-
-[افتح المجلد](https://drive.google.com/drive/folders/1I2xW7BYkSm0dFMHUIWV57LI8NwtGeV1a)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -464,8 +444,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/02 عيد الصليب
 
-[افتح المجلد](https://drive.google.com/drive/folders/1dFs5srF_CP8Q4N0eJGPVZsWcxPys5DHl)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 عشية عيد الصليب.pptx|.pptx|1012827|
@@ -475,8 +453,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04- توزيع عيد الصليب.pptx|.pptx|202769|
 
 ### قداس سنوي/السنكسار/03  شهر كيهك
-
-[افتح المجلد](https://drive.google.com/drive/folders/1_3dITMD0S6y2jvrXkVhtJJ-Fgt2kJLDq)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -488,8 +464,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/04 برمون عيد الميلاد
 
-[افتح المجلد](https://drive.google.com/drive/folders/1DlPtkNua2IWthEuj4E9GCBW6ylxHLOQz)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 رفع بخور عشية برمون عيد الميلاد.pptx|.pptx|926840|
@@ -498,8 +472,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 توزيع برمون الميلاد.pptx|.pptx|153622|
 
 ### قداس سنوي/السنكسار/05 عيد الميلاد
-
-[افتح المجلد](https://drive.google.com/drive/folders/101-awr-Tu4clqD9qyhFsQvETgKOmAZGr)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -513,8 +485,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/06 من عيد الميلاد لعيد الختان
 
-[افتح المجلد](https://drive.google.com/drive/folders/1-_3r3aTIiT5Waa8_sEwkepJr3fS7RB8G)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 عشية من عيد الميلاد لعيد الختان.pptx|.pptx|998947|
@@ -523,8 +493,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |قراءات|مجلد|—|
 
 ### قداس سنوي/السنكسار/07 عيد الختان 6 طوبه
-
-[افتح المجلد](https://drive.google.com/drive/folders/1DZefD7iDDVGvf868o4thCFCOFHaOJjT0)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -536,8 +504,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/08 برمون عيد الغطاس
 
-[افتح المجلد](https://drive.google.com/drive/folders/10F0ElTAbxlcdRR_RlbTv9y5OOtAPDRUR)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 عشية برمون عيد الغطاس.pptx|.pptx|924967|
@@ -546,8 +512,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 توزيع برمون الغطاس.pptx|.pptx|122466|
 
 ### قداس سنوي/السنكسار/09 عيد الغطاس
-
-[افتح المجلد](https://drive.google.com/drive/folders/1FxVG7ayLiNLH-DpQ6p_vr9MLiYBQVFHC)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -562,8 +526,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/10 عيد عرس قانا الجليل 13 طوبه
 
-[افتح المجلد](https://drive.google.com/drive/folders/1GlRbZgekLKoj_9ZQFM21KUgFdrLy69VC)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 عشية عيد عرس قانا الجليل.pptx|.pptx|931280|
@@ -572,8 +534,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04- توزيع عيد عرس قانا الجليل.pptx|.pptx|177598|
 
 ### قداس سنوي/السنكسار/11 الصوم الكبير و صوم نينوى
-
-[افتح المجلد](https://drive.google.com/drive/folders/1xSzew8bsarX6g11LoCFkcGDyz4MNBmj3)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -587,8 +547,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/12 عيد دخول المسيح الهيكل 8 أمشير
 
-[افتح المجلد](https://drive.google.com/drive/folders/18AMRvYuHSVd2_kPZfMXA1TVcOd7Cy-bt)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 عشية عيد دخول المسيح الهيكل.pptx|.pptx|951720|
@@ -598,8 +556,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/13 عيد البشارة 29 برمهات
 
-[افتح المجلد](https://drive.google.com/drive/folders/1gBE-C-siucDs7Dnk_bvn7D6fDgI_rsTj)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 عشية عيد البشارة.pptx|.pptx|940820|
@@ -608,8 +564,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 توزيع عيد البشارة.pptx|.pptx|277264|
 
 ### قداس سنوي/السنكسار/14 البصخة
-
-[افتح المجلد](https://drive.google.com/drive/folders/1oGZF9Pwp_-IqTdeUzZHmX1OwMBuwuUy6)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -629,8 +583,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/15 عيد القيامة
 
-[افتح المجلد](https://drive.google.com/drive/folders/1x1IXGXK66HS897QGY-LCrXL1E37gWHqk)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 تسبحة نصف الليل عيد القيامة.pptx|.pptx|2424584|
@@ -642,8 +594,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/16 الخماسين حتى عيد الصعود
 
-[افتح المجلد](https://drive.google.com/drive/folders/1GP3vqC81QL5BM4cbQO3b2LEtxap3-ZfI)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 رفع بخور عشية .pptx|.pptx|927209|
@@ -653,8 +603,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |قراءات|مجلد|—|
 
 ### قداس سنوي/السنكسار/17 عيد الصعود إلى العنصرة
-
-[افتح المجلد](https://drive.google.com/drive/folders/1jTw08DmmP0Ref-CZIZ-GcpgGbyQJMhuP)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -667,8 +615,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/18 عيد العنصرة و صلاة السجدة
 
-[افتح المجلد](https://drive.google.com/drive/folders/1Yo4CQXOnGgKhIWrDoKMFcyecZAz4dQpz)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 عشية عيد العنصرة.pptx|.pptx|932303|
@@ -680,8 +626,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/19 عيد دخول المسيح أرض مصر 24 بشنس
 
-[افتح المجلد](https://drive.google.com/drive/folders/1B7UCPE3bAYD0K9AF-AoA9whB0kqLUc0a)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 عشية عيد دخول المسيح أرض مصر.pptx|.pptx|953292|
@@ -690,8 +634,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 توزيع دخول المسيح أرض مصر.pptx|.pptx|193797|
 
 ### قداس سنوي/السنكسار/20 صوم الرسل
-
-[افتح المجلد](https://drive.google.com/drive/folders/1QZxP9kWYNxxwo3D6Q_uGhj0dNFQeQD9j)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -704,8 +646,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/21 عيد الرسل
 
-[افتح المجلد](https://drive.google.com/drive/folders/1t3cti98ETTw-f8hNa-9nXnVTZmHfNaXU)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 عشية عيد الرسل.pptx|.pptx|916390|
@@ -716,8 +656,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/22 عيد التجلى
 
-[افتح المجلد](https://drive.google.com/drive/folders/1wRwM3BkQEHLt4Yx031-IRM9PcXODUYQH)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 رفع بخور عشية عيد التجلى.pptx|.pptx|933743|
@@ -726,8 +664,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 توزيع عيد التجلى.pptx|.pptx|169258|
 
 ### قداس سنوي/السنكسار/23 تذكار البشارة و الميلاد و القيامة 29 من كل شهر قبطي عدا طوبة و أمشير
-
-[افتح المجلد](https://drive.google.com/drive/folders/13EKNMNU8n6q3H0nN43t1e5fFgftHJGiH)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -740,8 +676,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/24 عشية و تمجيد السيدة العذراء
 
-[افتح المجلد](https://drive.google.com/drive/folders/1PvbxniCANmQ9nfVY7WpHk9FVVgemP37B)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 العشية و تمجيد السيدة العذراء مريم.pptx|.pptx|2929599|
@@ -750,8 +684,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |مزمور و إنجيل عشية و تمجيد السيدة العذراء.ppt|.ppt|401920|
 
 ### قداس سنوي/السنكسار/25 تسبحة
-
-[افتح المجلد](https://drive.google.com/drive/folders/1KsTC6IOfRkeKJfX8OKVEE59TPxQv3MRB)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -763,16 +695,12 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/26 تسبحة شهر كيهك
 
-[افتح المجلد](https://drive.google.com/drive/folders/185Fj3t-LAwuh7XHGK44i1TJcChP6u0ky)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |02 تسبحة نصف الليل كيهك.pptx|.pptx|2603711|
 |الأيام|مجلد|—|
 
 ### قداس سنوي/السنكسار/صلوات متكررة
-
-[افتح المجلد](https://drive.google.com/drive/folders/16W3SLS0HOgv2uuRVyOkExbWU9G9ZhJmH)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -786,8 +714,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/Fonts
 
-[افتح المجلد](https://drive.google.com/drive/folders/1GYMNAX8CGSx7kVU76xqcenEhBzpI10Xl)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |Abraam.ttf|.ttf|35956|
@@ -798,8 +724,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |CS New Athanasius.ttf|.ttf|48224|
 
 ### قداس سنوي/القرائات/القطمارس السنوي الدوار للأيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/1AeFSArVT8bmVWG1yE8Yp-LDn3t4dC2_U)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -818,8 +742,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |HA - جدول الاستلاف للقطمارس السنوي الدوار للأيام.xlsx|.xlsx|33911|
 
 ### قداس سنوي/القرائات/صلوات القسمة
-
-[افتح المجلد](https://drive.google.com/drive/folders/193ddwh35dcS2VdUMw96vT5aJWi5nR_lL)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -879,8 +801,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/صلوات القسمة/Fonts
 
-[افتح المجلد](https://drive.google.com/drive/folders/15PFCEOrFFkNwsZ7E92Qp1YDKbZp0t-86)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |ASVCodarLTBold_HelpMacNet_.ttf|.ttf|233372|
@@ -889,15 +809,11 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/01 عيد النيروز إلى 16 توت/قراءات شهر توت/__MACOSX
 
-[افتح المجلد](https://drive.google.com/drive/folders/1LwkgJTyTN3QJWZ9ziVYPVBzGIyNyXFPy)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |1.توت|مجلد|—|
 
 ### قداس سنوي/01 عيد النيروز إلى 16 توت/قراءات شهر توت/1.توت
-
-[افتح المجلد](https://drive.google.com/drive/folders/1XQYdPrvftNbFlmCQ-od9Oh-f_acSy6oF)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -936,8 +852,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/00االسنكسار/أبيب مسرى و نسئ
 
-[افتح المجلد](https://drive.google.com/drive/folders/1fK4lNwiIdrNeFB8eD0qWWMIuPEMnIzWW)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 رفع بخور عشية سنوى أبيب مسرى نسى.pptx|.pptx|898212|
@@ -949,8 +863,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/00االسنكسار/توت،بابه،هاتور
 
-[افتح المجلد](https://drive.google.com/drive/folders/1sRc5qtLe7gV6k7GayGlZo_UuiWOUyYUL)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 رفع بخور عشية سنوى توت بابه هاتور.pptx|.pptx|886382|
@@ -960,8 +872,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |قراءات الأيام|مجلد|—|
 
 ### قداس سنوي/السنكسار/00االسنكسار/شهرى طوبه و أمشير
-
-[افتح المجلد](https://drive.google.com/drive/folders/1kiDJv2WaeKSKmNm-jNu1F21eElnm8iNC)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -973,15 +883,11 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/01 عيد النيروز إلى 16 توت/تسبحة
 
-[افتح المجلد](https://drive.google.com/drive/folders/185Wpj0ph98vehtTfpbRde_hfJW71YXYl)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |ابصالية واطس لعيد النيروز .ppt|.ppt|389632|
 
 ### قداس سنوي/السنكسار/01 عيد النيروز إلى 16 توت/قراءات
-
-[افتح المجلد](https://drive.google.com/drive/folders/1Ozorm5ioSGYn9wptxA1Uh31RfuiPIEH9)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -993,8 +899,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/03  شهر كيهك/قراءات
 
-[افتح المجلد](https://drive.google.com/drive/folders/1qah7UwZ1hy01sXnSbppHedw5OqYsjJmw)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 قراءات عشية.pptx|.pptx|310399|
@@ -1004,8 +908,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |05 المزمور و الإنجيل.pptx|.pptx|359400|
 
 ### قداس سنوي/السنكسار/05 عيد الميلاد/الأيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/1TXJNU2J3Fzu3rvRTdn2QnCKQpCPyHLOe)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1019,8 +921,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/06 من عيد الميلاد لعيد الختان/قراءات
 
-[افتح المجلد](https://drive.google.com/drive/folders/19IZ0GUSkecFeB_pAsBtrkAvhHCmyehkF)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 قراءات عشية.pptx|.pptx|110756|
@@ -1031,13 +931,9 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/07 عيد الختان 6 طوبه/قراءات
 
-[افتح المجلد](https://drive.google.com/drive/folders/1JR7fscw-CfyXm2a5ZOZh_ATf1TqTqerI)
-
 **مجلد فارغ وقت الفحص.**
 
 ### قداس سنوي/السنكسار/09 عيد الغطاس/الأيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/1GD155MYLiKQ_6BtZdDI1n7JPJ_zMK-Lp)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1051,8 +947,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/11 الصوم الكبير و صوم نينوى/01 صوم نينوى
 
-[افتح المجلد](https://drive.google.com/drive/folders/1Xo_Pv1aU6ddy1Nc6zMIhRUOCs0mpzVTl)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 رفع بخور عشية يوم الاثنين من صوم نينوى.pptx|.pptx|916318|
@@ -1062,8 +956,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/11 الصوم الكبير و صوم نينوى/03 أحد الرفاع
 
-[افتح المجلد](https://drive.google.com/drive/folders/1f4K5_oLmXv1jaTZbbf6GTHczSDBseTS9)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 رفع بخور عشية احد الرفاع.pptx|.pptx|889138|
@@ -1071,8 +963,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |03 قداس أحد الرفاع.pptx|.pptx|1110531|
 
 ### قداس سنوي/السنكسار/11 الصوم الكبير و صوم نينوى/04  الأحاد و السبوت و جمعة ختام الصوم
-
-[افتح المجلد](https://drive.google.com/drive/folders/1DjdYNm8SskOsTEP1IL2-czVwVq6Ydbxi)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1084,8 +974,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/11 الصوم الكبير و صوم نينوى/05 أيام الصوم الكبير
 
-[افتح المجلد](https://drive.google.com/drive/folders/1iyLEAbidlPf0WWhSrvsWmnlX-qQDGbVb)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 رفع بخور باكر أيام الصوم الكبير.pptx|.pptx|1148342|
@@ -1094,16 +982,12 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/11 الصوم الكبير و صوم نينوى/06 سبت لعازر
 
-[افتح المجلد](https://drive.google.com/drive/folders/19qFcsF_kE7WiHmCtZkmP_l1hqUHEO-TA)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 رفع بخور عشية سبت لعازر .pptx|.pptx|908996|
 |03 قداس سبت لعازر .pptx|.pptx|1123890|
 
 ### قداس سنوي/السنكسار/11 الصوم الكبير و صوم نينوى/تسبحة الصوم
-
-[افتح المجلد](https://drive.google.com/drive/folders/1nTh-npRzw_BeZiaRR_wbetQq7So_prm9)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1113,8 +997,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |الأيام|مجلد|—|
 
 ### قداس سنوي/السنكسار/14 البصخة/02 احد الشعانين
-
-[افتح المجلد](https://drive.google.com/drive/folders/1pzixcZ1U4iIZXbJXT-V-CdUnPLIzCEoh)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1130,8 +1012,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/14 البصخة/03 خميس العهد
 
-[افتح المجلد](https://drive.google.com/drive/folders/1yZdrgy0oEmTknL2UKnkLY20WSbdRJEc_)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01-باكر خميس العهد .pptx|.pptx|991857|
@@ -1143,8 +1023,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |توزيع القداس|مجلد|—|
 
 ### قداس سنوي/السنكسار/14 البصخة/04 الجمعة العظيمة
-
-[افتح المجلد](https://drive.google.com/drive/folders/1dMQ8fr6LJacnYUBxqinS8unT97N4jcnV)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1159,8 +1037,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/14 البصخة/05 سبت الفرح
 
-[افتح المجلد](https://drive.google.com/drive/folders/1MSTjpbnZPT4RcnAj7K2pRnwPrx3AOjWB)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 تسبحة و باكر سبت النور.pptx|.pptx|2018789|
@@ -1171,8 +1047,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |06 توزيع سبت النور.pptx|.pptx|60726|
 
 ### قداس سنوي/السنكسار/14 البصخة/صلوات كل ساعة
-
-[افتح المجلد](https://drive.google.com/drive/folders/1c_ykl2fSqEr5osKQb1jQo3eb8YFbH-aG)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1188,8 +1062,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/16 الخماسين حتى عيد الصعود/قراءات
 
-[افتح المجلد](https://drive.google.com/drive/folders/1S3U18CtW-_jsZp1kUtDcJEHu3jk-2Aby)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 قراءات عشية.pptx|.pptx|132070|
@@ -1199,8 +1071,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/17 عيد الصعود إلى العنصرة/عيد دخول المسيح أرض مصر وقت الخماسين
 
-[افتح المجلد](https://drive.google.com/drive/folders/14YfbC0TiBdq4-gz6T-SnPj-kuJWI1iqD)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 عشية عيد دخول المسيح ارض مصر فى الخماسين.pptx|.pptx|978184|
@@ -1208,8 +1078,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |03 قداس عيد الصعود.ppt|.ppt|3784192|
 
 ### قداس سنوي/السنكسار/17 عيد الصعود إلى العنصرة/قراءات
-
-[افتح المجلد](https://drive.google.com/drive/folders/1PA1ZKbzLlZr_5JuUVc_YCOe2urBRe0wo)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1220,8 +1088,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/20 صوم الرسل/قراءات أحاد
 
-[افتح المجلد](https://drive.google.com/drive/folders/1PgUS2-lUrUs6mWJ7Hnmmf0vkleLeRrGn)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 قراءات عشية.pptx|.pptx|129492|
@@ -1230,8 +1096,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 المزمور و الإنجيل.pptx|.pptx|144238|
 
 ### قداس سنوي/السنكسار/20 صوم الرسل/قراءات أيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/1i9Mg4oAZPactV_cu6u3TC_6UYAUX4u_E)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1243,8 +1107,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/23 تذكار البشارة و الميلاد و القيامة 29 من كل شهر قبطي عدا طوبة و أمشير/قراءات الأحاد
 
-[افتح المجلد](https://drive.google.com/drive/folders/1MmWBDgnTQaQQXLfXcRRkam3MkGoK8B8C)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 قراءات عشية.pptx|.pptx|56825|
@@ -1253,8 +1115,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 المزمور و الإنجيل.pptx|.pptx|58192|
 
 ### قداس سنوي/السنكسار/23 تذكار البشارة و الميلاد و القيامة 29 من كل شهر قبطي عدا طوبة و أمشير/قراءات الأيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/1ZOlKBHnUcuwKTzYu74KsPkweDhtKANi8)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1265,8 +1125,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |05 المزمور و الإنجيل.pptx|.pptx|120123|
 
 ### قداس سنوي/السنكسار/25 تسبحة/الأيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/15B5gYz8Si053nvPNQijQ9Hraj5tRLV4t)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1280,8 +1138,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/25 تسبحة/المناسبات و الأعياد
 
-[افتح المجلد](https://drive.google.com/drive/folders/1WhbuZPs0YaAYzdkQ08sHrZr9mQCx84Ks)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |ابصاليات الأعياد أدام.pptx|.pptx|950004|
@@ -1289,8 +1145,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |ذكصولوجيات الاعياد.pptx|.pptx|511725|
 
 ### قداس سنوي/السنكسار/26 تسبحة شهر كيهك/الأيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/1YFjaPBZZAcdWlvlOdsugLKxsPQNcPSVW)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1303,8 +1157,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |يوم السبت.ppt|.ppt|1666048|
 
 ### قداس سنوي/السنكسار/صلوات متكررة/الأواشى
-
-[افتح المجلد](https://drive.google.com/drive/folders/1SK1upYU8rkg-vAiijE8_YsRulJA7vpvj)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1330,8 +1182,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/صلوات متكررة/ألحان
 
-[افتح المجلد](https://drive.google.com/drive/folders/1g9Z8LLQ5mDKXH6Emw9h6weSuIAV-Ymkd)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |أرباع الناقوس.ppt|.ppt|390656|
@@ -1342,8 +1192,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/صلوات متكررة/ألحان التمجيد
 
-[افتح المجلد](https://drive.google.com/drive/folders/1N5YankkpI0RSQuTVbOsjq9Pv1JdRfD0f)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |الألحان التى تُرَتَّل بعد السنكسار للتمجيد.pptx|.pptx|80236|
@@ -1351,8 +1199,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |مدائح القديسين|مجلد|—|
 
 ### قداس سنوي/السنكسار/صلوات متكررة/القداس
-
-[افتح المجلد](https://drive.google.com/drive/folders/18sY8SZfcXbzjKo6I5QYzwYlnYiI_tVTo)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1362,8 +1208,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |قداس المؤمنيين.pptx|.pptx|759418|
 
 ### قداس سنوي/السنكسار/صلوات متكررة/صلوات الأجبية للقداس
-
-[افتح المجلد](https://drive.google.com/drive/folders/1XfjIgUBeOGNpNwbwVQ9cQi79dlVKe1rV)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1376,8 +1220,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/القرائات/صلوات القسمة/Fonts
 
-[افتح المجلد](https://drive.google.com/drive/folders/1XVsN0do1an-VgFs-nPmCP2TXoFkmGeA6)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |ASVCodarLTBold_HelpMacNet_.ttf|.ttf|233372|
@@ -1385,8 +1227,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |SultanNahia_HelpMacNet_.ttf|.ttf|195636|
 
 ### قداس سنوي/01 عيد النيروز إلى 16 توت/قراءات شهر توت/__MACOSX/1.توت
-
-[افتح المجلد](https://drive.google.com/drive/folders/1IXu7wUdtBMtw8ll5XGzlMDSwCvJHGaxM)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1424,8 +1264,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/01 عيد النيروز إلى 16 توت/قراءات شهر توت/1.توت/الأحاد
 
-[افتح المجلد](https://drive.google.com/drive/folders/1Zm8ORR9M8BJrk-PwX6zPFEUr3LOATpaj)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |الأول.pptm|.pptm|3724581|
@@ -1435,8 +1273,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/00االسنكسار/أبيب مسرى و نسئ/قراءات أحاد
 
-[افتح المجلد](https://drive.google.com/drive/folders/1IKpUOmWI0B-qn7Dxo5-KrSMpLoo-wniP)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 قراءات عشية.pptx|.pptx|172143|
@@ -1445,8 +1281,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 المزمور و الإنجيل.pptx|.pptx|192140|
 
 ### قداس سنوي/السنكسار/00االسنكسار/أبيب مسرى و نسئ/قراءات أيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/1Gf9iC4Q_w5ta4nqT2gVoPB1aKUYGnm5k)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1458,8 +1292,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/00االسنكسار/توت،بابه،هاتور/قراءات الأحاد
 
-[افتح المجلد](https://drive.google.com/drive/folders/1vWm4yk63QHIpium-rR18rsOMb9Q_i8J6)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 قراءات عشية.pptx|.pptx|148586|
@@ -1468,8 +1300,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 المزمور و الإنجيل.pptx|.pptx|160851|
 
 ### قداس سنوي/السنكسار/00االسنكسار/توت،بابه،هاتور/قراءات الأيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/1iD_SQ-niRwi88OqP9bsMmDqiA24wbkRG)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1482,8 +1312,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/00االسنكسار/شهرى طوبه و أمشير/قراءات أحاد
 
-[افتح المجلد](https://drive.google.com/drive/folders/11lXi6s8FjX7oPTvSAmnX6q8FFDvmrJG3)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 قراءات عشية.pptx|.pptx|134565|
@@ -1493,8 +1321,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 سنكسار.pptx|.pptx|893803|
 
 ### قداس سنوي/السنكسار/00االسنكسار/شهرى طوبه و أمشير/قراءات أيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/1Cl6rXl9zm4YZySMn5-9lgv4glXc-PXP7)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1507,8 +1333,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/11 الصوم الكبير و صوم نينوى/04  الأحاد و السبوت و جمعة ختام الصوم/القراءات
 
-[افتح المجلد](https://drive.google.com/drive/folders/1gSogHK-cis7I1_xifr5Njy1sq6mbfiCS)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01 مزمور و إنجيل باكر أحاد الصوم الكبير.pptx|.pptx|122514|
@@ -1516,8 +1340,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04 مزمور و إنجيل أحاد الصوم الكبير.pptx|.pptx|135123|
 
 ### قداس سنوي/السنكسار/11 الصوم الكبير و صوم نينوى/05 أيام الصوم الكبير/القراءات
-
-[افتح المجلد](https://drive.google.com/drive/folders/1e6cxuPnydyhVw2b-9QKWJH3505Y4Y7RW)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1528,8 +1350,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |05 مزمور و إنجيل جمعات الصوم الكبير.pptx|.pptx|143311|
 
 ### قداس سنوي/السنكسار/11 الصوم الكبير و صوم نينوى/تسبحة الصوم/الأيام
-
-[افتح المجلد](https://drive.google.com/drive/folders/1qhnm-RLEGAsW7mKPDX6W1l0lAx2YgJLi)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1545,8 +1365,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 
 ### قداس سنوي/السنكسار/14 البصخة/03 خميس العهد/توزيع القداس
 
-[افتح المجلد](https://drive.google.com/drive/folders/1f7iPd6RbnjhGmWwbkM_LU3bCCPbOsAGG)
-
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
 |01-مزمور التوزيع السنوى.ppt|.ppt|109056|
@@ -1555,8 +1373,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |04-إن فادينا دعانا.ppt|.ppt|260608|
 
 ### قداس سنوي/السنكسار/14 البصخة/صلوات كل ساعة/شروحات و تأملات الألحان
-
-[افتح المجلد](https://drive.google.com/drive/folders/1NUHH9qk1K-Zxvh2CergQsxlWoqwEcfhg)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1572,8 +1388,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |مكونات الدفنة.pptx|.pptx|52662|
 
 ### قداس سنوي/السنكسار/صلوات متكررة/ألحان التمجيد/مدائح القديسين
-
-[افتح المجلد](https://drive.google.com/drive/folders/18gYKdNHOcmeM-NzBlVtlbTNoV2jY1CJO)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
@@ -1599,8 +1413,6 @@ Adobe Arabic؛ ae_AlArabiya؛ ae_AlMateen؛ ae_AlMothnna؛ ALAWI-3-8؛ Aptos؛ A
 |مديحة القديسة دميانة_1.pptx|.pptx|183672|
 
 ### قداس سنوي/01 عيد النيروز إلى 16 توت/قراءات شهر توت/__MACOSX/1.توت/الأحاد
-
-[افتح المجلد](https://drive.google.com/drive/folders/1-jHzzxNdDsdEqYH3RHadCaoTdJ6Wb5k6)
 
 | الاسم الأصلي | الامتداد/النوع | الحجم (بايت) |
 |---|---|---:|
