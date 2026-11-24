@@ -60,6 +60,10 @@ function normCab(val) {
   return String(val || '').trim().toLowerCase().replace(/\s*-\s*/g, '-');
 }
 
+function normFullExchange(val) {
+  return String(val || '').trim().toLowerCase().replace(/\s*-\s*/g, '-');
+}
+
 // Normalize exchange: "الغنايم-دير الجنادله" → "الغنايم", "الغنايم" → "الغنايم"
 function normExchange(val) {
   return String(val || '').split(/\s*-\s*/)[0].trim().toLowerCase();
@@ -152,6 +156,9 @@ module.exports = router;
 module.exports.buildBoxCountMap  = buildBoxCountMap;
 module.exports.fetchPhonePage    = fetchPhonePage;
 module.exports.buildPhoneFirstMap = buildPhoneFirstMap;
+module.exports.normCab = normCab;
+module.exports.normExchange = normExchange;
+module.exports.normFullExchange = normFullExchange;
 
 // Builds Map<"exchange__cabinet__box", first_phone_number> — يقرأ مباشرة من جدول phone_lines
 // المحلى (نفس القاعدة، سكيما public) بدل مناداة API خارجى بـ token. لكل بكس بنسجّل أول رقم أرضى.
@@ -170,7 +177,7 @@ async function buildPhoneFirstMap() {
       if (!phone) return;
       const cab = normCab(row.cabin_number);
       const box = String(row.box_number || '').trim();
-      const exFull   = String(row.central || '').trim().toLowerCase().replace(/\s*-\s*/g, '-');
+      const exFull   = normFullExchange(row.central);
       const exPrefix = normExchange(row.central);
       for (const ex of new Set([exFull, exPrefix].filter(Boolean))) {
         const key = `${ex}__${cab}__${box}`.toLowerCase();

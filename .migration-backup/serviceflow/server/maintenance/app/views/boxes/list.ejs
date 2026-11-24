@@ -98,9 +98,9 @@
               <% if (user.role === 'admin' || user.role === 'inspector') { %>
               <a href="/inspector/create/<%= box.id %>" class="btn btn-sm btn-outline-success ms-1" title="فحص"><i class="bi bi-clipboard-plus"></i></a>
               <% } %>
-              <% if (user.role === 'admin') { %>
+              <% if (user.role === 'admin' || user.role === 'inspector') { %>
               <form method="post" action="/boxes/<%= box.id %>/delete" style="display:inline">
-                <button class="btn btn-sm btn-outline-danger ms-1" onclick="return confirm('حذف هذا البوكس؟')"><i class="bi bi-trash"></i></button>
+                <button class="btn btn-sm btn-outline-danger ms-1" data-box-number="<%= box.number %>" onclick="return confirm('حذف البوكس ' + this.dataset.boxNumber + '؟ الحذف بيمسح الفحوصات والصور ومش هيترجع.')"><i class="bi bi-trash"></i></button>
               </form>
               <% } %>
             </td>

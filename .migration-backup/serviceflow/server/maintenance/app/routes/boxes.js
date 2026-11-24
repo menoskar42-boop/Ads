@@ -22,9 +22,59 @@ const {
   updateMaintenancePhotoLocation,
 } = require('../utils/d1-hierarchy');
 const { requireLogin, requireRole } = require('../middleware/auth');
+const { normCab, normExchange, normFullExchange } = require('./service_flow');
 
 const router = express.Router();
 const adminOnly = requireRole('admin');
+const BOX_DONE_WORK_TASK_STATUSES = ['in_progress', 'pending_approval', 'completed'];
+
+async function boxDeleteBlockers(boxId) {
+  const box = await db.get(`
+    SELECT b.id, b.number AS box_number, c.number AS cabinet_number, e.name AS exchange_name
+      FROM boxes b
+      JOIN cabinets c ON c.id = b.cabinet_id
+      JOIN exchanges e ON e.id = c.exchange_id
+     WHERE b.id = ?
+  `, [boxId]);
+  if (!box) return { lines: 0, doneWork: 0, reasons: [] };
+
+  const boxNumber = String(box.box_number || '').trim();
+  const cabinetKey = normCab(box.cabinet_number);
+  const exchangeKeys = new Set([normFullExchange(box.exchange_name), normExchange(box.exchange_name)].filter(Boolean));
+  const phoneRows = boxNumber
+    ? await db.all(`SELECT central, cabin_number, box_number
+                      FROM phone_lines
+                     WHERE box_number IS NOT NULL
+                       AND btrim(box_number) <> ''
+                       AND lower(btrim(box_number)) = lower(?)`, [boxNumber])
+    : [];
+  const lines = phoneRows.filter((row) => {
+    const rowExchangeKeys = [normFullExchange(row.central), normExchange(row.central)].filter(Boolean);
+    return normCab(row.cabin_number) === cabinetKey
+      && String(row.box_number || '').trim().toLowerCase() === boxNumber.toLowerCase()
+      && rowExchangeKeys.some((key) => exchangeKeys.has(key));
+  }).length;
+
+  const statusParams = BOX_DONE_WORK_TASK_STATUSES.map(() => '?').join(', ');
+  const work = await db.get(`
+    SELECT
+      (SELECT COUNT(*)
+         FROM maintenance_item_status mis
+         JOIN maintenance_tasks mt ON mt.id = mis.task_id
+         JOIN inspections i ON i.id = mt.inspection_id
+        WHERE i.box_id = ? AND COALESCE(mis.is_done, 0) = 1)
+      + (SELECT COUNT(*) FROM photos p WHERE p.box_id = ? AND p.photo_type = 'after')
+      + (SELECT COUNT(*)
+           FROM maintenance_tasks mt
+           JOIN inspections i ON i.id = mt.inspection_id
+          WHERE i.box_id = ? AND mt.status IN (${statusParams})) AS done_work
+  `, [boxId, boxId, boxId, ...BOX_DONE_WORK_TASK_STATUSES]);
+  const doneWork = Number(work?.done_work || 0);
+  const reasons = [];
+  if (lines) reasons.push(`عليه ${lines} خط تليفون`);
+  if (doneWork) reasons.push(`عليه أعمال صيانة اتنفّذت (${doneWork})`);
+  return { lines, doneWork, reasons };
+}
 
 async function cascadeDeleteBox(boxId) {
   const photos = await db.all('SELECT filename, storage_key FROM photos WHERE box_id = ?', [boxId]);
@@ -369,7 +419,30 @@ router.get('/:id', requireLogin, async (req, res) => {
   res.render('boxes/detail', { title: `بوكس ${box.number}`, box, inspection, archivedInspections, items, checklist: CHECKLIST, itemStatusMap, photos, task, prelimReady, query: req.query });
 });
 
-router.post('/:id/delete', adminOnly, async (req, res) => {
+router.get('/:id/delete-confirm', requireRole('admin'), async (req, res) => {
+  const user = req.session.user || {};
+  if (String(user.sf_role || '') !== 'super_admin') return res.status(403).send('غير مسموح.');
+  const box = await db.get(`
+    SELECT b.id, b.number, c.number AS cabinet_number, e.name AS exchange_name
+      FROM boxes b
+      JOIN cabinets c ON c.id = b.cabinet_id
+      JOIN exchanges e ON e.id = c.exchange_id
+     WHERE b.id = ?
+  `, [req.params.id]);
+  if (!box) {
+    req.session.flash = { type: 'danger', msg: 'البوكس غير موجود.' };
+    return res.redirect('/boxes');
+  }
+  const blockers = await boxDeleteBlockers(req.params.id);
+  if (!blockers.reasons.length) return res.redirect(`/boxes/${req.params.id}`);
+  res.render('boxes/delete_confirm', {
+    title: 'تأكيد حذف البوكس',
+    box,
+    blockers,
+  });
+});
+
+router.post('/:id/delete', requireRole('admin', 'inspector'), async (req, res) => {
   if (isMaintenanceHierarchyProofEnabled()) {
     req.session.flash = {
       type: 'danger',
@@ -377,8 +450,25 @@ router.post('/:id/delete', adminOnly, async (req, res) => {
     };
     return res.redirect('/boxes');
   }
+  const user = req.session.user || {};
+  const isSuperAdmin = String(user.sf_role || '') === 'super_admin';
   try {
+    const box = await db.get('SELECT id, number FROM boxes WHERE id = ?', [req.params.id]);
+    if (!box) {
+      req.session.flash = { type: 'danger', msg: 'البوكس غير موجود.' };
+      return res.redirect('/boxes');
+    }
+    const blockers = await boxDeleteBlockers(req.params.id);
+    if (!isSuperAdmin && blockers.reasons.length) {
+      req.session.flash = { type: 'danger', msg: `مينفعش تحذف البوكس: ${blockers.reasons.join(' · ')}` };
+      return res.redirect(`/boxes/${req.params.id}`);
+    }
+    if (isSuperAdmin && blockers.reasons.length && req.body?.confirm_force !== '1') {
+      return res.redirect(`/boxes/${req.params.id}/delete-confirm`);
+    }
+    const forced = isSuperAdmin && blockers.reasons.length > 0 && req.body?.confirm_force === '1';
     await cascadeDeleteBox(req.params.id);
+    console.log(`[maintenance] 🗑️ بوكس اتمسح: #${box.id} ${box.number} — بواسطة ${user.username || user.full_name || user.id} (sf_role=${user.sf_role || 'unknown'}, forced=${forced})`);
     req.session.flash = { type: 'success', msg: 'تم حذف البوكس وجميع بياناته.' };
   } catch (e) {
     req.session.flash = { type: 'danger', msg: 'فشل الحذف: ' + e.message };
