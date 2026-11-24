@@ -84,19 +84,20 @@
     host.classList.remove("muted");
     const tree = L.buildLibraryTree(library.decks);
     const renderNode = (node, parent) => {
-      for (const folder of node.folders) {
-        const details = document.createElement("details");
-        details.className = "tree-folder";
-        const summary = document.createElement("summary");
-        summary.textContent = folder.name;
-        details.appendChild(summary);
-        const children = document.createElement("div");
-        children.className = "tree-children";
-        renderNode(folder, children);
-        details.appendChild(children);
-        parent.appendChild(details);
-      }
-      for (const item of node.decks) {
+      for (const item of node.items) {
+        if (item.kind === "folder") {
+          const details = document.createElement("details");
+          details.className = "tree-folder";
+          const summary = document.createElement("summary");
+          summary.textContent = item.name;
+          details.appendChild(summary);
+          const children = document.createElement("div");
+          children.className = "tree-children";
+          renderNode(item.folder, children);
+          details.appendChild(children);
+          parent.appendChild(details);
+          continue;
+        }
         const button = document.createElement("button");
         button.className = "tree-deck";
         button.textContent = item.name;
@@ -111,7 +112,9 @@
     const host = $("searchResults");
     const query = $("searchInput").value;
     host.replaceChildren();
-    const results = L.searchLibrary(library.decks, query).slice(0, 80);
+    const results = L.searchLibrary(library.decks, query)
+      .filter((result) => showHidden || !result.slide.hidden)
+      .slice(0, 80);
     if (!L.normalize(query)) return;
     if (!results.length) {
       const empty = document.createElement("p");

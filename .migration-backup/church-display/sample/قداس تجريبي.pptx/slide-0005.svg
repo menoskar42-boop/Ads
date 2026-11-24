@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#f3eaf5"/>
+  <path d="M560 250h160v170H560z" fill="#9a719f"/>
+  <text x="640" y="500" text-anchor="middle" font-family="system-ui, sans-serif" font-size="54" fill="#243447">توزيع تجريبي</text>
+  <text x="640" y="560" text-anchor="middle" font-family="system-ui, sans-serif" font-size="28" fill="#657383">صورة مولّدة للاختبار فقط</text>
+</svg>

@@ -29,18 +29,28 @@
       imageCache.delete(index);
     }
   }
-  function preload(index, centerIndex) {
+  function clearImageCache() {
+    for (const image of imageCache.values()) {
+      image.onload = null;
+      image.onerror = null;
+      image.src = "";
+    }
+    imageCache.clear();
+  }
+  function preload(index) {
     if (index < 0 || index >= slides.length || imageCache.has(index)) return;
     const image = new Image();
     image.decoding = "async";
     imageCache.set(index, image);
     image.onload = () => {
-      if (mode !== "slide" || index !== centerIndex || currentNumber !== Number(slides[index].n)) return;
+      const currentIndex = slides.findIndex((slide) => Number(slide.n) === Number(currentNumber));
+      if (mode !== "slide" || index !== currentIndex) return;
       imageElement.src = image.src;
       imageElement.hidden = false;
     };
     image.onerror = () => {
-      if (index === centerIndex) {
+      const currentIndex = slides.findIndex((slide) => Number(slide.n) === Number(currentNumber));
+      if (index === currentIndex) {
         imageElement.hidden = true;
         blankScreen.hidden = false;
       }
@@ -63,20 +73,21 @@
     document.body.style.background = "#000";
     const index = slides.findIndex((slide) => Number(slide.n) === Number(currentNumber));
     if (index < 0) {
+      clearImageCache();
       imageElement.hidden = true;
       return;
     }
+    releaseOutsideWindow(index);
     imageElement.hidden = false;
     const existing = imageCache.get(index);
     if (existing && existing.complete && existing.naturalWidth > 0) {
       imageElement.src = existing.src;
     } else {
       imageElement.removeAttribute("src");
-      preload(index, index);
+      preload(index);
     }
-    preload(index - 1, index);
-    preload(index + 1, index);
-    releaseOutsideWindow(index);
+    preload(index - 1);
+    preload(index + 1);
   }
 
   window.addEventListener("message", (event) => {
@@ -87,19 +98,19 @@
       deck = null;
       slides = [];
       currentNumber = null;
-      imageCache.clear();
+      clearImageCache();
       imageElement.removeAttribute("src");
       imageElement.hidden = true;
       blankScreen.hidden = true;
       return;
     }
-    if (deck && deck.source !== nextDeck.source) {
-      for (const image of imageCache.values()) image.src = "";
-      imageCache.clear();
+    const nextShowHidden = Boolean(event.data.showHidden);
+    if (deck && (deck.source !== nextDeck.source || showHidden !== nextShowHidden)) {
+      clearImageCache();
       imageElement.removeAttribute("src");
     }
     deck = nextDeck;
-    showHidden = Boolean(event.data.showHidden);
+    showHidden = nextShowHidden;
     slides = visibleSlides();
     currentNumber = event.data.slideNumber;
     assetBase = event.data.assetBase || "";

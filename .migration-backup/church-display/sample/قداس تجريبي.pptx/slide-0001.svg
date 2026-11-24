@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#f6f1e6"/>
+  <path d="M640 150v100m-42-50h84" stroke="#8a6e3e" stroke-width="12"/>
+  <text x="640" y="390" text-anchor="middle" font-family="system-ui, sans-serif" font-size="54" fill="#243447">عشية — صلاة تجريبية</text>
+  <text x="640" y="470" text-anchor="middle" font-family="system-ui, sans-serif" font-size="28" fill="#657383">صورة مولّدة للاختبار فقط</text>
+</svg>

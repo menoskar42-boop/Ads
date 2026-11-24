@@ -73,7 +73,7 @@ h2 { margin-bottom: 12px; font-size: 1.1rem; }
 .slide-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .slide-controls label { margin-inline-start: auto; }
 .slide-controls input { width: 90px; }
-.count-chip { display: inline-flex; align-items: center; min-height: 36px; padding: 4px 10px; border-radius: 20px; background: #e8f3f6; color: #155e75; white-space: nowrap; }
+.count-chip { display: inline-flex; align-items: center; min-height: 36px; padding: 4px 10px; border-radius: 20px; background: #e8f3f6; color: #155e75; white-space: nowrap; direction: ltr; unicode-bidi: isolate; }
 .slide-text { margin: 12px 0 0; font-size: .9rem; }
 .thumbnails { display: flex; gap: 8px; overflow-x: auto; padding: 14px 1px 4px; min-height: 108px; }
 .thumb { position: relative; flex: 0 0 132px; min-height: 82px; padding: 3px; overflow: hidden; background: #eef2f5; }

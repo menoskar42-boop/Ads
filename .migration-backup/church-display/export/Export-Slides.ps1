@@ -54,6 +54,8 @@ function Release-ComObject {
 function Get-ShapeText {
     param([object]$Shape)
     $parts = New-Object 'System.Collections.Generic.List[string]'
+    $textFrame = $null
+    $textRange = $null
     try {
         if ($Shape.Type -eq 6) {
             $items = $Shape.GroupItems
@@ -66,10 +68,18 @@ function Get-ShapeText {
                     } finally { Release-ComObject $child }
                 }
             } finally { Release-ComObject $items }
-        } elseif ($Shape.HasTextFrame -and $Shape.TextFrame.HasText) {
-            $parts.Add([string]$Shape.TextFrame.TextRange.Text)
+        } elseif ($Shape.HasTextFrame) {
+            $textFrame = $Shape.TextFrame
+            if ($textFrame.HasText) {
+                $textRange = $textFrame.TextRange
+                $parts.Add([string]$textRange.Text)
+            }
         }
     } catch {}
+    finally {
+        Release-ComObject $textRange
+        Release-ComObject $textFrame
+    }
     return ($parts -join "`n")
 }
 
@@ -152,6 +162,7 @@ try {
                 for ($n = 1; $n -le $slideCount; $n++) {
                     $slide = $null
                     $shapeCollection = $null
+                    $transition = $null
                     $textParts = New-Object 'System.Collections.Generic.List[string]'
                     try {
                         $slide = $slideCollection.Item($n)
@@ -169,7 +180,10 @@ try {
                         $imagePath = Join-Path $deckOutput $imageName
                         $slide.Export($imagePath, $Format, $Width, $Height)
                         $hidden = $false
-                        try { $hidden = [bool]$slide.SlideShowTransition.Hidden } catch {}
+                        try {
+                            $transition = $slide.SlideShowTransition
+                            $hidden = [bool]$transition.Hidden
+                        } catch {}
                         $slides.Add([pscustomobject]@{
                             n = $n
                             file = $imageName
@@ -177,6 +191,7 @@ try {
                             text = ($textParts -join "`n")
                         })
                     } finally {
+                        Release-ComObject $transition
                         Release-ComObject $shapeCollection
                         Release-ComObject $slide
                     }

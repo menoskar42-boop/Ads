@@ -96,7 +96,7 @@
   }
 
   function buildLibraryTree(decks) {
-    const rootNode = { name: "", folders: [], decks: [] };
+    const rootNode = { name: "", folders: [], decks: [], items: [] };
     const folderByPath = new Map([["", rootNode]]);
     for (const deck of Array.isArray(decks) ? decks : []) {
       const parts = String(deck.source || deck.title || "")
@@ -110,17 +110,21 @@
         path = path ? path + "/" + part : part;
         let folder = folderByPath.get(path);
         if (!folder) {
-          folder = { name: part, path, folders: [], decks: [] };
+          folder = { name: part, path, folders: [], decks: [], items: [] };
           folderByPath.set(path, folder);
           parent.folders.push(folder);
+          parent.items.push({ kind: "folder", name: part, folder });
         }
         parent = folder;
       }
-      parent.decks.push({ name: deckName, deck });
+      const item = { kind: "deck", name: deckName, deck };
+      parent.decks.push(item);
+      parent.items.push(item);
     }
     const sortRecursively = (node) => {
       node.folders = naturalSort(node.folders, (folder) => folder.name);
       node.decks = naturalSort(node.decks, (item) => item.name);
+      node.items = naturalSort(node.items, (item) => item.name);
       node.folders.forEach(sortRecursively);
     };
     sortRecursively(rootNode);
