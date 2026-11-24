@@ -1,20 +1,14 @@
 // ربط كمية سلك التركيب/النقل اليدوية بأمر الشغل (المالك ٢٠٢٦-١٠-٠٨).
 //
-// الفنى بيدخّل كمية السلك لرقم تركيب/نقل حتى لو أمر الشغل لسه ماظهرش — الحفظ مايتمنعش.
-// لكن الخصم من المخزن المحلى مابيحصلش غير لما أمر الشغل يظهر فعلاً (عشان مايتسجّلش تركيب
-// وهمى بكمية سلك مش موجودة على الطبيعة):
-//   • فيه أمر شغل ناجح ظاهر بالفعل للرقم ده ومالوش سلك ⇒ الإدخال بيتربط بيه على طول.
-//   • مفيش ⇒ الإدخال «مستنى أمر الشغل» (pending_after_wo = آخر id فى work_orders وقت الحفظ):
-//     مابيتخصمش ومابيتربطش بأى أمر شغل قديم — بيتربط بس بأمر شغل **ييجى بعد كده**
-//     (id أكبر). فأمر الشغل اللى كان ظاهر قبل كده وله سلك، السلك بتاعه مابيتغيرش.
-//   • مستنى ومفيش أمر شغل ظهر خلال ٧ أيام من تاريخه ⇒ بيتمسح، وصاحبه بيوصله إشعار.
-// الإدخالات القديمة (قبل الربط) wo_ref و pending_after_wo فاضيين ⇒ بتتربط بالرقم والنوع زى الأول.
+// الطلبات المعلقة القديمة تظل قابلة للربط أو الانتهاء. التسجيلات الجديدة للتركيب/النقل مشروطة
+// بظهور أمر WFM وكمية خام ٥٠م على الأقل (تُعالج في POST /api/cable-entries).
+// أوامر الشغل المختلفة على نفس الخط ليست تكراراً؛ الربط هنا يمنع فقط تكرار نفس wo_ref.
 import type { Pool } from "pg";
 import { ROLES } from "@shared/schema";
 import { canonicalTechSql, matchTechnician } from "@shared/technicians";
 import { phoneNormSql as sp } from "./phone-norm";
 import { closingTech, notifyIfNegative, cableTypeOf } from "./local-store";
-import { sheetCableSql } from "./wo-sheet-cable";
+import { sheetCableSql, sheetRawCableSql } from "./wo-sheet-cable";
 
 /** الإدخال اليدوى بيستنى أمر الشغل كام يوم قبل ما يتمسح. */
 export const PENDING_DAYS = 7;
@@ -32,8 +26,7 @@ const successSql = (w = "w") => `(${w}.close_category IS NULL OR ${w}.close_cate
 export const CE_LINK_COND = `ce.pending_after_wo IS NULL AND (ce.wo_ref IS NULL OR ce.wo_ref = w.id)`;
 
 /**
- * أمر الشغل اللى الإدخال الجديد يتربط بيه دلوقتى: المحدد (woRef من صف «أوامر شغل بدون كمية سلك»)،
- * وإلا آخر أمر شغل ناجح بنفس الرقم والنوع خلال آخر OPEN_WO_DAYS يوم **ومالوش سلك** فى الملف.
+ * أمر شغل ينتظر الربط: المحدد من قائمة المراجعة، وإلا آخر أمر مطابق بلا كمية فعالة فى الملف.
  */
 export async function findOpenWorkOrder(pool: Pool, phoneLocal: string, type: string, woRef?: number | null):
   Promise<{ id: number; closeDate: string } | null> {
@@ -47,6 +40,24 @@ export async function findOpenWorkOrder(pool: Pool, phoneLocal: string, type: st
       WHERE ${sp("w.phone_number")} = ${sp("$1")} AND ${woTypeSql()} = $2 AND ${successSql()} ${extra}
       ORDER BY w.close_date DESC NULLS LAST LIMIT 1`, params);
   return r.rows[0] ? { id: r.rows[0].id, closeDate: r.rows[0].d } : null;
+}
+
+/** أحدث أمر مطابق بالهاتف/النوع حتى لو له كمية شيت؛ يستعمله POST اليدوى لتطبيق قاعدة 50م الخام. */
+export async function findInstallWorkOrder(pool: Pool, phoneLocal: string, type: string, woRef?: number | null):
+  Promise<{ id: number; closeDate: string; centralName: string; workOrderId: string; sheetRaw: string | null } | null> {
+  const params: any[] = [phoneLocal, type];
+  let extra = `AND w.close_date >= now() - interval '${OPEN_WO_DAYS} days'`;
+  if (woRef) { params.push(woRef); extra = `AND w.id = $3`; }
+  const r = await pool.query(
+    `SELECT w.id, (w.close_date AT TIME ZONE 'Africa/Cairo')::date::text AS d,
+            w.central_name AS "centralName", w.work_order_id AS "workOrderId",
+            ${sheetRawCableSql()} AS "sheetRaw"
+       FROM work_orders w
+      WHERE ${sp("w.phone_number")} = ${sp("$1")} AND ${woTypeSql()} = $2
+        AND ${successSql()} ${extra}
+      ORDER BY w.close_date DESC NULLS LAST LIMIT 1`, params);
+  const r0 = r.rows[0];
+  return r0 ? { id: Number(r0.id), closeDate: r0.d, centralName: r0.centralName, workOrderId: String(r0.workOrderId), sheetRaw: r0.sheetRaw } : null;
 }
 
 /**
@@ -119,6 +130,12 @@ export async function linkPendingEntries(pool: Pool, onLinked?: (e: { entryId: n
     let tech: string | null = r.stock_tech_name;
     if (!tech && me) tech = me;
     if (!tech) tech = (await closingTech(pool, r.phone_local, r.work_order_type)).tech;
+    const conflict = await pool.query(
+      `SELECT id FROM cable_entries WHERE wo_ref = $1 AND id <> $2 LIMIT 1`, [r.wo_id, r.id]);
+    if (conflict.rowCount) {
+      console.warn(`[cable-link] الإدخال ${r.id} لم يُربط بأمر الشغل ${r.wo_id}: الأمر مرتبط بإدخال آخر ${conflict.rows[0].id}`);
+      continue;
+    }
     const u = await pool.query(
       `UPDATE cable_entries SET wo_ref = $2, pending_after_wo = NULL, stock_date = $3::date,
               stock_tech_name = COALESCE(stock_tech_name, $4)
@@ -175,8 +192,14 @@ export async function adoptRecentEntries(pool: Pool): Promise<{ linked: number; 
     const me = r.role === ROLES.TECH ? (matchTechnician(r.self_name) || matchTechnician(r.username)) : null;
     if (r.wo_id && foreignWorkOrder(me, r.wo_tech)) { await rejectForeign(pool, r, me!, r.wo_tech); continue; }
     if (r.wo_id) {
-      await pool.query(`UPDATE cable_entries SET wo_ref = $2, stock_date = $3::date WHERE id = $1 AND wo_ref IS NULL`, [r.id, r.wo_id, r.d]);
-      linked++;
+      const conflict = await pool.query(
+        `SELECT id FROM cable_entries WHERE wo_ref = $1 AND id <> $2 LIMIT 1`, [r.wo_id, r.id]);
+      if (conflict.rowCount) {
+        console.warn(`[cable-link] الإدخال ${r.id} لم يُربط بأمر الشغل ${r.wo_id}: الأمر مرتبط بإدخال آخر ${conflict.rows[0].id}`);
+        continue;
+      }
+      const u = await pool.query(`UPDATE cable_entries SET wo_ref = $2, stock_date = $3::date WHERE id = $1 AND wo_ref IS NULL`, [r.id, r.wo_id, r.d]);
+      if (u.rowCount) linked++;
     } else {
       await pool.query(`UPDATE cable_entries SET pending_after_wo = $2, stock_date = NULL WHERE id = $1 AND pending_after_wo IS NULL`, [r.id, floor]);
       pending++;

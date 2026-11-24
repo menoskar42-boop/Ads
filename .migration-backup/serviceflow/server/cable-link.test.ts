@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-// المالك ٢٠٢٦-١٠-٠٨: الفنى بيدخّل سلك التركيب/النقل حتى لو أمر الشغل لسه ماظهرش (الحفظ مايتمنعش)،
-// لكن الخصم من المخزن بيحصل بس لما أمر الشغل يظهر. الإدخال اليدوى يخص أوامر شغل جاية مش سابقة
-// (أمر شغل ظاهر له سلك مايتغيرش)، والمستنى بيتمسح لو أمر الشغل ماظهرش خلال أسبوع.
+// الإدخالات المعلقة القديمة تظل قابلة للربط/المسح؛ التسجيل الجديد لتركيب/نقل صار مشروطاً بكمية WFM ٥٠م.
 const src = readFileSync(new URL("./cable-link.ts", import.meta.url), "utf8");
 const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 const post = routes.slice(routes.indexOf('app.post("/api/cable-entries"'), routes.indexOf('app.delete("/api/cable-entries/:id"'));
@@ -30,10 +28,13 @@ test("waiting entries link only to work orders that arrive later (id above the f
   assert.equal((routes.match(/AND \$\{CE_LINK_COND\}/g) || []).length, joins);
 });
 
-test("saving never blocks: no work order yet ⇒ pending, no tech question, no deduction", () => {
-  assert.match(post, /if \(!link\) pendingAfter = await lastWorkOrderId\(pool\)/);
-  assert.match(post, /if \(pendingAfter == null\) try \{/);
-  assert.match(post, /pending: pendingAfter != null/);
+test("new manual install entries require an existing 50 m WFM work order", () => {
+  assert.match(post, /findInstallWorkOrder\(pool, local, type, woRef\)/);
+  assert.match(post, /decideManualCableQuantity\(link\.sheetRaw, qty\)/);
+  assert.match(post, /الأمر ده لسه مانزلش فى الملف/);
+  assert.match(post, /أقل من \$\{SHEET_CABLE_PLACEHOLDER\}/);
+  assert.doesNotMatch(post, /pendingAfter = await lastWorkOrderId\(pool\)/);
+  assert.match(post, /res\.json\(\{ ok: true, id: saved\.rows\[0\]\.id, stockTech: countedTech, stockBalance, linkedWo: link\.id, pending: false \}\)/);
   // صف «أوامر شغل بدون كمية سلك» بيبعت أمر الشغل بتاعه بالظبط
   const tab = readFileSync(new URL("../client/src/components/WorkOrdersNoCableEntry.tsx", import.meta.url), "utf8");
   assert.match(tab, /woRef: r\.id,/);
@@ -65,6 +66,16 @@ test("entries saved before the link (last 7 days) follow the same rule — no wo
   // الصيانة مالهاش دعوة
   assert.match(src, /AND btrim\(ce\.work_order_type\) IN \('تركيب', 'نقل'\)/);
   assert.ok(src.indexOf("await adoptRecentEntries(pool)") < src.indexOf("await linkPendingEntries(pool, onLinked)"));
+});
+
+test("linker never gives a second cable entry the same work-order reference", () => {
+  assert.equal((src.match(/SELECT id FROM cable_entries WHERE wo_ref = \$1 AND id <> \$2 LIMIT 1/g) || []).length, 2);
+  assert.equal((src.match(/لم يُربط بأمر الشغل[\s\S]{0,120}الأمر مرتبط بإدخال آخر/g) || []).length, 2);
+  const sheet = readFileSync(new URL("./wo-sheet-cable.ts", import.meta.url), "utf8");
+  assert.match(sheet, /WHERE wo_ref = \$1 ORDER BY id LIMIT 1/);
+  assert.match(sheet, /work_order_type = \$2 AND wo_ref IS NULL[\s\S]*?\$\{sp\("phone_local"\)\} = \$\{sp\("\$1"\)\}/);
+  assert.match(sheet, /ON CONFLICT ON CONSTRAINT cable_entries_phone_type_uniq DO NOTHING RETURNING id/);
+  assert.match(sheet, /String\(cur\.wo_ref \?\? ""\) === String\(r\.id\)/);
 });
 
 test("a technician's cable counts only if the work order turns out to be his (owner, 2026-10-08)", async () => {

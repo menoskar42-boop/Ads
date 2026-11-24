@@ -54,9 +54,9 @@ import { registerFaultTrend } from "./fault-trend";
 import { registerUrgentNoAccount } from "./urgent-no-account";
 import { cabinetAdslFaultsByHistory, reassignConflicts, registerCabinetReassign } from "./cabinet-reassign";
 import { registerCabinetAssignments, siteWorkerCode } from "./cabinet-assignments";
-import { sheetCableSql, sheetRawCableSql, syncSheetCableEntries, sheetRulesSql, sheetReviewSql } from "./wo-sheet-cable";
+import { decideManualCableQuantity, sheetCableSql, sheetRawCableSql, syncSheetCableEntries, sheetRulesSql, sheetReviewSql, SHEET_CABLE_PLACEHOLDER } from "./wo-sheet-cable";
 import { STORE_TECHS, cableTypeOf, notifyIfNegative, registerLocalStore, resolveStockTech, workDate } from "./local-store";
-import { CE_LINK_COND, PENDING_DAYS, findOpenWorkOrder, foreignWorkOrder, isInstallType, lastWorkOrderId, runCableLinker, workOrderTech } from "./cable-link";
+import { CE_LINK_COND, PENDING_DAYS, findInstallWorkOrder, foreignWorkOrder, isInstallType, runCableLinker, workOrderTech } from "./cable-link";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
 import { QuietSessionStore, cachedUser, dbWakeReport, execQueueVersion, lastDbQueryAt } from "./db-quiet";
 
@@ -11815,26 +11815,26 @@ export async function registerRoutes(
       return res.status(400).json({ message: "التاريخ مايبقاش بعد النهارده" });
     const userId = req.user.id;
     const userName = req.user.username;
-    // رفض التكرار صراحةً: لو الرقم + النوع موجود من قبل
-    const dup = await pool.query(
-      `SELECT created_by_name FROM cable_entries WHERE phone_local = $1 AND work_order_type = $2 LIMIT 1`,
-      [local, type],
-    );
-    if (dup.rowCount && dup.rowCount > 0) {
-      return res.status(409).json({
-        message: `سبق إدخال كمية السلك للرقم ${full} (${type}) من قبل بواسطة ${dup.rows[0].created_by_name}. احذف الإدخال السابق أولاً لتعديله.`,
-      });
-    }
-    // تركيب/نقل (server/cable-link.ts): بيتربط بأمر شغل ناجح ظاهر ومالوش سلك، وإلا بيتحفظ «مستنى
-    // أمر الشغل» — مابيتخصمش ومابيسألش عن فنى، وبيتربط بأمر شغل ييجى بعد كده أو يتمسح بعد ٧ أيام.
-    let link: { id: number; closeDate: string } | null = null;
+    // التركيب/النقل اليدوى متاحان فقط لأمر موجود وكمية WFM الخام ٥٠م أو أكتر؛
+    // ابحث قبل أي فحص تكرار، وبنفس تطبيع findOpenWorkOrder.
+    let link: { id: number; closeDate: string; centralName: string; workOrderId: string; sheetRaw: string | null } | null = null;
     let pendingAfter: number | null = null;
     if (isInstallType(type)) {
       const woRef = Number(req.body?.woRef) || null;
-      link = (woRef ? await findOpenWorkOrder(pool, local, type, woRef) : null) || await findOpenWorkOrder(pool, local, type);
-      if (!link) pendingAfter = await lastWorkOrderId(pool);
+      link = await findInstallWorkOrder(pool, local, type, woRef);
+      if (!link) return res.status(409).json({
+        message: "التسجيل اليدوى للسلك متاح بس لأوامر الشغل اللى السلك فيها فى ملف التركيبات 50 م أو أكتر — الأمر ده لسه مانزلش فى الملف",
+      });
+      const decision = decideManualCableQuantity(link.sheetRaw, qty);
+      if (decision.reason === "sheet_below_50") return res.status(409).json({
+        message: `كمية السلك فى ملف التركيبات ${decision.countedQuantity} م (أقل من ${SHEET_CABLE_PLACEHOLDER}) — بتتحسب من الملف ومافيش تسجيل يدوى`,
+      });
+      if (decision.reason === "sheet_unavailable") return res.status(409).json({
+        message: "كمية السلك فى ملف التركيبات مش واضحة — التسجيل اليدوى متاح فقط لما تكون 50 م أو أكتر",
+      });
+      if (!decision.allowed) return res.status(400).json({ message: "كمية السلك غير صالحة" });
       // أمر الشغل ده باسم فنى تانى من الخمسة ⇒ الفنى مايسجّلش سلكه (المالك ٢٠٢٦-١٠-٠٨)
-      if (link && req.user?.role === ROLES.TECH) {
+      if (req.user?.role === ROLES.TECH) {
         const self = (await coverageCodes(req.user)).techName;
         const me = matchTechnician(self) || matchTechnician(userName);
         const woTech = await workOrderTech(pool, link.id);
@@ -11842,6 +11842,15 @@ export async function registerRoutes(
           return res.status(409).json({ message: `أمر الشغل للرقم ${full} (${type}) باسم الفنى ${woTech} — كمية السلك مش هتتسجّل عليك.` });
         }
       }
+    } else {
+      // الصيانة تظل على فحص التكرار وطريقة التسجيل الحالية؛ قاعدة WFM ٥٠م تخص التركيب والنقل فقط.
+      const dup = await pool.query(
+        `SELECT created_by_name FROM cable_entries WHERE phone_local = $1 AND work_order_type = $2 LIMIT 1`,
+        [local, type],
+      );
+      if (dup.rowCount) return res.status(409).json({
+        message: `سبق إدخال كمية السلك للرقم ${full} (${type}) من قبل بواسطة ${dup.rows[0].created_by_name}. احذف الإدخال السابق أولاً لتعديله.`,
+      });
     }
     // المخزن المحلى: الكمية بتتخصم من رصيد فنى — الفنى نفسه، أو فنى الإغلاق لو اللى بيسجّل
     // مش فنى، ولو فنى الإغلاق مش من الخمسة ⇒ لازم يتختار (server/local-store.ts).
@@ -11869,6 +11878,67 @@ export async function registerRoutes(
     const chosenDay = type === "صيانة" ? chosenWorkDay ?? new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }) : null;
     const stockDate = pendingAfter != null ? null : link ? link.closeDate
       : chosenDay ?? await workDate(pool, local, type).catch(() => null);
+    if (isInstallType(type) && link) {
+      const tx = await pool.connect();
+      let beforeQty = 0;
+      try {
+        await tx.query("BEGIN");
+        await tx.query("SELECT pg_advisory_xact_lock(7411, $1::integer)", [link.id]);
+        const byWo = await tx.query(
+          `SELECT id, work_order_type, cable_quantity, source, wo_ref, pending_after_wo, stock_tech_name
+             FROM cable_entries WHERE wo_ref = $1 ORDER BY id LIMIT 1`, [link.id]);
+        let current = byWo.rows[0] ?? null;
+        if (current && current.work_order_type !== type) {
+          await tx.query("ROLLBACK");
+          return res.status(409).json({ message: "أمر الشغل ده له إدخال سلك بنوع مختلف؛ راجع السجل قبل التعديل" });
+        }
+        if (!current) {
+          const sameJob = await tx.query(
+            `SELECT id, work_order_type, cable_quantity, source, wo_ref, pending_after_wo, stock_tech_name
+               FROM cable_entries
+              WHERE work_order_type = $2 AND wo_ref IS NULL AND pending_after_wo IS NULL
+                AND ${sp("phone_local")} = ${sp("$1")} AND stock_date = $3::date
+                AND stock_tech_name IS NOT DISTINCT FROM $4
+              ORDER BY id LIMIT 1`,
+            [local, type, link.closeDate, await workOrderTech(pool, link.id)]);
+          current = sameJob.rows[0] ?? null;
+        }
+        beforeQty = Number(current?.cable_quantity) || 0;
+        await tx.query(
+          `INSERT INTO work_order_cable_overrides (central_name, work_order_id, cable_quantity, updated_by_id, updated_by_name, updated_at)
+           VALUES ($1, $2, $3, $4, $5, now())
+           ON CONFLICT ON CONSTRAINT work_order_cable_overrides_uniq DO UPDATE SET
+             cable_quantity = EXCLUDED.cable_quantity, updated_by_id = EXCLUDED.updated_by_id,
+             updated_by_name = EXCLUDED.updated_by_name, updated_at = now()`,
+          [link.centralName, link.workOrderId, qty, userId, userName]);
+        await syncSheetCableEntries(tx, [link.id]);
+        let saved = await tx.query(
+          `SELECT id, cable_quantity, stock_tech_name FROM cable_entries WHERE wo_ref = $1 AND work_order_type = $2 LIMIT 1`,
+          [link.id, type]);
+        if (!saved.rows.length) {
+          await tx.query("ROLLBACK");
+          return res.status(409).json({ message: "تعذّر ربط كمية السلك بأمر الشغل؛ راجع إدخال الخط الحالي" });
+        }
+        if (stockTech && !saved.rows[0].stock_tech_name) {
+          await tx.query(`UPDATE cable_entries SET stock_tech_name = $2, updated_at = now() WHERE id = $1`, [saved.rows[0].id, stockTech]);
+          saved = await tx.query(
+            `SELECT id, cable_quantity, stock_tech_name FROM cable_entries WHERE id = $1`, [saved.rows[0].id]);
+        }
+        await tx.query("COMMIT");
+        if (req.user?.role === ROLES.TECH) await claimWorkOrderName(req.user, link.id);
+        const countedTech = saved.rows[0].stock_tech_name || stockTech;
+        const stockBalance = countedTech
+          ? await notifyIfNegative(pool, countedTech, cableTypeOf(type), Math.max(0, Number(qty) - beforeQty)).catch(() => null)
+          : null;
+        return res.json({ ok: true, id: saved.rows[0].id, stockTech: countedTech, stockBalance, linkedWo: link.id, pending: false });
+      } catch (e: any) {
+        await tx.query("ROLLBACK").catch(() => {});
+        if (e?.code === "23505") return res.status(409).json({ message: "يوجد إدخال سلك لنفس رقم الخط والنوع، راجع أمر الشغل المرتبط" });
+        throw e;
+      } finally {
+        tx.release();
+      }
+    }
     try {
       const { rows } = await pool.query(
         `INSERT INTO cable_entries (phone_local, phone_full, work_order_type, cable_quantity, created_by_id, created_by_name, stock_tech_name, stock_date, wo_ref, pending_after_wo)

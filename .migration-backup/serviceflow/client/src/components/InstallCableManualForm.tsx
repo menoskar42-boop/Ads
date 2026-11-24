@@ -1,10 +1,6 @@
 // «إدخال كمية سلك تركيبات» — جوّه تاب «أوامر شغل بدون كمية سلك» (المالك ٢٠٢٦-١٠-٠٨).
-// «إدخال كمية السلك» بقى للصيانة بس، فالتركيب/النقل اللى لسه ماجاش فى ملف أوامر الشغل (أو أى رقم
-// تركيب يدوى) بيتسجّل من هنا: رقم + تركيب/نقل + الكمية. نفس /api/cable-entries — فلما أمر الشغل ييجى
-// بنفس الرقم والنوع بيتربط بالكمية دى ومايظهرش فى «أوامر شغل بدون كمية سلك».
-// الحفظ مايتمنعش، لكن الخصم من المخزن المحلى بيحصل بس لما أمر الشغل يظهر (المالك ٢٠٢٦-١٠-٠٨):
-// الرقم اللى مالوش أمر شغل لسه بيفضل «مستنى»، ولو أمر الشغل ماظهرش خلال ٧ أيام الإدخال بيتمسح
-// (server/cable-link.ts). وأمر شغل قديم له سلك قبل كده مابيتغيرش.
+// التسجيل اليدوى للتركيب/النقل لا يتم إلا بعد ظهور أمر الشغل فى WFM وبكمية خام ٥٠م أو أكتر؛
+// كمية الفنى تصبح هى المعتمدة على أمر الشغل. قائمة الإدخالات المعلقة أدناه للتوافق مع سجلات قديمة فقط.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -48,14 +44,15 @@ export function InstallCableManualForm() {
     },
     onError: (e: any) => {
       let msg = e?.message || "حدث خطأ";
-      const m = String(msg).match(/^\d+:\s*(.*)$/s);
-      if (m) msg = m[1];
+      const m = String(msg).match(/^(\d+):\s*(.*)$/s);
+      const status = m ? Number(m[1]) : 0;
+      if (m) msg = m[2];
       try {
         const j = JSON.parse(msg);
         if (j?.message) msg = j.message;
         if (j?.needTech) { setNeedTechNames(j.techNames || []); toast({ title: "اختار الفنى", description: msg, duration: 7000 }); return; }
       } catch { /* نص عادى */ }
-      toast({ title: "تعذّر الحفظ", description: msg, variant: "destructive", duration: 6000 });
+      toast({ title: status === 409 ? "التسجيل اليدوى غير متاح" : "تعذّر الحفظ", description: msg, variant: "destructive", duration: status === 409 ? 10000 : 6000 });
     },
   });
 
@@ -72,7 +69,7 @@ export function InstallCableManualForm() {
       <div className="flex items-center gap-2 mb-3">
         <Cable className="w-4 h-4 text-primary" />
         <h3 className="text-sm font-bold">إدخال كمية سلك تركيبات</h3>
-        <span className="text-xs text-muted-foreground">— لرقم تركيب/نقل لسه ماظهرش فى أوامر الشغل، أو أى رقم يدوى</span>
+        <span className="text-xs text-muted-foreground">— بعد ظهور أمر الشغل فى ملف التركيبات بكمية ٥٠م أو أكتر</span>
       </div>
       <form onSubmit={(e) => { e.preventDefault(); if (ok && !save.isPending) save.mutate(); }} className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[150px]">
@@ -92,6 +89,9 @@ export function InstallCableManualForm() {
               <SelectItem value="نقل" className="text-right">نقل</SelectItem>
             </SelectContent>
           </Select>
+          <p className="mt-1 text-[11px] leading-4 text-amber-700">
+            التركيب والنقل: التسجيل اليدوى بس لو السلك فى ملف التركيبات 50 م أو أكتر
+          </p>
         </div>
         <div className="w-full sm:w-36">
           <Label className="text-xs text-muted-foreground block mb-1">كمية السلك (متر)</Label>
@@ -112,8 +112,7 @@ export function InstallCableManualForm() {
         </Button>
       </form>
       <p className="text-xs text-muted-foreground mt-2">
-        لما أمر الشغل بتاع الرقم ده ييجى فى الملف بنفس النوع، هيتربط بالكمية دى ومش هيظهر فى القايمة تحت.
-        الكمية مابتتخصمش من المخزن غير لما أمر الشغل يظهر — ولو ماظهرش خلال {PENDING_DAYS} أيام الإدخال بيتمسح.
+        لو كمية الشيت أقل من 50 م، الكمية بتتحسب من الملف ومش هيتاح تسجيل يدوى. عند 50 م أو أكتر، الكمية التى تدخلها تصبح المعتمدة.
       </p>
       {pending.length > 0 && (
         <div className="mt-3 rounded-md border border-amber-200 bg-amber-50/70 p-2" data-testid="pending-cable-entries">
