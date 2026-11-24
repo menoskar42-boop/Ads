@@ -514,8 +514,8 @@ router.put("/messenger/profile/phone", requireAuth, async (req, res, next) => {
       result = phoneNumberProvided
         ? await pool.query(
             `UPDATE messenger_profiles
-             SET phone_lookup_hash = $1,
-                 phone_discoverable = ($2 AND $1 IS NOT NULL),
+             SET phone_lookup_hash = $1::text,
+                 phone_discoverable = ($2::boolean AND $1::text IS NOT NULL),
                  updated_at = now()
              WHERE user_id = $3
              RETURNING user_id`,
