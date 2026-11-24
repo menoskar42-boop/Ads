@@ -4,6 +4,8 @@
   const $ = (id) => document.getElementById(id);
   const PATH_KEY = "church-display.library-path.v1";
   const SERVICE_KEY = "church-display.today-service.v1";
+  const ONLINE_TRIAL = /^\/liturgy-slides(?:\/|$)/.test(window.location.pathname);
+  const DEFAULT_LIBRARY_PATH = ONLINE_TRIAL ? "out/library.js" : "../out/library.js";
   let library = { generatedAt: "", decks: [] };
   let libraryScript = null;
   let assetBase = "";
@@ -42,8 +44,11 @@
       window.dispatchEvent(new CustomEvent("church-library-error"));
       return;
     }
-    if (libraryUrl.protocol !== "file:") {
-      setStatus("المكتبة لازم تكون ملفاً محلياً على الجهاز.");
+    const localFile = libraryUrl.protocol === "file:";
+    const sameOriginWeb = ["http:", "https:"].includes(libraryUrl.protocol) &&
+      libraryUrl.origin === window.location.origin;
+    if (!localFile && !sameOriginWeb) {
+      setStatus("المكتبة لازم تكون ملفاً محلياً أو من نفس الموقع.");
       window.dispatchEvent(new CustomEvent("church-library-error"));
       return;
     }
@@ -347,7 +352,9 @@
   }
 
   $("loadLibrary").addEventListener("click", () => loadLibraryScript($("libraryPath").value.trim()));
-  $("libraryPath").value = safeGet(PATH_KEY) || "../out/library.js";
+  $("libraryPath").value = safeGet(PATH_KEY) || DEFAULT_LIBRARY_PATH;
+  const trialNotice = $("onlineTrialNotice");
+  if (trialNotice) trialNotice.hidden = !ONLINE_TRIAL;
   $("openDisplay").addEventListener("click", () => {
     displayWindow = window.open("./display.html", "church-display", "width=1280,height=720");
     if (!displayWindow) {

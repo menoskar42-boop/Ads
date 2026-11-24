@@ -164,6 +164,17 @@ function LiturgyList({ basePath }: { basePath: string }) {
               <div className="flex flex-col gap-1 items-end text-xs text-amber-600 dark:text-amber-400 group-hover:gap-2 transition-all">
                 <span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded">/liturgy-control</span>
                 <span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded">/liturgy-display</span>
+                <button
+                  type="button"
+                  className="rounded-md bg-amber-700 px-3 py-1.5 font-sans font-bold text-white hover:bg-amber-800"
+                  data-testid="open-liturgy-slides"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    window.open('/liturgy-slides/', '_blank', 'noopener,noreferrer');
+                  }}
+                >
+                  عرض بالسلايدات
+                </button>
               </div>
             </div>
           </Card>
