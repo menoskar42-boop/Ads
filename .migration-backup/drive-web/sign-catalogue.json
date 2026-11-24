@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "status": "provisional",
+  "note": "PROVISIONAL taxonomy (#16/#17). Built from the section structure of the 1968 Vienna Convention on Road Signs and Signals, Annex 1 (Egypt acceded 15 Dec 2023, UN Treaty Collection XI-B-20). NOT the Egyptian driver-education book, which has not been obtained yet; every Egyptian name below is a working label to be replaced by the book's exact caption and page. Official plates are for review reference only, never training images.",
+  "sources": {
+    "vienna": "1968 Vienna Convention on Road Signs and Signals, Annex 1 sections A-H (official treaty source; Egyptian national variants unverified)",
+    "egypt_law": "Traffic Law 66/1973 and executive regulations, Ministry of Interior decree 1613/2008 (official Egyptian source; text not yet fetched/verified)",
+    "practical": "Practical class seen on Egyptian roads, not yet traced to an official source"
+  },
+  "classes": [
+    { "id": "B1", "group": "priority", "vienna": "B", "ar": "قف", "en": "stop", "shape": "octagon red", "source": "vienna" },
+    { "id": "B2", "group": "priority", "vienna": "B", "ar": "أعط الأولوية", "en": "give_way", "shape": "inverted triangle red border", "source": "vienna" },
+    { "id": "B3", "group": "priority", "vienna": "B", "ar": "طريق ذو أولوية", "en": "priority_road", "shape": "diamond yellow", "source": "vienna" },
+    { "id": "B4", "group": "priority", "vienna": "B", "ar": "نهاية الطريق ذو الأولوية", "en": "end_priority_road", "shape": "diamond yellow crossed", "source": "vienna" },
+
+    { "id": "C1", "group": "prohibitory", "vienna": "C", "ar": "ممنوع الدخول", "en": "no_entry", "shape": "red circle white bar", "source": "vienna" },
+    { "id": "C2", "group": "prohibitory", "vienna": "C", "ar": "ممنوع المرور للمركبات", "en": "no_vehicles", "shape": "red ring empty", "source": "vienna" },
+    { "id": "C3", "group": "prohibitory", "vienna": "C", "ar": "ممنوع الانتظار", "en": "no_parking", "shape": "blue disc red ring one bar", "source": "vienna" },
+    { "id": "C4", "group": "prohibitory", "vienna": "C", "ar": "ممنوع الوقوف والانتظار", "en": "no_stopping", "shape": "blue disc red ring cross", "source": "vienna" },
+    { "id": "C5", "group": "prohibitory", "vienna": "C", "ar": "ممنوع الدوران يساراً", "en": "no_left_turn", "shape": "red ring arrow", "source": "vienna" },
+    { "id": "C6", "group": "prohibitory", "vienna": "C", "ar": "ممنوع الدوران يميناً", "en": "no_right_turn", "shape": "red ring arrow", "source": "vienna" },
+    { "id": "C7", "group": "prohibitory", "vienna": "C", "ar": "ممنوع الدوران للخلف (يو تيرن)", "en": "no_u_turn", "shape": "red ring arrow", "source": "vienna" },
+    { "id": "C8", "group": "prohibitory", "vienna": "C", "ar": "ممنوع التجاوز", "en": "no_overtaking", "shape": "red ring two cars", "source": "vienna" },
+    { "id": "C9", "group": "prohibitory", "vienna": "C", "ar": "ممنوع استعمال آلة التنبيه", "en": "no_horn", "shape": "red ring horn", "source": "vienna" },
+    { "id": "C10", "group": "prohibitory", "vienna": "C", "ar": "ممنوع مرور الشاحنات", "en": "no_trucks", "shape": "red ring truck", "source": "vienna" },
+    { "id": "C11", "group": "prohibitory", "vienna": "C", "ar": "ممنوع مرور المشاة", "en": "no_pedestrians", "shape": "red ring pedestrian", "source": "vienna" },
+    { "id": "C12", "group": "prohibitory", "vienna": "C", "ar": "أقصى ارتفاع", "en": "max_height", "shape": "red ring number", "source": "vienna", "valued": true },
+    { "id": "C13", "group": "prohibitory", "vienna": "C", "ar": "أقصى وزن", "en": "max_weight", "shape": "red ring number", "source": "vienna", "valued": true },
+    { "id": "C14_20", "group": "speed_limit", "vienna": "C", "ar": "السرعة القصوى ٢٠", "en": "speed_20", "shape": "red ring number", "source": "vienna" },
+    { "id": "C14_30", "group": "speed_limit", "vienna": "C", "ar": "السرعة القصوى ٣٠", "en": "speed_30", "shape": "red ring number", "source": "vienna" },
+    { "id": "C14_40", "group": "speed_limit", "vienna": "C", "ar": "السرعة القصوى ٤٠", "en": "speed_40", "shape": "red ring number", "source": "vienna" },
+    { "id": "C14_50", "group": "speed_limit", "vienna": "C", "ar": "السرعة القصوى ٥٠", "en": "speed_50", "shape": "red ring number", "source": "vienna" },
+    { "id": "C14_60", "group": "speed_limit", "vienna": "C", "ar": "السرعة القصوى ٦٠", "en": "speed_60", "shape": "red ring number", "source": "vienna" },
+    { "id": "C14_70", "group": "speed_limit", "vienna": "C", "ar": "السرعة القصوى ٧٠", "en": "speed_70", "shape": "red ring number", "source": "vienna" },
+    { "id": "C14_80", "group": "speed_limit", "vienna": "C", "ar": "السرعة القصوى ٨٠", "en": "speed_80", "shape": "red ring number", "source": "vienna" },
+    { "id": "C14_90", "group": "speed_limit", "vienna": "C", "ar": "السرعة القصوى ٩٠", "en": "speed_90", "shape": "red ring number", "source": "vienna" },
+    { "id": "C14_100", "group": "speed_limit", "vienna": "C", "ar": "السرعة القصوى ١٠٠", "en": "speed_100", "shape": "red ring number", "source": "vienna" },
+    { "id": "C14_120", "group": "speed_limit", "vienna": "C", "ar": "السرعة القصوى ١٢٠", "en": "speed_120", "shape": "red ring number", "source": "vienna" },
+    { "id": "C15", "group": "prohibitory", "vienna": "C", "ar": "نهاية كل الممنوعات", "en": "end_restrictions", "shape": "white disc grey bar", "source": "vienna" },
+
+    { "id": "D1", "group": "mandatory", "vienna": "D", "ar": "اتجاه إجبارى يمين", "en": "turn_right", "shape": "blue disc arrow", "source": "vienna" },
+    { "id": "D2", "group": "mandatory", "vienna": "D", "ar": "اتجاه إجبارى يسار", "en": "turn_left", "shape": "blue disc arrow", "source": "vienna" },
+    { "id": "D3", "group": "mandatory", "vienna": "D", "ar": "اتجاه إجبارى للأمام", "en": "straight", "shape": "blue disc arrow", "source": "vienna" },
+    { "id": "D4", "group": "mandatory", "vienna": "D", "ar": "الزم اليمين", "en": "keep_right", "shape": "blue disc arrow", "source": "vienna" },
+    { "id": "D5", "group": "mandatory", "vienna": "D", "ar": "الزم اليسار", "en": "keep_left", "shape": "blue disc arrow", "source": "vienna" },
+    { "id": "D6", "group": "mandatory", "vienna": "D", "ar": "دوران إجبارى (ميدان)", "en": "roundabout", "shape": "blue disc arrows", "source": "vienna" },
+
+    { "id": "E1", "group": "special_regulation", "vienna": "E", "ar": "طريق اتجاه واحد", "en": "one_way", "shape": "blue rectangle arrow", "source": "vienna" },
+    { "id": "E2", "group": "special_regulation", "vienna": "E", "ar": "عبور مشاة", "en": "ped_crossing", "shape": "blue square pedestrian", "source": "vienna" },
+    { "id": "E3", "group": "special_regulation", "vienna": "E", "ar": "انتظار مسموح (باركينج)", "en": "parking", "shape": "blue square P", "source": "vienna" },
+    { "id": "E4", "group": "special_regulation", "vienna": "E", "ar": "طريق مسدود", "en": "dead_end", "shape": "blue square", "source": "vienna" },
+
+    { "id": "A1", "group": "warning", "vienna": "A", "ar": "مطب صناعى", "en": "bump_ahead", "shape": "red triangle", "source": "vienna" },
+    { "id": "A2", "group": "warning", "vienna": "A", "ar": "منحنى خطر", "en": "dangerous_bend", "shape": "red triangle", "source": "vienna" },
+    { "id": "A3", "group": "warning", "vienna": "A", "ar": "تقاطع طرق", "en": "crossroads", "shape": "red triangle", "source": "vienna" },
+    { "id": "A4", "group": "warning", "vienna": "A", "ar": "انتبه مشاة", "en": "pedestrians_warning", "shape": "red triangle", "source": "vienna" },
+    { "id": "A5", "group": "warning", "vienna": "A", "ar": "انتبه أطفال / مدرسة", "en": "children", "shape": "red triangle", "source": "vienna" },
+    { "id": "A6", "group": "warning", "vienna": "A", "ar": "أعمال طرق", "en": "road_works", "shape": "red triangle", "source": "vienna" },
+    { "id": "A7", "group": "warning", "vienna": "A", "ar": "ضيق الطريق", "en": "road_narrows", "shape": "red triangle", "source": "vienna" },
+    { "id": "A8", "group": "warning", "vienna": "A", "ar": "مزلقان سكة حديد", "en": "level_crossing", "shape": "red triangle", "source": "vienna" },
+    { "id": "A9", "group": "warning", "vienna": "A", "ar": "إشارات ضوئية", "en": "signals_ahead", "shape": "red triangle", "source": "vienna" },
+    { "id": "A10", "group": "warning", "vienna": "A", "ar": "طريق زلق", "en": "slippery", "shape": "red triangle", "source": "vienna" },
+    { "id": "A_other", "group": "warning", "vienna": "A", "ar": "تحذير آخر", "en": "warning_other", "shape": "red triangle", "source": "practical" },
+
+    { "id": "sign_other", "group": "other", "vienna": null, "ar": "علامة أخرى / مش واضحة", "en": "sign_other", "shape": "any", "source": "practical" }
+  ],
+  "signals": {
+    "note": "Traffic lights are a separate pipeline (#17-C): target type 'signal', per approach bearing; per-head labels state ∈ red/amber/green/off/unknown and arrow ∈ none/left/right/straight. Flashing is derived from consecutive frames, never from one still. Legal meaning of steady vs flashing: Official Gazette (2 Mar 2000) Articles 126-127 as reported by ChatGPT — NOT yet verified (source host blocked from Claude's environment).",
+    "states": ["red", "amber", "green", "off", "unknown"],
+    "arrows": ["none", "left", "right", "straight"]
+  }
+}
