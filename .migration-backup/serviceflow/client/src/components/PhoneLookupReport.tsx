@@ -638,7 +638,7 @@ export function PhoneLookupReport() {
   // «إلغاء مهمة WFM»: يفتح Dispatcher ومعاه الرقم فى الهاش، وسكربت التامبر منكى
   // (wfm-dispatcher-reassign.user.js) بيكمّل: بحث بالـ Service Id ← سطر Started/Assigned
   // ← Cancel من قائمة السطر. نافذة باسم ثابت للرقم عشان مايتفتحش تابات متكررة.
-  const canFlagFault = isSuper || user?.role === ROLES.ADMIN || user?.role === ROLES.EXTERNAL;
+  const canFlagFault = isSuper || user?.role === ROLES.ADMIN || user?.role === ROLES.EXTERNAL || user?.role === ROLES.TECH;
   const canRegularize = isSuper || user?.role === ROLES.TECH;
 
   // حالة العطل المفتوح + آخر انتظام (يقارن اليدوى بـ 430D ويرجّع الأحدث)
@@ -850,6 +850,7 @@ export function PhoneLookupReport() {
     // قياس أوتوماتيك بعد تسجيل العطل لو الخط ليه رقم أكونت (زى الانتظام). measureDZS بيدّى التنبيه المناسب.
     const acc = (line?.accountNo ?? "").toString().trim();
     if (acc) { await measureDZS(); }
+    else if (user?.role === ROLES.TECH) { alert("تم تسجيل العطل — الخط بقى فى «الأعطال الحالية خارج الشاشة»"); }
     else { alert("تم تسجيل العطل — الخط بقى فى «الأعطال الحالية خارج الشاشة» (لا يوجد رقم أكونت للقياس)"); }
   };
 

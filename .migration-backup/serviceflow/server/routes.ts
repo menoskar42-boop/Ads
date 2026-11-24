@@ -16242,7 +16242,7 @@ export async function registerRoutes(
   });
 
   // ===== الأعطال «خارج الشاشة» (اليدوية): زر «الخط به عطل» + انتظام =====
-  const MF_FLAG_ROLES = [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.EXTERNAL];
+  const MF_FLAG_ROLES = [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.EXTERNAL, ROLES.TECH];
   const MF_REG_ROLES = [ROLES.TECH, ROLES.SUPER_ADMIN];
 
   // تسجيل عطل يدوى للخط — يمنع التكرار لو فيه عطل مفتوح بالفعل
@@ -16251,14 +16251,30 @@ export async function registerRoutes(
     const b = req.body || {};
     const phoneShort = String(b.phoneShort || "").replace(/^88/, "").trim();
     const fullPhone = String(b.fullPhone || (phoneShort ? "88" + phoneShort : "")).trim();
-    if (!phoneShort && !b.accountNo) return res.status(400).json({ message: "لا يوجد رقم خط" });
+    const isTech = req.user.role === ROLES.TECH;
+    if (!phoneShort && (isTech || !b.accountNo)) return res.status(400).json({ message: "لا يوجد رقم خط" });
     const { rows: ex } = await pool.query(
       `SELECT id FROM manual_faults WHERE status='open' AND (phone_short=$1 OR full_phone=$2) LIMIT 1`, [phoneShort, fullPhone]);
     if (ex.length) return res.json({ ok: false, duplicate: true, message: "الخط ده فيه عطل مسجّل بالفعل (لم ينتظم بعد)" });
+    let accountNo = b.accountNo || null;
+    let techName = b.techName || null;
+    if (isTech) {
+      const { rows: accountRows } = await pool.query(
+        `SELECT account_no FROM line_accounts
+          WHERE ${phoneNormSql("full_phone")} = ${phoneNormSql("$1")}
+            AND NULLIF(btrim(account_no), '') IS NOT NULL
+          ORDER BY updated_at DESC NULLS LAST, id DESC
+          LIMIT 1`, [fullPhone]);
+      accountNo = accountRows[0]?.account_no ?? null;
+      // Reuse phone lookup's line resolution so port MSANs and manual MSAN
+      // assignments take precedence over the copper cabinet exactly as in the UI.
+      const { line } = await lookupPhoneLine(req.user, fullPhone || phoneShort);
+      techName = line?.techName || null;
+    }
     await pool.query(
       `INSERT INTO manual_faults (full_phone, phone_short, account_no, central, cabin_number, box_number, msan_code, tech_name, status, flagged_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'open',$9)`,
-      [fullPhone || null, phoneShort || null, b.accountNo || null, b.central || null, b.cabinNumber || null, b.boxNumber || null, b.msanCode || null, b.techName || null, String(req.user.username || "")]);
+      [fullPhone || null, phoneShort || null, accountNo, b.central || null, b.cabinNumber || null, b.boxNumber || null, b.msanCode || null, techName, String(req.user.username || "")]);
     void autoLineStatusNewFaults("manual-flag");
     res.json({ ok: true });
   });
