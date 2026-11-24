@@ -38,6 +38,7 @@
     "pothole1_saved":   { "ar": ["سجّلت الحفرة، اتجاه واحد"], "en": ["One-way pothole saved"] },
     "oneway_no_heading":{ "ar": ["اتجاهك مش معروف لسه، فسجّلته اتجاهين"], "en": ["Your direction isn't known yet, so I saved it as two-way"] },
     "shot_taken":       { "ar": ["اتصوّرت"], "en": ["Photo taken"] },
+    "shot_auto":        { "ar": ["لقط صورة"], "en": ["Photo captured"] },
     "camera_unavailable":{ "ar": ["الكاميرا مش متاحة"], "en": ["The camera isn't available"] },
     "no_phone":         { "ar": ["المكان ده مفيش رقم تليفون مسجل له"], "en": ["This place has no phone number listed"] },
     "call_place":       { "ar": ["بفتح الاتصال، دوس اتصال"], "en": ["Opening the dialer, tap call"] },
