@@ -26,6 +26,26 @@
     return READING_DECK_HINTS.some((hint) => haystack.includes(normalize(hint)));
   }
 
+  function readingDecision(result) {
+    const candidates = Array.isArray(result && result.candidates) ? result.candidates : [];
+    if (result && result.status === "confident" && candidates.length) {
+      return { action: "church", candidate: candidates[0] };
+    }
+    if (result && result.status === "none" && !candidates.length) {
+      return { action: "generate" };
+    }
+    return { action: "choose", candidates };
+  }
+
+  async function prepareReading(result, generate, add) {
+    const decision = readingDecision(result);
+    if (decision.action !== "generate") return decision;
+    const deck = await generate();
+    if (!deck) return { action: "unavailable" };
+    const added = add(deck);
+    return { action: added === false ? "already-added" : "generated", deck };
+  }
+
   function dayHeadingTerms(plan) {
     const terms = [plan.title, plan.periodInfo];
     const date = plan.coptic;
@@ -135,5 +155,5 @@
     };
   }
 
-  return { isReadingDeck, dayHeadingTerms, findReadingCandidates };
+  return { isReadingDeck, readingDecision, prepareReading, dayHeadingTerms, findReadingCandidates };
 });

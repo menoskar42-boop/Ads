@@ -25,6 +25,7 @@
   let currentReadings = [];
   let stageChoices = {};
   let refreshTimer = null;
+  let libraryStatus = "loading";
 
   function mapKey(plan, reading) {
     return `${plan.source}|${plan.coptic.month}-${plan.coptic.day}|${reading.id}`;
@@ -130,8 +131,9 @@
       });
       return;
     }
-    if (result.status === "confident") {
-      const match = result.candidates[0];
+    const decision = M.readingDecision(result);
+    if (decision.action === "church") {
+      const match = decision.candidate;
       useMapping({ source: match.source, start: match.start, end: match.end }, reading, reading.title);
       host.appendChild(Object.assign(document.createElement("small"), {
         className: "muted",
@@ -139,12 +141,12 @@
       }));
       return;
     }
-    if (result.candidates.length) {
+    if (decision.action === "choose") {
       const note = document.createElement("small");
       note.className = "muted";
       note.textContent = "فيه أكتر من احتمال أو حدود القراءة مش واضحة. راجع البداية والنهاية قبل الاعتماد.";
       host.append(note, list);
-      for (const candidate of result.candidates) {
+      for (const candidate of decision.candidates) {
         const card = document.createElement("div");
         card.className = "reading-candidate";
         const name = document.createElement("p");
@@ -182,25 +184,60 @@
         card.append(name, start, end, choose);
         list.appendChild(card);
       }
-    } else {
-      const note = document.createElement("small");
-      note.className = "muted";
-      note.textContent = "مش لاقيين المرجع فى نص عروض القراءات. ممكن تختار نص بياناتنا المحلية بدل التخمين.";
-      host.appendChild(note);
+      addButton(host, "اعرض النص من بياناتنا", async () => {
+        try {
+          const deck = await E.generatedSlides(reading, plan.date);
+          if (!deck) throw new Error("المرجع ده ملوش نص محلي متاح للتوليد.");
+          window.ChurchControl.openGeneratedDeck(deck);
+          $("readingMapStatus").textContent = "أُضيفت شرائح «من بياناتنا» لخدمة النهارده.";
+        } catch (error) {
+          $("todayError").textContent = error && error.message || "تعذر تكوين الشرائح المحلية.";
+          $("todayError").hidden = false;
+        }
+      });
+      return;
     }
-    addButton(host, "اعرض النص من بياناتنا", async () => {
-      try {
-        const deck = await E.generatedSlides(reading, plan.date);
-        if (!deck) throw new Error("المرجع ده ملوش نص محلي متاح للتوليد.");
-        window.ChurchControl.openGeneratedDeck(deck);
-        $("readingMapStatus").textContent = "أُضيفت شرائح «من بياناتنا» لخدمة النهارده.";
-      } catch (error) {
-        $("todayError").textContent = error && error.message || "تعذر تكوين الشرائح المحلية.";
-        $("todayError").hidden = false;
-      }
+
+    const note = document.createElement("small");
+    note.className = "muted";
+    note.textContent = "مش لاقيين القراءة فى عروض الكنيسة؛ بنضيف النص المحلي تلقائياً لخدمة النهارده.";
+    host.appendChild(note);
+    void M.prepareReading(
+      result,
+      () => E.generatedSlides(reading, plan.date),
+      (deck) => {
+        if (currentPlan !== plan) return false;
+        window.ChurchControl.registerGeneratedDeck(deck);
+        return window.ChurchControl.addServiceItem({
+          source: deck.source,
+          start: 1,
+          end: deck.slides.length,
+          label: reading.title,
+          generated: true,
+          reading,
+          generatedDate: plan.date,
+        });
+      },
+    ).then((outcome) => {
+      if (currentPlan !== plan) return;
+      if (outcome.action === "unavailable") throw new Error("المرجع ده ملوش نص محلي متاح للتوليد.");
+      $("readingMapStatus").textContent = outcome.action === "already-added"
+        ? "شرائح القراءة المحلية موجودة بالفعل فى خدمة النهارده."
+        : "أُضيفت شرائح «من بياناتنا» لخدمة النهارده.";
+    }).catch((error) => {
+      if (currentPlan !== plan) return;
+      $("todayError").textContent = error && error.message || "تعذر تكوين الشرائح المحلية.";
+      $("todayError").hidden = false;
     });
   }
   function processReading(reading, elements, plan) {
+    if (libraryStatus !== "ready") {
+      elements.status.textContent = libraryStatus === "error"
+        ? "عروض الكنيسة مش محمّلة؛ راجع مسار المكتبة."
+        : "مستني تحميل عروض الكنيسة...";
+      elements.controls.replaceChildren();
+      return;
+    }
     const key = mapKey(plan, reading);
     const library = getLibrary();
     const result = M.findReadingCandidates(library, plan, reading);
@@ -348,7 +385,18 @@
   });
   $("exportReadingMap").addEventListener("click", exportMap);
   $("importReadingMap").addEventListener("change", (event) => importMap(event.target.files && event.target.files[0]));
+  window.addEventListener("church-library-loading", () => {
+    libraryStatus = "loading";
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(render, 0);
+  });
+  window.addEventListener("church-library-error", () => {
+    libraryStatus = "error";
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(render, 0);
+  });
   window.addEventListener("church-library-loaded", () => {
+    libraryStatus = "ready";
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(render, 0);
   });

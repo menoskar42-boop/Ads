@@ -33,15 +33,18 @@
   function setStatus(message) { $("displayStatus").textContent = message; }
 
   function loadLibraryScript(path) {
+    window.dispatchEvent(new CustomEvent("church-library-loading"));
     let libraryUrl;
     try {
       libraryUrl = new URL(path, window.location.href);
     } catch (_) {
       setStatus("مسار المكتبة غير صالح.");
+      window.dispatchEvent(new CustomEvent("church-library-error"));
       return;
     }
     if (libraryUrl.protocol !== "file:") {
       setStatus("المكتبة لازم تكون ملفاً محلياً على الجهاز.");
+      window.dispatchEvent(new CustomEvent("church-library-error"));
       return;
     }
     if (libraryScript) libraryScript.remove();
@@ -63,12 +66,14 @@
         library = { generatedAt: "", decks: [] };
         renderTree();
         setStatus(error.message || "تعذر قراءة ملف المكتبة.");
+        window.dispatchEvent(new CustomEvent("church-library-error"));
       }
     };
     script.onerror = () => {
       library = { generatedAt: "", decks: [] };
       renderTree();
       setStatus("تعذر فتح library.js. راجع المسار والصلاحيات.");
+      window.dispatchEvent(new CustomEvent("church-library-error"));
     };
     document.head.appendChild(script);
   }
