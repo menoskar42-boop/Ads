@@ -42,3 +42,11 @@
 - **الملفات:** `artifacts/api-server/src/routes/messenger.ts`؛ `artifacts/oscar-messenger/app/chat/[conversationId].tsx`؛ اختبار `artifacts/api-server/tests/messenger-delivery.test.mjs`.
 - **التحقق:** اختبارات المصدر تتحقق من الحفظ قبل الرد، وإعادة المحاولة بنفس client ID، وقصر تأكيد التسليم على IDs المسترجعة، وتحديث المرسل كل 5 ثوانٍ وعند reconnect؛ اختبارات Messenger وAPI server وtypecheck.
 - **القيود:** لا يمكن تحديد سبب علامة رسالة الأم بعينها دون سجلات أو اختبار حي بحسابين/جهازين. لم يُختبر تسليم فعلي بين جهازين أو أثناء تبديل الشبكة.
+
+## 5) تسجيل الرسائل الصوتية على الويب
+
+- **التغيير:** أضيف مسار تسجيل ويب مستقل يستخدم `MediaRecorder`، ويفضّل `audio/webm` أو يختار `audio/mp4` حسب `MediaRecorder.isTypeSupported`. زر التسجيل لا يظهر إذا كان المتصفح لا يوفر `getUserMedia` أو صيغة مدعومة. طلب الميكروفون يبدأ بعد ضغط المستخدم فقط، مع رسائل عربية للإذن المرفوض والمتصفح غير المدعوم، وإيقاف/إلغاء، وحدود الخادم، ورسالة فشل الرفع مع إمكانية المحاولة مجددًا.
+- **الرفع والتشغيل:** التسجيل يمر إلى نقطة رفع الرسائل الصوتية الموجودة `/audio-messages` بنفس المصادقة ومعرّف العميل. وجدت أن مشغل Expo Audio للويب يبني عنصر الصوت من URI من دون جلب ترويسات المصدر؛ لذلك يجلب مسار الويب الملف المحمي بترويسة Bearer ثم يشغّله من Blob URL. Android/iOS يحتفظان بمسار Expo Audio الحالي.
+- **الملفات:** `artifacts/oscar-messenger/components/WebVoiceMessageModal.tsx`، `components/MessageComposer.tsx`، `app/chat/[conversationId].tsx`، `lib/web-voice.ts`، والاختبار `tests/web-voice.test.mjs`.
+- **التحقق:** اختبارات اختيار MIME ومعالجة حالات الإذن/الإلغاء/الرفع والتحقق من مسار الرفع والتشغيل؛ `node --test tests/*.test.mjs` — 32/32، و`pnpm run typecheck` — نجح.
+- **القيود:** **not tested end-to-end** — لم أنفّذ تسجيلًا حقيقيًا ثم رفعه إلى الخدمة وتشغيله من رسالة محفوظة في معاينة المتصفح؛ شاشة المحادثة تتطلب جلسة مسجلة الدخول لا تملكها أداة المعاينة. لذلك لا أؤكد اكتمال التسجيل/الرفع/التشغيل الحي، ولا أؤكد توافق iOS Safari.

@@ -28,6 +28,7 @@ export function MessageComposer({
   onClearReply,
   onClearMedia,
   onCancelMediaUpload,
+  webVoiceSupported,
 }: {
   value: string;
   onChangeText: (value: string) => void;
@@ -52,6 +53,7 @@ export function MessageComposer({
   onClearReply: () => void;
   onClearMedia: () => void;
   onCancelMediaUpload: () => void;
+  webVoiceSupported: boolean;
 }) {
   return (
     <View style={styles.wrap}>
@@ -165,6 +167,29 @@ export function MessageComposer({
           />
         </Pressable>
         )}
+        {Platform.OS === "web" && webVoiceSupported && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              voiceEnabled ? "تسجيل رسالة صوتية" : "الرسائل الصوتية غير مفعلة"
+            }
+            testID="web-voice-message-open"
+            onPress={onVoicePress}
+            disabled={busy || voiceBusy || mediaBusy || !voiceEnabled}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.voice,
+              (!voiceEnabled || busy || voiceBusy || mediaBusy) && styles.sendDisabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={voiceBusy ? "cloud-upload-outline" : "mic-outline"}
+              size={23}
+              color={voiceEnabled ? colors.blue : colors.muted}
+            />
+          </Pressable>
+        )}
         {locationEnabled && (
           <Pressable
             accessibilityRole="button"
@@ -217,9 +242,9 @@ export function MessageComposer({
       {!voiceEnabled && !!voiceHint && (
         <Text style={styles.voiceHint}>{voiceHint}</Text>
       )}
-      {Platform.OS === "web" && (
+      {Platform.OS === "web" && !webVoiceSupported && (
         <Text style={styles.voiceHint}>
-          تسجيل الصوت متاح في تطبيق الهاتف؛ ومشاركة الموقع تحتاج إذن المتصفح. يمكن اختيار الصور والملفات من المتصفح.
+          المتصفح لا يدعم تسجيل الصوت هنا. جرّب متصفحًا أحدث أو تطبيق الهاتف.
         </Text>
       )}
       <Text style={styles.limit}>{value.length}/4000</Text>

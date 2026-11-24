@@ -60,6 +60,8 @@ import {
 import { readableError } from "../../lib/format";
 import { colors } from "../../lib/theme";
 import { VoiceMessageModal } from "../../components/VoiceMessageModal";
+import { WebVoiceMessageModal } from "../../components/WebVoiceMessageModal";
+import { chooseWebAudioMimeType } from "../../lib/web-voice";
 
 function first(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -119,6 +121,9 @@ export default function ChatScreen() {
   const voiceRequestIds = useRef<Map<string, string>>(new Map());
   const audioPlayer = useAudioPlayer(null, { updateInterval: 250 });
   const audioStatus = useAudioPlayerStatus(audioPlayer);
+  const webAudioRef = useRef<HTMLAudioElement | null>(null);
+  const webAudioMessageIdRef = useRef("");
+  const webAudioObjectUrlRef = useRef("");
   const readForMessage = useRef("");
   const [draft, setDraft] = useState("");
   const [draftFromOscar, setDraftFromOscar] = useState(false);
@@ -128,7 +133,19 @@ export default function ChatScreen() {
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
   const [activeAudioId, setActiveAudioId] = useState("");
+  const [webAudioPlayingId, setWebAudioPlayingId] = useState("");
   const [audioLoadingId, setAudioLoadingId] = useState("");
+  const webVoiceMimeType = useMemo(() => {
+    if (
+      Platform.OS !== "web" ||
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === "undefined"
+    ) return null;
+    return chooseWebAudioMimeType((mimeType) =>
+      MediaRecorder.isTypeSupported(mimeType),
+    );
+  }, []);
   const [mediaLoadingId, setMediaLoadingId] = useState("");
   const [selectedAttachment, setSelectedAttachment] = useState<PickedAttachment | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
@@ -299,6 +316,80 @@ export default function ChatScreen() {
   const playVoiceMessage = async (message: Message) => {
     if (!message.audioUrl) {
       setErrorText("ملف الرسالة الصوتية غير متاح.");
+      return;
+    }
+    if (Platform.OS === "web") {
+      const currentAudio = webAudioRef.current;
+      if (currentAudio && webAudioMessageIdRef.current === message.id) {
+        if (!currentAudio.paused) {
+          currentAudio.pause();
+          setWebAudioPlayingId("");
+          return;
+        }
+        if (currentAudio.ended) currentAudio.currentTime = 0;
+        try {
+          await currentAudio.play();
+          setWebAudioPlayingId(message.id);
+        } catch (error) {
+          setErrorText(readableError(error, "تعذر تشغيل الرسالة الصوتية."));
+        }
+        return;
+      }
+
+      currentAudio?.pause();
+      webAudioRef.current = null;
+      webAudioMessageIdRef.current = "";
+      setWebAudioPlayingId("");
+      if (webAudioObjectUrlRef.current) {
+        URL.revokeObjectURL(webAudioObjectUrlRef.current);
+        webAudioObjectUrlRef.current = "";
+      }
+      setAudioLoadingId(message.id);
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
+        const response = await expoFetch(apiUrl(message.audioUrl), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as
+            | { error?: string }
+            | null;
+          throw new Error(payload?.error || "تعذر فتح الرسالة الصوتية.");
+        }
+        const blob = await response.blob();
+        if (!blob.size) throw new Error("ملف الرسالة الصوتية فارغ.");
+        const objectUrl = URL.createObjectURL(blob);
+        webAudioObjectUrlRef.current = objectUrl;
+        const audio = new Audio(objectUrl);
+        webAudioRef.current = audio;
+        webAudioMessageIdRef.current = message.id;
+        audio.onended = () => {
+          if (webAudioRef.current !== audio) return;
+          webAudioRef.current = null;
+          webAudioMessageIdRef.current = "";
+          setWebAudioPlayingId("");
+          URL.revokeObjectURL(objectUrl);
+          webAudioObjectUrlRef.current = "";
+        };
+        audio.onerror = () => {
+          if (webAudioRef.current === audio) {
+            webAudioRef.current = null;
+            webAudioMessageIdRef.current = "";
+            setWebAudioPlayingId("");
+            setErrorText("تعذر فك أو تشغيل ملف الرسالة الصوتية.");
+            URL.revokeObjectURL(objectUrl);
+            webAudioObjectUrlRef.current = "";
+          }
+        };
+        await audio.play();
+        setWebAudioPlayingId(message.id);
+        setErrorText("");
+      } catch (error) {
+        setErrorText(readableError(error, "تعذر تشغيل الرسالة الصوتية."));
+      } finally {
+        setAudioLoadingId("");
+      }
       return;
     }
     if (activeAudioId === message.id) {
@@ -819,6 +910,14 @@ export default function ChatScreen() {
       return () => {
         Keyboard.dismiss();
         audioPlayer.pause();
+        webAudioRef.current?.pause();
+        webAudioRef.current = null;
+        webAudioMessageIdRef.current = "";
+        if (webAudioObjectUrlRef.current) {
+          URL.revokeObjectURL(webAudioObjectUrlRef.current);
+          webAudioObjectUrlRef.current = "";
+        }
+        setWebAudioPlayingId("");
       };
     }, [audioPlayer, conversationId]),
   );
@@ -908,7 +1007,11 @@ export default function ChatScreen() {
                     ? () => void playVoiceMessage(item)
                     : undefined
                 }
-                audioPlaying={activeAudioId === item.id && audioStatus.playing}
+                audioPlaying={
+                  Platform.OS === "web"
+                    ? webAudioPlayingId === item.id
+                    : activeAudioId === item.id && audioStatus.playing
+                }
                 audioLoading={audioLoadingId === item.id}
                 mediaLoading={mediaLoadingId === item.id}
                 onOpenMedia={
@@ -1040,6 +1143,7 @@ export default function ChatScreen() {
             onPickFile={() => void chooseFile()}
             busy={send.isPending}
             onVoicePress={() => setVoiceVisible(true)}
+            webVoiceSupported={!!webVoiceMimeType}
             voiceEnabled={!!voiceCapability.data?.enabled}
             voiceBusy={voiceBusy}
             onSendLocation={() => void sendCurrentLocation()}
@@ -1098,16 +1202,28 @@ export default function ChatScreen() {
           setDraftFromOscar(false);
         }}
       />
-      {Platform.OS !== "web" && (
-      <VoiceMessageModal
-        visible={voiceVisible}
-        busy={voiceBusy}
-        onClose={() => {
-          voiceRequestIds.current.clear();
-          setVoiceVisible(false);
-        }}
-        onSend={sendVoiceMessage}
-      />
+      {Platform.OS === "web" ? (
+        <WebVoiceMessageModal
+          visible={voiceVisible}
+          busy={voiceBusy}
+          maxDurationMs={voiceCapability.data?.maxDurationMs ?? 120_000}
+          maxBytes={voiceCapability.data?.maxBytes ?? 4 * 1024 * 1024}
+          onClose={() => {
+            voiceRequestIds.current.clear();
+            setVoiceVisible(false);
+          }}
+          onSend={sendVoiceMessage}
+        />
+      ) : (
+        <VoiceMessageModal
+          visible={voiceVisible}
+          busy={voiceBusy}
+          onClose={() => {
+            voiceRequestIds.current.clear();
+            setVoiceVisible(false);
+          }}
+          onSend={sendVoiceMessage}
+        />
       )}
       <Modal
         visible={!!forwardingMessage}
