@@ -21,7 +21,15 @@
 ## 2) الحد الأدنى لموعد الرسالة
 
 - **السبب المؤكد:** واجهة الوقت تحفظ الدقيقة فقط والثواني صفر؛ الموعد المعروض كالدقيقة التالية قد يبقى أقل من 60 ثانية فعلية عند الإرسال.
-- **التغيير:** الواجهة تمنع الإرسال المبكر، تعرض أقرب دقيقة صالحة مع زر لاستخدامها، وتبقي إرسال UTC عبر `toISOString()`. قاعدة الخادم ذات الـ60 ثانية لم تتغير.
+- **التغيير:** الواجهة تمنع الإرسال المبكر، تعرض أقرب دقيقة صالحة مع زر لاستخدامها، وتبقي إرسال UTC عبر `toISOString()`. اقتراح الموعد يضيف هامشًا يصل به إلى 61–120 ثانية لتقليل رفضه بعد تأخير المستخدم أو الشبكة. قاعدة الخادم ذات الـ60 ثانية لم تتغير.
 - **الملفات:** `artifacts/oscar-messenger/lib/scheduled-time.ts`، `components/ScheduleMessageModal.tsx`، `tests/scheduled-time.test.mjs`.
-- **التحقق:** `node --test tests/scheduled-time.test.mjs` — نجح 6/6، مع اختبار `Africa/Cairo` و`America/New_York` وUTC وانتقالي DST في `Europe/Berlin`؛ `pnpm --filter @workspace/oscar-messenger run typecheck` — نجح.
+- **التحقق:** `node --test tests/scheduled-time.test.mjs` — نجح 6/6، مع اختبار `Africa/Cairo` و`America/New_York` وUTC وانتقالي DST في `Europe/Berlin`؛ اختبار اقتراح الموعد يتحقق الآن من نطاق 61–120 ثانية لكل من :00 و:30 و:59. `pnpm --filter @workspace/oscar-messenger run typecheck` — نجح بعد التعديل.
 - **القيود:** الساعة المتكررة في نهاية DST تُحل باختيار JavaScript الأول؛ لم يُختبر ذلك على جهاز iOS/Android فعلي.
+
+## 3) استعادة جلسة Clerk بعد 401
+
+- **السبب المؤكد في الكود:** الويب كان يعتمد على cookies فقط، بينما جسر المصادقة يعطّل token getter على الويب. والعميل المشترك كان يحوّل أول 401 مباشرة إلى خطأ، بلا طلب token جديد أو إعادة محاولة.
+- **التغيير:** ربط `getToken` من Clerk على الويب وnative، ثم عند 401 فقط يطلب العميل token مع `skipCache: true` ويعيد الطلب مرة واحدة إذا أمكن إعادة إرسال body. 401 الثاني فقط يبقى «انتهت الجلسة». أخطاء 5xx والشبكة والمهلة تعرض رسالة مؤقتة ولا تمسح حالة الجلسة.
+- **الملفات:** `artifacts/oscar-messenger/app/_layout.tsx`؛ `lib/api-client-react/src/custom-fetch.ts`؛ `artifacts/oscar-messenger/lib/format.ts`؛ اختبارات `tests/auth-refresh.test.mjs` و`tests/profile-errors.test.mjs` و`tests/production-loading.test.mjs`.
+- **التحقق:** اختبار إعادة المحاولة مرة واحدة مع token حديث، 401 متكرر بلا حلقة، وعدم إعادة 5xx/أخطاء الشبكة؛ typecheck واختبارات Messenger.
+- **القيود:** لم يُختبر انتهاء جلسة فعلي ضد Clerk في متصفح أو هاتف؛ تأكيد الإرسال عبر `getToken({ skipCache: true })` مبني على توقيع Clerk المثبت محليًا.

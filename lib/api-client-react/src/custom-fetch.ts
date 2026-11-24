@@ -6,7 +6,9 @@ export type ErrorType<T = unknown> = ApiError<T>;
 
 export type BodyType<T> = T;
 
-export type AuthTokenGetter = () => Promise<string | null> | string | null;
+export type AuthTokenGetter = (options?: {
+  skipCache?: boolean;
+}) => Promise<string | null> | string | null;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
@@ -37,8 +39,8 @@ export function setBaseUrl(url: string | null): void {
  * Useful for Expo bundles making token-gated API calls.
  * Pass `null` to clear the getter.
  *
- * NOTE: This function should never be used in web applications where session
- * token cookies are automatically associated with API calls by the browser.
+ * Browser cookies remain available; the bearer token also allows the client
+ * to refresh a session token and retry one unauthorized request.
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
@@ -76,6 +78,19 @@ function resolveUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   if (isUrl(input)) return input.toString();
   return input.url;
+}
+
+function isReplayableBody(body: BodyInit | null | undefined): boolean {
+  if (body == null || typeof body === "string") return true;
+  if (typeof Blob !== "undefined" && body instanceof Blob) return true;
+  if (typeof FormData !== "undefined" && body instanceof FormData) return true;
+  if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) {
+    return true;
+  }
+  return (
+    body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(body)
+  );
 }
 
 function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {
@@ -336,6 +351,7 @@ export async function customFetch<T = unknown>(
   }
 
   const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
+  const hasExplicitAuthorization = headers.has("authorization");
 
   if (
     typeof init.body === "string" &&
@@ -351,16 +367,41 @@ export async function customFetch<T = unknown>(
 
   // Attach bearer token when an auth getter is configured and no
   // Authorization header has been explicitly provided.
-  if (_authTokenGetter && !headers.has("authorization")) {
-    const token = await _authTokenGetter();
+  const authTokenGetter = _authTokenGetter;
+  if (authTokenGetter && !hasExplicitAuthorization) {
+    const token = await authTokenGetter();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
     }
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
+  const canRetry = isReplayableBody(init.body);
+  const retryInput =
+    authTokenGetter && !hasExplicitAuthorization && canRetry && isRequest(input)
+      ? input.clone()
+      : null;
 
-  const response = await fetch(input, { ...init, method, headers });
+  let response = await fetch(input, { ...init, method, headers });
+  if (
+    response.status === 401 &&
+    authTokenGetter &&
+    !hasExplicitAuthorization &&
+    canRetry
+  ) {
+    const freshToken = await authTokenGetter({ skipCache: true });
+    const retryHeaders = new Headers(headers);
+    if (freshToken) {
+      retryHeaders.set("authorization", `Bearer ${freshToken}`);
+    } else {
+      retryHeaders.delete("authorization");
+    }
+    response = await fetch(retryInput ?? input, {
+      ...init,
+      method,
+      headers: retryHeaders,
+    });
+  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
