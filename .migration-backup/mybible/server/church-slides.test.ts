@@ -76,17 +76,19 @@ test("the shared app directory is found without an ESM-only __dirname", async (t
 test("the shared control app defaults to the same-origin online library and exposes both entry buttons", async () => {
   const myBibleDir = process.cwd();
   const appDir = path.resolve(myBibleDir, "../church-display/app");
-  const [control, index, orthodox, kholagy] = await Promise.all([
+  const [control, index, orthodox, kholagy, sitemap] = await Promise.all([
     readFile(path.join(appDir, "control.js"), "utf8"),
     readFile(path.join(appDir, "index.html"), "utf8"),
     readFile(path.join(myBibleDir, "client/src/pages/Orthodox.tsx"), "utf8"),
     readFile(path.join(myBibleDir, "client/src/pages/KholagyPro.tsx"), "utf8"),
+    readFile(path.join(myBibleDir, "server/sitemap-generator.ts"), "utf8"),
   ]);
 
   assert.match(control, /ONLINE_TRIAL[\s\S]*out\/library\.js/);
   assert.match(control, /libraryUrl\.origin === window\.location\.origin/);
   assert.match(control, /onlineTrialNotice[\s\S]*!ONLINE_TRIAL/);
   assert.match(index, /تجربة أونلاين — الشرايح محوّلة بـLibreOffice/);
+  assert.doesNotMatch(sitemap, /liturgy-slides/);
   for (const page of [orthodox, kholagy]) {
     assert.match(page, /عرض بالسلايدات/);
     assert.match(page, /window\.open\(['"]\/liturgy-slides\//);
