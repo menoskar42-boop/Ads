@@ -344,6 +344,11 @@ body.solo .carOnly { display:none !important; }
         <label class="note">🗣️ صوت أوسكار <select id="voiceSel"><option value="male">راجل</option><option value="female">ست</option><option value="el-male">طبيعى — راجل (تجربة)</option><option value="el-female">طبيعى — ست (تجربة)</option><option value="tts">صوت الموبايل لكل الكلام</option></select></label>
         <label class="note">☕ فكّرنى بالاستراحة بعد <select id="breakSel"><option value="0">مقفول</option><option value="60">١ س</option><option value="90">١.٥ س</option><option value="120" selected>٢ س</option><option value="180">٣ س</option></select></label>
       </div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <label class="note">📶 رفع الصور التلقائية <select id="shotUpload"><option value="wifi" selected>على الواى فاى بس</option><option value="any">أى نت</option></select></label>
+      </div>
+      <p class="note" id="shotQueueInfo">فى الانتظار: 0 صورة</p>
+      <button id="shotQueueSend" type="button">⬆️ ارفعهم دلوقتى</button>
       <div id="roadAlert" hidden style="font-size:22px;font-weight:800;text-align:center;padding:14px;border-radius:12px;background:#b45309;color:#fff;margin:8px 0"></div>
       <div class="row" style="gap:8px;flex-wrap:wrap">
         <button id="alertBtn" style="flex:1">🔔 نبّهنى بالمطبات</button>
@@ -523,6 +528,7 @@ body.solo .carOnly { display:none !important; }
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/road.js"></script>
+<script src="/shotqueue.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

@@ -67,7 +67,7 @@
     const ios = /iphone|ipad/i.test(navigator.userAgent) && !(window.navigator.standalone || matchMedia('(display-mode: standalone)').matches);
     $('iosHint').hidden = !ios;
     if (!token) { $('conn').textContent = 'مش مربوط'; $('conn').className = 'chip'; clearInterval(timer); return; }
-    refresh(); loadTrack(); loadShots(); syncContacts().catch(() => {});
+    refresh(); loadTrack(); loadShots(); syncContacts().catch(() => {}); void flushShotQueue();
     clearInterval(timer);
     timer = setInterval(() => {
       if (!document.hidden) {
@@ -569,12 +569,13 @@
       $('quietSlow').checked = !!o.quiet;
       $('autoShots').checked = !!o.autoShots;
       $('autoShotsSay').checked = o.autoShotsSay !== false;
+      $('shotUpload').value = o.shotUpload === 'any' ? 'any' : 'wifi';
       if (o.brk != null) $('breakSel').value = String(o.brk); $('sosName').value = o.sosName || ''; $('sosPhone').value = o.sosPhone || '';
       $('callWa').checked = !!o.callWa; } catch (e) {}
   }
   function saveSettings() {
     try { localStorage.setItem(SET_KEY, JSON.stringify({ warn: +$('warnDist').value, lim: +$('speedLimSel').value, quiet: $('quietSlow').checked,
-      autoShots: $('autoShots').checked, autoShotsSay: $('autoShotsSay').checked,
+      autoShots: $('autoShots').checked, autoShotsSay: $('autoShotsSay').checked, shotUpload: $('shotUpload').value,
       brk: +$('breakSel').value, sosName: $('sosName').value.trim(), sosPhone: $('sosPhone').value.trim(), callWa: $('callWa').checked })); } catch (e) {}
   }
   function fillSpeedLimitOptions() {
@@ -587,7 +588,8 @@
   }
   fillSpeedLimitOptions();
   loadSettings();
-  ['warnDist', 'speedLimSel', 'quietSlow', 'autoShotsSay', 'breakSel', 'sosName', 'sosPhone', 'callWa'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  ['warnDist', 'speedLimSel', 'quietSlow', 'autoShotsSay', 'shotUpload', 'breakSel', 'sosName', 'sosPhone', 'callWa'].forEach((id) => $(id).addEventListener('change', saveSettings));
+  $('shotUpload').addEventListener('change', () => { void flushShotQueue(); });
   $('autoShots').addEventListener('change', () => { saveSettings(); syncAutoShotControls(); });
 
   /* ── 📞 جهات الاتصال: محلية افتراضياً، ومزامنتها اختيارية للأجهزة المرتبطة بنفس السيارة ── */
@@ -1457,9 +1459,15 @@
       captureInFlight.add(entry.key);
       void (async () => {
         try {
-          await api('POST', '/api/web/shot', { jpg, meta });
-          capturedToday.add(entry.key); saveCapturedToday(); loadShots();
+          try {
+            await OscarShotQueue.add({ uuid: meta.uuid, jpg, meta, addedAt: Date.now() });
+          } catch (queueError) {
+            await api('POST', '/api/web/shot', { jpg, meta });
+          }
+          capturedToday.add(entry.key); saveCapturedToday();
           if ($('autoShotsSay').checked) oscar('shot_auto', 'لقط صورة');
+          void updateShotQueueInfo();
+          void flushShotQueue();
         } catch (e) {
           $('voiceNote').textContent = '📸 لم تترفع الصورة: ' + (e && e.message ? e.message : 'حاول تانى');
         } finally {
@@ -1468,6 +1476,53 @@
       })();
     }
   }
+  let shotFlushRunning = false;
+  async function updateShotQueueInfo() {
+    try {
+      const count = await OscarShotQueue.count();
+      $('shotQueueInfo').textContent = `فى الانتظار: ${count} صورة`;
+      $('shotQueueSend').disabled = count === 0;
+    } catch (e) {
+      $('shotQueueInfo').textContent = 'فى الانتظار: — صورة';
+      $('shotQueueSend').disabled = true;
+    }
+  }
+  async function flushShotQueue(force) {
+    if (shotFlushRunning || !navigator.onLine || (!force && !OscarShotQueue.canUpload(navigator.connection, $('shotUpload').value))) return;
+    shotFlushRunning = true;
+    try {
+      const items = await OscarShotQueue.list();
+      for (const item of items) {
+        try {
+          await api('POST', '/api/web/shot', { jpg: item.jpg, meta: item.meta });
+          await OscarShotQueue.remove(item.uuid);
+        } catch (e) { break; }
+      }
+    } catch (e) {
+      // مفيش IndexedDB أو مفيش صور محفوظة — الصور اللى فشلت بتفضل فى الطابور للمحاولة الجاية.
+    } finally {
+      shotFlushRunning = false;
+      await updateShotQueueInfo();
+      loadShots();
+    }
+  }
+  async function initShotQueue() {
+    try {
+      await OscarShotQueue.open();
+      await OscarShotQueue.purgeOlderThan(90 * 24 * 60 * 60 * 1000);
+    } catch (e) {}
+    await updateShotQueueInfo();
+    await flushShotQueue();
+  }
+  $('shotQueueSend').addEventListener('click', () => { void flushShotQueue(true); });
+  window.addEventListener('online', () => { void flushShotQueue(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) void flushShotQueue(); });
+  const shotConnection = navigator.connection;
+  if (shotConnection && typeof shotConnection.addEventListener === 'function') {
+    shotConnection.addEventListener('change', () => { void flushShotQueue(); });
+  }
+  setInterval(() => { if (!document.hidden) void flushShotQueue(); }, 60000);
+  void initShotQueue();
   syncAutoShotControls();
   // pre = التصوير الفورى ({ jpg, fix, heading, t }) · hz = نوع المطب لو الصورة تبع «سجّل مطب/حفرة»
   async function snapRoad(reason, pre, hz) {
