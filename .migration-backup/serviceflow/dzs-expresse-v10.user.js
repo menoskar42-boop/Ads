@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         DZS Expresse Continuous Flow v10.7 (Service-Flow 138 sheet + auto-upload)
+// @description  v10.42.0: إصلاح حفظ «حالة الخط»؛ انتظار رد /api/line-status/ingest حتى ٦٠ ثانية، تسجيل عدد المحفوظ والمتخطّى، ورفع حد حجم الصفحات.
 // @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.41.0: وضع «Perform XELT» (sf_mode=xelt) للخطوط اللى XELT بتاعها مالوش بيانات قديمة (بيجى من الأعطال الجديدة فى المهام العاجلة): بيفتح شاشة XELT ويضغط Perform XELT مرة واحدة ويستنى النتيجة (لحد ٨ دقايق) ويبعتها لـ Service Flow — وبيشتغل لوحده زى Real. v10.40.0: لما AXON يحاول يحوّل الصفحة لسيرفر تانى مايتوصلش (10.60.213.x:8081 أو 10.42.187.102 — «can't reach this page»)، السكربت بيوقف التحويل ويفتح صفحة الدخول على نفس السيرفر بتاعنا فيسجّل دخول ويكمّل. وقبل ما يفتح الخط اللى بعده بيتأكد إن الجلسة شغّالة، ولو خلصت بيفتحه على صفحة الدخول على طول. v10.39.0: حالة الثبات (Stability) بتتقرا من شاشة الاسكور وبتتبعت مع كل قياس. و«تحديث المسافة» بقى «تحديث حالة الخط (ASSIA)» (sf_mode=loop): بيلف على شاشات DSL للخط من البيانات المسجّلة من غير ما يضغط Real أو Perform XELT — Line Summary كلها · Operational Data · Performance Counters · Diagnostic Analysis · Service Recommendation · XELT · Attributes/Counters — ويبعتهم لـ /api/line-status/ingest، وبعدها المسافة لـ /api/loop-length/ingest زى الأول. v10.38.0: لو Real خلص ومالقاش الاسكور، قبل ما يسجّل 102 بيضغط «Line details» تانى ويستنى ٣ ثوانى ويقرا تانى. والرسالة البمبى اللى بتظهر فوق فى ClearView (زى «It is not possible to analyze the line…») بتتبعت بنصها كامل مع القياس وبتظهر فى «بحث برقم التليفون». ووقت قياس Real بيتبعت كمان (عشان «إعادة بعد 102 و 104» تتحسب من وقت القياس الأول). وقياس Real بيقول للسيرفر «لسه بقيس» كل ٣٠ ثانية — فجهاز التنفيذ بيستنى لحد ما يخلص من غير مدة محددة، ومابيقفلش التاب غير لو الصفحة ماتت. ونوع القياس (Real / بدون Real / مسافة) بقى محفوظ فى التاب نفسه — التاب اللى اتعمله ريفريش أو دخول تانى بيفضل بنفس نوعه ومايتحوّلش Real. v10.37.0: «بدون Real» مابقاش بيفتح شاشة DSL ولا بيقرا المسافة — بيسجّل القياس على طول من ClearView (أسرع). والمسافة بقت مهمة لوحدها «تحديث المسافة» (sf_mode=loop): بيفتح شاشة DSL بس ويقرا «Estimated Loop Length» ويبعتها لـ /api/loop-length/ingest — ولو N/A أو فاضية المسافة القديمة بتفضل. v10.36.0: القياس (Real أو بدون Real) بقى يشتغل جنب «إيقاف PO» من غير ما يبوّظه: تاب القياس كان بيمسح علامة PO_ACTIVE العامة أول ما يتفتح، فتاب الإيقاف الأول لما يعمل ريفريش بعد Yes كان السكربت بتاعه يقف ومايسجّلش الإيقاف («+إعادة»). دلوقتى الإيقاف بيتعرف من علامة التاب نفسه بس (PO_TAB فى sessionStorage). وقياس Real من جهاز التنفيذ بتاب لوحده (sf_lane=80) بمفاتيح لوحده. v10.35.0: تسجيل الدخول رجع زى 10.31 بالظبط (كل نافذة بتسجّل دخول لوحدها على طول) — بطلب المالك؛ قفل الدخول الواحد (10.32–10.34) اتشال. v10.34.0: النافذة اللى مستنية دخول نافذة تانية بترجع فى نفس اللحظة اللى الدخول ينجح فيها (إشارة بين النوافذ) بدل ما تستنى. v10.33.0: النافذة اللى مستنية دخول نافذة تانية بترجع بعد ٥ ثوانى بالكتير (كانت ٢٠) — فبتكمّل بعد ثوانى من الدخول. v10.32.0: تسجيل دخول واحد فى المرة — لو الجلسة خلصت وفيه نوافذ كتير، أول نافذة بس بتسجّل دخول والباقى بيستنوا ٢٠ ثانية ويرجعوا بنفس الجلسة (كانوا كلهم بيسجّلوا دخول مع بعض فيلغوا جلسات بعض ويلفّوا على login-page?sessionExpired). v10.31.0: لو صفحة clearview فتحت بخانة البحث بس (من غير بيانات الخط)، السكربت بيضغط Search لوحده بعد ٨ ثوانى (ويعيدها مرتين) بدل ما يستنى دقيقتين ويسجّل 104. v10.30.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v10.29.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v10.27: مابيشتغلش فى تابات «إيقاف PO» التانية/التالتة (علامة PO_TAB فى sessionStorage). v10.26: عدد تابات «بدون Real» من السيرفر بس (NOREAL_LANES، أى sf_lane). رقم التاب بيتعرف من رقم الخط اللى فى رابط الصفحة (clearview/lineSummary?lineId=) — فى v10.25 كان من sessionStorage بس، فأى خطوة بتفتح فى تاب/نافذة جديدة كانت بتضيّع الرقم وتشتغل على خط التاب الأول (اللى اتسجّل خلاص) فالتاب التانى مايسجّلش. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
-// @version      10.41.0
+// @version      10.42.0
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
@@ -225,7 +226,7 @@
   setInterval(() => { sfFlush(); }, 120000);
   /** fetch لـService-Flow بالأبواب. نتيجة JSON بتتكتب فى الطابور الأول، وبتتمسح بس لما السيرفر يستلمها؛
    *  ولو مفيش باب ردّ، المُنادى بياخد 202 queued وهى هتتبعت لوحدها. queued = عنصر من الطابور (إعادة إرسال). */
-  async function sfFetch(url, opts, queued) {
+  async function sfFetch(url, opts, queued, maxWaitMs) {
     opts = opts || {};
     const path = sfApiPath(url);
     if (path == null) return fetch(url, opts);
@@ -233,14 +234,21 @@
     const keep = !queued && method !== "GET" && typeof opts.body === "string";
     const id = queued ? queued.id : (keep ? sfQueue(path, method, opts.headers || {}, opts.body) : null);
     const big = opts.body != null && typeof opts.body !== "string";
+    const deadline = Number.isFinite(maxWaitMs) && maxWaitMs > 0 ? Date.now() + maxWaitMs : Infinity;
     let last = null, lastErr = null;
     if (id) sfInFlight[id] = 1;
     try {
       for (const base of sfBases()) {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) break;
         const ctrl = typeof AbortController === "function" ? new AbortController() : null;
-        const t = ctrl ? setTimeout(() => ctrl.abort(), big ? 300000 : 25000) : null;
+        const requestMs = Math.min(big ? 300000 : 25000, remaining);
+        let t = null;
         try {
-          const r = await fetch(base + (id ? sfWithEid(path, id) : path), Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}));
+          const request = fetch(base + (id ? sfWithEid(path, id) : path), Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}));
+          const r = await Promise.race([request, new Promise((_, reject) => {
+            t = setTimeout(() => { if (ctrl) ctrl.abort(); reject(new Error("Service-Flow request timeout")); }, requestMs);
+          })]);
           if (sfIsOurs(r.status, r.headers.get("content-type"))) {
             if (sfStore.get("sf_base_ok", "") !== base) sfStore.set("sf_base_ok", base);
             if (!queued) {
@@ -253,6 +261,7 @@
         } catch (e) { lastErr = e; } finally { if (t) clearTimeout(t); }
       }
     } finally { if (id) delete sfInFlight[id]; }
+    if (keep && Date.now() >= deadline) return new Response(JSON.stringify({ ok: true, queued: true }), { status: 202, headers: { "Content-Type": "application/json" } });
     if (keep) return new Response(JSON.stringify({ ok: true, queued: true }), { status: 202, headers: { "Content-Type": "application/json" } });
     if (last && !queued) return last;
     throw lastErr || new TypeError("Service-Flow unreachable");
@@ -1483,7 +1492,7 @@
     if (pg.key === "xelt") out.history = !/historical\s+[sx]elt\s+data\s+not\s+available/i.test(document.body.innerText || "");
     return out;
   }
-  function lsFinish(st) {
+  async function lsFinish(st) {
     sessionStorage.removeItem(LS_STATE_KEY);
     let loop = "";
     try {
@@ -1494,13 +1503,16 @@
     console.log("🩺 حالة الخط خلصت:", CURRENT_LINE_ID, Object.keys(st.data).map(k => k + (st.data[k].ok ? "✓" : "✗")).join(" "));
     if (SF_AUTO_UPLOAD && SF_API_BASE) {
       try {
-        sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/line-status/ingest", {
+        const r = await sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/line-status/ingest", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-DZS-Token": SF_INGEST_TOKEN },
-          body: JSON.stringify({ items: [{ accountNo: CURRENT_LINE_ID, phoneShort: meta.short, fullPhone: meta.full, version: "10.39.0", pages: st.data }] }),
-        }).then(r => r.json()).then(j => console.log("☁️ حالة الخط اتسجّلت:", CURRENT_LINE_ID, j))
-          .catch(e => console.warn("☁️ حالة الخط ماتسجّلتش (هتتبعت تانى):", e));
-      } catch (e) { console.warn("line-status post err", e); }
+          body: JSON.stringify({ items: [{ accountNo: CURRENT_LINE_ID, phoneShort: meta.short, fullPhone: meta.full, version: "10.42.0", pages: st.data }] }),
+        }, undefined, 60000);
+        let j = {};
+        try { j = await r.json(); } catch (e) {}
+        console.log("☁️ حالة الخط اتسجّلت:", CURRENT_LINE_ID, "saved:", j.saved, j);
+        if (Number(j.saved || 0) === 0) console.warn("☁️ السيرفر لم يحفظ تقرير حالة الخط:", CURRENT_LINE_ID, j.skipped || j);
+      } catch (e) { console.warn("☁️ حالة الخط ماتسجّلتش (هتتبعت تانى):", e); }
     }
     // وبعدها المسافة زى «تحديث المسافة» (جهاز التنفيذ بيعرف منها إن الخط خلص)
     sendLoopLength(CURRENT_LINE_ID, String(loop).slice(0, 60));
@@ -1565,7 +1577,7 @@
         sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/line-status/ingest", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-DZS-Token": SF_INGEST_TOKEN },
-          body: JSON.stringify({ items: [{ accountNo: CURRENT_LINE_ID, phoneShort: meta.short, fullPhone: meta.full, version: "10.41.0", xeltOnly: true, xeltOutcome: outcome, pages: { xelt: page } }] }),
+          body: JSON.stringify({ items: [{ accountNo: CURRENT_LINE_ID, phoneShort: meta.short, fullPhone: meta.full, version: "10.42.0", xeltOnly: true, xeltOutcome: outcome, pages: { xelt: page } }] }),
         }).then(r => r.json()).then(j => console.log("☁️ XELT اتسجّل:", CURRENT_LINE_ID, j))
           .catch(e => console.warn("☁️ XELT ماتسجّلش (هيتبعت تانى):", e));
       } catch (e) { console.warn("xelt post err", e); }

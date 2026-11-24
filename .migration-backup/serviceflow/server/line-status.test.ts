@@ -23,7 +23,7 @@ test("line status facts: stability from Line Summary, XELT without history", () 
 
 test("DZS 10.39.0: line status reads recorded data only, never presses Real or Perform XELT; stability with every measurement", () => {
   const dzs = read("../dzs-expresse-v10.user.js");
-  assert.match(dzs, /@version {6}10\.(39|40|41)\.0/);
+  assert.match(dzs, /@version {6}10\.(39|40|41|42)\.0/);
   const block = dzs.slice(dzs.indexOf("const LS_STATE_KEY"), dzs.indexOf("window.DZS_lineStatus"));
   assert.ok(block.length > 1000);
   assert.doesNotMatch(block, /\.click\(\)[^\n]*(Perform|Real ?-?Time)/i);
@@ -44,6 +44,27 @@ test("server: stability column, line_status_reports table, ingest route", () => 
   assert.match(schema, /pgTable\("line_status_reports"/);
   assert.match(routes, /app\.post\("\/api\/line-status\/ingest"/);
   assert.match(routes, /page_msg, stability\)/);
+});
+
+test("ASSIA waits for line-status ingest before the loop completion signal and reports skipped items", () => {
+  const dzs = read("../dzs-expresse-v10.user.js");
+  const finish = dzs.slice(dzs.indexOf("async function lsFinish"), dzs.indexOf("let lsBusy"));
+  const ingestAt = finish.indexOf("await sfFetch");
+  const loopAt = finish.indexOf("sendLoopLength");
+  assert.ok(ingestAt >= 0 && loopAt > ingestAt);
+  assert.match(finish, /undefined, 60000/);
+  assert.match(finish, /saved:/);
+  assert.match(finish, /Number\(j\.saved \|\| 0\) === 0[\s\S]{0,120}console\.warn/);
+  assert.match(dzs, /@version {6}10\.42\.0/);
+  assert.match(dzs, /@description\s+v10\.42\.0: إصلاح حفظ/);
+
+  const routes = read("./routes.ts");
+  const ingest = routes.slice(routes.indexOf('app.post("/api/line-status/ingest"'), routes.indexOf('app.get("/api/line-status/latest"'));
+  assert.match(ingest, /const skipped:/);
+  assert.match(ingest, /missing_phone_and_account/);
+  assert.match(ingest, /json\.length > 1_500_000/);
+  assert.match(ingest, /payload_too_large/);
+  assert.match(ingest, /res\.json\(\{ ok: true, saved, skipped \}\)/);
 });
 
 // ASSIA المرحلة ٣: حالة الخط تلقائياً للأعطال الجديدة (مرة للشكوى) + Perform XELT عاجل

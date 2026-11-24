@@ -17,7 +17,7 @@ const dash = read("../client/src/pages/dashboard.tsx");
 const scryptAsync = promisify(scrypt);
 
 test("DZS 10.38.0: re-click Line details and wait 3s before recording 102; send the pink message and Real time", () => {
-  assert.match(us, /@version {6}10\.(38|39|40|41)\.0/);   // 10.39.0 زوّدت «تحديث حالة الخط» وفضل ده زى ما هو
+  assert.match(us, /@version {6}10\.(38|39|40|41|42)\.0/);   // 10.39.0 زوّدت «تحديث حالة الخط» وفضل ده زى ما هو
   assert.ok(existsSync(new URL("../userscripts-rollback/dzs-expresse-v10-10.37.0.user.js", import.meta.url)));
   const fn = us.slice(us.indexOf("function readScoreThenClose"), us.indexOf("function handleSpecialAndClose"));
   assert.match(fn, /\(s0 === SCORE_NO_FIELD \|\| isBadReading\(s0\)\) && isBadReading\(earlyScore\)/);
@@ -112,7 +112,8 @@ test("executor: a Real line gets 7 minutes (was 3 — it closed the tab mid-meas
   assert.ok(EXEC_RESCUE_MINUTES.measure > EXEC_RUN_MINUTES.measure);
   const exe = read("../client/src/components/ExecutorButton.tsx");
   // Real مالوش مدة: بيستنى طول ما السكربت بيقول «لسه بقيس»، وبيتصرّف بس لو الإشارة وقفت ٣ دقايق
-  assert.match(exe, /const deadline = Date\.now\(\) \+ \(noReal \? Math\.min\(accs\.length \* MEASURE_MAX_MS, MAX_TOTAL_MS\) : MAX_TOTAL_MS\);/);
+  assert.match(exe, /const deadline = Date\.now\(\) \+ \(noReal \? Math\.min\(accs\.length \* stallPolicy\.noRealPerAccountMs, MAX_TOTAL_MS\) : MAX_TOTAL_MS\);/);
+  assert.match(exe, /stallPolicy\.reopenOnce && !reopened/);
   assert.match(exe, /if \(!noReal && chk\.aliveSec != null\) \{ sawAlive = true; lastProgressAt = Math\.max\(lastProgressAt, Date\.now\(\) - chk\.aliveSec \* 1000\); \}/);
   assert.match(exe, /\(!noReal && sawAlive \? REAL_ALIVE_LOST_MS : stallLimit\)/);
   assert.match(us, /"\/api\/exec-queue\/measure-alive\?acc=" \+ encodeURIComponent\(CURRENT_LINE_ID\)/);

@@ -13125,6 +13125,7 @@ export async function registerRoutes(
     if (req.headers["x-dzs-token"] !== DZS_INGEST_TOKEN) return res.status(401).json({ message: "invalid token" });
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     let saved = 0;
+    const skipped: Array<{ accountNo: string | null; reason: string }> = [];
     try {
       for (const it of items) {
         const accountNo = String(it?.accountNo ?? "").trim() || null;
@@ -13134,7 +13135,10 @@ export async function registerRoutes(
           const { rows: la } = await pool.query(`SELECT full_phone FROM line_accounts WHERE account_no = $1 LIMIT 1`, [accountNo]);
           fullPhone = la[0]?.full_phone ? String(la[0].full_phone).trim() : null;
         }
-        if (!fullPhone && !accountNo) continue;
+        if (!fullPhone && !accountNo) {
+          skipped.push({ accountNo, reason: "missing_phone_and_account" });
+          continue;
+        }
         let pages = it?.pages && typeof it.pages === "object" ? it.pages : {};
         // «Perform XELT» (ASSIA المرحلة ٣ — DZS ≥10.41.0): السكربت بيبعت صفحة XELT بس بعد ما الاختبار يخلص ⇒ بتتدمج
         // فى آخر تقرير للخط (باقى الصفحات زى ما هى) وتتسجّل سحبة جديدة بتاريخ دلوقتى.
@@ -13147,7 +13151,11 @@ export async function registerRoutes(
           pages = { ...prev, xelt: xp };
         }
         const json = JSON.stringify(pages);
-        if (json.length > 400_000) { console.warn("[line-status] كبير قوى، اتشال:", accountNo, json.length); continue; }
+        if (json.length > 1_500_000) {
+          console.warn("[line-status] كبير قوى، اتشال:", accountNo, json.length);
+          skipped.push({ accountNo, reason: "payload_too_large" });
+          continue;
+        }
         const st = lineStatusFacts(pages);
         const by = accountNo ? await execRequesterOf(accountNo, "measure") : null;
         await pool.query(
@@ -13173,7 +13181,7 @@ export async function registerRoutes(
         }
       }
       pool.query(`DELETE FROM line_status_reports WHERE created_at < now() - interval '180 days'`).catch(() => {});
-      res.json({ ok: true, saved });
+      res.json({ ok: true, saved, skipped });
     } catch (e: any) {
       console.error("[line-status] تسجيل حالة الخط فشل:", e?.message || e);
       res.status(500).json({ message: e?.message || "تعذّر تسجيل حالة الخط" });

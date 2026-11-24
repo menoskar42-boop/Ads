@@ -10,6 +10,7 @@ import { executorPausedNow, refreshPausedNow, saveNightPause, useNightPause, nig
 import { saveOpenView } from "@/lib/profile-optimization";
 import { browserFingerprint, EXEC_DEVICE_URL, type ExecDevice } from "@/lib/exec-device";
 import { sweepOrphanWindows, trackExecWindows } from "@/lib/exec-windows";
+import { measureStallPolicy } from "@/lib/exec-stall-policy";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
 // المشكلة اللى بتوقف الطابور: Edge/Chrome بيعملوا للتاب اللى فى الخلفية
@@ -569,7 +570,6 @@ export function ExecutorButton() {
     // لو مفيش تقدّم فى القياس لمدة ٣ دقائق (DZS وقف على خط فيه إيرور مثلاً)،
     // نعيد تشغيل جهاز التنفيذ بدل ما نترك المهمة معلّقة.
     const STALL_MS = EXEC_MEASURE_STALL_MS;
-    const NOREAL_STALL_MS = 60 * 1000;
     const REAL_ALIVE_LOST_MS = 3 * 60 * 1000;   // Real: الإشارة وقفت ٣ دقايق ⇒ الصفحة ماتت
     const REAL_NO_PING_MS = 90 * 1000;          // Real: مفيش ولا إشارة من أول ما التاب اتفتح ⇒ الصفحة ماوصلتش   // «بدون Real»: دقيقة لكل خط (ريفريش مرة، وبعدها قفل)
 
@@ -703,12 +703,14 @@ export function ExecutorButton() {
         // ٣ دقايق كاملة — والـReal/الإيقاف اللى بعده فى الطابور مستنيين. دلوقتى: دقيقة من
         // غير نتيجة → نفتح التاب من الأول مرة واحدة (نفس الاسم = نفس التاب)؛ ودقيقة كمان
         // → نقفله ويتسجّل timeout (الطابور بيعيده مرة لوحده بعدين — requeueErroredJobs).
-        const stallLimit = noReal ? NOREAL_STALL_MS : STALL_MS;
+        // ASSIA يرسل التقدم في النهاية فقط؛ نسيبه حتى ٨ دقائق من غير إعادة فتح بعد الدقيقة.
+        const stallPolicy = measureStallPolicy(noReal, loop, STALL_MS, MEASURE_MAX_MS, JOB_POLL_MS);
+        const stallLimit = stallPolicy.stallLimitMs;
         let reopened = false;
         // Real: مفيش مدة محددة (المالك ٢٠٢٦-١١-٠٤: «القديم كان بيستنى لما يخلص وبعدين يقفل») — بنستنى طول ما سكربت
         // القياس (≥10.38.0) بيقول «لسه بقيس» (aliveSec). بنتصرّف بس لو الإشارة وقفت ٣ دقايق (الصفحة ماتت — «can't reach
         // this page»)، أو لو السكربت قديم ومابيبعتهاش: ٧ دقايق (EXEC_MEASURE_STALL_MS) من غير قياس.
-        const deadline = Date.now() + (noReal ? Math.min(accs.length * MEASURE_MAX_MS, MAX_TOTAL_MS) : MAX_TOTAL_MS);
+        const deadline = Date.now() + (noReal ? Math.min(accs.length * stallPolicy.noRealPerAccountMs, MAX_TOTAL_MS) : MAX_TOTAL_MS);
         let sawAlive = false, openedAt = Date.now(), realReopened = false;
         // ⚠️ «مفيش تقدّم» = مفيش **خط جديد اتقاس** من ٣ دقايق — مش ٣ دقايق من أول
         // الباتش. كانت بتتقاس من البداية، فأى باتش قياس أطول من ٣ دقايق (٤-٥ خطوط
@@ -748,7 +750,7 @@ export function ExecutorButton() {
             openedAt = Date.now(); lastProgressAt = Date.now();
             continue;
           }
-          if (noReal && !reopened && Date.now() - lastProgressAt >= stallLimit) {
+          if (stallPolicy.reopenOnce && !reopened && Date.now() - lastProgressAt >= stallLimit) {
             reopened = true;
             console.warn(`[exec] «بدون Real» تاب ${lane} مفيش نتيجة من دقيقة — بفتحه من الأول`);
             // بنحرّك **نفس التاب** بالمرجع اللى معانا. window.open(url, اسم التاب) ماكانش
