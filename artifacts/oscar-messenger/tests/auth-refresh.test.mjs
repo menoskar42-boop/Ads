@@ -66,6 +66,35 @@ test("a second 401 is returned without another retry", async () => {
   }
 });
 
+test("retries through same-origin cookies when Clerk returns no fresh token", async () => {
+  let requests = 0;
+  setAuthTokenGetter(async ({ skipCache } = {}) => (skipCache ? null : "expired"));
+  globalThis.fetch = async (_input, init) => {
+    requests += 1;
+    const auth = new Headers(init?.headers).get("authorization");
+    if (requests === 1) {
+      assert.equal(auth, "Bearer expired");
+    } else {
+      assert.equal(auth, null);
+    }
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  try {
+    await assert.rejects(
+      customFetch("/api/messenger/profile", { responseType: "json" }),
+      (error) => error instanceof ApiError && error.status === 401,
+    );
+    assert.equal(requests, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+    setAuthTokenGetter(null);
+  }
+});
+
 test("5xx and network errors are not retried", async () => {
   let requests = 0;
   setAuthTokenGetter(async () => "token");

@@ -390,15 +390,17 @@ export async function customFetch<T = unknown>(
     canRetry
   ) {
     const freshToken = await authTokenGetter({ skipCache: true });
+    const retryHeaders = new Headers(headers);
     if (freshToken) {
-      const retryHeaders = new Headers(headers);
       retryHeaders.set("authorization", `Bearer ${freshToken}`);
-      response = await fetch(retryInput ?? input, {
-        ...init,
-        method,
-        headers: retryHeaders,
-      });
+    } else {
+      retryHeaders.delete("authorization");
     }
+    response = await fetch(retryInput ?? input, {
+      ...init,
+      method,
+      headers: retryHeaders,
+    });
   }
 
   if (!response.ok) {
