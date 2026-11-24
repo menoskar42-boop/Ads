@@ -543,13 +543,11 @@ router.post('/:id/location', requireRole('admin', 'inspector'), async (req, res)
   }
 });
 
-/* حذف صورة واحدة — للسوبر أدمن، وفني الصيانة لصور «قبل/بعد الصيانة».
+/* نقل صورة واحدة لسلة المحذوفات — للسوبر أدمن، وفني الصيانة لصور «قبل/بعد الصيانة».
  *
  * السوبر أدمن بتاع Service-Flow بيدخل الصيانة بدور «admin» عادى (SF_ROLE_TO_MAINT
- * فى app.js)، لذلك يظل تمييزه عبر sf_role؛ الفني يُعرَف عبر user.role.
- *
- * الترتيب مقصود: الصف يتمسح من القاعدة **الأول**، وبعدها الملف. العكس لو فشل فى
- * النص كان هيسيب صف بيشاور على ملف اتمسح = صورة مكسورة فى الصفحة. */
+ * فى app.js)، لذلك يظل تمييزه عبر sf_role؛ الفني يُعرَف عبر user.role. الملف يفضل
+ * فى مكانه، والصف ينتقل مع بيانات الحذف فى معاملة واحدة عشان ينفع السوبر أدمن يرجّعه. */
 router.post('/photos/:photoId/delete', requireLogin, async (req, res) => {
   const u = req.session.user || {};
   if (isMaintenanceHierarchyProofEnabled()) {
@@ -566,9 +564,17 @@ router.post('/photos/:photoId/delete', requireLogin, async (req, res) => {
   if (!isSuperAdmin && !isMaintenanceTechnician) {
     return res.status(403).json({ ok: false, msg: 'حذف الصور دى للسوبر أدمن بس.' });
   }
-  await db.run('DELETE FROM photos WHERE id = ?', [photo.id]);
-  await removeMediaFiles([photo], path.join(DATA_DIR, 'uploads'));
-  console.log(`[maintenance] 🗑️ صورة اتمسحت: #${photo.id} ${photo.filename} (بوكس ${photo.box_id}، ${photo.photo_type}) — بواسطة ${u.full_name || u.username || u.id} (${u.role || u.sf_role || 'unknown'})`);
+  const photoColumns = 'id, box_id, inspection_id, photo_type, filename, uploaded_by, uploaded_at, taken_at, latitude, longitude, data, media_type, storage_key';
+  const deletedByName = u.full_name || u.username || '';
+  const deletedByRole = String(u.sf_role === 'super_admin' ? 'super_admin' : (u.role || u.sf_role || 'unknown'));
+  await db.transaction(async (q) => {
+    const archived = await q(`INSERT INTO photos_deleted (${photoColumns}, deleted_by_id, deleted_by_name, deleted_by_role)
+                              SELECT ${photoColumns}, $2, $3, $4 FROM photos WHERE id = $1`,
+      [photo.id, u.id || null, deletedByName, deletedByRole]);
+    if (!archived.rowCount) throw new Error('الصورة لم تعد موجودة.');
+    await q('DELETE FROM photos WHERE id = $1', [photo.id]);
+  });
+  console.log(`[maintenance] 🗑️ صورة اتنقلت لسلة المحذوفات: #${photo.id} ${photo.filename} (بوكس ${photo.box_id}، ${photo.photo_type}) — بواسطة ${deletedByName || u.id} (${deletedByRole})`);
   res.json({ ok: true });
 });
 

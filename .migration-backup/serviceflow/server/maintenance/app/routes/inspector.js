@@ -744,7 +744,14 @@ router.post('/:id/delete', adminOnly, async (req, res) => {
   }
   const boxId = inspection.box_id;
   try {
+    const actor = req.session.user || {};
+    const deletedByName = actor.full_name || actor.username || '';
+    const deletedByRole = String(actor.sf_role === 'super_admin' ? 'super_admin' : (actor.role || actor.sf_role || 'unknown'));
     await db.transaction(async (q) => {
+      await q(`INSERT INTO photos_deleted (id, box_id, inspection_id, photo_type, filename, uploaded_by, uploaded_at, taken_at, latitude, longitude, data, media_type, storage_key, deleted_by_id, deleted_by_name, deleted_by_role)
+               SELECT id, box_id, inspection_id, photo_type, filename, uploaded_by, uploaded_at, taken_at, latitude, longitude, data, media_type, storage_key, $2, $3, $4
+               FROM photos WHERE inspection_id = $1`,
+        [req.params.id, actor.id || null, deletedByName, deletedByRole]);
       await q(`DELETE FROM maintenance_item_status WHERE task_id IN (SELECT id FROM maintenance_tasks WHERE inspection_id = $1)`, [req.params.id]);
       await q('DELETE FROM maintenance_tasks WHERE inspection_id = $1', [req.params.id]);
       await q('DELETE FROM inspection_items WHERE inspection_id = $1', [req.params.id]);

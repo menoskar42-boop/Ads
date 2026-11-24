@@ -107,6 +107,9 @@ app.get("/uploads/:filename", async (req, res) => {
     } else {
       row = await db.get("SELECT data, storage_key, media_type FROM photos WHERE filename = ?", [filename]);
     }
+    if (!row) {
+      row = await db.get("SELECT data, storage_key, media_type FROM photos_deleted WHERE filename = ?", [filename]);
+    }
   } catch (e) {
     console.error(`[maintenance] /uploads/${filename}: فشل قراءة الصورة من القاعدة:`, e.message);
     return res.status(500).end();

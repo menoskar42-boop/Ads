@@ -3,13 +3,110 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const xlsx = require('xlsx');
 const multer = require('multer');
+const path = require('path');
 const db = require('../database');
 const { isMaintenanceHierarchyProofEnabled } = require('../utils/d1-hierarchy');
-const { requireRole } = require('../middleware/auth');
+const DATA_DIR = require('../utils/datadir');
+const { removeMediaFiles } = require('../utils/photo');
+const { requireLogin, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 const adminOnly = requireRole('admin');
 const upload = multer({ storage: multer.memoryStorage() });
+const PHOTO_COLUMNS = 'id, box_id, inspection_id, photo_type, filename, uploaded_by, uploaded_at, taken_at, latitude, longitude, data, media_type, storage_key';
+
+function superAdminOnly(req, res, next) {
+  if (String(req.session?.user?.sf_role || '') !== 'super_admin') {
+    return res.status(403).send('غير مسموح.');
+  }
+  next();
+}
+
+function safeDate(value) {
+  const input = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) return '';
+  const parsed = new Date(`${input}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== input ? '' : input;
+}
+
+router.get('/deleted-photos', requireLogin, superAdminOnly, async (req, res) => {
+  const from = safeDate(req.query.from);
+  const to = safeDate(req.query.to);
+  const type = ['before', 'after'].includes(String(req.query.type || '')) ? String(req.query.type) : '';
+  const filters = [];
+  const params = [];
+  if (from) { filters.push('pd.deleted_at >= ?::date'); params.push(from); }
+  if (to) { filters.push('pd.deleted_at < (?::date + INTERVAL \'1 day\')'); params.push(to); }
+  if (type) { filters.push('pd.photo_type = ?'); params.push(type); }
+  const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+  const photos = await db.all(`
+    SELECT pd.id, pd.box_id, pd.inspection_id, pd.photo_type, pd.filename,
+           pd.uploaded_by, pd.uploaded_at, pd.media_type, pd.deleted_at,
+           pd.deleted_by_id, pd.deleted_by_name, pd.deleted_by_role,
+           uploader.full_name AS uploader_name, uploader.username AS uploader_username,
+           e.name AS exchange_name, c.number AS cabinet_number, b.number AS box_number
+      FROM photos_deleted pd
+      LEFT JOIN users uploader ON uploader.id = pd.uploaded_by
+      LEFT JOIN boxes b ON b.id = pd.box_id
+      LEFT JOIN cabinets c ON c.id = b.cabinet_id
+      LEFT JOIN exchanges e ON e.id = c.exchange_id
+      ${where}
+     ORDER BY pd.deleted_at DESC, pd.id DESC
+     LIMIT 200
+  `, params);
+  res.render('admin/deleted_photos', {
+    title: 'الصور المحذوفة',
+    photos,
+    filters: { from, to, type },
+  });
+});
+
+router.post('/deleted-photos/:id/restore', requireLogin, superAdminOnly, async (req, res) => {
+  try {
+    const result = await db.transaction(async (q) => {
+      const archivedResult = await q('SELECT id, box_id, inspection_id FROM photos_deleted WHERE id = $1 FOR UPDATE', [req.params.id]);
+      const archived = archivedResult.rows[0];
+      if (!archived) return 'missing';
+      const boxResult = await q('SELECT id FROM boxes WHERE id = $1', [archived.box_id]);
+      if (!boxResult.rows[0]) return 'orphan';
+      if (archived.inspection_id != null) {
+        const inspectionResult = await q('SELECT id FROM inspections WHERE id = $1', [archived.inspection_id]);
+        if (!inspectionResult.rows[0]) return 'orphan';
+      }
+      await q(`INSERT INTO photos (${PHOTO_COLUMNS})
+               SELECT ${PHOTO_COLUMNS} FROM photos_deleted WHERE id = $1`, [archived.id]);
+      await q('DELETE FROM photos_deleted WHERE id = $1', [archived.id]);
+      await q(`SELECT setval(pg_get_serial_sequence('photos','id'), GREATEST((SELECT max(id) FROM photos), 1))`);
+      return 'restored';
+    });
+    if (result === 'orphan') {
+      req.session.flash = { type: 'danger', msg: 'مينفعش ترجع الصورة: البوكس أو الفحص اتمسح' };
+    } else if (result === 'missing') {
+      req.session.flash = { type: 'danger', msg: 'الصورة المحذوفة غير موجودة.' };
+    } else {
+      req.session.flash = { type: 'success', msg: 'تم استرجاع الصورة.' };
+    }
+  } catch (e) {
+    req.session.flash = { type: 'danger', msg: 'فشل استرجاع الصورة: ' + e.message };
+  }
+  res.redirect('/admin/deleted-photos');
+});
+
+router.post('/deleted-photos/:id/purge', requireLogin, superAdminOnly, async (req, res) => {
+  try {
+    const photo = await db.get('SELECT id, filename, storage_key FROM photos_deleted WHERE id = ?', [req.params.id]);
+    if (!photo) {
+      req.session.flash = { type: 'danger', msg: 'الصورة المحذوفة غير موجودة.' };
+      return res.redirect('/admin/deleted-photos');
+    }
+    await db.run('DELETE FROM photos_deleted WHERE id = ?', [photo.id]);
+    await removeMediaFiles([photo], path.join(DATA_DIR, 'uploads'));
+    req.session.flash = { type: 'success', msg: 'تم حذف الصورة نهائياً.' };
+  } catch (e) {
+    req.session.flash = { type: 'danger', msg: 'فشل الحذف النهائي: ' + e.message };
+  }
+  res.redirect('/admin/deleted-photos');
+});
 
 // ── User Management ──────────────────────────────────────────────────────────
 
@@ -199,7 +296,13 @@ router.post('/inspections/:id/delete', adminOnly, async (req, res) => {
   }
   const boxId = inspection.box_id;
   try {
+    const actor = req.session.user || {};
+    const deletedByName = actor.full_name || actor.username || '';
+    const deletedByRole = String(actor.sf_role === 'super_admin' ? 'super_admin' : (actor.role || actor.sf_role || 'unknown'));
     await db.transaction(async (q) => {
+      await q(`INSERT INTO photos_deleted (${PHOTO_COLUMNS}, deleted_by_id, deleted_by_name, deleted_by_role)
+               SELECT ${PHOTO_COLUMNS}, $2, $3, $4 FROM photos WHERE inspection_id = $1`,
+        [req.params.id, actor.id || null, deletedByName, deletedByRole]);
       await q(`DELETE FROM maintenance_item_status WHERE task_id IN (SELECT id FROM maintenance_tasks WHERE inspection_id = $1)`, [req.params.id]);
       await q('DELETE FROM maintenance_tasks WHERE inspection_id = $1', [req.params.id]);
       await q('DELETE FROM inspection_items WHERE inspection_id = $1', [req.params.id]);

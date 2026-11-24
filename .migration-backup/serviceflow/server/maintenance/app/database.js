@@ -203,6 +203,12 @@ async function migrate() {
    *   الاتنين NULL        → فيديو قديم على القرص بس (والقرص عند ريبليت مؤقّت) */
   try { await sp(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS storage_key TEXT`); } catch {}
   try { await sp(`UPDATE photos SET media_type = 'photo' WHERE media_type IS NULL`); } catch {}
+  try { await sp(`CREATE TABLE IF NOT EXISTS photos_deleted (LIKE photos INCLUDING DEFAULTS)`); } catch {}
+  try { await sp(`ALTER TABLE photos_deleted ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NOT NULL DEFAULT now()`); } catch {}
+  try { await sp(`ALTER TABLE photos_deleted ADD COLUMN IF NOT EXISTS deleted_by_id INTEGER`); } catch {}
+  try { await sp(`ALTER TABLE photos_deleted ADD COLUMN IF NOT EXISTS deleted_by_name TEXT`); } catch {}
+  try { await sp(`ALTER TABLE photos_deleted ADD COLUMN IF NOT EXISTS deleted_by_role TEXT`); } catch {}
+  try { await sp(`CREATE INDEX IF NOT EXISTS photos_deleted_deleted_at_idx ON photos_deleted (deleted_at DESC)`); } catch {}
   try { await sp(`ALTER TABLE users ADD COLUMN IF NOT EXISTS worker_code TEXT`); } catch {}
   try { await sp(`UPDATE users SET worker_code = '180769' WHERE full_name ILIKE '%خالد عبد الرحمن%' AND worker_code IS NULL`); } catch {}
 

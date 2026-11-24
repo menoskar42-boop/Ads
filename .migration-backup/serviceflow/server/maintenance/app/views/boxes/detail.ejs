@@ -448,7 +448,7 @@
   // حذف صورة — الزرار بيظهر للسوبر أدمن بس، والسيرفر بيتأكد تانى (403 لغيره).
   document.querySelectorAll('.del-photo-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
-      if (!confirm('حذف الصورة دى نهائياً؟ مش هتترجع.')) return;
+      if (!confirm('حذف الصورة؟ (السوبر أدمن يقدر يرجّعها)')) return;
       var self = this, pid = this.dataset.pid;
       self.disabled = true;
       self.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';

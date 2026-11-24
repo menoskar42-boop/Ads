@@ -36,6 +36,9 @@
           <li class="nav-item"><a class="nav-link" href="/technician"><i class="bi bi-tools"></i> الصيانة</a></li>
           <li class="nav-item"><a class="nav-link" href="/admin/users"><i class="bi bi-people"></i> المستخدمون</a></li>
           <li class="nav-item"><a class="nav-link" href="/admin/import"><i class="bi bi-file-earmark-excel"></i> استيراد Excel</a></li>
+          <% if (user.sf_role === 'super_admin') { %>
+            <li class="nav-item"><a class="nav-link" href="/admin/deleted-photos"><i class="bi bi-trash"></i> الصور المحذوفة</a></li>
+          <% } %>
         <% } %>
         <% if (user.role === 'technician') { %>
           <li class="nav-item"><a class="nav-link" href="/technician"><i class="bi bi-tools"></i> مهامي</a></li>
