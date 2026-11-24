@@ -322,9 +322,7 @@
     else if (String(key).toLowerCase() === "w") sendState("white");
   }
   document.addEventListener("keydown", (event) => {
-    if (event.target && /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) {
-      if (event.key !== " ") return;
-    }
+    if (!L.shouldRouteControlKey(event.target && event.target.tagName)) return;
     if (["ArrowRight", "ArrowLeft", "PageDown", "PageUp", " "].includes(event.key)) event.preventDefault();
     handleKey(event.key);
   });

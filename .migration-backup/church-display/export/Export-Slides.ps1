@@ -27,6 +27,7 @@ $logLines = New-Object 'System.Collections.Generic.List[string]'
 $libraryDecks = New-Object 'System.Collections.Generic.List[object]'
 $powerPoint = $null
 $ocrData = $null
+$script:staleOcrLogged = New-Object 'System.Collections.Generic.HashSet[string]'
 $ocrPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'ocr\ocr-text.json'
 
 function Add-Log {
@@ -90,10 +91,16 @@ function Get-RelativeSourcePath {
 }
 
 function Get-OcrSlideText {
-    param([string]$RelativeSource, [int]$SlideNumber)
+    param([string]$RelativeSource, [int]$SlideNumber, [long]$CurrentSize)
     if ($null -eq $ocrData -or $null -eq $ocrData.decks) { return $null }
     $deckProperty = $ocrData.decks.PSObject.Properties[$RelativeSource]
     if ($null -eq $deckProperty -or $null -eq $deckProperty.Value.slides) { return $null }
+    if ([long]$deckProperty.Value.size -ne $CurrentSize) {
+        if ($script:staleOcrLogged.Add($RelativeSource)) {
+            Add-Log "OCR stale, skipped: $RelativeSource"
+        }
+        return $null
+    }
     $slideProperty = $deckProperty.Value.slides.PSObject.Properties[[string]$SlideNumber]
     if ($null -eq $slideProperty) { return $null }
     return [string]$slideProperty.Value.ocrText
@@ -190,6 +197,16 @@ try {
                             hidden = $hidden
                             text = ($textParts -join "`n")
                         })
+                    } catch {
+                        $slideError = $_.Exception.Message
+                        Add-Log "ERROR slide $n in $relativeSource — $slideError"
+                        $slides.Add([pscustomobject]@{
+                            n = $n
+                            file = $null
+                            hidden = $false
+                            text = ($textParts -join "`n")
+                            error = $slideError
+                        })
                     } finally {
                         Release-ComObject $transition
                         Release-ComObject $shapeCollection
@@ -201,7 +218,7 @@ try {
             $slideCount = $slides.Count
             for ($slideIndex = 0; $slideIndex -lt $slides.Count; $slideIndex++) {
                 $slideInfo = $slides[$slideIndex]
-                $ocrText = Get-OcrSlideText -RelativeSource $relativeSource -SlideNumber ([int]$slideInfo.n)
+                $ocrText = Get-OcrSlideText -RelativeSource $relativeSource -SlideNumber ([int]$slideInfo.n) -CurrentSize $size
                 if ($null -ne $ocrText -and $ocrText.Length -gt 0) {
                     $slides[$slideIndex] = [pscustomobject]@{
                         n = $slideInfo.n

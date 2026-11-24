@@ -49,7 +49,13 @@
 
   function visibleSlides(deck, showHidden) {
     const slides = Array.isArray(deck && deck.slides) ? deck.slides : [];
-    return slides.filter((slide) => showHidden || !slide.hidden);
+    return slides.filter(
+      (slide) => !slide.error && (showHidden || !slide.hidden),
+    );
+  }
+
+  function shouldRouteControlKey(tagName) {
+    return !/^(INPUT|TEXTAREA|SELECT)$/i.test(String(tagName || ""));
   }
 
   function navigateVisible(deck, currentNumber, delta, showHidden) {
@@ -82,6 +88,7 @@
     for (const deck of Array.isArray(decks) ? decks : []) {
       const titleMatches = normalize(deck.title).includes(needle);
       for (const slide of Array.isArray(deck.slides) ? deck.slides : []) {
+        if (slide.error) continue;
         const text = [slide.text, slide.ocrText].filter(Boolean).join(" ");
         if (titleMatches || normalize(text).includes(needle)) {
           results.push({
@@ -157,6 +164,7 @@
     naturalCompare,
     naturalSort,
     visibleSlides,
+    shouldRouteControlKey,
     navigateVisible,
     slideByNumber,
     searchLibrary,

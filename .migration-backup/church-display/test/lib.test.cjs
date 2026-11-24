@@ -59,6 +59,21 @@ test("navigation skips hidden slides unless enabled and jumps past hidden target
   assert.equal(lib.slideByNumber(deck, 2, false).n, 3);
   assert.equal(lib.slideByNumber(deck, 2, true).n, 2);
   assert.equal(lib.navigateVisible(deck, 4, 1, false).n, 4);
+  const failedDeck = {
+    slides: [
+      { n: 1, file: null, error: "export failed" },
+      { n: 2, file: "slide-0002.jpg" },
+    ],
+  };
+  assert.deepEqual(lib.visibleSlides(failedDeck, true).map((slide) => slide.n), [2]);
+});
+
+test("keyboard routing ignores every key while typing in form controls", () => {
+  for (const tag of ["INPUT", "TEXTAREA", "SELECT", "input", "textarea", "select"]) {
+    assert.equal(lib.shouldRouteControlKey(tag), false, tag);
+  }
+  assert.equal(lib.shouldRouteControlKey("BODY"), true);
+  assert.equal(lib.shouldRouteControlKey("BUTTON"), true);
 });
 
 test("library loading validates the generated file and retains its deck index", () => {
@@ -117,5 +132,8 @@ test("PowerPoint exporter declares read-only, macro-disabled, incremental export
   assert.match(source, /SlideShowTransition\.Hidden|transition\.Hidden/);
   assert.match(source, /LastWriteTimeUtc\.ToString\('o'\)/);
   assert.match(source, /ocr\\ocr-text\.json/);
+  assert.match(source, /OCR stale, skipped/);
+  assert.match(source, /Get-OcrSlideText[\s\S]*CurrentSize[\s\S]*deckProperty\.Value\.size/);
+  assert.match(source, /catch \{[\s\S]*ERROR slide \$n[\s\S]*file = \$null[\s\S]*error = \$slideError/);
   assert.doesNotMatch(source, /\.Save(?:As)?\s*\(/);
 });
