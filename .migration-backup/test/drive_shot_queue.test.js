@@ -61,6 +61,15 @@ test('automatic capture queues the image and then attempts a flush', () => {
   assert.match(capture, /flushShotQueue\(\)/);
 });
 
+test('queue flush skips an empty queue and reloads server shots only after an upload', () => {
+  const app = fs.readFileSync(path.join(__dirname, '../drive-web/app.js'), 'utf8');
+  const flush = app.slice(app.indexOf('async function flushShotQueue('), app.indexOf('async function initShotQueue('));
+  assert.match(flush, /await OscarShotQueue\.count\(\) === 0/);
+  assert.match(flush, /let uploaded = 0/);
+  assert.match(flush, /uploaded\+\+/);
+  assert.match(flush, /if \(uploaded > 0\) loadShots\(\)/);
+});
+
 test('shot queue script loads before the app', () => {
   const html = fs.readFileSync(path.join(__dirname, '../drive-web/index.html'), 'utf8');
   assert.ok(html.indexOf('/shotqueue.js') < html.indexOf('/app.js'));

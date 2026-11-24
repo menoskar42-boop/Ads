@@ -1490,12 +1490,15 @@
   async function flushShotQueue(force) {
     if (shotFlushRunning || !navigator.onLine || (!force && !OscarShotQueue.canUpload(navigator.connection, $('shotUpload').value))) return;
     shotFlushRunning = true;
+    let uploaded = 0;
     try {
+      if (await OscarShotQueue.count() === 0) return;
       const items = await OscarShotQueue.list();
       for (const item of items) {
         try {
           await api('POST', '/api/web/shot', { jpg: item.jpg, meta: item.meta });
           await OscarShotQueue.remove(item.uuid);
+          uploaded++;
         } catch (e) { break; }
       }
     } catch (e) {
@@ -1503,7 +1506,7 @@
     } finally {
       shotFlushRunning = false;
       await updateShotQueueInfo();
-      loadShots();
+      if (uploaded > 0) loadShots();
     }
   }
   async function initShotQueue() {
