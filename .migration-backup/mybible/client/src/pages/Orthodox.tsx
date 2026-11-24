@@ -383,7 +383,7 @@ function AgpeyaSection() {
               <div className="aspect-video rounded-xl overflow-hidden bg-black">
                 <iframe
                   key={selectedHour.id}
-                  src={`https://www.youtube-nocookie.com/embed/${AGPEYA_HOUR_VIDEO[selectedHour.id]}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                  src={`https://www.youtube.com/embed/${AGPEYA_HOUR_VIDEO[selectedHour.id]}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
                   title={selectedHour.name}
                   className="w-full h-full"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
