@@ -7,6 +7,7 @@ import { dbPool } from "./db-pool";
 import { registerRoutes } from "./routes";
 import { registerGroupRoutes } from "./group-routes";
 import { registerChurchRoutes } from "./church-routes";
+import { registerChurchSlidesRoutes } from "./church-slides";
 import { registerChallengeRoutes } from "./challenge-routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -151,6 +152,7 @@ app.use((req, res, next) => {
   await registerRoutes(httpServer, app);
   registerGroupRoutes(app);
   registerChurchRoutes(app);
+  registerChurchSlidesRoutes(app);
   registerChallengeRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
