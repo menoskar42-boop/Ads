@@ -1161,7 +1161,10 @@
     add('الصوت العربى', voices.some((v) => /^ar/i.test(v.lang)) ? 'موجود (' + voices.filter((v) => /^ar/i.test(v.lang)).length + ')' : (window.speechSynthesis ? 'مفيش صوت عربى' : 'مش مدعوم'));
     try { const d = await navigator.mediaDevices.enumerateDevices();
       add('الكاميرات', d.filter((x) => x.kind === 'videoinput').length); add('الميكروفونات', d.filter((x) => x.kind === 'audioinput').length); } catch (e) { add('الكاميرات', 'مش معروف'); }
-    add('منع النوم', 'wakeLock' in navigator ? 'Wake Lock' : 'فيديو احتياطى');
+    const awakeState = wakeLock && !wakeLock.released
+      ? 'Wake Lock ✓'
+      : awakeVideo && !awakeVideo.paused ? 'فيديو ✓' : '⚠️ المس الشاشة مرة';
+    add('منع النوم', awakeState);
     add('الإشعارات', 'Notification' in window ? Notification.permission : 'مش مدعومة');
     try { const p = await navigator.permissions.query({ name: 'geolocation' }); add('إذن المكان', p.state); } catch (e) {}
     return rows;
@@ -1703,15 +1706,23 @@
   }
   async function keepAwake() {
     if (document.hidden) return;
-    if (!hasWakeLock) { if (awakeVideo) awakeVideo.play().catch(() => {}); return; }
-    if (wakeLock && !wakeLock.released) return;
-    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { startVideo(); }
+    if (awakeVideo && awakeVideo.paused) startVideo();
+    if (!hasWakeLock || (wakeLock && !wakeLock.released)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => {
+        if (!document.hidden) setTimeout(keepAwake, 500);
+      });
+    } catch (e) {}
   }
-  const onTouch = () => { if (hasWakeLock) keepAwake(); else startVideo(); };
+  const onTouch = () => { startVideo(); keepAwake(); };
   keepAwake();
   document.addEventListener('touchstart', onTouch, { passive: true });
   document.addEventListener('click', onTouch);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && token) refresh(); keepAwake(); });
+  document.addEventListener('pageshow', keepAwake);
+  window.addEventListener('focus', keepAwake);
+  setInterval(() => { if (!document.hidden) keepAwake(); }, 20000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
   // ── 🚗 شاشة القيادة (المالك ٢٠٢٦-١١-١٩: «عاوز شاشة رئيسية زى شاشة السيارة تخلينى أقدر أستخدم الموبايل فى إمكانيات البرنامج
