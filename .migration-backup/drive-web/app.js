@@ -434,36 +434,51 @@
   const oscarVoice = () => { try { return localStorage.getItem(VOICE_PREF) || 'male'; } catch (e) { return 'male'; } };
   let oscarLines = null, oscarLinesFor = '';
   const oscarAudio = new Audio();
+  let playSeq = 0;
+  const voiceHist = [];
+  function voiceLog(key, url, engine, reason) {
+    voiceHist.push({ t: new Date().toLocaleTimeString('ar-EG'), key, url: url ? url.split('/').pop().slice(0, 12) : '', engine, reason });
+    if (voiceHist.length > 10) voiceHist.shift();
+  }
   async function loadOscarLines() {
     const v = oscarVoice();
     if (oscarLines && oscarLinesFor === v) return oscarLines;
-    try { const r = await fetch('/voice/' + v + '/manifest.json', { cache: 'no-cache' }); oscarLines = (await r.json()).lines || {}; oscarLinesFor = v; }
-    catch (e) { oscarLines = {}; oscarLinesFor = v; }
-    return oscarLines;
+    try {
+      const r = await fetch('/voice/' + v + '/manifest.json', { cache: 'no-cache' });
+      if (!r.ok) throw new Error('manifest ' + r.status);
+      oscarLines = (await r.json()).lines || {}; oscarLinesFor = v;
+      return oscarLines;
+    } catch (e) { voiceLog('-', '', 'tts', 'manifest: ' + (e && e.message || e)); return {}; }
   }
   // الآيفون مابيشغّلش صوت غير بعد لمسة — أول لمسة بتفتح عنصر الصوت ده، وبعد كده بيشتغل لوحده
-  let audioUnlocked = false;
   const unlockAudio = () => {
-    if (audioUnlocked) return; audioUnlocked = true;
-    try { oscarAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='; oscarAudio.play().catch(() => {}); } catch (e) {}
+    if (oscarAudio.paused) {
+      try { oscarAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='; oscarAudio.play().catch(() => {}); } catch (e) {}
+    }
     loadOscarLines();
   };
   document.addEventListener('touchstart', unlockAudio, { passive: true });
   document.addEventListener('click', unlockAudio);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadOscarLines(); });
   /** جملة ثابتة بصوت أوسكار المتسجّل (نفس مفاتيح الشاشة: bump_saved · hello · not_understood …) — لو مش متاحة ⇒ صوت الجهاز. */
   async function oscar(key, fallback) {
-    if (oscarVoice() === 'tts') { sayRoad(fallback); return; }   // «صوت الموبايل لكل الكلام» — صوت واحد بدل ملفات + صوت الموبايل
+    if (oscarVoice() === 'tts') { voiceLog(key, '', 'tts', 'voice=tts setting'); sayRoad(fallback); return; }   // «صوت الموبايل لكل الكلام» — صوت واحد بدل ملفات + صوت الموبايل
     const lines = await loadOscarLines();
     const opts = ((lines[key] || {}).ar || []).filter((x) => x && x.f);
-    if (!opts.length) { sayRoad(fallback); return; }
+    if (!opts.length) { voiceLog(key, '', 'tts', 'no clip for key'); sayRoad(fallback); return; }
     const pick = opts[Math.floor(Math.random() * opts.length)];
+    const my = ++playSeq;
     lastSaid = pick.t || fallback || ''; lastSaidAt = Date.now();
     try { speechSynthesis.cancel(); } catch (e) {}
-    try { oscarAudio.src = '/voice/' + oscarVoice() + '/' + pick.f; await oscarAudio.play(); }
-    catch (e) { sayRoad(fallback || pick.t); }
+    const url = '/voice/' + oscarVoice() + '/' + pick.f;
+    try { oscarAudio.src = url; await oscarAudio.play(); voiceLog(key, url, 'clip', 'ok'); }
+    catch (e) {
+      if (e && e.name === 'AbortError' && my !== playSeq) { voiceLog(key, url, 'clip', 'replaced by newer phrase'); return; }
+      voiceLog(key, url, 'tts', 'play: ' + (e && e.name || e)); sayRoad(fallback || pick.t, true);
+    }
   }
-  function sayRoad(text) {
-    try { oscarAudio.pause(); } catch (e) {}
+  function sayRoad(text, fromClipFail) {
+    if (!fromClipFail) { ++playSeq; try { oscarAudio.pause(); } catch (e) {} }
     lastSaid = String(text || ''); lastSaidAt = Date.now();
     // البرومبت ٤: الكلام ساعات مابيطلعش — (١) من غير صوت عربى المتصفح بيقرا بصوت إنجليزى (سكوت أو كلام غلط) ⇒ نختار صوت عربى لو موجود ·
     // (٢) speak() على طول بعد cancel() بيتبلع فى Chrome/Safari ⇒ مهلة صغيرة · (٣) Chrome بيقف «paused» بعد ما الصفحة ترجع ⇒ resume()
@@ -1169,6 +1184,7 @@
       ? 'Wake Lock ✓'
       : awakeVideo && !awakeVideo.paused ? 'فيديو ✓' : '⚠️ المس الشاشة مرة';
     add('منع النوم', awakeState);
+    add('آخر الأصوات', voiceHist.slice().reverse().map((x) => x.t + ' ' + x.key + ' → ' + (x.engine === 'clip' ? 'متسجّل' : 'صوت الجهاز (' + x.reason + ')')).join(' · ') || '—');
     add('الإشعارات', 'Notification' in window ? Notification.permission : 'مش مدعومة');
     try { const p = await navigator.permissions.query({ name: 'geolocation' }); add('إذن المكان', p.state); } catch (e) {}
     return rows;
