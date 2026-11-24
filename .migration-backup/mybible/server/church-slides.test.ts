@@ -58,6 +58,21 @@ test("liturgy slides add noindex and serve R2 assets through the trial path", as
   assert.equal(missing.status, 404);
 });
 
+test("the shared app directory is found without an ESM-only __dirname", async (t) => {
+  const app = express();
+  registerChurchSlidesRoutes(app, { getObject: async () => null });
+  const server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const page = await fetch(`http://127.0.0.1:${address.port}/liturgy-slides/`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /<meta name="robots" content="noindex">/);
+});
+
 test("the shared control app defaults to the same-origin online library and exposes both entry buttons", async () => {
   const myBibleDir = process.cwd();
   const appDir = path.resolve(myBibleDir, "../church-display/app");

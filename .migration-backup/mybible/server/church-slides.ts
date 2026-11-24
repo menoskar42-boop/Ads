@@ -1,4 +1,5 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { r2Get } from "./r2";
@@ -17,7 +18,14 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 function defaultAppDir() {
-  return path.resolve(__dirname, "../../church-display/app");
+  const entry = process.argv[1] ? path.resolve(process.argv[1]) : null;
+  const candidates = [
+    entry ? path.resolve(path.dirname(entry), "../../church-display/app") : null,
+    path.resolve(process.cwd(), "../church-display/app"),
+    path.resolve(process.cwd(), "church-display/app"),
+    path.resolve(process.cwd(), ".migration-backup/church-display/app"),
+  ].filter((candidate): candidate is string => candidate !== null);
+  return candidates.find((candidate) => existsSync(path.join(candidate, "index.html"))) ?? candidates[0];
 }
 
 export function registerChurchSlidesRoutes(app: Express, deps: ChurchSlidesDeps = {}) {
