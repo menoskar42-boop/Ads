@@ -41,6 +41,10 @@ export function localTimeZoneName(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "توقيت الجهاز";
 }
 
+export function earliestValidMinute(now = new Date()): Date {
+  return new Date(Math.ceil((now.getTime() + 60_000) / 60_000) * 60_000);
+}
+
 export function formatLocalDateTime(value: string): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "موعد غير صالح";

@@ -17,3 +17,11 @@
 - **الملفات:** `artifacts/oscar-messenger/app/chat/[conversationId].tsx`؛ اختبار مصدر `artifacts/oscar-messenger/tests/chat-back-navigation.test.mjs`.
 - **التحقق:** `node --test tests/chat-back-navigation.test.mjs` — نجح 1/1؛ `pnpm --filter @workspace/oscar-messenger run typecheck` — نجح.
 - **القيود:** لم يُختبر فتح رابط مباشر داخل متصفح فعلي.
+
+## 2) الحد الأدنى لموعد الرسالة
+
+- **السبب المؤكد:** واجهة الوقت تحفظ الدقيقة فقط والثواني صفر؛ الموعد المعروض كالدقيقة التالية قد يبقى أقل من 60 ثانية فعلية عند الإرسال.
+- **التغيير:** الواجهة تمنع الإرسال المبكر، تعرض أقرب دقيقة صالحة مع زر لاستخدامها، وتبقي إرسال UTC عبر `toISOString()`. قاعدة الخادم ذات الـ60 ثانية لم تتغير.
+- **الملفات:** `artifacts/oscar-messenger/lib/scheduled-time.ts`، `components/ScheduleMessageModal.tsx`، `tests/scheduled-time.test.mjs`.
+- **التحقق:** `node --test tests/scheduled-time.test.mjs` — نجح 6/6، مع اختبار `Africa/Cairo` و`America/New_York` وUTC وانتقالي DST في `Europe/Berlin`؛ `pnpm --filter @workspace/oscar-messenger run typecheck` — نجح.
+- **القيود:** الساعة المتكررة في نهاية DST تُحل باختيار JavaScript الأول؛ لم يُختبر ذلك على جهاز iOS/Android فعلي.

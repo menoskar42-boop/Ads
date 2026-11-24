@@ -25,6 +25,7 @@ import {
   formatLocalDateInput,
   formatLocalDateTime,
   formatLocalTimeInput,
+  earliestValidMinute,
   localTimeZoneName,
   parseLocalDateTime,
 } from "../lib/scheduled-time";
@@ -54,6 +55,7 @@ export function ScheduleMessageModal({
   const [dateValue, setDateValue] = useState("");
   const [timeValue, setTimeValue] = useState("");
   const [errorText, setErrorText] = useState("");
+  const [earliestSuggestion, setEarliestSuggestion] = useState<Date | null>(null);
   const clientScheduleId = useRef(Crypto.randomUUID());
 
   useEffect(() => {
@@ -65,6 +67,7 @@ export function ScheduleMessageModal({
     setDateValue(formatLocalDateInput(initialTime));
     setTimeValue(formatLocalTimeInput(initialTime));
     setErrorText("");
+    setEarliestSuggestion(null);
     if (!existing) clientScheduleId.current = Crypto.randomUUID();
   }, [visible, existing?.id, existing?.scheduledAt, initialBody]);
 
@@ -98,6 +101,7 @@ export function ScheduleMessageModal({
     setDateValue(formatLocalDateInput(value));
     setTimeValue(formatLocalTimeInput(value));
     setErrorText("");
+    setEarliestSuggestion(null);
   };
 
   const chooseTomorrow = () => {
@@ -107,6 +111,7 @@ export function ScheduleMessageModal({
     setDateValue(formatLocalDateInput(value));
     setTimeValue(formatLocalTimeInput(value));
     setErrorText("");
+    setEarliestSuggestion(null);
   };
 
   const submit = () => {
@@ -115,11 +120,22 @@ export function ScheduleMessageModal({
       setErrorText("اكتب رسالة من حرف واحد إلى ٤٠٠٠ حرف.");
       return;
     }
-    if (!scheduledDate || scheduledDate.getTime() < Date.now() + 60_000) {
+    if (!scheduledDate) {
       setErrorText("اختر موعدًا صحيحًا بعد دقيقة على الأقل من الآن.");
+      setEarliestSuggestion(null);
+      return;
+    }
+    const now = new Date();
+    if (scheduledDate.getTime() < now.getTime() + 60_000) {
+      const earliest = earliestValidMinute(now);
+      setEarliestSuggestion(earliest);
+      setErrorText(
+        `الميعاد لازم يكون بعد دقيقة على الأقل من دلوقتى — أقرب ميعاد متاح ${formatLocalTimeInput(earliest)}`,
+      );
       return;
     }
     setErrorText("");
+    setEarliestSuggestion(null);
     save.mutate({ body: message, scheduledAt: scheduledDate.toISOString() });
   };
 
@@ -189,7 +205,11 @@ export function ScheduleMessageModal({
                   <Field label="التاريخ">
                     <TextField
                       value={dateValue}
-                      onChangeText={setDateValue}
+                      onChangeText={(value) => {
+                        setDateValue(value);
+                        setErrorText("");
+                        setEarliestSuggestion(null);
+                      }}
                       placeholder="YYYY-MM-DD"
                       keyboardType="numbers-and-punctuation"
                       autoCorrect={false}
@@ -203,7 +223,11 @@ export function ScheduleMessageModal({
                   <Field label="الوقت">
                     <TextField
                       value={timeValue}
-                      onChangeText={setTimeValue}
+                      onChangeText={(value) => {
+                        setTimeValue(value);
+                        setErrorText("");
+                        setEarliestSuggestion(null);
+                      }}
                       placeholder="HH:MM"
                       keyboardType="numbers-and-punctuation"
                       autoCorrect={false}
@@ -232,6 +256,22 @@ export function ScheduleMessageModal({
               </Notice>
 
               {!!errorText && <ErrorText>{errorText}</ErrorText>}
+              {earliestSuggestion && (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setDateValue(formatLocalDateInput(earliestSuggestion));
+                    setTimeValue(formatLocalTimeInput(earliestSuggestion));
+                    setErrorText("");
+                    setEarliestSuggestion(null);
+                  }}
+                  style={styles.earliestButton}
+                >
+                  <Text style={styles.earliestButtonText}>
+                    استخدم أقرب ميعاد {formatLocalTimeInput(earliestSuggestion)}
+                  </Text>
+                </Pressable>
+              )}
               <PrimaryButton
                 title={save.isPending ? "جارٍ الحفظ…" : existing ? "حفظ التعديل" : "تأكيد الجدولة"}
                 onPress={submit}
@@ -307,6 +347,8 @@ const styles = StyleSheet.create({
   timeField: { width: 110 },
   timeInput: { textAlign: "left", writingDirection: "ltr" },
   timezone: { color: colors.muted, fontSize: 11, textAlign: "right", marginTop: -7 },
+  earliestButton: { minHeight: 40, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.blue, paddingHorizontal: 12 },
+  earliestButtonText: { color: colors.blue, fontSize: 13, fontWeight: "700" },
   previewHeading: { color: colors.text, fontSize: 13, fontWeight: "800", textAlign: "right" },
   previewBody: { color: colors.text, fontSize: 14, lineHeight: 22, textAlign: "right", marginTop: 7 },
   previewTime: { color: colors.blue, fontSize: 12, fontWeight: "700", textAlign: "right", marginTop: 8 },
