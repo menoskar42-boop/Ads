@@ -30,8 +30,8 @@ test("settings provide web file selection, native image picker, upload and remov
   assert.match(settings, /canvas\.toBlob/);
   assert.match(settings, /"image\/jpeg",\s*0\.85/);
   assert.doesNotMatch(settings, /base64:\s*true/);
-  assert.match(generatedApi, /uploadMessengerProfileAvatar = async \(profileAvatarInput: Blob/);
-  assert.match(generatedApi, /body: profileAvatarInput/);
+  assert.match(generatedApi, /uploadMessengerProfileAvatar = async \(uploadMessengerProfileAvatarBody: Blob/);
+  assert.match(generatedApi, /body: uploadMessengerProfileAvatarBody/);
   assert.doesNotMatch(generatedApi.slice(
     generatedApi.indexOf("export const uploadMessengerProfileAvatar ="),
     generatedApi.indexOf("export const getDeleteMessengerProfileAvatarUrl"),

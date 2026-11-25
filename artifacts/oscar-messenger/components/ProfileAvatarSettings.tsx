@@ -117,8 +117,9 @@ export function ProfileAvatarSettings({ profile }: { profile: Profile }) {
         return;
       }
       const response = await fetch(asset.uri);
-      if (!response.ok) throw new Error("تعذر قراءة الصورة المختارة.");
-      uploadFile(contentType, await response.blob());
+      const body = await response.blob();
+      if (!body.size) throw new Error("تعذر قراءة الصورة المختارة.");
+      uploadFile(contentType, body);
     } catch (cause) {
       setError(readableError(cause, "تعذر اختيار الصورة."));
     }
