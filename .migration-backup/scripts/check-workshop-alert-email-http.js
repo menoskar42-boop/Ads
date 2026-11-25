@@ -35,6 +35,22 @@ const fixture = {
     { company_id: 202, business_name: 'Bravo Workshop', admin_alert_email: 'bravo-alert@example.com', booking_enabled: true },
     { company_id: 303, business_name: 'Demo Workshop', admin_alert_email: null, booking_enabled: true },
   ],
+  roleHistory: [
+    { id: 1, company_id: 101, user_id: 1001, email: 'alpha-manager@example.com', from_role: 'reception', to_role: 'manager', changed_by: 'ALPHA_ROLE_ONLY', created_at: '2026-09-05T08:00:00.000Z' },
+    { id: 2, company_id: 202, user_id: 2002, email: 'bravo-manager@example.com', from_role: 'reception', to_role: 'manager', changed_by: 'BRAVO_ROLE_ONLY', created_at: '2026-09-05T08:01:00.000Z' },
+  ],
+  reminderRuns: [
+    { id: 1, company_id: 101, started_at: '2026-09-05T08:00:00.000Z', finished_at: '2026-09-05T08:00:02.000Z', candidate_count: 1, queued_count: 1, skipped_count: 0, failed_count: 0, error: 'ALPHA_RUN_ONLY' },
+    { id: 2, company_id: 202, started_at: '2026-09-05T08:01:00.000Z', finished_at: '2026-09-05T08:01:02.000Z', candidate_count: 2, queued_count: 0, skipped_count: 2, failed_count: 0, error: 'BRAVO_RUN_ONLY' },
+  ],
+  jobs: [
+    { id: 5101, company_id: 101, status: 'in_progress', received_at: '2026-09-05T07:00:00.000Z', vehicle_id: null, customer_name: 'Alpha customer', complaint: 'ALPHA_JOB_ONLY', paid: 0 },
+    { id: 5202, company_id: 202, status: 'in_progress', received_at: '2026-09-05T07:01:00.000Z', vehicle_id: null, customer_name: 'Bravo customer', complaint: 'BRAVO_JOB_ONLY', paid: 0 },
+  ],
+  activities: [
+    { id: 1, company_id: 101, job_id: 5101, action: 'fixture', details: 'ALPHA_ACTIVITY_ONLY', actor_name: 'Alpha', created_at: '2026-09-05T08:00:00.000Z' },
+    { id: 2, company_id: 202, job_id: 5202, action: 'fixture', details: 'BRAVO_ACTIVITY_ONLY', actor_name: 'Bravo', created_at: '2026-09-05T08:01:00.000Z' },
+  ],
   alertEmailHistory: [
     {
       id: 1, company_id: 101, changed_by: 'alpha-manager@example.com',
@@ -199,7 +215,16 @@ class FixturePool {
     if (/FROM workshop_reminders/.test(sql)) return { rows: [{ n: 0 }] };
     if (/FROM workshop_message_settings/.test(sql)) return { rows: [] };
     if (/FROM payment_settings/.test(sql)) return { rows: [] };
-    if (/FROM workshop_role_history/.test(sql)) return { rows: [] };
+    if (/FROM workshop_role_history h/.test(sql)) {
+      if (!/WHERE h\.company_id=\$1/.test(sql)) throw new Error('role history query lost company scope');
+      return {
+        rows: fixture.roleHistory.filter((row) => row.company_id === Number(args[0])).map((row) => ({
+          ...row,
+          current_email: fixture.users.find((user) =>
+            user.id === row.user_id && user.company_id === row.company_id)?.email || row.email,
+        })),
+      };
+    }
     if (/SELECT previous_email\s+FROM workshop_alert_email_history/.test(sql)) {
       return {
         rows: fixture.alertEmailHistory.filter(
@@ -236,7 +261,10 @@ class FixturePool {
         rows: fixture.alertEmailHistory.filter((row) => row.company_id === Number(args[0])),
       };
     }
-    if (/FROM workshop_reminder_runs/.test(sql)) return { rows: [] };
+    if (/FROM workshop_reminder_runs/.test(sql)) {
+      if (!/WHERE company_id=\$1/.test(sql)) throw new Error('reminder runs query lost company scope');
+      return { rows: fixture.reminderRuns.filter((row) => row.company_id === Number(args[0])) };
+    }
     if (/FROM workshop_reminder_health/.test(sql)) return { rows: [] };
     if (/FROM workshop_team_invitations/.test(sql)) {
       if (!/WHERE company_id=\$1/.test(sql)) {
@@ -244,6 +272,28 @@ class FixturePool {
       }
       return { rows: [] };
     }
+    if (/SELECT j\.\*, v\.plate/.test(sql) && /FROM workshop_jobs j/.test(sql)) {
+      return {
+        rows: fixture.jobs.filter((row) => row.id === Number(args[0]) && row.company_id === Number(args[1])),
+      };
+    }
+    if (/FROM workshop_activity/.test(sql)) {
+      if (!/WHERE company_id=\$1 AND job_id=\$2/.test(sql)) throw new Error('job activity query lost company scope');
+      return {
+        rows: fixture.activities.filter((row) =>
+          row.company_id === Number(args[0]) && row.job_id === Number(args[1])),
+      };
+    }
+    if (/SELECT token FROM workshop_job_access WHERE company_id=\$1 AND job_id=\$2/.test(sql)) {
+      return { rows: [{ token: `fixture-${args[0]}-${args[1]}` }] };
+    }
+    if (/SELECT COUNT\(\*\)::int AS n FROM workshop_inspection_items/.test(sql)) return { rows: [{ n: 1 }] };
+    if (/INSERT INTO workshop_quality_checks/.test(sql)) return { rows: [] };
+    if (/FROM workshop_job_access a/.test(sql)) return { rows: [] };
+    if (/FROM workshop_(job_parts|job_labour|job_photos|payments|inspection_items|quality_checks|part_reservations|change_orders|time_entries|estimate_versions|approval_evidence)/.test(sql)) {
+      return { rows: [] };
+    }
+    if (/FROM workshop_parts/.test(sql) || /FROM workshop_technicians/.test(sql)) return { rows: [] };
     throw new Error(`unexpected fixture query: ${sql.slice(0, 180)}`);
   }
 
@@ -284,6 +334,7 @@ app.use(session({
 app.use((req, res, next) => {
   res.locals.lang = 'ar';
   res.locals.dir = 'rtl';
+  res.locals.LOC = 'ar-EG';
   res.locals.t = (key) => key;
   res.locals.showAds = false;
   next();
@@ -490,6 +541,9 @@ class ConcurrentSecurityPool {
       alphaHtml.includes('alpha-alert@example.com')
         && !alphaHtml.includes('bravo-alert@example.com')
         && alphaHtml.includes('سجل بريد تنبيهات الإدارة'));
+    check('Alpha ترى سجل الأدوار وتشغيل التذكيرات الخاص بها فقط',
+      alphaHtml.includes('ALPHA_ROLE_ONLY') && alphaHtml.includes('ALPHA_RUN_ONLY')
+        && !alphaHtml.includes('BRAVO_ROLE_ONLY') && !alphaHtml.includes('BRAVO_RUN_ONLY'));
 
     const invalidReminder = await alpha.request('/workshop/settings', {
       method: 'POST',
@@ -535,6 +589,23 @@ class ConcurrentSecurityPool {
       bravoHtml.includes('bravo-alert@example.com')
         && !bravoHtml.includes('alpha-alert@example.com')
         && bravoHtml.includes('سجل بريد تنبيهات الإدارة'));
+    check('Bravo ترى سجل الأدوار وتشغيل التذكيرات الخاص بها فقط',
+      bravoHtml.includes('BRAVO_ROLE_ONLY') && bravoHtml.includes('BRAVO_RUN_ONLY')
+        && !bravoHtml.includes('ALPHA_ROLE_ONLY') && !bravoHtml.includes('ALPHA_RUN_ONLY'));
+
+    const alphaJobPage = await alpha.request('/workshop/jobs/5101?company_id=202');
+    const alphaJobHtml = await alphaJobPage.text();
+    check('Alpha ترى نشاط أمرها فقط حتى مع company_id مزور في الرابط',
+      alphaJobPage.status === 200 && alphaJobHtml.includes('ALPHA_ACTIVITY_ONLY')
+        && !alphaJobHtml.includes('BRAVO_ACTIVITY_ONLY') && !alphaJobHtml.includes('BRAVO_JOB_ONLY'));
+    const bravoJobPage = await bravo.request('/workshop/jobs/5202?company_id=101');
+    const bravoJobHtml = await bravoJobPage.text();
+    check('Bravo ترى نشاط أمرها فقط',
+      bravoJobPage.status === 200 && bravoJobHtml.includes('BRAVO_ACTIVITY_ONLY')
+        && !bravoJobHtml.includes('ALPHA_ACTIVITY_ONLY') && !bravoJobHtml.includes('ALPHA_JOB_ONLY'));
+    const foreignJobPage = await alpha.request('/workshop/jobs/5202');
+    check('معرّف أمر شركة أخرى لا يفتح نشاطها',
+      foreignJobPage.status === 302 && foreignJobPage.headers.get('location') === '/workshop/jobs');
 
     const demoSeed = await demo.request('/__test/demo');
     const demoPage = await demo.request('/workshop/settings');
