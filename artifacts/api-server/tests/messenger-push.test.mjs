@@ -81,7 +81,8 @@ test("410 push responses delete the stale subscription", async () => {
     id: "subscription-1",
     user_id: "recipient",
     endpoint: "https://push.example.test/subscription",
-    keys: { p256dh: "key", auth: "auth" },
+    p256dh: "key",
+    auth: "auth",
   };
 
   await deliverPushSubscriptions(
@@ -96,6 +97,69 @@ test("410 push responses delete the stale subscription", async () => {
   assert.equal(queries.length, 1);
   assert.match(queries[0].sql, /DELETE FROM messenger_push_subscriptions/);
   assert.deepEqual(queries[0].values, ["subscription-1"]);
+});
+
+test("flat database rows are sent to web-push with nested keys", async () => {
+  const queries = [];
+  const pool = {
+    async query(sql, values) {
+      queries.push({ sql, values });
+      return { rows: [] };
+    },
+  };
+  const row = {
+    id: "subscription-2",
+    user_id: "recipient",
+    endpoint: "https://push.example.test/subscription",
+    p256dh: "public-key",
+    auth: "auth-secret",
+  };
+  let sentSubscription;
+
+  await deliverPushSubscriptions(
+    pool,
+    [row],
+    { title: "Sender", body: "رسالة جديدة", url: "/oscar-messenger/", tag: "chat" },
+    async (subscription) => {
+      sentSubscription = subscription;
+    },
+  );
+
+  assert.deepEqual(sentSubscription, {
+    endpoint: row.endpoint,
+    keys: { p256dh: row.p256dh, auth: row.auth },
+  });
+  assert.equal(queries.length, 1);
+  assert.match(queries[0].sql, /SET last_success_at = now\(\)/);
+  assert.deepEqual(queries[0].values, ["subscription-2"]);
+});
+
+test("non-404/410 push failures keep the subscription", async () => {
+  const queries = [];
+  const pool = {
+    async query(sql, values) {
+      queries.push({ sql, values });
+      return { rows: [] };
+    },
+  };
+  const row = {
+    id: "subscription-3",
+    user_id: "recipient",
+    endpoint: "https://push.example.test/subscription",
+    p256dh: "key",
+    auth: "auth",
+  };
+
+  await deliverPushSubscriptions(
+    pool,
+    [row],
+    { title: "Sender", body: "رسالة جديدة", url: "/oscar-messenger/", tag: "chat" },
+    async () => {
+      throw Object.assign(new Error("temporary failure"), { statusCode: 500 });
+    },
+  );
+
+  assert.equal(queries.length, 0);
 });
 
 test("0008 creates only the Messenger push table and preview column", () => {
