@@ -143,3 +143,16 @@ export function getActivityLessonVideos(datasetKey, activityKey) {
   if (!videos) return [];
   return Array.isArray(videos) ? videos : [videos];
 }
+
+export function listActivityLessonVideos() {
+  return Object.entries(ACTIVITY_VIDEOS).flatMap(([datasetKey, activities]) =>
+    Object.entries(activities).flatMap(([activityKey, value]) =>
+      (Array.isArray(value) ? value : [value]).map((video, index) => ({
+        ...video,
+        datasetKey,
+        activityKey,
+        index,
+      }))
+    )
+  );
+}
