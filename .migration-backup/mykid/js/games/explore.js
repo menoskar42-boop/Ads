@@ -58,12 +58,22 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
     videoWrap.className = "explore-video-list";
     videoWrap.setAttribute("aria-label", "فيديوهات تعليمية مرتبطة بالنشاط");
     videoWrap.style.cssText = "width:calc(100% - 28px);max-width:720px;margin:12px auto 18px;display:flex;flex-direction:column;gap:14px";
-    videos.forEach((video) => videoWrap.appendChild(createYouTubePlayer(video, {
-      onPlay: (stop) => {
-        stopExploreVideo();
-        stopActiveVideo = stop;
-      },
-    })));
+    videos.forEach((video) => {
+      const card = createYouTubePlayer(video, {
+        onPlay: (stop) => {
+          stopExploreVideo();
+          stopActiveVideo = stop;
+        },
+      });
+      if (video.summary) {
+        const summary = document.createElement("p");
+        summary.className = "explore-video-summary";
+        summary.textContent = video.summary;
+        summary.style.cssText = "margin:6px 10px 2px;text-align:center;font-weight:700;line-height:1.6;color:#4b5563";
+        card.appendChild(summary);
+      }
+      videoWrap.appendChild(card);
+    });
     screen.appendChild(videoWrap);
   }
 
