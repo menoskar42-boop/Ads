@@ -77,6 +77,8 @@ const fixture = {
 };
 
 const queries = [];
+const settingsLockControl = { holdNext: false, onLocked: null, releaseHeld: null };
+const settingsLocks = new Map();
 const securityEvents = [];
 const securityReviewRows = [
   {
@@ -298,9 +300,43 @@ class FixturePool {
   }
 
   async connect() {
+    const held = new Set();
+    let released = false;
+    const releaseAll = () => {
+      if (released) return;
+      released = true;
+      for (const key of held) {
+        const lock = settingsLocks.get(key);
+        if (!lock) continue;
+        const next = lock.waiters.shift();
+        if (next) next();
+        else settingsLocks.delete(key);
+      }
+    };
     return {
-      query: this.query.bind(this),
-      release() {},
+      query: async (sql, args = []) => {
+        const normalized = sql.trim();
+        if (/FOR UPDATE/.test(sql) && /FROM workshop_settings/.test(sql)) {
+          const key = 'workshop_settings:' + args[0];
+          let lock = settingsLocks.get(key);
+          if (!lock) {
+            lock = { waiters: [] };
+            settingsLocks.set(key, lock);
+          } else {
+            await new Promise((resolve) => lock.waiters.push(resolve));
+          }
+          held.add(key);
+          if (settingsLockControl.holdNext) {
+            settingsLockControl.holdNext = false;
+            if (settingsLockControl.onLocked) settingsLockControl.onLocked();
+            await new Promise((resolve) => { settingsLockControl.releaseHeld = resolve; });
+          }
+        }
+        const result = await this.query(sql, args);
+        if (/^(COMMIT|ROLLBACK)$/.test(normalized)) releaseAll();
+        return result;
+      },
+      release: releaseAll,
     };
   }
 
@@ -742,6 +778,49 @@ class ConcurrentSecurityPool {
       deniedEmailSave.status === 403
         && fixture.alertEmailHistory.length === historyBeforeDeniedSave
         && fixture.settings.find((row) => row.company_id === 101).admin_alert_email === 'new-alpha-alert@example.com');
+
+    let lockedResolve;
+    const restoreHasLock = new Promise((resolve) => { lockedResolve = resolve; });
+    settingsLockControl.holdNext = true;
+    settingsLockControl.onLocked = lockedResolve;
+    settingsLockControl.releaseHeld = () => {};
+    const historyBeforeRace = fixture.alertEmailHistory.length;
+    const restoreInRace = alpha.request('/workshop/settings/alert-email-history/3/restore', { method: 'POST' });
+    await restoreHasLock;
+    let saveFinished = false;
+    const saveInRace = alpha.request('/workshop/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        admin_alert_email: 'final-alpha-alert@example.com',
+        reminder_lead_days: '7',
+        reminder_lead_km: '500',
+        booking_enabled: '1',
+      }),
+    }).then((response) => {
+      saveFinished = true;
+      return response;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const saveWaitedForRestore = !saveFinished;
+    if (settingsLockControl.releaseHeld) settingsLockControl.releaseHeld();
+    const [restoreRaceResponse, saveRaceResponse] = await Promise.all([restoreInRace, saveInRace]);
+    settingsLockControl.onLocked = null;
+    check('استعادة البريد تمسك قفل الصف قبل الحفظ المتزامن',
+      saveWaitedForRestore
+        && restoreRaceResponse.status === 302
+        && saveRaceResponse.status === 302);
+    const raceEvents = fixture.alertEmailHistory.slice(historyBeforeRace);
+    check('كل عملية ناجحة تسجل الحدث بترتيب المعاملة وبالشركة نفسها',
+      raceEvents.length === 2
+        && raceEvents[0].company_id === 101
+        && raceEvents[0].previous_email === 'new-alpha-alert@example.com'
+        && raceEvents[0].new_email === 'old-alpha@example.com'
+        && raceEvents[1].company_id === 101
+        && raceEvents[1].previous_email === 'old-alpha@example.com'
+        && raceEvents[1].new_email === 'final-alpha-alert@example.com'
+        && fixture.settings.find((row) => row.company_id === 101).admin_alert_email === 'final-alpha-alert@example.com'
+        && fixture.settings.find((row) => row.company_id === 202).admin_alert_email === 'bravo-alert@example.com');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
