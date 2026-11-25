@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -161,7 +161,7 @@ const EXPECTED_ACTIVITY_VIDEO_TITLES = {
 };
 
 const MYKID_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const HARNESS_HTML = "<!doctype html><html><head><meta charset=\"utf-8\"></head><body><canvas id=\"fx\"></canvas></body></html>";
+const HARNESS_HTML = "<!doctype html><html><head><meta charset=\"utf-8\"></head><body><main id=\"app\"></main><canvas id=\"fx\"></canvas></body></html>";
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -218,9 +218,12 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 
   try {
+    const executablePath = process.env.MYKID_CHROMIUM ||
+      ["/opt/pw-browsers/chromium", "/repl/tools/bin/chromium"].find(existsSync);
     browser = await chromium.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-dev-shm-usage"],
+      ...(executablePath ? { executablePath } : {}),
     });
   } catch (error) {
     throw new Error(
@@ -714,6 +717,43 @@ test("explore videos stop each other and stopped previews can be replayed", asyn
     replayStoppedSecond: true,
   }, "playing another explore video must stop the prior iframe and restore its preview");
   assert.deepEqual(pageErrors, [], "Explore video switching must not produce browser errors");
+});
+
+test("returning from a playing explore video removes it before another activity opens", async () => {
+  pageErrors.length = 0;
+  await page.goto(baseUrl);
+  await page.evaluate(async () => {
+    const { Router } = await import("/js/core/router.js");
+    const { renderExplore } = await import("/js/games/explore.js");
+    Router.register("region", () => {
+      const marker = document.createElement("div");
+      marker.id = "returned-to-region";
+      return marker;
+    });
+    document.getElementById("app").replaceChildren(renderExplore({
+      regionId: "birds", regionIndex: 0, datasetKey: "birds", title: "عالم الطيور",
+    }));
+  });
+  await page.locator(".kid-youtube-preview").click();
+  await page.waitForSelector(".kid-youtube-card iframe");
+  assert.equal(await page.locator("iframe").count(), 1);
+
+  await page.locator(".topbar .icon-btn").click();
+  await page.waitForFunction(() => !!document.querySelector("#returned-to-region"));
+  assert.equal(await page.locator("iframe").count(), 0, "الرجوع يزيل الفيديو النشط");
+
+  await page.evaluate(async () => {
+    const { renderExplore } = await import("/js/games/explore.js");
+    document.getElementById("app").replaceChildren(renderExplore({
+      regionId: "insects", regionIndex: 1, datasetKey: "insects", title: "عالم الحشرات",
+    }));
+  });
+  assert.equal(await page.locator("iframe").count(), 0, "النشاط الجديد لا يحتفظ بالمشغّل السابق");
+  await page.locator(".kid-youtube-preview").click();
+  await page.waitForSelector(".kid-youtube-card iframe");
+  assert.equal(await page.locator("iframe").count(), 1);
+  assert.match(await page.locator("iframe").getAttribute("src"), /T1O-k06fY_c/);
+  assert.deepEqual(pageErrors, []);
 });
 
 test("birds and insects play distinct natural recordings only on request and keep name speech", async () => {
