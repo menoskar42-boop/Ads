@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   baseMessengerAudioContentType,
   chooseWebAudioMimeType,
+  webMicrophoneErrorMessage,
   type MessengerAudioContentType,
 } from "../lib/web-voice";
 import { readableError } from "../lib/format";
@@ -186,10 +187,32 @@ export function WebVoiceMessageModal({
     } catch (error) {
       stopTracks();
       const name = error instanceof DOMException ? error.name : "";
+      let microphoneMessage: string | null = null;
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        let permissionState = "unsupported";
+        try {
+          const permission = await navigator.permissions?.query({
+            name: "microphone" as PermissionName,
+          });
+          if (permission) permissionState = permission.state;
+        } catch {
+          // Some browsers do not expose microphone permission queries.
+        }
+        microphoneMessage = webMicrophoneErrorMessage(
+          name,
+          permissionState,
+          navigator.userAgent,
+        );
+      } else {
+        microphoneMessage = webMicrophoneErrorMessage(
+          name,
+          "unsupported",
+          navigator.userAgent,
+        );
+      }
       setErrorText(
-        name === "NotAllowedError" || name === "SecurityError"
-          ? "لم يُسمح باستخدام الميكروفون. اسمح للمتصفح بالتسجيل ثم حاول مرة أخرى."
-          : readableError(error, "تعذر بدء التسجيل. تحقق من إذن الميكروفون وحاول مرة أخرى."),
+        microphoneMessage ??
+          readableError(error, "تعذر بدء التسجيل. تحقق من إذن الميكروفون وحاول مرة أخرى."),
       );
     }
   };

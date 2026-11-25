@@ -45,3 +45,31 @@ export function webAudioPlaybackError(
   if (status === 401) return "انتهت جلسة الدخول. سجّل الدخول مرة أخرى.";
   return serverMessage || "تعذر فتح الرسالة الصوتية.";
 }
+
+export function webMicrophoneErrorMessage(
+  errorName: string,
+  permissionState: string,
+  userAgent: string,
+): string | null {
+  if (errorName === "NotFoundError") {
+    return "مفيش ميكروفون متوصّل بالجهاز ده";
+  }
+  if (errorName !== "NotAllowedError" && errorName !== "SecurityError") {
+    return null;
+  }
+  if (permissionState === "prompt") {
+    return "لم يُسمح باستخدام الميكروفون. اسمح للمتصفح بالتسجيل ثم حاول مرة أخرى.";
+  }
+  if (permissionState !== "denied" && permissionState !== "unsupported") {
+    return "لم يُسمح باستخدام الميكروفون. اسمح للمتصفح بالتسجيل ثم حاول مرة أخرى.";
+  }
+
+  const isIPhoneSafari =
+    /iPhone|iPad|iPod/i.test(userAgent) &&
+    /Safari/i.test(userAgent) &&
+    !/CriOS|FxiOS|EdgiOS/i.test(userAgent);
+  if (isIPhoneSafari) {
+    return "الميكروفون مقفول للموقع ده. من الآيفون: الإعدادات ← Safari ← الميكروفون ← اسأل أو سماح.";
+  }
+  return "الميكروفون مقفول للموقع ده. من كروم: اضغط على القفل جنب العنوان ← الأذونات ← الميكروفون ← سماح، وبعدين ارجع واضغط بدء التسجيل.\nلو مالقيتهاش: إعدادات الموبايل ← التطبيقات ← Chrome ← الأذونات ← الميكروفون ← سماح.";
+}
