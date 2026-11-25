@@ -1403,6 +1403,27 @@ export const GetMessengerVoiceMessageAudioResponse = zod.unknown()
 
 
 /**
+ * @summary Delete the signed-in user's voice message and private audio file
+ */
+export const deleteMessengerAudioMessagePathConversationIdMin = 8;
+export const deleteMessengerAudioMessagePathConversationIdMax = 80;
+
+export const deleteMessengerAudioMessagePathMessageIdMin = 8;
+export const deleteMessengerAudioMessagePathMessageIdMax = 80;
+
+
+
+export const DeleteMessengerAudioMessageParams = zod.object({
+  "conversationId": zod.coerce.string().min(deleteMessengerAudioMessagePathConversationIdMin).max(deleteMessengerAudioMessagePathConversationIdMax),
+  "messageId": zod.coerce.string().min(deleteMessengerAudioMessagePathMessageIdMin).max(deleteMessengerAudioMessagePathMessageIdMax)
+})
+
+export const DeleteMessengerAudioMessageResponse = zod.object({
+  "ok": zod.literal(true)
+})
+
+
+/**
  * @summary List scheduled messages created by the signed-in user
  */
 export const ListMessengerScheduledMessagesResponse = zod.object({

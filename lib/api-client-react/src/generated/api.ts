@@ -37,6 +37,7 @@ import type {
   ConversationSettingsInput,
   CreateGroupInput,
   CreateStatusInput,
+  DeleteMessengerAudioMessage200,
   DeleteMessengerStatus200,
   ErrorResponse,
   ForwardMessengerMessage201,
@@ -3924,6 +3925,82 @@ export function useGetMessengerVoiceMessageAudio<TData = Awaited<ReturnType<type
 
 
 
+
+export const getDeleteMessengerAudioMessageUrl = (conversationId: string,
+    messageId: string,) => {
+
+
+
+
+  return `/api/messenger/conversations/${conversationId}/messages/${messageId}`
+}
+
+/**
+ * @summary Delete the signed-in user's voice message and private audio file
+ */
+export const deleteMessengerAudioMessage = async (conversationId: string,
+    messageId: string, options?: Parameters<typeof customFetch>[1]): Promise<DeleteMessengerAudioMessage200> => {
+
+  return customFetch<DeleteMessengerAudioMessage200>(getDeleteMessengerAudioMessageUrl(conversationId,messageId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMessengerAudioMessageMutationKey = () => ['deleteMessengerAudioMessage'] as const;
+
+export const getDeleteMessengerAudioMessageMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMessengerAudioMessage>>, TError,DeleteMessengerAudioMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMessengerAudioMessage>>, TError,DeleteMessengerAudioMessageMutationVariables, TContext> => {
+
+const mutationKey = getDeleteMessengerAudioMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMessengerAudioMessage>>, DeleteMessengerAudioMessageMutationVariables> = (props) => {
+          const {conversationId,messageId} = props ?? {};
+
+          return  deleteMessengerAudioMessage(conversationId,messageId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMessengerAudioMessageMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMessengerAudioMessage>>>
+
+    export type DeleteMessengerAudioMessageMutationError = ErrorType<UnauthorizedResponse | ErrorResponse>
+    export type DeleteMessengerAudioMessageMutationVariables = {conversationId: string;messageId: string}
+
+    /**
+ * @summary Delete the signed-in user's voice message and private audio file
+ */
+export const useDeleteMessengerAudioMessage = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMessengerAudioMessage>>, TError,DeleteMessengerAudioMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMessengerAudioMessage>>,
+        TError,
+        DeleteMessengerAudioMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteMessengerAudioMessageMutationOptions(options), queryClient);
+    }
 
 export const getListMessengerScheduledMessagesUrl = () => {
 

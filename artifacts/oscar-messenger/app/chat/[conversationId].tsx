@@ -46,6 +46,7 @@ import {
   listMessengerMessages,
   markMessengerConversationRead,
   sendMessengerMessage,
+  deleteMessengerAudioMessage,
   forwardMessengerMessage,
   toggleMessengerMessageReaction,
   sendMessengerLocation,
@@ -317,6 +318,49 @@ export default function ChatScreen() {
     onError: (error) =>
       setErrorText(readableError(error, "تعذر إرسال الموقع / Could not send location.")),
   });
+  const deleteVoiceMessage = useMutation({
+    mutationFn: (messageId: string) =>
+      deleteMessengerAudioMessage(conversationId, messageId),
+    onSuccess: async (_result, messageId) => {
+      if (webAudioMessageIdRef.current === messageId) {
+        webAudioRef.current?.pause();
+        webAudioRef.current = null;
+        webAudioMessageIdRef.current = "";
+        setWebAudioPlayingId("");
+        if (webAudioObjectUrlRef.current) {
+          URL.revokeObjectURL(webAudioObjectUrlRef.current);
+          webAudioObjectUrlRef.current = "";
+        }
+      }
+      if (activeAudioId === messageId) {
+        audioPlayer.pause();
+        setActiveAudioId("");
+      }
+      setErrorText("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages(conversationId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
+      ]);
+    },
+    onError: (error) =>
+      setErrorText(readableError(error, "تعذر حذف الرسالة الصوتية.")),
+  });
+  const confirmDeleteVoiceMessage = (messageId: string) => {
+    const remove = () => deleteVoiceMessage.mutate(messageId);
+    if (Platform.OS === "web") {
+      if (
+        typeof window !== "undefined" &&
+        window.confirm("حذف الرسالة الصوتية؟")
+      ) {
+        remove();
+      }
+      return;
+    }
+    Alert.alert("حذف الرسالة الصوتية؟", "ملف الصوت هيتحذف من المحادثة.", [
+      { text: "إلغاء", style: "cancel" },
+      { text: "حذف", style: "destructive", onPress: remove },
+    ]);
+  };
   const playVoiceMessage = async (message: Message) => {
     if (!message.audioUrl) {
       setErrorText("ملف الرسالة الصوتية غير متاح.");
@@ -1039,6 +1083,15 @@ export default function ChatScreen() {
                         setForwardingMessage(item);
                       }
                     : undefined
+                }
+                onDeleteAudio={
+                  item.senderId === userId && item.messageType === "audio"
+                    ? () => confirmDeleteVoiceMessage(item.id)
+                    : undefined
+                }
+                deletingAudio={
+                  deleteVoiceMessage.isPending &&
+                  deleteVoiceMessage.variables === item.id
                 }
               />
             )}
