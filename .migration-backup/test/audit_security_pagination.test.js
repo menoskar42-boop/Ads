@@ -1,8 +1,14 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const { describe, it } = require('node:test');
 const audit = require('../src/lib/audit');
+const adminRouteSource = fs.readFileSync(require.resolve('../src/routes/admin'), 'utf8');
+const securityViewSource = fs.readFileSync(
+  require.resolve('../src/views/admin/workshop_alert_security.ejs'),
+  'utf8'
+);
 
 const cursorAt = '2026-11-09T12:00:00.123456Z';
 
@@ -115,5 +121,29 @@ describe('workshop security audit pagination', () => {
     assert.equal(page.rows[49].id, '1');
     assert.equal(page.hasNewer, true);
     assert.equal(page.hasOlder, true);
+  });
+
+  it('keeps company/date filters on both page links and applies filters from a fresh page', () => {
+    const pageUrlStart = adminRouteSource.indexOf('const pageUrl = (row, direction) =>');
+    const pageUrlEnd = adminRouteSource.indexOf('\n    };', pageUrlStart);
+    const pageUrl = adminRouteSource.slice(pageUrlStart, pageUrlEnd);
+    assert.ok(pageUrlStart >= 0 && pageUrlEnd > pageUrlStart);
+    assert.match(pageUrl, /params\.set\('company_id', String\(filters\.companyId\)\)/);
+    assert.match(pageUrl, /params\.set\('from', filters\.from\)/);
+    assert.match(pageUrl, /params\.set\('to', filters\.to\)/);
+    assert.match(pageUrl, /params\.set\('cursor_at', row\.cursor_created_at\)/);
+    assert.match(pageUrl, /params\.set\('cursor_id', String\(row\.id\)\)/);
+    assert.match(pageUrl, /params\.set\('direction', direction\)/);
+    assert.match(adminRouteSource, /olderUrl: securityPage\.hasOlder && lastRow \? pageUrl\(lastRow, 'older'\)/);
+    assert.match(adminRouteSource, /newerUrl: securityPage\.hasNewer && firstRow \? pageUrl\(firstRow, 'newer'\)/);
+
+    const filterFormStart = securityViewSource.indexOf('<form method="get" action="/admin/security/workshop-alert-email"');
+    const filterFormEnd = securityViewSource.indexOf('</form>', filterFormStart);
+    const filterForm = securityViewSource.slice(filterFormStart, filterFormEnd);
+    assert.ok(filterFormStart >= 0 && filterFormEnd > filterFormStart);
+    assert.match(filterForm, /name="company_id"/);
+    assert.match(filterForm, /name="from"/);
+    assert.match(filterForm, /name="to"/);
+    assert.doesNotMatch(filterForm, /cursor_at|cursor_id|direction/);
   });
 });
