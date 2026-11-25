@@ -96,6 +96,12 @@ test("microphone permission errors choose useful Arabic instructions", () => {
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) AppleWebKit/605.1.15 Version/18.0 Safari/604.1",
   );
   assert.match(safariInstructions, /الإعدادات ← Safari ← الميكروفون ← اسأل أو سماح/);
+  const standaloneInstructions = webMicrophoneErrorMessage(
+    "NotAllowedError",
+    "denied",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) AppleWebKit/605.1.15",
+  );
+  assert.match(standaloneInstructions, /الإعدادات ← Safari ← الميكروفون ← اسأل أو سماح/);
   assert.equal(
     webMicrophoneErrorMessage("NotFoundError", "unsupported", "Chrome Android"),
     "مفيش ميكروفون متوصّل بالجهاز ده",
