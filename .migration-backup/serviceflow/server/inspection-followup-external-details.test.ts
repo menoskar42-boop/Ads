@@ -198,6 +198,19 @@ test("external response details use Arabic labels in the report's full-details p
   assert.match(componentSource, /<div className="text-\[11px\] font-medium text-slate-500">\{valueLabel\(key\)\}<\/div>/);
 });
 
+test("the full-details dialog fits landscape phones and scrolls vertically", () => {
+  const detailPanel = componentSource.slice(
+    componentSource.indexOf("export function DetailPanel"),
+    componentSource.indexOf("\nfunction ReviewChoice", componentSource.indexOf("export function DetailPanel")),
+  );
+  assert.match(detailPanel, /max-h-\[88dvh\].*overflow-hidden/);
+  assert.match(detailPanel, /max-h-\[calc\(88dvh-92px\)\].*overflow-y-auto/);
+  assert.match(detailPanel, /grid gap-2 sm:grid-cols-2 lg:grid-cols-3/);
+  assert.match(detailPanel, /className="min-w-0 rounded-lg/);
+  assert.match(detailPanel, /break-words text-sm/);
+  assert.doesNotMatch(detailPanel, /overflow-x-auto/);
+});
+
 test("OM follow-up keeps technician and external replies separate with three row actions", () => {
   assert.match(componentSource, /<TableHead[^>]*>رد الشئون الخارجية<\/TableHead>/);
   assert.match(componentSource, /label: "رد الفنى"/);
