@@ -36,6 +36,15 @@ import {
   ownedContactNicknameJoin,
   resolveContactMatches,
 } from "../lib/contact-nicknames";
+import {
+  blockedPeerIdsFor,
+  canSendDirectMessage,
+  filterBlockedPeople,
+  hasMessengerBlocksSchema,
+  isMessengerUserBlocked,
+  requireMessengerBlocksSchema,
+  MESSENGER_BLOCKED_SEND_ERROR,
+} from "../lib/messenger-blocks";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -87,6 +96,30 @@ const requireAuth: RequestHandler = (req, res, next) => {
 
 function getUserId(res: Parameters<RequestHandler>[1]): string {
   return String(res.locals.userId);
+}
+
+function peerUserIdForConversation(
+  conversation: { user_a: string; user_b: string },
+  userId: string,
+): string {
+  return conversation.user_a === userId ? conversation.user_b : conversation.user_a;
+}
+
+async function requireUnblockedConversation(
+  pool: NonNullable<DbPool>,
+  conversation: { user_a: string; user_b: string },
+  userId: string,
+  res: Parameters<RequestHandler>[1],
+): Promise<boolean> {
+  if (
+    await canSendDirectMessage(
+      pool,
+      userId,
+      peerUserIdForConversation(conversation, userId),
+    )
+  ) return true;
+  res.status(403).json({ error: MESSENGER_BLOCKED_SEND_ERROR });
+  return false;
 }
 
 function getPoolOrUnavailable(pool: DbPool, res: Parameters<RequestHandler>[1]) {
@@ -766,6 +799,76 @@ router.get("/messenger/contacts/resolve", requireAuth, async (req, res, next) =>
   }
 });
 
+router.get("/messenger/blocks", requireAuth, async (_req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool || !(await requireMessengerBlocksSchema(pool, res))) return;
+    const result = await pool.query(
+      `SELECT profile.user_id, profile.username, profile.display_name, blocks.created_at
+       FROM messenger_blocks blocks
+       JOIN messenger_profiles profile ON profile.user_id = blocks.blocked_id
+       WHERE blocks.blocker_id = $1
+       ORDER BY blocks.created_at DESC`,
+      [getUserId(res)],
+    );
+    res.json({
+      blockedUsers: result.rows.map((row) => ({
+        userId: row.user_id,
+        username: row.username,
+        displayName: row.display_name,
+        createdAt: row.created_at,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/messenger/blocks", requireAuth, async (req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool || !(await requireMessengerBlocksSchema(pool, res))) return;
+    const userId = getUserId(res);
+    const blockedId =
+      typeof req.body?.userId === "string" ? req.body.userId.trim() : "";
+    if (!blockedId || blockedId.length > 255 || blockedId === userId) {
+      res.status(400).json({ error: "اختار شخصًا صالحًا للحظر." });
+      return;
+    }
+    const profile = await pool.query(
+      `SELECT 1 FROM messenger_profiles WHERE user_id = $1`,
+      [blockedId],
+    );
+    if (!profile.rows[0]) {
+      res.status(404).json({ error: "الحساب غير موجود." });
+      return;
+    }
+    await pool.query(
+      `INSERT INTO messenger_blocks (blocker_id, blocked_id)
+       VALUES ($1, $2)
+       ON CONFLICT (blocker_id, blocked_id) DO NOTHING`,
+      [userId, blockedId],
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/messenger/blocks/:userId", requireAuth, async (req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool || !(await requireMessengerBlocksSchema(pool, res))) return;
+    await pool.query(
+      `DELETE FROM messenger_blocks WHERE blocker_id = $1 AND blocked_id = $2`,
+      [getUserId(res), String(req.params.userId)],
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/messenger/people", requireAuth, async (req, res, next) => {
   try {
     const pool = getPoolOrUnavailable(await loadPool(), res);
@@ -797,7 +900,14 @@ router.get("/messenger/people", requireAuth, async (req, res, next) => {
         `%${query.replace(/[%_]/g, "\\$&")}%`,
       ],
     );
-    res.json({ people: result.rows.map(publicPerson) });
+    const blockedPeerIds = await blockedPeerIdsFor(
+      pool,
+      userId,
+      result.rows.map((row) => String(row.user_id)),
+    );
+    res.json({
+      people: filterBlockedPeople(result.rows, blockedPeerIds).map(publicPerson),
+    });
   } catch (error) {
     next(error);
   }
@@ -842,8 +952,13 @@ router.post("/messenger/people/lookup-by-phone", requireAuth, async (req, res, n
         : PHONE_LOOKUP_SQL,
       [userId, phoneLookupHash],
     );
+    const blockedPeerIds = await blockedPeerIdsFor(
+      pool,
+      userId,
+      result.rows.map((row) => String(row.user_id)),
+    );
     res.json({
-      people: result.rows.map((row) => ({
+      people: filterBlockedPeople(result.rows, blockedPeerIds).map((row) => ({
         ...publicPhoneMatch(row),
         nickname: typeof row.nickname === "string" ? row.nickname : null,
       })),
@@ -979,6 +1094,13 @@ router.post("/messenger/conversations", requireAuth, async (req, res, next) => {
     const peerId = found.rows[0]?.user_id as string | undefined;
     if (!peerId || peerId === userId) {
       res.status(404).json({ error: "Messenger profile not found" });
+      return;
+    }
+    if (
+      (await hasMessengerBlocksSchema(pool)) &&
+      (await isMessengerUserBlocked(pool, userId, peerId))
+    ) {
+      res.status(403).json({ error: MESSENGER_BLOCKED_SEND_ERROR });
       return;
     }
     const [userA, userB] = [userId, peerId].sort();
@@ -1174,6 +1296,7 @@ router.post(
         res.status(404).json({ error: "Conversation not found" });
         return;
       }
+      if (!(await requireUnblockedConversation(pool, conversation, userId, res))) return;
       const body = String(req.body?.body ?? "").trim();
       const clientMessageId = String(req.body?.clientMessageId ?? "");
       const replyToMessageId =
@@ -1268,6 +1391,7 @@ router.post(
         res.status(404).json({ error: "Conversation not found" });
         return;
       }
+      if (!(await requireUnblockedConversation(pool, conversation, userId, res))) return;
       if (!(await hasLocationSchema(pool))) {
         res.status(503).json({ error: "Location message database update is required" });
         return;
@@ -1359,6 +1483,7 @@ router.post(
         res.status(404).json({ error: "Conversation not found" });
         return;
       }
+      if (!(await requireUnblockedConversation(pool, conversation, userId, res))) return;
       if (!isR2Configured()) {
         res.status(503).json({ error: "Voice storage is not configured" });
         return;

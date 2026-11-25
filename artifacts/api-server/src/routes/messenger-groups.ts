@@ -10,6 +10,7 @@ import {
 } from "../lib/messenger-groups-policy";
 import { parseMessageCursor } from "../lib/message-pagination";
 import { notifyGroupMessage } from "../lib/messenger-web-push";
+import { hasMessengerBlocksSchema } from "../lib/messenger-blocks";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -896,13 +897,20 @@ router.post("/messenger/reports", requireAuth, async (req, res, next) => {
     const targetId = typeof req.body?.targetId === "string" ? req.body.targetId.trim() : "";
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
     if (
-      (targetType !== "group_message" && targetType !== "status") ||
+      !["group_message", "status", "user", "direct_message"].includes(targetType) ||
       !targetId ||
       !reason ||
       reason.length < 5 ||
       reason.length > 500
     ) {
       res.status(400).json({ error: "اختر سببًا واضحًا للإبلاغ." });
+      return;
+    }
+    if (
+      (targetType === "user" || targetType === "direct_message") &&
+      !(await hasMessengerBlocksSchema(pool))
+    ) {
+      res.status(503).json({ error: "تحديث قاعدة البيانات مطلوب" });
       return;
     }
     const now = Date.now();
@@ -925,7 +933,8 @@ router.post("/messenger/reports", requireAuth, async (req, res, next) => {
              WHERE message.id = $1 AND message.sender_id <> $2`,
             [targetId, userId],
           )
-        : await pool.query(
+          : targetType === "status"
+        ? await pool.query(
             `SELECT 1 FROM messenger_status_updates status
              WHERE status.id = $1 AND status.author_id <> $2 AND status.expires_at > now()
                AND EXISTS (
@@ -933,7 +942,22 @@ router.post("/messenger/reports", requireAuth, async (req, res, next) => {
                  WHERE audience.status_id = status.id AND audience.user_id = $2
                )`,
             [targetId, userId],
-          );
+          )
+        : targetType === "user"
+          ? await pool.query(
+              `SELECT 1 FROM messenger_profiles
+               WHERE user_id = $1 AND user_id <> $2`,
+              [targetId, userId],
+            )
+          : await pool.query(
+              `SELECT 1
+               FROM messenger_messages message
+               JOIN messenger_conversations conversation
+                 ON conversation.id = message.conversation_id
+               WHERE message.id = $1
+                 AND (conversation.user_a = $2 OR conversation.user_b = $2)`,
+              [targetId, userId],
+            );
     if (!visible.rows.length) {
       res.status(404).json({ error: "المحتوى غير موجود أو لم يعد ظاهرًا لك." });
       return;
