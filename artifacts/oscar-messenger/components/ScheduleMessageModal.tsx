@@ -70,7 +70,9 @@ export function ScheduleMessageModal({
 
   useEffect(() => {
     if (!visible) return;
-    const initialTime = existing
+    const initialTime = existing?.status === "failed"
+      ? new Date(Date.now() + 60 * 60_000)
+      : existing
       ? new Date(existing.scheduledAt)
       : new Date(Date.now() + 60 * 60_000);
     setBody(existing?.body ?? initialBody);
@@ -201,7 +203,13 @@ export function ScheduleMessageModal({
                 <Ionicons name="close" size={23} color={colors.muted} />
               </Pressable>
               <View style={styles.headerCopy}>
-                <Text style={styles.title}>{existing ? "تعديل الموعد" : "جدولة رسالة"}</Text>
+                <Text style={styles.title}>
+                  {existing?.status === "failed"
+                    ? "إعادة جدولة الرسالة"
+                    : existing
+                      ? "تعديل الموعد"
+                      : "جدولة رسالة"}
+                </Text>
                 <Text style={styles.subtitle}>إلى {peerName}</Text>
               </View>
             </View>
@@ -401,6 +409,11 @@ export function ScheduleMessageModal({
 
               <Notice>
                 <Text style={styles.previewHeading}>مراجعة قبل الحفظ</Text>
+                {existing?.status === "failed" ? (
+                  <Text style={styles.deliveryNote}>
+                    اختار الموعد الجديد؛ الرسالة لن تُرسل إلا بعد تأكيدك.
+                  </Text>
+                ) : null}
                 <Text style={styles.previewBody} numberOfLines={4}>
                   {body.trim() || "سيظهر نص الرسالة هنا"}
                 </Text>
@@ -433,7 +446,15 @@ export function ScheduleMessageModal({
                 </Pressable>
               )}
               <PrimaryButton
-                title={save.isPending ? "جارٍ الحفظ…" : existing ? "حفظ التعديل" : "تأكيد الجدولة"}
+                title={
+                  save.isPending
+                    ? "جارٍ الحفظ…"
+                    : existing?.status === "failed"
+                      ? "تأكيد إعادة الجدولة"
+                      : existing
+                        ? "حفظ التعديل"
+                        : "تأكيد الجدولة"
+                }
                 onPress={submit}
                 busy={save.isPending}
                 disabled={save.isPending}

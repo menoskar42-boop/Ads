@@ -12,7 +12,10 @@ import {
   UpdateMessengerScheduledMessageResponse,
 } from "@workspace/api-zod";
 import { Router, type IRouter, type RequestHandler } from "express";
-import { scheduledAtOrNull } from "../lib/scheduled-message-policy";
+import {
+  buildScheduledMessageRescheduleUpdate,
+  scheduledAtOrNull,
+} from "../lib/scheduled-message-policy";
 import {
   canSendDirectMessage,
   MESSENGER_BLOCKED_SEND_ERROR,
@@ -262,14 +265,13 @@ router.patch(
           return;
         }
       }
-      const updated = await pool.query(
-        `UPDATE messenger_scheduled_messages
-         SET body = $1, scheduled_at = $2, updated_at = now()
-         WHERE id = $3 AND sender_id = $4
-           AND status = 'pending' AND scheduled_at > now()
-         RETURNING id`,
-        [body, scheduledAt, id, userId],
+      const update = buildScheduledMessageRescheduleUpdate(
+        body,
+        scheduledAt,
+        id,
+        userId,
       );
+      const updated = await pool.query(update.sql, update.values);
       if (!updated.rows[0]) {
         const existing = await getScheduledMessage(pool, id, userId);
         if (!existing) {
@@ -277,7 +279,10 @@ router.patch(
           return;
         }
         res.status(409).json({
-          error: "لم يعد ممكنًا تعديل هذه الرسالة لأنها أُرسلت أو حان موعدها.",
+          error:
+            existing.status === "failed"
+              ? "تعذر إعادة جدولة هذه الرسالة؛ ربما أُرسلت بالفعل."
+              : "لم يعد ممكنًا تعديل هذه الرسالة لأنها أُرسلت أو حان موعدها.",
         });
         return;
       }

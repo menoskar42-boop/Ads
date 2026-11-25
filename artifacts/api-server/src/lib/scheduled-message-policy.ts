@@ -20,3 +20,24 @@ export function isPermanentMessageError(error: unknown): boolean {
 export function scheduledClientMessageId(id: string): string {
   return `scheduled:${id}`;
 }
+
+export function buildScheduledMessageRescheduleUpdate(
+  body: string,
+  scheduledAt: Date,
+  id: string,
+  userId: string,
+): { sql: string; values: [string, Date, string, string] } {
+  return {
+    sql: `UPDATE messenger_scheduled_messages
+          SET body = $1,
+              scheduled_at = $2,
+              status = CASE WHEN status = 'failed' THEN 'pending' ELSE status END,
+              failure_code = CASE WHEN status = 'failed' THEN NULL ELSE failure_code END,
+              updated_at = now()
+          WHERE id = $3 AND sender_id = $4
+            AND sent_message_id IS NULL AND sent_at IS NULL
+            AND ((status = 'pending' AND scheduled_at > now()) OR status = 'failed')
+          RETURNING id`,
+    values: [body, scheduledAt, id, userId],
+  };
+}

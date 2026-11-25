@@ -175,26 +175,34 @@ function ScheduledMessageCard({
       {item.status === "failed" && item.failureMessage ? (
         <Text style={styles.failureText}>{item.failureMessage}</Text>
       ) : null}
-      {item.status === "pending" ? (
+      {item.status === "pending" || item.status === "failed" ? (
         <View style={styles.actions}>
+          {item.status === "pending" ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`إلغاء الرسالة إلى ${item.peerName}`}
+              disabled={cancelBusy}
+              onPress={onCancel}
+              style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
+            >
+              <Ionicons name="close" size={16} color={colors.red} />
+              <Text style={styles.cancelText}>إلغاء</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`إلغاء الرسالة إلى ${item.peerName}`}
-            disabled={cancelBusy}
-            onPress={onCancel}
-            style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
-          >
-            <Ionicons name="close" size={16} color={colors.red} />
-            <Text style={styles.cancelText}>إلغاء</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`تعديل الرسالة إلى ${item.peerName}`}
+            accessibilityLabel={`${item.status === "failed" ? "إعادة جدولة" : "تعديل"} الرسالة إلى ${item.peerName}`}
             onPress={onEdit}
             style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
           >
-            <Ionicons name="create-outline" size={16} color="#06111F" />
-            <Text style={styles.editText}>تعديل</Text>
+            <Ionicons
+              name={item.status === "failed" ? "refresh" : "create-outline"}
+              size={16}
+              color="#06111F"
+            />
+            <Text style={styles.editText}>
+              {item.status === "failed" ? "إعادة المحاولة" : "تعديل"}
+            </Text>
           </Pressable>
         </View>
       ) : null}
