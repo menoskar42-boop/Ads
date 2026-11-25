@@ -87,3 +87,14 @@
 - الإسناد: https://osmfoundation.org/wiki/Attribution · https://www.openstreetmap.org/copyright/attribution-guide/ · https://wiki.openstreetmap.org/wiki/License/Use_Cases
 - Geofabrik: https://download.geofabrik.de/technical.html · https://download.geofabrik.de
 - الوسوم: https://wiki.openstreetmap.org/wiki/Key:traffic_calming · https://wiki.openstreetmap.org/wiki/Talk:Tag:traffic_calming%3Dbump
+
+## ✅ قرار المالك (٢٠٢٦-١١-٢٥ ٨ م): «موافق بس عاوز الملف ينزل اوتوماتيك بدون تدخل منى»
+التنفيذ **بعد ما أوسكار ميسنجر يخلص** (وبعد نص سيراخ/المكابيين فى mybible)، والملف **مايحتاجش أى خطوة من المالك** — ولا Republish:
+- **البناء:** GitHub Action مجدول (مرة فى الشهر + تشغيل يدوى للاختبار) بينزّل ملف مصر من Geofabrik ويفلتر المطبات بـosmium ويرفع
+  `bumps-eg.json.gz` + `version.json` + `ODbL.txt` على pre-release ثابت `osm-bumps-latest` (زى `oscardrive-latest` — مش «latest»).
+  لو الناتج فاضى أو أقل من نص النسخة اللى فاتت ⇒ الـAction يفشل ومايرفعش (عشان نسخة بايظة ماتمسحش المطبات).
+- **التوصيل:** `drive.oscardevs.com/osm/bumps-eg.json.gz` بيجيب آخر نسخة من الـrelease ويحتفظ بيها ٢٤ ساعة (من غير قاعدة بيانات)،
+  فالنسخة الجديدة بتوصل من غير Republish.
+- **الأجهزة:** شاشة العربية وصفحة الموبايل بيشيكوا على `version.json` عند التشغيل ومرة فى اليوم، ولو فيه نسخة أحدث بتتنزّل لوحدها
+  فى الخلفية وتشتغل من غير ما المالك يدوس حاجة. لو التنزيل فشل ⇒ النسخة القديمة تفضل شغّالة.
+- الخطوة ١ (قياس التغطية) بتفضل قبل كل ده.
