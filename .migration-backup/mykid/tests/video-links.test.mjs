@@ -756,6 +756,35 @@ test("returning from a playing explore video removes it before another activity 
   assert.deepEqual(pageErrors, []);
 });
 
+test("explore stop control returns the active video to its preview without autoplay", async () => {
+  pageErrors.length = 0;
+  await page.goto(baseUrl);
+  await page.evaluate(async () => {
+    const { renderExplore } = await import("/js/games/explore.js");
+    document.getElementById("app").replaceChildren(renderExplore({
+      regionId: "animals", regionIndex: 0, datasetKey: "animals", title: "حيوانات",
+    }));
+  });
+  const stop = page.locator(".explore-video-stop");
+  assert.equal(await stop.count(), 1, "زر الإيقاف يظهر للنشاط الذي يحتوي فيديوهين");
+  assert.equal(await stop.isVisible(), false, "لا يظهر الزر قبل التشغيل");
+  await page.locator(".kid-youtube-card").first().locator(".kid-youtube-preview").click();
+  await page.waitForSelector(".kid-youtube-card iframe");
+  assert.equal(await stop.isVisible(), true);
+
+  await stop.click();
+  assert.equal(await page.locator("iframe").count(), 0, "الإيقاف يزيل مشغل الفيديو");
+  assert.equal(await stop.isVisible(), false, "يختفي زر الإيقاف بعد الرجوع للمعاينة");
+  assert.equal(await page.locator(".kid-youtube-preview").count(), 2);
+  assert.equal(await page.locator("iframe").count(), 0, "المعاينة لا تعيد التشغيل تلقائيًا");
+
+  await page.locator(".kid-youtube-card").nth(1).locator(".kid-youtube-preview").click();
+  await page.waitForSelector(".kid-youtube-card iframe");
+  assert.equal(await page.locator("iframe").count(), 1);
+  assert.match(await page.locator("iframe").getAttribute("src"), /Lud5hiIvcfw/);
+  assert.deepEqual(pageErrors, []);
+});
+
 test("birds and insects play distinct natural recordings only on request and keep name speech", async () => {
   const result = await page.evaluate(async () => {
     const [{ renderExplore }, { Speech }, { BIRDS }, { INSECTS }] = await Promise.all([

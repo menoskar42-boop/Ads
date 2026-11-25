@@ -23,6 +23,7 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
   const seen = new Set();
   let activeNatureSound = null;
   let stopActiveVideo = null;
+  let stopVideoButton = null;
 
   const stopNatureSound = () => {
     if (!activeNatureSound) return;
@@ -34,6 +35,7 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
   const stopExploreVideo = () => {
     stopActiveVideo?.();
     stopActiveVideo = null;
+    if (stopVideoButton) stopVideoButton.hidden = true;
   };
 
   const screen = document.createElement("div");
@@ -58,11 +60,22 @@ export function renderExplore({ regionId, regionIndex, datasetKey, title, bg, so
     videoWrap.className = "explore-video-list";
     videoWrap.setAttribute("aria-label", "فيديوهات تعليمية مرتبطة بالنشاط");
     videoWrap.style.cssText = "width:calc(100% - 28px);max-width:720px;margin:12px auto 18px;display:flex;flex-direction:column;gap:14px";
+    if (videos.length > 1) {
+      stopVideoButton = document.createElement("button");
+      stopVideoButton.type = "button";
+      stopVideoButton.className = "explore-video-stop";
+      stopVideoButton.textContent = "⏹️ إيقاف الفيديو";
+      stopVideoButton.hidden = true;
+      stopVideoButton.style.cssText = "align-self:center;padding:10px 18px;border:0;border-radius:14px;background:#7f1d1d;color:#fff;font:inherit;font-weight:800;cursor:pointer";
+      stopVideoButton.addEventListener("click", stopExploreVideo);
+      videoWrap.appendChild(stopVideoButton);
+    }
     videos.forEach((video) => {
       const card = createYouTubePlayer(video, {
         onPlay: (stop) => {
           stopExploreVideo();
           stopActiveVideo = stop;
+          if (stopVideoButton) stopVideoButton.hidden = false;
         },
       });
       if (video.summary) {
