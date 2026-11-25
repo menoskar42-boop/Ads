@@ -1,7 +1,9 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import * as webPush from "web-push";
 import type { PushSubscription } from "web-push";
 import { logger } from "./logger.ts";
 import { blockedPeerIdsFor, filterBlockedPushRecipients } from "./messenger-blocks.ts";
+import { publishConversationUpdate, publishGroupUpdate } from "./messenger-events.ts";
 
 type PushPool = {
   query: (text: string, values?: any[]) => Promise<{ rows: any[] }>;
@@ -37,6 +39,14 @@ export type MessengerPushPayload = {
   body: string;
   url: string;
   tag: string;
+  deliveryToken?: PushDeliveryToken;
+};
+
+export type PushDeliveryToken = {
+  messageId: string;
+  recipientId: string;
+  exp: number;
+  token: string;
 };
 
 type PushMessageKind =
@@ -52,6 +62,92 @@ type PushMessageKind =
 const pushSchemaCache = new WeakMap<object, { checkedAt: number; ready: boolean }>();
 const recipientPushWindows = new Map<string, number>();
 const PUSH_COOLDOWN_MS = 10_000;
+const DELIVERY_TOKEN_LIFETIME_SECONDS = 7 * 24 * 60 * 60;
+const deliveryRateWindows = new Map<string, { startedAt: number; count: number }>();
+
+export function createPushDeliveryToken(
+  messageId: string,
+  recipientId: string,
+  nowMs = Date.now(),
+  key = process.env.VAPID_PRIVATE_KEY?.trim(),
+): PushDeliveryToken | null {
+  if (!key || !messageId || !recipientId) return null;
+  const exp = Math.floor(nowMs / 1000) + DELIVERY_TOKEN_LIFETIME_SECONDS;
+  const token = createHmac("sha256", key)
+    .update(`${messageId}.${recipientId}.${exp}`)
+    .digest("hex");
+  return { messageId, recipientId, exp, token };
+}
+
+export function verifyPushDeliveryToken(
+  input: unknown,
+  key = process.env.VAPID_PRIVATE_KEY?.trim(),
+  nowMs = Date.now(),
+): input is PushDeliveryToken {
+  if (!key || !input || typeof input !== "object") return false;
+  const token = input as Partial<PushDeliveryToken>;
+  if (
+    typeof token.messageId !== "string" ||
+    token.messageId.length < 1 ||
+    token.messageId.length > 200 ||
+    typeof token.recipientId !== "string" ||
+    token.recipientId.length < 1 ||
+    token.recipientId.length > 255 ||
+    !Number.isSafeInteger(token.exp) ||
+    (token.exp as number) <= Math.floor(nowMs / 1000) ||
+    typeof token.token !== "string" ||
+    !/^[a-f0-9]{64}$/i.test(token.token)
+  ) return false;
+
+  const expected = createHmac("sha256", key)
+    .update(`${token.messageId}.${token.recipientId}.${token.exp}`)
+    .digest();
+  const supplied = Buffer.from(token.token, "hex");
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+}
+
+export function allowPushDeliveryFromIp(ip: string, nowMs = Date.now()): boolean {
+  if (deliveryRateWindows.size > 5_000) {
+    for (const [key, value] of deliveryRateWindows) {
+      if (nowMs - value.startedAt >= 60_000) deliveryRateWindows.delete(key);
+    }
+  }
+  const current = deliveryRateWindows.get(ip);
+  if (!current || nowMs - current.startedAt >= 60_000) {
+    deliveryRateWindows.set(ip, { startedAt: nowMs, count: 1 });
+    return true;
+  }
+  if (current.count >= 60) return false;
+  current.count += 1;
+  return true;
+}
+
+export async function acknowledgePushDelivery(
+  pool: PushPool,
+  input: unknown,
+  key = process.env.VAPID_PRIVATE_KEY?.trim(),
+  nowMs = Date.now(),
+): Promise<boolean> {
+  if (!verifyPushDeliveryToken(input, key, nowMs)) return false;
+  const token = input as PushDeliveryToken;
+  const result = await pool.query(
+    `UPDATE messenger_messages SET delivered_at = now()
+     WHERE id = $1 AND delivered_at IS NULL AND sender_id <> $2
+       AND conversation_id IN (
+         SELECT id FROM messenger_conversations WHERE user_a = $2 OR user_b = $2
+       )
+     RETURNING conversation_id, sender_id`,
+    [token.messageId, token.recipientId],
+  );
+  for (const row of result.rows) {
+    await publishConversationUpdate(
+      pool,
+      String(row.conversation_id),
+      { includeUserIds: [String(row.sender_id)] },
+    );
+  }
+  return result.rows.length > 0;
+}
 
 export async function hasMessengerPushSchema(pool: PushPool): Promise<boolean> {
   const cached = pushSchemaCache.get(pool);
@@ -100,6 +196,7 @@ export function buildMessengerPushPayload(input: {
   showPreview: boolean;
   conversationId: string;
   groupId?: string;
+  deliveryToken?: PushDeliveryToken | null;
 }): MessengerPushPayload {
   let body = "رسالة جديدة";
   if (input.messageType === "live_location") {
@@ -121,6 +218,7 @@ export function buildMessengerPushPayload(input: {
       ? `/oscar-messenger/groups/${encodeURIComponent(input.groupId)}`
       : `/oscar-messenger/chat/${encodeURIComponent(input.conversationId)}`,
     tag: input.groupId ?? input.conversationId,
+    ...(input.deliveryToken ? { deliveryToken: input.deliveryToken } : {}),
   };
 }
 
@@ -207,6 +305,7 @@ async function notifyRecipients(
     groupId?: string;
     messageType: PushMessageKind;
     body: string;
+    messageId?: string;
   },
 ): Promise<void> {
   try {
@@ -251,6 +350,9 @@ async function notifyRecipients(
           showPreview: Boolean(recipient.push_show_preview),
           conversationId: message.conversationId,
           groupId: message.groupId,
+          deliveryToken: !message.groupId && message.messageId
+            ? createPushDeliveryToken(message.messageId, recipient.user_id)
+            : null,
         });
         await deliverPushSubscriptions(pool, subscriptions, payload);
       }),
@@ -260,16 +362,24 @@ async function notifyRecipients(
   }
 }
 
-export function notifyConversationMessage(
+export async function notifyConversationMessage(
   pool: PushPool,
   input: {
     conversationId: string;
     senderId: string;
     messageType: PushMessageKind;
     body: string;
+    messageId?: string;
   },
 ): Promise<void> {
-  return notifyRecipients(
+  await publishConversationUpdate(
+    pool,
+    input.conversationId,
+    input.messageType === "live_location"
+      ? { excludeUserIds: [input.senderId] }
+      : { includeConversations: true },
+  );
+  await notifyRecipients(
     pool,
     `SELECT peer.user_id, sender.display_name AS sender_name,
             peer.push_show_preview, COALESCE(settings.is_muted, false) AS is_muted
@@ -287,11 +397,11 @@ export function notifyConversationMessage(
        AND peer.user_id <> $2`,
     [input.conversationId, input.senderId],
     input.senderId,
-    input,
+    { ...input, conversationId: input.conversationId },
   );
 }
 
-export function notifyGroupMessage(
+export async function notifyGroupMessage(
   pool: PushPool,
   input: {
     groupId: string;
@@ -300,7 +410,8 @@ export function notifyGroupMessage(
     body: string;
   },
 ): Promise<void> {
-  return notifyRecipients(
+  await publishGroupUpdate(pool, input.groupId, { includeGroup: true });
+  await notifyRecipients(
     pool,
     `SELECT profile.user_id, sender.display_name AS sender_name,
             profile.push_show_preview, COALESCE(settings.is_muted, false) AS is_muted

@@ -187,7 +187,7 @@ cleanupTimer.unref?.();
 export async function publishConversationUpdate(
   pool: EventPool,
   conversationId: string,
-  includeConversations = false,
+  options: { includeConversations?: boolean; includeUserIds?: string[]; excludeUserIds?: string[] } = {},
 ): Promise<void> {
   try {
     const result = await pool.query(
@@ -197,6 +197,9 @@ export async function publishConversationUpdate(
     const row = result.rows[0];
     if (!row) return;
     const members = [...new Set([String(row.user_a), String(row.user_b)].filter(Boolean))];
+    const selected = options.includeUserIds?.length
+      ? members.filter((userId) => options.includeUserIds!.includes(userId))
+      : members;
     let blockedUsers = new Set<string>();
     if (members.length === 2 && await hasMessengerBlocksSchema(pool)) {
       const blocked = await pool.query(
@@ -207,9 +210,12 @@ export async function publishConversationUpdate(
       );
       blockedUsers = new Set(blocked.rows.map((item) => String(item.blocked_id)));
     }
-    const recipients = members.filter((userId) => !blockedUsers.has(userId));
+    const excluded = new Set(options.excludeUserIds ?? []);
+    const recipients = selected.filter(
+      (userId) => !blockedUsers.has(userId) && !excluded.has(userId),
+    );
     publishToUsers(recipients, { type: "conversation", conversationId });
-    if (includeConversations) publishToUsers(recipients, { type: "conversations" });
+    if (options.includeConversations) publishToUsers(recipients, { type: "conversations" });
   } catch {
     // Realtime notifications are best-effort and never change saved operations.
   }
