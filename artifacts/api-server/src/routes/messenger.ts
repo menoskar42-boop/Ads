@@ -880,6 +880,34 @@ function conversationSelect(contactNicknamesReady: boolean) {
 `;
 }
 
+export async function markConversationListMessagesDelivered(
+  pool: NonNullable<DbPool>,
+  userId: string,
+  conversationIds: string[],
+): Promise<void> {
+  if (!conversationIds.length) return;
+  await pool.query(
+    `UPDATE messenger_messages SET delivered_at = now()
+     WHERE delivered_at IS NULL AND sender_id <> $1
+       AND conversation_id = ANY($2::text[])`,
+    [userId, conversationIds],
+  );
+}
+
+export async function markConversationMessagesRead(
+  pool: NonNullable<DbPool>,
+  conversationId: string,
+  userId: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE messenger_messages
+     SET read_at = COALESCE(read_at, now()),
+         delivered_at = COALESCE(delivered_at, now())
+     WHERE conversation_id = $1 AND sender_id <> $2`,
+    [conversationId, userId],
+  );
+}
+
 router.get("/messenger/conversations", requireAuth, async (_req, res, next) => {
   try {
     const pool = getPoolOrUnavailable(await loadPool(), res);
@@ -901,6 +929,11 @@ router.get("/messenger/conversations", requireAuth, async (_req, res, next) => {
       [userId],
     );
     const conversations = result.rows.map(publicConversation);
+    await markConversationListMessagesDelivered(
+      pool,
+      userId,
+      result.rows.map((row) => String(row.id)),
+    );
     if (toolsReady && conversations.length) {
       const settings = await pool.query(
         `SELECT conversation_id, is_pinned, is_muted, is_archived
@@ -1582,11 +1615,7 @@ router.post(
         res.status(404).json({ error: "Conversation not found" });
         return;
       }
-      await pool.query(
-        `UPDATE messenger_messages SET read_at = COALESCE(read_at, now())
-         WHERE conversation_id = $1 AND sender_id <> $2`,
-        [conversationId, userId],
-      );
+      await markConversationMessagesRead(pool, conversationId, userId);
       res.json({ ok: true });
     } catch (error) {
       next(error);
