@@ -1160,7 +1160,7 @@ export default function ChatScreen() {
             <Text style={styles.peerName} numberOfLines={1}>{displayedName}</Text>
             <Text style={styles.peerStatus}>{peerSubtitle}</Text>
           </View>
-          <Avatar name={displayedName} size={42} />
+          <Avatar name={displayedName} uri={peer?.avatarUrl} size={42} />
         </View>
       </View>
       <ControllerKeyboardAvoidingView
@@ -1241,7 +1241,7 @@ export default function ChatScreen() {
             windowSize={9}
             ListEmptyComponent={
               <View style={styles.firstMessage}>
-                <Avatar name={displayedName} size={62} />
+                <Avatar name={displayedName} uri={peer?.avatarUrl} size={62} />
                 <Text style={styles.firstTitle}>ابدأ الحديث مع {displayedName}</Text>
                 <Text style={styles.firstCopy}>الرسائل بين الحسابين فقط.</Text>
               </View>

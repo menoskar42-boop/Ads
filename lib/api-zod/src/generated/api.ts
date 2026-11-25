@@ -30,7 +30,8 @@ export const GetMessengerProfileResponse = zod.object({
   "hasPhoneNumber": zod.boolean(),
   "phoneDiscoverable": zod.boolean(),
   "phoneDiscoveryAvailable": zod.boolean(),
-  "phoneLookupReady": zod.boolean()
+  "phoneLookupReady": zod.boolean(),
+  "avatarUrl": zod.union([zod.string(),zod.null()])
 }),zod.null()])
 })
 
@@ -60,7 +61,8 @@ export const UpdateMessengerProfileResponse = zod.object({
   "hasPhoneNumber": zod.boolean(),
   "phoneDiscoverable": zod.boolean(),
   "phoneDiscoveryAvailable": zod.boolean(),
-  "phoneLookupReady": zod.boolean()
+  "phoneLookupReady": zod.boolean(),
+  "avatarUrl": zod.union([zod.string(),zod.null()])
 }),zod.null()])
 })
 
@@ -87,9 +89,60 @@ export const UpdateMessengerProfilePhoneResponse = zod.object({
   "hasPhoneNumber": zod.boolean(),
   "phoneDiscoverable": zod.boolean(),
   "phoneDiscoveryAvailable": zod.boolean(),
-  "phoneLookupReady": zod.boolean()
+  "phoneLookupReady": zod.boolean(),
+  "avatarUrl": zod.union([zod.string(),zod.null()])
 }),zod.null()])
 })
+
+
+/**
+ * @summary Upload the signed-in user's private profile photo
+ */
+export const uploadMessengerProfileAvatarBodyBase64Max = 2796204;
+
+
+
+export const UploadMessengerProfileAvatarBody = zod.object({
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "base64": zod.string().min(1).max(uploadMessengerProfileAvatarBodyBase64Max)
+})
+
+export const UploadMessengerProfileAvatarResponse = zod.object({
+  "avatarUrl": zod.string()
+})
+
+
+/**
+ * @summary Delete the signed-in user's profile photo
+ */
+export const DeleteMessengerProfileAvatarResponse = zod.object({
+  "profile": zod.union([zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "hasPhone": zod.boolean(),
+  "hasPhoneNumber": zod.boolean(),
+  "phoneDiscoverable": zod.boolean(),
+  "phoneDiscoveryAvailable": zod.boolean(),
+  "phoneLookupReady": zod.boolean(),
+  "avatarUrl": zod.union([zod.string(),zod.null()])
+}),zod.null()])
+})
+
+
+/**
+ * @summary Get a private avatar for a signed-in user
+ */
+export const GetMessengerAvatarParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const GetMessengerAvatarQueryParams = zod.object({
+  "v": zod.coerce.number().int().optional()
+})
+
+export const GetMessengerAvatarResponse = zod.unknown()
 
 
 /**
@@ -130,7 +183,8 @@ export const ResolveMessengerContactResponse = zod.object({
   "userId": zod.string(),
   "username": zod.string(),
   "displayName": zod.string(),
-  "nickname": zod.union([zod.string(),zod.null()])
+  "nickname": zod.union([zod.string(),zod.null()]),
+  "avatarUrl": zod.union([zod.string(),zod.null()])
 }))
 })
 
@@ -176,7 +230,8 @@ export const SearchMessengerPeopleResponse = zod.object({
   "userId": zod.string(),
   "username": zod.string(),
   "displayName": zod.string(),
-  "nickname": zod.union([zod.string(),zod.null()])
+  "nickname": zod.union([zod.string(),zod.null()]),
+  "avatarUrl": zod.union([zod.string(),zod.null()])
 })).max(searchMessengerPeopleResponsePeopleMax)
 })
 
@@ -201,7 +256,8 @@ export const LookupMessengerPeopleByPhoneResponse = zod.object({
   "userId": zod.string(),
   "username": zod.string(),
   "displayName": zod.string(),
-  "nickname": zod.union([zod.string(),zod.null()])
+  "nickname": zod.union([zod.string(),zod.null()]),
+  "avatarUrl": zod.union([zod.string(),zod.null()])
 })).max(lookupMessengerPeopleByPhoneResponsePeopleMax)
 })
 
@@ -224,7 +280,8 @@ export const ListMessengerConversationsResponse = zod.object({
   "userId": zod.string(),
   "username": zod.string(),
   "displayName": zod.string(),
-  "nickname": zod.union([zod.string(),zod.null()])
+  "nickname": zod.union([zod.string(),zod.null()]),
+  "avatarUrl": zod.union([zod.string(),zod.null()])
 }),
   "lastMessage": zod.union([zod.string(),zod.null()]),
   "unreadCount": zod.int().min(listMessengerConversationsResponseConversationsItemUnreadCountMin),
@@ -259,7 +316,8 @@ export const StartMessengerConversationResponse = zod.object({
   "userId": zod.string(),
   "username": zod.string(),
   "displayName": zod.string(),
-  "nickname": zod.union([zod.string(),zod.null()])
+  "nickname": zod.union([zod.string(),zod.null()]),
+  "avatarUrl": zod.union([zod.string(),zod.null()])
 }),
   "lastMessage": zod.union([zod.string(),zod.null()]),
   "unreadCount": zod.int().min(startMessengerConversationResponseConversationUnreadCountMin),

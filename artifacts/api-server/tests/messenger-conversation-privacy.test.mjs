@@ -65,7 +65,7 @@ test("message search and conversation lists only expose the caller's conversatio
     'router.get("/messenger/conversations",',
     'router.post("/messenger/conversations",',
   );
-  assert.match(list, /conversationSelect\(contactNicknamesReady\)/);
+  assert.match(list, /conversationSelect\(contactNicknamesReady, editDeleteReady, avatarSchemaReady\)/);
   assert.match(messenger, /WHERE \(c\.user_a = \$1 OR c\.user_b = \$1\)/);
   assert.match(list, /WHERE user_id = \$1 AND conversation_id = ANY\(\$2::text\[\]\)/);
 });

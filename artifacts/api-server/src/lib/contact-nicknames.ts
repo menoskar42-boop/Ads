@@ -52,13 +52,22 @@ export function ownedContactNicknameJoin(peerAlias: string, ownerParameter = "$1
     ON n.owner_user_id = ${ownerParameter} AND n.peer_user_id = ${peerAlias}.user_id`;
 }
 
-export function buildContactResolveSql(displayNameKeyAvailable: boolean): string {
+export function buildContactResolveSql(
+  displayNameKeyAvailable: boolean,
+  avatarsAvailable = false,
+): string {
   const ownerNicknameJoin = ownedContactNicknameJoin("p");
+  const avatarFields = avatarsAvailable
+    ? "p.avatar_object_key, p.avatar_updated_at"
+    : "NULL::text AS avatar_object_key, NULL::timestamptz AS avatar_updated_at";
+  const avatarSubqueryFields = avatarsAvailable
+    ? ", avatar_object_key, avatar_updated_at"
+    : "";
   const displayNameMatches = displayNameKeyAvailable
     ? `UNION
-       SELECT p.user_id, p.username, p.display_name, n.nickname
+       SELECT p.user_id, p.username, p.display_name, n.nickname, ${avatarFields}
        FROM (
-         SELECT user_id, username, display_name
+         SELECT user_id, username, display_name${avatarSubqueryFields}
          FROM messenger_profiles
          WHERE user_id <> $1 AND display_name_key = $2
          ORDER BY username_lower
@@ -67,7 +76,7 @@ export function buildContactResolveSql(displayNameKeyAvailable: boolean): string
        ${ownerNicknameJoin}`
     : "";
 
-  return `SELECT p.user_id, p.username, p.display_name, n.nickname
+  return `SELECT p.user_id, p.username, p.display_name, n.nickname, ${avatarFields}
           FROM messenger_profiles p
           ${ownerNicknameJoin}
           WHERE p.user_id <> $1

@@ -51,6 +51,16 @@ import {
   requireMessengerBlocksSchema,
   MESSENGER_BLOCKED_SEND_ERROR,
 } from "../lib/messenger-blocks";
+import {
+  deleteMessengerAvatar,
+  hasMessengerAvatarSchema,
+  isOwnMessengerAvatarKey,
+  messengerAvatarContentType,
+  messengerAvatarSelect,
+  messengerAvatarUrl,
+  saveMessengerAvatar,
+} from "../lib/messenger-avatars";
+import { logger } from "../lib/logger";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -338,12 +348,19 @@ function publicPerson(row: {
   username: string;
   display_name: string;
   nickname?: string | null;
+  avatar_object_key?: string | null;
+  avatar_updated_at?: Date | string | null;
 }) {
   return {
     userId: row.user_id,
     username: row.username,
     displayName: row.display_name,
     nickname: row.nickname ?? null,
+    avatarUrl: messengerAvatarUrl(
+      row.user_id,
+      row.avatar_object_key,
+      row.avatar_updated_at,
+    ),
   };
 }
 
@@ -457,6 +474,8 @@ function publicConversation(
     username: string;
     display_name: string;
     nickname?: string | null;
+    avatar_object_key?: string | null;
+    avatar_updated_at?: Date | string | null;
     last_message: string | null;
     unread_count: string | number;
     updated_at: Date | string;
@@ -472,6 +491,11 @@ function publicConversation(
       username: row.username,
       displayName: row.display_name,
       nickname: row.nickname ?? null,
+      avatarUrl: messengerAvatarUrl(
+        row.peer_id,
+        row.avatar_object_key,
+        row.avatar_updated_at,
+      ),
     },
     lastMessage: row.last_message,
     unreadCount: Number(row.unread_count),
@@ -485,12 +509,14 @@ function publicConversation(
 async function userProfile(pool: NonNullable<DbPool>, userId: string) {
   const phoneSchemaAvailable = await hasPhoneDiscoverySchema(pool);
   const pushSchemaAvailable = await hasMessengerPushSchema(pool);
+  const avatarSchemaAvailable = await hasMessengerAvatarSchema(pool);
   const result = await pool.query(
     `SELECT user_id, username, display_name, created_at,
             ${phoneSchemaAvailable
               ? "phone_lookup_hash, phone_discoverable"
               : "NULL::text AS phone_lookup_hash, false::boolean AS phone_discoverable"},
-            ${pushSchemaAvailable ? "push_show_preview" : "false::boolean AS push_show_preview"}
+            ${pushSchemaAvailable ? "push_show_preview" : "false::boolean AS push_show_preview"},
+            ${messengerAvatarSelect("messenger_profiles", avatarSchemaAvailable)}
      FROM messenger_profiles WHERE user_id = $1`,
     [userId],
   );
@@ -501,6 +527,11 @@ async function userProfile(pool: NonNullable<DbPool>, userId: string) {
     username: row.username,
     displayName: row.display_name,
     createdAt: new Date(row.created_at).toISOString(),
+    avatarUrl: messengerAvatarUrl(
+      row.user_id,
+      row.avatar_object_key,
+      row.avatar_updated_at,
+    ),
     pushShowPreview: Boolean(row.push_show_preview),
     ...phoneProfileFlags(row, phoneSchemaAvailable, hasPhoneLookupKey()),
   };
@@ -511,6 +542,136 @@ router.get("/messenger/profile", requireAuth, async (_req, res, next) => {
     const pool = getPoolOrUnavailable(await loadPool(), res);
     if (!pool) return;
     res.json({ profile: await userProfile(pool, getUserId(res)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/messenger/profile/avatar", requireAuth, async (req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool) return;
+    if (!(await hasMessengerAvatarSchema(pool))) {
+      res.status(503).json({ error: "تحديث قاعدة البيانات مطلوب" });
+      return;
+    }
+    if (!isR2Configured()) {
+      res.status(503).json({ error: "تخزين الصور غير متاح حاليًا" });
+      return;
+    }
+    const result = await saveMessengerAvatar(
+      pool,
+      getUserId(res),
+      req.body,
+      { put: putR2Object, delete: deleteR2Object },
+    );
+    if (result.status === "migration") {
+      res.status(503).json({ error: "تحديث قاعدة البيانات مطلوب" });
+      return;
+    }
+    if (result.status === "not_found") {
+      res.status(404).json({ error: "الحساب غير موجود" });
+      return;
+    }
+    if (result.status === "invalid") {
+      res.status(400).json({
+        error:
+          result.reason === "size"
+            ? "حجم الصورة لازم يكون 2 ميجا أو أقل"
+            : result.reason === "type"
+              ? "اختار صورة JPEG أو PNG أو WebP"
+              : "ملف الصورة غير صالح",
+      });
+      return;
+    }
+    if (result.status !== "saved") return;
+    if (result.oldAvatarCleanupFailed) {
+      logger.warn({ event: "messenger_avatar_old_object_cleanup_failed" }, "Messenger avatar cleanup failed");
+    }
+    res.json({ avatarUrl: result.avatarUrl });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/messenger/profile/avatar", requireAuth, async (_req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool) return;
+    if (!(await hasMessengerAvatarSchema(pool))) {
+      res.status(503).json({ error: "تحديث قاعدة البيانات مطلوب" });
+      return;
+    }
+    if (!isR2Configured()) {
+      res.status(503).json({ error: "تخزين الصور غير متاح حاليًا" });
+      return;
+    }
+    const result = await deleteMessengerAvatar(
+      pool,
+      getUserId(res),
+      { delete: deleteR2Object },
+    );
+    if (result === "migration") {
+      res.status(503).json({ error: "تحديث قاعدة البيانات مطلوب" });
+      return;
+    }
+    if (result === "not_found") {
+      res.status(404).json({ error: "الحساب غير موجود" });
+      return;
+    }
+    res.json({ profile: await userProfile(pool, getUserId(res)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/messenger/avatars/:userId", requireAuth, async (req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool) return;
+    if (!(await hasMessengerAvatarSchema(pool))) {
+      res.status(503).json({ error: "تحديث قاعدة البيانات مطلوب" });
+      return;
+    }
+    const userId = String(req.params.userId ?? "");
+    const viewerId = getUserId(res);
+    if (
+      viewerId !== userId &&
+      (await hasMessengerBlocksSchema(pool)) &&
+      (await isMessengerUserBlocked(pool, viewerId, userId))
+    ) {
+      res.status(404).json({ error: "الصورة غير موجودة" });
+      return;
+    }
+    const result = await pool.query(
+      `SELECT avatar_object_key FROM messenger_profiles WHERE user_id = $1`,
+      [userId],
+    );
+    const objectKey = result.rows[0]?.avatar_object_key;
+    if (
+      typeof objectKey !== "string" ||
+      !isOwnMessengerAvatarKey(userId, objectKey)
+    ) {
+      res.status(404).json({ error: "الصورة غير موجودة" });
+      return;
+    }
+    if (!isR2Configured()) {
+      res.status(503).json({ error: "تخزين الصور غير متاح حاليًا" });
+      return;
+    }
+    const contentType = messengerAvatarContentType(objectKey);
+    if (!contentType) {
+      res.status(404).json({ error: "الصورة غير موجودة" });
+      return;
+    }
+    const bytes = await getR2Object(objectKey);
+    if (!bytes) {
+      res.status(404).json({ error: "الصورة غير موجودة" });
+      return;
+    }
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.type(contentType).send(bytes);
   } catch (error) {
     next(error);
   }
@@ -823,8 +984,9 @@ router.get("/messenger/contacts/resolve", requireAuth, async (req, res, next) =>
       return;
     }
     const displayNameKeyAvailable = await hasDisplayNameKeySchema(pool);
+    const avatarSchemaAvailable = await hasMessengerAvatarSchema(pool);
     const result = await pool.query(
-      buildContactResolveSql(displayNameKeyAvailable),
+      buildContactResolveSql(displayNameKeyAvailable, avatarSchemaAvailable),
       contactResolveParams(userId, name),
     );
     const candidates = result.rows.map((row) => ({
@@ -832,6 +994,11 @@ router.get("/messenger/contacts/resolve", requireAuth, async (req, res, next) =>
       username: String(row.username),
       displayName: String(row.display_name),
       nickname: typeof row.nickname === "string" ? row.nickname : null,
+      avatarUrl: messengerAvatarUrl(
+        String(row.user_id),
+        row.avatar_object_key,
+        row.avatar_updated_at,
+      ),
     }));
     res.json(resolveContactMatches(candidates, name));
   } catch (error) {
@@ -925,9 +1092,11 @@ router.get("/messenger/people", requireAuth, async (req, res, next) => {
       return;
     }
     const nicknamesReady = await hasContactNicknameSchema(pool);
+    const avatarsReady = await hasMessengerAvatarSchema(pool);
     const result = await pool.query(
       `SELECT peer.user_id, peer.username, peer.display_name,
-              ${nicknamesReady ? "n.nickname" : "NULL::text AS nickname"}
+              ${nicknamesReady ? "n.nickname" : "NULL::text AS nickname"},
+              ${messengerAvatarSelect("peer", avatarsReady)}
        FROM messenger_profiles peer
        ${nicknamesReady ? ownedContactNicknameJoin("peer") : ""}
        WHERE peer.user_id <> $1
@@ -979,11 +1148,14 @@ router.post("/messenger/people/lookup-by-phone", requireAuth, async (req, res, n
       return;
     }
     const nicknamesReady = await hasContactNicknameSchema(pool);
+    const avatarsReady = await hasMessengerAvatarSchema(pool);
     const result = await pool.query(
-      nicknamesReady
-        ? `SELECT peer.user_id, peer.username, peer.display_name, n.nickname
+      nicknamesReady || avatarsReady
+        ? `SELECT peer.user_id, peer.username, peer.display_name,
+                  ${nicknamesReady ? "n.nickname" : "NULL::text AS nickname"},
+                  ${messengerAvatarSelect("peer", avatarsReady)}
            FROM messenger_profiles peer
-           ${ownedContactNicknameJoin("peer")}
+           ${nicknamesReady ? ownedContactNicknameJoin("peer") : ""}
            WHERE peer.user_id <> $1
              AND peer.phone_lookup_hash = $2
              AND peer.phone_discoverable = true
@@ -1001,6 +1173,11 @@ router.post("/messenger/people/lookup-by-phone", requireAuth, async (req, res, n
       people: filterBlockedPeople(result.rows, blockedPeerIds).map((row) => ({
         ...publicPhoneMatch(row),
         nickname: typeof row.nickname === "string" ? row.nickname : null,
+        avatarUrl: messengerAvatarUrl(
+          String(row.user_id),
+          row.avatar_object_key,
+          row.avatar_updated_at,
+        ),
       })),
     });
   } catch (error) {
@@ -1011,6 +1188,7 @@ router.post("/messenger/people/lookup-by-phone", requireAuth, async (req, res, n
 function conversationSelect(
   contactNicknamesReady: boolean,
   editDeleteReady: boolean,
+  avatarSchemaReady: boolean,
 ) {
   return `
   SELECT c.id,
@@ -1018,6 +1196,7 @@ function conversationSelect(
          peer.username,
          peer.display_name,
          ${contactNicknamesReady ? "n.nickname" : "NULL::text AS nickname"},
+         ${messengerAvatarSelect("peer", avatarSchemaReady)},
           ${editDeleteReady
             ? `CASE WHEN latest.deleted_at IS NOT NULL
                      THEN '${MESSAGE_DELETED_LABEL}' ELSE latest.body END`
@@ -1078,9 +1257,10 @@ router.get("/messenger/conversations", requireAuth, async (_req, res, next) => {
     const toolsReady = await hasMessageToolsSchema(pool);
     const contactNicknamesReady = await hasContactNicknameSchema(pool);
     const editDeleteReady = await hasMessageEditDeleteSchema(pool);
+    const avatarSchemaReady = await hasMessengerAvatarSchema(pool);
     const includeArchived = String(_req.query.includeArchived ?? "") === "true";
     const result = await pool.query(
-      `${conversationSelect(contactNicknamesReady, editDeleteReady)}
+      `${conversationSelect(contactNicknamesReady, editDeleteReady, avatarSchemaReady)}
        ${toolsReady
          ? `AND ${includeArchived ? "EXISTS" : "NOT EXISTS"} (
               SELECT 1 FROM messenger_conversation_settings settings
@@ -1160,12 +1340,14 @@ router.post("/messenger/conversations", requireAuth, async (req, res, next) => {
     );
     const contactNicknamesReady = await hasContactNicknameSchema(pool);
     const editDeleteReady = await hasMessageEditDeleteSchema(pool);
+    const avatarSchemaReady = await hasMessengerAvatarSchema(pool);
     const result = await pool.query(
       `SELECT c.id,
               peer.user_id AS peer_id,
               peer.username,
               peer.display_name,
               ${contactNicknamesReady ? "n.nickname" : "NULL::text AS nickname"},
+              ${messengerAvatarSelect("peer", avatarSchemaReady)},
               ${editDeleteReady
                 ? `CASE WHEN latest.deleted_at IS NOT NULL
                          THEN '${MESSAGE_DELETED_LABEL}' ELSE latest.body END`

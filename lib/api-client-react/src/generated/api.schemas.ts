@@ -33,6 +33,29 @@ export interface Profile {
   phoneDiscoverable: boolean;
   phoneDiscoveryAvailable: boolean;
   phoneLookupReady: boolean;
+  avatarUrl: string | null;
+}
+
+export type ProfileAvatarInputContentType = typeof ProfileAvatarInputContentType[keyof typeof ProfileAvatarInputContentType];
+
+
+export const ProfileAvatarInputContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface ProfileAvatarInput {
+  contentType: ProfileAvatarInputContentType;
+  /**
+     * @minLength 1
+     * @maxLength 2796204
+     */
+  base64: string;
+}
+
+export interface ProfileAvatarResponse {
+  avatarUrl: string;
 }
 
 export interface ProfileResponse {
@@ -88,6 +111,7 @@ export interface Person {
   username: string;
   displayName: string;
   nickname: string | null;
+  avatarUrl: string | null;
 }
 
 export interface ContactResolveResponse {
@@ -650,6 +674,10 @@ export type BadRequestResponse = ErrorResponse;
  * The scheduled message can no longer be changed
  */
 export type ConflictResponse = ErrorResponse;
+
+export type GetMessengerAvatarParams = {
+v?: number;
+};
 
 export type ResolveMessengerContactParams = {
 /**

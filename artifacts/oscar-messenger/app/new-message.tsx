@@ -488,6 +488,7 @@ function PersonResult({
     username: string;
     displayName: string;
     nickname: string | null;
+    avatarUrl: string | null;
   };
   busy?: boolean;
   highlighted?: boolean;
@@ -496,7 +497,10 @@ function PersonResult({
 }) {
   return (
     <View style={[styles.person, highlighted && styles.personHighlighted]}>
-      <Avatar name={person.nickname || person.displayName} />
+      <Avatar
+        name={person.nickname || person.displayName}
+        uri={person.avatarUrl}
+      />
       <View style={styles.personCopy}>
         <Text style={styles.personName}>
           {person.nickname || person.displayName}

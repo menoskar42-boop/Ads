@@ -277,7 +277,11 @@ export default function InboxScreen() {
               {profile.data?.profile?.displayName || "محادثاتك"}
             </Text>
           </View>
-          <Avatar name={profile.data?.profile?.displayName || "أوسكار"} size={54} />
+          <Avatar
+            name={profile.data?.profile?.displayName || "أوسكار"}
+            uri={profile.data?.profile?.avatarUrl}
+            size={54}
+          />
         </View>
         {profile.data?.profile?.username && (
           <InviteActions username={profile.data.profile.username} />
@@ -464,7 +468,10 @@ export default function InboxScreen() {
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <View style={styles.conversation}>
-                <Avatar name={item.peer.nickname || item.peer.displayName} />
+                <Avatar
+                  name={item.peer.nickname || item.peer.displayName}
+                  uri={item.peer.avatarUrl}
+                />
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`فتح محادثة ${item.peer.nickname || item.peer.displayName}`}

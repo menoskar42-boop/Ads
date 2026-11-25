@@ -16,4 +16,5 @@ export interface Profile {
   phoneDiscoverable: boolean;
   phoneDiscoveryAvailable: boolean;
   phoneLookupReady: boolean;
+  avatarUrl: string | null;
 }

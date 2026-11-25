@@ -11,4 +11,5 @@ export interface Person {
   username: string;
   displayName: string;
   nickname: string | null;
+  avatarUrl: string | null;
 }

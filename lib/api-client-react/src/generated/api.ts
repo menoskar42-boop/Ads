@@ -44,6 +44,7 @@ import type {
   ErrorResponse,
   ForwardMessengerMessage201,
   ForwardMessengerMessageBody,
+  GetMessengerAvatarParams,
   GroupMessageInput,
   GroupMessageResponse,
   GroupMessagesResponse,
@@ -65,6 +66,8 @@ import type {
   PeopleSearchResponse,
   PhoneDiscoveryInput,
   PhoneLookupInput,
+  ProfileAvatarInput,
+  ProfileAvatarResponse,
   ProfileInput,
   ProfileResponse,
   ResolveMessengerContactParams,
@@ -503,6 +506,284 @@ export const useUpdateMessengerProfilePhone = <TError = ErrorType<BadRequestResp
       > => {
       return useMutation(getUpdateMessengerProfilePhoneMutationOptions(options), queryClient);
     }
+
+export const getUploadMessengerProfileAvatarUrl = () => {
+
+
+
+
+  return `/api/messenger/profile/avatar`
+}
+
+/**
+ * @summary Upload the signed-in user's private profile photo
+ */
+export const uploadMessengerProfileAvatar = async (profileAvatarInput: ProfileAvatarInput, options?: Parameters<typeof customFetch>[1]): Promise<ProfileAvatarResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ProfileAvatarResponse>(getUploadMessengerProfileAvatarUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(profileAvatarInput)
+  }
+);}
+
+
+
+
+
+export const getUploadMessengerProfileAvatarMutationKey = () => ['uploadMessengerProfileAvatar'] as const;
+
+export const getUploadMessengerProfileAvatarMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMessengerProfileAvatar>>, TError,UploadMessengerProfileAvatarMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadMessengerProfileAvatar>>, TError,UploadMessengerProfileAvatarMutationVariables, TContext> => {
+
+const mutationKey = getUploadMessengerProfileAvatarMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadMessengerProfileAvatar>>, UploadMessengerProfileAvatarMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  uploadMessengerProfileAvatar(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadMessengerProfileAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof uploadMessengerProfileAvatar>>>
+    export type UploadMessengerProfileAvatarMutationBody = BodyType<ProfileAvatarInput>
+    export type UploadMessengerProfileAvatarMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type UploadMessengerProfileAvatarMutationVariables = {data: BodyType<ProfileAvatarInput>}
+
+    /**
+ * @summary Upload the signed-in user's private profile photo
+ */
+export const useUploadMessengerProfileAvatar = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMessengerProfileAvatar>>, TError,UploadMessengerProfileAvatarMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof uploadMessengerProfileAvatar>>,
+        TError,
+        UploadMessengerProfileAvatarMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUploadMessengerProfileAvatarMutationOptions(options), queryClient);
+    }
+
+export const getDeleteMessengerProfileAvatarUrl = () => {
+
+
+
+
+  return `/api/messenger/profile/avatar`
+}
+
+/**
+ * @summary Delete the signed-in user's profile photo
+ */
+export const deleteMessengerProfileAvatar = async ( options?: Parameters<typeof customFetch>[1]): Promise<ProfileResponse> => {
+
+  return customFetch<ProfileResponse>(getDeleteMessengerProfileAvatarUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMessengerProfileAvatarMutationKey = () => ['deleteMessengerProfileAvatar'] as const;
+
+export const getDeleteMessengerProfileAvatarMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMessengerProfileAvatar>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMessengerProfileAvatar>>, TError,void, TContext> => {
+
+const mutationKey = getDeleteMessengerProfileAvatarMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMessengerProfileAvatar>>, void> = () => {
+
+
+          return  deleteMessengerProfileAvatar(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMessengerProfileAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMessengerProfileAvatar>>>
+
+    export type DeleteMessengerProfileAvatarMutationError = ErrorType<UnauthorizedResponse | ErrorResponse>
+
+
+    /**
+ * @summary Delete the signed-in user's profile photo
+ */
+export const useDeleteMessengerProfileAvatar = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMessengerProfileAvatar>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMessengerProfileAvatar>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteMessengerProfileAvatarMutationOptions(options), queryClient);
+    }
+
+export const getGetMessengerAvatarUrl = (userId: string,
+    params?: GetMessengerAvatarParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/messenger/avatars/${userId}?${stringifiedParams}` : `/api/messenger/avatars/${userId}`
+}
+
+/**
+ * @summary Get a private avatar for a signed-in user
+ */
+export const getMessengerAvatar = async (userId: string,
+    params?: GetMessengerAvatarParams, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetMessengerAvatarUrl(userId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerAvatarQueryKey = (userId: string,
+    params?: GetMessengerAvatarParams,) => {
+    return [
+    `/api/messenger/avatars/${userId}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMessengerAvatarQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerAvatar>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(userId: string,
+    params?: GetMessengerAvatarParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerAvatar>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerAvatarQueryKey(userId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerAvatar>>> = ({ signal }) => getMessengerAvatar(userId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerAvatar>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerAvatarQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerAvatar>>>
+export type GetMessengerAvatarQueryError = ErrorType<UnauthorizedResponse | ErrorResponse>
+
+
+export function useGetMessengerAvatar<TData = Awaited<ReturnType<typeof getMessengerAvatar>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ userId: string,
+    params: undefined |  GetMessengerAvatarParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerAvatar>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerAvatar>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerAvatar>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerAvatar<TData = Awaited<ReturnType<typeof getMessengerAvatar>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ userId: string,
+    params?: GetMessengerAvatarParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerAvatar>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerAvatar>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerAvatar>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerAvatar<TData = Awaited<ReturnType<typeof getMessengerAvatar>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ userId: string,
+    params?: GetMessengerAvatarParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerAvatar>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get a private avatar for a signed-in user
+ */
+
+export function useGetMessengerAvatar<TData = Awaited<ReturnType<typeof getMessengerAvatar>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse>>(
+ userId: string,
+    params?: GetMessengerAvatarParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerAvatar>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerAvatarQueryOptions(userId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getSetMessengerContactNicknameUrl = (peerUserId: string,) => {
 

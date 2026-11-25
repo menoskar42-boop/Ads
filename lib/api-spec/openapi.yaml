@@ -113,6 +113,117 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messenger/profile/avatar:
+    put:
+      operationId: uploadMessengerProfileAvatar
+      tags: [messenger]
+      summary: Upload the signed-in user's private profile photo
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileAvatarInput"
+      responses:
+        "200":
+          description: Updated avatar URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileAvatarResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Profile does not exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Avatar database columns or private storage are unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteMessengerProfileAvatar
+      tags: [messenger]
+      summary: Delete the signed-in user's profile photo
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Updated profile without an avatar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Profile does not exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Avatar database columns or private storage are unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /messenger/avatars/{userId}:
+    get:
+      operationId: getMessengerAvatar
+      tags: [messenger]
+      summary: Get a private avatar for a signed-in user
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: v
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Private avatar bytes
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Avatar does not exist or is hidden by a block
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Avatar database columns or private storage are unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /messenger/contacts/{peerUserId}/nickname:
     put:
       operationId: setMessengerContactNickname
@@ -1930,6 +2041,7 @@ components:
         - phoneDiscoverable
         - phoneDiscoveryAvailable
         - phoneLookupReady
+        - avatarUrl
       properties:
         userId:
           type: string
@@ -1950,6 +2062,29 @@ components:
           type: boolean
         phoneLookupReady:
           type: boolean
+        avatarUrl:
+          anyOf:
+            - type: string
+              format: uri-reference
+            - type: "null"
+    ProfileAvatarInput:
+      type: object
+      required: [contentType, base64]
+      properties:
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+        base64:
+          type: string
+          minLength: 1
+          maxLength: 2796204
+    ProfileAvatarResponse:
+      type: object
+      required: [avatarUrl]
+      properties:
+        avatarUrl:
+          type: string
+          format: uri-reference
     ProfileResponse:
       type: object
       required: [profile]
@@ -2032,7 +2167,7 @@ components:
             $ref: "#/components/schemas/Person"
     Person:
       type: object
-      required: [userId, username, displayName, nickname]
+      required: [userId, username, displayName, nickname, avatarUrl]
       properties:
         userId:
           type: string
@@ -2043,6 +2178,11 @@ components:
         nickname:
           anyOf:
             - type: string
+            - type: "null"
+        avatarUrl:
+          anyOf:
+            - type: string
+              format: uri-reference
             - type: "null"
     EditMessengerMessageInput:
       type: object

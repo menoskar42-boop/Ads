@@ -219,7 +219,11 @@ export default function StatusesScreen() {
                             onPress={() => toggleContact(conversation.peer.userId)}
                             style={({ pressed }) => [styles.contact, selected && styles.contactSelected, pressed && styles.pressed]}
                           >
-                            <Avatar name={conversation.peer.displayName} size={38} />
+                            <Avatar
+                              name={conversation.peer.displayName}
+                              uri={conversation.peer.avatarUrl}
+                              size={38}
+                            />
                             <View style={styles.contactCopy}>
                               <Text style={styles.contactName}>{conversation.peer.displayName}</Text>
                               <Text style={styles.contactUsername}>@{conversation.peer.username}</Text>

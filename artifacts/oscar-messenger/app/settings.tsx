@@ -16,6 +16,7 @@ import { Avatar } from "../components/Avatar";
 import { InviteActions } from "../components/InviteActions";
 import { KeyboardAwareScrollViewCompat } from "../components/KeyboardAwareScrollViewCompat";
 import { PhoneNumberForm } from "../components/PhoneNumberForm";
+import { ProfileAvatarSettings } from "../components/ProfileAvatarSettings";
 import { Notice, PrimaryButton, Screen } from "../components/Screen";
 import { getMessengerProfile, type Profile } from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../lib/api";
@@ -50,12 +51,13 @@ export default function SettingsScreen() {
       >
         <AppHeader title="الإعدادات" onBack={() => router.back()} />
       <View style={styles.profileCard}>
-        <Avatar name={current?.displayName || "أوسكار"} size={64} />
+        <Avatar name={current?.displayName || "أوسكار"} uri={current?.avatarUrl} size={64} />
         <View style={styles.profileCopy}>
           <Text style={styles.name}>{current?.displayName || "حساب Oscar Messaging"}</Text>
           <Text style={styles.username}>@{current?.username || "—"}</Text>
         </View>
       </View>
+      {current && <ProfileAvatarSettings profile={current} />}
       {current?.username && <InviteActions username={current.username} />}
       {current && (
         <PhoneSetupSkippedNotice
