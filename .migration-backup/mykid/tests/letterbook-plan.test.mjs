@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   LB_UNITS, LB_PAGES, LB_ORDER, LB_LETTERS, LB_HARAKAT, LB_BUILD, letterbookSteps, letterPage, reviewPage,
-  startsWith, posOf, bare, splitAt, nameOf,
+  startsWith, posOf, bare, splitAt, nameOf, reviewVideosForLetters,
 } from "../js/data/letterbook.js";
 import { strokesFor, harakaStrokes, harakaGlyph } from "../js/data/strokes.js";
 import { harakaQuizRounds } from "../js/data/harakaQuiz.js";
@@ -18,6 +18,17 @@ test("book order: prep, أ م, ب ف ن ل + review, ح ر ت س + review, ج ز
   assert.equal(LB_PAGES[0].type, "prep");
   assert.deepEqual(LB_PAGES.filter((p) => p.type === "review").map((p) => p.letters.join("")), ["بفنل", "حرتس", "جزدق"]);
   assert.equal(new Set(LB_PAGES.map((p) => p.id)).size, LB_PAGES.length);
+});
+
+test("starred-letter review video list includes only linked Abjad Hoz and ZAD videos, labeled by letter", () => {
+  const videos = reviewVideosForLetters(["أ", "ء"]);
+  assert.equal(videos.length, 2);
+  assert.deepEqual(videos.map((video) => video.title.split(" · ").slice(0, 2)), [
+    ["أَلِف", "أبجد هوز"],
+    ["أَلِف", "مدرسة زاد الحروف"],
+  ]);
+  assert.ok(videos.every((video) => video.videoId));
+  assert.deepEqual(reviewVideosForLetters(["ء"]), []);
 });
 
 test("every letter: a name, strokes to write, a riddle whose answer starts with it", () => {

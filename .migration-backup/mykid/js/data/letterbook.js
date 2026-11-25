@@ -10,9 +10,22 @@
 //
 // ملف صافى (من غير DOM) — الشاشة فى games/letterbook.js، والاختبارات بتستورده مباشرة.
 import { ARABIC_LETTERS } from "./arabicLetters.js";
+import { getArabicLetterLessonVideo } from "./arabicLetterLessonVideos.js";
+import { getArabicLetterWritingVideo } from "./arabicLetterWritingVideos.js";
 
 /** اسم الحرف زى باقى التطبيق (أَلِف، باء …) — نفس جمل «اكتب الحرف …» المتسجّلة صوتها. */
 export const nameOf = (ch) => (ARABIC_LETTERS.find((x) => x.char === ch) || {}).name || ch;
+
+/** فيديوهات أبجد هوز وزاد الحروف لحروف المراجعة، مع إبقاء كل فيديو مربوطًا بحرفه. */
+export function reviewVideosForLetters(letters) {
+  return (letters || []).flatMap((ch) => [
+    ["أبجد هوز", getArabicLetterLessonVideo(ch)],
+    ["مدرسة زاد الحروف", getArabicLetterWritingVideo(ch)],
+  ].filter(([, video]) => video).map(([source, video]) => ({
+    ...video,
+    title: `${nameOf(ch)} · ${source} · ${video.title}`,
+  })));
+}
 
 /** الحركات الأربعة زى الكتاب: كل حركة ليها حركة إيد الولد اللى فى الصورة. */
 export const LB_HARAKAT = {

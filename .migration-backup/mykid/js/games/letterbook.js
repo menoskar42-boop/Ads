@@ -14,7 +14,7 @@ import { femAdapt } from "../data/mizo.js";
 import { strokesFor, PREWRITING, harakaStrokes, harakaGlyph } from "../data/strokes.js";
 import { mountHarakaQuiz } from "./harakaQuiz.js";
 import {
-  LB_UNITS, LB_PAGES, LB_HARAKAT, letterbookSteps, isLbWrite, nameOf, splitAt, joinsNext, bare, LB_DOTS_PASS, LB_REVIEW_ALL, reviewLetters,
+  LB_UNITS, LB_PAGES, LB_HARAKAT, letterbookSteps, isLbWrite, nameOf, splitAt, joinsNext, bare, LB_DOTS_PASS, LB_REVIEW_ALL, reviewLetters, reviewVideosForLetters,
 } from "../data/letterbook.js";
 import { LB_SAY, ROUND_MSG, SHOW_BELOW, fixMsg, writeIntro, HQ_SAY } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
@@ -175,6 +175,10 @@ export function renderLetterbook({ regionId, regionIndex, page: startPage, only 
         ...video,
         title: `${source} · ${video.title}`,
       }));
+      if (videos.length) steps.unshift({ kind: "video", videos });
+    }
+    if (!only && pg.type === "review") {
+      const videos = reviewVideosForLetters(pg.letters);
       if (videos.length) steps.unshift({ kind: "video", videos });
     }
     // «وصّل الحرف بالصورة»: الجولة من حروف النجمة دلوقتى — ولو مفيش حرف تانى عليه نجمة الخطوة بتتشال
