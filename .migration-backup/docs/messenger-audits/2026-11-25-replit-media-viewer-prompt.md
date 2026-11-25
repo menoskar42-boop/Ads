@@ -55,3 +55,24 @@
 
 commit: "Messenger: inline image previews + in-app media viewer" ⇒ push ⇒ رد بالـhash واقف.
 ```
+
+## إضافة صغيرة تتبعت مع نفس الطلب: ✓✓ (وصلت) أول ما الإشعار يوصل الموبايل، زى واتساب
+> المالك ٢٠٢٦-١١-٢٥ ٩:٠٨ م: الصورة لماما فضلت ✓ واحدة «مع انى متأكد ان عندها نت بس يمكن مش فاتحه صفحه الويب».
+> **الدليل (قراية بس من القاعدة):** صورتين ٢١:٠٥ و٢١:٠٧ UTC، و`delivered_at` فاضى فى الاتنين. لكن **إشعار Doc Sana نجح الساعة ٢١:٠٧:٥٠**
+> (ثانيتين بعد الصورة)، و`last_seen_at` بتاعها فاضى، يعنى مافتحتش الصفحة. يعنى الموبايل استلم، بس «وصلت» مابتتعلّمش غير لما الصفحة تتفتح.
+
+```
+(جزء من نفس الطلب)
+- السيرفر (src/lib/messenger-web-push.ts):
+  * فى push الرسالة الفردية، ضيف للـpayload deliveryToken = HMAC-SHA256 (node:crypto) على "messageId.recipientId.exp"
+    (exp = الآن + ٧ أيام)، والمفتاح = process.env.VAPID_PRIVATE_KEY الموجود (من غير secret جديد). ⛔ من غير أى نص زيادة فى الـpayload.
+  * مسار جديد POST /messenger/push/delivered { messageId, recipientId, exp, token } من غير requireAuth (الـservice worker مالوش توكن):
+    - يتأكد من الـHMAC بـtimingSafeEqual، وexp لسه ماعداش؛
+    - وبعدها: UPDATE messenger_messages SET delivered_at = now() WHERE id=$1 AND delivered_at IS NULL AND sender_id <> $2
+      AND conversation_id IN (SELECT id FROM messenger_conversations WHERE user_a=$2 OR user_b=$2)؛
+    - ويرجّع 204 دايماً (حتى لو التوكن غلط، من غير تفاصيل)، وrate limit بسيط فى الذاكرة (٦٠ فى الدقيقة لكل IP).
+    - publish حدث conversation للمرسل لو البند ٨ موجود.
+- public/sw.js: فى push event، لو الـpayload فيه deliveryToken ⇒ fetch POST للمسار ده جوّه event.waitUntil مع showNotification
+  (فشل الطلب مايوقّفش الإشعار).
+- اختبار: توكن صح ⇒ بيعلّم، توكن غلط أو منتهى ⇒ مابيعلّمش، مستلم مش طرف ⇒ مابيعلّمش، والـpayload مافيهوش غير اللى كان + التوكن.
+```
