@@ -3,12 +3,14 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import {
+const webVoiceModule = await import("../lib/web-voice.ts");
+const {
   baseMessengerAudioContentType,
   chooseWebAudioMimeType,
+  webMicrophoneErrorMessage,
   webAudioPlaybackError,
   webAudioPlaybackRequestOptions,
-} from "../lib/web-voice.ts";
+} = webVoiceModule.default ?? webVoiceModule;
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -66,6 +68,38 @@ test("web recorder requests the microphone on tap and handles denial, cancel, li
   assert.match(modal, /blob\.size > maxBytes/);
   assert.match(modal, /await onSend\(recordingUrl, durationMs, recordingContentType\)/);
   assert.match(modal, /تعذر إرسال التسجيل/);
+  assert.match(modal, /navigator\.permissions\?\.query/);
+  assert.match(modal, /name: "microphone"/);
+});
+
+test("microphone permission errors choose useful Arabic instructions", () => {
+  const androidInstructions = webMicrophoneErrorMessage(
+    "NotAllowedError",
+    "denied",
+    "Mozilla/5.0 Chrome/130.0 Android",
+  );
+  assert.match(androidInstructions, /القفل جنب العنوان/);
+  assert.match(androidInstructions, /إعدادات الموبايل ← التطبيقات ← Chrome/);
+
+  assert.equal(
+    webMicrophoneErrorMessage(
+      "NotAllowedError",
+      "prompt",
+      "Mozilla/5.0 Chrome/130.0 Android",
+    ),
+    "لم يُسمح باستخدام الميكروفون. اسمح للمتصفح بالتسجيل ثم حاول مرة أخرى.",
+  );
+
+  const safariInstructions = webMicrophoneErrorMessage(
+    "SecurityError",
+    "unsupported",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) AppleWebKit/605.1.15 Version/18.0 Safari/604.1",
+  );
+  assert.match(safariInstructions, /الإعدادات ← Safari ← الميكروفون ← اسأل أو سماح/);
+  assert.equal(
+    webMicrophoneErrorMessage("NotFoundError", "unsupported", "Chrome Android"),
+    "مفيش ميكروفون متوصّل بالجهاز ده",
+  );
 });
 
 test("web recording reuses the authenticated audio upload and bubble playback path", () => {
