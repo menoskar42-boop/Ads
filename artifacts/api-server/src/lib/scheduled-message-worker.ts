@@ -29,7 +29,7 @@ async function markFailed(pool: DbPool, id: string): Promise<void> {
   );
 }
 
-async function processOneDueMessage(pool: DbPool): Promise<boolean> {
+export async function processOneDueMessage(pool: DbPool): Promise<boolean> {
   let rollback: (() => Promise<unknown>) | undefined;
   let release: (() => void) | undefined;
   let selectedId: string | null = null;
