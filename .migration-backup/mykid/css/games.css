@@ -646,6 +646,12 @@
   background: #111;
   cursor: pointer;
 }
+.kid-youtube-preview:focus-visible {
+  z-index: 2;
+  outline: 4px solid #fff;
+  outline-offset: -8px;
+  box-shadow: inset 0 0 0 8px rgba(0, 0, 0, .8);
+}
 .kid-youtube-preview img {
   position: absolute;
   inset: 0;
