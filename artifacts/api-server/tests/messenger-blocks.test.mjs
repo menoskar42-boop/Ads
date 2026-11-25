@@ -138,7 +138,7 @@ test("block schema readiness is cached briefly per pool", async () => {
 
 test("routes gate direct message creation and every supported send path", () => {
   assert.match(messengerRoutes, /isMessengerUserBlocked\(pool, userId, peerId\)/);
-  assert.equal((messengerRoutes.match(/requireUnblockedConversation\(pool, conversation, userId, res\)/g) ?? []).length, 3);
+  assert.equal((messengerRoutes.match(/requireUnblockedConversation\(pool, conversation, userId, res\)/g) ?? []).length, 4);
   assert.match(toolsRoutes, /canSendDirectMessage\([\s\S]{0,180}conversation\.user_a/);
   assert.match(toolsRoutes, /canSendDirectMessage\([\s\S]{0,180}target\.user_a/);
   assert.match(scheduledRoutes, /canSendDirectMessage/);

@@ -13,11 +13,14 @@ export function MessageComposer({
   onPickFile,
   onVoicePress,
   onSendLocation,
+  onStartLiveLocation,
   busy,
   voiceEnabled,
   voiceBusy,
   locationEnabled,
   locationBusy,
+  liveLocationEnabled,
+  liveLocationBusy,
   voiceHint,
   mediaEnabled,
   mediaBusy,
@@ -38,11 +41,14 @@ export function MessageComposer({
   onPickFile: () => void;
   onVoicePress: () => void;
   onSendLocation: () => void;
+  onStartLiveLocation: () => void;
   busy: boolean;
   voiceEnabled: boolean;
   voiceBusy: boolean;
   locationEnabled: boolean;
   locationBusy: boolean;
+  liveLocationEnabled: boolean;
+  liveLocationBusy: boolean;
   voiceHint?: string;
   mediaEnabled: boolean;
   mediaBusy: boolean;
@@ -208,6 +214,27 @@ export function MessageComposer({
               name={locationBusy ? "hourglass-outline" : "location-outline"}
               size={21}
               color={locationBusy ? colors.muted : colors.blue}
+            />
+          </Pressable>
+        )}
+        {liveLocationEnabled && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="موقع مباشر لمدة محددة"
+            testID="message-start-live-location"
+            onPress={onStartLiveLocation}
+            disabled={busy || voiceBusy || mediaBusy || liveLocationBusy}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.action,
+              (busy || voiceBusy || mediaBusy || liveLocationBusy) && styles.sendDisabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={liveLocationBusy ? "hourglass-outline" : "navigate-outline"}
+              size={21}
+              color={liveLocationBusy ? colors.muted : colors.blue}
             />
           </Pressable>
         )}

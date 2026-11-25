@@ -44,6 +44,7 @@ type PushMessageKind =
   | "audio"
   | "media"
   | "location"
+  | "live_location"
   | "image"
   | "video"
   | "file";
@@ -101,7 +102,9 @@ export function buildMessengerPushPayload(input: {
   groupId?: string;
 }): MessengerPushPayload {
   let body = "رسالة جديدة";
-  if (input.showPreview) {
+  if (input.messageType === "live_location") {
+    body = "بدأ مشاركة موقعه المباشر";
+  } else if (input.showPreview) {
     if (input.messageType === "audio") body = "🎤 رسالة صوتية";
     else if (input.messageType === "media") body = "📎 مرفق";
     else if (input.messageType === "location") body = "📍 موقع";

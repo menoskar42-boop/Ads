@@ -201,6 +201,15 @@ export const GetMessengerLocationCapabilityResponse = zod.object({
 
 
 /**
+ * @summary Check whether timed live-location sharing is installed
+ */
+export const GetMessengerLiveLocationCapabilityResponse = zod.object({
+  "enabled": zod.literal(true),
+  "durations": zod.array(zod.union([zod.literal(15),zod.literal(60),zod.literal(480)]))
+})
+
+
+/**
  * @summary Search public Messenger usernames and display names
  */
 export const searchMessengerPeopleQueryQueryMin = 3;
@@ -1542,6 +1551,133 @@ export const SendMessengerLocationResponse = zod.object({
   "reactedByMe": zod.boolean()
 }))
 })
+})
+
+
+/**
+ * @summary Get active live-location shares for conversation members
+ */
+export const getMessengerConversationLiveLocationPathConversationIdMin = 8;
+export const getMessengerConversationLiveLocationPathConversationIdMax = 80;
+
+
+
+export const GetMessengerConversationLiveLocationParams = zod.object({
+  "conversationId": zod.coerce.string().min(getMessengerConversationLiveLocationPathConversationIdMin).max(getMessengerConversationLiveLocationPathConversationIdMax)
+})
+
+export const getMessengerConversationLiveLocationResponseLocationsItemLatMin = -90;
+export const getMessengerConversationLiveLocationResponseLocationsItemLatMax = 90;
+
+export const getMessengerConversationLiveLocationResponseLocationsItemLngMin = -180;
+export const getMessengerConversationLiveLocationResponseLocationsItemLngMax = 180;
+
+export const getMessengerConversationLiveLocationResponseLocationsItemAccuracyMOneMin = 0;
+export const getMessengerConversationLiveLocationResponseLocationsItemAccuracyMOneMax = 100000;
+
+
+
+export const GetMessengerConversationLiveLocationResponse = zod.object({
+  "locations": zod.array(zod.object({
+  "sharerId": zod.string(),
+  "sharerName": zod.string(),
+  "expiresAt": zod.coerce.date(),
+  "lat": zod.number().min(getMessengerConversationLiveLocationResponseLocationsItemLatMin).max(getMessengerConversationLiveLocationResponseLocationsItemLatMax),
+  "lng": zod.number().min(getMessengerConversationLiveLocationResponseLocationsItemLngMin).max(getMessengerConversationLiveLocationResponseLocationsItemLngMax),
+  "accuracyM": zod.union([zod.int().min(getMessengerConversationLiveLocationResponseLocationsItemAccuracyMOneMin).max(getMessengerConversationLiveLocationResponseLocationsItemAccuracyMOneMax),zod.null()]),
+  "updatedAt": zod.union([zod.coerce.date(),zod.null()]),
+  "isMine": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Start a timed live-location share
+ */
+export const startMessengerLiveLocationPathConversationIdMin = 8;
+export const startMessengerLiveLocationPathConversationIdMax = 80;
+
+
+
+export const StartMessengerLiveLocationParams = zod.object({
+  "conversationId": zod.coerce.string().min(startMessengerLiveLocationPathConversationIdMin).max(startMessengerLiveLocationPathConversationIdMax)
+})
+
+export const startMessengerLiveLocationBodyOneLatMin = -90;
+export const startMessengerLiveLocationBodyOneLatMax = 90;
+
+export const startMessengerLiveLocationBodyOneLngMin = -180;
+export const startMessengerLiveLocationBodyOneLngMax = 180;
+
+export const startMessengerLiveLocationBodyOneAccuracyMOneMin = 0;
+export const startMessengerLiveLocationBodyOneAccuracyMOneMax = 100000;
+
+
+
+export const StartMessengerLiveLocationBody = zod.object({
+  "lat": zod.number().min(startMessengerLiveLocationBodyOneLatMin).max(startMessengerLiveLocationBodyOneLatMax),
+  "lng": zod.number().min(startMessengerLiveLocationBodyOneLngMin).max(startMessengerLiveLocationBodyOneLngMax),
+  "accuracyM": zod.union([zod.int().min(startMessengerLiveLocationBodyOneAccuracyMOneMin).max(startMessengerLiveLocationBodyOneAccuracyMOneMax),zod.null()])
+}).and(zod.object({
+  "durationMinutes": zod.union([zod.literal(15),zod.literal(60),zod.literal(480)])
+}))
+
+export const StartMessengerLiveLocationResponse = zod.object({
+  "ok": zod.literal(true),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Replace the last point in the active live-location share
+ */
+export const updateMessengerLiveLocationPathConversationIdMin = 8;
+export const updateMessengerLiveLocationPathConversationIdMax = 80;
+
+
+
+export const UpdateMessengerLiveLocationParams = zod.object({
+  "conversationId": zod.coerce.string().min(updateMessengerLiveLocationPathConversationIdMin).max(updateMessengerLiveLocationPathConversationIdMax)
+})
+
+export const updateMessengerLiveLocationBodyLatMin = -90;
+export const updateMessengerLiveLocationBodyLatMax = 90;
+
+export const updateMessengerLiveLocationBodyLngMin = -180;
+export const updateMessengerLiveLocationBodyLngMax = 180;
+
+export const updateMessengerLiveLocationBodyAccuracyMOneMin = 0;
+export const updateMessengerLiveLocationBodyAccuracyMOneMax = 100000;
+
+
+
+export const UpdateMessengerLiveLocationBody = zod.object({
+  "lat": zod.number().min(updateMessengerLiveLocationBodyLatMin).max(updateMessengerLiveLocationBodyLatMax),
+  "lng": zod.number().min(updateMessengerLiveLocationBodyLngMin).max(updateMessengerLiveLocationBodyLngMax),
+  "accuracyM": zod.union([zod.int().min(updateMessengerLiveLocationBodyAccuracyMOneMin).max(updateMessengerLiveLocationBodyAccuracyMOneMax),zod.null()])
+})
+
+export const UpdateMessengerLiveLocationResponse = zod.object({
+  "ok": zod.literal(true),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Stop the caller's active live-location share
+ */
+export const stopMessengerLiveLocationPathConversationIdMin = 8;
+export const stopMessengerLiveLocationPathConversationIdMax = 80;
+
+
+
+export const StopMessengerLiveLocationParams = zod.object({
+  "conversationId": zod.coerce.string().min(stopMessengerLiveLocationPathConversationIdMin).max(stopMessengerLiveLocationPathConversationIdMax)
+})
+
+export const StopMessengerLiveLocationResponse = zod.object({
+  "ok": zod.literal(true),
+  "stopped": zod.boolean()
 })
 
 

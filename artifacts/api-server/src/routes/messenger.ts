@@ -10,6 +10,20 @@ import {
 } from "../lib/r2.ts";
 import { parseMessageCursor } from "../lib/message-pagination.ts";
 import { parseMessengerLocationInput } from "../lib/messenger-location.ts";
+import {
+  hasLiveLocationSchema,
+  isAllowedLiveLocationDuration,
+  listLiveLocations,
+  parseLiveLocationPoint,
+  startLiveLocation,
+  stopLiveLocation,
+  stopLiveLocationsBetweenUsers,
+  stopLiveLocationsForConversation,
+  updateLiveLocation,
+  LIVE_LOCATION_BLOCKED_ERROR,
+  LIVE_LOCATION_DURATIONS,
+  LIVE_LOCATION_MIGRATION_ERROR,
+} from "../lib/messenger-live-location.ts";
 import { canDeleteOwnVoiceMessage } from "../lib/messenger-voice-delete.ts";
 import {
   readVoicePlayback,
@@ -935,6 +949,204 @@ router.get(
   },
 );
 
+const liveLocationNoStore: RequestHandler = (_req, res, next) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  next();
+};
+
+router.get(
+  "/messenger/live-location/capability",
+  liveLocationNoStore,
+  requireAuth,
+  async (_req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      if (!(await hasLiveLocationSchema(pool))) {
+        res.status(503).json({ error: LIVE_LOCATION_MIGRATION_ERROR });
+        return;
+      }
+      res.json({ enabled: true, durations: LIVE_LOCATION_DURATIONS });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  "/messenger/conversations/:conversationId/live-location",
+  liveLocationNoStore,
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      if (!(await hasLiveLocationSchema(pool))) {
+        res.status(503).json({ error: LIVE_LOCATION_MIGRATION_ERROR });
+        return;
+      }
+      const conversationId = String(req.params.conversationId);
+      const userId = getUserId(res);
+      const conversation = await conversationForUser(pool, conversationId, userId);
+      if (!conversation) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      if (!(await requireUnblockedConversation(pool, conversation, userId, res))) return;
+      const durationMinutes = req.body?.durationMinutes;
+      if (!isAllowedLiveLocationDuration(durationMinutes)) {
+        res.status(400).json({ error: "اختار مدة ١٥ دقيقة أو ساعة أو ٨ ساعات." });
+        return;
+      }
+      const point = parseLiveLocationPoint(req.body);
+      if (!point) {
+        res.status(400).json({ error: "تحقق من الموقع وحاول مرة أخرى." });
+        return;
+      }
+      const location = await startLiveLocation(pool, {
+        id: randomUUID(),
+        conversationId,
+        sharerId: userId,
+        durationMinutes,
+        ...point,
+      });
+      void notifyConversationMessage(pool, {
+        conversationId,
+        senderId: userId,
+        messageType: "live_location",
+        body: "",
+      });
+      res.status(201).json({
+        ok: true,
+        expiresAt: new Date(location.expires_at).toISOString(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.patch(
+  "/messenger/conversations/:conversationId/live-location",
+  liveLocationNoStore,
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      if (!(await hasLiveLocationSchema(pool))) {
+        res.status(503).json({ error: LIVE_LOCATION_MIGRATION_ERROR });
+        return;
+      }
+      const conversationId = String(req.params.conversationId);
+      const userId = getUserId(res);
+      const conversation = await conversationForUser(pool, conversationId, userId);
+      if (!conversation) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      if (!(await canSendDirectMessage(
+        pool,
+        userId,
+        peerUserIdForConversation(conversation, userId),
+      ))) {
+        await stopLiveLocationsForConversation(pool, conversationId);
+        res.status(403).json({ error: LIVE_LOCATION_BLOCKED_ERROR });
+        return;
+      }
+      const point = parseLiveLocationPoint(req.body);
+      if (!point) {
+        res.status(400).json({ error: "تحقق من الموقع وحاول مرة أخرى." });
+        return;
+      }
+      const result = await updateLiveLocation(pool, {
+        conversationId,
+        requesterId: userId,
+        ...point,
+      });
+      if (result.status !== 200) {
+        const error = result.status === 403
+          ? "مش مسموح بتحديث مشاركة الشخص الآخر."
+          : result.status === 429
+            ? "استنى ١٠ ثواني على الأقل بين تحديثات الموقع."
+            : "مشاركة الموقع مش شغّالة أو انتهت.";
+        res.status(result.status).json({ error });
+        return;
+      }
+      res.json({ ok: true, updatedAt: result.updatedAt });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  "/messenger/conversations/:conversationId/live-location",
+  liveLocationNoStore,
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      if (!(await hasLiveLocationSchema(pool))) {
+        res.status(503).json({ error: LIVE_LOCATION_MIGRATION_ERROR });
+        return;
+      }
+      const conversationId = String(req.params.conversationId);
+      const userId = getUserId(res);
+      if (!(await conversationForUser(pool, conversationId, userId))) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      const result = await stopLiveLocation(pool, conversationId, userId);
+      if (result.forbidden) {
+        res.status(403).json({ error: "مش مسموح بإيقاف مشاركة الشخص الآخر." });
+        return;
+      }
+      res.json({ ok: true, stopped: result.stopped });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  "/messenger/conversations/:conversationId/live-location",
+  liveLocationNoStore,
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      if (!(await hasLiveLocationSchema(pool))) {
+        res.status(503).json({ error: LIVE_LOCATION_MIGRATION_ERROR });
+        return;
+      }
+      const conversationId = String(req.params.conversationId);
+      const userId = getUserId(res);
+      const conversation = await conversationForUser(pool, conversationId, userId);
+      if (!conversation) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      if (!(await canSendDirectMessage(
+        pool,
+        userId,
+        peerUserIdForConversation(conversation, userId),
+      ))) {
+        await stopLiveLocationsForConversation(pool, conversationId);
+        res.status(403).json({ error: LIVE_LOCATION_BLOCKED_ERROR });
+        return;
+      }
+      res.json({
+        locations: await listLiveLocations(pool, conversationId, userId),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.put("/messenger/contacts/:peerUserId/nickname", requireAuth, async (req, res, next) => {
   try {
     const pool = getPoolOrUnavailable(await loadPool(), res);
@@ -1092,6 +1304,9 @@ router.post("/messenger/blocks", requireAuth, async (req, res, next) => {
        ON CONFLICT (blocker_id, blocked_id) DO NOTHING`,
       [userId, blockedId],
     );
+    if (await hasLiveLocationSchema(pool)) {
+      await stopLiveLocationsBetweenUsers(pool, userId, blockedId);
+    }
     res.json({ ok: true });
   } catch (error) {
     next(error);

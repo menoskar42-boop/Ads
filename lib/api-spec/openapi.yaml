@@ -345,6 +345,28 @@ paths:
                 $ref: "#/components/schemas/MessengerLocationCapability"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /messenger/live-location/capability:
+    get:
+      operationId: getMessengerLiveLocationCapability
+      tags: [messenger]
+      summary: Check whether timed live-location sharing is installed
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Supported live-location sharing durations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerLiveLocationCapability"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: The live-location migration is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /messenger/people:
     get:
       operationId: searchMessengerPeople
@@ -1822,6 +1844,170 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messenger/conversations/{conversationId}/live-location:
+    parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 80
+    get:
+      operationId: getMessengerConversationLiveLocation
+      tags: [messenger]
+      summary: Get active live-location shares for conversation members
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Active live locations only
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerLiveLocationList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation not found or user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The live-location migration is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: startMessengerLiveLocation
+      tags: [messenger]
+      summary: Start a timed live-location share
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartMessengerLiveLocationInput"
+      responses:
+        "201":
+          description: Live location started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartMessengerLiveLocationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: A messaging block prevents sharing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Conversation not found or user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The live-location migration is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateMessengerLiveLocation
+      tags: [messenger]
+      summary: Replace the last point in the active live-location share
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessengerLiveLocationPointInput"
+      responses:
+        "200":
+          description: Last point updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerLiveLocationUpdateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Share owner or block check failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Conversation not found or user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          description: Updates must be at least ten seconds apart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The live-location migration is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: stopMessengerLiveLocation
+      tags: [messenger]
+      summary: Stop the caller's active live-location share
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Share stopped and coordinates cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerLiveLocationStopResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The caller does not own the active share
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Conversation not found or user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The live-location migration is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /messenger/conversations/{conversationId}/audio-messages:
     post:
       operationId: sendMessengerVoiceMessage
@@ -2685,6 +2871,114 @@ components:
             - type: string
               enum: [database_update_required]
             - type: "null"
+    MessengerLiveLocationCapability:
+      type: object
+      required: [enabled, durations]
+      properties:
+        enabled:
+          type: boolean
+          enum: [true]
+        durations:
+          type: array
+          items:
+            type: integer
+            enum: [15, 60, 480]
+    MessengerLiveLocationPointInput:
+      type: object
+      required: [lat, lng, accuracyM]
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        accuracyM:
+          anyOf:
+            - type: integer
+              minimum: 0
+              maximum: 100000
+            - type: "null"
+    StartMessengerLiveLocationInput:
+      allOf:
+        - $ref: "#/components/schemas/MessengerLiveLocationPointInput"
+        - type: object
+          required: [durationMinutes]
+          properties:
+            durationMinutes:
+              type: integer
+              enum: [15, 60, 480]
+    MessengerLiveLocation:
+      type: object
+      required: [sharerId, sharerName, expiresAt, lat, lng, accuracyM, updatedAt, isMine]
+      properties:
+        sharerId:
+          type: string
+        sharerName:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        accuracyM:
+          anyOf:
+            - type: integer
+              minimum: 0
+              maximum: 100000
+            - type: "null"
+        updatedAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        isMine:
+          type: boolean
+    MessengerLiveLocationList:
+      type: object
+      required: [locations]
+      properties:
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessengerLiveLocation"
+    StartMessengerLiveLocationResponse:
+      type: object
+      required: [ok, expiresAt]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        expiresAt:
+          type: string
+          format: date-time
+    MessengerLiveLocationUpdateResponse:
+      type: object
+      required: [ok, updatedAt]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        updatedAt:
+          type: string
+          format: date-time
+    MessengerLiveLocationStopResponse:
+      type: object
+      required: [ok, stopped]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        stopped:
+          type: boolean
     VoiceMessageCapability:
       type: object
       required: [enabled, maxDurationMs, maxBytes, reason]
