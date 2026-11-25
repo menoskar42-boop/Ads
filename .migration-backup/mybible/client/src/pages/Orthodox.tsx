@@ -15,48 +15,33 @@ import { api, type SynaxariumEntry as LiveSynaxariumEntry } from '@/lib/api';
 import { SEOHead } from '@/components/SEOHead';
 import { usePageTracker } from '@/hooks/usePageTracker';
 import { useExitTracker } from '@/hooks/useExitTracker';
-import { liturgies, type Liturgy } from '@/lib/liturgy-content';
-import { agpeyaHoursFull, type AgpeyaHourFull } from '@/lib/agpeya-content';
-import { saintsData, saintCategories, type Saint } from '@/lib/saints-content';
-import { hymnsCategoriesData, type HymnsCategory, type Hymn } from '@/lib/hymns-content';
-import {
-  saintsVideos,
-  deaconSections,
-  bibleLocations,
-  bibleLocationCategories,
-  type BibleLocation,
-  type BibleLocationCategory,
-  popeShenoudaQAVideos,
-  popeShenoudaQACategories,
-  type SaintVideo,
+import { loadOrthodoxTabData } from '@/lib/orthodox-tab-loader';
+import type { Liturgy } from '@/lib/liturgy-content';
+import type { AgpeyaHourFull } from '@/lib/agpeya-content';
+import type { Saint } from '@/lib/saints-content';
+import type { HymnsCategory, Hymn } from '@/lib/hymns-content';
+import type {
+  BibleLocation,
+  BibleLocationCategory,
+  SaintVideo,
 } from '@/lib/orthodox-data';
-import {
-  niceneCreed,
-  creedTopics,
-  creedCategories,
-  historyEras,
-  creedQA,
-  qaCategories,
-  churchFigures,
-  figureCategories,
-} from '@/lib/creed-data';
-import {
-  orthodoxBooks,
-  orthodoxBookCategoryList,
-  type OrthodoxBook,
-  type BookChapter,
-} from '@/lib/orthodox-books-content';
-import { apocryphaBooks, type ApocryphaBook } from '@/lib/apocrypha-content';
-import { getLectionaryForDate, type ReadingRef } from '@/lib/coptic-lectionary';
-import { katameroSeasons, type KatamerosSeason, type KatamerosDay } from '@/lib/katameros-content';
+import type { OrthodoxBook, BookChapter } from '@/lib/orthodox-books-content';
+import type { ApocryphaBook } from '@/lib/apocrypha-content';
+import type { ReadingRef } from '@/lib/coptic-lectionary';
+import type { KatamerosSeason, KatamerosDay } from '@/lib/katameros-content';
 import { RemoteDeuteroReader } from '@/components/RemoteDeuteroReader';
 import { StTaklaSections } from '@/components/StTaklaSections';
 import { TafsirBrowser } from '@/components/TafsirBrowser';
 import { fetchVerseTafsir, fetchChapterTafsir } from '@/lib/tafsir-csv-service';
-import {
-  synaxariumMonths,
-  gregorianToCoptic,
-} from '@/lib/synaxarium-content';
+
+function OrthodoxTabLoading({ error = false }: { error?: boolean }) {
+  return (
+    <div className="py-10 text-center text-muted-foreground" role={error ? 'alert' : 'status'}>
+      <Loader2 className={`w-6 h-6 mx-auto mb-2 ${error ? '' : 'animate-spin'}`} />
+      <p className="text-sm">{error ? 'تعذر تحميل محتوى التبويب. أعد فتحه للمحاولة.' : 'جاري تحميل المحتوى…'}</p>
+    </div>
+  );
+}
 
 function YouTubeEmbed({ videoId, title, onClose }: { videoId: string; title: string; onClose: () => void }) {
   return (
@@ -80,7 +65,8 @@ function YouTubeEmbed({ videoId, title, onClose }: { videoId: string; title: str
 }
 
 // ── السنكسار القبطي المدمج ────────────────────────────────────────────────────
-function SynaxariumSection() {
+function SynaxariumSection({ data }: { data: typeof import('@/lib/synaxarium-content') }) {
+  const { gregorianToCoptic, synaxariumMonths } = data;
   const todayCoptic = gregorianToCoptic(new Date());
 
   // حالة التصفح: null = عرض اليوم، 'months' = قائمة الشهور، {monthId} = أيام الشهر
@@ -293,7 +279,8 @@ const AGPEYA_HOUR_VIDEO: Record<string, string> = {
   midnight: 'YHtnFevTKx0',
 };
 
-function AgpeyaSection() {
+function AgpeyaSection({ data }: { data: typeof import('@/lib/agpeya-content') }) {
+  const { agpeyaHoursFull } = data;
   const [selectedHour, setSelectedHour] = useState<AgpeyaHourFull | null>(null);
   const [expandedPrayers, setExpandedPrayers] = useState<Set<string>>(new Set());
   const [audioOpen, setAudioOpen] = useState(false);
@@ -545,7 +532,8 @@ function AgpeyaSection() {
   );
 }
 
-function LiturgySection() {
+function LiturgySection({ data }: { data: typeof import('@/lib/liturgy-content') }) {
+  const { liturgies } = data;
   const [selectedLiturgy, setSelectedLiturgy] = useState<Liturgy | null>(null);
   const [selectedChapterIdx, setSelectedChapterIdx] = useState(0);
   const [expandedParts, setExpandedParts] = useState<Set<string>>(new Set());
@@ -805,7 +793,8 @@ function LiturgySection() {
   );
 }
 
-function HymnsSection() {
+function HymnsSection({ data }: { data: typeof import('@/lib/hymns-content') }) {
+  const { hymnsCategoriesData } = data;
   const [selectedCategory, setSelectedCategory] = useState<HymnsCategory | null>(null);
   const [selectedHymn, setSelectedHymn] = useState<Hymn | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -985,7 +974,8 @@ function HymnsSection() {
   );
 }
 
-function DailyLectionarySection() {
+function DailyLectionarySection({ lectionaryData }: { lectionaryData: typeof import('@/lib/coptic-lectionary') & typeof import('@/lib/katameros-content') }) {
+  const { getLectionaryForDate } = lectionaryData;
   const [date, setDate] = useState(() => new Date());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
@@ -1109,7 +1099,8 @@ function DailyLectionarySection() {
   );
 }
 
-function LegacyDailyLectionarySection() {
+function LegacyDailyLectionarySection({ lectionaryData }: { lectionaryData: typeof import('@/lib/coptic-lectionary') }) {
+  const { getLectionaryForDate } = lectionaryData;
   const [date, setDate] = useState(() => new Date());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [readingTexts, setReadingTexts] = useState<Record<string, { chapter: number; verse: number; text: string }[]>>({});
@@ -1246,7 +1237,8 @@ function LegacyDailyLectionarySection() {
   );
 }
 
-function KatamarosSection() {
+function KatamarosSection({ data }: { data: typeof import('@/lib/katameros-content') }) {
+  const { katameroSeasons } = data;
   const [selectedSeason, setSelectedSeason] = useState<KatamerosSeason | null>(null);
   const [selectedDay, setSelectedDay] = useState<KatamerosDay | null>(null);
   const [expandedReadings, setExpandedReadings] = useState<Set<string>>(new Set());
@@ -1511,7 +1503,8 @@ function KatamarosSection() {
   );
 }
 
-function SaintsVideosSection() {
+function SaintsVideosSection({ data }: { data: typeof import('@/lib/saints-content') & typeof import('@/lib/orthodox-data') }) {
+  const { saintsData, saintCategories, saintsVideos } = data;
   const [selectedSaint, setSelectedSaint] = useState<Saint | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<string>('الكل');
@@ -1796,7 +1789,8 @@ const colorMap: Record<string, { bg: string; border: string; badge: string; text
   blue:   { bg: 'bg-blue-50 dark:bg-blue-900/20',    border: 'border-blue-200 dark:border-blue-800',    badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',    text: 'text-blue-700 dark:text-blue-300' },
 };
 
-function DeaconResponsesSection() {
+function DeaconResponsesSection({ data }: { data: typeof import('@/lib/orthodox-data') }) {
+  const { deaconSections } = data;
   const [expandedSection, setExpandedSection] = useState<string | null>('general');
 
   return (
@@ -1922,7 +1916,8 @@ function DeaconResponsesSection() {
 }
 
 // ── قسم العقيدة ───────────────────────────────────────────────────────────────
-function CreedSection() {
+function CreedSection({ data }: { data: typeof import('@/lib/creed-data') }) {
+  const { niceneCreed, creedTopics, creedCategories } = data;
   const [activeCategory, setActiveCategory] = useState('الكل');
   const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
   const [showCreed, setShowCreed] = useState(false);
@@ -2073,7 +2068,8 @@ const historyColorMap: Record<string, { bg: string; badge: string; border: strin
   purple: { bg: 'bg-purple-50 dark:bg-purple-900/20', badge: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800', dot: 'bg-purple-500' },
 };
 
-function HistorySection() {
+function HistorySection({ data }: { data: typeof import('@/lib/creed-data') }) {
+  const { historyEras } = data;
   const [expandedEra, setExpandedEra] = useState<string | null>('founding');
 
   return (
@@ -2152,7 +2148,8 @@ function HistorySection() {
 }
 
 // ── قسم الأسئلة والأجوبة ─────────────────────────────────────────────────────
-function QASection() {
+function QASection({ data }: { data: typeof import('@/lib/creed-data') }) {
+  const { creedQA, qaCategories } = data;
   const [activeCategory, setActiveCategory] = useState('الكل');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedQ, setExpandedQ] = useState<string | null>(null);
@@ -2267,7 +2264,8 @@ function QASection() {
 }
 
 // ── قسم الشخصيات ──────────────────────────────────────────────────────────────
-function FiguresSection() {
+function FiguresSection({ data }: { data: typeof import('@/lib/creed-data') }) {
+  const { churchFigures, figureCategories } = data;
   const [activeCategory, setActiveCategory] = useState('الكل');
   const [expandedFigure, setExpandedFigure] = useState<string | null>(null);
 
@@ -2382,7 +2380,8 @@ const COLOR_MAP: Record<string, { bg: string; text: string; border: string; badg
   teal:    { bg: 'bg-teal-50 dark:bg-teal-900/20',      text: 'text-teal-700 dark:text-teal-300',      border: 'border-teal-200 dark:border-teal-800',      badge: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300' },
 };
 
-function BookReaderSection() {
+function BookReaderSection({ data }: { data: typeof import('@/lib/orthodox-books-content') }) {
+  const { orthodoxBooks, orthodoxBookCategoryList } = data;
   const [categoryFilter, setCategoryFilter] = useState('الكل');
   const [selectedBook, setSelectedBook] = useState<OrthodoxBook | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<BookChapter | null>(null);
@@ -2667,7 +2666,8 @@ function createColoredIcon(color: string, _category: string) {
   });
 }
 
-function BibleMapsSection() {
+function BibleMapsSection({ data }: { data: typeof import('@/lib/orthodox-data') }) {
+  const { bibleLocations, bibleLocationCategories } = data;
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -2854,7 +2854,8 @@ function BibleMapsSection() {
 }
 
 // ── أسئلة مع البابا شنودة الثالث ─────────────────────────────────────────────
-function PopeShenoudaQASection() {
+function PopeShenoudaQASection({ data }: { data: typeof import('@/lib/orthodox-data') }) {
+  const { popeShenoudaQAVideos, popeShenoudaQACategories } = data;
   const [activeCategory, setActiveCategory] = useState<string>('الكل');
   const [expandedQ, setExpandedQ] = useState<string | null>(null);
   const [activeVideo, setActiveVideo] = useState<string | null>(null);
@@ -3027,7 +3028,8 @@ const categoryBg: Record<string, string> = {
   'عبادي':  'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800',
 };
 
-function ApocryphaSection() {
+function ApocryphaSection({ data }: { data: typeof import('@/lib/apocrypha-content') }) {
+  const { apocryphaBooks } = data;
   const [selectedBook, setSelectedBook] = useState<ApocryphaBook | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
   const [filterCat, setFilterCat] = useState<string>('الكل');
@@ -3368,6 +3370,21 @@ export default function Orthodox() {
   const trackPath = params?.tab ? `/orthodox/${params.tab}` : '/orthodox';
   usePageTracker(trackPath);
   const [, navigate] = useLocation();
+  const [loadedTabData, setLoadedTabData] = useState<{ tab: string; data: unknown } | null>(null);
+  const [tabDataError, setTabDataError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setLoadedTabData(null);
+    setTabDataError(null);
+    loadOrthodoxTabData(urlTab)
+      .then((data) => {
+        if (active && data) setLoadedTabData({ tab: urlTab, data });
+      })
+      .catch(() => {
+        if (active) setTabDataError(urlTab);
+      });
+    return () => { active = false; };
+  }, [urlTab]);
   useEffect(() => {
     if (params?.tab === 'st-takla') {
       navigate('/orthodox/tafseer', { replace: true });
@@ -3378,8 +3395,12 @@ export default function Orthodox() {
   const navigateToTab = (newTab: string) => {
     // السنكسار: ينقل مباشرة لسنكسار اليوم (وليس قائمة الشهور)
     if (newTab === 'synaxarium') {
-      const t = gregorianToCoptic(new Date());
-      navigate(`/orthodox/synaxarium/${t.month}/${t.day}`);
+      import('@/lib/synaxarium-content')
+        .then(({ gregorianToCoptic }) => {
+          const t = gregorianToCoptic(new Date());
+          navigate(`/orthodox/synaxarium/${t.month}/${t.day}`);
+        })
+        .catch(() => navigate('/orthodox'));
       return;
     }
     const dedicated = ORTHODOX_DEDICATED_ROUTES[newTab];
@@ -3482,51 +3503,75 @@ export default function Orthodox() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="synaxarium">
-              <SynaxariumSection />
+              {loadedTabData?.tab === 'synaxarium'
+                ? <SynaxariumSection data={loadedTabData.data as typeof import('@/lib/synaxarium-content')} />
+                : <OrthodoxTabLoading error={tabDataError === 'synaxarium'} />}
             </TabsContent>
 
             <TabsContent value="agpeya">
-              <AgpeyaSection />
+              {loadedTabData?.tab === 'agpeya'
+                ? <AgpeyaSection data={loadedTabData.data as typeof import('@/lib/agpeya-content')} />
+                : <OrthodoxTabLoading error={tabDataError === 'agpeya'} />}
             </TabsContent>
 
             <TabsContent value="liturgy">
-              <LiturgySection />
+              {loadedTabData?.tab === 'liturgy'
+                ? <LiturgySection data={loadedTabData.data as typeof import('@/lib/liturgy-content')} />
+                : <OrthodoxTabLoading error={tabDataError === 'liturgy'} />}
             </TabsContent>
 
             <TabsContent value="deacon">
-              <DeaconResponsesSection />
+              {loadedTabData?.tab === 'deacon'
+                ? <DeaconResponsesSection data={loadedTabData.data as typeof import('@/lib/orthodox-data')} />
+                : <OrthodoxTabLoading error={tabDataError === 'deacon'} />}
             </TabsContent>
 
             <TabsContent value="hymns">
-              <HymnsSection />
+              {loadedTabData?.tab === 'hymns'
+                ? <HymnsSection data={loadedTabData.data as typeof import('@/lib/hymns-content')} />
+                : <OrthodoxTabLoading error={tabDataError === 'hymns'} />}
             </TabsContent>
 
             <TabsContent value="katameros">
-              <DailyLectionarySection />
+              {loadedTabData?.tab === 'katameros'
+                ? <DailyLectionarySection lectionaryData={loadedTabData.data as typeof import('@/lib/coptic-lectionary') & typeof import('@/lib/katameros-content')} />
+                : <OrthodoxTabLoading error={tabDataError === 'katameros'} />}
             </TabsContent>
 
             <TabsContent value="saints">
-              <SaintsVideosSection />
+              {loadedTabData?.tab === 'saints'
+                ? <SaintsVideosSection data={loadedTabData.data as typeof import('@/lib/saints-content') & typeof import('@/lib/orthodox-data')} />
+                : <OrthodoxTabLoading error={tabDataError === 'saints'} />}
             </TabsContent>
 
             <TabsContent value="creed">
-              <CreedSection />
+              {loadedTabData?.tab === 'creed'
+                ? <CreedSection data={loadedTabData.data as typeof import('@/lib/creed-data')} />
+                : <OrthodoxTabLoading error={tabDataError === 'creed'} />}
             </TabsContent>
 
             <TabsContent value="history">
-              <HistorySection />
+              {loadedTabData?.tab === 'history'
+                ? <HistorySection data={loadedTabData.data as typeof import('@/lib/creed-data')} />
+                : <OrthodoxTabLoading error={tabDataError === 'history'} />}
             </TabsContent>
 
             <TabsContent value="books">
-              <BookReaderSection />
+              {loadedTabData?.tab === 'books'
+                ? <BookReaderSection data={loadedTabData.data as typeof import('@/lib/orthodox-books-content')} />
+                : <OrthodoxTabLoading error={tabDataError === 'books'} />}
             </TabsContent>
 
             <TabsContent value="qa">
-              <QASection />
+              {loadedTabData?.tab === 'qa'
+                ? <QASection data={loadedTabData.data as typeof import('@/lib/creed-data')} />
+                : <OrthodoxTabLoading error={tabDataError === 'qa'} />}
             </TabsContent>
 
             <TabsContent value="figures">
-              <FiguresSection />
+              {loadedTabData?.tab === 'figures'
+                ? <FiguresSection data={loadedTabData.data as typeof import('@/lib/creed-data')} />
+                : <OrthodoxTabLoading error={tabDataError === 'figures'} />}
             </TabsContent>
 
             <TabsContent value="apocrypha">
@@ -3538,11 +3583,15 @@ export default function Orthodox() {
             </TabsContent>
 
             <TabsContent value="maps">
-              <BibleMapsSection />
+              {loadedTabData?.tab === 'maps'
+                ? <BibleMapsSection data={loadedTabData.data as typeof import('@/lib/orthodox-data')} />
+                : <OrthodoxTabLoading error={tabDataError === 'maps'} />}
             </TabsContent>
 
             <TabsContent value="pope-qa">
-              <PopeShenoudaQASection />
+              {loadedTabData?.tab === 'pope-qa'
+                ? <PopeShenoudaQASection data={loadedTabData.data as typeof import('@/lib/orthodox-data')} />
+                : <OrthodoxTabLoading error={tabDataError === 'pope-qa'} />}
             </TabsContent>
 
           </Tabs>
