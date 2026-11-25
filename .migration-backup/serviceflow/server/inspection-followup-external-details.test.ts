@@ -511,6 +511,40 @@ test("the full-details panel keeps Arabic external response fields readable on a
     const notes = result.cards.find((card) => card.label === "ملاحظات رد الشئون الخارجية");
     assert.ok(notes?.wrapsLongText, "long Arabic notes should wrap into readable lines");
     assert.ok(notes?.value?.includes("تمديد كابل إضافي"), "the full notes should remain in the rendered details");
+
+    await page.setViewportSize({ width: 195, height: 422 });
+    const enlargedText = await page.evaluate(() => {
+      const dialog = document.querySelector<HTMLElement>('[data-testid="dialog-row-details-881"]')!;
+      const scroller = dialog.querySelector<HTMLElement>("section > div:last-child")!;
+      for (const card of [...dialog.querySelectorAll<HTMLElement>('[data-testid^="detail-"]')]) {
+        const label = card.firstElementChild as HTMLElement;
+        const value = card.lastElementChild as HTMLElement;
+        label.style.fontSize = "18px";
+        label.style.lineHeight = "24px";
+        value.style.fontSize = "24px";
+        value.style.lineHeight = "32px";
+      }
+      return {
+        viewport: window.innerWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        contentScrollable: scroller.scrollHeight > scroller.clientHeight,
+        cards: [...dialog.querySelectorAll<HTMLElement>('[data-testid^="detail-"]')].map((card) => {
+          const value = card.lastElementChild as HTMLElement;
+          const rect = card.getBoundingClientRect();
+          return {
+            insideViewport: rect.left >= 0 && rect.right <= window.innerWidth,
+            noTextOverflow: value.scrollWidth <= value.clientWidth,
+          };
+        }),
+      };
+    });
+    assert.equal(enlargedText.viewport, 195);
+    assert.ok(enlargedText.documentWidth <= enlargedText.viewport, "enlarged text must not create horizontal scrolling");
+    assert.ok(enlargedText.contentScrollable, "all enlarged details must remain reachable vertically");
+    for (const card of enlargedText.cards) {
+      assert.ok(card.insideViewport, "each detail card should fit the narrow zoomed viewport");
+      assert.ok(card.noTextOverflow, "enlarged values should wrap rather than overlap or clip");
+    }
   } finally {
     await browser.close();
   }
