@@ -123,6 +123,74 @@ describe('workshop security audit pagination', () => {
     assert.equal(page.hasOlder, true);
   });
 
+  it('keeps cursor traversal stable when new events arrive between pages at microsecond precision', async () => {
+    const at = '2026-11-09T12:00:00.123456Z';
+    const insertedAt = '2026-11-09T12:00:00.123457Z';
+    const events = Array.from({ length: 51 }, (_, index) => ({
+      id: String(index + 1),
+      company_id: 24,
+      created_at: at,
+      cursor_created_at: at,
+    }));
+    const pool = {
+      query: async (sql, params) => {
+        const older = /\(created_at, id\) </.test(sql);
+        const newer = /\(created_at, id\) >/.test(sql);
+        const cursor = older || newer ? params.slice(-2) : null;
+        const cursorAt = cursor?.[0];
+        const cursorId = cursor ? BigInt(cursor[1]) : null;
+        const compare = (event) => {
+          const timeOrder = event.cursor_created_at.localeCompare(cursorAt);
+          return timeOrder || (BigInt(event.id) < cursorId ? -1 : BigInt(event.id) > cursorId ? 1 : 0);
+        };
+        const matching = events
+          .filter((event) => event.company_id === 24)
+          .filter((event) => !cursor || (older ? compare(event) < 0 : compare(event) > 0))
+          .sort((a, b) => {
+            const timeOrder = a.cursor_created_at.localeCompare(b.cursor_created_at);
+            const order = timeOrder || (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0);
+            return newer ? order : -order;
+          });
+        return { rows: matching.slice(0, 51) };
+      },
+    };
+
+    const first = await audit.recentSecurity(pool, { companyId: '24' });
+    assert.deepEqual(first.rows.map((row) => row.id), Array.from({ length: 50 }, (_, i) => String(51 - i)));
+    events.push({
+      id: '52',
+      company_id: 24,
+      created_at: insertedAt,
+      cursor_created_at: insertedAt,
+    });
+
+    const older = await audit.recentSecurity(pool, {
+      companyId: '24',
+      cursorAt: first.rows.at(-1).cursor_created_at,
+      cursorId: first.rows.at(-1).id,
+      direction: 'older',
+    });
+    assert.deepEqual(older.rows.map((row) => row.id), ['1']);
+    assert.equal(new Set(older.rows.map((row) => row.id)).size, older.rows.length);
+
+    const backToFirst = await audit.recentSecurity(pool, {
+      companyId: '24',
+      cursorAt: older.rows[0].cursor_created_at,
+      cursorId: older.rows[0].id,
+      direction: 'newer',
+    });
+    assert.deepEqual(backToFirst.rows.map((row) => row.id), first.rows.map((row) => row.id));
+    assert.equal(backToFirst.hasNewer, true);
+
+    const newlyArrived = await audit.recentSecurity(pool, {
+      companyId: '24',
+      cursorAt: backToFirst.rows[0].cursor_created_at,
+      cursorId: backToFirst.rows[0].id,
+      direction: 'newer',
+    });
+    assert.deepEqual(newlyArrived.rows.map((row) => row.id), ['52']);
+  });
+
   it('keeps company/date filters on both page links and applies filters from a fresh page', () => {
     const pageUrlStart = adminRouteSource.indexOf('const pageUrl = (row, direction) =>');
     const pageUrlEnd = adminRouteSource.indexOf('\n    };', pageUrlStart);
