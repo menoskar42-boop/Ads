@@ -98,15 +98,6 @@ export const UpdateMessengerProfilePhoneResponse = zod.object({
 /**
  * @summary Upload the signed-in user's private profile photo
  */
-export const uploadMessengerProfileAvatarBodyBase64Max = 2796204;
-
-
-
-export const UploadMessengerProfileAvatarBody = zod.object({
-  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
-  "base64": zod.string().min(1).max(uploadMessengerProfileAvatarBodyBase64Max)
-})
-
 export const UploadMessengerProfileAvatarResponse = zod.object({
   "avatarUrl": zod.string()
 })

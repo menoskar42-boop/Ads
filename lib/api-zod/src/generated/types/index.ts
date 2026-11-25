@@ -78,8 +78,6 @@ export * from './person';
 export * from './phoneDiscoveryInput';
 export * from './phoneLookupInput';
 export * from './profile';
-export * from './profileAvatarInput';
-export * from './profileAvatarInputContentType';
 export * from './profileAvatarResponse';
 export * from './profileInput';
 export * from './profileResponse';

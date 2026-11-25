@@ -19,50 +19,39 @@ export type MessengerAvatarStorage = {
   delete: (key: string) => Promise<void>;
 };
 
-export function parseMessengerAvatarInput(input: unknown):
+export function parseMessengerAvatarInput(
+  contentType: unknown,
+  input: unknown,
+):
   | { ok: true; contentType: string; bytes: Buffer }
   | { ok: false; reason: "type" | "size" | "data" } {
-  if (!input || typeof input !== "object") return { ok: false, reason: "data" };
-  const candidate = input as { contentType?: unknown; base64?: unknown };
   if (
-    typeof candidate.contentType !== "string" ||
-    !allowedContentTypes.has(candidate.contentType)
+    typeof contentType !== "string" ||
+    !allowedContentTypes.has(contentType.split(";", 1)[0].trim().toLowerCase())
   ) {
     return { ok: false, reason: "type" };
   }
-  if (typeof candidate.base64 !== "string" || !candidate.base64) {
-    return { ok: false, reason: "data" };
-  }
-  if (candidate.base64.length > Math.ceil(MAX_MESSENGER_AVATAR_BYTES / 3) * 4) {
-    return { ok: false, reason: "size" };
-  }
-  if (
-    candidate.base64.length % 4 !== 0 ||
-    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
-      candidate.base64,
-    )
-  ) {
-    return { ok: false, reason: "data" };
-  }
-  const bytes = Buffer.from(candidate.base64, "base64");
+  const normalizedType = (contentType as string).split(";", 1)[0].trim().toLowerCase();
+  if (!Buffer.isBuffer(input)) return { ok: false, reason: "data" };
+  const bytes = input;
   if (bytes.length > MAX_MESSENGER_AVATAR_BYTES) {
     return { ok: false, reason: "size" };
   }
   const signatureMatches =
-    (candidate.contentType === "image/jpeg" &&
+    (normalizedType === "image/jpeg" &&
       bytes.length >= 3 &&
       bytes[0] === 0xff &&
       bytes[1] === 0xd8 &&
       bytes[2] === 0xff) ||
-    (candidate.contentType === "image/png" &&
+    (normalizedType === "image/png" &&
       bytes.length >= 8 &&
       bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
-    (candidate.contentType === "image/webp" &&
+    (normalizedType === "image/webp" &&
       bytes.length >= 12 &&
       bytes.toString("ascii", 0, 4) === "RIFF" &&
       bytes.toString("ascii", 8, 12) === "WEBP");
   if (!signatureMatches) return { ok: false, reason: "data" };
-  return { ok: true, contentType: candidate.contentType, bytes };
+  return { ok: true, contentType: normalizedType, bytes };
 }
 
 export async function hasMessengerAvatarSchema(
@@ -126,7 +115,8 @@ function extensionFor(contentType: string): string {
 export async function saveMessengerAvatar(
   pool: MessengerAvatarPool,
   userId: string,
-  input: unknown,
+  contentType: unknown,
+  body: unknown,
   storage: MessengerAvatarStorage,
 ): Promise<
   | { status: "migration" | "not_found" }
@@ -134,7 +124,7 @@ export async function saveMessengerAvatar(
   | { status: "saved"; avatarUrl: string; oldAvatarCleanupFailed: boolean }
 > {
   if (!(await hasMessengerAvatarSchema(pool))) return { status: "migration" };
-  const parsed = parseMessengerAvatarInput(input);
+  const parsed = parseMessengerAvatarInput(contentType, body);
   if (!parsed.ok) return { status: "invalid", reason: parsed.reason };
 
   const current = await pool.query(

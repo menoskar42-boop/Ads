@@ -58,6 +58,7 @@ import {
   messengerAvatarContentType,
   messengerAvatarSelect,
   messengerAvatarUrl,
+  MAX_MESSENGER_AVATAR_BYTES,
   saveMessengerAvatar,
 } from "../lib/messenger-avatars";
 import { logger } from "../lib/logger";
@@ -73,6 +74,31 @@ async function loadPool() {
 const router: IRouter = Router();
 const searchWindows = new Map<string, { count: number; resetAt: number }>();
 const MAX_VOICE_DURATION_MS = 120_000;
+
+const parseMessengerAvatarBody: RequestHandler = (req, res, next) => {
+  const parser = express.raw({
+    type: ["image/jpeg", "image/png", "image/webp"],
+    limit: MAX_MESSENGER_AVATAR_BYTES,
+  });
+  parser(req, res, (error: unknown) => {
+    if (!error) {
+      next();
+      return;
+    }
+    const status =
+      typeof error === "object" &&
+      error !== null &&
+      "status" in error &&
+      error.status === 413
+        ? 413
+        : 400;
+    res.status(status).json({
+      error: status === 413
+        ? "حجم الصورة لازم يكون 2 ميجا أو أقل"
+        : "تعذر قراءة الصورة.",
+    });
+  });
+};
 const MAX_VOICE_BYTES = 4 * 1024 * 1024;
 const AUDIO_CONTENT_TYPES = new Set(["audio/mp4", "audio/webm"]);
 const voiceSchemaCache = new WeakMap<
@@ -547,7 +573,11 @@ router.get("/messenger/profile", requireAuth, async (_req, res, next) => {
   }
 });
 
-router.put("/messenger/profile/avatar", requireAuth, async (req, res, next) => {
+router.put(
+  "/messenger/profile/avatar",
+  requireAuth,
+  parseMessengerAvatarBody,
+  async (req, res, next) => {
   try {
     const pool = getPoolOrUnavailable(await loadPool(), res);
     if (!pool) return;
@@ -562,6 +592,7 @@ router.put("/messenger/profile/avatar", requireAuth, async (req, res, next) => {
     const result = await saveMessengerAvatar(
       pool,
       getUserId(res),
+      req.get("content-type"),
       req.body,
       { put: putR2Object, delete: deleteR2Object },
     );
@@ -592,7 +623,8 @@ router.put("/messenger/profile/avatar", requireAuth, async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
+  },
+);
 
 router.delete("/messenger/profile/avatar", requireAuth, async (_req, res, next) => {
   try {

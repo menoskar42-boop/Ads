@@ -123,9 +123,18 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          image/jpeg:
             schema:
-              $ref: "#/components/schemas/ProfileAvatarInput"
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
       responses:
         "200":
           description: Updated avatar URL
@@ -2067,17 +2076,6 @@ components:
             - type: string
               format: uri-reference
             - type: "null"
-    ProfileAvatarInput:
-      type: object
-      required: [contentType, base64]
-      properties:
-        contentType:
-          type: string
-          enum: [image/jpeg, image/png, image/webp]
-        base64:
-          type: string
-          minLength: 1
-          maxLength: 2796204
     ProfileAvatarResponse:
       type: object
       required: [avatarUrl]

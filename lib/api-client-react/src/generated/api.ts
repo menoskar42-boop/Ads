@@ -66,7 +66,6 @@ import type {
   PeopleSearchResponse,
   PhoneDiscoveryInput,
   PhoneLookupInput,
-  ProfileAvatarInput,
   ProfileAvatarResponse,
   ProfileInput,
   ProfileResponse,
@@ -518,7 +517,7 @@ export const getUploadMessengerProfileAvatarUrl = () => {
 /**
  * @summary Upload the signed-in user's private profile photo
  */
-export const uploadMessengerProfileAvatar = async (profileAvatarInput: ProfileAvatarInput, options?: Parameters<typeof customFetch>[1]): Promise<ProfileAvatarResponse> => {
+export const uploadMessengerProfileAvatar = async (uploadMessengerProfileAvatarBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<ProfileAvatarResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -538,8 +537,8 @@ return customFetch<ProfileAvatarResponse>(getUploadMessengerProfileAvatarUrl(),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(profileAvatarInput)
+    headers: { 'Content-Type': 'image/jpeg', ...getHeaders(options?.headers) },
+    body: uploadMessengerProfileAvatarBody
   }
 );}
 
@@ -577,9 +576,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type UploadMessengerProfileAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof uploadMessengerProfileAvatar>>>
-    export type UploadMessengerProfileAvatarMutationBody = BodyType<ProfileAvatarInput>
+    export type UploadMessengerProfileAvatarMutationBody = BodyType<Blob>
     export type UploadMessengerProfileAvatarMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
-    export type UploadMessengerProfileAvatarMutationVariables = {data: BodyType<ProfileAvatarInput>}
+    export type UploadMessengerProfileAvatarMutationVariables = {data: BodyType<Blob>}
 
     /**
  * @summary Upload the signed-in user's private profile photo

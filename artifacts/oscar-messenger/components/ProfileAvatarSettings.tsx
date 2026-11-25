@@ -13,7 +13,6 @@ import {
   deleteMessengerProfileAvatar,
   uploadMessengerProfileAvatar,
   type Profile,
-  type ProfileAvatarInput,
 } from "@workspace/api-client-react";
 import { readableError } from "../lib/format";
 import { colors } from "../lib/theme";
@@ -21,10 +20,43 @@ import { colors } from "../lib/theme";
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-function isAvatarContentType(
-  value: string,
-): value is ProfileAvatarInput["contentType"] {
+function isAvatarContentType(value: string): boolean {
   return AVATAR_TYPES.has(value);
+}
+
+type AvatarUpload = { body: Blob; contentType: string };
+
+async function resizeWebAvatar(file: File): Promise<Blob> {
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = sourceUrl;
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("تعذر فتح الصورة."));
+    });
+    const scale = Math.min(
+      1,
+      512 / Math.max(image.naturalWidth, image.naturalHeight),
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("تعذر تجهيز الصورة.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => blob
+          ? resolve(blob)
+          : reject(new Error("تعذر ضغط الصورة.")),
+        "image/jpeg",
+        0.85,
+      );
+    });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
 }
 
 export function ProfileAvatarSettings({ profile }: { profile: Profile }) {
@@ -32,7 +64,10 @@ export function ProfileAvatarSettings({ profile }: { profile: Profile }) {
   const webInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const upload = useMutation({
-    mutationFn: (input: ProfileAvatarInput) => uploadMessengerProfileAvatar(input),
+    mutationFn: ({ body, contentType }: AvatarUpload) =>
+      uploadMessengerProfileAvatar(body, {
+        headers: { "Content-Type": contentType },
+      }),
     onSuccess: async () => {
       setError("");
       await queryClient.invalidateQueries({ queryKey: ["messenger"] });
@@ -48,16 +83,16 @@ export function ProfileAvatarSettings({ profile }: { profile: Profile }) {
     onError: (cause) => setError(readableError(cause, "تعذر مسح الصورة.")),
   });
 
-  const uploadFile = (contentType: string, base64: string, size?: number) => {
+  const uploadFile = (contentType: string, body: Blob) => {
     if (!isAvatarContentType(contentType)) {
       setError("اختار صورة JPEG أو PNG أو WebP.");
       return;
     }
-    if ((size ?? Math.ceil(base64.length * 0.75)) > MAX_AVATAR_BYTES) {
+    if (body.size > MAX_AVATAR_BYTES) {
       setError("حجم الصورة لازم يكون 2 ميجا أو أقل.");
       return;
     }
-    upload.mutate({ contentType, base64 });
+    upload.mutate({ body, contentType });
   };
 
   const chooseNativeImage = async () => {
@@ -73,43 +108,34 @@ export function ProfileAvatarSettings({ profile }: { profile: Profile }) {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.85,
-        base64: true,
       });
       if (result.canceled) return;
       const asset = result.assets[0];
-      if (!asset.base64) {
-        setError("تعذر قراءة الصورة المختارة.");
+      const contentType = asset.mimeType || "";
+      if (!isAvatarContentType(contentType)) {
+        setError("اختار صورة JPEG أو PNG أو WebP.");
         return;
       }
-      uploadFile(asset.mimeType || "", asset.base64, asset.fileSize);
+      const response = await fetch(asset.uri);
+      if (!response.ok) throw new Error("تعذر قراءة الصورة المختارة.");
+      uploadFile(contentType, await response.blob());
     } catch (cause) {
       setError(readableError(cause, "تعذر اختيار الصورة."));
     }
   };
 
-  const chooseWebImage = (file: File | null) => {
+  const chooseWebImage = async (file: File | null) => {
     if (!file) return;
     setError("");
     if (!isAvatarContentType(file.type)) {
       setError("اختار صورة JPEG أو PNG أو WebP.");
       return;
     }
-    if (file.size > MAX_AVATAR_BYTES) {
-      setError("حجم الصورة لازم يكون 2 ميجا أو أقل.");
-      return;
+    try {
+      uploadFile("image/jpeg", await resizeWebAvatar(file));
+    } catch (cause) {
+      setError(readableError(cause, "تعذر تجهيز الصورة."));
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      const comma = result.indexOf(",");
-      if (comma < 0) {
-        setError("تعذر قراءة الصورة المختارة.");
-        return;
-      }
-      uploadFile(file.type, result.slice(comma + 1), file.size);
-    };
-    reader.onerror = () => setError("تعذر قراءة الصورة المختارة.");
-    reader.readAsDataURL(file);
   };
 
   const confirmRemove = () => {
@@ -136,7 +162,7 @@ export function ProfileAvatarSettings({ profile }: { profile: Profile }) {
               accept="image/jpeg,image/png,image/webp"
               style={{ display: "none" }}
               onChange={(event) => {
-                chooseWebImage(event.currentTarget.files?.[0] ?? null);
+                void chooseWebImage(event.currentTarget.files?.[0] ?? null);
                 event.currentTarget.value = "";
               }}
             />

@@ -10,9 +10,11 @@ import {
 } from "../src/lib/messenger-avatars.ts";
 import { isMessengerUserBlocked } from "../src/lib/messenger-blocks.ts";
 
-const [routes, migration] = await Promise.all([
+const [routes, migration, appSource, apiSpec] = await Promise.all([
   readFile(new URL("../src/routes/messenger.ts", import.meta.url), "utf8"),
   readFile(new URL("../../../lib/db/migrations/0013_messenger_avatars.sql", import.meta.url), "utf8"),
+  readFile(new URL("../src/app.ts", import.meta.url), "utf8"),
+  readFile(new URL("../../../lib/api-spec/openapi.yaml", import.meta.url), "utf8"),
 ]);
 
 function fakePool(handler) {
@@ -28,35 +30,45 @@ function fakePool(handler) {
 
 test("avatar input accepts JPEG, PNG and WebP and rejects other types or files over 2 MB", () => {
   assert.equal(
-    parseMessengerAvatarInput({
-      contentType: "image/jpeg",
-      base64: Buffer.from([0xff, 0xd8, 0xff]).toString("base64"),
-    }).ok,
+    parseMessengerAvatarInput("image/jpeg", Buffer.from([0xff, 0xd8, 0xff])).ok,
     true,
   );
   assert.equal(
-    parseMessengerAvatarInput({
-      contentType: "image/png",
-      base64: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).toString("base64"),
-    }).ok,
+    parseMessengerAvatarInput("image/png", Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])).ok,
     true,
   );
   assert.equal(
-    parseMessengerAvatarInput({
-      contentType: "image/webp",
-      base64: Buffer.from("RIFF0000WEBP").toString("base64"),
-    }).ok,
+    parseMessengerAvatarInput("image/webp", Buffer.from("RIFF0000WEBP")).ok,
     true,
   );
   assert.deepEqual(
-    parseMessengerAvatarInput({ contentType: "image/gif", base64: "R0lGODlh" }),
+    parseMessengerAvatarInput("image/gif", Buffer.from("R0lGODlh")),
     { ok: false, reason: "type" },
   );
-  const tooLarge = Buffer.alloc(MAX_MESSENGER_AVATAR_BYTES + 1).toString("base64");
+  const tooLarge = Buffer.alloc(MAX_MESSENGER_AVATAR_BYTES + 1);
   assert.deepEqual(
-    parseMessengerAvatarInput({ contentType: "image/jpeg", base64: tooLarge }),
+    parseMessengerAvatarInput("image/jpeg", tooLarge),
     { ok: false, reason: "size" },
   );
+});
+
+test("1.5 MiB raw avatars are accepted and 2.5 MiB is rejected", () => {
+  const accepted = Buffer.alloc(1_572_864);
+  accepted.set([0xff, 0xd8, 0xff]);
+  assert.equal(parseMessengerAvatarInput("image/jpeg", accepted).ok, true);
+
+  const tooLarge = Buffer.alloc(2_621_440);
+  tooLarge.set([0xff, 0xd8, 0xff]);
+  assert.deepEqual(parseMessengerAvatarInput("image/jpeg", tooLarge), {
+    ok: false,
+    reason: "size",
+  });
+
+  assert.match(routes, /express\.raw\(\{[\s\S]*?limit: MAX_MESSENGER_AVATAR_BYTES/);
+  assert.match(routes, /error\.status === 413[\s\S]*?res\.status\(status\)/);
+  assert.match(appSource, /app\.use\(express\.json\(\)\)/);
+  assert.doesNotMatch(appSource, /app\.use\(express\.json\(\{[^}]*limit/);
+  assert.match(apiSpec, /\/messenger\/profile\/avatar:[\s\S]*?image\/jpeg:[\s\S]*?format: binary/);
 });
 
 test("upload saves the new private object before deleting the old object", async () => {
@@ -82,10 +94,8 @@ test("upload saves the new private object before deleting the old object", async
   const result = await saveMessengerAvatar(
     pool,
     "user-1",
-    {
-      contentType: "image/jpeg",
-      base64: Buffer.from([0xff, 0xd8, 0xff]).toString("base64"),
-    },
+      "image/jpeg",
+      Buffer.from([0xff, 0xd8, 0xff]),
     storage,
   );
   assert.equal(result.status, "saved");
@@ -132,10 +142,8 @@ test("missing avatar columns produce a migration result and endpoints return 503
     await saveMessengerAvatar(
       pool,
       "user-1",
-      {
-        contentType: "image/jpeg",
-        base64: Buffer.from([0xff, 0xd8, 0xff]).toString("base64"),
-      },
+      "image/jpeg",
+      Buffer.from([0xff, 0xd8, 0xff]),
       { async put() {}, async delete() {} },
     ),
     { status: "migration" },
@@ -145,7 +153,7 @@ test("missing avatar columns produce a migration result and endpoints return 503
     "utf8",
   );
   assert.match(avatarHelper, /Date\.now\(\) - cached\.checkedAt < 15_000/);
-  assert.match(routes, /router\.put\("\/messenger\/profile\/avatar"[\s\S]*?res\.status\(503\)\.json\(\{ error: "تحديث قاعدة البيانات مطلوب" \}\)/);
+  assert.match(routes, /router\.put\(\s*"\/messenger\/profile\/avatar"[\s\S]*?res\.status\(503\)\.json\(\{ error: "تحديث قاعدة البيانات مطلوب" \}\)/);
   assert.match(routes, /router\.delete\("\/messenger\/profile\/avatar"[\s\S]*?res\.status\(503\)\.json\(\{ error: "تحديث قاعدة البيانات مطلوب" \}\)/);
   assert.match(routes, /router\.get\("\/messenger\/avatars\/:userId"[\s\S]*?res\.status\(503\)\.json\(\{ error: "تحديث قاعدة البيانات مطلوب" \}\)/);
   assert.match(migration, /BEGIN;[\s\S]*ADD COLUMN IF NOT EXISTS avatar_object_key text NULL;[\s\S]*ADD COLUMN IF NOT EXISTS avatar_updated_at timestamptz NULL;[\s\S]*COMMIT;/);
