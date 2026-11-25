@@ -46,7 +46,7 @@ test("voice downloads and message lists are scoped to conversation members", () 
   );
   assert.match(voice, /conversationForUser\(pool, conversationId, userId\)/);
   assert.match(voice, /WHERE id = \$1 AND conversation_id = \$2/);
-  assert.ok(voice.indexOf("conversationForUser(") < voice.indexOf("getR2Object("));
+  assert.ok(voice.indexOf("readVoicePlayback(") >= 0 && voice.indexOf("conversationForUser(") < voice.indexOf("readVoicePlayback("));
   assert.match(messenger, /WHERE m\.conversation_id = \$1/);
   assert.match(messenger, /reply\.conversation_id = m\.conversation_id/);
   assert.match(messages, /conversationForUser\(pool, conversationId, userId\)/);
