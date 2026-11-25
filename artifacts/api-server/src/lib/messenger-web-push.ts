@@ -1,14 +1,28 @@
 import * as webPush from "web-push";
 import type { PushSubscription } from "web-push";
+import { logger } from "./logger";
 
 type PushPool = {
   query: (text: string, values?: any[]) => Promise<{ rows: any[] }>;
 };
 
-type PushSubscriptionRow = PushSubscription & {
+type PushSubscriptionRow = {
   id: string;
   user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
 };
+
+function toWebPushSubscription(row: PushSubscriptionRow): PushSubscription {
+  return {
+    endpoint: row.endpoint,
+    keys: {
+      p256dh: row.p256dh,
+      auth: row.auth,
+    },
+  };
+}
 
 type PushRecipientRow = {
   user_id: string;
@@ -130,17 +144,32 @@ export async function deliverPushSubscriptions(
   await Promise.all(
     subscriptions.map(async (subscription) => {
       try {
-        await sendNotification(subscription, JSON.stringify(payload));
+        await sendNotification(toWebPushSubscription(subscription), JSON.stringify(payload));
         await pool.query(
           `UPDATE messenger_push_subscriptions
            SET last_success_at = now() WHERE id = $1`,
           [subscription.id],
         );
       } catch (error) {
-        const statusCode =
+        const rawStatusCode =
           typeof error === "object" && error !== null && "statusCode" in error
             ? Number(error.statusCode)
-            : 0;
+            : null;
+        const statusCode =
+          rawStatusCode !== null && Number.isFinite(rawStatusCode)
+            ? rawStatusCode
+            : null;
+        const errorName =
+          typeof error === "object" &&
+          error !== null &&
+          "name" in error &&
+          typeof error.name === "string"
+            ? error.name
+            : "UnknownError";
+        logger.warn(
+          { statusCode, errorName },
+          "Messenger Web Push delivery failed",
+        );
         if (statusCode === 404 || statusCode === 410) {
           await pool
             .query(
