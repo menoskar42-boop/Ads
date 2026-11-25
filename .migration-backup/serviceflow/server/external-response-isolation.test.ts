@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { promisify } from "node:util";
 import { randomBytes, scrypt } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import express from "express";
 import { createServer } from "node:http";
 import test from "node:test";
@@ -63,14 +64,14 @@ test("external replies stay separate from technician data through rerouting, syn
       const { rows } = await pool.query(
         `INSERT INTO orders
            (customer_name, customer_phone, customer_address, serial_number, sales_id, sales_name,
-            status, is_feasible, rejection_reason, cabin_number, box_number, nearest_box_distance,
+            status, contract_status, is_feasible, rejection_reason, cabin_number, box_number, nearest_box_distance,
             additional_notes, central_name, tech_id, tech_name, tech_response_at,
             external_id, external_name, is_feasible_external, external_rejection_reason,
             external_central_name, external_cabin_number, external_box_number,
             external_nearest_box_distance, external_additional_notes, external_response_at)
          VALUES
-           ('Test customer', '01000000000', 'Test address', $1, $2, 'Test admin',
-            'not_feasible', false, 'technician rejection', 'TECH-CAB', 'TECH-BOX', '7m',
+            ('Test customer', '01000000000', 'Test address', $1, $2, 'Test admin',
+             'not_feasible', 'تم التعاقد', false, 'technician rejection', 'TECH-CAB', 'TECH-BOX', '7m',
             'technician note', 'Tech Central', $3, 'Test technician', '2026-10-10T10:00:00Z',
             $4, 'Previous external reviewer', false, 'stale external rejection',
             'Old external central', 'OLD-CAB', 'OLD-BOX', '99m', 'stale note',
@@ -98,6 +99,19 @@ test("external replies stay separate from technician data through rerouting, syn
       tech_response_at: (await pool.query(
         `SELECT tech_response_at FROM orders WHERE id = $1`, [matchedOrderId],
       )).rows[0].tech_response_at,
+    };
+    const originalCommercial = {
+      customer_name: "Test customer",
+      customer_phone: "01000000000",
+      customer_address: "Test address",
+      sales_id: adminId,
+      sales_name: "Test admin",
+      contract_status: "تم التعاقد",
+    };
+    const assertCommercialUnchanged = (row: Record<string, any>) => {
+      for (const [key, value] of Object.entries(originalCommercial)) {
+        assert.deepEqual(row[key], value, `external workflow must preserve ${key}`);
+      }
     };
 
     await pool.query(
@@ -166,6 +180,7 @@ test("external replies stay separate from technician data through rerouting, syn
     assert.equal(reroute.status, 200, await reroute.text());
     let order = await readOrder(matchedOrderId);
     assertTechUnchanged(order);
+    assertCommercialUnchanged(order);
     assertExternalCleared(order);
 
     const rejection = await request(`/api/orders/${matchedOrderId}/external-response`, externalCookie, "PUT", {
@@ -180,6 +195,7 @@ test("external replies stay separate from technician data through rerouting, syn
     assert.equal(rejection.status, 200, await rejection.text());
     order = await readOrder(matchedOrderId);
     assertTechUnchanged(order);
+    assertCommercialUnchanged(order);
     assert.equal(order.is_feasible_external, false);
     assert.equal(order.external_rejection_reason, "external rejection");
     assert.equal(order.external_central_name, "External Central");
@@ -191,6 +207,7 @@ test("external replies stay separate from technician data through rerouting, syn
     assert.equal(rerouteAgain.status, 200, await rerouteAgain.text());
     order = await readOrder(matchedOrderId);
     assertTechUnchanged(order);
+    assertCommercialUnchanged(order);
     assertExternalCleared(order);
     assertTechUnchanged(await readMatchedResponse());
     assertExternalCleared(await readMatchedResponse());
@@ -207,6 +224,7 @@ test("external replies stay separate from technician data through rerouting, syn
     assert.equal(feasible.status, 200, await feasible.text());
     order = await readOrder(matchedOrderId);
     assertTechUnchanged(order);
+    assertCommercialUnchanged(order);
     assert.equal(order.is_feasible_external, true);
     assert.equal(order.external_rejection_reason, null);
     assert.equal(order.external_cabin_number, "EXT-FEAS-CAB");
@@ -218,6 +236,7 @@ test("external replies stay separate from technician data through rerouting, syn
     assert.equal(resetMatched.status, 200, await resetMatched.text());
     order = await readOrder(matchedOrderId);
     assert.equal(order.status, "pending");
+    assertCommercialUnchanged(order);
     assertExternalCleared(order);
     // ⚠️ مش بنطلب إن الـreset يمسح بيانات الفنى فى orders: central_name هناك جزء من الطلب نفسه، ومسحه بيبوّظ الطلب.
 
@@ -233,10 +252,12 @@ test("external replies stay separate from technician data through rerouting, syn
       externalAdditionalNotes: "unlinked external note",
     });
     assert.equal(unlinkedRejection.status, 200, await unlinkedRejection.text());
+    assertCommercialUnchanged(await readOrder(unlinkedOrderId));
     const resetUnlinked = await request(`/api/orders/${unlinkedOrderId}/reset`, adminCookie, "POST", {});
     assert.equal(resetUnlinked.status, 200, await resetUnlinked.text());
     const unlinkedOrder = await readOrder(unlinkedOrderId);
     assert.equal(unlinkedOrder.status, "pending");
+    assertCommercialUnchanged(unlinkedOrder);
     assertExternalCleared(unlinkedOrder);
     for (const key of Object.keys(originalTech)) assert.equal(unlinkedOrder[key], null, `tech reset must clear ${key}`);
   } finally {
@@ -245,4 +266,29 @@ test("external replies stay separate from technician data through rerouting, syn
     }
     await deleteFixtures();
   }
+});
+
+test("external response and matched sync do not write contract, sales, or customer fields", async () => {
+  const [schema, storage, routes] = await Promise.all([
+    readFile(new URL("../shared/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("./storage.ts", import.meta.url), "utf8"),
+    readFile(new URL("./routes.ts", import.meta.url), "utf8"),
+  ]);
+  const externalSchemaStart = schema.indexOf("export const updateExternalResponseSchema");
+  const externalSchemaEnd = schema.indexOf("// Types", externalSchemaStart);
+  const externalSchema = schema.slice(externalSchemaStart, externalSchemaEnd);
+  assert.match(externalSchema, /isFeasibleExternal:\s*true/);
+  assert.doesNotMatch(externalSchema, /contractStatus|salesId|salesName|customerName|customerPhone|customerAddress/);
+
+  const storageStart = storage.indexOf("async updateExternalResponse");
+  const storageEnd = storage.indexOf("async createNotification", storageStart);
+  const externalUpdate = storage.slice(storageStart, storageEnd);
+  assert.match(externalUpdate, /\.set\(data\)/);
+  assert.doesNotMatch(externalUpdate, /contractStatus|salesId|salesName|customerName|customerPhone|customerAddress/);
+
+  const syncStart = routes.indexOf("async function syncMatchedResponse");
+  const syncEnd = routes.indexOf("app.put(api.orders.update.path", syncStart);
+  const matchedSync = routes.slice(syncStart, syncEnd);
+  assert.ok(syncStart >= 0 && syncEnd > syncStart);
+  assert.doesNotMatch(matchedSync, /contract_status|sales_id|sales_name|customer_name|customer_phone|customer_address/i);
 });
