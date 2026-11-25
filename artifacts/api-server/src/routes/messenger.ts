@@ -12,6 +12,10 @@ import { parseMessageCursor } from "../lib/message-pagination";
 import { parseMessengerLocationInput } from "../lib/messenger-location";
 import { canDeleteOwnVoiceMessage } from "../lib/messenger-voice-delete";
 import {
+  readVoicePlayback,
+  uploadVoiceObjectAndPersist,
+} from "../lib/messenger-voice-storage";
+import {
   editOwnTextMessage,
   MESSAGE_DELETED_LABEL,
   messagePublicContent,
@@ -1884,51 +1888,47 @@ router.post(
 
       const id = randomUUID();
       const objectKey = voiceObjectKey(conversationId, id, contentType as "audio/mp4" | "audio/webm");
-      try {
-        await putR2Object(objectKey, body, contentType as "audio/mp4" | "audio/webm");
-      } catch (error) {
-        await deleteR2Object(objectKey).catch(() => undefined);
-        throw error;
-      }
-
       let row;
-      try {
-        const inserted = await pool.query(
-          `INSERT INTO messenger_messages
-             (id, conversation_id, sender_id, client_message_id, body,
-              attachment_count, message_type, audio_duration_ms,
-              audio_content_type, audio_size_bytes)
-           VALUES ($1, $2, $3, $4, 'رسالة صوتية', 1, 'audio', $5, $6, $7)
-           ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
-           RETURNING id, conversation_id, sender_id, body, created_at,
-                      delivered_at, read_at, message_type, audio_duration_ms ${editDeleteFields}`,
-          [id, conversationId, userId, clientMessageId, durationMs, contentType, body.length],
-        );
-        row = inserted.rows[0];
-        if (!row) {
-          await deleteR2Object(objectKey).catch(() => undefined);
-          const concurrentDuplicate = await pool.query(
-            `SELECT id, conversation_id, sender_id, body, created_at,
-                     delivered_at, read_at, message_type, audio_duration_ms ${editDeleteFields}
-             FROM messenger_messages
-             WHERE conversation_id = $1 AND sender_id = $2 AND client_message_id = $3`,
-            [conversationId, userId, clientMessageId],
+      const upload = await uploadVoiceObjectAndPersist({
+        objectKey,
+        body,
+        contentType: contentType as "audio/mp4" | "audio/webm",
+        store: { put: putR2Object, delete: deleteR2Object },
+        persist: async () => {
+          const inserted = await pool.query(
+            `INSERT INTO messenger_messages
+               (id, conversation_id, sender_id, client_message_id, body,
+                attachment_count, message_type, audio_duration_ms,
+                audio_content_type, audio_size_bytes)
+             VALUES ($1, $2, $3, $4, 'رسالة صوتية', 1, 'audio', $5, $6, $7)
+             ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
+             RETURNING id, conversation_id, sender_id, body, created_at,
+                        delivered_at, read_at, message_type, audio_duration_ms ${editDeleteFields}`,
+            [id, conversationId, userId, clientMessageId, durationMs, contentType, body.length],
           );
-          const existing = concurrentDuplicate.rows[0];
-          if (existing?.message_type === "audio") {
-            await pool.query(
-              `UPDATE messenger_conversations SET updated_at = now() WHERE id = $1`,
-              [conversationId],
-            );
-            res.status(200).json({ message: publicMessage(existing) });
-            return;
-          }
-          res.status(409).json({ error: "This message was already sent" });
+          return inserted.rows[0] ?? null;
+        },
+      });
+      row = upload.row;
+      if (!row) {
+        const concurrentDuplicate = await pool.query(
+          `SELECT id, conversation_id, sender_id, body, created_at,
+                   delivered_at, read_at, message_type, audio_duration_ms ${editDeleteFields}
+           FROM messenger_messages
+           WHERE conversation_id = $1 AND sender_id = $2 AND client_message_id = $3`,
+          [conversationId, userId, clientMessageId],
+        );
+        const existing = concurrentDuplicate.rows[0];
+        if (existing?.message_type === "audio") {
+          await pool.query(
+            `UPDATE messenger_conversations SET updated_at = now() WHERE id = $1`,
+            [conversationId],
+          );
+          res.status(200).json({ message: publicMessage(existing) });
           return;
         }
-      } catch (error) {
-        await deleteR2Object(objectKey).catch(() => undefined);
-        throw error;
+        res.status(409).json({ error: "This message was already sent" });
+        return;
       }
 
       await pool.query(
@@ -1980,28 +1980,29 @@ router.get(
            ${editDeleteReady ? "AND deleted_at IS NULL" : ""}`,
         [messageId, conversationId],
       );
-      const row = result.rows[0];
-      if (!row || row.message_type !== "audio" || !AUDIO_CONTENT_TYPES.has(row.audio_content_type)) {
+      const row = result.rows[0] ?? null;
+      const playback = await readVoicePlayback(
+        row,
+        (contentType) => voiceObjectKey(conversationId, messageId, contentType),
+        { get: getR2Object },
+      );
+      if (playback.kind === "invalid-message") {
         res.status(404).json({ error: "Voice message not found" });
         return;
       }
-
-      const contentType = row.audio_content_type as "audio/mp4" | "audio/webm";
-      const objectKey = voiceObjectKey(conversationId, messageId, contentType);
-      const audio = await getR2Object(objectKey);
-      if (!audio) {
+      if (playback.kind === "file-missing") {
         res.status(404).json({ error: "Voice message file not found" });
         return;
       }
       res
         .status(200)
         .set({
-          "Content-Type": contentType,
-          "Content-Length": String(audio.length),
+          "Content-Type": playback.contentType,
+          "Content-Length": String(playback.audio.length),
           "Cache-Control": "private, no-store",
           "X-Content-Type-Options": "nosniff",
         })
-        .send(audio);
+        .send(playback.audio);
     } catch (error) {
       next(error);
     }
