@@ -36,11 +36,12 @@ before(async () => {
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${server.address().port}`;
-  const exe = "/opt/pw-browsers/chromium";
+  const exe = process.env.MYKID_CHROMIUM ||
+    ["/opt/pw-browsers/chromium", "/repl/tools/bin/chromium"].find(existsSync);
   browser = await chromium.launch({
     headless: true,
     args: ["--no-sandbox", "--disable-dev-shm-usage"],
-    ...(existsSync(exe) ? { executablePath: exe } : {}),
+    ...(exe && existsSync(exe) ? { executablePath: exe } : {}),
   });
   page = await browser.newPage({ viewport: { width: 400, height: 820 }, deviceScaleFactor: 1, reducedMotion: "reduce" });
   page.on("pageerror", (e) => errors.push(e.message));
@@ -307,6 +308,28 @@ test("Arabic letter page has an optional first step with both mapped videos", as
   await open(nonLetterPage.id);
   assert.notEqual(await kind(), "video");
   assert.equal(await page.locator(".kid-youtube-card").count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test("returning to the chooser during playback removes the iframe before another letter opens", async () => {
+  errors.length = 0;
+  await open("Lب");
+  const firstPreview = page.locator(".kid-youtube-card").first().locator(".kid-youtube-preview");
+  await firstPreview.click();
+  await page.waitForSelector(".kid-youtube-card iframe");
+  assert.equal(await page.locator(".kid-youtube-card iframe").count(), 1);
+
+  await page.locator(".topbar .icon-btn").click();
+  await page.waitForSelector(".wbk-map");
+  assert.equal(await page.locator("iframe").count(), 0, "الرجوع يزيل إطار الفيديو الجاري");
+
+  await page.locator('.wbk-pc[data-id="Lت"]').click();
+  assert.equal(await kind(), "video");
+  assert.equal(await page.locator("iframe").count(), 0, "الحرف الجديد لا يرث مشغّل الحرف السابق");
+  await page.locator(".kid-youtube-card").first().locator(".kid-youtube-preview").click();
+  await page.waitForSelector(".kid-youtube-card iframe");
+  assert.equal(await page.locator("iframe").count(), 1);
+  assert.match(await page.locator("iframe").getAttribute("src"), /SbCoTT0bO5Q/);
   assert.deepEqual(errors, []);
 });
 
