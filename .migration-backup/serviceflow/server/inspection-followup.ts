@@ -216,7 +216,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
       );
       // تحديث نسخة العينة يضيف العناصر الناقصة ويحافظ على السجلات السابقة.
       const samplingVersion = section === "maintenance" ? 2 : section === "installations" ? 4 : 2;
-      if (initialized.rowCount >= 0) {
+      if ((initialized.rowCount ?? 0) >= 0) {
         const sampledAlready = await client.query(
           `SELECT i.source_key AS "sourceKey", i.technician_name AS "technicianName",
                   i.is_manual AS "isManual", i.source_data AS "sourceData",
@@ -379,7 +379,7 @@ export function registerInspectionFollowup(app: Express, d: Deps) {
         [month, section],
       );
       // كل فتح بيكمّل العينة للنسبة المطلوبة (اللى اتعمل بعد أول فتح فى الشهر لازم يدخل) — العناصر المختارة قبل كده ثابتة
-      if (cached.rowCount >= 0 || targetVersion) {
+      if ((cached.rowCount ?? 0) >= 0 || targetVersion) {
         const rows = sourceRows ?? await loadSourceRows(section, month);
         await ensureSectionSamples(section, month, rows, ratio);
       }
