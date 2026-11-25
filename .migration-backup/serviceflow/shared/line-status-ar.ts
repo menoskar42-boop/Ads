@@ -35,6 +35,17 @@ export const XELT_PERFORMED_AR: Record<string, string> = {
 
 /** القاموس: الكلمة بالإنجليزى (من غير حالة حروف) ⇒ عربى سهل. البحث بالجملة كلها الأول، وبعدين بأول كلمة مطابقة. */
 const DICT: [RegExp, string][] = [
+  [/^CPE Serial Number$/i, "رقم الراوتر (Serial)"],
+  [/^Serial Number$/i, "رقم الراوتر (Serial)"],
+  [/^CPE Vendor ID$/i, "الشركة المصنعة للراوتر"],
+  [/^Vendor ID$/i, "الشركة المصنعة للراوتر"],
+  [/^CPE Firmware Version(?: Number)?$/i, "إصدار برنامج الراوتر"],
+  [/^Firmware Version(?: Number)?$/i, "إصدار برنامج الراوتر"],
+  [/^CPE Interoperability Issue$/i, "توافق الراوتر"],
+  [/^CPE\b/i, "معلومات الراوتر"],
+  [/^Vendor Information$/i, "معلومات الشركة المصنّعة"],
+  [/^(vendor id|vendor name|manufacturer)$/i, "الشركة المصنّعة"],
+  [/^(other info|hardware version|software version|firmware version|product class|model name|mac address)$/i, "معلومات الجهاز"],
   [/^collection date/i, "تاريخ القراءة"],
   [/^stability/i, "ثبات الخط"],
   [/^estimated loop length/i, "طول الخط التقريبى (من السنترال)"],
@@ -90,6 +101,102 @@ function findAll(page: Page | undefined, re: RegExp): Row[] {
 }
 const firstVal = (r: Row | null) => (r ? norm(r.slice(1).find((c) => norm(c)) ?? "") : "");
 
+const SUBSCRIBER_LOCATION = "عند المشترك (الراوتر أو السلك جوّه البيت)";
+const NETWORK_LOCATION = "فى الشبكة (كابل/بكس/وصلات)";
+
+function diagnosticLocation(label: string, value: string): { location: string; note: string } {
+  const evidence = `${label} ${value}`;
+  if (/cpe|modem|in.?home|inside wiring|customer|interoperability/i.test(evidence)) {
+    return { location: SUBSCRIBER_LOCATION, note: "راجع الراوتر وتوصيلاته والسلك داخل البيت." };
+  }
+  if (/splice|joint|contact|bridged tap|open|cut|short|ground|earth|leak|noise|crosstalk|rfi|attenuation|unbalanced|dsl.?am|loop|cable|pair/i.test(evidence)) {
+    return { location: NETWORK_LOCATION, note: "اكشف على الكابل والبكس والوصلات، وراجع المسافة المسجلة." };
+  }
+  return { location: "مكان العطل محتاج تحديد", note: "راجع تفاصيل التشخيص وحدد مكان العطل قبل الإصلاح." };
+}
+
+function isDiagnosticMetadata(label: string, panelTitle: string): boolean {
+  const ar = labelAr(label);
+  return /vendor information/i.test(panelTitle)
+    || ar === "التاريخ"
+    || (/^CPE\b/i.test(label) && !/^CPE Interoperability Issue$/i.test(label))
+    || /date|time|filter|history|serial number|vendor id|firmware version|collection date/i.test(label)
+    || /^(other info|manufacturer|vendor name)$/i.test(label);
+}
+
+function diagnosticFindings(page: Page | undefined): { text: string; note: string }[] {
+  const out: { text: string; note: string }[] = [];
+  for (const panel of page?.panels || []) for (const row of panel.rows || []) {
+    if (!Array.isArray(row) || !norm(row[0]) || isDiagnosticMetadata(norm(row[0]), norm(panel.title || ""))) continue;
+    const label = norm(row[0]);
+    if (/^stability$/i.test(label)) continue;
+    const cells = row.slice(1).map(norm).filter(Boolean);
+    const value = cells.join(" ");
+    let detected = false;
+    if (/^CPE Interoperability Issue$/i.test(label)) {
+      detected = /detected/i.test(value) && !/not detected/i.test(value);
+    } else {
+      const match = value.match(/✓\s*(\d+)/);
+      detected = !!match && Number(match[1]) > 0;
+    }
+    if (!detected) continue;
+    const place = diagnosticLocation(label, value);
+    const translated = labelAr(label);
+    const labelText = translated === label ? label : `${translated} (${label})`;
+    out.push({ text: `${place.location}: ${labelText}`, note: place.note });
+  }
+  return out;
+}
+
+function xeltStructuredSummary(page: Page): { value: string; note: string; level: Level } | null {
+  const panels = page.panels || [];
+  const rows = panels.flatMap((panel) => panel.rows || []).filter((row) => Array.isArray(row) && norm(row[0]));
+  const valueFor = (re: RegExp) => {
+    for (const row of rows) {
+      if (!re.test(norm(row[0]))) continue;
+      const value = norm(row.slice(1).find((cell) => norm(cell) && !/^n\/?a$/i.test(norm(cell))) || "");
+      if (value) return value;
+    }
+    return "";
+  };
+  const numberRaw = valueFor(/^Number of Faults$/i);
+  const numberOfFaults = num(numberRaw);
+  const lineType = valueFor(/^Line Type$/i);
+  const analysisType = valueFor(/^Analysis Type$/i);
+  const firstFaultValue = (row: Row) => norm(row.slice(1).find((cell) => norm(cell) && !/^n\/?a$/i.test(norm(cell)) && !/no fault detected/i.test(norm(cell))) || "");
+  const faults = rows
+    .filter((row) => /^Fault\s+\d+$/i.test(norm(row[0])))
+    .map(firstFaultValue)
+    .filter(Boolean);
+  const distances = rows
+    .filter((row) => /^Fault\s+#?\d+\s+Distance$/i.test(norm(row[0])))
+    .map((row) => ({ label: norm(row[0]), value: norm(row.slice(1).find((cell) => norm(cell)) || "") }))
+    .filter((item) => item.value && !/^n\/?a$/i.test(item.value));
+  const history = valueFor(/^History Check$/i);
+  const date = history.match(/\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?/);
+  if (!numberRaw && !lineType && !analysisType && !faults.length && !distances.length && !date) return null;
+
+  const detected = (numberOfFaults != null && numberOfFaults > 0) || faults.length > 0;
+  const faultText = faults.map((fault) => {
+    const translated = labelAr(fault);
+    return translated === fault ? fault : `${translated} (${fault})`;
+  }).join(" · ");
+  const place = detected ? diagnosticLocation(faultText || "XELT fault", faultText) : null;
+  const parts = [
+    numberRaw && `عدد الأعطال: ${numberRaw}`,
+    lineType && `نوع الخط: ${lineType}`,
+    !lineType && analysisType && `نوع التحليل: ${analysisType}`,
+    faults.length && `العطل: ${faultText}`,
+    distances.length && `المسافة: ${distances.map((item) => `عند العطل ${item.label.match(/\d+/)?.[0] || ""}: ${item.value.replace(/meters?/i, "متر")}`).join(" · ")}`,
+    date && `آخر XELT: ${date[0]}`,
+  ].filter(Boolean);
+  return {
+    value: [place?.location, ...parts].filter(Boolean).join(" · "),
+    note: place?.note || "مافيش عطل ظاهر فى XELT؛ راجع باقى نتائج الخط.",
+    level: detected ? "bad" : "warn",
+  };
+}
+
 export function lineStatusAr(pages: Pages): LineStatusAr {
   const items: SummaryItem[] = [];
   const sum = pages.summary, op = pages.operational, dg = pages.diagnostics;
@@ -126,18 +233,12 @@ export function lineStatusAr(pages: Pages): LineStatusAr {
   // ٥) السرعة
   const rate = firstVal(find(op, /actual rate|current rate|net data rate/i)), att2 = firstVal(find(op, /attainable|max(imum)? rate/i));
   if (rate || att2) items.push({ label: "السرعة", value: [rate && `الحالية ${rate}`, att2 && `أقصى ممكن ${att2}`].filter(Boolean).join(" · "), level: "info" });
-  // ٦) التشخيص: أى علامة فيها ✓ (اتلقت) — بالاسم العربى
-  const flags: string[] = [];
-  for (const p of dg?.panels || []) for (const r of p.rows || []) {
-    if (!Array.isArray(r) || !r[0] || /stability/i.test(r[0])) continue;
-    const cells = r.slice(1).join(" ");
-    const hit = cells.match(/✓\s*(\d+)/);
-    if (hit && Number(hit[1]) > 0) flags.push(labelAr(r[0]) + (labelAr(r[0]) === norm(r[0]) ? "" : ` (${norm(r[0])})`));
-  }
+  // ٦) التشخيص: نستبعد صفوف التاريخ والفلاتر ومعلومات الراوتر، ونلخّص الأعطال الفعلية بمكانها.
+  const findings = diagnosticFindings(dg);
   if (dg && (dg.panels || []).length) {
-    items.push(flags.length
-      ? { label: "التشخيص لقى", value: flags.join(" · "), level: "warn" }
-      : { label: "التشخيص", value: "مفيش مشاكل ظاهرة", level: "ok" });
+    items.push(findings.length
+      ? { label: "التشخيص لقى", value: findings.map((finding) => finding.text).join(" · "), note: [...new Set(findings.map((finding) => finding.note))].join(" · "), level: "bad" }
+      : { label: "التشخيص", value: "مفيش مشكلة تشخيصية واضحة", note: "راجع القراءات لو العطل لسه قائم.", level: "warn" });
   }
   // ٧) XELT
   const x = pages.xelt;
@@ -146,8 +247,8 @@ export function lineStatusAr(pages: Pages): LineStatusAr {
     if (perf) items.push({ label: "Perform XELT", value: perf, level: x.performed === "done" || x.performed === "had_history" ? "ok" : "warn" });
     if (x.history === false) items.push({ label: "XELT", value: "مفيش بيانات قديمة للخط", note: "محتاج Perform XELT (بيتعمل لوحده للأعطال الجديدة)", level: "info" });
     else {
-      const t = norm((x.panels || []).map((p) => p.text || "").join(" "));
-      if (t) items.push({ label: "XELT", value: t.slice(0, 300), level: "info" });
+      const summary = xeltStructuredSummary(x);
+      if (summary) items.push({ label: "XELT", ...summary });
     }
   }
   // ٨) التوصية

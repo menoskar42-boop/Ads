@@ -36,6 +36,64 @@ test("stable line with good margin reads «الخط كويس»", () => {
   assert.equal(ar.headline, "الخط كويس");
 });
 
+test("real-shaped diagnostic CPE issue is a customer-side fault and metadata rows are excluded", () => {
+  const ar = lineStatusAr({
+    diagnostics: { panels: [
+      { title: "Diagnostics Analysis", rows: [["CPE Interoperability Issue", "DetectedVDSL 35VDSL 35b support Issue"]] },
+      { title: "Diagnostics Analysis Control", rows: [["Filter dates with data", "✓2 ✗0"], ["Collection Date", "2026-11-24"]] },
+      { title: "Diagnostics Analysis Flags", rows: [["Date", "✓1"], ["History Check", "✓1"], ["CPE Vendor ID", "✓1"], ["High Power Noise", "✓1 ✗0"]] },
+      { title: "Vendor Information", rows: [["CPE Serial Number", "SANITIZED"], ["CPE Vendor ID", "SANITIZED"], ["CPE Firmware Version Number", "SANITIZED"], ["Other Info", "SANITIZED"]] },
+    ] },
+  });
+  const item = ar.items.find((entry) => entry.label === "التشخيص لقى")!;
+  assert.equal(item.level, "bad");
+  assert.match(item.value, /عند المشترك \(الراوتر أو السلك جوّه البيت\)/);
+  assert.match(item.value, /فى الشبكة \(كابل\/بكس\/وصلات\)/);
+  assert.match(item.note!, /راجع الراوتر/);
+  assert.doesNotMatch(item.value, /التاريخ|Filter dates|History|Serial|Vendor|Firmware|Other Info/);
+  assert.equal(labelAr("CPE Serial Number"), "رقم الراوتر (Serial)");
+  assert.equal(labelAr("CPE Vendor ID"), "الشركة المصنعة للراوتر");
+  assert.equal(labelAr("CPE Firmware Version Number"), "إصدار برنامج الراوتر");
+  assert.equal(labelAr("Vendor Information"), "معلومات الشركة المصنّعة");
+});
+
+test("date, filter and history rows alone never become diagnostic faults", () => {
+  const ar = lineStatusAr({
+    diagnostics: { panels: [
+      { title: "Diagnostics Analysis Control", rows: [["Filter dates with data", "✓2 ✗0"], ["Collection Date", "2026-11-24"]] },
+      { title: "Diagnostics Analysis Flags", rows: [["Date", "✓1"], ["Show history", "✓1"]] },
+    ] },
+  });
+  const diagnosis = ar.items.find((entry) => entry.label === "التشخيص")!;
+  assert.equal(diagnosis.value, "مفيش مشكلة تشخيصية واضحة");
+  assert.equal(ar.items.some((entry) => entry.label === "التشخيص لقى"), false);
+});
+
+test("XELT is summarized from structured rows with fault type, distance and last date", () => {
+  const ar = lineStatusAr({
+    xelt: { history: true, panels: [
+      { title: "XELT Analysis", rows: [["History Check", "1. 2026-11-21 01:09:28"], ["Analysis Type", "MELT + DSLAM"], ["Number of Faults", "1"], ["Fault 1", "Bad Splice or End of Loop (severe)"]] },
+      { title: "XELT Comparison", rows: [["Line Type", "VDSL"], ["Fault #1 Distance", "1082 meters"], ["Number of Faults", "1"]] },
+    ] },
+  });
+  const xelt = ar.items.find((entry) => entry.label === "XELT")!;
+  assert.equal(xelt.level, "bad");
+  assert.match(xelt.value, /فى الشبكة \(كابل\/بكس\/وصلات\)/);
+  assert.match(xelt.value, /عدد الأعطال: 1/);
+  assert.match(xelt.value, /نوع الخط: VDSL/);
+  assert.match(xelt.value, /لحام أو وصلة سيئة \(Bad Splice or End of Loop/);
+  assert.match(xelt.value, /عند العطل 1: 1082 متر/);
+  assert.match(xelt.value, /2026-11-21 01:09:28/);
+  assert.match(xelt.note!, /اكشف على الكابل/);
+});
+
+test("XELT without detected faults is a warning, not a fault", () => {
+  const ar = lineStatusAr({ xelt: { history: true, panels: [{ rows: [["Number of Faults", "0"], ["Fault 1", "No Fault Detected"]] }] } });
+  const xelt = ar.items.find((entry) => entry.label === "XELT")!;
+  assert.equal(xelt.level, "warn");
+  assert.doesNotMatch(xelt.value, /عند المشترك|فى الشبكة/);
+});
+
 test("wired: latest endpoint (not for sales) + button in phone lookup and current faults", () => {
   const routes = read("./routes.ts");
   assert.match(routes, /app\.get\("\/api\/line-status\/latest", requireAuth/);
