@@ -66,7 +66,6 @@ export function webMicrophoneErrorMessage(
 
   const isIPhoneSafari =
     /iPhone|iPad|iPod/i.test(userAgent) &&
-    /Safari/i.test(userAgent) &&
     !/CriOS|FxiOS|EdgiOS/i.test(userAgent);
   if (isIPhoneSafari) {
     return "الميكروفون مقفول للموقع ده. من الآيفون: الإعدادات ← Safari ← الميكروفون ← اسأل أو سماح.";
