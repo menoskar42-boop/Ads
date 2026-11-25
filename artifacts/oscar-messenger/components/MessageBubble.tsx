@@ -23,6 +23,8 @@ export function MessageBubble({
   onReply,
   onReact,
   onForward,
+  onDeleteAudio,
+  deletingAudio = false,
 }: {
   message: Message;
   mine: boolean;
@@ -34,6 +36,8 @@ export function MessageBubble({
   onReply?: () => void;
   onReact?: () => void;
   onForward?: () => void;
+  onDeleteAudio?: () => void;
+  deletingAudio?: boolean;
 }) {
   const ownReaction = message.reactions.find((reaction) => reaction.reactedByMe);
   const reactionCount = message.reactions.find(
@@ -139,6 +143,20 @@ export function MessageBubble({
           )}
         </View>
         <View style={styles.actions}>
+          {mine && message.messageType === "audio" && !!onDeleteAudio && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="حذف الرسالة الصوتية"
+              testID={`message-audio-delete-${message.id}`}
+              onPress={onDeleteAudio}
+              disabled={deletingAudio}
+              hitSlop={5}
+            >
+              <Text style={styles.deleteActionText}>
+                {deletingAudio ? "جارٍ الحذف…" : "حذف"}
+              </Text>
+            </Pressable>
+          )}
           {!!onReply && (
             <Pressable
               accessibilityRole="button"
@@ -254,6 +272,7 @@ const styles = StyleSheet.create({
   readTicks: { color: "#66C4FF" },
   actions: { flexDirection: "row", gap: 13, justifyContent: "flex-end", marginTop: 4, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)", paddingTop: 5 },
   actionText: { color: colors.muted, fontSize: 10, fontWeight: "700" },
+  deleteActionText: { color: "#FF7B7B", fontSize: 10, fontWeight: "800" },
   reactionText: { color: colors.muted, fontSize: 11 },
   reacted: { color: colors.blue, fontWeight: "800" },
 });

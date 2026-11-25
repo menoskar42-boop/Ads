@@ -24,6 +24,7 @@ export * from './conversationSettingsInput';
 export * from './createGroupInput';
 export * from './createStatusInput';
 export * from './createStatusInputAudienceMode';
+export * from './deleteMessengerAudioMessage200';
 export * from './deleteMessengerStatus200';
 export * from './errorResponse';
 export * from './errorResponseField';

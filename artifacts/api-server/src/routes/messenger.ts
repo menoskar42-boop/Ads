@@ -10,6 +10,7 @@ import {
 } from "../lib/r2";
 import { parseMessageCursor } from "../lib/message-pagination";
 import { parseMessengerLocationInput } from "../lib/messenger-location";
+import { canDeleteOwnVoiceMessage } from "../lib/messenger-voice-delete";
 import {
   hasMessengerPushSchema,
   notifyConversationMessage,
@@ -1499,6 +1500,68 @@ router.get(
           "X-Content-Type-Options": "nosniff",
         })
         .send(audio);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  "/messenger/conversations/:conversationId/messages/:messageId",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      const conversationId = String(req.params.conversationId);
+      const messageId = String(req.params.messageId);
+      const userId = getUserId(res);
+      if (!(await conversationForUser(pool, conversationId, userId))) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      if (!(await hasVoiceMetadataSchema(pool))) {
+        res.status(503).json({ error: "Voice message database update is required" });
+        return;
+      }
+
+      const result = await pool.query(
+        `SELECT sender_id, message_type, audio_content_type
+         FROM messenger_messages
+         WHERE id = $1 AND conversation_id = $2`,
+        [messageId, conversationId],
+      );
+      const message = result.rows[0];
+      // A successful retry after a lost response is harmless.
+      if (!message) {
+        res.json({ ok: true });
+        return;
+      }
+      if (!canDeleteOwnVoiceMessage(message, userId)) {
+        res.status(404).json({ error: "Voice message not found" });
+        return;
+      }
+      if (!isR2Configured()) {
+        res.status(503).json({ error: "Voice storage is not configured" });
+        return;
+      }
+
+      const contentType = message.audio_content_type as "audio/mp4" | "audio/webm";
+      await deleteR2Object(voiceObjectKey(conversationId, messageId, contentType));
+      const deleted = await pool.query(
+        `DELETE FROM messenger_messages
+         WHERE id = $1 AND conversation_id = $2 AND sender_id = $3
+           AND message_type = 'audio'
+         RETURNING id`,
+        [messageId, conversationId, userId],
+      );
+      if (deleted.rows[0]) {
+        await pool.query(
+          "UPDATE messenger_conversations SET updated_at = now() WHERE id = $1",
+          [conversationId],
+        );
+      }
+      res.json({ ok: true });
     } catch (error) {
       next(error);
     }

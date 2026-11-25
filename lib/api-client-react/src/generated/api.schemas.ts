@@ -842,6 +842,10 @@ export type SendMessengerVoiceMessage201 = {
   message: Message;
 };
 
+export type DeleteMessengerAudioMessage200 = {
+  ok: true;
+};
+
 export type MarkMessengerConversationRead200 = {
   ok: boolean;
 };

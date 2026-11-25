@@ -1596,6 +1596,54 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messenger/conversations/{conversationId}/messages/{messageId}:
+    delete:
+      operationId: deleteMessengerAudioMessage
+      tags: [messenger]
+      summary: Delete the signed-in user's voice message and private audio file
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+      responses:
+        "200":
+          description: The voice message is deleted, including on a safe retry
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [true]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation unavailable or message is not the caller's voice message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Voice storage or database metadata is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /messenger/scheduled-messages:
     get:
       operationId: listMessengerScheduledMessages
