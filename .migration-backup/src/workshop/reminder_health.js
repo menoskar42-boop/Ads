@@ -8,6 +8,18 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const STALE_AFTER_MS = 15 * 60 * 1000;
 const NO_RUN_GRACE_MS = 30 * 60 * 1000;
 
+function formatOutageDuration(startedAt, recoveredAt) {
+  const start = startedAt ? new Date(startedAt).getTime() : NaN;
+  const end = recoveredAt ? new Date(recoveredAt).getTime() : NaN;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+  const minutes = Math.floor((end - start) / 60000);
+  if (minutes < 1) return 'أقل من دقيقة';
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (!hours) return `${minutes} دقيقة`;
+  return remainder ? `${hours} ساعة و${remainder} دقيقة` : `${hours} ساعة`;
+}
+
 function ageMs(value, now) {
   const time = value ? new Date(value).getTime() : NaN;
   return Number.isFinite(time) ? Math.max(0, now.getTime() - time) : Infinity;
@@ -164,7 +176,7 @@ async function checkWorkshopReminderHealth({
        VALUES ($1,'alerted',now(),now(),'pending',now())
        ON CONFLICT (company_id) DO UPDATE SET
          state='alerted',
-         outage_started_at=COALESCE(workshop_reminder_health.outage_started_at, now()),
+          outage_started_at=now(),
          last_alert_at=now(),
          last_alert_status='pending',
          checked_at=now()
@@ -203,6 +215,7 @@ async function checkWorkshopReminderHealth({
 
 module.exports = {
   checkWorkshopReminderHealth,
+  formatOutageDuration,
   STALE_AFTER_MS,
   NO_RUN_GRACE_MS,
   pool,

@@ -44,7 +44,7 @@ const {
   normalizeWorkshopRole,
   workshopCan,
 } = require('../workshop/operations');
-const { checkWorkshopReminderHealth } = require('../workshop/reminder_health');
+const { checkWorkshopReminderHealth, formatOutageDuration } = require('../workshop/reminder_health');
 const {
   sendWorkshopReminderHealthTest,
   sendWorkshopSecurityAccessAlert,
@@ -1131,6 +1131,13 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
   payment.gateway_hmac_set = Boolean(payment.gateway_hmac_enc || payment.gateway_hmac);
   delete payment.gateway_secret; delete payment.gateway_secret_enc;
   delete payment.gateway_hmac; delete payment.gateway_hmac_enc;
+  const reminderHealthRow = reminderHealth.rows[0] || null;
+  const reminderHealthView = reminderHealthRow ? {
+    ...reminderHealthRow,
+    outageDurationText: reminderHealthRow.state === 'healthy'
+      ? formatOutageDuration(reminderHealthRow.outage_started_at, reminderHealthRow.recovered_at)
+      : null,
+  } : null;
   const inviteFlash = req.session && req.session.workshopInviteLink;
   const inviteToken = inviteFlash && Number(inviteFlash.companyId) === Number(req.company.id)
     ? String(inviteFlash.token || '').slice(0, 200) : '';
@@ -1147,7 +1154,7 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
     roleHistory: roleHistory.rows,
     alertEmailHistory,
     reminderRuns: reminderRuns.rows,
-    reminderHealth: reminderHealth.rows[0] || null,
+    reminderHealth: reminderHealthView,
     invitations: invitations.rows,
     inviteLink: inviteToken
       ? `${publicOrigin(req)}/company/workshop-invite/${encodeURIComponent(inviteToken)}`

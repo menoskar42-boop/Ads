@@ -43,6 +43,10 @@ const fixture = {
     { id: 1, company_id: 101, started_at: '2026-09-05T08:00:00.000Z', finished_at: '2026-09-05T08:00:02.000Z', candidate_count: 1, queued_count: 1, skipped_count: 0, failed_count: 0, error: 'ALPHA_RUN_ONLY' },
     { id: 2, company_id: 202, started_at: '2026-09-05T08:01:00.000Z', finished_at: '2026-09-05T08:01:02.000Z', candidate_count: 2, queued_count: 0, skipped_count: 2, failed_count: 0, error: 'BRAVO_RUN_ONLY' },
   ],
+  reminderHealth: [
+    { company_id: 101, state: 'healthy', last_success_at: '2026-09-05T10:35:00.000Z', outage_started_at: '2026-09-05T08:00:00.000Z', recovered_at: '2026-09-05T10:35:00.000Z', checked_at: '2026-09-05T10:36:00.000Z' },
+    { company_id: 202, state: 'alerted', outage_started_at: '2026-09-05T09:00:00.000Z', recovered_at: null, checked_at: '2026-09-05T10:36:00.000Z' },
+  ],
   jobs: [
     { id: 5101, company_id: 101, status: 'in_progress', received_at: '2026-09-05T07:00:00.000Z', vehicle_id: null, customer_name: 'Alpha customer', complaint: 'ALPHA_JOB_ONLY', paid: 0 },
     { id: 5202, company_id: 202, status: 'in_progress', received_at: '2026-09-05T07:01:00.000Z', vehicle_id: null, customer_name: 'Bravo customer', complaint: 'BRAVO_JOB_ONLY', paid: 0 },
@@ -267,7 +271,9 @@ class FixturePool {
       if (!/WHERE company_id=\$1/.test(sql)) throw new Error('reminder runs query lost company scope');
       return { rows: fixture.reminderRuns.filter((row) => row.company_id === Number(args[0])) };
     }
-    if (/FROM workshop_reminder_health/.test(sql)) return { rows: [] };
+    if (/FROM workshop_reminder_health/.test(sql)) {
+      return { rows: fixture.reminderHealth.filter((row) => row.company_id === Number(args[0])) };
+    }
     if (/FROM workshop_team_invitations/.test(sql)) {
       if (!/WHERE company_id=\$1/.test(sql)) {
         throw new Error('workshop invitations query lost company scope');
@@ -580,6 +586,9 @@ class ConcurrentSecurityPool {
     check('Alpha ترى سجل الأدوار وتشغيل التذكيرات الخاص بها فقط',
       alphaHtml.includes('ALPHA_ROLE_ONLY') && alphaHtml.includes('ALPHA_RUN_ONLY')
         && !alphaHtml.includes('BRAVO_ROLE_ONLY') && !alphaHtml.includes('BRAVO_RUN_ONLY'));
+    check('مدة توقف Alpha المكتمل محسوبة من وقت البداية والنهاية',
+      alphaHtml.includes('مدة آخر توقف مكتمل') && alphaHtml.includes('2 ساعة و35 دقيقة')
+        && !alphaHtml.includes('التوقف مستمر'));
 
     const invalidReminder = await alpha.request('/workshop/settings', {
       method: 'POST',
@@ -628,6 +637,8 @@ class ConcurrentSecurityPool {
     check('Bravo ترى سجل الأدوار وتشغيل التذكيرات الخاص بها فقط',
       bravoHtml.includes('BRAVO_ROLE_ONLY') && bravoHtml.includes('BRAVO_RUN_ONLY')
         && !bravoHtml.includes('ALPHA_ROLE_ONLY') && !bravoHtml.includes('ALPHA_RUN_ONLY'));
+    check('التوقف غير المكتمل يعرض حالة واضحة دون مدة',
+      bravoHtml.includes('التوقف مستمر') && !bravoHtml.includes('مدة آخر توقف مكتمل'));
 
     const alphaJobPage = await alpha.request('/workshop/jobs/5101?company_id=202');
     const alphaJobHtml = await alphaJobPage.text();

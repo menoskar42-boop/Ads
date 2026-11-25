@@ -4,6 +4,24 @@ const assert = require('node:assert/strict');
 const { after, describe, it } = require('node:test');
 const health = require('../src/workshop/reminder_health');
 
+describe('workshop reminder outage duration', () => {
+  it('formats a completed outage without storing a derived value', () => {
+    assert.equal(
+      health.formatOutageDuration('2026-09-05T08:00:00.000Z', '2026-09-05T10:35:00.000Z'),
+      '2 ساعة و35 دقيقة'
+    );
+  });
+
+  it('returns no duration for missing, invalid, or reversed timestamps', () => {
+    assert.equal(health.formatOutageDuration(null, '2026-09-05T10:35:00.000Z'), null);
+    assert.equal(health.formatOutageDuration('not-a-date', '2026-09-05T10:35:00.000Z'), null);
+    assert.equal(
+      health.formatOutageDuration('2026-09-05T10:35:00.000Z', '2026-09-05T08:00:00.000Z'),
+      null
+    );
+  });
+});
+
 class ReminderHealthDb {
   constructor() {
     this.states = new Map();
@@ -46,9 +64,9 @@ class ReminderHealthDb {
       this.checkUpdates.push(params[0]);
       return { rows: [] };
     }
-    if (sql.includes('SET last_alert_status')) {
-      this.alertUpdates.push({ companyId: params[0], status: params[1] });
-      this.states.set(params[0], { state: 'alerted', last_alert_status: params[1] });
+    if (sql.includes('last_alert_status=$3')) {
+      this.alertUpdates.push({ companyId: params[0], status: params[2] });
+      this.states.set(params[0], { state: 'alerted', last_alert_status: params[2] });
       return { rows: [] };
     }
     throw new Error(`unexpected health query: ${sql.slice(0, 90)}`);
@@ -68,6 +86,7 @@ describe('workshop reminder health alerts', () => {
       now: new Date('2026-09-03T12:00:00.000Z'),
       staleAfterMs: 15 * 60 * 1000,
       sendPush: async (companyId, payload) => pushes.push({ companyId, payload }),
+      isPushEnabled: () => true,
     };
 
     const first = await health.checkWorkshopReminderHealth(options);
