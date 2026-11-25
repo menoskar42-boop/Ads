@@ -18,6 +18,8 @@ export interface Message {
   createdAt: Date;
   deliveredAt: Date | null;
   readAt: Date | null;
+  editedAt: Date | null;
+  deleted: boolean;
   messageType: MessageMessageType;
   audioDurationMs: number | null;
   audioUrl: string | null;

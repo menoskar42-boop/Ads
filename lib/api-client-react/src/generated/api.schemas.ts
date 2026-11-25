@@ -109,6 +109,14 @@ export interface PeopleSearchResponse {
   people: Person[];
 }
 
+export interface EditMessengerMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+}
+
 export type MessageMessageType = typeof MessageMessageType[keyof typeof MessageMessageType];
 
 
@@ -167,6 +175,7 @@ export interface ReplyPreview {
   id: string;
   body: string;
   messageType: ReplyPreviewMessageType;
+  deleted: boolean;
 }
 
 export type MessageReactionEmoji = typeof MessageReactionEmoji[keyof typeof MessageReactionEmoji];
@@ -195,6 +204,8 @@ export interface Message {
   createdAt: string;
   deliveredAt: string | null;
   readAt: string | null;
+  editedAt: string | null;
+  deleted: boolean;
   messageType: MessageMessageType;
   audioDurationMs: number | null;
   audioUrl: string | null;
@@ -842,7 +853,11 @@ export type SendMessengerVoiceMessage201 = {
   message: Message;
 };
 
-export type DeleteMessengerAudioMessage200 = {
+export type EditMessengerMessage200 = {
+  message: Message;
+};
+
+export type DeleteMessengerMessage200 = {
   ok: true;
 };
 

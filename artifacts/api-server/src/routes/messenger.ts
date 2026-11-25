@@ -12,6 +12,12 @@ import { parseMessageCursor } from "../lib/message-pagination";
 import { parseMessengerLocationInput } from "../lib/messenger-location";
 import { canDeleteOwnVoiceMessage } from "../lib/messenger-voice-delete";
 import {
+  editOwnTextMessage,
+  MESSAGE_DELETED_LABEL,
+  messagePublicContent,
+  softDeleteOwnMessage,
+} from "../lib/messenger-edit-delete";
+import {
   hasMessengerPushSchema,
   notifyConversationMessage,
 } from "../lib/messenger-web-push";
@@ -60,6 +66,10 @@ const MAX_VOICE_DURATION_MS = 120_000;
 const MAX_VOICE_BYTES = 4 * 1024 * 1024;
 const AUDIO_CONTENT_TYPES = new Set(["audio/mp4", "audio/webm"]);
 const voiceSchemaCache = new WeakMap<
+  object,
+  { checkedAt: number; ready: boolean }
+>();
+const messageEditDeleteSchemaCache = new WeakMap<
   object,
   { checkedAt: number; ready: boolean }
 >();
@@ -171,6 +181,29 @@ async function hasVoiceMetadataSchema(pool: NonNullable<DbPool>): Promise<boolea
     return ready;
   } catch {
     voiceSchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
+    return false;
+  }
+}
+
+async function hasMessageEditDeleteSchema(
+  pool: NonNullable<DbPool>,
+): Promise<boolean> {
+  const cached = messageEditDeleteSchemaCache.get(pool);
+  if (cached && Date.now() - cached.checkedAt < 15_000) return cached.ready;
+  try {
+    const result = await pool.query(
+      `SELECT count(*)::int AS column_count
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'messenger_messages'
+         AND column_name = ANY($1::text[])`,
+      [["edited_at", "deleted_at"]],
+    );
+    const ready = Number(result.rows[0]?.column_count) === 2;
+    messageEditDeleteSchemaCache.set(pool, { checkedAt: Date.now(), ready });
+    return ready;
+  } catch {
+    messageEditDeleteSchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
     return false;
   }
 }
@@ -339,7 +372,11 @@ function publicMessage(row: {
   media_kind?: string | null;
   media_size_bytes?: number | string | null;
   reactions?: Array<{ emoji: string; count: number; reactedByMe: boolean }> | null;
+  edited_at?: Date | string | null;
+  deleted_at?: Date | string | null;
+  reply_preview_deleted_at?: Date | string | null;
 }) {
+  const content = messagePublicContent(row);
   const messageType =
     row.message_type === "audio" ||
     row.message_type === "media" ||
@@ -350,39 +387,41 @@ function publicMessage(row: {
     id: row.id,
     conversationId: row.conversation_id,
     senderId: row.sender_id,
-    body: row.body,
+    body: content.body,
     createdAt: new Date(row.created_at).toISOString(),
     deliveredAt: row.delivered_at
       ? new Date(row.delivered_at).toISOString()
       : null,
     readAt: row.read_at ? new Date(row.read_at).toISOString() : null,
+    editedAt: row.edited_at ? new Date(row.edited_at).toISOString() : null,
+    deleted: content.deleted,
     messageType,
     audioDurationMs:
-      messageType === "audio" && row.audio_duration_ms != null
+      !content.deleted && messageType === "audio" && row.audio_duration_ms != null
         ? Number(row.audio_duration_ms)
         : null,
     audioUrl:
-      messageType === "audio"
+      !content.deleted && messageType === "audio"
         ? `/api/messenger/conversations/${encodeURIComponent(row.conversation_id)}/messages/${encodeURIComponent(row.id)}/audio`
         : null,
     locationLat:
-      messageType === "location" && row.location_lat != null
+      !content.deleted && messageType === "location" && row.location_lat != null
         ? Number(row.location_lat)
         : null,
     locationLng:
-      messageType === "location" && row.location_lng != null
+      !content.deleted && messageType === "location" && row.location_lng != null
         ? Number(row.location_lng)
         : null,
     locationAccuracyM:
-      messageType === "location" && row.location_accuracy_m != null
+      !content.deleted && messageType === "location" && row.location_accuracy_m != null
         ? Number(row.location_accuracy_m)
         : null,
     locationCapturedAt:
-      messageType === "location" && row.location_captured_at
+      !content.deleted && messageType === "location" && row.location_captured_at
         ? new Date(row.location_captured_at).toISOString()
         : null,
     mediaAttachment:
-      messageType === "media" && row.media_filename && row.media_content_type
+      !content.deleted && messageType === "media" && row.media_filename && row.media_content_type
         ? {
             filename: row.media_filename,
             contentType: row.media_content_type,
@@ -396,7 +435,8 @@ function publicMessage(row: {
       row.reply_preview_id && row.reply_preview_body != null
         ? {
             id: row.reply_preview_id,
-            body: row.reply_preview_body,
+            body: row.reply_preview_deleted_at ? "اتمسحت" : row.reply_preview_body,
+            deleted: Boolean(row.reply_preview_deleted_at),
             messageType:
               row.reply_preview_type === "audio" ||
               row.reply_preview_type === "media" ||
@@ -968,14 +1008,20 @@ router.post("/messenger/people/lookup-by-phone", requireAuth, async (req, res, n
   }
 });
 
-function conversationSelect(contactNicknamesReady: boolean) {
+function conversationSelect(
+  contactNicknamesReady: boolean,
+  editDeleteReady: boolean,
+) {
   return `
   SELECT c.id,
          peer.user_id AS peer_id,
          peer.username,
          peer.display_name,
          ${contactNicknamesReady ? "n.nickname" : "NULL::text AS nickname"},
-         latest.body AS last_message,
+          ${editDeleteReady
+            ? `CASE WHEN latest.deleted_at IS NOT NULL
+                     THEN '${MESSAGE_DELETED_LABEL}' ELSE latest.body END`
+            : "latest.body"} AS last_message,
          unread.count AS unread_count,
          COALESCE(latest.created_at, c.updated_at, c.created_at) AS updated_at
   FROM messenger_conversations c
@@ -983,7 +1029,8 @@ function conversationSelect(contactNicknamesReady: boolean) {
     ON peer.user_id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
   ${contactNicknamesReady ? ownedContactNicknameJoin("peer") : ""}
   LEFT JOIN LATERAL (
-    SELECT body, created_at FROM messenger_messages
+     SELECT body, created_at ${editDeleteReady ? ", deleted_at" : ""}
+     FROM messenger_messages
     WHERE conversation_id = c.id
     ORDER BY created_at DESC LIMIT 1
   ) latest ON true
@@ -1030,9 +1077,10 @@ router.get("/messenger/conversations", requireAuth, async (_req, res, next) => {
     const userId = getUserId(res);
     const toolsReady = await hasMessageToolsSchema(pool);
     const contactNicknamesReady = await hasContactNicknameSchema(pool);
+    const editDeleteReady = await hasMessageEditDeleteSchema(pool);
     const includeArchived = String(_req.query.includeArchived ?? "") === "true";
     const result = await pool.query(
-      `${conversationSelect(contactNicknamesReady)}
+      `${conversationSelect(contactNicknamesReady, editDeleteReady)}
        ${toolsReady
          ? `AND ${includeArchived ? "EXISTS" : "NOT EXISTS"} (
               SELECT 1 FROM messenger_conversation_settings settings
@@ -1111,20 +1159,25 @@ router.post("/messenger/conversations", requireAuth, async (req, res, next) => {
       [randomUUID(), userA, userB],
     );
     const contactNicknamesReady = await hasContactNicknameSchema(pool);
+    const editDeleteReady = await hasMessageEditDeleteSchema(pool);
     const result = await pool.query(
       `SELECT c.id,
               peer.user_id AS peer_id,
               peer.username,
               peer.display_name,
               ${contactNicknamesReady ? "n.nickname" : "NULL::text AS nickname"},
-              latest.body AS last_message,
+              ${editDeleteReady
+                ? `CASE WHEN latest.deleted_at IS NOT NULL
+                         THEN '${MESSAGE_DELETED_LABEL}' ELSE latest.body END`
+                : "latest.body"} AS last_message,
               unread.count AS unread_count,
               COALESCE(latest.created_at, c.updated_at, c.created_at) AS updated_at
        FROM messenger_conversations c
        JOIN messenger_profiles peer ON peer.user_id = $1
        ${contactNicknamesReady ? ownedContactNicknameJoin("peer", "$4") : ""}
        LEFT JOIN LATERAL (
-         SELECT body, created_at FROM messenger_messages
+          SELECT body, created_at ${editDeleteReady ? ", deleted_at" : ""}
+          FROM messenger_messages
          WHERE conversation_id = c.id
          ORDER BY created_at DESC LIMIT 1
        ) latest ON true
@@ -1198,6 +1251,10 @@ router.get(
       const audioColumns = (await hasVoiceMetadataSchema(pool))
         ? "m.message_type, m.audio_duration_ms"
         : "'text'::text AS message_type, NULL::integer AS audio_duration_ms";
+      const editDeleteReady = await hasMessageEditDeleteSchema(pool);
+      const editDeleteColumns = editDeleteReady
+        ? ", m.edited_at, m.deleted_at"
+        : ", NULL::timestamptz AS edited_at, NULL::timestamptz AS deleted_at";
       const locationColumns = (await hasLocationSchema(pool))
         ? `, m.location_lat, m.location_lng,
              m.location_accuracy_m, m.location_captured_at`
@@ -1216,6 +1273,9 @@ router.get(
              reply.id AS reply_preview_id,
              reply.body AS reply_preview_body,
              reply.message_type AS reply_preview_type,
+              ${editDeleteReady
+                ? "reply.deleted_at AS reply_preview_deleted_at"
+                : "NULL::timestamptz AS reply_preview_deleted_at"},
              COALESCE((
                SELECT json_agg(json_build_object(
                  'emoji', grouped.emoji,
@@ -1239,6 +1299,7 @@ router.get(
              NULL::text AS reply_preview_id,
              NULL::text AS reply_preview_body,
              NULL::text AS reply_preview_type,
+              NULL::timestamptz AS reply_preview_deleted_at,
              '[]'::json AS reactions`;
       const toolsJoins = toolsReady
         ? `LEFT JOIN messenger_message_media media ON media.message_id = m.id
@@ -1248,8 +1309,9 @@ router.get(
         : "";
       const result = await pool.query(
         `WITH recent AS (
-           SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at,
-                   m.delivered_at, m.read_at, ${audioColumns} ${locationColumns} ${toolsColumns}
+            SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at,
+                    m.delivered_at, m.read_at, ${audioColumns} ${locationColumns}
+                    ${editDeleteColumns} ${toolsColumns}
            FROM messenger_messages m
            ${toolsJoins}
            WHERE m.conversation_id = $1
@@ -1282,6 +1344,58 @@ router.get(
   },
 );
 
+router.patch(
+  "/messenger/conversations/:conversationId/messages/:messageId",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      const conversationId = String(req.params.conversationId);
+      const messageId = String(req.params.messageId);
+      const userId = getUserId(res);
+      if (!(await conversationForUser(pool, conversationId, userId))) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      if (!(await hasMessageEditDeleteSchema(pool))) {
+        res.status(503).json({ error: "تحديث قاعدة البيانات مطلوب" });
+        return;
+      }
+      const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+      if (!body || body.length > 4000) {
+        res.status(400).json({ error: "اكتب رسالة من 1 إلى 4000 حرف." });
+        return;
+      }
+      const result = await editOwnTextMessage(pool, {
+        conversationId,
+        messageId,
+        userId,
+        body,
+      });
+      if (result.status === "not_found") {
+        res.status(404).json({ error: "الرسالة مش موجودة." });
+        return;
+      }
+      if (result.status === "not_owner") {
+        res.status(403).json({ error: "مينفعش تعدّل رسالة شخص تاني." });
+        return;
+      }
+      if (result.status === "not_editable") {
+        res.status(409).json({ error: "تعديل الرسائل النصية فقط، ومش ممكن تعدّل رسالة اتمسحت." });
+        return;
+      }
+      if (result.status === "expired") {
+        res.status(409).json({ error: "عدّى 15 دقيقة على الرسالة ومابقاش ممكن تعديلها." });
+        return;
+      }
+      res.json({ message: publicMessage(result.row as Parameters<typeof publicMessage>[0]) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.post(
   "/messenger/conversations/:conversationId/messages",
   requireAuth,
@@ -1308,6 +1422,10 @@ router.post(
         return;
       }
       const toolsReady = await hasMessageToolsSchema(pool);
+      const editDeleteReady = await hasMessageEditDeleteSchema(pool);
+      const editDeleteFields = editDeleteReady
+        ? ", edited_at, deleted_at"
+        : ", NULL::timestamptz AS edited_at, NULL::timestamptz AS deleted_at";
       if (replyToMessageId && !toolsReady) {
         res.status(503).json({ error: "Message tools database update is required" });
         return;
@@ -1332,12 +1450,13 @@ router.post(
              ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
              RETURNING id, conversation_id, sender_id, body, created_at,
                        delivered_at, read_at, message_type, reply_to_message_id,
-                       forwarded_from_message_id`
+                        forwarded_from_message_id ${editDeleteFields}`
           : `INSERT INTO messenger_messages
                (id, conversation_id, sender_id, client_message_id, body)
              VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
-             RETURNING id, conversation_id, sender_id, body, created_at, delivered_at, read_at`,
+              RETURNING id, conversation_id, sender_id, body, created_at, delivered_at, read_at
+                        ${editDeleteFields}`,
         toolsReady
           ? [id, conversationId, userId, clientMessageId, body, replyToMessageId || null]
           : [id, conversationId, userId, clientMessageId, body],
@@ -1347,6 +1466,7 @@ router.post(
         const duplicate = await pool.query(
           `SELECT id, conversation_id, sender_id, body, created_at, delivered_at, read_at,
                   ${toolsReady ? "message_type, reply_to_message_id, forwarded_from_message_id" : "'text'::text AS message_type"}
+                  ${editDeleteFields}
            FROM messenger_messages
            WHERE conversation_id = $1 AND sender_id = $2 AND client_message_id = $3`,
           [conversationId, userId, clientMessageId],
@@ -1396,6 +1516,10 @@ router.post(
         res.status(503).json({ error: "Location message database update is required" });
         return;
       }
+      const editDeleteReady = await hasMessageEditDeleteSchema(pool);
+      const editDeleteFields = editDeleteReady
+        ? ", edited_at, deleted_at"
+        : ", NULL::timestamptz AS edited_at, NULL::timestamptz AS deleted_at";
 
       const parsed = parseMessengerLocationInput(req.body);
       if (!parsed.valid) {
@@ -1413,7 +1537,7 @@ router.post(
          ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
          RETURNING id, conversation_id, sender_id, body, created_at,
                    delivered_at, read_at, message_type, location_lat, location_lng,
-                   location_accuracy_m, location_captured_at`,
+                    location_accuracy_m, location_captured_at ${editDeleteFields}`,
         [
           id,
           conversationId,
@@ -1430,7 +1554,7 @@ router.post(
         const duplicate = await pool.query(
           `SELECT id, conversation_id, sender_id, body, created_at, delivered_at,
                   read_at, message_type, location_lat, location_lng,
-                  location_accuracy_m, location_captured_at
+                   location_accuracy_m, location_captured_at ${editDeleteFields}
            FROM messenger_messages
            WHERE conversation_id = $1 AND sender_id = $2 AND client_message_id = $3`,
           [conversationId, userId, clientMessageId],
@@ -1492,6 +1616,10 @@ router.post(
         res.status(503).json({ error: "Voice message database update is required" });
         return;
       }
+      const editDeleteReady = await hasMessageEditDeleteSchema(pool);
+      const editDeleteFields = editDeleteReady
+        ? ", edited_at, deleted_at"
+        : ", NULL::timestamptz AS edited_at, NULL::timestamptz AS deleted_at";
 
       const clientMessageId = String(
         req.header("x-client-message-id") ?? "",
@@ -1521,7 +1649,7 @@ router.post(
 
       const duplicate = await pool.query(
         `SELECT id, conversation_id, sender_id, body, created_at,
-                delivered_at, read_at, message_type, audio_duration_ms
+                delivered_at, read_at, message_type, audio_duration_ms ${editDeleteFields}
          FROM messenger_messages
          WHERE conversation_id = $1 AND sender_id = $2 AND client_message_id = $3`,
         [conversationId, userId, clientMessageId],
@@ -1559,7 +1687,7 @@ router.post(
            VALUES ($1, $2, $3, $4, 'رسالة صوتية', 1, 'audio', $5, $6, $7)
            ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
            RETURNING id, conversation_id, sender_id, body, created_at,
-                     delivered_at, read_at, message_type, audio_duration_ms`,
+                      delivered_at, read_at, message_type, audio_duration_ms ${editDeleteFields}`,
           [id, conversationId, userId, clientMessageId, durationMs, contentType, body.length],
         );
         row = inserted.rows[0];
@@ -1567,7 +1695,7 @@ router.post(
           await deleteR2Object(objectKey).catch(() => undefined);
           const concurrentDuplicate = await pool.query(
             `SELECT id, conversation_id, sender_id, body, created_at,
-                    delivered_at, read_at, message_type, audio_duration_ms
+                     delivered_at, read_at, message_type, audio_duration_ms ${editDeleteFields}
              FROM messenger_messages
              WHERE conversation_id = $1 AND sender_id = $2 AND client_message_id = $3`,
             [conversationId, userId, clientMessageId],
@@ -1630,10 +1758,12 @@ router.get(
         return;
       }
 
+      const editDeleteReady = await hasMessageEditDeleteSchema(pool);
       const result = await pool.query(
         `SELECT id, conversation_id, message_type, audio_content_type
          FROM messenger_messages
-         WHERE id = $1 AND conversation_id = $2`,
+         WHERE id = $1 AND conversation_id = $2
+           ${editDeleteReady ? "AND deleted_at IS NULL" : ""}`,
         [messageId, conversationId],
       );
       const row = result.rows[0];
@@ -1683,8 +1813,10 @@ router.delete(
         return;
       }
 
+      const editDeleteReady = await hasMessageEditDeleteSchema(pool);
       const result = await pool.query(
         `SELECT sender_id, message_type, audio_content_type
+                ${editDeleteReady ? ", deleted_at" : ""}
          FROM messenger_messages
          WHERE id = $1 AND conversation_id = $2`,
         [messageId, conversationId],
@@ -1695,32 +1827,91 @@ router.delete(
         res.json({ ok: true });
         return;
       }
-      if (!canDeleteOwnVoiceMessage(message, userId)) {
-        res.status(404).json({ error: "Voice message not found" });
-        return;
-      }
-      if (!isR2Configured()) {
-        res.status(503).json({ error: "Voice storage is not configured" });
+      if (message.sender_id !== userId) {
+        res.status(403).json({ error: "مينفعش تمسح رسالة شخص تاني." });
         return;
       }
 
-      const contentType = message.audio_content_type as "audio/mp4" | "audio/webm";
-      await deleteR2Object(voiceObjectKey(conversationId, messageId, contentType));
-      const deleted = await pool.query(
-        `DELETE FROM messenger_messages
-         WHERE id = $1 AND conversation_id = $2 AND sender_id = $3
-           AND message_type = 'audio'
-         RETURNING id`,
-        [messageId, conversationId, userId],
-      );
-      if (deleted.rows[0]) {
+      if (!editDeleteReady) {
+        if (!canDeleteOwnVoiceMessage(message, userId)) {
+          res.status(503).json({ error: "تحديث قاعدة البيانات مطلوب" });
+          return;
+        }
+        if (!isR2Configured()) {
+          res.status(503).json({ error: "Voice storage is not configured" });
+          return;
+        }
+        const contentType = message.audio_content_type as "audio/mp4" | "audio/webm";
+        await deleteR2Object(voiceObjectKey(conversationId, messageId, contentType));
+        await pool.query(
+          `DELETE FROM messenger_messages
+           WHERE id = $1 AND conversation_id = $2 AND sender_id = $3
+             AND message_type = 'audio'`,
+          [messageId, conversationId, userId],
+        );
         await pool.query(
           "UPDATE messenger_conversations SET updated_at = now() WHERE id = $1",
           [conversationId],
         );
+        res.json({ ok: true });
+        return;
+      }
+
+      const toolsReady = await hasMessageToolsSchema(pool);
+      if (message.message_type === "media" && !toolsReady) {
+        res.status(503).json({ error: "تحديث قاعدة البيانات مطلوب" });
+        return;
+      }
+      const softDelete = await softDeleteOwnMessage(pool, {
+        conversationId,
+        messageId,
+        userId,
+        hasMediaTable: toolsReady,
+        prepare: async (candidate) => {
+          if (candidate.message_type === "audio" || candidate.message_type === "media") {
+            if (!isR2Configured()) {
+              throw new Error(
+                candidate.message_type === "audio"
+                  ? "Voice storage is not configured"
+                  : "Private media storage is not configured",
+              );
+            }
+          }
+          if (candidate.message_type === "audio") {
+            const contentType = candidate.audio_content_type;
+            if (contentType === "audio/mp4" || contentType === "audio/webm") {
+              await deleteR2Object(voiceObjectKey(conversationId, messageId, contentType));
+            }
+          } else if (candidate.message_type === "media") {
+            const media = await pool.query<{ object_key: string }>(
+              `SELECT object_key FROM messenger_message_media WHERE message_id = $1`,
+              [messageId],
+            );
+            for (const item of media.rows) {
+              await deleteR2Object(item.object_key);
+            }
+          }
+        },
+        cleanup: async () => {},
+      });
+      if (softDelete.status === "not_owner") {
+        res.status(403).json({ error: "مينفعش تمسح رسالة شخص تاني." });
+        return;
+      }
+      if (softDelete.status === "not_found") {
+        res.status(404).json({ error: "الرسالة مش موجودة." });
+        return;
       }
       res.json({ ok: true });
     } catch (error) {
+      if (error instanceof Error && error.message === "Voice storage is not configured") {
+        res.status(503).json({ error: error.message });
+        return;
+      }
+      if (error instanceof Error && error.message === "Private media storage is not configured") {
+        res.status(503).json({ error: error.message });
+        return;
+      }
       next(error);
     }
   },

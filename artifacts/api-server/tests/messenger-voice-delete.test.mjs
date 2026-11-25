@@ -46,14 +46,14 @@ test("delete route verifies conversation membership and removes R2 before the au
   assert.match(route, /if \(!message\)[\s\S]*res\.json\(\{ ok: true \}\)/);
 });
 
-test("OpenAPI and chat UI expose only an own-voice delete action", async () => {
+test("OpenAPI and chat UI expose the general message management action", async () => {
   const [openapi, chat, bubble] = await Promise.all([
     readFile(new URL("../../../lib/api-spec/openapi.yaml", import.meta.url), "utf8"),
     readFile(new URL("../../oscar-messenger/app/chat/[conversationId].tsx", import.meta.url), "utf8"),
     readFile(new URL("../../oscar-messenger/components/MessageBubble.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(openapi, /operationId: deleteMessengerAudioMessage/);
-  assert.match(chat, /deleteMessengerAudioMessage\(conversationId, messageId\)/);
-  assert.match(chat, /item\.senderId === userId && item\.messageType === "audio"/);
-  assert.match(bubble, /message-audio-delete-/);
+  assert.match(openapi, /operationId: deleteMessengerMessage/);
+  assert.match(chat, /deleteMessengerMessage\(conversationId, messageId\)/);
+  assert.match(chat, /item\.senderId === userId && !item\.deleted/);
+  assert.match(bubble, /message-manage-/);
 });

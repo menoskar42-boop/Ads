@@ -939,6 +939,8 @@ export const UploadMessengerMediaResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "editedAt": zod.union([zod.coerce.date(),zod.null()]),
+  "deleted": zod.boolean(),
   "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(uploadMessengerMediaResponseMessageAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
@@ -957,7 +959,8 @@ export const UploadMessengerMediaResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
+  "deleted": zod.boolean()
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({
@@ -1016,6 +1019,8 @@ export const ForwardMessengerMessageResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "editedAt": zod.union([zod.coerce.date(),zod.null()]),
+  "deleted": zod.boolean(),
   "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(forwardMessengerMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
@@ -1034,7 +1039,8 @@ export const ForwardMessengerMessageResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
+  "deleted": zod.boolean()
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({
@@ -1095,6 +1101,8 @@ export const ListMessengerMessagesResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "editedAt": zod.union([zod.coerce.date(),zod.null()]),
+  "deleted": zod.boolean(),
   "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(listMessengerMessagesResponseMessagesItemAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
@@ -1113,7 +1121,8 @@ export const ListMessengerMessagesResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
+  "deleted": zod.boolean()
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({
@@ -1178,6 +1187,8 @@ export const SendMessengerMessageResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "editedAt": zod.union([zod.coerce.date(),zod.null()]),
+  "deleted": zod.boolean(),
   "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
@@ -1196,7 +1207,8 @@ export const SendMessengerMessageResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
+  "deleted": zod.boolean()
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({
@@ -1269,6 +1281,8 @@ export const SendMessengerLocationResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "editedAt": zod.union([zod.coerce.date(),zod.null()]),
+  "deleted": zod.boolean(),
   "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerLocationResponseMessageAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
@@ -1287,7 +1301,8 @@ export const SendMessengerLocationResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
+  "deleted": zod.boolean()
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({
@@ -1353,6 +1368,8 @@ export const SendMessengerVoiceMessageResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
   "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "editedAt": zod.union([zod.coerce.date(),zod.null()]),
+  "deleted": zod.boolean(),
   "messageType": zod.enum(['text', 'audio', 'media', 'location']),
   "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerVoiceMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
   "audioUrl": zod.union([zod.string(),zod.null()]),
@@ -1371,7 +1388,8 @@ export const SendMessengerVoiceMessageResponse = zod.object({
   "replyPreview": zod.union([zod.object({
   "id": zod.string(),
   "body": zod.string(),
-  "messageType": zod.enum(['text', 'audio', 'media', 'location'])
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
+  "deleted": zod.boolean()
 }),zod.null()]),
   "forwarded": zod.boolean(),
   "reactions": zod.array(zod.object({
@@ -1403,22 +1421,103 @@ export const GetMessengerVoiceMessageAudioResponse = zod.unknown()
 
 
 /**
- * @summary Delete the signed-in user's voice message and private audio file
+ * @summary Edit the signed-in user's text message within 15 minutes
  */
-export const deleteMessengerAudioMessagePathConversationIdMin = 8;
-export const deleteMessengerAudioMessagePathConversationIdMax = 80;
+export const editMessengerMessagePathConversationIdMin = 8;
+export const editMessengerMessagePathConversationIdMax = 80;
 
-export const deleteMessengerAudioMessagePathMessageIdMin = 8;
-export const deleteMessengerAudioMessagePathMessageIdMax = 80;
-
+export const editMessengerMessagePathMessageIdMax = 80;
 
 
-export const DeleteMessengerAudioMessageParams = zod.object({
-  "conversationId": zod.coerce.string().min(deleteMessengerAudioMessagePathConversationIdMin).max(deleteMessengerAudioMessagePathConversationIdMax),
-  "messageId": zod.coerce.string().min(deleteMessengerAudioMessagePathMessageIdMin).max(deleteMessengerAudioMessagePathMessageIdMax)
+
+export const EditMessengerMessageParams = zod.object({
+  "conversationId": zod.coerce.string().min(editMessengerMessagePathConversationIdMin).max(editMessengerMessagePathConversationIdMax),
+  "messageId": zod.coerce.string().min(1).max(editMessengerMessagePathMessageIdMax)
 })
 
-export const DeleteMessengerAudioMessageResponse = zod.object({
+export const editMessengerMessageBodyBodyMax = 4000;
+
+
+
+export const EditMessengerMessageBody = zod.object({
+  "body": zod.string().min(1).max(editMessengerMessageBodyBodyMax)
+})
+
+export const editMessengerMessageResponseMessageAudioDurationMsOneMax = 120000;
+
+export const editMessengerMessageResponseMessageLocationLatOneMin = -90;
+export const editMessengerMessageResponseMessageLocationLatOneMax = 90;
+
+export const editMessengerMessageResponseMessageLocationLngOneMin = -180;
+export const editMessengerMessageResponseMessageLocationLngOneMax = 180;
+
+export const editMessengerMessageResponseMessageLocationAccuracyMOneMin = 0;
+export const editMessengerMessageResponseMessageLocationAccuracyMOneMax = 100000;
+
+export const editMessengerMessageResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
+
+
+
+
+export const EditMessengerMessageResponse = zod.object({
+  "message": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "senderId": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "deliveredAt": zod.union([zod.coerce.date(),zod.null()]),
+  "readAt": zod.union([zod.coerce.date(),zod.null()]),
+  "editedAt": zod.union([zod.coerce.date(),zod.null()]),
+  "deleted": zod.boolean(),
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
+  "audioDurationMs": zod.union([zod.int().min(1).max(editMessengerMessageResponseMessageAudioDurationMsOneMax),zod.null()]),
+  "audioUrl": zod.union([zod.string(),zod.null()]),
+  "locationLat": zod.union([zod.number().min(editMessengerMessageResponseMessageLocationLatOneMin).max(editMessengerMessageResponseMessageLocationLatOneMax),zod.null()]),
+  "locationLng": zod.union([zod.number().min(editMessengerMessageResponseMessageLocationLngOneMin).max(editMessengerMessageResponseMessageLocationLngOneMax),zod.null()]),
+  "locationAccuracyM": zod.union([zod.int().min(editMessengerMessageResponseMessageLocationAccuracyMOneMin).max(editMessengerMessageResponseMessageLocationAccuracyMOneMax),zod.null()]),
+  "locationCapturedAt": zod.union([zod.coerce.date(),zod.null()]),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(editMessengerMessageResponseMessageMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]),
+  "replyToMessageId": zod.union([zod.string(),zod.null()]),
+  "replyPreview": zod.union([zod.object({
+  "id": zod.string(),
+  "body": zod.string(),
+  "messageType": zod.enum(['text', 'audio', 'media', 'location']),
+  "deleted": zod.boolean()
+}),zod.null()]),
+  "forwarded": zod.boolean(),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.enum(['👍', '❤️', '😂', '😮', '🙏']),
+  "count": zod.int().min(1),
+  "reactedByMe": zod.boolean()
+}))
+})
+})
+
+
+/**
+ * @summary Soft-delete the signed-in user's message for all conversation members
+ */
+export const deleteMessengerMessagePathConversationIdMin = 8;
+export const deleteMessengerMessagePathConversationIdMax = 80;
+
+export const deleteMessengerMessagePathMessageIdMin = 8;
+export const deleteMessengerMessagePathMessageIdMax = 80;
+
+
+
+export const DeleteMessengerMessageParams = zod.object({
+  "conversationId": zod.coerce.string().min(deleteMessengerMessagePathConversationIdMin).max(deleteMessengerMessagePathConversationIdMax),
+  "messageId": zod.coerce.string().min(deleteMessengerMessagePathMessageIdMin).max(deleteMessengerMessagePathMessageIdMax)
+})
+
+export const DeleteMessengerMessageResponse = zod.object({
   "ok": zod.literal(true)
 })
 

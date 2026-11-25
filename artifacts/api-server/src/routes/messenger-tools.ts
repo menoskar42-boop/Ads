@@ -20,6 +20,7 @@ import {
 import { canForwardMessageType } from "../lib/messenger-location";
 import { notifyConversationMessage } from "../lib/messenger-web-push";
 import { canSendDirectMessage, MESSENGER_BLOCKED_SEND_ERROR } from "../lib/messenger-blocks";
+import { messagePublicContent } from "../lib/messenger-edit-delete";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -32,6 +33,7 @@ async function loadPool() {
 const router = Router();
 const allowedReactions = new Set(["👍", "❤️", "😂", "😮", "🙏"]);
 const mediaSchemaCache = new WeakMap<object, { checkedAt: number; ready: boolean }>();
+const messageEditDeleteSchemaCache = new WeakMap<object, { checkedAt: number; ready: boolean }>();
 
 const requireAuth: RequestHandler = (req, res, next) => {
   const userId = getAuth(req).userId;
@@ -98,6 +100,27 @@ async function requireConversation(
   return result.rows[0] ?? null;
 }
 
+async function messageEditDeleteSchemaReady(pool: NonNullable<DbPool>): Promise<boolean> {
+  const cached = messageEditDeleteSchemaCache.get(pool);
+  if (cached && Date.now() - cached.checkedAt < 15_000) return cached.ready;
+  try {
+    const result = await pool.query(
+      `SELECT count(*)::int AS column_count
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'messenger_messages'
+         AND column_name = ANY($1::text[])`,
+      [["edited_at", "deleted_at"]],
+    );
+    const ready = Number(result.rows[0]?.column_count) === 2;
+    messageEditDeleteSchemaCache.set(pool, { checkedAt: Date.now(), ready });
+    return ready;
+  } catch {
+    messageEditDeleteSchemaCache.set(pool, { checkedAt: Date.now(), ready: false });
+    return false;
+  }
+}
+
 function publicMediaMessage(row: {
   id: string;
   conversation_id: string;
@@ -115,7 +138,10 @@ function publicMediaMessage(row: {
   content_type?: string | null;
   kind?: string | null;
   size_bytes?: number | string | null;
+  edited_at?: Date | string | null;
+  deleted_at?: Date | string | null;
 }) {
+  const content = messagePublicContent(row);
   const messageType = row.message_type === "audio" || row.message_type === "media"
     ? row.message_type
     : "text";
@@ -123,21 +149,23 @@ function publicMediaMessage(row: {
     id: row.id,
     conversationId: row.conversation_id,
     senderId: row.sender_id,
-    body: row.body,
+    body: content.body,
     createdAt: new Date(row.created_at).toISOString(),
+    editedAt: row.edited_at ? new Date(row.edited_at).toISOString() : null,
+    deleted: content.deleted,
     deliveredAt: row.delivered_at ? new Date(row.delivered_at).toISOString() : null,
     readAt: row.read_at ? new Date(row.read_at).toISOString() : null,
     messageType,
     audioDurationMs:
-      messageType === "audio" && row.audio_duration_ms != null
+      !content.deleted && messageType === "audio" && row.audio_duration_ms != null
         ? Number(row.audio_duration_ms)
         : null,
     audioUrl:
-      messageType === "audio"
+      !content.deleted && messageType === "audio"
         ? `/api/messenger/conversations/${encodeURIComponent(row.conversation_id)}/messages/${encodeURIComponent(row.id)}/audio`
         : null,
     mediaAttachment:
-      messageType === "media" && row.original_filename && row.content_type
+      !content.deleted && messageType === "media" && row.original_filename && row.content_type
         ? {
             filename: row.original_filename,
             contentType: row.content_type,
@@ -211,6 +239,7 @@ router.get("/messenger/search", requireAuth, async (req, res, next) => {
     }
     const userId = userIdFrom(res);
     const escaped = query.replace(/[\\%_]/g, "\\$&");
+    const editDeleteReady = await messageEditDeleteSchemaReady(pool);
     const result = await pool.query(
       `SELECT m.id, m.conversation_id, m.sender_id, m.body, m.message_type,
               m.created_at, peer.display_name AS peer_name
@@ -220,6 +249,7 @@ router.get("/messenger/search", requireAuth, async (req, res, next) => {
          ON peer.user_id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
        WHERE (c.user_a = $1 OR c.user_b = $1)
          AND m.body ILIKE $2 ESCAPE '\\'
+          ${editDeleteReady ? "AND m.deleted_at IS NULL" : ""}
        ORDER BY m.created_at DESC
        LIMIT 40`,
       [userId, `%${escaped}%`],
@@ -410,6 +440,13 @@ router.post(
         res.status(503).json({ error: "Private media storage is not configured" });
         return;
       }
+      const editDeleteReady = await messageEditDeleteSchemaReady(pool);
+      const editDeleteSelect = editDeleteReady
+        ? ", m.edited_at, m.deleted_at"
+        : ", NULL::timestamptz AS edited_at, NULL::timestamptz AS deleted_at";
+      const editDeleteReturning = editDeleteReady
+        ? ", edited_at, deleted_at"
+        : ", NULL::timestamptz AS edited_at, NULL::timestamptz AS deleted_at";
       const contentType = normalizeMessengerMediaType(
         String(req.header("content-type") ?? ""),
       );
@@ -432,6 +469,7 @@ router.post(
         `SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at,
                 m.delivered_at, m.read_at, m.message_type, m.forwarded_from_message_id,
                 media.original_filename, media.content_type, media.kind, media.size_bytes
+                ${editDeleteSelect}
          FROM messenger_messages m
          JOIN messenger_message_media media ON media.message_id = m.id
          WHERE m.conversation_id = $1 AND m.sender_id = $2
@@ -464,7 +502,7 @@ router.post(
              VALUES ($1, $2, $3, $4, $5, 1, 'media')
              ON CONFLICT (conversation_id, sender_id, client_message_id) DO NOTHING
              RETURNING id, conversation_id, sender_id, body, created_at,
-                       delivered_at, read_at, message_type`,
+                       delivered_at, read_at, message_type ${editDeleteReturning}`,
             [messageId, conversationId, userId, clientMessageId, `📎 ${filename}`],
           );
           if (!inserted.rows[0]) {
@@ -474,6 +512,7 @@ router.post(
               `SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at,
                       m.delivered_at, m.read_at, m.message_type, m.forwarded_from_message_id,
                       media.original_filename, media.content_type, media.kind, media.size_bytes
+                      ${editDeleteSelect}
                FROM messenger_messages m
                LEFT JOIN messenger_message_media media ON media.message_id = m.id
                WHERE m.conversation_id = $1 AND m.sender_id = $2 AND m.client_message_id = $3`,
@@ -564,12 +603,14 @@ router.get(
         res.status(503).json({ error: "Private media storage is not configured" });
         return;
       }
+      const editDeleteReady = await messageEditDeleteSchemaReady(pool);
       const result = await pool.query(
         `SELECT media.object_key, media.original_filename,
                 media.content_type, media.kind, media.size_bytes
          FROM messenger_message_media media
          JOIN messenger_messages m ON m.id = media.message_id
-         WHERE m.id = $1 AND m.conversation_id = $2 AND m.message_type = 'media'`,
+         WHERE m.id = $1 AND m.conversation_id = $2 AND m.message_type = 'media'
+           ${editDeleteReady ? "AND m.deleted_at IS NULL" : ""}`,
         [messageId, conversationId],
       );
       const metadata = result.rows[0];
@@ -619,16 +660,19 @@ router.post(
         res.status(503).json({ error: "Message tools database update is required" });
         return;
       }
+      const editDeleteReady = await messageEditDeleteSchemaReady(pool);
       const sourceResult = await pool.query(
         `SELECT m.id, m.conversation_id, m.sender_id, m.client_message_id, m.body,
                 m.created_at, m.delivered_at, m.read_at, m.message_type,
                 m.audio_duration_ms, m.audio_content_type, m.audio_size_bytes,
                 media.object_key, media.original_filename, media.content_type,
                 media.kind, media.size_bytes
+                ${editDeleteReady ? ", m.edited_at, m.deleted_at" : ""}
          FROM messenger_messages m
          JOIN messenger_conversations c ON c.id = m.conversation_id
          LEFT JOIN messenger_message_media media ON media.message_id = m.id
-         WHERE m.id = $1 AND (c.user_a = $2 OR c.user_b = $2)`,
+         WHERE m.id = $1 AND (c.user_a = $2 OR c.user_b = $2)
+           ${editDeleteReady ? "AND m.deleted_at IS NULL" : ""}`,
         [messageId, userId],
       );
       const source = sourceResult.rows[0];

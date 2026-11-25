@@ -11,4 +11,5 @@ export interface ReplyPreview {
   id: string;
   body: string;
   messageType: ReplyPreviewMessageType;
+  deleted: boolean;
 }

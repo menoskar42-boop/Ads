@@ -23,8 +23,7 @@ export function MessageBubble({
   onReply,
   onReact,
   onForward,
-  onDeleteAudio,
-  deletingAudio = false,
+  onManage,
 }: {
   message: Message;
   mine: boolean;
@@ -36,8 +35,7 @@ export function MessageBubble({
   onReply?: () => void;
   onReact?: () => void;
   onForward?: () => void;
-  onDeleteAudio?: () => void;
-  deletingAudio?: boolean;
+  onManage?: () => void;
 }) {
   const ownReaction = message.reactions.find((reaction) => reaction.reactedByMe);
   const reactionCount = message.reactions.find(
@@ -46,19 +44,25 @@ export function MessageBubble({
   return (
     <View style={[styles.row, mine ? styles.mineRow : styles.theirRow]}>
       <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
-        {message.forwarded && <Text style={styles.forwarded}>أُعيد توجيهها</Text>}
-        {message.replyPreview && (
-          <View style={styles.reply}>
-            <Text numberOfLines={2} style={styles.replyText}>
-              {message.replyPreview.messageType === "audio"
-                ? "رسالة صوتية"
-                : message.replyPreview.messageType === "media"
-                  ? "مرفق"
-                  : message.replyPreview.body}
-            </Text>
-          </View>
-        )}
-        {message.messageType === "audio" ? (
+        {message.deleted ? (
+          <Text style={styles.deletedMessage}>🚫 الرسالة دى اتمسحت</Text>
+        ) : (
+          <>
+            {message.forwarded && <Text style={styles.forwarded}>أُعيد توجيهها</Text>}
+            {message.replyPreview && (
+              <View style={styles.reply}>
+                <Text numberOfLines={2} style={styles.replyText}>
+                  {message.replyPreview.deleted
+                    ? "اتمسحت"
+                    : message.replyPreview.messageType === "audio"
+                      ? "رسالة صوتية"
+                      : message.replyPreview.messageType === "media"
+                        ? "مرفق"
+                        : message.replyPreview.body}
+                </Text>
+              </View>
+            )}
+            {message.messageType === "audio" ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
@@ -81,7 +85,7 @@ export function MessageBubble({
               </Text>
             </View>
           </Pressable>
-        ) : message.messageType === "media" && message.mediaAttachment ? (
+            ) : message.messageType === "media" && message.mediaAttachment ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`فتح أو تنزيل ${message.mediaAttachment.filename}`}
@@ -119,14 +123,19 @@ export function MessageBubble({
               </Text>
             </View>
           </Pressable>
-        ) : (
-          <Text style={styles.body}>{message.body}</Text>
-        )}
-        {message.messageType === "location" && (
-          <LocationDetails message={message} />
+            ) : (
+              <Text style={styles.body}>{message.body}</Text>
+            )}
+            {message.messageType === "location" && (
+              <LocationDetails message={message} />
+            )}
+          </>
         )}
         <View style={styles.meta}>
           <Text style={styles.time}>{shortTime(message.createdAt)}</Text>
+          {message.editedAt && !message.deleted && (
+            <Text style={styles.edited}>اتعدّلت</Text>
+          )}
           {mine && (
             <Text
               accessibilityLabel={
@@ -142,19 +151,16 @@ export function MessageBubble({
             </Text>
           )}
         </View>
-        <View style={styles.actions}>
-          {mine && message.messageType === "audio" && !!onDeleteAudio && (
+        {!message.deleted && <View style={styles.actions}>
+          {mine && !!onManage && (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="حذف الرسالة الصوتية"
-              testID={`message-audio-delete-${message.id}`}
-              onPress={onDeleteAudio}
-              disabled={deletingAudio}
-              hitSlop={5}
+              accessibilityLabel="خيارات الرسالة"
+              testID={`message-manage-${message.id}`}
+              onPress={onManage}
+              hitSlop={7}
             >
-              <Text style={styles.deleteActionText}>
-                {deletingAudio ? "جارٍ الحذف…" : "حذف"}
-              </Text>
+              <Text style={styles.actionText}>⋮</Text>
             </Pressable>
           )}
           {!!onReply && (
@@ -192,7 +198,7 @@ export function MessageBubble({
               <Text style={styles.actionText}>تحويل</Text>
             </Pressable>
           )}
-        </View>
+        </View>}
       </View>
     </View>
   );
@@ -273,6 +279,8 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", gap: 13, justifyContent: "flex-end", marginTop: 4, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)", paddingTop: 5 },
   actionText: { color: colors.muted, fontSize: 10, fontWeight: "700" },
   deleteActionText: { color: "#FF7B7B", fontSize: 10, fontWeight: "800" },
+  deletedMessage: { color: "#FFD1D1", fontSize: 14, fontWeight: "800", textAlign: "right" },
+  edited: { color: "#B8C7D9", fontSize: 10 },
   reactionText: { color: colors.muted, fontSize: 11 },
   reacted: { color: colors.blue, fontWeight: "800" },
 });

@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type DeleteMessengerAudioMessage200 = {
-  ok: true;
-};
+export interface EditMessengerMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+}

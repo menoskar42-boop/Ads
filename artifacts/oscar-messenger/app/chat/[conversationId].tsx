@@ -46,7 +46,8 @@ import {
   listMessengerMessages,
   markMessengerConversationRead,
   sendMessengerMessage,
-  deleteMessengerAudioMessage,
+  deleteMessengerMessage,
+  editMessengerMessage,
   forwardMessengerMessage,
   toggleMessengerMessageReaction,
   sendMessengerLocation,
@@ -192,6 +193,9 @@ export default function ChatScreen() {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [blockFeedback, setBlockFeedback] = useState("");
+  const [messageMenu, setMessageMenu] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editBody, setEditBody] = useState("");
   const seeded = useRef(false);
   const secureDraftRestoreStarted = useRef("");
   const mediaAbortController = useRef<AbortController | null>(null);
@@ -410,9 +414,9 @@ export default function ChatScreen() {
     onError: (error) =>
       setErrorText(readableError(error, "تعذر إرسال الموقع / Could not send location.")),
   });
-  const deleteVoiceMessage = useMutation({
+  const deleteMessage = useMutation({
     mutationFn: (messageId: string) =>
-      deleteMessengerAudioMessage(conversationId, messageId),
+      deleteMessengerMessage(conversationId, messageId),
     onSuccess: async (_result, messageId) => {
       if (webAudioMessageIdRef.current === messageId) {
         webAudioRef.current?.pause();
@@ -435,23 +439,49 @@ export default function ChatScreen() {
       ]);
     },
     onError: (error) =>
-      setErrorText(readableError(error, "تعذر حذف الرسالة الصوتية.")),
+      setErrorText(readableError(error, "تعذر حذف الرسالة.")),
   });
-  const confirmDeleteVoiceMessage = (messageId: string) => {
-    const remove = () => deleteVoiceMessage.mutate(messageId);
+  const editMessage = useMutation({
+    mutationFn: (input: { messageId: string; body: string }) =>
+      editMessengerMessage(conversationId, input.messageId, { body: input.body }),
+    onSuccess: async () => {
+      setEditingMessage(null);
+      setEditBody("");
+      setErrorText("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages(conversationId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
+      ]);
+    },
+    onError: (error) =>
+      setErrorText(readableError(error, "تعذر تعديل الرسالة.")),
+  });
+  const confirmDeleteMessage = (message: Message) => {
+    setMessageMenu(null);
+    const remove = () => deleteMessage.mutate(message.id);
     if (Platform.OS === "web") {
       if (
         typeof window !== "undefined" &&
-        window.confirm("حذف الرسالة الصوتية؟")
+        window.confirm("مسح الرسالة عند الكل؟")
       ) {
         remove();
       }
       return;
     }
-    Alert.alert("حذف الرسالة الصوتية؟", "ملف الصوت هيتحذف من المحادثة.", [
+    Alert.alert("مسح الرسالة عند الكل؟", "النص والمرفقات هتختفي عند كل أعضاء المحادثة.", [
       { text: "إلغاء", style: "cancel" },
-      { text: "حذف", style: "destructive", onPress: remove },
+      { text: "مسح عند الكل", style: "destructive", onPress: remove },
     ]);
+  };
+  const canEditMessage = (message: Message) => {
+    const ageMs = Date.now() - Date.parse(message.createdAt);
+    return (
+      message.senderId === userId &&
+      message.messageType === "text" &&
+      !message.deleted &&
+      ageMs >= 0 &&
+      ageMs <= 15 * 60 * 1000
+    );
   };
   const playVoiceMessage = async (message: Message) => {
     if (!message.audioUrl) {
@@ -1192,14 +1222,10 @@ export default function ChatScreen() {
                       }
                     : undefined
                 }
-                onDeleteAudio={
-                  item.senderId === userId && item.messageType === "audio"
-                    ? () => confirmDeleteVoiceMessage(item.id)
+                onManage={
+                  item.senderId === userId && !item.deleted
+                    ? () => setMessageMenu(item)
                     : undefined
-                }
-                deletingAudio={
-                  deleteVoiceMessage.isPending &&
-                  deleteVoiceMessage.variables === item.id
                 }
               />
             )}
@@ -1701,6 +1727,109 @@ export default function ChatScreen() {
               >
                 <Text style={styles.forwardConfirmText}>
                   {updateNickname.isPending ? "جارٍ الحفظ…" : "حفظ"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={!!messageMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMessageMenu(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.nicknameModal}>
+            <Text style={styles.forwardTitle}>إدارة الرسالة</Text>
+            {!!messageMenu && canEditMessage(messageMenu) && (
+              <Pressable
+                accessibilityRole="button"
+                testID="message-edit-open"
+                onPress={() => {
+                  setEditBody(messageMenu.body);
+                  setEditingMessage(messageMenu);
+                  setMessageMenu(null);
+                }}
+                style={styles.actionMenuItem}
+              >
+                <Text style={styles.actionMenuText}>تعديل</Text>
+              </Pressable>
+            )}
+            {!!messageMenu && (
+              <Pressable
+                accessibilityRole="button"
+                testID="message-delete-open"
+                onPress={() => confirmDeleteMessage(messageMenu)}
+                disabled={deleteMessage.isPending}
+                style={styles.actionMenuItem}
+              >
+                <Text style={[styles.actionMenuText, { color: colors.red }]}>
+                  مسح عند الكل
+                </Text>
+              </Pressable>
+            )}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setMessageMenu(null)}
+              style={styles.forwardCancel}
+            >
+              <Text style={styles.forwardCancelText}>إلغاء</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={!!editingMessage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingMessage(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.nicknameModal}>
+            <Text style={styles.forwardTitle}>تعديل الرسالة</Text>
+            <TextInput
+              testID="message-edit-input"
+              value={editBody}
+              onChangeText={setEditBody}
+              placeholder="اكتب الرسالة"
+              placeholderTextColor={colors.muted}
+              maxLength={4000}
+              multiline
+              textAlignVertical="top"
+              style={styles.reportInput}
+            />
+            <View style={styles.forwardButtons}>
+              <Pressable
+                accessibilityRole="button"
+                testID="message-edit-cancel"
+                onPress={() => {
+                  setEditingMessage(null);
+                  setEditBody("");
+                }}
+                disabled={editMessage.isPending}
+                style={styles.forwardCancel}
+              >
+                <Text style={styles.forwardCancelText}>إلغاء</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                testID="message-edit-save"
+                onPress={() => {
+                  if (!editingMessage) return;
+                  editMessage.mutate({
+                    messageId: editingMessage.id,
+                    body: editBody.trim(),
+                  });
+                }}
+                disabled={!editBody.trim() || editMessage.isPending}
+                style={[
+                  styles.forwardConfirm,
+                  (!editBody.trim() || editMessage.isPending) && styles.forwardDisabled,
+                ]}
+              >
+                <Text style={styles.forwardConfirmText}>
+                  {editMessage.isPending ? "جارٍ الحفظ…" : "حفظ التعديل"}
                 </Text>
               </Pressable>
             </View>

@@ -1597,10 +1597,76 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   /messenger/conversations/{conversationId}/messages/{messageId}:
-    delete:
-      operationId: deleteMessengerAudioMessage
+    patch:
+      operationId: editMessengerMessage
       tags: [messenger]
-      summary: Delete the signed-in user's voice message and private audio file
+      summary: Edit the signed-in user's text message within 15 minutes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditMessengerMessageInput"
+      responses:
+        "200":
+          description: Edited message returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Only the sender can edit a message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Conversation or message not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Message is not editable or the edit window elapsed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Messenger edit/delete database update is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteMessengerMessage
+      tags: [messenger]
+      summary: Soft-delete the signed-in user's message for all conversation members
       security:
         - BearerAuth: []
       parameters:
@@ -1620,7 +1686,7 @@ paths:
             maxLength: 80
       responses:
         "200":
-          description: The voice message is deleted, including on a safe retry
+          description: Message content is hidden for all members; private files are removed
           content:
             application/json:
               schema:
@@ -1633,13 +1699,13 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Conversation unavailable or message is not the caller's voice message
+          description: Conversation unavailable or the caller does not own the message
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
-          description: Voice storage or database metadata is not configured
+          description: Database update or required private storage is unavailable
           content:
             application/json:
               schema:
@@ -1978,6 +2044,14 @@ components:
           anyOf:
             - type: string
             - type: "null"
+    EditMessengerMessageInput:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
     Message:
       type: object
       required:
@@ -1988,6 +2062,8 @@ components:
         - createdAt
         - deliveredAt
         - readAt
+        - editedAt
+        - deleted
         - messageType
         - audioDurationMs
         - audioUrl
@@ -2022,6 +2098,13 @@ components:
             - type: string
               format: date-time
             - type: "null"
+        editedAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        deleted:
+          type: boolean
         messageType:
           type: string
           enum: [text, audio, media, location]
@@ -2098,7 +2181,7 @@ components:
           format: uri-reference
     ReplyPreview:
       type: object
-      required: [id, body, messageType]
+      required: [id, body, messageType, deleted]
       properties:
         id:
           type: string
@@ -2107,6 +2190,8 @@ components:
         messageType:
           type: string
           enum: [text, audio, media, location]
+        deleted:
+          type: boolean
     MessageReaction:
       type: object
       required: [emoji, count, reactedByMe]
