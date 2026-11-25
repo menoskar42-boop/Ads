@@ -18,7 +18,11 @@ import { KeyboardAwareScrollViewCompat } from "../components/KeyboardAwareScroll
 import { PhoneNumberForm } from "../components/PhoneNumberForm";
 import { ProfileAvatarSettings } from "../components/ProfileAvatarSettings";
 import { Notice, PrimaryButton, Screen } from "../components/Screen";
-import { getMessengerProfile, type Profile } from "@workspace/api-client-react";
+import {
+  getMessengerProfile,
+  updateMessengerPresence,
+  type Profile,
+} from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../lib/api";
 import { readableError } from "../lib/format";
 import { isPhoneSetupSkipped } from "../lib/phone-setup-storage";
@@ -74,6 +78,9 @@ export default function SettingsScreen() {
         </Text>
       </Notice>
       {current && <PhoneDiscoverySettings key={current.userId} profile={current} />}
+      {current && typeof current.presenceVisible === "boolean" && (
+        <MessengerPresenceSettings visible={current.presenceVisible} />
+      )}
       {current && (
         <BlockedUsersSettings
           userId={current.userId}
@@ -234,6 +241,48 @@ function PhoneDiscoverySettings({ profile }: { profile: Profile }) {
         </Notice>
       )}
       <PhoneNumberForm profile={profile} />
+    </View>
+  );
+}
+
+function MessengerPresenceSettings({ visible }: { visible: boolean }) {
+  const queryClient = useQueryClient();
+  const [feedback, setFeedback] = useState("");
+  const presence = useMutation({
+    mutationFn: (nextVisible: boolean) =>
+      updateMessengerPresence({ visible: nextVisible }),
+    onSuccess: async () => {
+      setFeedback("");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.profile });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+    },
+    onError: (mutationError) =>
+      setFeedback(readableError(mutationError, "تعذر حفظ إعداد الظهور.")),
+  });
+
+  return (
+    <View style={styles.phoneSection}>
+      <Text style={styles.sectionTitle}>الظهور وآخر ظهور</Text>
+      <View style={styles.switchRow}>
+        <View style={styles.switchCopy}>
+          <Text style={styles.switchTitle}>إظهار متصل وآخر ظهور</Text>
+          <Text style={styles.copy}>
+            لو قفلته، محدش هيشوف حالتك، وإنت كمان مش هتشوف حالة حد.
+          </Text>
+        </View>
+        <Switch
+          testID="messenger-presence-visible"
+          value={visible}
+          disabled={presence.isPending}
+          onValueChange={(value) => {
+            setFeedback("");
+            presence.mutate(value);
+          }}
+          accessibilityLabel="إظهار متصل وآخر ظهور"
+          trackColor={{ false: colors.border, true: colors.blue }}
+        />
+      </View>
+      {!!feedback && <Text style={styles.error}>{feedback}</Text>}
     </View>
   );
 }

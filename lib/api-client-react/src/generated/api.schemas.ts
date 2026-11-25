@@ -34,6 +34,20 @@ export interface Profile {
   phoneDiscoveryAvailable: boolean;
   phoneLookupReady: boolean;
   avatarUrl: string | null;
+  presenceVisible: boolean | null;
+}
+
+export interface PresenceInput {
+  visible: boolean;
+}
+
+export interface PresencePreferenceResponse {
+  visible: boolean;
+}
+
+export interface Presence {
+  online: boolean;
+  lastSeenAt: string | null;
 }
 
 export interface ProfileAvatarResponse {
@@ -503,6 +517,7 @@ export interface Conversation {
   isPinned: boolean;
   isMuted: boolean;
   isArchived: boolean;
+  peerPresence?: Presence | null;
 }
 
 export type GroupsCapabilityReason = typeof GroupsCapabilityReason[keyof typeof GroupsCapabilityReason] | null;
@@ -970,6 +985,8 @@ beforeMessageId?: string;
 
 export type ListMessengerMessages200 = {
   messages: Message[];
+  peerTyping?: boolean;
+  peerPresence?: Presence | null;
 };
 
 export type SendMessengerMessageBody = {

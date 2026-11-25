@@ -24,6 +24,8 @@ export const messengerProfiles = pgTable(
     phoneLookupHash: text("phone_lookup_hash"),
     phoneDiscoverable: boolean("phone_discoverable").notNull().default(false),
     pushShowPreview: boolean("push_show_preview").notNull().default(false),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    presenceVisible: boolean("presence_visible").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

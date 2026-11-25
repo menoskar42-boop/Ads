@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Person } from './person';
+import type { Presence } from './presence';
 
 export interface Conversation {
   id: string;
@@ -17,4 +18,5 @@ export interface Conversation {
   isPinned: boolean;
   isMuted: boolean;
   isArchived: boolean;
+  peerPresence?: Presence | null;
 }

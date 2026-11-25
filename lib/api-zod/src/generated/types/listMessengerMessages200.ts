@@ -6,7 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Message } from './message';
+import type { Presence } from './presence';
 
 export type ListMessengerMessages200 = {
   messages: Message[];
+  peerTyping?: boolean;
+  peerPresence?: Presence | null;
 };

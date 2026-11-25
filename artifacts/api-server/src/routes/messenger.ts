@@ -79,6 +79,14 @@ import {
   MAX_MESSENGER_AVATAR_BYTES,
   saveMessengerAvatar,
 } from "../lib/messenger-avatars.ts";
+import {
+  canUserSharePresence,
+  hasPresenceSchema,
+  isTyping,
+  presenceFor,
+  recordTyping,
+  touchLastSeen,
+} from "../lib/messenger-presence.ts";
 import { logger } from "../lib/logger.ts";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
@@ -155,6 +163,9 @@ const requireAuth: RequestHandler = (req, res, next) => {
     return;
   }
   res.locals.userId = userId;
+  void loadPool()
+    .then((pool) => pool ? touchLastSeen(pool, userId) : undefined)
+    .catch(() => undefined);
   next();
 };
 
@@ -527,6 +538,7 @@ function publicConversation(
     is_muted?: boolean;
     is_archived?: boolean;
   },
+  peerPresence?: Awaited<ReturnType<typeof presenceFor>>,
 ) {
   return {
     id: row.id,
@@ -547,6 +559,7 @@ function publicConversation(
     isPinned: Boolean(row.is_pinned),
     isMuted: Boolean(row.is_muted),
     isArchived: Boolean(row.is_archived),
+    ...(peerPresence !== undefined ? { peerPresence } : {}),
   };
 }
 
@@ -554,12 +567,16 @@ async function userProfile(pool: NonNullable<DbPool>, userId: string) {
   const phoneSchemaAvailable = await hasPhoneDiscoverySchema(pool);
   const pushSchemaAvailable = await hasMessengerPushSchema(pool);
   const avatarSchemaAvailable = await hasMessengerAvatarSchema(pool);
+  const presenceSchemaAvailable = await hasPresenceSchema(pool);
   const result = await pool.query(
     `SELECT user_id, username, display_name, created_at,
             ${phoneSchemaAvailable
               ? "phone_lookup_hash, phone_discoverable"
               : "NULL::text AS phone_lookup_hash, false::boolean AS phone_discoverable"},
             ${pushSchemaAvailable ? "push_show_preview" : "false::boolean AS push_show_preview"},
+            ${presenceSchemaAvailable
+              ? "presence_visible"
+              : "NULL::boolean AS presence_visible"},
             ${messengerAvatarSelect("messenger_profiles", avatarSchemaAvailable)}
      FROM messenger_profiles WHERE user_id = $1`,
     [userId],
@@ -577,6 +594,8 @@ async function userProfile(pool: NonNullable<DbPool>, userId: string) {
       row.avatar_updated_at,
     ),
     pushShowPreview: Boolean(row.push_show_preview),
+    presenceVisible:
+      row.presence_visible == null ? null : Boolean(row.presence_visible),
     ...phoneProfileFlags(row, phoneSchemaAvailable, hasPhoneLookupKey()),
   };
 }
@@ -585,7 +604,36 @@ router.get("/messenger/profile", requireAuth, async (_req, res, next) => {
   try {
     const pool = getPoolOrUnavailable(await loadPool(), res);
     if (!pool) return;
+    res.setHeader("Cache-Control", "private, no-store");
     res.json({ profile: await userProfile(pool, getUserId(res)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/messenger/profile/presence", requireAuth, async (req, res, next) => {
+  try {
+    const pool = getPoolOrUnavailable(await loadPool(), res);
+    if (!pool) return;
+    res.setHeader("Cache-Control", "private, no-store");
+    if (!(await hasPresenceSchema(pool))) {
+      res.status(503).json({ error: "تحديث قاعدة البيانات مطلوب" });
+      return;
+    }
+    if (typeof req.body?.visible !== "boolean") {
+      res.status(400).json({ error: "إعداد الظهور غير صالح." });
+      return;
+    }
+    const result = await pool.query(
+      `UPDATE messenger_profiles SET presence_visible = $2
+       WHERE user_id = $1 RETURNING presence_visible`,
+      [getUserId(res), req.body.visible],
+    );
+    if (!result.rows[0]) {
+      res.status(404).json({ error: "الحساب غير موجود" });
+      return;
+    }
+    res.json({ visible: Boolean(result.rows[0].presence_visible) });
   } catch (error) {
     next(error);
   }
@@ -1440,6 +1488,8 @@ function conversationSelect(
   contactNicknamesReady: boolean,
   editDeleteReady: boolean,
   avatarSchemaReady: boolean,
+  presenceSchemaReady: boolean,
+  blocksSchemaReady: boolean,
 ) {
   return `
   SELECT c.id,
@@ -1453,10 +1503,23 @@ function conversationSelect(
                      THEN '${MESSAGE_DELETED_LABEL}' ELSE latest.body END`
             : "latest.body"} AS last_message,
          unread.count AS unread_count,
-         COALESCE(latest.created_at, c.updated_at, c.created_at) AS updated_at
+          COALESCE(latest.created_at, c.updated_at, c.created_at) AS updated_at
+          ${presenceSchemaReady
+            ? `, viewer.presence_visible AS viewer_presence_visible,
+                 peer.presence_visible AS peer_presence_visible,
+                 peer.last_seen_at AS peer_last_seen_at,
+                 ${blocksSchemaReady
+                   ? `EXISTS (
+                        SELECT 1 FROM messenger_blocks
+                        WHERE (blocker_id = $1 AND blocked_id = peer.user_id)
+                           OR (blocker_id = peer.user_id AND blocked_id = $1)
+                      )`
+                   : "false"} AS presence_blocked`
+            : ""}
   FROM messenger_conversations c
   JOIN messenger_profiles peer
     ON peer.user_id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
+  ${presenceSchemaReady ? "JOIN messenger_profiles viewer ON viewer.user_id = $1" : ""}
   ${contactNicknamesReady ? ownedContactNicknameJoin("peer") : ""}
   LEFT JOIN LATERAL (
      SELECT body, created_at ${editDeleteReady ? ", deleted_at" : ""}
@@ -1509,9 +1572,20 @@ router.get("/messenger/conversations", requireAuth, async (_req, res, next) => {
     const contactNicknamesReady = await hasContactNicknameSchema(pool);
     const editDeleteReady = await hasMessageEditDeleteSchema(pool);
     const avatarSchemaReady = await hasMessengerAvatarSchema(pool);
+    const presenceSchemaReady = await hasPresenceSchema(pool);
+    const blocksSchemaReady = presenceSchemaReady
+      ? await hasMessengerBlocksSchema(pool)
+      : false;
     const includeArchived = String(_req.query.includeArchived ?? "") === "true";
+    res.setHeader("Cache-Control", "private, no-store");
     const result = await pool.query(
-      `${conversationSelect(contactNicknamesReady, editDeleteReady, avatarSchemaReady)}
+      `${conversationSelect(
+        contactNicknamesReady,
+        editDeleteReady,
+        avatarSchemaReady,
+        presenceSchemaReady,
+        blocksSchemaReady,
+      )}
        ${toolsReady
          ? `AND ${includeArchived ? "EXISTS" : "NOT EXISTS"} (
               SELECT 1 FROM messenger_conversation_settings settings
@@ -1522,7 +1596,12 @@ router.get("/messenger/conversations", requireAuth, async (_req, res, next) => {
        ORDER BY updated_at DESC`,
       [userId],
     );
-    const conversations = result.rows.map(publicConversation);
+    const conversations = await Promise.all(result.rows.map(async (row) =>
+      publicConversation(
+        row,
+        presenceSchemaReady ? await presenceFor(pool, userId, row) : undefined,
+      ),
+    ));
     await markConversationListMessagesDelivered(
       pool,
       userId,
@@ -1646,6 +1725,45 @@ async function conversationForUser(
     | undefined;
 }
 
+router.post(
+  "/messenger/conversations/:conversationId/typing",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = getPoolOrUnavailable(await loadPool(), res);
+      if (!pool) return;
+      res.setHeader("Cache-Control", "private, no-store");
+      const conversationId = String(req.params.conversationId);
+      const userId = getUserId(res);
+      const conversation = await conversationForUser(pool, conversationId, userId);
+      if (!conversation) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      if (!(await hasPresenceSchema(pool))) {
+        res.status(204).end();
+        return;
+      }
+      const peerId = peerUserIdForConversation(conversation, userId);
+      if (
+        (await hasMessengerBlocksSchema(pool)) &&
+        (await isMessengerUserBlocked(pool, userId, peerId))
+      ) {
+        res.status(204).end();
+        return;
+      }
+      if (!(await canUserSharePresence(pool, userId))) {
+        res.status(204).end();
+        return;
+      }
+      recordTyping(conversationId, userId);
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.get(
   "/messenger/conversations/:conversationId/messages",
   requireAuth,
@@ -1660,6 +1778,7 @@ router.get(
         res.status(404).json({ error: "Conversation not found" });
         return;
       }
+      res.setHeader("Cache-Control", "private, no-store");
       const parsedCursor = parseMessageCursor(req.query.beforeMessageId);
       if (!parsedCursor.valid) {
         res.status(400).json({ error: "Message cursor is invalid" });
@@ -1770,7 +1889,29 @@ router.get(
           [fetchedMessageIds, conversationId, userId],
         );
       }
-      res.json({ messages: result.rows.map(publicMessage) });
+      const presenceReady = await hasPresenceSchema(pool);
+      const peerPresence = presenceReady
+        ? await presenceFor(
+            pool,
+            userId,
+            peerUserIdForConversation(conversation, userId),
+          )
+        : null;
+      res.json({
+        messages: result.rows.map(publicMessage),
+        ...(presenceReady
+          ? {
+              peerTyping: Boolean(
+                peerPresence &&
+                isTyping(
+                  conversationId,
+                  peerUserIdForConversation(conversation, userId),
+                ),
+              ),
+              peerPresence,
+            }
+          : {}),
+      });
     } catch (error) {
       next(error);
     }

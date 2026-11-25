@@ -31,7 +31,8 @@ export const GetMessengerProfileResponse = zod.object({
   "phoneDiscoverable": zod.boolean(),
   "phoneDiscoveryAvailable": zod.boolean(),
   "phoneLookupReady": zod.boolean(),
-  "avatarUrl": zod.union([zod.string(),zod.null()])
+  "avatarUrl": zod.union([zod.string(),zod.null()]),
+  "presenceVisible": zod.union([zod.boolean(),zod.null()])
 }),zod.null()])
 })
 
@@ -62,8 +63,21 @@ export const UpdateMessengerProfileResponse = zod.object({
   "phoneDiscoverable": zod.boolean(),
   "phoneDiscoveryAvailable": zod.boolean(),
   "phoneLookupReady": zod.boolean(),
-  "avatarUrl": zod.union([zod.string(),zod.null()])
+  "avatarUrl": zod.union([zod.string(),zod.null()]),
+  "presenceVisible": zod.union([zod.boolean(),zod.null()])
 }),zod.null()])
+})
+
+
+/**
+ * @summary Change online and last-seen visibility
+ */
+export const UpdateMessengerPresenceBody = zod.object({
+  "visible": zod.boolean()
+})
+
+export const UpdateMessengerPresenceResponse = zod.object({
+  "visible": zod.boolean()
 })
 
 
@@ -90,7 +104,8 @@ export const UpdateMessengerProfilePhoneResponse = zod.object({
   "phoneDiscoverable": zod.boolean(),
   "phoneDiscoveryAvailable": zod.boolean(),
   "phoneLookupReady": zod.boolean(),
-  "avatarUrl": zod.union([zod.string(),zod.null()])
+  "avatarUrl": zod.union([zod.string(),zod.null()]),
+  "presenceVisible": zod.union([zod.boolean(),zod.null()])
 }),zod.null()])
 })
 
@@ -117,7 +132,8 @@ export const DeleteMessengerProfileAvatarResponse = zod.object({
   "phoneDiscoverable": zod.boolean(),
   "phoneDiscoveryAvailable": zod.boolean(),
   "phoneLookupReady": zod.boolean(),
-  "avatarUrl": zod.union([zod.string(),zod.null()])
+  "avatarUrl": zod.union([zod.string(),zod.null()]),
+  "presenceVisible": zod.union([zod.boolean(),zod.null()])
 }),zod.null()])
 })
 
@@ -288,7 +304,11 @@ export const ListMessengerConversationsResponse = zod.object({
   "updatedAt": zod.coerce.date(),
   "isPinned": zod.boolean(),
   "isMuted": zod.boolean(),
-  "isArchived": zod.boolean()
+  "isArchived": zod.boolean(),
+  "peerPresence": zod.union([zod.object({
+  "online": zod.boolean(),
+  "lastSeenAt": zod.union([zod.coerce.date(),zod.null()])
+}),zod.null()]).optional()
 }))
 })
 
@@ -324,7 +344,11 @@ export const StartMessengerConversationResponse = zod.object({
   "updatedAt": zod.coerce.date(),
   "isPinned": zod.boolean(),
   "isMuted": zod.boolean(),
-  "isArchived": zod.boolean()
+  "isArchived": zod.boolean(),
+  "peerPresence": zod.union([zod.object({
+  "online": zod.boolean(),
+  "lastSeenAt": zod.union([zod.coerce.date(),zod.null()])
+}),zod.null()]).optional()
 })
 })
 
@@ -1370,7 +1394,12 @@ export const ListMessengerMessagesResponse = zod.object({
   "count": zod.int().min(1),
   "reactedByMe": zod.boolean()
 }))
-}))
+})),
+  "peerTyping": zod.boolean().optional(),
+  "peerPresence": zod.union([zod.object({
+  "online": zod.boolean(),
+  "lastSeenAt": zod.union([zod.coerce.date(),zod.null()])
+}),zod.null()]).optional()
 })
 
 
@@ -1458,6 +1487,21 @@ export const SendMessengerMessageResponse = zod.object({
 }))
 })
 })
+
+
+/**
+ * @summary Notify the other member that the user is typing
+ */
+export const notifyMessengerConversationTypingPathConversationIdMin = 8;
+export const notifyMessengerConversationTypingPathConversationIdMax = 80;
+
+
+
+export const NotifyMessengerConversationTypingParams = zod.object({
+  "conversationId": zod.coerce.string().min(notifyMessengerConversationTypingPathConversationIdMin).max(notifyMessengerConversationTypingPathConversationIdMax)
+})
+
+export const NotifyMessengerConversationTypingResponse = zod.void()
 
 
 /**

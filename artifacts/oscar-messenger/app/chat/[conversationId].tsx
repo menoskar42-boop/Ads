@@ -57,6 +57,7 @@ import {
   startMessengerLiveLocation,
   updateMessengerLiveLocation,
   stopMessengerLiveLocation,
+  notifyMessengerConversationTyping,
   useSetMessengerContactNickname,
 } from "@workspace/api-client-react";
 import type {
@@ -124,6 +125,36 @@ function formatLiveExpiry(value: string): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "قريبًا";
   return date.toLocaleTimeString("ar-EG", { hour: "numeric", minute: "2-digit" });
+}
+
+function formatPeerPresenceLabel(
+  typing: boolean,
+  presence: { online: boolean; lastSeenAt: string | null } | null | undefined,
+): string | null {
+  if (typing) return "بيكتب…";
+  if (!presence) return null;
+  if (presence.online) return "متصل الآن";
+  if (!presence.lastSeenAt) return null;
+  const lastSeen = new Date(presence.lastSeenAt);
+  if (!Number.isFinite(lastSeen.getTime())) return null;
+  const time = lastSeen.toLocaleTimeString("ar-EG", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const now = new Date();
+  if (lastSeen.toDateString() === now.toDateString()) {
+    return `آخر ظهور النهارده ${time}`;
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (lastSeen.toDateString() === yesterday.toDateString()) {
+    return `آخر ظهور امبارح ${time}`;
+  }
+  return `آخر ظهور ${lastSeen.toLocaleDateString("ar-EG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })}`;
 }
 
 type PickedAttachment = {
@@ -219,6 +250,7 @@ export default function ChatScreen() {
   const mediaRequestIds = useRef<Map<string, string>>(new Map());
   const liveUpdateLock = useRef(false);
   const lastLivePointSentAt = useRef(0);
+  const lastTypingNoticeAt = useRef(0);
   const [chatScreenActive, setChatScreenActive] = useState(false);
   const [liveDurationVisible, setLiveDurationVisible] = useState(false);
   const [liveLocationBusy, setLiveLocationBusy] = useState(false);
@@ -321,11 +353,26 @@ export default function ChatScreen() {
     refetchOnReconnect: true,
     retry: false,
   });
-  const peer = useMemo(
+  const currentConversation = useMemo(
     () =>
-      conversations.data?.conversations.find((item) => item.id === conversationId)?.peer,
+      conversations.data?.conversations.find((item) => item.id === conversationId),
     [conversations.data, conversationId],
   );
+  const peer = currentConversation?.peer;
+  const peerPresence = messages.data?.peerPresence !== undefined
+    ? messages.data.peerPresence
+    : currentConversation?.peerPresence ?? null;
+  const peerPresenceLabel = formatPeerPresenceLabel(
+    messages.data?.peerTyping === true,
+    peerPresence,
+  );
+  const sendTypingNotice = useCallback(() => {
+    if (!chatScreenActive || !conversationId) return;
+    const now = Date.now();
+    if (now - lastTypingNoticeAt.current < 3_000) return;
+    lastTypingNoticeAt.current = now;
+    void notifyMessengerConversationTyping(conversationId).catch(() => undefined);
+  }, [chatScreenActive, conversationId]);
   const latestMessages = messages.data?.messages ?? [];
   const currentOlderHistory =
     olderHistory.conversationId === conversationId
@@ -369,9 +416,6 @@ export default function ChatScreen() {
     }
   };
   const displayedName = peer?.nickname || peer?.displayName || peerNameParam || "محادثة";
-  const peerSubtitle = peer?.nickname
-    ? `${peer.displayName} · @${peer.username}`
-    : `@${peer?.username || "محادثة خاصة"}`;
   const peerBlockedByMe = Boolean(
     peer && blockedUsers.data?.blockedUsers.some((item) => item.userId === peer.userId),
   );
@@ -1407,7 +1451,9 @@ export default function ChatScreen() {
           )}
           <View style={styles.peerCopy}>
             <Text style={styles.peerName} numberOfLines={1}>{displayedName}</Text>
-            <Text style={styles.peerStatus}>{peerSubtitle}</Text>
+            {!!peerPresenceLabel && (
+              <Text style={styles.peerStatus}>{peerPresenceLabel}</Text>
+            )}
           </View>
           <Avatar name={displayedName} uri={peer?.avatarUrl} size={42} />
         </View>
@@ -1597,6 +1643,7 @@ export default function ChatScreen() {
             onChangeText={(value) => {
               setDraft(value);
               setErrorText("");
+              if (value.trim()) sendTypingNotice();
             }}
             onSend={() => {
               const body = draft.trim();

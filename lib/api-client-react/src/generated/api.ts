@@ -72,6 +72,8 @@ import type {
   PeopleSearchResponse,
   PhoneDiscoveryInput,
   PhoneLookupInput,
+  PresenceInput,
+  PresencePreferenceResponse,
   ProfileAvatarResponse,
   ProfileInput,
   ProfileResponse,
@@ -426,6 +428,94 @@ export const useUpdateMessengerProfile = <TError = ErrorType<BadRequestResponse 
         TContext
       > => {
       return useMutation(getUpdateMessengerProfileMutationOptions(options), queryClient);
+    }
+
+export const getUpdateMessengerPresenceUrl = () => {
+
+
+
+
+  return `/api/messenger/profile/presence`
+}
+
+/**
+ * @summary Change online and last-seen visibility
+ */
+export const updateMessengerPresence = async (presenceInput: PresenceInput, options?: Parameters<typeof customFetch>[1]): Promise<PresencePreferenceResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PresencePreferenceResponse>(getUpdateMessengerPresenceUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(presenceInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateMessengerPresenceMutationKey = () => ['updateMessengerPresence'] as const;
+
+export const getUpdateMessengerPresenceMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerPresence>>, TError,UpdateMessengerPresenceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMessengerPresence>>, TError,UpdateMessengerPresenceMutationVariables, TContext> => {
+
+const mutationKey = getUpdateMessengerPresenceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMessengerPresence>>, UpdateMessengerPresenceMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMessengerPresence(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMessengerPresenceMutationResult = NonNullable<Awaited<ReturnType<typeof updateMessengerPresence>>>
+    export type UpdateMessengerPresenceMutationBody = BodyType<PresenceInput>
+    export type UpdateMessengerPresenceMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type UpdateMessengerPresenceMutationVariables = {data: BodyType<PresenceInput>}
+
+    /**
+ * @summary Change online and last-seen visibility
+ */
+export const useUpdateMessengerPresence = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMessengerPresence>>, TError,UpdateMessengerPresenceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateMessengerPresence>>,
+        TError,
+        UpdateMessengerPresenceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateMessengerPresenceMutationOptions(options), queryClient);
     }
 
 export const getUpdateMessengerProfilePhoneUrl = () => {
@@ -4527,6 +4617,80 @@ export const useSendMessengerMessage = <TError = ErrorType<BadRequestResponse | 
         TContext
       > => {
       return useMutation(getSendMessengerMessageMutationOptions(options), queryClient);
+    }
+
+export const getNotifyMessengerConversationTypingUrl = (conversationId: string,) => {
+
+
+
+
+  return `/api/messenger/conversations/${conversationId}/typing`
+}
+
+/**
+ * @summary Notify the other member that the user is typing
+ */
+export const notifyMessengerConversationTyping = async (conversationId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getNotifyMessengerConversationTypingUrl(conversationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getNotifyMessengerConversationTypingMutationKey = () => ['notifyMessengerConversationTyping'] as const;
+
+export const getNotifyMessengerConversationTypingMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notifyMessengerConversationTyping>>, TError,NotifyMessengerConversationTypingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof notifyMessengerConversationTyping>>, TError,NotifyMessengerConversationTypingMutationVariables, TContext> => {
+
+const mutationKey = getNotifyMessengerConversationTypingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof notifyMessengerConversationTyping>>, NotifyMessengerConversationTypingMutationVariables> = (props) => {
+          const {conversationId} = props ?? {};
+
+          return  notifyMessengerConversationTyping(conversationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type NotifyMessengerConversationTypingMutationResult = NonNullable<Awaited<ReturnType<typeof notifyMessengerConversationTyping>>>
+
+    export type NotifyMessengerConversationTypingMutationError = ErrorType<UnauthorizedResponse | ErrorResponse>
+    export type NotifyMessengerConversationTypingMutationVariables = {conversationId: string}
+
+    /**
+ * @summary Notify the other member that the user is typing
+ */
+export const useNotifyMessengerConversationTyping = <TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notifyMessengerConversationTyping>>, TError,NotifyMessengerConversationTypingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof notifyMessengerConversationTyping>>,
+        TError,
+        NotifyMessengerConversationTypingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getNotifyMessengerConversationTypingMutationOptions(options), queryClient);
     }
 
 export const getSendMessengerLocationUrl = (conversationId: string,) => {

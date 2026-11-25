@@ -40,7 +40,7 @@ test("delivery is acknowledged only for messages returned by a successful fetch"
   const getRoute = routes.slice(start, end);
   const selectAt = getRoute.indexOf("const result = await pool.query(");
   const updateAt = getRoute.indexOf("UPDATE messenger_messages SET delivered_at");
-  const responseAt = getRoute.indexOf("res.json({ messages: result.rows.map(publicMessage) })");
+  const responseAt = getRoute.indexOf("res.json({", updateAt);
   assert.ok(selectAt >= 0 && updateAt > selectAt && responseAt > updateAt);
   assert.match(getRoute, /result\.rows\s*\.map\(\(message\) => message\.id\)/);
   assert.match(getRoute, /WHERE id = ANY\(\$1::text\[\]\) AND conversation_id = \$2 AND sender_id <> \$3/);

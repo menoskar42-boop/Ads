@@ -71,6 +71,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messenger/profile/presence:
+    put:
+      operationId: updateMessengerPresence
+      tags: [messenger]
+      summary: Change online and last-seen visibility
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresenceInput"
+      responses:
+        "200":
+          description: Updated presence preference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PresencePreferenceResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: The presence migration is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /messenger/profile/phone:
     put:
       operationId: updateMessengerProfilePhone
@@ -1711,6 +1741,12 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Message"
+                  peerTyping:
+                    type: boolean
+                  peerPresence:
+                    anyOf:
+                      - $ref: "#/components/schemas/Presence"
+                      - type: "null"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1776,6 +1812,32 @@ paths:
                     $ref: "#/components/schemas/Message"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /messenger/conversations/{conversationId}/typing:
+    post:
+      operationId: notifyMessengerConversationTyping
+      tags: [messenger]
+      summary: Notify the other member that the user is typing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+      responses:
+        "204":
+          description: Typing state recorded or intentionally omitted
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -2482,6 +2544,7 @@ components:
         - phoneDiscoveryAvailable
         - phoneLookupReady
         - avatarUrl
+        - presenceVisible
       properties:
         userId:
           type: string
@@ -2506,6 +2569,33 @@ components:
           anyOf:
             - type: string
               format: uri-reference
+            - type: "null"
+        presenceVisible:
+          anyOf:
+            - type: boolean
+            - type: "null"
+    PresenceInput:
+      type: object
+      required: [visible]
+      properties:
+        visible:
+          type: boolean
+    PresencePreferenceResponse:
+      type: object
+      required: [visible]
+      properties:
+        visible:
+          type: boolean
+    Presence:
+      type: object
+      required: [online, lastSeenAt]
+      properties:
+        online:
+          type: boolean
+        lastSeenAt:
+          anyOf:
+            - type: string
+              format: date-time
             - type: "null"
     ProfileAvatarResponse:
       type: object
@@ -3109,6 +3199,10 @@ components:
           type: boolean
         isArchived:
           type: boolean
+        peerPresence:
+          anyOf:
+            - $ref: "#/components/schemas/Presence"
+            - type: "null"
     GroupsCapability:
       type: object
       required: [enabled, reason, maxMembers, statusLifetimeHours]
