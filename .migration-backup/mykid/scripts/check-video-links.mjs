@@ -1,13 +1,21 @@
+import { fileURLToPath } from "node:url";
 import { getEnglishLetterLessonVideo } from "../js/data/englishLetterLessonVideos.js";
+import { getArabicLetterLessonVideo } from "../js/data/arabicLetterLessonVideos.js";
+import { getArabicLetterWritingVideo } from "../js/data/arabicLetterWritingVideos.js";
 import { getNumberLessonVideo } from "../js/data/numberLessonVideos.js";
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const ARABIC_LETTERS = ["أ", "ب", "ت", "ث", "ج", "ح", "خ", "د", "ذ", "ر", "ز", "س", "ش", "ص", "ض", "ط", "ظ", "ع", "غ", "ف", "ق", "ك", "ل", "م", "ن", "ه", "و", "ي"];
 const NUMBERS = Array.from({ length: 11 }, (_, value) => value);
 const CONCURRENCY = 4;
 const REQUEST_TIMEOUT_MS = 12_000;
 const UNAVAILABLE_STATUSES = new Set([400, 401, 403, 404, 410]);
 
-const lessons = [
+export const lessons = [
+  ...ARABIC_LETTERS.flatMap((letter) => [
+    { lesson: `حرف ${letter} — فيديو التعرف`, video: getArabicLetterLessonVideo(letter) },
+    { lesson: `حرف ${letter} — فيديو الكتابة`, video: getArabicLetterWritingVideo(letter) },
+  ]),
   ...[...LETTERS]
     .map((letter) => ({ lesson: `حرف ${letter}`, video: getEnglishLetterLessonVideo(letter) }))
     .filter((entry) => entry.video),
@@ -20,16 +28,16 @@ function videoUrl(videoId) {
   return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
 }
 
-async function inspectVideo({ lesson, videoId }) {
+export async function inspectVideo({ lesson, videoId }, fetchFn = fetch, timeoutMs = REQUEST_TIMEOUT_MS) {
   const link = videoUrl(videoId);
   const endpoint = new URL("https://www.youtube.com/oembed");
   endpoint.searchParams.set("url", link);
   endpoint.searchParams.set("format", "json");
 
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetchFn(endpoint, {
       headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (UNAVAILABLE_STATUSES.has(response.status)) {
@@ -80,7 +88,9 @@ async function main() {
   else if (inconclusive.length) process.exitCode = 2;
 }
 
-main().catch((error) => {
-  console.error(`تعذر إكمال فحص روابط الفيديو: ${error?.message || error}`);
-  process.exitCode = 2;
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch((error) => {
+    console.error(`تعذر إكمال فحص روابط الفيديو: ${error?.message || error}`);
+    process.exitCode = 2;
+  });
+}
