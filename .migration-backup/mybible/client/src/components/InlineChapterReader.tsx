@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { DEUTEROCANONICAL_BOOKS, DEUTERO_SOURCE_IDS, isDeuteroChapter } from '@/lib/group-auto-reading';
 import { apocryphaBooks } from '@/lib/apocrypha-content';
+import { chooseDeuteroChapterSource, findMissingVerseRanges } from '@/lib/deutero-reader';
 import { fetchBookIntro, fetchVerseTafsir, fetchChapterTafsir } from '@/lib/tafsir-csv-service';
 import { postReading } from '@/lib/reading-queue';
 
@@ -42,6 +43,7 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
   const [currentBook, setCurrentBook] = useState(initialBookName);
   const [currentChapter, setCurrentChapter] = useState(initialChapter);
   const [verses, setVerses] = useState<any[]>([]);
+  const [chapterUnavailable, setChapterUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [scrollCount, setScrollCount] = useState(0);
@@ -109,17 +111,30 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
 
   useEffect(() => {
     const loadVerses = async () => {
+      setVerses([]);
+      setChapterUnavailable(false);
       try {
         // دانيال ١٣–١٤ (تتمة، مش فى فاندايك) ⇒ النسخة المحفوظة من St-Takla
         if (!isDeutero && isDeuteroChapter(currentBook, currentChapter) && DEUTERO_SOURCE_IDS[currentBook]) {
           const d = await api.deuteroSource.getLocalChapter(DEUTERO_SOURCE_IDS[currentBook], currentChapter).catch(() => null);
-          setVerses((d?.verses || []).map(v => ({ id: `${currentBook}-${currentChapter}-${v.verse}`, verse: v.verse, text: v.text })));
+          const selected = chooseDeuteroChapterSource([], d?.verses || []);
+          setVerses(selected.verses.map(v => ({ id: `${currentBook}-${currentChapter}-${v.verse}`, verse: v.verse, text: v.text })));
+          setChapterUnavailable(selected.source === 'unavailable');
           setLoading(false);
           return;
         }
         if (isDeutero) {
           const ch = apocryphaBook?.chapters.find(c => c.chapter === currentChapter);
-          setVerses((ch?.verses || []).map(v => ({ id: `${currentBook}-${currentChapter}-${v.verse}`, verse: v.verse, text: v.text })));
+          const embedded = ch?.verses || [];
+          let local: typeof embedded = [];
+          const sourceId = DEUTERO_SOURCE_IDS[currentBook];
+          if (!embedded.length && sourceId) {
+            const d = await api.deuteroSource.getLocalChapter(sourceId, currentChapter).catch(() => null);
+            local = d?.verses || [];
+          }
+          const selected = chooseDeuteroChapterSource(embedded, local);
+          setVerses(selected.verses.map(v => ({ id: `${currentBook}-${currentChapter}-${v.verse}`, verse: v.verse, text: v.text })));
+          setChapterUnavailable(selected.source === 'unavailable');
           setLoading(false);
           return;
         }
@@ -172,6 +187,7 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
   }, [loading]);
 
   const minSeconds = minSecondsFor(verses.length);
+  const missingVerseRanges = findMissingVerseRanges(verses.map((v: any) => Number(v.verse)));
   const condTime = elapsed >= minSeconds;
   const condScrolls = scrollCount >= MIN_SCROLLS;
   const condDepth = scrollDepth >= MIN_DEPTH;
@@ -274,22 +290,37 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
           </div>
         </div>
         <div className="space-y-3">
-          {verses.map((v: any) => (
-            <div key={v.id} className="flex gap-2 items-start border-b border-border/30 pb-2 last:border-0">
-              <p className="flex-1 text-xl leading-loose font-display">
-                <span className="text-primary font-bold ml-1">{v.verse}</span>
-                {v.text}
-              </p>
-              <button
-                onClick={() => openTafsir('verse', v.verse)}
-                className="flex-shrink-0 mt-2 flex flex-col items-center gap-0.5 text-muted-foreground hover:text-primary transition-colors px-1"
-                title={`تفسير الآية ${v.verse}`}
-              >
-                <BookOpen className="w-4 h-4" />
-                <span className="text-[9px]">تفسير</span>
-              </button>
-            </div>
-          ))}
+          {chapterUnavailable ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">الإصحاح ده مش متاح لسه</p>
+          ) : (
+            <>
+              {verses.map((v: any) => (
+                <div key={v.id} className="flex gap-2 items-start border-b border-border/30 pb-2 last:border-0">
+                  <p className="flex-1 text-xl leading-loose font-display">
+                    <span className="text-primary font-bold ml-1">{v.verse}</span>
+                    {v.text}
+                  </p>
+                  <button
+                    onClick={() => openTafsir('verse', v.verse)}
+                    className="flex-shrink-0 mt-2 flex flex-col items-center gap-0.5 text-muted-foreground hover:text-primary transition-colors px-1"
+                    title={`تفسير الآية ${v.verse}`}
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    <span className="text-[9px]">تفسير</span>
+                  </button>
+                </div>
+              ))}
+              {missingVerseRanges.length > 0 && (
+                <p className="pt-1 text-xs text-amber-700 dark:text-amber-300">
+                  {missingVerseRanges.map(({ from, to }) =>
+                    from === to
+                      ? `الآية ${from.toLocaleString('ar-EG')} مش موجودة في المصدر`
+                      : `الآيات ${from.toLocaleString('ar-EG')}–${to.toLocaleString('ar-EG')} مش موجودة في المصدر`,
+                  ).join('، ')}
+                </p>
+              )}
+            </>
+          )}
         </div>
       </div>
 
