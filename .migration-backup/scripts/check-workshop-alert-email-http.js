@@ -212,6 +212,12 @@ class FixturePool {
       if (row) row.admin_alert_email = args[0];
       return { rows: [] };
     }
+    if (/INSERT INTO workshop_settings/.test(sql)) {
+      const row = fixture.settings.find((item) => item.company_id === Number(args[0]));
+      if (row) row.admin_alert_email = args[7];
+      return { rows: [] };
+    }
+    if (/INSERT INTO workshop_flags/.test(sql)) return { rows: [] };
     if (/INSERT INTO workshop_alert_email_history/.test(sql)) {
       fixture.alertEmailHistory.push({
         id: Math.max(...fixture.alertEmailHistory.map((row) => row.id)) + 1,
@@ -621,6 +627,50 @@ class ConcurrentSecurityPool {
         && securityAlertClaims[0].actor_id === 1002
         && securityAlertClaims[0].rejection_count === 5
         && securityAlertStatusUpdates.length === 1);
+
+    const historyBeforeSave = fixture.alertEmailHistory.length;
+    const emailSave = await alpha.request('/workshop/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        admin_alert_email: 'new-alpha-alert@example.com',
+        reminder_lead_days: '7',
+        reminder_lead_km: '500',
+        booking_enabled: '1',
+      }),
+    });
+    const savedEvent = fixture.alertEmailHistory.find((row) =>
+      row.company_id === 101 && row.previous_email === 'old-alpha@example.com'
+      && row.new_email === 'new-alpha-alert@example.com' && row.change_type === 'changed');
+    check('مدير Alpha يحفظ العنوان عبر HTTP ويسجل حدث التغيير للشركة الصحيحة',
+      emailSave.status === 302
+        && emailSave.headers.get('location') === '/workshop/settings?saved=1'
+        && fixture.settings.find((row) => row.company_id === 101).admin_alert_email === 'new-alpha-alert@example.com'
+        && fixture.alertEmailHistory.length === historyBeforeSave + 1
+        && savedEvent && savedEvent.changed_by === 'alpha-manager@example.com');
+
+    const bravoAfterSave = await bravo.request('/workshop/settings');
+    const bravoAfterSaveHtml = await bravoAfterSave.text();
+    check('مدير Bravo لا يرى حدث تغيير Alpha أو عنوانه',
+      bravoAfterSave.status === 200
+        && !bravoAfterSaveHtml.includes('new-alpha-alert@example.com')
+        && bravoAfterSaveHtml.includes('bravo-alert@example.com'));
+
+    const historyBeforeDeniedSave = fixture.alertEmailHistory.length;
+    const deniedEmailSave = await reception.request('/workshop/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        admin_alert_email: 'unauthorized@example.com',
+        reminder_lead_days: '7',
+        reminder_lead_km: '500',
+        booking_enabled: '1',
+      }),
+    });
+    check('الحفظ غير المصرح به يرجع 403 ولا يضيف حدثًا',
+      deniedEmailSave.status === 403
+        && fixture.alertEmailHistory.length === historyBeforeDeniedSave
+        && fixture.settings.find((row) => row.company_id === 101).admin_alert_email === 'new-alpha-alert@example.com');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
