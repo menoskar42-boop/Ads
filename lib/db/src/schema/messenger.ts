@@ -117,6 +117,47 @@ export const messengerConversations = pgTable(
   ],
 );
 
+export const messengerLiveLocations = pgTable(
+  "messenger_live_locations",
+  {
+    id: text("id").primaryKey(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => messengerConversations.id, { onDelete: "cascade" }),
+    sharerId: text("sharer_id")
+      .notNull()
+      .references(() => messengerProfiles.userId, { onDelete: "cascade" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    lastLat: doublePrecision("last_lat"),
+    lastLng: doublePrecision("last_lng"),
+    lastAccuracyM: integer("last_accuracy_m"),
+    lastUpdatedAt: timestamp("last_updated_at", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "messenger_live_locations_expiry_check",
+      sql`${table.expiresAt} > ${table.startedAt} AND ${table.expiresAt} <= ${table.startedAt} + interval '8 hours'`,
+    ),
+    check(
+      "messenger_live_locations_last_point_check",
+      sql`(
+        (${table.lastLat} IS NULL AND ${table.lastLng} IS NULL AND ${table.lastAccuracyM} IS NULL)
+        OR
+        (${table.lastLat} IS NOT NULL AND ${table.lastLat} BETWEEN -90 AND 90
+          AND ${table.lastLng} IS NOT NULL AND ${table.lastLng} BETWEEN -180 AND 180
+          AND (${table.lastAccuracyM} IS NULL OR ${table.lastAccuracyM} BETWEEN 0 AND 100000))
+      )`,
+    ),
+    uniqueIndex("messenger_live_locations_active_sharer_idx")
+      .on(table.conversationId, table.sharerId)
+      .where(sql`${table.stoppedAt} IS NULL`),
+    index("messenger_live_locations_conversation_expiry_idx")
+      .on(table.conversationId, table.expiresAt),
+  ],
+);
+
 export const messengerMessages = pgTable(
   "messenger_messages",
   {

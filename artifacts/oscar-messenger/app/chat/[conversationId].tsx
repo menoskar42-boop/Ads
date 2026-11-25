@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
+  AppState,
   FlatList,
   Keyboard,
   Linking,
@@ -51,9 +52,19 @@ import {
   forwardMessengerMessage,
   toggleMessengerMessageReaction,
   sendMessengerLocation,
+  getMessengerLiveLocationCapability,
+  getMessengerConversationLiveLocation,
+  startMessengerLiveLocation,
+  updateMessengerLiveLocation,
+  stopMessengerLiveLocation,
   useSetMessengerContactNickname,
 } from "@workspace/api-client-react";
-import type { Message, MessengerLocationInput } from "@workspace/api-client-react";
+import type {
+  Message,
+  MessengerLocationInput,
+  MessengerLiveLocationPointInput,
+  StartMessengerLiveLocationInput,
+} from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../../lib/api";
 import {
   getStableClientMessageId,
@@ -107,6 +118,12 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return Promise.race([promise, timeoutPromise]).finally(() => {
     if (timeout) clearTimeout(timeout);
   });
+}
+
+function formatLiveExpiry(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "قريبًا";
+  return date.toLocaleTimeString("ar-EG", { hour: "numeric", minute: "2-digit" });
 }
 
 type PickedAttachment = {
@@ -200,6 +217,11 @@ export default function ChatScreen() {
   const secureDraftRestoreStarted = useRef("");
   const mediaAbortController = useRef<AbortController | null>(null);
   const mediaRequestIds = useRef<Map<string, string>>(new Map());
+  const liveUpdateLock = useRef(false);
+  const lastLivePointSentAt = useRef(0);
+  const [chatScreenActive, setChatScreenActive] = useState(false);
+  const [liveDurationVisible, setLiveDurationVisible] = useState(false);
+  const [liveLocationBusy, setLiveLocationBusy] = useState(false);
 
   const profile = useQuery({
     queryKey: queryKeys.profile,
@@ -220,6 +242,47 @@ export default function ChatScreen() {
     enabled: isLoaded && !!isSignedIn,
     staleTime: 60_000,
     retry: false,
+  });
+  const liveLocationCapability = useQuery({
+    queryKey: queryKeys.liveLocationCapability,
+    queryFn: getMessengerLiveLocationCapability,
+    enabled: isLoaded && !!isSignedIn,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const liveLocations = useQuery({
+    queryKey: queryKeys.liveLocations(conversationId),
+    queryFn: () => getMessengerConversationLiveLocation(conversationId),
+    enabled:
+      isLoaded &&
+      !!isSignedIn &&
+      !!conversationId &&
+      chatScreenActive &&
+      liveLocationCapability.data?.enabled === true,
+    refetchInterval: chatScreenActive ? 15_000 : false,
+    refetchIntervalInBackground: false,
+    retry: false,
+  });
+  const liveStartMutation = useMutation({
+    mutationFn: (data: StartMessengerLiveLocationInput) =>
+      startMessengerLiveLocation(conversationId, data),
+    onSuccess: async () => {
+      setErrorText("");
+      lastLivePointSentAt.current = Date.now();
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.liveLocations(conversationId),
+      });
+    },
+    onError: (error) => setErrorText(readableError(error, "تعذر بدء مشاركة الموقع.")),
+  });
+  const liveStopMutation = useMutation({
+    mutationFn: () => stopMessengerLiveLocation(conversationId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.liveLocations(conversationId),
+      });
+    },
+    onError: (error) => setErrorText(readableError(error, "تعذر إيقاف مشاركة الموقع.")),
   });
   const featureCapability = useQuery({
     queryKey: ["messenger", "features-capability"],
@@ -773,6 +836,76 @@ export default function ChatScreen() {
     ]);
   };
 
+  const startLiveLocationFor = async (durationMinutes: 15 | 60 | 480) => {
+    setLiveDurationVisible(false);
+    setLiveLocationBusy(true);
+    setErrorText("");
+    try {
+      let point: MessengerLiveLocationPointInput;
+      if (Platform.OS === "web") {
+        if (!navigator.geolocation) throw new Error("المتصفح لا يدعم تحديد الموقع.");
+        const position = await withTimeout(
+          new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              maximumAge: 0,
+              timeout: 15_000,
+            });
+          }),
+          18_000,
+        );
+        point = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracyM:
+            Number.isFinite(position.coords.accuracy) && position.coords.accuracy >= 0
+              ? Math.min(100_000, Math.round(position.coords.accuracy))
+              : null,
+        };
+      } else {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (!permission.granted) throw new Error("اسمح بالوصول للموقع أثناء استخدام التطبيق.");
+        const position = await withTimeout(
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+          15_000,
+        );
+        point = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracyM:
+            position.coords.accuracy != null && Number.isFinite(position.coords.accuracy)
+              ? Math.min(100_000, Math.max(0, Math.round(position.coords.accuracy)))
+              : null,
+        };
+      }
+      const expiry = new Date(Date.now() + durationMinutes * 60_000);
+      const expiryLabel = expiry.toLocaleTimeString("ar-EG", {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      const confirmation =
+        `هتشارك موقعك المباشر مع ${displayedName} لحد ${expiryLabel}. تقدر توقفه فى أى وقت.`;
+      const confirmShare = () =>
+        liveStartMutation.mutate({ ...point, durationMinutes });
+      if (Platform.OS === "web") {
+        if (globalThis.confirm(confirmation)) confirmShare();
+      } else {
+        Alert.alert("موقع مباشر", confirmation, [
+          { text: "إلغاء", style: "cancel" },
+          { text: "ابدأ المشاركة", onPress: confirmShare },
+        ]);
+      }
+    } catch (error) {
+      setErrorText(
+        error instanceof Error
+          ? error.message
+          : "تعذر تحديد الموقع. تحقق من الإذن وحاول مرة أخرى.",
+      );
+    } finally {
+      setLiveLocationBusy(false);
+    }
+  };
+
   const chooseMedia = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -1074,8 +1207,27 @@ export default function ChatScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      let focused = true;
+      const refreshScreenActive = () => {
+        const visible =
+          Platform.OS !== "web" ||
+          typeof document === "undefined" ||
+          document.visibilityState === "visible";
+        setChatScreenActive(focused && AppState.currentState === "active" && visible);
+      };
+      refreshScreenActive();
+      const appStateSubscription = AppState.addEventListener("change", refreshScreenActive);
+      if (Platform.OS === "web" && typeof document !== "undefined") {
+        document.addEventListener("visibilitychange", refreshScreenActive);
+      }
       void markRead.mutateAsync().catch(() => undefined);
       return () => {
+        focused = false;
+        setChatScreenActive(false);
+        appStateSubscription.remove();
+        if (Platform.OS === "web" && typeof document !== "undefined") {
+          document.removeEventListener("visibilitychange", refreshScreenActive);
+        }
         Keyboard.dismiss();
         audioPlayer.pause();
         webAudioRef.current?.pause();
@@ -1089,6 +1241,103 @@ export default function ChatScreen() {
       };
     }, [audioPlayer, conversationId]),
   );
+
+  const ownLiveLocation = liveLocations.data?.locations.find((location) => location.isMine);
+  const peerLiveLocation = liveLocations.data?.locations.find((location) => !location.isMine);
+
+  useEffect(() => {
+    if (!chatScreenActive || !ownLiveLocation || !conversationId) return;
+    const updatedAt = ownLiveLocation.updatedAt
+      ? new Date(ownLiveLocation.updatedAt).getTime()
+      : 0;
+    lastLivePointSentAt.current = Math.max(lastLivePointSentAt.current, updatedAt);
+    let active = true;
+    let webWatchId: number | null = null;
+    let nativeSubscription: Location.LocationSubscription | null = null;
+
+    const sendPoint = async (
+      latitude: number,
+      longitude: number,
+      accuracy: number | null,
+    ) => {
+      if (
+        !active ||
+        liveUpdateLock.current ||
+        Date.now() - lastLivePointSentAt.current < 30_000
+      ) return;
+      liveUpdateLock.current = true;
+      lastLivePointSentAt.current = Date.now();
+      const data: MessengerLiveLocationPointInput = {
+        lat: latitude,
+        lng: longitude,
+        accuracyM:
+          accuracy != null && Number.isFinite(accuracy) && accuracy >= 0
+            ? Math.min(100_000, Math.round(accuracy))
+            : null,
+      };
+      try {
+        await updateMessengerLiveLocation(conversationId, data);
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.liveLocations(conversationId),
+        });
+      } catch (error) {
+        if (active) setErrorText(readableError(error, "تعذر تحديث الموقع المباشر."));
+      } finally {
+        liveUpdateLock.current = false;
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (typeof navigator === "undefined" || !navigator.geolocation) {
+        setErrorText("المتصفح لا يدعم تحديث الموقع.");
+      } else {
+        webWatchId = navigator.geolocation.watchPosition(
+          (position) =>
+            void sendPoint(
+              position.coords.latitude,
+              position.coords.longitude,
+              position.coords.accuracy,
+            ),
+          () => {
+            if (active) setErrorText("تعذر تحديث الموقع المباشر. تحقق من إذن الموقع.");
+          },
+          { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 },
+        );
+      }
+    } else {
+      void Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 30_000,
+          distanceInterval: 0,
+        },
+        (position) =>
+          void sendPoint(
+            position.coords.latitude,
+            position.coords.longitude,
+            position.coords.accuracy,
+          ),
+      ).then((subscription) => {
+        if (active) nativeSubscription = subscription;
+        else subscription.remove();
+      }).catch(() => {
+        if (active) setErrorText("تعذر تحديث الموقع المباشر. تحقق من إذن الموقع.");
+      });
+    }
+    return () => {
+      active = false;
+      if (webWatchId != null && typeof navigator !== "undefined") {
+        navigator.geolocation?.clearWatch(webWatchId);
+      }
+      nativeSubscription?.remove();
+    };
+  }, [
+    chatScreenActive,
+    conversationId,
+    ownLiveLocation?.sharerId,
+    ownLiveLocation?.expiresAt,
+    queryClient,
+  ]);
 
   useEffect(() => {
     const unread = messages.data?.messages.filter(
@@ -1168,6 +1417,50 @@ export default function ChatScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={0}
       >
+        {ownLiveLocation && (
+          <View style={styles.liveBanner} testID="live-location-own-banner">
+            <View style={styles.liveBannerCopy}>
+              <Text style={styles.liveBannerTitle}>بتشارك موقعك لحد {formatLiveExpiry(ownLiveLocation.expiresAt)}</Text>
+              <Text style={styles.liveBannerHint}>التحديث شغال والشاشة مفتوحة بس.</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              testID="live-location-stop"
+              disabled={liveStopMutation.isPending}
+              onPress={() => liveStopMutation.mutate()}
+              style={({ pressed }) => [styles.liveAction, pressed && styles.forwardDisabled]}
+            >
+              <Text style={styles.liveActionText}>
+                {liveStopMutation.isPending ? "جارٍ الإيقاف…" : "إيقاف"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+        {peerLiveLocation && (
+          <View style={styles.liveBanner} testID="live-location-peer-banner">
+            <View style={styles.liveBannerCopy}>
+              <Text style={styles.liveBannerTitle}>{peerLiveLocation.sharerName} بيشارك موقعه</Text>
+              <Text style={styles.liveBannerHint}>
+                آخر تحديث {peerLiveLocation.updatedAt
+                  ? formatLiveExpiry(peerLiveLocation.updatedAt)
+                  : "دلوقتي"}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              testID="live-location-open-map"
+              onPress={() => {
+                const url = `https://www.google.com/maps?q=${peerLiveLocation.lat},${peerLiveLocation.lng}`;
+                void Linking.openURL(url).catch(() =>
+                  setErrorText("تعذر فتح الموقع على الخريطة."),
+                );
+              }}
+              style={({ pressed }) => [styles.liveAction, pressed && styles.forwardDisabled]}
+            >
+              <Text style={styles.liveActionText}>افتح على الخريطة</Text>
+            </Pressable>
+          </View>
+        )}
         {messages.isPending ? (
           <View style={styles.loading}><ActivityIndicator color={colors.blue} /></View>
         ) : messages.isError ? (
@@ -1361,6 +1654,12 @@ export default function ChatScreen() {
             onSendLocation={() => void sendCurrentLocation()}
             locationEnabled={locationCapability.data?.enabled === true}
             locationBusy={locationBusy || locationSend.isPending}
+            onStartLiveLocation={() => {
+              setErrorText("");
+              setLiveDurationVisible(true);
+            }}
+            liveLocationEnabled={liveLocationCapability.data?.enabled === true}
+            liveLocationBusy={liveLocationBusy || liveStartMutation.isPending}
             mediaEnabled={!!featureCapability.data?.mediaEnabled}
             mediaBusy={mediaBusy}
             mediaName={selectedAttachment?.filename}
@@ -1403,6 +1702,45 @@ export default function ChatScreen() {
           )}
         </View>
       </ControllerKeyboardAvoidingView>
+      <Modal
+        visible={liveDurationVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLiveDurationVisible(false)}
+      >
+        <View style={styles.liveBackdrop}>
+          <View style={styles.liveModal} accessibilityViewIsModal>
+            <Text style={styles.liveTitle}>موقع مباشر</Text>
+            <Text style={styles.liveHint}>
+              اختار مدة المشاركة. هتتوقف تلقائيًا بعدها، ومفيش تتبع في الخلفية.
+            </Text>
+            {[15, 60, 480].map((duration) => (
+              <Pressable
+                key={duration}
+                accessibilityRole="button"
+                testID={`live-location-duration-${duration}`}
+                onPress={() => void startLiveLocationFor(duration as 15 | 60 | 480)}
+                disabled={liveLocationBusy || liveStartMutation.isPending}
+                style={({ pressed }) => [
+                  styles.liveDurationButton,
+                  pressed && styles.forwardDisabled,
+                ]}
+              >
+                <Text style={styles.liveDurationText}>
+                  {duration === 15 ? "١٥ دقيقة" : duration === 60 ? "ساعة واحدة" : "٨ ساعات"}
+                </Text>
+              </Pressable>
+            ))}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setLiveDurationVisible(false)}
+              style={styles.liveCancel}
+            >
+              <Text style={styles.liveCancelText}>إلغاء</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       <ScheduleMessageModal
         visible={scheduleVisible}
         conversationId={conversationId}
@@ -1942,5 +2280,19 @@ const styles = StyleSheet.create({
   forwardCancelText: { color: colors.text, fontWeight: "700" },
   forwardConfirm: { flex: 1.5, minHeight: 44, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: colors.blue },
   forwardConfirmText: { color: "#06121D", fontWeight: "800" },
+  liveBanner: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.border },
+  liveBannerCopy: { flex: 1, alignItems: "flex-end", gap: 3 },
+  liveBannerTitle: { color: colors.text, fontSize: 13, fontWeight: "800", textAlign: "right" },
+  liveBannerHint: { color: colors.muted, fontSize: 11, textAlign: "right" },
+  liveAction: { minHeight: 38, justifyContent: "center", paddingHorizontal: 11, borderRadius: 11, backgroundColor: colors.surfaceRaised },
+  liveActionText: { color: colors.blue, fontSize: 12, fontWeight: "800" },
+  liveBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.64)", justifyContent: "center", padding: 20 },
+  liveModal: { width: "100%", maxWidth: 420, alignSelf: "center", borderRadius: 22, padding: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: 10 },
+  liveTitle: { color: colors.text, fontSize: 18, fontWeight: "800", textAlign: "right" },
+  liveHint: { color: colors.muted, fontSize: 13, lineHeight: 20, textAlign: "right" },
+  liveDurationButton: { minHeight: 48, justifyContent: "center", alignItems: "center", borderRadius: 13, backgroundColor: colors.surfaceRaised },
+  liveDurationText: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  liveCancel: { minHeight: 42, justifyContent: "center", alignItems: "center" },
+  liveCancelText: { color: colors.muted, fontWeight: "700" },
   forwardDisabled: { opacity: 0.45 },
 });

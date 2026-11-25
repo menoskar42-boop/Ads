@@ -25,6 +25,9 @@ export const queryKeys = {
   scheduled: ["messenger", "scheduled-messages"] as const,
   voiceCapability: ["messenger", "voice-message-capability"] as const,
   locationCapability: ["messenger", "location-capability"] as const,
+  liveLocationCapability: ["messenger", "live-location-capability"] as const,
+  liveLocations: (conversationId: string) =>
+    ["messenger", "live-locations", conversationId] as const,
   groupCapability: ["messenger", "groups-capability"] as const,
   groupMediaCapability: ["messenger", "group-media-capability"] as const,
   groups: ["messenger", "groups"] as const,

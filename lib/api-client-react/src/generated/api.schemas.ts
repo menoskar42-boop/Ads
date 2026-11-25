@@ -327,6 +327,85 @@ export interface MessengerLocationCapability {
   reason: MessengerLocationCapabilityReason;
 }
 
+export type MessengerLiveLocationCapabilityDurationsItem = typeof MessengerLiveLocationCapabilityDurationsItem[keyof typeof MessengerLiveLocationCapabilityDurationsItem];
+
+
+export const MessengerLiveLocationCapabilityDurationsItem = {
+  NUMBER_15: 15,
+  NUMBER_60: 60,
+  NUMBER_480: 480,
+} as const;
+
+export interface MessengerLiveLocationCapability {
+  enabled: true;
+  durations: MessengerLiveLocationCapabilityDurationsItem[];
+}
+
+export interface MessengerLiveLocationPointInput {
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  lat: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  lng: number;
+  accuracyM: number | null;
+}
+
+export type StartMessengerLiveLocationInputDurationMinutes = typeof StartMessengerLiveLocationInputDurationMinutes[keyof typeof StartMessengerLiveLocationInputDurationMinutes];
+
+
+export const StartMessengerLiveLocationInputDurationMinutes = {
+  NUMBER_15: 15,
+  NUMBER_60: 60,
+  NUMBER_480: 480,
+} as const;
+
+export type StartMessengerLiveLocationInput = MessengerLiveLocationPointInput & {
+  durationMinutes: StartMessengerLiveLocationInputDurationMinutes;
+};
+
+export interface MessengerLiveLocation {
+  sharerId: string;
+  sharerName: string;
+  expiresAt: string;
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  lat: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  lng: number;
+  accuracyM: number | null;
+  updatedAt: string | null;
+  isMine: boolean;
+}
+
+export interface MessengerLiveLocationList {
+  locations: MessengerLiveLocation[];
+}
+
+export interface StartMessengerLiveLocationResponse {
+  ok: true;
+  expiresAt: string;
+}
+
+export interface MessengerLiveLocationUpdateResponse {
+  ok: true;
+  updatedAt: string;
+}
+
+export interface MessengerLiveLocationStopResponse {
+  ok: true;
+  stopped: boolean;
+}
+
 export type VoiceMessageCapabilityMaxDurationMs = typeof VoiceMessageCapabilityMaxDurationMs[keyof typeof VoiceMessageCapabilityMaxDurationMs];
 
 
