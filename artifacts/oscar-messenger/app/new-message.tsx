@@ -28,6 +28,11 @@ import {
 } from "@workspace/api-client-react";
 import { queryKeys } from "../lib/api";
 import { readableError, safeReturnPath } from "../lib/format";
+import {
+  consumeTemporaryDraft,
+  discardTemporaryDraft,
+  saveTemporaryDraft,
+} from "../lib/temporary-drafts";
 import { colors } from "../lib/theme";
 
 function param(value: string | string[] | undefined): string {
@@ -76,17 +81,19 @@ export default function NewMessageScreen() {
     handoffStarted.current = true;
     const key = Crypto.randomUUID();
     const storageKey = `oscar_messenger_voice_${key}`;
-    const payload = JSON.stringify({
+    const createdAt = Date.now();
+    const payload = {
       recipientName: incomingName,
       body: incomingBody,
-      createdAt: Date.now(),
+      createdAt,
       ownerUserId: userId ?? null,
-    });
-    void SecureStore.setItemAsync(storageKey, payload)
+    };
+    void saveTemporaryDraft(SecureStore, storageKey, payload, createdAt)
       .then(() => {
         router.replace({ pathname: "/new-message", params: { draftKey: key } });
       })
-      .catch(() => {
+      .catch(async () => {
+        await discardTemporaryDraft(SecureStore, storageKey).catch(() => undefined);
         setHandoffError("تعذر حفظ المسودة بأمان على هذا الجهاز. ارجع إلى Oscar Drive وأعد الأمر.");
       });
   }, [hasNativeIncomingPayload, incomingBody, incomingName, isLoaded, router, userId]);
@@ -131,8 +138,7 @@ export default function NewMessageScreen() {
     const storageKey = `oscar_messenger_voice_${draftKey}`;
     void (async () => {
       try {
-        const saved = await SecureStore.getItemAsync(storageKey);
-        await SecureStore.deleteItemAsync(storageKey).catch(() => undefined);
+          const saved = await consumeTemporaryDraft(SecureStore, storageKey);
         if (!active) return;
         if (!saved) {
           setNotice("انتهت صلاحية المسودة أو لم تعد موجودة. أعد الأمر من Oscar Drive.");
@@ -216,31 +222,44 @@ export default function NewMessageScreen() {
     mutationFn: (input: { username: string }) => startMessengerConversation(input),
     onSuccess: async ({ conversation }) => {
       let draftParams: { draft?: string; draftKey?: string } = { draft };
+      let chatDraftStorageKey = "";
       if (Platform.OS !== "web" && draft) {
         const key = Crypto.randomUUID();
+        chatDraftStorageKey = `oscar_messenger_chat_draft_${key}`;
+        const createdAt = Date.now();
         try {
-          await SecureStore.setItemAsync(
-            `oscar_messenger_chat_draft_${key}`,
-            JSON.stringify({
+          await saveTemporaryDraft(
+            SecureStore,
+            chatDraftStorageKey,
+            {
               body: draft.slice(0, 2000),
-              createdAt: Date.now(),
+              createdAt,
               ownerUserId: userId,
-            }),
+            },
+            createdAt,
           );
           draftParams = { draftKey: key };
         } catch {
+          await discardTemporaryDraft(SecureStore, chatDraftStorageKey).catch(() => undefined);
           setNotice("تعذر حفظ المسودة بأمان على الجهاز. لم تُرسل.");
           return;
         }
       }
-      router.push({
-        pathname: "/chat/[conversationId]",
-        params: {
-          conversationId: conversation.id,
+      try {
+        router.push({
+          pathname: "/chat/[conversationId]",
+          params: {
+            conversationId: conversation.id,
             peerName: conversation.peer.nickname || conversation.peer.displayName,
-          ...draftParams,
-        },
-      });
+            ...draftParams,
+          },
+        });
+      } catch {
+        if (chatDraftStorageKey) {
+          await discardTemporaryDraft(SecureStore, chatDraftStorageKey).catch(() => undefined);
+        }
+        setNotice("تعذر فتح المحادثة. جرّب مرة أخرى.");
+      }
     },
     onError: (error) => setNotice(readableError(error, "تعذر فتح المحادثة.")),
   });

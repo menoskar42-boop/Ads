@@ -58,6 +58,7 @@ import {
   getStableClientMessageId,
   type PendingClientMessageId,
 } from "../../lib/client-message-id";
+import { consumeTemporaryDraft } from "../../lib/temporary-drafts";
 import { readableError } from "../../lib/format";
 import { colors } from "../../lib/theme";
 import { VoiceMessageModal } from "../../components/VoiceMessageModal";
@@ -915,8 +916,7 @@ export default function ChatScreen() {
     const storageKey = `oscar_messenger_chat_draft_${draftKey}`;
     void (async () => {
       try {
-        const saved = await SecureStore.getItemAsync(storageKey);
-        await SecureStore.deleteItemAsync(storageKey).catch(() => undefined);
+          const saved = await consumeTemporaryDraft(SecureStore, storageKey);
         if (!active) return;
         if (!saved) {
           setErrorText("انتهت صلاحية مسودة أوسكار درايف أو لم تعد موجودة.");

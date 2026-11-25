@@ -3,6 +3,7 @@ import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -10,6 +11,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { setAuthTokenGetter } from "../lib/api";
+import { cleanupExpiredTemporaryDrafts } from "../lib/temporary-drafts";
 import { colors } from "../lib/theme";
 
 SplashScreen.preventAutoHideAsync();
@@ -121,6 +123,12 @@ function MissingAuthConfiguration() {
 export default function RootLayout() {
   useEffect(() => {
     void SplashScreen.hideAsync();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      void cleanupExpiredTemporaryDrafts(SecureStore);
+    }
   }, []);
 
   useEffect(() => {
