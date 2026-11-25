@@ -1,6 +1,7 @@
 import * as webPush from "web-push";
 import type { PushSubscription } from "web-push";
 import { logger } from "./logger";
+import { blockedPeerIdsFor, filterBlockedPushRecipients } from "./messenger-blocks";
 
 type PushPool = {
   query: (text: string, values?: any[]) => Promise<{ rows: any[] }>;
@@ -199,7 +200,15 @@ async function notifyRecipients(
     if (!configuredVapidPublicKey() || !(await hasMessengerPushSchema(pool))) return;
 
     const recipientResult = await pool.query(recipientQuery, recipientValues);
-    const recipients = eligiblePushRecipients(recipientResult.rows, senderId);
+    let recipients = eligiblePushRecipients(recipientResult.rows, senderId);
+    if (!message.groupId && recipients.length) {
+      const blockedPeerIds = await blockedPeerIdsFor(
+        pool,
+        senderId,
+        recipients.map((recipient) => recipient.user_id),
+      );
+      recipients = filterBlockedPushRecipients(recipients, blockedPeerIds);
+    }
     if (!recipients.length) return;
 
     const subscriptionResult = await pool.query(

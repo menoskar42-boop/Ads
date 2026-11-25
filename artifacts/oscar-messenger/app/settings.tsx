@@ -1,5 +1,5 @@
 import { useAuth, useClerk } from "@clerk/expo";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -72,6 +72,12 @@ export default function SettingsScreen() {
         </Text>
       </Notice>
       {current && <PhoneDiscoverySettings key={current.userId} profile={current} />}
+      {current && (
+        <BlockedUsersSettings
+          userId={current.userId}
+          getToken={getToken}
+        />
+      )}
       {Platform.OS === "web" && <WebPushSettings getToken={getToken} />}
       <Notice>
         <Text style={styles.noticeTitle}>التحديثات</Text>
@@ -99,6 +105,102 @@ export default function SettingsScreen() {
       )}
       </KeyboardAwareScrollViewCompat>
     </Screen>
+  );
+}
+
+async function settingsMessengerRequest(
+  getToken: () => Promise<string | null>,
+  path: string,
+  method: "GET" | "DELETE",
+) {
+  const token = await getToken();
+  if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول ثم أعد المحاولة.");
+  const response = await fetch(apiUrl(path), {
+    method,
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      typeof data?.error === "string" ? data.error : "تعذر تنفيذ الإجراء الآن.",
+    );
+  }
+  return data;
+}
+
+function BlockedUsersSettings({
+  userId,
+  getToken,
+}: {
+  userId: string;
+  getToken: () => Promise<string | null>;
+}) {
+  const queryClient = useQueryClient();
+  const blockedUsers = useQuery({
+    queryKey: ["messenger", "blocks", userId],
+    queryFn: () =>
+      settingsMessengerRequest(getToken, "/api/messenger/blocks", "GET") as Promise<{
+        blockedUsers: Array<{
+          userId: string;
+          username: string;
+          displayName: string;
+        }>;
+      }>,
+    retry: false,
+  });
+  const unblock = useMutation({
+    mutationFn: (peerUserId: string) =>
+      settingsMessengerRequest(
+        getToken,
+        `/api/messenger/blocks/${encodeURIComponent(peerUserId)}`,
+        "DELETE",
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["messenger", "blocks", userId] }),
+  });
+
+  return (
+    <View style={styles.blockedSection}>
+      <Text style={styles.sectionTitle}>المحظورين</Text>
+      {blockedUsers.isPending ? (
+        <ActivityIndicator color={colors.blue} />
+      ) : blockedUsers.isError ? (
+        <Notice>
+          <Text style={styles.copy}>
+            {readableError(blockedUsers.error, "تعذر تحميل قائمة المحظورين.")}
+          </Text>
+        </Notice>
+      ) : blockedUsers.data?.blockedUsers.length ? (
+        blockedUsers.data.blockedUsers.map((person) => (
+          <View key={person.userId} style={styles.blockedPerson}>
+            <View style={styles.blockedPersonCopy}>
+              <Text style={styles.blockedPersonName}>{person.displayName}</Text>
+              <Text style={styles.copy}>@{person.username}</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              testID={`unblock-${person.userId}`}
+              disabled={unblock.isPending}
+              onPress={() => unblock.mutate(person.userId)}
+              style={({ pressed }) => [
+                styles.unblockButton,
+                pressed && styles.pressed,
+                unblock.isPending && styles.pressed,
+              ]}
+            >
+              <Text style={styles.unblockText}>إلغاء الحظر</Text>
+            </Pressable>
+          </View>
+        ))
+      ) : (
+        <Text style={styles.copy}>مفيش أشخاص محظورين.</Text>
+      )}
+      {unblock.isError && (
+        <Text style={styles.error}>
+          {readableError(unblock.error, "تعذر إلغاء الحظر الآن.")}
+        </Text>
+      )}
+    </View>
   );
 }
 
@@ -439,4 +541,10 @@ const styles = StyleSheet.create({
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
   pressed: { opacity: 0.8 },
   pushSection: { gap: 12 },
+  blockedSection: { gap: 12 },
+  blockedPerson: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  blockedPersonCopy: { flex: 1, alignItems: "flex-end", gap: 3 },
+  blockedPersonName: { color: colors.text, fontSize: 15, fontWeight: "700", textAlign: "right" },
+  unblockButton: { minHeight: 40, justifyContent: "center", paddingHorizontal: 12 },
+  unblockText: { color: colors.blue, fontSize: 13, fontWeight: "700" },
 });

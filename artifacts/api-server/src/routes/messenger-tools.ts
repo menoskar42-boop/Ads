@@ -19,6 +19,7 @@ import {
 } from "../lib/messenger-media-policy";
 import { canForwardMessageType } from "../lib/messenger-location";
 import { notifyConversationMessage } from "../lib/messenger-web-push";
+import { canSendDirectMessage, MESSENGER_BLOCKED_SEND_ERROR } from "../lib/messenger-blocks";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -90,7 +91,7 @@ async function requireConversation(
   userId: string,
 ) {
   const result = await pool.query(
-    `SELECT id FROM messenger_conversations
+    `SELECT id, user_a, user_b FROM messenger_conversations
      WHERE id = $1 AND (user_a = $2 OR user_b = $2)`,
     [conversationId, userId],
   );
@@ -250,7 +251,8 @@ router.patch(
       if (!pool) return;
       const conversationId = String(req.params.conversationId);
       const userId = userIdFrom(res);
-      if (!(await requireConversation(pool, conversationId, userId))) {
+      const conversation = await requireConversation(pool, conversationId, userId);
+      if (!conversation) {
         res.status(404).json({ error: "Conversation not found" });
         return;
       }
@@ -387,8 +389,17 @@ router.post(
       if (!pool) return;
       const conversationId = String(req.params.conversationId);
       const userId = userIdFrom(res);
-      if (!(await requireConversation(pool, conversationId, userId))) {
+      const conversation = await requireConversation(pool, conversationId, userId);
+      if (!conversation) {
         res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+      if (!(await canSendDirectMessage(
+        pool,
+        userId,
+        conversation.user_a === userId ? conversation.user_b : conversation.user_a,
+      ))) {
+        res.status(403).json({ error: MESSENGER_BLOCKED_SEND_ERROR });
         return;
       }
       if (!(await mediaSchemaReady(pool))) {
@@ -632,6 +643,16 @@ router.post(
       const target = await requireConversation(pool, targetConversationId, userId);
       if (!target) {
         res.status(404).json({ error: "Destination conversation not found" });
+        return;
+      }
+      if (
+        !(await canSendDirectMessage(
+          pool,
+          userId,
+          target.user_a === userId ? target.user_b : target.user_a,
+        ))
+      ) {
+        res.status(403).json({ error: MESSENGER_BLOCKED_SEND_ERROR });
         return;
       }
 

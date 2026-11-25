@@ -73,6 +73,31 @@ function first(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
+async function messengerActionRequest(
+  getToken: () => Promise<string | null>,
+  path: string,
+  method: "GET" | "POST" | "DELETE",
+  body?: unknown,
+) {
+  const token = await getToken();
+  if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول ثم أعد المحاولة.");
+  const response = await fetch(apiUrl(path), {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      typeof data?.error === "string" ? data.error : "تعذر تنفيذ الإجراء الآن.",
+    );
+  }
+  return data;
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<T>((_resolve, reject) => {
@@ -162,6 +187,11 @@ export default function ChatScreen() {
   const [nicknameModalVisible, setNicknameModalVisible] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [nicknameError, setNicknameError] = useState("");
+  const [conversationMenuVisible, setConversationMenuVisible] = useState(false);
+  const [blockConfirmVisible, setBlockConfirmVisible] = useState(false);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [blockFeedback, setBlockFeedback] = useState("");
   const seeded = useRef(false);
   const secureDraftRestoreStarted = useRef("");
   const mediaAbortController = useRef<AbortController | null>(null);
@@ -192,6 +222,20 @@ export default function ChatScreen() {
     queryFn: getMessengerFeaturesCapability,
     enabled: isLoaded && !!isSignedIn,
     staleTime: 60_000,
+    retry: false,
+  });
+  const blockedUsers = useQuery({
+    queryKey: ["messenger", "blocks", userId],
+    queryFn: () =>
+      messengerActionRequest(getToken, "/api/messenger/blocks", "GET") as Promise<{
+        blockedUsers: Array<{
+          userId: string;
+          username: string;
+          displayName: string;
+          createdAt: string;
+        }>;
+      }>,
+    enabled: isLoaded && !!isSignedIn && !!userId,
     retry: false,
   });
   const conversations = useQuery({
@@ -261,6 +305,53 @@ export default function ChatScreen() {
   const peerSubtitle = peer?.nickname
     ? `${peer.displayName} · @${peer.username}`
     : `@${peer?.username || "محادثة خاصة"}`;
+  const peerBlockedByMe = Boolean(
+    peer && blockedUsers.data?.blockedUsers.some((item) => item.userId === peer.userId),
+  );
+  const blockPeer = useMutation({
+    mutationFn: () =>
+      messengerActionRequest(getToken, "/api/messenger/blocks", "POST", {
+        userId: peer?.userId,
+      }),
+    onSuccess: async () => {
+      setBlockConfirmVisible(false);
+      setConversationMenuVisible(false);
+      setBlockFeedback("");
+      await queryClient.invalidateQueries({ queryKey: ["messenger", "blocks", userId] });
+    },
+    onError: (error) =>
+      setBlockFeedback(readableError(error, "تعذر حظر الشخص الآن.")),
+  });
+  const unblockPeer = useMutation({
+    mutationFn: () =>
+      messengerActionRequest(
+        getToken,
+        `/api/messenger/blocks/${encodeURIComponent(peer?.userId ?? "")}`,
+        "DELETE",
+      ),
+    onSuccess: async () => {
+      setConversationMenuVisible(false);
+      setBlockFeedback("");
+      await queryClient.invalidateQueries({ queryKey: ["messenger", "blocks", userId] });
+    },
+    onError: (error) =>
+      setBlockFeedback(readableError(error, "تعذر إلغاء الحظر الآن.")),
+  });
+  const reportPeer = useMutation({
+    mutationFn: (reason: string) =>
+      messengerActionRequest(getToken, "/api/messenger/reports", "POST", {
+        targetType: "user",
+        targetId: peer?.userId,
+        reason,
+      }),
+    onSuccess: () => {
+      setReportModalVisible(false);
+      setReportReason("");
+      setBlockFeedback("تم إرسال البلاغ للمراجعة.");
+    },
+    onError: (error) =>
+      setBlockFeedback(readableError(error, "تعذر إرسال البلاغ الآن.")),
+  });
   const updateNickname = useSetMessengerContactNickname({
     mutation: {
       onSuccess: async () => {
@@ -1003,6 +1094,23 @@ export default function ChatScreen() {
           {peer && (
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="خيارات المحادثة"
+              testID="conversation-actions-open"
+              onPress={() => {
+                setBlockFeedback("");
+                setConversationMenuVisible(true);
+              }}
+              style={({ pressed }) => [
+                styles.conversationMenuButton,
+                pressed && styles.forwardDisabled,
+              ]}
+            >
+              <Text style={styles.conversationMenuText}>⋮</Text>
+            </Pressable>
+          )}
+          {peer && (
+            <Pressable
+              accessibilityRole="button"
               accessibilityLabel="اسم خاص بيك"
               testID="contact-nickname-open"
               onPress={() => {
@@ -1143,7 +1251,29 @@ export default function ChatScreen() {
             </View>
           )}
           {!!errorText && <ErrorText>{errorText}</ErrorText>}
-          <MessageComposer
+          {!!blockFeedback && <Text style={styles.errorCopy}>{blockFeedback}</Text>}
+          {peerBlockedByMe ? (
+            <View style={styles.blockedComposer}>
+              <Text style={styles.blockedComposerTitle}>أنت حاظر الشخص ده</Text>
+              <Text style={styles.blockedComposerCopy}>مش هتقدر تبعت له رسائل لحد ما تلغي الحظر.</Text>
+              <Pressable
+                accessibilityRole="button"
+                testID="conversation-unblock-peer"
+                disabled={unblockPeer.isPending}
+                onPress={() => unblockPeer.mutate()}
+                style={({ pressed }) => [
+                  styles.blockedComposerAction,
+                  pressed && styles.forwardDisabled,
+                  unblockPeer.isPending && styles.forwardDisabled,
+                ]}
+              >
+                <Text style={styles.blockedComposerActionText}>
+                  {unblockPeer.isPending ? "جارٍ إلغاء الحظر…" : "إلغاء الحظر"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <MessageComposer
             value={draft}
             onChangeText={(value) => {
               setDraft(value);
@@ -1244,6 +1374,7 @@ export default function ChatScreen() {
                     : undefined
             }
           />
+          )}
         </View>
       </ControllerKeyboardAvoidingView>
       <ScheduleMessageModal
@@ -1364,6 +1495,137 @@ export default function ChatScreen() {
               >
                 <Text style={styles.forwardConfirmText}>
                   {forwardBusy ? "جارٍ الإرسال…" : "تأكيد الإرسال"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={conversationMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConversationMenuVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.nicknameModal}>
+            <Text style={styles.forwardTitle}>خيارات المحادثة</Text>
+            <Pressable
+              accessibilityRole="button"
+              testID="conversation-block-action"
+              onPress={() => {
+                setConversationMenuVisible(false);
+                if (peerBlockedByMe) unblockPeer.mutate();
+                else setBlockConfirmVisible(true);
+              }}
+              style={styles.actionMenuItem}
+            >
+              <Text style={styles.actionMenuText}>
+                {peerBlockedByMe ? "إلغاء الحظر" : "حظر"}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              testID="conversation-report-action"
+              onPress={() => {
+                setConversationMenuVisible(false);
+                setReportReason("");
+                setReportModalVisible(true);
+              }}
+              style={styles.actionMenuItem}
+            >
+              <Text style={styles.actionMenuText}>إبلاغ</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setConversationMenuVisible(false)}
+              style={styles.forwardCancel}
+            >
+              <Text style={styles.forwardCancelText}>إغلاق</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={blockConfirmVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setBlockConfirmVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.nicknameModal}>
+            <Text style={styles.forwardTitle}>تحظر {displayedName}؟</Text>
+            <Text style={styles.forwardHint}>
+              مش هتقدروا تبعتوا لبعض. الرسائل القديمة هتفضل موجودة.
+            </Text>
+            {!!blockFeedback && <Text style={styles.errorCopy}>{blockFeedback}</Text>}
+            <View style={styles.forwardButtons}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setBlockConfirmVisible(false)}
+                style={styles.forwardCancel}
+              >
+                <Text style={styles.forwardCancelText}>رجوع</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                testID="conversation-block-confirm"
+                disabled={blockPeer.isPending}
+                onPress={() => blockPeer.mutate()}
+                style={[styles.forwardConfirm, blockPeer.isPending && styles.forwardDisabled]}
+              >
+                <Text style={styles.forwardConfirmText}>
+                  {blockPeer.isPending ? "جارٍ الحظر…" : "حظر"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReportModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.nicknameModal}>
+            <Text style={styles.forwardTitle}>إبلاغ عن {displayedName}</Text>
+            <Text style={styles.forwardHint}>اكتب سببًا واضحًا من ٥ إلى ٥٠٠ حرف.</Text>
+            <TextInput
+              testID="conversation-report-reason"
+              value={reportReason}
+              onChangeText={setReportReason}
+              placeholder="سبب الإبلاغ"
+              placeholderTextColor={colors.muted}
+              maxLength={500}
+              multiline
+              textAlignVertical="top"
+              style={styles.reportInput}
+            />
+            {!!blockFeedback && <Text style={styles.errorCopy}>{blockFeedback}</Text>}
+            <View style={styles.forwardButtons}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setReportModalVisible(false)}
+                disabled={reportPeer.isPending}
+                style={styles.forwardCancel}
+              >
+                <Text style={styles.forwardCancelText}>إلغاء</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                testID="conversation-report-submit"
+                disabled={reportReason.trim().length < 5 || reportPeer.isPending}
+                onPress={() => reportPeer.mutate(reportReason.trim())}
+                style={[
+                  styles.forwardConfirm,
+                  (reportReason.trim().length < 5 || reportPeer.isPending) &&
+                    styles.forwardDisabled,
+                ]}
+              >
+                <Text style={styles.forwardConfirmText}>
+                  {reportPeer.isPending ? "جارٍ الإرسال…" : "إرسال البلاغ"}
                 </Text>
               </Pressable>
             </View>
@@ -1509,6 +1771,8 @@ const styles = StyleSheet.create({
   peerStatus: { color: colors.muted, fontSize: 11, textAlign: "right" },
   nicknameMenuButton: { minHeight: 34, justifyContent: "center", borderRadius: 10, paddingHorizontal: 9, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
   nicknameMenuText: { color: colors.blue, fontSize: 11, fontWeight: "700" },
+  conversationMenuButton: { width: 34, height: 38, alignItems: "center", justifyContent: "center" },
+  conversationMenuText: { color: colors.text, fontSize: 24, fontWeight: "800", lineHeight: 26 },
   chat: { flex: 1 },
   messages: { paddingTop: 12, paddingBottom: 16, flexGrow: 1, justifyContent: "flex-end" },
   messagesEmpty: { justifyContent: "center" },
@@ -1522,12 +1786,20 @@ const styles = StyleSheet.create({
   errorTitle: { color: colors.text, fontSize: 16, fontWeight: "800", textAlign: "right", marginBottom: 4 },
   errorCopy: { color: colors.muted, textAlign: "right", lineHeight: 21 },
   composerArea: { backgroundColor: colors.background },
+  blockedComposer: { alignItems: "center", gap: 6, borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: colors.surface },
+  blockedComposerTitle: { color: colors.amber, fontSize: 14, fontWeight: "800", textAlign: "center" },
+  blockedComposerCopy: { color: colors.muted, fontSize: 12, textAlign: "center" },
+  blockedComposerAction: { minHeight: 38, justifyContent: "center", paddingHorizontal: 16 },
+  blockedComposerActionText: { color: colors.blue, fontSize: 13, fontWeight: "800" },
   draftHint: { paddingHorizontal: 16, paddingTop: 8 },
   draftHintText: { color: colors.amber, fontSize: 12, textAlign: "right" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.64)", justifyContent: "center", padding: 20 },
   forwardModal: { width: "100%", maxWidth: 420, maxHeight: "80%", alignSelf: "center", borderRadius: 22, padding: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: 10 },
   nicknameModal: { width: "100%", maxWidth: 420, alignSelf: "center", borderRadius: 22, padding: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: 12 },
   nicknameInput: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, color: colors.text, paddingHorizontal: 14, fontSize: 16, textAlign: "right", writingDirection: "rtl" },
+  reportInput: { minHeight: 110, maxHeight: 220, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, color: colors.text, padding: 14, fontSize: 15, textAlign: "right", writingDirection: "rtl" },
+  actionMenuItem: { minHeight: 48, justifyContent: "center", alignItems: "flex-end", borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: 8 },
+  actionMenuText: { color: colors.text, fontSize: 15, fontWeight: "700" },
   forwardTitle: { color: colors.text, fontSize: 18, fontWeight: "800", textAlign: "right" },
   forwardHint: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: "right" },
   forwardList: { maxHeight: 260 },

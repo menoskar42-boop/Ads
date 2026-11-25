@@ -13,6 +13,10 @@ import {
 } from "@workspace/api-zod";
 import { Router, type IRouter, type RequestHandler } from "express";
 import { scheduledAtOrNull } from "../lib/scheduled-message-policy";
+import {
+  canSendDirectMessage,
+  MESSENGER_BLOCKED_SEND_ERROR,
+} from "../lib/messenger-blocks";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -59,7 +63,9 @@ const scheduledMessageSelect = `
          s.status,
          s.created_at,
          s.sent_at,
-         CASE WHEN s.status = 'failed'
+         CASE WHEN s.status = 'failed' AND s.failure_code = 'blocked'
+              THEN 'تعذر إرسال الرسالة بسبب الحظر.'
+              WHEN s.status = 'failed'
               THEN 'تعذر إرسال الرسالة تلقائيًا. يمكنك إرسالها من المحادثة.'
               ELSE NULL
          END AS failure_message,
@@ -141,12 +147,21 @@ router.post(
       const userId = getUserId(res);
       const conversationId = params.data.conversationId;
       const conversation = await pool.query(
-        `SELECT id FROM messenger_conversations
+        `SELECT id, user_a, user_b FROM messenger_conversations
          WHERE id = $1 AND (user_a = $2 OR user_b = $2)`,
         [conversationId, userId],
       );
       if (!conversation.rows[0]) {
         res.status(404).json({ error: "المحادثة غير موجودة." });
+        return;
+      }
+      const conversationRow = conversation.rows[0];
+      const recipientId =
+        conversationRow.user_a === userId
+          ? conversationRow.user_b
+          : conversationRow.user_a;
+      if (!(await canSendDirectMessage(pool, userId, recipientId))) {
+        res.status(403).json({ error: MESSENGER_BLOCKED_SEND_ERROR });
         return;
       }
 
@@ -229,6 +244,24 @@ router.patch(
 
       const userId = getUserId(res);
       const id = params.data.scheduledMessageId;
+      const conversation = await pool.query(
+        `SELECT conversation.user_a, conversation.user_b
+         FROM messenger_scheduled_messages scheduled
+         JOIN messenger_conversations conversation
+           ON conversation.id = scheduled.conversation_id
+         WHERE scheduled.id = $1 AND scheduled.sender_id = $2`,
+        [id, userId],
+      );
+      if (conversation.rows[0]) {
+        const recipientId =
+          conversation.rows[0].user_a === userId
+            ? conversation.rows[0].user_b
+            : conversation.rows[0].user_a;
+        if (!(await canSendDirectMessage(pool, userId, recipientId))) {
+          res.status(403).json({ error: MESSENGER_BLOCKED_SEND_ERROR });
+          return;
+        }
+      }
       const updated = await pool.query(
         `UPDATE messenger_scheduled_messages
          SET body = $1, scheduled_at = $2, updated_at = now()

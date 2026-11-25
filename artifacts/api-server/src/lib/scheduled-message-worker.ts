@@ -6,6 +6,7 @@ import {
   isPermanentMessageError,
   scheduledClientMessageId,
 } from "./scheduled-message-policy";
+import { hasMessengerBlocksSchema, isMessengerUserBlocked } from "./messenger-blocks";
 
 type ScheduledRow = {
   id: string;
@@ -56,6 +57,34 @@ async function processOneDueMessage(pool: DbPool): Promise<boolean> {
       return false;
     }
     selectedId = scheduled.id;
+
+    if (await hasMessengerBlocksSchema(pool)) {
+      const conversation = await connection.query<{ user_a: string; user_b: string }>(
+        `SELECT user_a, user_b FROM messenger_conversations WHERE id = $1`,
+        [scheduled.conversation_id],
+      );
+      const participants = conversation.rows[0];
+      const recipientId = participants
+        ? participants.user_a === scheduled.sender_id
+          ? participants.user_b
+          : participants.user_a
+        : "";
+      if (
+        recipientId &&
+        await isMessengerUserBlocked(connection, scheduled.sender_id, recipientId)
+      ) {
+        await connection.query(
+          `UPDATE messenger_scheduled_messages
+           SET status = 'failed', failure_code = 'blocked', updated_at = now()
+           WHERE id = $1 AND status = 'pending'`,
+          [scheduled.id],
+        );
+        await connection.query("COMMIT");
+        transactionOpen = false;
+        logger.info({ scheduledMessageId: scheduled.id }, "Scheduled message blocked");
+        return true;
+      }
+    }
 
     const clientMessageId = scheduledClientMessageId(scheduled.id);
     const inserted = await connection.query<{ id: string }>(
