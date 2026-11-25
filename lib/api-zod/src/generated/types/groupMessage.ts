@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { GroupMediaAttachment } from './groupMediaAttachment';
+import type { GroupMessageMessageType } from './groupMessageMessageType';
 
 export interface GroupMessage {
   id: string;
@@ -13,4 +15,8 @@ export interface GroupMessage {
   senderName: string;
   body: string;
   createdAt: Date;
+  messageType?: GroupMessageMessageType;
+  audioDurationMs?: number | null;
+  audioUrl?: string | null;
+  mediaAttachment?: GroupMediaAttachment | null;
 }

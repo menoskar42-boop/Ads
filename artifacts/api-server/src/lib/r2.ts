@@ -1,4 +1,5 @@
 import { createHash, createHmac } from "node:crypto";
+import { MESSENGER_MEDIA_TYPES, type MessengerMediaType } from "./messenger-media-policy.ts";
 
 const SERVICE = "s3";
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -63,6 +64,26 @@ export function voiceObjectKey(
   const conversationDigest = sha256(conversationId).slice(0, 24);
   const extension = contentType === "audio/webm" ? "webm" : "m4a";
   return `oscar-messenger/audio/${conversationDigest}/${messageId}.${extension}`;
+}
+
+export function groupVoiceObjectKey(
+  groupId: string,
+  messageId: string,
+  contentType: "audio/mp4" | "audio/webm",
+): string {
+  const groupDigest = sha256(groupId).slice(0, 24);
+  const extension = contentType === "audio/webm" ? "webm" : "m4a";
+  return `oscar-messenger/groups/audio/${groupDigest}/${messageId}.${extension}`;
+}
+
+export function groupMediaObjectKey(
+  groupId: string,
+  messageId: string,
+  contentType: MessengerMediaType,
+): string {
+  const groupDigest = sha256(groupId).slice(0, 24);
+  const extension = MESSENGER_MEDIA_TYPES[contentType].extension;
+  return `oscar-messenger/groups/media/${groupDigest}/${messageId}.${extension}`;
 }
 
 async function requestObject(

@@ -7,24 +7,24 @@ import {
   isR2Configured,
   putR2Object,
   voiceObjectKey,
-} from "../lib/r2";
-import { parseMessageCursor } from "../lib/message-pagination";
-import { parseMessengerLocationInput } from "../lib/messenger-location";
-import { canDeleteOwnVoiceMessage } from "../lib/messenger-voice-delete";
+} from "../lib/r2.ts";
+import { parseMessageCursor } from "../lib/message-pagination.ts";
+import { parseMessengerLocationInput } from "../lib/messenger-location.ts";
+import { canDeleteOwnVoiceMessage } from "../lib/messenger-voice-delete.ts";
 import {
   readVoicePlayback,
   uploadVoiceObjectAndPersist,
-} from "../lib/messenger-voice-storage";
+} from "../lib/messenger-voice-storage.ts";
 import {
   editOwnTextMessage,
   MESSAGE_DELETED_LABEL,
   messagePublicContent,
   softDeleteOwnMessage,
-} from "../lib/messenger-edit-delete";
+} from "../lib/messenger-edit-delete.ts";
 import {
   hasMessengerPushSchema,
   notifyConversationMessage,
-} from "../lib/messenger-web-push";
+} from "../lib/messenger-web-push.ts";
 import {
   consumePeopleSearchQuota,
   hashPhoneForLookup,
@@ -33,19 +33,19 @@ import {
   phoneProfileFlags,
   PHONE_LOOKUP_SQL,
   publicPhoneMatch,
-} from "../lib/phone-discovery";
+} from "../lib/phone-discovery.ts";
 import {
   displayNameKey,
   DISPLAY_NAME_TAKEN_AR,
   PHONE_TAKEN_AR,
   USERNAME_TAKEN_AR,
-} from "../lib/messenger-names";
+} from "../lib/messenger-names.ts";
 import {
   buildContactResolveSql,
   contactResolveParams,
   ownedContactNicknameJoin,
   resolveContactMatches,
-} from "../lib/contact-nicknames";
+} from "../lib/contact-nicknames.ts";
 import {
   blockedPeerIdsFor,
   canSendDirectMessage,
@@ -54,7 +54,7 @@ import {
   isMessengerUserBlocked,
   requireMessengerBlocksSchema,
   MESSENGER_BLOCKED_SEND_ERROR,
-} from "../lib/messenger-blocks";
+} from "../lib/messenger-blocks.ts";
 import {
   deleteMessengerAvatar,
   hasMessengerAvatarSchema,
@@ -64,8 +64,8 @@ import {
   messengerAvatarUrl,
   MAX_MESSENGER_AVATAR_BYTES,
   saveMessengerAvatar,
-} from "../lib/messenger-avatars";
-import { logger } from "../lib/logger";
+} from "../lib/messenger-avatars.ts";
+import { logger } from "../lib/logger.ts";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 

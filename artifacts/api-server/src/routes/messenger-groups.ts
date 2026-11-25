@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { getAuth } from "@clerk/express";
-import { Router, type IRouter, type RequestHandler } from "express";
+import express, { Router, type IRouter, type RequestHandler } from "express";
+import {
+  deleteR2Object,
+  getR2Object,
+  isR2Configured,
+  putR2Object,
+} from "../lib/r2";
 import {
   canRemoveGroupMember,
   canSetGroupMemberRole,
@@ -15,6 +21,20 @@ import {
 import { parseMessageCursor } from "../lib/message-pagination";
 import { notifyGroupMessage } from "../lib/messenger-web-push";
 import { hasMessengerBlocksSchema } from "../lib/messenger-blocks";
+import {
+  GROUP_AUDIO_MAX_BYTES,
+  GROUP_AUDIO_MAX_DURATION_MS,
+  groupMessagePreview,
+  hasGroupMediaSchema,
+  publicGroupMessage,
+  readGroupMessageObject,
+  uploadGroupAudioMessage,
+  uploadGroupMediaMessage,
+} from "../lib/messenger-group-media";
+import {
+  MAX_MESSENGER_MEDIA_BYTES,
+  MESSENGER_MEDIA_TYPES,
+} from "../lib/messenger-media-policy";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -37,6 +57,11 @@ const requiredTables = [
 const schemaCache = new WeakMap<object, { checkedAt: number; ready: boolean }>();
 const reportWindows = new Map<string, { count: number; resetAt: number }>();
 const MAX_GROUP_MEMBERS = 50;
+const groupMediaStore = {
+  put: putR2Object,
+  get: getR2Object,
+  delete: deleteR2Object,
+};
 const MAX_GROUP_MESSAGES = 100;
 
 const requireAuth: RequestHandler = (req, res, next) => {
@@ -53,6 +78,14 @@ function userIdFrom(res: Parameters<RequestHandler>[1]): string {
   return String(res.locals.userId);
 }
 
+function decodeGroupFilename(value: string): string {
+  try {
+    return decodeURIComponent(value.replaceAll("+", "%20"));
+  } catch {
+    return value;
+  }
+}
+
 function requirePool(pool: DbPool, res: Parameters<RequestHandler>[1]) {
   if (!pool) {
     res.status(503).json({ error: "Messenger storage is not configured" });
@@ -60,6 +93,34 @@ function requirePool(pool: DbPool, res: Parameters<RequestHandler>[1]) {
   }
   return pool;
 }
+
+function parseGroupRawBody(
+  types: string[],
+  limit: number,
+  errorMessage: string,
+): RequestHandler {
+  const parser = express.raw({ type: types, limit });
+  return (req, res, next) => {
+    parser(req, res, (error: unknown) => {
+      if (!error) {
+        next();
+        return;
+      }
+      res.status(400).json({ error: errorMessage });
+    });
+  };
+}
+
+const parseGroupAudioBody = parseGroupRawBody(
+  ["audio/mp4", "audio/webm"],
+  GROUP_AUDIO_MAX_BYTES,
+  "تحقق من التسجيل الصوتي وحجمه ثم حاول مرة أخرى.",
+);
+const parseGroupMediaBody = parseGroupRawBody(
+  Object.keys(MESSENGER_MEDIA_TYPES),
+  MAX_MESSENGER_MEDIA_BYTES,
+  "تحقق من نوع الملف وحجمه ثم حاول مرة أخرى.",
+);
 
 async function groupsSchemaReady(pool: NonNullable<DbPool>): Promise<boolean> {
   const cached = schemaCache.get(pool);
@@ -105,34 +166,20 @@ async function memberRole(
   return result.rows[0]?.role ?? null;
 }
 
-function publicGroupMessage(row: {
-  id: string;
-  group_id: string;
-  sender_id: string;
-  sender_name: string;
-  body: string;
-  created_at: Date | string;
-}) {
-  return {
-    id: row.id,
-    groupId: row.group_id,
-    senderId: row.sender_id,
-    senderName: row.sender_name,
-    body: row.body,
-    createdAt: row.created_at,
-  };
-}
-
 async function groupDetail(
   pool: NonNullable<DbPool>,
   groupId: string,
   currentUserId: string,
 ) {
+  const groupMediaReady = await hasGroupMediaSchema(pool);
   const groupResult = await pool.query(
     `SELECT g.id, g.name, g.owner_id, g.created_at, g.updated_at, actor.role,
             (SELECT count(*)::int FROM messenger_group_members members
              WHERE members.group_id = g.id) AS member_count,
             COALESCE(latest.body, '') AS last_message,
+            ${groupMediaReady
+              ? "latest.message_type AS last_message_type, latest.media_kind AS last_media_kind,"
+              : "'text'::text AS last_message_type, NULL::text AS last_media_kind,"}
             COALESCE(latest.created_at, g.updated_at, g.created_at) AS last_activity,
             COALESCE(settings.is_muted, false) AS is_muted
      FROM messenger_groups g
@@ -141,8 +188,13 @@ async function groupDetail(
      LEFT JOIN messenger_group_settings settings
        ON settings.group_id = g.id AND settings.user_id = $2
      LEFT JOIN LATERAL (
-       SELECT body, created_at FROM messenger_group_messages
-       WHERE group_id = g.id ORDER BY created_at DESC LIMIT 1
+        SELECT message.body, message.created_at
+               ${groupMediaReady ? ", message.message_type, media.kind AS media_kind" : ""}
+        FROM messenger_group_messages message
+        ${groupMediaReady
+          ? "LEFT JOIN messenger_group_message_media media ON media.message_id = message.id"
+          : ""}
+        WHERE message.group_id = g.id ORDER BY message.created_at DESC, message.id DESC LIMIT 1
      ) latest ON true
      WHERE g.id = $1`,
     [groupId, currentUserId],
@@ -164,7 +216,11 @@ async function groupDetail(
     ownerId: row.owner_id,
     role: row.role,
     memberCount: Number(row.member_count),
-    lastMessage: row.last_message,
+    lastMessage: groupMessagePreview(
+      row.last_message_type,
+      row.last_media_kind,
+      row.last_message,
+    ),
     updatedAt: row.last_activity,
     isMuted: Boolean(row.is_muted),
     members: members.rows.map((member) => ({
@@ -193,16 +249,43 @@ router.get("/messenger/groups/capability", requireAuth, async (_req, res, next) 
   }
 });
 
+router.get("/messenger/groups/media/capability", requireAuth, async (_req, res, next) => {
+  try {
+    const pool = requirePool(await loadPool(), res);
+    if (!pool) return;
+    const schemaReady = await hasGroupMediaSchema(pool);
+    const storageReady = isR2Configured();
+    res.json({
+      available: schemaReady && storageReady,
+      maxMediaBytes: MAX_MESSENGER_MEDIA_BYTES,
+      maxAudioBytes: GROUP_AUDIO_MAX_BYTES,
+      maxAudioDurationMs: GROUP_AUDIO_MAX_DURATION_MS,
+      allowedContentTypes: Object.keys(MESSENGER_MEDIA_TYPES),
+      reason: !schemaReady
+        ? "database_update_required"
+        : !storageReady
+          ? "storage_not_configured"
+          : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/messenger/groups", requireAuth, async (_req, res, next) => {
   try {
     const pool = requirePool(await loadPool(), res);
     if (!pool || !(await requireGroupsSchema(pool, res))) return;
     const userId = userIdFrom(res);
+    const groupMediaReady = await hasGroupMediaSchema(pool);
     const result = await pool.query(
       `SELECT g.id, g.name, m.role,
               (SELECT count(*)::int FROM messenger_group_members all_members
                WHERE all_members.group_id = g.id) AS member_count,
               COALESCE(latest.body, '') AS last_message,
+              ${groupMediaReady
+                ? "latest.message_type AS last_message_type, latest.media_kind AS last_media_kind,"
+                : "'text'::text AS last_message_type, NULL::text AS last_media_kind,"}
               COALESCE(latest.created_at, g.updated_at, g.created_at) AS updated_at,
               COALESCE(settings.is_muted, false) AS is_muted
        FROM messenger_group_members m
@@ -210,8 +293,14 @@ router.get("/messenger/groups", requireAuth, async (_req, res, next) => {
        LEFT JOIN messenger_group_settings settings
          ON settings.group_id = g.id AND settings.user_id = m.user_id
        LEFT JOIN LATERAL (
-         SELECT body, created_at FROM messenger_group_messages
-         WHERE group_id = g.id ORDER BY created_at DESC LIMIT 1
+          SELECT message.body, message.created_at
+                 ${groupMediaReady ? ", message.message_type, media.kind AS media_kind" : ""}
+          FROM messenger_group_messages message
+          ${groupMediaReady
+            ? "LEFT JOIN messenger_group_message_media media ON media.message_id = message.id"
+            : ""}
+          WHERE message.group_id = g.id
+          ORDER BY message.created_at DESC, message.id DESC LIMIT 1
        ) latest ON true
        WHERE m.user_id = $1
        ORDER BY updated_at DESC, g.id`,
@@ -223,7 +312,11 @@ router.get("/messenger/groups", requireAuth, async (_req, res, next) => {
         name: row.name,
         role: row.role,
         memberCount: Number(row.member_count),
-        lastMessage: row.last_message,
+        lastMessage: groupMessagePreview(
+          row.last_message_type,
+          row.last_media_kind,
+          row.last_message,
+        ),
         updatedAt: row.updated_at,
         isMuted: Boolean(row.is_muted),
       })),
@@ -627,22 +720,184 @@ router.get("/messenger/groups/:groupId/messages", requireAuth, async (req, res, 
       MAX_GROUP_MESSAGES,
       Math.max(1, Number.parseInt(String(req.query.limit ?? "80"), 10) || 80),
     );
+    const groupMediaReady = await hasGroupMediaSchema(pool);
     const readQuery = buildGroupMessagesReadQuery(
       groupId,
       userId,
       limit,
       beforeMessageId,
+      groupMediaReady,
     );
     const result = await pool.query(readQuery.sql, readQuery.values);
     if (!result.rows.length && !(await memberRole(pool, groupId, userId))) {
       res.status(404).json({ error: "المجموعة غير موجودة أو لم تعد عضوًا فيها." });
       return;
     }
-    res.json({ messages: result.rows.map(publicGroupMessage) });
+    res.json({
+      messages: result.rows.map((row) => publicGroupMessage(row, groupMediaReady)),
+    });
   } catch (error) {
     next(error);
   }
 });
+
+router.post(
+  "/messenger/groups/:groupId/audio-messages",
+  requireAuth,
+  parseGroupAudioBody,
+  async (req, res, next) => {
+    try {
+      const pool = requirePool(await loadPool(), res);
+      if (!pool) return;
+      if (!(await requireGroupsSchema(pool, res))) return;
+      const groupId = String(req.params.groupId);
+      const userId = userIdFrom(res);
+      const clientMessageId = String(req.header("x-client-message-id") ?? "").trim();
+      const contentType = String(req.header("content-type") ?? "");
+      const result = await uploadGroupAudioMessage({
+        pool,
+        store: groupMediaStore,
+        storageReady: isR2Configured(),
+        groupId,
+        userId,
+        clientMessageId,
+        durationMs: Number(String(req.query.durationMs ?? "")),
+        contentType,
+        body: Buffer.isBuffer(req.body) ? req.body : null,
+      });
+      if (result.status >= 400 || !result.message) {
+        res.status(result.status).json({ error: result.error ?? "تعذر رفع التسجيل الصوتي." });
+        return;
+      }
+      if (result.created) {
+        void notifyGroupMessage(pool, {
+          groupId,
+          senderId: userId,
+          messageType: "audio",
+          body: "رسالة صوتية",
+        });
+      }
+      res.status(result.status).json({ message: result.message });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  "/messenger/groups/:groupId/media",
+  requireAuth,
+  parseGroupMediaBody,
+  async (req, res, next) => {
+    try {
+      const pool = requirePool(await loadPool(), res);
+      if (!pool) return;
+      if (!(await requireGroupsSchema(pool, res))) return;
+      const groupId = String(req.params.groupId);
+      const userId = userIdFrom(res);
+      const result = await uploadGroupMediaMessage({
+        pool,
+        store: groupMediaStore,
+        storageReady: isR2Configured(),
+        groupId,
+        userId,
+        clientMessageId: String(req.header("x-client-message-id") ?? "").trim(),
+        contentType: String(req.header("content-type") ?? ""),
+        filename: decodeGroupFilename(String(req.header("x-original-filename") ?? "")),
+        body: Buffer.isBuffer(req.body) ? req.body : null,
+      });
+      if (result.status >= 400 || !result.message) {
+        res.status(result.status).json({ error: result.error ?? "تعذر رفع المرفق." });
+        return;
+      }
+      if (result.created) {
+        const attachment = (result.message as { mediaAttachment?: { kind?: string } }).mediaAttachment;
+        const kind = attachment?.kind;
+        void notifyGroupMessage(pool, {
+          groupId,
+          senderId: userId,
+          messageType: kind === "image" ? "image" : kind === "video" ? "video" : "file",
+          body: groupMessagePreview("media", kind, ""),
+        });
+      }
+      res.status(result.status).json({ message: result.message });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  "/messenger/groups/:groupId/messages/:messageId/audio",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = requirePool(await loadPool(), res);
+      if (!pool) return;
+      const result = await readGroupMessageObject({
+        pool,
+        store: { get: getR2Object },
+        storageReady: isR2Configured(),
+        groupId: String(req.params.groupId),
+        messageId: String(req.params.messageId),
+        userId: userIdFrom(res),
+        messageType: "audio",
+      });
+      if (result.status !== 200) {
+        res.status(result.status).json({ error: result.error });
+        return;
+      }
+      res
+        .status(200)
+        .set({
+          "Content-Type": result.contentType,
+          "Content-Length": String(result.body.length),
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        })
+        .send(result.body);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  "/messenger/groups/:groupId/messages/:messageId/media",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const pool = requirePool(await loadPool(), res);
+      if (!pool) return;
+      const result = await readGroupMessageObject({
+        pool,
+        store: { get: getR2Object },
+        storageReady: isR2Configured(),
+        groupId: String(req.params.groupId),
+        messageId: String(req.params.messageId),
+        userId: userIdFrom(res),
+        messageType: "media",
+      });
+      if (result.status !== 200) {
+        res.status(result.status).json({ error: result.error });
+        return;
+      }
+      const disposition = result.kind === "file" ? "attachment" : "inline";
+      res
+        .status(200)
+        .set({
+          "Content-Type": result.contentType,
+          "Content-Length": String(result.body.length),
+          "Content-Disposition": `${disposition}; filename*=UTF-8''${encodeURIComponent(result.filename ?? "attachment")}`,
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        })
+        .send(result.body);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 router.post("/messenger/groups/:groupId/messages", requireAuth, async (req, res, next) => {
   try {

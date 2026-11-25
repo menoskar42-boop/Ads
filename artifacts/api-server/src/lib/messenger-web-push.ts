@@ -1,7 +1,7 @@
 import * as webPush from "web-push";
 import type { PushSubscription } from "web-push";
-import { logger } from "./logger";
-import { blockedPeerIdsFor, filterBlockedPushRecipients } from "./messenger-blocks";
+import { logger } from "./logger.ts";
+import { blockedPeerIdsFor, filterBlockedPushRecipients } from "./messenger-blocks.ts";
 
 type PushPool = {
   query: (text: string, values?: any[]) => Promise<{ rows: any[] }>;
@@ -39,7 +39,14 @@ export type MessengerPushPayload = {
   tag: string;
 };
 
-type PushMessageKind = "text" | "audio" | "media" | "location";
+type PushMessageKind =
+  | "text"
+  | "audio"
+  | "media"
+  | "location"
+  | "image"
+  | "video"
+  | "file";
 
 const pushSchemaCache = new WeakMap<object, { checkedAt: number; ready: boolean }>();
 const recipientPushWindows = new Map<string, number>();
@@ -98,6 +105,9 @@ export function buildMessengerPushPayload(input: {
     if (input.messageType === "audio") body = "🎤 رسالة صوتية";
     else if (input.messageType === "media") body = "📎 مرفق";
     else if (input.messageType === "location") body = "📍 موقع";
+    else if (input.messageType === "image") body = "صورة";
+    else if (input.messageType === "video") body = "فيديو";
+    else if (input.messageType === "file") body = "ملف";
     else body = Array.from(input.messageBody).slice(0, 80).join("");
   }
 
@@ -283,6 +293,7 @@ export function notifyGroupMessage(
   input: {
     groupId: string;
     senderId: string;
+    messageType?: PushMessageKind;
     body: string;
   },
 ): Promise<void> {
@@ -301,7 +312,7 @@ export function notifyGroupMessage(
     {
       conversationId: input.groupId,
       groupId: input.groupId,
-      messageType: "text",
+      messageType: input.messageType ?? "text",
       body: input.body,
     },
   );

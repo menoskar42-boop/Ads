@@ -344,6 +344,27 @@ export const GetMessengerGroupsCapabilityResponse = zod.object({
 
 
 /**
+ * @summary Check whether private group media is available
+ */
+export const getMessengerGroupMediaCapabilityResponseMaxMediaBytesMax = 8388608;
+
+export const getMessengerGroupMediaCapabilityResponseMaxAudioBytesMax = 4194304;
+
+export const getMessengerGroupMediaCapabilityResponseMaxAudioDurationMsMax = 120000;
+
+
+
+export const GetMessengerGroupMediaCapabilityResponse = zod.object({
+  "available": zod.boolean(),
+  "maxMediaBytes": zod.int().max(getMessengerGroupMediaCapabilityResponseMaxMediaBytesMax),
+  "maxAudioBytes": zod.int().max(getMessengerGroupMediaCapabilityResponseMaxAudioBytesMax),
+  "maxAudioDurationMs": zod.int().max(getMessengerGroupMediaCapabilityResponseMaxAudioDurationMsMax),
+  "allowedContentTypes": zod.array(zod.string()),
+  "reason": zod.union([zod.enum(['database_update_required', 'storage_not_configured']),zod.null()])
+})
+
+
+/**
  * @summary List groups the signed-in user belongs to
  */
 export const listMessengerGroupsResponseGroupsItemMemberCountMax = 50;
@@ -719,6 +740,10 @@ export const ListMessengerGroupMessagesQueryParams = zod.object({
   "beforeMessageId": zod.coerce.string().min(1).max(listMessengerGroupMessagesQueryBeforeMessageIdMax).optional()
 })
 
+export const listMessengerGroupMessagesResponseMessagesItemAudioDurationMsOneMax = 120000;
+
+export const listMessengerGroupMessagesResponseMessagesItemMediaAttachmentOneSizeBytesMax = 8388608;
+
 export const listMessengerGroupMessagesResponseMessagesMax = 100;
 
 
@@ -730,7 +755,17 @@ export const ListMessengerGroupMessagesResponse = zod.object({
   "senderId": zod.string(),
   "senderName": zod.string(),
   "body": zod.string(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "messageType": zod.enum(['text', 'audio', 'media']).optional(),
+  "audioDurationMs": zod.union([zod.int().min(1).max(listMessengerGroupMessagesResponseMessagesItemAudioDurationMsOneMax),zod.null()]).optional(),
+  "audioUrl": zod.union([zod.string(),zod.null()]).optional(),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(listMessengerGroupMessagesResponseMessagesItemMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]).optional()
 })).max(listMessengerGroupMessagesResponseMessagesMax)
 })
 
@@ -759,6 +794,12 @@ export const SendMessengerGroupMessageBody = zod.object({
   "clientMessageId": zod.string().min(sendMessengerGroupMessageBodyClientMessageIdMin).max(sendMessengerGroupMessageBodyClientMessageIdMax)
 })
 
+export const sendMessengerGroupMessageResponseMessageAudioDurationMsOneMax = 120000;
+
+export const sendMessengerGroupMessageResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
+
+
+
 export const SendMessengerGroupMessageResponse = zod.object({
   "message": zod.object({
   "id": zod.string(),
@@ -766,9 +807,150 @@ export const SendMessengerGroupMessageResponse = zod.object({
   "senderId": zod.string(),
   "senderName": zod.string(),
   "body": zod.string(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "messageType": zod.enum(['text', 'audio', 'media']).optional(),
+  "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerGroupMessageResponseMessageAudioDurationMsOneMax),zod.null()]).optional(),
+  "audioUrl": zod.union([zod.string(),zod.null()]).optional(),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(sendMessengerGroupMessageResponseMessageMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]).optional()
 })
 })
+
+
+/**
+ * @summary Send a private audio message to a group
+ */
+export const sendMessengerGroupAudioMessagePathGroupIdMin = 8;
+export const sendMessengerGroupAudioMessagePathGroupIdMax = 80;
+
+
+
+export const SendMessengerGroupAudioMessageParams = zod.object({
+  "groupId": zod.coerce.string().min(sendMessengerGroupAudioMessagePathGroupIdMin).max(sendMessengerGroupAudioMessagePathGroupIdMax)
+})
+
+export const sendMessengerGroupAudioMessageQueryDurationMsMax = 120000;
+
+
+
+export const SendMessengerGroupAudioMessageQueryParams = zod.object({
+  "durationMs": zod.coerce.number().int().min(1).max(sendMessengerGroupAudioMessageQueryDurationMsMax)
+})
+
+export const sendMessengerGroupAudioMessageHeaderXClientMessageIdMin = 8;
+export const sendMessengerGroupAudioMessageHeaderXClientMessageIdMax = 80;
+
+
+
+export const SendMessengerGroupAudioMessageHeader = zod.object({
+  "X-Client-Message-Id": zod.string().min(sendMessengerGroupAudioMessageHeaderXClientMessageIdMin).max(sendMessengerGroupAudioMessageHeaderXClientMessageIdMax)
+})
+
+export const sendMessengerGroupAudioMessageResponseMessageAudioDurationMsOneMax = 120000;
+
+export const sendMessengerGroupAudioMessageResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
+
+
+
+export const SendMessengerGroupAudioMessageResponse = zod.object({
+  "message": zod.object({
+  "id": zod.string(),
+  "groupId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "messageType": zod.enum(['text', 'audio', 'media']).optional(),
+  "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerGroupAudioMessageResponseMessageAudioDurationMsOneMax),zod.null()]).optional(),
+  "audioUrl": zod.union([zod.string(),zod.null()]).optional(),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(sendMessengerGroupAudioMessageResponseMessageMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]).optional()
+})
+})
+
+
+/**
+ * @summary Send a private media attachment to a group
+ */
+export const sendMessengerGroupMediaPathGroupIdMin = 8;
+export const sendMessengerGroupMediaPathGroupIdMax = 80;
+
+
+
+export const SendMessengerGroupMediaParams = zod.object({
+  "groupId": zod.coerce.string().min(sendMessengerGroupMediaPathGroupIdMin).max(sendMessengerGroupMediaPathGroupIdMax)
+})
+
+export const sendMessengerGroupMediaHeaderXClientMessageIdMin = 8;
+export const sendMessengerGroupMediaHeaderXClientMessageIdMax = 80;
+
+export const sendMessengerGroupMediaHeaderXOriginalFilenameMax = 500;
+
+
+
+export const SendMessengerGroupMediaHeader = zod.object({
+  "X-Client-Message-Id": zod.string().min(sendMessengerGroupMediaHeaderXClientMessageIdMin).max(sendMessengerGroupMediaHeaderXClientMessageIdMax),
+  "X-Original-Filename": zod.string().max(sendMessengerGroupMediaHeaderXOriginalFilenameMax)
+})
+
+export const sendMessengerGroupMediaResponseMessageAudioDurationMsOneMax = 120000;
+
+export const sendMessengerGroupMediaResponseMessageMediaAttachmentOneSizeBytesMax = 8388608;
+
+
+
+export const SendMessengerGroupMediaResponse = zod.object({
+  "message": zod.object({
+  "id": zod.string(),
+  "groupId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "body": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "messageType": zod.enum(['text', 'audio', 'media']).optional(),
+  "audioDurationMs": zod.union([zod.int().min(1).max(sendMessengerGroupMediaResponseMessageAudioDurationMsOneMax),zod.null()]).optional(),
+  "audioUrl": zod.union([zod.string(),zod.null()]).optional(),
+  "mediaAttachment": zod.union([zod.object({
+  "filename": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain']),
+  "kind": zod.enum(['image', 'video', 'file']),
+  "sizeBytes": zod.int().min(1).max(sendMessengerGroupMediaResponseMessageMediaAttachmentOneSizeBytesMax),
+  "url": zod.string()
+}),zod.null()]).optional()
+})
+})
+
+
+/**
+ * @summary Stream audio only to current group members
+ */
+export const GetMessengerGroupAudioMessageParams = zod.object({
+  "groupId": zod.coerce.string(),
+  "messageId": zod.coerce.string()
+})
+
+export const GetMessengerGroupAudioMessageResponse = zod.unknown()
+
+
+/**
+ * @summary Stream media only to current group members
+ */
+export const GetMessengerGroupMediaMessageParams = zod.object({
+  "groupId": zod.coerce.string(),
+  "messageId": zod.coerce.string()
+})
+
+export const GetMessengerGroupMediaMessageResponse = zod.unknown()
 
 
 /**

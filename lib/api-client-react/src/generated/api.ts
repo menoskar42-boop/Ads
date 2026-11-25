@@ -45,6 +45,7 @@ import type {
   ForwardMessengerMessage201,
   ForwardMessengerMessageBody,
   GetMessengerAvatarParams,
+  GroupMediaCapability,
   GroupMessageInput,
   GroupMessageResponse,
   GroupMessagesResponse,
@@ -78,6 +79,7 @@ import type {
   SearchMessengerMessagesParams,
   SearchMessengerPeople200,
   SearchMessengerPeopleParams,
+  SendMessengerGroupAudioMessageParams,
   SendMessengerLocation200,
   SendMessengerLocation201,
   SendMessengerMessage200,
@@ -86,6 +88,7 @@ import type {
   SendMessengerVoiceMessage200,
   SendMessengerVoiceMessage201,
   SendMessengerVoiceMessageParams,
+  ServiceUnavailableResponse,
   SetMessengerGroupMemberRoleBody,
   StartMessengerConversation200,
   StartMessengerConversationBody,
@@ -1777,6 +1780,107 @@ export function useGetMessengerGroupsCapability<TData = Awaited<ReturnType<typeo
 
 
 
+export const getGetMessengerGroupMediaCapabilityUrl = () => {
+
+
+
+
+  return `/api/messenger/groups/media/capability`
+}
+
+/**
+ * @summary Check whether private group media is available
+ */
+export const getMessengerGroupMediaCapability = async ( options?: Parameters<typeof customFetch>[1]): Promise<GroupMediaCapability> => {
+
+  return customFetch<GroupMediaCapability>(getGetMessengerGroupMediaCapabilityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerGroupMediaCapabilityQueryKey = () => {
+    return [
+    `/api/messenger/groups/media/capability`
+    ] as const;
+    }
+
+
+export const getGetMessengerGroupMediaCapabilityQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError = ErrorType<UnauthorizedResponse | ServiceUnavailableResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerGroupMediaCapabilityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>> = ({ signal }) => getMessengerGroupMediaCapability({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerGroupMediaCapabilityQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>>
+export type GetMessengerGroupMediaCapabilityQueryError = ErrorType<UnauthorizedResponse | ServiceUnavailableResponse>
+
+
+export function useGetMessengerGroupMediaCapability<TData = Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError = ErrorType<UnauthorizedResponse | ServiceUnavailableResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerGroupMediaCapability<TData = Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError = ErrorType<UnauthorizedResponse | ServiceUnavailableResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerGroupMediaCapability<TData = Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError = ErrorType<UnauthorizedResponse | ServiceUnavailableResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Check whether private group media is available
+ */
+
+export function useGetMessengerGroupMediaCapability<TData = Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError = ErrorType<UnauthorizedResponse | ServiceUnavailableResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaCapability>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerGroupMediaCapabilityQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListMessengerGroupsUrl = () => {
 
 
@@ -2779,6 +2883,411 @@ export const useSendMessengerGroupMessage = <TError = ErrorType<BadRequestRespon
       > => {
       return useMutation(getSendMessengerGroupMessageMutationOptions(options), queryClient);
     }
+
+export const getSendMessengerGroupAudioMessageUrl = (groupId: string,
+    params: SendMessengerGroupAudioMessageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/messenger/groups/${groupId}/audio-messages?${stringifiedParams}` : `/api/messenger/groups/${groupId}/audio-messages`
+}
+
+/**
+ * @summary Send a private audio message to a group
+ */
+export const sendMessengerGroupAudioMessage = async (groupId: string,
+    sendMessengerGroupAudioMessageBody: Blob,
+    params: SendMessengerGroupAudioMessageParams, options?: Parameters<typeof customFetch>[1]): Promise<GroupMessageResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GroupMessageResponse>(getSendMessengerGroupAudioMessageUrl(groupId,params),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'audio/mp4', ...getHeaders(options?.headers) },
+    body: sendMessengerGroupAudioMessageBody
+  }
+);}
+
+
+
+
+
+export const getSendMessengerGroupAudioMessageMutationKey = () => ['sendMessengerGroupAudioMessage'] as const;
+
+export const getSendMessengerGroupAudioMessageMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerGroupAudioMessage>>, TError,SendMessengerGroupAudioMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendMessengerGroupAudioMessage>>, TError,SendMessengerGroupAudioMessageMutationVariables, TContext> => {
+
+const mutationKey = getSendMessengerGroupAudioMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendMessengerGroupAudioMessage>>, SendMessengerGroupAudioMessageMutationVariables> = (props) => {
+          const {groupId,data,params} = props ?? {};
+
+          return  sendMessengerGroupAudioMessage(groupId,data,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendMessengerGroupAudioMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendMessengerGroupAudioMessage>>>
+    export type SendMessengerGroupAudioMessageMutationBody = BodyType<Blob>
+    export type SendMessengerGroupAudioMessageMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>
+    export type SendMessengerGroupAudioMessageMutationVariables = {groupId: string;data: BodyType<Blob>;params: SendMessengerGroupAudioMessageParams}
+
+    /**
+ * @summary Send a private audio message to a group
+ */
+export const useSendMessengerGroupAudioMessage = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerGroupAudioMessage>>, TError,SendMessengerGroupAudioMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendMessengerGroupAudioMessage>>,
+        TError,
+        SendMessengerGroupAudioMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendMessengerGroupAudioMessageMutationOptions(options), queryClient);
+    }
+
+export const getSendMessengerGroupMediaUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}/media`
+}
+
+/**
+ * @summary Send a private media attachment to a group
+ */
+export const sendMessengerGroupMedia = async (groupId: string,
+    sendMessengerGroupMediaBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<GroupMessageResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<GroupMessageResponse>(getSendMessengerGroupMediaUrl(groupId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'image/jpeg', ...getHeaders(options?.headers) },
+    body: sendMessengerGroupMediaBody
+  }
+);}
+
+
+
+
+
+export const getSendMessengerGroupMediaMutationKey = () => ['sendMessengerGroupMedia'] as const;
+
+export const getSendMessengerGroupMediaMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerGroupMedia>>, TError,SendMessengerGroupMediaMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendMessengerGroupMedia>>, TError,SendMessengerGroupMediaMutationVariables, TContext> => {
+
+const mutationKey = getSendMessengerGroupMediaMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendMessengerGroupMedia>>, SendMessengerGroupMediaMutationVariables> = (props) => {
+          const {groupId,data} = props ?? {};
+
+          return  sendMessengerGroupMedia(groupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendMessengerGroupMediaMutationResult = NonNullable<Awaited<ReturnType<typeof sendMessengerGroupMedia>>>
+    export type SendMessengerGroupMediaMutationBody = BodyType<Blob>
+    export type SendMessengerGroupMediaMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>
+    export type SendMessengerGroupMediaMutationVariables = {groupId: string;data: BodyType<Blob>}
+
+    /**
+ * @summary Send a private media attachment to a group
+ */
+export const useSendMessengerGroupMedia = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerGroupMedia>>, TError,SendMessengerGroupMediaMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendMessengerGroupMedia>>,
+        TError,
+        SendMessengerGroupMediaMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendMessengerGroupMediaMutationOptions(options), queryClient);
+    }
+
+export const getGetMessengerGroupAudioMessageUrl = (groupId: string,
+    messageId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}/messages/${messageId}/audio`
+}
+
+/**
+ * @summary Stream audio only to current group members
+ */
+export const getMessengerGroupAudioMessage = async (groupId: string,
+    messageId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetMessengerGroupAudioMessageUrl(groupId,messageId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerGroupAudioMessageQueryKey = (groupId: string,
+    messageId: string,) => {
+    return [
+    `/api/messenger/groups/${groupId}/messages/${messageId}/audio`
+    ] as const;
+    }
+
+
+export const getGetMessengerGroupAudioMessageQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>>(groupId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerGroupAudioMessageQueryKey(groupId,messageId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>> = ({ signal }) => getMessengerGroupAudioMessage(groupId,messageId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: groupId !== null && groupId !== undefined && messageId !== null && messageId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerGroupAudioMessageQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>>
+export type GetMessengerGroupAudioMessageQueryError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>
+
+
+export function useGetMessengerGroupAudioMessage<TData = Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>>(
+ groupId: string,
+    messageId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerGroupAudioMessage<TData = Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>>(
+ groupId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerGroupAudioMessage<TData = Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>>(
+ groupId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Stream audio only to current group members
+ */
+
+export function useGetMessengerGroupAudioMessage<TData = Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>>(
+ groupId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupAudioMessage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerGroupAudioMessageQueryOptions(groupId,messageId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMessengerGroupMediaMessageUrl = (groupId: string,
+    messageId: string,) => {
+
+
+
+
+  return `/api/messenger/groups/${groupId}/messages/${messageId}/media`
+}
+
+/**
+ * @summary Stream media only to current group members
+ */
+export const getMessengerGroupMediaMessage = async (groupId: string,
+    messageId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetMessengerGroupMediaMessageUrl(groupId,messageId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerGroupMediaMessageQueryKey = (groupId: string,
+    messageId: string,) => {
+    return [
+    `/api/messenger/groups/${groupId}/messages/${messageId}/media`
+    ] as const;
+    }
+
+
+export const getGetMessengerGroupMediaMessageQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>>(groupId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerGroupMediaMessageQueryKey(groupId,messageId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>> = ({ signal }) => getMessengerGroupMediaMessage(groupId,messageId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: groupId !== null && groupId !== undefined && messageId !== null && messageId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerGroupMediaMessageQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>>
+export type GetMessengerGroupMediaMessageQueryError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>
+
+
+export function useGetMessengerGroupMediaMessage<TData = Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>>(
+ groupId: string,
+    messageId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerGroupMediaMessage<TData = Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>>(
+ groupId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerGroupMediaMessage<TData = Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>>(
+ groupId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Stream media only to current group members
+ */
+
+export function useGetMessengerGroupMediaMessage<TData = Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError = ErrorType<UnauthorizedResponse | ErrorResponse | ServiceUnavailableResponse>>(
+ groupId: string,
+    messageId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerGroupMediaMessage>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerGroupMediaMessageQueryOptions(groupId,messageId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListMessengerStatusesUrl = () => {
 

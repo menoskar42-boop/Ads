@@ -531,6 +531,49 @@ export interface GroupUpdateInput {
   name: string;
 }
 
+export type GroupMessageMessageType = typeof GroupMessageMessageType[keyof typeof GroupMessageMessageType];
+
+
+export const GroupMessageMessageType = {
+  text: 'text',
+  audio: 'audio',
+  media: 'media',
+} as const;
+
+export type GroupMediaAttachmentContentType = typeof GroupMediaAttachmentContentType[keyof typeof GroupMediaAttachmentContentType];
+
+
+export const GroupMediaAttachmentContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+  'video/mp4': 'video/mp4',
+  'video/webm': 'video/webm',
+  'application/pdf': 'application/pdf',
+  'text/plain': 'text/plain',
+} as const;
+
+export type GroupMediaAttachmentKind = typeof GroupMediaAttachmentKind[keyof typeof GroupMediaAttachmentKind];
+
+
+export const GroupMediaAttachmentKind = {
+  image: 'image',
+  video: 'video',
+  file: 'file',
+} as const;
+
+export interface GroupMediaAttachment {
+  filename: string;
+  contentType: GroupMediaAttachmentContentType;
+  kind: GroupMediaAttachmentKind;
+  /**
+     * @minimum 1
+     * @maximum 8388608
+     */
+  sizeBytes: number;
+  url: string;
+}
+
 export interface GroupMessage {
   id: string;
   groupId: string;
@@ -538,6 +581,30 @@ export interface GroupMessage {
   senderName: string;
   body: string;
   createdAt: string;
+  messageType?: GroupMessageMessageType;
+  audioDurationMs?: number | null;
+  audioUrl?: string | null;
+  mediaAttachment?: GroupMediaAttachment | null;
+}
+
+export type GroupMediaCapabilityReason = typeof GroupMediaCapabilityReason[keyof typeof GroupMediaCapabilityReason] | null;
+
+
+export const GroupMediaCapabilityReason = {
+  database_update_required: 'database_update_required',
+  storage_not_configured: 'storage_not_configured',
+} as const;
+
+export interface GroupMediaCapability {
+  available: boolean;
+  /** @maximum 8388608 */
+  maxMediaBytes: number;
+  /** @maximum 4194304 */
+  maxAudioBytes: number;
+  /** @maximum 120000 */
+  maxAudioDurationMs: number;
+  allowedContentTypes: string[];
+  reason: GroupMediaCapabilityReason;
 }
 
 export interface GroupMessagesResponse {
@@ -657,6 +724,11 @@ export type BadRequestResponse = ErrorResponse;
  */
 export type ConflictResponse = ErrorResponse;
 
+/**
+ * The required private group media update or storage is unavailable
+ */
+export type ServiceUnavailableResponse = ErrorResponse;
+
 export type GetMessengerAvatarParams = {
 v?: number;
 };
@@ -742,6 +814,14 @@ limit?: number;
  * @maxLength 80
  */
 beforeMessageId?: string;
+};
+
+export type SendMessengerGroupAudioMessageParams = {
+/**
+ * @minimum 1
+ * @maximum 120000
+ */
+durationMs: number;
 };
 
 export type DeleteMessengerStatus200 = {

@@ -519,6 +519,24 @@ paths:
                 $ref: "#/components/schemas/GroupsCapability"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /messenger/groups/media/capability:
+    get:
+      operationId: getMessengerGroupMediaCapability
+      tags: [messenger]
+      summary: Check whether private group media is available
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Group media availability and upload limits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupMediaCapability"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /messenger/groups:
     get:
       operationId: listMessengerGroups
@@ -970,6 +988,227 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /messenger/groups/{groupId}/audio-messages:
+    post:
+      operationId: sendMessengerGroupAudioMessage
+      tags: [messenger]
+      summary: Send a private audio message to a group
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+        - name: durationMs
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 120000
+        - name: X-Client-Message-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+      requestBody:
+        required: true
+        content:
+          audio/mp4:
+            schema:
+              type: string
+              format: binary
+          audio/webm:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Existing audio message returned after an idempotent retry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupMessageResponse"
+        "201":
+          description: Audio message saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupMessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Group not found or user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /messenger/groups/{groupId}/media:
+    post:
+      operationId: sendMessengerGroupMedia
+      tags: [messenger]
+      summary: Send a private media attachment to a group
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+        - name: X-Client-Message-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 80
+        - name: X-Original-Filename
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 500
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+          video/mp4:
+            schema:
+              type: string
+              format: binary
+          video/webm:
+            schema:
+              type: string
+              format: binary
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          text/plain:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Existing attachment returned after an idempotent retry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupMessageResponse"
+        "201":
+          description: Attachment saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupMessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Group not found or user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /messenger/groups/{groupId}/messages/{messageId}/audio:
+    get:
+      operationId: getMessengerGroupAudioMessage
+      tags: [messenger]
+      summary: Stream audio only to current group members
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Private audio bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Group or audio message is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /messenger/groups/{groupId}/messages/{messageId}/media:
+    get:
+      operationId: getMessengerGroupMediaMessage
+      tags: [messenger]
+      summary: Stream media only to current group members
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Private media bytes with safe content headers
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Group or media message is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /messenger/statuses:
     get:
       operationId: listMessengerStatuses
@@ -2021,6 +2260,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+    ServiceUnavailable:
+      description: The required private group media update or storage is unavailable
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
     HealthStatus:
       type: object
@@ -2694,6 +2939,67 @@ components:
         createdAt:
           type: string
           format: date-time
+        messageType:
+          type: string
+          enum: [text, audio, media]
+        audioDurationMs:
+          anyOf:
+            - type: integer
+              minimum: 1
+              maximum: 120000
+            - type: "null"
+        audioUrl:
+          anyOf:
+            - type: string
+              format: uri-reference
+            - type: "null"
+        mediaAttachment:
+          anyOf:
+            - $ref: "#/components/schemas/GroupMediaAttachment"
+            - type: "null"
+    GroupMediaAttachment:
+      type: object
+      required: [filename, contentType, kind, sizeBytes, url]
+      properties:
+        filename:
+          type: string
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, video/mp4, video/webm, application/pdf, text/plain]
+        kind:
+          type: string
+          enum: [image, video, file]
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 8388608
+        url:
+          type: string
+          format: uri-reference
+    GroupMediaCapability:
+      type: object
+      required: [available, maxMediaBytes, maxAudioBytes, maxAudioDurationMs, allowedContentTypes, reason]
+      properties:
+        available:
+          type: boolean
+        maxMediaBytes:
+          type: integer
+          maximum: 8388608
+        maxAudioBytes:
+          type: integer
+          maximum: 4194304
+        maxAudioDurationMs:
+          type: integer
+          maximum: 120000
+        allowedContentTypes:
+          type: array
+          items:
+            type: string
+        reason:
+          anyOf:
+            - type: string
+              enum: [database_update_required, storage_not_configured]
+            - type: "null"
     GroupMessagesResponse:
       type: object
       required: [messages]

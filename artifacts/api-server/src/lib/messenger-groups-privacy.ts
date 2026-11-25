@@ -3,12 +3,21 @@ export function buildGroupMessagesReadQuery(
   userId: string,
   limit: number,
   beforeMessageId: string | null,
+  includeMedia = false,
 ) {
   return {
     sql: `SELECT messages.id, messages.group_id, messages.sender_id,
                  profiles.display_name AS sender_name, messages.body, messages.created_at
+                 ${includeMedia
+                   ? `, messages.message_type, messages.audio_duration_ms,
+                        messages.audio_content_type, media.original_filename,
+                        media.content_type, media.kind, media.size_bytes`
+                   : ""}
           FROM (
-            SELECT id, group_id, sender_id, body, created_at
+             SELECT id, group_id, sender_id, body, created_at
+                    ${includeMedia
+                      ? `, message_type, audio_duration_ms, audio_content_type`
+                      : ""}
             FROM messenger_group_messages
             WHERE group_id = $1
                AND ($4::text IS NULL OR EXISTS (
@@ -26,6 +35,9 @@ export function buildGroupMessagesReadQuery(
              LIMIT $3
           ) messages
           JOIN messenger_profiles profiles ON profiles.user_id = messages.sender_id
+           ${includeMedia
+             ? "LEFT JOIN messenger_group_message_media media ON media.message_id = messages.id"
+             : ""}
           ORDER BY messages.created_at, messages.id`,
     values: [groupId, userId, limit, beforeMessageId],
   };
