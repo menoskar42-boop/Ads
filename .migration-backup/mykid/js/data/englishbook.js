@@ -8,6 +8,8 @@
 //
 // ملف صافى (من غير DOM) — الشاشة فى games/englishbook.js، والاختبارات بتستورده مباشرة.
 
+import { getEnglishLetterLessonVideo } from "./englishLetterLessonVideos.js";
+
 const W = (w, e) => ({ w, e });
 
 /** كل كلمات الكتاب بصورها — مكان واحد عشان الصورة تفضل هى هى فى كل الأنشطة. */
@@ -497,6 +499,15 @@ export const starredLetterPages = (done) => EB_PAGES.filter((pg) => pg.type === 
 export const MIX_MAX = 6;
 export function letterMeetMix(done, rnd = Math.random, max = MIX_MAX) {
   return shuffled(rnd, starredLetterPages(done)).slice(0, max).map(meetStep);
+}
+
+/** فيديو اختياري قبل مراجعة كل حرف عليه نجمة، فقط لو للحرف رابط درس آمن. */
+export function starredLetterReviewSteps(done, rnd = Math.random) {
+  return letterMeetMix(done, rnd).flatMap((step) => {
+    const label = step.label || step.ch;
+    const video = getEnglishLetterLessonVideo(label);
+    return video ? [{ kind: "video", video, label }, step] : [step];
+  });
 }
 
 export function ebSteps(pg, rnd = Math.random, only = null) {

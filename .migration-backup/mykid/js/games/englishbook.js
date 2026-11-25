@@ -12,7 +12,7 @@ import { Store } from "../core/storage.js";
 import { awardStars } from "../core/rewards.js";
 import { femAdapt } from "../data/mizo.js";
 import { strokesFor } from "../data/strokes.js";
-import { EB_UNITS, EB_PAGES, ebSteps, isEbWrite, EB_WORDS, emojiOf, NUM_EN, letterMeetMix } from "../data/englishbook.js";
+import { EB_UNITS, EB_PAGES, ebSteps, isEbWrite, EB_WORDS, emojiOf, NUM_EN, starredLetterReviewSteps } from "../data/englishbook.js";
 import { wordPicHtml, bookImgEn } from "../data/bookPics.js";
 import { EB_SAY, SHOW_BELOW, fixMsg, ROUND_MSG } from "../data/writingPhrases.js";
 import { gameTopbar, finishActivity, renderEmbedded, endEmbedded } from "./common.js";
@@ -32,7 +32,6 @@ import { connectOpts } from "./letterRecall.js";
 import { connectStepFor, starredLetters, RECALL_SAY } from "../data/letterRecall.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
-import { getEnglishLetterLessonVideo } from "../data/englishLetterLessonVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);
@@ -203,7 +202,7 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
 
   // ===== «حروفى بالنجمة» (المالك ٢٠٢٦-١٠-٢٣): «تعرّف على الحرف» على الحروف اللى عليها نجمة، ورا بعض =====
   function openMix() {
-    steps = letterMeetMix(Store.englishbookDone);
+    steps = starredLetterReviewSteps(Store.englishbookDone);
     if (!steps.length) {
       // لسه مفيش حرف خلصان: ميزو بيقول كده، وزرار يفتح الكتاب
       stage.replaceChildren();
@@ -240,8 +239,8 @@ export function renderEnglishbook({ regionId, regionIndex, page: startPage, only
     else title.innerHTML = `<b>${cur.type === "story" ? cur.icon || "📖" : cur.type === "cvc" ? "🔤" : "🗣️"}</b><span dir="ltr">${cur.title}</span>`;
     const track = el("div", "wbk-track");
     // فى «حروفى بالنجمة» كل خانة عليها حرفها (Mm · Ss …) بدل 🎲
-    steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : "") + (cur.type === "mix" ? " ebk-chip-letter" : ""),
-      cur.type === "mix" ? `${s.label}${s.label.toLowerCase()}` : s.kind === "video" ? "▶️" : isEbWrite(s) ? "✏️" : s.kind === "connect" ? "🔗" : s.kind === "blankWrite" ? "✍️" : BOOK_WORD_ICON[s.kind] || (s.kind === "game" ? gameInfo(s.game).icon : "🎲"))));
+    steps.forEach((s, i) => track.appendChild(el("span", "wbk-chip" + (i < idx ? " done" : i === idx ? " now" : "") + (cur.type === "mix" && s.kind !== "video" ? " ebk-chip-letter" : ""),
+      s.kind === "video" ? "▶️" : cur.type === "mix" ? `${s.label}${s.label.toLowerCase()}` : isEbWrite(s) ? "✏️" : s.kind === "connect" ? "🔗" : s.kind === "blankWrite" ? "✍️" : BOOK_WORD_ICON[s.kind] || (s.kind === "game" ? gameInfo(s.game).icon : "🎲"))));
     track.setAttribute("aria-label", `خطوة ${idx + 1} من ${steps.length}`);
     head.append(title, track);
     return head;

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import "../server/_node-shim.mjs";
-import { EB_UNITS, EB_PAGES, EB_WORDS, EB_LETTERS, ebSteps, hasSound, ALL_WORDS } from "../js/data/englishbook.js";
+import { EB_UNITS, EB_PAGES, EB_WORDS, EB_LETTERS, ebSteps, hasSound, ALL_WORDS, starredLetterReviewSteps } from "../js/data/englishbook.js";
 import { strokesFor } from "../js/data/strokes.js";
 import { EB_SAY } from "../js/data/writingPhrases.js";
 import { femAdapt } from "../js/data/mizo.js";
@@ -55,6 +55,18 @@ test("every step builds, every word has a picture, every write glyph has strokes
       }
     }
   }
+});
+
+test("starred-letter review inserts only available videos before the matching letter", () => {
+  const steps = starredLetterReviewSteps({ "u1-A": 1, "u5-K": 1 }, () => 0.5);
+  assert.equal(steps.filter((step) => step.kind === "video").length, 1);
+  assert.deepEqual(steps.filter((step) => step.kind === "letterMeet").map((step) => step.ch).sort(), ["A", "K"]);
+  const videoIndex = steps.findIndex((step) => step.kind === "video");
+  assert.equal(steps[videoIndex].label, "A");
+  assert.equal(steps[videoIndex + 1].kind, "letterMeet");
+  assert.equal(steps[videoIndex + 1].ch, "A");
+  assert.ok(steps[videoIndex].video.videoId);
+  assert.deepEqual(starredLetterReviewSteps({ "u5-K": 1 }, () => 0.5).map((step) => step.kind), ["letterMeet"]);
 });
 
 // المالك ٢٠٢٦-١٠-١٧: «كمّل الإنجليزى بنفس الشكل» — ألعاب القلعة + كابيتال وصغير ٣ بالنقط و٥ لوحده
