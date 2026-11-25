@@ -137,7 +137,16 @@ export async function softDeleteOwnMessage(
   if (!alreadyDeleted) {
     const updated = await pool.query(
       `UPDATE messenger_messages
-       SET body = $4, deleted_at = COALESCE(deleted_at, now()), attachment_count = 0
+       SET body = $4,
+           deleted_at = COALESCE(deleted_at, now()),
+           attachment_count = 0,
+           audio_duration_ms = NULL,
+           audio_content_type = NULL,
+           audio_size_bytes = NULL,
+           location_lat = NULL,
+           location_lng = NULL,
+           location_accuracy_m = NULL,
+           location_captured_at = NULL
        WHERE id = $1 AND conversation_id = $2 AND sender_id = $3
          AND deleted_at IS NULL
        RETURNING id`,

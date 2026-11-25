@@ -103,6 +103,14 @@ test("soft delete replaces content, removes media metadata, and permits only the
   const update = sqlCalls.find((call) => call.sql.includes("UPDATE messenger_messages"));
   assert.ok(update);
   assert.equal(update.params[3], MESSAGE_TOMBSTONE_BODY);
+  assert.match(update.sql, /attachment_count = 0/);
+  assert.match(update.sql, /audio_duration_ms = NULL/);
+  assert.match(update.sql, /audio_content_type = NULL/);
+  assert.match(update.sql, /audio_size_bytes = NULL/);
+  assert.match(update.sql, /location_lat = NULL/);
+  assert.match(update.sql, /location_lng = NULL/);
+  assert.match(update.sql, /location_accuracy_m = NULL/);
+  assert.match(update.sql, /location_captured_at = NULL/);
   assert.ok(sqlCalls.some((call) => call.sql.includes("DELETE FROM messenger_message_media")));
   assert.deepEqual(
     messagePublicContent({ body: MESSAGE_TOMBSTONE_BODY, deleted_at: new Date() }),
@@ -150,5 +158,21 @@ test("routes gate edit/delete on the optional columns and never expose tombstone
   assert.match(tools, /m\.deleted_at IS NULL/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS edited_at timestamptz/);
   assert.match(migration, /ADD COLUMN IF NOT EXISTS deleted_at timestamptz/);
-  assert.doesNotMatch(migration, /^\s*(DROP|CREATE|UPDATE|DELETE)\b/im);
+  assert.match(migration, /^\s*BEGIN;\s*$/im);
+  assert.match(migration, /^\s*COMMIT;\s*$/im);
+  assert.match(migration, /DROP CONSTRAINT IF EXISTS messenger_messages_audio_metadata_check/);
+  assert.doesNotMatch(migration, /^\s*DROP\s+TABLE\b/im);
+  assert.doesNotMatch(migration, /^\s*(CREATE|UPDATE|DELETE)\b/im);
+  assert.equal(
+    (migration.match(/message_type = '(?:text|audio|media|location)'/g) || []).length,
+    4,
+    "the four existing message-type branches must remain",
+  );
+  assert.match(migration, /audio_duration_ms BETWEEN 1 AND 120000[\s\S]*?attachment_count = 1/);
+  assert.match(migration, /message_type = 'media'[\s\S]*?attachment_count = 1/);
+  assert.match(migration, /location_lat BETWEEN -90 AND 90[\s\S]*?location_lng BETWEEN -180 AND 180[\s\S]*?location_captured_at IS NOT NULL/);
+  assert.match(
+    migration,
+    /deleted_at IS NOT NULL[\s\S]*?audio_duration_ms IS NULL[\s\S]*?audio_content_type IS NULL[\s\S]*?audio_size_bytes IS NULL[\s\S]*?attachment_count = 0[\s\S]*?location_lat IS NULL[\s\S]*?location_lng IS NULL[\s\S]*?location_accuracy_m IS NULL[\s\S]*?location_captured_at IS NULL/,
+  );
 });
