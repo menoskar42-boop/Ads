@@ -36,6 +36,8 @@ const stripComments = (src) => src
   .replace(/(^|[^:])\/\/[^\n]*/g, (m, p1) => p1 + ' '.repeat(m.length - p1.length));
 
 const route = stripComments(fs.readFileSync(path.join(ROOT, 'src/routes/clinic_admin.js'), 'utf8'));
+const schema = fs.readFileSync(path.join(ROOT, 'src/clinic/schema.js'), 'utf8');
+const view = fs.readFileSync(path.join(ROOT, 'src/views/clinic_admin/dashboard.ejs'), 'utf8');
 
 /* ── A failed read is not an empty room ────────────────────────────────── */
 {
@@ -50,6 +52,46 @@ const route = stripComments(fs.readFileSync(path.join(ROOT, 'src/routes/clinic_a
     /answers\[k\] = \{ ok: false \}/.test(dash) && !/res\.status\(500\)/.test(dash));
   check('واللوحة بتقول للمستخدم إن في سؤال مااتجاوبش',
     /anyUnknown: clinicBoard\.anyUnknown\(cards\)/.test(dash));
+}
+
+/* ── Dashboard query fields still match the clinic schema and template ───── */
+{
+  const tableColumns = (table) => {
+    const match = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\s*\\);`).exec(schema);
+    return match ? match[1] : '';
+  };
+  const requiredColumns = {
+    clinic_visits: ['id', 'company_id', 'patient_id', 'doctor_id', 'status', 'visit_date', 'arrival_at', 'is_urgent'],
+    clinic_appointments: ['id', 'company_id', 'doctor_id', 'patient_name', 'patient_phone', 'slot_at', 'status'],
+    clinic_patients: ['id', 'name'],
+    clinic_doctors: ['id', 'name'],
+    clinic_invoices: ['id', 'company_id', 'patient_id', 'status', 'total_amount', 'paid_amount', 'created_at'],
+    clinic_payments: ['company_id', 'amount', 'created_at'],
+  };
+  for (const [table, columns] of Object.entries(requiredColumns)) {
+    const body = tableColumns(table);
+    check(`${table}: أعمدة لوحة العيادة موجودة بالمخطط`,
+      Boolean(body) && columns.every((column) => new RegExp(`^\\s*${column}\\s+`, 'm').test(body)),
+      columns.filter((column) => !new RegExp(`^\\s*${column}\\s+`, 'm').test(body)).join(', ') || 'تمام');
+  }
+
+  const dashboard = route.slice(route.indexOf("router.get('/'"), route.indexOf("router.get('/appointments'"));
+  for (const [alias, pattern] of [
+    ['patient_name', /p\.name AS patient_name/],
+    ['doctor_name', /d\.name AS doctor_name/],
+    ['phone', /a\.patient_phone AS phone/],
+    ['revenue', /SUM\(amount\).*AS t/],
+  ]) {
+    check(`اسم الحقل المستعار ${alias} مطابق للاستعلام والقالب`,
+      pattern.test(dashboard) && (alias !== 'phone' || /r\.phone/.test(view)));
+  }
+  check('الحقول التي يعرضها القالب موجودة في نتائج لوحة التحكم',
+    /r\.patient_name/.test(view) && /r\.doctor_name/.test(view) &&
+    /r\.total_amount/.test(view) && /r\.paid_amount/.test(view) &&
+    /r\.slot_at/.test(view) && /r\.is_urgent/.test(view) &&
+    /r\.waited/.test(view) && /r\.long_wait/.test(view));
+  const checkAll = fs.readFileSync(path.join(ROOT, 'scripts/check-all.js'), 'utf8');
+  check('فحص حقول لوحة العيادة داخل check-all', /['"]check-clinic-board['"]/.test(checkAll));
 }
 
 /* ── The order a person reads them in ──────────────────────────────────── */
