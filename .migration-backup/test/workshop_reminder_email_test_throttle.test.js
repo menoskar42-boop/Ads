@@ -30,6 +30,7 @@ test('the reminder email test is limited per company for one minute', async (t) 
   assert.match(route, /requireWorkshopPermission\('manage_settings'\)/);
   assert.match(route, /claimReminderEmailTestSlot\(req\.company\.id\)/);
   assert.match(route, /test_email=rate_limited/);
+  assert.match(routes, /testEmailStatus: \['sent', 'unavailable', 'error', 'rate_limited'\]/);
   assert.match(settingsPage, /testEmailStatus === 'rate_limited'/);
 
   t.after(async () => workshopAdmin.pool.end());

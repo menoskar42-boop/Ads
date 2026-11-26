@@ -1159,7 +1159,7 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
     title: res.locals.t('wsh.set.title'), tab: 'settings',
     FLAGS, OPTIONAL_KEYS, saved: req.query.saved === '1',
     restored: req.query.restored === '1',
-    testEmailStatus: ['sent', 'unavailable', 'error'].includes(String(req.query.test_email || ''))
+    testEmailStatus: ['sent', 'unavailable', 'error', 'rate_limited'].includes(String(req.query.test_email || ''))
       ? String(req.query.test_email) : '',
     messageSettings: workshopMessagingView(messageRow.rows[0]),
     payment, settingsError: req.query.err || '',
