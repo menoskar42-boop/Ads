@@ -87,6 +87,10 @@ const TypeSelect = ({ value, onChange }: { value: CableType; onChange: (v: Cable
 const TYPES: CableType[] = ["install", "maint"];
 type Cell = { issued: number; used: number; balance: number };
 interface TechRow { tech: string; byType: Record<CableType, Cell>; net: number }
+const BALANCE_COLUMNS = ["الفنى", ...TYPES.flatMap((t) => [`${TYPE_LABEL[t]} — مستلم بإفراج`, `${TYPE_LABEL[t]} — مستخدم`, `${TYPE_LABEL[t]} — رصيد`]), "صافى الرصيد"];
+const flattenBalance = (r: TechRow): (string | number)[] =>
+  [r.tech, ...TYPES.flatMap((t) => [r.byType[t].issued, r.byType[t].used, r.byType[t].balance]), r.net];
+
 export function groupTechBalances(techs: TechBalance[]): TechRow[] {
   const zero = (): Cell => ({ issued: 0, used: 0, balance: 0 });
   const map = new Map<string, TechRow>();
@@ -100,21 +104,60 @@ export function groupTechBalances(techs: TechBalance[]): TechRow[] {
   return [...map.values()];
 }
 
+function TechBalancesTable({ rows }: { rows: TechRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead rowSpan={2} className="text-right align-bottom border-l">الفنى</TableHead>
+            {TYPES.map((t) => (
+              <TableHead key={t} colSpan={3} className={`text-center border-l ${t === "install" ? "bg-sky-50" : "bg-amber-50"}`}>{TYPE_LABEL[t]}</TableHead>
+            ))}
+            <TableHead rowSpan={2} className="text-center align-bottom bg-emerald-50">صافى الرصيد</TableHead>
+          </TableRow>
+          <TableRow>
+            {TYPES.flatMap((t) => [
+              <TableHead key={`${t}-i`} className="text-right text-xs">مستلم بإفراج</TableHead>,
+              <TableHead key={`${t}-u`} className="text-right text-xs">مستخدم</TableHead>,
+              <TableHead key={`${t}-b`} className="text-right text-xs border-l">رصيد</TableHead>,
+            ])}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => (
+            <TableRow key={r.tech}>
+              <TableCell className="font-medium border-l">{r.tech}</TableCell>
+              {TYPES.flatMap((t) => {
+                const c = r.byType[t];
+                return [
+                  <TableCell key={`${t}-i`} className="tabular-nums">{fmt(c.issued)}</TableCell>,
+                  <TableCell key={`${t}-u`} className="tabular-nums">{fmt(c.used)}</TableCell>,
+                  <TableCell key={`${t}-b`} className={`tabular-nums font-bold border-l ${c.balance < 0 ? "text-red-600 bg-red-50" : ""}`}>{fmt(c.balance)}</TableCell>,
+                ];
+              })}
+              <TableCell className={`tabular-nums font-bold text-center ${r.net < 0 ? "text-red-600 bg-red-50" : "bg-emerald-50/50"}`}>{fmt(r.net)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 function BalancesTab({ s }: { s: Summary }) {
   const rows = useMemo(() => groupTechBalances(s.techs), [s.techs]);
-  const flatCols = ["الفنى", ...TYPES.flatMap((t) => [`${TYPE_LABEL[t]} — مستلم بإفراج`, `${TYPE_LABEL[t]} — مستخدم`, `${TYPE_LABEL[t]} — رصيد`]), "صافى الرصيد"];
-  const flat = (r: TechRow) => [r.tech, ...TYPES.flatMap((t) => [r.byType[t].issued, r.byType[t].used, r.byType[t].balance]), r.net];
   const excel = () => exportExcel("أرصدة الفنيين", "local-store-balances", [
     ...TYPES.map((t) => ({
-      [flatCols[0]]: `رصيد المخزن المحلى — ${TYPE_LABEL[t]} (مستلم/وارد ${s.store[t].opening + s.store[t].received} · منصرف ${s.store[t].issued})`,
-      [flatCols[flatCols.length - 1]]: s.store[t].balance,
+      [BALANCE_COLUMNS[0]]: `رصيد المخزن المحلى — ${TYPE_LABEL[t]} (مستلم/وارد ${s.store[t].opening + s.store[t].received} · منصرف ${s.store[t].issued})`,
+      [BALANCE_COLUMNS[BALANCE_COLUMNS.length - 1]]: s.store[t].balance,
     })),
-    ...rows.map((r) => Object.fromEntries(flatCols.map((c, i) => [c, flat(r)[i]]))),
+    ...rows.map((r) => Object.fromEntries(BALANCE_COLUMNS.map((c, i) => [c, flattenBalance(r)[i]]))),
   ]);
   const pdf = () => printTablePDF({
     title: `المخزن المحلى — الرصيد الحالى (${today()}) — المخزن: ${TYPES.map((t) => `${TYPE_LABEL[t]} ${fmt(s.store[t].balance)} م`).join(" · ")}`,
-    columns: flatCols,
-    rows: rows.map((r) => flat(r).map((v, i) => (i === 0 ? v : fmt(v as number)))),
+    columns: BALANCE_COLUMNS,
+    rows: rows.map((r) => flattenBalance(r).map((v, i) => (i === 0 ? v : fmt(v as number)))),
     rowsPerPage: 20,
   });
   return (
@@ -138,47 +181,47 @@ function BalancesTab({ s }: { s: Summary }) {
           <div className="text-sm font-bold">الرصيد اللى مع كل فنى</div>
           <ExportButtons onExcel={excel} onPdf={pdf} />
         </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead rowSpan={2} className="text-right align-bottom border-l">الفنى</TableHead>
-                {TYPES.map((t) => (
-                  <TableHead key={t} colSpan={3} className={`text-center border-l ${t === "install" ? "bg-sky-50" : "bg-amber-50"}`}>{TYPE_LABEL[t]}</TableHead>
-                ))}
-                <TableHead rowSpan={2} className="text-center align-bottom bg-emerald-50">صافى الرصيد</TableHead>
-              </TableRow>
-              <TableRow>
-                {TYPES.flatMap((t) => [
-                  <TableHead key={`${t}-i`} className="text-right text-xs">مستلم بإفراج</TableHead>,
-                  <TableHead key={`${t}-u`} className="text-right text-xs">مستخدم</TableHead>,
-                  <TableHead key={`${t}-b`} className="text-right text-xs border-l">رصيد</TableHead>,
-                ])}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r) => (
-                <TableRow key={r.tech}>
-                  <TableCell className="font-medium border-l">{r.tech}</TableCell>
-                  {TYPES.flatMap((t) => {
-                    const c = r.byType[t];
-                    return [
-                      <TableCell key={`${t}-i`} className="tabular-nums">{fmt(c.issued)}</TableCell>,
-                      <TableCell key={`${t}-u`} className="tabular-nums">{fmt(c.used)}</TableCell>,
-                      <TableCell key={`${t}-b`} className={`tabular-nums font-bold border-l ${c.balance < 0 ? "text-red-600 bg-red-50" : ""}`}>{fmt(c.balance)}</TableCell>,
-                    ];
-                  })}
-                  <TableCell className={`tabular-nums font-bold text-center ${r.net < 0 ? "text-red-600 bg-red-50" : "bg-emerald-50/50"}`}>{fmt(r.net)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <TechBalancesTable rows={rows} />
         {!s.startDate && (
           <p className="p-3 text-xs text-muted-foreground border-t">المخزن لسه مابدأش — سجّل الرصيد الافتتاحى من «تسجيل حركة». الاستخدام بيتخصم من الفنيين من يوم أول حركة.</p>
         )}
       </Card>
     </div>
+  );
+}
+
+interface MyCableBalance { tech: string | null; started: boolean; balances: TechBalance[] }
+
+export function MyCableBalanceReport() {
+  const { data, isLoading, error } = useQuery<MyCableBalance>({
+    queryKey: ["/api/local-store", "my-balance"],
+    queryFn: () => getJson("/api/local-store/my-balance"),
+  });
+  const rows = useMemo(() => groupTechBalances(data?.balances || []), [data?.balances]);
+  const excel = () => exportExcel("رصيد السلك", "my-cable-balance",
+    rows.map((r) => Object.fromEntries(BALANCE_COLUMNS.map((c, i) => [c, flattenBalance(r)[i]]))));
+  const pdf = () => printTablePDF({
+    title: `my-cable-balance — الرصيد اللى معايا من السلك — ${data?.tech || ""} — ${today()}`,
+    columns: BALANCE_COLUMNS,
+    rows: rows.map((r) => flattenBalance(r).map((v, i) => (i === 0 ? v : fmt(v as number)))),
+    rowsPerPage: 20,
+  });
+
+  return (
+    <Card className="overflow-hidden shadow-sm border-0 bg-white">
+      <div className="p-3 border-b flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-sm font-bold">
+          {data?.tech ? `الرصيد اللى معايا من السلك — ${data.tech}` : "الرصيد اللى معايا من السلك"}
+        </div>
+        {data?.tech && data.started && rows.length > 0 && <ExportButtons onExcel={excel} onPdf={pdf} />}
+      </div>
+      {isLoading && <p className="p-4 text-sm text-muted-foreground">جارى تحميل رصيد السلك...</p>}
+      {error && <p className="p-4 text-sm text-red-700">{errText(error)}</p>}
+      {data && !data.tech && <p className="p-4 text-sm text-muted-foreground">حسابك مش مربوط باسم فنى فى المخزن — كلّم مسئول البيانات</p>}
+      {data?.tech && !data.started && <p className="p-4 text-sm text-muted-foreground">المخزن المحلى لسه مابدأش</p>}
+      {data?.tech && data.started && rows.length === 0 && <p className="p-4 text-sm text-muted-foreground">مفيش سلك مستلم باسمك لحد دلوقتى</p>}
+      {rows.length > 0 && <TechBalancesTable rows={rows} />}
+    </Card>
   );
 }
 

@@ -52,7 +52,7 @@ import { OmRejectionsReport } from "@/components/OmRejectionsReport";
 import { OmStatsReport } from "@/components/OmStatsReport";
 import { FileUploadSection } from "@/components/FileUploadSection";
 import { DataCompletionSection } from "@/components/DataCompletionSection";
-import { LocalStoreSection } from "@/components/LocalStoreSection";
+import { LocalStoreSection, MyCableBalanceReport } from "@/components/LocalStoreSection";
 import { MaintCableSection } from "@/components/MaintCableSection";
 import { SpeedDropReport } from "@/components/SpeedDropReport";
 import { BoxFullReviewedReport } from "@/components/BoxFullReviewedReport";
@@ -105,7 +105,7 @@ import { installMeasureHider } from "@/lib/measure-hide";
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload" | "local-store";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-target112" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "tech-certificate" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "inspection-followup-progress" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-loop" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces" | "inspection-followup" | "terminal-reviews" | "fault-trend" | "installations-by-tech";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-target112" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "tech-certificate" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "inspection-followup-progress" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-loop" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "my-cable-balance" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces" | "inspection-followup" | "terminal-reviews" | "fault-trend" | "installations-by-tech";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -163,6 +163,7 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
     label: "المخزن",
     icon: Warehouse,
     items: [
+      { id: "my-cable-balance", label: "الرصيد اللى معايا من السلك" },
       { id: "local-store", label: "المخزن المحلى (السلك)" },
       // المالك ٢٠٢٦-١٠-١٢: قايمة إدخالات السلك اتنقلت هنا من استكمال البيانات + إفادة صرف سلك الصيانة
       { id: "maint-cable", label: "سلك الصيانة" },
@@ -377,8 +378,8 @@ export default function Dashboard() {
     // «مراجعة البكس ترمنال بترمنال» — الإحصائيات للكل، والتفصيلى لكباينه بس (السيرفر)
     "terminal-reviews",
     // «متعذرات تم توفير خطوط بها» — السيرفر بيفلترها على اللى يخص الفنى
-    "om-box-freed"];
-  const TECH_ALLOWED_GROUPS = ["الأعطال", "القياسات", "متعذرات OM", "تركيبات و نقل و اوامر شغل", "المعاينات", "جدول الورديات", "الخطوط والبكسيات", "المتابعة"];
+    "om-box-freed", "my-cable-balance"];
+  const TECH_ALLOWED_GROUPS = ["الأعطال", "القياسات", "متعذرات OM", "تركيبات و نقل و اوامر شغل", "المعاينات", "جدول الورديات", "الخطوط والبكسيات", "المتابعة", "المخزن"];
   // الشئون الخارجية ومهندس الكوابل (external) ومدير السنترال (admin) — قرار المالك ٢٠٢٦-١٠-٠٤:
   // نفس تقارير الفنى بس لكامل السنترال (السيرفر مابيفلترش غير الفنى، فبياناتهم كاملة)،
   // وصلاحياتهم جوّه التقارير زى ما هى. السوبر أدمن (اللى بيتعرض كـadmin) بيشوف كل حاجة —
@@ -391,7 +392,7 @@ export default function Dashboard() {
   // المالك ٢٠٢٦-١٠-١٢: «الأعطال المنتظمة (فترة من/إلى)» مش للشئون الخارجية ولا الأدمن ولا مهندس
   // الكوابل — للفنى (خطوطه) والسوبر أدمن بس. والسيرفر بيرفضه ليهم كمان.
   const CENTRAL_VIEW_HIDDEN: ReportTab[] = ["regularized-faults-range"];
-  const CENTRAL_VIEW_ALLOWED: ReportTab[] = ([...TECH_ALLOWED, "box-tickets-repaired", ...TABLES_GROUP, "local-store", "maint-cable"] as ReportTab[])
+  const CENTRAL_VIEW_ALLOWED: ReportTab[] = ([...TECH_ALLOWED.filter((id) => id !== "my-cable-balance"), "box-tickets-repaired", ...TABLES_GROUP, "local-store", "maint-cable"] as ReportTab[])
     .filter((id) => !CENTRAL_VIEW_HIDDEN.includes(id));
   const CENTRAL_VIEW_ALLOWED_GROUPS = REPORT_GROUPS
     .filter((g) => g.items.some((it) => CENTRAL_VIEW_ALLOWED.includes(it.id)))
@@ -819,6 +820,7 @@ export default function Dashboard() {
               {reportTab === "inspection-reports" && <InspectionReports />}
               {reportTab === "shift-schedule" && <ShiftScheduleReport />}
               {reportTab === "local-store" && <LocalStoreSection />}
+              {reportTab === "my-cable-balance" && <MyCableBalanceReport />}
               {reportTab === "maint-cable" && <MaintCableSection />}
               {reportTab === "port-change"       && <PortChangeReport />}
               {reportTab === "regularized-faults" && <RegularizedFaultsReport />}
