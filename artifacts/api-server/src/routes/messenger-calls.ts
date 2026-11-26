@@ -68,10 +68,17 @@ router.post(
       const pool = requirePool(await loadPool(), res);
       if (!pool) return;
       const conversationId = String(req.params.conversationId);
+      const requestedMedia =
+        req.body && typeof req.body === "object" && "media" in req.body
+          ? (req.body as { media?: unknown }).media
+          : "audio";
       const result = await startMessengerCall(
         pool,
         conversationId,
         getUserId(res),
+        Date.now(),
+        undefined,
+        requestedMedia,
       );
       publishExpiredMessengerCallEvents(pool);
       if (!result.ok) {
@@ -96,6 +103,7 @@ router.post(
         callerName,
         conversationId,
         callId: result.call.id,
+        media: result.call.media,
       });
       res.status(201).json({ call: result.call });
     } catch (error) {

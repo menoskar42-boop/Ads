@@ -72,6 +72,7 @@ import type {
   MessengerCallSignalAccepted,
   MessengerCallSignalInput,
   MessengerCallSignalsResponse,
+  MessengerCallStartInput,
   MessengerEventsResponse,
   MessengerFeaturesCapability,
   MessengerLiveLocationCapability,
@@ -674,16 +675,31 @@ export const getCreateMessengerCallUrl = (conversationId: string,) => {
 }
 
 /**
- * @summary Start a one-to-one audio call
+ * @summary Start a one-to-one audio or video call
  */
-export const createMessengerCall = async (conversationId: string, options?: Parameters<typeof customFetch>[1]): Promise<MessengerCallResponse> => {
+export const createMessengerCall = async (conversationId: string,
+    messengerCallStartInput?: MessengerCallStartInput, options?: Parameters<typeof customFetch>[1]): Promise<MessengerCallResponse> => {
 
-  return customFetch<MessengerCallResponse>(getCreateMessengerCallUrl(conversationId),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MessengerCallResponse>(getCreateMessengerCallUrl(conversationId),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(messengerCallStartInput)
   }
 );}
 
@@ -708,9 +724,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMessengerCall>>, CreateMessengerCallMutationVariables> = (props) => {
-          const {conversationId} = props ?? {};
+          const {conversationId,data} = props ?? {};
 
-          return  createMessengerCall(conversationId,requestOptions)
+          return  createMessengerCall(conversationId,data,requestOptions)
         }
 
 
@@ -721,12 +737,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type CreateMessengerCallMutationResult = NonNullable<Awaited<ReturnType<typeof createMessengerCall>>>
-
+    export type CreateMessengerCallMutationBody = BodyType<MessengerCallStartInput> | undefined
     export type CreateMessengerCallMutationError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>
-    export type CreateMessengerCallMutationVariables = {conversationId: string}
+    export type CreateMessengerCallMutationVariables = {conversationId: string;data?: BodyType<MessengerCallStartInput>}
 
     /**
- * @summary Start a one-to-one audio call
+ * @summary Start a one-to-one audio or video call
  */
 export const useCreateMessengerCall = <TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMessengerCall>>, TError,CreateMessengerCallMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}

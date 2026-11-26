@@ -88,3 +88,37 @@ test("ending a call is retried with keepalive and an incoming 409 shows the answ
   assert.match(source, /responseStatus\(error\) === 409/);
   assert.match(source, /incomingCall\.calleeId === userId/);
 });
+
+test("1:1 video calls: camera with audio fallback, inline video, switch camera, bitrate cap", () => {
+  const source = readFileSync(callPath, "utf8");
+  assert.match(source, /async function requestCallMedia\(/);
+  assert.match(source, /return \{ stream: await requestCallAudio\(\), cameraUnavailable: true \}/);
+  assert.match(source, /الكاميرا مش متاحة — المكالمة كملت صوت بس\./);
+  assert.match(source, /createMessengerCall\(conversationId, \{\n\s+media: localStream\.getVideoTracks\(\)\.length \? "video" : "audio",/);
+  assert.match(source, /current\.media === "video" \? "video" : "audio"/);
+  const videoTags = source.match(/<video\n[\s\S]*?\/>/g) ?? [];
+  assert.equal(videoTags.length, 2);
+  for (const tag of videoTags) {
+    assert.match(tag, /playsInline/);
+    assert.match(tag, /muted/);
+  }
+  assert.match(source, /sender\?\.replaceTrack\(newTrack\)/);
+  assert.match(source, /maxBitrate = 800_000/);
+});
+
+test("audio routing is best effort and never sent to the server", () => {
+  const source = readFileSync(callPath, "utf8");
+  assert.match(source, /setCallAudioSession\("play-and-record"\)/);
+  assert.match(source, /setCallAudioSession\("auto"\)/);
+  assert.match(source, /"setSinkId" in HTMLMediaElement\.prototype/);
+  assert.match(source, /audio\.setSinkId\(target\.deviceId\)/);
+  // Output device names stay on the device.
+  const reportBody = source.slice(source.indexOf("const reportCallOutcome"), source.indexOf("const stopRingtone"));
+  assert.doesNotMatch(reportBody, /audioOutputs|deviceId|label/);
+});
+
+test("the chat header offers a video call next to the audio call", () => {
+  const chat = readFileSync(new URL("../app/chat/[conversationId].tsx", import.meta.url), "utf8");
+  assert.match(chat, /accessibilityLabel="مكالمة فيديو"/);
+  assert.match(chat, /callControllerRef\.current\?\.startCall\("video"\)/);
+});

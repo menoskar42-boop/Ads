@@ -146,6 +146,7 @@ export const GetActiveMessengerCallResponse = zod.object({
   "callerId": zod.string(),
   "calleeId": zod.string(),
   "state": zod.enum(['ringing', 'active', 'ended']),
+  "media": zod.enum(['audio', 'video']),
   "createdAt": zod.coerce.date(),
   "endedAt": zod.coerce.date().nullable()
 }),zod.null()])
@@ -153,7 +154,7 @@ export const GetActiveMessengerCallResponse = zod.object({
 
 
 /**
- * @summary Start a one-to-one audio call
+ * @summary Start a one-to-one audio or video call
  */
 export const createMessengerCallPathConversationIdMax = 80;
 
@@ -163,6 +164,10 @@ export const CreateMessengerCallParams = zod.object({
   "conversationId": zod.coerce.string().min(1).max(createMessengerCallPathConversationIdMax)
 })
 
+export const CreateMessengerCallBody = zod.object({
+  "media": zod.enum(['audio', 'video']).optional()
+})
+
 export const CreateMessengerCallResponse = zod.object({
   "call": zod.object({
   "id": zod.string(),
@@ -170,6 +175,7 @@ export const CreateMessengerCallResponse = zod.object({
   "callerId": zod.string(),
   "calleeId": zod.string(),
   "state": zod.enum(['ringing', 'active', 'ended']),
+  "media": zod.enum(['audio', 'video']),
   "createdAt": zod.coerce.date(),
   "endedAt": zod.coerce.date().nullable()
 })
@@ -194,6 +200,7 @@ export const AcceptMessengerCallResponse = zod.object({
   "callerId": zod.string(),
   "calleeId": zod.string(),
   "state": zod.enum(['ringing', 'active', 'ended']),
+  "media": zod.enum(['audio', 'video']),
   "createdAt": zod.coerce.date(),
   "endedAt": zod.coerce.date().nullable()
 })
@@ -218,6 +225,7 @@ export const RejectMessengerCallResponse = zod.object({
   "callerId": zod.string(),
   "calleeId": zod.string(),
   "state": zod.enum(['ringing', 'active', 'ended']),
+  "media": zod.enum(['audio', 'video']),
   "createdAt": zod.coerce.date(),
   "endedAt": zod.coerce.date().nullable()
 })
@@ -242,6 +250,7 @@ export const EndMessengerCallResponse = zod.object({
   "callerId": zod.string(),
   "calleeId": zod.string(),
   "state": zod.enum(['ringing', 'active', 'ended']),
+  "media": zod.enum(['audio', 'video']),
   "createdAt": zod.coerce.date(),
   "endedAt": zod.coerce.date().nullable()
 })
@@ -330,6 +339,7 @@ export const GetMessengerCallSignalsResponse = zod.object({
   "callerId": zod.string(),
   "calleeId": zod.string(),
   "state": zod.enum(['ringing', 'active', 'ended']),
+  "media": zod.enum(['audio', 'video']),
   "createdAt": zod.coerce.date(),
   "endedAt": zod.coerce.date().nullable()
 }),

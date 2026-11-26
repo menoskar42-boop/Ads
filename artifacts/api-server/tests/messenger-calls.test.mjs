@@ -160,7 +160,7 @@ test("the callee alone can accept or reject, and either participant can end", as
   if (rejected.ok) assert.equal(rejected.call.state, "ended");
 });
 
-test("signals return 404 outside the call and reject payloads above 16 KB", async () => {
+test("signals return 404 outside the call and reject payloads above 64 KB", async () => {
   const pool = makePool();
   const created = await startMessengerCall(
     pool,
@@ -188,7 +188,7 @@ test("signals return 404 outside the call and reject payloads above 16 KB", asyn
     created.call.id,
     "call-user-a",
     "offer",
-    { sdp: "x".repeat(17_000) },
+    { sdp: "x".repeat(66_000) },
   );
   assert.equal(oversized.ok, false);
   assert.equal(oversized.status, 413);
@@ -587,4 +587,32 @@ test("redialing the same person replaces a dead active call; an incoming ring re
   assert.equal(busy.status, 409);
   assert.equal(busy.error, "فيه مكالمة شغّالة.");
   await endMessengerCall(pool, "call-replace-second", "stale-user-d");
+});
+
+test("calls default to audio, accept video, and reject other media", async () => {
+  const pool = makePool({
+    conversations: { "call-conversation": ["media-user-a", "media-user-b"] },
+  });
+  const audio = await startMessengerCall(pool, "call-conversation", "media-user-a", Date.now(), "call-media-audio");
+  assert.equal(audio.ok, true);
+  if (audio.ok) assert.equal(audio.call.media, "audio");
+  await endMessengerCall(pool, "call-media-audio", "media-user-a");
+
+  const video = await startMessengerCall(pool, "call-conversation", "media-user-a", Date.now(), "call-media-video", "video");
+  assert.equal(video.ok, true);
+  if (video.ok) assert.equal(video.call.media, "video");
+  // A 60 KB video offer fits under the 64 KB signal limit.
+  const bigOffer = await sendMessengerCallSignal(pool, "call-media-video", "media-user-a", "offer", { sdp: "x".repeat(60_000) });
+  assert.equal(bigOffer.ok, true);
+  await endMessengerCall(pool, "call-media-video", "media-user-a");
+
+  const invalid = await startMessengerCall(pool, "call-conversation", "media-user-a", Date.now(), "call-media-bad", "screen");
+  assert.equal(invalid.ok, false);
+  assert.equal(invalid.status, 400);
+
+  const videoPush = buildMessengerCallPushPayload({ callerName: "سارة", conversationId: "c1", callId: "k1", media: "video" });
+  assert.equal(videoPush.title, "مكالمة فيديو");
+  assert.equal(videoPush.body, "مكالمة فيديو من سارة");
+  const audioPush = buildMessengerCallPushPayload({ callerName: "سارة", conversationId: "c1", callId: "k1" });
+  assert.equal(audioPush.title, "مكالمة صوتية");
 });

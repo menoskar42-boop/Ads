@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MessengerCallMedia } from './messengerCallMedia';
 import type { MessengerCallState } from './messengerCallState';
 
 export interface MessengerCall {
@@ -13,6 +14,7 @@ export interface MessengerCall {
   callerId: string;
   calleeId: string;
   state: MessengerCallState;
+  media: MessengerCallMedia;
   createdAt: Date;
   /** @nullable */
   endedAt: Date | null;

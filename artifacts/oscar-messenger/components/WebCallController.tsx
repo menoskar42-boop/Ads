@@ -41,7 +41,7 @@ import { webMicrophoneErrorMessage } from "../lib/web-voice";
 import { usePwaUpdateActivity } from "../lib/pwa-update-activity";
 
 export type WebCallControllerHandle = {
-  startCall: () => Promise<void>;
+  startCall: (media?: CallMedia) => Promise<void>;
 };
 
 type Props = {
@@ -52,6 +52,63 @@ type Props = {
 };
 
 type FinishOptions = { notifyServer: boolean };
+type CallMedia = "audio" | "video";
+type AudioOutput = { deviceId: string; label: string };
+
+const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  width: { ideal: 640 },
+  height: { ideal: 480 },
+  frameRate: { ideal: 24, max: 30 },
+};
+const EARPIECE_LABEL = /earpiece|receiver|handset|phone|سماعة الهاتف|سماعة الأذن/i;
+
+// Video calls ask for camera + mic. When the camera is refused or missing,
+// the call still goes ahead as audio-only instead of failing.
+async function requestCallMedia(
+  media: CallMedia,
+  facingMode: "user" | "environment" = "user",
+): Promise<{ stream: MediaStream; cameraUnavailable: boolean }> {
+  if (media === "video" && typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { ...VIDEO_CONSTRAINTS, facingMode },
+      });
+      return { stream, cameraUnavailable: false };
+    } catch {
+      return { stream: await requestCallAudio(), cameraUnavailable: true };
+    }
+  }
+  return { stream: await requestCallAudio(), cameraUnavailable: false };
+}
+
+function supportsSinkSelection(): boolean {
+  return (
+    typeof HTMLMediaElement !== "undefined" &&
+    "setSinkId" in HTMLMediaElement.prototype
+  );
+}
+
+async function listAudioOutputs(): Promise<AudioOutput[]> {
+  if (!supportsSinkSelection() || !navigator.mediaDevices?.enumerateDevices) return [];
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices
+      .filter((device) => device.kind === "audiooutput")
+      .map((device) => ({ deviceId: device.deviceId, label: device.label || "مخرج صوت" }));
+  } catch {
+    return [];
+  }
+}
+
+function setCallAudioSession(type: "play-and-record" | "auto"): void {
+  try {
+    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    if (session) session.type = type;
+  } catch {
+    // Safari before 16.4 has no Audio Session API; routing stays with the browser.
+  }
+}
 
 function monotonicNowMs(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -196,6 +253,15 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
     const streamRef = useRef<MediaStream | null>(null);
     const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
     const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+    const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+    const localVideoRef = useRef<HTMLVideoElement | null>(null);
+    const facingModeRef = useRef<"user" | "environment">("user");
+    const [localHasVideo, setLocalHasVideo] = useState(false);
+    const [remoteHasVideo, setRemoteHasVideo] = useState(false);
+    const [cameraOff, setCameraOff] = useState(false);
+    const [canSwitchCamera, setCanSwitchCamera] = useState(false);
+    const [audioOutputs, setAudioOutputs] = useState<AudioOutput[]>([]);
+    const [speakerOn, setSpeakerOn] = useState(false);
     const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
     const signalCursorRef = useRef(0);
     const connectionFailureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -297,8 +363,38 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
         audio.pause();
         audio.srcObject = null;
       }
+      for (const video of [remoteVideoRef.current, localVideoRef.current]) {
+        if (video) video.srcObject = null;
+      }
+      setLocalHasVideo(false);
+      setRemoteHasVideo(false);
+      setCameraOff(false);
+      setCanSwitchCamera(false);
+      setSpeakerOn(false);
+      facingModeRef.current = "user";
       stopRingtone();
     }, [stopRingtone]);
+
+    const attachLocalStream = useCallback((stream: MediaStream, cameraUnavailable: boolean) => {
+      streamRef.current = stream;
+      const hasVideo = stream.getVideoTracks().length > 0;
+      setLocalHasVideo(hasVideo);
+      setCameraOff(false);
+      if (cameraUnavailable) setCallError("الكاميرا مش متاحة — المكالمة كملت صوت بس.");
+      const localVideo = localVideoRef.current;
+      if (localVideo && hasVideo) {
+        localVideo.srcObject = stream;
+        void localVideo.play().catch(() => undefined);
+      }
+      if (hasVideo && navigator.mediaDevices?.enumerateDevices) {
+        void navigator.mediaDevices
+          .enumerateDevices()
+          .then((devices) =>
+            setCanSwitchCamera(devices.filter((device) => device.kind === "videoinput").length > 1),
+          )
+          .catch(() => undefined);
+      }
+    }, []);
 
     const finishCall = useCallback(async (options: FinishOptions) => {
       const current = callRef.current;
@@ -399,12 +495,36 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
         iceServers: config.iceServers as RTCIceServer[],
       });
       peerConnectionRef.current = connection;
-      localStream.getTracks().forEach((track) => connection.addTrack(track, localStream));
+      localStream.getTracks().forEach((track) => {
+        const sender = connection.addTrack(track, localStream);
+        if (track.kind === "video") {
+          // Cap video at ~0.8 Mbps so calls stay usable on mobile data.
+          try {
+            const parameters = sender.getParameters();
+            parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
+            parameters.encodings[0].maxBitrate = 800_000;
+            void sender.setParameters(parameters).catch(() => undefined);
+          } catch {
+            // Older browsers ignore bitrate limits.
+          }
+        }
+      });
       connection.ontrack = (event) => {
+        const remoteStream = event.streams[0] ?? new MediaStream([event.track]);
+        // Audio always plays through the hidden <audio>; the <video> stays muted.
         const remoteAudio = remoteAudioRef.current;
-        if (!remoteAudio) return;
-        remoteAudio.srcObject = event.streams[0] ?? new MediaStream([event.track]);
-        void remoteAudio.play().catch(() => undefined);
+        if (remoteAudio && remoteAudio.srcObject !== remoteStream) {
+          remoteAudio.srcObject = remoteStream;
+          void remoteAudio.play().catch(() => undefined);
+        }
+        if (event.track.kind === "video") {
+          setRemoteHasVideo(true);
+          const remoteVideo = remoteVideoRef.current;
+          if (remoteVideo) {
+            remoteVideo.srcObject = remoteStream;
+            void remoteVideo.play().catch(() => undefined);
+          }
+        }
       };
       connection.onicecandidate = (event) => {
         if (!event.candidate) return;
@@ -448,10 +568,12 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       }
     }, [reportCallOutcome, sendSignal]);
 
-    const startCall = useCallback(async () => {
+    const startCall = useCallback(async (media: CallMedia = "audio") => {
       if (!isWebCallSupported || !enabled || !conversationId || !peerName) return;
       if (callRef.current && callRef.current.state !== "ended") return;
-      const confirmed = window.confirm(`هتتصل بـ${peerName} مكالمة صوتية؟`);
+      const confirmed = window.confirm(
+        `هتتصل بـ${peerName} ${media === "video" ? "مكالمة فيديو" : "مكالمة صوتية"}؟`,
+      );
       if (!confirmed) return;
       setBusy(true);
       setCallError("");
@@ -459,10 +581,12 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       setDurationSeconds(0);
       callAcceptedAtMsRef.current = null;
       try {
-        const localStream = await requestCallAudio();
-        streamRef.current = localStream;
+        const { stream: localStream, cameraUnavailable } = await requestCallMedia(media);
+        attachLocalStream(localStream, cameraUnavailable);
         setMuted(false);
-        const created = await createMessengerCall(conversationId);
+        const created = await createMessengerCall(conversationId, {
+          media: localStream.getVideoTracks().length ? "video" : "audio",
+        });
         updateCall(created.call);
         signalCursorRef.current = 0;
         await configurePeerConnection(created.call, localStream, true);
@@ -503,6 +627,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       }
     }, [
       activeCall,
+      attachLocalStream,
       cleanupConnection,
       configurePeerConnection,
       conversationId,
@@ -514,7 +639,11 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       userId,
     ]);
 
-    useImperativeHandle(ref, () => ({ startCall }), [startCall]);
+    useImperativeHandle(
+      ref,
+      () => ({ startCall: (media?: CallMedia) => startCall(media ?? "audio") }),
+      [startCall],
+    );
 
     const acceptCall = useCallback(async () => {
       const current = callRef.current;
@@ -523,8 +652,10 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       setCallError("");
       callAcceptedAtMsRef.current = monotonicNowMs();
       try {
-        const localStream = await requestCallAudio();
-        streamRef.current = localStream;
+        const { stream: localStream, cameraUnavailable } = await requestCallMedia(
+          current.media === "video" ? "video" : "audio",
+        );
+        attachLocalStream(localStream, cameraUnavailable);
         setMuted(false);
         const accepted = await acceptMessengerCall(current.id);
         updateCall(accepted.call);
@@ -552,12 +683,91 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       }
     }, [
       activeCall,
+      attachLocalStream,
       cleanupConnection,
       configurePeerConnection,
       onError,
       updateCall,
       userId,
     ]);
+
+    const toggleCamera = useCallback(() => {
+      const next = !cameraOff;
+      streamRef.current?.getVideoTracks().forEach((track) => {
+        track.enabled = !next;
+      });
+      setCameraOff(next);
+    }, [cameraOff]);
+
+    const switchCamera = useCallback(async () => {
+      const connection = peerConnectionRef.current;
+      const stream = streamRef.current;
+      const oldTrack = stream?.getVideoTracks()[0];
+      if (!connection || !stream || !oldTrack) return;
+      const nextFacing = facingModeRef.current === "user" ? "environment" : "user";
+      try {
+        const replacement = await navigator.mediaDevices.getUserMedia({
+          video: { ...VIDEO_CONSTRAINTS, facingMode: nextFacing },
+          audio: false,
+        });
+        const newTrack = replacement.getVideoTracks()[0];
+        if (!newTrack) return;
+        newTrack.enabled = !cameraOff;
+        const sender = connection.getSenders().find((item) => item.track?.kind === "video");
+        await sender?.replaceTrack(newTrack);
+        stream.removeTrack(oldTrack);
+        oldTrack.stop();
+        stream.addTrack(newTrack);
+        facingModeRef.current = nextFacing;
+        const localVideo = localVideoRef.current;
+        if (localVideo) localVideo.srcObject = stream;
+      } catch {
+        setCallError("تعذر تبديل الكاميرا.");
+      }
+    }, [cameraOff]);
+
+    // Audio routing (owner: calls always come out of the loudspeaker). The web has no
+    // guaranteed earpiece API, so this is best effort: iOS Audio Session + setSinkId.
+    const callIsLive = !!call && call.state !== "ended";
+    const callMedia: CallMedia = call?.media === "video" ? "video" : "audio";
+    useEffect(() => {
+      if (!callIsLive || Platform.OS !== "web" || typeof navigator === "undefined") return;
+      setCallAudioSession("play-and-record");
+      return () => setCallAudioSession("auto");
+    }, [callIsLive]);
+
+    const applyAudioOutput = useCallback(async (speaker: boolean, outputs: AudioOutput[]) => {
+      const audio = remoteAudioRef.current as (HTMLAudioElement & {
+        setSinkId?: (deviceId: string) => Promise<void>;
+      }) | null;
+      if (!audio?.setSinkId || outputs.length < 2) return;
+      const earpiece = outputs.find((output) => EARPIECE_LABEL.test(output.label));
+      const loudspeaker =
+        outputs.find((output) => /speaker|loud|مكبر|السماعة الخارجية/i.test(output.label)) ??
+        outputs.find((output) => output.deviceId === "default") ??
+        outputs[0];
+      const target = speaker ? loudspeaker : earpiece ?? loudspeaker;
+      try {
+        await audio.setSinkId(target.deviceId);
+      } catch {
+        // Some browsers refuse a sink change mid-call; the current output stays.
+      }
+    }, []);
+
+    useEffect(() => {
+      if (!connectedAt) return;
+      let cancelled = false;
+      void listAudioOutputs().then((outputs) => {
+        if (cancelled) return;
+        setAudioOutputs(outputs);
+        const speaker = callMedia === "video";
+        setSpeakerOn(speaker);
+        void applyAudioOutput(speaker, outputs);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [applyAudioOutput, callMedia, connectedAt]);
 
     const rejectCall = useCallback(async () => {
       const current = callRef.current;
@@ -830,14 +1040,82 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
           onRequestClose={() => void finishCall({ notifyServer: true })}
         >
           <View style={styles.backdrop}>
-            <View style={styles.panel}>
-              <View style={styles.avatar}>
-                <Ionicons name="person-outline" size={34} color={colors.blue} />
-              </View>
+            <View style={[styles.panel, callMedia === "video" && styles.videoPanel]}>
+              {callMedia === "video" && (
+                <View
+                  style={[
+                    styles.videoStage,
+                    !(remoteHasVideo || localHasVideo) && styles.videoStageHidden,
+                  ]}
+                >
+                  <video
+                    ref={(element) => {
+                      remoteVideoRef.current = element;
+                      const remoteStream = remoteAudioRef.current?.srcObject;
+                      if (element && remoteStream && element.srcObject !== remoteStream) {
+                        element.srcObject = remoteStream;
+                        void element.play().catch(() => undefined);
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    muted
+                    data-testid="call-remote-video"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      backgroundColor: "#000",
+                      display: remoteHasVideo ? "block" : "none",
+                    }}
+                  />
+                  <video
+                    ref={(element) => {
+                      localVideoRef.current = element;
+                      const localStream = streamRef.current;
+                      if (
+                        element &&
+                        localStream?.getVideoTracks().length &&
+                        element.srcObject !== localStream
+                      ) {
+                        element.srcObject = localStream;
+                        void element.play().catch(() => undefined);
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    muted
+                    data-testid="call-local-video"
+                    style={{
+                      position: "absolute",
+                      top: 10,
+                      right: 10,
+                      width: 96,
+                      height: 128,
+                      objectFit: "cover",
+                      borderRadius: 14,
+                      backgroundColor: "#111",
+                      transform: facingModeRef.current === "user" ? "scaleX(-1)" : "none",
+                      display: localHasVideo && !cameraOff ? "block" : "none",
+                    }}
+                  />
+                </View>
+              )}
+              {!(callMedia === "video" && remoteHasVideo) && (
+                <View style={styles.avatar}>
+                  <Ionicons name="person-outline" size={34} color={colors.blue} />
+                </View>
+              )}
               <Text style={styles.name}>{peerName}</Text>
               <Text style={styles.status}>
-                {stateLabel}{connectedAt ? ` · ${minutes}:${seconds}` : ""}
+                {callMedia === "video" ? "مكالمة فيديو" : "مكالمة صوتية"} · {stateLabel}
+                {connectedAt ? ` · ${minutes}:${seconds}` : ""}
               </Text>
+              {!!connectedAt && audioOutputs.length > 0 && (
+                <Text style={styles.diagnostic}>
+                  مخارج الصوت المتاحة: {audioOutputs.length}
+                </Text>
+              )}
               {!!callError && <Text style={styles.error}>{callError}</Text>}
               {busy && <ActivityIndicator color={colors.blue} />}
               {incoming && call?.state === "ringing" ? (
@@ -893,6 +1171,54 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
                     />
                     <Text style={styles.actionText}>{muted ? "إلغاء الكتم" : "كتم"}</Text>
                   </Pressable>
+                  {localHasVideo && (
+                    <Pressable
+                      accessibilityRole="button"
+                      testID="call-camera"
+                      disabled={busy}
+                      onPress={toggleCamera}
+                      style={[styles.actionButton, styles.secondaryButton]}
+                    >
+                      <Ionicons
+                        name={cameraOff ? "videocam-off-outline" : "videocam-outline"}
+                        size={23}
+                        color="#FFFFFF"
+                      />
+                      <Text style={styles.actionText}>{cameraOff ? "شغّل الكاميرا" : "الكاميرا"}</Text>
+                    </Pressable>
+                  )}
+                  {localHasVideo && canSwitchCamera && (
+                    <Pressable
+                      accessibilityRole="button"
+                      testID="call-switch-camera"
+                      disabled={busy}
+                      onPress={() => void switchCamera()}
+                      style={[styles.actionButton, styles.secondaryButton]}
+                    >
+                      <Ionicons name="camera-reverse-outline" size={23} color="#FFFFFF" />
+                      <Text style={styles.actionText}>تبديل</Text>
+                    </Pressable>
+                  )}
+                  {audioOutputs.length > 1 && supportsSinkSelection() && (
+                    <Pressable
+                      accessibilityRole="button"
+                      testID="call-speaker"
+                      disabled={busy}
+                      onPress={() => {
+                        const next = !speakerOn;
+                        setSpeakerOn(next);
+                        void applyAudioOutput(next, audioOutputs);
+                      }}
+                      style={[styles.actionButton, styles.secondaryButton]}
+                    >
+                      <Ionicons
+                        name={speakerOn ? "volume-high-outline" : "ear-outline"}
+                        size={23}
+                        color="#FFFFFF"
+                      />
+                      <Text style={styles.actionText}>{speakerOn ? "السماعة" : "الأذن"}</Text>
+                    </Pressable>
+                  )}
                   <Pressable
                     accessibilityRole="button"
                     testID="call-end"
@@ -946,12 +1272,24 @@ const styles = StyleSheet.create({
   },
   name: { color: colors.text, fontSize: 22, fontWeight: "800", textAlign: "center" },
   status: { color: colors.muted, fontSize: 14, textAlign: "center" },
+  diagnostic: { color: colors.muted, fontSize: 11, textAlign: "center" },
+  videoPanel: { maxWidth: 460, padding: 16 },
+  videoStage: {
+    position: "relative",
+    width: "100%",
+    height: 360,
+    overflow: "hidden",
+    borderRadius: 20,
+    backgroundColor: "#000",
+  },
+  videoStageHidden: { height: 0 },
   error: { color: colors.red, fontSize: 12, lineHeight: 18, textAlign: "center" },
   actions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "center",
-    gap: 24,
+    gap: 14,
     marginTop: 20,
   },
   actionButton: {

@@ -10,7 +10,8 @@ export const MESSENGER_CALL_RING_TIMEOUT_MS = 45_000;
 export const MESSENGER_CALL_MAX_DURATION_MS = 60 * 60 * 1_000;
 export const MESSENGER_CALL_RETENTION_MS = 2 * 60 * 1_000;
 export const MESSENGER_CALL_SIGNAL_LIMIT = 200;
-export const MESSENGER_CALL_SIGNAL_MAX_BYTES = 16 * 1024;
+// Video SDP is larger than audio-only; express.json() still caps bodies at 100kb.
+export const MESSENGER_CALL_SIGNAL_MAX_BYTES = 64 * 1024;
 export const MESSENGER_CALL_RATE_LIMIT = 10;
 export const MESSENGER_CALL_RATE_WINDOW_MS = 60 * 60 * 1_000;
 // A participant that sends no call request for this long is gone (lost network, frozen tab):
@@ -18,6 +19,7 @@ export const MESSENGER_CALL_RATE_WINDOW_MS = 60 * 60 * 1_000;
 export const MESSENGER_CALL_PARTICIPANT_TIMEOUT_MS = 45_000;
 
 export type MessengerCallState = "ringing" | "active" | "ended";
+export type MessengerCallMedia = "audio" | "video";
 export type MessengerCallSignalKind = "offer" | "answer" | "ice";
 export type MessengerCallOutcome = "connected" | "failed";
 export type MessengerCallCandidateType = "host" | "srflx" | "prflx" | "relay" | "unknown";
@@ -47,6 +49,7 @@ export type MessengerCall = {
   callerId: string;
   calleeId: string;
   state: MessengerCallState;
+  media: MessengerCallMedia;
   createdAt: string;
   endedAt: string | null;
 };
@@ -111,6 +114,7 @@ function publicCall(call: StoredCall): MessengerCall {
     callerId: call.callerId,
     calleeId: call.calleeId,
     state: call.state,
+    media: call.media,
     createdAt: call.createdAt,
     endedAt: call.endedAt,
   };
@@ -275,7 +279,11 @@ export async function startMessengerCall(
   callerId: string,
   nowMs = Date.now(),
   id = randomUUID(),
+  media: unknown = "audio",
 ): Promise<CallSuccess | CallFailure> {
+  if (media !== "audio" && media !== "video") {
+    return fail(400, "نوع المكالمة غير صحيح.");
+  }
   advanceMessengerCalls(nowMs);
   const access = await authorizeMessengerConversationCall(pool, conversationId, callerId);
   if (!access.ok) return access;
@@ -316,6 +324,7 @@ export async function startMessengerCall(
     callerId,
     calleeId,
     state: "ringing",
+    media,
     createdAt: new Date(nowMs).toISOString(),
     endedAt: null,
     createdAtMs: nowMs,

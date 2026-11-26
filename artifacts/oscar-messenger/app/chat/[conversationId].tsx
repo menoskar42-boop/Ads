@@ -1629,6 +1629,20 @@ export default function ChatScreen() {
               <Ionicons name="call-outline" size={20} color={colors.green} />
             </Pressable>
           )}
+          {peer && webCallSupported && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="مكالمة فيديو"
+              testID="video-call-start"
+              onPress={() => void callControllerRef.current?.startCall("video")}
+              style={({ pressed }) => [
+                styles.callButton,
+                pressed && styles.forwardDisabled,
+              ]}
+            >
+              <Ionicons name="videocam-outline" size={20} color={colors.green} />
+            </Pressable>
+          )}
           {peer && (
             <Pressable
               accessibilityRole="button"

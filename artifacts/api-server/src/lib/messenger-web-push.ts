@@ -416,10 +416,12 @@ export function buildMessengerCallPushPayload(input: {
   callerName: string;
   conversationId: string;
   callId: string;
+  media?: "audio" | "video";
 }): MessengerPushPayload {
+  const label = input.media === "video" ? "مكالمة فيديو" : "مكالمة صوتية";
   return {
-    title: "مكالمة صوتية",
-    body: `مكالمة صوتية من ${input.callerName}`,
+    title: label,
+    body: `${label} من ${input.callerName}`,
     url: `/oscar-messenger/chat/${encodeURIComponent(input.conversationId)}`,
     tag: input.callId,
   };
@@ -433,6 +435,7 @@ export async function notifyMessengerIncomingCall(
     callerName: string;
     conversationId: string;
     callId: string;
+    media?: "audio" | "video";
   },
 ): Promise<void> {
   try {

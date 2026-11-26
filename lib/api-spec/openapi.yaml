@@ -111,7 +111,7 @@ paths:
     post:
       operationId: createMessengerCall
       tags: [messenger]
-      summary: Start a one-to-one audio call
+      summary: Start a one-to-one audio or video call
       security:
         - BearerAuth: []
       parameters:
@@ -122,6 +122,12 @@ paths:
             type: string
             minLength: 1
             maxLength: 80
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessengerCallStartInput"
       responses:
         "201":
           description: Call started
@@ -2878,7 +2884,7 @@ components:
           pattern: "^[a-fA-F0-9]{64}$"
     MessengerCall:
       type: object
-      required: [id, conversationId, callerId, calleeId, state, createdAt, endedAt]
+      required: [id, conversationId, callerId, calleeId, state, media, createdAt, endedAt]
       properties:
         id:
           type: string
@@ -2891,12 +2897,21 @@ components:
         state:
           type: string
           enum: [ringing, active, ended]
+        media:
+          type: string
+          enum: [audio, video]
         createdAt:
           type: string
           format: date-time
         endedAt:
           type: [string, "null"]
           format: date-time
+    MessengerCallStartInput:
+      type: object
+      properties:
+        media:
+          type: string
+          enum: [audio, video]
     MessengerCallResponse:
       type: object
       required: [call]

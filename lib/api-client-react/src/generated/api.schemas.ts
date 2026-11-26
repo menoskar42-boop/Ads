@@ -31,15 +31,36 @@ export const MessengerCallState = {
   ended: 'ended',
 } as const;
 
+export type MessengerCallMedia = typeof MessengerCallMedia[keyof typeof MessengerCallMedia];
+
+
+export const MessengerCallMedia = {
+  audio: 'audio',
+  video: 'video',
+} as const;
+
 export interface MessengerCall {
   id: string;
   conversationId: string;
   callerId: string;
   calleeId: string;
   state: MessengerCallState;
+  media: MessengerCallMedia;
   createdAt: string;
   /** @nullable */
   endedAt: string | null;
+}
+
+export type MessengerCallStartInputMedia = typeof MessengerCallStartInputMedia[keyof typeof MessengerCallStartInputMedia];
+
+
+export const MessengerCallStartInputMedia = {
+  audio: 'audio',
+  video: 'video',
+} as const;
+
+export interface MessengerCallStartInput {
+  media?: MessengerCallStartInputMedia;
 }
 
 export interface MessengerCallResponse {
