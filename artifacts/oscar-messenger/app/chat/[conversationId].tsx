@@ -77,6 +77,7 @@ import {
 import { consumeTemporaryDraft } from "../../lib/temporary-drafts";
 import { readableError } from "../../lib/format";
 import { colors } from "../../lib/theme";
+import { pickWebCameraPhoto, prepareWebImageForUpload } from "../../lib/web-image";
 import { VoiceMessageModal } from "../../components/VoiceMessageModal";
 import { WebVoiceMessageModal } from "../../components/WebVoiceMessageModal";
 import {
@@ -1018,13 +1019,7 @@ export default function ChatScreen() {
   const chooseCameraPhoto = async () => {
     try {
       if (Platform.OS === "web") {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = "image/*";
-        input.setAttribute("capture", "environment");
-        input.onchange = () => {
-          const file = input.files?.[0];
-          if (!file) return;
+        pickWebCameraPhoto((file) => {
           const contentType = normalizeClientContentType(
             file.type,
             file.name,
@@ -1034,16 +1029,19 @@ export default function ChatScreen() {
             setErrorText("اختار صورة بصيغة مدعومة.");
             return;
           }
-          setSelectedAttachment({
+          const captured: PickedAttachment = {
             uri: `camera:${Date.now()}:${file.name}`,
             filename: file.name || `صورة-${Date.now()}.${extensionFor(contentType)}`,
             contentType,
             sizeBytes: file.size,
             webFile: file,
-          });
+          };
+          // A camera photo is sent right away; if the upload fails it stays in the
+          // composer so the send button can retry it.
+          setSelectedAttachment(captured);
           setErrorText("");
-        };
-        input.click();
+          void uploadAttachment(captured).catch(() => undefined);
+        });
         return;
       }
 
@@ -1124,9 +1122,24 @@ export default function ChatScreen() {
     mediaAbortController.current?.abort();
   };
 
-  const uploadAttachment = async () => {
-    const attachment = selectedAttachment;
-    if (!attachment) return;
+  const uploadAttachment = async (override?: PickedAttachment) => {
+    const picked = override ?? selectedAttachment;
+    if (!picked) return;
+    const attachment =
+      Platform.OS === "web" && picked.webFile
+        ? await prepareWebImageForUpload({
+            file: picked.webFile,
+            contentType: picked.contentType,
+            filename: picked.filename,
+            sizeBytes: picked.sizeBytes,
+          }).then((prepared) => ({
+            ...picked,
+            webFile: prepared.file,
+            contentType: prepared.contentType,
+            filename: prepared.filename,
+            sizeBytes: prepared.sizeBytes,
+          }))
+        : picked;
     const capability = featureCapability.data;
     if (!capability?.mediaEnabled) {
       throw new Error(

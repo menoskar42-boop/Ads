@@ -99,9 +99,9 @@ test("composer has one plus menu, keeps scheduling in the bar and swaps mic for 
   for (const label of ["الكاميرا", "الصور والفيديو", "مستند", "موقعي", "موقع مباشر"]) {
     assert.ok(menu.includes(label) || composer.includes(label), `missing menu item: ${label}`);
   }
-  assert.match(chat, /input\.accept = "image\/\*"/);
-  assert.match(chat, /setAttribute\("capture", "environment"\)/);
-  assert.match(group, /setAttribute\("capture", "environment"\)/);
+  // The camera input (accept image/*, capture=environment) lives in lib/web-image.ts.
+  assert.match(chat, /pickWebCameraPhoto\(/);
+  assert.match(group, /pickWebCameraPhoto\(/);
   assert.match(group, /testID="group-voice-button"/);
   assert.match(group, /testID="send-group-message"/);
 });

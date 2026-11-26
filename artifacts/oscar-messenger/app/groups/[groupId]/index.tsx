@@ -51,6 +51,7 @@ import {
 } from "../../../lib/client-message-id";
 import { readableError, shortTime } from "../../../lib/format";
 import { colors } from "../../../lib/theme";
+import { pickWebCameraPhoto, prepareWebImageForUpload } from "../../../lib/web-image";
 import { useMessengerRealtimeHealthy } from "../../../lib/realtime";
 import { usePwaUpdateActivity } from "../../../lib/pwa-update-activity";
 import {
@@ -300,6 +301,21 @@ export default function GroupChatScreen() {
   }) => {
     const limits = mediaCapability.data;
     if (!limits?.available) throw new Error("مشاركة الملفات غير متاحة حاليًا.");
+    if (Platform.OS === "web" && fileInfo.webFile) {
+      const prepared = await prepareWebImageForUpload({
+        file: fileInfo.webFile,
+        contentType: fileInfo.contentType,
+        filename: fileInfo.filename,
+        sizeBytes: fileInfo.sizeBytes,
+      });
+      fileInfo = {
+        ...fileInfo,
+        webFile: prepared.file,
+        contentType: prepared.contentType,
+        filename: prepared.filename,
+        sizeBytes: prepared.sizeBytes,
+      };
+    }
     const file: Blob | File =
       Platform.OS === "web" && fileInfo.webFile
         ? fileInfo.webFile
@@ -371,13 +387,7 @@ export default function GroupChatScreen() {
   const chooseGroupCamera = async () => {
     try {
       if (Platform.OS === "web") {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = "image/*";
-        input.setAttribute("capture", "environment");
-        input.onchange = () => {
-          const file = input.files?.[0];
-          if (!file) return;
+        pickWebCameraPhoto((file) => {
           const contentType = normalizeGroupContentType(file.type, file.name, "image/jpeg");
           if (!contentType.startsWith("image/")) {
             setNotice("اختار صورة بصيغة مدعومة.");
@@ -390,8 +400,7 @@ export default function GroupChatScreen() {
             sizeBytes: file.size,
             webFile: file,
           }).catch((error) => setNotice(readableError(error, "تعذر رفع الصورة.")));
-        };
-        input.click();
+        });
         return;
       }
 
