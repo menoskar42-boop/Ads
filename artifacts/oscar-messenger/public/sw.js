@@ -1,4 +1,4 @@
-const CACHE_NAME = "oscar-messenger-shell-v2";
+const CACHE_NAME = "oscar-messenger-shell-v3";
 const APP_BASE = "/oscar-messenger/";
 const APP_SHELL = `${APP_BASE}`;
 const STATIC_ASSET = /\.(?:css|js|png|jpe?g|svg|webp|woff2?|ttf|otf|webmanifest)$/i;

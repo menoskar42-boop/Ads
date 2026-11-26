@@ -22,6 +22,7 @@ import { TextField } from "../components/TextField";
 import { queryKeys } from "../lib/api";
 import { readableError, shortTime } from "../lib/format";
 import { colors } from "../lib/theme";
+import { usePwaUpdateActivity } from "../lib/pwa-update-activity";
 
 export default function StatusesScreen() {
   const router = useRouter();
@@ -70,6 +71,10 @@ export default function StatusesScreen() {
       onError: (error) => setNotice(readableError(error, "تعذر نشر الحالة.")),
     },
   });
+  usePwaUpdateActivity(
+    "status-composer",
+    body.length > 0 || create.isPending,
+  );
   const deleteStatus = useDeleteMessengerStatus({
     mutation: {
       onSuccess: async () => {

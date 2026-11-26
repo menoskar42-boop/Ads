@@ -52,6 +52,7 @@ import {
 import { readableError, shortTime } from "../../../lib/format";
 import { colors } from "../../../lib/theme";
 import { useMessengerRealtimeHealthy } from "../../../lib/realtime";
+import { usePwaUpdateActivity } from "../../../lib/pwa-update-activity";
 import {
   getCachedMedia,
   loadAuthenticatedMedia,
@@ -155,6 +156,10 @@ export default function GroupChatScreen() {
       onError: (error) => setNotice(readableError(error, "تعذر إرسال الرسالة.")),
     },
   });
+  usePwaUpdateActivity(
+    "group-message-composer",
+    body.length > 0 || send.isPending || voiceBusy || mediaBusy,
+  );
   const report = useReportMessengerContent({
     mutation: {
       onSuccess: () => setNotice("تم تسجيل البلاغ. شكرًا لمساعدتك."),

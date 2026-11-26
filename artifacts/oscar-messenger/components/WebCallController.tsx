@@ -36,6 +36,7 @@ import {
 import { queryKeys } from "../lib/api";
 import { colors } from "../lib/theme";
 import { webMicrophoneErrorMessage } from "../lib/web-voice";
+import { usePwaUpdateActivity } from "../lib/pwa-update-activity";
 
 export type WebCallControllerHandle = {
   startCall: () => Promise<void>;
@@ -124,6 +125,10 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       typeof window !== "undefined" &&
       typeof RTCPeerConnection !== "undefined" &&
       !!navigator.mediaDevices?.getUserMedia;
+    usePwaUpdateActivity(
+      "web-call",
+      isWebCallSupported && (busy || (!!call && call.state !== "ended")),
+    );
 
     const activeCall = useQuery({
       queryKey: queryKeys.callActive,

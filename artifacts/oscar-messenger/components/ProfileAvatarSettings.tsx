@@ -16,6 +16,7 @@ import {
 } from "@workspace/api-client-react";
 import { readableError } from "../lib/format";
 import { colors } from "../lib/theme";
+import { usePwaUpdateActivity } from "../lib/pwa-update-activity";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -82,6 +83,10 @@ export function ProfileAvatarSettings({ profile }: { profile: Profile }) {
     },
     onError: (cause) => setError(readableError(cause, "تعذر مسح الصورة.")),
   });
+  usePwaUpdateActivity(
+    "profile-avatar-update",
+    upload.isPending || remove.isPending,
+  );
 
   const uploadFile = (contentType: string, body: Blob) => {
     if (!isAvatarContentType(contentType)) {

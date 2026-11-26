@@ -134,6 +134,39 @@ test("flat database rows are sent to web-push with nested keys", async () => {
   assert.deepEqual(queries[0].values, ["subscription-2"]);
 });
 
+test("message and call push delivery uses high urgency with a one-day TTL", async () => {
+  const pool = { async query() { return { rows: [] }; } };
+  const row = {
+    id: "subscription-high-priority",
+    user_id: "recipient",
+    endpoint: "https://push.example.test/high-priority",
+    p256dh: "public-key",
+    auth: "auth",
+  };
+  const options = [];
+
+  await deliverPushSubscriptions(
+    pool,
+    [row],
+    { title: "Sender", body: "رسالة جديدة", url: "/oscar-messenger/", tag: "chat" },
+    async (_subscription, _payload, pushOptions) => {
+      options.push(pushOptions);
+    },
+  );
+
+  assert.deepEqual(options, [{ urgency: "high", TTL: 86_400 }]);
+});
+
+test("direct, group, and incoming-call notifications use the prioritized helper", () => {
+  const source = readFileSync(
+    new URL("../src/lib/messenger-web-push.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /notifyConversationMessage[\s\S]*notifyRecipients/);
+  assert.match(source, /notifyGroupMessage[\s\S]*notifyRecipients/);
+  assert.match(source, /notifyMessengerIncomingCall[\s\S]*deliverPushSubscriptions/);
+});
+
 test("non-404/410 push failures keep the subscription", async () => {
   const queries = [];
   const pool = {

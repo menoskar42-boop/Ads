@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { ComposerAttachmentMenu } from "./ComposerAttachmentMenu";
 import { TextField } from "./TextField";
+import { usePwaUpdateActivity } from "../lib/pwa-update-activity";
 import { colors } from "../lib/theme";
 
 export function MessageComposer({
@@ -63,6 +64,10 @@ export function MessageComposer({
   onCancelMediaUpload: () => void;
   webVoiceSupported: boolean;
 }) {
+  usePwaUpdateActivity(
+    "direct-message-composer",
+    value.length > 0 || busy || voiceBusy || mediaBusy,
+  );
   const hasMessageToSend = !!value.trim() || !!mediaName;
   const attachmentActions = [
     ...(mediaEnabled
