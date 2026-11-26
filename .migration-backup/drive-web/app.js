@@ -671,6 +671,45 @@
       }
     });
   }
+  // تنبيه الطريق بصوت أوسكار (المالك ٢٠٢٦-١١-٢٦): مقطع «خلّى بالك، مطب» وبعده «بعد 200 متر» — زى Oscar.sayWarning فى الشاشة.
+  // لو أى مقطع ناقص (أو الصوت «طبيعى» ElevenLabs اللى مقاطعه لسه ماتعملتش) ⇒ الجملة كلها بصوت الجهاز زى الأول.
+  function clipForText(lines, text) {
+    for (const id of Object.keys(lines)) {
+      for (const x of ((lines[id] || {}).ar || [])) if (x && x.f && x.t === text) return x.f;
+    }
+    return null;
+  }
+  function playClipOnce(url) {
+    return new Promise((resolve, reject) => {
+      let timer = null;
+      const cleanup = () => { clearTimeout(timer); oscarAudio.removeEventListener('ended', done); oscarAudio.removeEventListener('error', fail); };
+      const done = () => { cleanup(); resolve(); };
+      const fail = (e) => { cleanup(); reject(e || new Error('audio')); };
+      timer = setTimeout(done, 8000);
+      oscarAudio.addEventListener('ended', done, { once: true });
+      oscarAudio.addEventListener('error', fail, { once: true });
+      oscarAudio.src = url;
+      oscarAudio.play().catch(fail);
+    });
+  }
+  async function sayWarning(parts, fallback) {
+    if (oscarVoice() === 'tts') { sayRoad(fallback); return; }
+    const lines = await loadOscarLines();
+    const files = parts.map((t) => clipForText(lines, t));
+    if (files.some((f) => !f)) { voiceLog('warning', '', 'tts', 'no clip for warning part'); sayRoad(fallback); return; }
+    const my = ++playSeq;
+    lastSaid = fallback; lastSaidAt = Date.now();
+    try { speechSynthesis.cancel(); } catch (e) {}
+    try {
+      for (const f of files) {
+        if (my !== playSeq) return;
+        await playClipOnce('/voice/' + oscarVoice() + '/' + f);
+      }
+      voiceLog('warning', files[0], 'clip', 'ok');
+    } catch (e) {
+      if (my === playSeq) { voiceLog('warning', '', 'tts', 'play: ' + (e && e.name || e)); sayRoad(fallback, true); }
+    }
+  }
   function sayRoad(text, fromClipFail, onEnd) {
     if (!fromClipFail) { ++playSeq; try { oscarAudio.pause(); } catch (e) {} }
     lastSaid = String(text || ''); lastSaidAt = Date.now();
@@ -1516,7 +1555,7 @@
       const msg = RD.warning(hit.h, hit.d);
       $('roadAlert').textContent = (EMOJI[hit.h.type] || '⚠️ ') + msg; $('roadAlert').hidden = false;
       clearTimeout(alertTimer); alertTimer = setTimeout(() => { $('roadAlert').hidden = true; }, 8000);
-      beepRoad(); sayRoad(msg);
+      beepRoad(); sayWarning(RD.warningParts(hit.h, hit.d), msg);
     }
     renderRoad();
     dvFix(f, kmh, nearest);

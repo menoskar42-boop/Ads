@@ -424,7 +424,8 @@ class DriveService : Service() {
         warned[RoadMemory.warnKey(hit.first, hit.second, kmh)] = now
         val msg = RoadMemory.warning(hit.first, hit.second)
         showBanner("${hit.first.type.emoji} $msg", "hazard", 8_000)
-        Speaker.say(msg, beep = true, kind = com.oscardevs.oscardrive.logic.SpeechKind.SAFETY)
+        val parts = RoadMemory.warningParts(hit.first, hit.second)
+        Oscar.sayWarning(parts.first, parts.second, msg)
         if (prefs.autoShots && com.oscardevs.oscardrive.logic.ShotPlan.wants(hit.first.type) && shotPlan == null) {
             shotPlan = com.oscardevs.oscardrive.logic.ShotPlan(hit.first.id, now); shotHazard = hit.first
         }

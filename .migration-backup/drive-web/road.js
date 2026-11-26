@@ -113,7 +113,9 @@
     if (m < 1000) return 'بعد ' + Math.round(m / 50) * 50 + ' متر';
     return 'بعد ' + (m / 1000).toFixed(1) + ' كيلو';
   }
-  const warning = (h, d) => 'خلّى بالك، ' + (TYPES[h.type] || TYPES.danger)[0] + ' ' + sayDistance(d);
+  // التنبيه على جزئين، وكل جزء ليه مقطع بصوت أوسكار فى oscar_lines.json (warn_* · dist_*) — زى RoadMemory.warningParts
+  const warningParts = (h, d) => ['خلّى بالك، ' + (TYPES[h.type] || TYPES.danger)[0], sayDistance(d)];
+  const warning = (h, d) => warningParts(h, d).join(' ');
   /*
    * أوامر الموبايل بالصوت (المالك ٢٠٢٦-١١-١٨): «أوسكار سجّل مطب هنا» · «أوسكار سجّل حفرة» · «أوسكار خد اسكرين شوت».
    * لازم الاسم (زى الشاشة — عشان الكلام العادى ماينفّذش حاجة) بالأشكال اللى التعرّف بيكتبها. بيرجّع 'bump' · 'pothole' · 'shot' أو null.
@@ -687,6 +689,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, sendContactNameRequest, normalizeContactSpellingName, createContactSpellingCache, parseContactPhoneInput, mergeImportedContacts, writeContactList, contactStorageKey, migrateLegacyContactStorage, MAX_IMPORTED_CONTACTS, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, wakeRecognitionAction, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, sendContactNameRequest, normalizeContactSpellingName, createContactSpellingCache, parseContactPhoneInput, mergeImportedContacts, writeContactList, contactStorageKey, migrateLegacyContactStorage, MAX_IMPORTED_CONTACTS, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, wakeRecognitionAction, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, warningParts, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

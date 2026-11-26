@@ -107,6 +107,8 @@ class RoadMemoryTest {
         val r = RoadMemory.ahead(listOf(bump), LAT0, LNG0, 0f, 50f, 0, emptyMap())
         assertNotNull(r); assertTrue(abs(r!!.second - 120) < 2)
         assertEquals("خلّى بالك، مطب بعد 100 متر", RoadMemory.warning(r.first, r.second))
+        // بيتقال مقطعين مسجّلين بصوت أوسكار (warn_* · dist_* فى oscar_lines.json) — نفس drive-web/road.js warningParts
+        assertEquals("خلّى بالك، مطب" to "بعد 100 متر", RoadMemory.warningParts(r.first, r.second))
         // ماشى جنوب (المطب وراك) ⇒ لأ
         assertNull(RoadMemory.ahead(listOf(bump), LAT0, LNG0, 180f, 50f, 0, emptyMap()))
         // واقف تقريباً ⇒ لأ

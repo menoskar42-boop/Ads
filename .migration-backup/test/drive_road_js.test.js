@@ -583,3 +583,25 @@ test('روابط الملاحة فيها نقطة البداية (مكانك) �
   assert.doesNotMatch(R.navUrl(26.9, 31.3), /origin=/);
   assert.match(R.walkUrl(26.9, 31.3, { lat: 26.95, lng: 31.28 }), /origin=26\.95,31\.28/);
 });
+
+// المالك ٢٠٢٦-١١-٢٦: «لازال مش بيقول خلى بالك مطب بصوت الموديل المولد» ⇒ التنبيه بيتقال مقطعين مسجّلين.
+test('warning parts match the recorded Oscar clips for every type and distance', () => {
+  const r = R.ahead([bump], LAT0, LNG0, 0, 50, 0, {});
+  assert.deepEqual(R.warningParts(r.h, r.d), ['خلّى بالك، مطب', 'بعد 100 متر']);
+  assert.equal(R.warning(r.h, r.d), 'خلّى بالك، مطب بعد 100 متر');
+  const lines = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'oscardrive-android', 'app', 'src', 'main', 'assets', 'oscar_lines.json'), 'utf8')).lines;
+  const texts = new Set(Object.values(lines).flatMap((l) => l.ar || []));
+  for (const type of Object.keys(R.TYPES)) {
+    assert.ok(texts.has(R.warningParts({ type }, 100)[0]), 'missing clip for ' + type);
+  }
+  // Every distance the warning can say, up to the 3 km radar range.
+  for (let m = 0; m <= R.C.RADAR_M; m += 5) {
+    assert.ok(texts.has(R.sayDistance(m)), 'missing clip for ' + R.sayDistance(m));
+  }
+});
+
+test('the web plays both warning clips and falls back to the device voice', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'drive-web', 'app.js'), 'utf8');
+  assert.match(app, /sayWarning\(RD\.warningParts\(hit\.h, hit\.d\), msg\)/);
+  assert.match(app, /if \(files\.some\(\(f\) => !f\)\) \{[^}]*sayRoad\(fallback\)/);
+});

@@ -102,6 +102,25 @@ object Oscar {
         else Speaker.say(fallback, onDone = completed)
     }
 
+    fun isWarningClip(id: String): Boolean = id.startsWith("warn_") || id.startsWith("dist_")
+
+    /**
+     * تنبيه الطريق بصوت أوسكار (المالك ٢٠٢٦-١١-٢٦: «لازال مش بيقول خلى بالك مطب بصوت الموديل المولد»):
+     * مقطع «خلّى بالك، مطب» وبعده مقطع «بعد 200 متر». لو أى مقطع لسه مانزلش ⇒ الجملة كلها بصوت الشاشة زى الأول.
+     */
+    fun sayWarning(prefix: String, distance: String, full: String) {
+        val kind = com.oscardevs.oscardrive.logic.SpeechKind.SAFETY
+        if (!::app.isInitialized || prefs.ttsOnly || lang != "ar" || !Speaker.allowed(kind)) {
+            Speaker.say(full, beep = true, kind = kind); return
+        }
+        val first = fileFor(prefix)?.takeIf { it.exists() }
+        val second = fileFor(distance)?.takeIf { it.exists() }
+        if (first == null || second == null) { Speaker.say(full, beep = true, kind = kind); return }
+        Speaker.beep()
+        speakingUntil = System.currentTimeMillis() + 2500 + full.length * 80L
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ play(first) { play(second) {} } }, 380)
+    }
+
     /** كلام متغيّر بس (من غير جملة ثابتة) — بصوت الشاشة. */
     fun sayText(t: String) { speakingUntil = System.currentTimeMillis() + 1500 + t.length * 80L; Speaker.say(t) }
 

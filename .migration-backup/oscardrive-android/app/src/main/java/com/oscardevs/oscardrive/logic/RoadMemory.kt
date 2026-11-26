@@ -204,7 +204,10 @@ object RoadMemory {
     fun duplicateOf(hazards: List<Hazard>, type: HazardType, lat: Double, lng: Double): Hazard? =
         hazards.firstOrNull { it.type == type && Geo.distanceM(lat, lng, it.lat, it.lng) <= DUPLICATE_M }
 
-    fun warning(h: Hazard, distanceM: Double): String = "خلّى بالك، ${h.type.ar} ${Geo.sayDistance(distanceM)}"
+    /** التنبيه على جزئين، وكل جزء ليه مقطع بصوت أوسكار فى oscar_lines.json (warn_* · dist_*): «خلّى بالك، مطب» + «بعد 200 متر». */
+    fun warningParts(h: Hazard, distanceM: Double): Pair<String, String> =
+        "خلّى بالك، ${h.type.ar}" to Geo.sayDistance(distanceM)
+    fun warning(h: Hazard, distanceM: Double): String = warningParts(h, distanceM).let { "${it.first} ${it.second}" }
 }
 
 /** آخر أسباب «مانبّهتش» (البرومبت ٥) — بتتعرض فى شاشة «الطريق». فى الذاكرة بس. */

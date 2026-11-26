@@ -2412,7 +2412,8 @@ class MainActivity : Activity() {
         page.addView(dl)
         if (Oscar.packStatus.isNotEmpty()) page.addView(ui.text(Oscar.packStatus, 14f, ui.muted))
         page.addView(ui.text("الجمل اتعملت مرة واحدة بالذكاء الاصطناعى وبتتنزّل ملفات على الشاشة — وبعدها مفيش نت ولا AI. لو صوت جملة لسه مانزلش، أوسكار بيقولها بصوت الشاشة.", 13f, ui.muted))
-        for (eid in Oscar.ids()) {
+        // مقاطع التنبيه (warn_*) والمسافات (dist_*) بتتركّب لوحدها مع بعض — مش جمل يتكتب بدالها.
+        for (eid in Oscar.ids().filterNot { Oscar.isWarningClip(it) }) {
             val row = ui.card(8).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val mine = prefs.customLine(eid, Oscar.lang)
             row.addView(ui.text((mine ?: Oscar.texts(eid).joinToString(" · ")) + if (mine != null) "  ✏️" else "", 14f, ui.ink), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))

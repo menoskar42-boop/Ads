@@ -166,7 +166,10 @@ check('privacy policy discloses tracking upload and camera', /drive\.oscardevs\.
   check('driving behaviour: scored silently, shown after the trip; safety alerts always speak; other speech waits for calls; disclosed',
     /harsh\.onFix\(now, kmh, acc\)/.test(svc) && !/Speaker\.say\([^)]*(harsh|HarshType|DrivingScore)/.test(svc)
       && /Speaker\.say\(text, beep = true, kind = com\.oscardevs\.oscardrive\.logic\.SpeechKind\.SAFETY\)/.test(svc)
-      && /Speaker\.say\(msg, beep = true, kind = com\.oscardevs\.oscardrive\.logic\.SpeechKind\.SAFETY\)/.test(svc)
+      // تنبيه الطريق بصوت أوسكار (٢٠٢٦-١١-٢٦): مقطعين مسجّلين، ولو ناقص ⇒ صوت الشاشة كتنبيه أمان (SAFETY) زى الأول
+      && /Oscar\.sayWarning\(parts\.first, parts\.second, msg\)/.test(svc)
+      && /Speaker\.say\(full, beep = true, kind = kind\)/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Oscar.kt'))
+      && /val kind = com\.oscardevs\.oscardrive\.logic\.SpeechKind\.SAFETY/.test(read('oscardrive-android/app/src/main/java/com/oscardevs/oscardrive/Oscar.kt'))
       && /!inCall \|\| kind == SpeechKind\.SAFETY/.test(drv) && /fun flushWaiting/.test(spk) && /Speaker\.flushWaiting\(\)/.test(svc)
       && /سلوك القيادة/.test(privacy) && /Driving behaviour/.test(privacy),
     'الدرجة مابتتقالش وإنت سايق، وتنبيهات الأمان مابتستناش مكالمة، والباقى بيستنى — ومكتوب فى السياسة.');
