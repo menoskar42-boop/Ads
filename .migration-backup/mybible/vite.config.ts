@@ -5,6 +5,7 @@ import legacy from "@vitejs/plugin-legacy";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { metaImagesPlugin } from "./vite-plugin-meta-images";
+import { mainBundleBudgetError } from "./script/main-bundle-budget";
 import postcss from "postcss";
 
 // Flatten @layer blocks so CSS works in iOS < 15.4 (no @layer support)
@@ -59,6 +60,14 @@ export default defineConfig({
           ),
         ]
       : []),
+    {
+      name: "main-client-bundle-budget",
+      apply: "build",
+      generateBundle(_options, bundle) {
+        const error = mainBundleBudgetError(bundle);
+        if (error) this.error(error);
+      },
+    },
   ],
   resolve: {
     alias: {
