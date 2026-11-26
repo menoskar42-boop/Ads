@@ -485,3 +485,106 @@ test("call routes authenticate, disable caching, and never add SDP to notificati
   );
   assert.doesNotMatch(source, /console\.error/);
 });
+
+test("an active call ends when a participant goes silent for 45 seconds", async () => {
+  const pool = makePool({
+    conversations: { "call-conversation": ["stale-user-a", "stale-user-b"] },
+  });
+  const start = Date.now();
+  const created = await startMessengerCall(
+    pool,
+    "call-conversation",
+    "stale-user-a",
+    start,
+    "call-stale-silent",
+  );
+  assert.equal(created.ok, true);
+  const accepted = await answerMessengerCall(
+    pool,
+    "call-stale-silent",
+    "stale-user-b",
+    "accept",
+    start,
+  );
+  assert.equal(accepted.ok, true);
+
+  // Both still polling: the call stays active.
+  advanceMessengerCalls(start + 44_000);
+  const alive = await getMessengerCallSignals(pool, "call-stale-silent", "stale-user-a", 0);
+  assert.equal(alive.ok, true);
+  if (alive.ok) assert.equal(alive.call.state, "active");
+
+  // The callee never polls again (lost network): the call ends instead of blocking redials.
+  advanceMessengerCalls(start + 46_000);
+  const ended = await getMessengerCallSignals(pool, "call-stale-silent", "stale-user-a", 0);
+  assert.equal(ended.ok, true);
+  if (ended.ok) assert.equal(ended.call.state, "ended");
+
+  const redial = await startMessengerCall(
+    pool,
+    "call-conversation",
+    "stale-user-a",
+    Date.now(),
+    "call-stale-redial",
+  );
+  assert.equal(redial.ok, true);
+  await endMessengerCall(pool, "call-stale-redial", "stale-user-a");
+});
+
+test("redialing the same person replaces a dead active call; an incoming ring returns the call", async () => {
+  const pool = makePool({
+    conversations: {
+      "call-conversation": ["stale-user-d", "stale-user-e"],
+      "call-other": ["stale-user-d", "stale-user-f"],
+    },
+  });
+  const first = await startMessengerCall(
+    pool,
+    "call-conversation",
+    "stale-user-d",
+    Date.now(),
+    "call-replace-first",
+  );
+  assert.equal(first.ok, true);
+
+  // B presses "call" while A's call is ringing at B: answer it instead.
+  const incoming = await startMessengerCall(
+    pool,
+    "call-conversation",
+    "stale-user-e",
+    Date.now(),
+    "call-replace-incoming",
+  );
+  assert.equal(incoming.ok, false);
+  assert.equal(incoming.status, 409);
+  assert.match(incoming.error, /رد عليها/);
+  assert.equal(incoming.call?.id, "call-replace-first");
+
+  await answerMessengerCall(pool, "call-replace-first", "stale-user-e", "accept");
+  // The line dropped and A calls B again: the old active call ends and the new one rings.
+  const second = await startMessengerCall(
+    pool,
+    "call-conversation",
+    "stale-user-d",
+    Date.now(),
+    "call-replace-second",
+  );
+  assert.equal(second.ok, true);
+  if (second.ok) assert.equal(second.call.state, "ringing");
+  const old = await getMessengerCallSignals(pool, "call-replace-first", "stale-user-d", 0);
+  assert.equal(old.ok, true);
+  if (old.ok) assert.equal(old.call.state, "ended");
+
+  // A third person still gets the plain busy answer.
+  const busy = await startMessengerCall(
+    pool,
+    "call-other",
+    "stale-user-f",
+    Date.now(),
+    "call-replace-busy",
+  );
+  assert.equal(busy.ok, false);
+  assert.equal(busy.status, 409);
+  assert.equal(busy.error, "فيه مكالمة شغّالة.");
+  await endMessengerCall(pool, "call-replace-second", "stale-user-d");
+});

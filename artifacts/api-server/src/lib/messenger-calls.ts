@@ -13,6 +13,9 @@ export const MESSENGER_CALL_SIGNAL_LIMIT = 200;
 export const MESSENGER_CALL_SIGNAL_MAX_BYTES = 16 * 1024;
 export const MESSENGER_CALL_RATE_LIMIT = 10;
 export const MESSENGER_CALL_RATE_WINDOW_MS = 60 * 60 * 1_000;
+// A participant that sends no call request for this long is gone (lost network, frozen tab):
+// the call ends instead of staying "active" and blocking redials with 409 for up to an hour.
+export const MESSENGER_CALL_PARTICIPANT_TIMEOUT_MS = 45_000;
 
 export type MessengerCallState = "ringing" | "active" | "ended";
 export type MessengerCallSignalKind = "offer" | "answer" | "ice";
@@ -58,6 +61,7 @@ export type CallFailure = {
   ok: false;
   status: number;
   error: string;
+  call?: MessengerCall;
 };
 
 export type CallSuccess = {
@@ -73,6 +77,7 @@ type StoredCall = MessengerCall & {
   nextSignalSeq: number;
   inboxes: Map<string, MessengerCallSignal[]>;
   outcomeUserIds: Set<string>;
+  lastSeenMs: Map<string, number>;
 };
 
 type CallPool = MessengerBlocksPool;
@@ -119,6 +124,24 @@ function peerIdFor(call: StoredCall, userId: string): string {
   return call.callerId === userId ? call.calleeId : call.callerId;
 }
 
+function touchCall(call: StoredCall, userId: string, nowMs = Date.now()): void {
+  if (call.state === "ended") return;
+  if (userId !== call.callerId && userId !== call.calleeId) return;
+  call.lastSeenMs.set(userId, nowMs);
+}
+
+function participantGone(call: StoredCall, nowMs: number): boolean {
+  const participants =
+    call.state === "active" ? [call.callerId, call.calleeId] : [call.callerId];
+  return participants.some((participantId) => {
+    const lastSeen = call.lastSeenMs.get(participantId);
+    return (
+      lastSeen !== undefined &&
+      nowMs - lastSeen >= MESSENGER_CALL_PARTICIPANT_TIMEOUT_MS
+    );
+  });
+}
+
 function endCall(call: StoredCall, nowMs: number): void {
   if (call.state === "ended") return;
   call.state = "ended";
@@ -162,6 +185,11 @@ export function advanceMessengerCalls(nowMs = Date.now()): MessengerCall[] {
       nowMs - call.acceptedAtMs >= MESSENGER_CALL_MAX_DURATION_MS
     ) {
       endCall(call, call.acceptedAtMs + MESSENGER_CALL_MAX_DURATION_MS);
+      const snapshot = publicCall(call);
+      pendingExpiryEvents.set(callId, snapshot);
+      expired.push(snapshot);
+    } else if (call.state !== "ended" && participantGone(call, nowMs)) {
+      endCall(call, nowMs);
       const snapshot = publicCall(call);
       pendingExpiryEvents.set(callId, snapshot);
       expired.push(snapshot);
@@ -237,6 +265,7 @@ async function authorizeCall(
     if (access.status === 403) endCall(call, Date.now());
     return access;
   }
+  touchCall(call, userId);
   return { ok: true, call };
 }
 
@@ -251,8 +280,23 @@ export async function startMessengerCall(
   const access = await authorizeMessengerConversationCall(pool, conversationId, callerId);
   if (!access.ok) return access;
   const calleeId = access.peerId;
-  if (activeCallFor(callerId) || activeCallFor(calleeId)) {
-    return fail(409, "فيه مكالمة شغّالة.");
+  for (const existing of [activeCallFor(callerId), activeCallFor(calleeId)]) {
+    if (!existing) continue;
+    const samePair =
+      existing.conversationId === conversationId &&
+      [existing.callerId, existing.calleeId].includes(callerId) &&
+      [existing.callerId, existing.calleeId].includes(calleeId);
+    if (!samePair) return fail(409, "فيه مكالمة شغّالة.");
+    if (existing.state === "ringing" && existing.calleeId === callerId) {
+      return {
+        ...fail(409, "فيه مكالمة جاية ليك دلوقتى — رد عليها."),
+        call: publicCall(existing),
+      };
+    }
+    if (existing.state === "ringing") return fail(409, "المكالمة لسه بترن.");
+    // Both people are trying to talk again, so the old active call is dead.
+    endCall(existing, nowMs);
+    pendingExpiryEvents.set(existing.id, publicCall(existing));
   }
 
   const timestamps = createWindows.get(callerId) ?? [];
@@ -283,6 +327,7 @@ export async function startMessengerCall(
       [calleeId, []],
     ]),
     outcomeUserIds: new Set(),
+    lastSeenMs: new Map([[callerId, nowMs]]),
   };
   calls.set(id, call);
   outcomeMetrics.started += 1;
@@ -305,6 +350,7 @@ export async function answerMessengerCall(
   if (action === "accept") {
     call.state = "active";
     call.acceptedAtMs = nowMs;
+    touchCall(call, call.calleeId, nowMs);
     outcomeMetrics.accepted += 1;
   } else {
     endCall(call, nowMs);
@@ -520,6 +566,7 @@ export async function getActiveMessengerCall(
     if (access.status === 403 || access.status === 404) endCall(call, Date.now());
     return access;
   }
+  touchCall(call, userId);
   return { ok: true, call: publicCall(call) };
 }
 

@@ -66,3 +66,25 @@ test("call realtime events invalidate the active call query", () => {
   assert.match(source, /event\.type === "call"/);
   assert.match(source, /queryKeys\.callActive/);
 });
+
+test("a call keeps running when the screen sleeps or the tab is hidden", () => {
+  const source = readFileSync(callPath, "utf8");
+  // No effect may end the call just because the chat screen stopped being active.
+  assert.doesNotMatch(source, /if \(enabled \|\| !callRef\.current[\s\S]{0,120}finishCallRef\.current\(\{ notifyServer: true \}\)/);
+  assert.match(source, /refetchIntervalInBackground: inCall/);
+  assert.match(source, /enabled: \(enabled \|\| inCall\) && isWebCallSupported/);
+  const signalEffect = source.slice(source.indexOf("getMessengerCallSignals(current.id"));
+  assert.ok(signalEffect.length > 0);
+  assert.match(source, /if \(\n\s+!isWebCallSupported \|\|\n\s+!connectionReady \|\|/);
+  assert.match(source, /wakeLockApi\.request\("screen"\)/);
+  assert.match(source, /lock\.release\(\)/);
+});
+
+test("ending a call is retried with keepalive and an incoming 409 shows the answer screen", () => {
+  const source = readFileSync(callPath, "utf8");
+  assert.match(source, /endMessengerCall\(callId, \{ keepalive: true \}\)/);
+  assert.match(source, /for \(const delayMs of \[0, 2_000, 5_000\]\)/);
+  assert.match(source, /void endCallOnServer\(current\.id\)/);
+  assert.match(source, /responseStatus\(error\) === 409/);
+  assert.match(source, /incomingCall\.calleeId === userId/);
+});

@@ -53,9 +53,11 @@ function requirePool(pool: DbPool, res: Parameters<RequestHandler>[1]) {
 
 function sendFailure(
   res: Parameters<RequestHandler>[1],
-  result: { ok: false; status: number; error: string },
+  result: { ok: false; status: number; error: string; call?: unknown },
 ): void {
-  res.status(result.status).json({ error: result.error });
+  res.status(result.status).json(
+    result.call ? { error: result.error, call: result.call } : { error: result.error },
+  );
 }
 
 router.post(

@@ -158,6 +158,23 @@ function stopStream(stream: MediaStream | null): void {
   stream?.getTracks().forEach((track) => track.stop());
 }
 
+// The end request must reach the server even when the network is flaky, or the call
+// stays "active" there and every redial gets 409. keepalive survives page unloads.
+async function endCallOnServer(callId: string): Promise<void> {
+  for (const delayMs of [0, 2_000, 5_000]) {
+    if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    try {
+      await endMessengerCall(callId, { keepalive: true });
+      return;
+    } catch (error) {
+      const status = responseStatus(error);
+      if (status >= 400 && status < 500) return;
+    }
+  }
+}
+
+type ScreenWakeLock = { release: () => Promise<void> };
+
 function responseStatus(error: unknown): number {
   return error && typeof error === "object" && "status" in error
     ? Number((error as { status?: unknown }).status)
@@ -204,12 +221,15 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       isWebCallSupported && (busy || (!!call && call.state !== "ended")),
     );
 
+    // `enabled` only gates starting or receiving a new call. A call that is already
+    // ringing out or connected keeps running while the screen sleeps or the tab is hidden.
+    const inCall = !!call && call.state !== "ended";
     const activeCall = useQuery({
       queryKey: queryKeys.callActive,
       queryFn: () => getActiveMessengerCall(),
-      enabled: enabled && isWebCallSupported,
-      refetchInterval: enabled && isWebCallSupported ? 2_000 : false,
-      refetchIntervalInBackground: false,
+      enabled: (enabled || inCall) && isWebCallSupported,
+      refetchInterval: (enabled || inCall) && isWebCallSupported ? 2_000 : false,
+      refetchIntervalInBackground: inCall,
       staleTime: 0,
       retry: false,
     });
@@ -286,7 +306,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       if (finishingCallIdRef.current === current.id) return;
       finishingCallIdRef.current = current.id;
       if (options.notifyServer) {
-        void endMessengerCall(current.id).catch(() => undefined);
+        void endCallOnServer(current.id);
       }
       cleanupConnection();
       const ended: MessengerCall = {
@@ -450,6 +470,24 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
         void activeCall.refetch();
       } catch (error) {
         cleanupConnection();
+        const incomingCall =
+          responseStatus(error) === 409 &&
+          error &&
+          typeof error === "object" &&
+          "data" in error
+            ? (error as { data?: { call?: MessengerCall } | null }).data?.call
+            : undefined;
+        if (
+          incomingCall &&
+          incomingCall.state === "ringing" &&
+          incomingCall.calleeId === userId
+        ) {
+          // The other person is already calling: show the incoming call to answer.
+          updateCall(incomingCall);
+          void activeCall.refetch();
+          setCallError("فيه مكالمة جاية — رد عليها.");
+          return;
+        }
         const current = callRef.current;
         if (current && current.state !== "ended") {
           await endMessengerCall(current.id).catch(() => undefined);
@@ -473,6 +511,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       onError,
       peerName,
       updateCall,
+      userId,
     ]);
 
     useImperativeHandle(ref, () => ({ startCall }), [startCall]);
@@ -590,7 +629,6 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
     useEffect(() => {
       const current = call;
       if (
-        !enabled ||
         !isWebCallSupported ||
         !connectionReady ||
         !current ||
@@ -645,7 +683,6 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       call?.id,
       call?.state,
       connectionReady,
-      enabled,
       isWebCallSupported,
       updateCall,
       userId,
@@ -716,14 +753,50 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       return () => window.removeEventListener("pagehide", onPageHide);
     }, [call?.id, call?.state, cleanupConnection]);
 
+    // Keep the screen on during a call so the phone's auto-lock does not freeze the page.
+    // Unsupported browsers just skip this; the call itself never depends on it.
+    const callHoldsScreen =
+      !!call &&
+      (call.state === "active" || (call.state === "ringing" && call.callerId === userId));
     useEffect(() => {
-      if (enabled || !callRef.current || callRef.current.state === "ended") return;
-      void finishCallRef.current({ notifyServer: true });
-    }, [enabled]);
+      if (!callHoldsScreen || Platform.OS !== "web" || typeof navigator === "undefined") return;
+      const wakeLockApi = (navigator as Navigator & {
+        wakeLock?: { request: (type: "screen") => Promise<ScreenWakeLock> };
+      }).wakeLock;
+      if (!wakeLockApi) return;
+      let lock: ScreenWakeLock | null = null;
+      let stopped = false;
+      const acquire = async () => {
+        if (stopped || lock || document.visibilityState !== "visible") return;
+        try {
+          const acquired = await wakeLockApi.request("screen");
+          if (stopped) void acquired.release().catch(() => undefined);
+          else lock = acquired;
+        } catch {
+          // The browser may refuse (battery saver); the call continues without it.
+        }
+      };
+      const onVisibility = () => {
+        if (document.visibilityState === "visible") {
+          lock = null;
+          void acquire();
+        }
+      };
+      void acquire();
+      document.addEventListener("visibilitychange", onVisibility);
+      return () => {
+        stopped = true;
+        document.removeEventListener("visibilitychange", onVisibility);
+        if (lock) void lock.release().catch(() => undefined);
+        lock = null;
+      };
+    }, [callHoldsScreen, call?.id, userId]);
 
     useEffect(() => () => {
       if (endedTimerRef.current) clearTimeout(endedTimerRef.current);
       if (connectionFailureTimerRef.current) clearTimeout(connectionFailureTimerRef.current);
+      const current = callRef.current;
+      if (current && current.state !== "ended") void endCallOnServer(current.id);
       cleanupConnection();
     }, [cleanupConnection]);
 
