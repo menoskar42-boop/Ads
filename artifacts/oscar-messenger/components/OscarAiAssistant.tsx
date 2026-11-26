@@ -74,6 +74,8 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   const source = useRef<MediaStreamAudioSourceNode | null>(null);
   const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heardReply = useRef(false);
+  // Set while a session holds reserved minutes; ending it gives the unused minutes back.
+  const liveSessionAuth = useRef<string | null>(null);
   const sessionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextPlaybackAt = useRef(0);
   const startRef = useRef<() => void>(() => undefined);
@@ -102,6 +104,15 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
 
   const stopSession = useCallback(() => {
     clearSilenceTimer();
+    const reservedBy = liveSessionAuth.current;
+    liveSessionAuth.current = null;
+    if (reservedBy) {
+      void fetch(apiUrl("/api/messenger/ai/live-session/end"), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${reservedBy}` },
+        keepalive: true,
+      }).catch(() => undefined);
+    }
     if (sessionTimer.current) clearTimeout(sessionTimer.current);
     sessionTimer.current = null;
     processor.current?.disconnect();
@@ -150,6 +161,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         );
       }
       const live = tokenPayload as LiveResponse;
+      liveSessionAuth.current = authToken;
       if (!live.token || !live.model) throw new Error("تعذر بدء جلسة Oscar AI.");
 
       const media = await navigator.mediaDevices.getUserMedia({

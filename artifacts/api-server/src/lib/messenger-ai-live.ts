@@ -1,9 +1,13 @@
 // The model can be changed from the GEMINI_LIVE_MODEL env var without a code change.
 export const GEMINI_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL?.trim() || "gemini-3.8-live";
 export const GEMINI_LIVE_SESSION_MINUTES = 5;
-export const GEMINI_LIVE_DAILY_MINUTES = 15;
+// Free Gemini key (no billing): the daily cap only protects the free quota. Override with GEMINI_LIVE_DAILY_MINUTES.
+export const GEMINI_LIVE_DAILY_MINUTES =
+  Number.parseInt(process.env.GEMINI_LIVE_DAILY_MINUTES ?? "", 10) > 0
+    ? Number.parseInt(process.env.GEMINI_LIVE_DAILY_MINUTES ?? "", 10)
+    : 30;
 
-type DailyUsage = { day: string; minutes: number };
+type DailyUsage = { day: string; minutes: number; openSessionAt?: number };
 type UsageLedger = Map<string, DailyUsage>;
 
 export type GeminiLiveTokenResult =
@@ -31,7 +35,7 @@ export async function createGeminiLiveToken(
       error: "استهلكت وقت Oscar AI المتاح لليوم.",
     };
   }
-  ledger.set(userId, { day, minutes: minutes + GEMINI_LIVE_SESSION_MINUTES });
+  ledger.set(userId, { day, minutes: minutes + GEMINI_LIVE_SESSION_MINUTES, openSessionAt: now });
 
   try {
     const response = await fetcher(
@@ -74,3 +78,27 @@ export async function createGeminiLiveToken(
 }
 
 const defaultLedger: UsageLedger = new Map();
+
+/**
+ * A token reserves a whole session up front. When the session ends early (closed after a
+ * few seconds, no speech, connection error) the unused minutes go back, so failed tries
+ * do not use up the day. At least one minute is always counted.
+ */
+export function endGeminiLiveSession(
+  userId: string,
+  ledger: UsageLedger = defaultLedger,
+  now = Date.now(),
+): { refundedMinutes: number } {
+  const usage = ledger.get(userId);
+  if (!usage || usage.openSessionAt === undefined) return { refundedMinutes: 0 };
+  const usedMinutes = Math.min(
+    GEMINI_LIVE_SESSION_MINUTES,
+    Math.max(1, Math.ceil((now - usage.openSessionAt) / 60_000)),
+  );
+  const refundedMinutes = GEMINI_LIVE_SESSION_MINUTES - usedMinutes;
+  ledger.set(userId, {
+    day: usage.day,
+    minutes: Math.max(0, usage.minutes - refundedMinutes),
+  });
+  return { refundedMinutes };
+}

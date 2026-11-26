@@ -2,6 +2,7 @@ import { getAuth } from "@clerk/express";
 import { Router, type Request, type RequestHandler } from "express";
 import {
   createGeminiLiveToken,
+  endGeminiLiveSession,
   type GeminiLiveTokenResult,
 } from "../lib/messenger-ai-live.ts";
 
@@ -45,6 +46,11 @@ export function createMessengerAiRouter(dependencies: Dependencies = {}) {
       return;
     }
     res.json({ token: result.token, model: result.model });
+  });
+
+  router.post("/messenger/ai/live-session/end", requireAuth, (_req, res) => {
+    endGeminiLiveSession(String(res.locals.userId));
+    res.status(204).end();
   });
 
   return router;

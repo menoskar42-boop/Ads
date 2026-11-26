@@ -101,3 +101,19 @@ test("daily budget allows three five-minute sessions and then returns 429", asyn
   assert.equal(limited.ok, false);
   if (!limited.ok) assert.equal(limited.status, 429);
 });
+
+test("ending a session early gives the unused minutes back (failed tries don't use up the day)", async () => {
+  const { createGeminiLiveToken: create, endGeminiLiveSession, GEMINI_LIVE_SESSION_MINUTES: session } =
+    await import("../src/lib/messenger-ai-live.ts");
+  const ledger = new Map();
+  const ok = async () => ({ ok: true, json: async () => ({ name: "auth_tokens/x" }) });
+  const now = Date.UTC(2026, 10, 26, 12);
+  const first = await create("refund-user", "key", ok, ledger, now);
+  assert.equal(first.ok, true);
+  assert.equal(ledger.get("refund-user").minutes, session);
+  // Closed after 10 seconds: only one minute is counted.
+  assert.equal(endGeminiLiveSession("refund-user", ledger, now + 10_000).refundedMinutes, session - 1);
+  assert.equal(ledger.get("refund-user").minutes, 1);
+  // A second end is a no-op.
+  assert.equal(endGeminiLiveSession("refund-user", ledger, now + 20_000).refundedMinutes, 0);
+});
