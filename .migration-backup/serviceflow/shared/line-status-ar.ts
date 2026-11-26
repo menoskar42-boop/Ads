@@ -209,6 +209,57 @@ function xeltTextSummary(page: Page): { value: string; level: Level } | null {
   return { value: text.slice(0, 300), level };
 }
 
+export function xeltFaultDistances(pages: unknown): {
+  numberOfFaults: number | null;
+  faults: string[];
+  distances: { n: number; raw: string; meters: number | null }[];
+  xeltDate: string | null;
+} | null {
+  const xelt = (pages as { xelt?: Page } | null)?.xelt;
+  if (!xelt) return null;
+
+  const rows = (xelt.panels || [])
+    .flatMap((panel) => panel.rows || [])
+    .filter((row) => Array.isArray(row) && norm(row[0]));
+  const valueFor = (re: RegExp) => {
+    for (const row of rows) {
+      if (!re.test(norm(row[0]))) continue;
+      const value = norm(row.slice(1).find((cell) => norm(cell) && !/^n\/?a$/i.test(norm(cell))) || "");
+      if (value) return value;
+    }
+    return "";
+  };
+  const numberRaw = valueFor(/^Number of Faults$/i);
+  const numberOfFaults = numberRaw ? num(numberRaw) : null;
+  const faults = rows
+    .filter((row) => /^Fault\s+\d+$/i.test(norm(row[0])))
+    .map((row) => norm(row.slice(1).find((cell) =>
+      norm(cell) && !/^n\/?a$/i.test(norm(cell)) && !/no fault detected/i.test(norm(cell)),
+    ) || ""))
+    .filter(Boolean);
+  const distances = rows
+    .filter((row) => /^Fault\s+#?\d+\s+Distance$/i.test(norm(row[0])))
+    .map((row) => {
+      const label = norm(row[0]);
+      const raw = norm(row.slice(1).find((cell) => norm(cell)) || "");
+      const value = raw.replace(/,/g, "").match(/^\s*(\d+(?:\.\d+)?)\s*(km|meters?|m)\s*$/i);
+      const meters = value
+        ? Number(value[1]) * (/^km$/i.test(value[2]) ? 1000 : 1)
+        : null;
+      return {
+        n: Number(label.match(/\d+/)?.[0] || 0),
+        raw,
+        meters: Number.isFinite(meters) ? meters : null,
+      };
+    })
+    .filter((distance) => distance.raw && !/^n\/?a$/i.test(distance.raw));
+  if (!distances.length) return null;
+
+  const history = valueFor(/^History Check$/i);
+  const date = history.match(/\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?/);
+  return { numberOfFaults, faults, distances, xeltDate: date?.[0] || null };
+}
+
 export function lineStatusAr(pages: Pages): LineStatusAr {
   const items: SummaryItem[] = [];
   const sum = pages.summary, op = pages.operational, dg = pages.diagnostics;

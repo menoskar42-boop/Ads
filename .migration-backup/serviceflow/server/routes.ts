@@ -38,7 +38,7 @@ import * as wfmCustomerMobilesD1 from "./wfm-customer-mobiles-d1";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
 import { loopMeters, speedKbps, validLoopLength } from "./loop-length";
-import { lineStatusAr } from "@shared/line-status-ar";
+import { labelAr, lineStatusAr, xeltFaultDistances } from "@shared/line-status-ar";
 import { lineStatusFacts } from "./line-status";
 import { wfmReportWorkerCode } from "./wfm-report-access";
 import { speedDropOf, weekDropJoinSql, WEEK_DROP_COLS, weekDropOf } from "./speed-drop";
@@ -10318,6 +10318,111 @@ export async function registerRoutes(
       params,
     );
     res.json({ data: dataRes.rows, total, queuedExcluded, page: pageNum, pageSize, dateFrom: from, dateTo: to });
+  });
+
+  // GET /api/reports/xelt-distances — آخر XELT فقط للخطوط ذات مسافة عطل
+  app.get("/api/reports/xelt-distances", requireAuth, async (req: any, res) => {
+    const role = req.user?.role;
+    if (role === ROLES.SALES || role === ROLES.SALES_ADMIN) {
+      return res.status(403).json({ message: "غير مسموح" });
+    }
+
+    const { central = "", cabin = "", box = "", dateFrom = "", dateTo = "" } =
+      req.query as Record<string, string>;
+    const rawMaxMeters = String(req.query.maxMeters || "").trim();
+    const maxMeters = rawMaxMeters ? Number(rawMaxMeters) : null;
+    if (maxMeters !== null && (!Number.isFinite(maxMeters) || maxMeters < 0)) {
+      return res.status(400).json({ message: "أقصى مسافة غير صالحة" });
+    }
+    for (const date of [dateFrom, dateTo]) {
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: "التاريخ غير صالح" });
+      }
+    }
+
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const pageSize = Math.min(20000, Math.max(1, parseInt(String(req.query.pageSize || req.query.limit || "50"), 10) || 50));
+    const all = String(req.query.all || "") === "1";
+    const workerCode = role === ROLES.TECH ? String(req.user.workerCode || "").trim() : "";
+    if (role === ROLES.TECH && !workerCode) {
+      return res.json({ data: [], total: 0, page, pageSize });
+    }
+
+    const params: any[] = [];
+    const conditions = [`(r.pages->'xelt')::text ~* 'Fault\\s*#?\\d+\\s+Distance'`];
+    const addCondition = (value: string, makeCondition: (placeholder: string) => string) => {
+      if (!value) return;
+      params.push(value);
+      conditions.push(makeCondition(`$${params.length}`));
+    };
+    addCondition(central, (p) => `pl.central = ${p}`);
+    addCondition(cabin, (p) => `pl.cabin_number = ${p}`);
+    addCondition(box, (p) => `pl.box_number = ${p}`);
+    addCondition(dateFrom, (p) => `(r.created_at AT TIME ZONE 'Africa/Cairo')::date >= ${p}::date`);
+    addCondition(dateTo, (p) => `(r.created_at AT TIME ZONE 'Africa/Cairo')::date <= ${p}::date`);
+    if (workerCode) {
+      params.push(workerCode);
+      conditions.push(`EXISTS (
+        SELECT 1 FROM cabinet_technicians ct
+         WHERE ct.central_name = pl.central
+           AND ct.cabin_number = pl.cabin_number
+           AND btrim(COALESCE(ct.worker_code, '')) = btrim($${params.length})
+      )`);
+    }
+
+    const { rows } = await pool.query(
+      `WITH latest AS (
+         SELECT DISTINCT ON (COALESCE(r.account_no, r.full_phone))
+                r.full_phone, r.account_no, r.pages, r.created_at, r.pulled_by
+           FROM line_status_reports r
+          ORDER BY COALESCE(r.account_no, r.full_phone), r.created_at DESC
+       )
+       SELECT r.full_phone AS "fullPhone", r.account_no AS "accountNo", r.pages,
+              r.created_at AS "pulledAt", r.pulled_by AS "pulledBy",
+              pl.central, pl.cabin_number AS cabin, pl.box_number AS box
+         FROM latest r
+         LEFT JOIN phone_lines pl ON pl.full_phone = r.full_phone
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY r.created_at DESC`,
+      params,
+    );
+
+    const filtered = rows.flatMap((row: any) => {
+      const result = xeltFaultDistances(row.pages);
+      if (!result) return [];
+      if (
+        maxMeters !== null &&
+        !result.distances.some((distance) => distance.meters !== null && distance.meters <= maxMeters)
+      ) return [];
+
+      const knownMeters = result.distances
+        .map((distance) => distance.meters)
+        .filter((meters: number | null): meters is number => meters !== null);
+      return [{
+        phone: String(row.fullPhone || "").replace(/^88/, ""),
+        accountNo: row.accountNo,
+        central: row.central,
+        cabin: row.cabin,
+        box: row.box,
+        numberOfFaults: result.numberOfFaults,
+        faults: result.faults.map((fault) => {
+          const translated = labelAr(fault);
+          return translated === fault ? fault : `${translated} (${fault})`;
+        }),
+        distances: result.distances
+          .map((distance) => `العطل ${distance.n}: ${distance.meters === null ? distance.raw : `${distance.meters} متر`}`)
+          .join(" · "),
+        minMeters: knownMeters.length ? Math.min(...knownMeters) : null,
+        xeltDate: result.xeltDate,
+        pulledAt: row.pulledAt,
+        pulledBy: row.pulledBy,
+      }];
+    });
+
+    const data = all
+      ? filtered
+      : filtered.slice((page - 1) * pageSize, page * pageSize);
+    res.json({ data, total: filtered.length, page, pageSize: all ? filtered.length : pageSize });
   });
 
   // GET /api/reports/account-edits — سجل تعديلات أرقام الأكونت

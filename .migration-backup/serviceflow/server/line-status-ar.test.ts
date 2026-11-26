@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { lineStatusAr, labelAr } from "../shared/line-status-ar";
+import { lineStatusAr, labelAr, xeltFaultDistances } from "../shared/line-status-ar";
 
 const read = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
@@ -139,4 +139,58 @@ test("wired: latest endpoint (not for sales) + button in phone lookup and curren
   const btn = read("../client/src/components/LineStatusButton.tsx");
   assert.match(btn, /آخر مرة اتسحب التقرير/);
   assert.match(btn, /noReal: true, loop: true/);   // نفس «تحديث حالة الخط (ASSIA)» — من غير Real ولا Perform XELT
+});
+
+test("XELT distance helper parses meters, kilometer conversion and associated fault metadata", () => {
+  const result = xeltFaultDistances({
+    xelt: { panels: [{ rows: [
+      ["Number of Faults", "2"],
+      ["Fault 1", "Open"],
+      ["Fault #1 Distance", "350 meters"],
+      ["Fault 2", "Bad Splice"],
+      ["Fault 2 Distance", "0.35 km"],
+      ["History Check", "1. 2026-11-21 01:09:28"],
+    ] }] },
+  });
+  assert.deepEqual(result, {
+    numberOfFaults: 2,
+    faults: ["Open", "Bad Splice"],
+    distances: [
+      { n: 1, raw: "350 meters", meters: 350 },
+      { n: 2, raw: "0.35 km", meters: 350 },
+    ],
+    xeltDate: "2026-11-21 01:09:28",
+  });
+});
+
+test("XELT distance helper ignores N/A and returns null without a usable distance", () => {
+  assert.equal(xeltFaultDistances({
+    xelt: { panels: [{ rows: [["Fault 1", "Open"], ["Fault 1 Distance", "N/A"]] }] },
+  }), null);
+  assert.equal(xeltFaultDistances({
+    xelt: { panels: [{ rows: [["Number of Faults", "1"], ["Fault 1", "Open"]] }] },
+  }), null);
+  const unknownUnit = xeltFaultDistances({
+    xelt: { panels: [{ rows: [["Fault 1 Distance", "about 350 units"]] }] },
+  });
+  assert.deepEqual(unknownUnit?.distances, [{ n: 1, raw: "about 350 units", meters: null }]);
+});
+
+test("XELT distance report is wired into the protected endpoint and measurements dashboard", () => {
+  const routes = read("./routes.ts");
+  assert.match(routes, /app\.get\("\/api\/reports\/xelt-distances", requireAuth/);
+  assert.match(routes, /DISTINCT ON \(COALESCE\(r\.account_no, r\.full_phone\)\)/);
+  assert.match(routes, /xeltFaultDistances\(row\.pages\)/);
+  assert.match(routes, /line_status_reports r/);
+  assert.match(routes, /ROLES\.SALES_ADMIN/);
+  assert.match(routes, /cabinet_technicians ct/);
+  const dashboard = read("../client/src/pages/dashboard.tsx");
+  assert.match(dashboard, /\{ id: "xelt-distances",\s+label: "تقارير XELT" \}/);
+  assert.match(dashboard, /reportTab === "xelt-distances" && <XeltDistanceReport \/>/);
+  const component = read("../client/src/components/XeltDistanceReport.tsx");
+  assert.match(component, /<LineStatusButton account=\{row\.accountNo\} phone=\{row\.phone\} compact \/>/);
+  assert.match(component, /handleExportExcel/);
+  assert.match(component, /handleExportPDF/);
+  assert.match(component, /تصدير Excel/);
+  assert.match(component, /تصدير PDF/);
 });

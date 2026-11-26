@@ -32,6 +32,7 @@ import { ComplaintNoMeasureReport } from "@/components/ComplaintNoMeasureReport"
 import { CabinetScoreReport } from "@/components/CabinetScoreReport";
 import { BoxScoreReport } from "@/components/BoxScoreReport";
 import { LoopLengthScatterReport } from "@/components/LoopLengthScatterReport";
+import { XeltDistanceReport } from "@/components/XeltDistanceReport";
 import { AccountEditsReport } from "@/components/AccountEditsReport";
 import { DuplicateAccountsReport } from "@/components/DuplicateAccountsReport";
 import { LinesWithoutPortReport } from "@/components/LinesWithoutPortReport";
@@ -105,7 +106,7 @@ import { installMeasureHider } from "@/lib/measure-hide";
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload" | "local-store";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-target112" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "tech-certificate" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "inspection-followup-progress" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-loop" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "my-cable-balance" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces" | "inspection-followup" | "terminal-reviews" | "fault-trend" | "installations-by-tech";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "presentation" | "om-soy" | "om-resolved" | "om-target112" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "tech-certificate" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "inspection-followup-progress" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-loop" | "xelt-distances" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders" | "local-store" | "my-cable-balance" | "maint-cable" | "speed-drop" | "speed-drop-week" | "db-migrate" | "po-traces" | "inspection-followup" | "terminal-reviews" | "fault-trend" | "installations-by-tech";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -192,6 +193,7 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
       { id: "box-score-avg",       label: "متوسط القياسات" },
       { id: "loop-length-scatter", label: "طول الخط والسرعة والاسكور (رسم بيانى)" },
       { id: "lines-no-loop",       label: "خطوط لها أكونت ومالهاش مسافة" },
+      { id: "xelt-distances",      label: "تقارير XELT" },
       { id: "account-edits",       label: "تعديلات الأكونت" },
       { id: "duplicate-accounts",  label: "أكونتات مكررة على خطوط مختلفة" },
     ],
@@ -929,6 +931,7 @@ export default function Dashboard() {
               {reportTab === "box-score-avg"       && <BoxScoreReport />}
               {reportTab === "loop-length-scatter" && <LoopLengthScatterReport />}
               {reportTab === "lines-no-loop" && <WithAccountReport noLoop title="خطوط لها رقم أكونت ومالهاش مسافة (Loop Length)" />}
+              {reportTab === "xelt-distances" && <XeltDistanceReport />}
               {reportTab === "phone-lookup"        && <PhoneLookupReport />}
               {reportTab === "account-edits"       && <AccountEditsReport />}
               {reportTab === "duplicate-accounts"  && <DuplicateAccountsReport />}
