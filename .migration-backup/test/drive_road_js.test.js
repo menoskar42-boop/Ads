@@ -306,6 +306,28 @@ test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping',
   assert.deepEqual(I.parse('{"cmd":"pothole1"}'), { cmd: 'pothole1', arg: null, how: null, latin: null });
   assert.equal(I.parse('{"cmd":"rm -rf"}'), null); assert.equal(I.parse('not json'), null); assert.equal(I.parse('{"cmd":"call"}'), null);
 });
+test('local Mother Mobile pronunciation aliases are exact and reject similar names', () => {
+  for (const phrase of [
+    'اتصل ب Mather Mobil',
+    'اتصل ب Mothar Mobile',
+    'اتصل ب Muthar Mobile',
+    'اتصل ب ماذر موبيل',
+    'اتصل ب ماذر موبيال',
+    'اتصل ب مذر موبيل',
+    'اتصل ب موذر موبايِل',
+    'اتصل ب ماذر Mobile',
+    'اتصل ب Mother موبايل',
+  ]) {
+    assert.deepEqual(R.parseCall(phrase), { name: 'Mother Mobile', how: null }, phrase);
+  }
+  for (const phrase of [
+    'اتصل ب Mother Mary',
+    'اتصل ب ماذر أحمد',
+    'اتصل ب Mother Mobile Support',
+  ]) {
+    assert.notEqual(R.parseCall(phrase)?.name, 'Mother Mobile', phrase);
+  }
+});
 test('Oscar Drive opens a private Oscar Messaging draft without sending it or sharing contact numbers', () => {
   assert.deepEqual(R.parseMessageVoice('يا أوسكار ابعت رسالة إلى محمود يعقوب بتقول أنا وصلت'), {
     recipient: 'محمود يعقوب',

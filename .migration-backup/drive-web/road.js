@@ -379,11 +379,23 @@
    * t = نص متنضّف (clean). بيرجّع { name, how: 'tel' | 'wa' | null } أو null.
    */
   const CALL_SHORTCUT = 'Oscar Call', WA_SHORTCUT = 'Oscar WhatsApp';
-  const MOTHER_WORDS = new Set(['mother', 'mather', 'madar', 'mader', 'madhar', 'ماذر', 'مذر', 'مازر', 'مادر', 'موذر'].map(clean));
-  const MOBILE_WORDS = new Set(['mobile', 'mobil', 'mob', 'mobi', 'موبايل', 'موبيل', 'موبيال'].map(clean));
+  const MOTHER_MOBILE_ALIASES = new Set([
+    'mother mobile', 'mother mobil', 'mother mob', 'mother mobi', 'mother mobeel', 'mother mobail',
+    'mather mobile', 'mather mobil', 'mather mob', 'mather mobi',
+    'madar mobile', 'madar mobil', 'madar mob', 'madar mobi',
+    'mader mobile', 'mader mobil', 'mader mob', 'mader mobi',
+    'madhar mobile', 'madhar mobil', 'madhar mob', 'madhar mobi',
+    'mothar mobile', 'mothar mobil', 'muthar mobile',
+    'ماذر موبايل', 'ماذر موبيل', 'ماذر موبيال', 'ماذر موب', 'ماذر موبي',
+    'ماذر موبايل', 'ماذر موبايِل', 'ماذر موبايل',
+    'مذر موبايل', 'مذر موبيل', 'مذر موبيال', 'مذر موب', 'مذر موبي',
+    'مازر موبايل', 'مازر موبيل', 'مازر موبيال',
+    'مادر موبايل', 'مادر موبيل', 'مادر موبيال',
+    'موذر موبايل', 'موذر موبيل', 'موذر موبيال',
+    'ماذر mobile', 'mother موبايل',
+  ].map(clean));
   function isMotherMobile(name) {
-    const words = clean(name).split(' ');
-    return words.length === 2 && MOTHER_WORDS.has(words[0]) && MOBILE_WORDS.has(words[1]);
+    return MOTHER_MOBILE_ALIASES.has(clean(name));
   }
   function parseCall(t) {
     const m = String(t || '').match(/(?:^|\s)(اتصل|اتصلي|كلم|كلملي|رن|رنلي|call)\s+(.+)$/);
