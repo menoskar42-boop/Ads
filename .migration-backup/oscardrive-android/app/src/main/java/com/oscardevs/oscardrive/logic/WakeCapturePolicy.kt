@@ -10,8 +10,8 @@ object WakeCapturePolicy {
     fun action(transcripts: List<String>, engine: VoiceEngine): WakeRecognitionAction {
         val remaining = transcripts.mapNotNull { engine.afterWake(it) }
         return when {
-            remaining.isNotEmpty() -> WakeRecognitionAction.INLINE_COMMAND
-            remaining.any { it.isEmpty() } -> WakeRecognitionAction.WAKE_ONLY
+            remaining.any { it.isNotBlank() } -> WakeRecognitionAction.INLINE_COMMAND
+            remaining.isNotEmpty() -> WakeRecognitionAction.WAKE_ONLY
             else -> WakeRecognitionAction.NO_WAKE
         }
     }
