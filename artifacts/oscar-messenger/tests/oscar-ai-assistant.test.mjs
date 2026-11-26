@@ -49,3 +49,11 @@ test("the recorded hello clip is an existing manifest entry, not generated media
   const hello = manifest.lines.hello.ar.find((line) => line.t === "أيوه، سامعك");
   assert.equal(hello?.f, "3c2a4bcd46dac795339647e8d2028af3.mp3");
 });
+
+test("Gemini Live binary frames are decoded (setupComplete arrives as ArrayBuffer, not text)", () => {
+  const source = readFileSync(new URL("../components/OscarAiAssistant.tsx", import.meta.url), "utf8");
+  assert.match(source, /liveSocket\.binaryType = "arraybuffer";/);
+  assert.match(source, /liveTextDecoder\.decode\(new Uint8Array\(data\)\)/);
+  assert.match(source, /parseLiveMessage\(event\.data\)\?\.setupComplete/);
+  assert.doesNotMatch(source, /JSON\.parse\(String\(event\.data\)\)/);
+});

@@ -1,4 +1,5 @@
-export const GEMINI_LIVE_MODEL = "gemini-3.8-live";
+// The model can be changed from the GEMINI_LIVE_MODEL env var without a code change.
+export const GEMINI_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL?.trim() || "gemini-3.8-live";
 export const GEMINI_LIVE_SESSION_MINUTES = 5;
 export const GEMINI_LIVE_DAILY_MINUTES = 15;
 

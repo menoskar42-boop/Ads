@@ -39,6 +39,25 @@ type RecognitionLike = {
 type RecognitionConstructor = new () => RecognitionLike;
 type LiveResponse = { token: string; model: string };
 
+
+const liveTextDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder() : null;
+
+/** Gemini Live frames arrive as text or as binary (ArrayBuffer) JSON. */
+export function parseLiveMessage(data: unknown): any | null {
+  try {
+    if (typeof data === "string") return JSON.parse(data);
+    if (data instanceof ArrayBuffer && liveTextDecoder) {
+      return JSON.parse(liveTextDecoder.decode(new Uint8Array(data)));
+    }
+    if (ArrayBuffer.isView(data) && liveTextDecoder) {
+      return JSON.parse(liveTextDecoder.decode(data as ArrayBufferView));
+    }
+  } catch {
+    // Not a JSON frame.
+  }
+  return null;
+}
+
 export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string | null> }) {
   const [wakeEnabled, setWakeEnabled] = useState(false);
   const [active, setActive] = useState(false);
@@ -143,6 +162,8 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(live.token)}`,
       );
       socket.current = liveSocket;
+      // Gemini Live sends its JSON in binary frames; read them as bytes, not "[object Blob]".
+      liveSocket.binaryType = "arraybuffer";
       liveSocket.onopen = () => {
         liveSocket.send(JSON.stringify({
           setup: {
@@ -161,12 +182,8 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         if (socket.current === liveSocket) stopRef.current();
       };
       liveSocket.onmessage = (event) => {
-        let message: any;
-        try {
-          message = JSON.parse(String(event.data));
-        } catch {
-          return;
-        }
+        const message = parseLiveMessage(event.data);
+        if (!message) return;
         if (message.setupComplete) {
           setConnecting(false);
           armSilenceEnd();
@@ -221,7 +238,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         const timeout = setTimeout(() => reject(new Error("تأخر اتصال Gemini Live.")), 12_000);
         const onSetup = (event: MessageEvent) => {
           try {
-            if (JSON.parse(String(event.data)).setupComplete) {
+            if (parseLiveMessage(event.data)?.setupComplete) {
               clearTimeout(timeout);
               liveSocket.removeEventListener("message", onSetup);
               resolve();
