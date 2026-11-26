@@ -44,13 +44,13 @@ const sitemapSrc = legal.slice(legal.indexOf("router.get('/sitemap.xml'"));
 check('the download link is not in the sitemap or llms.txt', !/oscar-drive\/download/.test(sitemapSrc),
   'لينك تحميل ملف مايدخلش السايت‌ماب ولا llms.txt.');
 
-const wf = read('.github/workflows/oscardrive-apk.yml');
+const wf = read('../.github/workflows/oscardrive-apk.yml');
 check('the APK release is a pre-release that never becomes "latest"',
   /prerelease: true/.test(wf) && /make_latest: false/.test(wf) && /tag_name: oscardrive-latest/.test(wf) && /files: oscar-drive\.apk/.test(wf),
   'release عادى جديد بياخد مكان NeuroPilot فى /releases/latest.');
 check('the logic tests run before the build',
-  wf.indexOf('working-directory: oscardrive-android/logic-test') > 0
-  && wf.indexOf('working-directory: oscardrive-android/logic-test') < wf.indexOf('gradle assembleDebug'),
+  wf.indexOf('working-directory: .migration-backup/oscardrive-android/logic-test') > 0
+  && wf.indexOf('working-directory: .migration-backup/oscardrive-android/logic-test') < wf.indexOf('gradle assembleDebug'),
   'منطق الرحلة/ذاكرة الطريق/الاستراحة لازم يتختبر قبل ما APK يتنشر.');
 
 const manifest = read('oscardrive-android/app/src/main/AndroidManifest.xml').replace(/<!--[\s\S]*?-->/g, '');
@@ -221,7 +221,7 @@ check('privacy policy discloses the microphone', /الميكروفون بيتط�
   check('Oscar voice is bundled in the APK and installed on first launch',
     voiceOk && /from\(rootProject\.file\("\.\.\/drive-web\/voice"\)\)/.test(gradle) && /dependsOn\(copyOscarVoice\)/.test(gradle)
       && /assets\.open\("voice\/\$voice\/manifest\.json"\)/.test(oscar) && /ensureBundled\(\)\n    \}/.test(oscar)
-      && /'drive-web\/voice\/\*\*'/.test(wf),
+      && /'\.migration-backup\/drive-web\/voice\/\*\*'/.test(wf),
     'ملفات drive-web/voice لازم تتبنى جوّه الـAPK وتتنقل أول ما التطبيق يفتح.');
 }
 {

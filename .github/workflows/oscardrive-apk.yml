@@ -11,8 +11,8 @@ on:
   push:
     branches: [claude/build-oscardevs-ads-mvp-8krfN]
     paths:
-      - 'oscardrive-android/**'
-      - 'drive-web/voice/**'   # صوت أوسكار بيتبنى جوّه الـAPK
+      - '.migration-backup/oscardrive-android/**'
+      - '.migration-backup/drive-web/voice/**'   # صوت أوسكار بيتبنى جوّه الـAPK
       - '.github/workflows/oscardrive-apk.yml'
 
 jobs:
@@ -34,7 +34,7 @@ jobs:
       # first run (2026-10-09), so the build uses the preinstalled one directly.
       - name: Android SDK on the runner
         run: |
-          echo "sdk.dir=$ANDROID_HOME" > oscardrive-android/local.properties
+          echo "sdk.dir=$ANDROID_HOME" > .migration-backup/oscardrive-android/local.properties
           ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
 
       - uses: gradle/actions/setup-gradle@v4
@@ -44,7 +44,7 @@ jobs:
       # The trip/road-memory/break/maintenance/voice logic has its own JVM tests — a broken rule
       # should fail here, not on a dashboard in a moving car.
       - name: Test the drive logic
-        working-directory: oscardrive-android/logic-test
+        working-directory: .migration-backup/oscardrive-android/logic-test
         run: gradle test --no-daemon
 
       # جوجل بلاى + التحديث فوق القديم محتاجين توقيع ثابت: لو أسرار مفتاح التوقيع موجودة بنبنى
@@ -63,7 +63,7 @@ jobs:
           fi
 
       - name: Build
-        working-directory: oscardrive-android
+        working-directory: .migration-backup/oscardrive-android
         env:
           ODRIVE_KEYSTORE_PASSWORD: ${{ secrets.ODRIVE_KEYSTORE_PASSWORD }}
           ODRIVE_KEY_ALIAS: ${{ secrets.ODRIVE_KEY_ALIAS }}
@@ -80,10 +80,10 @@ jobs:
       - name: Name the file for the download link
         id: apk
         run: |
-          SRC=$(find oscardrive-android/app/build/outputs/apk -name '*.apk' | head -1)
+          SRC=$(find .migration-backup/oscardrive-android/app/build/outputs/apk -name '*.apk' | head -1)
           cp "$SRC" oscar-drive.apk
           echo "sha256=$(sha256sum oscar-drive.apk | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          AAB=$(find oscardrive-android/app/build/outputs/bundle -name '*.aab' 2>/dev/null | head -1)
+          AAB=$(find .migration-backup/oscardrive-android/app/build/outputs/bundle -name '*.aab' 2>/dev/null | head -1)
           if [ -n "$AAB" ]; then cp "$AAB" oscar-drive.aab; fi
 
       - name: Upload the Play bundle (AAB) to the run's artifacts

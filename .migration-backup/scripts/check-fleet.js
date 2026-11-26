@@ -90,7 +90,7 @@ check('the app talks to speed.oscardevs.com',
 
 // الـrelease بتاع GitHub لازم يفضل pre-release ومش «latest» — وإلا لينك NeuroPilot
 // (/releases/latest/download/neuropilot.apk) بيوقع فى صمت.
-const wf = read('.github/workflows/speedguard-apk.yml');
+const wf = read('../.github/workflows/speedguard-apk.yml');
 check('the APK release is a pre-release that never becomes "latest"',
   /prerelease: true/.test(wf) && /make_latest: false/.test(wf) && /tag_name: speedguard-latest/.test(wf),
   'release عادى جديد بياخد مكان NeuroPilot فى /releases/latest.');

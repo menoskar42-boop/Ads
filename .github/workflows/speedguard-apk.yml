@@ -16,7 +16,7 @@ on:
   push:
     branches: [claude/build-oscardevs-ads-mvp-8krfN]
     paths:
-      - 'speedguard-android/**'
+      - '.migration-backup/speedguard-android/**'
       - '.github/workflows/speedguard-apk.yml'
 
 jobs:
@@ -38,7 +38,7 @@ jobs:
       # first run (2026-10-09), so the build uses the preinstalled one directly.
       - name: Android SDK on the runner
         run: |
-          echo "sdk.dir=$ANDROID_HOME" > speedguard-android/local.properties
+          echo "sdk.dir=$ANDROID_HOME" > .migration-backup/speedguard-android/local.properties
           ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
 
       - uses: gradle/actions/setup-gradle@v4
@@ -48,17 +48,17 @@ jobs:
       # The speed/alert/violation logic has its own JVM tests — a broken rule
       # should fail here, not on a dashboard in a moving car.
       - name: Test the speed logic
-        working-directory: speedguard-android/logic-test
+        working-directory: .migration-backup/speedguard-android/logic-test
         run: gradle test --no-daemon
 
       - name: Build
-        working-directory: speedguard-android
+        working-directory: .migration-backup/speedguard-android
         run: gradle assembleDebug --no-daemon
 
       - name: Name the file for the download link
         id: apk
         run: |
-          SRC=$(find speedguard-android/app/build/outputs/apk -name '*.apk' | head -1)
+          SRC=$(find .migration-backup/speedguard-android/app/build/outputs/apk -name '*.apk' | head -1)
           cp "$SRC" speed-guard.apk
           echo "sha256=$(sha256sum speed-guard.apk | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 

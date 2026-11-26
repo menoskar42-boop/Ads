@@ -25,8 +25,8 @@ on:
     # an APK on every unrelated commit wastes minutes and buries the run that
     # matters.
     paths:
-      - 'neuropilot/**'
-      - 'neuropilot-app/**'
+      - '.migration-backup/neuropilot/**'
+      - '.migration-backup/neuropilot-app/**'
       - '.github/workflows/neuropilot-apk.yml'
 
 jobs:
@@ -65,25 +65,26 @@ jobs:
       # would produce an app which installs, runs, and silently has no
       # geofence. Cheaper to catch here than on a phone.
       - name: Check the native project
+        working-directory: .migration-backup
         run: node scripts/check-neuropilot-app.js
 
       - name: Install
-        working-directory: neuropilot-app
+        working-directory: .migration-backup/neuropilot-app
         run: npm install
 
       - name: Scaffold the Android project
-        working-directory: neuropilot-app
+        working-directory: .migration-backup/neuropilot-app
         run: npx cap add android
 
       # Only now does neuropilot-app/android exist — cap scaffolds it. Writing
       # sdk.dir before this step would fail on a directory that is not there
       # yet, which is why this is separate from the check above.
       - name: Point Gradle at the SDK
-        working-directory: neuropilot-app/android
+        working-directory: .migration-backup/neuropilot-app/android
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - name: Bundle the web app, sync, apply the overlay
-        working-directory: neuropilot-app
+        working-directory: .migration-backup/neuropilot-app
         run: npm run sync
 
       # Release signing only if the secrets are configured. Without them the
@@ -93,7 +94,7 @@ jobs:
         if: ${{ inputs.variant == 'release' && env.KEYSTORE_B64 != '' }}
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
-        working-directory: neuropilot-app/android
+        working-directory: .migration-backup/neuropilot-app/android
         run: |
           echo "$KEYSTORE_B64" | base64 -d > neuropilot.keystore
           cat > keystore.properties <<EOF
@@ -104,7 +105,7 @@ jobs:
           EOF
 
       - name: Build
-        working-directory: neuropilot-app/android
+        working-directory: .migration-backup/neuropilot-app/android
         run: |
           chmod +x ./gradlew
           if [ "${{ inputs.variant }}" = "release" ] && [ -f keystore.properties ]; then
@@ -117,14 +118,14 @@ jobs:
       # up, even though the runner is destroyed after the job.
       - name: Shred the keystore
         if: always()
-        working-directory: neuropilot-app/android
+        working-directory: .migration-backup/neuropilot-app/android
         run: rm -f neuropilot.keystore keystore.properties
 
       - name: Upload the APK to the run's artifacts
         uses: actions/upload-artifact@v4
         with:
           name: neuropilot-apk
-          path: neuropilot-app/android/app/build/outputs/apk/**/*.apk
+          path: .migration-backup/neuropilot-app/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -134,7 +135,7 @@ jobs:
       - name: Name the file for the download link
         id: apk
         run: |
-          SRC=$(find neuropilot-app/android/app/build/outputs/apk -name '*.apk' | head -1)
+          SRC=$(find .migration-backup/neuropilot-app/android/app/build/outputs/apk -name '*.apk' | head -1)
           cp "$SRC" neuropilot.apk
           echo "sha256=$(sha256sum neuropilot.apk | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
