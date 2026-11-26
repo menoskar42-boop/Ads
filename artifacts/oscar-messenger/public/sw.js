@@ -104,8 +104,14 @@ self.addEventListener("push", (event) => {
         body: JSON.stringify(deliveryToken),
       }).catch(() => undefined)
     : Promise.resolve();
+  // Number on the installed app icon (iPhone home-screen app, desktop). Android Chrome shows a dot instead.
+  const updateBadge =
+    typeof payload.badge === "number" && self.navigator && "setAppBadge" in self.navigator
+      ? (payload.badge > 0 ? self.navigator.setAppBadge(payload.badge) : self.navigator.clearAppBadge())
+          .catch(() => undefined)
+      : Promise.resolve();
   event.waitUntil(
-    Promise.allSettled([showNotification, acknowledgeDelivery]),
+    Promise.allSettled([showNotification, acknowledgeDelivery, updateBadge]),
   );
 });
 

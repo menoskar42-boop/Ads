@@ -40,7 +40,28 @@ export type MessengerPushPayload = {
   url: string;
   tag: string;
   deliveryToken?: PushDeliveryToken;
+  /** Unread direct messages, shown as the number on the installed app icon (Badging API). */
+  badge?: number;
 };
+
+/** Same count as the conversation list (sender ≠ me, not read yet), for the app-icon number. */
+async function unreadDirectCount(pool: PushPool, userId: string): Promise<number | undefined> {
+  try {
+    const result = await pool.query(
+      `SELECT count(*)::int AS count
+         FROM messenger_messages m
+         JOIN messenger_conversations c ON c.id = m.conversation_id
+        WHERE (c.user_a = $1 OR c.user_b = $1)
+          AND m.sender_id <> $1
+          AND m.read_at IS NULL`,
+      [userId],
+    );
+    const count = Number(result.rows[0]?.count);
+    return Number.isFinite(count) && count >= 0 ? count : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export type PushDeliveryToken = {
   messageId: string;
@@ -354,7 +375,8 @@ async function notifyRecipients(
           !subscriptions.length ||
           !reserveRecipientPush(recipient.user_id, message.conversationId)
         ) return;
-        const payload = buildMessengerPushPayload({
+        const badge = message.groupId ? undefined : await unreadDirectCount(pool, recipient.user_id);
+        const built = buildMessengerPushPayload({
           senderName: recipient.sender_name ?? "",
           messageType: message.messageType,
           messageBody: message.body,
@@ -365,6 +387,7 @@ async function notifyRecipients(
             ? createPushDeliveryToken(message.messageId, recipient.user_id)
             : null,
         });
+        const payload = badge === undefined ? built : { ...built, badge };
         await deliverPushSubscriptions(pool, subscriptions, payload);
       }),
     );

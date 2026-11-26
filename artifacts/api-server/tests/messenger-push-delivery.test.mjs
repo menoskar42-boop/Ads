@@ -111,7 +111,7 @@ test("the service worker acknowledges in parallel with displaying the notificati
     "utf8",
   );
   assert.match(source, /\/api\/messenger\/push\/delivered/);
-  assert.match(source, /Promise\.allSettled\(\[showNotification, acknowledgeDelivery\]\)/);
+  assert.match(source, /Promise\.allSettled\(\[showNotification, acknowledgeDelivery, updateBadge\]\)/);
 });
 
 test("the delivery callback is unauthenticated, opaque, and rate-limited", () => {
@@ -126,4 +126,12 @@ test("the delivery callback is unauthenticated, opaque, and rate-limited", () =>
   assert.doesNotMatch(route, /requireAuth/);
   assert.match(route, /allowPushDeliveryFromIp/);
   assert.match(route, /res\.status\(204\)\.end\(\)/);
+});
+
+test("direct-message pushes carry the unread count for the app-icon number", () => {
+  const push = readFileSync(new URL("../src/lib/messenger-web-push.ts", import.meta.url), "utf8");
+  assert.match(push, /const badge = message\.groupId \? undefined : await unreadDirectCount\(pool, recipient\.user_id\)/);
+  assert.match(push, /AND m\.sender_id <> \$1\n\s+AND m\.read_at IS NULL/);
+  const sw = readFileSync(new URL("../../oscar-messenger/public/sw.js", import.meta.url), "utf8");
+  assert.match(sw, /self\.navigator\.setAppBadge\(payload\.badge\)/);
 });

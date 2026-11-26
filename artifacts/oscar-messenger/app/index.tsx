@@ -18,6 +18,7 @@ import { AppHeader } from "../components/AppHeader";
 import { Avatar } from "../components/Avatar";
 import { InviteActions } from "../components/InviteActions";
 import { OscarAiAssistant } from "../components/OscarAiAssistant";
+import { updateAppBadge } from "../lib/app-badge";
 import { Notice, PrimaryButton, Screen } from "../components/Screen";
 import {
   getMessengerProfile,
@@ -236,6 +237,7 @@ export default function InboxScreen() {
       }
     }
     previousUnread.current = new Map(rows.map((row) => [row.id, row.unreadCount]));
+    updateAppBadge(rows.reduce((total, row) => total + Math.max(0, row.unreadCount || 0), 0));
   }, [conversations.data]);
 
   if (!isLoaded) {
