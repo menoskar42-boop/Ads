@@ -8,6 +8,9 @@
 <% if (settingsError === 'invite_existing') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">هذا البريد مرتبط بحساب موجود بالفعل.</div><% } %>
 <% if (settingsError === 'invite_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر إنشاء الدعوة الآن. حاول مرة أخرى.</div><% } %>
 <% if (settingsError === 'invite_link') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر عرض رابط الدعوة. أنشئ دعوة جديدة للبريد نفسه؛ ستُلغى الدعوة السابقة تلقائيًا.</div><% } %>
+<% if (inviteCancelStatus === 'cancelled') { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تم إلغاء الدعوة. لم يعد رابطها صالحًا.</div><% } %>
+<% if (inviteCancelStatus === 'unavailable') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">الدعوة ليست معلقة أو لا تخص هذه الورشة.</div><% } %>
+<% if (inviteCancelStatus === 'error') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر إلغاء الدعوة الآن. حاول مرة أخرى.</div><% } %>
 <% if (settingsError === 'role_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ تغيير الدور.</div><% } %>
 <% if (settingsError === 'settings_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ إعدادات الورشة وسجل التغيير.</div><% } %>
 <% if (settingsError === 'alert_email_restore_invalid') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">عنوان البريد السابق غير صالح أو لم يعد متاحًا للاستعادة.</div><% } %>
@@ -71,6 +74,11 @@
                   <div class="text-xs text-slate-500"><%= roleLabels[invitation.role] || invitation.role %> · تنتهي <%= new Date(invitation.expires_at).toLocaleString('ar-EG', {timeZone:'Africa/Cairo', dateStyle:'medium', timeStyle:'short'}) %></div>
                 </div>
                 <span class="text-xs font-bold rounded-full px-3 py-1 <%= invitation.status === 'pending' ? 'bg-amber-50 text-amber-800' : invitation.status === 'accepted' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600' %>"><%= invitation.status === 'pending' ? 'معلقة' : invitation.status === 'accepted' ? 'مقبولة' : invitation.status === 'expired' ? 'منتهية' : 'ملغاة' %></span>
+                <% if (invitation.status === 'pending') { %>
+                  <form method="post" action="/workshop/settings/users/invitations/<%= invitation.id %>/cancel" onsubmit="return confirm('إلغاء الدعوة؟ لن يعود رابطها صالحًا.');">
+                    <button type="submit" class="text-xs font-bold text-rose-700 border border-rose-200 rounded-lg px-3 py-2">إلغاء الدعوة</button>
+                  </form>
+                <% } %>
               </div>
             <% }) %>
           </div>

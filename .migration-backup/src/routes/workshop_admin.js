@@ -1161,6 +1161,8 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
     restored: req.query.restored === '1',
     testEmailStatus: ['sent', 'unavailable', 'error', 'rate_limited'].includes(String(req.query.test_email || ''))
       ? String(req.query.test_email) : '',
+    inviteCancelStatus: ['cancelled', 'unavailable', 'error'].includes(String(req.query.invite_cancel || ''))
+      ? String(req.query.invite_cancel) : '',
     messageSettings: workshopMessagingView(messageRow.rows[0]),
     payment, settingsError: req.query.err || '',
     users: users.rows,
@@ -1225,6 +1227,27 @@ router.post('/settings/users/invite', requireWorkshopPermission('manage_settings
     return res.redirect('/workshop/settings?err=invite_save');
   } finally {
     client.release();
+  }
+});
+
+router.post('/settings/users/invitations/:id/cancel', requireWorkshopPermission('manage_settings'), async (req, res) => {
+  const invitationId = int(req.params.id);
+  if (invitationId <= 0) return res.redirect('/workshop/settings?invite_cancel=unavailable');
+  try {
+    const result = await pool.query(
+      `UPDATE workshop_team_invitations
+          SET revoked_at=now()
+        WHERE id=$1 AND company_id=$2
+          AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+        RETURNING id`,
+      [invitationId, req.company.id]
+    );
+    return res.redirect(
+      `/workshop/settings?invite_cancel=${result.rowCount > 0 ? 'cancelled' : 'unavailable'}`
+    );
+  } catch (_error) {
+    console.error('[workshop invite cancel] failed');
+    return res.redirect('/workshop/settings?invite_cancel=error');
   }
 });
 
