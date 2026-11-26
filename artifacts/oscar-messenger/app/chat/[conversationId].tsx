@@ -70,6 +70,7 @@ import type {
 } from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../../lib/api";
 import { useMessengerRealtimeHealthy } from "../../lib/realtime";
+import { usePwaUpdateActivity } from "../../lib/pwa-update-activity";
 import {
   getStableClientMessageId,
   type PendingClientMessageId,
@@ -264,6 +265,7 @@ export default function ChatScreen() {
   const [messageMenu, setMessageMenu] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [editBody, setEditBody] = useState("");
+  usePwaUpdateActivity("message-edit", !!editingMessage);
   const seeded = useRef(false);
   const secureDraftRestoreStarted = useRef("");
   const mediaAbortController = useRef<AbortController | null>(null);

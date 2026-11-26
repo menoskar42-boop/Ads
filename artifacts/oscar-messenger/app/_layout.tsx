@@ -12,6 +12,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { setAuthTokenGetter } from "../lib/api";
 import { cleanupExpiredTemporaryDrafts } from "../lib/temporary-drafts";
+import {
+  PwaUpdateActivityProvider,
+  PwaUpdateCoordinator,
+} from "../lib/pwa-update-activity";
 import { useMessengerRealtime } from "../lib/realtime";
 import { colors } from "../lib/theme";
 
@@ -138,19 +142,6 @@ export default function RootLayout() {
     }
   }, []);
 
-  useEffect(() => {
-    if (
-      Platform.OS !== "web" ||
-      typeof navigator === "undefined" ||
-      !("serviceWorker" in navigator)
-    ) return;
-    void navigator.serviceWorker
-      .register("/oscar-messenger/sw.js", { scope: "/oscar-messenger/" })
-      .catch(() => {
-        console.warn("Oscar Messaging PWA service worker registration failed.");
-      });
-  }, []);
-
   if (!publishableKey) return <MissingAuthConfiguration />;
 
   return (
@@ -162,11 +153,14 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <AppRoutes />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
+            <PwaUpdateActivityProvider>
+              <PwaUpdateCoordinator />
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <AppRoutes />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </PwaUpdateActivityProvider>
           </QueryClientProvider>
         </ErrorBoundary>
       </SafeAreaProvider>

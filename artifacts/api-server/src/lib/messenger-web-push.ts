@@ -62,6 +62,7 @@ type PushMessageKind =
 const pushSchemaCache = new WeakMap<object, { checkedAt: number; ready: boolean }>();
 const recipientPushWindows = new Map<string, number>();
 const PUSH_COOLDOWN_MS = 10_000;
+const HIGH_URGENCY_PUSH_OPTIONS = { urgency: "high", TTL: 86_400 } as const;
 const DELIVERY_TOKEN_LIFETIME_SECONDS = 7 * 24 * 60 * 60;
 const deliveryRateWindows = new Map<string, { startedAt: number; count: number }>();
 
@@ -255,13 +256,18 @@ export async function deliverPushSubscriptions(
   sendNotification: (
     subscription: PushSubscription,
     payload: string,
-  ) => Promise<unknown> = (subscription, message) =>
-    webPush.sendNotification(subscription, message),
+    options: typeof HIGH_URGENCY_PUSH_OPTIONS,
+  ) => Promise<unknown> = (subscription, message, options) =>
+    webPush.sendNotification(subscription, message, options),
 ): Promise<void> {
   await Promise.all(
     subscriptions.map(async (subscription) => {
       try {
-        await sendNotification(toWebPushSubscription(subscription), JSON.stringify(payload));
+        await sendNotification(
+          toWebPushSubscription(subscription),
+          JSON.stringify(payload),
+          HIGH_URGENCY_PUSH_OPTIONS,
+        );
         await pool.query(
           `UPDATE messenger_push_subscriptions
            SET last_success_at = now() WHERE id = $1`,

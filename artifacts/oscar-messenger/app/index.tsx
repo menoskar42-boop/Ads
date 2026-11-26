@@ -271,288 +271,294 @@ export default function InboxScreen() {
         action="الإعدادات"
         onAction={() => router.push("/settings")}
       />
-      <View style={styles.content}>
-        <View style={styles.greeting}>
-          <View style={styles.greetingText}>
-            <Text style={styles.eyebrow}>صباح / مساء الخير</Text>
-            <Text style={styles.heading}>
-              {profile.data?.profile?.displayName || "محادثاتك"}
-            </Text>
-          </View>
-          <Avatar
-            name={profile.data?.profile?.displayName || "أوسكار"}
-            uri={profile.data?.profile?.avatarUrl}
-            size={54}
-          />
-        </View>
-        {profile.data?.profile?.username && (
-          <InviteActions username={profile.data.profile.username} />
-        )}
-
-        <View style={styles.searchBand}>
-          <View style={styles.searchCopy}>
-            <Text style={styles.searchTitle}>ابدأ محادثة خاصة</Text>
-            <Text style={styles.searchSub}>ابحث باسم العرض أو اسم المستخدم</Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push("/new-message")}
-            style={({ pressed }) => [styles.newButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.newButtonText}>＋</Text>
-          </Pressable>
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push("/scheduled")}
-          style={({ pressed }) => [styles.scheduledShortcut, pressed && styles.pressed]}
-        >
-          <View style={styles.scheduledIcon}>
-            <Ionicons name="calendar-outline" size={20} color={colors.blue} />
-          </View>
-          <View style={styles.scheduledCopy}>
-            <Text style={styles.scheduledTitle}>الرسائل المجدولة</Text>
-            <Text style={styles.scheduledSub}>
-              {scheduled.data
-                ? `${scheduled.data.scheduledMessages.filter((item) => item.status === "pending").length} رسالة تنتظر موعدها`
-                : "راجع المواعيد وحالة الإرسال"}
-            </Text>
-          </View>
-          <Ionicons name="chevron-back" size={18} color={colors.muted} />
-        </Pressable>
-
-        <View style={styles.communityShortcuts}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push("/statuses")}
-            style={({ pressed }) => [styles.communityShortcut, pressed && styles.pressed]}
-          >
-            <Ionicons name="radio-outline" size={19} color={colors.blue} />
-            <Text style={styles.communityShortcutText}>الحالات الخاصة</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push("/groups")}
-            style={({ pressed }) => [styles.communityShortcut, pressed && styles.pressed]}
-          >
-            <Ionicons name="people-outline" size={19} color={colors.blue} />
-            <Text style={styles.communityShortcutText}>المجموعات</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.messageSearch}>
-          <Ionicons name="search-outline" size={19} color={colors.muted} />
-          <TextInput
-            accessibilityLabel="البحث في الرسائل"
-            placeholder="ابحث داخل رسائلك"
-            placeholderTextColor={colors.muted}
-            value={searchText}
-            onChangeText={setSearchText}
-            style={styles.messageSearchInput}
-            textAlign="right"
-            returnKeyType="search"
-          />
-        </View>
-        {searchText.trim().length >= 2 && (
-          <View style={styles.searchResults}>
-            {search.isPending ? (
-              <ActivityIndicator color={colors.blue} />
-            ) : search.isError ? (
-              <Text style={styles.searchStatus}>
-                {readableError(search.error, "تعذر البحث في الرسائل.")}
-              </Text>
-            ) : search.data?.results.length ? (
-              search.data.results.slice(0, 6).map((result) => (
-                <Pressable
-                  key={`${result.conversationId}:${result.id}`}
-                  accessibilityRole="button"
-                  onPress={() =>
-                    router.push({
-                      pathname: "/chat/[conversationId]",
-                      params: {
-                        conversationId: result.conversationId,
-                        peerName: result.peerName,
-                      },
-                    })
-                  }
-                  style={styles.searchResult}
-                >
-                  <Text numberOfLines={1} style={styles.searchResultName}>
-                    {result.peerName}
-                  </Text>
-                  <Text numberOfLines={2} style={styles.searchResultText}>
-                    {result.body}
-                  </Text>
-                  <Text style={styles.searchResultTime}>{shortTime(result.createdAt)}</Text>
-                </Pressable>
-              ))
-            ) : (
-              <Text style={styles.searchStatus}>لا توجد رسائل مطابقة.</Text>
-            )}
-          </View>
-        )}
-
-        {newMessageNotice && (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              const target = newMessageNotice;
-              setNewMessageNotice(null);
-              router.push({
-                pathname: "/chat/[conversationId]",
-                params: { conversationId: target.conversationId, peerName: target.peerName },
-              });
-            }}
-            style={({ pressed }) => [styles.newMessageNotice, pressed && styles.pressed]}
-          >
-            <View style={styles.noticeDot} />
-            <Text style={styles.newMessageText}>رسالة جديدة من {newMessageNotice.peerName}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="إخفاء التنبيه"
-              onPress={(event) => {
-                event.stopPropagation();
-                setNewMessageNotice(null);
-              }}
-              hitSlop={8}
-            >
-              <Text style={styles.dismissNotice}>×</Text>
-            </Pressable>
-          </Pressable>
-        )}
-
-        <View style={styles.sectionHeading}>
-          <View style={styles.sectionActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={includeArchived ? "عرض المحادثات" : "عرض الأرشيف"}
-              onPress={() => setIncludeArchived((value) => !value)}
-              style={styles.archiveToggle}
-            >
-              <Text style={styles.archiveToggleText}>
-                {includeArchived ? "المحادثات" : "الأرشيف"}
-              </Text>
-            </Pressable>
-            <Text style={styles.sectionTitle}>
-              {includeArchived ? "المحادثات المؤرشفة" : "الرسائل"}
-            </Text>
-          </View>
-          <Text style={styles.count}>{conversations.data?.conversations?.length ?? 0}</Text>
-        </View>
-        {!!actionError && <Text style={styles.actionError}>{actionError}</Text>}
-        {features.isError && (
-          <Text style={styles.featureHint}>تعذر التحقق من تثبيت ميزات إدارة المحادثات.</Text>
-        )}
-        {features.data?.reason === "database_update_required" && (
-          <Text style={styles.featureHint}>
-            التثبيت والكتم والأرشفة متاحة بعد تطبيق تحديث قاعدة البيانات.
-          </Text>
-        )}
-
-        {waiting && apiLoadingTimedOut ? (
-          <Notice>
-            <Text style={styles.emptyTitle}>
-              تعذّر تحميل تسجيل الدخول — حدّث الصفحة
-            </Text>
-          </Notice>
-        ) : waiting ? (
-          <View style={styles.loading}><ActivityIndicator color={colors.blue} /></View>
-        ) : error ? (
-          <Notice>
-            <Text style={styles.emptyTitle}>تعذر تحميل المحادثات</Text>
-            <Text style={styles.emptyText}>{readableError(error, "تحقق من الاتصال ثم حاول مرة أخرى.")}</Text>
-            <View style={styles.retry}><PrimaryButton title="إعادة المحاولة" onPress={refresh} secondary /></View>
-          </Notice>
-        ) : (
-          <FlatList
-            data={conversations.data?.conversations ?? []}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.conversation}>
-                <Avatar
-                  name={item.peer.nickname || item.peer.displayName}
-                  uri={item.peer.avatarUrl}
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`فتح محادثة ${item.peer.nickname || item.peer.displayName}`}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/chat/[conversationId]",
-                      params: {
-                        conversationId: item.id,
-                        peerName: item.peer.nickname || item.peer.displayName,
-                      },
-                    })
-                  }
-                  style={({ pressed }) => [styles.conversationText, pressed && styles.pressed]}
-                >
-                  <View style={styles.nameLine}>
-                    <Text numberOfLines={1} style={styles.peerName}>
-                      {item.isPinned ? "📌 " : ""}{item.isMuted ? "🔕 " : ""}
-                      {item.peer.nickname || item.peer.displayName}
-                    </Text>
-                    <Text style={styles.time}>{shortTime(item.updatedAt)}</Text>
-                  </View>
-                  <View style={styles.previewLine}>
-                    <Text numberOfLines={1} style={styles.preview}>
-                      {item.peer.nickname
-                        ? `${item.peer.displayName} · @${item.peer.username}`
-                        : item.lastMessage || `@${item.peer.username}`}
-                    </Text>
-                    {item.unreadCount > 0 && (
-                      <View style={styles.unreadBadge}>
-                        <Text style={styles.unreadText}>{item.unreadCount > 99 ? "99+" : item.unreadCount}</Text>
-                      </View>
-                    )}
-                  </View>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`إعدادات محادثة ${item.peer.nickname || item.peer.displayName}`}
-                  disabled={!features.data?.enabled}
-                  onPress={() => setSettingsConversation(item)}
-                  style={({ pressed }) => [
-                    styles.conversationMenu,
-                    !features.data?.enabled && styles.menuDisabled,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Ionicons name="ellipsis-vertical" size={17} color={colors.muted} />
-                </Pressable>
+      <FlatList
+        style={styles.content}
+        data={waiting || error ? [] : conversations.data?.conversations ?? []}
+        keyExtractor={(item) => item.id}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        ListHeaderComponent={
+          <View>
+            <View style={styles.greeting}>
+              <View style={styles.greetingText}>
+                <Text style={styles.eyebrow}>صباح / مساء الخير</Text>
+                <Text style={styles.heading}>
+                  {profile.data?.profile?.displayName || "محادثاتك"}
+                </Text>
               </View>
-            )}
-            refreshControl={
-              <RefreshControl
-                refreshing={conversations.isRefetching}
-                onRefresh={refresh}
-                tintColor={colors.blue}
-                colors={[colors.blue]}
+              <Avatar
+                name={profile.data?.profile?.displayName || "أوسكار"}
+                uri={profile.data?.profile?.avatarUrl}
+                size={54}
               />
-            }
-            contentContainerStyle={[
-              styles.list,
-              !conversations.data?.conversations?.length && styles.emptyList,
-            ]}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <View style={styles.emptyIcon}><Text style={styles.emptyGlyph}>✉</Text></View>
-                <Text style={styles.emptyTitle}>
-                  {includeArchived ? "لا توجد محادثات مؤرشفة" : "لسه مفيش محادثات"}
-                </Text>
-                <Text style={styles.emptyText}>
-                  {includeArchived
-                    ? "تظهر هنا المحادثات التي أرشفتها."
-                    : "ابحث عن شخص مسجّل في Oscar Messaging وابدأ برسالة."}
-                </Text>
-                {!includeArchived && <View style={styles.retry}><PrimaryButton title="محادثة جديدة" onPress={() => router.push("/new-message")} /></View>}
+            </View>
+            {profile.data?.profile?.username && (
+              <InviteActions username={profile.data.profile.username} />
+            )}
+
+            <View style={styles.searchBand}>
+              <View style={styles.searchCopy}>
+                <Text style={styles.searchTitle}>ابدأ محادثة خاصة</Text>
+                <Text style={styles.searchSub}>ابحث باسم العرض أو اسم المستخدم</Text>
               </View>
-            }
-          />
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push("/new-message")}
+                style={({ pressed }) => [styles.newButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.newButtonText}>＋</Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/scheduled")}
+              style={({ pressed }) => [styles.scheduledShortcut, pressed && styles.pressed]}
+            >
+              <View style={styles.scheduledIcon}>
+                <Ionicons name="calendar-outline" size={20} color={colors.blue} />
+              </View>
+              <View style={styles.scheduledCopy}>
+                <Text style={styles.scheduledTitle}>الرسائل المجدولة</Text>
+                <Text style={styles.scheduledSub}>
+                  {scheduled.data
+                    ? `${scheduled.data.scheduledMessages.filter((item) => item.status === "pending").length} رسالة تنتظر موعدها`
+                    : "راجع المواعيد وحالة الإرسال"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-back" size={18} color={colors.muted} />
+            </Pressable>
+
+            <View style={styles.communityShortcuts}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push("/statuses")}
+                style={({ pressed }) => [styles.communityShortcut, pressed && styles.pressed]}
+              >
+                <Ionicons name="radio-outline" size={19} color={colors.blue} />
+                <Text style={styles.communityShortcutText}>الحالات الخاصة</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push("/groups")}
+                style={({ pressed }) => [styles.communityShortcut, pressed && styles.pressed]}
+              >
+                <Ionicons name="people-outline" size={19} color={colors.blue} />
+                <Text style={styles.communityShortcutText}>المجموعات</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.messageSearch}>
+              <Ionicons name="search-outline" size={19} color={colors.muted} />
+              <TextInput
+                accessibilityLabel="البحث في الرسائل"
+                placeholder="ابحث داخل رسائلك"
+                placeholderTextColor={colors.muted}
+                value={searchText}
+                onChangeText={setSearchText}
+                style={styles.messageSearchInput}
+                textAlign="right"
+                returnKeyType="search"
+              />
+            </View>
+            {searchText.trim().length >= 2 && (
+              <View style={styles.searchResults}>
+                {search.isPending ? (
+                  <ActivityIndicator color={colors.blue} />
+                ) : search.isError ? (
+                  <Text style={styles.searchStatus}>
+                    {readableError(search.error, "تعذر البحث في الرسائل.")}
+                  </Text>
+                ) : search.data?.results.length ? (
+                  search.data.results.slice(0, 6).map((result) => (
+                    <Pressable
+                      key={`${result.conversationId}:${result.id}`}
+                      accessibilityRole="button"
+                      onPress={() =>
+                        router.push({
+                          pathname: "/chat/[conversationId]",
+                          params: {
+                            conversationId: result.conversationId,
+                            peerName: result.peerName,
+                          },
+                        })
+                      }
+                      style={styles.searchResult}
+                    >
+                      <Text numberOfLines={1} style={styles.searchResultName}>
+                        {result.peerName}
+                      </Text>
+                      <Text numberOfLines={2} style={styles.searchResultText}>
+                        {result.body}
+                      </Text>
+                      <Text style={styles.searchResultTime}>{shortTime(result.createdAt)}</Text>
+                    </Pressable>
+                  ))
+                ) : (
+                  <Text style={styles.searchStatus}>لا توجد رسائل مطابقة.</Text>
+                )}
+              </View>
+            )}
+
+            {newMessageNotice && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  const target = newMessageNotice;
+                  setNewMessageNotice(null);
+                  router.push({
+                    pathname: "/chat/[conversationId]",
+                    params: { conversationId: target.conversationId, peerName: target.peerName },
+                  });
+                }}
+                style={({ pressed }) => [styles.newMessageNotice, pressed && styles.pressed]}
+              >
+                <View style={styles.noticeDot} />
+                <Text style={styles.newMessageText}>رسالة جديدة من {newMessageNotice.peerName}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="إخفاء التنبيه"
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    setNewMessageNotice(null);
+                  }}
+                  hitSlop={8}
+                >
+                  <Text style={styles.dismissNotice}>×</Text>
+                </Pressable>
+              </Pressable>
+            )}
+
+            <View style={styles.sectionHeading}>
+              <View style={styles.sectionActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={includeArchived ? "عرض المحادثات" : "عرض الأرشيف"}
+                  onPress={() => setIncludeArchived((value) => !value)}
+                  style={styles.archiveToggle}
+                >
+                  <Text style={styles.archiveToggleText}>
+                    {includeArchived ? "المحادثات" : "الأرشيف"}
+                  </Text>
+                </Pressable>
+                <Text style={styles.sectionTitle}>
+                  {includeArchived ? "المحادثات المؤرشفة" : "الرسائل"}
+                </Text>
+              </View>
+              <Text style={styles.count}>{conversations.data?.conversations?.length ?? 0}</Text>
+            </View>
+            {!!actionError && <Text style={styles.actionError}>{actionError}</Text>}
+            {features.isError && (
+              <Text style={styles.featureHint}>تعذر التحقق من تثبيت ميزات إدارة المحادثات.</Text>
+            )}
+            {features.data?.reason === "database_update_required" && (
+              <Text style={styles.featureHint}>
+                التثبيت والكتم والأرشفة متاحة بعد تطبيق تحديث قاعدة البيانات.
+              </Text>
+            )}
+          </View>
+        }
+        renderItem={({ item }) => (
+          <View style={styles.conversation}>
+            <Avatar
+              name={item.peer.nickname || item.peer.displayName}
+              uri={item.peer.avatarUrl}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`فتح محادثة ${item.peer.nickname || item.peer.displayName}`}
+              onPress={() =>
+                router.push({
+                  pathname: "/chat/[conversationId]",
+                  params: {
+                    conversationId: item.id,
+                    peerName: item.peer.nickname || item.peer.displayName,
+                  },
+                })
+              }
+              style={({ pressed }) => [styles.conversationText, pressed && styles.pressed]}
+            >
+              <View style={styles.nameLine}>
+                <Text numberOfLines={1} style={styles.peerName}>
+                  {item.isPinned ? "📌 " : ""}{item.isMuted ? "🔕 " : ""}
+                  {item.peer.nickname || item.peer.displayName}
+                </Text>
+                <Text style={styles.time}>{shortTime(item.updatedAt)}</Text>
+              </View>
+              <View style={styles.previewLine}>
+                <Text numberOfLines={1} style={styles.preview}>
+                  {item.peer.nickname
+                    ? `${item.peer.displayName} · @${item.peer.username}`
+                    : item.lastMessage || `@${item.peer.username}`}
+                </Text>
+                {item.unreadCount > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadText}>{item.unreadCount > 99 ? "99+" : item.unreadCount}</Text>
+                  </View>
+                )}
+              </View>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`إعدادات محادثة ${item.peer.nickname || item.peer.displayName}`}
+              disabled={!features.data?.enabled}
+              onPress={() => setSettingsConversation(item)}
+              style={({ pressed }) => [
+                styles.conversationMenu,
+                !features.data?.enabled && styles.menuDisabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons name="ellipsis-vertical" size={17} color={colors.muted} />
+            </Pressable>
+          </View>
         )}
-        <Text style={styles.liveNote}>تتحدّث الرسائل تلقائيًا أثناء فتح التطبيق.</Text>
-      </View>
+        refreshControl={
+          <RefreshControl
+            refreshing={conversations.isRefetching}
+            onRefresh={refresh}
+            tintColor={colors.blue}
+            colors={[colors.blue]}
+          />
+        }
+        contentContainerStyle={[
+          styles.list,
+          !(conversations.data?.conversations?.length ?? 0) && styles.emptyList,
+        ]}
+        ListEmptyComponent={
+          waiting && apiLoadingTimedOut ? (
+            <Notice>
+              <Text style={styles.emptyTitle}>
+                تعذّر تحميل تسجيل الدخول — حدّث الصفحة
+              </Text>
+            </Notice>
+          ) : waiting ? (
+            <View style={styles.loading}><ActivityIndicator color={colors.blue} /></View>
+          ) : error ? (
+            <Notice>
+              <Text style={styles.emptyTitle}>تعذر تحميل المحادثات</Text>
+              <Text style={styles.emptyText}>{readableError(error, "تحقق من الاتصال ثم حاول مرة أخرى.")}</Text>
+              <View style={styles.retry}><PrimaryButton title="إعادة المحاولة" onPress={refresh} secondary /></View>
+            </Notice>
+          ) : (
+            <View style={styles.empty}>
+              <View style={styles.emptyIcon}><Text style={styles.emptyGlyph}>✉</Text></View>
+              <Text style={styles.emptyTitle}>
+                {includeArchived ? "لا توجد محادثات مؤرشفة" : "لسه مفيش محادثات"}
+              </Text>
+              <Text style={styles.emptyText}>
+                {includeArchived
+                  ? "تظهر هنا المحادثات التي أرشفتها."
+                  : "ابحث عن شخص مسجّل في Oscar Messaging وابدأ برسالة."}
+              </Text>
+              {!includeArchived && <View style={styles.retry}><PrimaryButton title="محادثة جديدة" onPress={() => router.push("/new-message")} /></View>}
+            </View>
+          )
+        }
+        ListFooterComponent={
+          <Text style={styles.liveNote}>تتحدّث الرسائل تلقائيًا أثناء فتح التطبيق.</Text>
+        }
+      />
       <Modal
         visible={!!settingsConversation}
         transparent
@@ -702,7 +708,7 @@ const styles = StyleSheet.create({
   preview: { color: colors.muted, fontSize: 13, flex: 1, textAlign: "right" },
   unreadBadge: { backgroundColor: colors.blue, borderRadius: 10, minWidth: 20, height: 20, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
   unreadText: { color: "#06111F", fontSize: 11, fontWeight: "800" },
-  emptyList: { flexGrow: 1, justifyContent: "center" },
+  emptyList: { flexGrow: 1 },
   empty: { alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 40 },
   emptyIcon: { height: 72, width: 72, borderRadius: 25, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
   emptyGlyph: { color: colors.blue, fontSize: 32 },

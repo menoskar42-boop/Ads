@@ -45,83 +45,97 @@ export default function GroupsScreen() {
         action="إنشاء"
         onAction={() => router.push("/groups/new")}
       />
-      <View style={styles.content}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push("/statuses")}
-          style={({ pressed }) => [styles.statusLink, pressed && styles.pressed]}
-        >
-          <Ionicons name="radio-outline" size={21} color={colors.blue} />
-          <View style={styles.statusCopy}>
-            <Text style={styles.statusTitle}>الحالات الخاصة</Text>
-            <Text style={styles.statusHint}>تظهر لجهات الاتصال التي تختارها وتختفي بعد 24 ساعة.</Text>
-          </View>
-          <Ionicons name="chevron-back" size={18} color={colors.muted} />
-        </Pressable>
-
-        {capability.isPending ? (
-          <Loading />
-        ) : capability.isError ? (
-          <Notice>
-            <Text style={styles.title}>تعذر التحقق من المجموعات</Text>
-            <Text style={styles.copy}>{readableError(capability.error, "تحقق من الاتصال ثم أعد المحاولة.")}</Text>
-          </Notice>
-        ) : !capability.data?.enabled ? (
-          <Notice>
-            <Text style={styles.title}>المجموعات لم تُفعّل بعد</Text>
-            <Text style={styles.copy}>
-              يلزم تطبيق تحديث قاعدة البيانات أولًا. بيانات المجموعات والحالات لا تُفتح قبل ذلك.
-            </Text>
-          </Notice>
-        ) : groups.isPending ? (
-          <Loading />
-        ) : groups.isError ? (
-          <Notice>
-            <Text style={styles.title}>تعذر تحميل المجموعات</Text>
-            <Text style={styles.copy}>{readableError(groups.error, "تحقق من الاتصال ثم أعد المحاولة.")}</Text>
-            <PrimaryButton title="إعادة المحاولة" onPress={() => void groups.refetch()} secondary />
-          </Notice>
-        ) : (
-          <FlatList
-            data={groups.data?.groups ?? []}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={!!groups.data?.groups.length}
-            contentContainerStyle={[styles.list, !groups.data?.groups.length && styles.emptyList]}
-            renderItem={({ item }) => (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`فتح مجموعة ${item.name}`}
-                onPress={() => router.push({ pathname: "/groups/[groupId]", params: { groupId: item.id } })}
-                style={({ pressed }) => [styles.group, pressed && styles.pressed]}
-              >
-                <Avatar name={item.name} />
-                <View style={styles.groupCopy}>
-                  <View style={styles.groupTitleLine}>
-                    <Text numberOfLines={1} style={styles.groupName}>
-                      {item.name}
-                    </Text>
-                    {item.isMuted && <Ionicons name="notifications-off-outline" size={14} color={colors.muted} />}
-                    <Text style={styles.time}>{shortTime(item.updatedAt)}</Text>
-                  </View>
-                  <Text numberOfLines={1} style={styles.preview}>
-                    {item.lastMessage || `${item.memberCount} عضوًا`}
-                  </Text>
-                  <Text style={styles.memberCount}>{item.memberCount} عضوًا</Text>
-                </View>
-                <Ionicons name="chevron-back" size={17} color={colors.muted} />
-              </Pressable>
-            )}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <Ionicons name="people-outline" size={34} color={colors.blue} />
-                <Text style={styles.title}>لا توجد مجموعات بعد</Text>
-                <Text style={styles.copy}>أنشئ مجموعة خاصة وأضف إليها الحسابات التي تريدها.</Text>
-                <PrimaryButton title="إنشاء مجموعة" onPress={() => router.push("/groups/new")} />
+      <FlatList
+        style={styles.content}
+        data={
+          capability.isPending ||
+          capability.isError ||
+          !capability.data?.enabled ||
+          groups.isError
+            ? []
+            : groups.data?.groups ?? []
+        }
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={[
+          styles.list,
+          (capability.isPending ||
+            capability.isError ||
+            !capability.data?.enabled ||
+            groups.isError ||
+            !groups.data?.groups.length) &&
+            styles.emptyList,
+        ]}
+        ListHeaderComponent={
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push("/statuses")}
+            style={({ pressed }) => [styles.statusLink, pressed && styles.pressed]}
+          >
+            <Ionicons name="radio-outline" size={21} color={colors.blue} />
+            <View style={styles.statusCopy}>
+              <Text style={styles.statusTitle}>الحالات الخاصة</Text>
+              <Text style={styles.statusHint}>تظهر لجهات الاتصال التي تختارها وتختفي بعد 24 ساعة.</Text>
+            </View>
+            <Ionicons name="chevron-back" size={18} color={colors.muted} />
+          </Pressable>
+        }
+        renderItem={({ item }) => (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`فتح مجموعة ${item.name}`}
+            onPress={() => router.push({ pathname: "/groups/[groupId]", params: { groupId: item.id } })}
+            style={({ pressed }) => [styles.group, pressed && styles.pressed]}
+          >
+            <Avatar name={item.name} />
+            <View style={styles.groupCopy}>
+              <View style={styles.groupTitleLine}>
+                <Text numberOfLines={1} style={styles.groupName}>
+                  {item.name}
+                </Text>
+                {item.isMuted && <Ionicons name="notifications-off-outline" size={14} color={colors.muted} />}
+                <Text style={styles.time}>{shortTime(item.updatedAt)}</Text>
               </View>
-            }
-          />
+              <Text numberOfLines={1} style={styles.preview}>
+                {item.lastMessage || `${item.memberCount} عضوًا`}
+              </Text>
+              <Text style={styles.memberCount}>{item.memberCount} عضوًا</Text>
+            </View>
+            <Ionicons name="chevron-back" size={17} color={colors.muted} />
+          </Pressable>
         )}
-      </View>
+        ListEmptyComponent={
+          capability.isPending ? (
+            <Loading />
+          ) : capability.isError ? (
+            <Notice>
+              <Text style={styles.title}>تعذر التحقق من المجموعات</Text>
+              <Text style={styles.copy}>{readableError(capability.error, "تحقق من الاتصال ثم أعد المحاولة.")}</Text>
+            </Notice>
+          ) : !capability.data?.enabled ? (
+            <Notice>
+              <Text style={styles.title}>المجموعات لم تُفعّل بعد</Text>
+              <Text style={styles.copy}>
+                يلزم تطبيق تحديث قاعدة البيانات أولًا. بيانات المجموعات والحالات لا تُفتح قبل ذلك.
+              </Text>
+            </Notice>
+          ) : groups.isPending ? (
+            <Loading />
+          ) : groups.isError ? (
+            <Notice>
+              <Text style={styles.title}>تعذر تحميل المجموعات</Text>
+              <Text style={styles.copy}>{readableError(groups.error, "تحقق من الاتصال ثم أعد المحاولة.")}</Text>
+              <PrimaryButton title="إعادة المحاولة" onPress={() => void groups.refetch()} secondary />
+            </Notice>
+          ) : (
+            <View style={styles.empty}>
+              <Ionicons name="people-outline" size={34} color={colors.blue} />
+              <Text style={styles.title}>لا توجد مجموعات بعد</Text>
+              <Text style={styles.copy}>أنشئ مجموعة خاصة وأضف إليها الحسابات التي تريدها.</Text>
+              <PrimaryButton title="إنشاء مجموعة" onPress={() => router.push("/groups/new")} />
+            </View>
+          )
+        }
+      />
     </Screen>
   );
 }
@@ -144,7 +158,7 @@ const styles = StyleSheet.create({
   preview: { color: colors.muted, textAlign: "right", fontSize: 12 },
   memberCount: { color: colors.blue, textAlign: "right", fontSize: 10 },
   list: { gap: 9, paddingBottom: 30 },
-  emptyList: { flexGrow: 1, justifyContent: "center" },
+  emptyList: { flexGrow: 1 },
   empty: { alignItems: "center", gap: 12, padding: 22 },
   title: { color: colors.text, fontSize: 17, fontWeight: "800", textAlign: "right" },
   copy: { color: colors.muted, fontSize: 13, lineHeight: 21, textAlign: "right" },
