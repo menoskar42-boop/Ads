@@ -74,15 +74,20 @@ async function sendMailResult({ to, subject, html, text }) {
   if (!to) return { ok: false, status: 'unavailable' };
   const tx = getTransporter();
   if (!tx) {
-    console.warn('[mailer] SMTP not configured — skipping email to', to);
+    console.warn('[mailer] SMTP not configured — skipping email');
     return { ok: false, status: 'unavailable' };
   }
   try {
-    await tx.sendMail({ from: FROM(), to, subject, html, text });
-    console.log('[mailer] sent email to', to, '—', subject);
+    const info = await tx.sendMail({ from: FROM(), to, subject, html, text });
+    if (Array.isArray(info && info.accepted) && info.accepted.length === 0) {
+      console.error('[mailer] SMTP accepted no recipients');
+      return { ok: false, status: 'error' };
+    }
+    console.log('[mailer] SMTP accepted email');
     return { ok: true, status: 'sent' };
   } catch (err) {
-    console.error('[mailer] send failed to', to, ':', err.message);
+    const code = /^[A-Z0-9_]+$/.test(String(err && err.code || '')) ? err.code : 'SMTP_ERROR';
+    console.error('[mailer] send failed:', code);
     return { ok: false, status: 'error' };
   }
 }
