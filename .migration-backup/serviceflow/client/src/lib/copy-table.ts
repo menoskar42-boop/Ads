@@ -37,6 +37,7 @@ export function columnWidths(columns: string[], rows: (string | number | null | 
 export async function copyHtmlTable(
   columns: string[],
   rows: (string | number | null | undefined)[][],
+  options?: { introText?: string },
 ): Promise<boolean> {
   const widths = columnWidths(columns, rows);
   const cell = (v: any, i: number, head = false) => {
@@ -54,8 +55,12 @@ export async function copyHtmlTable(
   const cols = `<colgroup>${widths.map((w) => `<col width="${w}" style="width:${w}px">`).join("")}</colgroup>`;
   const head = `<tr dir="rtl">${columns.map((c, i) => cell(c, i, true)).join("")}</tr>`;
   const body = rows.map((r) => `<tr dir="rtl">${r.map((c, i) => cell(c, i)).join("")}</tr>`).join("");
-  const html = `<table dir="rtl" border="1" cellspacing="0" cellpadding="4" width="${total}" style="direction:rtl;border-collapse:collapse;font-family:Arial;font-size:13px;width:${total}px;table-layout:fixed">${cols}${head}${body}</table>`;
-  const text = [columns, ...rows].map((r) => r.map((c) => latinDigitsForOutlook(c == null ? "" : String(c))).join("\t")).join("\n");
+  const introHtml = options?.introText
+    ? `<p dir="rtl" align="right" style="font-family:Arial;font-size:13px;margin:0 0 8px">${options.introText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`
+    : "";
+  const html = `${introHtml}<table dir="rtl" border="1" cellspacing="0" cellpadding="4" width="${total}" style="direction:rtl;border-collapse:collapse;font-family:Arial;font-size:13px;width:${total}px;table-layout:fixed">${cols}${head}${body}</table>`;
+  const tableText = [columns, ...rows].map((r) => r.map((c) => latinDigitsForOutlook(c == null ? "" : String(c))).join("\t")).join("\n");
+  const text = options?.introText ? `${latinDigitsForOutlook(options.introText)}\n\n${tableText}` : tableText;
   try {
     await navigator.clipboard.write([new ClipboardItem({
       "text/html": new Blob([html], { type: "text/html" }),

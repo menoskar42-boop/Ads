@@ -293,7 +293,7 @@ export function MajorFaultClosureReport() {
 
   const copyTable = async () => {
     if (!tableRow) return;
-    const ok = await copyHtmlTable(COLUMNS, [tableRow]);
+    const ok = await copyHtmlTable(COLUMNS, [tableRow], { introText: "ارجو اغلاق الجسيم الاتى مع الشكر" });
     setNotice(ok ? "تم نسخ الجدول المنسق للصقه في البريد" : "تعذّر نسخ الجدول");
   };
 
@@ -484,6 +484,7 @@ export function MajorFaultClosureReport() {
                   <ClipboardCopy className="h-4 w-4" /> نسخ الجدول للبريد
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">ارجو اغلاق الجسيم الاتى مع الشكر</p>
               <div className="rounded-md border max-h-[55vh] overflow-auto">
                 <Table dir="rtl" className="text-xs">
                   <TableHeader>
