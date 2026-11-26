@@ -122,7 +122,12 @@ test("the Live setup carries the chosen voice, the rounded location, and search"
   const { buildGeminiLiveSetup, parseGeminiLiveOptions } = await import("../src/lib/messenger-ai-live.ts");
   const female = buildGeminiLiveSetup(parseGeminiLiveOptions({}));
   assert.equal(female.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, "Kore");
-  assert.deepEqual(female.tools, [{ googleSearch: {} }]);
+  assert.deepEqual(female.tools[0], { googleSearch: {} });
+  // Default: «ابعت رسالة» records the user's own voice; text mode lets Gemini write it.
+  assert.equal(female.tools[1].functionDeclarations[0].name, "record_voice_message");
+  const text = buildGeminiLiveSetup(parseGeminiLiveOptions({ messageMode: "text" }));
+  assert.equal(text.tools[1].functionDeclarations[0].name, "send_message");
+  assert.match(text.systemInstruction.parts[0].text, /استنى موافقته الصريحة/);
   const options = parseGeminiLiveOptions({ voice: "male", location: { lat: 27.18123, lng: 31.18456 } });
   assert.deepEqual(options.location, { lat: 27.18, lng: 31.18 });
   const male = buildGeminiLiveSetup(options);

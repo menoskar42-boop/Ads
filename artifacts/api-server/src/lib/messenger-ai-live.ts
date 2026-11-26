@@ -12,6 +12,8 @@ type UsageLedger = Map<string, DailyUsage>;
 
 export type GeminiLiveOptions = {
   voice?: "female" | "male";
+  /** How «ابعت رسالة لفلان» is sent: the user's own recorded voice, or text written by Gemini. */
+  messageMode?: "voice" | "text";
   location?: { lat: number; lng: number } | null;
 };
 
@@ -29,6 +31,32 @@ export function buildGeminiLiveSetup(options: GeminiLiveOptions = {}) {
     : "";
   const today = new Date().toLocaleDateString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "full" });
   const searchEnabled = process.env.GEMINI_LIVE_SEARCH !== "off";
+  const voiceMessages = options.messageMode !== "text";
+  const messageTool = voiceMessages
+    ? {
+        name: "record_voice_message",
+        description: "يسجّل رسالة صوتية بصوت المستخدم نفسه ويبعتها لجهة اتصال فى Oscar Messenger.",
+        parameters: {
+          type: "OBJECT",
+          properties: { contact_name: { type: "STRING", description: "اسم الشخص زى ما المستخدم قاله" } },
+          required: ["contact_name"],
+        },
+      }
+    : {
+        name: "send_message",
+        description: "يبعت رسالة نصية لجهة اتصال فى Oscar Messenger.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            contact_name: { type: "STRING", description: "اسم الشخص زى ما المستخدم قاله" },
+            text: { type: "STRING", description: "نص الرسالة بالظبط" },
+          },
+          required: ["contact_name", "text"],
+        },
+      };
+  const messageRule = voiceMessages
+    ? " لما المستخدم يطلب يبعت رسالة لحد: قوله «اتكلم بعد الصفارة» وندّه record_voice_message بالاسم بس. التطبيق بيسجّل صوته هو ويبعته."
+    : " لما المستخدم يطلب يبعت رسالة لحد: اكتب النص، اقراه عليه، واستنى موافقته الصريحة («أيوه» أو «ابعت») قبل ما تندّه send_message.";
   return {
     model: `models/${GEMINI_LIVE_MODEL}`,
     generationConfig: {
@@ -37,16 +65,22 @@ export function buildGeminiLiveSetup(options: GeminiLiveOptions = {}) {
     },
     systemInstruction: {
       parts: [{ text: `${BASE_INSTRUCTION} النهارده ${today} بتوقيت القاهرة.${where}` +
-        (searchEnabled ? " لأى معلومة بتتغيّر (الطقس، الأخبار، الأسعار) دوّر بـGoogle Search قبل ما ترد." : "") }],
+        (searchEnabled ? " لأى معلومة بتتغيّر (الطقس، الأخبار، الأسعار) دوّر بـGoogle Search قبل ما ترد." : "") +
+        messageRule +
+        " لو الأداة رجعت خطأ أو أكتر من اسم، قوله واسأله يختار." }],
     },
     inputAudioTranscription: {},
-    ...(searchEnabled ? { tools: [{ googleSearch: {} }] } : {}),
+    tools: [
+      ...(searchEnabled ? [{ googleSearch: {} }] : []),
+      { functionDeclarations: [messageTool] },
+    ],
   };
 }
 
 export function parseGeminiLiveOptions(body: unknown): GeminiLiveOptions {
   const input = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const voice = input.voice === "male" ? "male" : "female";
+  const messageMode = input.messageMode === "text" ? "text" : "voice";
   const raw = input.location && typeof input.location === "object"
     ? (input.location as Record<string, unknown>)
     : null;
@@ -56,7 +90,7 @@ export function parseGeminiLiveOptions(body: unknown): GeminiLiveOptions {
     raw && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
       ? { lat: Math.round(lat * 100) / 100, lng: Math.round(lng * 100) / 100 }
       : null;
-  return { voice, location };
+  return { voice, location, messageMode };
 }
 
 export type GeminiLiveTokenResult =

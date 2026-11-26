@@ -68,3 +68,19 @@ export function writeOscarAiShareLocation(enabled: boolean): void {
     // Default stays on; the browser still asks for location permission.
   }
 }
+
+const MESSAGE_MODE_KEY = "messenger.oscar-ai.message-mode.v1";
+export type OscarAiMessageMode = "voice" | "text";
+
+/** «ابعت رسالة لفلان»: the user's own recorded voice (default) or text written by Gemini. */
+export function readOscarAiMessageMode(): OscarAiMessageMode {
+  return storage()?.getItem(MESSAGE_MODE_KEY) === "text" ? "text" : "voice";
+}
+
+export function writeOscarAiMessageMode(mode: OscarAiMessageMode): void {
+  try {
+    storage()?.setItem(MESSAGE_MODE_KEY, mode);
+  } catch {
+    // Falls back to the voice default.
+  }
+}

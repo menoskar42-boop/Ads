@@ -8,10 +8,14 @@ import {
   Text,
   View,
 } from "react-native";
+import { listMessengerConversations, sendMessengerMessage } from "@workspace/api-client-react";
 import { apiUrl } from "../lib/api";
+import { matchContacts } from "../lib/oscar-ai-messages";
+import { baseMessengerAudioContentType, chooseWebAudioMimeType } from "../lib/web-voice";
 import {
   hasOscarAiGoogleConsent,
   OSCAR_AI_WAKE_CHANGE_EVENT,
+  readOscarAiMessageMode,
   readOscarAiShareLocation,
   readOscarAiVoice,
   readOscarAiWakeEnabled,
@@ -76,6 +80,10 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   const source = useRef<MediaStreamAudioSourceNode | null>(null);
   const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heardReply = useRef(false);
+  // While a voice message is being recorded the mic goes to the recorder, not to Gemini.
+  const recording = useRef<{ lastVoiceAt: number; heardVoice: boolean; startedAt: number } | null>(null);
+  const [recordingFor, setRecordingFor] = useState("");
+  const cancelRecording = useRef<(() => void) | null>(null);
   const primedContext = useRef<AudioContext | null>(null);
   /** Create and resume the AudioContext inside the tap itself (iOS needs the user gesture). */
   const primeAudio = useCallback(() => {
@@ -122,6 +130,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   }, []);
 
   const stopSession = useCallback(() => {
+    cancelRecording.current?.();
     clearSilenceTimer();
     const reservedBy = liveSessionAuth.current;
     liveSessionAuth.current = null;
@@ -155,11 +164,115 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   const armSilenceEnd = useCallback(() => {
     clearSilenceTimer();
     silenceTimer.current = setTimeout(() => {
+      if (recording.current) return; // recording a voice message: the recorder decides when to stop
       // Say why the session ended instead of silently returning to the button.
       if (!heardReply.current) setError("Oscar AI ماسمعش كلام لمدة ٨ ثوانى فقفل. اتكلم أول ما يقول «بيسمع».");
       stopRef.current();
     }, SILENCE_END_MS);
   }, [clearSilenceTimer]);
+
+  /**
+   * «ابعت رسالة لفلان» (owner 2026-11-26): sent from the user's own account as the user.
+   * Text written by Gemini carries a small «اتكتبت بـOscar AI» note; a voice message is the
+   * user's own recorded voice (recorded here, never sent to Gemini).
+   */
+  const recordVoiceMessage = useCallback(async (contactName: string): Promise<{ blob: Blob; durationMs: number } | null> => {
+    const media = stream.current;
+    const mimeType = typeof MediaRecorder !== "undefined"
+      ? chooseWebAudioMimeType((type) => MediaRecorder.isTypeSupported(type))
+      : null;
+    if (!media || !mimeType) throw new Error("التسجيل مش مدعوم فى المتصفح ده.");
+    // Let Oscar finish «اتكلم بعد الصفارة» so his voice is not recorded into the message.
+    const playing = context.current;
+    if (playing) {
+      const remainingMs = Math.max(0, (nextPlaybackAt.current - playing.currentTime) * 1_000);
+      if (remainingMs) await new Promise((resolve) => setTimeout(resolve, Math.min(remainingMs + 200, 8_000)));
+    }
+    await playBeep(context.current);
+    const recorder = new MediaRecorder(media, { mimeType });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size) chunks.push(event.data);
+    };
+    const startedAt = Date.now();
+    recording.current = { lastVoiceAt: startedAt, heardVoice: false, startedAt };
+    setRecordingFor(contactName);
+    let cancelled = false;
+    await new Promise<void>((resolve) => {
+      const check = setInterval(() => {
+        const state = recording.current;
+        const now = Date.now();
+        // Stop after 1.5 s of silence once speech started, 6 s with no speech, or 60 s total.
+        if (!state || cancelled ||
+          (state.heardVoice && now - state.lastVoiceAt > 1_500) ||
+          (!state.heardVoice && now - startedAt > 6_000) ||
+          now - startedAt > 60_000) {
+          clearInterval(check);
+          if (recorder.state !== "inactive") recorder.stop();
+        }
+      }, 200);
+      cancelRecording.current = () => {
+        cancelled = true;
+      };
+      recorder.onstop = () => resolve();
+      recorder.start(250);
+    });
+    const heardVoice = recording.current?.heardVoice ?? false;
+    recording.current = null;
+    cancelRecording.current = null;
+    setRecordingFor("");
+    if (cancelled || !heardVoice) return null;
+    return {
+      blob: new Blob(chunks, { type: baseMessengerAudioContentType(mimeType) ?? "audio/webm" }),
+      durationMs: Math.min(120_000, Math.max(1, Date.now() - startedAt)),
+    };
+  }, []);
+
+  const runMessageTool = useCallback(async (name: unknown, args: Record<string, unknown>) => {
+    try {
+      const said = typeof args.contact_name === "string" ? args.contact_name : "";
+      const { conversations } = await listMessengerConversations();
+      const matches = matchContacts(conversations, said);
+      if (!matches.length) return { error: `مش لاقى حد اسمه «${said}» فى محادثاتك.` };
+      if (matches.length > 1) {
+        return { error: "فيه أكتر من حد بالاسم ده — اسأل المستخدم يختار.", options: matches.map((match) => match.name) };
+      }
+      const contact = matches[0];
+      if (name === "send_message") {
+        const text = typeof args.text === "string" ? args.text.trim() : "";
+        if (!text) return { error: "نص الرسالة فاضى." };
+        await sendMessengerMessage(contact.conversationId, {
+          body: `${text.slice(0, 3_900)}\n\n✍️ اتكتبت بـOscar AI`,
+          clientMessageId: `oscar-ai-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        });
+        return { result: "sent", to: contact.name };
+      }
+      if (name === "record_voice_message") {
+        const recorded = await recordVoiceMessage(contact.name);
+        if (!recorded) return { result: "cancelled", to: contact.name, note: "ماتسجّلش كلام أو المستخدم لغى." };
+        const authToken = await getToken();
+        if (!authToken) return { error: "انتهت جلسة الدخول." };
+        const contentType = baseMessengerAudioContentType(recorded.blob.type) ?? "audio/webm";
+        const upload = await fetch(
+          apiUrl(`/api/messenger/conversations/${encodeURIComponent(contact.conversationId)}/audio-messages?durationMs=${recorded.durationMs}`),
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+              "Content-Type": contentType,
+              "X-Client-Message-Id": `oscar-ai-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+            },
+            body: recorded.blob,
+          },
+        );
+        if (!upload.ok) return { error: "تعذر رفع الرسالة الصوتية." };
+        return { result: "sent", to: contact.name };
+      }
+      return { error: "أداة مش معروفة." };
+    } catch (toolError) {
+      return { error: toolError instanceof Error ? toolError.message : "تعذر إرسال الرسالة." };
+    }
+  }, [getToken, recordVoiceMessage]);
 
   const startSession = useCallback(async () => {
     setError("");
@@ -173,7 +286,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
       const tokenResponse = await fetch(apiUrl("/api/messenger/ai/live-session"), {
         method: "POST",
         headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ voice: readOscarAiVoice(), location }),
+        body: JSON.stringify({ voice: readOscarAiVoice(), location, messageMode: readOscarAiMessageMode() }),
       });
       const tokenPayload = await tokenResponse.json().catch(() => ({}));
       if (!tokenResponse.ok) {
@@ -250,7 +363,17 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
             for (let index = 0; index < input.length; index += 1) {
               energy += input[index] * input[index];
             }
-            if (Math.sqrt(energy / input.length) > 0.012) clearSilenceTimer();
+            const speaking = Math.sqrt(energy / input.length) > 0.012;
+            if (speaking) clearSilenceTimer();
+            const takingMessage = recording.current;
+            if (takingMessage) {
+              if (speaking) {
+                takingMessage.lastVoiceAt = Date.now();
+                takingMessage.heardVoice = true;
+              }
+              audioEvent.outputBuffer.getChannelData(0).fill(0);
+              return;
+            }
             if (liveSocket.readyState !== WebSocket.OPEN) return;
             const pcm = toPcm16(resample(input, audioContext.sampleRate, INPUT_RATE));
             liveSocket.send(JSON.stringify({
@@ -266,6 +389,22 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
           };
           micSource.connect(micProcessor);
           micProcessor.connect(audioContext.destination);
+        }
+
+        const functionCalls = message.toolCall?.functionCalls;
+        if (Array.isArray(functionCalls) && functionCalls.length) {
+          clearSilenceTimer();
+          void (async () => {
+            const functionResponses = [];
+            for (const call of functionCalls) {
+              const response = await runMessageTool(call?.name, call?.args ?? {});
+              functionResponses.push({ id: call?.id, name: call?.name, response });
+            }
+            if (liveSocket.readyState === WebSocket.OPEN) {
+              liveSocket.send(JSON.stringify({ toolResponse: { functionResponses } }));
+            }
+            armSilenceEnd();
+          })();
         }
 
         const inputText = message.serverContent?.inputTranscription?.text;
@@ -318,7 +457,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
       setError(message);
       stopRef.current();
     }
-  }, [armSilenceEnd, clearSilenceTimer, getToken]);
+  }, [armSilenceEnd, clearSilenceTimer, getToken, runMessageTool]);
 
   // Starting by voice («أوسكار») has no tap, so unlock audio on the first touch anywhere in
   // the app (iPhone and Android Chrome both block audio until a user gesture). The unlocked
@@ -489,17 +628,21 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
       {active ? (
         <View style={styles.activeRow}>
           <View style={styles.activeCopy}>
-            <Text style={styles.title}>{connecting ? "بيفتح Oscar AI…" : "بيسمع"}</Text>
-            <Text style={styles.subtitle}>الجلسة مؤقتة ولا تُحفظ المحادثة</Text>
+            <Text style={styles.title}>
+              {connecting ? "بيفتح Oscar AI…" : recordingFor ? `🎙️ بيسجّل رسالة لـ${recordingFor} — اتكلم` : "بيسمع"}
+            </Text>
+            <Text style={styles.subtitle}>
+              {recordingFor ? "بيتبعت لوحده لما تسكت ثانية ونص" : "الجلسة مؤقتة ولا تُحفظ المحادثة"}
+            </Text>
           </View>
           {connecting && <ActivityIndicator color={colors.blue} />}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="إنهاء Oscar AI"
-            onPress={stopSession}
+            onPress={() => (recordingFor ? cancelRecording.current?.() : stopSession())}
             style={styles.endButton}
           >
-            <Text style={styles.endText}>إنهاء</Text>
+            <Text style={styles.endText}>{recordingFor ? "إلغاء الرسالة" : "إنهاء"}</Text>
           </Pressable>
         </View>
       ) : (
@@ -573,6 +716,20 @@ function approximateLocation(): Promise<{ lat: number; lng: number } | null> {
       { enableHighAccuracy: false, maximumAge: 10 * 60_000, timeout: 4_000 },
     );
   });
+}
+
+/** Short «بيب» before recording a voice message. */
+async function playBeep(audioContext: AudioContext | null): Promise<void> {
+  if (!audioContext || audioContext.state !== "running") return;
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  oscillator.frequency.value = 880;
+  gain.gain.value = 0.08;
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+  oscillator.start();
+  oscillator.stop(audioContext.currentTime + 0.2);
+  await new Promise((resolve) => setTimeout(resolve, 300));
 }
 
 async function playOscarHello(voice: OscarAiVoice): Promise<void> {

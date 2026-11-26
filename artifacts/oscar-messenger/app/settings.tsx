@@ -26,12 +26,15 @@ import {
 import { apiUrl, queryKeys } from "../lib/api";
 import { readableError } from "../lib/format";
 import {
+  readOscarAiMessageMode,
   readOscarAiShareLocation,
   readOscarAiVoice,
   readOscarAiWakeEnabled,
+  writeOscarAiMessageMode,
   writeOscarAiShareLocation,
   writeOscarAiVoice,
   writeOscarAiWakeEnabled,
+  type OscarAiMessageMode,
   type OscarAiVoice,
 } from "../lib/oscar-ai-preferences";
 import { isPhoneSetupSkipped } from "../lib/phone-setup-storage";
@@ -301,7 +304,9 @@ function OscarAiWakeSettings() {
   const [enabled, setEnabled] = useState(false);
   const [voice, setVoice] = useState<OscarAiVoice>("female");
   const [shareLocation, setShareLocation] = useState(true);
+  const [messageMode, setMessageMode] = useState<OscarAiMessageMode>("voice");
   useEffect(() => {
+    setMessageMode(readOscarAiMessageMode());
     setEnabled(readOscarAiWakeEnabled());
     setVoice(readOscarAiVoice());
     setShareLocation(readOscarAiShareLocation());
@@ -345,6 +350,29 @@ function OscarAiWakeSettings() {
           style={({ pressed }) => [styles.addPhoneButton, pressed && styles.pressed]}
         >
           <Text style={styles.addPhoneText}>{voice === "male" ? "خليه ست" : "خليه راجل"}</Text>
+        </Pressable>
+      </View>
+      <View style={styles.switchRow}>
+        <View style={styles.switchCopy}>
+          <Text style={styles.switchTitle}>«ابعت رسالة لفلان»</Text>
+          <Text style={styles.copy}>
+            {messageMode === "voice"
+              ? "رسالة صوتية بصوتك انت: بعد الصفارة اتكلم، وبتتبعت لما تسكت."
+              : "رسالة مكتوبة: Oscar AI بيكتبها ويقراهالك ويستنى «ابعت»، وتحتها «اتكتبت بـOscar AI»."}
+          </Text>
+        </View>
+        <Pressable
+          testID="messenger-oscar-ai-message-mode"
+          accessibilityRole="button"
+          accessibilityLabel="طريقة إرسال الرسائل بـ Oscar AI"
+          onPress={() => {
+            const next: OscarAiMessageMode = messageMode === "voice" ? "text" : "voice";
+            writeOscarAiMessageMode(next);
+            setMessageMode(next);
+          }}
+          style={({ pressed }) => [styles.addPhoneButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.addPhoneText}>{messageMode === "voice" ? "خليها مكتوبة" : "خليها صوتية"}</Text>
         </Pressable>
       </View>
       <View style={styles.switchRow}>
