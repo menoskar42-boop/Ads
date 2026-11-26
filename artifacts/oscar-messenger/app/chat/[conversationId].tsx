@@ -1203,14 +1203,18 @@ export default function ChatScreen() {
     if (!attachment) return undefined;
     const cached = getCachedMedia(message.id);
     if (cached) {
-      setMediaPreviewStates((current) => ({
-        ...current,
-        [message.id]: {
-          uri: cached.uri,
-          loading: attachment.kind === "image",
-          error: false,
-        },
-      }));
+      setMediaPreviewStates((current) => {
+        const prev = current[message.id];
+        if (prev && prev.uri === cached.uri && !prev.error) return current;
+        return {
+          ...current,
+          [message.id]: {
+            uri: cached.uri,
+            loading: attachment.kind === "image",
+            error: false,
+          },
+        };
+      });
       return cached;
     }
     setMediaPreviewStates((current) => ({
@@ -1226,14 +1230,18 @@ export default function ChatScreen() {
         kind: attachment.kind,
         getToken,
       });
-      setMediaPreviewStates((current) => ({
-        ...current,
-        [message.id]: {
-          uri: media.uri,
-          loading: attachment.kind === "image",
-          error: false,
-        },
-      }));
+      setMediaPreviewStates((current) => {
+        const prev = current[message.id];
+        if (prev && prev.uri === media.uri && prev.loading === false) return current;
+        return {
+          ...current,
+          [message.id]: {
+            uri: media.uri,
+            loading: attachment.kind === "image",
+            error: false,
+          },
+        };
+      });
       return media;
     } catch {
       setMediaPreviewStates((current) => ({
