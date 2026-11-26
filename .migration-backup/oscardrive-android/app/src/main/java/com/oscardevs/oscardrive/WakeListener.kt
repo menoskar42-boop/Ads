@@ -8,6 +8,7 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import com.oscardevs.oscardrive.logic.WakeCapturePolicy
 
 /**
  * «يا أوسكار» — استماع متكرر ببرنامج التعرّف على الكلام اللى على الشاشة (مش محرّك استدعاء خاص ولا AI):
@@ -18,21 +19,41 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
                    /** النتايج الجزئية وانت لسه بتتكلم — للتصوير الفورى لأوامر الطريق (ProvisionalCapture). */
                    private val onPartial: ((List<String>) -> Unit)? = null) : RecognitionListener {
     private val h = Handler(Looper.getMainLooper())
+    private val commandTimeoutHandler = Handler(Looper.getMainLooper())
     private var sr: SpeechRecognizer? = null
     var active = false; private set
     private var errors = 0
+    private var oneShot = false
+    private var onTimeout: (() -> Unit)? = null
 
     /** شغّال بمحرّك أوسكار اللى من غير نت (OfflineEars) مش ببرنامج الشاشة. */
     private var ears = false
 
-    fun start(lang: String, offline: Boolean, useEars: Boolean = false) {
+    fun start(
+        lang: String,
+        offline: Boolean,
+        useEars: Boolean = false,
+        oneShot: Boolean = false,
+        onTimeout: (() -> Unit)? = null,
+    ) {
         if (active) return
+        this.oneShot = oneShot
+        this.onTimeout = onTimeout
         if (useEars) {
+            if (!OfflineEars.installed(ctx, OfflineEars.langOf(lang))) {
+                this.oneShot = false
+                this.onTimeout = null
+                onState("صوت أوسكار من غير نت لسه مانزلش — نزّله من شاشة 🎙️ Oscar")
+                return
+            }
             active = true; ears = true
-            OfflineEars.start(ctx, OfflineEars.langOf(lang), oneShot = false, onText = { onText(listOf(it)) }, onState = { st ->
+            OfflineEars.start(ctx, OfflineEars.langOf(lang), oneShot = oneShot, onText = {
+                if (this.oneShot) finishOneShot(listOf(it)) else onText(listOf(it))
+            }, onState = { st ->
                 if (!OfflineEars.listening) active = false
                 onState(st)
-            }, onPartial = onPartial?.let { f -> { p: String -> f(listOf(p)) } })
+            }, onPartial = onPartial?.let { f -> { p: String -> f(listOf(p)) } },
+                onTimeout = { if (this.oneShot) finishOneShot(emptyList()) })
             return
         }
         ears = false
@@ -41,6 +62,7 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
         active = true; errors = 0
         sr = SpeechRecognizer.createSpeechRecognizer(ctx).also { it.setRecognitionListener(this) }
         onState("🎙️ سامعك — قول «يا أوسكار»")
+        if (oneShot) commandTimeoutHandler.postDelayed({ finishOneShot(emptyList()) }, WakeCapturePolicy.COMMAND_MAX_WAIT_MS)
         listen(0)
     }
 
@@ -49,11 +71,23 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
 
     fun stop() {
         active = false
+        oneShot = false
+        onTimeout = null
+        commandTimeoutHandler.removeCallbacksAndMessages(null)
         if (ears) { ears = false; OfflineEars.stop(); onState(""); return }
         h.removeCallbacksAndMessages(null)
         try { sr?.cancel(); sr?.destroy() } catch (_: Exception) {}
         sr = null
         onState("")
+    }
+
+    private fun finishOneShot(results: List<String>) {
+        if (!oneShot || !active) return
+        val timeout = onTimeout
+        oneShot = false
+        onTimeout = null
+        stop()
+        if (results.isEmpty()) timeout?.invoke() else onText(results)
     }
 
     private fun listen(delayMs: Long) {
@@ -71,6 +105,12 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
                 .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, VoiceDiag.preferOffline(ctx, offline))
                 .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, onPartial != null)
+            if (oneShot) {
+                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
+                    WakeCapturePolicy.COMMAND_SILENCE_MS.toInt())
+                i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                    WakeCapturePolicy.POSSIBLE_COMMAND_SILENCE_MS.toInt())
+            }
             startedMs = System.currentTimeMillis(); speechMs = 0L
             try { sr?.startListening(i) } catch (_: Exception) { recreate(); listen(2000) }
         }, delayMs)
@@ -88,6 +128,7 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
     override fun onResults(results: Bundle?) {
         errors = 0
         val l = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+        if (oneShot) { finishOneShot(l); return }
         val now = System.currentTimeMillis()
         val after = if (speechMs > 0) "${(now - speechMs) / 100 / 10.0} ث بعد ما بدأت تتكلم" else "${(now - startedMs) / 1000} ث"
         VoiceDiag.add(if (l.isEmpty()) "رجع فاضى ($after)" else "سمع «${l.first()}» ($after)")
@@ -97,6 +138,11 @@ class WakeListener(private val ctx: Context, private val onText: (List<String>) 
 
     override fun onError(error: Int) {
         if (!active) return
+        if (oneShot) {
+            if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) onState("محتاج إذن الميكروفون")
+            finishOneShot(emptyList())
+            return
+        }
         val silence = error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_NO_MATCH
         // السكوت عادى فى الاستماع المتواصل — مابيتحسبش خطأ (كان بيوصّل العدّاد لـ٥ فيستنى ٤ ث بين كل محاولة ويضيّع كلامك)
         if (!silence) { errors++; VoiceDiag.add("خطأ: ${VoiceDiag.errorName(error)}") }

@@ -626,7 +626,52 @@
       voiceLog(key, url, 'tts', 'play: ' + (e && e.name || e)); sayRoad(fallback || pick.t, true);
     }
   }
-  function sayRoad(text, fromClipFail) {
+  function playRecordedLineAndWait(key, preferredText, fallback) {
+    return new Promise(async (resolve) => {
+      let finished = false, timeout = null, onEnded = null, onError = null;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        if (timeout) clearTimeout(timeout);
+        if (onEnded) oscarAudio.removeEventListener('ended', onEnded);
+        if (onError) oscarAudio.removeEventListener('error', onError);
+        resolve();
+      };
+      try {
+        if (oscarVoice() === 'tts') { sayRoad(fallback, false, finish); return; }
+        const lines = await loadOscarLines();
+        const pick = (((lines[key] || {}).ar || []).find((line) =>
+          line && typeof line.f === 'string' && typeof line.t === 'string' &&
+          (line.t === preferredText || line.t.startsWith(preferredText))));
+        if (!pick) { sayRoad(fallback, false, finish); return; }
+        const my = ++playSeq;
+        lastSaid = pick.t || fallback;
+        lastSaidAt = Date.now();
+        try { speechSynthesis.cancel(); } catch (e) {}
+        onEnded = finish;
+        onError = () => {
+          if (my === playSeq) sayRoad(fallback, false, finish);
+          else finish();
+        };
+        timeout = setTimeout(() => {
+          if (my === playSeq && !oscarAudio.paused) oscarAudio.pause();
+          finish();
+        }, 12000);
+        oscarAudio.addEventListener('ended', onEnded, { once: true });
+        oscarAudio.addEventListener('error', onError, { once: true });
+        oscarAudio.src = '/voice/' + oscarVoice() + '/' + pick.f;
+        try { await oscarAudio.play(); }
+        catch (e) {
+          if (onEnded) oscarAudio.removeEventListener('ended', onEnded);
+          if (onError) oscarAudio.removeEventListener('error', onError);
+          sayRoad(fallback, false, finish);
+        }
+      } catch (e) {
+        sayRoad(fallback, false, finish);
+      }
+    });
+  }
+  function sayRoad(text, fromClipFail, onEnd) {
     if (!fromClipFail) { ++playSeq; try { oscarAudio.pause(); } catch (e) {} }
     lastSaid = String(text || ''); lastSaidAt = Date.now();
     // البرومبت ٤: الكلام ساعات مابيطلعش — (١) من غير صوت عربى المتصفح بيقرا بصوت إنجليزى (سكوت أو كلام غلط) ⇒ نختار صوت عربى لو موجود ·
@@ -634,11 +679,12 @@
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text); u.lang = 'ar-EG';
+      if (onEnd) { u.onend = onEnd; u.onerror = onEnd; }
       const vs = speechSynthesis.getVoices() || [];
       const v = vs.find((x) => /^ar[-_]EG/i.test(x.lang)) || vs.find((x) => /^ar/i.test(x.lang));
       if (v) u.voice = v;
-      setTimeout(() => { try { speechSynthesis.resume(); speechSynthesis.speak(u); } catch (e) {} }, 60);
-    } catch (e) {}
+      setTimeout(() => { try { speechSynthesis.resume(); speechSynthesis.speak(u); } catch (e) { onEnd && onEnd(); } }, 60);
+    } catch (e) { if (onEnd) setTimeout(onEnd, 250); }
   }
   let hzLayer = null;
   let signCatalogue = { classes: [] };
@@ -1950,7 +1996,8 @@
   const VOICE_KEY = 'od_voice_on';
   const voiceWanted = () => { try { return localStorage.getItem(VOICE_KEY) !== '0'; } catch (e) { return true; } };
   const plain = (s) => String(s || '').replace(/[\u064B-\u0652،,.؟?!]/g, '').replace(/[أإآ]/g, 'ا').replace(/\s+/g, ' ').trim();
-  let rec = null, listening = false, running = false, voiceDenied = false, awakeUntil = 0;
+  let rec = null, commandRec = null, commandTimer = null;
+  let listening = false, running = false, voiceDenied = false, awakeUntil = 0, voiceMode = 'wake';
   const voiceRepeat = {}, voiceProv = {};
   // «ودّينى X» لمكان مش محفوظ ⇒ OpenStreetMap بالاسم حوالين مكانك ⇒ الأقرب ⇒ الملاحة (زى الشاشة)
   async function searchPlace(q) {
@@ -2007,30 +2054,103 @@
     }
     else if (cmd === 'unknown') { $('voiceNote').textContent = 'مافهمتش: «' + heard + '»'; oscar('not_understood', 'مافهمتش'); }
   }
-  function startVoice() {
-    if (!SR) { $('voiceNote').textContent = 'المتصفح ده مابيدعمش التعرّف على الكلام — جرّب Chrome على أندرويد أو Safari على الآيفون'; return; }
-    rec = new SR(); rec.lang = 'ar-EG'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
-    rec.onresult = (ev) => {
-      const r = ev.results[ev.results.length - 1]; if (!r) return;
-      if (!r.isFinal) {   // لسه بيتكلم: لو شكله «سجّل مطب/حفرة» أو «صوّر الطريق» ⇒ المكان والإطار دلوقتى
-        const now = Date.now();
-        if (Array.from(r).some((a) => RD.hasWake(a.transcript))) awakeUntil = Math.max(awakeUntil, now + RD.WAKE_WINDOW_MS);
-        if (now - lastSaidAt < 6000) return;
-        const c = RD.parseVoice(r[0].transcript, now < awakeUntil);
-        if (RD.ROAD_CMDS.includes(c)) {
-          const fx = lastFix && now - lastFix.t < 10000 ? Object.assign({}, lastFix) : null;
-          RD.provBegin(voiceProv, c, { fix: fx, heading: roadHeading, jpg: grabFrame() }, now);
-        }
+  function updateVoicePartial(alts, now, commandCapture = false) {
+    if (!commandCapture && alts.some((text) => RD.hasWake(text))) {
+      awakeUntil = Math.max(awakeUntil, now + RD.WAKE_WINDOW_MS);
+    }
+    if (now - lastSaidAt < 6000) return;
+    const cmd = RD.parseVoice(alts[0] || '', commandCapture || now < awakeUntil);
+    if (RD.ROAD_CMDS.includes(cmd)) {
+      const fx = lastFix && now - lastFix.t < 10000 ? Object.assign({}, lastFix) : null;
+      RD.provBegin(voiceProv, cmd, { fix: fx, heading: roadHeading, jpg: grabFrame() }, now);
+    }
+  }
+  function runFreshCommand(alts) {
+    if (!alts.length) return;
+    $('voiceNote').textContent = 'سمعت: «' + alts[0] + '»';
+    if (alts.some((text) => callVoiceAnswer(text))) return;
+    const message = alts.map((text) => RD.parseMessageVoice(text, true)).find(Boolean);
+    if (message) { awakeUntil = 0; openMessengerDraft(message.recipient, message.body); return; }
+    const cmd = alts.map((text) => RD.parseVoice(text, true)).find((value) => value && value !== 'unknown')
+      || RD.parseVoice(alts[0], true);
+    const now = Date.now();
+    if (cmd && !RD.repeatOk(voiceRepeat, cmd, now)) { RD.provTake(voiceProv, 'unknown', now); return; }
+    if (!cmd || cmd === 'unknown') { awakeUntil = 0; aiVoice(alts[0]); return; }
+    awakeUntil = 0;
+    runVoice(cmd, alts[0]);
+  }
+  function startFreshCommandCapture() {
+    if (!listening || document.hidden || voiceMode !== 'prompt') return;
+    voiceMode = 'command';
+    const command = new SR();
+    commandRec = command;
+    command.lang = 'ar-EG'; command.continuous = false; command.interimResults = true; command.maxAlternatives = 3;
+    let finished = false;
+    const finish = (alts) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(commandTimer); commandTimer = null;
+      if (commandRec === command) commandRec = null;
+      try { command.stop(); } catch (e) {}
+      if (voiceMode !== 'command') return;
+      if (!alts.length) {
+        voiceMode = 'prompt';
+        $('voiceNote').textContent = 'مسمعتش — قول «يا أوسكار» وجرب تاني';
+        void playRecordedLineAndWait('not_understood', 'معلش، مسمعتش كويس', 'مسمعتش')
+          .then(() => {
+            if (listening && !document.hidden && voiceMode === 'prompt') { voiceMode = 'wake'; startVoice(); }
+          });
         return;
       }
+      voiceMode = 'prompt';
+      runFreshCommand(alts);
+      setTimeout(() => {
+        if (listening && !document.hidden && voiceMode === 'prompt') { voiceMode = 'wake'; startVoice(); }
+      }, 300);
+    };
+    command.onresult = (event) => {
+      const result = event.results[event.results.length - 1];
+      if (!result) return;
+      const alts = Array.from(result).map((item) => String(item.transcript || '').trim()).filter(Boolean);
+      if (!result.isFinal) { updateVoicePartial(alts, Date.now(), true); return; }
+      finish(alts);
+    };
+    command.onerror = (event) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        listening = false; voiceDenied = true; voiceMode = 'wake';
+        clearTimeout(commandTimer); commandTimer = null; commandRec = null;
+        $('voiceNote').textContent = 'اسمح بالميكروفون للموقع ده من إعدادات المتصفح'; voiceUi();
+        return;
+      }
+      finish([]);
+    };
+    command.onend = () => finish([]);
+    commandTimer = setTimeout(() => finish([]), 10_000);
+    try { command.start(); } catch (e) { finish([]); }
+  }
+  async function beginWakeCommandCapture() {
+    if (!listening || document.hidden || voiceMode !== 'wake') return;
+    voiceMode = 'prompt'; awakeUntil = 0;
+    $('voiceNote').textContent = '🎙️ أيوه — قول الأمر';
+    try { rec && rec.stop(); } catch (e) {}
+    await playRecordedLineAndWait('hello', 'أيوه', 'أيوه');
+    if (listening && !document.hidden && voiceMode === 'prompt') startFreshCommandCapture();
+  }
+  function startVoice() {
+    if (!SR) { $('voiceNote').textContent = 'المتصفح ده مابيدعمش التعرّف على الكلام — جرّب Chrome على أندرويد أو Safari على الآيفون'; return; }
+    voiceMode = 'wake';
+    const wakeRec = new SR();
+    rec = wakeRec; wakeRec.lang = 'ar-EG'; wakeRec.continuous = true; wakeRec.interimResults = true; wakeRec.maxAlternatives = 3;
+    wakeRec.onresult = (ev) => {
+      const r = ev.results[ev.results.length - 1]; if (!r) return;
+      if (!r.isFinal) { updateVoicePartial(Array.from(r).map((a) => a.transcript), Date.now()); return; }
       const alts = Array.from(r).map((a) => a.transcript);
       const now = Date.now();
       if (now - lastSaidAt < 6000 && plain(alts[0]) && plain(lastSaid).includes(plain(alts[0]))) return;   // صدى صوت أوسكار نفسه
       $('voiceNote').textContent = 'سمعت: «' + alts[0] + '»';
       if (alts.some((a) => callVoiceAnswer(a))) return;   // رد على «تليفون ولا واتساب؟» / «تأكّد؟»
-      if (alts.some((a) => RD.wakeOnly(a))) {   // «أوسكار» لوحده ⇒ ينتبه ويستنى الأمر
-        awakeUntil = now + RD.WAKE_WINDOW_MS;
-        $('voiceNote').textContent = '🎙️ أيوه — قول الأمر'; oscar('hello', 'أيوه'); return;
+      if (RD.wakeRecognitionAction(alts) === 'fresh-command') {   // نداء فقط ⇒ نوقف الجلسة ونبدأ التقاطًا جديدًا بعد «أيوه»
+        void beginWakeCommandCapture(); return;
       }
       const awake = now < awakeUntil;
       const message = alts.map((a) => RD.parseMessageVoice(a, awake)).find(Boolean);
@@ -2045,14 +2165,21 @@
       if ((!cmd || cmd === 'unknown') && (cmd === 'unknown' || RD.maybeOscar(alts[0], awake))) { awakeUntil = 0; aiVoice(alts[0]); return; }
       if (cmd) { awakeUntil = 0; runVoice(cmd, alts[0]); }
     };
-    rec.onstart = () => { running = true; };
-    rec.onerror = (e) => {
+    wakeRec.onstart = () => { running = true; };
+    wakeRec.onerror = (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         listening = false; voiceDenied = true; $('voiceNote').textContent = 'اسمح بالميكروفون للموقع ده من إعدادات المتصفح'; voiceUi();
       }
     };
     // بيقف لوحده بعد سكوت أو لما الصفحة تستخبى ⇒ نرجّعه (ولو مستخبية ⇒ لما ترجع قدامك — visibilitychange)
-    rec.onend = () => { running = false; if (listening && !document.hidden) setTimeout(() => { if (listening && !running) { try { rec.start(); } catch (e) {} } }, 300); };
+    wakeRec.onend = () => {
+      if (rec === wakeRec) running = false;
+      if (rec === wakeRec && listening && !document.hidden && voiceMode === 'wake') {
+        setTimeout(() => {
+          if (rec === wakeRec && listening && !running && voiceMode === 'wake') { try { wakeRec.start(); } catch (e) {} }
+        }, 300);
+      }
+    };
     listening = true; keepAwake();
     try { rec.start(); } catch (e) {}
     voiceUi();
@@ -2060,19 +2187,33 @@
   function voiceUi() { $('voiceBtn').textContent = listening ? '🎙️ سامعك — اقفل' : '🎙️ شغّل «يا أوسكار»'; $('voiceBtn').className = listening ? 'primary' : ''; }
   $('voiceBtn').addEventListener('click', (ev) => {
     ev.stopPropagation();   // مايتعدّش «أول لمسة» اللى بتشغّل السماع تانى
-    if (listening) { listening = false; try { localStorage.setItem(VOICE_KEY, '0'); } catch (e) {} try { rec.stop(); } catch (e) {} voiceUi(); return; }
+    if (listening) {
+      listening = false; voiceMode = 'wake'; clearTimeout(commandTimer); commandTimer = null;
+      try { commandRec && commandRec.stop(); } catch (e) {} commandRec = null;
+      try { localStorage.setItem(VOICE_KEY, '0'); } catch (e) {}
+      try { rec && rec.stop(); } catch (e) {}
+      voiceUi(); return;
+    }
     try { localStorage.setItem(VOICE_KEY, '1'); } catch (e) {}
     voiceDenied = false; unlockAudio(); oscar('hello', 'سامعك');   // الآيفون مابيتكلمش غير بعد لمسة
     startVoice();
   });
   // تشغيل لوحده: أول ما الصفحة تفتح، ولما ترجع قدامك، ومع أول لمسة (بعض المتصفحات مابتفتحش الميكروفون من غير لمسة)
   function autoVoice() {
-    if (!SR || voiceDenied || !voiceWanted() || document.hidden || !token) return;
+    if (!SR || voiceDenied || !voiceWanted() || document.hidden || !token || voiceMode !== 'wake') return;
     if (!listening) { startVoice(); return; }
     if (!running && rec) { try { rec.start(); } catch (e) {} }
   }
   setTimeout(autoVoice, 1200); setTimeout(autoVoice, 4000);   // التانية لو التوكن («الموبايل لوحده») لسه بيتجاب
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(autoVoice, 400); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      voiceMode = 'wake'; awakeUntil = 0; clearTimeout(commandTimer); commandTimer = null;
+      try { commandRec && commandRec.stop(); } catch (e) {} commandRec = null;
+      try { rec && rec.stop(); } catch (e) {}
+      running = false;
+      try { oscarAudio.pause(); } catch (e) {}
+    } else setTimeout(autoVoice, 400);
+  });
   document.addEventListener('touchstart', () => { if (!running) autoVoice(); }, { passive: true });
   document.addEventListener('click', () => { if (!running) autoVoice(); });
 

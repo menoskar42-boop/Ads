@@ -69,6 +69,8 @@ import com.oscardevs.oscardrive.logic.calledNow
 import com.oscardevs.oscardrive.logic.Understood
 import com.oscardevs.oscardrive.logic.MessengerVoice
 import com.oscardevs.oscardrive.logic.MessengerMessageRequest
+import com.oscardevs.oscardrive.logic.WakeCapturePolicy
+import com.oscardevs.oscardrive.logic.WakeRecognitionAction
 import android.widget.HorizontalScrollView
 import com.oscardevs.oscardrive.logic.Wellness
 import java.text.SimpleDateFormat
@@ -131,6 +133,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        activityResumed = true
         BackBubble.hide(this)   // رجعت من الخرايط الخارجية
         DriveService.State.listener = { main.post { render() } }
         DriveService.State.screens++
@@ -162,10 +165,14 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
+        activityResumed = false
+        wakeFlowGeneration++
+        awaitingUntil = 0L
         DriveService.State.listener = null
         DriveService.State.screens--
         Guard.listener = null
         wake?.stop()
+        wake = null
         super.onPause()
     }
 
@@ -1697,7 +1704,9 @@ class MainActivity : Activity() {
     /* ═══════════════ 🎙️ Oscar Voice: أوامر ثابتة من غير AI ═══════════════ */
 
     private var wake: WakeListener? = null
-    /** بعد «يا أوسكار» لوحدها: الجملة الجاية جوّه ٨ ثوانى = أمر من غير ما تنادى تانى. */
+    private var wakeFlowGeneration = 0L
+    private var activityResumed = false
+    /** أثناء الالتقاط الجديد فقط، الأمر يقبل من غير نداء؛ الجملة الواحدة لا تُخلط بجلسة النداء. */
     private var awaitingUntil = 0L
     private var partialWakeUntil = 0L
     private var partialWakeDiagAt = 0L
@@ -1802,7 +1811,10 @@ class MainActivity : Activity() {
         if (!called) { VoiceDiag.add("اتجاهل — مفيش «يا أوسكار» فى «${heard.first()}»"); return }
         val u = best
         if (u == null) {
-            if (heard.any { e.afterWake(it) == "" }) { awaitingUntil = now + 8000; oscar("hello"); return }
+            if (WakeCapturePolicy.action(heard, e) == WakeRecognitionAction.WAKE_ONLY) {
+                beginFreshCommandAfterWake()
+                return
+            }
             VoiceDiag.add("الفهم: مفيش أمر بيطابق «${heard.first()}» — بسأل الذكاء الاصطناعى")
             awaitingUntil = 0; aiUnderstand(heard.firstNotNullOfOrNull { e.afterWake(it) } ?: heard.first()); return
         }
@@ -2077,6 +2089,59 @@ class MainActivity : Activity() {
         } catch (_: Exception) {
             Oscar.sayText("تعذر فتح Oscar Messaging")
             toast("تعذر فتح Oscar Messaging")
+        }
+    }
+
+    private fun beginFreshCommandAfterWake() {
+        val generation = ++wakeFlowGeneration
+        awaitingUntil = 0L
+        partialWakeUntil = 0L
+        prov.discard()
+        wake?.stop()
+        wake = null
+        Oscar.sayThen("hello", "أيوه", "أيوه") {
+            main.post {
+                if (generation != wakeFlowGeneration || !activityResumed || !prefs.voiceWake ||
+                    checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return@post
+                lateinit var capture: WakeListener
+                capture = WakeListener(
+                    this,
+                    { heard ->
+                        main.post {
+                            if (generation != wakeFlowGeneration || !activityResumed) return@post
+                            if (wake === capture) wake = null
+                            capture.stop()
+                            handleHeard(heard, button = true)
+                            startWakeIfOn()
+                        }
+                    },
+                    { state ->
+                        wakeState = state
+                        if (tab == "voice") refresh()
+                    },
+                    { partial -> handlePartial(partial, button = true) },
+                )
+                wake = capture
+                capture.start(
+                    prefs.voiceLang,
+                    prefs.voiceOffline,
+                    useEars(),
+                    oneShot = true,
+                    onTimeout = {
+                        main.post {
+                            if (generation != wakeFlowGeneration || !activityResumed) return@post
+                            if (wake === capture) wake = null
+                            capture.stop()
+                            awaitingUntil = 0L
+                            Oscar.sayThen("not_understood", "معلش، مسمعتش كويس", "مسمعتش") {
+                                main.post {
+                                    if (generation == wakeFlowGeneration && activityResumed && prefs.voiceWake) startWakeIfOn()
+                                }
+                            }
+                        }
+                    },
+                )
+            }
         }
     }
 
