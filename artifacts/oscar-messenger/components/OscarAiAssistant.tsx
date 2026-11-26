@@ -140,7 +140,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
       await audioContext.resume();
 
       const liveSocket = new WebSocket(
-        `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?access_token=${encodeURIComponent(live.token)}`,
+        `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(live.token)}`,
       );
       socket.current = liveSocket;
       liveSocket.onopen = () => {

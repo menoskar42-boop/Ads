@@ -531,14 +531,18 @@ export default function GroupChatScreen() {
     if (!attachment) return undefined;
     const cached = getCachedMedia(item.id);
     if (cached) {
-      setMediaPreviewStates((current) => ({
-        ...current,
-        [item.id]: {
-          uri: cached.uri,
-          loading: attachment.kind === "image",
-          error: false,
-        },
-      }));
+      setMediaPreviewStates((current) => {
+        const prev = current[item.id];
+        if (prev && prev.uri === cached.uri && !prev.error) return current;
+        return {
+          ...current,
+          [item.id]: {
+            uri: cached.uri,
+            loading: attachment.kind === "image",
+            error: false,
+          },
+        };
+      });
       return cached;
     }
     setMediaPreviewStates((current) => ({
@@ -554,14 +558,18 @@ export default function GroupChatScreen() {
         kind: attachment.kind,
         getToken,
       });
-      setMediaPreviewStates((current) => ({
-        ...current,
-        [item.id]: {
-          uri: media.uri,
-          loading: attachment.kind === "image",
-          error: false,
-        },
-      }));
+      setMediaPreviewStates((current) => {
+        const prev = current[item.id];
+        if (prev && prev.uri === media.uri && prev.loading === false) return current;
+        return {
+          ...current,
+          [item.id]: {
+            uri: media.uri,
+            loading: attachment.kind === "image",
+            error: false,
+          },
+        };
+      });
       return media;
     } catch {
       setMediaPreviewStates((current) => ({

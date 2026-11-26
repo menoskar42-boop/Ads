@@ -3,6 +3,8 @@
   const imageElement = document.getElementById("slideImage");
   const generatedText = document.getElementById("generatedText");
   const blankScreen = document.getElementById("blankScreen");
+  const missingSlideMessage = document.getElementById("missingSlideMessage");
+  const ONLINE_TRIAL = /^\/liturgy-slides(?:\/|$)/.test(window.location.pathname);
   let deck = null;
   let slides = [];
   let currentNumber = null;
@@ -48,12 +50,24 @@
       if (mode !== "slide" || index !== currentIndex) return;
       imageElement.src = image.src;
       imageElement.hidden = false;
+      blankScreen.hidden = true;
+      missingSlideMessage.hidden = true;
     };
     image.onerror = () => {
       const currentIndex = slides.findIndex((slide) => Number(slide.n) === Number(currentNumber));
       if (index === currentIndex) {
         imageElement.hidden = true;
         blankScreen.hidden = false;
+        if (mode === "slide" && ONLINE_TRIAL) {
+          missingSlideMessage.hidden = false;
+          if (window.opener) {
+            window.opener.postMessage({
+              channel: "church-display",
+              type: "image-error",
+              slideNumber: Number(slides[index].n),
+            }, "*");
+          }
+        }
       }
     };
     image.src = assetUrl(slides[index]);
@@ -63,6 +77,7 @@
       imageElement.hidden = true;
       generatedText.hidden = true;
       blankScreen.hidden = true;
+      missingSlideMessage.hidden = true;
       document.body.style.background = "#000";
       return;
     }
@@ -70,9 +85,11 @@
       imageElement.hidden = true;
       generatedText.hidden = true;
       blankScreen.hidden = false;
+      missingSlideMessage.hidden = true;
       return;
     }
     blankScreen.hidden = true;
+    missingSlideMessage.hidden = true;
     document.body.style.background = "#000";
     const index = slides.findIndex((slide) => Number(slide.n) === Number(currentNumber));
     if (index < 0) {

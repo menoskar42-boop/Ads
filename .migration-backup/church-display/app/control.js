@@ -397,6 +397,8 @@
       sendState("slide");
     } else if (event.data.channel === "church-display" && event.data.type === "key") {
       handleKey(event.data.key);
+    } else if (ONLINE_TRIAL && event.data.channel === "church-display" && event.data.type === "image-error") {
+      setStatus(`صورة الشريحة ${Number(event.data.slideNumber)} مش موجودة`);
     }
   });
 
