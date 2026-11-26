@@ -1145,7 +1145,11 @@
     const nameRequest = RD.contactNameRequest(name, contactChoices);
     if (nameRequest) {
       const asked = callPending;
-      getContactSpelling(name, () => api('POST', nameRequest.path, nameRequest.body)).then((latin) => {
+      getContactSpelling(name, () => RD.sendContactNameRequest(
+        name,
+        contactChoices,
+        (path, body) => api('POST', path, body),
+      )).then((latin) => {
         if (!latin || callPending !== asked) return;
         const b = document.createElement('button'); b.textContent = '📞 ' + latin + (how === 'wa' ? ' (واتساب)' : '');
         b.addEventListener('click', () => { if (callPending) { callPending.name = latin; callGo(how === 'wa' ? 'wa' : 'tel'); } });

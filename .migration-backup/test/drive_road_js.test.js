@@ -135,6 +135,22 @@ test('Arabic contact spelling fallback sends only the name when no local contact
   assert.equal(R.contactNameRequest('ماذر موبايل ٠١٠١٢٣٤٥٦٧٨', []), null);
   assert.equal(R.contactNameRequest('Mother Mobile', []), null);
 });
+test('actual spelling request transport sends just each requested name, not a contact payload', async () => {
+  const calls = [];
+  const send = (path, body) => {
+    calls.push({ method: 'POST', path, body });
+    return Promise.resolve({ latin: body.name });
+  };
+  const first = await R.sendContactNameRequest('اسم أول', [], send);
+  const second = await R.sendContactNameRequest('اسم مختلف', [], send);
+  assert.deepEqual(first, { latin: 'اسم أول' });
+  assert.deepEqual(second, { latin: 'اسم مختلف' });
+  assert.deepEqual(calls, [
+    { method: 'POST', path: '/api/web/contact-name', body: { name: 'اسم أول' } },
+    { method: 'POST', path: '/api/web/contact-name', body: { name: 'اسم مختلف' } },
+  ]);
+  assert.equal(R.sendContactNameRequest('اسم أول', [{ name: 'محلي', tels: ['local-only'] }], send), null);
+});
 test('Arabic spelling suggestions are memoized per page session by normalized name', async () => {
   const getSpelling = R.createContactSpellingCache();
   let requests = 0;
