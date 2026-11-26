@@ -272,6 +272,36 @@ test('contact storage is partitioned locally by account without exposing the cre
   assert.equal(first.includes('local-account-alpha'), false);
   assert.equal(R.contactStorageKey(''), 'od_contacts_v2_unpaired');
 });
+test('legacy local contacts migrate only after linking, preserve existing namespaces, and remove the old key after copy', () => {
+  const makeStorage = (initial = {}) => {
+    const values = new Map(Object.entries(initial));
+    return {
+      values,
+      getItem(key) { return values.has(key) ? values.get(key) : null; },
+      setItem(key, value) { values.set(key, String(value)); },
+      removeItem(key) { values.delete(key); },
+    };
+  };
+  const legacy = JSON.stringify([{ id: 'legacy', name: 'Local friend', tels: ['01012345678'] }]);
+  const key = R.contactStorageKey('linked-account');
+  const linked = makeStorage({ od_contacts: legacy });
+  assert.equal(R.migrateLegacyContactStorage(linked, key, 'linked-account'), true);
+  assert.equal(linked.getItem(key), legacy);
+  assert.equal(linked.getItem('od_contacts'), null);
+
+  const unlinked = makeStorage({ od_contacts: legacy });
+  assert.equal(R.migrateLegacyContactStorage(unlinked, key, ''), false);
+  assert.equal(unlinked.getItem('od_contacts'), legacy);
+  assert.equal(unlinked.getItem(key), null);
+
+  const alreadyNamespaced = makeStorage({ od_contacts: legacy, [key]: '[]' });
+  assert.equal(R.migrateLegacyContactStorage(alreadyNamespaced, key, 'linked-account'), false);
+  assert.equal(alreadyNamespaced.getItem('od_contacts'), legacy);
+  assert.equal(alreadyNamespaced.getItem(key), '[]');
+
+  const app = fs.readFileSync(path.join(__dirname, '../drive-web/app.js'), 'utf8');
+  assert.match(app, /RD\.migrateLegacyContactStorage\(localStorage,\s*CT_KEY\(\),\s*token\)/);
+});
 test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping', () => {
   assert.equal(R.parseVoice('يا أذكر اتصل ب ماذر موبايل'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('يا اذكر اتصل ل Mother Mobile'), 'call::Mother Mobile');

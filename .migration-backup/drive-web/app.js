@@ -832,6 +832,7 @@
     });
   const ctAll = () => {
     let raw = [];
+    RD.migrateLegacyContactStorage(localStorage, CT_KEY(), token);
     try { raw = JSON.parse(localStorage.getItem(CT_KEY()) || '[]'); } catch (e) {}
     if (!Array.isArray(raw)) raw = [];
     const now = Date.now();
