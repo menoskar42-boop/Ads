@@ -10158,6 +10158,60 @@ export async function registerRoutes(
     }
   });
 
+  // GET /api/reports/major-fault-closure/msan-ports?phone=<رقم> — منافذ MSAN للخط وكابينته.
+  app.get("/api/reports/major-fault-closure/msan-ports", requireAuth, async (req: any, res) => {
+    if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });
+    const digits = String(req.query.phone || "").replace(/\D/g, "");
+    const shortPhone = digits.replace(/^(?:88|0)+/, "");
+    if (!shortPhone) return res.status(400).json({ message: "أدخل رقم تليفون صحيح" });
+    const phoneCandidates = [...new Set([shortPhone, `88${shortPhone}`])];
+
+    try {
+      const { rows: matched } = await pool.query(
+        `SELECT btrim(msan_code) AS "msanCode"
+           FROM phone_ports
+          WHERE phone_number = ANY($1::text[])
+            AND btrim(COALESCE(msan_code, '')) <> ''
+          ORDER BY array_position($1::text[], phone_number), uploaded_at DESC
+          LIMIT 1`,
+        [phoneCandidates],
+      );
+      const msanCode = String(matched[0]?.msanCode || "").trim();
+      if (!msanCode) {
+        return res.status(404).json({ message: "الرقم ده مش موجود فى منافذ البورتات" });
+      }
+
+      const { rows } = await pool.query(
+        `SELECT area_code AS "areaCode", phone_number AS "phoneNumber",
+                btrim(msan_code) AS "msanCode", frame,
+                row_no AS "row", column_no AS "column", shelf, slot,
+                port_number AS "portNumber", port_type AS "portType",
+                voice_status AS "voiceStatus", data_status AS "dataStatus", operator,
+                MAX(uploaded_at) OVER() AS "uploadedAt"
+           FROM phone_ports
+          WHERE btrim(COALESCE(msan_code, '')) = btrim($1)
+            AND btrim(COALESCE(phone_number, '')) <> ''
+          ORDER BY
+            NULLIF(regexp_replace(COALESCE(frame::text, ''), '[^0-9]', '', 'g'), '')::numeric NULLS LAST,
+            NULLIF(regexp_replace(COALESCE(row_no::text, ''), '[^0-9]', '', 'g'), '')::numeric NULLS LAST,
+            NULLIF(regexp_replace(COALESCE(column_no::text, ''), '[^0-9]', '', 'g'), '')::numeric NULLS LAST,
+            phone_number`,
+        [msanCode],
+      );
+      if (!rows.length) {
+        return res.status(404).json({ message: "الرقم ده مش موجود فى منافذ البورتات" });
+      }
+      const uploadedAt = rows[0].uploadedAt ?? null;
+      res.json({
+        msanCode,
+        uploadedAt,
+        rows: rows.map(({ uploadedAt: _uploadedAt, ...row }: any) => row),
+      });
+    } catch {
+      res.status(500).json({ message: "تعذّر تحميل منافذ البورتات" });
+    }
+  });
+
   // POST /api/line-mobiles — حفظ/تحديث رقم موبايل يدوى لخط (بحث برقم التليفون)
   app.post("/api/line-mobiles", requireAuth, async (req: any, res) => {
     if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });

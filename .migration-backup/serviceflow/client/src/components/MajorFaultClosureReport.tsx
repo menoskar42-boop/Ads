@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ClipboardCopy, Loader2, Search } from "lucide-react";
+import { AlertCircle, ClipboardCopy, Download, Loader2, Search } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,27 @@ interface EditableStat {
   capacityDefault: boolean;
   workingLines: string;
 }
+
+interface MsanPortRow {
+  areaCode: string | null;
+  phoneNumber: string | null;
+  msanCode: string | null;
+  frame: string | null;
+  row: string | number | null;
+  column: string | number | null;
+  shelf: string | null;
+  slot: string | null;
+  portNumber: string | null;
+  portType: string | null;
+  voiceStatus: string | null;
+  dataStatus: string | null;
+  operator: string | null;
+}
+
+const MSAN_EXPORT_COLUMNS = [
+  "Area Code", "Phone Number", "MSAN Code", "Frame", "Row", "Column", "Shelf",
+  "Slot", "Port number", "Port type", "Voice Status", "Data Status", "Operator",
+];
 
 const COLUMNS = [
   "قطاع", "المنطقة", "السنترال", "Exch Code", "Cable", "Cabinet", "DP", "IDU", "ODU",
@@ -78,6 +100,8 @@ export function MajorFaultClosureReport() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState("");
   const [notice, setNotice] = useState("");
+  const [msanPortsLoading, setMsanPortsLoading] = useState(false);
+  const [msanPortsNotice, setMsanPortsNotice] = useState("");
 
   const cabinetParts = splitCabinetCable(line?.cabinNumber ?? null);
   const cableNumber = line ? cabinetParts.cableNumber : "";
@@ -174,6 +198,7 @@ export function MajorFaultClosureReport() {
     setLine(null);
     setStatsRows([]);
     setNotice("");
+    setMsanPortsNotice("");
     try {
       const response = await fetch(`/api/phone-lines/lookup?phone=${encodeURIComponent(phone)}`, {
         credentials: "include",
@@ -295,6 +320,63 @@ export function MajorFaultClosureReport() {
     if (!tableRow) return;
     const ok = await copyHtmlTable(COLUMNS, [tableRow], { introText: "ارجو اغلاق الجسيم الاتى مع الشكر" });
     setNotice(ok ? "تم نسخ الجدول المنسق للصقه في البريد" : "تعذّر نسخ الجدول");
+  };
+
+  const downloadMsanSheet = async () => {
+    const phone = String(line?.telNo || phoneInput || "").trim();
+    if (!phone) return;
+    setMsanPortsLoading(true);
+    setMsanPortsNotice("");
+    try {
+      const response = await fetch(
+        `/api/reports/major-fault-closure/msan-ports?phone=${encodeURIComponent(phone)}`,
+        { credentials: "include" },
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setMsanPortsNotice(result.message || "تعذّر تحميل منافذ البورتات");
+        return;
+      }
+
+      const ports = (Array.isArray(result.rows) ? result.rows : []) as MsanPortRow[];
+      const asText = (value: unknown) => String(value ?? "");
+      const rowNumber = (value: unknown) => {
+        const text = asText(value).trim();
+        return /^\d+$/.test(text) ? Number(text) : text;
+      };
+      const sheetRows = ports.map((port) => [
+        asText(port.areaCode),
+        asText(port.phoneNumber),
+        asText(port.msanCode),
+        asText(port.frame),
+        rowNumber(port.row),
+        rowNumber(port.column),
+        asText(port.shelf),
+        asText(port.slot),
+        asText(port.portNumber),
+        asText(port.portType),
+        asText(port.voiceStatus),
+        asText(port.dataStatus),
+        asText(port.operator),
+      ]);
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet([MSAN_EXPORT_COLUMNS, ...sheetRows]);
+      XLSX.utils.book_append_sheet(workbook, worksheet, "data");
+      const msanCode = String(result.msanCode || "");
+      const safeMsanCode = msanCode.replace(/[^A-Za-z0-9_-]/g, "_");
+      const date = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `MSANData_export_${safeMsanCode}_${date}.xlsx`);
+
+      const updated = result.uploadedAt ? new Date(result.uploadedAt) : null;
+      const uploadedAt = updated && !Number.isNaN(updated.getTime())
+        ? updated.toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "short", timeStyle: "short" })
+        : "-";
+      setMsanPortsNotice(`MSAN ${msanCode} · ${ports.length} رقم · آخر تحديث للمنافذ ${uploadedAt}`);
+    } catch {
+      setMsanPortsNotice("تعذّر تحميل منافذ البورتات");
+    } finally {
+      setMsanPortsLoading(false);
+    }
   };
 
   return (
@@ -472,19 +554,34 @@ export function MajorFaultClosureReport() {
             </Button>
           </div>
 
-          {tableRow && (
+          {line && (
             <>
-              <div className="flex items-center justify-end">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {tableRow && (
+                  <Button
+                    onClick={copyTable}
+                    size="sm"
+                    className="gap-1"
+                    disabled={statsLoading || (!statsRows.length && !statsError)}
+                  >
+                    <ClipboardCopy className="h-4 w-4" /> نسخ الجدول للبريد
+                  </Button>
+                )}
                 <Button
-                  onClick={copyTable}
+                  onClick={() => void downloadMsanSheet()}
                   size="sm"
+                  variant="outline"
                   className="gap-1"
-                  disabled={statsLoading || (!statsRows.length && !statsError)}
+                  disabled={msanPortsLoading}
                 >
-                  <ClipboardCopy className="h-4 w-4" /> نسخ الجدول للبريد
+                  {msanPortsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  تحميل شيت منافذ الامسان
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">ارجو اغلاق الجسيم الاتى مع الشكر</p>
+              {msanPortsNotice && <p className="text-xs text-muted-foreground" role="status">{msanPortsNotice}</p>}
+              {tableRow && (
+                <>
+                  <p className="text-xs text-muted-foreground">ارجو اغلاق الجسيم الاتى مع الشكر</p>
               <div className="rounded-md border max-h-[55vh] overflow-auto">
                 <Table dir="rtl" className="text-xs">
                   <TableHeader>
@@ -501,6 +598,8 @@ export function MajorFaultClosureReport() {
                   </TableBody>
                 </Table>
               </div>
+                </>
+              )}
             </>
           )}
         </>
