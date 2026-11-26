@@ -17,6 +17,7 @@ import {
 import { AppHeader } from "../components/AppHeader";
 import { Avatar } from "../components/Avatar";
 import { InviteActions } from "../components/InviteActions";
+import { OscarAiAssistant } from "../components/OscarAiAssistant";
 import { Notice, PrimaryButton, Screen } from "../components/Screen";
 import {
   getMessengerProfile,
@@ -49,7 +50,7 @@ export default function InboxScreen() {
     ? `/?invite=${encodeURIComponent(incomingInvite)}`
     : safeReturnPath(params.returnTo);
   const queryClient = useQueryClient();
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
   const previousUnread = useRef<Map<string, number> | null>(null);
   const inviteAttempted = useRef<string | null>(null);
   const [inviteSaved, setInviteSaved] = useState(!incomingInvite);
@@ -292,6 +293,7 @@ export default function InboxScreen() {
                 size={54}
               />
             </View>
+            <OscarAiAssistant getToken={getToken} />
             {profile.data?.profile?.username && (
               <InviteActions username={profile.data.profile.username} />
             )}

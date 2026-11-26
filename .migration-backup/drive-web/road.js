@@ -379,11 +379,23 @@
    * t = نص متنضّف (clean). بيرجّع { name, how: 'tel' | 'wa' | null } أو null.
    */
   const CALL_SHORTCUT = 'Oscar Call', WA_SHORTCUT = 'Oscar WhatsApp';
-  const MOTHER_WORDS = new Set(['mother', 'mather', 'madar', 'mader', 'madhar', 'ماذر', 'مذر', 'مازر', 'مادر', 'موذر'].map(clean));
-  const MOBILE_WORDS = new Set(['mobile', 'mobil', 'mob', 'mobi', 'موبايل', 'موبيل', 'موبيال'].map(clean));
+  const MOTHER_MOBILE_ALIASES = new Set([
+    'mother mobile', 'mother mobil', 'mother mob', 'mother mobi', 'mother mobeel', 'mother mobail',
+    'mather mobile', 'mather mobil', 'mather mob', 'mather mobi',
+    'madar mobile', 'madar mobil', 'madar mob', 'madar mobi',
+    'mader mobile', 'mader mobil', 'mader mob', 'mader mobi',
+    'madhar mobile', 'madhar mobil', 'madhar mob', 'madhar mobi',
+    'mothar mobile', 'mothar mobil', 'muthar mobile',
+    'ماذر موبايل', 'ماذر موبيل', 'ماذر موبيال', 'ماذر موب', 'ماذر موبي',
+    'ماذر موبايل', 'ماذر موبايِل', 'ماذر موبايل',
+    'مذر موبايل', 'مذر موبيل', 'مذر موبيال', 'مذر موب', 'مذر موبي',
+    'مازر موبايل', 'مازر موبيل', 'مازر موبيال',
+    'مادر موبايل', 'مادر موبيل', 'مادر موبيال',
+    'موذر موبايل', 'موذر موبيل', 'موذر موبيال',
+    'ماذر mobile', 'mother موبايل',
+  ].map(clean));
   function isMotherMobile(name) {
-    const words = clean(name).split(' ');
-    return words.length === 2 && MOTHER_WORDS.has(words[0]) && MOBILE_WORDS.has(words[1]);
+    return MOTHER_MOBILE_ALIASES.has(clean(name));
   }
   function parseCall(t) {
     const m = String(t || '').match(/(?:^|\s)(اتصل|اتصلي|كلم|كلملي|رن|رنلي|call)\s+(.+)$/);
@@ -439,17 +451,27 @@
     return (Array.isArray(contacts) ? contacts : []).filter((contact) => contact && contact.whatsapp !== false);
   }
   /** اقتراح هجاء لاتيني: لا يرسل شيئًا لو فيه قائمة محلية أو رقم هاتف محتمل. */
-  function contactNameRequest(name, contacts) {
+  function contactNameRequest(name, contacts, allowExternal = true) {
     const cleanName = String(name || '').trim();
-    if (!cleanName || cleanName.length > 60 || (Array.isArray(contacts) && contacts.length)
+    if (!allowExternal || !cleanName || cleanName.length > 60 || (Array.isArray(contacts) && contacts.length)
       || !/[\u0600-\u06FF]/.test(cleanName) || Array.from(cleanName.matchAll(/\p{N}/gu)).length >= 7) return null;
     return { path: '/api/web/contact-name', body: { name: cleanName } };
+  }
+  function sendContactNameRequest(name, contacts, send, allowExternal = true) {
+    const request = contactNameRequest(name, contacts, allowExternal);
+    if (!request || typeof send !== 'function') return null;
+    return send(request.path, request.body);
+  }
+  function normalizeContactSpellingName(name) {
+    return String(name || '').normalize('NFKC')
+      .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '')
+      .trim().replace(/\s+/g, ' ').toLocaleLowerCase();
   }
   /** نتيجة هجاء مؤقتة في ذاكرة الصفحة فقط؛ حتى الطلبات الفاشلة لا تتكرر خلال الجلسة. */
   function createContactSpellingCache() {
     const requests = new Map();
     return function getContactSpelling(name, load) {
-      const key = String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+      const key = normalizeContactSpellingName(name);
       if (!key || typeof load !== 'function') return Promise.resolve('');
       if (!requests.has(key)) {
         requests.set(key, Promise.resolve().then(load).then((result) =>
@@ -462,6 +484,83 @@
   /** يقسم إدخال الأرقام اليدوي، مع دعم الفواصل العربية والإنجليزية والأسطر الجديدة. */
   function parseContactPhoneInput(value) {
     return Array.from(new Set(String(value || '').split(/[,،;؛\n]+/).map((phone) => phone.trim()).filter(Boolean)));
+  }
+  const MAX_IMPORTED_CONTACTS = 500;
+  function contactStorageKey(accountCredential) {
+    const value = String(accountCredential || '');
+    if (!value) return 'od_contacts_v2_unpaired';
+    // Local namespace only: compact fingerprint, not an authentication value or server identifier.
+    const hashes = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
+    const primes = [0x01000193, 0x27d4eb2f, 0x165667b1, 0x85ebca77];
+    for (let index = 0; index < value.length; index++) {
+      const code = value.charCodeAt(index);
+      for (let lane = 0; lane < hashes.length; lane++) {
+        let next = Math.imul(hashes[lane] ^ code, primes[lane]);
+        next ^= next >>> 15;
+        hashes[lane] = next >>> 0;
+      }
+    }
+    return `od_contacts_v2_${hashes.map((part) => part.toString(16).padStart(8, '0')).join('')}`;
+  }
+  function mergeImportedContacts(existing, imported, options = {}) {
+    const maxContacts = Number.isInteger(options.maxContacts) && options.maxContacts >= 0
+      ? options.maxContacts : MAX_IMPORTED_CONTACTS;
+    const maxRecords = Number.isInteger(options.maxRecords) && options.maxRecords >= 0
+      ? options.maxRecords : maxContacts * 2;
+    const now = Number.isFinite(options.now) ? options.now : Date.now();
+    const createId = typeof options.createId === 'function' ? options.createId : () => '';
+    const contacts = Array.isArray(existing) ? existing.map((item) => ({
+      ...item,
+      tels: Array.isArray(item && item.tels) ? item.tels.slice() : [],
+    })) : [];
+    const nameKey = (value) => String(value || '').normalize('NFKC').trim()
+      .toLocaleLowerCase().replace(/\s+/g, ' ');
+    const byName = new Map();
+    let activeCount = 0, added = 0, merged = 0, skipped = 0, limitReached = false;
+    for (const contact of contacts) {
+      if (contact.deleted) continue;
+      activeCount++;
+      const key = nameKey(contact.name);
+      if (key && !byName.has(key)) byName.set(key, contact);
+    }
+    for (const source of Array.isArray(imported) ? imported : []) {
+      const name = String(source && source.name || '').trim();
+      const tels = Array.from(new Set((Array.isArray(source && source.tels) ? source.tels : [])
+        .map((tel) => String(tel || '').trim()).filter(Boolean)));
+      if (!name || !tels.length) { skipped++; continue; }
+      const key = nameKey(name);
+      const previous = byName.get(key);
+      if (previous) {
+        const oldTels = Array.isArray(previous.tels) ? previous.tels : [];
+        const updatedTels = Array.from(new Set(oldTels.concat(tels))).slice(0, 8);
+        if (updatedTels.length > oldTels.length) {
+          previous.tels = updatedTels;
+          previous.updatedMs = now;
+          merged++;
+        }
+      } else if (activeCount < maxContacts && contacts.length < maxRecords) {
+        const item = {
+          id: createId(), name, tels: tels.slice(0, 8), updatedMs: now,
+          deleted: false, whatsapp: false,
+        };
+        contacts.push(item);
+        byName.set(key, item);
+        added++;
+        activeCount++;
+      } else {
+        skipped++;
+        limitReached = true;
+      }
+    }
+    return { contacts, added, merged, skipped, limitReached };
+  }
+  function writeContactList(storage, key, contacts) {
+    try {
+      storage.setItem(key, JSON.stringify(contacts));
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
   const MAX_CONTACTS = 20000;
   /** يقرأ أسماء وأرقام vCard داخل المتصفح فقط؛ لا يرسل الملف أو محتواه لأي API. */
@@ -568,6 +667,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, sendContactNameRequest, normalizeContactSpellingName, createContactSpellingCache, parseContactPhoneInput, mergeImportedContacts, writeContactList, contactStorageKey, MAX_IMPORTED_CONTACTS, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

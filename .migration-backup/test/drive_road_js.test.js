@@ -134,14 +134,53 @@ test('Arabic contact spelling fallback sends only the name when no local contact
   assert.equal(R.contactNameRequest('ماذر موبايل 01012345678', []), null);
   assert.equal(R.contactNameRequest('ماذر موبايل ٠١٠١٢٣٤٥٦٧٨', []), null);
   assert.equal(R.contactNameRequest('Mother Mobile', []), null);
+  assert.equal(R.contactNameRequest('ماذر موبايل', [], false), null);
+  assert.deepEqual(R.contactNameRequest('ماذر موبايل', [], true), {
+    path: '/api/web/contact-name',
+    body: { name: 'ماذر موبايل' },
+  });
+  assert.equal(R.contactNameRequest('ماذر موبايل', [{ name: 'محلي', tels: ['local-only'] }], false), null);
+});
+test('external spelling preference stays local and does not alter local contact matching', () => {
+  const app = fs.readFileSync(path.join(__dirname, '../drive-web/app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '../drive-web/index.html'), 'utf8');
+  const localContacts = [{ name: 'اسم محلي', tels: ['local-only'] }];
+  assert.match(app, /od_contact_spelling_external/);
+  assert.match(app, /contactNameRequest\(name, contactChoices, allowExternalContactSpelling\)/);
+  assert.match(app, /allowExternalContactSpelling,\s*\)/);
+  assert.match(html, /id="contactSpellingExternal"/);
+  assert.match(html, /السماح باقتراح تهجئة الاسم العربي خارجيًا/);
+  assert.doesNotMatch(app, /api\([^)]*CONTACT_SPELLING_KEY/);
+  assert.deepEqual(R.matchContacts(localContacts, 'اسم محلي'), localContacts);
+  assert.equal(R.sendContactNameRequest('اسم محلي', localContacts, () => {
+    throw new Error('must not make an external request');
+  }, false), null);
+});
+test('actual spelling request transport sends just each requested name, not a contact payload', async () => {
+  const calls = [];
+  const send = (path, body) => {
+    calls.push({ method: 'POST', path, body });
+    return Promise.resolve({ latin: body.name });
+  };
+  const first = await R.sendContactNameRequest('اسم أول', [], send);
+  const second = await R.sendContactNameRequest('اسم مختلف', [], send);
+  assert.deepEqual(first, { latin: 'اسم أول' });
+  assert.deepEqual(second, { latin: 'اسم مختلف' });
+  assert.deepEqual(calls, [
+    { method: 'POST', path: '/api/web/contact-name', body: { name: 'اسم أول' } },
+    { method: 'POST', path: '/api/web/contact-name', body: { name: 'اسم مختلف' } },
+  ]);
+  assert.equal(R.sendContactNameRequest('اسم أول', [{ name: 'محلي', tels: ['local-only'] }], send), null);
 });
 test('Arabic spelling suggestions are memoized per page session by normalized name', async () => {
   const getSpelling = R.createContactSpellingCache();
   let requests = 0;
   const loadMother = async () => { requests++; return { latin: 'Mother Mobile' }; };
   const first = getSpelling('ماذر موبايل', loadMother);
-  const duplicate = getSpelling('  ماذر   موبايل  ', loadMother);
+  const duplicate = getSpelling('  مُاذر ـ موبايل  ', loadMother);
   assert.equal(duplicate, first); // حتى الطلب الجاري لا يُرسل مرتين
+  assert.equal(R.normalizeContactSpellingName('ماذر موبايل'), R.normalizeContactSpellingName('مُاذر ـ موبايل'));
+  assert.notEqual(R.normalizeContactSpellingName('ماذر موبايل'), R.normalizeContactSpellingName('مادر موبايل'));
   assert.equal(await first, 'Mother Mobile');
   assert.equal(await duplicate, 'Mother Mobile');
   assert.equal(requests, 1);
@@ -202,6 +241,37 @@ test('vCard parsing keeps contacts on-device and reads common vCard formats', ()
   assert.equal(limited.contacts.length, 20000);
   assert.equal(limited.truncated, true);
 });
+test('vCard imports stop at 500 contacts and preserve the old list when storage is full', () => {
+  const imported = Array.from({ length: 501 }, (_, index) => ({
+    name: `Person ${index}`,
+    tels: ['opaque-test-value'],
+  }));
+  const result = R.mergeImportedContacts([], imported, {
+    now: 123,
+    createId: (() => { let id = 0; return () => `contact-${++id}`; })(),
+  });
+  assert.equal(result.contacts.length, 500);
+  assert.equal(result.added, 500);
+  assert.equal(result.skipped, 1);
+  assert.equal(result.limitReached, true);
+
+  const previous = JSON.stringify([{ id: 'saved', name: 'Existing contact' }]);
+  let stored = previous;
+  const fullStorage = {
+    getItem() { return stored; },
+    setItem() { throw new Error('storage full'); },
+  };
+  assert.equal(R.writeContactList(fullStorage, 'contacts', result.contacts), false);
+  assert.equal(fullStorage.getItem('contacts'), previous);
+});
+test('contact storage is partitioned locally by account without exposing the credential', () => {
+  const first = R.contactStorageKey('local-account-alpha');
+  assert.equal(R.contactStorageKey('local-account-alpha'), first);
+  assert.notEqual(R.contactStorageKey('local-account-beta'), first);
+  assert.match(first, /^od_contacts_v2_[a-f0-9]{32}$/);
+  assert.equal(first.includes('local-account-alpha'), false);
+  assert.equal(R.contactStorageKey(''), 'od_contacts_v2_unpaired');
+});
 test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping', () => {
   assert.equal(R.parseVoice('يا أذكر اتصل ب ماذر موبايل'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('يا اذكر اتصل ل Mother Mobile'), 'call::Mother Mobile');
@@ -235,6 +305,28 @@ test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping',
   const I = require('../src/drive/intent');
   assert.deepEqual(I.parse('{"cmd":"pothole1"}'), { cmd: 'pothole1', arg: null, how: null, latin: null });
   assert.equal(I.parse('{"cmd":"rm -rf"}'), null); assert.equal(I.parse('not json'), null); assert.equal(I.parse('{"cmd":"call"}'), null);
+});
+test('local Mother Mobile pronunciation aliases are exact and reject similar names', () => {
+  for (const phrase of [
+    'اتصل ب Mather Mobil',
+    'اتصل ب Mothar Mobile',
+    'اتصل ب Muthar Mobile',
+    'اتصل ب ماذر موبيل',
+    'اتصل ب ماذر موبيال',
+    'اتصل ب مذر موبيل',
+    'اتصل ب موذر موبايِل',
+    'اتصل ب ماذر Mobile',
+    'اتصل ب Mother موبايل',
+  ]) {
+    assert.deepEqual(R.parseCall(phrase), { name: 'Mother Mobile', how: null }, phrase);
+  }
+  for (const phrase of [
+    'اتصل ب Mother Mary',
+    'اتصل ب ماذر أحمد',
+    'اتصل ب Mother Mobile Support',
+  ]) {
+    assert.notEqual(R.parseCall(phrase)?.name, 'Mother Mobile', phrase);
+  }
 });
 test('Oscar Drive opens a private Oscar Messaging draft without sending it or sharing contact numbers', () => {
   assert.deepEqual(R.parseMessageVoice('يا أوسكار ابعت رسالة إلى محمود يعقوب بتقول أنا وصلت'), {

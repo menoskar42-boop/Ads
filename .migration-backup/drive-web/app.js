@@ -783,8 +783,26 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let callPending = null;   // { name, how, at }
   const getContactSpelling = RD.createContactSpellingCache();
-  const CT_KEY = 'od_contacts';
-  const CT_MAX_CONTACTS = RD.MAX_CONTACTS;
+  const CT_KEY = () => RD.contactStorageKey(token);
+  const CONTACT_SPELLING_KEY = 'od_contact_spelling_external';
+  let allowExternalContactSpelling = true;
+  try {
+    const savedSpellingPreference = localStorage.getItem(CONTACT_SPELLING_KEY);
+    if (savedSpellingPreference !== null) allowExternalContactSpelling = savedSpellingPreference === '1';
+  } catch (e) {}
+  $('contactSpellingExternal').checked = allowExternalContactSpelling;
+  $('contactSpellingExternal').addEventListener('change', (event) => {
+    allowExternalContactSpelling = !!event.currentTarget.checked;
+    try {
+      localStorage.setItem(CONTACT_SPELLING_KEY, allowExternalContactSpelling ? '1' : '0');
+      $('contactSpellingStatus').textContent = allowExternalContactSpelling
+        ? 'اقتراح التهجئة الخارجية مفعّل. يُرسل الاسم العربي وحده عند عدم وجود جهة محلية.'
+        : 'اقتراح التهجئة الخارجية متوقف؛ مطابقة جهات الاتصال المحلية ما زالت تعمل.';
+    } catch (e) {
+      $('contactSpellingStatus').textContent = 'لم يسمح المتصفح بحفظ الاختيار؛ سيظل ساريًا حتى إغلاق الصفحة.';
+    }
+  });
+  const CT_MAX_CONTACTS = RD.MAX_IMPORTED_CONTACTS;
   const CT_MAX_RECORDS = CT_MAX_CONTACTS * 2;
   const CT_RENDER_PAGE = 200;
   let ctListVisible = CT_RENDER_PAGE, ctDirectoryVisible = CT_RENDER_PAGE;
@@ -814,7 +832,7 @@
     });
   const ctAll = () => {
     let raw = [];
-    try { raw = JSON.parse(localStorage.getItem(CT_KEY) || '[]'); } catch (e) {}
+    try { raw = JSON.parse(localStorage.getItem(CT_KEY()) || '[]'); } catch (e) {}
     if (!Array.isArray(raw)) raw = [];
     const now = Date.now();
     const list = raw.slice(0, CT_MAX_RECORDS).map((c) => {
@@ -830,7 +848,7 @@
         whatsapp: !(c && c.whatsapp === false),
       };
     }).filter((c) => c.name && c.tels.length);
-    try { if (JSON.stringify(raw) !== JSON.stringify(list)) localStorage.setItem(CT_KEY, JSON.stringify(list)); } catch (e) {}
+    try { if (JSON.stringify(raw) !== JSON.stringify(list)) localStorage.setItem(CT_KEY(), JSON.stringify(list)); } catch (e) {}
     return list;
   };
   const ctLoad = () => ctAll().filter((c) => !c.deleted);
@@ -842,8 +860,10 @@
   function ctWriteLocal(list, schedule = true) {
     const safe = Array.isArray(list) ? list.slice(0, CT_MAX_RECORDS) : [];
     ctListVisible = CT_RENDER_PAGE;
-    try { localStorage.setItem(CT_KEY, JSON.stringify(safe)); ctRender(); }
-    catch (e) { ctRender(); return false; }
+    let saved = false;
+    try { saved = RD.writeContactList(localStorage, CT_KEY(), safe); } catch (e) {}
+    ctRender();
+    if (!saved) return false;
     if (schedule) {
       clearTimeout(ctSyncTimer);
       ctSyncTimer = setTimeout(() => syncContacts().catch(() => {}), 600);
@@ -896,33 +916,12 @@
     more.textContent = `عرض ${Math.min(CT_RENDER_PAGE, contacts.length - ctListVisible)} جهة إضافية (${contacts.length - ctListVisible} متبقية)`;
   }
   function ctImportMany(imported) {
-    const list = ctAll();
-    let added = 0, merged = 0, skipped = 0;
-    const byName = new Map();
-    let activeCount = 0;
-    for (const entry of list) {
-      if (entry.deleted) continue;
-      activeCount++;
-      const key = ctNameKey(entry.name);
-      if (!byName.has(key)) byName.set(key, entry);
-    }
-    for (const contact of imported) {
-      const name = String(contact.name || '').trim();
-      const tels = Array.from(new Set((contact.tels || []).map((tel) => String(tel).trim()).filter(Boolean)));
-      if (!name || !tels.length) { skipped++; continue; }
-      const key = ctNameKey(name);
-      const existing = byName.get(key);
-      if (existing) {
-        const oldTels = Array.isArray(existing.tels) ? existing.tels : [];
-        existing.tels = Array.from(new Set(oldTels.concat(tels))).slice(0, 8);
-        if (existing.tels.length > oldTels.length) { existing.updatedMs = Date.now(); merged++; }
-      } else if (activeCount < CT_MAX_CONTACTS && list.length < CT_MAX_RECORDS) {
-        const entry = { id: makeContactId(), name, tels: tels.slice(0, 8), updatedMs: Date.now(), deleted: false, whatsapp: false };
-        list.push(entry); byName.set(key, entry); added++; activeCount++;
-      }
-      else skipped++;
-    }
-    return { added, merged, skipped, saved: ctSave(list) };
+    const result = RD.mergeImportedContacts(ctAll(), imported, {
+      maxContacts: CT_MAX_CONTACTS,
+      maxRecords: CT_MAX_RECORDS,
+      createId: makeContactId,
+    });
+    return { ...result, saved: ctSave(result.contacts) };
   }
   function ctDelete(id) {
     const list = ctAll(), contact = list.find((item) => item.id === id);
@@ -1079,6 +1078,7 @@
       if (!$('contactDirectory').hidden) renderContactDirectory($('contactSearch').value);
       note.textContent = `تمت قراءة ${contacts.length} جهة: أضيف ${result.added} ودمجت أرقام ${result.merged} جهات. الحفظ محلي أولًا${ctSyncEnabled ? ' ثم تُرسل المزامنة إلى الشاشة المرتبطة.' : ' ولم تُرسل أي بيانات للسيرفر.'}`
         + (result.skipped ? ` تم تجاهل ${result.skipped}.` : '')
+        + (result.limitReached ? ` حد الاستيراد ${CT_MAX_CONTACTS.toLocaleString('ar-EG')} جهة.` : '')
         + (parsed.truncated ? ` تم استيراد أول ${CT_MAX_CONTACTS.toLocaleString('ar-EG')} جهة فقط.` : '');
     } catch (e) { note.textContent = 'ماقدرتش أقرأ ملف vCard: ' + (e.message || e); }
   });
@@ -1160,10 +1160,15 @@
     sayRoad(how ? 'هتصل ب' + name + (how === 'wa' ? ' واتساب' : '') + '. تأكد؟' : name + '. تليفون ولا واتساب؟');
     // طلب اقتراح الهجاء يرسل الاسم العربي وحده فقط؛ لا يُرسل رقم هاتف أو ملف/قائمة جهات اتصال.
     $('callOpts').textContent = '';
-    const nameRequest = RD.contactNameRequest(name, contactChoices);
+    const nameRequest = RD.contactNameRequest(name, contactChoices, allowExternalContactSpelling);
     if (nameRequest) {
       const asked = callPending;
-      getContactSpelling(name, () => api('POST', nameRequest.path, nameRequest.body)).then((latin) => {
+      getContactSpelling(name, () => RD.sendContactNameRequest(
+        name,
+        contactChoices,
+        (path, body) => api('POST', path, body),
+        allowExternalContactSpelling,
+      )).then((latin) => {
         if (!latin || callPending !== asked) return;
         const b = document.createElement('button'); b.textContent = '📞 ' + latin + (how === 'wa' ? ' (واتساب)' : '');
         b.addEventListener('click', () => { if (callPending) { callPending.name = latin; callGo(how === 'wa' ? 'wa' : 'tel'); } });

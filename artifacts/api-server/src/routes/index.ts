@@ -6,6 +6,7 @@ import messengerGroupsRouter from "./messenger-groups";
 import messengerPushRouter from "./messenger-push";
 import messengerEventsRouter from "./messenger-events";
 import messengerCallsRouter from "./messenger-calls";
+import messengerAiRouter from "./messenger-ai";
 import scheduledMessagesRouter from "./scheduled-messages";
 
 const router: IRouter = Router();
@@ -17,6 +18,7 @@ router.use(messengerGroupsRouter);
 router.use(messengerPushRouter);
 router.use(messengerEventsRouter);
 router.use(messengerCallsRouter);
+router.use(messengerAiRouter);
 router.use(scheduledMessagesRouter);
 
 export default router;
