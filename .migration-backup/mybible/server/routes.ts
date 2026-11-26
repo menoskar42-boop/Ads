@@ -22,6 +22,7 @@ import { getStTaklaKatamerosDay, toDailyReadingsCompatibility } from "./katamero
 import { cairoDay } from "./cairo-day";
 import {
   getStTaklaSectionCatalogs,
+  getStTaklaLinkHealthSummary,
   getStTaklaSectionBrowse,
   getStTaklaSectionArticle,
   isStTaklaSectionKey,
@@ -128,7 +129,7 @@ export async function registerRoutes(
     try {
       const sections = await getStTaklaSectionCatalogs();
       res.set('Cache-Control', 'public, max-age=900');
-      return res.json({ source: 'St-Takla.org', sections });
+      return res.json({ source: 'St-Takla.org', sections, health: getStTaklaLinkHealthSummary() });
     } catch (error: any) {
       console.error('[orthodox] St-Takla sections catalog error:', error?.message || error);
       return res.status(503).json({

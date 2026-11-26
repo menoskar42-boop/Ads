@@ -1,16 +1,23 @@
 const ST_TAKLA_ORIGIN = 'https://st-takla.org';
 const ST_TAKLA_USER_AGENT = 'MyBible-StTakla-Sections/1.0 (+https://mybible.oscardevs.com)';
 const CACHE_TTL_MS = 15 * 60 * 1000;
+const LINK_HEALTH_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const MAX_HEALTH_REQUESTS_PER_RUN = 15;
+const MAX_BROWSE_LINK_CHECKS_PER_RUN = 12;
 const ARTICLE_MAX_LENGTH = 24000;
 const DEFAULT_PAGE_SIZE = 40;
 const MAX_PAGE_SIZE = 100;
 
 export type StTaklaSectionKey = 'ritual' | 'bible' | 'calendar';
+export type StTaklaLinkHealth = 'unchecked' | 'ok' | 'unavailable';
 
 export interface StTaklaBrowseLink {
   id: string;
   label: string;
   url: string;
+  health?: StTaklaLinkHealth;
+  checkedAt?: number;
+  error?: string;
 }
 
 export interface StTaklaSectionCatalog {
@@ -44,6 +51,14 @@ export interface StTaklaSectionArticle {
   sourceUrl: string;
 }
 
+export interface StTaklaLinkHealthSummary {
+  status: 'pending' | 'ok' | 'degraded';
+  lastCheckedAt: number | null;
+  nextCheckAt: number | null;
+  checkedLinks: number;
+  unavailableLinks: number;
+}
+
 const SECTION_DEFINITIONS: Record<StTaklaSectionKey, {
   title: string;
   description: string;
@@ -72,6 +87,18 @@ const SECTION_DEFINITIONS: Record<StTaklaSectionKey, {
 
 const htmlCache = new Map<string, { expiresAt: number; html: string }>();
 const catalogCache = new Map<StTaklaSectionKey, { expiresAt: number; value: StTaklaSectionCatalog }>();
+const linkHealth = new Map<string, { status: 'ok' | 'unavailable'; checkedAt: number; error?: string }>();
+let healthSummary: StTaklaLinkHealthSummary = {
+  status: 'pending',
+  lastCheckedAt: null,
+  nextCheckAt: null,
+  checkedLinks: 0,
+  unavailableLinks: 0,
+};
+let healthCursor = 0;
+let healthCheckInFlight: Promise<StTaklaLinkHealthSummary> | null = null;
+let healthStartupTimer: ReturnType<typeof setTimeout> | null = null;
+let healthIntervalTimer: ReturnType<typeof setInterval> | null = null;
 
 const BROWSE_CONTRACTS: Record<StTaklaSectionKey, {
   expectedCount: number;
@@ -175,9 +202,13 @@ export function isStTaklaSectionKey(value: string): value is StTaklaSectionKey {
   return Object.hasOwn(SECTION_DEFINITIONS, value);
 }
 
-async function fetchHtml(url: string): Promise<string> {
+async function fetchHtml(
+  url: string,
+  definition: typeof SECTION_DEFINITIONS[StTaklaSectionKey],
+  forceRefresh = false,
+): Promise<string> {
   const cached = htmlCache.get(url);
-  if (cached && cached.expiresAt > Date.now()) return cached.html;
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.html;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
@@ -191,6 +222,13 @@ async function fetchHtml(url: string): Promise<string> {
       },
     });
     if (!response.ok) throw new Error(`St-Takla رجّع ${response.status}`);
+    const finalUrl = new URL(response.url || url);
+    if (
+      !['st-takla.org', 'www.st-takla.org'].includes(finalUrl.hostname) ||
+      !finalUrl.pathname.startsWith(definition.pathPrefix)
+    ) {
+      throw new Error('St-Takla أعاد توجيه الرابط خارج المسار المسموح');
+    }
     const bytes = new Uint8Array(await response.arrayBuffer());
     const charset = response.headers.get('content-type')?.match(/charset\s*=\s*["']?([^;"'\s]+)/i)?.[1]?.toLowerCase();
     let html: string;
@@ -320,11 +358,46 @@ function parseArticleContent(html: string): string {
   return content.slice(0, ARTICLE_MAX_LENGTH);
 }
 
+function healthErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  const status = message.match(/رجّع (\d{3})/)?.[1];
+  if (status) return `المصدر رجّع حالة ${status}`;
+  if (message.includes('أعاد توجيه')) return 'الرابط يحوّل خارج مسار المصدر المسموح';
+  return 'تعذر الوصول إلى الرابط أو التحقق من صفحة المصدر';
+}
+
+function setLinkHealth(url: string, status: 'ok' | 'unavailable', checkedAt: number, error?: string): void {
+  linkHealth.set(url, { status, checkedAt, ...(error ? { error } : {}) });
+}
+
+function decorateCatalog(catalog: StTaklaSectionCatalog): StTaklaSectionCatalog {
+  const now = Date.now();
+  return {
+    ...catalog,
+    browse: catalog.browse.map(link => {
+      const state = linkHealth.get(link.url);
+      if (!state || now - state.checkedAt > LINK_HEALTH_INTERVAL_MS) {
+        return { ...link, health: 'unchecked' };
+      }
+      return {
+        ...link,
+        health: state.status,
+        checkedAt: state.checkedAt,
+        ...(state.error ? { error: state.error } : {}),
+      };
+    }),
+  };
+}
+
+export function getStTaklaLinkHealthSummary(): StTaklaLinkHealthSummary {
+  return { ...healthSummary };
+}
+
 export async function getStTaklaSectionCatalog(key: StTaklaSectionKey): Promise<StTaklaSectionCatalog> {
   const cached = catalogCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached && cached.expiresAt > Date.now()) return decorateCatalog(cached.value);
   const definition = sectionDefinition(key);
-  const html = await fetchHtml(definition.indexUrl);
+  const html = await fetchHtml(definition.indexUrl, definition);
   const value: StTaklaSectionCatalog = {
     key,
     title: definition.title,
@@ -335,7 +408,7 @@ export async function getStTaklaSectionCatalog(key: StTaklaSectionKey): Promise<
   };
   validateBrowseContract(key, value.browse);
   catalogCache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, value });
-  return value;
+  return decorateCatalog(value);
 }
 
 export async function getStTaklaSectionCatalogs(): Promise<StTaklaSectionCatalog[]> {
@@ -358,6 +431,84 @@ export async function getStTaklaSectionCatalogs(): Promise<StTaklaSectionCatalog
   }));
 }
 
+export async function checkStTaklaSectionLinksNow(): Promise<StTaklaLinkHealthSummary> {
+  if (healthCheckInFlight) return healthCheckInFlight;
+  healthCheckInFlight = (async () => {
+    const checkedAt = Date.now();
+    let checkedLinks = 0;
+    const candidates: Array<{ key: StTaklaSectionKey; url: string }> = [];
+    const activeUrls = new Set<string>();
+
+    await Promise.all((Object.keys(SECTION_DEFINITIONS) as StTaklaSectionKey[]).map(async key => {
+      const definition = SECTION_DEFINITIONS[key];
+      activeUrls.add(definition.indexUrl);
+      try {
+        const html = await fetchHtml(definition.indexUrl, definition, true);
+        const browse = parseBrowseLinks(key, html, definition);
+        validateBrowseContract(key, browse);
+        setLinkHealth(definition.indexUrl, 'ok', checkedAt);
+        candidates.push(...browse.map(link => ({ key, url: link.url })));
+      } catch (error) {
+        setLinkHealth(definition.indexUrl, 'unavailable', checkedAt, healthErrorMessage(error));
+      }
+      checkedLinks += 1;
+    }));
+
+    for (const url of [...linkHealth.keys()]) {
+      if (!activeUrls.has(url) && !candidates.some(candidate => candidate.url === url)) {
+        linkHealth.delete(url);
+      }
+    }
+
+    if (candidates.length) {
+      const count = Math.min(MAX_BROWSE_LINK_CHECKS_PER_RUN, MAX_HEALTH_REQUESTS_PER_RUN - 3, candidates.length);
+      const start = healthCursor % candidates.length;
+      const selected = Array.from({ length: count }, (_, offset) => candidates[(start + offset) % candidates.length]);
+      healthCursor = (start + count) % candidates.length;
+
+      for (let index = 0; index < selected.length; index += 1) {
+        const candidate = selected[index];
+        const definition = SECTION_DEFINITIONS[candidate.key];
+        activeUrls.add(candidate.url);
+        if (index > 0) await new Promise(resolve => setTimeout(resolve, 200));
+        try {
+          await fetchHtml(candidate.url, definition, true);
+          setLinkHealth(candidate.url, 'ok', checkedAt);
+        } catch (error) {
+          setLinkHealth(candidate.url, 'unavailable', checkedAt, healthErrorMessage(error));
+        }
+        checkedLinks += 1;
+      }
+    }
+
+    const unavailableLinks = [...linkHealth.values()].filter(item => item.status === 'unavailable').length;
+    healthSummary = {
+      status: unavailableLinks ? 'degraded' : 'ok',
+      lastCheckedAt: checkedAt,
+      nextCheckAt: checkedAt + LINK_HEALTH_INTERVAL_MS,
+      checkedLinks,
+      unavailableLinks,
+    };
+    return getStTaklaLinkHealthSummary();
+  })().finally(() => {
+    healthCheckInFlight = null;
+  });
+  return healthCheckInFlight;
+}
+
+export function startStTaklaSectionLinkHealthSchedule(): void {
+  if (healthStartupTimer || healthIntervalTimer) return;
+  healthStartupTimer = setTimeout(() => {
+    healthStartupTimer = null;
+    void checkStTaklaSectionLinksNow();
+    healthIntervalTimer = setInterval(() => {
+      void checkStTaklaSectionLinksNow();
+    }, LINK_HEALTH_INTERVAL_MS);
+    healthIntervalTimer.unref?.();
+  }, 30_000);
+  healthStartupTimer.unref?.();
+}
+
 export async function getStTaklaSectionBrowse(
   key: StTaklaSectionKey,
   browseId: string,
@@ -376,7 +527,12 @@ export async function getStTaklaSectionBrowse(
   const catalog = await getStTaklaSectionCatalog(key);
   const browse = catalog.browse.find(item => item.id === browseId);
   if (!browse) throw new Error('عنصر التصفح غير موجود في فهرس St-Takla');
-  const html = await fetchHtml(browse.url);
+  const storedHealth = linkHealth.get(browse.url);
+  if (storedHealth?.status === 'unavailable' && Date.now() - storedHealth.checkedAt <= LINK_HEALTH_INTERVAL_MS) {
+    throw new Error(storedHealth.error || 'رابط St-Takla غير متاح حسب آخر فحص');
+  }
+  const definition = sectionDefinition(key);
+  const html = await fetchHtml(browse.url, definition);
   if (key === 'calendar') {
     const content = parseArticleContent(html);
     if (!content) throw new Error('St-Takla لم يُرجع محتوى المقال');
@@ -429,7 +585,7 @@ export async function getStTaklaSectionArticle(
 ): Promise<StTaklaSectionArticle> {
   const definition = sectionDefinition(key);
   const url = absoluteStTaklaUrl(sourceUrl, definition);
-  const html = await fetchHtml(url);
+  const html = await fetchHtml(url, definition);
   const content = parseArticleContent(html);
   if (!content) throw new Error('لم يُعثر على محتوى قابل للعرض في صفحة St-Takla');
   return {
@@ -444,4 +600,13 @@ export async function getStTaklaSectionArticle(
 export function clearStTaklaSectionsCache(): void {
   htmlCache.clear();
   catalogCache.clear();
+  linkHealth.clear();
+  healthSummary = {
+    status: 'pending',
+    lastCheckedAt: null,
+    nextCheckAt: null,
+    checkedLinks: 0,
+    unavailableLinks: 0,
+  };
+  healthCursor = 0;
 }

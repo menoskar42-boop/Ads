@@ -1244,3 +1244,68 @@ class MisheardTest {
     }
 }
 
+class ContactVCardTest {
+    @Test fun parsesNamesAndSyntheticPhoneFieldsLocally() {
+        val parsed = VCardContacts.parse(
+            """
+            BEGIN:VCARD
+            VERSION:3.0
+            FN:Example\, Driver
+            TEL;TYPE=CELL:12345
+            END:VCARD
+            """.trimIndent(),
+        )
+        assertFalse(parsed.truncated)
+        assertEquals(1, parsed.contacts.size)
+        assertEquals("Example, Driver", parsed.contacts.single().name)
+        assertEquals(listOf("12345"), parsed.contacts.single().tels)
+    }
+
+    @Test fun usesStructuredNameWhenDisplayNameIsMissing() {
+        val parsed = VCardContacts.parse(
+            """
+            BEGIN:VCARD
+            N:Family;Given;Middle;Prefix;Suffix
+            TEL;TYPE=HOME:54321
+            END:VCARD
+            """.trimIndent(),
+        )
+        assertEquals("Prefix Given Middle Family Suffix", parsed.contacts.single().name)
+    }
+
+    @Test fun importMergesByNameAndKeepsAtMostEightDistinctNumbers() {
+        val existing = VCardContacts.Contact(
+            id = "contact-local-id",
+            name = "Car",
+            tels = (1..7).map { "stored-$it" },
+        )
+        val result = VCardContacts.mergeImported(
+            existing = listOf(existing),
+            imported = listOf(
+                VCardContacts.Contact(" car ", listOf("stored-7", "imported-8", "imported-9")),
+            ),
+            nowMs = 50,
+        )
+        assertEquals(0, result.added)
+        assertEquals(1, result.merged)
+        assertEquals(8, result.contacts.single().tels.size)
+        assertEquals("contact-local-id", result.contacts.single().id)
+        assertEquals("imported-8", result.contacts.single().tels.last())
+        assertEquals(50, result.contacts.single().updatedMs)
+    }
+
+    @Test fun importRespectsContactAndRecordLimits() {
+        val existing = listOf(VCardContacts.Contact("Existing", listOf("stored"), id = "existing-id"))
+        val result = VCardContacts.mergeImported(
+            existing = existing,
+            imported = listOf(VCardContacts.Contact("New", listOf("new"))),
+            maxContacts = 1,
+            maxRecords = 2,
+        )
+        assertEquals(0, result.added)
+        assertEquals(1, result.skipped)
+        assertTrue(result.limitReached)
+        assertEquals(1, result.contacts.size)
+    }
+}
+

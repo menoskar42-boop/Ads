@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.OpenableColumns
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.text.InputType
@@ -71,12 +72,15 @@ import com.oscardevs.oscardrive.logic.MessengerVoice
 import com.oscardevs.oscardrive.logic.MessengerMessageRequest
 import com.oscardevs.oscardrive.logic.WakeCapturePolicy
 import com.oscardevs.oscardrive.logic.WakeRecognitionAction
+import com.oscardevs.oscardrive.logic.VCardContacts
 import android.widget.HorizontalScrollView
 import com.oscardevs.oscardrive.logic.Wellness
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.Executors
 
 /**
  * Oscar Drive — شاشة واحدة بالعرض (Landscape) فيها كل حاجة: القيادة · الملاحة · الركن · الطريق ·
@@ -88,6 +92,9 @@ class MainActivity : Activity() {
     private lateinit var db: Db
     private lateinit var ui: Ui
     private val main = Handler(Looper.getMainLooper())
+    private val contactImportExecutor = Executors.newSingleThreadExecutor()
+    private var contactDirectoryRefresh: (() -> Unit)? = null
+    private var contactDirectoryStatus: TextView? = null
     private var tab = "drive"
     private lateinit var content: FrameLayout
     private lateinit var rail: LinearLayout
@@ -127,6 +134,9 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         if (ScreenEars.sink != null) ScreenEars.sink = null
         ScreenEars.partialSink = null
+        contactDirectoryRefresh = null
+        contactDirectoryStatus = null
+        contactImportExecutor.shutdownNow()
         BackBubble.hide(this)
         super.onDestroy()
     }
@@ -1326,6 +1336,127 @@ class MainActivity : Activity() {
     /** دليل جهات أوسكار المحلي/المتزامن؛ كل زر يفتح برنامج الاتصال للمراجعة قبل إجراء المكالمة. */
     private fun openDialer() = showContactDirectory()
 
+    private fun openContactVCardPicker() {
+        val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("text/vcard", "text/x-vcard", "text/directory", "application/octet-stream"),
+            )
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(picker, REQ_VCARD)
+        } catch (_: ActivityNotFoundException) {
+            toast("مافيش تطبيق متاح لاختيار ملف vCard.")
+        }
+    }
+
+    private fun readContactVCard(uri: Uri): VCardContacts.ParseResult {
+        val mime = contentResolver.getType(uri).orEmpty()
+        val fileName = try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+            }.orEmpty()
+        } catch (_: Exception) {
+            ""
+        }
+        val validType = mime.contains("vcard", ignoreCase = true) ||
+            mime.equals("text/directory", ignoreCase = true) ||
+            fileName.endsWith(".vcf", ignoreCase = true)
+        if (!validType) throw IllegalArgumentException("invalid_file")
+
+        val bytes = ByteArrayOutputStream()
+        var total = 0
+        val input = contentResolver.openInputStream(uri) ?: throw IllegalArgumentException("unreadable_file")
+        input.use { stream ->
+            val buffer = ByteArray(8 * 1024)
+            while (true) {
+                val read = stream.read(buffer)
+                if (read < 0) break
+                total += read
+                if (total > 16 * 1024 * 1024) throw IllegalArgumentException("file_too_large")
+                bytes.write(buffer, 0, read)
+            }
+        }
+        return VCardContacts.parse(String(bytes.toByteArray(), Charsets.UTF_8))
+    }
+
+    private fun handlePickedContactVCard(uri: Uri) {
+        contactDirectoryStatus?.text = "جارٍ قراءة الملف على الشاشة…"
+        contactImportExecutor.execute {
+            val parsed = try {
+                readContactVCard(uri)
+            } catch (_: Exception) {
+                main.post {
+                    contactDirectoryStatus?.text = "ماقدرتش أقرأ الملف؛ اختار ملف vCard صالحًا وأصغر من 16 ميجابايت."
+                }
+                return@execute
+            }
+            main.post {
+                if (isFinishing) return@post
+                if (parsed.contacts.isEmpty()) {
+                    contactDirectoryStatus?.text = "ما لقيتش أسماء وأرقام صالحة في الملف."
+                } else {
+                    showContactVCardPreview(parsed)
+                }
+            }
+        }
+    }
+
+    private fun showContactVCardPreview(parsed: VCardContacts.ParseResult) {
+        val shown = parsed.contacts.take(VCardContacts.MAX_IMPORTED_CONTACTS)
+        val preview = buildString {
+            append("تمت قراءة ${parsed.contacts.size} جهة. راجع الأسماء والأرقام قبل الحفظ.\n")
+            append("الحفظ محلي على الشاشة أولًا؛ المزامنة لا تعمل إلا إذا كانت مفعّلة بموافقتك.\n\n")
+            shown.forEach { contact ->
+                append(contact.name)
+                append('\n')
+                append(contact.tels.joinToString(" · "))
+                append("\n\n")
+            }
+            if (parsed.contacts.size > shown.size) {
+                append("المعاينة تعرض أول ${shown.size} جهة.")
+                append('\n')
+            }
+            if (parsed.truncated) {
+                append("الملف كبير؛ تمت قراءة أول ${VCardContacts.MAX_PARSED_CONTACTS} جهة فقط.")
+            }
+        }
+        val text = ui.text(preview, 14f, ui.ink).apply {
+            setPadding(ui.dp(12), ui.dp(8), ui.dp(12), ui.dp(8))
+            setTextIsSelectable(true)
+        }
+        val scroll = ScrollView(this).apply { addView(text) }
+        AlertDialog.Builder(this)
+            .setTitle("معاينة جهات الاتصال")
+            .setView(scroll)
+            .setNegativeButton("إلغاء", null)
+            .setPositiveButton("حفظ على الشاشة") { _, _ ->
+                contactImportExecutor.execute {
+                    val result = try {
+                        Db.get(applicationContext).importDirectoryContacts(parsed.contacts)
+                    } catch (_: Exception) {
+                        main.post {
+                            contactDirectoryStatus?.text = "ماقدرتش أحفظ الجهات؛ القائمة الحالية لم تتغير."
+                        }
+                        return@execute
+                    }
+                    ContactSync.syncSoon(applicationContext, force = true)
+                    main.post {
+                        contactDirectoryRefresh?.invoke()
+                        val status = "اتحفظ ${result.added} جهة جديدة وادمجت أرقام ${result.merged} جهات."
+                        contactDirectoryStatus?.text = status +
+                            (if (result.skipped > 0) " تم تجاهل ${result.skipped}." else "") +
+                            (if (result.limitReached) " وصلت لحد الاستيراد ${VCardContacts.MAX_IMPORTED_CONTACTS} جهة." else "") +
+                            (if (parsed.truncated) " تم تجاهل ما بعد أول ${VCardContacts.MAX_PARSED_CONTACTS} جهة." else "")
+                    }
+                }
+            }
+            .show()
+    }
+
     private fun showContactDirectory() {
         val db = Db.get(this)
         val box = ui.col(8)
@@ -1335,6 +1466,7 @@ class MainActivity : Activity() {
             setSingleLine(true)
         }
         val status = ui.text("دفتر المكالمات منفصل عن جهات أوسكار المستخدمة لواتساب. المزامنة اختيارية.", 13f, ui.muted)
+        contactDirectoryStatus = status
         val syncEnabled = booleanArrayOf(false)
         var visibleCount = 200
         var cachedContacts: List<Db.SyncContact>? = null
@@ -1366,6 +1498,9 @@ class MainActivity : Activity() {
                     }
                 }
             }
+        }
+        val importButton = ui.button("📥 استورد ملف جهات الاتصال (VCF)", "neutral", 14f) {
+            openContactVCardPicker()
         }
         fun allContacts(): List<Db.SyncContact> =
             cachedContacts ?: db.contactDirectory().sortedWith { a, b -> collator.compare(a.name, b.name) }.also { cachedContacts = it }
@@ -1414,6 +1549,7 @@ class MainActivity : Activity() {
         box.addView(search, ui.lp(Ui.MATCH, ui.dp(52), marginDp = 3))
         box.addView(status)
         box.addView(addButton, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 2))
+        box.addView(importButton, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 2))
         box.addView(syncButton, ui.lp(Ui.MATCH, ui.dp(48), marginDp = 2))
         box.addView(disableButton, ui.lp(Ui.MATCH, ui.dp(44), marginDp = 2))
         box.addView(scroll, ui.lp(Ui.MATCH, ui.dp(360), marginDp = 3))
@@ -1485,6 +1621,11 @@ class MainActivity : Activity() {
             }
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
+        contactDirectoryRefresh = {
+            cachedContacts = null
+            visibleCount = 200
+            renderContacts()
+        }
         val dialog = AlertDialog.Builder(this).setTitle("📇 جهات الاتصال").setView(box).setNegativeButton("قفل", null).create()
         dialog.show()
         renderContacts()
@@ -1749,6 +1890,10 @@ class MainActivity : Activity() {
             val f = pickFor; pickFor = null
             if (resultCode == RESULT_OK && f != null && data != null) saveRemindPlace(f.first, f.second, data.getDoubleExtra("lat", 0.0), data.getDoubleExtra("lng", 0.0))
             else if (f != null) oscar("remind_cancel")
+            return
+        }
+        if (requestCode == REQ_VCARD) {
+            if (resultCode == RESULT_OK) data?.data?.let(::handlePickedContactVCard)
             return
         }
         if (requestCode != REQ_VOICE) return
@@ -2831,5 +2976,6 @@ class MainActivity : Activity() {
         private const val REQ_PICK = 6
         private const val REQ_CAM = 7
         private const val REQ_MIC = 8
+        private const val REQ_VCARD = 9
     }
 }

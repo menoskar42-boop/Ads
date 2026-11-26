@@ -217,6 +217,47 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx, "oscardrive.d
             put("updated_ms", now); put("deleted", 0)
         })
     }
+    fun importDirectoryContacts(imported: List<com.oscardevs.oscardrive.logic.VCardContacts.Contact>): com.oscardevs.oscardrive.logic.VCardContacts.MergeResult {
+        val database = writableDatabase
+        database.beginTransaction()
+        try {
+            val current = contactsForSync()
+            val existing = current.map { contact ->
+                com.oscardevs.oscardrive.logic.VCardContacts.Contact(
+                    id = contact.id,
+                    name = contact.name,
+                    tels = contact.tels,
+                    updatedMs = contact.updatedMs,
+                    deleted = contact.deleted,
+                )
+            }
+            val result = com.oscardevs.oscardrive.logic.VCardContacts.mergeImported(
+                existing = existing,
+                imported = imported,
+                maxContacts = com.oscardevs.oscardrive.logic.VCardContacts.MAX_IMPORTED_CONTACTS,
+                maxRecords = com.oscardevs.oscardrive.logic.VCardContacts.MAX_IMPORTED_RECORDS,
+            )
+            val oldById = current.associateBy { it.id }
+            for (contact in result.contacts) {
+                if (contact.deleted) continue
+                val contactId = contact.id
+                if (contactId == null) {
+                    addDirectoryContact(contact.name, contact.tels)
+                } else {
+                    val previous = oldById[contactId]
+                    if (previous == null) {
+                        addDirectoryContact(contact.name, contact.tels)
+                    } else if (previous.tels != contact.tels || previous.name != contact.name) {
+                        updateDirectoryContact(contactId, contact.name, contact.tels)
+                    }
+                }
+            }
+            database.setTransactionSuccessful()
+            return result
+        } finally {
+            database.endTransaction()
+        }
+    }
     fun updateDirectoryContact(id: String, name: String, phones: List<String>) {
         val cleanName = name.trim().take(60)
         val cleanTels = phones.map { it.trim().take(30) }.filter { contactPhoneKey(it).length >= 3 }.distinct().take(8)

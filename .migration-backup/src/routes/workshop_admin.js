@@ -63,6 +63,17 @@ const emailAddress = (v) => {
   const s = String(v == null ? '' : v).trim().toLowerCase();
   return s && s.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
 };
+function claimReminderEmailTestSlot(companyId, now = Date.now()) {
+  const id = Number(companyId);
+  if (!Number.isSafeInteger(id) || id <= 0) return false;
+  for (const [storedId, expiresAt] of reminderEmailTestCooldowns) {
+    if (expiresAt <= now) reminderEmailTestCooldowns.delete(storedId);
+  }
+  const expiresAt = reminderEmailTestCooldowns.get(id) || 0;
+  if (expiresAt > now) return false;
+  reminderEmailTestCooldowns.set(id, now + REMINDER_EMAIL_TEST_COOLDOWN_MS);
+  return true;
+}
 const alertEmailChange = (previousEmail, nextEmail) => {
   const previous = emailAddress(previousEmail);
   const next = emailAddress(nextEmail);
@@ -104,6 +115,8 @@ function logAlertEmailAccessDenied(req, reason, companyScopeMismatch = false) {
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 const DEFAULT_REMINDER_LEAD_DAYS = 7;
 const DEFAULT_REMINDER_LEAD_KM = 500;
+const REMINDER_EMAIL_TEST_COOLDOWN_MS = 60 * 1000;
+const reminderEmailTestCooldowns = new Map();
 const CRM_LEAD_STAGES = ['new', 'contacted', 'qualified', 'booked', 'won', 'lost'];
 const CRM_LEAD_STAGE_LABELS = {
   new: 'جديد', contacted: 'تم التواصل', qualified: 'مهتم', booked: 'حجز موعد',
@@ -371,7 +384,7 @@ async function deliverWorkshopMessage(companyId, messageId, force = false) {
             last_attempt_at=now(), error=NULL
       WHERE id=$1 AND company_id=$2
         AND status IN ('prepared','failed')
-        AND COALESCE(attempt_count,0) < 5
+        AND (COALESCE(attempt_count,0) < 5 OR $3)
         AND ($3 OR next_retry_at IS NULL OR next_retry_at <= now())
       RETURNING *`,
     [messageId, companyId, force]
@@ -1400,6 +1413,9 @@ router.post('/settings/alert-email-history/:id/restore', requireWorkshopPermissi
 });
 
 router.post('/settings/reminder-email-test', requireWorkshopPermission('manage_settings'), async (req, res) => {
+  if (!claimReminderEmailTestSlot(req.company.id)) {
+    return res.redirect('/workshop/settings?test_email=rate_limited');
+  }
   try {
     const result = await sendWorkshopReminderHealthTest({
       companyId: req.company.id,
@@ -2631,7 +2647,7 @@ async function prepareWorkshopMessage(companyId, jobId, eventKey) {
 
 router.get('/communications', requireFlag('communications'), requireWorkshopPermission('view_communications'), async (req, res) => {
   const cid = req.company.id;
-  const [messages, jobs, finalFailures] = await Promise.all([
+  const [messages, jobs, failures] = await Promise.all([
     pool.query(
       `SELECT m.*, j.id AS job_id, v.plate, c.name AS customer_name, c.phone AS customer_phone
          FROM workshop_messages m
@@ -2647,15 +2663,21 @@ router.get('/communications', requireFlag('communications'), requireWorkshopPerm
         WHERE j.company_id=$1 AND j.status <> 'cancelled'
         ORDER BY j.received_at DESC LIMIT 300`, [cid]),
     pool.query(
-      `SELECT COUNT(*)::int AS n
+      `SELECT COUNT(*)::int AS failed_count,
+              COUNT(*) FILTER (WHERE COALESCE(attempt_count,0) >= 5)::int AS final_failure_count,
+              (SELECT id FROM workshop_messages
+                WHERE company_id=$1 AND status='failed'
+                ORDER BY failed_at DESC NULLS LAST, id DESC LIMIT 1) AS latest_failed_id
          FROM workshop_messages
-        WHERE company_id=$1 AND status='failed' AND COALESCE(attempt_count,0) >= 5`,
+        WHERE company_id=$1 AND status='failed'`,
       [cid]),
   ]);
   res.render('workshop_admin/communications', {
     title: 'رسائل العملاء', tab: 'communications', messages: messages.rows, jobs: jobs.rows,
     sent: req.query.sent === '1', error: req.query.error || '',
-    finalFailureCount: finalFailures.rows[0].n,
+    failedMessageCount: failures.rows[0].failed_count,
+    finalFailureCount: failures.rows[0].final_failure_count,
+    latestFailedMessageId: failures.rows[0].latest_failed_id,
     messaging: workshopMessagingView(await pool.query(
       'SELECT * FROM workshop_message_settings WHERE company_id=$1', [cid]
     ).then((r) => r.rows[0])),
@@ -3860,4 +3882,5 @@ module.exports.pool = pool;
 module.exports.helpers = {
   num, int, text, round2, requireFlag, queueServiceReminderMessages,
   campaignRecipient, campaignAudienceCondition, alertEmailChange, loadAlertEmailHistory,
+  claimReminderEmailTestSlot,
 };
