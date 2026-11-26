@@ -371,7 +371,7 @@ async function deliverWorkshopMessage(companyId, messageId, force = false) {
             last_attempt_at=now(), error=NULL
       WHERE id=$1 AND company_id=$2
         AND status IN ('prepared','failed')
-        AND COALESCE(attempt_count,0) < 5
+        AND (COALESCE(attempt_count,0) < 5 OR $3)
         AND ($3 OR next_retry_at IS NULL OR next_retry_at <= now())
       RETURNING *`,
     [messageId, companyId, force]
@@ -2631,7 +2631,7 @@ async function prepareWorkshopMessage(companyId, jobId, eventKey) {
 
 router.get('/communications', requireFlag('communications'), requireWorkshopPermission('view_communications'), async (req, res) => {
   const cid = req.company.id;
-  const [messages, jobs, finalFailures] = await Promise.all([
+  const [messages, jobs, failures] = await Promise.all([
     pool.query(
       `SELECT m.*, j.id AS job_id, v.plate, c.name AS customer_name, c.phone AS customer_phone
          FROM workshop_messages m
@@ -2647,15 +2647,21 @@ router.get('/communications', requireFlag('communications'), requireWorkshopPerm
         WHERE j.company_id=$1 AND j.status <> 'cancelled'
         ORDER BY j.received_at DESC LIMIT 300`, [cid]),
     pool.query(
-      `SELECT COUNT(*)::int AS n
+      `SELECT COUNT(*)::int AS failed_count,
+              COUNT(*) FILTER (WHERE COALESCE(attempt_count,0) >= 5)::int AS final_failure_count,
+              (SELECT id FROM workshop_messages
+                WHERE company_id=$1 AND status='failed'
+                ORDER BY failed_at DESC NULLS LAST, id DESC LIMIT 1) AS latest_failed_id
          FROM workshop_messages
-        WHERE company_id=$1 AND status='failed' AND COALESCE(attempt_count,0) >= 5`,
+        WHERE company_id=$1 AND status='failed'`,
       [cid]),
   ]);
   res.render('workshop_admin/communications', {
     title: 'رسائل العملاء', tab: 'communications', messages: messages.rows, jobs: jobs.rows,
     sent: req.query.sent === '1', error: req.query.error || '',
-    finalFailureCount: finalFailures.rows[0].n,
+    failedMessageCount: failures.rows[0].failed_count,
+    finalFailureCount: failures.rows[0].final_failure_count,
+    latestFailedMessageId: failures.rows[0].latest_failed_id,
     messaging: workshopMessagingView(await pool.query(
       'SELECT * FROM workshop_message_settings WHERE company_id=$1', [cid]
     ).then((r) => r.rows[0])),
