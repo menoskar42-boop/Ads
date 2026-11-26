@@ -464,6 +464,22 @@
     return Array.from(new Set(String(value || '').split(/[,،;؛\n]+/).map((phone) => phone.trim()).filter(Boolean)));
   }
   const MAX_IMPORTED_CONTACTS = 500;
+  function contactStorageKey(accountCredential) {
+    const value = String(accountCredential || '');
+    if (!value) return 'od_contacts_v2_unpaired';
+    // Local namespace only: compact fingerprint, not an authentication value or server identifier.
+    const hashes = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
+    const primes = [0x01000193, 0x27d4eb2f, 0x165667b1, 0x85ebca77];
+    for (let index = 0; index < value.length; index++) {
+      const code = value.charCodeAt(index);
+      for (let lane = 0; lane < hashes.length; lane++) {
+        let next = Math.imul(hashes[lane] ^ code, primes[lane]);
+        next ^= next >>> 15;
+        hashes[lane] = next >>> 0;
+      }
+    }
+    return `od_contacts_v2_${hashes.map((part) => part.toString(16).padStart(8, '0')).join('')}`;
+  }
   function mergeImportedContacts(existing, imported, options = {}) {
     const maxContacts = Number.isInteger(options.maxContacts) && options.maxContacts >= 0
       ? options.maxContacts : MAX_IMPORTED_CONTACTS;
@@ -629,6 +645,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, mergeImportedContacts, writeContactList, MAX_IMPORTED_CONTACTS, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, mergeImportedContacts, writeContactList, contactStorageKey, MAX_IMPORTED_CONTACTS, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -225,6 +225,14 @@ test('vCard imports stop at 500 contacts and preserve the old list when storage 
   assert.equal(R.writeContactList(fullStorage, 'contacts', result.contacts), false);
   assert.equal(fullStorage.getItem('contacts'), previous);
 });
+test('contact storage is partitioned locally by account without exposing the credential', () => {
+  const first = R.contactStorageKey('local-account-alpha');
+  assert.equal(R.contactStorageKey('local-account-alpha'), first);
+  assert.notEqual(R.contactStorageKey('local-account-beta'), first);
+  assert.match(first, /^od_contacts_v2_[a-f0-9]{32}$/);
+  assert.equal(first.includes('local-account-alpha'), false);
+  assert.equal(R.contactStorageKey(''), 'od_contacts_v2_unpaired');
+});
 test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping', () => {
   assert.equal(R.parseVoice('يا أذكر اتصل ب ماذر موبايل'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('يا اذكر اتصل ل Mother Mobile'), 'call::Mother Mobile');

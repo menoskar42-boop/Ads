@@ -783,7 +783,7 @@
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let callPending = null;   // { name, how, at }
   const getContactSpelling = RD.createContactSpellingCache();
-  const CT_KEY = 'od_contacts';
+  const CT_KEY = () => RD.contactStorageKey(token);
   const CT_MAX_CONTACTS = RD.MAX_IMPORTED_CONTACTS;
   const CT_MAX_RECORDS = CT_MAX_CONTACTS * 2;
   const CT_RENDER_PAGE = 200;
@@ -814,7 +814,7 @@
     });
   const ctAll = () => {
     let raw = [];
-    try { raw = JSON.parse(localStorage.getItem(CT_KEY) || '[]'); } catch (e) {}
+    try { raw = JSON.parse(localStorage.getItem(CT_KEY()) || '[]'); } catch (e) {}
     if (!Array.isArray(raw)) raw = [];
     const now = Date.now();
     const list = raw.slice(0, CT_MAX_RECORDS).map((c) => {
@@ -830,7 +830,7 @@
         whatsapp: !(c && c.whatsapp === false),
       };
     }).filter((c) => c.name && c.tels.length);
-    try { if (JSON.stringify(raw) !== JSON.stringify(list)) localStorage.setItem(CT_KEY, JSON.stringify(list)); } catch (e) {}
+    try { if (JSON.stringify(raw) !== JSON.stringify(list)) localStorage.setItem(CT_KEY(), JSON.stringify(list)); } catch (e) {}
     return list;
   };
   const ctLoad = () => ctAll().filter((c) => !c.deleted);
@@ -843,7 +843,7 @@
     const safe = Array.isArray(list) ? list.slice(0, CT_MAX_RECORDS) : [];
     ctListVisible = CT_RENDER_PAGE;
     let saved = false;
-    try { saved = RD.writeContactList(localStorage, CT_KEY, safe); } catch (e) {}
+    try { saved = RD.writeContactList(localStorage, CT_KEY(), safe); } catch (e) {}
     ctRender();
     if (!saved) return false;
     if (schedule) {
