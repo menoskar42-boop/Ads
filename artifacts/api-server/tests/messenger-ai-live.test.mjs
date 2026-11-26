@@ -117,3 +117,16 @@ test("ending a session early gives the unused minutes back (failed tries don't u
   // A second end is a no-op.
   assert.equal(endGeminiLiveSession("refund-user", ledger, now + 20_000).refundedMinutes, 0);
 });
+
+test("the Live setup carries the chosen voice, the rounded location, and search", async () => {
+  const { buildGeminiLiveSetup, parseGeminiLiveOptions } = await import("../src/lib/messenger-ai-live.ts");
+  const female = buildGeminiLiveSetup(parseGeminiLiveOptions({}));
+  assert.equal(female.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, "Kore");
+  assert.deepEqual(female.tools, [{ googleSearch: {} }]);
+  const options = parseGeminiLiveOptions({ voice: "male", location: { lat: 27.18123, lng: 31.18456 } });
+  assert.deepEqual(options.location, { lat: 27.18, lng: 31.18 });
+  const male = buildGeminiLiveSetup(options);
+  assert.equal(male.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, "Charon");
+  assert.match(male.systemInstruction.parts[0].text, /27\.18/);
+  assert.equal(parseGeminiLiveOptions({ location: { lat: 999, lng: 0 } }).location, null);
+});

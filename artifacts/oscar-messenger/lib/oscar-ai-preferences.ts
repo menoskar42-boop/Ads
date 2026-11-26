@@ -38,3 +38,33 @@ export function saveOscarAiGoogleConsent(): void {
     // The consent dialog will be shown again if storage is unavailable.
   }
 }
+
+// Voice and location (owner 2026-11-26): «اتحكم فى نوع الصوت راجل او ست … الافتراضى خليه ست» and
+// «عاوز أوسكار يعرف اللوكيشن بتاعى». Both stay on this device.
+const VOICE_KEY = "messenger.oscar-ai.voice.v1";
+const LOCATION_KEY = "messenger.oscar-ai.share-location.v1";
+export type OscarAiVoice = "female" | "male";
+
+export function readOscarAiVoice(): OscarAiVoice {
+  return storage()?.getItem(VOICE_KEY) === "male" ? "male" : "female";
+}
+
+export function writeOscarAiVoice(voice: OscarAiVoice): void {
+  try {
+    storage()?.setItem(VOICE_KEY, voice);
+  } catch {
+    // Falls back to the female default.
+  }
+}
+
+export function readOscarAiShareLocation(): boolean {
+  return storage()?.getItem(LOCATION_KEY) !== "false";
+}
+
+export function writeOscarAiShareLocation(enabled: boolean): void {
+  try {
+    storage()?.setItem(LOCATION_KEY, enabled ? "true" : "false");
+  } catch {
+    // Default stays on; the browser still asks for location permission.
+  }
+}

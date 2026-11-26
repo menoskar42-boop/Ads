@@ -12,8 +12,11 @@ import { apiUrl } from "../lib/api";
 import {
   hasOscarAiGoogleConsent,
   OSCAR_AI_WAKE_CHANGE_EVENT,
+  readOscarAiShareLocation,
+  readOscarAiVoice,
   readOscarAiWakeEnabled,
   saveOscarAiGoogleConsent,
+  type OscarAiVoice,
 } from "../lib/oscar-ai-preferences";
 import { hasOscarWake, isOscarAiExitPhrase, isOscarWakeOnly } from "../lib/oscar-ai-wake";
 import { colors } from "../lib/theme";
@@ -37,7 +40,7 @@ type RecognitionLike = {
   stop(): void;
 };
 type RecognitionConstructor = new () => RecognitionLike;
-type LiveResponse = { token: string; model: string };
+type LiveResponse = { token: string; model: string; setup?: Record<string, unknown> };
 
 
 const liveTextDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder() : null;
@@ -167,9 +170,11 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
     try {
       const authToken = await getToken();
       if (!authToken) throw new Error("انتهت جلسة الدخول. سجّل دخولك من جديد.");
+      const location = readOscarAiShareLocation() ? await approximateLocation() : null;
       const tokenResponse = await fetch(apiUrl("/api/messenger/ai/live-session"), {
         method: "POST",
-        headers: { Authorization: `Bearer ${authToken}` },
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ voice: readOscarAiVoice(), location }),
       });
       const tokenPayload = await tokenResponse.json().catch(() => ({}));
       if (!tokenResponse.ok) {
@@ -208,8 +213,10 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
       // Gemini Live sends its JSON in binary frames; read them as bytes, not "[object Blob]".
       liveSocket.binaryType = "arraybuffer";
       liveSocket.onopen = () => {
+        // The server builds the setup (voice · approximate location · date · search) and locks
+        // the same setup into the token; older servers do not send one.
         liveSocket.send(JSON.stringify({
-          setup: {
+          setup: live.setup ?? {
             model: `models/${live.model}`,
             generationConfig: { responseModalities: ["AUDIO"] },
             systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
@@ -362,7 +369,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
       setConsentVisible(true);
       return;
     }
-    void playOscarHello()
+    void playOscarHello(readOscarAiVoice())
       .then(() => startSession())
       .catch((playError) => {
         setError(playError instanceof Error ? playError.message : "تعذر تشغيل الرد الصوتي.");
@@ -429,13 +436,33 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
     if (!pageVisible && active) stopSession();
   }, [active, pageVisible, stopSession]);
 
+  // Keep the screen on while Oscar AI is listening: a sleeping screen hides the page and
+  // ends the session (owner: «الشاشه نامت و لما فتحت لقيت أوسكار هام»).
+  useEffect(() => {
+    if (!active || Platform.OS !== "web" || typeof navigator === "undefined") return;
+    const wakeLockApi = (navigator as Navigator & {
+      wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> };
+    }).wakeLock;
+    if (!wakeLockApi) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    let stopped = false;
+    void wakeLockApi.request("screen").then((acquired) => {
+      if (stopped) void acquired.release().catch(() => undefined);
+      else lock = acquired;
+    }).catch(() => undefined);
+    return () => {
+      stopped = true;
+      if (lock) void lock.release().catch(() => undefined);
+    };
+  }, [active]);
+
   const acceptConsent = () => {
     primeAudio();
     saveOscarAiGoogleConsent();
     setConsentVisible(false);
     if (pendingStart.current) {
       pendingStart.current = false;
-      void playOscarHello()
+      void playOscarHello(readOscarAiVoice())
         .then(() => startSession())
         .catch((playError) => {
           setError(playError instanceof Error ? playError.message : "تعذر تشغيل الرد الصوتي.");
@@ -506,11 +533,36 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   );
 }
 
-async function playOscarHello(): Promise<void> {
-  // Existing "أيوه، سامعك" entry in drive-web/voice/male/manifest.json.
-  const audio = new Audio(
-    `${DRIVE_VOICE_ORIGIN}/voice/male/3c2a4bcd46dac795339647e8d2028af3.mp3`,
-  );
+// «أيوه، سامعك» from drive-web/voice/<male|female>/manifest.json, in the voice chosen in settings.
+const HELLO_CLIPS: Record<OscarAiVoice, string> = {
+  male: "male/3c2a4bcd46dac795339647e8d2028af3.mp3",
+  female: "female/b1389d2f7f3f7f15577b715cb7a12c36.mp3",
+};
+
+/** Approximate position (~1 km) for weather/nearby questions; null if refused or slow. */
+function approximateLocation(): Promise<{ lat: number; lng: number } | null> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 4_000);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        clearTimeout(timer);
+        resolve({
+          lat: Math.round(position.coords.latitude * 100) / 100,
+          lng: Math.round(position.coords.longitude * 100) / 100,
+        });
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(null);
+      },
+      { enableHighAccuracy: false, maximumAge: 10 * 60_000, timeout: 4_000 },
+    );
+  });
+}
+
+async function playOscarHello(voice: OscarAiVoice): Promise<void> {
+  const audio = new Audio(`${DRIVE_VOICE_ORIGIN}/voice/${HELLO_CLIPS[voice]}`);
   await new Promise<void>((resolve, reject) => {
     audio.onended = () => resolve();
     audio.onerror = () => reject(new Error("تعذر تشغيل مقطع «أيوه»."));

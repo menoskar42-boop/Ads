@@ -3,6 +3,7 @@ import { Router, type Request, type RequestHandler } from "express";
 import {
   createGeminiLiveToken,
   endGeminiLiveSession,
+  parseGeminiLiveOptions,
   type GeminiLiveTokenResult,
 } from "../lib/messenger-ai-live.ts";
 
@@ -31,8 +32,9 @@ export function createMessengerAiRouter(dependencies: Dependencies = {}) {
     next();
   };
 
-  router.post("/messenger/ai/live-session", requireAuth, async (_req, res) => {
+  router.post("/messenger/ai/live-session", requireAuth, async (req, res) => {
     const userId = String(res.locals.userId);
+    const options = parseGeminiLiveOptions(req.body);
     const result = dependencies.createToken
       ? await dependencies.createToken(userId)
       : await createGeminiLiveToken(
@@ -40,12 +42,20 @@ export function createMessengerAiRouter(dependencies: Dependencies = {}) {
           dependencies.getApiKey
             ? dependencies.getApiKey()
             : process.env.GEMINI_API_KEY,
+          fetch,
+          undefined,
+          Date.now(),
+          options,
         );
     if (!result.ok) {
       res.status(result.status).json({ error: result.error });
       return;
     }
-    res.json({ token: result.token, model: result.model });
+    res.json({
+      token: result.token,
+      model: result.model,
+      ...("setup" in result && result.setup ? { setup: result.setup } : {}),
+    });
   });
 
   router.post("/messenger/ai/live-session/end", requireAuth, (_req, res) => {

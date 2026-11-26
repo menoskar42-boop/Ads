@@ -26,8 +26,13 @@ import {
 import { apiUrl, queryKeys } from "../lib/api";
 import { readableError } from "../lib/format";
 import {
+  readOscarAiShareLocation,
+  readOscarAiVoice,
   readOscarAiWakeEnabled,
+  writeOscarAiShareLocation,
+  writeOscarAiVoice,
   writeOscarAiWakeEnabled,
+  type OscarAiVoice,
 } from "../lib/oscar-ai-preferences";
 import { isPhoneSetupSkipped } from "../lib/phone-setup-storage";
 import { colors } from "../lib/theme";
@@ -294,8 +299,12 @@ function MessengerPresenceSettings({ visible }: { visible: boolean }) {
 
 function OscarAiWakeSettings() {
   const [enabled, setEnabled] = useState(false);
+  const [voice, setVoice] = useState<OscarAiVoice>("female");
+  const [shareLocation, setShareLocation] = useState(true);
   useEffect(() => {
     setEnabled(readOscarAiWakeEnabled());
+    setVoice(readOscarAiVoice());
+    setShareLocation(readOscarAiShareLocation());
   }, []);
 
   return (
@@ -316,6 +325,43 @@ function OscarAiWakeSettings() {
             setEnabled(nextValue);
           }}
           accessibilityLabel="النداء بالصوت لـ Oscar AI"
+          trackColor={{ false: colors.border, true: colors.blue }}
+        />
+      </View>
+      <View style={styles.switchRow}>
+        <View style={styles.switchCopy}>
+          <Text style={styles.switchTitle}>صوت Oscar AI</Text>
+          <Text style={styles.copy}>{voice === "male" ? "راجل" : "ست"} — «أيوه، سامعك» وردود Oscar AI بنفس الصوت.</Text>
+        </View>
+        <Pressable
+          testID="messenger-oscar-ai-voice"
+          accessibilityRole="button"
+          accessibilityLabel="تغيير صوت Oscar AI"
+          onPress={() => {
+            const next: OscarAiVoice = voice === "male" ? "female" : "male";
+            writeOscarAiVoice(next);
+            setVoice(next);
+          }}
+          style={({ pressed }) => [styles.addPhoneButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.addPhoneText}>{voice === "male" ? "خليه ست" : "خليه راجل"}</Text>
+        </Pressable>
+      </View>
+      <View style={styles.switchRow}>
+        <View style={styles.switchCopy}>
+          <Text style={styles.switchTitle}>مكانى التقريبى</Text>
+          <Text style={styles.copy}>
+            عشان يرد على «الحرارة كام» و«أقرب صيدلية» من غير ما يسألك. بيتبعت مكان تقريبى (حوالى ١ كم) لـGoogle مع كل جلسة بس.
+          </Text>
+        </View>
+        <Switch
+          testID="messenger-oscar-ai-location"
+          value={shareLocation}
+          onValueChange={(nextValue) => {
+            writeOscarAiShareLocation(nextValue);
+            setShareLocation(nextValue);
+          }}
+          accessibilityLabel="مشاركة المكان التقريبى مع Oscar AI"
           trackColor={{ false: colors.border, true: colors.blue }}
         />
       </View>

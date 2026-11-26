@@ -10,8 +10,57 @@ export const GEMINI_LIVE_DAILY_MINUTES =
 type DailyUsage = { day: string; minutes: number; openSessionAt?: number };
 type UsageLedger = Map<string, DailyUsage>;
 
+export type GeminiLiveOptions = {
+  voice?: "female" | "male";
+  location?: { lat: number; lng: number } | null;
+};
+
+// Gemini Live prebuilt voices: Kore (female, default) · Charon (male).
+const LIVE_VOICES = { female: "Kore", male: "Charon" } as const;
+const BASE_INSTRUCTION = "أنت Oscar AI، مساعد بالعامية المصرية. ردودك قصيرة وواضحة. لا تحفظ أو تطلب حفظ المحادثة.";
+
+/** The Live session setup, built once on the server and used by both the token and the client. */
+export function buildGeminiLiveSetup(options: GeminiLiveOptions = {}) {
+  const voiceName = LIVE_VOICES[options.voice === "male" ? "male" : "female"];
+  const location = options.location;
+  const where = location
+    ? ` المستخدم موجود تقريباً عند خط عرض ${location.lat.toFixed(2)} وخط طول ${location.lng.toFixed(2)}. ` +
+      "استخدم ده لأسئلة الطقس والأماكن القريبة والمواعيد من غير ما تسأله عن مكانه، وماتقولوش الإحداثيات."
+    : "";
+  const today = new Date().toLocaleDateString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "full" });
+  const searchEnabled = process.env.GEMINI_LIVE_SEARCH !== "off";
+  return {
+    model: `models/${GEMINI_LIVE_MODEL}`,
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+    },
+    systemInstruction: {
+      parts: [{ text: `${BASE_INSTRUCTION} النهارده ${today} بتوقيت القاهرة.${where}` +
+        (searchEnabled ? " لأى معلومة بتتغيّر (الطقس، الأخبار، الأسعار) دوّر بـGoogle Search قبل ما ترد." : "") }],
+    },
+    inputAudioTranscription: {},
+    ...(searchEnabled ? { tools: [{ googleSearch: {} }] } : {}),
+  };
+}
+
+export function parseGeminiLiveOptions(body: unknown): GeminiLiveOptions {
+  const input = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const voice = input.voice === "male" ? "male" : "female";
+  const raw = input.location && typeof input.location === "object"
+    ? (input.location as Record<string, unknown>)
+    : null;
+  const lat = Number(raw?.lat);
+  const lng = Number(raw?.lng);
+  const location =
+    raw && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+      ? { lat: Math.round(lat * 100) / 100, lng: Math.round(lng * 100) / 100 }
+      : null;
+  return { voice, location };
+}
+
 export type GeminiLiveTokenResult =
-  | { ok: true; token: string; model: string }
+  | { ok: true; token: string; model: string; setup: ReturnType<typeof buildGeminiLiveSetup> }
   | { ok: false; status: 429 | 503; error: string };
 
 export async function createGeminiLiveToken(
@@ -20,6 +69,7 @@ export async function createGeminiLiveToken(
   fetcher: typeof fetch = fetch,
   ledger: UsageLedger = defaultLedger,
   now = Date.now(),
+  options: GeminiLiveOptions = {},
 ): Promise<GeminiLiveTokenResult> {
   if (!apiKey?.trim()) {
     return { ok: false, status: 503, error: "Oscar AI مش متاح" };
@@ -36,6 +86,7 @@ export async function createGeminiLiveToken(
     };
   }
   ledger.set(userId, { day, minutes: minutes + GEMINI_LIVE_SESSION_MINUTES, openSessionAt: now });
+  const setup = buildGeminiLiveSetup(options);
 
   try {
     const response = await fetcher(
@@ -50,14 +101,7 @@ export async function createGeminiLiveToken(
           uses: 1,
           expireTime: new Date(now + GEMINI_LIVE_SESSION_MINUTES * 60_000).toISOString(),
           newSessionExpireTime: new Date(now + 60_000).toISOString(),
-          bidiGenerateContentSetup: {
-            model: `models/${GEMINI_LIVE_MODEL}`,
-            generationConfig: { responseModalities: ["AUDIO"] },
-            systemInstruction: {
-              parts: [{ text: "أنت Oscar AI، مساعد بالعامية المصرية. أجب بإيجاز وبوضوح." }],
-            },
-            inputAudioTranscription: {},
-          },
+          bidiGenerateContentSetup: setup,
         }),
       },
     );
@@ -70,7 +114,7 @@ export async function createGeminiLiveToken(
       ledger.set(userId, { day, minutes });
       return { ok: false, status: 503, error: "Oscar AI مش متاح" };
     }
-    return { ok: true, token: payload.name, model: GEMINI_LIVE_MODEL };
+    return { ok: true, token: payload.name, model: GEMINI_LIVE_MODEL, setup };
   } catch {
     ledger.set(userId, { day, minutes });
     return { ok: false, status: 503, error: "Oscar AI مش متاح" };
