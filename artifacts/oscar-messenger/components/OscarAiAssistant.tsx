@@ -73,6 +73,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   const processor = useRef<ScriptProcessorNode | null>(null);
   const source = useRef<MediaStreamAudioSourceNode | null>(null);
   const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heardReply = useRef(false);
   const sessionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextPlaybackAt = useRef(0);
   const startRef = useRef<() => void>(() => undefined);
@@ -123,11 +124,16 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
 
   const armSilenceEnd = useCallback(() => {
     clearSilenceTimer();
-    silenceTimer.current = setTimeout(() => stopRef.current(), SILENCE_END_MS);
+    silenceTimer.current = setTimeout(() => {
+      // Say why the session ended instead of silently returning to the button.
+      if (!heardReply.current) setError("Oscar AI ماسمعش كلام لمدة ٨ ثوانى فقفل. اتكلم أول ما يقول «بيسمع».");
+      stopRef.current();
+    }, SILENCE_END_MS);
   }, [clearSilenceTimer]);
 
   const startSession = useCallback(async () => {
     setError("");
+    heardReply.current = false;
     setConnecting(true);
     setActive(true);
     try {
@@ -178,8 +184,12 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         setError("انقطع اتصال Oscar AI. جرّب مرة تانية.");
         stopRef.current();
       };
-      liveSocket.onclose = () => {
-        if (socket.current === liveSocket) stopRef.current();
+      liveSocket.onclose = (event) => {
+        if (socket.current !== liveSocket) return;
+        // Closed by Gemini, not by us: show the code so the cause can be diagnosed.
+        const reason = String(event.reason || "").slice(0, 160);
+        setError(`Gemini قفل الاتصال (كود ${event.code}${reason ? `: ${reason}` : ""}).`);
+        stopRef.current();
       };
       liveSocket.onmessage = (event) => {
         const message = parseLiveMessage(event.data);
@@ -225,6 +235,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         for (const part of parts) {
           const data = part.inlineData?.data;
           if (typeof data === "string" && context.current) {
+            heardReply.current = true;
             playPcm(data, context.current, nextPlaybackAt);
           }
         }
