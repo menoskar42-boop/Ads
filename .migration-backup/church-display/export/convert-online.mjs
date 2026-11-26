@@ -9,6 +9,7 @@ import { r2Configured, r2Get, r2Put } from "../../mybible/server/r2.ts";
 const R2_PREFIX = "church-slides/out/";
 const LIBRARY_KEY = `${R2_PREFIX}library.js`;
 const MAX_CAPTURED_OUTPUT = 20_000;
+const R2_UPLOAD_CONCURRENCY = 3;
 const COMMAND_TIMEOUT_MS = 30 * 60 * 1000;
 
 function appendTail(current, text) {
@@ -446,7 +447,7 @@ async function processDeck(item, index, workspace, library, dryRun) {
 
   let uploadedBytes = 0;
   if (!dryRun) {
-    await runWithConcurrency(outputSlides, 8, async (slide) => {
+    await runWithConcurrency(outputSlides, R2_UPLOAD_CONCURRENCY, async (slide) => {
       const content = await readFile(path.join(outputDir, slide.file));
       await putR2Object(`${R2_PREFIX}${source}/${slide.file}`, content, "image/jpeg");
       uploadedBytes += content.length;
@@ -546,7 +547,6 @@ async function main() {
         console.error(`${source}: ${message}`);
         if (/R2 (?:read|write) failed/i.test(message)) {
           fatalUploadError = message;
-          break;
         }
       }
     }
