@@ -1332,7 +1332,7 @@ class MainActivity : Activity() {
         val search = EditText(this).apply {
             hint = "ابحث بالاسم أو الرقم"
             inputType = InputType.TYPE_CLASS_TEXT
-            singleLine = true
+            setSingleLine(true)
         }
         val status = ui.text("دفتر المكالمات منفصل عن جهات أوسكار المستخدمة لواتساب. المزامنة اختيارية.", 13f, ui.muted)
         val syncEnabled = booleanArrayOf(false)
