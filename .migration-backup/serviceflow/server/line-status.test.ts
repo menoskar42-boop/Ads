@@ -23,7 +23,7 @@ test("line status facts: stability from Line Summary, XELT without history", () 
 
 test("DZS 10.39.0: line status reads recorded data only, never presses Real or Perform XELT; stability with every measurement", () => {
   const dzs = read("../dzs-expresse-v10.user.js");
-  assert.match(dzs, /@version {6}10\.(39|40|41|42)\.0/);
+  assert.match(dzs, /@version {6}10\.(39|40|41|42|43)\.0/);
   const block = dzs.slice(dzs.indexOf("const LS_STATE_KEY"), dzs.indexOf("window.DZS_lineStatus"));
   assert.ok(block.length > 1000);
   assert.doesNotMatch(block, /\.click\(\)[^\n]*(Perform|Real ?-?Time)/i);
@@ -55,8 +55,8 @@ test("ASSIA waits for line-status ingest before the loop completion signal and r
   assert.match(finish, /undefined, 60000/);
   assert.match(finish, /saved:/);
   assert.match(finish, /Number\(j\.saved \|\| 0\) === 0[\s\S]{0,120}console\.warn/);
-  assert.match(dzs, /@version {6}10\.42\.0/);
-  assert.match(dzs, /@description\s+v10\.42\.0: إصلاح حفظ/);
+  assert.match(dzs, /@version {6}10\.43\.0/);
+  assert.match(dzs, /@description\s+v10\.43\.0: Perform XELT بيضغط OK على الرسالة ويقفل التاب، وXELT بيتقرا بعد ربع ساعة بـ«تحديث حالة الخط»/);
 
   const routes = read("./routes.ts");
   const ingest = routes.slice(routes.indexOf('app.post("/api/line-status/ingest"'), routes.indexOf('app.get("/api/line-status/latest"'));
@@ -81,7 +81,9 @@ test("ASSIA step 3: auto line status for new faults + urgent Perform XELT", () =
   // XELT مالوش بيانات قديمة ⇒ مهمة عاجلة (priority 2) مرة واحدة، والـxeltOnly بيتدمج فى آخر تقرير
   assert.match(routes, /st\.xeltHistory === false[\s\S]{0,400}xelt_queued_at IS NULL/);
   assert.match(routes, /VALUES \('measure', \$1::jsonb, 'auto', \$2, 2,/);
-  assert.match(routes, /if \(it\?\.xeltOnly\) \{[\s\S]{0,600}pages = \{ \.\.\.prev, xelt: xp \}/);
+  const xeltOnlyAt = routes.indexOf("if (it?.xeltOnly) {");
+  const xeltMerge = routes.slice(xeltOnlyAt, routes.indexOf("const json = JSON.stringify(pages)", xeltOnlyAt));
+  assert.match(xeltMerge, /pages = \{ \.\.\.prev, xelt: xp \}/);
   // تقدّم مهمة XELT من line_status_reports
   assert.match(routes, /isXeltNote\(note\)\) \{\s*q = `SELECT COUNT\(DISTINCT account_no\)::int AS n FROM line_status_reports/);
   const dzs = read("../dzs-expresse-v10.user.js");
@@ -89,4 +91,35 @@ test("ASSIA step 3: auto line status for new faults + urgent Perform XELT", () =
   assert.match(dzs, /xeltOnly: true, xeltOutcome: outcome/);
   const q = read("../client/src/lib/exec-queue.ts");
   assert.match(q, /if \(opts\?\.xelt\) return "&sf_mode=xelt"/);
+});
+
+test("DZS 10.43.0 confirms once, closes after a minute, and queues a 15-minute recheck", () => {
+  const dzs = read("../dzs-expresse-v10.user.js");
+  const xelt = dzs.slice(dzs.indexOf("function xeltConfirm()"), dzs.indexOf("/* ================== AUTO LOGIN"));
+  const confirm = dzs.slice(dzs.indexOf("function xeltConfirm()"), dzs.indexOf("function xeltSend"));
+  assert.doesNotMatch(confirm, /offsetParent !== null/);
+  assert.match(confirm, /getClientRects\(\)/);
+  assert.match(confirm, /\[role=dialog\], \[role=alertdialog\]/);
+  assert.match(confirm, /span\.ui-button-text/);
+  assert.match(xelt, /window\.confirm = \(\) => true; window\.alert = \(\) => \{\};\s*b\.click\(\)/);
+  assert.doesNotMatch(xelt, /8 \* 60000/);
+  assert.match(xelt, /const deadline = st\.clicked \+ 60000/);
+  assert.match(xelt, /xeltSend\(\{ ok: true, started: true \}, "started"\)/);
+  assert.match(dzs, /@version {6}10\.43\.0/);
+  assert.match(dzs, /version: "10\.43\.0", xeltOnly: true/);
+
+  const routes = read("./routes.ts");
+  const ingest = routes.slice(
+    routes.indexOf('app.post("/api/line-status/ingest"'),
+    routes.indexOf('app.get("/api/line-status/latest"'),
+  );
+  const startedAt = ingest.indexOf('String(it?.xeltOutcome) === "started"');
+  const followupAt = ingest.indexOf("INSERT INTO exec_followups", startedAt);
+  const reportAt = ingest.indexOf("INSERT INTO line_status_reports");
+  assert.ok(startedAt >= 0 && followupAt > startedAt && reportAt > followupAt);
+  const startedBranch = ingest.slice(startedAt, reportAt);
+  assert.match(startedBranch, /interval '15 minutes'/);
+  assert.match(startedBranch, /created_at > now\(\) - interval '30 minutes'/);
+  assert.match(startedBranch, /قراية XELT بعد ربع ساعة — \$\{AUTO_MEASURE_NOREAL_MARK\} — \$\{LOOP_MARK\}/);
+  assert.doesNotMatch(startedBranch, /\$\{XELT_MARK\}/);
 });

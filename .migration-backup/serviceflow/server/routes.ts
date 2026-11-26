@@ -13143,6 +13143,19 @@ export async function registerRoutes(
         // «Perform XELT» (ASSIA المرحلة ٣ — DZS ≥10.41.0): السكربت بيبعت صفحة XELT بس بعد ما الاختبار يخلص ⇒ بتتدمج
         // فى آخر تقرير للخط (باقى الصفحات زى ما هى) وتتسجّل سحبة جديدة بتاريخ دلوقتى.
         if (it?.xeltOnly) {
+          if (String(it?.xeltOutcome) === "started") {
+            if (accountNo) {
+              await pool.query(
+                `INSERT INTO exec_followups (type, account, note, requested_by, run_at)
+                 SELECT 'measure', $1, $2, 'auto', now() + interval '15 minutes'
+                  WHERE NOT EXISTS (SELECT 1 FROM exec_followups
+                                     WHERE account = $1 AND note = $2
+                                       AND created_at > now() - interval '30 minutes')`,
+                [accountNo, `قراية XELT بعد ربع ساعة — ${AUTO_MEASURE_NOREAL_MARK} — ${LOOP_MARK}`],
+              );
+            }
+            continue;
+          }
           const { rows: last } = await pool.query(
             `SELECT pages FROM line_status_reports WHERE ($1::text IS NOT NULL AND account_no = $1) OR ($2::text IS NOT NULL AND full_phone = $2)
               ORDER BY created_at DESC LIMIT 1`, [accountNo, fullPhone]);

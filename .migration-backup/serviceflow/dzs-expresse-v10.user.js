@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DZS Expresse Continuous Flow v10.7 (Service-Flow 138 sheet + auto-upload)
-// @description  v10.42.0: إصلاح حفظ «حالة الخط»؛ انتظار رد /api/line-status/ingest حتى ٦٠ ثانية، تسجيل عدد المحفوظ والمتخطّى، ورفع حد حجم الصفحات.
+// @description  v10.43.0: Perform XELT بيضغط OK على الرسالة ويقفل التاب، وXELT بيتقرا بعد ربع ساعة بـ«تحديث حالة الخط».
 // @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.41.0: وضع «Perform XELT» (sf_mode=xelt) للخطوط اللى XELT بتاعها مالوش بيانات قديمة (بيجى من الأعطال الجديدة فى المهام العاجلة): بيفتح شاشة XELT ويضغط Perform XELT مرة واحدة ويستنى النتيجة (لحد ٨ دقايق) ويبعتها لـ Service Flow — وبيشتغل لوحده زى Real. v10.40.0: لما AXON يحاول يحوّل الصفحة لسيرفر تانى مايتوصلش (10.60.213.x:8081 أو 10.42.187.102 — «can't reach this page»)، السكربت بيوقف التحويل ويفتح صفحة الدخول على نفس السيرفر بتاعنا فيسجّل دخول ويكمّل. وقبل ما يفتح الخط اللى بعده بيتأكد إن الجلسة شغّالة، ولو خلصت بيفتحه على صفحة الدخول على طول. v10.39.0: حالة الثبات (Stability) بتتقرا من شاشة الاسكور وبتتبعت مع كل قياس. و«تحديث المسافة» بقى «تحديث حالة الخط (ASSIA)» (sf_mode=loop): بيلف على شاشات DSL للخط من البيانات المسجّلة من غير ما يضغط Real أو Perform XELT — Line Summary كلها · Operational Data · Performance Counters · Diagnostic Analysis · Service Recommendation · XELT · Attributes/Counters — ويبعتهم لـ /api/line-status/ingest، وبعدها المسافة لـ /api/loop-length/ingest زى الأول. v10.38.0: لو Real خلص ومالقاش الاسكور، قبل ما يسجّل 102 بيضغط «Line details» تانى ويستنى ٣ ثوانى ويقرا تانى. والرسالة البمبى اللى بتظهر فوق فى ClearView (زى «It is not possible to analyze the line…») بتتبعت بنصها كامل مع القياس وبتظهر فى «بحث برقم التليفون». ووقت قياس Real بيتبعت كمان (عشان «إعادة بعد 102 و 104» تتحسب من وقت القياس الأول). وقياس Real بيقول للسيرفر «لسه بقيس» كل ٣٠ ثانية — فجهاز التنفيذ بيستنى لحد ما يخلص من غير مدة محددة، ومابيقفلش التاب غير لو الصفحة ماتت. ونوع القياس (Real / بدون Real / مسافة) بقى محفوظ فى التاب نفسه — التاب اللى اتعمله ريفريش أو دخول تانى بيفضل بنفس نوعه ومايتحوّلش Real. v10.37.0: «بدون Real» مابقاش بيفتح شاشة DSL ولا بيقرا المسافة — بيسجّل القياس على طول من ClearView (أسرع). والمسافة بقت مهمة لوحدها «تحديث المسافة» (sf_mode=loop): بيفتح شاشة DSL بس ويقرا «Estimated Loop Length» ويبعتها لـ /api/loop-length/ingest — ولو N/A أو فاضية المسافة القديمة بتفضل. v10.36.0: القياس (Real أو بدون Real) بقى يشتغل جنب «إيقاف PO» من غير ما يبوّظه: تاب القياس كان بيمسح علامة PO_ACTIVE العامة أول ما يتفتح، فتاب الإيقاف الأول لما يعمل ريفريش بعد Yes كان السكربت بتاعه يقف ومايسجّلش الإيقاف («+إعادة»). دلوقتى الإيقاف بيتعرف من علامة التاب نفسه بس (PO_TAB فى sessionStorage). وقياس Real من جهاز التنفيذ بتاب لوحده (sf_lane=80) بمفاتيح لوحده. v10.35.0: تسجيل الدخول رجع زى 10.31 بالظبط (كل نافذة بتسجّل دخول لوحدها على طول) — بطلب المالك؛ قفل الدخول الواحد (10.32–10.34) اتشال. v10.34.0: النافذة اللى مستنية دخول نافذة تانية بترجع فى نفس اللحظة اللى الدخول ينجح فيها (إشارة بين النوافذ) بدل ما تستنى. v10.33.0: النافذة اللى مستنية دخول نافذة تانية بترجع بعد ٥ ثوانى بالكتير (كانت ٢٠) — فبتكمّل بعد ثوانى من الدخول. v10.32.0: تسجيل دخول واحد فى المرة — لو الجلسة خلصت وفيه نوافذ كتير، أول نافذة بس بتسجّل دخول والباقى بيستنوا ٢٠ ثانية ويرجعوا بنفس الجلسة (كانوا كلهم بيسجّلوا دخول مع بعض فيلغوا جلسات بعض ويلفّوا على login-page?sessionExpired). v10.31.0: لو صفحة clearview فتحت بخانة البحث بس (من غير بيانات الخط)، السكربت بيضغط Search لوحده بعد ٨ ثوانى (ويعيدها مرتين) بدل ما يستنى دقيقتين ويسجّل 104. v10.30.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v10.29.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع. v10.27: مابيشتغلش فى تابات «إيقاف PO» التانية/التالتة (علامة PO_TAB فى sessionStorage). v10.26: عدد تابات «بدون Real» من السيرفر بس (NOREAL_LANES، أى sf_lane). رقم التاب بيتعرف من رقم الخط اللى فى رابط الصفحة (clearview/lineSummary?lineId=) — فى v10.25 كان من sessionStorage بس، فأى خطوة بتفتح فى تاب/نافذة جديدة كانت بتضيّع الرقم وتشتغل على خط التاب الأول (اللى اتسجّل خلاص) فالتاب التانى مايسجّلش. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
-// @version      10.42.0
+// @version      10.43.0
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
@@ -1563,11 +1563,19 @@
       .find((b) => /perform\s*[sx]elt/i.test(lsNorm(b.textContent || b.value || "")) && b.offsetParent !== null) || null;
   }
   function xeltConfirm() {
-    const dlg = Array.from(document.querySelectorAll(".ui-dialog, .ui-confirm-dialog")).find((d) => d.offsetParent !== null);
+    const isShown = (el) => {
+      const style = getComputedStyle(el);
+      return style.display !== "none" && style.visibility !== "hidden" && el.getClientRects().length > 0;
+    };
+    const dlg = Array.from(document.querySelectorAll(".ui-dialog, .ui-confirm-dialog, [role=dialog], [role=alertdialog]")).find(isShown);
     if (!dlg) return false;
-    const yes = Array.from(dlg.querySelectorAll("button, a")).find((b) => /^(yes|ok|confirm|نعم)$/i.test(lsNorm(b.textContent)));
-    if (yes) { yes.click(); return true; }
-    return false;
+    const yes = Array.from(dlg.querySelectorAll("button, a, input[type=button], input[type=submit], span.ui-button-text"))
+      .find((el) => /^(yes|ok|confirm|نعم|موافق)$/i.test(lsNorm(el.tagName === "INPUT" ? el.value : el.textContent)));
+    if (!yes) return false;
+    const target = yes.matches("span.ui-button-text") ? yes.closest("button") : yes;
+    if (!target) return false;
+    target.click();
+    return true;
   }
   function xeltSend(page, outcome) {
     const meta = getMeta(CURRENT_LINE_ID);
@@ -1577,7 +1585,7 @@
         sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/line-status/ingest", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-DZS-Token": SF_INGEST_TOKEN },
-          body: JSON.stringify({ items: [{ accountNo: CURRENT_LINE_ID, phoneShort: meta.short, fullPhone: meta.full, version: "10.42.0", xeltOnly: true, xeltOutcome: outcome, pages: { xelt: page } }] }),
+          body: JSON.stringify({ items: [{ accountNo: CURRENT_LINE_ID, phoneShort: meta.short, fullPhone: meta.full, version: "10.43.0", xeltOnly: true, xeltOutcome: outcome, pages: { xelt: page } }] }),
         }).then(r => r.json()).then(j => console.log("☁️ XELT اتسجّل:", CURRENT_LINE_ID, j))
           .catch(e => console.warn("☁️ XELT ماتسجّلش (هيتبعت تانى):", e));
       } catch (e) { console.warn("xelt post err", e); }
@@ -1606,20 +1614,23 @@
         if (!xeltNoHistory()) { xeltSend(await lsCollect({ key: "xelt" }), "had_history"); return; }
         const b = xeltButton();
         if (!b) { xeltSend({ ok: false, error: "مالقيتش زرار Perform XELT" }, "no_button"); return; }
+        window.confirm = () => true; window.alert = () => {};
         b.click(); st.clicked = Date.now(); xeltSave(st);
         console.log("📡 ضغطت Perform XELT —", CURRENT_LINE_ID);
       }
-      // نستنى النتيجة: الرسالة «not available» تختفى ويظهر جدول — أو المهلة تخلص
-      const deadline = st.clicked + 8 * 60000;
+      // النتيجة قد تتأخر؛ ننتظر دقيقة فقط ثم نطلب قرايتها فى مهمة «تحديث حالة الخط».
+      if (Date.now() - st.clicked > 60000) { xeltSend({ ok: true, started: true }, "started"); return; }
+      const deadline = st.clicked + 60000;
+      let resultReady = false;
       while (Date.now() < deadline) {
-        xeltConfirm();
-        await new Promise((r) => setTimeout(r, 5000));
+        const confirmed = xeltConfirm();
+        await new Promise((r) => setTimeout(r, confirmed ? 3000 : 2000));
         const rows = lsPanels().reduce((n, p) => n + ((p.rows && p.rows.length) || 0), 0);
-        if (!xeltNoHistory() && rows > 0) { await lsSettle({ key: "xelt" }); xeltSend(await lsCollect({ key: "xelt" }), "done"); return; }
+        if (!xeltNoHistory() && rows > 0) { resultReady = true; break; }
+        if (confirmed) break;
       }
-      const pg = await lsCollect({ key: "xelt" });
-      pg.ok = false; pg.error = "Perform XELT ماطلّعش نتيجة فى ٨ دقايق";
-      xeltSend(pg, "timeout");
+      if (resultReady) { await lsSettle({ key: "xelt" }); xeltSend(await lsCollect({ key: "xelt" }), "done"); return; }
+      xeltSend({ ok: true, started: true }, "started");
     } catch (e) {
       xeltSend({ ok: false, error: String(e && e.message || e).slice(0, 200) }, "error");
     } finally { xeltBusy = false; }
