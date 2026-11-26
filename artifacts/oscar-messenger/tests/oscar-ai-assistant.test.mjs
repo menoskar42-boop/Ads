@@ -33,7 +33,10 @@ test("the web assistant requires consent, stays page-visible, and enforces sessi
   assert.match(source, /MAX_SESSION_MS = 5 \* 60_000/);
   assert.match(source, /SILENCE_END_MS = 8_000/);
   assert.match(source, /pageVisible/);
-  assert.match(source, /wss:\/\/generativelanguage\.googleapis\.com/);
+  assert.match(
+    source,
+    /generativelanguage\.v1beta\.GenerativeService\.BidiGenerateContentConstrained\?access_token=/,
+  );
   assert.match(source, /readOscarAiWakeEnabled\(\)/);
   assert.doesNotMatch(source, /localStorage\.setItem\([^)]*conversation/i);
 });

@@ -81,8 +81,11 @@ test("Gemini token request is mocked, constrained, and never returns the API key
   assert.equal(request.options.headers["x-goog-api-key"], "unit-test-only-key");
   const body = JSON.parse(request.options.body);
   assert.equal(body.uses, 1);
+  assert.equal(body.expireTime, new Date(Date.UTC(2026, 10, 26) + GEMINI_LIVE_SESSION_MINUTES * 60_000).toISOString());
+  assert.equal(body.newSessionExpireTime, new Date(Date.UTC(2026, 10, 26) + 60_000).toISOString());
   assert.equal(body.bidiGenerateContentSetup.model, "models/gemini-3.8-live");
   assert.deepEqual(body.bidiGenerateContentSetup.generationConfig.responseModalities, ["AUDIO"]);
+  assert.ok(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.includes("العامية المصرية"));
   assert.equal(JSON.stringify(result).includes("unit-test-only-key"), false);
 });
 
