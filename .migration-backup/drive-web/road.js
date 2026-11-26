@@ -450,11 +450,16 @@
     if (!request || typeof send !== 'function') return null;
     return send(request.path, request.body);
   }
+  function normalizeContactSpellingName(name) {
+    return String(name || '').normalize('NFKC')
+      .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '')
+      .trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  }
   /** نتيجة هجاء مؤقتة في ذاكرة الصفحة فقط؛ حتى الطلبات الفاشلة لا تتكرر خلال الجلسة. */
   function createContactSpellingCache() {
     const requests = new Map();
     return function getContactSpelling(name, load) {
-      const key = String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+      const key = normalizeContactSpellingName(name);
       if (!key || typeof load !== 'function') return Promise.resolve('');
       if (!requests.has(key)) {
         requests.set(key, Promise.resolve().then(load).then((result) =>
@@ -650,6 +655,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, sendContactNameRequest, createContactSpellingCache, parseContactPhoneInput, mergeImportedContacts, writeContactList, contactStorageKey, MAX_IMPORTED_CONTACTS, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, sendContactNameRequest, normalizeContactSpellingName, createContactSpellingCache, parseContactPhoneInput, mergeImportedContacts, writeContactList, contactStorageKey, MAX_IMPORTED_CONTACTS, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);

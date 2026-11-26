@@ -177,8 +177,10 @@ test('Arabic spelling suggestions are memoized per page session by normalized na
   let requests = 0;
   const loadMother = async () => { requests++; return { latin: 'Mother Mobile' }; };
   const first = getSpelling('ماذر موبايل', loadMother);
-  const duplicate = getSpelling('  ماذر   موبايل  ', loadMother);
+  const duplicate = getSpelling('  مُاذر ـ موبايل  ', loadMother);
   assert.equal(duplicate, first); // حتى الطلب الجاري لا يُرسل مرتين
+  assert.equal(R.normalizeContactSpellingName('ماذر موبايل'), R.normalizeContactSpellingName('مُاذر ـ موبايل'));
+  assert.notEqual(R.normalizeContactSpellingName('ماذر موبايل'), R.normalizeContactSpellingName('مادر موبايل'));
   assert.equal(await first, 'Mother Mobile');
   assert.equal(await duplicate, 'Mother Mobile');
   assert.equal(requests, 1);
