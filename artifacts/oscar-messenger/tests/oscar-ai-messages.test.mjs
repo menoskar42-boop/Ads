@@ -29,3 +29,9 @@ test("Oscar AI sends from the user's account: text carries a small note, voice i
   const settings = readFileSync(new URL("../app/settings.tsx", import.meta.url), "utf8");
   assert.match(settings, /testID="messenger-oscar-ai-message-mode"/);
 });
+
+test("scheduled messages go through the existing scheduled-messages API, at least a minute ahead", () => {
+  const source = readFileSync(new URL("../components/OscarAiAssistant.tsx", import.meta.url), "utf8");
+  assert.match(source, /createMessengerScheduledMessage\(contact\.conversationId, \{/);
+  assert.match(source, /sendAt\.getTime\(\) < Date\.now\(\) \+ 60_000/);
+});

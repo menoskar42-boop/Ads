@@ -29,7 +29,8 @@ export function buildGeminiLiveSetup(options: GeminiLiveOptions = {}) {
     ? ` المستخدم موجود تقريباً عند خط عرض ${location.lat.toFixed(2)} وخط طول ${location.lng.toFixed(2)}. ` +
       "استخدم ده لأسئلة الطقس والأماكن القريبة والمواعيد من غير ما تسأله عن مكانه، وماتقولوش الإحداثيات."
     : "";
-  const today = new Date().toLocaleDateString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "full" });
+  const today = new Date().toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "full", timeStyle: "short" });
+  const isoNow = new Date().toISOString();
   const searchEnabled = process.env.GEMINI_LIVE_SEARCH !== "off";
   const voiceMessages = options.messageMode !== "text";
   const messageTool = voiceMessages
@@ -57,6 +58,25 @@ export function buildGeminiLiveSetup(options: GeminiLiveOptions = {}) {
   const messageRule = voiceMessages
     ? " لما المستخدم يطلب يبعت رسالة لحد: قوله «اتكلم بعد الصفارة» وندّه record_voice_message بالاسم بس. التطبيق بيسجّل صوته هو ويبعته."
     : " لما المستخدم يطلب يبعت رسالة لحد: اكتب النص، اقراه عليه، واستنى موافقته الصريحة («أيوه» أو «ابعت») قبل ما تندّه send_message.";
+  const scheduleTool = {
+    name: "schedule_message",
+    description: "يجدول رسالة نصية تتبعت لجهة اتصال فى Oscar Messenger فى ميعاد معيّن.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        contact_name: { type: "STRING", description: "اسم الشخص زى ما المستخدم قاله" },
+        text: { type: "STRING", description: "نص الرسالة بالظبط" },
+        send_at: {
+          type: "STRING",
+          description: "ميعاد الإرسال ISO 8601 بتوقيت القاهرة مع الإزاحة، مثلاً 2026-11-27T19:00:00+02:00",
+        },
+      },
+      required: ["contact_name", "text", "send_at"],
+    },
+  };
+  const scheduleRule =
+    ` لو المستخدم طلب رسالة تتبعت فى ميعاد (بكره الساعة ٧ مثلاً): احسب الميعاد من الوقت الحالى (UTC ${isoNow})،` +
+    " اقراله النص والميعاد بالكلام واستنى موافقته الصريحة، وبعدين ندّه schedule_message. الجدولة دايماً رسالة مكتوبة.";
   return {
     model: `models/${GEMINI_LIVE_MODEL}`,
     generationConfig: {
@@ -67,12 +87,13 @@ export function buildGeminiLiveSetup(options: GeminiLiveOptions = {}) {
       parts: [{ text: `${BASE_INSTRUCTION} النهارده ${today} بتوقيت القاهرة.${where}` +
         (searchEnabled ? " لأى معلومة بتتغيّر (الطقس، الأخبار، الأسعار) دوّر بـGoogle Search قبل ما ترد." : "") +
         messageRule +
+        scheduleRule +
         " لو الأداة رجعت خطأ أو أكتر من اسم، قوله واسأله يختار." }],
     },
     inputAudioTranscription: {},
     tools: [
       ...(searchEnabled ? [{ googleSearch: {} }] : []),
-      { functionDeclarations: [messageTool] },
+      { functionDeclarations: [messageTool, scheduleTool] },
     ],
   };
 }

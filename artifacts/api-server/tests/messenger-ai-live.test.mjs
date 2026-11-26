@@ -135,3 +135,12 @@ test("the Live setup carries the chosen voice, the rounded location, and search"
   assert.match(male.systemInstruction.parts[0].text, /27\.18/);
   assert.equal(parseGeminiLiveOptions({ location: { lat: 999, lng: 0 } }).location, null);
 });
+
+test("Oscar AI can schedule a text message (asks first, Cairo time with offset)", async () => {
+  const { buildGeminiLiveSetup } = await import("../src/lib/messenger-ai-live.ts");
+  const setup = buildGeminiLiveSetup({});
+  const tool = setup.tools.at(-1).functionDeclarations.find((fn) => fn.name === "schedule_message");
+  assert.ok(tool);
+  assert.deepEqual(tool.parameters.required, ["contact_name", "text", "send_at"]);
+  assert.match(setup.systemInstruction.parts[0].text, /استنى موافقته الصريحة، وبعدين ندّه schedule_message/);
+});

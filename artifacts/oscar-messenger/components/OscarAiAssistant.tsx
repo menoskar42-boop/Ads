@@ -8,7 +8,11 @@ import {
   Text,
   View,
 } from "react-native";
-import { listMessengerConversations, sendMessengerMessage } from "@workspace/api-client-react";
+import {
+  createMessengerScheduledMessage,
+  listMessengerConversations,
+  sendMessengerMessage,
+} from "@workspace/api-client-react";
 import { apiUrl } from "../lib/api";
 import { matchContacts } from "../lib/oscar-ai-messages";
 import { baseMessengerAudioContentType, chooseWebAudioMimeType } from "../lib/web-voice";
@@ -246,6 +250,24 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
           clientMessageId: `oscar-ai-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
         });
         return { result: "sent", to: contact.name };
+      }
+      if (name === "schedule_message") {
+        const text = typeof args.text === "string" ? args.text.trim() : "";
+        const sendAt = new Date(typeof args.send_at === "string" ? args.send_at : "");
+        if (!text) return { error: "نص الرسالة فاضى." };
+        if (Number.isNaN(sendAt.getTime()) || sendAt.getTime() < Date.now() + 60_000) {
+          return { error: "الميعاد لازم يكون بعد دقيقة على الأقل من دلوقتى." };
+        }
+        await createMessengerScheduledMessage(contact.conversationId, {
+          body: `${text.slice(0, 3_900)}\n\n✍️ اتكتبت بـOscar AI`,
+          scheduledAt: sendAt.toISOString(),
+          clientScheduleId: `oscar-ai-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        });
+        return {
+          result: "scheduled",
+          to: contact.name,
+          at: sendAt.toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" }),
+        };
       }
       if (name === "record_voice_message") {
         const recorded = await recordVoiceMessage(contact.name);
