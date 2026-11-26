@@ -7,6 +7,7 @@
     "dev:client": "vite dev --port 5000",
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "tsx script/build.ts",
+    "sync:deutero-books": "tsx script/sync-deutero-books.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "test": "tsx --test --test-concurrency=1 server/*.test.ts",
     "check": "tsc",
