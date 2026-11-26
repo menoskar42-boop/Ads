@@ -322,7 +322,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
     const unlock = () => {
       document.removeEventListener("pointerdown", unlock, true);
       document.removeEventListener("touchend", unlock, true);
-      if (primedContext.current && primedContext.current.state !== "closed") return;
+      if (primedContext.current?.state === "running") return;
       primeAudio();
       const primed = primedContext.current;
       if (primed) {
@@ -331,6 +331,21 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
           .catch(() => undefined);
       }
     };
+    // Installed Android app (Chrome lets home-screen apps play sound without a tap): try to
+    // unlock as soon as the app opens. iPhone always needs one touch; the listeners stay for it.
+    primeAudio();
+    const opened = primedContext.current;
+    if (opened) {
+      void opened.resume()
+        .then(() => {
+          if (opened.state === "running") {
+            document.removeEventListener("pointerdown", unlock, true);
+            document.removeEventListener("touchend", unlock, true);
+            if (!socket.current) void opened.suspend().catch(() => undefined);
+          }
+        })
+        .catch(() => undefined);
+    }
     document.addEventListener("pointerdown", unlock, true);
     document.addEventListener("touchend", unlock, true);
     return () => {
