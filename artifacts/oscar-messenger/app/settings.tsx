@@ -25,6 +25,10 @@ import {
 } from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../lib/api";
 import { readableError } from "../lib/format";
+import {
+  readOscarAiWakeEnabled,
+  writeOscarAiWakeEnabled,
+} from "../lib/oscar-ai-preferences";
 import { isPhoneSetupSkipped } from "../lib/phone-setup-storage";
 import { colors } from "../lib/theme";
 
@@ -87,6 +91,7 @@ export default function SettingsScreen() {
           getToken={getToken}
         />
       )}
+      {Platform.OS === "web" && <OscarAiWakeSettings />}
       {Platform.OS === "web" && <WebPushSettings getToken={getToken} />}
       <Notice>
         <Text style={styles.noticeTitle}>التحديثات</Text>
@@ -283,6 +288,37 @@ function MessengerPresenceSettings({ visible }: { visible: boolean }) {
         />
       </View>
       {!!feedback && <Text style={styles.error}>{feedback}</Text>}
+    </View>
+  );
+}
+
+function OscarAiWakeSettings() {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    setEnabled(readOscarAiWakeEnabled());
+  }, []);
+
+  return (
+    <View style={styles.phoneSection}>
+      <Text style={styles.sectionTitle}>Oscar AI</Text>
+      <View style={styles.switchRow}>
+        <View style={styles.switchCopy}>
+          <Text style={styles.switchTitle}>النداء بالصوت</Text>
+          <Text style={styles.copy}>
+            مغلق افتراضيًا. عند تشغيله، يستجيب Oscar AI لنداء «يا أوسكار» والصفحة مفتوحة.
+          </Text>
+        </View>
+        <Switch
+          testID="messenger-oscar-ai-wake"
+          value={enabled}
+          onValueChange={(nextValue) => {
+            writeOscarAiWakeEnabled(nextValue);
+            setEnabled(nextValue);
+          }}
+          accessibilityLabel="النداء بالصوت لـ Oscar AI"
+          trackColor={{ false: colors.border, true: colors.blue }}
+        />
+      </View>
     </View>
   );
 }
