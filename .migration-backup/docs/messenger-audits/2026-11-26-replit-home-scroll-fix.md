@@ -15,3 +15,18 @@
 - اختبار نص: الـFlatList فيها ListHeaderComponent، ومافيش ScrollView حوالين FlatList فى الشاشة دى. وtypecheck.
 - شيّك نفس المشكلة فى app/groups/index.tsx وapp/statuses.tsx، ولو فيه نفس الشكل صلّحه بنفس الطريقة.
 ```
+
+## ومعاه: الإشعار يوصل والموبايل نايم (Android Doze) ⇒ ✓✓ على طول
+> المالك ٢٠٢٦-١١-٢٦: «لما ببعت لماما و الموبايل بتاعها فى وضع النوم مش بيجيب علامتين صح».
+> **السبب [كود]:** `messenger-web-push.ts` بيبعت `webPush.sendNotification(subscription, message)` من غير options ⇒ Urgency الافتراضى
+> «normal»، وأندرويد وهو نايم (Doze) بيأجّل الإشعارات العادية لحد ما يصحى. `last_success_at` معناه إن خدمة الإشعارات استلمت، مش الموبايل.
+> **ودليل من القاعدة:** رسالة ٠٤:٠١ UTC اتعلّمت «وصلت» ٠٥:٠٤ (لما الصفحة اتفتحت)، يعنى «وصلت من الإشعار» لسه مااشتغلش عندها
+> (لازم نشر بعد 5d25cf80 + ماما تفتح الصفحة مرة عشان الـservice worker الجديد يتسطّب).
+
+```
+- artifacts/api-server/src/lib/messenger-web-push.ts: كل sendNotification لرسايل المحادثات والجروبات والمكالمات يبقى بـoptions
+  { urgency: "high", TTL: 86400, topic? (لأ) } — إشعارات «رسالة جديدة» و«مكالمة» بس (مش أى إشعار تانى لو فيه).
+- public/sw.js: غيّر رقم نسخة الكاش/الـservice worker (أو أى تعليق نسخة) عشان المتصفح ينزّل النسخة الجديدة، و self.skipWaiting() +
+  clients.claim() لو مش موجودين.
+- اختبار: sendNotification بيتنادى بـurgency high وTTL.
+```
