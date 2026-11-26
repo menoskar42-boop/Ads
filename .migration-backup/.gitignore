@@ -17,3 +17,4 @@ mykid/.env
 serviceflow/node_modules
 serviceflow/dist
 serviceflow/server/public
+/data/osm/

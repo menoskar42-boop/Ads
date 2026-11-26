@@ -14,6 +14,8 @@ const express = require('express');
 const store = require('../drive/store');
 const L = require('../drive/logic');
 const { rateLimit } = require('../middleware/rateLimit');
+const osmEgypt = require('../lib/osm_egypt').defaultOsmEgypt;
+const zlib = require('node:zlib');
 
 const WEB_DIR = path.join(__dirname, '..', '..', 'drive-web');
 
@@ -161,6 +163,32 @@ function createDriveSite({ pool, push } = {}) {
   router.get('/voice/:v/manifest.json', (req, res) => {
     const v = voice.ALL_VOICES.includes(req.params.v) ? req.params.v : 'male';
     res.set('Cache-Control', 'no-cache').json(voice.manifest(v));
+  });
+
+  router.get('/osm/egypt/version', (_req, res) => {
+    const snapshot = osmEgypt.getSnapshot();
+    if (!snapshot) return res.status(503).set('Cache-Control', 'no-store').json({ ok: false, error: 'map data not ready' });
+    res.set('Cache-Control', 'public, max-age=86400')
+      .set('ETag', `"${snapshot.v}"`)
+      .json({ v: snapshot.v, count: snapshot.items.length, generatedAt: snapshot.generatedAt, attribution: snapshot.attribution });
+  });
+
+  router.get('/osm/egypt.json', (req, res) => {
+    const snapshot = osmEgypt.getSnapshot();
+    if (!snapshot) return res.status(503).set('Cache-Control', 'no-store').json({ ok: false, error: 'map data not ready' });
+    const etag = `"${snapshot.v}"`;
+    res.set('Cache-Control', 'public, max-age=86400').set('ETag', etag).set('X-Robots-Tag', 'noindex');
+    if (String(req.get('If-None-Match') || '').split(',').some((value) => value.trim().replace(/^W\//, '') === etag || value.trim() === '*')) {
+      return res.status(304).end();
+    }
+    const body = Buffer.from(JSON.stringify(snapshot));
+    res.type('application/json');
+    if (!/\bgzip\b/i.test(String(req.get('Accept-Encoding') || ''))) return res.send(body);
+    res.set('Content-Encoding', 'gzip').vary('Accept-Encoding');
+    zlib.gzip(body, (error, compressed) => {
+      if (error) return res.status(500).end();
+      res.send(compressed);
+    });
   });
 
   /* ───────── صفحة المالك ───────── */
@@ -395,6 +423,7 @@ function createDriveSite({ pool, push } = {}) {
 
   /** «انقطع الاتصال»: كل دقيقة — عربية كانت ماشية وسكتت فجأة. */
   function startJobs() {
+    osmEgypt.start().catch((e) => console.error('[osm-egypt] startup failed:', e.message));
     const lost = setInterval(async () => {
       try {
         for (const c of await store.claimLostCars(pool)) {
