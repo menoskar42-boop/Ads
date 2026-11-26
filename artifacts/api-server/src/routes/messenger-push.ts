@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { getAuth } from "@clerk/express";
 import { Router, type RequestHandler } from "express";
 import {
+  acknowledgePushDelivery,
+  allowPushDeliveryFromIp,
   configuredVapidPublicKey,
   hasMessengerPushSchema,
 } from "../lib/messenger-web-push";
@@ -15,6 +17,8 @@ async function loadPool() {
 }
 
 const router = Router();
+const pushDeliveryKey = (req: Parameters<RequestHandler>[0]) =>
+  req.ip || req.socket.remoteAddress || "unknown";
 
 const requireAuth: RequestHandler = (req, res, next) => {
   const userId = getAuth(req).userId;
@@ -54,6 +58,25 @@ function validPushKey(value: unknown): value is string {
     value.length < 200 &&
     /^[A-Za-z0-9_-]+$/.test(value);
 }
+
+router.post("/messenger/push/delivered", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  if (allowPushDeliveryFromIp(pushDeliveryKey(req))) {
+    try {
+      const pool = await loadPool();
+      if (pool) {
+        await acknowledgePushDelivery(
+          pool,
+          req.body,
+          process.env.VAPID_PRIVATE_KEY?.trim(),
+        );
+      }
+    } catch {
+      // Delivery acknowledgements are deliberately opaque and best-effort.
+    }
+  }
+  res.status(204).end();
+});
 
 router.get("/messenger/push/capability", requireAuth, async (_req, res, next) => {
   try {

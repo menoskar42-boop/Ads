@@ -5,6 +5,42 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface PushDeliveryToken {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  messageId: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  recipientId: string;
+  /** @minimum 1 */
+  exp: number;
+  /** @pattern ^[a-fA-F0-9]{64}$ */
+  token: string;
+}
+
+export type MessengerEvent = {
+  type: 'conversation';
+  conversationId: string;
+} | {
+  type: 'conversations';
+} | {
+  type: 'group';
+  groupId: string;
+} | {
+  type: 'groups';
+};
+
+export interface MessengerEventsResponse {
+  /** @minimum 0 */
+  seq: number;
+  events: MessengerEvent[];
+  reset: boolean;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -822,6 +858,13 @@ export type ConflictResponse = ErrorResponse;
  * The required private group media update or storage is unavailable
  */
 export type ServiceUnavailableResponse = ErrorResponse;
+
+export type GetMessengerEventsParams = {
+/**
+ * @minimum 0
+ */
+since: number;
+};
 
 export type GetMessengerAvatarParams = {
 v?: number;

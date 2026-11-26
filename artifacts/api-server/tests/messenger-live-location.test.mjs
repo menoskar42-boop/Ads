@@ -283,7 +283,7 @@ test("all live-location responses are private and no-store", () => {
 });
 
 test("chat UI polls only while visible and watches location only in the foreground", () => {
-  assert.match(chatSource, /refetchInterval: chatScreenActive \? 15_000 : false/);
+  assert.match(chatSource, /refetchInterval: chatScreenActive \? \(realtimeHealthy \? 30_000 : 15_000\) : false/);
   assert.match(chatSource, /navigator\.geolocation\.watchPosition/);
   assert.match(chatSource, /Location\.watchPositionAsync/);
   assert.match(chatSource, /document\.visibilityState === "visible"/);

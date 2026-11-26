@@ -12,6 +12,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { setAuthTokenGetter } from "../lib/api";
 import { cleanupExpiredTemporaryDrafts } from "../lib/temporary-drafts";
+import { useMessengerRealtime } from "../lib/realtime";
 import { colors } from "../lib/theme";
 
 SplashScreen.preventAutoHideAsync();
@@ -47,8 +48,13 @@ function AuthTokenBridge() {
   return null;
 }
 
+function MessengerRealtimeBridge() {
+  useMessengerRealtime();
+  return null;
+}
+
 function AppRoutes() {
-  const { isLoaded } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
 
   useEffect(() => {
@@ -80,6 +86,7 @@ function AppRoutes() {
   return (
     <>
       <AuthTokenBridge />
+      {isSignedIn && <MessengerRealtimeBridge />}
       <Stack
         screenOptions={{
           headerShown: false,

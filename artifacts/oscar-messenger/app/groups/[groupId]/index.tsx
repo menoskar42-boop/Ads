@@ -47,6 +47,7 @@ import {
 } from "../../../lib/client-message-id";
 import { readableError, shortTime } from "../../../lib/format";
 import { colors } from "../../../lib/theme";
+import { useMessengerRealtimeHealthy } from "../../../lib/realtime";
 import { VoiceMessageModal } from "../../../components/VoiceMessageModal";
 import { WebVoiceMessageModal } from "../../../components/WebVoiceMessageModal";
 
@@ -55,6 +56,7 @@ function firstParam(value: string | string[] | undefined) {
 }
 
 export default function GroupChatScreen() {
+  const realtimeHealthy = useMessengerRealtimeHealthy();
   const router = useRouter();
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
@@ -103,7 +105,7 @@ export default function GroupChatScreen() {
   const group = useGetMessengerGroup(groupId, {
     query: {
       enabled: isLoaded && !!isSignedIn && capability.data?.enabled === true && !!groupId,
-      refetchInterval: 20_000,
+      refetchInterval: realtimeHealthy ? 60_000 : 20_000,
       retry: false,
     },
   });
@@ -114,7 +116,7 @@ export default function GroupChatScreen() {
       query: {
         queryKey: queryKeys.groupMessages(groupId),
         enabled: isLoaded && !!isSignedIn && capability.data?.enabled === true && !!groupId,
-        refetchInterval: 5_000,
+        refetchInterval: realtimeHealthy ? 30_000 : 5_000,
         refetchIntervalInBackground: false,
         retry: false,
       },

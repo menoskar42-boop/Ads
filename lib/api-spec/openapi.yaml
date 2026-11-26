@@ -26,6 +26,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /messenger/events:
+    get:
+      operationId: getMessengerEvents
+      tags: [messenger]
+      summary: Wait for safe Messenger invalidation events
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: New invalidation events or a cursor reset
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerEventsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /messenger/push/delivered:
+    post:
+      operationId: acknowledgeMessengerPushDelivery
+      tags: [messenger]
+      summary: Acknowledge receipt of a push notification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushDeliveryToken"
+      responses:
+        "204":
+          description: Acknowledgement accepted or ignored
   /messenger/profile:
     get:
       operationId: getMessengerProfile
@@ -2515,6 +2558,67 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    PushDeliveryToken:
+      type: object
+      required: [messageId, recipientId, exp, token]
+      properties:
+        messageId:
+          type: string
+          minLength: 1
+          maxLength: 200
+        recipientId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        exp:
+          type: integer
+          minimum: 1
+        token:
+          type: string
+          pattern: "^[a-fA-F0-9]{64}$"
+    MessengerEvent:
+      oneOf:
+        - type: object
+          required: [type, conversationId]
+          properties:
+            type:
+              type: string
+              const: conversation
+            conversationId:
+              type: string
+        - type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              const: conversations
+        - type: object
+          required: [type, groupId]
+          properties:
+            type:
+              type: string
+              const: group
+            groupId:
+              type: string
+        - type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              const: groups
+    MessengerEventsResponse:
+      type: object
+      required: [seq, events, reset]
+      properties:
+        seq:
+          type: integer
+          minimum: 0
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessengerEvent"
+        reset:
+          type: boolean
     HealthStatus:
       type: object
       properties:

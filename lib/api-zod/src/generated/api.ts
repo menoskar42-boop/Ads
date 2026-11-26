@@ -18,6 +18,59 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Wait for safe Messenger invalidation events
+ */
+export const getMessengerEventsQuerySinceMin = 0;
+
+
+
+export const GetMessengerEventsQueryParams = zod.object({
+  "since": zod.coerce.number().int().min(getMessengerEventsQuerySinceMin)
+})
+
+export const getMessengerEventsResponseSeqMin = 0;
+
+
+
+export const GetMessengerEventsResponse = zod.object({
+  "seq": zod.int().min(getMessengerEventsResponseSeqMin),
+  "events": zod.array(zod.union([zod.object({
+  "type": zod.literal("conversation"),
+  "conversationId": zod.string()
+}),zod.object({
+  "type": zod.literal("conversations")
+}),zod.object({
+  "type": zod.literal("group"),
+  "groupId": zod.string()
+}),zod.object({
+  "type": zod.literal("groups")
+})])),
+  "reset": zod.boolean()
+})
+
+
+/**
+ * @summary Acknowledge receipt of a push notification
+ */
+export const acknowledgeMessengerPushDeliveryBodyMessageIdMax = 200;
+
+export const acknowledgeMessengerPushDeliveryBodyRecipientIdMax = 255;
+
+
+export const acknowledgeMessengerPushDeliveryBodyTokenRegExp = new RegExp('^[a-fA-F0-9]{64}$');
+
+
+export const AcknowledgeMessengerPushDeliveryBody = zod.object({
+  "messageId": zod.string().min(1).max(acknowledgeMessengerPushDeliveryBodyMessageIdMax),
+  "recipientId": zod.string().min(1).max(acknowledgeMessengerPushDeliveryBodyRecipientIdMax),
+  "exp": zod.int().min(1),
+  "token": zod.string().regex(acknowledgeMessengerPushDeliveryBodyTokenRegExp)
+})
+
+export const AcknowledgeMessengerPushDeliveryResponse = zod.void()
+
+
+/**
  * @summary Get the signed-in user's Messenger profile
  */
 export const GetMessengerProfileResponse = zod.object({

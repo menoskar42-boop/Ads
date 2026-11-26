@@ -12,10 +12,12 @@ import { Avatar } from "../../components/Avatar";
 import { Notice, PrimaryButton, Screen } from "../../components/Screen";
 import { readableError, shortTime } from "../../lib/format";
 import { colors } from "../../lib/theme";
+import { useMessengerRealtimeHealthy } from "../../lib/realtime";
 
 export default function GroupsScreen() {
   const router = useRouter();
   const { isLoaded, isSignedIn } = useAuth();
+  const realtimeHealthy = useMessengerRealtimeHealthy();
   const capability = useGetMessengerGroupsCapability({
     query: { enabled: isLoaded && !!isSignedIn, retry: false },
   });
@@ -25,7 +27,7 @@ export default function GroupsScreen() {
   const groups = useListMessengerGroups({
     query: {
       enabled: isLoaded && !!isSignedIn && capability.data?.enabled === true,
-      refetchInterval: 15_000,
+      refetchInterval: realtimeHealthy ? 60_000 : 15_000,
       refetchIntervalInBackground: false,
       retry: false,
     },

@@ -88,6 +88,7 @@ import {
   touchLastSeen,
 } from "../lib/messenger-presence.ts";
 import { logger } from "../lib/logger.ts";
+import { publishConversationUpdate } from "../lib/messenger-events.ts";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -1121,6 +1122,9 @@ router.patch(
         res.status(result.status).json({ error });
         return;
       }
+      void publishConversationUpdate(pool, conversationId, {
+        excludeUserIds: [userId],
+      });
       res.json({ ok: true, updatedAt: result.updatedAt });
     } catch (error) {
       next(error);
@@ -1150,6 +1154,11 @@ router.delete(
       if (result.forbidden) {
         res.status(403).json({ error: "مش مسموح بإيقاف مشاركة الشخص الآخر." });
         return;
+      }
+      if (result.stopped) {
+        void publishConversationUpdate(pool, conversationId, {
+          excludeUserIds: [userId],
+        });
       }
       res.json({ ok: true, stopped: result.stopped });
     } catch (error) {
@@ -1541,26 +1550,37 @@ export async function markConversationListMessagesDelivered(
   conversationIds: string[],
 ): Promise<void> {
   if (!conversationIds.length) return;
-  await pool.query(
+  const result = await pool.query(
     `UPDATE messenger_messages SET delivered_at = now()
      WHERE delivered_at IS NULL AND sender_id <> $1
-       AND conversation_id = ANY($2::text[])`,
+       AND conversation_id = ANY($2::text[])
+     RETURNING conversation_id, sender_id`,
     [userId, conversationIds],
   );
+  for (const row of result.rows) {
+    void publishConversationUpdate(
+      pool,
+      String(row.conversation_id),
+      { includeUserIds: [String(row.sender_id)] },
+    );
+  }
 }
 
 export async function markConversationMessagesRead(
   pool: NonNullable<DbPool>,
   conversationId: string,
   userId: string,
-): Promise<void> {
-  await pool.query(
+): Promise<boolean> {
+  const result = await pool.query(
     `UPDATE messenger_messages
      SET read_at = COALESCE(read_at, now()),
          delivered_at = COALESCE(delivered_at, now())
-     WHERE conversation_id = $1 AND sender_id <> $2`,
+     WHERE conversation_id = $1 AND sender_id <> $2
+       AND (read_at IS NULL OR delivered_at IS NULL)
+     RETURNING id`,
     [conversationId, userId],
   );
+  return result.rows.length > 0;
 }
 
 router.get("/messenger/conversations", requireAuth, async (_req, res, next) => {
@@ -1756,7 +1776,11 @@ router.post(
         res.status(204).end();
         return;
       }
-      recordTyping(conversationId, userId);
+      if (recordTyping(conversationId, userId)) {
+        void publishConversationUpdate(pool, conversationId, {
+          includeUserIds: [peerId],
+        });
+      }
       res.status(204).end();
     } catch (error) {
       next(error);
@@ -1883,11 +1907,18 @@ router.get(
         .map((message) => message.id)
         .filter((id): id is string => typeof id === "string");
       if (fetchedMessageIds.length > 0) {
-        await pool.query(
+        const delivered = await pool.query(
           `UPDATE messenger_messages SET delivered_at = COALESCE(delivered_at, now())
-           WHERE id = ANY($1::text[]) AND conversation_id = $2 AND sender_id <> $3`,
+           WHERE id = ANY($1::text[]) AND conversation_id = $2 AND sender_id <> $3
+             AND delivered_at IS NULL
+           RETURNING sender_id`,
           [fetchedMessageIds, conversationId, userId],
         );
+        if (delivered.rows.length) {
+          void publishConversationUpdate(pool, conversationId, {
+            includeUserIds: [...new Set(delivered.rows.map((row) => String(row.sender_id)))],
+          });
+        }
       }
       const presenceReady = await hasPresenceSchema(pool);
       const peerPresence = presenceReady
@@ -1964,6 +1995,7 @@ router.patch(
         return;
       }
       res.json({ message: publicMessage(result.row as Parameters<typeof publicMessage>[0]) });
+      void publishConversationUpdate(pool, conversationId);
     } catch (error) {
       next(error);
     }
@@ -2062,6 +2094,7 @@ router.post(
           senderId: userId,
           messageType: "text",
           body,
+          messageId: String(inserted.rows[0].id),
         });
       }
       res.status(inserted.rows[0] ? 201 : 200).json({ message: publicMessage(row) });
@@ -2154,6 +2187,7 @@ router.post(
           senderId: userId,
           messageType: "location",
           body: "",
+          messageId: String(inserted.rows[0].id),
         });
       }
       res.status(inserted.rows[0] ? 201 : 200).json({ message: publicMessage(row) });
@@ -2296,6 +2330,7 @@ router.post(
         senderId: userId,
         messageType: "audio",
         body: "",
+        messageId: String(row.id),
       });
       res.status(201).json({ message: publicMessage(row) });
     } catch (error) {
@@ -2424,6 +2459,7 @@ router.delete(
           "UPDATE messenger_conversations SET updated_at = now() WHERE id = $1",
           [conversationId],
         );
+        void publishConversationUpdate(pool, conversationId);
         res.json({ ok: true });
         return;
       }
@@ -2473,6 +2509,7 @@ router.delete(
         res.status(404).json({ error: "الرسالة مش موجودة." });
         return;
       }
+      void publishConversationUpdate(pool, conversationId);
       res.json({ ok: true });
     } catch (error) {
       if (error instanceof Error && error.message === "Voice storage is not configured") {
@@ -2502,7 +2539,9 @@ router.post(
         res.status(404).json({ error: "Conversation not found" });
         return;
       }
-      await markConversationMessagesRead(pool, conversationId, userId);
+      if (await markConversationMessagesRead(pool, conversationId, userId)) {
+        void publishConversationUpdate(pool, conversationId);
+      }
       res.json({ ok: true });
     } catch (error) {
       next(error);

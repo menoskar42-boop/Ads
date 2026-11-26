@@ -47,16 +47,19 @@ test("delivery is acknowledged only for messages returned by a successful fetch"
   assert.match(getRoute, /\[fetchedMessageIds, conversationId, userId\]/);
 });
 
-test("push delivery does not mark a message as delivered", () => {
-  const start = push.indexOf("export function notifyConversationMessage(");
-  const end = push.indexOf("export function notifyGroupMessage(", start);
+test("push receipt marks delivery only after the signed recipient acknowledgement", () => {
+  const start = push.indexOf("export async function notifyConversationMessage(");
+  const end = push.indexOf("export async function notifyGroupMessage(", start);
   const notifyFunction = push.slice(start, end);
   assert.ok(start >= 0 && end > start);
   assert.doesNotMatch(notifyFunction, /delivered_at/);
+  assert.match(push, /export async function acknowledgePushDelivery/);
+  assert.match(push, /UPDATE messenger_messages SET delivered_at = now\(\)[\s\S]*sender_id <> \$2/);
+  assert.match(push, /conversation_id IN \([\s\S]*messenger_conversations WHERE user_a = \$2 OR user_b = \$2/);
 });
 
 test("sender refreshes delivery state, and retried text sends keep their client ID", () => {
-  assert.match(chat, /refetchInterval:\s*5_000/);
+  assert.match(chat, /refetchInterval:\s*realtimeHealthy \? 30_000 : 5_000/);
   assert.match(chat, /refetchOnReconnect:\s*true/);
   assert.match(chat, /queryFn:\s*\(\) => listMessengerMessages\(conversationId, \{ limit: 81 \}\)/);
   assert.match(chat, /sendMessengerMessage\(conversationId,[\s\S]*clientMessageId: input\.clientMessageId/);

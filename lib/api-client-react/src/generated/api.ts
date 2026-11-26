@@ -45,6 +45,7 @@ import type {
   ForwardMessengerMessage201,
   ForwardMessengerMessageBody,
   GetMessengerAvatarParams,
+  GetMessengerEventsParams,
   GroupMediaCapability,
   GroupMessageInput,
   GroupMessageResponse,
@@ -61,6 +62,7 @@ import type {
   ListMessengerMessages200,
   ListMessengerMessagesParams,
   MarkMessengerConversationRead200,
+  MessengerEventsResponse,
   MessengerFeaturesCapability,
   MessengerLiveLocationCapability,
   MessengerLiveLocationList,
@@ -77,6 +79,7 @@ import type {
   ProfileAvatarResponse,
   ProfileInput,
   ProfileResponse,
+  PushDeliveryToken,
   ResolveMessengerContactParams,
   ScheduledMessageInput,
   ScheduledMessageResponse,
@@ -240,6 +243,202 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+
+export const getGetMessengerEventsUrl = (params: GetMessengerEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/messenger/events?${stringifiedParams}` : `/api/messenger/events`
+}
+
+/**
+ * @summary Wait for safe Messenger invalidation events
+ */
+export const getMessengerEvents = async (params: GetMessengerEventsParams, options?: Parameters<typeof customFetch>[1]): Promise<MessengerEventsResponse> => {
+
+  return customFetch<MessengerEventsResponse>(getGetMessengerEventsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerEventsQueryKey = (params?: GetMessengerEventsParams,) => {
+    return [
+    `/api/messenger/events`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMessengerEventsQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerEvents>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(params: GetMessengerEventsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerEvents>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerEventsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerEvents>>> = ({ signal }) => getMessengerEvents(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerEvents>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerEventsQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerEvents>>>
+export type GetMessengerEventsQueryError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+
+
+export function useGetMessengerEvents<TData = Awaited<ReturnType<typeof getMessengerEvents>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(
+ params: GetMessengerEventsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerEvents>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerEvents>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerEvents>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerEvents<TData = Awaited<ReturnType<typeof getMessengerEvents>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(
+ params: GetMessengerEventsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerEvents>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerEvents>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerEvents>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerEvents<TData = Awaited<ReturnType<typeof getMessengerEvents>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(
+ params: GetMessengerEventsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerEvents>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Wait for safe Messenger invalidation events
+ */
+
+export function useGetMessengerEvents<TData = Awaited<ReturnType<typeof getMessengerEvents>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(
+ params: GetMessengerEventsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerEvents>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerEventsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcknowledgeMessengerPushDeliveryUrl = () => {
+
+
+
+
+  return `/api/messenger/push/delivered`
+}
+
+/**
+ * @summary Acknowledge receipt of a push notification
+ */
+export const acknowledgeMessengerPushDelivery = async (pushDeliveryToken: PushDeliveryToken, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<void>(getAcknowledgeMessengerPushDeliveryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(pushDeliveryToken)
+  }
+);}
+
+
+
+
+
+export const getAcknowledgeMessengerPushDeliveryMutationKey = () => ['acknowledgeMessengerPushDelivery'] as const;
+
+export const getAcknowledgeMessengerPushDeliveryMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeMessengerPushDelivery>>, TError,AcknowledgeMessengerPushDeliveryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeMessengerPushDelivery>>, TError,AcknowledgeMessengerPushDeliveryMutationVariables, TContext> => {
+
+const mutationKey = getAcknowledgeMessengerPushDeliveryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgeMessengerPushDelivery>>, AcknowledgeMessengerPushDeliveryMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  acknowledgeMessengerPushDelivery(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgeMessengerPushDeliveryMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeMessengerPushDelivery>>>
+    export type AcknowledgeMessengerPushDeliveryMutationBody = BodyType<PushDeliveryToken>
+    export type AcknowledgeMessengerPushDeliveryMutationError = ErrorType<unknown>
+    export type AcknowledgeMessengerPushDeliveryMutationVariables = {data: BodyType<PushDeliveryToken>}
+
+    /**
+ * @summary Acknowledge receipt of a push notification
+ */
+export const useAcknowledgeMessengerPushDelivery = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeMessengerPushDelivery>>, TError,AcknowledgeMessengerPushDeliveryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgeMessengerPushDelivery>>,
+        TError,
+        AcknowledgeMessengerPushDeliveryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAcknowledgeMessengerPushDeliveryMutationOptions(options), queryClient);
+    }
 
 export const getGetMessengerProfileUrl = () => {
 

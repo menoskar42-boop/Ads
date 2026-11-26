@@ -67,6 +67,7 @@ import type {
   StartMessengerLiveLocationInput,
 } from "@workspace/api-client-react";
 import { apiUrl, queryKeys } from "../../lib/api";
+import { useMessengerRealtimeHealthy } from "../../lib/realtime";
 import {
   getStableClientMessageId,
   type PendingClientMessageId,
@@ -176,6 +177,7 @@ const MEDIA_CONTENT_TYPES = new Set([
 ]);
 
 export default function ChatScreen() {
+  const realtimeHealthy = useMessengerRealtimeHealthy();
   const router = useRouter();
   const params = useLocalSearchParams<{
     conversationId: string;
@@ -291,7 +293,7 @@ export default function ChatScreen() {
       !!conversationId &&
       chatScreenActive &&
       liveLocationCapability.data?.enabled === true,
-    refetchInterval: chatScreenActive ? 15_000 : false,
+    refetchInterval: chatScreenActive ? (realtimeHealthy ? 30_000 : 15_000) : false,
     refetchIntervalInBackground: false,
     retry: false,
   });
@@ -341,14 +343,14 @@ export default function ChatScreen() {
     queryKey: queryKeys.conversations,
     queryFn: () => listMessengerConversations(),
     enabled: isLoaded && !!isSignedIn,
-    refetchInterval: 15_000,
+    refetchInterval: realtimeHealthy ? 60_000 : 15_000,
     refetchIntervalInBackground: false,
   });
   const messages = useQuery({
     queryKey: queryKeys.messages(conversationId),
     queryFn: () => listMessengerMessages(conversationId, { limit: 81 }),
     enabled: !!conversationId && isLoaded && !!isSignedIn,
-    refetchInterval: 5_000,
+    refetchInterval: realtimeHealthy ? 30_000 : 5_000,
     refetchIntervalInBackground: false,
     refetchOnReconnect: true,
     retry: false,
@@ -2279,7 +2281,7 @@ function formatBytes(bytes: number): string {
 
 const styles = StyleSheet.create({
   header: { backgroundColor: colors.background, zIndex: 1 },
-  peer: { height: 56, position: "absolute", top: 1, left: 64, right: 12, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
+  peer: { height: 56, position: "absolute", top: 1, left: 60, right: 60, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
   peerCopy: { flex: 1, alignItems: "flex-end", gap: 2 },
   peerName: { color: colors.text, fontWeight: "800", fontSize: 16, textAlign: "right" },
   peerStatus: { color: colors.muted, fontSize: 11, textAlign: "right" },

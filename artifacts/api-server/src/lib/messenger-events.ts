@@ -1,7 +1,3 @@
-import {
-  hasMessengerBlocksSchema,
-} from "./messenger-blocks.ts";
-
 export type MessengerEvent =
   | { type: "conversation"; conversationId: string }
   | { type: "conversations" }
@@ -44,6 +40,9 @@ const EVENT_TTL_MS = 120_000;
 const MAX_WAIT_MS = 25_000;
 const MAX_WAITERS_PER_USER = 3;
 const userEvents = new Map<string, UserEventState>();
+const blocksSchemaCache = new WeakMap<object, { checkedAt: number; exists: boolean }>();
+// This in-memory event bus is intentionally process-local; the existing polling remains
+// the fallback if the API is later run on more than one reserved VM.
 
 function normalizeEvent(value: unknown): MessengerEvent | null {
   if (!value || typeof value !== "object") return null;
@@ -201,14 +200,35 @@ export async function publishConversationUpdate(
       ? members.filter((userId) => options.includeUserIds!.includes(userId))
       : members;
     let blockedUsers = new Set<string>();
-    if (members.length === 2 && await hasMessengerBlocksSchema(pool)) {
-      const blocked = await pool.query(
-        `SELECT blocked_id FROM messenger_blocks
-         WHERE (blocker_id = $1 AND blocked_id = $2)
-            OR (blocker_id = $2 AND blocked_id = $1)`,
-        members,
-      );
-      blockedUsers = new Set(blocked.rows.map((item) => String(item.blocked_id)));
+    if (members.length === 2) {
+      let blocksSchema = blocksSchemaCache.get(pool);
+      if (!blocksSchema || Date.now() - blocksSchema.checkedAt >= 15_000) {
+        try {
+          const schemaResult = await pool.query(
+            `SELECT count(*)::int AS table_count
+             FROM information_schema.tables
+             WHERE table_schema = current_schema()
+               AND table_name = 'messenger_blocks'`,
+          );
+          blocksSchema = {
+            checkedAt: Date.now(),
+            exists: Number(schemaResult.rows[0]?.table_count) === 1,
+          };
+          blocksSchemaCache.set(pool, blocksSchema);
+        } catch {
+          // If block status cannot be checked, suppress the event rather than risk disclosure.
+          return;
+        }
+      }
+      if (blocksSchema.exists) {
+        const blocked = await pool.query(
+          `SELECT blocked_id FROM messenger_blocks
+           WHERE (blocker_id = $1 AND blocked_id = $2)
+              OR (blocker_id = $2 AND blocked_id = $1)`,
+          members,
+        );
+        blockedUsers = new Set(blocked.rows.map((item) => String(item.blocked_id)));
+      }
     }
     const excluded = new Set(options.excludeUserIds ?? []);
     const recipients = selected.filter(

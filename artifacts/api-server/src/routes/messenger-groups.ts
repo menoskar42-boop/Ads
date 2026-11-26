@@ -21,6 +21,7 @@ import {
 import { parseMessageCursor } from "../lib/message-pagination";
 import { notifyGroupMessage } from "../lib/messenger-web-push";
 import { hasMessengerBlocksSchema } from "../lib/messenger-blocks";
+import { publishGroupUpdate } from "../lib/messenger-events.ts";
 import {
   GROUP_AUDIO_MAX_BYTES,
   GROUP_AUDIO_MAX_DURATION_MS,
@@ -377,6 +378,7 @@ router.post("/messenger/groups", requireAuth, async (req, res, next) => {
       [groupId, userId, memberIds],
     );
     await client.query("COMMIT");
+    void publishGroupUpdate(pool, groupId);
     res.status(201).json({ group: await groupDetail(pool, groupId, userId) });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
@@ -425,6 +427,7 @@ router.patch("/messenger/groups/:groupId", requireAuth, async (req, res, next) =
       `UPDATE messenger_groups SET name = $2, updated_at = now() WHERE id = $1`,
       [groupId, name],
     );
+    void publishGroupUpdate(pool, groupId, { includeGroup: true });
     res.json({ group: await groupDetail(pool, groupId, userId) });
   } catch (error) {
     next(error);
@@ -493,6 +496,7 @@ router.post("/messenger/groups/:groupId/members", requireAuth, async (req, res, 
     );
     await client.query("UPDATE messenger_groups SET updated_at = now() WHERE id = $1", [groupId]);
     await client.query("COMMIT");
+    void publishGroupUpdate(pool, groupId);
     res.status(alreadyMember.rows.length ? 200 : 201).json({
       group: await groupDetail(pool, groupId, userId),
     });
@@ -541,6 +545,7 @@ router.delete(
       );
       await client.query("UPDATE messenger_groups SET updated_at = now() WHERE id = $1", [groupId]);
       await client.query("COMMIT");
+      void publishGroupUpdate(pool, groupId, { extraUserIds: [targetId] });
       res.json({ group: await groupDetail(pool, groupId, actorId) });
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
@@ -591,6 +596,7 @@ router.patch(
         );
         await client.query("UPDATE messenger_groups SET updated_at = now() WHERE id = $1", [groupId]);
         await client.query("COMMIT");
+        void publishGroupUpdate(pool, groupId, { includeGroup: true });
         res.json({ group: await groupDetail(pool, groupId, actorId) });
       } catch (error) {
         await client.query("ROLLBACK").catch(() => undefined);
@@ -636,6 +642,7 @@ router.post("/messenger/groups/:groupId/leave", requireAuth, async (req, res, ne
       if (!successor.rows[0]) {
         await client.query(`DELETE FROM messenger_groups WHERE id = $1`, [groupId]);
         await client.query("COMMIT");
+        void publishGroupUpdate(pool, groupId, { extraUserIds: [userId] });
         res.json({ ok: true, groupDeleted: true });
         return;
       }
@@ -654,6 +661,7 @@ router.post("/messenger/groups/:groupId/leave", requireAuth, async (req, res, ne
       [groupId, userId],
     );
     await client.query("COMMIT");
+    void publishGroupUpdate(pool, groupId, { extraUserIds: [userId] });
     res.json({ ok: true, groupDeleted: false });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);

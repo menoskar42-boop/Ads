@@ -21,6 +21,7 @@ import { canForwardMessageType } from "../lib/messenger-location";
 import { notifyConversationMessage } from "../lib/messenger-web-push";
 import { canSendDirectMessage, MESSENGER_BLOCKED_SEND_ERROR } from "../lib/messenger-blocks";
 import { messagePublicContent } from "../lib/messenger-edit-delete";
+import { publishConversationUpdate } from "../lib/messenger-events.ts";
 
 type DbPool = Awaited<ReturnType<typeof loadPool>>;
 
@@ -395,6 +396,7 @@ router.post(
          GROUP BY emoji ORDER BY emoji`,
         [messageId, userId],
       );
+      void publishConversationUpdate(pool, conversationId);
       res.json({
         reactions: reactions.rows.map((row) => ({
           emoji: row.emoji,
@@ -553,6 +555,7 @@ router.post(
             senderId: userId,
             messageType: "media",
             body: "",
+            messageId: String(inserted.rows[0].id),
           });
           res.status(201).json({
             message: publicMediaMessage({
@@ -806,6 +809,7 @@ router.post(
             senderId: userId,
             messageType: source.message_type,
             body: source.body,
+            messageId: newId,
           });
         }
         res.status(201).json({

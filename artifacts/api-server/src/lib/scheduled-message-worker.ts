@@ -133,6 +133,7 @@ export async function processOneDueMessage(pool: DbPool): Promise<boolean> {
         senderId: scheduled.sender_id,
         messageType: "text",
         body: scheduled.body,
+        messageId: String(sentMessageId),
       });
     }
     logger.info({ scheduledMessageId: scheduled.id }, "Scheduled message sent");

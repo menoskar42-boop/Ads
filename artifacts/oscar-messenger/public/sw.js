@@ -83,13 +83,29 @@ self.addEventListener("push", (event) => {
       ? payload.url
       : APP_BASE;
 
+  const showNotification = self.registration.showNotification(title, {
+    body,
+    tag: typeof payload.tag === "string" ? payload.tag : undefined,
+    icon: `${APP_BASE}icons/icon-192.png`,
+    data: { url },
+  });
+  const deliveryToken = payload.deliveryToken;
+  const acknowledgeDelivery = deliveryToken &&
+      typeof deliveryToken.messageId === "string" &&
+      typeof deliveryToken.recipientId === "string" &&
+      Number.isSafeInteger(deliveryToken.exp) &&
+      typeof deliveryToken.token === "string"
+    ? fetch(new URL("/api/messenger/push/delivered", self.location.origin), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "omit",
+        cache: "no-store",
+        redirect: "error",
+        body: JSON.stringify(deliveryToken),
+      }).catch(() => undefined)
+    : Promise.resolve();
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      tag: typeof payload.tag === "string" ? payload.tag : undefined,
-      icon: `${APP_BASE}icons/icon-192.png`,
-      data: { url },
-    }),
+    Promise.allSettled([showNotification, acknowledgeDelivery]),
   );
 });
 

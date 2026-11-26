@@ -107,13 +107,18 @@ export function verifyPushDeliveryToken(
 }
 
 export function allowPushDeliveryFromIp(ip: string, nowMs = Date.now()): boolean {
-  if (deliveryRateWindows.size > 5_000) {
+  if (deliveryRateWindows.size >= 5_000) {
     for (const [key, value] of deliveryRateWindows) {
       if (nowMs - value.startedAt >= 60_000) deliveryRateWindows.delete(key);
     }
   }
-  const current = deliveryRateWindows.get(ip);
-  if (!current || nowMs - current.startedAt >= 60_000) {
+  let current = deliveryRateWindows.get(ip);
+  if (current && nowMs - current.startedAt >= 60_000) {
+    deliveryRateWindows.delete(ip);
+    current = undefined;
+  }
+  if (!current) {
+    if (deliveryRateWindows.size >= 5_000) return false;
     deliveryRateWindows.set(ip, { startedAt: nowMs, count: 1 });
     return true;
   }

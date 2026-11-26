@@ -29,6 +29,7 @@ import {
 } from "@workspace/api-client-react";
 import type { Conversation } from "@workspace/api-client-react";
 import { queryKeys } from "../lib/api";
+import { useMessengerRealtimeHealthy } from "../lib/realtime";
 import { readableError, safeReturnPath, shortTime } from "../lib/format";
 import { parseInviteParam } from "../lib/invite";
 import { clearPendingInvite, readPendingInvite, savePendingInvite } from "../lib/invite-storage";
@@ -38,6 +39,7 @@ import { colors } from "../lib/theme";
 
 export default function InboxScreen() {
   const router = useRouter();
+  const realtimeHealthy = useMessengerRealtimeHealthy();
   const params = useLocalSearchParams<{
     invite?: string | string[];
     returnTo?: string | string[];
@@ -76,7 +78,7 @@ export default function InboxScreen() {
     queryKey: [...queryKeys.conversations, includeArchived],
     queryFn: () => listMessengerConversations({ includeArchived }),
     enabled: isLoaded && !!isSignedIn,
-    refetchInterval: 10_000,
+    refetchInterval: realtimeHealthy ? 60_000 : 10_000,
     refetchIntervalInBackground: false,
   });
   const features = useQuery({
