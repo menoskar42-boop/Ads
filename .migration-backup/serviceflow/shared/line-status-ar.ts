@@ -192,9 +192,21 @@ function xeltStructuredSummary(page: Page): { value: string; note: string; level
   ].filter(Boolean);
   return {
     value: [place?.location, ...parts].filter(Boolean).join(" · "),
-    note: place?.note || "مافيش عطل ظاهر فى XELT؛ راجع باقى نتائج الخط.",
-    level: detected ? "bad" : "warn",
+    note: place?.note || "XELT مالقاش عطل",
+    level: detected ? "bad" : "ok",
   };
+}
+
+function xeltTextSummary(page: Page): { value: string; level: Level } | null {
+  const text = norm((page.panels || []).map((panel) => panel.text || "").filter(Boolean).join(" "));
+  if (!text) return null;
+
+  const level: Level = /no fault (detected|found)/i.test(text)
+    ? "ok"
+    : /fault (detected|found)|open|short|bridged tap|crosstalk/i.test(text)
+      ? "bad"
+      : "info";
+  return { value: text.slice(0, 300), level };
 }
 
 export function lineStatusAr(pages: Pages): LineStatusAr {
@@ -238,7 +250,7 @@ export function lineStatusAr(pages: Pages): LineStatusAr {
   if (dg && (dg.panels || []).length) {
     items.push(findings.length
       ? { label: "التشخيص لقى", value: findings.map((finding) => finding.text).join(" · "), note: [...new Set(findings.map((finding) => finding.note))].join(" · "), level: "bad" }
-      : { label: "التشخيص", value: "مفيش مشكلة تشخيصية واضحة", note: "راجع القراءات لو العطل لسه قائم.", level: "warn" });
+      : { label: "التشخيص", value: "مفيش مشكلة تشخيصية واضحة", note: "التشخيص مالقاش مشكلة", level: "ok" });
   }
   // ٧) XELT
   const x = pages.xelt;
@@ -246,9 +258,11 @@ export function lineStatusAr(pages: Pages): LineStatusAr {
     const perf = XELT_PERFORMED_AR[String(x.performed || "")];
     if (perf) items.push({ label: "Perform XELT", value: perf, level: x.performed === "done" || x.performed === "had_history" ? "ok" : "warn" });
     if (x.history === false) items.push({ label: "XELT", value: "مفيش بيانات قديمة للخط", note: "محتاج Perform XELT (بيتعمل لوحده للأعطال الجديدة)", level: "info" });
+    const summary = xeltStructuredSummary(x);
+    if (summary) items.push({ label: "XELT", ...summary });
     else {
-      const summary = xeltStructuredSummary(x);
-      if (summary) items.push({ label: "XELT", ...summary });
+      const textSummary = xeltTextSummary(x);
+      if (textSummary) items.push({ label: "XELT", ...textSummary });
     }
   }
   // ٨) التوصية

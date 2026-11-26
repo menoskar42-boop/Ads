@@ -45,6 +45,7 @@ test("real-shaped diagnostic CPE issue is a customer-side fault and metadata row
       { title: "Vendor Information", rows: [["CPE Serial Number", "SANITIZED"], ["CPE Vendor ID", "SANITIZED"], ["CPE Firmware Version Number", "SANITIZED"], ["Other Info", "SANITIZED"]] },
     ] },
   });
+  assert.equal(ar.level, "bad");
   const item = ar.items.find((entry) => entry.label === "التشخيص لقى")!;
   assert.equal(item.level, "bad");
   assert.match(item.value, /عند المشترك \(الراوتر أو السلك جوّه البيت\)/);
@@ -66,7 +67,21 @@ test("date, filter and history rows alone never become diagnostic faults", () =>
   });
   const diagnosis = ar.items.find((entry) => entry.label === "التشخيص")!;
   assert.equal(diagnosis.value, "مفيش مشكلة تشخيصية واضحة");
+  assert.equal(diagnosis.note, "التشخيص مالقاش مشكلة");
+  assert.equal(diagnosis.level, "ok");
   assert.equal(ar.items.some((entry) => entry.label === "التشخيص لقى"), false);
+});
+
+test("stable line with clear diagnostics and zero-fault XELT is green", () => {
+  const ar = lineStatusAr({
+    summary: { panels: [{ rows: [["Stability", "STABLE"]] }] },
+    diagnostics: { panels: [{ rows: [["Filter dates with data", "✓2 ✗0"]] }] },
+    xelt: { panels: [{ rows: [["Number of Faults", "0"], ["Fault 1", "No Fault Detected"]] }] },
+  });
+  assert.equal(ar.headline, "الخط كويس");
+  assert.equal(ar.level, "ok");
+  assert.equal(ar.items.find((entry) => entry.label === "التشخيص")?.level, "ok");
+  assert.equal(ar.items.find((entry) => entry.label === "XELT")?.note, "XELT مالقاش عطل");
 });
 
 test("XELT is summarized from structured rows with fault type, distance and last date", () => {
@@ -87,11 +102,32 @@ test("XELT is summarized from structured rows with fault type, distance and last
   assert.match(xelt.note!, /اكشف على الكابل/);
 });
 
-test("XELT without detected faults is a warning, not a fault", () => {
+test("XELT without detected faults is OK, not a fault", () => {
   const ar = lineStatusAr({ xelt: { history: true, panels: [{ rows: [["Number of Faults", "0"], ["Fault 1", "No Fault Detected"]] }] } });
   const xelt = ar.items.find((entry) => entry.label === "XELT")!;
-  assert.equal(xelt.level, "warn");
+  assert.equal(xelt.level, "ok");
   assert.doesNotMatch(xelt.value, /عند المشترك|فى الشبكة/);
+});
+
+test("text-only XELT reports no fault as OK", () => {
+  const ar = lineStatusAr({ xelt: { panels: [{ text: "No Fault Detected" }] } });
+  const xelt = ar.items.find((entry) => entry.label === "XELT")!;
+  assert.equal(xelt.value, "No Fault Detected");
+  assert.equal(xelt.level, "ok");
+});
+
+test("text-only XELT reports detected fault terms as bad", () => {
+  const ar = lineStatusAr({ xelt: { panels: [{ text: "Fault detected on the line; open circuit observed." }] } });
+  const xelt = ar.items.find((entry) => entry.label === "XELT")!;
+  assert.equal(xelt.level, "bad");
+});
+
+test("ordinary text-only XELT content is informational and capped at 300 characters", () => {
+  const text = `Measurement complete: ${"details ".repeat(60)}`;
+  const ar = lineStatusAr({ xelt: { panels: [{ text }] } });
+  const xelt = ar.items.find((entry) => entry.label === "XELT")!;
+  assert.equal(xelt.level, "info");
+  assert.equal(xelt.value.length, 300);
 });
 
 test("wired: latest endpoint (not for sales) + button in phone lookup and current faults", () => {
