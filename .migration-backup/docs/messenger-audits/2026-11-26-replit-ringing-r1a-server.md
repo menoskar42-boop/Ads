@@ -41,8 +41,12 @@
      * endMessengerCall:
        - وهى ringing والمنهى هو المتصل ⇒ "canceled"؛
        - وهى ringing والمنهى هو المتصل به ⇒ "rejected"؛
-       - وهى active ⇒ "completed"، إلا لو C0 مسجّل للمكالمة دى تقرير failed ومفيش تقرير connected من أى طرف ⇒ "failed".
-         (اقرا كود C0 اللى اتعمل واستخدم نفس الحقول. ⛔ ماتغيّرش منطق C0 ولا العدّادات بتاعته.)
+       - وهى active ⇒ "completed"، إلا لو فيه تقرير failed للمكالمة دى ومفيش تقرير connected من أى طرف ⇒ "failed".
+         C0 (a02ad4dd) بيخزّن outcomeUserIds بس، من غير النتيجة نفسها. فضيف على StoredCall:
+           reportedOutcomes: { connected: boolean; failed: boolean } (يبدأ false/false فى startMessengerCall)،
+         وفى recordMessengerCallOutcome، بعد سطر outcomeUserIds.add(userId):
+           access.call.reportedOutcomes[input.outcome] = true;
+         ⛔ ده إضافة بس: ماتغيّرش منطق C0 ولا العدّادات ولا الـvalidation بتاعته.
      * authorizeCall لما الحظر يقفل المكالمة (403) ⇒ "failed".
    - القاعدة: لو acceptedAtMs موجود يبقى السبب عمره ما يبقى "no_answer" ولا "canceled".
 
