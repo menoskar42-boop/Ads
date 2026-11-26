@@ -202,6 +202,29 @@ test('vCard parsing keeps contacts on-device and reads common vCard formats', ()
   assert.equal(limited.contacts.length, 20000);
   assert.equal(limited.truncated, true);
 });
+test('vCard imports stop at 500 contacts and preserve the old list when storage is full', () => {
+  const imported = Array.from({ length: 501 }, (_, index) => ({
+    name: `Person ${index}`,
+    tels: ['opaque-test-value'],
+  }));
+  const result = R.mergeImportedContacts([], imported, {
+    now: 123,
+    createId: (() => { let id = 0; return () => `contact-${++id}`; })(),
+  });
+  assert.equal(result.contacts.length, 500);
+  assert.equal(result.added, 500);
+  assert.equal(result.skipped, 1);
+  assert.equal(result.limitReached, true);
+
+  const previous = JSON.stringify([{ id: 'saved', name: 'Existing contact' }]);
+  let stored = previous;
+  const fullStorage = {
+    getItem() { return stored; },
+    setItem() { throw new Error('storage full'); },
+  };
+  assert.equal(R.writeContactList(fullStorage, 'contacts', result.contacts), false);
+  assert.equal(fullStorage.getItem('contacts'), previous);
+});
 test('misheard wake word and commands (owner 2026-11-20) + AI fallback mapping', () => {
   assert.equal(R.parseVoice('يا أذكر اتصل ب ماذر موبايل'), 'call::Mother Mobile');
   assert.equal(R.parseVoice('يا اذكر اتصل ل Mother Mobile'), 'call::Mother Mobile');

@@ -463,6 +463,67 @@
   function parseContactPhoneInput(value) {
     return Array.from(new Set(String(value || '').split(/[,،;؛\n]+/).map((phone) => phone.trim()).filter(Boolean)));
   }
+  const MAX_IMPORTED_CONTACTS = 500;
+  function mergeImportedContacts(existing, imported, options = {}) {
+    const maxContacts = Number.isInteger(options.maxContacts) && options.maxContacts >= 0
+      ? options.maxContacts : MAX_IMPORTED_CONTACTS;
+    const maxRecords = Number.isInteger(options.maxRecords) && options.maxRecords >= 0
+      ? options.maxRecords : maxContacts * 2;
+    const now = Number.isFinite(options.now) ? options.now : Date.now();
+    const createId = typeof options.createId === 'function' ? options.createId : () => '';
+    const contacts = Array.isArray(existing) ? existing.map((item) => ({
+      ...item,
+      tels: Array.isArray(item && item.tels) ? item.tels.slice() : [],
+    })) : [];
+    const nameKey = (value) => String(value || '').normalize('NFKC').trim()
+      .toLocaleLowerCase().replace(/\s+/g, ' ');
+    const byName = new Map();
+    let activeCount = 0, added = 0, merged = 0, skipped = 0, limitReached = false;
+    for (const contact of contacts) {
+      if (contact.deleted) continue;
+      activeCount++;
+      const key = nameKey(contact.name);
+      if (key && !byName.has(key)) byName.set(key, contact);
+    }
+    for (const source of Array.isArray(imported) ? imported : []) {
+      const name = String(source && source.name || '').trim();
+      const tels = Array.from(new Set((Array.isArray(source && source.tels) ? source.tels : [])
+        .map((tel) => String(tel || '').trim()).filter(Boolean)));
+      if (!name || !tels.length) { skipped++; continue; }
+      const key = nameKey(name);
+      const previous = byName.get(key);
+      if (previous) {
+        const oldTels = Array.isArray(previous.tels) ? previous.tels : [];
+        const updatedTels = Array.from(new Set(oldTels.concat(tels))).slice(0, 8);
+        if (updatedTels.length > oldTels.length) {
+          previous.tels = updatedTels;
+          previous.updatedMs = now;
+          merged++;
+        }
+      } else if (activeCount < maxContacts && contacts.length < maxRecords) {
+        const item = {
+          id: createId(), name, tels: tels.slice(0, 8), updatedMs: now,
+          deleted: false, whatsapp: false,
+        };
+        contacts.push(item);
+        byName.set(key, item);
+        added++;
+        activeCount++;
+      } else {
+        skipped++;
+        limitReached = true;
+      }
+    }
+    return { contacts, added, merged, skipped, limitReached };
+  }
+  function writeContactList(storage, key, contacts) {
+    try {
+      storage.setItem(key, JSON.stringify(contacts));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
   const MAX_CONTACTS = 20000;
   /** يقرأ أسماء وأرقام vCard داخل المتصفح فقط؛ لا يرسل الملف أو محتواه لأي API. */
   function parseVCardContacts(source) {
@@ -568,6 +629,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, createContactSpellingCache, parseContactPhoneInput, mergeImportedContacts, writeContactList, MAX_IMPORTED_CONTACTS, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);
