@@ -16,6 +16,7 @@
 <% if (settingsError === 'reminder_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">مهلة التذكير غير صحيحة. الأيام من 0 إلى 60، والكيلومترات من 0 إلى 10000، ويجب أن تكون أرقامًا صحيحة، مع تفعيل واحد من الحدين على الأقل.</div><% } %>
 <% if (testEmailStatus === 'sent') { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تم إرسال رسالة اختبار عامة إلى قناة بريد تنبيهات الإدارة.</div><% } %>
 <% if (testEmailStatus === 'unavailable') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر الاختبار لأن إعدادات البريد غير مهيأة على الخادم.</div><% } %>
+<% if (testEmailStatus === 'rate_limited') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">أُرسلت رسالة اختبار لهذه الورشة مؤخرًا. انتظر دقيقة قبل المحاولة مرة أخرى.</div><% } %>
 <% if (testEmailStatus === 'error') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">فشل إرسال رسالة الاختبار. راجع إعدادات البريد وحاول مرة أخرى.</div><% } %>
 <% if (typeof reminderHealth !== 'undefined' && reminderHealth && reminderHealth.state === 'alerted') { %>
   <div class="bg-rose-50 border border-rose-200 text-rose-900 rounded-xl px-4 py-3 text-sm mb-4">

@@ -63,6 +63,17 @@ const emailAddress = (v) => {
   const s = String(v == null ? '' : v).trim().toLowerCase();
   return s && s.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
 };
+function claimReminderEmailTestSlot(companyId, now = Date.now()) {
+  const id = Number(companyId);
+  if (!Number.isSafeInteger(id) || id <= 0) return false;
+  for (const [storedId, expiresAt] of reminderEmailTestCooldowns) {
+    if (expiresAt <= now) reminderEmailTestCooldowns.delete(storedId);
+  }
+  const expiresAt = reminderEmailTestCooldowns.get(id) || 0;
+  if (expiresAt > now) return false;
+  reminderEmailTestCooldowns.set(id, now + REMINDER_EMAIL_TEST_COOLDOWN_MS);
+  return true;
+}
 const alertEmailChange = (previousEmail, nextEmail) => {
   const previous = emailAddress(previousEmail);
   const next = emailAddress(nextEmail);
@@ -104,6 +115,8 @@ function logAlertEmailAccessDenied(req, reason, companyScopeMismatch = false) {
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 const DEFAULT_REMINDER_LEAD_DAYS = 7;
 const DEFAULT_REMINDER_LEAD_KM = 500;
+const REMINDER_EMAIL_TEST_COOLDOWN_MS = 60 * 1000;
+const reminderEmailTestCooldowns = new Map();
 const CRM_LEAD_STAGES = ['new', 'contacted', 'qualified', 'booked', 'won', 'lost'];
 const CRM_LEAD_STAGE_LABELS = {
   new: 'جديد', contacted: 'تم التواصل', qualified: 'مهتم', booked: 'حجز موعد',
@@ -1400,6 +1413,9 @@ router.post('/settings/alert-email-history/:id/restore', requireWorkshopPermissi
 });
 
 router.post('/settings/reminder-email-test', requireWorkshopPermission('manage_settings'), async (req, res) => {
+  if (!claimReminderEmailTestSlot(req.company.id)) {
+    return res.redirect('/workshop/settings?test_email=rate_limited');
+  }
   try {
     const result = await sendWorkshopReminderHealthTest({
       companyId: req.company.id,
@@ -3866,4 +3882,5 @@ module.exports.pool = pool;
 module.exports.helpers = {
   num, int, text, round2, requireFlag, queueServiceReminderMessages,
   campaignRecipient, campaignAudienceCondition, alertEmailChange, loadAlertEmailHistory,
+  claimReminderEmailTestSlot,
 };
