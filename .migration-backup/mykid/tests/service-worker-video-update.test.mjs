@@ -38,7 +38,7 @@ test("service worker install caches current activity files and activation remove
         stored.set(name, cache);
         return cache;
       },
-      keys: async () => ["safari-kids-v336", "safari-kids-v337", "other-cache"],
+      keys: async () => ["safari-kids-v337", "safari-kids-v338", "other-cache"],
       delete: async (name) => { deleted.push(name); return true; },
       match: async () => null,
     },
@@ -56,7 +56,7 @@ test("service worker install caches current activity files and activation remove
   handlers.install({ waitUntil: (promise) => { installPromise = promise; } });
   await installPromise;
   const cacheNames = [...stored.keys()];
-  assert.deepEqual(cacheNames, ["safari-kids-v337"]);
+  assert.deepEqual(cacheNames, ["safari-kids-v338"]);
   assert.ok(skippedWaiting);
   assert.equal(requested.length, 1);
   const assets = stored.get(cacheNames[0]).assets;
@@ -67,6 +67,6 @@ test("service worker install caches current activity files and activation remove
   let activatePromise;
   handlers.activate({ waitUntil: (promise) => { activatePromise = promise; } });
   await activatePromise;
-  assert.deepEqual(deleted, ["safari-kids-v336", "other-cache"]);
+  assert.deepEqual(deleted, ["safari-kids-v337", "other-cache"]);
   assert.ok(claimed);
 });

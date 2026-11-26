@@ -1,6 +1,6 @@
 // ===== Service Worker: تخزين مؤقت للعمل دون اتصال =====
 // Bump this version whenever cached app code or styles change; static assets are cache-first.
-const CACHE = "safari-kids-v337";
+const CACHE = "safari-kids-v338";
 const ASSETS = [
   "/app",
   "/manifest.webmanifest",
