@@ -196,6 +196,7 @@ export interface DeuteroSourceBook {
 export interface DeuteroSourceVerse {
   verse: number;
   text: string;
+  supplementSource?: string;
 }
 
 export interface DeuteroSourceStatus {
@@ -217,6 +218,7 @@ export interface DeuteroSourceChapter {
   source: string;
   sourceUrl: string;
   verses: DeuteroSourceVerse[];
+  note?: string;
 }
 
 export type StTaklaSectionKey = 'ritual' | 'bible' | 'calendar';

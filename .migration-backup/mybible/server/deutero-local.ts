@@ -14,8 +14,21 @@ export const LOCAL_DEUTERO_FILE = path.join(process.cwd(), "data", "deutero", "s
 export const EXTRA_DEUTERO_FILE = path.join(process.cwd(), "data", "deutero", "sttakla-extra.json");
 
 type Chapter = { chapter: number; sourceUrl: string; verses: { verse: number; text: string }[] };
-type Book = { siteBookId: number; name: string; chapters: Chapter[] };
-let loaded: { source: string; books: Map<number, Book>; sources: Map<number, string> } | null | undefined;
+type Book = { siteBookId: number; name: string; source?: string; chapters: Chapter[] };
+type Supplement = {
+  siteBookId: number;
+  chapter: number;
+  source: string;
+  sourceUrl: string;
+  note: string;
+  verses: { verse: number; text: string }[];
+};
+let loaded: {
+  source: string;
+  books: Map<number, Book>;
+  sources: Map<number, string>;
+  supplements: Map<string, Supplement>;
+} | null | undefined;
 let file = LOCAL_DEUTERO_FILE;
 let extraFile = EXTRA_DEUTERO_FILE;
 export function _setLocalDeuteroFileForTest(f: string, extra = ""): void { file = f; extraFile = extra; loaded = undefined; }
@@ -24,7 +37,12 @@ function data() {
   if (loaded !== undefined) return loaded;
   try {
     const d = JSON.parse(fs.readFileSync(file, "utf8")) as { source: string; books: Book[] };
-    loaded = { source: d.source, books: new Map(d.books.map((b) => [b.siteBookId, b])), sources: new Map() };
+    loaded = {
+      source: d.source,
+      books: new Map(d.books.map((b) => [b.siteBookId, b])),
+      sources: new Map(),
+      supplements: new Map(),
+    };
   } catch (e: any) {
     console.error("[deutero-local] تعذّر قراءة النسخة المحفوظة:", e?.message || e);
     loaded = null;
@@ -33,8 +51,21 @@ function data() {
   // الملف الإضافى اختيارى — لو مش موجود الأسفار السبعة زى ما هى
   if (extraFile && fs.existsSync(extraFile)) {
     try {
-      const x = JSON.parse(fs.readFileSync(extraFile, "utf8")) as { source: string; books: Book[] };
-      for (const b of x.books) if (!loaded.books.has(b.siteBookId)) { loaded.books.set(b.siteBookId, b); loaded.sources.set(b.siteBookId, x.source); }
+      const x = JSON.parse(fs.readFileSync(extraFile, "utf8")) as {
+        source: string;
+        books: Book[];
+        supplements?: Supplement[];
+      };
+      for (const b of x.books) {
+        if (!loaded.books.has(b.siteBookId)) loaded.books.set(b.siteBookId, b);
+        loaded.sources.set(b.siteBookId, b.source || x.source);
+      }
+      for (const supplement of x.supplements ?? []) {
+        loaded.supplements.set(
+          `${supplement.siteBookId}:${supplement.chapter}`,
+          supplement,
+        );
+      }
     } catch (e: any) { console.error("[deutero-local] الملف الإضافى:", e?.message || e); }
   }
   return loaded;
@@ -46,13 +77,20 @@ export function localDeuteroChapter(siteBookId: number, chapter: number) {
   const b = d.books.get(siteBookId);
   const c = b?.chapters.find((x) => x.chapter === chapter);
   if (!b || !c || !c.verses.length) return { ok: false as const, error: "الإصحاح مش فى النسخة المحفوظة" };
+  const supplement = d.supplements.get(`${siteBookId}:${chapter}`);
+  const presentVerses = new Set(c.verses.map((verse) => verse.verse));
+  const addedVerses = (supplement?.verses ?? [])
+    .filter((verse) => !presentVerses.has(verse.verse))
+    .map((verse) => ({ ...verse, supplementSource: supplement?.source }));
+  const verses = [...c.verses, ...addedVerses].sort((a, b) => a.verse - b.verse);
   return {
     ok: true as const,
     book: { id: b.siteBookId, name: b.name, chapters: b.chapters.length },
     chapter,
     source: (d.sources.get(b.siteBookId) || d.source) + " — نسخة محفوظة",
     sourceUrl: c.sourceUrl,
-    verses: c.verses.map((v) => ({ verse: v.verse, text: v.text })),
+    verses,
+    ...(supplement?.note ? { note: supplement.note } : {}),
     local: true as const,
   };
 }

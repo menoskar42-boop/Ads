@@ -44,6 +44,7 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
   const [currentChapter, setCurrentChapter] = useState(initialChapter);
   const [verses, setVerses] = useState<any[]>([]);
   const [chapterUnavailable, setChapterUnavailable] = useState(false);
+  const [chapterNote, setChapterNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [scrollCount, setScrollCount] = useState(0);
@@ -85,6 +86,7 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
     setCurrentChapter(ch);
     setVerses([]);
     setLoading(true);
+    setChapterNote(null);
     setElapsed(0);
     setScrollCount(0);
     setScrollDepth(0);
@@ -113,12 +115,14 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
     const loadVerses = async () => {
       setVerses([]);
       setChapterUnavailable(false);
+      setChapterNote(null);
       try {
         // دانيال ١٣–١٤ (تتمة، مش فى فاندايك) ⇒ النسخة المحفوظة من St-Takla
         if (!isDeutero && isDeuteroChapter(currentBook, currentChapter) && DEUTERO_SOURCE_IDS[currentBook]) {
           const d = await api.deuteroSource.getLocalChapter(DEUTERO_SOURCE_IDS[currentBook], currentChapter).catch(() => null);
           const selected = chooseDeuteroChapterSource([], d?.verses || []);
-          setVerses(selected.verses.map(v => ({ id: `${currentBook}-${currentChapter}-${v.verse}`, verse: v.verse, text: v.text })));
+          setChapterNote(d?.note ?? null);
+          setVerses(selected.verses.map(v => ({ ...v, id: `${currentBook}-${currentChapter}-${v.verse}` })));
           setChapterUnavailable(selected.source === 'unavailable');
           setLoading(false);
           return;
@@ -126,14 +130,45 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
         if (isDeutero) {
           const ch = apocryphaBook?.chapters.find(c => c.chapter === currentChapter);
           const embedded = ch?.verses || [];
+          const isThirdMaccabees = currentBook === "المكابيين الثالث";
+          const needsLocalThirdMaccabeesChapter =
+            isThirdMaccabees && [2, 3, 4, 5, 7].includes(currentChapter);
+          if (isThirdMaccabees && !needsLocalThirdMaccabeesChapter) {
+            setVerses(embedded.map(v => ({
+              id: `${currentBook}-${currentChapter}-${v.verse}`,
+              verse: v.verse,
+              text: v.text,
+            })));
+            setChapterUnavailable(!embedded.length);
+            setLoading(false);
+            return;
+          }
+          if (needsLocalThirdMaccabeesChapter) {
+            const localChapter = await api.deuteroSource
+              .getLocalChapter(DEUTERO_SOURCE_IDS[currentBook], currentChapter)
+              .catch(() => null);
+            const selected = chooseDeuteroChapterSource(
+              [],
+              localChapter?.verses ?? [],
+            );
+            setChapterNote(localChapter?.note ?? null);
+            setVerses(selected.verses.map(v => ({
+              ...v,
+              id: `${currentBook}-${currentChapter}-${v.verse}`,
+            })));
+            setChapterUnavailable(selected.source === "unavailable");
+            setLoading(false);
+            return;
+          }
           let local: typeof embedded = [];
           const sourceId = DEUTERO_SOURCE_IDS[currentBook];
           if (!embedded.length && sourceId) {
             const d = await api.deuteroSource.getLocalChapter(sourceId, currentChapter).catch(() => null);
             local = d?.verses || [];
+            setChapterNote(d?.note ?? null);
           }
           const selected = chooseDeuteroChapterSource(embedded, local);
-          setVerses(selected.verses.map(v => ({ id: `${currentBook}-${currentChapter}-${v.verse}`, verse: v.verse, text: v.text })));
+          setVerses(selected.verses.map(v => ({ ...v, id: `${currentBook}-${currentChapter}-${v.verse}` })));
           setChapterUnavailable(selected.source === 'unavailable');
           setLoading(false);
           return;
@@ -299,6 +334,14 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
                   <p className="flex-1 text-xl leading-loose font-display">
                     <span className="text-primary font-bold ml-1">{v.verse}</span>
                     {v.text}
+                    {v.supplementSource && (
+                      <span
+                        className="mr-2 inline-block text-xs text-muted-foreground"
+                        title={v.supplementSource}
+                      >
+                        (SVD)
+                      </span>
+                    )}
                   </p>
                   <button
                     onClick={() => openTafsir('verse', v.verse)}
@@ -310,7 +353,11 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
                   </button>
                 </div>
               ))}
-              {missingVerseRanges.length > 0 && (
+              {chapterNote ? (
+                <p className="pt-1 text-xs text-muted-foreground" data-testid="deutero-chapter-note">
+                  {chapterNote}
+                </p>
+              ) : missingVerseRanges.length > 0 && (
                 <p className="pt-1 text-xs text-amber-700 dark:text-amber-300">
                   {missingVerseRanges.map(({ from, to }) =>
                     from === to

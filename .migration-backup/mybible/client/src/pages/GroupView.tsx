@@ -99,6 +99,8 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
   const [tafsirLoading, setTafsirLoading] = useState(false);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  const [chapterSource, setChapterSource] = useState<string | null>(null);
+  const [chapterNote, setChapterNote] = useState<string | null>(null);
   const [fromLocalCopy, setFromLocalCopy] = useState(false);
   // سفر مش فى St-Takla عندنا (المزمور 151 · صلاة منسى · المكابيين الثالث) ⇒ نص قسم أرثوذكسيات فى الموقع
   const [fromSiteCopy, setFromSiteCopy] = useState(false);
@@ -131,6 +133,9 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
     setCurrentChapter(ch);
     setVerses([]);
     setLoading(true);
+    setChapterNote(null);
+    setChapterSource(null);
+    setSourceUrl(null);
     setElapsed(0);
     setScrollCount(0);
     setScrollDepth(0);
@@ -164,6 +169,8 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
     const loadVerses = async () => {
       setSourceError(null);
       setSourceUrl(null);
+      setChapterSource(null);
+      setChapterNote(null);
       setFromSiteCopy(false);
       setVerses([]);
       try {
@@ -175,22 +182,47 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
           const sourceName = currentBook === 'حكمة سليمان' ? 'الحكمة' : currentBook;
           let chapterData: Awaited<ReturnType<typeof api.deuteroSource.getChapter>> | null = null;
           let local = false;
-          try {
-            const catalog = await api.deuteroSource.getCatalog();
-            const sourceBook = catalog.books.find(book => book.name === sourceName);
-            if (sourceBook) chapterData = await api.deuteroSource.getChapter(sourceBook.id, currentChapter);
-          } catch { chapterData = null; }
-          if (!chapterData?.verses?.length && DEUTERO_SOURCE_IDS[sourceName]) {
+          const isThirdMaccabees = currentBook === 'المكابيين الثالث';
+          const needsLocalThirdMaccabeesChapter =
+            isThirdMaccabees && [2, 3, 4, 5, 7].includes(currentChapter);
+          if (isThirdMaccabees && !needsLocalThirdMaccabeesChapter) {
+            const embedded = apocryphaBook?.chapters.find((c) => c.chapter === currentChapter);
+            if (embedded?.verses?.length) {
+              setFromSiteCopy(true);
+              setVerses(embedded.verses.map((v) => ({
+                id: `${currentBook}-${currentChapter}-${v.verse}`,
+                verse: v.verse,
+                text: v.text,
+              })));
+            } else {
+              setSourceError('الإصحاح ده مش متاح لسه');
+            }
+            setLoading(false);
+            return;
+          }
+          if (needsLocalThirdMaccabeesChapter && DEUTERO_SOURCE_IDS[sourceName]) {
             try {
               chapterData = await api.deuteroSource.getLocalChapter(DEUTERO_SOURCE_IDS[sourceName], currentChapter);
-              // «الموقع مش متاح» بس للأسفار اللى بتتجاب من St-Takla لحظياً — المزمور 151 النسخة المحفوظة هى المصدر
-              local = DEUTERO_SOURCE_IDS[sourceName] < 100;
+              local = true;
             } catch { /* النسخة المحفوظة كمان مش متاحة */ }
+          } else {
+            try {
+              const catalog = await api.deuteroSource.getCatalog();
+              const sourceBook = catalog.books.find(book => book.name === sourceName);
+              if (sourceBook) chapterData = await api.deuteroSource.getChapter(sourceBook.id, currentChapter);
+            } catch { chapterData = null; }
+            if (!chapterData?.verses?.length && DEUTERO_SOURCE_IDS[sourceName]) {
+              try {
+                chapterData = await api.deuteroSource.getLocalChapter(DEUTERO_SOURCE_IDS[sourceName], currentChapter);
+                // «الموقع مش متاح» بس للأسفار اللى بتتجاب من St-Takla لحظياً.
+                local = DEUTERO_SOURCE_IDS[sourceName] < 100;
+              } catch { /* النسخة المحفوظة كمان مش متاحة */ }
+            }
           }
           // المزمور 151 وصلاة منسى والمكابيين الثالث مش فى مصدر St-Takla عندنا ولا فى النسخة المحفوظة — كانوا بيقولوا
           // «غير متاح» للأعضاء (المالك ٢٠٢٦-١١-٠٢: «مزمور 151 منسى»). نفس النص اللى فى قسم أرثوذكسيات فى الموقع،
           // ومكتوب تحته إنه منه — لحد ما نسخة St-Takla توصل.
-          if (!chapterData?.verses?.length) {
+          if (!chapterData?.verses?.length && !isThirdMaccabees) {
             const ap = apocryphaBook?.chapters.find((c) => c.chapter === currentChapter);
             if (ap?.verses?.length) {
               setFromSiteCopy(true);
@@ -199,21 +231,21 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
               return;
             }
           }
-          if (!chapterData) {
-            setSourceError('مصدر هذا السفر غير متاح حاليًا من St-Takla.');
+          if (!chapterData?.verses?.length) {
+            setSourceError(isThirdMaccabees
+              ? 'الإصحاح ده مش متاح لسه'
+              : 'مصدر هذا السفر غير متاح حاليًا من St-Takla.');
             setLoading(false);
             return;
           }
           setFromLocalCopy(local);
           setSourceUrl(chapterData.sourceUrl);
+          setChapterSource(chapterData.source);
+          setChapterNote(chapterData.note ?? null);
           setVerses(chapterData.verses.map(v => ({
+            ...v,
             id: `${currentBook}-${currentChapter}-${v.verse}`,
-            verse: v.verse,
-            text: v.text,
           })));
-          if (chapterData.verses.length === 0) {
-            setSourceError('لا توجد آيات متاحة لهذا الإصحاح في مصدر St-Takla حاليًا.');
-          }
           setLoading(false);
           return;
         }
@@ -362,8 +394,15 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
               className="mb-3 block text-xs text-muted-foreground underline underline-offset-2 hover:text-primary"
               data-testid="deutero-reading-source"
             >
-              {fromLocalCopy ? 'المصدر: St-Takla.org (نسخة محفوظة — الموقع مش متاح دلوقتي)' : 'المصدر: St-Takla.org'}
+              {fromLocalCopy && chapterSource?.includes('St-Takla.org')
+                ? 'المصدر: St-Takla.org (نسخة محفوظة — الموقع مش متاح دلوقتي)'
+                : `المصدر: ${chapterSource || 'St-Takla.org'}`}
             </a>
+          )}
+          {chapterNote && (
+            <p className="mb-3 text-xs text-muted-foreground" data-testid="deutero-chapter-note">
+              {chapterNote}
+            </p>
           )}
           <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" size="sm" className="gap-1.5 text-sm h-10" onClick={() => openTafsir('intro')} data-testid="button-book-intro">
@@ -387,6 +426,14 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
               <p className="flex-1 text-xl leading-loose font-display">
                 <span className="text-primary font-bold ml-1">{v.verse}</span>
                 {v.text}
+                {v.supplementSource && (
+                  <span
+                    className="mr-2 inline-block text-xs text-muted-foreground"
+                    title={v.supplementSource}
+                  >
+                    (SVD)
+                  </span>
+                )}
               </p>
               <button
                 onClick={() => openTafsir('verse', v.verse)}
