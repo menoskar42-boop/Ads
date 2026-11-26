@@ -30,3 +30,15 @@
   clients.claim() لو مش موجودين.
 - اختبار: sendNotification بيتنادى بـurgency high وTTL.
 ```
+
+## ومعاه: البرنامج المتثبّت على الشاشة الرئيسية ياخد التحديث لوحده
+> المالك ٢٠٢٦-١١-٢٦: «البرنامج موضوع على الشاشه الرئيسيه فالتعديلات مسمعتش كلها».
+> **[كود]** sw.js: الصفحة network-first (بتجيب الجديد لما تتفتح من الأول) والـJS cache-first بأسماء فيها hash — يعنى التحديث بيوصل
+> بس لما البرنامج يتقفل خالص ويتفتح. لو فاضل مفتوح فى الخلفية (أندرويد بيرجّعه من غير reload) بيفضل على النسخة القديمة.
+
+```
+- artifacts/oscar-messenger: عند رجوع البرنامج للواجهة (visibilitychange ⇒ visible، وAppState active على الويب):
+  navigator.serviceWorker.getRegistration() ثم registration.update()؛ ولو اتغيّر الـcontroller (event "controllerchange") أو فيه
+  registration.waiting ⇒ reload مرة واحدة بس (علامة فى sessionStorage عشان مايعملش loop)، وبشرط مايكونش فيه رسالة بتتكتب/بتترفع أو مكالمة شغّالة.
+- من غير مكتبات. اختبار نص بسيط إن الكود ده موجود ومفيش reload loop.
+```
