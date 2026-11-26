@@ -4,10 +4,12 @@ import {
   answerMessengerCall,
   endMessengerCall,
   getActiveMessengerCall,
+  getMessengerCallMetrics,
   getMessengerCallSignals,
   messengerIceServersFromConfig,
   publishExpiredMessengerCallEvents,
   publishMessengerCallEvent,
+  recordMessengerCallOutcome,
   sendMessengerCallSignal,
   startMessengerCall,
 } from "../lib/messenger-calls.ts";
@@ -265,6 +267,45 @@ router.get(
     }
   },
 );
+
+router.post(
+  "/messenger/calls/:callId/outcome",
+  requireAuth,
+  async (req, res, next): Promise<void> => {
+    try {
+      const pool = requirePool(await loadPool(), res);
+      if (!pool) return;
+      const result = await recordMessengerCallOutcome(
+        pool,
+        String(req.params.callId),
+        getUserId(res),
+        req.body,
+      );
+      if (!result.ok) {
+        sendFailure(res, result);
+        return;
+      }
+      if (result.recorded) {
+        const input = req.body as {
+          outcome: "connected" | "failed";
+          localType: string;
+          remoteType: string;
+          setupMs: number;
+        };
+        console.log(
+          `[messenger-call] outcome=${input.outcome} local=${input.localType} remote=${input.remoteType} setup_ms=${input.setupMs}`,
+        );
+      }
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get("/messenger/calls/metrics", requireAuth, (_req, res) => {
+  res.json(getMessengerCallMetrics());
+});
 
 router.get("/messenger/calls/config", requireAuth, (_req, res) => {
   res.json({

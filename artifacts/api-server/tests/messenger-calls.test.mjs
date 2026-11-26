@@ -5,9 +5,11 @@ import {
   advanceMessengerCalls,
   answerMessengerCall,
   endMessengerCall,
+  getMessengerCallMetrics,
   getMessengerCallSignals,
   messengerIceServersFromConfig,
   publishMessengerCallEvent,
+  recordMessengerCallOutcome,
   sendMessengerCallSignal,
   startMessengerCall,
 } from "../src/lib/messenger-calls.ts";
@@ -93,6 +95,7 @@ test("the callee alone can accept or reject, and either participant can end", as
       "call-reject-conversation": ["call-reject-a", "call-reject-b"],
     },
   });
+  const metricsBefore = getMessengerCallMetrics();
   const acceptedCall = await startMessengerCall(
     pool,
     "call-accept-conversation",
@@ -101,6 +104,7 @@ test("the callee alone can accept or reject, and either participant can end", as
     "call-accepted",
   );
   assert.equal(acceptedCall.ok, true);
+  assert.equal(getMessengerCallMetrics().started, metricsBefore.started + 1);
   if (!acceptedCall.ok) return;
 
   const callerAccept = await answerMessengerCall(
@@ -118,6 +122,7 @@ test("the callee alone can accept or reject, and either participant can end", as
     "accept",
   );
   assert.equal(accepted.ok, true);
+  assert.equal(getMessengerCallMetrics().accepted, metricsBefore.accepted + 1);
   if (accepted.ok) assert.equal(accepted.call.state, "active");
   const ended = await endMessengerCall(
     pool,
@@ -151,6 +156,7 @@ test("the callee alone can accept or reject, and either participant can end", as
     "reject",
   );
   assert.equal(rejected.ok, true);
+  assert.equal(getMessengerCallMetrics().rejected, metricsBefore.rejected + 1);
   if (rejected.ok) assert.equal(rejected.call.state, "ended");
 });
 
@@ -244,6 +250,7 @@ test("offer and ICE can be queued while ringing; only the callee can answer", as
 test("ringing expires after 45 seconds and ended calls are removed after two minutes", async () => {
   const pool = makePool();
   const start = Date.now();
+  const noAnswerBefore = getMessengerCallMetrics().noAnswer;
   const ringing = await startMessengerCall(
     pool,
     "call-conversation",
@@ -255,6 +262,7 @@ test("ringing expires after 45 seconds and ended calls are removed after two min
   if (!ringing.ok) return;
 
   advanceMessengerCalls(start + 45_000);
+  assert.equal(getMessengerCallMetrics().noAnswer, noAnswerBefore + 1);
   const expired = await getMessengerCallSignals(
     pool,
     ringing.call.id,
@@ -273,6 +281,108 @@ test("ringing expires after 45 seconds and ended calls are removed after two min
   );
   assert.equal(removed.ok, false);
   assert.equal(removed.status, 404);
+});
+
+test("outcomes validate participants, deduplicate per participant, and expose aggregate metrics only", async () => {
+  const pool = makePool();
+  const before = getMessengerCallMetrics();
+  const created = await startMessengerCall(
+    pool,
+    "call-conversation",
+    "call-user-a",
+    Date.now(),
+    "call-outcome-private",
+  );
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  assert.equal(getMessengerCallMetrics().started, before.started + 1);
+
+  const invalid = await recordMessengerCallOutcome(
+    pool,
+    created.call.id,
+    "call-user-a",
+    {
+      outcome: "connected",
+      localType: "host",
+      remoteType: "relay",
+      setupMs: 120_001,
+    },
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.status, 400);
+
+  const outsider = await recordMessengerCallOutcome(
+    pool,
+    created.call.id,
+    "call-outsider",
+    {
+      outcome: "connected",
+      localType: "host",
+      remoteType: "srflx",
+      setupMs: 25,
+    },
+  );
+  assert.equal(outsider.ok, false);
+  if (!outsider.ok) assert.equal(outsider.status, 404);
+
+  const first = await recordMessengerCallOutcome(
+    pool,
+    created.call.id,
+    "call-user-a",
+    {
+      outcome: "connected",
+      localType: "host",
+      remoteType: "srflx",
+      setupMs: 25,
+    },
+  );
+  const duplicate = await recordMessengerCallOutcome(
+    pool,
+    created.call.id,
+    "call-user-a",
+    {
+      outcome: "failed",
+      localType: "relay",
+      remoteType: "relay",
+      setupMs: 100,
+    },
+  );
+  const peerOutcome = await recordMessengerCallOutcome(
+    pool,
+    created.call.id,
+    "call-user-b",
+    {
+      outcome: "connected",
+      localType: "relay",
+      remoteType: "srflx",
+      setupMs: 50,
+    },
+  );
+  assert.deepEqual(first, { ok: true, recorded: true });
+  assert.deepEqual(duplicate, { ok: true, recorded: false });
+  assert.deepEqual(peerOutcome, { ok: true, recorded: true });
+
+  const metrics = getMessengerCallMetrics();
+  assert.equal(metrics.connected, before.connected + 2);
+  assert.equal(metrics.failed, before.failed);
+  assert.equal(metrics.byPair.direct.connected, before.byPair.direct.connected + 1);
+  assert.equal(metrics.byPair.relay.connected, before.byPair.relay.connected + 1);
+  assert.equal(metrics.setupMs.count, Math.min(before.setupMs.count + 2, 200));
+  assert.equal(
+    metrics.failureRate,
+    before.failed / (before.connected + before.failed + 2),
+  );
+  if (before.setupMs.count === 0) {
+    assert.equal(metrics.setupMs.average, 38);
+    assert.equal(metrics.setupMs.p50, 25);
+    assert.equal(metrics.setupMs.p90, 50);
+  }
+  const serialized = JSON.stringify(metrics);
+  assert.equal(serialized.includes("call-outcome-private"), false);
+  assert.equal(serialized.includes("call-user-a"), false);
+  assert.equal(serialized.includes("call-user-b"), false);
+  assert.equal(Object.keys(metrics).some((key) => /id/i.test(key)), false);
+  await endMessengerCall(pool, created.call.id, "call-user-a");
 });
 
 test("the caller is limited to ten new calls per hour", async () => {
@@ -354,14 +464,24 @@ test("call routes authenticate, disable caching, and never add SDP to notificati
     "/messenger/calls/:callId/accept",
     "/messenger/calls/:callId/reject",
     "/messenger/calls/:callId/end",
+    "/messenger/calls/:callId/outcome",
     "/messenger/calls/:callId/signal",
     "/messenger/calls/:callId/signals",
     "/messenger/calls/active",
     "/messenger/calls/config",
+    "/messenger/calls/metrics",
   ]) {
     assert.ok(source.includes(path), `missing route ${path}`);
   }
   assert.match(source, /setHeader\("Cache-Control", "private, no-store"\)/);
   assert.match(source, /requireAuth/);
-  assert.doesNotMatch(source, /console\.(log|error)/);
+  assert.match(
+    source,
+    /\[messenger-call\] outcome=\$\{input\.outcome\} local=\$\{input\.localType\} remote=\$\{input\.remoteType\} setup_ms=\$\{input\.setupMs\}/,
+  );
+  assert.doesNotMatch(
+    source,
+    /console\.log[\s\S]{0,250}(?:callId|userId|ip|remoteAddress)/i,
+  );
+  assert.doesNotMatch(source, /console\.error/);
 });

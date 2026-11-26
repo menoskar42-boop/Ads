@@ -71,6 +71,22 @@ paths:
                 $ref: "#/components/schemas/MessengerCallConfigResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /messenger/calls/metrics:
+    get:
+      operationId: getMessengerCallMetrics
+      tags: [messenger]
+      summary: Get aggregate audio-call outcome metrics
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Aggregate in-memory counters with no call or user identifiers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerCallMetrics"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /messenger/calls/active:
     get:
       operationId: getActiveMessengerCall
@@ -211,6 +227,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessengerCallResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /messenger/calls/{callId}/outcome:
+    post:
+      operationId: reportMessengerCallOutcome
+      tags: [messenger]
+      summary: Record an aggregate audio-call connection outcome
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessengerCallOutcomeInput"
+      responses:
+        "204":
+          description: Outcome accepted or already recorded for this participant
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2931,6 +2981,86 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MessengerIceServer"
+    MessengerCallOutcomeInput:
+      type: object
+      required: [outcome, localType, remoteType, setupMs]
+      properties:
+        outcome:
+          type: string
+          enum: [connected, failed]
+        localType:
+          type: string
+          enum: [host, srflx, prflx, relay, unknown]
+        remoteType:
+          type: string
+          enum: [host, srflx, prflx, relay, unknown]
+        setupMs:
+          type: integer
+          minimum: 0
+          maximum: 120000
+    MessengerCallOutcomePairCounts:
+      type: object
+      required: [connected, failed]
+      properties:
+        connected:
+          type: integer
+          minimum: 0
+        failed:
+          type: integer
+          minimum: 0
+    MessengerCallMetrics:
+      type: object
+      required: [started, accepted, rejected, noAnswer, connected, failed, failureRate, byPair, setupMs]
+      properties:
+        started:
+          type: integer
+          minimum: 0
+        accepted:
+          type: integer
+          minimum: 0
+        rejected:
+          type: integer
+          minimum: 0
+        noAnswer:
+          type: integer
+          minimum: 0
+        connected:
+          type: integer
+          minimum: 0
+        failed:
+          type: integer
+          minimum: 0
+        failureRate:
+          type: number
+          minimum: 0
+          maximum: 1
+        byPair:
+          type: object
+          required: [direct, relay, unknown]
+          properties:
+            direct:
+              $ref: "#/components/schemas/MessengerCallOutcomePairCounts"
+            relay:
+              $ref: "#/components/schemas/MessengerCallOutcomePairCounts"
+            unknown:
+              $ref: "#/components/schemas/MessengerCallOutcomePairCounts"
+        setupMs:
+          type: object
+          required: [count, average, p50, p90]
+          properties:
+            count:
+              type: integer
+              minimum: 0
+              maximum: 200
+            average:
+              type: [integer, "null"]
+              minimum: 0
+            p50:
+              type: [integer, "null"]
+              minimum: 0
+            p90:
+              type: [integer, "null"]
+              minimum: 0
     MessengerEvent:
       oneOf:
         - type: object

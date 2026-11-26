@@ -65,6 +65,78 @@ export const GetMessengerCallConfigResponse = zod.object({
 
 
 /**
+ * @summary Get aggregate audio-call outcome metrics
+ */
+export const getMessengerCallMetricsResponseStartedMin = 0;
+
+export const getMessengerCallMetricsResponseAcceptedMin = 0;
+
+export const getMessengerCallMetricsResponseRejectedMin = 0;
+
+export const getMessengerCallMetricsResponseNoAnswerMin = 0;
+
+export const getMessengerCallMetricsResponseConnectedMin = 0;
+
+export const getMessengerCallMetricsResponseFailedMin = 0;
+
+export const getMessengerCallMetricsResponseFailureRateMin = 0;
+export const getMessengerCallMetricsResponseFailureRateMax = 1;
+
+export const getMessengerCallMetricsResponseByPairDirectConnectedMin = 0;
+
+export const getMessengerCallMetricsResponseByPairDirectFailedMin = 0;
+
+export const getMessengerCallMetricsResponseByPairRelayConnectedMin = 0;
+
+export const getMessengerCallMetricsResponseByPairRelayFailedMin = 0;
+
+export const getMessengerCallMetricsResponseByPairUnknownConnectedMin = 0;
+
+export const getMessengerCallMetricsResponseByPairUnknownFailedMin = 0;
+
+export const getMessengerCallMetricsResponseSetupMsCountMin = 0;
+export const getMessengerCallMetricsResponseSetupMsCountMax = 200;
+
+export const getMessengerCallMetricsResponseSetupMsAverageMin = 0;
+
+export const getMessengerCallMetricsResponseSetupMsP50Min = 0;
+
+export const getMessengerCallMetricsResponseSetupMsP90Min = 0;
+
+
+
+export const GetMessengerCallMetricsResponse = zod.object({
+  "started": zod.int().min(getMessengerCallMetricsResponseStartedMin),
+  "accepted": zod.int().min(getMessengerCallMetricsResponseAcceptedMin),
+  "rejected": zod.int().min(getMessengerCallMetricsResponseRejectedMin),
+  "noAnswer": zod.int().min(getMessengerCallMetricsResponseNoAnswerMin),
+  "connected": zod.int().min(getMessengerCallMetricsResponseConnectedMin),
+  "failed": zod.int().min(getMessengerCallMetricsResponseFailedMin),
+  "failureRate": zod.number().min(getMessengerCallMetricsResponseFailureRateMin).max(getMessengerCallMetricsResponseFailureRateMax),
+  "byPair": zod.object({
+  "direct": zod.object({
+  "connected": zod.int().min(getMessengerCallMetricsResponseByPairDirectConnectedMin),
+  "failed": zod.int().min(getMessengerCallMetricsResponseByPairDirectFailedMin)
+}),
+  "relay": zod.object({
+  "connected": zod.int().min(getMessengerCallMetricsResponseByPairRelayConnectedMin),
+  "failed": zod.int().min(getMessengerCallMetricsResponseByPairRelayFailedMin)
+}),
+  "unknown": zod.object({
+  "connected": zod.int().min(getMessengerCallMetricsResponseByPairUnknownConnectedMin),
+  "failed": zod.int().min(getMessengerCallMetricsResponseByPairUnknownFailedMin)
+})
+}),
+  "setupMs": zod.object({
+  "count": zod.int().min(getMessengerCallMetricsResponseSetupMsCountMin).max(getMessengerCallMetricsResponseSetupMsCountMax),
+  "average": zod.int().min(getMessengerCallMetricsResponseSetupMsAverageMin).nullable(),
+  "p50": zod.int().min(getMessengerCallMetricsResponseSetupMsP50Min).nullable(),
+  "p90": zod.int().min(getMessengerCallMetricsResponseSetupMsP90Min).nullable()
+})
+})
+
+
+/**
  * @summary Get the signed-in user's active audio call
  */
 export const GetActiveMessengerCallResponse = zod.object({
@@ -174,6 +246,32 @@ export const EndMessengerCallResponse = zod.object({
   "endedAt": zod.coerce.date().nullable()
 })
 })
+
+
+/**
+ * @summary Record an aggregate audio-call connection outcome
+ */
+export const reportMessengerCallOutcomePathCallIdMax = 80;
+
+
+
+export const ReportMessengerCallOutcomeParams = zod.object({
+  "callId": zod.coerce.string().min(1).max(reportMessengerCallOutcomePathCallIdMax)
+})
+
+export const reportMessengerCallOutcomeBodySetupMsMin = 0;
+export const reportMessengerCallOutcomeBodySetupMsMax = 120000;
+
+
+
+export const ReportMessengerCallOutcomeBody = zod.object({
+  "outcome": zod.enum(['connected', 'failed']),
+  "localType": zod.enum(['host', 'srflx', 'prflx', 'relay', 'unknown']),
+  "remoteType": zod.enum(['host', 'srflx', 'prflx', 'relay', 'unknown']),
+  "setupMs": zod.int().min(reportMessengerCallOutcomeBodySetupMsMin).max(reportMessengerCallOutcomeBodySetupMsMax)
+})
+
+export const ReportMessengerCallOutcomeResponse = zod.void()
 
 
 /**

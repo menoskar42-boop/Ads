@@ -7,11 +7,13 @@ import {
   getActiveMessengerCall,
   getMessengerCallConfig,
   getMessengerCallSignals,
+  reportMessengerCallOutcome,
   rejectMessengerCall,
   sendMessengerCallSignal,
 } from "@workspace/api-client-react";
 import type {
   MessengerCall,
+  MessengerCallOutcomeInput,
   MessengerCallSignal,
   MessengerCallSignalInput,
 } from "@workspace/api-client-react";
@@ -50,6 +52,75 @@ type Props = {
 };
 
 type FinishOptions = { notifyServer: boolean };
+
+function monotonicNowMs(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function safeCandidateType(value: unknown): MessengerCallOutcomeInput["localType"] {
+  return value === "host" || value === "srflx" || value === "prflx" || value === "relay"
+    ? value
+    : "unknown";
+}
+
+async function selectedCandidateTypes(
+  connection: RTCPeerConnection,
+): Promise<Pick<MessengerCallOutcomeInput, "localType" | "remoteType">> {
+  try {
+    const stats = await connection.getStats();
+    type CandidatePairStats = RTCStats & {
+      selected?: boolean;
+      nominated?: boolean;
+      state?: string;
+      localCandidateId?: string;
+      remoteCandidateId?: string;
+    };
+    let selectedPair: CandidatePairStats | undefined;
+    let transportPairId: string | undefined;
+    for (const stat of stats.values()) {
+      if (stat.type === "candidate-pair") {
+        const pair = stat as CandidatePairStats;
+        if (pair.selected === true) selectedPair = pair;
+        else if (
+          !selectedPair &&
+          pair.nominated === true &&
+          pair.state === "succeeded"
+        ) selectedPair = pair;
+      } else if (stat.type === "transport") {
+        const transport = stat as RTCStats & { selectedCandidatePairId?: unknown };
+        if (typeof transport.selectedCandidatePairId === "string") {
+          transportPairId = transport.selectedCandidatePairId;
+        }
+      }
+    }
+    if (!selectedPair && transportPairId) {
+      const stat = stats.get(transportPairId);
+      if (stat?.type === "candidate-pair") {
+        selectedPair = stat as CandidatePairStats;
+      }
+    }
+    const localCandidate = selectedPair?.localCandidateId
+      ? stats.get(selectedPair.localCandidateId)
+      : undefined;
+    const remoteCandidate = selectedPair?.remoteCandidateId
+      ? stats.get(selectedPair.remoteCandidateId)
+      : undefined;
+    return {
+      localType: safeCandidateType(
+        localCandidate && "candidateType" in localCandidate
+          ? localCandidate.candidateType
+          : undefined,
+      ),
+      remoteType: safeCandidateType(
+        remoteCandidate && "candidateType" in remoteCandidate
+          ? remoteCandidate.candidateType
+          : undefined,
+      ),
+    };
+  } catch {
+    return { localType: "unknown", remoteType: "unknown" };
+  }
+}
 
 async function requestCallAudio(): Promise<MediaStream> {
   if (
@@ -115,6 +186,9 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
     const ringTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const finishingCallIdRef = useRef("");
+    const callAcceptedAtMsRef = useRef<number | null>(null);
+    const callOutcomeReportedIdRef = useRef("");
+    const callEverConnectedRef = useRef(false);
     const finishCallRef = useRef<(options: FinishOptions) => Promise<void>>(async () => undefined);
     const handleSignalRef = useRef<(signal: MessengerCallSignal) => Promise<void>>(
       async () => undefined,
@@ -141,8 +215,35 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
     });
 
     const updateCall = useCallback((next: MessengerCall | null) => {
+      if (next && callRef.current?.id !== next.id) {
+        callAcceptedAtMsRef.current = null;
+        callOutcomeReportedIdRef.current = "";
+        callEverConnectedRef.current = false;
+      }
       callRef.current = next;
       setCall(next);
+    }, []);
+
+    const reportCallOutcome = useCallback(async (
+      callId: string,
+      outcome: MessengerCallOutcomeInput["outcome"],
+      connection: RTCPeerConnection,
+    ) => {
+      if (callOutcomeReportedIdRef.current === callId) return;
+      callOutcomeReportedIdRef.current = callId;
+      const acceptedAt = callAcceptedAtMsRef.current;
+      const setupMs = Math.min(
+        120_000,
+        Math.max(0, Math.round(monotonicNowMs() - (acceptedAt ?? monotonicNowMs()))),
+      );
+      const candidateTypes = await selectedCandidateTypes(connection);
+      const input: MessengerCallOutcomeInput = {
+        outcome,
+        ...candidateTypes,
+        setupMs,
+      };
+      await reportMessengerCallOutcome(callId, input, { keepalive: true })
+        .catch(() => undefined);
     }, []);
 
     const stopRingtone = useCallback(() => {
@@ -255,6 +356,9 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
         current.callerId === userId &&
         !connection.remoteDescription
       ) {
+        if (callAcceptedAtMsRef.current === null) {
+          callAcceptedAtMsRef.current = monotonicNowMs();
+        }
         await connection.setRemoteDescription(
           new RTCSessionDescription(
             signal.payload as unknown as RTCSessionDescriptionInit,
@@ -297,7 +401,9 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
             clearTimeout(connectionFailureTimerRef.current);
           }
           connectionFailureTimerRef.current = null;
+          callEverConnectedRef.current = true;
           setConnectedAt((previous) => previous ?? Date.now());
+          void reportCallOutcome(current.id, "connected", connection);
           return;
         }
         if (
@@ -306,6 +412,9 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
         ) {
           if (!connectionFailureTimerRef.current) {
             connectionFailureTimerRef.current = setTimeout(() => {
+              if (!callEverConnectedRef.current) {
+                void reportCallOutcome(current.id, "failed", connection);
+              }
               void finishCallRef.current({ notifyServer: true });
             }, 15_000);
           }
@@ -317,7 +426,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
         await connection.setLocalDescription(offer);
         await sendSignal(current.id, "offer", offer);
       }
-    }, [sendSignal]);
+    }, [reportCallOutcome, sendSignal]);
 
     const startCall = useCallback(async () => {
       if (!isWebCallSupported || !enabled || !conversationId || !peerName) return;
@@ -328,6 +437,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       setCallError("");
       setConnectedAt(null);
       setDurationSeconds(0);
+      callAcceptedAtMsRef.current = null;
       try {
         const localStream = await requestCallAudio();
         streamRef.current = localStream;
@@ -372,6 +482,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       if (!current || current.calleeId !== userId) return;
       setBusy(true);
       setCallError("");
+      callAcceptedAtMsRef.current = monotonicNowMs();
       try {
         const localStream = await requestCallAudio();
         streamRef.current = localStream;
@@ -431,6 +542,12 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
         remote.conversationId === conversationId &&
         remote.state !== "ended"
       ) {
+        if (
+          remote.state === "active" &&
+          callAcceptedAtMsRef.current === null
+        ) {
+          callAcceptedAtMsRef.current = monotonicNowMs();
+        }
         if (!local || local.id !== remote.id || local.state !== remote.state) {
           if (!local || local.id !== remote.id) {
             setConnectedAt(null);
@@ -493,6 +610,12 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
           if (result.call.state === "ended") {
             await finishCallRef.current({ notifyServer: false });
             return;
+          }
+          if (
+            result.call.state === "active" &&
+            callAcceptedAtMsRef.current === null
+          ) {
+            callAcceptedAtMsRef.current = monotonicNowMs();
           }
           if (callRef.current?.state !== result.call.state) {
             updateCall(result.call);

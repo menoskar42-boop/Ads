@@ -16,6 +16,27 @@ export const MESSENGER_CALL_RATE_WINDOW_MS = 60 * 60 * 1_000;
 
 export type MessengerCallState = "ringing" | "active" | "ended";
 export type MessengerCallSignalKind = "offer" | "answer" | "ice";
+export type MessengerCallOutcome = "connected" | "failed";
+export type MessengerCallCandidateType = "host" | "srflx" | "prflx" | "relay" | "unknown";
+export type MessengerCallOutcomeInput = {
+  outcome: MessengerCallOutcome;
+  localType: MessengerCallCandidateType;
+  remoteType: MessengerCallCandidateType;
+  setupMs: number;
+};
+
+type MessengerCallPairClass = "direct" | "relay" | "unknown";
+type OutcomeCounts = { connected: number; failed: number };
+type OutcomeMetrics = {
+  started: number;
+  accepted: number;
+  rejected: number;
+  noAnswer: number;
+  connected: number;
+  failed: number;
+  byPair: Record<MessengerCallPairClass, OutcomeCounts>;
+  setupMs: number[];
+};
 
 export type MessengerCall = {
   id: string;
@@ -51,6 +72,7 @@ type StoredCall = MessengerCall & {
   endedAtMs: number | null;
   nextSignalSeq: number;
   inboxes: Map<string, MessengerCallSignal[]>;
+  outcomeUserIds: Set<string>;
 };
 
 type CallPool = MessengerBlocksPool;
@@ -58,6 +80,20 @@ type CallPool = MessengerBlocksPool;
 const calls = new Map<string, StoredCall>();
 const createWindows = new Map<string, number[]>();
 const pendingExpiryEvents = new Map<string, MessengerCall>();
+const outcomeMetrics: OutcomeMetrics = {
+  started: 0,
+  accepted: 0,
+  rejected: 0,
+  noAnswer: 0,
+  connected: 0,
+  failed: 0,
+  byPair: {
+    direct: { connected: 0, failed: 0 },
+    relay: { connected: 0, failed: 0 },
+    unknown: { connected: 0, failed: 0 },
+  },
+  setupMs: [],
+};
 
 export const DEFAULT_MESSENGER_ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
@@ -116,6 +152,7 @@ export function advanceMessengerCalls(nowMs = Date.now()): MessengerCall[] {
       nowMs - call.createdAtMs >= MESSENGER_CALL_RING_TIMEOUT_MS
     ) {
       endCall(call, call.createdAtMs + MESSENGER_CALL_RING_TIMEOUT_MS);
+      outcomeMetrics.noAnswer += 1;
       const snapshot = publicCall(call);
       pendingExpiryEvents.set(callId, snapshot);
       expired.push(snapshot);
@@ -245,8 +282,10 @@ export async function startMessengerCall(
       [callerId, []],
       [calleeId, []],
     ]),
+    outcomeUserIds: new Set(),
   };
   calls.set(id, call);
+  outcomeMetrics.started += 1;
   return { ok: true, call: publicCall(call), notifyUserIds: [calleeId] };
 }
 
@@ -266,13 +305,93 @@ export async function answerMessengerCall(
   if (action === "accept") {
     call.state = "active";
     call.acceptedAtMs = nowMs;
+    outcomeMetrics.accepted += 1;
   } else {
     endCall(call, nowMs);
+    outcomeMetrics.rejected += 1;
   }
   return {
     ok: true,
     call: publicCall(call),
     notifyUserIds: [call.callerId],
+  };
+}
+
+function isMessengerCallOutcomeInput(value: unknown): value is MessengerCallOutcomeInput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const input = value as Record<string, unknown>;
+  const candidateTypes = ["host", "srflx", "prflx", "relay", "unknown"];
+  return (input.outcome === "connected" || input.outcome === "failed") &&
+    candidateTypes.includes(String(input.localType)) &&
+    candidateTypes.includes(String(input.remoteType)) &&
+    Number.isInteger(input.setupMs) &&
+    Number(input.setupMs) >= 0 &&
+    Number(input.setupMs) <= 120_000;
+}
+
+function classifyMessengerCallPair(
+  localType: MessengerCallCandidateType,
+  remoteType: MessengerCallCandidateType,
+): MessengerCallPairClass {
+  if (localType === "relay" || remoteType === "relay") return "relay";
+  const directTypes = new Set(["host", "srflx", "prflx"]);
+  return directTypes.has(localType) && directTypes.has(remoteType)
+    ? "direct"
+    : "unknown";
+}
+
+export async function recordMessengerCallOutcome(
+  pool: CallPool,
+  callId: string,
+  userId: string,
+  input: unknown,
+): Promise<{ ok: true; recorded: boolean } | CallFailure> {
+  if (!isMessengerCallOutcomeInput(input)) {
+    return fail(400, "نتيجة المكالمة غير صحيحة.");
+  }
+  const access = await authorizeCall(pool, callId, userId);
+  if (!access.ok) return access;
+  if (access.call.outcomeUserIds.has(userId)) {
+    return { ok: true, recorded: false };
+  }
+
+  access.call.outcomeUserIds.add(userId);
+  outcomeMetrics[input.outcome] += 1;
+  const pairClass = classifyMessengerCallPair(input.localType, input.remoteType);
+  outcomeMetrics.byPair[pairClass][input.outcome] += 1;
+  outcomeMetrics.setupMs.push(input.setupMs);
+  if (outcomeMetrics.setupMs.length > 200) outcomeMetrics.setupMs.shift();
+  return { ok: true, recorded: true };
+}
+
+export function getMessengerCallMetrics() {
+  const setupValues = [...outcomeMetrics.setupMs].sort((left, right) => left - right);
+  const percentile = (p: number): number | null => {
+    if (setupValues.length === 0) return null;
+    return setupValues[Math.max(0, Math.ceil(p * setupValues.length) - 1)];
+  };
+  const measured = outcomeMetrics.connected + outcomeMetrics.failed;
+  return {
+    started: outcomeMetrics.started,
+    accepted: outcomeMetrics.accepted,
+    rejected: outcomeMetrics.rejected,
+    noAnswer: outcomeMetrics.noAnswer,
+    connected: outcomeMetrics.connected,
+    failed: outcomeMetrics.failed,
+    failureRate: measured ? outcomeMetrics.failed / measured : 0,
+    byPair: {
+      direct: { ...outcomeMetrics.byPair.direct },
+      relay: { ...outcomeMetrics.byPair.relay },
+      unknown: { ...outcomeMetrics.byPair.unknown },
+    },
+    setupMs: {
+      count: setupValues.length,
+      average: setupValues.length
+        ? Math.round(setupValues.reduce((sum, value) => sum + value, 0) / setupValues.length)
+        : null,
+      p50: percentile(0.5),
+      p90: percentile(0.9),
+    },
   };
 }
 

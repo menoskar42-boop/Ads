@@ -46,6 +46,18 @@ test("calls end on pagehide or after ICE disconnect/failure persists for 15 seco
   assert.match(source, /}, 15_000\)/);
 });
 
+test("call outcome telemetry is sent once with aggregate candidate types and keepalive", () => {
+  const source = readFileSync(callPath, "utf8");
+  assert.match(source, /reportMessengerCallOutcome/);
+  assert.match(source, /connection\.getStats\(\)/);
+  assert.match(source, /localCandidate\.candidateType/);
+  assert.match(source, /remoteCandidate\.candidateType/);
+  assert.match(source, /callOutcomeReportedIdRef\.current === callId/);
+  assert.match(source, /reportMessengerCallOutcome\(callId, input, \{ keepalive: true \}\)/);
+  assert.match(source, /reportCallOutcome\(current\.id, "connected", connection\)/);
+  assert.match(source, /if \(!callEverConnectedRef\.current\)[\s\S]*reportCallOutcome\(current\.id, "failed", connection\)/);
+});
+
 test("call realtime events invalidate the active call query", () => {
   const source = readFileSync(
     new URL("../lib/realtime.ts", import.meta.url),

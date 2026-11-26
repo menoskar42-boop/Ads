@@ -108,6 +108,105 @@ export interface MessengerCallConfigResponse {
   iceServers: MessengerIceServer[];
 }
 
+export type MessengerCallOutcomeInputOutcome = typeof MessengerCallOutcomeInputOutcome[keyof typeof MessengerCallOutcomeInputOutcome];
+
+
+export const MessengerCallOutcomeInputOutcome = {
+  connected: 'connected',
+  failed: 'failed',
+} as const;
+
+export type MessengerCallOutcomeInputLocalType = typeof MessengerCallOutcomeInputLocalType[keyof typeof MessengerCallOutcomeInputLocalType];
+
+
+export const MessengerCallOutcomeInputLocalType = {
+  host: 'host',
+  srflx: 'srflx',
+  prflx: 'prflx',
+  relay: 'relay',
+  unknown: 'unknown',
+} as const;
+
+export type MessengerCallOutcomeInputRemoteType = typeof MessengerCallOutcomeInputRemoteType[keyof typeof MessengerCallOutcomeInputRemoteType];
+
+
+export const MessengerCallOutcomeInputRemoteType = {
+  host: 'host',
+  srflx: 'srflx',
+  prflx: 'prflx',
+  relay: 'relay',
+  unknown: 'unknown',
+} as const;
+
+export interface MessengerCallOutcomeInput {
+  outcome: MessengerCallOutcomeInputOutcome;
+  localType: MessengerCallOutcomeInputLocalType;
+  remoteType: MessengerCallOutcomeInputRemoteType;
+  /**
+     * @minimum 0
+     * @maximum 120000
+     */
+  setupMs: number;
+}
+
+export interface MessengerCallOutcomePairCounts {
+  /** @minimum 0 */
+  connected: number;
+  /** @minimum 0 */
+  failed: number;
+}
+
+export type MessengerCallMetricsByPair = {
+  direct: MessengerCallOutcomePairCounts;
+  relay: MessengerCallOutcomePairCounts;
+  unknown: MessengerCallOutcomePairCounts;
+};
+
+export type MessengerCallMetricsSetupMs = {
+  /**
+     * @minimum 0
+     * @maximum 200
+     */
+  count: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  average: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  p50: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  p90: number | null;
+};
+
+export interface MessengerCallMetrics {
+  /** @minimum 0 */
+  started: number;
+  /** @minimum 0 */
+  accepted: number;
+  /** @minimum 0 */
+  rejected: number;
+  /** @minimum 0 */
+  noAnswer: number;
+  /** @minimum 0 */
+  connected: number;
+  /** @minimum 0 */
+  failed: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  failureRate: number;
+  byPair: MessengerCallMetricsByPair;
+  setupMs: MessengerCallMetricsSetupMs;
+}
+
 export type MessengerEvent = {
   type: 'conversation';
   conversationId: string;
