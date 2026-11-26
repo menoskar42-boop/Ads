@@ -21,7 +21,6 @@ import {
 import { hasOscarWake, isOscarAiExitPhrase, isOscarWakeOnly } from "../lib/oscar-ai-wake";
 import { colors } from "../lib/theme";
 
-const DRIVE_VOICE_ORIGIN = "https://drive.oscardevs.com";
 const MAX_SESSION_MS = 5 * 60_000;
 const SILENCE_END_MS = 8_000;
 const INPUT_RATE = 16_000;
@@ -436,6 +435,11 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
     if (!pageVisible && active) stopSession();
   }, [active, pageVisible, stopSession]);
 
+  // Load the recorded «أيوه، سامعك» once when the app opens, so it plays without a delay.
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof Audio !== "undefined") helloClip(readOscarAiVoice());
+  }, []);
+
   // Keep the screen on while Oscar AI is listening: a sleeping screen hides the page and
   // ends the session (owner: «الشاشه نامت و لما فتحت لقيت أوسكار هام»).
   useEffect(() => {
@@ -533,11 +537,21 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   );
 }
 
-// «أيوه، سامعك» from drive-web/voice/<male|female>/manifest.json, in the voice chosen in settings.
+// «أيوه، سامعك» is a recorded clip (copied from drive-web/voice/<male|female>) shipped with the
+// app itself, so it plays at once from the app/service-worker cache instead of another site.
 const HELLO_CLIPS: Record<OscarAiVoice, string> = {
-  male: "male/3c2a4bcd46dac795339647e8d2028af3.mp3",
-  female: "female/b1389d2f7f3f7f15577b715cb7a12c36.mp3",
+  male: "/oscar-messenger/voice/oscar-hello-male.mp3",
+  female: "/oscar-messenger/voice/oscar-hello-female.mp3",
 };
+const helloAudio: Partial<Record<OscarAiVoice, HTMLAudioElement>> = {};
+function helloClip(voice: OscarAiVoice): HTMLAudioElement {
+  const cached = helloAudio[voice];
+  if (cached) return cached;
+  const audio = new Audio(HELLO_CLIPS[voice]);
+  audio.preload = "auto";
+  helloAudio[voice] = audio;
+  return audio;
+}
 
 /** Approximate position (~1 km) for weather/nearby questions; null if refused or slow. */
 function approximateLocation(): Promise<{ lat: number; lng: number } | null> {
@@ -562,7 +576,8 @@ function approximateLocation(): Promise<{ lat: number; lng: number } | null> {
 }
 
 async function playOscarHello(voice: OscarAiVoice): Promise<void> {
-  const audio = new Audio(`${DRIVE_VOICE_ORIGIN}/voice/${HELLO_CLIPS[voice]}`);
+  const audio = helloClip(voice);
+  audio.currentTime = 0;
   await new Promise<void>((resolve, reject) => {
     audio.onended = () => resolve();
     audio.onerror = () => reject(new Error("تعذر تشغيل مقطع «أيوه»."));

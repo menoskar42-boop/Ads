@@ -66,3 +66,14 @@ test("audio is unlocked inside a user gesture on iPhone and Android (tap, consen
   assert.match(source, /primed && primed\.state !== "closed" \? primed : new AudioContextCtor\(\)/);
   assert.match(source, /if \(audioContext\.state !== "running"\)/);
 });
+
+test("«أيوه، سامعك» ships with the app in both voices, byte-identical to the recorded Oscar clips", () => {
+  for (const [voice, file] of [["male", "3c2a4bcd46dac795339647e8d2028af3.mp3"], ["female", "b1389d2f7f3f7f15577b715cb7a12c36.mp3"]]) {
+    const shipped = readFileSync(new URL(`../public/voice/oscar-hello-${voice}.mp3`, import.meta.url));
+    const recorded = readFileSync(new URL(`../../../.migration-backup/drive-web/voice/${voice}/${file}`, import.meta.url));
+    assert.ok(shipped.equals(recorded), `${voice} hello clip differs from the recorded one`);
+  }
+  const source = readFileSync(new URL("../components/OscarAiAssistant.tsx", import.meta.url), "utf8");
+  assert.match(source, /"\/oscar-messenger\/voice\/oscar-hello-female\.mp3"/);
+  assert.doesNotMatch(source, /drive\.oscardevs\.com/);
+});
