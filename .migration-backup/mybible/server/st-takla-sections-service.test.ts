@@ -4,10 +4,12 @@ import express from 'express';
 import { createServer, request as httpRequest, type Server } from 'node:http';
 import {
   clearStTaklaSectionsCache,
+  checkStTaklaSectionLinksNow,
   getStTaklaSectionArticle,
   getStTaklaSectionBrowse,
   getStTaklaSectionCatalog,
   getStTaklaSectionCatalogs,
+  getStTaklaLinkHealthSummary,
 } from './st-takla-sections-service';
 import { registerRoutes } from './routes';
 import {
@@ -129,6 +131,36 @@ describe('St-Takla section source service', () => {
     assert.match(ritual?.error ?? '', /الحروف/);
     assert.equal(ritual?.browse.length, 0);
     assert.equal(catalogs.find(catalog => catalog.key === 'bible')?.status, 'ok');
+  });
+
+  it('checks at most 15 St-Takla URLs and flags 404 or unsafe redirects before opening', async () => {
+    let requests = 0;
+    globalThis.fetch = async input => {
+      requests += 1;
+      const url = String(input);
+      if (url.includes('Coptic-Church-Rituals-Lexicon__00-index')) return response(ritualIndex);
+      if (url.includes('Kamous-Al-Engeel-index')) return response(bibleIndex);
+      if (url.includes('00-Al-Natiga-Al-Keptia-Current-Year-index')) return response(calendarIndex);
+      if (url.includes('Lexicon__01-Alef')) return response('غير موجود', 404);
+      if (url.includes('Lexicon__02-Beh')) {
+        const redirected = response('<p>صفحة عربية صالحة للاختبار</p>');
+        Object.defineProperty(redirected, 'url', { value: 'https://example.com/outside-source' });
+        return redirected;
+      }
+      return response('<p>صفحة عربية صالحة للاختبار</p>');
+    };
+
+    const summary = await checkStTaklaSectionLinksNow();
+    const ritual = await getStTaklaSectionCatalog('ritual');
+
+    assert.equal(requests, 15);
+    assert.equal(summary.checkedLinks, 15);
+    assert.equal(summary.unavailableLinks, 2);
+    assert.equal(summary.status, 'degraded');
+    assert.equal(ritual.browse.find(link => link.id === 'letter-1')?.health, 'unavailable');
+    assert.match(ritual.browse.find(link => link.id === 'letter-2')?.error ?? '', /خارج مسار/);
+    assert.deepEqual(getStTaklaLinkHealthSummary(), summary);
+    assert.doesNotMatch(JSON.stringify(summary), /محتوى|آيات|نصوص/);
   });
 
   it('filters dictionary entries on the selected Arabic browse page', async () => {

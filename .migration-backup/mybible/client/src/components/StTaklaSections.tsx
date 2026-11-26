@@ -135,16 +135,20 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
     [catalogs, selectedSectionKey],
   );
   const selectedBrowseKey = useMemo(
-    () => selectedCatalog?.browse.find((link) => link.id === (isEmbedded ? embeddedBrowse : locationState.browse))?.id ?? selectedCatalog?.browse[0]?.id ?? null,
+    () => selectedCatalog?.browse.find((link) => link.id === (isEmbedded ? embeddedBrowse : locationState.browse))?.id
+      ?? selectedCatalog?.browse.find((link) => link.health !== 'unavailable')?.id
+      ?? selectedCatalog?.browse[0]?.id
+      ?? null,
     [embeddedBrowse, isEmbedded, selectedCatalog, locationState.browse],
   );
+  const selectedBrowseLink = selectedCatalog?.browse.find((link) => link.id === selectedBrowseKey) ?? null;
   const submittedQuery = isEmbedded ? embeddedQuery : locationState.query;
   const browsePage = isEmbedded ? embeddedPage : locationState.page;
 
   const browseQuery = useQuery({
     queryKey: ['sttakla-section-browse', selectedSectionKey, selectedBrowseKey, submittedQuery, browsePage],
     queryFn: () => api.stTakla.browse(selectedSectionKey!, selectedBrowseKey!, submittedQuery, browsePage),
-    enabled: Boolean(selectedSectionKey && selectedBrowseKey && selectedCatalog?.status === 'ok'),
+    enabled: Boolean(selectedSectionKey && selectedBrowseKey && selectedCatalog?.status === 'ok' && selectedBrowseLink?.health !== 'unavailable'),
     staleTime: 60_000,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -312,6 +316,16 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               مراجع إضافية للطقوس والكتاب المقدس والتقويم القبطي، مع إبقاء كل مادة منسوبة إلى مصدرها الأصلي.
             </p>
+            {sectionsQuery.data?.health && sectionsQuery.data.health.status !== 'pending' ? (
+              <p className="mt-2 text-xs text-muted-foreground" role="status" data-testid="sttakla-link-health-summary">
+                {sectionsQuery.data.health.status === 'degraded'
+                  ? `آخر فحص: ${sectionsQuery.data.health.unavailableLinks} رابط أو فهرس غير متاح`
+                  : 'آخر فحص: روابط المصدر المتحقَّق منها متاحة'}
+                {sectionsQuery.data.health.lastCheckedAt
+                  ? ` · ${new Date(sectionsQuery.data.health.lastCheckedAt).toLocaleString('ar-EG')}`
+                  : ''}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>}
@@ -413,11 +427,14 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
                     variant={selectedBrowseKey === link.id ? 'default' : 'outline'}
                     className="h-auto min-h-9 whitespace-normal text-right"
                     onClick={() => selectBrowseLink(link.id)}
+                    disabled={link.health === 'unavailable'}
+                    title={link.error}
                     role="tab"
                     aria-selected={selectedBrowseKey === link.id}
+                    aria-disabled={link.health === 'unavailable'}
                     data-testid={`sttakla-browse-key-${link.id}`}
                   >
-                    {link.label}
+                    {link.health === 'unavailable' ? `${link.label} · غير متاح` : link.label}
                   </Button>
                 ))}
               </div>
@@ -465,6 +482,12 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
                   </div>
                 </article>
               ) : null}
+            </div>
+          ) : selectedBrowseLink?.health === 'unavailable' ? (
+            <div className="p-6 text-center" role="status" data-testid="sttakla-browse-unavailable">
+              <AlertCircle className="mx-auto mb-2 h-6 w-6 text-amber-700 dark:text-amber-300" aria-hidden="true" />
+              <p className="text-sm font-medium text-foreground">الرابط غير متاح من St-Takla حاليًا.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{selectedBrowseLink.error}</p>
             </div>
           ) : browseQuery.isLoading ? (
             <div className="space-y-4 p-5" aria-busy="true" aria-label="جاري تحميل النتائج">

@@ -227,6 +227,17 @@ export interface StTaklaBrowseLink {
   id: string;
   label: string;
   url: string;
+  health?: 'unchecked' | 'ok' | 'unavailable';
+  checkedAt?: number;
+  error?: string;
+}
+
+export interface StTaklaLinkHealthSummary {
+  status: 'pending' | 'ok' | 'degraded';
+  lastCheckedAt: number | null;
+  nextCheckAt: number | null;
+  checkedLinks: number;
+  unavailableLinks: number;
 }
 
 export interface StTaklaSectionCatalog {
@@ -384,7 +395,7 @@ export const api = {
 
   stTakla: {
     getSections: () =>
-      fetchApi<{ source: 'St-Takla.org'; sections: StTaklaSectionCatalog[] }>('/orthodox/sttakla/sections'),
+      fetchApi<{ source: 'St-Takla.org'; sections: StTaklaSectionCatalog[]; health: StTaklaLinkHealthSummary }>('/orthodox/sttakla/sections'),
     browse: (section: StTaklaSectionKey, key: string, query = '', page = 1, pageSize = 40) =>
       fetchApi<StTaklaSectionBrowseResponse>(
         `/orthodox/sttakla/sections/${section}/browse?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&page=${page}&pageSize=${pageSize}`,

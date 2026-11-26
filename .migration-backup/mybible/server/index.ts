@@ -18,6 +18,7 @@ import { INDEXNOW_KEY, indexNowKeyFileHandler, indexNowPingHandler, scheduleInde
 import { ogImageHandler } from "./og-image";
 import { setupVapid, scheduleDailyNotification } from "./push-notifications";
 import { scheduleChatImageMigration } from "./chat-image-migrate";
+import { startStTaklaSectionLinkHealthSchedule } from "./st-takla-sections-service";
 
 const app = express();
 const httpServer = createServer({ maxHeaderSize: 65536 }, app);
@@ -150,6 +151,7 @@ app.use((req, res, next) => {
 
 (async () => {
   await registerRoutes(httpServer, app);
+  startStTaklaSectionLinkHealthSchedule();
   registerGroupRoutes(app);
   registerChurchRoutes(app);
   registerChurchSlidesRoutes(app);
