@@ -21,6 +21,8 @@ object Speaker {
     private var focus: AudioFocusRequest? = null
     private var am: AudioManager? = null
     private var pending: String? = null
+    private var pendingCompletion: (() -> Unit)? = null
+    private val completions = mutableMapOf<String, () -> Unit>()
     private var appCtx: Context? = null
     private var attempts = 0
     private val h = android.os.Handler(android.os.Looper.getMainLooper())
@@ -59,11 +61,17 @@ object Speaker {
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) {}
-                override fun onDone(id: String?) { done(id) }
+                override fun onDone(id: String?) { complete(id) }
                 @Deprecated("Deprecated in Java")
-                override fun onError(id: String?) { done(id); status = "آخر جملة ماتقالتش (خطأ من محرّك النطق)" }
+                override fun onError(id: String?) { complete(id); status = "آخر جملة ماتقالتش (خطأ من محرّك النطق)" }
+                override fun onStop(id: String?, interrupted: Boolean) { complete(id) }
             })
-            pending?.let { pending = null; say(it) }
+            pending?.let {
+                val text = it
+                val completion = pendingCompletion
+                pending = null; pendingCompletion = null
+                say(text, onDone = completion)
+            }
         }
     }
 
@@ -86,26 +94,29 @@ object Speaker {
     /** يتقال دلوقتى؟ (المرحلة ٧: أوسكار مايقاطعش) — الأمان والردود دايماً، الباقى حسب المكالمة. */
     fun allowed(kind: SpeechKind): Boolean = Etiquette.decide(kind, inCall()) == SpeechDecision.SPEAK
 
-    private val waiting = ArrayList<Pair<Long, String>>()
+    private data class WaitingSpeech(val at: Long, val text: String, val onDone: (() -> Unit)?)
+    private val waiting = ArrayList<WaitingSpeech>()
 
     /** اللى استنى المكالمة: يتقال مرة واحدة أول ما تخلص (لو لسه جديد). بيتنده من خدمة القيادة كل ثانية. */
     fun flushWaiting() {
         if (waiting.isEmpty() || inCall()) return
         val now = System.currentTimeMillis()
-        val due = waiting.filter { now - it.first <= Etiquette.WAIT_MAX_MS }.map { it.second }.distinct()
+        val due = waiting.filter { now - it.at <= Etiquette.WAIT_MAX_MS }
         waiting.clear()
-        if (due.isNotEmpty()) say(due.joinToString(". "), beep = true)
+        if (due.isNotEmpty()) say(due.joinToString(". ") { it.text }, beep = true) {
+            due.mapNotNull { it.onDone }.forEach { it() }
+        }
     }
 
-    fun say(text: String, beep: Boolean = false, kind: SpeechKind = SpeechKind.ANSWER) {
+    fun say(text: String, beep: Boolean = false, kind: SpeechKind = SpeechKind.ANSWER, onDone: (() -> Unit)? = null) {
         when (Etiquette.decide(kind, inCall())) {
             SpeechDecision.SPEAK -> {}
-            SpeechDecision.WAIT -> { waiting.add(System.currentTimeMillis() to text); while (waiting.size > 5) waiting.removeAt(0); return }
-            SpeechDecision.DROP -> return
+            SpeechDecision.WAIT -> { waiting.add(WaitingSpeech(System.currentTimeMillis(), text, onDone)); while (waiting.size > 5) waiting.removeAt(0); return }
+            SpeechDecision.DROP -> { onDone?.invoke(); return }
         }
         if (beep) beep()
         val t = tts
-        if (t == null || !ready) { pending = text; return }
+        if (t == null || !ready) { pending = text; pendingCompletion = onDone; return }
         request()
         val now = System.currentTimeMillis()
         val est = 1500 + text.length * 90L
@@ -114,9 +125,18 @@ object Speaker {
         speakingUntil = if (queue) maxOf(speakingUntil, now) + est else now + est
         if (kind == SpeechKind.SAFETY) safetyUntil = speakingUntil
         val id = (if (kind == SpeechKind.SAFETY) "od-s-" else "od-") + now
+        if (onDone != null) completions[id] = onDone
         if (t.speak(text, if (queue) TextToSpeech.QUEUE_ADD else TextToSpeech.QUEUE_FLUSH, null, id) != TextToSpeech.SUCCESS) {
+            completions.remove(id)
+            onDone?.invoke()
             status = "محرّك النطق رفض الجملة — بيعيد التشغيل"; if (!beep) beep(); appCtx?.let { attempts = 0; retry(it) }
         }
+    }
+
+    private fun complete(id: String?) {
+        done(id)
+        val callback = id?.let(completions::remove)
+        callback?.invoke()
     }
 
     private fun done(id: String?) {

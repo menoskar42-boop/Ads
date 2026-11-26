@@ -358,6 +358,18 @@ test('local Mother Mobile pronunciation aliases are exact and reject similar nam
     assert.notEqual(R.parseCall(phrase)?.name, 'Mother Mobile', phrase);
   }
 });
+test('a standalone wake gets a fresh command capture while an inline command remains immediate', () => {
+  assert.equal(R.wakeRecognitionAction(['يا أوسكار']), 'fresh-command');
+  assert.equal(R.wakeRecognitionAction(['يا أوسكار روح البيت']), 'same-utterance');
+  assert.equal(R.parseVoice('يا أوسكار روح البيت'), 'goto:البيت');
+  assert.equal(R.wakeRecognitionAction(['روح البيت']), 'normal');
+
+  const app = fs.readFileSync(path.join(__dirname, '../drive-web/app.js'), 'utf8');
+  assert.match(app, /playRecordedLineAndWait\('hello', 'أيوه', 'أيوه'\)/);
+  assert.match(app, /command\.continuous = false/);
+  assert.match(app, /setTimeout\(\(\) => finish\(\[\]\), 10_000\)/);
+  assert.match(app, /playRecordedLineAndWait\('not_understood', 'معلش، مسمعتش كويس', 'مسمعتش'\)/);
+});
 test('Oscar Drive opens a private Oscar Messaging draft without sending it or sharing contact numbers', () => {
   assert.deepEqual(R.parseMessageVoice('يا أوسكار ابعت رسالة إلى محمود يعقوب بتقول أنا وصلت'), {
     recipient: 'محمود يعقوب',

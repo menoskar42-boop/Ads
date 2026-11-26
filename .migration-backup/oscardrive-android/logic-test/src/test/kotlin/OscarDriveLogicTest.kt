@@ -482,6 +482,24 @@ class VoiceEngineTest {
     }
 }
 
+class WakeCapturePolicyTest {
+    @Test fun wakeOnlyStartsFreshCaptureAndInlineCommandStaysInline() {
+        val engine = VoiceEngine()
+        assertEquals(WakeRecognitionAction.WAKE_ONLY, WakeCapturePolicy.action(listOf("يا أوسكار"), engine))
+        val inline = "يا أوسكار وصلني البيت"
+        assertEquals(WakeRecognitionAction.INLINE_COMMAND, WakeCapturePolicy.action(listOf(inline), engine))
+        val command = engine.afterWake(inline)!!
+        assertEquals("nav.home", engine.understand(command)?.match?.command?.id)
+        assertEquals(WakeRecognitionAction.NO_WAKE, WakeCapturePolicy.action(listOf("الجو حلو"), engine))
+    }
+
+    @Test fun freshCaptureUsesShortSilenceAndBoundedWait() {
+        assertEquals(1_500L, WakeCapturePolicy.COMMAND_SILENCE_MS)
+        assertEquals(1_000L, WakeCapturePolicy.POSSIBLE_COMMAND_SILENCE_MS)
+        assertEquals(10_000L, WakeCapturePolicy.COMMAND_MAX_WAIT_MS)
+    }
+}
+
 class MessengerVoiceTest {
     private val engine = VoiceEngine()
 

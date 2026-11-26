@@ -85,6 +85,23 @@ object Oscar {
         else Speaker.say(listOf(text, extra).filter { !it.isNullOrBlank() }.joinToString(". "))
     }
 
+    /** يقول مقطعًا مسجّلًا بعينه ثم يكمل الالتقاط؛ لا يعتمد على تقدير مدة الصوت. */
+    fun sayThen(id: String, preferredPrefix: String, fallback: String, after: () -> Unit) {
+        if (!::app.isInitialized || !Speaker.allowed(com.oscardevs.oscardrive.logic.SpeechKind.ANSWER)) {
+            after()
+            return
+        }
+        val text = texts(id, "ar").firstOrNull { it.startsWith(preferredPrefix) }
+        val file = if (prefs.ttsOnly || text == null) null else fileFor(text)
+        speakingUntil = System.currentTimeMillis() + 2500 + fallback.length * 80L
+        val completed = {
+            speakingUntil = System.currentTimeMillis()
+            after()
+        }
+        if (file != null && file.exists()) play(file, completed)
+        else Speaker.say(fallback, onDone = completed)
+    }
+
     /** كلام متغيّر بس (من غير جملة ثابتة) — بصوت الشاشة. */
     fun sayText(t: String) { speakingUntil = System.currentTimeMillis() + 1500 + t.length * 80L; Speaker.say(t) }
 

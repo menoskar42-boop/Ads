@@ -10,6 +10,7 @@ import org.vosk.Model
 import org.vosk.Recognizer
 import org.vosk.android.RecognitionListener
 import org.vosk.android.SpeechService
+import com.oscardevs.oscardrive.logic.WakeCapturePolicy
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -33,6 +34,9 @@ object OfflineEars {
     )
 
     private val main = Handler(Looper.getMainLooper())
+    private val commandTimer = Handler(Looper.getMainLooper())
+    private var commandSilenceTimeout: Runnable? = null
+    private var commandOverallTimeout: Runnable? = null
     @Volatile var downloading: String? = null; private set
     @Volatile var progress = ""; private set
 
@@ -117,7 +121,7 @@ object OfflineEars {
      * النتايج بتيجى على الـmain thread. الكلام اللى بيتقال وأوسكار بيتكلّم بيتشال (عشان مايسمعش نفسه).
      */
     fun start(ctx: Context, lang: String, oneShot: Boolean, onText: (String) -> Unit, onState: (String) -> Unit,
-              onPartial: ((String) -> Unit)? = null) {
+              onPartial: ((String) -> Unit)? = null, onTimeout: (() -> Unit)? = null) {
         if (!installed(ctx, lang)) { onState("صوت أوسكار من غير نت لسه مانزلش — نزّله من شاشة 🎙️ Oscar"); return }
         stop()
         listening = true
@@ -148,11 +152,33 @@ object OfflineEars {
                         override fun onPartialResult(hypothesis: String?) {
                             if (onPartial == null || System.currentTimeMillis() < Oscar.speakingUntil) return
                             val p = try { JSONObject(hypothesis ?: "{}").optString("partial", "") } catch (_: Exception) { "" }
-                            if (p.isNotBlank()) onPartial(p)
+                            if (p.isNotBlank()) {
+                                onPartial(p)
+                                if (oneShot) {
+                                    commandSilenceTimeout?.let(commandTimer::removeCallbacks)
+                                    val timeout = Runnable {
+                                        if (listening) { stop(); onTimeout?.invoke() }
+                                    }
+                                    commandSilenceTimeout = timeout
+                                    commandTimer.postDelayed(timeout, WakeCapturePolicy.COMMAND_SILENCE_MS)
+                                }
+                            }
                         }
-                        override fun onError(e: Exception?) { stop(); onState("الميكروفون مش متاح (${e?.message ?: "خطأ"})") }
-                        override fun onTimeout() { if (oneShot) stop() }
+                        override fun onError(e: Exception?) {
+                            stop(); onState("الميكروفون مش متاح (${e?.message ?: "خطأ"})")
+                            if (oneShot) onTimeout?.invoke()
+                        }
+                        override fun onTimeout() {
+                            if (oneShot) { stop(); onTimeout?.invoke() }
+                        }
                     })
+                    if (oneShot) {
+                        val timeout = Runnable {
+                            if (listening) { stop(); onTimeout?.invoke() }
+                        }
+                        commandOverallTimeout = timeout
+                        commandTimer.postDelayed(timeout, WakeCapturePolicy.COMMAND_MAX_WAIT_MS)
+                    }
                 }
             } catch (e: OutOfMemoryError) {
                 listening = false; model = null; modelLang = null
@@ -166,6 +192,10 @@ object OfflineEars {
 
     fun stop() {
         listening = false
+        commandSilenceTimeout?.let(commandTimer::removeCallbacks)
+        commandOverallTimeout?.let(commandTimer::removeCallbacks)
+        commandSilenceTimeout = null
+        commandOverallTimeout = null
         service?.let { try { it.stop(); it.shutdown() } catch (_: Exception) {} }
         service = null
     }

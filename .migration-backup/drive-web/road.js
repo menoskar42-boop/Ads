@@ -221,6 +221,12 @@
     if (hasExactWake(t)) return t.replace(WAKE_GLOBAL, ' ').trim() === '';
     return fuzzyWakeInfo(t)?.rest === '';
   }
+  function wakeRecognitionAction(transcripts) {
+    const alts = Array.isArray(transcripts) ? transcripts : [transcripts];
+    if (alts.some((text) => hasWake(text) && !wakeOnly(text))) return 'same-utterance';
+    if (alts.some((text) => wakeOnly(text))) return 'fresh-command';
+    return 'normal';
+  }
   /** awake = لسه نادينا عليه (جوّه ٨ ثوانى) ⇒ الجملة بتتفهم من غير الاسم. */
   function parseVoice(text, awake) {
     let t = norm(text);
@@ -681,6 +687,6 @@
     if (r.cmd === 'call' && r.arg) return 'call:' + (r.how === 'wa' ? 'wa' : '') + ':' + r.arg;
     return null;
   }
-  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, sendContactNameRequest, normalizeContactSpellingName, createContactSpellingCache, parseContactPhoneInput, mergeImportedContacts, writeContactList, contactStorageKey, migrateLegacyContactStorage, MAX_IMPORTED_CONTACTS, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
+  const api = { maybeOscar, aiToCmd, remindPlace, matchContacts, whatsappContacts, contactNameRequest, sendContactNameRequest, normalizeContactSpellingName, createContactSpellingCache, parseContactPhoneInput, mergeImportedContacts, writeContactList, contactStorageKey, migrateLegacyContactStorage, MAX_IMPORTED_CONTACTS, parseVCardContacts, MAX_CONTACTS, waNumber, telByPrefix, RADII_M, parseCall, callAnswer, shortcutUrl, CALL_SHORTCUT, WA_SHORTCUT, provBegin, provTake, ROAD_CMDS, PROV_TTL_MS, repeatOk, REPEAT_MS, nearSearchUrl, skipJustMarked, JUST_MARKED_MS, wakeOnly, wakeRecognitionAction, hasWake, WAKE_DISTINCT, WAKE_RESTRICTED, WAKE_NEVER, clean, WAKE_WINDOW_MS, searchUrl, parseSearch, gpsStats, fuelSay, maintSay, findPlace, BREAK, breakTick, breakMessage, mapsLink, sosText, walkUrl, NEAR, OSM_URL, osmQuery, osmParse, nearestOf, navUrl, parseVoice, parseMessageVoice, messengerDraftUrl, distanceM, bearingDeg, captureMarks, capturePlan, captureAhead, SIGN_MARKS, SIGNAL_MARKS, SIGNAL_PAIR_MARKS, angleDiff, warnDistanceM, rangeM, warnKey, sameAxis, ahead, warning, sayDistance, TYPES, C };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.OscarRoad = api;
 })(typeof window !== 'undefined' ? window : globalThis);
