@@ -120,8 +120,9 @@ h2 { margin-bottom: 12px; font-size: 1.1rem; }
 #projector { position: fixed; inset: 0; display: grid; place-items: center; background: #000; }
 #slideImage { display: block; width: 100vw; height: 100vh; object-fit: contain; }
 .generated-slide { display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; padding: 8vw; overflow: hidden; background: #000; color: #fff; font-size: clamp(2rem, 5.2vw, 6rem); line-height: 1.7; text-align: center; white-space: pre-wrap; }
-.blank-screen { position: absolute; inset: 0; display: grid; place-items: center; background: #fff; color: #151515; }
+.blank-screen { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 18px; background: #fff; color: #151515; }
 .blank-screen span { font-family: Georgia, serif; font-size: min(18vw, 22vh); }
+.missing-slide-message { max-width: min(90vw, 620px); margin: 0; color: #383838; font-size: clamp(1rem, 2vw, 1.5rem); text-align: center; }
 
 @media (max-width: 900px) {
   .control-layout { grid-template-columns: 1fr; }
