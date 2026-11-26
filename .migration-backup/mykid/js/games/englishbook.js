@@ -32,6 +32,7 @@ import { connectOpts } from "./letterRecall.js";
 import { connectStepFor, starredLetters, RECALL_SAY } from "../data/letterRecall.js";
 import { SCORE_PASS } from "./strokeJudge.js";
 import { showGripCard, whenGripClosed, penBoardOptions } from "./grip.js";
+import { getEnglishLetterLessonVideo } from "../data/englishLetterLessonVideos.js";
 import { createYouTubePlayer } from "../core/youtube-player.js";
 
 const fem = (t) => (Store.childGender === "girl" ? femAdapt(t) : t);

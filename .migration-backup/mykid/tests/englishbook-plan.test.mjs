@@ -156,3 +156,15 @@ test("picked review (I, N): every drill kind from the letter pages, each letter 
   assert.ok(x.length > 5);
   assert.ok(!x.some((s) => s.game === "phonics" || s.kind === "connect"));
 });
+
+// المالك ٢٠٢٦-١١-٢٦: «فى قلعه الحروف الانجليزيه بضغط على حرف مش بيفتح» — Task #164 شال الـimport
+// والدالة لسه بتتنده فى openPage ⇒ ReferenceError على صفحات الحروف بس.
+test("englishbook screen imports every lesson-video helper it calls", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../js/games/englishbook.js", import.meta.url), "utf8");
+  for (const name of ["getEnglishLetterLessonVideo", "createYouTubePlayer"]) {
+    if (new RegExp(`\\b${name}\\(`).test(src)) {
+      assert.match(src, new RegExp(`import \\{[^}]*\\b${name}\\b[^}]*\\} from`), `${name} is called but not imported`);
+    }
+  }
+});
