@@ -42,9 +42,11 @@ import type {
   EditMessengerMessage200,
   EditMessengerMessageInput,
   ErrorResponse,
+  ErrorResponseResponse,
   ForwardMessengerMessage201,
   ForwardMessengerMessageBody,
   GetMessengerAvatarParams,
+  GetMessengerCallSignalsParams,
   GetMessengerEventsParams,
   GroupMediaCapability,
   GroupMessageInput,
@@ -62,6 +64,12 @@ import type {
   ListMessengerMessages200,
   ListMessengerMessagesParams,
   MarkMessengerConversationRead200,
+  MessengerCallActiveResponse,
+  MessengerCallConfigResponse,
+  MessengerCallResponse,
+  MessengerCallSignalAccepted,
+  MessengerCallSignalInput,
+  MessengerCallSignalsResponse,
   MessengerEventsResponse,
   MessengerFeaturesCapability,
   MessengerLiveLocationCapability,
@@ -340,6 +348,709 @@ export function useGetMessengerEvents<TData = Awaited<ReturnType<typeof getMesse
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMessengerEventsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMessengerCallConfigUrl = () => {
+
+
+
+
+  return `/api/messenger/calls/config`
+}
+
+/**
+ * @summary Get audio call ICE servers
+ */
+export const getMessengerCallConfig = async ( options?: Parameters<typeof customFetch>[1]): Promise<MessengerCallConfigResponse> => {
+
+  return customFetch<MessengerCallConfigResponse>(getGetMessengerCallConfigUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerCallConfigQueryKey = () => {
+    return [
+    `/api/messenger/calls/config`
+    ] as const;
+    }
+
+
+export const getGetMessengerCallConfigQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerCallConfig>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallConfig>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerCallConfigQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerCallConfig>>> = ({ signal }) => getMessengerCallConfig({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallConfig>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerCallConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerCallConfig>>>
+export type GetMessengerCallConfigQueryError = ErrorType<UnauthorizedResponse>
+
+
+export function useGetMessengerCallConfig<TData = Awaited<ReturnType<typeof getMessengerCallConfig>>, TError = ErrorType<UnauthorizedResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallConfig>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerCallConfig>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerCallConfig>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerCallConfig<TData = Awaited<ReturnType<typeof getMessengerCallConfig>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallConfig>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerCallConfig>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerCallConfig>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerCallConfig<TData = Awaited<ReturnType<typeof getMessengerCallConfig>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallConfig>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get audio call ICE servers
+ */
+
+export function useGetMessengerCallConfig<TData = Awaited<ReturnType<typeof getMessengerCallConfig>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallConfig>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerCallConfigQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetActiveMessengerCallUrl = () => {
+
+
+
+
+  return `/api/messenger/calls/active`
+}
+
+/**
+ * @summary Get the signed-in user's active audio call
+ */
+export const getActiveMessengerCall = async ( options?: Parameters<typeof customFetch>[1]): Promise<MessengerCallActiveResponse> => {
+
+  return customFetch<MessengerCallActiveResponse>(getGetActiveMessengerCallUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetActiveMessengerCallQueryKey = () => {
+    return [
+    `/api/messenger/calls/active`
+    ] as const;
+    }
+
+
+export const getGetActiveMessengerCallQueryOptions = <TData = Awaited<ReturnType<typeof getActiveMessengerCall>>, TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getActiveMessengerCall>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetActiveMessengerCallQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getActiveMessengerCall>>> = ({ signal }) => getActiveMessengerCall({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getActiveMessengerCall>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetActiveMessengerCallQueryResult = NonNullable<Awaited<ReturnType<typeof getActiveMessengerCall>>>
+export type GetActiveMessengerCallQueryError = ErrorType<UnauthorizedResponse | ErrorResponseResponse>
+
+
+export function useGetActiveMessengerCall<TData = Awaited<ReturnType<typeof getActiveMessengerCall>>, TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getActiveMessengerCall>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getActiveMessengerCall>>,
+          TError,
+          Awaited<ReturnType<typeof getActiveMessengerCall>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetActiveMessengerCall<TData = Awaited<ReturnType<typeof getActiveMessengerCall>>, TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getActiveMessengerCall>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getActiveMessengerCall>>,
+          TError,
+          Awaited<ReturnType<typeof getActiveMessengerCall>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetActiveMessengerCall<TData = Awaited<ReturnType<typeof getActiveMessengerCall>>, TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getActiveMessengerCall>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get the signed-in user's active audio call
+ */
+
+export function useGetActiveMessengerCall<TData = Awaited<ReturnType<typeof getActiveMessengerCall>>, TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getActiveMessengerCall>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetActiveMessengerCallQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMessengerCallUrl = (conversationId: string,) => {
+
+
+
+
+  return `/api/messenger/conversations/${conversationId}/calls`
+}
+
+/**
+ * @summary Start a one-to-one audio call
+ */
+export const createMessengerCall = async (conversationId: string, options?: Parameters<typeof customFetch>[1]): Promise<MessengerCallResponse> => {
+
+  return customFetch<MessengerCallResponse>(getCreateMessengerCallUrl(conversationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateMessengerCallMutationKey = () => ['createMessengerCall'] as const;
+
+export const getCreateMessengerCallMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMessengerCall>>, TError,CreateMessengerCallMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMessengerCall>>, TError,CreateMessengerCallMutationVariables, TContext> => {
+
+const mutationKey = getCreateMessengerCallMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMessengerCall>>, CreateMessengerCallMutationVariables> = (props) => {
+          const {conversationId} = props ?? {};
+
+          return  createMessengerCall(conversationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMessengerCallMutationResult = NonNullable<Awaited<ReturnType<typeof createMessengerCall>>>
+
+    export type CreateMessengerCallMutationError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>
+    export type CreateMessengerCallMutationVariables = {conversationId: string}
+
+    /**
+ * @summary Start a one-to-one audio call
+ */
+export const useCreateMessengerCall = <TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMessengerCall>>, TError,CreateMessengerCallMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createMessengerCall>>,
+        TError,
+        CreateMessengerCallMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateMessengerCallMutationOptions(options), queryClient);
+    }
+
+export const getAcceptMessengerCallUrl = (callId: string,) => {
+
+
+
+
+  return `/api/messenger/calls/${callId}/accept`
+}
+
+/**
+ * @summary Accept an incoming audio call
+ */
+export const acceptMessengerCall = async (callId: string, options?: Parameters<typeof customFetch>[1]): Promise<MessengerCallResponse> => {
+
+  return customFetch<MessengerCallResponse>(getAcceptMessengerCallUrl(callId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcceptMessengerCallMutationKey = () => ['acceptMessengerCall'] as const;
+
+export const getAcceptMessengerCallMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptMessengerCall>>, TError,AcceptMessengerCallMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptMessengerCall>>, TError,AcceptMessengerCallMutationVariables, TContext> => {
+
+const mutationKey = getAcceptMessengerCallMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptMessengerCall>>, AcceptMessengerCallMutationVariables> = (props) => {
+          const {callId} = props ?? {};
+
+          return  acceptMessengerCall(callId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptMessengerCallMutationResult = NonNullable<Awaited<ReturnType<typeof acceptMessengerCall>>>
+
+    export type AcceptMessengerCallMutationError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>
+    export type AcceptMessengerCallMutationVariables = {callId: string}
+
+    /**
+ * @summary Accept an incoming audio call
+ */
+export const useAcceptMessengerCall = <TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptMessengerCall>>, TError,AcceptMessengerCallMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof acceptMessengerCall>>,
+        TError,
+        AcceptMessengerCallMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAcceptMessengerCallMutationOptions(options), queryClient);
+    }
+
+export const getRejectMessengerCallUrl = (callId: string,) => {
+
+
+
+
+  return `/api/messenger/calls/${callId}/reject`
+}
+
+/**
+ * @summary Reject an incoming audio call
+ */
+export const rejectMessengerCall = async (callId: string, options?: Parameters<typeof customFetch>[1]): Promise<MessengerCallResponse> => {
+
+  return customFetch<MessengerCallResponse>(getRejectMessengerCallUrl(callId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectMessengerCallMutationKey = () => ['rejectMessengerCall'] as const;
+
+export const getRejectMessengerCallMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectMessengerCall>>, TError,RejectMessengerCallMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectMessengerCall>>, TError,RejectMessengerCallMutationVariables, TContext> => {
+
+const mutationKey = getRejectMessengerCallMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectMessengerCall>>, RejectMessengerCallMutationVariables> = (props) => {
+          const {callId} = props ?? {};
+
+          return  rejectMessengerCall(callId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectMessengerCallMutationResult = NonNullable<Awaited<ReturnType<typeof rejectMessengerCall>>>
+
+    export type RejectMessengerCallMutationError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>
+    export type RejectMessengerCallMutationVariables = {callId: string}
+
+    /**
+ * @summary Reject an incoming audio call
+ */
+export const useRejectMessengerCall = <TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectMessengerCall>>, TError,RejectMessengerCallMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rejectMessengerCall>>,
+        TError,
+        RejectMessengerCallMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRejectMessengerCallMutationOptions(options), queryClient);
+    }
+
+export const getEndMessengerCallUrl = (callId: string,) => {
+
+
+
+
+  return `/api/messenger/calls/${callId}/end`
+}
+
+/**
+ * @summary End an audio call
+ */
+export const endMessengerCall = async (callId: string, options?: Parameters<typeof customFetch>[1]): Promise<MessengerCallResponse> => {
+
+  return customFetch<MessengerCallResponse>(getEndMessengerCallUrl(callId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndMessengerCallMutationKey = () => ['endMessengerCall'] as const;
+
+export const getEndMessengerCallMutationOptions = <TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endMessengerCall>>, TError,EndMessengerCallMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endMessengerCall>>, TError,EndMessengerCallMutationVariables, TContext> => {
+
+const mutationKey = getEndMessengerCallMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endMessengerCall>>, EndMessengerCallMutationVariables> = (props) => {
+          const {callId} = props ?? {};
+
+          return  endMessengerCall(callId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndMessengerCallMutationResult = NonNullable<Awaited<ReturnType<typeof endMessengerCall>>>
+
+    export type EndMessengerCallMutationError = ErrorType<UnauthorizedResponse | ErrorResponseResponse>
+    export type EndMessengerCallMutationVariables = {callId: string}
+
+    /**
+ * @summary End an audio call
+ */
+export const useEndMessengerCall = <TError = ErrorType<UnauthorizedResponse | ErrorResponseResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endMessengerCall>>, TError,EndMessengerCallMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof endMessengerCall>>,
+        TError,
+        EndMessengerCallMutationVariables,
+        TContext
+      > => {
+      return useMutation(getEndMessengerCallMutationOptions(options), queryClient);
+    }
+
+export const getSendMessengerCallSignalUrl = (callId: string,) => {
+
+
+
+
+  return `/api/messenger/calls/${callId}/signal`
+}
+
+/**
+ * @summary Send an ephemeral WebRTC signaling message
+ */
+export const sendMessengerCallSignal = async (callId: string,
+    messengerCallSignalInput: MessengerCallSignalInput, options?: Parameters<typeof customFetch>[1]): Promise<MessengerCallSignalAccepted> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MessengerCallSignalAccepted>(getSendMessengerCallSignalUrl(callId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(messengerCallSignalInput)
+  }
+);}
+
+
+
+
+
+export const getSendMessengerCallSignalMutationKey = () => ['sendMessengerCallSignal'] as const;
+
+export const getSendMessengerCallSignalMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerCallSignal>>, TError,SendMessengerCallSignalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendMessengerCallSignal>>, TError,SendMessengerCallSignalMutationVariables, TContext> => {
+
+const mutationKey = getSendMessengerCallSignalMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendMessengerCallSignal>>, SendMessengerCallSignalMutationVariables> = (props) => {
+          const {callId,data} = props ?? {};
+
+          return  sendMessengerCallSignal(callId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendMessengerCallSignalMutationResult = NonNullable<Awaited<ReturnType<typeof sendMessengerCallSignal>>>
+    export type SendMessengerCallSignalMutationBody = BodyType<MessengerCallSignalInput>
+    export type SendMessengerCallSignalMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>
+    export type SendMessengerCallSignalMutationVariables = {callId: string;data: BodyType<MessengerCallSignalInput>}
+
+    /**
+ * @summary Send an ephemeral WebRTC signaling message
+ */
+export const useSendMessengerCallSignal = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponseResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessengerCallSignal>>, TError,SendMessengerCallSignalMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendMessengerCallSignal>>,
+        TError,
+        SendMessengerCallSignalMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendMessengerCallSignalMutationOptions(options), queryClient);
+    }
+
+export const getGetMessengerCallSignalsUrl = (callId: string,
+    params: GetMessengerCallSignalsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/messenger/calls/${callId}/signals?${stringifiedParams}` : `/api/messenger/calls/${callId}/signals`
+}
+
+/**
+ * @summary Read new ephemeral signaling messages
+ */
+export const getMessengerCallSignals = async (callId: string,
+    params: GetMessengerCallSignalsParams, options?: Parameters<typeof customFetch>[1]): Promise<MessengerCallSignalsResponse> => {
+
+  return customFetch<MessengerCallSignalsResponse>(getGetMessengerCallSignalsUrl(callId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerCallSignalsQueryKey = (callId: string,
+    params?: GetMessengerCallSignalsParams,) => {
+    return [
+    `/api/messenger/calls/${callId}/signals`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMessengerCallSignalsQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerCallSignals>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponseResponse>>(callId: string,
+    params: GetMessengerCallSignalsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallSignals>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerCallSignalsQueryKey(callId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerCallSignals>>> = ({ signal }) => getMessengerCallSignals(callId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: callId !== null && callId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallSignals>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerCallSignalsQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerCallSignals>>>
+export type GetMessengerCallSignalsQueryError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponseResponse>
+
+
+export function useGetMessengerCallSignals<TData = Awaited<ReturnType<typeof getMessengerCallSignals>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponseResponse>>(
+ callId: string,
+    params: GetMessengerCallSignalsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallSignals>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerCallSignals>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerCallSignals>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerCallSignals<TData = Awaited<ReturnType<typeof getMessengerCallSignals>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponseResponse>>(
+ callId: string,
+    params: GetMessengerCallSignalsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallSignals>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerCallSignals>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerCallSignals>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerCallSignals<TData = Awaited<ReturnType<typeof getMessengerCallSignals>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponseResponse>>(
+ callId: string,
+    params: GetMessengerCallSignalsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallSignals>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Read new ephemeral signaling messages
+ */
+
+export function useGetMessengerCallSignals<TData = Awaited<ReturnType<typeof getMessengerCallSignals>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponseResponse>>(
+ callId: string,
+    params: GetMessengerCallSignalsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerCallSignals>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerCallSignalsQueryOptions(callId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

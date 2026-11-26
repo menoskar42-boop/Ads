@@ -1,4 +1,5 @@
 import { useAuth } from "@clerk/expo";
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
 import { fetch as expoFetch } from "expo/fetch";
@@ -78,6 +79,10 @@ import { readableError } from "../../lib/format";
 import { colors } from "../../lib/theme";
 import { VoiceMessageModal } from "../../components/VoiceMessageModal";
 import { WebVoiceMessageModal } from "../../components/WebVoiceMessageModal";
+import {
+  WebCallController,
+  type WebCallControllerHandle,
+} from "../../components/WebCallController";
 import {
   getCachedMedia,
   loadAuthenticatedMedia,
@@ -200,6 +205,7 @@ export default function ChatScreen() {
   const { getToken, isLoaded, isSignedIn, userId } = useAuth();
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList>(null);
+  const callControllerRef = useRef<WebCallControllerHandle>(null);
   const pendingTextMessageId = useRef<PendingClientMessageId>(null);
   const olderLoadLock = useRef(false);
   const [olderHistory, setOlderHistory] = useState<{
@@ -373,6 +379,12 @@ export default function ChatScreen() {
     [conversations.data, conversationId],
   );
   const peer = currentConversation?.peer;
+  const webCallSupported =
+    Platform.OS === "web" &&
+    typeof window !== "undefined" &&
+    typeof RTCPeerConnection !== "undefined" &&
+    typeof navigator !== "undefined" &&
+    !!navigator.mediaDevices?.getUserMedia;
   const peerPresence = messages.data?.peerPresence !== undefined
     ? messages.data.peerPresence
     : currentConversation?.peerPresence ?? null;
@@ -1564,6 +1576,20 @@ export default function ChatScreen() {
           }}
         />
         <View style={styles.peer} pointerEvents="box-none">
+          {peer && webCallSupported && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="مكالمة صوتية"
+              testID="call-start"
+              onPress={() => void callControllerRef.current?.startCall()}
+              style={({ pressed }) => [
+                styles.callButton,
+                pressed && styles.forwardDisabled,
+              ]}
+            >
+              <Ionicons name="call-outline" size={20} color={colors.green} />
+            </Pressable>
+          )}
           {peer && (
             <Pressable
               accessibilityRole="button"
@@ -2424,6 +2450,13 @@ export default function ChatScreen() {
           </View>
         </View>
       </Modal>
+      <WebCallController
+        ref={callControllerRef}
+        conversationId={conversationId}
+        peerName={displayedName}
+        enabled={chatScreenActive && !!peer}
+        onError={setErrorText}
+      />
     </Screen>
   );
 }
@@ -2489,6 +2522,7 @@ const styles = StyleSheet.create({
   nicknameMenuButton: { minHeight: 34, justifyContent: "center", borderRadius: 10, paddingHorizontal: 9, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
   nicknameMenuText: { color: colors.blue, fontSize: 11, fontWeight: "700" },
   conversationMenuButton: { width: 34, height: 38, alignItems: "center", justifyContent: "center" },
+  callButton: { width: 36, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: colors.surfaceRaised },
   conversationMenuText: { color: colors.text, fontSize: 24, fontWeight: "800", lineHeight: 26 },
   chat: { flex: 1 },
   messages: { paddingTop: 12, paddingBottom: 16, flexGrow: 1, justifyContent: "flex-end" },

@@ -35,4 +35,6 @@ export const queryKeys = {
   groupMessages: (groupId: string) =>
     ["messenger", "group-messages", groupId] as const,
   statuses: ["messenger", "statuses"] as const,
+  callActive: ["messenger", "calls", "active"] as const,
+  callConfig: ["messenger", "calls", "config"] as const,
 };

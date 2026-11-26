@@ -44,7 +44,203 @@ export const GetMessengerEventsResponse = zod.object({
   "groupId": zod.string()
 }),zod.object({
   "type": zod.literal("groups")
+}),zod.object({
+  "type": zod.literal("call"),
+  "callId": zod.string()
 })])),
+  "reset": zod.boolean()
+})
+
+
+/**
+ * @summary Get audio call ICE servers
+ */
+export const GetMessengerCallConfigResponse = zod.object({
+  "iceServers": zod.array(zod.object({
+  "urls": zod.union([zod.string(),zod.array(zod.string())]),
+  "username": zod.string().optional(),
+  "credential": zod.string().optional()
+}))
+})
+
+
+/**
+ * @summary Get the signed-in user's active audio call
+ */
+export const GetActiveMessengerCallResponse = zod.object({
+  "call": zod.union([zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "callerId": zod.string(),
+  "calleeId": zod.string(),
+  "state": zod.enum(['ringing', 'active', 'ended']),
+  "createdAt": zod.coerce.date(),
+  "endedAt": zod.coerce.date().nullable()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Start a one-to-one audio call
+ */
+export const createMessengerCallPathConversationIdMax = 80;
+
+
+
+export const CreateMessengerCallParams = zod.object({
+  "conversationId": zod.coerce.string().min(1).max(createMessengerCallPathConversationIdMax)
+})
+
+export const CreateMessengerCallResponse = zod.object({
+  "call": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "callerId": zod.string(),
+  "calleeId": zod.string(),
+  "state": zod.enum(['ringing', 'active', 'ended']),
+  "createdAt": zod.coerce.date(),
+  "endedAt": zod.coerce.date().nullable()
+})
+})
+
+
+/**
+ * @summary Accept an incoming audio call
+ */
+export const acceptMessengerCallPathCallIdMax = 80;
+
+
+
+export const AcceptMessengerCallParams = zod.object({
+  "callId": zod.coerce.string().min(1).max(acceptMessengerCallPathCallIdMax)
+})
+
+export const AcceptMessengerCallResponse = zod.object({
+  "call": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "callerId": zod.string(),
+  "calleeId": zod.string(),
+  "state": zod.enum(['ringing', 'active', 'ended']),
+  "createdAt": zod.coerce.date(),
+  "endedAt": zod.coerce.date().nullable()
+})
+})
+
+
+/**
+ * @summary Reject an incoming audio call
+ */
+export const rejectMessengerCallPathCallIdMax = 80;
+
+
+
+export const RejectMessengerCallParams = zod.object({
+  "callId": zod.coerce.string().min(1).max(rejectMessengerCallPathCallIdMax)
+})
+
+export const RejectMessengerCallResponse = zod.object({
+  "call": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "callerId": zod.string(),
+  "calleeId": zod.string(),
+  "state": zod.enum(['ringing', 'active', 'ended']),
+  "createdAt": zod.coerce.date(),
+  "endedAt": zod.coerce.date().nullable()
+})
+})
+
+
+/**
+ * @summary End an audio call
+ */
+export const endMessengerCallPathCallIdMax = 80;
+
+
+
+export const EndMessengerCallParams = zod.object({
+  "callId": zod.coerce.string().min(1).max(endMessengerCallPathCallIdMax)
+})
+
+export const EndMessengerCallResponse = zod.object({
+  "call": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "callerId": zod.string(),
+  "calleeId": zod.string(),
+  "state": zod.enum(['ringing', 'active', 'ended']),
+  "createdAt": zod.coerce.date(),
+  "endedAt": zod.coerce.date().nullable()
+})
+})
+
+
+/**
+ * @summary Send an ephemeral WebRTC signaling message
+ */
+export const sendMessengerCallSignalPathCallIdMax = 80;
+
+
+
+export const SendMessengerCallSignalParams = zod.object({
+  "callId": zod.coerce.string().min(1).max(sendMessengerCallSignalPathCallIdMax)
+})
+
+export const SendMessengerCallSignalBody = zod.object({
+  "kind": zod.enum(['offer', 'answer', 'ice']),
+  "payload": zod.record(zod.string(), zod.unknown())
+})
+
+
+
+
+export const SendMessengerCallSignalResponse = zod.object({
+  "accepted": zod.literal(true),
+  "seq": zod.int().min(1)
+})
+
+
+/**
+ * @summary Read new ephemeral signaling messages
+ */
+export const getMessengerCallSignalsPathCallIdMax = 80;
+
+
+
+export const GetMessengerCallSignalsParams = zod.object({
+  "callId": zod.coerce.string().min(1).max(getMessengerCallSignalsPathCallIdMax)
+})
+
+export const getMessengerCallSignalsQuerySinceMin = 0;
+
+
+
+export const GetMessengerCallSignalsQueryParams = zod.object({
+  "since": zod.coerce.number().int().min(getMessengerCallSignalsQuerySinceMin)
+})
+
+
+export const getMessengerCallSignalsResponseNextSinceMin = 0;
+
+
+
+export const GetMessengerCallSignalsResponse = zod.object({
+  "call": zod.object({
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "callerId": zod.string(),
+  "calleeId": zod.string(),
+  "state": zod.enum(['ringing', 'active', 'ended']),
+  "createdAt": zod.coerce.date(),
+  "endedAt": zod.coerce.date().nullable()
+}),
+  "signals": zod.array(zod.object({
+  "seq": zod.int().min(1),
+  "kind": zod.enum(['offer', 'answer', 'ice']),
+  "payload": zod.record(zod.string(), zod.unknown())
+})),
+  "nextSince": zod.int().min(getMessengerCallSignalsResponseNextSinceMin),
   "reset": zod.boolean()
 })
 

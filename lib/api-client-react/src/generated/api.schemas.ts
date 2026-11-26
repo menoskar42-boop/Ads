@@ -22,6 +22,92 @@ export interface PushDeliveryToken {
   token: string;
 }
 
+export type MessengerCallState = typeof MessengerCallState[keyof typeof MessengerCallState];
+
+
+export const MessengerCallState = {
+  ringing: 'ringing',
+  active: 'active',
+  ended: 'ended',
+} as const;
+
+export interface MessengerCall {
+  id: string;
+  conversationId: string;
+  callerId: string;
+  calleeId: string;
+  state: MessengerCallState;
+  createdAt: string;
+  /** @nullable */
+  endedAt: string | null;
+}
+
+export interface MessengerCallResponse {
+  call: MessengerCall;
+}
+
+export interface MessengerCallActiveResponse {
+  call: MessengerCall | null;
+}
+
+export type MessengerCallSignalInputKind = typeof MessengerCallSignalInputKind[keyof typeof MessengerCallSignalInputKind];
+
+
+export const MessengerCallSignalInputKind = {
+  offer: 'offer',
+  answer: 'answer',
+  ice: 'ice',
+} as const;
+
+export type MessengerCallSignalInputPayload = { [key: string]: unknown };
+
+export interface MessengerCallSignalInput {
+  kind: MessengerCallSignalInputKind;
+  payload: MessengerCallSignalInputPayload;
+}
+
+export type MessengerCallSignalKind = typeof MessengerCallSignalKind[keyof typeof MessengerCallSignalKind];
+
+
+export const MessengerCallSignalKind = {
+  offer: 'offer',
+  answer: 'answer',
+  ice: 'ice',
+} as const;
+
+export type MessengerCallSignalPayload = { [key: string]: unknown };
+
+export interface MessengerCallSignal {
+  /** @minimum 1 */
+  seq: number;
+  kind: MessengerCallSignalKind;
+  payload: MessengerCallSignalPayload;
+}
+
+export interface MessengerCallSignalAccepted {
+  accepted: true;
+  /** @minimum 1 */
+  seq: number;
+}
+
+export interface MessengerCallSignalsResponse {
+  call: MessengerCall;
+  signals: MessengerCallSignal[];
+  /** @minimum 0 */
+  nextSince: number;
+  reset: boolean;
+}
+
+export interface MessengerIceServer {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+export interface MessengerCallConfigResponse {
+  iceServers: MessengerIceServer[];
+}
+
 export type MessengerEvent = {
   type: 'conversation';
   conversationId: string;
@@ -32,6 +118,9 @@ export type MessengerEvent = {
   groupId: string;
 } | {
   type: 'groups';
+} | {
+  type: 'call';
+  callId: string;
 };
 
 export interface MessengerEventsResponse {
@@ -840,6 +929,11 @@ export interface ContentReportResponse {
 }
 
 /**
+ * Request could not be completed
+ */
+export type ErrorResponseResponse = ErrorResponse;
+
+/**
  * Authentication required
  */
 export type UnauthorizedResponse = ErrorResponse;
@@ -860,6 +954,13 @@ export type ConflictResponse = ErrorResponse;
 export type ServiceUnavailableResponse = ErrorResponse;
 
 export type GetMessengerEventsParams = {
+/**
+ * @minimum 0
+ */
+since: number;
+};
+
+export type GetMessengerCallSignalsParams = {
 /**
  * @minimum 0
  */

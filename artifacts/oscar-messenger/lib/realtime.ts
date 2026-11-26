@@ -57,11 +57,14 @@ export function useMessengerRealtime(): void {
         document.visibilityState !== "hidden");
 
     const invalidate = async (event: {
-      type: "conversation" | "conversations" | "group" | "groups";
+      type: "conversation" | "conversations" | "group" | "groups" | "call";
       conversationId?: string;
       groupId?: string;
+      callId?: string;
     }) => {
-      if (event.type === "conversation" && event.conversationId) {
+      if (event.type === "call") {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.callActive });
+      } else if (event.type === "conversation" && event.conversationId) {
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: queryKeys.messages(event.conversationId),

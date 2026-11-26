@@ -406,6 +406,51 @@ export async function notifyConversationMessage(
   );
 }
 
+export function buildMessengerCallPushPayload(input: {
+  callerName: string;
+  conversationId: string;
+  callId: string;
+}): MessengerPushPayload {
+  return {
+    title: "مكالمة صوتية",
+    body: `مكالمة صوتية من ${input.callerName}`,
+    url: `/oscar-messenger/chat/${encodeURIComponent(input.conversationId)}`,
+    tag: input.callId,
+  };
+}
+
+export async function notifyMessengerIncomingCall(
+  pool: PushPool,
+  input: {
+    callerId: string;
+    calleeId: string;
+    callerName: string;
+    conversationId: string;
+    callId: string;
+  },
+): Promise<void> {
+  try {
+    if (!configuredVapidPublicKey() || !(await hasMessengerPushSchema(pool))) return;
+    const blockedIds = await blockedPeerIdsFor(pool, input.callerId, [input.calleeId]);
+    if (blockedIds.has(input.calleeId)) return;
+
+    const result = await pool.query(
+      `SELECT id, user_id, endpoint, p256dh, auth
+       FROM messenger_push_subscriptions
+       WHERE user_id = $1`,
+      [input.calleeId],
+    );
+    if (!result.rows.length) return;
+    await deliverPushSubscriptions(
+      pool,
+      result.rows as PushSubscriptionRow[],
+      buildMessengerCallPushPayload(input),
+    );
+  } catch {
+    // Call setup remains available when optional push delivery is unavailable.
+  }
+}
+
 export async function notifyGroupMessage(
   pool: PushPool,
   input: {

@@ -2,7 +2,8 @@ export type MessengerEvent =
   | { type: "conversation"; conversationId: string }
   | { type: "conversations" }
   | { type: "group"; groupId: string }
-  | { type: "groups" };
+  | { type: "groups" }
+  | { type: "call"; callId: string };
 
 export type MessengerEventsResponse = {
   seq: number;
@@ -55,6 +56,9 @@ function normalizeEvent(value: unknown): MessengerEvent | null {
     return { type: "group", groupId: candidate.groupId };
   }
   if (candidate.type === "groups") return { type: "groups" };
+  if (candidate.type === "call" && typeof candidate.callId === "string") {
+    return { type: "call", callId: candidate.callId };
+  }
   return null;
 }
 

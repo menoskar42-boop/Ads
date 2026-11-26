@@ -55,6 +55,250 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /messenger/calls/config:
+    get:
+      operationId: getMessengerCallConfig
+      tags: [messenger]
+      summary: Get audio call ICE servers
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: ICE server configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerCallConfigResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /messenger/calls/active:
+    get:
+      operationId: getActiveMessengerCall
+      tags: [messenger]
+      summary: Get the signed-in user's active audio call
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Current call, if any
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerCallActiveResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /messenger/conversations/{conversationId}/calls:
+    post:
+      operationId: createMessengerCall
+      tags: [messenger]
+      summary: Start a one-to-one audio call
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
+      responses:
+        "201":
+          description: Call started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerCallResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /messenger/calls/{callId}/accept:
+    post:
+      operationId: acceptMessengerCall
+      tags: [messenger]
+      summary: Accept an incoming audio call
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
+      responses:
+        "200":
+          description: Call accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerCallResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /messenger/calls/{callId}/reject:
+    post:
+      operationId: rejectMessengerCall
+      tags: [messenger]
+      summary: Reject an incoming audio call
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
+      responses:
+        "200":
+          description: Call rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerCallResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /messenger/calls/{callId}/end:
+    post:
+      operationId: endMessengerCall
+      tags: [messenger]
+      summary: End an audio call
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
+      responses:
+        "200":
+          description: Call ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerCallResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /messenger/calls/{callId}/signal:
+    post:
+      operationId: sendMessengerCallSignal
+      tags: [messenger]
+      summary: Send an ephemeral WebRTC signaling message
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessengerCallSignalInput"
+      responses:
+        "202":
+          description: Signal queued for the other participant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerCallSignalAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /messenger/calls/{callId}/signals:
+    get:
+      operationId: getMessengerCallSignals
+      tags: [messenger]
+      summary: Read new ephemeral signaling messages
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 80
+        - name: since
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Call state and queued signals for this participant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessengerCallSignalsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
   /messenger/push/delivered:
     post:
       operationId: acknowledgeMessengerPushDelivery
@@ -2533,6 +2777,12 @@ components:
       type: http
       scheme: bearer
   responses:
+    ErrorResponse:
+      description: Request could not be completed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
     Unauthorized:
       description: Authentication required
       content:
@@ -2576,6 +2826,111 @@ components:
         token:
           type: string
           pattern: "^[a-fA-F0-9]{64}$"
+    MessengerCall:
+      type: object
+      required: [id, conversationId, callerId, calleeId, state, createdAt, endedAt]
+      properties:
+        id:
+          type: string
+        conversationId:
+          type: string
+        callerId:
+          type: string
+        calleeId:
+          type: string
+        state:
+          type: string
+          enum: [ringing, active, ended]
+        createdAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: [string, "null"]
+          format: date-time
+    MessengerCallResponse:
+      type: object
+      required: [call]
+      properties:
+        call:
+          $ref: "#/components/schemas/MessengerCall"
+    MessengerCallActiveResponse:
+      type: object
+      required: [call]
+      properties:
+        call:
+          oneOf:
+            - $ref: "#/components/schemas/MessengerCall"
+            - type: "null"
+    MessengerCallSignalInput:
+      type: object
+      required: [kind, payload]
+      properties:
+        kind:
+          type: string
+          enum: [offer, answer, ice]
+        payload:
+          type: object
+          additionalProperties: true
+    MessengerCallSignal:
+      type: object
+      required: [seq, kind, payload]
+      properties:
+        seq:
+          type: integer
+          minimum: 1
+        kind:
+          type: string
+          enum: [offer, answer, ice]
+        payload:
+          type: object
+          additionalProperties: true
+    MessengerCallSignalAccepted:
+      type: object
+      required: [accepted, seq]
+      properties:
+        accepted:
+          type: boolean
+          const: true
+        seq:
+          type: integer
+          minimum: 1
+    MessengerCallSignalsResponse:
+      type: object
+      required: [call, signals, nextSince, reset]
+      properties:
+        call:
+          $ref: "#/components/schemas/MessengerCall"
+        signals:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessengerCallSignal"
+        nextSince:
+          type: integer
+          minimum: 0
+        reset:
+          type: boolean
+    MessengerIceServer:
+      type: object
+      required: [urls]
+      properties:
+        urls:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        username:
+          type: string
+        credential:
+          type: string
+    MessengerCallConfigResponse:
+      type: object
+      required: [iceServers]
+      properties:
+        iceServers:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessengerIceServer"
     MessengerEvent:
       oneOf:
         - type: object
@@ -2606,6 +2961,14 @@ components:
             type:
               type: string
               const: groups
+        - type: object
+          required: [type, callId]
+          properties:
+            type:
+              type: string
+              const: call
+            callId:
+              type: string
     MessengerEventsResponse:
       type: object
       required: [seq, events, reset]

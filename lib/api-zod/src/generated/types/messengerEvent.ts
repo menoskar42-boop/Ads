@@ -16,4 +16,7 @@ export type MessengerEvent = {
   groupId: string;
 } | {
   type: 'groups';
+} | {
+  type: 'call';
+  callId: string;
 };
