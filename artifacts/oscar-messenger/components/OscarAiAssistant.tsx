@@ -74,6 +74,23 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   const source = useRef<MediaStreamAudioSourceNode | null>(null);
   const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heardReply = useRef(false);
+  const primedContext = useRef<AudioContext | null>(null);
+  /** Create and resume the AudioContext inside the tap itself (iOS needs the user gesture). */
+  const primeAudio = useCallback(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    try {
+      const AudioContextCtor =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) return;
+      if (!primedContext.current || primedContext.current.state === "closed") {
+        primedContext.current = new AudioContextCtor();
+      }
+      void primedContext.current.resume().catch(() => undefined);
+    } catch {
+      primedContext.current = null;
+    }
+  }, []);
   // Set while a session holds reserved minutes; ending it gives the unused minutes back.
   const liveSessionAuth = useRef<string | null>(null);
   const sessionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -172,9 +189,17 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         window.AudioContext ||
         (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioContextCtor) throw new Error("الصوت المباشر غير مدعوم في هذا المتصفح.");
-      const audioContext = new AudioContextCtor();
+      // iPhone: an AudioContext made after the awaits above stays suspended, so the mic was
+      // never read. Use the one unlocked during the tap (primeAudio) when there is one.
+      const primed = primedContext.current;
+      primedContext.current = null;
+      const audioContext =
+        primed && primed.state !== "closed" ? primed : new AudioContextCtor();
       context.current = audioContext;
-      await audioContext.resume();
+      await audioContext.resume().catch(() => undefined);
+      if (audioContext.state !== "running") {
+        throw new Error("الآيفون مافتحش الصوت — اضغط «اتكلم مع Oscar AI» تانى.");
+      }
 
       const liveSocket = new WebSocket(
         `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(live.token)}`,
@@ -290,6 +315,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   }, [armSilenceEnd, clearSilenceTimer, getToken]);
 
   const beginSession = useCallback(() => {
+    primeAudio();
     if (!hasOscarAiGoogleConsent()) {
       pendingStart.current = true;
       setActive(true);
@@ -302,7 +328,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         setError(playError instanceof Error ? playError.message : "تعذر تشغيل الرد الصوتي.");
         setActive(false);
       });
-  }, [startSession]);
+  }, [primeAudio, startSession]);
 
   startRef.current = beginSession;
   stopRef.current = stopSession;
@@ -364,6 +390,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   }, [active, pageVisible, stopSession]);
 
   const acceptConsent = () => {
+    primeAudio();
     saveOscarAiGoogleConsent();
     setConsentVisible(false);
     if (pendingStart.current) {
