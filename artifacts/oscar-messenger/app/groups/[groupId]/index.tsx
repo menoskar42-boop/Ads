@@ -20,14 +20,15 @@ import {
   useAudioPlayer,
   useAudioPlayerStatus,
 } from "expo-audio";
-import { File, Paths } from "expo-file-system";
+import { File } from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { Image } from "expo-image";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
   FlatList,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -39,6 +40,9 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { AppHeader } from "../../../components/AppHeader";
+import { ComposerAttachmentMenu } from "../../../components/ComposerAttachmentMenu";
+import { InlineImagePreview } from "../../../components/InlineImagePreview";
+import { MediaViewer, type MediaViewerItem } from "../../../components/MediaViewer";
 import { Notice, Screen } from "../../../components/Screen";
 import { apiUrl, queryKeys } from "../../../lib/api";
 import {
@@ -48,12 +52,19 @@ import {
 import { readableError, shortTime } from "../../../lib/format";
 import { colors } from "../../../lib/theme";
 import { useMessengerRealtimeHealthy } from "../../../lib/realtime";
+import {
+  getCachedMedia,
+  loadAuthenticatedMedia,
+  removeCachedMedia,
+} from "../../../lib/media-preview";
 import { VoiceMessageModal } from "../../../components/VoiceMessageModal";
 import { WebVoiceMessageModal } from "../../../components/WebVoiceMessageModal";
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
+
+type VisibleGroupMessageToken = { item: GroupMessage; isViewable?: boolean };
 
 export default function GroupChatScreen() {
   const realtimeHealthy = useMessengerRealtimeHealthy();
@@ -67,6 +78,11 @@ export default function GroupChatScreen() {
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [mediaLoadingId, setMediaLoadingId] = useState("");
+  const [mediaPreviewStates, setMediaPreviewStates] = useState<
+    Record<string, { uri?: string; loading: boolean; error: boolean }>
+  >({});
+  const [viewerMedia, setViewerMedia] = useState<MediaViewerItem | null>(null);
   const [audioLoadingId, setAudioLoadingId] = useState("");
   const [activeAudioId, setActiveAudioId] = useState("");
   const [webAudioPlayingId, setWebAudioPlayingId] = useState("");
@@ -347,6 +363,73 @@ export default function GroupChatScreen() {
       setNotice(readableError(error, "تعذر اختيار الصورة أو الفيديو."));
     }
   };
+  const chooseGroupCamera = async () => {
+    try {
+      if (Platform.OS === "web") {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.setAttribute("capture", "environment");
+        input.onchange = () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          const contentType = normalizeGroupContentType(file.type, file.name, "image/jpeg");
+          if (!contentType.startsWith("image/")) {
+            setNotice("اختار صورة بصيغة مدعومة.");
+            return;
+          }
+          void sendGroupMedia({
+            uri: `camera:${Date.now()}:${file.name}`,
+            filename: file.name || `صورة-${Date.now()}.${groupExtension(contentType)}`,
+            contentType,
+            sizeBytes: file.size,
+            webFile: file,
+          }).catch((error) => setNotice(readableError(error, "تعذر رفع الصورة.")));
+        };
+        input.click();
+        return;
+      }
+
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        if (!permission.canAskAgain) {
+          Alert.alert("إذن الكاميرا مطلوب", "اسمح لأوسكار ميسنجر باستخدام الكاميرا من إعدادات الجهاز.", [
+            { text: "لاحقًا", style: "cancel" },
+            { text: "فتح الإعدادات", onPress: () => void Linking.openSettings().catch(() => undefined) },
+          ]);
+        } else {
+          setNotice("اسمح باستخدام الكاميرا لالتقاط صورة.");
+        }
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 1,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const contentType = normalizeGroupContentType(
+        asset.mimeType || "",
+        asset.fileName || "",
+        "image/jpeg",
+      );
+      if (!contentType.startsWith("image/")) {
+        setNotice("نوع الصورة غير مدعوم.");
+        return;
+      }
+      await sendGroupMedia({
+        uri: asset.uri,
+        filename: asset.fileName || `صورة-${Date.now()}.${groupExtension(contentType)}`,
+        contentType,
+        sizeBytes: asset.fileSize ?? new File(asset.uri).size,
+        webFile: asset.file,
+      });
+    } catch (error) {
+      setNotice(readableError(error, "تعذر فتح الكاميرا."));
+    }
+  };
+
   const chooseGroupFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -438,45 +521,119 @@ export default function GroupChatScreen() {
       setAudioLoadingId("");
     }
   };
+  const loadGroupMedia = async (item: GroupMessage) => {
+    const attachment = item.mediaAttachment;
+    if (!attachment) return undefined;
+    const cached = getCachedMedia(item.id);
+    if (cached) {
+      setMediaPreviewStates((current) => ({
+        ...current,
+        [item.id]: {
+          uri: cached.uri,
+          loading: attachment.kind === "image",
+          error: false,
+        },
+      }));
+      return cached;
+    }
+    setMediaPreviewStates((current) => ({
+      ...current,
+      [item.id]: { ...current[item.id], loading: true, error: false },
+    }));
+    try {
+      const media = await loadAuthenticatedMedia({
+        messageId: item.id,
+        url: attachment.url,
+        filename: attachment.filename,
+        contentType: attachment.contentType,
+        kind: attachment.kind,
+        getToken,
+      });
+      setMediaPreviewStates((current) => ({
+        ...current,
+        [item.id]: {
+          uri: media.uri,
+          loading: attachment.kind === "image",
+          error: false,
+        },
+      }));
+      return media;
+    } catch {
+      setMediaPreviewStates((current) => ({
+        ...current,
+        [item.id]: { loading: false, error: true },
+      }));
+      throw new Error("تعذر تحميل المرفق.");
+    }
+  };
+
   const openGroupMedia = async (item: GroupMessage) => {
     const attachment = item.mediaAttachment;
     if (!attachment) return;
+    setMediaLoadingId(item.id);
     try {
-      const token = await getToken();
-      if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
-      const response = await expoFetch(apiUrl(attachment.url), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error("تعذر فتح المرفق.");
-      const bytes = new Uint8Array(await response.arrayBuffer());
+      const media = getCachedMedia(item.id) ?? await loadGroupMedia(item);
+      if (!media) throw new Error("تعذر فتح المرفق.");
       if (Platform.OS === "web") {
-        const url = URL.createObjectURL(new Blob([bytes], { type: attachment.contentType }));
-        if (attachment.kind === "file") {
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = safeGroupFilename(attachment.filename);
-          link.rel = "noopener";
-          link.click();
-        } else {
-          window.open(url, "_blank", "noopener,noreferrer");
-        }
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        const link = document.createElement("a");
+        link.href = media.uri;
+        link.download = safeGroupFilename(attachment.filename);
+        link.rel = "noopener";
+        link.click();
       } else {
-        const file = new File(Paths.cache, `${Crypto.randomUUID()}-${safeGroupFilename(attachment.filename)}`);
-        await file.write(bytes);
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(file.uri, {
+          await Sharing.shareAsync(media.uri, {
             mimeType: attachment.contentType,
             dialogTitle: attachment.filename,
           });
         } else {
-          await File.preview(file, { mimeType: attachment.contentType });
+          await File.preview(new File(media.uri), { mimeType: attachment.contentType });
         }
       }
     } catch (error) {
       setNotice(readableError(error, "تعذر فتح المرفق."));
+    } finally {
+      setMediaLoadingId("");
     }
   };
+
+  const openGroupMediaViewer = async (item: GroupMessage) => {
+    const attachment = item.mediaAttachment;
+    if (!attachment || attachment.kind === "file") return;
+    if (attachment.kind === "video" && Platform.OS !== "web") {
+      await openGroupMedia(item);
+      return;
+    }
+    setMediaLoadingId(item.id);
+    try {
+      const media = getCachedMedia(item.id) ?? await loadGroupMedia(item);
+      if (!media) return;
+      setViewerMedia({
+        ...media,
+        senderName: item.senderName,
+        createdAt: item.createdAt,
+      });
+      setNotice("");
+    } catch {
+      setNotice("تعذر تحميل المرفق. حاول مرة أخرى.");
+    } finally {
+      setMediaLoadingId("");
+    }
+  };
+
+  const loadVisibleImage = useRef<(item: GroupMessage) => void>(() => undefined);
+  loadVisibleImage.current = (item) => {
+    if (item.messageType !== "media" || item.mediaAttachment?.kind !== "image") return;
+    void loadGroupMedia(item).catch(() => undefined);
+  };
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: VisibleGroupMessageToken[] }) => {
+      for (const token of viewableItems) {
+        if (token.isViewable) loadVisibleImage.current(token.item);
+      }
+    },
+  ).current;
+  const mediaViewabilityConfig = useRef({ itemVisiblePercentThreshold: 20 }).current;
 
   if (capability.isSuccess && !capability.data.enabled) {
     return (
@@ -523,12 +680,16 @@ export default function GroupChatScreen() {
             inverted
             data={messageList}
             keyExtractor={(item) => item.id}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={mediaViewabilityConfig}
             renderItem={({ item }) => (
               <MessageRow
                 item={item}
                 isMine={item.senderId === userId}
                 isReporting={report.isPending}
                 audioLoading={audioLoadingId === item.id}
+                mediaLoading={mediaLoadingId === item.id}
+                mediaPreview={mediaPreviewStates[item.id]}
                 audioPlaying={
                   Platform.OS === "web"
                     ? webAudioPlayingId === item.id
@@ -536,7 +697,40 @@ export default function GroupChatScreen() {
                 }
                 onReport={() => sendReport(item.id)}
                 onAudio={() => void playGroupAudio(item)}
-                onOpenMedia={() => void openGroupMedia(item)}
+                onOpenMedia={
+                  item.mediaAttachment?.kind === "file"
+                    ? () => void openGroupMedia(item)
+                    : undefined
+                }
+                onViewMedia={
+                  item.mediaAttachment?.kind === "image" ||
+                  item.mediaAttachment?.kind === "video"
+                    ? () => void openGroupMediaViewer(item)
+                    : undefined
+                }
+                onRetryImage={
+                  item.mediaAttachment?.kind === "image"
+                    ? () => void loadGroupMedia(item).catch(() => undefined)
+                    : undefined
+                }
+                onImageLoaded={() => {
+                  setMediaPreviewStates((current) => ({
+                    ...current,
+                    [item.id]: {
+                      ...current[item.id],
+                      uri: current[item.id]?.uri,
+                      loading: false,
+                      error: false,
+                    },
+                  }));
+                }}
+                onImageError={() => {
+                  removeCachedMedia(item.id);
+                  setMediaPreviewStates((current) => ({
+                    ...current,
+                    [item.id]: { loading: false, error: true },
+                  }));
+                }}
               />
             )}
             keyboardDismissMode="interactive"
@@ -569,16 +763,32 @@ export default function GroupChatScreen() {
         )}
         {!!notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
         <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="إرسال الرسالة"
-            testID="send-group-message"
-            disabled={!body.trim() || send.isPending}
-            onPress={submit}
-            style={({ pressed }) => [styles.sendButton, (!body.trim() || send.isPending) && styles.disabled, pressed && styles.pressed]}
-          >
-            <Ionicons name="send" size={18} color={colors.background} />
-          </Pressable>
+          <ComposerAttachmentMenu
+            actions={mediaCapability.data?.available === true ? [
+              {
+                id: "camera",
+                label: "الكاميرا",
+                icon: "camera-outline",
+                testID: "group-camera",
+                onPress: () => void chooseGroupCamera(),
+              },
+              {
+                id: "gallery",
+                label: "الصور والفيديو",
+                icon: "images-outline",
+                testID: "group-media-button",
+                onPress: () => void chooseGroupMedia(),
+              },
+              {
+                id: "document",
+                label: "مستند",
+                icon: "document-text-outline",
+                testID: "group-file-button",
+                onPress: () => void chooseGroupFile(),
+              },
+            ] : []}
+            disabled={mediaBusy || voiceBusy}
+          />
           <TextInput
             testID="group-message-input"
             accessibilityLabel="اكتب رسالة للمجموعة"
@@ -594,47 +804,34 @@ export default function GroupChatScreen() {
             blurOnSubmit={false}
             returnKeyType="send"
           />
-          {mediaCapability.data?.available === true && (
-            <>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="تسجيل رسالة صوتية"
-                testID="group-voice-button"
-                disabled={voiceBusy || mediaBusy}
-                onPress={() => setVoiceModalVisible(true)}
-                style={styles.toolButton}
-              >
-                {voiceBusy ? (
-                  <ActivityIndicator size="small" color={colors.blue} />
-                ) : (
-                  <Ionicons name="mic-outline" size={21} color={colors.blue} />
-                )}
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="اختيار صورة أو فيديو"
-                testID="group-media-button"
-                disabled={mediaBusy || voiceBusy}
-                onPress={() => void chooseGroupMedia()}
-                style={styles.toolButton}
-              >
-                {mediaBusy ? (
-                  <ActivityIndicator size="small" color={colors.blue} />
-                ) : (
-                  <Ionicons name="image-outline" size={21} color={colors.blue} />
-                )}
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="اختيار ملف"
-                testID="group-file-button"
-                disabled={mediaBusy || voiceBusy}
-                onPress={() => void chooseGroupFile()}
-                style={styles.toolButton}
-              >
-                <Ionicons name="attach-outline" size={21} color={colors.blue} />
-              </Pressable>
-            </>
+          {body.trim() ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="إرسال الرسالة"
+              testID="send-group-message"
+              disabled={send.isPending}
+              onPress={submit}
+              style={({ pressed }) => [styles.sendButton, send.isPending && styles.disabled, pressed && styles.pressed]}
+            >
+              <Ionicons name="send" size={18} color={colors.background} />
+            </Pressable>
+          ) : mediaCapability.data?.available === true ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="تسجيل رسالة صوتية"
+              testID="group-voice-button"
+              disabled={voiceBusy || mediaBusy}
+              onPress={() => setVoiceModalVisible(true)}
+              style={styles.toolButton}
+            >
+              {voiceBusy ? (
+                <ActivityIndicator size="small" color={colors.blue} />
+              ) : (
+                <Ionicons name="mic-outline" size={22} color={colors.blue} />
+              )}
+            </Pressable>
+          ) : (
+            <View style={styles.toolButton} />
           )}
         </View>
       </KeyboardAvoidingView>
@@ -655,6 +852,14 @@ export default function GroupChatScreen() {
           onSend={sendGroupAudio}
         />
       )}
+      <MediaViewer
+        media={viewerMedia}
+        onClose={() => setViewerMedia(null)}
+        onSave={() => {
+          const item = messageList.find((message) => message.id === viewerMedia?.messageId);
+          if (item) void openGroupMedia(item);
+        }}
+      />
     </Screen>
   );
 }
@@ -664,19 +869,31 @@ function MessageRow({
   isMine,
   isReporting,
   audioLoading,
+  mediaLoading,
   audioPlaying,
+  mediaPreview,
   onReport,
   onAudio,
   onOpenMedia,
+  onViewMedia,
+  onRetryImage,
+  onImageLoaded,
+  onImageError,
 }: {
   item: GroupMessage;
   isMine: boolean;
   isReporting: boolean;
   audioLoading: boolean;
+  mediaLoading: boolean;
   audioPlaying: boolean;
+  mediaPreview?: { uri?: string; loading: boolean; error: boolean };
   onReport: () => void;
   onAudio: () => void;
-  onOpenMedia: () => void;
+  onOpenMedia?: () => void;
+  onViewMedia?: () => void;
+  onRetryImage?: () => void;
+  onImageLoaded: () => void;
+  onImageError: () => void;
 }) {
   return (
     <View style={[styles.messageRow, isMine && styles.myMessageRow]}>
@@ -701,18 +918,55 @@ function MessageRow({
           </Pressable>
         ) : item.messageType === "media" && item.mediaAttachment ? (
           <View style={styles.groupMedia}>
-            {item.mediaAttachment.kind === "image" && (
-              <GroupImage url={item.mediaAttachment.url} />
+            {item.mediaAttachment.kind === "image" ? (
+              <InlineImagePreview
+                uri={mediaPreview?.uri}
+                loading={mediaPreview?.loading ?? false}
+                error={mediaPreview?.error ?? false}
+                onPress={onViewMedia ?? (() => undefined)}
+                onRetry={onRetryImage ?? (() => undefined)}
+                onImageLoaded={onImageLoaded}
+                onImageError={onImageError}
+                testID={`group-media-preview-${item.id}`}
+              />
+            ) : item.mediaAttachment.kind === "video" ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`عرض الفيديو، ${formatBytes(item.mediaAttachment.sizeBytes)}`}
+                testID={`group-media-video-${item.id}`}
+                disabled={!onViewMedia || mediaLoading}
+                onPress={onViewMedia}
+                style={styles.videoPreview}
+              >
+                {mediaLoading ? (
+                  <ActivityIndicator color={colors.blue} />
+                ) : (
+                  <Ionicons name="play-circle" size={48} color="#FFFFFF" />
+                )}
+                <Text style={styles.videoSize}>{formatBytes(item.mediaAttachment.sizeBytes)}</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`فتح ${item.mediaAttachment.filename}`}
+                testID={`group-media-open-${item.id}`}
+                disabled={!onOpenMedia || mediaLoading}
+                onPress={onOpenMedia}
+                style={styles.fileAttachment}
+              >
+                {mediaLoading ? (
+                  <ActivityIndicator color={colors.blue} />
+                ) : (
+                  <Ionicons name="document-text-outline" size={22} color={colors.blue} />
+                )}
+                <View style={styles.fileAttachmentCopy}>
+                  <Text numberOfLines={2} style={styles.messageText}>{item.mediaAttachment.filename}</Text>
+                  <Text style={styles.mediaActionText}>
+                    {formatBytes(item.mediaAttachment.sizeBytes)} · فتح
+                  </Text>
+                </View>
+              </Pressable>
             )}
-            {item.mediaAttachment.kind !== "image" && (
-              <Text style={styles.messageText}>
-                {item.mediaAttachment.kind === "video" ? "فيديو" : "ملف"} · {item.mediaAttachment.filename}
-              </Text>
-            )}
-            <Pressable accessibilityRole="button" onPress={onOpenMedia} style={styles.openMediaButton}>
-              <Ionicons name="open-outline" size={17} color={colors.blue} />
-              <Text style={styles.mediaActionText}>فتح</Text>
-            </Pressable>
           </View>
         ) : (
           <Text style={styles.messageText}>{item.body}</Text>
@@ -733,43 +987,6 @@ function MessageRow({
         </Pressable>
       )}
     </View>
-  );
-}
-
-function GroupImage({ url }: { url: string }) {
-  const { getToken } = useAuth();
-  const [source, setSource] = useState<{
-    uri: string;
-    headers?: Record<string, string>;
-  } | null>(null);
-  useEffect(() => {
-    let active = true;
-    void getToken().then((token) => {
-      if (active && token) {
-        setSource({
-          uri: apiUrl(url),
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [getToken, url]);
-  if (!source) {
-    return (
-      <View style={styles.imagePlaceholder}>
-        <ActivityIndicator size="small" color={colors.blue} />
-      </View>
-    );
-  }
-  return (
-    <Image
-      source={source}
-      style={styles.groupImage}
-      contentFit="cover"
-      accessibilityLabel="صورة مرسلة في المجموعة"
-    />
   );
 }
 
@@ -833,6 +1050,12 @@ function safeGroupFilename(filename: string): string {
   return safe || "attachment";
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 const styles = StyleSheet.create({
   keyboard: { flex: 1 },
   loadOlderButton: { alignSelf: "center", minHeight: 38, justifyContent: "center", paddingHorizontal: 16 },
@@ -853,13 +1076,14 @@ const styles = StyleSheet.create({
   composer: { minHeight: 62, paddingHorizontal: 12, paddingTop: 8, flexDirection: "row-reverse", alignItems: "flex-end", gap: 8, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background },
   input: { flex: 1, maxHeight: 120, minHeight: 45, borderRadius: 17, paddingHorizontal: 14, paddingVertical: 11, color: colors.text, backgroundColor: colors.surface, fontSize: 15, textAlignVertical: "center" },
   sendButton: { width: 43, height: 43, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.blue },
-  toolButton: { width: 36, height: 42, alignItems: "center", justifyContent: "center" },
+  toolButton: { width: 40, height: 43, alignItems: "center", justifyContent: "center" },
   audioButton: { flexDirection: "row-reverse", alignItems: "center", gap: 8, minHeight: 38, paddingHorizontal: 8 },
   mediaActionText: { color: colors.blue, fontSize: 13, fontWeight: "700" },
   groupMedia: { gap: 7, alignItems: "flex-end" },
-  groupImage: { width: 210, height: 160, borderRadius: 12, backgroundColor: colors.surface },
-  imagePlaceholder: { width: 210, height: 120, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: colors.surface },
-  openMediaButton: { flexDirection: "row-reverse", alignItems: "center", gap: 5, minHeight: 35, paddingHorizontal: 8 },
+  videoPreview: { width: 240, height: 160, alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, backgroundColor: "#111827" },
+  videoSize: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
+  fileAttachment: { minWidth: 200, minHeight: 58, flexDirection: "row-reverse", alignItems: "center", gap: 9, paddingVertical: 5 },
+  fileAttachmentCopy: { flex: 1, alignItems: "flex-end", gap: 4 },
   disabled: { opacity: 0.4 },
   notice: { color: colors.muted, textAlign: "right", fontSize: 12, paddingHorizontal: 15, paddingVertical: 6 },
   copy: { color: colors.muted, fontSize: 14, lineHeight: 22, textAlign: "center" },

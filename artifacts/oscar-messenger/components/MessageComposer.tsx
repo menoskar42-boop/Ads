@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Platform } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ComposerAttachmentMenu } from "./ComposerAttachmentMenu";
 import { TextField } from "./TextField";
 import { colors } from "../lib/theme";
 
@@ -11,6 +11,7 @@ export function MessageComposer({
   onSchedule,
   onPickMedia,
   onPickFile,
+  onTakePhoto,
   onVoicePress,
   onSendLocation,
   onStartLiveLocation,
@@ -39,6 +40,7 @@ export function MessageComposer({
   onSchedule: () => void;
   onPickMedia: () => void;
   onPickFile: () => void;
+  onTakePhoto: () => void;
   onVoicePress: () => void;
   onSendLocation: () => void;
   onStartLiveLocation: () => void;
@@ -61,6 +63,58 @@ export function MessageComposer({
   onCancelMediaUpload: () => void;
   webVoiceSupported: boolean;
 }) {
+  const hasMessageToSend = !!value.trim() || !!mediaName;
+  const attachmentActions = [
+    ...(mediaEnabled
+      ? [
+          {
+            id: "camera",
+            label: "الكاميرا",
+            icon: "camera-outline" as const,
+            testID: "message-camera",
+            onPress: onTakePhoto,
+          },
+          {
+            id: "gallery",
+            label: "الصور والفيديو",
+            icon: "images-outline" as const,
+            testID: "message-pick-media",
+            onPress: onPickMedia,
+          },
+          {
+            id: "document",
+            label: "مستند",
+            icon: "document-text-outline" as const,
+            testID: "message-pick-file",
+            onPress: onPickFile,
+          },
+        ]
+      : []),
+    ...(locationEnabled
+      ? [
+          {
+            id: "location",
+            label: "موقعي",
+            icon: "location-outline" as const,
+            testID: "message-send-location",
+            onPress: onSendLocation,
+            disabled: locationBusy,
+          },
+        ]
+      : []),
+    ...(liveLocationEnabled
+      ? [
+          {
+            id: "live-location",
+            label: "موقع مباشر",
+            icon: "navigate-outline" as const,
+            testID: "message-start-live-location",
+            onPress: onStartLiveLocation,
+            disabled: liveLocationBusy,
+          },
+        ]
+      : []),
+  ];
   return (
     <View style={styles.wrap}>
       {!!replyText && (
@@ -109,6 +163,10 @@ export function MessageComposer({
       )}
       {!!mediaError && <Text style={styles.voiceHint}>{mediaError}</Text>}
       <View style={styles.composer}>
+        <ComposerAttachmentMenu
+          actions={attachmentActions}
+          disabled={busy || mediaBusy || voiceBusy}
+        />
         <TextField
           value={value}
           onChangeText={onChangeText}
@@ -120,124 +178,6 @@ export function MessageComposer({
           accessibilityLabel="نص الرسالة"
           style={styles.input}
         />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={mediaEnabled ? "اختيار صورة أو فيديو" : "المرفقات غير مفعلة"}
-          testID="message-pick-media"
-          onPress={onPickMedia}
-          disabled={!mediaEnabled || busy || mediaBusy}
-          hitSlop={6}
-          style={({ pressed }) => [
-            styles.action,
-            (!mediaEnabled || busy || mediaBusy) && styles.sendDisabled,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Ionicons name="images-outline" size={21} color={mediaEnabled ? colors.blue : colors.muted} />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={mediaEnabled ? "اختيار ملف" : "المرفقات غير مفعلة"}
-          testID="message-pick-file"
-          onPress={onPickFile}
-          disabled={!mediaEnabled || busy || mediaBusy}
-          hitSlop={6}
-          style={({ pressed }) => [
-            styles.action,
-            (!mediaEnabled || busy || mediaBusy) && styles.sendDisabled,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Ionicons name="document-attach-outline" size={21} color={mediaEnabled ? colors.blue : colors.muted} />
-        </Pressable>
-        {Platform.OS !== "web" && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            voiceEnabled ? "تسجيل رسالة صوتية" : "الرسائل الصوتية غير مفعلة"
-          }
-          testID="voice-message-open"
-          onPress={onVoicePress}
-          disabled={busy || voiceBusy || mediaBusy || !voiceEnabled}
-          hitSlop={6}
-          style={({ pressed }) => [
-            styles.voice,
-            (!voiceEnabled || busy || voiceBusy || mediaBusy) && styles.sendDisabled,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Ionicons
-            name={voiceBusy ? "cloud-upload-outline" : "mic-outline"}
-            size={23}
-            color={voiceEnabled ? colors.blue : colors.muted}
-          />
-        </Pressable>
-        )}
-        {Platform.OS === "web" && webVoiceSupported && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              voiceEnabled ? "تسجيل رسالة صوتية" : "الرسائل الصوتية غير مفعلة"
-            }
-            testID="web-voice-message-open"
-            onPress={onVoicePress}
-            disabled={busy || voiceBusy || mediaBusy || !voiceEnabled}
-            hitSlop={6}
-            style={({ pressed }) => [
-              styles.voice,
-              (!voiceEnabled || busy || voiceBusy || mediaBusy) && styles.sendDisabled,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name={voiceBusy ? "cloud-upload-outline" : "mic-outline"}
-              size={23}
-              color={voiceEnabled ? colors.blue : colors.muted}
-            />
-          </Pressable>
-        )}
-        {locationEnabled && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="📍 Send my location / أرسل موقعي"
-            testID="message-send-location"
-            onPress={onSendLocation}
-            disabled={busy || voiceBusy || mediaBusy || locationBusy}
-            hitSlop={6}
-            style={({ pressed }) => [
-              styles.action,
-              (busy || voiceBusy || mediaBusy || locationBusy) && styles.sendDisabled,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name={locationBusy ? "hourglass-outline" : "location-outline"}
-              size={21}
-              color={locationBusy ? colors.muted : colors.blue}
-            />
-          </Pressable>
-        )}
-        {liveLocationEnabled && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="موقع مباشر لمدة محددة"
-            testID="message-start-live-location"
-            onPress={onStartLiveLocation}
-            disabled={busy || voiceBusy || mediaBusy || liveLocationBusy}
-            hitSlop={6}
-            style={({ pressed }) => [
-              styles.action,
-              (busy || voiceBusy || mediaBusy || liveLocationBusy) && styles.sendDisabled,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name={liveLocationBusy ? "hourglass-outline" : "navigate-outline"}
-              size={21}
-              color={liveLocationBusy ? colors.muted : colors.blue}
-            />
-          </Pressable>
-        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="جدولة الرسالة"
@@ -252,19 +192,46 @@ export function MessageComposer({
         >
           <Ionicons name="time-outline" size={23} color={colors.blue} />
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="إرسال الرسالة"
-          onPress={onSend}
-          disabled={busy || mediaBusy || (!value.trim() && !mediaName)}
-          style={({ pressed }) => [
-            styles.send,
-            (!value.trim() && !mediaName || busy || mediaBusy) && styles.sendDisabled,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={styles.sendText}>{busy || mediaBusy ? "…" : "➤"}</Text>
-        </Pressable>
+        {hasMessageToSend ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="إرسال الرسالة"
+            testID="message-send"
+            onPress={onSend}
+            disabled={busy || mediaBusy}
+            style={({ pressed }) => [
+              styles.send,
+              (busy || mediaBusy) && styles.sendDisabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.sendText}>{busy || mediaBusy ? "…" : "➤"}</Text>
+          </Pressable>
+        ) : (Platform.OS !== "web" || webVoiceSupported) ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              voiceEnabled ? "تسجيل رسالة صوتية" : "الرسائل الصوتية غير مفعلة"
+            }
+            testID={Platform.OS === "web" ? "web-voice-message-open" : "voice-message-open"}
+            onPress={onVoicePress}
+            disabled={busy || voiceBusy || mediaBusy || !voiceEnabled}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.voice,
+              (!voiceEnabled || voiceBusy || busy || mediaBusy) && styles.sendDisabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={voiceBusy ? "cloud-upload-outline" : "mic-outline"}
+              size={23}
+              color={voiceEnabled ? colors.blue : colors.muted}
+            />
+          </Pressable>
+        ) : (
+          <View style={styles.voice} />
+        )}
       </View>
       {!voiceEnabled && !!voiceHint && (
         <Text style={styles.voiceHint}>{voiceHint}</Text>
@@ -281,9 +248,8 @@ export function MessageComposer({
 
 const styles = StyleSheet.create({
   wrap: { paddingTop: 9, paddingHorizontal: 12, paddingBottom: 8, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: 5 },
+  composer: { flexDirection: "row-reverse", alignItems: "flex-end", gap: 5 },
   input: { flex: 1, maxHeight: 130, minHeight: 47, paddingTop: 12, paddingBottom: 10, borderRadius: 18 },
-  action: { width: 28, height: 46, alignItems: "center", justifyContent: "center" },
   voice: { width: 34, height: 46, alignItems: "center", justifyContent: "center" },
   schedule: { width: 34, height: 46, alignItems: "center", justifyContent: "center" },
   send: { width: 46, height: 46, borderRadius: 16, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center" },

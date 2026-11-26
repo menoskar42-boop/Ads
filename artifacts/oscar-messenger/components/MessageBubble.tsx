@@ -11,6 +11,7 @@ import {
 import type { Message } from "@workspace/api-client-react";
 import { shortTime } from "../lib/format";
 import { colors } from "../lib/theme";
+import { InlineImagePreview } from "./InlineImagePreview";
 
 export function MessageBubble({
   message,
@@ -19,7 +20,12 @@ export function MessageBubble({
   audioPlaying = false,
   audioLoading = false,
   mediaLoading = false,
+  mediaPreview,
   onOpenMedia,
+  onViewMedia,
+  onRetryMedia,
+  onImageLoaded,
+  onImageError,
   onReply,
   onReact,
   onForward,
@@ -31,7 +37,12 @@ export function MessageBubble({
   audioPlaying?: boolean;
   audioLoading?: boolean;
   mediaLoading?: boolean;
+  mediaPreview?: { uri?: string; loading: boolean; error: boolean };
   onOpenMedia?: () => void;
+  onViewMedia?: () => void;
+  onRetryMedia?: () => void;
+  onImageLoaded?: () => void;
+  onImageError?: () => void;
   onReply?: () => void;
   onReact?: () => void;
   onForward?: () => void;
@@ -85,44 +96,58 @@ export function MessageBubble({
               </Text>
             </View>
           </Pressable>
-            ) : message.messageType === "media" && message.mediaAttachment ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`فتح أو تنزيل ${message.mediaAttachment.filename}`}
-            testID={`message-media-open-${message.id}`}
-            onPress={onOpenMedia}
-            disabled={!onOpenMedia || mediaLoading}
-            style={styles.attachment}
-          >
-            {mediaLoading ? (
-              <ActivityIndicator color={colors.blue} />
-            ) : (
-              <Ionicons
-                name={
-                  message.mediaAttachment.kind === "image"
-                    ? "image-outline"
-                    : message.mediaAttachment.kind === "video"
-                      ? "videocam-outline"
-                      : "document-text-outline"
-                }
-                size={24}
-                color={colors.blue}
+            ) : message.messageType === "media" && message.mediaAttachment?.kind === "image" ? (
+              <InlineImagePreview
+                uri={mediaPreview?.uri}
+                loading={mediaPreview?.loading ?? false}
+                error={mediaPreview?.error ?? false}
+                onPress={onViewMedia ?? (() => undefined)}
+                onRetry={onRetryMedia ?? (() => undefined)}
+                onImageLoaded={onImageLoaded ?? (() => undefined)}
+                onImageError={onImageError ?? (() => undefined)}
+                testID={`message-media-preview-${message.id}`}
               />
-            )}
-            <View style={styles.attachmentCopy}>
-              <Text numberOfLines={2} style={styles.attachmentName}>
-                {message.mediaAttachment.filename}
-              </Text>
-              <Text style={styles.attachmentInfo}>
-                {message.mediaAttachment.kind === "image"
-                  ? "صورة"
-                  : message.mediaAttachment.kind === "video"
-                    ? "فيديو"
-                    : "ملف"}{" "}
-                · {formatBytes(message.mediaAttachment.sizeBytes)} · فتح / تنزيل
-              </Text>
-            </View>
-          </Pressable>
+            ) : message.messageType === "media" && message.mediaAttachment?.kind === "video" ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`عرض الفيديو، ${formatBytes(message.mediaAttachment.sizeBytes)}`}
+                testID={`message-media-video-${message.id}`}
+                onPress={onViewMedia}
+                disabled={!onViewMedia || mediaLoading}
+                style={styles.videoPreview}
+              >
+                {mediaLoading ? (
+                  <ActivityIndicator color={colors.blue} />
+                ) : (
+                  <Ionicons name="play-circle" size={48} color="#FFFFFF" />
+                )}
+                <Text style={styles.videoPreviewSize}>
+                  {formatBytes(message.mediaAttachment.sizeBytes)}
+                </Text>
+              </Pressable>
+            ) : message.messageType === "media" && message.mediaAttachment ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`فتح ${message.mediaAttachment.filename}`}
+                testID={`message-media-open-${message.id}`}
+                onPress={onOpenMedia}
+                disabled={!onOpenMedia || mediaLoading}
+                style={styles.attachment}
+              >
+                {mediaLoading ? (
+                  <ActivityIndicator color={colors.blue} />
+                ) : (
+                  <Ionicons name="document-text-outline" size={24} color={colors.blue} />
+                )}
+                <View style={styles.attachmentCopy}>
+                  <Text numberOfLines={2} style={styles.attachmentName}>
+                    {message.mediaAttachment.filename}
+                  </Text>
+                  <Text style={styles.attachmentInfo}>
+                    {formatBytes(message.mediaAttachment.sizeBytes)} · فتح
+                  </Text>
+                </View>
+              </Pressable>
             ) : (
               <Text style={styles.body}>{message.body}</Text>
             )}
@@ -263,6 +288,8 @@ const styles = StyleSheet.create({
   attachmentCopy: { flex: 1, alignItems: "flex-end", gap: 5 },
   attachmentName: { color: colors.text, fontSize: 13, fontWeight: "700", textAlign: "right" },
   attachmentInfo: { color: colors.muted, fontSize: 10, textAlign: "right" },
+  videoPreview: { width: 240, height: 160, alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, backgroundColor: "#111827" },
+  videoPreviewSize: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
   locationDetails: { alignItems: "flex-end", gap: 5, minWidth: 180, paddingTop: 2 },
   locationMeta: { color: colors.muted, fontSize: 11, textAlign: "right" },
   locationOld: { color: colors.amber, fontSize: 11, fontWeight: "800", textAlign: "right" },

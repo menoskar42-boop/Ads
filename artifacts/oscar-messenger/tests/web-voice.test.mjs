@@ -52,8 +52,8 @@ test("web recording selects only supported webm or mp4 formats", () => {
 });
 
 test("composer exposes web recording only when supported and keeps native recording separate", () => {
-  assert.match(composer, /Platform\.OS === "web" && webVoiceSupported/);
-  assert.match(composer, /testID="web-voice-message-open"/);
+  assert.match(composer, /Platform\.OS !== "web" \|\| webVoiceSupported/);
+  assert.match(composer, /testID=\{Platform\.OS === "web" \? "web-voice-message-open" : "voice-message-open"\}/);
   assert.match(composer, /Platform\.OS === "web" && !webVoiceSupported/);
   assert.match(composer, /المتصفح لا يدعم تسجيل الصوت/);
   assert.match(composer, /Platform\.OS !== "web"/);

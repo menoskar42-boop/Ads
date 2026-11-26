@@ -10,7 +10,7 @@ import {
   useAudioPlayer,
   useAudioPlayerStatus,
 } from "expo-audio";
-import { File, Paths } from "expo-file-system";
+import { File } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +36,7 @@ import { AppHeader } from "../../components/AppHeader";
 import { Avatar } from "../../components/Avatar";
 import { MessageBubble } from "../../components/MessageBubble";
 import { MessageComposer } from "../../components/MessageComposer";
+import { MediaViewer, type MediaViewerItem } from "../../components/MediaViewer";
 import { ScheduleMessageModal } from "../../components/ScheduleMessageModal";
 import { ErrorText, Notice, Screen } from "../../components/Screen";
 import {
@@ -77,6 +78,11 @@ import { readableError } from "../../lib/format";
 import { colors } from "../../lib/theme";
 import { VoiceMessageModal } from "../../components/VoiceMessageModal";
 import { WebVoiceMessageModal } from "../../components/WebVoiceMessageModal";
+import {
+  getCachedMedia,
+  loadAuthenticatedMedia,
+  removeCachedMedia,
+} from "../../lib/media-preview";
 import {
   chooseWebAudioMimeType,
   webAudioPlaybackError,
@@ -166,6 +172,8 @@ type PickedAttachment = {
   webFile?: Blob;
 };
 
+type VisibleMessageToken<T> = { item: T; isViewable?: boolean };
+
 const MEDIA_CONTENT_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -229,6 +237,10 @@ export default function ChatScreen() {
     );
   }, []);
   const [mediaLoadingId, setMediaLoadingId] = useState("");
+  const [mediaPreviewStates, setMediaPreviewStates] = useState<
+    Record<string, { uri?: string; loading: boolean; error: boolean }>
+  >({});
+  const [viewerMedia, setViewerMedia] = useState<MediaViewerItem | null>(null);
   const [selectedAttachment, setSelectedAttachment] = useState<PickedAttachment | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -990,18 +1002,84 @@ export default function ChatScreen() {
     }
   };
 
+  const chooseCameraPhoto = async () => {
+    try {
+      if (Platform.OS === "web") {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.setAttribute("capture", "environment");
+        input.onchange = () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          const contentType = normalizeClientContentType(
+            file.type,
+            file.name,
+            "image/jpeg",
+          );
+          if (!contentType.startsWith("image/") || !MEDIA_CONTENT_TYPES.has(contentType)) {
+            setErrorText("اختار صورة بصيغة مدعومة.");
+            return;
+          }
+          setSelectedAttachment({
+            uri: `camera:${Date.now()}:${file.name}`,
+            filename: file.name || `صورة-${Date.now()}.${extensionFor(contentType)}`,
+            contentType,
+            sizeBytes: file.size,
+            webFile: file,
+          });
+          setErrorText("");
+        };
+        input.click();
+        return;
+      }
+
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        const openSettings = () => void Linking.openSettings().catch(() => undefined);
+        if (!permission.canAskAgain) {
+          Alert.alert("إذن الكاميرا مطلوب", "اسمح لأوسكار ميسنجر باستخدام الكاميرا من إعدادات الجهاز.", [
+            { text: "لاحقًا", style: "cancel" },
+            { text: "فتح الإعدادات", onPress: openSettings },
+          ]);
+        } else {
+          setErrorText("اسمح باستخدام الكاميرا لالتقاط صورة.");
+        }
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 1,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const contentType = normalizeClientContentType(
+        asset.mimeType || "",
+        asset.fileName || "",
+        "image/jpeg",
+      );
+      if (!contentType.startsWith("image/") || !MEDIA_CONTENT_TYPES.has(contentType)) {
+        setErrorText("نوع الصورة غير مدعوم.");
+        return;
+      }
+      setSelectedAttachment({
+        uri: asset.uri,
+        filename: asset.fileName || `صورة-${Date.now()}.${extensionFor(contentType)}`,
+        contentType,
+        sizeBytes: asset.fileSize ?? new File(asset.uri).size,
+        webFile: asset.file,
+      });
+      setErrorText("");
+    } catch (error) {
+      setErrorText(readableError(error, "تعذر فتح الكاميرا."));
+    }
+  };
+
   const chooseFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: [
-          "application/pdf",
-          "text/plain",
-          "image/jpeg",
-          "image/png",
-          "image/webp",
-          "video/mp4",
-          "video/webm",
-        ],
+        type: ["application/pdf", "text/plain"],
         copyToCacheDirectory: true,
         multiple: false,
       });
@@ -1013,7 +1091,7 @@ export default function ChatScreen() {
         "",
       );
       if (!MEDIA_CONTENT_TYPES.has(contentType)) {
-        setErrorText("نوع الملف غير مدعوم. المسموح صور وفيديوهات PDF أو TXT.");
+        setErrorText("نوع المستند غير مدعوم. المسموح PDF أو TXT.");
         return;
       }
       setSelectedAttachment({
@@ -1107,44 +1185,73 @@ export default function ChatScreen() {
     }
   };
 
+  const loadMessageMedia = async (message: Message) => {
+    const attachment = message.mediaAttachment;
+    if (!attachment) return undefined;
+    const cached = getCachedMedia(message.id);
+    if (cached) {
+      setMediaPreviewStates((current) => ({
+        ...current,
+        [message.id]: {
+          uri: cached.uri,
+          loading: attachment.kind === "image",
+          error: false,
+        },
+      }));
+      return cached;
+    }
+    setMediaPreviewStates((current) => ({
+      ...current,
+      [message.id]: { ...current[message.id], loading: true, error: false },
+    }));
+    try {
+      const media = await loadAuthenticatedMedia({
+        messageId: message.id,
+        url: attachment.url,
+        filename: attachment.filename,
+        contentType: attachment.contentType,
+        kind: attachment.kind,
+        getToken,
+      });
+      setMediaPreviewStates((current) => ({
+        ...current,
+        [message.id]: {
+          uri: media.uri,
+          loading: attachment.kind === "image",
+          error: false,
+        },
+      }));
+      return media;
+    } catch {
+      setMediaPreviewStates((current) => ({
+        ...current,
+        [message.id]: { loading: false, error: true },
+      }));
+      throw new Error("تعذر تحميل المرفق.");
+    }
+  };
+
   const openMedia = async (message: Message) => {
     const attachment = message.mediaAttachment;
     if (!attachment) return;
     setMediaLoadingId(message.id);
     try {
-      const token = await getToken();
-      if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
-      const response = await expoFetch(apiUrl(attachment.url), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error || "تعذر فتح المرفق.");
-      }
-      const bytes = new Uint8Array(await response.arrayBuffer());
+      const media = getCachedMedia(message.id) ?? await loadMessageMedia(message);
+      if (!media) throw new Error("تعذر فتح المرفق.");
       if (Platform.OS === "web") {
-        const blobUrl = URL.createObjectURL(
-          new Blob([bytes], { type: attachment.contentType }),
-        );
         const link = document.createElement("a");
-        link.href = blobUrl;
+        link.href = media.uri;
         link.download = safeFilename(attachment.filename);
         link.rel = "noopener";
         link.click();
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
       } else {
-        const localFile = new File(
-          Paths.cache,
-          `${Crypto.randomUUID()}-${safeFilename(attachment.filename)}`,
-        );
-        await localFile.write(bytes);
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(localFile.uri, {
+          await Sharing.shareAsync(media.uri, {
             mimeType: attachment.contentType,
             dialogTitle: attachment.filename,
           });
         } else {
-          await File.preview(localFile, { mimeType: attachment.contentType });
+          await File.preview(new File(media.uri), { mimeType: attachment.contentType });
         }
       }
     } catch (error) {
@@ -1153,6 +1260,47 @@ export default function ChatScreen() {
       setMediaLoadingId("");
     }
   };
+
+  const openMediaViewer = async (message: Message) => {
+    const attachment = message.mediaAttachment;
+    if (!attachment || attachment.kind === "file") return;
+    if (attachment.kind === "video" && Platform.OS !== "web") {
+      await openMedia(message);
+      return;
+    }
+    setMediaLoadingId(message.id);
+    try {
+      const media = getCachedMedia(message.id) ?? await loadMessageMedia(message);
+      if (!media) return;
+      setViewerMedia({
+        ...media,
+        senderName: message.senderId === userId ? "أنت" : displayedName,
+        createdAt: message.createdAt,
+      });
+      setErrorText("");
+    } catch {
+      setErrorText("تعذر تحميل المرفق. حاول مرة أخرى.");
+    } finally {
+      setMediaLoadingId("");
+    }
+  };
+
+  const loadVisibleImage = useRef<(message: Message) => void>(() => undefined);
+  loadVisibleImage.current = (message) => {
+    if (message.messageType !== "media" || message.mediaAttachment?.kind !== "image") {
+      return;
+    }
+    void loadMessageMedia(message).catch(() => undefined);
+  };
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: VisibleMessageToken<Message>[] }) => {
+      for (const token of viewableItems) {
+        if (!token.isViewable) continue;
+        loadVisibleImage.current(token.item);
+      }
+    },
+  ).current;
+  const mediaViewabilityConfig = useRef({ itemVisiblePercentThreshold: 20 }).current;
 
   const reactToMessage = async (message: Message) => {
     try {
@@ -1524,6 +1672,8 @@ export default function ChatScreen() {
             data={ordered}
             inverted
             keyExtractor={(item) => item.id}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={mediaViewabilityConfig}
             renderItem={({ item }) => (
               <MessageBubble
                 message={item}
@@ -1540,11 +1690,42 @@ export default function ChatScreen() {
                 }
                 audioLoading={audioLoadingId === item.id}
                 mediaLoading={mediaLoadingId === item.id}
+                mediaPreview={mediaPreviewStates[item.id]}
                 onOpenMedia={
-                  item.messageType === "media"
+                  item.messageType === "media" && item.mediaAttachment?.kind === "file"
                     ? () => void openMedia(item)
                     : undefined
                 }
+                onViewMedia={
+                  item.messageType === "media" &&
+                  (item.mediaAttachment?.kind === "image" ||
+                    item.mediaAttachment?.kind === "video")
+                    ? () => void openMediaViewer(item)
+                    : undefined
+                }
+                onRetryMedia={
+                  item.messageType === "media" && item.mediaAttachment?.kind === "image"
+                    ? () => void loadMessageMedia(item).catch(() => undefined)
+                    : undefined
+                }
+                onImageLoaded={() => {
+                  setMediaPreviewStates((current) => ({
+                    ...current,
+                    [item.id]: {
+                      ...current[item.id],
+                      uri: current[item.id]?.uri,
+                      loading: false,
+                      error: false,
+                    },
+                  }));
+                }}
+                onImageError={() => {
+                  removeCachedMedia(item.id);
+                  setMediaPreviewStates((current) => ({
+                    ...current,
+                    [item.id]: { loading: false, error: true },
+                  }));
+                }}
                 onReply={
                   featureCapability.data?.enabled
                     ? () => setReplyTo(item)
@@ -1695,6 +1876,7 @@ export default function ChatScreen() {
             onSchedule={() => setScheduleVisible(true)}
             onPickMedia={() => void chooseMedia()}
             onPickFile={() => void chooseFile()}
+            onTakePhoto={() => void chooseCameraPhoto()}
             busy={send.isPending}
             onVoicePress={() => setVoiceVisible(true)}
             webVoiceSupported={!!webVoiceMimeType}
@@ -1825,6 +2007,25 @@ export default function ChatScreen() {
           onSend={sendVoiceMessage}
         />
       )}
+      <MediaViewer
+        media={viewerMedia}
+        onClose={() => setViewerMedia(null)}
+        onSave={() => {
+          const message = ordered.find((item) => item.id === viewerMedia?.messageId);
+          if (message) void openMedia(message);
+        }}
+        onForward={
+          viewerMedia
+            ? () => {
+                const message = ordered.find((item) => item.id === viewerMedia.messageId);
+                if (!message) return;
+                setViewerMedia(null);
+                setForwardDestinationId("");
+                setForwardingMessage(message);
+              }
+            : undefined
+        }
+      />
       <Modal
         visible={!!forwardingMessage}
         transparent
