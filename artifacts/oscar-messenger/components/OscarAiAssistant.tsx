@@ -314,6 +314,31 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
     }
   }, [armSilenceEnd, clearSilenceTimer, getToken]);
 
+  // Starting by voice («أوسكار») has no tap, so unlock audio on the first touch anywhere in
+  // the app (iPhone and Android Chrome both block audio until a user gesture). The unlocked
+  // context is suspended again right away and resumed when a session starts.
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const unlock = () => {
+      document.removeEventListener("pointerdown", unlock, true);
+      document.removeEventListener("touchend", unlock, true);
+      if (primedContext.current && primedContext.current.state !== "closed") return;
+      primeAudio();
+      const primed = primedContext.current;
+      if (primed) {
+        void primed.resume()
+          .then(() => (socket.current ? undefined : primed.suspend()))
+          .catch(() => undefined);
+      }
+    };
+    document.addEventListener("pointerdown", unlock, true);
+    document.addEventListener("touchend", unlock, true);
+    return () => {
+      document.removeEventListener("pointerdown", unlock, true);
+      document.removeEventListener("touchend", unlock, true);
+    };
+  }, [primeAudio]);
+
   const beginSession = useCallback(() => {
     primeAudio();
     if (!hasOscarAiGoogleConsent()) {

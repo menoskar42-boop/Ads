@@ -57,3 +57,12 @@ test("Gemini Live binary frames are decoded (setupComplete arrives as ArrayBuffe
   assert.match(source, /parseLiveMessage\(event\.data\)\?\.setupComplete/);
   assert.doesNotMatch(source, /JSON\.parse\(String\(event\.data\)\)/);
 });
+
+test("audio is unlocked inside a user gesture on iPhone and Android (tap, consent, or first touch)", () => {
+  const source = readFileSync(new URL("../components/OscarAiAssistant.tsx", import.meta.url), "utf8");
+  assert.match(source, /const beginSession = useCallback\(\(\) => \{\n\s+primeAudio\(\);/);
+  assert.match(source, /const acceptConsent = \(\) => \{\n\s+primeAudio\(\);/);
+  assert.match(source, /document\.addEventListener\("pointerdown", unlock, true\)/);
+  assert.match(source, /primed && primed\.state !== "closed" \? primed : new AudioContextCtor\(\)/);
+  assert.match(source, /if \(audioContext\.state !== "running"\)/);
+});
