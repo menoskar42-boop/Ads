@@ -2,7 +2,7 @@
 // @name         Customer360 Account Grabber (Service-Flow)
 // @namespace    service-flow.customer360
 // @description  يفتح Customer360، يستنى تسجيل الدخول، يدخل رقم التليفون الكامل من تقرير Service-Flow، يستنى حل البازل يدوياً، يقرأ رقم الأكونت، يحفظه فى الموقع + شيت CSV. سكربت مستقل تماماً عن سكربتات DZS/FCC القديمة. v1.5.0: كل نتيجة بتتكتب فى الطابور قبل ما تتبعت، وبتتمسح بس لما السيرفر يستلمها — ورقمها (sf_eid) بيمنع إنها تتسجّل مرتين لو الرد ضاع أو التاب اتقفل. وعلامة برتقانى تحت على الشمال بتبيّن كام نتيجة لسه مستنية (ماتمسحش السكربت وهى ظاهرة). v1.4.0: بيبعت لـService-Flow على أكتر من باب بالترتيب (oscardevs.com ← ريبليت ← serviceflow.oscardevs.com) وبيثبت على أول واحد يرد — ريبليت اتحظر على شبكة الشركة. ولو كلهم مقفولين، النتيجة بتتخزّن وتتبعت لوحدها أول ما باب يرجع.
-// @version      1.5.0
+// @version      1.5.1
 // @match        https://customer360.te.eg/*
 // @connect      oscardevs.com
 // @connect      service-flow-menoskar42.replit.app
@@ -177,7 +177,22 @@
   }
   const SF_API_BASE = sfBase();
   // لازم يطابق C360_INGEST_TOKEN فى السيرفر (server/routes.ts)
-  const SF_INGEST_TOKEN = "sf-c360-account-ingest-2026";
+  let sfIngestTokenResolved = false;
+  let sfIngestTokenValue = "";
+  function getSFIngestToken() {
+    if (sfIngestTokenResolved) return sfIngestTokenValue;
+    sfIngestTokenResolved = true;
+    const saved = String(sfStore.get("c360_ingest_token", "") || "").trim();
+    if (saved) {
+      sfIngestTokenValue = saved;
+      return sfIngestTokenValue;
+    }
+    const entered = window.prompt("أدخل رمز ربط Customer360 مع Service-Flow (سيُحفظ محلياً مرة واحدة):");
+    if (entered == null) return "";
+    sfIngestTokenValue = entered.trim();
+    if (sfIngestTokenValue) sfStore.set("c360_ingest_token", sfIngestTokenValue);
+    return sfIngestTokenValue;
+  }
   const SF_AUTO_UPLOAD = true; // false لو عايزة CSV فقط من غير رفع تلقائى
 
   // مهلة انتظار حل البازل + ظهور النتيجة لكل رقم (دقايق) — البازل بيتحل يدوياً فممكن ياخد وقت
@@ -274,10 +289,12 @@
   /* ================== POST TO SERVICE-FLOW ================== */
   function postToServiceFlow(fullPhone, accountNo) {
     if (!SF_AUTO_UPLOAD || !SF_API_BASE || !accountNo) return;
+    const ingestToken = getSFIngestToken();
+    if (!ingestToken) return;
     try {
       sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/line-accounts/ingest", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-C360-Token": SF_INGEST_TOKEN },
+        headers: { "Content-Type": "application/json", "X-C360-Token": ingestToken },
         body: JSON.stringify({ items: [{ fullPhone, accountNo }] }),
       }).then(r => r.json()).then(j => console.log("☁️ حُفظ فى الموقع:", fullPhone, "→", accountNo, j))
         .catch(e => console.warn("☁️ فشل الحفظ فى الموقع:", e));
@@ -288,10 +305,12 @@
   // (نفس منطق الدايرة الحمراء جنب خانة الأكونت — الخط يختفى من تقرير «خطوط بدون رقم أكونت»)
   function markNoAccountOnSite(fullPhone) {
     if (!SF_AUTO_UPLOAD || !SF_API_BASE || !fullPhone) return;
+    const ingestToken = getSFIngestToken();
+    if (!ingestToken) return;
     try {
       sfFetch(SF_API_BASE.replace(/\/+$/, "") + "/api/line-accounts/ingest", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-C360-Token": SF_INGEST_TOKEN },
+        headers: { "Content-Type": "application/json", "X-C360-Token": ingestToken },
         body: JSON.stringify({ items: [{ fullPhone, notExist: true }] }),
       }).then(r => r.json()).then(j => console.log("🚫 اتعلّم بدون أكونت فى الموقع:", fullPhone, j))
         .catch(e => console.warn("🚫 فشل تعليم بدون أكونت:", e));
