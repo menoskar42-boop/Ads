@@ -33,7 +33,6 @@ import {
 import * as SecureStore from "expo-secure-store";
 import { useFocusEffect } from "expo-router";
 import { KeyboardAvoidingView as ControllerKeyboardAvoidingView } from "react-native-keyboard-controller";
-import { AppHeader } from "../../components/AppHeader";
 import { Avatar } from "../../components/Avatar";
 import { MessageBubble } from "../../components/MessageBubble";
 import { MessageComposer } from "../../components/MessageComposer";
@@ -1570,14 +1569,44 @@ export default function ChatScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <AppHeader
-          title=""
-          onBack={() => {
-            if (router.canGoBack()) router.back();
-            else router.replace("/");
-          }}
-        />
-        <View style={styles.peer} pointerEvents="box-none">
+        <View style={styles.headerRow} testID="chat-header">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="رجوع"
+            testID="chat-header-back"
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace("/");
+            }}
+            style={({ pressed }) => [
+              styles.headerBackButton,
+              pressed && styles.forwardDisabled,
+            ]}
+          >
+            <Text style={styles.headerBack}>‹</Text>
+          </Pressable>
+          {peer && <Avatar name={displayedName} uri={peer.avatarUrl} size={40} />}
+          {peer && (
+            <View style={styles.peerCopy}>
+              <Text
+                style={styles.peerName}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {displayedName}
+              </Text>
+              {!!peerPresenceLabel && (
+                <Text
+                  style={styles.peerStatus}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {peerPresenceLabel}
+                </Text>
+              )}
+            </View>
+          )}
+          <View style={styles.headerFlexibleSpace} />
           {peer && webCallSupported && (
             <Pressable
               accessibilityRole="button"
@@ -1609,31 +1638,6 @@ export default function ChatScreen() {
               <Text style={styles.conversationMenuText}>⋮</Text>
             </Pressable>
           )}
-          {peer && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="اسم خاص بيك"
-              testID="contact-nickname-open"
-              onPress={() => {
-                setNicknameDraft(peer.nickname || "");
-                setNicknameError("");
-                setNicknameModalVisible(true);
-              }}
-              style={({ pressed }) => [
-                styles.nicknameMenuButton,
-                pressed && styles.forwardDisabled,
-              ]}
-            >
-              <Text style={styles.nicknameMenuText}>اسم خاص بيك</Text>
-            </Pressable>
-          )}
-          <View style={styles.peerCopy}>
-            <Text style={styles.peerName} numberOfLines={1}>{displayedName}</Text>
-            {!!peerPresenceLabel && (
-              <Text style={styles.peerStatus}>{peerPresenceLabel}</Text>
-            )}
-          </View>
-          <Avatar name={displayedName} uri={peer?.avatarUrl} size={42} />
         </View>
       </View>
       <ControllerKeyboardAvoidingView
@@ -2154,6 +2158,19 @@ export default function ChatScreen() {
             <Text style={styles.forwardTitle}>خيارات المحادثة</Text>
             <Pressable
               accessibilityRole="button"
+              testID="contact-nickname-open"
+              onPress={() => {
+                setConversationMenuVisible(false);
+                setNicknameDraft(peer?.nickname || "");
+                setNicknameError("");
+                setNicknameModalVisible(true);
+              }}
+              style={styles.actionMenuItem}
+            >
+              <Text style={styles.actionMenuText}>اسم خاص بيك</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
               testID="conversation-block-action"
               onPress={() => {
                 setConversationMenuVisible(false);
@@ -2516,15 +2533,16 @@ function formatBytes(bytes: number): string {
 }
 
 const styles = StyleSheet.create({
-  header: { backgroundColor: colors.background, zIndex: 1 },
-  peer: { height: 56, position: "absolute", top: 1, left: 60, right: 60, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
-  peerCopy: { flex: 1, alignItems: "flex-end", gap: 2 },
-  peerName: { color: colors.text, fontWeight: "800", fontSize: 16, textAlign: "right" },
-  peerStatus: { color: colors.muted, fontSize: 11, textAlign: "right" },
-  nicknameMenuButton: { minHeight: 34, justifyContent: "center", borderRadius: 10, paddingHorizontal: 9, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
-  nicknameMenuText: { color: colors.blue, fontSize: 11, fontWeight: "700" },
-  conversationMenuButton: { width: 34, height: 38, alignItems: "center", justifyContent: "center" },
-  callButton: { width: 36, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: colors.surfaceRaised },
+  header: { backgroundColor: colors.background, zIndex: 1, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerRow: { minHeight: 58, paddingHorizontal: 10, flexDirection: "row-reverse", alignItems: "center", gap: 6 },
+  headerBackButton: { width: 40, height: 40, borderRadius: 13, justifyContent: "center", alignItems: "center", backgroundColor: colors.surfaceRaised },
+  headerBack: { color: colors.text, fontSize: 28, marginTop: -3, transform: [{ scaleX: -1 }] },
+  peerCopy: { flexShrink: 1, minWidth: 0, alignItems: "flex-end", gap: 2 },
+  peerName: { color: colors.text, fontWeight: "800", fontSize: 16, textAlign: "right", flexShrink: 1 },
+  peerStatus: { color: colors.muted, fontSize: 11, textAlign: "right", flexShrink: 1 },
+  headerFlexibleSpace: { flex: 1, minWidth: 8 },
+  conversationMenuButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  callButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: colors.surfaceRaised },
   conversationMenuText: { color: colors.text, fontSize: 24, fontWeight: "800", lineHeight: 26 },
   chat: { flex: 1 },
   messages: { paddingTop: 12, paddingBottom: 16, flexGrow: 1, justifyContent: "flex-end" },

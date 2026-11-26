@@ -9,7 +9,8 @@ test("the call button is web-only, requires WebRTC, and stays inside the safe he
   const chat = readFileSync(chatPath, "utf8");
   assert.match(chat, /Platform\.OS === "web"[\s\S]*typeof RTCPeerConnection !== "undefined"/);
   assert.match(chat, /testID="call-start"/);
-  assert.match(chat, /peer: \{[^}]*left: 60, right: 60/);
+  assert.match(chat, /headerRow: \{[^}]*flexDirection: "row-reverse"/);
+  assert.match(chat, /callButton: \{[^}]*width: 40, height: 40/);
 });
 
 test("calls request audio only, use caller offer/callee answer, and exchange trickled ICE", () => {
