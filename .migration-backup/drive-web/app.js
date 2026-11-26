@@ -784,6 +784,24 @@
   let callPending = null;   // { name, how, at }
   const getContactSpelling = RD.createContactSpellingCache();
   const CT_KEY = () => RD.contactStorageKey(token);
+  const CONTACT_SPELLING_KEY = 'od_contact_spelling_external';
+  let allowExternalContactSpelling = true;
+  try {
+    const savedSpellingPreference = localStorage.getItem(CONTACT_SPELLING_KEY);
+    if (savedSpellingPreference !== null) allowExternalContactSpelling = savedSpellingPreference === '1';
+  } catch (e) {}
+  $('contactSpellingExternal').checked = allowExternalContactSpelling;
+  $('contactSpellingExternal').addEventListener('change', (event) => {
+    allowExternalContactSpelling = !!event.currentTarget.checked;
+    try {
+      localStorage.setItem(CONTACT_SPELLING_KEY, allowExternalContactSpelling ? '1' : '0');
+      $('contactSpellingStatus').textContent = allowExternalContactSpelling
+        ? 'اقتراح التهجئة الخارجية مفعّل. يُرسل الاسم العربي وحده عند عدم وجود جهة محلية.'
+        : 'اقتراح التهجئة الخارجية متوقف؛ مطابقة جهات الاتصال المحلية ما زالت تعمل.';
+    } catch (e) {
+      $('contactSpellingStatus').textContent = 'لم يسمح المتصفح بحفظ الاختيار؛ سيظل ساريًا حتى إغلاق الصفحة.';
+    }
+  });
   const CT_MAX_CONTACTS = RD.MAX_IMPORTED_CONTACTS;
   const CT_MAX_RECORDS = CT_MAX_CONTACTS * 2;
   const CT_RENDER_PAGE = 200;
@@ -1142,13 +1160,14 @@
     sayRoad(how ? 'هتصل ب' + name + (how === 'wa' ? ' واتساب' : '') + '. تأكد؟' : name + '. تليفون ولا واتساب؟');
     // طلب اقتراح الهجاء يرسل الاسم العربي وحده فقط؛ لا يُرسل رقم هاتف أو ملف/قائمة جهات اتصال.
     $('callOpts').textContent = '';
-    const nameRequest = RD.contactNameRequest(name, contactChoices);
+    const nameRequest = RD.contactNameRequest(name, contactChoices, allowExternalContactSpelling);
     if (nameRequest) {
       const asked = callPending;
       getContactSpelling(name, () => RD.sendContactNameRequest(
         name,
         contactChoices,
         (path, body) => api('POST', path, body),
+        allowExternalContactSpelling,
       )).then((latin) => {
         if (!latin || callPending !== asked) return;
         const b = document.createElement('button'); b.textContent = '📞 ' + latin + (how === 'wa' ? ' (واتساب)' : '');

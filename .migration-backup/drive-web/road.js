@@ -439,14 +439,14 @@
     return (Array.isArray(contacts) ? contacts : []).filter((contact) => contact && contact.whatsapp !== false);
   }
   /** اقتراح هجاء لاتيني: لا يرسل شيئًا لو فيه قائمة محلية أو رقم هاتف محتمل. */
-  function contactNameRequest(name, contacts) {
+  function contactNameRequest(name, contacts, allowExternal = true) {
     const cleanName = String(name || '').trim();
-    if (!cleanName || cleanName.length > 60 || (Array.isArray(contacts) && contacts.length)
+    if (!allowExternal || !cleanName || cleanName.length > 60 || (Array.isArray(contacts) && contacts.length)
       || !/[\u0600-\u06FF]/.test(cleanName) || Array.from(cleanName.matchAll(/\p{N}/gu)).length >= 7) return null;
     return { path: '/api/web/contact-name', body: { name: cleanName } };
   }
-  function sendContactNameRequest(name, contacts, send) {
-    const request = contactNameRequest(name, contacts);
+  function sendContactNameRequest(name, contacts, send, allowExternal = true) {
+    const request = contactNameRequest(name, contacts, allowExternal);
     if (!request || typeof send !== 'function') return null;
     return send(request.path, request.body);
   }

@@ -433,9 +433,16 @@ body.solo .carOnly { display:none !important; }
       <details class="note"><summary>📞 الاتصال الصوتي وجهات الاتصال</summary>
         <p class="note">على Safari تقدر تستورد ملف vCard؛ الملف نفسه لا يُرفع. الأسماء والأرقام تفضل محلية حتى توافق على المزامنة. عند تفعيلها تُحفظ الجهات على خادم أوسكار وتظهر للأجهزة المرتبطة بالسيارة نفسها فقط. اختصار «Oscar Call» يظل بديلًا على الآيفون. <a href="https://claude.ai/artifact/RnS3AgBbLusdkh9o7wF4Kf" target="_blank" rel="noopener">خطوات إعداد الاختصار</a>.</p>
         <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="callWa"> 🟢 واتساب ضمن اختيارات الاتصال (محتاج اختصار «Oscar WhatsApp»)</label>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:8px">
+          <input type="checkbox" id="contactSpellingExternal">
+          السماح باقتراح تهجئة الاسم العربي خارجيًا (الاسم وحده)
+        </label>
+        <p class="note" id="contactSpellingStatus" role="status" aria-live="polite">
+          يمكنك إيقاف الاقتراح الخارجي؛ تظل مطابقة جهات الاتصال المحلية متاحة.
+        </p>
         <button id="callTestBtn" style="width:100%;margin-top:6px">جرّب الاتصال باسم تكتبه</button>
         <p class="note" id="ctSpellingPrivacyNote" role="note" style="margin:8px 0;padding:8px;border-inline-start:3px solid #14b8a6;background:var(--surface2);border-radius:8px;color:var(--ink)">
-          <b>خصوصية اقتراح التهجئة:</b> قد يُرسل الاسم العربي وحده لاقتراح كتابته باللاتينية؛ لا يُرسل رقم الهاتف أو ملف vCard، ولا تُرفع قائمة الأسماء لهذا الاقتراح.
+          <b>خصوصية اقتراح التهجئة:</b> عند السماح به، يُرسل الاسم العربي وحده لاقتراح كتابته باللاتينية؛ لا يُرسل رقم الهاتف أو ملف vCard ولا يُرفع الاختيار إلى الخادم.
         </p>
         <div class="row" style="gap:6px;flex-wrap:wrap">
           <button id="ctSyncNow" type="button" style="flex:1">🔄 زامن مع شاشة العربية</button>

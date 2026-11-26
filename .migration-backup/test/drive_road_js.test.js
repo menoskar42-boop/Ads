@@ -134,6 +134,27 @@ test('Arabic contact spelling fallback sends only the name when no local contact
   assert.equal(R.contactNameRequest('ماذر موبايل 01012345678', []), null);
   assert.equal(R.contactNameRequest('ماذر موبايل ٠١٠١٢٣٤٥٦٧٨', []), null);
   assert.equal(R.contactNameRequest('Mother Mobile', []), null);
+  assert.equal(R.contactNameRequest('ماذر موبايل', [], false), null);
+  assert.deepEqual(R.contactNameRequest('ماذر موبايل', [], true), {
+    path: '/api/web/contact-name',
+    body: { name: 'ماذر موبايل' },
+  });
+  assert.equal(R.contactNameRequest('ماذر موبايل', [{ name: 'محلي', tels: ['local-only'] }], false), null);
+});
+test('external spelling preference stays local and does not alter local contact matching', () => {
+  const app = fs.readFileSync(path.join(__dirname, '../drive-web/app.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '../drive-web/index.html'), 'utf8');
+  const localContacts = [{ name: 'اسم محلي', tels: ['local-only'] }];
+  assert.match(app, /od_contact_spelling_external/);
+  assert.match(app, /contactNameRequest\(name, contactChoices, allowExternalContactSpelling\)/);
+  assert.match(app, /allowExternalContactSpelling,\s*\)/);
+  assert.match(html, /id="contactSpellingExternal"/);
+  assert.match(html, /السماح باقتراح تهجئة الاسم العربي خارجيًا/);
+  assert.doesNotMatch(app, /api\([^)]*CONTACT_SPELLING_KEY/);
+  assert.deepEqual(R.matchContacts(localContacts, 'اسم محلي'), localContacts);
+  assert.equal(R.sendContactNameRequest('اسم محلي', localContacts, () => {
+    throw new Error('must not make an external request');
+  }, false), null);
 });
 test('actual spelling request transport sends just each requested name, not a contact payload', async () => {
   const calls = [];
