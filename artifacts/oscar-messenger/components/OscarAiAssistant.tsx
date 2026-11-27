@@ -35,7 +35,7 @@ import { hasOscarWake, isOscarAiExitPhrase, isOscarWakeOnly } from "../lib/oscar
 import { colors } from "../lib/theme";
 
 const MAX_SESSION_MS = 5 * 60_000;
-const SILENCE_END_MS = 8_000;
+const SILENCE_END_MS = 15_000;
 const INPUT_RATE = 16_000;
 const OUTPUT_RATE = 24_000;
 const SYSTEM_INSTRUCTION =
@@ -221,7 +221,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
     silenceTimer.current = setTimeout(() => {
       if (recording.current) return; // recording a voice message: the recorder decides when to stop
       // Say why the session ended instead of silently returning to the button.
-      if (!heardReply.current) setError("Oscar AI ماسمعش كلام لمدة ٨ ثوانى فقفل. اتكلم أول ما يقول «بيسمع».");
+      if (!heardReply.current) setError("Oscar AI ماسمعش كلام لمدة ١٥ ثانية فقفل. اتكلم أول ما يقول «بيسمع».");
       stopRef.current();
     }, SILENCE_END_MS);
   }, [clearSilenceTimer]);
@@ -487,7 +487,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
             for (let index = 0; index < input.length; index += 1) {
               energy += input[index] * input[index];
             }
-            const speaking = Math.sqrt(energy / input.length) > 0.012;
+            const speaking = Math.sqrt(energy / input.length) > 0.003;
             if (speaking) clearSilenceTimer();
             const takingMessage = recording.current;
             if (takingMessage) {
