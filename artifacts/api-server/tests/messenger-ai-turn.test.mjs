@@ -97,7 +97,10 @@ test("history never accepts audio or files, and size is bounded", () => {
 });
 
 test("search falls back once on 400, never retries 429", async () => {
-  let n = 0;
+  const previousSearch = process.env.GEMINI_TURN_SEARCH;
+  process.env.GEMINI_TURN_SEARCH = "on";
+  try {
+    let n = 0;
   const fetcher = async (_url, init) => {
     n += 1;
     const body = JSON.parse(init.body);
@@ -111,7 +114,11 @@ test("search falls back once on 400, never retries 429", async () => {
   const result = await listenAndRespond("key", Buffer.from("a"), "audio/webm", [], {}, busy.fetcher);
   assert.equal(result.status, 429);
   assert.equal(busy.calls.length, 1);
-  assert.match(buildTurnRequest([], {}, false, true).systemInstruction.parts[0].text, /مفيش بحث جوجل/);
+    assert.match(buildTurnRequest([], {}, false, true).systemInstruction.parts[0].text, /مفيش بحث جوجل/);
+  } finally {
+    if (previousSearch === undefined) delete process.env.GEMINI_TURN_SEARCH;
+    else process.env.GEMINI_TURN_SEARCH = previousSearch;
+  }
 });
 
 test("missing key, empty audio and bad framing fail cleanly", async () => {
