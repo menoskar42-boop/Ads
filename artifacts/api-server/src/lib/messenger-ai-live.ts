@@ -38,41 +38,33 @@ export function buildGeminiLiveSetup(options: GeminiLiveOptions = {}) {
   const isoNow = new Date().toISOString();
   const searchEnabled =
     options.search ?? process.env.GEMINI_LIVE_SEARCH !== "off";
-  const voiceMessages = options.messageMode !== "text";
-  const messageTool = voiceMessages
-    ? {
-        name: "record_voice_message",
-        description:
-          "يسجّل رسالة صوتية بصوت المستخدم نفسه ويبعتها لجهة اتصال فى Oscar Messenger.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            contact_name: {
-              type: "STRING",
-              description: "اسم الشخص زى ما المستخدم قاله",
-            },
-          },
-          required: ["contact_name"],
+  const messageTools = [
+    {
+      name: "send_message",
+      description: "يبعت رسالة نصية لجهة اتصال فى Oscar Messenger بعد موافقة المستخدم.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          contact_name: { type: "STRING", description: "اسم الشخص زى ما المستخدم قاله" },
+          text: { type: "STRING", description: "نص الرسالة بالظبط" },
         },
-      }
-    : {
-        name: "send_message",
-        description: "يبعت رسالة نصية لجهة اتصال فى Oscar Messenger.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            contact_name: {
-              type: "STRING",
-              description: "اسم الشخص زى ما المستخدم قاله",
-            },
-            text: { type: "STRING", description: "نص الرسالة بالظبط" },
-          },
-          required: ["contact_name", "text"],
+        required: ["contact_name", "text"],
+      },
+    },
+    {
+      name: "record_voice_message",
+      description: "يسجّل رسالة بصوت المستخدم نفسه ويرسلها لجهة اتصال بعد موافقته.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          contact_name: { type: "STRING", description: "اسم الشخص زى ما المستخدم قاله" },
         },
-      };
-  const messageRule = voiceMessages
-    ? " لما المستخدم يطلب يبعت رسالة لحد: قوله «اتكلم بعد الصفارة» وندّه record_voice_message بالاسم بس. التطبيق بيسجّل صوته هو ويبعته."
-    : " لما المستخدم يطلب يبعت رسالة لحد: اكتب النص، اقراه عليه، واستنى موافقته الصريحة («أيوه» أو «ابعت») قبل ما تندّه send_message.";
+        required: ["contact_name"],
+      },
+    },
+  ];
+  const messageRule =
+    " لما المستخدم يطلب يرسل رسالة، اختار الأداة حسب طلبه: send_message لو عايز رسالة مكتوبة، أو record_voice_message لو عايز يسجل بصوته. فى النص المكتوب اكتب الرسالة واعرضها للمستخدم. فى الصوت وضّح إن التسجيل بصوته هو. التطبيق هيطلب موافقته الصريحة قبل الإرسال أو بدء التسجيل.";
   const scheduleTool = {
     name: "schedule_message",
     description:
@@ -120,7 +112,7 @@ export function buildGeminiLiveSetup(options: GeminiLiveOptions = {}) {
     inputAudioTranscription: {},
     tools: [
       ...(searchEnabled ? [{ googleSearch: {} }] : []),
-      { functionDeclarations: [messageTool, scheduleTool] },
+      { functionDeclarations: [...messageTools, scheduleTool] },
     ],
   };
 }
