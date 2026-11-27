@@ -260,6 +260,10 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
     const streamRef = useRef<MediaStream | null>(null);
     const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
     const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+    // Keep every incoming audio track in one stream. The call assistant adds a second
+    // audio track on a separate MediaStream, so assigning event.streams[0] per event
+    // would replace the other participant's microphone with the assistant's silent track.
+    const remoteMediaStreamRef = useRef<MediaStream | null>(null);
     const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
     const localVideoRef = useRef<HTMLVideoElement | null>(null);
     const facingModeRef = useRef<"user" | "environment">("user");
@@ -382,6 +386,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
         audio.pause();
         audio.srcObject = null;
       }
+      remoteMediaStreamRef.current = null;
       for (const video of [remoteVideoRef.current, localVideoRef.current]) {
         if (video) video.srcObject = null;
       }
@@ -530,15 +535,21 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       });
       const oscarStream = oscarCallAssistant.outgoingStream();
       oscarStream?.getAudioTracks().forEach((track) => connection.addTrack(track, oscarStream));
+      // WebRTC can deliver the participant microphone and Oscar's assistant audio
+      // as separate streams. Merge tracks instead of replacing srcObject on each event.
+      const remoteStream = new MediaStream();
+      remoteMediaStreamRef.current = remoteStream;
       connection.ontrack = (event) => {
+        if (!remoteStream.getTracks().some((track) => track.id === event.track.id)) {
+          remoteStream.addTrack(event.track);
+        }
         if (event.track.kind === "audio") oscarCallAssistant.setRemoteTrack(event.track);
-        const remoteStream = event.streams[0] ?? new MediaStream([event.track]);
         // Audio always plays through the hidden <audio>; the <video> stays muted.
         const remoteAudio = remoteAudioRef.current;
         if (remoteAudio && remoteAudio.srcObject !== remoteStream) {
           remoteAudio.srcObject = remoteStream;
-          void remoteAudio.play().catch(() => undefined);
         }
+        if (remoteAudio) void remoteAudio.play().catch(() => undefined);
         if (event.track.kind === "video") {
           setRemoteHasVideo(true);
           const remoteVideo = remoteVideoRef.current;
