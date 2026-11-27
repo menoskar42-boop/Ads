@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "../lib/api";
 import { frameTurnBody } from "../lib/oscar-ai-turn";
 import { baseMessengerAudioContentType, chooseWebAudioMimeType } from "../lib/web-voice";
-import { readOscarAiVoice } from "../lib/oscar-ai-preferences";
+import { readOscarAiCallOwnerName, readOscarAiVoice } from "../lib/oscar-ai-preferences";
 import { buildOscarCallGreeting } from "../lib/oscar-call-greeting";
 
 export type OscarCallStatus = "off" | "listening" | "thinking" | "speaking" | "error";
@@ -155,7 +155,7 @@ export function useOscarCallAssistant({ getToken, userName }: Options) {
     setEnabled(true);
     setStatus("speaking");
     try {
-      await speak(buildOscarCallGreeting(userName, new Date()), true);
+      await speak(buildOscarCallGreeting(readOscarAiCallOwnerName() || userName, new Date()), true);
     } catch {
       if (enabledRef.current) setStatus("error");
     }
