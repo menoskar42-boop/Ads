@@ -353,7 +353,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
     } catch (toolError) {
       return { error: toolError instanceof Error ? toolError.message : "تعذر إرسال الرسالة." };
     }
-  }, [getToken, recordVoiceMessage]);
+  }, [getToken, recordVoiceMessage, requestConfirmation]);
   runToolRef.current = runMessageTool;
   const turnStart = turn.start;
 
