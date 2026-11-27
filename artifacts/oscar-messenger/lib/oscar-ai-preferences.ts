@@ -101,6 +101,21 @@ export function writeOscarAiMessageMode(mode: OscarAiMessageMode): void {
   }
 }
 
+const TTS_PROVIDER_KEY = "messenger.oscar-ai.tts-provider.v1";
+export type OscarAiTtsProvider = "web-speech" | "gemini-tts";
+
+export function readOscarAiTtsProvider(): OscarAiTtsProvider {
+  return storage()?.getItem(TTS_PROVIDER_KEY) === "gemini-tts" ? "gemini-tts" : "web-speech";
+}
+
+export function writeOscarAiTtsProvider(provider: OscarAiTtsProvider): void {
+  try {
+    storage()?.setItem(TTS_PROVIDER_KEY, provider);
+  } catch {
+    // Falls back to browser speech.
+  }
+}
+
 const CONVERSATION_MODE_KEY = "messenger.oscar-ai.conversation-mode.v1";
 /** «live» = Gemini Live (default) · «turn» = بالأدوار: Flash-Lite + the phone's own voice (cheaper). */
 export type OscarAiConversationMode = "live" | "turn";
