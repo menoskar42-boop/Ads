@@ -68,7 +68,7 @@ test("one Flash-Lite request carries the audio and asks for transcript + reply",
   assert.deepEqual(result.modelContent.parts, [{ text: "الحمد لله، أقدر أساعدك إزاى؟" }]);
   // Turn mode exposes both text and recorded-voice message tools, plus scheduling.
   const names = calls[0].body.tools.flatMap((tool) => tool.functionDeclarations ?? []).map((f) => f.name);
-  assert.deepEqual(names, ["send_message", "record_voice_message", "schedule_message"]);
+  assert.deepEqual(names, ["send_message", "record_voice_message", "start_messenger_call", "schedule_message"]);
 });
 
 test("a tool call comes back with its thought signature; follow-up has no transcript rule", async () => {
