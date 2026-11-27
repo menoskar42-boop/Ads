@@ -17,7 +17,7 @@ export const TURN_MAX_CONTEXT_BYTES = 64 * 1024;
 export const TURN_DAILY_LIMIT =
   Number.parseInt(process.env.GEMINI_TURN_DAILY_LIMIT ?? "", 10) > 0
     ? Number.parseInt(process.env.GEMINI_TURN_DAILY_LIMIT ?? "", 10)
-    : 1000000;
+    : 500;
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const AUDIO_TYPES = new Set([
