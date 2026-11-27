@@ -3,19 +3,13 @@ import { apiUrl } from "../lib/api";
 import { frameTurnBody } from "../lib/oscar-ai-turn";
 import { baseMessengerAudioContentType, chooseWebAudioMimeType } from "../lib/web-voice";
 import { readOscarAiVoice } from "../lib/oscar-ai-preferences";
+import { buildOscarCallGreeting } from "../lib/oscar-call-greeting";
 
 export type OscarCallStatus = "off" | "listening" | "thinking" | "speaking" | "error";
 
 type Options = { getToken: () => Promise<string | null>; userName: string };
 
 const GREETING_CACHE = "oscar-call-greetings-v1";
-
-export function buildOscarCallGreeting(userName: string, date = new Date()): string {
-  const hour = date.getHours();
-  const salutation = hour >= 5 && hour < 12 ? "صباح الخير" : "مساء الخير";
-  const name = userName.trim() || "صاحب الحساب";
-  return `${salutation}، أنا مساعد مستر ${name}. سعيد بالتواصل مع حضرتك. اتفضل، أقدر أساعد حضرتك إزاي؟`;
-}
 
 async function loadSpeechAudio(
   text: string,
