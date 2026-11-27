@@ -150,7 +150,7 @@ export function useOscarAiTurn(options: {
       };
       recorder.onstop = () => {
         clearInterval(check);
-        if (current.cancelled || !heardVoice || !chunks.length) {
+        if (current.cancelled || !chunks.length) {
           resolve(null);
           return;
         }
