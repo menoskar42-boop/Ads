@@ -206,6 +206,9 @@ export function useOscarCallAssistant({ getToken }: Options) {
       if (transcript) historyRef.current.push({ role: "user", parts: [{ text: transcript }] });
       historyRef.current.push({ role: "model", parts: [{ text: reply }] });
       historyRef.current = historyRef.current.slice(-12);
+      while (historyRef.current.length && historyRef.current[0].role !== "user") {
+        historyRef.current.shift();
+      }
       setStatus("speaking");
       await speak(reply);
     };
