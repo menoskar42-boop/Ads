@@ -425,7 +425,7 @@ function OscarAiWakeSettings({ defaultCallOwnerName }: { defaultCallOwnerName: s
       <View style={styles.switchRow}>
         <View style={styles.switchCopy}>
           <Text style={styles.switchTitle}>صوت Oscar AI</Text>
-          <Text style={styles.copy}>{voice === "male" ? "راجل" : "ست"} — «أيوه، سامعك» وردود Oscar AI بنفس الصوت.</Text>
+          <Text style={styles.copy}>{voice === "male" ? "راجل" : "ست"} — «أيوه، سامعك» وGemini TTS. أما Web Speech فيستخدم الصوت العربي المتاح في المتصفح.</Text>
         </View>
         <Pressable
           testID="messenger-oscar-ai-voice"
