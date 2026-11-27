@@ -18,6 +18,22 @@ test("contact names match the way they are said (hamza, ta marbuta, «لـ», ni
   assert.equal(matchContacts(conversations, "مجهول").length, 0);
 });
 
+test("contact matching supports Arabic, English, mixed spelling, and asks on ambiguous names", () => {
+  const arabic = [
+    { id: "arabic-sana", peer: { displayName: "دكتورة سنا", nickname: null } },
+    { id: "english-sana", peer: { displayName: "Doc Sana", nickname: null } },
+  ];
+  assert.deepEqual(matchContacts(arabic, "doc sana").map((c) => c.conversationId), ["english-sana"]);
+  assert.deepEqual(matchContacts(arabic, "دكتورة سنا").map((c) => c.conversationId), ["arabic-sana"]);
+  assert.deepEqual(matchContacts(arabic, "doc سنا").map((c) => c.conversationId), ["arabic-sana"]);
+  assert.deepEqual(matchContacts(arabic, "دكتورة Sana").map((c) => c.conversationId), ["english-sana"]);
+  const duplicates = [
+    { id: "sana-1", peer: { displayName: "سنا", nickname: null } },
+    { id: "sana-2", peer: { displayName: "Sana", nickname: null } },
+  ];
+  assert.equal(matchContacts(duplicates, "Sana").length, 2);
+});
+
 test("Oscar AI sends from the user's account: text carries a small note, voice is the user's own recording", () => {
   const source = readFileSync(new URL("../components/OscarAiAssistant.tsx", import.meta.url), "utf8");
   assert.match(source, /\\n\\n✍️ اتكتبت بـOscar AI/);
