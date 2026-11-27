@@ -1144,6 +1144,9 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
                 </Text>
               )}
               {!!callError && <Text style={styles.error}>{callError}</Text>}
+              {!!connectedAt && !oscarCallAssistant.enabled && oscarCallAssistant.status === "error" && (
+                <Text style={styles.error}>تعذر تشغيل أوسكار. تأكد من دعم الصوت وأذونات المتصفح.</Text>
+              )}
               {!!connectedAt && oscarCallAssistant.enabled && (
                 <Text style={styles.diagnostic}>
                   أوسكار مشارك، {oscarCallAssistant.status === "listening" ? "بيسمع الطرف الآخر" : oscarCallAssistant.status === "thinking" ? "بيفهم الكلام" : oscarCallAssistant.status === "speaking" ? "بيرد بصوته" : "فيه مشكلة مؤقتة"}
