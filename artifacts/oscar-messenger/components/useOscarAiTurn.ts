@@ -17,7 +17,7 @@ import { baseMessengerAudioContentType, chooseWebAudioMimeType } from "../lib/we
 export type TurnPhase = "idle" | "starting" | "listening" | "thinking" | "speaking";
 
 const MAX_SESSION_MS = 10 * 60_000;
-const SPEECH_RMS = 0.012;
+const SPEECH_RMS = 0.004;
 const END_OF_TURN_SILENCE_MS = 1_200;
 const NO_SPEECH_END_MS = 8_000;
 const MAX_TURN_MS = 30_000;
