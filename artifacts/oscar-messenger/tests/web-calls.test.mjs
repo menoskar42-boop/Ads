@@ -167,6 +167,12 @@ test("Oscar call greeting is fixed, uses the saved profile name, and changes by 
 test("the call assistant caches its fixed greeting recording and plays it before listening", () => {
   const assistant = readFileSync(new URL("../components/useOscarCallAssistant.ts", import.meta.url), "utf8");
   const controller = readFileSync(callPath, "utf8");
+  const settings = readFileSync(new URL("../app/settings.tsx", import.meta.url), "utf8");
+  const preferences = readFileSync(new URL("../lib/oscar-ai-preferences.ts", import.meta.url), "utf8");
+  assert.match(settings, /messenger-oscar-ai-call-owner-name/);
+  assert.match(settings, /writeOscarAiCallOwnerName\(value\)/);
+  assert.match(preferences, /messenger\.oscar-ai\.call-owner-name\.v1/);
+  assert.match(assistant, /readOscarAiCallOwnerName\(\) \|\| userName/);
   assert.match(assistant, /oscar-call-greetings-v1/);
   assert.match(assistant, /window\.caches\.open/);
   assert.match(assistant, /cache\.match\(cacheKey\)/);
