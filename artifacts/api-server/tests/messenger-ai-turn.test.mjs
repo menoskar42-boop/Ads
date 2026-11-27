@@ -101,19 +101,19 @@ test("search falls back once on 400, never retries 429", async () => {
   process.env.GEMINI_TURN_SEARCH = "on";
   try {
     let n = 0;
-  const fetcher = async (_url, init) => {
-    n += 1;
-    const body = JSON.parse(init.body);
-    if (body.tools.some((tool) => tool.googleSearch)) return new Response("{}", { status: 400 });
-    return Response.json({ candidates: [{ content: { parts: [{ text: "<transcript>x</transcript><reply>y</reply>" }] } }] });
-  };
-  const ok = await listenAndRespond("key", Buffer.from("a"), "audio/webm", [], {}, fetcher);
-  assert.equal(ok.reply, "y");
-  assert.equal(n, 2);
-  const busy = geminiReply([], 429);
-  const result = await listenAndRespond("key", Buffer.from("a"), "audio/webm", [], {}, busy.fetcher);
-  assert.equal(result.status, 429);
-  assert.equal(busy.calls.length, 1);
+    const fetcher = async (_url, init) => {
+      n += 1;
+      const body = JSON.parse(init.body);
+      if (body.tools.some((tool) => tool.googleSearch)) return new Response("{}", { status: 400 });
+      return Response.json({ candidates: [{ content: { parts: [{ text: "<transcript>x</transcript><reply>y</reply>" }] } }] });
+    };
+    const ok = await listenAndRespond("key", Buffer.from("a"), "audio/webm", [], {}, fetcher);
+    assert.equal(ok.reply, "y");
+    assert.equal(n, 2);
+    const busy = geminiReply([], 429);
+    const result = await listenAndRespond("key", Buffer.from("a"), "audio/webm", [], {}, busy.fetcher);
+    assert.equal(result.status, 429);
+    assert.equal(busy.calls.length, 1);
     assert.match(buildTurnRequest([], {}, false, true).systemInstruction.parts[0].text, /مفيش بحث جوجل/);
   } finally {
     if (previousSearch === undefined) delete process.env.GEMINI_TURN_SEARCH;
