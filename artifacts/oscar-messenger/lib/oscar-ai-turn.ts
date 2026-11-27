@@ -97,25 +97,105 @@ export function stopSpeaking(): void {
   }
 }
 
-/**
- * Speech output boundary for turn mode. Keep Gemini input/reasoning independent from playback.
- * To migrate later, implement this contract with a server-backed Gemini TTS provider and swap
- * this single provider selection. Target model: gemini-3.8-flash-lite-tts (Google Gemini API).
- * Never call Gemini TTS from the browser with an exposed API key.
- */
+import { apiUrl } from "./api";
+import { readOscarAiTtsProvider, type OscarAiTtsProvider } from "./oscar-ai-preferences";
+
+/** Playback settings are independent from Gemini's microphone transcription and reasoning. */
+export type OscarAiSpeechOptions = {
+  provider?: OscarAiTtsProvider;
+  getToken?: () => Promise<string | null>;
+  voice?: "female" | "male" | string;
+  audioContext?: AudioContext | null;
+};
+
 export type OscarAiSpeechOutput = {
-  readonly provider: "web-speech" | "gemini-tts";
+  readonly provider: OscarAiTtsProvider;
   prime(): void;
-  speak(text: string): Promise<"spoken" | "unavailable">;
+  speak(text: string, options?: OscarAiSpeechOptions): Promise<"spoken" | "unavailable">;
   stop(): void;
 };
 
-const webSpeechOutput: OscarAiSpeechOutput = {
-  provider: "web-speech",
-  prime: primeSpeech,
-  speak: speakReply,
-  stop: stopSpeaking,
-};
+let activeSource: AudioBufferSourceNode | null = null;
+let finishActivePlayback: (() => void) | null = null;
 
-/** Single playback dependency used by the turn-based conversation loop. */
-export const oscarAiSpeechOutput: OscarAiSpeechOutput = webSpeechOutput;
+function stopGeminiPlayback(): void {
+  const source = activeSource;
+  activeSource = null;
+  finishActivePlayback?.();
+  finishActivePlayback = null;
+  if (source) {
+    source.onended = null;
+    try { source.stop(); } catch { /* already stopped */ }
+    try { source.disconnect(); } catch { /* already disconnected */ }
+  }
+}
+
+async function speakWithGemini(
+  text: string,
+  options: OscarAiSpeechOptions,
+): Promise<"spoken" | "unavailable"> {
+  const context = options.audioContext;
+  if (!context || context.state === "closed" || !options.getToken) return "unavailable";
+  try {
+    const token = await options.getToken();
+    if (!token) return "unavailable";
+    const response = await fetch(apiUrl("/api/messenger/ai/tts"), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text: text.slice(0, 1_200),
+        voice: options.voice === "male" ? "male" : "female",
+      }),
+    });
+    if (!response.ok) return "unavailable";
+    const audioData = await response.arrayBuffer();
+    if (!audioData.byteLength || context.state === "closed") return "unavailable";
+    if (context.state !== "running") await context.resume();
+    const buffer = await context.decodeAudioData(audioData);
+    stopGeminiPlayback();
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    activeSource = source;
+    return await new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        if (activeSource === source) activeSource = null;
+        if (finishActivePlayback === finish) finishActivePlayback = null;
+        try { source.disconnect(); } catch { /* already disconnected */ }
+        resolve("spoken");
+      };
+      const timer = setTimeout(finish, Math.max(5_000, buffer.duration * 1_000 + 3_000));
+      finishActivePlayback = finish;
+      source.onended = finish;
+      source.start();
+    });
+  } catch {
+    return "unavailable";
+  }
+}
+
+/** One provider boundary for Turn-Based playback. Gemini credentials remain server-side. */
+export const oscarAiSpeechOutput: OscarAiSpeechOutput = {
+  get provider() { return readOscarAiTtsProvider(); },
+  prime: primeSpeech,
+  speak(text, options = {}) {
+    const provider = options.provider ?? readOscarAiTtsProvider();
+    if (provider === "gemini-tts") {
+      stopSpeaking();
+      return speakWithGemini(text, options);
+    }
+    stopGeminiPlayback();
+    return speakReply(text);
+  },
+  stop() {
+    stopSpeaking();
+    stopGeminiPlayback();
+  },
+};
