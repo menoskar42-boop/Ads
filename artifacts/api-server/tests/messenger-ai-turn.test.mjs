@@ -197,9 +197,9 @@ test("call audio replies are restricted, short, and never expose messaging tools
 test("call audio reply rejects missing credentials, empty audio, quota and empty model output", async () => {
   assert.equal((await listenAndReplyForCall(undefined, Buffer.from("x"), "audio/webm")).status, 503);
   assert.equal((await listenAndReplyForCall("key", Buffer.alloc(0), "audio/webm")).status, 400);
-  const limited = await listenAndReplyForCall("key", Buffer.from("x"), "audio/webm", async () => new Response("{}", { status: 429 }));
+  const limited = await listenAndReplyForCall("key", Buffer.from("x"), "audio/webm", [], async () => new Response("{}", { status: 429 }));
   assert.equal(limited.status, 429);
-  const empty = await listenAndReplyForCall("key", Buffer.from("x"), "audio/webm", async () => Response.json({ candidates: [{ content: { parts: [] } }] }));
+  const empty = await listenAndReplyForCall("key", Buffer.from("x"), "audio/webm", [], async () => Response.json({ candidates: [{ content: { parts: [] } }] }));
   assert.equal(empty.status, 502);
 });
 
