@@ -93,11 +93,12 @@ test("daily budget allows three five-minute sessions and then returns 429", asyn
   const ledger = new Map();
   const fetcher = async () => ({ ok: true, async json() { return { name: "token" }; } });
   const now = Date.UTC(2026, 10, 26);
-  for (let index = 0; index < GEMINI_LIVE_DAILY_MINUTES / GEMINI_LIVE_SESSION_MINUTES; index += 1) {
-    const result = await createGeminiLiveToken("daily-user", "key", fetcher, ledger, now);
+  const testDailyLimit = GEMINI_LIVE_SESSION_MINUTES * 3;
+  for (let index = 0; index < testDailyLimit / GEMINI_LIVE_SESSION_MINUTES; index += 1) {
+    const result = await createGeminiLiveToken("daily-user", "key", fetcher, ledger, now, {}, testDailyLimit);
     assert.equal(result.ok, true);
   }
-  const limited = await createGeminiLiveToken("daily-user", "key", fetcher, ledger, now);
+  const limited = await createGeminiLiveToken("daily-user", "key", fetcher, ledger, now, {}, testDailyLimit);
   assert.equal(limited.ok, false);
   if (!limited.ok) assert.equal(limited.status, 429);
 });
