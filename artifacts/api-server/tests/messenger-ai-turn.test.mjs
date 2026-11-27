@@ -5,6 +5,7 @@ import {
   buildTurnRequest,
   cleanContents,
   listenAndRespond,
+  listenAndReplyForCall,
   parseTaggedReply,
   parseTurnUpload,
   reserveTurn,
@@ -171,5 +172,56 @@ test("turn route: auth, framing, unsupported type and the reply", async () => {
       body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "x" }] }] }),
     });
     assert.equal(follow.status, 200);
+  });
+});
+
+
+test("call audio replies are restricted, short, and never expose messaging tools", async () => {
+  const calls = [];
+  const fetcher = async (url, init) => {
+    calls.push({ url, body: JSON.parse(init.body), headers: init.headers });
+    return Response.json({
+      candidates: [{ content: { parts: [{ text: "أهلاً، أنا أوسكار المساعد الذكي." }] } }]
+    });
+  };
+  const result = await listenAndReplyForCall("secret", Buffer.from("remote-audio"), "audio/webm", fetcher);
+  assert.deepEqual(result, { ok: true, reply: "أهلاً، أنا أوسكار المساعد الذكي." });
+  assert.match(calls[0].url, /gemini-3\\.5-flash-lite:generateContent$/);
+  assert.equal(calls[0].headers["x-goog-api-key"], "secret");
+  assert.match(calls[0].body.systemInstruction.parts[0].text, /لا تتظاهر أنك صاحب الحساب/);
+  assert.match(calls[0].body.systemInstruction.parts[0].text, /لا تستخدم أدوات/);
+  assert.equal("tools" in calls[0].body, false);
+  assert.equal(calls[0].body.contents[0].parts[0].inline_data.mime_type, "audio/webm");
+});
+
+test("call audio reply rejects missing credentials, empty audio, quota and empty model output", async () => {
+  assert.equal((await listenAndReplyForCall(undefined, Buffer.from("x"), "audio/webm")).status, 503);
+  assert.equal((await listenAndReplyForCall("key", Buffer.alloc(0), "audio/webm")).status, 400);
+  const limited = await listenAndReplyForCall("key", Buffer.from("x"), "audio/webm", async () => new Response("{}", { status: 429 }));
+  assert.equal(limited.status, 429);
+  const empty = await listenAndReplyForCall("key", Buffer.from("x"), "audio/webm", async () => Response.json({ candidates: [{ content: { parts: [] } }] }));
+  assert.equal(empty.status, 502);
+});
+
+test("call-turn route requires auth and returns only the generated reply", async () => {
+  const router = createMessengerAiRouter({
+    getUserId: (req) => req.headers["x-test-user"] ?? null,
+    getApiKey: () => "key",
+    fetcher: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      assert.equal("tools" in body, false);
+      return Response.json({ candidates: [{ content: { parts: [{ text: "أنا أوسكار، المساعد الذكي." }] } }] });
+    },
+  });
+  await withServer(router, async (base) => {
+    const post = (body, user = "call-user") => fetch(`${base}/messenger/ai/call-turn`, {
+      method: "POST",
+      headers: { "content-type": "application/octet-stream", ...(user ? { "x-test-user": user } : {}) },
+      body,
+    });
+    assert.equal((await post(frame({ mimeType: "audio/webm" }), null)).status, 401);
+    const response = await post(frame({ mimeType: "audio/webm" }));
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { reply: "أنا أوسكار، المساعد الذكي." });
   });
 });
