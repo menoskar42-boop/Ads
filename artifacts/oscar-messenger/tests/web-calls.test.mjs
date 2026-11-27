@@ -80,6 +80,8 @@ test("a call keeps running when the screen sleeps or the tab is hidden", () => {
   assert.match(source, /const callHoldsScreen = !!call && call\.state !== "ended"/);
   assert.match(source, /lock\.addEventListener\?\.\("release", onRelease\)/);
   assert.match(source, /document\.addEventListener\("visibilitychange", onVisibility\)/);
+  assert.match(source, /المتصفح لا يدعم منع الشاشة من القفل/);
+  assert.match(source, /المتصفح لم يسمح بإبقاء الشاشة مفتوحة/);
   assert.match(source, /lock\.release\(\)/);
 });
 
