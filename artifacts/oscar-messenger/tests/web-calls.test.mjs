@@ -77,6 +77,9 @@ test("a call keeps running when the screen sleeps or the tab is hidden", () => {
   assert.ok(signalEffect.length > 0);
   assert.match(source, /if \(\n\s+!isWebCallSupported \|\|\n\s+!connectionReady \|\|/);
   assert.match(source, /wakeLockApi\.request\("screen"\)/);
+  assert.match(source, /const callHoldsScreen = !!call && call\.state !== "ended"/);
+  assert.match(source, /lock\.addEventListener\?\.\("release", onRelease\)/);
+  assert.match(source, /document\.addEventListener\("visibilitychange", onVisibility\)/);
   assert.match(source, /lock\.release\(\)/);
 });
 
