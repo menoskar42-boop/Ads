@@ -177,7 +177,7 @@ test("the call assistant caches its fixed greeting recording and plays it before
   assert.match(assistant, /window\.caches\.open/);
   assert.match(assistant, /cache\.match\(cacheKey\)/);
   assert.match(assistant, /cache\.put\(cacheKey, response\.clone\(\)\)/);
-  assert.match(assistant, /buildOscarCallGreeting\(userName, new Date\(\)\)/);
+  assert.match(assistant, /buildOscarCallGreeting\(readOscarAiCallOwnerName\(\) \|\| userName, new Date\(\)\)/);
   assert.match(assistant, /await speak\(buildOscarCallGreeting/);
   assert.match(controller, /ownProfile\.data\?\.profile\?\.displayName/);
 });
