@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { AppHeader } from "../components/AppHeader";
@@ -31,11 +32,13 @@ import {
   readOscarAiShareLocation,
   readOscarAiVoice,
   readOscarAiWakeEnabled,
+  readOscarAiCallOwnerName,
   writeOscarAiConversationMode,
   writeOscarAiMessageMode,
   writeOscarAiShareLocation,
   writeOscarAiVoice,
   writeOscarAiWakeEnabled,
+  writeOscarAiCallOwnerName,
   type OscarAiConversationMode,
   type OscarAiMessageMode,
   type OscarAiVoice,
@@ -306,6 +309,7 @@ function MessengerPresenceSettings({ visible }: { visible: boolean }) {
 function OscarAiWakeSettings() {
   const [enabled, setEnabled] = useState(false);
   const [voice, setVoice] = useState<OscarAiVoice>("female");
+  const [callOwnerName, setCallOwnerName] = useState("");
   const [shareLocation, setShareLocation] = useState(true);
   const [messageMode, setMessageMode] = useState<OscarAiMessageMode>("voice");
   const [conversationMode, setConversationMode] = useState<OscarAiConversationMode>("live");
@@ -314,12 +318,39 @@ function OscarAiWakeSettings() {
     setMessageMode(readOscarAiMessageMode());
     setEnabled(readOscarAiWakeEnabled());
     setVoice(readOscarAiVoice());
+    setCallOwnerName(readOscarAiCallOwnerName());
     setShareLocation(readOscarAiShareLocation());
   }, []);
 
   return (
     <View style={styles.phoneSection}>
       <Text style={styles.sectionTitle}>Oscar AI</Text>
+      <View style={styles.phoneSection}>
+        <Text style={styles.switchTitle}>اسم صاحب الحساب في المكالمات</Text>
+        <Text style={styles.copy}>أوسكار هيعرّف نفسه للطرف الآخر بالاسم ده. مثال: أنا مساعد مستر مينا.</Text>
+        <TextInput
+          testID="messenger-oscar-ai-call-owner-name"
+          accessibilityLabel="اسم صاحب الحساب في ترحيب أوسكار بالمكالمة"
+          value={callOwnerName}
+          onChangeText={(value) => {
+            setCallOwnerName(value);
+            writeOscarAiCallOwnerName(value);
+          }}
+          placeholder="مينا"
+          placeholderTextColor={colors.muted}
+          maxLength={60}
+          textAlign="right"
+          style={{
+            minHeight: 46,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            color: colors.text,
+            backgroundColor: colors.surface,
+          }}
+        />
+      </View>
       <View style={styles.switchRow}>
         <View style={styles.switchCopy}>
           <Text style={styles.switchTitle}>النداء بالصوت</Text>
