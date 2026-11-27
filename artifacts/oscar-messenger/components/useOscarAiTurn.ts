@@ -3,8 +3,7 @@ import { apiUrl } from "../lib/api";
 import { isOscarAiExitPhrase } from "../lib/oscar-ai-wake";
 import {
   frameTurnBody,
-  speakReply,
-  stopSpeaking,
+  oscarAiSpeechOutput,
   trimTurnHistory,
   type TurnContent,
 } from "../lib/oscar-ai-turn";
@@ -59,7 +58,7 @@ export function useOscarAiTurn(options: {
   const stop = useCallback(() => {
     const current = session.current;
     session.current = null;
-    stopSpeaking();
+    oscarAiSpeechOutput.stop();
     if (current) {
       current.cancelled = true;
       current.abort?.abort();
@@ -73,7 +72,7 @@ export function useOscarAiTurn(options: {
 
   /** «قاطع»: stop reading the reply and listen again. */
   const interrupt = useCallback(() => {
-    stopSpeaking();
+    oscarAiSpeechOutput.stop();
   }, []);
 
   const post = useCallback(async (current: Session, path: string, body: Blob | string, json: boolean) => {
@@ -257,7 +256,7 @@ export function useOscarAiTurn(options: {
         setReply(answer);
         if (answer) {
           setPhase("speaking");
-          const spoken = await speakReply(answer);
+          const spoken = await oscarAiSpeechOutput.speak(answer);
           if (spoken === "unavailable") setNotice("الموبايل مابيقراش بالعربى — الرد مكتوب قدامك.");
         }
         current.history = trimTurnHistory(current.history);
