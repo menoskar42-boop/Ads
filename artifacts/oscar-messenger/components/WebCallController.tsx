@@ -246,7 +246,8 @@ function responseStatus(error: unknown): number {
 export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
   function WebCallController({ conversationId, peerName, enabled, onError }, ref) {
     const { userId, getToken } = useAuth();
-    const oscarCallAssistant = useOscarCallAssistant({ getToken: () => getToken() });
+    const getAuthToken = useCallback(() => getToken(), [getToken]);
+    const oscarCallAssistant = useOscarCallAssistant({ getToken: getAuthToken });
     const queryClient = useQueryClient();
     const [call, setCall] = useState<MessengerCall | null>(null);
     const [busy, setBusy] = useState(false);
