@@ -15,6 +15,8 @@ export type GeminiLiveOptions = {
   /** How «ابعت رسالة لفلان» is sent: the user's own recorded voice, or text written by Gemini. */
   messageMode?: "voice" | "text";
   location?: { lat: number; lng: number } | null;
+  /** Google Search grounding; defaults to GEMINI_LIVE_SEARCH (on unless "off"). */
+  search?: boolean;
 };
 
 // Gemini Live prebuilt voices: Kore (female, default) · Charon (male).
@@ -31,7 +33,7 @@ export function buildGeminiLiveSetup(options: GeminiLiveOptions = {}) {
     : "";
   const today = new Date().toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "full", timeStyle: "short" });
   const isoNow = new Date().toISOString();
-  const searchEnabled = process.env.GEMINI_LIVE_SEARCH !== "off";
+  const searchEnabled = options.search ?? process.env.GEMINI_LIVE_SEARCH !== "off";
   const voiceMessages = options.messageMode !== "text";
   const messageTool = voiceMessages
     ? {

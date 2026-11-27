@@ -26,14 +26,17 @@ import {
 import { apiUrl, queryKeys } from "../lib/api";
 import { readableError } from "../lib/format";
 import {
+  readOscarAiConversationMode,
   readOscarAiMessageMode,
   readOscarAiShareLocation,
   readOscarAiVoice,
   readOscarAiWakeEnabled,
+  writeOscarAiConversationMode,
   writeOscarAiMessageMode,
   writeOscarAiShareLocation,
   writeOscarAiVoice,
   writeOscarAiWakeEnabled,
+  type OscarAiConversationMode,
   type OscarAiMessageMode,
   type OscarAiVoice,
 } from "../lib/oscar-ai-preferences";
@@ -305,7 +308,9 @@ function OscarAiWakeSettings() {
   const [voice, setVoice] = useState<OscarAiVoice>("female");
   const [shareLocation, setShareLocation] = useState(true);
   const [messageMode, setMessageMode] = useState<OscarAiMessageMode>("voice");
+  const [conversationMode, setConversationMode] = useState<OscarAiConversationMode>("live");
   useEffect(() => {
+    setConversationMode(readOscarAiConversationMode());
     setMessageMode(readOscarAiMessageMode());
     setEnabled(readOscarAiWakeEnabled());
     setVoice(readOscarAiVoice());
@@ -335,6 +340,29 @@ function OscarAiWakeSettings() {
       </View>
       <View style={styles.switchRow}>
         <View style={styles.switchCopy}>
+          <Text style={styles.switchTitle}>طريقة الكلام</Text>
+          <Text style={styles.copy}>
+            {conversationMode === "turn"
+              ? "بالأدوار (أرخص): اتكلم واسكت، كلامك بيظهر مكتوب والرد بصوت الموبايل نفسه. مفيش مقاطعة وهو بيتكلم غير بزرار «قاطع»."
+              : "مباشر (Gemini Live): كلام متواصل بصوت Gemini، وتقدر تقاطعه بصوتك."}
+          </Text>
+        </View>
+        <Pressable
+          testID="messenger-oscar-ai-conversation-mode"
+          accessibilityRole="button"
+          accessibilityLabel="طريقة الكلام مع Oscar AI"
+          onPress={() => {
+            const next: OscarAiConversationMode = conversationMode === "turn" ? "live" : "turn";
+            writeOscarAiConversationMode(next);
+            setConversationMode(next);
+          }}
+          style={({ pressed }) => [styles.addPhoneButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.addPhoneText}>{conversationMode === "turn" ? "خليه مباشر" : "خليه بالأدوار"}</Text>
+        </Pressable>
+      </View>
+      <View style={styles.switchRow}>
+        <View style={styles.switchCopy}>
           <Text style={styles.switchTitle}>صوت Oscar AI</Text>
           <Text style={styles.copy}>{voice === "male" ? "راجل" : "ست"} — «أيوه، سامعك» وردود Oscar AI بنفس الصوت.</Text>
         </View>
@@ -356,6 +384,7 @@ function OscarAiWakeSettings() {
         <View style={styles.switchCopy}>
           <Text style={styles.switchTitle}>«ابعت رسالة لفلان»</Text>
           <Text style={styles.copy}>
+            {conversationMode === "turn" ? "فى وضع «بالأدوار» الرسالة دايماً مكتوبة. " : ""}
             {messageMode === "voice"
               ? "رسالة صوتية بصوتك انت: بعد الصفارة اتكلم، وبتتبعت لما تسكت."
               : "رسالة مكتوبة: Oscar AI بيكتبها ويقراهالك ويستنى «ابعت»، وتحتها «اتكتبت بـOscar AI»."}

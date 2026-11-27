@@ -15,10 +15,13 @@ import {
 } from "@workspace/api-client-react";
 import { apiUrl } from "../lib/api";
 import { matchContacts } from "../lib/oscar-ai-messages";
+import { primeSpeech } from "../lib/oscar-ai-turn";
+import { useOscarAiTurn } from "./useOscarAiTurn";
 import { baseMessengerAudioContentType, chooseWebAudioMimeType } from "../lib/web-voice";
 import {
   hasOscarAiGoogleConsent,
   OSCAR_AI_WAKE_CHANGE_EVENT,
+  readOscarAiConversationMode,
   readOscarAiMessageMode,
   readOscarAiShareLocation,
   readOscarAiVoice,
@@ -111,6 +114,37 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   const nextPlaybackAt = useRef(0);
   const startRef = useRef<() => void>(() => undefined);
   const stopRef = useRef<() => void>(() => undefined);
+  const runToolRef = useRef<(name: unknown, args: Record<string, unknown>) => Promise<Record<string, unknown>>>(
+    async () => ({ error: "أداة مش جاهزة." }),
+  );
+
+  // «بالأدوار» (Settings ⇒ طريقة الكلام): Flash-Lite + the phone's own voice. Live stays the default.
+  const turn = useOscarAiTurn({
+    getToken,
+    runMessageTool: (name, args) => runToolRef.current(name, args),
+    takeAudioContext: () => {
+      const primed = primedContext.current;
+      primedContext.current = null;
+      if (primed && primed.state !== "closed") return primed;
+      const AudioContextCtor = typeof window === "undefined"
+        ? undefined
+        : window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      try {
+        return AudioContextCtor ? new AudioContextCtor() : null;
+      } catch {
+        return null;
+      }
+    },
+    getSessionOptions: async () => ({
+      voice: readOscarAiVoice(),
+      location: readOscarAiShareLocation() ? await approximateLocation() : null,
+    }),
+    onEnd: (message) => {
+      if (message) setError(message);
+      stopRef.current();
+    },
+  });
+  const turnStop = turn.stop;
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -134,6 +168,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   }, []);
 
   const stopSession = useCallback(() => {
+    turnStop();
     cancelRecording.current?.();
     clearSilenceTimer();
     const reservedBy = liveSessionAuth.current;
@@ -163,7 +198,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
     nextPlaybackAt.current = 0;
     setConnecting(false);
     setActive(false);
-  }, [clearSilenceTimer]);
+  }, [clearSilenceTimer, turnStop]);
 
   const armSilenceEnd = useCallback(() => {
     clearSilenceTimer();
@@ -295,9 +330,17 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
       return { error: toolError instanceof Error ? toolError.message : "تعذر إرسال الرسالة." };
     }
   }, [getToken, recordVoiceMessage]);
+  runToolRef.current = runMessageTool;
+  const turnStart = turn.start;
 
   const startSession = useCallback(async () => {
     setError("");
+    if (readOscarAiConversationMode() === "turn") {
+      setConnecting(false);
+      setActive(true);
+      void turnStart();
+      return;
+    }
     heardReply.current = false;
     setConnecting(true);
     setActive(true);
@@ -479,7 +522,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
       setError(message);
       stopRef.current();
     }
-  }, [armSilenceEnd, clearSilenceTimer, getToken, runMessageTool]);
+  }, [armSilenceEnd, clearSilenceTimer, getToken, runMessageTool, turnStart]);
 
   // Starting by voice («أوسكار») has no tap, so unlock audio on the first touch anywhere in
   // the app (iPhone and Android Chrome both block audio until a user gesture). The unlocked
@@ -523,6 +566,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
 
   const beginSession = useCallback(() => {
     primeAudio();
+    if (readOscarAiConversationMode() === "turn") primeSpeech();
     if (!hasOscarAiGoogleConsent()) {
       pendingStart.current = true;
       setActive(true);
@@ -623,6 +667,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
 
   const acceptConsent = () => {
     primeAudio();
+    if (readOscarAiConversationMode() === "turn") primeSpeech();
     saveOscarAiGoogleConsent();
     setConsentVisible(false);
     if (pendingStart.current) {
@@ -651,13 +696,36 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         <View style={styles.activeRow}>
           <View style={styles.activeCopy}>
             <Text style={styles.title}>
-              {connecting ? "بيفتح Oscar AI…" : recordingFor ? `🎙️ بيسجّل رسالة لـ${recordingFor} — اتكلم` : "بيسمع"}
+              {turn.phase !== "idle"
+                ? TURN_TITLES[turn.phase]
+                : connecting ? "بيفتح Oscar AI…" : recordingFor ? `🎙️ بيسجّل رسالة لـ${recordingFor} — اتكلم` : "بيسمع"}
             </Text>
-            <Text style={styles.subtitle}>
-              {recordingFor ? "بيتبعت لوحده لما تسكت ثانية ونص" : "الجلسة مؤقتة ولا تُحفظ المحادثة"}
-            </Text>
+            {turn.phase !== "idle" ? (
+              <>
+                {!!turn.transcript && <Text testID="oscar-ai-turn-transcript" style={styles.subtitle}>انت: {turn.transcript}</Text>}
+                {!!turn.reply && <Text testID="oscar-ai-turn-reply" style={styles.subtitle}>Oscar AI: {turn.reply}</Text>}
+                {!!turn.notice && <Text style={styles.subtitle}>{turn.notice}</Text>}
+                {!turn.transcript && !turn.reply && !turn.notice && (
+                  <Text style={styles.subtitle}>اتكلم واسكت — كلامك هيظهر مكتوب هنا</Text>
+                )}
+              </>
+            ) : (
+              <Text style={styles.subtitle}>
+                {recordingFor ? "بيتبعت لوحده لما تسكت ثانية ونص" : "الجلسة مؤقتة ولا تُحفظ المحادثة"}
+              </Text>
+            )}
           </View>
-          {connecting && <ActivityIndicator color={colors.blue} />}
+          {(connecting || turn.phase === "starting" || turn.phase === "thinking") && <ActivityIndicator color={colors.blue} />}
+          {turn.phase === "speaking" && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="قاطع Oscar AI"
+              onPress={turn.interrupt}
+              style={styles.endButton}
+            >
+              <Text style={styles.endText}>قاطع</Text>
+            </Pressable>
+          )}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="إنهاء Oscar AI"
@@ -704,6 +772,13 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
 
 // «أيوه، سامعك» is a recorded clip (copied from drive-web/voice/<male|female>) shipped with the
 // app itself, so it plays at once from the app/service-worker cache instead of another site.
+const TURN_TITLES = {
+  starting: "بيفتح Oscar AI…",
+  listening: "بيسمع — اتكلم",
+  thinking: "بيفكّر…",
+  speaking: "بيرد",
+} as const;
+
 const HELLO_CLIPS: Record<OscarAiVoice, string> = {
   male: "/oscar-messenger/voice/oscar-hello-male.mp3",
   female: "/oscar-messenger/voice/oscar-hello-female.mp3",

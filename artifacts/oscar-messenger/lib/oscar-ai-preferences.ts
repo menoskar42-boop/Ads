@@ -84,3 +84,19 @@ export function writeOscarAiMessageMode(mode: OscarAiMessageMode): void {
     // Falls back to the voice default.
   }
 }
+
+const CONVERSATION_MODE_KEY = "messenger.oscar-ai.conversation-mode.v1";
+/** «live» = Gemini Live (default) · «turn» = بالأدوار: Flash-Lite + the phone's own voice (cheaper). */
+export type OscarAiConversationMode = "live" | "turn";
+
+export function readOscarAiConversationMode(): OscarAiConversationMode {
+  return storage()?.getItem(CONVERSATION_MODE_KEY) === "turn" ? "turn" : "live";
+}
+
+export function writeOscarAiConversationMode(mode: OscarAiConversationMode): void {
+  try {
+    storage()?.setItem(CONVERSATION_MODE_KEY, mode);
+  } catch {
+    // Falls back to Gemini Live.
+  }
+}
