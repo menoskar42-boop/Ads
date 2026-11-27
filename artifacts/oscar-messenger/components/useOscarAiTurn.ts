@@ -197,7 +197,13 @@ export function useOscarAiTurn(options: {
         if (audioContext.state === "running") {
           analyser = audioContext.createAnalyser();
           analyser.fftSize = 2048;
-          audioContext.createMediaStreamSource(current.stream).connect(analyser);
+          // Keep the analyser graph active without playing microphone audio through the speakers.
+          const silentMonitor = audioContext.createGain();
+          silentMonitor.gain.value = 0;
+          const microphoneSource = audioContext.createMediaStreamSource(current.stream);
+          microphoneSource.connect(analyser);
+          analyser.connect(silentMonitor);
+          silentMonitor.connect(audioContext.destination);
         }
       }
       const sessionOptions = await getSessionOptions();
