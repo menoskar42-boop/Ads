@@ -96,3 +96,26 @@ export function stopSpeaking(): void {
     // Nothing is speaking.
   }
 }
+
+/**
+ * Speech output boundary for turn mode. Keep Gemini input/reasoning independent from playback.
+ * To migrate later, implement this contract with a server-backed Gemini TTS provider and swap
+ * this single provider selection. Target model: gemini-3.8-flash-lite-tts (Google Gemini API).
+ * Never call Gemini TTS from the browser with an exposed API key.
+ */
+export type OscarAiSpeechOutput = {
+  readonly provider: "web-speech" | "gemini-tts";
+  prime(): void;
+  speak(text: string): Promise<"spoken" | "unavailable">;
+  stop(): void;
+};
+
+const webSpeechOutput: OscarAiSpeechOutput = {
+  provider: "web-speech",
+  prime: primeSpeech,
+  speak: speakReply,
+  stop: stopSpeaking,
+};
+
+/** Single playback dependency used by the turn-based conversation loop. */
+export const oscarAiSpeechOutput: OscarAiSpeechOutput = webSpeechOutput;
