@@ -228,7 +228,10 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
    * user's own recorded voice (recorded here, never sent to Gemini).
    */
   const recordVoiceMessage = useCallback(async (contactName: string): Promise<{ blob: Blob; durationMs: number } | null> => {
-    const media = stream.current;
+    const media = stream.current ?? await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    const ownsMedia = !stream.current;
     const mimeType = typeof MediaRecorder !== "undefined"
       ? chooseWebAudioMimeType((type) => MediaRecorder.isTypeSupported(type))
       : null;
@@ -268,6 +271,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
       recorder.onstop = () => resolve();
       recorder.start(250);
     });
+    if (ownsMedia) media.getTracks().forEach((track) => track.stop());
     const heardVoice = recording.current?.heardVoice ?? false;
     recording.current = null;
     cancelRecording.current = null;
