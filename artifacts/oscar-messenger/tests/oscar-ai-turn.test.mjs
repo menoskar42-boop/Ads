@@ -55,18 +55,23 @@ test("turn mode is behind the setting, Live stays the default", () => {
   assert.match(assistant, /primeSpeech\(\)/, "speech is unlocked inside the tap for iPhone");
   const settings = read("../app/settings.tsx");
   assert.match(settings, /messenger-oscar-ai-conversation-mode/);
+  assert.match(settings, /messenger-oscar-ai-tts-provider/);
+  assert.match(settings, /writeOscarAiTtsProvider/);
+  assert.match(prefs, /messenger\\.oscar-ai\\.tts-provider\\.v1/);
 });
 
 test("turn loop handles mic denial, empty turns, failures, interruption and stop", () => {
   const hook = read("../components/useOscarAiTurn.ts");
   assert.match(hook, /محتاج إذن المايك/);
-  assert.match(hook, /ماسمعش كلام لمدة ٨ ثوانى/);
+  assert.match(hook, /ماسمعتش كلام واضح/);
+  assert.match(hook, /SPEECH_RMS = 0\\.0015/);
+  assert.match(hook, /NO_SPEECH_END_MS = 15_000/);
   assert.match(hook, /\/api\/messenger\/ai\/turn"/);
   assert.match(hook, /\/api\/messenger\/ai\/turn\/follow-up/);
   assert.match(hook, /status === 429/);
-  assert.match(hook, /مابيقراش بالعربى/, "TTS unavailable falls back to on-screen text");
+  assert.match(hook, /المتصفح مش قادر ينطق بالعربى/, "TTS unavailable falls back to on-screen text");
   assert.match(hook, /abort\?\.abort\(\)/);
-  assert.match(hook, /stopSpeaking\(\)/);
+  assert.match(hook, /oscarAiSpeechOutput\.stop\(\)/);
   assert.match(hook, /MAX_TOOL_ROUNDS/);
   // The recorded turn is sent once; nothing streams to Gemini directly from the browser.
   assert.doesNotMatch(hook, /generativelanguage\.googleapis\.com/);
