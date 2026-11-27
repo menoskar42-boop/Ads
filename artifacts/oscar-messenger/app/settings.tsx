@@ -84,6 +84,33 @@ export default function SettingsScreen() {
       </View>
       {current && <ProfileAvatarSettings profile={current} />}
       {current?.username && <InviteActions username={current.username} />}
+      <View style={styles.shortcutsSection}>
+        <Text style={styles.sectionTitle}>اختصارات التطبيق</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/scheduled")}
+          style={({ pressed }) => [styles.shortcutRow, pressed && styles.pressed]}
+        >
+          <Text style={styles.shortcutLabel}>الرسائل المجدولة</Text>
+          <Text style={styles.shortcutChevron}>‹</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/groups")}
+          style={({ pressed }) => [styles.shortcutRow, pressed && styles.pressed]}
+        >
+          <Text style={styles.shortcutLabel}>المجموعات</Text>
+          <Text style={styles.shortcutChevron}>‹</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/statuses")}
+          style={({ pressed }) => [styles.shortcutRow, pressed && styles.pressed]}
+        >
+          <Text style={styles.shortcutLabel}>الحالات الخاصة</Text>
+          <Text style={styles.shortcutChevron}>‹</Text>
+        </Pressable>
+      </View>
       {current && (
         <PhoneSetupSkippedNotice
           profile={current}
@@ -776,6 +803,10 @@ const styles = StyleSheet.create({
   username: { color: colors.muted, fontSize: 14, textAlign: "right" },
   noticeTitle: { color: colors.text, fontSize: 15, fontWeight: "800", textAlign: "right", marginBottom: 6 },
   copy: { color: colors.muted, fontSize: 14, lineHeight: 23, textAlign: "right" },
+  shortcutsSection: { gap: 8 },
+  shortcutRow: { minHeight: 48, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  shortcutLabel: { color: colors.text, fontSize: 14, fontWeight: "700" },
+  shortcutChevron: { color: colors.muted, fontSize: 24, lineHeight: 26 },
   phoneSection: { gap: 12 },
   sectionTitle: { color: colors.text, fontSize: 18, fontWeight: "800", textAlign: "right" },
   switchRow: { flexDirection: "row", alignItems: "center", gap: 12, justifyContent: "space-between", paddingVertical: 4 },
