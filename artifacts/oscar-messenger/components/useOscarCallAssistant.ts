@@ -183,6 +183,11 @@ export function useOscarCallAssistant({ getToken }: Options) {
           type: baseMessengerAudioContentType(mimeType) ?? "audio/webm",
         }));
       };
+      recorder.onerror = () => {
+        clearInterval(check);
+        recorderRef.current = null;
+        resolve(null);
+      };
       recorder.start(250);
     });
 
@@ -220,7 +225,7 @@ export function useOscarCallAssistant({ getToken }: Options) {
           continue;
         }
         setStatus("listening");
-        const audio = await recordTurn();
+        const audio = await recordTurn().catch(() => null);
         if (cancelled || !enabledRef.current) break;
         if (!audio || audio.size < 1_000) continue;
         try {
