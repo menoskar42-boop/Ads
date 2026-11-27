@@ -57,14 +57,14 @@ test("turn mode is behind the setting, Live stays the default", () => {
   assert.match(settings, /messenger-oscar-ai-conversation-mode/);
   assert.match(settings, /messenger-oscar-ai-tts-provider/);
   assert.match(settings, /writeOscarAiTtsProvider/);
-  assert.match(prefs, /messenger\\.oscar-ai\\.tts-provider\\.v1/);
+  assert.match(prefs, /messenger\.oscar-ai\.tts-provider\.v1/);
 });
 
 test("turn loop handles mic denial, empty turns, failures, interruption and stop", () => {
   const hook = read("../components/useOscarAiTurn.ts");
   assert.match(hook, /محتاج إذن المايك/);
   assert.match(hook, /ماسمعتش كلام واضح/);
-  assert.match(hook, /SPEECH_RMS = 0\\.0015/);
+  assert.match(hook, /SPEECH_RMS = 0\.0015/);
   assert.match(hook, /NO_SPEECH_END_MS = 15_000/);
   assert.match(hook, /\/api\/messenger\/ai\/turn"/);
   assert.match(hook, /\/api\/messenger\/ai\/turn\/follow-up/);
