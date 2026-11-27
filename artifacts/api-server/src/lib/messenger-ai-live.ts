@@ -2,11 +2,8 @@
 export const GEMINI_LIVE_MODEL =
   process.env.GEMINI_LIVE_MODEL?.trim() || "gemini-3.8-live";
 export const GEMINI_LIVE_SESSION_MINUTES = 5;
-// Free Gemini key (no billing): the daily cap only protects the free quota. Override with GEMINI_LIVE_DAILY_MINUTES.
-export const GEMINI_LIVE_DAILY_MINUTES =
-  Number.parseInt(process.env.GEMINI_LIVE_DAILY_MINUTES ?? "", 10) > 0
-    ? Number.parseInt(process.env.GEMINI_LIVE_DAILY_MINUTES ?? "", 10)
-    : 1000000;
+// Owner-configured per-user daily cap in minutes. Deliberately fixed so old Replit env values cannot override it.
+export const GEMINI_LIVE_DAILY_MINUTES = 1000000;
 
 type DailyUsage = { day: string; minutes: number; openSessionAt?: number };
 type UsageLedger = Map<string, DailyUsage>;
@@ -166,6 +163,7 @@ export async function createGeminiLiveToken(
   ledger: UsageLedger = defaultLedger,
   now = Date.now(),
   options: GeminiLiveOptions = {},
+  dailyLimit = GEMINI_LIVE_DAILY_MINUTES,
 ): Promise<GeminiLiveTokenResult> {
   if (!apiKey?.trim()) {
     return { ok: false, status: 503, error: "Oscar AI مش متاح" };
@@ -174,7 +172,7 @@ export async function createGeminiLiveToken(
   const day = new Date(now).toISOString().slice(0, 10);
   const usage = ledger.get(userId);
   const minutes = usage?.day === day ? usage.minutes : 0;
-  if (minutes + GEMINI_LIVE_SESSION_MINUTES > GEMINI_LIVE_DAILY_MINUTES) {
+  if (minutes + GEMINI_LIVE_SESSION_MINUTES > dailyLimit) {
     return {
       ok: false,
       status: 429,
