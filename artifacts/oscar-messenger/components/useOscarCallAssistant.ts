@@ -2,17 +2,69 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "../lib/api";
 import { frameTurnBody } from "../lib/oscar-ai-turn";
 import { baseMessengerAudioContentType, chooseWebAudioMimeType } from "../lib/web-voice";
+import { readOscarAiVoice } from "../lib/oscar-ai-preferences";
 
 export type OscarCallStatus = "off" | "listening" | "thinking" | "speaking" | "error";
 
-type Options = { getToken: () => Promise<string | null> };
+type Options = { getToken: () => Promise<string | null>; userName: string };
+
+const GREETING_CACHE = "oscar-call-greetings-v1";
+
+export function buildOscarCallGreeting(userName: string, date = new Date()): string {
+  const hour = date.getHours();
+  const salutation = hour >= 5 && hour < 12 ? "صباح الخير" : "مساء الخير";
+  const name = userName.trim() || "صاحب الحساب";
+  return `${salutation}، أنا مساعد مستر ${name}. سعيد بالتواصل مع حضرتك. اتفضل، أقدر أساعد حضرتك إزاي؟`;
+}
+
+async function loadSpeechAudio(
+  text: string,
+  voice: "female" | "male",
+  token: string,
+  cacheGreeting: boolean,
+): Promise<ArrayBuffer> {
+  let cache: Cache | null = null;
+  let cacheKey: Request | null = null;
+  if (cacheGreeting && typeof window !== "undefined" && "caches" in window) {
+    try {
+      cache = await window.caches.open(GREETING_CACHE);
+      const url = new URL("/__oscar-call-greeting-cache__", window.location.origin);
+      url.searchParams.set("voice", voice);
+      url.searchParams.set("text", text);
+      cacheKey = new Request(url.toString());
+      const saved = await cache.match(cacheKey);
+      if (saved) return await saved.arrayBuffer();
+    } catch {
+      cache = null;
+      cacheKey = null;
+    }
+  }
+
+  const response = await fetch(apiUrl("/api/messenger/ai/tts"), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text: text.slice(0, 900), voice }),
+  });
+  if (!response.ok) throw new Error("تعذر إنشاء صوت أوسكار.");
+  if (cache && cacheKey) {
+    try {
+      await cache.put(cacheKey, response.clone());
+    } catch {
+      // The greeting still plays even if persistent browser storage is unavailable.
+    }
+  }
+  return await response.arrayBuffer();
+}
 
 const SPEECH_RMS = 0.006;
 const END_SILENCE_MS = 850;
 const NO_SPEECH_MS = 12_000;
 const MAX_TURN_MS = 12_000;
 
-export function useOscarCallAssistant({ getToken }: Options) {
+export function useOscarCallAssistant({ getToken, userName }: Options) {
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<OscarCallStatus>("off");
   const [remoteTrack, setRemoteTrack] = useState<MediaStreamTrack | null>(null);
@@ -77,41 +129,43 @@ export function useOscarCallAssistant({ getToken }: Options) {
     historyRef.current = [];
     enabledRef.current = true;
     setEnabled(true);
-    setStatus("listening");
-  }, [prepare]);
+    setStatus("speaking");
+    try {
+      await speak(buildOscarCallGreeting(userName, new Date()), true);
+    } catch {
+      if (enabledRef.current) setStatus("error");
+    }
+    if (enabledRef.current) setStatus("listening");
+  }, [prepare, speak, userName]);
 
-  const speak = useCallback(async (text: string) => {
+  const speak = useCallback(async (text: string, cacheGreeting = false) => {
     const context = contextRef.current;
     const destination = destinationRef.current;
     if (!context || !destination || !text.trim()) return;
-    const token = await getToken();
-    if (!token) throw new Error("انتهت جلسة الدخول.");
-    const response = await fetch(apiUrl("/api/messenger/ai/tts"), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text: text.slice(0, 900), voice: "female" }),
-    });
-    if (!response.ok) throw new Error("تعذر إنشاء صوت أوسكار.");
-    const audio = await context.decodeAudioData(await response.arrayBuffer());
-    if (!enabledRef.current) return;
-    await context.resume();
-    const source = context.createBufferSource();
-    source.buffer = audio;
-    source.connect(destination);
-    sourceRef.current = source;
     speakingRef.current = true;
-    await new Promise<void>((resolve) => {
-      source.onended = () => {
-        source.disconnect();
-        sourceRef.current = null;
-        speakingRef.current = false;
-        resolve();
-      };
-      source.start();
-    });
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("انتهت جلسة الدخول.");
+      const audioData = await loadSpeechAudio(text, readOscarAiVoice(), token, cacheGreeting);
+      if (!enabledRef.current) return;
+      const audio = await context.decodeAudioData(audioData.slice(0));
+      if (!enabledRef.current) return;
+      await context.resume();
+      const source = context.createBufferSource();
+      source.buffer = audio;
+      source.connect(destination);
+      sourceRef.current = source;
+      await new Promise<void>((resolve) => {
+        source.onended = () => {
+          source.disconnect();
+          sourceRef.current = null;
+          resolve();
+        };
+        source.start();
+      });
+    } finally {
+      if (!sourceRef.current) speakingRef.current = false;
+    }
   }, [getToken]);
 
   useEffect(() => {
