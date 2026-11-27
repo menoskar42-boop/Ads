@@ -62,9 +62,20 @@ export function buildGeminiLiveSetup(options: GeminiLiveOptions = {}) {
         required: ["contact_name"],
       },
     },
+    {
+      name: "start_messenger_call",
+      description: "يبدأ مكالمة صوتية داخل Oscar Messenger مع جهة اتصال بعد موافقة المستخدم.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          contact_name: { type: "STRING", description: "اسم الشخص زى ما المستخدم قاله" },
+        },
+        required: ["contact_name"],
+      },
+    },
   ];
   const messageRule =
-    " لما المستخدم يطلب يرسل رسالة، اختار الأداة حسب طلبه: send_message لو عايز رسالة مكتوبة، أو record_voice_message لو عايز يسجل بصوته. فى النص المكتوب اكتب الرسالة واعرضها للمستخدم. فى الصوت وضّح إن التسجيل بصوته هو. التطبيق هيطلب موافقته الصريحة قبل الإرسال أو بدء التسجيل.";
+    " لما المستخدم يطلب يرسل رسالة، اختار الأداة حسب طلبه: send_message لو عايز رسالة مكتوبة، أو record_voice_message لو عايز يسجل بصوته. ولما يطلب مكالمة صوتية داخل Oscar Messenger استخدم start_messenger_call. التطبيق هيطلب موافقته الصريحة قبل الإرسال أو بدء التسجيل أو المكالمة. مكالمات الأداة صوتية داخل Messenger وليست اتصالًا هاتفيًا برقم خارجي.";
   const scheduleTool = {
     name: "schedule_message",
     description:
