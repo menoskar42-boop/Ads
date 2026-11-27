@@ -130,6 +130,16 @@ test("the chat header offers a video call next to the audio call", () => {
 });
 
 
+test("incoming participant and Oscar assistant audio tracks are merged instead of replacing each other", () => {
+  const source = readFileSync(callPath, "utf8");
+  assert.match(source, /remoteMediaStreamRef = useRef/);
+  assert.match(source, /const remoteStream = new MediaStream\(\);[\s\S]*remoteMediaStreamRef\.current = remoteStream/);
+  assert.match(source, /remoteStream\.addTrack\(event\.track\)/);
+  assert.match(source, /remoteAudio\.srcObject = remoteStream/);
+  assert.doesNotMatch(source, /const remoteStream = event\.streams\[0\]/);
+  assert.match(source, /remoteMediaStreamRef\.current = null/);
+});
+
 test("Oscar call assistant is opt-in and sends only the remote participant audio to Gemini", () => {
   const call = readFileSync(callPath, "utf8");
   const assistant = readFileSync(new URL("../components/useOscarCallAssistant.ts", import.meta.url), "utf8");
