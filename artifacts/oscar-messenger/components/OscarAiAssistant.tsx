@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Modal,
@@ -13,7 +15,7 @@ import {
   listMessengerConversations,
   sendMessengerMessage,
 } from "@workspace/api-client-react";
-import { apiUrl } from "../lib/api";
+import { apiUrl, queryKeys } from "../lib/api";
 import { matchContacts } from "../lib/oscar-ai-messages";
 import { oscarAiSpeechOutput } from "../lib/oscar-ai-turn";
 import { useOscarAiTurn } from "./useOscarAiTurn";
@@ -72,6 +74,8 @@ export function parseLiveMessage(data: unknown): any | null {
 }
 
 export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string | null> }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [wakeEnabled, setWakeEnabled] = useState(false);
   const [active, setActive] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -293,6 +297,24 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         return { error: "فيه أكتر من حد بالاسم ده — اسأل المستخدم يختار.", options: matches.map((match) => match.name) };
       }
       const contact = matches[0];
+      if (name === "start_messenger_call") {
+        const approved = await requestConfirmation(
+          "تأكيد بدء مكالمة صوتية",
+          `هتبدأ مكالمة صوتية داخل Oscar Messenger مع ${contact.name}.`,
+        );
+        if (!approved) {
+          return { result: "cancelled", to: contact.name, note: "المستخدم رفض المكالمة." };
+        }
+        router.push({
+          pathname: "/chat/[conversationId]",
+          params: {
+            conversationId: contact.conversationId,
+            peerName: contact.name,
+            startCall: "1",
+          },
+        });
+        return { result: "call_requested", to: contact.name, media: "audio" };
+      }
       if (name === "send_message") {
         const text = typeof args.text === "string" ? args.text.trim() : "";
         if (!text) return { error: "نص الرسالة فاضى." };
@@ -302,6 +324,10 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
           body: `${text.slice(0, 3_900)}\n\n✍️ اتكتبت بـOscar AI`,
           clientMessageId: `oscar-ai-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
         });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.messages(contact.conversationId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
+        ]);
         return { result: "sent", to: contact.name };
       }
       if (name === "schedule_message") {
@@ -351,13 +377,17 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
           },
         );
         if (!upload.ok) return { error: "تعذر رفع الرسالة الصوتية." };
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.messages(contact.conversationId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
+        ]);
         return { result: "sent", to: contact.name };
       }
       return { error: "أداة مش معروفة." };
     } catch (toolError) {
       return { error: toolError instanceof Error ? toolError.message : "تعذر إرسال الرسالة." };
     }
-  }, [getToken, recordVoiceMessage, requestConfirmation]);
+  }, [getToken, queryClient, recordVoiceMessage, requestConfirmation, router]);
   runToolRef.current = runMessageTool;
   const turnStart = turn.start;
 
