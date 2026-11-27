@@ -977,7 +977,10 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       const wakeLockApi = (navigator as Navigator & {
         wakeLock?: { request: (type: "screen") => Promise<ScreenWakeLock> };
       }).wakeLock;
-      if (!wakeLockApi) return;
+      if (!wakeLockApi) {
+        setCallError("المتصفح لا يدعم منع الشاشة من القفل، خليك فاتح Oscar Messenger أثناء المكالمة.");
+        return;
+      }
       let lock: ScreenWakeLock | null = null;
       let requesting = false;
       let stopped = false;
@@ -996,7 +999,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
             lock.addEventListener?.("release", onRelease);
           }
         } catch {
-          // The browser may refuse (battery saver, unsupported PWA mode); the call continues.
+          setCallError("المتصفح لم يسمح بإبقاء الشاشة مفتوحة. خليك داخل Oscar Messenger وتأكد من وضع توفير الطاقة.");
         } finally {
           requesting = false;
         }
