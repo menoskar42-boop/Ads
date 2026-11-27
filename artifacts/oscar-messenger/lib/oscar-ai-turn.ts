@@ -1,3 +1,6 @@
+import { apiUrl } from "./api";
+import { readOscarAiTtsProvider, type OscarAiTtsProvider } from "./oscar-ai-preferences";
+
 // Oscar AI «بالأدوار» helpers (owner 2026-11-27, option أ): one Flash-Lite request per turn returns
 // what the user said + the reply, and the phone reads the reply with its own voice.
 
@@ -96,9 +99,6 @@ export function stopSpeaking(): void {
     // Nothing is speaking.
   }
 }
-
-import { apiUrl } from "./api";
-import { readOscarAiTtsProvider, type OscarAiTtsProvider } from "./oscar-ai-preferences";
 
 /** Playback settings are independent from Gemini's microphone transcription and reasoning. */
 export type OscarAiSpeechOptions = {
