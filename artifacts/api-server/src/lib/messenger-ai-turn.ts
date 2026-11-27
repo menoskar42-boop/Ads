@@ -236,9 +236,9 @@ async function runTurn(
   withAudio: boolean,
   fetcher: Fetcher,
 ): Promise<TurnReply | TurnFailure> {
-  // Search on by default (the owner asks «الحرارة كام»). If the model refuses search together with
-  // functions in one request (400), retry once without search. Never retry a 429.
-  const searchOn = process.env.GEMINI_TURN_SEARCH !== "off";
+  // Keep grounding opt-in: it may be unavailable on the Free tier and can add cost.
+  // Enable explicitly with GEMINI_TURN_SEARCH=on when the project's quota and billing are confirmed.
+  const searchOn = process.env.GEMINI_TURN_SEARCH === "on";
   let result = await callGemini(
     apiKey,
     buildTurnRequest(contents, options, searchOn, withAudio),
