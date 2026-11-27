@@ -322,12 +322,15 @@ export async function listenAndReplyForCall(
   apiKey: string | undefined,
   audio: Buffer,
   mimeType: string,
+  rawHistory: unknown = [],
   fetcher: Fetcher = fetch,
-): Promise<{ ok: true; reply: string } | TurnFailure> {
+): Promise<{ ok: true; transcript: string; reply: string } | TurnFailure> {
   if (!apiKey?.trim()) return { ok: false, status: 503, error: "Oscar AI مش متاح" };
   if (!audio.length || audio.length > TURN_MAX_AUDIO_BYTES) {
     return { ok: false, status: 400, error: "التسجيل فاضى أو أطول من اللازم." };
   }
+  const history = cleanContents(rawHistory, true);
+  if (!history) return { ok: false, status: 400, error: "سياق المكالمة غير صالح." };
   try {
     const response = await fetcher(
       `${API_BASE}/${encodeURIComponent(GEMINI_TURN_MODEL)}:generateContent`,
@@ -339,37 +342,33 @@ export async function listenAndReplyForCall(
             parts: [{
               text:
                 "أنت Oscar، مساعد ذكاء اصطناعي يشارك في مكالمة صوتية نيابة عن صاحب الحساب. " +
-                "عرّف بنفسك بوضوح أنك مساعده الذكي، ولا تتظاهر أنك صاحب الحساب أو إنسان. " +
+                "عرّف بنفسك بوضوح في أول رد أنك مساعده الذكي، ولا تتظاهر أنك صاحب الحساب أو إنسان. " +
                 "تحدث بالعامية المصرية بجمل قصيرة وطبيعية. افهم كلام الطرف الآخر من التسجيل ثم أجب عليه مباشرة. " +
+                "أعد الكلام المسموع داخل <transcript>، ثم ردك داخل <reply>، ولا تكتب أي نص خارج الوسمين. " +
                 "لا تخترع معلومات عن صاحب الحساب، ولا تقدم موافقات أو وعود أو قرارات شخصية نيابة عنه. " +
                 "في الأمور الطبية أو المالية أو القانونية أو الحساسة، قل إنك ستحتاج الرجوع لصاحب الحساب. " +
                 "إذا لم تفهم الكلام، اطلب تكراره. لا تستخدم أدوات أو ترسل رسائل أو تنفذ أي إجراء."
             }]
           },
-          contents: [{
-            role: "user",
-            parts: [{ inline_data: { mime_type: mimeType, data: audio.toString("base64") } }]
-          }],
+          contents: [
+            ...history,
+            { role: "user", parts: [{ inline_data: { mime_type: mimeType, data: audio.toString("base64") } }] }
+          ],
           generationConfig: { temperature: 0.35, maxOutputTokens: 300 }
         })
       }
     );
-    if (response.status === 429) {
-      return { ok: false, status: 429, error: BUSY_ERROR };
-    }
-    if (!response.ok) {
-      return { ok: false, status: 502, error: REPLY_ERROR };
-    }
+    if (response.status === 429) return { ok: false, status: 429, error: BUSY_ERROR };
+    if (!response.ok) return { ok: false, status: 502, error: REPLY_ERROR };
     const payload = await response.json() as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }>;
     };
-    const reply = (payload.candidates?.[0]?.content?.parts ?? [])
+    const text = (payload.candidates?.[0]?.content?.parts ?? [])
       .map((part) => typeof part.text === "string" ? part.text : "")
-      .join("")
-      .trim()
-      .slice(0, 900);
-    if (!reply) return { ok: false, status: 502, error: REPLY_ERROR };
-    return { ok: true, reply };
+      .join("");
+    const parsed = parseTaggedReply(text);
+    if (!parsed.reply) return { ok: false, status: 502, error: REPLY_ERROR };
+    return { ok: true, transcript: parsed.transcript, reply: parsed.reply };
   } catch {
     return { ok: false, status: 502, error: REPLY_ERROR };
   }
