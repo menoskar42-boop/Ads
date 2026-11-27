@@ -35,8 +35,8 @@ export function pcmToWav(pcm: Buffer, sampleRate = 24_000, channels = 1): Buffer
 }
 
 function normalizeAudio(audio: Buffer, mimeType: string): { audio: Buffer; mimeType: string } {
-  if (/^audio\\/(?:l16|pcm)\\b/i.test(mimeType)) {
-    const rate = /rate=(\\d+)/i.exec(mimeType)?.[1];
+  if (/^audio\/(?:l16|pcm)\b/i.test(mimeType)) {
+    const rate = /rate=(\d+)/i.exec(mimeType)?.[1];
     return { audio: pcmToWav(audio, rate ? Number(rate) : 24_000), mimeType: "audio/wav" };
   }
   return { audio, mimeType };
