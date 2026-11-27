@@ -316,6 +316,65 @@ export async function listenAndRespond(
 }
 
 /** Text-only follow-up after a tool ran (contents end with the functionResponse). */
+
+/** A restricted call reply: no Messenger tools, scheduling, or user-side actions. */
+export async function listenAndReplyForCall(
+  apiKey: string | undefined,
+  audio: Buffer,
+  mimeType: string,
+  fetcher: Fetcher = fetch,
+): Promise<{ ok: true; reply: string } | TurnFailure> {
+  if (!apiKey?.trim()) return { ok: false, status: 503, error: "Oscar AI مش متاح" };
+  if (!audio.length || audio.length > TURN_MAX_AUDIO_BYTES) {
+    return { ok: false, status: 400, error: "التسجيل فاضى أو أطول من اللازم." };
+  }
+  try {
+    const response = await fetcher(
+      `${API_BASE}/${encodeURIComponent(GEMINI_TURN_MODEL)}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{
+              text:
+                "أنت Oscar، مساعد ذكاء اصطناعي يشارك في مكالمة صوتية نيابة عن صاحب الحساب. " +
+                "عرّف بنفسك بوضوح أنك مساعده الذكي، ولا تتظاهر أنك صاحب الحساب أو إنسان. " +
+                "تحدث بالعامية المصرية بجمل قصيرة وطبيعية. افهم كلام الطرف الآخر من التسجيل ثم أجب عليه مباشرة. " +
+                "لا تخترع معلومات عن صاحب الحساب، ولا تقدم موافقات أو وعود أو قرارات شخصية نيابة عنه. " +
+                "في الأمور الطبية أو المالية أو القانونية أو الحساسة، قل إنك ستحتاج الرجوع لصاحب الحساب. " +
+                "إذا لم تفهم الكلام، اطلب تكراره. لا تستخدم أدوات أو ترسل رسائل أو تنفذ أي إجراء."
+            }]
+          },
+          contents: [{
+            role: "user",
+            parts: [{ inline_data: { mime_type: mimeType, data: audio.toString("base64") } }]
+          }],
+          generationConfig: { temperature: 0.35, maxOutputTokens: 300 }
+        })
+      }
+    );
+    if (response.status === 429) {
+      return { ok: false, status: 429, error: BUSY_ERROR };
+    }
+    if (!response.ok) {
+      return { ok: false, status: 502, error: REPLY_ERROR };
+    }
+    const payload = await response.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }>;
+    };
+    const reply = (payload.candidates?.[0]?.content?.parts ?? [])
+      .map((part) => typeof part.text === "string" ? part.text : "")
+      .join("")
+      .trim()
+      .slice(0, 900);
+    if (!reply) return { ok: false, status: 502, error: REPLY_ERROR };
+    return { ok: true, reply };
+  } catch {
+    return { ok: false, status: 502, error: REPLY_ERROR };
+  }
+}
+
 export async function respondTurn(
   apiKey: string | undefined,
   rawContents: unknown,
