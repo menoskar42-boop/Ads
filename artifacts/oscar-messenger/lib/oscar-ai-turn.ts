@@ -100,7 +100,9 @@ export function stopSpeaking(): void {
   }
 }
 
-/** Playback settings are independent from Gemini's microphone transcription and reasoning. */
+/** Playback settings are independent from Gemini's microphone transcription and reasoning.
+ * Gemini TTS audio is generated server-side with gemini-3.8-flash-lite-tts.
+ */
 export type OscarAiSpeechOptions = {
   provider?: OscarAiTtsProvider;
   getToken?: () => Promise<string | null>;
@@ -117,8 +119,9 @@ export type OscarAiSpeechOutput = {
 
 let activeSource: AudioBufferSourceNode | null = null;
 let finishActivePlayback: (() => void) | null = null;
+let playbackGeneration = 0;
 
-function stopGeminiPlayback(): void {
+function clearGeminiSource(): void {
   const source = activeSource;
   activeSource = null;
   finishActivePlayback?.();
@@ -130,14 +133,21 @@ function stopGeminiPlayback(): void {
   }
 }
 
+function stopGeminiPlayback(): void {
+  playbackGeneration += 1;
+  clearGeminiSource();
+}
+
 async function speakWithGemini(
   text: string,
   options: OscarAiSpeechOptions,
 ): Promise<"spoken" | "unavailable"> {
   const context = options.audioContext;
   if (!context || context.state === "closed" || !options.getToken) return "unavailable";
+  const generation = ++playbackGeneration;
   try {
     const token = await options.getToken();
+    if (generation !== playbackGeneration) return "spoken";
     if (!token) return "unavailable";
     const response = await fetch(apiUrl("/api/messenger/ai/tts"), {
       method: "POST",
@@ -150,12 +160,15 @@ async function speakWithGemini(
         voice: options.voice === "male" ? "male" : "female",
       }),
     });
+    if (generation !== playbackGeneration) return "spoken";
     if (!response.ok) return "unavailable";
     const audioData = await response.arrayBuffer();
+    if (generation !== playbackGeneration) return "spoken";
     if (!audioData.byteLength || context.state === "closed") return "unavailable";
     if (context.state !== "running") await context.resume();
     const buffer = await context.decodeAudioData(audioData);
-    stopGeminiPlayback();
+    if (generation !== playbackGeneration) return "spoken";
+    clearGeminiSource();
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.connect(context.destination);
