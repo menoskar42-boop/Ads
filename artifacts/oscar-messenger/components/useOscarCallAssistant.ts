@@ -22,6 +22,7 @@ export function useOscarCallAssistant({ getToken }: Options) {
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const enabledRef = useRef(false);
   const speakingRef = useRef(false);
+  const historyRef = useRef<Array<{ role: "user" | "model"; parts: Array<{ text: string }> }>>([]);
 
   const prepare = useCallback(async (): Promise<boolean> => {
     if (typeof window === "undefined" || typeof AudioContext === "undefined") return false;
@@ -43,6 +44,7 @@ export function useOscarCallAssistant({ getToken }: Options) {
 
   const stop = useCallback(() => {
     enabledRef.current = false;
+    historyRef.current = [];
     setEnabled(false);
     speakingRef.current = false;
     try { sourceRef.current?.stop(); } catch { /* already stopped */ }
@@ -66,6 +68,7 @@ export function useOscarCallAssistant({ getToken }: Options) {
       setStatus("error");
       return;
     }
+    historyRef.current = [];
     enabledRef.current = true;
     setEnabled(true);
     setStatus("listening");
@@ -87,6 +90,7 @@ export function useOscarCallAssistant({ getToken }: Options) {
     });
     if (!response.ok) throw new Error("تعذر إنشاء صوت أوسكار.");
     const audio = await context.decodeAudioData(await response.arrayBuffer());
+    if (!enabledRef.current) return;
     await context.resume();
     const source = context.createBufferSource();
     source.buffer = audio;
@@ -117,6 +121,11 @@ export function useOscarCallAssistant({ getToken }: Options) {
     let recorder: MediaRecorder | null = null;
 
     const recordTurn = () => new Promise<Blob | null>((resolve) => {
+      if (typeof MediaRecorder === "undefined") {
+        setStatus("error");
+        resolve(null);
+        return;
+      }
       const mimeType = chooseWebAudioMimeType((type) => MediaRecorder.isTypeSupported(type));
       if (!mimeType) {
         resolve(null);
@@ -176,12 +185,16 @@ export function useOscarCallAssistant({ getToken }: Options) {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/octet-stream",
         },
-        body: await frameTurnBody({ mimeType: contentType, history: [] }, audio),
+        body: await frameTurnBody({ mimeType: contentType, history: historyRef.current }, audio),
       });
       const result = await upload.json().catch(() => ({}));
       if (!upload.ok) throw new Error(typeof result?.error === "string" ? result.error : "تعذر فهم كلام الطرف الآخر.");
+      const transcript = typeof result?.transcript === "string" ? result.transcript.trim() : "";
       const reply = typeof result?.reply === "string" ? result.reply.trim() : "";
       if (!reply || cancelled || !enabledRef.current) return;
+      if (transcript) historyRef.current.push({ role: "user", parts: [{ text: transcript }] });
+      historyRef.current.push({ role: "model", parts: [{ text: reply }] });
+      historyRef.current = historyRef.current.slice(-12);
       setStatus("speaking");
       await speak(reply);
     };
