@@ -1,3 +1,4 @@
+import { buildOscarCallGreeting } from "../lib/oscar-call-greeting.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -145,4 +146,32 @@ test("Oscar call assistant is opt-in and sends only the remote participant audio
   assert.match(assistant, /historyRef\.current/);
   assert.match(assistant, /END_SILENCE_MS/);
   assert.match(assistant, /enabledRef\.current/);
+});
+
+
+test("Oscar call greeting is fixed, uses the saved profile name, and changes by local time", () => {
+  assert.equal(
+    buildOscarCallGreeting("مينا", new Date(2026, 0, 1, 8, 0)),
+    "صباح الخير، أنا مساعد مستر مينا. سعيد بالتواصل مع حضرتك. أقدر أساعد حضرتك في إيه؟",
+  );
+  assert.equal(
+    buildOscarCallGreeting("Mina", new Date(2026, 0, 1, 19, 0)),
+    "مساء الخير، أنا مساعد مستر Mina. سعيد بالتواصل مع حضرتك. أقدر أساعد حضرتك في إيه؟",
+  );
+  assert.equal(
+    buildOscarCallGreeting("مستر مينا", new Date(2026, 0, 1, 19, 0)),
+    "مساء الخير، أنا مساعد مستر مينا. سعيد بالتواصل مع حضرتك. أقدر أساعد حضرتك في إيه؟",
+  );
+});
+
+test("the call assistant caches its fixed greeting recording and plays it before listening", () => {
+  const assistant = readFileSync(new URL("../components/useOscarCallAssistant.ts", import.meta.url), "utf8");
+  const controller = readFileSync(callPath, "utf8");
+  assert.match(assistant, /oscar-call-greetings-v1/);
+  assert.match(assistant, /window\.caches\.open/);
+  assert.match(assistant, /cache\.match\(cacheKey\)/);
+  assert.match(assistant, /cache\.put\(cacheKey, response\.clone\(\)\)/);
+  assert.match(assistant, /buildOscarCallGreeting\(userName, new Date\(\)\)/);
+  assert.match(assistant, /await speak\(buildOscarCallGreeting/);
+  assert.match(controller, /ownProfile\.data\?\.profile\?\.displayName/);
 });
