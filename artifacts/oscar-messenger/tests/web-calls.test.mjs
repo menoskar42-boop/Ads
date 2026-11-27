@@ -127,3 +127,22 @@ test("the chat header offers a video call next to the audio call", () => {
   assert.match(chat, /accessibilityLabel="مكالمة فيديو"/);
   assert.match(chat, /callControllerRef\.current\?\.startCall\("video"\)/);
 });
+
+
+test("Oscar call assistant is opt-in and sends only the remote participant audio to Gemini", () => {
+  const call = readFileSync(callPath, "utf8");
+  const assistant = readFileSync(new URL("../components/useOscarCallAssistant.ts", import.meta.url), "utf8");
+  assert.match(call, /testID="call-oscar-toggle"/);
+  assert.match(call, /oscarCallAssistant\.outgoingStream\(\)/);
+  assert.match(call, /connection\.addTrack\(track, oscarStream\)/);
+  assert.match(call, /oscarCallAssistant\.setRemoteTrack\(event\.track\)/);
+  assert.match(call, /تأكد إن الطرف الآخر عارف/);
+  assert.match(assistant, /new MediaStream\(\[remoteTrack\]\)/);
+  assert.match(assistant, /new MediaRecorder\(stream/);
+  assert.match(assistant, /api\/messenger\/ai\/call-turn/);
+  assert.match(assistant, /api\/messenger\/ai\/tts/);
+  assert.match(assistant, /source\.connect\(destination\)/);
+  assert.match(assistant, /historyRef\.current/);
+  assert.match(assistant, /END_SILENCE_MS/);
+  assert.match(assistant, /enabledRef\.current/);
+});
