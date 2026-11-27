@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   acceptMessengerCall,
   createMessengerCall,
+  getMessengerProfile,
   endMessengerCall,
   getActiveMessengerCall,
   getMessengerCallConfig,
@@ -247,7 +248,6 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
   function WebCallController({ conversationId, peerName, enabled, onError }, ref) {
     const { userId, getToken } = useAuth();
     const getAuthToken = useCallback(() => getToken(), [getToken]);
-    const oscarCallAssistant = useOscarCallAssistant({ getToken: getAuthToken });
     const queryClient = useQueryClient();
     const [call, setCall] = useState<MessengerCall | null>(null);
     const [busy, setBusy] = useState(false);
@@ -289,6 +289,17 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       typeof window !== "undefined" &&
       typeof RTCPeerConnection !== "undefined" &&
       !!navigator.mediaDevices?.getUserMedia;
+    const ownProfile = useQuery({
+      queryKey: queryKeys.profile,
+      queryFn: getMessengerProfile,
+      enabled: isWebCallSupported && !!userId,
+      retry: false,
+      staleTime: 5 * 60 * 1_000,
+    });
+    const oscarCallAssistant = useOscarCallAssistant({
+      getToken: getAuthToken,
+      userName: ownProfile.data?.profile?.displayName || "صاحب الحساب",
+    });
     usePwaUpdateActivity(
       "web-call",
       isWebCallSupported && (busy || (!!call && call.state !== "ended")),
