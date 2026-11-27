@@ -121,23 +121,6 @@ export function useOscarCallAssistant({ getToken, userName }: Options) {
     if (context && context.state !== "closed") void context.close().catch(() => undefined);
   }, [stop]);
 
-  const start = useCallback(async () => {
-    if (!await prepare()) {
-      setStatus("error");
-      return;
-    }
-    historyRef.current = [];
-    enabledRef.current = true;
-    setEnabled(true);
-    setStatus("speaking");
-    try {
-      await speak(buildOscarCallGreeting(userName, new Date()), true);
-    } catch {
-      if (enabledRef.current) setStatus("error");
-    }
-    if (enabledRef.current) setStatus("listening");
-  }, [prepare, speak, userName]);
-
   const speak = useCallback(async (text: string, cacheGreeting = false) => {
     const context = contextRef.current;
     const destination = destinationRef.current;
@@ -167,6 +150,23 @@ export function useOscarCallAssistant({ getToken, userName }: Options) {
       if (!sourceRef.current) speakingRef.current = false;
     }
   }, [getToken]);
+
+  const start = useCallback(async () => {
+    if (!await prepare()) {
+      setStatus("error");
+      return;
+    }
+    historyRef.current = [];
+    enabledRef.current = true;
+    setEnabled(true);
+    setStatus("speaking");
+    try {
+      await speak(buildOscarCallGreeting(userName, new Date()), true);
+    } catch {
+      if (enabledRef.current) setStatus("error");
+    }
+    if (enabledRef.current) setStatus("listening");
+  }, [prepare, speak, userName]);
 
   useEffect(() => {
     if (!enabled || !remoteTrack || !contextRef.current) return;
