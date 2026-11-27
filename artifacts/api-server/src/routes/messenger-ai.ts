@@ -78,9 +78,8 @@ export function createMessengerAiRouter(dependencies: Dependencies = {}) {
   // Turn mode (owner's choice 2026-11-27): one request ⇒ what the user said + the reply.
   const apiKey = () => (dependencies.getApiKey ? dependencies.getApiKey() : process.env.GEMINI_API_KEY);
   const fetcher = dependencies.fetcher ?? fetch;
+  // All Gemini requests, including tool follow-ups, share one per-user daily budget.
   const turnUsage: Usage = new Map();
-  // A turn can need a follow-up reply after a tool runs.
-  const followUpUsage: Usage = new Map();
   const parseTurnBody: RequestHandler = (req, res, next) => {
     express.raw({
       type: "application/octet-stream",
@@ -127,7 +126,7 @@ export function createMessengerAiRouter(dependencies: Dependencies = {}) {
   });
 
   router.post("/messenger/ai/turn/follow-up", requireAuth, async (req, res) => {
-    const limited = reserveTurn(String(res.locals.userId), followUpUsage, Date.now(), TURN_DAILY_LIMIT);
+    const limited = reserveTurn(String(res.locals.userId), turnUsage, Date.now(), TURN_DAILY_LIMIT);
     if (limited) {
       res.status(limited.status).json({ error: limited.error });
       return;
