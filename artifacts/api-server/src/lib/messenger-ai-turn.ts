@@ -14,7 +14,7 @@ export const GEMINI_TURN_MODEL =
 export const TURN_MAX_AUDIO_BYTES = 3 * 1024 * 1024;
 export const TURN_MAX_CONTEXT_BYTES = 64 * 1024;
 // Owner-configured per-user daily cap. Deliberately fixed so old Replit env values cannot override it.
-export const TURN_DAILY_LIMIT = 100000;
+export const TURN_DAILY_LIMIT = 1000000;
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const AUDIO_TYPES = new Set([
