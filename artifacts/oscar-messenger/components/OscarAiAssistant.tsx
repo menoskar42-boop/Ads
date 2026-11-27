@@ -78,6 +78,18 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   const [consentVisible, setConsentVisible] = useState(false);
   const [pageVisible, setPageVisible] = useState(false);
   const [error, setError] = useState("");
+  const [confirmation, setConfirmation] = useState<{ title: string; detail: string } | null>(null);
+  const confirmationResolver = useRef<((approved: boolean) => void) | null>(null);
+  const requestConfirmation = useCallback((title: string, detail: string) => new Promise<boolean>((resolve) => {
+    confirmationResolver.current = resolve;
+    setConfirmation({ title, detail });
+  }), []);
+  const finishConfirmation = useCallback((approved: boolean) => {
+    const resolve = confirmationResolver.current;
+    confirmationResolver.current = null;
+    setConfirmation(null);
+    resolve?.(approved);
+  }, []);
   const pendingStart = useRef(false);
   const recognition = useRef<RecognitionLike | null>(null);
   const socket = useRef<WebSocket | null>(null);
@@ -280,6 +292,8 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
       if (name === "send_message") {
         const text = typeof args.text === "string" ? args.text.trim() : "";
         if (!text) return { error: "نص الرسالة فاضى." };
+        const approved = await requestConfirmation("تأكيد إرسال رسالة نصية", `إلى: ${contact.name}\n\n${text.slice(0, 900)}`);
+        if (!approved) return { result: "cancelled", to: contact.name, note: "المستخدم رفض الإرسال." };
         await sendMessengerMessage(contact.conversationId, {
           body: `${text.slice(0, 3_900)}\n\n✍️ اتكتبت بـOscar AI`,
           clientMessageId: `oscar-ai-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
@@ -293,6 +307,11 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         if (Number.isNaN(sendAt.getTime()) || sendAt.getTime() < Date.now() + 60_000) {
           return { error: "الميعاد لازم يكون بعد دقيقة على الأقل من دلوقتى." };
         }
+        const approved = await requestConfirmation(
+          "تأكيد جدولة الرسالة",
+          `إلى: ${contact.name}\nالموعد: ${sendAt.toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" })}\n\n${text.slice(0, 900)}`,
+        );
+        if (!approved) return { result: "cancelled", to: contact.name, note: "المستخدم رفض الجدولة." };
         await createMessengerScheduledMessage(contact.conversationId, {
           body: `${text.slice(0, 3_900)}\n\n✍️ اتكتبت بـOscar AI`,
           scheduledAt: sendAt.toISOString(),
@@ -305,6 +324,11 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         };
       }
       if (name === "record_voice_message") {
+        const approved = await requestConfirmation(
+          "تأكيد تسجيل رسالة صوتية",
+          `هتسجل صوتك أنت وتبعته إلى ${contact.name}. التسجيل لن يبدأ قبل موافقتك.`,
+        );
+        if (!approved) return { result: "cancelled", to: contact.name, note: "المستخدم رفض تسجيل الرسالة." };
         const recorded = await recordVoiceMessage(contact.name);
         if (!recorded) return { result: "cancelled", to: contact.name, note: "ماتسجّلش كلام أو المستخدم لغى." };
         const authToken = await getToken();
@@ -745,6 +769,25 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
         </Pressable>
       )}
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+      <Modal
+        visible={!!confirmation}
+        transparent
+        animationType="fade"
+        onRequestClose={() => finishConfirmation(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.title}>{confirmation?.title ?? "تأكيد العملية"}</Text>
+            <Text selectable style={styles.subtitle}>{confirmation?.detail ?? ""}</Text>
+            <Pressable accessibilityRole="button" onPress={() => finishConfirmation(true)} style={styles.acceptButton}>
+              <Text style={styles.acceptText}>موافق، نفّذ</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => finishConfirmation(false)} style={styles.cancelButton}>
+              <Text style={styles.subtitle}>إلغاء</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       <Modal
         visible={consentVisible}
         transparent
