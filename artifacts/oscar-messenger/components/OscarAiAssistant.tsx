@@ -15,7 +15,7 @@ import {
 } from "@workspace/api-client-react";
 import { apiUrl } from "../lib/api";
 import { matchContacts } from "../lib/oscar-ai-messages";
-import { primeSpeech } from "../lib/oscar-ai-turn";
+import { oscarAiSpeechOutput } from "../lib/oscar-ai-turn";
 import { useOscarAiTurn } from "./useOscarAiTurn";
 import { baseMessengerAudioContentType, chooseWebAudioMimeType } from "../lib/web-voice";
 import {
@@ -594,7 +594,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
 
   const beginSession = useCallback(() => {
     primeAudio();
-    if (readOscarAiConversationMode() === "turn") primeSpeech();
+    if (readOscarAiConversationMode() === "turn") oscarAiSpeechOutput.prime();
     if (!hasOscarAiGoogleConsent()) {
       pendingStart.current = true;
       setActive(true);
@@ -695,7 +695,7 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
 
   const acceptConsent = () => {
     primeAudio();
-    if (readOscarAiConversationMode() === "turn") primeSpeech();
+    if (readOscarAiConversationMode() === "turn") oscarAiSpeechOutput.prime();
     saveOscarAiGoogleConsent();
     setConsentVisible(false);
     if (pendingStart.current) {
