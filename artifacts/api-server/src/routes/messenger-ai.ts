@@ -166,12 +166,12 @@ export function createMessengerAiRouter(dependencies: Dependencies = {}) {
       res.status(limited.status).json({ error: limited.error });
       return;
     }
-    const result = await listenAndReplyForCall(apiKey(), upload.audio, mimeType, fetcher);
+    const result = await listenAndReplyForCall(apiKey(), upload.audio, mimeType, upload.context.history, fetcher);
     if (!result.ok) {
       res.status(result.status).json({ error: result.error });
       return;
     }
-    res.json({ reply: result.reply });
+    res.json({ transcript: result.transcript, reply: result.reply });
   });
 
   router.post("/messenger/ai/turn/follow-up", requireAuth, async (req, res) => {
