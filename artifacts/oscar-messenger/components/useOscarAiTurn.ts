@@ -16,9 +16,10 @@ import { baseMessengerAudioContentType, chooseWebAudioMimeType } from "../lib/we
 export type TurnPhase = "idle" | "starting" | "listening" | "thinking" | "speaking";
 
 const MAX_SESSION_MS = 10 * 60_000;
-const SPEECH_RMS = 0.004;
+// Lower threshold to avoid dropping quiet speech and laptop microphones.
+const SPEECH_RMS = 0.0015;
 const END_OF_TURN_SILENCE_MS = 1_200;
-const NO_SPEECH_END_MS = 8_000;
+const NO_SPEECH_END_MS = 15_000;
 const MAX_TURN_MS = 30_000;
 const MAX_TOOL_ROUNDS = 2;
 
@@ -209,7 +210,10 @@ export function useOscarAiTurn(options: {
         setPhase("listening");
         const audio = await listen(current, analyser, mimeType);
         if (current.cancelled) return;
-        if (!audio) throw new EndSession("Oscar AI ماسمعش كلام لمدة ٨ ثوانى فقفل.");
+        if (!audio) {
+          setNotice("ماسمعتش كلام واضح. اتكلم تاني، وأنا لسه معاك.");
+          continue;
+        }
 
         setPhase("thinking");
         setNotice("");
@@ -256,8 +260,16 @@ export function useOscarAiTurn(options: {
         setReply(answer);
         if (answer) {
           setPhase("speaking");
-          const spoken = await oscarAiSpeechOutput.speak(answer);
-          if (spoken === "unavailable") setNotice("الموبايل مابيقراش بالعربى — الرد مكتوب قدامك.");
+          const spoken = await oscarAiSpeechOutput.speak(answer, {
+            getToken,
+            voice: sessionOptions.voice,
+            audioContext: current.audioContext,
+          });
+          if (spoken === "unavailable") {
+            setNotice(oscarAiSpeechOutput.provider === "gemini-tts"
+              ? "تعذر تشغيل صوت Gemini TTS. الرد مكتوب قدامك، وتقدر تغيّر المحرك من الإعدادات."
+              : "المتصفح مش قادر ينطق بالعربى. الرد مكتوب قدامك، وتقدر تختار Gemini TTS من الإعدادات.");
+          }
         }
         current.history = trimTurnHistory(current.history);
       }
@@ -269,7 +281,7 @@ export function useOscarAiTurn(options: {
       stop();
       onEnd(endMessage);
     }
-  }, [getSessionOptions, listen, onEnd, post, runMessageTool, stop, takeAudioContext]);
+  }, [getSessionOptions, getToken, listen, onEnd, post, runMessageTool, stop, takeAudioContext]);
 
   return { phase, transcript, reply, notice, start, stop, interrupt };
 }
