@@ -7,6 +7,7 @@ import {
   scheduledClientMessageId,
 } from "./scheduled-message-policy";
 import { hasMessengerBlocksSchema, isMessengerUserBlocked } from "./messenger-blocks";
+import { publishConversationUpdate } from "./messenger-events.ts";
 
 type ScheduledRow = {
   id: string;
@@ -127,6 +128,8 @@ export async function processOneDueMessage(pool: DbPool): Promise<boolean> {
     );
     await connection.query("COMMIT");
     transactionOpen = false;
+    // Notify both participants so an already-open chat refreshes immediately.
+    void publishConversationUpdate(pool, scheduled.conversation_id);
     if (inserted.rows[0]) {
       void notifyConversationMessage(pool, {
         conversationId: scheduled.conversation_id,
