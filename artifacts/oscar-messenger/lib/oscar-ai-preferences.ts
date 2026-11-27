@@ -49,6 +49,22 @@ export function readOscarAiVoice(): OscarAiVoice {
   return storage()?.getItem(VOICE_KEY) === "male" ? "male" : "female";
 }
 
+const CALL_OWNER_NAME_KEY = "messenger.oscar-ai.call-owner-name.v1";
+
+export function readOscarAiCallOwnerName(): string {
+  return storage()?.getItem(CALL_OWNER_NAME_KEY)?.trim() ?? "";
+}
+
+export function writeOscarAiCallOwnerName(name: string): void {
+  try {
+    const value = name.trim().slice(0, 60);
+    if (value) storage()?.setItem(CALL_OWNER_NAME_KEY, value);
+    else storage()?.removeItem(CALL_OWNER_NAME_KEY);
+  } catch {
+    // The Messenger profile name remains the fallback.
+  }
+}
+
 export function writeOscarAiVoice(voice: OscarAiVoice): void {
   try {
     storage()?.setItem(VOICE_KEY, voice);
