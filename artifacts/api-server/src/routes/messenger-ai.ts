@@ -10,6 +10,7 @@ import { synthesizeGeminiSpeech } from "../lib/messenger-ai-tts.ts";
 import {
   baseAudioType,
   listenAndRespond,
+  listenAndReplyForCall,
   parseTurnUpload,
   reserveTurn,
   respondTurn,
@@ -147,6 +148,30 @@ export function createMessengerAiRouter(dependencies: Dependencies = {}) {
     res.setHeader("Content-Length", String(result.audio.length));
     res.setHeader("Cache-Control", "private, no-store");
     res.send(result.audio);
+  });
+
+  router.post("/messenger/ai/call-turn", requireAuth, parseTurnBody, async (req, res) => {
+    const upload = parseTurnUpload(Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0));
+    if (!upload.ok) {
+      res.status(upload.status).json({ error: upload.error });
+      return;
+    }
+    const mimeType = baseAudioType(upload.context.mimeType);
+    if (!mimeType) {
+      res.status(415).json({ error: "نوع التسجيل مش مدعوم." });
+      return;
+    }
+    const limited = reserveTurn(String(res.locals.userId), turnUsage);
+    if (limited) {
+      res.status(limited.status).json({ error: limited.error });
+      return;
+    }
+    const result = await listenAndReplyForCall(apiKey(), upload.audio, mimeType, fetcher);
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ reply: result.reply });
   });
 
   router.post("/messenger/ai/turn/follow-up", requireAuth, async (req, res) => {
