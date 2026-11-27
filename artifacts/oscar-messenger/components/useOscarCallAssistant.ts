@@ -16,6 +16,11 @@ export function useOscarCallAssistant({ getToken }: Options) {
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<OscarCallStatus>("off");
   const [remoteTrack, setRemoteTrack] = useState<MediaStreamTrack | null>(null);
+  const remoteTrackRef = useRef<MediaStreamTrack | null>(null);
+  const updateRemoteTrack = useCallback((track: MediaStreamTrack | null) => {
+    remoteTrackRef.current = track;
+    setRemoteTrack(track);
+  }, []);
   const contextRef = useRef<AudioContext | null>(null);
   const destinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -55,13 +60,14 @@ export function useOscarCallAssistant({ getToken }: Options) {
 
   const dispose = useCallback(() => {
     stop();
-    remoteTrack && setRemoteTrack(null);
+    remoteTrackRef.current = null;
+    setRemoteTrack(null);
     destinationRef.current?.stream.getTracks().forEach((track) => track.stop());
     destinationRef.current = null;
     const context = contextRef.current;
     contextRef.current = null;
     if (context && context.state !== "closed") void context.close().catch(() => undefined);
-  }, [remoteTrack, stop]);
+  }, [stop]);
 
   const start = useCallback(async () => {
     if (!await prepare()) {
@@ -244,6 +250,6 @@ export function useOscarCallAssistant({ getToken }: Options) {
     dispose,
     prepare,
     outgoingStream,
-    setRemoteTrack,
+    setRemoteTrack: updateRemoteTrack,
   };
 }
