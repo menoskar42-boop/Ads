@@ -92,16 +92,18 @@ export function PwaUpdateCoordinator() {
     let updateInFlight = false;
     let lastUpdateCheckAt = 0;
     let pendingReload = false;
+    let reloadStarted = false;
     const hadControllerAtStart = Boolean(navigator.serviceWorker.controller);
     const attachedRegistrations = new WeakSet<ServiceWorkerRegistration>();
     const tryReload = () => {
-      if (disposed || !pendingReload || busyRef.current) return;
+      if (disposed || !pendingReload || busyRef.current || reloadStarted) return;
       try {
         if (sessionStorage.getItem(RELOAD_MARKER) === "1") return;
         sessionStorage.setItem(RELOAD_MARKER, "1");
       } catch {
-        return;
+        // The in-memory guard still prevents duplicate reloads if storage is unavailable.
       }
+      reloadStarted = true;
       window.location.reload();
     };
     tryReloadRef.current = tryReload;
@@ -201,6 +203,14 @@ export function PwaUpdateCoordinator() {
         void requestUpdate();
       }
     };
+    const onPageShow = () => {
+      if (
+        document.visibilityState === "visible" &&
+        (AppState.currentState === null || AppState.currentState === "active")
+      ) {
+        void requestUpdate();
+      }
+    };
 
     navigator.serviceWorker.addEventListener(
       "controllerchange",
@@ -211,6 +221,7 @@ export function PwaUpdateCoordinator() {
       onAppStateChange,
     );
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pageshow", onPageShow);
     void requestUpdate();
 
     return () => {
@@ -222,6 +233,7 @@ export function PwaUpdateCoordinator() {
       );
       appStateSubscription.remove();
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pageshow", onPageShow);
     };
   }, []);
 

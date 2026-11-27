@@ -83,6 +83,11 @@ type PushMessageKind =
 const pushSchemaCache = new WeakMap<object, { checkedAt: number; ready: boolean }>();
 const recipientPushWindows = new Map<string, number>();
 const PUSH_COOLDOWN_MS = 10_000;
+type PushDeliveryOptions = {
+  urgency?: "very-low" | "low" | "normal" | "high";
+  TTL?: number;
+};
+const NORMAL_PUSH_OPTIONS = { urgency: "normal" } as const;
 const HIGH_URGENCY_PUSH_OPTIONS = { urgency: "high", TTL: 86_400 } as const;
 const DELIVERY_TOKEN_LIFETIME_SECONDS = 7 * 24 * 60 * 60;
 const deliveryRateWindows = new Map<string, { startedAt: number; count: number }>();
@@ -277,9 +282,10 @@ export async function deliverPushSubscriptions(
   sendNotification: (
     subscription: PushSubscription,
     payload: string,
-    options: typeof HIGH_URGENCY_PUSH_OPTIONS,
+    options: PushDeliveryOptions,
   ) => Promise<unknown> = (subscription, message, options) =>
     webPush.sendNotification(subscription, message, options),
+  deliveryOptions: PushDeliveryOptions = NORMAL_PUSH_OPTIONS,
 ): Promise<void> {
   await Promise.all(
     subscriptions.map(async (subscription) => {
@@ -287,7 +293,7 @@ export async function deliverPushSubscriptions(
         await sendNotification(
           toWebPushSubscription(subscription),
           JSON.stringify(payload),
-          HIGH_URGENCY_PUSH_OPTIONS,
+          deliveryOptions,
         );
         await pool.query(
           `UPDATE messenger_push_subscriptions
@@ -339,6 +345,7 @@ async function notifyRecipients(
     body: string;
     messageId?: string;
   },
+  deliveryOptions: PushDeliveryOptions = NORMAL_PUSH_OPTIONS,
 ): Promise<void> {
   try {
     if (!configuredVapidPublicKey() || !(await hasMessengerPushSchema(pool))) return;
@@ -388,7 +395,7 @@ async function notifyRecipients(
             : null,
         });
         const payload = badge === undefined ? built : { ...built, badge };
-        await deliverPushSubscriptions(pool, subscriptions, payload);
+        await deliverPushSubscriptions(pool, subscriptions, payload, undefined, deliveryOptions);
       }),
     );
   } catch {
@@ -432,6 +439,7 @@ export async function notifyConversationMessage(
     [input.conversationId, input.senderId],
     input.senderId,
     { ...input, conversationId: input.conversationId },
+    HIGH_URGENCY_PUSH_OPTIONS,
   );
 }
 
@@ -477,6 +485,8 @@ export async function notifyMessengerIncomingCall(
       pool,
       result.rows as PushSubscriptionRow[],
       buildMessengerCallPushPayload(input),
+      undefined,
+      HIGH_URGENCY_PUSH_OPTIONS,
     );
   } catch {
     // Call setup remains available when optional push delivery is unavailable.
@@ -511,5 +521,6 @@ export async function notifyGroupMessage(
       messageType: input.messageType ?? "text",
       body: input.body,
     },
+    HIGH_URGENCY_PUSH_OPTIONS,
   );
 }
