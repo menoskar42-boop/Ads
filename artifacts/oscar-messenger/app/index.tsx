@@ -16,7 +16,6 @@ import {
 } from "react-native";
 import { AppHeader } from "../components/AppHeader";
 import { Avatar } from "../components/Avatar";
-import { InviteActions } from "../components/InviteActions";
 import { OscarAiAssistant } from "../components/OscarAiAssistant";
 import { updateAppBadge } from "../lib/app-badge";
 import { Notice, PrimaryButton, Screen } from "../components/Screen";
@@ -24,7 +23,6 @@ import {
   getMessengerProfile,
   getMessengerFeaturesCapability,
   listMessengerConversations,
-  listMessengerScheduledMessages,
   searchMessengerMessages,
   startMessengerConversation,
   updateMessengerConversationSettings,
@@ -159,13 +157,6 @@ export default function InboxScreen() {
       setActionError("تعذّر فتح محادثة الدعوة. حدّث الصفحة لإعادة المحاولة.");
     },
   });
-  const scheduled = useQuery({
-    queryKey: queryKeys.scheduled,
-    queryFn: listMessengerScheduledMessages,
-    enabled: isLoaded && !!isSignedIn,
-    refetchInterval: 20_000,
-    refetchIntervalInBackground: false,
-  });
   useEffect(() => {
     if (!incomingInvite) {
       setInviteSaved(true);
@@ -209,8 +200,8 @@ export default function InboxScreen() {
   const waiting = profile.isPending || conversations.isPending;
   const apiWaiting = isLoaded && !!isSignedIn && waiting;
   const refresh = useCallback(async () => {
-    await Promise.all([profile.refetch(), conversations.refetch(), scheduled.refetch()]);
-  }, [profile, conversations, scheduled]);
+    await Promise.all([profile.refetch(), conversations.refetch()]);
+  }, [profile, conversations]);
   useEffect(() => {
     if (!apiWaiting) {
       setApiLoadingTimedOut(false);
@@ -296,62 +287,6 @@ export default function InboxScreen() {
               />
             </View>
             <OscarAiAssistant getToken={getToken} />
-            {profile.data?.profile?.username && (
-              <InviteActions username={profile.data.profile.username} />
-            )}
-
-            <View style={styles.searchBand}>
-              <View style={styles.searchCopy}>
-                <Text style={styles.searchTitle}>ابدأ محادثة خاصة</Text>
-                <Text style={styles.searchSub}>ابحث باسم العرض أو اسم المستخدم</Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push("/new-message")}
-                style={({ pressed }) => [styles.newButton, pressed && styles.pressed]}
-              >
-                <Text style={styles.newButtonText}>＋</Text>
-              </Pressable>
-            </View>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push("/scheduled")}
-              style={({ pressed }) => [styles.scheduledShortcut, pressed && styles.pressed]}
-            >
-              <View style={styles.scheduledIcon}>
-                <Ionicons name="calendar-outline" size={20} color={colors.blue} />
-              </View>
-              <View style={styles.scheduledCopy}>
-                <Text style={styles.scheduledTitle}>الرسائل المجدولة</Text>
-                <Text style={styles.scheduledSub}>
-                  {scheduled.data
-                    ? `${scheduled.data.scheduledMessages.filter((item) => item.status === "pending").length} رسالة تنتظر موعدها`
-                    : "راجع المواعيد وحالة الإرسال"}
-                </Text>
-              </View>
-              <Ionicons name="chevron-back" size={18} color={colors.muted} />
-            </Pressable>
-
-            <View style={styles.communityShortcuts}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push("/statuses")}
-                style={({ pressed }) => [styles.communityShortcut, pressed && styles.pressed]}
-              >
-                <Ionicons name="radio-outline" size={19} color={colors.blue} />
-                <Text style={styles.communityShortcutText}>الحالات الخاصة</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push("/groups")}
-                style={({ pressed }) => [styles.communityShortcut, pressed && styles.pressed]}
-              >
-                <Ionicons name="people-outline" size={19} color={colors.blue} />
-                <Text style={styles.communityShortcutText}>المجموعات</Text>
-              </Pressable>
-            </View>
-
             <View style={styles.messageSearch}>
               <Ionicons name="search-outline" size={19} color={colors.muted} />
               <TextInput
@@ -449,7 +384,17 @@ export default function InboxScreen() {
                   {includeArchived ? "المحادثات المؤرشفة" : "الرسائل"}
                 </Text>
               </View>
-              <Text style={styles.count}>{conversations.data?.conversations?.length ?? 0}</Text>
+              <View style={styles.sectionActions}>
+                <Text style={styles.count}>{conversations.data?.conversations?.length ?? 0}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="ابدأ محادثة خاصة"
+                  onPress={() => router.push("/new-message")}
+                  style={({ pressed }) => [styles.newButton, styles.newButtonSmall, pressed && styles.pressed]}
+                >
+                  <Ionicons name="add" size={23} color="#06111F" />
+                </Pressable>
+              </View>
             </View>
             {!!actionError && <Text style={styles.actionError}>{actionError}</Text>}
             {features.isError && (
@@ -666,15 +611,6 @@ const styles = StyleSheet.create({
   greetingText: { flex: 1, alignItems: "flex-end", gap: 5 },
   eyebrow: { color: colors.muted, fontSize: 13, textAlign: "right" },
   heading: { color: colors.text, fontSize: 25, fontWeight: "800", textAlign: "right" },
-  searchBand: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 20, padding: 15, flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 24 },
-  scheduledShortcut: { flexDirection: "row", alignItems: "center", gap: 11, minHeight: 68, paddingHorizontal: 13, marginTop: -12, marginBottom: 20, borderRadius: 17, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  scheduledIcon: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: colors.surfaceRaised },
-  scheduledCopy: { flex: 1, alignItems: "flex-end", gap: 4 },
-  scheduledTitle: { color: colors.text, fontSize: 14, fontWeight: "800", textAlign: "right" },
-  scheduledSub: { color: colors.muted, fontSize: 11, textAlign: "right" },
-  communityShortcuts: { flexDirection: "row", gap: 10, marginTop: -12, marginBottom: 18 },
-  communityShortcut: { flex: 1, minHeight: 50, flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  communityShortcutText: { color: colors.text, fontSize: 13, fontWeight: "800" },
   messageSearch: { minHeight: 48, flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingHorizontal: 13, marginBottom: 12, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   messageSearchInput: { flex: 1, minHeight: 46, color: colors.text, fontSize: 14 },
   searchResults: { maxHeight: 250, marginBottom: 13, padding: 8, borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: 6 },
@@ -687,12 +623,9 @@ const styles = StyleSheet.create({
   noticeDot: { height: 8, width: 8, borderRadius: 4, backgroundColor: colors.blue },
   newMessageText: { flex: 1, color: colors.text, textAlign: "right", fontSize: 13, fontWeight: "700" },
   dismissNotice: { color: colors.muted, fontSize: 20, paddingHorizontal: 3 },
-  searchCopy: { flex: 1, alignItems: "flex-end", gap: 5 },
-  searchTitle: { color: colors.text, fontWeight: "800", fontSize: 16 },
-  searchSub: { color: colors.muted, fontSize: 13, textAlign: "right" },
-  newButton: { width: 48, height: 48, borderRadius: 16, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center" },
-  newButtonText: { color: "#06111F", fontSize: 31, fontWeight: "600", marginTop: -4 },
   sectionHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  newButton: { width: 38, height: 38, borderRadius: 13, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center" },
+  newButtonSmall: { width: 34, height: 34, borderRadius: 11 },
   sectionTitle: { color: colors.text, fontSize: 17, fontWeight: "800" },
   sectionActions: { flexDirection: "row-reverse", alignItems: "center", gap: 10 },
   archiveToggle: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: colors.surfaceRaised },
