@@ -105,7 +105,7 @@ export default function SettingsScreen() {
           getToken={getToken}
         />
       )}
-      {Platform.OS === "web" && <OscarAiWakeSettings />}
+      {Platform.OS === "web" && <OscarAiWakeSettings defaultCallOwnerName={current?.displayName || ""} />}
       {Platform.OS === "web" && <WebPushSettings getToken={getToken} />}
       <Notice>
         <Text style={styles.noticeTitle}>التحديثات</Text>
@@ -306,7 +306,7 @@ function MessengerPresenceSettings({ visible }: { visible: boolean }) {
   );
 }
 
-function OscarAiWakeSettings() {
+function OscarAiWakeSettings({ defaultCallOwnerName }: { defaultCallOwnerName: string }) {
   const [enabled, setEnabled] = useState(false);
   const [voice, setVoice] = useState<OscarAiVoice>("female");
   const [callOwnerName, setCallOwnerName] = useState("");
@@ -318,9 +318,9 @@ function OscarAiWakeSettings() {
     setMessageMode(readOscarAiMessageMode());
     setEnabled(readOscarAiWakeEnabled());
     setVoice(readOscarAiVoice());
-    setCallOwnerName(readOscarAiCallOwnerName());
+    setCallOwnerName(readOscarAiCallOwnerName() || defaultCallOwnerName);
     setShareLocation(readOscarAiShareLocation());
-  }, []);
+  }, [defaultCallOwnerName]);
 
   return (
     <View style={styles.phoneSection}>
