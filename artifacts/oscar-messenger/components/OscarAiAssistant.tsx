@@ -228,14 +228,14 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
    * user's own recorded voice (recorded here, never sent to Gemini).
    */
   const recordVoiceMessage = useCallback(async (contactName: string): Promise<{ blob: Blob; durationMs: number } | null> => {
+    const mimeType = typeof MediaRecorder !== "undefined"
+      ? chooseWebAudioMimeType((type) => MediaRecorder.isTypeSupported(type))
+      : null;
+    if (!mimeType) throw new Error("التسجيل مش مدعوم فى المتصفح ده.");
     const media = stream.current ?? await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
     const ownsMedia = !stream.current;
-    const mimeType = typeof MediaRecorder !== "undefined"
-      ? chooseWebAudioMimeType((type) => MediaRecorder.isTypeSupported(type))
-      : null;
-    if (!media || !mimeType) throw new Error("التسجيل مش مدعوم فى المتصفح ده.");
     // Let Oscar finish «اتكلم بعد الصفارة» so his voice is not recorded into the message.
     const playing = context.current;
     if (playing) {
