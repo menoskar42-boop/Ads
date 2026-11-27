@@ -31,17 +31,20 @@ import {
   readOscarAiMessageMode,
   readOscarAiShareLocation,
   readOscarAiVoice,
+  readOscarAiTtsProvider,
   readOscarAiWakeEnabled,
   readOscarAiCallOwnerName,
   writeOscarAiConversationMode,
   writeOscarAiMessageMode,
   writeOscarAiShareLocation,
   writeOscarAiVoice,
+  writeOscarAiTtsProvider,
   writeOscarAiWakeEnabled,
   writeOscarAiCallOwnerName,
   type OscarAiConversationMode,
   type OscarAiMessageMode,
   type OscarAiVoice,
+  type OscarAiTtsProvider,
 } from "../lib/oscar-ai-preferences";
 import { isPhoneSetupSkipped } from "../lib/phone-setup-storage";
 import { colors } from "../lib/theme";
@@ -313,8 +316,10 @@ function OscarAiWakeSettings({ defaultCallOwnerName }: { defaultCallOwnerName: s
   const [shareLocation, setShareLocation] = useState(true);
   const [messageMode, setMessageMode] = useState<OscarAiMessageMode>("voice");
   const [conversationMode, setConversationMode] = useState<OscarAiConversationMode>("live");
+  const [ttsProvider, setTtsProvider] = useState<OscarAiTtsProvider>("web-speech");
   useEffect(() => {
     setConversationMode(readOscarAiConversationMode());
+    setTtsProvider(readOscarAiTtsProvider());
     setMessageMode(readOscarAiMessageMode());
     setEnabled(readOscarAiWakeEnabled());
     setVoice(readOscarAiVoice());
@@ -374,7 +379,7 @@ function OscarAiWakeSettings({ defaultCallOwnerName }: { defaultCallOwnerName: s
           <Text style={styles.switchTitle}>طريقة الكلام</Text>
           <Text style={styles.copy}>
             {conversationMode === "turn"
-              ? "بالأدوار (أرخص): اتكلم واسكت، كلامك بيظهر مكتوب والرد بصوت الموبايل نفسه. مفيش مقاطعة وهو بيتكلم غير بزرار «قاطع»."
+              ? "بالأدوار (أرخص): Gemini بيسمع كلامك ويفهمه، والرد بيتنطق بمحرك الصوت اللي تختاره تحت. مفيش مقاطعة وهو بيتكلم غير بزرار «قاطع»."
               : "مباشر (Gemini Live): كلام متواصل بصوت Gemini، وتقدر تقاطعه بصوتك."}
           </Text>
         </View>
@@ -392,6 +397,31 @@ function OscarAiWakeSettings({ defaultCallOwnerName }: { defaultCallOwnerName: s
           <Text style={styles.addPhoneText}>{conversationMode === "turn" ? "خليه مباشر" : "خليه بالأدوار"}</Text>
         </Pressable>
       </View>
+      {conversationMode === "turn" && (
+        <View style={styles.switchRow}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.switchTitle}>محرك نطق الردود (بالأدوار)</Text>
+            <Text style={styles.copy}>
+              {ttsProvider === "gemini-tts"
+                ? "Gemini 3.8 Flash-Lite TTS، صوت ثابت بجودة موحدة، ويُحسب ضمن استخدام Gemini."
+                : "Web Speech، يستخدم الصوت العربي المتاح في المتصفح أو الجهاز، بدون طلب TTS من Gemini."}
+            </Text>
+          </View>
+          <Pressable
+            testID="messenger-oscar-ai-tts-provider"
+            accessibilityRole="button"
+            accessibilityLabel="تغيير محرك نطق ردود Oscar AI"
+            onPress={() => {
+              const next: OscarAiTtsProvider = ttsProvider === "web-speech" ? "gemini-tts" : "web-speech";
+              writeOscarAiTtsProvider(next);
+              setTtsProvider(next);
+            }}
+            style={({ pressed }) => [styles.addPhoneButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.addPhoneText}>{ttsProvider === "web-speech" ? "اختار Gemini TTS" : "اختار Web Speech"}</Text>
+          </Pressable>
+        </View>
+      )}
       <View style={styles.switchRow}>
         <View style={styles.switchCopy}>
           <Text style={styles.switchTitle}>صوت Oscar AI</Text>
