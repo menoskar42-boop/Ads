@@ -65,6 +65,8 @@ test("turn loop handles mic denial, empty turns, failures, interruption and stop
   assert.match(hook, /محتاج إذن المايك/);
   assert.match(hook, /ماسمعتش كلام واضح/);
   assert.match(hook, /SPEECH_RMS = 0\.0015/);
+  assert.match(hook, /silentMonitor\.gain\.value = 0/);
+  assert.match(hook, /silentMonitor\.connect\(audioContext\.destination\)/);
   assert.match(hook, /NO_SPEECH_END_MS = 15_000/);
   assert.doesNotMatch(hook, /current\.cancelled \|\| !heardVoice/);
   assert.match(hook, /\/api\/messenger\/ai\/turn"/);
