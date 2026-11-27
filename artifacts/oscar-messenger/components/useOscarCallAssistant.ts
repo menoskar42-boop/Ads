@@ -122,12 +122,17 @@ export function useOscarCallAssistant({ getToken }: Options) {
 
     const recordTurn = () => new Promise<Blob | null>((resolve) => {
       if (typeof MediaRecorder === "undefined") {
+        enabledRef.current = false;
+        setEnabled(false);
         setStatus("error");
         resolve(null);
         return;
       }
       const mimeType = chooseWebAudioMimeType((type) => MediaRecorder.isTypeSupported(type));
       if (!mimeType) {
+        enabledRef.current = false;
+        setEnabled(false);
+        setStatus("error");
         resolve(null);
         return;
       }
