@@ -196,17 +196,20 @@ export default function ChatScreen() {
   const params = useLocalSearchParams<{
     conversationId: string;
     peerName?: string;
+    startCall?: string;
     draft?: string;
     draftKey?: string;
   }>();
   const conversationId = first(params.conversationId);
   const peerNameParam = first(params.peerName);
+  const startCallParam = first(params.startCall);
   const initialDraft = first(params.draft);
   const draftKey = first(params.draftKey);
   const { getToken, isLoaded, isSignedIn, userId } = useAuth();
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList>(null);
   const callControllerRef = useRef<WebCallControllerHandle>(null);
+  const aiCallStartHandled = useRef(false);
   const pendingTextMessageId = useRef<PendingClientMessageId>(null);
   const olderLoadLock = useRef(false);
   const [olderHistory, setOlderHistory] = useState<{
@@ -1469,6 +1472,22 @@ export default function ChatScreen() {
       };
     }, [audioPlayer, conversationId]),
   );
+
+  useEffect(() => {
+    if (
+      !chatScreenActive ||
+      startCallParam !== "1" ||
+      !peer ||
+      aiCallStartHandled.current
+    ) return;
+    const frame = requestAnimationFrame(() => {
+      const controller = callControllerRef.current;
+      if (!controller) return;
+      aiCallStartHandled.current = true;
+      void controller.startCall("audio", true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [chatScreenActive, conversationId, peer?.userId, startCallParam]);
 
   const ownLiveLocation = liveLocations.data?.locations.find((location) => location.isMine);
   const peerLiveLocation = liveLocations.data?.locations.find((location) => !location.isMine);
