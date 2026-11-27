@@ -43,7 +43,7 @@ import { usePwaUpdateActivity } from "../lib/pwa-update-activity";
 import { useOscarCallAssistant } from "./useOscarCallAssistant";
 
 export type WebCallControllerHandle = {
-  startCall: (media?: CallMedia) => Promise<void>;
+  startCall: (media?: CallMedia, confirmed?: boolean) => Promise<void>;
 };
 
 type Props = {
@@ -590,13 +590,16 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       }
     }, [oscarCallAssistant.outgoingStream, oscarCallAssistant.setRemoteTrack, reportCallOutcome, sendSignal]);
 
-    const startCall = useCallback(async (media: CallMedia = "audio") => {
+    const startCall = useCallback(async (
+      media: CallMedia = "audio",
+      alreadyConfirmed = false,
+    ) => {
       if (!isWebCallSupported || !enabled || !conversationId || !peerName) return;
       if (callRef.current && callRef.current.state !== "ended") return;
-      const confirmed = window.confirm(
+      const userConfirmed = alreadyConfirmed || window.confirm(
         `هتتصل بـ${peerName} ${media === "video" ? "مكالمة فيديو" : "مكالمة صوتية"}؟`,
       );
-      if (!confirmed) return;
+      if (!userConfirmed) return;
       setBusy(true);
       setCallError("");
       setConnectedAt(null);
@@ -665,7 +668,10 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
 
     useImperativeHandle(
       ref,
-      () => ({ startCall: (media?: CallMedia) => startCall(media ?? "audio") }),
+      () => ({
+        startCall: (media?: CallMedia, confirmed?: boolean) =>
+          startCall(media ?? "audio", confirmed ?? false),
+      }),
       [startCall],
     );
 
