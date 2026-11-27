@@ -167,9 +167,14 @@ export function useOscarCallAssistant({ getToken, userName }: Options) {
     const context = contextRef.current;
     const stream = new MediaStream([remoteTrack]);
     const input = context.createMediaStreamSource(stream);
+    // Boost only the VAD meter, not the recorded or audible remote audio.
+    // This lets quiet remote speech cross the detector threshold without changing call volume.
+    const detectionGain = context.createGain();
+    detectionGain.gain.value = 3;
     const analyser = context.createAnalyser();
     analyser.fftSize = 1024;
-    input.connect(analyser);
+    input.connect(detectionGain);
+    detectionGain.connect(analyser);
     const samples = new Float32Array(analyser.fftSize);
     let cancelled = false;
     let recorder: MediaRecorder | null = null;
@@ -294,6 +299,7 @@ export function useOscarCallAssistant({ getToken, userName }: Options) {
       if (recorder?.state === "recording") recorder.stop();
       if (recorderRef.current?.state === "recording") recorderRef.current.stop();
       input.disconnect();
+      detectionGain.disconnect();
       analyser.disconnect();
     };
   }, [enabled, getToken, remoteTrack, speak]);
