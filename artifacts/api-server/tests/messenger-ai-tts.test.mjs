@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import express from "express";
 import test from "node:test";
-import { synthesizeGeminiSpeech } from "../src/lib/messenger-ai-tts.ts";
+import { pcmToWav, synthesizeGeminiSpeech } from "../src/lib/messenger-ai-tts.ts";
 import { createMessengerAiRouter } from "../src/routes/messenger-ai.ts";
 
 function fakeSpeech(status = 200) {
@@ -44,6 +44,28 @@ test("Gemini TTS returns WAV bytes and keeps the API key server-side", async () 
   assert.deepEqual(calls[0].body.generationConfig.responseModalities, ["AUDIO"]);
   assert.equal(calls[0].body.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, "Kore");
   assert.equal(calls[0].body.contents[0].parts[0].text, "أهلاً بيك");
+});
+
+test("raw Gemini PCM is wrapped in WAV so browser playback can decode it", async () => {
+  const pcm = Buffer.from([0, 0, 1, 0, 255, 127, 0, 128]);
+  const result = await synthesizeGeminiSpeech("key", "Hello", "female", async () => Response.json({
+    candidates: [{
+      content: {
+        parts: [{ inlineData: {
+          mimeType: "audio/L16;codec=pcm;rate=24000",
+          data: pcm.toString("base64"),
+        } }],
+      },
+    }],
+  }));
+  assert.equal(result.ok, true);
+  assert.equal(result.mimeType, "audio/wav");
+  assert.equal(result.audio.toString("ascii", 0, 4), "RIFF");
+  assert.equal(result.audio.toString("ascii", 8, 12), "WAVE");
+  assert.equal(result.audio.readUInt32LE(24), 24_000);
+  assert.equal(result.audio.readUInt32LE(40), pcm.length);
+  assert.deepEqual(result.audio.subarray(44), pcm);
+  assert.equal(pcmToWav(pcm).length, 44 + pcm.length);
 });
 
 test("Gemini TTS selects the male voice and validates text and key", async () => {
