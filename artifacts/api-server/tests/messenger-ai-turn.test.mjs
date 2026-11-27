@@ -97,6 +97,26 @@ test("history never accepts audio or files, and size is bounded", () => {
   assert.equal(cleanContents([]), null);
 });
 
+test("turn-based mode enables Google Search by default and falls back once on 400", async () => {
+  const previousSearch = process.env.GEMINI_TURN_SEARCH;
+  delete process.env.GEMINI_TURN_SEARCH;
+  try {
+    let n = 0;
+    const fetcher = async (_url, init) => {
+      n += 1;
+      const body = JSON.parse(init.body);
+      if (body.tools.some((tool) => tool.googleSearch)) return new Response("{}", { status: 400 });
+      return Response.json({ candidates: [{ content: { parts: [{ text: "<transcript>الحرارة كام</transcript><reply>الطقس غير متاح الآن.</reply>" }] } }] });
+    };
+    const result = await listenAndRespond("key", Buffer.from("a"), "audio/webm", [], {}, fetcher);
+    assert.equal(result.reply, "الطقس غير متاح الآن.");
+    assert.equal(n, 2);
+  } finally {
+    if (previousSearch === undefined) delete process.env.GEMINI_TURN_SEARCH;
+    else process.env.GEMINI_TURN_SEARCH = previousSearch;
+  }
+});
+
 test("search falls back once on 400, never retries 429", async () => {
   const previousSearch = process.env.GEMINI_TURN_SEARCH;
   process.env.GEMINI_TURN_SEARCH = "on";
