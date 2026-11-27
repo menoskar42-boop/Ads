@@ -13,11 +13,8 @@ export const GEMINI_TURN_MODEL =
   process.env.GEMINI_TURN_MODEL?.trim() || "gemini-3.5-flash-lite";
 export const TURN_MAX_AUDIO_BYTES = 3 * 1024 * 1024;
 export const TURN_MAX_CONTEXT_BYTES = 64 * 1024;
-// Free tier on the owner's AI Studio (2026-11-27): ~15 RPM · 500 RPD for Flash-Lite ⇒ cap per user.
-export const TURN_DAILY_LIMIT =
-  Number.parseInt(process.env.GEMINI_TURN_DAILY_LIMIT ?? "", 10) > 0
-    ? Number.parseInt(process.env.GEMINI_TURN_DAILY_LIMIT ?? "", 10)
-    : 500;
+// Owner-configured per-user daily cap. Deliberately fixed so old Replit env values cannot override it.
+export const TURN_DAILY_LIMIT = 100000;
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const AUDIO_TYPES = new Set([
