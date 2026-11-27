@@ -230,7 +230,11 @@ async function endCallOnServer(callId: string): Promise<void> {
   }
 }
 
-type ScreenWakeLock = { release: () => Promise<void> };
+type ScreenWakeLock = {
+  release: () => Promise<void>;
+  addEventListener?: (type: "release", listener: () => void) => void;
+  removeEventListener?: (type: "release", listener: () => void) => void;
+};
 
 function responseStatus(error: unknown): number {
   return error && typeof error === "object" && "status" in error
@@ -965,9 +969,9 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
 
     // Keep the screen on during a call so the phone's auto-lock does not freeze the page.
     // Unsupported browsers just skip this; the call itself never depends on it.
-    const callHoldsScreen =
-      !!call &&
-      (call.state === "active" || (call.state === "ringing" && call.callerId === userId));
+    // Keep the device screen awake for every ringing/active call, including incoming calls.
+    // Browsers release the lock when the document becomes hidden, so reacquire it on return.
+    const callHoldsScreen = !!call && call.state !== "ended";
     useEffect(() => {
       if (!callHoldsScreen || Platform.OS !== "web" || typeof navigator === "undefined") return;
       const wakeLockApi = (navigator as Navigator & {
@@ -975,32 +979,41 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       }).wakeLock;
       if (!wakeLockApi) return;
       let lock: ScreenWakeLock | null = null;
+      let requesting = false;
       let stopped = false;
+      const onRelease = () => {
+        lock = null;
+      };
       const acquire = async () => {
-        if (stopped || lock || document.visibilityState !== "visible") return;
+        if (stopped || requesting || lock || document.visibilityState !== "visible") return;
+        requesting = true;
         try {
           const acquired = await wakeLockApi.request("screen");
-          if (stopped) void acquired.release().catch(() => undefined);
-          else lock = acquired;
+          if (stopped || document.visibilityState !== "visible") {
+            void acquired.release().catch(() => undefined);
+          } else {
+            lock = acquired;
+            lock.addEventListener?.("release", onRelease);
+          }
         } catch {
-          // The browser may refuse (battery saver); the call continues without it.
+          // The browser may refuse (battery saver, unsupported PWA mode); the call continues.
+        } finally {
+          requesting = false;
         }
       };
       const onVisibility = () => {
-        if (document.visibilityState === "visible") {
-          lock = null;
-          void acquire();
-        }
+        if (document.visibilityState === "visible") void acquire();
       };
       void acquire();
       document.addEventListener("visibilitychange", onVisibility);
       return () => {
         stopped = true;
         document.removeEventListener("visibilitychange", onVisibility);
+        lock?.removeEventListener?.("release", onRelease);
         if (lock) void lock.release().catch(() => undefined);
         lock = null;
       };
-    }, [callHoldsScreen, call?.id, userId]);
+    }, [callHoldsScreen, call?.id]);
 
     useEffect(() => () => {
       if (endedTimerRef.current) clearTimeout(endedTimerRef.current);
