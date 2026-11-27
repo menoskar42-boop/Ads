@@ -25,6 +25,11 @@ test("contact matching supports Arabic, English, mixed spelling, and asks on amb
   assert.deepEqual(matchContacts(arabic, "دكتورة سنا").map((c) => c.conversationId), ["arabic-sana"]);
   assert.deepEqual(matchContacts(arabic, "doc سنا").map((c) => c.conversationId), ["arabic-sana"]);
   assert.deepEqual(matchContacts(english, "دكتورة Sana").map((c) => c.conversationId), ["english-sana"]);
+  // Spoken title variants and phonetic Arabic/Latin spellings should resolve to the same contact.
+  const sanaa = [{ id: "sanaa", peer: { displayName: "Dr. Sanaa", nickname: null } }];
+  assert.deepEqual(matchContacts(sanaa, "دكتور سناء").map((c) => c.conversationId), ["sanaa"]);
+  assert.deepEqual(matchContacts(sanaa, "دوك سناء").map((c) => c.conversationId), ["sanaa"]);
+  assert.deepEqual(matchContacts(sanaa, "د. Sanaa").map((c) => c.conversationId), ["sanaa"]);
   const duplicates = [
     { id: "sana-1", peer: { displayName: "سنا", nickname: null } },
     { id: "sana-2", peer: { displayName: "Sana", nickname: null } },
