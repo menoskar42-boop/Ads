@@ -39,6 +39,7 @@ import { queryKeys } from "../lib/api";
 import { colors } from "../lib/theme";
 import { webMicrophoneErrorMessage } from "../lib/web-voice";
 import { usePwaUpdateActivity } from "../lib/pwa-update-activity";
+import { useOscarCallAssistant } from "./useOscarCallAssistant";
 
 export type WebCallControllerHandle = {
   startCall: (media?: CallMedia) => Promise<void>;
@@ -244,7 +245,8 @@ function responseStatus(error: unknown): number {
 
 export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
   function WebCallController({ conversationId, peerName, enabled, onError }, ref) {
-    const { userId } = useAuth();
+    const { userId, getToken } = useAuth();
+    const oscarCallAssistant = useOscarCallAssistant({ getToken: () => getToken() });
     const queryClient = useQueryClient();
     const [call, setCall] = useState<MessengerCall | null>(null);
     const [busy, setBusy] = useState(false);
@@ -360,6 +362,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       }
       stopStream(streamRef.current);
       streamRef.current = null;
+      oscarCallAssistant.dispose();
       setConnectionReady(false);
       pendingCandidatesRef.current = [];
       const audio = remoteAudioRef.current;
@@ -377,7 +380,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       setSpeakerOn(false);
       facingModeRef.current = "user";
       stopRingtone();
-    }, [stopRingtone]);
+    }, [oscarCallAssistant.dispose, stopRingtone]);
 
     const attachLocalStream = useCallback((stream: MediaStream, cameraUnavailable: boolean) => {
       streamRef.current = stream;
@@ -513,7 +516,10 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
           }
         }
       });
+      const oscarStream = oscarCallAssistant.outgoingStream();
+      oscarStream?.getAudioTracks().forEach((track) => connection.addTrack(track, oscarStream));
       connection.ontrack = (event) => {
+        if (event.track.kind === "audio") oscarCallAssistant.setRemoteTrack(event.track);
         const remoteStream = event.streams[0] ?? new MediaStream([event.track]);
         // Audio always plays through the hidden <audio>; the <video> stays muted.
         const remoteAudio = remoteAudioRef.current;
@@ -570,7 +576,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
         await connection.setLocalDescription(offer);
         await sendSignal(current.id, "offer", offer);
       }
-    }, [reportCallOutcome, sendSignal]);
+    }, [oscarCallAssistant.outgoingStream, oscarCallAssistant.setRemoteTrack, reportCallOutcome, sendSignal]);
 
     const startCall = useCallback(async (media: CallMedia = "audio") => {
       if (!isWebCallSupported || !enabled || !conversationId || !peerName) return;
@@ -585,6 +591,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       setDurationSeconds(0);
       callAcceptedAtMsRef.current = null;
       try {
+        await oscarCallAssistant.prepare();
         const { stream: localStream, cameraUnavailable } = await requestCallMedia(media);
         attachLocalStream(localStream, cameraUnavailable);
         setMuted(false);
@@ -641,6 +648,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       peerName,
       updateCall,
       userId,
+      oscarCallAssistant.prepare,
     ]);
 
     useImperativeHandle(
@@ -656,6 +664,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       setCallError("");
       callAcceptedAtMsRef.current = monotonicNowMs();
       try {
+        await oscarCallAssistant.prepare();
         const { stream: localStream, cameraUnavailable } = await requestCallMedia(
           current.media === "video" ? "video" : "audio",
         );
@@ -693,6 +702,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
       onError,
       updateCall,
       userId,
+      oscarCallAssistant.prepare,
     ]);
 
     const toggleCamera = useCallback(() => {
@@ -1133,6 +1143,14 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
                 </Text>
               )}
               {!!callError && <Text style={styles.error}>{callError}</Text>}
+              {!!connectedAt && oscarCallAssistant.enabled && (
+                <Text style={styles.diagnostic}>
+                  أوسكار مشارك، {oscarCallAssistant.status === "listening" ? "بيسمع الطرف الآخر" : oscarCallAssistant.status === "thinking" ? "بيفهم الكلام" : oscarCallAssistant.status === "speaking" ? "بيرد بصوته" : "فيه مشكلة مؤقتة"}
+                </Text>
+              )}
+              {!!connectedAt && oscarCallAssistant.enabled && (
+                <Text style={styles.diagnostic}>تأكد إن الطرف الآخر عارف إن مساعد أوسكار الذكي بيشارك في المكالمة.</Text>
+              )}
               {busy && <ActivityIndicator color={colors.blue} />}
               {incoming && call?.state === "ringing" ? (
                 <View style={styles.actions}>
@@ -1215,6 +1233,19 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
                       <Text style={styles.actionText}>تبديل</Text>
                     </Pressable>
                   )}
+                  <Pressable
+                    accessibilityRole="button"
+                    testID="call-oscar-toggle"
+                    disabled={busy}
+                    onPress={() => {
+                      if (oscarCallAssistant.enabled) oscarCallAssistant.stop();
+                      else void oscarCallAssistant.start();
+                    }}
+                    style={[styles.actionButton, oscarCallAssistant.enabled ? styles.acceptButton : styles.secondaryButton]}
+                  >
+                    <Ionicons name={oscarCallAssistant.enabled ? "sparkles" : "sparkles-outline"} size={23} color="#FFFFFF" />
+                    <Text style={styles.actionText}>{oscarCallAssistant.enabled ? "إيقاف أوسكار" : "أوسكار يشارك"}</Text>
+                  </Pressable>
                   {audioOutputs.length > 1 && supportsSinkSelection() && (
                     <Pressable
                       accessibilityRole="button"
