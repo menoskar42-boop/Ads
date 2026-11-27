@@ -21,7 +21,7 @@ export function normalizeArabicName(value: string): string {
 // Consonant-only comparison handles Arabic writing that omits short vowels (e.g. سنا / Sana).
 function contactNameKeys(value: string): string[] {
   const normalized = normalizeArabicName(value)
-    .replace(/^(?:(?:doc(?:tor)?|dr|mr|mrs|ms|دكتور|دكتوره|دكتورة|د\s*)\s*)+/u, "")
+    .replace(/^(?:(?:doc(?:tor)?|dr|mr|mrs|ms|دكتوره|دكتورة|دكتور|د\s+)\s*)+/u, "")
     .trim();
   if (!normalized) return [];
   const latin = normalized
