@@ -181,11 +181,11 @@ test("call audio replies are restricted, short, and never expose messaging tools
   const fetcher = async (url, init) => {
     calls.push({ url, body: JSON.parse(init.body), headers: init.headers });
     return Response.json({
-      candidates: [{ content: { parts: [{ text: "أهلاً، أنا أوسكار المساعد الذكي." }] } }]
+      candidates: [{ content: { parts: [{ text: "<transcript>إزيك</transcript><reply>أهلاً، أنا أوسكار المساعد الذكي.</reply>" }] } }]
     });
   };
-  const result = await listenAndReplyForCall("secret", Buffer.from("remote-audio"), "audio/webm", fetcher);
-  assert.deepEqual(result, { ok: true, reply: "أهلاً، أنا أوسكار المساعد الذكي." });
+  const result = await listenAndReplyForCall("secret", Buffer.from("remote-audio"), "audio/webm", [], fetcher);
+  assert.deepEqual(result, { ok: true, transcript: "إزيك", reply: "أهلاً، أنا أوسكار المساعد الذكي." });
   assert.match(calls[0].url, /gemini-3\\.5-flash-lite:generateContent$/);
   assert.equal(calls[0].headers["x-goog-api-key"], "secret");
   assert.match(calls[0].body.systemInstruction.parts[0].text, /لا تتظاهر أنك صاحب الحساب/);
@@ -210,7 +210,7 @@ test("call-turn route requires auth and returns only the generated reply", async
     fetcher: async (_url, init) => {
       const body = JSON.parse(init.body);
       assert.equal("tools" in body, false);
-      return Response.json({ candidates: [{ content: { parts: [{ text: "أنا أوسكار، المساعد الذكي." }] } }] });
+      return Response.json({ candidates: [{ content: { parts: [{ text: "<transcript>أهلاً</transcript><reply>أنا أوسكار، المساعد الذكي.</reply>" }] } }] });
     },
   });
   await withServer(router, async (base) => {
@@ -222,6 +222,6 @@ test("call-turn route requires auth and returns only the generated reply", async
     assert.equal((await post(frame({ mimeType: "audio/webm" }), null)).status, 401);
     const response = await post(frame({ mimeType: "audio/webm" }));
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { reply: "أنا أوسكار، المساعد الذكي." });
+    assert.deepEqual(await response.json(), { transcript: "أهلاً", reply: "أنا أوسكار، المساعد الذكي." });
   });
 });
