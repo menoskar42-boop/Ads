@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { frameTurnBody, pickArabicVoice, trimTurnHistory } from "../lib/oscar-ai-turn.ts";
+import { frameTurnBody, oscarAiSpeechOutput, pickArabicVoice, trimTurnHistory } from "../lib/oscar-ai-turn.ts";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -35,6 +35,15 @@ test("an Egyptian Arabic voice is preferred, then any Arabic voice", () => {
   assert.equal(pickArabicVoice(voices).name, "eg");
   assert.equal(pickArabicVoice(voices.slice(0, 2)).name, "sa");
   assert.equal(pickArabicVoice([{ lang: "en-GB", name: "x" }]), null);
+});
+
+test("turn speech playback uses a replaceable provider boundary", () => {
+  assert.equal(oscarAiSpeechOutput.provider, "web-speech");
+  assert.equal(typeof oscarAiSpeechOutput.prime, "function");
+  assert.equal(typeof oscarAiSpeechOutput.speak, "function");
+  assert.equal(typeof oscarAiSpeechOutput.stop, "function");
+  const source = read("../lib/oscar-ai-turn.ts");
+  assert.match(source, /gemini-3\.8-flash-lite-tts/);
 });
 
 test("turn mode is behind the setting, Live stays the default", () => {
