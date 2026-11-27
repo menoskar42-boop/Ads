@@ -290,7 +290,8 @@ export function OscarAiAssistant({ getToken }: { getToken: () => Promise<string 
   const runMessageTool = useCallback(async (name: unknown, args: Record<string, unknown>) => {
     try {
       const said = typeof args.contact_name === "string" ? args.contact_name : "";
-      const { conversations } = await listMessengerConversations();
+      // Include archived chats too, otherwise a valid contact can appear "missing".
+      const { conversations } = await listMessengerConversations({ includeArchived: true });
       const matches = matchContacts(conversations, said);
       if (!matches.length) return { error: `مش لاقى حد اسمه «${said}» فى محادثاتك.` };
       if (matches.length > 1) {
