@@ -6,6 +6,7 @@ import {
   parseGeminiLiveOptions,
   type GeminiLiveTokenResult,
 } from "../lib/messenger-ai-live.ts";
+import { synthesizeGeminiSpeech } from "../lib/messenger-ai-tts.ts";
 import {
   baseAudioType,
   listenAndRespond,
@@ -123,6 +124,29 @@ export function createMessengerAiRouter(dependencies: Dependencies = {}) {
     }
     const { ok: _ok, ...reply } = result;
     res.json(reply);
+  });
+
+  router.post("/messenger/ai/tts", requireAuth, async (req, res) => {
+    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+    const voice = req.body?.voice === "male" ? "male" : "female";
+    if (!text || text.length > 1_200) {
+      res.status(400).json({ error: "النص فاضي أو أطول من اللازم." });
+      return;
+    }
+    const limited = reserveTurn(String(res.locals.userId), turnUsage, Date.now(), TURN_DAILY_LIMIT);
+    if (limited) {
+      res.status(limited.status).json({ error: limited.error });
+      return;
+    }
+    const result = await synthesizeGeminiSpeech(apiKey(), text, voice, fetcher);
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.setHeader("Content-Type", result.mimeType);
+    res.setHeader("Content-Length", String(result.audio.length));
+    res.setHeader("Cache-Control", "private, no-store");
+    res.send(result.audio);
   });
 
   router.post("/messenger/ai/turn/follow-up", requireAuth, async (req, res) => {
