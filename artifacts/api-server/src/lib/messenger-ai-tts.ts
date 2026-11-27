@@ -11,6 +11,37 @@ export type SpeechResult =
 
 type Fetcher = typeof fetch;
 
+/** Gemini commonly returns raw 16-bit PCM (audio/L16), which browsers cannot decode as a file.
+ * Wrap it in a minimal WAV container so Web Audio can decode it reliably.
+ */
+export function pcmToWav(pcm: Buffer, sampleRate = 24_000, channels = 1): Buffer {
+  const header = Buffer.alloc(44);
+  const byteRate = sampleRate * channels * 2;
+  const blockAlign = channels * 2;
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
+
+function normalizeAudio(audio: Buffer, mimeType: string): { audio: Buffer; mimeType: string } {
+  if (/^audio\\/(?:l16|pcm)\\b/i.test(mimeType)) {
+    const rate = /rate=(\\d+)/i.exec(mimeType)?.[1];
+    return { audio: pcmToWav(audio, rate ? Number(rate) : 24_000), mimeType: "audio/wav" };
+  }
+  return { audio, mimeType };
+}
+
 export async function synthesizeGeminiSpeech(
   apiKey: string | undefined,
   rawText: string,
@@ -77,11 +108,12 @@ export async function synthesizeGeminiSpeech(
     if (!audio.length || audio.length > 4 * 1024 * 1024) {
       return { ok: false, status: 502, error: "ملف الصوت الناتج غير صالح أو كبير." };
     }
-    const mimeType = typeof audioPart.mimeType === "string" &&
+    const sourceMimeType = typeof audioPart.mimeType === "string" &&
       audioPart.mimeType.startsWith("audio/")
       ? audioPart.mimeType
       : "audio/wav";
-    return { ok: true, audio, mimeType };
+    const normalized = normalizeAudio(audio, sourceMimeType);
+    return { ok: true, ...normalized };
   } catch {
     return { ok: false, status: 502, error: "تعذر الاتصال بخدمة الصوت من Gemini." };
   }
