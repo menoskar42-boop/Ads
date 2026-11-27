@@ -41,7 +41,6 @@ import { colors } from "../lib/theme";
 import { webMicrophoneErrorMessage } from "../lib/web-voice";
 import { usePwaUpdateActivity } from "../lib/pwa-update-activity";
 import { useOscarCallAssistant } from "./useOscarCallAssistant";
-import { readOscarAiCallOwnerName } from "../lib/oscar-ai-preferences";
 
 export type WebCallControllerHandle = {
   startCall: (media?: CallMedia) => Promise<void>;
@@ -299,7 +298,7 @@ export const WebCallController = forwardRef<WebCallControllerHandle, Props>(
     });
     const oscarCallAssistant = useOscarCallAssistant({
       getToken: getAuthToken,
-      userName: readOscarAiCallOwnerName() || ownProfile.data?.profile?.displayName || "صاحب الحساب",
+      userName: ownProfile.data?.profile?.displayName || "صاحب الحساب",
     });
     usePwaUpdateActivity(
       "web-call",
