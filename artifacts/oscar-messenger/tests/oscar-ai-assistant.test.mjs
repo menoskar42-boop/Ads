@@ -31,7 +31,8 @@ test("the web assistant requires consent, stays page-visible, and enforces sessi
   assert.match(source, /اتكلم مع Oscar AI/);
   assert.match(source, /كلامك بيتبعت لجوجل/);
   assert.match(source, /MAX_SESSION_MS = 5 \* 60_000/);
-  assert.match(source, /SILENCE_END_MS = 8_000/);
+  assert.match(source, /SILENCE_END_MS = 15_000/);
+  assert.match(source, /Math\\.sqrt\\(energy \/ input\\.length\\) > 0\\.003/);
   assert.match(source, /pageVisible/);
   assert.match(
     source,
